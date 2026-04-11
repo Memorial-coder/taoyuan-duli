@@ -1,0 +1,7 @@
+# CI 构建专用 dockerignore
+# 只保留 docs/ 和 nginx.conf，排除其他所有文件
+
+*
+
+!docs/
+!nginx.conf

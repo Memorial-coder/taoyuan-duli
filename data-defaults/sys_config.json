@@ -1,0 +1,23 @@
+{
+  "checkin_enabled": true,
+  "checkin_mode": "fixed",
+  "checkin_quota": 500000,
+  "checkin_quota_min": 100000,
+  "checkin_quota_max": 1000000,
+  "checkin_streak_bonus": true,
+  "pity_enabled": true,
+  "pity_threshold": 10,
+  "pity_prob_step": 0.02,
+  "exchange_rate": 500000,
+  "taoyuan_exchange_rate_quota_per_money": 100,
+  "taoyuan_exchange_rate_dollar_per_money": 0.0002,
+  "taoyuan_return_button_enabled": false,
+  "taoyuan_return_button_text": "返回首页",
+  "taoyuan_return_button_url": "/",
+  "taoyuan_about_button_enabled": true,
+  "taoyuan_about_button_text": "关于游戏",
+  "taoyuan_about_dialog_title": "关于桃源乡独立版",
+  "taoyuan_about_dialog_content": "欢迎来到桃源乡独立版。这是一款可独立运行的文字田园模拟经营游戏。",
+  "taoyuan_daily_import_limit_money": 0,
+  "taoyuan_daily_export_limit_money": 0
+}

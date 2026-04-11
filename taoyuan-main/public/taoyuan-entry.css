@@ -1,0 +1,18 @@
+html,
+body {
+  background: #0d1117;
+  margin: 0;
+}
+
+#app:empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  color: #8b949e;
+  font-family: system-ui, -apple-system, sans-serif;
+}
+
+#app:empty::after {
+  content: '桃源乡加载中...';
+}

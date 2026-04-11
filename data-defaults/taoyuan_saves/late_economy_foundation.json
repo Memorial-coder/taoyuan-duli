@@ -1,0 +1,10 @@
+{
+  "id": "late_economy_foundation",
+  "label": "后期富裕经营档",
+  "tags": ["late-game", "economy", "weekly-metrics", "village", "hanhai"],
+  "loader": "built-in",
+  "notes": [
+    "通过开发态样例存档加载器直接注入",
+    "重点验证周快照、周风险报告、村庄建设和瀚海联动"
+  ]
+}

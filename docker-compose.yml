@@ -1,0 +1,11 @@
+services:
+  taoyuan:
+    image: taoyuan-duli:latest
+    container_name: taoyuan
+    restart: unless-stopped
+    env_file:
+      - .env
+    ports:
+      - "${HOST_PORT:-4014}:4013"
+    volumes:
+      - ./data:/app/data

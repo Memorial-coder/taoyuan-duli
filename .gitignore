@@ -1,0 +1,24 @@
+# Local assistant settings
+.claude/
+
+# Local environment files
+.env
+server/.env
+
+# Installed dependencies
+server/node_modules/
+taoyuan-main/node_modules/
+
+# Build outputs
+taoyuan-main/dist/
+taoyuan-main/dist-ssr/
+taoyuan-main/dist-electron/
+
+# Local runtime data
+data/
+
+# Local signing keys
+taoyuan-main/android/key
+
+# Local archives
+taoyuan-duli-latest.tar

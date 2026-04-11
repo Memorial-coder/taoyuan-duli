@@ -1,0 +1,25 @@
+# CI 专用 Dockerfile
+# 前端已在 CI runner 中构建完成，此处仅复制构建产物到 nginx
+
+FROM nginx:alpine
+
+ARG BUILD_DATE
+ARG VERSION
+ARG COMMIT_SHA
+
+LABEL org.opencontainers.image.created="${BUILD_DATE}"
+LABEL org.opencontainers.image.version="${VERSION}"
+LABEL org.opencontainers.image.revision="${COMMIT_SHA}"
+
+# 复制 nginx 配置
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# 清理默认静态文件
+RUN rm -rf /usr/share/nginx/html/*
+
+# 复制 CI 已构建好的产物
+COPY docs /usr/share/nginx/html
+
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]

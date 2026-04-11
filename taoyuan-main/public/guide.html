@@ -1,0 +1,268 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>桃源乡新手教程</title>
+  <style>
+    @page { size: A4; margin: 18mm 14mm; }
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #2f2717; line-height: 1.75; font-size: 15px; background: linear-gradient(180deg,#f7f0df 0%, #fcfaf5 100%); }
+    .page { max-width: 1180px; margin: 0 auto; padding: 28px 20px 56px; }
+    .hero { background: linear-gradient(135deg,#fff7df,#f6ead0); border: 1px solid #e7c986; border-radius: 20px; padding: 30px; box-shadow: 0 12px 36px rgba(138,90,18,.10); margin-bottom: 22px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 8px; margin-bottom: 14px; color: #8a5a12; font-size: 12px; background: rgba(138,90,18,.08); border: 1px solid rgba(138,90,18,.16); padding: 6px 10px; border-radius: 999px; }
+    .hero h1 { margin: 0 0 12px; font-size: 34px; color: #8a5a12; }
+    .hero p { margin: 0; color: #5f4a22; }
+    .hero-meta, .hero-actions, .inline-links, .back-links, .jump-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+    .hero-meta span { background: rgba(138,90,18,.08); color: #7a5514; border: 1px solid rgba(138,90,18,.16); padding: 6px 10px; border-radius: 999px; font-size: 12px; }
+    .button-link, .toc a, .quick-grid a, .card a, .route-card a, .inline-links a, .back-links a, .jump-links a, .back-top { color: #9d6612; text-decoration: none; }
+    .button-link { display: inline-flex; align-items: center; gap: 8px; padding: 10px 14px; border-radius: 999px; border: 1px solid rgba(138,90,18,.18); background: #fffaf0; color: #8a5a12 !important; font-weight: 600; }
+    .button-link:hover, .toc a:hover { background: rgba(138,90,18,.08); }
+    .layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 24px; align-items: start; }
+    .sidebar { position: sticky; top: 18px; background: rgba(255,255,255,.88); backdrop-filter: blur(8px); border: 1px solid #ead8b2; border-radius: 16px; padding: 18px; box-shadow: 0 10px 28px rgba(0,0,0,.06); }
+    .sidebar h2 { margin: 0 0 10px; font-size: 18px; color: #8a5a12; }
+    .toc { list-style: none; margin: 0; padding: 0; }
+    .toc li + li { margin-top: 6px; }
+    .toc a { display: block; padding: 7px 10px; border-radius: 10px; color: #5c471e; }
+    .content { background: rgba(255,255,255,.94); border: 1px solid #ead8b2; border-radius: 18px; padding: 28px 30px; box-shadow: 0 10px 28px rgba(0,0,0,.06); }
+    h1, h2, h3, h4 { color: #8a5a12; page-break-after: avoid; scroll-margin-top: 18px; }
+    h2 { font-size: 24px; margin-top: 34px; border-left: 5px solid #d9b56d; padding-left: 10px; }
+    h3 { font-size: 19px; margin-top: 22px; }
+    p, li { orphans: 3; widows: 3; }
+    strong { color: #000; }
+    code { background: #f4f0e8; padding: 1px 5px; border-radius: 4px; font-family: Consolas, monospace; }
+    blockquote { margin: 14px 0; padding: 10px 14px; background: #faf6ea; border-left: 4px solid #d9b56d; color: #5a4a2a; }
+    hr { border: none; border-top: 1px solid #eadfcb; margin: 24px 0; }
+    ul, ol { padding-left: 24px; }
+    .lead-box, .tip-box, .warn-box, .link-box, .card, .route-card { border-radius: 16px; padding: 18px 18px 16px; margin: 16px 0; border: 1px solid #ead8b2; background: #fffaf0; }
+    .warn-box { background: #fff4e7; border-color: #efc889; }
+    .tip-box { background: #f8f5ea; }
+    .link-box { background: #fcf8ef; }
+    .lead-box h3, .tip-box h3, .warn-box h3, .link-box h3, .card h3, .route-card h3 { margin-top: 0; }
+    .quick-grid, .card-grid, .route-grid { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .route-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .quick-grid a, .card a, .route-card a, .inline-links a, .back-links a, .jump-links a { text-decoration: underline; text-underline-offset: 3px; }
+    .kicker { font-size: 12px; letter-spacing: .06em; color: #8d6a2a; text-transform: uppercase; margin-bottom: 8px; }
+    .back-top { position: fixed; right: 18px; bottom: 18px; background: #8a5a12; color: #fff !important; padding: 10px 14px; border-radius: 999px; box-shadow: 0 8px 18px rgba(0,0,0,.15); font-size: 13px; }
+    @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } .sidebar { position: static; } .content { padding: 22px 18px; } .hero { padding: 22px 18px; } .hero h1 { font-size: 28px; } .quick-grid, .card-grid, .route-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body id="top">
+  <div class="page">
+    <header class="hero">
+      <div class="eyebrow">默认进入页 · 新手教程</div>
+      <h1>桃源乡 · 新手先看这页</h1>
+      <p>这页只讲第一次进入桃源乡最需要知道的内容：怎么开局、怎么选田庄、第一天该做什么、前期靠什么赚钱，以及哪些坑最容易亏。</p>
+      <div class="hero-meta">
+        <span>3~5 分钟能看完</span>
+        <span>适合第一次接触桃源乡</span>
+        <span>大量超链接可跳去百科详查</span>
+      </div>
+      <div class="hero-actions">
+        <a class="button-link" href="./guide-book.html">进入百科全书</a>
+        <a class="button-link" href="#first-day">直接看第一天照着做</a>
+        <a class="button-link" href="#quick-links">按主题快速查询</a>
+      </div>
+    </header>
+    <div class="layout">
+      <aside class="sidebar">
+        <h2>新手导航</h2>
+        <ul class="toc">
+          <li><a href="#five-rules">先看这 5 条</a></li>
+          <li><a href="#start-game">如何开始新游戏</a></li>
+          <li><a href="#farm-choice">开局选哪个田庄</a></li>
+          <li><a href="#first-day">第一天 / 前三天 / 第一周</a></li>
+          <li><a href="#money-routes">前期赚钱路线</a></li>
+          <li><a href="#common-mistakes">最容易踩的坑</a></li>
+          <li><a href="#quick-links">快速查询入口</a></li>
+          <li><a href="#faq-mini">新手 FAQ</a></li>
+          <li><a href="./guide-book.html">去百科全书</a></li>
+        </ul>
+      </aside>
+      <main class="content">
+        <section class="lead-box">
+          <div class="kicker">先说结论</div>
+          <h3>如果你现在只想赶紧开玩，就记住一句话</h3>
+          <blockquote><strong>先种田保底，再用剩余体力去钓鱼、采集或下矿；别熬夜，睡前记得保存。</strong></blockquote>
+          <div class="jump-links">
+            <a href="#five-rules">看 5 条新手原则</a>
+            <a href="#money-routes">看前期赚钱路线</a>
+            <a href="./guide-book.html#8-存档系统超详细说明">看完整存档说明</a>
+          </div>
+        </section>
+
+        <h2 id="five-rules">1. 新手先看这 5 条</h2>
+        <ol>
+          <li><strong>推荐开局：</strong>第一次玩优先选 <strong>桃源田庄</strong>，想早点体验养殖可以选 <strong>草甸田庄</strong>。</li>
+          <li><strong>第一天别开太多地：</strong>只种你第二天还能稳定浇完的数量。</li>
+          <li><strong>前期赚钱最稳：</strong>种田保底，钓鱼/采集补现金流。</li>
+          <li><strong>不要太晚睡：</strong>熬夜和昏倒都会拖慢节奏，前期尤其伤。</li>
+          <li><strong>关键节点手动保存：</strong>下矿前、换季前、大额消费前后、准备退出前，都值得保存一次。</li>
+        </ol>
+        <div class="tip-box">
+          <h3>你现在就能顺手点开的详查链接</h3>
+          <div class="inline-links">
+            <a href="./guide-book.html#4-六种田庄详细说明与推荐">查看六种田庄完整说明</a>
+            <a href="./guide-book.html#8-存档系统超详细说明">查看存档系统详解</a>
+            <a href="./guide-book.html#7-时间季节天气体力与睡觉机制">查看时间与体力机制</a>
+          </div>
+        </div>
+        <div class="back-links"><a href="#top">返回顶部</a><a href="./guide-book.html">切到百科全书</a></div>
+
+        <h2 id="start-game">2. 如何开始一局新游戏</h2>
+        <p>进入主菜单后，先点 <code>新的旅程</code>，然后按下面顺序走：</p>
+        <ol>
+          <li>阅读并同意隐私协议</li>
+          <li>输入角色名字（最多 4 个字）</li>
+          <li>选择角色性别</li>
+          <li>选择田庄类型</li>
+          <li>确认后进入游戏</li>
+        </ol>
+        <div class="warn-box">
+          <h3>新手最容易忽略的点</h3>
+          <p><strong>“新的旅程”一旦进入，就是一局已经绑定存档槽位的新游戏。</strong> 所以后面如果中断，别忘了手动保存。</p>
+          <div class="inline-links">
+            <a href="./guide-book.html#3-如何开始一局新游戏">查看完整新游戏流程</a>
+            <a href="./guide-book.html#82-什么是活跃存档槽位">查看什么是活跃存档槽位</a>
+          </div>
+        </div>
+        <div class="back-links"><a href="#top">返回顶部</a><a href="#farm-choice">继续看：开局选哪个田庄</a></div>
+
+        <h2 id="farm-choice">3. 开局田庄怎么选</h2>
+        <p>六种田庄都能玩，但第一次上手没必要追求最特殊的路线。先选好理解、失误成本低的。</p>
+        <div class="card-grid">
+          <section class="card">
+            <h3>最推荐：桃源田庄</h3>
+            <p>适合完全新手。节奏稳定，农场基础最好，最容易学会桃源乡的核心循环。</p>
+            <a href="./guide-book.html#4-六种田庄详细说明与推荐">看桃源田庄完整说明</a>
+          </section>
+          <section class="card">
+            <h3>次推荐：草甸田庄</h3>
+            <p>适合想早点碰养殖的人。前期经济更舒服，但你会更早接触动物照顾与建筑管理。</p>
+            <a href="./guide-book.html#12-畜牧养殖玩法">看养殖玩法详解</a>
+          </section>
+          <section class="card">
+            <h3>想快点赚钱：溪流田庄</h3>
+            <p>适合喜欢钓鱼手感和现金流的人，收益不错，但更依赖操作和时机。</p>
+            <a href="./guide-book.html#13-钓鱼与鱼塘玩法">看钓鱼与鱼塘详解</a>
+          </section>
+          <section class="card">
+            <h3>想快点成长：竹林 / 山丘 / 荒野</h3>
+            <p>更偏采集、挖矿、战斗路线，适合第二轮或已经有目标的玩家。</p>
+            <a href="./guide-book.html#14-采集挖矿与战斗探索">看采集与矿洞详解</a>
+          </section>
+        </div>
+        <div class="tip-box"><h3>一句话建议</h3><blockquote><strong>第一次玩：优先桃源；想要更早体验养殖：选草甸。</strong></blockquote></div>
+        <div class="back-links"><a href="#top">返回顶部</a><a href="#first-day">继续看：第一天怎么做</a><a href="./guide-book.html#4-六种田庄详细说明与推荐">去百科：完整田庄对比</a></div>
+
+        <h2 id="first-day">4. 第一天 / 前三天 / 第一周照着做</h2>
+        <h3>第一天</h3>
+        <ol>
+          <li>先看顶部状态栏，确认时间、天气、体力。</li>
+          <li>回农场开少量地，不要一口气铺满。</li>
+          <li>把送的种子种下并浇水。</li>
+          <li>有剩余体力就去简单采集或钓鱼。</li>
+          <li><strong>准备休息前手动保存一次。</strong></li>
+        </ol>
+        <h3>前三天</h3>
+        <ul>
+          <li>熟悉播种、浇水、收获、背包、商店、任务、日志。</li>
+          <li>建立第一条稳定赚钱路线，不要每个系统都碰一遍。</li>
+          <li>开始意识到体力和背包空间都很珍贵。</li>
+        </ul>
+        <h3>第一周</h3>
+        <ul>
+          <li>保持每天有稳定收益。</li>
+          <li>优先升级一个关键点：背包 / 工具 / 仓储。</li>
+          <li>再慢慢接第二条副收入路线。</li>
+        </ul>
+        <div class="warn-box">
+          <h3>这一段最重要的不是“做很多”，而是“做稳定”</h3>
+          <p>很多新手第一周最大问题不是不会赚钱，而是所有系统都浅尝辄止，结果每条线都没起来。</p>
+          <div class="inline-links"><a href="./guide-book.html#9-新手第一天到第一周建议路线">查看完整一周路线</a><a href="./guide-book.html#5-主界面完整说明">查看主界面完整说明</a></div>
+        </div>
+        <div class="back-links"><a href="#top">返回顶部</a><a href="#money-routes">继续看：前期赚钱路线</a></div>
+
+        <h2 id="money-routes">5. 前期赚钱的 3 条路线</h2>
+        <div class="route-grid">
+          <section class="route-card">
+            <h3>路线 A：种田稳健流</h3>
+            <p>最适合新手，回报稳定，最容易理解节奏。</p>
+            <ul><li>优先成熟快、回本快的作物</li><li>每天稳定浇水</li><li>逐步扩大面积</li></ul>
+            <a href="./guide-book.html#10-农场系统详解">查看农场系统详解</a>
+          </section>
+          <section class="route-card">
+            <h3>路线 B：钓鱼现金流</h3>
+            <p>来钱快，适合补前期现金，但更吃手感和时机。</p>
+            <ul><li>适合溪流田庄</li><li>不依赖作物成熟时间</li><li>天气、地点、时间都会影响收益</li></ul>
+            <a href="./guide-book.html#13-钓鱼与鱼塘玩法">查看钓鱼与鱼塘详解</a>
+          </section>
+          <section class="route-card">
+            <h3>路线 C：采集 / 挖矿成长流</h3>
+            <p>更偏成长和资源积累，适合目标明确的玩家。</p>
+            <ul><li>工具、装备、材料成长更快</li><li>能更早接入加工链</li><li>风险也会更高</li></ul>
+            <a href="./guide-book.html#14-采集挖矿与战斗探索">查看采集与矿洞详解</a>
+          </section>
+        </div>
+        <div class="tip-box"><h3>新手默认搭配</h3><blockquote><strong>种田保底 + 钓鱼/采集补现金流</strong>，这是最稳、最不容易翻车的组合。</blockquote></div>
+        <div class="back-links"><a href="#top">返回顶部</a><a href="#common-mistakes">继续看：最容易踩的坑</a></div>
+
+        <h2 id="common-mistakes">6. 新手最容易踩的坑</h2>
+        <div class="card-grid">
+          <section class="card"><h3>误区 1：第一周什么都想做</h3><p>结果往往是每条线都半吊子。先养出一条稳定收入线，其他系统再慢慢补。</p></section>
+          <section class="card"><h3>误区 2：不手动保存</h3><p>尤其下矿、换季、购物、大丰收前后，忘记保存最容易让人后悔。</p></section>
+          <section class="card"><h3>误区 3：换季前乱种</h3><p>成熟时间对不上季节，作物会枯萎，属于最常见的直接亏损。</p></section>
+          <section class="card"><h3>误区 4：什么都卖</h3><p>很多材料中后期会非常缺，尤其矿物、高品质材料和特殊掉落。</p></section>
+          <section class="card"><h3>误区 5：血量和体力见底还硬冲</h3><p>矿洞里尤其容易翻车。感觉不稳时，保住今天收益比硬赌更重要。</p></section>
+          <section class="card"><h3>误区 6：把百科当成开局必读</h3><p>你不需要一次看完全部系统。新手页先看完，再按问题跳去百科查即可。</p></section>
+        </div>
+        <div class="inline-links"><a href="./guide-book.html#25-新手常见误区">查看完整误区章节</a><a href="./guide-book.html#26-常见问题-faq">查看完整 FAQ</a></div>
+        <div class="back-links"><a href="#top">返回顶部</a><a href="#quick-links">继续看：按主题快速查询</a></div>
+
+        <h2 id="quick-links">7. 快速查询入口</h2>
+        <p>下面这些都是给“边玩边查”的超链接入口。你不需要从头翻，只要按问题点进去就行。</p>
+        <div class="quick-grid">
+          <a href="./guide-book.html#4-六种田庄详细说明与推荐">我想重新理解六种田庄差别</a>
+          <a href="./guide-book.html#5-主界面完整说明">我不知道主界面各区域是做什么的</a>
+          <a href="./guide-book.html#8-存档系统超详细说明">我想确认怎么保存最安全</a>
+          <a href="./guide-book.html#10-农场系统详解">我想看种田详细机制</a>
+          <a href="./guide-book.html#12-畜牧养殖玩法">我准备开始养鸡 / 养殖</a>
+          <a href="./guide-book.html#13-钓鱼与鱼塘玩法">我想靠钓鱼赚钱</a>
+          <a href="./guide-book.html#14-采集挖矿与战斗探索">我准备去下矿 / 打怪</a>
+          <a href="./guide-book.html#15-烹饪加工与作坊思路">我想理解烹饪和加工链</a>
+          <a href="./guide-book.html#18-村民社交送礼婚姻与家庭">我想看送礼、婚姻、家庭</a>
+          <a href="./guide-book.html#20-任务成就公会博物馆">我想看任务、公会、博物馆</a>
+          <a href="./guide-book.html#22-与抽奖系统的联动功能">我想看联动、返回抽奖系统、额度兑换</a>
+          <a href="./guide-book.html#23-设置菜单说明">我想看设置菜单和存档管理入口</a>
+        </div>
+        <div class="link-box">
+          <h3>来回跳转建议</h3>
+          <p>建议把这页当成“带路页”，百科当成“查资料页”。有问题就从这里点进去，看完再用百科里的“返回新手教程”链接跳回来。</p>
+          <div class="inline-links"><a href="./guide-book.html">打开完整百科全书首页</a><a href="#top">回到本页顶部</a></div>
+        </div>
+
+        <h2 id="faq-mini">8. 新手 FAQ</h2>
+        <h3>Q1：为什么保存按钮提示没有活跃存档？</h3>
+        <p>A：你需要先新开一局，或先加载一个已有存档。顶栏保存依赖当前活跃槽位。</p>
+        <div class="inline-links"><a href="./guide-book.html#82-什么是活跃存档槽位">看活跃存档槽位解释</a></div>
+        <h3>Q2：保存并返回安全吗？</h3>
+        <p>A：安全。逻辑是先保存，保存成功才跳转；失败不会误跳走。</p>
+        <div class="inline-links"><a href="./guide-book.html#62-顶栏保存并返回">看保存并返回详解</a></div>
+        <h3>Q3：前期优先升级什么？</h3>
+        <p>A：通常优先：稳定收入来源 → 背包 / 工具 → 仓储 → 加工链。</p>
+        <div class="inline-links"><a href="./guide-book.html#q8前期优先升级什么">看完整 FAQ 回答</a></div>
+        <h3>Q4：我需要立刻去看百科全书吗？</h3>
+        <p>A：不需要。先把这页看完，边玩边查就够了。百科更适合查具体机制。</p>
+        <div class="lead-box">
+          <h3>最后给新玩家的一句话</h3>
+          <p>别急着追求最优解。前几天稳住节奏、留住体力、养出第一条收入线，你会玩得越来越顺。</p>
+          <div class="hero-actions"><a class="button-link" href="./guide-book.html">进入百科全书继续查</a><a class="button-link" href="#top">返回顶部</a></div>
+        </div>
+      </main>
+    </div>
+  </div>
+  <a class="back-top" href="#top">返回顶部</a>
+</body>
+</html>

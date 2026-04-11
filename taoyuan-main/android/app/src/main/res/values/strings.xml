@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+  <string name="app_name">桃源乡</string>
+  <string name="title_activity_main">桃源乡</string>
+  <string name="package_name">com.games.wenzi.taoyuan</string>
+  <string name="custom_url_scheme">com.games.wenzi.taoyuan</string>
+</resources>

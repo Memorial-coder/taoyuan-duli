@@ -1,0 +1,161 @@
+name: 构建多平台程序 (Electron & Android)
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - '.github/**'
+
+jobs:
+  # 1. 构建 Electron 客户端
+  build-electron:
+    name: 构建 Electron (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            platform: win
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+      - name: 配置 Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+          cache: 'pnpm'
+
+      - name: 缓存 Electron Builder
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-${{ runner.os }}-
+
+      - name: 构建 Electron
+        run: |
+          pnpm install
+          pnpm run build:electron --${{ matrix.platform }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # 【关键点】上传 zip 产物
+      - name: 上传 Electron 安装包
+        uses: actions/upload-artifact@v4
+        with:
+          name: electron-${{ matrix.platform }}
+          path: |
+            pkg/*.zip
+
+  # 2. 构建 Android APK
+  build-android:
+    name: 构建 Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: pnpm/action-setup@v4
+        with:
+          version: latest
+      - name: 配置 Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: 'pnpm'
+      - name: 配置 Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+      - name: 配置 Android SDK
+        uses: android-actions/setup-android@v3
+
+      # 使用官方 Gradle Action（内置智能缓存）
+      - name: 配置 Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
+      - name: 构建前端
+        run: |
+          pnpm install
+          pnpm run build
+
+      - name: 同步 Capacitor
+        run: npx cap sync android
+
+      - name: 构建 APK (Release)
+        working-directory: android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleRelease --build-cache
+
+      - name: 上传 APK 产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: android/app/build/outputs/apk/release/*.apk
+
+  # 3. 发布 Release
+  release:
+    needs: [build-electron, build-android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: 获取版本号
+        id: get_version
+        run: echo "VERSION=v$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      # 1. 下载时，不使用 merge-multiple，防止覆盖冲突
+      - name: 下载构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: ./raw-assets
+
+      # 2. 核心步骤：手动移动文件到一个扁平目录，并强制重命名
+      - name: 整理并重命名产物
+        run: |
+          mkdir -p ./final-release
+
+          # 移动 Electron zip 包
+          find ./raw-assets/electron-* -type f -name "*.zip" -exec cp {} ./final-release/ \;
+
+          # 移动 Android APK
+          find ./raw-assets/android-apk -type f -name "*.apk" -exec cp {} ./final-release/ \; || true
+
+          # 检查结果
+          echo "Final assets to upload:"
+          ls -R ./final-release
+
+      # 3. 删除已有 Release 的文件（如果存在）
+      - name: 删除已有 Release 资产
+        run: |
+          VERSION=${{ steps.get_version.outputs.VERSION }}
+          # 获取 release 的所有资产并删除
+          gh release view "$VERSION" --json assets -q '.assets[].name' 2>/dev/null | while read -r asset; do
+            echo "Deleting asset: $asset"
+            gh release delete-asset "$VERSION" "$asset" -y || true
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      # 4. 上传新文件
+      - name: 创建 GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
+          name: Release ${{ steps.get_version.outputs.VERSION }}
+          files: ./final-release/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

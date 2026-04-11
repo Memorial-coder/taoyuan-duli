@@ -1,0 +1,643 @@
+<template>
+  <div>
+    <!-- 标题 -->
+    <div class="flex items-center space-x-1.5 text-sm text-accent mb-3">
+      <ClipboardList :size="14" />
+      <span>任务</span>
+    </div>
+
+    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+      <p class="text-xs text-muted mb-2">经营提示</p>
+      <div v-if="goalStore.currentThemeWeek" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs text-accent">{{ goalStore.currentThemeWeek.name }}</p>
+          <span class="text-[10px] text-muted">{{ goalStore.currentThemeWeek.startDay }}-{{ goalStore.currentThemeWeek.endDay }}日</span>
+        </div>
+        <p class="text-[10px] text-muted mt-1">{{ goalStore.currentThemeWeek.description }}</p>
+      </div>
+      <div v-if="questStore.specialOrder" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs text-accent">特殊订单风向</p>
+          <span class="text-[10px] text-muted">剩余 {{ questStore.specialOrder.daysRemaining }} 天</span>
+        </div>
+        <p class="text-[10px] text-muted mt-1">{{ questStore.specialOrder.demandHint || '本期特殊订单会优先消耗高价值经营产出。' }}</p>
+        <p v-if="questStore.specialOrder.recommendedHybridIds?.length" class="text-[10px] text-success mt-1">
+          推荐关注：{{ questStore.specialOrder.recommendedHybridIds.map(getHybridName).join('、') }}
+        </p>
+      </div>
+      <div v-if="goalStore.dailyGoals.length === 0" class="text-xs text-muted">今日暂无经营提示。</div>
+      <div v-else class="space-y-1.5">
+        <div v-for="goal in goalStore.dailyGoals" :key="goal.id" class="border border-accent/10 rounded-xs px-3 py-2">
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-xs">{{ goal.title }}</p>
+            <span class="text-[10px]" :class="goal.completed ? 'text-success' : 'text-accent'">{{ goalStore.getGoalSourceText(goal) }}</span>
+          </div>
+          <p class="text-[10px] text-muted mt-1">{{ goal.description }}</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 主线任务 -->
+    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+      <p class="text-xs text-muted mb-2">
+        <BookOpen :size="12" class="inline" />
+        主线任务
+      </p>
+      <div
+        v-if="mainQuestDef"
+        class="flex items-center justify-between border rounded-xs px-3 py-1.5 cursor-pointer"
+        :class="questStore.mainQuest?.accepted && canSubmitMainQuest ? 'border-success/50 bg-success/5 hover:bg-success/10' : 'border-accent/20 hover:bg-accent/5'"
+        @click="questModal = { type: 'main' }"
+      >
+        <div class="min-w-0">
+          <p class="text-xs text-accent truncate">第{{ mainQuestDef.chapter }}章 · {{ mainQuestDef.title }}</p>
+          <p class="text-xs text-muted truncate">{{ mainQuestDef.description }}</p>
+        </div>
+        <span class="text-xs whitespace-nowrap ml-2" :class="canSubmitMainQuest ? 'text-success' : questStore.mainQuest?.accepted ? 'text-accent' : 'text-muted'">
+          {{ canSubmitMainQuest ? '可提交' : questStore.mainQuest?.accepted ? '进行中' : '未接取' }}
+        </span>
+      </div>
+      <div v-else-if="questStore.completedMainQuests.length >= totalMainQuestCount" class="flex flex-col items-center justify-center py-4 text-muted">
+        <CheckCircle :size="24" />
+        <p class="text-xs mt-1">主线任务已全部完成</p>
+      </div>
+    </div>
+
+    <!-- 今日委托 -->
+    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+      <p class="text-xs text-muted mb-2">
+        <Calendar :size="12" class="inline" />
+        今日委托
+      </p>
+      <div v-if="questStore.boardQuests.length === 0" class="flex flex-col items-center justify-center py-4 text-muted">
+        <Calendar :size="24" />
+        <p class="text-xs mt-1">今日暂无委托</p>
+      </div>
+      <div v-else class="flex flex-col space-y-1.5">
+        <div
+          v-for="quest in questStore.boardQuests"
+          :key="quest.id"
+          class="flex items-center justify-between rounded-xs px-3 py-1.5 cursor-pointer"
+          :class="quest.isUrgent ? 'border border-red-500/50 bg-red-500/5 hover:bg-red-500/10' : 'border border-accent/20 hover:bg-accent/5'"
+          @click="questModal = { type: 'board', questId: quest.id }"
+        >
+          <div class="min-w-0">
+            <p class="text-xs truncate min-w-0" :class="quest.isUrgent ? 'text-red-400' : ''">{{ quest.description }}</p>
+            <div class="flex flex-wrap gap-1 mt-0.5">
+              <span v-if="quest.isUrgent" class="text-[10px] px-1 rounded-xs border border-red-500/40 text-red-400">
+                紧急 · 仅剩1天
+              </span>
+              <span v-if="quest.sourceCategory" class="text-[10px] px-1 rounded-xs border border-success/20 text-success">
+                村民委托 · {{ getCategoryLabel(quest.sourceCategory) }}
+              </span>
+              <span v-if="quest.relationshipStageRequired" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
+                需{{ getStageLabel(quest.relationshipStageRequired) }}
+              </span>
+            </div>
+            <p v-if="getQuestRewardPreview(quest)" class="text-[10px] text-muted/70 mt-0.5 truncate">{{ getQuestRewardPreview(quest) }}</p>
+            <p v-if="getQuestRelationshipPreview(quest)" class="text-[10px] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
+          </div>
+          <span class="text-xs whitespace-nowrap ml-2" :class="quest.isUrgent ? 'text-red-400' : 'text-accent'">{{ quest.moneyReward }}文</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 特殊订单 -->
+    <div v-if="questStore.specialOrder" class="border border-accent/20 rounded-xs p-3 mb-3">
+      <p class="text-xs text-muted mb-2">
+        <Star :size="12" class="inline" />
+        特殊订单
+      </p>
+      <div
+        class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5"
+        @click="questModal = { type: 'special' }"
+      >
+        <div class="min-w-0">
+          <p class="text-xs truncate">{{ questStore.specialOrder.description }}</p>
+              <div class="flex flex-wrap gap-1 mt-0.5" v-if="questStore.specialOrder.themeTag || questStore.specialOrder.preferredSeasons?.length">
+                <span class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent" v-if="questStore.specialOrder.themeTag">育种订单</span>
+                <span class="text-[10px] px-1 rounded-xs border border-success/20 text-success" v-if="questStore.specialOrder.preferredSeasons?.length">
+                  {{ questStore.specialOrder.preferredSeasons.map(getSeasonLabel).join(' / ') }}偏好
+                </span>
+              </div>
+              <p v-if="questStore.specialOrder.demandHint" class="text-[10px] text-muted/70 mt-0.5 truncate">{{ questStore.specialOrder.demandHint }}</p>
+        </div>
+        <span class="text-xs text-accent whitespace-nowrap ml-2">{{ questStore.specialOrder.moneyReward }}文</span>
+      </div>
+    </div>
+
+    <!-- 进行中 -->
+    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+      <p class="text-xs text-muted mb-2">
+        <Clock :size="12" class="inline" />
+        进行中 ({{ questStore.activeQuests.length }}/{{ questStore.MAX_ACTIVE_QUESTS }})
+      </p>
+      <div v-if="questStore.activeQuests.length === 0" class="flex flex-col items-center justify-center py-4 text-muted">
+        <Clock :size="24" />
+        <p class="text-xs mt-1">暂无进行中的任务</p>
+      </div>
+      <div v-else class="flex flex-col space-y-1.5">
+        <div
+          v-for="quest in questStore.activeQuests"
+          :key="quest.id"
+          class="border rounded-xs px-3 py-1.5 cursor-pointer"
+          :class="canSubmit(quest) ? 'border-success/50 bg-success/5 hover:bg-success/10' : quest.isUrgent ? 'border-red-500/50 bg-red-500/5 hover:bg-red-500/10' : quest.type === 'special_order' ? 'border-accent/30 hover:bg-accent/5' : 'border-accent/20 hover:bg-accent/5'"
+          @click="questModal = { type: 'active', questId: quest.id }"
+        >
+          <div class="flex items-center justify-between">
+            <div class="min-w-0">
+              <p class="text-xs truncate min-w-0">{{ quest.description }}</p>
+              <div class="flex flex-wrap gap-1 mt-0.5" v-if="quest.isUrgent || quest.sourceCategory || quest.relationshipStageRequired || quest.themeTag || quest.bonusSummary?.length">
+                <span v-if="quest.isUrgent" class="text-[10px] px-1 rounded-xs border border-red-500/40 text-red-400">
+                  紧急委托
+                </span>
+                <span v-if="quest.themeTag === 'breeding'" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
+                  育种订单
+                </span>
+                <span v-if="quest.sourceCategory" class="text-[10px] px-1 rounded-xs border border-success/20 text-success">
+                  {{ getCategoryLabel(quest.sourceCategory) }}
+                </span>
+                <span v-if="quest.relationshipStageRequired" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
+                  {{ getStageLabel(quest.relationshipStageRequired) }}
+                </span>
+              </div>
+              <p v-if="getQuestRelationshipPreview(quest)" class="text-[10px] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
+            </div>
+            <span class="text-xs whitespace-nowrap ml-2" :class="canSubmit(quest) ? 'text-success' : 'text-muted'">
+              {{ canSubmit(quest) ? '可提交' : `剩${quest.daysRemaining}天` }}
+            </span>
+          </div>
+          <div v-if="quest.type !== 'delivery'" class="mt-1 flex items-center space-x-2">
+            <div class="flex-1 h-1 bg-bg rounded-xs border border-accent/10">
+              <div
+                class="h-full rounded-xs bg-accent transition-all"
+                :style="{ width: Math.floor((getEffectiveProgress(quest) / quest.targetQuantity) * 100) + '%' }"
+              />
+            </div>
+            <span class="text-xs text-muted">{{ getEffectiveProgress(quest) }}/{{ quest.targetQuantity }}</span>
+          </div>
+          <div v-else class="mt-0.5">
+            <span class="text-xs text-muted">背包 {{ inventoryStore.getItemCount(quest.targetItemId) }}/{{ quest.targetQuantity }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 统计 -->
+    <div class="border border-accent/10 rounded-xs p-2 text-center">
+      <p class="text-xs text-muted">
+        累计完成委托 {{ questStore.completedQuestCount }} 个 · 主线进度 {{ questStore.completedMainQuests.length }}/{{ totalMainQuestCount }}
+      </p>
+    </div>
+
+    <!-- 任务详情弹窗 -->
+    <Transition name="panel-fade">
+      <div v-if="questModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="questModal = null">
+        <div class="game-panel max-w-xs w-full relative">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="questModal = null">
+            <X :size="14" />
+          </button>
+
+          <!-- 主线任务详情 -->
+          <template v-if="questModal.type === 'main' && mainQuestDef">
+            <p class="text-accent text-sm mb-1">第{{ mainQuestDef.chapter }}章「{{ chapterTitle }}」</p>
+            <p class="text-xs font-bold text-accent mb-1">{{ mainQuestDef.title }}</p>
+            <p class="text-xs text-muted leading-relaxed mb-2">{{ mainQuestDef.description }}</p>
+            <div class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">目标</p>
+              <div v-for="(obj, i) in mainQuestDef.objectives" :key="i" class="flex items-center space-x-1">
+                <CircleCheck v-if="mainQuestProgress[i]" :size="12" class="text-success shrink-0" />
+                <Circle v-else :size="12" class="text-danger shrink-0" />
+                <span class="text-xs" :class="mainQuestProgress[i] ? 'text-success' : ''">{{ obj.label }}</span>
+              </div>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mb-3">
+              <p class="text-xs text-muted mb-1">奖励</p>
+              <p class="text-xs">
+                {{ mainQuestDef.moneyReward }}文
+                <template v-if="mainQuestDef.friendshipReward?.length">+ 好感</template>
+                <template v-if="mainQuestDef.itemReward?.length">
+                  + {{ mainQuestDef.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join(', ') }}
+                </template>
+              </p>
+            </div>
+            <Button
+              v-if="!questStore.mainQuest?.accepted"
+              class="w-full justify-center"
+              :icon="Plus"
+              :icon-size="12"
+              @click="handleAcceptMain"
+            >
+              接取任务
+            </Button>
+            <Button
+              v-else
+              class="w-full justify-center"
+              :class="{ '!bg-accent !text-bg': canSubmitMainQuest }"
+              :icon="CheckCircle"
+              :icon-size="12"
+              :disabled="!canSubmitMainQuest"
+              @click="handleSubmitMain"
+            >
+              提交任务
+            </Button>
+          </template>
+
+          <!-- 委托详情 -->
+          <template v-if="questModal.type === 'board' && selectedBoardQuest">
+            <p class="text-accent text-sm mb-2">委托详情</p>
+            <p class="text-xs leading-relaxed mb-2">{{ selectedBoardQuest.description }}</p>
+            <div v-if="selectedBoardQuest.sourceCategory || selectedBoardQuest.relationshipStageRequired" class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">委托来源</p>
+              <p class="text-xs">
+                <span v-if="selectedBoardQuest.sourceCategory">村民委托 · {{ getCategoryLabel(selectedBoardQuest.sourceCategory) }}</span>
+                <span v-if="selectedBoardQuest.relationshipStageRequired">
+                  <template v-if="selectedBoardQuest.sourceCategory"> · </template>需{{ getStageLabel(selectedBoardQuest.relationshipStageRequired) }}
+                </span>
+              </p>
+            </div>
+            <div v-if="getQuestRelationshipImpactLines(selectedBoardQuest).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">关系影响</p>
+              <p
+                v-for="line in getQuestRelationshipImpactLines(selectedBoardQuest)"
+                :key="line"
+                class="text-[10px] leading-4"
+              >
+                {{ line }}
+              </p>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">目标</p>
+              <p class="text-xs">{{ selectedBoardQuest.targetItemName }} × {{ selectedBoardQuest.targetQuantity }}</p>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mb-3">
+              <p class="text-xs text-muted mb-1">奖励</p>
+              <p class="text-xs">{{ selectedBoardQuest.moneyReward }}文 + 好感{{ selectedBoardQuest.friendshipReward }}</p>
+              <p v-if="getQuestRewardDetails(selectedBoardQuest).length > 0" class="text-[10px] text-accent mt-1 leading-4">
+                {{ getQuestRewardDetails(selectedBoardQuest).join('；') }}
+              </p>
+              <p v-if="selectedBoardQuest.bonusSummary?.length" class="text-[10px] text-success mt-1">
+                {{ selectedBoardQuest.bonusSummary.join('；') }}
+              </p>
+            </div>
+            <Button
+              class="w-full justify-center"
+              :icon="Plus"
+              :icon-size="12"
+              :disabled="questStore.activeQuests.length >= questStore.MAX_ACTIVE_QUESTS"
+              @click="handleAccept(selectedBoardQuest.id)"
+            >
+              接取委托
+            </Button>
+          </template>
+
+          <!-- 特殊订单详情 -->
+          <template v-if="questModal.type === 'special' && questStore.specialOrder">
+            <p class="text-accent text-sm mb-2">
+              特殊订单
+              <span v-if="questStore.specialOrder.tierLabel" class="text-[10px] text-muted border border-accent/20 rounded-xs px-1 ml-1">
+                {{ questStore.specialOrder.tierLabel }}
+              </span>
+              <span v-if="questStore.specialOrder.themeTag === 'breeding'" class="text-[10px] text-accent border border-accent/20 rounded-xs px-1 ml-1">
+                育种订单
+              </span>
+            </p>
+            <p class="text-xs leading-relaxed mb-2">{{ questStore.specialOrder.description }}</p>
+            <div class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">目标</p>
+              <p class="text-xs">{{ questStore.specialOrder.targetItemName }} × {{ questStore.specialOrder.targetQuantity }}</p>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mb-2" v-if="questStore.specialOrder.demandHint || questStore.specialOrder.recommendedHybridIds?.length || questStore.specialOrder.preferredSeasons?.length">
+              <p class="text-xs text-muted mb-1">需求提示</p>
+              <p v-if="questStore.specialOrder.demandHint" class="text-xs text-accent/80 leading-relaxed">{{ questStore.specialOrder.demandHint }}</p>
+              <p v-if="questStore.specialOrder.preferredSeasons?.length" class="text-[10px] text-muted mt-1">
+                更常见于：{{ questStore.specialOrder.preferredSeasons.map(getSeasonLabel).join(' / ') }}
+              </p>
+              <p v-if="questStore.specialOrder.recommendedHybridIds?.length" class="text-[10px] text-success mt-1">
+                推荐杂交：{{ questStore.specialOrder.recommendedHybridIds.map(getHybridName).join('、') }}
+              </p>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mb-3">
+              <p class="text-xs text-muted mb-1">奖励</p>
+              <p class="text-xs">
+                {{ questStore.specialOrder.moneyReward }}文 + 好感{{ questStore.specialOrder.friendshipReward }}
+                <template v-if="questStore.specialOrder.itemReward?.length">
+                  + {{ questStore.specialOrder.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join(', ') }}
+                </template>
+              </p>
+              <p v-if="getQuestRewardDetails(questStore.specialOrder).length > 0" class="text-[10px] text-accent mt-1 leading-4">
+                {{ getQuestRewardDetails(questStore.specialOrder).join('；') }}
+              </p>
+            </div>
+            <Button
+              class="w-full justify-center"
+              :icon="Plus"
+              :icon-size="12"
+              :disabled="questStore.activeQuests.length >= questStore.MAX_ACTIVE_QUESTS"
+              @click="handleAcceptSpecialOrder"
+            >
+              接取订单
+            </Button>
+          </template>
+
+          <!-- 进行中任务详情 -->
+          <template v-if="questModal.type === 'active' && selectedActiveQuest">
+            <p class="text-accent text-sm mb-2">
+              {{ selectedActiveQuest.type === 'special_order' ? '特殊订单' : '委托' }}
+            </p>
+            <p class="text-xs leading-relaxed mb-2">{{ selectedActiveQuest.description }}</p>
+            <div v-if="selectedActiveQuest.sourceCategory || selectedActiveQuest.relationshipStageRequired || selectedActiveQuest.themeTag" class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">委托来源</p>
+              <p class="text-xs">
+                <span v-if="selectedActiveQuest.themeTag === 'breeding'">育种订单</span>
+                <span v-if="selectedActiveQuest.sourceCategory">村民委托 · {{ getCategoryLabel(selectedActiveQuest.sourceCategory) }}</span>
+                <span v-if="selectedActiveQuest.relationshipStageRequired">
+                  <template v-if="selectedActiveQuest.sourceCategory || selectedActiveQuest.themeTag"> · </template>需{{ getStageLabel(selectedActiveQuest.relationshipStageRequired) }}
+                </span>
+              </p>
+            </div>
+            <div v-if="getQuestRelationshipImpactLines(selectedActiveQuest).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">关系影响</p>
+              <p
+                v-for="line in getQuestRelationshipImpactLines(selectedActiveQuest)"
+                :key="line"
+                class="text-[10px] leading-4"
+              >
+                {{ line }}
+              </p>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">进度</p>
+              <div v-if="selectedActiveQuest.type !== 'delivery'" class="flex items-center space-x-2">
+                <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
+                  <div
+                    class="h-full rounded-xs bg-accent transition-all"
+                    :style="{
+                      width: Math.floor((getEffectiveProgress(selectedActiveQuest) / selectedActiveQuest.targetQuantity) * 100) + '%'
+                    }"
+                  />
+                </div>
+                <span class="text-xs text-muted">
+                  {{ getEffectiveProgress(selectedActiveQuest) }}/{{ selectedActiveQuest.targetQuantity }}
+                </span>
+              </div>
+              <p v-else class="text-xs">
+                背包中 {{ inventoryStore.getItemCount(selectedActiveQuest.targetItemId) }}/{{ selectedActiveQuest.targetQuantity }}
+              </p>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">剩余时间</p>
+              <p class="text-xs">{{ selectedActiveQuest.daysRemaining }} 天</p>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mb-3">
+              <p class="text-xs text-muted mb-1">奖励</p>
+              <p class="text-xs">
+                {{ selectedActiveQuest.moneyReward }}文 + 好感{{ selectedActiveQuest.friendshipReward }}
+                <template v-if="selectedActiveQuest.itemReward?.length">
+                  + {{ selectedActiveQuest.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join(', ') }}
+                </template>
+              </p>
+              <p v-if="getQuestRewardDetails(selectedActiveQuest).length > 0" class="text-[10px] text-accent mt-1 leading-4">
+                {{ getQuestRewardDetails(selectedActiveQuest).join('；') }}
+              </p>
+              <p v-if="selectedActiveQuest.bonusSummary?.length" class="text-[10px] text-success mt-1">
+                {{ selectedActiveQuest.bonusSummary.join('；') }}
+              </p>
+            </div>
+            <Button
+              class="w-full justify-center"
+              :class="{ '!bg-accent !text-bg': canSubmit(selectedActiveQuest) }"
+              :icon="CheckCircle"
+              :icon-size="12"
+              :disabled="!canSubmit(selectedActiveQuest)"
+              @click="handleSubmit(selectedActiveQuest.id)"
+            >
+              提交任务
+            </Button>
+          </template>
+        </div>
+      </div>
+    </Transition>
+  </div>
+</template>
+
+<script setup lang="ts">
+  import { ref, computed, onMounted } from 'vue'
+  import { ClipboardList, Calendar, Clock, Plus, CheckCircle, CircleCheck, Circle, Star, BookOpen, X } from 'lucide-vue-next'
+  import Button from '@/components/game/Button.vue'
+  import type { QuestInstance, RelationshipStage, VillagerQuestCategory } from '@/types'
+  import { useInventoryStore } from '@/stores/useInventoryStore'
+  import { useGoalStore } from '@/stores/useGoalStore'
+  import { useNpcStore } from '@/stores/useNpcStore'
+  import { useQuestStore } from '@/stores/useQuestStore'
+  import { getItemById, getStoryQuestById, CHAPTER_TITLES, STORY_QUESTS } from '@/data'
+  import { getCropById } from '@/data/crops'
+  import { addLog } from '@/composables/useGameLog'
+
+  const questStore = useQuestStore()
+  const inventoryStore = useInventoryStore()
+  const goalStore = useGoalStore()
+  const npcStore = useNpcStore()
+
+  const CATEGORY_LABELS: Record<VillagerQuestCategory, string> = {
+    gathering: '采集',
+    cooking: '烹饪筹备',
+    fishing: '钓鱼',
+    errand: '跑腿',
+    festival_prep: '节庆筹备'
+  }
+
+  const STAGE_LABELS: Record<RelationshipStage, string> = {
+    recognize: '认识',
+    familiar: '熟悉',
+    friend: '朋友',
+    bestie: '挚友',
+    romance: '恋爱',
+    married: '婚后',
+    family: '家庭'
+  }
+
+  const getItemName = (id: string): string => {
+    return getItemById(id)?.name ?? id
+  }
+
+  const getHybridName = (id: string): string => {
+    return getCropById(id)?.name ?? getItemName(id)
+  }
+
+  const getCategoryLabel = (category?: VillagerQuestCategory): string => {
+    return category ? CATEGORY_LABELS[category] : '委托'
+  }
+
+  const getStageLabel = (stage?: RelationshipStage): string => {
+    return stage ? STAGE_LABELS[stage] : '认识'
+  }
+
+  const getQuestRewardDetails = (quest: QuestInstance | null | undefined): string[] => {
+    if (!quest) return []
+    const details: string[] = []
+    if (quest.itemReward?.length) {
+      details.push(`物品：${quest.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join('、')}`)
+    }
+    if (quest.recipeReward?.length) {
+      details.push(`食谱：${quest.recipeReward.join('、')}`)
+    }
+    if (quest.buildingClueText) {
+      details.push('附带生活/建筑线索')
+    }
+    return details
+  }
+
+  const getQuestRewardPreview = (quest: QuestInstance | null | undefined): string => {
+    if (!quest) return ''
+    const parts: string[] = [`奖励：${quest.moneyReward}文`]
+    if (quest.friendshipReward) {
+      parts.push(`好感+${quest.friendshipReward}`)
+    }
+    if (quest.itemReward?.length) {
+      parts.push(`物品${quest.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join('、')}`)
+    }
+    return parts.join(' · ')
+  }
+
+  const SEASON_LABELS: Record<string, string> = {
+    spring: '春季',
+    summer: '夏季',
+    autumn: '秋季',
+    winter: '冬季'
+  }
+
+  const getSeasonLabel = (season: string): string => {
+    return SEASON_LABELS[season] ?? season
+  }
+
+  const getQuestRelationshipPreview = (quest: QuestInstance | null | undefined): string => {
+    if (!quest || !quest.sourceCategory) return ''
+
+    const parts: string[] = [`当前关系：${npcStore.getRelationshipStageText(quest.npcId)}`]
+    const currentBenefits = npcStore.getRelationshipBenefits(quest.npcId)
+
+    if (currentBenefits.length > 0) {
+      parts.push(`当前关系收益：${currentBenefits[0]}`)
+    } else if (quest.relationshipStageRequired) {
+      parts.push(`接取门槛：需${getStageLabel(quest.relationshipStageRequired)}`)
+    }
+
+    return parts.join(' · ')
+  }
+
+  const getQuestRelationshipImpactLines = (quest: QuestInstance | null | undefined): string[] => {
+    if (!quest || !quest.sourceCategory) return []
+
+    const lines: string[] = [`当前关系阶段：${npcStore.getRelationshipStageText(quest.npcId)}`]
+
+    if (quest.relationshipStageRequired) {
+      lines.push(`委托解锁条件：需达到${getStageLabel(quest.relationshipStageRequired)}`)
+    }
+
+    const currentBenefits = npcStore.getRelationshipBenefits(quest.npcId)
+    if (currentBenefits.length > 0) {
+      lines.push(`当前关系收益：${currentBenefits.join('；')}`)
+    }
+
+    const nextBenefits = npcStore.getNextRelationshipBenefits(quest.npcId)
+    if (nextBenefits.length > 0) {
+      lines.push(`下一阶段可解锁：${nextBenefits.join('；')}`)
+    }
+
+    return lines
+  }
+
+  // === 弹窗状态 ===
+
+  type QuestModalState = { type: 'main' } | { type: 'board'; questId: string } | { type: 'special' } | { type: 'active'; questId: string }
+
+  const questModal = ref<QuestModalState | null>(null)
+
+  const selectedBoardQuest = computed(() => {
+    const m = questModal.value
+    if (!m || m.type !== 'board') return null
+    return questStore.boardQuests.find(q => q.id === m.questId) ?? null
+  })
+
+  const selectedActiveQuest = computed(() => {
+    const m = questModal.value
+    if (!m || m.type !== 'active') return null
+    return questStore.activeQuests.find(q => q.id === m.questId) ?? null
+  })
+
+  const totalMainQuestCount = STORY_QUESTS.length
+
+  // === 主线任务 ===
+
+  const mainQuestDef = computed(() => {
+    if (!questStore.mainQuest) return null
+    return getStoryQuestById(questStore.mainQuest.questId) ?? null
+  })
+
+  const chapterTitle = computed(() => {
+    if (!mainQuestDef.value) return ''
+    return CHAPTER_TITLES[mainQuestDef.value.chapter] ?? ''
+  })
+
+  const mainQuestProgress = computed(() => {
+    return questStore.mainQuest?.objectiveProgress ?? []
+  })
+
+  const canSubmitMainQuest = computed(() => questStore.canSubmitMainQuest())
+
+  const handleAcceptMain = () => {
+    const result = questStore.acceptMainQuest()
+    addLog(result.message)
+    if (result.success) {
+      questModal.value = null
+    }
+  }
+
+  const handleSubmitMain = () => {
+    const result = questStore.submitMainQuest()
+    addLog(result.message)
+    if (result.success) {
+      questModal.value = null
+    }
+  }
+
+  // === 日常委托 ===
+
+  const getEffectiveProgress = (quest: QuestInstance): number => {
+    return questStore.getQuestEffectiveProgress(quest)
+  }
+
+  const canSubmit = (quest: QuestInstance): boolean => {
+    return questStore.canSubmitQuest(quest)
+  }
+
+  const handleAccept = (questId: string) => {
+    const result = questStore.acceptQuest(questId)
+    addLog(result.message)
+    if (result.success) {
+      questModal.value = null
+    }
+  }
+
+  const handleAcceptSpecialOrder = () => {
+    const result = questStore.acceptSpecialOrder()
+    addLog(result.message)
+    if (result.success) {
+      questModal.value = null
+    }
+  }
+
+  const handleSubmit = (questId: string) => {
+    const result = questStore.submitQuest(questId)
+    addLog(result.message)
+    if (result.success) {
+      questModal.value = null
+    }
+  }
+
+  onMounted(() => {
+    questStore.initMainQuest()
+    goalStore.ensureInitialized()
+  })
+</script>

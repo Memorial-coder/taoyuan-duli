@@ -1,0 +1,21 @@
+{
+  "name": "taoyuan-duli-server",
+  "version": "1.0.0",
+  "private": true,
+  "description": "桃源乡独立版后端",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "express-session": "^1.18.0",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "mysql2": "^3.20.0"
+  }
+}

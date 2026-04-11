@@ -1,0 +1,141 @@
+name: 构建并发布 Docker 镜像
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: 设置 Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: 设置 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: 缓存 pnpm 依赖
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.pnpm-store
+            node_modules
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pnpm-
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 构建项目
+        run: pnpm run build
+
+      - name: 验证构建产物
+        run: |
+          if [ ! -d "docs" ]; then
+            echo "构建失败：docs 目录不存在"
+            exit 1
+          fi
+          if [ ! -f "docs/index.html" ]; then
+            echo "构建失败：docs/index.html 不存在"
+            exit 1
+          fi
+
+          BUILD_TIME=$(stat -c %Y docs/index.html 2>/dev/null || stat -f %m docs/index.html 2>/dev/null || echo "0")
+          CURRENT_TIME=$(date +%s)
+          TIME_DIFF=$((CURRENT_TIME - BUILD_TIME))
+
+          echo "构建产物信息:"
+          echo "  时间差: ${TIME_DIFF}秒"
+
+          if [ $TIME_DIFF -gt 300 ]; then
+            echo "警告: 构建产物可能不是最新的（超过5分钟）"
+          fi
+
+          echo "构建产物验证通过"
+          ls -la docs/
+
+      - name: 获取当前日期
+        id: date
+        run: echo "date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+
+      - name: 获取版本号
+        id: version
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "当前版本: $VERSION"
+
+      - name: 准备 CI 构建环境
+        run: |
+          cp .dockerignore.ci .dockerignore
+          echo "已切换到 CI 构建模式"
+
+      - name: 设置 QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # 登录 GHCR（始终执行）
+      - name: 登录 GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 登录 Docker Hub（仅在配置了用户名时执行）
+      - name: 登录 Docker Hub
+        if: env.DOCKERHUB_USERNAME != ''
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: 构建并推送多架构镜像
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile.ci
+          platforms: linux/amd64,linux/arm64
+          push: true
+          no-cache: false
+          pull: true
+          tags: |
+            ghcr.io/${{ github.repository_owner }}/taoyuan:latest
+            ghcr.io/${{ github.repository_owner }}/taoyuan:${{ steps.version.outputs.version }}
+            ghcr.io/${{ github.repository_owner }}/taoyuan:${{ github.sha }}
+            ${{ env.DOCKERHUB_USERNAME && format('{0}/taoyuan:latest', env.DOCKERHUB_USERNAME) || '' }}
+            ${{ env.DOCKERHUB_USERNAME && format('{0}/taoyuan:{1}', env.DOCKERHUB_USERNAME, steps.version.outputs.version) || '' }}
+            ${{ env.DOCKERHUB_USERNAME && format('{0}/taoyuan:{1}', env.DOCKERHUB_USERNAME, github.sha) || '' }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ steps.date.outputs.date }}
+            VERSION=${{ steps.version.outputs.version }}
+            COMMIT_SHA=${{ github.sha }}
+          labels: |
+            org.opencontainers.image.title=桃源乡
+            org.opencontainers.image.description=桃源乡 - 文字农场模拟游戏
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.created=${{ steps.date.outputs.date }}

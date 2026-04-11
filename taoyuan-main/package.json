@@ -1,0 +1,84 @@
+{
+  "name": "taoyuan",
+  "title": "桃源乡",
+  "qq": "920930589",
+  "tapid": "816558",
+  "private": true,
+  "version": "2.3.0",
+  "type": "module",
+  "main": "dist-electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "eslint src --ext .ts,.vue",
+    "type-check": "vue-tsc -b",
+    "check": "pnpm run type-check && pnpm run lint",
+    "build:electron": "vue-tsc -b && vite build && esbuild electron/main.js --bundle --platform=node --format=esm --outfile=dist-electron/main.js --external:electron && esbuild electron/preload.js --bundle --platform=node --format=cjs --outfile=dist-electron/preload.js --external:electron && electron-builder",
+    "build:android": "pnpm run build && npx cap sync android",
+    "build:apk": "pnpm run build:android && cd android && ./gradlew assembleRelease"
+  },
+  "description": "一款文字版田园模拟经营游戏，灵感来自星露谷物语",
+  "author": "setube",
+  "dependencies": {
+    "@capacitor/android": "^8.1.0",
+    "@capacitor/app": "^8.0.1",
+    "@capacitor/core": "^8.1.0",
+    "@capacitor/filesystem": "^8.1.2",
+    "@vueuse/core": "^14.2.0",
+    "clipboard": "^2.0.11",
+    "crypto-js": "^4.2.0",
+    "file-saver": "^2.0.5",
+    "lucide-vue-next": "^0.563.0",
+    "pinia": "^3.0.4",
+    "qmsg": "^1.6.2",
+    "tone": "^15.1.22",
+    "vue": "^3.5.24",
+    "vue-router": "^5.0.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "^8.1.0",
+    "@eslint/js": "^9.39.2",
+    "@types/clipboard": "^2.0.10",
+    "@types/crypto-js": "^4.2.2",
+    "@types/file-saver": "^2.0.7",
+    "@types/node": "^24.10.1",
+    "@typescript-eslint/eslint-plugin": "^8.52.0",
+    "@typescript-eslint/parser": "^8.52.0",
+    "@vitejs/plugin-legacy": "^7.2.1",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "@vue/tsconfig": "^0.8.1",
+    "autoprefixer": "^10.4.24",
+    "electron": "^39.2.7",
+    "electron-builder": "^26.0.12",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.39.2",
+    "eslint-plugin-vue": "^10.6.2",
+    "globals": "^17.0.0",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "typescript": "~5.9.3",
+    "vite": "^7.2.4",
+    "vue-eslint-parser": "^10.2.0",
+    "vue-tsc": "^3.1.4"
+  },
+  "build": {
+    "appId": "games.wenzi.taoyuan",
+    "productName": "桃源乡",
+    "asar": false,
+    "files": [
+      "dist-electron/**/*",
+      "docs/**/*",
+      "public/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "pkg"
+    },
+    "win": {
+      "target": "zip",
+      "icon": "public/favicon.ico",
+      "artifactName": "taoyuan-${version}-win.${ext}"
+    }
+  }
+}

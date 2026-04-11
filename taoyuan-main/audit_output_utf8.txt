@@ -1,0 +1,415 @@
+﻿Valid items count: 1447
+[ORPHAN?] price_desc found in: components\game\ItemCollectionTab.vue
+[ORPHAN?] price_asc found in: components\game\ItemCollectionTab.vue
+[ORPHAN?] attack_bonus found in: components\game\ItemCollectionTab.vue, data\equipmentSets.ts, data\glossary.ts, data\hats.ts, data\rings.ts, data\shoes.ts, stores\useMiningStore.ts, types\ring.ts, views\game\MiningView.vue
+[ORPHAN?] max_hp_bonus found in: components\game\ItemCollectionTab.vue, data\equipmentSets.ts, data\glossary.ts, data\hats.ts, data\rings.ts, data\shoes.ts, stores\usePlayerStore.ts, types\ring.ts
+[ORPHAN?] ore_bonus found in: components\game\ItemCollectionTab.vue, data\equipmentSets.ts, data\glossary.ts, data\hats.ts, data\rings.ts, data\shoes.ts, stores\useMiningStore.ts, types\ring.ts, views\game\InventoryView.vue, views\game\MiningView.vue
+[ORPHAN?] grandmaster_farmer found in: components\game\PerkSelectDialog.vue, composables\useFarmActions.ts, composables\useFarmHarvest.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] estate_owner found in: components\game\PerkSelectDialog.vue, composables\useFarmActions.ts, composables\useFarmHarvest.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] livestock_baron found in: components\game\PerkSelectDialog.vue, stores\useAnimalStore.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] animal_whisperer found in: components\game\PerkSelectDialog.vue, stores\useAnimalStore.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] ancient_botanist found in: components\game\PerkSelectDialog.vue, stores\useSkillStore.ts, types\skill.ts
+[ORPHAN?] grand_alchemist found in: components\game\PerkSelectDialog.vue, stores\useCookingStore.ts, types\skill.ts
+[ORPHAN?] legendary_angler found in: components\game\PerkSelectDialog.vue, stores\useFishingStore.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] aquatic_merchant found in: components\game\PerkSelectDialog.vue, stores\useFishingStore.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] sea_captain found in: components\game\PerkSelectDialog.vue, stores\useFishingStore.ts, types\skill.ts
+[ORPHAN?] bait_master found in: components\game\PerkSelectDialog.vue, stores\useFishingStore.ts, types\skill.ts
+[ORPHAN?] vein_seeker found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] master_smith found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] deep_excavator found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, types\skill.ts
+[ORPHAN?] gem_collector found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, types\skill.ts
+[ORPHAN?] sword_saint found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, stores\usePlayerStore.ts, types\skill.ts
+[ORPHAN?] phantom_blade found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, stores\usePlayerStore.ts, types\skill.ts
+[ORPHAN?] iron_fortress found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, stores\usePlayerStore.ts, types\skill.ts
+[ORPHAN?] deity_of_harvest found in: components\game\PerkSelectDialog.vue, composables\useFarmActions.ts, composables\useFarmHarvest.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] land_god found in: components\game\PerkSelectDialog.vue, composables\useEndDay.ts, composables\useFarmActions.ts, composables\useFarmHarvest.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] beast_sovereign found in: components\game\PerkSelectDialog.vue, stores\useAnimalStore.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] nature_bond found in: components\game\PerkSelectDialog.vue, stores\useAnimalStore.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] world_tree found in: components\game\PerkSelectDialog.vue, stores\useSkillStore.ts, types\skill.ts, views\game\ForageView.vue
+[ORPHAN?] fish_god found in: components\game\PerkSelectDialog.vue, stores\useFishingStore.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] ocean_trader found in: components\game\PerkSelectDialog.vue, stores\useFishingStore.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] sea_sovereign found in: components\game\PerkSelectDialog.vue, stores\useFishingStore.ts, types\skill.ts
+[ORPHAN?] lure_deity found in: components\game\PerkSelectDialog.vue, stores\useFishingStore.ts, types\skill.ts
+[ORPHAN?] earth_pulse found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] forge_god found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, stores\useShopStore.ts, types\skill.ts
+[ORPHAN?] abyss_miner found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, types\skill.ts
+[ORPHAN?] gem_emperor found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, types\skill.ts
+[ORPHAN?] war_god found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, stores\usePlayerStore.ts, types\skill.ts
+[ORPHAN?] slaughter_king found in: components\game\PerkSelectDialog.vue, stores\useMiningStore.ts, stores\usePlayerStore.ts, types\skill.ts
+[ORPHAN?] shadow_sovereign found in: components\game\PerkSelectDialog.vue, data\guild.ts, data\mine.ts, stores\useMiningStore.ts, stores\usePlayerStore.ts, types\skill.ts
+[ORPHAN?] green_rain found in: composables\useEndDay.ts, data\npcWorld.ts, stores\useGameStore.ts, types\game.ts
+[ORPHAN?] crop_blessing found in: composables\useFarmActions.ts, composables\useFarmHarvest.ts, data\hiddenNpcs.ts, stores\useHiddenNpcStore.ts, types\hiddenNpc.ts
+[ORPHAN?] stamina_reduction found in: composables\useFarmActions.ts, data\hats.ts, data\rings.ts, data\shoes.ts, stores\useFishingStore.ts, stores\useMiningStore.ts, types\ring.ts, views\game\FarmView.vue, views\game\InventoryView.vue, views\game\MiningView.vue
+[ORPHAN?] all_skills found in: composables\useFarmActions.ts, composables\useFarmHarvest.ts, data\achievements.ts, data\recipes.ts, stores\useFishingStore.ts, stores\useMiningStore.ts, types\skill.ts, views\game\ForageView.vue
+[ORPHAN?] animal_product found in: data\collectionRegistry.ts, data\items.ts, data\market.ts, stores\useAchievementStore.ts, stores\useShopStore.ts, types\item.ts, views\game\AchievementView.vue, views\game\InventoryView.vue, views\game\ShopView.vue
+[ORPHAN?] mining_stamina found in: data\equipmentSets.ts, data\hats.ts, data\rings.ts, data\shoes.ts, stores\useMiningStore.ts, types\ring.ts, views\game\InventoryView.vue, views\game\MiningView.vue
+[ORPHAN?] fish_quality_bonus found in: data\equipmentSets.ts, data\rings.ts, stores\useFishingStore.ts, types\ring.ts, views\game\InventoryView.vue, views\game\MiningView.vue
+[ORPHAN?] fishing_calm found in: data\equipmentSets.ts, data\hats.ts, data\rings.ts, data\shoes.ts, stores\useFishingStore.ts, types\ring.ts, views\game\InventoryView.vue, views\game\MiningView.vue
+[ORPHAN?] sell_price_bonus found in: data\equipmentSets.ts, data\hats.ts, data\rings.ts, data\shoes.ts, stores\useShopStore.ts, types\ring.ts, views\game\FarmView.vue, views\game\InventoryView.vue, views\game\MiningView.vue, views\game\ShopView.vue
+[ORPHAN?] shop_discount found in: data\equipmentSets.ts, data\hats.ts, data\npcWorld.ts, data\rings.ts, data\shoes.ts, stores\useNpcStore.ts, stores\useShopStore.ts, types\npc.ts, types\ring.ts, views\game\InventoryView.vue, views\game\MiningView.vue
+[ORPHAN?] crit_rate_bonus found in: data\equipmentSets.ts, data\hats.ts, data\rings.ts, stores\useMiningStore.ts, types\ring.ts, views\game\InventoryView.vue, views\game\MiningView.vue
+[ORPHAN?] defense_bonus found in: data\equipmentSets.ts, data\hats.ts, data\rings.ts, data\shoes.ts, stores\useMiningStore.ts, types\ring.ts, views\game\MiningView.vue
+[ORPHAN?] exp_bonus found in: data\equipmentSets.ts, data\hats.ts, data\rings.ts, data\shoes.ts, stores\useSkillStore.ts, types\ring.ts, views\game\InventoryView.vue, views\game\MiningView.vue
+[ORPHAN?] monster_drop_bonus found in: data\equipmentSets.ts, data\hats.ts, data\rings.ts, data\shoes.ts, stores\useMiningStore.ts, types\ring.ts, views\game\InventoryView.vue, views\game\MiningView.vue
+[ORPHAN?] peach_tree found in: data\fruitTrees.ts, stores\useFarmStore.ts, types\animal.ts
+[ORPHAN?] main_stage_1_harvest found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_1_fish found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_1_cook found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_2_money found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_2_mine found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_2_friend found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_3_home found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_3_cave found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_3_bundle found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_4_money found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_4_social found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_4_collect found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_5_wealth found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_5_social found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_5_mine found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] main_stage_5_collect found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_spring_harvest found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_spring_fish found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_spring_income found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_spring_cook found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_spring_social found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_summer_harvest found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_summer_income found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_summer_recipe found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_summer_fish found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_summer_mine found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_autumn_harvest found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_autumn_income found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_autumn_collect found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_autumn_fish found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_autumn_social found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_winter_mine found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_winter_cook found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_winter_social found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_winter_income found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] season_winter_fish found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_spring_harvest found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_spring_fish found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_spring_income found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_spring_discovery found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_summer_harvest found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_summer_income found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_summer_cook found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_summer_fish found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_autumn_harvest found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_autumn_income found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_autumn_discovery found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_autumn_cook found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_winter_mine found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_winter_cook found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_winter_fish found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] daily_winter_income found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_money_1 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_money_2 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_money_3 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_home_1 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_home_2 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_mine_1 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_mine_2 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_fish_1 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_fish_2 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_cook_1 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_cook_2 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_crop_1 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_crop_2 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_social_1 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_social_2 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_collect_1 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_collect_2 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_bundle_1 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_bundle_2 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_crabpot_1 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_family_1 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] long_family_2 found in: data\goals.ts, stores\useGoalStore.ts
+[ORPHAN?] func_field_irrigation_pack found in: data\goals.ts, data\shopCatalog.ts
+[ORPHAN?] weekly_inventory_bag found in: data\goals.ts, data\shopCatalog.ts
+[ORPHAN?] func_angler_pack found in: data\goals.ts, data\shopCatalog.ts
+[ORPHAN?] weekly_pond_care_pack found in: data\goals.ts, data\shopCatalog.ts
+[ORPHAN?] func_builder_pack found in: data\goals.ts, data\shopCatalog.ts
+[ORPHAN?] autumn_harvest_pack found in: data\goals.ts, data\shopCatalog.ts
+[ORPHAN?] weekly_mining_supply found in: data\goals.ts, data\shopCatalog.ts
+[ORPHAN?] premium_warehouse_charter found in: data\goals.ts, data\shopCatalog.ts
+[ORPHAN?] lava_lord found in: data\guild.ts, data\mine.ts, stores\useMiningStore.ts
+[ORPHAN?] fishing_stamina found in: data\hats.ts, data\rings.ts, data\shoes.ts, stores\useFishingStore.ts, types\ring.ts, views\game\InventoryView.vue, views\game\MiningView.vue
+[ORPHAN?] treasure_find found in: data\hats.ts, data\rings.ts, stores\useFishingStore.ts, stores\useMiningStore.ts, types\ring.ts, views\game\InventoryView.vue, views\game\MiningView.vue
+[ORPHAN?] weather_control found in: data\hiddenNpcs.ts, stores\useHiddenNpcStore.ts, types\hiddenNpc.ts
+[ORPHAN?] fish_attraction found in: data\hiddenNpcs.ts, stores\useFishingStore.ts, stores\useHiddenNpcStore.ts, types\hiddenNpc.ts
+[ORPHAN?] long_ling_1 found in: data\hiddenNpcs.ts, stores\useFishingStore.ts
+[ORPHAN?] long_ling_2 found in: data\hiddenNpcs.ts, stores\useGameStore.ts
+[ORPHAN?] long_ling_3 found in: data\hiddenNpcs.ts, stores\useFishingStore.ts
+[ORPHAN?] tao_yao_1 found in: data\hiddenNpcs.ts, stores\useFarmStore.ts
+[ORPHAN?] tao_yao_2 found in: data\hiddenNpcs.ts, stores\useFarmStore.ts
+[ORPHAN?] tao_yao_3 found in: data\hiddenNpcs.ts, stores\useFarmStore.ts
+[ORPHAN?] stamina_restore found in: data\hiddenNpcs.ts, stores\useHiddenNpcStore.ts, types\hiddenNpc.ts
+[ORPHAN?] yue_tu_2 found in: data\hiddenNpcs.ts, stores\useCookingStore.ts
+[ORPHAN?] sell_bonus found in: data\hiddenNpcs.ts, stores\useHiddenNpcStore.ts, stores\useShopStore.ts, types\hiddenNpc.ts
+[ORPHAN?] hu_xian_1 found in: data\hiddenNpcs.ts, stores\useShopStore.ts
+[ORPHAN?] hu_xian_2 found in: data\hiddenNpcs.ts, stores\useMiningStore.ts
+[ORPHAN?] hu_xian_3 found in: data\hiddenNpcs.ts, stores\useShopStore.ts
+[ORPHAN?] spirit_shield found in: data\hiddenNpcs.ts, stores\useHiddenNpcStore.ts, stores\usePlayerStore.ts, types\hiddenNpc.ts
+[ORPHAN?] shan_weng_1 found in: data\hiddenNpcs.ts, stores\useMiningStore.ts
+[ORPHAN?] shan_weng_2 found in: data\hiddenNpcs.ts, stores\useMiningStore.ts
+[ORPHAN?] animal_blessing found in: data\hiddenNpcs.ts, stores\useAnimalStore.ts, stores\useHiddenNpcStore.ts, types\hiddenNpc.ts
+[ORPHAN?] gui_nv_1 found in: data\hiddenNpcs.ts, stores\useProcessingStore.ts
+[ORPHAN?] gui_nv_2 found in: data\hiddenNpcs.ts, stores\useProcessingStore.ts
+[ORPHAN?] gui_nv_3 found in: data\hiddenNpcs.ts, stores\useAnimalStore.ts
+[ORPHAN?] wang_dashen found in: data\npcs.ts, data\npcTips.ts, data\npcWorld.ts, data\quests.ts, data\storyQuests.ts, data\timeConstants.ts, stores\useNpcStore.ts
+[ORPHAN?] li_yu found in: data\npcs.ts, data\npcTips.ts, data\storyQuests.ts, data\timeConstants.ts, stores\useNpcStore.ts
+[ORPHAN?] zhou_xiucai found in: data\npcs.ts, data\npcTips.ts, data\storyQuests.ts, data\timeConstants.ts, stores\useNpcStore.ts
+[ORPHAN?] liu_cunzhang found in: data\npcs.ts, data\npcTips.ts, data\storyQuests.ts, data\timeConstants.ts, stores\useNpcStore.ts
+[ORPHAN?] quest_unlock found in: data\npcWorld.ts, stores\useNpcStore.ts, types\npc.ts
+[ORPHAN?] festival_prep found in: data\npcWorld.ts, data\quests.ts, stores\useQuestStore.ts, types\quest.ts
+[ORPHAN?] wine_workshop found in: data\processing.ts, types\processing.ts
+[ORPHAN?] sauce_jar found in: data\processing.ts, types\processing.ts
+[ORPHAN?] bee_house found in: data\processing.ts, types\processing.ts
+[ORPHAN?] oil_press found in: data\processing.ts, types\processing.ts
+[ORPHAN?] mayo_maker found in: data\processing.ts, types\processing.ts
+[ORPHAN?] seed_maker found in: data\processing.ts, stores\useProcessingStore.ts, types\processing.ts, views\game\ProcessingView.vue
+[ORPHAN?] crystal_duplicator found in: data\processing.ts, types\processing.ts
+[ORPHAN?] cheese_press found in: data\processing.ts, types\processing.ts
+[ORPHAN?] charcoal_kiln found in: data\processing.ts, types\processing.ts
+[ORPHAN?] worm_bin found in: data\processing.ts, types\processing.ts
+[ORPHAN?] tea_maker found in: data\processing.ts, types\processing.ts
+[ORPHAN?] tofu_press found in: data\processing.ts, types\processing.ts
+[ORPHAN?] herb_grinder found in: data\processing.ts, types\processing.ts
+[ORPHAN?] incense_maker found in: data\processing.ts, types\processing.ts
+[ORPHAN?] spirit_forge found in: data\processing.ts, types\processing.ts
+[ORPHAN?] wine_watermelon found in: data\processing.ts
+[ORPHAN?] wine_osmanthus found in: data\processing.ts
+[ORPHAN?] vinegar_rice found in: data\processing.ts
+[ORPHAN?] pickle_cabbage found in: data\processing.ts
+[ORPHAN?] pickle_radish found in: data\processing.ts
+[ORPHAN?] preserve_pumpkin found in: data\processing.ts
+[ORPHAN?] honey_chrysanthemum found in: data\processing.ts
+[ORPHAN?] honey_osmanthus found in: data\processing.ts
+[ORPHAN?] honey_rapeseed found in: data\processing.ts
+[ORPHAN?] honey_snow_lotus found in: data\processing.ts
+[ORPHAN?] wine_peach found in: data\processing.ts
+[ORPHAN?] wine_jujube found in: data\processing.ts
+[ORPHAN?] wine_corn found in: data\processing.ts
+[ORPHAN?] pickle_chili found in: data\processing.ts
+[ORPHAN?] pickle_ginger found in: data\processing.ts
+[ORPHAN?] mayo_egg found in: data\processing.ts
+[ORPHAN?] mayo_duck_egg found in: data\processing.ts
+[ORPHAN?] mayo_goose_egg found in: data\processing.ts
+[ORPHAN?] mayo_silkie_egg found in: data\processing.ts
+[ORPHAN?] mayo_ostrich_egg found in: data\processing.ts
+[ORPHAN?] mayo_quail_egg found in: data\processing.ts
+[ORPHAN?] seed_from_cabbage found in: data\processing.ts
+[ORPHAN?] seed_from_radish found in: data\processing.ts
+[ORPHAN?] seed_from_potato found in: data\processing.ts
+[ORPHAN?] seed_from_tea found in: data\processing.ts
+[ORPHAN?] seed_from_watermelon found in: data\processing.ts
+[ORPHAN?] seed_from_rice found in: data\processing.ts
+[ORPHAN?] seed_from_lotus_root found in: data\processing.ts
+[ORPHAN?] seed_from_sesame found in: data\processing.ts
+[ORPHAN?] seed_from_pumpkin found in: data\processing.ts
+[ORPHAN?] seed_from_sweet_potato found in: data\processing.ts
+[ORPHAN?] seed_from_chrysanthemum found in: data\processing.ts
+[ORPHAN?] seed_from_osmanthus found in: data\processing.ts
+[ORPHAN?] seed_from_bamboo_shoot found in: data\processing.ts
+[ORPHAN?] seed_from_persimmon found in: data\processing.ts
+[ORPHAN?] seed_from_winter_wheat found in: data\processing.ts
+[ORPHAN?] seed_from_garlic found in: data\processing.ts
+[ORPHAN?] seed_from_snow_lotus found in: data\processing.ts
+[ORPHAN?] seed_from_rapeseed found in: data\processing.ts
+[ORPHAN?] seed_from_broad_bean found in: data\processing.ts
+[ORPHAN?] seed_from_peach found in: data\processing.ts
+[ORPHAN?] seed_from_green_bean found in: data\processing.ts
+[ORPHAN?] seed_from_loofah found in: data\processing.ts
+[ORPHAN?] seed_from_eggplant found in: data\processing.ts
+[ORPHAN?] seed_from_chili found in: data\processing.ts
+[ORPHAN?] seed_from_lotus_seed found in: data\processing.ts
+[ORPHAN?] seed_from_corn found in: data\processing.ts
+[ORPHAN?] seed_from_yam found in: data\processing.ts
+[ORPHAN?] seed_from_peanut found in: data\processing.ts
+[ORPHAN?] seed_from_jujube found in: data\processing.ts
+[ORPHAN?] seed_from_ginger found in: data\processing.ts
+[ORPHAN?] seed_from_napa_cabbage found in: data\processing.ts
+[ORPHAN?] seed_from_spinach found in: data\processing.ts
+[ORPHAN?] seed_from_mustard_green found in: data\processing.ts
+[ORPHAN?] seed_from_chives found in: data\processing.ts
+[ORPHAN?] dup_quartz found in: data\processing.ts
+[ORPHAN?] dup_jade found in: data\processing.ts
+[ORPHAN?] dup_ruby found in: data\processing.ts
+[ORPHAN?] dup_moonstone found in: data\processing.ts
+[ORPHAN?] dup_obsidian found in: data\processing.ts
+[ORPHAN?] dup_dragon_jade found in: data\processing.ts
+[ORPHAN?] smoke_crucian found in: data\processing.ts
+[ORPHAN?] smoke_carp found in: data\processing.ts
+[ORPHAN?] smoke_grass_carp found in: data\processing.ts
+[ORPHAN?] smoke_bass found in: data\processing.ts
+[ORPHAN?] smoke_catfish found in: data\processing.ts
+[ORPHAN?] smoke_mandarin_fish found in: data\processing.ts
+[ORPHAN?] smoke_eel found in: data\processing.ts
+[ORPHAN?] smoke_sturgeon found in: data\processing.ts
+[ORPHAN?] smoke_loach found in: data\processing.ts
+[ORPHAN?] smoke_yellow_eel found in: data\processing.ts
+[ORPHAN?] dry_mushroom found in: data\processing.ts
+[ORPHAN?] dry_peach found in: data\processing.ts
+[ORPHAN?] dry_lychee found in: data\processing.ts
+[ORPHAN?] dry_persimmon found in: data\processing.ts
+[ORPHAN?] dry_hawthorn found in: data\processing.ts
+[ORPHAN?] dry_apricot found in: data\processing.ts
+[ORPHAN?] dry_wild_berry found in: data\processing.ts
+[ORPHAN?] recycle_firewood found in: data\processing.ts
+[ORPHAN?] recycle_copper found in: data\processing.ts
+[ORPHAN?] recycle_iron found in: data\processing.ts
+[ORPHAN?] recycle_quartz found in: data\processing.ts
+[ORPHAN?] recycle_driftwood found in: data\processing.ts
+[ORPHAN?] recycle_cd found in: data\processing.ts
+[ORPHAN?] recycle_newspaper found in: data\processing.ts
+[ORPHAN?] cheese_milk found in: data\processing.ts
+[ORPHAN?] cheese_goat found in: data\processing.ts
+[ORPHAN?] cheese_buffalo found in: data\processing.ts
+[ORPHAN?] cheese_yak found in: data\processing.ts
+[ORPHAN?] weave_wool found in: data\processing.ts
+[ORPHAN?] weave_silk found in: data\processing.ts
+[ORPHAN?] weave_alpaca found in: data\processing.ts
+[ORPHAN?] weave_rabbit found in: data\processing.ts
+[ORPHAN?] smelt_copper found in: data\processing.ts
+[ORPHAN?] smelt_iron found in: data\processing.ts
+[ORPHAN?] smelt_gold found in: data\processing.ts
+[ORPHAN?] smelt_iridium found in: data\processing.ts
+[ORPHAN?] smelt_bronze found in: data\processing.ts
+[ORPHAN?] smelt_refined_quartz found in: data\processing.ts
+[ORPHAN?] smelt_mythril found in: data\processing.ts
+[ORPHAN?] burn_wood found in: data\processing.ts
+[ORPHAN?] burn_bamboo found in: data\processing.ts
+[ORPHAN?] mill_rice found in: data\processing.ts
+[ORPHAN?] mill_wheat found in: data\processing.ts
+[ORPHAN?] mill_corn found in: data\processing.ts
+[ORPHAN?] worm_bait found in: data\processing.ts
+[ORPHAN?] brew_green_tea found in: data\processing.ts
+[ORPHAN?] brew_chrysanthemum found in: data\processing.ts
+[ORPHAN?] brew_osmanthus found in: data\processing.ts
+[ORPHAN?] brew_ginseng found in: data\processing.ts
+[ORPHAN?] press_tofu found in: data\processing.ts
+[ORPHAN?] press_peanut_tofu found in: data\processing.ts
+[ORPHAN?] press_sesame_paste found in: data\processing.ts
+[ORPHAN?] grind_herb found in: data\processing.ts
+[ORPHAN?] grind_ginseng found in: data\processing.ts
+[ORPHAN?] grind_antler found in: data\processing.ts
+[ORPHAN?] grind_animal_medicine found in: data\processing.ts
+[ORPHAN?] mill_premium_feed found in: data\processing.ts
+[ORPHAN?] mill_nourishing_feed found in: data\processing.ts
+[ORPHAN?] grind_vitality_feed found in: data\processing.ts
+[ORPHAN?] mill_fish_feed found in: data\processing.ts, stores\useInventoryStore.ts, stores\useProcessingStore.ts, stores\useShopStore.ts, stores\useWarehouseStore.ts
+[ORPHAN?] recycle_fish_feed found in: data\processing.ts, stores\useInventoryStore.ts, stores\useProcessingStore.ts, stores\useShopStore.ts, stores\useWarehouseStore.ts
+[ORPHAN?] incense_pine found in: data\processing.ts
+[ORPHAN?] incense_camphor found in: data\processing.ts
+[ORPHAN?] incense_osmanthus found in: data\processing.ts
+[ORPHAN?] spirit_forge_dragon_scale_charm found in: data\processing.ts
+[ORPHAN?] spirit_forge_blossom_crown found in: data\processing.ts
+[ORPHAN?] spirit_forge_jade_mortar found in: data\processing.ts
+[ORPHAN?] spirit_forge_fox_flame_lantern found in: data\processing.ts
+[ORPHAN?] spirit_forge_cultivation_jade found in: data\processing.ts
+[ORPHAN?] spirit_forge_silver_thread_ring found in: data\processing.ts
+[ORPHAN?] spirit_forge_dragon_pearl found in: data\processing.ts
+[ORPHAN?] spirit_forge_eternal_blossom found in: data\processing.ts
+[ORPHAN?] spirit_forge_moon_elixir found in: data\processing.ts
+[ORPHAN?] spirit_forge_fox_spirit_bead found in: data\processing.ts
+[ORPHAN?] spirit_forge_immortal_gourd found in: data\processing.ts
+[ORPHAN?] spirit_forge_starlight_loom found in: data\processing.ts
+[ORPHAN?] lightning_rod found in: data\processing.ts, views\game\ProcessingView.vue
+[ORPHAN?] auto_petter found in: data\processing.ts
+[ORPHAN?] special_order found in: data\quests.ts, stores\useQuestStore.ts, types\quest.ts, views\game\QuestView.vue
+[ORPHAN?] stir_fried_cabbage found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] honey_tea found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] ginger_soup found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] bamboo_shoot_stir_fry found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] dried_persimmon found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] corn_pancake found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] scrambled_egg_rice found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] stir_fried_potato found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] boiled_egg found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] roasted_sweet_potato found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] vegetable_soup found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] chive_egg_stir_fry found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] peanut_candy found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] silkie_egg_soup found in: data\recipes.ts, stores\useCookingStore.ts
+[ORPHAN?] travel_speed found in: data\rings.ts, data\shoes.ts, stores\useGameStore.ts, types\ring.ts, views\game\InventoryView.vue, views\game\MiningView.vue
+[ORPHAN?] unlock_decoration found in: data\shopCatalog.ts, stores\useShopStore.ts, views\game\ShopView.vue
+[ORPHAN?] expand_inventory_extra found in: data\shopCatalog.ts, stores\useShopStore.ts, views\game\ShopView.vue
+[ORPHAN?] expand_warehouse found in: data\shopCatalog.ts, stores\useShopStore.ts, views\game\ShopView.vue
+[ORPHAN?] unlock_greenhouse found in: data\shopCatalog.ts, stores\useShopStore.ts, views\game\ShopView.vue
+[ORPHAN?] grant_chest found in: data\shopCatalog.ts, stores\useShopStore.ts, views\game\ShopView.vue
+[ORPHAN?] add_items found in: data\shopCatalog.ts, stores\useShopStore.ts, views\game\ShopView.vue
+[ORPHAN?] decor_bamboo_screen found in: data\shopCatalog.ts
+[ORPHAN?] decor_tea_table found in: data\shopCatalog.ts
+[ORPHAN?] decor_clay_vase found in: data\shopCatalog.ts
+[ORPHAN?] decor_stone_lantern found in: data\shopCatalog.ts
+[ORPHAN?] func_silk_satchel found in: data\shopCatalog.ts
+[ORPHAN?] builder_pack found in: data\shopCatalog.ts
+[ORPHAN?] angler_pack found in: data\shopCatalog.ts
+[ORPHAN?] func_ranch_pack found in: data\shopCatalog.ts
+[ORPHAN?] func_resin_tool_pack found in: data\shopCatalog.ts
+[ORPHAN?] weekly_scholar_shelf found in: data\shopCatalog.ts
+[ORPHAN?] weekly_festival_lantern found in: data\shopCatalog.ts
+[ORPHAN?] weekly_travel_trunk found in: data\shopCatalog.ts
+[ORPHAN?] travel_trunk found in: data\shopCatalog.ts
+[ORPHAN?] weekly_rain_kit found in: data\shopCatalog.ts
+[ORPHAN?] rain_kit found in: data\shopCatalog.ts
+[ORPHAN?] weekly_warehouse_deed found in: data\shopCatalog.ts
+[ORPHAN?] warehouse_expand found in: data\shopCatalog.ts
+[ORPHAN?] weekly_apothecary_box found in: data\shopCatalog.ts
+[ORPHAN?] apothecary_box found in: data\shopCatalog.ts
+[ORPHAN?] weekly_irrigation_case found in: data\shopCatalog.ts
+[ORPHAN?] irrigation_case found in: data\shopCatalog.ts
+[ORPHAN?] pond_care found in: data\shopCatalog.ts
+[ORPHAN?] mining_supply found in: data\shopCatalog.ts
+[ORPHAN?] weekly_tavern_gift found in: data\shopCatalog.ts
+[ORPHAN?] tavern_gift found in: data\shopCatalog.ts
+[ORPHAN?] inventory_bag found in: data\shopCatalog.ts
+[ORPHAN?] weekly_chest_deed found in: data\shopCatalog.ts
+[ORPHAN?] chest_deed found in: data\shopCatalog.ts
+[ORPHAN?] spring_blossom_arch found in: data\shopCatalog.ts
+[ORPHAN?] spring_willow_mat found in: data\shopCatalog.ts
+[ORPHAN?] spring_peach_scroll found in: data\shopCatalog.ts
+[ORPHAN?] summer_lotus_lamp found in: data\shopCatalog.ts
+[ORPHAN?] summer_cool_bench found in: data\shopCatalog.ts
+[ORPHAN?] summer_bamboo_blind found in: data\shopCatalog.ts
+[ORPHAN?] autumn_maple_screen found in: data\shopCatalog.ts
+[ORPHAN?] autumn_harvest_banner found in: data\shopCatalog.ts
+[ORPHAN?] autumn_moon_set found in: data\shopCatalog.ts
+[ORPHAN?] winter_brazier found in: data\shopCatalog.ts
+[ORPHAN?] winter_plum_frame found in: data\shopCatalog.ts
+[ORPHAN?] winter_incense_stand found in: data\shopCatalog.ts
+[ORPHAN?] spring_seed_bundle found in: data\shopCatalog.ts
+[ORPHAN?] summer_fishing_pack found in: data\shopCatalog.ts
+[ORPHAN?] winter_warming_pack found in: data\shopCatalog.ts
+[ORPHAN?] premium_grand_satchel found in: data\shopCatalog.ts
+[ORPHAN?] premium_greenhouse_permit found in: data\shopCatalog.ts
+[ORPHAN?] premium_void_contract found in: data\shopCatalog.ts
+[ORPHAN?] premium_master_irrigation_set found in: data\shopCatalog.ts
+[ORPHAN?] premium_resin_workshop found in: data\shopCatalog.ts
+[ORPHAN?] premium_golden_frame found in: data\shopCatalog.ts
+[ORPHAN?] premium_ranch_starter found in: data\shopCatalog.ts
+[ORPHAN?] premium_angler_elite found in: data\shopCatalog.ts
+[ORPHAN?] premium_warehouse_expansion_xl found in: data\shopCatalog.ts
+[ORPHAN?] premium_inventory_xl found in: data\shopCatalog.ts
+[ORPHAN?] merchant_seal found in: data\wallet.ts, stores\useWalletStore.ts
+[ORPHAN?] herb_guide found in: data\wallet.ts, stores\useWalletStore.ts
+[ORPHAN?] miners_charm found in: data\wallet.ts, stores\useWalletStore.ts
+[ORPHAN?] anglers_token found in: data\wallet.ts, stores\useWalletStore.ts
+[ORPHAN?] chefs_hat found in: data\wallet.ts, stores\useWalletStore.ts
+[ORPHAN?] earth_totem found in: data\wallet.ts, stores\useWalletStore.ts
+[ORPHAN?] money_earned found in: data\wallet.ts, stores\useWalletStore.ts, types\wallet.ts
+[ORPHAN?] friendly_npcs found in: data\wallet.ts, stores\useWalletStore.ts, types\wallet.ts
+[ORPHAN?] recipes_cooked found in: data\wallet.ts, stores\useWalletStore.ts, types\wallet.ts
+[ORPHAN?] mine_floor found in: data\wallet.ts, stores\useWalletStore.ts, types\wallet.ts
+[ORPHAN?] fish_caught found in: data\wallet.ts, stores\useWalletStore.ts, types\wallet.ts
+[ORPHAN?] target_analysis found in: stores\useBreedingStore.ts
+[ORPHAN?] precision_breeding found in: stores\useBreedingStore.ts
+[ORPHAN?] lineage_archive found in: stores\useBreedingStore.ts
+[ORPHAN?] market_breeder found in: stores\useBreedingStore.ts
+[ORPHAN?] missing_parents found in: stores\useBreedingStore.ts, types\breeding.ts
+[ORPHAN?] bone_meal found in: stores\useFarmStore.ts
+[ORPHAN?] archetype_bias found in: stores\useGoalStore.ts, types\goal.ts
+[ORPHAN?] fruit_bat found in: stores\useHomeStore.ts, types\animal.ts, views\game\HomeView.vue
+[ORPHAN?] taoyuanxiang_2024_secret found in: stores\useSaveStore.ts

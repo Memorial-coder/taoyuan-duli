@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout
+  xmlns:android="http://schemas.android.com/apk/res/android"
+  android:id="@+id/loadingOverlay"
+  android:layout_width="match_parent"
+  android:layout_height="match_parent"
+  android:background="#0d1117"
+  android:elevation="10dp">
+
+  <LinearLayout
+    android:layout_width="wrap_content"
+    android:layout_height="wrap_content"
+    android:layout_gravity="center"
+    android:gravity="center"
+    android:orientation="vertical">
+
+    <!-- 游戏标题 -->
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="桃源乡"
+      android:textColor="#c8a45c"
+      android:textSize="28sp"
+      android:textStyle="bold"
+      android:layout_marginBottom="8dp" />
+
+    <!-- 副标题 -->
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="文字田园物语"
+      android:textColor="#8b949e"
+      android:textSize="14sp"
+      android:layout_marginBottom="32dp" />
+
+    <!-- 加载动画 -->
+    <ProgressBar
+      android:layout_width="32dp"
+      android:layout_height="32dp"
+      android:indeterminateTint="#c8a45c"
+      android:layout_marginBottom="12dp" />
+
+    <!-- 加载文字 -->
+    <TextView
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:text="加载中…"
+      android:textColor="#6b7280"
+      android:textSize="12sp" />
+
+    <!-- 超时后显示的进入按钮 -->
+    <TextView
+      android:id="@+id/enterButton"
+      android:layout_width="wrap_content"
+      android:layout_height="wrap_content"
+      android:layout_marginTop="32dp"
+      android:background="@android:color/transparent"
+      android:paddingHorizontal="32dp"
+      android:paddingVertical="10dp"
+      android:text="进入游戏"
+      android:textColor="#c8a45c"
+      android:textSize="15sp"
+      android:visibility="gone" />
+
+  </LinearLayout>
+
+</FrameLayout>
