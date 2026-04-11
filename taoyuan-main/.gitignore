@@ -18,6 +18,17 @@ dist-electron
 docs
 *.local
 
+# Local planning / review docs not for GitHub
+*建议*.md
+*报告*.md
+*实施方案*.md
+*执行清单*.md
+*需求稿*.md
+*改造清单*.md
+*测试用例清单*.md
+*公告草案*.md
+*实施索引*.md
+
 # Editor directories and files
 .claude/*
 .vscode/*
