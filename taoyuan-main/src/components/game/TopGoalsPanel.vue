@@ -74,6 +74,20 @@
             <p class="text-[11px] text-accent">{{ goalStore.currentThemeWeek.name }}</p>
             <p class="text-[10px] text-muted mt-1 leading-5">{{ goalStore.currentThemeWeek.description }}</p>
           </div>
+          <div class="rounded-xs border border-warning/20 bg-warning/5 px-2 py-2">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[11px] text-warning">市场轮换摘要</p>
+              <span class="text-[10px] text-muted">{{ marketOverview.phaseLabel }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-1 leading-5">{{ marketOverview.phaseDescription }}</p>
+            <p v-if="marketOverview.hotspotCategoryLabels.length > 0" class="text-[10px] text-warning mt-1">
+              热点：{{ marketOverview.hotspotCategoryLabels.slice(0, 3).join('、') }}
+            </p>
+            <p v-if="marketRouteHighlights" class="text-[10px] text-success mt-1">建议路线：{{ marketRouteHighlights }}</p>
+            <p v-if="marketOverview.overflowPenaltyCount > 0" class="text-[10px] text-danger mt-1">
+              当前有 {{ marketOverview.overflowPenaltyCount }} 个品类处于过剩压制，建议尽快换线出货。
+            </p>
+          </div>
           <div v-if="goalStore.currentThemeWeekGoals.length > 0" class="rounded-xs border border-success/20 bg-success/5 px-2 py-2">
             <div class="flex items-center justify-between gap-2">
               <p class="text-[11px] text-success">本周重点目标</p>
@@ -139,11 +153,15 @@
   import { computed, onMounted, ref } from 'vue'
   import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
   import { useGoalStore } from '@/stores/useGoalStore'
+  import { useShopStore } from '@/stores/useShopStore'
 
   const gameStore = useGameStore()
   const goalStore = useGoalStore()
+  const shopStore = useShopStore()
   const collapsed = ref(typeof window !== 'undefined' ? window.innerWidth < 768 : false)
   const expandedLongTermGroups = ref<string[]>([])
+  const marketOverview = computed(() => shopStore.marketDynamicsOverview)
+  const marketRouteHighlights = computed(() => shopStore.recommendedMarketDynamicsRoutes.slice(0, 2).map(route => route.label).join('、'))
 
   const currentDayLabel = computed(() => `${gameStore.day}日待办`)
   const currentSeasonLabel = computed(() => `第${gameStore.year}年 ${SEASON_NAMES[gameStore.season]}季`)

@@ -36,6 +36,49 @@
         </Button>
       </div>
 
+      <div class="border border-accent/20 rounded-xs p-2 mb-3">
+        <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
+          <div class="flex items-center justify-between">
+            <span class="text-muted">循环阶段</span>
+            <span class="text-accent">{{ hanhaiStore.cycleOverview.progressTier }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted">本周首领</span>
+            <span>{{ currentBossLabel }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted">遗迹总勘探</span>
+            <span class="text-accent">{{ hanhaiStore.cycleOverview.totalRelicClears }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted">活跃投资</span>
+            <span>{{ hanhaiStore.cycleOverview.activeInvestmentCount }}</span>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-2">
+          <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-xs text-muted mb-1">商路投资</p>
+            <div v-for="route in visibleRouteInvestments" :key="route.id" class="flex items-center justify-between text-[10px] mt-0.5">
+              <span>{{ route.label }}</span>
+              <span class="text-accent">{{ getRouteStateText(route.id) }}</span>
+            </div>
+          </div>
+          <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-xs text-muted mb-1">商路合同</p>
+            <div v-for="contract in visibleContracts" :key="contract.id" class="mt-1 first:mt-0">
+              <p class="text-[10px] text-accent">{{ contract.label }}</p>
+              <p class="text-[10px] text-muted leading-4 mt-0.5">{{ contract.rewardSummary }}</p>
+            </div>
+          </div>
+          <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-xs text-muted mb-1">遗迹套组 / 轮换货架</p>
+            <p class="text-[10px] text-muted leading-4">当前可关注套组：{{ visibleRelicSets.map(setDef => setDef.label).join('、') || '暂无' }}</p>
+            <p class="text-[10px] text-accent mt-1">本档货架：{{ currentShopRotation?.label ?? '暂无轮换' }}</p>
+          </div>
+        </div>
+      </div>
+
       <!-- 驿站商店 -->
       <template v-if="activeTab === 'shop'">
         <div class="flex flex-col space-y-1 max-h-80 overflow-y-auto">
@@ -157,7 +200,7 @@
               <CircleDot :size="12" />
               <span>幸运轮盘</span>
             </p>
-            <p class="text-xs text-muted mb-2">选择投注金额，转动轮盘赢取倍数奖励</p>
+            <p class="text-xs text-muted mb-2">选择投注金额，转动轮盘赢取折算铜钱，并有机会带回票券或异域彩头</p>
             <div class="flex space-x-1">
               <Button
                 v-for="tier in ROULETTE_BET_TIERS"
@@ -177,7 +220,7 @@
               <Dices :size="12" />
               <span>骰子猜大小</span>
             </p>
-            <p class="text-xs text-muted mb-2">投注{{ DICE_BET_AMOUNT }}文，猜对大小赢2倍</p>
+            <p class="text-xs text-muted mb-2">投注{{ DICE_BET_AMOUNT }}文，猜对可获得折算铜钱，并有机会拿到研究券或香料</p>
             <div class="flex space-x-1">
               <Button class="flex-1 justify-center" :disabled="playerStore.money < DICE_BET_AMOUNT" @click="handleDice(false)">
                 猜小 (2-6)
@@ -194,7 +237,7 @@
               <Trophy :size="12" />
               <span>猜杯</span>
             </p>
-            <p class="text-xs text-muted mb-2">投注{{ CUP_BET_AMOUNT }}文，3选1猜中赢{{ CUP_WIN_MULTIPLIER }}倍</p>
+            <p class="text-xs text-muted mb-2">投注{{ CUP_BET_AMOUNT }}文，3选1猜中可获得折算铜钱，并可能带回展陈券或丝货</p>
             <div class="flex space-x-1">
               <Button
                 v-for="i in 3"
@@ -214,7 +257,7 @@
               <Bug :size="12" />
               <span>斗蛐蛐</span>
             </p>
-            <p class="text-xs text-muted mb-2">投注{{ CRICKET_BET_AMOUNT }}文，选蛐蛐上场对战，赢{{ CRICKET_WIN_MULTIPLIER }}倍</p>
+            <p class="text-xs text-muted mb-2">投注{{ CRICKET_BET_AMOUNT }}文，选蛐蛐上场对战；现金回报已压低，额外偏向香料与商路票</p>
             <div class="flex space-x-1">
               <Button
                 v-for="c in CRICKETS"
@@ -234,7 +277,7 @@
               <Gem :size="12" />
               <span>翻牌寻宝</span>
             </p>
-            <p class="text-xs text-muted mb-2">投注{{ CARD_BET_AMOUNT }}文，{{ CARD_TOTAL }}张牌中{{ CARD_TREASURE_COUNT }}张有宝</p>
+            <p class="text-xs text-muted mb-2">投注{{ CARD_BET_AMOUNT }}文，{{ CARD_TOTAL }}张牌中{{ CARD_TREASURE_COUNT }}张有宝；翻中后还可能带回藏宝图、展陈券或绿松石</p>
             <div class="flex space-x-1">
               <Button
                 v-for="i in CARD_TOTAL"
@@ -254,7 +297,7 @@
               <Spade :size="12" />
               <span>瀚海扑克</span>
             </p>
-            <p class="text-xs text-muted mb-2">选择场次入场，入场费即筹码，每局抽水给荷官</p>
+            <p class="text-xs text-muted mb-2">选择场次入场，收桌时会按折算规则返还筹码，并可能追加票券或藏宝图线索</p>
             <div class="flex flex-col space-y-1">
               <div
                 v-for="t in TEXAS_TIERS"
@@ -278,7 +321,7 @@
               <Crosshair :size="12" />
               <span>恶魔轮盘</span>
             </p>
-            <p class="text-xs text-muted mb-2">投注{{ BUCKSHOT_BET_AMOUNT }}文，与庄家轮流开枪，胜者得{{ BUCKSHOT_WIN_MULTIPLIER }}倍</p>
+            <p class="text-xs text-muted mb-2">投注{{ BUCKSHOT_BET_AMOUNT }}文，与庄家轮流开枪；高风险局更偏向研究券、绿松石与藏宝图彩头</p>
             <Button class="w-full justify-center" :disabled="playerStore.money < BUCKSHOT_BET_AMOUNT" @click="handleBuckshot">挑战</Button>
           </div>
         </div>
@@ -667,13 +710,17 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import {
     HANHAI_SHOP_ITEMS,
+    HANHAI_BOSS_CYCLE_DEFS,
+    HANHAI_CARAVAN_CONTRACT_DEFS,
+    HANHAI_RELIC_SET_DEFS,
+    HANHAI_ROUTE_INVESTMENTS,
+    HANHAI_SHOP_ROTATIONS,
     ROULETTE_BET_TIERS,
     ROULETTE_OUTCOMES,
     DICE_BET_AMOUNT,
     MAX_DAILY_BETS,
     HANHAI_UNLOCK_COST,
     CUP_BET_AMOUNT,
-    CUP_WIN_MULTIPLIER,
     CRICKET_BET_AMOUNT,
     CRICKET_WIN_MULTIPLIER,
     CRICKETS,
@@ -719,6 +766,22 @@
   const { startHanhaiBgm, endHanhaiBgm } = useAudio()
   const activeTab = ref<'shop' | 'relic' | 'casino'>('shop')
   const shopModalItem = ref<HanhaiShopItemDef | null>(null)
+
+  const tierRank = { P0: 0, P1: 1, P2: 2 } as const
+  const isTierUnlocked = (unlockTier: 'P0' | 'P1' | 'P2') => tierRank[hanhaiStore.cycleOverview.progressTier] >= tierRank[unlockTier]
+  const visibleRouteInvestments = computed(() => HANHAI_ROUTE_INVESTMENTS.filter(route => isTierUnlocked(route.unlockTier)))
+  const visibleContracts = computed(() => HANHAI_CARAVAN_CONTRACT_DEFS.filter(contract => isTierUnlocked(contract.unlockTier)).slice(0, 3))
+  const visibleRelicSets = computed(() => HANHAI_RELIC_SET_DEFS.filter(setDef => isTierUnlocked(setDef.unlockTier)).slice(0, 3))
+  const currentBossLabel = computed(() => HANHAI_BOSS_CYCLE_DEFS.find(boss => boss.id === hanhaiStore.cycleOverview.bossCycleId)?.label ?? '待刷新')
+  const currentShopRotation = computed(() => {
+    const unlockedRotations = HANHAI_SHOP_ROTATIONS.filter(rotation => isTierUnlocked(rotation.unlockTier))
+    return unlockedRotations[unlockedRotations.length - 1] ?? null
+  })
+  const getRouteStateText = (routeId: string) => {
+    const state = hanhaiStore.cycleState.routeInvestments[routeId]
+    if (!state) return '未投入'
+    return `投入${state.totalInvested} / 周期${state.tripsCompleted}`
+  }
 
   onMounted(() => {
     startHanhaiBgm()

@@ -13,6 +13,49 @@
       </div>
     </div>
 
+    <div class="border border-accent/20 rounded-xs p-2 mb-3">
+      <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
+        <div class="flex items-center justify-between">
+          <span class="text-muted">当前赛季</span>
+          <span class="text-accent">{{ guildStore.seasonOverview.currentSeasonId || '未开始' }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-muted">赛季阶段</span>
+          <span>{{ getPhaseLabel(guildStore.seasonOverview.currentPhase) }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-muted">荣誉档位</span>
+          <span class="text-accent">{{ getRankBandLabel(guildStore.seasonOverview.rankBand) }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-muted">异步荣誉分</span>
+          <span>{{ guildStore.seasonOverview.asyncRankScore }}</span>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-2">
+        <div v-if="activeSeasonActivities.length > 0" class="border border-accent/10 rounded-xs p-2">
+          <p class="text-xs text-muted mb-1">本阶段活动</p>
+          <div v-for="activity in activeSeasonActivities" :key="activity.id" class="mt-1 first:mt-0">
+            <p class="text-xs text-accent">{{ activity.title }}</p>
+            <p class="text-[10px] text-muted leading-4 mt-0.5">{{ activity.summary }}</p>
+          </div>
+        </div>
+        <div v-if="activeMilestones.length > 0" class="border border-accent/10 rounded-xs p-2">
+          <p class="text-xs text-muted mb-1">阶段里程碑</p>
+          <div v-for="milestone in activeMilestones" :key="milestone.id" class="flex items-center justify-between text-[10px] mt-0.5">
+            <span>{{ milestone.label }}</span>
+            <span class="text-accent">{{ milestone.requiredAsyncScore }}分</span>
+          </div>
+        </div>
+        <div v-if="activeRewardPool" class="border border-accent/10 rounded-xs p-2">
+          <p class="text-xs text-muted mb-1">赛季奖励池</p>
+          <p class="text-xs text-accent">{{ activeRewardPool.label }}</p>
+          <p class="text-[10px] text-muted leading-4 mt-0.5">{{ activeRewardPool.summary }}</p>
+        </div>
+      </div>
+    </div>
+
     <!-- 标签页 -->
     <div class="flex space-x-1 mb-3">
       <Button class="flex-1 justify-center" :class="{ '!bg-accent !text-bg': tab === 'goals' }" @click="tab = 'goals'">讨伐</Button>
@@ -550,7 +593,15 @@
   import { useGuildStore } from '@/stores/useGuildStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
-  import { MONSTER_GOALS, GUILD_SHOP_ITEMS, GUILD_DONATIONS } from '@/data/guild'
+  import {
+    MONSTER_GOALS,
+    GUILD_SHOP_ITEMS,
+    GUILD_DONATIONS,
+    GUILD_SEASON_ACTIVITY_TRACKS,
+    GUILD_SEASON_CONFIG,
+    GUILD_SEASON_REWARD_POOLS,
+    GUILD_WORLD_MILESTONES
+  } from '@/data/guild'
   import { MONSTERS, BOSS_MONSTERS, ZONE_MONSTERS, SKULL_CAVERN_MONSTERS } from '@/data/mine'
   import { MONSTER_DROP_WEAPONS, BOSS_DROP_WEAPONS, getWeaponById } from '@/data/weapons'
   import { MONSTER_DROP_RINGS, BOSS_DROP_RINGS, getRingById } from '@/data/rings'
@@ -572,6 +623,20 @@
   const shopBuyQty = ref(1)
   const selectedGoal = ref<MonsterGoalDef | null>(null)
   const selectedMonster = ref<MonsterDef | null>(null)
+
+  const PHASE_LABELS = GUILD_SEASON_CONFIG.phaseLabels
+  const RANK_BAND_LABELS: Record<string, string> = {
+    novice: '新秀',
+    veteran: '资深',
+    elite: '精英',
+    legend: '传奇'
+  }
+
+  const getPhaseLabel = (phase: string) => PHASE_LABELS[phase as keyof typeof PHASE_LABELS] ?? phase
+  const getRankBandLabel = (rankBand: string) => RANK_BAND_LABELS[rankBand] ?? rankBand
+  const activeSeasonActivities = computed(() => GUILD_SEASON_ACTIVITY_TRACKS.filter(activity => activity.phase === guildStore.seasonOverview.currentPhase))
+  const activeMilestones = computed(() => GUILD_WORLD_MILESTONES.filter(milestone => milestone.phase === guildStore.seasonOverview.currentPhase).slice(0, 3))
+  const activeRewardPool = computed(() => GUILD_SEASON_REWARD_POOLS.find(pool => pool.phase === guildStore.seasonOverview.currentPhase) ?? null)
 
   const openShopModal = (item: GuildShopItemDef) => {
     shopModalItem.value = item

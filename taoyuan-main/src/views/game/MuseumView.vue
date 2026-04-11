@@ -8,6 +8,50 @@
       <span class="text-xs text-muted">{{ museumStore.donatedCount }}/{{ museumStore.totalCount }}</span>
     </div>
 
+    <div class="border border-accent/20 rounded-xs p-2 mb-3">
+      <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
+        <div class="flex items-center justify-between">
+          <span class="text-muted">展陈等级</span>
+          <span class="text-accent">{{ museumStore.operationalOverview.exhibitLevel }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-muted">展示评分</span>
+          <span>{{ museumStore.displayRatingOverview.state.score }} · {{ museumStore.displayRatingOverview.band.name }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-muted">访客热度</span>
+          <span>{{ museumStore.visitorFlowOverview.state.score }} · {{ museumStore.visitorFlowOverview.band.name }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-muted">可接学者委托</span>
+          <span class="text-accent">{{ museumStore.availableScholarCommissionCount }}</span>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 gap-2">
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-xs text-muted mb-1">祠堂主题</p>
+          <p class="text-xs text-accent">{{ activeShrineThemeName }}</p>
+          <p class="text-[10px] text-muted mt-0.5">已解锁 {{ museumStore.unlockedShrineThemeCount }} 个主题，可持续影响展示评分与访客热度。</p>
+        </div>
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-xs text-muted mb-1">馆区推进</p>
+          <div v-for="hall in featuredHallOverview" :key="hall.progress.hallZoneId" class="flex items-center justify-between text-[10px] mt-0.5">
+            <span>{{ getHallLabel(hall.progress.hallZoneId) }}</span>
+            <span class="text-accent">Lv.{{ hall.progress.level }} / 槽位{{ hall.unlockedSlotCount }}</span>
+          </div>
+        </div>
+        <div v-if="featuredCommissionOverview.length > 0" class="border border-accent/10 rounded-xs p-2">
+          <p class="text-xs text-muted mb-1">学者委托</p>
+          <div v-for="commission in featuredCommissionOverview" :key="commission.id" class="flex items-center justify-between text-[10px] mt-0.5">
+            <span>{{ commission.title }}</span>
+            <span :class="commission.isRewardPending ? 'text-success' : commission.isAccepted ? 'text-accent' : 'text-muted'">
+              {{ commission.isRewardPending ? '待领奖' : commission.isAccepted ? '进行中' : commission.isAvailable ? '可接取' : '未开放' }}
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 空状态 -->
     <div
       v-if="museumStore.donatedCount === 0 && museumStore.donatableItems.length === 0"
@@ -192,6 +236,9 @@
   const selectedItem = ref<MuseumItemDef | null>(null)
 
   const filteredItems = computed(() => MUSEUM_ITEMS.filter(i => i.category === activeCategory.value))
+  const activeShrineThemeName = computed(() => museumStore.getActiveShrineTheme()?.name ?? '尚未启用')
+  const featuredHallOverview = computed(() => museumStore.hallProgressOverview.filter(hall => hall.currentLevelDef).slice(0, 4))
+  const featuredCommissionOverview = computed(() => museumStore.scholarCommissionOverview.filter(entry => entry.unlocked).slice(0, 3))
 
   const getCategoryCount = (cat: MuseumCategory): number => {
     return MUSEUM_ITEMS.filter(i => i.category === cat && museumStore.isDonated(i.id)).length
@@ -203,6 +250,18 @@
 
   const getCategoryLabel = (cat: MuseumCategory): string => {
     return MUSEUM_CATEGORIES.find(c => c.key === cat)?.label ?? cat
+  }
+
+  const getHallLabel = (hallZoneId: string): string => {
+    const hallMap: Record<string, string> = {
+      entry_gallery: '前厅',
+      mineral_hall: '矿晶馆',
+      fossil_hall: '化石馆',
+      artifact_hall: '古物馆',
+      spirit_hall: '灵物馆',
+      shrine_courtyard: '祠堂庭院'
+    }
+    return hallMap[hallZoneId] ?? hallZoneId
   }
 
   const getItemName = (id: string): string => {

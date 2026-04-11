@@ -37,6 +37,43 @@
       </div>
     </div>
 
+    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs text-muted">村庄建设线路</p>
+        <span class="text-[10px] text-muted">{{ villagePhaseLabel }}</span>
+      </div>
+      <div class="grid grid-cols-2 gap-x-3 gap-y-1 mb-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">可接任务数加成</span>
+          <span class="text-xs text-accent">+{{ villageProjectStore.getQuestCapacityBonus() }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">告示栏加成</span>
+          <span class="text-xs text-accent">+{{ villageProjectStore.getDailyQuestBoardBonus() }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">委托铜钱加成</span>
+          <span class="text-xs text-accent">{{ Math.round(villageProjectStore.getQuestMoneyBonusRate() * 100) }}%</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">委托好感加成</span>
+          <span class="text-xs text-accent">+{{ villageProjectStore.getQuestFriendshipBonus() }}</span>
+        </div>
+      </div>
+      <div v-if="villageQuestProjects.length > 0" class="space-y-1.5">
+        <div v-for="project in villageQuestProjects" :key="project.id" class="border border-accent/10 rounded-xs px-3 py-2">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs text-accent truncate">{{ project.name }}</p>
+            <span class="text-[10px]" :class="project.canBuildNow ? 'text-success' : 'text-muted'">
+              {{ project.canBuildNow ? '可推进' : '待前置' }}
+            </span>
+          </div>
+          <p class="text-[10px] text-muted mt-1 leading-4">{{ project.blockedReason ?? '完成后会继续强化委托收益、任务容量或相关板块入口。' }}</p>
+        </div>
+      </div>
+      <div v-else class="text-xs text-muted">当前暂无与委托/订单直接联动的建设项目。</div>
+    </div>
+
     <!-- 主线任务 -->
     <div class="border border-accent/20 rounded-xs p-3 mb-3">
       <p class="text-xs text-muted mb-2">
@@ -430,6 +467,9 @@
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { useQuestStore } from '@/stores/useQuestStore'
+  import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
+  import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
+  import { getSpecialOrderRewardProfile } from '@/data/quests'
   import { getItemById, getStoryQuestById, CHAPTER_TITLES, STORY_QUESTS } from '@/data'
   import { getCropById } from '@/data/crops'
   import { addLog } from '@/composables/useGameLog'
@@ -438,6 +478,7 @@
   const inventoryStore = useInventoryStore()
   const goalStore = useGoalStore()
   const npcStore = useNpcStore()
+  const villageProjectStore = useVillageProjectStore()
 
   const CATEGORY_LABELS: Record<VillagerQuestCategory, string> = {
     gathering: '采集',
@@ -476,6 +517,13 @@
   const getQuestRewardDetails = (quest: QuestInstance | null | undefined): string[] => {
     if (!quest) return []
     const details: string[] = []
+    if (quest.rewardProfileId) {
+      const profile = getSpecialOrderRewardProfile(quest.rewardProfileId)
+      details.push(`奖励档案：${profile?.label ?? quest.rewardProfileId}`)
+    }
+    if (quest.ticketReward && Object.keys(quest.ticketReward).length > 0) {
+      details.push(`票券：${Object.entries(quest.ticketReward).map(([ticketType, amount]) => `${REWARD_TICKET_LABELS[ticketType as keyof typeof REWARD_TICKET_LABELS] ?? ticketType}×${amount}`).join('、')}`)
+    }
     if (quest.itemReward?.length) {
       details.push(`物品：${quest.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join('、')}`)
     }
@@ -493,6 +541,9 @@
     const parts: string[] = [`奖励：${quest.moneyReward}文`]
     if (quest.friendshipReward) {
       parts.push(`好感+${quest.friendshipReward}`)
+    }
+    if (quest.ticketReward && Object.keys(quest.ticketReward).length > 0) {
+      parts.push(`票券${Object.entries(quest.ticketReward).map(([ticketType, amount]) => `${REWARD_TICKET_LABELS[ticketType as keyof typeof REWARD_TICKET_LABELS] ?? ticketType}×${amount}`).join('、')}`)
     }
     if (quest.itemReward?.length) {
       parts.push(`物品${quest.itemReward.map(i => `${getItemName(i.itemId)}×${i.quantity}`).join('、')}`)
@@ -547,6 +598,15 @@
 
     return lines
   }
+
+  const villagePhaseLabelMap = {
+    bootstrap: '中期过渡',
+    expansion: '后期扩建',
+    endgame: '终局展示'
+  } as const
+
+  const villagePhaseLabel = computed(() => villagePhaseLabelMap[villageProjectStore.overviewSummary.currentPhase] ?? villageProjectStore.overviewSummary.currentPhase)
+  const villageQuestProjects = computed(() => villageProjectStore.getLinkedProjectSummaries('quest').filter(project => !project.completed).slice(0, 3))
 
   // === 弹窗状态 ===
 

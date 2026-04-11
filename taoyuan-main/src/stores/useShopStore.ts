@@ -1,11 +1,12 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { useGameStore } from './useGameStore'
+import { SEASON_NAMES, useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useSkillStore } from './useSkillStore'
 import { useWalletStore } from './useWalletStore'
 import { useHomeStore } from './useHomeStore'
+import { useFarmStore } from './useFarmStore'
 import { useWarehouseStore } from './useWarehouseStore'
 import { useNpcStore } from './useNpcStore'
 import { useAchievementStore } from './useAchievementStore'
@@ -13,34 +14,75 @@ import { useGoalStore } from './useGoalStore'
 import { getCropsBySeason, getItemById, getNpcById } from '@/data'
 import { BAITS, TACKLES, FERTILIZERS } from '@/data/processing'
 import { isTravelingMerchantDay, generateMerchantStock, TRAVELING_MERCHANT_POOL } from '@/data/travelingMerchant'
-import { SHOP_CATALOG_OFFERS, SHOP_CATALOG_LUXURY_BASELINE_AUDIT, getWeeklyShopCatalogOffers, type ShopCatalogOfferDef } from '@/data/shopCatalog'
+import {
+  SHOP_CATALOG_OFFERS,
+  SHOP_CATALOG_LUXURY_BASELINE_AUDIT,
+  SHOP_CATALOG_TUNING_CONFIG,
+  createDefaultShopCatalogExpansionState,
+  getWeeklyShopCatalogOffers,
+  normalizeShopCatalogExpansionState
+} from '@/data/shopCatalog'
 import { SHOP_NPC_RELATION_MAP } from '@/data/npcWorld'
 import {
   createDefaultMarketDynamicsState,
   ECONOMY_SINK_CONTENT_DEFS,
   ECONOMY_TUNING_CONFIG,
+  MARKET_DYNAMICS_BASELINE_AUDIT,
+  MARKET_DYNAMICS_PHASE_BY_ID,
   getMarketDynamicsPhaseConfig,
+  getDailyMarketInfo,
   getMarketMultiplier,
   MARKET_CATEGORY_NAMES,
+  MARKET_DISTRICT_LABELS,
   MARKET_DYNAMICS_CONFIG,
+  MARKET_DYNAMICS_ROUTING_DEFS,
+  TREND_NAMES,
   type MarketCategory,
   type MarketDynamicsState,
   type MarketHotspotState,
   type MarketRegionalProcurementState,
+  type MarketTrend,
   type SellRecordSource,
   type MarketSubstituteRewardState,
   type MarketThemeEncouragementState
 } from '@/data/market'
 import type { TravelingMerchantStock } from '@/data/travelingMerchant'
-import type { PriceBreakdownEntry, PriceModifierStep, Quality, SellPriceBreakdown } from '@/types'
+import type {
+  PriceBreakdownEntry,
+  PriceModifierStep,
+  Quality,
+  SellPriceBreakdown,
+  ShopCatalogContentTier,
+  ShopCatalogDebugSnapshot,
+  ShopCatalogEntitlementStatus,
+  ShopCatalogExpansionBucketKey,
+  ShopCatalogExpansionState,
+  ShopCatalogLinkedSystem,
+  ShopCatalogLuxuryCategory,
+  ShopCatalogOfferDef,
+  ShopCatalogOfferOperationalSummary,
+  ShopCatalogOverviewSummary,
+  ShopCatalogPool
+} from '@/types'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useDecorationStore } from './useDecorationStore'
+import { addLog } from '@/composables/useGameLog'
 /** 商铺商品项 */
 export interface ShopItemEntry {
   itemId: string
   name: string
   price: number
   description: string
+}
+
+const CATALOG_BUCKET_BY_CATEGORY: Record<ShopCatalogLuxuryCategory, ShopCatalogExpansionBucketKey> = {
+  luxury_permit: 'luxuryPermitStates',
+  warehouse_service: 'warehouseServiceStates',
+  service_contract: 'serviceContractStates',
+  travel_supply: 'travelSupplyStates',
+  festival_gift: 'festivalGiftStates',
+  showcase_furniture: 'showcaseFurnitureStates',
+  functional_voucher: 'functionalVoucherStates'
 }
 
 const getAbsoluteDay = (year: number, seasonIndex: number, day: number) => (year - 1) * 112 + seasonIndex * 28 + day
@@ -56,6 +98,64 @@ const QUALITY_PRICE_LABELS: Record<Quality, string> = {
   excellent: '精品',
   supreme: '极品'
 }
+const MARKET_TREND_PRIORITY: Record<MarketTrend, number> = {
+  boom: 5,
+  rising: 4,
+  stable: 3,
+  falling: 2,
+  crash: 1
+}
+const ALL_MARKET_CATEGORIES = Object.keys(MARKET_CATEGORY_NAMES) as MarketCategory[]
+
+const buildDayKeyFromAbsoluteDay = (absoluteDay: number): string => {
+  const safeAbsoluteDay = Math.max(1, Math.floor(absoluteDay))
+  const year = Math.floor((safeAbsoluteDay - 1) / 112) + 1
+  const withinYear = (safeAbsoluteDay - 1) % 112
+  const seasonIndex = Math.floor(withinYear / 28)
+  const day = (withinYear % 28) + 1
+  return `${year}-${seasonIndex}-${day}`
+}
+
+const parseDayKeyToAbsoluteDay = (dayKey: string): number | null => {
+  const [yearText, seasonIndexText, dayText] = dayKey.split('-')
+  const year = Number(yearText)
+  const seasonIndex = Number(seasonIndexText)
+  const day = Number(dayText)
+  if (!Number.isFinite(year) || !Number.isFinite(seasonIndex) || !Number.isFinite(day)) return null
+  if (year <= 0 || seasonIndex < 0 || seasonIndex > 3 || day <= 0 || day > 28) return null
+  return getAbsoluteDay(year, seasonIndex, day)
+}
+
+const cloneCatalogExpansionState = (state: ShopCatalogExpansionState): ShopCatalogExpansionState => ({
+  saveVersion: state.saveVersion,
+  operationalMeta: { ...state.operationalMeta },
+  luxuryPermitStates: { ...state.luxuryPermitStates },
+  warehouseServiceStates: { ...state.warehouseServiceStates },
+  serviceContractStates: { ...state.serviceContractStates },
+  travelSupplyStates: { ...state.travelSupplyStates },
+  festivalGiftStates: { ...state.festivalGiftStates },
+  showcaseFurnitureStates: { ...state.showcaseFurnitureStates },
+  functionalVoucherStates: { ...state.functionalVoucherStates }
+})
+
+const isEntitlementBucketKey = (
+  bucketKey: ShopCatalogExpansionBucketKey
+): bucketKey is 'luxuryPermitStates' | 'warehouseServiceStates' | 'serviceContractStates' => {
+  return bucketKey === 'luxuryPermitStates' || bucketKey === 'warehouseServiceStates' || bucketKey === 'serviceContractStates'
+}
+
+const hashMarketSeed = (input: string): number => {
+  let hash = 2166136261
+  for (let index = 0; index < input.length; index++) {
+    hash ^= input.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return hash >>> 0
+}
+
+const getSeededOrderScore = (seed: string, key: string): number => {
+  return hashMarketSeed(`${seed}:${key}`) / 0xffffffff
+}
 
 export const useShopStore = defineStore('shop', () => {
   const gameStore = useGameStore()
@@ -63,23 +163,75 @@ export const useShopStore = defineStore('shop', () => {
   const inventoryStore = useInventoryStore()
   const skillStore = useSkillStore()
   const homeStore = useHomeStore()
+  const farmStore = useFarmStore()
   const warehouseStore = useWarehouseStore()
   const npcStore = useNpcStore()
   const achievementStore = useAchievementStore()
+  const goalStore = useGoalStore()
+  const decorationStore = useDecorationStore()
 
   const ownedCatalogOfferIds = ref<string[]>([])
+  const catalogExpansionState = ref<ShopCatalogExpansionState>(createDefaultShopCatalogExpansionState())
   const marketDynamics = ref<MarketDynamicsState>(createDefaultMarketDynamicsState())
+  const catalogPurchaseLock = ref<string | null>(null)
+
+  const isCatalogOfferEnabled = (offer: ShopCatalogOfferDef): boolean => {
+    if (!SHOP_CATALOG_TUNING_CONFIG.poolEnabled[offer.pool]) return false
+    if (SHOP_CATALOG_TUNING_CONFIG.hiddenOfferIds.includes(offer.id)) return false
+    if (SHOP_CATALOG_TUNING_CONFIG.disabledLuxuryCategories.includes(offer.luxuryCategory)) return false
+    if (SHOP_CATALOG_TUNING_CONFIG.disabledPriceBands.includes(offer.priceBand)) return false
+    return true
+  }
+
+  const isCatalogOfferVisibleForCurrentSeason = (offer: ShopCatalogOfferDef): boolean => {
+    if (!isCatalogOfferEnabled(offer)) return false
+    return offer.pool !== 'seasonal' || (!!offer.seasonLimits?.includes(gameStore.season) || false)
+  }
+
+  const mergeUniqueCatalogOffers = (offers: ShopCatalogOfferDef[]): ShopCatalogOfferDef[] => {
+    const seen = new Set<string>()
+    return offers.filter(offer => {
+      if (seen.has(offer.id)) return false
+      seen.add(offer.id)
+      return true
+    })
+  }
+
+  const resolveFallbackCatalogOffers = (pool: ShopCatalogPool): ShopCatalogOfferDef[] => {
+    return SHOP_CATALOG_TUNING_CONFIG.fallbackOfferIdsByPool[pool]
+      .map(offerId => SHOP_CATALOG_OFFERS.find(offer => offer.id === offerId && offer.pool === pool))
+      .filter((offer): offer is ShopCatalogOfferDef => !!offer)
+      .filter(offer => isCatalogOfferVisibleForCurrentSeason(offer))
+  }
 
   const currentWeekId = computed(() => Math.floor((getAbsoluteDay(gameStore.year, gameStore.seasonIndex, gameStore.day) - 1) / 7))
-  const basicCatalogOffers = computed(() => SHOP_CATALOG_OFFERS.filter(offer => offer.pool === 'basic'))
-  const weeklyCatalogOffers = computed(() => getWeeklyShopCatalogOffers(currentWeekId.value))
-  const seasonalCatalogOffers = computed(() =>
-    SHOP_CATALOG_OFFERS.filter(offer => offer.pool === 'seasonal' && (!!offer.seasonLimits?.includes(gameStore.season) || false))
+  const basicCatalogOffers = computed(() =>
+    mergeUniqueCatalogOffers([
+      ...SHOP_CATALOG_OFFERS.filter(offer => offer.pool === 'basic' && isCatalogOfferEnabled(offer)),
+      ...resolveFallbackCatalogOffers('basic')
+    ])
   )
-  const premiumCatalogOffers = computed(() => SHOP_CATALOG_OFFERS.filter(offer => offer.pool === 'premium'))
+  const weeklyCatalogOffers = computed(() => {
+    if (!SHOP_CATALOG_TUNING_CONFIG.poolEnabled.weekly) return []
+    const targetCount = Math.max(1, SHOP_CATALOG_TUNING_CONFIG.weeklySelectionCount)
+    const visibleWeeklyOffers = getWeeklyShopCatalogOffers(currentWeekId.value, Number.MAX_SAFE_INTEGER).filter(offer => isCatalogOfferEnabled(offer))
+    const fallbackOffers = resolveFallbackCatalogOffers('weekly').filter(offer => !visibleWeeklyOffers.some(entry => entry.id === offer.id))
+    return mergeUniqueCatalogOffers([...visibleWeeklyOffers, ...fallbackOffers]).slice(0, targetCount)
+  })
+  const seasonalCatalogOffers = computed(() =>
+    SHOP_CATALOG_OFFERS
+      .filter(offer => offer.pool === 'seasonal' && isCatalogOfferVisibleForCurrentSeason(offer))
+      .slice(0, Math.max(1, SHOP_CATALOG_TUNING_CONFIG.seasonalDisplayLimit))
+  )
+  const premiumCatalogOffers = computed(() =>
+    mergeUniqueCatalogOffers([
+      ...SHOP_CATALOG_OFFERS.filter(offer => offer.pool === 'premium' && isCatalogOfferEnabled(offer)),
+      ...resolveFallbackCatalogOffers('premium')
+    ])
+  )
   const weeklyCatalogRefreshText = computed(() => `第${currentWeekId.value + 1}周精选 · 每周一刷新`)
   const availableCatalogOffers = computed(() =>
-    SHOP_CATALOG_OFFERS.filter(offer => offer.pool !== 'seasonal' || (!!offer.seasonLimits?.includes(gameStore.season) || false))
+    SHOP_CATALOG_OFFERS.filter(offer => isCatalogOfferVisibleForCurrentSeason(offer))
   )
   const recommendedCatalogOffers = computed(() => {
     const walletStore = useWalletStore()
@@ -105,9 +257,23 @@ export const useShopStore = defineStore('shop', () => {
           if (system === 'quest' && (offer.tags ?? []).some(tag => ['功能商品', '渔具', '鱼塘'].includes(tag))) return sum + ECONOMY_TUNING_CONFIG.catalogRecommendationScoreBonuses.questSinkTagMatch
           return sum
         }, 0)
+        let tuningScore = 0
+        if (offer.pool === 'premium') tuningScore += SHOP_CATALOG_TUNING_CONFIG.recommendationBoosts.premiumPool
+        if (offer.pool === 'weekly') {
+          tuningScore += (offer.weeklySpotlightWeight ?? 0) * SHOP_CATALOG_TUNING_CONFIG.recommendationBoosts.weeklySpotlightWeightFactor
+        }
+        if (offer.luxuryCategory === 'warehouse_service' || (offer.tags ?? []).includes('服务契约')) {
+          tuningScore += SHOP_CATALOG_TUNING_CONFIG.recommendationBoosts.serviceContract
+        }
+        if (offer.luxuryCategory === 'showcase_furniture') {
+          tuningScore += SHOP_CATALOG_TUNING_CONFIG.recommendationBoosts.showcaseFurniture
+        }
+        if (SHOP_CATALOG_TUNING_CONFIG.forcedRecommendedOfferIds.includes(offer.id)) {
+          tuningScore += SHOP_CATALOG_TUNING_CONFIG.recommendationBoosts.forcedOffer
+        }
         return {
           offer,
-          score: walletScore + themeScore + sinkScore
+          score: walletScore + themeScore + sinkScore + tuningScore
         }
       })
       .filter(entry => entry.score > 0)
@@ -134,12 +300,877 @@ export const useShopStore = defineStore('shop', () => {
     )
   })
   const luxuryCatalogBaselineAudit = SHOP_CATALOG_LUXURY_BASELINE_AUDIT
+  const getCurrentCatalogDayKey = (): string => `${gameStore.year}-${gameStore.seasonIndex}-${gameStore.day}`
 
+  const getCatalogOfferExpiryDayKey = (offer: ShopCatalogOfferDef): string => {
+    const currentAbsoluteDay = getAbsoluteDay(gameStore.year, gameStore.seasonIndex, gameStore.day)
+    if (offer.serviceBillingCycle === 'daily') return buildDayKeyFromAbsoluteDay(currentAbsoluteDay + 1)
+    if (offer.serviceBillingCycle === 'weekly') return buildDayKeyFromAbsoluteDay(currentAbsoluteDay + 7)
+    if (offer.serviceBillingCycle === 'seasonal') return buildDayKeyFromAbsoluteDay(currentAbsoluteDay + Math.max(1, 28 - gameStore.day + 1))
+    return ''
+  }
+
+  const getCatalogOfferStateRecord = (offer: ShopCatalogOfferDef) => {
+    const bucketKey = CATALOG_BUCKET_BY_CATEGORY[offer.luxuryCategory]
+    return catalogExpansionState.value[bucketKey][offer.id]
+  }
+
+  const getCatalogOfferServiceLockHint = (offerId: string): string => {
+    const offer = getCatalogOfferById(offerId)
+    if (!offer || offer.serviceBillingCycle === 'one_off') return ''
+    const status = resolveOfferStatus(offer)
+    if (status !== 'active') return ''
+    const rawState = getCatalogOfferStateRecord(offer)
+    if (rawState && 'expiresDayKey' in rawState && rawState.expiresDayKey) {
+      return `当前服务仍在生效中（至 ${rawState.expiresDayKey}），暂不可重复购买。`
+    }
+    return '当前服务仍在生效中，暂不可重复购买。'
+  }
+
+  const resolveOfferStatus = (offer: ShopCatalogOfferDef): ShopCatalogEntitlementStatus => {
+    const bucketKey = CATALOG_BUCKET_BY_CATEGORY[offer.luxuryCategory]
+    const bucket = catalogExpansionState.value[bucketKey]
+    const rawState = bucket[offer.id]
+    if (!rawState) return isCatalogOwned(offer.id) ? 'active' : 'inactive'
+
+    if ('status' in rawState) {
+      if (rawState.expiresDayKey) {
+        const expiresAbsoluteDay = parseDayKeyToAbsoluteDay(rawState.expiresDayKey)
+        const currentAbsoluteDay = getAbsoluteDay(gameStore.year, gameStore.seasonIndex, gameStore.day)
+        if (expiresAbsoluteDay != null && currentAbsoluteDay > expiresAbsoluteDay) return 'expired'
+      }
+      return rawState.status
+    }
+
+    return rawState.purchasedCount > 0 ? 'consumed' : 'inactive'
+  }
+
+  const getCatalogOfferLimitHint = (offerId: string): string => {
+    const offer = getCatalogOfferById(offerId)
+    if (!offer) return '商品不存在。'
+    if (!isCatalogOfferEnabled(offer)) return '当前运营配置下暂未开放。'
+    if (catalogPurchaseLock.value === offerId) return '该目录商品正在结算，请勿重复点击。'
+    if (catalogPurchaseLock.value && catalogPurchaseLock.value !== offerId) return '当前有其他目录事务正在结算，请稍候。'
+    if (offer.onceOnly && isCatalogOwned(offerId)) return '已拥有，无法重复购买。'
+
+    const serviceLockHint = getCatalogOfferServiceLockHint(offerId)
+    if (serviceLockHint) return serviceLockHint
+
+    switch (offer.effect.type) {
+      case 'expand_warehouse':
+        if (warehouseStore.maxChests + offer.effect.amount > warehouseStore.MAX_CHESTS_CAP) {
+          return '剩余仓库箱位不足，无法完整扩建该商品提供的容量。'
+        }
+        return ''
+      case 'unlock_greenhouse':
+        return homeStore.greenhouseUnlocked ? '温室已解锁，无需重复购买。' : ''
+      case 'grant_chest':
+        return warehouseStore.chests.length >= warehouseStore.maxChests ? '仓库箱子已满，请先扩建仓库。' : ''
+      case 'add_items':
+        return canReceiveItemBundle(offer.effect.items) ? '' : '背包空间不足，无法领取整包物资。'
+      default:
+        return ''
+    }
+  }
+
+  const getCatalogOffersByPool = (pool: ShopCatalogPool): ShopCatalogOfferDef[] => SHOP_CATALOG_OFFERS.filter(offer => offer.pool === pool)
+  const getCatalogOffersByTier = (tier: ShopCatalogContentTier): ShopCatalogOfferDef[] => SHOP_CATALOG_OFFERS.filter(offer => offer.contentTier === tier)
+  const getCatalogOffersByCategory = (category: ShopCatalogLuxuryCategory): ShopCatalogOfferDef[] => SHOP_CATALOG_OFFERS.filter(offer => offer.luxuryCategory === category)
+  const getCatalogOffersByLinkedSystem = (system: ShopCatalogLinkedSystem): ShopCatalogOfferDef[] => SHOP_CATALOG_OFFERS.filter(offer => offer.linkedSystems.includes(system))
+
+  const processCatalogCycleTick = (payload: { currentDayTag: string; currentWeekId: string; startedNewWeek?: boolean; seasonChanged?: boolean }) => {
+    const nextState = cloneCatalogExpansionState(catalogExpansionState.value)
+    const currentAbsoluteDay = parseDayKeyToAbsoluteDay(payload.currentDayTag) ?? getAbsoluteDay(gameStore.year, gameStore.seasonIndex, gameStore.day)
+    const expiredOffers: string[] = []
+    const alreadyProcessedToday = nextState.operationalMeta.lastProcessedDayKey === payload.currentDayTag
+    const shouldBroadcastWeeklyRefresh = !!payload.startedNewWeek && nextState.operationalMeta.lastWeeklyRefreshWeekId !== payload.currentWeekId
+    const shouldBroadcastSeasonRefresh = !!payload.seasonChanged && nextState.operationalMeta.lastSeasonRefreshDayKey !== payload.currentDayTag
+
+    if (!alreadyProcessedToday) {
+      for (const bucketKey of Object.keys(CATALOG_BUCKET_BY_CATEGORY).map(category => CATALOG_BUCKET_BY_CATEGORY[category as ShopCatalogLuxuryCategory])) {
+        if (!isEntitlementBucketKey(bucketKey)) continue
+        const bucket = nextState[bucketKey]
+        for (const [offerId, state] of Object.entries(bucket)) {
+          if (state.status !== 'active' || !state.expiresDayKey) continue
+          const expiresAbsoluteDay = parseDayKeyToAbsoluteDay(state.expiresDayKey)
+          if (expiresAbsoluteDay == null || currentAbsoluteDay <= expiresAbsoluteDay) continue
+          const offer = getCatalogOfferById(offerId)
+          bucket[offerId] = {
+            ...state,
+            status: 'expired'
+          }
+          expiredOffers.push(offer?.name ?? offerId)
+        }
+      }
+    }
+
+    nextState.operationalMeta.lastProcessedDayKey = payload.currentDayTag
+    if (shouldBroadcastWeeklyRefresh) nextState.operationalMeta.lastWeeklyRefreshWeekId = payload.currentWeekId
+    if (shouldBroadcastSeasonRefresh) nextState.operationalMeta.lastSeasonRefreshDayKey = payload.currentDayTag
+
+    catalogExpansionState.value = nextState
+
+    const logs: string[] = []
+    if (expiredOffers.length > 0) {
+      logs.push(`【商店目录】以下高价服务已到期：${expiredOffers.join('、')}。`)
+    }
+    if (shouldBroadcastWeeklyRefresh) {
+      const weeklyNames = weeklyCatalogOffers.value.map(offer => offer.name)
+      logs.push(`【商店目录】第${payload.currentWeekId}周精选已刷新：${weeklyNames.slice(0, 4).join('、')}。`)
+    }
+    if (shouldBroadcastSeasonRefresh) {
+      const seasonalNames = seasonalCatalogOffers.value.map(offer => offer.name)
+      if (seasonalNames.length > 0) {
+        logs.push(`【商店目录】${SEASON_NAMES[gameStore.season]}季限定货架已切换：${seasonalNames.slice(0, 4).join('、')}。`)
+      }
+    }
+
+    for (const message of logs) {
+      addLog(message, {
+        category: 'economy',
+        tags: ['late_game_cycle'],
+        meta: {
+          dayTag: payload.currentDayTag,
+          weekId: payload.currentWeekId,
+          expiredOfferCount: expiredOffers.length
+        }
+      })
+    }
+
+    return {
+      logs,
+      expiredOffers,
+      state: nextState
+    }
+  }
+
+  const markCatalogOfferPurchased = (offerId: string): boolean => {
+    const offer = getCatalogOfferById(offerId)
+    if (!offer) return false
+
+    const nextState = cloneCatalogExpansionState(catalogExpansionState.value)
+    const bucketKey = CATALOG_BUCKET_BY_CATEGORY[offer.luxuryCategory]
+    const dayKey = getCurrentCatalogDayKey()
+
+    if (bucketKey === 'luxuryPermitStates' || bucketKey === 'warehouseServiceStates' || bucketKey === 'serviceContractStates') {
+      const currentState = nextState[bucketKey][offerId]
+      nextState[bucketKey][offerId] = {
+        offerId,
+        purchasedCount: (currentState?.purchasedCount ?? 0) + 1,
+        status: 'active',
+        activatedDayKey: currentState?.activatedDayKey || dayKey,
+        expiresDayKey: getCatalogOfferExpiryDayKey(offer),
+        lastPurchasedDayKey: dayKey
+      }
+    } else {
+      const currentState = nextState[bucketKey][offerId]
+      nextState[bucketKey][offerId] = {
+        offerId,
+        purchasedCount: (currentState?.purchasedCount ?? 0) + 1,
+        lastPurchasedDayKey: dayKey,
+        lastConsumedDayKey: currentState?.lastConsumedDayKey ?? ''
+      }
+    }
+
+    catalogExpansionState.value = nextState
+    return true
+  }
+
+  const buildCatalogClosureLogs = (offer: ShopCatalogOfferDef, spentMoney: number): string[] => {
+    const logs: string[] = []
+    playerStore.recordSinkSpend(spentMoney, 'luxuryCatalog')
+
+    if (offer.effect.type === 'expand_inventory_extra') {
+      logs.push(`【商店目录】${offer.name}已完成容量扩容，当前更适合承接材料包、外出补给与高价值订单。`)
+    }
+
+    if (offer.effect.type === 'expand_warehouse' || offer.effect.type === 'grant_chest') {
+      logs.push(`【商店目录】${offer.name}已转化为仓储能力，后续可为每周精选备货、特殊订单囤货与出货箱调度提供空间。`)
+    }
+
+    if (offer.effect.type === 'unlock_greenhouse') {
+      logs.push(`【商店目录】${offer.name}已解锁温室路线，后续可承接全年种植、高规格订单与豪华经营周的持续投入。`)
+    }
+
+    if (offer.effect.type === 'unlock_decoration' && offer.decorationUnlockId) {
+      const beforeBeauty = decorationStore.beautyScore
+      const beforeFriendship = decorationStore.dailyFriendshipBonus
+      const beforeDiscount = decorationStore.shopDiscountBonus
+      const grantResult = decorationStore.grantDecoration(offer.decorationUnlockId)
+      if (grantResult.success) {
+        const placeResult = decorationStore.placeDecoration(offer.decorationUnlockId)
+        if (placeResult.success) {
+          logs.push(`【商店目录】${offer.name}已送入家园陈设，美观度提升至${decorationStore.beautyScore}。`)
+          if (decorationStore.dailyFriendshipBonus > beforeFriendship) {
+            logs.push(`【商店目录】家园展示达到新阶段，村民每日好感加成已提升。`)
+          }
+          if (decorationStore.shopDiscountBonus > beforeDiscount) {
+            logs.push(`【商店目录】家园展示已带来额外熟客氛围，商店折扣加成提升至 ${decorationStore.shopDiscountBonus}%。`)
+          }
+        } else {
+          logs.push(`【商店目录】${offer.name}已计入收藏库，可前往家园装饰系统手动摆放。`)
+        }
+      }
+      if (beforeBeauty === decorationStore.beautyScore) {
+        logs.push(`【商店目录】展示型消费已与家园系统联动，继续补齐节庆与收藏陈设可冲击更高美观度奖励。`)
+      }
+    }
+
+    if (offer.effect.type === 'add_items') {
+      if (offer.travelSupplyConfig) {
+        const routeLabelMap: Record<string, string> = {
+          universal: '综合经营',
+          farming: '农耕扩产',
+          fishing: '钓鱼与鱼塘',
+          mining: '矿洞推进',
+          festival: '节庆筹备'
+        }
+        logs.push(`【商店目录】${offer.name}已接入${routeLabelMap[offer.travelSupplyConfig.routeTag] ?? '外出补给'}路线，可直接承接对应经营活动。`)
+      }
+      if (offer.functionalVoucherConfig) {
+        logs.push(`【商店目录】${offer.name}已为${offer.functionalVoucherConfig.targetSystems.join(' / ')}提供功能型支持，适合把本周收入继续转成经营效率。`)
+      }
+      if (offer.festivalGiftConfig) {
+        logs.push(`【商店目录】${offer.name}已进入节庆收藏线，可同时服务展示反馈与短期补给收益。`)
+      }
+    }
+
+    const matchedThemeTags = (goalStore.currentThemeWeek?.recommendedCatalogTags ?? []).filter(tag => (offer.tags ?? []).includes(tag))
+    if (goalStore.currentThemeWeek && matchedThemeTags.length > 0) {
+      logs.push(`【商店目录】${offer.name}契合本周主题「${goalStore.currentThemeWeek.name}」，适合同步推进对应主题目标与订单。`)
+    }
+
+    const matchedSink = goalStore.recommendedEconomySinks.find(item => item.linkedSystems.includes('shop'))
+    if (matchedSink) {
+      logs.push(`【商店目录】当前推荐资金去向仍指向「${matchedSink.name}」，可继续围绕商店消费与相关联动系统建立后期闭环。`)
+    }
+
+    return Array.from(new Set(logs))
+  }
+
+  const getCatalogOfferOperationalSummary = (offerId: string): ShopCatalogOfferOperationalSummary | null => {
+    const offer = getCatalogOfferById(offerId)
+    if (!offer) return null
+
+    const bucketKey = CATALOG_BUCKET_BY_CATEGORY[offer.luxuryCategory]
+    const rawState = catalogExpansionState.value[bucketKey][offerId]
+    const status = resolveOfferStatus(offer)
+
+    return {
+      id: offer.id,
+      name: offer.name,
+      pool: offer.pool,
+      contentTier: offer.contentTier,
+      luxuryCategory: offer.luxuryCategory,
+      price: offer.price,
+      priceBand: offer.priceBand,
+      serviceBillingCycle: offer.serviceBillingCycle,
+      linkedSystems: [...offer.linkedSystems],
+      tags: [...(offer.tags ?? [])],
+      owned: isCatalogOwned(offer.id),
+      unlocked: isCatalogOfferUnlocked(offer.id),
+      purchasedCount: rawState?.purchasedCount ?? 0,
+      status,
+      activatedDayKey: rawState && 'activatedDayKey' in rawState ? rawState.activatedDayKey : '',
+      expiresDayKey: rawState && 'expiresDayKey' in rawState ? rawState.expiresDayKey : '',
+      lastPurchasedDayKey: rawState?.lastPurchasedDayKey ?? '',
+      autoRenew: rawState && 'autoRenew' in rawState ? (rawState.autoRenew ?? false) : false,
+      renewCount: rawState && 'renewCount' in rawState ? (rawState.renewCount ?? 0) : 0,
+      totalFeesPaid: rawState && 'totalFeesPaid' in rawState ? (rawState.totalFeesPaid ?? 0) : 0,
+      canPurchase: canPurchaseCatalogOffer(offer.id),
+      unlockHint: getCatalogOfferUnlockHint(offer.id),
+      limitHint: getCatalogOfferLimitHint(offer.id)
+    }
+  }
+
+  const catalogOfferOperationalSummaries = computed<ShopCatalogOfferOperationalSummary[]>(() =>
+    SHOP_CATALOG_OFFERS
+      .map(offer => getCatalogOfferOperationalSummary(offer.id))
+      .filter((summary): summary is ShopCatalogOfferOperationalSummary => !!summary)
+  )
+
+  const catalogOverviewSummary = computed<ShopCatalogOverviewSummary>(() => {
+    const poolCounts: ShopCatalogOverviewSummary['poolCounts'] = {
+      basic: 0,
+      weekly: 0,
+      seasonal: 0,
+      premium: 0
+    }
+    const tierCounts: ShopCatalogOverviewSummary['tierCounts'] = {
+      P0: 0,
+      P1: 0,
+      P2: 0
+    }
+    const categoryCounts: ShopCatalogOverviewSummary['categoryCounts'] = {
+      luxury_permit: 0,
+      warehouse_service: 0,
+      service_contract: 0,
+      travel_supply: 0,
+      festival_gift: 0,
+      showcase_furniture: 0,
+      functional_voucher: 0
+    }
+
+    for (const offer of SHOP_CATALOG_OFFERS) {
+      poolCounts[offer.pool] += 1
+      tierCounts[offer.contentTier] += 1
+      categoryCounts[offer.luxuryCategory] += 1
+    }
+
+    const operationalSummaries = catalogOfferOperationalSummaries.value
+
+    return {
+      totalOffers: SHOP_CATALOG_OFFERS.length,
+      unlockedOffers: operationalSummaries.filter(summary => summary.unlocked).length,
+      ownedOffers: operationalSummaries.filter(summary => summary.owned).length,
+      premiumOfferCount: poolCounts.premium,
+      weeklyOfferCount: poolCounts.weekly,
+      repeatableOfferCount: SHOP_CATALOG_OFFERS.filter(offer => !offer.onceOnly).length,
+      activeEntitlementCount: operationalSummaries.filter(summary => summary.status === 'active').length,
+      activeServiceContractCount: operationalSummaries.filter(summary => summary.status === 'active' && summary.luxuryCategory === 'service_contract').length,
+      poolCounts,
+      tierCounts,
+      categoryCounts
+    }
+  })
+
+  const getCatalogDebugSnapshot = (): ShopCatalogDebugSnapshot => ({
+    dayKey: getCurrentCatalogDayKey(),
+    weekId: currentWeekId.value,
+    ownedCatalogOfferIds: [...ownedCatalogOfferIds.value],
+    recommendedOfferIds: recommendedCatalogOffers.value.map(offer => offer.id),
+    weeklyOfferIds: weeklyCatalogOffers.value.map(offer => offer.id),
+    premiumOfferIds: premiumCatalogOffers.value.map(offer => offer.id),
+    overview: { ...catalogOverviewSummary.value },
+    expansionState: cloneCatalogExpansionState(catalogExpansionState.value)
+  })
+
+  const marketDynamicsBaselineAudit = MARKET_DYNAMICS_BASELINE_AUDIT
+  const marketDynamicsRoutingDefs = MARKET_DYNAMICS_ROUTING_DEFS
   const currentMarketDynamicsPhase = computed(() => getMarketDynamicsPhaseConfig(marketDynamics.value.activePhaseId))
   const activeMarketHotspots = computed(() => marketDynamics.value.hotspots)
   const activeMarketRegionalProcurements = computed(() => marketDynamics.value.regionalProcurements)
   const activeMarketSubstituteRewards = computed(() => marketDynamics.value.substituteRewards)
   const activeMarketThemeEncouragement = computed(() => marketDynamics.value.themeEncouragement)
+  const currentMarketPriceInfos = computed(() => getDailyMarketInfo(gameStore.year, gameStore.seasonIndex, gameStore.day, getRecentShipping()))
+
+  const getMarketHotspotSummary = (category: MarketCategory) => {
+    const hotspot = activeMarketHotspots.value.find(entry => entry.category === category) ?? null
+    if (!hotspot) return null
+    return {
+      category,
+      categoryLabel: MARKET_CATEGORY_NAMES[category],
+      trend: hotspot.trend,
+      trendLabel: TREND_NAMES[hotspot.trend],
+      activatedDayKey: hotspot.activatedDayKey,
+      expiresDayKey: hotspot.expiresDayKey,
+      sourcePhaseId: hotspot.sourcePhaseId
+    }
+  }
+
+  const getRegionalProcurementSummary = (id: string) => {
+    const procurement = activeMarketRegionalProcurements.value.find(entry => entry.id === id) ?? null
+    if (!procurement) return null
+    return {
+      ...procurement,
+      targetCategoryLabels: procurement.targetCategories.map(category => MARKET_CATEGORY_NAMES[category])
+    }
+  }
+
+  const getOverflowPenaltySummary = (category: MarketCategory) => {
+    const penalty = marketDynamics.value.overflowPenalties[category] ?? null
+    if (!penalty) return null
+    return {
+      ...penalty,
+      categoryLabel: MARKET_CATEGORY_NAMES[category]
+    }
+  }
+
+  const resolveAutoMarketDynamicsPhase = (): MarketDynamicsState['activePhaseId'] => {
+    const inflationPressure = playerStore.getEconomyOverview().inflationPressure
+    if (inflationPressure >= 18) return 'p2_theme_conversion'
+    if (inflationPressure >= 10) return 'p1_regional_rotation'
+    return 'p0_hotspot_seed'
+  }
+
+  const resolveHotspotSlotCount = (phaseId: MarketDynamicsState['activePhaseId']): number => {
+    return MARKET_DYNAMICS_CONFIG.hotspot.stageOverrides[phaseId]?.slotCount ?? getMarketDynamicsPhaseConfig(phaseId).hotspotSlots
+  }
+
+  const resolveHotspotCooldownDays = (phaseId: MarketDynamicsState['activePhaseId']): number => {
+    return MARKET_DYNAMICS_CONFIG.hotspot.stageOverrides[phaseId]?.cooldownDays ?? getMarketDynamicsPhaseConfig(phaseId).cooldownDays
+  }
+
+  const resolveHotspotFallbackCategories = (phaseId: MarketDynamicsState['activePhaseId']): MarketCategory[] => {
+    return MARKET_DYNAMICS_CONFIG.hotspot.stageOverrides[phaseId]?.fallbackCategories ?? MARKET_DYNAMICS_CONFIG.hotspot.fallbackCategories
+  }
+
+  const resolveRegionalProcurementCount = (phaseId: MarketDynamicsState['activePhaseId']): number => {
+    return MARKET_DYNAMICS_CONFIG.regionalProcurement.stageOverrides[phaseId]?.contractCount ?? getMarketDynamicsPhaseConfig(phaseId).regionalProcurementSlots
+  }
+
+  const resolveRegionalProcurementDuration = (phaseId: MarketDynamicsState['activePhaseId']): number => {
+    return MARKET_DYNAMICS_CONFIG.regionalProcurement.stageOverrides[phaseId]?.durationDays ?? MARKET_DYNAMICS_CONFIG.regionalProcurement.durationDays
+  }
+
+  const resolveRegionalRewardMultiplierRange = (phaseId: MarketDynamicsState['activePhaseId']): [number, number] => {
+    return MARKET_DYNAMICS_CONFIG.regionalProcurement.stageOverrides[phaseId]?.rewardMultiplierRange ?? MARKET_DYNAMICS_CONFIG.regionalProcurement.rewardMultiplierRange
+  }
+
+  const resolveOverflowPenaltyBands = (phaseId: MarketDynamicsState['activePhaseId']) => {
+    const enabledBandIds = new Set(getMarketDynamicsPhaseConfig(phaseId).overflowPenaltyBands)
+    return MARKET_DYNAMICS_CONFIG.overflowPenalty.bands.filter(band => enabledBandIds.has(band.id))
+  }
+
+  const resolveThemeRewardMultiplier = (phaseId: MarketDynamicsState['activePhaseId']): number => {
+    const configured = MARKET_DYNAMICS_CONFIG.themeEncouragement.stageOverrides[phaseId]?.rewardMultiplier ?? MARKET_DYNAMICS_CONFIG.themeEncouragement.baseRewardMultiplier
+    return Math.min(MARKET_DYNAMICS_CONFIG.themeEncouragement.maxRewardMultiplier, configured)
+  }
+
+  const resolveThemeEncouragedTags = (phaseId: MarketDynamicsState['activePhaseId']): string[] => {
+    return MARKET_DYNAMICS_CONFIG.themeEncouragement.stageOverrides[phaseId]?.encouragedTags ?? MARKET_DYNAMICS_CONFIG.themeEncouragement.encouragedTags
+  }
+
+  const resolveSubstituteRewardValue = (phaseId: MarketDynamicsState['activePhaseId']): number => {
+    const configured = MARKET_DYNAMICS_CONFIG.substituteReward.stageOverrides[phaseId]?.rewardValue ?? MARKET_DYNAMICS_CONFIG.substituteReward.baseRewardValue
+    return Math.min(MARKET_DYNAMICS_CONFIG.substituteReward.maxRewardValue, configured)
+  }
+
+  const resolveSubstituteRewardDuration = (phaseId: MarketDynamicsState['activePhaseId']): number => {
+    return MARKET_DYNAMICS_CONFIG.substituteReward.stageOverrides[phaseId]?.durationDays ?? MARKET_DYNAMICS_CONFIG.substituteReward.durationDays
+  }
+
+  const resolveSubstituteRewardTypes = (phaseId: MarketDynamicsState['activePhaseId']) => {
+    return MARKET_DYNAMICS_CONFIG.substituteReward.stageOverrides[phaseId]?.rewardTypes ?? MARKET_DYNAMICS_CONFIG.substituteReward.rewardTypes
+  }
+
+  const processMarketDynamicsTick = (payload: {
+    currentDayTag: string
+    currentWeekId: string
+    startedNewWeek?: boolean
+    seasonChanged?: boolean
+  }) => {
+    if (marketDynamics.value.lastRefreshDayKey === payload.currentDayTag) {
+      return {
+        logs: [] as string[],
+        state: marketDynamics.value
+      }
+    }
+
+    const logs: string[] = []
+    const nextState = deserializeMarketDynamics(marketDynamics.value)
+    const currentAbsoluteDay = parseDayKeyToAbsoluteDay(payload.currentDayTag) ?? getAbsoluteDay(gameStore.year, gameStore.seasonIndex, gameStore.day)
+    const recentShipping = getRecentShipping()
+    const priceInfos = getDailyMarketInfo(gameStore.year, gameStore.seasonIndex, gameStore.day, recentShipping)
+    const currentThemeWeek = goalStore.currentThemeWeek
+
+    for (const [category, cooldown] of Object.entries(nextState.categoryCooldowns)) {
+      if (!cooldown) continue
+      if (cooldown.remainingDays <= 1) {
+        delete nextState.categoryCooldowns[category as MarketCategory]
+        continue
+      }
+      nextState.categoryCooldowns[category as MarketCategory] = {
+        ...cooldown,
+        remainingDays: cooldown.remainingDays - 1
+      }
+    }
+
+    if (payload.startedNewWeek) {
+      const desiredPhaseId = resolveAutoMarketDynamicsPhase()
+      if (desiredPhaseId !== nextState.activePhaseId) {
+        nextState.activePhaseId = desiredPhaseId
+        logs.push(`【市场轮换】市场阶段已自动切换为 ${getMarketDynamicsPhaseConfig(desiredPhaseId).label}。`)
+      }
+    }
+
+    const currentPhase = getMarketDynamicsPhaseConfig(nextState.activePhaseId)
+
+    const carryHotspotCooldown = (hotspot: MarketHotspotState) => {
+      nextState.categoryCooldowns[hotspot.category] = {
+        category: hotspot.category,
+        remainingDays: resolveHotspotCooldownDays(currentPhase.id),
+        source: 'hotspot',
+        lastTriggeredDayKey: payload.currentDayTag
+      }
+    }
+
+    const remainingHotspots: MarketHotspotState[] = []
+    for (const hotspot of nextState.hotspots) {
+      const expiresAbsoluteDay = parseDayKeyToAbsoluteDay(hotspot.expiresDayKey)
+      if (payload.startedNewWeek || (expiresAbsoluteDay != null && currentAbsoluteDay > expiresAbsoluteDay)) {
+        carryHotspotCooldown(hotspot)
+        continue
+      }
+      remainingHotspots.push(hotspot)
+    }
+    nextState.hotspots = currentPhase.featureFlags.hotspots ? remainingHotspots : []
+
+    nextState.regionalProcurements = currentPhase.featureFlags.regionalProcurement
+      ? nextState.regionalProcurements.filter(procurement => {
+          const expiresAbsoluteDay = parseDayKeyToAbsoluteDay(procurement.expiresDayKey)
+          return expiresAbsoluteDay == null || currentAbsoluteDay <= expiresAbsoluteDay
+        })
+      : []
+
+    nextState.substituteRewards = currentPhase.featureFlags.substituteRewards
+      ? nextState.substituteRewards.filter(reward => {
+          const expiresAbsoluteDay = parseDayKeyToAbsoluteDay(reward.expiresDayKey)
+          return expiresAbsoluteDay == null || currentAbsoluteDay <= expiresAbsoluteDay
+        })
+      : []
+
+    if (
+      nextState.themeEncouragement &&
+      (!currentPhase.featureFlags.themeEncouragement ||
+        !currentThemeWeek ||
+        nextState.themeEncouragement.themeWeekId !== currentThemeWeek.id ||
+        payload.startedNewWeek ||
+        payload.seasonChanged)
+    ) {
+      nextState.themeEncouragement = null
+    }
+
+    if (currentPhase.featureFlags.hotspots && (payload.startedNewWeek || nextState.hotspots.length === 0)) {
+      const hotspotSlots = Math.max(1, resolveHotspotSlotCount(currentPhase.id))
+      const hotspotSeed = `${payload.currentWeekId}:${payload.currentDayTag}:${currentPhase.id}:hotspot`
+      const candidateInfos = [...priceInfos].sort((left, right) => {
+        const leftScore = MARKET_TREND_PRIORITY[left.trend] * 100 + left.multiplier * 10 + getSeededOrderScore(hotspotSeed, left.category)
+        const rightScore = MARKET_TREND_PRIORITY[right.trend] * 100 + right.multiplier * 10 + getSeededOrderScore(hotspotSeed, right.category)
+        return rightScore - leftScore
+      })
+      const fallbackCategories = resolveHotspotFallbackCategories(currentPhase.id)
+      const selectedCategories: MarketCategory[] = []
+
+      for (const info of candidateInfos) {
+        if (selectedCategories.length >= hotspotSlots) break
+        if (nextState.categoryCooldowns[info.category]?.remainingDays) continue
+        if (selectedCategories.includes(info.category)) continue
+        selectedCategories.push(info.category)
+      }
+
+      for (const category of fallbackCategories) {
+        if (selectedCategories.length >= hotspotSlots) break
+        if (nextState.categoryCooldowns[category]?.remainingDays) continue
+        if (selectedCategories.includes(category)) continue
+        selectedCategories.push(category)
+      }
+
+      const hotspotExpiryDayKey = buildDayKeyFromAbsoluteDay(currentAbsoluteDay + 6)
+      nextState.hotspots = selectedCategories.map(category => {
+        const marketInfo = priceInfos.find(entry => entry.category === category)
+        return {
+          category,
+          trend: marketInfo?.trend ?? 'stable',
+          activatedDayKey: payload.currentDayTag,
+          expiresDayKey: hotspotExpiryDayKey,
+          sourcePhaseId: currentPhase.id
+        }
+      })
+
+      if (nextState.hotspots.length > 0) {
+        logs.push(`【市场轮换】本周热点已刷新：${nextState.hotspots.map(entry => `${MARKET_CATEGORY_NAMES[entry.category]}·${TREND_NAMES[entry.trend]}`).join('、')}。`)
+      }
+    }
+
+    if (currentPhase.featureFlags.regionalProcurement && payload.startedNewWeek) {
+      const contractCount = Math.min(
+        resolveRegionalProcurementCount(currentPhase.id),
+        MARKET_DYNAMICS_CONFIG.regionalProcurement.maxContractCount
+      )
+      const durationDays = resolveRegionalProcurementDuration(currentPhase.id)
+      const [minRewardMultiplier, maxRewardMultiplier] = resolveRegionalRewardMultiplierRange(currentPhase.id)
+      const procurementSeed = `${payload.currentWeekId}:${currentPhase.id}:regional`
+      const candidateCategories = Array.from(
+        new Set([
+          ...nextState.hotspots.map(entry => entry.category),
+          ...[...priceInfos]
+            .sort((left, right) => right.multiplier - left.multiplier)
+            .map(entry => entry.category)
+        ])
+      )
+      const sortedDistricts = [...MARKET_DYNAMICS_CONFIG.regionalProcurement.districtPool].sort((left, right) => {
+        return getSeededOrderScore(procurementSeed, left) - getSeededOrderScore(procurementSeed, right)
+      })
+
+      nextState.regionalProcurements = Array.from({ length: Math.min(contractCount, candidateCategories.length, sortedDistricts.length) }, (_, index) => {
+        const primaryCategory = candidateCategories[index] ?? candidateCategories[0] ?? 'crop'
+        const secondaryCategory = candidateCategories[(index + 1) % Math.max(candidateCategories.length, 1)] ?? primaryCategory
+        const rawMultiplier = minRewardMultiplier + (maxRewardMultiplier - minRewardMultiplier) * getSeededOrderScore(procurementSeed, `${primaryCategory}:${sortedDistricts[index]}`)
+        return {
+          id: `regional_${payload.currentWeekId}_${index + 1}`,
+          districtId: sortedDistricts[index] ?? 'jiangnan_wharf',
+          targetCategories: Array.from(new Set([primaryCategory, secondaryCategory])).slice(0, 2),
+          rewardMultiplier: Number(rawMultiplier.toFixed(2)),
+          startsDayKey: payload.currentDayTag,
+          expiresDayKey: buildDayKeyFromAbsoluteDay(currentAbsoluteDay + Math.max(1, durationDays - 1)),
+          sourcePhaseId: currentPhase.id
+        }
+      })
+
+      if (nextState.regionalProcurements.length > 0) {
+        logs.push(
+          `【市场轮换】本周地区收购已发布：${nextState.regionalProcurements
+            .map(entry => `${MARKET_DISTRICT_LABELS[entry.districtId] ?? entry.districtId}·${entry.targetCategories.map(category => MARKET_CATEGORY_NAMES[category]).join('/')}`)
+            .join('、')}。`
+        )
+      }
+    }
+
+    const nextOverflowPenalties: MarketDynamicsState['overflowPenalties'] = {}
+    const newlyTriggeredPenaltyLabels: string[] = []
+    const clearedPenaltyLabels: string[] = []
+    const activeOverflowBands = resolveOverflowPenaltyBands(currentPhase.id)
+
+    for (const category of ALL_MARKET_CATEGORIES) {
+      const previousPenalty = nextState.overflowPenalties[category]
+      if (!currentPhase.featureFlags.overflowPenalty || activeOverflowBands.length === 0) {
+        if (previousPenalty) clearedPenaltyLabels.push(MARKET_CATEGORY_NAMES[category])
+        continue
+      }
+
+      const rawVolume = recentShipping[category] ?? 0
+      const effectiveVolume = Math.max(0, rawVolume - MARKET_DYNAMICS_CONFIG.overflowPenalty.graceUnitsPerDay)
+      const matchedBand = [...activeOverflowBands]
+        .sort((left, right) => right.shippedQuantityMin - left.shippedQuantityMin)
+        .find(band => effectiveVolume >= band.shippedQuantityMin)
+
+      if (matchedBand) {
+        nextOverflowPenalties[category] = {
+          category,
+          currentBandId: matchedBand.id,
+          streakDays: (previousPenalty?.streakDays ?? 0) + 1,
+          appliedMultiplier: Math.max(MARKET_DYNAMICS_CONFIG.overflowPenalty.gentleFloorMultiplier, matchedBand.multiplier),
+          graceUnitsRemaining: Math.max(0, MARKET_DYNAMICS_CONFIG.overflowPenalty.graceUnitsPerDay - rawVolume),
+          lastTriggeredDayKey: payload.currentDayTag
+        }
+        if (!previousPenalty || previousPenalty.currentBandId !== matchedBand.id) {
+          newlyTriggeredPenaltyLabels.push(`${MARKET_CATEGORY_NAMES[category]}·${matchedBand.label}`)
+        }
+        continue
+      }
+
+      if (!previousPenalty) continue
+      const lastTriggeredAbsoluteDay = parseDayKeyToAbsoluteDay(previousPenalty.lastTriggeredDayKey) ?? currentAbsoluteDay
+      if (currentAbsoluteDay - lastTriggeredAbsoluteDay < MARKET_DYNAMICS_CONFIG.overflowPenalty.resetAfterIdleDays) {
+        nextOverflowPenalties[category] = {
+          ...previousPenalty,
+          streakDays: Math.max(0, previousPenalty.streakDays - 1)
+        }
+      } else {
+        clearedPenaltyLabels.push(MARKET_CATEGORY_NAMES[category])
+      }
+    }
+
+    nextState.overflowPenalties = nextOverflowPenalties
+    if (newlyTriggeredPenaltyLabels.length > 0) {
+      logs.push(`【市场轮换】以下品类进入过剩压制：${newlyTriggeredPenaltyLabels.join('、')}。`)
+    }
+    if (clearedPenaltyLabels.length > 0) {
+      logs.push(`【市场轮换】以下品类已脱离过剩压制：${clearedPenaltyLabels.join('、')}。`)
+    }
+
+    if (currentPhase.featureFlags.substituteRewards && (payload.startedNewWeek || newlyTriggeredPenaltyLabels.length > 0 || nextState.substituteRewards.length === 0)) {
+      const substituteSeed = `${payload.currentWeekId}:${payload.currentDayTag}:${currentPhase.id}:substitute`
+      const rewardTypes = resolveSubstituteRewardTypes(currentPhase.id)
+      const rewardValue = resolveSubstituteRewardValue(currentPhase.id)
+      const rewardDuration = resolveSubstituteRewardDuration(currentPhase.id)
+      const sourceCategories = Array.from(
+        new Set([
+          ...Object.values(nextState.overflowPenalties)
+            .filter((entry): entry is NonNullable<typeof entry> => !!entry)
+            .map(entry => entry.category),
+          ...priceInfos.filter(entry => entry.trend === 'falling' || entry.trend === 'crash').map(entry => entry.category)
+        ])
+      )
+      const targetCategories = Array.from(
+        new Set([
+          ...nextState.hotspots.map(entry => entry.category),
+          ...priceInfos.filter(entry => entry.trend === 'boom' || entry.trend === 'rising').map(entry => entry.category)
+        ])
+      )
+      const rewardPoolSize = Math.min(currentPhase.substituteRewardPoolSize, sourceCategories.length, targetCategories.length)
+      const nextSubstituteRewards: MarketSubstituteRewardState[] = []
+
+      for (let index = 0; index < rewardPoolSize; index++) {
+        const fromCategory = sourceCategories[index] ?? sourceCategories[0]
+        let toCategory = targetCategories[index % Math.max(targetCategories.length, 1)] ?? targetCategories[0] ?? fromCategory ?? 'crop'
+        if (toCategory === fromCategory && targetCategories.length > 1) {
+          toCategory = targetCategories[(index + 1) % targetCategories.length] ?? toCategory
+        }
+        if (!fromCategory || fromCategory === toCategory) continue
+        nextSubstituteRewards.push({
+          id: `substitute_${payload.currentWeekId}_${index + 1}`,
+          fromCategory,
+          toCategory,
+          rewardType: rewardTypes[index % rewardTypes.length] ?? rewardTypes[0] ?? 'price_support',
+          rewardValue: Number((rewardValue + getSeededOrderScore(substituteSeed, `${fromCategory}:${toCategory}`)).toFixed(2)),
+          expiresDayKey: buildDayKeyFromAbsoluteDay(currentAbsoluteDay + Math.max(1, rewardDuration - 1)),
+          sourcePhaseId: currentPhase.id
+        })
+      }
+
+      nextState.substituteRewards = nextSubstituteRewards
+      if (nextSubstituteRewards.length > 0) {
+        logs.push(
+          `【市场轮换】本周替代奖励路线已刷新：${nextSubstituteRewards
+            .map(entry => `${MARKET_CATEGORY_NAMES[entry.fromCategory]}→${MARKET_CATEGORY_NAMES[entry.toCategory]}`)
+            .join('、')}。`
+        )
+      }
+    }
+
+    if (currentPhase.featureFlags.themeEncouragement && currentThemeWeek) {
+      const shouldRefreshThemeEncouragement =
+        payload.startedNewWeek ||
+        payload.seasonChanged ||
+        !nextState.themeEncouragement ||
+        nextState.themeEncouragement.themeWeekId !== currentThemeWeek.id
+
+      if (shouldRefreshThemeEncouragement) {
+        const encouragedCategories = Array.from(
+          new Set([
+            ...nextState.hotspots.map(entry => entry.category),
+            ...priceInfos.filter(entry => entry.trend === 'boom' || entry.trend === 'rising').map(entry => entry.category)
+          ])
+        ).slice(0, Math.max(1, currentPhase.themeRewardPoolSize))
+        const encouragedTags = Array.from(
+          new Set([...(currentThemeWeek.recommendedCatalogTags ?? []), ...resolveThemeEncouragedTags(currentPhase.id)])
+        )
+        nextState.themeEncouragement = {
+          themeWeekId: currentThemeWeek.id,
+          encouragedCategories,
+          encouragedTags,
+          rewardMultiplier: resolveThemeRewardMultiplier(currentPhase.id),
+          sourcePhaseId: currentPhase.id,
+          substituteRewardIds: nextState.substituteRewards.map(entry => entry.id)
+        }
+        if (encouragedCategories.length > 0 || encouragedTags.length > 0) {
+          logs.push(`【市场轮换】主题周「${currentThemeWeek.name}」已接入市场鼓励：${encouragedCategories.map(category => MARKET_CATEGORY_NAMES[category]).join('、') || '综合品类'}。`)
+        }
+      }
+    } else {
+      nextState.themeEncouragement = null
+    }
+
+    nextState.lastRefreshDayKey = payload.currentDayTag
+    marketDynamics.value = nextState
+
+    for (const message of Array.from(new Set(logs))) {
+      addLog(message, {
+        category: 'market',
+        tags: ['late_game_cycle'],
+        meta: {
+          dayTag: payload.currentDayTag,
+          weekId: payload.currentWeekId,
+          phaseId: nextState.activePhaseId,
+          hotspotCount: nextState.hotspots.length,
+          regionalProcurementCount: nextState.regionalProcurements.length,
+          overflowPenaltyCount: Object.keys(nextState.overflowPenalties).length
+        }
+      })
+    }
+
+    return {
+      logs,
+      state: nextState
+    }
+  }
+
+  const marketDynamicsOverview = computed(() => {
+    const currentPhase = currentMarketDynamicsPhase.value
+    const currentThemeWeek = goalStore.currentThemeWeek
+    const currentHotspotCategories = activeMarketHotspots.value.map(entry => entry.category)
+    const matchingRoutingDefs = MARKET_DYNAMICS_ROUTING_DEFS.filter(route => {
+      const segmentMatched = route.targetSegmentIds.includes(playerStore.getEconomyOverview().currentSegment?.id ?? '')
+      const themeMatched =
+        route.themeWeekPreference === 'optional' ||
+        (route.themeWeekPreference === 'recommended' && !!currentThemeWeek) ||
+        (route.themeWeekPreference === 'required' && !!currentThemeWeek)
+      const hotspotMatched = route.preferredMarketCategories.some(category => currentHotspotCategories.includes(category))
+      return segmentMatched || (themeMatched && hotspotMatched)
+    })
+
+    return {
+      phaseId: currentPhase.id,
+      phaseLabel: currentPhase.label,
+      phaseDescription: currentPhase.description,
+      lastRefreshDayKey: marketDynamics.value.lastRefreshDayKey,
+      hotspotCount: activeMarketHotspots.value.length,
+      regionalProcurementCount: activeMarketRegionalProcurements.value.length,
+      overflowPenaltyCount: Object.keys(marketDynamics.value.overflowPenalties).length,
+      substituteRewardCount: activeMarketSubstituteRewards.value.length,
+      hasThemeEncouragement: !!activeMarketThemeEncouragement.value,
+      themeEncouragementWeekId: activeMarketThemeEncouragement.value?.themeWeekId ?? '',
+      recommendedRouteIds: matchingRoutingDefs.map(route => route.id),
+      recommendedRouteLabels: matchingRoutingDefs.map(route => route.label),
+      hotspotCategoryLabels: activeMarketHotspots.value.map(entry => `${MARKET_CATEGORY_NAMES[entry.category]}·${TREND_NAMES[entry.trend]}`)
+    }
+  })
+
+  const recommendedMarketDynamicsRoutes = computed(() => {
+    const overview = playerStore.getEconomyOverview()
+    const currentThemeWeek = goalStore.currentThemeWeek
+    const activeHotspotCategories = new Set(activeMarketHotspots.value.map(entry => entry.category))
+    return MARKET_DYNAMICS_ROUTING_DEFS
+      .map(route => {
+        let score = 0
+        if (route.targetSegmentIds.includes(overview.currentSegment?.id ?? '')) {
+          score += ECONOMY_TUNING_CONFIG.marketRouteScoreBonuses.segmentFit
+        }
+        if (route.themeWeekPreference === 'required' && currentThemeWeek) score += ECONOMY_TUNING_CONFIG.marketRouteScoreBonuses.themeWeekReady
+        if (route.themeWeekPreference === 'recommended' && currentThemeWeek) score += Math.max(1, ECONOMY_TUNING_CONFIG.marketRouteScoreBonuses.themeWeekReady - 1)
+        score += route.linkedSystems.filter(system => goalStore.recommendedEconomySinks.some(item => item.linkedSystems.includes(system))).length * ECONOMY_TUNING_CONFIG.marketRouteScoreBonuses.systemLinkMatch
+        score += route.preferredSinkCategories.filter(category => goalStore.recommendedEconomySinks.some(item => item.category === category)).length * ECONOMY_TUNING_CONFIG.marketRouteScoreBonuses.sinkCategoryMatch
+        score += route.preferredMarketCategories.filter(category => activeHotspotCategories.has(category)).length * ECONOMY_TUNING_CONFIG.marketRouteScoreBonuses.catalogTagMatch
+        if (overview.inflationPressure >= 10 && route.preferredSinkCategories.some(category => ['luxuryCatalog', 'themeActivity', 'maintenance'].includes(category))) {
+          score += ECONOMY_TUNING_CONFIG.marketRouteScoreBonuses.pressureMatch
+        }
+        return {
+          ...route,
+          score
+        }
+      })
+      .filter(route => route.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+  })
+
+  const setMarketDynamicsPhase = (phaseId: MarketDynamicsState['activePhaseId']) => {
+    if (!MARKET_DYNAMICS_PHASE_BY_ID[phaseId]) return false
+    marketDynamics.value = {
+      ...marketDynamics.value,
+      activePhaseId: phaseId,
+      lastRefreshDayKey: getCurrentCatalogDayKey()
+    }
+    addLog(`【市场轮换】市场阶段已切换为 ${getMarketDynamicsPhaseConfig(phaseId).label}。`, {
+      category: 'market',
+      tags: ['late_game_cycle'],
+      meta: {
+        phaseId,
+        dayTag: getCurrentCatalogDayKey()
+      }
+    })
+    return true
+  }
+
+  const resetMarketDynamicsState = () => {
+    marketDynamics.value = createDefaultMarketDynamicsState()
+  }
+
+  const getMarketDynamicsDebugSnapshot = () => ({
+    dayKey: getCurrentCatalogDayKey(),
+    phase: currentMarketDynamicsPhase.value,
+    overview: { ...marketDynamicsOverview.value },
+    priceInfos: currentMarketPriceInfos.value.map(entry => ({ ...entry })),
+    hotspots: activeMarketHotspots.value.map(entry => ({ ...entry })),
+    regionalProcurements: activeMarketRegionalProcurements.value.map(entry => ({ ...entry })),
+    overflowPenalties: { ...marketDynamics.value.overflowPenalties },
+    substituteRewards: activeMarketSubstituteRewards.value.map(entry => ({ ...entry })),
+    themeEncouragement: activeMarketThemeEncouragement.value ? { ...activeMarketThemeEncouragement.value } : null,
+    recommendedRoutes: recommendedMarketDynamicsRoutes.value.map(route => ({ id: route.id, label: route.label, score: route.score }))
+  })
+
 
   const normalizeMarketHotspotState = (entry: any): MarketHotspotState | null => {
     if (!entry || typeof entry !== 'object' || typeof entry.category !== 'string' || typeof entry.trend !== 'string') return null
@@ -336,8 +1367,11 @@ export const useShopStore = defineStore('shop', () => {
   const canPurchaseCatalogOffer = (offerId: string): boolean => {
     const offer = getCatalogOfferById(offerId)
     if (!offer) return false
+    if (catalogPurchaseLock.value !== null) return false
+    if (!isCatalogOfferVisibleForCurrentSeason(offer)) return false
     if (!isCatalogOfferUnlocked(offerId)) return false
     if (offer.onceOnly && isCatalogOwned(offerId)) return false
+    if (getCatalogOfferServiceLockHint(offerId)) return false
     if (playerStore.money < applyDiscount(offer.price)) return false
 
     switch (offer.effect.type) {
@@ -361,73 +1395,132 @@ export const useShopStore = defineStore('shop', () => {
   const purchaseCatalogOffer = (offerId: string): { success: boolean; message: string; spent?: number } => {
     const offer = getCatalogOfferById(offerId)
     if (!offer) return { success: false, message: '商品不存在。' }
-    if (!canPurchaseCatalogOffer(offerId)) return { success: false, message: '当前条件下无法购买该商品。' }
+
+    if (catalogPurchaseLock.value === offerId) {
+      return { success: false, message: '该目录商品正在结算，请勿重复点击。' }
+    }
+    if (catalogPurchaseLock.value) {
+      return { success: false, message: '当前有其他目录事务正在结算，请稍候。' }
+    }
+    if (!isCatalogOfferUnlocked(offerId)) {
+      return { success: false, message: getCatalogOfferUnlockHint(offerId) || '当前条件下无法购买该商品。' }
+    }
+
+    const limitHint = getCatalogOfferLimitHint(offerId)
+    if (limitHint) return { success: false, message: limitHint }
 
     const totalCost = applyDiscount(offer.price)
-    if (!playerStore.spendMoney(totalCost, 'shop')) return { success: false, message: '铜钱不足。' }
+    if (playerStore.money < totalCost) return { success: false, message: '铜钱不足。' }
 
+    const playerSnapshot = playerStore.serialize()
     const ownedSnapshot = [...ownedCatalogOfferIds.value]
+    const catalogExpansionSnapshot = cloneCatalogExpansionState(catalogExpansionState.value)
     const inventorySnapshot = inventoryStore.serialize()
     const warehouseSnapshot = warehouseStore.serialize()
     const homeSnapshot = homeStore.serialize()
+    const farmSnapshot = farmStore.serialize()
+    const decorationSnapshot = decorationStore.serialize()
 
-    let success = false
-    switch (offer.effect.type) {
-      case 'unlock_decoration':
-        ownedCatalogOfferIds.value.push(offerId)
-        success = true
-        break
-      case 'expand_inventory_extra': {
-        for (let i = 0; i < offer.effect.amount; i++) {
-          inventoryStore.expandCapacityExtra()
-        }
-        if (offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
-        success = true
-        break
-      }
-      case 'expand_warehouse': {
-        if (warehouseStore.maxChests + offer.effect.amount > warehouseStore.MAX_CHESTS_CAP) {
-          break
-        }
-        for (let i = 0; i < offer.effect.amount; i++) {
-          if (!warehouseStore.expandMaxChests()) break
-        }
-        success = true
-        if (success && offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
-        break
-      }
-      case 'unlock_greenhouse':
-        success = homeStore.unlockGreenhouseByPermit()
-        if (success && offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
-        break
-      case 'grant_chest':
-        success = warehouseStore.addChest(offer.effect.tier, offer.effect.label ?? offer.name)
-        if (success && offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
-        break
-      case 'add_items':
-        success = canReceiveItemBundle(offer.effect.items)
-        if (success) {
-          for (const reward of offer.effect.items) {
-            if (!inventoryStore.addItemExact(reward.itemId, reward.quantity)) {
-              success = false
-              break
-            }
-          }
-          if (offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
-        }
-        break
-    }
-
-    if (!success) {
+    const rollbackCatalogPurchase = () => {
+      playerStore.deserialize(playerSnapshot)
       ownedCatalogOfferIds.value = ownedSnapshot
+      catalogExpansionState.value = catalogExpansionSnapshot
       inventoryStore.deserialize(inventorySnapshot)
       warehouseStore.deserialize(warehouseSnapshot)
       homeStore.deserialize(homeSnapshot)
-      playerStore.earnMoney(totalCost, { countAsEarned: false, system: 'shop' })
-      return { success: false, message: '购买失败，已自动退款。' }
+      farmStore.deserialize(farmSnapshot)
+      decorationStore.deserialize(decorationSnapshot)
     }
 
-    return { success: true, message: `购入了${offer.name}。(-${totalCost}文)`, spent: totalCost }
+    catalogPurchaseLock.value = offerId
+
+    try {
+      if (!playerStore.spendMoney(totalCost, 'shop')) {
+        rollbackCatalogPurchase()
+        return { success: false, message: '铜钱不足。' }
+      }
+
+      let success = false
+      switch (offer.effect.type) {
+        case 'unlock_decoration':
+          ownedCatalogOfferIds.value.push(offerId)
+          success = true
+          break
+        case 'expand_inventory_extra': {
+          for (let i = 0; i < offer.effect.amount; i++) {
+            inventoryStore.expandCapacityExtra()
+          }
+          if (offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
+          success = true
+          break
+        }
+        case 'expand_warehouse': {
+          if (warehouseStore.maxChests + offer.effect.amount > warehouseStore.MAX_CHESTS_CAP) {
+            break
+          }
+          for (let i = 0; i < offer.effect.amount; i++) {
+            if (!warehouseStore.expandMaxChests()) {
+              success = false
+              break
+            }
+            success = true
+          }
+          if (success && offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
+          break
+        }
+        case 'unlock_greenhouse':
+          success = homeStore.unlockGreenhouseByPermit()
+          if (success && offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
+          break
+        case 'grant_chest':
+          success = warehouseStore.addChest(offer.effect.tier, offer.effect.label ?? offer.name)
+          if (success && offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
+          break
+        case 'add_items':
+          success = canReceiveItemBundle(offer.effect.items)
+          if (success) {
+            for (const reward of offer.effect.items) {
+              if (!inventoryStore.addItemExact(reward.itemId, reward.quantity)) {
+                success = false
+                break
+              }
+            }
+            if (offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
+          }
+          break
+      }
+
+      if (!success) {
+        rollbackCatalogPurchase()
+        return { success: false, message: '购买失败，已自动退款。' }
+      }
+
+      if (!markCatalogOfferPurchased(offerId)) {
+        rollbackCatalogPurchase()
+        return { success: false, message: '购买失败，目录状态写入未完成，已自动退款。' }
+      }
+
+      const closureLogs = buildCatalogClosureLogs(offer, totalCost)
+      for (const message of closureLogs) {
+        addLog(message, {
+          category: 'economy',
+          tags: ['economy_sink_guidance', 'late_game_cycle'],
+          meta: {
+            offerId: offer.id,
+            luxuryCategory: offer.luxuryCategory,
+            linkedSystems: offer.linkedSystems.join(','),
+            spentMoney: totalCost
+          }
+        })
+      }
+
+      return { success: true, message: `购入了${offer.name}。(-${totalCost}文)`, spent: totalCost }
+    } catch {
+      rollbackCatalogPurchase()
+      return { success: false, message: '购买失败，已自动退款。' }
+    } finally {
+      catalogPurchaseLock.value = null
+    }
   }
 
   // === 多商铺导航 ===
@@ -993,6 +2086,7 @@ export const useShopStore = defineStore('shop', () => {
 
   const serialize = () => ({
     ownedCatalogOfferIds: ownedCatalogOfferIds.value,
+    catalogExpansionState: catalogExpansionState.value,
     travelingStockKey: travelingStockKey.value,
     travelingStock: travelingStock.value,
     shippingBox: shippingBox.value,
@@ -1009,6 +2103,7 @@ export const useShopStore = defineStore('shop', () => {
     }
 
     ownedCatalogOfferIds.value = Array.isArray(data?.ownedCatalogOfferIds) ? data.ownedCatalogOfferIds.filter((id: unknown) => typeof id === 'string') : []
+    catalogExpansionState.value = normalizeShopCatalogExpansionState(data?.catalogExpansionState)
     travelingStockKey.value = typeof data?.travelingStockKey === 'string' ? data.travelingStockKey : ''
     travelingStock.value = Array.isArray(data?.travelingStock)
       ? data.travelingStock
@@ -1063,22 +2158,47 @@ export const useShopStore = defineStore('shop', () => {
     premiumCatalogOffers,
     luxuryCatalogBaselineAudit,
     currentLuxuryAuditSegment,
+    catalogExpansionState,
+    catalogOverviewSummary,
+    catalogOfferOperationalSummaries,
     weeklyCatalogRefreshText,
     recommendedCatalogOffers,
     weeklySurpriseOffer,
+    getCatalogOfferById,
+    getCatalogOffersByPool,
+    getCatalogOffersByTier,
+    getCatalogOffersByCategory,
+    getCatalogOffersByLinkedSystem,
+    getCatalogOfferOperationalSummary,
+    processCatalogCycleTick,
     isCatalogOwned,
     isCatalogOfferUnlocked,
     getCatalogOfferUnlockHint,
+    getCatalogOfferLimitHint,
     getCatalogOfferBadge,
     getCatalogOfferPreferenceReason,
+    markCatalogOfferPurchased,
+    getCatalogDebugSnapshot,
     canPurchaseCatalogOffer,
     purchaseCatalogOffer,
     marketDynamics,
+    marketDynamicsBaselineAudit,
+    marketDynamicsRoutingDefs,
     currentMarketDynamicsPhase,
+    currentMarketPriceInfos,
+    marketDynamicsOverview,
+    recommendedMarketDynamicsRoutes,
     activeMarketHotspots,
     activeMarketRegionalProcurements,
     activeMarketSubstituteRewards,
     activeMarketThemeEncouragement,
+    getMarketHotspotSummary,
+    getRegionalProcurementSummary,
+    getOverflowPenaltySummary,
+    processMarketDynamicsTick,
+    setMarketDynamicsPhase,
+    resetMarketDynamicsState,
+    getMarketDynamicsDebugSnapshot,
     // 铁匠铺
     blacksmithItems,
     // 渔具铺

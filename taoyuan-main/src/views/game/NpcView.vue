@@ -146,6 +146,45 @@
               </div>
             </div>
 
+            <div v-if="project.completed && getVillageProjectMaintenanceSummary(project.id)" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
+              <div class="flex items-center justify-between gap-2">
+                <div>
+                  <p class="text-[10px] text-accent">维护状态</p>
+                  <p class="text-[10px] text-muted mt-0.5">
+                    {{ getVillageProjectMaintenanceSummary(project.id)?.statusLabel }}
+                    <span v-if="getVillageProjectMaintenanceSummary(project.id)?.state.nextDueDayTag">
+                      · 下次维护日 {{ getVillageProjectMaintenanceSummary(project.id)?.state.nextDueDayTag }}
+                    </span>
+                  </p>
+                </div>
+                <span class="text-[10px]" :class="getVillageProjectMaintenanceSummary(project.id)?.active ? 'text-success' : getVillageProjectMaintenanceSummary(project.id)?.overdue ? 'text-warning' : 'text-muted'">
+                  {{ getVillageProjectMaintenanceSummary(project.id)?.active ? '增益生效中' : getVillageProjectMaintenanceSummary(project.id)?.overdue ? '增益暂停' : '待启用' }}
+                </span>
+              </div>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ getVillageProjectMaintenanceSummary(project.id)?.plan.effectSummary }}</p>
+              <div class="flex items-center justify-between text-[10px] mt-1">
+                <span class="text-muted">维护费</span>
+                <span class="text-accent">{{ getVillageProjectMaintenanceSummary(project.id)?.plan.costMoney }}文 / {{ getVillageProjectMaintenanceSummary(project.id)?.plan.cycleDays }}天</span>
+              </div>
+              <div class="flex items-center justify-between text-[10px] mt-1">
+                <span class="text-muted">自动续费</span>
+                <Button class="!px-2 !py-1 justify-center" @click="handleToggleVillageProjectMaintenanceAutoRenew(project.id)">
+                  {{ getVillageProjectMaintenanceSummary(project.id)?.state.autoRenew ? '已开启' : '未开启' }}
+                </Button>
+              </div>
+              <div class="mt-2 flex justify-end">
+                <Button
+                  v-if="!getVillageProjectMaintenanceSummary(project.id)?.active"
+                  class="justify-center"
+                  :class="playerStore.money >= (getVillageProjectMaintenanceSummary(project.id)?.plan.costMoney ?? 0) ? '!bg-accent !text-bg' : ''"
+                  :disabled="playerStore.money < (getVillageProjectMaintenanceSummary(project.id)?.plan.costMoney ?? 0)"
+                  @click="handlePayVillageProjectMaintenance(project.id)"
+                >
+                  {{ getVillageProjectMaintenanceSummary(project.id)?.overdue ? '补缴维护' : '启用维护' }}
+                </Button>
+              </div>
+            </div>
+
             <div class="mt-2 flex items-center justify-between gap-2">
               <p class="text-[10px] text-muted leading-4">{{ getVillageProjectHint(project.id) }}</p>
               <Button
@@ -751,7 +790,7 @@
   import { TIP_NPC_LABELS } from '@/data/npcTips'
   import type { TipNpcId } from '@/data/npcTips'
   import { getCombinedItemCount } from '@/composables/useCombinedInventory'
-  import { addLog } from '@/composables/useGameLog'
+  import { addLog, showFloat } from '@/composables/useGameLog'
   import { triggerHeartEvent } from '@/composables/useDialogs'
   import { handleEndDay } from '@/composables/useEndDay'
   import type { FriendshipLevel, Quality, VillageProjectRequirementProgress } from '@/types'
@@ -932,9 +971,19 @@
     return villageProjectStore.getProjectRequirementProgresses(projectId)
   }
 
+  const getVillageProjectMaintenanceSummary = (projectId: string) => {
+    return villageProjectStore.getProjectMaintenanceSummary(projectId)
+  }
+
   const getVillageProjectHint = (projectId: string): string => {
     const project = villageProjectStore.projects.find(entry => entry.id === projectId)
-    if (project?.completed) return '已完工，长期加成已生效。'
+    if (project?.completed) {
+      const maintenanceSummary = getVillageProjectMaintenanceSummary(projectId)
+      if (!maintenanceSummary) return '已完工，长期加成已生效。'
+      if (maintenanceSummary.active) return '已完工，维护已启用，相关增益生效中。'
+      if (maintenanceSummary.overdue) return '已完工，但维护已逾期；相关增益暂停，补缴后恢复。'
+      return '已完工，但尚未启用维护；启用后对应增益才会生效。'
+    }
 
     const result = villageProjectStore.canCompleteProject(projectId)
     if (result.ok) return '材料齐备，可以开始动工。'
@@ -962,6 +1011,24 @@
   const handleCompleteVillageProject = (projectId: string) => {
     const result = villageProjectStore.completeProject(projectId)
     if (!result.success) addLog(result.message)
+  }
+
+  const handlePayVillageProjectMaintenance = (projectId: string) => {
+    const result = villageProjectStore.payProjectMaintenance(projectId)
+    if (!result.success) {
+      showFloat(result.message, 'danger')
+      addLog(result.message)
+      return
+    }
+    showFloat(result.message, 'success')
+  }
+
+  const handleToggleVillageProjectMaintenanceAutoRenew = (projectId: string) => {
+    const summary = getVillageProjectMaintenanceSummary(projectId)
+    if (!summary) return
+    villageProjectStore.setMaintenanceAutoRenew(projectId, !summary.state.autoRenew)
+    showFloat(summary.state.autoRenew ? '已关闭自动续费' : '已开启自动续费', 'accent')
+    addLog(`【村庄建设】${summary.plan.label}${summary.state.autoRenew ? '已关闭' : '已开启'}自动续费。`)
   }
 
   const reviewingRumorStep = ref<{ npcId: string; step: DiscoveryStep } | null>(null)

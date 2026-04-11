@@ -1,4 +1,15 @@
-import type { EconomyBaselineAuditConfig, MonsterGoalDef, GuildShopItemDef, GuildDonationDef, GuildLevelDef } from '@/types'
+import type {
+  EconomyBaselineAuditConfig,
+  MonsterGoalDef,
+  GuildShopItemDef,
+  GuildDonationDef,
+  GuildLevelDef,
+  GuildHonorTitleDef,
+  GuildSeasonActivityDef,
+  GuildSeasonConfig,
+  GuildSeasonMilestoneDef,
+  GuildSeasonRewardPoolDef
+} from '@/types'
 
 /** 怪物讨伐目标 */
 export const MONSTER_GOALS: MonsterGoalDef[] = [
@@ -301,6 +312,208 @@ export const GUILD_BONUS_PER_LEVEL = {
   attack: 1, // 每级+1攻击力
   maxHp: 5 // 每级+5最大生命值
 }
+
+export const GUILD_SEASON_CONFIG: GuildSeasonConfig = {
+  saveVersion: 1,
+  defaultPhase: 'p0_commission',
+  phaseLabels: {
+    p0_commission: '委托整备期',
+    p1_ranked_hunt: '荣誉竞猎期',
+    p2_world_milestone: '共建里程碑期'
+  },
+  rankBands: ['novice', 'veteran', 'elite', 'legend']
+}
+
+export const GUILD_SEASON_ACTIVITY_TRACKS: GuildSeasonActivityDef[] = [
+  {
+    id: 'commission_supply_week',
+    phase: 'p0_commission',
+    contentTier: 'P0',
+    title: '后勤委托周',
+    summary: '围绕常驻讨伐、物资补给与轻量捐献，把公会重新拉回稳定周循环入口。',
+    suggestedFocus: ['guild', 'quest', 'goal'],
+    rewardPreview: '贡献点、补给折扣与周活跃首轮奖励。'
+  },
+  {
+    id: 'border_patrol_rotation',
+    phase: 'p0_commission',
+    contentTier: 'P0',
+    title: '边境巡防轮换',
+    summary: '通过浅层 / 冰霜 / 熔岩三档巡防，避免首周直接把玩家推向高压 boss 讨伐。',
+    suggestedFocus: ['guild', 'mining', 'achievement'],
+    rewardPreview: '阶段讨伐奖励、巡防徽记与基础荣誉档位进度。'
+  },
+  {
+    id: 'ranked_hunt_board',
+    phase: 'p1_ranked_hunt',
+    contentTier: 'P1',
+    title: '荣誉竞猎榜',
+    summary: '以异步快照记录本周讨伐表现，主打轻排行、称号追求与多系统联动。',
+    suggestedFocus: ['guild', 'goal', 'quest', 'mail'],
+    rewardPreview: '荣誉称号、排行展示与周结算奖励池。'
+  },
+  {
+    id: 'elite_logistics_auction',
+    phase: 'p1_ranked_hunt',
+    contentTier: 'P1',
+    title: '精英后勤竞拍',
+    summary: '提供高价补给与荣誉商品池，让贡献点、铜钱和矿物材料在中后期有更体面的回收出口。',
+    suggestedFocus: ['guild', 'quest', 'mining'],
+    rewardPreview: '高阶补给、战备商品与阶段化荣誉货架。'
+  },
+  {
+    id: 'world_milestone_fortress',
+    phase: 'p2_world_milestone',
+    contentTier: 'P2',
+    title: '要塞共建里程碑',
+    summary: '把公会赛季终盘从个人榜扩展到共建目标，让终局玩家拥有稳定的团队型资金池。',
+    suggestedFocus: ['guild', 'goal', 'mail', 'achievement'],
+    rewardPreview: '全服里程碑奖励、终局称号与展示型荣誉结算。'
+  },
+  {
+    id: 'abyss_boss_campaign',
+    phase: 'p2_world_milestone',
+    contentTier: 'P2',
+    title: '深渊首领战役',
+    summary: '用世界里程碑期承接高梯度 boss 与 skull 档目标，构成终局轻竞争 PVE 的展示高潮。',
+    suggestedFocus: ['guild', 'mining', 'goal', 'mail'],
+    rewardPreview: '终局 boss 奖励、传奇档位快照与赛季收尾邮件。'
+  }
+]
+
+export const GUILD_HONOR_TITLES: GuildHonorTitleDef[] = [
+  {
+    id: 'season_rookie_hunter',
+    title: '巡猎新星',
+    rankBand: 'novice',
+    unlockPhase: 'p0_commission',
+    contentTier: 'P0',
+    description: '面向首次进入赛季化公会循环的玩家，强调“参与就是进步”的轻量荣誉反馈。',
+    rewardSummary: '展示型称号 + 首轮委托加成说明。'
+  },
+  {
+    id: 'season_veteran_guard',
+    title: '资深守备',
+    rankBand: 'veteran',
+    unlockPhase: 'p1_ranked_hunt',
+    contentTier: 'P1',
+    description: '适合稳定处理常驻讨伐与周榜快照的玩家，突出赛季持续参与价值。',
+    rewardSummary: '展示型称号 + 公会商店精选货架资格。'
+  },
+  {
+    id: 'season_elite_banner',
+    title: '精英战旗',
+    rankBand: 'elite',
+    unlockPhase: 'p1_ranked_hunt',
+    contentTier: 'P1',
+    description: '面向高频参与异步竞猎与 boss 讨伐的后期玩家，强化荣誉构筑感。',
+    rewardSummary: '展示型称号 + 高阶战备商品池。'
+  },
+  {
+    id: 'season_legend_warden',
+    title: '传奇镇守',
+    rankBand: 'legend',
+    unlockPhase: 'p2_world_milestone',
+    contentTier: 'P2',
+    description: '为赛季终局玩家准备的高规格荣誉展示，强调轻竞争而非数值碾压。',
+    rewardSummary: '传奇称号 + 终局展示奖励 + 收尾邮件荣誉摘要。'
+  }
+]
+
+export const GUILD_WORLD_MILESTONES: GuildSeasonMilestoneDef[] = [
+  {
+    id: 'guild_supply_chain',
+    label: '军需补给线',
+    phase: 'p0_commission',
+    contentTier: 'P0',
+    requiredAsyncScore: 180,
+    requiredGoalClaims: 2,
+    rewardSummary: '解锁委托整备周补给包与基础荣誉快照。',
+    linkedSystems: ['guild', 'quest', 'goal']
+  },
+  {
+    id: 'guild_patrol_wall',
+    label: '巡防墙修缮',
+    phase: 'p0_commission',
+    contentTier: 'P0',
+    requiredAsyncScore: 320,
+    requiredGoalClaims: 4,
+    rewardSummary: '开启边境巡防轮换与首批荣誉货架。',
+    linkedSystems: ['guild', 'goal', 'achievement']
+  },
+  {
+    id: 'guild_ranked_hunt_banner',
+    label: '竞猎战旗升起',
+    phase: 'p1_ranked_hunt',
+    contentTier: 'P1',
+    requiredAsyncScore: 650,
+    requiredGoalClaims: 6,
+    requiredBossClears: 1,
+    rewardSummary: '解锁精英竞猎榜奖励与 veteran / elite 档位额外展示。',
+    linkedSystems: ['guild', 'goal', 'mail']
+  },
+  {
+    id: 'guild_world_bulwark',
+    label: '共建要塞外墙',
+    phase: 'p2_world_milestone',
+    contentTier: 'P2',
+    requiredAsyncScore: 980,
+    requiredGoalClaims: 8,
+    requiredBossClears: 2,
+    rewardSummary: '解锁世界里程碑期奖励邮件与终局展示资格。',
+    linkedSystems: ['guild', 'goal', 'mail', 'achievement']
+  },
+  {
+    id: 'guild_legend_hall',
+    label: '传奇战勋厅',
+    phase: 'p2_world_milestone',
+    contentTier: 'P2',
+    requiredAsyncScore: 1280,
+    requiredGoalClaims: 10,
+    requiredBossClears: 3,
+    rewardSummary: '解锁 legend 档位收官奖励与赛季荣誉大厅记录。',
+    linkedSystems: ['guild', 'mail', 'achievement']
+  }
+]
+
+export const GUILD_SEASON_REWARD_POOLS: GuildSeasonRewardPoolDef[] = [
+  {
+    id: 'commission_preparation_pool',
+    phase: 'p0_commission',
+    contentTier: 'P0',
+    label: '委托整备奖励池',
+    summary: '面向中期过渡，强调补给、基础药剂与轻量贡献回收。',
+    featuredRewards: [
+      { id: 'commission_combat_tonic', label: '战斗补剂补给', rankBand: 'novice', rewardSummary: '补给型消耗品，承接首周讨伐。', linkedItemId: 'combat_tonic' },
+      { id: 'commission_slayer_charm', label: '猎魔符轮换', rankBand: 'veteran', rewardSummary: '提供轻量掉落辅助，不破坏主线公平。', linkedItemId: 'slayer_charm', contributionCost: 150 },
+      { id: 'commission_badge_token', label: '徽章兑换资格', rankBand: 'veteran', rewardSummary: '解锁首批永久成长兑换。', linkedItemId: 'guild_badge', contributionCost: 150 }
+    ]
+  },
+  {
+    id: 'ranked_hunt_pool',
+    phase: 'p1_ranked_hunt',
+    contentTier: 'P1',
+    label: '竞猎荣誉奖励池',
+    summary: '面向后期进阶，突出排行、精英战备与高阶贡献回收。',
+    featuredRewards: [
+      { id: 'ranked_war_ring', label: '公会战戒优先权', rankBand: 'elite', rewardSummary: '为精英档位开放的高规格装备兑换入口。', linkedItemId: 'guild_war_ring', contributionCost: 200 },
+      { id: 'ranked_war_helm', label: '公会战盔优先权', rankBand: 'elite', rewardSummary: '为 boss 讨伐与赛季快照准备的装备池。', linkedItemId: 'guild_war_helm', contributionCost: 250 },
+      { id: 'ranked_life_talisman', label: '生命护符精选', rankBand: 'veteran', rewardSummary: '强化耐久向构筑，增加阶段化选择。', linkedItemId: 'life_talisman', contributionCost: 200 }
+    ]
+  },
+  {
+    id: 'world_milestone_pool',
+    phase: 'p2_world_milestone',
+    contentTier: 'P2',
+    label: '世界里程碑奖励池',
+    summary: '面向终局展示，承接 legend 档位、共建奖励与终局荣誉消费池。',
+    featuredRewards: [
+      { id: 'world_war_blade', label: '公会战刃收官兑换', rankBand: 'legend', rewardSummary: '赛季终盘的展示型终局装备奖励。', linkedItemId: 'guild_war_blade', contributionCost: 350 },
+      { id: 'world_lucky_coin', label: '幸运铜钱传奇兑换', rankBand: 'legend', rewardSummary: '终局轻竞争奖励，强调荣誉展示而非数值碾压。', linkedItemId: 'lucky_coin', contributionCost: 300 },
+      { id: 'world_fortify_bundle', label: '要塞后勤礼包', rankBand: 'elite', rewardSummary: '补给、材料与周结邮件的整合型奖励。', linkedItemId: 'warriors_feast', contributionCost: 0 }
+    ]
+  }
+]
 
 export const GUILD_SEASON_PVE_AUDIT: EconomyBaselineAuditConfig = {
   id: 'ws07_t061_guild_season_pve_audit',

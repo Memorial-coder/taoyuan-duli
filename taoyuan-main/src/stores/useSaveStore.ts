@@ -33,6 +33,7 @@ import { useDecorationStore } from './useDecorationStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { BUILT_IN_SAMPLE_SAVES, type BuiltInSampleSaveDef } from '@/data/sampleSaves'
 import { createDefaultMarketDynamicsState } from '@/data/market'
+import { createDefaultShopCatalogExpansionState } from '@/data/shopCatalog'
 import { createDefaultMuseumSaveData as createDefaultMuseumPayload } from '@/data/museum'
 import { buildScopedStorageKey, getStoredSaveMode, migrateLegacyScopedSlots, setStoredSaveMode, type SaveMode } from '@/utils/accountStorage'
 import { deleteServerSlotRaw, fetchServerSlotRaw, fetchServerSlots, saveServerSlotRaw } from '@/utils/serverSaveApi'
@@ -118,7 +119,15 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
     next.wallet = {
       unlockedItems: [],
       currentArchetypeId: null,
-      unlockedNodeIds: []
+      unlockedNodeIds: [],
+      rewardTickets: {}
+    }
+  } else {
+    next.wallet = {
+      unlockedItems: Array.isArray(next.wallet.unlockedItems) ? next.wallet.unlockedItems : [],
+      currentArchetypeId: next.wallet.currentArchetypeId ?? null,
+      unlockedNodeIds: Array.isArray(next.wallet.unlockedNodeIds) ? next.wallet.unlockedNodeIds : [],
+      rewardTickets: next.wallet.rewardTickets ?? {}
     }
   }
 
@@ -211,6 +220,7 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
   if (!next.shop || typeof next.shop !== 'object') {
     next.shop = {
       ownedCatalogOfferIds: [],
+      catalogExpansionState: createDefaultShopCatalogExpansionState(),
       travelingStockKey: '',
       travelingStock: [],
       shippingBox: [],
@@ -221,6 +231,7 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
   } else {
     next.shop = {
       ownedCatalogOfferIds: next.shop.ownedCatalogOfferIds ?? [],
+      catalogExpansionState: next.shop.catalogExpansionState ?? createDefaultShopCatalogExpansionState(),
       travelingStockKey: next.shop.travelingStockKey ?? '',
       travelingStock: next.shop.travelingStock ?? [],
       shippingBox: next.shop.shippingBox ?? [],

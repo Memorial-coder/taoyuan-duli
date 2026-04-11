@@ -14,6 +14,8 @@ export type GameLogCategory =
 export type GameLogTag =
   | 'late_game_cycle'
   | 'theme_week_started'
+  | 'weekly_budget_activated'
+  | 'weekly_budget_expired'
   | 'weekly_metric_snapshot_archived'
   | 'weekly_risk_report'
   | 'goal_completed'

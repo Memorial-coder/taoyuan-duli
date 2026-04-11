@@ -50,6 +50,68 @@
 - 结果：玩家余额会恢复，但经济遥测不会回滚，而是留下同额的 `shop` 支出和 `shop` 收入；这会污染 WS01 的收入/支出、净流入、主收入占比和风险报告。
 - 影响：与 changelog 中“失败时回滚并自动退款，避免经济遥测与玩家资产不一致”的描述相反，当前实现会把一次失败购买记录成真实经济行为。
 
+### 6. 村庄建设默认状态会泄漏阶段信息，未完成项目看起来像已处于某个阶段
+- 位置：`taoyuan-main/src/stores/useVillageProjectStore.ts:106-113`
+- 位置：`taoyuan-main/src/stores/useVillageProjectStore.ts:141-148`
+- 位置：`taoyuan-main/src/stores/useVillageProjectStore.ts:402-427`
+- 问题：`getProjectDefaultState()` 在 `completed=false` 的默认状态下，仍把 `completedStageIndex` 和 `stageGroupId` 设为项目自身的阶段配置；旧档/新档未建成项目也会带着阶段完成字段进入规范化结果。
+- 结果：读取项目摘要时，未完成项目可能表现为“已经处于第 1/2 阶段”，污染阶段统计、分组视图和后续判断逻辑。
+- 影响：WS02 的阶段化建设底座会把未建设项目误表示为已推进阶段，和 changelog 中“统一输出阶段 / tier / 联动概览”的可信度不符。
+
+### 7. 村庄建设捐赠 API 只记账不扣物品，玩家可以无成本完成捐赠
+- 位置：`taoyuan-main/src/stores/useVillageProjectStore.ts:764-799`
+- 问题：`donateToProject()` 只校验捐赠计划是否存在、项目是否解锁、物品是否在接受列表中，然后直接累加 `totalAmount` / `donatedItems`；没有检查背包/仓库库存，也没有移除对应物品。
+- 结果：只要传入合法 `itemId` 和数量，就能凭空完成捐赠进度，导致捐赠系统与真实资产完全脱钩。
+- 影响：这是明确的数据完整性问题，会直接破坏 WS02 的建设捐赠、里程碑和后续平衡。
+
+### 8. 博物馆馆区/槽位成长默认就会自锁，且当前 store 没有解锁写路径
+- 位置：`taoyuan-main/src/data/museum.ts:158-166`
+- 位置：`taoyuan-main/src/data/museum.ts:331-339`
+- 位置：`taoyuan-main/src/stores/useMuseumStore.ts:164-183`
+- 位置：`taoyuan-main/src/stores/useMuseumStore.ts:261-280`
+- 问题：除 `entry_gallery` 外，大多数馆区默认等级都是 0；而槽位解锁、馆区升级、学者委托又要求对应馆区达到 1 级。同时 `useMuseumStore` 目前只有读侧 getter 和序列化入口，没有馆区升级、槽位指派、主题激活等写侧 API。
+- 结果：大量馆区/槽位/委托虽然定义了条件，但在现有实现中没有可达成路径，默认会卡死在“可读但不可推进”的状态。
+- 影响：WS06 T053 的“Store 状态与 API 扩展”已部分落地，但核心经营推进链路并未真正可用，现状更接近只完成了读模型与存档形状。
+
+### 9. 任务页会把鱼塘主题特殊订单错误标成“育种订单”
+- 位置：`taoyuan-main/src/data/quests.ts:486-537`
+- 位置：`taoyuan-main/src/views/game/QuestView.vue:117-123`
+- 位置：`taoyuan-main/src/views/game/QuestView.vue:150-156`
+- 位置：`taoyuan-main/src/views/game/QuestView.vue:301-303`
+- 位置：`taoyuan-main/src/views/game/QuestView.vue:349-356`
+- 问题：数据里已经存在 `themeTag: 'fishpond'` 的特殊订单，但任务页未接取卡片只要有 `themeTag` 就一律显示“育种订单”；进入进行中列表和详情后，又只在 `themeTag === 'breeding'` 时才显示该标签。
+- 结果：鱼塘主题特殊订单会在未接取时被错误标成育种订单，接取后又失去对应主题标签，前后语义不一致。
+- 影响：这与 changelog 中“订单展示语义收口”的目标相反，会直接误导玩家对订单主题的理解。
+
+### 10. “未接取特殊订单卡片补充剩余天数”没有按 changelog 所写落到卡片本体
+- 位置：`taoyuan-main/src/views/game/QuestView.vue:111-125`
+- 位置：`taoyuan-main/CHANGELOG.md:304-306`
+- 问题：changelog 写的是“未接取特殊订单卡片现补充剩余天数显示”，但任务页里真正的“特殊订单”卡片本体仍只显示描述、标签、需求提示和铜钱奖励，没有展示 `daysRemaining`。
+- 结果：页面顶部“经营提示”区域虽然会显示一次剩余天数（`taoyuan-main/src/views/game/QuestView.vue:18-23`），但特殊订单卡片本身并没有兑现 changelog 对该卡片的描述。
+- 影响：这是明确的 claim/code mismatch，说明该条 changelog 至少没有完整落在所描述的 UI 位置。
+
+### 11. 高价目录购买没有记 sink 消耗，WS01 的 sink 闭环统计会系统性偏低
+- 位置：`taoyuan-main/src/stores/useShopStore.ts:361-430`
+- 位置：`taoyuan-main/src/stores/usePlayerStore.ts:274-278`
+- 位置：`taoyuan-main/src/stores/useVillageProjectStore.ts:855`
+- 问题：WS01 的观测体系依赖 `recordSinkSpend()` 统计高价消耗，但高价目录购买路径只调用了 `playerStore.spendMoney(totalCost, 'shop')`，没有任何 sink 记账；全局仅能看到村庄维护等少数路径会调用 `recordSinkSpend()`。
+- 结果：玩家已经发生的高价目录消费不会进入 `sinkSpend`，`sinkSatisfaction`、推荐资金去向、风险观测都会系统性低估真实消耗。
+- 影响：这和 changelog 中“观测 → 推荐 → 消费”的闭环描述不一致，WS01/Shop/Wallet 的核心指标链条并未真正闭合。
+
+### 12. “豪华经营周”主题周配置已写入数据，但运行时永远选不到
+- 位置：`taoyuan-main/src/data/goals.ts:501-523`
+- 位置：`taoyuan-main/src/data/goals.ts:526-527`
+- 位置：`taoyuan-main/src/stores/useGoalStore.ts:1206-1221`
+- 问题：`late_sink_rotation`（豪华经营周）虽然已经定义为秋季主题周，但 `getThemeWeekBySeason()` 只是 `find(theme => theme.season === season)`，只会返回该季节第一条定义。
+- 结果：如果秋季前面已有别的主题周定义，`late_sink_rotation` 会被永久遮蔽，changelog 中宣称新增的“豪华经营周”实际上不会出现在运行时。
+- 影响：这是直接的 claim/code mismatch，会连带影响主题周提示、目标推荐、商店推荐和高价 sink 引导链路。
+
+### 13. CHANGELOG 里 WS01 T010 整段重复记录了一次
+- 位置：`taoyuan-main/CHANGELOG.md:149-167`
+- 问题：`WS01 经济观测与通胀治理底座（T010）` 整段内容在 changelog 中重复出现，标题和条目内容完全重复。
+- 结果：审阅记录时会误以为存在两次不同交付，或者误判最近进度量。
+- 影响：虽然不是运行时 bug，但这是 changelog 本身的重复/误导信息，和本次“核对 changelog 是否准确”任务直接相关。
+
 ## 备注
 - 已执行：`npm run type-check`，类型检查通过。
-- 本次结论以代码静态审查为主，以上 5 个问题均为高置信逻辑问题。
+- 本次结论以代码静态审查为主，以上 13 个问题均为高置信逻辑问题。

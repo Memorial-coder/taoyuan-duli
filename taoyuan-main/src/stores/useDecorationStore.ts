@@ -51,6 +51,15 @@ export const useDecorationStore = defineStore('decoration', () => {
   /** 获取某装饰已购买数量 */
   const getOwnedCount = (id: string) => owned.value[id] ?? 0
 
+  /** 由其他系统直接授予装饰，不额外扣钱 */
+  const grantDecoration = (id: string, count = 1): { success: boolean; message: string } => {
+    const def = DECORATIONS.find(d => d.id === id)
+    if (!def) return { success: false, message: '装饰不存在。' }
+    const safeCount = Math.max(1, Math.floor(count))
+    owned.value[id] = (owned.value[id] ?? 0) + safeCount
+    return { success: true, message: `获得了${def.name}。` }
+  }
+
   /** 购买装饰 */
   const buyDecoration = (id: string): { success: boolean; message: string } => {
     const def = DECORATIONS.find(d => d.id === id)
@@ -110,6 +119,7 @@ export const useDecorationStore = defineStore('decoration', () => {
     shopDiscountBonus,
     getPlacedCount,
     getOwnedCount,
+    grantDecoration,
     buyDecoration,
     placeDecoration,
     removeDecoration,

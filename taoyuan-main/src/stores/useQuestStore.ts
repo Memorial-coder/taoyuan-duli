@@ -1,7 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import type { QuestInstance, Season, MainQuestState, MainQuestObjective, VillagerQuestCategory } from '@/types'
-import { generateQuest, generateSpecialOrder as _generateSpecialOrder, generateVillagerQuest, BREEDING_SPECIAL_ORDER_BASELINE } from '@/data/quests'
+import type { QuestInstance, RewardTicketType, Season, MainQuestState, MainQuestObjective, VillagerQuestCategory } from '@/types'
+import { generateQuest, generateSpecialOrder as _generateSpecialOrder, generateVillagerQuest, getSpecialOrderRewardProfile, BREEDING_SPECIAL_ORDER_BASELINE } from '@/data/quests'
 import { getStoryQuestById, getNextStoryQuest, getFirstStoryQuest, STORY_QUESTS } from '@/data/storyQuests'
 import { getNpcById } from '@/data/npcs'
 import { getTodayEvent } from '@/data/events'
@@ -17,7 +17,9 @@ import { useBreedingStore } from './useBreedingStore'
 import { useCookingStore } from './useCookingStore'
 import { useFishPondStore } from './useFishPondStore'
 import { useGoalStore } from './useGoalStore'
+import { useSettingsStore } from './useSettingsStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
+import { useWalletStore } from './useWalletStore'
 
 export const useQuestStore = defineStore('quest', () => {
   const inventoryStore = useInventoryStore()
@@ -75,17 +77,60 @@ export const useQuestStore = defineStore('quest', () => {
   /** 按梯度生成特殊订单 (tier: 1-4 对应 第7/14/21/28天) */
   const specialOrderBaseline = BREEDING_SPECIAL_ORDER_BASELINE
 
+  const mergeTicketRewards = (
+    left: Partial<Record<RewardTicketType, number>> | undefined,
+    right: Partial<Record<RewardTicketType, number>> | undefined
+  ): Partial<Record<RewardTicketType, number>> | undefined => {
+    const merged = Object.fromEntries(
+      [...Object.entries(left ?? {}), ...Object.entries(right ?? {})].reduce<Map<string, number>>((map, [ticketType, amount]) => {
+        map.set(ticketType, (map.get(ticketType) ?? 0) + Math.max(0, Math.floor(Number(amount) || 0)))
+        return map
+      }, new Map())
+    ) as Partial<Record<RewardTicketType, number>>
+
+    return Object.keys(merged).length > 0 ? merged : undefined
+  }
+
+  const finalizeSpecialOrderRewards = (order: QuestInstance | null): QuestInstance | null => {
+    if (!order) return null
+    const profile = getSpecialOrderRewardProfile(order.rewardProfileId)
+    if (!profile) return order
+
+    const balanceConfig = useSettingsStore().getLateGameBalanceConfig()
+    const effectiveCashRatio = Math.max(0, Math.min(1, Math.min(profile.cashRatio, balanceConfig.highValueOrderCashRatio || 1)))
+    const effectiveTicketRate = Math.max(0, balanceConfig.ticketRewardRate || 1)
+    const mergedTicketReward = mergeTicketRewards(order.ticketReward, profile.ticketReward)
+    const scaledTicketReward = mergedTicketReward
+      ? Object.fromEntries(
+          Object.entries(mergedTicketReward)
+            .map(([ticketType, amount]) => [ticketType, Math.max(1, Math.round((Number(amount) || 0) * effectiveTicketRate))])
+        ) as Partial<Record<RewardTicketType, number>>
+      : undefined
+
+    const nextBonusSummary = [
+      ...(order.bonusSummary ?? []),
+      profile.summary
+    ].filter((summary, index, array) => summary && array.indexOf(summary) === index)
+
+    return {
+      ...order,
+      moneyReward: Math.max(0, Math.round(order.moneyReward * effectiveCashRatio)),
+      ticketReward: scaledTicketReward,
+      bonusSummary: nextBonusSummary.length > 0 ? nextBonusSummary : undefined
+    }
+  }
+
   const generateSpecialOrder = (season: Season, tier: number) => {
     const breedingStore = useBreedingStore()
     const fishPondStore = useFishPondStore()
     const goalStore = useGoalStore()
-    const order = _generateSpecialOrder(season, tier, {
+    const order = finalizeSpecialOrderRewards(_generateSpecialOrder(season, tier, {
       discoveredHybridIds: breedingStore.compendium.map(entry => entry.hybridId),
       breedingCompendiumEntries: breedingStore.compendium,
       discoveredPondBreedIds: [...fishPondStore.discoveredBreeds],
       preferredThemeTag: goalStore.currentThemeWeek?.preferredQuestThemeTag,
       preferredHybridIds: goalStore.currentThemeWeek?.breedingFocusHybridIds ?? []
-    })
+    }))
     specialOrder.value = order
   }
 
@@ -177,6 +222,7 @@ export const useQuestStore = defineStore('quest', () => {
     const cookingStore = useCookingStore()
     const fishPondStore = useFishPondStore()
     const villageProjectStore = useVillageProjectStore()
+    const walletStore = useWalletStore()
     const idx = activeQuests.value.findIndex(q => q.id === questId)
     if (idx === -1) return { success: false, message: '任务不存在。' }
 
@@ -250,6 +296,11 @@ export const useQuestStore = defineStore('quest', () => {
       inventoryStore.addItemsExact(rewardItems)
     }
 
+    const grantedTicketRewards = walletStore.addRewardTickets(quest.ticketReward, {
+      source: quest.type === 'special_order' ? 'specialOrder' : 'quest',
+      applyMultiplier: false
+    })
+
     const unlockedRecipes: string[] = []
     if (quest.recipeReward) {
       for (const recipeId of quest.recipeReward) {
@@ -281,6 +332,12 @@ export const useQuestStore = defineStore('quest', () => {
     if (quest.itemReward && quest.itemReward.length > 0) {
       const itemNames = quest.itemReward.map(i => `${getItemById(i.itemId)?.name ?? i.itemId}×${i.quantity}`).join('、')
       message += ` 额外获得${itemNames}。`
+    }
+    if (Object.keys(grantedTicketRewards).length > 0) {
+      const ticketText = Object.entries(grantedTicketRewards)
+        .map(([ticketType, amount]) => `${walletStore.getTicketLabel(ticketType as RewardTicketType)}×${amount}`)
+        .join('、')
+      message += ` 额外获得${ticketText}。`
     }
     if (unlockedRecipes.length > 0) {
       message += ` 解锁食谱：${unlockedRecipes.join('、')}。`
@@ -615,6 +672,14 @@ export const useQuestStore = defineStore('quest', () => {
             .map((item: any) => ({ itemId: item.itemId, quantity: Math.max(1, Number(item.quantity) || 1) }))
         : undefined,
       recipeReward: Array.isArray(quest.recipeReward) ? quest.recipeReward.filter((id: unknown) => typeof id === 'string') : undefined,
+      ticketReward: quest.ticketReward && typeof quest.ticketReward === 'object'
+        ? Object.fromEntries(
+            Object.entries(quest.ticketReward)
+              .filter(([, amount]) => Number.isFinite(Number(amount)) && Number(amount) > 0)
+              .map(([ticketType, amount]) => [ticketType, Math.max(0, Math.floor(Number(amount) || 0))])
+          )
+        : undefined,
+      rewardProfileId: typeof quest.rewardProfileId === 'string' ? quest.rewardProfileId : undefined,
       buildingClueId: typeof quest.buildingClueId === 'string' ? quest.buildingClueId : undefined,
       buildingClueText: typeof quest.buildingClueText === 'string' ? quest.buildingClueText : undefined,
       bonusSummary: Array.isArray(quest.bonusSummary) ? quest.bonusSummary.filter((text: unknown) => typeof text === 'string') : undefined,

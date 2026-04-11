@@ -77,6 +77,67 @@ export interface MarketDynamicsSystemMappingDef {
   kpiHooks: string[]
 }
 
+export interface MarketHotspotContentDef {
+  id: string
+  category: MarketCategory
+  contentTier: EconomyContentTier
+  label: string
+  description: string
+  recommendedCatalogTags: string[]
+  linkedSystems: EconomySystemKey[]
+  suggestedOfferIds: string[]
+  suggestedQuestTags: string[]
+  operatorNotes: string[]
+}
+
+export interface MarketRegionalDistrictContentDef {
+  id: string
+  label: string
+  contentTier: EconomyContentTier
+  description: string
+  targetCategories: MarketCategory[]
+  recommendedCatalogTags: string[]
+  suggestedOfferIds: string[]
+  suggestedQuestTags: string[]
+  logisticsCostBand: [number, number]
+  operatorNotes: string[]
+}
+
+export interface MarketThemeActivityContentDef {
+  themeWeekId: string
+  contentTier: EconomyContentTier
+  label: string
+  description: string
+  encouragedCategories: MarketCategory[]
+  encouragedTags: string[]
+  suggestedOfferIds: string[]
+  linkedSystems: EconomySystemKey[]
+  rewardHooks: string[]
+}
+
+export interface MarketSubstituteRewardContentDef {
+  id: string
+  rewardType: MarketSubstituteRewardType
+  contentTier: EconomyContentTier
+  label: string
+  description: string
+  fromCategories: MarketCategory[]
+  toCategories: MarketCategory[]
+  suggestedOfferIds: string[]
+  linkedSystems: EconomySystemKey[]
+  rewardValueBand: [number, number]
+}
+
+export interface MarketOverflowResponseDef {
+  bandId: string
+  contentTier: EconomyContentTier
+  label: string
+  description: string
+  mitigationSteps: string[]
+  suggestedOfferIds: string[]
+  suggestedRouteIds: string[]
+}
+
 export type MarketDynamicsPhaseId = 'p0_hotspot_seed' | 'p1_regional_rotation' | 'p2_theme_conversion'
 
 export interface MarketPhaseFeatureFlags {
@@ -575,6 +636,335 @@ export const ECONOMY_SINK_CONTENT_DEFS: EconomySinkContentDef[] = [
     valueFlow: ['把终局资产转成主题周热点、跨系统订单和展示型奖励', '让终局玩家必须在多品类与多出口之间做取舍'],
     sinkFlow: ['展会筹备金', '主题采购预算', '高规格布展费用'],
     showcaseHook: '作为 WS04 的终局大额 sink，承担反通胀与路线打散双重职责'
+  },
+  {
+    id: 'mid_market_notice_board',
+    tier: 'mid_transition',
+    name: '行情告示牌承包',
+    category: 'service',
+    priceBand: [2200, 5200],
+    linkedSystems: ['market', 'goal', 'shop'],
+    unlockMetrics: ['totalMoneyEarned', 'discoveredCount'],
+    valueFlow: ['把上涨 / 下跌品类提示从随机感受变成可解释的经营板报', '为热点轮换与主题周提示提供清晰入口'],
+    sinkFlow: ['行情抄录费', '市集告示维护费'],
+    showcaseHook: '帮助玩家先学会“为什么这周要换品类”，再推进更高阶的地区收购和主题转化'
+  },
+  {
+    id: 'late_processing_futures_board',
+    tier: 'late_growth',
+    name: '加工远期订货牌',
+    category: 'specialOrder',
+    priceBand: [12000, 26000],
+    linkedSystems: ['market', 'quest', 'goal', 'shop'],
+    unlockMetrics: ['totalMoneyEarned', 'totalRecipesCooked'],
+    valueFlow: ['把 processed 热点、矿石/鱼类补货与特殊订单绑定成多段经营链', '引导玩家从现货卖货切换到“先加工再择机出货”'],
+    sinkFlow: ['订货押金', '加工排产权'],
+    showcaseHook: '为后期玩家提供更稳定的“热点 → 加工 → 订单”承接层'
+  },
+  {
+    id: 'late_overflow_conversion_warehouse',
+    tier: 'late_growth',
+    name: '过剩转运缓冲仓',
+    category: 'maintenance',
+    priceBand: [9800, 22000],
+    linkedSystems: ['market', 'wallet', 'goal', 'shop'],
+    unlockMetrics: ['totalMoneyEarned', 'friendlyNpcCount'],
+    valueFlow: ['把过剩压制改写为可管理的转运成本，而不是纯削售价', '为地区收购与替代奖励提供稳定缓冲'],
+    sinkFlow: ['冷藏转运费', '缓冲仓维护费'],
+    showcaseHook: '让“库存太多怎么办”变成经营题，而不是惩罚题'
+  },
+  {
+    id: 'endgame_cross_region_expo_license',
+    tier: 'endgame_showcase',
+    name: '跨域行情博览执照',
+    category: 'themeActivity',
+    priceBand: [42000, 110000],
+    linkedSystems: ['market', 'quest', 'goal', 'shop', 'villageProject'],
+    unlockMetrics: ['totalMoneyEarned', 'friendlyNpcCount', 'highestMineFloor'],
+    valueFlow: ['把地区收购、热点轮换与主题周转成终局级展示活动', '强迫玩家在多品类库存与多系统订单间做年度级取舍'],
+    sinkFlow: ['跨域参展费', '行会摊位租赁', '高规格物流预算'],
+    showcaseHook: '作为 WS04 终局可持续活动池，承接高通胀玩家的长期预算与展示诉求'
+  }
+]
+
+export const MARKET_HOTSPOT_CONTENT_DEFS: MarketHotspotContentDef[] = [
+  {
+    id: 'hotspot_crop_rotation',
+    category: 'crop',
+    contentTier: 'mid_transition',
+    label: '田作轮换热点',
+    description: '围绕春种、夏收、秋储建立作物热点，让玩家学会按季节切换主力卖货作物。',
+    recommendedCatalogTags: ['功能商品', '灌溉', '每周精选'],
+    linkedSystems: ['market', 'shop', 'goal'],
+    suggestedOfferIds: ['func_field_irrigation_pack', 'weekly_irrigation_case', 'spring_seed_bundle'],
+    suggestedQuestTags: ['breeding'],
+    operatorNotes: ['适合在 P0 强化上涨品类感知', '推荐与春种主题周、豪华经营周一起出现']
+  },
+  {
+    id: 'hotspot_fish_rotation',
+    category: 'fish',
+    contentTier: 'mid_transition',
+    label: '渔获轮换热点',
+    description: '聚焦钓鱼、蟹笼与鱼塘供货，把上涨鱼类转成夏渔主题周和地区收购入口。',
+    recommendedCatalogTags: ['渔具', '鱼塘', '每周精选'],
+    linkedSystems: ['market', 'shop', 'goal'],
+    suggestedOfferIds: ['func_angler_pack', 'weekly_pond_care_pack', 'summer_fishing_pack'],
+    suggestedQuestTags: ['breeding'],
+    operatorNotes: ['适合与夏渔主题周绑定', '避免 fish 长期成为单一路线时可触发过剩压制']
+  },
+  {
+    id: 'hotspot_processed_rotation',
+    category: 'processed',
+    contentTier: 'late_growth',
+    label: '加工品溢价热点',
+    description: '让加工品在特定周成为高溢价货物，推动玩家先加工、再择时出货。',
+    recommendedCatalogTags: ['材料包', '功能商品', '高价长期商品'],
+    linkedSystems: ['market', 'quest', 'goal', 'shop'],
+    suggestedOfferIds: ['func_builder_pack', 'weekly_caravan_supply_crate', 'premium_expedition_cache'],
+    suggestedQuestTags: ['breeding'],
+    operatorNotes: ['适合承接秋收加工周', '可与地区收购和高价值订单同步抬升']
+  },
+  {
+    id: 'hotspot_fruit_rotation',
+    category: 'fruit',
+    contentTier: 'late_growth',
+    label: '果品节庆热点',
+    description: '把水果热点与节庆礼盒、宴席订单相连，让果树线不再只是被动出货。',
+    recommendedCatalogTags: ['节庆', '收藏', '功能商品'],
+    linkedSystems: ['market', 'goal', 'shop'],
+    suggestedOfferIds: ['weekly_tavern_gift', 'premium_midautumn_banquet', 'autumn_harvest_pack'],
+    suggestedQuestTags: ['breeding'],
+    operatorNotes: ['适合与秋宴和豪华经营周共振', '可作为替代奖励的优先转化方向']
+  },
+  {
+    id: 'hotspot_ore_rotation',
+    category: 'ore',
+    contentTier: 'late_growth',
+    label: '矿料军需热点',
+    description: '围绕矿石、金属锭与矿洞补给建立轮换热点，让冬矿周具备明确备货目标。',
+    recommendedCatalogTags: ['矿洞', '材料包', '每周精选'],
+    linkedSystems: ['market', 'quest', 'goal', 'shop'],
+    suggestedOfferIds: ['weekly_mining_supply', 'premium_expedition_cache', 'premium_warehouse_charter'],
+    suggestedQuestTags: ['breeding'],
+    operatorNotes: ['适合与冬矿挑战周配合', '在 ore 过剩时优先推地区收购承接']
+  },
+  {
+    id: 'hotspot_gem_rotation',
+    category: 'gem',
+    contentTier: 'endgame_showcase',
+    label: '珍宝展示热点',
+    description: '把宝石与展示、节庆、终局博览绑定，使其成为终局展示与主题消费原料。',
+    recommendedCatalogTags: ['高价长期商品', '收藏', '每周精选'],
+    linkedSystems: ['market', 'goal', 'shop', 'quest'],
+    suggestedOfferIds: ['premium_golden_frame', 'premium_courtyard_stage', 'premium_midautumn_banquet'],
+    suggestedQuestTags: ['breeding'],
+    operatorNotes: ['适合 P2 主题转化阶段作为 showcase 热点', '可与主题博览会与跨域博览执照共用奖励解释']
+  },
+  {
+    id: 'hotspot_animal_product_rotation',
+    category: 'animal_product',
+    contentTier: 'late_growth',
+    label: '牧养供货热点',
+    description: '让畜产品在部分周次转为地区收购与料理订单的核心供给，补足非种植路线。',
+    recommendedCatalogTags: ['牧场', '材料包', '功能商品'],
+    linkedSystems: ['market', 'quest', 'shop'],
+    suggestedOfferIds: ['func_ranch_pack', 'premium_ranch_starter', 'weekly_caravan_supply_crate'],
+    suggestedQuestTags: ['breeding'],
+    operatorNotes: ['适合和加工品热点形成双路线运营', '防止动物线在后期彻底失去存在感']
+  }
+]
+
+export const MARKET_REGIONAL_DISTRICT_DEFS: MarketRegionalDistrictContentDef[] = [
+  {
+    id: 'jiangnan_wharf',
+    label: '江南埠头',
+    contentTier: 'mid_transition',
+    description: '偏好鲜货与水产，适合承接鱼类、水果与轻加工货。',
+    targetCategories: ['fish', 'fruit', 'processed'],
+    recommendedCatalogTags: ['渔具', '鱼塘', '每周精选'],
+    suggestedOfferIds: ['func_angler_pack', 'weekly_pond_care_pack', 'summer_fishing_pack'],
+    suggestedQuestTags: ['breeding'],
+    logisticsCostBand: [1800, 5200],
+    operatorNotes: ['适合 P0/P1 引导玩家理解地区收购', '与夏渔、秋收加工周兼容度高']
+  },
+  {
+    id: 'mountain_route',
+    label: '山路驿站',
+    contentTier: 'late_growth',
+    description: '偏好矿料、木材与高耐储物资，适合矿洞和采集线转运。',
+    targetCategories: ['ore', 'processed', 'crop'],
+    recommendedCatalogTags: ['矿洞', '材料包', '仓储'],
+    suggestedOfferIds: ['weekly_mining_supply', 'premium_expedition_cache', 'premium_warehouse_charter'],
+    suggestedQuestTags: ['breeding'],
+    logisticsCostBand: [4200, 9800],
+    operatorNotes: ['适合与冬矿挑战周配合', '可作为过剩矿料的优先转运出口']
+  },
+  {
+    id: 'capital_exchange',
+    label: '京市行会',
+    contentTier: 'endgame_showcase',
+    description: '偏好加工品、宝石与高规格宴席材料，是终局高价单的核心去向。',
+    targetCategories: ['processed', 'gem', 'animal_product'],
+    recommendedCatalogTags: ['高价长期商品', '收藏', '功能商品'],
+    suggestedOfferIds: ['premium_midautumn_banquet', 'premium_golden_frame', 'premium_courtyard_stage'],
+    suggestedQuestTags: ['breeding'],
+    logisticsCostBand: [8800, 22000],
+    operatorNotes: ['适合作为 P2 主题转化阶段的主舞台', '可承接豪华经营周和终局博览会']
+  },
+  {
+    id: 'hanhai_trade_post',
+    label: '瀚海互市',
+    contentTier: 'endgame_showcase',
+    description: '偏好耐储、高价值与异域感品类，适合跨系统库存消化与终局收购。',
+    targetCategories: ['gem', 'ore', 'fruit', 'processed'],
+    recommendedCatalogTags: ['高价长期商品', '材料包', '仓储'],
+    suggestedOfferIds: ['premium_expedition_cache', 'premium_warehouse_expansion_xl', 'weekly_caravan_supply_crate'],
+    suggestedQuestTags: ['breeding'],
+    logisticsCostBand: [12000, 28000],
+    operatorNotes: ['适合与瀚海终局循环联动', '优先承接高通胀阶段的跨域库存压力']
+  }
+]
+
+export const MARKET_DISTRICT_LABELS = Object.fromEntries(
+  MARKET_REGIONAL_DISTRICT_DEFS.map(def => [def.id, def.label])
+) as Record<string, string>
+
+export const MARKET_THEME_ACTIVITY_CONTENT_DEFS: MarketThemeActivityContentDef[] = [
+  {
+    themeWeekId: 'spring_sowing',
+    contentTier: 'mid_transition',
+    label: '春种热点经营包',
+    description: '用耕作热点 + 灌溉补给带出第一条市场轮换路线。',
+    encouragedCategories: ['crop', 'fruit'],
+    encouragedTags: ['功能商品', '灌溉', '每周精选'],
+    suggestedOfferIds: ['func_field_irrigation_pack', 'spring_seed_bundle', 'weekly_inventory_bag'],
+    linkedSystems: ['market', 'goal', 'shop'],
+    rewardHooks: ['上涨作物更易进入热点', '鼓励把春耕预算转成基础经营投入']
+  },
+  {
+    themeWeekId: 'summer_fishing',
+    contentTier: 'mid_transition',
+    label: '夏渔轮换经营包',
+    description: '把鱼类热点、水产补给与鱼塘经营串成同一周节奏。',
+    encouragedCategories: ['fish', 'processed'],
+    encouragedTags: ['渔具', '鱼塘', '每周精选'],
+    suggestedOfferIds: ['func_angler_pack', 'weekly_pond_care_pack', 'summer_fishing_pack'],
+    linkedSystems: ['market', 'goal', 'shop'],
+    rewardHooks: ['热点鱼类更容易获得主题周承接', '替代奖励优先指向鱼塘与补给']
+  },
+  {
+    themeWeekId: 'autumn_processing',
+    contentTier: 'late_growth',
+    label: '秋收加工变现包',
+    description: '强调加工品热点、材料补货与宴席料理的高价窗口。',
+    encouragedCategories: ['processed', 'fruit', 'animal_product'],
+    encouragedTags: ['材料包', '功能商品', '高价长期商品'],
+    suggestedOfferIds: ['func_builder_pack', 'autumn_harvest_pack', 'weekly_caravan_supply_crate'],
+    linkedSystems: ['market', 'goal', 'quest', 'shop'],
+    rewardHooks: ['加工品上涨时优先投放高价值订单', '主题奖励更适合转成变现型投入']
+  },
+  {
+    themeWeekId: 'winter_mining',
+    contentTier: 'late_growth',
+    label: '冬矿备货经营包',
+    description: '通过矿石热点、库存缓冲与矿洞补给打散单刷矿洞的路径。',
+    encouragedCategories: ['ore', 'gem', 'processed'],
+    encouragedTags: ['矿洞', '每周精选', '材料包'],
+    suggestedOfferIds: ['weekly_mining_supply', 'premium_expedition_cache', 'premium_warehouse_charter'],
+    linkedSystems: ['market', 'goal', 'quest', 'shop'],
+    rewardHooks: ['过剩矿料优先承接到地区收购', '冬矿周更强调库存管理和择机出货']
+  },
+  {
+    themeWeekId: 'late_sink_rotation',
+    contentTier: 'endgame_showcase',
+    label: '豪华经营转化包',
+    description: '把高价目录、市场热点与终局博览会绑定成真正的资产消化周。',
+    encouragedCategories: ['processed', 'gem', 'fruit', 'fish'],
+    encouragedTags: ['高价长期商品', '每周精选', '功能商品'],
+    suggestedOfferIds: ['premium_warehouse_charter', 'premium_courtyard_stage', 'premium_midautumn_banquet'],
+    linkedSystems: ['market', 'goal', 'quest', 'shop', 'villageProject'],
+    rewardHooks: ['终局上涨品类更易转为主题活动承接', '替代奖励与地区收购会更偏向高价展示路线']
+  }
+]
+
+export const MARKET_SUBSTITUTE_REWARD_CONTENT_DEFS: MarketSubstituteRewardContentDef[] = [
+  {
+    id: 'substitute_price_support_bundle',
+    rewardType: 'price_support',
+    contentTier: 'mid_transition',
+    label: '稳价回购券',
+    description: '在过剩品类下跌时，为替代路线提供短期稳价扶持。',
+    fromCategories: ['crop', 'fish'],
+    toCategories: ['processed', 'fruit'],
+    suggestedOfferIds: ['func_builder_pack', 'weekly_inventory_bag'],
+    linkedSystems: ['market', 'goal', 'shop'],
+    rewardValueBand: [1, 1.5]
+  },
+  {
+    id: 'substitute_catalog_boost_bundle',
+    rewardType: 'catalog_boost',
+    contentTier: 'late_growth',
+    label: '目录承接加成',
+    description: '把市场替代路线引导到每周精选、补给包与仓储扩建消费上。',
+    fromCategories: ['crop', 'ore', 'fish'],
+    toCategories: ['processed', 'animal_product', 'fruit'],
+    suggestedOfferIds: ['weekly_caravan_supply_crate', 'weekly_chest_deed', 'weekly_pond_care_pack'],
+    linkedSystems: ['market', 'shop', 'goal'],
+    rewardValueBand: [1.5, 2.5]
+  },
+  {
+    id: 'substitute_quest_bonus_bundle',
+    rewardType: 'quest_bonus',
+    contentTier: 'late_growth',
+    label: '订单改道红利',
+    description: '把下跌品类转换为地区收购或高价值订单的加成入口。',
+    fromCategories: ['ore', 'animal_product', 'fruit'],
+    toCategories: ['processed', 'gem', 'fish'],
+    suggestedOfferIds: ['weekly_mining_supply', 'premium_ranch_starter', 'premium_expedition_cache'],
+    linkedSystems: ['market', 'quest', 'goal'],
+    rewardValueBand: [2, 3]
+  },
+  {
+    id: 'substitute_reputation_bonus_bundle',
+    rewardType: 'reputation_bonus',
+    contentTier: 'endgame_showcase',
+    label: '行会声望转化',
+    description: '在终局阶段把替代路线转成声望与展示型收益，支撑高价经营周。',
+    fromCategories: ['processed', 'gem'],
+    toCategories: ['fruit', 'fish', 'animal_product'],
+    suggestedOfferIds: ['premium_courtyard_stage', 'premium_midautumn_banquet', 'premium_golden_frame'],
+    linkedSystems: ['market', 'goal', 'shop', 'quest'],
+    rewardValueBand: [2.5, 4]
+  }
+]
+
+export const MARKET_OVERFLOW_RESPONSE_DEFS: MarketOverflowResponseDef[] = [
+  {
+    bandId: 'overflow_warning',
+    contentTier: 'mid_transition',
+    label: '轻度过剩应对',
+    description: '通过改卖上涨品类与补充基础补给，温和打散单一路线。',
+    mitigationSteps: ['优先切向本周热点品类', '用每周精选和基础补给包减少裸卖货', '避免继续向同一品类集中出货'],
+    suggestedOfferIds: ['weekly_inventory_bag', 'func_builder_pack', 'func_angler_pack'],
+    suggestedRouteIds: ['route_hotspot_rotation']
+  },
+  {
+    bandId: 'overflow_strong',
+    contentTier: 'late_growth',
+    label: '明显过剩应对',
+    description: '通过地区收购、缓冲仓与订单承接把库存转出当前下跌路线。',
+    mitigationSteps: ['优先承接地区收购合同', '把库存转成加工品或高价值订单', '必要时投入稳价准备金或缓冲仓维护'],
+    suggestedOfferIds: ['weekly_chest_deed', 'weekly_caravan_supply_crate', 'premium_warehouse_charter'],
+    suggestedRouteIds: ['route_regional_demand_bridge']
+  },
+  {
+    bandId: 'overflow_crisis',
+    contentTier: 'endgame_showcase',
+    label: '严重过剩应对',
+    description: '在终局阶段把库存压力转成主题周展示、博览会和高价 sink 预算。',
+    mitigationSteps: ['停止继续向危机品类追加供给', '优先把存量改投主题周和终局展示路线', '把预算转进高价目录与跨域博览会承接'],
+    suggestedOfferIds: ['premium_midautumn_banquet', 'premium_courtyard_stage', 'premium_expedition_cache'],
+    suggestedRouteIds: ['route_theme_sink_conversion']
   }
 ]
 

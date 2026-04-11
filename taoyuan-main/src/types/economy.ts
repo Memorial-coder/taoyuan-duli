@@ -1,5 +1,7 @@
 export type BudgetChannelId = 'trade' | 'museum' | 'academy' | 'guild' | 'family' | 'research'
 
+export type WeeklyBudgetChannelId = Extract<BudgetChannelId, 'trade' | 'museum' | 'academy'>
+
 export type MaintenanceTargetType = 'villageProject' | 'serviceContract' | 'museumZone' | 'fishPondFacility' | 'hanhaiRoute'
 
 export interface MaintenancePlan {
@@ -15,12 +17,79 @@ export interface MaintenancePlan {
 
 export type RewardTicketType = 'construction' | 'exhibit' | 'caravan' | 'research' | 'guildLogistics' | 'familyFavor'
 
+export type RewardTicketLedger = Partial<Record<RewardTicketType, number>>
+
+export interface RewardTicketDefinition {
+  id: RewardTicketType
+  label: string
+  description: string
+}
+
+export interface RewardTicketExchangeOffer {
+  id: string
+  ticketType: RewardTicketType
+  label: string
+  description: string
+  costTickets: number
+  rewardItems: { itemId: string; quantity: number }[]
+}
+
+export interface BudgetChannelEffect {
+  moneyRewardMultiplier?: number
+  reputationRewardMultiplier?: number
+  flatReputationBonus?: number
+  ticketRewards?: RewardTicketLedger
+  summary: string
+}
+
+export interface WeeklyBudgetTierDef {
+  id: string
+  tier: number
+  label: string
+  costMoney: number
+  projectedValue: number
+  effect: BudgetChannelEffect
+}
+
+export interface WeeklyBudgetChannelDef {
+  channelId: WeeklyBudgetChannelId
+  label: string
+  shortLabel: string
+  description: string
+  resetRule: string
+  tiers: WeeklyBudgetTierDef[]
+}
+
+export interface WeeklyBudgetSelection {
+  channelId: WeeklyBudgetChannelId
+  tierId: string
+  tier: number
+  tierLabel: string
+  costMoney: number
+  projectedValue: number
+  effect: BudgetChannelEffect
+  activatedWeekId: string
+  activatedDayTag: string
+}
+
+export interface WeeklyBudgetPlan {
+  weekId: string
+  activatedAtDayTag: string
+  completedGoalCount: number
+  selections: Partial<Record<WeeklyBudgetChannelId, WeeklyBudgetSelection>>
+  ticketBalances: RewardTicketLedger
+}
+
+export interface WeeklyBudgetArchive extends WeeklyBudgetPlan {
+  expiredAtDayTag: string
+}
+
 export interface WeeklySettlementSummary {
   weekId: string
   netMoney: number
   totalIncome: number
   totalExpense: number
-  ticketChanges: Partial<Record<RewardTicketType, number>>
+  ticketChanges: RewardTicketLedger
   completedGoals: string[]
   failedGoals: string[]
   highlights: string[]

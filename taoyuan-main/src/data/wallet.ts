@@ -71,7 +71,11 @@ export const WALLET_ARCHETYPES: WalletArchetypeDef[] = [
         '每周精选': 3,
         '高价长期商品': 1,
         '功能商品': 1,
-        '牧场': 1
+        '牧场': 1,
+        '仓储': 2,
+        '服务契约': 2,
+        '节庆': 1,
+        '收藏': 1
       }
     },
     nodes: [
@@ -86,7 +90,9 @@ export const WALLET_ARCHETYPES: WalletArchetypeDef[] = [
           catalogTagWeights: {
             '每周精选': 2,
             '功能商品': 1,
-            '材料包': 1
+            '材料包': 1,
+            '补给包': 2,
+            '仓储': 1
           }
         }
       },
@@ -126,7 +132,9 @@ export const WALLET_ARCHETYPES: WalletArchetypeDef[] = [
         '灌溉': 2,
         '功能商品': 1,
         '矿洞': 2,
-        '材料包': 2
+        '材料包': 2,
+        '自动化': 2,
+        '仓储': 1
       },
       catalogPoolWeights: {
         basic: 1,
@@ -148,7 +156,9 @@ export const WALLET_ARCHETYPES: WalletArchetypeDef[] = [
           catalogTagWeights: {
             '矿洞': 2,
             '灌溉': 2,
-            '材料包': 2
+            '材料包': 2,
+            '自动化': 2,
+            '补给包': 1
           }
         }
       },
@@ -188,7 +198,10 @@ export const WALLET_ARCHETYPES: WalletArchetypeDef[] = [
         '渔具': 2,
         '鱼塘': 2,
         '季节限定': 2,
-        '功能商品': 1
+        '功能商品': 1,
+        '补给包': 2,
+        '节庆': 1,
+        '收藏': 1
       },
       catalogPoolWeights: {
         seasonal: 2,
@@ -210,7 +223,9 @@ export const WALLET_ARCHETYPES: WalletArchetypeDef[] = [
           catalogTagWeights: {
             '渔具': 2,
             '鱼塘': 2,
-            '季节限定': 2
+            '季节限定': 2,
+            '补给包': 2,
+            '节庆': 1
           }
         }
       },

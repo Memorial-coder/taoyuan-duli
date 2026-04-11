@@ -5,6 +5,69 @@
       设施
     </h3>
 
+    <!-- 村庄建设 -->
+    <div class="border border-accent/20 rounded-xs p-3 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-sm text-accent">
+          <Building :size="14" class="inline" />
+          村庄建设
+        </p>
+        <span class="text-[10px] text-muted">{{ villagePhaseLabel }} / {{ villageSegmentLabel }}</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-x-3 gap-y-1 mb-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">已完成</span>
+          <span class="text-xs text-accent">{{ villageOverview.completedProjects }}/{{ villageOverview.totalProjects }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">可推进</span>
+          <span class="text-xs">{{ villageOverview.availableProjects }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">维护中</span>
+          <span class="text-xs">{{ villageOverview.activeMaintenancePlans.length }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">捐赠计划</span>
+          <span class="text-xs">{{ villageOverview.availableDonationPlans.length }}</span>
+        </div>
+      </div>
+
+      <div v-if="villageAvailableProjects.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+        <p class="text-xs text-muted mb-1">当前可推进</p>
+        <div class="space-y-1.5">
+          <div v-for="project in villageAvailableProjects" :key="project.id" class="border border-accent/10 rounded-xs px-2 py-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent truncate">{{ project.name }}</p>
+              <span class="text-[10px] text-muted whitespace-nowrap">{{ project.contentTier }} · {{ project.fundingPhase }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-0.5 leading-4">{{ project.blockedReason ?? '材料、铜钱和专项进度已满足，可直接推进。' }}</p>
+          </div>
+        </div>
+      </div>
+      <div v-else class="border border-accent/10 rounded-xs p-2 mb-2">
+        <p class="text-xs text-muted">当前暂无新的建设项目可推进，先看看维护计划、捐赠计划或其他系统前置进度。</p>
+      </div>
+
+      <div class="grid grid-cols-1 gap-2">
+        <div v-if="villageMaintenanceHighlights.length > 0" class="border border-accent/10 rounded-xs p-2">
+          <p class="text-xs text-muted mb-1">维护提醒</p>
+          <div v-for="summary in villageMaintenanceHighlights" :key="summary.projectId" class="flex items-center justify-between text-[10px] mt-0.5">
+            <span>{{ getVillageProjectName(summary.projectId) }}</span>
+            <span :class="summary.overdue ? 'text-danger' : 'text-accent'">{{ summary.statusLabel }}</span>
+          </div>
+        </div>
+        <div v-if="villageDonationHighlights.length > 0" class="border border-accent/10 rounded-xs p-2">
+          <p class="text-xs text-muted mb-1">捐赠推进</p>
+          <div v-for="summary in villageDonationHighlights" :key="summary.projectId" class="flex items-center justify-between text-[10px] mt-0.5">
+            <span>{{ summary.plan.label }}</span>
+            <span class="text-accent">{{ Math.round(summary.progressRate * 100) }}%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 山洞 -->
     <div class="border border-accent/20 rounded-xs p-3 mb-4">
       <p class="text-sm text-accent mb-2">
@@ -539,6 +602,7 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useProcessingStore } from '@/stores/useProcessingStore'
+  import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
   import { getItemById } from '@/data'
@@ -553,6 +617,7 @@
   const playerStore = usePlayerStore()
   const warehouseStore = useWarehouseStore()
   const processingStore = useProcessingStore()
+  const villageProjectStore = useVillageProjectStore()
 
   const showGreenhouseModal = ref(false)
   const showWarehouseUnlockModal = ref(false)
@@ -565,6 +630,30 @@
   const getItemName = (itemId: string): string => {
     return getItemById(itemId)?.name ?? itemId
   }
+
+  const villageOverview = computed(() => villageProjectStore.overviewSummary)
+  const villageAvailableProjects = computed(() => villageProjectStore.queryProjects({ completed: false }).filter(project => project.available).slice(0, 3))
+  const villageMaintenanceHighlights = computed(() => villageProjectStore.maintenanceSummaries.filter(summary => summary.unlocked).slice(0, 2))
+  const villageDonationHighlights = computed(() => villageProjectStore.donationSummaries.filter(summary => summary.unlocked).slice(0, 2))
+
+  const villagePhaseLabelMap = {
+    bootstrap: '中期过渡',
+    expansion: '后期扩建',
+    endgame: '终局展示'
+  } as const
+
+  const villageSegmentLabelMap = {
+    midgame_operator: '中期经营者',
+    capital_builder: '扩建型庄主',
+    endgame_patron: '终局投资人'
+  } as const
+
+  const villagePhaseLabel = computed(() => villagePhaseLabelMap[villageOverview.value.currentPhase] ?? villageOverview.value.currentPhase)
+  const villageSegmentLabel = computed(
+    () => villageSegmentLabelMap[villageOverview.value.currentPlayerSegment] ?? villageOverview.value.currentPlayerSegment
+  )
+
+  const getVillageProjectName = (projectId: string) => villageProjectStore.getProjectSummary(projectId)?.name ?? projectId
 
   // === 山洞 ===
 

@@ -85,6 +85,60 @@
   - `src/views/game/ShopView.vue` 的出售弹窗新增“售价明细”面板，可直接查看每一步倍率、小计与市场说明，供 UI 与调试面板复用
   - 本批次已再次通过 `npm run type-check`
 
+#### ECON 经济止血（TYX-ECON-012）
+- 建立财富层级与软调控阈值：
+  - `src/types/economy.ts` 新增 `WealthTierConfig` 与 `WealthTierAssessment`，统一描述财富层阈值、推荐权重与现金奖励软调控倍率
+  - `src/data/balance/lateGameBalance.ts` 新增 4 档财富层配置，综合现金、近 7 天净收入与总资产值划分“资金紧张 / 稳健增长 / 资本充裕 / 财富溢出”
+  - `src/stores/useSettingsStore.ts` 已让财富层配置进入平衡参数覆盖链路，开发态可继续走 balance override 调整阈值
+  - `src/stores/usePlayerStore.ts` 新增总资产估值、当前财富层评估与 `wealthTier` 总览输出，经济总览现同时返回 `recent7DayNetIncome` 与 `totalAssetValue`
+  - `src/stores/useGoalStore.ts` 已接入财富层软调控：
+    - 目标奖励现金会按财富层倍率做软调节
+    - 经济 sink 推荐会参考财富层的偏好 sink 类别与推荐权重
+  - 当前已满足“至少影响一个推荐系统与一个奖励系统”的验收要求，并通过 `npm run type-check`
+
+#### ECON 经济止血（TYX-ECON-013）
+- 建立周预算系统：
+  - 新建 `src/data/weeklyBudgets.ts`，为商路预算、展馆预算、学舍预算三槽提供递进档位、成本、预估收益与效果说明配置
+  - `src/types/economy.ts` 新增 `WeeklyBudgetPlan`、`WeeklyBudgetSelection`、`WeeklyBudgetArchive`、`BudgetChannelEffect` 等共享类型，并由 `src/types/index.ts` 统一导出
+  - `src/stores/useGoalStore.ts` 已接入周预算状态、手动投资、奖励结算加成、票券累计、旧档兼容与历史归档逻辑
+  - `src/composables/useEndDay.ts` 在周切换时会自动归档上一周预算并重置为新周空槽，同时输出预算失效日志提示重新选择
+  - `src/views/game/WalletView.vue` 新增“周预算系统”面板，可查看当前周预算槽、累计结算次数、预算票券并直接投入档位
+  - `src/types/log.ts` 补充 `weekly_budget_activated` / `weekly_budget_expired` 结构化日志标签
+  - 当前已满足“每周可投资预算，且预算收益仅本周生效、下周重置”的验收要求，并通过 `npm run type-check`
+
+#### ECON 经济止血（TYX-ECON-014）
+- 建立项目维护费系统：
+  - `src/data/villageProjects.ts` 为 `hot_spring`、`village_school_ii`、`caravan_station_ii` 补齐维护计划配置，当前已满足“至少 3 个项目支持维护续费”的验收门槛
+  - `src/stores/useVillageProjectStore.ts` 新增维护增益 gating、手动补缴 `payProjectMaintenance()`、逾期状态推进与自动续费控制，已实现“已完成建设 ≠ 增益恒定生效，而是由维护状态决定是否启用”
+  - 已完成项目的 `unlockEffects` 现统一受维护状态约束，逾期或未启用维护时只暂停加成、不摧毁项目本身，符合“失去加成、不做重罚”的设计要求
+  - `src/views/game/NpcView.vue` 新增维护状态卡片、维护费/周期展示、自动续费切换与“启用维护 / 补缴维护”操作入口，玩家可直接在村庄建设界面完成维护续费
+  - 维护费支出已继续接入 `playerStore.spendMoney(..., 'villageProject')` 与 `recordSinkSpend(..., 'maintenance')`，保持经济 sink 与后期经营闭环口径一致
+
+#### ECON 经济止血（TYX-ECON-015）
+- 建立统一资源券 / 凭证系统：
+  - `src/types/economy.ts` 新增 `RewardTicketLedger`、`RewardTicketDefinition`、`RewardTicketExchangeOffer`，统一票券账本、定义与兑换结构；`src/types/quest.ts` 同步补充 `ticketReward` 字段，便于高阶任务直接声明票券奖励
+  - 新建 `src/data/rewardTickets.ts`，集中配置 6 类票券的名称/用途说明，并落地首批 4 个兑换项目，形成“记录 → 展示 → 消耗”的统一数据入口
+  - `src/stores/useWalletStore.ts` 现正式持有 `rewardTickets` 钱包状态，补齐加券、扣券、兑换、序列化 / 反序列化与 `$reset`，成为统一资源券 / 凭证的状态拥有者
+  - `src/stores/useGoalStore.ts` 已将周预算目标结算产出的票券接入钱包总账，并在日志中改用真实票券名称展示，不再只停留在周预算临时快照里累计
+  - `src/stores/useQuestStore.ts`、`src/data/quests.ts`、`src/views/game/QuestView.vue` 已支持任务 / 特殊订单声明与展示票券奖励，首批特殊订单已接入建设券、商路票、研究券等混合奖励
+  - `src/views/game/WalletView.vue` 新增“资源券 / 凭证”区块，可查看当前票券余额并执行首批兑换；`src/stores/useSaveStore.ts` 同步补齐旧档默认值，当前已通过 `npm run type-check`
+
+#### ECON 经济止血（TYX-ECON-016）
+- 重构高阶订单奖励结构：
+  - `src/data/quests.ts` 新增 `SPECIAL_ORDER_REWARD_PROFILES` 与 `rewardProfileId`，为高阶特殊订单建立“现金主体 / 建设运营混合 / 商路混合 / 研究混合 / 展陈混合 / 鱼塘高规混合”等奖励结构档案
+  - `src/stores/useQuestStore.ts` 在特殊订单生成阶段按 `highValueOrderCashRatio` 与奖励档案统一压缩现金比例，并把剩余价值转成票券奖励，使高阶订单不再几乎全是直接发钱
+  - 首批高阶育种单、鱼塘高规单与第 3/4 梯度特殊订单已批量接入混合奖励，当前高价值订单会稳定产出建设券、展陈券、商路票与研究券等非现金奖励
+  - `src/types/quest.ts`、`src/views/game/QuestView.vue` 已补充奖励档案与票券展示，任务详情页可直接说明当前订单属于哪类奖励结构，降低“发空奖励”的理解门槛
+  - 当前已满足“高阶订单中非现金奖励占比明显提升”的验收要求，并通过 `npm run type-check`
+
+#### ECON 经济止血（TYX-ECON-017）
+- 降低瀚海赌坊净现金期望值：
+  - `src/types/hanhai.ts` 新增瀚海奖励包、加权奖励、赌坊奖励触发器等共享类型，为后续瀚海专属票券 / 声望扩展提供统一结构
+  - `src/data/hanhai.ts` 新增藏宝图复合奖励池、赌坊侧奖励池与 `pickWeightedRewardBundle()`，把瀚海娱乐收益改成“折算现金 + 票券 + 异域材料 / 藏宝图”混合掉落
+  - `src/stores/useHanhaiStore.ts` 已统一接入 `casinoCashExpectationMultiplier`，下调轮盘、骰子、猜杯、斗蛐蛐、翻牌、扑克、恶魔轮盘与藏宝图的直接现金回流，并改为通过统一奖励结算链路发放商路票、展陈券、研究券、香料、绿松石、丝绸与藏宝图
+  - `src/views/game/HanhaiView.vue` 已补充赌坊玩法说明文案，明确提示“赌坊更偏娱乐彩头 / 收藏物 / 票券，而非稳定刷钱”
+  - 当前已满足“赌坊仍有吸引力，但不再是后期主要现金来源”的验收目标，并通过 `npm run type-check`
+
 #### WS01 经济观测与通胀治理底座（T001 / T002 / T003）
 - 为后期经济治理补齐首批基线审计配置：
   - `src/data/market.ts` 新增 `ECONOMY_AUDIT_CONFIG`
@@ -195,6 +249,27 @@
   - 页面与后续工作流可直接消费 store 暴露结果，不再重复拼装村庄建设阶段、维护与捐赠公式
   - 为后续 WS02 的日结调度、页面信息展示与跨系统闭环接入提供统一 store API 底座
 
+#### WS02 村庄建设终局资金池 2.0（T014）
+- `src/stores/useVillageProjectStore.ts`、`src/composables/useEndDay.ts`、`src/types/log.ts` 已补齐 WS02 日结 / 周结调度接入：
+  - `useVillageProjectStore` 新增 `processOperationalTick()`，统一处理建设维护计划排期、自动续费、逾期周期累积与周摘要生成
+  - 维护费现会通过 `playerStore.spendMoney(..., 'villageProject')` 与 `recordSinkSpend(..., 'maintenance')` 正式记入经济遥测，避免后期维护成本脱离通胀治理样本
+  - 每周切换时会自动输出维护中 / 已逾期项目数，以及推进中的捐赠计划概览，形成“建设完成 -> 维护 -> 捐赠里程碑”的稳定周循环反馈
+  - `useEndDay` 已在新一天日结阶段正式接入村庄建设运营 tick，跨天、跨周、跨季时会按统一周边界执行，不再依赖页面手动刷新
+
+#### WS02 村庄建设终局资金池 2.0（T015）
+- `src/data/villageProjects.ts` 已补齐 WS02 首批内容配置：
+  - 首批建设内容已覆盖 P0 / P1 / P2 三档，形成从中期过渡、后期扩建到终局展示的价格带与成长带
+  - 已落地工台角、矿料棚与支架、节庆暖房、商队驿站、村塾学舍、温泉整修、商队驿站扩建等项目
+  - 首批项目已同时带入 `unlockEffects`、`regionalEffects`、`maintenancePlan`、`donationPlan` 等配置，不再只是单次花钱解锁
+  - 使 WS02 从“可调度”推进到“有首批可玩内容可供后续页面与联动系统消费”的状态
+
+#### WS02 村庄建设终局资金池 2.0（T016）
+- `src/views/game/HomeView.vue`、`src/views/game/QuestView.vue` 已补齐 WS02 页面入口与信息展示：
+  - 家园页新增“村庄建设”概览卡，集中展示当前阶段、玩家分层、可推进项目、维护提醒与捐赠推进
+  - 任务页新增“村庄建设线路”信息卡，直接展示与委托/订单相关的建设加成、当前阶段与可推进项目
+  - 玩家无需进入底层 store 调试，即可在主线页面看懂建设当前价值、下一步方向与任务侧联动收益
+  - 使 WS02 从“内容已配置”推进到“玩家能在主流程页面感知建设线”的可见状态
+
 #### WS06 博物馆 / 祠堂持续经营线（T051）
 - `src/types/museum.ts`、`src/data/museum.ts`、`src/stores/useMuseumStore.ts` 已补齐首批基线审计配置：
   - 新增博物馆持续经营的审计指标、玩家分层、回滚规则与联动系统上下文类型
@@ -215,6 +290,27 @@
   - 补齐 `getExhibitSlotOverview()`、`getHallOverview()`、`getScholarCommissionOverview()`、`getActiveShrineTheme()`、`getAvailableExhibitSlots()` 等单项查询入口
   - `useMuseumStore` 现已与 T052 的 save shape 对齐，完整序列化 / 反序列化展陈槽位、馆区进度、学者委托、供奉主题与 telemetry 状态
   - `useSaveStore` 现复用 museum 默认存档结构，避免旧档迁移与 store 持久化口径分叉
+
+#### WS06 博物馆 / 祠堂持续经营线（T054）
+- `src/stores/useMuseumStore.ts`、`src/composables/useEndDay.ts`、`src/types/log.ts` 已补齐 WS06 日结 / 周结调度接入：
+  - `useMuseumStore` 新增 `processOperationalTick()`，统一处理祠堂主题轮换、展陈评分刷新、访客热度计算与学者委托超期 / 完成判定
+  - 新增基于展陈槽位、馆区等级与供奉主题的展示评分 / 访客热度遥测构建逻辑，使博物馆从“一次性捐赠”进入“可持续日常经营”状态
+  - 学者委托现会在日结中自动检查持续天数、评分目标与流量目标，达成时直接进入待领奖状态，超期则自动失效并记日志
+  - `useEndDay` 已接入博物馆运营 tick，周切换时会生成展陈周摘要，换季时可同步驱动 seasonal 祠堂主题轮换
+
+#### WS06 博物馆 / 祠堂持续经营线（T055）
+- `src/data/museum.ts` 已补齐 WS06 首批内容配置：
+  - 首批内容已覆盖展陈槽位、馆区等级、学者委托、祠堂主题、访客流量分档与展示评分分档
+  - 内容层覆盖 P0 / P1 / P2 三档，从基础前厅、矿晶馆区一路扩展到祠堂庭院与终局展示槽位
+  - 学者委托与祠堂主题已具备独立的难度、解锁门槛、奖励与主题偏好，能支撑 2~3 个版本的经营扩容
+  - 使 WS06 从“有运营状态机”推进到“有首批经营内容池”的可扩展状态
+
+#### WS06 博物馆 / 祠堂持续经营线（T056）
+- `src/views/game/MuseumView.vue` 已补齐 WS06 页面入口与信息展示：
+  - 页面顶部新增经营总览，集中展示展陈等级、展示评分、访客热度、可接学者委托数与当前祠堂主题
+  - 新增馆区推进区块，展示重点馆区等级与已解锁槽位，降低玩家理解馆区成长门槛
+  - 新增学者委托摘要，直接显示可接取 / 进行中 / 待领奖状态，提升经营反馈可见度
+  - 使 WS06 从“有内容配置与运营逻辑”推进到“玩家能在博物馆页直接理解经营状态”的可玩层
 
 #### WS07 公会赛季化与轻竞争 PVE（T061）
 - `src/data/guild.ts` 已补齐公会赛季化与轻竞争 PVE 基线审计配置：
@@ -251,12 +347,54 @@
   - 页面和后续工作流可直接消费公会赛季 / 讨伐结果，不再重复拼装赛季快照与目标状态
   - 为后续 WS07 的日结调度、异步榜与轻竞争 PVE 联动提供统一 store API 底座
 
+#### WS07 公会赛季化与轻竞争 PVE（T064）
+- `src/stores/useGuildStore.ts`、`src/composables/useEndDay.ts`、`src/types/log.ts` 已补齐 WS07 日结 / 周结调度接入：
+  - `useGuildStore` 新增 `processSeasonTick()`，统一处理赛季阶段推进、异步荣誉分计算、周快照归档与每周限购重置
+  - 赛季阶段现会根据季内周次在 `p0_commission` / `p1_ranked_hunt` / `p2_world_milestone` 间自动切换，并按贡献、公会经验、BOSS 结算与等级推导异步荣誉档位
+  - 周切换时会自动写入公会赛季快照，沉淀 `contributionGained`、`goalClaims`、`bossClears` 与 `rankBand`，供后续排行、邮件结算与轻竞争 PVE 使用
+  - `useEndDay` 已正式接入公会赛季 tick，保证跨周与跨季切换口径统一，并通过结构化日志记录赛季推进事件
+
+#### WS07 公会赛季化与轻竞争 PVE（T065）
+- `src/types/guild.ts`、`src/data/guild.ts` 已补齐 WS07 首批内容配置：
+  - 新增 `GuildContentTier`、赛季活动轨、荣誉称号、世界里程碑与赛季奖励池等内容定义结构
+  - 首批内容已覆盖 `p0_commission`、`p1_ranked_hunt`、`p2_world_milestone` 三阶段，对应中期过渡、后期进阶与终局展示三档内容带
+  - 已落地后勤委托周、边境巡防轮换、荣誉竞猎榜、精英后勤竞拍、要塞共建里程碑与深渊首领战役等赛季活动内容表
+  - 为后续公会页面、邮箱结算、荣誉商店与异步排行解释层提供首批可消费的数据池
+
+#### WS07 公会赛季化与轻竞争 PVE（T066）
+- `src/views/game/GuildView.vue` 已补齐 WS07 页面入口与信息展示：
+  - 页面顶部新增赛季总览卡，集中展示当前赛季、赛季阶段、荣誉档位与异步荣誉分
+  - 新增“本阶段活动”“阶段里程碑”“赛季奖励池”摘要，让玩家能在公会主界面直接理解赛季结构
+  - 现有讨伐、捐献、商店与图鉴页签不变，但已具备赛季化解释层，不再只有基础公会循环
+  - 使 WS07 从“有赛季状态机”推进到“玩家可直接感知赛季目标与奖励结构”的展示状态
+
 #### WS08 瀚海终局循环深化（T073）
 - `src/stores/useHanhaiStore.ts`、`src/types/hanhai.ts` 已补齐 WS08 Store 状态与 API 扩展：
   - 新增 `cycleOverview`、`relicSiteSummaries`、`shopItemSummaries` 等统一汇总 getter，集中输出瀚海循环、遗迹与商店状态
   - 补齐 `getRelicSiteSummary()`、`getShopItemSummary()`、`updateCycleState()`、`getDebugSnapshot()` 等统一读写与调试入口
   - 页面和后续工作流可直接消费瀚海循环状态，不再重复拼装遗迹剩余次数、循环 tier 与收藏/投资摘要
   - 为后续 WS08 的日结调度、终局联动与风险事件实现提供统一 store API 底座
+
+#### WS08 瀚海终局循环深化（T074）
+- `src/stores/useHanhaiStore.ts`、`src/composables/useEndDay.ts`、`src/types/log.ts` 已补齐 WS08 日结 / 周结调度接入：
+  - `useHanhaiStore` 新增 `processCycleTick()`，统一处理每日赌坊次数重置、周切换时的商店限购 / 遗迹勘探重置、Boss 周目轮换与 route investment 周期推进
+  - 现已根据遗迹通关数、投资激活数与套组收藏完成度自动推导 `progressTier`，使瀚海终局线能在日结阶段稳定成长，而不是只依赖页面即时状态
+  - 周切换时会按季内周次刷新 `bossCycleId`，并为已存在的商路投资累计 `tripsCompleted`，为后续商路收益与终局事件钩子预留稳定的周循环状态机
+  - `useEndDay` 已正式接入瀚海循环 tick，跨周刷新与结构化日志现与其他后期系统共用统一周边界口径
+
+#### WS08 瀚海终局循环深化（T075）
+- `src/types/hanhai.ts`、`src/data/hanhai.ts` 已补齐 WS08 首批内容配置：
+  - 新增商路投资扩展字段、遗迹套组、Boss 周期、商路合同与驿站轮换货架等内容定义结构
+  - 首批内容已覆盖 P0 / P1 / P2 三档，从西行丝货路、青玉互市路到月沙祭仪路形成明确的投资价格带
+  - 已落地 3 条商路投资、3 套遗迹收藏、4 个周 Boss、3 份商路合同与 3 组驿站轮换货架内容表
+  - 为后续瀚海合同结算、套组展示、周报面板与终局事件钩子提供首批可配置内容池
+
+#### WS08 瀚海终局循环深化（T076）
+- `src/views/game/HanhaiView.vue` 已补齐 WS08 页面入口与信息展示：
+  - 页面顶部新增瀚海循环总览，直接展示循环阶段、本周首领、遗迹总勘探与活跃投资数
+  - 新增商路投资、商路合同、遗迹套组 / 轮换货架摘要区块，使内容配置不再停留在 data 层
+  - 玩家可在瀚海主界面直接感知本档 Boss、当前投资状态与可关注的终局内容，不必依赖日志或调试视图
+  - 使 WS08 从“有终局内容池”推进到“主页面可解释终局循环结构”的第一版展示状态
 
 #### WS03 商店目录与豪华消费池扩容（T021）
 - `src/data/shopCatalog.ts`、`src/stores/useShopStore.ts` 已补齐首批基线审计配置：
@@ -265,6 +403,87 @@
   - 补齐 2 个护栏指标：商店 sink 占总支出比、豪华商品可负担周数
   - 新增 3 档玩家分层、1 条回滚规则与 linked system refs
   - `useShopStore` 新增 `currentLuxuryAuditSegment` 与 `luxuryCatalogBaselineAudit`，为后续 WS03 的内容、UI 与日结接入提供统一口径
+
+#### WS03 商店目录与豪华消费池扩容（T022）
+- `src/types/shopCatalog.ts`、`src/data/shopCatalog.ts`、`src/stores/useShopStore.ts`、`src/stores/useSaveStore.ts` 已补齐 WS03 数据结构与旧档兼容约定：
+  - 新增 `ShopCatalogContentTier`、`ShopCatalogLuxuryCategory`、`ShopCatalogRefreshCycle`、许可证 / 仓储服务 / 远行补给 / 节庆礼盒 / 展示家具 / 功能券包配置结构与扩展存档状态类型
+  - `src/data/shopCatalog.ts` 现通过统一的 offer builder 为商店目录补齐 tier、价格带、联动系统、刷新周期、服务计费周期与扩展配置字段，形成可继续扩容的统一数据形状
+  - `useShopStore` 与 `useSaveStore` 已补入 `catalogExpansionState` 的默认值、序列化 / 反序列化与旧档安全回填，确保后续日结、过期与复购逻辑可在统一存档形状上继续扩展
+  - 现有目录内容已开始按豪华许可、仓储服务、远行补给、节庆礼盒、展示家具、功能券包做结构化归类，不再只依赖松散 tags 驱动
+
+#### WS03 商店目录与豪华消费池扩容（T023）
+- `src/stores/useShopStore.ts` 已补齐 WS03 Store 状态与 API 扩展：
+  - 新增 `catalogOverviewSummary`、`catalogOfferOperationalSummaries` 与 `getCatalogOfferOperationalSummary()`，统一输出目录总览、商品状态、已购次数、激活状态、解锁提示与限制提示
+  - 补齐 `getCatalogOfferById()`、`getCatalogOffersByPool()`、`getCatalogOffersByTier()`、`getCatalogOffersByCategory()`、`getCatalogOffersByLinkedSystem()` 等查询入口，避免页面和后续工作流重复拼装分类规则
+  - 新增 `markCatalogOfferPurchased()`、`getCatalogOfferLimitHint()` 与 `getCatalogDebugSnapshot()`，把购买后扩展状态写入、限制原因解释与调试快照统一收口到 store 层
+  - `purchaseCatalogOffer()` 现已把目录扩展状态纳入事务快照 / 回滚链路，购买成功后会同步登记扩展状态，失败时则回滚目录扩展态与资产状态，保持一致性
+
+#### WS03 商店目录与豪华消费池扩容（T024）
+- `src/stores/useShopStore.ts`、`src/composables/useEndDay.ts` 已补齐 WS03 日结 / 周结调度接入：
+  - `useShopStore` 新增 `processCatalogCycleTick()`，统一处理豪华许可证 / 仓储服务到期、周精选刷新与季节限定货架切换日志
+  - 目录扩展状态中的 entitlement 现会在跨天时自动检查到期日，过期后转为 `expired`，为后续复购、维护与活动编排提供稳定节奏锚点
+  - `useEndDay` 已正式接入商店目录周期 tick，和村庄建设 / 博物馆 / 公会 / 瀚海共用统一周边界口径，不再依赖页面打开时被动刷新
+
+#### WS03 商店目录与豪华消费池扩容（T025）
+- `src/data/shopCatalog.ts`、`src/data/wallet.ts` 已补齐 WS03 首批内容配置：
+  - 商店目录首批内容现已覆盖中期过渡、后期进阶、终局展示三档价格带，形成基础常驻、每周精选、季节限定与高价长期商品的完整消费梯度
+  - `src/data/shopCatalog.ts` 新增并扩充了仓储契约、远行补给、节庆礼盒、展示收藏与功能型券包内容：
+    - 基础池补入 `迎宾酒架`、`小库房整备册` 等中期过渡内容，并为背包 / 材料 / 渔具 / 牧场 / 灌溉 / 采脂线补给统一补齐 `travelSupplyConfig`、`functionalVoucherConfig`、`warehouseServiceConfig` 与展示评分配置
+    - 每周精选扩充 `花市巡游车`、`商队行装箱`，并把周更仓储、补给、节庆、收藏内容统一补上 `weeklySpotlightWeight`、服务计费周期、节庆礼盒与远行补给元数据
+    - 季节限定现同时覆盖春夏秋冬的展示收藏与功能礼包，每档都具备节庆 / 收藏 / 补给 / 自动化等至少一个消耗维度，不再只是单一数值型道具包
+    - 高价长期商品新增 `金阙月宴礼盒`、`绮彩堂台`、`远征储备库`，并为温室许可、仓储扩建、终局陈设、远征储备与自动化投资补齐终局展示与长期经营配置
+  - `createShopCatalogOffer()` 现会自动继承 `permitConfig.billingCycle` / `warehouseServiceConfig.billingCycle`，确保周度仓储与服务型商品在内容层即可声明真实计费周期
+  - `src/data/wallet.ts` 已同步扩充钱包流派偏好标签，新增 `仓储`、`服务契约`、`补给包`、`自动化`、`节庆`、`收藏` 等权重，让商贾流 / 匠营流 / 游历流可对 WS03 首批内容池产生更明确的推荐差异
+  - 当前批次已通过 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run type-check`，WS03 已从“有结构与调度”推进到“有首批可玩内容池可供页面与联动系统消费”的状态
+  - 周刷新与换季刷新现会写入结构化经济日志，帮助后续 UI、调试面板和运营观测解释本周精选 / 季节货架变化
+
+#### WS03 商店目录与豪华消费池扩容（T026）
+- `src/views/game/ShopView.vue`、`src/views/game/WalletView.vue` 已补齐 WS03 页面入口与信息展示：
+  - `ShopView.vue` 的万物铺现新增“目录运营总览”卡片，集中展示目录总量、已解锁数、已拥有数、每周精选规模、高价长期商品规模、活跃服务数与当前货架刷新提示
+  - 万物铺货架页现会根据当前所选 pool 输出“当前货架摘要”与分池说明，帮助玩家快速理解基础消费池 / 每周精选 / 季节限定 / 高价长期商品分别适合什么阶段与消费目的
+  - `WalletView.vue` 新增“商店豪华消费路线”卡片，把当前玩家分层、目录核心指标、本周精选提醒与当前路线更契合的推荐货架集中收口到钱袋页，形成“经济观测 -> 钱包流派 -> 商店消费”单页解释链
+  - 钱包页现可直接查看当前每周精选的重点商品与推荐理由，同时展示 3 条与当前流派最契合的目录商品，减少玩家必须进入商店后才理解该买什么的断层
+  - 当前批次已通过 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run type-check`，WS03 已从“有首批内容池”推进到“玩家能在商店页与钱包页直接理解后期消费路线”的展示状态
+
+#### WS03 商店目录与豪华消费池扩容（T027）
+- `src/stores/useShopStore.ts`、`src/data/shopCatalog.ts`、`src/data/decorations.ts`、`src/stores/useDecorationStore.ts` 已补齐 WS03 跨系统联动闭环：
+  - 商店目录商品现新增 `decorationUnlockId`，展示型家具可直接映射到装饰系统中的真实陈设实例，而不再只是“已拥有一个抽象收藏品”
+  - `src/data/decorations.ts` 已补入一批目录专属陈设定义，如 `catalog_bamboo_screen`、`catalog_festival_lantern`、`catalog_blossom_arch`、`catalog_courtyard_stage` 等，用于把 WS03 的展示消费真正接到家园美观度系统
+  - `useDecorationStore` 新增 `grantDecoration()`，允许商店目录、活动奖励等系统安全授予装饰，不走二次扣钱路径，形成“购买目录商品 -> 获得陈设 -> 放入家园 -> 提升美观度 / 好感 / 商店折扣”的闭环
+  - `useShopStore.purchaseCatalogOffer()` 现会在购买成功后统一调用 `buildCatalogClosureLogs()`：
+    - 所有目录消费都会正式记入 `playerStore.recordSinkSpend(..., 'luxuryCatalog')`
+    - 仓储扩建与额外箱子会追加“备货 / 订单 / 出货箱”方向的经营引导
+    - 温室许可会追加“全年种植 / 高规格订单 / 豪华经营周”方向的经营引导
+    - 展示型消费会自动授予并尝试摆放到装饰系统，直接把购买结果转成家园美观度、村民好感加成与商店折扣成长反馈
+    - 补给包 / 功能券包 / 节庆礼盒会根据 `travelSupplyConfig`、`functionalVoucherConfig`、`festivalGiftConfig` 输出面向农耕 / 钓鱼 / 矿洞 / 节庆的后续经营引导
+    - 若商品标签与当前主题周或推荐资金去向匹配，会追加“主题周 / 经济 sink”闭环日志提示
+  - 购买成功后的闭环提示现统一使用结构化日志写入 `economy_sink_guidance` 与 `late_game_cycle` 标签，便于后续在 UI、调试面板与运营复盘中观察“商店消费是否真的带动家园 / 仓储 / 温室 / 主题周”的联动证据
+  - 当前批次已通过 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run type-check`，WS03 已从“可展示、可购买”推进到“购买后能反过来改变家园展示、商店折扣与后续经营方向”的跨系统闭环状态
+
+#### WS03 商店目录与豪华消费池扩容（T028）
+- `src/types/shopCatalog.ts`、`src/data/shopCatalog.ts`、`src/stores/useShopStore.ts` 已补齐 WS03 事务安全与防刷处理：
+  - `catalogExpansionState` 新增 `operationalMeta`，统一记录目录 tick 的日处理、周刷新与换季刷新游标，旧档读入时会自动补默认值
+  - `useShopStore.processCatalogCycleTick()` 现按 `dayTag / weekId / season dayTag` 做幂等保护，同一日重复触发不会重复过期服务、重复刷新周精选或重复输出季节货架日志
+  - `purchaseCatalogOffer()` 新增目录事务锁 `catalogPurchaseLock`，可阻止重复点击和并发购买；目录商品在结算中会明确提示“正在结算，请勿重复点击”
+  - 目录购买快照已扩展到 `player / inventory / warehouse / home / farm / decoration / catalog state` 全链路，任一发放步骤失败都会完整回滚并自动退款，避免温室、装饰或容量扩张出现半成功状态
+  - 周期型服务目录商品现在会根据 entitlement 生效期阻止重复购买，并在提示中展示到期日，降低服务叠加与误扣费风险
+  - 当前批次已通过 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run type-check`，WS03 的目录购买、日结刷新与服务续期链路已具备完整的事务边界与防刷护栏
+
+#### WS03 商店目录与豪华消费池扩容（T029）
+- `src/data/shopCatalog.ts`、`src/stores/useShopStore.ts` 已补齐 WS03 调参与运营开关：
+  - 新增 `SHOP_CATALOG_TUNING_CONFIG`，集中管理池子开关、隐藏商品、禁用品类、禁用价格带、每周精选数量、季节货架显示上限、推荐加权与 fallback 补位集合
+  - `useShopStore` 现统一通过 `isCatalogOfferEnabled()` / `isCatalogOfferVisibleForCurrentSeason()` 过滤目录商品，支持快速关闭 weekly / seasonal / premium 池，或按 priceBand / luxuryCategory 精细收口异常内容
+  - 周精选和高价长期商品现在支持 fallback 补位策略，即使临时隐藏部分货架，也能保证最小可玩目录集合不断档
+  - 推荐列表已接入运营权重：可额外放大 weekly spotlight、premium、高价服务契约、展示型家具与强制推荐商品，做到“不改主逻辑也能热调推荐倾向”
+  - 对玩家侧提示也已同步收口：若商品因运营配置停用，会在限制提示中明确展示“当前运营配置下暂未开放”
+
+#### WS03 商店目录与豪华消费池扩容（T030）
+- `src/data/shopCatalog.ts` 已补齐 WS03 QA、数值验收与上线文档：
+  - 新增 `WS03_ACCEPTANCE_SUMMARY`，收口最少 QA 用例数、事务护栏与对外发布要点
+  - 新增 `WS03_QA_CASES` 8 条，覆盖目录退款回滚、双击防刷、服务锁定、旧档兼容、tick 幂等、池子开关、fallback 补位与季节货架上限等场景
+  - 新增 `WS03_RELEASE_CHECKLIST`，明确退款链路、服务锁、刷新幂等、运营配置与 UI 文案的一线验收项
+  - 新增 `WS03_COMPENSATION_PLANS` 与 `WS03_RELEASE_ANNOUNCEMENT`，为漏退款、重复服务扣费与误关货架等异常提供补偿与公告预案
+  - 当前批次已使 WS03 从“可玩可调”推进到“可验收、可发布、可补偿”的交付状态
 
 #### WS04 市场行情与动态通胀抑制（T031）
 - `src/data/market.ts` 已完成市场行情与动态通胀抑制基线审计口径收口：
@@ -279,6 +498,34 @@
   - 新增覆盖 P0 / P1 / P2 三阶段的 `MARKET_DYNAMICS_CONFIG`，收口市场阶段能力开关与默认参数
   - `useShopStore` 已接入 `marketDynamics` 的默认值、序列化 / 反序列化与阶段查询入口
   - `useSaveStore` 已为 shop 数据块补齐 `marketDynamics` 的旧档默认值迁移，确保 WS04 后续逻辑可在统一数据形状上继续扩展
+
+#### WS04 市场行情与动态通胀抑制（T033）
+- `src/stores/useShopStore.ts` 已补齐 WS04 Store 状态与 API 扩展：
+  - 新增 `marketDynamicsBaselineAudit`、`marketDynamicsRoutingDefs`、`currentMarketDynamicsPhase`、`currentMarketPriceInfos`、`marketDynamicsOverview` 与 `recommendedMarketDynamicsRoutes`，统一输出阶段、热点、路线与推荐总览
+  - 补齐 `getMarketHotspotSummary()`、`getRegionalProcurementSummary()`、`getOverflowPenaltySummary()`、`setMarketDynamicsPhase()`、`resetMarketDynamicsState()` 与 `getMarketDynamicsDebugSnapshot()` 等统一查询、切换与调试入口
+  - 页面与后续工作流可直接消费市场动态状态，不再重复拼装热点摘要、地区收购解释与阶段调试快照
+  - 为后续 WS04 的日结调度、页面信息展示与跨系统承接提供统一 store API 底座
+
+#### WS04 市场行情与动态通胀抑制（T034）
+- `src/stores/useShopStore.ts`、`src/composables/useEndDay.ts` 已补齐 WS04 日结 / 周结调度接入：
+  - `useShopStore` 新增 `processMarketDynamicsTick()`，统一处理市场阶段自动切换、热点轮换、品类冷却、地区收购、过剩压制、主题鼓励与替代奖励的跨天/跨周刷新
+  - 市场动态现按统一 `dayTag / weekId` 节奏做幂等处理，同一日重复触发不会重复刷新热点、重复生成地区收购或重复写入替代奖励
+  - 周切换时会自动根据当前通胀压力切换 P0 / P1 / P2 阶段，并生成本周热点、地区收购与主题承接状态，过剩压制则按近 7 天出货量在日结阶段持续更新
+  - `useEndDay` 已正式接入市场动态 tick，跨天、跨周、跨季切换现与村庄建设 / 博物馆 / 公会 / 瀚海 / 商店目录共用统一编排口径，并通过结构化市场日志记录轮换结果
+
+#### WS04 市场行情与动态通胀抑制（T035）
+- `src/data/market.ts` 已补齐 WS04 首批内容配置：
+  - 新增 `MARKET_HOTSPOT_CONTENT_DEFS`，首批覆盖 crop / fish / processed / fruit / ore / gem / animal_product 七类热点内容定义，补齐推荐标签、建议目录商品与运营说明
+  - 新增 `MARKET_REGIONAL_DISTRICT_DEFS` 与 `MARKET_DISTRICT_LABELS`，落地江南埠头、山路驿站、京市行会、瀚海互市 4 个地区收购内容池，统一地区标签、目标品类、物流价带与承接建议
+  - 新增 `MARKET_THEME_ACTIVITY_CONTENT_DEFS`、`MARKET_SUBSTITUTE_REWARD_CONTENT_DEFS` 与 `MARKET_OVERFLOW_RESPONSE_DEFS`，把主题鼓励、替代奖励与过剩压制应对拆成可扩展数据表，覆盖 P0 / P1 / P2 三档内容带
+  - 扩充 `ECONOMY_SINK_CONTENT_DEFS` 首批市场 sink 内容，从基础轮换经营证延伸到加工远期订货牌、过剩转运缓冲仓与跨域行情博览执照，为后续只改 data 扩容提供稳定入口
+
+#### WS04 市场行情与动态通胀抑制（T036）
+- `src/views/game/ShopView.vue`、`src/components/game/TopGoalsPanel.vue` 已补齐 WS04 页面入口与信息展示：
+  - 商圈总览新增“市场轮换看板”，集中展示当前阶段、热点品类、地区收购、过剩压制、主题承接与推荐路线，玩家进入商店前即可理解本周该换什么货、该避开什么坑
+  - 市场看板现补充上涨机会、下跌风险、地区收购详情与主题鼓励倍率，帮助玩家把 `processMarketDynamicsTick()` 产生的状态直接转化为可执行经营提示
+  - `TopGoalsPanel` 新增“市场轮换摘要”卡片，把阶段、热点、路线建议与过剩压制提醒纳入目标规划区域，形成“主题周目标 + 市场轮换 + 本周重点目标”的统一视图
+  - 使 WS04 从“有状态机、有内容池”推进到“玩家能在主页面直接理解热点轮换与通胀治理提示”的展示状态
 
 #### WS05 育种 × 特殊订单 × 主题周经营化（T041）
 - `src/data/goals.ts`、`src/data/quests.ts`、`src/stores/useBreedingStore.ts`、`src/stores/useQuestStore.ts`、`src/types/goal.ts` 已补齐首批基线审计配置：

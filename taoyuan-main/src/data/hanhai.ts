@@ -1,6 +1,13 @@
 import type {
+  HanhaiBossCycleDef,
+  HanhaiCasinoSideRewardDef,
+  HanhaiCaravanContractDef,
+  HanhaiRelicSetDef,
   HanhaiShopItemDef,
+  HanhaiShopRotationDef,
   HanhaiRelicSiteDef,
+  HanhaiRouteInvestmentDef,
+  HanhaiWeightedRewardBundle,
   RouletteOutcome,
   CricketDef,
   PokerSuit,
@@ -241,6 +248,171 @@ export const HANHAI_BASELINE_AUDIT_CONFIG: HanhaiBaselineAuditConfig = {
   ]
 }
 
+export const HANHAI_ROUTE_INVESTMENTS: HanhaiRouteInvestmentDef[] = [
+  {
+    id: 'westbound_silk_route',
+    label: '西行丝货路',
+    unlockTier: 'P0',
+    costMoney: 3200,
+    riskLevel: 'low',
+    rewardSummary: '稳定回收丝绸、香料与基础商路利润，作为瀚海经营的第一档投资入口。',
+    weeklyYieldSummary: '每周完成一次押运后，可提供稳定的丝货与目录消费承接理由。',
+    linkedSystems: ['shop', 'quest'],
+    favoredCargoTags: ['丝货', '补给']
+  },
+  {
+    id: 'turquoise_exchange_route',
+    label: '青玉互市路',
+    unlockTier: 'P1',
+    costMoney: 7800,
+    riskLevel: 'medium',
+    rewardSummary: '主打绿松石与藏宝图相关收益，强化中后期遗迹复玩与委托承接。',
+    weeklyYieldSummary: '为特殊订单、驿站精选货架和中档展示提供稳定的矿藏流。',
+    linkedSystems: ['quest', 'shop', 'museum'],
+    favoredCargoTags: ['矿藏', '古物']
+  },
+  {
+    id: 'moon_sand_ceremony_route',
+    label: '月沙祭仪路',
+    unlockTier: 'P2',
+    costMoney: 16800,
+    riskLevel: 'high',
+    rewardSummary: '面向终局展示与主题周的高价商路，可承接高规格古物、供奉与赞助需求。',
+    weeklyYieldSummary: '每周完成高风险押运后，可为博物馆展示、主题周与终局赞助提供关键素材。',
+    linkedSystems: ['museum', 'goal', 'shop'],
+    favoredCargoTags: ['祭仪', '珍宝', '赞助']
+  }
+]
+
+export const HANHAI_RELIC_SET_DEFS: HanhaiRelicSetDef[] = [
+  {
+    id: 'merchant_ledger_set',
+    label: '商旅账册套组',
+    unlockTier: 'P1',
+    requiredRelicTags: ['商路遗物', '沙海矿藏'],
+    rewardSummary: '为商路专题展示、押运委托与终局贸易周提供第一档套组价值。',
+    linkedSystems: ['museum', 'quest', 'goal']
+  },
+  {
+    id: 'desert_ritual_set',
+    label: '沙海祭仪套组',
+    unlockTier: 'P2',
+    requiredRelicTags: ['祭仪遗珍', '沙海矿藏'],
+    rewardSummary: '适合用于祠堂 / 展示联动与终局节庆活动，是高价展示型内容的关键套组。',
+    linkedSystems: ['museum', 'goal']
+  },
+  {
+    id: 'sun_moon_trade_set',
+    label: '日月商路套组',
+    unlockTier: 'P2',
+    requiredRelicTags: ['商路遗物', '祭仪遗珍', '沙海矿藏'],
+    rewardSummary: '作为终局收藏向目标，服务瀚海赞助、跨系统主题周与高规格订单。',
+    linkedSystems: ['museum', 'quest', 'shop', 'goal']
+  }
+]
+
+export const HANHAI_BOSS_CYCLE_DEFS: HanhaiBossCycleDef[] = [
+  {
+    id: 'dune_revenant',
+    label: '沙丘遗魂',
+    unlockTier: 'P0',
+    preferredWeekOfSeason: [1],
+    threatLevel: 'standard',
+    rewardSummary: '适合作为首周热身 Boss，掉落基础商路与矿藏类战利品。',
+    linkedSystems: ['quest', 'goal']
+  },
+  {
+    id: 'glass_scorpion',
+    label: '琉沙晶蝎',
+    unlockTier: 'P1',
+    preferredWeekOfSeason: [2],
+    threatLevel: 'advanced',
+    rewardSummary: '强化绿松石、藏宝图与商店精选货架的中段承接。',
+    linkedSystems: ['shop', 'quest', 'goal']
+  },
+  {
+    id: 'sunken_colossus',
+    label: '沉碑巨像',
+    unlockTier: 'P2',
+    preferredWeekOfSeason: [3],
+    threatLevel: 'advanced',
+    rewardSummary: '面向高规格古物、博物馆展示与专题赞助的终局过渡 Boss。',
+    linkedSystems: ['museum', 'goal']
+  },
+  {
+    id: 'sandstorm_wyrm',
+    label: '沙暴龙蛇',
+    unlockTier: 'P2',
+    preferredWeekOfSeason: [4],
+    threatLevel: 'prestige',
+    rewardSummary: '作为季末终局 Boss，服务主题周高潮、终局订单与商路赞助收官。',
+    linkedSystems: ['quest', 'museum', 'goal', 'shop']
+  }
+]
+
+export const HANHAI_CARAVAN_CONTRACT_DEFS: HanhaiCaravanContractDef[] = [
+  {
+    id: 'contract_silk_relay',
+    label: '丝货接力单',
+    unlockTier: 'P0',
+    routeId: 'westbound_silk_route',
+    durationWeeks: 1,
+    costMoney: 2400,
+    cargoTags: ['丝货', '补给'],
+    riskLevel: 'low',
+    rewardSummary: '适合作为瀚海第一档合同，强调稳定押运与轻度净消耗。',
+    linkedSystems: ['shop', 'quest']
+  },
+  {
+    id: 'contract_turquoise_exchange',
+    label: '青玉互市合同',
+    unlockTier: 'P1',
+    routeId: 'turquoise_exchange_route',
+    durationWeeks: 1,
+    costMoney: 6200,
+    cargoTags: ['矿藏', '古物'],
+    riskLevel: 'medium',
+    rewardSummary: '中后期合同，承接遗迹矿藏与高规格交付的双向循环。',
+    linkedSystems: ['quest', 'museum', 'shop']
+  },
+  {
+    id: 'contract_moon_sand_patronage',
+    label: '月沙赞助合同',
+    unlockTier: 'P2',
+    routeId: 'moon_sand_ceremony_route',
+    durationWeeks: 2,
+    costMoney: 12800,
+    cargoTags: ['祭仪', '珍宝', '赞助'],
+    riskLevel: 'high',
+    rewardSummary: '终局高价合同，服务瀚海赞助、专题展与主题周收官。',
+    linkedSystems: ['museum', 'goal', 'shop']
+  }
+]
+
+export const HANHAI_SHOP_ROTATIONS: HanhaiShopRotationDef[] = [
+  {
+    id: 'rotation_frontier_supplies',
+    label: '边路补给轮换',
+    unlockTier: 'P0',
+    featuredItemIds: ['hanhai_cactus_seed', 'hanhai_date_seed', 'hanhai_spice'],
+    summary: '面向中期过渡，强化种子、香料与基础驿站消费。'
+  },
+  {
+    id: 'rotation_trade_house',
+    label: '互市精选轮换',
+    unlockTier: 'P1',
+    featuredItemIds: ['hanhai_silk', 'hanhai_turquoise', 'hanhai_map'],
+    summary: '服务中后期商路互市，放大矿藏、丝货与藏宝图的目录承接。'
+  },
+  {
+    id: 'rotation_endgame_patron',
+    label: '终局赞助轮换',
+    unlockTier: 'P2',
+    featuredItemIds: ['hanhai_map', 'mega_bomb_recipe', 'hanhai_silk'],
+    summary: '作为终局展示与高价投资的消费池，为高风险押运与终局活动预留货架。'
+  }
+]
+
 export const HANHAI_RELIC_SITES: HanhaiRelicSiteDef[] = [
   {
     id: 'sunset_ruins',
@@ -299,6 +471,477 @@ export const HANHAI_SHOP_ITEMS: HanhaiShopItemDef[] = [
   { itemId: 'hanhai_map', name: '藏宝图', price: 1000, description: '标记着荒原某处宝藏的地图。', weeklyLimit: 1 },
   { itemId: 'mega_bomb_recipe', name: '巨型炸弹配方', price: 5000, description: '据说能炸开整层矿洞的秘方。', weeklyLimit: 1 }
 ]
+
+export const HANHAI_TREASURE_MAP_REWARDS: HanhaiWeightedRewardBundle[] = [
+  {
+    id: 'weathered_cache',
+    label: '风蚀补给箱',
+    summary: '以少量铜钱配合商路补给为主，突出“寻得补给”而非直接暴富。',
+    weight: 28,
+    rewards: {
+      money: 300,
+      items: [{ itemId: 'hanhai_spice', quantity: 2 }],
+      ticketRewards: { caravan: 1 }
+    }
+  },
+  {
+    id: 'silk_way_stash',
+    label: '丝路旧货',
+    summary: '中档现金回收配合丝绸与展陈票券，适合作为中位奖励。',
+    weight: 30,
+    rewards: {
+      money: 600,
+      items: [{ itemId: 'hanhai_silk', quantity: 1 }],
+      ticketRewards: { exhibit: 1 }
+    }
+  },
+  {
+    id: 'turquoise_bundle',
+    label: '青玉货包',
+    summary: '强调矿藏与商路票的替代价值，减少直接现金返还。',
+    weight: 24,
+    rewards: {
+      money: 900,
+      items: [{ itemId: 'hanhai_turquoise', quantity: 2 }],
+      ticketRewards: { caravan: 1 }
+    }
+  },
+  {
+    id: 'moon_sand_relic',
+    label: '月沙遗珍',
+    summary: '高档奖励改为“少量现金 + 稀有素材 + 研究票券”的复合组合。',
+    weight: 12,
+    rewards: {
+      money: 1400,
+      items: [
+        { itemId: 'hanhai_turquoise', quantity: 1 },
+        { itemId: 'hanhai_spice', quantity: 2 }
+      ],
+      ticketRewards: { research: 1, exhibit: 1 }
+    }
+  },
+  {
+    id: 'mirage_vault',
+    label: '蜃景秘库',
+    summary: '最高档奖励仍保留惊喜感，但主要价值由票券与稀有货物承担。',
+    weight: 6,
+    rewards: {
+      money: 2200,
+      items: [
+        { itemId: 'hanhai_turquoise', quantity: 2 },
+        { itemId: 'hanhai_silk', quantity: 1 }
+      ],
+      ticketRewards: { caravan: 2, exhibit: 1 }
+    }
+  }
+]
+
+export const HANHAI_CASINO_SIDE_REWARD_DEFS: HanhaiCasinoSideRewardDef[] = [
+  {
+    id: 'roulette_win_none',
+    gameType: 'roulette',
+    trigger: 'win',
+    label: '围观喝彩',
+    summary: '赢下轮盘后，大多数时候只有喝彩，没有额外物资。',
+    weight: 55,
+    rewards: {}
+  },
+  {
+    id: 'roulette_win_caravan_ticket',
+    gameType: 'roulette',
+    trigger: 'win',
+    label: '筹码换票',
+    summary: '轮盘盈利有机会折算为商路票。',
+    weight: 25,
+    rewards: { ticketRewards: { caravan: 1 } }
+  },
+  {
+    id: 'roulette_win_turquoise',
+    gameType: 'roulette',
+    trigger: 'win',
+    label: '青玉彩头',
+    summary: '小概率带回绿松石作为彩头。',
+    weight: 20,
+    rewards: { items: [{ itemId: 'hanhai_turquoise', quantity: 1 }] }
+  },
+  {
+    id: 'roulette_lose_none',
+    gameType: 'roulette',
+    trigger: 'lose',
+    label: '空手而回',
+    summary: '输钱后多数情况没有额外补偿。',
+    weight: 70,
+    rewards: {}
+  },
+  {
+    id: 'roulette_lose_spice',
+    gameType: 'roulette',
+    trigger: 'lose',
+    label: '香料安慰奖',
+    summary: '偶尔拿到一份异域香料。',
+    weight: 20,
+    rewards: { items: [{ itemId: 'hanhai_spice', quantity: 1 }] }
+  },
+  {
+    id: 'roulette_lose_caravan_ticket',
+    gameType: 'roulette',
+    trigger: 'lose',
+    label: '商路安慰票',
+    summary: '低概率发放商路票，鼓励转去经营线。',
+    weight: 10,
+    rewards: { ticketRewards: { caravan: 1 } }
+  },
+  {
+    id: 'dice_win_none',
+    gameType: 'dice',
+    trigger: 'win',
+    label: '猜中收桌',
+    summary: '猜大小获胜后通常只有现金回收。',
+    weight: 60,
+    rewards: {}
+  },
+  {
+    id: 'dice_win_research_ticket',
+    gameType: 'dice',
+    trigger: 'win',
+    label: '算筹记录',
+    summary: '骰局赢面有机会折算为研究券。',
+    weight: 20,
+    rewards: { ticketRewards: { research: 1 } }
+  },
+  {
+    id: 'dice_win_spice',
+    gameType: 'dice',
+    trigger: 'win',
+    label: '赌桌香包',
+    summary: '赢面奖励可能附带一份香料。',
+    weight: 20,
+    rewards: { items: [{ itemId: 'hanhai_spice', quantity: 1 }] }
+  },
+  {
+    id: 'dice_lose_none',
+    gameType: 'dice',
+    trigger: 'lose',
+    label: '认栽离席',
+    summary: '猜错时大多直接离桌。',
+    weight: 82,
+    rewards: {}
+  },
+  {
+    id: 'dice_lose_research_ticket',
+    gameType: 'dice',
+    trigger: 'lose',
+    label: '算筹旁听券',
+    summary: '低概率获得研究券作为旁听补贴。',
+    weight: 18,
+    rewards: { ticketRewards: { research: 1 } }
+  },
+  {
+    id: 'cup_win_none',
+    gameType: 'cup',
+    trigger: 'win',
+    label: '揭杯得彩',
+    summary: '猜杯获胜后大多只回收部分现金。',
+    weight: 50,
+    rewards: {}
+  },
+  {
+    id: 'cup_win_exhibit_ticket',
+    gameType: 'cup',
+    trigger: 'win',
+    label: '展台赏票',
+    summary: '赢家有机会拿到展陈券。',
+    weight: 25,
+    rewards: { ticketRewards: { exhibit: 1 } }
+  },
+  {
+    id: 'cup_win_silk',
+    gameType: 'cup',
+    trigger: 'win',
+    label: '杯底丝货',
+    summary: '偶尔带回一匹丝绸。',
+    weight: 25,
+    rewards: { items: [{ itemId: 'hanhai_silk', quantity: 1 }] }
+  },
+  {
+    id: 'cup_lose_none',
+    gameType: 'cup',
+    trigger: 'lose',
+    label: '错杯散场',
+    summary: '猜错时多数没有补偿。',
+    weight: 85,
+    rewards: {}
+  },
+  {
+    id: 'cup_lose_exhibit_ticket',
+    gameType: 'cup',
+    trigger: 'lose',
+    label: '看客留票',
+    summary: '低概率获得展陈券，鼓励转向收藏线。',
+    weight: 15,
+    rewards: { ticketRewards: { exhibit: 1 } }
+  },
+  {
+    id: 'cricket_win_none',
+    gameType: 'cricket',
+    trigger: 'win',
+    label: '斗胜喝彩',
+    summary: '斗蛐蛐获胜后多数只有少量现金回流。',
+    weight: 50,
+    rewards: {}
+  },
+  {
+    id: 'cricket_win_caravan_ticket',
+    gameType: 'cricket',
+    trigger: 'win',
+    label: '虫局佣票',
+    summary: '赢面可以折算成商路票。',
+    weight: 25,
+    rewards: { ticketRewards: { caravan: 1 } }
+  },
+  {
+    id: 'cricket_win_spice',
+    gameType: 'cricket',
+    trigger: 'win',
+    label: '虫笼香料',
+    summary: '偶尔带回一批异域香料。',
+    weight: 25,
+    rewards: { items: [{ itemId: 'hanhai_spice', quantity: 2 }] }
+  },
+  {
+    id: 'cricket_draw_none',
+    gameType: 'cricket',
+    trigger: 'draw',
+    label: '平局散场',
+    summary: '平局时通常只退回本金。',
+    weight: 60,
+    rewards: {}
+  },
+  {
+    id: 'cricket_draw_spice',
+    gameType: 'cricket',
+    trigger: 'draw',
+    label: '平局香包',
+    summary: '平局时有机会拿到一点香料。',
+    weight: 25,
+    rewards: { items: [{ itemId: 'hanhai_spice', quantity: 1 }] }
+  },
+  {
+    id: 'cricket_draw_caravan_ticket',
+    gameType: 'cricket',
+    trigger: 'draw',
+    label: '平局周转票',
+    summary: '平局时低概率补发商路票。',
+    weight: 15,
+    rewards: { ticketRewards: { caravan: 1 } }
+  },
+  {
+    id: 'cricket_lose_none',
+    gameType: 'cricket',
+    trigger: 'lose',
+    label: '败局离场',
+    summary: '落败后大多没有补偿。',
+    weight: 90,
+    rewards: {}
+  },
+  {
+    id: 'cricket_lose_spice',
+    gameType: 'cricket',
+    trigger: 'lose',
+    label: '败者香囊',
+    summary: '偶尔发放少量香料。',
+    weight: 10,
+    rewards: { items: [{ itemId: 'hanhai_spice', quantity: 1 }] }
+  },
+  {
+    id: 'cardflip_win_none',
+    gameType: 'cardflip',
+    trigger: 'win',
+    label: '翻宝收桌',
+    summary: '翻中宝牌后大多数情况没有附加奖励。',
+    weight: 45,
+    rewards: {}
+  },
+  {
+    id: 'cardflip_win_map',
+    gameType: 'cardflip',
+    trigger: 'win',
+    label: '暗格藏宝图',
+    summary: '小概率再拿到一张藏宝图，延伸去遗迹线。',
+    weight: 15,
+    rewards: { items: [{ itemId: 'hanhai_map', quantity: 1 }] }
+  },
+  {
+    id: 'cardflip_win_turquoise',
+    gameType: 'cardflip',
+    trigger: 'win',
+    label: '翻出青玉',
+    summary: '有机会翻出绿松石。',
+    weight: 20,
+    rewards: { items: [{ itemId: 'hanhai_turquoise', quantity: 1 }] }
+  },
+  {
+    id: 'cardflip_win_exhibit_ticket',
+    gameType: 'cardflip',
+    trigger: 'win',
+    label: '奇观展票',
+    summary: '有机会折算为展陈券。',
+    weight: 20,
+    rewards: { ticketRewards: { exhibit: 1 } }
+  },
+  {
+    id: 'cardflip_lose_none',
+    gameType: 'cardflip',
+    trigger: 'lose',
+    label: '空牌作罢',
+    summary: '翻到空牌时通常没有别的收获。',
+    weight: 85,
+    rewards: {}
+  },
+  {
+    id: 'cardflip_lose_caravan_ticket',
+    gameType: 'cardflip',
+    trigger: 'lose',
+    label: '翻空补票',
+    summary: '低概率补发一张商路票。',
+    weight: 15,
+    rewards: { ticketRewards: { caravan: 1 } }
+  },
+  {
+    id: 'texas_win_none',
+    gameType: 'texas',
+    trigger: 'win',
+    label: '牌桌散场',
+    summary: '扑克收桌后大多数时候只有筹码回收。',
+    weight: 40,
+    rewards: {}
+  },
+  {
+    id: 'texas_win_caravan_ticket',
+    gameType: 'texas',
+    trigger: 'win',
+    label: '牌桌商路票',
+    summary: '扑克盈利可折算成商路票。',
+    weight: 25,
+    rewards: { ticketRewards: { caravan: 2 } }
+  },
+  {
+    id: 'texas_win_showcase_pack',
+    gameType: 'texas',
+    trigger: 'win',
+    label: '高桌陈列包',
+    summary: '偶尔带回丝货与展陈券。',
+    weight: 20,
+    rewards: {
+      items: [{ itemId: 'hanhai_silk', quantity: 1 }],
+      ticketRewards: { exhibit: 1 }
+    }
+  },
+  {
+    id: 'texas_win_map',
+    gameType: 'texas',
+    trigger: 'win',
+    label: '牌桌线索图',
+    summary: '小概率从桌友手里赢来藏宝图。',
+    weight: 15,
+    rewards: { items: [{ itemId: 'hanhai_map', quantity: 1 }] }
+  },
+  {
+    id: 'buckshot_win_none',
+    gameType: 'buckshot',
+    trigger: 'win',
+    label: '险胜散席',
+    summary: '恶魔轮盘赢下后通常没有额外奖励。',
+    weight: 50,
+    rewards: {}
+  },
+  {
+    id: 'buckshot_win_research_ticket',
+    gameType: 'buckshot',
+    trigger: 'win',
+    label: '危险实验券',
+    summary: '胜利后有机会获研究券。',
+    weight: 20,
+    rewards: { ticketRewards: { research: 1 } }
+  },
+  {
+    id: 'buckshot_win_turquoise',
+    gameType: 'buckshot',
+    trigger: 'win',
+    label: '险局青玉',
+    summary: '胜利后偶尔带回绿松石。',
+    weight: 15,
+    rewards: { items: [{ itemId: 'hanhai_turquoise', quantity: 1 }] }
+  },
+  {
+    id: 'buckshot_win_map',
+    gameType: 'buckshot',
+    trigger: 'win',
+    label: '赌坊密图',
+    summary: '小概率赢来一张藏宝图。',
+    weight: 15,
+    rewards: { items: [{ itemId: 'hanhai_map', quantity: 1 }] }
+  },
+  {
+    id: 'buckshot_draw_none',
+    gameType: 'buckshot',
+    trigger: 'draw',
+    label: '平局离场',
+    summary: '平局时大多数只有本金返还。',
+    weight: 70,
+    rewards: {}
+  },
+  {
+    id: 'buckshot_draw_caravan_ticket',
+    gameType: 'buckshot',
+    trigger: 'draw',
+    label: '平局通路票',
+    summary: '平局时有机会拿到商路票。',
+    weight: 15,
+    rewards: { ticketRewards: { caravan: 1 } }
+  },
+  {
+    id: 'buckshot_draw_exhibit_ticket',
+    gameType: 'buckshot',
+    trigger: 'draw',
+    label: '平局纪念票',
+    summary: '平局时有机会拿到展陈券。',
+    weight: 15,
+    rewards: { ticketRewards: { exhibit: 1 } }
+  },
+  {
+    id: 'buckshot_lose_none',
+    gameType: 'buckshot',
+    trigger: 'lose',
+    label: '落败退场',
+    summary: '落败时大多空手离开。',
+    weight: 90,
+    rewards: {}
+  },
+  {
+    id: 'buckshot_lose_spice',
+    gameType: 'buckshot',
+    trigger: 'lose',
+    label: '落败香囊',
+    summary: '少量香料作为安慰。',
+    weight: 10,
+    rewards: { items: [{ itemId: 'hanhai_spice', quantity: 1 }] }
+  }
+]
+
+export const pickWeightedRewardBundle = <T extends HanhaiWeightedRewardBundle>(bundles: T[]): T | null => {
+  const normalized = bundles.filter(bundle => (Number(bundle.weight) || 0) > 0)
+  if (normalized.length === 0) return null
+  const totalWeight = normalized.reduce((sum, bundle) => sum + Math.max(0, Number(bundle.weight) || 0), 0)
+  if (totalWeight <= 0) return normalized[0] ?? null
+
+  let roll = Math.random() * totalWeight
+  for (const bundle of normalized) {
+    roll -= Math.max(0, Number(bundle.weight) || 0)
+    if (roll <= 0) return bundle
+  }
+  return normalized[normalized.length - 1] ?? null
+}
 
 /** 轮盘赔率 */
 export const ROULETTE_OUTCOMES: RouletteOutcome[] = [

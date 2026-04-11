@@ -1,10 +1,13 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import {
+  HANHAI_CASINO_SIDE_REWARD_DEFS,
   HANHAI_SHOP_ITEMS,
   HANHAI_RELIC_SITES,
+  HANHAI_TREASURE_MAP_REWARDS,
   MAX_DAILY_BETS,
   HANHAI_UNLOCK_COST,
+  pickWeightedRewardBundle,
   spinRoulette,
   rollDice,
   ROULETTE_BET_TIERS,
@@ -30,20 +33,25 @@ import { getItemById } from '@/data'
 import { addLog } from '@/composables/useGameLog'
 import type {
   BuckshotSetup,
+  CasinoGameType,
   HanhaiCycleOverview,
+  HanhaiCasinoRewardTrigger,
   HanhaiProgressTier,
   HanhaiCycleState,
   HanhaiDebugSnapshot,
   HanhaiRelicRecord,
+  HanhaiRewardBundle,
   HanhaiRelicSiteSummary,
   HanhaiSaveData,
   HanhaiShopItemSummary,
+  RewardTicketType,
   TexasSetup,
   TexasTierId
 } from '@/types'
-import { useGameStore } from './useGameStore'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
+import { useSettingsStore } from './useSettingsStore'
+import { useWalletStore } from './useWalletStore'
 
 export const useHanhaiStore = defineStore('hanhai', () => {
   const unlocked = ref(false)
@@ -81,6 +89,132 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       setCollections: { ...cycleState.value.setCollections }
     }
   })
+
+  const getCasinoCashMultiplier = () => {
+    const multiplier = useSettingsStore().getLateGameBalanceConfig().casinoCashExpectationMultiplier
+    return Math.max(0, Math.min(1, Number.isFinite(Number(multiplier)) ? Number(multiplier) : 1))
+  }
+
+  const scaleCasinoCashReward = (amount: number): number => {
+    return Math.max(0, Math.floor(Math.max(0, Number(amount) || 0) * getCasinoCashMultiplier()))
+  }
+
+  const resolveBundleItemEntries = (bundle: HanhaiRewardBundle | undefined) =>
+    (bundle?.items ?? []).map(item => ({
+      itemId: item.itemId,
+      quantity: Math.max(0, Math.floor(Number(item.quantity) || 0)),
+      quality: 'normal' as const
+    })).filter(item => item.quantity > 0)
+
+  const grantRewardBundle = (
+    bundle: HanhaiRewardBundle | undefined,
+    options?: { ticketSource?: string }
+  ): {
+    money: number
+    items: { itemId: string; quantity: number; name: string }[]
+    tickets: { ticketType: RewardTicketType; quantity: number; name: string }[]
+    skippedItems: { itemId: string; quantity: number; name: string }[]
+  } => {
+    const playerStore = usePlayerStore()
+    const inventoryStore = useInventoryStore()
+    const walletStore = useWalletStore()
+    const grantedItems: { itemId: string; quantity: number; name: string }[] = []
+    const grantedTickets: { ticketType: RewardTicketType; quantity: number; name: string }[] = []
+    const skippedItems: { itemId: string; quantity: number; name: string }[] = []
+    const moneyReward = Math.max(0, Math.floor(Number(bundle?.money) || 0))
+    const itemRewards = resolveBundleItemEntries(bundle)
+
+    if (moneyReward > 0) {
+      playerStore.earnMoney(moneyReward)
+    }
+
+    if (itemRewards.length > 0) {
+      if (inventoryStore.canAddItems(itemRewards)) {
+        inventoryStore.addItemsExact(itemRewards)
+        grantedItems.push(...itemRewards.map(item => ({
+          itemId: item.itemId,
+          quantity: item.quantity,
+          name: getItemName(item.itemId)
+        })))
+      } else {
+        skippedItems.push(...itemRewards.map(item => ({
+          itemId: item.itemId,
+          quantity: item.quantity,
+          name: getItemName(item.itemId)
+        })))
+      }
+    }
+
+    const grantedTicketLedger = walletStore.addRewardTickets(bundle?.ticketRewards, {
+      source: options?.ticketSource ?? 'hanhai'
+    })
+    grantedTickets.push(
+      ...Object.entries(grantedTicketLedger).map(([ticketType, quantity]) => ({
+        ticketType: ticketType as RewardTicketType,
+        quantity: Math.max(0, Math.floor(Number(quantity) || 0)),
+        name: walletStore.getTicketLabel(ticketType as RewardTicketType)
+      })).filter(ticket => ticket.quantity > 0)
+    )
+
+    return {
+      money: moneyReward,
+      items: grantedItems,
+      tickets: grantedTickets,
+      skippedItems
+    }
+  }
+
+  const summarizeGrantedRewards = (reward: {
+    money: number
+    items: { itemId: string; quantity: number; name: string }[]
+    tickets: { ticketType: RewardTicketType; quantity: number; name: string }[]
+    skippedItems: { itemId: string; quantity: number; name: string }[]
+  }) => {
+    const grantedTexts: string[] = []
+    const skippedTexts: string[] = []
+
+    if (reward.money > 0) grantedTexts.push(`${reward.money}文`)
+    for (const item of reward.items) {
+      grantedTexts.push(`${item.name}${item.quantity > 1 ? `×${item.quantity}` : ''}`)
+    }
+    for (const ticket of reward.tickets) {
+      grantedTexts.push(`${ticket.name}${ticket.quantity > 1 ? `×${ticket.quantity}` : ''}`)
+    }
+    for (const item of reward.skippedItems) {
+      skippedTexts.push(`${item.name}${item.quantity > 1 ? `×${item.quantity}` : ''}`)
+    }
+
+    return {
+      grantedTexts,
+      skippedTexts
+    }
+  }
+
+  const pickCasinoSideReward = (gameType: CasinoGameType, trigger: HanhaiCasinoRewardTrigger) => {
+    return pickWeightedRewardBundle(
+      HANHAI_CASINO_SIDE_REWARD_DEFS.filter(def => def.gameType === gameType && def.trigger === trigger)
+    )
+  }
+
+  const settleCasinoRewards = (gameType: CasinoGameType, trigger: HanhaiCasinoRewardTrigger, baseCashReward: number) => {
+    const directMoney = scaleCasinoCashReward(baseCashReward)
+    const sideRewardDef = pickCasinoSideReward(gameType, trigger)
+    const rewardSummary = grantRewardBundle(
+      {
+        money: directMoney,
+        items: sideRewardDef?.rewards.items,
+        ticketRewards: sideRewardDef?.rewards.ticketRewards
+      },
+      { ticketSource: `hanhai_${gameType}_${trigger}` }
+    )
+
+    return {
+      directMoney,
+      sideRewardDef,
+      rewardSummary,
+      rewardTexts: summarizeGrantedRewards(rewardSummary)
+    }
+  }
 
   const canBet = computed(() => casinoBetsToday.value < MAX_DAILY_BETS)
   const betsRemaining = computed(() => MAX_DAILY_BETS - casinoBetsToday.value)
@@ -281,31 +415,12 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
   const useTreasureMap = (): { success: boolean; message: string; rewards: { name: string; quantity: number }[] } => {
     const inventoryStore = useInventoryStore()
-    const roll = Math.random()
-    const rewards: { itemId: string; name: string; quantity: number }[] = []
-    const itemRewards: { itemId: string; quantity: number; quality: 'normal' }[] = []
-    let moneyReward = 0
-
-    if (roll < 0.05) {
-      moneyReward = 5000
-      rewards.push({ itemId: '', name: '5000文', quantity: 1 })
-      rewards.push({ itemId: 'hanhai_turquoise', name: '绿松石', quantity: 2 })
-      itemRewards.push({ itemId: 'hanhai_turquoise', quantity: 2, quality: 'normal' })
-    } else if (roll < 0.2) {
-      moneyReward = 2000
-      rewards.push({ itemId: '', name: '2000文', quantity: 1 })
-      rewards.push({ itemId: 'hanhai_spice', name: '西域香料', quantity: 3 })
-      itemRewards.push({ itemId: 'hanhai_spice', quantity: 3, quality: 'normal' })
-    } else if (roll < 0.45) {
-      moneyReward = 1000
-      rewards.push({ itemId: '', name: '1000文', quantity: 1 })
-      rewards.push({ itemId: 'hanhai_silk', name: '丝绸', quantity: 1 })
-      itemRewards.push({ itemId: 'hanhai_silk', quantity: 1, quality: 'normal' })
-    } else {
-      moneyReward = 500
-      rewards.push({ itemId: '', name: '500文', quantity: 1 })
+    const bundle = pickWeightedRewardBundle(HANHAI_TREASURE_MAP_REWARDS)
+    if (!bundle) {
+      return { success: false, message: '藏宝图奖励配置缺失。', rewards: [] }
     }
 
+    const itemRewards = resolveBundleItemEntries(bundle.rewards)
     if (itemRewards.length > 0 && !inventoryStore.canAddItems(itemRewards)) {
       return { success: false, message: '背包空间不足，暂时无法使用藏宝图。', rewards: [] }
     }
@@ -313,17 +428,27 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       return { success: false, message: '没有藏宝图。', rewards: [] }
     }
 
-    const playerStore = usePlayerStore()
-    if (moneyReward > 0) playerStore.earnMoney(moneyReward)
-    if (itemRewards.length > 0) inventoryStore.addItemsExact(itemRewards)
+    const rewardSummary = grantRewardBundle(bundle.rewards, { ticketSource: 'hanhai_treasure_map' })
+    const rewardTexts = summarizeGrantedRewards(rewardSummary)
+    const rewards: { name: string; quantity: number }[] = []
+    if (rewardSummary.money > 0) {
+      rewards.push({ name: `${rewardSummary.money}文`, quantity: 1 })
+    }
+    rewards.push(...rewardSummary.items.map(item => ({ name: item.name, quantity: item.quantity })))
+    rewards.push(...rewardSummary.tickets.map(ticket => ({ name: ticket.name, quantity: ticket.quantity })))
 
-    const rewardText = rewards.map(r => r.name + (r.quantity > 1 ? `×${r.quantity}` : '')).join('、')
-    addLog(`使用藏宝图寻宝，发现了：${rewardText}！`, {
+    const rewardText = rewardTexts.grantedTexts.join('、') || bundle.label
+    const skippedText = rewardTexts.skippedTexts.length > 0 ? ` 背包已满，未带走${rewardTexts.skippedTexts.join('、')}。` : ''
+    addLog(`使用藏宝图寻宝，发现了：${rewardText}！${skippedText}`, {
       category: 'hanhai',
       tags: ['hanhai_treasure_map'],
-      meta: { rewardCount: rewards.length, moneyReward }
+      meta: { rewardCount: rewards.length, moneyReward: rewardSummary.money, rewardBundleId: bundle.id }
     })
-    return { success: true, message: `寻宝成功！获得：${rewardText}`, rewards }
+    return {
+      success: true,
+      message: `寻宝成功！获得：${rewardText}${skippedText}`,
+      rewards
+    }
   }
 
   const playRoulette = (betTier: number): { success: boolean; message: string; multiplier: number; winnings: number } => {
@@ -339,13 +464,18 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
     casinoBetsToday.value++
     const outcome = spinRoulette()
-    const winnings = Math.floor(betTier * outcome.multiplier)
-    if (winnings > 0) playerStore.earnMoney(winnings)
+    const settlement = settleCasinoRewards('roulette', outcome.multiplier > 0 ? 'win' : 'lose', Math.floor(betTier * outcome.multiplier))
+    const winnings = settlement.directMoney
 
     if (outcome.multiplier === 0) {
-      addLog(`轮盘停在了"${outcome.label}"，损失了${betTier}文。`)
+      const extraText = settlement.rewardTexts.grantedTexts.length > 0 ? ` 安慰收获：${settlement.rewardTexts.grantedTexts.join('、')}。` : ''
+      const skippedText = settlement.rewardTexts.skippedTexts.length > 0 ? ` 背包已满，未带走${settlement.rewardTexts.skippedTexts.join('、')}。` : ''
+      addLog(`轮盘停在了"${outcome.label}"，损失了${betTier}文。${extraText}${skippedText}`)
     } else {
-      addLog(`轮盘停在了"${outcome.label}"！赢得${winnings}文！`)
+      const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${winnings}文`)
+      const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
+      const skippedText = settlement.rewardTexts.skippedTexts.length > 0 ? ` 背包已满，未带走${settlement.rewardTexts.skippedTexts.join('、')}。` : ''
+      addLog(`轮盘停在了"${outcome.label}"！按赌坊折算赢得${winnings}文！${extraText}${skippedText}`)
     }
     return { success: true, message: `轮盘停在了"${outcome.label}"`, multiplier: outcome.multiplier, winnings }
   }
@@ -361,14 +491,18 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     casinoBetsToday.value++
     const result = rollDice()
     const won = guessBig === result.isBig
-    const winnings = won ? DICE_BET_AMOUNT * 2 : 0
-    if (won) playerStore.earnMoney(winnings)
+    const settlement = settleCasinoRewards('dice', won ? 'win' : 'lose', won ? DICE_BET_AMOUNT * 2 : 0)
+    const winnings = settlement.directMoney
     const guessText = guessBig ? '大' : '小'
     const resultText = result.isBig ? '大' : '小'
     if (won) {
-      addLog(`骰子${result.dice1}+${result.dice2}=${result.total}（${resultText}），你猜${guessText}——赢了${winnings}文！`)
+      const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${winnings}文`)
+      const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
+      const skippedText = settlement.rewardTexts.skippedTexts.length > 0 ? ` 背包已满，未带走${settlement.rewardTexts.skippedTexts.join('、')}。` : ''
+      addLog(`骰子${result.dice1}+${result.dice2}=${result.total}（${resultText}），你猜${guessText}——按赌坊折算赢了${winnings}文！${extraText}${skippedText}`)
     } else {
-      addLog(`骰子${result.dice1}+${result.dice2}=${result.total}（${resultText}），你猜${guessText}——输了${DICE_BET_AMOUNT}文。`)
+      const extraText = settlement.rewardTexts.grantedTexts.length > 0 ? ` 安慰收获：${settlement.rewardTexts.grantedTexts.join('、')}。` : ''
+      addLog(`骰子${result.dice1}+${result.dice2}=${result.total}（${resultText}），你猜${guessText}——输了${DICE_BET_AMOUNT}文。${extraText}`)
     }
     return { success: true, message: won ? '赢了！' : '输了…', dice1: result.dice1, dice2: result.dice2, won, winnings }
   }
@@ -382,12 +516,16 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     casinoBetsToday.value++
     const result = playCupRound()
     const won = guess === result.correctCup
-    const winnings = won ? Math.floor(CUP_BET_AMOUNT * CUP_WIN_MULTIPLIER) : 0
+    const settlement = settleCasinoRewards('cup', won ? 'win' : 'lose', won ? Math.floor(CUP_BET_AMOUNT * CUP_WIN_MULTIPLIER) : 0)
+    const winnings = settlement.directMoney
     if (won) {
-      playerStore.earnMoney(winnings)
-      addLog(`猜杯猜中了第${guess + 1}号杯！赢得${winnings}文！`)
+      const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${winnings}文`)
+      const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
+      const skippedText = settlement.rewardTexts.skippedTexts.length > 0 ? ` 背包已满，未带走${settlement.rewardTexts.skippedTexts.join('、')}。` : ''
+      addLog(`猜杯猜中了第${guess + 1}号杯！按赌坊折算赢得${winnings}文！${extraText}${skippedText}`)
     } else {
-      addLog(`猜杯猜错了，球在第${result.correctCup + 1}号杯下，损失了${CUP_BET_AMOUNT}文。`)
+      const extraText = settlement.rewardTexts.grantedTexts.length > 0 ? ` 留下了${settlement.rewardTexts.grantedTexts.join('、')}。` : ''
+      addLog(`猜杯猜错了，球在第${result.correctCup + 1}号杯下，损失了${CUP_BET_AMOUNT}文。${extraText}`)
     }
     return { success: true, message: won ? '猜中了！' : '猜错了…', correctCup: result.correctCup, won, winnings }
   }
@@ -406,14 +544,19 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     const result = fightCricket()
     const won = result.playerPower > result.opponentPower
     const draw = result.playerPower === result.opponentPower
-    const winnings = won ? Math.floor(CRICKET_BET_AMOUNT * CRICKET_WIN_MULTIPLIER) : draw ? CRICKET_BET_AMOUNT : 0
-    if (won || draw) playerStore.earnMoney(winnings)
+    const settlement = settleCasinoRewards('cricket', won ? 'win' : draw ? 'draw' : 'lose', won ? Math.floor(CRICKET_BET_AMOUNT * CRICKET_WIN_MULTIPLIER) : draw ? CRICKET_BET_AMOUNT : 0)
+    const winnings = settlement.directMoney
     if (won) {
-      addLog(`斗蛐蛐（${cricketId}）：力量${result.playerPower}对${result.opponentPower}，大获全胜！赢得${winnings}文！`)
+      const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${winnings}文`)
+      const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
+      addLog(`斗蛐蛐（${cricketId}）：力量${result.playerPower}对${result.opponentPower}，大获全胜！按赌坊折算赢得${winnings}文！${extraText}`)
     } else if (draw) {
-      addLog(`斗蛐蛐（${cricketId}）：力量${result.playerPower}对${result.opponentPower}，平局，退还${CRICKET_BET_AMOUNT}文。`)
+      const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${winnings}文`)
+      const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
+      addLog(`斗蛐蛐（${cricketId}）：力量${result.playerPower}对${result.opponentPower}，平局，按赌坊折算退还${winnings}文。${extraText}`)
     } else {
-      addLog(`斗蛐蛐（${cricketId}）：力量${result.playerPower}对${result.opponentPower}，败下阵来，损失${CRICKET_BET_AMOUNT}文。`)
+      const extraText = settlement.rewardTexts.grantedTexts.length > 0 ? ` 安慰收获：${settlement.rewardTexts.grantedTexts.join('、')}。` : ''
+      addLog(`斗蛐蛐（${cricketId}）：力量${result.playerPower}对${result.opponentPower}，败下阵来，损失${CRICKET_BET_AMOUNT}文。${extraText}`)
     }
     return {
       success: true,
@@ -435,12 +578,15 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     casinoBetsToday.value++
     const result = dealCards()
     const won = result.treasures.includes(pick)
-    const winnings = won ? Math.floor(CARD_BET_AMOUNT * CARD_WIN_MULTIPLIER) : 0
+    const settlement = settleCasinoRewards('cardflip', won ? 'win' : 'lose', won ? Math.floor(CARD_BET_AMOUNT * CARD_WIN_MULTIPLIER) : 0)
+    const winnings = settlement.directMoney
     if (won) {
-      playerStore.earnMoney(winnings)
-      addLog(`翻牌寻宝翻到了宝牌！赢得${winnings}文！`)
+      const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${winnings}文`)
+      const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
+      addLog(`翻牌寻宝翻到了宝牌！按赌坊折算赢得${winnings}文！${extraText}`)
     } else {
-      addLog(`翻牌寻宝翻到了空牌，损失了${CARD_BET_AMOUNT}文。`)
+      const extraText = settlement.rewardTexts.grantedTexts.length > 0 ? ` 安慰收获：${settlement.rewardTexts.grantedTexts.join('、')}。` : ''
+      addLog(`翻牌寻宝翻到了空牌，损失了${CARD_BET_AMOUNT}文。${extraText}`)
     }
     return { success: true, message: won ? '翻到宝了！' : '空牌…', treasures: result.treasures, won, winnings }
   }
@@ -469,9 +615,13 @@ export const useHanhaiStore = defineStore('hanhai', () => {
   }
 
   const endTexas = (finalChips: number, tierName: string) => {
-    const playerStore = usePlayerStore()
-    if (finalChips > 0) playerStore.earnMoney(finalChips)
-    addLog(`瀚海扑克（${tierName}）结束，收回筹码${finalChips}文。`)
+    const tier = getTexasTier(tierName === '新手场' ? 'beginner' : tierName === '普通场' ? 'normal' : 'expert')
+    const trigger: HanhaiCasinoRewardTrigger = finalChips > tier.entryFee ? 'win' : finalChips > 0 ? 'draw' : 'lose'
+    const settlement = settleCasinoRewards('texas', trigger, finalChips)
+    const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${settlement.directMoney}文`)
+    const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
+    const skippedText = settlement.rewardTexts.skippedTexts.length > 0 ? ` 背包已满，未带走${settlement.rewardTexts.skippedTexts.join('、')}。` : ''
+    addLog(`瀚海扑克（${tierName}）结束，按赌坊折算结算${settlement.directMoney}文。${extraText}${skippedText}`)
   }
 
   const startBuckshot = (): { success: boolean; message: string } & Partial<BuckshotSetup> => {
@@ -491,15 +641,20 @@ export const useHanhaiStore = defineStore('hanhai', () => {
   }
 
   const endBuckshot = (won: boolean, draw: boolean) => {
-    const playerStore = usePlayerStore()
+    const trigger: HanhaiCasinoRewardTrigger = won ? 'win' : draw ? 'draw' : 'lose'
+    const baseReward = won ? BUCKSHOT_BET_AMOUNT * BUCKSHOT_WIN_MULTIPLIER : draw ? BUCKSHOT_BET_AMOUNT : 0
+    const settlement = settleCasinoRewards('buckshot', trigger, baseReward)
     if (won) {
-      playerStore.earnMoney(BUCKSHOT_BET_AMOUNT * BUCKSHOT_WIN_MULTIPLIER)
-      addLog(`恶魔轮盘胜利！赢得${BUCKSHOT_BET_AMOUNT * BUCKSHOT_WIN_MULTIPLIER}文！`)
+      const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${settlement.directMoney}文`)
+      const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
+      addLog(`恶魔轮盘胜利！按赌坊折算赢得${settlement.directMoney}文！${extraText}`)
     } else if (draw) {
-      playerStore.earnMoney(BUCKSHOT_BET_AMOUNT)
-      addLog(`恶魔轮盘平局，退还${BUCKSHOT_BET_AMOUNT}文。`)
+      const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${settlement.directMoney}文`)
+      const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
+      addLog(`恶魔轮盘平局，按赌坊折算退还${settlement.directMoney}文。${extraText}`)
     } else {
-      addLog(`恶魔轮盘落败，损失了${BUCKSHOT_BET_AMOUNT}文。`)
+      const extraText = settlement.rewardTexts.grantedTexts.length > 0 ? ` 安慰收获：${settlement.rewardTexts.grantedTexts.join('、')}。` : ''
+      addLog(`恶魔轮盘落败，损失了${BUCKSHOT_BET_AMOUNT}文。${extraText}`)
     }
   }
 

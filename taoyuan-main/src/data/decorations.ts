@@ -210,6 +210,107 @@ export const DECORATIONS: DecorationDef[] = [
     price: 5000,
     maxCount: 1,
     unlockBeauty: 150
+  },
+  // === 商店目录联动专属陈设 ===
+  {
+    id: 'catalog_bamboo_screen',
+    name: '竹影屏风',
+    category: 'misc',
+    description: '来自商店目录的专属陈设，会自动进入家园展示位。',
+    beautyScore: 10,
+    price: 880,
+    maxCount: 1,
+    unlockBeauty: 9999
+  },
+  {
+    id: 'catalog_tea_table',
+    name: '清茶小案',
+    category: 'misc',
+    description: '适合摆放茶具的雅致案几，会自动计入展示收藏。',
+    beautyScore: 8,
+    price: 760,
+    maxCount: 1,
+    unlockBeauty: 9999
+  },
+  {
+    id: 'catalog_clay_vase',
+    name: '素陶花瓶',
+    category: 'misc',
+    description: '商店目录限定的素陶摆件。',
+    beautyScore: 6,
+    price: 520,
+    maxCount: 1,
+    unlockBeauty: 9999
+  },
+  {
+    id: 'catalog_stone_lantern',
+    name: '庭院石灯',
+    category: 'stone',
+    description: '可直接摆入庭院的商店目录石灯。',
+    beautyScore: 14,
+    price: 1280,
+    maxCount: 1,
+    unlockBeauty: 9999
+  },
+  {
+    id: 'catalog_guest_wine_rack',
+    name: '迎宾酒架',
+    category: 'misc',
+    description: '适合陈列佳酿与宴席纪念物的小型酒架。',
+    beautyScore: 16,
+    price: 1580,
+    maxCount: 1,
+    unlockBeauty: 9999
+  },
+  {
+    id: 'catalog_scholar_shelf',
+    name: '书香高架',
+    category: 'misc',
+    description: '每周精选中的书卷陈设，会直接补充家园展示分。',
+    beautyScore: 18,
+    price: 1680,
+    maxCount: 1,
+    unlockBeauty: 9999
+  },
+  {
+    id: 'catalog_festival_lantern',
+    name: '彩绸灯笼',
+    category: 'light',
+    description: '节庆限定彩灯，可直接带来家园展示反馈。',
+    beautyScore: 14,
+    price: 1180,
+    maxCount: 1,
+    unlockBeauty: 9999
+  },
+  {
+    id: 'catalog_blossom_arch',
+    name: '花朝拱门',
+    category: 'plant',
+    description: '春日限定拱门，适合作为展示型消费的入口。',
+    beautyScore: 26,
+    price: 1880,
+    maxCount: 1,
+    unlockBeauty: 9999
+  },
+  {
+    id: 'catalog_flower_cart',
+    name: '花市巡游车',
+    category: 'plant',
+    description: '节庆花车陈设，可直接提升家园美观度。',
+    beautyScore: 24,
+    price: 4200,
+    maxCount: 1,
+    unlockBeauty: 9999
+  },
+  {
+    id: 'catalog_courtyard_stage',
+    name: '绮彩堂台',
+    category: 'misc',
+    description: '终局展示型舞台摆设，会显著提升家园展示价值。',
+    beautyScore: 36,
+    price: 26000,
+    maxCount: 1,
+    unlockBeauty: 9999
   }
 ]
 

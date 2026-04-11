@@ -432,6 +432,13 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
   const getMaintenanceState = (projectId: string) => maintenanceStates.value[projectId]
   const getDonationState = (projectId: string) => donationStates.value[projectId]
 
+  const isMaintenanceEffectActive = (projectId: string) => {
+    const project = getProject(projectId)
+    if (!project?.maintenancePlan) return true
+    const state = normalizeMaintenanceState(projectId, maintenanceStates.value[projectId])
+    return state?.status === 'active'
+  }
+
   const getProjectMaintenanceSummary = (projectId: string): VillageProjectMaintenanceSummary | undefined => {
     const project = getProject(projectId)
     if (!project?.maintenancePlan) return undefined
@@ -750,15 +757,40 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     })
   }
 
-  const markMaintenanceOverdue = (projectId: string, pendingCycles: number = 1) => {
+  const markMaintenanceOverdue = (projectId: string, pendingCycles: number = 1, nextDueDayTag?: string) => {
     return updateMaintenanceState(projectId, {
       status: 'overdue',
-      pendingCycles: Math.max(pendingCycles, 0)
+      pendingCycles: Math.max(pendingCycles, 0),
+      nextDueDayTag
     })
   }
 
   const deactivateMaintenancePlan = (projectId: string) => {
     return updateMaintenanceState(projectId, { status: 'inactive' })
+  }
+
+  const payProjectMaintenance = (projectId: string) => {
+    const summary = getProjectMaintenanceSummary(projectId)
+    if (!summary) return { success: false, message: '该项目没有维护计划。' }
+    if (!summary.unlocked) return { success: false, message: '需要先完成该建设项目。' }
+    if (summary.active && summary.state.nextDueDayTag && !isDayTagReached(summary.state.nextDueDayTag, getCurrentDayTag())) {
+      return { success: false, message: '当前维护仍在生效，无需提前续费。' }
+    }
+
+    const maintenanceCost = Math.max(0, Math.floor(summary.plan.costMoney))
+    if (!playerStore.spendMoney(maintenanceCost, 'villageProject')) {
+      return { success: false, message: `铜钱不足（需要${maintenanceCost}文）。` }
+    }
+
+    playerStore.recordSinkSpend(maintenanceCost, 'maintenance')
+    const nextDueDayTag = addDaysToDayTag(getCurrentDayTag(), summary.plan.cycleDays)
+    activateMaintenancePlan(projectId, nextDueDayTag)
+    addLog(`【村庄建设】已为${getProject(projectId)?.name ?? projectId}支付${maintenanceCost}文维护费，下次维护日：${nextDueDayTag}。`, {
+      category: 'village',
+      tags: ['village_project_maintenance_cycle', 'late_game_cycle'],
+      meta: { projectId, costMoney: maintenanceCost, nextDueDayTag }
+    })
+    return { success: true, message: `已启用维护：下次维护日 ${nextDueDayTag}` }
   }
 
   const donateToProject = (projectId: string, itemId: string, amount: number) => {
@@ -841,24 +873,24 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
       const state = normalizeMaintenanceState(project.id, maintenanceStates.value[project.id])
       if (!state) continue
 
-      if (!state.nextDueDayTag) {
-        const nextDueDayTag = addDaysToDayTag(currentDayTag, project.maintenancePlan.cycleDays)
-        activateMaintenancePlan(project.id, nextDueDayTag)
-        maintenanceEvents.push(`【村庄建设】${project.name}已纳入维护排期，下次维护日：${nextDueDayTag}。`)
+      if (state.status === 'inactive' && !state.nextDueDayTag) {
         continue
       }
+
+      if (!state.nextDueDayTag) continue
 
       if (!isDayTagReached(state.nextDueDayTag, currentDayTag)) continue
 
       const maintenanceCost = Math.max(0, Math.floor(project.maintenancePlan.costMoney))
-      if (state.autoRenew && maintenanceCost > 0 && playerStore.spendMoney(maintenanceCost, 'villageProject')) {
+      if (state.status === 'active' && state.autoRenew && maintenanceCost > 0 && playerStore.spendMoney(maintenanceCost, 'villageProject')) {
         playerStore.recordSinkSpend(maintenanceCost, 'maintenance')
         const nextDueDayTag = addDaysToDayTag(currentDayTag, project.maintenancePlan.cycleDays)
         activateMaintenancePlan(project.id, nextDueDayTag)
         maintenanceEvents.push(`【村庄建设】已为${project.name}自动支付${maintenanceCost}文维护费，下次维护日：${nextDueDayTag}。`)
       } else {
         const pendingCycles = Math.max(1, state.pendingCycles + 1)
-        markMaintenanceOverdue(project.id, pendingCycles)
+        const nextDueDayTag = addDaysToDayTag(state.nextDueDayTag, project.maintenancePlan.cycleDays)
+        markMaintenanceOverdue(project.id, pendingCycles, nextDueDayTag)
         maintenanceEvents.push(`【村庄建设】${project.name}的${project.maintenancePlan.label}已逾期，待补维护周期：${pendingCycles}。`)
       }
     }
@@ -960,7 +992,7 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
   }
 
   const completedUnlockEffects = computed<VillageProjectUnlockEffect[]>(() => {
-    return projects.value.filter(project => project.completed).flatMap(project => project.unlockEffects)
+    return projects.value.filter(project => project.completed && isMaintenanceEffectActive(project.id)).flatMap(project => project.unlockEffects)
   })
 
   const getCompletedEffectTotal = (effectType: VillageProjectUnlockEffect['type']) => {
@@ -1070,6 +1102,8 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     activateMaintenancePlan,
     markMaintenanceOverdue,
     deactivateMaintenancePlan,
+    payProjectMaintenance,
+    isMaintenanceEffectActive,
     processOperationalTick,
     donateToProject,
     claimDonationMilestone,

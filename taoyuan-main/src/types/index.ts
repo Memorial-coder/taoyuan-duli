@@ -24,17 +24,30 @@ export * from './wallet'
 export * from './villageProject'
 export * from './analytics'
 export * from './log'
+export * from './shopCatalog'
 export type {
   BudgetChannelId,
+  WeeklyBudgetChannelId,
   MaintenanceTargetType,
   MaintenancePlan,
+  BudgetChannelEffect,
+  WeeklyBudgetTierDef,
+  WeeklyBudgetChannelDef,
+  WeeklyBudgetSelection,
+  WeeklyBudgetPlan,
+  WeeklyBudgetArchive,
   RewardTicketType,
+  RewardTicketLedger,
+  RewardTicketDefinition,
+  RewardTicketExchangeOffer,
   WeeklySettlementSummary,
   ProsperityScoreBreakdownEntry,
   ProsperityScoreBreakdown,
   LateGameBudgetReturnCurve,
   LateGameBalanceConfig,
   LateGameBalanceOverride,
+  WealthTierConfig,
+  WealthTierAssessment,
   QaCaseDef,
   ReleaseChecklistItem,
   CompensationPlan,

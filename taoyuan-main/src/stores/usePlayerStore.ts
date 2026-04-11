@@ -16,6 +16,7 @@ import { useAchievementStore } from './useAchievementStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useMiningStore } from './useMiningStore'
 import { useGuildStore } from './useGuildStore'
+import { useWarehouseStore } from './useWarehouseStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { ECONOMY_AUDIT_CONFIG, ECONOMY_TUNING_CONFIG } from '@/data/market'
@@ -136,6 +137,8 @@ const normalizeEconomyTelemetry = (data: Partial<EconomyTelemetryState> | undefi
 export const usePlayerStore = defineStore('player', () => {
   const playerName = ref('未命名')
   const gender = ref<Gender>('male')
+  const inventoryStore = useInventoryStore()
+  const warehouseStore = useWarehouseStore()
   /** 旧存档加载后需要设置身份（不持久化） */
   const needsIdentitySetup = ref(false)
   const money = ref(500)
@@ -360,7 +363,7 @@ export const usePlayerStore = defineStore('player', () => {
   const getTotalAssetValue = () => {
     const inventoryAssetValue = getInventoryAssetValue(inventoryStore.items)
     const tempInventoryAssetValue = getInventoryAssetValue(inventoryStore.tempItems ?? [])
-    const warehouseAssetValue = warehouseStore.chests.reduce((sum, chest) => sum + getInventoryAssetValue(chest.items ?? []), 0)
+    const warehouseAssetValue = warehouseStore.chests.reduce((sum: number, chest: { items?: InventoryItem[] }) => sum + getInventoryAssetValue(chest.items ?? []), 0)
     return money.value + inventoryAssetValue + tempInventoryAssetValue + warehouseAssetValue
   }
 

@@ -1,4 +1,8 @@
+import type { RewardTicketLedger } from './economy'
+
 export type HanhaiProgressTier = 'P0' | 'P1' | 'P2'
+export type HanhaiLinkedSystem = 'quest' | 'shop' | 'museum' | 'goal'
+export type HanhaiBossThreatLevel = 'standard' | 'advanced' | 'prestige'
 
 export interface HanhaiRouteInvestmentDef {
   id: string
@@ -7,6 +11,9 @@ export interface HanhaiRouteInvestmentDef {
   costMoney: number
   riskLevel: 'low' | 'medium' | 'high'
   rewardSummary: string
+  weeklyYieldSummary?: string
+  linkedSystems?: HanhaiLinkedSystem[]
+  favoredCargoTags?: string[]
 }
 
 export interface HanhaiRouteInvestmentState {
@@ -19,6 +26,46 @@ export interface HanhaiSetCollectionState {
   setId: string
   collectedRelicTags: string[]
   completed: boolean
+}
+
+export interface HanhaiRelicSetDef {
+  id: string
+  label: string
+  unlockTier: HanhaiProgressTier
+  requiredRelicTags: string[]
+  rewardSummary: string
+  linkedSystems?: HanhaiLinkedSystem[]
+}
+
+export interface HanhaiBossCycleDef {
+  id: string
+  label: string
+  unlockTier: HanhaiProgressTier
+  preferredWeekOfSeason: number[]
+  threatLevel: HanhaiBossThreatLevel
+  rewardSummary: string
+  linkedSystems?: HanhaiLinkedSystem[]
+}
+
+export interface HanhaiCaravanContractDef {
+  id: string
+  label: string
+  unlockTier: HanhaiProgressTier
+  routeId: string
+  durationWeeks: number
+  costMoney: number
+  cargoTags: string[]
+  riskLevel: 'low' | 'medium' | 'high'
+  rewardSummary: string
+  linkedSystems?: HanhaiLinkedSystem[]
+}
+
+export interface HanhaiShopRotationDef {
+  id: string
+  label: string
+  unlockTier: HanhaiProgressTier
+  featuredItemIds: string[]
+  summary: string
 }
 
 export interface HanhaiCycleState {
@@ -74,9 +121,28 @@ export interface HanhaiDebugSnapshot {
   cycleState: HanhaiCycleState
 }
 
-export interface HanhaiRelicReward {
+export interface HanhaiRewardBundle {
   money?: number
   items?: { itemId: string; quantity: number }[]
+  ticketRewards?: RewardTicketLedger
+}
+
+export interface HanhaiWeightedRewardBundle {
+  id: string
+  label: string
+  summary: string
+  weight: number
+  rewards: HanhaiRewardBundle
+}
+
+export type HanhaiCasinoRewardTrigger = 'win' | 'lose' | 'draw'
+
+export interface HanhaiCasinoSideRewardDef extends HanhaiWeightedRewardBundle {
+  gameType: CasinoGameType
+  trigger: HanhaiCasinoRewardTrigger
+}
+
+export interface HanhaiRelicReward extends HanhaiRewardBundle {
 }
 
 export interface HanhaiRelicSiteDef {

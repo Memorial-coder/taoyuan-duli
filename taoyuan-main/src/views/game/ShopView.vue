@@ -76,6 +76,99 @@
           </div>
         </div>
 
+        <div v-if="!shopStore.currentShopId" class="border border-warning/20 rounded-xs p-3 mb-3">
+          <div class="flex items-center justify-between mb-2 gap-2">
+            <div class="flex items-center gap-1.5 text-sm text-warning">
+              <Filter :size="14" />
+              <span>市场轮换看板</span>
+            </div>
+            <span class="text-xs text-muted">{{ marketOverview.phaseLabel }}</span>
+          </div>
+          <p class="text-xs text-muted mb-2">{{ marketOverview.phaseDescription }}</p>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mb-2">
+            <div class="border border-warning/10 rounded-xs px-2 py-2 bg-bg/20">
+              <p class="text-[10px] text-muted">本周热点</p>
+              <p class="text-xs text-warning mt-0.5">
+                {{ marketOverview.hotspotCategoryLabels.length > 0 ? marketOverview.hotspotCategoryLabels.slice(0, 3).join('、') : '等待热点刷新' }}
+              </p>
+              <p class="text-[10px] text-muted mt-1">当前热点 {{ marketOverview.hotspotCount }} 项</p>
+            </div>
+            <div class="border border-warning/10 rounded-xs px-2 py-2 bg-bg/20">
+              <p class="text-[10px] text-muted">地区收购</p>
+              <p class="text-xs text-text mt-0.5">
+                {{ marketRegionalProcurementCards.length > 0 ? marketRegionalProcurementCards.map(item => item.districtLabel).join('、') : '本周暂无地区收购' }}
+              </p>
+              <p class="text-[10px] text-muted mt-1">活跃合同 {{ marketOverview.regionalProcurementCount }} 份</p>
+            </div>
+            <div class="border border-warning/10 rounded-xs px-2 py-2 bg-bg/20">
+              <p class="text-[10px] text-muted">路线建议</p>
+              <p class="text-xs text-success mt-0.5">
+                {{ marketRecommendedRouteCards.length > 0 ? marketRecommendedRouteCards.map(route => route.label).join('、') : '先观察热点后再切换出货方向' }}
+              </p>
+              <p class="text-[10px] text-muted mt-1">过剩压制 {{ marketOverview.overflowPenaltyCount }} 项</p>
+            </div>
+          </div>
+
+          <div v-if="marketThemeEncouragementSummary" class="border border-success/20 rounded-xs px-2 py-2 mb-2 bg-success/5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[10px] text-success">主题承接</p>
+              <span class="text-[10px] text-muted">×{{ marketThemeEncouragementSummary.rewardMultiplier.toFixed(2) }}</span>
+            </div>
+            <p class="text-xs text-muted mt-1">
+              {{ marketThemeEncouragementSummary.categories.length > 0 ? marketThemeEncouragementSummary.categories.join('、') : '综合品类' }}
+            </p>
+            <p v-if="marketThemeEncouragementSummary.tags.length > 0" class="text-[10px] text-success/80 mt-1">
+              推荐标签：{{ marketThemeEncouragementSummary.tags.slice(0, 4).join('、') }}
+            </p>
+          </div>
+
+          <div v-if="marketPositiveHighlights.length > 0" class="border border-success/20 rounded-xs px-2 py-2 mb-2 bg-success/5">
+            <p class="text-[10px] text-success mb-1">上涨机会</p>
+            <div class="flex flex-wrap gap-1.5">
+              <span v-for="info in marketPositiveHighlights" :key="`positive-${info.category}`" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-success/20 text-success">
+                {{ MARKET_CATEGORY_NAMES[info.category] }} · {{ TREND_NAMES[info.trend] }} ×{{ info.multiplier.toFixed(2) }}
+              </span>
+            </div>
+          </div>
+
+          <div v-if="marketRegionalProcurementCards.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2 bg-bg/10">
+            <p class="text-[10px] text-accent mb-1">地区收购详情</p>
+            <div class="space-y-1.5">
+              <div v-for="entry in marketRegionalProcurementCards" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-xs text-text">{{ entry.districtLabel }}</p>
+                  <span class="text-[10px] text-accent">×{{ entry.rewardMultiplier.toFixed(2) }}</span>
+                </div>
+                <p class="text-[10px] text-muted mt-1">需求：{{ entry.targetCategoryLabels.join(' / ') }}</p>
+                <p class="text-[10px] text-muted/70 mt-0.5">截至：{{ entry.expiresDayKey }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="marketOverflowPenaltyCards.length > 0" class="border border-warning/20 rounded-xs p-2 mb-2 bg-warning/5">
+            <p class="text-[10px] text-warning mb-1">过剩压制提醒</p>
+            <div class="space-y-1.5">
+              <div v-for="entry in marketOverflowPenaltyCards" :key="entry.category" class="border border-warning/10 rounded-xs px-2 py-2 bg-bg/10">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-xs text-text">{{ entry.categoryLabel }}</p>
+                  <span class="text-[10px] text-warning">×{{ entry.appliedMultiplier.toFixed(2) }}</span>
+                </div>
+                <p class="text-[10px] text-muted mt-1">压制档位：{{ entry.currentBandId }} · 连续 {{ entry.streakDays }} 天</p>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="marketRiskHighlights.length > 0" class="border border-danger/20 rounded-xs px-2 py-2">
+            <p class="text-[10px] text-danger mb-1">下跌风险</p>
+            <div class="flex flex-wrap gap-1.5">
+              <span v-for="info in marketRiskHighlights" :key="`risk-${info.category}`" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-danger/20 text-danger">
+                {{ MARKET_CATEGORY_NAMES[info.category] }} · {{ TREND_NAMES[info.trend] }} ×{{ info.multiplier.toFixed(2) }}
+              </span>
+            </div>
+          </div>
+        </div>
+
         <!-- ====== 商圈总览 ====== -->
         <template v-if="!shopStore.currentShopId">
           <h3 class="text-accent text-sm mb-3">
@@ -145,6 +238,33 @@
         <!-- ====== 万物铺 ====== -->
         <template v-else-if="shopStore.currentShopId === 'wanwupu'">
           <ShopHeader name="万物铺" npc="陈伯" />
+
+          <div class="border border-accent/20 rounded-xs p-3 mb-4">
+            <div class="flex items-center justify-between mb-2 gap-2">
+              <div class="flex items-center gap-1.5 text-sm text-accent">
+                <Package :size="14" />
+                <span>目录运营总览</span>
+              </div>
+              <span class="text-xs text-muted">{{ shopStore.currentLuxuryAuditSegment?.label ?? '经营观察中' }}</span>
+            </div>
+            <p class="text-xs text-muted mb-2">
+              {{ shopStore.currentLuxuryAuditSegment?.recommendedFocus ?? '优先在周精选、高价长期商品与可复购服务之间建立稳定消费节奏。' }}
+            </p>
+
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mb-2">
+              <div v-for="metric in catalogSummaryCards" :key="metric.label" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/20">
+                <p class="text-[10px] text-muted">{{ metric.label }}</p>
+                <p class="text-sm text-accent mt-0.5">{{ metric.value }}</p>
+                <p class="text-[10px] text-muted mt-1">{{ metric.hint }}</p>
+              </div>
+            </div>
+
+            <div class="border border-accent/10 rounded-xs p-2 bg-bg/10">
+              <p class="text-[10px] text-accent mb-1">当前货架摘要</p>
+              <p class="text-xs text-muted">{{ currentCatalogPoolSummary }}</p>
+              <p class="text-[10px] text-muted/80 mt-1">{{ catalogRefreshHint }}</p>
+            </div>
+          </div>
 
           <div v-if="shopStore.weeklySurpriseOffer" class="mb-4">
             <h4 class="text-accent text-sm mb-2">
@@ -1284,19 +1404,18 @@
   import { SHOPS, isShopAvailable, getShopClosedReason } from '@/data/shops'
   import type { ShopDef } from '@/data/shops'
   import { SHOP_WEAPONS, WEAPON_TYPE_NAMES } from '@/data/weapons'
-  import type { SellPriceBreakdown, WeaponDef, RingDef, RingEffectType, Season, Quality, HatDef, ShoeDef, ItemCategory } from '@/types'
+  import type { SellPriceBreakdown, WeaponDef, RingDef, RingEffectType, Season, Quality, HatDef, ShoeDef, ItemCategory, ShopCatalogOfferDef } from '@/types'
   import { FRUIT_TREE_DEFS } from '@/data/fruitTrees'
   import { CRAFTABLE_RINGS } from '@/data/rings'
   import { SHOP_HATS, CRAFTABLE_HATS } from '@/data/hats'
   import { SHOP_SHOES, CRAFTABLE_SHOES } from '@/data/shoes'
-  import type { ShopCatalogOfferDef } from '@/data/shopCatalog'
   import { HAY_PRICE } from '@/data/animals'
   import { addLog } from '@/composables/useGameLog'
   import { sfxBuy } from '@/composables/useAudio'
   import { showFloat } from '@/composables/useGameLog'
   import { handleBuySeed, handleSellItem, handleSellItemAll, handleSellAll, QUALITY_NAMES } from '@/composables/useFarmActions'
-  import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, TREND_NAMES, ECONOMY_SINK_CONTENT_DEFS } from '@/data/market'
-  import type { MarketTrend } from '@/data/market'
+  import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, MARKET_DISTRICT_LABELS, TREND_NAMES, ECONOMY_SINK_CONTENT_DEFS } from '@/data/market'
+  import type { MarketCategory, MarketTrend } from '@/data/market'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { useAchievementStore } from '@/stores/useAchievementStore'
 
@@ -1366,6 +1485,44 @@
       .sort((a, b) => b.score - a.score)
       .slice(0, 3)
   })
+  const marketOverview = computed(() => shopStore.marketDynamicsOverview)
+  const marketPositiveHighlights = computed(() =>
+    [...shopStore.currentMarketPriceInfos]
+      .filter(info => info.trend === 'boom' || info.trend === 'rising')
+      .sort((a, b) => b.multiplier - a.multiplier)
+      .slice(0, 4)
+  )
+  const marketRiskHighlights = computed(() =>
+    [...shopStore.currentMarketPriceInfos]
+      .filter(info => info.trend === 'falling' || info.trend === 'crash')
+      .sort((a, b) => a.multiplier - b.multiplier)
+      .slice(0, 4)
+  )
+  const marketRegionalProcurementCards = computed(() =>
+    shopStore.activeMarketRegionalProcurements.slice(0, 3).map(entry => ({
+      id: entry.id,
+      districtLabel: MARKET_DISTRICT_LABELS[entry.districtId] ?? entry.districtId,
+      targetCategoryLabels: shopStore.getRegionalProcurementSummary(entry.id)?.targetCategoryLabels ?? entry.targetCategories.map((category: MarketCategory) => MARKET_CATEGORY_NAMES[category]),
+      rewardMultiplier: entry.rewardMultiplier,
+      expiresDayKey: entry.expiresDayKey
+    }))
+  )
+  const marketOverflowPenaltyCards = computed(() =>
+    Object.values(shopStore.marketDynamics.overflowPenalties)
+      .filter((entry): entry is NonNullable<typeof entry> => !!entry)
+      .map(entry => shopStore.getOverflowPenaltySummary(entry.category))
+      .filter((entry): entry is NonNullable<ReturnType<typeof shopStore.getOverflowPenaltySummary>> => !!entry)
+  )
+  const marketThemeEncouragementSummary = computed(() => {
+    const entry = shopStore.activeMarketThemeEncouragement
+    if (!entry) return null
+    return {
+      rewardMultiplier: entry.rewardMultiplier,
+      categories: entry.encouragedCategories.map((category: MarketCategory) => MARKET_CATEGORY_NAMES[category]),
+      tags: [...entry.encouragedTags]
+    }
+  })
+  const marketRecommendedRouteCards = computed(() => shopStore.recommendedMarketDynamicsRoutes.slice(0, 3))
 
   // === 行情系统 ===
 
@@ -1429,6 +1586,53 @@
     }
   }
 
+  const catalogSummaryCards = computed(() => {
+    const summary = shopStore.catalogOverviewSummary
+    return [
+      {
+        label: '目录总量',
+        value: `${summary.totalOffers}`,
+        hint: `已解锁 ${summary.unlockedOffers} · 已拥有 ${summary.ownedOffers}`
+      },
+      {
+        label: '每周精选',
+        value: `${summary.weeklyOfferCount}`,
+        hint: shopStore.weeklyCatalogRefreshText
+      },
+      {
+        label: '高价长期',
+        value: `${summary.premiumOfferCount}`,
+        hint: `活跃服务 ${summary.activeEntitlementCount} 项`
+      },
+      {
+        label: '可复购池',
+        value: `${summary.repeatableOfferCount}`,
+        hint: `P2 内容 ${summary.tierCounts.P2} 项`
+      }
+    ]
+  })
+
+  const currentCatalogPoolSummary = computed(() => {
+    const offers = currentCatalogOffers.value
+    const unlockedCount = offers.filter(offer => shopStore.isCatalogOfferUnlocked(offer.id)).length
+    const ownedCount = offers.filter(offer => shopStore.isCatalogOwned(offer.id)).length
+    const poolLabel = catalogPools.find(pool => pool.id === featuredPool.value)?.label ?? '当前货架'
+    return `${poolLabel}当前共 ${offers.length} 项，其中已解锁 ${unlockedCount} 项、已拥有 ${ownedCount} 项。建议优先查看带有推荐理由、角标与限制提示的商品。`
+  })
+
+  const catalogRefreshHint = computed(() => {
+    if (featuredPool.value === 'weekly') {
+      return `周精选会随周切换刷新；当前 ${shopStore.weeklyCatalogRefreshText}。若想快速承接资金回收，优先关注“周更惊喜”和“为你推荐”。`
+    }
+    if (featuredPool.value === 'seasonal') {
+      return `${SEASON_NAMES[gameStore.season]}季限定会随季节切换同步更新；适合补节庆礼盒、展示收藏与季节补给。`
+    }
+    if (featuredPool.value === 'premium') {
+      return '高价长期商品更适合后期大额铜钱回收，通常承担温室许可、仓储扩建、终局陈设与远征储备等长期投入。'
+    }
+    return '基础消费池负责中期过渡，适合先补扩容、材料包、渔具补给与轻量仓储服务。'
+  })
+
   const catalogOfferEffectPreview = (offer: ShopCatalogOfferDef): string => {
     const eff = offer.effect
     if (eff.type === 'unlock_decoration') return ''
@@ -1466,7 +1670,7 @@
     return ''
   }
 
-  const catalogOfferSubtitle = (offer: Pick<ShopCatalogOfferDef, 'pool' | 'tags'>) => {
+  const catalogOfferSubtitle = (offer: Pick<ShopCatalogOfferDef, 'pool'> & { tags?: string[] }) => {
     const prefix =
       offer.pool === 'weekly'
         ? '每周精选 · 每周一刷新'

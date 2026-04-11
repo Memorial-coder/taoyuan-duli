@@ -32,6 +32,7 @@ import { CAVE_UNLOCK_EARNINGS } from '@/data/buildings'
 import { TOOL_NAMES, TIER_NAMES } from '@/data/upgrades'
 import { addLog, showFloat } from './useGameLog'
 import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, ECONOMY_AUDIT_CONFIG } from '@/data/market'
+import { WEEKLY_BUDGET_CHANNEL_MAP } from '@/data/weeklyBudgets'
 import { showEvent, showFestival, triggerWeddingEvent, triggerPetAdoption, showFarmEvent, showDiscoveryScene } from './useDialogs'
 import { sfxSleep, useAudio } from './useAudio'
 import { harvestFarmPlotWithRewards } from './useFarmHarvest'
@@ -1189,6 +1190,18 @@ export const handleEndDay = () => {
     weekOfSeason: currentWeekInfo.weekOfSeason,
     startedNewWeek: weekBoundaryEvent.startedNewWeek
   })
+  shopStore.processCatalogCycleTick({
+    currentDayTag: economyDayTag,
+    currentWeekId: currentWeekInfo.seasonWeekId,
+    startedNewWeek: weekBoundaryEvent.startedNewWeek,
+    seasonChanged
+  })
+  shopStore.processMarketDynamicsTick({
+    currentDayTag: economyDayTag,
+    currentWeekId: currentWeekInfo.seasonWeekId,
+    startedNewWeek: weekBoundaryEvent.startedNewWeek,
+    seasonChanged
+  })
 
   const recentShipping = shopStore.getRecentShipping()
   const incomeBySystem = diffNumericRecord(economyIncomeBefore.bySystem, playerStore.economyTelemetry.lifetimeIncome.bySystem)
@@ -1222,6 +1235,19 @@ export const handleEndDay = () => {
       tags: ['weekly_metric_snapshot_archived', 'late_game_cycle'],
       meta: { weekId: weeklySnapshot.weekId, netIncome: weeklySnapshot.netIncome }
     })
+    const expiredWeeklyBudget = goalStore.resetWeeklyBudgetsForNewWeek(currentWeekInfo.seasonWeekId, economyDayTag)
+    if (expiredWeeklyBudget && Object.keys(expiredWeeklyBudget.selections).length > 0) {
+      const expiredSummary = Object.values(expiredWeeklyBudget.selections)
+        .filter((selection): selection is NonNullable<typeof expiredWeeklyBudget.selections[keyof typeof expiredWeeklyBudget.selections]> => Boolean(selection))
+        .map(selection => `${WEEKLY_BUDGET_CHANNEL_MAP[selection.channelId].shortLabel}${selection.tierLabel}`)
+        .join('、')
+      addLog(`【周预算】上周预算已失效：${expiredSummary}。请重新选择本周投入。`, {
+        category: 'economy',
+        tags: ['weekly_budget_expired', 'late_game_cycle'],
+        meta: { weekId: expiredWeeklyBudget.weekId, selectionCount: Object.keys(expiredWeeklyBudget.selections).length }
+      })
+      showFloat('周预算已重置', 'accent')
+    }
     const weeklyRiskReport = buildWeeklyEconomyRiskReport(playerStore)
     playerStore.setEconomyRiskReport(weeklyRiskReport)
     if (weeklyRiskReport.level !== 'healthy') {

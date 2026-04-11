@@ -1,12 +1,26 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import { getItemById } from '@/data'
+import { REWARD_TICKET_DEFS, REWARD_TICKET_EXCHANGE_OFFERS, REWARD_TICKET_LABELS } from '@/data/rewardTickets'
 import { WALLET_ARCHETYPES, WALLET_ITEMS, getWalletArchetypeById, getWalletNodeById } from '@/data/wallet'
 import { FISH } from '@/data/fish'
-import type { WalletArchetypeId, WalletCatalogPool, WalletEffectModule, WalletGoalBiasKey, WalletPassiveEffect, WalletShopId } from '@/types'
+import type {
+  RewardTicketExchangeOffer,
+  RewardTicketLedger,
+  RewardTicketType,
+  WalletArchetypeId,
+  WalletCatalogPool,
+  WalletEffectModule,
+  WalletGoalBiasKey,
+  WalletPassiveEffect,
+  WalletShopId
+} from '@/types'
 import { useAchievementStore } from './useAchievementStore'
+import { useInventoryStore } from './useInventoryStore'
 import { useSkillStore } from './useSkillStore'
 import { useMiningStore } from './useMiningStore'
 import { useNpcStore } from './useNpcStore'
+import { useSettingsStore } from './useSettingsStore'
 
 const SHOP_LABELS: Record<WalletShopId, string> = {
   wanwupu: '万物铺',
@@ -86,6 +100,16 @@ const mergePassiveEffects = (effects: Array<WalletPassiveEffect | undefined>): W
 
 const getCatalogTagLabel = (tag: string): string => CATALOG_TAG_LABELS[tag] ?? tag
 
+const normalizeRewardTicketLedger = (value: unknown): RewardTicketLedger => {
+  if (!value || typeof value !== 'object') return {}
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([ticketType, amount]) => typeof ticketType === 'string' && Number.isFinite(Number(amount)))
+      .map(([ticketType, amount]) => [ticketType, Math.max(0, Math.floor(Number(amount) || 0))] as const)
+      .filter(([, amount]) => amount > 0)
+  ) as RewardTicketLedger
+}
+
 const summarizePassiveEffect = (effect: WalletPassiveEffect): string[] => {
   const summaries: string[] = []
 
@@ -118,12 +142,15 @@ const summarizePassiveEffect = (effect: WalletPassiveEffect): string[] => {
 }
 
 export const useWalletStore = defineStore('wallet', () => {
+  const inventoryStore = useInventoryStore()
   /** 已解锁的钱袋物品ID */
   const unlockedItems = ref<string[]>([])
   /** 当前选择的钱包流派 */
   const currentArchetypeId = ref<WalletArchetypeId | null>(null)
   /** 当前流派已解锁节点 */
   const unlockedNodeIds = ref<string[]>([])
+  /** 统一资源券 / 凭证余额 */
+  const rewardTickets = ref<RewardTicketLedger>({})
   const archetypes = computed(() => WALLET_ARCHETYPES)
 
   /** 已解锁的钱袋物品定义 */
@@ -140,6 +167,20 @@ export const useWalletStore = defineStore('wallet', () => {
       name: node.name,
       moduleLabels: node.modules.map(module => MODULE_LABELS[module]),
       summaries: summarizePassiveEffect(node.effect)
+    }))
+  )
+  const rewardTicketEntries = computed(() =>
+    REWARD_TICKET_DEFS.map(def => ({
+      ...def,
+      balance: rewardTickets.value[def.id] ?? 0
+    }))
+  )
+  const ticketExchangeOffers = computed(() =>
+    REWARD_TICKET_EXCHANGE_OFFERS.map(offer => ({
+      ...offer,
+      balance: rewardTickets.value[offer.ticketType] ?? 0,
+      affordable: (rewardTickets.value[offer.ticketType] ?? 0) >= offer.costTickets,
+      rewardSummary: offer.rewardItems.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`).join('、')
     }))
   )
 
@@ -360,6 +401,95 @@ export const useWalletStore = defineStore('wallet', () => {
     return summarizePassiveEffect(activePassiveEffect.value)
   }
 
+  const getTicketLabel = (ticketType: RewardTicketType): string => REWARD_TICKET_LABELS[ticketType] ?? ticketType
+
+  const getRewardTicketBalance = (ticketType: RewardTicketType): number => rewardTickets.value[ticketType] ?? 0
+
+  const canAffordRewardTickets = (ticketType: RewardTicketType, amount: number): boolean => {
+    return getRewardTicketBalance(ticketType) >= Math.max(0, Math.floor(Number(amount) || 0))
+  }
+
+  const addRewardTickets = (
+    ticketChanges: RewardTicketLedger | undefined,
+    options?: { applyMultiplier?: boolean; source?: string }
+  ): RewardTicketLedger => {
+    const normalizedInput = normalizeRewardTicketLedger(ticketChanges)
+    const entries = Object.entries(normalizedInput)
+    if (entries.length === 0) return {}
+
+    const ticketRewardRate = options?.applyMultiplier === false
+      ? 1
+      : Math.max(0, useSettingsStore().getLateGameBalanceConfig().ticketRewardRate || 1)
+
+    const grantedEntries = entries
+      .map(([ticketType, amount]) => [ticketType, Math.max(0, Math.round(amount * ticketRewardRate))] as const)
+      .filter(([, amount]) => amount > 0)
+
+    if (grantedEntries.length === 0) return {}
+
+    const nextLedger: RewardTicketLedger = { ...rewardTickets.value }
+    for (const [ticketType, amount] of grantedEntries) {
+      nextLedger[ticketType as RewardTicketType] = (nextLedger[ticketType as RewardTicketType] ?? 0) + amount
+    }
+    rewardTickets.value = nextLedger
+
+    return Object.fromEntries(grantedEntries) as RewardTicketLedger
+  }
+
+  const spendRewardTickets = (ticketType: RewardTicketType, amount: number): boolean => {
+    const normalizedAmount = Math.max(0, Math.floor(Number(amount) || 0))
+    if (normalizedAmount <= 0) return true
+    if (!canAffordRewardTickets(ticketType, normalizedAmount)) return false
+
+    const nextLedger: RewardTicketLedger = { ...rewardTickets.value }
+    const remaining = (nextLedger[ticketType] ?? 0) - normalizedAmount
+    if (remaining > 0) {
+      nextLedger[ticketType] = remaining
+    } else {
+      delete nextLedger[ticketType]
+    }
+    rewardTickets.value = nextLedger
+    return true
+  }
+
+  const redeemRewardTicketOffer = (offerId: string): { success: boolean; message: string; offer?: RewardTicketExchangeOffer } => {
+    const offer = REWARD_TICKET_EXCHANGE_OFFERS.find(entry => entry.id === offerId)
+    if (!offer) return { success: false, message: '兑换项目不存在。' }
+    if (!canAffordRewardTickets(offer.ticketType, offer.costTickets)) {
+      return {
+        success: false,
+        message: `${getTicketLabel(offer.ticketType)}不足（需要${offer.costTickets}）。`,
+        offer
+      }
+    }
+
+    const rewardItems = offer.rewardItems.map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
+    if (!inventoryStore.canAddItems(rewardItems)) {
+      return { success: false, message: '背包空间不足，暂时无法兑换。', offer }
+    }
+
+    const inventorySnapshot = inventoryStore.serialize()
+    if (!spendRewardTickets(offer.ticketType, offer.costTickets)) {
+      return {
+        success: false,
+        message: `${getTicketLabel(offer.ticketType)}不足（需要${offer.costTickets}）。`,
+        offer
+      }
+    }
+
+    if (!inventoryStore.addItemsExact(rewardItems)) {
+      inventoryStore.deserialize(inventorySnapshot)
+      addRewardTickets({ [offer.ticketType]: offer.costTickets }, { applyMultiplier: false, source: 'ticket_refund' })
+      return { success: false, message: '兑换失败，已返还票券。', offer }
+    }
+
+    return {
+      success: true,
+      message: `消耗${getTicketLabel(offer.ticketType)}×${offer.costTickets}，兑换了${offer.label}。`,
+      offer
+    }
+  }
+
   // === 被动效果查询 ===
 
   /** 商店折扣 (0.1 = 10%) */
@@ -392,7 +522,8 @@ export const useWalletStore = defineStore('wallet', () => {
     return {
       unlockedItems: unlockedItems.value,
       currentArchetypeId: currentArchetypeId.value,
-      unlockedNodeIds: unlockedNodeIds.value
+      unlockedNodeIds: unlockedNodeIds.value,
+      rewardTickets: rewardTickets.value
     }
   }
 
@@ -400,6 +531,7 @@ export const useWalletStore = defineStore('wallet', () => {
     unlockedItems.value = data?.unlockedItems ?? []
     currentArchetypeId.value = data?.currentArchetypeId ?? null
     unlockedNodeIds.value = Array.isArray(data?.unlockedNodeIds) ? data!.unlockedNodeIds.filter(nodeId => typeof nodeId === 'string') : []
+    rewardTickets.value = normalizeRewardTicketLedger(data?.rewardTickets)
 
     if (currentArchetypeId.value && !getWalletArchetypeById(currentArchetypeId.value)) {
       currentArchetypeId.value = null
@@ -412,10 +544,18 @@ export const useWalletStore = defineStore('wallet', () => {
     }
   }
 
+  const $reset = () => {
+    unlockedItems.value = []
+    currentArchetypeId.value = null
+    unlockedNodeIds.value = []
+    rewardTickets.value = {}
+  }
+
   return {
     unlockedItems,
     currentArchetypeId,
     unlockedNodeIds,
+    rewardTickets,
     archetypes,
     unlockedDefs,
     currentArchetype,
@@ -424,6 +564,8 @@ export const useWalletStore = defineStore('wallet', () => {
     currentArchetypeMainEffectText,
     currentArchetypeMainEffectSummary,
     currentArchetypeNodeEffects,
+    rewardTicketEntries,
+    ticketExchangeOffers,
     has,
     unlock,
     checkAndUnlock,
@@ -443,6 +585,12 @@ export const useWalletStore = defineStore('wallet', () => {
     getCatalogOfferPreferenceScore,
     getCatalogOfferPreferenceReason,
     getCurrentArchetypeSummary,
+    getTicketLabel,
+    getRewardTicketBalance,
+    canAffordRewardTickets,
+    addRewardTickets,
+    spendRewardTickets,
+    redeemRewardTicketOffer,
     getShopDiscount,
     getForageQualityBoost,
     getMiningStaminaReduction,
@@ -450,6 +598,7 @@ export const useWalletStore = defineStore('wallet', () => {
     getCookingRestoreBonus,
     getCropGrowthBonus,
     serialize,
-    deserialize
+    deserialize,
+    $reset
   }
 })

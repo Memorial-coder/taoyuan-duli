@@ -1,4 +1,4 @@
-import type { CompendiumEntry, QuestTemplateDef, QuestInstance, QuestType, RelationshipStage, VillagerQuestCategory } from '@/types'
+import type { CompendiumEntry, QuestTemplateDef, QuestInstance, QuestType, RelationshipStage, RewardTicketType, VillagerQuestCategory } from '@/types'
 import type { Season } from '@/types/game'
 import { getNpcById } from './npcs'
 import { getCropById } from './crops'
@@ -130,6 +130,8 @@ interface SpecialOrderTemplate {
   days: number
   moneyReward: number
   itemReward: { itemId: string; quantity: number }[]
+  ticketReward?: Partial<Record<RewardTicketType, number>>
+  rewardProfileId?: string
   seasons: Season[]
   npcId: string
   /** 难度梯度: 1=第7天(简单), 2=第14天(普通), 3=第21天(困难), 4=第28天(极难) */
@@ -172,6 +174,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     days: 7,
     moneyReward: 600,
     itemReward: [{ itemId: 'iron_ore', quantity: 3 }],
+    ticketReward: { construction: 1 },
     seasons: [],
     npcId: 'a_shi',
     tier: 1
@@ -184,6 +187,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     days: 7,
     moneyReward: 500,
     itemReward: [{ itemId: 'standard_bait', quantity: 10 }],
+    ticketReward: { exhibit: 1 },
     seasons: [],
     npcId: 'qiu_yue',
     tier: 1
@@ -245,6 +249,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     days: 7,
     moneyReward: 1200,
     itemReward: [{ itemId: 'seed_garlic', quantity: 5 }],
+    ticketReward: { caravan: 1 },
     seasons: ['winter'],
     npcId: 'chen_bo',
     tier: 2
@@ -260,6 +265,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     seasons: ['spring'],
     npcId: 'liu_niang',
     tier: 2,
+    rewardProfileId: 'operations_mix',
     requiredHybridId: 'emerald_radish',
     themeTag: 'breeding',
     preferredSeasons: ['spring'],
@@ -276,6 +282,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     seasons: ['spring', 'summer'],
     npcId: 'chen_bo',
     tier: 2,
+    rewardProfileId: 'trade_mix',
     requiredHybridId: 'golden_tuber',
     themeTag: 'breeding',
     preferredSeasons: ['spring'],
@@ -292,7 +299,8 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     itemReward: [{ itemId: 'quality_fertilizer', quantity: 5 }],
     seasons: ['autumn'],
     npcId: 'liu_niang',
-    tier: 3
+    tier: 3,
+    rewardProfileId: 'operations_mix'
   },
   {
     name: '西瓜大丰收',
@@ -304,7 +312,8 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     itemReward: [{ itemId: 'seed_watermelon', quantity: 5 }],
     seasons: ['summer'],
     npcId: 'xiao_man',
-    tier: 3
+    tier: 3,
+    rewardProfileId: 'trade_mix'
   },
   {
     name: '深层金矿',
@@ -316,7 +325,8 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     itemReward: [{ itemId: 'gold_ore', quantity: 5 }],
     seasons: [],
     npcId: 'a_shi',
-    tier: 3
+    tier: 3,
+    rewardProfileId: 'operations_mix'
   },
   {
     name: '药材囤积',
@@ -328,7 +338,8 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     itemReward: [{ itemId: 'herb', quantity: 15 }],
     seasons: ['autumn', 'winter'],
     npcId: 'lin_lao',
-    tier: 3
+    tier: 3,
+    rewardProfileId: 'research_mix'
   },
   {
     name: '茶肆特供',
@@ -338,9 +349,11 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     days: 7,
     moneyReward: 2600,
     itemReward: [{ itemId: 'tea', quantity: 8 }],
+    ticketReward: { research: 1 },
     seasons: [],
     npcId: 'chun_lan',
     tier: 3,
+    rewardProfileId: 'research_mix',
     requiredHybridId: 'jade_tea',
     themeTag: 'breeding',
     requiredSweetnessMin: 60,
@@ -360,6 +373,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     seasons: ['autumn'],
     npcId: 'chun_lan',
     tier: 3,
+    rewardProfileId: 'exhibit_mix',
     requiredHybridId: 'lotus_tea',
     themeTag: 'breeding',
     preferredSeasons: ['autumn'],
@@ -376,6 +390,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     seasons: ['autumn'],
     npcId: 'chun_lan',
     tier: 3,
+    rewardProfileId: 'exhibit_mix',
     requiredHybridId: 'osmanthus_tea',
     themeTag: 'breeding',
     preferredSeasons: ['autumn'],
@@ -395,7 +410,8 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     ],
     seasons: [],
     npcId: 'a_shi',
-    tier: 4
+    tier: 4,
+    rewardProfileId: 'operations_mix'
   },
   {
     name: '丰年盛宴',
@@ -410,7 +426,8 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     ],
     seasons: ['autumn'],
     npcId: 'liu_niang',
-    tier: 4
+    tier: 4,
+    rewardProfileId: 'exhibit_mix'
   },
   {
     name: '渔王挑战',
@@ -422,7 +439,8 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     itemReward: [{ itemId: 'wild_bait', quantity: 10 }],
     seasons: ['summer'],
     npcId: 'qiu_yue',
-    tier: 4
+    tier: 4,
+    rewardProfileId: 'pond_premium_mix'
   },
   {
     name: '冬日大囤货',
@@ -437,7 +455,8 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     ],
     seasons: ['winter'],
     npcId: 'chen_bo',
-    tier: 4
+    tier: 4,
+    rewardProfileId: 'trade_mix'
   },
   {
     name: '金蜜宴筹备',
@@ -453,6 +472,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     seasons: [],
     npcId: 'liu_niang',
     tier: 4,
+    rewardProfileId: 'exhibit_mix',
     requiredHybridId: 'golden_melon',
     themeTag: 'breeding',
     requiredSweetnessMin: 72,
@@ -475,6 +495,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     seasons: ['winter'],
     npcId: 'lin_lao',
     tier: 4,
+    rewardProfileId: 'research_mix',
     requiredHybridId: 'frost_garlic',
     themeTag: 'breeding',
     preferredSeasons: ['winter'],
@@ -493,6 +514,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     seasons: ['spring', 'summer'],
     npcId: 'qiu_yue',
     tier: 2,
+    rewardProfileId: 'pond_premium_mix',
     themeTag: 'fishpond',
     deliveryMode: 'pond',
     requiredPondGenerationMin: 2,
@@ -511,6 +533,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     seasons: ['summer', 'autumn'],
     npcId: 'qiu_yue',
     tier: 3,
+    rewardProfileId: 'pond_premium_mix',
     themeTag: 'fishpond',
     deliveryMode: 'pond',
     requiredPondGenerationMin: 3,
@@ -529,6 +552,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     seasons: [],
     npcId: 'lin_lao',
     tier: 4,
+    rewardProfileId: 'pond_premium_mix',
     themeTag: 'fishpond',
     deliveryMode: 'pond',
     requiredPondGenerationMin: 2,
@@ -541,6 +565,64 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
 
 const TIER_LABELS = ['简单', '普通', '困难', '极难']
 const TIER_FRIENDSHIP = [5, 8, 12, 15]
+
+interface SpecialOrderRewardProfile {
+  id: string
+  label: string
+  cashRatio: number
+  ticketReward: Partial<Record<RewardTicketType, number>>
+  summary: string
+}
+
+const SPECIAL_ORDER_REWARD_PROFILES: Record<string, SpecialOrderRewardProfile> = {
+  standard_cash: {
+    id: 'standard_cash',
+    label: '现金主体',
+    cashRatio: 1,
+    ticketReward: {},
+    summary: '以现金奖励为主，保留基础经营型回报。'
+  },
+  operations_mix: {
+    id: 'operations_mix',
+    label: '建设运营混合',
+    cashRatio: 0.72,
+    ticketReward: { construction: 1 },
+    summary: '部分现金转为建设券，鼓励继续投入维护与扩建。'
+  },
+  trade_mix: {
+    id: 'trade_mix',
+    label: '商路混合',
+    cashRatio: 0.68,
+    ticketReward: { caravan: 2 },
+    summary: '部分现金转为商路票，强化后续供货与商路循环。'
+  },
+  research_mix: {
+    id: 'research_mix',
+    label: '学舍研修混合',
+    cashRatio: 0.6,
+    ticketReward: { research: 2 },
+    summary: '部分现金转为研究券，鼓励继续投入学舍与研究方向。'
+  },
+  exhibit_mix: {
+    id: 'exhibit_mix',
+    label: '展陈经营混合',
+    cashRatio: 0.58,
+    ticketReward: { exhibit: 2 },
+    summary: '部分现金转为展陈券，使高阶订单更多回流展示经营线。'
+  },
+  pond_premium_mix: {
+    id: 'pond_premium_mix',
+    label: '鱼塘高规混合',
+    cashRatio: 0.55,
+    ticketReward: { exhibit: 1, caravan: 1 },
+    summary: '部分现金转为展陈券与商路票，强化鱼塘向展示 / 商路的双向出口。'
+  }
+}
+
+export const getSpecialOrderRewardProfile = (profileId?: string | null): SpecialOrderRewardProfile | null => {
+  if (!profileId) return null
+  return SPECIAL_ORDER_REWARD_PROFILES[profileId] ?? null
+}
 
 interface VillagerQuestTemplate {
   id: string
@@ -1074,6 +1156,8 @@ export const generateSpecialOrder = (
     collectedQuantity: 0,
     moneyReward: template.moneyReward,
     friendshipReward: TIER_FRIENDSHIP[clampedTier - 1]!,
+    ticketReward: template.ticketReward,
+    rewardProfileId: template.rewardProfileId,
     daysRemaining: template.days,
     accepted: false,
     itemReward: template.itemReward,

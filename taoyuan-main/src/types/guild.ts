@@ -11,6 +11,59 @@ export interface GuildSeasonConfig {
   rankBands: GuildRankBand[]
 }
 
+export type GuildContentTier = 'P0' | 'P1' | 'P2'
+export type GuildSeasonLinkedSystem = 'goal' | 'quest' | 'guild' | 'mining' | 'achievement' | 'mail'
+
+export interface GuildSeasonActivityDef {
+  id: string
+  phase: GuildSeasonPhase
+  contentTier: GuildContentTier
+  title: string
+  summary: string
+  suggestedFocus: GuildSeasonLinkedSystem[]
+  rewardPreview: string
+}
+
+export interface GuildHonorTitleDef {
+  id: string
+  title: string
+  rankBand: GuildRankBand
+  unlockPhase: GuildSeasonPhase
+  contentTier: GuildContentTier
+  description: string
+  rewardSummary: string
+}
+
+export interface GuildSeasonMilestoneDef {
+  id: string
+  label: string
+  phase: GuildSeasonPhase
+  contentTier: GuildContentTier
+  requiredAsyncScore: number
+  requiredGoalClaims: number
+  requiredBossClears?: number
+  rewardSummary: string
+  linkedSystems?: GuildSeasonLinkedSystem[]
+}
+
+export interface GuildSeasonRewardEntryDef {
+  id: string
+  label: string
+  rankBand: GuildRankBand
+  rewardSummary: string
+  linkedItemId?: string
+  contributionCost?: number
+}
+
+export interface GuildSeasonRewardPoolDef {
+  id: string
+  phase: GuildSeasonPhase
+  contentTier: GuildContentTier
+  label: string
+  summary: string
+  featuredRewards: GuildSeasonRewardEntryDef[]
+}
+
 export interface GuildSeasonSnapshot {
   seasonId: string
   weekId: string

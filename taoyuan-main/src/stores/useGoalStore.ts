@@ -1,8 +1,20 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { getItemById, getThemeWeekBySeason } from '@/data'
+import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
+import { WEEKLY_BUDGET_CHANNEL_MAP, WEEKLY_BUDGET_CHANNELS } from '@/data/weeklyBudgets'
 import { ECONOMY_SINK_CONTENT_DEFS, ECONOMY_TUNING_CONFIG } from '@/data/market'
-import type { LateGameMetricSnapshot, ThemeWeekState, WeeklyMetricArchive } from '@/types'
+import type {
+  LateGameMetricSnapshot,
+  RewardTicketType,
+  ThemeWeekState,
+  WeeklyBudgetArchive,
+  WeeklyBudgetChannelId,
+  WeeklyBudgetPlan,
+  WeeklyBudgetSelection,
+  WeeklyBudgetTierDef,
+  WeeklyMetricArchive
+} from '@/types'
 import { addLog, showFloat } from '@/composables/useGameLog'
 import { useAchievementStore } from './useAchievementStore'
 import { useFishingStore } from './useFishingStore'
@@ -85,14 +97,23 @@ export interface MainQuestStageState {
 }
 
 const FRIENDSHIP_GOAL_LEVELS = new Set(['friendly', 'bestFriend'])
-const GOAL_SAVE_VERSION = 2
+const GOAL_SAVE_VERSION = 3
 const WEEKLY_METRIC_ARCHIVE_VERSION = 1
 const WEEKLY_METRIC_ARCHIVE_LIMIT = 4
+const WEEKLY_BUDGET_ARCHIVE_LIMIT = 8
 
 const createEmptyWeeklyMetricArchive = (): WeeklyMetricArchive => ({
   version: WEEKLY_METRIC_ARCHIVE_VERSION,
   lastGeneratedWeekId: '',
   snapshots: []
+})
+
+const createEmptyWeeklyBudgetPlan = (weekId = '', activatedAtDayTag = ''): WeeklyBudgetPlan => ({
+  weekId,
+  activatedAtDayTag,
+  completedGoalCount: 0,
+  selections: {},
+  ticketBalances: {}
 })
 
 const normalizeNumericRecord = <T extends string>(value: unknown): Partial<Record<T, number>> => {
@@ -137,6 +158,64 @@ const normalizeLateGameMetricSnapshot = (value: unknown): LateGameMetricSnapshot
     sourceSnapshotCount: Math.max(0, Number(raw.sourceSnapshotCount) || 0),
     activeThemeWeekId: typeof raw.activeThemeWeekId === 'string' ? raw.activeThemeWeekId : undefined
   }
+}
+
+const normalizeWeeklyBudgetSelection = (value: unknown): WeeklyBudgetSelection | null => {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Partial<WeeklyBudgetSelection>
+  const channelId = raw.channelId
+  if (channelId !== 'trade' && channelId !== 'museum' && channelId !== 'academy') return null
+  const channelDef = WEEKLY_BUDGET_CHANNEL_MAP[channelId]
+  const tierDef =
+    channelDef.tiers.find((tier: WeeklyBudgetTierDef) => tier.id === raw.tierId) ??
+    channelDef.tiers.find((tier: WeeklyBudgetTierDef) => tier.tier === Number(raw.tier))
+  if (!tierDef) return null
+
+  return {
+    channelId,
+    tierId: tierDef.id,
+    tier: tierDef.tier,
+    tierLabel: tierDef.label,
+    costMoney: tierDef.costMoney,
+    projectedValue: tierDef.projectedValue,
+    effect: tierDef.effect,
+    activatedWeekId: typeof raw.activatedWeekId === 'string' ? raw.activatedWeekId : '',
+    activatedDayTag: typeof raw.activatedDayTag === 'string' ? raw.activatedDayTag : ''
+  }
+}
+
+const normalizeWeeklyBudgetPlan = (value: unknown): WeeklyBudgetPlan => {
+  if (!value || typeof value !== 'object') return createEmptyWeeklyBudgetPlan()
+  const raw = value as Partial<WeeklyBudgetPlan>
+  const selectionEntries = Object.values(raw.selections ?? {})
+    .map(normalizeWeeklyBudgetSelection)
+    .filter((selection): selection is WeeklyBudgetSelection => selection !== null)
+
+  return {
+    weekId: typeof raw.weekId === 'string' ? raw.weekId : '',
+    activatedAtDayTag: typeof raw.activatedAtDayTag === 'string' ? raw.activatedAtDayTag : '',
+    completedGoalCount: Math.max(0, Number(raw.completedGoalCount) || 0),
+    selections: Object.fromEntries(selectionEntries.map(selection => [selection.channelId, selection])) as WeeklyBudgetPlan['selections'],
+    ticketBalances: normalizeNumericRecord<RewardTicketType>(raw.ticketBalances)
+  }
+}
+
+const normalizeWeeklyBudgetArchive = (value: unknown): WeeklyBudgetArchive[] => {
+  if (!Array.isArray(value)) return []
+  return value
+    .map(entry => {
+      const normalized = normalizeWeeklyBudgetPlan(entry)
+      const expiredAtDayTag = entry && typeof entry === 'object' && typeof (entry as Partial<WeeklyBudgetArchive>).expiredAtDayTag === 'string'
+        ? (entry as Partial<WeeklyBudgetArchive>).expiredAtDayTag!
+        : ''
+      if (!normalized.weekId) return null
+      return {
+        ...normalized,
+        expiredAtDayTag
+      }
+    })
+    .filter((entry): entry is WeeklyBudgetArchive => entry !== null)
+    .slice(-WEEKLY_BUDGET_ARCHIVE_LIMIT)
 }
 
 const normalizeWeeklyMetricArchive = (value: unknown): WeeklyMetricArchive => {
@@ -920,6 +999,8 @@ export const useGoalStore = defineStore('goal', () => {
   const lastThemeWeekRefresh = ref('')
   const currentThemeWeekState = ref<ThemeWeekState | null>(null)
   const weeklyMetricArchive = ref<WeeklyMetricArchive>(createEmptyWeeklyMetricArchive())
+  const weeklyBudgetPlan = ref<WeeklyBudgetPlan>(createEmptyWeeklyBudgetPlan())
+  const weeklyBudgetHistory = ref<WeeklyBudgetArchive[]>([])
 
   const getCurrentSeasonTag = () => {
     const gameStore = useGameStore()
@@ -936,6 +1017,132 @@ export const useGoalStore = defineStore('goal', () => {
   const getCurrentThemeWeekTag = () => {
     const gameStore = useGameStore()
     return getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId
+  }
+
+  const ensureWeeklyBudgetPlan = () => {
+    const currentWeekId = getCurrentThemeWeekTag()
+    if (weeklyBudgetPlan.value.weekId === currentWeekId) return
+    weeklyBudgetPlan.value = createEmptyWeeklyBudgetPlan(currentWeekId, getCurrentDayTag())
+  }
+
+  const getWeeklyBudgetSelection = (channelId: WeeklyBudgetChannelId) => weeklyBudgetPlan.value.selections[channelId] ?? null
+
+  const getActiveWeeklyBudgetEffect = () => {
+    const selections = Object.values(weeklyBudgetPlan.value.selections).filter((selection): selection is WeeklyBudgetSelection => Boolean(selection))
+    return selections.reduce(
+      (summary, selection) => {
+        summary.moneyRewardMultiplier *= selection.effect.moneyRewardMultiplier ?? 1
+        summary.reputationRewardMultiplier *= selection.effect.reputationRewardMultiplier ?? 1
+        summary.flatReputationBonus += selection.effect.flatReputationBonus ?? 0
+        for (const [ticketType, amount] of Object.entries(selection.effect.ticketRewards ?? {})) {
+          summary.ticketRewards[ticketType as RewardTicketType] = (summary.ticketRewards[ticketType as RewardTicketType] ?? 0) + Math.max(0, Number(amount) || 0)
+        }
+        return summary
+      },
+      {
+        moneyRewardMultiplier: 1,
+        reputationRewardMultiplier: 1,
+        flatReputationBonus: 0,
+        ticketRewards: {} as Partial<Record<RewardTicketType, number>>
+      }
+    )
+  }
+
+  const activateWeeklyBudget = (channelId: WeeklyBudgetChannelId, tierId: string) => {
+    ensureWeeklyBudgetPlan()
+    if (weeklyBudgetPlan.value.selections[channelId]) {
+      showFloat('该预算槽本周已投入', 'danger')
+      return false
+    }
+
+    const channelDef = WEEKLY_BUDGET_CHANNEL_MAP[channelId]
+    const tierDef = channelDef?.tiers.find((tier: WeeklyBudgetTierDef) => tier.id === tierId)
+    if (!channelDef || !tierDef) {
+      showFloat('预算档位不存在', 'danger')
+      return false
+    }
+
+    const playerStore = usePlayerStore()
+    if (!playerStore.spendMoney(tierDef.costMoney, 'goal')) {
+      showFloat('铜钱不足，无法投入周预算', 'danger')
+      return false
+    }
+
+    playerStore.recordSinkSpend(tierDef.costMoney, channelId === 'museum' ? 'themeActivity' : channelId === 'trade' ? 'service' : 'construction')
+
+    weeklyBudgetPlan.value = {
+      ...weeklyBudgetPlan.value,
+      weekId: weeklyBudgetPlan.value.weekId || getCurrentThemeWeekTag(),
+      activatedAtDayTag: weeklyBudgetPlan.value.activatedAtDayTag || getCurrentDayTag(),
+      selections: {
+        ...weeklyBudgetPlan.value.selections,
+        [channelId]: {
+          channelId,
+          tierId: tierDef.id,
+          tier: tierDef.tier,
+          tierLabel: tierDef.label,
+          costMoney: tierDef.costMoney,
+          projectedValue: tierDef.projectedValue,
+          effect: tierDef.effect,
+          activatedWeekId: getCurrentThemeWeekTag(),
+          activatedDayTag: getCurrentDayTag()
+        }
+      }
+    }
+
+    addLog(`【周预算】已投入${channelDef.label}·${tierDef.label}，花费${tierDef.costMoney}文。`, {
+      category: 'economy',
+      tags: ['weekly_budget_activated'],
+      meta: { channelId, tierId: tierDef.id, costMoney: tierDef.costMoney }
+    })
+    showFloat(`${channelDef.shortLabel}${tierDef.label}已生效`, 'accent')
+    return true
+  }
+
+  const resetWeeklyBudgetsForNewWeek = (nextWeekId: string, dayTag: string) => {
+    const hadSelections = Object.keys(weeklyBudgetPlan.value.selections).length > 0
+    const expiredPlan = hadSelections && weeklyBudgetPlan.value.weekId
+      ? {
+          ...weeklyBudgetPlan.value,
+          expiredAtDayTag: dayTag
+        }
+      : null
+
+    if (expiredPlan) {
+      weeklyBudgetHistory.value = [...weeklyBudgetHistory.value.filter(item => item.weekId !== expiredPlan.weekId), expiredPlan].slice(-WEEKLY_BUDGET_ARCHIVE_LIMIT)
+    }
+
+    weeklyBudgetPlan.value = createEmptyWeeklyBudgetPlan(nextWeekId, dayTag)
+    return expiredPlan
+  }
+
+  const recordWeeklyBudgetGoalSettlement = () => {
+    const walletStore = useWalletStore()
+    const activeEffect = getActiveWeeklyBudgetEffect()
+    if (
+      activeEffect.flatReputationBonus <= 0 &&
+      activeEffect.moneyRewardMultiplier === 1 &&
+      activeEffect.reputationRewardMultiplier === 1 &&
+      Object.keys(activeEffect.ticketRewards).length === 0
+    ) {
+      return activeEffect
+    }
+
+    const grantedTicketRewards = walletStore.addRewardTickets(activeEffect.ticketRewards, { source: 'goal' })
+    weeklyBudgetPlan.value.completedGoalCount += 1
+    weeklyBudgetPlan.value.ticketBalances = {
+      ...weeklyBudgetPlan.value.ticketBalances,
+      ...Object.fromEntries(
+        Object.entries(grantedTicketRewards).map(([ticketType, amount]) => [
+          ticketType,
+          (weeklyBudgetPlan.value.ticketBalances[ticketType as RewardTicketType] ?? 0) + Math.max(0, Number(amount) || 0)
+        ])
+      )
+    }
+    return {
+      ...activeEffect,
+      ticketRewards: grantedTicketRewards
+    }
   }
 
   const getFriendlyNpcCount = () => {
@@ -1049,8 +1256,12 @@ export const useGoalStore = defineStore('goal', () => {
       totalExpense,
       netIncome: totalIncome - totalExpense,
       sinkSpend,
-      ticketBalances: {},
-      budgetInvestments: {},
+      ticketBalances: { ...weeklyBudgetPlan.value.ticketBalances },
+      budgetInvestments: Object.fromEntries(
+        Object.values(weeklyBudgetPlan.value.selections)
+          .filter((selection): selection is WeeklyBudgetSelection => Boolean(selection))
+          .map(selection => [selection.channelId, selection.costMoney])
+      ),
       maintenanceCost: 0,
       serviceContractCount: 0,
       hanhaiContractCompletions: hanhaiStore.totalRelicClears,
@@ -1239,6 +1450,7 @@ export const useGoalStore = defineStore('goal', () => {
     if (!currentThemeWeekState.value || lastThemeWeekRefresh.value !== getCurrentThemeWeekTag()) {
       refreshThemeWeek(false)
     }
+    ensureWeeklyBudgetPlan()
     syncMainQuestStage()
   }
 
@@ -1251,16 +1463,20 @@ export const useGoalStore = defineStore('goal', () => {
     const playerStore = usePlayerStore()
     const inventoryStore = useInventoryStore()
     const wealthTier = playerStore.getEconomyOverview().wealthTier
+    const weeklyBudgetEffect = recordWeeklyBudgetGoalSettlement()
     const adjustedMoneyReward = reward.money
-      ? Math.max(0, Math.round(reward.money * (wealthTier?.goalCashRewardMultiplier ?? 1)))
+      ? Math.max(0, Math.round(reward.money * (wealthTier?.goalCashRewardMultiplier ?? 1) * weeklyBudgetEffect.moneyRewardMultiplier))
       : 0
+    const adjustedReputationReward = reward.reputation
+      ? Math.max(0, Math.round(reward.reputation * weeklyBudgetEffect.reputationRewardMultiplier) + weeklyBudgetEffect.flatReputationBonus)
+      : weeklyBudgetEffect.flatReputationBonus
 
     let fallbackMoney = 0
     if (adjustedMoneyReward > 0) {
       playerStore.earnMoney(adjustedMoneyReward, { countAsEarned: false })
     }
-    if (reward.reputation) {
-      goalReputation.value += reward.reputation
+    if (adjustedReputationReward > 0) {
+      goalReputation.value += adjustedReputationReward
     }
     if (reward.items?.length) {
       const canReceiveAll = inventoryStore.canAddItems(
@@ -1290,7 +1506,11 @@ export const useGoalStore = defineStore('goal', () => {
           : `${adjustedMoneyReward}文`
       )
     }
-    if (reward.reputation) rewardTexts.push(`目标声望+${reward.reputation}`)
+    if (adjustedReputationReward > 0) rewardTexts.push(`目标声望+${adjustedReputationReward}`)
+    const budgetTicketTexts = Object.entries(weeklyBudgetEffect.ticketRewards)
+      .filter(([, amount]) => (Number(amount) || 0) > 0)
+      .map(([ticketType, amount]) => `${REWARD_TICKET_LABELS[ticketType as RewardTicketType] ?? ticketType}+${amount}`)
+    if (budgetTicketTexts.length > 0) rewardTexts.push(...budgetTicketTexts)
     if (reward.items?.length) {
       rewardTexts.push(
         reward.items
@@ -1412,7 +1632,9 @@ export const useGoalStore = defineStore('goal', () => {
     lastSeasonGoalRefresh: lastSeasonGoalRefresh.value,
     lastThemeWeekRefresh: lastThemeWeekRefresh.value,
     currentThemeWeekState: currentThemeWeekState.value,
-    weeklyMetricArchive: weeklyMetricArchive.value
+    weeklyMetricArchive: weeklyMetricArchive.value,
+    weeklyBudgetPlan: weeklyBudgetPlan.value,
+    weeklyBudgetHistory: weeklyBudgetHistory.value
   })
 
   const deserialize = (data: ReturnType<typeof serialize> | undefined) => {
@@ -1461,6 +1683,8 @@ export const useGoalStore = defineStore('goal', () => {
     currentThemeWeekState.value = data?.currentThemeWeekState ?? null
     lastThemeWeekRefresh.value = data?.lastThemeWeekRefresh ?? ''
     weeklyMetricArchive.value = normalizeWeeklyMetricArchive(data?.weeklyMetricArchive)
+    weeklyBudgetPlan.value = normalizeWeeklyBudgetPlan(data?.weeklyBudgetPlan)
+    weeklyBudgetHistory.value = normalizeWeeklyBudgetArchive(data?.weeklyBudgetHistory)
     ensureInitialized()
     syncMainQuestStage()
   }
@@ -1519,6 +1743,8 @@ export const useGoalStore = defineStore('goal', () => {
       .slice(0, ECONOMY_TUNING_CONFIG.recommendedSinkCount)
   })
   const latestWeeklyMetricSnapshot = computed(() => weeklyMetricArchive.value.snapshots[weeklyMetricArchive.value.snapshots.length - 1] ?? null)
+  const weeklyBudgetChannels = computed(() => WEEKLY_BUDGET_CHANNELS)
+  const weeklyBudgetSelections = computed(() => weeklyBudgetPlan.value.selections)
 
   return {
     mainQuestStage,
@@ -1534,6 +1760,10 @@ export const useGoalStore = defineStore('goal', () => {
     currentThemeWeek,
     currentThemeWeekGoals,
     recommendedEconomySinks,
+    weeklyBudgetChannels,
+    weeklyBudgetPlan,
+    weeklyBudgetSelections,
+    weeklyBudgetHistory,
     weeklyMetricArchive,
     latestWeeklyMetricSnapshot,
     completedMainQuestCount,
@@ -1541,6 +1771,9 @@ export const useGoalStore = defineStore('goal', () => {
     refreshDailyGoals,
     refreshSeasonGoals,
     refreshThemeWeek,
+    activateWeeklyBudget,
+    getWeeklyBudgetSelection,
+    resetWeeklyBudgetsForNewWeek,
     onDayChanged,
     onSeasonChanged,
     onCalendarAdvanced,

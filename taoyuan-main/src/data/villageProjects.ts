@@ -583,6 +583,16 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
         linkedSystems: ['museum', 'goal']
       }
     ],
+    maintenancePlan: {
+      id: 'village_school_ii_maintenance',
+      targetType: 'villageProject',
+      targetId: 'village_school_ii',
+      label: '学舍账房维护',
+      costMoney: 560,
+      cycleDays: 7,
+      effectSummary: '维持讲席、账房与资料架运转，确保额外任务容量与学舍服务持续生效。',
+      autoRenew: false
+    },
     donationPlan: {
       id: 'village_school_archive_drive',
       label: '学舍文书捐赠',

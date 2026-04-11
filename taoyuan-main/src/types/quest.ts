@@ -1,5 +1,6 @@
 import type { Season } from './game'
 import type { RelationshipStage } from './npc'
+import type { RewardTicketType } from './economy'
 
 /** 任务类型 */
 export type QuestType = 'delivery' | 'fishing' | 'mining' | 'gathering' | 'special_order' | 'cooking' | 'errand' | 'festival_prep'
@@ -53,6 +54,10 @@ export interface QuestInstance {
   itemReward?: { itemId: string; quantity: number }[]
   /** 食谱奖励 */
   recipeReward?: string[]
+  /** 票券奖励 */
+  ticketReward?: Partial<Record<RewardTicketType, number>>
+  /** 奖励结构档案 */
+  rewardProfileId?: string
   /** 建筑/生活线索奖励 */
   buildingClueId?: string
   buildingClueText?: string

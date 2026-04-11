@@ -56,6 +56,162 @@
 
     <div class="border border-accent/20 rounded-xs p-3 mb-3">
       <div class="flex items-center justify-between mb-2">
+        <div class="flex items-center gap-1.5 text-sm text-accent">
+          <Store :size="14" />
+          <span>商店豪华消费路线</span>
+        </div>
+        <span class="text-xs text-muted">{{ shopStore.currentLuxuryAuditSegment?.label ?? '经营观察中' }}</span>
+      </div>
+      <p class="text-xs text-muted mb-2">
+        {{ shopStore.currentLuxuryAuditSegment?.recommendedFocus ?? '优先在每周精选、高价长期商品与可复购服务间建立稳定投入。' }}
+      </p>
+
+      <div class="grid grid-cols-2 gap-2 mb-2">
+        <div v-for="metric in walletCatalogMetricCards" :key="metric.label" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/20">
+          <p class="text-[10px] text-muted">{{ metric.label }}</p>
+          <p class="text-sm text-accent mt-0.5">{{ metric.value }}</p>
+          <p class="text-[10px] text-muted mt-1">{{ metric.hint }}</p>
+        </div>
+      </div>
+
+      <div v-if="shopStore.weeklySurpriseOffer" class="border border-warning/20 rounded-xs p-2 mb-2 bg-warning/5">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs text-warning">本周精选提醒</p>
+          <span class="text-[10px] text-warning">{{ shopStore.weeklyCatalogRefreshText }}</span>
+        </div>
+        <p class="text-xs text-text mt-1">{{ shopStore.weeklySurpriseOffer.name }}</p>
+        <p class="text-[10px] text-muted mt-0.5">{{ shopStore.weeklySurpriseOffer.description }}</p>
+        <p class="text-[10px] text-success mt-1">{{ walletCatalogFeaturedReason }}</p>
+      </div>
+
+      <div class="border border-accent/10 rounded-xs p-2 bg-bg/10">
+        <p class="text-[10px] text-accent mb-1">与你当前路线更契合的货架</p>
+        <div class="space-y-1.5">
+          <div v-for="offer in walletCatalogRecommendedOffers" :key="offer.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-text">{{ offer.name }}</p>
+              <span class="text-[10px] text-accent">{{ shopStore.applyDiscount(offer.price) }}文</span>
+            </div>
+            <p class="text-[10px] text-muted mt-0.5">{{ offer.description }}</p>
+            <p class="text-[10px] text-success mt-1">{{ shopStore.getCatalogOfferPreferenceReason(offer.id) }}</p>
+          </div>
+          <p v-if="walletCatalogRecommendedOffers.length === 0" class="text-[10px] text-muted">当前暂无额外推荐，先完成图鉴、主题周或流派节点解锁可获得更明确的商店路线提示。</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm text-accent">周预算系统</span>
+        <span class="text-xs text-muted">{{ weeklyBudgetActiveCount }}/{{ weeklyBudgetChannels.length }} 槽</span>
+      </div>
+      <p class="text-xs text-muted mb-2">每周可分别为商路、展馆、学舍投入预算；当周目标收益立即生效，下周开始自动失效并重新选择。</p>
+
+      <div class="border border-accent/10 rounded-xs p-2 mb-2 bg-bg/10">
+        <div class="flex items-center justify-between gap-2">
+          <span class="text-xs text-muted">当前周次</span>
+          <span class="text-xs text-accent">{{ weeklyBudgetWeekLabel }}</span>
+        </div>
+        <div class="flex items-center justify-between gap-2 mt-1">
+          <span class="text-xs text-muted">本周已结算目标</span>
+          <span class="text-xs text-accent">{{ weeklyBudgetPlan.completedGoalCount }} 次</span>
+        </div>
+        <div class="mt-1">
+          <p class="text-xs text-muted">本周票券累计</p>
+          <p class="text-[10px] text-muted/80 mt-0.5">{{ weeklyBudgetTicketSummary }}</p>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <div v-for="entry in weeklyBudgetChannelEntries" :key="entry.channel.channelId" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <p class="text-xs text-text">{{ entry.channel.label }}</p>
+              <p class="text-[10px] text-muted mt-0.5">{{ entry.channel.description }}</p>
+            </div>
+            <span class="text-[10px]" :class="entry.selection ? 'text-success' : 'text-muted'">
+              {{ entry.selection ? `已投入 · ${entry.selection.tierLabel}` : '本周未投入' }}
+            </span>
+          </div>
+
+          <div v-if="entry.selection" class="border border-success/20 rounded-xs p-2 mt-2 bg-success/5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-success">{{ entry.selection.tierLabel }}</p>
+              <span class="text-[10px] text-success">{{ entry.selection.costMoney }}文</span>
+            </div>
+            <p class="text-[10px] text-muted mt-1">{{ entry.selection.effect.summary }}</p>
+          </div>
+
+          <div v-else class="grid grid-cols-1 gap-2 mt-2">
+            <button
+              v-for="tier in entry.channel.tiers"
+              :key="tier.id"
+              class="border border-accent/10 rounded-xs px-2 py-2 text-left hover:bg-accent/5 transition-colors"
+              @click="handleActivateWeeklyBudget(entry.channel.channelId, tier.id)"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs text-accent">{{ tier.label }}</p>
+                <span class="text-[10px] text-accent">{{ tier.costMoney }}文</span>
+              </div>
+              <p class="text-[10px] text-muted mt-1">{{ tier.effect.summary }}</p>
+              <p class="text-[10px] text-muted/70 mt-1">预计周回报参考：{{ tier.projectedValue }}文</p>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+      <div class="flex items-center justify-between mb-2">
+        <span class="text-sm text-accent">资源券 / 凭证</span>
+        <span class="text-xs text-muted">{{ rewardTicketFilledCount }}/{{ rewardTicketEntries.length }} 已入账</span>
+      </div>
+      <p class="text-xs text-muted mb-2">高阶经营奖励会逐步改为票券发放，可在这里查看余额并兑换对应的专项补给。</p>
+
+      <div class="space-y-2 mb-3">
+        <div
+          v-for="entry in rewardTicketEntries"
+          :key="entry.id"
+          class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <p class="text-xs text-text">{{ entry.label }}</p>
+              <p class="text-[10px] text-muted mt-0.5">{{ entry.description }}</p>
+            </div>
+            <span class="text-xs" :class="entry.balance > 0 ? 'text-success' : 'text-muted'">{{ entry.balance }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="space-y-2">
+        <div
+          v-for="offer in rewardTicketExchangeOffers"
+          :key="offer.id"
+          class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <p class="text-xs text-accent">{{ offer.label }}</p>
+              <p class="text-[10px] text-muted mt-0.5">{{ offer.description }}</p>
+            </div>
+            <span class="text-[10px] text-muted">{{ offer.balance }}/{{ offer.costTickets }}</span>
+          </div>
+          <p class="text-[10px] text-muted mt-1">兑换内容：{{ offer.rewardSummary }}</p>
+          <button
+            class="mt-2 border border-accent/20 rounded-xs px-2 py-1 text-[10px] transition-colors"
+            :class="offer.affordable ? 'text-accent hover:bg-accent/5' : 'text-muted opacity-50 cursor-not-allowed'"
+            :disabled="!offer.affordable"
+            @click="handleRedeemRewardTicketOffer(offer.id)"
+          >
+            消耗 {{ offer.costTickets }} {{ offer.ticketLabel }}兑换
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+      <div class="flex items-center justify-between mb-2">
         <span class="text-sm text-accent">额度兑换</span>
         <span class="text-xs text-muted">{{ playerStore.money }}文</span>
       </div>
@@ -310,16 +466,20 @@
 
 <script setup lang="ts">
   import { ref, computed, onMounted } from 'vue'
-  import { Wallet, CircleCheck, Lock, X, TrendingUp, AlertTriangle } from 'lucide-vue-next'
+  import { Wallet, CircleCheck, Lock, X, TrendingUp, AlertTriangle, Store } from 'lucide-vue-next'
+  import { useGoalStore } from '@/stores/useGoalStore'
+  import { useShopStore } from '@/stores/useShopStore'
   import { useWalletStore } from '@/stores/useWalletStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { WALLET_ITEMS } from '@/data/wallet'
   import { ECONOMY_SINK_CONTENT_DEFS } from '@/data/market'
-  import type { WalletArchetypeId, WalletItemDef } from '@/types'
+  import type { WalletArchetypeId, WalletItemDef, WeeklyBudgetChannelId } from '@/types'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { exportTaoyuanToQuota, fetchTaoyuanExchangeContext, importQuotaToTaoyuan } from '@/utils/quotaExchangeApi'
 
+  const goalStore = useGoalStore()
+  const shopStore = useShopStore()
   const walletStore = useWalletStore()
   const playerStore = usePlayerStore()
   const saveStore = useSaveStore()
@@ -413,6 +573,70 @@
       })
       .sort((a, b) => b.score - a.score)
       .slice(0, 3)
+  })
+  const walletCatalogMetricCards = computed(() => {
+    const summary = shopStore.catalogOverviewSummary
+    return [
+      {
+        label: '已解锁目录',
+        value: `${summary.unlockedOffers}/${summary.totalOffers}`,
+        hint: `已拥有 ${summary.ownedOffers} 项`
+      },
+      {
+        label: '每周精选',
+        value: `${summary.weeklyOfferCount}`,
+        hint: shopStore.weeklyCatalogRefreshText
+      },
+      {
+        label: '高价长期',
+        value: `${summary.premiumOfferCount}`,
+        hint: `活跃服务 ${summary.activeEntitlementCount} 项`
+      },
+      {
+        label: '可复购池',
+        value: `${summary.repeatableOfferCount}`,
+        hint: `P2 内容 ${summary.tierCounts.P2} 项`
+      }
+    ]
+  })
+  const walletCatalogRecommendedOffers = computed(() => shopStore.recommendedCatalogOffers.slice(0, 3))
+  const walletCatalogFeaturedReason = computed(() => {
+    const offer = shopStore.weeklySurpriseOffer
+    if (!offer) return '本周尚未生成精选推荐。'
+    return shopStore.getCatalogOfferPreferenceReason(offer.id) || '本周优先关注周精选货架，适合作为当前经营路线的快速消费入口。'
+  })
+  const weeklyBudgetChannels = computed(() => goalStore.weeklyBudgetChannels)
+  const weeklyBudgetPlan = computed(() => goalStore.weeklyBudgetPlan)
+  const weeklyBudgetActiveCount = computed(() => Object.keys(weeklyBudgetPlan.value.selections).length)
+  const rewardTicketEntries = computed(() => walletStore.rewardTicketEntries)
+  const rewardTicketFilledCount = computed(() => rewardTicketEntries.value.filter(entry => entry.balance > 0).length)
+  const rewardTicketExchangeOffers = computed(() =>
+    walletStore.ticketExchangeOffers.map(offer => ({
+      ...offer,
+      ticketLabel: walletStore.getTicketLabel(offer.ticketType)
+    }))
+  )
+  const weeklyBudgetChannelEntries = computed(() =>
+    weeklyBudgetChannels.value.map(channel => ({
+      channel,
+      selection: goalStore.getWeeklyBudgetSelection(channel.channelId)
+    }))
+  )
+  const WEEKLY_BUDGET_TICKET_LABELS: Record<string, string> = {
+    caravan: '商路票券',
+    exhibit: '展馆票券',
+    research: '学舍票券'
+  }
+  const weeklyBudgetTicketSummary = computed(() => {
+    const entries = Object.entries(weeklyBudgetPlan.value.ticketBalances)
+      .filter(([, amount]) => (Number(amount) || 0) > 0)
+      .map(([ticketType, amount]) => `${WEEKLY_BUDGET_TICKET_LABELS[ticketType] ?? ticketType}×${amount}`)
+    return entries.length > 0 ? entries.join('、') : '本周尚未累计预算票券'
+  })
+  const weeklyBudgetWeekLabel = computed(() => {
+    const weekId = weeklyBudgetPlan.value.weekId
+    if (!weekId) return '本周待激活'
+    return weekId.replace('-week-', ' · 第') + '周'
   })
   const unlockedArchetypeNodeCount = computed(() => walletStore.currentArchetypeNodes.filter(node => walletStore.isNodeUnlocked(node.id)).length)
   const sanitizedExchangeMoney = computed(() => Math.max(0, Math.floor(Number(exchangeMoney.value) || 0)))
@@ -509,6 +733,16 @@
     showResetArchetypeConfirm.value = false
     showFloat('已重置钱包流派', 'danger')
     addLog(`已重置钱包流派${prev ? `「${prev}」` : ''}。`)
+  }
+
+  const handleActivateWeeklyBudget = (channelId: WeeklyBudgetChannelId, tierId: string) => {
+    goalStore.activateWeeklyBudget(channelId, tierId)
+  }
+
+  const handleRedeemRewardTicketOffer = (offerId: string) => {
+    const result = walletStore.redeemRewardTicketOffer(offerId)
+    showFloat(result.message, result.success ? 'success' : 'danger')
+    addLog(`【票券兑换】${result.message}`)
   }
 
   const persistExchangeResult = async () => {
