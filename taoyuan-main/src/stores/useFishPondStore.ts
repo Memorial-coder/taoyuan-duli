@@ -36,6 +36,19 @@ const generateFishId = (): string => {
 }
 
 const clamp = (v: number, min: number, max: number): number => Math.max(min, Math.min(max, v))
+const normalizeBreedingPair = (value: any) => {
+  if (!value || typeof value !== 'object') return null
+  const parentA = typeof value.parentA === 'string' ? value.parentA : ''
+  const parentB = typeof value.parentB === 'string' ? value.parentB : ''
+  const fishId = typeof value.fishId === 'string' && isPondableFish(value.fishId) ? value.fishId : ''
+  if (!parentA || !parentB || !fishId) return null
+  return {
+    parentA,
+    parentB,
+    daysLeft: Math.max(0, Number(value.daysLeft) || 0),
+    fishId
+  }
+}
 
 export const useFishPondStore = defineStore('fishPond', () => {
   // === 状态 ===
@@ -562,7 +575,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
           })),
         waterQuality: data.pond.waterQuality ?? 100,
         fedToday: data.pond.fedToday ?? false,
-        breeding: data.pond.breeding ?? null,
+        breeding: normalizeBreedingPair(data.pond.breeding),
         collectedToday: data.pond.collectedToday ?? false
       }
     }

@@ -36,6 +36,7 @@ import { WEEKLY_BUDGET_CHANNEL_MAP } from '@/data/weeklyBudgets'
 import { showEvent, showFestival, triggerWeddingEvent, triggerPetAdoption, showFarmEvent, showDiscoveryScene } from './useDialogs'
 import { sfxSleep, useAudio } from './useAudio'
 import { harvestFarmPlotWithRewards } from './useFarmHarvest'
+import { createSystemMailboxCampaign } from '@/utils/mailboxApi'
 import { getWeekBoundaryEvent, getWeekCycleInfo } from '@/utils/weekCycle'
 import {
   MORNING_NARRATIONS,
@@ -561,6 +562,13 @@ export const handleEndDay = () => {
     total: playerStore.economyTelemetry.lifetimeSinkSpend.total,
     byCategory: { ...playerStore.economyTelemetry.lifetimeSinkSpend.byCategory }
   }
+  const guidanceDigestBefore = {
+    dayTag: tutorialStore.guidanceDigestState.lastRefreshDayTag,
+    themeWeekId: tutorialStore.guidanceDigestState.currentThemeWeekId,
+    campaignId: tutorialStore.guidanceDigestState.currentCampaignId,
+    activeSummaryIds: [...tutorialStore.guidanceDigestState.activeSummaryIds],
+    activeRouteIds: [...tutorialStore.guidanceDigestState.activeRouteIds]
+  }
   const highValueOrderTypes = new Set<string>()
   const pestResult = farmStore.dailyUpdate(gameStore.isRainy || landGodActive)
   processingStore.dailyUpdate()
@@ -874,10 +882,74 @@ export const handleEndDay = () => {
   const currentWeekInfo = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
   const weekBoundaryEvent = getWeekBoundaryEvent(previousWeekInfo, currentWeekInfo)
   goalStore.onCalendarAdvanced(seasonChanged)
+  const eventOperationsTick = goalStore.processEventOperationsTick({
+    currentDayTag: `${gameStore.year}-${gameStore.season}-${gameStore.day}`,
+    currentWeekId: currentWeekInfo.seasonWeekId,
+    startedNewWeek: weekBoundaryEvent.startedNewWeek,
+    seasonChanged
+  })
+  for (const message of eventOperationsTick.logs) {
+    addLog(message, {
+      category: 'goal',
+      tags: ['late_game_cycle'],
+      meta: {
+        weekId: currentWeekInfo.seasonWeekId,
+        activeCampaignId: eventOperationsTick.activeCampaignId ?? ''
+      }
+    })
+  }
+  const activityQuestWindowTick = questStore.processActivityQuestWindowTick({
+    currentDayTag: `${gameStore.year}-${gameStore.season}-${gameStore.day}`,
+    currentWeekId: currentWeekInfo.seasonWeekId,
+    startedNewWeek: weekBoundaryEvent.startedNewWeek,
+    activeEventCampaignId: eventOperationsTick.activeCampaignId ?? null
+  })
+  for (const message of activityQuestWindowTick.logs) {
+    addLog(message, {
+      category: 'quest',
+      tags: ['late_game_cycle'],
+      meta: {
+        weekId: currentWeekInfo.seasonWeekId,
+        activeCampaignId: activityQuestWindowTick.activeCampaignId ?? ''
+      }
+    })
+  }
 
   // === 晨间结算（新日期） ===
 
   // 晨间随机事件（使用新一天的季节/天气）
+  const dispatchEventCampaignMails = async () => {
+    if (!eventOperationsTick.activeCampaignId || eventOperationsTick.pendingMailTemplateIds.length === 0) return
+    const campaign = goalStore.getEventCampaignById(eventOperationsTick.activeCampaignId)
+    if (!campaign) return
+    const themeWeekLabel = goalStore.currentThemeWeek?.name ?? currentWeekInfo.seasonWeekId
+    for (const templateId of eventOperationsTick.pendingMailTemplateIds) {
+      const template = goalStore.getEventMailTemplateRefById(templateId)
+      if (!template) continue
+      const mailReceiptKey = `event_${currentWeekInfo.seasonWeekId}_${templateId}`
+      try {
+        await createSystemMailboxCampaign({
+          id: mailReceiptKey,
+          title: `${campaign.label}｜${template.title}`,
+          content: [campaign.description, `当前主题周：${themeWeekLabel}`, template.summary, `活动承接：${campaign.rewardSummary}`].filter(Boolean).join('\n'),
+          template_type: template.templateType
+        })
+        goalStore.markEventCampaignMailClaimed(mailReceiptKey)
+      } catch (error) {
+        addLog(`【活动编排】活动邮件模板「${template.title}」投递失败：${error instanceof Error ? error.message : '未知错误'}`, {
+          category: 'goal',
+          tags: ['late_game_cycle'],
+          meta: {
+            weekId: currentWeekInfo.seasonWeekId,
+            campaignId: campaign.id,
+            templateId
+          }
+        })
+      }
+    }
+  }
+  void dispatchEventCampaignMails()
+
   const morningEvent = rollMorningEvent()
   if (morningEvent) {
     if (morningEvent.type === 'choice') {
@@ -1236,8 +1308,9 @@ export const handleEndDay = () => {
     currentWeekId: currentWeekInfo.seasonWeekId,
     previousWeekId: previousWeekInfo.seasonWeekId,
     weekOfSeason: currentWeekInfo.weekOfSeason,
-    startedNewWeek: weekBoundaryEvent.startedNewWeek
+      startedNewWeek: weekBoundaryEvent.startedNewWeek
   })
+  const hanhaiWeeklyClearsBeforeTick = hanhaiStore.totalRelicClears
   hanhaiStore.processCycleTick({
     currentDayTag: economyDayTag,
     currentWeekId: currentWeekInfo.seasonWeekId,
@@ -1274,6 +1347,23 @@ export const handleEndDay = () => {
         bondedCount: spiritTick.bondedCount
       }
     })
+  }
+  if (weekBoundaryEvent.startedNewWeek && goalStore.currentEventCampaign) {
+    const activityLinkedSystems: string[] = []
+    if (shopStore.activityCampaignOfferRecommendations.length > 0) activityLinkedSystems.push(`目录承接：${shopStore.activityCampaignOfferRecommendations.slice(0, 2).map(offer => offer.name).join('、')}`)
+    if (guildStore.crossSystemOverview.recommendedActions.length > 0) activityLinkedSystems.push('公会赛季')
+    if (museumStore.crossSystemOverview.recommendedActions.length > 0) activityLinkedSystems.push('博物馆经营')
+    if (hanhaiStore.crossSystemOverview.recommendedActions.length > 0) activityLinkedSystems.push('瀚海循环')
+    if (activityLinkedSystems.length > 0) {
+      addLog(`【活动联动】本周活动「${goalStore.currentEventCampaign.label}」已联动 ${activityLinkedSystems.join(' / ')}。`, {
+        category: 'goal',
+        tags: ['late_game_cycle'],
+        meta: {
+          weekId: currentWeekInfo.seasonWeekId,
+          campaignId: goalStore.currentEventCampaign.id
+        }
+      })
+    }
   }
   shopStore.processCatalogCycleTick({
     currentDayTag: economyDayTag,
@@ -1314,7 +1404,9 @@ export const handleEndDay = () => {
   })
 
   if (weekBoundaryEvent.startedNewWeek) {
-    const weeklySnapshot = goalStore.archiveWeeklyMetricSnapshot(previousWeekInfo, economyDayTag)
+    const weeklySnapshot = goalStore.archiveWeeklyMetricSnapshot(previousWeekInfo, economyDayTag, {
+      hanhaiContractCompletions: hanhaiWeeklyClearsBeforeTick
+    })
     addLog(`【周快照】已归档 ${weeklySnapshot.weekId}：净收入 ${weeklySnapshot.netIncome} 文。`, {
       category: 'economy',
       tags: ['weekly_metric_snapshot_archived', 'late_game_cycle'],
@@ -1341,6 +1433,84 @@ export const handleEndDay = () => {
         tags: ['weekly_risk_report', 'late_game_cycle'],
         meta: { level: weeklyRiskReport.level, metricCount: weeklyRiskReport.triggeredMetricIds.length }
       })
+    }
+  }
+
+  const guidanceDigestRefreshed = tutorialStore.ensureGuidanceDigestFresh()
+  if (guidanceDigestRefreshed) {
+    const guidanceDebugSnapshot = tutorialStore.getGuidanceDebugSnapshot()
+    const themeWeekChanged = guidanceDigestBefore.themeWeekId !== guidanceDebugSnapshot.currentThemeWeekId
+    const campaignChanged = guidanceDigestBefore.campaignId !== guidanceDebugSnapshot.currentCampaignId
+    const summaryChanged =
+      guidanceDigestBefore.activeSummaryIds.length !== guidanceDebugSnapshot.activeSummaryIds.length ||
+      guidanceDigestBefore.activeSummaryIds.some((id, index) => guidanceDebugSnapshot.activeSummaryIds[index] !== id)
+    const routeChanged =
+      guidanceDigestBefore.activeRouteIds.length !== guidanceDebugSnapshot.activeRouteIds.length ||
+      guidanceDigestBefore.activeRouteIds.some((id, index) => guidanceDebugSnapshot.activeRouteIds[index] !== id)
+
+    if (weekBoundaryEvent.startedNewWeek || seasonChanged || themeWeekChanged || campaignChanged || summaryChanged || routeChanged) {
+      const guidanceOverview = tutorialStore.uiGuidanceOverview.goalSourceOverview
+      const focusLabels = [
+        guidanceOverview.currentThemeWeek?.summaryLabel ? `主题周：${guidanceOverview.currentThemeWeek.summaryLabel}` : '',
+        guidanceOverview.currentEventCampaign?.label ? `活动：${guidanceOverview.currentEventCampaign.label}` : '',
+        guidanceDebugSnapshot.activeSummaryIds.length > 0 ? `摘要 ${guidanceDebugSnapshot.activeSummaryIds.length} 条` : '',
+        guidanceDebugSnapshot.activeRouteIds.length > 0 ? `路线 ${guidanceDebugSnapshot.activeRouteIds.length} 条` : ''
+      ].filter(Boolean)
+      addLog(`【经营引导】推荐 digest 已刷新${focusLabels.length > 0 ? `：${focusLabels.join('，')}` : '。'}`, {
+        category: 'system',
+        tags: ['ui_guidance_digest_refresh', 'late_game_cycle'],
+        meta: {
+          dayTag: guidanceDebugSnapshot.currentDayTag,
+          previousDayTag: guidanceDigestBefore.dayTag,
+          weekId: currentWeekInfo.seasonWeekId,
+          currentTier: guidanceDebugSnapshot.currentTier,
+          summaryCount: guidanceDebugSnapshot.activeSummaryIds.length,
+          routeCount: guidanceDebugSnapshot.activeRouteIds.length,
+          currentThemeWeekId: guidanceDebugSnapshot.currentThemeWeekId ?? '',
+          currentCampaignId: guidanceDebugSnapshot.currentCampaignId ?? ''
+        }
+      })
+    }
+  }
+  if (
+    weekBoundaryEvent.startedNewWeek &&
+    tutorialStore.guidanceFeatureFlags.weeklyLoopLogEnabled &&
+    tutorialStore.uiGuidanceOverview.crossSystemOverview.weeklyDecisionLoop.length > 0
+  ) {
+    const loopLabels = tutorialStore.uiGuidanceOverview.crossSystemOverview.weeklyDecisionLoop
+      .slice(0, 3)
+      .map(entry => entry.label)
+      .join(' / ')
+    addLog(`【经营引导】本周建议优先按 ${loopLabels} 这条跨系统路线推进。`, {
+      category: 'system',
+      tags: ['late_game_cycle', 'ui_guidance_digest_refresh'],
+      meta: {
+        weekId: currentWeekInfo.seasonWeekId,
+        actionCount: tutorialStore.uiGuidanceOverview.crossSystemOverview.weeklyDecisionLoop.length
+      }
+    })
+  }
+  if (playerStore.qaGovernanceOverview.featureFlags.automatedRegressionEnabled) {
+    if (playerStore.qaGovernanceTuning.operations.autoMarkDailyRegressionEnabled) {
+      playerStore.markQaGovernanceRegressionSuiteCompleted('ws12_regression_daily_settlement', economyDayTag)
+    }
+    if (weekBoundaryEvent.startedNewWeek && playerStore.qaGovernanceTuning.operations.autoMarkWeeklyRegressionEnabled) {
+      playerStore.markQaGovernanceRegressionSuiteCompleted('ws12_regression_weekly_cycles', economyDayTag)
+      const saveGovernanceOverview = saveStore.qaGovernanceOverview
+      addLog(
+        `【QA治理】已完成本周治理巡检：存档模式 ${saveGovernanceOverview.storageMode}，灰度通道 ${playerStore.qaGovernanceRuntimeState.activeGrayReleaseChannel}，回滚累计 ${playerStore.qaGovernanceRuntimeState.rollbackTriggerCount} 次。`,
+        {
+          category: 'system',
+          tags: ['late_game_cycle'],
+          meta: {
+            weekId: currentWeekInfo.seasonWeekId,
+            storageMode: saveGovernanceOverview.storageMode,
+            grayReleaseChannel: playerStore.qaGovernanceRuntimeState.activeGrayReleaseChannel,
+            rollbackTriggerCount: playerStore.qaGovernanceRuntimeState.rollbackTriggerCount,
+            hotfixCount: playerStore.qaGovernanceRuntimeState.postReleaseHotfixCount
+          }
+        }
+      )
     }
   }
 

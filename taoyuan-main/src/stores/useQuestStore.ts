@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type {
+  ActivityQuestWindowState,
   CompendiumEntry,
   MainQuestObjective,
   MainQuestState,
@@ -23,16 +24,19 @@ import type {
   VillagerQuestCategory
 } from '@/types'
 import {
+  createDefaultActivityQuestWindowState,
   generateQuest,
   generateSpecialOrder as _generateSpecialOrder,
   generateVillagerQuest,
   getSpecialOrderRewardProfile,
   BREEDING_SPECIAL_ORDER_BASELINE,
   BREEDING_SPECIAL_ORDER_TUNING_CONFIG,
+  WS10_LIMITED_TIME_QUEST_CAMPAIGN_DEFS,
   type QuestMarketCategory
 } from '@/data/quests'
 import { getStoryQuestById, getNextStoryQuest, getFirstStoryQuest, STORY_QUESTS } from '@/data/storyQuests'
 import { getNpcById, WS09_RELATIONSHIP_TUNING_CONFIG } from '@/data/npcs'
+import { WS10_EVENT_OPERATION_TUNING_CONFIG } from '@/data/goals'
 import { getTodayEvent } from '@/data/events'
 import { getItemById, getRecipeById } from '@/data'
 import { MARKET_CATEGORY_NAMES } from '@/data/market'
@@ -90,12 +94,34 @@ export const useQuestStore = defineStore('quest', () => {
     lastRefreshWeekId: '',
     refreshMode: 'legacy'
   })
+  const activityQuestWindowState = ref<ActivityQuestWindowState>(createDefaultActivityQuestWindowState())
+  const limitedTimeQuestCampaignDefs = WS10_LIMITED_TIME_QUEST_CAMPAIGN_DEFS
+  const eventOperationTuning = WS10_EVENT_OPERATION_TUNING_CONFIG
+  const activityQuestWindowLocks = ref<string[]>([])
 
   /** 最近一次高阶订单生成追踪（调试态 / 解释层使用） */
   const lastSpecialOrderGenerationTrace = ref<OrderGenerationTrace | null>(null)
 
   /** 最大同时接取任务数 */
   const MAX_ACTIVE_QUESTS = computed(() => 3 + villageProjectStore.getQuestCapacityBonus())
+
+  const beginActivityQuestWindowAction = (lockId: string): boolean => {
+    if (activityQuestWindowLocks.value.includes(lockId)) return false
+    activityQuestWindowLocks.value = [...activityQuestWindowLocks.value, lockId]
+    return true
+  }
+
+  const finishActivityQuestWindowAction = (lockId: string) => {
+    activityQuestWindowLocks.value = activityQuestWindowLocks.value.filter(entry => entry !== lockId)
+  }
+
+  const createActivityQuestWindowSnapshot = () => ({
+    activityQuestWindowState: { ...activityQuestWindowState.value }
+  })
+
+  const rollbackActivityQuestWindow = (snapshot: ReturnType<typeof createActivityQuestWindowSnapshot>) => {
+    activityQuestWindowState.value = { ...snapshot.activityQuestWindowState }
+  }
 
   /** 每日生成新任务到告示栏 */
   const dedupeList = <T,>(items: T[]): T[] => Array.from(new Set(items))
@@ -1932,6 +1958,7 @@ export const useQuestStore = defineStore('quest', () => {
       specialOrderSettlementReceipts: specialOrderSettlementReceipts.value,
       recentSpecialOrderTagHistory: recentSpecialOrderTagHistory.value,
       weeklySpecialOrderState: weeklySpecialOrderState.value,
+      activityQuestWindowState: activityQuestWindowState.value,
       mainQuest: mainQuest.value,
       completedMainQuests: completedMainQuests.value
     }
@@ -2205,6 +2232,152 @@ export const useQuestStore = defineStore('quest', () => {
     }
   }
 
+  const getLimitedTimeQuestCampaignById = (campaignId: string) =>
+    limitedTimeQuestCampaignDefs.find(campaign => campaign.id === campaignId) ?? null
+
+  const currentLimitedTimeQuestCampaign = computed(() =>
+    eventOperationTuning.featureFlags.activityQuestWindowEnabled && activityQuestWindowState.value.activeCampaignId
+      ? getLimitedTimeQuestCampaignById(activityQuestWindowState.value.activeCampaignId)
+      : null
+  )
+
+  const activityQuestWindowOverview = computed(() => ({
+    activeCampaign: currentLimitedTimeQuestCampaign.value,
+    state: activityQuestWindowState.value,
+    specialOrder: specialOrder.value,
+    boardHint: marketQuestBiasProfile.value.boardHint,
+    specialOrderHint: marketQuestBiasProfile.value.specialOrderHint
+  }))
+
+  const activateActivityQuestWindow = (campaignId: string, templateIds: string[], refreshDayTag: string, nextRefreshDayTag: string) => {
+    const lockId = `activity_window_activate_${campaignId}`
+    if (!beginActivityQuestWindowAction(lockId)) return false
+    const snapshot = createActivityQuestWindowSnapshot()
+    try {
+    const campaign = getLimitedTimeQuestCampaignById(campaignId)
+    if (!campaign) return false
+    activityQuestWindowState.value = {
+      version: activityQuestWindowState.value.version,
+      activeCampaignId: campaignId,
+      activeQuestTemplateIds: [...templateIds],
+      lastRefreshDayTag: refreshDayTag,
+      nextRefreshDayTag,
+      completedWindowIds: activityQuestWindowState.value.completedWindowIds,
+      claimedRewardMailIds: activityQuestWindowState.value.claimedRewardMailIds
+    }
+    return true
+    } catch {
+      rollbackActivityQuestWindow(snapshot)
+      return false
+    } finally {
+      finishActivityQuestWindowAction(lockId)
+    }
+  }
+
+  const completeActivityQuestWindow = (campaignId = activityQuestWindowState.value.activeCampaignId ?? '') => {
+    const lockId = `activity_window_complete_${campaignId}`
+    if (!beginActivityQuestWindowAction(lockId)) return false
+    const snapshot = createActivityQuestWindowSnapshot()
+    try {
+    if (!campaignId) return false
+    activityQuestWindowState.value = {
+      ...activityQuestWindowState.value,
+      activeCampaignId: activityQuestWindowState.value.activeCampaignId === campaignId ? null : activityQuestWindowState.value.activeCampaignId,
+      completedWindowIds: activityQuestWindowState.value.completedWindowIds.includes(campaignId)
+        ? activityQuestWindowState.value.completedWindowIds
+        : [...activityQuestWindowState.value.completedWindowIds, campaignId]
+    }
+    return true
+    } catch {
+      rollbackActivityQuestWindow(snapshot)
+      return false
+    } finally {
+      finishActivityQuestWindowAction(lockId)
+    }
+  }
+
+  const markActivityRewardMailClaimed = (mailId: string) => {
+    const lockId = `activity_window_mail_${mailId}`
+    if (!beginActivityQuestWindowAction(lockId)) return false
+    try {
+    if (!mailId || activityQuestWindowState.value.claimedRewardMailIds.includes(mailId)) return false
+    activityQuestWindowState.value = {
+      ...activityQuestWindowState.value,
+      claimedRewardMailIds: [...activityQuestWindowState.value.claimedRewardMailIds, mailId]
+    }
+    return true
+    } finally {
+      finishActivityQuestWindowAction(lockId)
+    }
+  }
+
+  const getActivityQuestWindowDebugSnapshot = () => ({
+    activeCampaignId: activityQuestWindowState.value.activeCampaignId,
+    activeQuestTemplateIds: activityQuestWindowState.value.activeQuestTemplateIds,
+    completedWindowIds: activityQuestWindowState.value.completedWindowIds,
+    claimedRewardMailIds: activityQuestWindowState.value.claimedRewardMailIds,
+    specialOrderId: specialOrder.value?.id ?? null
+  })
+
+  const processActivityQuestWindowTick = (payload: {
+    currentDayTag: string
+    currentWeekId: string
+    startedNewWeek: boolean
+    activeEventCampaignId: string | null
+  }) => {
+    if (!eventOperationTuning.featureFlags.activityQuestWindowEnabled) {
+      return {
+        logs: [] as string[],
+        activeCampaignId: null,
+        activeQuestTemplateIds: [] as string[]
+      }
+    }
+    const lockId = `activity_window_tick_${payload.currentWeekId}_${payload.currentDayTag}`
+    if (!beginActivityQuestWindowAction(lockId)) {
+      return {
+        logs: [] as string[],
+        activeCampaignId: activityQuestWindowState.value.activeCampaignId,
+        activeQuestTemplateIds: activityQuestWindowState.value.activeQuestTemplateIds
+      }
+    }
+    const snapshot = createActivityQuestWindowSnapshot()
+    try {
+    const logs: string[] = []
+    const matchedCampaign =
+      payload.activeEventCampaignId
+        ? limitedTimeQuestCampaignDefs.find(campaign => campaign.linkedCampaignId === payload.activeEventCampaignId) ?? null
+        : null
+
+    if (payload.startedNewWeek && matchedCampaign) {
+      if (activityQuestWindowState.value.activeCampaignId && activityQuestWindowState.value.activeCampaignId !== matchedCampaign.id) {
+        completeActivityQuestWindow(activityQuestWindowState.value.activeCampaignId)
+      }
+      activateActivityQuestWindow(matchedCampaign.id, [matchedCampaign.activitySourceId], payload.currentDayTag, payload.currentWeekId)
+      logs.push(`【活动任务】限时窗口已切换为「${matchedCampaign.label}」。`)
+    }
+
+    if (!matchedCampaign && payload.startedNewWeek && activityQuestWindowState.value.activeCampaignId) {
+      completeActivityQuestWindow(activityQuestWindowState.value.activeCampaignId)
+      logs.push('【活动任务】本周未匹配到新的限时任务窗口，旧活动窗口已收束。')
+    }
+
+    return {
+      logs,
+      activeCampaignId: activityQuestWindowState.value.activeCampaignId,
+      activeQuestTemplateIds: activityQuestWindowState.value.activeQuestTemplateIds
+    }
+    } catch {
+      rollbackActivityQuestWindow(snapshot)
+      return {
+        logs: ['【活动任务】限时任务窗口切换异常，已回滚到上一状态。'],
+        activeCampaignId: activityQuestWindowState.value.activeCampaignId,
+        activeQuestTemplateIds: activityQuestWindowState.value.activeQuestTemplateIds
+      }
+    } finally {
+      finishActivityQuestWindowAction(lockId)
+    }
+  }
+
   const deserialize = (data: ReturnType<typeof serialize>) => {
     boardQuests.value = (Array.isArray(data?.boardQuests) ? data.boardQuests : []).map(normalizeQuestInstance).filter((quest): quest is QuestInstance => quest !== null)
     activeQuests.value = (Array.isArray(data?.activeQuests) ? data.activeQuests : []).map(normalizeQuestInstance).filter((quest): quest is QuestInstance => quest !== null)
@@ -2213,6 +2386,20 @@ export const useQuestStore = defineStore('quest', () => {
     specialOrderSettlementReceipts.value = normalizeStringArray((data as Record<string, unknown>).specialOrderSettlementReceipts) ?? []
     recentSpecialOrderTagHistory.value = normalizeStringArray((data as Record<string, unknown>).recentSpecialOrderTagHistory) ?? []
     weeklySpecialOrderState.value = normalizeWeeklySpecialOrderState((data as Record<string, unknown>).weeklySpecialOrderState)
+    activityQuestWindowState.value = (() => {
+      const raw = (data as Record<string, unknown>).activityQuestWindowState as Record<string, any> | undefined
+      if (!raw || typeof raw !== 'object') return createDefaultActivityQuestWindowState()
+      return {
+        version: Math.max(1, Number(raw.version) || 1),
+        activeCampaignId: typeof raw.activeCampaignId === 'string' ? raw.activeCampaignId : null,
+        activeQuestTemplateIds: normalizeStringArray(raw.activeQuestTemplateIds) ?? [],
+        lastRefreshDayTag: typeof raw.lastRefreshDayTag === 'string' ? raw.lastRefreshDayTag : '',
+        nextRefreshDayTag: typeof raw.nextRefreshDayTag === 'string' ? raw.nextRefreshDayTag : '',
+        completedWindowIds: normalizeStringArray(raw.completedWindowIds) ?? [],
+        claimedRewardMailIds: normalizeStringArray(raw.claimedRewardMailIds) ?? []
+      }
+    })()
+    activityQuestWindowLocks.value = []
     questSubmissionLocks.value = []
     lastSpecialOrderGenerationTrace.value = null
     mainQuest.value = (() => {
@@ -2240,6 +2427,10 @@ export const useQuestStore = defineStore('quest', () => {
     completedQuestCount,
     specialOrder,
     lastSpecialOrderGenerationTrace,
+    activityQuestWindowState,
+    limitedTimeQuestCampaignDefs,
+    currentLimitedTimeQuestCampaign,
+    activityQuestWindowOverview,
     mainQuest,
     completedMainQuests,
     MAX_ACTIVE_QUESTS,
@@ -2248,6 +2439,12 @@ export const useQuestStore = defineStore('quest', () => {
     processSpecialOrderWeeklyRefresh,
     getSpecialOrderBaseline,
     marketQuestBiasProfile,
+    getLimitedTimeQuestCampaignById,
+    activateActivityQuestWindow,
+    completeActivityQuestWindow,
+    markActivityRewardMailClaimed,
+    getActivityQuestWindowDebugSnapshot,
+    processActivityQuestWindowTick,
     isWeeklySpecialOrderRefreshActive,
     acceptQuest,
     acceptSpecialOrder,

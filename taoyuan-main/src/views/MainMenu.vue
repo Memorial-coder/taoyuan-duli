@@ -513,7 +513,9 @@
         aboutDialogTitle: data.taoyuan_about_dialog_title || '关于桃源乡',
         aboutDialogContent: data.taoyuan_about_dialog_content || '欢迎来到桃源乡。',
       }
-    } catch {}
+    } catch {
+      addLog('公共配置拉取失败，继续使用本地默认菜单配置。')
+    }
   }
 
   const handleReturnToLottery = () => {
@@ -528,7 +530,7 @@
     try {
       await fetch('/api/logout', { method: 'POST', credentials: 'include' })
     } catch {
-      // ignore
+      addLog('退出登录请求失败，已继续执行本地会话刷新。')
     }
     await initCurrentAccount()
     await loadCurrentUser()

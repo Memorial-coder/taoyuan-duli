@@ -913,6 +913,22 @@ router.post('/taoyuan/mail/clear-claimed', loginRequired, signRequired, async (r
   }
 });
 
+router.post('/taoyuan/mail/system-campaign', loginRequired, signRequired, async (req, res) => {
+  try {
+    const campaign = await taoyuanMailbox.saveSystemCampaignForUser(
+      req.body,
+      {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      },
+      req.session.username,
+    );
+    res.json({ ok: true, campaign });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '创建系统邮件失败' });
+  }
+});
+
 router.get('/admin/taoyuan/mail/campaigns', adminAuth, async (req, res) => {
   try {
     await taoyuanMailbox.processPendingCampaigns();

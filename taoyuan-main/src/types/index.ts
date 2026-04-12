@@ -25,6 +25,7 @@ export * from './villageProject'
 export * from './analytics'
 export * from './log'
 export * from './shopCatalog'
+export * from './tutorial'
 export type {
   BudgetChannelId,
   WeeklyBudgetChannelId,
@@ -51,6 +52,12 @@ export type {
   QaCaseDef,
   ReleaseChecklistItem,
   CompensationPlan,
+  QaGovernanceFeatureFlags,
+  QaGovernanceMigrationProfileDef,
+  QaGovernanceTransactionGuardDef,
+  QaGovernanceRegressionSuiteDef,
+  QaGovernanceCompensationMailPreset,
+  QaGovernanceRuntimeState,
   EconomyAuditLinkedSystemRef,
   EconomyBaselineAuditConfig
 } from './economy'

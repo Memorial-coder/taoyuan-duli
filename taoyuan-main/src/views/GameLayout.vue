@@ -563,7 +563,9 @@
   const openMailbox = async () => {
     try {
       await mailboxStore.refreshList()
-    } catch {}
+    } catch {
+      void 0
+    }
     void router.push({ name: 'mail' })
   }
 

@@ -37,6 +37,11 @@ export interface FamilyEventDef {
   requiredDaysMarried?: number
 }
 
+export interface RelationshipContentReward {
+  money?: number
+  items?: Array<{ itemId: string; quantity: number }>
+}
+
 export type HouseholdRoleId = 'field_support' | 'home_care' | 'craft_assist' | 'social_coordination'
 
 export interface HouseholdRoleDef {
@@ -76,6 +81,7 @@ export interface FamilyWishDef {
   targetValue: number
   durationDays: number
   rewardSummary: string
+  reward?: RelationshipContentReward
   linkedNpcIds?: string[]
   recommendedRoleId?: HouseholdRoleId
 }
@@ -102,6 +108,7 @@ export interface ZhijiCompanionProjectDef {
   linkedSystem: 'quest' | 'home' | 'breeding' | 'fishing'
   milestoneTarget: number
   rewardSummary: string
+  reward?: RelationshipContentReward
 }
 
 export interface ZhijiCompanionProjectState {

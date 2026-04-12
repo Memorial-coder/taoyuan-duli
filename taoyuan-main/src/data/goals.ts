@@ -1,4 +1,5 @@
 import type {
+  CompensationPlan,
   EconomyAuditConfig,
   EconomyBaselineAuditConfig,
   EventCampaignDef,
@@ -11,7 +12,16 @@ import type {
   GoalTemplate,
   GoalUiMeta,
   MainQuestStageTemplate,
+  QaGovernanceCompensationMailPreset,
+  QaGovernanceFeatureFlags,
+  QaGovernanceMigrationProfileDef,
+  QaGovernanceRegressionSuiteDef,
+  QaGovernanceRuntimeState,
+  QaGovernanceTransactionGuardDef,
+  QaCaseDef,
+  ReleaseChecklistItem,
   ThemeWeekDef,
+  ThemeWeekRewardPoolEntry,
   WeeklyGoalDef
 } from '@/types'
 import { WS09_RELATIONSHIP_AUDIT_POOLS } from './npcs'
@@ -822,6 +832,598 @@ export const createDefaultEventOperationsState = (): EventOperationsState => ({
   lastSettlementDayTag: ''
 })
 
+export const WS10_EVENT_OPERATION_TUNING_CONFIG = {
+  featureFlags: {
+    eventCampaignEnabled: true,
+    activityQuestWindowEnabled: true,
+    mailboxDigestEnabled: true,
+    eventViewSummaryEnabled: true
+  },
+  display: {
+    topGoalsCampaignPreviewLimit: 1,
+    mailDigestPreviewLimit: 3
+  },
+  cadence: {
+    weeklyCampaignDurationDays: 7,
+    limitedQuestRefreshDays: 7,
+    seasonalCampaignDurationDays: 28
+  },
+  operations: {
+    maxActiveCampaigns: 1,
+    maxPendingMailTemplateRefs: 2
+  }
+} as const
+
+export const WS10_ACCEPTANCE_SUMMARY = {
+  minQaCaseCount: 8,
+  guardrails: [
+    '活动层只能增强主循环，不得把主题周、邮件与限时任务做成强制每天打卡的第二套主线。',
+    '活动编排、限时任务窗口与邮件模板引用必须统一走 store API 和 data 配置，不得在页面临时拼状态。',
+    '活动层的周切换、窗口切换与邮件认领必须具备幂等、回滚与旧档兼容回填。',
+    '活动编排必须能明确导向 Quest / Shop / Guild / Museum / Hanhai 中的至少两条现有系统路线，而不是只发奖励邮件。'
+  ],
+  releaseAnnouncement: [
+    '【活动编排】主题周、限时任务、邮件摘要与活动结算节奏已接入统一活动层底座。',
+    '【运营模板】活动邮件模板、限时任务窗口与目录承接包现已具备统一配置入口，后续可持续扩容。',
+    '【活动联动】活动层现已开始反向影响任务板、目录承接和多条后期系统的周建议。'
+  ]
+} as const
+
+export const WS10_QA_CASES: QaCaseDef[] = [
+  {
+    id: 'ws10-positive-theme-campaign-switch',
+    title: '主题周切换时活动编排能稳定切到对应活动',
+    category: 'positive',
+    steps: ['推进到新周', '检查 `processEventOperationsTick()` 和 `currentEventCampaign`'],
+    expectedResult: '活动编排切换到对应主题周活动，活动总览、QuestView 与 TopGoalsPanel 同步显示。'
+  },
+  {
+    id: 'ws10-positive-limited-window-switch',
+    title: '限时任务窗口会跟随活动编排切换',
+    category: 'positive',
+    steps: ['激活某个活动编排', '触发 `processActivityQuestWindowTick()`', '查看 QuestView'],
+    expectedResult: '限时任务窗口更新为对应 campaign，QuestView 能看到活动来源与时长。'
+  },
+  {
+    id: 'ws10-positive-mail-digest',
+    title: '邮箱页可正确展示活动邮件摘要',
+    category: 'positive',
+    steps: ['准备至少 1 封 `activity_reward` 邮件', '打开 MailView'],
+    expectedResult: 'MailView 顶部活动邮件摘要正确显示当前活动、活动邮件数与可领邮件数。'
+  },
+  {
+    id: 'ws10-boundary-repeat-campaign-tick',
+    title: '同一周重复触发活动 tick 不会重复写状态',
+    category: 'boundary',
+    steps: ['在同一天对同一 `weekId` 连续调用 `processEventOperationsTick()` 与 `processActivityQuestWindowTick()` 两次'],
+    expectedResult: '活动编排与活动任务窗口只保留一次有效切换结果，不重复生成额外状态或日志洪泛。'
+  },
+  {
+    id: 'ws10-negative-rollback-campaign-state',
+    title: '活动状态写入异常时会回滚',
+    category: 'negative',
+    steps: ['模拟活动编排或活动任务窗口状态写入异常', '检查 eventOperationsState / activityQuestWindowState'],
+    expectedResult: '两类活动状态都会回滚到异常前，不出现半切换状态。'
+  },
+  {
+    id: 'ws10-ops-disable-event-layer',
+    title: '关闭活动层开关后系统可安全降级',
+    category: 'ops',
+    steps: ['将 `WS10_EVENT_OPERATION_TUNING_CONFIG.featureFlags.eventCampaignEnabled` 或 `activityQuestWindowEnabled` 设为 false', '刷新活动相关页面'],
+    expectedResult: '活动编排或限时任务窗口可安全关闭，其余主题周 / 任务 / 邮箱功能保持正常。'
+  },
+  {
+    id: 'ws10-compatibility-old-save-event-state',
+    title: '旧档缺少活动层字段时可安全读档',
+    category: 'compatibility',
+    steps: ['读取不包含 eventOperationsState / activityQuestWindowState 的旧档', '打开 QuestView、MailView、TopGoalsPanel'],
+    expectedResult: '旧档安全回填默认值，活动层页面不报错。'
+  },
+  {
+    id: 'ws10-recovery-mail-template-reference',
+    title: '活动模板引用异常时可回退到基础结算模板',
+    category: 'recovery',
+    steps: ['模拟某个活动邮件模板引用失效', '触发活动 tick 与页面展示'],
+    expectedResult: '活动层仍可回退到基础结算模板引用，不影响主循环推进。'
+  }
+]
+
+export const WS10_RELEASE_CHECKLIST: ReleaseChecklistItem[] = [
+  { id: 'ws10-check-campaign-state', label: '确认活动编排与限时任务窗口的状态切换、回填与收束一致', owner: 'dev', done: false },
+  { id: 'ws10-check-mail-digest', label: '确认 MailView 与 TopGoalsPanel 能看到活动摘要和当前活动', owner: 'qa', done: false },
+  { id: 'ws10-check-cross-link', label: '确认活动层能导向 Quest / Shop 等现有系统路线', owner: 'qa', done: false },
+  { id: 'ws10-check-ops-toggle', label: '确认活动层开关、预览数量与邮件模板引用可通过 tuning config 调整', owner: 'ops', done: false },
+  { id: 'ws10-check-old-save', label: '确认旧档活动层字段能安全默认回填', owner: 'qa', done: false }
+]
+
+export const WS10_COMPENSATION_PLANS: CompensationPlan[] = [
+  {
+    id: 'ws10-compensate-duplicate-activity-mail',
+    trigger: '活动结算邮件或限时任务窗口重复发放奖励，导致同类活动收益异常叠加。',
+    compensation: ['按 campaignId / mail template / claimed reward 记录回收重复收益或发放说明补偿', '保留首次合法活动结算记录'],
+    notes: '优先依据 claimedMailCampaignIds、claimedRewardMailIds 与活动周切换日志定位异常窗口。'
+  },
+  {
+    id: 'ws10-compensate-event-cadence-fallback',
+    trigger: '活动编排切换异常，导致主题周和限时任务窗口错位或空窗。',
+    action: '回调 `WS10_EVENT_OPERATION_TUNING_CONFIG` 的 cadence / featureFlags，回退到基础主题周 + 邮件结算模式。'
+  },
+  {
+    id: 'ws10-compensate-checkin-pressure',
+    trigger: '活动层打卡压力过高，导致主题周完成率和邮件打开率同步下滑。',
+    action: '暂停高频活动模板，只保留低频结算与主题周摘要，并通过活动公告说明节奏调整。'
+  }
+]
+
+export const WS10_RELEASE_ANNOUNCEMENT = [
+  '【活动编排】主题周、限时任务、邮件摘要与活动结算节奏已接入统一活动层底座。',
+  '【运营模板】活动邮件模板、限时任务窗口与目录承接包现已具备统一配置入口，后续可持续扩容。',
+  '【活动联动】活动层现已开始反向影响任务板、目录承接和多条后期系统的周建议。'
+] as const
+
+export const WS12_QA_GOVERNANCE_BASELINE_AUDIT: EconomyBaselineAuditConfig = {
+  id: 'ws12_t111_qa_governance_baseline_audit',
+  workstreamId: 'WS12-T111',
+  label: 'QA、平衡、灰度、存档兼容与回滚基线审计',
+  summary: '围绕特性开关、存档迁移、事务化结算、自动化回归、公告与补偿建立统一 KPI 口径，确保后期内容扩展不会放大历史边界问题。',
+  focusAreas: ['坏档率', '回滚触发率', '任务结算错误率', '发布后热修次数'],
+  coreMetrics: [
+    {
+      id: 'ws12_save_corruption_rate',
+      label: '坏档率',
+      description: '衡量导入、读档、模式切换和旧档迁移后出现不可恢复存档异常的比例。',
+      formula: '近14天 parse / load / import 失败且无法通过回退快照恢复的存档次数 ÷ 近14天总读档 / 导档 / 模式切换次数',
+      direction: 'higher_is_worse',
+      dataSources: ['useSaveStore.parseSaveData', 'useSaveStore.loadFromSlot', 'useSaveStore.importSave', 'SaveEnvelope.meta.saveVersion'],
+      thresholds: { watch: 0.01, warning: 0.03, critical: 0.05 },
+      anomalyRule: '若失败集中在单个历史版本或单个样例档，必须拆分“旧档迁移失败”和“当前版本写坏档”两类口径，避免误判线上稳定性。'
+    },
+    {
+      id: 'ws12_rollback_trigger_rate',
+      label: '回滚触发率',
+      description: '衡量事务保护、快照恢复和幂等护栏是否频繁被触发，反映后期链路是否仍存在边界不稳。',
+      formula: '近14天因奖励发放、状态写入、日结或周结异常而执行回滚的次数 ÷ 近14天受事务保护的关键操作总次数',
+      direction: 'higher_is_worse',
+      dataSources: ['useSaveStore.applySaveData 回退', 'useQuestStore 订单结算回滚', 'useTutorialStore guidanceActionLocks / rollbackGuidanceAction', 'useEndDay 结算日志'],
+      thresholds: { watch: 0.02, warning: 0.05, critical: 0.08 },
+      anomalyRule: '若回滚主要来自压测或开发态样例档批量切换，必须从正式玩家样本中剔除，再评估是否属于真实稳定性问题。'
+    },
+    {
+      id: 'ws12_settlement_error_rate',
+      label: '任务结算错误率',
+      description: '衡量订单、加工、矿洞战利品、项目捐献等高风险结算链路是否仍会出现半成功、重复发放或吞货问题。',
+      formula: '近14天任务 / 订单 / 奖励发放中出现失败回执、重复领取拦截或容量预检失败的次数 ÷ 近14天对应结算尝试总次数',
+      direction: 'higher_is_worse',
+      dataSources: ['useQuestStore 结算记录', 'useProcessingStore 产物领取', 'useInventoryStore.canAddItems', 'useVillageProjectStore 捐献与维护操作'],
+      thresholds: { watch: 0.015, warning: 0.04, critical: 0.06 },
+      anomalyRule: '若错误集中在单一资源缺口或背包满场景，应单独统计为“预检拦截”而非“真实结算错误”，防止把正常保护误算成线上事故。'
+    },
+    {
+      id: 'ws12_post_release_hotfix_count',
+      label: '发布后热修次数',
+      description: '衡量版本上线后是否仍需通过紧急参数或代码修补来兜住稳定性和兼容性问题。',
+      formula: '版本发布后7天内，因坏档、回滚、奖励异常、灰度开关错配而执行的热修 / 热调 / 回退次数',
+      direction: 'higher_is_worse',
+      dataSources: ['CHANGELOG 热修记录', 'tuning config 调整记录', 'ops 发布清单', '补偿公告'],
+      thresholds: { watch: 1, warning: 2, critical: 3 },
+      anomalyRule: '若热修仅为文案或展示层微调，需与影响结算或兼容性的真实事故热修分开统计，避免放大运维噪音。'
+    }
+  ],
+  guardrailMetrics: [
+    {
+      id: 'ws12_migration_fallback_ratio',
+      label: '旧档迁移兜底占比',
+      description: '防止新字段或版本迁移过度依赖兜底回填，导致表面可读档、实则状态不一致。',
+      formula: '近14天读取旧档时命中默认回填 / 兜底修正的字段次数 ÷ 近14天旧档读取的字段总次数',
+      direction: 'higher_is_worse',
+      dataSources: ['useSaveStore.migrateSavePayload', 'usePlayerStore.deserialize', '各 store deserialize 默认值回填'],
+      thresholds: { watch: 0.15, warning: 0.25, critical: 0.35 },
+      anomalyRule: '若某次大版本主动引入多个新字段，首周兜底占比会自然升高，需要拆分“字段新增导致的正常回填”和“迁移逻辑缺失导致的异常回填”。'
+    },
+    {
+      id: 'ws12_gray_toggle_drift_ratio',
+      label: '灰度开关漂移率',
+      description: '防止 data、store、页面与运维配置中的开关状态不同步，导致玩家看到入口但无法结算或反之。',
+      formula: '近7天 feature flag / tuning config / 页面入口状态不一致的次数 ÷ 近7天灰度相关校验总次数',
+      direction: 'higher_is_worse',
+      dataSources: ['各 WS tuning config.featureFlags', 'useTutorialStore / useGoalStore / useQuestStore overview', '发布检查清单'],
+      thresholds: { watch: 0.05, warning: 0.1, critical: 0.2 },
+      anomalyRule: '若漂移只出现在开发态实验开关，不应与正式发布开关混算；正式服开关必须单独监控。'
+    }
+  ],
+  playerSegments: [
+    {
+      id: 'ws12_segment_old_save_returnee',
+      label: '旧档回流玩家',
+      description: '长时间未登录后直接读入旧档、最依赖迁移与兼容性保护的玩家。',
+      disposableMoneyMin: 20000,
+      inflationPressureMin: 0.1,
+      recommendedFocus: '优先观察坏档率、旧档迁移兜底占比与灰度开关漂移率，确保回流玩家能安全进入最新版本。'
+    },
+    {
+      id: 'ws12_segment_endgame_operator',
+      label: '后期重度经营玩家',
+      description: '频繁触发订单、加工、维护费、周结与多系统奖励链路的重度玩家。',
+      disposableMoneyMin: 80000,
+      inflationPressureMin: 0.22,
+      recommendedFocus: '重点观察回滚触发率、任务结算错误率与周结日志是否稳定，避免高频链路把历史边界放大。'
+    },
+    {
+      id: 'ws12_segment_release_watch',
+      label: '版本观察样本玩家',
+      description: '用于发布后首周持续跟踪热修与补偿触发情况的核心样本。',
+      disposableMoneyMin: 120000,
+      inflationPressureMin: 0.3,
+      recommendedFocus: '重点跟踪发布后热修次数、补偿触发与灰度开关漂移，验证版本是否具备稳定上线条件。'
+    }
+  ],
+  rollbackRules: [
+    {
+      id: 'ws12_global_stability_soft_rollback',
+      label: '全局稳定性软回滚',
+      condition: '连续2个观察周内 ws12_save_corruption_rate >= 0.03，且 ws12_settlement_error_rate >= 0.04 或 ws12_gray_toggle_drift_ratio >= 0.1',
+      fallbackAction: '暂停继续扩展新的后期功能开关，回退到最近稳定的 feature flag / tuning config 组合；仅保留读档、基础结算和必要补偿入口，并优先修正迁移、容量预检与结算回执链路。'
+    }
+  ],
+  linkedSystems: ['system', 'quest', 'villageProject'],
+  linkedSystemRefs: [
+    {
+      system: 'system',
+      storeId: 'useSaveStore',
+      touchpoints: ['parseSaveData', 'loadFromSlot', 'importSave', 'exportSave', 'setStorageMode'],
+      rationale: '存档读取、模式切换与导入导出是坏档率、灰度漂移和回滚恢复的第一观测点。'
+    },
+    {
+      system: 'system',
+      storeId: 'usePlayerStore',
+      touchpoints: ['economyTelemetry', 'getEconomyOverview', 'setEconomyRiskReport'],
+      rationale: '玩家运行态观测与风险报告为发布后热修和异常样本分层提供统一入口。'
+    },
+    {
+      system: 'system',
+      storeId: 'useInventoryStore',
+      touchpoints: ['canAddItems', 'addItemsExact', 'removeItem'],
+      rationale: '几乎所有奖励发放、回滚与容量预检都依赖背包真实写入边界。'
+    },
+    {
+      system: 'system',
+      storeId: 'useMiningStore',
+      touchpoints: ['leaveMine', 'battleRewards', 'exploration state reset'],
+      rationale: '矿洞战利品与失败退出是事务边界、回滚恢复和日结兼容的高风险样本。'
+    },
+    {
+      system: 'system',
+      storeId: 'useProcessingStore',
+      touchpoints: ['crafting queue', 'collectOutput', 'serialize / deserialize'],
+      rationale: '加工链能集中暴露容量预检、重复领取与旧档兼容问题。'
+    },
+    {
+      system: 'quest',
+      storeId: 'useQuestStore',
+      touchpoints: ['submitQuest', 'special order settlement', 'specialOrderSettlementReceipts'],
+      rationale: '订单结算与重复领奖保护是任务结算错误率的核心来源。'
+    },
+    {
+      system: 'villageProject',
+      storeId: 'useVillageProjectStore',
+      touchpoints: ['donateToProject', 'startProjectMaintenance', 'maintenanceStates'],
+      rationale: '建设捐献与维护费链路能验证跨周结算、补偿与回滚口径是否一致。'
+    }
+  ]
+}
+
+export const WS12_QA_GOVERNANCE_FEATURE_FLAGS: QaGovernanceFeatureFlags = {
+  saveMigrationGuardEnabled: true,
+  transactionalSettlementGuardEnabled: true,
+  automatedRegressionEnabled: true,
+  compensationMailEnabled: true,
+  grayReleaseEnabled: true
+}
+
+export const WS12_SAVE_MIGRATION_PROFILES: QaGovernanceMigrationProfileDef[] = [
+  {
+    id: 'ws12_profile_live_stable',
+    label: '正式稳定迁移',
+    targetSaveVersion: 3,
+    rollbackOnFailure: true,
+    compatibilityScope: ['player.economyTelemetry', 'tutorial.guidanceDigestState', 'guild.seasonState']
+  },
+  {
+    id: 'ws12_profile_canary',
+    label: '灰度观察迁移',
+    targetSaveVersion: 3,
+    rollbackOnFailure: true,
+    compatibilityScope: ['quest.activityQuestWindowState', 'hanhai.cycleState', 'museum.saveVersion']
+  }
+]
+
+export const WS12_TRANSACTION_GUARD_DEFS: QaGovernanceTransactionGuardDef[] = [
+  {
+    id: 'ws12_guard_reward_delivery',
+    label: '奖励发放守护',
+    linkedStoreIds: ['useInventoryStore', 'useQuestStore', 'useVillageProjectStore'],
+    requiresInventoryPrecheck: true,
+    requiresSettlementReceipt: true
+  },
+  {
+    id: 'ws12_guard_daily_weekly_settlement',
+    label: '日结 / 周结守护',
+    linkedStoreIds: ['useEndDay', 'usePlayerStore', 'useSaveStore'],
+    requiresInventoryPrecheck: false,
+    requiresSettlementReceipt: true
+  },
+  {
+    id: 'ws12_guard_save_import_export',
+    label: '读档导档守护',
+    linkedStoreIds: ['useSaveStore', 'usePlayerStore'],
+    requiresInventoryPrecheck: false,
+    requiresSettlementReceipt: false
+  }
+]
+
+export const WS12_AUTOMATED_REGRESSION_SUITES: QaGovernanceRegressionSuiteDef[] = [
+  {
+    id: 'ws12_regression_daily_settlement',
+    label: '日结结算回归',
+    cadence: 'daily',
+    focusAreas: ['日结奖励发放', '容量预检', '事务回滚']
+  },
+  {
+    id: 'ws12_regression_weekly_cycles',
+    label: '周切换循环回归',
+    cadence: 'weekly',
+    focusAreas: ['主题周切换', '活动窗口', 'weekly loop 日志', '预算与维护费']
+  },
+  {
+    id: 'ws12_regression_release_gate',
+    label: '上线闸门回归',
+    cadence: 'release',
+    focusAreas: ['旧档迁移', '灰度开关漂移', '补偿邮件预置', '关键页面入口']
+  }
+]
+
+export const WS12_COMPENSATION_MAIL_PRESETS: QaGovernanceCompensationMailPreset[] = [
+  {
+    id: 'ws12_mail_save_recovery',
+    label: '存档恢复说明',
+    trigger: '坏档恢复或回退到稳定版本后需要向玩家说明影响范围',
+    linkedSystems: ['system']
+  },
+  {
+    id: 'ws12_mail_settlement_compensation',
+    label: '结算补偿说明',
+    trigger: '任务、订单、加工或建设奖励在事务回滚后需要发放兜底说明',
+    linkedSystems: ['quest', 'villageProject', 'system']
+  }
+]
+
+export const createDefaultQaGovernanceRuntimeState = (): QaGovernanceRuntimeState => ({
+  version: 1,
+  activeMigrationProfileId: WS12_SAVE_MIGRATION_PROFILES[0]?.id ?? 'ws12_profile_live_stable',
+  activeGrayReleaseChannel: 'stable',
+  rollbackTriggerCount: 0,
+  postReleaseHotfixCount: 0,
+  completedRegressionSuiteIds: [],
+  claimedCompensationMailIds: [],
+  lastCompatibilityAuditDayTag: ''
+})
+
+export const WS12_QA_GOVERNANCE_CONTENT_TIERS = [
+  {
+    id: 'mid_transition',
+    label: '中期过渡治理包',
+    summary: '先确保读档、导档、日结和基础订单结算不会写坏档或吞奖励。',
+    priceBand: {
+      money: [0, 2000],
+      timeMinutes: [5, 15],
+      rolloutScope: ['stable']
+    },
+    outputBand: {
+      auditedChains: ['save import/export', 'daily settlement', 'basic quest delivery'],
+      regressionSuites: ['ws12_regression_daily_settlement'],
+      compensationReach: '单链路补偿说明'
+    },
+    consumptionBand: {
+      manualChecks: [2, 4],
+      receiptRetentionDays: [7, 14],
+      rollbackBudgetPerWeek: [1, 1]
+    }
+  },
+  {
+    id: 'late_growth',
+    label: '后期进阶治理包',
+    summary: '覆盖主题周、活动窗口、维护费与多系统奖励发放，降低跨周切换的边界风险。',
+    priceBand: {
+      money: [2000, 8000],
+      timeMinutes: [15, 40],
+      rolloutScope: ['stable', 'canary']
+    },
+    outputBand: {
+      auditedChains: ['weekly cycles', 'activity window', 'maintenance settlement', 'special order settlement'],
+      regressionSuites: ['ws12_regression_daily_settlement', 'ws12_regression_weekly_cycles'],
+      compensationReach: '多链路补偿说明'
+    },
+    consumptionBand: {
+      manualChecks: [4, 8],
+      receiptRetentionDays: [14, 30],
+      rollbackBudgetPerWeek: [1, 2]
+    }
+  },
+  {
+    id: 'endgame_showcase',
+    label: '终局展示治理包',
+    summary: '为上线周灰度、热修、补偿与旧档回流提供完整治理兜底，形成真正可发布的稳定版本。',
+    priceBand: {
+      money: [8000, 20000],
+      timeMinutes: [40, 90],
+      rolloutScope: ['canary', 'stable']
+    },
+    outputBand: {
+      auditedChains: ['release gate', 'gray release drift', 'post-release compensation', 'old save migration'],
+      regressionSuites: ['ws12_regression_daily_settlement', 'ws12_regression_weekly_cycles', 'ws12_regression_release_gate'],
+      compensationReach: '全链路补偿与公告'
+    },
+    consumptionBand: {
+      manualChecks: [8, 12],
+      receiptRetentionDays: [30, 60],
+      rollbackBudgetPerWeek: [2, 3]
+    }
+  }
+] as const
+
+export const WS12_QA_GOVERNANCE_LOOP_LINK_DEFS = [
+  {
+    id: 'ws12_loop_income_to_consumption',
+    label: '收入转消耗',
+    source: 'player_income',
+    target: 'village_maintenance',
+    summaryTemplate: '近7天净收入稳定后，优先承接维护费与建设捐献，避免盈余只留在账上。'
+  },
+  {
+    id: 'ws12_loop_growth_to_order',
+    label: '成长转订单',
+    source: 'processing_growth',
+    target: 'quest_settlement',
+    summaryTemplate: '工坊扩建与加工产能提升后，优先拿去承接高价值委托和特殊订单。'
+  },
+  {
+    id: 'ws12_loop_display_to_reputation',
+    label: '展示转声望',
+    source: 'museum_display',
+    target: 'goal_reputation',
+    summaryTemplate: '当展陈评分和馆务运转稳定后，优先回看目标声望与长期规划收益。'
+  },
+  {
+    id: 'ws12_loop_activity_to_reward',
+    label: '活动转奖励',
+    source: 'event_window',
+    target: 'reward_delivery',
+    summaryTemplate: '活动窗口开启时，优先核对奖励回执、补偿邮件和领取状态，避免收益链断档。'
+  }
+] as const
+
+export const WS12_QA_GOVERNANCE_TUNING_CONFIG = {
+  featureFlags: WS12_QA_GOVERNANCE_FEATURE_FLAGS,
+  display: {
+    maxCrossSystemLoopCount: 3,
+    maxQuestGovernanceContentCount: 2,
+    maxProjectGovernanceContentCount: 2
+  },
+  operations: {
+    autoMarkDailyRegressionEnabled: true,
+    autoMarkWeeklyRegressionEnabled: true,
+    releaseGateQuickActionEnabled: true,
+    storageModeQuickSwitchEnabled: true
+  }
+} as const
+
+export const WS12_ACCEPTANCE_SUMMARY = {
+  minQaCaseCount: 8,
+  guardrails: [
+    '所有治理层状态必须复用统一的 store overview / debug snapshot，不能重新散落到页面或零散 util。',
+    '读档、导档、灰度通道、回归套件、补偿邮件与事务回滚必须具备幂等、防重入与旧档兼容保护。',
+    '治理页面入口必须能解释当前风险、巡检节奏、花费拆解与收益预览，避免“只知道有风险、不知道怎么做”。',
+    '每周巡检日志、跨系统治理 loop 与发布闸门状态必须可追踪，确保发布后热修与补偿有统一证据链。'
+  ],
+  releaseAnnouncement: [
+    '【QA治理】后期页面现已接入统一治理面板，可直接查看存档模式、灰度通道、回滚/热修累计与本周巡检重点。',
+    '【稳定性】读档、灰度、回归套件、补偿邮件与事务回滚已统一纳入 WS12 治理底座，后续版本可沿用同一套口径扩展。',
+    '【发布保障】治理层现已具备内容 tiers、跨系统 weekly loop、事务锁、热调参数与上线闸门常量，便于持续迭代。'
+  ]
+} as const
+
+export const WS12_QA_CASES: QaCaseDef[] = [
+  {
+    id: 'ws12-positive-governance-panel',
+    title: '后期页面可展示统一 QA 治理面板',
+    category: 'positive',
+    steps: ['打开 Wallet / Quest / Shop / Guild 等后期页面', '检查 QA 治理面板的摘要、成本、收益与风险说明'],
+    expectedResult: '页面顶部可直接看到治理状态、巡检节奏与一键治理操作。'
+  },
+  {
+    id: 'ws12-positive-regression-auto-mark',
+    title: '日结 / 周结可自动记录治理回归套件',
+    category: 'positive',
+    steps: ['推进一天并跨周', '检查 `completedRegressionSuiteIds` 与治理巡检日志'],
+    expectedResult: 'daily / weekly 套件按节奏自动写入，日志口径与 runtime state 一致。'
+  },
+  {
+    id: 'ws12-positive-gray-channel-switch',
+    title: '灰度通道切换可在页面内安全执行',
+    category: 'positive',
+    steps: ['在治理面板点击“切到稳定 / 切到灰度”', '检查 `activeGrayReleaseChannel`'],
+    expectedResult: '灰度通道切换成功，且不影响其他运行态状态。'
+  },
+  {
+    id: 'ws12-boundary-storage-mode-switch',
+    title: '治理存档模式切换不会打乱当前 slot 状态',
+    category: 'boundary',
+    steps: ['通过治理入口切换本地 / 云端存档模式', '检查 activeSlot / activeSlotMode'],
+    expectedResult: '存档模式切换成功，slot 引用保持可解释，不出现空引用或误写入。'
+  },
+  {
+    id: 'ws12-negative-governance-action-reentry',
+    title: '重复点击治理操作不会造成状态重入',
+    category: 'negative',
+    steps: ['连续点击灰度切换、发布闸门记录或治理重置', '检查 action locks 与 runtime state'],
+    expectedResult: '重复操作被锁与幂等保护拦住，不会出现治理状态膨胀或锁残留。'
+  },
+  {
+    id: 'ws12-compatibility-old-save-governance',
+    title: '旧档缺少治理 runtime 字段时可安全回填',
+    category: 'compatibility',
+    steps: ['读取不包含 `qaGovernanceRuntimeState` 的旧档', '检查 overview / debug snapshot / 页面治理面板'],
+    expectedResult: '旧档安全回填默认运行态，治理面板与治理 API 不报错。'
+  },
+  {
+    id: 'ws12-recovery-storage-rollback',
+    title: '存档治理操作异常时可回滚到前一状态',
+    category: 'recovery',
+    steps: ['模拟治理存档模式切换异常', '检查 storage snapshot 与锁释放'],
+    expectedResult: '存档治理状态回滚到操作前，且无残留 lock。'
+  },
+  {
+    id: 'ws12-ops-tuning-config',
+    title: '治理 tuning config 可安全控制自动回归与快捷操作',
+    category: 'ops',
+    steps: ['调整 `WS12_QA_GOVERNANCE_TUNING_CONFIG` 的 autoMark / releaseGate 开关', '刷新页面并推进日结'],
+    expectedResult: '自动回归记录、发布闸门快捷操作与页面展示按配置生效。'
+  }
+]
+
+export const WS12_RELEASE_CHECKLIST: ReleaseChecklistItem[] = [
+  { id: 'ws12-check-overview-apis', label: '确认 player/save 两侧治理 overview 与 debug snapshot 输出一致', owner: 'dev', done: false },
+  { id: 'ws12-check-page-panels', label: '确认后期页面都能展示治理面板与巡检节奏', owner: 'qa', done: false },
+  { id: 'ws12-check-regression-cadence', label: '确认 daily / weekly / release 套件与周巡检日志节奏一致', owner: 'qa', done: false },
+  { id: 'ws12-check-gray-switch', label: '确认灰度通道、存档模式快捷操作与 tuning config 开关安全可控', owner: 'ops', done: false },
+  { id: 'ws12-check-old-save', label: '确认旧档治理 runtime 字段与内容 tiers 能安全回填', owner: 'qa', done: false }
+]
+
+export const WS12_COMPENSATION_PLANS: CompensationPlan[] = [
+  {
+    id: 'ws12-compensate-save-governance-mismatch',
+    trigger: '存档治理状态错位，导致玩家错误进入灰度通道或读取到错误治理提示。',
+    action: '回调治理通道到 stable，回退治理 runtime state 到最近稳定快照。',
+    compensation: ['通过治理说明邮件告知玩家，本次问题仅影响治理展示与巡检状态，不回收实际收益。']
+  },
+  {
+    id: 'ws12-compensate-regression-gap',
+    trigger: '自动回归套件未按节奏记录，导致发布后缺少巡检证据链。',
+    action: '手动补记 release gate 套件并补发治理说明邮件，必要时暂停灰度。'
+  },
+  {
+    id: 'ws12-compensate-rollback-overflow',
+    trigger: '回滚触发次数或热修次数异常升高，达到软回滚条件。',
+    action: '停用 canary 通道，缩减 weekly loop 和快捷操作，回退到最近稳定配置组合。'
+  }
+]
+
+export const WS12_RELEASE_ANNOUNCEMENT = [
+  '【QA治理】后期页面现已接入统一治理面板，可直接查看存档模式、灰度通道、回滚/热修累计与本周巡检重点。',
+  '【稳定性】读档、灰度、回归套件、补偿邮件与事务回滚已统一纳入 WS12 治理底座，后续版本可沿用同一套口径扩展。',
+  '【发布保障】治理层现已具备内容 tiers、跨系统 weekly loop、事务锁、热调参数与上线闸门常量，便于持续迭代。'
+] as const
+
 export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
   {
     id: 'spring_sowing',
@@ -1256,6 +1858,123 @@ export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
     }
   }
 ]
+
+const THEME_WEEK_BASE_REWARD_POOLS: Record<'spring' | 'summer' | 'autumn' | 'winter', ThemeWeekRewardPoolEntry[]> = {
+  spring: [
+    {
+      id: 'season_any',
+      label: '春耕起步奖',
+      description: '完成任一周目标时，给予基础经营补给。',
+      threshold: 'any',
+      bonusReward: { money: 180, items: [{ itemId: 'herb', quantity: 2 }] }
+    },
+    {
+      id: 'season_majority',
+      label: '春耕连作奖',
+      description: '完成多数周目标时，追加基础建设型奖励。',
+      threshold: 'majority',
+      bonusReward: { money: 260, reputation: 4, items: [{ itemId: 'bamboo', quantity: 2 }] }
+    },
+    {
+      id: 'season_full',
+      label: '春耕满贯奖',
+      description: '全部周目标完成时，发放更完整的春耕周奖励。',
+      threshold: 'full',
+      bonusReward: { money: 360, reputation: 6, items: [{ itemId: 'quality_fertilizer', quantity: 1 }] }
+    }
+  ],
+  summer: [
+    {
+      id: 'season_any',
+      label: '夏行补给奖',
+      description: '完成任一周目标时，给予外出与鱼塘补给。',
+      threshold: 'any',
+      bonusReward: { money: 200, items: [{ itemId: 'wild_bait', quantity: 3 }] }
+    },
+    {
+      id: 'season_majority',
+      label: '夏行承接奖',
+      description: '完成多数周目标时，追加商路与鱼塘经营奖励。',
+      threshold: 'majority',
+      bonusReward: { money: 300, reputation: 4, items: [{ itemId: 'fish_feed', quantity: 2 }] }
+    },
+    {
+      id: 'season_full',
+      label: '夏行满贯奖',
+      description: '全部周目标完成时，发放夏行主题完整承接奖励。',
+      threshold: 'full',
+      bonusReward: { money: 420, reputation: 6, items: [{ itemId: 'bait_maker', quantity: 1 }] }
+    }
+  ],
+  autumn: [
+    {
+      id: 'season_any',
+      label: '秋收回流奖',
+      description: '完成任一周目标时，给予变现与加工补给。',
+      threshold: 'any',
+      bonusReward: { money: 220, items: [{ itemId: 'wild_mushroom', quantity: 2 }] }
+    },
+    {
+      id: 'season_majority',
+      label: '秋收经营奖',
+      description: '完成多数周目标时，追加加工与展示向奖励。',
+      threshold: 'majority',
+      bonusReward: { money: 320, reputation: 4, items: [{ itemId: 'charcoal', quantity: 2 }] }
+    },
+    {
+      id: 'season_full',
+      label: '秋收满贯奖',
+      description: '全部周目标完成时，发放秋收主题高价值奖励。',
+      threshold: 'full',
+      bonusReward: { money: 480, reputation: 8, items: [{ itemId: 'jade', quantity: 1 }] }
+    }
+  ],
+  winter: [
+    {
+      id: 'season_any',
+      label: '冬储保底奖',
+      description: '完成任一周目标时，给予冬储补给。',
+      threshold: 'any',
+      bonusReward: { money: 220, items: [{ itemId: 'charcoal', quantity: 2 }] }
+    },
+    {
+      id: 'season_majority',
+      label: '冬储韧性奖',
+      description: '完成多数周目标时，追加矿洞与储运向奖励。',
+      threshold: 'majority',
+      bonusReward: { money: 340, reputation: 4, items: [{ itemId: 'gold_ore', quantity: 2 }] }
+    },
+    {
+      id: 'season_full',
+      label: '冬储满贯奖',
+      description: '全部周目标完成时，发放冬储主题收口奖励。',
+      threshold: 'full',
+      bonusReward: { money: 500, reputation: 8, items: [{ itemId: 'battery', quantity: 1 }] }
+    }
+  ]
+}
+
+export const getThemeWeekRewardPool = (themeWeekId: string): ThemeWeekRewardPoolEntry[] => {
+  const themeWeek = THEME_WEEK_DEFS.find(entry => entry.id === themeWeekId)
+  if (!themeWeek) return []
+  const recommendedOfferIds = themeWeek.rewardPreview?.recommendedOfferIds ?? []
+  return THEME_WEEK_BASE_REWARD_POOLS[themeWeek.season].map(entry => ({
+    ...entry,
+    id: `${themeWeek.id}_${entry.id}`,
+    recommendedOfferIds: entry.recommendedOfferIds?.length ? entry.recommendedOfferIds : recommendedOfferIds.slice(0, 2)
+  }))
+}
+
+export const WEEKLY_GOAL_FAILURE_COMPENSATION_RULE = {
+  enabled: true,
+  minProgressRatio: 0.6,
+  maxCompensatedGoals: 1,
+  reward: {
+    money: 260,
+    items: [{ itemId: 'food_rice_ball', quantity: 1 }]
+  },
+  reasonTemplate: '本周目标已接近完成线，发放轻量补偿用于下周继续推进。'
+} as const
 
 const THEME_WEEK_CROSS_GOAL_METRICS: Record<string, GoalMetricKey> = {
   spring_sowing: 'villageProjectLevel',

@@ -30,7 +30,7 @@
   const showExitConfirm = ref(false)
 
   const exitApp = () => {
-    CapApp.exitApp()
+    void CapApp.exitApp()
   }
 
   onMounted(() => {
@@ -40,7 +40,7 @@
 
     // Capacitor Android 返回键拦截
     if (Capacitor.isNativePlatform()) {
-      CapApp.addListener('backButton', () => {
+      void CapApp.addListener('backButton', () => {
         if (showExitConfirm.value) {
           showExitConfirm.value = false
         } else {

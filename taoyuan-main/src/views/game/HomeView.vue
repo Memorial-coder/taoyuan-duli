@@ -60,9 +60,30 @@
         </div>
         <div v-if="villageDonationHighlights.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">捐赠推进</p>
-          <div v-for="summary in villageDonationHighlights" :key="summary.projectId" class="flex items-center justify-between text-[10px] mt-0.5">
-            <span>{{ summary.plan.label }}</span>
-            <span class="text-accent">{{ Math.round(summary.progressRate * 100) }}%</span>
+          <div v-for="summary in villageDonationHighlights" :key="summary.projectId" class="border border-accent/10 rounded-xs px-2 py-2 mt-1 first:mt-0">
+            <div class="flex items-center justify-between text-[10px]">
+              <span>{{ summary.plan.label }}</span>
+              <span class="text-accent">{{ Math.round(summary.progressRate * 100) }}%</span>
+            </div>
+            <p v-if="summary.acceptedItems.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+              当前可捐：{{ summary.acceptedItems.map(item => `${item.itemName} x${getCombinedItemCount(item.itemId)}`).join('、') }}
+            </p>
+            <div class="flex flex-wrap gap-2 mt-2">
+              <Button
+                v-if="getFirstAvailableDonationItem(summary.projectId)"
+                class="justify-center"
+                @click="handleQuickDonate(summary.projectId)"
+              >
+                捐赠 1 个{{ getFirstAvailableDonationItem(summary.projectId)?.itemName }}
+              </Button>
+              <Button
+                v-if="getFirstClaimableDonationMilestone(summary.projectId)"
+                class="justify-center"
+                @click="handleClaimDonationMilestone(summary.projectId)"
+              >
+                领取{{ getFirstClaimableDonationMilestone(summary.projectId)?.label }}
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -108,6 +129,25 @@
               ? `${activeFamilyWish.title}：${activeFamilyWish.rewardSummary}`
               : '当前没有激活中的家庭心愿，可在后续关系线入口中安排新的家庭目标。'
           }}
+        </p>
+        <div class="flex flex-wrap gap-2 mt-2">
+          <Button
+            v-if="!activeFamilyWish && nextFamilyWish"
+            class="justify-center"
+            @click="handleActivateNextFamilyWish"
+          >
+            安排心愿：{{ nextFamilyWish.title }}
+          </Button>
+          <Button
+            v-if="nextZhijiProject"
+            class="justify-center"
+            @click="handleRegisterNextZhijiProject"
+          >
+            登记知己协作：{{ nextZhijiProject.project.label }}
+          </Button>
+        </div>
+        <p v-if="nextZhijiProject" class="text-[10px] text-muted/80 mt-2 leading-4">
+          推荐为 {{ nextZhijiProject.npcName }} 推进「{{ nextZhijiProject.project.label }}」：{{ nextZhijiProject.project.rewardSummary }}
         </p>
       </div>
     </div>
@@ -650,11 +690,12 @@
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
-  import { getItemById } from '@/data'
+  import { getItemById, getNpcById } from '@/data'
   import { GREENHOUSE_UNLOCK_COST, GREENHOUSE_MATERIAL_COST, WAREHOUSE_UNLOCK_MATERIALS } from '@/data/buildings'
   import { CHEST_DEFS, CHEST_TIER_ORDER } from '@/data/items'
+  import { WS09_ZHIJI_COMPANION_PROJECT_DEFS } from '@/data/npcs'
   import type { Quality, ChestTier, VoidChestRole } from '@/types'
-  import { addLog } from '@/composables/useGameLog'
+  import { addLog, showFloat } from '@/composables/useGameLog'
   import Button from '@/components/game/Button.vue'
 
   const homeStore = useHomeStore()
@@ -701,8 +742,62 @@
   const relationshipDebugSnapshot = computed(() => npcStore.getRelationshipDebugSnapshot())
   const familyWishOverview = computed(() => npcStore.getFamilyWishOverview())
   const activeFamilyWish = computed(() => familyWishOverview.value.defs.find(def => def.id === familyWishOverview.value.state.activeWishId) ?? null)
+  const nextFamilyWish = computed(
+    () => familyWishOverview.value.defs.find(def => !familyWishOverview.value.state.completedWishIds.includes(def.id) && def.id !== familyWishOverview.value.state.activeWishId) ?? null
+  )
+  const nextZhijiProject = computed(() => {
+    const zhijiState = npcStore.getZhiji()
+    if (!zhijiState) return null
+    const npcDef = getNpcById(zhijiState.npcId)
+    const projectId = (npcDef?.zhijiProjectIds ?? []).find(id => !npcStore.getZhijiProjectState(id, zhijiState.npcId))
+    if (!projectId) return null
+    const projectDef = WS09_ZHIJI_COMPANION_PROJECT_DEFS.find(def => def.id === projectId)
+    if (!projectDef) return null
+    return {
+      npcName: npcDef?.name ?? zhijiState.npcId,
+      project: projectDef
+    }
+  })
 
   const getVillageProjectName = (projectId: string) => villageProjectStore.getProjectSummary(projectId)?.name ?? projectId
+  const getFirstAvailableDonationItem = (projectId: string) => {
+    const summary = villageProjectStore.getProjectDonationSummary(projectId)
+    return summary?.acceptedItems.find(item => getCombinedItemCount(item.itemId) > 0) ?? null
+  }
+  const getFirstClaimableDonationMilestone = (projectId: string) => {
+    const summary = villageProjectStore.getProjectDonationSummary(projectId)
+    return summary?.milestones.find(milestone => milestone.reached && !milestone.claimed) ?? null
+  }
+  const handleQuickDonate = (projectId: string) => {
+    const donationItem = getFirstAvailableDonationItem(projectId)
+    if (!donationItem) {
+      showFloat('当前没有可用于捐赠的物资', 'danger')
+      return
+    }
+    const result = villageProjectStore.donateToProject(projectId, donationItem.itemId, 1)
+    showFloat(result.message, result.success ? 'success' : 'danger')
+    if (!result.success) addLog(result.message)
+  }
+  const handleClaimDonationMilestone = (projectId: string) => {
+    const milestone = getFirstClaimableDonationMilestone(projectId)
+    if (!milestone) {
+      showFloat('当前没有可领取的捐赠里程碑', 'danger')
+      return
+    }
+    const result = villageProjectStore.claimDonationMilestone(projectId, milestone.id)
+    showFloat(result.message, result.success ? 'success' : 'danger')
+    if (!result.success) addLog(result.message)
+  }
+  const handleActivateNextFamilyWish = () => {
+    const result = npcStore.activateNextFamilyWishForCurrentDay()
+    showFloat(result.message, result.success ? 'success' : 'danger')
+    if (!result.success) addLog(result.message)
+  }
+  const handleRegisterNextZhijiProject = () => {
+    const result = npcStore.registerNextZhijiProjectForCurrentWeek()
+    showFloat(result.message, result.success ? 'success' : 'danger')
+    if (!result.success) addLog(result.message)
+  }
 
   // === 山洞 ===
 

@@ -1,6 +1,8 @@
 <template>
   <div>
     <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
+    <GuidanceDigestPanel surface-id="shop" title="目录承接引导" />
+    <QaGovernancePanel page-id="shop" title="市场治理总览" />
 
     <!-- 返回按钮（在子商铺时显示） -->
     <Button v-if="shopStore.currentShopId" class="mb-3 w-full md:w-auto" :icon="ChevronLeft" @click="shopStore.currentShopId = null">
@@ -1431,9 +1433,12 @@
   import { sfxBuy } from '@/composables/useAudio'
   import { showFloat } from '@/composables/useGameLog'
   import { handleBuySeed, handleSellItem, handleSellItemAll, handleSellAll, QUALITY_NAMES } from '@/composables/useFarmActions'
-  import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, MARKET_DISTRICT_LABELS, TREND_NAMES, ECONOMY_SINK_CONTENT_DEFS } from '@/data/market'
+  import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, MARKET_DISTRICT_LABELS, TREND_NAMES } from '@/data/market'
   import type { MarketCategory, MarketTrend } from '@/data/market'
   import { useTutorialStore } from '@/stores/useTutorialStore'
+  import { useGoalStore } from '@/stores/useGoalStore'
+  import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
+  import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useAchievementStore } from '@/stores/useAchievementStore'
 
   const RAIN_TOTEM_PRICE = 300
@@ -1448,6 +1453,7 @@
   const gameStore = useGameStore()
   const homeStore = useHomeStore()
   const tutorialStore = useTutorialStore()
+  const goalStore = useGoalStore()
   const achievementStore = useAchievementStore()
 
   const tutorialHint = computed(() => {
@@ -1484,23 +1490,10 @@
     { label: '单系统收入占比', value: `${Math.round(economyOverview.value.dominantIncomeShare * 100)}%`, hint: '过高时应切换主题周经营。' }
   ])
   const economyShopRecommendedSinks = computed(() => {
-    const segmentId = economyOverview.value.currentSegment?.id ?? 'mid_transition'
-    const tierRank = segmentId === 'endgame_tycoon' ? 3 : segmentId === 'late_builder' ? 2 : 1
-    return ECONOMY_SINK_CONTENT_DEFS
-      .filter(item => (item.tier === 'mid_transition' ? 1 : item.tier === 'late_growth' ? 2 : 3) <= tierRank)
-      .map(item => {
-        let score = item.tier === 'mid_transition' ? 1 : item.tier === 'late_growth' ? 2 : 3
-        if (economyOverview.value.sinkSatisfaction < 0.35) score += 2
-        if (economyOverview.value.dominantIncomeShare > 0.6 && item.linkedSystems.includes('market')) score += 2
-        if (economyOverview.value.loopDiversity < 4 && item.linkedSystems.length >= 3) score += 2
-        return {
-          ...item,
-          score,
-          priceBandLabel: `${item.priceBand[0]}~${item.priceBand[1]}文`
-        }
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
+    return goalStore.recommendedEconomySinks.slice(0, 3).map(item => ({
+      ...item,
+      priceBandLabel: `${item.priceBand[0]}~${item.priceBand[1]}文`
+    }))
   })
   const marketOverview = computed(() => shopStore.marketDynamicsOverview)
   const marketPositiveHighlights = computed(() =>

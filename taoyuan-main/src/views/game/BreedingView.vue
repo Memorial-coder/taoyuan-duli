@@ -20,6 +20,9 @@
     <p v-if="tutorialHint" class="tutorial-hint mb-3">{{ tutorialHint }}</p>
 
     <!-- 两栏切换 -->
+    <GuidanceDigestPanel surface-id="breeding" title="成长承接引导" />
+    <QaGovernancePanel page-id="breeding" title="育种治理总览" />
+
     <div class="flex gap-1 mb-3">
       <Button class="flex-1 justify-center" :class="{ '!bg-accent !text-bg': tab === 'breeding' }" @click="tab = 'breeding'">育种台</Button>
       <Button class="flex-1 justify-center" :class="{ '!bg-accent !text-bg': tab === 'compendium' }" @click="tab = 'compendium'">
@@ -763,6 +766,8 @@
   import { ref, computed } from 'vue'
   import { FlaskConical, Plus, Check, ChevronDown, X, Dna, Trash2, Sprout, PackageOpen, Star, Lock, ArrowUpCircle, Heart } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
+  import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useBreedingStore } from '@/stores/useBreedingStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'

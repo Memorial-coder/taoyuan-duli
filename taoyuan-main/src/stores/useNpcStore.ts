@@ -15,7 +15,8 @@ import type {
   ProposalResponse,
   FarmHelperTask,
   HiredHelper,
-  ZhijiCompanionProjectState
+  ZhijiCompanionProjectState,
+  RelationshipContentReward
 } from '@/types'
 import { NPCS, getNpcById, getHeartEventsForNpc, RECIPES, getTodayEvent } from '@/data'
 import {
@@ -54,6 +55,8 @@ import { useAnimalStore } from './useAnimalStore'
 import { useFishPondStore } from './useFishPondStore'
 import { useDecorationStore } from './useDecorationStore'
 import { harvestFarmPlotWithRewards } from '@/composables/useFarmHarvest'
+import { addLog } from '@/composables/useGameLog'
+import { getWeekCycleInfo } from '@/utils/weekCycle'
 
 /** 好感度上限：未婚 2500（10心），已婚 4000；美观度≥100额外+250 */
 const getFriendshipCap = (state: { married: boolean }, beautyCapBonus = 0): number =>
@@ -952,33 +955,198 @@ export const useNpcStore = defineStore('npc', () => {
     return familyWishBoard.value
   }
 
+  const formatRelationshipRewardText = (reward?: RelationshipContentReward) => {
+    if (!reward) return ''
+    const parts: string[] = []
+    const rewardMoney = Math.max(0, Math.floor(reward.money ?? 0))
+    if (rewardMoney > 0) {
+      parts.push(`铜钱+${rewardMoney}`)
+    }
+    for (const entry of reward.items ?? []) {
+      if (!entry?.itemId || entry.quantity <= 0) continue
+      parts.push(`${getItemById(entry.itemId)?.name ?? entry.itemId} x${entry.quantity}`)
+    }
+    return parts.join('、')
+  }
+
+  const grantRelationshipReward = (reward: RelationshipContentReward | undefined, sourceLabel: string) => {
+    if (!reward) {
+      return { success: true, rewardText: '' }
+    }
+
+    const inventoryStore = useInventoryStore()
+    const playerStore = usePlayerStore()
+    const rewardItems = (reward.items ?? [])
+      .filter(entry => entry?.itemId && Number.isFinite(entry.quantity) && entry.quantity > 0)
+      .map(entry => ({
+        itemId: entry.itemId,
+        quantity: Math.max(1, Math.floor(entry.quantity))
+      }))
+
+    if (rewardItems.length > 0 && !inventoryStore.addItemsExact(rewardItems)) {
+      return {
+        success: false,
+        rewardText: '',
+        message: `${sourceLabel}奖励发放失败：背包空间不足，请先整理背包后再试。`
+      }
+    }
+
+    const rewardMoney = Math.max(0, Math.floor(reward.money ?? 0))
+    if (rewardMoney > 0) {
+      playerStore.earnMoney(rewardMoney, { system: 'system' })
+    }
+
+    return {
+      success: true,
+      rewardText: formatRelationshipRewardText({
+        money: rewardMoney,
+        items: rewardItems
+      })
+    }
+  }
+
   const completeFamilyWish = (wishId = familyWishBoard.value.activeWishId ?? '') => {
     const lockId = `relationship_complete_wish_${wishId}`
     if (!beginRelationshipAction(lockId)) return false
     try {
-    if (!wishId) return false
-    familyWishBoard.value = {
-      ...familyWishBoard.value,
-      activeWishId: null,
-      completedWishIds: familyWishBoard.value.completedWishIds.includes(wishId)
-        ? familyWishBoard.value.completedWishIds
-        : [...familyWishBoard.value.completedWishIds, wishId],
-      streakCount: familyWishBoard.value.streakCount + 1,
-      rewardClaimed: false
-    }
-    for (const state of npcStates.value.filter(entry => entry.married || entry.zhiji)) {
-      if (!state.completedFamilyWishIds.includes(wishId)) {
-        state.completedFamilyWishIds = [...state.completedFamilyWishIds, wishId]
+      if (!wishId) return false
+      const wishDef = WS09_FAMILY_WISH_DEFS.find(wish => wish.id === wishId)
+      if (!wishDef) return false
+      const rewardResult = grantRelationshipReward(wishDef.reward, `家庭心愿「${wishDef.title}」`)
+      if (!rewardResult.success) {
+        addLog(rewardResult.message ?? `家庭心愿「${wishDef.title}」奖励发放失败。`, {
+          category: 'social',
+          meta: { wishId }
+        })
+        return false
       }
-    }
-    return true
+      familyWishBoard.value = {
+        ...familyWishBoard.value,
+        activeWishId: null,
+        completedWishIds: familyWishBoard.value.completedWishIds.includes(wishId)
+          ? familyWishBoard.value.completedWishIds
+          : [...familyWishBoard.value.completedWishIds, wishId],
+        streakCount: familyWishBoard.value.streakCount + 1,
+        rewardClaimed: true
+      }
+      for (const state of npcStates.value.filter(entry => entry.married || entry.zhiji)) {
+        if (!state.completedFamilyWishIds.includes(wishId)) {
+          state.completedFamilyWishIds = [...state.completedFamilyWishIds, wishId]
+        }
+      }
+      if (rewardResult.rewardText) {
+        addLog(`【家庭心愿】已完成「${wishDef.title}」，奖励：${rewardResult.rewardText}。`, {
+          category: 'social',
+          meta: { wishId }
+        })
+      }
+      return true
     } finally {
       finishRelationshipAction(lockId)
     }
   }
 
+  const getEligibleFamilyWishDefs = () => {
+    const companionNpcIds = npcStates.value.filter(state => state.married || state.zhiji).map(state => state.npcId)
+    const allowedWishIds = new Set(
+      companionNpcIds.flatMap(npcId => getNpcById(npcId)?.familyWishIds ?? [])
+    )
+    return WS09_FAMILY_WISH_DEFS
+      .filter(wish => allowedWishIds.has(wish.id))
+      .filter(wish => relationshipTierRank[relationshipContentTier.value] >= relationshipTierRank[wish.unlockTier])
+  }
+
+  const getAutoFamilyWishProgressDelta = (wishId: string) => {
+    const wishDef = WS09_FAMILY_WISH_DEFS.find(wish => wish.id === wishId)
+    if (!wishDef) return 0
+    const companionCount = npcStates.value.filter(state => state.married || state.zhiji).length
+    const activeAssignmentCount = householdDivision.value.assignments.length
+    const fishPondStore = useFishPondStore()
+    switch (wishDef.linkedSystem) {
+      case 'home':
+        return Math.max(0, Math.max(activeAssignmentCount, companionCount) * 3)
+      case 'fishing':
+        return Math.max(0, fishPondStore.matureFish.length)
+      case 'breeding':
+        return Math.max(0, children.value.length + Math.max(1, companionCount))
+      case 'quest':
+        return Math.max(0, zhijiCompanionProjects.value.filter(project => !project.rewarded).length)
+      case 'goal':
+        return Math.max(0, familyWishBoard.value.completedWishIds.length)
+      default:
+        return 0
+    }
+  }
+
+  const autoActivateFamilyWishForWeek = (currentDayTag: string) => {
+    if (familyWishBoard.value.activeWishId) return null
+    const candidates = getEligibleFamilyWishDefs().filter(wish => !familyWishBoard.value.completedWishIds.includes(wish.id))
+    const nextWish = candidates[0] ?? null
+    if (!nextWish) return null
+    activateFamilyWish(nextWish.id, currentDayTag, currentDayTag, nextWish.targetValue, nextWish.unlockTier)
+    return nextWish
+  }
+
+  const autoRegisterZhijiProjectsForWeek = (currentWeekId: string) => {
+    const registered: string[] = []
+    for (const state of npcStates.value.filter(entry => entry.zhiji)) {
+      const npcDef = getNpcById(state.npcId)
+      const nextProjectId = (npcDef?.zhijiProjectIds ?? []).find(projectId => !getZhijiProjectState(projectId, state.npcId))
+      if (!nextProjectId) continue
+      if (registerZhijiProject(nextProjectId, state.npcId, currentWeekId)) {
+        registered.push(`${state.npcId}:${nextProjectId}`)
+      }
+    }
+    return registered
+  }
+
+  const autoProgressZhijiProjectsForWeek = () => {
+    const rewarded: string[] = []
+    for (const project of zhijiCompanionProjects.value) {
+      if (project.rewarded) continue
+      const projectDef = WS09_ZHIJI_COMPANION_PROJECT_DEFS.find(def => def.id === project.projectId)
+      if (!projectDef) continue
+      const fishPondStore = useFishPondStore()
+      const delta =
+        projectDef.linkedSystem === 'fishing'
+          ? Math.max(1, fishPondStore.matureFish.length)
+          : projectDef.linkedSystem === 'home'
+            ? Math.max(1, householdDivision.value.assignments.length)
+            : projectDef.linkedSystem === 'breeding'
+              ? Math.max(1, children.value.length || familyWishBoard.value.completedWishIds.length)
+              : 1
+      progressZhijiProject(project.projectId, project.npcId, delta)
+      if (project.completed && !project.rewarded && rewardZhijiProject(project.projectId, project.npcId)) {
+        rewarded.push(`${project.npcId}:${project.projectId}`)
+      }
+    }
+    return rewarded
+  }
+
   const getZhijiProjectState = (projectId: string, npcId?: string) =>
     zhijiCompanionProjects.value.find(project => project.projectId === projectId && (npcId ? project.npcId === npcId : true)) ?? null
+
+  const activateNextFamilyWishForCurrentDay = () => {
+    if (familyWishBoard.value.activeWishId) {
+      const currentWish = WS09_FAMILY_WISH_DEFS.find(wish => wish.id === familyWishBoard.value.activeWishId)
+      return {
+        success: false,
+        message: `当前已有进行中的家庭心愿：${currentWish?.title ?? familyWishBoard.value.activeWishId}。`
+      }
+    }
+    const nextWish = getEligibleFamilyWishDefs().find(wish => !familyWishBoard.value.completedWishIds.includes(wish.id))
+    if (!nextWish) {
+      return { success: false, message: '当前没有可安排的新家庭心愿。' }
+    }
+    const gameStore = useGameStore()
+    const currentDayTag = `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+    activateFamilyWish(nextWish.id, currentDayTag, currentDayTag, nextWish.targetValue, nextWish.unlockTier)
+    return {
+      success: true,
+      message: `已安排新的家庭心愿：${nextWish.title}。`,
+      wishId: nextWish.id
+    }
+  }
 
   const registerZhijiProject = (projectId: string, npcId: string, activatedWeekId: string) => {
     const lockId = `relationship_register_zhiji_project_${projectId}_${npcId}`
@@ -1024,13 +1192,53 @@ export const useNpcStore = defineStore('npc', () => {
     const lockId = `relationship_reward_zhiji_project_${projectId}_${npcId}`
     if (!beginRelationshipAction(lockId)) return false
     try {
-    const project = getZhijiProjectState(projectId, npcId)
-    if (!project || !project.completed) return false
-    if (project.rewarded) return false
-    project.rewarded = true
-    return true
+      const project = getZhijiProjectState(projectId, npcId)
+      if (!project || !project.completed) return false
+      if (project.rewarded) return false
+      const projectDef = WS09_ZHIJI_COMPANION_PROJECT_DEFS.find(def => def.id === projectId)
+      if (!projectDef) return false
+      const rewardResult = grantRelationshipReward(projectDef.reward, `知己协作「${projectDef.label}」`)
+      if (!rewardResult.success) {
+        addLog(rewardResult.message ?? `知己协作「${projectDef.label}」奖励发放失败。`, {
+          category: 'social',
+          meta: { projectId, npcId }
+        })
+        return false
+      }
+      project.rewarded = true
+      if (rewardResult.rewardText) {
+        addLog(`【知己协作】${getNpcById(npcId)?.name ?? npcId} 完成「${projectDef.label}」，奖励：${rewardResult.rewardText}。`, {
+          category: 'social',
+          meta: { projectId, npcId }
+        })
+      }
+      return true
     } finally {
       finishRelationshipAction(lockId)
+    }
+  }
+
+  const registerNextZhijiProjectForCurrentWeek = () => {
+    const zhijiState = getZhiji()
+    if (!zhijiState) {
+      return { success: false, message: '当前没有可协作的知己。' }
+    }
+    const npcDef = getNpcById(zhijiState.npcId)
+    const nextProjectId = (npcDef?.zhijiProjectIds ?? []).find(projectId => !getZhijiProjectState(projectId, zhijiState.npcId))
+    if (!nextProjectId) {
+      return { success: false, message: '当前没有新的知己协作项目可登记。' }
+    }
+    const gameStore = useGameStore()
+    const currentWeekId = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId
+    const registered = registerZhijiProject(nextProjectId, zhijiState.npcId, currentWeekId)
+    if (!registered) {
+      return { success: false, message: '知己协作项目登记失败，请稍后再试。' }
+    }
+    const projectDef = WS09_ZHIJI_COMPANION_PROJECT_DEFS.find(def => def.id === nextProjectId)
+    return {
+      success: true,
+      message: `已为${npcDef?.name ?? zhijiState.npcId}登记知己协作：${projectDef?.label ?? nextProjectId}。`,
+      projectId: nextProjectId
     }
   }
 
@@ -1059,11 +1267,20 @@ export const useNpcStore = defineStore('npc', () => {
         child.trainingState.lessonsThisWeek = 0
       }
       familyWishBoard.value.rerollCount = 0
+      const zhijiRegistrations = autoRegisterZhijiProjectsForWeek(payload.currentWeekId)
+      const rewardedProjects = autoProgressZhijiProjectsForWeek()
       if (familyWishBoard.value.activeWishId) {
+        const weeklyWishProgress = getAutoFamilyWishProgressDelta(familyWishBoard.value.activeWishId)
+        if (weeklyWishProgress > 0) {
+          updateFamilyWishProgress(weeklyWishProgress)
+        }
         if (familyWishBoard.value.progress >= Math.max(1, familyWishBoard.value.targetValue)) {
           const completedWishId = familyWishBoard.value.activeWishId
-          completeFamilyWish(completedWishId)
-          logs.push(`【家庭心愿】本周家庭心愿「${completedWishId}」已完成。`)
+          if (completeFamilyWish(completedWishId)) {
+            logs.push(`【家庭心愿】本周家庭心愿「${completedWishId}」已完成。`)
+          } else {
+            logs.push(`【家庭心愿】${completedWishId} 已达到完成条件，但奖励发放受阻，已保留至下次重试。`)
+          }
         } else if (familyWishBoard.value.expiresDayTag) {
           logs.push(`【家庭心愿】本周家庭心愿「${familyWishBoard.value.activeWishId}」已过期，将在下周重新编排。`)
           familyWishBoard.value = {
@@ -1076,6 +1293,18 @@ export const useNpcStore = defineStore('npc', () => {
             rewardClaimed: false
           }
         }
+      }
+      const autoWish = autoActivateFamilyWishForWeek(payload.currentDayTag)
+      if (autoWish) {
+        logs.push(`【家庭心愿】已为本周自动编排心愿「${autoWish.title}」。`)
+      }
+      for (const registration of zhijiRegistrations) {
+        const [npcId = '', projectId = ''] = registration.split(':')
+        logs.push(`【知己协作】${getNpcById(npcId)?.name ?? npcId} 已接入协作项目「${projectId}」。`)
+      }
+      for (const reward of rewardedProjects) {
+        const [npcId = '', projectId = ''] = reward.split(':')
+        logs.push(`【知己协作】${getNpcById(npcId)?.name ?? npcId} 的协作项目「${projectId}」已完成并结算。`)
       }
       zhijiCompanionProjects.value = zhijiCompanionProjects.value.map(project =>
         project.completed
@@ -1905,10 +2134,12 @@ export const useNpcStore = defineStore('npc', () => {
     progressHouseholdRole,
     getFamilyWishOverview,
     activateFamilyWish,
+    activateNextFamilyWishForCurrentDay,
     updateFamilyWishProgress,
     completeFamilyWish,
     getZhijiProjectState,
     registerZhijiProject,
+    registerNextZhijiProjectForCurrentWeek,
     progressZhijiProject,
     rewardZhijiProject,
     processRelationshipCycleTick,

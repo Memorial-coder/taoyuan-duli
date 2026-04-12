@@ -17,6 +17,7 @@ import { BAITS, TACKLES, FERTILIZERS } from '@/data/processing'
 import { isTravelingMerchantDay, generateMerchantStock, TRAVELING_MERCHANT_POOL } from '@/data/travelingMerchant'
 import {
   SHOP_CATALOG_OFFERS,
+  WS10_ACTIVITY_OFFER_BUNDLES,
   SHOP_CATALOG_LUXURY_BASELINE_AUDIT,
   SHOP_CATALOG_TUNING_CONFIG,
   createDefaultShopCatalogExpansionState,
@@ -246,6 +247,9 @@ export const useShopStore = defineStore('shop', () => {
     const walletStore = useWalletStore()
     const goalStore = useGoalStore()
     const themeWeek = goalStore.currentThemeWeek
+    const activeCampaignBundle = goalStore.currentEventCampaign
+      ? WS10_ACTIVITY_OFFER_BUNDLES.find(bundle => bundle.campaignId === goalStore.currentEventCampaign?.id) ?? null
+      : null
     const economyOverview = usePlayerStore().getEconomyOverview()
     const recommendedSinkSystems = new Set(
       ECONOMY_SINK_CONTENT_DEFS.filter(item => {
@@ -280,6 +284,9 @@ export const useShopStore = defineStore('shop', () => {
         if (SHOP_CATALOG_TUNING_CONFIG.forcedRecommendedOfferIds.includes(offer.id)) {
           tuningScore += SHOP_CATALOG_TUNING_CONFIG.recommendationBoosts.forcedOffer
         }
+        if (activeCampaignBundle?.recommendedOfferIds.includes(offer.id)) {
+          tuningScore += 3
+        }
         return {
           offer,
           score: walletScore + themeScore + sinkScore + tuningScore
@@ -297,6 +304,16 @@ export const useShopStore = defineStore('shop', () => {
       .slice(0, ECONOMY_TUNING_CONFIG.recommendedSinkCount)
       .map(entry => entry.offer)
   })
+  const activityCampaignOfferBundle = computed(() => {
+    const goalStore = useGoalStore()
+    if (!goalStore.currentEventCampaign) return null
+    return WS10_ACTIVITY_OFFER_BUNDLES.find(bundle => bundle.campaignId === goalStore.currentEventCampaign?.id) ?? null
+  })
+  const activityCampaignOfferRecommendations = computed(() =>
+    activityCampaignOfferBundle.value
+      ? recommendedCatalogOffers.value.filter(offer => activityCampaignOfferBundle.value?.recommendedOfferIds.includes(offer.id))
+      : []
+  )
 
   const currentLuxuryAuditSegment = computed(() => {
     const economyOverview = playerStore.getEconomyOverview()
@@ -2364,6 +2381,8 @@ export const useShopStore = defineStore('shop', () => {
     catalogOverviewSummary,
     catalogOfferOperationalSummaries,
     activeServiceContractSummaries,
+    activityCampaignOfferBundle,
+    activityCampaignOfferRecommendations,
     weeklyCatalogRefreshText,
     recommendedCatalogOffers,
     weeklySurpriseOffer,

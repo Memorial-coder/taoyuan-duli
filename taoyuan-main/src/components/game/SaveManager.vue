@@ -289,7 +289,7 @@
     const result = await downloadSave(slot)
     downloading.value = false
     if (result.success) {
-      refreshSlots()
+      await refreshSlots()
       emit('change')
     }
     showFloat(result.message, result.success ? 'success' : 'danger')

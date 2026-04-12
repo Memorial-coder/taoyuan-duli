@@ -101,6 +101,10 @@ export interface VillageProjectDonationMilestone {
   label: string
   targetAmount: number
   rewardSummary: string
+  reward?: {
+    money?: number
+    items?: Array<{ itemId: string; quantity: number }>
+  }
   unlockEffects?: VillageProjectUnlockEffect[]
 }
 

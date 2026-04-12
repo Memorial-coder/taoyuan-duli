@@ -244,6 +244,7 @@ export interface TexasTierDef {
 }
 
 export interface TexasSetup {
+  sessionId: string
   playerHole: PokerCard[]
   dealerHole: PokerCard[]
   /** 预发5张，组件按街逐步展示 */
@@ -257,6 +258,7 @@ export interface TexasSetup {
 export type ShellType = 'live' | 'blank'
 
 export interface BuckshotSetup {
+  sessionId: string
   shells: ShellType[]
   playerHP: number
   dealerHP: number

@@ -519,6 +519,9 @@ export const useMuseumStore = defineStore('museum', () => {
   const crossSystemOverview = computed(() => {
     const recommendedActions: string[] = []
     const activeTheme = getActiveShrineTheme()
+    if (goalStore.currentEventCampaign) {
+      recommendedActions.push(`当前活动「${goalStore.currentEventCampaign.label}」正在放大展陈、委托与专题活动承接，优先把馆务安排和活动节奏对齐。`)
+    }
     if (availableScholarCommissionCount.value > 0) {
       recommendedActions.push(`优先承接 ${availableScholarCommissionCount.value} 条学者委托，把展示评分和访客热度转成稳定奖励。`)
     }
@@ -909,6 +912,7 @@ export const useMuseumStore = defineStore('museum', () => {
 
     try {
     const commission = getScholarCommissionOverview(commissionId)
+    if (commission?.state.rewarded) return { success: false, message: '该学者委托奖励已领取，本轮不能重复接取。' }
     if (!commission) return { success: false, message: '学者委托不存在。' }
     if (!commission.unlocked) return { success: false, message: '该学者委托尚未开放。' }
     if (commission.isAccepted) return { success: false, message: '该学者委托已在进行中。' }

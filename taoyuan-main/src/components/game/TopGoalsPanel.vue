@@ -17,6 +17,7 @@
         <span class="game-chip">目标声望 {{ goalStore.goalReputation }}</span>
         <span class="game-chip">今日 {{ goalStore.dailyGoals.length }} 项</span>
         <span class="game-chip">长期 {{ longTermCompletedCount }} / {{ goalStore.longTermGoals.length }}</span>
+        <span v-if="goalStore.currentEventCampaign" class="game-chip">活动 {{ goalStore.currentEventCampaign.label }}</span>
         <button class="btn !px-2 !py-1" @click="collapsed = !collapsed">
           <span>{{ collapsed ? '展开目标' : '收起目标' }}</span>
         </button>
@@ -65,6 +66,13 @@
         </section>
 
         <section class="game-panel-muted px-3 py-3 2xl:col-span-4">
+        <div v-if="goalStore.currentEventCampaign" class="rounded-xs border border-warning/20 bg-warning/5 px-2 py-2 mb-2">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[11px] text-warning">本周活动</p>
+            <span class="text-[10px] text-muted">{{ goalStore.currentEventCampaign.cadence }}</span>
+          </div>
+          <p class="text-[10px] text-muted mt-1 leading-5">{{ goalStore.currentEventCampaign.description }}</p>
+        </div>
         <div class="flex items-center justify-between gap-3 mb-2">
           <p class="text-xs text-accent">本季目标</p>
           <span class="text-[11px] text-muted">{{ currentSeasonLabel }}</span>

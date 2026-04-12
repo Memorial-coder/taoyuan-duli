@@ -54,6 +54,9 @@
       </div>
     </div>
 
+    <GuidanceDigestPanel surface-id="wallet" title="资金去向引导" />
+    <QaGovernancePanel page-id="wallet" title="QA 治理总览" />
+
     <div class="border border-accent/20 rounded-xs p-3 mb-3">
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-1.5 text-sm text-accent">
@@ -467,13 +470,14 @@
 <script setup lang="ts">
   import { ref, computed, onMounted } from 'vue'
   import { Wallet, CircleCheck, Lock, X, TrendingUp, AlertTriangle, Store } from 'lucide-vue-next'
+  import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
+  import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useShopStore } from '@/stores/useShopStore'
   import { useWalletStore } from '@/stores/useWalletStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { WALLET_ITEMS } from '@/data/wallet'
-  import { ECONOMY_SINK_CONTENT_DEFS } from '@/data/market'
   import type { WalletArchetypeId, WalletItemDef, WeeklyBudgetChannelId } from '@/types'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { exportTaoyuanToQuota, fetchTaoyuanExchangeContext, importQuotaToTaoyuan } from '@/utils/quotaExchangeApi'
@@ -555,24 +559,11 @@
     }
   ])
   const economyRecommendedSinks = computed(() => {
-    const segmentId = economyOverview.value.currentSegment?.id ?? 'mid_transition'
-    const tierRank = segmentId === 'endgame_tycoon' ? 3 : segmentId === 'late_builder' ? 2 : 1
-    return ECONOMY_SINK_CONTENT_DEFS
-      .filter(item => (item.tier === 'mid_transition' ? 1 : item.tier === 'late_growth' ? 2 : 3) <= tierRank)
-      .map(item => {
-        let score = item.tier === 'mid_transition' ? 1 : item.tier === 'late_growth' ? 2 : 3
-        if (economyOverview.value.sinkSatisfaction < 0.35 && ['service', 'maintenance', 'luxuryCatalog'].includes(item.category)) score += 2
-        if (economyOverview.value.dominantIncomeShare > 0.6 && item.linkedSystems.includes('market')) score += 2
-        if (economyOverview.value.loopDiversity < 4) score += item.linkedSystems.length
-        return {
-          ...item,
-          score,
-          priceBandLabel: `${item.priceBand[0]}~${item.priceBand[1]}文`,
-          linkedSystemsLabel: item.linkedSystems.join(' / ')
-        }
-      })
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
+    return goalStore.recommendedEconomySinks.slice(0, 3).map(item => ({
+      ...item,
+      priceBandLabel: `${item.priceBand[0]}~${item.priceBand[1]}文`,
+      linkedSystemsLabel: item.linkedSystems.join(' / ')
+    }))
   })
   const walletCatalogMetricCards = computed(() => {
     const summary = shopStore.catalogOverviewSummary

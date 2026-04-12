@@ -20,6 +20,7 @@ export type GameLogTag =
   | 'weekly_budget_expired'
   | 'weekly_metric_snapshot_archived'
   | 'weekly_risk_report'
+  | 'ui_guidance_digest_refresh'
   | 'goal_completed'
   | 'goal_unlock_hint'
   | 'economy_sink_guidance'

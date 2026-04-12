@@ -1,6 +1,6 @@
 ﻿import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { getItemById, getThemeWeekBySeason, getWeeklyGoalsBySeasonWeek } from '@/data'
+import { getItemById, getThemeWeekBySeason, getThemeWeekRewardPool, getWeeklyGoalsBySeasonWeek } from '@/data'
 import {
   DAILY_GOAL_DEFS,
   GOAL_BIAS_MAP,
@@ -11,7 +11,9 @@ import {
   createDefaultEventOperationsState,
   WS10_EVENT_CAMPAIGN_DEFS,
   WS10_EVENT_MAIL_TEMPLATE_REFS,
-  WS10_EVENT_OPERATIONS_BASELINE_AUDIT
+  WS10_EVENT_OPERATION_TUNING_CONFIG,
+  WS10_EVENT_OPERATIONS_BASELINE_AUDIT,
+  WEEKLY_GOAL_FAILURE_COMPENSATION_RULE
 } from '@/data/goals'
 import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
 import { WEEKLY_BUDGET_CHANNEL_MAP, WEEKLY_BUDGET_CHANNELS } from '@/data/weeklyBudgets'
@@ -21,11 +23,17 @@ import type {
   LateGameMetricSnapshot,
   RewardTicketType,
   ThemeWeekState,
+  ThemeWeekRewardPoolEntry,
   WeeklyBudgetArchive,
   WeeklyBudgetChannelId,
   WeeklyBudgetPlan,
   WeeklyBudgetSelection,
   WeeklyBudgetTierDef,
+  WeeklyGoalDef,
+  WeeklyGoalSettlementItem,
+  WeeklyGoalSettlementSummary,
+  WeeklyGoalState,
+  WeeklyGoalStreakState,
   WeeklyMetricArchive
 } from '@/types'
 import { addLog, showFloat } from '@/composables/useGameLog'
@@ -93,19 +101,6 @@ export interface GoalState extends GoalTemplate {
   source: GoalSource
 }
 
-interface WeeklyGoalDef extends GoalTemplate {
-  season: 'spring' | 'summer' | 'autumn' | 'winter'
-  weekOfSeason: 1 | 2 | 3 | 4
-  linkedThemeWeekId?: string
-}
-
-export interface WeeklyGoalState extends GoalState {
-  season: 'spring' | 'summer' | 'autumn' | 'winter'
-  weekOfSeason: 1 | 2 | 3 | 4
-  weekId: string
-  linkedThemeWeekId?: string
-}
-
 interface MainQuestStageTemplate {
   id: number
   title: string
@@ -125,10 +120,88 @@ export interface MainQuestStageState {
 }
 
 const FRIENDSHIP_GOAL_LEVELS = new Set(['friendly', 'bestFriend'])
-const GOAL_SAVE_VERSION = 4
+const GOAL_SAVE_VERSION = 5
 const WEEKLY_METRIC_ARCHIVE_VERSION = 1
 const WEEKLY_METRIC_ARCHIVE_LIMIT = 4
 const WEEKLY_BUDGET_ARCHIVE_LIMIT = 8
+
+const createEmptyWeeklyGoalStreakState = (): WeeklyGoalStreakState => ({
+  current: 0,
+  best: 0,
+  lastCompletedWeekId: '',
+  lastSettledWeekId: '',
+  lastOutcome: 'idle'
+})
+
+const normalizeWeeklyGoalStreakState = (value: unknown): WeeklyGoalStreakState => {
+  if (!value || typeof value !== 'object') return createEmptyWeeklyGoalStreakState()
+  const raw = value as Partial<WeeklyGoalStreakState>
+  const outcome = raw.lastOutcome === 'completed' || raw.lastOutcome === 'partial' || raw.lastOutcome === 'failed' ? raw.lastOutcome : 'idle'
+  return {
+    current: Math.max(0, Number(raw.current) || 0),
+    best: Math.max(0, Number(raw.best) || 0),
+    lastCompletedWeekId: typeof raw.lastCompletedWeekId === 'string' ? raw.lastCompletedWeekId : '',
+    lastSettledWeekId: typeof raw.lastSettledWeekId === 'string' ? raw.lastSettledWeekId : '',
+    lastOutcome: outcome
+  }
+}
+
+const normalizeWeeklyGoalSettlementItem = (value: unknown): WeeklyGoalSettlementItem | null => {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Partial<WeeklyGoalSettlementItem>
+  return {
+    goalId: typeof raw.goalId === 'string' ? raw.goalId : '',
+    title: typeof raw.title === 'string' ? raw.title : '',
+    completed: !!raw.completed,
+    progressValue: Math.max(0, Number(raw.progressValue) || 0),
+    targetValue: Math.max(0, Number(raw.targetValue) || 0),
+    rewardGranted: !!raw.rewardGranted,
+    rewardSummary: typeof raw.rewardSummary === 'string' ? raw.rewardSummary : undefined,
+    compensationGranted: typeof raw.compensationGranted === 'boolean' ? raw.compensationGranted : undefined,
+    failureCompensationReason: typeof raw.failureCompensationReason === 'string' ? raw.failureCompensationReason : undefined,
+    failureCompensationReward:
+      raw.failureCompensationReward && typeof raw.failureCompensationReward === 'object'
+        ? {
+            money: Math.max(0, Number((raw.failureCompensationReward as GoalReward).money) || 0) || undefined,
+            reputation: Math.max(0, Number((raw.failureCompensationReward as GoalReward).reputation) || 0) || undefined,
+            items: Array.isArray((raw.failureCompensationReward as GoalReward).items)
+              ? (raw.failureCompensationReward as GoalReward).items
+                  ?.filter(item => item && typeof item.itemId === 'string')
+                  .map(item => ({ itemId: item.itemId, quantity: Math.max(1, Number(item.quantity) || 1) }))
+              : undefined,
+            unlockHint:
+              typeof (raw.failureCompensationReward as GoalReward).unlockHint === 'string'
+                ? (raw.failureCompensationReward as GoalReward).unlockHint
+                : undefined
+          }
+        : undefined,
+    compensationSummary: typeof raw.compensationSummary === 'string' ? raw.compensationSummary : undefined
+  }
+}
+
+const normalizeWeeklyGoalSettlementSummary = (value: unknown): WeeklyGoalSettlementSummary | null => {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Partial<WeeklyGoalSettlementSummary>
+  const season = raw.season
+  const weekOfSeason = Number(raw.weekOfSeason)
+  if (season !== 'spring' && season !== 'summer' && season !== 'autumn' && season !== 'winter') return null
+  if (weekOfSeason !== 1 && weekOfSeason !== 2 && weekOfSeason !== 3 && weekOfSeason !== 4) return null
+  return {
+    weekId: typeof raw.weekId === 'string' ? raw.weekId : '',
+    season,
+    weekOfSeason,
+    linkedThemeWeekId: typeof raw.linkedThemeWeekId === 'string' ? raw.linkedThemeWeekId : undefined,
+    completedGoalCount: Math.max(0, Number(raw.completedGoalCount) || 0),
+    totalGoalCount: Math.max(0, Number(raw.totalGoalCount) || 0),
+    settledAtDayTag: typeof raw.settledAtDayTag === 'string' ? raw.settledAtDayTag : '',
+    items: Array.isArray(raw.items) ? raw.items.map(normalizeWeeklyGoalSettlementItem).filter((item): item is WeeklyGoalSettlementItem => item !== null) : [],
+    rewardHighlights: Array.isArray(raw.rewardHighlights) ? raw.rewardHighlights.filter((item): item is string => typeof item === 'string') : [],
+    failureHighlights: Array.isArray(raw.failureHighlights) ? raw.failureHighlights.filter((item): item is string => typeof item === 'string') : [],
+    recommendationHighlights: Array.isArray(raw.recommendationHighlights) ? raw.recommendationHighlights.filter((item): item is string => typeof item === 'string') : [],
+    appliedThemeRewardPoolIds: Array.isArray(raw.appliedThemeRewardPoolIds) ? raw.appliedThemeRewardPoolIds.filter((item): item is string => typeof item === 'string') : [],
+    compensationRewardSummaries: Array.isArray(raw.compensationRewardSummaries) ? raw.compensationRewardSummaries.filter((item): item is string => typeof item === 'string') : []
+  }
+}
 
 const createEmptyWeeklyMetricArchive = (): WeeklyMetricArchive => ({
   version: WEEKLY_METRIC_ARCHIVE_VERSION,
@@ -275,6 +348,12 @@ const createGoalState = (template: GoalTemplate, baselineValue = 0, source: Goal
   source
 })
 
+const EVENT_CAMPAIGN_TIER_WEIGHT: Record<'P0' | 'P1' | 'P2', number> = {
+  P0: 0,
+  P1: 1,
+  P2: 2
+}
+
 const createWeeklyGoalState = (template: WeeklyGoalDef, weekId: string, baselineValue = 0): WeeklyGoalState => ({
   ...createGoalState(template, baselineValue, 'weekly'),
   season: template.season,
@@ -315,6 +394,10 @@ export const useGoalStore = defineStore('goal', () => {
   const lastWeeklyGoalRefresh = ref('')
   const lastThemeWeekRefresh = ref('')
   const currentThemeWeekState = ref<ThemeWeekState | null>(null)
+  const lastWeeklyGoalSettlement = ref<WeeklyGoalSettlementSummary | null>(null)
+  const lastSettledWeeklyGoalWeekId = ref('')
+  const weeklyStreakState = ref<WeeklyGoalStreakState>(createEmptyWeeklyGoalStreakState())
+  const sentWeeklySettlementMailWeekIds = ref<string[]>([])
   const weeklyMetricArchive = ref<WeeklyMetricArchive>(createEmptyWeeklyMetricArchive())
   const weeklyBudgetPlan = ref<WeeklyBudgetPlan>(createEmptyWeeklyBudgetPlan())
   const weeklyBudgetHistory = ref<WeeklyBudgetArchive[]>([])
@@ -322,6 +405,27 @@ export const useGoalStore = defineStore('goal', () => {
   const eventOperationsState = ref<EventOperationsState>(createDefaultEventOperationsState())
   const eventCampaignDefs = WS10_EVENT_CAMPAIGN_DEFS
   const eventMailTemplateRefs = WS10_EVENT_MAIL_TEMPLATE_REFS
+  const eventOperationTuning = WS10_EVENT_OPERATION_TUNING_CONFIG
+  const eventOperationFeatureFlags = eventOperationTuning.featureFlags
+  const eventOperationLocks = ref<string[]>([])
+
+  const beginEventOperation = (lockId: string): boolean => {
+    if (eventOperationLocks.value.includes(lockId)) return false
+    eventOperationLocks.value = [...eventOperationLocks.value, lockId]
+    return true
+  }
+
+  const finishEventOperation = (lockId: string) => {
+    eventOperationLocks.value = eventOperationLocks.value.filter(entry => entry !== lockId)
+  }
+
+  const createEventOperationSnapshot = () => ({
+    eventOperationsState: { ...eventOperationsState.value }
+  })
+
+  const rollbackEventOperation = (snapshot: ReturnType<typeof createEventOperationSnapshot>) => {
+    eventOperationsState.value = { ...snapshot.eventOperationsState }
+  }
 
   const getCurrentSeasonTag = () => {
     const gameStore = useGameStore()
@@ -519,7 +623,7 @@ export const useGoalStore = defineStore('goal', () => {
       case 'museumExhibitLevel':
         return museumStore.donatedCount
       case 'familyWishCompletions':
-        return 0
+        return npcStore.getFamilyWishOverview().state.completedWishIds.length
       default:
         return 0
     }
@@ -544,7 +648,11 @@ export const useGoalStore = defineStore('goal', () => {
     familyWishCompletions: getMetricValue('familyWishCompletions')
   })
 
-  const buildLateGameMetricSnapshot = (weekInfo: WeekCycleInfo, generatedAtDayTag: string): LateGameMetricSnapshot => {
+  const buildLateGameMetricSnapshot = (
+    weekInfo: WeekCycleInfo,
+    generatedAtDayTag: string,
+    overrides?: Partial<Pick<LateGameMetricSnapshot, 'hanhaiContractCompletions'>>
+  ): LateGameMetricSnapshot => {
     const playerStore = usePlayerStore()
     const hanhaiStore = useHanhaiStore()
     const fishPondStore = useFishPondStore()
@@ -593,7 +701,7 @@ export const useGoalStore = defineStore('goal', () => {
       ),
       maintenanceCost: 0,
       serviceContractCount: shopStore.activeServiceContractSummaries.length,
-      hanhaiContractCompletions: hanhaiStore.totalRelicClears,
+      hanhaiContractCompletions: Math.max(0, Number(overrides?.hanhaiContractCompletions ?? hanhaiStore.totalRelicClears) || 0),
       fishPondContestScore: matureHealthyPondFish,
       museumExhibitLevel: museumStore.exhibitLevel,
       socialParticipationScore,
@@ -603,8 +711,12 @@ export const useGoalStore = defineStore('goal', () => {
     }
   }
 
-  const archiveWeeklyMetricSnapshot = (weekInfo: WeekCycleInfo, generatedAtDayTag: string) => {
-    const snapshot = buildLateGameMetricSnapshot(weekInfo, generatedAtDayTag)
+  const archiveWeeklyMetricSnapshot = (
+    weekInfo: WeekCycleInfo,
+    generatedAtDayTag: string,
+    overrides?: Partial<Pick<LateGameMetricSnapshot, 'hanhaiContractCompletions'>>
+  ) => {
+    const snapshot = buildLateGameMetricSnapshot(weekInfo, generatedAtDayTag, overrides)
     const mergedSnapshots = [...weeklyMetricArchive.value.snapshots.filter(item => item.weekId !== snapshot.weekId), snapshot]
       .sort((a, b) => a.absoluteWeek - b.absoluteWeek)
       .slice(-WEEKLY_METRIC_ARCHIVE_LIMIT)
@@ -670,6 +782,58 @@ export const useGoalStore = defineStore('goal', () => {
       const fresh = createWeeklyGoalState(def, weekId, baselineSnapshot[def.metric] ?? 0)
       const saved = savedGoals?.find(goal => goal.id === def.id)
       return mergeSavedWeeklyGoalState(fresh, saved)
+    })
+  }
+
+  const formatGoalRewardSummary = (reward: GoalReward | undefined) => {
+    if (!reward) return ''
+    const summaryParts: string[] = []
+    if (reward.money) summaryParts.push(`${reward.money}文`)
+    if (reward.reputation) summaryParts.push(`目标声望+${reward.reputation}`)
+    if (reward.items?.length) {
+      summaryParts.push(
+        reward.items
+          .map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`)
+          .join('、')
+      )
+    }
+    return summaryParts.join('、')
+  }
+
+  const mergeGoalRewards = (baseReward: GoalReward, bonusReward?: GoalReward): GoalReward => {
+    if (!bonusReward) return { ...baseReward, items: baseReward.items ? [...baseReward.items] : undefined }
+    const mergedItemMap = new Map<string, number>()
+    for (const item of [...(baseReward.items ?? []), ...(bonusReward.items ?? [])]) {
+      mergedItemMap.set(item.itemId, (mergedItemMap.get(item.itemId) ?? 0) + Math.max(1, Number(item.quantity) || 1))
+    }
+    return {
+      money: (baseReward.money ?? 0) + (bonusReward.money ?? 0) || undefined,
+      reputation: (baseReward.reputation ?? 0) + (bonusReward.reputation ?? 0) || undefined,
+      items:
+        mergedItemMap.size > 0
+          ? [...mergedItemMap.entries()].map(([itemId, quantity]) => ({ itemId, quantity }))
+          : undefined,
+      unlockHint: bonusReward.unlockHint ?? baseReward.unlockHint
+    }
+  }
+
+  const getWeeklyGoalRewardPool = (themeWeekId = currentThemeWeek.value?.id ?? ''): ThemeWeekRewardPoolEntry[] => {
+    if (!themeWeekId) return []
+    return getThemeWeekRewardPool(themeWeekId)
+  }
+
+  const resolveAppliedThemeRewardEntries = (
+    completedGoalCount: number,
+    totalGoalCount: number,
+    themeWeekId?: string
+  ): ThemeWeekRewardPoolEntry[] => {
+    if (!themeWeekId || totalGoalCount <= 0) return []
+    const rewardPool = getWeeklyGoalRewardPool(themeWeekId)
+    if (rewardPool.length === 0) return []
+    return rewardPool.filter(entry => {
+      if (entry.threshold === 'any') return completedGoalCount > 0
+      if (entry.threshold === 'majority') return completedGoalCount >= Math.max(1, Math.ceil(totalGoalCount / 2))
+      return completedGoalCount === totalGoalCount && totalGoalCount > 0
     })
   }
 
@@ -942,6 +1106,167 @@ export const useGoalStore = defineStore('goal', () => {
     }
   }
 
+  const buildWeeklyGoalSettlementSummary = (
+    weekInfo: WeekCycleInfo,
+    settledAtDayTag = getCurrentDayTag(),
+    options?: { enableCompensation?: boolean }
+  ): WeeklyGoalSettlementSummary | null => {
+    if (!weeklyGoals.value.length) return null
+    const snapshot = getMetricSnapshot()
+    const enableCompensation = options?.enableCompensation ?? false
+    const completedGoalCount = weeklyGoals.value.filter(goal => goal.completed).length
+    const totalGoalCount = weeklyGoals.value.length
+    const linkedThemeWeekId = weeklyGoals.value[0]?.linkedThemeWeekId ?? currentThemeWeek.value?.id
+    const appliedThemeRewardEntries = resolveAppliedThemeRewardEntries(
+      completedGoalCount,
+      totalGoalCount,
+      linkedThemeWeekId
+    )
+    let remainingCompensationSlots = enableCompensation && WEEKLY_GOAL_FAILURE_COMPENSATION_RULE.enabled
+      ? Math.max(0, WEEKLY_GOAL_FAILURE_COMPENSATION_RULE.maxCompensatedGoals)
+      : 0
+
+    const items = weeklyGoals.value.map(goal => {
+      const progressValue = getGoalProgressValue(goal, snapshot)
+      const rewardSummary = goal.completed ? formatGoalRewardSummary(goal.reward) : ''
+      const progressRatio = goal.targetValue > 0 ? progressValue / goal.targetValue : 0
+      const shouldCompensate =
+        !goal.completed &&
+        remainingCompensationSlots > 0 &&
+        progressRatio >= WEEKLY_GOAL_FAILURE_COMPENSATION_RULE.minProgressRatio
+      const compensationReward = shouldCompensate
+        ? {
+            money: WEEKLY_GOAL_FAILURE_COMPENSATION_RULE.reward.money,
+            items: WEEKLY_GOAL_FAILURE_COMPENSATION_RULE.reward.items.map(item => ({ ...item }))
+          }
+        : undefined
+      if (shouldCompensate) remainingCompensationSlots -= 1
+      return {
+        goalId: goal.id,
+        title: goal.title,
+        completed: goal.completed,
+        progressValue,
+        targetValue: goal.targetValue,
+        rewardGranted: goal.completed && goal.rewarded,
+        rewardSummary: rewardSummary || undefined,
+        compensationGranted: shouldCompensate || undefined,
+        failureCompensationReason: shouldCompensate ? WEEKLY_GOAL_FAILURE_COMPENSATION_RULE.reasonTemplate : undefined,
+        failureCompensationReward: compensationReward,
+        compensationSummary: shouldCompensate ? formatGoalRewardSummary(compensationReward) : undefined
+      } satisfies WeeklyGoalSettlementItem
+    })
+
+    return {
+      weekId: weekInfo.seasonWeekId,
+      season: weekInfo.season,
+      weekOfSeason: weekInfo.weekOfSeason,
+      linkedThemeWeekId,
+      completedGoalCount,
+      totalGoalCount,
+      settledAtDayTag,
+      items,
+      rewardHighlights: [
+        ...items.filter(item => item.rewardSummary).map(item => `${item.title}：${item.rewardSummary}`),
+        ...appliedThemeRewardEntries.map(entry => `${entry.label}：${formatGoalRewardSummary(entry.bonusReward)}`)
+      ],
+      failureHighlights: items.filter(item => !item.completed).map(item => `${item.title}：${Math.max(0, item.targetValue - item.progressValue)} 未达成`),
+      recommendationHighlights:
+        appliedThemeRewardEntries.length > 0
+          ? appliedThemeRewardEntries.map(entry => `${entry.label}：${entry.description}`)
+          : [
+              completedGoalCount === totalGoalCount
+                ? '本周周目标全部完成，下周可继续冲刺更高阶主题承接。'
+                : completedGoalCount > 0
+                  ? '本周已有部分周目标达成，下周优先补齐未完成项对应的经营链路。'
+                  : '本周未形成有效周目标闭环，建议优先跟进主题周重点目标。'
+            ],
+      appliedThemeRewardPoolIds: appliedThemeRewardEntries.map(entry => entry.id),
+      compensationRewardSummaries: items.filter(item => item.compensationSummary).map(item => `${item.title}：${item.compensationSummary}`)
+    }
+  }
+
+  const settleWeeklyGoals = (payload: {
+    weekInfo: WeekCycleInfo
+    settledAtDayTag?: string
+    enableCompensation?: boolean
+  }) => {
+    ensureInitialized()
+    if (!weeklyGoals.value.length) return null
+    if (lastSettledWeeklyGoalWeekId.value === payload.weekInfo.seasonWeekId) {
+      return lastWeeklyGoalSettlement.value?.weekId === payload.weekInfo.seasonWeekId ? lastWeeklyGoalSettlement.value : null
+    }
+
+    const settledAtDayTag = payload.settledAtDayTag ?? getCurrentDayTag()
+    const summaryThemeRewardEntries = resolveAppliedThemeRewardEntries(
+      weeklyGoals.value.filter(goal => goal.completed).length,
+      weeklyGoals.value.length,
+      currentThemeWeek.value?.id ?? weeklyGoals.value[0]?.linkedThemeWeekId
+    )
+
+    for (const goal of weeklyGoals.value) {
+      if (goal.completed && !goal.rewarded) {
+        goal.rewarded = true
+        grantReward('本周目标「' + goal.title + '」', goal.reward)
+      }
+    }
+
+    for (const entry of summaryThemeRewardEntries) {
+      grantReward(`主题周奖励「${entry.label}」`, entry.bonusReward)
+    }
+
+    const summary = buildWeeklyGoalSettlementSummary(payload.weekInfo, settledAtDayTag, {
+      enableCompensation: payload.enableCompensation
+    })
+    if (!summary) return null
+
+    weeklyStreakState.value = (() => {
+      const nextState = { ...weeklyStreakState.value }
+      const allCompleted = summary.completedGoalCount === summary.totalGoalCount && summary.totalGoalCount > 0
+      if (allCompleted) {
+        nextState.current += 1
+        nextState.best = Math.max(nextState.best, nextState.current)
+        nextState.lastCompletedWeekId = summary.weekId
+        nextState.lastOutcome = 'completed'
+      } else if (summary.completedGoalCount > 0) {
+        nextState.current = 0
+        nextState.lastOutcome = 'partial'
+      } else {
+        nextState.current = 0
+        nextState.lastOutcome = 'failed'
+      }
+      nextState.lastSettledWeekId = summary.weekId
+      return nextState
+    })()
+
+    lastWeeklyGoalSettlement.value = summary
+    lastSettledWeeklyGoalWeekId.value = summary.weekId
+
+    addLog(`[Weekly Goals] 已结算 ${summary.weekId}：完成 ${summary.completedGoalCount}/${summary.totalGoalCount}。`, {
+      category: 'goal',
+      tags: ['weekly_goals_settled', 'late_game_cycle'],
+      meta: {
+        weekId: summary.weekId,
+        completedGoalCount: summary.completedGoalCount,
+        totalGoalCount: summary.totalGoalCount,
+        streak: weeklyStreakState.value.current
+      }
+    })
+    if (summary.failureHighlights.length > 0) {
+      addLog(`[Weekly Goals] 未完成项：${summary.failureHighlights.join('；')}`, {
+        category: 'goal',
+        tags: ['weekly_goals_failed', 'late_game_cycle'],
+        meta: { weekId: summary.weekId }
+      })
+    }
+    return summary
+  }
+
+  const markWeeklySettlementMailSent = (weekId: string) => {
+    if (!weekId || sentWeeklySettlementMailWeekIds.value.includes(weekId)) return false
+    sentWeeklySettlementMailWeekIds.value = [...sentWeeklySettlementMailWeekIds.value, weekId]
+    return true
+  }
+
   const evaluateProgressAndRewards = () => {
     ensureInitialized()
     const snapshot = getMetricSnapshot()
@@ -1053,6 +1378,10 @@ export const useGoalStore = defineStore('goal', () => {
     lastWeeklyGoalRefresh: lastWeeklyGoalRefresh.value,
     lastThemeWeekRefresh: lastThemeWeekRefresh.value,
     currentThemeWeekState: currentThemeWeekState.value,
+    lastWeeklyGoalSettlement: lastWeeklyGoalSettlement.value,
+    lastSettledWeeklyGoalWeekId: lastSettledWeeklyGoalWeekId.value,
+    weeklyStreakState: weeklyStreakState.value,
+    sentWeeklySettlementMailWeekIds: sentWeeklySettlementMailWeekIds.value,
     weeklyMetricArchive: weeklyMetricArchive.value,
     weeklyBudgetPlan: weeklyBudgetPlan.value,
     weeklyBudgetHistory: weeklyBudgetHistory.value,
@@ -1114,6 +1443,12 @@ export const useGoalStore = defineStore('goal', () => {
     goalReputation.value = data?.goalReputation ?? 0
     currentThemeWeekState.value = data?.currentThemeWeekState ?? null
     lastThemeWeekRefresh.value = data?.lastThemeWeekRefresh ?? ''
+    lastWeeklyGoalSettlement.value = normalizeWeeklyGoalSettlementSummary((data as any)?.lastWeeklyGoalSettlement)
+    lastSettledWeeklyGoalWeekId.value = typeof (data as any)?.lastSettledWeeklyGoalWeekId === 'string' ? (data as any).lastSettledWeeklyGoalWeekId : ''
+    weeklyStreakState.value = normalizeWeeklyGoalStreakState((data as any)?.weeklyStreakState)
+    sentWeeklySettlementMailWeekIds.value = Array.isArray((data as any)?.sentWeeklySettlementMailWeekIds)
+      ? (data as any).sentWeeklySettlementMailWeekIds.filter((item: unknown) => typeof item === 'string')
+      : []
     weeklyMetricArchive.value = normalizeWeeklyMetricArchive(data?.weeklyMetricArchive)
     weeklyBudgetPlan.value = normalizeWeeklyBudgetPlan(data?.weeklyBudgetPlan)
     weeklyBudgetHistory.value = normalizeWeeklyBudgetArchive(data?.weeklyBudgetHistory)
@@ -1132,6 +1467,7 @@ export const useGoalStore = defineStore('goal', () => {
         lastSettlementDayTag: typeof raw.lastSettlementDayTag === 'string' ? raw.lastSettlementDayTag : ''
       }
     })()
+    eventOperationLocks.value = []
     ensureInitialized()
     syncMainQuestStage()
   }
@@ -1197,6 +1533,234 @@ export const useGoalStore = defineStore('goal', () => {
   const latestWeeklyMetricSnapshot = computed(() => weeklyMetricArchive.value.snapshots[weeklyMetricArchive.value.snapshots.length - 1] ?? null)
   const weeklyBudgetChannels = computed(() => WEEKLY_BUDGET_CHANNELS)
   const weeklyBudgetSelections = computed(() => weeklyBudgetPlan.value.selections)
+  const getEventCampaignById = (campaignId: string) => eventCampaignDefs.find(campaign => campaign.id === campaignId) ?? null
+  const getEventMailTemplateRefById = (templateId: string) => eventMailTemplateRefs.find(template => template.id === templateId) ?? null
+  const resolveUnlockedEventCampaignTier = () => {
+    const playerStore = usePlayerStore()
+    const currentSegmentId = playerStore.getEconomyOverview().currentSegment?.id ?? ''
+    if (currentSegmentId === 'endgame_tycoon') return 'P2' as const
+    if (currentSegmentId === 'late_builder') return 'P1' as const
+    return 'P0' as const
+  }
+  const getPreferredEventCampaignForThemeWeek = (themeWeekId: string | null) => {
+    if (!themeWeekId) return null
+    const unlockedTier = resolveUnlockedEventCampaignTier()
+    const unlockedWeight = EVENT_CAMPAIGN_TIER_WEIGHT[unlockedTier]
+    return eventCampaignDefs
+      .filter(campaign => campaign.linkedThemeWeekIds.includes(themeWeekId))
+      .filter(campaign => EVENT_CAMPAIGN_TIER_WEIGHT[campaign.unlockTier] <= unlockedWeight)
+      .sort((a, b) => EVENT_CAMPAIGN_TIER_WEIGHT[b.unlockTier] - EVENT_CAMPAIGN_TIER_WEIGHT[a.unlockTier])[0] ?? null
+  }
+  const buildEventMailReceiptKey = (weekId: string, templateId: string) => `event_${weekId}_${templateId}`
+  const currentEventCampaign = computed(() => {
+    if (!eventOperationFeatureFlags.eventCampaignEnabled) return null
+    if (eventOperationsState.value.activeCampaignId) {
+      return getEventCampaignById(eventOperationsState.value.activeCampaignId)
+    }
+    const themeWeekId = currentThemeWeek.value?.id ?? null
+    return getPreferredEventCampaignForThemeWeek(themeWeekId)
+  })
+  const eventOperationsOverview = computed(() => ({
+    baselineAudit: eventOperationsBaselineAudit,
+    activeCampaign: currentEventCampaign.value,
+    activeThemeWeek: currentThemeWeek.value,
+    state: eventOperationsState.value,
+    mailTemplates: eventMailTemplateRefs.slice(0, eventOperationTuning.display.mailDigestPreviewLimit),
+    tuning: eventOperationTuning
+  }))
+  const uiGuidanceSourceOverview = computed(() => {
+    const playerStore = usePlayerStore()
+    const economyOverview = playerStore.getEconomyOverview()
+    const currentThemeWeekSummary = currentThemeWeek.value
+      ? {
+          id: currentThemeWeek.value.id,
+          name: currentThemeWeek.value.name,
+          summaryLabel: currentThemeWeek.value.ui?.summaryLabel ?? currentThemeWeek.value.name,
+          description: currentThemeWeek.value.description,
+          startDay: currentThemeWeek.value.startDay,
+          endDay: currentThemeWeek.value.endDay,
+          breedingFocusLabel: currentThemeWeek.value.breedingFocusLabel ?? ''
+        }
+      : null
+    const currentEventCampaignSummary = currentEventCampaign.value
+      ? {
+          id: currentEventCampaign.value.id,
+          label: currentEventCampaign.value.label,
+          description: currentEventCampaign.value.description,
+          cadence: currentEventCampaign.value.cadence,
+          mailboxTemplateIds: [...currentEventCampaign.value.mailboxTemplateIds]
+        }
+      : null
+    const mailTemplateTitles = currentEventCampaignSummary
+      ? eventMailTemplateRefs
+          .filter(template => currentEventCampaignSummary.mailboxTemplateIds.includes(template.id))
+          .map(template => template.title)
+      : []
+
+    return {
+      currentDayTag: getCurrentDayTag(),
+      currentSegment: economyOverview.currentSegment
+        ? {
+            id: economyOverview.currentSegment.id,
+            label: economyOverview.currentSegment.label,
+            recommendedFocus: economyOverview.currentSegment.recommendedFocus
+          }
+        : null,
+      inflationPressure: economyOverview.inflationPressure,
+      sinkCoverage: economyOverview.sinkCoverage,
+      latestRiskReportSummary: economyOverview.latestRiskReport?.summary ?? '',
+      currentThemeWeek: currentThemeWeekSummary,
+      currentEventCampaign: currentEventCampaignSummary,
+      themeWeekGoalIds: currentThemeWeekGoals.value.map(goal => goal.id),
+      themeWeekGoalTitles: currentThemeWeekGoals.value.map(goal => goal.title),
+      recommendedEconomySinks: recommendedEconomySinks.value.map(sink => ({
+        id: sink.id,
+        name: sink.name,
+        category: sink.category,
+        priceBand: [...sink.priceBand] as [number, number],
+        showcaseHook: sink.showcaseHook,
+        linkedSystems: [...sink.linkedSystems]
+      })),
+      mailTemplateTitles
+    }
+  })
+
+  const getUiGuidanceDebugSnapshot = () => ({
+    currentDayTag: uiGuidanceSourceOverview.value.currentDayTag,
+    currentThemeWeekId: uiGuidanceSourceOverview.value.currentThemeWeek?.id ?? null,
+    currentEventCampaignId: uiGuidanceSourceOverview.value.currentEventCampaign?.id ?? null,
+    currentSegmentId: uiGuidanceSourceOverview.value.currentSegment?.id ?? null,
+    themeWeekGoalIds: [...uiGuidanceSourceOverview.value.themeWeekGoalIds],
+    recommendedSinkIds: uiGuidanceSourceOverview.value.recommendedEconomySinks.map(sink => sink.id),
+    mailTemplateTitles: [...uiGuidanceSourceOverview.value.mailTemplateTitles]
+  })
+
+  const activateEventCampaign = (campaignId: string, dayTag = getCurrentDayTag()) => {
+    const lockId = `event_activate_${campaignId}`
+    if (!beginEventOperation(lockId)) return false
+    const snapshot = createEventOperationSnapshot()
+    try {
+    const campaign = getEventCampaignById(campaignId)
+    if (!campaign) return false
+    eventOperationsState.value = {
+      ...eventOperationsState.value,
+      activeCampaignId: campaignId,
+      activeThemeWeekCampaignId: currentThemeWeek.value && campaign.linkedThemeWeekIds.includes(currentThemeWeek.value.id) ? currentThemeWeek.value.id : null,
+      cadence: campaign.cadence,
+      lastCampaignDayTag: dayTag
+    }
+    return true
+    } catch {
+      rollbackEventOperation(snapshot)
+      return false
+    } finally {
+      finishEventOperation(lockId)
+    }
+  }
+
+  const completeEventCampaign = (campaignId = eventOperationsState.value.activeCampaignId ?? '') => {
+    const lockId = `event_complete_${campaignId}`
+    if (!beginEventOperation(lockId)) return false
+    const snapshot = createEventOperationSnapshot()
+    try {
+    if (!campaignId) return false
+    eventOperationsState.value = {
+      ...eventOperationsState.value,
+      activeCampaignId: eventOperationsState.value.activeCampaignId === campaignId ? null : eventOperationsState.value.activeCampaignId,
+      completedCampaignIds: eventOperationsState.value.completedCampaignIds.includes(campaignId)
+        ? eventOperationsState.value.completedCampaignIds
+        : [...eventOperationsState.value.completedCampaignIds, campaignId],
+      lastSettlementDayTag: getCurrentDayTag()
+    }
+    return true
+    } catch {
+      rollbackEventOperation(snapshot)
+      return false
+    } finally {
+      finishEventOperation(lockId)
+    }
+  }
+
+  const markEventCampaignMailClaimed = (mailReceiptKey: string) => {
+    const lockId = `event_mail_claim_${mailReceiptKey}`
+    if (!beginEventOperation(lockId)) return false
+    try {
+    if (!mailReceiptKey || eventOperationsState.value.claimedMailCampaignIds.includes(mailReceiptKey)) return false
+    eventOperationsState.value = {
+      ...eventOperationsState.value,
+      claimedMailCampaignIds: [...eventOperationsState.value.claimedMailCampaignIds, mailReceiptKey]
+    }
+    return true
+    } finally {
+      finishEventOperation(lockId)
+    }
+  }
+
+  const getEventOperationsDebugSnapshot = () => ({
+    activeCampaignId: eventOperationsState.value.activeCampaignId,
+    activeThemeWeekCampaignId: eventOperationsState.value.activeThemeWeekCampaignId,
+    cadence: eventOperationsState.value.cadence,
+    completedCampaignIds: eventOperationsState.value.completedCampaignIds,
+    claimedMailCampaignIds: eventOperationsState.value.claimedMailCampaignIds,
+    currentThemeWeekId: currentThemeWeek.value?.id ?? null
+  })
+
+  const processEventOperationsTick = (payload: {
+    currentDayTag: string
+    currentWeekId: string
+    startedNewWeek: boolean
+    seasonChanged: boolean
+  }) => {
+    const lockId = `event_tick_${payload.currentWeekId}_${payload.currentDayTag}`
+    if (!beginEventOperation(lockId)) {
+      return {
+        logs: [] as string[],
+        activeCampaignId: eventOperationsState.value.activeCampaignId,
+        pendingMailTemplateIds: [] as string[]
+      }
+    }
+    const snapshot = createEventOperationSnapshot()
+    try {
+    const logs: string[] = []
+    const themeWeekId = currentThemeWeek.value?.id ?? null
+    const matchedCampaign = getPreferredEventCampaignForThemeWeek(themeWeekId)
+
+    if ((payload.startedNewWeek || payload.seasonChanged) && matchedCampaign) {
+      if (eventOperationsState.value.activeCampaignId && eventOperationsState.value.activeCampaignId !== matchedCampaign.id) {
+        completeEventCampaign(eventOperationsState.value.activeCampaignId)
+      }
+      activateEventCampaign(matchedCampaign.id, payload.currentDayTag)
+      eventOperationsState.value.activeThemeWeekCampaignId = payload.currentWeekId
+      if (themeWeekId && !eventOperationsState.value.completedThemeWeekIds.includes(themeWeekId)) {
+        eventOperationsState.value.completedThemeWeekIds = [...eventOperationsState.value.completedThemeWeekIds, themeWeekId]
+      }
+      logs.push(`【活动编排】本周活动已切换为「${matchedCampaign.label}」，对应主题周：${themeWeekId ?? '未命名主题周'}。`)
+    }
+
+    if (eventOperationsState.value.activeCampaignId) {
+      eventOperationsState.value.lastCampaignDayTag = payload.currentDayTag
+    }
+
+    const pendingMailTemplateIds = (matchedCampaign?.mailboxTemplateIds ?? []).filter(
+      templateId => !eventOperationsState.value.claimedMailCampaignIds.includes(buildEventMailReceiptKey(payload.currentWeekId, templateId))
+    ).slice(0, eventOperationTuning.operations.maxPendingMailTemplateRefs)
+
+    return {
+      logs,
+      activeCampaignId: matchedCampaign?.id ?? eventOperationsState.value.activeCampaignId,
+      pendingMailTemplateIds
+    }
+    } catch {
+      rollbackEventOperation(snapshot)
+      return {
+        logs: ['【活动编排】活动周切换异常，已回滚到上一状态。'],
+        activeCampaignId: eventOperationsState.value.activeCampaignId,
+        pendingMailTemplateIds: [] as string[]
+      }
+    } finally {
+      finishEventOperation(lockId)
+    }
+  }
 
   return {
     mainQuestStage,
@@ -1213,10 +1777,16 @@ export const useGoalStore = defineStore('goal', () => {
     currentDailyGoals,
     currentThemeWeek,
     currentThemeWeekGoals,
+    lastWeeklyGoalSettlement,
+    lastSettledWeeklyGoalWeekId,
+    weeklyStreakState,
     eventOperationsBaselineAudit,
     eventOperationsState,
     eventCampaignDefs,
     eventMailTemplateRefs,
+    currentEventCampaign,
+    eventOperationsOverview,
+    uiGuidanceSourceOverview,
     recommendedEconomySinks,
     weeklyBudgetChannels,
     weeklyBudgetPlan,
@@ -1230,12 +1800,24 @@ export const useGoalStore = defineStore('goal', () => {
     refreshSeasonGoals,
     refreshWeeklyGoals,
     refreshThemeWeek,
+    getWeeklyGoalRewardPool,
+    getEventCampaignById,
+    getEventMailTemplateRefById,
+    activateEventCampaign,
+    completeEventCampaign,
+    markEventCampaignMailClaimed,
+    getEventOperationsDebugSnapshot,
+    getUiGuidanceDebugSnapshot,
+    processEventOperationsTick,
     activateWeeklyBudget,
     getWeeklyBudgetSelection,
     resetWeeklyBudgetsForNewWeek,
     onDayChanged,
     onSeasonChanged,
     onCalendarAdvanced,
+    buildWeeklyGoalSettlementSummary,
+    settleWeeklyGoals,
+    markWeeklySettlementMailSent,
     evaluateProgressAndRewards,
     getGoalProgressValue,
     getGoalProgressText,

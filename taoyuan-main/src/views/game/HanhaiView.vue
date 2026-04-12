@@ -1,5 +1,6 @@
 <template>
   <div>
+    <GuidanceDigestPanel surface-id="hanhai" title="瀚海经营引导" />
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center space-x-1.5 text-sm text-accent">
         <Tent :size="14" />
@@ -10,6 +11,8 @@
     </div>
 
     <!-- 未解锁 -->
+    <QaGovernancePanel page-id="hanhai" title="瀚海治理总览" />
+
     <div v-if="!hanhaiStore.unlocked" class="flex flex-col items-center justify-center py-10 space-y-3">
       <Tent :size="48" class="text-accent/30" />
       <p class="text-sm text-muted">商路尚未开通</p>
@@ -822,6 +825,8 @@
   import TexasHoldemGame from '@/components/game/TexasHoldemGame.vue'
   import BuckshotRouletteGame from '@/components/game/BuckshotRouletteGame.vue'
   import Button from '@/components/game/Button.vue'
+  import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
+  import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
 
   // suppress unused warnings for template-only refs
   void CRICKET_WIN_MULTIPLIER
@@ -1251,8 +1256,9 @@
   }
 
   const handleTexasComplete = (finalChips: number, tierName: string) => {
-    hanhaiStore.endTexas(finalChips, tierName)
+    hanhaiStore.endTexas(finalChips, tierName, texasSetup.value?.sessionId)
     showTexasModal.value = false
+    texasSetup.value = null
   }
 
   // === 恶魔轮盘 ===
@@ -1270,8 +1276,9 @@
   }
 
   const handleBuckshotComplete = (won: boolean, draw: boolean) => {
-    hanhaiStore.endBuckshot(won, draw)
+    hanhaiStore.endBuckshot(won, draw, buckshotSetup.value?.sessionId)
     showBuckshotModal.value = false
+    buckshotSetup.value = null
   }
 </script>
 

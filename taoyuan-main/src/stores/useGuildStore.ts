@@ -295,6 +295,9 @@ export const useGuildStore = defineStore('guild', () => {
     if (claimableGoals.value.length > 0) {
       recommendedActions.push(`优先领取 ${claimableGoals.value.length} 个公会讨伐奖励，把击杀成果转成贡献点与周战备。`)
     }
+    if (goalStore.currentEventCampaign) {
+      recommendedActions.push(`当前活动「${goalStore.currentEventCampaign.label}」正在放大公会赛季承接，优先把活动节奏和讨伐周目标串在一起。`)
+    }
     if (featuredSeasonActivities.value.length > 0) {
       recommendedActions.push(`本周重点跟进 ${featuredSeasonActivities.value.slice(0, 2).map(activity => activity.title).join('、')}，把矿洞推进和委托筹备串成一条周循环。`)
     }

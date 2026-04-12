@@ -155,6 +155,55 @@ export interface CompensationPlan {
   notes?: string
 }
 
+export interface QaGovernanceFeatureFlags {
+  saveMigrationGuardEnabled: boolean
+  transactionalSettlementGuardEnabled: boolean
+  automatedRegressionEnabled: boolean
+  compensationMailEnabled: boolean
+  grayReleaseEnabled: boolean
+}
+
+export interface QaGovernanceMigrationProfileDef {
+  id: string
+  label: string
+  targetSaveVersion: number
+  rollbackOnFailure: boolean
+  compatibilityScope: string[]
+}
+
+export interface QaGovernanceTransactionGuardDef {
+  id: string
+  label: string
+  linkedStoreIds: string[]
+  requiresInventoryPrecheck: boolean
+  requiresSettlementReceipt: boolean
+}
+
+export interface QaGovernanceRegressionSuiteDef {
+  id: string
+  label: string
+  cadence: 'daily' | 'weekly' | 'release'
+  focusAreas: string[]
+}
+
+export interface QaGovernanceCompensationMailPreset {
+  id: string
+  label: string
+  trigger: string
+  linkedSystems: EconomySystemKey[]
+}
+
+export interface QaGovernanceRuntimeState {
+  version: number
+  activeMigrationProfileId: string
+  activeGrayReleaseChannel: 'stable' | 'canary'
+  rollbackTriggerCount: number
+  postReleaseHotfixCount: number
+  completedRegressionSuiteIds: string[]
+  claimedCompensationMailIds: string[]
+  lastCompatibilityAuditDayTag: string
+}
+
 export type EconomyMetricDirection = 'higher_is_worse' | 'lower_is_worse' | 'target_range'
 
 export type EconomyRiskLevel = 'healthy' | 'watch' | 'warning' | 'critical'

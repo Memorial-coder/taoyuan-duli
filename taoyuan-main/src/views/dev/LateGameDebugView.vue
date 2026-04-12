@@ -102,7 +102,7 @@
             <input v-model.number="debugHour" type="number" min="6" max="25" step="0.5" class="w-full px-2 py-1 bg-bg border border-accent/20 rounded-xs text-xs outline-none" />
           </div>
           <div class="grid gap-2 md:grid-cols-2">
-            <Button class="justify-center" :icon="Wand2" :disabled="!gameStore.isGameStarted" @click="applyCalendarDebug">应用日期并刷新主题周</Button>
+            <Button class="justify-center" :icon="Wand2" :disabled="!gameStore.isGameStarted" @click="applyCalendarDebug">覆写日期（不跑完整结算）</Button>
             <Button class="justify-center" :icon="Sparkles" :disabled="!gameStore.isGameStarted" @click="goalStore.refreshThemeWeek(true)">重发主题周提示</Button>
           </div>
         </div>
@@ -460,7 +460,7 @@
   goalStore.refreshWeeklyGoals(false)
   goalStore.refreshThemeWeek(true)
   goalStore.evaluateProgressAndRewards()
-    showFloat('已应用调试日期并刷新目标 / 主题周。', 'success')
+    showFloat('已覆写调试日期并刷新目标 / 主题周（未执行完整跨系统结算）。', 'accent')
   }
 
   const injectSpecialOrder = () => {

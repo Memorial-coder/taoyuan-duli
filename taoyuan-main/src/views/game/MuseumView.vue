@@ -8,6 +8,9 @@
       <span class="text-xs text-muted">{{ museumStore.donatedCount }}/{{ museumStore.totalCount }}</span>
     </div>
 
+    <GuidanceDigestPanel surface-id="museum" title="展陈焦点引导" />
+    <QaGovernancePanel page-id="museum" title="馆务治理总览" />
+
     <div class="border border-accent/20 rounded-xs p-2 mb-3">
       <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
         <div class="flex items-center justify-between">
@@ -261,6 +264,8 @@
   import { ref, computed } from 'vue'
   import { Landmark, Send, X, CircleCheck, Circle, Package, Lock } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
+  import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useMuseumStore } from '@/stores/useMuseumStore'
   import { MUSEUM_ITEMS, MUSEUM_CATEGORIES, MUSEUM_MILESTONES } from '@/data/museum'
   import type { MuseumItemDef, MuseumCategory } from '@/types'

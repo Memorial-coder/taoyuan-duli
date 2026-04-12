@@ -1157,6 +1157,32 @@ async function saveAdminCampaign(payload, actor, action) {
   });
 }
 
+async function saveSystemCampaignForUser(payload, actor, username) {
+  const safeUsername = String(username || '').trim();
+  if (!safeUsername) {
+    throw createError('缺少有效收件人');
+  }
+  const campaignId = sanitizeText(payload?.id, 80);
+  const existing = campaignId ? getAdminCampaignDetail(campaignId) : null;
+  if (existing?.campaign?.status === 'sent') {
+    return existing.campaign;
+  }
+  return saveAdminCampaign(
+    {
+      ...payload,
+      id: campaignId,
+      action: 'send',
+      recipient_rule: {
+        mode: 'single',
+        username: safeUsername
+      },
+      rewards: Array.isArray(payload?.rewards) ? payload.rewards : []
+    },
+    actor,
+    'send'
+  );
+}
+
 module.exports = {
   processPendingCampaigns,
   listUserMails,
@@ -1166,6 +1192,7 @@ module.exports = {
   claimAllUserMails,
   clearClaimedUserMails,
   saveAdminCampaign,
+  saveSystemCampaignForUser,
   getGuildSeasonMailboxConfig,
   listAdminCampaigns,
   getAdminCampaignDetail,

@@ -6,8 +6,28 @@
       <span>任务</span>
     </div>
 
+    <GuidanceDigestPanel surface-id="quest" title="任务路线引导" />
+
+    <QaGovernancePanel page-id="quest" title="结算治理总览" />
+
     <div class="border border-accent/20 rounded-xs p-3 mb-3">
       <p class="text-xs text-muted mb-2">经营提示</p>
+      <div v-if="goalStore.currentEventCampaign" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs text-accent">活动编排</p>
+          <span class="text-[10px] text-muted">{{ goalStore.currentEventCampaign.cadence }}</span>
+        </div>
+        <p class="text-[10px] text-muted mt-1">{{ goalStore.currentEventCampaign.description }}</p>
+        <p class="text-[10px] text-accent mt-1">结算模板：{{ goalStore.eventMailTemplateRefs.filter(template => goalStore.currentEventCampaign?.mailboxTemplateIds.includes(template.id)).map(template => template.title).join('、') }}</p>
+      </div>
+      <div v-if="questStore.currentLimitedTimeQuestCampaign" class="border border-warning/20 rounded-xs px-3 py-2 mb-2 bg-warning/5">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs text-warning">限时任务窗口</p>
+          <span class="text-[10px] text-muted">{{ questStore.currentLimitedTimeQuestCampaign.durationDays }} 天</span>
+        </div>
+        <p class="text-[10px] text-muted mt-1">{{ questStore.currentLimitedTimeQuestCampaign.description }}</p>
+        <p class="text-[10px] text-success mt-1">活动来源：{{ questStore.currentLimitedTimeQuestCampaign.activitySourceLabel }}</p>
+      </div>
       <div v-if="goalStore.currentThemeWeek" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-accent">{{ goalStore.currentThemeWeek.name }}</p>
@@ -538,6 +558,8 @@
   import { ref, computed, onMounted } from 'vue'
   import { ClipboardList, Calendar, Clock, Plus, CheckCircle, CircleCheck, Circle, Star, BookOpen, X } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
+  import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import type { QuestInstance, RelationshipStage, VillagerQuestCategory } from '@/types'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useGoalStore } from '@/stores/useGoalStore'

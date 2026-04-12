@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import CryptoJS from 'crypto-js'
 import { saveAs } from 'file-saver'
@@ -35,6 +35,16 @@ import { BUILT_IN_SAMPLE_SAVES, type BuiltInSampleSaveDef } from '@/data/sampleS
 import { createDefaultMarketDynamicsState } from '@/data/market'
 import { createDefaultShopCatalogExpansionState } from '@/data/shopCatalog'
 import { createDefaultMuseumSaveData as createDefaultMuseumPayload } from '@/data/museum'
+import {
+  WS12_AUTOMATED_REGRESSION_SUITES,
+  WS12_COMPENSATION_MAIL_PRESETS,
+  WS12_QA_GOVERNANCE_BASELINE_AUDIT,
+  WS12_QA_GOVERNANCE_LOOP_LINK_DEFS,
+  WS12_QA_GOVERNANCE_CONTENT_TIERS,
+  WS12_QA_GOVERNANCE_FEATURE_FLAGS,
+  WS12_QA_GOVERNANCE_TUNING_CONFIG,
+  WS12_SAVE_MIGRATION_PROFILES
+} from '@/data/goals'
 import { buildScopedStorageKey, getStoredSaveMode, migrateLegacyScopedSlots, setStoredSaveMode, type SaveMode } from '@/utils/accountStorage'
 import { deleteServerSlotRaw, fetchServerSlotRaw, fetchServerSlots, saveServerSlotRaw } from '@/utils/serverSaveApi'
 
@@ -42,7 +52,7 @@ const LEGACY_SAVE_KEY_PREFIX = 'taoyuanxiang_save_'
 const MAX_SLOTS = 3
 const ENCRYPTION_KEY = 'taoyuanxiang_2024_secret'
 const SAVE_FILE_EXT = '.tyx'
-const SAVE_VERSION = 2
+const SAVE_VERSION = 3
 
 interface SaveMeta {
   saveVersion: number
@@ -114,6 +124,14 @@ const buildSaveMeta = (savedAt?: string, saveVersion: number = SAVE_VERSION): Sa
 
 const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number): Record<string, any> => {
   const next = { ...payload }
+  const saveVersion = Math.max(1, Number(_saveVersion) || 1)
+
+  if (saveVersion < 3 && next.player && typeof next.player === 'object') {
+    next.player = {
+      ...next.player,
+      qaGovernanceRuntimeState: next.player.qaGovernanceRuntimeState ?? undefined
+    }
+  }
 
   if (!next.wallet || typeof next.wallet !== 'object') {
     next.wallet = {
@@ -145,6 +163,27 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
       lastWeeklyGoalRefresh: '',
       lastThemeWeekRefresh: '',
       currentThemeWeekState: null,
+      lastWeeklyGoalSettlement: null,
+      lastSettledWeeklyGoalWeekId: '',
+      weeklyStreakState: {
+        current: 0,
+        best: 0,
+        lastCompletedWeekId: '',
+        lastSettledWeekId: '',
+        lastOutcome: 'idle'
+      },
+      sentWeeklySettlementMailWeekIds: [],
+      eventOperationsState: {
+        version: 1,
+        activeCampaignId: null,
+        activeThemeWeekCampaignId: null,
+        cadence: 'weekly',
+        completedCampaignIds: [],
+        completedThemeWeekIds: [],
+        claimedMailCampaignIds: [],
+        lastCampaignDayTag: '',
+        lastSettlementDayTag: ''
+      },
       weeklyMetricArchive: {
         version: 1,
         lastGeneratedWeekId: '',
@@ -187,6 +226,48 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
     }
   }
 
+  if (!next.tutorial || typeof next.tutorial !== 'object') {
+    next.tutorial = {
+      enabled: true,
+      shownTipIds: [],
+      visitedPanels: [],
+      flags: {},
+      guidanceDigestState: {
+        version: 2,
+        activeSummaryIds: [],
+        activeRouteIds: [],
+        dismissedSummaryIds: [],
+        adoptedSummaryIds: [],
+        adoptedRouteIds: [],
+        lastRefreshDayTag: '',
+        currentThemeWeekId: null,
+        currentCampaignId: null,
+        lastViewedSurfaceId: null,
+        surfaceStates: []
+      }
+    }
+  } else {
+    next.tutorial = {
+      enabled: next.tutorial.enabled ?? true,
+      shownTipIds: Array.isArray(next.tutorial.shownTipIds) ? next.tutorial.shownTipIds : [],
+      visitedPanels: Array.isArray(next.tutorial.visitedPanels) ? next.tutorial.visitedPanels : [],
+      flags: next.tutorial.flags ?? {},
+      guidanceDigestState: next.tutorial.guidanceDigestState ?? {
+        version: 2,
+        activeSummaryIds: [],
+        activeRouteIds: [],
+        dismissedSummaryIds: [],
+        adoptedSummaryIds: [],
+        adoptedRouteIds: [],
+        lastRefreshDayTag: '',
+        currentThemeWeekId: null,
+        currentCampaignId: null,
+        lastViewedSurfaceId: null,
+        surfaceStates: []
+      }
+    }
+  }
+
   if (next.npc && typeof next.npc === 'object') {
     next.npc = {
       npcStates: next.npc.npcStates ?? [],
@@ -214,6 +295,15 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
       activeQuests: next.quest.activeQuests ?? [],
       completedQuestCount: next.quest.completedQuestCount ?? 0,
       specialOrder: next.quest.specialOrder ?? null,
+      activityQuestWindowState: next.quest.activityQuestWindowState ?? {
+        version: 1,
+        activeCampaignId: null,
+        activeQuestTemplateIds: [],
+        lastRefreshDayTag: '',
+        nextRefreshDayTag: '',
+        completedWindowIds: [],
+        claimedRewardMailIds: []
+      },
       mainQuest: next.quest.mainQuest ?? null,
       completedMainQuests: next.quest.completedMainQuests ?? []
     }
@@ -360,12 +450,39 @@ export const useSaveStore = defineStore('save', () => {
     server: -1
   })
   const storageMode = ref<SaveMode>(getStoredSaveMode())
+  const qaGovernanceBaselineAudit = WS12_QA_GOVERNANCE_BASELINE_AUDIT
+  const qaGovernanceStorageActionLocks = ref<string[]>([])
+  const qaGovernanceTuning = WS12_QA_GOVERNANCE_TUNING_CONFIG
 
   const setStorageMode = (mode: SaveMode) => {
     storageMode.value = mode
     setStoredSaveMode(mode)
     activeSlot.value = activeSlotsByMode.value[mode] ?? -1
     activeSlotMode.value = activeSlot.value >= 0 ? mode : null
+  }
+
+  const createQaGovernanceStorageSnapshot = () => ({
+    storageMode: storageMode.value,
+    activeSlot: activeSlot.value,
+    activeSlotMode: activeSlotMode.value,
+    activeSlotsByMode: { ...activeSlotsByMode.value }
+  })
+
+  const rollbackQaGovernanceStorage = (snapshot: ReturnType<typeof createQaGovernanceStorageSnapshot>) => {
+    storageMode.value = snapshot.storageMode
+    activeSlot.value = snapshot.activeSlot
+    activeSlotMode.value = snapshot.activeSlotMode
+    activeSlotsByMode.value = { ...snapshot.activeSlotsByMode }
+  }
+
+  const beginQaGovernanceStorageAction = (lockId: string) => {
+    if (qaGovernanceStorageActionLocks.value.includes(lockId)) return false
+    qaGovernanceStorageActionLocks.value = [...qaGovernanceStorageActionLocks.value, lockId]
+    return true
+  }
+
+  const finishQaGovernanceStorageAction = (lockId: string) => {
+    qaGovernanceStorageActionLocks.value = qaGovernanceStorageActionLocks.value.filter(id => id !== lockId)
   }
 
   const createEmptySlots = (): SaveSlotInfo[] => Array.from({ length: MAX_SLOTS }, (_, slot) => ({ slot, exists: false }))
@@ -385,6 +502,148 @@ export const useSaveStore = defineStore('save', () => {
       playerName: normalized.data.player?.playerName,
       savedAt: normalized.meta.savedAt
     }
+  }
+
+  const qaGovernanceOverview = computed(() => {
+    const playerStore = usePlayerStore()
+    return {
+      baselineAudit: qaGovernanceBaselineAudit,
+      featureFlags: WS12_QA_GOVERNANCE_FEATURE_FLAGS,
+      contentTiers: WS12_QA_GOVERNANCE_CONTENT_TIERS,
+      tuning: qaGovernanceTuning,
+      saveVersion: SAVE_VERSION,
+      maxSlots: MAX_SLOTS,
+      storageMode: storageMode.value,
+      activeSlot: activeSlot.value,
+      activeSlotMode: activeSlotMode.value,
+      builtInSampleSaveCount: BUILT_IN_SAMPLE_SAVES.length,
+      migrationProfileCount: WS12_SAVE_MIGRATION_PROFILES.length,
+      regressionSuiteCount: WS12_AUTOMATED_REGRESSION_SUITES.length,
+      compensationPresetCount: WS12_COMPENSATION_MAIL_PRESETS.length,
+      supportsEncryptedTransfer: true,
+      supportsModeSwitch: true,
+      runtimeState: playerStore.qaGovernanceRuntimeState,
+      telemetrySaveVersion: playerStore.economyTelemetry.saveVersion,
+      lastAuditDayTag: playerStore.economyTelemetry.lastAuditDayTag
+    }
+  })
+
+  const qaGovernanceCrossSystemOverview = computed(() => {
+    const playerStore = usePlayerStore()
+    const questStore = useQuestStore()
+    const processingStore = useProcessingStore()
+    const villageProjectStore = useVillageProjectStore()
+    const museumStore = useMuseumStore()
+    const goalStore = useGoalStore()
+
+    const loops = WS12_QA_GOVERNANCE_LOOP_LINK_DEFS.map(def => {
+      let active = false
+      let evidence = ''
+
+      switch (def.id) {
+        case 'ws12_loop_income_to_consumption': {
+          const overdueMaintenanceCount = villageProjectStore.maintenanceSummaries.filter(summary => summary.overdue).length
+          const activeDonationCount = villageProjectStore.donationSummaries.filter(summary => summary.unlocked && !summary.targetReached).length
+          active = playerStore.getRecentNetIncome(7) > 0 && (overdueMaintenanceCount > 0 || activeDonationCount > 0)
+          evidence = overdueMaintenanceCount > 0
+            ? `当前有 ${overdueMaintenanceCount} 项维护逾期。`
+            : activeDonationCount > 0
+              ? `当前有 ${activeDonationCount} 项捐献计划待推进。`
+              : ''
+          break
+        }
+        case 'ws12_loop_growth_to_order': {
+          const readyMachineCount = processingStore.machines.filter(machine => machine.ready).length
+          active = readyMachineCount > 0 || !!questStore.specialOrder
+          evidence = questStore.specialOrder
+            ? `特殊订单「${questStore.specialOrder.description}」可直接承接当前加工产出。`
+            : readyMachineCount > 0
+              ? `当前有 ${readyMachineCount} 台机器产物待领取。`
+              : ''
+          break
+        }
+        case 'ws12_loop_display_to_reputation': {
+          active = museumStore.displayRatingOverview.state.score > 0 || goalStore.goalReputation > 0
+          evidence = `展陈评分 ${museumStore.displayRatingOverview.state.score}，目标声望 ${goalStore.goalReputation}。`
+          break
+        }
+        case 'ws12_loop_activity_to_reward': {
+          active = !!goalStore.currentEventCampaign || !!questStore.currentLimitedTimeQuestCampaign
+          evidence = goalStore.currentEventCampaign
+            ? `当前活动「${goalStore.currentEventCampaign.label}」正在运行。`
+            : questStore.currentLimitedTimeQuestCampaign
+              ? `当前限时窗口「${questStore.currentLimitedTimeQuestCampaign.label}」待结算。`
+              : ''
+          break
+        }
+        default:
+          break
+      }
+
+      return {
+        ...def,
+        active,
+        evidence
+      }
+    }).filter(loop => loop.active)
+
+    return {
+      linkedSystems: ['system', 'quest', 'villageProject'],
+      activeLoopCount: loops.length,
+      loops
+    }
+  })
+
+  const getQaGovernanceDebugSnapshot = () => {
+    const playerStore = usePlayerStore()
+    return {
+      featureFlags: WS12_QA_GOVERNANCE_FEATURE_FLAGS,
+      contentTierIds: WS12_QA_GOVERNANCE_CONTENT_TIERS.map(tier => tier.id),
+      saveVersion: SAVE_VERSION,
+      maxSlots: MAX_SLOTS,
+      storageMode: storageMode.value,
+      activeSlot: activeSlot.value,
+      activeSlotMode: activeSlotMode.value,
+      builtInSampleSaveIds: BUILT_IN_SAMPLE_SAVES.map(sample => sample.id),
+      migrationProfileIds: WS12_SAVE_MIGRATION_PROFILES.map(profile => profile.id),
+      regressionSuiteIds: WS12_AUTOMATED_REGRESSION_SUITES.map(suite => suite.id),
+      compensationPresetIds: WS12_COMPENSATION_MAIL_PRESETS.map(preset => preset.id),
+      runtimeState: { ...playerStore.qaGovernanceRuntimeState },
+      crossSystemLoopIds: qaGovernanceCrossSystemOverview.value.loops.map(loop => loop.id),
+      activeStorageLockIds: [...qaGovernanceStorageActionLocks.value],
+      telemetrySaveVersion: playerStore.economyTelemetry.saveVersion,
+      lastAuditDayTag: playerStore.economyTelemetry.lastAuditDayTag
+    }
+  }
+
+  const getQaGovernanceStorageOverview = () => ({
+    storageMode: storageMode.value,
+    activeSlot: activeSlot.value,
+    activeSlotMode: activeSlotMode.value,
+    maxSlots: MAX_SLOTS,
+    builtInSampleSaveCount: BUILT_IN_SAMPLE_SAVES.length,
+    activeStorageLockCount: qaGovernanceStorageActionLocks.value.length
+  })
+
+  const setQaGovernanceStorageMode = (mode: SaveMode) => {
+    const lockId = `qa_storage_mode_${mode}`
+    if (!beginQaGovernanceStorageAction(lockId)) return getQaGovernanceStorageOverview()
+    const snapshot = createQaGovernanceStorageSnapshot()
+    try {
+      setStorageMode(mode)
+      return getQaGovernanceStorageOverview()
+    } catch {
+      rollbackQaGovernanceStorage(snapshot)
+      return getQaGovernanceStorageOverview()
+    } finally {
+      finishQaGovernanceStorageAction(lockId)
+    }
+  }
+
+  const resetQaGovernanceRuntimeState = () => {
+    const playerStore = usePlayerStore()
+    playerStore.resetQaGovernanceRuntimeState()
+    return playerStore.qaGovernanceRuntimeState
   }
 
   const buildCurrentSaveData = () => {
@@ -788,6 +1047,17 @@ export const useSaveStore = defineStore('save', () => {
       // 验证文件内容可解密
       const data = parseSaveData(fileContent)
       if (!data || !normalizeSaveEnvelope(data)) return false
+      const runtimeSnapshot = buildCurrentSaveData()
+      const previousActiveSlot = activeSlot.value
+      const previousActiveSlotMode = activeSlotMode.value
+      const validationPassed = applySaveData(data, previousActiveSlot)
+      const restorePassed = applySaveData(runtimeSnapshot, previousActiveSlot)
+      activeSlot.value = previousActiveSlot
+      activeSlotMode.value = previousActiveSlotMode
+      if (previousActiveSlotMode) {
+        activeSlotsByMode.value[previousActiveSlotMode] = previousActiveSlot
+      }
+      if (!validationPassed || !restorePassed) return false
       await setRawByMode(slot, fileContent)
       return true
     } catch {
@@ -822,7 +1092,14 @@ export const useSaveStore = defineStore('save', () => {
     activeSlot,
     activeSlotMode,
     storageMode,
+    qaGovernanceBaselineAudit,
+    qaGovernanceOverview,
+    qaGovernanceCrossSystemOverview,
+    qaGovernanceStorageActionLocks,
+    qaGovernanceTuning,
+    getQaGovernanceStorageOverview,
     setStorageMode,
+    setQaGovernanceStorageMode,
     getSlots,
     assignNewSlot,
     saveToSlot,
@@ -832,6 +1109,8 @@ export const useSaveStore = defineStore('save', () => {
     exportSave,
     importSave,
     getBuiltInSampleSaves,
-    loadBuiltInSampleSave
+    loadBuiltInSampleSave,
+    getQaGovernanceDebugSnapshot,
+    resetQaGovernanceRuntimeState
   }
 })

@@ -1,5 +1,7 @@
 <template>
   <div>
+    <GuidanceDigestPanel surface-id="fishpond" title="鱼塘经营引导" />
+    <QaGovernancePanel page-id="fishpond" title="鱼塘治理总览" />
     <!-- 标题 -->
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center space-x-1.5 text-sm text-accent">
@@ -382,6 +384,8 @@
   import { Waves, Droplets, Sparkles, HeartPulse, Package, ArrowUp, Hammer, Lock, Fish, Heart, X, Star } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
+  import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
+  import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useFishPondStore } from '@/stores/useFishPondStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useGameStore } from '@/stores/useGameStore'

@@ -145,6 +145,53 @@ export interface WeeklyGoalState extends GoalState {
   linkedThemeWeekId?: string
 }
 
+export interface ThemeWeekRewardPoolEntry {
+  id: string
+  label: string
+  description: string
+  threshold: 'any' | 'majority' | 'full'
+  bonusReward: GoalReward
+  recommendedOfferIds?: string[]
+}
+
+export interface WeeklyGoalSettlementItem {
+  goalId: string
+  title: string
+  completed: boolean
+  progressValue: number
+  targetValue: number
+  rewardGranted: boolean
+  rewardSummary?: string
+  compensationGranted?: boolean
+  failureCompensationReason?: string
+  failureCompensationReward?: GoalReward
+  compensationSummary?: string
+}
+
+export interface WeeklyGoalSettlementSummary {
+  weekId: string
+  season: 'spring' | 'summer' | 'autumn' | 'winter'
+  weekOfSeason: 1 | 2 | 3 | 4
+  linkedThemeWeekId?: string
+  completedGoalCount: number
+  totalGoalCount: number
+  settledAtDayTag: string
+  items: WeeklyGoalSettlementItem[]
+  rewardHighlights: string[]
+  failureHighlights: string[]
+  recommendationHighlights: string[]
+  appliedThemeRewardPoolIds: string[]
+  compensationRewardSummaries: string[]
+}
+
+export interface WeeklyGoalStreakState {
+  current: number
+  best: number
+  lastCompletedWeekId: string
+  lastSettledWeekId: string
+  lastOutcome: 'completed' | 'partial' | 'failed' | 'idle'
+}
+
 export interface ThemeWeekRewardPreview {
   label: string
   description: string

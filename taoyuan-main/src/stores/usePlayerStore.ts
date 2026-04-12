@@ -1,7 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { getItemById } from '@/data'
-import type { EconomySinkCategory, EconomySystemKey, EconomyTelemetryState, Gender, InventoryItem, WealthTierAssessment } from '@/types'
+import type { EconomySinkCategory, EconomySystemKey, EconomyTelemetryState, Gender, InventoryItem, QaGovernanceRuntimeState, WealthTierAssessment } from '@/types'
 import {
   LATE_NIGHT_RECOVERY_MAX,
   LATE_NIGHT_RECOVERY_MIN,
@@ -20,6 +20,16 @@ import { useWarehouseStore } from './useWarehouseStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { ECONOMY_AUDIT_CONFIG, ECONOMY_TUNING_CONFIG } from '@/data/market'
+import {
+  WS12_AUTOMATED_REGRESSION_SUITES,
+  WS12_COMPENSATION_MAIL_PRESETS,
+  WS12_QA_GOVERNANCE_BASELINE_AUDIT,
+  WS12_QA_GOVERNANCE_CONTENT_TIERS,
+  WS12_QA_GOVERNANCE_FEATURE_FLAGS,
+  WS12_QA_GOVERNANCE_TUNING_CONFIG,
+  WS12_SAVE_MIGRATION_PROFILES,
+  createDefaultQaGovernanceRuntimeState
+} from '@/data/goals'
 import type { EconomyDailySnapshot, EconomyFlowKind, EconomyRiskReport } from '@/types'
 
 /** 最大体力阶梯 (5档, 270 起 508 顶) */
@@ -152,6 +162,9 @@ export const usePlayerStore = defineStore('player', () => {
   const hp = ref(BASE_MAX_HP)
   const baseMaxHp = ref(BASE_MAX_HP)
   const economyTelemetry = ref<EconomyTelemetryState>(createEmptyEconomyTelemetry())
+  const qaGovernanceRuntimeState = ref<QaGovernanceRuntimeState>(createDefaultQaGovernanceRuntimeState())
+  const qaGovernanceActionLocks = ref<string[]>([])
+  const qaGovernanceTuning = WS12_QA_GOVERNANCE_TUNING_CONFIG
 
   const isExhausted = computed(() => stamina.value <= 5)
   const staminaPercent = computed(() => Math.round((stamina.value / maxStamina.value) * 100))
@@ -441,6 +454,183 @@ export const usePlayerStore = defineStore('player', () => {
     }
   }
 
+  const qaGovernanceBaselineAudit = WS12_QA_GOVERNANCE_BASELINE_AUDIT
+  const qaGovernanceOverview = computed(() => {
+    const overview = getEconomyOverview()
+    const recentSnapshots = getRecentEconomySnapshots(14)
+    const activeIncomeSystems = Object.keys(economyTelemetry.value.lifetimeIncome.bySystem)
+    const activeExpenseSystems = Object.keys(economyTelemetry.value.lifetimeExpense.bySystem)
+    return {
+      baselineAudit: qaGovernanceBaselineAudit,
+      featureFlags: WS12_QA_GOVERNANCE_FEATURE_FLAGS,
+      contentTiers: WS12_QA_GOVERNANCE_CONTENT_TIERS,
+      tuning: qaGovernanceTuning,
+      runtimeState: qaGovernanceRuntimeState.value,
+      regressionSuiteCount: WS12_AUTOMATED_REGRESSION_SUITES.length,
+      compensationPresetCount: WS12_COMPENSATION_MAIL_PRESETS.length,
+      activeGovernanceLockCount: qaGovernanceActionLocks.value.length,
+      telemetrySaveVersion: economyTelemetry.value.saveVersion,
+      lastAuditDayTag: economyTelemetry.value.lastAuditDayTag,
+      recentSnapshotCount: recentSnapshots.length,
+      latestRiskLevel: economyTelemetry.value.latestRiskReport?.level ?? 'healthy',
+      latestRiskSummary: economyTelemetry.value.latestRiskReport?.summary ?? '',
+      currentSegmentId: overview.currentSegment?.id ?? null,
+      guardrailNetInflowRatio: overview.guardrailNetInflowRatio,
+      sinkCoverage: overview.sinkCoverage,
+      activeIncomeSystems,
+      activeExpenseSystems
+    }
+  })
+
+  const getQaGovernanceDebugSnapshot = () => ({
+    featureFlags: WS12_QA_GOVERNANCE_FEATURE_FLAGS,
+    contentTierIds: WS12_QA_GOVERNANCE_CONTENT_TIERS.map(tier => tier.id),
+    runtimeState: { ...qaGovernanceRuntimeState.value },
+    activeLockIds: [...qaGovernanceActionLocks.value],
+    telemetrySaveVersion: economyTelemetry.value.saveVersion,
+    lastAuditDayTag: economyTelemetry.value.lastAuditDayTag,
+    recentSnapshotCount: economyTelemetry.value.recentSnapshots.length,
+    latestRiskReport: economyTelemetry.value.latestRiskReport,
+    currentSegmentId: economyTelemetry.value.currentSegmentId,
+    lifetimeIncomeSystems: Object.keys(economyTelemetry.value.lifetimeIncome.bySystem),
+    lifetimeExpenseSystems: Object.keys(economyTelemetry.value.lifetimeExpense.bySystem),
+    lifetimeSinkCategories: Object.keys(economyTelemetry.value.lifetimeSinkSpend.byCategory)
+  })
+
+  const getQaGovernanceMigrationProfile = () =>
+    WS12_SAVE_MIGRATION_PROFILES.find(profile => profile.id === qaGovernanceRuntimeState.value.activeMigrationProfileId) ??
+    WS12_SAVE_MIGRATION_PROFILES[0] ??
+    null
+
+  const createQaGovernanceRuntimeSnapshot = (): QaGovernanceRuntimeState => ({
+    ...qaGovernanceRuntimeState.value,
+    completedRegressionSuiteIds: [...qaGovernanceRuntimeState.value.completedRegressionSuiteIds],
+    claimedCompensationMailIds: [...qaGovernanceRuntimeState.value.claimedCompensationMailIds]
+  })
+
+  const rollbackQaGovernanceRuntime = (snapshot: QaGovernanceRuntimeState) => {
+    qaGovernanceRuntimeState.value = snapshot
+  }
+
+  const beginQaGovernanceAction = (lockId: string) => {
+    if (qaGovernanceActionLocks.value.includes(lockId)) return false
+    qaGovernanceActionLocks.value = [...qaGovernanceActionLocks.value, lockId]
+    return true
+  }
+
+  const finishQaGovernanceAction = (lockId: string) => {
+    qaGovernanceActionLocks.value = qaGovernanceActionLocks.value.filter(id => id !== lockId)
+  }
+
+  const setQaGovernanceMigrationProfile = (profileId: string) => {
+    const lockId = `qa_migration_profile_${profileId}`
+    if (!beginQaGovernanceAction(lockId)) return false
+    const snapshot = createQaGovernanceRuntimeSnapshot()
+    try {
+      const profile = WS12_SAVE_MIGRATION_PROFILES.find(entry => entry.id === profileId)
+      if (!profile) return false
+      qaGovernanceRuntimeState.value.activeMigrationProfileId = profile.id
+      return true
+    } catch {
+      rollbackQaGovernanceRuntime(snapshot)
+      return false
+    } finally {
+      finishQaGovernanceAction(lockId)
+    }
+  }
+
+  const setQaGovernanceGrayReleaseChannel = (channel: QaGovernanceRuntimeState['activeGrayReleaseChannel']) => {
+    const nextChannel = channel === 'canary' ? 'canary' : 'stable'
+    const lockId = `qa_gray_release_${nextChannel}`
+    if (!beginQaGovernanceAction(lockId)) return qaGovernanceRuntimeState.value.activeGrayReleaseChannel
+    const snapshot = createQaGovernanceRuntimeSnapshot()
+    try {
+      qaGovernanceRuntimeState.value.activeGrayReleaseChannel = nextChannel
+      return qaGovernanceRuntimeState.value.activeGrayReleaseChannel
+    } catch {
+      rollbackQaGovernanceRuntime(snapshot)
+      return snapshot.activeGrayReleaseChannel
+    } finally {
+      finishQaGovernanceAction(lockId)
+    }
+  }
+
+  const recordQaGovernanceRollbackTrigger = (count = 1) => {
+    const lockId = 'qa_record_rollback'
+    if (!beginQaGovernanceAction(lockId)) return qaGovernanceRuntimeState.value.rollbackTriggerCount
+    const snapshot = createQaGovernanceRuntimeSnapshot()
+    try {
+      qaGovernanceRuntimeState.value.rollbackTriggerCount += Math.max(0, Math.floor(count))
+      return qaGovernanceRuntimeState.value.rollbackTriggerCount
+    } catch {
+      rollbackQaGovernanceRuntime(snapshot)
+      return snapshot.rollbackTriggerCount
+    } finally {
+      finishQaGovernanceAction(lockId)
+    }
+  }
+
+  const recordQaGovernanceHotfixIncident = (count = 1) => {
+    const lockId = 'qa_record_hotfix'
+    if (!beginQaGovernanceAction(lockId)) return qaGovernanceRuntimeState.value.postReleaseHotfixCount
+    const snapshot = createQaGovernanceRuntimeSnapshot()
+    try {
+      qaGovernanceRuntimeState.value.postReleaseHotfixCount += Math.max(0, Math.floor(count))
+      return qaGovernanceRuntimeState.value.postReleaseHotfixCount
+    } catch {
+      rollbackQaGovernanceRuntime(snapshot)
+      return snapshot.postReleaseHotfixCount
+    } finally {
+      finishQaGovernanceAction(lockId)
+    }
+  }
+
+  const markQaGovernanceRegressionSuiteCompleted = (suiteId: string, dayTag = economyTelemetry.value.lastAuditDayTag) => {
+    const lockId = `qa_regression_${suiteId}`
+    if (!beginQaGovernanceAction(lockId)) return false
+    const snapshot = createQaGovernanceRuntimeSnapshot()
+    try {
+      if (!WS12_AUTOMATED_REGRESSION_SUITES.some(suite => suite.id === suiteId)) return false
+      if (!qaGovernanceRuntimeState.value.completedRegressionSuiteIds.includes(suiteId)) {
+        qaGovernanceRuntimeState.value.completedRegressionSuiteIds = [...qaGovernanceRuntimeState.value.completedRegressionSuiteIds, suiteId]
+      }
+      qaGovernanceRuntimeState.value.lastCompatibilityAuditDayTag = dayTag
+      return true
+    } catch {
+      rollbackQaGovernanceRuntime(snapshot)
+      return false
+    } finally {
+      finishQaGovernanceAction(lockId)
+    }
+  }
+
+  const markQaGovernanceCompensationMailClaimed = (presetId: string) => {
+    const lockId = `qa_compensation_${presetId}`
+    if (!beginQaGovernanceAction(lockId)) return false
+    const snapshot = createQaGovernanceRuntimeSnapshot()
+    try {
+      if (!WS12_COMPENSATION_MAIL_PRESETS.some(preset => preset.id === presetId)) return false
+      if (qaGovernanceRuntimeState.value.claimedCompensationMailIds.includes(presetId)) return false
+      qaGovernanceRuntimeState.value.claimedCompensationMailIds = [...qaGovernanceRuntimeState.value.claimedCompensationMailIds, presetId]
+      return true
+    } catch {
+      rollbackQaGovernanceRuntime(snapshot)
+      return false
+    } finally {
+      finishQaGovernanceAction(lockId)
+    }
+  }
+
+  const resetQaGovernanceRuntimeState = () => {
+    const lockId = 'qa_reset_runtime'
+    if (!beginQaGovernanceAction(lockId)) return
+    try {
+      qaGovernanceRuntimeState.value = createDefaultQaGovernanceRuntimeState()
+    } finally {
+      finishQaGovernanceAction(lockId)
+    }
+  }
+
   const appendEconomySnapshot = (snapshot: EconomyDailySnapshot) => {
     economyTelemetry.value.lastAuditDayTag = snapshot.dayTag
     economyTelemetry.value.recentSnapshots = [...economyTelemetry.value.recentSnapshots, snapshot].slice(-ECONOMY_RECENT_SNAPSHOT_LIMIT)
@@ -478,7 +668,8 @@ export const usePlayerStore = defineStore('player', () => {
       bonusMaxStamina: bonusMaxStamina.value,
       hp: hp.value,
       baseMaxHp: baseMaxHp.value,
-      economyTelemetry: economyTelemetry.value
+      economyTelemetry: economyTelemetry.value,
+      qaGovernanceRuntimeState: qaGovernanceRuntimeState.value
     }
   }
 
@@ -506,6 +697,25 @@ export const usePlayerStore = defineStore('player', () => {
     hp.value = (data as any).hp ?? BASE_MAX_HP
     baseMaxHp.value = (data as any).baseMaxHp ?? BASE_MAX_HP
     economyTelemetry.value = normalizeEconomyTelemetry((data as any).economyTelemetry)
+    qaGovernanceRuntimeState.value = (() => {
+      const raw = (data as any).qaGovernanceRuntimeState
+      const fallback = createDefaultQaGovernanceRuntimeState()
+      if (!raw || typeof raw !== 'object') return fallback
+      return {
+        version: Math.max(1, Number(raw.version) || fallback.version),
+        activeMigrationProfileId: typeof raw.activeMigrationProfileId === 'string' ? raw.activeMigrationProfileId : fallback.activeMigrationProfileId,
+        activeGrayReleaseChannel: raw.activeGrayReleaseChannel === 'canary' ? 'canary' : 'stable',
+        rollbackTriggerCount: Math.max(0, Number(raw.rollbackTriggerCount) || 0),
+        postReleaseHotfixCount: Math.max(0, Number(raw.postReleaseHotfixCount) || 0),
+        completedRegressionSuiteIds: Array.isArray(raw.completedRegressionSuiteIds)
+          ? raw.completedRegressionSuiteIds.filter((id: unknown) => typeof id === 'string')
+          : [],
+        claimedCompensationMailIds: Array.isArray(raw.claimedCompensationMailIds)
+          ? raw.claimedCompensationMailIds.filter((id: unknown) => typeof id === 'string')
+          : [],
+        lastCompatibilityAuditDayTag: typeof raw.lastCompatibilityAuditDayTag === 'string' ? raw.lastCompatibilityAuditDayTag : ''
+      }
+    })()
   }
 
   return {
@@ -521,6 +731,11 @@ export const usePlayerStore = defineStore('player', () => {
     hp,
     baseMaxHp,
     economyTelemetry,
+    qaGovernanceRuntimeState,
+    qaGovernanceActionLocks,
+    qaGovernanceTuning,
+    qaGovernanceBaselineAudit,
+    qaGovernanceOverview,
     isExhausted,
     staminaPercent,
     getMaxHp,
@@ -548,6 +763,15 @@ export const usePlayerStore = defineStore('player', () => {
     getCurrentWealthTier,
     getCurrentEconomySegment,
     getEconomyOverview,
+    getQaGovernanceMigrationProfile,
+    setQaGovernanceMigrationProfile,
+    setQaGovernanceGrayReleaseChannel,
+    recordQaGovernanceRollbackTrigger,
+    recordQaGovernanceHotfixIncident,
+    markQaGovernanceRegressionSuiteCompleted,
+    markQaGovernanceCompensationMailClaimed,
+    resetQaGovernanceRuntimeState,
+    getQaGovernanceDebugSnapshot,
     appendEconomySnapshot,
     earnMoney,
     setMoney,

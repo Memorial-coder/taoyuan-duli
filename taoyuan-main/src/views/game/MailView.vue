@@ -5,6 +5,18 @@
         <Divider label="邮箱" />
         <span class="text-[10px] text-muted">未读 {{ mailboxStore.unreadCount }}</span>
       </div>
+      <div class="detail-card mb-3">
+        <div class="flex items-center justify-between mb-1">
+          <p class="text-xs text-accent">活动邮件摘要</p>
+          <span class="text-[10px] text-muted">可领 {{ claimableMailCount }}</span>
+        </div>
+        <p class="text-[10px] text-muted leading-4">
+          {{ goalStore.currentEventCampaign ? `当前活动：${goalStore.currentEventCampaign.label}` : '当前没有激活中的活动编排。' }}
+        </p>
+        <p class="text-[10px] text-accent mt-1">
+          活动邮件 {{ activityMailCount }} 封
+        </p>
+      </div>
       <div class="flex flex-col space-y-1.5 mb-3">
         <Button class="w-full justify-center" :icon="RefreshCw" :icon-size="12" :disabled="mailboxStore.loading" @click="refreshMails">
           刷新邮件
@@ -119,8 +131,10 @@
 </template>
 
 <script setup lang="ts">
-  import { onMounted, ref, watch } from 'vue'
+  import { computed, onMounted, ref, watch } from 'vue'
   import { useMailboxStore } from '@/stores/useMailboxStore'
+  import { useGoalStore } from '@/stores/useGoalStore'
+  import { useQuestStore } from '@/stores/useQuestStore'
   import { getItemById } from '@/data/items'
   import { getWeaponById } from '@/data/weapons'
   import { getRingById } from '@/data/rings'
@@ -133,9 +147,13 @@
   import type { TaoyuanMailDetail, TaoyuanMailReward } from '@/stores/useMailboxStore'
 
   const mailboxStore = useMailboxStore()
+  const goalStore = useGoalStore()
+  const questStore = useQuestStore()
   const activeMailId = ref<string | null>(null)
   const activeMail = ref<TaoyuanMailDetail | null>(null)
   const selectRequestId = ref(0)
+  const claimableMailCount = computed(() => mailboxStore.mails.filter(mail => mail.can_claim).length)
+  const activityMailCount = computed(() => mailboxStore.mails.filter(mail => mail.template_type === 'activity_reward').length)
 
   const rewardLabel = (reward: TaoyuanMailReward) => {
     if (reward.type === 'money') return `桃源乡铜钱 x${reward.amount ?? 0}`
@@ -218,6 +236,14 @@
     try {
       const data = await mailboxStore.claimMail(activeMailId.value)
       activeMail.value = data.mail
+      if (data.mail?.template_type === 'activity_reward') {
+        if (typeof data.mail.campaign_id === 'string') {
+          goalStore.markEventCampaignMailClaimed(data.mail.campaign_id)
+        }
+        if (typeof data.mail.id === 'string') {
+          questStore.markActivityRewardMailClaimed(data.mail.id)
+        }
+      }
       if (data.save_sync_ok === false) {
         showFloat('奖励已领取，但当前桃源乡存档刷新失败，请手动重新载入当前存档查看', 'accent')
       } else {
@@ -231,6 +257,15 @@
   const claimAllRewards = async () => {
     try {
       const data = await mailboxStore.claimAll()
+      for (const claimed of data.claimed ?? []) {
+        if (claimed?.mail?.template_type !== 'activity_reward') continue
+        if (typeof claimed.mail.campaign_id === 'string') {
+          goalStore.markEventCampaignMailClaimed(claimed.mail.campaign_id)
+        }
+        if (typeof claimed.mail.id === 'string') {
+          questStore.markActivityRewardMailClaimed(claimed.mail.id)
+        }
+      }
       await ensureSelection()
       if (data.save_sync_ok === false) {
         showFloat(`已领取 ${data.claimed?.length || 0} 封邮件，但当前桃源乡存档刷新失败，请手动重新载入当前存档查看`, 'accent')

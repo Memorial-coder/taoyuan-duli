@@ -76,3 +76,28 @@ export const clearClaimedMailboxMail = async () => {
     }
   })
 }
+
+export const createSystemMailboxCampaign = async (payload: {
+  id: string
+  title: string
+  content: string
+  template_type: 'activity_reward' | 'maintenance_notice' | 'compensation'
+  rewards?: Array<{
+    type: string
+    amount?: number
+    quantity?: number
+    id?: string
+    quality?: string
+    source?: string
+  }>
+  duplicate_compensation_money?: number
+}) => {
+  const csrfToken = await ensureCurrentCsrfToken()
+  return request('/api/taoyuan/mail/system-campaign', {
+    method: 'POST',
+    headers: {
+      'X-CSRF-Token': csrfToken
+    },
+    body: JSON.stringify(payload)
+  })
+}

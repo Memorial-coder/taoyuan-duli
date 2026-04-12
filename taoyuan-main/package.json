@@ -13,6 +13,8 @@
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.vue",
     "type-check": "vue-tsc -b",
+    "qa:late-game-samples": "node scripts/qa-late-game-samples.mjs",
+    "qa:late-game": "npm run qa:late-game-samples && npm run type-check && npm run lint",
     "check": "pnpm run type-check && pnpm run lint",
     "build:electron": "vue-tsc -b && vite build && esbuild electron/main.js --bundle --platform=node --format=esm --outfile=dist-electron/main.js --external:electron && esbuild electron/preload.js --bundle --platform=node --format=cjs --outfile=dist-electron/preload.js --external:electron && electron-builder",
     "build:android": "pnpm run build && npx cap sync android",

@@ -1,0 +1,71 @@
+✅ 桃源乡独立版前端已挂载: D:\taoyuan-latest\taoyuan-duli\taoyuan-main\docs
+✅ MySQL 用户库已连接
+🏮 桃源乡独立版启动于 http://127.0.0.1:4013
+::ffff:127.0.0.1 - - [12/Apr/2026:10:47:19 +0000] "GET /api/health HTTP/1.1" 200 56 "-" "curl/8.14.1"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:48:32 +0000] "GET /api/health HTTP/1.1" 200 56 "-" "curl/8.14.1"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:48:32 +0000] "GET /api/public-config HTTP/1.1" 200 645 "-" "curl/8.14.1"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:48:53 +0000] "GET /api/me HTTP/1.1" 401 39 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:48:53 +0000] "GET /api/taoyuan/ai/config HTTP/1.1" 200 320 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:48:53 +0000] "GET /api/me HTTP/1.1" 401 39 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:48:53 +0000] "GET /api/public-config HTTP/1.1" 200 645 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:48:55 +0000] "GET /api/me HTTP/1.1" 401 39 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:49:05 +0000] "POST /api/login HTTP/1.1" 200 181 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:49:05 +0000] "GET /api/me HTTP/1.1" 200 160 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:49:05 +0000] "GET /api/me HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:49:05 +0000] "GET /api/public-config HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:49:06 +0000] "GET /api/me HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:49:08 +0000] "GET /api/taoyuan/save/slots HTTP/1.1" 200 109357 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:49:08 +0000] "GET /api/taoyuan/save/slots HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:49:09 +0000] "GET /api/taoyuan/save/0 HTTP/1.1" 200 109301 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:49:10 +0000] "GET /api/public-config HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:49:10 +0000] "GET /api/taoyuan/mail/list HTTP/1.1" 200 39 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:50:10 +0000] "GET /api/taoyuan/mail/list HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:50:34 +0000] "GET /api/public-config HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:50:34 +0000] "GET /api/me HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:10:51:10 +0000] "GET /api/taoyuan/mail/list HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+Error: Error: read ECONNRESET
+    at PromisePool.execute (D:\taoyuan-latest\taoyuan-duli\server\node_modules\mysql2\lib\promise\pool.js:54:22)
+    at getMysqlAdminUserByKey (D:\taoyuan-latest\taoyuan-duli\server\src\db.js:265:41)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async Object.getUserAccessState (D:\taoyuan-latest\taoyuan-duli\server\src\db.js:463:18)
+    at async D:\taoyuan-latest\taoyuan-duli\server\src\routes\api.js:160:25 {
+  code: 'ECONNRESET',
+  errno: -4077,
+  sql: undefined,
+  sqlState: undefined,
+  sqlMessage: undefined
+}
+::ffff:127.0.0.1 - - [12/Apr/2026:12:09:49 +0000] "GET /api/me HTTP/1.1" 500 36 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:09:49 +0000] "GET /api/taoyuan/ai/config HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:14:46 +0000] "GET /api/public-config HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:14:46 +0000] "GET /api/me HTTP/1.1" 200 160 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:14:46 +0000] "GET /api/taoyuan/mail/list HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:15:46 +0000] "GET /api/taoyuan/mail/list HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:15:59 +0000] "POST /api/taoyuan/mail/system-campaign HTTP/1.1" 400 54 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:16:05 +0000] "POST /api/taoyuan/mail/system-campaign HTTP/1.1" 400 54 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:16:13 +0000] "GET /api/me HTTP/1.1" - - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:16:24 +0000] "GET /api/taoyuan/mail/list HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:16:26 +0000] "GET /api/taoyuan/mail/list HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:16:30 +0000] "GET /api/public-config HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:16:30 +0000] "GET /api/me HTTP/1.1" 200 160 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:16:46 +0000] "GET /api/taoyuan/mail/list HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:17:17 +0000] "GET /api/taoyuan/save/slots HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:17:17 +0000] "GET /api/taoyuan/save/slots HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:17:22 +0000] "GET /api/public-config HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:17:22 +0000] "GET /api/me HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:17:23 +0000] "GET /api/taoyuan/ai/config HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:17:47 +0000] "POST /api/taoyuan/ai/ask HTTP/1.1" 200 3232 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:17:47 +0000] "GET /api/taoyuan/mail/list HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:18:08 +0000] "GET /api/me HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:18:08 +0000] "GET /api/taoyuan/ai/config HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:18:08 +0000] "GET /api/public-config HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:18:08 +0000] "GET /api/me HTTP/1.1" - - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:18:08 +0000] "GET /api/taoyuan/save/slots HTTP/1.1" - - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:18:46 +0000] "GET /api/taoyuan/mail/list HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:19:37 +0000] "GET /api/taoyuan/mail/list HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:19:42 +0000] "GET /api/public-config HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:19:42 +0000] "GET /api/taoyuan/save/slots HTTP/1.1" 200 109357 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:19:42 +0000] "GET /api/me HTTP/1.1" 200 160 "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:19:44 +0000] "GET /api/taoyuan/save/0 HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:19:45 +0000] "GET /api/public-config HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"
+::ffff:127.0.0.1 - - [12/Apr/2026:12:19:45 +0000] "GET /api/taoyuan/mail/list HTTP/1.1" 304 - "http://127.0.0.1:5173/" "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36 Edg/146.0.0.0"

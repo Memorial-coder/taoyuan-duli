@@ -1,5 +1,6 @@
 <template>
   <div>
+    <GuidanceDigestPanel surface-id="guild" title="公会赛季引导" />
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center space-x-1.5 text-sm text-accent">
         <Swords :size="14" />
@@ -12,6 +13,8 @@
         </span>
       </div>
     </div>
+
+    <QaGovernancePanel page-id="guild" title="公会治理总览" />
 
     <div class="border border-accent/20 rounded-xs p-2 mb-3">
       <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
@@ -628,6 +631,8 @@
   import { ref, computed } from 'vue'
   import { Swords, Gift, CircleCheck, Circle, Lock, ShoppingCart, BookOpen, X, HandHeart } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
+  import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useGuildStore } from '@/stores/useGuildStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'

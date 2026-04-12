@@ -18,13 +18,34 @@ const db = require('./db');
 const DATA_DIR = path.dirname(process.env.DB_STORAGE);
 const DEFAULTS_DIR = path.join(__dirname, '../../data-defaults');
 
+function shouldSeedEntry(targetPath) {
+  if (!fs.existsSync(targetPath)) return true;
+  const targetStat = fs.statSync(targetPath);
+  if (targetStat.isDirectory()) {
+    return fs.readdirSync(targetPath).length === 0;
+  }
+  return targetStat.size === 0;
+}
+
+function copyDefaultEntry(from, to) {
+  const fromStat = fs.statSync(from);
+  if (fromStat.isDirectory()) {
+    fs.mkdirSync(to, { recursive: true });
+    for (const child of fs.readdirSync(from)) {
+      copyDefaultEntry(path.join(from, child), path.join(to, child));
+    }
+    return;
+  }
+  fs.copyFileSync(from, to);
+}
+
 fs.mkdirSync(DATA_DIR, { recursive: true });
 if (fs.existsSync(DEFAULTS_DIR)) {
   for (const file of fs.readdirSync(DEFAULTS_DIR)) {
     const from = path.join(DEFAULTS_DIR, file);
     const to = path.join(DATA_DIR, file);
-    if (!fs.existsSync(to) || fs.statSync(to).size === 0) {
-      fs.copyFileSync(from, to);
+    if (shouldSeedEntry(to)) {
+      copyDefaultEntry(from, to);
     }
   }
 }

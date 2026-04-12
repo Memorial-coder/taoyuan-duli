@@ -2459,3 +2459,77 @@ export const WS05_RELEASE_ANNOUNCEMENT = [
   '【主题周订单】可通过配置直接调整主题偏置、市场偏置与反重复轮换强度。',
   '【稳定性】新增特殊订单防重复结算与补偿预案，减少重复领奖与坏档风险。'
 ] as const
+
+export const WS12_QUEST_SETTLEMENT_GOVERNANCE_PRESET = {
+  version: 1,
+  settlementReceiptRetention: 40,
+  criticalQuestTypes: ['special_order', 'delivery'] as const,
+  compatibilityTouchpoints: ['specialOrderSettlementReceipts', 'activityQuestWindowState', 'bonusSummary'] as const,
+  rollbackPriority: ['quest_reward', 'ticket_reward', 'item_reward'] as const
+} as const
+
+export const WS12_QUEST_SETTLEMENT_GOVERNANCE_CONTENT_DEFS = [
+  {
+    id: 'ws12_daily_delivery_probe',
+    tier: 'mid_transition',
+    label: '日结交付探针',
+    linkedSuiteId: 'ws12_regression_daily_settlement',
+    linkedQuestTypes: ['delivery'],
+    priceBand: {
+      timeMinutes: [5, 10],
+      sampleQuestCount: [1, 2]
+    },
+    outputBand: {
+      coveredRewards: ['money', 'item'],
+      receiptChecks: [1, 2],
+      compatibilityScope: ['bonusSummary']
+    },
+    consumptionBand: {
+      manualReviews: [1, 2],
+      retryBudget: [1, 1],
+      blockedRewardTolerance: [0, 1]
+    }
+  },
+  {
+    id: 'ws12_special_order_guardrail',
+    tier: 'late_growth',
+    label: '特殊订单结算护栏',
+    linkedSuiteId: 'ws12_regression_weekly_cycles',
+    linkedQuestTypes: ['special_order', 'delivery'],
+    priceBand: {
+      timeMinutes: [10, 25],
+      sampleQuestCount: [2, 4]
+    },
+    outputBand: {
+      coveredRewards: ['money', 'item', 'ticket'],
+      receiptChecks: [2, 4],
+      compatibilityScope: ['specialOrderSettlementReceipts', 'activityQuestWindowState']
+    },
+    consumptionBand: {
+      manualReviews: [2, 4],
+      retryBudget: [1, 2],
+      blockedRewardTolerance: [0, 1]
+    }
+  },
+  {
+    id: 'ws12_release_settlement_gate',
+    tier: 'endgame_showcase',
+    label: '上线结算闸门',
+    linkedSuiteId: 'ws12_regression_release_gate',
+    linkedQuestTypes: ['special_order', 'delivery'],
+    priceBand: {
+      timeMinutes: [25, 45],
+      sampleQuestCount: [4, 8]
+    },
+    outputBand: {
+      coveredRewards: ['money', 'item', 'ticket', 'mail'],
+      receiptChecks: [4, 8],
+      compatibilityScope: ['specialOrderSettlementReceipts', 'activityQuestWindowState', 'bonusSummary']
+    },
+    consumptionBand: {
+      manualReviews: [4, 8],
+      retryBudget: [2, 3],
+      blockedRewardTolerance: [0, 0]
+    }
+  }
+] as const

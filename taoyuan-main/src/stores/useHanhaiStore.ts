@@ -55,6 +55,7 @@ import type {
   TexasTierId
 } from '@/types'
 import { useInventoryStore } from './useInventoryStore'
+import { useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useWalletStore } from './useWalletStore'
@@ -65,6 +66,19 @@ import { useVillageProjectStore } from './useVillageProjectStore'
 const dedupeList = <T,>(items: T[]): T[] => Array.from(new Set(items))
 type HanhaiQuestMarketCategory = 'crop' | 'fruit' | 'ore' | 'gem' | 'processed'
 type HanhaiQuestType = 'delivery' | 'gathering' | 'mining'
+type ActiveTexasSession = {
+  sessionId: string
+  tierId: TexasTierId
+  tierName: string
+  entryFee: number
+  startedAtDayTag: string
+  settled: boolean
+}
+type ActiveBuckshotSession = {
+  sessionId: string
+  startedAtDayTag: string
+  settled: boolean
+}
 
 const hanhaiTuning = HANHAI_OPERATION_TUNING_CONFIG
 const hanhaiFeatureFlags = hanhaiTuning.featureFlags
@@ -141,6 +155,8 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     bossCycleId: '',
     lastWeeklyResetDayTag: ''
   })
+  const activeTexasSession = ref<ActiveTexasSession | null>(null)
+  const activeBuckshotSession = ref<ActiveBuckshotSession | null>(null)
 
   const getItemName = (itemId: string): string => getItemById(itemId)?.name ?? itemId
   const getScaledShopWeeklyLimit = (weeklyLimit?: number) => {
@@ -168,6 +184,11 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       setCollections: { ...cycleState.value.setCollections }
     }
   })
+  const getCurrentDayTag = () => {
+    const gameStore = useGameStore()
+    return `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+  }
+  const createCasinoSessionId = (prefix: 'texas' | 'buckshot') => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
   const beginHanhaiAction = (lockId: string): boolean => {
     if (!hanhaiFeatureFlags.hanhaiActionGuardEnabled) return true
@@ -605,6 +626,9 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       }
     }
     const recommendedActions: string[] = []
+    if (goalStore.currentEventCampaign) {
+      recommendedActions.push(`当前活动「${goalStore.currentEventCampaign.label}」正在放大瀚海承接，优先把商路、首领和目录消耗纳入同一轮活动节奏。`)
+    }
     if (currentThemeWeekHanhaiFocus.value) {
       const labels = dedupeList([
         ...(currentThemeWeekHanhaiFocus.value.routeLabels ?? []),
@@ -1116,6 +1140,9 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
     const snapshots = createHanhaiActionSnapshots()
     try {
+      if (activeTexasSession.value && !activeTexasSession.value.settled) {
+        return { success: false, message: '已有一局瀚海扑克尚未结算，请先完成当前牌局。' }
+      }
       if (!canBet.value) return { success: false, message: '今天的赌博次数已用完。' }
       const tier = getTexasTier(tierId)
       const playerStore = usePlayerStore()
@@ -1128,9 +1155,19 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       }
       casinoBetsToday.value++
       const deal = dealTexas()
+      const sessionId = createCasinoSessionId('texas')
+      activeTexasSession.value = {
+        sessionId,
+        tierId,
+        tierName: tier.name,
+        entryFee: tier.entryFee,
+        startedAtDayTag: getCurrentDayTag(),
+        settled: false
+      }
       return {
         success: true,
         message: `${tier.name}开始！`,
+        sessionId,
         playerHole: deal.playerHole,
         dealerHole: deal.dealerHole,
         community: deal.community,
@@ -1144,7 +1181,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     }
   }
 
-  const endTexas = (finalChips: number, tierName: string) => {
+  const endTexas = (finalChips: number, tierName: string, sessionId?: string) => {
     const lockId = 'casino_texas_end'
     if (!beginHanhaiAction(lockId)) {
       addLog('瀚海扑克结算中，请勿重复提交结果。')
@@ -1153,15 +1190,39 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
     const snapshots = createHanhaiActionSnapshots()
     try {
-      const tier = getTexasTier(tierName === '新手场' ? 'beginner' : tierName === '普通场' ? 'normal' : 'expert')
-      const trigger: HanhaiCasinoRewardTrigger = finalChips > tier.entryFee ? 'win' : finalChips > 0 ? 'draw' : 'lose'
-      const settlement = settleCasinoRewards('texas', trigger, finalChips)
+      const session = activeTexasSession.value
+      if (!session || session.settled) {
+        addLog('瀚海扑克结算失败：当前没有可结算的牌局。')
+        return
+      }
+      if (!sessionId || session.sessionId !== sessionId) {
+        addLog('瀚海扑克结算失败：牌局凭证无效。')
+        return
+      }
+      if (session.tierName !== tierName) {
+        addLog('瀚海扑克结算失败：场次信息不匹配。')
+        return
+      }
+      const tier = getTexasTier(session.tierId)
+      const normalizedFinalChips = Math.max(0, Math.floor(Number(finalChips) || 0))
+      if (normalizedFinalChips > tier.entryFee * 2) {
+        addLog('瀚海扑克结算失败：筹码结果超出本局理论上限，已拒绝本次提交。')
+        return
+      }
+      activeTexasSession.value = {
+        ...session,
+        settled: true
+      }
+      const trigger: HanhaiCasinoRewardTrigger = normalizedFinalChips > tier.entryFee ? 'win' : normalizedFinalChips > 0 ? 'draw' : 'lose'
+      const settlement = settleCasinoRewards('texas', trigger, normalizedFinalChips)
       const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${settlement.directMoney}文`)
       const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
       const skippedText = settlement.rewardTexts.skippedTexts.length > 0 ? ` 背包已满，未带走${settlement.rewardTexts.skippedTexts.join('、')}。` : ''
       addLog(`瀚海扑克（${tierName}）结束，按赌坊折算结算${settlement.directMoney}文。${extraText}${skippedText}`)
+      activeTexasSession.value = null
     } catch {
       rollbackHanhaiAction(snapshots)
+      activeTexasSession.value = null
       addLog('瀚海扑克结算失败，已自动回滚。')
     } finally {
       finishHanhaiAction(lockId)
@@ -1174,15 +1235,25 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
     const snapshots = createHanhaiActionSnapshots()
     try {
+      if (activeBuckshotSession.value && !activeBuckshotSession.value.settled) {
+        return { success: false, message: '已有一局恶魔轮盘尚未结算，请先完成当前赌局。' }
+      }
       if (!canBet.value) return { success: false, message: '今天的赌博次数已用完。' }
       const playerStore = usePlayerStore()
       if (!playerStore.spendMoney(BUCKSHOT_BET_AMOUNT)) {
         return { success: false, message: '金钱不足。' }
       }
       casinoBetsToday.value++
+      const sessionId = createCasinoSessionId('buckshot')
+      activeBuckshotSession.value = {
+        sessionId,
+        startedAtDayTag: getCurrentDayTag(),
+        settled: false
+      }
       return {
         success: true,
         message: '恶魔轮盘开始！',
+        sessionId,
         shells: loadShotgun(),
         playerHP: BUCKSHOT_PLAYER_HP,
         dealerHP: BUCKSHOT_DEALER_HP
@@ -1195,7 +1266,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     }
   }
 
-  const endBuckshot = (won: boolean, draw: boolean) => {
+  const endBuckshot = (won: boolean, draw: boolean, sessionId?: string) => {
     const lockId = 'casino_buckshot_end'
     if (!beginHanhaiAction(lockId)) {
       addLog('恶魔轮盘结算中，请勿重复提交结果。')
@@ -1204,6 +1275,19 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
     const snapshots = createHanhaiActionSnapshots()
     try {
+      const session = activeBuckshotSession.value
+      if (!session || session.settled) {
+        addLog('恶魔轮盘结算失败：当前没有可结算的赌局。')
+        return
+      }
+      if (!sessionId || session.sessionId !== sessionId) {
+        addLog('恶魔轮盘结算失败：赌局凭证无效。')
+        return
+      }
+      activeBuckshotSession.value = {
+        ...session,
+        settled: true
+      }
       const trigger: HanhaiCasinoRewardTrigger = won ? 'win' : draw ? 'draw' : 'lose'
       const baseReward = won ? BUCKSHOT_BET_AMOUNT * BUCKSHOT_WIN_MULTIPLIER : draw ? BUCKSHOT_BET_AMOUNT : 0
       const settlement = settleCasinoRewards('buckshot', trigger, baseReward)
@@ -1219,8 +1303,10 @@ export const useHanhaiStore = defineStore('hanhai', () => {
         const extraText = settlement.rewardTexts.grantedTexts.length > 0 ? ` 安慰收获：${settlement.rewardTexts.grantedTexts.join('、')}。` : ''
         addLog(`恶魔轮盘落败，损失了${BUCKSHOT_BET_AMOUNT}文。${extraText}`)
       }
+      activeBuckshotSession.value = null
     } catch {
       rollbackHanhaiAction(snapshots)
+      activeBuckshotSession.value = null
       addLog('恶魔轮盘结算失败，已自动回滚。')
     } finally {
       finishHanhaiAction(lockId)
@@ -1308,6 +1394,8 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       bossCycleId: data?.cycleState?.bossCycleId ?? '',
       lastWeeklyResetDayTag: data?.cycleState?.lastWeeklyResetDayTag ?? ''
     }
+    activeTexasSession.value = null
+    activeBuckshotSession.value = null
   }
 
   const reset = () => {
@@ -1315,6 +1403,8 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     casinoBetsToday.value = 0
     weeklyPurchases.value = {}
     relicRecords.value = {}
+    activeTexasSession.value = null
+    activeBuckshotSession.value = null
     hanhaiActionLocks.value = []
     cycleState.value = {
       saveVersion: 1,

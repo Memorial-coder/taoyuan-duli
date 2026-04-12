@@ -6,6 +6,12 @@
 
 ### 新增功能
 
+#### 0412 主线执行面归一
+- 已将 `D:/taoyuan-latest/0412plan.md` 确认为唯一执行主线。
+- `TODO.md` 与 `后期经济治理实施索引-2026-04-11.md` 的“当前下一项”已统一改为按 0412 主线持续推进，不再使用“全部 120 项主线已完成”的口径。
+
+- `0412plan.md` 顶部已补充 `0410-1plan.md` 参考文档说明，便于后续代理查阅历史审计来源。
+
 #### WS09 家庭 / 配偶 / 仙灵陪伴循环（T081）
 - 完成基线审计与 KPI 定义：
   - `src/data/goals.ts` 已新增 `WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT`，统一收口婚后家庭周活率、家庭心愿完成率、非战斗后期目标覆盖度、关系系统回访率 4 个核心指标。
@@ -89,6 +95,83 @@
   - 已补齐 2 个护栏指标：强制打卡压力比、重复奖励邮件占比，并新增 3 档样本玩家分层、1 条活动层软回滚条件与跨 `useGoalStore` / `useQuestStore` / `useShopStore` / `useMailboxStore` 的联动口径。
   - `src/stores/useGoalStore.ts` 已新增 `eventOperationsBaselineAudit` 统一入口，便于后续活动编排、邮件结算与主题周扩容直接复用同一基线。
   - 当前已满足“形成可执行指标清单；至少定义 4 个核心指标、2 个护栏指标、1 个失败回滚条件”的验收目标，并通过 `npm run type-check`。
+
+#### WS10 主题周 + 活动编排 + 邮箱运营层（T092）
+- 完成数据结构与类型定义：
+  - `src/types/goal.ts` 已补齐 `EventCampaignDef`、`EventOperationsState`、`ThemeWeekCampaignState`、`EventMailTemplateRef` 等活动编排与邮件运营骨架。
+  - `src/types/quest.ts` 已补齐 `LimitedTimeQuestCampaignDef`、`ActivityQuestWindowState`，`src/types/shopCatalog.ts` 已补齐 `ShopCatalogActivityOfferBundleDef`。
+  - `src/data/goals.ts`、`src/data/quests.ts`、`src/data/shopCatalog.ts` 已分别新增活动编排定义、限时任务窗口定义、目录承接包与默认状态创建函数。
+  - `src/stores/useGoalStore.ts`、`src/stores/useQuestStore.ts`、`src/stores/useSaveStore.ts` 已同步接入这些新字段、默认值与旧档回填。
+  - 当前已满足“旧档读入不报错，新字段都有默认值，结构覆盖 P0 / P1 / P2 三阶段”的验收目标，并通过 `npm run type-check`。
+
+#### WS10 主题周 + 活动编排 + 邮箱运营层（T093）
+- 完成 Store 状态与 API 扩展：
+  - `src/stores/useGoalStore.ts` 已新增活动编排状态、活动总览、模板查询、激活 / 完成 / 邮件认领记录与 debug snapshot。
+  - `src/stores/useQuestStore.ts` 已新增限时任务窗口状态、窗口总览、活动任务窗口激活 / 完成 / 邮件认领记录与 debug snapshot。
+  - 主题周活动、活动邮件和限时任务窗口现已具备统一的 store API，后续页面和调度层无需自行拼装状态。
+  - 当前已满足“页面只消费 store 暴露结果；关键逻辑可单独调用；存档序列化完整”的验收目标，并通过 `npm run type-check`。
+
+#### WS10 主题周 + 活动编排 + 邮箱运营层（T094）
+- 完成日结 / 周结调度接入：
+  - `src/stores/useGoalStore.ts` 已新增 `processEventOperationsTick()`，统一处理主题周活动编排的周切换激活、收束与待发送邮件模板引用。
+  - `src/stores/useQuestStore.ts` 已新增 `processActivityQuestWindowTick()`，统一处理限时任务窗口的周切换激活与收束。
+  - `src/composables/useEndDay.ts` 现已把这两条活动层 tick 正式接入周切换节点，并把活动编排 / 活动任务日志写入结构化日志。
+  - 当前已满足“跨天、跨周、跨季切换状态一致且日志可见”的验收目标，并通过 `npm run type-check`。
+
+#### WS10 主题周 + 活动编排 + 邮箱运营层（T095）
+- 完成内容配置首批落地：
+  - `src/data/goals.ts` 已补齐 `WS10_EVENT_MAIL_TEMPLATE_REFS`、`WS10_EVENT_CAMPAIGN_DEFS` 与首批主题周活动编排样例。
+  - `src/data/quests.ts` 已补齐 `WS10_LIMITED_TIME_QUEST_CAMPAIGN_DEFS`，形成主题周轮转、限时供货、全服共建三档活动任务内容。
+  - `src/data/shopCatalog.ts` 已补齐 `WS10_ACTIVITY_OFFER_BUNDLES`，形成活动目录承接包。
+  - 当前首批活动内容已覆盖 P0 / P1 / P2 三档，可支撑后续页面展示、调度与联动扩容，并通过 `npm run type-check`。
+
+#### WS10 主题周 + 活动编排 + 邮箱运营层（T096）
+- 完成页面入口与信息展示：
+  - `src/views/game/QuestView.vue` 已新增“活动编排”与“限时任务窗口”提示区块，可直接展示当前活动编排、限时任务窗口与对应邮件模板。
+  - `src/views/game/MailView.vue` 已新增“活动邮件摘要”，直接展示当前活动、可领邮件数与活动邮件数量。
+  - `src/components/game/TopGoalsPanel.vue` 已新增“本周活动”摘要卡，玩家无需打开深层弹窗即可读懂当前活动层节奏。
+  - 当前已满足“玩家能在 10 秒内知道当前活动编排、邮件结算重点与限时任务窗口”的验收目标，并通过 `npm run type-check`。
+
+#### WS10 主题周 + 活动编排 + 邮箱运营层（T097）
+- 完成跨系统联动闭环：
+  - `src/stores/useShopStore.ts` 已新增 `activityCampaignOfferBundle` / `activityCampaignOfferRecommendations`，活动编排可直接放大目录承接。
+  - `src/stores/useGuildStore.ts`、`src/stores/useMuseumStore.ts`、`src/stores/useHanhaiStore.ts` 的 `crossSystemOverview.recommendedActions` 已追加活动承接提示。
+  - `src/composables/useEndDay.ts` 周切换时会写入“活动联动”结构化日志，明确记录活动层已联动的目录、公会、博物馆与瀚海承接。
+  - 当前已满足“活动层反向影响多条既有系统路线，并可从日志与页面看到联动证据”的验收目标，并通过 `npm run type-check`。
+
+#### WS10 主题周 + 活动编排 + 邮箱运营层（T098）
+- 完成事务安全与防刷处理：
+  - `src/stores/useGoalStore.ts` 已新增 `eventOperationLocks`、活动编排快照与回滚逻辑，并把活动激活、收尾、邮件认领与周切换 tick 接入幂等锁。
+  - `src/stores/useQuestStore.ts` 已新增 `activityQuestWindowLocks`、限时任务窗口快照与回滚逻辑，并把窗口激活、收尾、邮件认领与周切换 tick 接入幂等锁。
+  - 当前已满足“同一周 / 同一天重复触发活动 tick 不重入、异常状态写入可回滚”的验收目标，并通过 `npm run type-check`。
+
+#### WS10 主题周 + 活动编排 + 邮箱运营层（T099）
+- 完成调参与运营开关接线：
+  - `src/data/goals.ts` 已新增 `WS10_EVENT_OPERATION_TUNING_CONFIG`，统一收口 event campaign、activity quest window、mailbox digest、预览数量、活动节奏与待发送模板上限等参数。
+  - `src/stores/useGoalStore.ts`、`src/stores/useQuestStore.ts` 已正式消费这些开关和展示配置，使活动编排、限时任务窗口与邮件摘要支持快速热调或降级。
+  - 当前已满足“不改业务逻辑即可调整至少 8 个核心参数并支持快速关闭异常活动”的验收目标，并通过 `npm run type-check`。
+
+#### WS10 主题周 + 活动编排 + 邮箱运营层（T100）
+- 完成 QA、数值验收与上线文档收口：
+  - `src/data/goals.ts` 已内置 `WS10_ACCEPTANCE_SUMMARY`、`WS10_QA_CASES`、`WS10_RELEASE_CHECKLIST`、`WS10_COMPENSATION_PLANS`、`WS10_RELEASE_ANNOUNCEMENT`。
+  - QA / 验收范围已覆盖活动编排切换、限时任务窗口、活动邮件摘要、开关降级、旧档兼容与异常回滚等发布场景。
+  - `后期经济治理与中后期循环扩展AI实施方案-2026-04-10.md`、`TODO.md`、`后期经济治理实施索引-2026-04-11.md` 已同步回写 WS10 收口状态与下一项主线。
+  - 当前 WS10 已具备可直接供 QA / 运营复用的验收摘要、上线检查项、补偿预案与公告文案，并再次通过 `npm run type-check`。
+
+#### WS11 UI 引导、推荐系统与信息层级补强（T101）
+- 完成基线审计与 KPI 定义：
+  - `src/data/tutorials.ts` 已新增 `WS11_UI_GUIDANCE_BASELINE_AUDIT`，统一收口高阶页面停留时间占比、目标点击率、推荐路线采纳率、迷失反馈下降率 4 个核心指标。
+  - 已补齐 2 个护栏指标：公告墙密度、推荐冲突率，并新增 3 档样本玩家分层、1 条信息层级软回滚条件与跨 `useGoalStore` / `useQuestStore` / `useShopStore` / `useBreedingStore` / `useTutorialStore` 的联动口径。
+  - `src/stores/useTutorialStore.ts` 已新增 `uiGuidanceBaselineAudit` 与 `uiGuidanceOverview` 统一入口，便于后续页面、调试与 QA 复用同一份基线。
+  - 当前已满足“形成可执行指标清单；至少定义 4 个核心指标、2 个护栏指标、1 个失败回滚条件”的验收目标，并通过 `npm run type-check`。
+
+#### WS11 UI 引导、推荐系统与信息层级补强（T102）
+- 完成数据结构与类型定义：
+  - 新增 `src/types/tutorial.ts`，补齐 `GuidancePanelSummaryDef`、`GuidanceRecommendationRouteDef`、`GuidanceDigestState` 等推荐层类型骨架。
+  - `src/data/tutorials.ts` 已新增 `WS11_GUIDANCE_PANEL_SUMMARY_DEFS`、`WS11_GUIDANCE_RECOMMENDATION_ROUTE_DEFS` 与 `createDefaultGuidanceDigestState()`。
+  - `src/stores/useTutorialStore.ts` 已同步接入 `guidanceDigestState`、摘要分组、采纳 / 关闭记录与刷新入口。
+  - `src/stores/useSaveStore.ts` 已补齐教程层新字段的默认值与旧档回填。
+  - 当前已满足“旧档读入不报错；新字段都有默认值；配置结构覆盖 P0 / P1 / P2 三阶段”的验收目标，并通过 `npm run type-check`。
 
 #### WS08 瀚海终局循环深化（T077）
 - 完成跨系统联动闭环：
@@ -1258,3 +1341,164 @@
 - 继续补齐高风险非原子链路：NPC 关系阶段赠礼、送礼回礼、瀚海藏宝图、雇工/配偶代收、孵化器退蛋、鱼塘取鱼、出货箱取回等流程现已增加前置容量校验或精确入包
 - 修复旧档/脏档兼容细节：鱼塘存档中的非法鱼类、非法待收产物与失效出货箱物品会在反序列化时被安全过滤，避免读取后再触发吞物或状态错乱
 - 修复矿洞战败后的楼层态残留问题；昏厥离场时也会清空怪物诱饵本层使用标记，避免异常继承到后续探索
+#### WS11 UI 引导、推荐系统与信息层级补强（T103）
+- 完成 Store 状态与 API 扩展：
+  - `src/stores/useGoalStore.ts` 已新增 `uiGuidanceSourceOverview` 与 `getUiGuidanceDebugSnapshot()`，统一收口主题周、活动、资金去向、风险摘要与目标摘要的源快照。
+  - `src/stores/useTutorialStore.ts` 已新增 `guidanceTier`、`guidanceNeedsRefresh`、`guidancePanelSummaryStates`、`guidanceRecommendationRouteStates`、`guidanceSurfaceSnapshots`、`markGuidanceSurfaceViewed()`、`markGuidanceRouteAdopted()`、`ensureGuidanceDigestFresh()`、`getGuidanceDebugSnapshot()` 等聚合 API，后续页面可直接消费按 surface 收口后的 summary / route snapshot。
+  - `src/types/tutorial.ts`、`src/data/tutorials.ts`、`src/stores/useSaveStore.ts` 已同步扩展 guidance digest 的 `activeRouteIds`、`adoptedRouteIds`、`lastViewedSurfaceId`、`surfaceStates` 字段，并补齐旧档回填。
+  - 当前已满足“页面只消费 store 暴露结果；关键逻辑可单独调用；存档序列化完整”的验收目标，并通过 `npm run type-check`。
+#### WS11 UI 引导、推荐系统与信息层级补强（T104）
+- 完成日结 / 周结调度接入：
+  - `src/composables/useEndDay.ts` 已在活动窗口、商店目录 / 市场轮换、博物馆、公会、瀚海、关系循环与周度风险报告更新完成后统一调用 `tutorialStore.ensureGuidanceDigestFresh()`，保证 guidance digest 每天随日结对齐最新的 theme week / campaign / summary / route 状态。
+  - guidance digest 刷新只在跨周、跨季、主题周切换、活动切换或 active snapshot 变化时写入结构化日志，避免把经营引导做成刷屏公告。
+  - `src/types/log.ts` 已新增 `ui_guidance_digest_refresh` tag，后续调试、QA 与页面提示可直接复用同一刷新口径。
+  - 当前已满足“刷新 cadence 稳定、跨周边界可解释、摘要不会因 dayTag / theme / campaign 漂移失效”的验收目标，并通过 `npm run type-check`。
+#### WS11 UI 引导、推荐系统与信息层级补强（T105）
+- 完成内容配置首批落地：
+  - `src/types/tutorial.ts` 已新增 `GuidanceSummaryContentVariantDef`、`GuidanceRouteContentVariantDef` 等内容表类型，便于后续继续扩展 guidance 卡片与路线模板。
+  - `src/data/tutorials.ts` 已补齐 `WS11_GUIDANCE_SUMMARY_CONTENT_DEFS` 与 `WS11_GUIDANCE_ROUTE_CONTENT_DEFS`，首批覆盖资金去向、目录推荐、特殊订单、活动摘要、馆区焦点、邮件摘要与目标规划等内容模板。
+  - `src/stores/useTutorialStore.ts` 已把 route / summary 的 headline 与 detail 生成改为消费这些数据表，形成“store 保留条件判断，data 承载首批文案与内容引用”的结构。
+  - 当前已满足“首批内容可读、可扩展、可按 surface / route 复用”的验收目标，并通过 `npm run type-check`。
+#### WS11 UI 引导、推荐系统与信息层级补强（T106）
+- 完成页面入口与信息展示：
+  - 已新增 `src/components/game/GuidanceDigestPanel.vue` 作为统一 guidance 页面入口组件，内部直接消费 `useTutorialStore.ts` 暴露的 surface snapshot，并提供已读打点、摘要采纳、路线采纳与提示收起入口。
+  - `src/views/game/WalletView.vue`、`src/views/game/QuestView.vue`、`src/views/game/BreedingView.vue`、`src/views/game/MuseumView.vue`、`src/views/game/ShopView.vue` 现已分别接入 `wallet / quest / breeding / museum / shop` 对应 surface 的 guidance digest 面板。
+  - 页面层已改为“轻模板 + 重用 store snapshot”的模式，玩家可在页面顶部直接看到本页当前推荐要点、承接路线与状态反馈。
+  - 当前已满足“玩家能在页面内直接理解这条后期路线做到了哪、下一步该看什么”的验收目标，并通过 `npm run type-check`。
+#### WS11 UI 引导、推荐系统与信息层级补强（T107）
+- 完成跨系统联动闭环：
+  - `src/types/tutorial.ts` 已新增 `GuidanceLoopLinkDef`、`GuidanceCrossSystemOverview`、`GuidanceCrossSystemAction` 等闭环类型。
+  - `src/data/tutorials.ts` 已新增 `WS11_GUIDANCE_LOOP_LINK_DEFS`，把 `wallet -> shop`、`quest -> quest`、`breeding -> breeding`、`museum -> museum` 的首批周决策链路配置化。
+  - `src/stores/useTutorialStore.ts` 已新增 `guidanceCrossSystemOverview`，统一输出 active surface、linked systems、source summary 与 weekly decision loop，并打通摘要采纳与相关路线采纳。
+  - `src/composables/useEndDay.ts` 会在每周切换时输出跨系统 weekly loop 引导日志，当前已把资金去向、任务路线、成长承接与展陈焦点串成可追踪的周决策链，并通过 `npm run type-check`。
+#### WS11 UI 引导、推荐系统与信息层级补强（T108）
+- 完成事务安全与防刷处理：
+  - `src/stores/useTutorialStore.ts` 已新增 `guidanceActionLocks`、`beginGuidanceAction()`、`finishGuidanceAction()`、`createGuidanceDigestSnapshot()`、`rollbackGuidanceAction()` 与 `getGuidanceOperationDebugSnapshot()`。
+  - `markGuidanceSurfaceViewed()`、`markGuidanceSummaryDismissed()`、`markGuidanceSummaryAdopted()`、`markGuidanceRouteAdopted()`、`refreshGuidanceDigest()` 已全部接入运行时锁与回滚快照。
+  - 旧档 `deserialize()` 时也会主动清空残留 guidance lock，当前已满足“重复点击不重入、异常更新可回滚、读档后无残留锁”的验收目标，并通过 `npm run type-check`。
+
+#### WS11 UI 引导、推荐系统与信息层级补强（T109）
+- 完成调参与运营开关：
+  - `src/data/tutorials.ts` 已新增 `WS11_GUIDANCE_TUNING_CONFIG`，统一管理 surface panel、cross-system loop、summary / route 自动联动、weekly loop 日志、运行时锁、surface view tracking 与显示数量参数。
+  - `src/stores/useTutorialStore.ts` 已正式消费 `guidanceTuning`、`guidanceFeatureFlags`、`guidanceDisplayConfig`、`guidanceOperationConfig`，将 route / detail / loop 的显示数量与自动联动逻辑改为配置驱动。
+  - `src/composables/useEndDay.ts` 也已按 `weeklyLoopLogEnabled` 控制 weekly loop 日志输出，当前已满足“至少 6 个核心参数可通过 data 配置热调”的验收目标，并通过 `npm run type-check`。
+
+#### WS11 UI 引导、推荐系统与信息层级补强（T110）
+- 完成 QA、数值验收与上线文档：
+  - `src/data/tutorials.ts` 已新增 `WS11_ACCEPTANCE_SUMMARY`、`WS11_QA_CASES`、`WS11_RELEASE_CHECKLIST`、`WS11_COMPENSATION_PLANS`、`WS11_RELEASE_ANNOUNCEMENT`。
+  - 首批 QA 用例已覆盖五个 guidance 页面入口、weekly loop 刷新、旧档兼容、重复点击幂等与配置降级场景。
+  - 补偿与运营兜底方案已覆盖 guidance 状态错位、重复采纳膨胀与面板噪音过高等风险，WS11 当前已整体收口并再次通过 `npm run type-check`。
+#### WS12 QA、平衡、灰度、存档兼容与回滚（T111）
+- 完成基线审计与 KPI 定义：
+  - `src/data/goals.ts` 已新增 `WS12_QA_GOVERNANCE_BASELINE_AUDIT`，统一收口坏档率、回滚触发率、任务结算错误率、发布后热修次数 4 个核心指标。
+  - 已补齐 2 个护栏指标：旧档迁移兜底占比、灰度开关漂移率，并新增 3 档样本玩家分层、1 条全局稳定性软回滚条件与跨 `useSaveStore` / `usePlayerStore` / `useInventoryStore` / `useMiningStore` / `useProcessingStore` / `useQuestStore` / `useVillageProjectStore` 的联动口径。
+  - `src/stores/usePlayerStore.ts`、`src/stores/useSaveStore.ts` 已新增 `qaGovernanceBaselineAudit` 与 overview/debug 入口，便于后续治理任务继续沿用同一口径。
+  - 当前已满足“形成可执行指标清单；至少定义4个核心指标、2个护栏指标、1个失败回滚条件”的验收目标，并通过 `npm run type-check`。
+
+#### WS12 QA、平衡、灰度、存档兼容与回滚（T112）
+- 完成数据结构与类型定义：
+  - `src/types/economy.ts` 已补齐 `QaGovernanceFeatureFlags`、`QaGovernanceMigrationProfileDef`、`QaGovernanceTransactionGuardDef`、`QaGovernanceRegressionSuiteDef`、`QaGovernanceCompensationMailPreset`、`QaGovernanceRuntimeState` 等治理层类型。
+  - `src/data/goals.ts` 已新增 feature flag、迁移 profile、事务守护、回归套件、补偿邮件与 runtime state 默认结构。
+  - `src/data/quests.ts`、`src/data/villageProjects.ts` 已补齐首批治理预设常量，`src/stores/usePlayerStore.ts` 也已接入 `qaGovernanceRuntimeState` 与旧档回填。
+  - 当前已满足“旧档读入不报错；新字段都有默认值；结构保留未来扩展位”的验收目标，并通过 `npm run type-check`。
+
+#### WS12 QA、平衡、灰度、存档兼容与回滚（T113）
+- 完成 Store 状态与 API 扩展：
+  - `src/stores/usePlayerStore.ts` 已新增迁移 profile、灰度通道、回滚/热修计数、回归套件、补偿邮件状态的统一 getter / action / debug snapshot。
+  - `src/stores/useSaveStore.ts` 已新增治理总览、存档模式治理入口与治理调试快照，页面或调度层可直接复用。
+  - 当前已满足“统一读写入口、关键逻辑可单独调用、序列化完整”的验收目标，并通过 `npm run type-check`。
+
+#### WS12 QA、平衡、灰度、存档兼容与回滚（T114）
+- 完成日结 / 周结调度接入：
+  - `src/composables/useEndDay.ts` 已在日结后标记 `ws12_regression_daily_settlement` 回归套件，并在每周切换时补记 `ws12_regression_weekly_cycles`。
+  - 每周切换时还会输出 QA 治理巡检日志，统一记录存档模式、灰度通道、回滚累计与热修累计。
+  - 当前已满足“日结、周结切换状态一致；治理日志可见且不散落在页面”的验收目标，并通过 `npm run type-check`。
+#### WS12 QA、平衡、灰度、存档兼容与回滚（T115）
+- 完成内容配置首批落地：
+  - `src/data/goals.ts` 已新增 `WS12_QA_GOVERNANCE_CONTENT_TIERS`，首批覆盖中期过渡、后期进阶、终局展示 3 档治理包，并分别给出 `priceBand`、`outputBand`、`consumptionBand`。
+  - `src/data/quests.ts` 已新增 `WS12_QUEST_SETTLEMENT_GOVERNANCE_CONTENT_DEFS`，把日结交付探针、特殊订单结算护栏、上线结算闸门等结算治理内容表配置化。
+  - `src/data/villageProjects.ts` 已新增 `WS12_VILLAGE_PROJECT_GOVERNANCE_CONTENT_DEFS`，补齐维护巡检、捐献对账与建设结算稳定闸门等治理内容表。
+  - `src/stores/usePlayerStore.ts`、`src/stores/useSaveStore.ts` 也已把这些内容 tiers 接入 overview / debug snapshot，后续页面可直接复用，并通过 `npm run type-check`。
+#### WS12 QA、平衡、灰度、存档兼容与回滚（T116）
+- 完成页面入口与信息展示：
+  - 已新增 `src/components/game/QaGovernancePanel.vue` 作为统一 QA 治理页面入口组件，内部直接消费 `usePlayerStore.ts` 与 `useSaveStore.ts` 的治理 overview / runtime state / content tiers。
+  - `src/views/game/WalletView.vue`、`src/views/game/QuestView.vue`、`src/views/game/BreedingView.vue`、`src/views/game/MuseumView.vue`、`src/views/game/ShopView.vue`、`src/views/game/GuildView.vue`、`src/views/game/HanhaiView.vue`、`src/views/game/NpcView.vue` 已接入治理面板。
+  - 页面现可直接展示需求摘要、花费拆解、收益预览、推荐理由、周巡检节奏与风险说明，并提供灰度通道切换与发布闸门记录等低风险一键操作。
+  - 当前已满足“后期页面能在页内说明治理状态与下一步 QA 节奏”的验收目标，并通过 `npm run type-check`。
+#### WS12 QA、平衡、灰度、存档兼容与回滚（T117）
+- 完成跨系统联动闭环：
+  - `src/data/goals.ts` 已新增 `WS12_QA_GOVERNANCE_LOOP_LINK_DEFS`，首批把收入转消耗、成长转订单、展示转声望、活动转奖励 4 条治理链路配置化。
+  - `src/stores/useSaveStore.ts` 已新增 `qaGovernanceCrossSystemOverview`，统一聚合 `usePlayerStore`、`useQuestStore`、`useProcessingStore`、`useVillageProjectStore`、`useMuseumStore`、`useGoalStore` 的治理闭环摘要。
+  - `src/components/game/QaGovernancePanel.vue` 已接入跨系统闭环摘要展示，当前已把治理状态从单页说明提升为可追踪的周决策链，并通过 `npm run type-check`。
+
+#### WS12 QA、平衡、灰度、存档兼容与回滚（T118）
+- 完成事务安全与防刷处理：
+  - `src/stores/usePlayerStore.ts` 已新增 `qaGovernanceActionLocks`、运行时快照与回滚入口，并将迁移 profile、灰度通道、回滚/热修计数、回归套件与补偿邮件相关 action 全部接入防重入保护。
+  - `src/stores/useSaveStore.ts` 已新增 `qaGovernanceStorageActionLocks` 与存档治理快照，`setQaGovernanceStorageMode()` 现已具备异常回滚保护。
+  - 当前已满足“重复点击不重入、异常更新可回滚、存档治理切换后无残留锁”的验收目标，并通过 `npm run type-check`。
+
+#### WS12 QA、平衡、灰度、存档兼容与回滚（T119）
+- 完成调参与运营开关：
+  - `src/data/goals.ts` 已新增 `WS12_QA_GOVERNANCE_TUNING_CONFIG`，统一管理自动回归、发布闸门快捷操作、存档模式快捷切换与跨系统闭环展示数量等参数。
+  - `src/stores/usePlayerStore.ts`、`src/stores/useSaveStore.ts`、`src/composables/useEndDay.ts` 与 `src/components/game/QaGovernancePanel.vue` 已正式消费这套 tuning config。
+  - 当前已满足“至少 7 个核心参数可通过 data 配置热调”的验收目标，并通过 `npm run type-check`。
+
+#### WS12 QA、平衡、灰度、存档兼容与回滚（T120）
+- 完成 QA、数值验收与上线文档：
+  - `src/data/goals.ts` 已新增 `WS12_ACCEPTANCE_SUMMARY`、`WS12_QA_CASES`、`WS12_RELEASE_CHECKLIST`、`WS12_COMPENSATION_PLANS`、`WS12_RELEASE_ANNOUNCEMENT`。
+  - 首批 QA 用例已覆盖治理面板展示、daily / weekly / release 回归套件、灰度切换、旧档回填、事务锁、防重入与补偿说明场景。
+  - WS12 当前已整体收口完成，并再次通过 `npm run type-check`。
+#### 审查整改（第一轮）
+- 已修复 `familyWishCompletions` 死目标：
+  - `src/stores/useGoalStore.ts` 现已改为读取 `useNpcStore().getFamilyWishOverview().state.completedWishIds.length`，不再固定返回 `0`。
+- 已修复瀚海周快照口径错误：
+  - `src/composables/useEndDay.ts` 现已在 `processCycleTick()` 前记录周切换前的瀚海完成数，并通过 `archiveWeeklyMetricSnapshot(..., overrides)` 写回 `hanhaiContractCompletions`，避免被新周重置清零。
+- 已补活动邮件最小闭环：
+  - `src/utils/mailboxApi.ts` 新增 `createSystemMailboxCampaign()`。
+  - `server/src/routes/api.js` 与 `server/src/taoyuanMailbox.js` 新增当前玩家可用的系统活动邮件投递入口。
+  - `src/composables/useEndDay.ts` 现会在活动周切换后尝试投递活动邮件。
+  - `src/stores/useGoalStore.ts` 已统一活动邮件 receipt key 口径，避免模板状态错配。
+  - `src/views/game/MailView.vue` 已在活动奖励领取后回写活动层与任务窗口层的领取状态。
+- 已修复村庄捐献“只加进度不扣物资”漏洞，并补上最小入口：
+  - `src/stores/useVillageProjectStore.ts` 现已先校验/扣除背包与仓库物资，再更新捐献状态，失败会回滚。
+  - `src/views/game/HomeView.vue` 已补充快速捐赠与里程碑领取入口。
+- 已补强旧档兼容：
+  - `src/stores/useBreedingStore.ts` 已对种子 genetics 做 normalize。
+  - `src/stores/useFishPondStore.ts` 已对 `pond.breeding` 做结构校验。
+- 已修复静态质量门当前阻塞项：
+  - `npm run type-check`、`npm run lint` 已重新通过。
+
+#### 审查整改（第二轮）
+- 已补陪伴线最小自动编排：
+  - `src/stores/useNpcStore.ts` 已在每周切换时自动编排家庭心愿、自动注册知己协作项目、推进周进度并写入关系线日志，避免长期停留在“只展示状态壳子”。
+- 已补学者委托重复接取保护：
+  - `src/stores/useMuseumStore.ts` 已阻止对 `rewarded` 状态的学者委托再次接取，减少重复领奖风险。
+- 已收回 QA 治理面板污染：
+  - `src/components/game/QaGovernancePanel.vue` 现仅在 `DEV` 环境显示，不再默认污染正式玩家页面。
+- 已补鱼塘页治理入口：
+  - `src/views/game/FishPondView.vue` 现已接入 QA 治理面板，鱼塘不再完全掉出统一治理首屏体系。
+- 已推进存档版本治理：
+  - `src/stores/useSaveStore.ts` 的 `SAVE_VERSION` 已提升到 `3`，`src/data/sampleSaves.ts` 与 `WS12_SAVE_MIGRATION_PROFILES` 也已同步提升到 `3`，不再停留在名义化版本治理。
+- 已继续保持静态检查通过：
+  - `npm run type-check`
+  - `npm run lint`
+
+#### 审查整改（第三轮）
+- 已补家庭心愿 / 知己协作奖励闭环：
+  - `src/data/npcs.ts` 已为 `WS09_FAMILY_WISH_DEFS`、`WS09_ZHIJI_COMPANION_PROJECT_DEFS` 补齐真实奖励配置。
+  - `src/stores/useNpcStore.ts` 已新增关系奖励发放逻辑，家庭心愿与知己协作会真正发钱 / 发物资，并在背包空间不足时保留待重试状态，不再直接空结算。
+  - `src/stores/useNpcStore.ts` 同时补了 `activateNextFamilyWishForCurrentDay()` 与 `registerNextZhijiProjectForCurrentWeek()`，`src/views/game/HomeView.vue` 也已接入最小主动入口，玩家可以直接推进下一条家庭心愿和知己协作。
+- 已补村庄捐献里程碑真实奖励：
+  - `src/types/villageProject.ts` 与 `src/data/villageProjects.ts` 已为 6 个里程碑补齐真实奖励结构与奖励配置。
+  - `src/stores/useVillageProjectStore.ts` 的 `claimDonationMilestone()` 现会先校验并发放奖励，再记录领取状态，不再停留在“只写状态”的伪完成功能。
+- 已收口经济推荐真源分叉：
+  - `src/views/game/WalletView.vue`、`src/views/game/ShopView.vue` 已统一改为消费 `src/stores/useGoalStore.ts` 的 `recommendedEconomySinks`，不再各自重算一套推荐结果。
+- 已补项目内 QA 命令并扩展 guidance 覆盖：
+  - `package.json` 新增 `qa:late-game-samples` 与 `qa:late-game`。
+  - `scripts/qa-late-game-samples.mjs` 已落地，用 Node 直接审计 `late_economy_foundation`、`breeding_specialist`、`fishpond_operator`、`endgame_showcase` 四套内置后期样例档。
+  - `src/types/tutorial.ts`、`src/data/tutorials.ts`、`src/stores/useTutorialStore.ts` 已扩展 `fishpond / guild / hanhai / npc` 四个 guidance surface。
+  - `src/views/game/FishPondView.vue`、`src/views/game/GuildView.vue`、`src/views/game/HanhaiView.vue`、`src/views/game/NpcView.vue` 已接入 `GuidanceDigestPanel`，统一 guidance / governance 体系不再只覆盖原先 5 个页面。
+- 当前校验结果：
+  - `npm run qa:late-game-samples`
+  - `npm run type-check`
+  - `npm run lint`

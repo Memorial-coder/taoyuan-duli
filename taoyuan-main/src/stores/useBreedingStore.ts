@@ -751,6 +751,27 @@ export const useBreedingStore = defineStore('breeding', () => {
     }
   }
 
+  const normalizeSeedGenetics = (value: any): SeedGenetics | null => {
+    if (!value || typeof value !== 'object') return null
+    const cropId = typeof value.cropId === 'string' ? value.cropId : ''
+    if (!cropId) return null
+    return {
+      id: typeof value.id === 'string' ? value.id : `seed_${cropId}_${Date.now()}`,
+      cropId,
+      generation: Math.max(0, Number(value.generation) || 0),
+      sweetness: Math.max(0, Number(value.sweetness) || 0),
+      yield: Math.max(0, Number(value.yield) || 0),
+      resistance: Math.max(0, Number(value.resistance) || 0),
+      stability: Math.max(0, Number(value.stability) || 0),
+      mutationRate: Math.max(0, Number(value.mutationRate) || 0),
+      parentA: typeof value.parentA === 'string' ? value.parentA : null,
+      parentB: typeof value.parentB === 'string' ? value.parentB : null,
+      isHybrid: !!value.isHybrid,
+      hybridId: typeof value.hybridId === 'string' ? value.hybridId : null,
+      lineageParents: Array.isArray(value.lineageParents) ? value.lineageParents : null
+    }
+  }
+
   // === 序列化 ===
 
   const serialize = () => ({
@@ -775,16 +796,22 @@ export const useBreedingStore = defineStore('breeding', () => {
   })
 
   const deserialize = (data: any) => {
-    breedingBox.value = (data.breedingBox ?? []).map((s: any) => ({
-      genetics: s.genetics,
-      label: s.label ?? makeSeedLabel(s.genetics)
-    }))
+    breedingBox.value = (data.breedingBox ?? [])
+      .map((s: any) => {
+        const genetics = normalizeSeedGenetics(s?.genetics)
+        if (!genetics) return null
+        return {
+          genetics,
+          label: typeof s?.label === 'string' ? s.label : makeSeedLabel(genetics)
+        }
+      })
+      .filter((seed: BreedingSeed | null): seed is BreedingSeed => seed !== null)
     stations.value = (data.stations ?? []).map((s: any) => ({
-      parentA: s.parentA ?? null,
-      parentB: s.parentB ?? null,
+      parentA: normalizeSeedGenetics(s.parentA),
+      parentB: normalizeSeedGenetics(s.parentB),
       daysProcessed: s.daysProcessed ?? 0,
       totalDays: s.totalDays ?? BREEDING_DAYS,
-      result: s.result ?? null,
+      result: normalizeSeedGenetics(s.result),
       ready: s.ready ?? false
     }))
     stationCount.value = data.stationCount ?? 0

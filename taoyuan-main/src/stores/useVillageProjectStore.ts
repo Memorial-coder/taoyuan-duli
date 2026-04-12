@@ -810,6 +810,19 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     if (!donationSummary.plan.acceptedItemIds?.includes(itemId)) {
       return { success: false, message: '该物品不在当前捐赠清单内。' }
     }
+    if (getCombinedItemCount(itemId) < amount) {
+      return { success: false, message: `${getItemById(itemId)?.name ?? itemId}不足，无法完成当前捐赠。` }
+    }
+
+    const inventoryStore = useInventoryStore()
+    const warehouseStore = useWarehouseStore()
+    const inventorySnapshot = inventoryStore.serialize()
+    const warehouseSnapshot = warehouseStore.serialize()
+    if (!removeCombinedItem(itemId, amount)) {
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
+      return { success: false, message: '扣除捐赠物资失败，请检查背包与仓库。' }
+    }
 
     const nextState = updateDonationState(projectId, {
       totalAmount: donationSummary.state.totalAmount + amount,
@@ -820,6 +833,8 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     })
 
     if (!nextState) {
+      inventoryStore.deserialize(inventorySnapshot)
+      warehouseStore.deserialize(warehouseSnapshot)
       return { success: false, message: '更新捐赠状态失败。' }
     }
 
@@ -830,6 +845,45 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     })
 
     return { success: true, message: `已为 ${donationSummary.plan.label} 记录捐赠。` }
+  }
+
+  const grantDonationMilestoneReward = (projectId: string, milestoneId: string) => {
+    const project = getProject(projectId)
+    const milestoneDef = project?.donationPlan?.milestones?.find(entry => entry.id === milestoneId)
+    const reward = milestoneDef?.reward
+    if (!reward) {
+      return { success: true, rewardText: '' }
+    }
+
+    const inventoryStore = useInventoryStore()
+    const rewardItems = (reward.items ?? [])
+      .filter(entry => entry?.itemId && Number.isFinite(entry.quantity) && entry.quantity > 0)
+      .map(entry => ({
+        itemId: entry.itemId,
+        quantity: Math.max(1, Math.floor(entry.quantity))
+      }))
+
+    if (rewardItems.length > 0 && !inventoryStore.addItemsExact(rewardItems)) {
+      return {
+        success: false,
+        rewardText: '',
+        message: '奖励发放失败：背包空间不足，请先整理背包后再领取。'
+      }
+    }
+
+    const rewardMoney = Math.max(0, Math.floor(reward.money ?? 0))
+    if (rewardMoney > 0) {
+      playerStore.earnMoney(rewardMoney, { system: 'villageProject' })
+    }
+
+    const rewardText = [
+      rewardMoney > 0 ? `铜钱+${rewardMoney}` : '',
+      ...rewardItems.map(entry => `${getItemById(entry.itemId)?.name ?? entry.itemId} x${entry.quantity}`)
+    ]
+      .filter(Boolean)
+      .join('、')
+
+    return { success: true, rewardText }
   }
 
   const claimDonationMilestone = (projectId: string, milestoneId: string) => {
@@ -849,6 +903,11 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
       return { success: false, message: '该捐赠里程碑已领取。' }
     }
 
+    const rewardResult = grantDonationMilestoneReward(projectId, milestoneId)
+    if (!rewardResult.success) {
+      return { success: false, message: rewardResult.message ?? '奖励发放失败。' }
+    }
+
     const nextState = updateDonationState(projectId, {
       claimedMilestoneIds: [...donationSummary.state.claimedMilestoneIds, milestoneId]
     })
@@ -859,10 +918,13 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     addLog(`【村庄建设】${donationSummary.plan.label}达成里程碑：${milestone.label}`, {
       category: 'village',
       tags: ['village_project_donation_milestone'],
-      meta: { projectId, planId: donationSummary.plan.id, milestoneId }
+      meta: { projectId, planId: donationSummary.plan.id, milestoneId, rewardText: rewardResult.rewardText }
     })
 
-    return { success: true, message: `${milestone.label} 已记录为已领取。` }
+    return {
+      success: true,
+      message: rewardResult.rewardText ? `${milestone.label} 已领取：${rewardResult.rewardText}。` : `${milestone.label} 已记录为已领取。`
+    }
   }
 
   const processOperationalTick = (currentDayTag: string, options?: { startedNewWeek?: boolean }) => {

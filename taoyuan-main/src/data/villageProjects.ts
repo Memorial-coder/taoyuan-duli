@@ -82,6 +82,74 @@ export const VILLAGE_PROJECT_PHASE_SEGMENTS: VillageProjectPhaseSegmentDefinitio
   }
 ]
 
+export const WS12_VILLAGE_PROJECT_GOVERNANCE_PRESET = {
+  version: 1,
+  maintenanceReceiptRetention: 24,
+  compensationPriority: ['maintenance', 'donation'] as const,
+  compatibilityTouchpoints: ['saveVersion', 'maintenanceStates', 'donationStates'] as const,
+  rollbackPriority: ['maintenance_cost', 'donation_reward', 'project_unlock'] as const
+} as const
+
+export const WS12_VILLAGE_PROJECT_GOVERNANCE_CONTENT_DEFS = [
+  {
+    id: 'ws12_maintenance_watch',
+    tier: 'mid_transition',
+    label: '维护巡检台账',
+    priceBand: {
+      money: [500, 1500],
+      timeMinutes: [5, 12]
+    },
+    outputBand: {
+      coveredPlans: [1, 2],
+      compensationReach: '单项目维护说明',
+      compatibilityScope: ['maintenanceStates']
+    },
+    consumptionBand: {
+      manualChecks: [1, 2],
+      rollbackBudget: [1, 1],
+      overdueTolerance: [0, 1]
+    }
+  },
+  {
+    id: 'ws12_donation_reconciliation',
+    tier: 'late_growth',
+    label: '捐献对账护栏',
+    priceBand: {
+      money: [1500, 5000],
+      timeMinutes: [12, 25]
+    },
+    outputBand: {
+      coveredPlans: [2, 4],
+      compensationReach: '维护 + 捐献双链路说明',
+      compatibilityScope: ['maintenanceStates', 'donationStates']
+    },
+    consumptionBand: {
+      manualChecks: [2, 4],
+      rollbackBudget: [1, 2],
+      overdueTolerance: [0, 1]
+    }
+  },
+  {
+    id: 'ws12_release_project_stability_gate',
+    tier: 'endgame_showcase',
+    label: '建设结算稳定闸门',
+    priceBand: {
+      money: [5000, 12000],
+      timeMinutes: [25, 45]
+    },
+    outputBand: {
+      coveredPlans: [4, 8],
+      compensationReach: '全项目说明与补偿预案',
+      compatibilityScope: ['saveVersion', 'maintenanceStates', 'donationStates']
+    },
+    consumptionBand: {
+      manualChecks: [4, 8],
+      rollbackBudget: [2, 3],
+      overdueTolerance: [0, 0]
+    }
+  }
+] as const
+
 export const VILLAGE_PROJECT_PLAYER_SEGMENTS: VillageProjectPlayerSegmentDefinition[] = [
   {
     id: 'midgame_operator',
@@ -446,13 +514,21 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
           id: 'archive_shelf_unlock',
           label: '账册架启用',
           targetAmount: 6,
-          rewardSummary: '预留学舍展示架启用效果。'
+          rewardSummary: '发放启用奖励金与基础木料，作为首个学舍捐赠回报。',
+          reward: {
+            money: 800,
+            items: [{ itemId: 'wood', quantity: 8 }]
+          }
         },
         {
           id: 'lecture_corner_unlock',
           label: '讲席补全',
           targetAmount: 12,
-          rewardSummary: '预留学舍讲席升级与后续捐赠奖励入口。'
+          rewardSummary: '发放讲席补全奖金与石料，支撑学舍继续扩建。',
+          reward: {
+            money: 1500,
+            items: [{ itemId: 'stone', quantity: 12 }]
+          }
         }
       ]
     },
@@ -607,13 +683,21 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
           id: 'archive_hall_upgrade',
           label: '资料架扩建',
           targetAmount: 12,
-          rewardSummary: '预留学舍陈列空间扩建。'
+          rewardSummary: '发放陈列扩建补贴与木料，强化学舍经营收益。',
+          reward: {
+            money: 1800,
+            items: [{ itemId: 'wood', quantity: 12 }]
+          }
         },
         {
           id: 'lecture_hall_upgrade',
           label: '讲席成形',
           targetAmount: 24,
-          rewardSummary: '预留终局学舍功能升级。'
+          rewardSummary: '发放终局学舍升级奖金与丝绸材料，形成明确里程碑奖励。',
+          reward: {
+            money: 2800,
+            items: [{ itemId: 'hanhai_silk', quantity: 1 }]
+          }
         }
       ]
     },
@@ -711,13 +795,21 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
           id: 'supply_cache_unlock',
           label: '补给仓启用',
           targetAmount: 4,
-          rewardSummary: '预留商队补给仓功能。'
+          rewardSummary: '发放商队补给金与鱼饵，作为补给仓启用奖励。',
+          reward: {
+            money: 1200,
+            items: [{ itemId: 'bait', quantity: 4 }]
+          }
         },
         {
           id: 'route_board_upgrade',
           label: '路线公告补全',
           targetAmount: 8,
-          rewardSummary: '预留商路路线板升级。'
+          rewardSummary: '发放商路公告补贴与木料，形成可见的商路回馈。',
+          reward: {
+            money: 2200,
+            items: [{ itemId: 'wood', quantity: 10 }]
+          }
         }
       ]
     },

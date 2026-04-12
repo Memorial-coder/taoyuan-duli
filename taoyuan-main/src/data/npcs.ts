@@ -863,7 +863,11 @@ export const WS09_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     linkedSystem: 'home',
     targetValue: 3,
     durationDays: 7,
-    rewardSummary: '用于承接宅院照料、厨房恢复与生活化文本反馈。',
+    rewardSummary: '完成后可获得铜钱与基础食材，形成可见的家庭经营回报。',
+    reward: {
+      money: 600,
+      items: [{ itemId: 'egg', quantity: 2 }]
+    },
     linkedNpcIds: ['liu_niang', 'chun_lan', 'mo_bai'],
     recommendedRoleId: 'home_care'
   },
@@ -876,7 +880,11 @@ export const WS09_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     linkedSystem: 'fishing',
     targetValue: 5,
     durationDays: 7,
-    rewardSummary: '用于承接知己同游、钓鱼陪伴与外出事件链。',
+    rewardSummary: '完成后会返还一笔外出活动经费，并补给鱼饵。',
+    reward: {
+      money: 900,
+      items: [{ itemId: 'bait', quantity: 3 }]
+    },
     linkedNpcIds: ['qiu_yue', 'mo_bai', 'da_niu'],
     recommendedRoleId: 'social_coordination'
   },
@@ -889,7 +897,11 @@ export const WS09_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     linkedSystem: 'breeding',
     targetValue: 1,
     durationDays: 14,
-    rewardSummary: '用于承接家业继承、孩子培养与长线协作事件。',
+    rewardSummary: '完成后可获得一笔传承基金与高阶材料，支撑后续长线培养。',
+    reward: {
+      money: 1800,
+      items: [{ itemId: 'silk', quantity: 2 }]
+    },
     linkedNpcIds: ['a_shi', 'dan_qing', 'chun_lan'],
     recommendedRoleId: 'craft_assist'
   }
@@ -903,7 +915,10 @@ export const WS09_ZHIJI_COMPANION_PROJECT_DEFS: ZhijiCompanionProjectDef[] = [
     unlockTier: 'P0',
     linkedSystem: 'quest',
     milestoneTarget: 1,
-    rewardSummary: '用于承接知己事件、谈心任务与生活线入口。'
+    rewardSummary: '完成后返还一笔知己活动经费，强化任务线的正反馈。',
+    reward: {
+      money: 800
+    }
   },
   {
     id: 'zhiji_household_archive',
@@ -912,7 +927,11 @@ export const WS09_ZHIJI_COMPANION_PROJECT_DEFS: ZhijiCompanionProjectDef[] = [
     unlockTier: 'P1',
     linkedSystem: 'home',
     milestoneTarget: 3,
-    rewardSummary: '用于承接家园协作、孩子培养与家庭准备度记录。'
+    rewardSummary: '完成后提供宅院修缮资金与石材补给，强化家园协作价值。',
+    reward: {
+      money: 1200,
+      items: [{ itemId: 'stone', quantity: 8 }]
+    }
   },
   {
     id: 'zhiji_legacy_route',
@@ -921,7 +940,11 @@ export const WS09_ZHIJI_COMPANION_PROJECT_DEFS: ZhijiCompanionProjectDef[] = [
     unlockTier: 'P2',
     linkedSystem: 'breeding',
     milestoneTarget: 5,
-    rewardSummary: '用于承接终局家业继承、跨系统协作与传承事件。'
+    rewardSummary: '完成后发放传承路费与丝绸材料，形成终局协作收益。',
+    reward: {
+      money: 2400,
+      items: [{ itemId: 'hanhai_silk', quantity: 1 }]
+    }
   }
 ]
 

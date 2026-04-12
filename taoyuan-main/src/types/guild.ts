@@ -73,7 +73,7 @@ export interface GuildSeasonSnapshot {
   rankBand: GuildRankBand
 }
 
-export interface GuildSeasonOverview {
+export interface GuildSeasonOverviewLegacy {
   currentSeasonId: string
   currentPhase: GuildSeasonPhase
   asyncRankScore: number
@@ -85,7 +85,7 @@ export interface GuildSeasonOverview {
   guildLevel: number
 }
 
-export interface GuildGoalSummary {
+export interface GuildGoalSummaryLegacy {
   monsterId: string
   monsterName: string
   zone: string
