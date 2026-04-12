@@ -1,7 +1,15 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import { HIDDEN_NPCS, getHiddenNpcById } from '@/data/hiddenNpcs'
-import { getHiddenNpcHeartEvents } from '@/data/hiddenNpcHeartEvents'
+import {
+  createDefaultSpiritBondProgressState,
+  getHiddenNpcHeartEvents,
+  WS09_HIDDEN_NPC_BLESSING_ASSIGNMENTS,
+  WS09_SPIRIT_BLESSING_DEFS,
+  WS09_SPIRIT_BOND_MEMORY_REWARDS,
+  WS09_SPIRIT_TUNING_CONFIG,
+  WS09_SPIRIT_RESONANCE_CONFIG
+} from '@/data/hiddenNpcHeartEvents'
 import { useGameStore } from './useGameStore'
 import { useSkillStore } from './useSkillStore'
 import { useAchievementStore } from './useAchievementStore'
@@ -9,6 +17,7 @@ import { useNpcStore } from './useNpcStore'
 import { useQuestStore } from './useQuestStore'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
+import { WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT } from '@/data/goals'
 import router from '@/router'
 import type { HiddenNpcState, DiscoveryCondition, DiscoveryStep, AffinityLevel, BondBonusType } from '@/types/hiddenNpc'
 import type { Quality, HeartEventDef } from '@/types'
@@ -43,11 +52,16 @@ const defaultState = (npcId: string): HiddenNpcState => ({
   courting: false,
   bonded: false,
   triggeredHeartEvents: [],
-  unlockedAbilities: []
+  unlockedAbilities: [],
+  ...createDefaultSpiritBondProgressState()
 })
 
 export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
   const hiddenNpcStates = ref<HiddenNpcState[]>(HIDDEN_NPCS.map(n => defaultState(n.id)))
+  const relationshipCompanionshipBaselineAudit = WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT
+  const spiritTuning = WS09_SPIRIT_TUNING_CONFIG
+  const spiritFeatureFlags = spiritTuning.featureFlags
+  const spiritActionLocks = ref<string[]>([])
 
   // ==================== 基础查询 ====================
 
@@ -60,6 +74,40 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
       if (state.affinity >= t.min) return t.level
     }
     return 'wary'
+  }
+
+  const resolveSpiritBondTier = (resonancePoints: number): 'P0' | 'P1' | 'P2' => {
+    if (resonancePoints >= WS09_SPIRIT_RESONANCE_CONFIG.resonanceThresholdByTier.P2) return 'P2'
+    if (resonancePoints >= WS09_SPIRIT_RESONANCE_CONFIG.resonanceThresholdByTier.P1) return 'P1'
+    return 'P0'
+  }
+
+  const beginSpiritAction = (lockId: string): boolean => {
+    if (spiritActionLocks.value.includes(lockId)) return false
+    spiritActionLocks.value = [...spiritActionLocks.value, lockId]
+    return true
+  }
+
+  const finishSpiritAction = (lockId: string) => {
+    spiritActionLocks.value = spiritActionLocks.value.filter(entry => entry !== lockId)
+  }
+
+  const createSpiritActionSnapshots = () => {
+    const playerStore = usePlayerStore()
+    const inventoryStore = useInventoryStore()
+    return {
+      player: playerStore.serialize(),
+      inventory: inventoryStore.serialize(),
+      hiddenNpc: serialize()
+    }
+  }
+
+  const rollbackSpiritAction = (snapshots: ReturnType<typeof createSpiritActionSnapshots>) => {
+    const playerStore = usePlayerStore()
+    const inventoryStore = useInventoryStore()
+    playerStore.deserialize(snapshots.player)
+    inventoryStore.deserialize(snapshots.inventory)
+    deserialize(snapshots.hiddenNpc)
   }
 
   const getRevealedNpcs = computed(() =>
@@ -178,6 +226,10 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     itemId: string,
     quality: Quality
   ): { success: boolean; message: string; affinityChange: number } => {
+    const lockId = `spirit_offering_${npcId}`
+    if (!beginSpiritAction(lockId)) return { success: false, message: '仙缘结算中，请勿重复点击。', affinityChange: 0 }
+    const snapshots = createSpiritActionSnapshots()
+    try {
     const state = getHiddenNpcState(npcId)
     const def = getHiddenNpcById(npcId)
     if (!state || !def) return { success: false, message: '找不到此仙灵。', affinityChange: 0 }
@@ -198,10 +250,15 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     let multiplier = QUALITY_MULTIPLIER[quality]
     if (isManifestationDay(npcId)) multiplier *= MANIFESTATION_BONUS
 
-    const change = Math.round(base * multiplier)
+    const change = Math.min(
+      spiritTuning.operations.maxResonanceGainPerOffering,
+      Math.round(base * multiplier * spiritTuning.rewards.resonanceGainMultiplier)
+    )
     addAffinity(npcId, change)
     state.offeredToday = true
     state.offersThisWeek++
+    const gameStore = useGameStore()
+    addSpiritResonance(npcId, Math.max(0, change), `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
 
     let reaction = '……'
     if (base === OFFERING_RESONANT) reaction = `${def.name}感到灵犀相通。`
@@ -210,10 +267,19 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     else reaction = `${def.name}接受了供奉。`
 
     return { success: true, message: reaction, affinityChange: change }
+    } catch {
+      rollbackSpiritAction(snapshots)
+      return { success: false, message: '供奉结算失败，已回滚。', affinityChange: 0 }
+    } finally {
+      finishSpiritAction(lockId)
+    }
   }
 
   /** 执行独特互动 */
   const performSpecialInteraction = (npcId: string): { success: boolean; message: string; affinityChange: number } => {
+    const lockId = `spirit_interaction_${npcId}`
+    if (!beginSpiritAction(lockId)) return { success: false, message: '仙缘结算中，请勿重复点击。', affinityChange: 0 }
+    try {
     const state = getHiddenNpcState(npcId)
     const def = getHiddenNpcById(npcId)
     if (!state || !def) return { success: false, message: '找不到此仙灵。', affinityChange: 0 }
@@ -277,11 +343,18 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     state.specialInteractionCooldown = 1
 
     return { success: true, message, affinityChange: affinityGain }
+    } finally {
+      finishSpiritAction(lockId)
+    }
   }
 
   // ==================== 求缘与结缘 ====================
 
   const startCourting = (npcId: string): { success: boolean; message: string } => {
+    const lockId = `spirit_courting_${npcId}`
+    if (!beginSpiritAction(lockId)) return { success: false, message: '仙缘结算中，请勿重复点击。' }
+    const snapshots = createSpiritActionSnapshots()
+    try {
     const state = getHiddenNpcState(npcId)
     const def = getHiddenNpcById(npcId)
     if (!state || !def) return { success: false, message: '找不到此仙灵。' }
@@ -302,10 +375,21 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     }
 
     state.courting = true
+    state.bondTier = resolveSpiritBondTier(state.resonancePoints)
     return { success: true, message: `${def.name}接受了你的求缘。` }
+    } catch {
+      rollbackSpiritAction(snapshots)
+      return { success: false, message: '求缘失败，已回滚。' }
+    } finally {
+      finishSpiritAction(lockId)
+    }
   }
 
   const formBond = (npcId: string): { success: boolean; message: string } => {
+    const lockId = `spirit_form_bond_${npcId}`
+    if (!beginSpiritAction(lockId)) return { success: false, message: '仙缘结算中，请勿重复点击。' }
+    const snapshots = createSpiritActionSnapshots()
+    try {
     const state = getHiddenNpcState(npcId)
     const def = getHiddenNpcById(npcId)
     if (!state || !def) return { success: false, message: '找不到此仙灵。' }
@@ -319,10 +403,21 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     }
 
     state.bonded = true
+    state.bondTier = resolveSpiritBondTier(state.resonancePoints)
     return { success: true, message: `你与${def.name}结下了永世仙缘。` }
+    } catch {
+      rollbackSpiritAction(snapshots)
+      return { success: false, message: '结缘失败，已回滚。' }
+    } finally {
+      finishSpiritAction(lockId)
+    }
   }
 
   const dissolveBond = (npcId: string): { success: boolean; message: string } => {
+    const lockId = `spirit_dissolve_bond_${npcId}`
+    if (!beginSpiritAction(lockId)) return { success: false, message: '仙缘结算中，请勿重复点击。' }
+    const snapshots = createSpiritActionSnapshots()
+    try {
     const state = getHiddenNpcState(npcId)
     const def = getHiddenNpcById(npcId)
     if (!state || !def) return { success: false, message: '找不到此仙灵。' }
@@ -336,6 +431,12 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     state.courting = false
     state.affinity = Math.min(state.affinity, 1000)
     return { success: true, message: `与${def.name}的缘分已解。` }
+    } catch {
+      rollbackSpiritAction(snapshots)
+      return { success: false, message: '解缘失败，已回滚。' }
+    } finally {
+      finishSpiritAction(lockId)
+    }
   }
 
   // ==================== 心事件 ====================
@@ -444,6 +545,139 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     return abilities
   })
 
+  const spiritBondAuditSnapshot = computed(() => {
+    const bondedState = hiddenNpcStates.value.find(state => state.bonded) ?? null
+    const courtingCount = hiddenNpcStates.value.filter(state => state.courting).length
+    const bondedCount = hiddenNpcStates.value.filter(state => state.bonded).length
+    const totalTriggeredHeartEventCount = hiddenNpcStates.value.reduce((total, state) => total + state.triggeredHeartEvents.length, 0)
+    const totalUnlockedAbilityCount = hiddenNpcStates.value.reduce((total, state) => total + state.unlockedAbilities.length, 0)
+    const totalAffinity = hiddenNpcStates.value.reduce((total, state) => total + state.affinity, 0)
+    return {
+      linkedSystemRefs: relationshipCompanionshipBaselineAudit.linkedSystemRefs,
+      auditSubjectPools: relationshipCompanionshipBaselineAudit.auditSubjectPools,
+      revealedNpcCount: getRevealedNpcs.value.length,
+      rumorNpcCount: getRumorNpcs.value.length,
+      courtingCount,
+      bondedCount,
+      bondedNpcId: bondedState?.npcId ?? null,
+      bondBonusType: getBondBonusType(),
+      totalTriggeredHeartEventCount,
+      totalUnlockedAbilityCount,
+      totalAffinity
+    }
+  })
+
+  const getSpiritBlessingSummary = (npcId: string) => {
+    const state = getHiddenNpcState(npcId)
+    if (!state) return null
+    const activeBlessing = WS09_SPIRIT_BLESSING_DEFS.find(blessing => blessing.id === state.activeBlessingId) ?? null
+    const memoryRewards = WS09_SPIRIT_BOND_MEMORY_REWARDS.filter(entry => entry.npcId === npcId)
+    return {
+      npcId,
+      bondTier: state.bondTier,
+      resonancePoints: state.resonancePoints,
+      activeBlessing,
+      unlockedBlessingIds: state.unlockedBlessingIds,
+      claimedBondMemoryIds: state.claimedBondMemoryIds,
+      memoryRewards
+    }
+  }
+
+  const getAvailableSpiritBlessings = (npcId: string) => {
+    if (!spiritFeatureFlags.spiritBlessingEnabled) return []
+    const state = getHiddenNpcState(npcId)
+    if (!state) return []
+    const assignedBlessingIds = WS09_HIDDEN_NPC_BLESSING_ASSIGNMENTS[npcId] ?? []
+    return WS09_SPIRIT_BLESSING_DEFS.filter(blessing => {
+      if (assignedBlessingIds.length > 0 && !assignedBlessingIds.includes(blessing.id)) return false
+      return blessing.unlockTier === state.bondTier || blessing.unlockTier === 'P0'
+    })
+  }
+
+  const addSpiritResonance = (npcId: string, amount: number, dayTag = '') => {
+    const state = getHiddenNpcState(npcId)
+    if (!state) return null
+    state.resonancePoints = Math.max(0, state.resonancePoints + amount)
+    state.bondTier = resolveSpiritBondTier(state.resonancePoints)
+    if (dayTag) state.lastOfferingDayTag = dayTag
+    return state
+  }
+
+  const activateSpiritBlessing = (npcId: string, blessingId: string, dayTag = '') => {
+    const lockId = `spirit_activate_blessing_${npcId}_${blessingId}`
+    if (!beginSpiritAction(lockId)) return false
+    try {
+    if (!spiritFeatureFlags.spiritBlessingEnabled) return false
+    const state = getHiddenNpcState(npcId)
+    const blessing = WS09_SPIRIT_BLESSING_DEFS.find(entry => entry.id === blessingId)
+    if (!state || !blessing) return false
+    state.activeBlessingId = blessingId
+    state.bondTier = resolveSpiritBondTier(state.resonancePoints)
+    if (!state.unlockedBlessingIds.includes(blessingId)) {
+      state.unlockedBlessingIds = [...state.unlockedBlessingIds, blessingId]
+    }
+    if (dayTag) state.lastOfferingDayTag = dayTag
+    return true
+    } finally {
+      finishSpiritAction(lockId)
+    }
+  }
+
+  const clearSpiritBlessing = (npcId: string) => {
+    const state = getHiddenNpcState(npcId)
+    if (!state) return
+    state.activeBlessingId = null
+  }
+
+  const claimBondMemory = (npcId: string, memoryId: string) => {
+    const lockId = `spirit_claim_memory_${npcId}_${memoryId}`
+    if (!beginSpiritAction(lockId)) return false
+    try {
+    if (!spiritFeatureFlags.bondMemoryEnabled) return false
+    const state = getHiddenNpcState(npcId)
+    if (!state || state.claimedBondMemoryIds.includes(memoryId)) return false
+    state.claimedBondMemoryIds = [...state.claimedBondMemoryIds, memoryId]
+    return true
+    } finally {
+      finishSpiritAction(lockId)
+    }
+  }
+
+  const getHiddenNpcDebugSnapshot = () => ({
+    revealedNpcIds: getRevealedNpcs.value.map(npc => npc.id),
+    bondedNpcId: getBondedNpc.value?.id ?? null,
+    spiritBlessings: hiddenNpcStates.value.map(state => ({
+      npcId: state.npcId,
+      bondTier: state.bondTier,
+      resonancePoints: state.resonancePoints,
+      activeBlessingId: state.activeBlessingId
+    })),
+    activeAbilityIds: getActiveAbilities.value.map(ability => ability.id)
+  })
+
+  const processSpiritBondTick = (payload: {
+    currentDayTag: string
+    currentWeekId: string
+    startedNewWeek: boolean
+  }) => {
+    const messages: string[] = []
+    for (const state of hiddenNpcStates.value) {
+      state.bondTier = resolveSpiritBondTier(state.resonancePoints)
+      if (payload.startedNewWeek && state.activeBlessingId && spiritTuning.operations.activeBlessingResetOnNewWeek) {
+        messages.push(`【仙缘】${state.npcId} 的祝福「${state.activeBlessingId}」已在周切换时收束。`)
+        state.activeBlessingId = null
+      }
+      if (payload.startedNewWeek && state.discoveryPhase === 'revealed') {
+        state.lastOfferingDayTag = payload.currentDayTag
+      }
+    }
+    return {
+      messages,
+      activeBlessingCount: hiddenNpcStates.value.filter(state => Boolean(state.activeBlessingId)).length,
+      bondedCount: hiddenNpcStates.value.filter(state => state.bonded).length
+    }
+  }
+
   // ==================== 每日处理 ====================
 
   /** 处理结缘每日奖励 */
@@ -538,18 +772,26 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
   // ==================== 序列化 ====================
 
   const serialize = () => ({
+    spiritBondVersion: 2,
     hiddenNpcStates: hiddenNpcStates.value
   })
 
   const deserialize = (data: ReturnType<typeof serialize>) => {
     const savedStates = (data.hiddenNpcStates ?? []).map((s: any) => ({
       ...defaultState(s.npcId),
-      ...s
+      ...s,
+      bondTier: ['P0', 'P1', 'P2'].includes(s.bondTier) ? s.bondTier : 'P0',
+      resonancePoints: Math.max(0, Number(s.resonancePoints) || 0),
+      lastOfferingDayTag: typeof s.lastOfferingDayTag === 'string' ? s.lastOfferingDayTag : '',
+      activeBlessingId: typeof s.activeBlessingId === 'string' ? s.activeBlessingId : null,
+      unlockedBlessingIds: Array.isArray(s.unlockedBlessingIds) ? s.unlockedBlessingIds.filter((id: unknown) => typeof id === 'string') : [],
+      claimedBondMemoryIds: Array.isArray(s.claimedBondMemoryIds) ? s.claimedBondMemoryIds.filter((id: unknown) => typeof id === 'string') : []
     }))
     // 合并：保留已保存的，为新增NPC补充默认状态
     const savedIds = new Set(savedStates.map((s: HiddenNpcState) => s.npcId))
     const newStates = HIDDEN_NPCS.filter(n => !savedIds.has(n.id)).map(n => defaultState(n.id))
     hiddenNpcStates.value = [...savedStates, ...newStates]
+    spiritActionLocks.value = []
   }
 
   return {
@@ -572,11 +814,21 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     markHeartEventTriggered,
     checkAbilityUnlocks,
     getActiveAbilities,
+    getSpiritBlessingSummary,
+    getAvailableSpiritBlessings,
     isAbilityActive,
     getAbilityValue,
+    addSpiritResonance,
+    activateSpiritBlessing,
+    clearSpiritBlessing,
+    claimBondMemory,
     getBondBonusType,
     getBondBonus,
     getBondBonusByType,
+    relationshipCompanionshipBaselineAudit,
+    spiritBondAuditSnapshot,
+    getHiddenNpcDebugSnapshot,
+    processSpiritBondTick,
     dailyBondBonus,
     dailyReset,
     serialize,

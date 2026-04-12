@@ -869,6 +869,14 @@ router.get('/taoyuan/mail/:id', loginRequired, async (req, res) => {
   }
 });
 
+router.get('/admin/taoyuan/mail/presets/guild-season', adminAuth, (req, res) => {
+  try {
+    res.json({ ok: true, config: taoyuanMailbox.getGuildSeasonMailboxConfig() });
+  } catch (error) {
+    res.status(error?.status || 500).json({ ok: false, msg: error?.message || '获取公会赛季邮件预设失败' });
+  }
+});
+
 router.post('/taoyuan/mail/:id/read', loginRequired, signRequired, async (req, res) => {
   try {
     const mail = await taoyuanMailbox.markUserMailRead(req.session.username, req.params.id);

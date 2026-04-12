@@ -14,7 +14,7 @@ export type ShopCatalogLuxuryCategory =
   | 'functional_voucher'
 
 export type ShopCatalogRefreshCycle = 'persistent' | 'weekly' | 'seasonal' | 'event'
-export type ShopCatalogLinkedSystem = 'shop' | 'wallet' | 'inventory' | 'warehouse' | 'home' | 'decoration' | 'goal' | 'achievement' | 'market' | 'museum' | 'fishPond'
+export type ShopCatalogLinkedSystem = 'shop' | 'wallet' | 'inventory' | 'warehouse' | 'home' | 'decoration' | 'goal' | 'quest' | 'achievement' | 'market' | 'museum' | 'fishPond'
 export type ShopCatalogPriceBand = 'entry' | 'mid' | 'high' | 'luxury' | 'prestige'
 export type ShopCatalogServiceBillingCycle = 'one_off' | 'daily' | 'weekly' | 'seasonal'
 export type ShopCatalogEntitlementStatus = 'inactive' | 'active' | 'expired' | 'consumed'
@@ -95,6 +95,17 @@ export interface ShopCatalogServiceContractConfig {
   goalReputationFlatBonus?: number
   maintenanceCostRateReduction?: number
   fishPondDailyOutputBonus?: number
+}
+
+export interface ShopCatalogActivityOfferBundleDef {
+  id: string
+  campaignId: string
+  label: string
+  description: string
+  unlockTier: ShopCatalogContentTier
+  linkedThemeWeekIds?: string[]
+  recommendedOfferIds: string[]
+  linkedSystems: ShopCatalogLinkedSystem[]
 }
 
 export interface ShopCatalogOfferDef {
@@ -239,6 +250,9 @@ export interface ShopServiceContractSummary {
   linkedSystems: ShopCatalogLinkedSystem[]
   activatedDayKey: string
   expiresDayKey: string
+  autoRenew: boolean
+  renewCount: number
+  totalFeesPaid: number
   canPurchase: boolean
   canRenew: boolean
 }

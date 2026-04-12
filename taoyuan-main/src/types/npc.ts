@@ -6,6 +6,9 @@ export type FriendshipLevel = 'stranger' | 'acquaintance' | 'friendly' | 'bestFr
 /** 更生活化的关系阶段（用于UI/收益/委托） */
 export type RelationshipStage = 'recognize' | 'familiar' | 'friend' | 'bestie' | 'romance' | 'married' | 'family'
 
+/** WS09 关系线内容梯度 */
+export type RelationshipContentTier = 'P0' | 'P1' | 'P2'
+
 export type NpcPerkType = 'shop_discount' | 'quest_unlock' | 'item_reward' | 'recipe_hint' | 'daily_bonus' | 'family_event'
 
 export interface NpcPerkEffect {
@@ -34,6 +37,84 @@ export interface FamilyEventDef {
   requiredDaysMarried?: number
 }
 
+export type HouseholdRoleId = 'field_support' | 'home_care' | 'craft_assist' | 'social_coordination'
+
+export interface HouseholdRoleDef {
+  id: HouseholdRoleId
+  label: string
+  description: string
+  unlockTier: RelationshipContentTier
+  linkedSystems: Array<'home' | 'quest' | 'breeding' | 'fishing'>
+  rewardSummary: string
+}
+
+export interface HouseholdRoleAssignmentState {
+  npcId: string
+  roleId: HouseholdRoleId
+  assignedWeekId: string
+  progressDays: number
+  completedCycles: number
+}
+
+export interface HouseholdDivisionState {
+  version: number
+  unlockTier: RelationshipContentTier
+  assignments: HouseholdRoleAssignmentState[]
+  lastSettlementDayTag: string
+  pendingRewardIds: string[]
+}
+
+export type FamilyWishCategory = 'household' | 'childcare' | 'social' | 'spirit'
+
+export interface FamilyWishDef {
+  id: string
+  title: string
+  description: string
+  unlockTier: RelationshipContentTier
+  category: FamilyWishCategory
+  linkedSystem: 'home' | 'quest' | 'breeding' | 'fishing' | 'goal'
+  targetValue: number
+  durationDays: number
+  rewardSummary: string
+  linkedNpcIds?: string[]
+  recommendedRoleId?: HouseholdRoleId
+}
+
+export interface FamilyWishBoardState {
+  version: number
+  unlockTier: RelationshipContentTier
+  activeWishId: string | null
+  completedWishIds: string[]
+  rerollCount: number
+  streakCount: number
+  progress: number
+  targetValue: number
+  startedDayTag: string
+  expiresDayTag: string
+  rewardClaimed: boolean
+}
+
+export interface ZhijiCompanionProjectDef {
+  id: string
+  label: string
+  description: string
+  unlockTier: RelationshipContentTier
+  linkedSystem: 'quest' | 'home' | 'breeding' | 'fishing'
+  milestoneTarget: number
+  rewardSummary: string
+}
+
+export interface ZhijiCompanionProjectState {
+  projectId: string
+  npcId: string
+  unlockTier: RelationshipContentTier
+  progress: number
+  targetValue: number
+  activatedWeekId: string
+  completed: boolean
+  rewarded: boolean
+}
+
 /** NPC 定义 */
 export interface NpcDef {
   id: string
@@ -60,6 +141,10 @@ export interface NpcDef {
   birthday?: { season: Season; day: number }
   relationshipRewards?: RelationshipRewardDef[]
   familyEvents?: FamilyEventDef[]
+  companionshipTier?: RelationshipContentTier
+  householdRoleIds?: HouseholdRoleId[]
+  familyWishIds?: string[]
+  zhijiProjectIds?: string[]
 }
 
 /** NPC 状态（运行时） */
@@ -80,6 +165,10 @@ export interface NpcState {
   triggeredHeartEvents: string[]
   /** 已领取/解锁的关系奖励ID */
   unlockedPerks?: string[]
+  companionshipTier: RelationshipContentTier
+  activeHouseholdRoleId: HouseholdRoleId | null
+  completedFamilyWishIds: string[]
+  unlockedCompanionProjectIds: string[]
 }
 
 /** 心事件场景 */
@@ -108,6 +197,14 @@ export interface HeartEventDef {
 /** 子女成长阶段 */
 export type ChildStage = 'baby' | 'toddler' | 'child' | 'teen'
 
+export type ChildTrainingFocus = 'farm' | 'craft' | 'social' | 'spirit'
+
+export interface ChildTrainingState {
+  focus: ChildTrainingFocus | null
+  lessonsThisWeek: number
+  milestoneIds: string[]
+}
+
 /** 子女状态 */
 export interface ChildState {
   id: number
@@ -118,6 +215,7 @@ export interface ChildState {
   interactedToday: boolean
   /** 出生品质 */
   birthQuality: 'normal' | 'premature' | 'healthy'
+  trainingState: ChildTrainingState
 }
 
 /** 孕期阶段 */
@@ -147,4 +245,5 @@ export interface PregnancyState {
   giftedForPregnancy: boolean
   companionToday: boolean
   medicalPlan: 'normal' | 'advanced' | 'luxury' | null
+  careMilestoneIds: string[]
 }

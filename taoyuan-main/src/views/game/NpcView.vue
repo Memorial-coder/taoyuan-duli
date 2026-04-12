@@ -26,6 +26,41 @@
     <div v-if="activeTab === 'villager'">
       <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
 
+      <div class="border border-accent/20 rounded-xs p-2 mb-3 bg-accent/5">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <p class="text-xs text-accent">陪伴总览</p>
+            <p class="text-[10px] text-muted mt-0.5">婚后分工、家庭心愿与挚友协作已经接入统一关系线入口。</p>
+          </div>
+          <span class="text-[10px] text-muted whitespace-nowrap">{{ relationshipDebugSnapshot.contentTier }}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[10px]">
+          <div class="flex items-center justify-between">
+            <span class="text-muted">当前家庭心愿</span>
+            <span class="text-accent">{{ activeFamilyWishDef?.title ?? '未激活' }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted">婚后分工数</span>
+            <span>{{ relationshipDebugSnapshot.householdAssignments.length }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted">挚友项目数</span>
+            <span>{{ relationshipDebugSnapshot.zhijiCompanionProjects.length }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted">孩子数量</span>
+            <span>{{ relationshipDebugSnapshot.childCount }}</span>
+          </div>
+        </div>
+        <p class="text-[10px] text-muted mt-2 leading-4">
+          {{
+            activeFamilyWishDef
+              ? `当前进度：${familyWishOverview.state.progress}/${Math.max(1, familyWishOverview.state.targetValue)}，建议围绕 ${activeFamilyWishDef.title} 安排本周陪伴节奏。`
+              : '当前尚未激活家庭心愿；后续页面会优先围绕婚后分工、知己协作与孩子成长组织新一轮家庭目标。'
+          }}
+        </p>
+      </div>
+
       <!-- NPC 网格：移动端紧凑，桌面端详细 -->
       <div class="grid grid-cols-4 md:grid-cols-3 gap-1.5 md:gap-2">
         <div
@@ -210,6 +245,52 @@
           仙灵通常按「传闻 → 惊鸿一瞥 → 初次相遇 → 愿意往来」推进。多留意对应的地点、时间、天气、技能等级和关键物品；
           显现后可通过互动、供奉、求缘、结缘逐步解锁能力与长期加成。
         </p>
+      </div>
+
+      <div class="border border-accent/20 rounded-xs p-2 mb-3">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <p class="text-xs text-accent">仙缘运营</p>
+            <p class="text-[10px] text-muted mt-0.5">共鸣、祝福与结缘记忆会在统一周切换节点推进。</p>
+          </div>
+          <span class="text-[10px] text-muted">已结缘 {{ spiritBondOverview.bondedCount }}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-1 mt-2 text-[10px]">
+          <div class="flex items-center justify-between">
+            <span class="text-muted">已显现仙灵</span>
+            <span>{{ spiritBondOverview.revealedNpcCount }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted">待跟进传闻</span>
+            <span>{{ spiritBondOverview.rumorNpcCount }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted">总共鸣点</span>
+            <span class="text-accent">{{ spiritBondOverview.totalAffinity }}</span>
+          </div>
+          <div class="flex items-center justify-between">
+            <span class="text-muted">已解锁能力</span>
+            <span>{{ spiritBondOverview.totalUnlockedAbilityCount }}</span>
+          </div>
+        </div>
+        <div v-if="selectedSpiritBlessingSummary" class="border border-accent/10 rounded-xs p-2 mt-2">
+          <div class="flex items-center justify-between text-[10px]">
+            <span class="text-muted">当前选中仙灵</span>
+            <span class="text-accent">{{ selectedSpiritBlessingSummary.bondTier }}</span>
+          </div>
+          <p class="text-[10px] text-muted mt-1 leading-4">
+            当前祝福：{{ selectedSpiritBlessingSummary.activeBlessing?.label ?? '未启用' }}
+          </p>
+          <div class="flex flex-wrap gap-1 mt-1">
+            <span
+              v-for="blessing in selectedSpiritBlessings"
+              :key="blessing.id"
+              class="text-[10px] px-1 rounded-xs border border-accent/15 text-accent/80"
+            >
+              {{ blessing.label }}
+            </span>
+          </div>
+        </div>
       </div>
 
       <!-- 已显现的仙灵 -->
@@ -811,6 +892,12 @@
 
   const activeTab = ref<'villager' | 'spirit'>('villager')
   const selectedHiddenNpc = ref<string | null>(null)
+  const relationshipDebugSnapshot = computed(() => npcStore.getRelationshipDebugSnapshot())
+  const familyWishOverview = computed(() => npcStore.getFamilyWishOverview())
+  const activeFamilyWishDef = computed(() => familyWishOverview.value.defs.find(def => def.id === familyWishOverview.value.state.activeWishId) ?? null)
+  const spiritBondOverview = computed(() => hiddenNpcStore.spiritBondAuditSnapshot)
+  const selectedSpiritBlessingSummary = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getSpiritBlessingSummary(selectedHiddenNpc.value) : null))
+  const selectedSpiritBlessings = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getAvailableSpiritBlessings(selectedHiddenNpc.value) : []))
 
   const revealedHiddenNpcs = computed(() => hiddenNpcStore.getRevealedNpcs)
     const rumorHiddenNpcs = computed(() => hiddenNpcStore.getRumorNpcs)

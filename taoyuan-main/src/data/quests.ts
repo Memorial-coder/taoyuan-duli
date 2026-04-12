@@ -1,8 +1,31 @@
-import type { CompendiumEntry, QuestTemplateDef, QuestInstance, QuestType, RelationshipStage, RewardTicketType, VillagerQuestCategory } from '@/types'
+import type {
+  ActivityQuestWindowState,
+  CompensationPlan,
+  CompendiumEntry,
+  ItemCategory,
+  LimitedTimeQuestCampaignDef,
+  QaCaseDef,
+  QuestDeliveryMode,
+  QuestInstance,
+  QuestTemplateDef,
+  QuestThemeTag,
+  QuestType,
+  OrderGenerationTraceAttempt,
+  ReleaseChecklistItem,
+  RelationshipStage,
+  RewardTicketType,
+  SpecialOrderComboRequirement,
+  SpecialOrderScoreRule,
+  SpecialOrderStageDef,
+  SpecialOrderStageReward,
+  SpecialOrderStageType,
+  VillagerQuestCategory
+} from '@/types'
 import type { Season } from '@/types/game'
 import { getNpcById } from './npcs'
 import { getCropById } from './crops'
 import { getBreedById } from './pondBreeds'
+import { getItemById } from './items'
 import { isRelationshipStageAtLeast, NPC_VILLAGER_QUEST_PROFILES } from './npcWorld'
 
 export const QUEST_TEMPLATES: QuestTemplateDef[] = [
@@ -139,7 +162,23 @@ interface SpecialOrderTemplate {
   /** 若填写，则只有发现该杂交品种后才会进入订单池 */
   requiredHybridId?: string
   /** 玩法主题标签 */
-  themeTag?: 'breeding' | 'fishpond'
+  themeTag?: QuestThemeTag
+  /** 特殊订单结构版本 */
+  orderVersion?: '2.x' | '3.0'
+  /** 活动来源 */
+  activitySourceId?: string
+  activitySourceLabel?: string
+  /** 单阶段 / 阶段链 / 组合交付 */
+  orderStageType?: SpecialOrderStageType
+  /** 阶段定义 */
+  stageDefinitions?: SpecialOrderStageDef[]
+  /** 组合交付要求 */
+  comboRequirements?: SpecialOrderComboRequirement[]
+  /** 评分规则 */
+  orderScoreRule?: SpecialOrderScoreRule
+  /** 反重复轮换标签 */
+  antiRepeatTags?: string[]
+  antiRepeatCooldownWeeks?: number
   preferredSeasons?: Season[]
   bonusSummary?: string[]
   requiredSweetnessMin?: number
@@ -147,11 +186,144 @@ interface SpecialOrderTemplate {
   requiredResistanceMin?: number
   requiredGenerationMin?: number
   requiredParentCropIds?: string[]
-  deliveryMode?: 'inventory' | 'pond'
+  deliveryMode?: QuestDeliveryMode
   requiredPondGenerationMin?: number
   requiredFishMature?: boolean
   requiredFishHealthy?: boolean
 }
+
+const SPECIAL_ORDER_SCORE_RULES = {
+  procurement_stability: {
+    id: 'procurement_stability',
+    label: '稳定供货评分',
+    description: '根据供货规模、交付稳定性与附加要求满足情况评估订单表现。',
+    factorSummary: ['基础数量达标', '偏好季节 / 主题匹配', '附加要求满足度'],
+    previewText: '订单完成后会按供货稳定度结算 B / A / S 档附加收益。',
+    thresholds: [
+      { rank: 'B', minScore: 60, label: '稳定交付', rewardMoneyMultiplier: 1.02, summary: '达到基础稳定供货线。' },
+      { rank: 'A', minScore: 80, label: '优质交付', rewardMoneyMultiplier: 1.06, rewardTicketMultiplier: 1.1, summary: '完成度与附加要求表现优秀。' },
+      { rank: 'S', minScore: 95, label: '样板供货', rewardMoneyMultiplier: 1.1, rewardTicketMultiplier: 1.25, summary: '可作为主题周样板订单。' }
+    ]
+  },
+  breeding_quality: {
+    id: 'breeding_quality',
+    label: '育种品质评分',
+    description: '根据图鉴品质、世代稳定度与谱系契合度评估育种类特殊订单。',
+    factorSummary: ['图鉴属性门槛', '世代稳定度', '谱系亲本契合'],
+    previewText: '高代且稳定的杂交品种更容易拿到 A / S 评分。',
+    thresholds: [
+      { rank: 'B', minScore: 65, label: '可用批次', rewardMoneyMultiplier: 1.03, summary: '已达到可交付标准。' },
+      { rank: 'A', minScore: 82, label: '精品批次', rewardMoneyMultiplier: 1.08, rewardTicketMultiplier: 1.15, summary: '具备稳定而优秀的图鉴表现。' },
+      { rank: 'S', minScore: 96, label: '认证样板', rewardMoneyMultiplier: 1.12, rewardTicketMultiplier: 1.3, summary: '适合作为后续商业认证与展示样板。' }
+    ]
+  },
+  fish_specimen: {
+    id: 'fish_specimen',
+    label: '鱼塘样本评分',
+    description: '根据鱼体成熟度、健康度与品系代数评估鱼塘高规订单。',
+    factorSummary: ['成熟个体', '健康状态', '品系代数'],
+    previewText: '成熟、健康且代数更高的鱼体更容易获得高分。',
+    thresholds: [
+      { rank: 'B', minScore: 60, label: '合格样本', rewardMoneyMultiplier: 1.03, summary: '满足基础样本要求。' },
+      { rank: 'A', minScore: 84, label: '优质样本', rewardMoneyMultiplier: 1.08, rewardTicketMultiplier: 1.15, summary: '样本状态与代数表现优秀。' },
+      { rank: 'S', minScore: 96, label: '研究级样本', rewardMoneyMultiplier: 1.12, rewardTicketMultiplier: 1.3, summary: '可用于专题展或研究线高规样本。' }
+    ]
+  }
+} as const satisfies Record<string, SpecialOrderScoreRule>
+
+const cloneComboRequirements = (requirements?: SpecialOrderComboRequirement[]): SpecialOrderComboRequirement[] | undefined => {
+  if (!requirements || requirements.length === 0) return undefined
+  return requirements.map(requirement => ({
+    ...requirement,
+    requiredParentCropIds: requirement.requiredParentCropIds ? [...requirement.requiredParentCropIds] : undefined
+  }))
+}
+
+const cloneStageRewards = (stageRewards?: SpecialOrderStageReward): SpecialOrderStageReward | undefined => {
+  if (!stageRewards) return undefined
+  return {
+    ...stageRewards,
+    itemReward: stageRewards.itemReward ? stageRewards.itemReward.map(item => ({ ...item })) : undefined,
+    ticketReward: stageRewards.ticketReward ? { ...stageRewards.ticketReward } : undefined
+  }
+}
+
+const cloneStageDefinitions = (stageDefinitions?: SpecialOrderStageDef[]): SpecialOrderStageDef[] | undefined => {
+  if (!stageDefinitions || stageDefinitions.length === 0) return undefined
+  return stageDefinitions.map(stage => ({
+    ...stage,
+    requirementSummary: stage.requirementSummary ? [...stage.requirementSummary] : undefined,
+    comboRequirements: cloneComboRequirements(stage.comboRequirements),
+    stageRewards: cloneStageRewards(stage.stageRewards)
+  }))
+}
+
+const createSingleStageDefinitions = (input: {
+  title: string
+  description: string
+  targetItemId: string
+  targetItemName: string
+  quantity: number
+  deliveryMode?: QuestDeliveryMode
+}): SpecialOrderStageDef[] => [
+  {
+    id: 'delivery',
+    title: input.title,
+    description: input.description,
+    phaseType: 'deliver',
+    targetItemId: input.targetItemId,
+    targetItemName: input.targetItemName,
+    targetQuantity: input.quantity,
+    deliveryMode: input.deliveryMode
+  }
+]
+
+const createComboStageDefinitions = (input: {
+  title: string
+  description: string
+  requirements: SpecialOrderComboRequirement[]
+  requirementSummary?: string[]
+}): SpecialOrderStageDef[] => [
+  {
+    id: 'combo_delivery',
+    title: input.title,
+    description: input.description,
+    phaseType: 'deliver',
+    requirementSummary: input.requirementSummary,
+    comboRequirements: cloneComboRequirements(input.requirements)
+  }
+]
+
+const createMultiStageDefinitions = (input: {
+  stages: Array<{
+    id: string
+    title: string
+    description: string
+    phaseType: SpecialOrderStageDef['phaseType']
+    targetItemId?: string
+    targetItemName?: string
+    targetQuantity?: number
+    deliveryMode?: QuestDeliveryMode
+    requirementSummary?: string[]
+    comboRequirements?: SpecialOrderComboRequirement[]
+    stageRewards?: SpecialOrderStageReward
+    nextStageTemplateId?: string
+  }>
+}): SpecialOrderStageDef[] =>
+  input.stages.map(stage => ({
+    id: stage.id,
+    title: stage.title,
+    description: stage.description,
+    phaseType: stage.phaseType,
+    targetItemId: stage.targetItemId,
+    targetItemName: stage.targetItemName,
+    targetQuantity: stage.targetQuantity,
+    deliveryMode: stage.deliveryMode,
+    requirementSummary: stage.requirementSummary ? [...stage.requirementSummary] : undefined,
+    comboRequirements: cloneComboRequirements(stage.comboRequirements),
+    stageRewards: cloneStageRewards(stage.stageRewards),
+    nextStageTemplateId: stage.nextStageTemplateId
+  }))
 
 export const BREEDING_SPECIAL_ORDER_BASELINE = {
   auditId: 'ws05_breeding_special_order_theme_week',
@@ -162,6 +334,115 @@ export const BREEDING_SPECIAL_ORDER_BASELINE = {
     themeBias: '以 preferredQuestThemeTag 与 breedingFocusHybridIds 为主题周偏置来源。'
   }
 } as const
+
+export const BREEDING_SPECIAL_ORDER_TUNING_CONFIG = {
+  featureFlags: {
+    scoreSettlementEnabled: true,
+    antiRepeatRotationEnabled: true,
+    duplicateSettlementGuardEnabled: true,
+    themeWeekBiasEnabled: true
+  },
+  generation: {
+    preferredThemeWeightBonus: 2,
+    preferredSeasonWeightBonus: 1,
+    preferredHybridWeightBonus: 2,
+    preferredMarketCategoryWeightBonus: 2,
+    discouragedMarketCategoryWeightPenalty: 1,
+    breedingMarketWeightBonus: 1,
+    fishpondMarketWeightBonus: 1,
+    antiRepeatGenerationAttempts: 4
+  },
+  settlement: {
+    baseScore: 58,
+    seasonMatchBonus: 4,
+    activitySourceBonus: 3,
+    themeWeekMatchBonus: 5,
+    timelinessHighRemainingRatio: 0.6,
+    timelinessMediumRemainingRatio: 0.3,
+    timelinessHighBonus: 6,
+    timelinessMediumBonus: 3,
+    recommendedHybridBonusPerEntry: 2,
+    recommendedHybridBonusCap: 6,
+    breedingEntryBaseBonus: 8,
+    breedingRequirementMetBonus: 6,
+    breedingRequirementOverflowDivisor: 4,
+    breedingRequirementOverflowCap: 8,
+    breedingGenerationOverflowStepBonus: 2,
+    breedingGenerationOverflowCap: 10,
+    breedingTotalStatsDivisor: 25,
+    breedingTotalStatsCap: 12,
+    breedingParentMatchedBonus: 3,
+    breedingParentFullBonus: 8,
+    fishpondGenerationBonusPerTier: 4,
+    fishpondGenerationBonusCap: 12,
+    fishpondTraitBonus: 6,
+    requirementSummaryBonusPerEntry: 2,
+    requirementSummaryBonusCap: 8,
+    genericQuantityDivisor: 3,
+    genericQuantityBonusCap: 12,
+    minimumScore: 35,
+    maximumScore: 100
+  },
+  operations: {
+    antiRepeatHistoryLimit: 24,
+    settlementReceiptLimit: 40,
+    weeklyRefreshStartAbsoluteWeek: 4,
+    antiRepeatCooldownWeeks: 2,
+    themeWeekCooldownReduction: 1
+  }
+} as const
+
+export const WS10_LIMITED_TIME_QUEST_CAMPAIGN_DEFS: LimitedTimeQuestCampaignDef[] = [
+  {
+    id: 'ws10_limited_theme_rotation',
+    label: '主题周限时委托',
+    description: '围绕主题周当前焦点，把高阶订单与每日告示板包装成低频但可解释的活动委托窗口。',
+    unlockTier: 'P0',
+    linkedCampaignId: 'ws10_campaign_theme_rotation',
+    preferredThemeTag: 'breeding',
+    activitySourceId: 'ws10_theme_rotation',
+    activitySourceLabel: '主题周轮转活动',
+    durationDays: 7,
+    recommendedOfferIds: ['weekly_inventory_bag', 'func_field_irrigation_pack'],
+    rewardSummary: '用于承接主题周活动单、周目标和结算邮件之间的配置挂点。'
+  },
+  {
+    id: 'ws10_supply_chain_sprint',
+    label: '限时供货冲刺',
+    description: '围绕供货活动与高阶订单评分，预留中期活动窗口的数据形状。',
+    unlockTier: 'P1',
+    linkedCampaignId: 'ws10_campaign_limited_supply',
+    preferredThemeTag: 'breeding',
+    activitySourceId: 'ws10_supply_chain',
+    activitySourceLabel: '限时供货活动',
+    durationDays: 5,
+    recommendedOfferIds: ['func_builder_pack', 'autumn_harvest_pack'],
+    rewardSummary: '用于承接限时供货、活动评分和中期奖励模板。'
+  },
+  {
+    id: 'ws10_world_milestone_notice',
+    label: '全服共建收尾委托',
+    description: '为世界里程碑收尾、全服共建和补偿型活动任务预留 P2 数据骨架。',
+    unlockTier: 'P2',
+    linkedCampaignId: 'ws10_campaign_world_milestone',
+    preferredThemeTag: 'fishpond',
+    activitySourceId: 'ws10_world_milestone',
+    activitySourceLabel: '全服共建活动',
+    durationDays: 14,
+    recommendedOfferIds: ['premium_warehouse_charter', 'weekly_pond_care_pack'],
+    rewardSummary: '用于承接终局共建、活动收尾和邮件回流说明。'
+  }
+]
+
+export const createDefaultActivityQuestWindowState = (): ActivityQuestWindowState => ({
+  version: 1,
+  activeCampaignId: null,
+  activeQuestTemplateIds: [],
+  lastRefreshDayTag: '',
+  nextRefreshDayTag: '',
+  completedWindowIds: [],
+  claimedRewardMailIds: []
+})
 
 /** 按梯度分层的特殊订单模板 */
 const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
@@ -266,6 +547,19 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     npcId: 'liu_niang',
     tier: 2,
     rewardProfileId: 'operations_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'spring_breeding_tasting',
+    activitySourceLabel: '春种品鉴周',
+    orderStageType: 'single',
+    stageDefinitions: createSingleStageDefinitions({
+      title: '准备春种样菜',
+      description: '商会想确认你已具备稳定交付翡翠萝卜的能力。',
+      targetItemId: 'emerald_radish',
+      targetItemName: '翡翠萝卜',
+      quantity: 6
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.breeding_quality,
+    antiRepeatTags: ['breeding', 'spring', 'radish_showcase'],
     requiredHybridId: 'emerald_radish',
     themeTag: 'breeding',
     preferredSeasons: ['spring'],
@@ -283,6 +577,19 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     npcId: 'chen_bo',
     tier: 2,
     rewardProfileId: 'trade_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'caravan_procurement_week',
+    activitySourceLabel: '商路备货周',
+    orderStageType: 'single',
+    stageDefinitions: createSingleStageDefinitions({
+      title: '完成首批备货',
+      description: '商路承运人正在筛选适合稳定供货的高价值薯类。',
+      targetItemId: 'golden_tuber',
+      targetItemName: '金油薯',
+      quantity: 8
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.procurement_stability,
+    antiRepeatTags: ['breeding', 'trade', 'tuber_supply'],
     requiredHybridId: 'golden_tuber',
     themeTag: 'breeding',
     preferredSeasons: ['spring'],
@@ -354,6 +661,58 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     npcId: 'chun_lan',
     tier: 3,
     rewardProfileId: 'research_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'tea_house_selection',
+    activitySourceLabel: '茶肆评鉴周',
+    orderStageType: 'multi',
+    stageDefinitions: createMultiStageDefinitions({
+      stages: [
+        {
+          id: 'tea_house_prepare',
+          title: '准备茶肆样茶',
+          description: '先提交一批基础茶样，供茶肆确认本周的选品方向。',
+          phaseType: 'prepare',
+          targetItemId: 'tea',
+          targetItemName: '茶叶',
+          targetQuantity: 4,
+          requirementSummary: ['用于茶肆预筛选，不计入最终成单数量。'],
+          stageRewards: {
+            friendshipReward: 2,
+            summary: '茶肆会先记录你是否具备稳定备样能力。'
+          },
+          nextStageTemplateId: 'tea_house_quality_gate'
+        },
+        {
+          id: 'tea_house_quality_gate',
+          title: '通过品质复核',
+          description: '茶肆会根据图鉴世代、甜度与谱系记录复核翡翠茶的商品力。',
+          phaseType: 'verify',
+          targetItemId: 'jade_tea',
+          targetItemName: '翡翠茶',
+          targetQuantity: 2,
+          requirementSummary: ['验证阶段更关注图鉴属性与谱系稳定度。'],
+          stageRewards: {
+            ticketReward: { research: 1 },
+            summary: '通过复核后会追加记录为研究级样茶来源。'
+          },
+          nextStageTemplateId: 'tea_house_final_delivery'
+        },
+        {
+          id: 'tea_house_final_delivery',
+          title: '提交特供茶样',
+          description: '完成最后一批翡翠茶交付，作为茶肆本周特供货源。',
+          phaseType: 'deliver',
+          targetItemId: 'jade_tea',
+          targetItemName: '翡翠茶',
+          targetQuantity: 6,
+          stageRewards: {
+            summary: '最终阶段将按完整订单评分结算。'
+          }
+        }
+      ]
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.breeding_quality,
+    antiRepeatTags: ['breeding', 'tea', 'quality_selection'],
     requiredHybridId: 'jade_tea',
     themeTag: 'breeding',
     requiredSweetnessMin: 60,
@@ -473,6 +832,58 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     npcId: 'liu_niang',
     tier: 4,
     rewardProfileId: 'exhibit_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'banquet_showcase_week',
+    activitySourceLabel: '宴席陈列周',
+    orderStageType: 'multi',
+    stageDefinitions: createMultiStageDefinitions({
+      stages: [
+        {
+          id: 'banquet_material_prep',
+          title: '准备宴席底材',
+          description: '商会先确认你能稳定备齐宴席前置食材与储运底材。',
+          phaseType: 'prepare',
+          targetItemId: 'watermelon',
+          targetItemName: '西瓜',
+          targetQuantity: 4,
+          requirementSummary: ['用于确认你具备筹备金蜜宴的上游供货能力。'],
+          stageRewards: {
+            friendshipReward: 3,
+            summary: '通过备料后才会进入样板复核。'
+          },
+          nextStageTemplateId: 'banquet_showcase_verify'
+        },
+        {
+          id: 'banquet_showcase_verify',
+          title: '复核样板金蜜瓜',
+          description: '先交少量样板瓜用于宴席陈列与图鉴品质核验。',
+          phaseType: 'verify',
+          targetItemId: 'golden_melon',
+          targetItemName: '金蜜瓜',
+          targetQuantity: 3,
+          requirementSummary: ['验证阶段会结合甜度、产量、世代与谱系要求。'],
+          stageRewards: {
+            ticketReward: { exhibit: 1 },
+            summary: '通过样板复核后会提升展陈与宴席双线评价。'
+          },
+          nextStageTemplateId: 'banquet_showcase_delivery'
+        },
+        {
+          id: 'banquet_showcase_delivery',
+          title: '提交宴席金蜜瓜',
+          description: '完成整批金蜜瓜交付，作为节庆宴席主陈列货源。',
+          phaseType: 'deliver',
+          targetItemId: 'golden_melon',
+          targetItemName: '金蜜瓜',
+          targetQuantity: 10,
+          stageRewards: {
+            summary: '最终阶段将按完整宴席样板订单结算。'
+          }
+        }
+      ]
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.breeding_quality,
+    antiRepeatTags: ['breeding', 'banquet', 'melon_showcase'],
     requiredHybridId: 'golden_melon',
     themeTag: 'breeding',
     requiredSweetnessMin: 72,
@@ -515,6 +926,20 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     npcId: 'qiu_yue',
     tier: 2,
     rewardProfileId: 'pond_premium_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'pond_showcase_week',
+    activitySourceLabel: '鱼塘观赏周',
+    orderStageType: 'single',
+    stageDefinitions: createSingleStageDefinitions({
+      title: '提交观赏样鱼',
+      description: '评比方只接受成熟、健康且可直接核验的观赏鱼样本。',
+      targetItemId: 'koi',
+      targetItemName: '锦鲤',
+      quantity: 2,
+      deliveryMode: 'pond'
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.fish_specimen,
+    antiRepeatTags: ['fishpond', 'showcase', 'koi'],
     themeTag: 'fishpond',
     deliveryMode: 'pond',
     requiredPondGenerationMin: 2,
@@ -534,6 +959,20 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     npcId: 'qiu_yue',
     tier: 3,
     rewardProfileId: 'pond_premium_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'caravan_fish_selection',
+    activitySourceLabel: '商路活体选品周',
+    orderStageType: 'single',
+    stageDefinitions: createSingleStageDefinitions({
+      title: '交付展售金鲤',
+      description: '商路客商会根据金鲤的健康度与代数筛选展售样鱼。',
+      targetItemId: 'golden_carp',
+      targetItemName: '金鲤',
+      quantity: 2,
+      deliveryMode: 'pond'
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.fish_specimen,
+    antiRepeatTags: ['fishpond', 'trade', 'golden_carp'],
     themeTag: 'fishpond',
     deliveryMode: 'pond',
     requiredPondGenerationMin: 3,
@@ -553,6 +992,59 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     npcId: 'lin_lao',
     tier: 4,
     rewardProfileId: 'pond_premium_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'cave_research_week',
+    activitySourceLabel: '洞窟研究周',
+    orderStageType: 'multi',
+    stageDefinitions: createMultiStageDefinitions({
+      stages: [
+        {
+          id: 'cave_lab_prepare',
+          title: '准备研究供电模块',
+          description: '研究站先确认样本箱供电模块是否齐备。',
+          phaseType: 'prepare',
+          targetItemId: 'battery',
+          targetItemName: '电池',
+          targetQuantity: 1,
+          requirementSummary: ['样本运输前需先完成供电模块备齐。'],
+          stageRewards: {
+            ticketReward: { research: 1 },
+            summary: '供电模块齐备后才会进入活体样本核验。'
+          },
+          nextStageTemplateId: 'cave_sample_verify'
+        },
+        {
+          id: 'cave_sample_verify',
+          title: '复核活体样本',
+          description: '研究员会先核验一尾洞穴盲鱼的健康度与代数是否达标。',
+          phaseType: 'verify',
+          targetItemId: 'cave_blindfish',
+          targetItemName: '洞穴盲鱼',
+          targetQuantity: 1,
+          deliveryMode: 'pond',
+          requirementSummary: ['需成熟、健康且可追溯来源的样本个体。'],
+          stageRewards: {
+            summary: '通过后会升级为正式研究样本单。'
+          },
+          nextStageTemplateId: 'cave_sample_delivery'
+        },
+        {
+          id: 'cave_sample_delivery',
+          title: '提交研究样本',
+          description: '完成最终样本交付，供洞窟研究站进行长期记录。',
+          phaseType: 'deliver',
+          targetItemId: 'cave_blindfish',
+          targetItemName: '洞穴盲鱼',
+          targetQuantity: 2,
+          deliveryMode: 'pond',
+          stageRewards: {
+            summary: '最终阶段将按研究级样本订单结算。'
+          }
+        }
+      ]
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.fish_specimen,
+    antiRepeatTags: ['fishpond', 'research', 'cave_blindfish'],
     themeTag: 'fishpond',
     deliveryMode: 'pond',
     requiredPondGenerationMin: 2,
@@ -560,8 +1052,394 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     requiredFishHealthy: true,
     bonusSummary: ['稀有水产生物会优先走研究线，直接从鱼塘提交健康样本可换取高价值功能材料。']
   },
+  {
+    name: '春宴双拼供货',
+    targetItemId: 'emerald_radish',
+    targetItemName: '翡翠萝卜拼单',
+    quantity: 6,
+    days: 7,
+    moneyReward: 2100,
+    itemReward: [{ itemId: 'quality_fertilizer', quantity: 4 }],
+    ticketReward: { exhibit: 1 },
+    seasons: ['spring'],
+    npcId: 'liu_niang',
+    tier: 2,
+    rewardProfileId: 'exhibit_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'spring_banquet_combo_week',
+    activitySourceLabel: '春宴拼单周',
+    orderStageType: 'combo',
+    comboRequirements: [
+      {
+        id: 'combo_emerald_radish',
+        itemId: 'emerald_radish',
+        itemName: '翡翠萝卜',
+        quantity: 4,
+        requiredHybridId: 'emerald_radish',
+        note: '需由你自己的育种图鉴提供稳定货源。'
+      },
+      {
+        id: 'combo_green_tea_drink',
+        itemId: 'green_tea_drink',
+        itemName: '清茶饮',
+        quantity: 2,
+        note: '用于宴席前台试饮。'
+      }
+    ],
+    stageDefinitions: createComboStageDefinitions({
+      title: '备齐春宴拼单',
+      description: '柳娘希望你同时提供春宴样菜与可直接上桌的配饮。',
+      requirements: [
+        {
+          id: 'combo_emerald_radish',
+          itemId: 'emerald_radish',
+          itemName: '翡翠萝卜',
+          quantity: 4,
+          requiredHybridId: 'emerald_radish',
+          note: '需由你自己的育种图鉴提供稳定货源。'
+        },
+        {
+          id: 'combo_green_tea_drink',
+          itemId: 'green_tea_drink',
+          itemName: '清茶饮',
+          quantity: 2,
+          note: '用于宴席前台试饮。'
+        }
+      ],
+      requirementSummary: ['需同时提交育种作物与加工饮品。']
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.breeding_quality,
+    antiRepeatTags: ['combo', 'breeding', 'spring_banquet'],
+    requiredHybridId: 'emerald_radish',
+    themeTag: 'breeding',
+    preferredSeasons: ['spring'],
+    bonusSummary: ['春宴周会优先挑选“育种作物 + 即食配套”的组合供货。']
+  },
+  {
+    name: '茶席陈列套组',
+    targetItemId: 'lotus_tea',
+    targetItemName: '茶席陈列套组',
+    quantity: 8,
+    days: 7,
+    moneyReward: 2800,
+    itemReward: [{ itemId: 'tea', quantity: 6 }],
+    ticketReward: { exhibit: 1, research: 1 },
+    seasons: ['autumn'],
+    npcId: 'chun_lan',
+    tier: 3,
+    rewardProfileId: 'exhibit_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'autumn_tea_showcase_combo',
+    activitySourceLabel: '秋茶陈列周',
+    orderStageType: 'combo',
+    comboRequirements: [
+      {
+        id: 'combo_lotus_tea',
+        itemId: 'lotus_tea',
+        itemName: '莲心茶',
+        quantity: 4,
+        requiredHybridId: 'lotus_tea'
+      },
+      {
+        id: 'combo_osmanthus',
+        itemId: 'osmanthus',
+        itemName: '桂花',
+        quantity: 4,
+        note: '用于茶席香材点缀。'
+      }
+    ],
+    stageDefinitions: createComboStageDefinitions({
+      title: '提交茶席陈列套组',
+      description: '春兰需要一套能直接用于陈列和品鉴的秋茶组合。',
+      requirements: [
+        {
+          id: 'combo_lotus_tea',
+          itemId: 'lotus_tea',
+          itemName: '莲心茶',
+          quantity: 4,
+          requiredHybridId: 'lotus_tea'
+        },
+        {
+          id: 'combo_osmanthus',
+          itemId: 'osmanthus',
+          itemName: '桂花',
+          quantity: 4,
+          note: '用于茶席香材点缀。'
+        }
+      ],
+      requirementSummary: ['组合单会同时检查主茶与点缀材料是否齐备。']
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.breeding_quality,
+    antiRepeatTags: ['combo', 'tea', 'showcase'],
+    requiredHybridId: 'lotus_tea',
+    themeTag: 'breeding',
+    preferredSeasons: ['autumn'],
+    bonusSummary: ['专题茶席更偏好兼顾主品与装饰香材的组合供货。']
+  },
+  {
+    name: '矿馆展陈备料',
+    targetItemId: 'gold_ore',
+    targetItemName: '矿馆展陈备料',
+    quantity: 12,
+    days: 7,
+    moneyReward: 2600,
+    itemReward: [{ itemId: 'charcoal', quantity: 8 }],
+    ticketReward: { construction: 1, exhibit: 1 },
+    seasons: [],
+    npcId: 'a_shi',
+    tier: 3,
+    rewardProfileId: 'operations_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'ore_gallery_combo_week',
+    activitySourceLabel: '矿馆筹展周',
+    orderStageType: 'combo',
+    comboRequirements: [
+      { id: 'combo_gold_ore', itemId: 'gold_ore', itemName: '金矿', quantity: 10 },
+      { id: 'combo_jade', itemId: 'jade', itemName: '翡翠', quantity: 2, note: '用于重点展柜压轴陈列。' }
+    ],
+    stageDefinitions: createComboStageDefinitions({
+      title: '备齐矿馆展陈物资',
+      description: '矿馆筹展需要同时准备基础矿材与高价值点题展品。',
+      requirements: [
+        { id: 'combo_gold_ore', itemId: 'gold_ore', itemName: '金矿', quantity: 10 },
+        { id: 'combo_jade', itemId: 'jade', itemName: '翡翠', quantity: 2, note: '用于重点展柜压轴陈列。' }
+      ],
+      requirementSummary: ['需同时提交主材与压轴陈列物。']
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.procurement_stability,
+    antiRepeatTags: ['combo', 'ore', 'museum_supply'],
+    bonusSummary: ['矿馆筹展单强调“基础供货 + 展示亮点”的双向准备。']
+  },
+  {
+    name: '观赏鲤茶会联供',
+    targetItemId: 'koi',
+    targetItemName: '观赏鲤茶会联供',
+    quantity: 5,
+    days: 7,
+    moneyReward: 3400,
+    itemReward: [{ itemId: 'water_purifier', quantity: 1 }],
+    ticketReward: { exhibit: 1, caravan: 1 },
+    seasons: ['spring', 'summer'],
+    npcId: 'qiu_yue',
+    tier: 3,
+    rewardProfileId: 'pond_premium_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'pond_tea_combo_week',
+    activitySourceLabel: '鱼茶联供周',
+    orderStageType: 'combo',
+    comboRequirements: [
+      {
+        id: 'combo_koi',
+        itemId: 'koi',
+        itemName: '锦鲤',
+        quantity: 1,
+        deliveryMode: 'pond',
+        requiredPondGenerationMin: 2,
+        requiredFishMature: true,
+        requiredFishHealthy: true
+      },
+      {
+        id: 'combo_osmanthus_tea',
+        itemId: 'osmanthus_tea',
+        itemName: '桂花茶',
+        quantity: 4,
+        note: '茶会前台需同步备齐茶饮。'
+      }
+    ],
+    stageDefinitions: createComboStageDefinitions({
+      title: '完成观赏鲤茶会联供',
+      description: '茶会同时需要活体观赏样鱼与前台供应茶饮。',
+      requirements: [
+        {
+          id: 'combo_koi',
+          itemId: 'koi',
+          itemName: '锦鲤',
+          quantity: 1,
+          deliveryMode: 'pond',
+          requiredPondGenerationMin: 2,
+          requiredFishMature: true,
+          requiredFishHealthy: true
+        },
+        {
+          id: 'combo_osmanthus_tea',
+          itemId: 'osmanthus_tea',
+          itemName: '桂花茶',
+          quantity: 4,
+          note: '茶会前台需同步备齐茶饮。'
+        }
+      ],
+      requirementSummary: ['需同时完成鱼塘交付与背包材料交付。']
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.fish_specimen,
+    antiRepeatTags: ['combo', 'fishpond', 'tea_event'],
+    themeTag: 'fishpond',
+    deliveryMode: 'pond',
+    requiredPondGenerationMin: 2,
+    requiredFishMature: true,
+    requiredFishHealthy: true,
+    bonusSummary: ['鱼茶联供周会优先安排观赏鱼与茶饮一体化组合订单。']
+  },
+  {
+    name: '金鲤宴席联运',
+    targetItemId: 'golden_carp',
+    targetItemName: '金鲤宴席联运',
+    quantity: 7,
+    days: 7,
+    moneyReward: 4200,
+    itemReward: [{ itemId: 'fish_feed', quantity: 6 }],
+    ticketReward: { caravan: 2 },
+    seasons: ['summer', 'autumn'],
+    npcId: 'qiu_yue',
+    tier: 4,
+    rewardProfileId: 'trade_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'golden_carp_banquet_combo',
+    activitySourceLabel: '宴席联运周',
+    orderStageType: 'combo',
+    comboRequirements: [
+      {
+        id: 'combo_golden_carp',
+        itemId: 'golden_carp',
+        itemName: '金鲤',
+        quantity: 1,
+        deliveryMode: 'pond',
+        requiredPondGenerationMin: 3,
+        requiredFishMature: true,
+        requiredFishHealthy: true
+      },
+      {
+        id: 'combo_rice_wine',
+        itemId: 'rice_wine',
+        itemName: '米酒',
+        quantity: 6,
+        note: '宴席物流需一并备齐酒饮。'
+      }
+    ],
+    stageDefinitions: createComboStageDefinitions({
+      title: '备齐宴席联运货单',
+      description: '高端宴席要求活体样鱼与酒饮同步走商路交付。',
+      requirements: [
+        {
+          id: 'combo_golden_carp',
+          itemId: 'golden_carp',
+          itemName: '金鲤',
+          quantity: 1,
+          deliveryMode: 'pond',
+          requiredPondGenerationMin: 3,
+          requiredFishMature: true,
+          requiredFishHealthy: true
+        },
+        {
+          id: 'combo_rice_wine',
+          itemId: 'rice_wine',
+          itemName: '米酒',
+          quantity: 6,
+          note: '宴席物流需一并备齐酒饮。'
+        }
+      ],
+      requirementSummary: ['组合单会同时检查活体样鱼与宴席酒饮。']
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.fish_specimen,
+    antiRepeatTags: ['combo', 'fishpond', 'banquet_logistics'],
+    themeTag: 'fishpond',
+    deliveryMode: 'pond',
+    requiredPondGenerationMin: 3,
+    requiredFishMature: true,
+    requiredFishHealthy: true,
+    bonusSummary: ['宴席联运单更强调“活体展示 + 消耗品备货”的组合能力。']
+  },
+  {
+    name: '洞窟联合样本箱',
+    targetItemId: 'cave_blindfish',
+    targetItemName: '洞窟联合样本箱',
+    quantity: 3,
+    days: 7,
+    moneyReward: 5000,
+    itemReward: [{ itemId: 'battery', quantity: 1 }],
+    ticketReward: { research: 2, exhibit: 1 },
+    seasons: [],
+    npcId: 'lin_lao',
+    tier: 4,
+    rewardProfileId: 'research_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'cave_joint_sample_week',
+    activitySourceLabel: '洞窟联合研究周',
+    orderStageType: 'combo',
+    comboRequirements: [
+      {
+        id: 'combo_cave_blindfish',
+        itemId: 'cave_blindfish',
+        itemName: '洞穴盲鱼',
+        quantity: 1,
+        deliveryMode: 'pond',
+        requiredPondGenerationMin: 2,
+        requiredFishMature: true,
+        requiredFishHealthy: true
+      },
+      {
+        id: 'combo_battery',
+        itemId: 'battery',
+        itemName: '电池',
+        quantity: 2,
+        note: '研究站需要稳定供电样本箱。'
+      }
+    ],
+    stageDefinitions: createComboStageDefinitions({
+      title: '提交联合样本箱',
+      description: '研究站要求稀有活体样本与供电模块一起打包送检。',
+      requirements: [
+        {
+          id: 'combo_cave_blindfish',
+          itemId: 'cave_blindfish',
+          itemName: '洞穴盲鱼',
+          quantity: 1,
+          deliveryMode: 'pond',
+          requiredPondGenerationMin: 2,
+          requiredFishMature: true,
+          requiredFishHealthy: true
+        },
+        {
+          id: 'combo_battery',
+          itemId: 'battery',
+          itemName: '电池',
+          quantity: 2,
+          note: '研究站需要稳定供电样本箱。'
+        }
+      ],
+      requirementSummary: ['需同时提交活体样本与研究供电模块。']
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.fish_specimen,
+    antiRepeatTags: ['combo', 'research', 'cave_sample'],
+    themeTag: 'fishpond',
+    deliveryMode: 'pond',
+    requiredPondGenerationMin: 2,
+    requiredFishMature: true,
+    requiredFishHealthy: true,
+    bonusSummary: ['洞窟联合研究周会优先挑选“样本 + 研究器材”的组合交付。']
+  },
 
 ]
+
+export type QuestMarketCategory = 'crop' | 'fish' | 'animal_product' | 'processed' | 'fruit' | 'ore' | 'gem'
+
+const mapItemCategoryToQuestMarketCategory = (category: ItemCategory | undefined): QuestMarketCategory | null => {
+  switch (category) {
+    case 'crop':
+    case 'fish':
+    case 'animal_product':
+    case 'processed':
+    case 'fruit':
+    case 'ore':
+    case 'gem':
+      return category
+    default:
+      return null
+  }
+}
+
+const getQuestMarketCategoryByItemId = (itemId: string): QuestMarketCategory | null => {
+  return mapItemCategoryToQuestMarketCategory(getItemById(itemId)?.category)
+}
 
 const TIER_LABELS = ['简单', '普通', '困难', '极难']
 const TIER_FRIENDSHIP = [5, 8, 12, 15]
@@ -1057,6 +1935,11 @@ export const generateSpecialOrder = (
     discoveredPondBreedIds?: string[]
     preferredThemeTag?: 'breeding' | 'fishpond'
     preferredHybridIds?: string[]
+    preferredMarketCategories?: QuestMarketCategory[]
+    discouragedMarketCategories?: QuestMarketCategory[]
+  },
+  traceOptions?: {
+    onTrace?: (trace: OrderGenerationTraceAttempt) => void
   }
 ): QuestInstance | null => {
   const clampedTier = Math.max(1, Math.min(4, tier))
@@ -1064,6 +1947,8 @@ export const generateSpecialOrder = (
   const compendiumMap = new Map((options?.breedingCompendiumEntries ?? []).map(entry => [entry.hybridId, entry]))
   const discoveredPondBreedIds = new Set(options?.discoveredPondBreedIds ?? [])
   const preferredHybridIds = new Set(options?.preferredHybridIds ?? [])
+  const preferredMarketCategories = new Set(options?.preferredMarketCategories ?? [])
+  const discouragedMarketCategories = new Set(options?.discouragedMarketCategories ?? [])
 
   const matchesBreedingRequirement = (template: SpecialOrderTemplate): boolean => {
     if (template.themeTag !== 'breeding') return true
@@ -1101,7 +1986,15 @@ export const generateSpecialOrder = (
       matchesBreedingRequirement(t) &&
       matchesFishpondRequirement(t)
   )
-  if (valid.length === 0) return null
+  if (valid.length === 0) {
+    traceOptions?.onTrace?.({
+      attempt: 1,
+      candidateCount: 0,
+      blockReason: '当前季节、梯度或玩法前置条件下无可用模板。',
+      candidates: []
+    })
+    return null
+  }
 
   const getRequirementSummary = (template: SpecialOrderTemplate): string[] => {
     const summary: string[] = []
@@ -1119,25 +2012,184 @@ export const generateSpecialOrder = (
     if (template.requiredFishMature) summary.push('需成熟个体')
     if (template.requiredFishHealthy) summary.push('需健康个体')
     if (template.deliveryMode === 'pond') summary.push('可直接从鱼塘交付')
+    if (template.comboRequirements?.length) {
+      summary.push(`组合交付：${template.comboRequirements.map(requirement => `${requirement.itemName}×${requirement.quantity}`).join('、')}`)
+    }
     return summary
   }
 
-  const weightedPool = valid.flatMap(template => {
+  const buildSpecialOrderScoreHint = (template: SpecialOrderTemplate): string[] | undefined => {
+    const hints: string[] = []
+
+    if (template.orderScoreRule?.label) {
+      hints.push(`按「${template.orderScoreRule.label}」结算。`)
+    }
+
+    if (template.orderScoreRule?.id === 'breeding_quality') {
+      if (template.requiredSweetnessMin || template.requiredYieldMin || template.requiredResistanceMin) {
+        const statParts = [
+          template.requiredSweetnessMin ? `甜度≥${template.requiredSweetnessMin}` : '',
+          template.requiredYieldMin ? `产量≥${template.requiredYieldMin}` : '',
+          template.requiredResistanceMin ? `抗性≥${template.requiredResistanceMin}` : ''
+        ].filter(Boolean)
+        if (statParts.length > 0) {
+          hints.push(`评分重点：${statParts.join('、')}。`)
+        }
+      } else {
+        hints.push('评分重点：图鉴综合属性越高越容易拿到高档评价。')
+      }
+      if (template.requiredGenerationMin) {
+        hints.push(`评分会额外参考世代（建议至少 ${template.requiredGenerationMin} 代）。`)
+      }
+      if (template.requiredParentCropIds?.length) {
+        hints.push(`谱系越贴合 ${template.requiredParentCropIds.map(cropId => getCropById(cropId)?.name ?? cropId).join('、')}，评分越高。`)
+      }
+    } else if (template.orderScoreRule?.id === 'fish_specimen') {
+      const fishParts = [
+        template.requiredPondGenerationMin ? `品系代数≥${template.requiredPondGenerationMin}` : '',
+        template.requiredFishMature ? '成熟个体' : '',
+        template.requiredFishHealthy ? '健康状态' : ''
+      ].filter(Boolean)
+      hints.push(`评分重点：${fishParts.length > 0 ? fishParts.join('、') : '样本状态与品系代数'}。`)
+    } else if (template.orderScoreRule?.id === 'procurement_stability') {
+      hints.push('评分重点：供货规模、时令匹配与附加条件完整度。')
+    }
+
+    hints.push('保留更多剩余天数可获得更高时效评价。')
+    return hints.length > 0 ? hints : undefined
+  }
+
+  const buildSpecialOrderDeliverySourceHint = (
+    template: SpecialOrderTemplate,
+    stageDefinitions?: SpecialOrderStageDef[],
+    comboRequirements?: SpecialOrderComboRequirement[]
+  ): string[] | undefined => {
+    const hints: string[] = []
+    const stages = stageDefinitions ?? []
+    const requirements = comboRequirements ?? []
+    const hasPondStage = stages.some(stage => stage.deliveryMode === 'pond') || template.deliveryMode === 'pond'
+    const hasInventoryStage = stages.some(stage => !stage.deliveryMode || stage.deliveryMode === 'inventory') || (!template.deliveryMode || template.deliveryMode === 'inventory')
+    const hasPondRequirement = requirements.some(requirement => requirement.deliveryMode === 'pond')
+    const hasInventoryRequirement = requirements.some(requirement => !requirement.deliveryMode || requirement.deliveryMode === 'inventory')
+
+    if (requirements.length > 0) {
+      const mixedDelivery = (hasPondRequirement && hasInventoryRequirement) || (hasPondStage && hasInventoryStage)
+      if (mixedDelivery) {
+        hints.push('该订单会同时检查背包物资与鱼塘样本来源。')
+      } else if (hasPondRequirement || hasPondStage) {
+        hints.push('该订单可直接从鱼塘提交符合条件的样本。')
+      } else {
+        hints.push('该订单需从背包携带全部材料后统一交付。')
+      }
+      const requirementLines = requirements.map(requirement =>
+        `${requirement.itemName}：${requirement.deliveryMode === 'pond' ? '鱼塘直交' : '背包提交'}`
+      )
+      hints.push(...requirementLines)
+    } else if (hasPondStage && hasInventoryStage) {
+      hints.push('该阶段链同时包含背包提交与鱼塘直交环节。')
+    } else if (hasPondStage) {
+      hints.push('该订单会直接从鱼塘核验并提交样本。')
+    } else {
+      hints.push('该订单需从背包携带目标物后提交。')
+    }
+
+    if (stages.length > 1) {
+      hints.push(`共有 ${stages.length} 个阶段，提交来源会随阶段目标变化。`)
+    }
+
+    return hints.length > 0 ? hints : undefined
+  }
+
+  const buildInitialOrderProgressState = (template: SpecialOrderTemplate, stageDefinitions?: SpecialOrderStageDef[]) => {
+    if (template.orderVersion !== '3.0') return undefined
+    const stages = stageDefinitions && stageDefinitions.length > 0
+      ? stageDefinitions
+      : createSingleStageDefinitions({
+          title: '完成交付',
+          description: '按订单要求完成当前批次交付。',
+          targetItemId: template.targetItemId,
+          targetItemName: template.targetItemName,
+          quantity: template.quantity,
+          deliveryMode: template.deliveryMode
+        })
+
+    return {
+      currentStageIndex: 0,
+      completedStageIds: [],
+      initialDaysRemaining: template.days,
+      currentRank: 'pending' as const,
+      stageProgress: stages.map(stage => ({
+        stageId: stage.id,
+        completed: false,
+        deliveredQuantity: 0,
+        rewardClaimed: false,
+        phaseType: stage.phaseType,
+        nextStageTemplateId: stage.nextStageTemplateId
+      }))
+    }
+  }
+
+  const candidateTraces = valid.map(template => {
     let weight = 1
-    if (options?.preferredThemeTag && template.themeTag === options.preferredThemeTag) {
-      weight += 2
+    const weightReasons = ['基础权重 1']
+    const marketCategory = getQuestMarketCategoryByItemId(template.targetItemId)
+    if (BREEDING_SPECIAL_ORDER_TUNING_CONFIG.featureFlags.themeWeekBiasEnabled && options?.preferredThemeTag && template.themeTag === options.preferredThemeTag) {
+      weight += BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredThemeWeightBonus
+      weightReasons.push(`主题周偏好 +${BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredThemeWeightBonus}`)
     }
     if (template.preferredSeasons?.includes(season)) {
-      weight += 1
+      weight += BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredSeasonWeightBonus
+      weightReasons.push(`偏好季节 +${BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredSeasonWeightBonus}`)
     }
     if (template.requiredHybridId && preferredHybridIds.has(template.requiredHybridId)) {
-      weight += 2
+      weight += BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredHybridWeightBonus
+      weightReasons.push(`推荐杂交目标 +${BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredHybridWeightBonus}`)
     }
-    return Array.from({ length: weight }, () => template)
+    if (marketCategory && preferredMarketCategories.has(marketCategory)) {
+      weight += BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredMarketCategoryWeightBonus
+      weightReasons.push(`市场偏好品类 +${BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.preferredMarketCategoryWeightBonus}`)
+    }
+    if (marketCategory && discouragedMarketCategories.has(marketCategory)) {
+      weight = Math.max(1, weight - BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.discouragedMarketCategoryWeightPenalty)
+      weightReasons.push(`市场低迷品类 -${BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.discouragedMarketCategoryWeightPenalty}`)
+    }
+    if (template.themeTag === 'breeding' && ['crop', 'fruit', 'processed'].some(category => preferredMarketCategories.has(category as QuestMarketCategory))) {
+      weight += BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.breedingMarketWeightBonus
+      weightReasons.push(`育种市场加成 +${BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.breedingMarketWeightBonus}`)
+    }
+    if (template.themeTag === 'fishpond' && preferredMarketCategories.has('fish')) {
+      weight += BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.fishpondMarketWeightBonus
+      weightReasons.push(`鱼塘市场加成 +${BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation.fishpondMarketWeightBonus}`)
+    }
+    return {
+      template,
+      finalWeight: Math.max(1, weight),
+      weightReasons,
+      marketCategory
+    }
   })
+
+  const weightedPool = candidateTraces.flatMap(({ template, finalWeight }) => Array.from({ length: finalWeight }, () => template))
 
   const pool = weightedPool.length > 0 ? weightedPool : valid
   const template = pool[Math.floor(Math.random() * pool.length)]!
+  traceOptions?.onTrace?.({
+    attempt: 1,
+    candidateCount: candidateTraces.length,
+    selectedTemplateName: template.name,
+    selectedTargetItemId: template.targetItemId,
+    candidates: candidateTraces.map(candidate => ({
+      templateName: candidate.template.name,
+      targetItemId: candidate.template.targetItemId,
+      tier: candidate.template.tier,
+      themeTag: candidate.template.themeTag,
+      activitySourceId: candidate.template.activitySourceId,
+      requiredHybridId: candidate.template.requiredHybridId,
+      preferredSeasons: candidate.template.preferredSeasons,
+      finalWeight: candidate.finalWeight,
+      weightReasons: candidate.weightReasons
+    }))
+  })
   const npcDef = getNpcById(template.npcId)
   const npcName = npcDef?.name ?? template.npcId
   const tierLabel = TIER_LABELS[clampedTier - 1]
@@ -1158,14 +2210,31 @@ export const generateSpecialOrder = (
     friendshipReward: TIER_FRIENDSHIP[clampedTier - 1]!,
     ticketReward: template.ticketReward,
     rewardProfileId: template.rewardProfileId,
+    orderVersion: template.orderVersion,
     daysRemaining: template.days,
     accepted: false,
     itemReward: template.itemReward,
     themeTag: template.themeTag,
+    activitySourceId: template.activitySourceId,
+    activitySourceLabel: template.activitySourceLabel,
+    orderStageType: template.orderStageType,
     demandHint: template.bonusSummary?.[0],
+    stageDefinitions: cloneStageDefinitions(template.stageDefinitions),
+    comboRequirements: cloneComboRequirements(template.comboRequirements),
+    orderScoreRule: template.orderScoreRule
+      ? {
+          ...template.orderScoreRule,
+          factorSummary: [...template.orderScoreRule.factorSummary],
+          thresholds: template.orderScoreRule.thresholds.map(threshold => ({ ...threshold }))
+        }
+      : undefined,
+    scoreHint: buildSpecialOrderScoreHint(template),
+    antiRepeatTags: template.antiRepeatTags ? [...template.antiRepeatTags] : undefined,
+    antiRepeatCooldownWeeks: template.antiRepeatCooldownWeeks,
     recommendedHybridIds: template.requiredHybridId ? [template.requiredHybridId] : undefined,
     preferredSeasons: template.preferredSeasons,
     bonusSummary: template.bonusSummary,
+    deliverySourceHint: buildSpecialOrderDeliverySourceHint(template, cloneStageDefinitions(template.stageDefinitions), cloneComboRequirements(template.comboRequirements)),
     requirementSummary: getRequirementSummary(template),
     requiredHybridId: template.requiredHybridId,
     requiredSweetnessMin: template.requiredSweetnessMin,
@@ -1176,24 +2245,75 @@ export const generateSpecialOrder = (
     deliveryMode: template.deliveryMode,
     requiredPondGenerationMin: template.requiredPondGenerationMin,
     requiredFishMature: template.requiredFishMature,
-    requiredFishHealthy: template.requiredFishHealthy
+    requiredFishHealthy: template.requiredFishHealthy,
+    orderProgressState: buildInitialOrderProgressState(template, cloneStageDefinitions(template.stageDefinitions))
   }
 }
 
 let questCounter = 0
 
 /** 根据当前季节生成随机委托 */
-export const generateQuest = (season: Season, _day: number, isUrgent = false): QuestInstance | null => {
-  // 随机选择委托类型
-  const typeIndex = Math.floor(Math.random() * QUEST_TEMPLATES.length)
-  const template = QUEST_TEMPLATES[typeIndex]!
+export const generateQuest = (
+  season: Season,
+  _day: number,
+  isUrgent = false,
+  options?: {
+    preferredQuestTypes?: QuestType[]
+    preferredMarketCategories?: QuestMarketCategory[]
+    discouragedMarketCategories?: QuestMarketCategory[]
+  }
+): QuestInstance | null => {
+  const preferredQuestTypes = new Set(options?.preferredQuestTypes ?? [])
+  const preferredMarketCategories = new Set(options?.preferredMarketCategories ?? [])
+  const discouragedMarketCategories = new Set(options?.discouragedMarketCategories ?? [])
+
+  const eligibleTemplates = QUEST_TEMPLATES.filter(template => template.targets.some(target => target.seasons.length === 0 || target.seasons.includes(season)))
+  if (eligibleTemplates.length === 0) return null
+
+  const weightedTemplates = eligibleTemplates.flatMap(template => {
+    let weight = 1
+    if (preferredQuestTypes.has(template.type)) {
+      weight += 2
+    }
+    const hasPreferredTarget = template.targets.some(target => {
+      const marketCategory = getQuestMarketCategoryByItemId(target.itemId)
+      return !!marketCategory && preferredMarketCategories.has(marketCategory)
+    })
+    const allDiscouragedTargets = template.targets.every(target => {
+      const marketCategory = getQuestMarketCategoryByItemId(target.itemId)
+      return !!marketCategory && discouragedMarketCategories.has(marketCategory)
+    })
+    if (hasPreferredTarget) {
+      weight += 1
+    }
+    if (allDiscouragedTargets) {
+      weight = Math.max(1, weight - 1)
+    }
+    return Array.from({ length: weight }, () => template)
+  })
+
+  const templatePool = weightedTemplates.length > 0 ? weightedTemplates : eligibleTemplates
+  const template = templatePool[Math.floor(Math.random() * templatePool.length)]!
 
   // 按季节过滤目标
   const validTargets = template.targets.filter(t => t.seasons.length === 0 || t.seasons.includes(season))
   if (validTargets.length === 0) return null
 
+  const weightedTargets = validTargets.flatMap(target => {
+    let weight = 1
+    const marketCategory = getQuestMarketCategoryByItemId(target.itemId)
+    if (marketCategory && preferredMarketCategories.has(marketCategory)) {
+      weight += 2
+    }
+    if (marketCategory && discouragedMarketCategories.has(marketCategory)) {
+      weight = Math.max(1, weight - 1)
+    }
+    return Array.from({ length: weight }, () => target)
+  })
+
   // 随机选择目标
-  const target = validTargets[Math.floor(Math.random() * validTargets.length)]!
+  const targetPool = weightedTargets.length > 0 ? weightedTargets : validTargets
+  const target = targetPool[Math.floor(Math.random() * targetPool.length)]!
 
   // 从候选池随机选择 NPC
   const npcId = template.npcPool[Math.floor(Math.random() * template.npcPool.length)]!
@@ -1231,3 +2351,111 @@ export const generateQuest = (season: Season, _day: number, isUrgent = false): Q
     isUrgent: isUrgent || undefined
   }
 }
+
+export const WS05_ACCEPTANCE_SUMMARY = {
+  minQaCaseCount: 8,
+  guardrails: [
+    '育种主题订单的评分、票券倍率、阶段完成态与回执记录必须保持同一事务口径。',
+    '特殊订单重复点击或重复提交时不可重复发钱、重复发券或重复写入阶段完成态。',
+    '主题周偏置、市场偏置与反重复轮换可通过 data 配置直接调整，无需改动 QuestStore 主链路。',
+    '旧档缺少特殊订单运营字段时必须自动补默认值，且不影响旧订单继续读取。'
+  ],
+  releaseAnnouncement: [
+    '【育种订单】新增订单评分结算、阶段完成态与回执保护，高规格订单结算反馈更明确。',
+    '【主题周经营】育种 / 鱼塘特殊订单支持按主题周、市场偏置与反重复标签进行轮换调参。',
+    '【稳定性】特殊订单现已补齐重复提交防护、回执去重与基础补偿预案。'
+  ]
+} as const
+
+export const WS05_QA_CASES: QaCaseDef[] = [
+  {
+    id: 'ws05-boundary-double-submit-guard',
+    title: '特殊订单重复点击提交只结算一次',
+    category: 'boundary',
+    steps: ['接取一个可提交的 special_order', '连续触发 submitQuest 两次'],
+    expectedResult: '仅第一次成功结算；第二次收到已在结算中或已完成结算提示，不重复发奖励。'
+  },
+  {
+    id: 'ws05-positive-score-settlement',
+    title: '育种订单按评分档位放大奖励',
+    category: 'positive',
+    steps: ['准备满足高世代 / 高属性 / 谱系要求的育种订单', '提交订单'],
+    expectedResult: '返回评分档位、分数、奖励说明，现金与票券按评分规则放大。'
+  },
+  {
+    id: 'ws05-positive-fishpond-score-settlement',
+    title: '鱼塘高规订单按鱼体条件正确评分',
+    category: 'positive',
+    steps: ['准备成熟、健康且满足代数要求的 pond 订单', '提交订单'],
+    expectedResult: '订单评分会参考鱼塘代数与健康/成熟条件，奖励结算口径正确。'
+  },
+  {
+    id: 'ws05-negative-receipt-guard',
+    title: '已结算特殊订单不可重复领奖',
+    category: 'negative',
+    steps: ['完成一个 special_order', '在未刷新存档前再次调用 submitQuest 同一 questId'],
+    expectedResult: '系统拦截重复领奖，提示该订单已完成结算。'
+  },
+  {
+    id: 'ws05-compatibility-old-save',
+    title: '旧档缺少运营回执与历史字段时可安全读档',
+    category: 'compatibility',
+    steps: ['读取不含 specialOrderSettlementReceipts / recentSpecialOrderTagHistory 的旧 quest 存档'],
+    expectedResult: '读档成功，新字段自动补空数组，不影响旧订单继续游玩。'
+  },
+  {
+    id: 'ws05-ops-tuning-weight',
+    title: '调整主题周与市场权重无需改 store 主逻辑',
+    category: 'ops',
+    steps: ['修改 BREEDING_SPECIAL_ORDER_TUNING_CONFIG.generation 中的权重', '刷新特殊订单生成'],
+    expectedResult: '订单偏好发生变化，但无需修改 QuestStore / View 代码。'
+  },
+  {
+    id: 'ws05-ops-disable-rotation',
+    title: '关闭反重复轮换后允许同标签连续出现',
+    category: 'ops',
+    steps: ['将 antiRepeatRotationEnabled 设为 false', '连续多次刷新特殊订单'],
+    expectedResult: '系统不再基于 recentSpecialOrderTagHistory 阻止同标签连续出现。'
+  },
+  {
+    id: 'ws05-recovery-history-cap',
+    title: '反重复历史与回执记录有上限且持续可用',
+    category: 'recovery',
+    steps: ['连续完成多笔特殊订单并推动 history / receipt 超过上限'],
+    expectedResult: '旧记录按配置裁剪，新记录持续写入，功能不中断。'
+  }
+]
+
+export const WS05_RELEASE_CHECKLIST: ReleaseChecklistItem[] = [
+  { id: 'ws05-check-double-submit', label: '确认特殊订单重复点击不会重复结算', owner: 'qa', done: false },
+  { id: 'ws05-check-score-reward', label: '确认评分档位、现金倍率与票券倍率口径一致', owner: 'dev', done: false },
+  { id: 'ws05-check-old-save', label: '确认旧档缺少订单回执与历史字段时可安全读档', owner: 'qa', done: false },
+  { id: 'ws05-check-tuning', label: '确认主题周权重、市场权重与反重复开关可直接热调', owner: 'ops', done: false },
+  { id: 'ws05-check-ui-copy', label: '确认育种页与任务页文案和实际评分 / 需求一致', owner: 'design', done: false }
+]
+
+export const WS05_COMPENSATION_PLANS: CompensationPlan[] = [
+  {
+    id: 'ws05-compensate-duplicate-settlement',
+    trigger: '特殊订单出现重复结算，导致现金或票券重复发放。',
+    compensation: ['按重复发放差额进行回收或等值说明补偿', '保留首次合法完成记录'],
+    notes: '优先通过 questId、结算回执与日志记录定位重复发放区间。'
+  },
+  {
+    id: 'ws05-compensate-score-mismatch',
+    trigger: '评分档位与实际奖励倍率不一致，导致玩家收益异常。',
+    compensation: ['补发缺失的票券 / 铜钱差额', '通过公告说明评分口径修复'],
+    notes: '以 orderProgressState.currentScore / currentRank 与奖励日志为准进行核算。'
+  },
+  {
+    id: 'ws05-compensate-overbiased-rotation',
+    trigger: '主题周或反重复配置异常，导致订单池过度集中或长期不刷新目标。',
+    action: '回调 BREEDING_SPECIAL_ORDER_TUNING_CONFIG 中权重或直接关闭 antiRepeatRotationEnabled，并通过更新日志说明修正。'
+  }
+]
+
+export const WS05_RELEASE_ANNOUNCEMENT = [
+  '【育种经营线】高规格特殊订单现支持评分档位、阶段完成态与奖励档案说明。',
+  '【主题周订单】可通过配置直接调整主题偏置、市场偏置与反重复轮换强度。',
+  '【稳定性】新增特殊订单防重复结算与补偿预案，减少重复领奖与坏档风险。'
+] as const

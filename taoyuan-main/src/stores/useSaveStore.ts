@@ -137,10 +137,12 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
       mainQuestStages: [],
       dailyGoals: [],
       seasonGoals: [],
+      weeklyGoals: [],
       longTermGoals: [],
       goalReputation: 0,
       lastDailyGoalRefresh: '',
       lastSeasonGoalRefresh: '',
+      lastWeeklyGoalRefresh: '',
       lastThemeWeekRefresh: '',
       currentThemeWeekState: null,
       weeklyMetricArchive: {

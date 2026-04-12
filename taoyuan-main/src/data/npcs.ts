@@ -1,4 +1,15 @@
-import type { NpcDef } from '@/types'
+import type {
+  ChildTrainingState,
+  CompensationPlan,
+  FamilyWishBoardState,
+  FamilyWishDef,
+  HouseholdDivisionState,
+  HouseholdRoleDef,
+  NpcDef,
+  QaCaseDef,
+  ReleaseChecklistItem,
+  ZhijiCompanionProjectDef
+} from '@/types'
 
 /** 所有NPC定义 */
 export const NPCS: NpcDef[] = [
@@ -50,7 +61,11 @@ export const NPCS: NpcDef[] = [
       '有些话只想说给知己听……{title}，谢谢你一直在。',
       '红颜知己，一世难求。遇见{player}是我的福气。'
     ],
-    zhijiHeartEventIds: ['liu_niang_zhiji_7', 'liu_niang_zhiji_9']
+    zhijiHeartEventIds: ['liu_niang_zhiji_7', 'liu_niang_zhiji_9'],
+    companionshipTier: 'P0',
+    householdRoleIds: ['home_care', 'social_coordination'],
+    familyWishIds: ['wish_shared_breakfast', 'wish_lakeside_outing'],
+    zhijiProjectIds: ['zhiji_story_salon', 'zhiji_household_archive']
   },
   {
     id: 'a_shi',
@@ -76,7 +91,11 @@ export const NPCS: NpcDef[] = [
       '我不太会说话……但{player}在身边就够了。'
     ],
     zhijiDialogues: ['……有你在旁边挖矿，效率好像变高了。', '{player}，这块矿石……只有知己才配拥有。', '不用说话也很自在……这就是知己吧。'],
-    zhijiHeartEventIds: ['a_shi_zhiji_7', 'a_shi_zhiji_9']
+    zhijiHeartEventIds: ['a_shi_zhiji_7', 'a_shi_zhiji_9'],
+    companionshipTier: 'P1',
+    householdRoleIds: ['craft_assist', 'field_support'],
+    familyWishIds: ['wish_legacy_archive'],
+    zhijiProjectIds: ['zhiji_household_archive', 'zhiji_legacy_route']
   },
   {
     id: 'qiu_yue',
@@ -106,7 +125,11 @@ export const NPCS: NpcDef[] = [
       '嘿嘿，有什么心事都可以跟我说！我们可是知己！',
       '以后不管去哪儿，都带上{title}！'
     ],
-    zhijiHeartEventIds: ['qiu_yue_zhiji_7', 'qiu_yue_zhiji_9']
+    zhijiHeartEventIds: ['qiu_yue_zhiji_7', 'qiu_yue_zhiji_9'],
+    companionshipTier: 'P0',
+    householdRoleIds: ['field_support', 'social_coordination'],
+    familyWishIds: ['wish_lakeside_outing'],
+    zhijiProjectIds: ['zhiji_story_salon']
   },
   {
     id: 'lin_lao',
@@ -174,7 +197,11 @@ export const NPCS: NpcDef[] = [
       '茶庄的事，以前只有我一个人扛。有{title}在，轻松了许多。',
       '红颜知己共品茗，人生至乐莫过于此。'
     ],
-    zhijiHeartEventIds: ['chun_lan_zhiji_7', 'chun_lan_zhiji_9']
+    zhijiHeartEventIds: ['chun_lan_zhiji_7', 'chun_lan_zhiji_9'],
+    companionshipTier: 'P1',
+    householdRoleIds: ['home_care', 'craft_assist'],
+    familyWishIds: ['wish_shared_breakfast', 'wish_legacy_archive'],
+    zhijiProjectIds: ['zhiji_story_salon', 'zhiji_household_archive']
   },
   {
     id: 'xue_qin',
@@ -380,7 +407,11 @@ export const NPCS: NpcDef[] = [
       '有你陪我看牛、淋雨、赶羊……比什么都开心！',
       '咱俩以后合开牧场吧！知己搭伙，天下无敌！'
     ],
-    zhijiHeartEventIds: ['da_niu_zhiji_7', 'da_niu_zhiji_9']
+    zhijiHeartEventIds: ['da_niu_zhiji_7', 'da_niu_zhiji_9'],
+    companionshipTier: 'P1',
+    householdRoleIds: ['field_support', 'home_care'],
+    familyWishIds: ['wish_lakeside_outing'],
+    zhijiProjectIds: ['zhiji_household_archive']
   },
   {
     id: 'mo_bai',
@@ -410,7 +441,11 @@ export const NPCS: NpcDef[] = [
       '为你谱的曲子越来越多了……知己的力量真奇妙。',
       '有{title}在的日子，琴声都变得温暖了。'
     ],
-    zhijiHeartEventIds: ['mo_bai_zhiji_7', 'mo_bai_zhiji_9']
+    zhijiHeartEventIds: ['mo_bai_zhiji_7', 'mo_bai_zhiji_9'],
+    companionshipTier: 'P0',
+    householdRoleIds: ['social_coordination', 'home_care'],
+    familyWishIds: ['wish_shared_breakfast', 'wish_lakeside_outing'],
+    zhijiProjectIds: ['zhiji_story_salon']
   },
 
   // ============================================================
@@ -740,6 +775,297 @@ export const NPCS: NpcDef[] = [
     }
   }
 ]
+
+export const WS09_RELATIONSHIP_AUDIT_POOLS = {
+  marriageableNpcIds: NPCS.filter(npc => npc.marriageable).map(npc => npc.id),
+  zhijiNpcIds: NPCS.filter(npc => (npc.zhijiHeartEventIds?.length ?? 0) > 0).map(npc => npc.id),
+  helperCapableNpcIds: NPCS.map(npc => npc.id)
+} as const
+
+export const WS09_HOUSEHOLD_ROLE_DEFS: HouseholdRoleDef[] = [
+  {
+    id: 'field_support',
+    label: '田务分工',
+    description: '围绕农事、喂养与日常劳作安排婚后协作位，作为 P0 家庭经营入口。',
+    unlockTier: 'P0',
+    linkedSystems: ['home', 'fishing'],
+    rewardSummary: '提供基础家务 / 农务承接与陪伴型协作说明。'
+  },
+  {
+    id: 'home_care',
+    label: '宅院照料',
+    description: '把厨房、酒窖、孕期照护与宅院生活维护纳入婚后协作，强化生活感反馈。',
+    unlockTier: 'P0',
+    linkedSystems: ['home', 'quest'],
+    rewardSummary: '为家庭照护、宅院恢复与生活事件预留统一入口。'
+  },
+  {
+    id: 'craft_assist',
+    label: '家业协作',
+    description: '为育种、加工和长期手工业协作预留婚后 / 亲子分工位，承接 P1 家业成长。',
+    unlockTier: 'P1',
+    linkedSystems: ['breeding', 'home'],
+    rewardSummary: '为家业传承、作坊协作与长期培育路线提供扩展位。'
+  },
+  {
+    id: 'social_coordination',
+    label: '人情往来',
+    description: '为知己互助、家庭心愿、纪念事件与跨系统社交活动预留 P2 协调位。',
+    unlockTier: 'P2',
+    linkedSystems: ['quest', 'fishing'],
+    rewardSummary: '为高阶陪伴活动、纪念事件与跨系统推荐预留调度位。'
+  }
+]
+
+export const WS09_FAMILY_WISH_BOARD_CONFIG = {
+  refreshDaysByTier: { P0: 7, P1: 5, P2: 3 },
+  maxActiveWishCountByTier: { P0: 1, P1: 2, P2: 3 },
+  defaultDurationDays: 7
+} as const
+
+export const WS09_RELATIONSHIP_TUNING_CONFIG = {
+  featureFlags: {
+    companionQuestBiasEnabled: true,
+    householdDivisionEnabled: true,
+    familyWishEnabled: true,
+    zhijiProjectEnabled: true,
+    companionViewSummaryEnabled: true
+  },
+  display: {
+    familyWishPreviewLimit: 3,
+    zhijiProjectPreviewLimit: 2,
+    householdRolePreviewLimit: 2
+  },
+  progression: {
+    tierUnlockDaysMarriedP1: 3,
+    tierUnlockDaysZhijiP1: 3,
+    tierUnlockChildCountP2: 1,
+    tierUnlockCompletedWishCountP2: 1
+  },
+  rewards: {
+    familyWishRewardReputationBonus: 0,
+    zhijiProjectProgressBonus: 0
+  },
+  operations: {
+    maxQuestBiasStrength: 3,
+    householdWeeklyProgressCap: 1,
+    familyWishRerollCap: 2
+  }
+} as const
+
+export const WS09_FAMILY_WISH_DEFS: FamilyWishDef[] = [
+  {
+    id: 'wish_shared_breakfast',
+    title: '庭前共食',
+    description: '与伴侣或知己共同筹备一顿家常早饭，强调宅院生活感与低门槛陪伴反馈。',
+    unlockTier: 'P0',
+    category: 'household',
+    linkedSystem: 'home',
+    targetValue: 3,
+    durationDays: 7,
+    rewardSummary: '用于承接宅院照料、厨房恢复与生活化文本反馈。',
+    linkedNpcIds: ['liu_niang', 'chun_lan', 'mo_bai'],
+    recommendedRoleId: 'home_care'
+  },
+  {
+    id: 'wish_lakeside_outing',
+    title: '湖畔相伴',
+    description: '围绕外出垂钓、散步或知己同游建立中期家庭心愿，承接外出型非战斗循环。',
+    unlockTier: 'P1',
+    category: 'social',
+    linkedSystem: 'fishing',
+    targetValue: 5,
+    durationDays: 7,
+    rewardSummary: '用于承接知己同游、钓鱼陪伴与外出事件链。',
+    linkedNpcIds: ['qiu_yue', 'mo_bai', 'da_niu'],
+    recommendedRoleId: 'social_coordination'
+  },
+  {
+    id: 'wish_legacy_archive',
+    title: '家业传承',
+    description: '围绕孩子成长、作坊协作与家业备忘建立终局家庭心愿，承接长期非战斗目标。',
+    unlockTier: 'P2',
+    category: 'childcare',
+    linkedSystem: 'breeding',
+    targetValue: 1,
+    durationDays: 14,
+    rewardSummary: '用于承接家业继承、孩子培养与长线协作事件。',
+    linkedNpcIds: ['a_shi', 'dan_qing', 'chun_lan'],
+    recommendedRoleId: 'craft_assist'
+  }
+]
+
+export const WS09_ZHIJI_COMPANION_PROJECT_DEFS: ZhijiCompanionProjectDef[] = [
+  {
+    id: 'zhiji_story_salon',
+    label: '知己茶话',
+    description: '围绕谈心、互访与纪念对话建立 P0 挚友协作项目骨架。',
+    unlockTier: 'P0',
+    linkedSystem: 'quest',
+    milestoneTarget: 1,
+    rewardSummary: '用于承接知己事件、谈心任务与生活线入口。'
+  },
+  {
+    id: 'zhiji_household_archive',
+    label: '家业备忘',
+    description: '围绕家园维护、孩子成长记录与共同筹备建立 P1 挚友协作骨架。',
+    unlockTier: 'P1',
+    linkedSystem: 'home',
+    milestoneTarget: 3,
+    rewardSummary: '用于承接家园协作、孩子培养与家庭准备度记录。'
+  },
+  {
+    id: 'zhiji_legacy_route',
+    label: '传承远行',
+    description: '围绕家业传承、远行协力与高阶非战斗目标建立 P2 挚友项目骨架。',
+    unlockTier: 'P2',
+    linkedSystem: 'breeding',
+    milestoneTarget: 5,
+    rewardSummary: '用于承接终局家业继承、跨系统协作与传承事件。'
+  }
+]
+
+export const createDefaultHouseholdDivisionState = (): HouseholdDivisionState => ({
+  version: 1,
+  unlockTier: 'P0',
+  assignments: [],
+  lastSettlementDayTag: '',
+  pendingRewardIds: []
+})
+
+export const createDefaultFamilyWishBoardState = (): FamilyWishBoardState => ({
+  version: 1,
+  unlockTier: 'P0',
+  activeWishId: null,
+  completedWishIds: [],
+  rerollCount: 0,
+  streakCount: 0,
+  progress: 0,
+  targetValue: 0,
+  startedDayTag: '',
+  expiresDayTag: '',
+  rewardClaimed: false
+})
+
+export const createDefaultChildTrainingState = (): ChildTrainingState => ({
+  focus: null,
+  lessonsThisWeek: 0,
+  milestoneIds: []
+})
+
+export const WS09_ACCEPTANCE_SUMMARY = {
+  minQaCaseCount: 8,
+  guardrails: [
+    '婚后分工、家庭心愿、挚友协作与仙灵祝福必须统一走 store API 和 data 配置，不得在 view 内临时手写规则。',
+    '关系线加成只能作为陪伴反馈与经营引导，不得演变为纯自动化代打 / 代产出按钮。',
+    '会花费物品、铜钱或改变关系状态的关键操作必须具备运行时锁、异常回滚与旧档兼容回填。',
+    '主题周、告示板、育种、钓鱼、宅院等联动必须能在页面或日志中给出可解释证据，而不是只在后台静默生效。'
+  ],
+  releaseAnnouncement: [
+    '【家庭陪伴】婚后分工、家庭心愿、挚友协作与孩子成长已接入统一关系线底座，后续可持续扩容。',
+    '【仙缘运营】供奉共鸣、仙灵祝福、结缘记忆与周切换调度现已具备统一状态结构、周结节奏与调参入口。',
+    '【跨系统联动】关系线已开始反向影响任务板、育种、钓鱼与宅院经营，不再是孤立的社交弹窗。'
+  ]
+} as const
+
+export const WS09_QA_CASES: QaCaseDef[] = [
+  {
+    id: 'ws09-positive-quest-bias-family-focus',
+    title: '家庭心愿可反向影响任务板与高阶订单风向',
+    category: 'positive',
+    steps: ['激活 `wish_lakeside_outing` 或 `wish_legacy_archive`', '刷新 QuestView 与特殊订单', '观察关系联动提示与偏置结果'],
+    expectedResult: 'QuestView 可看到家庭 / 仙缘风向提示，告示板与高阶订单方向会跟随家庭心愿和仙灵祝福变化。'
+  },
+  {
+    id: 'ws09-positive-breeding-carry-over',
+    title: '育种页可看到家业传承与挚友协作承接建议',
+    category: 'positive',
+    steps: ['激活 `craft_assist` 分工或 `wish_legacy_archive`', '打开 BreedingView 图鉴页'],
+    expectedResult: '页面出现陪伴承接建议卡片，能看到当前心愿与推荐杂交品种。'
+  },
+  {
+    id: 'ws09-positive-fishing-carry-over',
+    title: '钓鱼页可看到家庭外出与仙灵祝福承接建议',
+    category: 'positive',
+    steps: ['激活 `wish_lakeside_outing` 或启用 `spirit_blessing_tide`', '打开 FishingView'],
+    expectedResult: '页面出现陪伴 / 仙缘提示，能看到当前心愿、当前祝福与推荐钓点。'
+  },
+  {
+    id: 'ws09-boundary-family-wish-repeat',
+    title: '家庭心愿完成不可因重复点击或周切换重复记账',
+    category: 'boundary',
+    steps: ['激活一个家庭心愿', '多次触发完成入口或在周切换中重复调用 `completeFamilyWish()`'],
+    expectedResult: '同一家庭心愿只会写入一次完成记录，不会重复叠加 streak 或 completedWishIds。'
+  },
+  {
+    id: 'ws09-negative-relationship-lock-rollback',
+    title: '关系线关键操作异常时会回滚资源与状态',
+    category: 'negative',
+    steps: ['在求婚、结缘知己、供奉或求缘过程中制造物品写入 / 状态更新异常', '观察 player / inventory / npc / hiddenNpc 状态'],
+    expectedResult: '铜钱、物品、关系状态与仙缘状态全部回滚，且运行时锁会在 finally 中释放。'
+  },
+  {
+    id: 'ws09-ops-disable-companion-bias',
+    title: '关闭关系线告示板偏置后任务系统自动降级',
+    category: 'ops',
+    steps: ['将 `WS09_RELATIONSHIP_TUNING_CONFIG.featureFlags.companionQuestBiasEnabled` 设为 false', '刷新 QuestView'],
+    expectedResult: '家庭 / 仙缘风向提示消失，任务板退回市场 / 公会 / 博物馆 / 瀚海偏置链路，其余关系线页面不报错。'
+  },
+  {
+    id: 'ws09-ops-disable-spirit-blessing',
+    title: '关闭仙灵祝福开关后可安全降级',
+    category: 'ops',
+    steps: ['将 `WS09_SPIRIT_TUNING_CONFIG.featureFlags.spiritBlessingEnabled` 设为 false', '打开 NpcView 仙灵页并尝试启用祝福'],
+    expectedResult: '仙灵祝福列表返回空，启用动作被安全拦截，其余仙灵心事件和结缘状态保持正常。'
+  },
+  {
+    id: 'ws09-compatibility-old-save-family-fields',
+    title: '旧档缺少家庭陪伴扩展字段时可安全读档',
+    category: 'compatibility',
+    steps: ['读取不包含 householdDivision / familyWishBoard / zhijiCompanionProjects / spirit blessing 扩展字段的旧档', '进入 NpcView、HomeView、QuestView'],
+    expectedResult: '读档成功，新字段按默认值回填，页面可正常展示且不会出现 undefined 错误。'
+  },
+  {
+    id: 'ws09-recovery-weekly-tick-consistency',
+    title: '关系线周切换 tick 在跨周时状态一致',
+    category: 'recovery',
+    steps: ['准备活跃家庭心愿、婚后分工、挚友项目与仙灵祝福', '触发跨周结算并检查 useEndDay 结构化日志'],
+    expectedResult: '家庭心愿、婚后分工、挚友项目、仙灵祝福都在统一 tick 节点推进，日志与页面状态一致。'
+  }
+]
+
+export const WS09_RELEASE_CHECKLIST: ReleaseChecklistItem[] = [
+  { id: 'ws09-check-relationship-api', label: '确认婚后分工、家庭心愿、挚友项目与仙灵祝福均通过 store API 读写', owner: 'dev', done: false },
+  { id: 'ws09-check-view-entry', label: '确认 NpcView / HomeView / QuestView / BreedingView / FishingView 都能看见关系线承接信息', owner: 'qa', done: false },
+  { id: 'ws09-check-cycle-tick', label: '确认日结 / 周结 tick 会稳定推进家庭心愿、婚后分工与仙灵祝福状态', owner: 'qa', done: false },
+  { id: 'ws09-check-ops-toggle', label: '确认关系线偏置与仙灵祝福可通过 tuning config 快速降级', owner: 'ops', done: false },
+  { id: 'ws09-check-old-save', label: '确认旧档读取时新增字段均按默认值安全回填', owner: 'qa', done: false }
+]
+
+export const WS09_COMPENSATION_PLANS: CompensationPlan[] = [
+  {
+    id: 'ws09-compensate-family-wish-repeat',
+    trigger: '家庭心愿、挚友项目或婚后分工重复记账，导致奖励、进度或声望异常增加。',
+    compensation: ['按 wishId / projectId / npcId 与日志回收重复收益或发放说明补偿', '保留首次合法推进记录与关系状态'],
+    notes: '优先依据 completedWishIds、zhijiCompanionProjects.rewarded、结构化日志与周切换快照定位异常窗口。'
+  },
+  {
+    id: 'ws09-compensate-spirit-bond-mismatch',
+    trigger: '仙灵供奉、求缘、结缘或祝福切换异常，导致物品、铜钱、共鸣点或祝福状态不一致。',
+    action: '依据 `performOffering` / `startCourting` / `formBond` 的回滚日志回调相关状态，并通过运营公告说明修正。'
+  },
+  {
+    id: 'ws09-compensate-tooling-bias',
+    trigger: '关系线偏置过强，导致任务板、育种或钓鱼页面长期只剩单一路线建议。',
+    action: '下调 `WS09_RELATIONSHIP_TUNING_CONFIG.operations.maxQuestBiasStrength`、关闭 companion quest bias 或回退高梯度家庭心愿编排。'
+  }
+]
+
+export const WS09_RELEASE_ANNOUNCEMENT = [
+  '【家庭陪伴】婚后分工、家庭心愿、挚友协作与孩子成长已接入统一关系线底座，后续版本可持续扩容。',
+  '【仙缘运营】供奉共鸣、仙灵祝福、结缘记忆与周切换调度现已具备统一状态结构、周结节奏与调参入口。',
+  '【跨系统联动】关系线现已开始反向影响任务板、育种、钓鱼与宅院经营，不再只是孤立的社交弹窗。'
+] as const
 
 /** 根据ID获取NPC定义 */
 export const getNpcById = (id: string): NpcDef | undefined => {

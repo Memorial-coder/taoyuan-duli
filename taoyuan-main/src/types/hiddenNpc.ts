@@ -7,6 +7,9 @@ export type DiscoveryPhase = 'unknown' | 'rumor' | 'glimpse' | 'encounter' | 're
 /** 缘分等级 */
 export type AffinityLevel = 'wary' | 'curious' | 'trusting' | 'devoted' | 'eternal'
 
+/** WS09 仙灵陪伴内容梯度 */
+export type SpiritBondTier = 'P0' | 'P1' | 'P2'
+
 /** 缘分等级阈值 */
 export const AFFINITY_THRESHOLDS: { level: AffinityLevel; min: number }[] = [
   { level: 'eternal', min: 2500 },
@@ -92,6 +95,17 @@ export type BondBonusType =
   | { type: 'spirit_shield'; staminaSave: number; hpBonus: number }
   | { type: 'sell_bonus'; percent: number }
 
+export interface SpiritBlessingDef {
+  id: string
+  label: string
+  description: string
+  unlockTier: SpiritBondTier
+  resonanceCost: number
+  durationDays: number
+  linkedSystems: Array<'goal' | 'home' | 'quest' | 'fishPond'>
+  rewardSummary: string
+}
+
 /** 隐藏NPC定义 */
 export interface HiddenNpcDef {
   id: string
@@ -136,6 +150,7 @@ export interface HiddenNpcDef {
   abilities: AffinityAbility[]
   /** 显灵日（等同生日） */
   manifestationDay: { season: Season; day: number }
+  blessingIds?: string[]
 }
 
 /** 隐藏NPC运行时状态 */
@@ -162,4 +177,10 @@ export interface HiddenNpcState {
   triggeredHeartEvents: string[]
   /** 已解锁的能力ID */
   unlockedAbilities: string[]
+  bondTier: SpiritBondTier
+  resonancePoints: number
+  lastOfferingDayTag: string
+  activeBlessingId: string | null
+  unlockedBlessingIds: string[]
+  claimedBondMemoryIds: string[]
 }

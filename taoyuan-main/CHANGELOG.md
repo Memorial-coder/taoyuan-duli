@@ -6,6 +6,121 @@
 
 ### 新增功能
 
+#### WS09 家庭 / 配偶 / 仙灵陪伴循环（T081）
+- 完成基线审计与 KPI 定义：
+  - `src/data/goals.ts` 已新增 `WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT`，统一收口婚后家庭周活率、家庭心愿完成率、非战斗后期目标覆盖度、关系系统回访率 4 个核心指标。
+  - 已补齐 2 个护栏指标：伴侣自动化占比、情感反馈可见度，并新增 3 档样本玩家分层、1 条“关系线工具人化”软回滚条件与跨 `useNpcStore` / `useHiddenNpcStore` / `useHomeStore` / `useGoalStore` / `useQuestStore` / `useBreedingStore` / `useFishingStore` 的联动口径。
+  - `src/data/npcs.ts`、`src/data/hiddenNpcHeartEvents.ts` 已补出 WS09 审计对象池，明确可婚 / 可知己 NPC 与可结缘仙灵的基线样本范围。
+  - `src/stores/useNpcStore.ts`、`src/stores/useHiddenNpcStore.ts` 已新增统一 audit overview / snapshot 读取入口，便于后续 T082+ 沿用同一口径继续扩容。
+  - 为恢复当前分支自检，顺手修复了 `src/stores/useGoalStore.ts` 的污染定义与 `src/types/log.ts` 的日志 tag 缺口，当前已再次通过 `npm run type-check`。
+
+#### WS09 家庭 / 配偶 / 仙灵陪伴循环（T082）
+- 完成数据结构与类型定义：
+  - `src/types/npc.ts` 已补齐 `RelationshipContentTier`、婚后分工、家庭心愿板、挚友协作项目与子女训练状态等类型骨架，并为 `NpcDef` / `NpcState` / `ChildState` / `PregnancyState` 预留后续字段。
+  - `src/types/hiddenNpc.ts` 已补齐 `SpiritBondTier`、`SpiritBlessingDef`，并为 `HiddenNpcState` 预留 `bondTier`、`resonancePoints`、`activeBlessingId`、`unlockedBlessingIds`、`claimedBondMemoryIds` 等扩展字段。
+  - `src/data/npcs.ts`、`src/data/hiddenNpcHeartEvents.ts` 已新增婚后分工、家庭心愿板、挚友项目、仙灵祝福与共鸣配置的默认结构与创建函数，配置结构已覆盖 P0 / P1 / P2 三档。
+  - `src/data/goals.ts` 已补出 `WS09_FAMILY_WISH_GOAL_CONFIG`，`src/types/goal.ts` 也已为主题周预留关系线焦点字段，便于后续主题周 / 家庭心愿挂接。
+  - `src/stores/useNpcStore.ts`、`src/stores/useHiddenNpcStore.ts` 已同步接入新字段、版本号与旧档回填，当前旧档缺少这些字段时会自动安全补齐，并通过 `npm run type-check`。
+
+#### WS09 家庭 / 配偶 / 仙灵陪伴循环（T083）
+- 完成 Store 状态与 API 扩展：
+  - `src/stores/useNpcStore.ts` 已新增婚后分工、家庭心愿、挚友协作项目的统一读写入口，包括 `assignHouseholdRole()`、`activateFamilyWish()`、`registerZhijiProject()` 等 action 与对应 overview / debug snapshot。
+  - `src/stores/useNpcStore.ts` 现已暴露 `relationshipContentTier`、`getAvailableHouseholdRoles()`、`getFamilyWishOverview()`、`getRelationshipDebugSnapshot()` 等统一 getter，后续页面无需自行拼装关系线状态。
+  - `src/stores/useHiddenNpcStore.ts` 已新增仙灵共鸣、祝福切换与记忆领取入口，包括 `addSpiritResonance()`、`activateSpiritBlessing()`、`clearSpiritBlessing()`、`claimBondMemory()` 与 `getHiddenNpcDebugSnapshot()`。
+  - 供奉流程现会在 store 内部累计 `resonancePoints` 并同步 `bondTier`，后续日结 / 周结与页面展示可以直接复用 store 暴露结果。
+  - 当前已满足“页面只消费 store 暴露结果、关键逻辑可单独调用、存档序列化完整”的验收目标，并通过 `npm run type-check`。
+
+#### WS09 家庭 / 配偶 / 仙灵陪伴循环（T084）
+- 完成日结 / 周结调度接入：
+  - `src/stores/useNpcStore.ts` 已新增 `processRelationshipCycleTick()`，统一处理婚后分工周期推进、家庭心愿周结、子女训练周重置与挚友协作项目的周切换状态。
+  - `src/stores/useHiddenNpcStore.ts` 已新增 `processSpiritBondTick()`，统一处理仙灵祝福在周切换时的收束、共鸣档位同步与关系线衍生状态刷新。
+  - `src/composables/useEndDay.ts` 现已把家庭 / 配偶 / 仙灵陪伴线正式接入与村庄建设、博物馆、公会、瀚海、商店同层的周切换 tick 编排。
+  - 关系线 tick 产生的周结信息现会写入结构化日志，方便后续 UI、调试面板与 QA 验证直接复用同一口径。
+  - 当前已满足“跨天、跨周切换状态一致、日志可见且不散落在页面”的验收目标，并通过 `npm run type-check`。
+
+#### WS09 家庭 / 配偶 / 仙灵陪伴循环（T085）
+- 完成内容配置首批落地：
+  - `src/data/npcs.ts` 已新增 `WS09_FAMILY_WISH_DEFS`，并为柳娘、阿石、秋月、春兰、大牛、墨白等首批关系线角色补入 `householdRoleIds`、`familyWishIds`、`zhijiProjectIds` 挂点。
+  - 现有婚后分工、家庭心愿与挚友协作内容已覆盖 P0 / P1 / P2 三档，可支撑后续页面、调度与跨系统联动继续扩容。
+  - `src/data/hiddenNpcHeartEvents.ts` 已新增 `WS09_HIDDEN_NPC_BLESSING_ASSIGNMENTS` 与首批结缘记忆奖励池，明确龙灵、桃夭、月兔、山翁、归女的祝福承接范围。
+  - `src/data/goals.ts` 已为春种、夏渔、秋收加工、豪华经营等主题周补入家庭 / 仙灵 / 挚友焦点字段，后续主题周面板与推荐系统可以直接复用。
+  - 当前已满足“首批内容覆盖 2~3 个版本迭代且可读、可扩展、可筛选”的验收目标，并通过 `npm run type-check`。
+
+#### WS09 家庭 / 配偶 / 仙灵陪伴循环（T086）
+- 完成页面入口与信息展示：
+  - `src/views/game/NpcView.vue` 已新增“陪伴总览”摘要卡，直接展示关系线内容阶段、当前家庭心愿、婚后分工数、挚友项目数与孩子数量。
+  - `src/views/game/NpcView.vue` 的仙灵页已新增“仙缘运营”卡片，可直接查看已显现仙灵数、已结缘数、总共鸣点、已解锁能力，以及选中仙灵的当前祝福与可用祝福列表。
+  - `src/views/game/HomeView.vue` 已新增“家庭 / 陪伴”区块，让宅院页也能看到婚后分工、家庭心愿与孩子成长的当前状态。
+  - 关系线入口现已从“只有弹窗内零散操作”升级为“页内就能感知进度、目标与下一步”的展示状态。
+  - 当前已满足“玩家能在 10 秒内知道这条关系线现在做到哪、下一步关注什么”的验收目标，并通过 `npm run type-check`。
+
+#### WS09 家庭 / 配偶 / 仙灵陪伴循环（T087）
+- 完成跨系统联动闭环：
+  - `src/stores/useQuestStore.ts` 已把家庭心愿、婚后分工与仙灵祝福接入任务板 / 高阶订单偏置链路，QuestView 现可直接看到“家庭 / 仙缘风向”。
+  - `src/stores/useBreedingStore.ts`、`src/stores/useFishingStore.ts`、`src/stores/useHomeStore.ts` 已分别新增 `companionshipBreedingFocus`、`companionshipFishingFocus`、`companionHomeOverview`，用于承接关系线对育种、钓鱼与宅院经营的本周建议。
+  - `src/views/game/BreedingView.vue`、`src/views/game/FishingView.vue`、`src/views/game/QuestView.vue` 已新增相应联动提示区块，玩家可从旧系统页面直接看到陪伴线带来的决策变化。
+  - 当前已满足“关系线反向影响至少 2 条以上既有系统活跃度，并可在页面与日志看到联动证据”的验收目标，并通过 `npm run type-check`。
+
+#### WS09 家庭 / 配偶 / 仙灵陪伴循环（T088）
+- 完成事务安全与防刷处理：
+  - `src/stores/useNpcStore.ts` 已新增 `relationshipActionLocks`、`beginRelationshipAction()`、`finishRelationshipAction()`、`createRelationshipActionSnapshots()` 与 `rollbackRelationshipAction()`。
+  - 约会、求婚、知己结缘 / 断缘、和离、婚后分工、家庭心愿与挚友项目等关键动作现已接入运行时锁与异常回滚。
+  - `src/stores/useHiddenNpcStore.ts` 已新增 `spiritActionLocks`、`beginSpiritAction()`、`finishSpiritAction()`、`createSpiritActionSnapshots()` 与 `rollbackSpiritAction()`。
+  - 供奉、求缘、结缘、解缘、仙灵祝福启用与记忆领取现已具备重复点击防护与异常回滚护栏。
+  - 当前已满足“重复点击不重入、异常结算可回滚、读档后无残留锁”的验收目标，并通过 `npm run type-check`。
+
+#### WS09 家庭 / 配偶 / 仙灵陪伴循环（T089）
+- 完成调参与运营开关接线：
+  - `src/data/npcs.ts` 已新增 `WS09_RELATIONSHIP_TUNING_CONFIG`，统一收口 companion quest bias、婚后分工、家庭心愿、挚友协作、展示数量、阶段阈值与周推进上限等参数。
+  - `src/data/hiddenNpcHeartEvents.ts` 已新增 `WS09_SPIRIT_TUNING_CONFIG`，统一收口仙灵祝福、结缘记忆、共鸣增益与周切换重置开关。
+  - `src/stores/useNpcStore.ts`、`src/stores/useHiddenNpcStore.ts` 与 `src/stores/useQuestStore.ts` 已正式消费这些配置，使关系线偏置、tier 解锁、祝福启用与共鸣成长支持快速热调或降级。
+  - 当前已满足“不改业务逻辑即可调整至少 8 个核心参数并支持快速关闭异常活动”的验收目标，并通过 `npm run type-check`。
+
+#### WS09 家庭 / 配偶 / 仙灵陪伴循环（T090）
+- 完成 QA、数值验收与上线文档收口：
+  - `src/data/npcs.ts` 已内置 `WS09_ACCEPTANCE_SUMMARY`、`WS09_QA_CASES`、`WS09_RELEASE_CHECKLIST`、`WS09_COMPENSATION_PLANS`、`WS09_RELEASE_ANNOUNCEMENT`。
+  - QA / 验收范围已覆盖家庭心愿、婚后分工、挚友协作、仙灵供奉与祝福、跨系统联动、开关降级、旧档兼容与异常回滚等发布场景。
+  - `后期经济治理与中后期循环扩展AI实施方案-2026-04-10.md`、`TODO.md`、`后期经济治理实施索引-2026-04-11.md` 已同步回写 WS09 收口状态与下一项主线。
+  - 当前 WS09 已具备可直接供 QA / 运营复用的验收摘要、上线检查项、补偿预案与公告文案，并再次通过 `npm run type-check`。
+
+#### WS10 主题周 + 活动编排 + 邮箱运营层（T091）
+- 完成基线审计与 KPI 定义：
+  - `src/data/goals.ts` 已新增 `WS10_EVENT_OPERATIONS_BASELINE_AUDIT`，统一收口活动参与率、邮件打开率、活动带回流量、主题周完成率 4 个核心指标。
+  - 已补齐 2 个护栏指标：强制打卡压力比、重复奖励邮件占比，并新增 3 档样本玩家分层、1 条活动层软回滚条件与跨 `useGoalStore` / `useQuestStore` / `useShopStore` / `useMailboxStore` 的联动口径。
+  - `src/stores/useGoalStore.ts` 已新增 `eventOperationsBaselineAudit` 统一入口，便于后续活动编排、邮件结算与主题周扩容直接复用同一基线。
+  - 当前已满足“形成可执行指标清单；至少定义 4 个核心指标、2 个护栏指标、1 个失败回滚条件”的验收目标，并通过 `npm run type-check`。
+
+#### WS08 瀚海终局循环深化（T077）
+- 完成跨系统联动闭环：
+  - `src/types/goal.ts`、`src/data/goals.ts` 已为主题周补齐 `hanhaiFocusRouteIds`、`hanhaiFocusRelicSiteIds`、`hanhaiFocusBossCycleIds`、`hanhaiFocusContractIds`、`hanhaiFocusRelicSetIds`、`hanhaiFocusShopRotationIds`，让瀚海商路、遗迹、Boss、合同、套组与货架可直接进入周编排。
+  - `src/stores/useHanhaiStore.ts` 已新增 `currentThemeWeekHanhaiFocus`、`questBoardBiasProfile`、`crossSystemOverview`、联动建设摘要与目录承接推荐，把主题周、村庄建设、目录消费、Boss 周期与遗迹套组统一收口到瀚海 store。
+  - `src/stores/useQuestStore.ts` 现会把瀚海联动偏置并入告示板市场偏置链路，使瀚海循环会反向影响任务筹备方向。
+  - `src/views/game/HanhaiView.vue` 已新增经营联动摘要、目录承接与推荐动作卡片，形成“瀚海收益 -> 目录/建设 sink -> 告示板筹备 -> 主题周/Boss/展示目标”的可视化闭环。
+  - 当前已满足“至少影响 2 条现有系统活跃度，并可从日志与页面看到联动证据”的验收目标。
+
+#### WS08 瀚海终局循环深化（T078）
+- 完成事务安全与防刷处理：
+  - `src/stores/useHanhaiStore.ts` 已新增 `hanhaiActionLocks`、`beginHanhaiAction()`、`finishHanhaiAction()`、`createHanhaiActionSnapshots()` 与 `rollbackHanhaiAction()`，统一收口瀚海高频操作的事务护栏。
+  - `unlockHanhai()`、`buyShopItem()`、`exploreRelicSite()`、`claimRelicMilestone()`、`useTreasureMap()` 现已具备 `player / inventory / wallet / hanhai` 全链路快照与异常回滚，重复点击也会被运行时锁拦截。
+  - 轮盘、骰子、猜杯、斗蛐蛐、翻牌、瀚海扑克、恶魔轮盘的入场 / 结算路径已统一接入防重与回滚保护，避免高频点击导致重复结算或半成功状态。
+  - `deserialize()` 与 `reset()` 会主动清理运行时锁，确保旧档读取与新会话不会被残留锁污染。
+  - 当前已满足“重复点击不重奖、异常结算可回滚、旧档读取不坏档”的验收目标，并通过 `npm run type-check`。
+
+#### WS08 瀚海终局循环深化（T079）
+- 完成调参与运营开关接线：
+  - `src/data/hanhai.ts` 已新增 `HANHAI_OPERATION_TUNING_CONFIG`，按 `featureFlags / display / progression / rewards / operations / casino` 六个区块统一收口瀚海热调参数与运营开关。
+  - `src/stores/useHanhaiStore.ts` 已正式消费 `hanhaiTuning`、`hanhaiFeatureFlags`、`hanhaiDisplayConfig`、`hanhaiProgressionConfig`、`hanhaiRewardConfig`、`hanhaiOperationsConfig`，并将主题周焦点、跨系统总览、目录承接推荐、告示板偏置强度、阶段阈值、Boss 顺序、商店周限购倍率、遗迹 / 藏宝图奖励倍率与赌坊参数改为配置驱动。
+  - `currentThemeWeekHanhaiFocus`、`questBoardBiasProfile`、`crossSystemOverview`、`linkedVillageProjects`、`recommendedCatalogOffers` 与 `beginHanhaiAction()` / `finishHanhaiAction()` 已接入 feature flag，可按需热调或快速降级。
+  - 为恢复当前分支类型自检，`src/data/goals.ts` 已补齐 `GOAL_SOURCE_LABELS.weekly` 与 5 个主题周的 `weekOfSeason`，`src/stores/useQuestStore.ts` / `src/views/dev/LateGameDebugView.vue` 也已清理未使用符号。
+  - 当前已满足“不改业务逻辑即可调整至少 8 个核心参数，并支持快速关闭异常活动或降低奖励”的验收目标，并通过 `npm run type-check`。
+
+#### WS08 瀚海终局循环深化（T080）
+- 完成 QA、数值验收与上线文档收口：
+  - `src/data/hanhai.ts` 已内置 `WS08_ACCEPTANCE_SUMMARY`、`WS08_QA_CASES`、`WS08_RELEASE_CHECKLIST`、`WS08_COMPENSATION_PLANS`、`WS08_RELEASE_ANNOUNCEMENT`。
+  - QA / 验收范围已覆盖主题周焦点、跨系统总览、展示数量热调、阶段阈值与 Boss 顺序、奖励倍率 / 周限购 / 赌坊参数、偏置上限、feature flag 降级、旧档兼容、异常回滚与运行时锁释放等发布场景。
+  - `后期经济治理与中后期循环扩展AI实施方案-2026-04-10.md`、`TODO.md`、`后期经济治理实施索引-2026-04-11.md` 已同步回写 T079 / T080 完成状态与下一项主线。
+  - 当前 WS08 已具备可直接供 QA / 运营复用的验收摘要、上线检查项、补偿预案与公告文案，并再次通过 `npm run type-check`。
+
 #### CORE 底座（TYX-CORE-001）
 - 新增统一后期特性开关底座：
   - 新建 `src/data/systemFlags.ts`，集中声明后期预算、维护费、周目标、瀚海合同、鱼塘周赛、博物馆专题展、村庄繁荣度、社交长期线、高价服务合同等开关配置
@@ -138,6 +253,147 @@
   - `src/stores/useHanhaiStore.ts` 已统一接入 `casinoCashExpectationMultiplier`，下调轮盘、骰子、猜杯、斗蛐蛐、翻牌、扑克、恶魔轮盘与藏宝图的直接现金回流，并改为通过统一奖励结算链路发放商路票、展陈券、研究券、香料、绿松石、丝绸与藏宝图
   - `src/views/game/HanhaiView.vue` 已补充赌坊玩法说明文案，明确提示“赌坊更偏娱乐彩头 / 收藏物 / 票券，而非稳定刷钱”
   - 当前已满足“赌坊仍有吸引力，但不再是后期主要现金来源”的验收目标，并通过 `npm run type-check`
+
+#### ECON 经济止血（TYX-ECON-018）
+- 建立高价服务合同系统：
+  - `src/types/shopCatalog.ts` 已补齐服务合同类型、订阅状态与运行态摘要结构，并扩展 `quest` 关联系统枚举。
+  - `src/data/shopCatalog.ts` 已新增 4 份高价服务合同商品，覆盖商路外包、博物馆巡展、研究助理与后勤维保，同时补齐目录分类推断、关联系统推断与旧档兼容归一化。
+  - `src/stores/useShopStore.ts` 已实现服务合同激活、到期、自动续费、续费倍率、效果汇总与活跃合同摘要，并纳入目录事务回滚与周期日志。
+  - `src/stores/useQuestStore.ts`、`src/stores/useGoalStore.ts`、`src/stores/useMuseumStore.ts`、`src/stores/useVillageProjectStore.ts` 已接入服务合同增益，使其真实影响委托板刷新、任务奖励、目标声望、博物馆热度/评分与维护费用。
+  - `src/views/game/ShopView.vue` 已新增服务合同预览、签约按钮文案与“已启用服务合同”面板，展示到期日、周费和续费次数。
+  - 当前已满足“至少 3 种持续服务合同可购买且价值可见”的验收要求，并通过 `npm run type-check`
+
+#### ORDER 高阶订单（TYX-ORDER-019）
+- 扩展特殊订单数据结构到 3.0：
+  - `src/types/quest.ts` 新增特殊订单 3.0 共用类型，补齐阶段类型、组合交付要求、评分规则、运行态进度、活动来源与反重复标签等可选字段，并保持旧订单字段兼容。
+  - `src/data/quests.ts` 扩展 `SpecialOrderTemplate`，新增 `orderVersion`、`activitySourceId` / `activitySourceLabel`、`orderStageType`、`stageDefinitions`、`orderScoreRule`、`antiRepeatTags` 等配置入口，并为首批育种 / 鱼塘高阶单接入 3.0 元数据。
+  - `src/stores/useQuestStore.ts` 新增订单 3.0 归一化逻辑，支持 `comboRequirements`、`stageDefinitions`、`orderScoreRule`、`orderProgressState` 等字段的生成与旧档反序列化兼容。
+  - `src/views/game/QuestView.vue` 已增加订单解释层，可展示主题来源、订单结构、评分说明、阶段结构与轮换标签，为后续 ORDER-020 ~ ORDER-024 打底。
+  - 当前已满足“旧订单可正常生成，新订单可声明复杂条件”的验收要求，并通过 `npm run type-check`
+
+#### ORDER 高阶订单（TYX-ORDER-020）
+- 建立组合交付订单模板：
+  - `src/data/quests.ts` 已新增 6 个组合交付特殊订单模板，覆盖育种 + 加工、矿材 + 展陈、鱼塘 + 茶会、瀚海样本等混合交付场景，并统一接入 `comboRequirements`、`stageDefinitions`、评分规则、活动来源与反重复标签。
+  - `src/stores/useQuestStore.ts` 已补齐组合单逐项进度统计、可提交判定与提交流程，支持按 requirement 分别从背包或鱼塘扣除资源，并在失败时回滚库存 / 鱼塘状态。
+  - `src/views/game/QuestView.vue` 已改为按组合 requirement 汇总展示目标与总进度，避免继续使用单一 `targetQuantity` 造成 UI 误导。
+  - 当前已满足“至少 6 个组合单模板可配置并显示”的验收要求，并通过 `npm run type-check`
+
+#### ORDER 高阶订单（TYX-ORDER-021）
+- 建立阶段化订单链模板：
+  - `src/types/quest.ts` 已新增 `SpecialOrderStageReward`、`QuestStageState`，并为阶段定义补齐 `stageRewards`、`nextStageTemplateId`，让阶段链可声明独立奖励与下一段指针。
+  - `src/data/quests.ts` 已新增 `createMultiStageDefinitions()`，并为 `茶肆特供`、`金蜜宴筹备`、`洞窟盲鱼研究样本` 接入 2~3 段阶段链模板，覆盖 prepare / verify / deliver 三类阶段。
+  - `src/stores/useQuestStore.ts` 已补齐阶段链基础运行态兼容：阶段进度现会记录阶段类型与下一段模板 ID，中间阶段提交后可发放阶段奖励并推进到下一阶段，最终阶段继续走既有订单评分 / 结算链。
+  - 当前已满足“至少 3 条订单链可顺利推进并结算”的验收要求，并通过 `npm run type-check`
+
+#### ORDER 高阶订单（TYX-ORDER-022）
+- 在 QuestStore 中实现阶段化订单状态机：
+  - `src/stores/useQuestStore.ts` 已抽出阶段化订单统一状态机辅助函数，集中处理阶段快照构建、阶段推进、完成态写回、失败态落档与阶段历史追加，降低 `submitQuest()` 中的分支复杂度。
+  - `SpecialOrderProgressState.stageHistory` 已正式接入运行态链路与旧档兼容归一化；多阶段订单现在会在中间推进、最终完成与超时失败时记录 `advanced / completed / failed` 历史项。
+  - 最终结算态已改为复用已有阶段进度并保留历史记录，确保阶段奖励领取、已交付数量与结案记录不会在最终结算时丢失。
+  - 当前已满足“阶段化订单能正确保存当前阶段、奖励领取与剩余时间”的验收要求，并通过 `npm run type-check`
+
+#### ORDER 高阶订单（TYX-ORDER-023）
+- 建立订单评分结算规则：
+  - `src/data/quests.ts` 已补齐时效评分调参项，并在特殊订单初始运行态写入 `initialDaysRemaining`，使评分链可稳定读取原始时限。
+  - `src/types/quest.ts` 已新增 `SpecialOrderSettlementSummary`，为评分分解、时效比率、阈值标签与结算摘要提供统一持久化结构。
+  - `src/stores/useQuestStore.ts` 已把评分逻辑扩展为结构化 `scoreBreakdown`，当前会综合品质、谱系、世代、成熟度、健康度与时效完成度计算评分，并把摘要写回 `orderProgressState.settlementSummary`。
+  - 当前已满足“至少 5 个订单支持 A/B/S 评分并影响奖励”的验收要求，并通过 `npm run type-check`
+
+#### ORDER 高阶订单（TYX-ORDER-024）
+- 在任务页增加订单解释层：
+  - `src/types/quest.ts` 已为特殊订单补齐 `scoreHint`、`deliverySourceHint` 字段，专门承接任务页展示所需的可读规则说明。
+  - `src/data/quests.ts` 已为高阶订单自动生成评分提示与交付来源提示，覆盖育种品质单、鱼塘样本单、组合交付单与阶段订单。
+  - `src/views/game/QuestView.vue` 已新增“评分提示”“交付来源”说明区块，并与既有活动来源、订单规则、阶段 / 交付结构说明联动展示，使高代、成熟、健康、评分与提交来源可被 UI 清晰解释。
+  - 当前已满足“鱼塘单、谱系单、组合单都能被 UI 清晰解释”的验收要求，并通过 `npm run type-check`
+
+#### WS05 育种 × 特殊订单 × 主题周经营化（T042 ~ T047）
+- 完成育种经营化首批数据结构、Store、内容、页面与联动收口：
+  - `src/types/quest.ts`、`src/data/quests.ts` 已补齐育种 / 鱼塘主题订单所需的活动来源、评分规则、阶段结构、反重复标签、亲本来源限制、世代门槛与主题偏好字段，并保持旧档兼容。
+  - `src/stores/useQuestStore.ts` 已补齐特殊订单 3.0 的评分结算链路：提交时会基于图鉴属性、世代、谱系、鱼塘代数、主题周偏置等计算评分档位，并按档位放大奖励现金 / 票券、回写阶段完成态与日志。
+  - `src/stores/useQuestStore.ts` 现已把育种图鉴、鱼塘发现、主题周偏好、市场偏置、村庄委托加成与服务合同效果串入特殊订单生成 / 提交流程，形成“成长 → 订单 → 奖励 → 再经营”的闭环。
+  - `src/views/game/QuestView.vue` 已补充特殊订单解释层，可视化展示需求提示、评分关注点、阶段结构、活动来源、轮换标签与奖励档案，降低后期订单理解门槛。
+  - `src/views/game/BreedingView.vue` 已补充“经营型育种提醒”，将主题周重点、当前育种订单、推荐杂交目标与图鉴推荐目标汇总展示，帮助玩家快速决定本周育种方向。
+  - `src/composables/useEndDay.ts`、`src/data/goals.ts`、`src/stores/useGoalStore.ts` 的既有周循环 / 主题周能力已与本批配置协同工作，当前可按周生成不同偏好的育种 / 鱼塘特殊订单。
+  - 当前已满足“需求可追踪、可准备、可解释，且会反向影响育种与订单选择”的验收目标，并通过 `npm run type-check`
+
+#### WS05 育种 × 特殊订单 × 主题周经营化（T048）
+- 完成特殊订单事务安全与防刷处理：
+  - `src/stores/useQuestStore.ts` 新增运行时提交锁，防止同一委托 / 特殊订单被重复点击并发结算。
+  - 新增特殊订单结算回执与最近轮换标签历史，避免重复领奖，并降低连续刷出相同主题 / 相同标签订单的概率。
+  - 特殊订单提交后会把评分结算结果、阶段完成态、回执记录与轮换历史统一写回，形成“校验 -> 结算 -> 记账 -> 记回执”的原子化链路。
+  - 旧档读取时会为 `specialOrderSettlementReceipts`、`recentSpecialOrderTagHistory` 安全补默认值，运行时锁不会入档，兼容旧存档。
+  - 当前已满足“重复点击不重奖、重复提交不重复结算、订单轮换具备基础防刷护栏”的验收目标，并通过 `npm run type-check`
+
+#### WS05 育种 × 特殊订单 × 主题周经营化（T049）
+- 完成调参与运营开关接线：
+  - `src/stores/useQuestStore.ts` 已正式消费 `BREEDING_SPECIAL_ORDER_TUNING_CONFIG`，特殊订单生成尝试次数、评分基础分、各类 bonus / cap、反重复历史上限与结算回执上限不再写死在 store 内。
+  - 主题周偏置、评分结算、反重复轮换、重复领奖保护现均受 feature flag 控制，出现活动异常时可直接通过 data 配置关闭或降级，无需改业务主逻辑。
+  - 特殊订单生成链路现会按配置决定是否启用主题周偏置与反重复多轮尝试；特殊订单结算链路现会按配置统一裁剪最小 / 最大评分并放大奖励倍率。
+  - 当前已满足“至少 8 个核心参数可通过 data 层热调”的验收要求，并通过 `npm run type-check`
+
+#### WS05 育种 × 特殊订单 × 主题周经营化（T050）
+- 完成 QA、数值验收与上线文档收口：
+  - `src/data/quests.ts` 已补齐 `WS05_ACCEPTANCE_SUMMARY`、`WS05_QA_CASES`、`WS05_RELEASE_CHECKLIST`、`WS05_COMPENSATION_PLANS`、`WS05_RELEASE_ANNOUNCEMENT`，形成与 WS03 / WS04 一致的数据化发布包。
+  - 首批 QA 用例已覆盖重复点击、评分结算、鱼塘高规订单、旧档兼容、运营调参与历史裁剪等场景，满足“至少 8 个用例”的发布门槛。
+  - 补偿预案已覆盖重复结算、评分倍率异常与主题偏置失衡等风险，可直接作为运营兜底与回滚说明使用。
+  - 当前批次文档、配置与代码已同步完成收口，并通过 `npm run type-check`
+
+#### WS06 博物馆 / 祠堂持续经营线（T057）
+- 完成跨系统联动闭环：
+  - `src/data/goals.ts` 的主题周配置已补齐 `museumFocusHallZoneIds`、`museumFocusThemeIds`、`museumFocusScholarCommissionIds`，让主题周能直接编排馆区、祠堂主题与学者委托焦点。
+  - `src/stores/useMuseumStore.ts` 新增 `currentThemeWeekMuseumFocus`、`featuredScholarCommissionOverview`、`questBoardBiasProfile`、`supportNpcOverview` 与 `crossSystemOverview`，把主题周、村庄建设、馆务协力 NPC 与告示板经营偏置统一收口到博物馆 store。
+  - `src/stores/useQuestStore.ts` 现会把博物馆联动偏置并入任务 / 特殊订单生成链路，使展陈经营会反向影响告示板与筹备型委托方向。
+  - `src/views/game/MuseumView.vue` 已新增学者委托接取/领奖按钮、经营联动摘要与馆务协力展示，形成“展陈 -> 学者委托 -> 告示板偏置 -> 村庄/社交联动”的可视化闭环。
+  - 当前已满足“至少影响 2 条现有系统活跃度，并可从日志与页面看到联动证据”的验收目标，并通过 `npm run type-check`
+
+#### WS06 博物馆 / 祠堂持续经营线（T058）
+- 完成事务安全与防刷处理：
+  - `src/stores/useMuseumStore.ts` 新增 `museumActionLocks`，为捐赠、学者委托接取、学者委托领奖与里程碑领奖补齐重复点击防护。
+  - 学者委托领奖现会保留 `inventory / player / goal / npc / museum` 快照，若奖励发放异常会统一回滚，不再留下半成功状态。
+  - 里程碑领奖与捐赠操作已补齐容量预检、异常回滚与结构化日志，读档时运行时锁不会入档，兼容旧存档。
+  - 当前已满足“背包不足不吞货、重复点击不重奖、异常时可回滚”的事务护栏，并通过 `npm run type-check`
+
+#### WS06 博物馆 / 祠堂持续经营线（T059）
+- 完成调参与运营开关接线：
+  - `src/data/museum.ts` 已新增 `MUSEUM_OPERATION_TUNING_CONFIG`，集中声明主题周焦点、告示板偏置、祠堂轮换、学者委托自动完成 / 领奖、事务锁、展示数量与联动权重等运营配置。
+  - `src/stores/useMuseumStore.ts` 已正式消费上述 tuning config，访客热度换算、推荐动作展示数量、支持 NPC 展示数、馆区标签数、告示板偏置强度与学者好感奖励等逻辑不再散落写死。
+  - 当前已满足“至少 8 个核心参数可通过 data 层热调”的验收要求，并通过 `npm run type-check`
+
+#### WS06 博物馆 / 祠堂持续经营线（T060）
+- 完成 QA、数值验收与上线文档收口：
+  - `src/data/museum.ts` 已补齐 `WS06_ACCEPTANCE_SUMMARY`、`WS06_QA_CASES`、`WS06_RELEASE_CHECKLIST`、`WS06_COMPENSATION_PLANS`、`WS06_RELEASE_ANNOUNCEMENT`，形成与 WS05 一致的数据化发布包。
+  - 首批 QA 用例已覆盖主题周焦点联动、学者委托接取 / 领奖、重复点击防护、里程碑容量预检、捐赠回滚、运营开关关闭、调参验证与旧档兼容等场景，满足“至少 8 个用例”的发布门槛。
+  - 当前批次文档、配置与代码已同步完成收口，并通过 `npm run type-check`
+
+#### WS07 公会赛季化与轻竞争 PVE（T067）
+- 完成跨系统联动闭环：
+  - `src/types/goal.ts`、`src/data/goals.ts` 已为主题周补齐 `guildFocusActivityIds`、`guildFocusMilestoneIds`、`guildFocusRewardPoolIds`，让主题周可直接编排公会赛季活动、里程碑与奖励池焦点。
+  - `src/stores/useGuildStore.ts` 已新增 `currentThemeWeekGuildFocus`、`featuredSeasonActivities`、`featuredSeasonMilestones`、`activeRewardPoolOverview`、`questBoardBiasProfile`、`crossSystemOverview` 与 `guildAchievementProgress`，把主题周、赛季活动、奖励池与成就进度统一收口到公会 store。
+  - `src/stores/useQuestStore.ts` 现会把公会联动偏置并入告示板与特殊订单的市场偏置链路，使公会赛季阶段会反向影响任务筹备方向。
+  - `src/views/game/GuildView.vue` 已新增经营联动与成就联动摘要，形成“赛季阶段 -> 奖励池/成就 -> 告示板偏置 -> 周筹备路线”的可视化闭环。
+  - 当前已满足“至少影响 2 条现有系统活跃度，并可从日志与页面看到联动证据”的验收目标，并通过 `npm run type-check`
+
+#### WS07 公会赛季化与轻竞争 PVE（T068）
+- 完成事务安全与防刷处理：
+  - `src/stores/useGuildStore.ts` 已为 `claimGoal()`、`donateItem()`、`buyShopItem()` 接入运行时幂等锁，防止重复点击或并发触发重复结算。
+  - 上述关键 action 现统一保留 `player / inventory / guild` 快照，并在奖励发放、材料扣除或状态写回异常时整体回滚，避免半成功状态。
+  - `deserialize()` 读档时会主动清空 `guildActionLocks`，确保运行时锁不入档、不污染旧存档兼容链路。
+  - 当前已满足“背包不足不吞货、重复点击不重奖、异常结算可回滚”的事务护栏，并通过 `npm run type-check`。
+
+#### WS07 公会赛季化与轻竞争 PVE（T069）
+- 完成调参与运营开关接线：
+  - `src/data/guild.ts` 已新增 `GUILD_SEASON_TUNING_CONFIG`，集中管理主题周焦点、告示板偏置、奖励池显示、阶段切换周数、异步荣誉分公式、讨伐贡献换算、捐献倍率与事务锁开关。
+  - `src/data/guild.ts` 同步新增 `GUILD_SEASON_MAILBOX_PRESETS`，为荣誉竞猎周结算与世界里程碑收尾邮件提供可复用的数据预设。
+  - `src/stores/useGuildStore.ts` 已正式消费 tuning config，当前阶段切换、榜单档位、偏置强度、推荐动作数量、奖励池展示与贡献/经验换算均不再写死在 store 内。
+  - `server/src/taoyuanMailbox.js` 与 `server/src/routes/api.js` 已补齐公会赛季邮件预设读取接口，运营侧可直接读取赛季邮件模板配置以快速降级或切换活动结算方案。
+  - 当前已满足“至少 8 个核心参数可通过 data / server 预设热调”的验收目标，并通过 `npm run type-check` 与 `node --check` 自检。
+
+#### WS07 公会赛季化与轻竞争 PVE（T070）
+- 完成 QA、数值验收与上线文档收口：
+  - `src/data/guild.ts` 已补齐 `WS07_ACCEPTANCE_SUMMARY`、`WS07_QA_CASES`、`WS07_RELEASE_CHECKLIST`、`WS07_COMPENSATION_PLANS`、`WS07_RELEASE_ANNOUNCEMENT`，形成与 WS05 / WS06 一致的数据化发布包。
+  - 首批 QA 用例已覆盖重复点击防护、商店购买回滚、荣誉分热调、偏置关闭、邮件预设读取、旧档兼容与补偿切换等场景，满足“至少 8 个用例”的发布门槛。
+  - 补偿预案已覆盖重复奖励、档位口径失真与赛季邮件模板异常等风险，可直接作为运营兜底与回滚说明使用。
+  - 当前批次文档、配置与代码已同步完成收口，并通过 `npm run type-check` 与 `node --check` 自检。
 
 #### WS01 经济观测与通胀治理底座（T001 / T002 / T003）
 - 为后期经济治理补齐首批基线审计配置：
@@ -526,6 +782,20 @@
   - 市场看板现补充上涨机会、下跌风险、地区收购详情与主题鼓励倍率，帮助玩家把 `processMarketDynamicsTick()` 产生的状态直接转化为可执行经营提示
   - `TopGoalsPanel` 新增“市场轮换摘要”卡片，把阶段、热点、路线建议与过剩压制提醒纳入目标规划区域，形成“主题周目标 + 市场轮换 + 本周重点目标”的统一视图
   - 使 WS04 从“有状态机、有内容池”推进到“玩家能在主页面直接理解热点轮换与通胀治理提示”的展示状态
+
+#### WS04 市场行情与动态通胀抑制（T037）
+- `src/stores/useQuestStore.ts`、`src/data/quests.ts` 已补齐 WS04 跨系统联动闭环：
+  - 日常委托与紧急委托生成现会读取 `useShopStore` 的热点品类、地区收购、替代奖励、过剩压制与主题鼓励状态，对任务类型和目标品类做动态偏置，不再完全随机出牌
+  - 特殊订单生成现会把市场热点品类、抑制品类与主题周偏好一并纳入权重，形成“市场热点 -> 订单池重排 -> 奖励回流票券 / 经营路线”的闭环
+  - 村民委托的偏好类别也会根据当前市场主推方向在采集 / 烹饪 / 钓鱼之间切换，使农耕、钓鱼、加工与订单线在周节奏上真正互相牵引
+  - 新增结构化市场联动日志，能从日志中直接看到“今日告示板更偏向哪些品类”“本周特殊订单为何偏向某条路线”的闭环证据
+
+#### WS04 市场行情与动态通胀抑制（T038）
+- `src/stores/useShopStore.ts`、`src/data/market.ts`、`src/composables/useEndDay.ts` 已补齐 WS04 事务安全与防刷处理：
+  - `marketDynamics` 新增 `operationalMeta.lastShippingSettlementDayKey`，把出货箱结算也纳入 WS04 状态机自身的幂等保护，避免同一日重复结算导致重复记账 / 重复影响市场样本
+  - `useShopStore` 新增 `settleShippingBoxWithMarketGuard()`，为出货箱结算补齐事务锁、玩家资产快照、市场历史快照、市场状态快照与失败回滚，结算异常时会自动恢复铜钱、出货箱、出货历史与市场动态状态
+  - `useEndDay` 已改为调用新的事务化结算入口，并统一按成功 / 跳过 / 失败输出结构化市场日志，保证收入发放、市场样本更新与日志提示口径一致
+  - 结合原有 `processMarketDynamicsTick()` 的按 `dayTag / weekId` 幂等处理，WS04 现已形成“市场 tick 防重 + 出货结算防重 + 失败自动回滚”的完整护栏
 
 #### WS05 育种 × 特殊订单 × 主题周经营化（T041）
 - `src/data/goals.ts`、`src/data/quests.ts`、`src/stores/useBreedingStore.ts`、`src/stores/useQuestStore.ts`、`src/types/goal.ts` 已补齐首批基线审计配置：

@@ -45,6 +45,7 @@ import { useMuseumStore } from './useMuseumStore'
 import { useNpcStore } from './useNpcStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useQuestStore } from './useQuestStore'
+import { useShopStore } from './useShopStore'
 import { useWarehouseStore } from './useWarehouseStore'
 
 export const useVillageProjectStore = defineStore('villageProject', () => {
@@ -777,7 +778,8 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
       return { success: false, message: '当前维护仍在生效，无需提前续费。' }
     }
 
-    const maintenanceCost = Math.max(0, Math.floor(summary.plan.costMoney))
+    const maintenanceReduction = useShopStore().getServiceContractEffectSummary().maintenanceCostRateReduction
+    const maintenanceCost = Math.max(0, Math.floor(summary.plan.costMoney * (1 - maintenanceReduction)))
     if (!playerStore.spendMoney(maintenanceCost, 'villageProject')) {
       return { success: false, message: `铜钱不足（需要${maintenanceCost}文）。` }
     }
@@ -790,7 +792,7 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
       tags: ['village_project_maintenance_cycle', 'late_game_cycle'],
       meta: { projectId, costMoney: maintenanceCost, nextDueDayTag }
     })
-    return { success: true, message: `已启用维护：下次维护日 ${nextDueDayTag}` }
+    return { success: true, message: `已启用维护：下次维护日 ${nextDueDayTag}${maintenanceReduction > 0 ? '（已计入维保合同减免）' : ''}` }
   }
 
   const donateToProject = (projectId: string, itemId: string, amount: number) => {
@@ -881,12 +883,13 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
 
       if (!isDayTagReached(state.nextDueDayTag, currentDayTag)) continue
 
-      const maintenanceCost = Math.max(0, Math.floor(project.maintenancePlan.costMoney))
+      const maintenanceReduction = useShopStore().getServiceContractEffectSummary().maintenanceCostRateReduction
+      const maintenanceCost = Math.max(0, Math.floor(project.maintenancePlan.costMoney * (1 - maintenanceReduction)))
       if (state.status === 'active' && state.autoRenew && maintenanceCost > 0 && playerStore.spendMoney(maintenanceCost, 'villageProject')) {
         playerStore.recordSinkSpend(maintenanceCost, 'maintenance')
         const nextDueDayTag = addDaysToDayTag(currentDayTag, project.maintenancePlan.cycleDays)
         activateMaintenancePlan(project.id, nextDueDayTag)
-        maintenanceEvents.push(`【村庄建设】已为${project.name}自动支付${maintenanceCost}文维护费，下次维护日：${nextDueDayTag}。`)
+        maintenanceEvents.push(`【村庄建设】已为${project.name}自动支付${maintenanceCost}文维护费，下次维护日：${nextDueDayTag}。${maintenanceReduction > 0 ? ' 维保合同已生效。' : ''}`)
       } else {
         const pendingCycles = Math.max(1, state.pendingCycles + 1)
         const nextDueDayTag = addDaysToDayTag(state.nextDueDayTag, project.maintenancePlan.cycleDays)

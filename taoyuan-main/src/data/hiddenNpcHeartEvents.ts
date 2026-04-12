@@ -1,4 +1,4 @@
-import type { HeartEventDef } from '@/types'
+import type { HeartEventDef, SpiritBlessingDef, SpiritBondTier } from '@/types'
 
 /** 隐藏NPC心事件（使用 HeartEventDef 格式，requiredFriendship 对应缘分阈值） */
 export const HIDDEN_NPC_HEART_EVENTS: HeartEventDef[] = [
@@ -472,3 +472,118 @@ export const getHiddenNpcHeartEvents = (npcId: string): HeartEventDef[] => {
 export const getHiddenNpcHeartEventById = (eventId: string): HeartEventDef | undefined => {
   return HIDDEN_NPC_HEART_EVENTS.find(e => e.id === eventId)
 }
+
+export const WS09_SPIRIT_BOND_AUDIT_POOLS = {
+  hiddenNpcIds: Array.from(new Set(HIDDEN_NPC_HEART_EVENTS.map(event => event.npcId))),
+  totalHeartEventCount: HIDDEN_NPC_HEART_EVENTS.length,
+  maxAffinityRequirement: Math.max(...HIDDEN_NPC_HEART_EVENTS.map(event => event.requiredFriendship))
+} as const
+
+export const WS09_SPIRIT_BLESSING_DEFS: SpiritBlessingDef[] = [
+  {
+    id: 'spirit_blessing_dew',
+    label: '灵露加护',
+    description: '为 P0 仙灵陪伴线预留基础照料型祝福位，强调恢复与陪伴反馈而非直接刷资源。',
+    unlockTier: 'P0',
+    resonanceCost: 120,
+    durationDays: 3,
+    linkedSystems: ['goal', 'home'],
+    rewardSummary: '用于承接基础陪伴祝福、恢复类文案与低梯度奖励。'
+  },
+  {
+    id: 'spirit_blessing_tide',
+    label: '灵潮相随',
+    description: '为 P1 仙灵结缘线预留外出协作祝福位，承接钓鱼、家园与故事活动的中期协作。',
+    unlockTier: 'P1',
+    resonanceCost: 260,
+    durationDays: 5,
+    linkedSystems: ['fishPond', 'quest'],
+    rewardSummary: '用于承接外出协作、结缘活动与中期陪伴主题。'
+  },
+  {
+    id: 'spirit_blessing_legacy',
+    label: '灵契传承',
+    description: '为 P2 终局仙灵线预留传承与纪念事件祝福位，强调家业和长期关系的终局感。',
+    unlockTier: 'P2',
+    resonanceCost: 420,
+    durationDays: 7,
+    linkedSystems: ['goal', 'home', 'quest'],
+    rewardSummary: '用于承接终局纪念事件、家业传承与高阶非战斗循环。'
+  }
+]
+
+export const WS09_SPIRIT_RESONANCE_CONFIG = {
+  maxWeeklyOfferingsByTier: { P0: 3, P1: 4, P2: 5 },
+  blessingSlotCountByTier: { P0: 1, P1: 1, P2: 2 },
+  resonanceThresholdByTier: { P0: 600, P1: 1400, P2: 2400 }
+} as const
+
+export const WS09_SPIRIT_TUNING_CONFIG = {
+  featureFlags: {
+    spiritQuestBiasEnabled: true,
+    spiritBlessingEnabled: true,
+    bondMemoryEnabled: true
+  },
+  display: {
+    spiritBlessingPreviewLimit: 2,
+    bondMemoryPreviewLimit: 2
+  },
+  rewards: {
+    resonanceGainMultiplier: 1,
+    dailyBondBonusMultiplier: 1
+  },
+  operations: {
+    activeBlessingResetOnNewWeek: true,
+    maxResonanceGainPerOffering: 300
+  }
+} as const
+
+export const WS09_HIDDEN_NPC_BLESSING_ASSIGNMENTS: Record<string, string[]> = {
+  long_ling: ['spirit_blessing_tide', 'spirit_blessing_legacy'],
+  tao_yao: ['spirit_blessing_dew', 'spirit_blessing_legacy'],
+  yue_tu: ['spirit_blessing_dew', 'spirit_blessing_tide'],
+  shan_weng: ['spirit_blessing_dew', 'spirit_blessing_legacy'],
+  gui_nv: ['spirit_blessing_tide', 'spirit_blessing_legacy']
+}
+
+export const WS09_SPIRIT_BOND_MEMORY_REWARDS = [
+  {
+    id: 'memory_long_ling_water_mark',
+    npcId: 'long_ling',
+    unlockTier: 'P1',
+    summary: '龙灵系结缘记忆，承接瀑布、灵潭与远行前的守护事件。'
+  },
+  {
+    id: 'memory_tao_yao_orchard_bloom',
+    npcId: 'tao_yao',
+    unlockTier: 'P0',
+    summary: '桃夭系结缘记忆，承接宅院、桃林与生活化陪伴事件。'
+  },
+  {
+    id: 'memory_yue_tu_moon_trip',
+    npcId: 'yue_tu',
+    unlockTier: 'P1',
+    summary: '月兔系结缘记忆，承接夜游、采药与外出同游事件。'
+  },
+  {
+    id: 'memory_shan_weng_herb_scroll',
+    npcId: 'shan_weng',
+    unlockTier: 'P2',
+    summary: '山翁系结缘记忆，承接终局修行、恢复与传承事件。'
+  },
+  {
+    id: 'memory_gui_nv_return_cloth',
+    npcId: 'gui_nv',
+    unlockTier: 'P2',
+    summary: '归女系结缘记忆，承接织物、宅院陈设与纪念事件链。'
+  }
+] as const
+
+export const createDefaultSpiritBondProgressState = () => ({
+  bondTier: 'P0' as SpiritBondTier,
+  resonancePoints: 0,
+  lastOfferingDayTag: '',
+  activeBlessingId: null,
+  unlockedBlessingIds: [] as string[],
+  claimedBondMemoryIds: [] as string[]
+})

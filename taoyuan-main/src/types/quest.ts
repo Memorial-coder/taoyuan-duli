@@ -8,6 +8,186 @@ export type QuestType = 'delivery' | 'fishing' | 'mining' | 'gathering' | 'speci
 /** 村民委托侧重类别 */
 export type VillagerQuestCategory = 'gathering' | 'cooking' | 'fishing' | 'errand' | 'festival_prep'
 
+/** 特殊订单主题标签 */
+export type QuestThemeTag = 'breeding' | 'fishpond'
+
+/** 任务交付模式 */
+export type QuestDeliveryMode = 'inventory' | 'pond'
+
+/** 特殊订单结构类型 */
+export type SpecialOrderStageType = 'single' | 'multi' | 'combo'
+
+/** 特殊订单阶段类型 */
+export type SpecialOrderStagePhaseType = 'prepare' | 'verify' | 'deliver' | 'display'
+
+/** 特殊订单评分档位 */
+export type SpecialOrderScoreRank = 'pending' | 'C' | 'B' | 'A' | 'S'
+
+/** 特殊订单组合交付要求 */
+export interface SpecialOrderComboRequirement {
+  id: string
+  itemId: string
+  itemName: string
+  quantity: number
+  deliveryMode?: QuestDeliveryMode
+  requiredHybridId?: string
+  requiredSweetnessMin?: number
+  requiredYieldMin?: number
+  requiredResistanceMin?: number
+  requiredGenerationMin?: number
+  requiredParentCropIds?: string[]
+  requiredPondGenerationMin?: number
+  requiredFishMature?: boolean
+  requiredFishHealthy?: boolean
+  note?: string
+}
+
+/** 特殊订单阶段奖励 */
+export interface SpecialOrderStageReward {
+  moneyReward?: number
+  friendshipReward?: number
+  itemReward?: { itemId: string; quantity: number }[]
+  ticketReward?: Partial<Record<RewardTicketType, number>>
+  summary?: string
+}
+
+/** 特殊订单阶段定义 */
+export interface SpecialOrderStageDef {
+  id: string
+  title: string
+  description: string
+  phaseType: SpecialOrderStagePhaseType
+  targetItemId?: string
+  targetItemName?: string
+  targetQuantity?: number
+  deliveryMode?: QuestDeliveryMode
+  requirementSummary?: string[]
+  comboRequirements?: SpecialOrderComboRequirement[]
+  stageRewards?: SpecialOrderStageReward
+  nextStageTemplateId?: string
+}
+
+/** 特殊订单评分阈值 */
+export interface SpecialOrderScoreThreshold {
+  rank: Exclude<SpecialOrderScoreRank, 'pending'>
+  minScore: number
+  label: string
+  rewardMoneyMultiplier?: number
+  rewardTicketMultiplier?: number
+  summary?: string
+}
+
+/** 特殊订单评分规则 */
+export interface SpecialOrderScoreRule {
+  id: string
+  label: string
+  description: string
+  factorSummary: string[]
+  thresholds: SpecialOrderScoreThreshold[]
+  previewText?: string
+}
+
+/** 特殊订单阶段进度 */
+export interface SpecialOrderStageProgress {
+  stageId: string
+  completed: boolean
+  deliveredQuantity: number
+  rewardClaimed?: boolean
+}
+
+/** 阶段化订单运行态 */
+export interface QuestStageState extends SpecialOrderStageProgress {
+  phaseType?: SpecialOrderStagePhaseType
+  nextStageTemplateId?: string
+}
+
+/** 阶段化订单历史记录 */
+export interface SpecialOrderStageHistoryEntry {
+  stageId: string
+  phaseType?: SpecialOrderStagePhaseType
+  deliveredQuantity: number
+  resolution: 'advanced' | 'completed' | 'failed'
+  summary?: string
+}
+
+/** 特殊订单结算摘要 */
+export interface SpecialOrderSettlementSummary {
+  score: number
+  rank: SpecialOrderScoreRank
+  remainingDays: number
+  initialDaysRemaining: number
+  timelinessRatio: number
+  scoreBreakdown: string[]
+  thresholdLabel?: string
+  thresholdSummary?: string
+}
+
+/** 周循环高阶订单刷新状态 */
+export interface WeeklySpecialOrderState {
+  lastRefreshWeekId: string
+  lastRefreshAbsoluteWeek?: number
+  lastGeneratedOrderId?: string
+  refreshMode: 'legacy' | 'weekly'
+}
+
+/** 订单生成候选追踪 */
+export interface OrderGenerationTraceCandidate {
+  templateName: string
+  targetItemId: string
+  tier: number
+  themeTag?: QuestThemeTag
+  activitySourceId?: string
+  requiredHybridId?: string
+  preferredSeasons?: Season[]
+  finalWeight: number
+  weightReasons: string[]
+  blockedByAntiRepeat?: boolean
+  blockedTags?: string[]
+  cooldownWeeks?: number
+}
+
+/** 订单生成单次尝试追踪 */
+export interface OrderGenerationTraceAttempt {
+  attempt: number
+  candidateCount: number
+  selectedTemplateName?: string
+  selectedTargetItemId?: string
+  blockedByAntiRepeat?: boolean
+  blockReason?: string
+  candidates: OrderGenerationTraceCandidate[]
+}
+
+/** 订单生成调试追踪 */
+export interface OrderGenerationTrace {
+  season: Season
+  tier: number
+  mode: 'legacy' | 'weekly'
+  weekId?: string
+  absoluteWeek?: number
+  attempts: number
+  selectedOrderId?: string
+  selectedTemplateName?: string
+  selectedTargetItemId?: string
+  selectedReason: string
+  preferredThemeTag?: QuestThemeTag
+  preferredHybridIds?: string[]
+  preferredMarketCategories?: string[]
+  discouragedMarketCategories?: string[]
+  attemptsDetail: OrderGenerationTraceAttempt[]
+}
+
+/** 特殊订单运行态进度 */
+export interface SpecialOrderProgressState {
+  currentStageIndex: number
+  completedStageIds: string[]
+  initialDaysRemaining?: number
+  currentScore?: number
+  currentRank?: SpecialOrderScoreRank
+  stageProgress?: QuestStageState[]
+  stageHistory?: SpecialOrderStageHistoryEntry[]
+  settlementSummary?: SpecialOrderSettlementSummary
+}
+
 /** 任务目标模板 */
 export interface QuestTargetDef {
   itemId: string
@@ -65,8 +245,31 @@ export interface QuestInstance {
   bonusSummary?: string[]
   /** 难度标签（特殊订单） */
   tierLabel?: string
+  /** 特殊订单结构版本 */
+  orderVersion?: '2.x' | '3.0'
   /** 玩法主题标签 */
-  themeTag?: 'breeding' | 'fishpond'
+  themeTag?: QuestThemeTag
+  /** 活动 / 周主题来源 */
+  activitySourceId?: string
+  activitySourceLabel?: string
+  /** 单阶段 / 阶段链 / 组合交付 */
+  orderStageType?: SpecialOrderStageType
+  /** 阶段化定义 */
+  stageDefinitions?: SpecialOrderStageDef[]
+  /** 组合交付定义 */
+  comboRequirements?: SpecialOrderComboRequirement[]
+  /** 评分结算规则 */
+  orderScoreRule?: SpecialOrderScoreRule
+  /** 评分提示（面向 UI 的可读说明） */
+  scoreHint?: string[]
+  /** 反重复轮换标签 */
+  antiRepeatTags?: string[]
+  /** 反重复轮换冷却周数 */
+  antiRepeatCooldownWeeks?: number
+  /** 订单运行态进度 */
+  orderProgressState?: SpecialOrderProgressState
+  /** 交付来源提示（面向 UI 的可读说明） */
+  deliverySourceHint?: string[]
   /** 主题需求描述 */
   demandHint?: string
   /** 建议关注的杂交品种 */
@@ -86,7 +289,7 @@ export interface QuestInstance {
   /** 育种谱系亲本要求 */
   requiredParentCropIds?: string[]
   /** 提交方式：默认背包交付，也可直接从鱼塘交付 */
-  deliveryMode?: 'inventory' | 'pond'
+  deliveryMode?: QuestDeliveryMode
   /** 鱼塘品系代数门槛 */
   requiredPondGenerationMin?: number
   /** 是否要求成熟鱼 */
@@ -95,6 +298,30 @@ export interface QuestInstance {
   requiredFishHealthy?: boolean
   /** 是否为紧急委托（1天时限，奖励翻倍） */
   isUrgent?: boolean
+}
+
+export interface LimitedTimeQuestCampaignDef {
+  id: string
+  label: string
+  description: string
+  unlockTier: 'P0' | 'P1' | 'P2'
+  linkedCampaignId: string
+  preferredThemeTag?: QuestThemeTag
+  activitySourceId: string
+  activitySourceLabel: string
+  durationDays: number
+  recommendedOfferIds?: string[]
+  rewardSummary: string
+}
+
+export interface ActivityQuestWindowState {
+  version: number
+  activeCampaignId: string | null
+  activeQuestTemplateIds: string[]
+  lastRefreshDayTag: string
+  nextRefreshDayTag: string
+  completedWindowIds: string[]
+  claimedRewardMailIds: string[]
 }
 
 // ============================================================

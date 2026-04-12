@@ -4,6 +4,7 @@ import { SEASON_NAMES, useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useSkillStore } from './useSkillStore'
+import { useSettingsStore } from './useSettingsStore'
 import { useWalletStore } from './useWalletStore'
 import { useHomeStore } from './useHomeStore'
 import { useFarmStore } from './useFarmStore'
@@ -51,6 +52,7 @@ import type {
   PriceBreakdownEntry,
   PriceModifierStep,
   Quality,
+  RewardTicketType,
   SellPriceBreakdown,
   ShopCatalogContentTier,
   ShopCatalogDebugSnapshot,
@@ -62,7 +64,8 @@ import type {
   ShopCatalogOfferDef,
   ShopCatalogOfferOperationalSummary,
   ShopCatalogOverviewSummary,
-  ShopCatalogPool
+  ShopCatalogPool,
+  ShopServiceContractSummary
 } from '@/types'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useDecorationStore } from './useDecorationStore'
@@ -155,6 +158,12 @@ const hashMarketSeed = (input: string): number => {
 
 const getSeededOrderScore = (seed: string, key: string): number => {
   return hashMarketSeed(`${seed}:${key}`) / 0xffffffff
+}
+
+const cloneShippingHistoryState = (history: Record<string, Record<string, number>>) => {
+  return Object.fromEntries(
+    Object.entries(history).map(([dayKey, record]) => [dayKey, { ...record }])
+  ) as Record<string, Record<string, number>>
 }
 
 export const useShopStore = defineStore('shop', () => {
@@ -315,6 +324,12 @@ export const useShopStore = defineStore('shop', () => {
     return catalogExpansionState.value[bucketKey][offer.id]
   }
 
+  const getServiceContractRenewFee = (offer: ShopCatalogOfferDef): number => {
+    if (offer.luxuryCategory !== 'service_contract' || !offer.serviceContractConfig) return 0
+    const multiplier = Math.max(0, Number(useSettingsStore().getLateGameBalanceConfig().serviceContractRenewMultiplier) || 1)
+    return Math.max(0, Math.floor(offer.serviceContractConfig.weeklyFee * multiplier))
+  }
+
   const getCatalogOfferServiceLockHint = (offerId: string): string => {
     const offer = getCatalogOfferById(offerId)
     if (!offer || offer.serviceBillingCycle === 'one_off') return ''
@@ -344,6 +359,81 @@ export const useShopStore = defineStore('shop', () => {
 
     return rawState.purchasedCount > 0 ? 'consumed' : 'inactive'
   }
+
+  const buildServiceContractEffectSummary = (linkedSystem?: ShopCatalogLinkedSystem) => {
+    const summary = {
+      moneyRewardMultiplier: 1,
+      reputationRewardMultiplier: 1,
+      flatReputationBonus: 0,
+      goalReputationFlatBonus: 0,
+      dailyQuestBoardBonus: 0,
+      museumVisitorBonusRate: 0,
+      museumDisplayRatingBonus: 0,
+      maintenanceCostRateReduction: 0,
+      fishPondDailyOutputBonus: 0,
+      ticketRewards: {} as Partial<Record<RewardTicketType, number>>
+    }
+
+    for (const offer of SHOP_CATALOG_OFFERS) {
+      if (offer.luxuryCategory !== 'service_contract' || !offer.serviceContractConfig) continue
+      if (resolveOfferStatus(offer) !== 'active') continue
+      if (linkedSystem && !offer.serviceContractConfig.targetSystems.includes(linkedSystem)) continue
+
+      const config = offer.serviceContractConfig
+      summary.moneyRewardMultiplier *= config.moneyRewardMultiplier ?? 1
+      summary.reputationRewardMultiplier *= config.reputationRewardMultiplier ?? 1
+      summary.flatReputationBonus += config.flatReputationBonus ?? 0
+      summary.goalReputationFlatBonus += config.goalReputationFlatBonus ?? 0
+      summary.dailyQuestBoardBonus += config.dailyQuestBoardBonus ?? 0
+      summary.museumVisitorBonusRate += config.museumVisitorBonusRate ?? 0
+      summary.museumDisplayRatingBonus += config.museumDisplayRatingBonus ?? 0
+      summary.maintenanceCostRateReduction += config.maintenanceCostRateReduction ?? 0
+      summary.fishPondDailyOutputBonus += config.fishPondDailyOutputBonus ?? 0
+
+      for (const [ticketType, amount] of Object.entries(config.ticketRewards ?? {})) {
+        summary.ticketRewards[ticketType as RewardTicketType] =
+          (summary.ticketRewards[ticketType as RewardTicketType] ?? 0) + Math.max(0, Number(amount) || 0)
+      }
+    }
+
+    summary.maintenanceCostRateReduction = Math.max(0, Math.min(0.8, summary.maintenanceCostRateReduction))
+    return summary
+  }
+
+  const getServiceContractEffectSummary = (linkedSystem?: ShopCatalogLinkedSystem) => {
+    const summary = buildServiceContractEffectSummary(linkedSystem)
+    return {
+      ...summary,
+      ticketRewards: { ...summary.ticketRewards }
+    }
+  }
+
+  const activeServiceContractSummaries = computed<ShopServiceContractSummary[]>(() =>
+    SHOP_CATALOG_OFFERS
+      .filter((offer): offer is ShopCatalogOfferDef & Required<Pick<ShopCatalogOfferDef, 'serviceContractConfig'>> => {
+        return offer.luxuryCategory === 'service_contract' && !!offer.serviceContractConfig
+      })
+      .filter(offer => resolveOfferStatus(offer) === 'active')
+      .map(offer => {
+        const rawState = getCatalogOfferStateRecord(offer)
+        return {
+          offerId: offer.id,
+          name: offer.name,
+          contractType: offer.serviceContractConfig.contractType,
+          status: resolveOfferStatus(offer),
+          weeklyFee: offer.serviceContractConfig.weeklyFee,
+          effectSummary: offer.serviceContractConfig.effectSummary,
+          linkedSystems: [...offer.serviceContractConfig.targetSystems],
+          activatedDayKey: rawState && 'activatedDayKey' in rawState ? rawState.activatedDayKey : '',
+          expiresDayKey: rawState && 'expiresDayKey' in rawState ? rawState.expiresDayKey : '',
+          autoRenew: rawState && 'autoRenew' in rawState ? Boolean(rawState.autoRenew) : Boolean(offer.serviceContractConfig.autoRenew),
+          renewCount: rawState && 'renewCount' in rawState ? rawState.renewCount ?? 0 : 0,
+          totalFeesPaid: rawState && 'totalFeesPaid' in rawState ? rawState.totalFeesPaid ?? 0 : 0,
+          canPurchase: canPurchaseCatalogOffer(offer.id),
+          canRenew: resolveOfferStatus(offer) !== 'active'
+        }
+      })
+  )
 
   const getCatalogOfferLimitHint = (offerId: string): string => {
     const offer = getCatalogOfferById(offerId)
@@ -382,6 +472,7 @@ export const useShopStore = defineStore('shop', () => {
     const nextState = cloneCatalogExpansionState(catalogExpansionState.value)
     const currentAbsoluteDay = parseDayKeyToAbsoluteDay(payload.currentDayTag) ?? getAbsoluteDay(gameStore.year, gameStore.seasonIndex, gameStore.day)
     const expiredOffers: string[] = []
+    const autoRenewedOffers: string[] = []
     const alreadyProcessedToday = nextState.operationalMeta.lastProcessedDayKey === payload.currentDayTag
     const shouldBroadcastWeeklyRefresh = !!payload.startedNewWeek && nextState.operationalMeta.lastWeeklyRefreshWeekId !== payload.currentWeekId
     const shouldBroadcastSeasonRefresh = !!payload.seasonChanged && nextState.operationalMeta.lastSeasonRefreshDayKey !== payload.currentDayTag
@@ -395,6 +486,27 @@ export const useShopStore = defineStore('shop', () => {
           const expiresAbsoluteDay = parseDayKeyToAbsoluteDay(state.expiresDayKey)
           if (expiresAbsoluteDay == null || currentAbsoluteDay <= expiresAbsoluteDay) continue
           const offer = getCatalogOfferById(offerId)
+
+          if (offer?.luxuryCategory === 'service_contract' && offer.serviceContractConfig) {
+            const autoRenew = state.autoRenew ?? offer.serviceContractConfig.autoRenew ?? false
+            const renewFee = getServiceContractRenewFee(offer)
+            if (autoRenew && (renewFee <= 0 || playerStore.spendMoney(renewFee, 'shop'))) {
+              if (renewFee > 0) playerStore.recordSinkSpend(renewFee, 'service')
+              bucket[offerId] = {
+                ...state,
+                status: 'active',
+                activatedDayKey: payload.currentDayTag,
+                expiresDayKey: getCatalogOfferExpiryDayKey(offer),
+                lastPurchasedDayKey: payload.currentDayTag,
+                autoRenew,
+                renewCount: (state.renewCount ?? 0) + 1,
+                totalFeesPaid: (state.totalFeesPaid ?? 0) + renewFee
+              }
+              autoRenewedOffers.push(`${offer.name}${renewFee > 0 ? `（-${renewFee}文）` : ''}`)
+              continue
+            }
+          }
+
           bucket[offerId] = {
             ...state,
             status: 'expired'
@@ -411,6 +523,9 @@ export const useShopStore = defineStore('shop', () => {
     catalogExpansionState.value = nextState
 
     const logs: string[] = []
+    if (autoRenewedOffers.length > 0) {
+      logs.push(`【商店目录】以下服务合同已自动续费：${autoRenewedOffers.join('、')}。`)
+    }
     if (expiredOffers.length > 0) {
       logs.push(`【商店目录】以下高价服务已到期：${expiredOffers.join('、')}。`)
     }
@@ -452,7 +567,20 @@ export const useShopStore = defineStore('shop', () => {
     const bucketKey = CATALOG_BUCKET_BY_CATEGORY[offer.luxuryCategory]
     const dayKey = getCurrentCatalogDayKey()
 
-    if (bucketKey === 'luxuryPermitStates' || bucketKey === 'warehouseServiceStates' || bucketKey === 'serviceContractStates') {
+    if (bucketKey === 'serviceContractStates') {
+      const currentState = nextState[bucketKey][offerId]
+      nextState[bucketKey][offerId] = {
+        offerId,
+        purchasedCount: (currentState?.purchasedCount ?? 0) + 1,
+        status: 'active',
+        activatedDayKey: dayKey,
+        expiresDayKey: getCatalogOfferExpiryDayKey(offer),
+        lastPurchasedDayKey: dayKey,
+        autoRenew: currentState?.autoRenew ?? offer.serviceContractConfig?.autoRenew ?? false,
+        renewCount: currentState?.renewCount ?? 0,
+        totalFeesPaid: currentState?.totalFeesPaid ?? 0
+      }
+    } else if (bucketKey === 'luxuryPermitStates' || bucketKey === 'warehouseServiceStates') {
       const currentState = nextState[bucketKey][offerId]
       nextState[bucketKey][offerId] = {
         offerId,
@@ -490,6 +618,12 @@ export const useShopStore = defineStore('shop', () => {
 
     if (offer.effect.type === 'unlock_greenhouse') {
       logs.push(`【商店目录】${offer.name}已解锁温室路线，后续可承接全年种植、高规格订单与豪华经营周的持续投入。`)
+    }
+
+    if (offer.effect.type === 'activate_service_contract' && offer.serviceContractConfig) {
+      const renewFee = getServiceContractRenewFee(offer)
+      logs.push(`【商店目录】${offer.name}已签约生效：${offer.serviceContractConfig.effectSummary}`)
+      logs.push(`【商店目录】该合同后续续费参考为 ${renewFee}文 / 周，可在到期前由自动续费承接。`)
     }
 
     if (offer.effect.type === 'unlock_decoration' && offer.decorationUnlockId) {
@@ -1168,6 +1302,7 @@ export const useShopStore = defineStore('shop', () => {
     overflowPenalties: { ...marketDynamics.value.overflowPenalties },
     substituteRewards: activeMarketSubstituteRewards.value.map(entry => ({ ...entry })),
     themeEncouragement: activeMarketThemeEncouragement.value ? { ...activeMarketThemeEncouragement.value } : null,
+    operationalMeta: { ...marketDynamics.value.operationalMeta },
     recommendedRoutes: recommendedMarketDynamicsRoutes.value.map(route => ({ id: route.id, label: route.label, score: route.score }))
   })
 
@@ -1222,6 +1357,10 @@ export const useShopStore = defineStore('shop', () => {
     }
   }
 
+  const normalizeMarketDynamicsOperationalMeta = (entry: any): MarketDynamicsState['operationalMeta'] => ({
+    lastShippingSettlementDayKey: typeof entry?.lastShippingSettlementDayKey === 'string' ? entry.lastShippingSettlementDayKey : ''
+  })
+
   const deserializeMarketDynamics = (data: any): MarketDynamicsState => {
     const fallback = createDefaultMarketDynamicsState()
     return {
@@ -1259,7 +1398,8 @@ export const useShopStore = defineStore('shop', () => {
       themeEncouragement: normalizeMarketThemeEncouragementState(data?.themeEncouragement),
       substituteRewards: Array.isArray(data?.substituteRewards)
         ? data.substituteRewards.map(normalizeMarketSubstituteRewardState).filter((entry: MarketSubstituteRewardState | null): entry is MarketSubstituteRewardState => !!entry)
-        : fallback.substituteRewards
+        : fallback.substituteRewards,
+      operationalMeta: normalizeMarketDynamicsOperationalMeta(data?.operationalMeta)
     }
   }
 
@@ -1323,6 +1463,11 @@ export const useShopStore = defineStore('shop', () => {
   const getCatalogOfferBadge = (offerId: string): string => {
     const offer = getCatalogOfferById(offerId)
     if (!offer) return ''
+    if (offer.luxuryCategory === 'service_contract') {
+      const status = resolveOfferStatus(offer)
+      if (status === 'active') return '生效中'
+      if (status === 'expired') return '待续费'
+    }
     return offer.uiBadge ?? ''
   }
 
@@ -1387,6 +1532,8 @@ export const useShopStore = defineStore('shop', () => {
         return warehouseStore.chests.length < warehouseStore.maxChests
       case 'add_items':
         return canReceiveItemBundle(offer.effect.items)
+      case 'activate_service_contract':
+        return !!offer.serviceContractConfig
       default:
         return false
     }
@@ -1487,6 +1634,9 @@ export const useShopStore = defineStore('shop', () => {
             }
             if (offer.onceOnly) ownedCatalogOfferIds.value.push(offerId)
           }
+          break
+        case 'activate_service_contract':
+          success = !!offer.serviceContractConfig
           break
       }
 
@@ -2027,19 +2177,71 @@ export const useShopStore = defineStore('shop', () => {
     return inventoryStore.addItemExact(itemId, toTransfer, quality)
   }
 
-  /** 处理出货箱结算（日结时调用），返回总收入 */
-  const processShippingBox = (): number => {
-    let total = 0
-    const dayKey = getCurrentShippingDayKey()
-    const dayRecord: Record<string, number> = { ...(shippingHistory.value[dayKey] ?? {}) }
-    for (const entry of shippingBox.value) {
-      total += calculateSellPrice(entry.itemId, entry.quantity, entry.quality)
-      recordCompletedSale(entry.itemId, entry.quantity, 'shipping_box', dayRecord)
+  const shippingSettlementLock = ref<string | null>(null)
+
+  /** 处理出货箱结算（日结时调用），统一收口到事务与幂等保护内。 */
+  const settleShippingBoxWithMarketGuard = (dayKey: string = getCurrentShippingDayKey()) => {
+    if (marketDynamics.value.operationalMeta.lastShippingSettlementDayKey === dayKey) {
+      return { success: true, skipped: true, totalIncome: 0, settledEntries: 0, message: '当日出货箱已结算。' }
     }
-    shippingHistory.value[dayKey] = dayRecord
-    _pruneShippingHistory()
-    shippingBox.value = []
-    return total
+
+    if (shippingSettlementLock.value === dayKey) {
+      return { success: false, skipped: true, totalIncome: 0, settledEntries: 0, message: '出货箱正在结算，请勿重复触发。' }
+    }
+
+    const playerSnapshot = playerStore.serialize()
+    const shippingBoxSnapshot = shippingBox.value.map(entry => ({ ...entry }))
+    const shippingHistorySnapshot = cloneShippingHistoryState(shippingHistory.value)
+    const shippedItemsSnapshot = [...shippedItems.value]
+    const marketDynamicsSnapshot = deserializeMarketDynamics(marketDynamics.value)
+
+    try {
+      shippingSettlementLock.value = dayKey
+      let totalIncome = 0
+      const dayRecord: Record<string, number> = { ...(shippingHistory.value[dayKey] ?? {}) }
+
+      for (const entry of shippingBox.value) {
+        totalIncome += calculateSellPrice(entry.itemId, entry.quantity, entry.quality)
+        recordCompletedSale(entry.itemId, entry.quantity, 'shipping_box', dayRecord)
+      }
+
+      shippingHistory.value[dayKey] = dayRecord
+      _pruneShippingHistory()
+      shippingBox.value = []
+      marketDynamics.value = {
+        ...deserializeMarketDynamics(marketDynamics.value),
+        operationalMeta: {
+          ...marketDynamics.value.operationalMeta,
+          lastShippingSettlementDayKey: dayKey
+        }
+      }
+
+      if (totalIncome > 0) {
+        playerStore.earnMoney(totalIncome, { system: 'shop' })
+      }
+
+      return {
+        success: true,
+        skipped: false,
+        totalIncome,
+        settledEntries: shippingBoxSnapshot.length,
+        message: totalIncome > 0 ? `出货箱结算：收入${totalIncome}文。` : '出货箱为空，无需结算。'
+      }
+    } catch {
+      playerStore.deserialize(playerSnapshot)
+      shippingBox.value = shippingBoxSnapshot
+      shippingHistory.value = shippingHistorySnapshot
+      shippedItems.value = shippedItemsSnapshot
+      marketDynamics.value = marketDynamicsSnapshot
+      return { success: false, skipped: false, totalIncome: 0, settledEntries: shippingBoxSnapshot.length, message: '出货箱结算失败，已自动回滚。' }
+    } finally {
+      shippingSettlementLock.value = null
+    }
+  }
+
+  /** 兼容旧调用：返回总收入，内部仍走幂等与回滚保护。 */
+  const processShippingBox = (): number => {
+    return settleShippingBoxWithMarketGuard(getCurrentShippingDayKey()).totalIncome
   }
 
   // === 出货收集 ===
@@ -2161,6 +2363,7 @@ export const useShopStore = defineStore('shop', () => {
     catalogExpansionState,
     catalogOverviewSummary,
     catalogOfferOperationalSummaries,
+    activeServiceContractSummaries,
     weeklyCatalogRefreshText,
     recommendedCatalogOffers,
     weeklySurpriseOffer,
@@ -2177,6 +2380,7 @@ export const useShopStore = defineStore('shop', () => {
     getCatalogOfferLimitHint,
     getCatalogOfferBadge,
     getCatalogOfferPreferenceReason,
+    getServiceContractEffectSummary,
     markCatalogOfferPurchased,
     getCatalogDebugSnapshot,
     canPurchaseCatalogOffer,
@@ -2227,6 +2431,7 @@ export const useShopStore = defineStore('shop', () => {
     shippingBox,
     addToShippingBox,
     removeFromShippingBox,
+    settleShippingBoxWithMarketGuard,
     processShippingBox,
     // 出货收集
     shippedItems,

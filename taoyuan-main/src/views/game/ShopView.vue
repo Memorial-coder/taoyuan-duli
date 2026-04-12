@@ -264,6 +264,23 @@
               <p class="text-xs text-muted">{{ currentCatalogPoolSummary }}</p>
               <p class="text-[10px] text-muted/80 mt-1">{{ catalogRefreshHint }}</p>
             </div>
+
+          <div v-if="activeServiceContracts.length > 0" class="border border-warning/20 rounded-xs p-2 mt-2 bg-warning/5">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <p class="text-[10px] text-warning">已启用服务合同</p>
+              <span class="text-[10px] text-muted">{{ activeServiceContracts.length }} 项</span>
+            </div>
+            <div class="space-y-1.5">
+              <div v-for="contract in activeServiceContracts" :key="contract.offerId" class="border border-warning/10 rounded-xs px-2 py-2 bg-bg/10">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-xs text-text">{{ contract.name }}</p>
+                  <span class="text-[10px] text-warning">至 {{ contract.expiresDayKey }}</span>
+                </div>
+                <p class="text-[10px] text-muted mt-1">{{ contract.effectSummary }}</p>
+                <p class="text-[10px] text-warning/80 mt-0.5">周续费 {{ contract.weeklyFee }}文 · 已续费 {{ contract.renewCount }} 次</p>
+              </div>
+            </div>
+          </div>
           </div>
 
           <div v-if="shopStore.weeklySurpriseOffer" class="mb-4">
@@ -1628,7 +1645,7 @@
       return `${SEASON_NAMES[gameStore.season]}季限定会随季节切换同步更新；适合补节庆礼盒、展示收藏与季节补给。`
     }
     if (featuredPool.value === 'premium') {
-      return '高价长期商品更适合后期大额铜钱回收，通常承担温室许可、仓储扩建、终局陈设与远征储备等长期投入。'
+      return '高价长期商品更适合后期大额铜钱回收，除温室许可、仓储扩建与终局陈设外，也承担持续续费的服务合同型 sink。'
     }
     return '基础消费池负责中期过渡，适合先补扩容、材料包、渔具补给与轻量仓储服务。'
   })
@@ -1657,18 +1674,13 @@
       })
       return `获得：${parts.join('、')}`
     }
+    if (eff.type === 'activate_service_contract') {
+      return `签约效果：${offer.serviceContractConfig?.effectSummary ?? '激活长期服务合同'} · 周费${offer.serviceContractConfig?.weeklyFee ?? 0}文`
+    }
     return ''
   }
 
-  const catalogOfferLimitHint = (offer: ShopCatalogOfferDef): string => {
-    const eff = offer.effect
-    if (eff.type === 'expand_warehouse' && warehouseStore.maxChests + eff.amount > warehouseStore.MAX_CHESTS_CAP) {
-      return '剩余仓库箱位不足，无法完整扩建该商品提供的容量'
-    }
-    if (eff.type === 'unlock_greenhouse' && homeStore.greenhouseUnlocked) return '温室已解锁，无需重复购买'
-    if (eff.type === 'grant_chest' && warehouseStore.chests.length >= warehouseStore.maxChests) return '仓库箱子已满，请先扩建仓库'
-    return ''
-  }
+  const catalogOfferLimitHint = (offer: ShopCatalogOfferDef): string => shopStore.getCatalogOfferLimitHint(offer.id)
 
   const catalogOfferSubtitle = (offer: Pick<ShopCatalogOfferDef, 'pool'> & { tags?: string[] }) => {
     const prefix =
@@ -1701,9 +1713,11 @@
       () => handleBuyCatalogOffer(offer.id),
       () => shopStore.canPurchaseCatalogOffer(offer.id),
       extraLines,
-      unlockHint ? '未解锁' : offer.effect.type === 'unlock_decoration' ? '收藏' : '购买'
+      unlockHint ? '未解锁' : offer.effect.type === 'unlock_decoration' ? '收藏' : offer.effect.type === 'activate_service_contract' ? '签约' : '购买'
     )
   }
+
+  const activeServiceContracts = computed(() => shopStore.activeServiceContractSummaries)
 
   const handleBuyCatalogOffer = (offerId: string) => {
     const result = shopStore.purchaseCatalogOffer(offerId)

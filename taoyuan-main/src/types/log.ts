@@ -1,5 +1,6 @@
 export type GameLogCategory =
   | 'system'
+  | 'quest'
   | 'economy'
   | 'goal'
   | 'market'
@@ -14,6 +15,7 @@ export type GameLogCategory =
 export type GameLogTag =
   | 'late_game_cycle'
   | 'theme_week_started'
+  | 'weekly_goals_refreshed'
   | 'weekly_budget_activated'
   | 'weekly_budget_expired'
   | 'weekly_metric_snapshot_archived'

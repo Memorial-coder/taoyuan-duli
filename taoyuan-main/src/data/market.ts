@@ -54,6 +54,20 @@ export interface EconomyTuningConfig {
   }
 }
 
+export interface MarketDynamicsTuningConfig {
+  phaseEnabled: Record<MarketDynamicsPhaseId, boolean>
+  hiddenHotspotCategories: MarketCategory[]
+  disabledRegionalDistrictIds: string[]
+  disabledRouteIds: string[]
+  forcedRecommendedRouteIds: string[]
+  featureOverrides: Partial<Record<MarketDynamicsPhaseId, Partial<MarketPhaseFeatureFlags>>>
+  hotspotCategoryScoreBonuses: Partial<Record<MarketCategory, number>>
+  regionalProcurementRewardMultiplierOffset: number
+  overflowPenaltyMultiplierOffset: number
+  themeRewardMultiplierOffset: number
+  substituteRewardValueOffset: number
+}
+
 export interface MarketDynamicsRoutingDef {
   id: string
   label: string
@@ -299,6 +313,10 @@ export interface MarketSubstituteRewardState {
   sourcePhaseId: MarketDynamicsPhaseId
 }
 
+export interface MarketDynamicsOperationalMeta {
+  lastShippingSettlementDayKey: string
+}
+
 export interface MarketDynamicsState {
   saveVersion: number
   activePhaseId: MarketDynamicsPhaseId
@@ -309,6 +327,7 @@ export interface MarketDynamicsState {
   overflowPenalties: Partial<Record<MarketCategory, MarketOverflowPenaltyState>>
   themeEncouragement: MarketThemeEncouragementState | null
   substituteRewards: MarketSubstituteRewardState[]
+  operationalMeta: MarketDynamicsOperationalMeta
 }
 
 // === 常量 ===
@@ -466,6 +485,24 @@ export const MARKET_DYNAMICS_CONFIG: MarketDynamicsConfig = {
   }
 }
 
+export const MARKET_DYNAMICS_TUNING_CONFIG: MarketDynamicsTuningConfig = {
+  phaseEnabled: {
+    p0_hotspot_seed: true,
+    p1_regional_rotation: true,
+    p2_theme_conversion: true
+  },
+  hiddenHotspotCategories: [],
+  disabledRegionalDistrictIds: [],
+  disabledRouteIds: [],
+  forcedRecommendedRouteIds: [],
+  featureOverrides: {},
+  hotspotCategoryScoreBonuses: {},
+  regionalProcurementRewardMultiplierOffset: 0,
+  overflowPenaltyMultiplierOffset: 0,
+  themeRewardMultiplierOffset: 0,
+  substituteRewardValueOffset: 0
+}
+
 export const createDefaultMarketDynamicsState = (): MarketDynamicsState => ({
   saveVersion: MARKET_DYNAMICS_CONFIG.saveVersion,
   activePhaseId: MARKET_DYNAMICS_CONFIG.defaultPhaseId,
@@ -475,7 +512,10 @@ export const createDefaultMarketDynamicsState = (): MarketDynamicsState => ({
   regionalProcurements: [],
   overflowPenalties: {},
   themeEncouragement: null,
-  substituteRewards: []
+  substituteRewards: [],
+  operationalMeta: {
+    lastShippingSettlementDayKey: ''
+  }
 })
 
 export const MARKET_DYNAMICS_PHASE_BY_ID = Object.fromEntries(
@@ -1334,6 +1374,104 @@ export const WS01_COMPENSATION_PLANS: CompensationPlan[] = [
   {
     trigger: '旧档读入后经济面板异常或数据为空',
     action: '发布热修默认值迁移，并提示玩家重新读档后自动修复。'
+  }
+]
+
+export const WS04_ACCEPTANCE_SUMMARY = {
+  minQaCaseCount: 8,
+  guardrails: [
+    '同一日重复触发市场 tick 或出货结算时，不会重复刷新热点、重复结算收入或重复写日志',
+    '可通过配置快速停用某个市场阶段、地区收购区块或指定路线推荐',
+    '过剩压制、主题鼓励、替代奖励与地区收购均可通过 data 层参数热调，无需改业务逻辑',
+    '市场异常时可通过回退阶段 / 关闭路线 / 关闭区块实现软回滚，不破坏既有存档'
+  ],
+  releaseAnnouncement: [
+    '新增市场轮换运营开关，可快速调整热点、地区收购、过剩压制与主题鼓励强度。',
+    '新增市场结算幂等保护，避免重复结算导致收入与行情样本异常。',
+    '新增市场 QA / 补偿预案，便于上线后快速回滚异常行情活动。'
+  ]
+} as const
+
+export const WS04_QA_CASES: QaCaseDef[] = [
+  {
+    id: 'ws04-idempotent-market-tick',
+    title: '同日重复触发市场 tick 不会重复刷新',
+    category: 'boundary',
+    steps: ['记录当日热点与地区收购状态', '重复调用 processMarketDynamicsTick 两次'],
+    expectedResult: '热点、地区收购、替代奖励与日志数量保持不变。'
+  },
+  {
+    id: 'ws04-idempotent-shipping-settlement',
+    title: '同日重复触发出货箱结算不会重复发钱',
+    category: 'boundary',
+    steps: ['向出货箱放入货物', '调用 settleShippingBoxWithMarketGuard 两次'],
+    expectedResult: '仅第一次发放收入并写入市场样本，第二次返回 skipped。'
+  },
+  {
+    id: 'ws04-rollback-shipping-settlement',
+    title: '出货箱结算异常时自动回滚',
+    category: 'negative',
+    steps: ['制造结算过程中异常', '执行 settleShippingBoxWithMarketGuard'],
+    expectedResult: '玩家铜钱、出货箱、出货历史与市场状态恢复到结算前快照。'
+  },
+  {
+    id: 'ws04-ops-disable-phase',
+    title: '运营可关闭指定市场阶段',
+    category: 'ops',
+    steps: ['将 phaseEnabled.p2_theme_conversion 设为 false', '尝试切换至高通胀阶段'],
+    expectedResult: '系统回退到最近可用阶段，不进入被关闭的阶段。'
+  },
+  {
+    id: 'ws04-ops-disable-route',
+    title: '运营可下掉指定路线推荐',
+    category: 'ops',
+    steps: ['将某 routeId 写入 disabledRouteIds', '刷新推荐路线'],
+    expectedResult: '对应路线不再出现在 recommendedMarketDynamicsRoutes 中。'
+  },
+  {
+    id: 'ws04-ops-hide-district',
+    title: '运营可关闭指定地区收购池',
+    category: 'ops',
+    steps: ['将某 districtId 写入 disabledRegionalDistrictIds', '推进到新周'],
+    expectedResult: '新周地区收购不再使用被关闭的地区。'
+  },
+  {
+    id: 'ws04-compat-old-save',
+    title: '旧档缺少 market operationalMeta 时可安全读取',
+    category: 'compatibility',
+    steps: ['读取缺少 operationalMeta 的旧 marketDynamics 存档'],
+    expectedResult: '读档成功，lastShippingSettlementDayKey 自动回填为空字符串。'
+  },
+  {
+    id: 'ws04-theme-route-fallback',
+    title: '主题周缺失时路线推荐仍可正常工作',
+    category: 'recovery',
+    steps: ['清空 currentThemeWeek', '刷新 marketDynamicsOverview 与推荐路线'],
+    expectedResult: 'optional / recommended 路线仍按市场热点与经营分层正常输出。'
+  }
+]
+
+export const WS04_RELEASE_CHECKLIST: ReleaseChecklistItem[] = [
+  { id: 'ws04-check-phase-switch', label: '确认高通胀周会自动切换到正确市场阶段', owner: 'dev', done: false },
+  { id: 'ws04-check-idempotent-settlement', label: '确认出货箱同日不会重复结算', owner: 'qa', done: false },
+  { id: 'ws04-check-route-toggle', label: '确认禁用路线 / 强制路线配置会实时影响推荐结果', owner: 'ops', done: false },
+  { id: 'ws04-check-district-toggle', label: '确认地区收购池可按 districtId 快速关闭', owner: 'ops', done: false },
+  { id: 'ws04-check-old-save', label: '确认旧档缺少 market operationalMeta 仍可安全读档', owner: 'qa', done: false },
+  { id: 'ws04-check-ui-summary', label: '确认商圈看板与顶部目标摘要文案与实际市场状态一致', owner: 'qa', done: false }
+]
+
+export const WS04_COMPENSATION_PLANS: CompensationPlan[] = [
+  {
+    trigger: '市场阶段或地区收购异常导致重复结算 / 重复收益',
+    action: '关闭对应 phase 或 district 配置，回滚异常参数，并按异常期间重复收益折算补偿 / 扣回公告。'
+  },
+  {
+    trigger: '过剩压制系数过强导致玩家大面积停摆',
+    action: '回退 overflowPenaltyMultiplierOffset 与对应 band 配置，仅保留热点提示与主题鼓励，并发放稳价补贴公告。'
+  },
+  {
+    trigger: '路线推荐错误导致玩家误判经营方向',
+    action: '临时下线对应 routeId，改用 forcedRecommendedRouteIds 推送安全路线，并通过更新日志说明修正。'
   }
 ]
 

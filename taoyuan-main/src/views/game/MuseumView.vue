@@ -42,11 +42,47 @@
         </div>
         <div v-if="featuredCommissionOverview.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">学者委托</p>
-          <div v-for="commission in featuredCommissionOverview" :key="commission.id" class="flex items-center justify-between text-[10px] mt-0.5">
-            <span>{{ commission.title }}</span>
-            <span :class="commission.isRewardPending ? 'text-success' : commission.isAccepted ? 'text-accent' : 'text-muted'">
-              {{ commission.isRewardPending ? '待领奖' : commission.isAccepted ? '进行中' : commission.isAvailable ? '可接取' : '未开放' }}
-            </span>
+          <div v-for="commission in featuredCommissionOverview" :key="commission.id" class="border border-accent/10 rounded-xs px-2 py-1 mt-1">
+            <div class="flex items-center justify-between text-[10px] gap-2">
+              <div class="min-w-0 flex-1">
+                <p class="truncate">{{ commission.title }}</p>
+                <p class="text-[10px] text-muted mt-0.5 truncate">{{ getHallLabel(commission.hallZoneId) }} · {{ commission.summary }}</p>
+              </div>
+              <Button
+                v-if="commission.isRewardPending"
+                class="!bg-success !text-bg px-2 py-0.5 shrink-0"
+                @click="handleClaimScholarCommission(commission.id)"
+              >
+                领奖
+              </Button>
+              <Button
+                v-else-if="commission.isAvailable"
+                class="!bg-accent !text-bg px-2 py-0.5 shrink-0"
+                @click="handleAcceptScholarCommission(commission.id)"
+              >
+                接取
+              </Button>
+              <span v-else class="shrink-0" :class="commission.isAccepted ? 'text-accent' : 'text-muted'">
+                {{ commission.isAccepted ? '进行中' : '未开放' }}
+              </span>
+            </div>
+          </div>
+        </div>
+        <div v-if="museumStore.crossSystemOverview.recommendedActions.length > 0" class="border border-accent/10 rounded-xs p-2">
+          <p class="text-xs text-muted mb-1">经营联动</p>
+          <p class="text-xs text-accent">{{ museumStore.crossSystemOverview.themeWeekFocus?.name ?? '常规展陈周' }}</p>
+          <p class="text-[10px] text-muted mt-0.5">{{ museumStore.crossSystemOverview.questBoardBiasProfile.boardHint || '当前展陈会轻度影响告示板和经营准备方向。' }}</p>
+          <div class="mt-1 space-y-1">
+            <p v-for="action in museumStore.crossSystemOverview.recommendedActions.slice(0, 3)" :key="action" class="text-[10px] text-muted">
+              · {{ action }}
+            </p>
+          </div>
+        </div>
+        <div v-if="museumStore.crossSystemOverview.supportNpcOverview.length > 0" class="border border-accent/10 rounded-xs p-2">
+          <p class="text-xs text-muted mb-1">馆务协力</p>
+          <div v-for="npc in museumStore.crossSystemOverview.supportNpcOverview.slice(0, 3)" :key="npc.npcId" class="flex items-center justify-between text-[10px] mt-0.5">
+            <span>{{ npc.name }}</span>
+            <span class="text-accent">{{ npc.friendshipLabel }}</span>
           </div>
         </div>
       </div>
@@ -238,7 +274,7 @@
   const filteredItems = computed(() => MUSEUM_ITEMS.filter(i => i.category === activeCategory.value))
   const activeShrineThemeName = computed(() => museumStore.getActiveShrineTheme()?.name ?? '尚未启用')
   const featuredHallOverview = computed(() => museumStore.hallProgressOverview.filter(hall => hall.currentLevelDef).slice(0, 4))
-  const featuredCommissionOverview = computed(() => museumStore.scholarCommissionOverview.filter(entry => entry.unlocked).slice(0, 3))
+  const featuredCommissionOverview = computed(() => museumStore.featuredScholarCommissionOverview.slice(0, 3))
 
   const getCategoryCount = (cat: MuseumCategory): number => {
     return MUSEUM_ITEMS.filter(i => i.category === cat && museumStore.isDonated(i.id)).length
@@ -275,6 +311,14 @@
   const handleDonateAndClose = (itemId: string) => {
     museumStore.donateItem(itemId)
     selectedItem.value = null
+  }
+
+  const handleAcceptScholarCommission = (commissionId: string) => {
+    museumStore.acceptScholarCommission(commissionId)
+  }
+
+  const handleClaimScholarCommission = (commissionId: string) => {
+    museumStore.claimScholarCommissionReward(commissionId)
   }
 
   const isMilestoneClaimed = (count: number): boolean => {

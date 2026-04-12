@@ -79,6 +79,73 @@
         </div>
       </div>
 
+      <div class="border border-accent/20 rounded-xs p-2 mb-3">
+        <div class="flex items-center justify-between mb-1">
+          <p class="text-xs text-muted">经营联动</p>
+          <span v-if="hanhaiStore.crossSystemOverview.themeWeekFocus" class="text-[10px] text-accent">
+            {{ hanhaiStore.crossSystemOverview.themeWeekFocus.summaryLabel }}
+          </span>
+        </div>
+
+        <p
+          v-if="hanhaiStore.crossSystemOverview.questBoardBiasProfile.boardHint"
+          class="text-[10px] text-muted leading-4"
+        >
+          {{ hanhaiStore.crossSystemOverview.questBoardBiasProfile.boardHint }}
+        </p>
+
+        <div
+          v-if="hanhaiStore.crossSystemOverview.themeWeekFocus"
+          class="border border-accent/10 rounded-xs p-2 mt-2"
+        >
+          <p class="text-[10px] text-muted mb-1">主题周焦点</p>
+          <p class="text-[10px] text-accent leading-4">
+            {{ [
+              ...(hanhaiStore.crossSystemOverview.themeWeekFocus.routeLabels ?? []),
+              ...(hanhaiStore.crossSystemOverview.themeWeekFocus.relicSiteLabels ?? []),
+              ...(hanhaiStore.crossSystemOverview.themeWeekFocus.bossCycleLabels ?? [])
+            ].slice(0, 4).join('、') || '暂无额外瀚海焦点' }}
+          </p>
+        </div>
+
+        <div v-if="hanhaiStore.crossSystemOverview.linkedVillageProjects.length" class="border border-accent/10 rounded-xs p-2 mt-2">
+          <p class="text-[10px] text-muted mb-1">联动建设</p>
+          <div
+            v-for="project in hanhaiStore.crossSystemOverview.linkedVillageProjects.slice(0, 2)"
+            :key="project.id"
+            class="flex items-center justify-between text-[10px] mt-0.5 first:mt-0"
+          >
+            <span>{{ project.name }}</span>
+            <span class="text-accent">{{ project.completed ? '已完成' : project.available ? '可推进' : '未解锁' }}</span>
+          </div>
+        </div>
+
+        <div v-if="hanhaiStore.crossSystemOverview.recommendedCatalogOffers.length" class="border border-accent/10 rounded-xs p-2 mt-2">
+          <p class="text-[10px] text-muted mb-1">目录承接</p>
+          <div
+            v-for="offer in hanhaiStore.crossSystemOverview.recommendedCatalogOffers"
+            :key="offer.id"
+            class="flex items-center justify-between text-[10px] mt-0.5 first:mt-0"
+          >
+            <span>{{ offer.name }}</span>
+            <span class="text-accent">{{ offer.price }}文</span>
+          </div>
+        </div>
+
+        <div v-if="hanhaiStore.crossSystemOverview.recommendedActions.length" class="mt-2">
+          <p class="text-[10px] text-muted mb-1">推荐动作</p>
+          <ul class="space-y-1">
+            <li
+              v-for="(action, index) in hanhaiStore.crossSystemOverview.recommendedActions"
+              :key="`${index}-${action}`"
+              class="text-[10px] text-muted leading-4"
+            >
+              - {{ action }}
+            </li>
+          </ul>
+        </div>
+      </div>
+
       <!-- 驿站商店 -->
       <template v-if="activeTab === 'shop'">
         <div class="flex flex-col space-y-1 max-h-80 overflow-y-auto">

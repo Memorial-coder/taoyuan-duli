@@ -1,4 +1,5 @@
 import type {
+  CompensationPlan,
   MuseumDisplayRatingBandDef,
   MuseumDisplayRatingState,
   MuseumExhibitSlotDef,
@@ -17,7 +18,9 @@ import type {
   MuseumSustainedOperationAuditConfig,
   MuseumTelemetryState,
   MuseumVisitorFlowBandDef,
-  MuseumVisitorFlowState
+  MuseumVisitorFlowState,
+  QaCaseDef,
+  ReleaseChecklistItem
 } from '@/types'
 
 /** 博物馆可捐赠物品全目录 */
@@ -307,6 +310,34 @@ export const MUSEUM_OPERATIONAL_CONFIG: MuseumOperationalConfig = {
   visitorFlowBands: MUSEUM_VISITOR_FLOW_BANDS,
   displayRatingBands: MUSEUM_DISPLAY_RATING_BANDS
 }
+
+export const MUSEUM_OPERATION_TUNING_CONFIG = {
+  featureFlags: {
+    themeWeekFocusEnabled: true,
+    questBoardBiasEnabled: true,
+    shrineThemeRotationEnabled: true,
+    scholarCommissionAutoCompleteEnabled: true,
+    scholarCommissionRewardEnabled: true,
+    museumActionGuardEnabled: true
+  },
+  display: {
+    featuredCommissionLimit: 3,
+    supportNpcDisplayLimit: 3,
+    recommendedActionLimit: 3,
+    hallLabelDisplayLimit: 2
+  },
+  operations: {
+    unlockedSlotVisitorBase: 4,
+    assignedExhibitVisitorBase: 3,
+    completedCommissionVisitorBase: 5,
+    displayRatingToVisitorsFactor: 0.2,
+    linkedProjectBiasWeight: 1,
+    availableCommissionBiasWeight: 1,
+    maxQuestBiasStrength: 4,
+    scholarFriendshipRewardDivisor: 2,
+    scholarFriendshipRewardMinimum: 6
+  }
+} as const
 
 export const getMuseumVisitorFlowBandByScore = (score: number): MuseumVisitorFlowBandDef => {
   const sorted = [...MUSEUM_VISITOR_FLOW_BANDS].sort((a, b) => a.minScore - b.minScore)
@@ -724,6 +755,114 @@ export const MUSEUM_SUSTAINED_OPERATION_AUDIT_CONFIG: MuseumSustainedOperationAu
     }
   ]
 }
+
+export const WS06_ACCEPTANCE_SUMMARY = {
+  minQaCaseCount: 8,
+  guardrails: [
+    '博物馆联动偏置必须可通过 data 配置直接调整，不应把主题周 / 告示板 / 学者委托权重散落写死在 store 或 view 中。',
+    '学者委托接取、领奖、里程碑领奖与捐赠必须具备重复点击防护、容量预检与失败回滚。',
+    '主题周聚焦馆区、祠堂主题与学者委托时，必须能在 MuseumView 与日志中给出可解释反馈。',
+    '旧档缺少博物馆联动或运行时锁字段时，必须自动补默认值，且不影响已有展陈数据读取。'
+  ],
+  releaseAnnouncement: [
+    '【博物馆经营】主题周现可聚焦馆区、祠堂主题与学者委托，展陈经营会反向影响告示板与筹备路线。',
+    '【学者委托】新增接取 / 领奖链路与经营联动摘要，方便玩家把展示评分与访客热度转成稳定收益。',
+    '【稳定性】博物馆捐赠、里程碑领奖与学者委托奖励已补齐重复点击防护与异常回滚。'
+  ]
+} as const
+
+export const WS06_QA_CASES: QaCaseDef[] = [
+  {
+    id: 'ws06-positive-theme-focus-bias',
+    title: '主题周可正确聚焦博物馆馆区与学者委托',
+    category: 'positive',
+    steps: ['切换到带 museumFocus 配置的主题周', '打开 MuseumView 与任务面板'],
+    expectedResult: 'MuseumView 显示馆区焦点、馆务协力与学者委托重点；告示板偏置提示同步出现。'
+  },
+  {
+    id: 'ws06-positive-commission-accept-claim',
+    title: '学者委托可接取并在达成条件后正确领奖',
+    category: 'positive',
+    steps: ['接取一个学者委托', '提升展示评分与访客热度到目标值', '点击领奖'],
+    expectedResult: '委托状态从进行中 -> 待领奖 -> 已领奖，钱/声望/物品与好感奖励结算正确。'
+  },
+  {
+    id: 'ws06-negative-repeat-claim-guard',
+    title: '学者委托奖励不可重复点击刷取',
+    category: 'negative',
+    steps: ['让一个学者委托进入待领奖', '快速连续点击领奖按钮'],
+    expectedResult: '仅第一次成功结算；后续点击被运行时锁或状态保护拦截，不重复发奖。'
+  },
+  {
+    id: 'ws06-boundary-milestone-capacity-guard',
+    title: '里程碑领奖在背包不足时会阻止发奖且不吞奖励',
+    category: 'boundary',
+    steps: ['制造背包不足场景', '尝试领取带物品奖励的博物馆里程碑'],
+    expectedResult: '系统提示空间不足，里程碑不标记为已领取，物品与铜钱不被吞掉。'
+  },
+  {
+    id: 'ws06-recovery-donation-rollback',
+    title: '捐赠异常时会回滚背包与捐赠记录',
+    category: 'recovery',
+    steps: ['在开发态模拟 donateItem 中途异常', '检查背包与 donatedItems'],
+    expectedResult: '背包与捐赠记录回滚到提交前状态，不出现半捐赠。'
+  },
+  {
+    id: 'ws06-ops-disable-quest-bias',
+    title: '关闭博物馆告示板偏置后不再干预任务生成',
+    category: 'ops',
+    steps: ['将 MUSEUM_OPERATION_TUNING_CONFIG.featureFlags.questBoardBiasEnabled 设为 false', '刷新告示板与特殊订单'],
+    expectedResult: '博物馆不再额外影响任务 / 订单偏置，但 MuseumView 其余经营信息仍正常展示。'
+  },
+  {
+    id: 'ws06-ops-adjust-visitor-balance',
+    title: '调整访客与展示转换参数无需修改 store 主逻辑',
+    category: 'ops',
+    steps: ['修改 unlockedSlotVisitorBase / assignedExhibitVisitorBase / displayRatingToVisitorsFactor', '推动日结'],
+    expectedResult: '访客热度与评分反馈发生变化，但无需改动 MuseumStore 主逻辑。'
+  },
+  {
+    id: 'ws06-compatibility-old-save',
+    title: '旧档缺少博物馆联动字段时可安全读档',
+    category: 'compatibility',
+    steps: ['读取未包含 museumActionLocks 运行时状态且 museum 仅有基础字段的旧档'],
+    expectedResult: '读档成功，运行时锁为空，展陈/馆区/主题/学者委托数据不受影响。'
+  }
+]
+
+export const WS06_RELEASE_CHECKLIST: ReleaseChecklistItem[] = [
+  { id: 'ws06-check-theme-focus', label: '确认主题周馆区焦点、祠堂主题与学者委托焦点展示一致', owner: 'design', done: false },
+  { id: 'ws06-check-quest-bias', label: '确认博物馆偏置能影响告示板/特殊订单且可通过配置关闭', owner: 'dev', done: false },
+  { id: 'ws06-check-commission-claim', label: '确认学者委托奖励只会结算一次', owner: 'qa', done: false },
+  { id: 'ws06-check-milestone-capacity', label: '确认里程碑领奖在背包不足时不会吞货', owner: 'qa', done: false },
+  { id: 'ws06-check-old-save', label: '确认旧档博物馆数据可安全读档', owner: 'qa', done: false }
+]
+
+export const WS06_COMPENSATION_PLANS: CompensationPlan[] = [
+  {
+    id: 'ws06-compensate-duplicate-commission-reward',
+    trigger: '学者委托奖励重复发放，导致声望、铜钱或物品异常增加。',
+    compensation: ['按委托 ID 与日志回收重复奖励或做等值说明补偿', '保留首次合法领奖记录'],
+    notes: '优先依据 commissionId、rewarded 状态与结构化日志定位重复区间。'
+  },
+  {
+    id: 'ws06-compensate-theme-bias-error',
+    trigger: '馆区焦点或告示板偏置配置异常，导致任务池长期偏科或错误聚焦。',
+    action: '回调 MUSEUM_OPERATION_TUNING_CONFIG 中 questBoardBiasEnabled / maxQuestBiasStrength 等参数，并通过更新日志说明修正。'
+  },
+  {
+    id: 'ws06-compensate-milestone-failure',
+    trigger: '里程碑领奖异常回滚失败，导致玩家少领或无法再次领取。',
+    compensation: ['补发缺失的铜钱 / 物品', '人工重置对应里程碑的 claimed 状态以便重新领取'],
+    notes: '以 claimedMilestones、inventory 快照与里程碑日志为准进行核算。'
+  }
+]
+
+export const WS06_RELEASE_ANNOUNCEMENT = [
+  '【博物馆经营】主题周现可聚焦馆区、祠堂主题与学者委托，展陈经营会反向影响告示板筹备方向。',
+  '【学者委托】新增接取 / 领奖链路与馆务协力提示，展示评分与访客热度会更明确地转成收益。',
+  '【稳定性】博物馆捐赠、里程碑领奖与学者委托奖励已补齐重复点击防护与异常回滚。'
+] as const
 
 /** 根据ID查找博物馆物品 */
 export const getMuseumItemById = (id: string): MuseumItemDef | undefined => MUSEUM_ITEMS.find(item => item.id === id)

@@ -18,6 +18,28 @@ const VALID_TEMPLATE_TYPES = new Set(['compensation', 'activity_reward', 'mainte
 const VALID_RECIPIENT_MODES = new Set(['all', 'single', 'batch', 'keyword', 'has_save']);
 const VALID_REWARD_TYPES = new Set(['money', 'item', 'seed', 'weapon', 'ring', 'hat', 'shoe']);
 
+const GUILD_SEASON_MAILBOX_CONFIG = Object.freeze({
+  enabled: true,
+  template_type: 'activity_reward',
+  default_expire_days: 7,
+  weekly_settlement_lead_hours: 12,
+  allow_fallback_compensation: true,
+  presets: [
+    {
+      id: 'guild_ranked_hunt_weekly_settlement',
+      phase: 'p1_ranked_hunt',
+      title: '公会竞猎周结算',
+      summary: '用于荣誉竞猎期的周快照奖励、补给摘要与阶段提醒。',
+    },
+    {
+      id: 'guild_world_milestone_closure',
+      phase: 'p2_world_milestone',
+      title: '公会共建里程碑结算',
+      summary: '用于世界里程碑期的赛季收尾、共建奖励与补偿切换。',
+    },
+  ],
+});
+
 let _mailboxLockTail = Promise.resolve();
 
 function createError(message, status = 400) {
@@ -159,6 +181,13 @@ function loadMailboxData() {
   } catch {
     return defaultMailboxData();
   }
+}
+
+function getGuildSeasonMailboxConfig() {
+  return {
+    ...GUILD_SEASON_MAILBOX_CONFIG,
+    presets: GUILD_SEASON_MAILBOX_CONFIG.presets.map(item => ({ ...item })),
+  };
 }
 
 function saveMailboxData(data) {
@@ -1137,6 +1166,7 @@ module.exports = {
   claimAllUserMails,
   clearClaimedUserMails,
   saveAdminCampaign,
+  getGuildSeasonMailboxConfig,
   listAdminCampaigns,
   getAdminCampaignDetail,
 };

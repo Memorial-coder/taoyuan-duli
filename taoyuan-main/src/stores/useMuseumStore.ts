@@ -8,6 +8,7 @@ import {
   MUSEUM_ITEMS,
   MUSEUM_MILESTONES,
   MUSEUM_OPERATIONAL_CONFIG,
+  MUSEUM_OPERATION_TUNING_CONFIG,
   MUSEUM_SCHOLAR_COMMISSIONS,
   MUSEUM_SHRINE_THEMES,
   MUSEUM_SUSTAINED_OPERATION_AUDIT_CONFIG,
@@ -22,14 +23,24 @@ import type {
   MuseumHallLevelDef,
   MuseumHallProgress,
   MuseumHallZoneId,
+  MuseumCategory,
   MuseumSaveData,
   MuseumScholarCommissionState,
   MuseumShrineThemeState,
-  MuseumVisitorFlowState
+  MuseumVisitorFlowState,
+  QuestType,
+  VillagerQuestCategory
 } from '@/types'
+import { getItemById } from '@/data'
+import { getNpcById } from '@/data/npcs'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
 import type { Season } from '@/types'
+import { useGameStore } from './useGameStore'
+import { useGoalStore } from './useGoalStore'
+import { useNpcStore } from './useNpcStore'
+import { useShopStore } from './useShopStore'
+import { useVillageProjectStore } from './useVillageProjectStore'
 
 const HALL_ZONE_IDS = [...new Set(MUSEUM_HALL_LEVELS.map(level => level.hallZoneId))] as MuseumHallZoneId[]
 
@@ -37,6 +48,60 @@ const getMuseumItemDef = (itemId: string) => MUSEUM_ITEMS.find(item => item.id =
 const DEFAULT_VISITOR_FLOW_BAND = MUSEUM_VISITOR_FLOW_BANDS[0]!
 const DEFAULT_DISPLAY_RATING_BAND = MUSEUM_DISPLAY_RATING_BANDS[0]!
 const SEASON_ORDER: Season[] = ['spring', 'summer', 'autumn', 'winter']
+type MuseumQuestMarketCategory = 'crop' | 'fish' | 'animal_product' | 'processed' | 'fruit' | 'ore' | 'gem'
+
+const dedupeList = <T,>(items: T[]): T[] => Array.from(new Set(items))
+
+const MUSEUM_CATEGORY_TO_QUEST_MARKET_CATEGORIES: Record<MuseumCategory, MuseumQuestMarketCategory[]> = {
+  ore: ['ore'],
+  gem: ['gem'],
+  bar: ['ore', 'processed'],
+  fossil: ['ore'],
+  artifact: ['processed', 'gem'],
+  spirit: ['fruit', 'processed']
+}
+
+const MUSEUM_HALL_TO_QUEST_MARKET_CATEGORIES: Record<MuseumHallZoneId, MuseumQuestMarketCategory[]> = {
+  entry_gallery: ['processed'],
+  mineral_hall: ['ore', 'gem'],
+  fossil_hall: ['ore'],
+  artifact_hall: ['processed', 'fruit'],
+  spirit_hall: ['fruit'],
+  shrine_courtyard: ['fruit', 'processed']
+}
+
+const MUSEUM_HALL_SUPPORT_NPCS: Record<MuseumHallZoneId, string[]> = {
+  entry_gallery: ['wang_dashen'],
+  mineral_hall: ['lin_lao', 'sun_tiejiang'],
+  fossil_hall: ['lin_lao', 'dan_qing'],
+  artifact_hall: ['dan_qing', 'xue_qin'],
+  spirit_hall: ['mo_bai', 'lin_lao'],
+  shrine_courtyard: ['mo_bai', 'wang_dashen']
+}
+
+const MUSEUM_SCHOLAR_SUPPORT_NPCS: Record<string, string[]> = {
+  mineral_catalogue_revision: ['lin_lao', 'sun_tiejiang'],
+  fossil_restoration_notes: ['dan_qing', 'xue_qin'],
+  ancestral_relic_field_report: ['mo_bai', 'dan_qing']
+}
+
+const FRIENDSHIP_LEVEL_LABELS: Record<string, string> = {
+  stranger: '陌生',
+  acquaintance: '相识',
+  friendly: '友好',
+  bestFriend: '挚友',
+  dating: '恋人',
+  married: '成婚'
+}
+
+const mapMarketCategoriesToQuestTypes = (categories: MuseumQuestMarketCategory[]): QuestType[] => {
+  const questTypes: QuestType[] = []
+  if (categories.some(category => category === 'ore' || category === 'gem')) questTypes.push('mining')
+  if (categories.some(category => category === 'processed' || category === 'animal_product')) questTypes.push('gathering')
+  if (categories.some(category => category === 'crop' || category === 'fruit')) questTypes.push('delivery')
+  if (categories.includes('fish')) questTypes.push('fishing')
+  return dedupeList(questTypes)
+}
 
 const cloneMuseumSaveData = (data: MuseumSaveData): MuseumSaveData => ({
   saveVersion: data.saveVersion,
@@ -105,7 +170,15 @@ const getDayDiff = (fromDayTag?: string, toDayTag?: string) => {
 }
 
 export const useMuseumStore = defineStore('museum', () => {
+  const museumTuning = MUSEUM_OPERATION_TUNING_CONFIG
+  const museumFeatureFlags = museumTuning.featureFlags
+  const museumDisplayConfig = museumTuning.display
+  const museumOperationConfig = museumTuning.operations
+  const gameStore = useGameStore()
   const playerStore = usePlayerStore()
+  const goalStore = useGoalStore()
+  const npcStore = useNpcStore()
+  const villageProjectStore = useVillageProjectStore()
   const initialState = cloneMuseumSaveData(createDefaultMuseumSaveData())
 
   /** 已捐赠物品ID集合 */
@@ -121,6 +194,7 @@ export const useMuseumStore = defineStore('museum', () => {
   const scholarCommissionStates = ref<Record<string, MuseumScholarCommissionState>>(cloneMuseumSaveData(initialState).scholarCommissionStates)
   const shrineThemeState = ref(cloneMuseumSaveData(initialState).shrineThemeState)
   const telemetry = ref(cloneMuseumSaveData(initialState).telemetry)
+  const museumActionLocks = ref<string[]>([])
 
   /** 已捐赠数量 */
   const donatedCount = computed(() => donatedItems.value.length)
@@ -329,6 +403,145 @@ export const useMuseumStore = defineStore('museum', () => {
     }
   })
 
+  const getCurrentDayTag = () => `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+
+  const currentThemeWeekMuseumFocus = computed(() => {
+    if (!museumFeatureFlags.themeWeekFocusEnabled) return null
+    const themeWeek = goalStore.currentThemeWeek
+    if (!themeWeek) return null
+    return {
+      id: themeWeek.id,
+      name: themeWeek.name,
+      summaryLabel: themeWeek.ui?.summaryLabel ?? themeWeek.name,
+      hallZoneIds: themeWeek.museumFocusHallZoneIds ?? [],
+      themeIds: themeWeek.museumFocusThemeIds ?? [],
+      scholarCommissionIds: themeWeek.museumFocusScholarCommissionIds ?? []
+    }
+  })
+
+  const linkedVillageProjects = computed(() => {
+    return (villageProjectStore.getLinkedProjectSummaries('museum') as Array<Record<string, any>> | undefined) ?? []
+  })
+
+  const featuredScholarCommissionOverview = computed(() => {
+    const focusedCommissionIds = new Set(currentThemeWeekMuseumFocus.value?.scholarCommissionIds ?? [])
+    return [...scholarCommissionOverview.value]
+      .sort((left, right) => {
+        const leftWeight = (left.isRewardPending ? 4 : 0) + (left.isAccepted ? 3 : 0) + (left.isAvailable ? 2 : 0) + (focusedCommissionIds.has(left.id) ? 1 : 0)
+        const rightWeight = (right.isRewardPending ? 4 : 0) + (right.isAccepted ? 3 : 0) + (right.isAvailable ? 2 : 0) + (focusedCommissionIds.has(right.id) ? 1 : 0)
+        return rightWeight - leftWeight
+      })
+      .slice(0, Math.max(1, museumDisplayConfig.featuredCommissionLimit))
+  })
+
+  const activeMuseumFocusCategories = computed<MuseumCategory[]>(() => {
+    const activeThemeCategories = getActiveShrineTheme()?.favoredCategories ?? []
+    const commissionCategories = featuredScholarCommissionOverview.value
+      .filter(commission => commission.unlocked || commission.isAvailable || commission.isAccepted || commission.isRewardPending)
+      .flatMap(commission => commission.preferredCategories)
+
+    return dedupeList<MuseumCategory>([...activeThemeCategories, ...commissionCategories])
+  })
+
+  const questBoardBiasProfile = computed(() => {
+    if (!museumFeatureFlags.questBoardBiasEnabled) {
+      return {
+        preferredMarketCategories: [] as MuseumQuestMarketCategory[],
+        preferredQuestTypes: [] as QuestType[],
+        preferredVillagerCategory: null as VillagerQuestCategory | null,
+        biasStrength: 0,
+        boardHint: '',
+        specialOrderHint: '',
+        focusHallLabels: [] as string[],
+        activeThemeName: undefined as string | undefined
+      }
+    }
+
+    const focusHallMarketCategories = (currentThemeWeekMuseumFocus.value?.hallZoneIds ?? []).flatMap(
+      hallZoneId => MUSEUM_HALL_TO_QUEST_MARKET_CATEGORIES[hallZoneId] ?? []
+    )
+    const preferredMarketCategories = dedupeList<MuseumQuestMarketCategory>([
+      ...activeMuseumFocusCategories.value.flatMap(category => MUSEUM_CATEGORY_TO_QUEST_MARKET_CATEGORIES[category] ?? []),
+      ...focusHallMarketCategories
+    ])
+    const preferredQuestTypes = mapMarketCategoriesToQuestTypes(preferredMarketCategories)
+    const preferredVillagerCategory: VillagerQuestCategory | null =
+      preferredMarketCategories.some(category => category === 'ore' || category === 'gem')
+        ? 'gathering'
+        : preferredMarketCategories.some(category => category === 'processed' || category === 'animal_product')
+          ? 'cooking'
+          : null
+
+    const hallLabels = (currentThemeWeekMuseumFocus.value?.hallZoneIds ?? []).map(hallZoneId => {
+      const hall = hallProgressOverview.value.find(entry => entry.progress.hallZoneId === hallZoneId)
+      return hall?.currentLevelDef?.unlockSummary ?? hallZoneId
+    })
+    const activeThemeName = getActiveShrineTheme()?.name
+    const linkedProjectCount = linkedVillageProjects.value.filter(project => project.completed).length
+    const biasStrength = Math.min(
+      museumOperationConfig.maxQuestBiasStrength,
+      preferredMarketCategories.length +
+        linkedProjectCount * museumOperationConfig.linkedProjectBiasWeight +
+        (availableScholarCommissionCount.value > 0 ? museumOperationConfig.availableCommissionBiasWeight : 0)
+    )
+
+    return {
+      preferredMarketCategories,
+      preferredQuestTypes,
+      preferredVillagerCategory,
+      biasStrength,
+      boardHint:
+        preferredMarketCategories.length > 0
+          ? `【博物馆联动】${activeThemeName ? `祠堂主题「${activeThemeName}」` : '当前展陈经营'}会让告示板更偏向${preferredMarketCategories.join(' / ')}相关筹备。`
+          : '',
+      specialOrderHint:
+        hallLabels.length > 0
+          ? `展陈联动：本周重点馆区为${hallLabels.slice(0, museumDisplayConfig.hallLabelDisplayLimit).join('、')}，相关筹备需求会更活跃。`
+          : '',
+      focusHallLabels: hallLabels,
+      activeThemeName
+    }
+  })
+
+  const supportNpcOverview = computed(() => {
+    const focusedHallNpcIds = (currentThemeWeekMuseumFocus.value?.hallZoneIds ?? []).flatMap(hallZoneId => MUSEUM_HALL_SUPPORT_NPCS[hallZoneId] ?? [])
+    const commissionNpcIds = featuredScholarCommissionOverview.value.flatMap(commission => MUSEUM_SCHOLAR_SUPPORT_NPCS[commission.id] ?? [])
+    return dedupeList([...focusedHallNpcIds, ...commissionNpcIds])
+      .slice(0, Math.max(1, museumDisplayConfig.supportNpcDisplayLimit))
+      .map(npcId => ({
+      npcId,
+      name: getNpcById(npcId)?.name ?? npcId,
+      friendshipLevel: npcStore.getFriendshipLevel(npcId),
+      friendshipLabel: FRIENDSHIP_LEVEL_LABELS[npcStore.getFriendshipLevel(npcId)] ?? npcStore.getFriendshipLevel(npcId)
+    }))
+  })
+
+  const crossSystemOverview = computed(() => {
+    const recommendedActions: string[] = []
+    const activeTheme = getActiveShrineTheme()
+    if (availableScholarCommissionCount.value > 0) {
+      recommendedActions.push(`优先承接 ${availableScholarCommissionCount.value} 条学者委托，把展示评分和访客热度转成稳定奖励。`)
+    }
+    if (currentThemeWeekMuseumFocus.value?.hallZoneIds?.length) {
+      recommendedActions.push(`本周主题周额外关注 ${questBoardBiasProfile.value.focusHallLabels.slice(0, 2).join('、')}，可更快形成展陈闭环。`)
+    }
+    if (linkedVillageProjects.value.some(project => !project.completed && project.available)) {
+      recommendedActions.push('推进带有“博物馆”联动的村庄建设，可同步提升展示承接能力与周度收益。')
+    }
+    if (activeTheme) {
+      recommendedActions.push(`围绕祠堂主题「${activeTheme.name}」补齐 ${activeTheme.favoredCategories.join('、')} 藏品，可进一步放大展示评分与访客热度。`)
+    }
+
+    return {
+      themeWeekFocus: currentThemeWeekMuseumFocus.value,
+      linkedVillageProjects: linkedVillageProjects.value,
+      supportNpcOverview: supportNpcOverview.value,
+      featuredScholarCommissions: featuredScholarCommissionOverview.value,
+      questBoardBiasProfile: questBoardBiasProfile.value,
+      recommendedActions: dedupeList(recommendedActions).slice(0, Math.max(1, museumDisplayConfig.recommendedActionLimit))
+    }
+  })
+
   const operationalOverview = computed(() => ({
     saveVersion: saveVersion.value,
     donatedCount: donatedCount.value,
@@ -434,11 +647,34 @@ export const useMuseumStore = defineStore('museum', () => {
   /** 捐赠物品 */
   const donateItem = (itemId: string): boolean => {
     if (!canDonate(itemId)) return false
+    const lockId = `donate:${itemId}`
+    const shouldGuard = museumFeatureFlags.museumActionGuardEnabled
+    if (shouldGuard && !beginMuseumAction(lockId)) return false
+
     const inventoryStore = useInventoryStore()
-    const removed = inventoryStore.removeItem(itemId, 1)
-    if (!removed) return false
-    donatedItems.value.push(itemId)
-    return true
+    const inventorySnapshot = inventoryStore.serialize()
+    const donatedSnapshot = [...donatedItems.value]
+
+    try {
+      const removed = inventoryStore.removeItem(itemId, 1)
+      if (!removed) return false
+      donatedItems.value.push(itemId)
+      addLog(`【博物馆】已捐赠 ${getMuseumItemDef(itemId)?.name ?? itemId}。`, {
+        category: 'museum',
+        tags: ['late_game_cycle'],
+        meta: {
+          itemId,
+          donatedCount: donatedItems.value.length
+        }
+      })
+      return true
+    } catch {
+      inventoryStore.deserialize(inventorySnapshot)
+      donatedItems.value = donatedSnapshot
+      return false
+    } finally {
+      if (shouldGuard) finishMuseumAction(lockId)
+    }
   }
 
   /** 可领取的里程碑 */
@@ -462,6 +698,18 @@ export const useMuseumStore = defineStore('museum', () => {
   }
   const getUnlockedExhibitSlots = () => exhibitSlotOverview.value.filter(slot => slot.unlocked)
 
+  const beginMuseumAction = (lockId: string): boolean => {
+    if (!museumFeatureFlags.museumActionGuardEnabled) return true
+    if (museumActionLocks.value.includes(lockId)) return false
+    museumActionLocks.value = [...museumActionLocks.value, lockId]
+    return true
+  }
+
+  const finishMuseumAction = (lockId: string) => {
+    if (!museumFeatureFlags.museumActionGuardEnabled) return
+    museumActionLocks.value = museumActionLocks.value.filter(entry => entry !== lockId)
+  }
+
   const setScholarCommissionState = (commissionId: string, patch: Partial<MuseumScholarCommissionState>) => {
     const current = scholarCommissionStates.value[commissionId] ?? initialState.scholarCommissionStates[commissionId]
     if (!current) return undefined
@@ -477,6 +725,7 @@ export const useMuseumStore = defineStore('museum', () => {
   }
 
   const buildDisplayRatingTelemetry = (): MuseumDisplayRatingState => {
+    const serviceContractEffect = useShopStore().getServiceContractEffectSummary('museum')
     const breakdown: MuseumDisplayRatingState['breakdown'] = []
     let score = MUSEUM_OPERATIONAL_CONFIG.defaultDisplayRating
 
@@ -504,6 +753,15 @@ export const useMuseumStore = defineStore('museum', () => {
       breakdown.push({ key: `theme:${activeTheme.id}`, label: activeTheme.name, value: activeTheme.ratingBonus })
     }
 
+    if (serviceContractEffect.museumDisplayRatingBonus > 0) {
+      score += serviceContractEffect.museumDisplayRatingBonus
+      breakdown.push({
+        key: 'service_contract:museum_display',
+        label: '巡展服务合同',
+        value: serviceContractEffect.museumDisplayRatingBonus
+      })
+    }
+
     const band =
       [...MUSEUM_DISPLAY_RATING_BANDS]
         .sort((left, right) => left.minScore - right.minScore)
@@ -517,6 +775,7 @@ export const useMuseumStore = defineStore('museum', () => {
   }
 
   const buildVisitorFlowTelemetry = (displayRatingScore: number): MuseumVisitorFlowState => {
+    const serviceContractEffect = useShopStore().getServiceContractEffectSummary('museum')
     const hallTrafficBonusRate = hallProgressOverview.value.reduce(
       (sum, hall) => sum + (hall.currentLevelDef?.visitorFlowBonusRate ?? 0),
       0
@@ -525,11 +784,15 @@ export const useMuseumStore = defineStore('museum', () => {
     const scholarCompletedCount = Object.values(scholarCommissionStates.value).filter(state => state.completed).length
     const assignedExhibitCount = exhibitSlotOverview.value.reduce((sum, slot) => sum + slot.assignedCount, 0)
     const baseVisitors =
-      MUSEUM_OPERATIONAL_CONFIG.defaultVisitorFlow + unlockedExhibitSlotCount.value * 4 + assignedExhibitCount * 3 + scholarCompletedCount * 5
-    const ratingBonusVisitors = Math.floor(displayRatingScore * 0.2)
+      MUSEUM_OPERATIONAL_CONFIG.defaultVisitorFlow +
+      unlockedExhibitSlotCount.value * museumOperationConfig.unlockedSlotVisitorBase +
+      assignedExhibitCount * museumOperationConfig.assignedExhibitVisitorBase +
+      scholarCompletedCount * museumOperationConfig.completedCommissionVisitorBase
+    const ratingBonusVisitors = Math.floor(displayRatingScore * museumOperationConfig.displayRatingToVisitorsFactor)
     const hallBonusVisitors = Math.floor(baseVisitors * hallTrafficBonusRate)
     const shrineBonusVisitors = activeTheme ? Math.floor(baseVisitors * activeTheme.trafficBonusRate) : 0
-    const bonusVisitors = ratingBonusVisitors + hallBonusVisitors + shrineBonusVisitors
+    const contractBonusVisitors = Math.floor(baseVisitors * serviceContractEffect.museumVisitorBonusRate)
+    const bonusVisitors = ratingBonusVisitors + hallBonusVisitors + shrineBonusVisitors + contractBonusVisitors
     const score = baseVisitors + bonusVisitors
     const band =
       [...MUSEUM_VISITOR_FLOW_BANDS]
@@ -577,7 +840,7 @@ export const useMuseumStore = defineStore('museum', () => {
       (currentTheme.rotation === 'weekly' && options?.startedNewWeek) ||
       (currentTheme.rotation === 'seasonal' && options?.seasonChanged)
 
-    if (shouldRotateTheme) {
+    if (museumFeatureFlags.shrineThemeRotationEnabled && shouldRotateTheme) {
       const rotationMode = options?.seasonChanged ? 'seasonal' : options?.startedNewWeek ? 'weekly' : 'daily'
       const rotatedTheme = rotateShrineTheme(currentDayTag, rotationMode)
       if (rotatedTheme) {
@@ -599,7 +862,11 @@ export const useMuseumStore = defineStore('museum', () => {
         continue
       }
 
-      if (displayTelemetry.score >= commission.ratingTarget && visitorTelemetry.score >= commission.trafficTarget) {
+      if (
+        museumFeatureFlags.scholarCommissionAutoCompleteEnabled &&
+        displayTelemetry.score >= commission.ratingTarget &&
+        visitorTelemetry.score >= commission.trafficTarget
+      ) {
         setScholarCommissionState(commission.id, { completed: true, expired: false })
         dailyLogs.push(`【博物馆】学者委托「${commission.title}」已达到展陈目标，等待领取奖励。`)
       }
@@ -634,25 +901,170 @@ export const useMuseumStore = defineStore('museum', () => {
     }
   }
 
-  /** 领取里程碑奖励 */
-  const claimMilestone = (count: number): boolean => {
-    const milestone = MUSEUM_MILESTONES.find(m => m.count === count)
-    if (!milestone) return false
-    if (donatedCount.value < count) return false
-    if (claimedMilestones.value.includes(count)) return false
+  const acceptScholarCommission = (commissionId: string): { success: boolean; message: string } => {
+    const lockId = `acceptScholarCommission:${commissionId}`
+    if (!beginMuseumAction(lockId)) {
+      return { success: false, message: '该学者委托正在处理中，请勿重复点击。' }
+    }
+
+    try {
+    const commission = getScholarCommissionOverview(commissionId)
+    if (!commission) return { success: false, message: '学者委托不存在。' }
+    if (!commission.unlocked) return { success: false, message: '该学者委托尚未开放。' }
+    if (commission.isAccepted) return { success: false, message: '该学者委托已在进行中。' }
+    if (commission.isRewardPending) return { success: false, message: '该学者委托已完成，等待领取奖励。' }
+    if (commission.state.expired) {
+      setScholarCommissionState(commissionId, { expired: false, completed: false, rewarded: false, progress: 0 })
+    }
+
+    const acceptedDayTag = getCurrentDayTag()
+    setScholarCommissionState(commissionId, {
+      acceptedDayTag,
+      completed: false,
+      rewarded: false,
+      expired: false,
+      progress: 0
+    })
+
+    addLog(`【博物馆】已接取学者委托「${commission.title}」，请在 ${commission.durationDays} 天内提升展陈评分与访客热度。`, {
+      category: 'museum',
+      tags: ['late_game_cycle'],
+      meta: {
+        commissionId: commission.id,
+        hallZoneId: commission.hallZoneId,
+        acceptedDayTag
+      }
+    })
+
+    return { success: true, message: `已接取学者委托：${commission.title}。` }
+    } finally {
+      finishMuseumAction(lockId)
+    }
+  }
+
+  const claimScholarCommissionReward = (commissionId: string): { success: boolean; message: string } => {
+    const lockId = `claimScholarCommission:${commissionId}`
+    if (!beginMuseumAction(lockId)) {
+      return { success: false, message: '该学者委托奖励正在结算中，请勿重复点击。' }
+    }
 
     const inventoryStore = useInventoryStore()
-    const rewardItems = (milestone.reward.items ?? []).map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
-    if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) return false
+    const inventorySnapshot = inventoryStore.serialize()
+    const playerSnapshot = playerStore.serialize()
+    const goalSnapshot = goalStore.serialize()
+    const npcSnapshot = npcStore.serialize()
+    const museumSnapshot = serialize()
 
-    if (milestone.reward.money) {
-      playerStore.earnMoney(milestone.reward.money)
+    try {
+    const commission = getScholarCommissionOverview(commissionId)
+    if (!commission) return { success: false, message: '学者委托不存在。' }
+    if (!commission.isRewardPending) return { success: false, message: '该学者委托尚未达到领奖条件。' }
+    if (!museumFeatureFlags.scholarCommissionRewardEnabled) {
+      return { success: false, message: '当前运营配置下学者委托领奖已暂时关闭。' }
     }
-    if (milestone.reward.items) {
+
+    const rewardItems = (commission.reward.items ?? []).map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
+    if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
+      return { success: false, message: '请先整理背包，当前空间不足以领取学者委托奖励。' }
+    }
+
+    if (commission.reward.money) {
+      playerStore.earnMoney(commission.reward.money)
+    }
+    if (commission.reward.reputation) {
+      goalStore.goalReputation += commission.reward.reputation
+    }
+    if (rewardItems.length > 0) {
       inventoryStore.addItemsExact(rewardItems)
     }
-    claimedMilestones.value.push(count)
-    return true
+
+    const supportNpcId = (MUSEUM_SCHOLAR_SUPPORT_NPCS[commission.id] ?? [])[0]
+    const friendshipMessages = supportNpcId
+      ? npcStore.adjustFriendship(
+          supportNpcId,
+          Math.max(
+            museumOperationConfig.scholarFriendshipRewardMinimum,
+            Math.ceil((commission.reward.reputation ?? 0) / museumOperationConfig.scholarFriendshipRewardDivisor) || museumOperationConfig.scholarFriendshipRewardMinimum
+          )
+        )
+      : []
+
+    setScholarCommissionState(commissionId, { rewarded: true })
+
+    const rewardSummary = [
+      commission.reward.money ? `${commission.reward.money}文` : '',
+      commission.reward.reputation ? `目标声望+${commission.reward.reputation}` : '',
+      ...(commission.reward.items ?? []).map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`)
+    ].filter(Boolean)
+
+    addLog(`【博物馆】学者委托「${commission.title}」奖励已领取。`, {
+      category: 'museum',
+      tags: ['late_game_cycle'],
+      meta: {
+        commissionId: commission.id,
+        rewardSummary: rewardSummary.join(' | ')
+      }
+    })
+
+    return {
+      success: true,
+      message: `领取了学者委托奖励：${commission.title}${rewardSummary.length > 0 ? `，获得${rewardSummary.join('、')}` : ''}${friendshipMessages.length > 0 ? `。${friendshipMessages.join(' ')}` : '。'}`
+    }
+    } catch {
+      inventoryStore.deserialize(inventorySnapshot)
+      playerStore.deserialize(playerSnapshot)
+      goalStore.deserialize(goalSnapshot)
+      npcStore.deserialize(npcSnapshot)
+      deserialize(museumSnapshot)
+      return { success: false, message: '学者委托奖励结算失败，已回滚，请稍后再试。' }
+    } finally {
+      finishMuseumAction(lockId)
+    }
+  }
+
+  /** 领取里程碑奖励 */
+  const claimMilestone = (count: number): boolean => {
+    const lockId = `claimMilestone:${count}`
+    if (!beginMuseumAction(lockId)) return false
+    const inventoryStore = useInventoryStore()
+    const inventorySnapshot = inventoryStore.serialize()
+    const playerSnapshot = playerStore.serialize()
+    const claimedSnapshot = [...claimedMilestones.value]
+
+    try {
+      const milestone = MUSEUM_MILESTONES.find(m => m.count === count)
+      if (!milestone) return false
+      if (donatedCount.value < count) return false
+      if (claimedMilestones.value.includes(count)) return false
+
+      const rewardItems = (milestone.reward.items ?? []).map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
+      if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) return false
+
+      if (milestone.reward.money) {
+        playerStore.earnMoney(milestone.reward.money)
+      }
+      if (milestone.reward.items) {
+        inventoryStore.addItemsExact(rewardItems)
+      }
+      claimedMilestones.value.push(count)
+      addLog(`【博物馆】已领取里程碑「${milestone.name}」奖励。`, {
+        category: 'museum',
+        tags: ['late_game_cycle'],
+        meta: {
+          milestoneCount: count,
+          rewardMoney: milestone.reward.money ?? 0,
+          rewardItems: rewardItems.map(item => `${item.itemId}x${item.quantity}`).join(' | ')
+        }
+      })
+      return true
+    } catch {
+      inventoryStore.deserialize(inventorySnapshot)
+      playerStore.deserialize(playerSnapshot)
+      claimedMilestones.value = claimedSnapshot
+      return false
+    } finally {
+      finishMuseumAction(lockId)
+    }
   }
 
   const applySaveData = (dataLike: Partial<MuseumSaveData> | Record<string, any> | undefined | null) => {
@@ -690,6 +1102,7 @@ export const useMuseumStore = defineStore('museum', () => {
   /** 反序列化 */
   const deserialize = (data: Partial<MuseumSaveData> | Record<string, any> | undefined | null) => {
     applySaveData(data)
+    museumActionLocks.value = []
   }
 
   const $reset = () => {
@@ -728,6 +1141,11 @@ export const useMuseumStore = defineStore('museum', () => {
     scholarCommissionOverview,
     shrineThemeOverview,
     operationalOverview,
+    currentThemeWeekMuseumFocus,
+    featuredScholarCommissionOverview,
+    questBoardBiasProfile,
+    supportNpcOverview,
+    crossSystemOverview,
     currentAuditSegment,
     sustainedOperationAuditOverview,
     sustainedOperationAuditConfig: MUSEUM_SUSTAINED_OPERATION_AUDIT_CONFIG,
@@ -752,6 +1170,8 @@ export const useMuseumStore = defineStore('museum', () => {
     getAvailableExhibitSlots,
     getUnlockedExhibitSlots,
     processOperationalTick,
+    acceptScholarCommission,
+    claimScholarCommissionReward,
     isDonated,
     canDonate,
     donatableItems,

@@ -455,10 +455,11 @@
     gameStore.setTomorrowWeather('sunny')
     gameStore.currentLocation = 'farm'
     gameStore.currentLocationGroup = 'farm'
-    goalStore.refreshDailyGoals(false)
-    goalStore.refreshSeasonGoals(false)
-    goalStore.refreshThemeWeek(true)
-    goalStore.evaluateProgressAndRewards()
+  goalStore.refreshDailyGoals(false)
+  goalStore.refreshSeasonGoals(false)
+  goalStore.refreshWeeklyGoals(false)
+  goalStore.refreshThemeWeek(true)
+  goalStore.evaluateProgressAndRewards()
     showFloat('已应用调试日期并刷新目标 / 主题周。', 'success')
   }
 
@@ -467,7 +468,10 @@
       showFloat('请先载入样例或进入游戏态。', 'danger')
       return
     }
-    questStore.generateSpecialOrder(gameStore.season, Math.min(4, Math.max(1, specialOrderTier.value)))
+    questStore.generateSpecialOrder(gameStore.season, Math.min(4, Math.max(1, specialOrderTier.value)), {
+      weekId: currentWeekInfo.value.seasonWeekId,
+      absoluteWeek: currentWeekInfo.value.absoluteWeek
+    })
     showFloat('已投放测试特殊订单。', 'success')
   }
 

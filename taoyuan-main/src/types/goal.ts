@@ -37,7 +37,7 @@ export interface GoalTemplate {
   reward: GoalReward
 }
 
-export type GoalSource = 'random' | 'season' | 'archetype_bias'
+export type GoalSource = 'random' | 'season' | 'weekly' | 'archetype_bias'
 
 export type GoalBiasTag = 'cashflow' | 'farming' | 'fishing' | 'mining' | 'cooking' | 'social' | 'discovery'
 
@@ -96,24 +96,53 @@ export interface ThemeWeekDef {
   name: string
   description: string
   season: 'spring' | 'summer' | 'autumn' | 'winter'
+  weekOfSeason: 1 | 2 | 3 | 4
   recommendedCatalogTags?: string[]
   focusMetrics: GoalMetricKey[]
   rewardPreview?: ThemeWeekRewardPreview
   ui?: ThemeWeekUiMeta
   relatedBiasRules?: string[]
-  preferredQuestThemeTag?: 'breeding'
+  preferredQuestThemeTag?: 'breeding' | 'fishpond'
   breedingFocusLabel?: string
   breedingFocusDescription?: string
   breedingFocusHybridIds?: string[]
   museumFocusHallZoneIds?: Array<'entry_gallery' | 'mineral_hall' | 'fossil_hall' | 'artifact_hall' | 'spirit_hall' | 'shrine_courtyard'>
   museumFocusThemeIds?: string[]
   museumFocusScholarCommissionIds?: string[]
+  guildFocusActivityIds?: string[]
+  guildFocusMilestoneIds?: string[]
+  guildFocusRewardPoolIds?: string[]
+  hanhaiFocusRouteIds?: string[]
+  hanhaiFocusRelicSiteIds?: string[]
+  hanhaiFocusBossCycleIds?: string[]
+  hanhaiFocusContractIds?: string[]
+  hanhaiFocusRelicSetIds?: string[]
+  hanhaiFocusShopRotationIds?: string[]
+  familyFocusNpcIds?: string[]
+  familyFocusWishIds?: string[]
+  familyFocusSpiritIds?: string[]
+  familyFocusZhijiProjectIds?: string[]
 }
 
 export interface ThemeWeekState {
   id: string
+  weekOfSeason?: 1 | 2 | 3 | 4
+  seasonWeekId?: string
   startDay: number
   endDay: number
+}
+
+export interface WeeklyGoalDef extends GoalTemplate {
+  season: 'spring' | 'summer' | 'autumn' | 'winter'
+  weekOfSeason: 1 | 2 | 3 | 4
+  linkedThemeWeekId?: string
+}
+
+export interface WeeklyGoalState extends GoalState {
+  season: 'spring' | 'summer' | 'autumn' | 'winter'
+  weekOfSeason: 1 | 2 | 3 | 4
+  weekId: string
+  linkedThemeWeekId?: string
 }
 
 export interface ThemeWeekRewardPreview {
@@ -126,6 +155,49 @@ export interface ThemeWeekUiMeta {
   badgeText?: string
   summaryLabel?: string
   bannerTone?: 'accent' | 'success' | 'warning'
+}
+
+export type EventCampaignTier = 'P0' | 'P1' | 'P2'
+export type EventCampaignCadence = 'weekly' | 'biweekly' | 'seasonal'
+
+export interface EventMailTemplateRef {
+  id: string
+  templateType: 'activity_reward' | 'maintenance_notice' | 'compensation'
+  title: string
+  summary: string
+}
+
+export interface EventCampaignDef {
+  id: string
+  label: string
+  description: string
+  unlockTier: EventCampaignTier
+  cadence: EventCampaignCadence
+  linkedThemeWeekIds: string[]
+  linkedSystems: EconomySystemKey[]
+  mailboxTemplateIds: string[]
+  rewardSummary: string
+}
+
+export interface ThemeWeekCampaignState {
+  campaignId: string
+  themeWeekId: string
+  weekId: string
+  startedDayTag: string
+  rewardMailTemplateId: string | null
+  settled: boolean
+}
+
+export interface EventOperationsState {
+  version: number
+  activeCampaignId: string | null
+  activeThemeWeekCampaignId: string | null
+  cadence: EventCampaignCadence
+  completedCampaignIds: string[]
+  completedThemeWeekIds: string[]
+  claimedMailCampaignIds: string[]
+  lastCampaignDayTag: string
+  lastSettlementDayTag: string
 }
 
 export type EconomyMetricDirection = 'higher_is_worse' | 'lower_is_worse' | 'target_range'

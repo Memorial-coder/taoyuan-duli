@@ -248,6 +248,19 @@
           订单建议：{{ currentSpecialOrder.recommendedHybridIds.map(getCropName).join('、') }}
         </p>
       </div>
+      <div class="border border-accent/10 rounded-xs p-2 mb-2 game-panel-muted">
+        <div class="flex items-center justify-between mb-1">
+          <p class="text-xs text-accent">陪伴承接建议</p>
+          <span class="text-[10px] text-muted">家庭 / 挚友</span>
+        </div>
+        <p class="text-[10px] text-muted leading-4">{{ breedingStore.companionshipBreedingFocus.summary }}</p>
+        <p v-if="breedingStore.companionshipBreedingFocus.activeFamilyWish" class="text-[10px] text-accent mt-1">
+          当前心愿：{{ breedingStore.companionshipBreedingFocus.activeFamilyWish.title }}
+        </p>
+        <p v-if="breedingStore.companionshipBreedingFocus.recommendedHybridIds.length" class="text-[10px] text-success mt-1">
+          陪伴建议：{{ breedingStore.companionshipBreedingFocus.recommendedHybridIds.map(getCropName).join('、') }}
+        </p>
+      </div>
       <div class="border border-accent/10 rounded-xs p-0 mb-2 game-panel-muted overflow-hidden">
         <button class="w-full flex items-center justify-between p-2 text-xs text-accent hover:bg-accent/5" @click="showRules = !showRules">
           <span>育种规则</span>

@@ -28,6 +28,23 @@
       <p class="text-xs text-muted mt-2">{{ currentLocationDesc }}</p>
     </div>
 
+    <div class="border border-accent/20 rounded-xs p-3 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-sm text-accent">陪伴 / 仙缘提示</p>
+        <span class="text-[10px] text-muted">{{ fishingStore.companionshipFishingFocus.bondedSpiritId ? '仙缘联动' : '家庭联动' }}</span>
+      </div>
+      <p class="text-xs text-muted leading-4">{{ fishingStore.companionshipFishingFocus.summary }}</p>
+      <p v-if="fishingStore.companionshipFishingFocus.activeFamilyWish" class="text-[10px] text-accent mt-1">
+        当前心愿：{{ fishingStore.companionshipFishingFocus.activeFamilyWish.title }}
+      </p>
+      <p v-if="fishingStore.companionshipFishingFocus.spiritBlessing" class="text-[10px] text-success mt-1">
+        当前祝福：{{ fishingStore.companionshipFishingFocus.spiritBlessing.label }}
+      </p>
+      <p class="text-[10px] text-muted mt-1">
+        推荐钓点：{{ fishingStore.companionshipFishingFocus.recommendedLocations.join('、') }}
+      </p>
+    </div>
+
     <!-- 装备 -->
     <div class="border border-accent/20 rounded-xs p-3 mb-4">
       <p class="text-sm text-accent mb-2">装备</p>

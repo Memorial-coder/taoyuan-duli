@@ -13,6 +13,7 @@ import {
 import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useFarmStore } from './useFarmStore'
+import { useNpcStore } from './useNpcStore'
 import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
 
 /** 酒窖陈酿槽 */
@@ -29,6 +30,7 @@ const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
 const AGEABLE_ITEMS = ['watermelon_wine', 'osmanthus_wine', 'peach_wine', 'jujube_wine', 'corn_wine', 'rice_vinegar']
 
 export const useHomeStore = defineStore('home', () => {
+  const npcStore = useNpcStore()
   const farmhouseLevel = ref<FarmhouseLevel>(0)
   const caveChoice = ref<CaveChoice>('none')
   const caveUnlocked = ref(false)
@@ -46,6 +48,24 @@ export const useHomeStore = defineStore('home', () => {
   })
 
   const hasCellar = computed(() => farmhouseLevel.value >= 3)
+  const companionHomeOverview = computed(() => {
+    const relationshipSnapshot = npcStore.getRelationshipDebugSnapshot()
+    const familyWishOverview = npcStore.getFamilyWishOverview()
+    const activeFamilyWish = familyWishOverview.defs.find(def => def.id === familyWishOverview.state.activeWishId) ?? null
+    return {
+      farmhouseLevel: farmhouseLevel.value,
+      hasCellar: hasCellar.value,
+      greenhouseUnlocked: greenhouseUnlocked.value,
+      activeFamilyWish,
+      householdAssignments: relationshipSnapshot.householdAssignments,
+      summary:
+        activeFamilyWish?.id === 'wish_shared_breakfast'
+          ? '当前家庭心愿更偏向宅院照料、厨房与生活化准备。'
+          : relationshipSnapshot.householdAssignments.some(entry => entry.roleId === 'home_care')
+            ? '已安排宅院照料分工，可优先处理温室、酒窖与日常家务事项。'
+            : '当前宅院尚未承接明显的家庭经营压力，可按农舍升级与设施节奏推进。'
+    }
+  })
 
   /** 升级农舍 */
   const upgradeFarmhouse = (): boolean => {
@@ -218,6 +238,7 @@ export const useHomeStore = defineStore('home', () => {
     farmhouseName,
     nextUpgrade,
     hasCellar,
+    companionHomeOverview,
     upgradeFarmhouse,
     unlockCave,
     chooseCave,

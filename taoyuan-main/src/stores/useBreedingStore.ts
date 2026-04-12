@@ -43,9 +43,11 @@ import { getCropById } from '@/data/crops'
 import { addLog } from '@/composables/useGameLog'
 import { useAchievementStore } from './useAchievementStore'
 import { useGameStore } from './useGameStore'
+import { useNpcStore } from './useNpcStore'
 import { BREEDING_SPECIAL_ORDER_THEME_AUDIT } from '@/data/goals'
 
 export const useBreedingStore = defineStore('breeding', () => {
+  const npcStore = useNpcStore()
   // === 状态 ===
 
   /** 种子箱 */
@@ -256,6 +258,25 @@ export const useBreedingStore = defineStore('breeding', () => {
         return gapA - gapB
       })
       .slice(0, researchLevel.value >= 1 ? 5 : 3)
+  })
+
+  const companionshipBreedingFocus = computed(() => {
+    const familyWishOverview = npcStore.getFamilyWishOverview()
+    const relationshipSnapshot = npcStore.getRelationshipDebugSnapshot()
+    const activeFamilyWish = familyWishOverview.defs.find(def => def.id === familyWishOverview.state.activeWishId) ?? null
+    const craftAssignments = relationshipSnapshot.householdAssignments.filter(entry => entry.roleId === 'craft_assist')
+    const recommendedEntries = recommendedHybrids.value.slice(0, 3)
+    return {
+      activeFamilyWish,
+      craftAssignmentCount: craftAssignments.length,
+      recommendedHybridIds: recommendedEntries.map(entry => entry.hybrid.id),
+      summary:
+        activeFamilyWish?.id === 'wish_legacy_archive'
+          ? '家业传承心愿会放大长期培育与高阶杂交的筹备价值。'
+          : craftAssignments.length > 0
+            ? '已安排家业协作分工，优先推进可发现或接近可发现的杂交品种。'
+            : '当前暂无明显的家庭育种承接压力，可按图鉴与订单优先级推进。'
+    }
   })
 
   const setSeedSortKey = (value: SeedSortKey) => {
@@ -807,6 +828,7 @@ export const useBreedingStore = defineStore('breeding', () => {
     visibleBreedingBox,
     hybridAvailabilityMap,
     recommendedHybrids,
+    companionshipBreedingFocus,
     breedingMasteryPerks,
     // 方法
     addToBox,

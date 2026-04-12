@@ -1,4 +1,5 @@
 import type {
+  CompensationPlan,
   HanhaiBossCycleDef,
   HanhaiCasinoSideRewardDef,
   HanhaiCaravanContractDef,
@@ -8,6 +9,8 @@ import type {
   HanhaiRelicSiteDef,
   HanhaiRouteInvestmentDef,
   HanhaiWeightedRewardBundle,
+  QaCaseDef,
+  ReleaseChecklistItem,
   RouletteOutcome,
   CricketDef,
   PokerSuit,
@@ -929,6 +932,54 @@ export const HANHAI_CASINO_SIDE_REWARD_DEFS: HanhaiCasinoSideRewardDef[] = [
   }
 ]
 
+export const HANHAI_OPERATION_TUNING_CONFIG = {
+  featureFlags: {
+    themeWeekFocusEnabled: true,
+    questBoardBiasEnabled: true,
+    crossSystemOverviewEnabled: true,
+    hanhaiActionGuardEnabled: true,
+    linkedVillageProjectLinkEnabled: true,
+    recommendedCatalogEnabled: true
+  },
+  display: {
+    featuredRouteLimit: 3,
+    featuredContractLimit: 3,
+    featuredRelicSetLimit: 3,
+    recommendedCatalogOfferLimit: 3,
+    recommendedActionLimit: 3,
+    themeFocusLabelLimit: 4
+  },
+  progression: {
+    tierUnlockInvestmentCountP1: 1,
+    tierUnlockRelicClearsP1: 2,
+    tierUnlockSetCompletionCountP2: 1,
+    tierUnlockRelicClearsP2: 6,
+    bossCycleOrder: ['dune_revenant', 'glass_scorpion', 'sunken_colossus', 'sandstorm_wyrm']
+  },
+  rewards: {
+    relicExploreMoneyMultiplier: 1,
+    relicMilestoneMapRewardQuantity: 1,
+    treasureMapMoneyMultiplier: 1,
+    shopWeeklyLimitMultiplier: 1
+  },
+  operations: {
+    maxQuestBiasStrength: 4,
+    linkedVillageProjectBiasBonus: 1,
+    recommendedCatalogTagMatchBonus: 1,
+    activeBossQuestBiasBonus: 1
+  },
+  casino: {
+    maxDailyBets: 10,
+    rouletteBetTiers: [100, 500, 1000],
+    diceBetAmount: 200,
+    cupBetAmount: 200,
+    cricketBetAmount: 300,
+    cardBetAmount: 400,
+    buckshotBetAmount: 500,
+    unlockCost: 100000
+  }
+} as const
+
 export const pickWeightedRewardBundle = <T extends HanhaiWeightedRewardBundle>(bundles: T[]): T | null => {
   const normalized = bundles.filter(bundle => (Number(bundle.weight) || 0) > 0)
   if (normalized.length === 0) return null
@@ -952,16 +1003,16 @@ export const ROULETTE_OUTCOMES: RouletteOutcome[] = [
 ]
 
 /** 轮盘投注档位 */
-export const ROULETTE_BET_TIERS = [100, 500, 1000] as const
+export const ROULETTE_BET_TIERS = HANHAI_OPERATION_TUNING_CONFIG.casino.rouletteBetTiers
 
 /** 骰子投注金额 */
-export const DICE_BET_AMOUNT = 200
+export const DICE_BET_AMOUNT = HANHAI_OPERATION_TUNING_CONFIG.casino.diceBetAmount
 
 /** 每天最大赌博次数 */
-export const MAX_DAILY_BETS = 10
+export const MAX_DAILY_BETS = HANHAI_OPERATION_TUNING_CONFIG.casino.maxDailyBets
 
 /** 解锁瀚海所需费用 */
-export const HANHAI_UNLOCK_COST = 100000
+export const HANHAI_UNLOCK_COST = HANHAI_OPERATION_TUNING_CONFIG.casino.unlockCost
 
 /** 根据概率随机选择轮盘结果 */
 export const spinRoulette = (): RouletteOutcome => {
@@ -984,7 +1035,7 @@ export const rollDice = (): { dice1: number; dice2: number; total: number; isBig
 // ==================== 猜杯 ====================
 
 /** 猜杯投注金额 */
-export const CUP_BET_AMOUNT = 250
+export const CUP_BET_AMOUNT = HANHAI_OPERATION_TUNING_CONFIG.casino.cupBetAmount
 
 /** 猜杯倍率 */
 export const CUP_WIN_MULTIPLIER = 3
@@ -997,7 +1048,7 @@ export const playCupRound = (): { correctCup: number } => {
 // ==================== 斗蛐蛐 ====================
 
 /** 斗蛐蛐投注金额 */
-export const CRICKET_BET_AMOUNT = 300
+export const CRICKET_BET_AMOUNT = HANHAI_OPERATION_TUNING_CONFIG.casino.cricketBetAmount
 
 /** 斗蛐蛐赢赔率 */
 export const CRICKET_WIN_MULTIPLIER = 2.5
@@ -1019,7 +1070,7 @@ export const fightCricket = (): { playerPower: number; opponentPower: number } =
 // ==================== 翻牌寻宝 ====================
 
 /** 翻牌投注金额 */
-export const CARD_BET_AMOUNT = 150
+export const CARD_BET_AMOUNT = HANHAI_OPERATION_TUNING_CONFIG.casino.cardBetAmount
 
 /** 翻牌赢赔率 */
 export const CARD_WIN_MULTIPLIER = 2.5
@@ -1336,7 +1387,7 @@ export const texasDealerAI = (
 // ==================== 恶魔轮盘 ====================
 
 /** 恶魔轮盘投注金额 */
-export const BUCKSHOT_BET_AMOUNT = 400
+export const BUCKSHOT_BET_AMOUNT = HANHAI_OPERATION_TUNING_CONFIG.casino.buckshotBetAmount
 
 /** 恶魔轮盘赢赔率 */
 export const BUCKSHOT_WIN_MULTIPLIER = 3
@@ -1378,3 +1429,118 @@ export const dealerDecide = (shells: ShellType[], currentIndex: number, knowsCur
   }
   return blankLeft > liveLeft ? 'self' : 'opponent'
 }
+
+export const WS08_ACCEPTANCE_SUMMARY = {
+  minQaCaseCount: 8,
+  guardrails: [
+    '瀚海关键平衡参数、展示数量、阶段阈值、奖励倍率与赌坊下注配置必须统一收口在 data tuning config，不应散落写死在 store / view 临时变量里。',
+    '主题周焦点、告示板偏置、跨系统总览、目录承接推荐与事务锁必须支持通过 feature flag 快速降级，异常时可在不改主逻辑的前提下关闭。',
+    'Boss 周期、阶段阈值、遗迹 / 藏宝图 / 商店奖励倍率调整后，仍需维持“有净消耗、有风险决策、有跨系统出口”的后期经营口径。',
+    '旧档缺少瀚海运行时锁、调参字段或主题周 `weekOfSeason` 时，必须能安全回填默认值，且不影响周切换、结算与读档稳定性。'
+  ],
+  releaseAnnouncement: [
+    '【瀚海运营】已新增 `HANHAI_OPERATION_TUNING_CONFIG`，主题周焦点、展示数量、阶段阈值、奖励倍率、告示板偏置与赌坊参数均可直接热调。',
+    '【联动降级】瀚海主题周聚焦、告示板偏置、跨系统总览、目录承接推荐与事务锁现已接入 feature flag，异常活动可快速降级。',
+    '【发布资料】WS08 已补齐 QA 用例、上线检查项、补偿预案与公告文案，可直接供 QA / 运营验收和上线沟通复用。'
+  ]
+} as const
+
+export const WS08_QA_CASES: QaCaseDef[] = [
+  {
+    id: 'ws08-positive-theme-focus-overview',
+    title: '主题周焦点可正确驱动瀚海跨系统总览',
+    category: 'positive',
+    steps: ['切换到带 `hanhaiFocusRouteIds` / `hanhaiFocusRelicSiteIds` / `hanhaiFocusBossCycleIds` 的主题周', '打开 HanhaiView 并检查跨系统总览、推荐动作与告示板提示'],
+    expectedResult: '主题周焦点、Boss / 合同 / 套组 / 货架焦点、推荐动作与告示板提示同步展示，且展示数量受 display 配置限制。'
+  },
+  {
+    id: 'ws08-positive-display-limits',
+    title: '展示条数与推荐数量可通过 display 配置热调',
+    category: 'positive',
+    steps: ['调整 `featuredRouteLimit`、`featuredContractLimit`、`featuredRelicSetLimit`、`recommendedCatalogOfferLimit`、`recommendedActionLimit`', '刷新瀚海页面与目录推荐区块'],
+    expectedResult: '商路 / 合同 / 套组 / 目录推荐 / 推荐动作展示条数按新配置变化，无需改动 store / view 主逻辑。'
+  },
+  {
+    id: 'ws08-positive-progression-boss-order',
+    title: '阶段阈值与 Boss 顺序跟随 progression 配置生效',
+    category: 'positive',
+    steps: ['调整 `tierUnlockInvestmentCountP1`、`tierUnlockRelicClearsP1`、`tierUnlockSetCompletionCountP2`、`tierUnlockRelicClearsP2` 与 `bossCycleOrder`', '推动周切换并观察 `processCycleTick()` 输出'],
+    expectedResult: '瀚海 progress tier 与本周 Boss 顺序按新配置推进，日志、总览与页面展示口径一致。'
+  },
+  {
+    id: 'ws08-positive-reward-and-casino-tuning',
+    title: '奖励倍率、周限购与赌坊参数可通过配置热调',
+    category: 'positive',
+    steps: ['调整 `relicExploreMoneyMultiplier`、`relicMilestoneMapRewardQuantity`、`treasureMapMoneyMultiplier`、`shopWeeklyLimitMultiplier`、`maxDailyBets` 与下注金额配置', '执行遗迹勘探、驻点领奖、藏宝图、驿站商店购买与赌坊玩法'],
+    expectedResult: '奖励倍率、周限购、每日下注次数与投注金额按配置生效，无需改动业务结算逻辑。'
+  },
+  {
+    id: 'ws08-boundary-bias-cap',
+    title: '告示板偏置强度不会突破上限',
+    category: 'boundary',
+    steps: ['同时激活多条商路 / 合同 / 套组 / 主题周焦点，并保留可用联动村庄项目与目录推荐', '检查 `questBoardBiasProfile.biasStrength` 与提示文本'],
+    expectedResult: '`biasStrength` 不会超过 `maxQuestBiasStrength`，且告示板 / 特殊订单提示仍保持可解释。'
+  },
+  {
+    id: 'ws08-ops-disable-quest-bias',
+    title: '关闭告示板偏置后任务链路自动降级',
+    category: 'ops',
+    steps: ['将 `HANHAI_OPERATION_TUNING_CONFIG.featureFlags.questBoardBiasEnabled` 设为 `false`', '刷新告示板与特殊订单'],
+    expectedResult: '瀚海不再额外影响任务 / 订单偏置，但瀚海页面其余进度、Boss 与收益展示保持正常。'
+  },
+  {
+    id: 'ws08-ops-disable-overview-and-catalog',
+    title: '关闭跨系统总览与目录承接后页面仍可安全降级',
+    category: 'ops',
+    steps: ['将 `crossSystemOverviewEnabled` 与 `recommendedCatalogEnabled` 设为 `false`', '打开 HanhaiView 并检查跨系统总览与目录承接推荐'],
+    expectedResult: '跨系统总览退化为基础空结构，目录承接推荐返回空数组，页面不报错也不出现脏提示。'
+  },
+  {
+    id: 'ws08-compatibility-old-save-tuning-defaults',
+    title: '旧档缺少调参与运行时字段时可安全读档',
+    category: 'compatibility',
+    steps: ['读取未包含 `hanhaiActionLocks`、调参驱动扩展字段或旧主题周 `weekOfSeason` 字段的旧档', '进入瀚海页并触发一次周切换或遗迹勘探'],
+    expectedResult: '读档成功，运行时锁为空，主题周与瀚海循环按默认值回填，相关结算可正常执行。'
+  },
+  {
+    id: 'ws08-recovery-rollback-and-lock-cleanup',
+    title: '瀚海高频操作异常时会回滚并释放运行时锁',
+    category: 'recovery',
+    steps: ['在开发态模拟 `exploreRelicSite()`、`useTreasureMap()` 或赌坊结算中途抛错', '重复触发同一操作并检查 `hanhaiActionLocks`'],
+    expectedResult: '玩家 / 背包 / 钱包 / 瀚海状态回滚到操作前，锁在 `finally` 中被释放，恢复后可再次正常操作且不会重复发奖。'
+  }
+]
+
+export const WS08_RELEASE_CHECKLIST: ReleaseChecklistItem[] = [
+  { id: 'ws08-check-theme-focus', label: '确认主题周焦点、跨系统总览与推荐动作展示口径一致', owner: 'design', done: false },
+  { id: 'ws08-check-hot-tuning', label: '确认瀚海展示数量、阶段阈值、奖励倍率与赌坊参数可通过配置热调', owner: 'dev', done: false },
+  { id: 'ws08-check-boss-cycle', label: '确认周切换后的 Boss 顺序、阶段推进与日志输出符合 progression 配置', owner: 'qa', done: false },
+  { id: 'ws08-check-guard-and-compatibility', label: '确认异常回滚、运行时锁释放与旧档兼容读档稳定', owner: 'qa', done: false },
+  { id: 'ws08-check-ops-docs', label: '确认 feature flag、补偿预案、公告文案与 changelog / TODO / 索引同步完成', owner: 'ops', done: false }
+]
+
+export const WS08_COMPENSATION_PLANS: CompensationPlan[] = [
+  {
+    id: 'ws08-compensate-reward-multiplier-error',
+    trigger: '遗迹、藏宝图、赌坊或驿站商店倍率配置异常，导致瀚海产出或消耗明显偏离预期。',
+    compensation: ['按日志、周快照与购买/领奖记录补发或回收异常差值', '保留玩家已合法完成的周循环推进与套组收集进度'],
+    notes: '优先依据 `hanhai_cycle_tick` 日志、遗迹记录、每日下注次数与商店购买记录定位异常窗口。'
+  },
+  {
+    id: 'ws08-compensate-boss-cycle-bias-misconfig',
+    trigger: 'Boss 顺序、阶段阈值或告示板偏置配置异常，导致主题周焦点、任务筹备或周循环路线长期错误。',
+    action: '回调 `HANHAI_OPERATION_TUNING_CONFIG.progression` / `operations` / `featureFlags` 对应字段，并通过更新日志与公告说明修正口径。'
+  },
+  {
+    id: 'ws08-compensate-rollback-lock-residue',
+    trigger: '瀚海高频操作异常回滚失败或运行时锁残留，导致玩家少领、重复领奖或无法继续操作。',
+    compensation: ['补发缺失的铜钱 / 票券 / 藏宝图 / 异域材料', '人工清理对应操作锁并重置异常遗迹、赌坊或里程碑状态'],
+    notes: '以 `player / inventory / wallet / hanhai` 快照、结构化日志与对应领奖状态为准核算。'
+  }
+]
+
+export const WS08_RELEASE_ANNOUNCEMENT = [
+  '【瀚海运营】已新增 `HANHAI_OPERATION_TUNING_CONFIG`，主题周焦点、展示数量、阶段阈值、奖励倍率、告示板偏置与赌坊参数均可直接热调。',
+  '【联动降级】瀚海主题周聚焦、告示板偏置、跨系统总览、目录承接推荐与事务锁现已接入 feature flag，异常活动可快速降级。',
+  '【发布资料】WS08 已补齐 QA 用例、上线检查项、补偿预案与公告文案，可直接供 QA / 运营验收和上线沟通复用。'
+] as const

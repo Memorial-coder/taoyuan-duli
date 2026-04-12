@@ -1,147 +1,101 @@
-# 错误审查记录（2026-04-11）
+# 项目审查记录（2026-04-11）
 
-基于 `taoyuan-main/CHANGELOG.md` 中 2026-04-10 ~ 2026-04-11 的新增/变更功能进行审查，当前确认到以下问题：
+本次基于当前 `taoyuan-main` 代码做静态审查，只记录高置信问题；未修改业务代码。
 
-## 1. type-check 当前无法通过
-- 位置：`src/views/game/ShopView.vue:1654`
-- 问题：声明了 `sellUnitPrice`，但未被使用。
-- 现象：执行 `npm run type-check` 直接失败。
-- 复现：
-  1. 在 `taoyuan-main` 目录执行 `npm run type-check`
-  2. 会报错：`TS6133: 'sellUnitPrice' is declared but its value is never read.`
-- 影响：changelog 里多次标注“已通过 type-check / build”，但当前分支实际上不能通过类型检查。
+补充结论：当前在本地执行 `npm run type-check` 可以通过，因此旧报告里“type-check 不通过”的结论已不适用于当前快照。
 
-## 2. 任务页会把非育种特殊订单错误标成“育种订单”
-- 位置：`src/views/game/QuestView.vue:117-118`
-- 关联数据来源：`src/stores/useQuestStore.ts:622`
-- 问题：这里用的是 `v-if="questStore.specialOrder.themeTag"`，只要有 `themeTag` 就显示“育种订单”。
-- 但 `themeTag` 允许值不只有 `breeding`，还包括 `fishpond`。
-- 复现：
-  1. 生成一个 `themeTag = 'fishpond'` 的特殊订单
-  2. 打开任务页
-  3. 卡片仍会显示“育种订单”标签
-- 影响：订单语义显示错误，和 changelog 中“展示语义修正 / 经营提醒筛选修正”的目标不一致。
+## 1. 主题周实际上不会按“周”轮换，`late_sink_rotation` 永远不可达
+- 严重度：高
+- 位置：`src/data/goals.ts:408-527`，`src/stores/useGoalStore.ts:1419-1431`
+- 问题：主题周定义里秋季有两套主题（`autumn_processing`、`late_sink_rotation`），但 `getThemeWeekBySeason()` 只按 season 取第一条匹配项。
+- 结果：同一季内不会真正按周轮换，秋季新增的“豪华经营周”会被前面的“秋收加工周”永久遮蔽。
+- 复现：连续推进多个秋季周，观察 `goalStore.currentThemeWeek`，只会命中第一条秋季主题。
+- 影响：中后期主题经营、推荐货架、相关订单偏好和日志提示都会偏离设计预期。
 
-## 3. QuestView 缺少 changelog 宣称的“本周重点目标”展示
-- changelog 对应：`CHANGELOG.md:378`
-- 已实现位置：`src/components/game/TopGoalsPanel.vue:77-92`
-- 缺失位置：`src/views/game/QuestView.vue:9-38`
-- 问题：changelog 写明“本周重点目标”会同步展示在 `TopGoalsPanel` 与 `QuestView`，但 `QuestView` 目前只展示：
-  - 主题周信息
-  - 特殊订单风向
-  - 每日目标列表
-- 没有任何 `goalStore.currentThemeWeekGoals` 的展示逻辑。
-- 影响：任务页功能与 changelog 描述不一致，属于功能漏接。
+## 2. 日经济快照在写入后才补高价值订单标签，循环多样度统计失真
+- 严重度：高
+- 位置：`src/composables/useEndDay.ts:1235-1247`，`src/composables/useEndDay.ts:1280-1289`，`src/stores/usePlayerStore.ts:328-336`
+- 问题：`appendEconomySnapshot()` 写入 `highValueOrderTypes` 时，当前主题周偏好、特殊订单 `themeTag`、进行中高价值订单标签尚未加入集合。
+- 结果：快照中的 `highValueOrderTypes` 偏小，`getLoopDiversityScore()` 会低估循环多样度。
+- 复现：保留一个特殊订单或带主题偏好的经营周，睡到第二天后查看最新 `recentSnapshots` 中的 `highValueOrderTypes`。
+- 影响：后期经济观测、风险报告、推荐逻辑都会被错误数据喂养。
 
-## 4. “为你推荐”可能推荐已拥有或未解锁的商品
-- 位置：`src/stores/useShopStore.ts:68-110`
-- 展示位置：`src/views/game/ShopView.vue:179-206`
-- 问题：`recommendedCatalogOffers` 直接从 `availableCatalogOffers` 打分筛选，没有排除：
+## 3. 跨周归档会漏掉上一周最后一天的经济数据
+- 严重度：高
+- 位置：`src/composables/useEndDay.ts:1188-1250`，`src/stores/useGoalStore.ts:1229-1233`
+- 问题：日结在 `nextDay()` 之后才生成 `economyDayTag` 并写入日快照；而周归档又会过滤掉 `dayTag === generatedAtDayTag` 的快照。
+- 结果：这条“实际代表上一天收入/支出”的快照会在跨周时被排除，导致上一周最后一天漏算。
+- 复现：在周末最后一天完成大量买卖后睡觉，触发跨周；比较周快照与实际最后一天流水。
+- 影响：周收入、周支出、净收入、资金池消耗都会偏小，后期周报不可靠。
+
+## 4. 村庄建设完工支出没有按 `villageProject` / sink 口径记账
+- 严重度：高
+- 位置：`src/stores/useVillageProjectStore.ts:952-961`，`src/stores/usePlayerStore.ts:277-289`
+- 问题：建设完工时调用的是 `playerStore.spendMoney(project.moneyCost)`，未传 `villageProject` 系统标识，也未调用 `recordSinkSpend()`。
+- 结果：建设花费会落入默认 `system`，而不是村庄建设/资金池消费口径。
+- 复现：完成任意一个村庄项目后查看经济统计。
+- 影响：村庄建设作为重要资金去向时，经济治理看板会明显失真。
+
+## 5. 直接卖店收入未记入 `shop` 系统，和出货箱统计口径不一致
+- 严重度：中
+- 位置：`src/stores/useShopStore.ts:2084-2087`，`src/stores/usePlayerStore.ts:450-456`，对照 `src/composables/useEndDay.ts:833-836`
+- 问题：`sellItem()` 里直接调用 `playerStore.earnMoney(totalPrice)`，没有传 `system: 'shop'`；但出货箱结算链路是单独按商店/市场系统统计的。
+- 结果：同样是卖货，直接卖店与出货箱会分散到不同统计桶。
+- 复现：分别进行直接卖店和出货箱出售，再查看按系统统计的收入分布。
+- 影响：收入结构、主导收入来源、后期风险提示会被拆散，分析口径不统一。
+
+## 6. “为你推荐”可能推荐已拥有或未解锁商品
+- 严重度：中
+- 位置：`src/stores/useShopStore.ts:242-299`，`src/views/game/ShopView.vue:316-345`，对照 `src/views/game/ShopView.vue:367-395`
+- 问题：`recommendedCatalogOffers` 只做打分排序，没有过滤：
   - `onceOnly && isCatalogOwned(offer.id)` 的已拥有商品
   - `!isCatalogOfferUnlocked(offer.id)` 的未解锁商品
-- 复现：
-  1. 拥有一个一次性目录商品，或图鉴发现数不足以解锁部分商品
-  2. 打开万物铺“为你推荐”
-  3. 仍可能看到已拥有/未解锁商品出现在推荐区
-- 影响：推荐区会出现当前无法购买的商品，和“为你推荐”的实际可买预期不一致，也会造成误导。
+- 结果：推荐区可能展示当前不可购买的内容，而常规货架区反而有“已拥有 / 图鉴未解锁”提示。
+- 复现：先拥有一次性商品，或让图鉴发现数不足，再打开“为你推荐”。
+- 影响：推荐区语义与“当前可买推荐”不一致，容易误导玩家点击无效商品。
 
-## 5. 切换钱包流派会无确认清空已解锁节点进度
-- 位置：`src/stores/useWalletStore.ts:259-264`
-- 触发入口：`src/views/game/WalletView.vue:132-150`
-- 问题：`selectArchetype()` 在切到其他流派时会直接把 `unlockedNodeIds` 置空，但界面上只是普通点击切换，没有任何二次确认。
-- 复现：
-  1. 选择任意钱包流派并解锁至少 1 个节点
-  2. 点击另一个已解锁流派卡片
-  3. 原流派节点进度会被立即清空
-- 影响：这是隐式的破坏性操作；同页面对“重置流派”反而有确认弹窗，当前行为和 UI 预期不一致。
+## 7. WebDAV 下载校验不完整，可能把“可解密但结构非法”的坏档写入本地槽位
+- 严重度：中
+- 位置：`src/composables/useWebdav.ts:387-400`，对照 `src/stores/useSaveStore.ts:741-743`、`src/stores/useSaveStore.ts:787-789`
+- 问题：WebDAV 下载只检查 `parseSaveData(res.data)`，即“能解密成 JSON”；但本地导入/加载还会额外检查 `normalizeSaveEnvelope(data)`。
+- 结果：云端下载链路允许把结构不完整的伪存档写入本地槽位，之后加载才失败。
+- 复现：在云端放入一个能解密、但缺失必要 envelope 结构的存档文本并下载到本地槽位。
+- 影响：会制造“下载成功但无法读取”的坏档，破坏用户对云存档可靠性的预期。
 
-## 6. 厨师帽解锁条件实现错了：按总烹饪次数，不是“不同食谱”
-- 文案位置：`src/data/wallet.ts:34-38`
-- 实现位置：`src/stores/useWalletStore.ts:225-229`
-- 问题：文案要求“烹饪10道不同的食谱”，但代码判断的是 `achievementStore.stats.totalRecipesCooked >= 10`。
-- 复现：
-  1. 重复做同一道菜 10 次
-  2. 仍会解锁 `chefs_hat`
-- 影响：实际解锁门槛低于文案与设计描述，属于功能规则错误。
+## 8. “保存并返回”存在开放跳转风险
+- 严重度：中
+- 位置：`src/components/game/StatusBar.vue:104-121`，`src/views/GameLayout.vue:557-560`，`src/components/game/SaveManager.vue:207-210`
+- 问题：`returnUrl` 来自 `/api/public-config` 返回值，前端未做同源/白名单校验，保存成功后直接赋给 `window.location.href`。
+- 复现：让 `taoyuan_return_button_url` 指向外部站点，然后点击“保存并返回”。
+- 影响：一旦配置错误或被恶意篡改，用户会被直接带离当前站点，属于明显的跳转面风险。
 
-## 7. 主题周实际上按季节固定，不会按“周”轮换
-- 定义位置：`src/data/goals.ts:408-528`
-- 选择逻辑：`src/data/goals.ts:526-527`
-- 使用位置：`src/stores/useGoalStore.ts:1206-1218`, `src/stores/useGoalStore.ts:1461-1470`
-- 问题：`getThemeWeekBySeason()` 只按 season 取第一条匹配项，导致同一季内不会真正轮换主题周。
-- 明显后果：秋季新增的 `late_sink_rotation`（豪华经营周）永远会被前面的 `autumn_processing` 抢先匹配，实际上不可达。
-- 复现：
-  1. 在秋季内连续推进多个周
-  2. 主题周始终是 `autumn_processing`
-  3. `late_sink_rotation` 不会出现
-- 影响：changelog 中“本周主题展示 / 周更联动 / 豪华经营周进入编排池”等描述被部分架空。
+## 9. 敏感信息明文存放在 `localStorage`
+- 严重度：中
+- 位置：
+  - WebDAV：`src/composables/useWebdav.ts:29-35`，`src/composables/useWebdav.ts:45-48`，`src/composables/useWebdav.ts:176-178`
+  - 管理员令牌：`src/utils/taoyuanAiApi.ts:19-22`，`src/utils/taoyuanAiApi.ts:28-32`，`src/utils/taoyuanAiApi.ts:199-203`
+- 问题：
+  - WebDAV 配置整体序列化进 `localStorage`，其中包含明文用户名/密码。
+  - AI 管理后台令牌 `admin_token` 也直接存放在 `localStorage` 并反复取出发请求头。
+- 影响：只要页面出现任意脚本注入、第三方脚本失控、浏览器扩展越权或共用设备泄露，这些敏感信息都容易被直接读取。
+- 备注：这更偏安全设计缺陷，不是立即触发的玩法 bug，但确实属于高价值敏感信息暴露面。
 
-## 8. 百科只做了搜索和分类，没有实现 changelog 宣称的排序能力
-- 位置：`src/components/game/GlossaryTab.vue:1-80`
-- 问题：当前百科页只有搜索框与分类筛选，没有排序控件，也没有任何排序逻辑。
-- 影响：如果 changelog 把“图鉴百科体验增强”的“搜索/筛选/排序”理解为百科页能力，则该功能只实现了一部分。
-- 备注：图鉴列表排序是有的，但百科页本身没有排序。
+## 10. 目标奖励在背包满时会被折现，但日志仍写成“拿到了物品”
+- 严重度：中
+- 位置：`src/stores/useGoalStore.ts:1491-1540`
+- 问题：`grantReward()` 在背包放不下 `reward.items` 时，会把整包物品按卖价折算成铜钱；但后续 `rewardTexts` 仍然无条件把原物品列表拼进达成日志。
+- 结果：日志会同时出现“背包已满，部分目标奖励自动折算为X文”和“获得：物品A×n、物品B×n”，看起来像既拿到了钱又拿到了物品。
+- 复现：把背包装满后完成一个带物品奖励的目标，查看目标达成日志。
+- 影响：奖励反馈与实际到账内容不一致，容易误导玩家判断收益。
 
-## 9. 日结先归档经济快照、后写主题周/特殊订单标签，导致 highValueOrderTypes 统计失真
-- 快照归档位置：`src/composables/useEndDay.ts:1174-1186`
-- 标签写入位置：`src/composables/useEndDay.ts:1206-1215`
-- 问题：当前日结流程先写入经济日快照，再补 active theme week / special order 的高价值标签。
-- 结果：`highValueOrderTypes` 往往少记，甚至保持为 `0`，WS01 的循环多样度与风险报告会漏掉 changelog 声称已接入的信号。
-- 复现：
-  1. 保持一个进行中的特殊订单，或处于带经营标签的主题周
-  2. 睡到第二天触发日结
-  3. 查看 `playerStore.economyTelemetry.recentSnapshots.at(-1).highValueOrderTypes`
-  4. 会发现没有包含当前订单/主题周标签
-- 影响：经济观测与风险提示对“高价值订单/主题周经营”的识别不准确。
-
-## 10. 村庄建设花费没有记到 village/construction 遥测里
-- 扣钱位置：`src/stores/useVillageProjectStore.ts:799-807`
-- 遥测记账参考：`src/stores/usePlayerStore.ts:265-278`
-- 快照消费来源：`src/composables/useEndDay.ts:1164-1185`
-- 问题：村庄建设完成时调用的是 `playerStore.spendMoney(project.moneyCost)`，没有带村庄建设系统标识，也没有调用 `recordSinkSpend`。
-- 结果：支出会落到默认的 `system` 桶，而不是 `villageProject` / construction 类支出。
-- 复现：
-  1. 完成任意一个村庄建设项目
-  2. 结束当天
-  3. 检查最新经济快照或钱袋经济观测
-  4. 会发现 `expenseBySystem.villageProject` 为空，`sinkSpend` 也不会对应增加
-- 影响：WS02 / 经济治理里“建设是重要资金池”的数据口径失真。
-
-## 11. 瀚海消费没有独立 telemetry 桶，全部混入 system
-- 类型定义位置：`src/types/goal.ts:137-139`, `src/types/economy.ts:92-95`
-- 实际花费位置示例：`src/stores/useHanhaiStore.ts:123-129`, `src/stores/useHanhaiStore.ts:161-178`, `src/stores/useHanhaiStore.ts:202-216`
-- 问题：`EconomySystemKey` 里没有 `hanhai`，而瀚海相关解锁/商店/遗迹花费也都走默认通用扣钱路径。
-- 结果：瀚海消费全部被记到 `system`，后期经济观测无法识别这是瀚海循环的支出。
-- 复现：
-  1. 进行瀚海解锁、勘探或瀚海商店购买
-  2. 睡到下一天
-  3. 检查最新经济快照
-  4. 支出只会出现在泛用 `system`，不会以瀚海专属桶呈现
-- 影响：WS08 的经济闭环对观测、推荐资金去向和风险评估基本不可见。
-
-## 12. WS01 日经济快照的日期晚了一天，导致跨周周快照漏算周末最后一天
-- 位置：`src/composables/useEndDay.ts:1169-1219`
-- 位置：`src/stores/useGoalStore.ts:1021-1022`
-- 问题：`handleEndDay()` 在 `nextDay()` 之后才用新一天生成 `economyDayTag` 并写入日经济快照；随后周归档又会用 `snapshot.dayTag !== generatedAtDayTag` 过滤这条刚写入的快照。
-- 结果：日快照的 `dayTag` 整体会晚一天，跨周归档时还会把上一周最后一天的那条快照排除掉，导致 `totalIncome` / `totalExpense` / `netIncome` / `sinkSpend` 偏小。
-- 影响：WS01 的日/周经济观测和 CORE-005 的周快照归档都会失真，和 changelog 中“跨天写日快照、跨周自动归档”的描述不一致。
-
-## 13. 直接卖店收入没有按 shop 系统记账，和出货箱口径不一致
-- 位置：`src/stores/useShopStore.ts:841-845`
-- 位置：`src/composables/useEndDay.ts:833-835`
-- 位置：`src/stores/usePlayerStore.ts:450`
-- 问题：出货箱结算会用 `playerStore.earnMoney(shippingIncome, { system: 'shop' })` 记账，但直接卖店 `sellItem()` 仍调用 `playerStore.earnMoney(totalPrice)`，落到默认系统桶。
-- 结果：直接卖店收入不会进入 `shop` 口径，WS01 的 `incomeBySystem`、`dominantIncomeShare`、风险报告会把两条出售链路统计成不同系统。
-- 影响：虽然 ECON-010 已把直接卖店并入 `shippingHistory`，但经济观测链路仍与 changelog 宣称的统一出售统计不一致。
-
-## 14. 高价值订单标签在写日快照之后才补入，循环多样度会少算
-- 位置：`src/composables/useEndDay.ts:1204-1215`
-- 位置：`src/composables/useEndDay.ts:1236-1245`
-- 位置：`src/stores/usePlayerStore.ts:328-336`
-- 问题：`appendEconomySnapshot()` 写入 `highValueOrderTypes` 时，当前主题周偏好、特殊订单 `themeTag` 和进行中的高价值订单标签还没有加入集合。
-- 结果：日快照里的 `highValueOrderTypes` 经常偏小甚至为 0，`getLoopDiversityScore()` 会基于错误快照低估循环多样度。
-- 影响：这和 changelog 中“主题周偏好、特殊订单与进行中的高价值订单会参与循环多样度统计”的描述不一致。
+## 11. 服务合同到期/自动续费存在 1 天边界偏差
+- 严重度：中
+- 位置：`src/stores/useShopStore.ts:314-319`，`src/stores/useShopStore.ts:485-505`，`src/stores/useShopStore.ts:570-579`
+- 问题：周合同购买时把 `expiresDayKey` 设为“当前日 + 7”，但到期判断条件是 `currentAbsoluteDay > expiresAbsoluteDay`，不是 `>=`。
+- 结果：合同在标记的到期日当天仍保持 `active`，真正过期/自动续费会延后一整天处理。
+- 复现：购买一个 weekly service contract，记录 `expiresDayKey`，推进到该日后检查状态；要到次日才会过期或触发自动续费。
+- 影响：合同实际生效天数比文义多 1 天，续费时点也会晚 1 天，和玩家对“到期日”的理解不一致。
 
 ## 备注
-- `pnpm` 在当前环境不可用，已改用 `npm run type-check` 做自检。
-- 本次未直接改代码，只记录高置信问题。
+- 本次只做静态审查，没有修改业务代码。
+- 若后续需要，我可以继续把这些问题按“玩法/经济/安全/存档”四类再整理成优先级清单。

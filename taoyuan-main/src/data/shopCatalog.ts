@@ -3,6 +3,7 @@ import type {
   EconomyBaselineAuditConfig,
   QaCaseDef,
   ReleaseChecklistItem,
+  ShopCatalogActivityOfferBundleDef,
   ShopCatalogContentTier,
   ShopCatalogCounterState,
   ShopCatalogEntitlementState,
@@ -38,6 +39,7 @@ const inferCatalogRefreshCycle = (pool: ShopCatalogOfferDef['pool']): ShopCatalo
 
 const inferCatalogCategory = (input: ShopCatalogOfferInput): ShopCatalogLuxuryCategory => {
   const tags = input.tags ?? []
+  if (input.effect.type === 'activate_service_contract' || input.serviceContractConfig) return 'service_contract'
   if (input.effect.type === 'unlock_greenhouse') return 'luxury_permit'
   if (input.effect.type === 'expand_warehouse' || input.effect.type === 'grant_chest') return 'warehouse_service'
   if (tags.some(tag => ['春季限定', '夏季限定', '秋季限定', '冬季限定', '每周精选'].includes(tag)) && tags.some(tag => ['装饰', '外观'].includes(tag))) {
@@ -70,14 +72,57 @@ const inferCatalogLinkedSystems = (input: ShopCatalogOfferInput, category: ShopC
     case 'unlock_decoration':
       linkedSystems.add('decoration')
       break
+    case 'activate_service_contract':
+      for (const system of input.serviceContractConfig?.targetSystems ?? []) {
+        linkedSystems.add(system)
+      }
+      break
   }
 
   if (category === 'warehouse_service') linkedSystems.add('warehouse')
+  if (category === 'service_contract') {
+    for (const system of input.serviceContractConfig?.targetSystems ?? []) {
+      linkedSystems.add(system)
+    }
+  }
   if (category === 'travel_supply' || category === 'functional_voucher') linkedSystems.add('inventory')
   if (category === 'showcase_furniture') linkedSystems.add('decoration')
 
   return [...linkedSystems]
 }
+
+export const WS10_ACTIVITY_OFFER_BUNDLES: ShopCatalogActivityOfferBundleDef[] = [
+  {
+    id: 'ws10_theme_rotation_bundle',
+    campaignId: 'ws10_campaign_theme_rotation',
+    label: '主题周承接包',
+    description: '为主题周轮转活动预留推荐采购包，承接周目标、限时订单与活动邮件说明。',
+    unlockTier: 'P0',
+    linkedThemeWeekIds: ['spring_sowing', 'summer_fishing', 'autumn_processing', 'winter_mining'],
+    recommendedOfferIds: ['weekly_inventory_bag', 'func_field_irrigation_pack', 'weekly_mining_supply'],
+    linkedSystems: ['shop', 'goal', 'quest']
+  },
+  {
+    id: 'ws10_supply_chain_bundle',
+    campaignId: 'ws10_campaign_limited_supply',
+    label: '限时供货补给包',
+    description: '为限时供货活动预留目录推荐集合，承接中期活动单与运营说明。',
+    unlockTier: 'P1',
+    linkedThemeWeekIds: ['autumn_processing', 'late_sink_rotation'],
+    recommendedOfferIds: ['func_builder_pack', 'autumn_harvest_pack', 'premium_warehouse_charter'],
+    linkedSystems: ['shop', 'quest', 'market']
+  },
+  {
+    id: 'ws10_world_milestone_bundle',
+    campaignId: 'ws10_campaign_world_milestone',
+    label: '终局活动编排包',
+    description: '为全服共建、收尾邮件和终局展示活动预留高规格目录承接包。',
+    unlockTier: 'P2',
+    linkedThemeWeekIds: ['late_sink_rotation'],
+    recommendedOfferIds: ['premium_warehouse_charter', 'weekly_pond_care_pack', 'func_angler_pack'],
+    linkedSystems: ['shop', 'goal', 'quest', 'fishPond']
+  }
+] as const
 
 const createShopCatalogOffer = (input: ShopCatalogOfferInput): ShopCatalogOfferDef => {
   const luxuryCategory = input.luxuryCategory ?? inferCatalogCategory(input)
@@ -88,7 +133,12 @@ const createShopCatalogOffer = (input: ShopCatalogOfferInput): ShopCatalogOfferD
     refreshCycle: input.refreshCycle ?? inferCatalogRefreshCycle(input.pool),
     linkedSystems: input.linkedSystems ?? inferCatalogLinkedSystems(input, luxuryCategory),
     priceBand: input.priceBand ?? inferCatalogPriceBand(input.price),
-    serviceBillingCycle: input.serviceBillingCycle ?? input.permitConfig?.billingCycle ?? input.warehouseServiceConfig?.billingCycle ?? 'one_off'
+    serviceBillingCycle:
+      input.serviceBillingCycle ??
+      input.permitConfig?.billingCycle ??
+      input.warehouseServiceConfig?.billingCycle ??
+      input.serviceContractConfig?.billingCycle ??
+      'one_off'
   }
 }
 
@@ -104,7 +154,10 @@ const normalizeEntitlementRecord = (record: unknown): Record<string, ShopCatalog
         status: ['inactive', 'active', 'expired', 'consumed'].includes(String(entry.status)) ? (entry.status as ShopCatalogEntitlementState['status']) : 'inactive',
         activatedDayKey: typeof entry.activatedDayKey === 'string' ? entry.activatedDayKey : '',
         expiresDayKey: typeof entry.expiresDayKey === 'string' ? entry.expiresDayKey : '',
-        lastPurchasedDayKey: typeof entry.lastPurchasedDayKey === 'string' ? entry.lastPurchasedDayKey : ''
+        lastPurchasedDayKey: typeof entry.lastPurchasedDayKey === 'string' ? entry.lastPurchasedDayKey : '',
+        autoRenew: typeof entry.autoRenew === 'boolean' ? entry.autoRenew : undefined,
+        renewCount: Math.max(0, Number(entry.renewCount) || 0),
+        totalFeesPaid: Math.max(0, Number(entry.totalFeesPaid) || 0)
       }]]
     })
   )
@@ -989,6 +1042,106 @@ const PREMIUM_OFFERS: ShopCatalogOfferInput[] = [
     travelSupplyConfig: { routeTag: 'mining', recommendedSystems: ['shop', 'inventory', 'warehouse', 'goal'], tripDays: 14, consumableCharges: 2 },
     functionalVoucherConfig: { voucherType: 'travel', charges: 2, reusable: false, targetSystems: ['shop', 'inventory', 'warehouse', 'goal'] },
     effect: { type: 'add_items', items: [{ itemId: 'copper_bar', quantity: 10 }, { itemId: 'iron_bar', quantity: 8 }, { itemId: 'charcoal', quantity: 50 }] }
+  },
+  {
+    id: 'premium_caravan_service_contract',
+    shopId: 'wanwupu',
+    pool: 'premium',
+    name: '商路外包总契',
+    description: '签下长期商路外包合同，持续为后期经营提供额外委托量与商路票回流。',
+    price: 18000,
+    tags: ['高价长期商品', '服务契约', '商路委托'],
+    recommendationKey: 'caravan_service_contract',
+    recommendationPriority: 5,
+    recommendationReasonTemplate: '适合把富余现金继续压入委托循环：{context}',
+    uiBadge: '服务合同',
+    serviceContractConfig: {
+      contractType: 'caravan_outsourcing',
+      billingCycle: 'weekly',
+      effectSummary: '委托板额外 +1，并在目标/订单结算中追加少量商路票与现金收益。',
+      weeklyFee: 3200,
+      autoRenew: true,
+      targetSystems: ['shop', 'quest', 'goal', 'wallet'],
+      dailyQuestBoardBonus: 1,
+      moneyRewardMultiplier: 1.08,
+      ticketRewards: { caravan: 1 }
+    },
+    effect: { type: 'activate_service_contract' }
+  },
+  {
+    id: 'premium_museum_promotion_contract',
+    shopId: 'wanwupu',
+    pool: 'premium',
+    name: '博物馆巡展代办契',
+    description: '雇佣巡展推广团队，为展陈持续引流并补强馆藏评分。',
+    price: 22000,
+    tags: ['高价长期商品', '服务契约', '博物馆', '展示'],
+    recommendationKey: 'museum_service_contract',
+    recommendationPriority: 5,
+    recommendationReasonTemplate: '适合把展示消费转成持续热度与展陈收益：{context}',
+    uiBadge: '巡展',
+    serviceContractConfig: {
+      contractType: 'museum_promotion',
+      billingCycle: 'weekly',
+      effectSummary: '博物馆陈列评分提升，访客热度额外增长，并为目标结算补充展陈券。',
+      weeklyFee: 3600,
+      autoRenew: true,
+      targetSystems: ['shop', 'museum', 'goal', 'wallet'],
+      museumVisitorBonusRate: 0.18,
+      museumDisplayRatingBonus: 12,
+      ticketRewards: { exhibit: 1 }
+    },
+    effect: { type: 'activate_service_contract' }
+  },
+  {
+    id: 'premium_research_assistant_contract',
+    shopId: 'wanwupu',
+    pool: 'premium',
+    name: '书院研修助理契',
+    description: '聘请常驻助理整理资料与课题，让后期目标奖励持续向声望与研究票倾斜。',
+    price: 26000,
+    tags: ['高价长期商品', '服务契约', '研究', '声望'],
+    recommendationKey: 'research_service_contract',
+    recommendationPriority: 5,
+    recommendationReasonTemplate: '适合围绕目标与预算系统放大长期声望回报：{context}',
+    uiBadge: '研修',
+    serviceContractConfig: {
+      contractType: 'research_assistant',
+      billingCycle: 'weekly',
+      effectSummary: '目标奖励声望提高，并在结算时追加研究券与固定目标声望。',
+      weeklyFee: 4200,
+      autoRenew: true,
+      targetSystems: ['shop', 'goal', 'wallet'],
+      reputationRewardMultiplier: 1.15,
+      goalReputationFlatBonus: 4,
+      flatReputationBonus: 2,
+      ticketRewards: { research: 1 }
+    },
+    effect: { type: 'activate_service_contract' }
+  },
+  {
+    id: 'premium_maintenance_support_contract',
+    shopId: 'wanwupu',
+    pool: 'premium',
+    name: '后勤维保统筹契',
+    description: '将村庄建设维护外包给后勤团队，降低自动维护与补缴维护的现金压力。',
+    price: 24000,
+    tags: ['高价长期商品', '服务契约', '维护', '后勤'],
+    recommendationKey: 'maintenance_service_contract',
+    recommendationPriority: 4,
+    recommendationReasonTemplate: '适合多条建设线并行后的维保控费：{context}',
+    uiBadge: '维保',
+    serviceContractConfig: {
+      contractType: 'maintenance_support',
+      billingCycle: 'weekly',
+      effectSummary: '村庄建设维护费降低，并将一部分维护压力转化为更平滑的长期运营成本。',
+      weeklyFee: 3800,
+      autoRenew: true,
+      targetSystems: ['shop', 'goal', 'wallet'],
+      maintenanceCostRateReduction: 0.2,
+      flatReputationBonus: 1
+    },
+    effect: { type: 'activate_service_contract' }
   }
 ]
 

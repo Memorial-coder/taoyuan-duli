@@ -1,4 +1,5 @@
 import type {
+  CompensationPlan,
   EconomyBaselineAuditConfig,
   MonsterGoalDef,
   GuildShopItemDef,
@@ -8,7 +9,9 @@ import type {
   GuildSeasonActivityDef,
   GuildSeasonConfig,
   GuildSeasonMilestoneDef,
-  GuildSeasonRewardPoolDef
+  GuildSeasonRewardPoolDef,
+  QaCaseDef,
+  ReleaseChecklistItem
 } from '@/types'
 
 /** 怪物讨伐目标 */
@@ -323,6 +326,55 @@ export const GUILD_SEASON_CONFIG: GuildSeasonConfig = {
   },
   rankBands: ['novice', 'veteran', 'elite', 'legend']
 }
+
+export const GUILD_SEASON_TUNING_CONFIG = {
+  featureFlags: {
+    themeWeekFocusEnabled: true,
+    questBoardBiasEnabled: true,
+    rewardPoolFocusEnabled: true,
+    guildActionGuardEnabled: true,
+    crossSystemOverviewEnabled: true,
+    seasonMailboxCampaignEnabled: true
+  },
+  display: {
+    featuredActivityLimit: 3,
+    featuredMilestoneLimit: 3,
+    recommendedActionLimit: 3,
+    focusedActivityTitleLimit: 2
+  },
+  progression: {
+    phaseSwitchWeekP1: 2,
+    phaseSwitchWeekP2: 4,
+    veteranRankMinScore: 300,
+    eliteRankMinScore: 700,
+    legendRankMinScore: 1200,
+    asyncScoreContributionWeight: 1,
+    asyncScoreGuildExpWeight: 1,
+    asyncScoreClaimedGoalWeight: 25,
+    asyncScoreBossClearWeight: 40,
+    asyncScoreGuildLevelWeight: 50
+  },
+  rewards: {
+    claimGoalContributionMoneyDivisor: 20,
+    claimGoalContributionKillTargetWeight: 1,
+    claimGoalContributionBonusMultiplier: 1,
+    donationContributionMultiplier: 1,
+    donationGuildExpMultiplier: 1
+  },
+  operations: {
+    maxQuestBiasStrength: 4,
+    claimableGoalBiasBonus: 1,
+    activeRewardPoolBiasBonus: 1,
+    focusedActivityCategoryWeight: 1
+  },
+  mailbox: {
+    templateType: 'activity_reward',
+    enabledPhases: ['p1_ranked_hunt', 'p2_world_milestone'],
+    weeklySettlementLeadHours: 12,
+    defaultExpireDays: 7,
+    allowFallbackCompensation: true
+  }
+} as const
 
 export const GUILD_SEASON_ACTIVITY_TRACKS: GuildSeasonActivityDef[] = [
   {
@@ -647,6 +699,137 @@ export const GUILD_SEASON_PVE_AUDIT: EconomyBaselineAuditConfig = {
     }
   ]
 }
+
+export const GUILD_SEASON_MAILBOX_PRESETS = [
+  {
+    id: 'guild_ranked_hunt_weekly_settlement',
+    phase: 'p1_ranked_hunt',
+    title: '公会竞猎周结算',
+    templateType: GUILD_SEASON_TUNING_CONFIG.mailbox.templateType,
+    summary: '用于荣誉竞猎期的周快照奖励邮件，可按档位发放补给、展示称号摘要与阶段说明。',
+    scheduleLeadHours: GUILD_SEASON_TUNING_CONFIG.mailbox.weeklySettlementLeadHours,
+    defaultExpireDays: GUILD_SEASON_TUNING_CONFIG.mailbox.defaultExpireDays,
+    tags: ['guild', 'season', 'ranked_hunt', 'activity_reward']
+  },
+  {
+    id: 'guild_world_milestone_closure',
+    phase: 'p2_world_milestone',
+    title: '公会共建里程碑结算',
+    templateType: GUILD_SEASON_TUNING_CONFIG.mailbox.templateType,
+    summary: '用于世界里程碑期的赛季收尾邮件，可快速关闭异常活动或切换为补偿结算。',
+    scheduleLeadHours: GUILD_SEASON_TUNING_CONFIG.mailbox.weeklySettlementLeadHours,
+    defaultExpireDays: GUILD_SEASON_TUNING_CONFIG.mailbox.defaultExpireDays,
+    tags: ['guild', 'season', 'world_milestone', 'activity_reward']
+  }
+] as const
+
+export const WS07_ACCEPTANCE_SUMMARY = {
+  minQaCaseCount: 8,
+  guardrails: [
+    '公会赛季讨伐领奖、捐献、公会商店购买必须保持幂等锁、异常回滚与旧档兼容口径一致。',
+    '赛季阶段、异步荣誉分、告示板偏置、推荐动作与邮件预设必须可通过 data / server 配置直接热调。',
+    '赛季邮件模板必须支持快速关闭异常活动、改发补偿或下调奖励，而不需要改动业务主逻辑。',
+    '轻竞争奖励只能强化荣誉展示与经营偏置，不得破坏单机主进度公平。'
+  ],
+  releaseAnnouncement: [
+    '【公会赛季】讨伐领奖、捐献与公会商店已补齐事务护栏，重复点击与异常中断不会再造成重复结算。',
+    '【运营调参】公会赛季阶段切换、荣誉分公式、告示板偏置、贡献换算与邮件模板现可通过配置直接热调。',
+    '【发布准备】已补齐公会赛季化 QA 用例、上线检查项、补偿预案与公告文案，可直接用于验收和上线沟通。'
+  ]
+} as const
+
+export const WS07_QA_CASES: QaCaseDef[] = [
+  {
+    id: 'ws07-boundary-claim-goal-double-click',
+    title: '重复点击公会讨伐领奖只结算一次',
+    category: 'boundary',
+    steps: ['准备一个可领取的讨伐目标', '连续触发 claimGoal 同一 monsterId 两次'],
+    expectedResult: '只有第一次成功领奖；第二次被运行时锁或已领奖状态拦截，不重复发放奖励。'
+  },
+  {
+    id: 'ws07-negative-guild-shop-rollback',
+    title: '公会商店发奖失败时能回滚材料与货币',
+    category: 'negative',
+    steps: ['准备一个需要贡献点和材料的公会商店商品', '制造 addItem 失败或背包写入异常', '触发 buyShopItem'],
+    expectedResult: '贡献点、铜钱、材料与公会状态全部回滚，不出现半扣费半发奖。'
+  },
+  {
+    id: 'ws07-positive-donation-scaling',
+    title: '捐献贡献与经验倍率跟随 tuning config 生效',
+    category: 'positive',
+    steps: ['调整 donationContributionMultiplier / donationGuildExpMultiplier', '进行公会捐献'],
+    expectedResult: '贡献点与公会经验按配置倍率结算，无需改动 GuildStore 主逻辑。'
+  },
+  {
+    id: 'ws07-positive-rank-score-tuning',
+    title: '异步荣誉分公式可通过配置热调',
+    category: 'positive',
+    steps: ['调整 asyncScoreClaimedGoalWeight / asyncScoreBossClearWeight', '推动赛季周切换'],
+    expectedResult: '荣誉分与 rankBand 按新配置变化，阶段日志与总览显示一致。'
+  },
+  {
+    id: 'ws07-ops-disable-quest-bias',
+    title: '关闭公会告示板偏置后任务链路自动降级',
+    category: 'ops',
+    steps: ['将 GUILD_SEASON_TUNING_CONFIG.featureFlags.questBoardBiasEnabled 设为 false', '刷新任务板与特殊订单'],
+    expectedResult: '公会不再额外影响任务偏置，但赛季页面其余摘要与奖励池展示保持正常。'
+  },
+  {
+    id: 'ws07-ops-mailbox-preset-read',
+    title: '服务端可读取公会赛季邮件预设',
+    category: 'ops',
+    steps: ['请求 /admin/taoyuan/mail/presets/guild-season', '检查返回的模板与阶段字段'],
+    expectedResult: '接口返回竞猎周结算与里程碑收尾两组预设，可供运营直接复用。'
+  },
+  {
+    id: 'ws07-compatibility-old-save-lock-reset',
+    title: '旧档缺少调参与事务字段时可安全读档',
+    category: 'compatibility',
+    steps: ['读取未包含 guildActionLocks、seasonState 扩展字段的旧档', '进入公会页并执行一次讨伐领奖或捐献'],
+    expectedResult: '读档成功，运行时锁为空，赛季状态按默认值回填，公会操作可正常执行。'
+  },
+  {
+    id: 'ws07-recovery-mailbox-fallback',
+    title: '赛季邮件模板异常时可切换为补偿方案',
+    category: 'recovery',
+    steps: ['模拟活动模板配置异常或奖励池下线', '读取公会赛季邮件预设与补偿预案'],
+    expectedResult: '可快速切换到补偿/降级方案，并保留赛季阶段说明与已发奖励记录。'
+  }
+]
+
+export const WS07_RELEASE_CHECKLIST: ReleaseChecklistItem[] = [
+  { id: 'ws07-check-claim-guard', label: '确认公会讨伐领奖重复点击不会重复结算', owner: 'qa', done: false },
+  { id: 'ws07-check-shop-rollback', label: '确认公会商店购买失败时会回滚货币、材料与公会状态', owner: 'dev', done: false },
+  { id: 'ws07-check-rank-score', label: '确认异步荣誉分、阶段切换与档位展示口径一致', owner: 'qa', done: false },
+  { id: 'ws07-check-ops-toggle', label: '确认偏置、奖励池、事务锁与推荐动作数量可通过配置热调', owner: 'ops', done: false },
+  { id: 'ws07-check-mailbox-preset', label: '确认公会赛季邮件预设接口可正常返回并可被运营复用', owner: 'ops', done: false }
+]
+
+export const WS07_COMPENSATION_PLANS: CompensationPlan[] = [
+  {
+    id: 'ws07-compensate-duplicate-guild-reward',
+    trigger: '公会讨伐领奖或商店奖励出现重复发放，导致贡献点、铜钱或物品异常增加。',
+    compensation: ['按 monsterId / itemId 与日志回收重复奖励或发放等值说明补偿', '保留首次合法结算记录'],
+    notes: '优先依据 claimedGoals、购买记录与结构化日志定位异常区间。'
+  },
+  {
+    id: 'ws07-compensate-rank-score-mismatch',
+    trigger: '异步荣誉分公式调整失误，导致档位展示或赛季结算说明异常。',
+    compensation: ['按周快照补发应得展示奖励或邮件说明', '通过公告解释档位口径修正，不追缴已合法发放资源'],
+    notes: '以 season snapshots、rankBand 与运营配置变更记录为准。'
+  },
+  {
+    id: 'ws07-compensate-mailbox-template-fallback',
+    trigger: '公会赛季邮件模板或活动配置异常，导致周结算/收尾邮件无法按计划投放。',
+    action: '回调 GUILD_SEASON_TUNING_CONFIG.mailbox 或切换到 GUILD_SEASON_MAILBOX_PRESETS 的补偿模板，并通过更新日志说明修正。'
+  }
+]
+
+export const WS07_RELEASE_ANNOUNCEMENT = [
+  '【公会赛季】讨伐领奖、捐献与公会商店链路现已补齐重复点击防护与异常回滚。',
+  '【公会运营】赛季阶段切换、荣誉分公式、告示板偏置、贡献换算与推荐动作数量现可通过配置直接热调。',
+  '【活动邮件】新增公会竞猎周结算与世界里程碑收尾两组邮件预设，异常时可快速切换补偿方案。'
+] as const
 
 /** 根据怪物ID查找讨伐目标 */
 export const getMonsterGoal = (monsterId: string): MonsterGoalDef | undefined => MONSTER_GOALS.find(g => g.monsterId === monsterId)

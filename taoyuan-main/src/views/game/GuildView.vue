@@ -53,6 +53,44 @@
           <p class="text-xs text-accent">{{ activeRewardPool.label }}</p>
           <p class="text-[10px] text-muted leading-4 mt-0.5">{{ activeRewardPool.summary }}</p>
         </div>
+        <div
+          v-if="guildStore.crossSystemOverview.themeWeekFocus || guildStore.crossSystemOverview.questBoardBiasProfile.boardHint || guildStore.crossSystemOverview.recommendedActions.length > 0"
+          class="border border-accent/10 rounded-xs p-2"
+        >
+          <p class="text-xs text-muted mb-1">经营联动</p>
+          <p v-if="guildStore.crossSystemOverview.themeWeekFocus" class="text-xs text-accent">
+            当前主题周：{{ guildStore.crossSystemOverview.themeWeekFocus.summaryLabel }}
+          </p>
+          <p v-if="guildStore.crossSystemOverview.questBoardBiasProfile.boardHint" class="text-[10px] text-muted leading-4 mt-0.5">
+            {{ guildStore.crossSystemOverview.questBoardBiasProfile.boardHint }}
+          </p>
+          <p v-if="guildStore.crossSystemOverview.questBoardBiasProfile.specialOrderHint" class="text-[10px] text-muted leading-4 mt-0.5">
+            {{ guildStore.crossSystemOverview.questBoardBiasProfile.specialOrderHint }}
+          </p>
+          <div v-if="guildStore.crossSystemOverview.recommendedActions.length > 0" class="mt-1.5 space-y-1">
+            <p class="text-[10px] text-muted">推荐动作</p>
+            <p
+              v-for="action in guildStore.crossSystemOverview.recommendedActions"
+              :key="action"
+              class="text-[10px] text-text/90 leading-4"
+            >
+              - {{ action }}
+            </p>
+          </div>
+        </div>
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-xs text-muted mb-1">成就联动</p>
+          <p class="text-xs text-accent">
+            公会讨伐成就 {{ guildStore.guildAchievementProgress.current }}/21
+          </p>
+          <p class="text-[10px] text-muted leading-4 mt-0.5">
+            {{
+              guildStore.guildAchievementProgress.completedLegendThreshold
+                ? '已达成全部公会讨伐成就，可继续冲刺赛季荣誉与展示收官。'
+                : `距离下一档公会成就还差 ${Math.max(0, (guildStore.guildAchievementProgress.nextTarget ?? 21) - guildStore.guildAchievementProgress.current)} 个目标。`
+            }}
+          </p>
+        </div>
       </div>
     </div>
 
@@ -597,10 +635,7 @@
     MONSTER_GOALS,
     GUILD_SHOP_ITEMS,
     GUILD_DONATIONS,
-    GUILD_SEASON_ACTIVITY_TRACKS,
     GUILD_SEASON_CONFIG,
-    GUILD_SEASON_REWARD_POOLS,
-    GUILD_WORLD_MILESTONES
   } from '@/data/guild'
   import { MONSTERS, BOSS_MONSTERS, ZONE_MONSTERS, SKULL_CAVERN_MONSTERS } from '@/data/mine'
   import { MONSTER_DROP_WEAPONS, BOSS_DROP_WEAPONS, getWeaponById } from '@/data/weapons'
@@ -634,9 +669,9 @@
 
   const getPhaseLabel = (phase: string) => PHASE_LABELS[phase as keyof typeof PHASE_LABELS] ?? phase
   const getRankBandLabel = (rankBand: string) => RANK_BAND_LABELS[rankBand] ?? rankBand
-  const activeSeasonActivities = computed(() => GUILD_SEASON_ACTIVITY_TRACKS.filter(activity => activity.phase === guildStore.seasonOverview.currentPhase))
-  const activeMilestones = computed(() => GUILD_WORLD_MILESTONES.filter(milestone => milestone.phase === guildStore.seasonOverview.currentPhase).slice(0, 3))
-  const activeRewardPool = computed(() => GUILD_SEASON_REWARD_POOLS.find(pool => pool.phase === guildStore.seasonOverview.currentPhase) ?? null)
+  const activeSeasonActivities = computed(() => guildStore.featuredSeasonActivities)
+  const activeMilestones = computed(() => guildStore.featuredSeasonMilestones)
+  const activeRewardPool = computed(() => guildStore.activeRewardPoolOverview)
 
   const openShopModal = (item: GuildShopItemDef) => {
     shopModalItem.value = item

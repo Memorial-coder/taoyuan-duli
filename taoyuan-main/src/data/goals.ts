@@ -1,5 +1,9 @@
 import type {
   EconomyAuditConfig,
+  EconomyBaselineAuditConfig,
+  EventCampaignDef,
+  EventMailTemplateRef,
+  EventOperationsState,
   GapCorrectionRule,
   GoalBiasRule,
   GoalMetricKey,
@@ -7,8 +11,11 @@ import type {
   GoalTemplate,
   GoalUiMeta,
   MainQuestStageTemplate,
-  ThemeWeekDef
+  ThemeWeekDef,
+  WeeklyGoalDef
 } from '@/types'
+import { WS09_RELATIONSHIP_AUDIT_POOLS } from './npcs'
+import { WS09_SPIRIT_BOND_AUDIT_POOLS } from './hiddenNpcHeartEvents'
 
 export const FRIENDSHIP_GOAL_LEVELS = new Set(['friendly', 'bestFriend'])
 
@@ -170,6 +177,7 @@ export const GOAL_BIAS_MAP: Partial<Record<GoalMetricKey, Array<'cashflow' | 'fa
 export const GOAL_SOURCE_LABELS: Record<GoalSource, string> = {
   random: '随机目标',
   season: '季节目标',
+  weekly: '每周目标',
   archetype_bias: '流派推荐'
 }
 
@@ -405,16 +413,442 @@ export const BREEDING_SPECIAL_ORDER_THEME_AUDIT: EconomyAuditConfig = {
   ]
 }
 
+export interface Ws09FamilyCompanionshipBaselineAuditConfig extends EconomyBaselineAuditConfig {
+  baselineSummary: {
+    currentState: string[]
+    targetPlayers: string[]
+    painPoints: string[]
+    successSignals: string[]
+  }
+  auditSubjectPools: {
+    marriageableNpcIds: string[]
+    zhijiNpcIds: string[]
+    helperCapableNpcIds: string[]
+    hiddenNpcIds: string[]
+  }
+}
+
+export const WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT: Ws09FamilyCompanionshipBaselineAuditConfig = {
+  id: 'ws09_t081_family_companionship_baseline_audit',
+  workstreamId: 'WS09-T081',
+  label: '家庭 / 配偶 / 仙灵陪伴循环基线审计',
+  summary: `基于现有 ${WS09_RELATIONSHIP_AUDIT_POOLS.marriageableNpcIds.length} 名可婚 / 可知己 NPC 与 ${WS09_SPIRIT_BOND_AUDIT_POOLS.hiddenNpcIds.length} 名可结缘仙灵，先统一婚后陪伴、家庭心愿、子女成长与仙灵结缘的 KPI 口径，避免后续把关系线只做成自动化收益按钮。`,
+  focusAreas: ['婚后玩家周活', '家庭心愿完成率', '非战斗后期目标覆盖度', '关系系统回访率'],
+  baselineSummary: {
+    currentState: [
+      '当前 useNpcStore 已具备约会、求婚、婚礼、知己、孕期、子女、关系线索与雇工等状态骨架，婚后与家庭系统已有基础存档和日更入口。',
+      '当前 useHiddenNpcStore 已具备仙灵发现、供奉、求缘、结缘、心事件与被动能力，能够为钓鱼、体力恢复和特殊收益提供长期陪伴向增益样本。',
+      '当前 Home / Breeding / Fishing / Goal 侧已有可联动的宅院、酒窖、育种图鉴、鱼塘与周目标指标位，但家庭心愿和家业继承仍停留在预留指标阶段。'
+    ],
+    targetPlayers: [
+      '已进入中后期、铜钱和主线稳定，开始追求婚后生活感、非战斗成长线与家庭目标的经营型玩家。',
+      '愿意在配偶陪伴、知己互动、仙灵结缘、孩子成长与家园经营之间做长期取舍，而不是只追逐数值收益的后期玩家。'
+    ],
+    painPoints: [
+      '关系线当前更多是好感阈值与一次性节点，婚后、知己与仙灵结缘缺少稳定的周循环牵引。',
+      '若直接放大雇工、仙灵被动或家庭奖励，容易把配偶和仙灵异化成纯自动化工具人，反而削弱陪伴感。',
+      '家庭心愿、子女成长、家业继承与非战斗后期目标尚未形成统一口径，后续扩容容易各做各的。'
+    ],
+    successSignals: [
+      '婚后 / 知己 / 结缘后的玩家仍会在每周多次返回关系线，而不是一次结缘后长期不再查看。',
+      '家庭心愿、陪伴互动与仙灵结缘能反向影响 Home / Breeding / Fishing / Goal 等至少两条非战斗成长线。',
+      '关系系统提供的是“陪伴 + 选择 + 反馈”，而非单纯把农事、钓鱼或产出进一步自动化。'
+    ]
+  },
+  coreMetrics: [
+    {
+      id: 'ws09_married_household_weekly_active_rate',
+      label: '婚后家庭周活率',
+      description: '衡量进入婚后 / 知己 / 结缘阶段的玩家，是否仍把陪伴、照料与家庭经营当作稳定周循环，而非结缘后立刻流失。',
+      formula: '近7日内满足任一陪伴行为（talkTo、giveGift、performOffering、performSpecialInteraction、processDailyHelpers、performPregnancyCare、interactWithChild）的婚后 / 知己 / 结缘玩家数 ÷ 近7日内已进入后期且至少解锁一条关系线的活跃玩家数',
+      direction: 'lower_is_worse',
+      dataSources: ['useNpcStore.npcStates / children / pregnancy / hiredHelpers', 'useHiddenNpcStore.hiddenNpcStates', 'useGameLog', 'useGoalStore.weeklyMetricArchive'],
+      thresholds: { watch: 0.42, warning: 0.32, critical: 0.22 },
+      anomalyRule: '若关系线版本首周存在集中结婚/结缘行为，可单独拆分新结缘样本与老玩家样本，避免一次性庆典峰值误判常态周活。'
+    },
+    {
+      id: 'ws09_family_wish_completion_rate',
+      label: '家庭心愿完成率',
+      description: '为后续家庭心愿系统建立统一验收口径，过渡阶段允许用婚礼、孕期照料、子女互动等现有家庭节点代理观测。',
+      formula: '近14日 familyWishCompletions 增量 ÷ 近14日被编排的家庭心愿条目数；在心愿系统正式上线前，用婚礼完成、孕期照料完成与有效子女互动的完成条目做代理样本',
+      direction: 'lower_is_worse',
+      dataSources: ['GoalMetricKey.familyWishCompletions', 'useGoalStore.currentGoals / weeklyMetricArchive', 'useNpcStore.dailyWeddingUpdate / dailyPregnancyUpdate / interactWithChild'],
+      thresholds: { watch: 0.55, warning: 0.42, critical: 0.3 },
+      anomalyRule: '若当周家庭心愿仍以代理样本为主，需要在看板中标注“proxy-only”，不与正式心愿版本横向比较。'
+    },
+    {
+      id: 'ws09_non_combat_late_goal_coverage_rate',
+      label: '非战斗后期目标覆盖度',
+      description: '衡量家庭 / 仙灵陪伴线是否真的构成后期非战斗目标，而不是只给现有循环加一点被动收益。',
+      formula: '近14日完成至少1项家庭 / 知己 / 仙灵相关非战斗目标的玩家数 ÷ 近14日后期活跃玩家数',
+      direction: 'lower_is_worse',
+      dataSources: ['useGoalStore.currentGoals', 'useNpcStore.relationshipClues / children / weddingCountdown', 'useHiddenNpcStore.triggeredHeartEvents / unlockedAbilities', 'useHomeStore.farmhouseLevel'],
+      thresholds: { watch: 0.38, warning: 0.28, critical: 0.18 },
+      anomalyRule: '若目标覆盖度突然下降但婚后周活稳定，优先检查家庭目标编排密度与任务入口可见度，而非直接提高奖励。'
+    },
+    {
+      id: 'ws09_relationship_revisit_rate',
+      label: '关系系统回访率',
+      description: '衡量玩家是否会在不同日窗重复返回 NPC / 仙灵互动，而不是只在冲好感或拿被动时短暂停留。',
+      formula: '近7日内在至少3个不同日窗访问 NPC 或仙灵互动并完成对话 / 供奉 / 特殊互动的玩家数 ÷ 近7日内已解锁至少1条关系线的玩家数',
+      direction: 'lower_is_worse',
+      dataSources: ['useNpcStore.talkedToday / giftedToday / tipGivenToday', 'useHiddenNpcStore.offeredToday / interactedToday / offersThisWeek', 'useGameStore.day / week'],
+      thresholds: { watch: 0.48, warning: 0.36, critical: 0.25 },
+      anomalyRule: '若婚礼、结缘或新心事件上线导致单日集中访问，需要按“3日后仍回访”的留存窗复核，避免被首日剧情消费掩盖。'
+    }
+  ],
+  guardrailMetrics: [
+    {
+      id: 'ws09_partner_automation_share',
+      label: '伴侣自动化占比',
+      description: '防止雇工、仙灵被动与婚后收益把关系线做成纯代打 / 代产出系统，削弱生活感和情感反馈。',
+      formula: '近7日由 hiredHelpers、bondBonuses 与关系被动直接完成的农事 / 喂养 / 钓鱼 / 恢复收益次数 ÷ 近7日关系线带来的全部收益触发次数',
+      direction: 'higher_is_worse',
+      dataSources: ['useNpcStore.hiredHelpers / processDailyHelpers', 'useHiddenNpcStore.dailyBondBonus / getBondBonus', 'useFishingStore', 'useHomeStore'],
+      thresholds: { watch: 0.45, warning: 0.58, critical: 0.7 },
+      anomalyRule: '若节庆周或缺劳力补偿周暂时提高了雇工利用率，需要与回访率联看；只有“自动化占比高且回访率低”才视为结构性问题。'
+    },
+    {
+      id: 'ws09_emotional_feedback_visibility_score',
+      label: '情感反馈可见度',
+      description: '确保关系行为大多数都伴随对话、线索、心事件或生活文本反馈，而不是只跳数字和被动加成。',
+      formula: '近14日伴随对话、线索、婚礼 / 孕期 / 子女文本、心事件或结缘文本的关系行为次数 ÷ 近14日全部关系行为次数',
+      direction: 'lower_is_worse',
+      dataSources: ['NPCS.dialogues / datingDialogues / zhijiDialogues', 'HIDDEN_NPC_HEART_EVENTS', 'useNpcStore.relationshipClues / pregnancy / children', 'useHiddenNpcStore.triggeredHeartEvents'],
+      thresholds: { watch: 0.72, warning: 0.58, critical: 0.45 },
+      anomalyRule: '若新增的是纯底座任务，可接受一次性 watch；连续两个观测窗低于 warning 则禁止继续追加纯收益型扩容。'
+    }
+  ],
+  playerSegments: [
+    {
+      id: 'ws09_segment_household_builder',
+      label: '家园经营型玩家',
+      description: '已有稳定家底和宅院投入，开始追求婚后陪伴、知己互动与家园生活感。',
+      disposableMoneyMin: 50000,
+      inflationPressureMin: 0.18,
+      recommendedFocus: '优先观察婚后家庭周活与关系回访率，验证陪伴线是否能成为后期非战斗日常。'
+    },
+    {
+      id: 'ws09_segment_companion_operator',
+      label: '陪伴协作型玩家',
+      description: '会使用雇工、孕期照料、子女互动与关系线索，把关系线并入经营节奏。',
+      disposableMoneyMin: 80000,
+      inflationPressureMin: 0.24,
+      recommendedFocus: '重点看家庭心愿完成率与自动化占比，避免协作收益挤掉陪伴反馈。'
+    },
+    {
+      id: 'ws09_segment_spirit_legacy_seeker',
+      label: '仙灵结缘与家业传承玩家',
+      description: '更关注结缘、隐藏心事件、非战斗终局目标与长期家庭主题的深度玩家。',
+      disposableMoneyMin: 120000,
+      inflationPressureMin: 0.3,
+      recommendedFocus: '重点看非战斗后期目标覆盖度、情感反馈可见度以及 Home / Breeding / Fishing 的跨系统承接。'
+    }
+  ],
+  rollbackRules: [
+    {
+      id: 'ws09_family_companionship_soft_rollback',
+      label: '关系线工具人化软回滚',
+      condition: '连续2个观测周中 ws09_partner_automation_share ≥ 0.58，且 ws09_relationship_revisit_rate ≤ 0.36 或 ws09_emotional_feedback_visibility_score ≤ 0.58',
+      fallbackAction: '暂停继续放大雇工槽位、仙灵被动和纯收益型婚后加成；回退到低梯度陪伴收益，只保留已解锁关系与叙事进度，优先补家庭心愿、生活文本与跨系统反馈。'
+    }
+  ],
+  linkedSystems: ['system', 'goal', 'quest', 'breeding', 'fishPond'],
+  linkedSystemRefs: [
+    {
+      system: 'system',
+      storeId: 'useNpcStore',
+      touchpoints: ['dating / married / zhiji 状态', 'children / pregnancy / hiredHelpers', 'relationshipClues / unlockedPerks'],
+      rationale: '婚礼、婚后、知己、孕期、子女和雇工都在 useNpcStore 收口，是家庭陪伴线的主状态源。'
+    },
+    {
+      system: 'system',
+      storeId: 'useHiddenNpcStore',
+      touchpoints: ['affinity / courting / bonded', 'performOffering / performSpecialInteraction', 'bondBonuses / unlockedAbilities'],
+      rationale: '仙灵供奉、求缘、结缘与心事件是陪伴线的另一半，需要和婚后线共用同一 KPI 口径。'
+    },
+    {
+      system: 'system',
+      storeId: 'useHomeStore',
+      touchpoints: ['farmhouseLevel', 'getKitchenBonus', 'dailyCellarUpdate / unlockGreenhouse'],
+      rationale: '家庭陪伴必须与宅院、厨房、酒窖等家园经营空间发生联系，才能避免关系线悬空。'
+    },
+    {
+      system: 'goal',
+      storeId: 'useGoalStore',
+      touchpoints: ['familyWishCompletions 指标位', 'currentThemeWeek', 'weeklyMetricArchive'],
+      rationale: '家庭心愿、非战斗后期目标和周回访都需要目标系统提供统一周窗与指标快照。'
+    },
+    {
+      system: 'quest',
+      storeId: 'useQuestStore',
+      touchpoints: ['故事 / 委托入口预留', '非战斗关系主题任务编排', '奖励与叙事投放'],
+      rationale: '后续家庭愿望、挚友协作与家业继承需要通过委托 / 剧情入口编排，才能形成明确推进感。'
+    },
+    {
+      system: 'breeding',
+      storeId: 'useBreedingStore',
+      touchpoints: ['compendium / researchLevel', '杂交失败后重试', '高价值长期培育路线'],
+      rationale: '家业传承、子女成长与家庭协作需要能反向作用于长期培育目标，验证“陪伴线”不是孤立内容。'
+    },
+    {
+      system: 'fishPond',
+      storeId: 'useFishingStore',
+      touchpoints: ['legendary fish / treasure / fish pond 维护', '隐藏仙灵对钓鱼权重的被动影响', '非战斗高端外出循环'],
+      rationale: '仙灵结缘已能影响钓鱼与外出收益，是验证陪伴线跨系统承接能力的现成样本。'
+    }
+  ],
+  auditSubjectPools: {
+    marriageableNpcIds: [...WS09_RELATIONSHIP_AUDIT_POOLS.marriageableNpcIds],
+    zhijiNpcIds: [...WS09_RELATIONSHIP_AUDIT_POOLS.zhijiNpcIds],
+    helperCapableNpcIds: [...WS09_RELATIONSHIP_AUDIT_POOLS.helperCapableNpcIds],
+    hiddenNpcIds: [...WS09_SPIRIT_BOND_AUDIT_POOLS.hiddenNpcIds]
+  }
+}
+
+export const WS09_FAMILY_WISH_GOAL_CONFIG = {
+  metric: 'familyWishCompletions' as GoalMetricKey,
+  tierTargetByTier: { P0: 1, P1: 2, P2: 3 },
+  refreshDaysByTier: { P0: 7, P1: 5, P2: 3 },
+  linkedSystems: ['goal', 'system', 'fishPond', 'breeding'] as const,
+  summary: '为 WS09 家庭心愿系统预留目标度量与周刷新节奏，在 T082 阶段先锁定指标位和档位结构。'
+} as const
+
+export const WS10_EVENT_OPERATIONS_BASELINE_AUDIT: EconomyBaselineAuditConfig = {
+  id: 'ws10_t091_event_operations_baseline_audit',
+  workstreamId: 'WS10-T091',
+  label: '主题周 + 活动编排 + 邮箱运营层基线审计',
+  summary: '围绕主题周、限时任务、活动奖励邮件与跨系统活动编排建立统一 KPI 口径，确保活动层增强主循环而不是绑架玩家日常登录。',
+  focusAreas: ['活动参与率', '邮件打开率', '活动带回流量', '主题周完成率'],
+  coreMetrics: [
+    {
+      id: 'ws10_activity_participation_rate',
+      label: '活动参与率',
+      description: '衡量主题周、限时任务和活动订单是否真的被玩家承接，而不是停留在说明层。',
+      formula: '近14日参与至少1项主题周 / 活动任务 / 活动邮件奖励领取的玩家数 ÷ 近14日活跃玩家数',
+      direction: 'lower_is_worse',
+      dataSources: ['useGoalStore.currentThemeWeek', 'useGoalStore.currentThemeWeekGoals', 'useQuestStore.specialOrder', 'useMailboxStore.claimMail / claimAll'],
+      thresholds: { watch: 0.42, warning: 0.3, critical: 0.2 },
+      anomalyRule: '若活动首周恰逢大型版本回归，需拆分新回流用户与常驻用户样本，避免短期峰值掩盖常态参与。'
+    },
+    {
+      id: 'ws10_mail_open_rate',
+      label: '邮件打开率',
+      description: '衡量活动说明、结算邮件与补偿邮件是否被真正打开和消费。',
+      formula: '近14日 `read_at` 非空的活动 / 结算 / 补偿邮件数 ÷ 近14日已发送活动相关邮件数',
+      direction: 'lower_is_worse',
+      dataSources: ['useMailboxStore.mails', 'useMailboxStore.openMail', 'template_type', 'read_at'],
+      thresholds: { watch: 0.68, warning: 0.52, critical: 0.38 },
+      anomalyRule: '若当周有大批纯奖励邮件自动被领取但未读，需要单独统计公告型邮件与奖励型邮件，避免读取口径失真。'
+    },
+    {
+      id: 'ws10_activity_return_rate',
+      label: '活动带回流量',
+      description: '衡量主题周和活动邮件是否能把玩家重新拉回 Quest / Shop / Guild / Museum / Hanhai 的经营循环。',
+      formula: '近14日因主题周焦点、活动订单、活动邮件而触发至少2个系统参与的玩家数 ÷ 近14日活动参与玩家数',
+      direction: 'lower_is_worse',
+      dataSources: ['useQuestStore.marketQuestBiasProfile', 'useGoalStore.currentThemeWeekGoals', 'useShopStore.recommendedCatalogOffers', 'useMailboxStore.claim_result'],
+      thresholds: { watch: 0.4, warning: 0.28, critical: 0.18 },
+      anomalyRule: '若活动参与率高但回流率低，优先检查活动是否只给奖励不导向后续玩法，而不是单纯提高奖励。'
+    },
+    {
+      id: 'ws10_theme_week_completion_rate',
+      label: '主题周完成率',
+      description: '衡量主题周目标是否可理解、可承接且不会因为活动编排过重而导致完成率断崖。',
+      formula: '近8个主题周窗口中，完成至少1条周目标或活动订单的主题周次数 ÷ 已开启的主题周窗口数',
+      direction: 'lower_is_worse',
+      dataSources: ['useGoalStore.currentThemeWeekGoals', 'useGoalStore.weeklyGoals', 'useQuestStore.specialOrder', 'useEndDay weekly snapshot'],
+      thresholds: { watch: 0.62, warning: 0.48, critical: 0.35 },
+      anomalyRule: '若某个主题周内容尚未首批落地，可标记为空窗周单独统计，避免把缺内容周和可玩周混算。'
+    }
+  ],
+  guardrailMetrics: [
+    {
+      id: 'ws10_forced_checkin_pressure',
+      label: '强制打卡压力比',
+      description: '防止活动层演变为每天必须上线签到的负担。',
+      formula: '近14日要求“每日连续登录 / 当天必须打开邮件 / 当天必须完成活动”的活动条目数 ÷ 近14日活动条目总数',
+      direction: 'higher_is_worse',
+      dataSources: ['活动模板配置', 'useMailboxStore.template_type', 'useGoalStore.currentThemeWeek'],
+      thresholds: { watch: 0.2, warning: 0.3, critical: 0.4 },
+      anomalyRule: '若节庆冲刺周短期出现高值，需要确认是否设置了明确补签或宽限窗；连续两轮超标则视为活动设计问题。'
+    },
+    {
+      id: 'ws10_duplicate_reward_mail_ratio',
+      label: '重复奖励邮件占比',
+      description: '防止活动结算与补偿邮件因模板或任务重复导致玩家重复领同类奖励。',
+      formula: '近14日带 `duplicate_compensation_money` 或 skipped_rewards 的活动邮件数 ÷ 近14日活动奖励邮件总数',
+      direction: 'higher_is_worse',
+      dataSources: ['useMailboxStore.claim_result', 'duplicate_compensation_money', 'skipped_rewards'],
+      thresholds: { watch: 0.08, warning: 0.15, critical: 0.25 },
+      anomalyRule: '若高值集中在单次补偿活动，应拆分“活动奖励重复”与“补偿兜底重复”，避免把一次修复波动当常态。'
+    }
+  ],
+  playerSegments: [
+    {
+      id: 'ws10_segment_theme_regular',
+      label: '主题周常驻玩家',
+      description: '习惯跟随周节奏推进经营、订单和展示的常驻玩家。',
+      disposableMoneyMin: 40000,
+      inflationPressureMin: 0.18,
+      recommendedFocus: '优先看主题周完成率与活动参与率，验证活动层是否增强了原有周循环。'
+    },
+    {
+      id: 'ws10_segment_event_returnee',
+      label: '活动回流玩家',
+      description: '主要被邮件说明、活动订单或主题周推荐重新带回经营循环的玩家。',
+      disposableMoneyMin: 60000,
+      inflationPressureMin: 0.2,
+      recommendedFocus: '重点看邮件打开率、活动带回流量与跨系统二次参与。'
+    },
+    {
+      id: 'ws10_segment_endgame_operator',
+      label: '终局活动编排玩家',
+      description: '会同时承接公会、博物馆、瀚海和豪华目录活动编排的终局经营者。',
+      disposableMoneyMin: 100000,
+      inflationPressureMin: 0.28,
+      recommendedFocus: '重点看活动层是否把多系统节奏串起来，而不是让任务板和邮件只重复发奖。'
+    }
+  ],
+  rollbackRules: [
+    {
+      id: 'ws10_event_operations_soft_rollback',
+      label: '活动层软回滚',
+      condition: '连续2个观测周中 ws10_forced_checkin_pressure ≥ 0.3，且 ws10_theme_week_completion_rate ≤ 0.48 或 ws10_mail_open_rate ≤ 0.52',
+      fallbackAction: '暂停高频打卡型活动模板与高密度邮件推送，仅保留主题周基础说明、已发奖励和低频结算邮件，优先回退到主题周 + 订单的轻编排模式。'
+    }
+  ],
+  linkedSystems: ['goal', 'quest', 'shop', 'system'],
+  linkedSystemRefs: [
+    {
+      system: 'goal',
+      storeId: 'useGoalStore',
+      touchpoints: ['currentThemeWeek', 'currentThemeWeekGoals', 'weeklyGoals', 'weeklyMetricArchive'],
+      rationale: '主题周节奏、周目标与周快照是活动编排的底层时间窗和完成口径。'
+    },
+    {
+      system: 'quest',
+      storeId: 'useQuestStore',
+      touchpoints: ['specialOrder', 'marketQuestBiasProfile', 'activitySourceLabel', 'processSpecialOrderWeeklyRefresh'],
+      rationale: '活动订单、限时任务和供货方向都通过 QuestStore 编排，是活动参与的核心入口。'
+    },
+    {
+      system: 'shop',
+      storeId: 'useShopStore',
+      touchpoints: ['recommendedCatalogOffers', 'weeklyCatalogOffers', 'getServiceContractEffectSummary'],
+      rationale: '活动层会把玩家导向特定采购、补给和服务承接，因此需要统计商店承接效果。'
+    },
+    {
+      system: 'system',
+      storeId: 'useMailboxStore',
+      touchpoints: ['mails', 'unreadCount', 'openMail', 'claimMail', 'claimAll'],
+      rationale: '活动说明、奖励结算和补偿投放都通过邮箱承载，邮件打开与领奖是运营层最直接的观测信号。'
+    },
+    {
+      system: 'system',
+      storeId: 'useGuildStore / useMuseumStore / useHanhaiStore',
+      touchpoints: ['crossSystemOverview', 'featured content', 'week tick outputs'],
+      rationale: '活动层是否成功，取决于它能否把公会、博物馆、瀚海等既有后期系统纳入同一节奏编排。'
+    }
+  ]
+}
+
+export const WS10_EVENT_MAIL_TEMPLATE_REFS: EventMailTemplateRef[] = [
+  {
+    id: 'ws10_theme_week_settlement',
+    templateType: 'activity_reward',
+    title: '主题周阶段结算',
+    summary: '用于主题周中期 / 周末结算，回收主题周参与与奖励说明。'
+  },
+  {
+    id: 'ws10_limited_time_campaign_notice',
+    templateType: 'maintenance_notice',
+    title: '限时活动说明',
+    summary: '用于限时活动启用、规则说明与倒计时提醒。'
+  },
+  {
+    id: 'ws10_activity_compensation',
+    templateType: 'compensation',
+    title: '活动补偿说明',
+    summary: '用于活动异常、补发奖励或临时降级时的补偿模板。'
+  }
+]
+
+export const WS10_EVENT_CAMPAIGN_DEFS: EventCampaignDef[] = [
+  {
+    id: 'ws10_campaign_theme_rotation',
+    label: '主题周轮转活动',
+    description: '围绕现有主题周、周目标与特殊订单建立 P0 级活动编排骨架。',
+    unlockTier: 'P0',
+    cadence: 'weekly',
+    linkedThemeWeekIds: ['spring_sowing', 'summer_fishing', 'autumn_processing', 'winter_mining'],
+    linkedSystems: ['goal', 'quest', 'shop'],
+    mailboxTemplateIds: ['ws10_theme_week_settlement'],
+    rewardSummary: '提供主题周说明、周目标承接与结算邮件入口。'
+  },
+  {
+    id: 'ws10_campaign_limited_supply',
+    label: '限时供货活动',
+    description: '围绕高阶订单、限时任务与目录推荐建立 P1 级活动编排骨架。',
+    unlockTier: 'P1',
+    cadence: 'biweekly',
+    linkedThemeWeekIds: ['autumn_processing', 'late_sink_rotation'],
+    linkedSystems: ['quest', 'goal', 'shop'],
+    mailboxTemplateIds: ['ws10_limited_time_campaign_notice', 'ws10_theme_week_settlement'],
+    rewardSummary: '用于承接限时任务、供货周与阶段奖励邮件。'
+  },
+  {
+    id: 'ws10_campaign_world_milestone',
+    label: '全服共建与收尾活动',
+    description: '围绕世界里程碑、公会共建、终局展示与收尾邮件建立 P2 级活动骨架。',
+    unlockTier: 'P2',
+    cadence: 'seasonal',
+    linkedThemeWeekIds: ['late_sink_rotation'],
+    linkedSystems: ['goal', 'quest', 'shop', 'system'],
+    mailboxTemplateIds: ['ws10_theme_week_settlement', 'ws10_activity_compensation'],
+    rewardSummary: '用于承接终局活动、共建收尾、补偿与长期回流说明。'
+  }
+]
+
+export const createDefaultEventOperationsState = (): EventOperationsState => ({
+  version: 1,
+  activeCampaignId: null,
+  activeThemeWeekCampaignId: null,
+  cadence: 'weekly',
+  completedCampaignIds: [],
+  completedThemeWeekIds: [],
+  claimedMailCampaignIds: [],
+  lastCampaignDayTag: '',
+  lastSettlementDayTag: ''
+})
+
 export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
   {
     id: 'spring_sowing',
     name: '春种主题周',
     description: '集中鼓励播种、收获与基础经营。',
     season: 'spring',
+    weekOfSeason: 1,
     recommendedCatalogTags: ['功能商品', '灌溉'],
     focusMetrics: ['totalCropsHarvested', 'totalMoneyEarned'],
     relatedBiasRules: ['bias_artisan_daily', 'gap_cashflow'],
     preferredQuestThemeTag: 'breeding',
+    museumFocusHallZoneIds: ['entry_gallery', 'mineral_hall'],
+    museumFocusThemeIds: ['ancestral_echo'],
+    museumFocusScholarCommissionIds: ['mineral_catalogue_revision'],
+    guildFocusActivityIds: ['commission_supply_week'],
+    guildFocusMilestoneIds: ['guild_supply_chain'],
+    guildFocusRewardPoolIds: ['commission_preparation_pool'],
+    hanhaiFocusRouteIds: ['westbound_silk_route'],
+    hanhaiFocusRelicSiteIds: ['sunset_ruins'],
+    hanhaiFocusBossCycleIds: ['dune_revenant'],
+    hanhaiFocusContractIds: ['contract_silk_relay'],
+    hanhaiFocusRelicSetIds: ['merchant_ledger_set'],
+    hanhaiFocusShopRotationIds: ['rotation_frontier_supplies'],
+    familyFocusNpcIds: ['liu_niang', 'chun_lan'],
+    familyFocusWishIds: ['wish_shared_breakfast'],
+    familyFocusSpiritIds: ['tao_yao'],
+    familyFocusZhijiProjectIds: ['zhiji_story_salon'],
     breedingFocusLabel: '早春试育',
     breedingFocusDescription: '适合先冲低门槛杂交，补齐春季基础经营向的订单作物。',
     breedingFocusHybridIds: ['emerald_radish', 'golden_tuber'],
@@ -434,10 +868,24 @@ export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
     name: '夏渔主题周',
     description: '偏向钓鱼、水产与外出补给。',
     season: 'summer',
+    weekOfSeason: 2,
     recommendedCatalogTags: ['渔具', '鱼塘'],
     focusMetrics: ['totalFishCaught', 'discoveredCount'],
     relatedBiasRules: ['bias_wander_daily'],
     preferredQuestThemeTag: 'breeding',
+    guildFocusActivityIds: ['border_patrol_rotation'],
+    guildFocusMilestoneIds: ['guild_patrol_wall'],
+    guildFocusRewardPoolIds: ['commission_preparation_pool'],
+    hanhaiFocusRouteIds: ['turquoise_exchange_route'],
+    hanhaiFocusRelicSiteIds: ['turquoise_pit'],
+    hanhaiFocusBossCycleIds: ['glass_scorpion'],
+    hanhaiFocusContractIds: ['contract_turquoise_exchange'],
+    hanhaiFocusRelicSetIds: ['merchant_ledger_set'],
+    hanhaiFocusShopRotationIds: ['rotation_trade_house'],
+    familyFocusNpcIds: ['qiu_yue', 'da_niu'],
+    familyFocusWishIds: ['wish_lakeside_outing'],
+    familyFocusSpiritIds: ['yue_tu'],
+    familyFocusZhijiProjectIds: ['zhiji_story_salon'],
     breedingFocusLabel: '夏季高产订单',
     breedingFocusDescription: '优先培育高产、适合宴席与供货的杂交作物，承接更高价的特殊订单。',
     breedingFocusHybridIds: ['moonlight_rice', 'golden_melon', 'honey_peach_melon'],
@@ -457,10 +905,27 @@ export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
     name: '秋收加工周',
     description: '适合秋收变现、加工囤货与料理推进。',
     season: 'autumn',
+    weekOfSeason: 3,
     recommendedCatalogTags: ['材料包', '功能商品'],
     focusMetrics: ['totalMoneyEarned', 'totalRecipesCooked'],
     relatedBiasRules: ['bias_cashflow_daily', 'bias_artisan_daily', 'gap_cooking'],
     preferredQuestThemeTag: 'breeding',
+    museumFocusHallZoneIds: ['artifact_hall', 'fossil_hall'],
+    museumFocusThemeIds: ['ancestral_echo'],
+    museumFocusScholarCommissionIds: ['fossil_restoration_notes'],
+    guildFocusActivityIds: ['ranked_hunt_board'],
+    guildFocusMilestoneIds: ['guild_ranked_hunt_banner'],
+    guildFocusRewardPoolIds: ['ranked_hunt_pool'],
+    hanhaiFocusRouteIds: ['turquoise_exchange_route'],
+    hanhaiFocusRelicSiteIds: ['turquoise_pit', 'moon_sand_shrine'],
+    hanhaiFocusBossCycleIds: ['glass_scorpion', 'sunken_colossus'],
+    hanhaiFocusContractIds: ['contract_turquoise_exchange'],
+    hanhaiFocusRelicSetIds: ['merchant_ledger_set', 'desert_ritual_set'],
+    hanhaiFocusShopRotationIds: ['rotation_trade_house'],
+    familyFocusNpcIds: ['a_shi', 'chun_lan', 'mo_bai'],
+    familyFocusWishIds: ['wish_legacy_archive'],
+    familyFocusSpiritIds: ['gui_nv'],
+    familyFocusZhijiProjectIds: ['zhiji_household_archive'],
     breedingFocusLabel: '秋宴精品单',
     breedingFocusDescription: '高甜度、高品质的茶饮与宴席类杂交作物在秋季最容易卖出高价。',
     breedingFocusHybridIds: ['jade_tea', 'osmanthus_tea', 'lotus_tea'],
@@ -480,10 +945,23 @@ export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
     name: '冬矿挑战周',
     description: '聚焦矿洞推进、补给准备和冬日经营。',
     season: 'winter',
+    weekOfSeason: 4,
     recommendedCatalogTags: ['矿洞', '每周精选'],
     focusMetrics: ['highestMineFloor', 'totalMoneyEarned'],
     relatedBiasRules: ['bias_artisan_daily', 'gap_mining'],
     preferredQuestThemeTag: 'breeding',
+    museumFocusHallZoneIds: ['mineral_hall', 'fossil_hall'],
+    museumFocusThemeIds: ['moon_prayer'],
+    museumFocusScholarCommissionIds: ['mineral_catalogue_revision'],
+    guildFocusActivityIds: ['abyss_boss_campaign'],
+    guildFocusMilestoneIds: ['guild_world_bulwark'],
+    guildFocusRewardPoolIds: ['world_milestone_pool'],
+    hanhaiFocusRouteIds: ['moon_sand_ceremony_route'],
+    hanhaiFocusRelicSiteIds: ['moon_sand_shrine'],
+    hanhaiFocusBossCycleIds: ['sunken_colossus', 'sandstorm_wyrm'],
+    hanhaiFocusContractIds: ['contract_moon_sand_patronage'],
+    hanhaiFocusRelicSetIds: ['desert_ritual_set', 'sun_moon_trade_set'],
+    hanhaiFocusShopRotationIds: ['rotation_endgame_patron'],
     breedingFocusLabel: '寒季耐久单',
     breedingFocusDescription: '冬季更适合培育耐性高、可作为囤货与补给素材的杂交作物。',
     breedingFocusHybridIds: ['frost_garlic', 'moonlight_rice'],
@@ -503,10 +981,27 @@ export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
     name: '豪华经营周',
     description: '面向后期玩家的高价投入周，鼓励把资金转进服务、认购和展示。',
     season: 'autumn',
+    weekOfSeason: 4,
     recommendedCatalogTags: ['功能商品', '材料包', '每周精选'],
     focusMetrics: ['totalMoneyEarned', 'friendlyNpcCount'],
     relatedBiasRules: ['bias_cashflow_daily', 'gap_cashflow', 'gap_social'],
     preferredQuestThemeTag: 'breeding',
+    museumFocusHallZoneIds: ['artifact_hall', 'shrine_courtyard'],
+    museumFocusThemeIds: ['moon_prayer', 'fox_blessing'],
+    museumFocusScholarCommissionIds: ['ancestral_relic_field_report'],
+    guildFocusActivityIds: ['elite_logistics_auction', 'world_milestone_fortress'],
+    guildFocusMilestoneIds: ['guild_legend_hall'],
+    guildFocusRewardPoolIds: ['world_milestone_pool'],
+    hanhaiFocusRouteIds: ['moon_sand_ceremony_route'],
+    hanhaiFocusRelicSiteIds: ['moon_sand_shrine'],
+    hanhaiFocusBossCycleIds: ['sandstorm_wyrm'],
+    hanhaiFocusContractIds: ['contract_moon_sand_patronage'],
+    hanhaiFocusRelicSetIds: ['sun_moon_trade_set'],
+    hanhaiFocusShopRotationIds: ['rotation_endgame_patron'],
+    familyFocusNpcIds: ['a_shi', 'chun_lan', 'mo_bai'],
+    familyFocusWishIds: ['wish_legacy_archive'],
+    familyFocusSpiritIds: ['shan_weng', 'long_ling'],
+    familyFocusZhijiProjectIds: ['zhiji_legacy_route'],
     breedingFocusLabel: '豪华供货单',
     breedingFocusDescription: '适合用高规格杂交品种承接豪华经营周的高价订单与展示需求。',
     breedingFocusHybridIds: ['jade_tea', 'golden_melon', 'moonlight_rice'],
@@ -520,9 +1015,444 @@ export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
       summaryLabel: '本周重点：高价投入、服务认购与展示准备',
       bannerTone: 'warning'
     }
+  },
+  {
+    id: 'spring_market',
+    name: '春集商路周',
+    description: '强调周转、供货与人情往来，让春季第二周进入稳定经营节奏。',
+    season: 'spring',
+    weekOfSeason: 2,
+    recommendedCatalogTags: ['每周精选', '功能商品'],
+    focusMetrics: ['totalMoneyEarned', 'friendlyNpcCount'],
+    relatedBiasRules: ['bias_cashflow_daily', 'gap_social'],
+    preferredQuestThemeTag: 'fishpond',
+    guildFocusActivityIds: ['commission_supply_week'],
+    hanhaiFocusRouteIds: ['westbound_silk_route'],
+    breedingFocusLabel: '春集供货单',
+    breedingFocusDescription: '优先准备稳定出货的基础杂交作物，承接商路与乡镇补给订单。',
+    breedingFocusHybridIds: ['emerald_radish', 'moonlight_rice'],
+    rewardPreview: {
+      label: '春集周推荐',
+      description: '商路补给、仓储与流转效率更值得提前投入。',
+      recommendedOfferIds: ['weekly_inventory_bag', 'premium_warehouse_charter']
+    },
+    ui: {
+      badgeText: '春集',
+      summaryLabel: '本周重点：周转、供货与关系经营',
+      bannerTone: 'accent'
+    }
+  },
+  {
+    id: 'spring_scholar',
+    name: '春研布展周',
+    description: '把采集、料理与布展串起来，为后续主题展和订单提供准备。',
+    season: 'spring',
+    weekOfSeason: 3,
+    recommendedCatalogTags: ['材料包', '学舍'],
+    focusMetrics: ['discoveredCount', 'totalRecipesCooked'],
+    relatedBiasRules: ['bias_wander_daily', 'gap_cooking'],
+    museumFocusHallZoneIds: ['entry_gallery', 'artifact_hall'],
+    museumFocusThemeIds: ['ancestral_echo'],
+    museumFocusScholarCommissionIds: ['ancestral_relic_field_report'],
+    guildFocusActivityIds: ['ranked_hunt_board'],
+    hanhaiFocusRelicSiteIds: ['sunset_ruins'],
+    ui: {
+      badgeText: '春研',
+      summaryLabel: '本周重点：采集见闻与布展筹备',
+      bannerTone: 'accent'
+    }
+  },
+  {
+    id: 'spring_pond_awakening',
+    name: '春塘苏醒周',
+    description: '强调鱼塘苏醒、观赏准备与配套补给，给鱼塘线一个明确的周入口。',
+    season: 'spring',
+    weekOfSeason: 4,
+    recommendedCatalogTags: ['鱼塘', '渔具'],
+    focusMetrics: ['totalFishCaught', 'friendlyNpcCount'],
+    relatedBiasRules: ['bias_wander_daily', 'gap_social'],
+    preferredQuestThemeTag: 'fishpond',
+    guildFocusActivityIds: ['border_patrol_rotation'],
+    hanhaiFocusContractIds: ['contract_turquoise_exchange'],
+    rewardPreview: {
+      label: '春塘养护推荐',
+      description: '鱼塘养护、活体展示与外出补给收益更高。',
+      recommendedOfferIds: ['func_angler_pack', 'weekly_pond_care_pack']
+    },
+    ui: {
+      badgeText: '春塘',
+      summaryLabel: '本周重点：鱼塘苏醒与观赏准备',
+      bannerTone: 'success'
+    }
+  },
+  {
+    id: 'summer_supply',
+    name: '盛夏供货周',
+    description: '高产、快周转与宴席前置备货是盛夏第一周的经营主线。',
+    season: 'summer',
+    weekOfSeason: 1,
+    recommendedCatalogTags: ['功能商品', '每周精选'],
+    focusMetrics: ['totalCropsHarvested', 'totalMoneyEarned'],
+    relatedBiasRules: ['bias_cashflow_daily', 'gap_cashflow'],
+    preferredQuestThemeTag: 'breeding',
+    guildFocusActivityIds: ['commission_supply_week'],
+    hanhaiFocusRouteIds: ['turquoise_exchange_route'],
+    breedingFocusLabel: '盛夏量产单',
+    breedingFocusDescription: '优先准备高产、高稳定性的供货型杂交作物，为后续高价单预热。',
+    breedingFocusHybridIds: ['moonlight_rice', 'golden_melon'],
+    rewardPreview: {
+      label: '盛夏供货推荐',
+      description: '更适合提前投入仓储、灌溉与批量供货辅助。',
+      recommendedOfferIds: ['func_field_irrigation_pack', 'premium_warehouse_charter']
+    },
+    ui: {
+      badgeText: '供货',
+      summaryLabel: '本周重点：高产供货与现金周转',
+      bannerTone: 'success'
+    }
+  },
+  {
+    id: 'summer_caravan',
+    name: '夏行商路周',
+    description: '强调探索见闻、商路试投与移动补给，是夏季中盘的转换周。',
+    season: 'summer',
+    weekOfSeason: 3,
+    recommendedCatalogTags: ['每周精选', '学舍'],
+    focusMetrics: ['discoveredCount', 'totalMoneyEarned'],
+    relatedBiasRules: ['bias_cashflow_daily', 'bias_wander_daily'],
+    preferredQuestThemeTag: 'breeding',
+    guildFocusActivityIds: ['elite_logistics_auction'],
+    hanhaiFocusRouteIds: ['turquoise_exchange_route'],
+    hanhaiFocusContractIds: ['contract_turquoise_exchange'],
+    breedingFocusLabel: '夏行补给单',
+    breedingFocusDescription: '更适合承接兼顾供货与远行补给的杂交作物订单。',
+    breedingFocusHybridIds: ['honey_peach_melon', 'moonlight_rice'],
+    ui: {
+      badgeText: '夏行',
+      summaryLabel: '本周重点：商路试投与移动补给',
+      bannerTone: 'accent'
+    }
+  },
+  {
+    id: 'summer_pond_showcase',
+    name: '夏夜观赏周',
+    description: '强化观赏鱼、宴席配套与夜间展示，让鱼塘线和展示线形成联动。',
+    season: 'summer',
+    weekOfSeason: 4,
+    recommendedCatalogTags: ['鱼塘', '材料包'],
+    focusMetrics: ['totalFishCaught', 'totalRecipesCooked'],
+    relatedBiasRules: ['bias_artisan_daily', 'bias_wander_daily'],
+    preferredQuestThemeTag: 'fishpond',
+    museumFocusHallZoneIds: ['shrine_courtyard', 'artifact_hall'],
+    guildFocusActivityIds: ['elite_logistics_auction'],
+    rewardPreview: {
+      label: '夏夜展示推荐',
+      description: '更适合把鱼塘活体展示和宴席配套备货一起推进。',
+      recommendedOfferIds: ['weekly_pond_care_pack', 'autumn_harvest_pack']
+    },
+    ui: {
+      badgeText: '夏夜',
+      summaryLabel: '本周重点：观赏鱼与宴席展示',
+      bannerTone: 'warning'
+    }
+  },
+  {
+    id: 'autumn_exhibition',
+    name: '秋展筹备周',
+    description: '先把见闻、关系和布展打通，为秋季高价值展示与邮件结算做准备。',
+    season: 'autumn',
+    weekOfSeason: 1,
+    recommendedCatalogTags: ['学舍', '材料包'],
+    focusMetrics: ['discoveredCount', 'friendlyNpcCount'],
+    relatedBiasRules: ['gap_social', 'bias_wander_daily'],
+    museumFocusHallZoneIds: ['artifact_hall', 'shrine_courtyard'],
+    museumFocusThemeIds: ['fox_blessing'],
+    museumFocusScholarCommissionIds: ['ancestral_relic_field_report'],
+    ui: {
+      badgeText: '秋展',
+      summaryLabel: '本周重点：见闻收集与布展筹备',
+      bannerTone: 'accent'
+    }
+  },
+  {
+    id: 'autumn_harvest',
+    name: '秋收统筹周',
+    description: '强化丰收、加工前置和批量兑现，让秋季前半段更像经营冲刺周。',
+    season: 'autumn',
+    weekOfSeason: 2,
+    recommendedCatalogTags: ['功能商品', '材料包'],
+    focusMetrics: ['totalCropsHarvested', 'totalMoneyEarned'],
+    relatedBiasRules: ['bias_cashflow_daily', 'gap_cashflow'],
+    preferredQuestThemeTag: 'breeding',
+    guildFocusActivityIds: ['ranked_hunt_board'],
+    hanhaiFocusRouteIds: ['turquoise_exchange_route'],
+    breedingFocusLabel: '秋收预备单',
+    breedingFocusDescription: '优先储备高甜度、可加工与可展示的丰收型杂交作物。',
+    breedingFocusHybridIds: ['jade_tea', 'golden_melon'],
+    ui: {
+      badgeText: '秋收',
+      summaryLabel: '本周重点：丰收统筹与变现预热',
+      bannerTone: 'success'
+    }
+  },
+  {
+    id: 'winter_storage',
+    name: '冬储经营周',
+    description: '强调囤货、料理与冷季现金回流，是冬季第一周的稳态经营入口。',
+    season: 'winter',
+    weekOfSeason: 1,
+    recommendedCatalogTags: ['材料包', '每周精选'],
+    focusMetrics: ['totalMoneyEarned', 'totalRecipesCooked'],
+    relatedBiasRules: ['bias_cashflow_daily', 'gap_cooking'],
+    preferredQuestThemeTag: 'breeding',
+    breedingFocusLabel: '冬储补给单',
+    breedingFocusDescription: '更适合准备耐储、耐寒且可转成料理与补给的杂交作物。',
+    breedingFocusHybridIds: ['frost_garlic', 'moonlight_rice'],
+    ui: {
+      badgeText: '冬储',
+      summaryLabel: '本周重点：囤货、料理与现金回流',
+      bannerTone: 'accent'
+    }
+  },
+  {
+    id: 'winter_scholar',
+    name: '冬研考据周',
+    description: '把矿洞推进、古物见闻和研究布展压到同一周，形成冬季中盘深挖节奏。',
+    season: 'winter',
+    weekOfSeason: 2,
+    recommendedCatalogTags: ['学舍', '矿洞'],
+    focusMetrics: ['highestMineFloor', 'discoveredCount'],
+    relatedBiasRules: ['gap_mining', 'bias_wander_daily'],
+    museumFocusHallZoneIds: ['mineral_hall', 'fossil_hall'],
+    museumFocusThemeIds: ['moon_prayer'],
+    museumFocusScholarCommissionIds: ['mineral_catalogue_revision'],
+    hanhaiFocusRelicSiteIds: ['moon_sand_shrine'],
+    ui: {
+      badgeText: '冬研',
+      summaryLabel: '本周重点：矿洞深挖与研究考据',
+      bannerTone: 'accent'
+    }
+  },
+  {
+    id: 'winter_pond_maintenance',
+    name: '寒塘养护周',
+    description: '鱼塘线在冬季不再断档，围绕养护、成熟样本和关系经营给出明确节奏。',
+    season: 'winter',
+    weekOfSeason: 3,
+    recommendedCatalogTags: ['鱼塘', '功能商品'],
+    focusMetrics: ['totalFishCaught', 'friendlyNpcCount'],
+    relatedBiasRules: ['gap_social', 'bias_wander_daily'],
+    preferredQuestThemeTag: 'fishpond',
+    guildFocusActivityIds: ['border_patrol_rotation'],
+    rewardPreview: {
+      label: '寒塘养护推荐',
+      description: '适合先做鱼塘健康维护，再承接活体展示和研究样本单。',
+      recommendedOfferIds: ['weekly_pond_care_pack', 'func_angler_pack']
+    },
+    ui: {
+      badgeText: '寒塘',
+      summaryLabel: '本周重点：鱼塘养护与活体样本',
+      bannerTone: 'accent'
+    }
   }
 ]
 
-export const getThemeWeekBySeason = (season: 'spring' | 'summer' | 'autumn' | 'winter') => {
-  return THEME_WEEK_DEFS.find(theme => theme.season === season) ?? null
+const THEME_WEEK_CROSS_GOAL_METRICS: Record<string, GoalMetricKey> = {
+  spring_sowing: 'villageProjectLevel',
+  spring_market: 'friendlyNpcCount',
+  spring_scholar: 'museumExhibitLevel',
+  spring_pond_awakening: 'totalRecipesCooked',
+  summer_supply: 'villageProjectLevel',
+  summer_fishing: 'hanhaiContractCompletions',
+  summer_caravan: 'hanhaiContractCompletions',
+  summer_pond_showcase: 'museumExhibitLevel',
+  autumn_exhibition: 'museumExhibitLevel',
+  autumn_harvest: 'villageProjectLevel',
+  autumn_processing: 'friendlyNpcCount',
+  late_sink_rotation: 'familyWishCompletions',
+  winter_storage: 'totalRecipesCooked',
+  winter_scholar: 'museumExhibitLevel',
+  winter_pond_maintenance: 'familyWishCompletions',
+  winter_mining: 'hanhaiContractCompletions'
 }
+
+const WEEKLY_GOAL_METRIC_PRESETS: Partial<
+  Record<
+    GoalMetricKey,
+    {
+      summary: string
+      targets: [number, number, number]
+      rewards: [
+        { reputation?: number; items?: Array<{ itemId: string; quantity: number }> },
+        { reputation?: number; items?: Array<{ itemId: string; quantity: number }> },
+        { reputation?: number; items?: Array<{ itemId: string; quantity: number }> }
+      ]
+    }
+  >
+> = {
+  totalMoneyEarned: {
+    summary: '累计赚到指定铜钱，验证本周经营方向是否真正跑通。',
+    targets: [3000, 4500, 2200],
+    rewards: [
+      { reputation: 10, items: [{ itemId: 'bamboo', quantity: 2 }] },
+      { reputation: 14, items: [{ itemId: 'bamboo', quantity: 3 }] },
+      { reputation: 8, items: [{ itemId: 'food_rice_ball', quantity: 1 }] }
+    ]
+  },
+  totalCropsHarvested: {
+    summary: '在本周完成一轮稳定收获，给订单和加工提供原料。',
+    targets: [18, 28, 14],
+    rewards: [
+      { reputation: 8, items: [{ itemId: 'herb', quantity: 3 }] },
+      { reputation: 12, items: [{ itemId: 'quality_fertilizer', quantity: 2 }] },
+      { reputation: 6, items: [{ itemId: 'herb', quantity: 2 }] }
+    ]
+  },
+  totalFishCaught: {
+    summary: '保持活体样本与鱼获供给，为鱼塘线和订单线补库存。',
+    targets: [8, 12, 6],
+    rewards: [
+      { reputation: 8, items: [{ itemId: 'wild_bait', quantity: 4 }] },
+      { reputation: 12, items: [{ itemId: 'fish_feed', quantity: 3 }] },
+      { reputation: 6, items: [{ itemId: 'wild_bait', quantity: 3 }] }
+    ]
+  },
+  totalRecipesCooked: {
+    summary: '用料理把收获转成更高价值的周内产出。',
+    targets: [2, 4, 3],
+    rewards: [
+      { reputation: 8, items: [{ itemId: 'food_rice_ball', quantity: 2 }] },
+      { reputation: 12, items: [{ itemId: 'charcoal', quantity: 2 }] },
+      { reputation: 8, items: [{ itemId: 'food_rice_ball', quantity: 1 }] }
+    ]
+  },
+  highestMineFloor: {
+    summary: '在本周继续向下推进矿洞，兼顾补给与长期探索。',
+    targets: [5, 8, 4],
+    rewards: [
+      { reputation: 10, items: [{ itemId: 'gold_ore', quantity: 2 }] },
+      { reputation: 14, items: [{ itemId: 'gold_ore', quantity: 3 }] },
+      { reputation: 8, items: [{ itemId: 'charcoal', quantity: 3 }] }
+    ]
+  },
+  friendlyNpcCount: {
+    summary: '推动与村民的关系积累，让经营线和社交线一起前进。',
+    targets: [1, 2, 1],
+    rewards: [
+      { reputation: 10, items: [{ itemId: 'food_rice_ball', quantity: 2 }] },
+      { reputation: 14, items: [{ itemId: 'osmanthus', quantity: 2 }] },
+      { reputation: 8, items: [{ itemId: 'food_rice_ball', quantity: 1 }] }
+    ]
+  },
+  discoveredCount: {
+    summary: '补齐见闻与新发现，为后续研究、展示和订单解释性做准备。',
+    targets: [2, 4, 3],
+    rewards: [
+      { reputation: 8, items: [{ itemId: 'wild_mushroom', quantity: 2 }] },
+      { reputation: 12, items: [{ itemId: 'herb', quantity: 4 }] },
+      { reputation: 8, items: [{ itemId: 'wild_mushroom', quantity: 1 }] }
+    ]
+  },
+  villageProjectLevel: {
+    summary: '把周目标导向建设或维护，让后期资金不只停留在背包里。',
+    targets: [1, 1, 1],
+    rewards: [
+      { reputation: 12, items: [{ itemId: 'bamboo', quantity: 3 }] },
+      { reputation: 16, items: [{ itemId: 'bamboo', quantity: 4 }] },
+      { reputation: 10, items: [{ itemId: 'stone', quantity: 8 }] }
+    ]
+  },
+  museumExhibitLevel: {
+    summary: '在周内把展示线向前推一步，确保主题周不只是文案推荐。',
+    targets: [1, 1, 1],
+    rewards: [
+      { reputation: 12, items: [{ itemId: 'jade', quantity: 1 }] },
+      { reputation: 16, items: [{ itemId: 'battery', quantity: 1 }] },
+      { reputation: 10, items: [{ itemId: 'wild_mushroom', quantity: 2 }] }
+    ]
+  },
+  hanhaiContractCompletions: {
+    summary: '要求本周至少推进一次瀚海循环，避免后期线在周节奏外游离。',
+    targets: [1, 1, 1],
+    rewards: [
+      { reputation: 12, items: [{ itemId: 'battery', quantity: 1 }] },
+      { reputation: 16, items: [{ itemId: 'jade', quantity: 1 }] },
+      { reputation: 10, items: [{ itemId: 'charcoal', quantity: 2 }] }
+    ]
+  },
+  familyWishCompletions: {
+    summary: '为后续家庭愿望系统预留周目标入口，用于晚期社交与陪伴线联动。',
+    targets: [1, 1, 1],
+    rewards: [
+      { reputation: 12, items: [{ itemId: 'food_rice_ball', quantity: 2 }] },
+      { reputation: 16, items: [{ itemId: 'osmanthus', quantity: 2 }] },
+      { reputation: 10, items: [{ itemId: 'food_rice_ball', quantity: 1 }] }
+    ]
+  }
+}
+
+const WEEKLY_GOAL_FALLBACK_METRICS: GoalMetricKey[] = ['totalMoneyEarned', 'discoveredCount', 'friendlyNpcCount']
+const WEEKLY_GOAL_SLOT_LABELS = ['主攻', '拓展', '联动'] as const
+
+const getThemeWeekGoalMetrics = (themeWeek: ThemeWeekDef): GoalMetricKey[] => {
+  const candidates = [
+    ...themeWeek.focusMetrics,
+    THEME_WEEK_CROSS_GOAL_METRICS[themeWeek.id],
+    ...WEEKLY_GOAL_FALLBACK_METRICS
+  ]
+
+  const picked: GoalMetricKey[] = []
+  for (const metric of candidates) {
+    if (!metric || !WEEKLY_GOAL_METRIC_PRESETS[metric] || picked.includes(metric)) continue
+    picked.push(metric)
+    if (picked.length >= 3) break
+  }
+  return picked
+}
+
+const createThemeWeekGoalDef = (
+  themeWeek: ThemeWeekDef,
+  metric: GoalMetricKey,
+  slotIndex: 0 | 1 | 2
+): WeeklyGoalDef => {
+  const preset = WEEKLY_GOAL_METRIC_PRESETS[metric]!
+  const slotLabel = WEEKLY_GOAL_SLOT_LABELS[slotIndex]
+  return {
+    id: `weekly_${themeWeek.id}_${slotIndex + 1}_${metric}`,
+    title: `${themeWeek.name}·${slotLabel}`,
+    description: `${preset.summary}（${themeWeek.name}）`,
+    metric,
+    targetValue: preset.targets[slotIndex],
+    reward: preset.rewards[slotIndex],
+    season: themeWeek.season,
+    weekOfSeason: themeWeek.weekOfSeason,
+    linkedThemeWeekId: themeWeek.id
+  }
+}
+
+export const WEEKLY_GOAL_DEFS: WeeklyGoalDef[] = THEME_WEEK_DEFS.flatMap(themeWeek =>
+  getThemeWeekGoalMetrics(themeWeek).map((metric, index) =>
+    createThemeWeekGoalDef(themeWeek, metric, index as 0 | 1 | 2)
+  )
+)
+
+export const getThemeWeeksBySeason = (season: 'spring' | 'summer' | 'autumn' | 'winter') =>
+  THEME_WEEK_DEFS
+    .filter(theme => theme.season === season)
+    .sort((a, b) => a.weekOfSeason - b.weekOfSeason)
+
+export const getThemeWeekBySeason = (
+  season: 'spring' | 'summer' | 'autumn' | 'winter',
+  weekOfSeason?: 1 | 2 | 3 | 4
+) => {
+  const seasonWeeks = getThemeWeeksBySeason(season)
+  if (weekOfSeason) {
+    return seasonWeeks.find(theme => theme.weekOfSeason === weekOfSeason) ?? null
+  }
+  return seasonWeeks[0] ?? null
+}
+
+export const getWeeklyGoalsBySeasonWeek = (
+  season: 'spring' | 'summer' | 'autumn' | 'winter',
+  weekOfSeason: 1 | 2 | 3 | 4
+) => WEEKLY_GOAL_DEFS.filter(goal => goal.season === season && goal.weekOfSeason === weekOfSeason)

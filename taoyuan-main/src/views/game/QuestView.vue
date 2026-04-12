@@ -25,6 +25,16 @@
           推荐关注：{{ questStore.specialOrder.recommendedHybridIds.map(getHybridName).join('、') }}
         </p>
       </div>
+      <div v-if="questStore.marketQuestBiasProfile.relationshipFocusLabels?.length" class="border border-accent/10 rounded-xs px-3 py-2 mb-2">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs text-accent">家庭 / 仙缘风向</p>
+          <span class="text-[10px] text-muted">关系联动</span>
+        </div>
+        <p class="text-[10px] text-muted mt-1">{{ questStore.marketQuestBiasProfile.boardHint }}</p>
+        <p v-if="questStore.marketQuestBiasProfile.specialOrderHint" class="text-[10px] text-accent mt-1">
+          {{ questStore.marketQuestBiasProfile.specialOrderHint }}
+        </p>
+      </div>
       <div v-if="goalStore.dailyGoals.length === 0" class="text-xs text-muted">今日暂无经营提示。</div>
       <div v-else class="space-y-1.5">
         <div v-for="goal in goalStore.dailyGoals" :key="goal.id" class="border border-accent/10 rounded-xs px-3 py-2">
@@ -151,8 +161,14 @@
       >
         <div class="min-w-0">
           <p class="text-xs truncate">{{ questStore.specialOrder.description }}</p>
-              <div class="flex flex-wrap gap-1 mt-0.5" v-if="questStore.specialOrder.themeTag || questStore.specialOrder.preferredSeasons?.length">
-                <span class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent" v-if="questStore.specialOrder.themeTag">育种订单</span>
+              <div class="flex flex-wrap gap-1 mt-0.5" v-if="questStore.specialOrder.themeTag || questStore.specialOrder.preferredSeasons?.length || questStore.specialOrder.activitySourceLabel || questStore.specialOrder.orderScoreRule">
+                <span class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent" v-if="questStore.specialOrder.themeTag">{{ getThemeLabel(questStore.specialOrder.themeTag) }}</span>
+                <span class="text-[10px] px-1 rounded-xs border border-warning/20 text-warning" v-if="questStore.specialOrder.activitySourceLabel">
+                  {{ questStore.specialOrder.activitySourceLabel }}
+                </span>
+                <span class="text-[10px] px-1 rounded-xs border border-success/20 text-success" v-if="questStore.specialOrder.orderScoreRule">
+                  {{ getOrderStageTypeLabel(questStore.specialOrder.orderStageType) }}
+                </span>
                 <span class="text-[10px] px-1 rounded-xs border border-success/20 text-success" v-if="questStore.specialOrder.preferredSeasons?.length">
                   {{ questStore.specialOrder.preferredSeasons.map(getSeasonLabel).join(' / ') }}偏好
                 </span>
@@ -184,12 +200,18 @@
           <div class="flex items-center justify-between">
             <div class="min-w-0">
               <p class="text-xs truncate min-w-0">{{ quest.description }}</p>
-              <div class="flex flex-wrap gap-1 mt-0.5" v-if="quest.isUrgent || quest.sourceCategory || quest.relationshipStageRequired || quest.themeTag || quest.bonusSummary?.length">
+              <div class="flex flex-wrap gap-1 mt-0.5" v-if="quest.isUrgent || quest.sourceCategory || quest.relationshipStageRequired || quest.themeTag || quest.bonusSummary?.length || quest.activitySourceLabel || quest.orderScoreRule">
                 <span v-if="quest.isUrgent" class="text-[10px] px-1 rounded-xs border border-red-500/40 text-red-400">
                   紧急委托
                 </span>
-                <span v-if="quest.themeTag === 'breeding'" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
-                  育种订单
+                <span v-if="quest.themeTag" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
+                  {{ getThemeLabel(quest.themeTag) }}
+                </span>
+                <span v-if="quest.activitySourceLabel" class="text-[10px] px-1 rounded-xs border border-warning/20 text-warning">
+                  {{ quest.activitySourceLabel }}
+                </span>
+                <span v-if="quest.orderScoreRule" class="text-[10px] px-1 rounded-xs border border-success/20 text-success">
+                  {{ getOrderStageTypeLabel(quest.orderStageType) }}
                 </span>
                 <span v-if="quest.sourceCategory" class="text-[10px] px-1 rounded-xs border border-success/20 text-success">
                   {{ getCategoryLabel(quest.sourceCategory) }}
@@ -208,10 +230,10 @@
             <div class="flex-1 h-1 bg-bg rounded-xs border border-accent/10">
               <div
                 class="h-full rounded-xs bg-accent transition-all"
-                :style="{ width: Math.floor((getEffectiveProgress(quest) / quest.targetQuantity) * 100) + '%' }"
+                :style="{ width: Math.floor((getEffectiveProgress(quest) / getQuestProgressMax(quest)) * 100) + '%' }"
               />
             </div>
-            <span class="text-xs text-muted">{{ getEffectiveProgress(quest) }}/{{ quest.targetQuantity }}</span>
+            <span class="text-xs text-muted">{{ getEffectiveProgress(quest) }}/{{ getQuestProgressMax(quest) }}</span>
           </div>
           <div v-else class="mt-0.5">
             <span class="text-xs text-muted">背包 {{ inventoryStore.getItemCount(quest.targetItemId) }}/{{ quest.targetQuantity }}</span>
@@ -335,14 +357,17 @@
               <span v-if="questStore.specialOrder.tierLabel" class="text-[10px] text-muted border border-accent/20 rounded-xs px-1 ml-1">
                 {{ questStore.specialOrder.tierLabel }}
               </span>
-              <span v-if="questStore.specialOrder.themeTag === 'breeding'" class="text-[10px] text-accent border border-accent/20 rounded-xs px-1 ml-1">
-                育种订单
+              <span v-if="questStore.specialOrder.themeTag" class="text-[10px] text-accent border border-accent/20 rounded-xs px-1 ml-1">
+                {{ getThemeLabel(questStore.specialOrder.themeTag) }}
+              </span>
+              <span v-if="questStore.specialOrder.activitySourceLabel" class="text-[10px] text-warning border border-warning/20 rounded-xs px-1 ml-1">
+                {{ questStore.specialOrder.activitySourceLabel }}
               </span>
             </p>
             <p class="text-xs leading-relaxed mb-2">{{ questStore.specialOrder.description }}</p>
             <div class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">目标</p>
-              <p class="text-xs">{{ questStore.specialOrder.targetItemName }} × {{ questStore.specialOrder.targetQuantity }}</p>
+              <p class="text-xs">{{ getQuestTargetSummary(questStore.specialOrder) }}</p>
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mb-2" v-if="questStore.specialOrder.demandHint || questStore.specialOrder.recommendedHybridIds?.length || questStore.specialOrder.preferredSeasons?.length">
               <p class="text-xs text-muted mb-1">需求提示</p>
@@ -352,6 +377,30 @@
               </p>
               <p v-if="questStore.specialOrder.recommendedHybridIds?.length" class="text-[10px] text-success mt-1">
                 推荐杂交：{{ questStore.specialOrder.recommendedHybridIds.map(getHybridName).join('、') }}
+              </p>
+            </div>
+            <div v-if="getSpecialOrderRuleLines(questStore.specialOrder).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">订单规则</p>
+              <p v-for="line in getSpecialOrderRuleLines(questStore.specialOrder)" :key="line" class="text-[10px] leading-4">
+                {{ line }}
+              </p>
+            </div>
+            <div v-if="getSpecialOrderScoreHintLines(questStore.specialOrder).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">评分提示</p>
+              <p v-for="line in getSpecialOrderScoreHintLines(questStore.specialOrder)" :key="line" class="text-[10px] leading-4 text-success/90">
+                {{ line }}
+              </p>
+            </div>
+            <div v-if="getSpecialOrderDeliverySourceLines(questStore.specialOrder).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">交付来源</p>
+              <p v-for="line in getSpecialOrderDeliverySourceLines(questStore.specialOrder)" :key="line" class="text-[10px] leading-4 text-warning/90">
+                {{ line }}
+              </p>
+            </div>
+            <div v-if="getSpecialOrderStageLines(questStore.specialOrder).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">阶段 / 交付结构</p>
+              <p v-for="line in getSpecialOrderStageLines(questStore.specialOrder)" :key="line" class="text-[10px] leading-4">
+                {{ line }}
               </p>
             </div>
             <div class="border border-accent/10 rounded-xs p-2 mb-3">
@@ -383,14 +432,41 @@
               {{ selectedActiveQuest.type === 'special_order' ? '特殊订单' : '委托' }}
             </p>
             <p class="text-xs leading-relaxed mb-2">{{ selectedActiveQuest.description }}</p>
-            <div v-if="selectedActiveQuest.sourceCategory || selectedActiveQuest.relationshipStageRequired || selectedActiveQuest.themeTag" class="border border-accent/10 rounded-xs p-2 mb-2">
+            <div v-if="selectedActiveQuest.sourceCategory || selectedActiveQuest.relationshipStageRequired || selectedActiveQuest.themeTag || selectedActiveQuest.activitySourceLabel" class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">委托来源</p>
               <p class="text-xs">
-                <span v-if="selectedActiveQuest.themeTag === 'breeding'">育种订单</span>
+                <span v-if="selectedActiveQuest.themeTag">{{ getThemeLabel(selectedActiveQuest.themeTag) }}</span>
+                <span v-if="selectedActiveQuest.activitySourceLabel">
+                  <template v-if="selectedActiveQuest.themeTag"> · </template>{{ selectedActiveQuest.activitySourceLabel }}
+                </span>
                 <span v-if="selectedActiveQuest.sourceCategory">村民委托 · {{ getCategoryLabel(selectedActiveQuest.sourceCategory) }}</span>
                 <span v-if="selectedActiveQuest.relationshipStageRequired">
                   <template v-if="selectedActiveQuest.sourceCategory || selectedActiveQuest.themeTag"> · </template>需{{ getStageLabel(selectedActiveQuest.relationshipStageRequired) }}
                 </span>
+              </p>
+            </div>
+            <div v-if="selectedActiveQuest.type === 'special_order' && getSpecialOrderRuleLines(selectedActiveQuest).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">订单规则</p>
+              <p v-for="line in getSpecialOrderRuleLines(selectedActiveQuest)" :key="line" class="text-[10px] leading-4">
+                {{ line }}
+              </p>
+            </div>
+            <div v-if="selectedActiveQuest.type === 'special_order' && getSpecialOrderScoreHintLines(selectedActiveQuest).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">评分提示</p>
+              <p v-for="line in getSpecialOrderScoreHintLines(selectedActiveQuest)" :key="line" class="text-[10px] leading-4 text-success/90">
+                {{ line }}
+              </p>
+            </div>
+            <div v-if="selectedActiveQuest.type === 'special_order' && getSpecialOrderDeliverySourceLines(selectedActiveQuest).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">交付来源</p>
+              <p v-for="line in getSpecialOrderDeliverySourceLines(selectedActiveQuest)" :key="line" class="text-[10px] leading-4 text-warning/90">
+                {{ line }}
+              </p>
+            </div>
+            <div v-if="selectedActiveQuest.type === 'special_order' && getSpecialOrderStageLines(selectedActiveQuest).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+              <p class="text-xs text-muted mb-1">阶段 / 交付结构</p>
+              <p v-for="line in getSpecialOrderStageLines(selectedActiveQuest)" :key="line" class="text-[10px] leading-4">
+                {{ line }}
               </p>
             </div>
             <div v-if="getQuestRelationshipImpactLines(selectedActiveQuest).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
@@ -410,12 +486,12 @@
                   <div
                     class="h-full rounded-xs bg-accent transition-all"
                     :style="{
-                      width: Math.floor((getEffectiveProgress(selectedActiveQuest) / selectedActiveQuest.targetQuantity) * 100) + '%'
+                      width: Math.floor((getEffectiveProgress(selectedActiveQuest) / getQuestProgressMax(selectedActiveQuest)) * 100) + '%'
                     }"
                   />
                 </div>
                 <span class="text-xs text-muted">
-                  {{ getEffectiveProgress(selectedActiveQuest) }}/{{ selectedActiveQuest.targetQuantity }}
+                  {{ getEffectiveProgress(selectedActiveQuest) }}/{{ getQuestProgressMax(selectedActiveQuest) }}
                 </span>
               </div>
               <p v-else class="text-xs">
@@ -562,6 +638,81 @@
     return SEASON_LABELS[season] ?? season
   }
 
+  const getThemeLabel = (themeTag?: QuestInstance['themeTag']): string => {
+    if (themeTag === 'fishpond') return '鱼塘订单'
+    if (themeTag === 'breeding') return '育种订单'
+    return '特殊订单'
+  }
+
+  const getOrderStageTypeLabel = (orderStageType?: QuestInstance['orderStageType']): string => {
+    if (orderStageType === 'combo') return '组合交付'
+    if (orderStageType === 'multi') return '阶段订单'
+    if (orderStageType === 'single') return '单阶段订单'
+    return '订单 3.0'
+  }
+
+  const getSpecialOrderRuleLines = (quest: QuestInstance | null | undefined): string[] => {
+    if (!quest) return []
+    const lines: string[] = []
+
+    if (quest.orderScoreRule) {
+      lines.push(`评分规则：${quest.orderScoreRule.label}`)
+      lines.push(quest.orderScoreRule.description)
+      if (quest.orderScoreRule.factorSummary.length > 0) {
+        lines.push(`评分关注：${quest.orderScoreRule.factorSummary.join('；')}`)
+      }
+      if (quest.orderScoreRule.previewText) {
+        lines.push(`结算提示：${quest.orderScoreRule.previewText}`)
+      }
+    }
+
+    if (quest.antiRepeatTags?.length) {
+      lines.push(`轮换标签：${quest.antiRepeatTags.join(' / ')}`)
+    }
+
+    return lines
+  }
+
+  const getSpecialOrderScoreHintLines = (quest: QuestInstance | null | undefined): string[] => {
+    if (!quest?.scoreHint?.length) return []
+    return quest.scoreHint
+  }
+
+  const getSpecialOrderDeliverySourceLines = (quest: QuestInstance | null | undefined): string[] => {
+    if (!quest?.deliverySourceHint?.length) return []
+    return quest.deliverySourceHint
+  }
+
+  const getSpecialOrderStageLines = (quest: QuestInstance | null | undefined): string[] => {
+    if (!quest) return []
+    const lines: string[] = []
+
+    if (quest.activitySourceLabel) {
+      lines.push(`活动来源：${quest.activitySourceLabel}`)
+    }
+    if (quest.orderStageType) {
+      lines.push(`订单结构：${getOrderStageTypeLabel(quest.orderStageType)}`)
+    }
+    if (quest.stageDefinitions?.length) {
+      quest.stageDefinitions.forEach((stage, index) => {
+        const targetText = stage.targetItemName && stage.targetQuantity ? ` · ${stage.targetItemName}×${stage.targetQuantity}` : ''
+        lines.push(`阶段 ${index + 1}：${stage.title}${targetText}`)
+        if (stage.description) {
+          lines.push(`- ${stage.description}`)
+        }
+      })
+    }
+    if (quest.comboRequirements?.length) {
+      lines.push(`组合交付：${quest.comboRequirements.map(requirement => `${requirement.itemName}×${requirement.quantity}`).join('、')}`)
+    }
+    if (quest.orderProgressState) {
+      const currentStage = (quest.orderProgressState.currentStageIndex ?? 0) + 1
+      lines.push(`当前阶段进度：第 ${currentStage} 阶段`)
+    }
+
+    return lines
+  }
+
   const getQuestRelationshipPreview = (quest: QuestInstance | null | undefined): string => {
     if (!quest || !quest.sourceCategory) return ''
 
@@ -597,6 +748,22 @@
     }
 
     return lines
+  }
+
+  const getQuestProgressMax = (quest: QuestInstance | null | undefined): number => {
+    if (!quest) return 1
+    if (quest.comboRequirements?.length) {
+      return quest.comboRequirements.reduce((total, requirement) => total + requirement.quantity, 0)
+    }
+    return Math.max(1, quest.targetQuantity)
+  }
+
+  const getQuestTargetSummary = (quest: QuestInstance | null | undefined): string => {
+    if (!quest) return ''
+    if (quest.comboRequirements?.length) {
+      return quest.comboRequirements.map(requirement => `${requirement.itemName} × ${requirement.quantity}`).join('、')
+    }
+    return `${quest.targetItemName} × ${quest.targetQuantity}`
   }
 
   const villagePhaseLabelMap = {

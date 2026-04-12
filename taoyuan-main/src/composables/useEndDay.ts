@@ -832,10 +832,28 @@ export const handleEndDay = () => {
 
   // 出货箱结算
   const shopStore = useShopStore()
-  const shippingIncome = shopStore.processShippingBox()
-  if (shippingIncome > 0) {
-    playerStore.earnMoney(shippingIncome, { system: 'shop' })
-    addLog(`出货箱结算：收入${shippingIncome}文。`)
+  const shippingSettlement = shopStore.settleShippingBoxWithMarketGuard()
+  const shippingIncome = shippingSettlement.totalIncome
+  if (!shippingSettlement.success) {
+    addLog(`【市场结算】${shippingSettlement.message}`, {
+      category: 'market',
+      tags: ['late_game_cycle'],
+      meta: {
+        dayTag: `${gameStore.year}-${gameStore.seasonIndex}-${gameStore.day}`,
+        settledEntries: shippingSettlement.settledEntries,
+        skipped: shippingSettlement.skipped ? 1 : 0
+      }
+    })
+  } else if (!shippingSettlement.skipped && shippingSettlement.totalIncome > 0) {
+    addLog(shippingSettlement.message, {
+      category: 'market',
+      tags: ['late_game_cycle'],
+      meta: {
+        dayTag: `${gameStore.year}-${gameStore.seasonIndex}-${gameStore.day}`,
+        settledEntries: shippingSettlement.settledEntries,
+        totalIncome: shippingSettlement.totalIncome
+      }
+    })
   }
 
   // 委托每日更新（当天结算：倒计时递减、过期处理）
@@ -1066,9 +1084,45 @@ export const handleEndDay = () => {
   // 为新的一天生成委托（在 nextDay 之后，使用新季节和新日期）
   questStore.generateDailyQuests(gameStore.season, gameStore.day)
 
-  // 特殊订单按周末节点释放，tier 对应本季第几周
-  if (currentWeekInfo.isWeekEnd && !questStore.specialOrder) {
-    questStore.generateSpecialOrder(gameStore.season, currentWeekInfo.weekOfSeason)
+  // 特殊订单：前期保留旧周末梯度，进入中后期后切换到真实周循环刷新
+  if (currentWeekInfo.isWeekEnd) {
+    if (questStore.isWeeklySpecialOrderRefreshActive(currentWeekInfo.absoluteWeek)) {
+      const weeklyRefreshResult = questStore.processSpecialOrderWeeklyRefresh({
+        season: gameStore.season,
+        weekOfSeason: currentWeekInfo.weekOfSeason,
+        weekId: currentWeekInfo.seasonWeekId,
+        absoluteWeek: currentWeekInfo.absoluteWeek
+      })
+
+      if (weeklyRefreshResult.generated && questStore.specialOrder) {
+        addLog(`【高阶订单周刷新】本周已刷新为「${questStore.specialOrder.targetItemName}」高阶订单。`, {
+          category: 'quest',
+          tags: ['late_game_cycle'],
+          meta: {
+            weekId: currentWeekInfo.seasonWeekId,
+            absoluteWeek: currentWeekInfo.absoluteWeek,
+            refreshMode: weeklyRefreshResult.mode,
+            generatedOrderId: questStore.specialOrder.id
+          }
+        })
+      } else if (weeklyRefreshResult.preservedLegacyOrder && questStore.specialOrder) {
+        addLog(`【高阶订单周刷新】已保留过渡周订单「${questStore.specialOrder.targetItemName}」，后续周切换将改用周循环刷新。`, {
+          category: 'quest',
+          tags: ['late_game_cycle'],
+          meta: {
+            weekId: currentWeekInfo.seasonWeekId,
+            absoluteWeek: currentWeekInfo.absoluteWeek,
+            refreshMode: weeklyRefreshResult.mode,
+            preservedOrderId: questStore.specialOrder.id
+          }
+        })
+      }
+    } else if (!questStore.specialOrder) {
+      questStore.generateSpecialOrder(gameStore.season, currentWeekInfo.weekOfSeason, {
+        weekId: currentWeekInfo.seasonWeekId,
+        absoluteWeek: currentWeekInfo.absoluteWeek
+      })
+    }
   }
 
   // 新一天如果下雨，或玩家拥有土地神专精，立即浇水所有作物（显示浇水状态）
@@ -1190,6 +1244,37 @@ export const handleEndDay = () => {
     weekOfSeason: currentWeekInfo.weekOfSeason,
     startedNewWeek: weekBoundaryEvent.startedNewWeek
   })
+  const relationshipTick = npcStore.processRelationshipCycleTick({
+    currentDayTag: economyDayTag,
+    currentWeekId: currentWeekInfo.seasonWeekId,
+    startedNewWeek: weekBoundaryEvent.startedNewWeek
+  })
+  for (const message of relationshipTick.logs) {
+    addLog(message, {
+      category: 'social',
+      tags: ['late_game_cycle'],
+      meta: {
+        weekId: currentWeekInfo.seasonWeekId,
+        householdAssignmentCount: relationshipTick.householdAssignmentCount,
+        zhijiProjectCount: relationshipTick.zhijiProjectCount
+      }
+    })
+  }
+  const spiritTick = hiddenNpcStore.processSpiritBondTick({
+    currentDayTag: economyDayTag,
+    currentWeekId: currentWeekInfo.seasonWeekId,
+    startedNewWeek: weekBoundaryEvent.startedNewWeek
+  })
+  for (const message of spiritTick.messages) {
+    addLog(message, {
+      category: 'social',
+      tags: ['late_game_cycle'],
+      meta: {
+        weekId: currentWeekInfo.seasonWeekId,
+        bondedCount: spiritTick.bondedCount
+      }
+    })
+  }
   shopStore.processCatalogCycleTick({
     currentDayTag: economyDayTag,
     currentWeekId: currentWeekInfo.seasonWeekId,

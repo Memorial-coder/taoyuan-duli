@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type {
   NpcState,
@@ -7,13 +7,27 @@ import type {
   HeartEventDef,
   Quality,
   ChildState,
+  FamilyWishBoardState,
+  HouseholdRoleId,
+  HouseholdDivisionState,
   PregnancyState,
   PregnancyStage,
   ProposalResponse,
   FarmHelperTask,
-  HiredHelper
+  HiredHelper,
+  ZhijiCompanionProjectState
 } from '@/types'
 import { NPCS, getNpcById, getHeartEventsForNpc, RECIPES, getTodayEvent } from '@/data'
+import {
+  createDefaultChildTrainingState,
+  createDefaultFamilyWishBoardState,
+  createDefaultHouseholdDivisionState,
+  WS09_FAMILY_WISH_DEFS,
+  WS09_FAMILY_WISH_BOARD_CONFIG,
+  WS09_HOUSEHOLD_ROLE_DEFS,
+  WS09_RELATIONSHIP_TUNING_CONFIG,
+  WS09_ZHIJI_COMPANION_PROJECT_DEFS
+} from '@/data/npcs'
 import { WEATHER_TIPS, getFortuneTip, getLivingTip, getRecipeTipMessage, NO_RECIPE_TIP, TIP_NPC_IDS } from '@/data/npcTips'
 import {
   getNpcBenefitSummaries,
@@ -29,6 +43,7 @@ import {
   NPC_RELATIONSHIP_BENEFITS,
   RELATIONSHIP_STAGE_META
 } from '@/data/npcWorld'
+import { WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT } from '@/data/goals'
 import { getItemById } from '@/data/items'
 import { useInventoryStore } from './useInventoryStore'
 import { useGameStore } from './useGameStore'
@@ -65,7 +80,11 @@ export const useNpcStore = defineStore('npc', () => {
     married: false,
     zhiji: false,
     triggeredHeartEvents: [],
-    unlockedPerks: []
+    unlockedPerks: [],
+    companionshipTier: 'P0',
+    activeHouseholdRoleId: null,
+    completedFamilyWishIds: [],
+    unlockedCompanionProjectIds: []
   })
 
   const npcStates = ref<NpcState[]>(
@@ -108,6 +127,18 @@ export const useNpcStore = defineStore('npc', () => {
   /** 已获得的建筑/生活线索 */
   const relationshipClues = ref<{ npcId: string; clueId: string; text: string }[]>([])
 
+  /** 婚后分工状态 */
+  const householdDivision = ref<HouseholdDivisionState>(createDefaultHouseholdDivisionState())
+
+  /** 家庭心愿板状态 */
+  const familyWishBoard = ref<FamilyWishBoardState>(createDefaultFamilyWishBoardState())
+
+  /** 知己协作项目状态 */
+  const zhijiCompanionProjects = ref<ZhijiCompanionProjectState[]>([])
+
+  /** 关系线运行时锁 */
+  const relationshipActionLocks = ref<string[]>([])
+
   // ============================================================
   // 雇工系统
   // ============================================================
@@ -129,6 +160,42 @@ export const useNpcStore = defineStore('npc', () => {
     feed: '喂食',
     harvest: '收获',
     weed: '除草除虫'
+  }
+
+  const relationshipCompanionshipBaselineAudit = WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT
+  const relationshipTuning = WS09_RELATIONSHIP_TUNING_CONFIG
+  const relationshipFeatureFlags = relationshipTuning.featureFlags
+  const relationshipTierRank: Record<'P0' | 'P1' | 'P2', number> = { P0: 0, P1: 1, P2: 2 }
+
+  const maxRelationshipTier = (left: 'P0' | 'P1' | 'P2', right: 'P0' | 'P1' | 'P2') =>
+    relationshipTierRank[left] >= relationshipTierRank[right] ? left : right
+
+  const beginRelationshipAction = (lockId: string): boolean => {
+    if (relationshipActionLocks.value.includes(lockId)) return false
+    relationshipActionLocks.value = [...relationshipActionLocks.value, lockId]
+    return true
+  }
+
+  const finishRelationshipAction = (lockId: string) => {
+    relationshipActionLocks.value = relationshipActionLocks.value.filter(entry => entry !== lockId)
+  }
+
+  const createRelationshipActionSnapshots = () => {
+    const playerStore = usePlayerStore()
+    const inventoryStore = useInventoryStore()
+    return {
+      player: playerStore.serialize(),
+      inventory: inventoryStore.serialize(),
+      npc: serialize()
+    }
+  }
+
+  const rollbackRelationshipAction = (snapshots: ReturnType<typeof createRelationshipActionSnapshots>) => {
+    const playerStore = usePlayerStore()
+    const inventoryStore = useInventoryStore()
+    playerStore.deserialize(snapshots.player)
+    inventoryStore.deserialize(snapshots.inventory)
+    deserialize(snapshots.npc)
   }
 
   /** 可雇佣的NPC列表（好感>=1000 且 未被雇佣 且 非配偶/知己） */
@@ -668,6 +735,10 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 赠帕开启约会 (需2000好感/8心) */
   const startDating = (npcId: string): { success: boolean; message: string; unlockedMessages?: string[] } => {
+    const lockId = `relationship_start_dating_${npcId}`
+    if (!beginRelationshipAction(lockId)) return { success: false, message: '关系结算中，请勿重复点击。' }
+    const snapshots = createRelationshipActionSnapshots()
+    try {
     const state = getNpcState(npcId)
     if (!state) return { success: false, message: 'NPC不存在。' }
 
@@ -696,10 +767,20 @@ export const useNpcStore = defineStore('npc', () => {
       message: `${npcDef.name}羞红了脸，接过了你的丝帕……你们开始约会了！`,
       unlockedMessages: syncRelationshipPerks(npcId)
     }
+    } catch {
+      rollbackRelationshipAction(snapshots)
+      return { success: false, message: '约会结算失败，已回滚。' }
+    } finally {
+      finishRelationshipAction(lockId)
+    }
   }
 
   /** 求婚 (需2500好感/10心) */
   const propose = (npcId: string): { success: boolean; message: string; unlockedMessages?: string[] } => {
+    const lockId = `relationship_propose_${npcId}`
+    if (!beginRelationshipAction(lockId)) return { success: false, message: '关系结算中，请勿重复点击。' }
+    const snapshots = createRelationshipActionSnapshots()
+    try {
     const state = getNpcState(npcId)
     if (!state) return { success: false, message: 'NPC不存在。' }
 
@@ -738,6 +819,12 @@ export const useNpcStore = defineStore('npc', () => {
       message: `${npcDef.name}含泪接受了你的翡翠戒指……婚礼将在3天后举行！`,
       unlockedMessages: syncRelationshipPerks(npcId)
     }
+    } catch {
+      rollbackRelationshipAction(snapshots)
+      return { success: false, message: '求婚结算失败，已回滚。' }
+    } finally {
+      finishRelationshipAction(lockId)
+    }
   }
 
   /** 获取已婚配偶状态 */
@@ -750,8 +837,271 @@ export const useNpcStore = defineStore('npc', () => {
     return npcStates.value.find(s => s.zhiji) ?? null
   }
 
+  const relationshipContentTier = computed<'P0' | 'P1' | 'P2'>(() => {
+    if (
+      children.value.length >= relationshipTuning.progression.tierUnlockChildCountP2 ||
+      familyWishBoard.value.completedWishIds.length >= relationshipTuning.progression.tierUnlockCompletedWishCountP2 ||
+      householdDivision.value.assignments.length > 1 ||
+      zhijiCompanionProjects.value.some(project => project.completed)
+    ) {
+      return 'P2'
+    }
+    if (
+      (getSpouse() && daysMarried.value >= relationshipTuning.progression.tierUnlockDaysMarriedP1) ||
+      (getZhiji() && daysZhiji.value >= relationshipTuning.progression.tierUnlockDaysZhijiP1) ||
+      familyWishBoard.value.activeWishId ||
+      householdDivision.value.assignments.length > 0
+    ) {
+      return 'P1'
+    }
+    return 'P0'
+  })
+
+  const getAvailableHouseholdRoles = (npcId?: string) => {
+    if (!relationshipFeatureFlags.householdDivisionEnabled) return []
+    const state = npcId ? getNpcState(npcId) : null
+    const npcDef = npcId ? getNpcById(npcId) : null
+    return WS09_HOUSEHOLD_ROLE_DEFS.filter(role => {
+      if (state && !state.married && !state.zhiji) return false
+      if (npcDef?.householdRoleIds?.length && !npcDef.householdRoleIds.includes(role.id)) return false
+      return relationshipTierRank[role.unlockTier] <= relationshipTierRank[relationshipContentTier.value]
+    }).slice(0, relationshipTuning.display.householdRolePreviewLimit)
+  }
+
+  const getHouseholdRoleAssignment = (npcId: string) => householdDivision.value.assignments.find(entry => entry.npcId === npcId) ?? null
+
+  const setNpcCompanionshipTier = (npcId: string, tier: 'P0' | 'P1' | 'P2') => {
+    const state = getNpcState(npcId)
+    if (!state) return null
+    state.companionshipTier = maxRelationshipTier(state.companionshipTier, tier)
+    return state
+  }
+
+  const assignHouseholdRole = (npcId: string, roleId: HouseholdRoleId, assignedWeekId = '') => {
+    const lockId = `relationship_assign_role_${npcId}`
+    if (!beginRelationshipAction(lockId)) return false
+    try {
+    const state = getNpcState(npcId)
+    const roleDef = WS09_HOUSEHOLD_ROLE_DEFS.find(role => role.id === roleId)
+    if (!state || !roleDef) return false
+    state.activeHouseholdRoleId = roleId
+    setNpcCompanionshipTier(npcId, roleDef.unlockTier)
+    householdDivision.value.unlockTier = maxRelationshipTier(householdDivision.value.unlockTier, roleDef.unlockTier)
+    householdDivision.value.assignments = [
+      ...householdDivision.value.assignments.filter(entry => entry.npcId !== npcId),
+      { npcId, roleId, assignedWeekId, progressDays: 0, completedCycles: 0 }
+    ]
+    return true
+    } finally {
+      finishRelationshipAction(lockId)
+    }
+  }
+
+  const clearHouseholdRole = (npcId: string) => {
+    const state = getNpcState(npcId)
+    if (state) state.activeHouseholdRoleId = null
+    householdDivision.value.assignments = householdDivision.value.assignments.filter(entry => entry.npcId !== npcId)
+  }
+
+  const progressHouseholdRole = (npcId: string, deltaDays = 1) => {
+    const entry = getHouseholdRoleAssignment(npcId)
+    if (!entry) return null
+    entry.progressDays = Math.max(0, entry.progressDays + deltaDays)
+    if (entry.progressDays >= 7) {
+      entry.completedCycles += 1
+      entry.progressDays = 0
+    }
+    return entry
+  }
+
+  const getFamilyWishOverview = () => ({
+    defs: relationshipFeatureFlags.familyWishEnabled
+      ? WS09_FAMILY_WISH_DEFS
+          .filter(def => relationshipTierRank[def.unlockTier] <= relationshipTierRank[relationshipContentTier.value])
+          .slice(0, relationshipTuning.display.familyWishPreviewLimit)
+      : [],
+    config: WS09_FAMILY_WISH_BOARD_CONFIG,
+    contentTier: relationshipContentTier.value,
+    state: familyWishBoard.value
+  })
+
+  const activateFamilyWish = (wishId: string, startedDayTag: string, expiresDayTag: string, targetValue: number, unlockTier: 'P0' | 'P1' | 'P2' = 'P0') => {
+    const lockId = `relationship_family_wish_${wishId}`
+    if (!beginRelationshipAction(lockId)) return
+    try {
+    if (!relationshipFeatureFlags.familyWishEnabled) return
+    if (!WS09_FAMILY_WISH_DEFS.some(wish => wish.id === wishId)) return
+    familyWishBoard.value = {
+      ...familyWishBoard.value,
+      unlockTier: maxRelationshipTier(familyWishBoard.value.unlockTier, unlockTier),
+      activeWishId: wishId,
+      progress: 0,
+      targetValue,
+      startedDayTag,
+      expiresDayTag,
+      rewardClaimed: false
+    }
+    } finally {
+      finishRelationshipAction(lockId)
+    }
+  }
+
+  const updateFamilyWishProgress = (delta: number, targetValue = familyWishBoard.value.targetValue) => {
+    familyWishBoard.value.progress = Math.max(0, familyWishBoard.value.progress + delta)
+    familyWishBoard.value.targetValue = Math.max(0, targetValue)
+    return familyWishBoard.value
+  }
+
+  const completeFamilyWish = (wishId = familyWishBoard.value.activeWishId ?? '') => {
+    const lockId = `relationship_complete_wish_${wishId}`
+    if (!beginRelationshipAction(lockId)) return false
+    try {
+    if (!wishId) return false
+    familyWishBoard.value = {
+      ...familyWishBoard.value,
+      activeWishId: null,
+      completedWishIds: familyWishBoard.value.completedWishIds.includes(wishId)
+        ? familyWishBoard.value.completedWishIds
+        : [...familyWishBoard.value.completedWishIds, wishId],
+      streakCount: familyWishBoard.value.streakCount + 1,
+      rewardClaimed: false
+    }
+    for (const state of npcStates.value.filter(entry => entry.married || entry.zhiji)) {
+      if (!state.completedFamilyWishIds.includes(wishId)) {
+        state.completedFamilyWishIds = [...state.completedFamilyWishIds, wishId]
+      }
+    }
+    return true
+    } finally {
+      finishRelationshipAction(lockId)
+    }
+  }
+
+  const getZhijiProjectState = (projectId: string, npcId?: string) =>
+    zhijiCompanionProjects.value.find(project => project.projectId === projectId && (npcId ? project.npcId === npcId : true)) ?? null
+
+  const registerZhijiProject = (projectId: string, npcId: string, activatedWeekId: string) => {
+    const lockId = `relationship_register_zhiji_project_${projectId}_${npcId}`
+    if (!beginRelationshipAction(lockId)) return false
+    try {
+    if (!relationshipFeatureFlags.zhijiProjectEnabled) return false
+    const projectDef = WS09_ZHIJI_COMPANION_PROJECT_DEFS.find(project => project.id === projectId)
+    const state = getNpcState(npcId)
+    if (!projectDef || !state) return false
+    state.unlockedCompanionProjectIds = state.unlockedCompanionProjectIds.includes(projectId)
+      ? state.unlockedCompanionProjectIds
+      : [...state.unlockedCompanionProjectIds, projectId]
+    setNpcCompanionshipTier(npcId, projectDef.unlockTier)
+    if (getZhijiProjectState(projectId, npcId)) return true
+    zhijiCompanionProjects.value = [
+      ...zhijiCompanionProjects.value,
+      {
+        projectId,
+        npcId,
+        unlockTier: projectDef.unlockTier,
+        progress: 0,
+        targetValue: projectDef.milestoneTarget,
+        activatedWeekId,
+        completed: false,
+        rewarded: false
+      }
+    ]
+    return true
+    } finally {
+      finishRelationshipAction(lockId)
+    }
+  }
+
+  const progressZhijiProject = (projectId: string, npcId: string, delta = 1) => {
+    const project = getZhijiProjectState(projectId, npcId)
+    if (!project) return null
+    project.progress = Math.max(0, project.progress + delta)
+    project.completed = project.progress >= project.targetValue
+    return project
+  }
+
+  const rewardZhijiProject = (projectId: string, npcId: string) => {
+    const lockId = `relationship_reward_zhiji_project_${projectId}_${npcId}`
+    if (!beginRelationshipAction(lockId)) return false
+    try {
+    const project = getZhijiProjectState(projectId, npcId)
+    if (!project || !project.completed) return false
+    if (project.rewarded) return false
+    project.rewarded = true
+    return true
+    } finally {
+      finishRelationshipAction(lockId)
+    }
+  }
+
+  const processRelationshipCycleTick = (payload: {
+    currentDayTag: string
+    currentWeekId: string
+    startedNewWeek: boolean
+  }) => {
+    const logs: string[] = []
+    householdDivision.value.unlockTier = relationshipContentTier.value
+    familyWishBoard.value.unlockTier = maxRelationshipTier(familyWishBoard.value.unlockTier, relationshipContentTier.value)
+
+    for (const entry of householdDivision.value.assignments) {
+      entry.progressDays += 1
+      if (entry.progressDays >= 7) {
+        entry.completedCycles += relationshipTuning.operations.householdWeeklyProgressCap
+        entry.progressDays = 0
+        const npcName = getNpcById(entry.npcId)?.name ?? entry.npcId
+        logs.push(`【家庭分工】${npcName}的协作分工已完成 1 个周期。`)
+      }
+    }
+    householdDivision.value.lastSettlementDayTag = payload.currentDayTag
+
+    if (payload.startedNewWeek) {
+      for (const child of children.value) {
+        child.trainingState.lessonsThisWeek = 0
+      }
+      familyWishBoard.value.rerollCount = 0
+      if (familyWishBoard.value.activeWishId) {
+        if (familyWishBoard.value.progress >= Math.max(1, familyWishBoard.value.targetValue)) {
+          const completedWishId = familyWishBoard.value.activeWishId
+          completeFamilyWish(completedWishId)
+          logs.push(`【家庭心愿】本周家庭心愿「${completedWishId}」已完成。`)
+        } else if (familyWishBoard.value.expiresDayTag) {
+          logs.push(`【家庭心愿】本周家庭心愿「${familyWishBoard.value.activeWishId}」已过期，将在下周重新编排。`)
+          familyWishBoard.value = {
+            ...familyWishBoard.value,
+            activeWishId: null,
+            progress: 0,
+            targetValue: 0,
+            startedDayTag: '',
+            expiresDayTag: '',
+            rewardClaimed: false
+          }
+        }
+      }
+      zhijiCompanionProjects.value = zhijiCompanionProjects.value.map(project =>
+        project.completed
+          ? project
+          : {
+              ...project,
+              activatedWeekId: payload.currentWeekId
+            }
+      )
+    }
+
+    return {
+      logs,
+      householdAssignmentCount: householdDivision.value.assignments.length,
+      activeFamilyWishId: familyWishBoard.value.activeWishId,
+      zhijiProjectCount: zhijiCompanionProjects.value.length,
+      tuning: relationshipTuning
+    }
+  }
+
   /** 赠玉结为知己 (需同性+2000好感) */
   const becomeZhiji = (npcId: string): { success: boolean; message: string; unlockedMessages?: string[] } => {
+    const lockId = `relationship_become_zhiji_${npcId}`
+    if (!beginRelationshipAction(lockId)) return { success: false, message: '关系结算中，请勿重复点击。' }
+    const snapshots = createRelationshipActionSnapshots()
+    try {
     const state = getNpcState(npcId)
     if (!state) return { success: false, message: 'NPC不存在。' }
 
@@ -781,10 +1131,20 @@ export const useNpcStore = defineStore('npc', () => {
       message: `${npcDef.name}郑重地接过了玉佩……你们结为了${label}！`,
       unlockedMessages: syncRelationshipPerks(npcId)
     }
+    } catch {
+      rollbackRelationshipAction(snapshots)
+      return { success: false, message: '知己结缘失败，已回滚。' }
+    } finally {
+      finishRelationshipAction(lockId)
+    }
   }
 
   /** 断绝知己之缘 */
   const dissolveZhiji = (): { success: boolean; message: string } => {
+    const lockId = 'relationship_dissolve_zhiji'
+    if (!beginRelationshipAction(lockId)) return { success: false, message: '关系结算中，请勿重复点击。' }
+    const snapshots = createRelationshipActionSnapshots()
+    try {
     const zhijiState = getZhiji()
     if (!zhijiState) return { success: false, message: '你还没有知己。' }
 
@@ -799,6 +1159,12 @@ export const useNpcStore = defineStore('npc', () => {
     daysZhiji.value = 0
 
     return { success: true, message: `你和${npcDef?.name ?? '知己'}的知己之缘已断。` }
+    } catch {
+      rollbackRelationshipAction(snapshots)
+      return { success: false, message: '断缘失败，已回滚。' }
+    } finally {
+      finishRelationshipAction(lockId)
+    }
   }
 
   /** 每日婚礼倒计时更新 */
@@ -829,6 +1195,10 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 离婚 */
   const divorce = (): { success: boolean; message: string } => {
+    const lockId = 'relationship_divorce'
+    if (!beginRelationshipAction(lockId)) return { success: false, message: '关系结算中，请勿重复点击。' }
+    const snapshots = createRelationshipActionSnapshots()
+    try {
     const spouse = getSpouse()
     if (!spouse) return { success: false, message: '你还没有结婚。' }
 
@@ -847,6 +1217,12 @@ export const useNpcStore = defineStore('npc', () => {
     cancelWedding()
 
     return { success: true, message: `你和${npcDef?.name ?? '配偶'}的婚姻结束了。` }
+    } catch {
+      rollbackRelationshipAction(snapshots)
+      return { success: false, message: '和离失败，已回滚。' }
+    } finally {
+      finishRelationshipAction(lockId)
+    }
   }
 
   /** 放生子女 */
@@ -920,7 +1296,8 @@ export const useNpcStore = defineStore('npc', () => {
           caredToday: false,
           giftedForPregnancy: false,
           companionToday: false,
-          medicalPlan: null
+          medicalPlan: null,
+          careMilestoneIds: []
         }
         if (spouse) spouse.friendship = Math.min(spouse.friendship + 100, getFriendshipCap(spouse))
         childProposalDeclinedCount.value = 0
@@ -1066,7 +1443,8 @@ export const useNpcStore = defineStore('npc', () => {
       stage: 'baby',
       friendship: birthQuality === 'healthy' ? 30 : 0,
       interactedToday: false,
-      birthQuality
+      birthQuality,
+      trainingState: createDefaultChildTrainingState()
     })
 
     pregnancy.value = null
@@ -1236,10 +1614,54 @@ export const useNpcStore = defineStore('npc', () => {
     if (getZhiji()) daysZhiji.value++
   }
 
+  const getRelationshipCompanionshipAuditOverview = () => {
+    const spouse = getSpouse()
+    const zhiji = getZhiji()
+    const partneredNpcCount = npcStates.value.filter(state => state.dating || state.married || state.zhiji).length
+    const totalTriggeredHeartEventCount = npcStates.value.reduce((total, state) => total + state.triggeredHeartEvents.length, 0)
+    return {
+      baselineSummary: relationshipCompanionshipBaselineAudit.baselineSummary,
+      coreMetrics: relationshipCompanionshipBaselineAudit.coreMetrics,
+      guardrailMetrics: relationshipCompanionshipBaselineAudit.guardrailMetrics,
+      rollbackRules: relationshipCompanionshipBaselineAudit.rollbackRules,
+      linkedSystems: relationshipCompanionshipBaselineAudit.linkedSystems,
+      linkedSystemRefs: relationshipCompanionshipBaselineAudit.linkedSystemRefs,
+      auditSubjectPools: relationshipCompanionshipBaselineAudit.auditSubjectPools,
+      spouseNpcId: spouse?.npcId ?? null,
+      zhijiNpcId: zhiji?.npcId ?? null,
+      partneredNpcCount,
+      childCount: children.value.length,
+      pregnancyStage: pregnancy.value?.stage ?? null,
+      weddingCountdown: weddingCountdown.value,
+      activeHelperCount: hiredHelpers.value.length,
+      activeHelperTaskLabels: hiredHelpers.value.map(helper => HELPER_TASK_NAMES[helper.task]),
+      householdDivision: householdDivision.value,
+      familyWishBoard: familyWishBoard.value,
+      zhijiCompanionProjectCount: zhijiCompanionProjects.value.length,
+      relationshipClueCount: relationshipClues.value.length,
+      totalTriggeredHeartEventCount
+    }
+  }
+
+  const getRelationshipDebugSnapshot = () => ({
+    contentTier: relationshipContentTier.value,
+    spouseNpcId: getSpouse()?.npcId ?? null,
+    zhijiNpcId: getZhiji()?.npcId ?? null,
+    householdAssignments: householdDivision.value.assignments,
+    familyWishBoard: familyWishBoard.value,
+    zhijiCompanionProjects: zhijiCompanionProjects.value,
+    childCount: children.value.length,
+    pregnancy: pregnancy.value,
+    hiredHelpers: hiredHelpers.value
+  })
+
   const serialize = () => {
     return {
       npcStates: npcStates.value,
       relationshipClues: relationshipClues.value,
+      householdDivision: householdDivision.value,
+      familyWishBoard: familyWishBoard.value,
+      zhijiCompanionProjects: zhijiCompanionProjects.value,
       children: children.value,
       nextChildId: nextChildId.value,
       daysMarried: daysMarried.value,
@@ -1254,7 +1676,7 @@ export const useNpcStore = defineStore('npc', () => {
       weddingCountdown: weddingCountdown.value,
       weddingNpcId: weddingNpcId.value,
       hiredHelpers: hiredHelpers.value,
-      friendshipVersion: 2
+      friendshipVersion: 3
     }
   }
 
@@ -1288,6 +1710,56 @@ export const useNpcStore = defineStore('npc', () => {
         clueId: String(clue.clueId),
         text: String(clue.text)
       }))
+    householdDivision.value = (() => {
+      const raw = (data as any).householdDivision
+      if (!raw || typeof raw !== 'object') return createDefaultHouseholdDivisionState()
+      return {
+        version: Math.max(1, Number(raw.version) || 1),
+        unlockTier: ['P0', 'P1', 'P2'].includes(raw.unlockTier) ? raw.unlockTier : 'P0',
+        assignments: Array.isArray(raw.assignments)
+          ? raw.assignments
+              .filter((entry: any) => entry && typeof entry === 'object' && typeof entry.npcId === 'string')
+              .map((entry: any) => ({
+                npcId: entry.npcId,
+                roleId: ['field_support', 'home_care', 'craft_assist', 'social_coordination'].includes(entry.roleId) ? entry.roleId : 'field_support',
+                assignedWeekId: typeof entry.assignedWeekId === 'string' ? entry.assignedWeekId : '',
+                progressDays: Math.max(0, Number(entry.progressDays) || 0),
+                completedCycles: Math.max(0, Number(entry.completedCycles) || 0)
+              }))
+          : [],
+        lastSettlementDayTag: typeof raw.lastSettlementDayTag === 'string' ? raw.lastSettlementDayTag : '',
+        pendingRewardIds: Array.isArray(raw.pendingRewardIds) ? raw.pendingRewardIds.filter((id: unknown) => typeof id === 'string') : []
+      }
+    })()
+    familyWishBoard.value = (() => {
+      const raw = (data as any).familyWishBoard
+      if (!raw || typeof raw !== 'object') return createDefaultFamilyWishBoardState()
+      return {
+        version: Math.max(1, Number(raw.version) || 1),
+        unlockTier: ['P0', 'P1', 'P2'].includes(raw.unlockTier) ? raw.unlockTier : 'P0',
+        activeWishId: typeof raw.activeWishId === 'string' ? raw.activeWishId : null,
+        completedWishIds: Array.isArray(raw.completedWishIds) ? raw.completedWishIds.filter((id: unknown) => typeof id === 'string') : [],
+        rerollCount: Math.max(0, Number(raw.rerollCount) || 0),
+        streakCount: Math.max(0, Number(raw.streakCount) || 0),
+        progress: Math.max(0, Number(raw.progress) || 0),
+        targetValue: Math.max(0, Number(raw.targetValue) || 0),
+        startedDayTag: typeof raw.startedDayTag === 'string' ? raw.startedDayTag : '',
+        expiresDayTag: typeof raw.expiresDayTag === 'string' ? raw.expiresDayTag : '',
+        rewardClaimed: !!raw.rewardClaimed
+      }
+    })()
+    zhijiCompanionProjects.value = (Array.isArray((data as any).zhijiCompanionProjects) ? (data as any).zhijiCompanionProjects : [])
+      .filter((project: any) => project && typeof project === 'object' && typeof project.projectId === 'string' && typeof project.npcId === 'string')
+      .map((project: any) => ({
+        projectId: project.projectId,
+        npcId: project.npcId,
+        unlockTier: ['P0', 'P1', 'P2'].includes(project.unlockTier) ? project.unlockTier : 'P0',
+        progress: Math.max(0, Number(project.progress) || 0),
+        targetValue: Math.max(0, Number(project.targetValue) || 0),
+        activatedWeekId: typeof project.activatedWeekId === 'string' ? project.activatedWeekId : '',
+        completed: !!project.completed,
+        rewarded: !!project.rewarded
+      }))
     children.value = (Array.isArray((data as any).children) ? (data as any).children : [])
       .filter((c: any) => c && typeof c === 'object')
       .map((c: any) => ({
@@ -1297,7 +1769,14 @@ export const useNpcStore = defineStore('npc', () => {
         stage: ['baby', 'toddler', 'child', 'teen'].includes(c.stage) ? c.stage : 'baby',
         friendship: Math.max(0, Number(c.friendship) || 0),
         interactedToday: !!c.interactedToday,
-        birthQuality: ['normal', 'premature', 'healthy'].includes(c.birthQuality) ? c.birthQuality : 'normal'
+        birthQuality: ['normal', 'premature', 'healthy'].includes(c.birthQuality) ? c.birthQuality : 'normal',
+        trainingState: c.trainingState && typeof c.trainingState === 'object'
+          ? {
+              focus: ['farm', 'craft', 'social', 'spirit'].includes(c.trainingState.focus) ? c.trainingState.focus : null,
+              lessonsThisWeek: Math.max(0, Number(c.trainingState.lessonsThisWeek) || 0),
+              milestoneIds: Array.isArray(c.trainingState.milestoneIds) ? c.trainingState.milestoneIds.filter((id: unknown) => typeof id === 'string') : []
+            }
+          : createDefaultChildTrainingState()
       }))
     // 旧存档无 nextChildId → 从已有子女推算
     nextChildId.value = Math.max(
@@ -1321,7 +1800,10 @@ export const useNpcStore = defineStore('npc', () => {
         caredToday: !!rawPregnancy.caredToday,
         giftedForPregnancy: !!rawPregnancy.giftedForPregnancy,
         companionToday: !!rawPregnancy.companionToday,
-        medicalPlan: ['normal', 'advanced', 'luxury'].includes(rawPregnancy.medicalPlan) ? rawPregnancy.medicalPlan : null
+        medicalPlan: ['normal', 'advanced', 'luxury'].includes(rawPregnancy.medicalPlan) ? rawPregnancy.medicalPlan : null,
+        careMilestoneIds: Array.isArray(rawPregnancy.careMilestoneIds)
+          ? rawPregnancy.careMilestoneIds.filter((id: unknown) => typeof id === 'string')
+          : []
       }
     })()
     childProposalPending.value = (data as any).childProposalPending ?? false
@@ -1343,7 +1825,8 @@ export const useNpcStore = defineStore('npc', () => {
         caredToday: false,
         giftedForPregnancy: false,
         companionToday: false,
-        medicalPlan: null
+        medicalPlan: null,
+        careMilestoneIds: []
       }
     }
 
@@ -1359,6 +1842,7 @@ export const useNpcStore = defineStore('npc', () => {
           dailyWage: Math.max(0, Number(helper.dailyWage) || HELPER_WAGES[task])
         }
       })
+    relationshipActionLocks.value = []
   }
 
   const rehydrateRelationshipPerks = (options: { grantInventoryRewards?: boolean; emitMessages?: boolean } = {}) => {
@@ -1375,6 +1859,9 @@ export const useNpcStore = defineStore('npc', () => {
     daysMarried,
     daysZhiji,
     pregnancy,
+    householdDivision,
+    familyWishBoard,
+    zhijiCompanionProjects,
     childProposalPending,
     childProposalDeclinedCount,
     daysSinceProposalDecline,
@@ -1410,6 +1897,21 @@ export const useNpcStore = defineStore('npc', () => {
     propose,
     getSpouse,
     getZhiji,
+    relationshipContentTier,
+    getAvailableHouseholdRoles,
+    getHouseholdRoleAssignment,
+    assignHouseholdRole,
+    clearHouseholdRole,
+    progressHouseholdRole,
+    getFamilyWishOverview,
+    activateFamilyWish,
+    updateFamilyWishProgress,
+    completeFamilyWish,
+    getZhijiProjectState,
+    registerZhijiProject,
+    progressZhijiProject,
+    rewardZhijiProject,
+    processRelationshipCycleTick,
     becomeZhiji,
     dissolveZhiji,
     dailyWeddingUpdate,
@@ -1435,6 +1937,9 @@ export const useNpcStore = defineStore('npc', () => {
     tipGivenToday,
     PREGNANCY_STAGE_CONFIG,
     MEDICAL_PLANS,
+    relationshipCompanionshipBaselineAudit,
+    getRelationshipCompanionshipAuditOverview,
+    getRelationshipDebugSnapshot,
     rehydrateRelationshipPerks,
     serialize,
     deserialize

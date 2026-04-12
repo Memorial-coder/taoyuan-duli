@@ -1,10 +1,23 @@
-import { computed, ref } from 'vue'
+﻿import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { getItemById, getThemeWeekBySeason } from '@/data'
+import { getItemById, getThemeWeekBySeason, getWeeklyGoalsBySeasonWeek } from '@/data'
+import {
+  DAILY_GOAL_DEFS,
+  GOAL_BIAS_MAP,
+  GOAL_SOURCE_LABELS,
+  LONG_TERM_GOAL_DEFS,
+  MAIN_QUEST_STAGE_DEFS,
+  SEASON_GOAL_DEFS,
+  createDefaultEventOperationsState,
+  WS10_EVENT_CAMPAIGN_DEFS,
+  WS10_EVENT_MAIL_TEMPLATE_REFS,
+  WS10_EVENT_OPERATIONS_BASELINE_AUDIT
+} from '@/data/goals'
 import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
 import { WEEKLY_BUDGET_CHANNEL_MAP, WEEKLY_BUDGET_CHANNELS } from '@/data/weeklyBudgets'
 import { ECONOMY_SINK_CONTENT_DEFS, ECONOMY_TUNING_CONFIG } from '@/data/market'
 import type {
+  EventOperationsState,
   LateGameMetricSnapshot,
   RewardTicketType,
   ThemeWeekState,
@@ -26,6 +39,8 @@ import { useInventoryStore } from './useInventoryStore'
 import { useMuseumStore } from './useMuseumStore'
 import { useNpcStore } from './useNpcStore'
 import { usePlayerStore } from './usePlayerStore'
+import { useShopStore } from './useShopStore'
+import { useSettingsStore } from './useSettingsStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { useWalletStore } from './useWalletStore'
 import { getWeekCycleInfo, type WeekCycleInfo } from '@/utils/weekCycle'
@@ -69,13 +84,26 @@ interface GoalTemplate {
   reward: GoalReward
 }
 
-type GoalSource = 'random' | 'season' | 'archetype_bias'
+type GoalSource = 'random' | 'season' | 'weekly' | 'archetype_bias'
 
 export interface GoalState extends GoalTemplate {
   baselineValue: number
   completed: boolean
   rewarded: boolean
   source: GoalSource
+}
+
+interface WeeklyGoalDef extends GoalTemplate {
+  season: 'spring' | 'summer' | 'autumn' | 'winter'
+  weekOfSeason: 1 | 2 | 3 | 4
+  linkedThemeWeekId?: string
+}
+
+export interface WeeklyGoalState extends GoalState {
+  season: 'spring' | 'summer' | 'autumn' | 'winter'
+  weekOfSeason: 1 | 2 | 3 | 4
+  weekId: string
+  linkedThemeWeekId?: string
 }
 
 interface MainQuestStageTemplate {
@@ -97,7 +125,7 @@ export interface MainQuestStageState {
 }
 
 const FRIENDSHIP_GOAL_LEVELS = new Set(['friendly', 'bestFriend'])
-const GOAL_SAVE_VERSION = 3
+const GOAL_SAVE_VERSION = 4
 const WEEKLY_METRIC_ARCHIVE_VERSION = 1
 const WEEKLY_METRIC_ARCHIVE_LIMIT = 4
 const WEEKLY_BUDGET_ARCHIVE_LIMIT = 8
@@ -239,718 +267,20 @@ const getAbsoluteDay = (year: number, season: 'spring' | 'summer' | 'autumn' | '
   return (year - 1) * 112 + seasonIndex * 28 + day
 }
 
-const MAIN_QUEST_STAGE_DEFS: MainQuestStageTemplate[] = [
-  {
-    id: 1,
-    title: '田园新生',
-    description: '先学会最基础的生活方式：播种、钓鱼、做饭。',
-    conditions: [
-      {
-        id: 'main_stage_1_harvest',
-        title: '初次丰收',
-        description: '累计收获 15 株作物。',
-        metric: 'totalCropsHarvested',
-        targetValue: 15,
-        reward: {}
-      },
-      {
-        id: 'main_stage_1_fish',
-        title: '会钓鱼了',
-        description: '累计钓到 5 条鱼。',
-        metric: 'totalFishCaught',
-        targetValue: 5,
-        reward: {}
-      },
-      {
-        id: 'main_stage_1_cook',
-        title: '开灶生火',
-        description: '累计完成 1 次烹饪。',
-        metric: 'totalRecipesCooked',
-        targetValue: 1,
-        reward: {}
-      }
-    ],
-    reward: {
-      money: 500,
-      reputation: 20,
-      items: [{ itemId: 'herb', quantity: 3 }],
-      unlockHint: '你已经掌握了桃源生活的基本节奏。'
-    }
-  },
-  {
-    id: 2,
-    title: '经营起步',
-    description: '开始走向真正的经营：赚钱、下矿、结识村民。',
-    conditions: [
-      {
-        id: 'main_stage_2_money',
-        title: '站稳脚跟',
-        description: '累计赚到 2000 文。',
-        metric: 'totalMoneyEarned',
-        targetValue: 2000,
-        reward: {}
-      },
-      {
-        id: 'main_stage_2_mine',
-        title: '第一次深入矿洞',
-        description: '矿洞最高到达 10 层。',
-        metric: 'highestMineFloor',
-        targetValue: 10,
-        reward: {}
-      },
-      {
-        id: 'main_stage_2_friend',
-        title: '在村里站住脚',
-        description: '让 1 位村民达到友好。',
-        metric: 'friendlyNpcCount',
-        targetValue: 1,
-        reward: {}
-      }
-    ],
-    reward: {
-      money: 1200,
-      reputation: 35,
-      items: [{ itemId: 'bamboo', quantity: 5 }],
-      unlockHint: '你已经不只是生存，而是真正开始经营自己的桃源。'
-    }
-  },
-  {
-    id: 3,
-    title: '家业渐丰',
-    description: '扩建家园，解锁新区域，开始拥有稳定的发展节奏。',
-    conditions: [
-      {
-        id: 'main_stage_3_home',
-        title: '翻修农舍',
-        description: '将农舍提升到 1 级。',
-        metric: 'farmhouseLevel',
-        targetValue: 1,
-        reward: {}
-      },
-      {
-        id: 'main_stage_3_cave',
-        title: '新的去处',
-        description: '解锁山洞。',
-        metric: 'caveUnlocked',
-        targetValue: 1,
-        reward: {}
-      },
-      {
-        id: 'main_stage_3_bundle',
-        title: '回应村庄需要',
-        description: '完成 1 个社区目标。（图鉴→祠堂页签可提交物品完成）',
-        metric: 'completedBundles',
-        targetValue: 1,
-        reward: {}
-      }
-    ],
-    reward: {
-      money: 2500,
-      reputation: 50,
-      items: [{ itemId: 'wild_mushroom', quantity: 4 }],
-      unlockHint: '你的家业已经有了模样，新的发展方向正在展开。'
-    }
-  },
-  {
-    id: 4,
-    title: '世外桃源',
-    description: '迈入真正的中后期：积累财富、扩大影响、打造理想生活。',
-    conditions: [
-      {
-        id: 'main_stage_4_money',
-        title: '家底殷实',
-        description: '累计赚到 30000 文。',
-        metric: 'totalMoneyEarned',
-        targetValue: 30000,
-        reward: {}
-      },
-      {
-        id: 'main_stage_4_social',
-        title: '四方和乐',
-        description: '让 4 位村民达到友好。',
-        metric: 'friendlyNpcCount',
-        targetValue: 4,
-        reward: {}
-      },
-      {
-        id: 'main_stage_4_collect',
-        title: '见多识广',
-        description: '累计发现 25 种物品。',
-        metric: 'discoveredCount',
-        targetValue: 25,
-        reward: {}
-      }
-    ],
-    reward: {
-      money: 5000,
-      reputation: 100,
-      items: [{ itemId: 'food_rice_ball', quantity: 3 }],
-      unlockHint: '你已经把桃源经营成了真正令人向往的地方。'
-    }
-  },
-  {
-    id: 5,
-    title: '桃源盛世',
-    description: '达成真正的传奇成就：功成名就、广交挚友、探遍矿洞、著书立说。',
-    conditions: [
-      {
-        id: 'main_stage_5_wealth',
-        title: '富甲一方',
-        description: '累计赚到 80000 文。',
-        metric: 'totalMoneyEarned',
-        targetValue: 80000,
-        reward: {}
-      },
-      {
-        id: 'main_stage_5_social',
-        title: '挚友遍桃源',
-        description: '让 6 位村民达到友好。',
-        metric: 'friendlyNpcCount',
-        targetValue: 6,
-        reward: {}
-      },
-      {
-        id: 'main_stage_5_mine',
-        title: '矿洞探秘',
-        description: '矿洞最高到达 80 层。',
-        metric: 'highestMineFloor',
-        targetValue: 80,
-        reward: {}
-      },
-      {
-        id: 'main_stage_5_collect',
-        title: '博物志成',
-        description: '累计发现 50 种物品。',
-        metric: 'discoveredCount',
-        targetValue: 50,
-        reward: {}
-      }
-    ],
-    reward: {
-      money: 12000,
-      reputation: 200,
-      items: [{ itemId: 'food_rice_ball', quantity: 8 }, { itemId: 'wild_mushroom', quantity: 6 }],
-      unlockHint: '你的桃源已成为世人口耳相传的传奇之地。恭喜你完成了所有主线里程碑！'
-    }
-  }
-]
-
-const SEASON_GOAL_DEFS: Record<'spring' | 'summer' | 'autumn' | 'winter', GoalTemplate[]> = {
-  spring: [
-    {
-      id: 'season_spring_harvest',
-      title: '春耕有成',
-      description: '本季收获 20 株作物。',
-      metric: 'totalCropsHarvested',
-      targetValue: 20,
-      reward: { money: 600, reputation: 10, items: [{ itemId: 'herb', quantity: 2 }] }
-    },
-    {
-      id: 'season_spring_fish',
-      title: '春水试钓',
-      description: '本季钓到 6 条鱼。',
-      metric: 'totalFishCaught',
-      targetValue: 6,
-      reward: { money: 500, reputation: 8, items: [{ itemId: 'food_rice_ball', quantity: 1 }] }
-    },
-    {
-      id: 'season_spring_income',
-      title: '春日积蓄',
-      description: '本季赚到 3000 文。',
-      metric: 'totalMoneyEarned',
-      targetValue: 3000,
-      reward: { money: 800, reputation: 12, items: [{ itemId: 'bamboo', quantity: 3 }] }
-    },
-    {
-      id: 'season_spring_cook',
-      title: '春灶开火',
-      description: '本季完成 2 次烹饪。',
-      metric: 'totalRecipesCooked',
-      targetValue: 2,
-      reward: { money: 550, reputation: 8, items: [{ itemId: 'herb', quantity: 3 }] }
-    },
-    {
-      id: 'season_spring_social',
-      title: '春日结识',
-      description: '本季新增 1 位友好村民。',
-      metric: 'friendlyNpcCount',
-      targetValue: 1,
-      reward: { money: 600, reputation: 12, items: [{ itemId: 'food_rice_ball', quantity: 2 }] }
-    }
-  ],
-  summer: [
-    {
-      id: 'season_summer_harvest',
-      title: '盛夏丰收',
-      description: '本季收获 35 株作物。',
-      metric: 'totalCropsHarvested',
-      targetValue: 35,
-      reward: { money: 900, reputation: 12, items: [{ itemId: 'herb', quantity: 2 }] }
-    },
-    {
-      id: 'season_summer_income',
-      title: '暑月进账',
-      description: '本季赚到 6000 文。',
-      metric: 'totalMoneyEarned',
-      targetValue: 6000,
-      reward: { money: 1200, reputation: 15, items: [{ itemId: 'bamboo', quantity: 4 }] }
-    },
-    {
-      id: 'season_summer_recipe',
-      title: '夏日灶火',
-      description: '本季完成 3 次烹饪。',
-      metric: 'totalRecipesCooked',
-      targetValue: 3,
-      reward: { money: 700, reputation: 10, items: [{ itemId: 'food_rice_ball', quantity: 2 }] }
-    },
-    {
-      id: 'season_summer_fish',
-      title: '夏日垂钓',
-      description: '本季钓到 10 条鱼。',
-      metric: 'totalFishCaught',
-      targetValue: 10,
-      reward: { money: 750, reputation: 10, items: [{ itemId: 'herb', quantity: 5 }] }
-    },
-    {
-      id: 'season_summer_mine',
-      title: '夏日探矿',
-      description: '本季将矿洞最高层再推进 8 层。',
-      metric: 'highestMineFloor',
-      targetValue: 8,
-      reward: { money: 850, reputation: 12, items: [{ itemId: 'gold_ore', quantity: 3 }] }
-    }
-  ],
-  autumn: [
-    {
-      id: 'season_autumn_harvest',
-      title: '秋收满仓',
-      description: '本季收获 45 株作物。',
-      metric: 'totalCropsHarvested',
-      targetValue: 45,
-      reward: { money: 1100, reputation: 15, items: [{ itemId: 'wild_mushroom', quantity: 2 }] }
-    },
-    {
-      id: 'season_autumn_income',
-      title: '秋账丰盈',
-      description: '本季赚到 9000 文。',
-      metric: 'totalMoneyEarned',
-      targetValue: 9000,
-      reward: { money: 1500, reputation: 18, items: [{ itemId: 'bamboo', quantity: 5 }] }
-    },
-    {
-      id: 'season_autumn_collect',
-      title: '山野采存',
-      description: '本季累计发现 6 种新物品。',
-      metric: 'discoveredCount',
-      targetValue: 6,
-      reward: { money: 900, reputation: 12, items: [{ itemId: 'herb', quantity: 4 }] }
-    },
-    {
-      id: 'season_autumn_fish',
-      title: '秋水钓获',
-      description: '本季钓到 12 条鱼。',
-      metric: 'totalFishCaught',
-      targetValue: 12,
-      reward: { money: 950, reputation: 12, items: [{ itemId: 'herb', quantity: 6 }] }
-    },
-    {
-      id: 'season_autumn_social',
-      title: '秋日互访',
-      description: '本季新增 1 位友好村民。',
-      metric: 'friendlyNpcCount',
-      targetValue: 1,
-      reward: { money: 850, reputation: 14, items: [{ itemId: 'wild_mushroom', quantity: 3 }] }
-    }
-  ],
-  winter: [
-    {
-      id: 'season_winter_mine',
-      title: '冬季探矿',
-      description: '本季将矿洞最高层再推进 10 层。',
-      metric: 'highestMineFloor',
-      targetValue: 10,
-      reward: { money: 1300, reputation: 15, items: [{ itemId: 'wild_mushroom', quantity: 3 }] }
-    },
-    {
-      id: 'season_winter_cook',
-      title: '围炉做饭',
-      description: '本季完成 4 次烹饪。',
-      metric: 'totalRecipesCooked',
-      targetValue: 4,
-      reward: { money: 1000, reputation: 12, items: [{ itemId: 'food_rice_ball', quantity: 2 }] }
-    },
-    {
-      id: 'season_winter_social',
-      title: '冬日走亲',
-      description: '本季新增 1 位友好村民。',
-      metric: 'friendlyNpcCount',
-      targetValue: 1,
-      reward: { money: 900, reputation: 15, items: [{ itemId: 'herb', quantity: 3 }] }
-    },
-    {
-      id: 'season_winter_income',
-      title: '冬日营生',
-      description: '本季赚到 5000 文。',
-      metric: 'totalMoneyEarned',
-      targetValue: 5000,
-      reward: { money: 1100, reputation: 14, items: [{ itemId: 'bamboo', quantity: 4 }] }
-    },
-    {
-      id: 'season_winter_fish',
-      title: '冬日冰钓',
-      description: '本季钓到 8 条鱼。',
-      metric: 'totalFishCaught',
-      targetValue: 8,
-      reward: { money: 850, reputation: 12, items: [{ itemId: 'herb', quantity: 4 }] }
-    }
-  ]
-}
-
-const DAILY_GOAL_DEFS: Record<'spring' | 'summer' | 'autumn' | 'winter', GoalTemplate[]> = {
-  spring: [
-    {
-      id: 'daily_spring_harvest',
-      title: '今日春耕',
-      description: '今日收获 5 株作物。',
-      metric: 'totalCropsHarvested',
-      targetValue: 5,
-      reward: { money: 180, reputation: 3 }
-    },
-    {
-      id: 'daily_spring_fish',
-      title: '今日试钓',
-      description: '今日钓到 2 条鱼。',
-      metric: 'totalFishCaught',
-      targetValue: 2,
-      reward: { money: 160, reputation: 2 }
-    },
-    {
-      id: 'daily_spring_income',
-      title: '今日进账',
-      description: '今日赚到 800 文。',
-      metric: 'totalMoneyEarned',
-      targetValue: 800,
-      reward: { money: 220, reputation: 3 }
-    },
-    {
-      id: 'daily_spring_discovery',
-      title: '今日见闻',
-      description: '今日发现 1 种新物品。',
-      metric: 'discoveredCount',
-      targetValue: 1,
-      reward: { money: 180, reputation: 3 }
-    }
-  ],
-  summer: [
-    {
-      id: 'daily_summer_harvest',
-      title: '今日抢收',
-      description: '今日收获 8 株作物。',
-      metric: 'totalCropsHarvested',
-      targetValue: 8,
-      reward: { money: 220, reputation: 3 }
-    },
-    {
-      id: 'daily_summer_income',
-      title: '今日大卖',
-      description: '今日赚到 1200 文。',
-      metric: 'totalMoneyEarned',
-      targetValue: 1200,
-      reward: { money: 260, reputation: 3 }
-    },
-    {
-      id: 'daily_summer_cook',
-      title: '今日开灶',
-      description: '今日完成 1 次烹饪。',
-      metric: 'totalRecipesCooked',
-      targetValue: 1,
-      reward: { money: 180, reputation: 2 }
-    },
-    {
-      id: 'daily_summer_fish',
-      title: '今日鱼获',
-      description: '今日钓到 3 条鱼。',
-      metric: 'totalFishCaught',
-      targetValue: 3,
-      reward: { money: 180, reputation: 2 }
-    }
-  ],
-  autumn: [
-    {
-      id: 'daily_autumn_harvest',
-      title: '今日丰收',
-      description: '今日收获 10 株作物。',
-      metric: 'totalCropsHarvested',
-      targetValue: 10,
-      reward: { money: 260, reputation: 4 }
-    },
-    {
-      id: 'daily_autumn_income',
-      title: '今日结账',
-      description: '今日赚到 1500 文。',
-      metric: 'totalMoneyEarned',
-      targetValue: 1500,
-      reward: { money: 300, reputation: 4 }
-    },
-    {
-      id: 'daily_autumn_discovery',
-      title: '今日采奇',
-      description: '今日发现 1 种新物品。',
-      metric: 'discoveredCount',
-      targetValue: 1,
-      reward: { money: 200, reputation: 3 }
-    },
-    {
-      id: 'daily_autumn_cook',
-      title: '今日备冬',
-      description: '今日完成 1 次烹饪。',
-      metric: 'totalRecipesCooked',
-      targetValue: 1,
-      reward: { money: 180, reputation: 2 }
-    }
-  ],
-  winter: [
-    {
-      id: 'daily_winter_mine',
-      title: '今日探矿',
-      description: '今日将矿洞最高层推进 5 层。',
-      metric: 'highestMineFloor',
-      targetValue: 5,
-      reward: { money: 260, reputation: 4 }
-    },
-    {
-      id: 'daily_winter_cook',
-      title: '今日暖胃',
-      description: '今日完成 1 次烹饪。',
-      metric: 'totalRecipesCooked',
-      targetValue: 1,
-      reward: { money: 180, reputation: 2 }
-    },
-    {
-      id: 'daily_winter_fish',
-      title: '今日冰钓',
-      description: '今日钓到 2 条鱼。',
-      metric: 'totalFishCaught',
-      targetValue: 2,
-      reward: { money: 180, reputation: 2 }
-    },
-    {
-      id: 'daily_winter_income',
-      title: '今日补贴',
-      description: '今日赚到 1000 文。',
-      metric: 'totalMoneyEarned',
-      targetValue: 1000,
-      reward: { money: 240, reputation: 3 }
-    }
-  ]
-}
-
-const LONG_TERM_GOAL_DEFS: GoalTemplate[] = [
-  // ── 财富积累 ──
-  {
-    id: 'long_money_1',
-    title: '积蓄小成',
-    description: '累计赚到 20000 文。',
-    metric: 'totalMoneyEarned',
-    targetValue: 20000,
-    reward: { money: 2000, reputation: 30, unlockHint: '你已经开始拥有稳定的家底。' }
-  },
-  {
-    id: 'long_money_2',
-    title: '家财万贯',
-    description: '累计赚到 50000 文。',
-    metric: 'totalMoneyEarned',
-    targetValue: 50000,
-    reward: { money: 5000, reputation: 60, items: [{ itemId: 'bamboo', quantity: 10 }], unlockHint: '你的名声已传遍周边村落。' }
-  },
-  {
-    id: 'long_money_3',
-    title: '富甲一方',
-    description: '累计赚到 100000 文。',
-    metric: 'totalMoneyEarned',
-    targetValue: 100000,
-    reward: { money: 12000, reputation: 120, items: [{ itemId: 'gold_ore', quantity: 5 }], unlockHint: '桃源之名，远近皆知。' }
-  },
-
-  // ── 家园建设 ──
-  {
-    id: 'long_home_1',
-    title: '家园升级',
-    description: '将农舍提升到 2 级（宅院）。',
-    metric: 'farmhouseLevel',
-    targetValue: 2,
-    reward: { money: 2500, reputation: 40, items: [{ itemId: 'bamboo', quantity: 8 }] }
-  },
-  {
-    id: 'long_home_2',
-    title: '豪华宅邸',
-    description: '将农舍提升到 3 级（酒窖宅院）。',
-    metric: 'farmhouseLevel',
-    targetValue: 3,
-    reward: { money: 8000, reputation: 80, items: [{ itemId: 'wild_mushroom', quantity: 6 }], unlockHint: '你的宅院已是桃源最气派的居所。' }
-  },
-
-  // ── 矿洞探索 ──
-  {
-    id: 'long_mine_1',
-    title: '深层探路',
-    description: '矿洞最高到达 60 层。',
-    metric: 'highestMineFloor',
-    targetValue: 60,
-    reward: { money: 2600, reputation: 45, items: [{ itemId: 'gold_ore', quantity: 8 }] }
-  },
-  {
-    id: 'long_mine_2',
-    title: '矿洞征服者',
-    description: '矿洞最高到达 100 层。',
-    metric: 'highestMineFloor',
-    targetValue: 100,
-    reward: { money: 6000, reputation: 80, items: [{ itemId: 'gold_ore', quantity: 15 }], unlockHint: '矿洞深处的秘密，只有你知晓。' }
-  },
-
-  // ── 钓鱼成就 ──
-  {
-    id: 'long_fish_1',
-    title: '垂钓有成',
-    description: '累计钓到 30 条鱼。',
-    metric: 'totalFishCaught',
-    targetValue: 30,
-    reward: { money: 2000, reputation: 35, items: [{ itemId: 'herb', quantity: 10 }] }
-  },
-  {
-    id: 'long_fish_2',
-    title: '桃源渔翁',
-    description: '累计钓到 80 条鱼。',
-    metric: 'totalFishCaught',
-    targetValue: 80,
-    reward: { money: 4500, reputation: 60, items: [{ itemId: 'crab_pot', quantity: 2 }], unlockHint: '村民们都称你为桃源第一渔翁。' }
-  },
-
-  // ── 烹饪成就 ──
-  {
-    id: 'long_cook_1',
-    title: '家常好厨',
-    description: '累计完成 20 次烹饪。',
-    metric: 'totalRecipesCooked',
-    targetValue: 20,
-    reward: { money: 2200, reputation: 35, items: [{ itemId: 'herb', quantity: 8 }] }
-  },
-  {
-    id: 'long_cook_2',
-    title: '桃源名厨',
-    description: '累计完成 60 次烹饪。',
-    metric: 'totalRecipesCooked',
-    targetValue: 60,
-    reward: { money: 5500, reputation: 70, items: [{ itemId: 'ginseng', quantity: 3 }], unlockHint: '你的厨艺已令村中所有人叹服。' }
-  },
-
-  // ── 农耕成就 ──
-  {
-    id: 'long_crop_1',
-    title: '丰收大户',
-    description: '累计收获 200 株作物。',
-    metric: 'totalCropsHarvested',
-    targetValue: 200,
-    reward: { money: 3000, reputation: 45, items: [{ itemId: 'bamboo', quantity: 6 }] }
-  },
-  {
-    id: 'long_crop_2',
-    title: '耕耘不辍',
-    description: '累计收获 500 株作物。',
-    metric: 'totalCropsHarvested',
-    targetValue: 500,
-    reward: { money: 7000, reputation: 90, items: [{ itemId: 'bamboo', quantity: 12 }], unlockHint: '这片土地已被你的汗水浸润得格外肥沃。' }
-  },
-
-  // ── 社交成就 ──
-  {
-    id: 'long_social_1',
-    title: '村中熟面孔',
-    description: '让 4 位村民达到友好。',
-    metric: 'friendlyNpcCount',
-    targetValue: 4,
-    reward: { money: 1800, reputation: 35, items: [{ itemId: 'food_rice_ball', quantity: 3 }] }
-  },
-  {
-    id: 'long_social_2',
-    title: '八方挚友',
-    description: '让 8 位村民达到友好或以上。',
-    metric: 'friendlyNpcCount',
-    targetValue: 8,
-    reward: { money: 5000, reputation: 80, items: [{ itemId: 'food_rice_ball', quantity: 8 }], unlockHint: '整个桃源都是你的朋友。' }
-  },
-
-  // ── 收藏图鉴 ──
-  {
-    id: 'long_collect_1',
-    title: '见闻渐丰',
-    description: '累计发现 30 种物品。',
-    metric: 'discoveredCount',
-    targetValue: 30,
-    reward: { money: 1800, reputation: 35, items: [{ itemId: 'wild_mushroom', quantity: 4 }] }
-  },
-  {
-    id: 'long_collect_2',
-    title: '博物达人',
-    description: '累计发现 60 种物品。',
-    metric: 'discoveredCount',
-    targetValue: 60,
-    reward: { money: 4000, reputation: 65, items: [{ itemId: 'wild_mushroom', quantity: 8 }], unlockHint: '桃源的物产几乎被你摸了个遍。' }
-  },
-
-  // ── 社区建设 ──
-  {
-    id: 'long_bundle_1',
-    title: '村庄栋梁',
-    description: '累计完成 3 个社区目标。（图鉴→祠堂页签可提交物品完成）',
-    metric: 'completedBundles',
-    targetValue: 3,
-    reward: { money: 3200, reputation: 50, items: [{ itemId: 'bamboo', quantity: 4 }] }
-  },
-  {
-    id: 'long_bundle_2',
-    title: '社区中坚',
-    description: '累计完成 6 个社区目标。（图鉴→祠堂页签可提交物品完成）',
-    metric: 'completedBundles',
-    targetValue: 6,
-    reward: { money: 7500, reputation: 100, items: [{ itemId: 'bamboo', quantity: 8 }], unlockHint: '你为桃源的繁荣做出了卓越贡献。' }
-  },
-
-  // ── 蟹笼达人 ──
-  {
-    id: 'long_crabpot_1',
-    title: '蟹笼渔家',
-    description: '同时拥有 3 个蟹笼。（钓鱼页签可购买或制作蟹笼，放置后计入数量）',
-    metric: 'crabPotCount',
-    targetValue: 3,
-    reward: { money: 2400, reputation: 40, items: [{ itemId: 'herb', quantity: 15 }] }
-  },
-
-  // ── 家庭成就 ──
-  {
-    id: 'long_family_1',
-    title: '家业有人',
-    description: '迎来 1 个孩子。（结婚7天后且配偶好感≥3000，配偶会随机提议要孩子）',
-    metric: 'childCount',
-    targetValue: 1,
-    reward: { money: 2800, reputation: 45, items: [{ itemId: 'food_rice_ball', quantity: 5 }] }
-  },
-  {
-    id: 'long_family_2',
-    title: '儿女双全',
-    description: '迎来 2 个孩子。（结婚7天后且配偶好感≥3000，配偶会随机提议要孩子）',
-    metric: 'childCount',
-    targetValue: 2,
-    reward: { money: 5000, reputation: 70, items: [{ itemId: 'food_rice_ball', quantity: 10 }], unlockHint: '家中笑声不断，此乃人生之大幸。' }
-  }
-]
-
 const createGoalState = (template: GoalTemplate, baselineValue = 0, source: GoalSource = 'random'): GoalState => ({
   ...template,
   baselineValue,
   completed: false,
   rewarded: false,
   source
+})
+
+const createWeeklyGoalState = (template: WeeklyGoalDef, weekId: string, baselineValue = 0): WeeklyGoalState => ({
+  ...createGoalState(template, baselineValue, 'weekly'),
+  season: template.season,
+  weekOfSeason: template.weekOfSeason,
+  weekId,
+  linkedThemeWeekId: template.linkedThemeWeekId
 })
 
 const createMainQuestStageState = (stage: MainQuestStageTemplate): MainQuestStageState => ({
@@ -971,36 +301,27 @@ const seededRandom = (seed: number) => {
   }
 }
 
-const GOAL_BIAS_MAP: Partial<Record<GoalMetricKey, Array<'cashflow' | 'farming' | 'fishing' | 'mining' | 'cooking' | 'social' | 'discovery'>>> = {
-  totalMoneyEarned: ['cashflow'],
-  totalCropsHarvested: ['farming'],
-  totalFishCaught: ['fishing'],
-  totalRecipesCooked: ['cooking'],
-  highestMineFloor: ['mining'],
-  friendlyNpcCount: ['social'],
-  discoveredCount: ['discovery']
-}
-
-const GOAL_SOURCE_LABELS: Record<GoalSource, string> = {
-  random: '随机目标',
-  season: '季节目标',
-  archetype_bias: '流派推荐'
-}
-
 export const useGoalStore = defineStore('goal', () => {
+  const settingsStore = useSettingsStore()
   const mainQuestStage = ref(1)
   const mainQuestStages = ref<MainQuestStageState[]>([])
   const dailyGoals = ref<GoalState[]>([])
   const seasonGoals = ref<GoalState[]>([])
+  const weeklyGoals = ref<WeeklyGoalState[]>([])
   const longTermGoals = ref<GoalState[]>([])
   const goalReputation = ref(0)
   const lastDailyGoalRefresh = ref('')
   const lastSeasonGoalRefresh = ref('')
+  const lastWeeklyGoalRefresh = ref('')
   const lastThemeWeekRefresh = ref('')
   const currentThemeWeekState = ref<ThemeWeekState | null>(null)
   const weeklyMetricArchive = ref<WeeklyMetricArchive>(createEmptyWeeklyMetricArchive())
   const weeklyBudgetPlan = ref<WeeklyBudgetPlan>(createEmptyWeeklyBudgetPlan())
   const weeklyBudgetHistory = ref<WeeklyBudgetArchive[]>([])
+  const eventOperationsBaselineAudit = WS10_EVENT_OPERATIONS_BASELINE_AUDIT
+  const eventOperationsState = ref<EventOperationsState>(createDefaultEventOperationsState())
+  const eventCampaignDefs = WS10_EVENT_CAMPAIGN_DEFS
+  const eventMailTemplateRefs = WS10_EVENT_MAIL_TEMPLATE_REFS
 
   const getCurrentSeasonTag = () => {
     const gameStore = useGameStore()
@@ -1018,6 +339,13 @@ export const useGoalStore = defineStore('goal', () => {
     const gameStore = useGameStore()
     return getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId
   }
+
+  const getCurrentWeekInfo = () => {
+    const gameStore = useGameStore()
+    return getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
+  }
+
+  const isWeeklyGoalFeatureEnabled = () => settingsStore.isFeatureEnabled('lateGameWeeklyGoals')
 
   const ensureWeeklyBudgetPlan = () => {
     const currentWeekId = getCurrentThemeWeekTag()
@@ -1051,20 +379,20 @@ export const useGoalStore = defineStore('goal', () => {
   const activateWeeklyBudget = (channelId: WeeklyBudgetChannelId, tierId: string) => {
     ensureWeeklyBudgetPlan()
     if (weeklyBudgetPlan.value.selections[channelId]) {
-      showFloat('该预算槽本周已投入', 'danger')
+      showFloat('该预算槽本周已投入。', 'danger')
       return false
     }
 
     const channelDef = WEEKLY_BUDGET_CHANNEL_MAP[channelId]
     const tierDef = channelDef?.tiers.find((tier: WeeklyBudgetTierDef) => tier.id === tierId)
     if (!channelDef || !tierDef) {
-      showFloat('预算档位不存在', 'danger')
+      showFloat('预算档位不存在。', 'danger')
       return false
     }
 
     const playerStore = usePlayerStore()
     if (!playerStore.spendMoney(tierDef.costMoney, 'goal')) {
-      showFloat('铜钱不足，无法投入周预算', 'danger')
+      showFloat('閾滈挶涓嶈冻锛屾棤娉曟姇鍏ュ懆棰勭畻', 'danger')
       return false
     }
 
@@ -1222,8 +550,9 @@ export const useGoalStore = defineStore('goal', () => {
     const fishPondStore = useFishPondStore()
     const museumStore = useMuseumStore()
     const npcStore = useNpcStore()
+    const shopStore = useShopStore()
     const villageProjectStore = useVillageProjectStore()
-    const themeWeek = getThemeWeekBySeason(weekInfo.season)
+    const themeWeek = getThemeWeekBySeason(weekInfo.season, weekInfo.weekOfSeason)
     const weeklyEconomySnapshots = playerStore
       .getRecentEconomySnapshots(8)
       .filter(snapshot => snapshot.dayTag !== generatedAtDayTag)
@@ -1263,7 +592,7 @@ export const useGoalStore = defineStore('goal', () => {
           .map(selection => [selection.channelId, selection.costMoney])
       ),
       maintenanceCost: 0,
-      serviceContractCount: 0,
+      serviceContractCount: shopStore.activeServiceContractSummaries.length,
       hanhaiContractCompletions: hanhaiStore.totalRelicClears,
       fishPondContestScore: matureHealthyPondFish,
       museumExhibitLevel: museumStore.exhibitLevel,
@@ -1299,7 +628,8 @@ export const useGoalStore = defineStore('goal', () => {
     return `${Math.min(progress, goal.targetValue)} / ${goal.targetValue}`
   }
 
-  const getGoalSourceText = (goal: GoalState) => GOAL_SOURCE_LABELS[goal.source] ?? GOAL_SOURCE_LABELS.random
+  const getGoalSourceText = (goal: GoalState) =>
+    goal.source === 'weekly' ? '閸涖劎娲伴弽?' : GOAL_SOURCE_LABELS[goal.source] ?? GOAL_SOURCE_LABELS.random
 
   const mergeSavedGoalState = (fresh: GoalState, saved?: Partial<GoalState>): GoalState => ({
     ...fresh,
@@ -1307,6 +637,14 @@ export const useGoalStore = defineStore('goal', () => {
     completed: saved?.completed ?? fresh.completed,
     rewarded: saved?.rewarded ?? saved?.completed ?? fresh.rewarded,
     source: saved?.source ?? fresh.source
+  })
+
+  const mergeSavedWeeklyGoalState = (fresh: WeeklyGoalState, saved?: Partial<WeeklyGoalState>): WeeklyGoalState => ({
+    ...fresh,
+    baselineValue: saved?.baselineValue ?? fresh.baselineValue,
+    completed: saved?.completed ?? fresh.completed,
+    rewarded: saved?.rewarded ?? saved?.completed ?? fresh.rewarded,
+    source: 'weekly'
   })
 
   const mergeSavedGoalArray = (
@@ -1319,6 +657,19 @@ export const useGoalStore = defineStore('goal', () => {
       const fresh = createGoalState(def, baselineSnapshot[def.metric] ?? 0, source)
       const saved = savedGoals?.find(goal => goal.id === def.id)
       return mergeSavedGoalState(fresh, saved)
+    })
+  }
+
+  const mergeSavedWeeklyGoalArray = (
+    defs: WeeklyGoalDef[],
+    savedGoals: WeeklyGoalState[] | undefined,
+    baselineSnapshot: Record<GoalMetricKey, number>,
+    weekId: string
+  ) => {
+    return defs.map(def => {
+      const fresh = createWeeklyGoalState(def, weekId, baselineSnapshot[def.metric] ?? 0)
+      const saved = savedGoals?.find(goal => goal.id === def.id)
+      return mergeSavedWeeklyGoalState(fresh, saved)
     })
   }
 
@@ -1414,14 +765,39 @@ export const useGoalStore = defineStore('goal', () => {
     }
   }
 
+  const refreshWeeklyGoals = (announce = false) => {
+    if (!isWeeklyGoalFeatureEnabled()) {
+      weeklyGoals.value = []
+      lastWeeklyGoalRefresh.value = ''
+      return
+    }
+
+    const weekInfo = getCurrentWeekInfo()
+    const snapshot = getMetricSnapshot()
+    const defs = getWeeklyGoalsBySeasonWeek(weekInfo.season, weekInfo.weekOfSeason) as WeeklyGoalDef[]
+    weeklyGoals.value = defs.map(goal => createWeeklyGoalState(goal, weekInfo.seasonWeekId, snapshot[goal.metric] ?? 0))
+    lastWeeklyGoalRefresh.value = weekInfo.seasonWeekId
+
+    if (announce && weeklyGoals.value.length > 0) {
+      addLog(`[Weekly Goals] refreshed ${weeklyGoals.value.length} goals.`, {
+        category: 'goal',
+        tags: ['weekly_goals_refreshed', 'late_game_cycle'],
+        meta: { weekId: weekInfo.seasonWeekId, weekOfSeason: weekInfo.weekOfSeason }
+      })
+      showFloat('Weekly goals refreshed', 'accent')
+    }
+  }
+
   const refreshThemeWeek = (announce = false) => {
     const gameStore = useGameStore()
-    const themeWeek = getThemeWeekBySeason(gameStore.season as 'spring' | 'summer' | 'autumn' | 'winter')
     const weekInfo = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
+    const themeWeek = getThemeWeekBySeason(gameStore.season as 'spring' | 'summer' | 'autumn' | 'winter', weekInfo.weekOfSeason)
 
     currentThemeWeekState.value = themeWeek
       ? {
           id: themeWeek.id,
+          weekOfSeason: weekInfo.weekOfSeason,
+          seasonWeekId: weekInfo.seasonWeekId,
           startDay: weekInfo.weekStartDay,
           endDay: weekInfo.weekEndDay
         }
@@ -1429,25 +805,39 @@ export const useGoalStore = defineStore('goal', () => {
     lastThemeWeekRefresh.value = weekInfo.seasonWeekId
 
     if (announce && themeWeek) {
-      addLog(`【主题周】本周主题为「${themeWeek.name}」：${themeWeek.description}`, {
+      addLog(`[Theme Week] ${themeWeek.name}: ${themeWeek.description}`, {
         category: 'goal',
         tags: ['theme_week_started', 'late_game_cycle'],
         meta: { themeWeekId: themeWeek.id, seasonWeekId: weekInfo.seasonWeekId }
       })
-      showFloat(`${themeWeek.name} 已开始`, 'accent')
+      showFloat(themeWeek.name + ' 已开始', 'accent')
     }
   }
 
   const ensureInitialized = () => {
     initializeMainQuestStages()
     initializeLongTermGoals()
+    const weekInfo = getCurrentWeekInfo()
     if (!dailyGoals.value.length || lastDailyGoalRefresh.value !== getCurrentDayTag()) {
       refreshDailyGoals(false)
     }
     if (!seasonGoals.value.length || lastSeasonGoalRefresh.value !== getCurrentSeasonTag()) {
       refreshSeasonGoals(false)
     }
-    if (!currentThemeWeekState.value || lastThemeWeekRefresh.value !== getCurrentThemeWeekTag()) {
+    if (isWeeklyGoalFeatureEnabled()) {
+      if (!weeklyGoals.value.length || lastWeeklyGoalRefresh.value !== weekInfo.seasonWeekId) {
+        refreshWeeklyGoals(false)
+      }
+    } else if (weeklyGoals.value.length || lastWeeklyGoalRefresh.value) {
+      weeklyGoals.value = []
+      lastWeeklyGoalRefresh.value = ''
+    }
+    if (
+      !currentThemeWeekState.value ||
+      lastThemeWeekRefresh.value !== weekInfo.seasonWeekId ||
+      currentThemeWeekState.value.weekOfSeason !== weekInfo.weekOfSeason ||
+      currentThemeWeekState.value.seasonWeekId !== weekInfo.seasonWeekId
+    ) {
       refreshThemeWeek(false)
     }
     ensureWeeklyBudgetPlan()
@@ -1462,14 +852,22 @@ export const useGoalStore = defineStore('goal', () => {
   const grantReward = (title: string, reward: GoalReward) => {
     const playerStore = usePlayerStore()
     const inventoryStore = useInventoryStore()
+    const walletStore = useWalletStore()
+    const shopStore = useShopStore()
     const wealthTier = playerStore.getEconomyOverview().wealthTier
     const weeklyBudgetEffect = recordWeeklyBudgetGoalSettlement()
+    const serviceContractEffect = shopStore.getServiceContractEffectSummary('goal')
+    const combinedMoneyRewardMultiplier = weeklyBudgetEffect.moneyRewardMultiplier * serviceContractEffect.moneyRewardMultiplier
+    const combinedReputationRewardMultiplier = weeklyBudgetEffect.reputationRewardMultiplier * serviceContractEffect.reputationRewardMultiplier
+    const combinedFlatReputationBonus =
+      weeklyBudgetEffect.flatReputationBonus + serviceContractEffect.flatReputationBonus + serviceContractEffect.goalReputationFlatBonus
     const adjustedMoneyReward = reward.money
-      ? Math.max(0, Math.round(reward.money * (wealthTier?.goalCashRewardMultiplier ?? 1) * weeklyBudgetEffect.moneyRewardMultiplier))
+      ? Math.max(0, Math.round(reward.money * (wealthTier?.goalCashRewardMultiplier ?? 1) * combinedMoneyRewardMultiplier))
       : 0
     const adjustedReputationReward = reward.reputation
-      ? Math.max(0, Math.round(reward.reputation * weeklyBudgetEffect.reputationRewardMultiplier) + weeklyBudgetEffect.flatReputationBonus)
-      : weeklyBudgetEffect.flatReputationBonus
+      ? Math.max(0, Math.round(reward.reputation * combinedReputationRewardMultiplier) + combinedFlatReputationBonus)
+      : combinedFlatReputationBonus
+    const grantedServiceContractTickets = walletStore.addRewardTickets(serviceContractEffect.ticketRewards, { source: 'goal' })
 
     let fallbackMoney = 0
     if (adjustedMoneyReward > 0) {
@@ -1495,38 +893,47 @@ export const useGoalStore = defineStore('goal', () => {
     }
     if (fallbackMoney > 0) {
       playerStore.earnMoney(fallbackMoney, { countAsEarned: false })
-      addLog(`背包已满，部分目标奖励自动折算为${fallbackMoney}文。`)
+      addLog(`Backpack full, converted part of the goal rewards into ${fallbackMoney} money.`)
     }
 
     const rewardTexts: string[] = []
     if (adjustedMoneyReward > 0) {
       rewardTexts.push(
         wealthTier && reward.money && adjustedMoneyReward !== reward.money
-          ? `${adjustedMoneyReward}文（财富层：${wealthTier.label}）`
-          : `${adjustedMoneyReward}文`
+          ? adjustedMoneyReward + '文（财富层：' + wealthTier.label + '）'
+          : adjustedMoneyReward + '文'
       )
     }
-    if (adjustedReputationReward > 0) rewardTexts.push(`目标声望+${adjustedReputationReward}`)
-    const budgetTicketTexts = Object.entries(weeklyBudgetEffect.ticketRewards)
+    if (adjustedReputationReward > 0) rewardTexts.push('目标声望+' + adjustedReputationReward)
+    const combinedTicketRewards = Object.entries({ ...weeklyBudgetEffect.ticketRewards, ...grantedServiceContractTickets }).reduce(
+      (result, [ticketType, amount]) => {
+        result[ticketType as RewardTicketType] =
+          (result[ticketType as RewardTicketType] ?? 0) + Math.max(0, Number(amount) || 0)
+        return result
+      },
+      {} as Partial<Record<RewardTicketType, number>>
+    )
+    const budgetTicketTexts = Object.entries(combinedTicketRewards)
       .filter(([, amount]) => (Number(amount) || 0) > 0)
-      .map(([ticketType, amount]) => `${REWARD_TICKET_LABELS[ticketType as RewardTicketType] ?? ticketType}+${amount}`)
+      .map(([ticketType, amount]) => (REWARD_TICKET_LABELS[ticketType as RewardTicketType] ?? ticketType) + '+' + amount)
     if (budgetTicketTexts.length > 0) rewardTexts.push(...budgetTicketTexts)
     if (reward.items?.length) {
       rewardTexts.push(
         reward.items
-          .map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`)
+          .map(item => (getItemById(item.itemId)?.name ?? item.itemId) + '×' + item.quantity)
           .join('、')
       )
     }
 
-    addLog(`【目标达成】${title}${rewardTexts.length > 0 ? `，获得：${rewardTexts.join('、')}` : ''}`, {
+    const completedRewardText = rewardTexts.length > 0 ? '，获得：' + rewardTexts.join(', ') : ''
+    addLog('[Goal Completed] ' + title + completedRewardText, {
       category: 'goal',
       tags: ['goal_completed'],
       meta: { title }
     })
-    showFloat(`达成：${title}`, 'success')
+    showFloat('达成：' + title, 'success')
     if (reward.unlockHint) {
-      addLog(`【新阶段】${reward.unlockHint}`, {
+      addLog('[New Stage] ' + reward.unlockHint, {
         category: 'goal',
         tags: ['goal_unlock_hint'],
         meta: { title }
@@ -1554,6 +961,10 @@ export const useGoalStore = defineStore('goal', () => {
       goal.completed = getGoalProgressValue(goal, snapshot) >= goal.targetValue
     }
 
+    for (const goal of weeklyGoals.value) {
+      goal.completed = getGoalProgressValue(goal, snapshot) >= goal.targetValue
+    }
+
     for (const goal of longTermGoals.value) {
       goal.completed = getGoalProgressValue(goal, snapshot) >= goal.targetValue
     }
@@ -1561,30 +972,30 @@ export const useGoalStore = defineStore('goal', () => {
     for (const stage of mainQuestStages.value) {
       if (stage.completed && !stage.rewarded) {
         stage.rewarded = true
-        grantReward(`主线里程碑「${stage.title}」`, stage.reward)
+        grantReward('主线里程碑「' + stage.title + '」', stage.reward)
       }
     }
 
     for (const goal of dailyGoals.value) {
       if (goal.completed && !goal.rewarded) {
         goal.rewarded = true
-        grantReward(`今日目标「${goal.title}」`, goal.reward)
+        grantReward('今日目标「' + goal.title + '」', goal.reward)
       }
     }
 
     for (const goal of seasonGoals.value) {
       if (goal.completed && !goal.rewarded) {
         goal.rewarded = true
-        grantReward(`本季目标「${goal.title}」`, goal.reward)
+        grantReward('本季目标「' + goal.title + '」', goal.reward)
       }
     }
 
     for (const goal of longTermGoals.value) {
       if (goal.completed && !goal.rewarded) {
         goal.rewarded = true
-        grantReward(`长期目标「${goal.title}」`, goal.reward)
+        grantReward('长期目标「' + goal.title + '」', goal.reward)
         if (goal.id.startsWith('long_sink_')) {
-          addLog(`【经营引导】推荐关注高价 sink：「${goal.title}」，可前往钱袋与商圈查看当前推荐资金去向。`, {
+          addLog('[经营引导] 推荐关注高价 sink：「' + goal.title + '」，可前往钱包与商圈查看当前推荐资金去向。', {
             category: 'economy',
             tags: ['economy_sink_guidance'],
             meta: { goalId: goal.id }
@@ -1592,12 +1003,14 @@ export const useGoalStore = defineStore('goal', () => {
         }
       }
     }
-
     syncMainQuestStage()
   }
 
   const onSeasonChanged = () => {
     refreshSeasonGoals(true)
+    if (isWeeklyGoalFeatureEnabled() && lastWeeklyGoalRefresh.value !== getCurrentThemeWeekTag()) {
+      refreshWeeklyGoals(true)
+    }
     if (lastThemeWeekRefresh.value !== getCurrentThemeWeekTag()) {
       refreshThemeWeek(true)
     }
@@ -1605,6 +1018,9 @@ export const useGoalStore = defineStore('goal', () => {
 
   const onDayChanged = () => {
     refreshDailyGoals(true)
+    if (isWeeklyGoalFeatureEnabled() && lastWeeklyGoalRefresh.value !== getCurrentThemeWeekTag()) {
+      refreshWeeklyGoals(true)
+    }
     if (lastThemeWeekRefresh.value !== getCurrentThemeWeekTag()) {
       refreshThemeWeek(true)
     }
@@ -1614,6 +1030,9 @@ export const useGoalStore = defineStore('goal', () => {
     refreshDailyGoals(true)
     if (seasonChanged) {
       refreshSeasonGoals(true)
+    }
+    if (isWeeklyGoalFeatureEnabled() && lastWeeklyGoalRefresh.value !== getCurrentThemeWeekTag()) {
+      refreshWeeklyGoals(true)
     }
     if (lastThemeWeekRefresh.value !== getCurrentThemeWeekTag()) {
       refreshThemeWeek(true)
@@ -1626,19 +1045,23 @@ export const useGoalStore = defineStore('goal', () => {
     mainQuestStages: mainQuestStages.value,
     dailyGoals: dailyGoals.value,
     seasonGoals: seasonGoals.value,
+    weeklyGoals: weeklyGoals.value,
     longTermGoals: longTermGoals.value,
     goalReputation: goalReputation.value,
     lastDailyGoalRefresh: lastDailyGoalRefresh.value,
     lastSeasonGoalRefresh: lastSeasonGoalRefresh.value,
+    lastWeeklyGoalRefresh: lastWeeklyGoalRefresh.value,
     lastThemeWeekRefresh: lastThemeWeekRefresh.value,
     currentThemeWeekState: currentThemeWeekState.value,
     weeklyMetricArchive: weeklyMetricArchive.value,
     weeklyBudgetPlan: weeklyBudgetPlan.value,
-    weeklyBudgetHistory: weeklyBudgetHistory.value
+    weeklyBudgetHistory: weeklyBudgetHistory.value,
+    eventOperationsState: eventOperationsState.value
   })
 
   const deserialize = (data: ReturnType<typeof serialize> | undefined) => {
     const snapshot = getMetricSnapshot()
+    const currentWeekInfo = getCurrentWeekInfo()
     mainQuestStages.value = mergeSavedMainQuestStages(data?.mainQuestStages)
     longTermGoals.value = mergeSavedGoalArray(LONG_TERM_GOAL_DEFS, data?.longTermGoals, {
       ...snapshot,
@@ -1679,12 +1102,36 @@ export const useGoalStore = defineStore('goal', () => {
       lastSeasonGoalRefresh.value = ''
     }
 
+    if (isWeeklyGoalFeatureEnabled() && data?.lastWeeklyGoalRefresh === currentWeekInfo.seasonWeekId) {
+      const defs = getWeeklyGoalsBySeasonWeek(currentWeekInfo.season, currentWeekInfo.weekOfSeason) as WeeklyGoalDef[]
+      weeklyGoals.value = mergeSavedWeeklyGoalArray(defs, data?.weeklyGoals, snapshot, currentWeekInfo.seasonWeekId)
+      lastWeeklyGoalRefresh.value = data.lastWeeklyGoalRefresh
+    } else {
+      weeklyGoals.value = []
+      lastWeeklyGoalRefresh.value = ''
+    }
+
     goalReputation.value = data?.goalReputation ?? 0
     currentThemeWeekState.value = data?.currentThemeWeekState ?? null
     lastThemeWeekRefresh.value = data?.lastThemeWeekRefresh ?? ''
     weeklyMetricArchive.value = normalizeWeeklyMetricArchive(data?.weeklyMetricArchive)
     weeklyBudgetPlan.value = normalizeWeeklyBudgetPlan(data?.weeklyBudgetPlan)
     weeklyBudgetHistory.value = normalizeWeeklyBudgetArchive(data?.weeklyBudgetHistory)
+    eventOperationsState.value = (() => {
+      const raw = (data as any)?.eventOperationsState
+      if (!raw || typeof raw !== 'object') return createDefaultEventOperationsState()
+      return {
+        version: Math.max(1, Number(raw.version) || 1),
+        activeCampaignId: typeof raw.activeCampaignId === 'string' ? raw.activeCampaignId : null,
+        activeThemeWeekCampaignId: typeof raw.activeThemeWeekCampaignId === 'string' ? raw.activeThemeWeekCampaignId : null,
+        cadence: raw.cadence === 'biweekly' || raw.cadence === 'seasonal' ? raw.cadence : 'weekly',
+        completedCampaignIds: Array.isArray(raw.completedCampaignIds) ? raw.completedCampaignIds.filter((id: unknown) => typeof id === 'string') : [],
+        completedThemeWeekIds: Array.isArray(raw.completedThemeWeekIds) ? raw.completedThemeWeekIds.filter((id: unknown) => typeof id === 'string') : [],
+        claimedMailCampaignIds: Array.isArray(raw.claimedMailCampaignIds) ? raw.claimedMailCampaignIds.filter((id: unknown) => typeof id === 'string') : [],
+        lastCampaignDayTag: typeof raw.lastCampaignDayTag === 'string' ? raw.lastCampaignDayTag : '',
+        lastSettlementDayTag: typeof raw.lastSettlementDayTag === 'string' ? raw.lastSettlementDayTag : ''
+      }
+    })()
     ensureInitialized()
     syncMainQuestStage()
   }
@@ -1694,9 +1141,12 @@ export const useGoalStore = defineStore('goal', () => {
   const completedMainQuestCount = computed(() => mainQuestStages.value.filter(stage => stage.completed).length)
   const currentThemeWeek = computed(() => {
     if (!currentThemeWeekState.value) return null
-    const gameStore = useGameStore()
-    const themeDef = getThemeWeekBySeason(gameStore.season as 'spring' | 'summer' | 'autumn' | 'winter')
-    if (!themeDef || themeDef.id !== currentThemeWeekState.value.id) return null
+    const weekInfo = getCurrentWeekInfo()
+    const themeDef = getThemeWeekBySeason(
+      weekInfo.season,
+      currentThemeWeekState.value.weekOfSeason ?? weekInfo.weekOfSeason
+    )
+    if (!themeDef) return null
     return {
       ...themeDef,
       startDay: currentThemeWeekState.value.startDay,
@@ -1707,11 +1157,13 @@ export const useGoalStore = defineStore('goal', () => {
     if (!currentThemeWeek.value) return []
 
     const focusMetrics = new Set(currentThemeWeek.value.focusMetrics)
-    return [...dailyGoals.value, ...seasonGoals.value, ...longTermGoals.value]
+    return [...weeklyGoals.value, ...dailyGoals.value, ...seasonGoals.value, ...longTermGoals.value]
       .filter(goal => focusMetrics.has(goal.metric) || goal.id.startsWith('long_sink_'))
       .sort((a, b) => {
         if (a.completed !== b.completed) return a.completed ? 1 : -1
         if (a.source !== b.source) {
+          if (a.source === 'weekly') return -1
+          if (b.source === 'weekly') return 1
           if (a.source === 'archetype_bias') return -1
           if (b.source === 'archetype_bias') return 1
           if (a.source === 'season') return 1
@@ -1751,14 +1203,20 @@ export const useGoalStore = defineStore('goal', () => {
     mainQuestStages,
     dailyGoals,
     seasonGoals,
+    weeklyGoals,
     longTermGoals,
     goalReputation,
     lastDailyGoalRefresh,
     lastSeasonGoalRefresh,
+    lastWeeklyGoalRefresh,
     currentMainQuest,
     currentDailyGoals,
     currentThemeWeek,
     currentThemeWeekGoals,
+    eventOperationsBaselineAudit,
+    eventOperationsState,
+    eventCampaignDefs,
+    eventMailTemplateRefs,
     recommendedEconomySinks,
     weeklyBudgetChannels,
     weeklyBudgetPlan,
@@ -1770,6 +1228,7 @@ export const useGoalStore = defineStore('goal', () => {
     ensureInitialized,
     refreshDailyGoals,
     refreshSeasonGoals,
+    refreshWeeklyGoals,
     refreshThemeWeek,
     activateWeeklyBudget,
     getWeeklyBudgetSelection,
@@ -1787,3 +1246,4 @@ export const useGoalStore = defineStore('goal', () => {
     deserialize
   }
 })
+

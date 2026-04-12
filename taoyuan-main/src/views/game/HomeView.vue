@@ -68,6 +68,50 @@
       </div>
     </div>
 
+    <!-- 家庭 / 陪伴 -->
+    <div class="border border-accent/20 rounded-xs p-3 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-sm text-accent">
+          <Building :size="14" class="inline" />
+          家庭 / 陪伴
+        </p>
+        <span class="text-[10px] text-muted">{{ relationshipDebugSnapshot.contentTier }}</span>
+      </div>
+
+      <div class="grid grid-cols-2 gap-x-3 gap-y-1 mb-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">婚后分工</span>
+          <span class="text-xs text-accent">{{ relationshipDebugSnapshot.householdAssignments.length }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">挚友项目</span>
+          <span class="text-xs">{{ relationshipDebugSnapshot.zhijiCompanionProjects.length }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">孩子数量</span>
+          <span class="text-xs">{{ relationshipDebugSnapshot.childCount }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <span class="text-xs text-muted">当前心愿</span>
+          <span class="text-xs">{{ activeFamilyWish?.title ?? '未激活' }}</span>
+        </div>
+      </div>
+
+      <div class="border border-accent/10 rounded-xs p-2">
+        <p class="text-xs text-muted mb-1">家庭心愿进度</p>
+        <p class="text-[10px] text-accent">
+          {{ familyWishOverview.state.progress }}/{{ Math.max(1, familyWishOverview.state.targetValue) }}
+        </p>
+        <p class="text-[10px] text-muted mt-1 leading-4">
+          {{
+            activeFamilyWish
+              ? `${activeFamilyWish.title}：${activeFamilyWish.rewardSummary}`
+              : '当前没有激活中的家庭心愿，可在后续关系线入口中安排新的家庭目标。'
+          }}
+        </p>
+      </div>
+    </div>
+
     <!-- 山洞 -->
     <div class="border border-accent/20 rounded-xs p-3 mb-4">
       <p class="text-sm text-accent mb-2">
@@ -600,6 +644,7 @@
   import { ArrowDown, ArrowDownToLine, Building, Mountain, Leaf, Pencil, Plus, Trash2, Unlock, Warehouse, X } from 'lucide-vue-next'
   import { useHomeStore } from '@/stores/useHomeStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
+  import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useProcessingStore } from '@/stores/useProcessingStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
@@ -614,6 +659,7 @@
 
   const homeStore = useHomeStore()
   const inventoryStore = useInventoryStore()
+  const npcStore = useNpcStore()
   const playerStore = usePlayerStore()
   const warehouseStore = useWarehouseStore()
   const processingStore = useProcessingStore()
@@ -652,6 +698,9 @@
   const villageSegmentLabel = computed(
     () => villageSegmentLabelMap[villageOverview.value.currentPlayerSegment] ?? villageOverview.value.currentPlayerSegment
   )
+  const relationshipDebugSnapshot = computed(() => npcStore.getRelationshipDebugSnapshot())
+  const familyWishOverview = computed(() => npcStore.getFamilyWishOverview())
+  const activeFamilyWish = computed(() => familyWishOverview.value.defs.find(def => def.id === familyWishOverview.value.state.activeWishId) ?? null)
 
   const getVillageProjectName = (projectId: string) => villageProjectStore.getProjectSummary(projectId)?.name ?? projectId
 

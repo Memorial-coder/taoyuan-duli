@@ -25,6 +25,7 @@ import { useCookingStore } from './useCookingStore'
 import { useWalletStore } from './useWalletStore'
 import { useSecretNoteStore } from './useSecretNoteStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
+import { useNpcStore } from './useNpcStore'
 
 const STAMINA_COST = 4
 const MAX_CRAB_POTS = 10
@@ -69,6 +70,7 @@ export const useFishingStore = defineStore('fishing', () => {
   const playerStore = usePlayerStore()
   const inventoryStore = useInventoryStore()
   const skillStore = useSkillStore()
+  const npcStore = useNpcStore()
 
   /** 当前钓鱼地点 */
   const fishingLocation = ref<FishingLocation>('creek')
@@ -80,6 +82,32 @@ export const useFishingStore = defineStore('fishing', () => {
 
   /** 当前可钓的鱼 */
   const availableFish = computed(() => getAvailableFish(gameStore.season, gameStore.weather, fishingLocation.value))
+
+  const companionshipFishingFocus = computed(() => {
+    const familyWishOverview = npcStore.getFamilyWishOverview()
+    const activeFamilyWish = familyWishOverview.defs.find(def => def.id === familyWishOverview.state.activeWishId) ?? null
+    const hiddenNpcStore = useHiddenNpcStore()
+    const bondedSpirit = hiddenNpcStore.getBondedNpc
+    const spiritSummary = bondedSpirit ? hiddenNpcStore.getSpiritBlessingSummary(bondedSpirit.id) : null
+    const recommendedLocations =
+      activeFamilyWish?.id === 'wish_lakeside_outing'
+        ? ['lake', 'river']
+        : spiritSummary?.activeBlessing?.id === 'spirit_blessing_tide'
+          ? ['waterfall', 'lake']
+          : [fishingLocation.value]
+    return {
+      activeFamilyWish,
+      spiritBlessing: spiritSummary?.activeBlessing ?? null,
+      bondedSpiritId: bondedSpirit?.id ?? null,
+      recommendedLocations,
+      summary:
+        activeFamilyWish?.id === 'wish_lakeside_outing'
+          ? '湖畔相伴心愿会放大外出垂钓与鱼获筹备价值。'
+          : spiritSummary?.activeBlessing
+            ? `当前祝福「${spiritSummary.activeBlessing.label}」更适合安排外出寻珍与稀有鱼尝试。`
+            : '当前暂无明显的家庭 / 仙缘外出压力，可按季节和天气自由安排钓点。'
+    }
+  })
 
   /** 当前钓鱼会话状态 */
   const currentFish = ref<FishDef | null>(null)
@@ -655,6 +683,7 @@ export const useFishingStore = defineStore('fishing', () => {
 
   return {
     availableFish,
+    companionshipFishingFocus,
     fishingLocation,
     currentFish,
     lastTreasure,
