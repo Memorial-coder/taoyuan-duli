@@ -22,3 +22,15 @@ taoyuan-main/android/key
 
 # Local archives
 taoyuan-duli-latest.tar
+
+# Local review / audit artifacts not for GitHub
+*审查*.md
+*审核*.md
+error*.md
+advice.md
+server/server.log
+taoyuan-main/.audit-shots/
+taoyuan-main/.codex-temp-*
+taoyuan-main/audit_*
+taoyuan-main/test_items.ts
+taoyuan-main/error.md

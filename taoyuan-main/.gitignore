@@ -29,6 +29,13 @@ docs
 *公告草案*.md
 *实施索引*.md
 
+# Local audit artifacts not for GitHub
+.audit-shots/
+.codex-temp-*
+audit_*
+test_items.ts
+error.md
+
 # Editor directories and files
 .claude/*
 .vscode/*
