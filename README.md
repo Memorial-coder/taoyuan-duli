@@ -2,6 +2,11 @@
 
 这是从 Lucky Web 中拆出来的 **桃源乡独立版**。
 
+## 参考信息
+
+- 参考仓库：<https://github.com/setube/taoyuan>
+- 用户 QQ 群：1094297186
+
 ## 目录说明
 
 - `taoyuan-main/`：桃源乡前端源码与构建产物

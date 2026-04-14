@@ -233,7 +233,16 @@ app.use('/api', (req, res) => {
 const distPath = path.join(__dirname, '../../taoyuan-main/docs');
 if (fs.existsSync(distPath)) {
   const indexHtmlPath = path.join(distPath, 'index.html');
-  app.use('/assets', express.static(path.join(distPath, 'assets'), { maxAge: '7d' }));
+  app.use('/assets', express.static(path.join(distPath, 'assets'), {
+    maxAge: 0,
+    etag: false,
+    lastModified: false,
+    setHeaders(res) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+    }
+  }));
   app.use(express.static(distPath, { index: false, etag: false, lastModified: false }));
   app.get('*', (req, res) => {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');

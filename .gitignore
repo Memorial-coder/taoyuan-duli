@@ -34,3 +34,4 @@ taoyuan-main/.codex-temp-*
 taoyuan-main/audit_*
 taoyuan-main/test_items.ts
 taoyuan-main/error.md
+taoyuan-main/playwright_*.py

@@ -141,7 +141,11 @@
   const migrationProfile = computed(() => playerStore.getQaGovernanceMigrationProfile())
   const currentWeekInfo = computed(() => getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day))
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
-  const showPanel = computed(() => import.meta.env.DEV)
+  const showPanel = computed(() => {
+    if (!import.meta.env.DEV) return false
+    if (typeof window === 'undefined') return false
+    return (window as typeof window & { __TAOYUAN_ENABLE_QA_PANEL__?: boolean }).__TAOYUAN_ENABLE_QA_PANEL__ === true
+  })
   const defaultTier: GovernanceTierSummary = {
     id: 'mid_transition',
     label: '中期过渡治理包',
