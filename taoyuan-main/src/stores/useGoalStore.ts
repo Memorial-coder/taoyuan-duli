@@ -800,23 +800,6 @@ export const useGoalStore = defineStore('goal', () => {
     return summaryParts.join('、')
   }
 
-  const mergeGoalRewards = (baseReward: GoalReward, bonusReward?: GoalReward): GoalReward => {
-    if (!bonusReward) return { ...baseReward, items: baseReward.items ? [...baseReward.items] : undefined }
-    const mergedItemMap = new Map<string, number>()
-    for (const item of [...(baseReward.items ?? []), ...(bonusReward.items ?? [])]) {
-      mergedItemMap.set(item.itemId, (mergedItemMap.get(item.itemId) ?? 0) + Math.max(1, Number(item.quantity) || 1))
-    }
-    return {
-      money: (baseReward.money ?? 0) + (bonusReward.money ?? 0) || undefined,
-      reputation: (baseReward.reputation ?? 0) + (bonusReward.reputation ?? 0) || undefined,
-      items:
-        mergedItemMap.size > 0
-          ? [...mergedItemMap.entries()].map(([itemId, quantity]) => ({ itemId, quantity }))
-          : undefined,
-      unlockHint: bonusReward.unlockHint ?? baseReward.unlockHint
-    }
-  }
-
   const getWeeklyGoalRewardPool = (themeWeekId = currentThemeWeek.value?.id ?? ''): ThemeWeekRewardPoolEntry[] => {
     if (!themeWeekId) return []
     return getThemeWeekRewardPool(themeWeekId)
@@ -1106,6 +1089,10 @@ export const useGoalStore = defineStore('goal', () => {
     }
   }
 
+  const grantManualReward = (title: string, reward: GoalReward) => {
+    grantReward(title, reward)
+  }
+
   const buildWeeklyGoalSettlementSummary = (
     weekInfo: WeekCycleInfo,
     settledAtDayTag = getCurrentDayTag(),
@@ -1200,7 +1187,7 @@ export const useGoalStore = defineStore('goal', () => {
     const summaryThemeRewardEntries = resolveAppliedThemeRewardEntries(
       weeklyGoals.value.filter(goal => goal.completed).length,
       weeklyGoals.value.length,
-      currentThemeWeek.value?.id ?? weeklyGoals.value[0]?.linkedThemeWeekId
+      weeklyGoals.value[0]?.linkedThemeWeekId ?? currentThemeWeek.value?.id
     )
 
     for (const goal of weeklyGoals.value) {
@@ -1463,6 +1450,7 @@ export const useGoalStore = defineStore('goal', () => {
         completedCampaignIds: Array.isArray(raw.completedCampaignIds) ? raw.completedCampaignIds.filter((id: unknown) => typeof id === 'string') : [],
         completedThemeWeekIds: Array.isArray(raw.completedThemeWeekIds) ? raw.completedThemeWeekIds.filter((id: unknown) => typeof id === 'string') : [],
         claimedMailCampaignIds: Array.isArray(raw.claimedMailCampaignIds) ? raw.claimedMailCampaignIds.filter((id: unknown) => typeof id === 'string') : [],
+        claimedMailReceiptKeys: Array.isArray(raw.claimedMailReceiptKeys) ? raw.claimedMailReceiptKeys.filter((id: unknown) => typeof id === 'string') : [],
         lastCampaignDayTag: typeof raw.lastCampaignDayTag === 'string' ? raw.lastCampaignDayTag : '',
         lastSettlementDayTag: typeof raw.lastSettlementDayTag === 'string' ? raw.lastSettlementDayTag : ''
       }
@@ -1475,6 +1463,24 @@ export const useGoalStore = defineStore('goal', () => {
   const currentMainQuest = computed(() => mainQuestStages.value.find(stage => !stage.completed) ?? null)
   const currentDailyGoals = computed(() => dailyGoals.value)
   const completedMainQuestCount = computed(() => mainQuestStages.value.filter(stage => stage.completed).length)
+  const nextThemeWeekPreview = computed(() => {
+    const weekInfo = getCurrentWeekInfo()
+    const seasons = ['spring', 'summer', 'autumn', 'winter'] as const
+    const seasonIndex = seasons.indexOf(weekInfo.season)
+    const nextWeekOfSeason = weekInfo.weekOfSeason === 4 ? 1 : ((weekInfo.weekOfSeason + 1) as 1 | 2 | 3 | 4)
+    const nextSeason =
+      weekInfo.weekOfSeason === 4
+        ? seasons[(seasonIndex + 1) % seasons.length]!
+        : weekInfo.season
+    const themeDef = getThemeWeekBySeason(nextSeason, nextWeekOfSeason)
+    if (!themeDef) return null
+    return {
+      ...themeDef,
+      seasonWeekId: `${nextSeason}-${nextWeekOfSeason}`,
+      startDay: (nextWeekOfSeason - 1) * 7 + 1,
+      endDay: nextWeekOfSeason * 7
+    }
+  })
   const currentThemeWeek = computed(() => {
     if (!currentThemeWeekState.value) return null
     const weekInfo = getCurrentWeekInfo()
@@ -1685,6 +1691,21 @@ export const useGoalStore = defineStore('goal', () => {
     const lockId = `event_mail_claim_${mailReceiptKey}`
     if (!beginEventOperation(lockId)) return false
     try {
+    if (!mailReceiptKey || eventOperationsState.value.claimedMailReceiptKeys.includes(mailReceiptKey)) return false
+    eventOperationsState.value = {
+      ...eventOperationsState.value,
+      claimedMailReceiptKeys: [...eventOperationsState.value.claimedMailReceiptKeys, mailReceiptKey]
+    }
+    return true
+    } finally {
+      finishEventOperation(lockId)
+    }
+  }
+
+  const recordEventCampaignMailDispatched = (mailReceiptKey: string) => {
+    const lockId = `event_mail_dispatch_${mailReceiptKey}`
+    if (!beginEventOperation(lockId)) return false
+    try {
     if (!mailReceiptKey || eventOperationsState.value.claimedMailCampaignIds.includes(mailReceiptKey)) return false
     eventOperationsState.value = {
       ...eventOperationsState.value,
@@ -1701,7 +1722,8 @@ export const useGoalStore = defineStore('goal', () => {
     activeThemeWeekCampaignId: eventOperationsState.value.activeThemeWeekCampaignId,
     cadence: eventOperationsState.value.cadence,
     completedCampaignIds: eventOperationsState.value.completedCampaignIds,
-    claimedMailCampaignIds: eventOperationsState.value.claimedMailCampaignIds,
+    dispatchedMailReceiptKeys: eventOperationsState.value.claimedMailCampaignIds,
+    claimedMailReceiptKeys: eventOperationsState.value.claimedMailReceiptKeys,
     currentThemeWeekId: currentThemeWeek.value?.id ?? null
   })
 
@@ -1775,6 +1797,7 @@ export const useGoalStore = defineStore('goal', () => {
     lastWeeklyGoalRefresh,
     currentMainQuest,
     currentDailyGoals,
+    nextThemeWeekPreview,
     currentThemeWeek,
     currentThemeWeekGoals,
     lastWeeklyGoalSettlement,
@@ -1805,6 +1828,7 @@ export const useGoalStore = defineStore('goal', () => {
     getEventMailTemplateRefById,
     activateEventCampaign,
     completeEventCampaign,
+    recordEventCampaignMailDispatched,
     markEventCampaignMailClaimed,
     getEventOperationsDebugSnapshot,
     getUiGuidanceDebugSnapshot,
@@ -1818,6 +1842,7 @@ export const useGoalStore = defineStore('goal', () => {
     buildWeeklyGoalSettlementSummary,
     settleWeeklyGoals,
     markWeeklySettlementMailSent,
+    grantManualReward,
     evaluateProgressAndRewards,
     getGoalProgressValue,
     getGoalProgressText,

@@ -916,6 +916,7 @@ module.exports = {
   HALL_UPLOADS_DIR,
   setActiveSaveSlot,
   clearActiveSaveSlotIfMatches,
+  updateActiveSaveMoney,
   listPosts,
   getPost,
   createPost,

@@ -24,14 +24,14 @@ Qmsg.config({
   showIcon: false,
   maxNums: 5,
   timeout: 2500,
-  isHTML: true,
+  isHTML: false,
   useShadowRoot: false
 })
 
 /** 动态更新 Qmsg 全部通知配置 */
 export const applyQmsgConfig = (opts: QmsgConfigOptions) => {
   Qmsg.config({
-    isHTML: true,
+    isHTML: false,
     position: opts.position as 'top',
     timeout: opts.timeout,
     maxNums: opts.maxNums,
@@ -105,6 +105,7 @@ export const showFloat = (text: string, color: FloatColor = 'accent') => {
 /** 重置日志（新游戏） */
 export const resetLogs = () => {
   Qmsg.closeAll()
+  logHistory.value = []
 }
 
 /** 清空全部日志历史 */

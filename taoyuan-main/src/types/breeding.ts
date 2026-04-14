@@ -150,3 +150,112 @@ export interface HybridAvailability {
   status: 'missing_parents' | 'unavailable' | 'near' | 'discoverable'
   recommendation: string
 }
+
+export type BreedingCommercialTag =
+  | 'banquet'
+  | 'bulk_supply'
+  | 'showcase'
+  | 'storage'
+  | 'research'
+  | 'luxury'
+
+export type BreedingShowcaseTag = 'tea_showcase' | 'festival_display' | 'archive_display' | 'luxury_display'
+
+export type BreedingStabilityRank = 'volatile' | 'emerging' | 'stable' | 'certified'
+
+export interface BreedingScoreBreakdownEntry {
+  key: 'sweetness' | 'yield' | 'resistance' | 'stability' | 'generation'
+  label: string
+  value: number
+  weight: number
+  contribution: number
+}
+
+export interface BreedingScoreBreakdown {
+  totalScore: number
+  stabilityRank: BreedingStabilityRank
+  commercialTags: BreedingCommercialTag[]
+  showcaseTags: BreedingShowcaseTag[]
+  exhibitWorth: number
+  entries: BreedingScoreBreakdownEntry[]
+}
+
+export interface BreedingCertificationRecord {
+  hybridId: string
+  certifiedAtYear: number
+  bestGeneration: number
+  bestTotalScore: number
+  requiredGeneration: number
+  requiredTimesGrown: number
+  requiredTotalScore: number
+}
+
+export interface BreedingContestDef {
+  id: string
+  label: string
+  description: string
+  scoringMetric: 'totalScore' | 'exhibitWorth'
+  requiredCommercialTags?: BreedingCommercialTag[]
+  rewardMoney: number
+}
+
+export interface BreedingContestEntryResult {
+  geneticsId: string
+  cropId: string
+  label: string
+  hybridId: string | null
+  score: number
+}
+
+export interface BreedingContestSettlementSummary {
+  weekId: string
+  contestId: string
+  settledAtDayTag: string
+  participantCount: number
+  winner?: BreedingContestEntryResult
+  ranking: BreedingContestEntryResult[]
+  rewardSummary: string[]
+}
+
+export interface BreedingContestState {
+  weekId: string
+  contestId: string
+  registeredSeedIds: string[]
+  settled: boolean
+  lastSettlementDayTag: string
+}
+
+export interface BreedingFailureSalvageItem {
+  itemId: string
+  quantity: number
+  reason: string
+}
+
+export interface BreedingFailureSalvageSummary {
+  generatedAtDayTag: string
+  returnedSeedId: string
+  returnedSeedLabel: string
+  targetHybridId?: string
+  failedStatKey: 'sweetness' | 'yield' | 'resistance'
+  failedPenalty: number
+  salvageItems: BreedingFailureSalvageItem[]
+  summary: string
+}
+
+export interface BreedingPlanningNeed {
+  itemId: string
+  itemName: string
+  quantity: number
+  owned: number
+}
+
+export interface BreedingPlanningSuggestion {
+  hybridId: string
+  targetLabel: string
+  readiness: 'ready' | 'near' | 'prep'
+  currentGapSummary: string
+  reasonLines: string[]
+  expectedUseLines: string[]
+  parentLines: string[]
+  logisticsNeeds: BreedingPlanningNeed[]
+}

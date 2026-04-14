@@ -116,6 +116,26 @@ export interface LateGameBudgetReturnCurve {
   maxReturnRate: number
 }
 
+export interface BreedingFailureSalvageBalanceConfig {
+  minimumGenerationForResidue: number
+  residueBaseQuantity: number
+  residueHybridBonus: number
+  certificationGenerationThreshold: number
+  certificationScoreThreshold: number
+  preservationResistanceThreshold: number
+}
+
+export interface FishPondMaintenanceBalanceConfig {
+  highTierScoreThreshold: number
+  maintenanceDecayPerHighTierFish: number
+  ornamentalFeedShowBonus: number
+  ornamentalFeedContestBonus: number
+  advancedPurifierRestore: number
+  quarantineShieldDays: number
+  displayTankSlotLimit: number
+  displayTankMuseumScoreDivisor: number
+}
+
 export interface LateGameBalanceConfig {
   maintenanceMultiplier: number
   ticketRewardRate: number
@@ -124,6 +144,8 @@ export interface LateGameBalanceConfig {
   serviceContractRenewMultiplier: number
   highValueOrderCashRatio: number
   casinoCashExpectationMultiplier: number
+  breedingFailureSalvage: BreedingFailureSalvageBalanceConfig
+  fishPondMaintenance: FishPondMaintenanceBalanceConfig
 }
 
 export type LateGameBalanceOverride = Partial<LateGameBalanceConfig>

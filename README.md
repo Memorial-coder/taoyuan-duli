@@ -38,6 +38,7 @@ copy .env.example .env
 - `SUPER_ADMIN_TOKEN`：超级管理员口令
 - `CORS_ALLOWED_ORIGINS`：允许跨域携带 Cookie 的来源列表
 - `COOKIE_SECURE=true`：若部署在 HTTPS 反向代理后，建议开启
+- `COOKIE_SAME_SITE`：可选，默认在 `COOKIE_SECURE=true` 时自动使用 `none`，否则为 `lax`
 - `MYSQL_PASSWORD`：**MySQL 数据库连接密码**，不是玩家登录密码
 
 > 玩家账号密码不在 `.env` 里配置，而是用户在注册页面自行设置并写入数据库。

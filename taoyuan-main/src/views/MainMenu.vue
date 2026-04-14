@@ -450,6 +450,26 @@
     aboutDialogContent: '欢迎来到桃源乡。',
   })
 
+  const resolveSafeReturnButtonUrl = (rawValue: unknown): { url: string; fallback: boolean } => {
+    const raw = String(rawValue || '').trim()
+    if (!raw) return { url: '/', fallback: false }
+
+    if (raw.startsWith('/') && !raw.startsWith('//')) {
+      return { url: raw, fallback: false }
+    }
+
+    try {
+      const parsed = new URL(raw, window.location.origin)
+      if (parsed.origin === window.location.origin) {
+        return { url: `${parsed.pathname}${parsed.search}${parsed.hash}` || '/', fallback: false }
+      }
+    } catch {
+      // ignore and fallback below
+    }
+
+    return { url: '/', fallback: true }
+  }
+
   const deleteTargetSlot = ref<number | null>(null)
   const currentUser = ref<null | { username: string; display_name?: string }>(null)
 
@@ -504,14 +524,18 @@
       const res = await fetch('/api/public-config', { credentials: 'include' })
       const data = await res.json()
       if (!data?.ok) return
+      const safeReturnUrl = resolveSafeReturnButtonUrl(data.taoyuan_return_button_url)
       menuConfig.value = {
         returnButtonEnabled: data.taoyuan_return_button_enabled !== false,
         returnButtonText: data.taoyuan_return_button_text || '返回首页',
-        returnButtonUrl: data.taoyuan_return_button_url || '/',
+        returnButtonUrl: safeReturnUrl.url,
         aboutButtonEnabled: data.taoyuan_about_button_enabled !== false,
         aboutButtonText: data.taoyuan_about_button_text || '关于游戏',
         aboutDialogTitle: data.taoyuan_about_dialog_title || '关于桃源乡',
         aboutDialogContent: data.taoyuan_about_dialog_content || '欢迎来到桃源乡。',
+      }
+      if (safeReturnUrl.fallback) {
+        addLog('公共配置中的返回链接不安全，已自动回退为站内首页。')
       }
     } catch {
       addLog('公共配置拉取失败，继续使用本地默认菜单配置。')
@@ -519,7 +543,11 @@
   }
 
   const handleReturnToLottery = () => {
-    window.location.href = menuConfig.value.returnButtonUrl || '/'
+    const safeReturnUrl = resolveSafeReturnButtonUrl(menuConfig.value.returnButtonUrl)
+    if (safeReturnUrl.fallback) {
+      addLog('返回链接校验失败，已回退为站内首页。')
+    }
+    window.location.assign(safeReturnUrl.url)
   }
 
   const openAuth = (mode: 'login' | 'register') => {

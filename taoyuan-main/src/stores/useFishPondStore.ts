@@ -1,6 +1,20 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { PondLevel, FishPondState, PondFish, FishGenetics, PondDailyResult } from '@/types/fishPond'
+import type {
+  PondLevel,
+  FishPondState,
+  PondFish,
+  FishGenetics,
+  PondDailyResult,
+  PondDisplayEntry,
+  PondEligibilityGenerationBucket,
+  PondEligibilitySnapshot,
+  PondFishRatingSnapshot,
+  PondMaintenanceState,
+  PondRatingBreakdownEntry,
+  PondContestSettlementSummary,
+  PondContestState
+} from '@/types/fishPond'
 import type { Quality } from '@/types'
 import {
   POND_BUILD_COST,
@@ -22,12 +36,19 @@ import {
   getPondableFish,
   isPondableFish
 } from '@/data/fishPond'
+import { POND_CONTEST_DEFS, createDefaultPondContestState, getWeeklyPondContestDef } from '@/data/fishPondContests'
 import { getGen1BreedsForFish, findBreedByParents, getBreedById, getBreedsByGeneration } from '@/data/pondBreeds'
 import { getItemById } from '@/data/items'
+import { useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
 import { useSkillStore } from './useSkillStore'
+import { useWalletStore } from './useWalletStore'
+import { useGoalStore } from './useGoalStore'
+import { useSettingsStore } from './useSettingsStore'
+import { addLog } from '@/composables/useGameLog'
+import { getWeekCycleInfo } from '@/utils/weekCycle'
 
 let _idCounter = 0
 const generateFishId = (): string => {
@@ -36,6 +57,18 @@ const generateFishId = (): string => {
 }
 
 const clamp = (v: number, min: number, max: number): number => Math.max(min, Math.min(max, v))
+const createDefaultMaintenanceState = (): PondMaintenanceState => ({
+  ornamentalFeedBuffDays: 0,
+  quarantineShieldDays: 0,
+  lastOrnamentalFeedDayTag: '',
+  lastAdvancedPurifierDayTag: ''
+})
+const normalizeMaintenanceState = (value: any): PondMaintenanceState => ({
+  ornamentalFeedBuffDays: Math.max(0, Number(value?.ornamentalFeedBuffDays) || 0),
+  quarantineShieldDays: Math.max(0, Number(value?.quarantineShieldDays) || 0),
+  lastOrnamentalFeedDayTag: typeof value?.lastOrnamentalFeedDayTag === 'string' ? value.lastOrnamentalFeedDayTag : '',
+  lastAdvancedPurifierDayTag: typeof value?.lastAdvancedPurifierDayTag === 'string' ? value.lastAdvancedPurifierDayTag : ''
+})
 const normalizeBreedingPair = (value: any) => {
   if (!value || typeof value !== 'object') return null
   const parentA = typeof value.parentA === 'string' ? value.parentA : ''
@@ -48,6 +81,21 @@ const normalizeBreedingPair = (value: any) => {
     daysLeft: Math.max(0, Number(value.daysLeft) || 0),
     fishId
   }
+}
+const normalizeDisplayEntries = (value: any): PondDisplayEntry[] => {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter(entry => entry && typeof entry === 'object' && typeof entry.pondFishId === 'string')
+    .map(entry => ({
+      pondFishId: entry.pondFishId,
+      fishId: typeof entry.fishId === 'string' ? entry.fishId : '',
+      fishName: typeof entry.fishName === 'string' ? entry.fishName : '',
+      breedId: typeof entry.breedId === 'string' ? entry.breedId : null,
+      snapshotScore: Math.max(0, Number(entry.snapshotScore) || 0),
+      snapshotShowValue: Math.max(0, Number(entry.snapshotShowValue) || 0),
+      snapshotGeneration: Math.max(1, Number(entry.snapshotGeneration) || 1),
+      assignedAtDayTag: typeof entry.assignedAtDayTag === 'string' ? entry.assignedAtDayTag : ''
+    }))
 }
 
 export const useFishPondStore = defineStore('fishPond', () => {
@@ -68,6 +116,10 @@ export const useFishPondStore = defineStore('fishPond', () => {
 
   /** 从鱼塘取出后暂存的鱼个体信息，避免“取出→放回”反复重roll品种 */
   const returnedFishPool = ref<Record<string, Omit<PondFish, 'id'>[]>>({})
+  const pondContestState = ref<PondContestState>(createDefaultPondContestState())
+  const lastPondContestSettlement = ref<PondContestSettlementSummary | null>(null)
+  const displayEntries = ref<PondDisplayEntry[]>([])
+  const maintenanceState = ref<PondMaintenanceState>(createDefaultMaintenanceState())
 
   // === 计算属性 ===
 
@@ -76,6 +128,16 @@ export const useFishPondStore = defineStore('fishPond', () => {
   const isFull = computed(() => fishCount.value >= capacity.value)
   const sickFish = computed(() => pond.value.fish.filter(f => f.sick))
   const matureFish = computed(() => pond.value.fish.filter(f => f.mature))
+  const getCurrentDayTag = () => {
+    const gameStore = useGameStore()
+    return `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+  }
+  const getCurrentWeekInfo = () => {
+    const gameStore = useGameStore()
+    return getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
+  }
+  const getMaintenanceConfig = () => useSettingsStore().getLateGameBalanceConfig().fishPondMaintenance
+  const displayAssignedFishIds = computed(() => new Set(displayEntries.value.map(entry => entry.pondFishId)))
 
   /** 密度百分比 */
   const density = computed(() => {
@@ -100,6 +162,9 @@ export const useFishPondStore = defineStore('fishPond', () => {
     pond.value.built = true
     pond.value.level = 1
     pond.value.waterQuality = 100
+    if (!pondContestState.value.weekId || pondContestState.value.weekId !== getCurrentWeekInfo().seasonWeekId || !pondContestState.value.contestId) {
+      syncContestStateToCurrentWeek()
+    }
     return true
   }
 
@@ -192,6 +257,8 @@ export const useFishPondStore = defineStore('fishPond', () => {
     if (pond.value.breeding && (pond.value.breeding.parentA === pondFishId || pond.value.breeding.parentB === pondFishId)) {
       pond.value.breeding = null
     }
+    pruneDisplayEntries()
+    pruneContestRegistrations()
     return true
   }
 
@@ -200,19 +267,375 @@ export const useFishPondStore = defineStore('fishPond', () => {
     return breed?.generation ?? 1
   }
 
+  const buildPondFishRatingSnapshot = (fish: PondFish): PondFishRatingSnapshot => {
+    const maintenanceConfig = getMaintenanceConfig()
+    const generation = getFishBreedGeneration(fish)
+    const generationScore = clamp(18 + generation * 16, 0, 100)
+    const displayAssigned = displayAssignedFishIds.value.has(fish.id)
+    const ornamentalFeedBonus = maintenanceState.value.ornamentalFeedBuffDays > 0 && fish.mature && !fish.sick
+      ? maintenanceConfig.ornamentalFeedShowBonus
+      : 0
+    const displayBonus = displayAssigned ? Math.max(4, Math.floor(maintenanceConfig.ornamentalFeedShowBonus / 2)) : 0
+    const quarantineBonus = maintenanceState.value.quarantineShieldDays > 0 ? 10 : 0
+    const showValue = clamp(
+      Math.round(
+        fish.genetics.qualityGene * 0.42 +
+        fish.genetics.weight * 0.18 +
+        fish.genetics.diseaseRes * 0.08 +
+        generationScore * 0.24 +
+        (fish.mature ? 10 : 0) -
+        (fish.sick ? 24 : 0) +
+        ornamentalFeedBonus +
+        displayBonus
+      ),
+      0,
+      100
+    )
+    const foodValue = clamp(
+      Math.round(
+        fish.genetics.weight * 0.35 +
+        fish.genetics.growthRate * 0.2 +
+        fish.genetics.qualityGene * 0.22 +
+        generationScore * 0.1 +
+        (fish.mature ? 12 : 0) -
+        (fish.sick ? 20 : 0)
+      ),
+      0,
+      100
+    )
+    const healthScore = clamp(
+      Math.round(
+        fish.genetics.diseaseRes * 0.55 +
+        pond.value.waterQuality * 0.35 +
+        (fish.sick ? -35 : 8) -
+        fish.sickDays * 4 +
+        quarantineBonus
+      ),
+      0,
+      100
+    )
+    const stabilityScore = clamp(
+      Math.round(
+        fish.genetics.diseaseRes * 0.45 +
+        fish.genetics.growthRate * 0.2 +
+        (100 - fish.genetics.mutationRate * 2) * 0.35 +
+        (maintenanceState.value.quarantineShieldDays > 0 ? 6 : 0)
+      ),
+      0,
+      100
+    )
+    const entries: PondRatingBreakdownEntry[] = [
+      { key: 'generation', label: '世代', value: generationScore, weight: 0.12, contribution: Math.round(generationScore * 0.12) },
+      { key: 'show', label: '观赏', value: showValue, weight: 0.33, contribution: Math.round(showValue * 0.33) },
+      { key: 'food', label: '食用', value: foodValue, weight: 0.24, contribution: Math.round(foodValue * 0.24) },
+      { key: 'health', label: '健康', value: healthScore, weight: 0.19, contribution: Math.round(healthScore * 0.19) },
+      { key: 'stability', label: '稳定', value: stabilityScore, weight: 0.12, contribution: Math.round(stabilityScore * 0.12) }
+    ]
+    const totalScore = clamp(entries.reduce((sum, entry) => sum + entry.contribution, 0), 0, 100)
+    return {
+      fishInstanceId: fish.id,
+      fishId: fish.fishId,
+      fishName: fish.name,
+      breedId: fish.breedId,
+      mature: fish.mature,
+      sick: fish.sick,
+      starRating: getGeneticStarRating(fish.genetics),
+      totalScore,
+      showValue,
+      foodValue,
+      healthScore,
+      stabilityScore,
+      generation,
+      entries
+    }
+  }
+
+  const pondFishRatings = computed<PondFishRatingSnapshot[]>(() =>
+    pond.value.fish.map(fish => buildPondFishRatingSnapshot(fish))
+  )
+
+  const getPondFishRatingSnapshot = (pondFishId: string) =>
+    pondFishRatings.value.find(entry => entry.fishInstanceId === pondFishId) ?? null
+
+  const pondEligibilitySnapshots = computed<PondEligibilitySnapshot[]>(() => {
+    const grouped = new Map<string, PondFishRatingSnapshot[]>()
+    for (const rating of pondFishRatings.value) {
+      const list = grouped.get(rating.fishId) ?? []
+      list.push(rating)
+      grouped.set(rating.fishId, list)
+    }
+
+    return [...grouped.entries()].map(([fishId, ratings]) => {
+      const generationBuckets = [1, 2, 3, 4, 5]
+        .map<PondEligibilityGenerationBucket>(generation => {
+          const scoped = ratings.filter(entry => entry.generation === generation)
+          return {
+            generation,
+            totalCount: scoped.length,
+            matureCount: scoped.filter(entry => entry.mature).length,
+            healthyCount: scoped.filter(entry => !entry.sick).length,
+            matureHealthyCount: scoped.filter(entry => entry.mature && !entry.sick).length,
+            bestTotalScore: scoped.length > 0 ? Math.max(...scoped.map(entry => entry.totalScore)) : 0
+          }
+        })
+        .filter(bucket => bucket.totalCount > 0)
+
+      return {
+        fishId,
+        fishName: ratings[0]?.fishName ?? (getPondableFish(fishId)?.name ?? fishId),
+        totalCount: ratings.length,
+        matureCount: ratings.filter(entry => entry.mature).length,
+        healthyCount: ratings.filter(entry => !entry.sick).length,
+        matureHealthyCount: ratings.filter(entry => entry.mature && !entry.sick).length,
+        bestShowValue: ratings.length > 0 ? Math.max(...ratings.map(entry => entry.showValue)) : 0,
+        bestFoodValue: ratings.length > 0 ? Math.max(...ratings.map(entry => entry.foodValue)) : 0,
+        bestTotalScore: ratings.length > 0 ? Math.max(...ratings.map(entry => entry.totalScore)) : 0,
+        generationBuckets
+      }
+    }).sort((a, b) => b.bestTotalScore - a.bestTotalScore)
+  })
+
+  const getEligibilitySnapshotForFishId = (fishId: string) =>
+    pondEligibilitySnapshots.value.find(entry => entry.fishId === fishId) ?? null
+
+  const highTierFishRatings = computed(() => {
+    const threshold = getMaintenanceConfig().highTierScoreThreshold
+    return pondFishRatings.value.filter(entry => entry.totalScore >= threshold)
+  })
+
+  const displayOverview = computed(() => {
+    const config = getMaintenanceConfig()
+    const totalShowValue = displayEntries.value.reduce((sum, entry) => sum + entry.snapshotShowValue, 0)
+    const museumDisplayBonus = displayEntries.value.reduce(
+      (sum, entry) => sum + Math.max(1, Math.floor(entry.snapshotShowValue / config.displayTankMuseumScoreDivisor)),
+      0
+    )
+    return {
+      slotLimit: config.displayTankSlotLimit,
+      entryCount: displayEntries.value.length,
+      totalShowValue,
+      museumDisplayBonus,
+      contestBonus: maintenanceState.value.ornamentalFeedBuffDays > 0 ? config.ornamentalFeedContestBonus : 0
+    }
+  })
+
+  const pruneDisplayEntries = () => {
+    const fishIds = new Set(pond.value.fish.map(fish => fish.id))
+    displayEntries.value = displayEntries.value.filter(entry => fishIds.has(entry.pondFishId))
+  }
+
+  const canAssignDisplayFish = (pondFishId: string): boolean => {
+    const rating = getPondFishRatingSnapshot(pondFishId)
+    const fish = pond.value.fish.find(entry => entry.id === pondFishId)
+    if (!rating || !fish || fish.sick || !fish.mature) return false
+    if (displayAssignedFishIds.value.has(pondFishId)) return false
+    if (displayEntries.value.length >= getMaintenanceConfig().displayTankSlotLimit) return false
+    return rating.totalScore >= getMaintenanceConfig().highTierScoreThreshold
+  }
+
+  const assignDisplayFish = (pondFishId: string): boolean => {
+    if (!canAssignDisplayFish(pondFishId)) return false
+    const rating = getPondFishRatingSnapshot(pondFishId)
+    const fish = pond.value.fish.find(entry => entry.id === pondFishId)
+    if (!rating || !fish) return false
+    displayEntries.value = [
+      ...displayEntries.value,
+      {
+        pondFishId,
+        fishId: fish.fishId,
+        fishName: fish.name,
+        breedId: fish.breedId,
+        snapshotScore: rating.totalScore,
+        snapshotShowValue: rating.showValue,
+        snapshotGeneration: rating.generation,
+        assignedAtDayTag: getCurrentDayTag()
+      }
+    ]
+    return true
+  }
+
+  const removeDisplayFish = (pondFishId: string): boolean => {
+    if (!displayAssignedFishIds.value.has(pondFishId)) return false
+    displayEntries.value = displayEntries.value.filter(entry => entry.pondFishId !== pondFishId)
+    return true
+  }
+
+  const useOrnamentalFeed = (): boolean => {
+    if (!pond.value.built || highTierFishRatings.value.length <= 0) return false
+    const inventoryStore = useInventoryStore()
+    const currentDayTag = getCurrentDayTag()
+    if (maintenanceState.value.lastOrnamentalFeedDayTag === currentDayTag) return false
+    if (!inventoryStore.removeItem('ornamental_feed', 1)) return false
+    maintenanceState.value = {
+      ...maintenanceState.value,
+      ornamentalFeedBuffDays: 1,
+      lastOrnamentalFeedDayTag: currentDayTag
+    }
+    return true
+  }
+
+  const useAdvancedPurifier = (): boolean => {
+    if (!pond.value.built || highTierFishRatings.value.length <= 0) return false
+    const inventoryStore = useInventoryStore()
+    const currentDayTag = getCurrentDayTag()
+    if (maintenanceState.value.lastAdvancedPurifierDayTag === currentDayTag) return false
+    if (!inventoryStore.removeItem('advanced_water_purifier', 1)) return false
+    pond.value.waterQuality = clamp(pond.value.waterQuality + getMaintenanceConfig().advancedPurifierRestore, 0, 100)
+    maintenanceState.value = {
+      ...maintenanceState.value,
+      quarantineShieldDays: Math.max(maintenanceState.value.quarantineShieldDays, getMaintenanceConfig().quarantineShieldDays),
+      lastAdvancedPurifierDayTag: currentDayTag
+    }
+    return true
+  }
+
+  const currentPondContestDef = computed(() =>
+    pondContestState.value.contestId ? POND_CONTEST_DEFS.find(entry => entry.id === pondContestState.value.contestId) ?? null : null
+  )
+  const currentThemeWeekPondFocus = computed(() => {
+    const goalStore = useGoalStore()
+    const themeWeek = goalStore.currentThemeWeek
+    if (!themeWeek) return null
+    const fishpondFocused = themeWeek.preferredQuestThemeTag === 'fishpond' || (themeWeek.recommendedCatalogTags ?? []).some(tag => ['鱼塘', '渔具'].includes(tag))
+    if (!fishpondFocused) return null
+    return {
+      id: themeWeek.id,
+      name: themeWeek.name,
+      summary: themeWeek.breedingFocusDescription ?? '本周主题周更偏向鱼塘样本、观赏值与周赛承接。',
+      recommendedContestId: currentPondContestDef.value?.id ?? null
+    }
+  })
+
+  const contestEligibleFish = computed(() => {
+    const contest = currentPondContestDef.value
+    if (!contest) return []
+    return pondFishRatings.value
+      .filter(entry => {
+        if (contest.requireMature && !entry.mature) return false
+        if (contest.requireHealthy && entry.sick) return false
+        if (contest.unlockGenerationMin && entry.generation < contest.unlockGenerationMin) return false
+        return true
+      })
+      .sort((a, b) => b[contest.scoringMetric] - a[contest.scoringMetric])
+  })
+
+  const pruneContestRegistrations = (): boolean => {
+    const validFishIds = new Set(contestEligibleFish.value.map(entry => entry.fishInstanceId))
+    const nextRegisteredFishIds = pondContestState.value.registeredFishIds.filter(id => validFishIds.has(id))
+    if (nextRegisteredFishIds.length === pondContestState.value.registeredFishIds.length) return false
+    pondContestState.value = {
+      ...pondContestState.value,
+      registeredFishIds: nextRegisteredFishIds
+    }
+    return true
+  }
+
+  const syncContestStateToCurrentWeek = (): boolean => {
+    const currentWeekInfo = getCurrentWeekInfo()
+    if (pondContestState.value.weekId === currentWeekInfo.seasonWeekId && pondContestState.value.contestId) {
+      pruneContestRegistrations()
+      return false
+    }
+    refreshWeeklyContest(currentWeekInfo.seasonWeekId, currentWeekInfo.absoluteWeek)
+    return true
+  }
+
+  const registerContestFish = (pondFishId: string): boolean => {
+    if (!currentPondContestDef.value || pondContestState.value.settled) return false
+    if (pondContestState.value.registeredFishIds.includes(pondFishId)) return false
+    if (!contestEligibleFish.value.some(entry => entry.fishInstanceId === pondFishId)) return false
+    pondContestState.value = {
+      ...pondContestState.value,
+      registeredFishIds: [...pondContestState.value.registeredFishIds, pondFishId]
+    }
+    return true
+  }
+
+  const unregisterContestFish = (pondFishId: string): boolean => {
+    if (!pondContestState.value.registeredFishIds.includes(pondFishId)) return false
+    pondContestState.value = {
+      ...pondContestState.value,
+      registeredFishIds: pondContestState.value.registeredFishIds.filter(id => id !== pondFishId)
+    }
+    return true
+  }
+
+  const refreshWeeklyContest = (weekId: string, absoluteWeek: number) => {
+    const contest = getWeeklyPondContestDef(absoluteWeek)
+    pondContestState.value = {
+      weekId,
+      contestId: contest?.id ?? '',
+      registeredFishIds: [],
+      settled: false,
+      lastSettlementDayTag: ''
+    }
+    return contest
+  }
+
+  const settleWeeklyContest = (weekId: string, settledAtDayTag: string) => {
+    const contest = currentPondContestDef.value
+    if (!contest || pondContestState.value.weekId !== weekId || pondContestState.value.settled) return lastPondContestSettlement.value
+    pruneContestRegistrations()
+    const walletStore = useWalletStore()
+    const playerStore = usePlayerStore()
+    const ranking = pondContestState.value.registeredFishIds
+      .map(id => pondFishRatings.value.find(entry => entry.fishInstanceId === id))
+      .filter((entry): entry is PondFishRatingSnapshot => entry !== undefined)
+      .map(entry => ({
+        pondFishId: entry.fishInstanceId,
+        fishId: entry.fishId,
+        fishName: entry.fishName,
+        breedId: entry.breedId,
+        score: entry[contest.scoringMetric]
+      }))
+      .sort((a, b) => b.score - a.score)
+
+    const rewardSummary: string[] = []
+    const winner = ranking[0]
+    if (winner) {
+      playerStore.earnMoney(contest.rewardMoney, { countAsEarned: false, system: 'fishPond' })
+      rewardSummary.push(`${contest.rewardMoney}文`)
+      const grantedTickets = walletStore.addRewardTickets(contest.rewardTickets, { source: 'goal', applyMultiplier: false })
+      rewardSummary.push(...Object.entries(grantedTickets).map(([ticketType, amount]) => `${walletStore.getTicketLabel(ticketType as any)}×${amount}`))
+      addLog(`【鱼塘周赛】${contest.label} 已结算，冠军样本为 ${winner.fishName}（${winner.score}分）。`, {
+        category: 'goal',
+        tags: ['late_game_cycle'],
+        meta: { weekId, contestId: contest.id, score: winner.score }
+      })
+    }
+
+    const summary: PondContestSettlementSummary = {
+      weekId,
+      contestId: contest.id,
+      settledAtDayTag,
+      participantCount: ranking.length,
+      winner,
+      ranking,
+      rewardSummary
+    }
+    lastPondContestSettlement.value = summary
+    pondContestState.value = {
+      ...pondContestState.value,
+      settled: true,
+      lastSettlementDayTag: settledAtDayTag
+    }
+    return summary
+  }
+
   const getEligibleFishForOrder = (options: {
     fishId: string
     generationMin?: number
     requireMature?: boolean
     requireHealthy?: boolean
   }): PondFish[] => {
+    const scoreMap = new Map(pondFishRatings.value.map(entry => [entry.fishInstanceId, entry.totalScore]))
     return pond.value.fish.filter(fish => {
       if (fish.fishId !== options.fishId) return false
       if (options.requireMature && !fish.mature) return false
       if (options.requireHealthy && fish.sick) return false
       if (options.generationMin && getFishBreedGeneration(fish) < options.generationMin) return false
       return true
-    })
+    }).sort((a, b) => (scoreMap.get(b.id) ?? 0) - (scoreMap.get(a.id) ?? 0))
   }
 
   const countEligibleFishForOrder = (options: {
@@ -240,6 +663,8 @@ export const useFishPondStore = defineStore('fishPond', () => {
     if (pond.value.breeding && (removeIds.has(pond.value.breeding.parentA) || removeIds.has(pond.value.breeding.parentB))) {
       pond.value.breeding = null
     }
+    pruneDisplayEntries()
+    pruneContestRegistrations()
 
     return true
   }
@@ -357,6 +782,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
   // === 每日更新 ===
 
   const dailyUpdate = (): PondDailyResult => {
+    const maintenanceConfig = getMaintenanceConfig()
     const result: PondDailyResult = {
       products: [],
       died: [],
@@ -386,6 +812,13 @@ export const useFishPondStore = defineStore('fishPond', () => {
     }
 
     pond.value.waterQuality = clamp(pond.value.waterQuality - decay, 0, 100)
+    if (highTierFishRatings.value.length > 0 && maintenanceState.value.quarantineShieldDays <= 0) {
+      pond.value.waterQuality = clamp(
+        pond.value.waterQuality - highTierFishRatings.value.length * maintenanceConfig.maintenanceDecayPerHighTierFish,
+        0,
+        100
+      )
+    }
 
     // 3. 疾病判定 + 4. 死亡判定 + 5. 自然恢复
     const toRemove: number[] = []
@@ -406,7 +839,10 @@ export const useFishPondStore = defineStore('fishPond', () => {
       if (!fish.sick && pond.value.waterQuality < DISEASE_THRESHOLD) {
         const resist = fish.genetics.diseaseRes / 100
         // 钓鱼等级降低生病率
-        const chance = (DISEASE_CHANCE_BASE * (1 - resist)) / (1 + fishingLevel * 0.05)
+        const chance =
+          (DISEASE_CHANCE_BASE * (1 - resist)) /
+          (1 + fishingLevel * 0.05) /
+          (maintenanceState.value.quarantineShieldDays > 0 ? 2 : 1)
         if (Math.random() < chance) {
           fish.sick = true
           fish.sickDays = 0
@@ -445,6 +881,8 @@ export const useFishPondStore = defineStore('fishPond', () => {
       }
       pond.value.fish.splice(idx, 1)
     }
+    pruneDisplayEntries()
+    pruneContestRegistrations()
 
     // 7. 产出生成（成熟 + 已喂食 + 未生病）
     if (pond.value.fedToday) {
@@ -523,6 +961,11 @@ export const useFishPondStore = defineStore('fishPond', () => {
     pendingProducts.value.push(...result.products)
 
     // 9. 重置
+    maintenanceState.value = {
+      ...maintenanceState.value,
+      ornamentalFeedBuffDays: Math.max(0, maintenanceState.value.ornamentalFeedBuffDays - 1),
+      quarantineShieldDays: Math.max(0, maintenanceState.value.quarantineShieldDays - 1)
+    }
     pond.value.fedToday = false
     pond.value.collectedToday = false
 
@@ -546,7 +989,11 @@ export const useFishPondStore = defineStore('fishPond', () => {
     pond: pond.value,
     pendingProducts: pendingProducts.value,
     discoveredBreeds: [...discoveredBreeds.value],
-    returnedFishPool: returnedFishPool.value
+    returnedFishPool: returnedFishPool.value,
+    pondContestState: pondContestState.value,
+    lastPondContestSettlement: lastPondContestSettlement.value,
+    displayEntries: displayEntries.value,
+    maintenanceState: maintenanceState.value
   })
 
   const deserialize = (data: any) => {
@@ -616,6 +1063,16 @@ export const useFishPondStore = defineStore('fishPond', () => {
             : []
         ])
     )
+    pondContestState.value = data?.pondContestState ?? createDefaultPondContestState()
+    lastPondContestSettlement.value = data?.lastPondContestSettlement ?? null
+    displayEntries.value = normalizeDisplayEntries(data?.displayEntries)
+    maintenanceState.value = normalizeMaintenanceState(data?.maintenanceState)
+    pruneDisplayEntries()
+    if (pond.value.built) {
+      syncContestStateToCurrentWeek()
+    } else {
+      pondContestState.value = createDefaultPondContestState()
+    }
   }
 
   return {
@@ -628,6 +1085,17 @@ export const useFishPondStore = defineStore('fishPond', () => {
     density,
     pendingProducts,
     discoveredBreeds,
+    pondContestState,
+    currentPondContestDef,
+    currentThemeWeekPondFocus,
+    contestEligibleFish,
+    lastPondContestSettlement,
+    displayEntries,
+    displayOverview,
+    highTierFishRatings,
+    maintenanceState,
+    pondFishRatings,
+    pondEligibilitySnapshots,
     buildPond,
     upgradePond,
     addFish,
@@ -636,6 +1104,17 @@ export const useFishPondStore = defineStore('fishPond', () => {
     cleanPond,
     treatSickFish,
     startBreeding,
+    canAssignDisplayFish,
+    assignDisplayFish,
+    removeDisplayFish,
+    useOrnamentalFeed,
+    useAdvancedPurifier,
+    registerContestFish,
+    unregisterContestFish,
+    refreshWeeklyContest,
+    settleWeeklyContest,
+    getPondFishRatingSnapshot,
+    getEligibilitySnapshotForFishId,
     countEligibleFishForOrder,
     submitEligibleFishForOrder,
     collectProducts,

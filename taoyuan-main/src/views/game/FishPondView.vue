@@ -85,6 +85,92 @@
               </Button>
             </div>
           </div>
+
+          <div v-if="fishPondStore.currentPondContestDef" class="border border-accent/20 rounded-xs px-3 py-2 mt-2 bg-accent/5">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <p class="text-xs text-accent">本周鱼塘周赛</p>
+                <p class="text-[10px] text-muted mt-0.5">{{ fishPondStore.currentPondContestDef.label }} · {{ fishPondStore.currentPondContestDef.description }}</p>
+              </div>
+              <span class="text-[10px] text-muted">已报名 {{ fishPondStore.pondContestState.registeredFishIds.length }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-2">
+              评分维度：{{ fishPondStore.currentPondContestDef.scoringMetric }} ·
+              {{ fishPondStore.currentPondContestDef.requireMature ? '需成熟' : '不要求成熟' }} ·
+              {{ fishPondStore.currentPondContestDef.requireHealthy ? '需健康' : '不要求健康' }}
+            </p>
+            <p v-if="fishPondStore.lastPondContestSettlement?.weekId" class="text-[10px] text-accent mt-1">
+              上周结算：{{ fishPondStore.lastPondContestSettlement.weekId }} · 冠军 {{ fishPondStore.lastPondContestSettlement.winner?.fishName ?? '无' }}
+            </p>
+          </div>
+
+          <div v-if="fishPondStore.currentThemeWeekPondFocus" class="border border-success/20 rounded-xs px-3 py-2 mt-2 bg-success/5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-success">主题周承接</p>
+              <span class="text-[10px] text-muted">{{ fishPondStore.currentThemeWeekPondFocus.name }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-1">{{ fishPondStore.currentThemeWeekPondFocus.summary }}</p>
+          </div>
+
+          <div class="border border-accent/20 rounded-xs px-3 py-2 mt-2">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <p class="text-xs text-accent">高阶养护</p>
+                <p class="text-[10px] text-muted mt-0.5">高评分样鱼会额外消耗水质承压，观赏饲料与高级净水剂会直接影响周赛和展示表现。</p>
+              </div>
+              <span class="text-[10px] text-muted">高阶样鱼 {{ fishPondStore.highTierFishRatings.length }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-2">
+              观赏饲料：{{ fishPondStore.maintenanceState.ornamentalFeedBuffDays > 0 ? '生效中' : '未启用' }}
+              <span class="text-accent/60"> · </span>
+              隔离净水：{{ fishPondStore.maintenanceState.quarantineShieldDays > 0 ? `${fishPondStore.maintenanceState.quarantineShieldDays} 天` : '未启用' }}
+            </p>
+            <div class="flex flex-wrap gap-1 mt-2">
+              <Button :icon="Star" :icon-size="12" @click="handleOrnamentalFeed">使用观赏饲料</Button>
+              <Button :icon="Sparkles" :icon-size="12" @click="handleAdvancedPurifier">使用高级净水剂</Button>
+            </div>
+          </div>
+
+          <div class="border border-accent/20 rounded-xs px-3 py-2 mt-2">
+            <div class="flex items-center justify-between gap-2">
+              <div>
+                <p class="text-xs text-accent">展示池 / 观赏缸</p>
+                <p class="text-[10px] text-muted mt-0.5">展示池记录镜像快照，不移动原鱼对象；展示中的样鱼会反向抬高周赛与博物馆展陈收益。</p>
+              </div>
+              <span class="text-[10px] text-muted">{{ fishPondStore.displayOverview.entryCount }}/{{ fishPondStore.displayOverview.slotLimit }}</span>
+            </div>
+            <p class="text-[10px] text-success mt-2">
+              博物馆展陈加分 {{ fishPondStore.displayOverview.museumDisplayBonus }} · 展示总观赏值 {{ fishPondStore.displayOverview.totalShowValue }}
+            </p>
+            <div v-if="fishPondStore.displayEntries.length > 0" class="space-y-1 mt-2">
+              <div v-for="entry in fishPondStore.displayEntries" :key="`display-${entry.pondFishId}`" class="border border-accent/10 rounded-xs px-2 py-1.5 bg-bg/10">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs text-text">{{ entry.fishName }}</span>
+                  <span class="text-[10px] text-accent">观赏 {{ entry.snapshotShowValue }} / 总评 {{ entry.snapshotScore }}</span>
+                </div>
+                <p class="text-[10px] text-muted mt-1">快照代数 {{ entry.snapshotGeneration }} · 录入于 {{ entry.assignedAtDayTag || '当日' }}</p>
+              </div>
+            </div>
+            <p v-else class="text-[10px] text-muted mt-2">还没有放入展示池的样鱼，可在鱼详情中把高评分成熟样鱼挂上展示。</p>
+          </div>
+
+          <div v-if="pondEligibilityCards.length > 0" class="border border-accent/20 rounded-xs px-3 py-2 mt-2">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-xs text-accent">经营评级 / 资格快照</span>
+              <span class="text-[10px] text-muted">按当前鱼塘个体自动汇总</span>
+            </div>
+            <div class="space-y-1.5">
+              <div v-for="entry in pondEligibilityCards" :key="`eligibility-${entry.fishId}`" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs text-text">{{ entry.fishName }}</span>
+                  <span class="text-[10px] text-accent">最高 {{ entry.bestTotalScore }}</span>
+                </div>
+                <p class="text-[10px] text-muted mt-1">
+                  成熟/健康 {{ entry.matureCount }}/{{ entry.healthyCount }} · 可直接交付 {{ entry.matureHealthyCount }} · 观赏 {{ entry.bestShowValue }} · 食用 {{ entry.bestFoodValue }}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
 
         <!-- 塘中鱼类 -->
@@ -127,6 +213,7 @@
                   <span class="text-[10px] text-accent flex items-center space-x-px">
                     <Star v-for="n in fishPondStore.getGeneticStarRating(fish.genetics)" :key="n" :size="10" />
                   </span>
+                  <span class="text-[10px] text-accent/80">总评 {{ getFishRating(fish)?.totalScore ?? 0 }}</span>
                   <span class="text-[10px] text-muted">{{ fish.daysInPond }}天</span>
                 </div>
               </div>
@@ -289,8 +376,31 @@
             </div>
           </div>
 
+          <div v-if="detailFishRating" class="border border-accent/10 rounded-xs p-2 mb-3 bg-bg/10">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">统一评级</p>
+              <span class="text-[10px] text-muted">总评 {{ detailFishRating.totalScore }}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2 mt-2">
+              <div class="text-[10px] text-muted">世代：<span class="text-accent">{{ detailFishRating.generation }}</span></div>
+              <div class="text-[10px] text-muted">稳定：<span class="text-accent">{{ detailFishRating.stabilityScore }}</span></div>
+              <div class="text-[10px] text-muted">观赏：<span class="text-accent">{{ detailFishRating.showValue }}</span></div>
+              <div class="text-[10px] text-muted">食用：<span class="text-accent">{{ detailFishRating.foodValue }}</span></div>
+              <div class="text-[10px] text-muted col-span-2">健康：<span class="text-accent">{{ detailFishRating.healthScore }}</span></div>
+            </div>
+          </div>
+
           <!-- 操作按钮 -->
           <div class="flex flex-col space-y-1">
+            <Button
+              v-if="detailFishContestEligible"
+              class="w-full justify-center"
+              :icon="Star"
+              :icon-size="12"
+              @click="handleToggleContestRegistration"
+            >
+              {{ fishPondStore.pondContestState.registeredFishIds.includes(detailFish.id) ? '取消周赛报名' : '报名本周周赛' }}
+            </Button>
             <Button
               v-if="detailFish.mature && !detailFish.sick"
               class="w-full justify-center"
@@ -301,6 +411,15 @@
               @click="handleDetailBreed"
             >
               选为繁殖亲本
+            </Button>
+            <Button
+              v-if="detailFishRating"
+              class="w-full justify-center"
+              :icon="Sparkles"
+              :icon-size="12"
+              @click="handleToggleDisplayFish"
+            >
+              {{ fishPondStore.displayEntries.some(entry => entry.pondFishId === detailFish?.id) ? '移出展示池' : '加入展示池' }}
             </Button>
             <Button class="w-full justify-center" :icon="ArrowUp" :icon-size="12" @click="handleDetailRemove">取出到背包</Button>
           </div>
@@ -528,6 +647,11 @@
     return result
   })
 
+  const pondEligibilityCards = computed(() => fishPondStore.pondEligibilitySnapshots.slice(0, 3))
+  const detailFishRating = computed(() => (detailFish.value ? fishPondStore.getPondFishRatingSnapshot(detailFish.value.id) : null))
+  const getFishRating = (fish: PondFish) => fishPondStore.getPondFishRatingSnapshot(fish.id)
+  const detailFishContestEligible = computed(() => (detailFish.value ? fishPondStore.contestEligibleFish.some(entry => entry.fishInstanceId === detailFish.value?.id) : false))
+
   /** 鱼详情弹窗属性条 */
   const fishAttributes = computed(() => {
     if (!detailFish.value) return []
@@ -560,7 +684,49 @@
     detailFish.value = null
   }
 
+  const handleToggleContestRegistration = () => {
+    if (!detailFish.value) return
+    const registered = fishPondStore.pondContestState.registeredFishIds.includes(detailFish.value.id)
+    const ok = registered ? fishPondStore.unregisterContestFish(detailFish.value.id) : fishPondStore.registerContestFish(detailFish.value.id)
+    if (ok) {
+      showFloat(registered ? '已取消周赛报名' : '已报名本周周赛', 'success')
+    } else {
+      showFloat('当前样本不满足本周周赛报名条件', 'danger')
+    }
+  }
+
+  const handleToggleDisplayFish = () => {
+    if (!detailFish.value) return
+    const assigned = fishPondStore.displayEntries.some(entry => entry.pondFishId === detailFish.value?.id)
+    const ok = assigned ? fishPondStore.removeDisplayFish(detailFish.value.id) : fishPondStore.assignDisplayFish(detailFish.value.id)
+    if (ok) {
+      showFloat(assigned ? '已移出展示池' : '已加入展示池', 'success')
+    } else {
+      showFloat('当前样鱼暂不满足展示池条件', 'danger')
+    }
+  }
+
   // === 操作 ===
+
+  const handleOrnamentalFeed = () => {
+    const ok = fishPondStore.useOrnamentalFeed()
+    if (ok) {
+      addLog('已为高评分样鱼投喂观赏饲料，本日周赛与展示表现会更稳定。')
+      showFloat('观赏饲料生效', 'success')
+    } else {
+      addLog('当前没有可承接高阶养护的样鱼，或今日已使用过观赏饲料。')
+    }
+  }
+
+  const handleAdvancedPurifier = () => {
+    const ok = fishPondStore.useAdvancedPurifier()
+    if (ok) {
+      addLog('已投入高级净水剂，高评分样鱼的隔离与水质压力暂时缓解。')
+      showFloat('高级净水剂生效', 'success')
+    } else {
+      addLog('当前没有可承接高阶养护的样鱼，或今日已使用过高级净水剂。')
+    }
+  }
 
   const handleFeed = () => {
     if (fishPondStore.feedFish()) {

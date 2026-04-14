@@ -17,6 +17,8 @@ import { useMuseumStore } from './useMuseumStore'
 import { useGuildStore } from './useGuildStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 
+const SKILL_MAX_LEVEL = 20
+
 export const useAchievementStore = defineStore('achievement', () => {
   const playerStore = usePlayerStore()
   const inventoryStore = useInventoryStore()
@@ -195,7 +197,7 @@ export const useAchievementStore = defineStore('achievement', () => {
         return animalStore.animals.length >= c.count
       }
       case 'allSkillsMax':
-        return skillStore.skills.every(s => s.level === 20)
+        return skillStore.skills.every(s => s.level === SKILL_MAX_LEVEL)
       case 'allBundlesComplete':
         return completedBundles.value.length >= COMMUNITY_BUNDLES.length
       case 'hybridsDiscovered':
@@ -273,13 +275,18 @@ export const useAchievementStore = defineStore('achievement', () => {
     const req = bundle.requiredItems.find(r => r.itemId === itemId)
     if (!req) return false
 
-    if (!inventoryStore.removeItem(itemId, quantity)) return false
+    const currentSubmitted = bundleSubmissions.value[bundleId]?.[itemId] ?? 0
+    const remaining = Math.max(0, req.quantity - currentSubmitted)
+    const acceptedQuantity = Math.min(Math.max(0, Math.floor(quantity)), remaining)
+    if (acceptedQuantity <= 0) return false
+
+    if (!inventoryStore.removeItem(itemId, acceptedQuantity)) return false
 
     if (!bundleSubmissions.value[bundleId]) {
       bundleSubmissions.value[bundleId] = {}
     }
     const sub = bundleSubmissions.value[bundleId]!
-    sub[itemId] = (sub[itemId] ?? 0) + quantity
+    sub[itemId] = (sub[itemId] ?? 0) + acceptedQuantity
 
     // 检查是否完成
     const allMet = bundle.requiredItems.every(r => (sub[r.itemId] ?? 0) >= r.quantity)
@@ -338,8 +345,10 @@ export const useAchievementStore = defineStore('achievement', () => {
     // 图鉴 15%
     const collectionRate = ITEMS.length > 0 ? discoveredItems.value.length / ITEMS.length : 0
     // 技能 15%
-    const avgSkillLevel = skillStore.skills.reduce((sum, s) => sum + s.level, 0) / skillStore.skills.length
-    const skillRate = avgSkillLevel / 10
+    const avgSkillLevel = skillStore.skills.length > 0
+      ? skillStore.skills.reduce((sum, s) => sum + s.level, 0) / skillStore.skills.length
+      : 0
+    const skillRate = Math.min(1, avgSkillLevel / SKILL_MAX_LEVEL)
     // 好感 10%
     const friendlyCount = npcStore.npcStates.filter(n => {
       const level = npcStore.getFriendshipLevel(n.npcId)

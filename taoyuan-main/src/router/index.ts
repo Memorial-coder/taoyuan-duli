@@ -27,6 +27,7 @@ const router = createRouter({
         { path: 'home', name: 'home', component: () => import('@/views/game/HomeView.vue') },
         { path: 'cottage', name: 'cottage', component: () => import('@/views/game/CottageView.vue') },
         { path: 'village', name: 'village', component: () => import('@/views/game/NpcView.vue') },
+        { path: 'village-projects', name: 'village-projects', component: () => import('@/views/game/VillageView.vue') },
         { path: 'shop', name: 'shop', component: () => import('@/views/game/ShopView.vue') },
         { path: 'forage', name: 'forage', component: () => import('@/views/game/ForageView.vue') },
         { path: 'fishing', name: 'fishing', component: () => import('@/views/game/FishingView.vue') },

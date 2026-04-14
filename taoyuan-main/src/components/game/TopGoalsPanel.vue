@@ -17,6 +17,7 @@
         <span class="game-chip">目标声望 {{ goalStore.goalReputation }}</span>
         <span class="game-chip">今日 {{ goalStore.dailyGoals.length }} 项</span>
         <span class="game-chip">长期 {{ longTermCompletedCount }} / {{ goalStore.longTermGoals.length }}</span>
+        <span class="game-chip">连周 {{ goalStore.weeklyStreakState.current }} / 最高 {{ goalStore.weeklyStreakState.best }}</span>
         <span v-if="goalStore.currentEventCampaign" class="game-chip">活动 {{ goalStore.currentEventCampaign.label }}</span>
         <button class="btn !px-2 !py-1" @click="collapsed = !collapsed">
           <span>{{ collapsed ? '展开目标' : '收起目标' }}</span>
@@ -111,6 +112,25 @@
                 <p class="text-[11px] text-muted mt-1 leading-5">{{ goal.description }}</p>
               </div>
             </div>
+          </div>
+          <div v-if="goalStore.lastWeeklyGoalSettlement" class="rounded-xs border border-accent/20 bg-accent/5 px-2 py-2">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[11px] text-accent">上周结算</p>
+              <span class="text-[10px] text-muted">{{ goalStore.lastWeeklyGoalSettlement.weekId }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-1">
+              完成 {{ goalStore.lastWeeklyGoalSettlement.completedGoalCount }}/{{ goalStore.lastWeeklyGoalSettlement.totalGoalCount }} ·
+              连周 {{ goalStore.weeklyStreakState.current }} · 最佳 {{ goalStore.weeklyStreakState.best }}
+            </p>
+            <p v-if="goalStore.lastWeeklyGoalSettlement.rewardHighlights.length > 0" class="text-[10px] text-success mt-1">
+              奖励：{{ goalStore.lastWeeklyGoalSettlement.rewardHighlights.slice(0, 2).join('；') }}
+            </p>
+            <p v-if="goalStore.lastWeeklyGoalSettlement.failureHighlights.length > 0" class="text-[10px] text-warning mt-1">
+              未完成：{{ goalStore.lastWeeklyGoalSettlement.failureHighlights.slice(0, 2).join('；') }}
+            </p>
+            <p v-if="goalStore.lastWeeklyGoalSettlement.recommendationHighlights.length > 0" class="text-[10px] text-muted mt-1">
+              建议：{{ goalStore.lastWeeklyGoalSettlement.recommendationHighlights.slice(0, 2).join('；') }}
+            </p>
           </div>
           <div v-for="goal in goalStore.seasonGoals" :key="goal.id" class="rounded-xs border border-accent/10 px-2 py-2 bg-bg/10">
             <div class="flex items-center justify-between gap-3 text-xs">

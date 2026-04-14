@@ -90,7 +90,7 @@
           }}
         </p>
       </div>
-      <Button class="w-full justify-center" @click="emit('complete', won, draw)">确定</Button>
+      <Button class="w-full justify-center" @click="emit('complete', [...playerActions])">确定</Button>
     </template>
   </div>
 </template>
@@ -99,12 +99,12 @@
   import { ref, computed, nextTick, onMounted } from 'vue'
   import { BUCKSHOT_BET_AMOUNT, BUCKSHOT_WIN_MULTIPLIER, dealerDecide } from '@/data/hanhai'
   import { sfxGunshot, sfxGunEmpty, sfxCasinoWin, sfxCasinoLose } from '@/composables/useAudio'
-  import type { BuckshotSetup, ShellType } from '@/types'
+  import type { BuckshotPlayerAction, BuckshotSetup, ShellType } from '@/types'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
 
   const props = defineProps<{ setup: BuckshotSetup }>()
-  const emit = defineEmits<{ complete: [won: boolean, draw: boolean] }>()
+  const emit = defineEmits<{ complete: [playerActions: BuckshotPlayerAction[]] }>()
 
   // 游戏状态
   const shells = ref<ShellType[]>([...props.setup.shells])
@@ -113,12 +113,13 @@
   const dealerHP = ref(props.setup.dealerHP)
   const maxPlayerHP = props.setup.playerHP
   const maxDealerHP = props.setup.dealerHP
-  const playerFirst = Math.random() < 0.5
+  const playerFirst = props.setup.playerFirst
   const isPlayerTurn = ref(playerFirst)
   const gameOver = ref(false)
   const won = ref(false)
   const draw = ref(false)
   const actionLog = ref<string[]>([])
+  const playerActions = ref<BuckshotPlayerAction[]>([])
   const animating = ref(false)
 
   // 受击动画
@@ -212,6 +213,7 @@
   const shootOpponent = async () => {
     if (animating.value || gameOver.value) return
     animating.value = true
+    playerActions.value.push('opponent')
     const shell = getCurrentShell()
     consumeShell()
 
@@ -241,6 +243,7 @@
   const shootSelf = async () => {
     if (animating.value || gameOver.value) return
     animating.value = true
+    playerActions.value.push('self')
     const shell = getCurrentShell()
     consumeShell()
 

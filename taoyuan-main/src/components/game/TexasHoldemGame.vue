@@ -132,32 +132,30 @@
         <p class="text-xs text-muted mt-0.5">荷官小费 {{ tier.rake }}文</p>
         <p class="text-xs text-muted mt-0.5">共 {{ currentRound }} 手 · 最终筹码 {{ playerStack }}</p>
       </div>
-      <Button class="w-full justify-center" @click="emit('complete', playerStack, tier.name)">确定</Button>
+      <Button class="w-full justify-center" @click="completeSession">确定</Button>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
   import { ref, computed, onMounted, nextTick } from 'vue'
-  import { SUIT_LABELS, RANK_LABELS, evaluateBestHand, compareHands, texasDealerAI, dealTexas } from '@/data/hanhai'
-  import { usePlayerStore } from '@/stores/usePlayerStore'
+  import { SUIT_LABELS, RANK_LABELS, evaluateBestHand, compareHands, texasDealerAI } from '@/data/hanhai'
   import { sfxChipBet, sfxFoldCards, sfxCardFlip, sfxCasinoWin, sfxCasinoLose } from '@/composables/useAudio'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
-  import type { TexasSetup, TexasStreet, PokerSuit, PokerHandResult, PokerCard } from '@/types'
-
-  const playerStore = usePlayerStore()
+  import type { TexasActionRecord, TexasSessionReport, TexasSetup, TexasStreet, PokerSuit, PokerHandResult, PokerCard } from '@/types'
 
   const props = defineProps<{ setup: TexasSetup }>()
-  const emit = defineEmits<{ complete: [finalChips: number, tierName: string] }>()
+  const emit = defineEmits<{ complete: [report: TexasSessionReport] }>()
 
   const tier = props.setup.tier
+  const hands = props.setup.hands
 
   // === 多手牌管理 ===
   const currentRound = ref(1)
-  const currentPlayerHole = ref<PokerCard[]>(props.setup.playerHole)
-  const currentDealerHole = ref<PokerCard[]>(props.setup.dealerHole)
-  const currentCommunity = ref<PokerCard[]>(props.setup.community)
+  const currentPlayerHole = ref<PokerCard[]>(hands[0]?.playerHole ?? [])
+  const currentDealerHole = ref<PokerCard[]>(hands[0]?.dealerHole ?? [])
+  const currentCommunity = ref<PokerCard[]>(hands[0]?.community ?? [])
 
   // === 单手牌状态 ===
   const street = ref<TexasStreet>('preflop')
@@ -180,6 +178,8 @@
   const sessionOver = ref(false)
   const finalResult = ref<{ won: boolean; draw: boolean; netProfit: number } | null>(null)
   const totalInvested = ref(0) // 场外累计投入（不含初始入场费）
+  const reserveMoney = ref(Math.max(0, Math.floor(Number(props.setup.reserveMoney) || 0)))
+  const playerActions = ref<TexasActionRecord[]>([])
   const actionLog = ref<string[]>([])
   const logRef = ref<HTMLElement | null>(null)
 
@@ -217,6 +217,15 @@
     actionLog.value.push(msg)
     void nextTick(() => {
       if (logRef.value) logRef.value.scrollTop = logRef.value.scrollHeight
+    })
+  }
+
+  const recordPlayerAction = (action: TexasActionRecord['action'], total?: number) => {
+    playerActions.value.push({
+      round: currentRound.value,
+      street: street.value,
+      action,
+      ...(typeof total === 'number' ? { total } : {})
     })
   }
 
@@ -305,6 +314,7 @@
   // === 玩家操作 ===
 
   const doCheck = () => {
+    recordPlayerAction('check')
     sfxChipBet()
     addActionLog('你过牌')
     isPlayerTurn.value = false
@@ -313,6 +323,7 @@
   }
 
   const doCall = () => {
+    recordPlayerAction('call')
     const amount = betFromPlayer(toCall.value)
     sfxChipBet()
     addActionLog(`你跟注 ${amount}`)
@@ -320,6 +331,7 @@
   }
 
   const doRaise = (total: number) => {
+    recordPlayerAction('raise', total)
     const needed = total - playerBetRound.value
     const amount = betFromPlayer(needed)
     sfxChipBet()
@@ -330,6 +342,7 @@
   }
 
   const doAllIn = () => {
+    recordPlayerAction('allin')
     const amount = betFromPlayer(playerStack.value)
     sfxChipBet()
     addActionLog(`你全押 ${amount}`)
@@ -340,6 +353,7 @@
   }
 
   const doFold = () => {
+    recordPlayerAction('fold')
     sfxFoldCards()
     addActionLog('你弃牌')
     playerFolded.value = true
@@ -462,7 +476,7 @@
     handResult.value = result
 
     // 检查是否已打完所有手数，或玩家筹码+场外资金都不够继续
-    const playerBroke = playerStack.value <= 0 && playerStore.money <= 0
+    const playerBroke = playerStack.value <= 0 && reserveMoney.value <= 0
     if (playerBroke || currentRound.value >= tier.rounds) {
       endSession()
     } else {
@@ -475,7 +489,11 @@
 
   const startNextHand = () => {
     currentRound.value++
-    const deal = dealTexas()
+    const deal = hands[currentRound.value - 1]
+    if (!deal) {
+      endSession()
+      return
+    }
     currentPlayerHole.value = deal.playerHole
     currentDealerHole.value = deal.dealerHole
     currentCommunity.value = deal.community
@@ -491,9 +509,9 @@
     // 玩家筹码不足时，从场外资金补充
     if (playerStack.value < tier.blind * 2) {
       const needed = tier.entryFee - playerStack.value
-      const canAfford = Math.min(needed, playerStore.money)
+      const canAfford = Math.min(needed, reserveMoney.value)
       if (canAfford > 0) {
-        playerStore.spendMoney(canAfford)
+        reserveMoney.value -= canAfford
         playerStack.value += canAfford
         totalInvested.value += canAfford
         addActionLog(`从场外补充筹码 ${canAfford}`)
@@ -525,6 +543,14 @@
     addActionLog(`双方各下盲注 ${tier.blind}`)
     addActionLog('—— 翻牌前 ——')
     isPlayerTurn.value = true
+  }
+
+  const completeSession = () => {
+    emit('complete', {
+      sessionId: props.setup.sessionId,
+      tierName: tier.name,
+      playerActions: playerActions.value.map(action => ({ ...action }))
+    })
   }
 
   // === 整场结算 ===

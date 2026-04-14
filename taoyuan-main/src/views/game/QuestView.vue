@@ -692,6 +692,10 @@
       lines.push(`轮换标签：${quest.antiRepeatTags.join(' / ')}`)
     }
 
+    if (quest.requirementSummary?.length) {
+      lines.push(...quest.requirementSummary.map(line => `要求：${line}`))
+    }
+
     return lines
   }
 

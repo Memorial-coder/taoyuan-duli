@@ -801,7 +801,7 @@
     BUCKSHOT_BET_AMOUNT,
     BUCKSHOT_WIN_MULTIPLIER
   } from '@/data/hanhai'
-  import type { HanhaiShopItemDef, CricketDef, TexasSetup, TexasTierId, BuckshotSetup, HanhaiRelicSiteDef } from '@/types'
+  import type { BuckshotPlayerAction, BuckshotSetup, CricketDef, HanhaiRelicSiteDef, HanhaiShopItemDef, TexasSessionReport, TexasSetup, TexasTierId } from '@/types'
   import { addLog } from '@/composables/useGameLog'
   import { useAudio } from '@/composables/useAudio'
   import {
@@ -1255,8 +1255,8 @@
     showTexasModal.value = true
   }
 
-  const handleTexasComplete = (finalChips: number, tierName: string) => {
-    hanhaiStore.endTexas(finalChips, tierName, texasSetup.value?.sessionId)
+  const handleTexasComplete = (report: TexasSessionReport) => {
+    hanhaiStore.endTexas(report)
     showTexasModal.value = false
     texasSetup.value = null
   }
@@ -1275,8 +1275,8 @@
     showBuckshotModal.value = true
   }
 
-  const handleBuckshotComplete = (won: boolean, draw: boolean) => {
-    hanhaiStore.endBuckshot(won, draw, buckshotSetup.value?.sessionId)
+  const handleBuckshotComplete = (playerActions: BuckshotPlayerAction[]) => {
+    hanhaiStore.endBuckshot(playerActions, buckshotSetup.value?.sessionId)
     showBuckshotModal.value = false
     buckshotSetup.value = null
   }

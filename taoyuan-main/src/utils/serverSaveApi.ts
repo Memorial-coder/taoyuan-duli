@@ -68,6 +68,26 @@ export const saveServerSlotRaw = async (slot: number, raw: string): Promise<void
   }
 }
 
+export const setServerActiveSlot = async (slot: number): Promise<void> => {
+  const safeSlot = normalizeSlot(slot)
+  if (safeSlot === null) throw new Error('无效的存档槽位')
+  await ensureLoggedInContext()
+  const csrfToken = await ensureCurrentCsrfToken()
+  const res = await fetch('/api/taoyuan/save/active-slot', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken
+    },
+    body: JSON.stringify({ slot: safeSlot })
+  })
+  const data = await parseJsonSafe(res)
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.msg || '设置当前服务端存档失败')
+  }
+}
+
 export const deleteServerSlotRaw = async (slot: number): Promise<void> => {
   const safeSlot = normalizeSlot(slot)
   if (safeSlot === null) throw new Error('无效的存档槽位')

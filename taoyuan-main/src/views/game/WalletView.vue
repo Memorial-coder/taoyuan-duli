@@ -256,6 +256,9 @@
           placeholder="请输入要兑换的铜钱数量"
         />
         <p class="text-[10px] text-muted mt-1">{{ exchangePreviewLabel }}</p>
+        <p v-if="!hasServerExchangeSession" class="text-[10px] text-warning mt-1">
+          {{ exchangeSessionHint }}
+        </p>
         <p v-if="importLimitReached || exportLimitReached" class="text-[10px] text-warning mt-1">
           {{ importLimitReached ? '今日转入额度已达上限。' : '' }}{{ exportLimitReached ? '今日提现额度已达上限。' : '' }}
         </p>
@@ -631,6 +634,18 @@
   })
   const unlockedArchetypeNodeCount = computed(() => walletStore.currentArchetypeNodes.filter(node => walletStore.isNodeUnlocked(node.id)).length)
   const sanitizedExchangeMoney = computed(() => Math.max(0, Math.floor(Number(exchangeMoney.value) || 0)))
+  const hasServerExchangeSession = computed(() =>
+    exchangeContext.value.loggedIn &&
+    saveStore.storageMode === 'server' &&
+    saveStore.activeSlotMode === 'server' &&
+    saveStore.activeSlot >= 0
+  )
+  const exchangeSessionHint = computed(() => {
+    if (!exchangeContext.value.loggedIn) return '请先登录账号后再进行额度兑换。'
+    if (saveStore.storageMode !== 'server') return '请先切换到服务端持久化模式，并载入目标存档后再兑换。'
+    if (saveStore.activeSlotMode !== 'server' || saveStore.activeSlot < 0) return '请先载入一个服务端存档，再进行额度兑换。'
+    return ''
+  })
   const quotaDisplay = computed(() => exchangeContext.value.quota ?? 0)
   const dollarsDisplay = computed(() => {
     const value = exchangeContext.value.dollars ?? 0
@@ -660,6 +675,7 @@
     return limit > 0 && (exchangeContext.value.todayExportedMoney || 0) >= limit
   })
   const exchangePreviewLabel = computed(() => {
+    if (!hasServerExchangeSession.value) return exchangeSessionHint.value || '请先绑定当前服务端存档。'
     const money = sanitizedExchangeMoney.value
     if (money <= 0) return '请输入大于 0 的铜钱数量。'
     const dollars = money * exchangeContext.value.exchangeRateDollarPerMoney
@@ -677,13 +693,13 @@
     return `${money}文 ⇄ $${dollars.toFixed(4)} ⇄ ${quota} quota`
   })
   const canImport = computed(() => {
-    if (!exchangeContext.value.loggedIn || sanitizedExchangeMoney.value <= 0) return false
+    if (!hasServerExchangeSession.value || sanitizedExchangeMoney.value <= 0) return false
     const limit = exchangeContext.value.dailyImportLimitMoney || 0
     if (limit <= 0) return true
     return (exchangeContext.value.todayImportedMoney || 0) + sanitizedExchangeMoney.value <= limit
   })
   const canExport = computed(() => {
-    if (!exchangeContext.value.loggedIn || sanitizedExchangeMoney.value <= 0) return false
+    if (!hasServerExchangeSession.value || sanitizedExchangeMoney.value <= 0) return false
     if (playerStore.money < sanitizedExchangeMoney.value) return false
     const limit = exchangeContext.value.dailyExportLimitMoney || 0
     if (limit <= 0) return true
@@ -749,6 +765,10 @@
   }
 
   const handleImport = async () => {
+    if (!hasServerExchangeSession.value) {
+      showFloat(exchangeSessionHint.value || '请先载入服务端存档。', 'danger')
+      return
+    }
     if (!canImport.value) return
     importing.value = true
     try {
@@ -777,6 +797,10 @@
   }
 
   const handleExport = async () => {
+    if (!hasServerExchangeSession.value) {
+      showFloat(exchangeSessionHint.value || '请先载入服务端存档。', 'danger')
+      return
+    }
     if (!canExport.value) return
     exporting.value = true
     try {

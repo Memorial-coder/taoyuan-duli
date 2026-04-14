@@ -410,6 +410,8 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { type: 'villageProjectLevel', target: 2, label: '先完成 2 项村庄建设' },
       { type: 'hanhaiRelicClears', target: 2, label: '完成 2 次瀚海遗迹勘探' }
     ],
+    requiredClueId: 'hong_dou_caravan_clue',
+    requiredClueText: '需要先从红豆处获得驿站扩建线索。',
     fundingPhase: 'expansion',
     linkedSystems: ['quest', 'hanhai'],
     auditTags: ['high_value', 'order_pool'],
@@ -477,6 +479,8 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { type: 'museumDonations', target: 6, label: '向博物馆捐赠 6 件展品' },
       { type: 'completedBundles', target: 2, label: '完成 2 个社区目标' }
     ],
+    requiredClueId: 'su_su_school_clue',
+    requiredClueText: '需要先从素素处获得学舍启用线索。',
     fundingPhase: 'expansion',
     linkedSystems: ['quest', 'museum', 'goal'],
     auditTags: ['high_value', 'social_unlock'],
@@ -571,6 +575,8 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { type: 'completedQuests', target: 12, label: '累计完成 12 个委托 / 订单' },
       { type: 'guildContribution', target: 120, label: '公会贡献达到 120 点' }
     ],
+    requiredClueId: 'lin_lao_hot_spring_clue',
+    requiredClueText: '需要先从林老处获得温泉整修线索。',
     fundingPhase: 'expansion',
     linkedSystems: ['quest', 'guild', 'goal'],
     auditTags: ['high_value', 'recovery_bonus'],
@@ -629,6 +635,8 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { type: 'completedQuests', target: 16, label: '累计完成 16 个委托 / 订单' },
       { type: 'museumDonations', target: 8, label: '向博物馆捐赠 8 件展品' }
     ],
+    requiredClueId: 'xue_qin_school_upgrade_clue',
+    requiredClueText: '需要先从雪琴处获得学舍扩建线索。',
     requiredProjectId: 'village_school',
     requiredProjectText: '需要先完成「村塾学舍」，才能继续扩建。',
     fundingPhase: 'endgame',
@@ -741,6 +749,8 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
       { type: 'hanhaiRelicClears', target: 4, label: '完成 4 次瀚海遗迹勘探' },
       { type: 'completedQuests', target: 18, label: '累计完成 18 个委托 / 订单' }
     ],
+    requiredClueId: 'yun_fei_station_upgrade_clue',
+    requiredClueText: '需要先从云飞处获得驿站二期扩建线索。',
     requiredProjectId: 'caravan_station',
     requiredProjectText: '需要先完成「商队驿站」，才能继续扩建。',
     fundingPhase: 'endgame',
@@ -798,7 +808,7 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
           rewardSummary: '发放商队补给金与鱼饵，作为补给仓启用奖励。',
           reward: {
             money: 1200,
-            items: [{ itemId: 'bait', quantity: 4 }]
+            items: [{ itemId: 'standard_bait', quantity: 4 }]
           }
         },
         {

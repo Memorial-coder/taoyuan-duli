@@ -94,9 +94,16 @@ export const useCookingStore = defineStore('cooking', () => {
     const recipe = getRecipeById(recipeId)
     if (!recipe) return { success: false, message: '食谱不存在。' }
     if (!unlockedRecipes.value.includes(recipeId)) return { success: false, message: '尚未解锁此食谱。' }
+    if (!Number.isInteger(quantity) || quantity <= 0) return { success: false, message: '请输入有效的烹饪份数。' }
+    if (recipe.requiredSkill) {
+      const skill = skillStore.getSkill(recipe.requiredSkill.type)
+      if (skill.level < recipe.requiredSkill.level) {
+        return { success: false, message: '当前技能等级不足，无法烹饪此食谱。' }
+      }
+    }
 
     // 计算最多能做几份
-    let maxPossible = quantity
+    let maxPossible = Math.floor(quantity)
     for (const ing of recipe.ingredients) {
       const available = getCombinedItemCount(ing.itemId)
       maxPossible = Math.min(maxPossible, Math.floor(available / ing.quantity))
@@ -129,13 +136,13 @@ export const useCookingStore = defineStore('cooking', () => {
 
   /** 食用烹饪品 */
   const eat = (recipeId: string, quality: Quality = 'normal'): { success: boolean; message: string } => {
+    const recipe = getRecipeById(recipeId)
+    if (!recipe) return { success: false, message: '食谱数据丢失。' }
+
     const foodItemId = `food_${recipeId}`
     if (!inventoryStore.removeItem(foodItemId, 1, quality)) {
       return { success: false, message: '背包中没有这个食物。' }
     }
-
-    const recipe = getRecipeById(recipeId)
-    if (!recipe) return { success: false, message: '食谱数据丢失。' }
 
     // 品质加成
     const qualityBonus = QUALITY_MULTIPLIER[quality]

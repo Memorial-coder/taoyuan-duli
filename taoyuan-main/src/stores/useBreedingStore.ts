@@ -1,6 +1,16 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type {
+  BreedingCommercialTag,
+  BreedingCertificationRecord,
+  BreedingContestEntryResult,
+  BreedingContestSettlementSummary,
+  BreedingContestState,
+  BreedingFailureSalvageSummary,
+  BreedingScoreBreakdown,
+  BreedingScoreBreakdownEntry,
+  BreedingShowcaseTag,
+  BreedingStabilityRank,
   SeedGenetics,
   BreedingSlot,
   BreedingSeed,
@@ -39,12 +49,18 @@ import {
   getHybridTier,
   getTotalStats
 } from '@/data/breeding'
+import { BREEDING_CONTEST_DEFS, createDefaultBreedingContestState, getWeeklyBreedingContestDef } from '@/data/breedingContests'
 import { getCropById } from '@/data/crops'
+import { getItemById } from '@/data/items'
 import { addLog } from '@/composables/useGameLog'
 import { useAchievementStore } from './useAchievementStore'
 import { useGameStore } from './useGameStore'
+import { useInventoryStore } from './useInventoryStore'
 import { useNpcStore } from './useNpcStore'
+import { usePlayerStore } from './usePlayerStore'
+import { useSettingsStore } from './useSettingsStore'
 import { BREEDING_SPECIAL_ORDER_THEME_AUDIT } from '@/data/goals'
+import { getWeekCycleInfo } from '@/utils/weekCycle'
 
 export const useBreedingStore = defineStore('breeding', () => {
   const npcStore = useNpcStore()
@@ -61,9 +77,13 @@ export const useBreedingStore = defineStore('breeding', () => {
 
   /** 图鉴 */
   const compendium = ref<CompendiumEntry[]>([])
+  const certifiedLineages = ref<Record<string, BreedingCertificationRecord>>({})
 
   /** 是否已解锁育种系统（首次获得育种种子时解锁） */
   const unlocked = ref(false)
+  const breedingContestState = ref<BreedingContestState>(createDefaultBreedingContestState())
+  const lastBreedingContestSettlement = ref<BreedingContestSettlementSummary | null>(null)
+  const lastFailureSalvage = ref<BreedingFailureSalvageSummary | null>(null)
 
   /** 种子箱等级：0/1/2，对应 30/45/60 */
   const seedBoxLevel = ref(0)
@@ -84,6 +104,11 @@ export const useBreedingStore = defineStore('breeding', () => {
   const researchLevel = ref(0)
 
   const breedingOrderAuditConfig = BREEDING_SPECIAL_ORDER_THEME_AUDIT
+  const getBreedingFailureSalvageConfig = () => useSettingsStore().getLateGameBalanceConfig().breedingFailureSalvage
+  const getCurrentWeekInfo = () => {
+    const gameStore = useGameStore()
+    return getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
+  }
 
   // === 计算属性 ===
 
@@ -279,6 +304,307 @@ export const useBreedingStore = defineStore('breeding', () => {
     }
   })
 
+  const getBreedingStabilityRank = (genetics: SeedGenetics): BreedingStabilityRank => {
+    if (genetics.stability >= 85 && genetics.generation >= 6) return 'certified'
+    if (genetics.stability >= 70) return 'stable'
+    if (genetics.stability >= 45) return 'emerging'
+    return 'volatile'
+  }
+
+  const getBreedingCommercialTags = (genetics: SeedGenetics): BreedingCommercialTag[] => {
+    const tags = new Set<BreedingCommercialTag>()
+    if (genetics.sweetness >= 72) tags.add('banquet')
+    if (genetics.yield >= 72) tags.add('bulk_supply')
+    if (genetics.resistance >= 70) tags.add('storage')
+    if (genetics.stability >= 68) tags.add('showcase')
+    if (genetics.isHybrid || genetics.mutationRate >= 18) tags.add('research')
+    if (genetics.isHybrid && genetics.generation >= 5 && getTotalStats(genetics) >= 225) tags.add('luxury')
+    return [...tags]
+  }
+
+  const getBreedingShowcaseTags = (genetics: SeedGenetics): BreedingShowcaseTag[] => {
+    const tags = new Set<BreedingShowcaseTag>()
+    if (genetics.cropId.includes('tea') || genetics.hybridId?.includes('tea')) tags.add('tea_showcase')
+    if (genetics.sweetness >= 72 || genetics.hybridId?.includes('osmanthus') || genetics.hybridId?.includes('golden_melon')) tags.add('festival_display')
+    if (genetics.lineageParents?.length || genetics.generation >= 4) tags.add('archive_display')
+    if (genetics.isHybrid && genetics.generation >= 5 && getTotalStats(genetics) >= 225) tags.add('luxury_display')
+    return [...tags]
+  }
+
+  const getBreedingExhibitWorth = (genetics: SeedGenetics): number => {
+    return Math.min(
+      100,
+      Math.round(genetics.sweetness * 0.25) +
+        Math.round(genetics.stability * 0.2) +
+        Math.round(genetics.resistance * 0.12) +
+        Math.round(Math.min(100, genetics.generation * 10) * 0.18) +
+        (genetics.isHybrid ? 12 : 0)
+    )
+  }
+
+  const getBreedingScoreBreakdown = (genetics: SeedGenetics): BreedingScoreBreakdown => {
+    const generationValue = Math.min(100, 20 + genetics.generation * 8)
+    const entries: BreedingScoreBreakdownEntry[] = [
+      { key: 'sweetness', label: '甜度', value: genetics.sweetness, weight: 0.28, contribution: Math.round(genetics.sweetness * 0.28) },
+      { key: 'yield', label: '产量', value: genetics.yield, weight: 0.22, contribution: Math.round(genetics.yield * 0.22) },
+      { key: 'resistance', label: '抗性', value: genetics.resistance, weight: 0.18, contribution: Math.round(genetics.resistance * 0.18) },
+      { key: 'stability', label: '稳定', value: genetics.stability, weight: 0.2, contribution: Math.round(genetics.stability * 0.2) },
+      { key: 'generation', label: '世代', value: generationValue, weight: 0.12, contribution: Math.round(generationValue * 0.12) }
+    ]
+
+    return {
+      totalScore: Math.min(100, entries.reduce((sum, entry) => sum + entry.contribution, 0)),
+      stabilityRank: getBreedingStabilityRank(genetics),
+      commercialTags: getBreedingCommercialTags(genetics),
+      showcaseTags: getBreedingShowcaseTags(genetics),
+      exhibitWorth: getBreedingExhibitWorth(genetics),
+      entries
+    }
+  }
+
+  const getCertificationThresholds = () => ({
+    requiredGeneration: 6,
+    requiredTimesGrown: 3,
+    requiredTotalScore: 78
+  })
+
+  const evaluateHybridCertification = (hybridId: string) => {
+    const entry = compendium.value.find(item => item.hybridId === hybridId)
+    if (!entry) return null
+    const thresholds = getCertificationThresholds()
+    const totalScore = Math.min(100, Math.round(entry.bestTotalStats / 3) + Math.min(20, (entry.bestGeneration ?? 0) * 2))
+    if (
+      (entry.bestGeneration ?? 0) < thresholds.requiredGeneration ||
+      entry.timesGrown < thresholds.requiredTimesGrown ||
+      totalScore < thresholds.requiredTotalScore
+    ) {
+      return null
+    }
+    const existing = certifiedLineages.value[hybridId]
+    const nextRecord: BreedingCertificationRecord = {
+      hybridId,
+      certifiedAtYear: existing?.certifiedAtYear ?? useGameStore().year,
+      bestGeneration: entry.bestGeneration ?? 0,
+      bestTotalScore: Math.max(existing?.bestTotalScore ?? 0, totalScore),
+      requiredGeneration: thresholds.requiredGeneration,
+      requiredTimesGrown: thresholds.requiredTimesGrown,
+      requiredTotalScore: thresholds.requiredTotalScore
+    }
+    certifiedLineages.value = {
+      ...certifiedLineages.value,
+      [hybridId]: nextRecord
+    }
+    return nextRecord
+  }
+
+  const getCertificationRecord = (hybridId: string) => certifiedLineages.value[hybridId] ?? null
+
+  const grantFailureSalvage = (
+    returnedSeed: SeedGenetics,
+    targetHybridId: string | null,
+    failedStatKey: 'sweetness' | 'yield' | 'resistance'
+  ) => {
+    const config = getBreedingFailureSalvageConfig()
+    const inventoryStore = useInventoryStore()
+    const currentDayTag = `${useGameStore().year}-${useGameStore().season}-${useGameStore().day}`
+    const salvageItems: BreedingFailureSalvageSummary['salvageItems'] = []
+    const maxGeneration = returnedSeed.generation
+    const totalStats = getTotalStats(returnedSeed)
+
+    if (maxGeneration >= config.minimumGenerationForResidue || returnedSeed.isHybrid) {
+      const quantity = config.residueBaseQuantity + (returnedSeed.isHybrid ? config.residueHybridBonus : 0)
+      salvageItems.push({
+        itemId: 'breeding_residue',
+        quantity,
+        reason: '高代失败批次会回收为研究与储运残留。'
+      })
+    }
+
+    if (maxGeneration >= config.certificationGenerationThreshold || totalStats >= config.certificationScoreThreshold) {
+      salvageItems.push({
+        itemId: 'lineage_certificate_tag',
+        quantity: 1,
+        reason: '高规格失败样本仍可拆解出认证补材。'
+      })
+    }
+
+    if (returnedSeed.resistance >= config.preservationResistanceThreshold) {
+      salvageItems.push({
+        itemId: 'preservation_seal',
+        quantity: 1,
+        reason: '高抗性品系可拆出可复用的保鲜封签。'
+      })
+    }
+
+    if (salvageItems.length === 0) {
+      lastFailureSalvage.value = null
+      return
+    }
+
+    const grantableItems = salvageItems
+      .map(entry => ({ itemId: entry.itemId, quantity: entry.quantity, quality: 'normal' as const }))
+      .filter(entry => entry.quantity > 0)
+
+    if (!inventoryStore.canAddItems(grantableItems)) {
+      addLog('育种失败保底已触发，但背包空间不足，残留材料暂未入包。', {
+        category: 'breeding',
+        tags: ['breeding_completed'],
+        meta: { returnedSeedId: returnedSeed.id, targetHybridId: targetHybridId ?? '' }
+      })
+      lastFailureSalvage.value = null
+      return
+    }
+
+    inventoryStore.addItemsExact(grantableItems)
+    const returnedSeedLabel = makeSeedLabel(returnedSeed)
+    const summary = `杂交失败后回收了${salvageItems
+      .map(entry => `${getItemById(entry.itemId)?.name ?? entry.itemId}×${entry.quantity}`)
+      .join('、')}。`
+    lastFailureSalvage.value = {
+      generatedAtDayTag: currentDayTag,
+      returnedSeedId: returnedSeed.id,
+      returnedSeedLabel,
+      targetHybridId: targetHybridId ?? undefined,
+      failedStatKey,
+      failedPenalty: failedPenalty.value,
+      salvageItems,
+      summary
+    }
+    addLog(summary, {
+      category: 'breeding',
+      tags: ['breeding_completed'],
+      meta: { returnedSeedId: returnedSeed.id, targetHybridId: targetHybridId ?? '' }
+    })
+  }
+
+  const currentBreedingContestDef = computed(() =>
+    breedingContestState.value.contestId ? BREEDING_CONTEST_DEFS.find(entry => entry.id === breedingContestState.value.contestId) ?? null : null
+  )
+
+  const contestEligibleSeeds = computed(() => {
+    const contest = currentBreedingContestDef.value
+    if (!contest) return []
+    return breedingBox.value
+      .filter(seed => {
+        const score = getBreedingScoreBreakdown(seed.genetics)
+        if (contest.requiredCommercialTags?.length) {
+          return contest.requiredCommercialTags.every(tag => score.commercialTags.includes(tag))
+        }
+        return true
+      })
+      .sort((a, b) => {
+        const scoreA = getBreedingScoreBreakdown(a.genetics)
+        const scoreB = getBreedingScoreBreakdown(b.genetics)
+        return scoreB[contest.scoringMetric] - scoreA[contest.scoringMetric]
+      })
+  })
+
+  const pruneContestRegistrations = (): boolean => {
+    const validSeedIds = new Set(contestEligibleSeeds.value.map(seed => seed.genetics.id))
+    const nextRegisteredSeedIds = breedingContestState.value.registeredSeedIds.filter(id => validSeedIds.has(id))
+    if (nextRegisteredSeedIds.length === breedingContestState.value.registeredSeedIds.length) return false
+    breedingContestState.value = {
+      ...breedingContestState.value,
+      registeredSeedIds: nextRegisteredSeedIds
+    }
+    return true
+  }
+
+  const syncContestStateToCurrentWeek = (): boolean => {
+    const currentWeekInfo = getCurrentWeekInfo()
+    if (
+      breedingContestState.value.weekId === currentWeekInfo.seasonWeekId &&
+      breedingContestState.value.contestId
+    ) {
+      pruneContestRegistrations()
+      return false
+    }
+    refreshWeeklyContest(currentWeekInfo.seasonWeekId, currentWeekInfo.absoluteWeek)
+    return true
+  }
+
+  const registerContestSeed = (geneticsId: string): boolean => {
+    if (!currentBreedingContestDef.value || breedingContestState.value.settled) return false
+    if (breedingContestState.value.registeredSeedIds.includes(geneticsId)) return false
+    if (!contestEligibleSeeds.value.some(seed => seed.genetics.id === geneticsId)) return false
+    breedingContestState.value = {
+      ...breedingContestState.value,
+      registeredSeedIds: [...breedingContestState.value.registeredSeedIds, geneticsId]
+    }
+    return true
+  }
+
+  const unregisterContestSeed = (geneticsId: string): boolean => {
+    if (!breedingContestState.value.registeredSeedIds.includes(geneticsId)) return false
+    breedingContestState.value = {
+      ...breedingContestState.value,
+      registeredSeedIds: breedingContestState.value.registeredSeedIds.filter(id => id !== geneticsId)
+    }
+    return true
+  }
+
+  const refreshWeeklyContest = (weekId: string, absoluteWeek: number) => {
+    const contest = getWeeklyBreedingContestDef(absoluteWeek)
+    breedingContestState.value = {
+      weekId,
+      contestId: contest?.id ?? '',
+      registeredSeedIds: [],
+      settled: false,
+      lastSettlementDayTag: ''
+    }
+    return contest
+  }
+
+  const settleWeeklyContest = (weekId: string, settledAtDayTag: string) => {
+    const contest = currentBreedingContestDef.value
+    if (!contest || breedingContestState.value.weekId !== weekId || breedingContestState.value.settled) return lastBreedingContestSettlement.value
+    pruneContestRegistrations()
+
+    const ranking = breedingContestState.value.registeredSeedIds
+      .map(id => breedingBox.value.find(seed => seed.genetics.id === id))
+      .filter((seed): seed is BreedingSeed => seed !== undefined)
+      .map<BreedingContestEntryResult>(seed => {
+        const score = getBreedingScoreBreakdown(seed.genetics)
+        return {
+          geneticsId: seed.genetics.id,
+          cropId: seed.genetics.cropId,
+          label: seed.label,
+          hybridId: seed.genetics.hybridId,
+          score: score[contest.scoringMetric]
+        }
+      })
+      .sort((a, b) => b.score - a.score)
+
+    const winner = ranking[0]
+    const rewardSummary: string[] = []
+    if (winner) {
+      usePlayerStore().earnMoney(contest.rewardMoney, { countAsEarned: false, system: 'breeding' })
+      rewardSummary.push(`${contest.rewardMoney}文`)
+      addLog(`【育种周赛】${contest.label} 已结算，冠军样本为 ${winner.label}（${winner.score}分）。`, {
+        category: 'breeding',
+        tags: ['breeding_completed'],
+        meta: { weekId, contestId: contest.id, score: winner.score }
+      })
+    }
+
+    const summary: BreedingContestSettlementSummary = {
+      weekId,
+      contestId: contest.id,
+      settledAtDayTag,
+      participantCount: ranking.length,
+      winner,
+      ranking,
+      rewardSummary
+    }
+    lastBreedingContestSettlement.value = summary
+    breedingContestState.value = {
+      ...breedingContestState.value,
+      settled: true,
+      lastSettlementDayTag: settledAtDayTag
+    }
+    return summary
+  }
+
   const setSeedSortKey = (value: SeedSortKey) => {
     seedSortKey.value = value
   }
@@ -370,6 +696,7 @@ export const useBreedingStore = defineStore('breeding', () => {
           meta: { hybridId }
         })
       }
+      evaluateHybridCertification(hybridId)
       return
     }
 
@@ -379,6 +706,7 @@ export const useBreedingStore = defineStore('breeding', () => {
     existing.bestResistance = Math.max(existing.bestResistance ?? 0, genetics.resistance)
     existing.bestGeneration = Math.max(existing.bestGeneration ?? 0, genetics.generation)
     existing.lineageCropIds = [...new Set([...(existing.lineageCropIds ?? []), ...lineageCropIds])]
+    evaluateHybridCertification(hybridId)
   }
 
   // === 种子箱操作 ===
@@ -397,6 +725,7 @@ export const useBreedingStore = defineStore('breeding', () => {
     if (idx === -1) return null
     const removed = breedingBox.value.splice(idx, 1)[0] ?? null
     cleanupFavorites()
+    pruneContestRegistrations()
     return removed
   }
 
@@ -420,6 +749,11 @@ export const useBreedingStore = defineStore('breeding', () => {
 
     addToBox(genetics)
     unlocked.value = true
+    if (!breedingContestState.value.weekId || breedingContestState.value.weekId !== getCurrentWeekInfo().seasonWeekId || !breedingContestState.value.contestId) {
+      syncContestStateToCurrentWeek()
+    } else {
+      pruneContestRegistrations()
+    }
     return true
   }
 
@@ -503,6 +837,7 @@ export const useBreedingStore = defineStore('breeding', () => {
     slot.totalDays = Math.max(1, BREEDING_DAYS - highGenReduction)
     slot.result = null
     slot.ready = false
+    pruneContestRegistrations()
     if (highGenReduction > 0) {
       addLog('高代品系已经更加稳定，本次育种耗时缩短了1天。', {
         category: 'breeding',
@@ -701,6 +1036,8 @@ export const useBreedingStore = defineStore('breeding', () => {
         addLog('这两个品种无法杂交，返回了一颗种子。')
       }
 
+      grantFailureSalvage(failed, hybrid?.id ?? null, randomStat)
+
       return failed
     }
   }
@@ -748,6 +1085,14 @@ export const useBreedingStore = defineStore('breeding', () => {
     const entry = compendium.value.find(e => e.hybridId === hybridId)
     if (entry) {
       entry.timesGrown++
+      const certification = evaluateHybridCertification(hybridId)
+      if (certification) {
+        addLog(`育种品系 ${findPossibleHybridById(hybridId)?.name ?? hybridId} 已达到认证供货线。`, {
+          category: 'breeding',
+          tags: ['breeding_completed'],
+          meta: { hybridId, score: certification.bestTotalScore, generation: certification.bestGeneration }
+        })
+      }
     }
   }
 
@@ -792,6 +1137,10 @@ export const useBreedingStore = defineStore('breeding', () => {
     researchLevel: researchLevel.value,
     favoriteSeedIds: favoriteSeedIds.value,
     compendium: compendium.value,
+    certifiedLineages: certifiedLineages.value,
+    breedingContestState: breedingContestState.value,
+    lastBreedingContestSettlement: lastBreedingContestSettlement.value,
+    lastFailureSalvage: lastFailureSalvage.value,
     unlocked: unlocked.value
   })
 
@@ -819,7 +1168,16 @@ export const useBreedingStore = defineStore('breeding', () => {
     researchLevel.value = data.researchLevel ?? 0
     favoriteSeedIds.value = (data.favoriteSeedIds ?? []).filter((id: string) => breedingBox.value.some(s => s.genetics.id === id))
     compendium.value = data.compendium ?? []
-    unlocked.value = data.unlocked ?? false
+    certifiedLineages.value = data.certifiedLineages ?? {}
+    breedingContestState.value = data.breedingContestState ?? createDefaultBreedingContestState()
+    lastBreedingContestSettlement.value = data.lastBreedingContestSettlement ?? null
+    lastFailureSalvage.value = data.lastFailureSalvage ?? null
+    unlocked.value = data.unlocked ?? (breedingBox.value.length > 0 || stationCount.value > 0)
+    if (unlocked.value) {
+      syncContestStateToCurrentWeek()
+    } else {
+      breedingContestState.value = createDefaultBreedingContestState()
+    }
   }
 
   const getBreedingOrderAuditConfig = () => breedingOrderAuditConfig
@@ -832,6 +1190,10 @@ export const useBreedingStore = defineStore('breeding', () => {
     researchLevel.value = 0
     favoriteSeedIds.value = []
     compendium.value = []
+    certifiedLineages.value = {}
+    breedingContestState.value = createDefaultBreedingContestState()
+    lastBreedingContestSettlement.value = null
+    lastFailureSalvage.value = null
     unlocked.value = false
   }
 
@@ -842,6 +1204,12 @@ export const useBreedingStore = defineStore('breeding', () => {
     stationCount,
     seedBoxLevel,
     compendium,
+    certifiedLineages,
+    breedingContestState,
+    currentBreedingContestDef,
+    contestEligibleSeeds,
+    lastBreedingContestSettlement,
+    lastFailureSalvage,
     unlocked,
     researchLevel,
     favoriteSeedIds,
@@ -857,6 +1225,16 @@ export const useBreedingStore = defineStore('breeding', () => {
     recommendedHybrids,
     companionshipBreedingFocus,
     breedingMasteryPerks,
+    getBreedingCommercialTags,
+    getBreedingShowcaseTags,
+    getBreedingExhibitWorth,
+    getBreedingStabilityRank,
+    getBreedingScoreBreakdown,
+    getCertificationRecord,
+    registerContestSeed,
+    unregisterContestSeed,
+    refreshWeeklyContest,
+    settleWeeklyContest,
     // 方法
     addToBox,
     removeFromBox,

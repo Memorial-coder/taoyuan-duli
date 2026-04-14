@@ -881,9 +881,63 @@ export const handleEndDay = () => {
   const { seasonChanged, oldSeason } = gameStore.nextDay()
   const currentWeekInfo = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
   const weekBoundaryEvent = getWeekBoundaryEvent(previousWeekInfo, currentWeekInfo)
+  const currentDayTag = `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+  const breedingContestStore = useBreedingStore()
+  const weeklySettlementSummary = weekBoundaryEvent.startedNewWeek
+    ? goalStore.settleWeeklyGoals({
+        weekInfo: previousWeekInfo,
+        settledAtDayTag: currentDayTag,
+        enableCompensation: true
+      })
+    : null
+  if (weekBoundaryEvent.startedNewWeek) {
+    breedingContestStore.settleWeeklyContest(previousWeekInfo.seasonWeekId, currentDayTag)
+  }
+  if (weekBoundaryEvent.startedNewWeek) {
+    breedingContestStore.refreshWeeklyContest(currentWeekInfo.seasonWeekId, currentWeekInfo.absoluteWeek)
+  }
+  const fishPondContestStore = useFishPondStore()
+  if (weekBoundaryEvent.startedNewWeek) {
+    fishPondContestStore.settleWeeklyContest(previousWeekInfo.seasonWeekId, currentDayTag)
+  }
+  if (weekBoundaryEvent.startedNewWeek) {
+    fishPondContestStore.refreshWeeklyContest(currentWeekInfo.seasonWeekId, currentWeekInfo.absoluteWeek)
+  }
+  const dispatchWeeklySettlementMail = async () => {
+    if (!weeklySettlementSummary) return
+    const compensationItems = weeklySettlementSummary.items.filter(item => item.compensationGranted && item.failureCompensationReward)
+    for (const item of compensationItems) {
+      goalStore.grantManualReward(`周结算柔性补偿「${item.title}」`, item.failureCompensationReward!)
+    }
+
+    try {
+      await createSystemMailboxCampaign({
+        id: `weekly_settlement_${weeklySettlementSummary.weekId}`,
+        title: `周结算简报：${weeklySettlementSummary.weekId}`,
+        content: [
+          `本周完成 ${weeklySettlementSummary.completedGoalCount}/${weeklySettlementSummary.totalGoalCount} 项周目标。`,
+          weeklySettlementSummary.rewardHighlights.length > 0 ? `已达成：${weeklySettlementSummary.rewardHighlights.join('；')}` : '本周暂无周目标奖励记录。',
+          weeklySettlementSummary.failureHighlights.length > 0 ? `未完成项：${weeklySettlementSummary.failureHighlights.join('；')}` : '本周周目标已全部达成。',
+          weeklySettlementSummary.recommendationHighlights.length > 0 ? `下周建议：${weeklySettlementSummary.recommendationHighlights.join('；')}` : '',
+          weeklySettlementSummary.compensationRewardSummaries.length > 0 ? `柔性补偿：${weeklySettlementSummary.compensationRewardSummaries.join('；')}` : ''
+        ]
+          .filter(Boolean)
+          .join('\n'),
+        template_type: compensationItems.length > 0 ? 'compensation' : 'activity_reward'
+      })
+      goalStore.markWeeklySettlementMailSent(weeklySettlementSummary.weekId)
+    } catch (error) {
+      addLog(`【周目标结算】${weeklySettlementSummary.weekId} 周结算邮件发送失败：${error instanceof Error ? error.message : '未知错误'}`, {
+        category: 'goal',
+        tags: ['weekly_goals_settlement_mail_failed', 'late_game_cycle'],
+        meta: { weekId: weeklySettlementSummary.weekId }
+      })
+    }
+  }
+  void dispatchWeeklySettlementMail()
   goalStore.onCalendarAdvanced(seasonChanged)
   const eventOperationsTick = goalStore.processEventOperationsTick({
-    currentDayTag: `${gameStore.year}-${gameStore.season}-${gameStore.day}`,
+    currentDayTag,
     currentWeekId: currentWeekInfo.seasonWeekId,
     startedNewWeek: weekBoundaryEvent.startedNewWeek,
     seasonChanged
@@ -899,7 +953,7 @@ export const handleEndDay = () => {
     })
   }
   const activityQuestWindowTick = questStore.processActivityQuestWindowTick({
-    currentDayTag: `${gameStore.year}-${gameStore.season}-${gameStore.day}`,
+    currentDayTag,
     currentWeekId: currentWeekInfo.seasonWeekId,
     startedNewWeek: weekBoundaryEvent.startedNewWeek,
     activeEventCampaignId: eventOperationsTick.activeCampaignId ?? null
@@ -934,7 +988,7 @@ export const handleEndDay = () => {
           content: [campaign.description, `当前主题周：${themeWeekLabel}`, template.summary, `活动承接：${campaign.rewardSummary}`].filter(Boolean).join('\n'),
           template_type: template.templateType
         })
-        goalStore.markEventCampaignMailClaimed(mailReceiptKey)
+        goalStore.recordEventCampaignMailDispatched(mailReceiptKey)
       } catch (error) {
         addLog(`【活动编排】活动邮件模板「${template.title}」投递失败：${error instanceof Error ? error.message : '未知错误'}`, {
           category: 'goal',

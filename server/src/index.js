@@ -55,6 +55,7 @@ const apiRoutes = require('./routes/api');
 const app = express();
 const PORT = parseInt(process.env.PORT || '4013', 10);
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').trim().toLowerCase() === 'true';
+const COOKIE_SAME_SITE = String(process.env.COOKIE_SAME_SITE || '').trim().toLowerCase();
 const SESSION_STORE_FILE = path.join(DATA_DIR, 'sessions.json');
 const DEFAULT_ALLOWED_ORIGINS = [
   'http://127.0.0.1:4013',
@@ -104,6 +105,10 @@ function validateCriticalEnv() {
 
   if (errors.length) {
     throw new Error(errors.join('；'));
+  }
+
+  if (COOKIE_SAME_SITE === 'none' && !COOKIE_SECURE) {
+    throw new Error('COOKIE_SAME_SITE=none 时必须同时启用 COOKIE_SECURE=true');
   }
 }
 
@@ -186,6 +191,9 @@ class FileSessionStore extends session.Store {
 
 const allowedOrigins = new Set(parseAllowedOrigins());
 const sessionStore = new FileSessionStore(SESSION_STORE_FILE);
+const resolvedCookieSameSite = ['lax', 'strict', 'none'].includes(COOKIE_SAME_SITE)
+  ? COOKIE_SAME_SITE
+  : (COOKIE_SECURE ? 'none' : 'lax');
 
 app.set('trust proxy', true);
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
@@ -211,13 +219,16 @@ app.use(session({
   store: sessionStore,
   cookie: {
     httpOnly: true,
-    sameSite: 'lax',
+    sameSite: resolvedCookieSameSite,
     secure: COOKIE_SECURE,
     maxAge: 7 * 24 * 60 * 60 * 1000,
   },
 }));
 
 app.use('/api', apiRoutes);
+app.use('/api', (req, res) => {
+  res.status(404).json({ ok: false, msg: '接口不存在' });
+});
 
 const distPath = path.join(__dirname, '../../taoyuan-main/docs');
 if (fs.existsSync(distPath)) {

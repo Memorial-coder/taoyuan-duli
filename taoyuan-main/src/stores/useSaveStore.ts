@@ -46,7 +46,7 @@ import {
   WS12_SAVE_MIGRATION_PROFILES
 } from '@/data/goals'
 import { buildScopedStorageKey, getStoredSaveMode, migrateLegacyScopedSlots, setStoredSaveMode, type SaveMode } from '@/utils/accountStorage'
-import { deleteServerSlotRaw, fetchServerSlotRaw, fetchServerSlots, saveServerSlotRaw } from '@/utils/serverSaveApi'
+import { deleteServerSlotRaw, fetchServerSlotRaw, fetchServerSlots, saveServerSlotRaw, setServerActiveSlot } from '@/utils/serverSaveApi'
 
 const LEGACY_SAVE_KEY_PREFIX = 'taoyuanxiang_save_'
 const MAX_SLOTS = 3
@@ -181,6 +181,7 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
         completedCampaignIds: [],
         completedThemeWeekIds: [],
         claimedMailCampaignIds: [],
+        claimedMailReceiptKeys: [],
         lastCampaignDayTag: '',
         lastSettlementDayTag: ''
       },
@@ -1001,7 +1002,28 @@ export const useSaveStore = defineStore('save', () => {
 
       const data = parseSaveData(raw)
       if (!data || !normalizeSaveEnvelope(data)) return false
-      return applySaveData(data, slot)
+      const runtimeSnapshot = buildCurrentSaveData()
+      const previousActiveSlot = activeSlot.value
+      const previousActiveSlotMode = activeSlotMode.value
+      const applied = applySaveData(data, slot)
+      if (!applied) return false
+      if (storageMode.value === 'server') {
+        try {
+          await setServerActiveSlot(slot)
+        } catch {
+          const restored = applySaveData(runtimeSnapshot, previousActiveSlot)
+          if (!restored) {
+            return false
+          }
+          activeSlot.value = previousActiveSlot
+          activeSlotMode.value = previousActiveSlotMode
+          if (previousActiveSlotMode) {
+            activeSlotsByMode.value[previousActiveSlotMode] = previousActiveSlot
+          }
+          return false
+        }
+      }
+      return true
     } catch {
       return false
     }

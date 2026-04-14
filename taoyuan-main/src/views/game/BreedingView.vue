@@ -229,6 +229,70 @@
 
     <!-- ===== 图鉴 Tab ===== -->
     <template v-if="tab === 'compendium'">
+      <div v-if="breedingStore.currentBreedingContestDef" class="border border-accent/20 rounded-xs p-2 mb-2 bg-accent/5">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <p class="text-xs text-accent">本周育种周赛</p>
+            <p class="text-[10px] text-muted mt-0.5">{{ breedingStore.currentBreedingContestDef.label }} · {{ breedingStore.currentBreedingContestDef.description }}</p>
+          </div>
+          <span class="text-[10px] text-muted">已报名 {{ breedingStore.breedingContestState.registeredSeedIds.length }}</span>
+        </div>
+        <p v-if="breedingStore.lastBreedingContestSettlement?.weekId" class="text-[10px] text-accent mt-1">
+          上周结算：{{ breedingStore.lastBreedingContestSettlement.weekId }} · 冠军 {{ breedingStore.lastBreedingContestSettlement.winner?.label ?? '无' }}
+        </p>
+      </div>
+
+      <div class="border border-accent/10 rounded-xs p-2 mb-2 game-panel-muted">
+        <div class="flex items-center justify-between mb-1">
+          <div>
+            <p class="text-xs text-accent">育种规划器 2.0</p>
+            <p class="text-[10px] text-muted mt-0.5">把本周订单、下周主题周和图鉴缺口合在一起看，先决定该养哪条线。</p>
+          </div>
+          <span class="text-[10px] text-muted">建议 {{ planningSuggestions.length }}</span>
+        </div>
+        <p class="text-[10px] text-muted leading-4">
+          本周：{{ goalStore.currentThemeWeek?.name ?? '常规周' }}
+          <span class="text-accent/70"> · </span>
+          下周：{{ goalStore.nextThemeWeekPreview?.name ?? '待刷新' }}
+        </p>
+        <p v-if="goalStore.nextThemeWeekPreview?.breedingFocusHybridIds?.length" class="text-[10px] text-success mt-1">
+          下周重点：{{ goalStore.nextThemeWeekPreview.breedingFocusHybridIds.map(getCropName).join('、') }}
+        </p>
+        <p v-if="breedingStore.lastFailureSalvage?.summary" class="text-[10px] text-warning mt-1 leading-4">
+          最近失败回收：{{ breedingStore.lastFailureSalvage.summary }}
+        </p>
+        <div v-if="planningSuggestions.length === 0" class="text-[10px] text-muted mt-2">
+          暂时没有明确的高优先目标，先继续补齐亲本种子和基础图鉴。
+        </div>
+        <div v-else class="space-y-2 mt-2">
+          <div v-for="suggestion in planningSuggestions" :key="suggestion.hybridId" class="border border-accent/10 rounded-xs p-2 bg-bg/10">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs text-text">{{ suggestion.targetLabel }}</span>
+              <span
+                class="text-[10px]"
+                :class="suggestion.readiness === 'ready' ? 'text-success' : suggestion.readiness === 'near' ? 'text-accent' : 'text-muted'"
+              >
+                {{ suggestion.readiness === 'ready' ? '可直接推进' : suggestion.readiness === 'near' ? '接近可成' : '先补亲本' }}
+              </span>
+            </div>
+            <p class="text-[10px] text-muted mt-1 leading-4">{{ suggestion.currentGapSummary }}</p>
+            <p v-if="suggestion.reasonLines.length" class="text-[10px] text-accent mt-1 leading-4">
+              为什么做：{{ suggestion.reasonLines.join('；') }}
+            </p>
+            <p v-if="suggestion.expectedUseLines.length" class="text-[10px] text-success mt-1 leading-4">
+              预计用途：{{ suggestion.expectedUseLines.join('；') }}
+            </p>
+            <p v-if="suggestion.parentLines.length" class="text-[10px] text-muted mt-1 leading-4">
+              推荐亲本：{{ suggestion.parentLines.join('；') }}
+            </p>
+            <p v-if="suggestion.logisticsNeeds.length" class="text-[10px] text-warning mt-1 leading-4">
+              物流补材：
+              {{ suggestion.logisticsNeeds.map(need => `${need.itemName} ${need.owned}/${need.quantity}`).join('、') }}
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div class="border border-accent/10 rounded-xs p-2 mb-2 game-panel-muted" v-if="goalStore.currentThemeWeek?.breedingFocusLabel || currentSpecialOrder">
         <div class="flex items-center justify-between mb-1">
           <p class="text-xs text-accent">经营型育种提醒</p>
@@ -493,8 +557,43 @@
             </div>
           </div>
 
+          <div v-if="detailSeedScoreBreakdown" class="border border-accent/10 rounded-xs p-2 mb-3 bg-bg/10">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">统一评分</p>
+              <span class="text-[10px] text-muted">总分 {{ detailSeedScoreBreakdown.totalScore }} · {{ detailSeedScoreBreakdown.stabilityRank }}</span>
+            </div>
+            <div v-if="detailSeedScoreBreakdown.commercialTags.length > 0" class="flex flex-wrap gap-1 mt-2">
+              <span v-for="tag in detailSeedScoreBreakdown.commercialTags" :key="tag" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent">
+                {{ breedingCommercialTagLabels[tag] ?? tag }}
+              </span>
+            </div>
+            <div class="space-y-1 mt-2">
+              <div v-for="entry in detailSeedScoreBreakdown.entries" :key="entry.key" class="flex items-center justify-between text-[10px]">
+                <span class="text-muted">{{ entry.label }}</span>
+                <span class="text-accent">{{ entry.value }} · 权重 {{ Math.round(entry.weight * 100) }}%</span>
+              </div>
+            </div>
+            <div class="mt-2 text-[10px] text-muted">
+              展陈价值：<span class="text-accent">{{ detailSeedScoreBreakdown.exhibitWorth }}</span>
+            </div>
+            <div v-if="detailSeedScoreBreakdown.showcaseTags.length > 0" class="flex flex-wrap gap-1 mt-2">
+              <span v-for="tag in detailSeedScoreBreakdown.showcaseTags" :key="tag" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-success/20 text-success">
+                {{ breedingShowcaseTagLabels[tag] ?? tag }}
+              </span>
+            </div>
+          </div>
+
           <!-- 操作按钮 -->
           <div class="flex flex-col space-y-1">
+            <Button
+              v-if="detailSeedContestEligible"
+              class="w-full justify-center"
+              :icon="Star"
+              :icon-size="12"
+              @click="handleToggleBreedingContestRegistration"
+            >
+              {{ breedingStore.breedingContestState.registeredSeedIds.includes(detailSeed.genetics.id) ? '取消周赛报名' : '报名本周周赛' }}
+            </Button>
             <Button class="w-full justify-center" :icon="Heart" :icon-size="12" @click="handleToggleFavorite">
               {{ breedingStore.isFavorite(detailSeed.genetics.id) ? '取消收藏' : '收藏种子' }}
             </Button>
@@ -562,6 +661,10 @@
             <div v-if="getCompendiumEntry(activeHybrid.id)" class="flex items-center justify-between mt-1 pt-1 border-t border-accent/10">
               <span class="text-xs text-muted">种植次数</span>
               <span class="text-xs">{{ getCompendiumEntry(activeHybrid.id)?.timesGrown ?? 0 }}</span>
+            </div>
+            <div v-if="getCertificationRecord(activeHybrid.id)" class="flex items-center justify-between mt-1 pt-1 border-t border-accent/10">
+              <span class="text-xs text-muted">谱系认证</span>
+              <span class="text-xs text-success">已认证 · G{{ getCertificationRecord(activeHybrid.id)?.bestGeneration }}</span>
             </div>
           </div>
         </div>
@@ -785,12 +888,20 @@
     findPossibleHybrid
   } from '@/data/breeding'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
-  import { addLog } from '@/composables/useGameLog'
+  import { addLog, showFloat } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useQuestStore } from '@/stores/useQuestStore'
-  import type { BreedingSeed, HybridDef, SeedGenetics, SeedLineageNode } from '@/types/breeding'
+  import type {
+    BreedingCommercialTag,
+    BreedingPlanningSuggestion,
+    BreedingSeed,
+    BreedingShowcaseTag,
+    HybridDef,
+    SeedGenetics,
+    SeedLineageNode
+  } from '@/types/breeding'
 
   const breedingStore = useBreedingStore()
   const playerStore = usePlayerStore()
@@ -904,6 +1015,95 @@
 
   const recommendedHybridEntries = computed(() => breedingStore.recommendedHybrids)
   const recommendedTargetLimit = computed(() => (breedingStore.researchLevel >= 1 ? 5 : 3))
+  const planningSuggestions = computed<BreedingPlanningSuggestion[]>(() => {
+    const planningTargets = new Map<string, { reasons: Set<string>; uses: Set<string> }>()
+    const addTarget = (hybridId: string | undefined, reason?: string, useLine?: string) => {
+      if (!hybridId) return
+      const next = planningTargets.get(hybridId) ?? { reasons: new Set<string>(), uses: new Set<string>() }
+      if (reason) next.reasons.add(reason)
+      if (useLine) next.uses.add(useLine)
+      planningTargets.set(hybridId, next)
+    }
+
+    if (currentSpecialOrder.value?.requiredHybridId) {
+      addTarget(
+        currentSpecialOrder.value.requiredHybridId,
+        '当前已接或待接订单正在直接点名该品系。',
+        `承接订单：${currentSpecialOrder.value.targetItemName}`
+      )
+    }
+    for (const hybridId of currentSpecialOrder.value?.recommendedHybridIds ?? []) {
+      addTarget(hybridId, '当前订单把它列为推荐供货线。', `订单建议：${currentSpecialOrder.value?.targetItemName ?? '当前特殊订单'}`)
+    }
+    for (const hybridId of goalStore.currentThemeWeek?.breedingFocusHybridIds ?? []) {
+      addTarget(hybridId, `本周主题「${goalStore.currentThemeWeek?.name ?? '主题周'}」正在放大该品系。`, `本周主题：${goalStore.currentThemeWeek?.name ?? '主题周'}`)
+    }
+    for (const hybridId of goalStore.nextThemeWeekPreview?.breedingFocusHybridIds ?? []) {
+      addTarget(hybridId, `下周主题「${goalStore.nextThemeWeekPreview?.name ?? '下一主题周'}」会继续放大该品系。`, `下周主题：${goalStore.nextThemeWeekPreview?.name ?? '下一主题周'}`)
+    }
+    for (const entry of recommendedHybridEntries.value.slice(0, 3)) {
+      addTarget(entry.hybrid.id, '这是当前最接近落地的图鉴缺口之一。', '图鉴补全 / 后续特殊订单')
+    }
+
+    const relatedBreedingOrders = [
+      ...questStore.activeQuests.filter(quest => quest.themeTag === 'breeding'),
+      ...(questStore.specialOrder?.themeTag === 'breeding' ? [questStore.specialOrder] : [])
+    ]
+
+    const findBestSeedLine = (cropId: string) => {
+      const bestSeed = breedingStore.breedingBox
+        .filter(seed => seed.genetics.cropId === cropId)
+        .sort((left, right) => getTotalStats(right.genetics) - getTotalStats(left.genetics))[0]
+      if (!bestSeed) return `${getCropName(cropId)}：当前还没有可用亲本`
+      return `${getCropName(cropId)}：${bestSeed.label}（总属性 ${getTotalStats(bestSeed.genetics)}）`
+    }
+
+    return [...planningTargets.entries()]
+      .map(([hybridId, meta]) => {
+        const hybrid = HYBRID_DEFS.find(entry => entry.id === hybridId)
+        const availability = breedingStore.hybridAvailabilityMap[hybridId]
+        const relatedOrders = relatedBreedingOrders.filter(
+          quest => quest.requiredHybridId === hybridId || quest.recommendedHybridIds?.includes(hybridId)
+        )
+        const logisticsNeedMap = new Map<string, { itemId: string; itemName: string; quantity: number; owned: number }>()
+
+        for (const requirement of relatedOrders.flatMap(quest => quest.comboRequirements ?? [])) {
+          if (hybrid && requirement.itemId === hybrid.resultCropId) continue
+          const existing = logisticsNeedMap.get(requirement.itemId)
+          const quantity = requirement.quantity
+          logisticsNeedMap.set(requirement.itemId, {
+            itemId: requirement.itemId,
+            itemName: requirement.itemName,
+            quantity: Math.max(existing?.quantity ?? 0, quantity),
+            owned: getCombinedItemCount(requirement.itemId)
+          })
+        }
+
+        return {
+          hybridId,
+          targetLabel: hybrid?.name ?? getCropName(hybridId),
+          readiness:
+            availability?.status === 'discoverable'
+              ? 'ready'
+              : availability?.status === 'near'
+                ? 'near'
+                : 'prep',
+          currentGapSummary: availability?.recommendation ?? '当前更适合作为稳定量产或认证品系继续推进。',
+          reasonLines: [...meta.reasons].slice(0, 3),
+          expectedUseLines: [...meta.uses].slice(0, 3),
+          parentLines: hybrid ? [findBestSeedLine(hybrid.parentCropA), findBestSeedLine(hybrid.parentCropB)] : [],
+          logisticsNeeds: [...logisticsNeedMap.values()]
+        } satisfies BreedingPlanningSuggestion
+      })
+      .sort((left, right) => {
+        const weight = (status: BreedingPlanningSuggestion['readiness']) =>
+          status === 'ready' ? 0 : status === 'near' ? 1 : 2
+        const readinessDiff = weight(left.readiness) - weight(right.readiness)
+        if (readinessDiff !== 0) return readinessDiff
+        return right.reasonLines.length - left.reasonLines.length
+      })
+      .slice(0, 4)
+  })
 
   const filteredDiscoveredCount = computed(() => {
     return filteredHybrids.value.filter(h => isDiscovered(h.id)).length
@@ -953,6 +1153,20 @@
   // === 种子详情 ===
 
   const detailSeed = ref<BreedingSeed | null>(null)
+  const breedingCommercialTagLabels: Record<BreedingCommercialTag, string> = {
+    banquet: '宴席型',
+    bulk_supply: '量产型',
+    showcase: '展示型',
+    storage: '储运型',
+    research: '研究型',
+    luxury: '高端型'
+  }
+  const breedingShowcaseTagLabels: Record<BreedingShowcaseTag, string> = {
+    tea_showcase: '茶肆陈列',
+    festival_display: '节庆展示',
+    archive_display: '图鉴档案',
+    luxury_display: '高端陈设'
+  }
 
   const openSeedDetail = (seed: BreedingSeed) => {
     detailSeed.value = seed
@@ -969,6 +1183,8 @@
       { key: 'mutationRate', label: '变异', value: g.mutationRate, barClass: 'bg-danger' }
     ]
   })
+  const detailSeedScoreBreakdown = computed(() => (detailSeed.value ? breedingStore.getBreedingScoreBreakdown(detailSeed.value.genetics) : null))
+  const detailSeedContestEligible = computed(() => (detailSeed.value ? breedingStore.contestEligibleSeeds.some(seed => seed.genetics.id === detailSeed.value?.genetics.id) : false))
 
   const handleDiscard = () => {
     if (!detailSeed.value) return
@@ -981,6 +1197,15 @@
     if (!detailSeed.value) return
     const favorited = breedingStore.toggleFavorite(detailSeed.value.genetics.id)
     addLog(favorited ? '已收藏这颗育种种子。' : '已取消收藏这颗育种种子。')
+  }
+
+  const handleToggleBreedingContestRegistration = () => {
+    if (!detailSeed.value) return
+    const registered = breedingStore.breedingContestState.registeredSeedIds.includes(detailSeed.value.genetics.id)
+    const ok = registered
+      ? breedingStore.unregisterContestSeed(detailSeed.value.genetics.id)
+      : breedingStore.registerContestSeed(detailSeed.value.genetics.id)
+    showFloat(ok ? (registered ? '已取消育种周赛报名' : '已报名本周育种周赛') : '当前种子不满足本周育种周赛条件', ok ? 'success' : 'danger')
   }
 
   // === 育种选种 ===
@@ -1229,6 +1454,7 @@
   const getCompendiumEntry = (hybridId: string) => {
     return breedingStore.compendium.find(e => e.hybridId === hybridId) ?? null
   }
+  const getCertificationRecord = (hybridId: string) => breedingStore.getCertificationRecord(hybridId)
 
   // === 辅助 ===
 

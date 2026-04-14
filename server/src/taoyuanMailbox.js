@@ -1162,6 +1162,12 @@ async function saveSystemCampaignForUser(payload, actor, username) {
   if (!safeUsername) {
     throw createError('缺少有效收件人');
   }
+  if (Array.isArray(payload?.rewards) && payload.rewards.length > 0) {
+    throw createError('自助系统邮件不允许直接下发奖励');
+  }
+  if (clampPositiveInt(payload?.duplicate_compensation_money, 0) > 0) {
+    throw createError('自助系统邮件不允许设置重复补偿金');
+  }
   const campaignId = sanitizeText(payload?.id, 80);
   const existing = campaignId ? getAdminCampaignDetail(campaignId) : null;
   if (existing?.campaign?.status === 'sent') {
@@ -1176,7 +1182,7 @@ async function saveSystemCampaignForUser(payload, actor, username) {
         mode: 'single',
         username: safeUsername
       },
-      rewards: Array.isArray(payload?.rewards) ? payload.rewards : []
+      rewards: []
     },
     actor,
     'send'

@@ -1,5 +1,7 @@
 import type {
   ActivityQuestWindowState,
+  BreedingCommercialTag,
+  BreedingStabilityRank,
   CompensationPlan,
   CompendiumEntry,
   ItemCategory,
@@ -186,6 +188,9 @@ interface SpecialOrderTemplate {
   requiredResistanceMin?: number
   requiredGenerationMin?: number
   requiredParentCropIds?: string[]
+  requiredCommercialTags?: BreedingCommercialTag[]
+  requiredBreedScoreMin?: number
+  requiredStabilityRank?: BreedingStabilityRank
   deliveryMode?: QuestDeliveryMode
   requiredPondGenerationMin?: number
   requiredFishMature?: boolean
@@ -561,6 +566,9 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     orderScoreRule: SPECIAL_ORDER_SCORE_RULES.breeding_quality,
     antiRepeatTags: ['breeding', 'spring', 'radish_showcase'],
     requiredHybridId: 'emerald_radish',
+    requiredCommercialTags: ['bulk_supply'],
+    requiredBreedScoreMin: 52,
+    requiredStabilityRank: 'emerging',
     themeTag: 'breeding',
     preferredSeasons: ['spring'],
     bonusSummary: ['春种主题周期间更容易刷出。']
@@ -591,6 +599,9 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     orderScoreRule: SPECIAL_ORDER_SCORE_RULES.procurement_stability,
     antiRepeatTags: ['breeding', 'trade', 'tuber_supply'],
     requiredHybridId: 'golden_tuber',
+    requiredCommercialTags: ['bulk_supply', 'storage'],
+    requiredBreedScoreMin: 58,
+    requiredStabilityRank: 'emerging',
     themeTag: 'breeding',
     preferredSeasons: ['spring'],
     bonusSummary: ['适合作为早期稳定供货的育种订单。']
@@ -714,6 +725,9 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     orderScoreRule: SPECIAL_ORDER_SCORE_RULES.breeding_quality,
     antiRepeatTags: ['breeding', 'tea', 'quality_selection'],
     requiredHybridId: 'jade_tea',
+    requiredCommercialTags: ['banquet', 'research'],
+    requiredBreedScoreMin: 72,
+    requiredStabilityRank: 'stable',
     themeTag: 'breeding',
     requiredSweetnessMin: 60,
     requiredYieldMin: 52,
@@ -734,6 +748,9 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     tier: 3,
     rewardProfileId: 'exhibit_mix',
     requiredHybridId: 'lotus_tea',
+    requiredCommercialTags: ['showcase', 'research'],
+    requiredBreedScoreMin: 68,
+    requiredStabilityRank: 'emerging',
     themeTag: 'breeding',
     preferredSeasons: ['autumn'],
     bonusSummary: ['秋收加工周更偏爱高甜度茶饮型杂交作物。']
@@ -751,6 +768,9 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     tier: 3,
     rewardProfileId: 'exhibit_mix',
     requiredHybridId: 'osmanthus_tea',
+    requiredCommercialTags: ['banquet', 'showcase'],
+    requiredBreedScoreMin: 74,
+    requiredStabilityRank: 'stable',
     themeTag: 'breeding',
     preferredSeasons: ['autumn'],
     bonusSummary: ['高品质花茶在节庆与宴席周需求更高。']
@@ -836,6 +856,29 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     activitySourceId: 'banquet_showcase_week',
     activitySourceLabel: '宴席陈列周',
     orderStageType: 'multi',
+    comboRequirements: [
+      {
+        id: 'combo_golden_melon_batch',
+        itemId: 'golden_melon',
+        itemName: '金蜜瓜',
+        quantity: 10,
+        note: '最终交付仍以高代金蜜瓜批次为核心。'
+      },
+      {
+        id: 'combo_golden_melon_seal',
+        itemId: 'preservation_seal',
+        itemName: '保鲜封签',
+        quantity: 2,
+        note: '高甜度样板瓜需要单独封签，避免宴席前走味。'
+      },
+      {
+        id: 'combo_golden_melon_tag',
+        itemId: 'lineage_certificate_tag',
+        itemName: '谱系认证签',
+        quantity: 1,
+        note: '商会会同步核验精品批次的谱系认证补材。'
+      }
+    ],
     stageDefinitions: createMultiStageDefinitions({
       stages: [
         {
@@ -871,11 +914,32 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
         {
           id: 'banquet_showcase_delivery',
           title: '提交宴席金蜜瓜',
-          description: '完成整批金蜜瓜交付，作为节庆宴席主陈列货源。',
+          description: '完成整批金蜜瓜与封签/认证补材交付，作为节庆宴席主陈列货源。',
           phaseType: 'deliver',
-          targetItemId: 'golden_melon',
-          targetItemName: '金蜜瓜',
-          targetQuantity: 10,
+          requirementSummary: ['最终交付需同时备齐金蜜瓜批次、保鲜封签与谱系认证签。'],
+          comboRequirements: [
+            {
+              id: 'combo_golden_melon_batch',
+              itemId: 'golden_melon',
+              itemName: '金蜜瓜',
+              quantity: 10,
+              note: '最终交付仍以高代金蜜瓜批次为核心。'
+            },
+            {
+              id: 'combo_golden_melon_seal',
+              itemId: 'preservation_seal',
+              itemName: '保鲜封签',
+              quantity: 2,
+              note: '高甜度样板瓜需要单独封签，避免宴席前走味。'
+            },
+            {
+              id: 'combo_golden_melon_tag',
+              itemId: 'lineage_certificate_tag',
+              itemName: '谱系认证签',
+              quantity: 1,
+              note: '商会会同步核验精品批次的谱系认证补材。'
+            }
+          ],
           stageRewards: {
             summary: '最终阶段将按完整宴席样板订单结算。'
           }
@@ -885,6 +949,9 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     orderScoreRule: SPECIAL_ORDER_SCORE_RULES.breeding_quality,
     antiRepeatTags: ['breeding', 'banquet', 'melon_showcase'],
     requiredHybridId: 'golden_melon',
+    requiredCommercialTags: ['banquet', 'luxury'],
+    requiredBreedScoreMin: 84,
+    requiredStabilityRank: 'certified',
     themeTag: 'breeding',
     requiredSweetnessMin: 72,
     requiredYieldMin: 60,
@@ -907,7 +974,62 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     npcId: 'lin_lao',
     tier: 4,
     rewardProfileId: 'research_mix',
+    orderVersion: '3.0',
+    orderStageType: 'combo',
+    comboRequirements: [
+      {
+        id: 'combo_frost_garlic_batch',
+        itemId: 'frost_garlic',
+        itemName: '霜雪蒜',
+        quantity: 12
+      },
+      {
+        id: 'combo_frost_garlic_seal',
+        itemId: 'preservation_seal',
+        itemName: '保鲜封签',
+        quantity: 2,
+        note: '寒季囤储批次需要额外封签。'
+      },
+      {
+        id: 'combo_frost_garlic_residue',
+        itemId: 'breeding_residue',
+        itemName: '育种残留',
+        quantity: 2,
+        note: '研究站会把失败批次残留用于抗性复核与储运垫材。'
+      }
+    ],
+    stageDefinitions: createComboStageDefinitions({
+      title: '提交霜雪蒜囤储批次',
+      description: '寒季囤储单会同时检查主批次、保鲜封签与研究残留补材。',
+      requirements: [
+        {
+          id: 'combo_frost_garlic_batch',
+          itemId: 'frost_garlic',
+          itemName: '霜雪蒜',
+          quantity: 12
+        },
+        {
+          id: 'combo_frost_garlic_seal',
+          itemId: 'preservation_seal',
+          itemName: '保鲜封签',
+          quantity: 2,
+          note: '寒季囤储批次需要额外封签。'
+        },
+        {
+          id: 'combo_frost_garlic_residue',
+          itemId: 'breeding_residue',
+          itemName: '育种残留',
+          quantity: 2,
+          note: '研究站会把失败批次残留用于抗性复核与储运垫材。'
+        }
+      ],
+      requirementSummary: ['高抗性囤货单不再只看主作物，还会扣除储运封签与研究残留。']
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.breeding_quality,
     requiredHybridId: 'frost_garlic',
+    requiredCommercialTags: ['storage', 'research'],
+    requiredBreedScoreMin: 70,
+    requiredStabilityRank: 'stable',
     themeTag: 'breeding',
     preferredSeasons: ['winter'],
     requiredResistanceMin: 72,
@@ -1146,6 +1268,13 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
         itemName: '桂花',
         quantity: 4,
         note: '用于茶席香材点缀。'
+      },
+      {
+        id: 'combo_tea_certificate_tag',
+        itemId: 'lineage_certificate_tag',
+        itemName: '谱系认证签',
+        quantity: 1,
+        note: '专题茶席会额外核验展示样品的谱系认证补材。'
       }
     ],
     stageDefinitions: createComboStageDefinitions({
@@ -1165,9 +1294,16 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
           itemName: '桂花',
           quantity: 4,
           note: '用于茶席香材点缀。'
+        },
+        {
+          id: 'combo_tea_certificate_tag',
+          itemId: 'lineage_certificate_tag',
+          itemName: '谱系认证签',
+          quantity: 1,
+          note: '专题茶席会额外核验展示样品的谱系认证补材。'
         }
       ],
-      requirementSummary: ['组合单会同时检查主茶与点缀材料是否齐备。']
+      requirementSummary: ['组合单会同时检查主茶、点缀材料与谱系认证补材是否齐备。']
     }),
     orderScoreRule: SPECIAL_ORDER_SCORE_RULES.breeding_quality,
     antiRepeatTags: ['combo', 'tea', 'showcase'],
@@ -1949,6 +2085,45 @@ export const generateSpecialOrder = (
   const preferredHybridIds = new Set(options?.preferredHybridIds ?? [])
   const preferredMarketCategories = new Set(options?.preferredMarketCategories ?? [])
   const discouragedMarketCategories = new Set(options?.discouragedMarketCategories ?? [])
+  const stabilityRankWeight: Record<BreedingStabilityRank, number> = {
+    volatile: 0,
+    emerging: 1,
+    stable: 2,
+    certified: 3
+  }
+
+  const getCompendiumCommercialTags = (entry?: CompendiumEntry): BreedingCommercialTag[] => {
+    if (!entry) return []
+    const tags = new Set<BreedingCommercialTag>()
+    if ((entry.bestSweetness ?? 0) >= 72) tags.add('banquet')
+    if ((entry.bestYield ?? 0) >= 72) tags.add('bulk_supply')
+    if ((entry.bestResistance ?? 0) >= 70) tags.add('storage')
+    if ((entry.bestGeneration ?? 0) >= 4) tags.add('showcase')
+    if ((entry.bestGeneration ?? 0) >= 3 || (entry.lineageCropIds?.length ?? 0) >= 2) tags.add('research')
+    if ((entry.bestGeneration ?? 0) >= 6 && entry.bestTotalStats >= 225) tags.add('luxury')
+    return [...tags]
+  }
+
+  const getCompendiumStabilityRank = (entry?: CompendiumEntry): BreedingStabilityRank => {
+    if (!entry) return 'volatile'
+    if ((entry.bestGeneration ?? 0) >= 8) return 'certified'
+    if ((entry.bestGeneration ?? 0) >= 6) return 'stable'
+    if ((entry.bestGeneration ?? 0) >= 4) return 'emerging'
+    return 'volatile'
+  }
+
+  const getCompendiumBreedingScore = (entry?: CompendiumEntry): number => {
+    if (!entry) return 0
+    const generationScore = Math.min(100, 20 + (entry.bestGeneration ?? 0) * 8)
+    return Math.min(
+      100,
+      Math.round((entry.bestSweetness ?? 0) * 0.28) +
+        Math.round((entry.bestYield ?? 0) * 0.22) +
+        Math.round((entry.bestResistance ?? 0) * 0.18) +
+        Math.round(generationScore * 0.12) +
+        Math.round(Math.min(100, entry.bestTotalStats / 3) * 0.2)
+    )
+  }
 
   const matchesBreedingRequirement = (template: SpecialOrderTemplate): boolean => {
     if (template.themeTag !== 'breeding') return true
@@ -1961,6 +2136,17 @@ export const generateSpecialOrder = (
     if (template.requiredParentCropIds?.length) {
       const lineageCropIds = new Set(entry?.lineageCropIds ?? [])
       if (!template.requiredParentCropIds.every(cropId => lineageCropIds.has(cropId))) return false
+    }
+    if (template.requiredCommercialTags?.length) {
+      const tags = new Set(getCompendiumCommercialTags(entry))
+      if (!template.requiredCommercialTags.every(tag => tags.has(tag))) return false
+    }
+    if (template.requiredBreedScoreMin && getCompendiumBreedingScore(entry) < template.requiredBreedScoreMin) return false
+    if (
+      template.requiredStabilityRank &&
+      stabilityRankWeight[getCompendiumStabilityRank(entry)] < stabilityRankWeight[template.requiredStabilityRank]
+    ) {
+      return false
     }
     return true
   }
@@ -2008,6 +2194,11 @@ export const generateSpecialOrder = (
     if (template.requiredParentCropIds?.length) {
       summary.push(`谱系需含：${template.requiredParentCropIds.map(cropId => getCropById(cropId)?.name ?? cropId).join('、')}`)
     }
+    if (template.requiredCommercialTags?.length) {
+      summary.push(`经营标签需含：${template.requiredCommercialTags.join('、')}`)
+    }
+    if (template.requiredBreedScoreMin) summary.push(`育种综合评分≥${template.requiredBreedScoreMin}`)
+    if (template.requiredStabilityRank) summary.push(`稳定度档位≥${template.requiredStabilityRank}`)
     if (template.requiredPondGenerationMin) summary.push(`鱼塘品系代数≥${template.requiredPondGenerationMin}`)
     if (template.requiredFishMature) summary.push('需成熟个体')
     if (template.requiredFishHealthy) summary.push('需健康个体')
@@ -2043,6 +2234,15 @@ export const generateSpecialOrder = (
       }
       if (template.requiredParentCropIds?.length) {
         hints.push(`谱系越贴合 ${template.requiredParentCropIds.map(cropId => getCropById(cropId)?.name ?? cropId).join('、')}，评分越高。`)
+      }
+      if (template.requiredCommercialTags?.length) {
+        hints.push(`经营标签需覆盖 ${template.requiredCommercialTags.join('、')}，否则不会进入候选池。`)
+      }
+      if (template.requiredBreedScoreMin) {
+        hints.push(`建议把育种综合评分至少推到 ${template.requiredBreedScoreMin}。`)
+      }
+      if (template.requiredStabilityRank) {
+        hints.push(`稳定度档位至少达到 ${template.requiredStabilityRank}。`)
       }
     } else if (template.orderScoreRule?.id === 'fish_specimen') {
       const fishParts = [
@@ -2082,7 +2282,7 @@ export const generateSpecialOrder = (
         hints.push('该订单需从背包携带全部材料后统一交付。')
       }
       const requirementLines = requirements.map(requirement =>
-        `${requirement.itemName}：${requirement.deliveryMode === 'pond' ? '鱼塘直交' : '背包提交'}`
+        `${requirement.itemName}：${requirement.deliveryMode === 'pond' ? '鱼塘直交' : '背包提交'}${requirement.note ? ` · ${requirement.note}` : ''}`
       )
       hints.push(...requirementLines)
     } else if (hasPondStage && hasInventoryStage) {
@@ -2242,6 +2442,9 @@ export const generateSpecialOrder = (
     requiredResistanceMin: template.requiredResistanceMin,
     requiredGenerationMin: template.requiredGenerationMin,
     requiredParentCropIds: template.requiredParentCropIds,
+    requiredCommercialTags: template.requiredCommercialTags,
+    requiredBreedScoreMin: template.requiredBreedScoreMin,
+    requiredStabilityRank: template.requiredStabilityRank,
     deliveryMode: template.deliveryMode,
     requiredPondGenerationMin: template.requiredPondGenerationMin,
     requiredFishMature: template.requiredFishMature,

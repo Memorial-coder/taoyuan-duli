@@ -202,6 +202,93 @@
           </div>
           <p v-else class="text-[11px] text-muted">暂无结构化日志。</p>
         </div>
+
+        <div class="game-panel-muted p-3 space-y-2">
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-xs text-accent">最近一次高阶订单生成 Trace</p>
+            <span class="text-[10px] text-muted">{{ latestSpecialOrderTrace?.weekId ?? latestSpecialOrderTrace?.mode ?? '未生成' }}</span>
+          </div>
+          <div v-if="latestSpecialOrderTrace" class="space-y-2">
+            <div class="grid gap-2 md:grid-cols-2">
+              <div class="text-[11px] text-muted">模式：<span class="text-accent">{{ latestSpecialOrderTrace.mode }}</span></div>
+              <div class="text-[11px] text-muted">季节 / Tier：<span class="text-accent">{{ latestSpecialOrderTrace.season }} / {{ latestSpecialOrderTrace.tier }}</span></div>
+              <div class="text-[11px] text-muted">周标识：<span class="text-accent">{{ latestSpecialOrderTrace.weekId ?? 'legacy' }}</span></div>
+              <div class="text-[11px] text-muted">尝试次数：<span class="text-accent">{{ latestSpecialOrderTrace.attempts }}</span></div>
+            </div>
+            <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+              <p class="text-[11px] text-accent">最终命中</p>
+              <p class="text-[10px] text-muted mt-1">订单 {{ latestSpecialOrderTrace.selectedOrderId ?? '未生成' }} · 模板 {{ latestSpecialOrderTrace.selectedTemplateName ?? '未命中' }} · 目标 {{ latestSpecialOrderTrace.selectedTargetItemId ?? '无' }}</p>
+              <p class="text-[10px] text-muted mt-1">{{ latestSpecialOrderTrace.selectedReason }}</p>
+            </div>
+            <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+              <p class="text-[11px] text-accent">偏置来源</p>
+              <p class="text-[10px] text-muted mt-1">主题偏好：{{ latestSpecialOrderTrace.preferredThemeTag ?? '无' }}</p>
+              <p class="text-[10px] text-muted mt-1">杂交偏好：{{ latestSpecialOrderTrace.preferredHybridIds?.length ? latestSpecialOrderTrace.preferredHybridIds.join(' · ') : '无' }}</p>
+              <p class="text-[10px] text-muted mt-1">偏好类目：{{ latestSpecialOrderTrace.preferredMarketCategories?.length ? latestSpecialOrderTrace.preferredMarketCategories.join(' · ') : '无' }}</p>
+              <p class="text-[10px] text-muted mt-1">抑制类目：{{ latestSpecialOrderTrace.discouragedMarketCategories?.length ? latestSpecialOrderTrace.discouragedMarketCategories.join(' · ') : '无' }}</p>
+            </div>
+            <div class="space-y-1.5 max-h-72 overflow-y-auto pr-1">
+              <div v-for="attempt in latestSpecialOrderTrace.attemptsDetail" :key="`trace-attempt-${attempt.attempt}`" class="border border-accent/10 rounded-xs px-2 py-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[11px] text-accent">Attempt {{ attempt.attempt }}</p>
+                  <span class="text-[10px] text-muted">{{ formatTraceAttemptSummary(attempt) }}</span>
+                </div>
+                <p v-if="attempt.blockReason" class="text-[10px] text-warning mt-1">{{ attempt.blockReason }}</p>
+                <div class="space-y-1 mt-2">
+                  <div v-for="candidate in attempt.candidates" :key="`${attempt.attempt}-${candidate.templateName}-${candidate.targetItemId}`" class="rounded-xs border border-accent/10 px-2 py-2 bg-bg/10">
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-[10px] text-text">{{ candidate.templateName }} · {{ candidate.targetItemId }}</span>
+                      <span class="text-[10px] text-accent">权重 {{ candidate.finalWeight.toFixed(2) }}</span>
+                    </div>
+                    <p class="text-[10px] text-muted mt-1">{{ formatTraceCandidateSummary(candidate) }}</p>
+                    <p v-if="candidate.weightReasons?.length" class="text-[10px] text-success mt-1">{{ candidate.weightReasons.join('；') }}</p>
+                    <p v-if="candidate.blockedByAntiRepeat" class="text-[10px] text-warning mt-1">anti-repeat 阻断：{{ candidate.blockedTags?.join('、') || '是' }}{{ candidate.cooldownWeeks ? ` · 冷却 ${candidate.cooldownWeeks} 周` : '' }}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p v-else class="text-[11px] text-muted">尚未生成高阶订单 trace，可先投放测试订单。</p>
+        </div>
+
+        <div class="game-panel-muted p-3 space-y-2">
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-xs text-accent">最近一次周目标结算</p>
+            <span class="text-[10px] text-muted">{{ latestWeeklyGoalSettlement?.weekId ?? '未结算' }}</span>
+          </div>
+          <div v-if="latestWeeklyGoalSettlement" class="space-y-2">
+            <div class="grid gap-2 md:grid-cols-2">
+              <div class="text-[11px] text-muted">周次：<span class="text-accent">{{ latestWeeklyGoalSettlement.weekId }}</span></div>
+              <div class="text-[11px] text-muted">完成：<span class="text-accent">{{ latestWeeklyGoalSettlement.completedGoalCount }}/{{ latestWeeklyGoalSettlement.totalGoalCount }}</span></div>
+              <div class="text-[11px] text-muted">主题周：<span class="text-accent">{{ latestWeeklyGoalSettlement.linkedThemeWeekId ?? '无' }}</span></div>
+              <div class="text-[11px] text-muted">结算日：<span class="text-accent">{{ latestWeeklyGoalSettlement.settledAtDayTag }}</span></div>
+            </div>
+            <div v-if="latestWeeklyGoalSettlement.rewardHighlights.length > 0" class="border border-success/20 rounded-xs px-2 py-2 bg-success/5">
+              <p class="text-[11px] text-success">奖励摘要</p>
+              <p class="text-[10px] text-muted mt-1">{{ latestWeeklyGoalSettlement.rewardHighlights.join('；') }}</p>
+            </div>
+            <div v-if="latestWeeklyGoalSettlement.failureHighlights.length > 0" class="border border-warning/20 rounded-xs px-2 py-2 bg-warning/5">
+              <p class="text-[11px] text-warning">失败留痕</p>
+              <p class="text-[10px] text-muted mt-1">{{ latestWeeklyGoalSettlement.failureHighlights.join('；') }}</p>
+            </div>
+            <div v-if="latestWeeklyGoalSettlement.compensationRewardSummaries.length > 0" class="border border-accent/20 rounded-xs px-2 py-2 bg-accent/5">
+              <p class="text-[11px] text-accent">柔性补偿</p>
+              <p class="text-[10px] text-muted mt-1">{{ latestWeeklyGoalSettlement.compensationRewardSummaries.join('；') }}</p>
+            </div>
+            <div class="space-y-1 max-h-56 overflow-y-auto pr-1">
+              <div v-for="item in latestWeeklyGoalSettlement.items" :key="`settlement-${item.goalId}`" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-[10px] text-text">{{ item.title }}</span>
+                  <span :class="item.completed ? 'text-success' : 'text-warning'" class="text-[10px]">{{ item.progressValue }}/{{ item.targetValue }}</span>
+                </div>
+                <p v-if="item.rewardSummary" class="text-[10px] text-success mt-1">奖励：{{ item.rewardSummary }}</p>
+                <p v-if="item.compensationSummary" class="text-[10px] text-accent mt-1">补偿：{{ item.compensationSummary }}</p>
+                <p v-if="item.failureCompensationReason" class="text-[10px] text-muted mt-1">{{ item.failureCompensationReason }}</p>
+              </div>
+            </div>
+          </div>
+          <p v-else class="text-[11px] text-muted">尚无周目标结算记录，先推进到下周即可生成。</p>
+        </div>
       </section>
     </div>
 
@@ -350,6 +437,8 @@
   const economyOverview = computed(() => playerStore.getEconomyOverview())
   const latestSnapshot = computed(() => goalStore.latestWeeklyMetricSnapshot)
   const archiveSnapshots = computed(() => [...goalStore.weeklyMetricArchive.snapshots].slice().reverse())
+  const latestSpecialOrderTrace = computed(() => questStore.lastSpecialOrderGenerationTrace)
+  const latestWeeklyGoalSettlement = computed(() => goalStore.lastWeeklyGoalSettlement)
   const recentStructuredLogs = computed(() =>
     logHistory.value
       .filter(entry => entry.tags?.length || entry.category)
@@ -506,6 +595,15 @@
   }
 
   const formatMeta = (meta: Record<string, unknown>) => JSON.stringify(meta)
+  const formatTraceAttemptSummary = (attempt: NonNullable<typeof latestSpecialOrderTrace.value>['attemptsDetail'][number]) => {
+    const selected = attempt.selectedTemplateName ? `${attempt.selectedTemplateName} · ${attempt.selectedTargetItemId ?? '无目标'}` : '未命中候选'
+    const blocked = attempt.blockedByAntiRepeat ? ' · anti-repeat 阻断' : ''
+    return `${selected} · 候选 ${attempt.candidateCount}${blocked}`
+  }
+  const formatTraceCandidateSummary = (candidate: NonNullable<typeof latestSpecialOrderTrace.value>['attemptsDetail'][number]['candidates'][number]) => {
+    const tags = candidate.blockedTags?.length ? `阻断标签 ${candidate.blockedTags.join('、')}` : '未命中阻断'
+    return `Tier ${candidate.tier}${candidate.themeTag ? ` · 主题 ${candidate.themeTag}` : ''}${candidate.requiredHybridId ? ` · 杂交 ${candidate.requiredHybridId}` : ''} · ${tags}`
+  }
 
   const debugApi: LateGameDebugCommandApi = {
     listSamples: () => saveStore.getBuiltInSampleSaves(),

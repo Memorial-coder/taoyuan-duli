@@ -96,6 +96,7 @@ export const createSystemMailboxCampaign = async (payload: {
   return request('/api/taoyuan/mail/system-campaign', {
     method: 'POST',
     headers: {
+      'Content-Type': 'application/json',
       'X-CSRF-Token': csrfToken
     },
     body: JSON.stringify(payload)

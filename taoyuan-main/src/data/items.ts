@@ -62,6 +62,7 @@ const MISC_ITEMS: ItemDef[] = [
   { id: 'wood', name: '木材', category: 'material', description: '建造和制作的基础材料。', sellPrice: 5, edible: false },
   { id: 'stone', name: '石材', category: 'material', description: '常见的建筑石料，可用于建造、加工与委托。', sellPrice: 3, edible: false },
   { id: 'bamboo', name: '竹子', category: 'material', description: '竹林中采集的翠竹。', sellPrice: 10, edible: false },
+  { id: 'paper', name: '纸张', category: 'material', description: '用于记账、抄写与文书整理的基础纸张。', sellPrice: 18, edible: false },
   { id: 'herb', name: '草药', category: 'material', description: '山间野生的草药。', sellPrice: 15, edible: false },
   { id: 'firewood', name: '柴火', category: 'material', description: '烹饪用的燃料。', sellPrice: 5, edible: false },
   {
@@ -125,11 +126,51 @@ const MISC_ITEMS: ItemDef[] = [
     edible: false
   },
   {
+    id: 'ornamental_feed',
+    name: '观赏饲料',
+    category: 'material',
+    description: '专为高评分样鱼调配的饲料，可短时提升观赏状态与周赛表现。',
+    sellPrice: 35,
+    edible: false
+  },
+  {
     id: 'water_purifier',
     name: '水质改良剂',
     category: 'material',
     description: '改善鱼塘水质，降低鱼生病概率。',
     sellPrice: 50,
+    edible: false
+  },
+  {
+    id: 'advanced_water_purifier',
+    name: '高级净水剂',
+    category: 'material',
+    description: '用于高阶鱼塘养护的净水剂，可额外提供隔离与稳定效果。',
+    sellPrice: 120,
+    edible: false
+  },
+  {
+    id: 'preservation_seal',
+    name: '保鲜封签',
+    category: 'material',
+    description: '高价值作物储运时使用的封签，可降低跨周供货中的损耗感。',
+    sellPrice: 45,
+    edible: false
+  },
+  {
+    id: 'breeding_residue',
+    name: '育种残留',
+    category: 'material',
+    description: '高代育种失败后回收出的残留材料，可继续用于研究和储运补材。',
+    sellPrice: 18,
+    edible: false
+  },
+  {
+    id: 'lineage_certificate_tag',
+    name: '谱系认证签',
+    category: 'material',
+    description: '从高阶失败样本中拆解出的认证补材，可用于精品供货与陈列复核。',
+    sellPrice: 28,
     edible: false
   }
 ]

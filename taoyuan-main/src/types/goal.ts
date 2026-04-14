@@ -242,7 +242,9 @@ export interface EventOperationsState {
   cadence: EventCampaignCadence
   completedCampaignIds: string[]
   completedThemeWeekIds: string[]
+  /** 历史遗留字段：当前仍用于记录“已投递”的活动邮件回执键 */
   claimedMailCampaignIds: string[]
+  claimedMailReceiptKeys: string[]
   lastCampaignDayTag: string
   lastSettlementDayTag: string
 }

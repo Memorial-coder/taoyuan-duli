@@ -140,7 +140,10 @@
             <p class="text-xs text-accent">村庄建设</p>
             <p class="text-[10px] text-muted mt-0.5">把获得的生活线索真正落成项目，让桃源村逐步有长期建设感。</p>
           </div>
-          <span class="text-[10px] text-muted">已完成 {{ villageProjectStore.villageProjectLevel }}/{{ villageProjectStore.projects.length }}</span>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-muted">已完成 {{ villageProjectStore.villageProjectLevel }}/{{ villageProjectStore.projects.length }}</span>
+            <Button class="justify-center !px-2 !py-1" @click="void router.push({ name: 'village-projects' })">建设总览</Button>
+          </div>
         </div>
 
         <div class="flex flex-col space-y-1.5">
@@ -857,6 +860,7 @@
 
 <script setup lang="ts">
   import { ref, computed } from 'vue'
+  import { useRouter } from 'vue-router'
   import { MessageCircle, Heart, Gift, Cake, X, Package, Lightbulb, Circle, CircleCheck, Users, Sparkles, Diamond } from 'lucide-vue-next'
   import { useCookingStore } from '@/stores/useCookingStore'
   import { useGameStore } from '@/stores/useGameStore'
@@ -885,6 +889,7 @@
   import type { DiscoveryStep } from '@/types/hiddenNpc'
   import type { DiscoveryCondition } from '@/types/hiddenNpc'
 
+  const router = useRouter()
   const npcStore = useNpcStore()
   const inventoryStore = useInventoryStore()
   const cookingStore = useCookingStore()

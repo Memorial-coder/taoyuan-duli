@@ -4,6 +4,20 @@
 
 ## [未发布]
 
+### 修复
+
+#### 0414 存档权威与瀚海扑克结算收口
+- `server/src/routes/api.js` 已移除 `GET /api/taoyuan/save/:slot` 的 active slot 副作用，并新增显式服务端当前槽位设置接口，避免“读取存档=偷偷改奖励落点”。
+- `src/utils/serverSaveApi.ts`、`src/stores/useSaveStore.ts` 已在服务端读档成功后显式同步当前 active slot；邮箱奖励现在只会在“当前运行中的就是同一个服务端槽位”时自动热刷新，不再把本地会话误报成“已到账当前存档”。
+- `src/stores/useMailboxStore.ts`、`src/views/game/MailView.vue` 已补齐邮件奖励落点提示：会区分“已同步当前服务端存档”“仅写入服务端槽位，当前未自动切换”“刷新失败需手动载入”等语义。
+- `src/stores/useSettingsStore.ts` 已禁止正式环境从导入档恢复 `lateGameFeatureOverrides` / `lateGameBalanceOverrides`，避免调试覆写穿透到线上会话。
+- `src/types/hanhai.ts`、`src/components/game/TexasHoldemGame.vue`、`src/views/game/HanhaiView.vue`、`src/stores/useHanhaiStore.ts` 已将瀚海扑克从“前端直传最终筹码”改为“预生成整场牌组 + 上报玩家操作轨迹 + store 复盘校验后结算”，并把场外补注改为结算时统一扣减，收回了任意伪造 `finalChips` 的入口。
+- `server/src/taoyuanHall.js`、`server/src/routes/api.js`、`src/views/game/WalletView.vue` 已把额度兑换绑定到当前已载入的服务端存档：服务端会先校验 active save，再真实扣改桃源货币，前端未载入服务端存档时无法继续兑换。
+- `src/composables/useGameLog.ts` 已关闭 Qmsg 的 HTML 渲染，并让 `resetLogs()` 同步清空日志历史，避免全局 HTML 注入面与新档残留旧日志。
+- `src/stores/useAchievementStore.ts`、`src/stores/useCookingStore.ts` 已修复祠堂超额吞物、完美度技能归一化失真、烹饪技能门槛旁路与 `eat()` 先删物后验表的问题。
+- `src/views/MainMenu.vue` 与 `/api/public-config` 返回链接已增加站内安全校验，不再直接跳转到未校验的外部地址。
+- `src/data/items.ts`、`src/data/villageProjects.ts`、`src/data/sampleSaves.ts`、`scripts/qa-late-game-samples.mjs` 已补齐 `paper` 正式物品定义、修正 `standard_bait` 奖励引用、修复鱼塘样例 genetics schema，并把样例档 QA 从“字段存在”提升到“关键 schema + itemId 合法性”校验。
+
 ### 新增功能
 
 #### 0412 主线执行面归一
@@ -11,6 +25,85 @@
 - `TODO.md` 与 `后期经济治理实施索引-2026-04-11.md` 的“当前下一项”已统一改为按 0412 主线持续推进，不再使用“全部 120 项主线已完成”的口径。
 
 - `0412plan.md` 顶部已补充 `0410-1plan.md` 参考文档说明，便于后续代理查阅历史审计来源。
+
+#### 0412 周循环收口（ORDER-027 / WEEK-030 ~ WEEK-036）
+- `src/views/dev/LateGameDebugView.vue` 已新增最近一次高阶订单生成 trace 区块，可直接查看最终命中原因、偏置来源、attempt 列表、候选权重与 anti-repeat 阻断原因。
+- `src/types/goal.ts`、`src/data/goals.ts`、`src/stores/useGoalStore.ts`、`src/composables/useEndDay.ts` 已补齐周目标结算摘要、主题周奖励池、周 streak、失败柔性补偿与周边界结算接线，旧周目标现会先结算再刷新新周。
+- 周结算邮件现复用 system campaign 通道发送单封简报；若触发柔性补偿，会在同一封邮件中附带补偿奖励。
+- `src/stores/useShopStore.ts` 与 `src/views/game/ShopView.vue` 已新增“主题周承接货架”推荐；`src/components/game/TopGoalsPanel.vue` 已新增上周结算与连周进度摘要。
+- 本轮改动已再次通过 `npm run type-check`，并已把 `0410-1plan.md` 的 `TYX-ORDER-025 ~ TYX-WEEK-036` 回写为已完成状态。
+
+#### 0410 任务台账续推
+- `0410-1plan.md` 已恢复为可持续回写的 1~108 任务台账。
+- `037 ~ 108` 已按代码真相启动逐模块审计；当前已确认 `VILL`、`HANH`、`MUSE` 等终局经营模块存在大规模实现痕迹，后续会继续按模块补齐回写。
+- 本轮已将 `HANH-046 ~ 054`、`MUSE-073 ~ 081`、`SOCIAL-082 ~ 090`、`SHOP-091 ~ 099`、`SAVE-100 ~ 108` 回写为完成状态，后续聚焦 `VILL / BREED / POND` 的剩余审计与缺口续推。
+
+#### POND-064 / POND-065 鱼塘评级与资格快照
+- `src/types/fishPond.ts` 已新增统一鱼塘评级与资格快照结构，包括 `PondRatingBreakdown`、`PondFishRatingSnapshot`、`PondEligibilitySnapshot` 等类型。
+- `src/stores/useFishPondStore.ts` 已新增统一评级计算、鱼个体评分快照与按鱼种聚合的 eligibility 快照，订单筛选现在会优先返回总评分更高的可交付个体。
+- `src/views/game/FishPondView.vue` 已新增“经营评级 / 资格快照”概览，并在鱼详情弹窗中展示世代、观赏、食用、健康、稳定和总评。
+- 本轮改动已通过 `npm run type-check`，并已把 `0410-1plan.md` 的 `TYX-POND-064 ~ TYX-POND-065` 回写为完成状态。
+
+#### BREED-055 / BREED-056 育种经营标签与统一评分
+- `src/types/breeding.ts` 已新增 `BreedingCommercialTag`、`BreedingStabilityRank`、`BreedingScoreBreakdown` 等统一经营评分类型。
+- `src/stores/useBreedingStore.ts` 已新增育种商业标签、稳定度等级与统一评分计算入口，后续订单匹配、展示标签与认证状态可直接复用。
+- `src/views/game/BreedingView.vue` 已在种子详情弹窗中新增“统一评分”区块，直接展示总分、稳定度等级与经营标签。
+- 本轮改动已通过 `npm run type-check`，并已把 `0410-1plan.md` 的 `TYX-BREED-055 ~ TYX-BREED-056` 回写为完成状态。
+
+#### BREED-057 / BREED-058 育种订单匹配与展示标签
+- `src/types/quest.ts`、`src/data/quests.ts` 已为高阶育种订单补齐经营标签、统一评分与稳定度档位门槛，并把这些条件接入订单生成筛选、要求摘要和评分提示文案。
+- 首批茶系、宴席系与储运系育种订单现已开始消费 `requiredCommercialTags`、`requiredBreedScoreMin` 与 `requiredStabilityRank`。
+- `src/types/breeding.ts`、`src/stores/useBreedingStore.ts`、`src/views/game/BreedingView.vue` 已补齐展示标签与展陈价值输出，种子详情弹窗现可直接查看 `showcaseTags` 与 `exhibitWorth`。
+- 本轮改动已通过 `npm run type-check`，并已把 `0410-1plan.md` 的 `TYX-BREED-057 ~ TYX-BREED-058` 回写为完成状态。
+
+#### BREED-059 谱系认证与稳定批次记录
+- `src/types/breeding.ts` 已新增 `BreedingCertificationRecord`，用于持久记录某个杂交品系是否达到稳定供货线。
+- `src/stores/useBreedingStore.ts` 已新增 `certifiedLineages`、`getCertificationRecord()` 与自动认证逻辑；当图鉴世代、种植次数和综合分达到门槛时，会自动落成认证记录并写入日志。
+- `src/views/game/BreedingView.vue` 的图鉴详情弹窗已新增“谱系认证”展示，能直接看到某个杂交品系是否已经达到认证供货线。
+- 本轮改动已通过 `npm run type-check`，并已把 `0410-1plan.md` 的 `TYX-BREED-059` 回写为完成状态。
+
+#### BREED-060 育种周赛 / 品鉴会框架
+- `src/types/breeding.ts`、`src/data/breedingContests.ts` 已补齐育种周赛定义、状态与结算摘要结构。
+- `src/stores/useBreedingStore.ts` 已新增本周育种周赛状态、候选样本筛选、报名/取消报名、周切换刷新与结算逻辑。
+- `src/composables/useEndDay.ts` 已在周边界接入育种周赛结算与新周赛事刷新。
+- `src/views/game/BreedingView.vue` 已新增本周育种周赛摘要，并支持在种子详情弹窗中直接报名或取消报名。
+- 本轮改动已通过 `npm run type-check`，并已把 `0410-1plan.md` 的 `TYX-BREED-060` 回写为完成状态。
+
+#### BREED-061 / BREED-062 / BREED-063 育种保底、物流与规划器
+- `src/types/economy.ts`、`src/data/balance/lateGameBalance.ts` 已新增育种失败保底与鱼塘高阶养护的统一平衡参数，后续失败回收、展示池与高阶维护均从同一配置读取。
+- `src/data/items.ts`、`src/stores/useBreedingStore.ts` 已新增 `育种残留`、`谱系认证签`、`保鲜封签` 等失败回收 / 物流补材；高代失败批次现在会回收为研究、认证与储运可复用材料，不再只是单纯掉回一颗降属性种子。
+- `src/data/quests.ts`、`src/views/game/QuestView.vue` 已把 `金蜜宴筹备`、`雪蒜囤储令`、`茶席陈列套组` 接到真实物流消耗，订单详情会明确展示封签、认证补材和储运材料要求。
+- `src/stores/useGoalStore.ts`、`src/views/game/BreedingView.vue` 已新增“育种规划器 2.0”，会同时汇总本周订单、下周主题周、图鉴缺口、推荐亲本与物流补材缺口，并在育种页展示最近一次失败回收摘要。
+- 本轮改动已通过 `npm run type-check`，并已把 `0410-1plan.md` 的 `TYX-BREED-061 ~ TYX-BREED-063` 回写为完成状态。
+
+#### POND-066 / POND-067 鱼塘周赛数据结构与报名结算
+- `src/types/fishPond.ts`、`src/data/fishPondContests.ts` 已补齐鱼塘周赛定义、状态与结算摘要结构。
+- `src/stores/useFishPondStore.ts` 已新增本周鱼塘周赛状态、候选样本筛选、报名/取消报名、周切换刷新与结算逻辑。
+- `src/composables/useEndDay.ts` 已在周边界接入鱼塘周赛结算与新周赛事刷新。
+- `src/views/game/FishPondView.vue` 已新增本周周赛摘要，并支持在鱼详情弹窗中直接报名或取消报名。
+- 本轮改动已通过 `npm run type-check`，并已把 `0410-1plan.md` 的 `TYX-POND-066 ~ TYX-POND-067` 回写为完成状态。
+
+#### POND-071 鱼塘主题周钩子
+- `src/stores/useFishPondStore.ts` 已新增 `currentThemeWeekPondFocus`，把主题周对鱼塘的承接焦点收口到鱼塘 store。
+- `src/views/game/FishPondView.vue` 已新增“主题周承接”摘要卡，直接展示当前主题周对鱼塘周赛与样本培养的建议。
+- 本轮改动已通过 `npm run type-check`，并已把 `0410-1plan.md` 的 `TYX-POND-071` 回写为完成状态。
+
+#### POND-072 鱼塘总览与评分 UI
+- `src/views/game/FishPondView.vue` 现已把本周周赛、主题周承接、经营评级 / 资格快照、鱼个体总评一并收口到主页面与详情弹窗。
+- 玩家现在无需逐条点开全部样本，也能直接判断高价值个体、周赛候选与当前鱼塘承接方向。
+- 本轮改动已通过 `npm run type-check`，并已把 `0410-1plan.md` 的 `TYX-POND-072` 回写为完成状态。
+
+#### POND-068 / POND-069 / POND-070 鱼塘高阶养护、展示池与合同承接
+- `src/types/fishPond.ts`、`src/stores/useFishPondStore.ts` 已新增高阶养护状态、展示池镜像快照、展示总览与高评分样鱼识别；高评分样鱼现在会带来额外水质压力，并可通过 `观赏饲料`、`高级净水剂` 获取周赛与展示加成。
+- `src/data/items.ts`、`src/stores/useShopStore.ts` 已新增 `观赏饲料`、`高级净水剂`、`保鲜封签`，形成鱼塘高阶维护与育种物流共用的真实消耗层。
+- `src/views/game/FishPondView.vue` 已新增“高阶养护”与“展示池 / 观赏缸”面板，并支持在鱼详情弹窗中直接把高评分成熟样鱼加入或移出展示池。
+- `src/stores/useMuseumStore.ts` 已把鱼塘展示池接入博物馆陈列评分；`src/data/hanhai.ts`、`src/stores/useHanhaiStore.ts` 已新增鱼塘活体押运合同与告示板偏置，鱼塘不再只通过订单承接。
+- 本轮改动已通过 `npm run type-check`，并已把 `0410-1plan.md` 的 `TYX-POND-068 ~ TYX-POND-070` 回写为完成状态。
+
+#### 0412 / 0410 总验证与文档收口
+- 已完成 `npm run type-check`、`npm run qa:late-game-samples`、`npm run lint` 三项自动验证。
+- `qa:late-game-samples` 样例档自动验证已覆盖 `late_economy_foundation`、`breeding_specialist`、`fishpond_operator`、`endgame_showcase` 四组后期样例。
+- `0412plan.md`、`0410-1plan.md`、`TODO.md`、`后期经济治理实施索引-2026-04-11.md` 已统一回写为“0412 主线 + 0410(1~108) 已完成收口”。
 
 #### WS09 家庭 / 配偶 / 仙灵陪伴循环（T081）
 - 完成基线审计与 KPI 定义：

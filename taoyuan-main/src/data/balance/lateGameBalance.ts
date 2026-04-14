@@ -93,7 +93,25 @@ export const LATE_GAME_BALANCE_CONFIG: LateGameBalanceConfig = {
   ],
   serviceContractRenewMultiplier: 1.15,
   highValueOrderCashRatio: 0.65,
-  casinoCashExpectationMultiplier: 0.7
+  casinoCashExpectationMultiplier: 0.7,
+  breedingFailureSalvage: {
+    minimumGenerationForResidue: 4,
+    residueBaseQuantity: 1,
+    residueHybridBonus: 1,
+    certificationGenerationThreshold: 6,
+    certificationScoreThreshold: 210,
+    preservationResistanceThreshold: 70
+  },
+  fishPondMaintenance: {
+    highTierScoreThreshold: 78,
+    maintenanceDecayPerHighTierFish: 2,
+    ornamentalFeedShowBonus: 8,
+    ornamentalFeedContestBonus: 6,
+    advancedPurifierRestore: 28,
+    quarantineShieldDays: 2,
+    displayTankSlotLimit: 3,
+    displayTankMuseumScoreDivisor: 24
+  }
 }
 
 /**
@@ -106,4 +124,6 @@ export const LATE_GAME_BALANCE_CONFIG: LateGameBalanceConfig = {
  * - serviceContractRenewMultiplier：服务合同续费倍率
  * - highValueOrderCashRatio：高价值订单中的现金奖励占比
  * - casinoCashExpectationMultiplier：赌坊现金期望倍率
+ * - breedingFailureSalvage：育种失败保底与再利用参数
+ * - fishPondMaintenance：鱼塘高阶养护与展示池参数
  */

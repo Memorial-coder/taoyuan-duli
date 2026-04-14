@@ -389,6 +389,30 @@ export const HANHAI_CARAVAN_CONTRACT_DEFS: HanhaiCaravanContractDef[] = [
     riskLevel: 'high',
     rewardSummary: '终局高价合同，服务瀚海赞助、专题展与主题周收官。',
     linkedSystems: ['museum', 'goal', 'shop']
+  },
+  {
+    id: 'contract_koi_showcase_relay',
+    label: '锦鲤观赏接力单',
+    unlockTier: 'P1',
+    routeId: 'turquoise_exchange_route',
+    durationWeeks: 1,
+    costMoney: 5600,
+    cargoTags: ['活体观赏', '茶会联供'],
+    riskLevel: 'medium',
+    rewardSummary: '把鱼塘观赏样鱼、茶会联供单与驿站精选货架串成同一条活体展示商路。',
+    linkedSystems: ['quest', 'shop', 'museum']
+  },
+  {
+    id: 'contract_coldchain_specimen_route',
+    label: '冷链样本押运合同',
+    unlockTier: 'P2',
+    routeId: 'moon_sand_ceremony_route',
+    durationWeeks: 1,
+    costMoney: 9800,
+    cargoTags: ['冷链样本', '研究供货', '活体押运'],
+    riskLevel: 'high',
+    rewardSummary: '面向高代鱼塘样本与研究联运的终局合同，会放大鱼塘组合单、样本周赛与研究承接。',
+    linkedSystems: ['quest', 'goal', 'museum']
   }
 ]
 

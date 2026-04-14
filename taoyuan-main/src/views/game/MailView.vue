@@ -144,7 +144,7 @@
   import { Mail, MailOpen, RefreshCw, Inbox, Trash2, Gift } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
-  import type { TaoyuanMailDetail, TaoyuanMailReward } from '@/stores/useMailboxStore'
+  import type { MailClaimSyncState, TaoyuanMailDetail, TaoyuanMailReward, TaoyuanMailSummary } from '@/stores/useMailboxStore'
 
   const mailboxStore = useMailboxStore()
   const goalStore = useGoalStore()
@@ -154,6 +154,24 @@
   const selectRequestId = ref(0)
   const claimableMailCount = computed(() => mailboxStore.mails.filter(mail => mail.can_claim).length)
   const activityMailCount = computed(() => mailboxStore.mails.filter(mail => mail.template_type === 'activity_reward').length)
+  const isEventMailReceiptKey = (value: string) => value.startsWith('event_')
+  const isActivityWindowMailReceiptKey = (value: string) => value.startsWith('activity_window_')
+
+  const syncActivityRewardMailState = (mail: TaoyuanMailSummary | TaoyuanMailDetail | null | undefined) => {
+    if (!mail || mail.template_type !== 'activity_reward' || !mail.is_claimed) return
+    if (typeof mail.campaign_id === 'string' && isEventMailReceiptKey(mail.campaign_id)) {
+      goalStore.markEventCampaignMailClaimed(mail.campaign_id)
+    }
+    if (typeof mail.id === 'string' && typeof mail.campaign_id === 'string' && isActivityWindowMailReceiptKey(mail.campaign_id)) {
+      questStore.markActivityRewardMailClaimed(mail.id)
+    }
+  }
+
+  const syncClaimedActivityRewardMails = () => {
+    for (const mail of mailboxStore.mails) {
+      syncActivityRewardMailState(mail)
+    }
+  }
 
   const rewardLabel = (reward: TaoyuanMailReward) => {
     if (reward.type === 'money') return `桃源乡铜钱 x${reward.amount ?? 0}`
@@ -199,6 +217,45 @@
     return templateType
   }
 
+  const formatSlotLabels = (slots: number[]) => slots.map(slot => `槽位${slot + 1}`).join('、')
+
+  const resolveClaimSyncFeedback = (syncState?: MailClaimSyncState | null) => {
+    if (!syncState) return { text: '奖励领取完成', type: 'success' as const }
+    if (syncState.reason === 'synced') {
+      return { text: '奖励已同步到当前服务端存档', type: 'success' as const }
+    }
+    if (syncState.reason === 'no_save_slot') {
+      return { text: '奖励领取完成，但这批邮件没有写入存档槽位', type: 'accent' as const }
+    }
+
+    const claimedSlotsText = syncState.claimed_save_slots.length > 0
+      ? formatSlotLabels(syncState.claimed_save_slots)
+      : '服务端存档'
+
+    if (syncState.reason === 'current_session_not_server') {
+      return {
+        text: `奖励已写入${claimedSlotsText}，当前运行中不是服务端存档，需切换后手动载入查看`,
+        type: 'accent' as const
+      }
+    }
+    if (syncState.reason === 'no_active_session_slot') {
+      return {
+        text: `奖励已写入${claimedSlotsText}，但当前没有已载入的服务端存档，请手动载入对应槽位查看`,
+        type: 'accent' as const
+      }
+    }
+    if (syncState.reason === 'current_session_slot_mismatch') {
+      return {
+        text: `奖励已写入${claimedSlotsText}，当前会话仍停留在槽位${(syncState.current_session_slot ?? -1) + 1}，未自动切换`,
+        type: 'accent' as const
+      }
+    }
+    return {
+      text: `奖励已写入${claimedSlotsText}，但当前服务端存档刷新失败，请手动重新载入查看`,
+      type: 'accent' as const
+    }
+  }
+
   const ensureSelection = async () => {
     if (!mailboxStore.mails.length) {
       activeMailId.value = null
@@ -212,6 +269,7 @@
   const refreshMails = async () => {
     try {
       await mailboxStore.refreshList()
+      syncClaimedActivityRewardMails()
       await ensureSelection()
     } catch (error: any) {
       showFloat(error?.message || '刷新邮箱失败', 'danger')
@@ -236,19 +294,9 @@
     try {
       const data = await mailboxStore.claimMail(activeMailId.value)
       activeMail.value = data.mail
-      if (data.mail?.template_type === 'activity_reward') {
-        if (typeof data.mail.campaign_id === 'string') {
-          goalStore.markEventCampaignMailClaimed(data.mail.campaign_id)
-        }
-        if (typeof data.mail.id === 'string') {
-          questStore.markActivityRewardMailClaimed(data.mail.id)
-        }
-      }
-      if (data.save_sync_ok === false) {
-        showFloat('奖励已领取，但当前桃源乡存档刷新失败，请手动重新载入当前存档查看', 'accent')
-      } else {
-        showFloat('奖励已发放到当前桃源乡存档', 'success')
-      }
+      syncActivityRewardMailState(data.mail)
+      const feedback = resolveClaimSyncFeedback(data.save_sync_state)
+      showFloat(feedback.text, feedback.type)
     } catch (error: any) {
       showFloat(error?.message || '领取失败', 'danger')
     }
@@ -258,20 +306,13 @@
     try {
       const data = await mailboxStore.claimAll()
       for (const claimed of data.claimed ?? []) {
-        if (claimed?.mail?.template_type !== 'activity_reward') continue
-        if (typeof claimed.mail.campaign_id === 'string') {
-          goalStore.markEventCampaignMailClaimed(claimed.mail.campaign_id)
-        }
-        if (typeof claimed.mail.id === 'string') {
-          questStore.markActivityRewardMailClaimed(claimed.mail.id)
-        }
+        syncActivityRewardMailState(claimed?.mail)
       }
       await ensureSelection()
-      if (data.save_sync_ok === false) {
-        showFloat(`已领取 ${data.claimed?.length || 0} 封邮件，但当前桃源乡存档刷新失败，请手动重新载入当前存档查看`, 'accent')
-      } else {
-        showFloat(`成功领取 ${data.claimed?.length || 0} 封邮件`, data.failed?.length ? 'accent' : 'success')
-      }
+      const feedback = resolveClaimSyncFeedback(data.save_sync_state)
+      const baseText = `已领取 ${data.claimed?.length || 0} 封邮件`
+      const suffix = data.failed?.length ? `，另有 ${data.failed.length} 封失败` : ''
+      showFloat(`${baseText}${suffix}。${feedback.text}`, data.failed?.length ? 'accent' : feedback.type)
     } catch (error: any) {
       showFloat(error?.message || '一键领取失败', 'danger')
     }

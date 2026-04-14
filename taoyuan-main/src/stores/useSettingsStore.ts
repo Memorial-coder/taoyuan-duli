@@ -174,8 +174,10 @@ export const useSettingsStore = defineStore('settings', () => {
     qmsgShowIcon.value = data?.qmsgShowIcon ?? false
     qmsgShowReverse.value = data?.qmsgShowReverse ?? false
     inventoryFilter.value = data?.inventoryFilter ?? []
-    lateGameFeatureOverrides.value = normalizeLateGameFeatureOverrides(data?.lateGameFeatureOverrides, lateGameFeatureBaselineSaveVersion.value)
-    lateGameBalanceOverrides.value = (data?.lateGameBalanceOverrides && typeof data.lateGameBalanceOverrides === 'object')
+    lateGameFeatureOverrides.value = import.meta.env.DEV
+      ? normalizeLateGameFeatureOverrides(data?.lateGameFeatureOverrides, lateGameFeatureBaselineSaveVersion.value)
+      : {}
+    lateGameBalanceOverrides.value = import.meta.env.DEV && data?.lateGameBalanceOverrides && typeof data.lateGameBalanceOverrides === 'object'
       ? data.lateGameBalanceOverrides
       : {}
     syncQmsgConfig()

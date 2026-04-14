@@ -315,6 +315,38 @@
             </div>
           </div>
 
+          <div v-if="shopStore.themeWeekRewardPoolOfferRecommendations.length > 0" class="mb-4">
+            <h4 class="text-accent text-sm mb-2">
+              <Store :size="14" class="inline" />
+              主题周承接货架
+            </h4>
+            <p class="text-muted text-xs mb-2">根据本周主题奖励池与周目标结算建议，优先展示最适合承接本周节奏的货架商品。</p>
+            <div class="flex flex-col space-y-2">
+              <div
+                v-for="offer in shopStore.themeWeekRewardPoolOfferRecommendations"
+                :key="`theme-reward-${offer.id}`"
+                class="flex items-center justify-between border border-accent/30 bg-accent/5 rounded-xs px-3 py-2 cursor-pointer hover:bg-accent/10"
+                @click="openCatalogOfferModal(offer)"
+              >
+                <div>
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <p class="text-sm">{{ offer.name }}</p>
+                    <span
+                      v-if="shopStore.getCatalogOfferBadge(offer.id)"
+                      class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent"
+                    >
+                      {{ shopStore.getCatalogOfferBadge(offer.id) }}
+                    </span>
+                  </div>
+                  <p class="text-muted text-xs">{{ offer.description }}</p>
+                  <p v-if="catalogOfferEffectPreview(offer)" class="text-[10px] text-accent/80 mt-0.5">{{ catalogOfferEffectPreview(offer) }}</p>
+                  <p class="text-[10px] text-accent mt-0.5">主题周奖励池推荐承接</p>
+                </div>
+                <span class="text-xs text-accent whitespace-nowrap">{{ discounted(offer.price) }}文</span>
+              </div>
+            </div>
+          </div>
+
           <div v-if="shopStore.recommendedCatalogOffers.length > 0" class="mb-4">
             <h4 class="text-accent text-sm mb-2">
               <Store :size="14" class="inline" />

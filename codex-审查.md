@@ -1,200 +1,237 @@
-# 桃源乡系统性审查
+# Codex 全链路审查报告（2026-04-13）
 
-## A. 总体结论
-项目已经完成了 120 项中后期主线扩展，整体呈现出“配置驱动 + store 聚合 + 页面摘要”的成熟方向，尤其在主题周、活动层、后期经济治理、引导摘要、治理面板、样例档与结构化日志方面，已经具备继续扩展的工程底子。但从“是否真的能玩、是否稳定、是否可维护、是否容易出错”四个维度看，当前仍存在几类明显短板：一是若干后期链路属于“表面完成、实际未闭环”，典型如活动邮箱运营、村庄捐献、家庭心愿周目标与灰度治理；二是旧档兼容仍依赖大量宽松 fallback，而不是严谨的版本迁移；三是 QA 自动化和部分页面信息层级仍不够工程化，导致真实回归成本高。  
-本轮审查覆盖了 `taoyuan-main/src` 与 `server/src` 的核心后期系统，完成了 `npm run type-check` 与 `npm run lint` 检查；其中 `type-check` 通过，但 `lint` 当前失败。已确认本地 `5173` 开发服可访问、样例档与 `LateGameDebugView` 入口存在；但仓库内现有 Playwright 动态审查脚本依赖 Python，当前环境缺少 `python/py`，无法直接执行，这本身也是一条 QA 能力问题。
+> 审查范围：当前工作树（含未提交改动与未跟踪文件）  
+> 审查方式：主线程静态复核 + 本地命令校验 + 3 个 subagent 并行审查  
+> 审查重点：运行时稳定性、部署链路、QA 覆盖、交付完整性
 
-## B. 高优先级问题（P0 / P1）
-未发现我能高置信确认的 `P0`。以下是本轮最需要优先修复的 `P1` 问题。
+## A. 本轮基线
 
-### 1. 村庄捐献链路既不可玩，又存在资源绕过风险
+以下结果已在 `2026-04-13` 当前工作树实测确认：
+
+- 前端 `npm run type-check` 通过
+- 前端 `npm run lint` 通过
+- 前端 `npm run qa:late-game-samples` 通过
+- 前端 `npm run build` 通过
+- 服务端 `node --check` 已覆盖：
+  - `server/src/index.js`
+  - `server/src/routes/api.js`
+  - `server/src/taoyuanMailbox.js`
+  - `server/src/taoyuanHall.js`
+  - `server/src/taoyuanAiAssistant.js`
+- 当前环境 `python` / `py` 不可用，因此仓库内 Python Playwright 动态脚本仍无法直接执行
+- `git status --short` 显示工作树为脏状态，且存在未跟踪文件 `?? taoyuan-main/src/views/game/VillageView.vue`
+
+## B. 总体结论
+
+当前版本已经明显比旧报告对应阶段更稳定：
+
+- 前端静态门恢复为全绿，构建也通过
+- 之前报告中关于育种/鱼塘周赛报名清理、周赛初始化、`/api` fallback、Cookie 默认策略等问题，大部分已经修复
+- 本轮通过前端主循环与存档/周结算链路审查，没有再发现新的高置信前端运行时 `P0/P1`
+
+但从“整个游戏可交付、可部署、可持续回归”的角度看，当前仍有 5 个值得优先收敛的问题：
+
+1. Docker 部署默认会把运行数据写到挂载卷外，用户数据与会话无法持久化。
+2. 定时邮件只要进入“半发送”脏状态，就可能把整个邮箱接口链路打成 500。
+3. 当前样例档 QA 只校验原始 JSON 形状，不走真实读档与页面链路，也不能覆盖 `WS09/WS10` 的关系线/活动层状态。
+4. 前端当前存档版本是 `3`，但服务端邮箱/大厅在缺省回填时仍写死为 `2`。
+5. 生产路由已经引用 `VillageView.vue`，但该文件仍未纳入版本控制，clean checkout 存在交付风险。
+
+本轮未发现高置信 `P0`。
+
+## C. 当前高优先级问题
+
+### 1. Docker 默认配置会把运行数据写到挂载卷外，导致用户数据和会话不持久
+
 - 风险等级：`P1`
-- 影响范围：村庄建设后期循环、经济回收、维护/捐献规划、里程碑奖励可信度
-- 触发条件：调用捐献计划相关 store API，或后续把该 API 接到页面时
 - 涉及文件：
-[useVillageProjectStore.ts#L798](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useVillageProjectStore.ts#L798)  
-[useVillageProjectStore.ts#L835](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useVillageProjectStore.ts#L835)  
-[HomeView.vue#L31](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/HomeView.vue#L31)  
-[HomeView.vue#L61](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/HomeView.vue#L61)  
-[NpcView.vue#L1093](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/NpcView.vue#L1093)
-- 为什么会发生：`donateToProject()` 只累加 `totalAmount` 和 `donatedItems`，既不校验玩家是否真的持有对应物资，也不从背包/仓库扣除；`claimDonationMilestone()` 只记录 `claimedMilestoneIds` 和日志，没有任何实际奖励发放。同时，页面层只展示“捐赠计划”摘要，视图里实际只接了 `completeProject()` 和 `payProjectMaintenance()`，没有捐献与里程碑领取入口，导致这条玩法既是“伪完成”，又一旦接线就会形成直接刷进度漏洞。
-- 修复建议：把捐献操作改成和建设完成类似的事务链路：先校验 `inventory + warehouse`，再扣物资，再写状态，再发奖励；里程碑必须定义并发放真实 reward；如果短期不准备做完，页面侧应隐藏“捐赠计划”并去掉可误解的展示。
+  - `.env:14`
+  - `docker-compose.yml:6-11`
+  - `server/src/index.js:3-8`
+  - `server/src/index.js:18-19`
+  - `taoyuan-main/src/utils/serverSaveApi.ts:24-87`
+- 证据：
+  - `.env` 当前写死 `DB_STORAGE=d:/taoyuan - 副本/taoyuan-duli/data/.storage.json`
+  - `docker-compose.yml` 直接把 `.env` 注入容器，同时只挂载 `./data:/app/data`
+  - `server/src/index.js` 启动时直接以 `DB_STORAGE` 推导 `DATA_DIR`
+- 为什么会出问题：
+  - 容器里会沿用 Windows 路径风格的 `DB_STORAGE`
+  - 服务端所有会话、邮箱、知识库、桃源存档都跟着 `DATA_DIR` 走
+  - 结果是运行数据不会落到 `/app/data` 这个挂载卷中
+- 影响：
+  - Docker 场景下登录态、邮箱、云存档和会话数据都可能在重启后丢失
+  - 前端 `/api/taoyuan/save/*` 这条链路命中了“看似可用、实际不落盘”的假持久化
+- 触发方式：
+  - 使用仓库当前 `.env` 直接 `docker compose up`
+  - 或任何未显式把 `DB_STORAGE` 改为容器内路径的部署
 
-### 2. 活动邮箱运营层没有真正落地，且“已领”状态口径错配
+### 2. 定时邮件一旦进入“半发送”脏状态，会连带打挂整个邮箱接口
+
 - 风险等级：`P1`
-- 影响范围：主题周 + 活动编排 + 邮箱运营层、活动回流、邮件领奖、运营链路可信度
-- 触发条件：进入带 `mailboxTemplateIds` 的活动周，或未来补接邮件投递时
 - 涉及文件：
-[useGoalStore.ts#L1355](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useGoalStore.ts#L1355)  
-[useGoalStore.ts#L1379](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useGoalStore.ts#L1379)  
-[QuestView.vue#L21](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/QuestView.vue#L21)  
-[MailView.vue#L1](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/MailView.vue#L1)  
-[useMailboxStore.ts#L95](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useMailboxStore.ts#L95)
-- 为什么会发生：活动编排 tick 只计算 `pendingMailTemplateIds`，但 `useEndDay` 没有把这些模板投递到邮箱；任务页目前只是显示“结算模板”名称，邮箱页只展示 `mailboxStore.mails` 中已经存在的服务端邮件。更严重的是，`markEventCampaignMailClaimed()` 写入的是 `campaignId`，而 `processEventOperationsTick()` 过滤待处理邮件时比对的是 `templateId`，即使后续补接邮件投递，这个状态字段也会“永远对不上”。
-- 修复建议：建立活动模板到邮箱投递的明确桥接层；统一 `claimedMailCampaignIds` 的语义，明确到底存 `templateId` 还是 `campaignId`；补上从邮件领取回执反写活动状态的闭环；没有真正投递前，不要在任务页把模板名展示成已落地功能。
+  - `server/src/taoyuanMailbox.js:606-625`
+  - `server/src/taoyuanMailbox.js:628-649`
+  - `server/src/routes/api.js:852-900`
+  - `taoyuan-main/src/utils/mailboxApi.ts:18-57`
+- 证据：
+  - `dispatchCampaignIntoData()` 发现同一 campaign 已存在投递记录时直接 `throw`
+  - `processPendingCampaignsInternal()` 会在每次邮箱请求前处理所有到期 campaign
+  - `/taoyuan/mail/list`、`/taoyuan/mail/:id` 等接口都先调用 `processPendingCampaigns()`
+- 为什么会出问题：
+  - 只要某个 scheduled campaign 的 `status` 没被正确收束，但 `deliveries` 已经存在
+  - 下次任意邮箱请求都会再次尝试投递并直接抛错
+- 影响：
+  - 邮箱列表、详情、领取、一键领取都可能统一变成 HTTP 500
+  - 这是“一个脏 campaign 毒化全邮箱系统”的放大故障
+- 触发方式：
+  - 手工编辑 campaign JSON 造成半发送状态
+  - 上一次发送过程中数据被部分写入，但 `status` 仍保留 `scheduled`
 
-### 3. 同一主题周允许挂多个活动，但运行态只会激活第一个
-- 风险等级：`P1`
-- 影响范围：WS10 活动编排、限时任务窗口、活动节奏与主题周承接
-- 触发条件：同一个主题周被配置多个 campaign 时
-- 涉及文件：
-[goals.ts#L786](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/data/goals.ts#L786)  
-[useGoalStore.ts#L1225](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useGoalStore.ts#L1225)  
-[useGoalStore.ts#L1397](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useGoalStore.ts#L1397)  
-[useQuestStore.ts#L2309](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useQuestStore.ts#L2309)
-- 为什么会发生：配置层允许一个主题周挂多个 `linkedThemeWeekIds`，但 `currentEventCampaign` 与 `processEventOperationsTick()` 都使用 `find(...)`，只取第一个匹配项；`QuestStore` 的活动窗口也只承接单一 `activeEventCampaignId`。结果是后续 campaign 在配置上存在、在运行时却不可达，属于典型“data 配了，但业务层只支持 1 个”的伪多活动实现。
-- 修复建议：要么在配置层显式限制“一周只能有一个活动”，并对重复配置做启动期校验；要么把运行态改为支持活动队列/优先级，而不是 `find(...)`。
+## D. 中优先级问题
 
-### 4. `familyWishCompletions` 已被接入周目标，但运行层永远返回 0
-- 风险等级：`P1`
-- 影响范围：家庭/配偶/仙灵陪伴循环、主题周目标、票券回流、长期目标可信度
-- 触发条件：进入绑定 `familyWishCompletions` 的主题周，如 `late_sink_rotation`、`winter_pond_maintenance`
-- 涉及文件：
-[goals.ts#L1861](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/data/goals.ts#L1861)  
-[goals.ts#L1984](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/data/goals.ts#L1984)  
-[goals.ts#L2056](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/data/goals.ts#L2056)  
-[useGoalStore.ts#L543](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useGoalStore.ts#L543)
-- 为什么会发生：配置侧已经把 `familyWishCompletions` 做成正式 `GoalMetricKey` 并生成周目标，但 `useGoalStore.getMetricValue()` 对这个指标直接 `return 0`，没有接任何真实状态源。最终结果就是系统会发放不可完成的正式目标，玩家和 QA 都会看到“永远完成不了”的后期周任务。
-- 修复建议：要么立即把 `familyWishCompletions` 接到 `useNpcStore` 的真实完成计数；要么在接线前彻底从 `THEME_WEEK_CROSS_GOAL_METRICS` 和周目标预设中移除。
+### 1. 当前样例档 QA 只校验原始对象形状，无法验证真实读档和页面链路
 
-### 5. 育种与鱼塘的旧档/脏档反序列化校验不足，会在读档或跨天时直接炸链路
-- 风险等级：`P1`
-- 影响范围：后期样例档、旧档兼容、跨天稳定性、整档回滚
-- 触发条件：旧档中 `breedingBox[*].genetics` 缺字段，或 `pond.breeding` 结构不完整
-- 涉及文件：
-[useBreedingStore.ts#L773](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useBreedingStore.ts#L773)  
-[breeding.ts#L209](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/data/breeding.ts#L209)  
-[useFishPondStore.ts#L531](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useFishPondStore.ts#L531)  
-[useEndDay.ts#L993](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/composables/useEndDay.ts#L993)  
-[useSaveStore.ts#L702](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useSaveStore.ts#L702)
-- 为什么会发生：`useBreedingStore.deserialize()` 直接信任 `s.genetics` 并在缺少 `label` 时立刻调用 `makeSeedLabel()`；`useFishPondStore.deserialize()` 直接把 `data.pond.breeding` 原样塞回运行态，`dailyUpdate()` 次日就会继续消费这些字段。结果不是“显示异常”，而是整条读档/日结流程可能抛错，并触发整档回滚。
-- 修复建议：为育种种子与鱼塘 breeding state 增加结构化 `normalize` 层；异常条目要降级丢弃或回填默认值，而不是把未校验对象直接放进运行态。
-
-### 6. 存档版本治理名义化：`SAVE_VERSION` 与迁移 profile 不能真正区分代际
-- 风险等级：`P1`
-- 影响范围：旧档兼容、灰度迁移、版本治理、QA 证据链
-- 触发条件：读取任何跨度较大的旧档，或未来继续扩 schema 时
-- 涉及文件：
-[useSaveStore.ts#L55](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useSaveStore.ts#L55)  
-[useSaveStore.ts#L125](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useSaveStore.ts#L125)  
-[goals.ts#L1122](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/data/goals.ts#L1122)
-- 为什么会发生：全项目经历了大量 schema 扩张，但 `SAVE_VERSION` 仍停在 `2`；`migrateSavePayload(payload, _saveVersion)` 甚至没有真正使用版本号做分支迁移；WS12 新增的 migration profile 目标版本也仍是 `2`。这意味着版本治理在名义上存在，实际上无法表达“这份档来自哪一代结构”，很多兼容只是靠默认值兜底，无法精确验证和回归。
-- 修复建议：按结构波次提升 `SAVE_VERSION`，为关键版本差异实现显式迁移步骤；为样例档和旧档回放补版本化测试，而不是只依赖 `deserialize` fallback。
-
-### 7. QA/灰度治理面板提供了“切到稳定/灰度、记录发布闸门”的真实操作外观，但几乎不影响真实运行逻辑
-- 风险等级：`P1`
-- 影响范围：WS12 灰度治理、运营认知、发布决策可信度
-- 触发条件：在治理面板上执行灰度切换或发布闸门记录
-- 涉及文件：
-[QaGovernancePanel.vue#L68](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/components/game/QaGovernancePanel.vue#L68)  
-[QaGovernancePanel.vue#L221](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/components/game/QaGovernancePanel.vue#L221)  
-[usePlayerStore.ts#L542](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/usePlayerStore.ts#L542)  
-[useEndDay.ts#L1465](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/composables/useEndDay.ts#L1465)
-- 为什么会发生：当前 `activeGrayReleaseChannel` 和“release gate completed”主要只改变 `qaGovernanceRuntimeState`、页面文案和治理日志，没有接入任何真实 feature flag 解析、服务端发布通道、路由守卫或玩法行为分支。这会让运营或 QA 误以为自己切了 canary/stable，但实际上核心玩法并没有被灰度。
-- 修复建议：要么把灰度/发布闸门接到真实 feature flag 选择逻辑和后端发布通道；要么把面板交互降级为纯调试态，并明确标注“仅记录状态，不改变玩法行为”。
-
-### 8. 自动化审查链不是项目内可执行能力，当前环境无法直接跑动态脚本
-- 风险等级：`P1`
-- 影响范围：跨周、跨季、旧档兼容、样例档复现与上线前回归效率
-- 触发条件：在新机器、CI 或非开发者环境尝试复现现有审查流程时
-- 涉及文件：
-[package.json](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/package.json)  
-[router/index.ts#L11](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/router/index.ts#L11)  
-[playwright_dynamic_audit.py](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/playwright_dynamic_audit.py)  
-[playwright_system_batch1.py](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/playwright_system_batch1.py)  
-[playwright_system_batch2.py](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/playwright_system_batch2.py)  
-[playwright_system_batch3.py](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/playwright_system_batch3.py)
-- 为什么会发生：动态审查脚本是 Python 文件，仓库本身没有项目内 e2e 命令，也没有声明 `playwright` 依赖；脚本还依赖 `/#/dev/late-game` 与 `__TAOYUAN_LATE_GAME_DEBUG__`。本次审查中本机虽然有 `5173` 开发服，但 `python/py` 均不在 PATH，导致现成脚本无法直接运行。这说明当前自动化回归能力并不是“项目自带能力”，而是“开发者本机习惯”。
-- 修复建议：把样例档加载、跨周推进和关键后期 smoke 改造成项目内正式命令；至少做到“装依赖后可一键跑”，而不是依赖外部 Python 和 DEV-only 路由。
-
-## C. 中低优先级问题（P2）
-
-### 1. 经济推荐真源已经分叉，钱包 / 商店 / 目标层各算一套
 - 风险等级：`P2`
-- 影响范围：玩家对“现在该花钱做什么”的理解、QA 基线一致性
-- 触发条件：同一存档分别打开 Wallet、Shop、TopGoals/Goal 相关面板
 - 涉及文件：
-[useGoalStore.ts#L1200](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useGoalStore.ts#L1200)  
-[WalletView.vue#L562](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/WalletView.vue#L562)  
-[ShopView.vue#L1490](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/ShopView.vue#L1490)
-- 为什么会发生：`GoalStore` 已经有 `recommendedEconomySinks`，但 `WalletView` 和 `ShopView` 又各自重新扫描 `ECONOMY_SINK_CONTENT_DEFS` 做二次打分，条件并不一致，导致推荐资金去向可能跨页冲突。
-- 修复建议：回收成单一 store 真源，页面只做展示映射。
+  - `taoyuan-main/scripts/qa-late-game-samples.mjs:1-75`
+  - `taoyuan-main/src/data/sampleSaves.ts:138-489`
+  - `taoyuan-main/src/views/dev/LateGameDebugView.vue:40-70`
+  - `taoyuan-main/src/stores/useSaveStore.ts:1079-1082`
+- 证据：
+  - `qa-late-game-samples.mjs` 直接 `import { BUILT_IN_SAMPLE_SAVES }`，只检查字段形状与基础值
+  - 调试页实际载入路径是 `LateGameDebugView -> loadSample() -> useSaveStore.loadBuiltInSampleSave() -> applySaveData(...)`
+  - 4 套样例显式覆盖的是经济、育种、鱼塘、村庄、博物馆、瀚海等状态；并未为 `WS09/WS10` 准备专门的关系线/活动层富样例
+- 为什么会出问题：
+  - 当前 QA 命令不会真实触发 Pinia store 反序列化
+  - 也不会检查载入样例后页面入口是否真的可见、当前活动/限时窗口是否可用
+- 影响：
+  - 样例档 schema 正常并不等于真实读档链路正常
+  - `WS09/WS10` 这类更依赖运行时状态装配的功能，仍然可能在“样例 QA 通过”的情况下漏出回归
+- 备注：
+  - 这不是当前运行时 bug 的直接证据，但它会持续降低回归审查的可信度
 
-### 2. guidance / governance 首屏体系仍然覆盖不均，鱼塘与部分终局页掉队
+### 2. 服务端对存档容器 meta 的默认版本仍停留在 `2`
+
 - 风险等级：`P2`
-- 影响范围：玩家可理解性、QA 首屏观察效率
-- 触发条件：进入 FishPond / Guild / Hanhai / Npc 等后期页面
 - 涉及文件：
-[tutorial.ts#L1](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/types/tutorial.ts#L1)  
-[FishPondView.vue#L1](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/FishPondView.vue#L1)  
-[GuildView.vue#L1](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/GuildView.vue#L1)  
-[HanhaiView.vue#L1](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/HanhaiView.vue#L1)  
-[NpcView.vue#L1](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/NpcView.vue#L1)
-- 为什么会发生：WS11 的 `GuidanceSurfaceId` 只覆盖 `wallet/quest/breeding/museum/shop/mail/top_goals`；鱼塘没有进入统一摘要系统，Guild/Hanhai/Npc 只补了 QA 治理，不在统一 guidance 真源里。
-- 修复建议：把鱼塘、公会、瀚海、陪伴页补进统一 surface/page id，并沿用同口径摘要。
+  - `taoyuan-main/src/stores/useSaveStore.ts:55`
+  - `taoyuan-main/src/data/sampleSaves.ts:9`
+  - `server/src/taoyuanMailbox.js:271-279`
+  - `server/src/taoyuanHall.js:150-157`
+- 证据：
+  - 前端当前 `SAVE_VERSION = 3`
+  - 样例档也按 `saveVersion = 3` 写出
+  - 但服务端邮箱/大厅在缺少显式 `saveVersion` 时仍回填为 `2`
+- 为什么会出问题：
+  - 这不会立刻炸掉已有带版本号的存档
+  - 但会让服务端生成/改写的容器 meta 与前端当前口径脱节
+- 影响：
+  - 存档迁移治理和问题排查会出现“前后端版本语义不同步”
+  - 后续若再做 `SAVE_VERSION=4` 升级，这种分裂会更难收口
 
-### 3. 静态质量门当前是红的，lint 不能通过
+### 3. `VillageView.vue` 已进入正式路由，但文件仍未纳入版本控制
+
 - 风险等级：`P2`
-- 影响范围：持续集成、重构安全感、团队协作
-- 触发条件：执行 `npm run lint`
 - 涉及文件：
-[guild.ts#L76](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/types/guild.ts#L76)  
-[guild.ts#L109](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/types/guild.ts#L109)  
-[GameLayout.vue#L558](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/GameLayout.vue#L558)  
-[MainMenu.vue#L516](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/MainMenu.vue#L516)  
-[App.vue#L36](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/App.vue#L36)  
-[SaveManager.vue#L296](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/components/game/SaveManager.vue#L296)
-- 为什么会发生：`GuildSeasonOverview` / `GuildGoalSummary` 在 `guild.ts` 中重复定义；`GameLayout` 和 `MainMenu` 有空 `catch`；`App.vue`、`SaveManager.vue` 还有浮动 promise 警告。
-- 修复建议：尽快把 lint 清零，否则后续真正的静态问题会被这些噪音淹没。
+  - `taoyuan-main/src/router/index.ts:30`
+  - `taoyuan-main/src/views/game/HomeView.vue:17`
+  - `taoyuan-main/src/views/game/NpcView.vue:145`
+  - `taoyuan-main/src/views/game/VillageView.vue`
+  - `git status --short` 当前输出
+- 证据：
+  - 正式路由已新增 `name: 'village-projects'`
+  - `HomeView` 与 `NpcView` 都已经有“建设总览”入口跳转到该页面
+  - 但当前工作树里该文件仍显示为 `?? taoyuan-main/src/views/game/VillageView.vue`
+- 为什么会出问题：
+  - 本机构建会把它打进去，因为文件确实在磁盘上
+  - 但 clean checkout 或他人分支只要漏掉这个文件，构建就会直接失败
+- 影响：
+  - 这是典型的“本地能跑、交付不完整”问题
+  - 对 CI、交接和后续 cherry-pick 都有直接风险
 
-### 4. 若干核心模块已经进入“能跑但很难稳改”的体量区间
-- 风险等级：`P2`
-- 影响范围：后期改动回归半径、定位问题成本、性能剖析难度
-- 触发条件：继续往后期系统加新规则、改日结、改商店或改村民页
-- 涉及文件：
-[useQuestStore.ts#L1322](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useQuestStore.ts#L1322)  
-[useEndDay.ts#L505](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/composables/useEndDay.ts#L505)  
-[ShopView.vue](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/ShopView.vue)  
-[NpcView.vue](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/game/NpcView.vue)  
-[useSaveStore.ts](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useSaveStore.ts)
-- 为什么会发生：`useQuestStore` 超过 2200 行、`useEndDay` 超过 1500 行、`ShopView` 超过 2300 行、`NpcView` 超过 1300 行，且 `useSaveStore` 仍承担全局 reset / load / import/export / QA cross-system 聚合职责。
-- 修复建议：按领域拆分日结 orchestrator、商店子面板、村民卡片视图模型，以及 Save governance 聚合层。
+## E. 已失效 / 已修复的旧结论
 
-### 5. QA 样例档存在双份元信息来源，容易误判哪份才是实际加载源
-- 风险等级：`P2`
-- 影响范围：QA 认知、文档同步、样例档维护
-- 触发条件：维护样例档或对照 `data-defaults` 与运行态时
-- 涉及文件：
-[sampleSaves.ts](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/data/sampleSaves.ts)  
-[useSaveStore.ts#L1049](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useSaveStore.ts#L1049)  
-[manifest.json](/D:/taoyuan-latest/taoyuan-duli/data-defaults/taoyuan_saves/manifest.json)  
-[endgame_showcase.json](/D:/taoyuan-latest/taoyuan-duli/data-defaults/taoyuan_saves/endgame_showcase.json)
-- 为什么会发生：真正能被游戏直接加载的是 TS 里的内置 `envelope`，`data-defaults/taoyuan_saves/*.json` 更像说明性镜像，不是运行时真源。
-- 修复建议：把外部 manifest 从内置定义自动生成，或者统一只保留一套来源。
+以下问题在当前代码中已不再成立，不应继续沿用到新报告：
 
-### 6. `LateGameDebugView` 和样例档工具链设计不错，但只在 DEV 有效，正式 QA 仍然偏弱
-- 风险等级：`P2`
-- 影响范围：真实测试效率、非开发者复现能力
-- 触发条件：在非 DEV 环境、预发布包或新机器上复现中后期问题时
-- 涉及文件：
-[router/index.ts#L11](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/router/index.ts#L11)  
-[LateGameDebugView.vue#L1](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/dev/LateGameDebugView.vue#L1)  
-[README.md#L210](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/README.md#L210)
-- 为什么会发生：调试页和全局 `__TAOYUAN_LATE_GAME_DEBUG__` 只在 DEV 路由下存在，导致测试入口强依赖开发态。
-- 修复建议：为 QA/staging 提供受控但可用的样例档加载与周切换工具，而不是完全依赖 DEV。
+### 1. 育种 / 鱼塘周赛报名对象不会清理
 
-## D. 值得肯定的实现
-- [useSaveStore.ts#L580](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useSaveStore.ts#L580) 的整档加载事务思路是对的：先备份当前会话，再全量 reset / deserialize，失败后回滚整套 store。这个模式虽然重，但比“半加载半残留”安全得多。
-- [GuidanceDigestPanel.vue](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/components/game/GuidanceDigestPanel.vue) 与 [QaGovernancePanel.vue](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/components/game/QaGovernancePanel.vue) 体现了项目已经开始形成统一的后期 UI 语言：先摘要，再路线，再状态反馈，方向是对的。
-- [sampleSaves.ts](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/data/sampleSaves.ts) + [LateGameDebugView.vue](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/views/dev/LateGameDebugView.vue) 的样例档与调试入口设计很有价值，`late_economy_foundation / breeding_specialist / fishpond_operator / endgame_showcase` 这四套样例分工清晰，适合继续工程化。
-- [useMailboxStore.ts](/D:/taoyuan-latest/taoyuan-duli/taoyuan-main/src/stores/useMailboxStore.ts) 与 `server/src/taoyuanMailbox.js` 的奖励读取/重复补偿模型思路是成熟的，尤其“duplicate compensation”口径，为后续真正把活动邮件链接上提供了不错的底座。
-- 多个 WS 工作流沿用“baseline audit / tuning config / QA cases / release checklist / compensation plan”同构模式，这对长期维护非常好，说明项目已经有系统化交付意识，而不是纯堆功能。
+- 当前状态：已修复
+- 证据：
+  - `useBreedingStore.ts:502-524`
+  - `useBreedingStore.ts:723-729`
+  - `useBreedingStore.ts:1147-1180`
+  - `useFishPondStore.ts:522-540`
+  - `useFishPondStore.ts:237-261`
+  - `useFishPondStore.ts:999-1075`
+- 说明：
+  - 当前已存在 `pruneContestRegistrations()` 与 `syncContestStateToCurrentWeek()`
+  - 移除对象、建造/解锁、读档都会同步裁剪无效报名
 
-## E. 建议的下一轮整改顺序
-1. 先修村庄捐献链路：补物资扣除、补奖励发放、补 UI 入口；如果短期做不完，就先从页面和文案里隐藏它。
-2. 再修活动邮箱运营闭环：建立真实投递桥、统一模板/活动 ID 口径，并把邮件领取状态接回活动层。
-3. 立即处理 `familyWishCompletions` 死目标，以及育种/鱼塘旧档校验缺口，避免继续制造“不可完成目标”和“读档炸链路”。
-4. 补真正的版本迁移体系：提升 `SAVE_VERSION`，让 `migrateSavePayload()` 真正使用版本号，并围绕样例档做版本化兼容测试。
-5. 把 QA 自动化收敛成项目内正式命令，摆脱 Python + DEV-only 路由的个人环境依赖。
-6. 统一经济推荐真源，并把鱼塘、公会、瀚海、陪伴页纳入统一 guidance / governance 首屏体系。
-7. 在逻辑正确性问题收敛后，再拆 `useEndDay`、`useQuestStore`、`ShopView`、`NpcView`、`useSaveStore` 这些过大的热点模块。
+### 2. 周赛只在跨周时初始化，读档或中途解锁会整周不出现
+
+- 当前状态：已修复
+- 证据：
+  - `useBreedingStore.ts:752-756`
+  - `useBreedingStore.ts:1175-1179`
+  - `useFishPondStore.ts:165-167`
+  - `useFishPondStore.ts:1071-1074`
+
+### 3. `/api/*` 未命中会被 SPA fallback 吞掉
+
+- 当前状态：已修复
+- 证据：
+  - `server/src/index.js:228-231`
+- 说明：
+  - 现在已经在静态页 fallback 前增加了 `/api` 专属 404 JSON 返回
+
+### 4. “跨域 Cookie 口径”与服务端默认 SameSite 策略不一致
+
+- 当前状态：已基本修复
+- 证据：
+  - `server/src/index.js:57-58`
+  - `server/src/index.js:194-196`
+  - `README.md:39-41`
+- 说明：
+  - 当前 README 已明确 `COOKIE_SAME_SITE` 可配
+  - 服务端默认逻辑也会在 `COOKIE_SECURE=true` 时自动切到 `none`
+
+### 5. 前端静态质量门为红
+
+- 当前状态：已失效
+- 说明：
+  - 本轮 `type-check / lint / build / qa:late-game-samples` 全部通过
+
+## F. 本轮覆盖与未覆盖
+
+### 已覆盖
+
+- 前端
+  - `npm run type-check`
+  - `npm run lint`
+  - `npm run qa:late-game-samples`
+  - `npm run build`
+- 服务端
+  - `node --check src/index.js`
+  - `node --check src/routes/api.js`
+  - `node --check src/taoyuanMailbox.js`
+  - `node --check src/taoyuanHall.js`
+  - `node --check src/taoyuanAiAssistant.js`
+- 审查方式
+  - 3 个 subagent 分别覆盖前端主循环、存档/调试/周结算链路、后端/部署链路
+
+### 未覆盖
+
+- 未执行浏览器级动态回放
+  - 原因：当前环境没有 `python/py`，现有 Playwright 脚本是 Python 版本
+- 未执行 Docker 实机部署验证
+  - 本轮只做了配置与代码链路审查
+- 未执行 clean checkout 构建
+  - 当前工作树存在未跟踪页面文件，无法把“本机构建通过”直接等同于“版本库完整构建通过”
+
+## G. 建议整改顺序
+
+1. 先修 Docker 数据目录口径，确保容器场景下所有运行数据都落进 `/app/data`。
+2. 再修邮箱调度的幂等/恢复策略，避免单个脏 campaign 毒化整个邮箱接口。
+3. 把样例档 QA 升级为“真实读档 + 页面可见性 + 关键状态断言”，至少补一个非 Python 的项目内可执行回归入口。
+4. 统一服务端与前端的存档版本默认值口径。
+5. 立即把 `VillageView.vue` 纳入版本控制，并在 clean checkout 上重跑构建和 QA。

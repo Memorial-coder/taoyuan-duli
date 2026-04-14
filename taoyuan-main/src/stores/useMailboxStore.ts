@@ -57,6 +57,21 @@ export interface TaoyuanMailDetail extends TaoyuanMailSummary {
   } | null
 }
 
+export interface MailClaimSyncState {
+  attempted: boolean
+  current_session_synced: boolean
+  current_session_mode: 'local' | 'server' | null
+  current_session_slot: number | null
+  claimed_save_slots: number[]
+  reason:
+    | 'synced'
+    | 'no_save_slot'
+    | 'current_session_not_server'
+    | 'no_active_session_slot'
+    | 'current_session_slot_mismatch'
+    | 'load_failed'
+}
+
 const toSummary = (mail: TaoyuanMailSummary | TaoyuanMailDetail): TaoyuanMailSummary => ({
   id: mail.id,
   campaign_id: mail.campaign_id,
@@ -92,11 +107,69 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     unreadCount.value = mails.value.filter(item => item.unread).length
   }
 
-  const syncAfterClaim = async (saveSlot: number | null | undefined) => {
+  const syncAfterClaim = async (saveSlots: Array<number | null | undefined>): Promise<MailClaimSyncState> => {
     const saveStore = useSaveStore()
-    if (saveSlot === null || saveSlot === undefined) return true
-    if (saveStore.storageMode !== 'server') return true
-    return await saveStore.loadFromSlot(saveSlot)
+    const normalizedSaveSlots = Array.from(new Set(
+      saveSlots
+        .filter((slot): slot is number => slot !== null && slot !== undefined && Number.isInteger(slot))
+        .map(slot => Number(slot))
+    ))
+    const currentSessionMode = saveStore.activeSlotMode ?? null
+    const currentSessionSlot = saveStore.activeSlot >= 0 ? saveStore.activeSlot : null
+
+    if (normalizedSaveSlots.length === 0) {
+      return {
+        attempted: false,
+        current_session_synced: false,
+        current_session_mode: currentSessionMode,
+        current_session_slot: currentSessionSlot,
+        claimed_save_slots: [],
+        reason: 'no_save_slot'
+      }
+    }
+
+    if (saveStore.storageMode !== 'server' || saveStore.activeSlotMode !== 'server') {
+      return {
+        attempted: false,
+        current_session_synced: false,
+        current_session_mode: currentSessionMode,
+        current_session_slot: currentSessionSlot,
+        claimed_save_slots: normalizedSaveSlots,
+        reason: 'current_session_not_server'
+      }
+    }
+
+    if (currentSessionSlot === null) {
+      return {
+        attempted: false,
+        current_session_synced: false,
+        current_session_mode: currentSessionMode,
+        current_session_slot: null,
+        claimed_save_slots: normalizedSaveSlots,
+        reason: 'no_active_session_slot'
+      }
+    }
+
+    if (!normalizedSaveSlots.includes(currentSessionSlot)) {
+      return {
+        attempted: false,
+        current_session_synced: false,
+        current_session_mode: currentSessionMode,
+        current_session_slot: currentSessionSlot,
+        claimed_save_slots: normalizedSaveSlots,
+        reason: 'current_session_slot_mismatch'
+      }
+    }
+
+    const synced = await saveStore.loadFromSlot(currentSessionSlot)
+    return {
+      attempted: true,
+      current_session_synced: synced,
+      current_session_mode: currentSessionMode,
+      current_session_slot: currentSessionSlot,
+      claimed_save_slots: normalizedSaveSlots,
+      reason: synced ? 'synced' : 'load_failed'
+    }
   }
 
   const refreshList = async () => {
@@ -133,16 +206,18 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     const detail = data.mail as TaoyuanMailDetail
     detailMap.value[id] = detail
     upsertMail(detail)
-    const saveSyncOk = await syncAfterClaim(data.result?.save_slot)
-    return { ...data, save_sync_ok: saveSyncOk }
+    const saveSyncState = await syncAfterClaim([data.result?.save_slot])
+    return { ...data, save_sync_state: saveSyncState }
   }
 
   const claimAll = async () => {
     const data = await claimAllMailboxMail()
-    const firstSaveSlot = data.claimed?.find((item: any) => item?.result?.save_slot !== null && item?.result?.save_slot !== undefined)?.result?.save_slot
-    const saveSyncOk = await syncAfterClaim(firstSaveSlot)
+    const claimedSaveSlots = Array.isArray(data.claimed)
+      ? data.claimed.map((item: any) => item?.result?.save_slot)
+      : []
+    const saveSyncState = await syncAfterClaim(claimedSaveSlots)
     await refreshList()
-    return { ...data, save_sync_ok: saveSyncOk }
+    return { ...data, save_sync_state: saveSyncState }
   }
 
   const clearClaimed = async () => {

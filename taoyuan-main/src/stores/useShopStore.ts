@@ -314,6 +314,12 @@ export const useShopStore = defineStore('shop', () => {
       ? recommendedCatalogOffers.value.filter(offer => activityCampaignOfferBundle.value?.recommendedOfferIds.includes(offer.id))
       : []
   )
+  const themeWeekRewardPoolOfferRecommendations = computed(() => {
+    const rewardPool = goalStore.getWeeklyGoalRewardPool()
+    const recommendedOfferIds = rewardPool.flatMap(entry => entry.recommendedOfferIds ?? [])
+    if (recommendedOfferIds.length === 0) return []
+    return recommendedCatalogOffers.value.filter(offer => recommendedOfferIds.includes(offer.id))
+  })
 
   const currentLuxuryAuditSegment = computed(() => {
     const economyOverview = playerStore.getEconomyOverview()
@@ -1766,7 +1772,9 @@ export const useShopStore = defineStore('shop', () => {
     { itemId: 'nourishing_feed', name: '滋补饲料', price: 250, description: '加速动物产出' },
     { itemId: 'vitality_feed', name: '活力饲料', price: 300, description: '喂食必定治愈疾病' },
     { itemId: 'fish_feed', name: '鱼饲料', price: 30, description: '鱼塘专用饲料' },
-    { itemId: 'water_purifier', name: '水质改良剂', price: 100, description: '改善鱼塘水质' }
+    { itemId: 'water_purifier', name: '水质改良剂', price: 100, description: '改善鱼塘水质' },
+    { itemId: 'advanced_water_purifier', name: '高级净水剂', price: 240, description: '高阶鱼塘养护用净水剂' },
+    { itemId: 'preservation_seal', name: '保鲜封签', price: 90, description: '高价值供货用储运封签' }
   ])
 
   // === 渔具铺 (秋月) ===
@@ -1793,7 +1801,9 @@ export const useShopStore = defineStore('shop', () => {
 
   /** 渔具铺其他商品 */
   const fishingShopItems = computed<ShopItemEntry[]>(() => [
-    { itemId: 'crab_pot', name: '蟹笼', price: 1500, description: '放置在钓鱼地点，每日自动捕获水产（需鱼饵）' }
+    { itemId: 'crab_pot', name: '蟹笼', price: 1500, description: '放置在钓鱼地点，每日自动捕获水产（需鱼饵）' },
+    { itemId: 'ornamental_feed', name: '观赏饲料', price: 120, description: '提升高评分样鱼的观赏状态与周赛表现' },
+    { itemId: 'advanced_water_purifier', name: '高级净水剂', price: 260, description: '为展示鱼和周赛鱼提供额外净水与隔离效果' }
   ])
 
   // === 绸缎庄 (素素) ===
@@ -2383,6 +2393,7 @@ export const useShopStore = defineStore('shop', () => {
     activeServiceContractSummaries,
     activityCampaignOfferBundle,
     activityCampaignOfferRecommendations,
+    themeWeekRewardPoolOfferRecommendations,
     weeklyCatalogRefreshText,
     recommendedCatalogOffers,
     weeklySurpriseOffer,

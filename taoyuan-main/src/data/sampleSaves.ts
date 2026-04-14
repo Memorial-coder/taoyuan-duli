@@ -36,6 +36,20 @@ const createTools = () => [
   { type: 'pan', tier: 'basic' }
 ]
 
+const createSampleFishGenetics = (
+  weight: number,
+  growthRate: number,
+  diseaseRes: number,
+  qualityGene: number,
+  mutationRate: number
+) => ({
+  weight,
+  growthRate,
+  diseaseRes,
+  qualityGene,
+  mutationRate
+})
+
 const createEconomyTelemetry = (currentSegmentId: string, recentSnapshots: Array<Record<string, any>>, incomeTotal: number, expenseTotal: number, sinkTotal: number) => ({
   saveVersion: 1,
   lastAuditDayTag: recentSnapshots[recentSnapshots.length - 1]?.dayTag ?? '',
@@ -319,9 +333,9 @@ export const BUILT_IN_SAMPLE_SAVES: BuiltInSampleSaveDef[] = [
             built: true,
             level: 3,
             fish: [
-              { id: 'pf_1', fishId: 'carp', name: '锦鲤鲤鱼', genetics: { growthRate: 1.1, diseaseResist: 1.05, rareChance: 1.1 }, daysInPond: 9, mature: true, sick: false, sickDays: 0, breedId: 'koi_carp' },
-              { id: 'pf_2', fishId: 'bass', name: '深鳞鲈鱼', genetics: { growthRate: 1.0, diseaseResist: 1.0, rareChance: 1.05 }, daysInPond: 7, mature: true, sick: false, sickDays: 0, breedId: 'deep_bass' },
-              { id: 'pf_3', fishId: 'carp', name: '锦鲤鲤鱼', genetics: { growthRate: 1.08, diseaseResist: 1.03, rareChance: 1.08 }, daysInPond: 8, mature: true, sick: false, sickDays: 0, breedId: 'koi_carp' }
+              { id: 'pf_1', fishId: 'carp', name: '锦鲤鲤鱼', genetics: createSampleFishGenetics(78, 72, 68, 76, 10), daysInPond: 9, mature: true, sick: false, sickDays: 0, breedId: 'koi_carp' },
+              { id: 'pf_2', fishId: 'bass', name: '深鳞鲈鱼', genetics: createSampleFishGenetics(74, 65, 62, 70, 8), daysInPond: 7, mature: true, sick: false, sickDays: 0, breedId: 'deep_bass' },
+              { id: 'pf_3', fishId: 'carp', name: '锦鲤鲤鱼', genetics: createSampleFishGenetics(76, 70, 66, 74, 9), daysInPond: 8, mature: true, sick: false, sickDays: 0, breedId: 'koi_carp' }
             ],
             waterQuality: 86,
             fedToday: true,
@@ -405,8 +419,8 @@ export const BUILT_IN_SAMPLE_SAVES: BuiltInSampleSaveDef[] = [
             built: true,
             level: 4,
             fish: [
-              { id: 'pf_showcase_1', fishId: 'carp', name: '锦鲤鲤鱼', genetics: { growthRate: 1.1, diseaseResist: 1.06, rareChance: 1.12 }, daysInPond: 12, mature: true, sick: false, sickDays: 0, breedId: 'koi_carp' },
-              { id: 'pf_showcase_2', fishId: 'bass', name: '深鳞鲈鱼', genetics: { growthRate: 1.04, diseaseResist: 1.04, rareChance: 1.08 }, daysInPond: 11, mature: true, sick: false, sickDays: 0, breedId: 'deep_bass' }
+              { id: 'pf_showcase_1', fishId: 'carp', name: '锦鲤鲤鱼', genetics: createSampleFishGenetics(86, 80, 78, 88, 12), daysInPond: 12, mature: true, sick: false, sickDays: 0, breedId: 'koi_carp' },
+              { id: 'pf_showcase_2', fishId: 'bass', name: '深鳞鲈鱼', genetics: createSampleFishGenetics(82, 74, 76, 84, 10), daysInPond: 11, mature: true, sick: false, sickDays: 0, breedId: 'deep_bass' }
             ],
             waterQuality: 90,
             fedToday: true,

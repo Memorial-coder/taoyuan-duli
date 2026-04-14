@@ -38,6 +38,7 @@ import { usePlayerStore } from './usePlayerStore'
 import type { Season } from '@/types'
 import { useGameStore } from './useGameStore'
 import { useGoalStore } from './useGoalStore'
+import { useFishPondStore } from './useFishPondStore'
 import { useNpcStore } from './useNpcStore'
 import { useShopStore } from './useShopStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
@@ -729,6 +730,7 @@ export const useMuseumStore = defineStore('museum', () => {
 
   const buildDisplayRatingTelemetry = (): MuseumDisplayRatingState => {
     const serviceContractEffect = useShopStore().getServiceContractEffectSummary('museum')
+    const fishPondStore = useFishPondStore()
     const breakdown: MuseumDisplayRatingState['breakdown'] = []
     let score = MUSEUM_OPERATIONAL_CONFIG.defaultDisplayRating
 
@@ -762,6 +764,15 @@ export const useMuseumStore = defineStore('museum', () => {
         key: 'service_contract:museum_display',
         label: '巡展服务合同',
         value: serviceContractEffect.museumDisplayRatingBonus
+      })
+    }
+
+    if (fishPondStore.displayOverview.museumDisplayBonus > 0) {
+      score += fishPondStore.displayOverview.museumDisplayBonus
+      breakdown.push({
+        key: 'fishpond:display_tank',
+        label: '鱼塘展示池',
+        value: fishPondStore.displayOverview.museumDisplayBonus
       })
     }
 

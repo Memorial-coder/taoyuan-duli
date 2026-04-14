@@ -2224,6 +2224,17 @@ export const useQuestStore = defineStore('quest', () => {
       requiredParentCropIds: Array.isArray(quest.requiredParentCropIds)
         ? quest.requiredParentCropIds.filter((id: unknown) => typeof id === 'string')
         : undefined,
+      requiredCommercialTags: Array.isArray((quest as any).requiredCommercialTags)
+        ? (quest as any).requiredCommercialTags.filter((tag: unknown) => typeof tag === 'string')
+        : undefined,
+      requiredBreedScoreMin: Number.isFinite(Number((quest as any).requiredBreedScoreMin)) ? Number((quest as any).requiredBreedScoreMin) : undefined,
+      requiredStabilityRank:
+        (quest as any).requiredStabilityRank === 'volatile' ||
+        (quest as any).requiredStabilityRank === 'emerging' ||
+        (quest as any).requiredStabilityRank === 'stable' ||
+        (quest as any).requiredStabilityRank === 'certified'
+          ? (quest as any).requiredStabilityRank
+          : undefined,
       deliveryMode: normalizeDeliveryMode(quest.deliveryMode),
       requiredPondGenerationMin: Number.isFinite(Number(quest.requiredPondGenerationMin)) ? Number(quest.requiredPondGenerationMin) : undefined,
       requiredFishMature: quest.requiredFishMature === true ? true : undefined,

@@ -1,4 +1,5 @@
 import type { Quality } from './item'
+import type { RewardTicketType } from './economy'
 
 /** 鱼塘等级 */
 export type PondLevel = 1 | 2 | 3 | 4 | 5
@@ -43,6 +44,117 @@ export interface PondBreedDef {
   baseFishId: string
   parentBreedA: string | null
   parentBreedB: string | null
+}
+
+export type PondRatingDimensionKey = 'generation' | 'show' | 'food' | 'health' | 'stability'
+
+export interface PondRatingBreakdownEntry {
+  key: PondRatingDimensionKey
+  label: string
+  value: number
+  weight: number
+  contribution: number
+}
+
+export interface PondRatingBreakdown {
+  totalScore: number
+  showValue: number
+  foodValue: number
+  healthScore: number
+  stabilityScore: number
+  generation: number
+  entries: PondRatingBreakdownEntry[]
+}
+
+export interface PondFishRatingSnapshot extends PondRatingBreakdown {
+  fishInstanceId: string
+  fishId: string
+  fishName: string
+  breedId: string | null
+  mature: boolean
+  sick: boolean
+  starRating: number
+}
+
+export interface PondEligibilityGenerationBucket {
+  generation: number
+  totalCount: number
+  matureCount: number
+  healthyCount: number
+  matureHealthyCount: number
+  bestTotalScore: number
+}
+
+export interface PondEligibilitySnapshot {
+  fishId: string
+  fishName: string
+  totalCount: number
+  matureCount: number
+  healthyCount: number
+  matureHealthyCount: number
+  bestShowValue: number
+  bestFoodValue: number
+  bestTotalScore: number
+  generationBuckets: PondEligibilityGenerationBucket[]
+}
+
+export type PondContestCategory = 'showcase' | 'food' | 'rare'
+
+export interface PondContestDef {
+  id: string
+  label: string
+  description: string
+  category: PondContestCategory
+  scoringMetric: 'showValue' | 'foodValue' | 'totalScore'
+  unlockGenerationMin?: number
+  requireMature: boolean
+  requireHealthy: boolean
+  rewardMoney: number
+  rewardTickets?: Partial<Record<RewardTicketType, number>>
+}
+
+export interface PondContestEntryResult {
+  pondFishId: string
+  fishId: string
+  fishName: string
+  breedId: string | null
+  score: number
+}
+
+export interface PondContestSettlementSummary {
+  weekId: string
+  contestId: string
+  settledAtDayTag: string
+  participantCount: number
+  winner?: PondContestEntryResult
+  ranking: PondContestEntryResult[]
+  rewardSummary: string[]
+}
+
+export interface PondContestState {
+  weekId: string
+  contestId: string
+  registeredFishIds: string[]
+  settled: boolean
+  lastSettlementDayTag: string
+}
+
+export interface PondDisplayEntry {
+  pondFishId: string
+  fishId: string
+  fishName: string
+  breedId: string | null
+  snapshotScore: number
+  snapshotShowValue: number
+  snapshotGeneration: number
+  assignedAtDayTag: string
+}
+
+export interface PondMaintenanceState {
+  ornamentalFeedBuffDays: number
+  quarantineShieldDays: number
+  lastOrnamentalFeedDayTag: string
+  lastAdvancedPurifierDayTag: string
 }
 
 /** 繁殖槽 */

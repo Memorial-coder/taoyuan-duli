@@ -48,6 +48,11 @@ const ASSET_QUALITY_MULTIPLIERS: Record<'normal' | 'fine' | 'excellent' | 'supre
   excellent: 1.5,
   supreme: 2
 }
+const normalizeNonNegativeInteger = (value: unknown, fallback = 0) => {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return Math.max(0, Math.floor(fallback))
+  return Math.max(0, Math.floor(numericValue))
+}
 
 const createEmptyEconomyTelemetry = (): EconomyTelemetryState => ({
   saveVersion: ECONOMY_TELEMETRY_SAVE_VERSION,
@@ -167,7 +172,7 @@ export const usePlayerStore = defineStore('player', () => {
   const qaGovernanceTuning = WS12_QA_GOVERNANCE_TUNING_CONFIG
 
   const isExhausted = computed(() => stamina.value <= 5)
-  const staminaPercent = computed(() => Math.round((stamina.value / maxStamina.value) * 100))
+  const staminaPercent = computed(() => Math.round((stamina.value / Math.max(1, maxStamina.value)) * 100))
   /** NPC 用来称呼玩家的称谓 */
   const honorific = computed(() => (gender.value === 'male' ? '小哥' : '姑娘'))
 
@@ -206,10 +211,12 @@ export const usePlayerStore = defineStore('player', () => {
 
   /** 消耗体力（含仙缘灵护减免），返回是否成功 */
   const consumeStamina = (amount: number): boolean => {
+    const normalizedAmount = Number(amount)
+    if (!Number.isFinite(normalizedAmount) || normalizedAmount <= 0) return true
     // 仙缘结缘：灵护（spirit_shield）体力消耗减免
     const spiritShield2 = useHiddenNpcStore().getBondBonusByType('spirit_shield')
     const spiritSave = spiritShield2?.type === 'spirit_shield' ? spiritShield2.staminaSave / 100 : 0
-    const effectiveAmount = Math.max(1, Math.floor(amount * (1 - spiritSave)))
+    const effectiveAmount = Math.max(1, Math.floor(normalizedAmount * (1 - spiritSave)))
     if (stamina.value < effectiveAmount) return false
     stamina.value -= effectiveAmount
     return true
@@ -217,19 +224,25 @@ export const usePlayerStore = defineStore('player', () => {
 
   /** 恢复体力 */
   const restoreStamina = (amount: number) => {
-    stamina.value = Math.min(stamina.value + amount, maxStamina.value)
+    const normalizedAmount = normalizeNonNegativeInteger(amount)
+    if (normalizedAmount <= 0) return
+    stamina.value = Math.min(stamina.value + normalizedAmount, maxStamina.value)
   }
 
   /** 受到伤害（扣 HP），返回实际伤害值 */
   const takeDamage = (amount: number): number => {
-    const actual = Math.min(amount, hp.value)
+    const normalizedAmount = normalizeNonNegativeInteger(amount)
+    if (normalizedAmount <= 0) return 0
+    const actual = Math.min(normalizedAmount, hp.value)
     hp.value -= actual
     return actual
   }
 
   /** 恢复生命值 */
   const restoreHealth = (amount: number) => {
-    hp.value = Math.min(hp.value + amount, getMaxHp())
+    const normalizedAmount = normalizeNonNegativeInteger(amount)
+    if (normalizedAmount <= 0) return
+    hp.value = Math.min(hp.value + normalizedAmount, getMaxHp())
   }
 
   /**
@@ -288,24 +301,28 @@ export const usePlayerStore = defineStore('player', () => {
 
   /** 花费铜钱，返回是否成功 */
   const spendMoney = (amount: number, system: EconomySystemKey = 'system'): boolean => {
-    if (money.value < amount) return false
-    money.value -= amount
-    economyTelemetry.value.lifetimeExpense.total += amount
-    economyTelemetry.value.lifetimeExpense.bySystem[system] = (economyTelemetry.value.lifetimeExpense.bySystem[system] ?? 0) + amount
+    const normalizedAmount = normalizeNonNegativeInteger(amount)
+    if (normalizedAmount <= 0) return false
+    if (money.value < normalizedAmount) return false
+    money.value -= normalizedAmount
+    economyTelemetry.value.lifetimeExpense.total += normalizedAmount
+    economyTelemetry.value.lifetimeExpense.bySystem[system] = (economyTelemetry.value.lifetimeExpense.bySystem[system] ?? 0) + normalizedAmount
     return true
   }
 
   const recordSinkSpend = (amount: number, category: EconomySinkCategory) => {
-    if (amount <= 0) return
-    economyTelemetry.value.lifetimeSinkSpend.total += amount
-    economyTelemetry.value.lifetimeSinkSpend.byCategory[category] = (economyTelemetry.value.lifetimeSinkSpend.byCategory[category] ?? 0) + amount
+    const normalizedAmount = normalizeNonNegativeInteger(amount)
+    if (normalizedAmount <= 0) return
+    economyTelemetry.value.lifetimeSinkSpend.total += normalizedAmount
+    economyTelemetry.value.lifetimeSinkSpend.byCategory[category] = (economyTelemetry.value.lifetimeSinkSpend.byCategory[category] ?? 0) + normalizedAmount
   }
 
   const recordEconomyFlow = (kind: EconomyFlowKind, amount: number, system: EconomySystemKey) => {
-    if (amount <= 0) return
+    const normalizedAmount = normalizeNonNegativeInteger(amount)
+    if (normalizedAmount <= 0) return
     const bucket = kind === 'income' ? economyTelemetry.value.lifetimeIncome : economyTelemetry.value.lifetimeExpense
-    bucket.total += amount
-    bucket.bySystem[system] = (bucket.bySystem[system] ?? 0) + amount
+    bucket.total += normalizedAmount
+    bucket.bySystem[system] = (bucket.bySystem[system] ?? 0) + normalizedAmount
   }
 
   const setEconomyRiskReport = (report: EconomyRiskReport | null) => {
@@ -638,10 +655,12 @@ export const usePlayerStore = defineStore('player', () => {
 
   /** 获得铜钱 */
   const earnMoney = (amount: number, options?: { countAsEarned?: boolean; system?: EconomySystemKey }) => {
-    money.value += amount
-    recordEconomyFlow('income', amount, options?.system ?? 'system')
+    const normalizedAmount = normalizeNonNegativeInteger(amount)
+    if (normalizedAmount <= 0) return
+    money.value += normalizedAmount
+    recordEconomyFlow('income', normalizedAmount, options?.system ?? 'system')
     if (options?.countAsEarned ?? true) {
-      useAchievementStore().recordMoneyEarned(amount)
+      useAchievementStore().recordMoneyEarned(normalizedAmount)
     }
   }
 
@@ -678,11 +697,11 @@ export const usePlayerStore = defineStore('player', () => {
     playerName.value = (data as any).playerName ?? '未命名'
     gender.value = (data as any).gender ?? 'male'
     needsIdentitySetup.value = !hasIdentity
-    money.value = data.money
-    stamina.value = data.stamina
-    maxStamina.value = data.maxStamina
-    staminaCapLevel.value = data.staminaCapLevel
-    bonusMaxStamina.value = (data as any).bonusMaxStamina ?? 0
+    money.value = normalizeNonNegativeInteger(data.money, 500)
+    staminaCapLevel.value = Math.min(STAMINA_CAPS.length - 1, normalizeNonNegativeInteger(data.staminaCapLevel, 0))
+    bonusMaxStamina.value = normalizeNonNegativeInteger((data as any).bonusMaxStamina ?? 0)
+    maxStamina.value = normalizeNonNegativeInteger(data.maxStamina, STAMINA_CAPS[staminaCapLevel.value] ?? 120)
+    stamina.value = normalizeNonNegativeInteger(data.stamina, maxStamina.value)
     // 旧存档兼容：如果没有 bonusMaxStamina 字段，从 maxStamina 和 staminaCapLevel 推算
     if ((data as any).bonusMaxStamina == null) {
       const expectedBase = STAMINA_CAPS[staminaCapLevel.value] ?? 120
@@ -694,8 +713,9 @@ export const usePlayerStore = defineStore('player', () => {
     if (maxStamina.value !== expectedMax) {
       maxStamina.value = expectedMax
     }
-    hp.value = (data as any).hp ?? BASE_MAX_HP
-    baseMaxHp.value = (data as any).baseMaxHp ?? BASE_MAX_HP
+    stamina.value = Math.min(stamina.value, maxStamina.value)
+    baseMaxHp.value = Math.max(BASE_MAX_HP, normalizeNonNegativeInteger((data as any).baseMaxHp ?? BASE_MAX_HP, BASE_MAX_HP))
+    hp.value = Math.min(Math.max(0, normalizeNonNegativeInteger((data as any).hp ?? BASE_MAX_HP, BASE_MAX_HP)), getMaxHp())
     economyTelemetry.value = normalizeEconomyTelemetry((data as any).economyTelemetry)
     qaGovernanceRuntimeState.value = (() => {
       const raw = (data as any).qaGovernanceRuntimeState

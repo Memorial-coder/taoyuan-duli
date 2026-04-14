@@ -27,18 +27,23 @@ import {
   CARD_BET_AMOUNT,
   CARD_WIN_MULTIPLIER,
   dealCards,
+  compareHands,
+  evaluateBestHand,
   getTexasTier,
   dealTexas,
+  texasDealerAI,
   BUCKSHOT_BET_AMOUNT,
   BUCKSHOT_WIN_MULTIPLIER,
   BUCKSHOT_PLAYER_HP,
   BUCKSHOT_DEALER_HP,
-  loadShotgun
+  loadShotgun,
+  dealerDecide
 } from '@/data/hanhai'
 import { getItemById } from '@/data'
 import { addLog } from '@/composables/useGameLog'
 import type {
   BuckshotSetup,
+  BuckshotPlayerAction,
   CasinoGameType,
   HanhaiCycleOverview,
   HanhaiCasinoRewardTrigger,
@@ -50,8 +55,11 @@ import type {
   HanhaiRelicSiteSummary,
   HanhaiSaveData,
   HanhaiShopItemSummary,
+  TexasHandSetup,
+  TexasSessionReport,
   RewardTicketType,
   TexasSetup,
+  TexasStreet,
   TexasTierId
 } from '@/types'
 import { useInventoryStore } from './useInventoryStore'
@@ -64,19 +72,23 @@ import { useShopStore } from './useShopStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 
 const dedupeList = <T,>(items: T[]): T[] => Array.from(new Set(items))
-type HanhaiQuestMarketCategory = 'crop' | 'fruit' | 'ore' | 'gem' | 'processed'
-type HanhaiQuestType = 'delivery' | 'gathering' | 'mining'
+type HanhaiQuestMarketCategory = 'crop' | 'fruit' | 'ore' | 'gem' | 'processed' | 'fish'
+type HanhaiQuestType = 'delivery' | 'gathering' | 'mining' | 'fishing'
 type ActiveTexasSession = {
   sessionId: string
   tierId: TexasTierId
   tierName: string
   entryFee: number
   startedAtDayTag: string
+  reserveMoney: number
+  hands: TexasHandSetup[]
   settled: boolean
 }
 type ActiveBuckshotSession = {
   sessionId: string
   startedAtDayTag: string
+  shells: BuckshotSetup['shells']
+  playerFirst: boolean
   settled: boolean
 }
 
@@ -117,7 +129,9 @@ const HANHAI_BOSS_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMarketCa
 const HANHAI_CONTRACT_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMarketCategory[]> = {
   contract_silk_relay: ['processed', 'crop'],
   contract_turquoise_exchange: ['ore', 'gem', 'processed'],
-  contract_moon_sand_patronage: ['processed', 'fruit', 'gem']
+  contract_moon_sand_patronage: ['processed', 'fruit', 'gem'],
+  contract_koi_showcase_relay: ['fish', 'processed'],
+  contract_coldchain_specimen_route: ['fish', 'processed', 'gem']
 }
 
 const HANHAI_ITEM_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMarketCategory[]> = {
@@ -130,10 +144,312 @@ const HANHAI_ITEM_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMarketCa
   mega_bomb_recipe: ['ore', 'processed']
 }
 
+const resolveBuckshotOutcome = (
+  session: ActiveBuckshotSession,
+  playerActions: BuckshotPlayerAction[]
+): { won: boolean; draw: boolean; valid: boolean; reason?: string } => {
+  let shellIndex = 0
+  let playerHP = BUCKSHOT_PLAYER_HP
+  let dealerHP = BUCKSHOT_DEALER_HP
+  let isPlayerTurn = session.playerFirst
+  let actionIndex = 0
+
+  const finalize = () => {
+    if (playerHP <= 0) return { won: false, draw: false, valid: true }
+    if (dealerHP <= 0) return { won: true, draw: false, valid: true }
+    if (shellIndex >= session.shells.length) {
+      if (playerHP > dealerHP) return { won: true, draw: false, valid: true }
+      if (playerHP < dealerHP) return { won: false, draw: false, valid: true }
+      return { won: false, draw: true, valid: true }
+    }
+    return null
+  }
+
+  while (true) {
+    const completed = finalize()
+    if (completed) return completed
+
+    const shell = session.shells[shellIndex]
+    if (!shell) {
+      return { won: false, draw: false, valid: false, reason: '弹仓记录不完整' }
+    }
+    shellIndex++
+
+    if (isPlayerTurn) {
+      const action = playerActions[actionIndex]
+      actionIndex++
+      if (action !== 'self' && action !== 'opponent') {
+        return { won: false, draw: false, valid: false, reason: '玩家操作轨迹不完整' }
+      }
+      if (action === 'opponent') {
+        if (shell === 'live') dealerHP = Math.max(0, dealerHP - 1)
+        isPlayerTurn = false
+      } else if (shell === 'live') {
+        playerHP = Math.max(0, playerHP - 1)
+        isPlayerTurn = false
+      } else {
+        isPlayerTurn = true
+      }
+      continue
+    }
+
+    const decision = dealerDecide(session.shells, shellIndex - 1, false)
+    if (decision === 'opponent') {
+      if (shell === 'live') playerHP = Math.max(0, playerHP - 1)
+      isPlayerTurn = true
+    } else if (shell === 'live') {
+      dealerHP = Math.max(0, dealerHP - 1)
+      isPlayerTurn = true
+    } else {
+      isPlayerTurn = false
+    }
+  }
+}
+
+const TEXAS_STREET_ORDER: TexasStreet[] = ['preflop', 'flop', 'turn', 'river', 'showdown']
+
+const getVisibleTexasCommunity = (street: TexasStreet, community: TexasHandSetup['community']) => {
+  if (street === 'preflop') return []
+  if (street === 'flop') return community.slice(0, 3)
+  if (street === 'turn') return community.slice(0, 4)
+  return community.slice(0, 5)
+}
+
+const resolveTexasSessionOutcome = (
+  session: ActiveTexasSession,
+  report: TexasSessionReport
+): { valid: boolean; finalChips?: number; totalInvested?: number; reason?: string } => {
+  const tier = getTexasTier(session.tierId)
+  const actions = Array.isArray(report.playerActions) ? report.playerActions : []
+  const firstHand = session.hands[0]
+  if (!firstHand) {
+    return { valid: false, reason: '牌局配置缺失' }
+  }
+  let actionIndex = 0
+  let currentRound = 1
+  let playerStack = tier.entryFee
+  let dealerStack = tier.entryFee
+  let pot = 0
+  let playerBetRound = 0
+  let dealerBetRound = 0
+  let playerAllIn = false
+  let dealerAllIn = false
+  let street: TexasStreet = 'preflop'
+  let totalInvested = 0
+  let reserveMoney = session.reserveMoney
+  let sessionOver = false
+  let currentHand: TexasHandSetup = firstHand
+
+  const betFromPlayer = (amount: number) => {
+    const actual = Math.min(Math.max(0, Math.floor(Number(amount) || 0)), playerStack)
+    playerStack -= actual
+    playerBetRound += actual
+    if (playerStack <= 0) playerAllIn = true
+    return actual
+  }
+
+  const betFromDealer = (amount: number) => {
+    const actual = Math.min(Math.max(0, Math.floor(Number(amount) || 0)), dealerStack)
+    dealerStack -= actual
+    dealerBetRound += actual
+    if (dealerStack <= 0) dealerAllIn = true
+    return actual
+  }
+
+  const collectBets = () => {
+    const matched = Math.min(playerBetRound, dealerBetRound)
+    pot += matched * 2
+    if (playerBetRound > matched) playerStack += playerBetRound - matched
+    if (dealerBetRound > matched) dealerStack += dealerBetRound - matched
+    playerBetRound = 0
+    dealerBetRound = 0
+  }
+
+  const doShowdown = () => {
+    street = 'showdown'
+    const pHand = evaluateBestHand([...currentHand.playerHole, ...currentHand.community])
+    const dHand = evaluateBestHand([...currentHand.dealerHole, ...currentHand.community])
+    const cmp = compareHands(pHand, dHand)
+    endHand(cmp > 0 ? 'won' : cmp === 0 ? 'draw' : 'lost')
+  }
+
+  const startNextHand = () => {
+    currentRound += 1
+    const nextHand = session.hands[currentRound - 1]
+    if (!nextHand) {
+      sessionOver = true
+      return
+    }
+    currentHand = nextHand
+    if (dealerStack < tier.blind * 2) {
+      dealerStack = tier.entryFee
+    }
+    if (playerStack < tier.blind * 2) {
+      const needed = tier.entryFee - playerStack
+      const canAfford = Math.min(needed, reserveMoney)
+      reserveMoney -= canAfford
+      playerStack += canAfford
+      totalInvested += canAfford
+    }
+    street = 'preflop'
+    pot = 0
+    playerBetRound = 0
+    dealerBetRound = 0
+    playerAllIn = false
+    dealerAllIn = false
+    betFromPlayer(tier.blind)
+    betFromDealer(tier.blind)
+    collectBets()
+  }
+
+  const endHand = (result: 'won' | 'draw' | 'lost') => {
+    if (result === 'won') {
+      playerStack += pot
+    } else if (result === 'draw') {
+      const half = Math.floor(pot / 2)
+      playerStack += half
+      dealerStack += pot - half
+    } else {
+      dealerStack += pot
+    }
+    pot = 0
+
+    const playerBroke = playerStack <= 0 && reserveMoney <= 0
+    if (playerBroke || currentRound >= tier.rounds) {
+      sessionOver = true
+      return
+    }
+    startNextHand()
+  }
+
+  const advanceStreet = () => {
+    collectBets()
+    const streetIndex = TEXAS_STREET_ORDER.indexOf(street)
+    if (streetIndex < 0) {
+      sessionOver = true
+      return
+    }
+    if (street === 'river' || streetIndex >= TEXAS_STREET_ORDER.indexOf('river')) {
+      doShowdown()
+      return
+    }
+    street = TEXAS_STREET_ORDER[streetIndex + 1] ?? 'showdown'
+    if (playerAllIn || dealerAllIn) {
+      advanceStreet()
+    }
+  }
+
+  const checkRoundEnd = (playerActed: boolean) => {
+    const settled = playerBetRound === dealerBetRound || (playerBetRound < dealerBetRound && playerAllIn) || (dealerBetRound < playerBetRound && dealerAllIn)
+    if (settled) {
+      advanceStreet()
+      return
+    }
+    if (playerActed) {
+      dealerTurn()
+    }
+  }
+
+  const dealerTurn = () => {
+    const decision = texasDealerAI(
+      currentHand.dealerHole,
+      getVisibleTexasCommunity(street, currentHand.community),
+      street,
+      pot + playerBetRound + dealerBetRound,
+      dealerStack,
+      playerBetRound,
+      dealerBetRound,
+      playerAllIn,
+      tier.blind
+    )
+
+    if (decision.action === 'fold') {
+      collectBets()
+      endHand('won')
+      return
+    }
+    if (decision.action === 'check') {
+      checkRoundEnd(false)
+      return
+    }
+    if (decision.action === 'call') {
+      betFromDealer(playerBetRound - dealerBetRound)
+      checkRoundEnd(false)
+      return
+    }
+    if (decision.action === 'allin') {
+      betFromDealer(dealerStack)
+      dealerAllIn = true
+      if (!(dealerBetRound > playerBetRound && !playerAllIn)) {
+        checkRoundEnd(false)
+      }
+      return
+    }
+    betFromDealer(decision.amount)
+  }
+
+  betFromPlayer(tier.blind)
+  betFromDealer(tier.blind)
+  collectBets()
+
+  while (!sessionOver) {
+    const action = actions[actionIndex]
+    if (!action) {
+      return { valid: false, reason: '玩家操作轨迹不完整' }
+    }
+    if (action.round !== currentRound || action.street !== street) {
+      return { valid: false, reason: '玩家操作轨迹与当前牌局阶段不匹配' }
+    }
+    actionIndex += 1
+
+    if (action.action === 'check') {
+      dealerTurn()
+      continue
+    }
+    if (action.action === 'call') {
+      betFromPlayer(Math.max(0, dealerBetRound - playerBetRound))
+      checkRoundEnd(true)
+      continue
+    }
+    if (action.action === 'raise') {
+      const total = Math.max(0, Math.floor(Number(action.total) || 0))
+      if (total <= playerBetRound) {
+        return { valid: false, reason: '玩家加注轨迹无效' }
+      }
+      betFromPlayer(total - playerBetRound)
+      dealerTurn()
+      continue
+    }
+    if (action.action === 'allin') {
+      betFromPlayer(playerStack)
+      playerAllIn = true
+      dealerTurn()
+      continue
+    }
+    if (action.action === 'fold') {
+      collectBets()
+      endHand('lost')
+      continue
+    }
+    return { valid: false, reason: '存在未知的玩家操作' }
+  }
+
+  if (actionIndex !== actions.length) {
+    return { valid: false, reason: '玩家操作轨迹存在多余步骤' }
+  }
+
+  return {
+    valid: true,
+    finalChips: Math.max(0, Math.floor(playerStack)),
+    totalInvested: Math.max(0, Math.floor(totalInvested))
+  }
+}
+
 const mapHanhaiCategoriesToQuestTypes = (categories: HanhaiQuestMarketCategory[]): HanhaiQuestType[] => {
   const questTypes: HanhaiQuestType[] = []
   if (categories.some(category => category === 'ore' || category === 'gem')) questTypes.push('mining')
   if (categories.some(category => category === 'processed')) questTypes.push('gathering')
+  if (categories.some(category => category === 'fish')) questTypes.push('fishing')
   if (categories.some(category => category === 'crop' || category === 'fruit')) questTypes.push('delivery')
   return dedupeList(questTypes)
 }
@@ -569,13 +885,15 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     ])
     const preferredQuestTypes = mapHanhaiCategoriesToQuestTypes(preferredMarketCategories)
     const preferredVillagerCategory =
-      preferredMarketCategories.includes('ore') || preferredMarketCategories.includes('gem')
-        ? 'gathering'
-        : preferredMarketCategories.includes('processed')
-          ? 'cooking'
-          : preferredMarketCategories.includes('crop') || preferredMarketCategories.includes('fruit')
-            ? 'gathering'
-            : null
+      preferredMarketCategories.includes('fish')
+        ? 'fishing'
+        : preferredMarketCategories.includes('ore') || preferredMarketCategories.includes('gem')
+          ? 'gathering'
+          : preferredMarketCategories.includes('processed')
+            ? 'cooking'
+            : preferredMarketCategories.includes('crop') || preferredMarketCategories.includes('fruit')
+              ? 'gathering'
+              : null
     const focusLabels = dedupeList([
       ...(currentThemeWeekHanhaiFocus.value?.routeLabels ?? []),
       ...(currentThemeWeekHanhaiFocus.value?.relicSiteLabels ?? []),
@@ -1154,7 +1472,11 @@ export const useHanhaiStore = defineStore('hanhai', () => {
         return { success: false, message: '金钱不足。' }
       }
       casinoBetsToday.value++
-      const deal = dealTexas()
+      const hands = Array.from({ length: tier.rounds }, () => dealTexas()).map(hand => ({
+        playerHole: hand.playerHole.map(card => ({ ...card })),
+        dealerHole: hand.dealerHole.map(card => ({ ...card })),
+        community: hand.community.map(card => ({ ...card }))
+      }))
       const sessionId = createCasinoSessionId('texas')
       activeTexasSession.value = {
         sessionId,
@@ -1162,15 +1484,16 @@ export const useHanhaiStore = defineStore('hanhai', () => {
         tierName: tier.name,
         entryFee: tier.entryFee,
         startedAtDayTag: getCurrentDayTag(),
+        reserveMoney: playerStore.money,
+        hands,
         settled: false
       }
       return {
         success: true,
         message: `${tier.name}开始！`,
         sessionId,
-        playerHole: deal.playerHole,
-        dealerHole: deal.dealerHole,
-        community: deal.community,
+        reserveMoney: playerStore.money,
+        hands,
         tier
       }
     } catch {
@@ -1181,7 +1504,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     }
   }
 
-  const endTexas = (finalChips: number, tierName: string, sessionId?: string) => {
+  const endTexas = (report: TexasSessionReport) => {
     const lockId = 'casino_texas_end'
     if (!beginHanhaiAction(lockId)) {
       addLog('瀚海扑克结算中，请勿重复提交结果。')
@@ -1195,30 +1518,48 @@ export const useHanhaiStore = defineStore('hanhai', () => {
         addLog('瀚海扑克结算失败：当前没有可结算的牌局。')
         return
       }
-      if (!sessionId || session.sessionId !== sessionId) {
+      if (!report?.sessionId || session.sessionId !== report.sessionId) {
         addLog('瀚海扑克结算失败：牌局凭证无效。')
         return
       }
-      if (session.tierName !== tierName) {
+      if (session.startedAtDayTag !== getCurrentDayTag()) {
+        addLog('瀚海扑克结算失败：牌局已跨日失效。')
+        activeTexasSession.value = null
+        return
+      }
+      if (session.tierName !== report.tierName) {
         addLog('瀚海扑克结算失败：场次信息不匹配。')
         return
       }
       const tier = getTexasTier(session.tierId)
-      const normalizedFinalChips = Math.max(0, Math.floor(Number(finalChips) || 0))
-      if (normalizedFinalChips > tier.entryFee * 2) {
-        addLog('瀚海扑克结算失败：筹码结果超出本局理论上限，已拒绝本次提交。')
+      const resolved = resolveTexasSessionOutcome(session, report)
+      if (!resolved.valid) {
+        addLog(`瀚海扑克结算失败：${resolved.reason ?? '对局轨迹校验失败'}。`)
+        return
+      }
+      const normalizedFinalChips = Math.max(0, Math.floor(Number(resolved.finalChips) || 0))
+      const totalInvested = Math.max(0, Math.floor(Number(resolved.totalInvested) || 0))
+      const playerStore = usePlayerStore()
+      const maxTheoreticalFinalChips = session.entryFee + totalInvested + tier.entryFee * tier.rounds
+      if (normalizedFinalChips > maxTheoreticalFinalChips) {
+        addLog(`瀚海扑克结算失败：筹码结果超出本局理论上限（上限 ${maxTheoreticalFinalChips}）。`)
         return
       }
       activeTexasSession.value = {
         ...session,
         settled: true
       }
+      if (totalInvested > 0 && !playerStore.spendMoney(totalInvested)) {
+        addLog('瀚海扑克结算失败：场外补注扣款失败。')
+        activeTexasSession.value = null
+        return
+      }
       const trigger: HanhaiCasinoRewardTrigger = normalizedFinalChips > tier.entryFee ? 'win' : normalizedFinalChips > 0 ? 'draw' : 'lose'
       const settlement = settleCasinoRewards('texas', trigger, normalizedFinalChips)
       const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${settlement.directMoney}文`)
       const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
       const skippedText = settlement.rewardTexts.skippedTexts.length > 0 ? ` 背包已满，未带走${settlement.rewardTexts.skippedTexts.join('、')}。` : ''
-      addLog(`瀚海扑克（${tierName}）结束，按赌坊折算结算${settlement.directMoney}文。${extraText}${skippedText}`)
+      addLog(`瀚海扑克（${report.tierName}）结束，按赌坊折算结算${settlement.directMoney}文。${extraText}${skippedText}`)
       activeTexasSession.value = null
     } catch {
       rollbackHanhaiAction(snapshots)
@@ -1245,18 +1586,23 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       }
       casinoBetsToday.value++
       const sessionId = createCasinoSessionId('buckshot')
+      const shells = loadShotgun()
+      const playerFirst = Math.random() < 0.5
       activeBuckshotSession.value = {
         sessionId,
         startedAtDayTag: getCurrentDayTag(),
+        shells: [...shells],
+        playerFirst,
         settled: false
       }
       return {
         success: true,
         message: '恶魔轮盘开始！',
         sessionId,
-        shells: loadShotgun(),
+        shells,
         playerHP: BUCKSHOT_PLAYER_HP,
-        dealerHP: BUCKSHOT_DEALER_HP
+        dealerHP: BUCKSHOT_DEALER_HP,
+        playerFirst
       }
     } catch {
       rollbackHanhaiAction(snapshots)
@@ -1266,7 +1612,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     }
   }
 
-  const endBuckshot = (won: boolean, draw: boolean, sessionId?: string) => {
+  const endBuckshot = (playerActions: BuckshotPlayerAction[], sessionId?: string) => {
     const lockId = 'casino_buckshot_end'
     if (!beginHanhaiAction(lockId)) {
       addLog('恶魔轮盘结算中，请勿重复提交结果。')
@@ -1284,18 +1630,29 @@ export const useHanhaiStore = defineStore('hanhai', () => {
         addLog('恶魔轮盘结算失败：赌局凭证无效。')
         return
       }
+      if (session.startedAtDayTag !== getCurrentDayTag()) {
+        addLog('恶魔轮盘结算失败：赌局已跨日失效。')
+        activeBuckshotSession.value = null
+        return
+      }
+      const outcome = resolveBuckshotOutcome(session, playerActions)
+      if (!outcome.valid) {
+        addLog(`恶魔轮盘结算失败：${outcome.reason ?? '操作轨迹校验失败'}。`)
+        activeBuckshotSession.value = null
+        return
+      }
       activeBuckshotSession.value = {
         ...session,
         settled: true
       }
-      const trigger: HanhaiCasinoRewardTrigger = won ? 'win' : draw ? 'draw' : 'lose'
-      const baseReward = won ? BUCKSHOT_BET_AMOUNT * BUCKSHOT_WIN_MULTIPLIER : draw ? BUCKSHOT_BET_AMOUNT : 0
+      const trigger: HanhaiCasinoRewardTrigger = outcome.won ? 'win' : outcome.draw ? 'draw' : 'lose'
+      const baseReward = outcome.won ? BUCKSHOT_BET_AMOUNT * BUCKSHOT_WIN_MULTIPLIER : outcome.draw ? BUCKSHOT_BET_AMOUNT : 0
       const settlement = settleCasinoRewards('buckshot', trigger, baseReward)
-      if (won) {
+      if (outcome.won) {
         const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${settlement.directMoney}文`)
         const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
         addLog(`恶魔轮盘胜利！按赌坊折算赢得${settlement.directMoney}文！${extraText}`)
-      } else if (draw) {
+      } else if (outcome.draw) {
         const extraRewardTexts = settlement.rewardTexts.grantedTexts.filter(text => text !== `${settlement.directMoney}文`)
         const extraText = extraRewardTexts.length > 0 ? ` 另得${extraRewardTexts.join('、')}。` : ''
         addLog(`恶魔轮盘平局，按赌坊折算退还${settlement.directMoney}文。${extraText}`)

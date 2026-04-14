@@ -1,6 +1,7 @@
 import type { Season } from './game'
 import type { RelationshipStage } from './npc'
 import type { RewardTicketType } from './economy'
+import type { BreedingCommercialTag, BreedingStabilityRank } from './breeding'
 
 /** 任务类型 */
 export type QuestType = 'delivery' | 'fishing' | 'mining' | 'gathering' | 'special_order' | 'cooking' | 'errand' | 'festival_prep'
@@ -36,6 +37,9 @@ export interface SpecialOrderComboRequirement {
   requiredResistanceMin?: number
   requiredGenerationMin?: number
   requiredParentCropIds?: string[]
+  requiredCommercialTags?: BreedingCommercialTag[]
+  requiredBreedScoreMin?: number
+  requiredStabilityRank?: BreedingStabilityRank
   requiredPondGenerationMin?: number
   requiredFishMature?: boolean
   requiredFishHealthy?: boolean
@@ -288,6 +292,12 @@ export interface QuestInstance {
   requiredGenerationMin?: number
   /** 育种谱系亲本要求 */
   requiredParentCropIds?: string[]
+  /** 育种经营标签要求 */
+  requiredCommercialTags?: BreedingCommercialTag[]
+  /** 育种统一评分门槛 */
+  requiredBreedScoreMin?: number
+  /** 育种稳定度档位门槛 */
+  requiredStabilityRank?: BreedingStabilityRank
   /** 提交方式：默认背包交付，也可直接从鱼塘交付 */
   deliveryMode?: QuestDeliveryMode
   /** 鱼塘品系代数门槛 */

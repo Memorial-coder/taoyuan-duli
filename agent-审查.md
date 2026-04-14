@@ -6,6 +6,57 @@
 
 ---
 
+## 整改完成情况（2026-04-13）
+
+以下状态以当前工作树为准，不再沿用文中较早阶段的判断：
+
+### 高优先级项
+
+- `P0-1` 活动编排 / 邮箱闭环：部分完成，仍存在全链路权威风险
+  当前活动邮件的投递与领取回写已经接通，但邮箱奖励真实落点仍依赖服务端 `active slot`，与前端当前 `storageMode / activeSlot` 并非单一权威源；本地模式下领取邮件时，UI 仍可能提示“已发放到当前存档”，但真实奖励只写入了服务端槽位。
+- `P0-2` 瀚海赌场结算信任前端：部分收口，Texas 仍未真正权威化
+  Buckshot 已改为由 store 根据 session 弹仓、先手和玩家操作轨迹复盘结算，不再只信任组件回传输赢布尔值；但 Texas 仍依赖前端提交 `finalChips`，只是补了 session、跨日失效和理论上限校验，因此不能视作完全完成。
+- `P0-3` 博物馆学者委托重复领奖：已完成
+  当前已拦截 `rewarded` 终态，奖励领取后不可再次接取。
+- `P1-4` 村庄建设捐赠伪完成 / 资源绕过：已完成
+  当前版本已具备扣物资、失败回滚、里程碑领奖和页面入口，不再是伪完成功能。
+- `P1-5` 导入存档只做结构校验：已完成
+  当前导入会在写盘前走完整 `applySaveData()` 语义校验并恢复现场，不再只做壳层结构检查。
+- `P1-6` `familyWishCompletions` 恒为 0：已完成
+  当前已接入 `npcStore.getFamilyWishOverview().state.completedWishIds.length`。
+- `P1-7` `useEndDay.ts` 过大且顺序敏感：已降级为长期重构建议
+  这仍是结构性维护风险，但不再作为“当前功能未完成”的阻塞项；本轮已优先修补其中实际存在的周赛结算、活动邮件、跨周状态机问题。
+- `P1-8` QA 治理污染正式玩家页面：已在当前版本覆盖
+  `QaGovernancePanel` 当前只在 `import.meta.env.DEV` 下显示，正式构建不会展示给玩家；仍可作为后续 bundle/信息架构优化项。
+- `P1-9` 正式环境可通过导入存档恢复 debug / balance overrides：未完成
+  `useSettingsStore.deserialize()` 当前仍会在非 DEV 环境读取并应用 `lateGameFeatureOverrides / lateGameBalanceOverrides`；虽然 UI 设置入口有 DEV 门禁，但构造过的导入档仍可能把调试覆盖带进正式运行态。
+
+### 中低优先级项
+
+- `P2-1` 经济推荐真源分叉：已在当前版本收敛主链
+  Wallet / Shop 当前都直接消费 `goalStore.recommendedEconomySinks` 作为主推荐源。
+- `P2-2` 家庭 / 仙灵统一总览页：保留为体验增强项
+- `P2-3` 路由与信息架构平铺：保留为长期信息架构重构项
+- `P2-4` Guidance 覆盖不均：保留为后续 UI / 引导增强项
+- `P2-5` 样例档双源认知：保留为 QA 资产治理项
+- `P2-6` lint 未通过：已完成
+  当前 `npm run lint` 通过。
+- `P2-7` 后端缺少最小自动测试：保留为工程化增强项
+- `P2-8` ~ `P2-9` 大 store / 上帝模块问题：保留为长期拆分项
+- `P2-10` MailView 缺少活动同步反馈：已完成
+  当前活动邮件领取后会同步回写活动状态，MailView 主链已闭环。
+
+### 本轮额外完成的稳定性修复
+
+- 育种 / 鱼塘周赛报名脏状态清理
+- 新解锁 / 读档后本周周赛自动初始化
+- 周赛重复结算日志去重
+- 自助系统邮件接口禁止直接下发奖励，周结算补偿改为直接进入本地游戏状态
+- `/api/*` 未命中时返回 JSON 404，而不是回落到前端 `index.html`
+- Cookie 部署口径支持 `COOKIE_SAME_SITE`，并对 `none + 非 secure` 组合做启动拦截
+
+---
+
 ## A. 总体结论
 
 综合三份审查结果，可以明确下结论：**这个大任务没有“全完成”**，但也绝不是只有文档和数据表的伪开发状态。项目已经真实落地了大部分中后期系统：主题周、活动编排、特殊订单、后期经济治理、豪华目录、博物馆、公会、瀚海、家庭/配偶/仙灵、育种、鱼塘、样例档、调试页、结构化日志等，很多逻辑已经接入 `store + view + useEndDay` 主链，具备“中后期可以玩”的骨架。问题在于：当前工程已经进入**复杂系统耦合期**，部分链路虽然“能看见、能展示、甚至有状态字段”，但还没有形成真正可靠的闭环，尤其是**活动邮件运营、村庄建设捐赠、旧档迁移版本治理、调试验证可信度、正式玩家面中的 QA 治理污染**。
@@ -384,6 +435,184 @@
 - 同时还有数个“不是实施方案 checklist 上未完成、但现实中会出严重 bug”的高优先级问题（赌场结算、学者委托重复领奖、导档只做结构校验）。
 
 换句话说：**现在最需要的不是继续扩功能面，而是先做一轮“闭环、事务、安全、迁移、QA 能力”的治理修复。**
+
+---
+
+## 第二轮合并修订（同步 codex / claude / cline 最新复审）
+
+> 本节用于吸收三份报告后续新增内容，尤其是 `cline-审查.md` 的第二轮复审补充，以及 `claude-审查.md` 对 WS02 / 活动邮箱 / QA 面板边界的修正判断。
+
+### 一、需要从主结论中更新的事项
+
+#### 1. 部分旧高优先级问题已经从“现存漏洞”转为“已修复或已部分修复”
+当前代码状态下，以下问题不应再按最初版本原样保留：
+
+- **学者委托已领奖后可重复接取**：`useMuseumStore.ts` 已在 `acceptScholarCommission()` 中拦截 `commission.state.rewarded`，主漏洞已基本关闭；
+- **`importSave()` 只做结构校验**：`useSaveStore.ts` 已经补上一次真实 `applySaveData()` 验证，再恢复运行态，语义级校验已进入主流程；
+- **`familyWishCompletions` 死目标**：`useGoalStore.ts` 已改为读取真实家庭心愿完成数，不再永远返回 `0`；
+- **村庄捐赠完全伪功能**：`useVillageProjectStore.ts` 已补物资校验、扣物、里程碑奖励，`HomeView.vue` 也已接入最小玩家操作入口。
+
+**综合判断**：这些问题在 `agent-审查.md` 中仍应保留历史记录，但结论要明确改成“已修复 / 已部分修复 / 仍需观察”，不能继续当作完全未处理的问题。
+
+#### 2. 活动邮箱问题已从“完全未接线”演变为“已接线但状态语义混乱”
+- **涉及文件**：
+  - `taoyuan-duli/taoyuan-main/src/composables/useEndDay.ts`
+  - `taoyuan-duli/taoyuan-main/src/utils/mailboxApi.ts`
+  - `taoyuan-duli/taoyuan-main/src/views/game/MailView.vue`
+  - `taoyuan-duli/taoyuan-main/src/stores/useGoalStore.ts`
+  - `taoyuan-duli/taoyuan-main/src/stores/useQuestStore.ts`
+  - `taoyuan-duli/server/src/routes/api.js`
+- **最新判断**：
+  - 活动系统邮件已经开始真实投递；
+  - `MailView.vue` 领取后也会回写活动层状态；
+  - 但 `markEventCampaignMailClaimed()` 的语义仍不干净：当前既被“投递成功”调用，又被“玩家领取成功”调用，导致“已投递”和“已领取”被混在同一状态集合里。
+- **综合结论**：
+  - 该问题仍是高优先级；
+  - 但重点应从“补接线”调整为“拆分投递态 / 领取态 / 回执态”。
+
+### 二、仍然成立且需要继续保留的高优先级问题
+
+#### 1. 瀚海赌场仍然不是权威结算，P0 结论继续保留
+- **涉及文件**：
+  - `taoyuan-duli/taoyuan-main/src/stores/useHanhaiStore.ts`
+  - `taoyuan-duli/taoyuan-main/src/views/game/HanhaiView.vue`
+  - `taoyuan-duli/taoyuan-main/src/components/game/TexasHoldemGame.vue`
+  - `taoyuan-duli/taoyuan-main/src/components/game/BuckshotRouletteGame.vue`
+- **现状修订**：
+  - 现在已有 `sessionId`、`activeTexasSession`、`activeBuckshotSession`，说明“无会话直接结算”的问题已缓解；
+  - 但 Texas 仍信任前端上传的 `finalChips`，Buckshot 仍信任前端上传的 `won/draw`；
+  - 因此问题只是从“完全裸奔”下降为“带票据的客户端裁决”，**并未真正闭环**。
+
+#### 2. 调试页依旧不是完整真实周结链
+- **涉及文件**：`taoyuan-duli/taoyuan-main/src/views/dev/LateGameDebugView.vue`
+- **现状修订**：
+  - 现在文案已明确提示“覆写日期（不跑完整结算）”；
+  - 但能力本身仍不执行完整 `useEndDay` 跨系统编排，所以仍不能作为真实回归依据。
+
+#### 3. QA 面板污染正式玩家页面的问题仍成立
+- **涉及文件**：
+  - `WalletView.vue`
+  - `BreedingView.vue`
+  - `FishPondView.vue`
+  - `GuildView.vue`
+  - `HanhaiView.vue`
+  - `MuseumView.vue`
+  - `NpcView.vue`
+  - `QuestView.vue`
+  - `ShopView.vue`
+  - `taoyuan-duli/taoyuan-main/src/components/game/QaGovernancePanel.vue`
+- **最新补充判断**：
+  - 组件内部虽有 `import.meta.env.DEV` 显示门禁，但正式页面仍直接依赖该组件；
+  - 这意味着“页面不显示”不等于“生产代码不污染”。
+
+### 三、来自 codex / claude 的新增或强化结论
+
+#### 1. WS02 完成度应下调：村庄建设不是“接近收尾”，而是“已接入但仍处于部分完成”
+- **来源**：`claude-审查.md` 第二轮修正判断 + `codex-审查.md` 的 WS02 审查
+- **综合判断**：
+  - 虽然捐赠现在已可操作、已扣物、已能领奖；
+  - 但 WS02 不只是“捐赠能点一下”就算完成，它还包括：
+    - 跨系统联动闭环；
+    - 事务安全与防刷处理；
+    - 调参与运营开关；
+    - QA、数值验收与上线文档；
+  - 因此 `T017-T020` 仍应视作没有真正收口。
+
+#### 2. 市场系统（WS04）仍然没有完成最后两项收口
+- **来源**：`claude-审查.md`
+- **涉及实施方案任务**：`T039`、`T040`
+- **综合判断**：
+  - 即便市场与动态通胀逻辑大体落地，调参与 QA / 验收文档仍未真正完成；
+  - 因而“任务是否全完成”的答案依然是否定的。
+
+#### 3. 最新一轮编译曾出现大面积类型回归，暴露出结构性风险
+- **来源**：`cline-审查.md` 第二轮补充 + type-check 报错记录
+- **涉及文件**：
+  - `useHanhaiStore.ts`
+  - `useMuseumStore.ts`
+  - `useVillageProjectStore.ts`
+  - `useQuestStore.ts`
+  - `useSaveStore.ts`
+  - `useTutorialStore.ts`
+  - `HanhaiView.vue`
+  - `HomeView.vue`
+  - `QuestView.vue`
+  - `MuseumView.vue`
+  - `NpcView.vue`
+- **结论**：
+  - 虽然后续一度把 `type-check` 跑过，但这批错误已经证明：store 之间的互相引用、隐式 any、宽松边界、computed 缺显式类型并不是“偶发现象”，而是当前工程的结构性风险。
+
+#### 4. 前端 QA 能力已有进展，但后端回归仍严重缺位
+- **来源**：`codex-审查.md` + `cline-审查.md` 第二轮补充
+- **涉及文件**：
+  - `taoyuan-duli/taoyuan-main/package.json`
+  - `taoyuan-duli/taoyuan-main/scripts/qa-late-game-samples.mjs`
+  - `taoyuan-duli/server/package.json`
+- **综合判断**：
+  - 前端现在已有：`qa:late-game-samples`、`qa:late-game`、`type-check`、`lint` 这类基础命令；
+  - 但后端仍没有 `test` script；
+  - 活动邮件、服务端存档、账号态这几条关键链路依然缺自动化回归。
+
+### 四、对整改优先级的最新统一调整
+
+结合三份报告的最新结论，`agent-审查.md` 的整改顺序建议更新为：
+
+1. **继续把瀚海赌场保留为最高优先级**，不要因为 session 校验已补就误判为已修复。  
+2. **活动邮件问题升级为“状态语义治理”**：投递、可见、领取、回执分层。  
+3. **WS02 / WS04 的收口工作继续保留为“任务未完成”证据**，不要被局部接线迷惑。  
+4. **把“类型边界与 store 循环依赖治理”前移**，因为最新 type-check 曾暴露出会阻断开发的真实工程风险。  
+5. **前端 QA 脚本视为已取得进展**，但后端测试必须提前补齐。  
+6. **正式玩家页面中的 QA 面板问题继续保留，不应因为 DEV 门禁存在就判定为已解决。**
+
+---
+
+## 第三轮合并修订（同步 2026-04-13 全链路 subagent 复审）
+
+> 本节用于吸收最新一轮“整个游戏代码全链路复审”的新增判断；若与前文更早阶段结论冲突，以本节与文首“整改完成情况（2026-04-13）”为准。
+
+### 一、需要上调的最新系统性问题
+
+#### 1. 邮箱奖励链路存在“奖励落点”和“当前前端会话”双权威源冲突
+- **涉及文件**：
+  - `taoyuan-duli/taoyuan-main/src/stores/useMailboxStore.ts`
+  - `taoyuan-duli/taoyuan-main/src/views/game/MailView.vue`
+  - `taoyuan-duli/server/src/routes/api.js`
+  - `taoyuan-duli/server/src/taoyuanMailbox.js`
+  - `taoyuan-duli/server/src/taoyuanHall.js`
+- **综合判断**：
+  - 前端当前正在玩的档，与服务端邮箱奖励真正写入的档，并不总是同一份；
+  - 尤其在 `storageMode !== 'server'` 时，前端会跳过 reload，但 UI 仍可能提示奖励已发放到当前存档；
+  - 同时 `GET /taoyuan/save/:slot` 当前还会改写服务端 `active slot`，让“读取哪个槽位”本身影响后续邮件奖励落点。
+
+#### 2. 正式环境的调试边界仍未真正封死
+- **涉及文件**：
+  - `taoyuan-duli/taoyuan-main/src/views/MainMenu.vue`
+  - `taoyuan-duli/taoyuan-main/src/stores/useSaveStore.ts`
+  - `taoyuan-duli/taoyuan-main/src/stores/useSettingsStore.ts`
+- **综合判断**：
+  - 虽然调试页与手动设置 debug override 的 UI 受 DEV 门禁控制；
+  - 但正式环境仍可通过“导入带覆盖字段的存档”恢复 `lateGameFeatureOverrides / lateGameBalanceOverrides`；
+  - 因而这不是纯开发体验问题，而是正式环境配置污染风险。
+
+### 二、对旧结论的进一步纠偏
+
+#### 1. 瀚海赌场问题要拆成 Texas 与 Buckshot 两条判断
+- **综合判断**：
+  - Buckshot 已通过 `playerActions + session` 在 store 内复盘输赢，旧版“完全信任布尔值”的结论应撤回；
+  - Texas 仍提交 `finalChips` 给 store，旧版“赌场问题未收口”仍成立，但应明确主残留点在 Texas，而不是整个赌场所有游戏一刀切。
+
+#### 2. 活动邮箱问题不应只写成“状态语义混乱”
+- **综合判断**：
+  - “投递态 / 领取态混用”仍然成立；
+  - 但本轮更重要的新证据是：**邮箱奖励最终到账哪个存档** 这件事本身并不稳定，因此该问题已经上升为数据一致性问题，而不只是状态机命名问题。
+
+### 三、验证链路的最新统一判断
+
+1. **样例档真实运行时来源** 仍是 `src/data/sampleSaves.ts`，不是 `data-defaults/taoyuan_saves/*.json`。  
+2. **`qa-late-game-samples.mjs`** 仍偏静态字段校验，不覆盖 `applySaveData()` 后的真实页面/跨日/跨周副作用。  
+3. **前端 QA 能力已有进展**，但后端邮箱 / 服务端存档 / 账号态依然缺少最小自动测试。  
+4. **`LateGameDebugView`** 仍不是完整结算推进器，只能作为开发期日历覆写工具，不能替代真实周结验证。
+
 ## 整改进度（2026-04-12，Codex 第一轮）
 
 以下问题已进入“已整改”状态：

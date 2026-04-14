@@ -12,7 +12,10 @@
           <Building :size="14" class="inline" />
           村庄建设
         </p>
-        <span class="text-[10px] text-muted">{{ villagePhaseLabel }} / {{ villageSegmentLabel }}</span>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] text-muted">{{ villagePhaseLabel }} / {{ villageSegmentLabel }}</span>
+          <Button class="justify-center !px-2 !py-1" @click="void router.push({ name: 'village-projects' })">建设总览</Button>
+        </div>
       </div>
 
       <div class="grid grid-cols-2 gap-x-3 gap-y-1 mb-2">
@@ -681,6 +684,7 @@
 
 <script setup lang="ts">
   import { computed, ref } from 'vue'
+  import { useRouter } from 'vue-router'
   import { ArrowDown, ArrowDownToLine, Building, Mountain, Leaf, Pencil, Plus, Trash2, Unlock, Warehouse, X } from 'lucide-vue-next'
   import { useHomeStore } from '@/stores/useHomeStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -698,6 +702,7 @@
   import { addLog, showFloat } from '@/composables/useGameLog'
   import Button from '@/components/game/Button.vue'
 
+  const router = useRouter()
   const homeStore = useHomeStore()
   const inventoryStore = useInventoryStore()
   const npcStore = useNpcStore()

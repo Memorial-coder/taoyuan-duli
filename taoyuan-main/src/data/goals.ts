@@ -828,6 +828,7 @@ export const createDefaultEventOperationsState = (): EventOperationsState => ({
   completedCampaignIds: [],
   completedThemeWeekIds: [],
   claimedMailCampaignIds: [],
+  claimedMailReceiptKeys: [],
   lastCampaignDayTag: '',
   lastSettlementDayTag: ''
 })

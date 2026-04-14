@@ -498,6 +498,14 @@ export const NPC_RELATIONSHIP_BENEFITS: NpcRelationshipBenefitDef[] = [
     summary: '林老愿意分享药圃暖棚与养生房的想法。',
     clueText: '林老说冬日若想稳定育药，最好搭一间向阳暖棚，旁边还要有煎药休息的地方。'
   },
+  {
+    id: 'lin_lao_hot_spring_clue',
+    npcId: 'lin_lao',
+    minStage: 'bestie',
+    type: 'clue',
+    summary: '林老提到山脚旧泉若重新修整，会是一处真正能养人的温养场。',
+    clueText: '林老说山脚旧泉的药石味还在，若能重新引泉、修缮池壁与歇脚处，就能做成真正养人的温泉。'
+  },
   { id: 'su_su_discount_1', npcId: 'su_su', minStage: 'familiar', type: 'shop_discount', value: 0.04, summary: '绸缎庄熟客折扣 -4%' },
   {
     id: 'su_su_clue',
@@ -506,6 +514,14 @@ export const NPC_RELATIONSHIP_BENEFITS: NpcRelationshipBenefitDef[] = [
     type: 'clue',
     summary: '素素提到布房与裁衣角落的布置方式。',
     clueText: '素素建议：若农舍添一间布房，不但能收纳布料，还能把送礼和回礼都准备得更体面。'
+  },
+  {
+    id: 'su_su_school_clue',
+    npcId: 'su_su',
+    minStage: 'bestie',
+    type: 'clue',
+    summary: '素素提议在村里腾一间学舍，帮大家把账册、布料和往来礼物都整理得更有规矩。',
+    clueText: '素素说，若村里有一间像样的学舍，不但能整理账册，还能把人情往来和材料登记都做得更体面。'
   },
   { id: 'sun_tiejiang_discount_1', npcId: 'sun_tiejiang', minStage: 'friend', type: 'shop_discount', value: 0.05, summary: '铁匠铺熟人价 -5%' },
   { id: 'yun_fei_discount_1', npcId: 'yun_fei', minStage: 'friend', type: 'shop_discount', value: 0.05, summary: '镖局熟人价 -5%' },
@@ -532,6 +548,14 @@ export const NPC_RELATIONSHIP_BENEFITS: NpcRelationshipBenefitDef[] = [
     summary: '红豆提起酒坊边可以搭建的小储藏间。',
     clueText: '红豆说，酒坊旁若有间阴凉的小储藏室，陈酒和药材都能放得更久。'
   },
+  {
+    id: 'hong_dou_caravan_clue',
+    npcId: 'hong_dou',
+    minStage: 'friend',
+    type: 'clue',
+    summary: '红豆觉得村口若有像样驿站，节庆物资和商队酒水都能更稳地周转。',
+    clueText: '红豆说，村口若有像样的驿站和货栈，商队停靠时不但能歇脚，节庆酒水和物资周转也会顺很多。'
+  },
   { id: 'chun_lan_quest_unlock', npcId: 'chun_lan', minStage: 'familiar', type: 'quest_unlock', summary: '春兰开始请你帮忙采集茶材和节庆筹备。' },
   { id: 'chun_lan_discount_1', npcId: 'chun_lan', minStage: 'friend', type: 'shop_discount', value: 0.04, summary: '茶庄熟客价 -4%' },
   { id: 'chun_lan_item', npcId: 'chun_lan', minStage: 'bestie', type: 'item', itemReward: { itemId: 'osmanthus_tea', quantity: 1 }, summary: '春兰送来一份她亲手窨制的桂花茶。' },
@@ -544,6 +568,14 @@ export const NPC_RELATIONSHIP_BENEFITS: NpcRelationshipBenefitDef[] = [
     summary: '雪琴提到画室旁的观景台适合改造。',
     clueText: '雪琴说，若农舍附近能有一处高台或观景角，她最愿意在那里为你画一幅像。'
   },
+  {
+    id: 'xue_qin_school_upgrade_clue',
+    npcId: 'xue_qin',
+    minStage: 'bestie',
+    type: 'clue',
+    summary: '雪琴建议把学舍再扩一层讲席和陈列墙，让它既能授课也能展示村史。',
+    clueText: '雪琴说，若学舍再扩出讲席和陈列墙，不但能教人读书记账，也能把村史和图样都展示出来。'
+  },
   { id: 'xue_qin_item', npcId: 'xue_qin', minStage: 'bestie', type: 'item', itemReward: { itemId: 'pine_incense', quantity: 2 }, summary: '雪琴送来两支她常用的松香，说作画时点着能静心。' },
   { id: 'sun_tiejiang_quest_unlock', npcId: 'sun_tiejiang', minStage: 'familiar', type: 'quest_unlock', summary: '孙铁匠开始把矿料采购和跑腿活托付给你。' },
   { id: 'sun_tiejiang_item', npcId: 'sun_tiejiang', minStage: 'bestie', type: 'item', itemReward: { itemId: 'iron_bar', quantity: 3 }, summary: '孙铁匠多锻了几块铁锭，顺手递给你。' },
@@ -555,6 +587,14 @@ export const NPC_RELATIONSHIP_BENEFITS: NpcRelationshipBenefitDef[] = [
     type: 'clue',
     summary: '云飞提起镖局仓房的改造想法。',
     clueText: '云飞说，若农舍附近有间结实的武器架和仓房，他可以帮你留意稀有武器材料。'
+  },
+  {
+    id: 'yun_fei_station_upgrade_clue',
+    npcId: 'yun_fei',
+    minStage: 'bestie',
+    type: 'clue',
+    summary: '云飞觉得商队驿站若再扩建公告牌和歇脚区，能接住更大体量的远行委托。',
+    clueText: '云飞说，若驿站再补齐公告牌、货栈和歇脚区，往来商队才会愿意留下更大宗的委托与补给需求。'
   }
 ]
 

@@ -243,12 +243,29 @@ export interface TexasTierDef {
   rounds: number
 }
 
-export interface TexasSetup {
-  sessionId: string
+export interface TexasHandSetup {
   playerHole: PokerCard[]
   dealerHole: PokerCard[]
-  /** 预发5张，组件按街逐步展示 */
   community: PokerCard[]
+}
+
+export interface TexasActionRecord {
+  round: number
+  street: TexasStreet
+  action: PokerActionType
+  total?: number
+}
+
+export interface TexasSessionReport {
+  sessionId: string
+  tierName: string
+  playerActions: TexasActionRecord[]
+}
+
+export interface TexasSetup {
+  sessionId: string
+  reserveMoney: number
+  hands: TexasHandSetup[]
   /** 场次配置 */
   tier: TexasTierDef
 }
@@ -262,4 +279,7 @@ export interface BuckshotSetup {
   shells: ShellType[]
   playerHP: number
   dealerHP: number
+  playerFirst: boolean
 }
+
+export type BuckshotPlayerAction = 'self' | 'opponent'
