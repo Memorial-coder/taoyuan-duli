@@ -83,42 +83,46 @@
       <div class="border border-accent/10 rounded-xs p-2">
         <div class="flex items-center justify-between mb-2">
           <p class="text-xs text-muted">词条列表</p>
-          <span class="text-[10px] text-muted/70">{{ filteredEntries.length }} / {{ visibleEntries.length }}</span>
+          <span class="text-[10px] text-muted/70">{{ filteredEntries.length }} / {{ derived.visibleEntryCount }}</span>
         </div>
 
-        <div class="max-h-[30rem] overflow-y-auto flex flex-col space-y-1 pr-1">
-          <button
-            v-for="entry in filteredEntries"
-            :key="entry.id"
-            class="w-full text-left border rounded-xs px-2 py-1.5 transition-colors"
-            :class="selectedId === entry.id ? 'border-accent/40 bg-accent/5' : 'border-accent/15 hover:bg-accent/5'"
-            @click="selectedId = entry.id"
-          >
-            <div class="flex items-start justify-between gap-2">
-              <div class="min-w-0">
-                <p class="text-xs font-medium break-words" :class="getCategoryColor(entry.category)" v-html="highlightText(entry.name)" />
-                <div class="flex flex-wrap items-center gap-1 mt-0.5">
-                  <span class="text-[10px] text-muted/70">{{ entry.categoryLabel }}</span>
-                  <span v-if="entry.spoiler" class="text-[10px] px-1 py-0.5 rounded-xs border border-warning/30 text-warning">隐秘</span>
-                </div>
-              </div>
-              <span class="text-[10px] text-muted shrink-0">{{ entry.relatedPanels.length > 0 ? `${entry.relatedPanels.length} 个入口` : '资料' }}</span>
-            </div>
-
-            <p class="text-[10px] text-muted mt-1 leading-relaxed">{{ getPreviewText(entry) }}</p>
-
-            <div class="flex flex-wrap gap-1 mt-1.5">
-              <span
-                v-for="tag in getIntentTags(entry)"
-                :key="`${entry.id}_${tag}`"
-                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/10 text-muted"
+        <div ref="listRef" class="max-h-[30rem] overflow-y-auto pr-1" @scroll="onListScroll">
+          <div v-if="filteredEntries.length > 0" :style="{ paddingTop: topPad + 'px', paddingBottom: bottomPad + 'px' }">
+            <div class="flex flex-col space-y-1">
+              <button
+                v-for="entry in visibleItems"
+                :key="entry.id"
+                class="w-full h-[6.75rem] overflow-hidden text-left border rounded-xs px-2 py-1.5 transition-colors"
+                :class="selectedId === entry.id ? 'border-accent/40 bg-accent/5' : 'border-accent/15 hover:bg-accent/5'"
+                @click="selectedId = entry.id"
               >
-                {{ tag }}
-              </span>
-            </div>
-          </button>
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="text-xs font-medium break-words" :class="getCategoryColor(entry.category)" v-html="highlightText(entry.name)" />
+                    <div class="flex flex-wrap items-center gap-1 mt-0.5">
+                      <span class="text-[10px] text-muted/70">{{ entry.categoryLabel }}</span>
+                      <span v-if="entry.spoiler" class="text-[10px] px-1 py-0.5 rounded-xs border border-warning/30 text-warning">隐秘</span>
+                    </div>
+                  </div>
+                  <span class="text-[10px] text-muted shrink-0">{{ entry.relatedPanels.length > 0 ? `${entry.relatedPanels.length} 个入口` : '资料' }}</span>
+                </div>
 
-          <div v-if="filteredEntries.length === 0" class="flex flex-col items-center justify-center py-10 space-y-2">
+                <p class="text-[10px] text-muted mt-1 leading-relaxed line-clamp-2">{{ getPreviewText(entry) }}</p>
+
+                <div class="flex flex-wrap gap-1 mt-1.5">
+                  <span
+                    v-for="tag in getIntentTags(entry)"
+                    :key="`${entry.id}_${tag}`"
+                    class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/10 text-muted"
+                  >
+                    {{ tag }}
+                  </span>
+                </div>
+              </button>
+            </div>
+          </div>
+
+          <div v-else class="flex flex-col items-center justify-center py-10 space-y-2">
             <BookOpen :size="36" class="text-accent/20" />
             <p class="text-xs text-muted">没有找到匹配的词条</p>
             <p class="text-[10px] text-muted/70">可以换个问题入口，或清空筛选后再看。</p>
@@ -211,7 +215,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, ref, watch } from 'vue'
+  import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
   import { Search, X, BookOpen } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import { navigateToPanel } from '@/composables/useNavigation'
@@ -233,44 +237,14 @@
   const selectedId = ref<string | null>(null)
 
   const glossaryMap = new Map(GLOSSARY.map(entry => [entry.id, entry]))
+  const spoilerCount = GLOSSARY.filter(entry => entry.spoiler).length
+  const sortedGlossary = [...GLOSSARY].sort((a, b) => {
+    const categoryDiff = a.categoryLabel.localeCompare(b.categoryLabel, 'zh-Hans-CN')
+    if (categoryDiff !== 0) return categoryDiff
+    return a.name.localeCompare(b.name, 'zh-Hans-CN')
+  })
 
   const normalizeQuery = (value: string): string => value.toLowerCase().replace(/\s+/g, ' ').trim()
-
-  const visibleEntries = computed(() => GLOSSARY.filter(entry => includeSpoilers.value || !entry.spoiler))
-
-  const categoryScopedEntries = computed(() => {
-    const q = normalizeQuery(search.value)
-    return visibleEntries.value.filter(entry => {
-      if (activeCategory.value !== 'all' && entry.category !== activeCategory.value) return false
-      return !q || entry.searchText.includes(q)
-    })
-  })
-
-  const intentScopedEntries = computed(() => {
-    const q = normalizeQuery(search.value)
-    return visibleEntries.value.filter(entry => {
-      if (activeIntent.value !== 'all' && !entry.intents.includes(activeIntent.value)) return false
-      return !q || entry.searchText.includes(q)
-    })
-  })
-
-  const categories = computed(() => [
-    { value: 'all' as const, label: '全部', count: intentScopedEntries.value.length },
-    ...Object.entries(GLOSSARY_CATEGORY_LABELS).map(([value, label]) => ({
-      value: value as GlossaryCategory,
-      label,
-      count: intentScopedEntries.value.filter(entry => entry.category === value).length,
-    })),
-  ])
-
-  const intents = computed(() => [
-    { value: 'all' as const, label: '全部问题', count: categoryScopedEntries.value.length },
-    ...Object.entries(GLOSSARY_INTENT_LABELS).map(([value, label]) => ({
-      value: value as GlossaryIntentKey,
-      label,
-      count: categoryScopedEntries.value.filter(entry => entry.intents.includes(value as GlossaryIntentKey)).length,
-    })),
-  ])
 
   const getMatchScore = (entry: GlossaryEntry, query: string): number => {
     if (!query) return 0
@@ -292,24 +266,79 @@
     return score
   }
 
-  const filteredEntries = computed(() => {
+  const derived = computed(() => {
     const q = normalizeQuery(search.value)
-    return [...visibleEntries.value]
-      .filter(entry => {
-        if (activeCategory.value !== 'all' && entry.category !== activeCategory.value) return false
-        if (activeIntent.value !== 'all' && !entry.intents.includes(activeIntent.value)) return false
-        return !q || entry.searchText.includes(q)
-      })
-      .sort((a, b) => {
-        if (q) {
-          const scoreDiff = getMatchScore(b, q) - getMatchScore(a, q)
-          if (scoreDiff !== 0) return scoreDiff
+    const categoryCounts = Object.fromEntries(
+      Object.keys(GLOSSARY_CATEGORY_LABELS).map(key => [key, 0])
+    ) as Record<GlossaryCategory, number>
+    const intentCounts = Object.fromEntries(
+      Object.keys(GLOSSARY_INTENT_LABELS).map(key => [key, 0])
+    ) as Record<GlossaryIntentKey, number>
+
+    const visibleBase: GlossaryEntry[] = []
+    const filtered: GlossaryEntry[] = []
+
+    for (const entry of sortedGlossary) {
+      if (!includeSpoilers.value && entry.spoiler) continue
+      visibleBase.push(entry)
+
+      const queryMatched = !q || entry.searchText.includes(q)
+      if (!queryMatched) continue
+
+      if (activeIntent.value === 'all' || entry.intents.includes(activeIntent.value)) {
+        categoryCounts[entry.category] += 1
+      }
+
+      if (activeCategory.value === 'all' || entry.category === activeCategory.value) {
+        for (const intent of entry.intents) {
+          intentCounts[intent] += 1
         }
+      }
+
+      if (activeCategory.value !== 'all' && entry.category !== activeCategory.value) continue
+      if (activeIntent.value !== 'all' && !entry.intents.includes(activeIntent.value)) continue
+      filtered.push(entry)
+    }
+
+    if (q) {
+      filtered.sort((a, b) => {
+        const scoreDiff = getMatchScore(b, q) - getMatchScore(a, q)
+        if (scoreDiff !== 0) return scoreDiff
         const categoryDiff = a.categoryLabel.localeCompare(b.categoryLabel, 'zh-Hans-CN')
         if (categoryDiff !== 0) return categoryDiff
         return a.name.localeCompare(b.name, 'zh-Hans-CN')
       })
+    }
+
+    return {
+      visibleEntries: visibleBase,
+      visibleEntryCount: visibleBase.length,
+      filteredEntries: filtered,
+      categoryCounts,
+      intentCounts,
+      query: q,
+    }
   })
+
+  const filteredEntries = computed(() => derived.value.filteredEntries)
+
+  const categories = computed(() => [
+    { value: 'all' as const, label: '全部', count: filteredEntries.value.length },
+    ...Object.entries(GLOSSARY_CATEGORY_LABELS).map(([value, label]) => ({
+      value: value as GlossaryCategory,
+      label,
+      count: derived.value.categoryCounts[value as GlossaryCategory],
+    })),
+  ])
+
+  const intents = computed(() => [
+    { value: 'all' as const, label: '全部问题', count: filteredEntries.value.length },
+    ...Object.entries(GLOSSARY_INTENT_LABELS).map(([value, label]) => ({
+      value: value as GlossaryIntentKey,
+      label,
+      count: derived.value.intentCounts[value as GlossaryIntentKey],
+    })),
+  ])
 
   watch(filteredEntries, entries => {
     if (!entries.some(entry => entry.id === selectedId.value)) {
@@ -327,8 +356,6 @@
     return selectedEntry.value.relatedEntryIds.map(id => glossaryMap.get(id)).filter((entry): entry is GlossaryEntry => Boolean(entry))
   })
 
-  const spoilerCount = computed(() => GLOSSARY.filter(entry => entry.spoiler).length)
-
   const hasActiveFilters = computed(() =>
     Boolean(search.value.trim()) || activeCategory.value !== 'all' || activeIntent.value !== 'all' || includeSpoilers.value
   )
@@ -339,7 +366,52 @@
     if (activeIntent.value !== 'all' || activeCategory.value !== 'all') {
       return `当前视图展示 ${filteredEntries.value.length} 条词条。`
     }
-    return `当前共可浏览 ${visibleEntries.value.length} 条词条。`
+    return `当前共可浏览 ${derived.value.visibleEntryCount} 条词条。`
+  })
+
+  const listRef = ref<HTMLElement | null>(null)
+  const listScrollTop = ref(0)
+  const listContainerHeight = ref(480)
+  const ROW_H = 108
+  const VBUFFER = 5
+  let rafId = 0
+
+  const syncListHeight = () => {
+    if (listRef.value) listContainerHeight.value = listRef.value.clientHeight
+  }
+
+  const onListScroll = (event: Event) => {
+    if (rafId) return
+    rafId = requestAnimationFrame(() => {
+      listScrollTop.value = (event.target as HTMLElement).scrollTop
+      rafId = 0
+    })
+  }
+
+  onMounted(() => {
+    syncListHeight()
+    window.addEventListener('resize', syncListHeight)
+  })
+
+  onUnmounted(() => {
+    window.removeEventListener('resize', syncListHeight)
+    if (rafId) cancelAnimationFrame(rafId)
+  })
+
+  const totalRows = computed(() => filteredEntries.value.length)
+  const visibleRange = computed(() => {
+    const start = Math.max(0, Math.floor(listScrollTop.value / ROW_H) - VBUFFER)
+    const end = Math.min(totalRows.value, Math.ceil((listScrollTop.value + listContainerHeight.value) / ROW_H) + VBUFFER)
+    return { start, end }
+  })
+
+  const visibleItems = computed(() => filteredEntries.value.slice(visibleRange.value.start, visibleRange.value.end))
+  const topPad = computed(() => visibleRange.value.start * ROW_H)
+  const bottomPad = computed(() => Math.max(0, (totalRows.value - visibleRange.value.end) * ROW_H))
+
+  watch([search, activeCategory, activeIntent, includeSpoilers], () => {
+    listScrollTop.value = 0
+    if (listRef.value) listRef.value.scrollTop = 0
   })
 
   const resetFilters = () => {

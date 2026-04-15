@@ -142,7 +142,10 @@
               >
                 <div class="admin-user-line admin-user-line--user" data-label="用户">
                   <button class="admin-user-cell" @click="selectUser(user.username)">
-                    <span class="admin-user-cell__primary">{{ user.display_name || user.username }}</span>
+                    <span class="admin-user-cell__top">
+                      <span class="admin-user-cell__primary">{{ user.display_name || user.username }}</span>
+                      <span class="admin-status admin-user-cell__status" :class="`admin-status--${user.status}`">{{ formatUserStatus(user.status) }}</span>
+                    </span>
                     <span class="admin-user-cell__secondary">@{{ user.username }}</span>
                   </button>
                 </div>
@@ -152,7 +155,7 @@
                   <div class="admin-user-line__hint">创建账号时间</div>
                 </div>
 
-                <div class="admin-user-line" data-label="状态">
+                <div class="admin-user-line admin-user-line--status" data-label="状态">
                   <span class="admin-status" :class="`admin-status--${user.status}`">{{ formatUserStatus(user.status) }}</span>
                 </div>
 
@@ -979,6 +982,14 @@
     color: inherit;
   }
 
+  .admin-user-cell__top {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    width: 100%;
+  }
+
   .admin-user-cell__primary {
     color: rgb(var(--color-text));
     font-size: 13px;
@@ -988,6 +999,10 @@
     color: rgb(var(--color-muted));
     font-size: 11px;
     line-height: 1.5;
+  }
+
+  .admin-user-cell__status {
+    flex-shrink: 0;
   }
 
   .admin-log-card {
@@ -1157,11 +1172,80 @@
   @media (max-width: 767px) {
     .admin-user-table--row {
       grid-template-columns: minmax(0, 1fr);
+      gap: 0;
+      padding: 0;
+      overflow: hidden;
+      border-radius: 8px;
+      background: rgba(18, 22, 34, 0.82);
+      box-shadow: 0 8px 18px rgba(0, 0, 0, 0.18);
     }
 
     .admin-user-line--user,
     .admin-user-line--actions {
       grid-column: span 1;
+    }
+
+    .admin-user-line {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(200, 164, 92, 0.08);
+    }
+
+    .admin-user-line::before {
+      margin-bottom: 6px;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+    }
+
+    .admin-user-line--user {
+      padding: 14px 14px 12px;
+      background: linear-gradient(180deg, rgba(200, 164, 92, 0.08), rgba(200, 164, 92, 0.02));
+    }
+
+    .admin-user-line--user::before,
+    .admin-user-line--actions::before {
+      display: none;
+    }
+
+    .admin-user-line--status {
+      display: none;
+    }
+
+    .admin-user-cell__primary {
+      font-size: 16px;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+
+    .admin-user-cell__secondary {
+      font-size: 12px;
+    }
+
+    .admin-user-line__value {
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .admin-user-line__hint {
+      margin-top: 3px;
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .admin-user-line--actions {
+      padding-top: 14px;
+      background: rgba(255, 255, 255, 0.02);
+      border-bottom: none;
+    }
+
+    .admin-user-line--actions > div {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      width: 100%;
+    }
+
+    .admin-user-line--actions :deep(.btn) {
+      width: 100%;
+      justify-content: center;
     }
 
     .admin-detail-modal {
@@ -1253,6 +1337,18 @@
     }
 
     .admin-slot-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-user-line {
+      padding: 10px 12px;
+    }
+
+    .admin-user-line--user {
+      padding: 12px;
+    }
+
+    .admin-user-line--actions > div {
       grid-template-columns: minmax(0, 1fr);
     }
   }

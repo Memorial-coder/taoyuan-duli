@@ -5,582 +5,467 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>桃源乡百科全书</title>
   <style>
-    @page { size: A4; margin: 18mm 14mm; }
-    :root { color-scheme: light; }
+    :root {
+      color-scheme: light;
+      --bg: #efe2c1;
+      --bg-soft: #f8efdb;
+      --paper: rgba(255, 249, 236, 0.95);
+      --paper-deep: rgba(249, 240, 220, 0.98);
+      --ink: #372b19;
+      --muted: #716044;
+      --accent: #8f4f1e;
+      --accent-deep: #6d3611;
+      --accent-soft: rgba(143, 79, 30, 0.12);
+      --gold: #c6944d;
+      --line: rgba(107, 72, 31, 0.18);
+      --line-strong: rgba(107, 72, 31, 0.3);
+      --shadow: 0 14px 34px rgba(66, 43, 17, 0.12);
+      --ui-font: "Microsoft YaHei", "PingFang SC", sans-serif;
+      --body-font: "Noto Serif SC", "Source Han Serif SC", "Songti SC", "STSong", "SimSun", "Microsoft YaHei", serif;
+    }
     * { box-sizing: border-box; }
     html { scroll-behavior: smooth; }
-    body { margin: 0; font-family: "Microsoft YaHei", "PingFang SC", sans-serif; color: #222; line-height: 1.7; font-size: 14px; background: linear-gradient(180deg,#f7f0df 0%, #fcfaf5 100%); }
-    .page { max-width: 1280px; margin: 0 auto; padding: 28px 20px 56px; }
-    .hero { background: linear-gradient(135deg,#fff7df,#f6ead0); border: 1px solid #e7c986; border-radius: 18px; padding: 28px; box-shadow: 0 12px 36px rgba(138,90,18,.10); margin-bottom: 24px; }
-    .hero h1 { margin: 0 0 12px; font-size: 34px; color: #8a5a12; }
-    .hero p { margin: 0; color: #5f4a22; }
+    body {
+      margin: 0;
+      color: var(--ink);
+      font: 15px/1.84 var(--body-font);
+      background:
+        radial-gradient(circle at top, rgba(255, 247, 223, 0.92), rgba(239, 227, 193, 0.98)),
+        radial-gradient(circle at 10% 12%, rgba(143, 79, 30, 0.05), transparent 18%),
+        radial-gradient(circle at 88% 9%, rgba(112, 126, 76, 0.07), transparent 16%),
+        repeating-linear-gradient(0deg, rgba(143, 79, 30, 0.018) 0, rgba(143, 79, 30, 0.018) 1px, transparent 1px, transparent 24px),
+        linear-gradient(180deg, #ead9b2 0%, #f6edd7 100%);
+    }
+    .page { max-width: 1220px; margin: 0 auto; padding: 30px 22px 58px; }
+    .hero, .sidebar, .content {
+      position: relative;
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+    .hero {
+      overflow: hidden;
+      padding: 34px 34px 30px;
+      border-radius: 28px;
+      background:
+        radial-gradient(circle at right top, rgba(191, 134, 64, 0.18), transparent 30%),
+        linear-gradient(135deg, rgba(255, 247, 223, 0.98), rgba(246, 232, 201, 0.96));
+      margin-bottom: 24px;
+    }
+    .hero::before,
+    .sidebar::before,
+    .content::before {
+      content: "";
+      position: absolute;
+      inset: 12px;
+      border-radius: 18px;
+      border: 1px solid rgba(143, 79, 30, 0.08);
+      pointer-events: none;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      left: 28px;
+      right: 110px;
+      bottom: 18px;
+      height: 1px;
+      background: linear-gradient(90deg, rgba(196, 148, 77, 0.5), rgba(196, 148, 77, 0));
+      pointer-events: none;
+    }
+    .seal-mark {
+      position: absolute;
+      top: 24px;
+      right: 24px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 52px;
+      height: 112px;
+      border-radius: 16px;
+      background: linear-gradient(180deg, rgba(143, 79, 30, 0.92), rgba(109, 54, 17, 0.96));
+      color: #fff5e7;
+      font: 700 15px/1.5 var(--ui-font);
+      writing-mode: vertical-rl;
+      letter-spacing: 0.18em;
+      box-shadow: 0 12px 20px rgba(66, 43, 17, 0.18);
+    }
+    .eyebrow, .tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: var(--accent-soft);
+      border: 1px solid rgba(143, 79, 30, 0.14);
+      color: var(--accent);
+      font-size: 12px;
+      font-family: var(--ui-font);
+    }
+    .hero h1 {
+      margin: 14px 0 10px;
+      padding-right: 78px;
+      font-size: 38px;
+      color: var(--accent);
+      letter-spacing: 0.05em;
+      font-weight: 700;
+    }
+    .hero p { margin: 0; color: #5a4728; max-width: 900px; }
     .hero-meta, .hero-actions, .jump-links, .section-links { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
-    .hero-meta span { background: rgba(138,90,18,.08); color: #7a5514; border: 1px solid rgba(138,90,18,.16); padding: 6px 10px; border-radius: 999px; font-size: 12px; }
-    .hero-actions a, .jump-links a, .section-links a, .toc-list a, .back-top { text-decoration: none; }
-    .pill-link { display: inline-flex; align-items: center; gap: 8px; background: #fffaf0; color: #8a5a12; border: 1px solid rgba(138,90,18,.16); padding: 9px 12px; border-radius: 999px; font-weight: 600; }
-    .pill-link:hover, .toc-list a:hover { background: rgba(138,90,18,.08); }
-    .layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 24px; align-items: start; }
-    .sidebar { position: sticky; top: 18px; background: rgba(255,255,255,.88); backdrop-filter: blur(8px); border: 1px solid #ead8b2; border-radius: 16px; padding: 18px; box-shadow: 0 10px 28px rgba(0,0,0,.06); }
-    .sidebar h2 { margin: 0 0 10px; font-size: 18px; color: #8a5a12; border: none; padding: 0; }
+    .pill-link, .toc-list a, .section-links a, .question-grid a, .back-top { color: var(--accent); text-decoration: none; }
+    .pill-link {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      padding: 10px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(143, 79, 30, 0.24);
+      background: linear-gradient(180deg, #fffaf0, #f0dfbf);
+      font-weight: 700;
+      font-family: var(--ui-font);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    }
+    .pill-link:hover, .toc-list a:hover {
+      background: linear-gradient(180deg, #fff8ea, #ebd6af);
+    }
+    .layout { display: grid; grid-template-columns: 292px minmax(0, 1fr); gap: 26px; align-items: start; }
+    .sidebar {
+      position: sticky;
+      top: 18px;
+      padding: 20px 18px;
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255, 251, 240, 0.97), rgba(247, 238, 216, 0.95));
+    }
+    .sidebar h2 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0 0 12px;
+      font-size: 18px;
+      color: var(--accent);
+      font-family: var(--ui-font);
+    }
+    .sidebar h2::before,
+    h2::before {
+      content: "";
+      display: inline-block;
+      width: 18px;
+      height: 18px;
+      border-radius: 999px;
+      background:
+        radial-gradient(circle, rgba(255, 242, 212, 0.96) 0 26%, rgba(198, 148, 77, 0.9) 28% 52%, rgba(143, 79, 30, 0.96) 54% 74%, transparent 76%);
+      flex: 0 0 auto;
+    }
     .toc-list { list-style: none; margin: 0; padding: 0; }
-    .toc-list li { margin: 4px 0; }
-    .toc-list a { color: #5c471e; display: block; padding: 5px 8px; border-radius: 8px; }
-    .toc-sub a { padding-left: 18px; font-size: 13px; color: #73603a; }
-    .content { background: rgba(255,255,255,.92); border: 1px solid #ead8b2; border-radius: 18px; padding: 28px 30px; box-shadow: 0 10px 28px rgba(0,0,0,.06); }
-    h1, h2, h3, h4 { color: #8a5a12; page-break-after: avoid; scroll-margin-top: 18px; }
-    .content > h1:first-child { display: none; }
-    h2 { font-size: 24px; margin-top: 30px; border-left: 5px solid #d9b56d; padding-left: 10px; }
-    h3 { font-size: 19px; margin-top: 22px; }
-    h4 { font-size: 16px; margin-top: 18px; }
-    p, li { orphans: 3; widows: 3; }
-    code { background: #f3f3f3; padding: 1px 5px; border-radius: 4px; font-family: Consolas, monospace; }
-    a { color: #9d6612; }
-    blockquote { margin: 14px 0; padding: 8px 14px; background: #faf6ea; border-left: 4px solid #d9b56d; color: #5a4a2a; }
-    hr { border: none; border-top: 1px solid #ddd; margin: 22px 0; }
-    table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: 13px; }
-    th, td { border: 1px solid #d9d9d9; padding: 8px 10px; vertical-align: top; }
-    th { background: #f5e7c2; }
+    .toc-list li + li { margin-top: 6px; }
+    .toc-list a {
+      display: block;
+      padding: 8px 12px;
+      border-radius: 14px;
+      color: #5f4a2a;
+      background: rgba(255, 249, 236, 0.72);
+      font-family: var(--ui-font);
+    }
+    .content {
+      padding: 30px 32px;
+      border-radius: 26px;
+      background: linear-gradient(180deg, rgba(255, 251, 241, 0.98), rgba(250, 244, 227, 0.95));
+    }
+    h2, h3 { color: var(--accent); scroll-margin-top: 18px; }
+    h2 {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-top: 36px;
+      font-size: 25px;
+      padding-left: 0;
+      border-left: none;
+    }
+    h2::after {
+      content: "";
+      height: 1px;
+      flex: 1 1 auto;
+      background: linear-gradient(90deg, rgba(196, 148, 77, 0.46), rgba(196, 148, 77, 0));
+      margin-left: 8px;
+    }
+    h3 {
+      margin-top: 20px;
+      font-size: 19px;
+      color: var(--accent-deep);
+    }
+    p, li { color: var(--ink); }
+    strong { color: #20160b; }
+    blockquote {
+      margin: 14px 0;
+      padding: 12px 14px;
+      border-left: 4px solid var(--gold);
+      border-radius: 12px;
+      background: rgba(255, 245, 226, 0.92);
+    }
+    code { background: rgba(143, 79, 30, 0.08); padding: 1px 5px; border-radius: 4px; font-family: Consolas, monospace; }
     ul, ol { padding-left: 24px; }
-    strong { color: #000; }
-    .link-panel { margin: 16px 0 22px; padding: 14px 16px; border: 1px solid #ead8b2; border-radius: 14px; background: #fcf8ef; }
-    .link-panel h3 { margin-top: 0; margin-bottom: 10px; font-size: 16px; }
-    .section-links { font-size: 13px; }
-    .back-top { position: fixed; right: 18px; bottom: 18px; background: #8a5a12; color: #fff; padding: 10px 14px; border-radius: 999px; box-shadow: 0 8px 18px rgba(0,0,0,.15); font-size: 13px; }
-    @media (max-width: 960px) { .layout { grid-template-columns: 1fr; } .sidebar { position: static; } .content { padding: 22px 18px; } .hero { padding: 22px 18px; } .hero h1 { font-size: 28px; } }
+    table { width: 100%; border-collapse: collapse; margin: 12px 0 18px; font-size: 13px; }
+    th, td { border: 1px solid var(--line); padding: 8px 10px; vertical-align: top; }
+    th { background: rgba(196, 138, 69, 0.16); }
+    .panel, .card {
+      margin: 16px 0 22px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 20px;
+      background: rgba(255, 249, 236, 0.86);
+    }
+    .grid-2, .grid-3, .question-grid { display: grid; gap: 14px; }
+    .grid-2, .question-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .question-grid a, .section-links a { text-decoration: underline; text-underline-offset: 3px; }
+    .back-top {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, #91511f, #6d3611);
+      color: #fff !important;
+      box-shadow: 0 10px 22px rgba(66, 43, 17, 0.18);
+      font-size: 13px;
+      font-family: var(--ui-font);
+    }
+    @media (max-width: 960px) {
+      .layout { grid-template-columns: 1fr; }
+      .sidebar { position: static; }
+      .content { padding: 22px 18px; }
+      .hero { padding: 24px 18px 22px; }
+      .hero h1 { padding-right: 0; font-size: 28px; }
+      .seal-mark { display: none; }
+      .grid-2, .grid-3, .question-grid { grid-template-columns: 1fr; }
+    }
   </style>
 </head>
 <body id="top">
   <div class="page">
     <header class="hero">
+      <div class="seal-mark" aria-hidden="true">桃源乡</div>
+      <div class="eyebrow">资料索引页 · 百科全书</div>
       <h1>桃源乡 · 百科全书</h1>
-      <p>这是完整查询页，保留开局、主界面、存档、农场、养殖、钓鱼、矿洞、社交、联动兑换与设置等全部内容。适合边玩边查，也适合从新手页跳转过来深挖机制。</p>
+      <p>这页按当前版本真实玩法重排成“系统索引页”。适合你在主菜单里先理解大系统分工，真正进游戏后再用游戏内百科按问题搜索物品、送礼和解锁条件。</p>
       <div class="hero-meta">
-        <span>适合中期玩家查机制</span>
-        <span>适合边玩边查完整系统</span>
-        <span>支持和新手教程页来回跳转</span>
+        <span class="tag">适合开局前看大结构</span>
+        <span class="tag">适合中期玩家查系统联动</span>
+        <span class="tag">和新手教程来回跳转</span>
       </div>
       <div class="hero-actions">
         <a class="pill-link" href="./guide.html">返回新手教程</a>
-        <a class="pill-link" href="#目录">看百科目录</a>
-        <a class="pill-link" href="#26-常见问题-faq">直接跳到 FAQ</a>
+        <a class="pill-link" href="#core-loop">直接看核心循环</a>
+        <a class="pill-link" href="#faq">直接跳到 FAQ</a>
       </div>
     </header>
+
     <div class="layout">
       <aside class="sidebar">
         <h2>快速导航</h2>
         <ul class="toc-list">
-          <li class="toc-main"><a href="#1-游戏定位与核心玩法">1. 游戏定位与核心玩法</a></li>
-          <li class="toc-main"><a href="#2-开局前必须知道的-10-件事">2. 开局前必须知道的 10 件事</a></li>
-          <li class="toc-main"><a href="#3-如何开始一局新游戏">3. 如何开始一局新游戏</a></li>
-          <li class="toc-sub"><a href="#新游戏开始流程">新游戏开始流程</a></li>
-          <li class="toc-sub"><a href="#系统会自动做什么">系统会自动做什么</a></li>
-          <li class="toc-main"><a href="#4-六种田庄详细说明与推荐">4. 六种田庄详细说明与推荐</a></li>
-          <li class="toc-sub"><a href="#新手推荐顺序">新手推荐顺序</a></li>
-          <li class="toc-sub"><a href="#开局选择建议">开局选择建议</a></li>
-          <li class="toc-main"><a href="#5-主界面完整说明">5. 主界面完整说明</a></li>
-          <li class="toc-sub"><a href="#51-顶部状态栏">5.1 顶部状态栏</a></li>
-          <li class="toc-sub"><a href="#52-睡觉按钮">5.2 睡觉按钮</a></li>
-          <li class="toc-sub"><a href="#53-中间主玩法面板">5.3 中间主玩法面板</a></li>
-          <li class="toc-sub"><a href="#54-移动端快捷按钮">5.4 移动端快捷按钮</a></li>
-          <li class="toc-main"><a href="#6-顶部状态栏与新增按钮详解">6. 顶部状态栏与新增按钮详解</a></li>
-          <li class="toc-sub"><a href="#61-顶栏保存">6.1 顶栏“保存”</a></li>
-          <li class="toc-sub"><a href="#62-顶栏保存并返回">6.2 顶栏“保存并返回”</a></li>
-          <li class="toc-sub"><a href="#63-两个按钮的失败保护">6.3 两个按钮的失败保护</a></li>
-          <li class="toc-main"><a href="#7-时间季节天气体力与睡觉机制">7. 时间、季节、天气、体力与睡觉机制</a></li>
-          <li class="toc-sub"><a href="#71-时间结构">7.1 时间结构</a></li>
-          <li class="toc-sub"><a href="#72-晚睡与昏倒惩罚">7.2 晚睡与昏倒惩罚</a></li>
-          <li class="toc-sub"><a href="#73-天气影响">7.3 天气影响</a></li>
-          <li class="toc-sub"><a href="#74-体力机制">7.4 体力机制</a></li>
-          <li class="toc-main"><a href="#8-存档系统超详细说明">8. 存档系统超详细说明</a></li>
-          <li class="toc-sub"><a href="#81-存档槽位">8.1 存档槽位</a></li>
-          <li class="toc-sub"><a href="#82-什么是活跃存档槽位">8.2 什么是活跃存档槽位</a></li>
-          <li class="toc-sub"><a href="#83-本地存储">8.3 本地存储</a></li>
-          <li class="toc-sub"><a href="#84-服务端持久化">8.4 服务端持久化</a></li>
-          <li class="toc-sub"><a href="#85-导入-导出存档">8.5 导入 / 导出存档</a></li>
-          <li class="toc-sub"><a href="#86-存档管理入口">8.6 存档管理入口</a></li>
-          <li class="toc-main"><a href="#9-新手第一天到第一周建议路线">9. 新手第一天到第一周建议路线</a></li>
-          <li class="toc-sub"><a href="#第一天建议做什么">第一天建议做什么</a></li>
-          <li class="toc-sub"><a href="#前三天目标">前三天目标</a></li>
-          <li class="toc-sub"><a href="#第一周目标">第一周目标</a></li>
-          <li class="toc-sub"><a href="#新手最稳路线">新手最稳路线</a></li>
-          <li class="toc-main"><a href="#10-农场系统详解">10. 农场系统详解</a></li>
-          <li class="toc-sub"><a href="#101-标准循环">10.1 标准循环</a></li>
-          <li class="toc-sub"><a href="#102-前期不要铺太满">10.2 前期不要铺太满</a></li>
-          <li class="toc-sub"><a href="#103-作物选择原则">10.3 作物选择原则</a></li>
-          <li class="toc-sub"><a href="#104-换季前最重要的事">10.4 换季前最重要的事</a></li>
-          <li class="toc-main"><a href="#11-家园仓库虚空箱">11. 家园、仓库、虚空箱</a></li>
-          <li class="toc-sub"><a href="#111-家园的作用">11.1 家园的作用</a></li>
-          <li class="toc-sub"><a href="#112-仓储为什么关键">11.2 仓储为什么关键</a></li>
-          <li class="toc-sub"><a href="#113-虚空箱">11.3 虚空箱</a></li>
-          <li class="toc-main"><a href="#12-畜牧养殖玩法">12. 畜牧养殖玩法</a></li>
-          <li class="toc-sub"><a href="#你要做的事">你要做的事</a></li>
-          <li class="toc-sub"><a href="#草甸田庄为什么舒服">草甸田庄为什么舒服</a></li>
-          <li class="toc-sub"><a href="#新手建议">新手建议</a></li>
-          <li class="toc-main"><a href="#13-钓鱼与鱼塘玩法">13. 钓鱼与鱼塘玩法</a></li>
-          <li class="toc-sub"><a href="#131-钓鱼为什么值得做">13.1 钓鱼为什么值得做</a></li>
-          <li class="toc-sub"><a href="#132-鱼塘系统">13.2 鱼塘系统</a></li>
-          <li class="toc-main"><a href="#14-采集挖矿与战斗探索">14. 采集、挖矿与战斗探索</a></li>
-          <li class="toc-sub"><a href="#141-采集">14.1 采集</a></li>
-          <li class="toc-sub"><a href="#142-矿洞">14.2 矿洞</a></li>
-          <li class="toc-sub"><a href="#143-战斗建议">14.3 战斗建议</a></li>
-          <li class="toc-main"><a href="#15-烹饪加工与作坊思路">15. 烹饪、加工与作坊思路</a></li>
-          <li class="toc-sub"><a href="#烹饪的主要价值">烹饪的主要价值</a></li>
-          <li class="toc-sub"><a href="#加工的主要价值">加工的主要价值</a></li>
-          <li class="toc-main"><a href="#16-背包品质出售与材料管理">16. 背包、品质、出售与材料管理</a></li>
-          <li class="toc-sub"><a href="#161-常见问题不是不会赚钱而是不会整理">16.1 常见问题不是不会赚钱，而是不会整理</a></li>
-          <li class="toc-sub"><a href="#162-品质系统">16.2 品质系统</a></li>
-          <li class="toc-sub"><a href="#163-出售建议">16.3 出售建议</a></li>
-          <li class="toc-main"><a href="#17-技能成长与专精">17. 技能成长与专精</a></li>
-          <li class="toc-main"><a href="#18-村民社交送礼婚姻与家庭">18. 村民社交、送礼、婚姻与家庭</a></li>
-          <li class="toc-main"><a href="#19-隐藏-npc缘分与特殊发现">19. 隐藏 NPC、缘分与特殊发现</a></li>
-          <li class="toc-main"><a href="#20-任务成就公会博物馆">20. 任务、成就、公会、博物馆</a></li>
-          <li class="toc-sub"><a href="#201-任务系统">20.1 任务系统</a></li>
-          <li class="toc-sub"><a href="#202-成就系统">20.2 成就系统</a></li>
-          <li class="toc-sub"><a href="#203-公会">20.3 公会</a></li>
-          <li class="toc-sub"><a href="#204-博物馆">20.4 博物馆</a></li>
-          <li class="toc-main"><a href="#21-翰海沙漠与中后期玩法">21. 翰海沙漠与中后期玩法</a></li>
-          <li class="toc-main"><a href="#22-与抽奖系统的联动功能">22. 与抽奖系统的联动功能</a></li>
-          <li class="toc-sub"><a href="#221-返回抽奖系统">22.1 返回抽奖系统</a></li>
-          <li class="toc-sub"><a href="#222-关于游戏">22.2 关于游戏</a></li>
-          <li class="toc-sub"><a href="#223-铜钱与-newapi-额度兑换">22.3 铜钱与 NewAPI 额度兑换</a></li>
-          <li class="toc-sub"><a href="#224-汇率含义">22.4 汇率含义</a></li>
-          <li class="toc-main"><a href="#23-设置菜单说明">23. 设置菜单说明</a></li>
-          <li class="toc-sub"><a href="#通用">通用</a></li>
-          <li class="toc-sub"><a href="#外观">外观</a></li>
-          <li class="toc-sub"><a href="#通知">通知</a></li>
-          <li class="toc-sub"><a href="#存档管理入口">存档管理入口</a></li>
-          <li class="toc-main"><a href="#24-主菜单新增功能说明">24. 主菜单新增功能说明</a></li>
-          <li class="toc-sub"><a href="#返回抽奖系统">返回抽奖系统</a></li>
-          <li class="toc-sub"><a href="#关于游戏">关于游戏</a></li>
-          <li class="toc-sub"><a href="#服务端持久化">服务端持久化</a></li>
-          <li class="toc-main"><a href="#25-新手常见误区">25. 新手常见误区</a></li>
-          <li class="toc-sub"><a href="#误区-1第一周什么都想做">误区 1：第一周什么都想做</a></li>
-          <li class="toc-sub"><a href="#误区-2不手动保存">误区 2：不手动保存</a></li>
-          <li class="toc-sub"><a href="#误区-3换季前乱种">误区 3：换季前乱种</a></li>
-          <li class="toc-sub"><a href="#误区-4什么都卖">误区 4：什么都卖</a></li>
-          <li class="toc-sub"><a href="#误区-5血量和体力见底还继续硬冲">误区 5：血量和体力见底还继续硬冲</a></li>
-          <li class="toc-main"><a href="#26-常见问题-faq">26. 常见问题 FAQ</a></li>
-          <li class="toc-sub"><a href="#q1为什么顶部保存按钮提示没有活跃存档">Q1：为什么顶部保存按钮提示没有活跃存档？</a></li>
-          <li class="toc-sub"><a href="#q2保存并返回安全吗">Q2：保存并返回安全吗？</a></li>
-          <li class="toc-sub"><a href="#q3为什么我看不到返回抽奖系统-关于游戏">Q3：为什么我看不到返回抽奖系统 / 关于游戏？</a></li>
-          <li class="toc-sub"><a href="#q4本地存储和服务端持久化能切换吗">Q4：本地存储和服务端持久化能切换吗？</a></li>
-          <li class="toc-sub"><a href="#q5导出存档有必要吗">Q5：导出存档有必要吗？</a></li>
-          <li class="toc-sub"><a href="#q6额度兑换是不是实时到账">Q6：额度兑换是不是实时到账？</a></li>
-          <li class="toc-sub"><a href="#q7顶栏保存和存档管理里的保存哪个好">Q7：顶栏保存和存档管理里的保存哪个好？</a></li>
-          <li class="toc-sub"><a href="#q8前期优先升级什么">Q8：前期优先升级什么？</a></li>
-          <li class="toc-main"><a href="#最后给新玩家的一句建议">最后给新玩家的一句建议</a></li>
+          <li><a href="#how-to-use">1. 这页怎么用</a></li>
+          <li><a href="#start-and-save">2. 开始前与存档</a></li>
+          <li><a href="#farm-choice">3. 田庄与前七天</a></li>
+          <li><a href="#core-loop">4. 当前版本核心循环</a></li>
+          <li><a href="#quest-week">5. 任务板 / 主题周 / 周结算</a></li>
+          <li><a href="#life-production">6. 农场、牧场、加工</a></li>
+          <li><a href="#fishpond">7. 钓鱼与鱼塘</a></li>
+          <li><a href="#mining-guild">8. 矿洞与公会</a></li>
+          <li><a href="#breeding">9. 育种</a></li>
+          <li><a href="#relationship-spirit">10. 村民、婚姻、仙灵</a></li>
+          <li><a href="#museum">11. 博物馆</a></li>
+          <li><a href="#hanhai">12. 瀚海</a></li>
+          <li><a href="#wallet-budget">13. 钱袋、预算与高价投入</a></li>
+          <li><a href="#online">14. 在线功能</a></li>
+          <li><a href="#faq">15. 常见问题 FAQ</a></li>
         </ul>
       </aside>
+
       <main class="content">
-        <h1 id="桃源乡-非常细致的游戏教程">桃源乡 · 非常细致的游戏教程</h1>
-        <div class="link-panel">
-          <h3>阅读建议</h3>
-          <p>如果你是第一次玩，建议先回到新手教程页，再通过下面的目录或文内链接按需查机制。</p>
-          <div class="jump-links"><a class="pill-link" href="./guide.html">返回新手教程</a><a class="pill-link" href="#目录">跳到百科目录</a><a class="pill-link" href="#8-存档系统超详细说明">直接看存档系统</a></div>
+        <h2 id="how-to-use">1. 这页怎么用</h2>
+        <section class="panel">
+          <h3>读法建议</h3>
+          <ul>
+            <li>第一次进游戏：先看 <a href="./guide.html">新手教程</a>，确认路线再回来查系统。</li>
+            <li>中期开始迷路：优先看 <a href="#quest-week">任务板 / 主题周 / 周结算</a> 和 <a href="#core-loop">核心循环</a>。</li>
+            <li>想开新系统：直接跳到 <a href="#fishpond">鱼塘</a>、<a href="#breeding">育种</a>、<a href="#museum">博物馆</a>、<a href="#hanhai">瀚海</a>。</li>
+            <li>想查物品、送礼、来源：更推荐进游戏后用独立百科页按问题搜索。</li>
+          </ul>
+        </section>
+        <div class="question-grid">
+          <a href="#start-and-save">我想先搞懂账号、存档和保存按钮</a>
+          <a href="#farm-choice">我想看六种田庄和前七天路线</a>
+          <a href="#quest-week">我想知道现在为什么总强调任务板和主题周</a>
+          <a href="#fishpond">我想知道鱼塘为什么变成一条完整长线了</a>
+          <a href="#breeding">我想知道育种现在做到什么深度了</a>
+          <a href="#wallet-budget">我想知道钱袋和周预算怎么用</a>
         </div>
-        <blockquote><p>这是一份专门面向 <strong>桃源乡</strong> 的完整教程，覆盖开局、主界面、存档、农场、养殖、钓鱼、矿洞、社交、任务、联动兑换，以及最近新增的 <strong>保存 / 保存并返回 / 返回抽奖系统 / 关于游戏</strong> 等功能。</p></blockquote>
-        <hr />
-        <h2 id="目录">目录</h2>
-        <ol>
-          <li><a href="#1-游戏定位与核心玩法">游戏定位与核心玩法</a></li>
-          <li><a href="#2-开局前必须知道的-10-件事">开局前必须知道的 10 件事</a></li>
-          <li><a href="#3-如何开始一局新游戏">如何开始一局新游戏</a></li>
-          <li><a href="#4-六种田庄详细说明与推荐">六种田庄详细说明与推荐</a></li>
-          <li><a href="#5-主界面完整说明">主界面完整说明</a></li>
-          <li><a href="#6-顶部状态栏与新增按钮详解">顶部状态栏与新增按钮详解</a></li>
-          <li><a href="#7-时间季节天气体力与睡觉机制">时间、季节、天气、体力与睡觉机制</a></li>
-          <li><a href="#8-存档系统超详细说明">存档系统超详细说明</a></li>
-          <li><a href="#9-新手第一天到第一周建议路线">新手第一天到第一周建议路线</a></li>
-          <li><a href="#10-农场系统详解">农场系统详解</a></li>
-          <li><a href="#11-家园仓库虚空箱">家园、仓库、虚空箱</a></li>
-          <li><a href="#12-畜牧养殖玩法">畜牧养殖玩法</a></li>
-          <li><a href="#13-钓鱼与鱼塘玩法">钓鱼与鱼塘玩法</a></li>
-          <li><a href="#14-采集挖矿与战斗探索">采集、挖矿与战斗探索</a></li>
-          <li><a href="#15-烹饪加工与作坊思路">烹饪、加工与作坊思路</a></li>
-          <li><a href="#16-背包品质出售与材料管理">背包、品质、出售与材料管理</a></li>
-          <li><a href="#17-技能成长与专精">技能成长与专精</a></li>
-          <li><a href="#18-村民社交送礼婚姻与家庭">村民社交、送礼、婚姻与家庭</a></li>
-          <li><a href="#19-隐藏-npc缘分与特殊发现">隐藏 NPC、缘分与特殊发现</a></li>
-          <li><a href="#20-任务成就公会博物馆">任务、成就、公会、博物馆</a></li>
-          <li><a href="#21-翰海沙漠与中后期玩法">翰海沙漠与中后期玩法</a></li>
-          <li><a href="#22-与抽奖系统的联动功能">与抽奖系统的联动功能</a></li>
-          <li><a href="#23-设置菜单说明">设置菜单说明</a></li>
-          <li><a href="#24-主菜单新增功能说明">主菜单新增功能说明</a></li>
-          <li><a href="#25-新手常见误区">新手常见误区</a></li>
-          <li><a href="#26-常见问题-faq">常见问题 FAQ</a></li>
-        </ol>
         <div class="section-links"><a href="./guide.html">返回新手教程</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="1-游戏定位与核心玩法">1. 游戏定位与核心玩法</h2>
-        <p><strong>桃源乡</strong> 是一款像素风田园经营游戏，但它绝不只是“种地”。</p>
-        <p>随着流程推进，你会逐渐接触到：</p>
-        <ul><li>农耕：开地、播种、浇水、施肥、收获、扩建</li><li>养殖：鸡舍、畜棚、动物照顾、产物经营</li><li>钓鱼：不同地点、天气、时间、季节影响鱼种和收益</li><li>挖矿与战斗：矿洞探索、怪物、BOSS、装备、掉落和成长</li><li>烹饪与加工：把原料做成恢复品、增益品或高价值商品</li><li>社交：和村民交流、送礼、推进关系、结婚成家</li><li>收集：公会、博物馆、成就、隐藏 NPC、特殊剧情</li></ul>
-        <p>一句话总结：</p>
-        <blockquote><p><strong>桃源乡是一款“农场经营 + 资源探索 + 角色成长 + 村落生活”混合在一起的长期经营游戏。</strong></p></blockquote>
-        <p>如果你喜欢慢慢建设自己的农场和生活节奏，它会越玩越有意思。</p>
-        <div class="section-links"><a href="./guide.html#five-rules">回新手教程：先看 5 条原则</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="2-开局前必须知道的-10-件事">2. 开局前必须知道的 10 件事</h2>
-        <ol><li><strong>体力很重要</strong>：绝大多数行动都会消耗体力。</li><li><strong>时间是会流逝的</strong>：每天能做的事有限，睡得太晚会有惩罚。</li><li><strong>前期最缺的是钱、体力、背包空间和仓储能力。</strong></li><li><strong>不要平均发展所有系统</strong>，先养出一条稳定收益线。</li><li><strong>换季前几天一定要注意成熟时间</strong>，不然作物会白白枯萎。</li><li><strong>重要节点要手动保存</strong>，尤其是下矿、购物、换季前后。</li><li><strong>不要把所有材料都卖光</strong>，很多稀有材料中后期会非常缺。</li><li><strong>村民社交不是装饰</strong>，它关系到剧情、婚姻、奖励和隐藏内容。</li><li><strong>不同田庄开局差异很大</strong>，选图会影响你前期节奏。</li><li><strong>桃源乡现在和抽奖系统联动</strong>，你可以保存后返回，还能兑换额度。</li></ol>
-        <p>新手最稳妥的原则：</p>
-        <blockquote><p><strong>先种田保底，再用剩余体力去钓鱼、采集或下矿。</strong></p></blockquote>
-        <div class="section-links"><a href="./guide.html#five-rules">回新手教程：看浓缩版 5 条</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="3-如何开始一局新游戏">3. 如何开始一局新游戏</h2>
-        <p>进入桃源乡主菜单后，你会看到：</p>
-        <ul><li>本地存储 / 服务端持久化切换</li><li><code>新的旅程</code></li><li><code>返回抽奖系统</code>（后台开启时显示）</li><li><code>关于游戏</code>（后台开启时显示）</li><li>存档列表</li><li>导入存档</li></ul>
-        <h3 id="新游戏开始流程">新游戏开始流程</h3>
-        <ol><li>点击 <strong>新的旅程</strong></li><li>阅读并同意隐私协议</li><li>输入角色名字（最多 4 个字）</li><li>选择角色性别</li><li>进入田庄选择界面</li><li>选择一个田庄类型</li><li>确认后正式进入游戏</li></ol>
-        <h3 id="系统会自动做什么">系统会自动做什么</h3>
-        <p>开新局时系统会自动：</p>
-        <ul><li>分配一个空闲存档槽位</li><li>清空上一局残留状态</li><li>写入角色身份</li><li>创建初始农场</li><li>发放开局基础物资（例如种子）</li><li>初始化主线任务</li><li>若开启新手提示，会写入第一条引导日志</li></ul>
-        <p>也就是说：</p>
-        <blockquote><p><strong>“新的旅程”一旦进入，就是一局已经绑定了存档槽位的新游戏。</strong></p></blockquote>
-        <div class="section-links"><a href="./guide.html#start-game">回新手教程：看简版开局流程</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="4-六种田庄详细说明与推荐">4. 六种田庄详细说明与推荐</h2>
-        <p>目前共有 6 种田庄：</p>
-        <table><thead><tr><th>田庄</th><th>开局加成</th><th>适合谁</th></tr></thead><tbody><tr><td>桃源田庄</td><td>初始农场 6×6，换季自动施肥</td><td>纯新手、种田流</td></tr><tr><td>溪流田庄</td><td>钓鱼经验+25%，鱼售价+10%，每日溪流鱼获，雨天鱼品质提升</td><td>喜欢钓鱼赚钱的人</td></tr><tr><td>竹林田庄</td><td>采集经验+25%，20% 双倍采集，每日林中拾遗</td><td>喜欢采集材料的人</td></tr><tr><td>山丘田庄</td><td>挖矿经验+25%，矿石+1，农场地表矿脉</td><td>喜欢下矿和工具成长的人</td></tr><tr><td>荒野田庄</td><td>战斗经验+50%，每日获矿石，夜间野兽遭遇</td><td>喜欢战斗挑战的人</td></tr><tr><td>草甸田庄</td><td>开局鸡舍+2鸡，友好度+50%，动物不生病，额外产出</td><td>喜欢养殖流的人</td></tr></tbody></table>
-        <h3 id="新手推荐顺序">新手推荐顺序</h3>
-        <ol><li><strong>桃源田庄</strong>：最稳定、最通用、最容易理解</li><li><strong>草甸田庄</strong>：前期经济舒服，但要更早接触动物系统</li></ol>
-        <h3 id="开局选择建议">开局选择建议</h3>
-        <ul><li>想稳定赚钱：选桃源田庄</li><li>想靠钓鱼起步：选溪流田庄</li><li>想靠采集堆材料：选竹林田庄</li><li>想更快进入矿洞和工具升级：选山丘田庄</li><li>想玩战斗路线：选荒野田庄</li><li>想早早发展养殖：选草甸田庄</li></ul>
-        <div class="section-links"><a href="./guide.html#farm-choice">回新手教程：开局田庄怎么选</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="5-主界面完整说明">5. 主界面完整说明</h2>
-        <p>游戏主界面主要由以下几部分组成：</p>
-        <h3 id="51-顶部状态栏">5.1 顶部状态栏</h3>
-        <p>顶部会显示：</p>
-        <ul><li>地点名称（桃源乡）</li><li>玩家名字</li><li>当前年份</li><li>当前季节与天数</li><li>星期</li><li>当前时间</li><li>当前天气</li><li>当前铜钱</li><li>体力条</li><li>HP 条（受伤或在矿洞中时显示）</li><li>剩余时间条</li></ul>
-        <h3 id="52-睡觉按钮">5.2 睡觉按钮</h3>
-        <p>状态栏下方会有一个休息按钮，文字可能是：</p>
-        <ul><li><code>休息</code></li><li><code>回家休息</code></li><li><code>倒头就睡</code></li></ul>
-        <p>本质上都是 <strong>结束今天并进入下一天</strong>。</p>
-        <h3 id="53-中间主玩法面板">5.3 中间主玩法面板</h3>
-        <p>这里会根据你当前页面显示不同内容，例如：</p>
-        <ul><li>农场</li><li>家园</li><li>商店</li><li>背包</li><li>村民</li><li>钓鱼</li><li>鱼塘</li><li>矿洞</li><li>公会</li><li>博物馆</li><li>作坊</li><li>育种</li></ul>
-        <h3 id="54-移动端快捷按钮">5.4 移动端快捷按钮</h3>
-        <p>在移动端 / 小屏幕上，右侧通常还有：</p>
-        <ul><li>地图按钮</li><li>设置按钮</li><li>虚空箱按钮（解锁后）</li><li>日志按钮</li></ul>
-        <div class="section-links"><a href="./guide.html#first-day">回新手教程：第一天照着做</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="6-顶部状态栏与新增按钮详解">6. 顶部状态栏与新增按钮详解</h2>
-        <p>现在顶部状态栏已经加入了两个非常关键的新功能：</p>
-        <h3 id="61-顶栏保存">6.1 顶栏“保存”</h3>
-        <p>作用：</p>
-        <ul><li>把当前进度保存到当前活跃存档槽位</li></ul>
-        <p>推荐使用时机：</p>
-        <ul><li>大丰收之后</li><li>下矿之前</li><li>大额消费之前或之后</li><li>准备睡觉之前</li></ul>
-        <h3 id="62-顶栏保存并返回">6.2 顶栏“保存并返回”</h3>
-        <p>作用：</p>
-        <ol><li>先保存当前进度</li><li>保存成功后返回抽奖系统</li></ol>
-        <p>适合场景：</p>
-        <ul><li>你准备结束本次桃源乡游玩</li><li>想切回 Lucky 抽奖系统前先锁定进度</li></ul>
-        <h3 id="63-两个按钮的失败保护">6.3 两个按钮的失败保护</h3>
-        <p>如果发生以下情况：</p>
-        <ul><li>没有活跃存档槽位</li><li>保存失败</li></ul>
-        <p>系统会：</p>
-        <ul><li>给出提示</li><li><strong>不会误跳转</strong></li></ul>
-        <p>因此“保存并返回”是安全的。</p>
-        <div class="section-links"><a href="./guide.html#faq-mini">回新手教程：新手 FAQ</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="7-时间季节天气体力与睡觉机制">7. 时间、季节、天气、体力与睡觉机制</h2>
-        <h3 id="71-时间结构">7.1 时间结构</h3>
-        <p>游戏内时间分为：</p>
-        <ul><li>年</li><li>季（春 / 夏 / 秋 / 冬）</li><li>天（每季 28 天）</li><li>小时</li></ul>
-        <p>一天通常从 <strong>6:00</strong> 开始。</p>
-        <h3 id="72-晚睡与昏倒惩罚">7.2 晚睡与昏倒惩罚</h3>
-        <p>如果你睡得太晚：</p>
-        <ul><li>第二天体力恢复会打折</li><li>如果太晚或体力归零，可能直接昏倒</li><li>昏倒会损失一部分铜钱</li></ul>
-        <p>所以不要把“把今天榨干”当作长期打法。</p>
-        <h3 id="73-天气影响">7.3 天气影响</h3>
-        <p>天气包括：</p>
-        <ul><li>晴</li><li>雨</li><li>雷雨</li><li>雪</li><li>大风</li><li>绿雨</li></ul>
-        <p>它们会影响：</p>
-        <ul><li>钓鱼收益</li><li>采集概率</li><li>部分地点表现</li><li>一些田庄特效</li></ul>
-        <h3 id="74-体力机制">7.4 体力机制</h3>
-        <p>以下行为会消耗体力：</p>
-        <ul><li>锄地</li><li>浇水</li><li>采集</li><li>钓鱼</li><li>下矿</li><li>战斗</li><li>一些特殊操作</li></ul>
-        <p>恢复体力的方法：</p>
-        <ul><li>睡觉</li><li>吃料理</li><li>使用恢复型物品</li><li>依靠某些加成效果</li></ul>
-        <div class="section-links"><a href="./guide.html#five-rules">回新手教程：别熬夜与体力管理</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="8-存档系统超详细说明">8. 存档系统超详细说明</h2>
-        <p>桃源乡现在支持：</p>
-        <ul><li>本地存储</li><li>服务端持久化</li><li>顶栏保存</li><li>顶栏保存并返回</li><li>存档管理页显式保存</li><li>导入存档</li><li>导出存档</li><li>WebDAV 上传 / 下载</li></ul>
-        <h3 id="81-存档槽位">8.1 存档槽位</h3>
-        <p>默认有 <strong>3 个槽位</strong>。</p>
-        <p>每个槽位会显示：</p>
-        <ul><li>槽位编号</li><li>玩家名字</li><li>当前年份 / 季节 / 天数</li></ul>
-        <h3 id="82-什么是活跃存档槽位">8.2 什么是活跃存档槽位</h3>
-        <p>活跃槽位就是你当前正在玩的那个槽位：</p>
-        <ul><li>新游戏时自动分配</li><li>加载旧存档时自动切换</li></ul>
-        <p>顶部“保存 / 保存并返回”都依赖它。</p>
-        <h3 id="83-本地存储">8.3 本地存储</h3>
-        <p>特点：</p>
-        <ul><li>保存在当前浏览器里</li><li>清缓存后可能丢失</li><li>换设备不会自动同步</li></ul>
-        <p>适合：</p>
-        <ul><li>临时试玩</li><li>单设备玩家</li></ul>
-        <h3 id="84-服务端持久化">8.4 服务端持久化</h3>
-        <p>特点：</p>
-        <ul><li>存档和登录账号绑定</li><li>更适合长期游玩</li><li>换设备也能继续读取</li></ul>
-        <p>推荐长期用户使用。</p>
-        <h3 id="85-导入-导出存档">8.5 导入 / 导出存档</h3>
-        <h4 id="导出">导出</h4>
-        <p>用途：</p>
-        <ul><li>备份进度</li><li>迁移设备</li><li>防止误删或缓存清空</li></ul>
-        <h4 id="导入">导入</h4>
-        <p>用途：</p>
-        <ul><li>恢复备份</li><li>把别处的存档移回来</li></ul>
-        <p>如果没有空槽位，系统会先提示你删除旧存档。</p>
-        <h3 id="86-存档管理入口">8.6 存档管理入口</h3>
-        <p>在游戏内：</p>
-        <ol><li>打开 <strong>设置</strong></li><li>点击底部 <strong>存档管理</strong></li></ol>
-        <p>里面可以：</p>
-        <ul><li>查看槽位</li><li>加载存档</li><li>删除存档</li><li>导入 / 导出</li><li>切换本地 / 服务端模式</li><li>显式保存当前进度</li><li>WebDAV 上传 / 下载</li></ul>
-        <div class="section-links"><a href="./guide.html#five-rules">回新手教程：关键节点记得保存</a><a href="./guide.html#faq-mini">回新手教程：FAQ</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="9-新手第一天到第一周建议路线">9. 新手第一天到第一周建议路线</h2>
-        <h3 id="第一天建议做什么">第一天建议做什么</h3>
-        <ol><li>先看顶部状态栏：时间、天气、体力</li><li>去农场开少量地</li><li>把送的种子种下</li><li>浇水</li><li>还有体力就去采集 / 钓鱼简单试试</li><li>睡前手动保存一次</li></ol>
-        <h3 id="前三天目标">前三天目标</h3>
-        <ul><li>学会播种、浇水、收获</li><li>熟悉任务、日志、背包、商店</li><li>建立第一条赚钱路线</li></ul>
-        <h3 id="第一周目标">第一周目标</h3>
-        <ul><li>保持每天稳定收益</li><li>升一个关键项目（背包 / 工具 / 仓储）</li><li>不要乱花钱导致断粮</li><li>再慢慢接触第二条副收入路线</li></ul>
-        <h3 id="新手最稳路线">新手最稳路线</h3>
-        <h4 id="路线-a种田稳健流">路线 A：种田稳健流</h4>
-        <ul><li>优先选成熟快、回本快的作物</li><li>每天稳定浇水</li><li>逐步扩大面积</li><li>中期再接加工链</li></ul>
-        <h4 id="路线-b钓鱼现金流">路线 B：钓鱼现金流</h4>
-        <ul><li>适合溪流田庄</li><li>前期赚钱手感很好</li><li>但更依赖操作与时机</li></ul>
-        <h4 id="路线-c采集-挖矿成长流">路线 C：采集 / 挖矿成长流</h4>
-        <ul><li>适合竹林 / 山丘 / 荒野</li><li>资源增长更快</li><li>更快进入工具、装备、加工系统</li></ul>
-        <div class="section-links"><a href="./guide.html#first-day">回新手教程：第一天到第一周</a><a href="./guide.html#money-routes">回新手教程：前期赚钱路线</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="10-农场系统详解">10. 农场系统详解</h2>
-        <p>农场是最稳定、最基础的经济来源。</p>
-        <h3 id="101-标准循环">10.1 标准循环</h3>
-        <ol><li>开地</li><li>播种</li><li>浇水</li><li>等待成熟</li><li>收获</li><li>卖出或加工</li></ol>
-        <h3 id="102-前期不要铺太满">10.2 前期不要铺太满</h3>
-        <p>很多新手的错误是：</p>
-        <ul><li>第一天下体力全拿去开地</li><li>第二天浇水就把自己累空</li></ul>
-        <p>建议：</p>
-        <blockquote><p><strong>只种你每天能稳定浇得完的数量。</strong></p></blockquote>
-        <h3 id="103-作物选择原则">10.3 作物选择原则</h3>
-        <ul><li>看当前季节能否种植</li><li>看成熟时间</li><li>看售价是否划算</li><li>看能否做加工增值</li></ul>
-        <h3 id="104-换季前最重要的事">10.4 换季前最重要的事</h3>
-        <p>第 28 天之后会进入下一季。</p>
-        <p>如果作物不适合下一季：</p>
-        <ul><li>会枯萎</li><li>直接造成损失</li></ul>
-        <p>所以换季前几天别乱种长周期作物。</p>
-        <div class="section-links"><a href="./guide.html#money-routes">回新手教程：种田稳健流</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="11-家园仓库虚空箱">11. 家园、仓库、虚空箱</h2>
-        <h3 id="111-家园的作用">11.1 家园的作用</h3>
-        <p>家园不仅是睡觉地点，也是：</p>
-        <ul><li>仓储中心</li><li>建筑升级区域</li><li>家庭和事件触发点</li></ul>
-        <h3 id="112-仓储为什么关键">11.2 仓储为什么关键</h3>
-        <p>随着游戏推进，你会获得越来越多的：</p>
-        <ul><li>作物</li><li>鱼类</li><li>矿石</li><li>加工原料</li><li>礼物和任务道具</li></ul>
-        <p>没有仓储会非常混乱。</p>
-        <h3 id="113-虚空箱">11.3 虚空箱</h3>
-        <p>虚空箱是中后期的重要便利系统：</p>
-        <ul><li>可远程访问</li><li>快速取放关键材料</li><li>支持一键存重复物品</li><li>更适合作坊链管理</li></ul>
-        <div class="section-links"><a href="./guide.html#common-mistakes">回新手教程：材料别乱卖</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="12-畜牧养殖玩法">12. 畜牧养殖玩法</h2>
-        <p>养殖是持续经营，不是一次性购买。</p>
-        <h3 id="你要做的事">你要做的事</h3>
-        <ul><li>建鸡舍 / 畜棚</li><li>购买动物</li><li>喂食</li><li>抚摸</li><li>提升友好度</li><li>收取产物</li><li>升级建筑</li></ul>
-        <h3 id="草甸田庄为什么舒服">草甸田庄为什么舒服</h3>
-        <ul><li>自带鸡舍</li><li>开局 2 只鸡</li><li>更早形成副收入</li></ul>
-        <h3 id="新手建议">新手建议</h3>
-        <ul><li>不要一下买太多动物</li><li>先确保自己每天有空照顾</li><li>把养殖当成稳定副线，而不是第一天就全压上去</li></ul>
-        <div class="section-links"><a href="./guide.html#farm-choice">回新手教程：草甸田庄适合谁</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="13-钓鱼与鱼塘玩法">13. 钓鱼与鱼塘玩法</h2>
-        <h3 id="131-钓鱼为什么值得做">13.1 钓鱼为什么值得做</h3>
-        <ul><li>前期现金流不错</li><li>某些鱼卖得很贵</li><li>不依赖作物成熟时间</li><li>受地点、季节、天气影响，存在技巧性</li></ul>
-        <h3 id="132-鱼塘系统">13.2 鱼塘系统</h3>
-        <p>鱼塘的意义不只是“放鱼进去”，而是把鱼变成长期产出线：</p>
-        <ul><li>建鱼塘</li><li>投鱼</li><li>持续产出副产品</li><li>形成长期收益结构</li></ul>
-        <div class="section-links"><a href="./guide.html#money-routes">回新手教程：钓鱼现金流</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="14-采集挖矿与战斗探索">14. 采集、挖矿与战斗探索</h2>
-        <h3 id="141-采集">14.1 采集</h3>
-        <p>采集会提供：</p>
-        <ul><li>基础资源</li><li>任务材料</li><li>可卖物品</li><li>后期合成原料</li></ul>
-        <h3 id="142-矿洞">14.2 矿洞</h3>
-        <p>矿洞会产出：</p>
-        <ul><li>矿石</li><li>稀有材料</li><li>战斗收益</li><li>更深层探索奖励</li></ul>
-        <h3 id="143-战斗建议">14.3 战斗建议</h3>
-        <p>下矿前先问自己：</p>
-        <ul><li>HP 是否够？</li><li>体力是否够？</li><li>背包是否还有位置？</li><li>今天有没有保存？</li></ul>
-        <p>最实用的习惯：</p>
-        <blockquote><p><strong>下矿前先保存。</strong></p></blockquote>
-        <div class="section-links"><a href="./guide.html#money-routes">回新手教程：成长流</a><a href="./guide.html#common-mistakes">回新手教程：别硬冲</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="15-烹饪加工与作坊思路">15. 烹饪、加工与作坊思路</h2>
-        <h3 id="烹饪的主要价值">烹饪的主要价值</h3>
-        <ul><li>恢复体力</li><li>恢复生命</li><li>提供增益</li></ul>
-        <h3 id="加工的主要价值">加工的主要价值</h3>
-        <p>很多时候：</p>
-        <ul><li>原料直接卖 = 普通收益</li><li>加工后卖 = 更高收益</li></ul>
-        <p>因此中后期常见结构是：</p>
-        <blockquote><p>原料获取 → 仓储管理 → 作坊加工 → 卖成品</p></blockquote>
-        <div class="section-links"><a href="./guide.html#money-routes">回新手教程：前期赚钱路线</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="16-背包品质出售与材料管理">16. 背包、品质、出售与材料管理</h2>
-        <h3 id="161-常见问题不是不会赚钱而是不会整理">16.1 常见问题不是不会赚钱，而是不会整理</h3>
-        <ul><li>背包老满</li><li>材料乱放</li><li>关键物品误卖</li><li>明明有资源却接不上生产链</li></ul>
-        <h3 id="162-品质系统">16.2 品质系统</h3>
-        <p>常见品质：</p>
-        <ul><li>普通</li><li>优良</li><li>精品</li><li>极品</li></ul>
-        <p>一般品质越高：</p>
-        <ul><li>售价更高</li><li>送礼价值更高</li></ul>
-        <h3 id="163-出售建议">16.3 出售建议</h3>
-        <p>适合卖：</p>
-        <ul><li>富余基础作物</li><li>常见普通鱼</li><li>短期明确用不到的低级材料</li></ul>
-        <p>慎卖：</p>
-        <ul><li>稀有矿物</li><li>高品质材料</li><li>特殊掉落</li><li>明显属于后续加工链的资源</li></ul>
-        <div class="section-links"><a href="./guide.html#common-mistakes">回新手教程：什么都卖是误区</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="17-技能成长与专精">17. 技能成长与专精</h2>
-        <p>桃源乡的成长是多线并行的。</p>
-        <p>主要方向：</p>
-        <ul><li>农耕</li><li>采集</li><li>钓鱼</li><li>挖矿 / 战斗</li></ul>
-        <p>技能成长通常会带来：</p>
-        <ul><li>更省体力</li><li>更高收益</li><li>专精选择</li><li>新功能解锁</li></ul>
-        <p>专精建议：</p>
-        <ul><li>主玩什么就优先强化什么</li><li>新手优先稳健路线，不建议选太极端的玩法</li></ul>
-        <div class="section-links"><a href="./guide.html#money-routes">回新手教程：按路线选玩法</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="18-村民社交送礼婚姻与家庭">18. 村民社交、送礼、婚姻与家庭</h2>
-        <p>社交系统会影响：</p>
-        <ul><li>剧情推进</li><li>礼物反馈</li><li>婚姻系统</li><li>家庭事件</li><li>隐藏奖励</li></ul>
-        <p>提升关系的方法：</p>
-        <ul><li>日常对话</li><li>送礼</li><li>完成任务</li><li>触发事件</li></ul>
-        <p>婚后会有更多生活化内容，例如伴侣互动、家庭事件和子女相关提议。当前可婚 NPC 现已支持同性婚姻；同性伴侣的家庭扩展会走“迎一个孩子回家”的专线，而不是沿用孕期设定。同性之间依然保留知己线，作为非恋爱关系路线。</p>
-        <div class="section-links"><a href="./guide.html#quick-links">回新手教程：快速查询入口</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="19-隐藏-npc缘分与特殊发现">19. 隐藏 NPC、缘分与特殊发现</h2>
-        <p>除了普通村民，游戏里还有隐藏角色、仙灵、缘分与发现链。</p>
-        <p>这套系统通常不是一次性触发，而是按阶段慢慢推进：</p>
-        <ol><li><strong>传闻</strong>：先听到传说、拿到线索，或在日志里看到异常提示。</li><li><strong>惊鸿一瞥</strong>：在合适的地点、时间、天气或季节里，见到短暂异象。</li><li><strong>初次相遇</strong>：准备关键物品，或满足技能 / 主线 / 好感等前置后正式见面。</li><li><strong>愿意往来</strong>：达到最终解锁条件后，仙灵会常驻在仙灵面板中。</li></ol>
-        <p>常见触发条件包括：</p>
-        <ul><li>特定地点</li><li>特定时间</li><li>特定天气或季节</li><li>特定主线进度</li><li>特定技能等级</li><li>持有关键道具</li><li>与某位村民达到指定好感</li></ul>
-        <p>发现之后，玩法会继续分成两层：</p>
-        <ul><li><strong>互动 / 供奉</strong>：用于提高缘分值，逐步解锁仙缘能力。</li><li><strong>求缘 / 结缘</strong>：达到门槛并备好信物后，可建立更深层羁绊，获得长期加成。</li></ul>
-        <blockquote><p><strong>可以把仙灵系统理解成：先找到仙灵，再靠互动和供奉养缘分，最后用信物完成求缘与结缘。</strong></p></blockquote>
-        <p>如果你不知道该从哪里下手，最稳妥的思路是：</p>
-        <ul><li>先把农耕 / 采集 / 钓鱼 / 挖矿的基础等级练起来</li><li>多去竹林、瀑布、矿洞、村庄这些特殊地点</li><li>留意满月、雨夜、深夜、清晨等特殊时段</li><li>看到异常日志后，优先围绕那条线索继续尝试</li></ul>
-        <p>这部分更适合中后期慢慢推进，不必开局强求；但如果你想专门追仙灵，记得优先看仙灵页里的传闻提示和下一步建议。</p>
-        <div class="section-links"><a href="./guide.html#quick-links">回新手教程：快速查询入口</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="20-任务成就公会博物馆">20. 任务、成就、公会、博物馆</h2>
-        <h3 id="201-任务系统">20.1 任务系统</h3>
-        <ul><li>主线任务：帮助你理解系统和推进内容</li><li>日常委托：提供短期收益和资源</li><li>特殊订单：中后期补收益与奖励</li></ul>
-        <h3 id="202-成就系统">20.2 成就系统</h3>
-        <p>当你不知道今天做什么时，成就是很好的方向提示器。</p>
-        <h3 id="203-公会">20.3 公会</h3>
-        <p>偏战斗路线玩家的长期目标系统。</p>
-        <h3 id="204-博物馆">20.4 博物馆</h3>
-        <p>偏收集路线玩家的长期目标系统。</p>
-        <div class="section-links"><a href="./guide.html#quick-links">回新手教程：快速查询入口</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="21-翰海沙漠与中后期玩法">21. 翰海沙漠与中后期玩法</h2>
-        <p>当你不再为“今天有没有收入”焦虑时，你就进入了中期。</p>
-        <p>这时更重要的是：</p>
-        <ul><li>更高价值加工链</li><li>更强装备和战斗能力</li><li>更深地图探索</li><li>更完整社交和隐藏剧情</li></ul>
-        <p>翰海沙漠属于典型的高风险高收益区域。</p>
-        <div class="section-links"><a href="./guide.html#quick-links">回新手教程：快速查询入口</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="22-与抽奖系统的联动功能">22. 与抽奖系统的联动功能</h2>
-        <p>桃源乡现在和 Lucky 抽奖系统已经打通。</p>
-        <h3 id="221-返回抽奖系统">22.1 返回抽奖系统</h3>
-        <p>你可以通过：</p>
-        <ul><li>主菜单里的 <strong>返回抽奖系统</strong></li><li>顶栏里的 <strong>保存并返回</strong></li></ul>
-        <p>回到 Lucky 系统。</p>
-        <h3 id="222-关于游戏">22.2 关于游戏</h3>
-        <p>主菜单里的 <strong>关于游戏</strong> 会打开弹窗。</p>
-        <p>支持后台配置：</p>
-        <ul><li>是否显示</li><li>按钮文字</li><li>标题</li><li>正文内容</li></ul>
-        <h3 id="223-铜钱与-newapi-额度兑换">22.3 铜钱与 NewAPI 额度兑换</h3>
-        <p>钱袋页支持：</p>
-        <ul><li>NewAPI 额度导入成桃源铜钱</li><li>桃源铜钱导出成 NewAPI quota</li></ul>
-        <h3 id="224-汇率含义">22.4 汇率含义</h3>
-        <p>后台语义现在是：</p>
-        <blockquote><p><strong>1 文 = 多少美元 $</strong></p></blockquote>
-        <p>例如：</p>
-        <ul><li><code>0.0002</code> 表示 <code>1文 = $0.0002</code></li><li>即 <code>5000文 ≈ $1.00</code></li></ul>
-        <div class="section-links"><a href="./guide.html#quick-links">回新手教程：联动与设置查询</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="23-设置菜单说明">23. 设置菜单说明</h2>
-        <p>设置菜单主要分为：</p>
-        <h3 id="通用">通用</h3>
-        <ul><li>时间暂停 / 继续</li><li>游戏速度</li><li>音效开关</li><li>音乐开关</li><li>新手提示</li><li>WebDAV 云同步</li></ul>
-        <h3 id="外观">外观</h3>
-        <ul><li>字体大小</li><li>配色主题</li></ul>
-        <h3 id="通知">通知</h3>
-        <ul><li>弹出位置</li><li>持续时间</li><li>数量上限</li><li>宽度限制</li><li>动画 / 图标 / 自动关闭等开关</li></ul>
-        <h3 id="存档管理入口">存档管理入口</h3>
-        <p>设置底部始终可以打开 <strong>存档管理</strong>。</p>
-        <div class="section-links"><a href="./guide.html#quick-links">回新手教程：设置与存档入口</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="24-主菜单新增功能说明">24. 主菜单新增功能说明</h2>
-        <h3 id="返回抽奖系统">返回抽奖系统</h3>
-        <p>可配置：</p>
-        <ul><li>是否显示</li><li>按钮文字</li><li>跳转地址</li></ul>
-        <h3 id="关于游戏">关于游戏</h3>
-        <p>可配置：</p>
-        <ul><li>是否显示</li><li>按钮文字</li><li>标题</li><li>正文内容</li></ul>
-        <h3 id="服务端持久化">服务端持久化</h3>
-        <p>推荐长期游玩用户开启，尤其适合：</p>
-        <ul><li>多设备玩家</li><li>想避免本地缓存丢档的人</li></ul>
-        <div class="section-links"><a href="./guide.html#quick-links">回新手教程：设置与联动入口</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="25-新手常见误区">25. 新手常见误区</h2>
-        <h3 id="误区-1第一周什么都想做">误区 1：第一周什么都想做</h3>
-        <p>结果就是每条线都半吊子。</p>
-        <h3 id="误区-2不手动保存">误区 2：不手动保存</h3>
-        <p>关键节点一定要手动保存。</p>
-        <h3 id="误区-3换季前乱种">误区 3：换季前乱种</h3>
-        <p>这是最常见的直接亏损来源。</p>
-        <h3 id="误区-4什么都卖">误区 4：什么都卖</h3>
-        <p>很多材料中后期都会缺。</p>
-        <h3 id="误区-5血量和体力见底还继续硬冲">误区 5：血量和体力见底还继续硬冲</h3>
-        <p>尤其矿洞里最容易翻车。</p>
-        <div class="section-links"><a href="./guide.html#common-mistakes">回新手教程：误区浓缩版</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="26-常见问题-faq">26. 常见问题 FAQ</h2>
-        <h3 id="q1为什么顶部保存按钮提示没有活跃存档">Q1：为什么顶部保存按钮提示没有活跃存档？</h3>
-        <p>A：你要先新开一局或先加载一个已有存档。</p>
-        <h3 id="q2保存并返回安全吗">Q2：保存并返回安全吗？</h3>
-        <p>A：安全。逻辑是先保存，保存成功才返回，失败不会跳走。</p>
-        <h3 id="q3为什么我看不到返回抽奖系统-关于游戏">Q3：为什么我看不到返回抽奖系统 / 关于游戏？</h3>
-        <p>A：管理员可能在后台关闭了这些入口。</p>
-        <h3 id="q4本地存储和服务端持久化能切换吗">Q4：本地存储和服务端持久化能切换吗？</h3>
-        <p>A：可以，但它们是两套数据来源，切换后请先确认当前读取到的是哪一套存档。</p>
-        <h3 id="q5导出存档有必要吗">Q5：导出存档有必要吗？</h3>
-        <p>A：非常有必要，尤其是长期游玩和重要节点前后。</p>
-        <h3 id="q6额度兑换是不是实时到账">Q6：额度兑换是不是实时到账？</h3>
-        <p>A：正常情况下是即时处理的，成功后会同步刷新显示。</p>
-        <h3 id="q7顶栏保存和存档管理里的保存哪个好">Q7：顶栏保存和存档管理里的保存哪个好？</h3>
-        <p>A：本质一样。顶栏更快，存档管理更适合看清楚槽位再操作。</p>
-        <h3 id="q8前期优先升级什么">Q8：前期优先升级什么？</h3>
-        <p>A：多数情况下优先：</p>
-        <ol><li>稳定收入来源</li><li>背包 / 工具</li><li>仓库</li><li>加工链</li><li>动物 / 鱼塘 / 深层探索</li></ol>
-        <div class="section-links"><a href="./guide.html#faq-mini">回新手教程：简版 FAQ</a><a href="#目录">回百科目录</a><a href="#top">返回顶部</a></div>
-        <hr />
-        <h2 id="最后给新玩家的一句建议">最后给新玩家的一句建议</h2>
-        <p>如果你第一次玩桃源乡，不必急着追求最优解。</p>
-        <p>先把下面四件事做好：</p>
-        <ol><li><strong>不要太晚睡</strong></li><li><strong>别乱花钱</strong></li><li><strong>关键节点手动保存</strong></li><li><strong>先养成一条稳定收入线</strong></li></ol>
-        <p>只要前几天稳住，后面你会越来越享受桃源乡的节奏。</p>
-        <p>祝你在桃源乡四季有收、下矿有货、钓鱼出金、日子越过越红火。</p>
-        <div class="link-panel"><h3>看完这一页之后</h3><div class="jump-links"><a class="pill-link" href="./guide.html">返回新手教程</a><a class="pill-link" href="#top">回到百科顶部</a></div></div>
+
+        <h2 id="start-and-save">2. 开始前与存档</h2>
+        <ul>
+          <li><strong>账号状态</strong>：建议先登录再开档。当前主菜单文案已经明确提醒，未登录直接开始旅程时，存档无法保存。</li>
+          <li><strong>存档方式</strong>：支持本地存储和服务端持久化。认真长期玩，优先服务端持久化。</li>
+          <li><strong>保存与保存并返回</strong>：都依赖当前活跃存档槽位，适合在关键节点和准备退出前使用。</li>
+          <li><strong>导入 / 导出 / WebDAV</strong>：更像额外同步与备份手段，不替代你理解当前存档模式。</li>
+          <li><strong>在线功能</strong>：交流大厅、邮箱、额度兑换等都默认围绕登录状态和当前服务端存档来工作。</li>
+        </ul>
+        <div class="section-links"><a href="./guide.html#preflight">回新手教程：开始前确认</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="farm-choice">3. 田庄与前七天</h2>
+        <table>
+          <thead>
+            <tr><th>田庄</th><th>现在更适合谁</th><th>开局建议</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>桃源田庄</td><td>完全新手、种田保底流</td><td>当前版本默认推荐，最容易学会主线、商圈、告示板与稳定现金流。</td></tr>
+            <tr><td>草甸田庄</td><td>想更早体验养殖的人</td><td>前期节奏舒服，但会更早进入牧场与动物维护。</td></tr>
+            <tr><td>溪流田庄</td><td>想靠钓鱼起现金流的人</td><td>适合你愿意围绕天气和时间行动。</td></tr>
+            <tr><td>竹林 / 山丘 / 荒野</td><td>采集、矿洞、战斗、成长流</td><td>更适合你已经知道自己想玩什么时再选。</td></tr>
+          </tbody>
+        </table>
+        <p>当前版本前七天最重要的不是把所有系统摸一遍，而是先跑出一条最小可持续循环：<strong>主线不断、收入不断、知道下一步去哪个页面。</strong></p>
+        <div class="section-links"><a href="./guide.html#first-week">回新手教程：第一天到第一周</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="core-loop">4. 当前版本核心循环</h2>
+        <div class="grid-3">
+          <section class="card"><h3>看任务页</h3><p>主线、日常委托、特殊订单、限时活动，会给你最直接的下一步方向。</p></section>
+          <section class="card"><h3>看目标规划</h3><p>主题周、市场轮换、今日目标、连周进度，决定这一周最值得承接什么。</p></section>
+          <section class="card"><h3>去对应系统出货</h3><p>农场、商圈、钓鱼、矿洞、牧场、加工，会把“方向”变成真正的资源和钱。</p></section>
+          <section class="card"><h3>把收益回流</h3><p>工具、仓储、设施、预算、高价投入，决定你下周能承接更高一级的循环。</p></section>
+          <section class="card"><h3>周结算与活动</h3><p>周目标结算、奖励池、周赛、馆务和赛季，会把你这一周的结果重新放大。</p></section>
+          <section class="card"><h3>再开新系统</h3><p>基础线稳定后，鱼塘、育种、博物馆、公会、瀚海、钱袋预算才会真正有深度。</p></section>
+        </div>
+        <blockquote><strong>迷路时的默认顺序：先看任务页，再看顶部目标规划和各页引导面板。</strong></blockquote>
+        <div class="section-links"><a href="./guide.html#core-loop">回新手教程：核心循环</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="quest-week">5. 任务板 / 主题周 / 周结算</h2>
+        <div class="grid-2">
+          <section class="card"><h3>主线任务</h3><p>告诉你当前阶段要解锁什么、该碰哪些系统。开荒时最重要。</p></section>
+          <section class="card"><h3>日常委托</h3><p>提供短期钱、材料、好感和路线提示，是把村民关系与经营节奏接起来的稳入口。</p></section>
+          <section class="card"><h3>特殊订单</h3><p>现在会承接育种、鱼塘、家庭 / 仙缘等方向，不只是“多给一点钱”。</p></section>
+          <section class="card"><h3>主题周 / 活动编排</h3><p>会影响商圈推荐、任务风向、周重点目标，以及多个长线系统承接。</p></section>
+          <section class="card"><h3>村庄建设线路</h3><p>任务页已经会直接告诉你哪些建设能增强任务容量、收益或相关入口。</p></section>
+          <section class="card"><h3>周结算</h3><p>周目标、奖励池、连周进度、预算重置与各种周赛，都会在这里形成闭环。</p></section>
+        </div>
+        <div class="section-links"><a href="./guide.html#common-blocks">回新手教程：常见卡点</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="life-production">6. 农场、牧场、加工</h2>
+        <ul>
+          <li><strong>农场</strong> 依然是最稳保底现金流，前期别铺太满，重点是稳定浇完和稳定续种。</li>
+          <li><strong>牧场</strong> 不再只是摆设，动物线会和日常经营、加工链、长期收藏一起推进。</li>
+          <li><strong>烹饪与加工</strong> 的作用更大了：既是恢复和礼物，也会是任务材料和高价值承接物。</li>
+          <li><strong>仓储</strong> 比早期版本更重要，因为任务、加工、育种、鱼塘都会持续吃材料。</li>
+        </ul>
+        <div class="section-links"><a href="./guide.html#second-line">回新手教程：什么时候开第二条线</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="fishpond">7. 钓鱼与鱼塘</h2>
+        <h3>钓鱼</h3>
+        <p>仍然是前期很好的副现金流，尤其适合溪流田庄，也能顺手为后续鱼塘提供样本。</p>
+        <h3>鱼塘</h3>
+        <ul>
+          <li>喂食、水质改良、病鱼治疗、每日收获</li>
+          <li>周赛报名与结算</li>
+          <li>高阶养护，例如观赏饲料和高级净水剂</li>
+          <li>展示池 / 观赏缸，对周赛和博物馆展陈都有反向加分</li>
+          <li>经营评级 / 资格快照，帮助你判断哪些样鱼能走更高价值路线</li>
+        </ul>
+        <p>所以鱼塘更适合在你已经稳定钓到鱼、也有余力维护水质和产出之后再认真开。</p>
+        <div class="section-links"><a href="./guide.html#second-line">回新手教程：第二条线时机</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="mining-guild">8. 矿洞与公会</h2>
+        <ul>
+          <li><strong>矿洞</strong> 仍然是矿石、稀有材料、装备成长和后续解锁的重要来源。</li>
+          <li><strong>瀚海</strong> 的开通条件之一就是击败矿洞第 120 层 BOSS。</li>
+          <li><strong>公会</strong> 现在已经有赛季阶段、荣誉档位、奖励池、讨伐、捐献、商店、怪物图鉴，以及和主题周、任务板、成就的联动。</li>
+        </ul>
+        <p>如果你走的是战斗或下矿成长流，公会会成为中后期非常重要的承接页。</p>
+        <div class="section-links"><a href="./guide.html#second-line">回新手教程：第二条线时机</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="breeding">9. 育种</h2>
+        <div class="grid-2">
+          <section class="card"><h3>育种台与种子箱</h3><p>先用筛选和排序缩小范围，再决定是补现有谱系，还是冲新杂交品种。</p></section>
+          <section class="card"><h3>研究与大师化</h3><p>研究等级会影响识别范围、速育门槛、失败损耗和谱系深度。</p></section>
+          <section class="card"><h3>图鉴与谱系认证</h3><p>当前版本已支持图鉴、世代、综合分和认证供货线的长期记录。</p></section>
+          <section class="card"><h3>育种周赛 / 品鉴会</h3><p>不仅能报名，还有周切换刷新与结算，已经是一条稳定周循环内容。</p></section>
+          <section class="card"><h3>失败回收与物流补材</h3><p>高代失败不再只是简单亏掉，会回收到研究、认证和储运相关材料。</p></section>
+          <section class="card"><h3>育种规划器</h3><p>会汇总本周订单、下周主题周、图鉴缺口和推荐亲本，帮助你决定这一周押哪条线。</p></section>
+        </div>
+        <blockquote><strong>育种更像“长期经营中的实验室”，不是新手第一周要硬开的生产页。</strong></blockquote>
+        <div class="section-links"><a href="./guide.html#second-line">回新手教程：什么时候开育种</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="relationship-spirit">10. 村民、婚姻、仙灵</h2>
+        <ul>
+          <li><strong>村民关系</strong> 不是纯装饰，很多委托、剧情和长期陪伴感都要靠关系线承接。</li>
+          <li><strong>婚姻与家庭</strong> 当前可婚 NPC 已支持同性婚姻；同性之间也保留知己线。</li>
+          <li><strong>仙灵</strong> 已经是单独长线：传闻 → 惊鸿一瞥 → 初次相遇 → 愿意往来，再通过互动、供奉、求缘、结缘解锁长期能力。</li>
+        </ul>
+        <p>仙灵更适合中后期慢慢推进，不建议开局就把全部注意力放在找仙灵上。</p>
+        <div class="section-links"><a href="./guide.html#quick-links">回新手教程：快速查询入口</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="museum">11. 博物馆</h2>
+        <ul>
+          <li><strong>基础层</strong>：古物、化石和特殊收藏的捐赠。</li>
+          <li><strong>馆务层</strong>：展陈等级、展示评分、访客热度、祠堂主题、馆区推进。</li>
+          <li><strong>委托层</strong>：学者委托已经是明确可接、可领奖的中线内容。</li>
+          <li><strong>联动层</strong>：会反向影响告示板、推荐动作、支持 NPC 与长期经营焦点。</li>
+        </ul>
+        <p>如果你是收藏流或展示流玩家，博物馆现在已经值得单独当一条经营主线对待。</p>
+        <div class="section-links"><a href="./guide.html#quick-links">回新手教程：快速查询入口</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="hanhai">12. 瀚海</h2>
+        <ul>
+          <li>需要击败矿洞第 120 层 BOSS 并支付修路费，明显属于中后期解锁内容。</li>
+          <li>当前包含驿站商店、遗迹勘探、瀚海赌坊、商路投资、合同、遗迹套组、轮换货架。</li>
+          <li>还会和主题周、村庄建设、目录货架一起联动。</li>
+        </ul>
+        <p>瀚海现在更像高阶段的“商路经营与特殊区域玩法”，不是单纯的额外地图。</p>
+        <div class="section-links"><a href="./guide.html#second-line">回新手教程：长线系统何时开</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="wallet-budget">13. 钱袋、预算与高价投入</h2>
+        <div class="grid-2">
+          <section class="card"><h3>后期经济观测</h3><p>会告诉你当前经营分层、风险提示和推荐资金去向。</p></section>
+          <section class="card"><h3>豪华消费路线</h3><p>当前商圈会按你的路线给出更契合的高价货架和本周精选。</p></section>
+          <section class="card"><h3>周预算系统</h3><p>每周可以为商路、展馆、学舍等频道投入预算，当周生效、下周重选。</p></section>
+          <section class="card"><h3>资源券 / 凭证</h3><p>会跟着周目标、预算和长期经营一起运转，是当前版本的钱袋特色内容。</p></section>
+        </div>
+        <blockquote><strong>当前版本不是“赚到钱就结束”，而是“把钱继续投进更高级的经营结构里”。</strong></blockquote>
+        <div class="section-links"><a href="./guide.html#second-line">回新手教程：长线系统何时开</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="online">14. 在线功能</h2>
+        <ul>
+          <li><strong>登录 / 注册</strong>：决定你能否长期保存、读取账号相关进度。</li>
+          <li><strong>服务端持久化</strong>：长期游玩优先。</li>
+          <li><strong>交流大厅</strong>：发帖、回复、求助、看其他玩家经验。</li>
+          <li><strong>邮箱</strong>：接收公告、奖励和活动内容。</li>
+          <li><strong>AI 助手</strong>：适合问玩法、路线和卡点，但不会提供隐藏后台规则。</li>
+          <li><strong>额度兑换</strong>：需要切到服务端持久化并载入目标存档后才能继续。</li>
+        </ul>
+        <div class="section-links"><a href="./guide.html#preflight">回新手教程：开始前确认</a><a href="#top">返回顶部</a></div>
+
+        <h2 id="faq">15. 常见问题 FAQ</h2>
+        <div class="grid-2">
+          <section class="card"><h3>Q1：第一次玩先看哪个页面最有效？</h3><p>先看新手教程，再进游戏看任务页 / 告示板。</p></section>
+          <section class="card"><h3>Q2：第一周最重要的不是赚钱吗？</h3><p>赚钱重要，但当前版本更看重你有没有把主线、告示板和稳定收益线跑顺。</p></section>
+          <section class="card"><h3>Q3：为什么现在总强调主题周？</h3><p>因为它已经会影响商圈推荐、目标规划、特殊订单和多个长线系统承接。</p></section>
+          <section class="card"><h3>Q4：鱼塘和育种哪个更早开？</h3><p>通常鱼塘比育种更早，育种明显更偏中后期。</p></section>
+          <section class="card"><h3>Q5：公会和博物馆只是兴趣内容吗？</h3><p>不是，它们都已经有各自的成长、奖励、结算和跨系统影响。</p></section>
+          <section class="card"><h3>Q6：瀚海什么时候值得开？</h3><p>当你能稳定下矿、打过 120 层 BOSS、且经济不再吃紧时再开体验最好。</p></section>
+          <section class="card"><h3>Q7：为什么额度兑换有时不能用？</h3><p>因为它要求你切到服务端持久化，并且已经载入目标服务端存档。</p></section>
+          <section class="card"><h3>Q8：主菜单百科和游戏内百科有什么区别？</h3><p>主菜单百科看系统结构，游戏内百科查具体机制、来源、用途和送礼。</p></section>
+        </div>
+
+        <section class="panel">
+          <h3>看完这一页之后</h3>
+          <p>如果你准备直接开档，回到 <a href="./guide.html">新手教程</a> 看前七天路线；如果你已经在某个系统里卡住，就按上面的章节直接跳去对应系统读一遍。</p>
+          <div class="jump-links">
+            <a class="pill-link" href="./guide.html">返回新手教程</a>
+            <a class="pill-link" href="#top">回到百科顶部</a>
+          </div>
+        </section>
       </main>
     </div>
   </div>
-  <a class="back-top" href="#top">返回顶部</a>
+  <a class="back-top" href="#top">回到顶部</a>
 </body>
 </html>

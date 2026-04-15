@@ -1,5 +1,8 @@
 services:
   taoyuan:
+    build:
+      context: .
+      dockerfile: Dockerfile.repack
     image: taoyuan-duli:latest
     container_name: taoyuan
     restart: unless-stopped
