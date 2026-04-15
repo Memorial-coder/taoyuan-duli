@@ -22,21 +22,41 @@
 
 <script setup lang="ts">
   import { RouterView } from 'vue-router'
+  import { useRoute } from 'vue-router'
   import AiAssistantWidget from '@/components/game/AiAssistantWidget.vue'
-  import { ref, onMounted } from 'vue'
+  import { ref, onBeforeUnmount, onMounted, watch } from 'vue'
   import { Capacitor } from '@capacitor/core'
   import { App as CapApp } from '@capacitor/app'
 
+  const route = useRoute()
   const showExitConfirm = ref(false)
+
+  const syncAppShellLayout = () => {
+    if (typeof document === 'undefined') return
+    const appRoot = document.getElementById('app')
+    if (!appRoot) return
+    const isAdminRoute = route.path.startsWith('/admin')
+    appRoot.classList.toggle('app-shell--admin', isAdminRoute)
+  }
 
   const exitApp = () => {
     void CapApp.exitApp()
   }
 
+  watch(
+    () => route.path,
+    () => {
+      syncAppShellLayout()
+    },
+    { immediate: true }
+  )
+
   onMounted(() => {
     if (!import.meta.env.DEV) {
       document.body.classList.add('select-none')
     }
+
+    syncAppShellLayout()
 
     // Capacitor Android 返回键拦截
     if (Capacitor.isNativePlatform()) {
@@ -48,5 +68,10 @@
         }
       })
     }
+  })
+
+  onBeforeUnmount(() => {
+    if (typeof document === 'undefined') return
+    document.getElementById('app')?.classList.remove('app-shell--admin')
   })
 </script>

@@ -6,7 +6,7 @@ export interface BuiltInSampleSaveDef {
   envelope: Record<string, any>
 }
 
-const SAVE_VERSION = 3
+const SAVE_VERSION = 4
 
 const createPlots = (size: number) =>
   Array.from({ length: size * size }, (_, id) => ({

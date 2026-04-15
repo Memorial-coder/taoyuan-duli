@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center space-x-1.5 text-sm text-accent">
         <BookOpen :size="14" />
-        <span>图鉴与成就</span>
+        <span>收藏与资料</span>
       </div>
       <span class="text-xs text-muted">{{ achievementStore.perfectionPercent }}%</span>
     </div>
@@ -15,11 +15,13 @@
       <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'bundles' }" @click="tab = 'bundles'">祠堂</Button>
       <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'shipping' }" @click="tab = 'shipping'">出货</Button>
       <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'notes' }" @click="tab = 'notes'">笔记</Button>
-      <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'glossary' }" @click="tab = 'glossary'">百科</Button>
+      <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'glossary' }" @click="openGlossaryTab">百科</Button>
     </div>
 
+    <p class="text-[10px] text-muted mb-3">{{ currentTabHint }}</p>
+
     <!-- 物品图鉴 -->
-    <ItemCollectionTab v-if="tab === 'collection'" />
+    <ItemCollectionTab v-if="tab === 'collection'" @open-glossary="handleOpenGlossary" />
 
 
 
@@ -343,7 +345,7 @@
 
     <!-- 图鉴百科 -->
     <template v-if="tab === 'glossary'">
-      <GlossaryTab />
+      <GlossaryTab :preset="glossaryPreset" @preset-applied="glossaryPreset = null" />
     </template>
 
     <!-- 完成度 -->
@@ -420,6 +422,7 @@
   import { HYBRID_DEFS } from '@/data/breeding'
   import { FISH } from '@/data/fish'
   import { SECRET_NOTES } from '@/data/secretNotes'
+  import type { GlossaryOpenPreset } from '@/data/glossary'
   import { COLLECTION_CATEGORY_NAMES, COLLECTION_CATEGORY_COLORS } from '@/data/collectionRegistry'
   import { sfxClick } from '@/composables/useAudio'
   import { addLog } from '@/composables/useGameLog'
@@ -438,6 +441,28 @@
 
   type Tab = 'collection' | 'achievements' | 'bundles' | 'shipping' | 'notes' | 'glossary'
   const tab = ref<Tab>('collection')
+  const glossaryPreset = ref<GlossaryOpenPreset | null>(null)
+
+  const TAB_HINTS: Record<Tab, string> = {
+    collection: '图鉴负责看收录、缺口和解锁进度；百科负责查机制、条件和路线。',
+    achievements: '成就更适合回看长期目标、奖励和完成节奏。',
+    bundles: '祠堂页适合集中查看提交需求和阶段奖励。',
+    shipping: '出货页适合检查你还没卖过的条目和分类空缺。',
+    notes: '笔记页适合查剧情线索、藏宝提示和世界观碎片。',
+    glossary: '百科适合按“怎么获得 / 有什么用 / 怎么解锁”来查资料。',
+  }
+
+  const currentTabHint = computed(() => TAB_HINTS[tab.value])
+
+  const openGlossaryTab = () => {
+    glossaryPreset.value = null
+    tab.value = 'glossary'
+  }
+
+  const handleOpenGlossary = (preset: GlossaryOpenPreset) => {
+    glossaryPreset.value = preset
+    tab.value = 'glossary'
+  }
 
   /** 成就详情弹窗 */
   const activeAchievement = ref<AchievementDef | null>(null)

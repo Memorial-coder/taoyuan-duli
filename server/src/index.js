@@ -1,7 +1,7 @@
 const path = require('path');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
-require('dotenv').config({ path: path.join(__dirname, '../../.env') });
+require('dotenv').config({ path: path.join(__dirname, '../../.env'), override: true });
 
 if (!process.env.DB_STORAGE) {
   process.env.DB_STORAGE = path.join(__dirname, '../../data/.storage.json');

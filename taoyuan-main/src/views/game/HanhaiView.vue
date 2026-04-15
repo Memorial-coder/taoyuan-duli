@@ -43,7 +43,7 @@
         <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
           <div class="flex items-center justify-between">
             <span class="text-muted">循环阶段</span>
-            <span class="text-accent">{{ hanhaiStore.cycleOverview.progressTier }}</span>
+            <span class="text-accent">{{ hanhaiProgressTierLabel }}</span>
           </div>
           <div class="flex items-center justify-between">
             <span class="text-muted">本周首领</span>
@@ -216,7 +216,7 @@
               </div>
               <div class="flex items-center justify-between mt-0.5">
                 <span class="text-muted">遗迹主题</span>
-                <span class="text-accent">{{ site.relicTag }}</span>
+                <span class="text-accent">{{ getRelicTagLabel(site.relicTag) }}</span>
               </div>
               <p class="text-muted mt-1 leading-4">预计收获：{{ getRelicRewardText(site) }}</p>
             </div>
@@ -840,7 +840,14 @@
   const shopModalItem = ref<HanhaiShopItemDef | null>(null)
 
   const tierRank = { P0: 0, P1: 1, P2: 2 } as const
+  const HANHAI_PROGRESS_TIER_LABELS = {
+    P0: '开拓期',
+    P1: '扩张期',
+    P2: '深耕期'
+  } as const
   const isTierUnlocked = (unlockTier: 'P0' | 'P1' | 'P2') => tierRank[hanhaiStore.cycleOverview.progressTier] >= tierRank[unlockTier]
+  const hanhaiProgressTierLabel = computed(() => HANHAI_PROGRESS_TIER_LABELS[hanhaiStore.cycleOverview.progressTier] ?? '开拓期')
+  const getRelicTagLabel = (tag: string) => tag || '遗迹主题'
   const visibleRouteInvestments = computed(() => HANHAI_ROUTE_INVESTMENTS.filter(route => isTierUnlocked(route.unlockTier)))
   const visibleContracts = computed(() => HANHAI_CARAVAN_CONTRACT_DEFS.filter(contract => isTierUnlocked(contract.unlockTier)).slice(0, 3))
   const visibleRelicSets = computed(() => HANHAI_RELIC_SET_DEFS.filter(setDef => isTierUnlocked(setDef.unlockTier)).slice(0, 3))

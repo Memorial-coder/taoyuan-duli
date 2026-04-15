@@ -10,7 +10,7 @@
           class="inline-flex items-center rounded-xs border px-1.5 py-0.5 text-[10px]"
           :class="snapshot.hasFreshContent ? 'border-accent/30 text-accent' : 'border-success/20 text-success'"
         >
-          {{ snapshot.unlockTier }}
+          {{ guidanceTierLabel }}
         </span>
         <p class="text-[10px] text-muted mt-1">{{ snapshotStatusText }}</p>
       </div>
@@ -30,8 +30,9 @@
       <button
         v-for="route in visibleRoutes"
         :key="route.id"
+        type="button"
         class="w-full border border-accent/10 rounded-xs px-2 py-2 text-left transition-colors hover:bg-accent/5"
-        @click="handleAdoptRoute(route.id)"
+        @click="handleAdoptRoute(route.id, route.targetSurfaceId)"
       >
         <div class="flex items-center justify-between gap-2">
           <p class="text-[10px] text-accent">{{ route.label }}</p>
@@ -66,6 +67,8 @@
 
 <script setup lang="ts">
   import { computed, onMounted } from 'vue'
+  import { useRoute } from 'vue-router'
+  import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import type { GuidanceSurfaceId } from '@/types'
 
@@ -75,17 +78,36 @@
   }>()
 
   const tutorialStore = useTutorialStore()
+  const route = useRoute()
+  const GUIDANCE_TIER_LABELS = {
+    P0: '初阶',
+    P1: '进阶',
+    P2: '高阶'
+  } as const
+  const GUIDANCE_SURFACE_PANEL_MAP: Partial<Record<GuidanceSurfaceId, PanelKey>> = {
+    wallet: 'wallet',
+    quest: 'quest',
+    breeding: 'breeding',
+    fishpond: 'fishpond',
+    museum: 'museum',
+    guild: 'guild',
+    hanhai: 'hanhai',
+    npc: 'village',
+    shop: 'shop',
+    mail: 'mail'
+  }
 
   const snapshot = computed(() => tutorialStore.getGuidanceSurfaceSnapshot(props.surfaceId))
+  const guidanceTierLabel = computed(() => GUIDANCE_TIER_LABELS[snapshot.value.unlockTier] ?? '初阶')
   const primarySummary = computed(
     () =>
       snapshot.value.summaryStates.find(summary => summary.active && summary.status !== 'dismissed') ??
-      snapshot.value.summaryStates.find(summary => summary.active) ??
-      snapshot.value.summaryStates[0] ??
       null
   )
-  const visibleRoutes = computed(() => snapshot.value.routeStates.filter(route => route.active).slice(0, 2))
-  const shouldRender = computed(() => snapshot.value.activeSummaryCount > 0 || snapshot.value.activeRouteCount > 0)
+  const visibleRoutes = computed(() =>
+    primarySummary.value ? snapshot.value.routeStates.filter(route => route.active).slice(0, 2) : []
+  )
+  const shouldRender = computed(() => Boolean(primarySummary.value) || visibleRoutes.value.length > 0)
   const primaryHeadline = computed(() => primarySummary.value?.headline || snapshot.value.headline || '当前暂无新的经营引导。')
   const titleText = computed(() => props.title || primarySummary.value?.title || '经营引导')
   const snapshotStatusText = computed(() => {
@@ -102,8 +124,11 @@
     tutorialStore.markGuidanceSummaryDismissed(summaryId, props.surfaceId)
   }
 
-  const handleAdoptRoute = (routeId: string) => {
+  const handleAdoptRoute = (routeId: string, targetSurfaceId: GuidanceSurfaceId) => {
     tutorialStore.markGuidanceRouteAdopted(routeId, props.surfaceId)
+    const targetPanel = GUIDANCE_SURFACE_PANEL_MAP[targetSurfaceId]
+    if (!targetPanel || route.name === targetPanel) return
+    navigateToPanel(targetPanel)
   }
 
   onMounted(() => {

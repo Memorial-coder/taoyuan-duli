@@ -659,7 +659,7 @@
           </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div v-for="eff in activeRingDef.effects" :key="eff.type" class="flex items-center justify-between mt-0.5 first:mt-0">
-              <span class="text-xs text-muted">{{ RING_EFFECT_NAMES[eff.type] ?? eff.type }}</span>
+              <span class="text-xs text-muted">{{ RING_EFFECT_NAMES[eff.type] }}</span>
               <span class="text-xs text-success">+{{ formatEffectValue(eff) }}</span>
             </div>
             <div class="flex items-center justify-between mt-0.5">
@@ -711,7 +711,7 @@
           </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div v-for="eff in activeHatDef.effects" :key="eff.type" class="flex items-center justify-between mt-0.5 first:mt-0">
-              <span class="text-xs text-muted">{{ RING_EFFECT_NAMES[eff.type] ?? eff.type }}</span>
+              <span class="text-xs text-muted">{{ RING_EFFECT_NAMES[eff.type] }}</span>
               <span class="text-xs text-success">+{{ formatEffectValue(eff) }}</span>
             </div>
             <div class="flex items-center justify-between mt-0.5">
@@ -748,7 +748,7 @@
           </div>
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div v-for="eff in activeShoeDef.effects" :key="eff.type" class="flex items-center justify-between mt-0.5 first:mt-0">
-              <span class="text-xs text-muted">{{ RING_EFFECT_NAMES[eff.type] ?? eff.type }}</span>
+              <span class="text-xs text-muted">{{ RING_EFFECT_NAMES[eff.type] }}</span>
               <span class="text-xs text-success">+{{ formatEffectValue(eff) }}</span>
             </div>
             <div class="flex items-center justify-between mt-0.5">

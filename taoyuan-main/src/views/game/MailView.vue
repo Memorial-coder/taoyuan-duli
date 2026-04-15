@@ -1,137 +1,155 @@
 <template>
-  <div class="grid gap-3 md:grid-cols-[260px,minmax(0,1fr)]">
-    <section class="panel-box">
-      <div class="flex items-center justify-between mb-2">
-        <Divider label="邮箱" />
-        <span class="text-[10px] text-muted">未读 {{ mailboxStore.unreadCount }}</span>
-      </div>
-      <div class="detail-card mb-3">
-        <div class="flex items-center justify-between mb-1">
-          <p class="text-xs text-accent">活动邮件摘要</p>
-          <span class="text-[10px] text-muted">可领 {{ claimableMailCount }}</span>
+  <div ref="mailViewRoot">
+    <GuidanceDigestPanel surface-id="mail" title="活动邮件引导" />
+
+    <div class="grid gap-3 md:grid-cols-[260px,minmax(0,1fr)]">
+      <section class="panel-box" :class="!isDesktop && activeMail ? 'hidden' : ''">
+        <div class="flex items-center justify-between mb-2">
+          <Divider label="邮箱" />
+          <span class="text-[10px] text-muted">未读 {{ mailboxStore.unreadCount }}</span>
         </div>
-        <p class="text-[10px] text-muted leading-4">
-          {{ goalStore.currentEventCampaign ? `当前活动：${goalStore.currentEventCampaign.label}` : '当前没有激活中的活动编排。' }}
-        </p>
-        <p class="text-[10px] text-accent mt-1">
-          活动邮件 {{ activityMailCount }} 封
-        </p>
-      </div>
-      <div class="flex flex-col space-y-1.5 mb-3">
-        <Button class="w-full justify-center" :icon="RefreshCw" :icon-size="12" :disabled="mailboxStore.loading" @click="refreshMails">
-          刷新邮件
-        </Button>
-        <Button class="w-full justify-center" :icon="Inbox" :icon-size="12" @click="claimAllRewards">
-          一键领取
-        </Button>
-        <Button class="w-full justify-center" :icon="Trash2" :icon-size="12" @click="clearClaimed">
-          清空已领取
-        </Button>
-      </div>
-
-      <div v-if="mailboxStore.mails.length === 0" class="empty-box">
-        <Mail :size="30" class="text-accent/20 mb-2" />
-        <p class="text-xs text-muted">暂无邮件</p>
-      </div>
-
-      <button
-        v-for="mail in mailboxStore.mails"
-        :key="mail.id"
-        class="mail-item"
-        :class="{ 'mail-item-active': activeMailId === mail.id }"
-        @click="selectMail(mail.id)"
-      >
-        <div class="flex items-start justify-between gap-2">
-          <div class="min-w-0">
-            <p class="text-xs text-text truncate">
-              <span v-if="mail.unread" class="text-accent">[新]</span>
-              {{ mail.title }}
-            </p>
-            <p class="text-[10px] text-muted line-clamp-2">{{ mail.preview }}</p>
+        <div class="detail-card mb-3">
+          <div class="flex items-center justify-between mb-1">
+            <p class="text-xs text-accent">活动邮件摘要</p>
+            <span class="text-[10px] text-muted">可领 {{ claimableMailCount }}</span>
           </div>
-          <span class="status-badge" :class="statusClass(mail.claim_status)">{{ statusLabel(mail.claim_status) }}</span>
+          <p class="text-[10px] text-muted leading-4">
+            {{ goalStore.currentEventCampaign ? `当前活动：${goalStore.currentEventCampaign.label}` : '当前没有激活中的活动编排。' }}
+          </p>
+          <p class="text-[10px] text-accent mt-1">
+            活动邮件 {{ activityMailCount }} 封
+          </p>
         </div>
-        <div class="mt-1 flex items-center justify-between text-[10px] text-muted">
-          <span>{{ formatTime(mail.sent_at) }}</span>
-          <span v-if="mail.has_rewards">奖励 {{ mail.reward_count }}</span>
-          <span v-else>公告</span>
+        <div class="flex flex-col space-y-1.5 mb-3">
+          <Button class="w-full justify-center" :icon="RefreshCw" :icon-size="12" :disabled="mailboxStore.loading" @click="refreshMails">
+            刷新邮件
+          </Button>
+          <Button class="w-full justify-center" :icon="Inbox" :icon-size="12" @click="claimAllRewards">
+            一键领取
+          </Button>
+          <Button class="w-full justify-center" :icon="Trash2" :icon-size="12" @click="clearClaimed">
+            清空已领取
+          </Button>
         </div>
-      </button>
-    </section>
 
-    <section class="panel-box detail-box">
-      <template v-if="activeMail">
-        <div class="flex items-start justify-between gap-2 mb-3">
-          <div class="min-w-0">
-            <p class="text-sm text-accent truncate">{{ activeMail.title }}</p>
-            <div class="flex flex-wrap gap-1 mt-1">
-              <span class="status-badge" :class="statusClass(activeMail.claim_status)">{{ statusLabel(activeMail.claim_status) }}</span>
-              <span class="status-badge" :class="activeMail.unread ? 'badge-muted' : 'badge-read'">
-                {{ activeMail.unread ? '未读' : '已读' }}
-              </span>
-              <span v-if="activeMail.template_type" class="status-badge badge-muted">{{ templateLabel(activeMail.template_type) }}</span>
+        <div v-if="mailboxStore.mails.length === 0" class="empty-box">
+          <Mail :size="30" class="text-accent/20 mb-2" />
+          <p class="text-xs text-muted">暂无邮件</p>
+        </div>
+
+        <button
+          v-for="mail in mailboxStore.mails"
+          :key="mail.id"
+          class="mail-item"
+          :class="{ 'mail-item-active': activeMailId === mail.id }"
+          @click="selectMail(mail.id)"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="text-xs text-text truncate">
+                <span v-if="mail.unread" class="text-accent">[新]</span>
+                {{ mail.title }}
+              </p>
+              <p class="text-[10px] text-muted line-clamp-2">{{ mail.preview }}</p>
+            </div>
+            <span class="status-badge" :class="statusClass(mail.claim_status)">{{ statusLabel(mail.claim_status) }}</span>
+          </div>
+          <div class="mt-1 flex items-center justify-between text-[10px] text-muted">
+            <span>{{ formatTime(mail.sent_at) }}</span>
+            <span v-if="mail.has_rewards">奖励 {{ mail.reward_count }}</span>
+            <span v-else>公告</span>
+          </div>
+        </button>
+      </section>
+
+      <section class="panel-box detail-box" :class="!isDesktop && !activeMail ? 'hidden' : ''">
+        <template v-if="activeMail">
+          <div v-if="!isDesktop" class="flex items-center justify-between gap-2 mb-3">
+            <Button class="justify-center shrink-0" :icon="ChevronLeft" :icon-size="12" @click="backToMailList">
+              返回列表
+            </Button>
+            <div class="flex gap-2">
+              <Button class="justify-center shrink-0" :icon="ChevronLeft" :icon-size="12" :disabled="!hasPrevMail" @click="selectAdjacentMail(-1)">
+                上一封
+              </Button>
+              <Button class="justify-center shrink-0" :icon="ChevronRight" :icon-size="12" :disabled="!hasNextMail" @click="selectAdjacentMail(1)">
+                下一封
+              </Button>
             </div>
           </div>
-          <span class="text-[10px] text-muted text-right">
-            <span class="block">发送 {{ formatTime(activeMail.sent_at) }}</span>
-            <span v-if="activeMail.expires_at" class="block">到期 {{ formatTime(activeMail.expires_at) }}</span>
-          </span>
-        </div>
 
-        <div class="detail-card mb-3 whitespace-pre-wrap text-xs leading-relaxed">{{ activeMail.content || '暂无正文' }}</div>
-
-        <div class="detail-card mb-3">
-          <div class="flex items-center justify-between mb-2">
-            <p class="text-xs text-accent">奖励内容</p>
-            <span v-if="activeMail.duplicate_compensation_money > 0" class="text-[10px] text-muted">
-              重复装备补偿 {{ activeMail.duplicate_compensation_money }} 文
+          <div class="flex items-start justify-between gap-2 mb-3">
+            <div class="min-w-0">
+              <p class="text-sm text-accent truncate">{{ activeMail.title }}</p>
+              <div class="flex flex-wrap gap-1 mt-1">
+                <span class="status-badge" :class="statusClass(activeMail.claim_status)">{{ statusLabel(activeMail.claim_status) }}</span>
+                <span class="status-badge" :class="activeMail.unread ? 'badge-muted' : 'badge-read'">
+                  {{ activeMail.unread ? '未读' : '已读' }}
+                </span>
+                <span v-if="activeMail.template_type" class="status-badge badge-muted">{{ templateLabel(activeMail.template_type) }}</span>
+              </div>
+            </div>
+            <span class="text-[10px] text-muted text-right">
+              <span class="block">发送 {{ formatTime(activeMail.sent_at) }}</span>
+              <span v-if="activeMail.expires_at" class="block">到期 {{ formatTime(activeMail.expires_at) }}</span>
             </span>
           </div>
-          <div v-if="activeMail.rewards.length > 0" class="flex flex-col space-y-1">
-            <div v-for="(reward, index) in activeMail.rewards" :key="`${reward.type}-${reward.id}-${index}`" class="reward-row">
-              <span class="text-xs">{{ rewardLabel(reward) }}</span>
+
+          <div class="detail-card mb-3 whitespace-pre-wrap text-xs leading-relaxed">{{ activeMail.content || '暂无正文' }}</div>
+
+          <div class="detail-card mb-3">
+            <div class="flex items-center justify-between mb-2">
+              <p class="text-xs text-accent">奖励内容</p>
+              <span v-if="activeMail.duplicate_compensation_money > 0" class="text-[10px] text-muted">
+                重复装备补偿 {{ activeMail.duplicate_compensation_money }} 文
+              </span>
             </div>
+            <div v-if="activeMail.rewards.length > 0" class="flex flex-col space-y-1">
+              <div v-for="(reward, index) in activeMail.rewards" :key="`${reward.type}-${reward.id}-${index}`" class="reward-row">
+                <span class="text-xs">{{ rewardLabel(reward) }}</span>
+              </div>
+            </div>
+            <p v-else class="text-xs text-muted">这是一封纯文字公告</p>
           </div>
-          <p v-else class="text-xs text-muted">这是一封纯文字公告</p>
-        </div>
 
-        <div v-if="activeMail.claim_result" class="detail-card mb-3">
-          <p class="text-xs text-accent mb-2">领取记录</p>
-          <p class="text-[11px] text-muted mb-1">已入账 {{ activeMail.claim_result.money_added }} 文</p>
-          <p v-if="activeMail.claim_result.applied_rewards.length > 0" class="text-[11px] text-muted mb-1">
-            发放 {{ activeMail.claim_result.applied_rewards.length }} 条
-          </p>
-          <p v-if="activeMail.claim_result.skipped_rewards.length > 0" class="text-[11px] text-warning">
-            跳过 {{ activeMail.claim_result.skipped_rewards.length }} 条重复装备
-          </p>
-        </div>
+          <div v-if="activeMail.claim_result" class="detail-card mb-3">
+            <p class="text-xs text-accent mb-2">领取记录</p>
+            <p class="text-[11px] text-muted mb-1">已入账 {{ activeMail.claim_result.money_added }} 文</p>
+            <p v-if="activeMail.claim_result.applied_rewards.length > 0" class="text-[11px] text-muted mb-1">
+              发放 {{ activeMail.claim_result.applied_rewards.length }} 条
+            </p>
+            <p v-if="activeMail.claim_result.skipped_rewards.length > 0" class="text-[11px] text-warning">
+              跳过 {{ activeMail.claim_result.skipped_rewards.length }} 条重复装备
+            </p>
+          </div>
 
-        <div class="flex flex-wrap gap-2">
-          <Button
-            v-if="activeMail.can_claim"
-            class="justify-center"
-            :icon="Gift"
-            :icon-size="12"
-            @click="claimCurrentMail"
-          >
-            领取奖励
-          </Button>
-          <Button v-else class="justify-center" disabled>
-            {{ activeMail.claim_status === 'claimed' ? '已领取' : activeMail.claim_status === 'expired' ? '已过期' : '无奖励' }}
-          </Button>
-        </div>
-      </template>
+          <div class="flex flex-wrap gap-2">
+            <Button
+              v-if="activeMail.can_claim"
+              class="justify-center"
+              :icon="Gift"
+              :icon-size="12"
+              @click="claimCurrentMail"
+            >
+              领取奖励
+            </Button>
+            <Button v-else class="justify-center" disabled>
+              {{ activeMail.claim_status === 'claimed' ? '已领取' : activeMail.claim_status === 'expired' ? '已过期' : '无奖励' }}
+            </Button>
+          </div>
+        </template>
 
-      <div v-else class="empty-box">
-        <MailOpen :size="32" class="text-accent/20 mb-2" />
-        <p class="text-xs text-muted">请选择一封邮件查看详情</p>
-      </div>
-    </section>
+        <div v-else class="empty-box">
+          <MailOpen :size="32" class="text-accent/20 mb-2" />
+          <p class="text-xs text-muted">请选择一封邮件查看详情</p>
+        </div>
+      </section>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref, watch } from 'vue'
+  import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useQuestStore } from '@/stores/useQuestStore'
@@ -141,9 +159,10 @@
   import { getHatById } from '@/data/hats'
   import { getShoeById } from '@/data/shoes'
   import { showFloat } from '@/composables/useGameLog'
-  import { Mail, MailOpen, RefreshCw, Inbox, Trash2, Gift } from 'lucide-vue-next'
+  import { Mail, MailOpen, RefreshCw, Inbox, Trash2, Gift, ChevronLeft, ChevronRight } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
+  import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import type { MailClaimSyncState, TaoyuanMailDetail, TaoyuanMailReward, TaoyuanMailSummary } from '@/stores/useMailboxStore'
 
   const mailboxStore = useMailboxStore()
@@ -152,10 +171,22 @@
   const activeMailId = ref<string | null>(null)
   const activeMail = ref<TaoyuanMailDetail | null>(null)
   const selectRequestId = ref(0)
+  const mailViewRoot = ref<HTMLElement | null>(null)
+  const isDesktop = ref(typeof window === 'undefined' ? true : window.innerWidth >= 768)
   const claimableMailCount = computed(() => mailboxStore.mails.filter(mail => mail.can_claim).length)
   const activityMailCount = computed(() => mailboxStore.mails.filter(mail => mail.template_type === 'activity_reward').length)
+  const activeMailIndex = computed(() => mailboxStore.mails.findIndex(mail => mail.id === activeMailId.value))
+  const hasPrevMail = computed(() => activeMailIndex.value > 0)
+  const hasNextMail = computed(() => activeMailIndex.value >= 0 && activeMailIndex.value < mailboxStore.mails.length - 1)
   const isEventMailReceiptKey = (value: string) => value.startsWith('event_')
   const isActivityWindowMailReceiptKey = (value: string) => value.startsWith('activity_window_')
+  const updateViewportMode = () => {
+    if (typeof window === 'undefined') return
+    isDesktop.value = window.innerWidth >= 768
+  }
+  const scrollMailViewToTop = () => {
+    mailViewRoot.value?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }
 
   const syncActivityRewardMailState = (mail: TaoyuanMailSummary | TaoyuanMailDetail | null | undefined) => {
     if (!mail || mail.template_type !== 'activity_reward' || !mail.is_claimed) return
@@ -262,8 +293,15 @@
       activeMail.value = null
       return
     }
-    const nextId = mailboxStore.mails.some(item => item.id === activeMailId.value) ? activeMailId.value : mailboxStore.mails[0]!.id
-    if (nextId) await selectMail(nextId)
+    if (mailboxStore.mails.some(item => item.id === activeMailId.value)) {
+      await selectMail(activeMailId.value!)
+      return
+    }
+    if (!isDesktop.value && !activeMailId.value) {
+      activeMail.value = null
+      return
+    }
+    await selectMail(mailboxStore.mails[0]!.id)
   }
 
   const refreshMails = async () => {
@@ -283,10 +321,23 @@
       const detail = await mailboxStore.openMail(id)
       if (requestId !== selectRequestId.value || activeMailId.value !== id) return
       activeMail.value = detail
+      if (!isDesktop.value) scrollMailViewToTop()
     } catch (error: any) {
       if (requestId !== selectRequestId.value) return
       showFloat(error?.message || '读取邮件失败', 'danger')
     }
+  }
+
+  const backToMailList = () => {
+    activeMailId.value = null
+    activeMail.value = null
+    if (!isDesktop.value) scrollMailViewToTop()
+  }
+
+  const selectAdjacentMail = async (offset: -1 | 1) => {
+    const nextMail = mailboxStore.mails[activeMailIndex.value + offset]
+    if (!nextMail) return
+    await selectMail(nextMail.id)
   }
 
   const claimCurrentMail = async () => {
@@ -329,7 +380,13 @@
   }
 
   onMounted(async () => {
+    updateViewportMode()
+    if (typeof window !== 'undefined') window.addEventListener('resize', updateViewportMode)
     await refreshMails()
+  })
+
+  onUnmounted(() => {
+    if (typeof window !== 'undefined') window.removeEventListener('resize', updateViewportMode)
   })
 
   watch(

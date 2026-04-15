@@ -4,6 +4,16 @@
 
 ## [未发布]
 
+### 新增功能
+
+#### 0415 管理面板整合：首页「关于游戏」可编辑 + 长期日志中心
+- `src/views/TaoyuanAdminView.vue` 已从单一邮件页升级为统一桃源管理工作台，现整合 **邮件管理 / 首页关于 / 日志中心 / 用户管理** 入口；首页主菜单的“桃源管理”也已改为直达 `/admin`，不再默认跳到 `/admin/users`。
+- `src/components/game/AdminHomepageAboutPanel.vue`、`src/utils/adminContentApi.ts`、`server/src/routes/api.js`、`server/src/db.js` 已新增首页“关于游戏 / 关于桃源乡”内容管理链路：管理员可在后台编辑按钮文案、弹窗标题与正文，支持 Markdown 图文混排、图片上传插入、草稿保存、正式发布、版本记录与版本恢复；其中首页关于编辑器现已改成接近交流大厅发帖体验的“文字段 / 图片段”块编辑模式，而不是单一 Markdown 文本框。
+- `src/views/MainMenu.vue`、`src/utils/safeMarkdown.ts` 已把首页关于弹窗从纯文本展示改为安全 Markdown 渲染，支持标题、列表、链接与图片，且仍保留安全 URL 白名单约束。
+- `server/src/db.js`、`server/src/routes/api.js`、`src/components/game/AdminLogCenterPanel.vue` 已新增内容版本日志与长期游戏日志中心；后台现在可查看首页关于内容的发布历史、版本备注，以及已持久化的游戏事件日志。
+- `src/composables/useGameLog.ts` 已把关键游戏日志改为“前端保留历史 + 异步批量上报服务端”，并在页面关闭前尝试通过 `sendBeacon` 补发，支持长期保存与后台回查。
+- 本轮改动已完成 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run type-check` 与 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run lint` 校验；`npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run build` 也已启动用于进一步确认构建结果。
+
 ### 修复
 
 #### 0414 存档权威与瀚海扑克结算收口
@@ -18,7 +28,23 @@
 - `src/views/MainMenu.vue` 与 `/api/public-config` 返回链接已增加站内安全校验，不再直接跳转到未校验的外部地址。
 - `src/data/items.ts`、`src/data/villageProjects.ts`、`src/data/sampleSaves.ts`、`scripts/qa-late-game-samples.mjs` 已补齐 `paper` 正式物品定义、修正 `standard_bait` 奖励引用、修复鱼塘样例 genetics schema，并把样例档 QA 从“字段存在”提升到“关键 schema + itemId 合法性”校验。
 
+#### 0415 引导面板与图鉴提示交互修复
+- `src/components/game/GuidanceDigestPanel.vue` 已把路线按钮补成“记下路线 + 按目标页跳转”的真实交互，不再出现面板按钮可点但没有承接动作的假入口。
+- `src/stores/useTutorialStore.ts` 已补齐 guidance digest 的视图新鲜度 key，并让 summary 的 `dismissed` 状态优先于 `adopted`；“收起提示”现在会真正把当前提示收起，不再回退显示已收起内容。
+- `src/components/game/TopGoalsPanel.vue`、`src/views/game/MailView.vue` 已补挂 `top_goals` / `mail` guidance surface，避免配置里已有摘要定义但页面没有统一面板入口。
+- `src/components/game/ItemCollectionTab.vue` 已把图鉴阶段里程碑里带 `panel` 的效果条目改成可点击入口，和未发现条目引导保持一致，不再只是静态标签。
+- `src/components/game/TopGoalsPanel.vue` 已把跨系统 weekly decision loop 收敛为玩家可见、可点击的常驻路线条，并为主题周、市场轮换和本周重点目标补上“去任务板 / 去商圈 / 去育种”等 CTA。
+- `src/components/game/TopGoalsPanel.vue` 已调整超宽屏布局为“内容自适应高度 + 非等高三列”，避免“本季目标”过长时把“今日目标 / 当前里程碑”一并撑成大块留白。
+- `src/views/game/MailView.vue` 已把移动端邮箱改成 master-detail 结构：手机上会先看邮件列表，进入详情后可直接“返回列表 / 上一封 / 下一封”，不再需要长距离回滚找下一封邮件。
+
 ### 新增功能
+
+#### 0415 图鉴 / 百科资料架构重构
+- `src/data/itemEncyclopedia.ts` 已新增图鉴 / 百科共享资料辅助层，统一收口物品来源、用途说明、分类细节、加工反查、关联词条与推荐入口，避免图鉴和百科继续维护两套口径。
+- `src/data/glossary.ts` 已从纯静态折叠词条升级为“资料注册表”，为词条补齐 `intents`、`keywords`、`relatedPanels`、`relatedEntryIds`、`spoiler` 与统一 `searchText`，支持按“怎么获得 / 有什么用 / 查送礼 / 查解锁 / 看地点条件 / 看相关系统”组织资料。
+- `src/components/game/GlossaryTab.vue` 已重做为问题导向百科页：新增问题型快捷筛选、分类计数、隐秘词条开关、命中高亮、左侧词条列表 + 右侧详情布局，以及相关词条 / 相关系统跳转，不再只是单列折叠清单。
+- `src/components/game/ItemCollectionTab.vue`、`src/views/game/AchievementView.vue` 已补齐“按问题去百科”入口与“图鉴看收录、百科查机制”的角色提示；玩家现在可从图鉴直接带着问题切到百科，而不需要先自己判断该去哪一页查资料。
+- 本轮改动已完成 `vite build` 构建验证；`vue-tsc -b` 仍受当前分支既有类型错误阻塞，但未发现本轮图鉴 / 百科改造额外引入新的打包问题。
 
 #### 0412 主线执行面归一
 - 已将 `D:/taoyuan-latest/0412plan.md` 确认为唯一执行主线。

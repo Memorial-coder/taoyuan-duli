@@ -222,11 +222,16 @@ export interface ChildState {
   interactedToday: boolean
   /** 出生品质 */
   birthQuality: 'normal' | 'premature' | 'healthy'
+  origin: 'birth' | 'adoption'
   trainingState: ChildTrainingState
 }
 
 /** 孕期阶段 */
-export type PregnancyStage = 'early' | 'mid' | 'late' | 'ready'
+export type FamilyExpansionKind = 'pregnancy' | 'adoption'
+export type FamilyExpansionStage = 'early' | 'mid' | 'late' | 'ready'
+export type FamilyExpansionPlan = 'normal' | 'advanced' | 'luxury'
+export type PregnancyStage = FamilyExpansionStage
+export type PregnancyState = FamilyExpansionState
 
 /** 提议回应 */
 export type ProposalResponse = 'accept' | 'decline' | 'wait'
@@ -242,15 +247,18 @@ export interface HiredHelper {
 }
 
 /** 孕期状态 */
-export interface PregnancyState {
-  stage: PregnancyStage
+export interface FamilyExpansionState {
+  kind: FamilyExpansionKind
+  stage: FamilyExpansionStage
   daysInStage: number
   stageDays: number
   /** 安产分数 0-100 */
   careScore: number
   caredToday: boolean
-  giftedForPregnancy: boolean
+  giftedToday: boolean
   companionToday: boolean
-  medicalPlan: 'normal' | 'advanced' | 'luxury' | null
+  supportPlan: FamilyExpansionPlan | null
+  giftedForPregnancy?: boolean
+  medicalPlan?: FamilyExpansionPlan | null
   careMilestoneIds: string[]
 }

@@ -623,7 +623,7 @@
 
           <!-- 恋爱/求婚面板 -->
           <div
-            v-if="selectedNpcDef?.marriageable && !selectedNpcState?.married && selectedNpcDef.gender !== playerStore.gender"
+            v-if="selectedNpcDef?.marriageable && !selectedNpcState?.married && npcStore.canPursueMarriageWithNpc(selectedNpc)"
             class="border border-danger/20 rounded-xs p-2 mb-3"
           >
             <p class="text-xs text-danger/80 mb-1.5 flex items-center space-x-1">
@@ -1227,9 +1227,10 @@
   /** 是否可以赠帕开始约会 */
   const canStartDating = computed(() => {
     if (!selectedNpcDef.value?.marriageable) return false
-    if (selectedNpcDef.value.gender === playerStore.gender) return false
+    if (!npcStore.canPursueMarriageWithNpc(selectedNpc.value)) return false
     if (selectedNpcState.value?.dating) return false
     if (selectedNpcState.value?.married) return false
+    if (selectedNpcState.value?.zhiji) return false
     if (npcStore.npcStates.some(s => s.married)) return false
     if ((selectedNpcState.value?.friendship ?? 0) < 2000) return false
     if (!inventoryStore.hasItem('silk_ribbon')) return false
@@ -1239,9 +1240,10 @@
   /** 是否可以求婚 */
   const canPropose = computed(() => {
     if (!selectedNpcDef.value?.marriageable) return false
-    if (selectedNpcDef.value.gender === playerStore.gender) return false
+    if (!npcStore.canPursueMarriageWithNpc(selectedNpc.value)) return false
     if (!selectedNpcState.value?.dating) return false
     if (selectedNpcState.value?.married) return false
+    if (selectedNpcState.value?.zhiji) return false
     if (npcStore.npcStates.some(s => s.married)) return false
     if (npcStore.weddingCountdown > 0) return false
     if ((selectedNpcState.value?.friendship ?? 0) < 2500) return false

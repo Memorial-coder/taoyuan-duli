@@ -238,7 +238,7 @@
           <span class="text-[10px] text-muted">已报名 {{ breedingStore.breedingContestState.registeredSeedIds.length }}</span>
         </div>
         <p v-if="breedingStore.lastBreedingContestSettlement?.weekId" class="text-[10px] text-accent mt-1">
-          上周结算：{{ breedingStore.lastBreedingContestSettlement.weekId }} · 冠军 {{ breedingStore.lastBreedingContestSettlement.winner?.label ?? '无' }}
+          上周结算：{{ lastBreedingContestWeekLabel }} · 冠军 {{ breedingStore.lastBreedingContestSettlement.winner?.label ?? '无' }}
         </p>
       </div>
 
@@ -560,7 +560,7 @@
           <div v-if="detailSeedScoreBreakdown" class="border border-accent/10 rounded-xs p-2 mb-3 bg-bg/10">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-accent">统一评分</p>
-              <span class="text-[10px] text-muted">总分 {{ detailSeedScoreBreakdown.totalScore }} · {{ detailSeedScoreBreakdown.stabilityRank }}</span>
+              <span class="text-[10px] text-muted">总分 {{ detailSeedScoreBreakdown.totalScore }} · {{ breedingStabilityRankLabel }}</span>
             </div>
             <div v-if="detailSeedScoreBreakdown.commercialTags.length > 0" class="flex flex-wrap gap-1 mt-2">
               <span v-for="tag in detailSeedScoreBreakdown.commercialTags" :key="tag" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent">
@@ -872,7 +872,7 @@
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useBreedingStore } from '@/stores/useBreedingStore'
-  import { useGameStore } from '@/stores/useGameStore'
+  import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
   import { getCropById } from '@/data/crops'
@@ -935,6 +935,20 @@
 
   type Tab = 'breeding' | 'compendium'
   const tab = ref<Tab>('breeding')
+
+  const BREEDING_STABILITY_RANK_LABELS = {
+    volatile: '波动品系',
+    emerging: '成型中',
+    stable: '稳定品系',
+    certified: '认证谱系'
+  } as const
+
+  const formatWeekId = (weekId: string): string => {
+    const matched = weekId.match(/^(\d+)-(spring|summer|autumn|winter)-week-(\d+)$/)
+    if (!matched) return weekId
+    const [, year, season, week] = matched
+    return `第${year}年${SEASON_NAMES[season as keyof typeof SEASON_NAMES]}季第${week}周`
+  }
 
   // === 育种规则展示 ===
   const showRules = ref(false)
@@ -1184,7 +1198,15 @@
     ]
   })
   const detailSeedScoreBreakdown = computed(() => (detailSeed.value ? breedingStore.getBreedingScoreBreakdown(detailSeed.value.genetics) : null))
+  const breedingStabilityRankLabel = computed(() => {
+    const rank = detailSeedScoreBreakdown.value?.stabilityRank
+    return rank ? BREEDING_STABILITY_RANK_LABELS[rank] ?? rank : '未评级'
+  })
   const detailSeedContestEligible = computed(() => (detailSeed.value ? breedingStore.contestEligibleSeeds.some(seed => seed.genetics.id === detailSeed.value?.genetics.id) : false))
+  const lastBreedingContestWeekLabel = computed(() => {
+    const weekId = breedingStore.lastBreedingContestSettlement?.weekId
+    return weekId ? formatWeekId(weekId) : ''
+  })
 
   const handleDiscard = () => {
     if (!detailSeed.value) return

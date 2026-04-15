@@ -57,6 +57,7 @@ const formatGuidanceTemplate = (template: string, params: Record<string, string 
 const createDefaultGuidanceSurfaceState = (surfaceId: GuidanceSurfaceId): GuidanceSurfaceDigestState => ({
   surfaceId,
   lastViewedDayTag: '',
+  lastViewedDigestKey: '',
   viewedCount: 0,
   lastInteractedSummaryId: null,
   lastAdoptedRouteId: null
@@ -88,6 +89,7 @@ const normalizeGuidanceSurfaceState = (value: unknown): GuidanceSurfaceDigestSta
   return {
     surfaceId: raw.surfaceId,
     lastViewedDayTag: typeof raw.lastViewedDayTag === 'string' ? raw.lastViewedDayTag : '',
+    lastViewedDigestKey: typeof raw.lastViewedDigestKey === 'string' ? raw.lastViewedDigestKey : '',
     viewedCount: Math.max(0, Number(raw.viewedCount) || 0),
     lastInteractedSummaryId: typeof raw.lastInteractedSummaryId === 'string' ? raw.lastInteractedSummaryId : null,
     lastAdoptedRouteId: typeof raw.lastAdoptedRouteId === 'string' ? raw.lastAdoptedRouteId : null
@@ -471,7 +473,9 @@ export const useTutorialStore = defineStore('tutorial', () => {
         const recommendedAction = hanhaiStore.crossSystemOverview.recommendedActions[0] ?? ''
         active = Boolean(hanhaiStore.cycleOverview.unlocked && (recommendedAction || hanhaiStore.cycleOverview.totalRelicClears > 0))
         priority = recommendedAction ? 86 : hanhaiStore.cycleOverview.totalRelicClears > 0 ? 70 : 0
-        headline = recommendedAction || `瀚海当前阶段：${hanhaiStore.cycleOverview.progressTier}`
+        headline =
+          recommendedAction ||
+          `瀚海当前阶段：${({ P0: '开拓期', P1: '扩张期', P2: '深耕期' } as const)[hanhaiStore.cycleOverview.progressTier] ?? '开拓期'}`
         detailLines = dedupeStrings([
           `遗迹总通关 ${hanhaiStore.cycleOverview.totalRelicClears} 次。`,
           hanhaiStore.cycleOverview.activeInvestmentCount > 0 ? `已投资商路 ${hanhaiStore.cycleOverview.activeInvestmentCount} 条。` : '',
@@ -578,10 +582,10 @@ export const useTutorialStore = defineStore('tutorial', () => {
       ...def,
       active,
       priority,
-      status: guidanceDigestState.value.adoptedSummaryIds.includes(def.id)
-        ? 'adopted'
-        : guidanceDigestState.value.dismissedSummaryIds.includes(def.id)
-          ? 'dismissed'
+      status: guidanceDigestState.value.dismissedSummaryIds.includes(def.id)
+        ? 'dismissed'
+        : guidanceDigestState.value.adoptedSummaryIds.includes(def.id)
+          ? 'adopted'
           : 'fresh',
       headline,
       detailLines: detailLines.slice(0, Math.max(1, guidanceDisplayConfig.maxDetailLineCount)),
@@ -602,6 +606,16 @@ export const useTutorialStore = defineStore('tutorial', () => {
 
   const activeGuidanceSummaryIds = computed(() =>
     guidancePanelSummaryStates.value.filter(summary => summary.active).map(summary => summary.id)
+  )
+  const currentGuidanceDigestKey = computed(() =>
+    [
+      goalStore.uiGuidanceSourceOverview.currentDayTag,
+      goalStore.uiGuidanceSourceOverview.currentThemeWeek?.id ?? 'none',
+      goalStore.uiGuidanceSourceOverview.currentEventCampaign?.id ?? 'none',
+      ...activeGuidanceSummaryIds.value,
+      '--',
+      ...activeGuidanceRouteIds.value
+    ].join('|')
   )
 
   const guidanceSurfaceSnapshots = computed<GuidanceSurfaceSnapshot[]>(() =>
@@ -625,8 +639,11 @@ export const useTutorialStore = defineStore('tutorial', () => {
         activeSummaryCount: summaryStates.filter(summary => summary.active).length,
         activeRouteCount: routeStates.filter(route => route.active).length,
         hasFreshContent:
-          summaryStates.some(summary => summary.active && summary.status === 'fresh') ||
-          routeStates.some(route => route.active && route.status === 'available'),
+          surfaceState.lastViewedDigestKey !== currentGuidanceDigestKey.value &&
+          (
+            summaryStates.some(summary => summary.active && summary.status === 'fresh') ||
+            routeStates.some(route => route.active && route.status === 'available')
+          ),
         lastViewedDayTag: surfaceState.lastViewedDayTag
       }
     })
@@ -744,6 +761,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
       updateGuidanceSurfaceState(surfaceId, state => ({
         ...state,
         lastViewedDayTag: dayTag,
+        lastViewedDigestKey: currentGuidanceDigestKey.value,
         viewedCount: state.viewedCount + 1
       }))
       return true

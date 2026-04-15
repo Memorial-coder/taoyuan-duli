@@ -1,6 +1,6 @@
 <template>
-  <div class="min-h-screen px-4 py-6 md:py-8" :class="{ 'pt-10': Capacitor.isNativePlatform() }">
-    <div class="mx-auto w-full max-w-[1480px] space-y-4">
+  <div class="min-h-screen px-1 py-4 md:px-2 md:py-5 xl:px-3 2xl:px-4" :class="{ 'pt-10': Capacitor.isNativePlatform() }">
+    <div class="w-full space-y-4">
       <div class="game-panel space-y-4">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div class="space-y-2">
@@ -20,16 +20,25 @@
             </div>
           </div>
 
-          <div class="flex flex-wrap gap-2">
+          <div class="admin-top-actions">
+            <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'mail' }" @click="switchAdminTab('mail')">
+              <span>邮件管理</span>
+            </button>
+            <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'content' }" @click="switchAdminTab('content')">
+              <span>首页关于</span>
+            </button>
+            <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'logs' }" @click="switchAdminTab('logs')">
+              <span>日志中心</span>
+            </button>
             <button class="btn" @click="openUserAdmin">
               <Users :size="14" />
               <span>用户管理</span>
             </button>
-            <button class="btn" @click="handleRefreshClick" :disabled="loadingCampaigns || !hasToken">
+            <button class="btn" @click="handleRefreshClick" :disabled="loadingCampaigns || !hasToken || activeAdminTab !== 'mail'">
               <RefreshCw :size="14" />
               <span>{{ loadingCampaigns ? '刷新中...' : '刷新记录' }}</span>
             </button>
-            <button class="btn" @click="handleCreateNewMail">
+            <button class="btn" @click="handleCreateNewMail" :disabled="activeAdminTab !== 'mail'">
               <Plus :size="14" />
               <span>新建邮件</span>
             </button>
@@ -58,17 +67,19 @@
         </div>
 
         <div class="text-xs leading-6">
-          <span v-if="isAuthorized" class="text-success">管理员接口已连接，可以直接在桃源乡内发邮件。</span>
+          <span v-if="adminSession" class="text-success">
+            已连接 {{ adminSession.role_label }} 权限。{{ canManageMail ? '可直接发送桃源乡邮件。' : '当前口令不具备邮件运营权限，但可查看内容与日志模块。' }}
+          </span>
           <span v-else-if="tokenError" class="text-danger">{{ tokenError }}</span>
           <span v-else class="text-muted">填写管理员口令后即可查看和发送桃源乡邮件。</span>
         </div>
       </div>
 
-      <div v-if="hasToken" class="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div v-if="hasToken && activeAdminTab === 'mail' && canManageMail" class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1.7fr)_minmax(320px,0.9fr)] 2xl:grid-cols-[minmax(0,2fr)_minmax(340px,0.85fr)]">
         <div class="game-panel space-y-4">
           <div class="flex items-center justify-between gap-3">
             <p class="text-sm text-accent">{{ composer.id ? `编辑草稿 #${composer.id}` : '新建邮箱邮件' }}</p>
-            <div class="flex flex-wrap gap-2 justify-end">
+            <div class="admin-composer-actions">
               <button class="btn !px-2 !py-1" @click="useHasSaveRecipients">
                 <span>仅发给有服务端存档的账号</span>
               </button>
@@ -119,7 +130,7 @@
                 placeholder="输入用户名或显示名后查找"
                 @keydown.enter.prevent="searchRecipients()"
               />
-              <button class="btn !px-3" type="button" :disabled="recipientSearchLoading" @click="searchRecipients()">
+              <button class="btn recipient-search-row__action" type="button" :disabled="recipientSearchLoading" @click="searchRecipients()">
                 <Search :size="14" />
                 <span>{{ recipientSearchLoading ? '查找中...' : '查找用户' }}</span>
               </button>
@@ -163,7 +174,7 @@
                 placeholder="输入用户名或显示名后查找"
                 @keydown.enter.prevent="searchRecipients()"
               />
-              <button class="btn !px-3" type="button" :disabled="recipientSearchLoading" @click="searchRecipients()">
+              <button class="btn recipient-search-row__action" type="button" :disabled="recipientSearchLoading" @click="searchRecipients()">
                 <Search :size="14" />
                 <span>{{ recipientSearchLoading ? '查找中...' : '查找用户' }}</span>
               </button>
@@ -435,38 +446,85 @@
         <div>
           <Divider :label="`玩家投递明细（${detail.deliveries.length}）`" />
           <div v-if="!detail.deliveries.length" class="text-xs text-muted">当前没有玩家投递记录。</div>
-          <div v-else class="overflow-x-auto">
-            <table class="admin-table">
-              <thead>
-                <tr>
-                  <th>玩家</th>
-                  <th>状态</th>
-                  <th>已读</th>
-                  <th>领取</th>
-                  <th>结果</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="delivery in detail.deliveries" :key="delivery.id">
-                  <td>
-                    {{ delivery.recipient_display_name || delivery.username }}
-                    <span class="block text-[11px] text-muted mt-1">{{ formatTargetSlot(delivery.target_slot) }}</span>
-                  </td>
-                  <td>{{ formatClaimStatus(delivery.claim_status) }}</td>
-                  <td>{{ formatTime(delivery.read_at) }}</td>
-                  <td>{{ formatTime(delivery.claimed_at) }}</td>
-                  <td>
+          <div v-else class="admin-delivery-list">
+            <div class="admin-delivery-table-wrap">
+              <table class="admin-table">
+                <thead>
+                  <tr>
+                    <th>玩家</th>
+                    <th>状态</th>
+                    <th>已读</th>
+                    <th>领取</th>
+                    <th>结果</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="delivery in detail.deliveries" :key="delivery.id">
+                    <td>
+                      {{ delivery.recipient_display_name || delivery.username }}
+                      <span class="block text-[11px] text-muted mt-1">{{ formatTargetSlot(delivery.target_slot) }}</span>
+                    </td>
+                    <td>{{ formatClaimStatus(delivery.claim_status) }}</td>
+                    <td>{{ formatTime(delivery.read_at) }}</td>
+                    <td>{{ formatTime(delivery.claimed_at) }}</td>
+                    <td>
+                      <template v-if="delivery.claim_result">
+                        入账 {{ delivery.claim_result.money_added || 0 }}，
+                        跳过 {{ delivery.claim_result.skipped_rewards?.length || 0 }}
+                      </template>
+                      <template v-else>-</template>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="admin-delivery-cards">
+              <div v-for="delivery in detail.deliveries" :key="`card_${delivery.id}`" class="admin-delivery-card">
+                <div class="admin-delivery-card__row">
+                  <span class="admin-delivery-card__label">玩家</span>
+                  <div class="admin-delivery-card__value">
+                    <div>{{ delivery.recipient_display_name || delivery.username }}</div>
+                    <div class="text-[11px] text-muted mt-1">{{ formatTargetSlot(delivery.target_slot) }}</div>
+                  </div>
+                </div>
+                <div class="admin-delivery-card__row">
+                  <span class="admin-delivery-card__label">状态</span>
+                  <span class="admin-delivery-card__value">{{ formatClaimStatus(delivery.claim_status) }}</span>
+                </div>
+                <div class="admin-delivery-card__row">
+                  <span class="admin-delivery-card__label">已读</span>
+                  <span class="admin-delivery-card__value">{{ formatTime(delivery.read_at) }}</span>
+                </div>
+                <div class="admin-delivery-card__row">
+                  <span class="admin-delivery-card__label">领取</span>
+                  <span class="admin-delivery-card__value">{{ formatTime(delivery.claimed_at) }}</span>
+                </div>
+                <div class="admin-delivery-card__row">
+                  <span class="admin-delivery-card__label">结果</span>
+                  <span class="admin-delivery-card__value">
                     <template v-if="delivery.claim_result">
-                      入账 {{ delivery.claim_result.money_added || 0 }}，
-                      跳过 {{ delivery.claim_result.skipped_rewards?.length || 0 }}
+                      入账 {{ delivery.claim_result.money_added || 0 }}，跳过 {{ delivery.claim_result.skipped_rewards?.length || 0 }}
                     </template>
                     <template v-else>-</template>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  </span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
+
+      <AdminHomepageAboutPanel v-if="hasToken && activeAdminTab === 'content'" :can-load="hasAdminAccess" />
+
+      <AdminLogCenterPanel
+        v-if="hasToken && activeAdminTab === 'logs'"
+        :can-load="hasAdminAccess"
+        :can-view-audit="canManageMail"
+      />
+
+      <div v-if="hasToken && activeAdminTab === 'mail' && !canManageMail" class="game-panel text-xs text-muted leading-6">
+        当前口令无邮件运营权限，请使用超级管理员口令后再查看邮件记录。
       </div>
     </div>
   </div>
@@ -478,6 +536,8 @@
   import { Capacitor } from '@capacitor/core'
   import { ArrowLeft, KeyRound, Plus, RefreshCw, Search, ShieldCheck, Trash2, Users } from 'lucide-vue-next'
   import Divider from '@/components/game/Divider.vue'
+  import AdminHomepageAboutPanel from '@/components/game/AdminHomepageAboutPanel.vue'
+  import AdminLogCenterPanel from '@/components/game/AdminLogCenterPanel.vue'
   import { showFloat } from '@/composables/useGameLog'
   import {
     clearStoredAdminToken,
@@ -494,7 +554,7 @@
     type TaoyuanRecipientMode,
     type TaoyuanRewardType,
   } from '@/utils/taoyuanMailboxAdminApi'
-  import { fetchAdminUsers, type UserAdminSummary } from '@/utils/userAdminApi'
+  import { fetchAdminUsers, verifyAdminSession, type AdminSessionInfo, type UserAdminSummary } from '@/utils/userAdminApi'
   import {
     filterRewardCatalog,
     getRewardCatalogEntry,
@@ -631,7 +691,9 @@
   const campaigns = ref<TaoyuanMailCampaignSummary[]>([])
   const detail = ref<TaoyuanMailCampaignDetail | null>(null)
   const composer = ref<ComposerState>(createComposer())
+  const adminSession = ref<AdminSessionInfo | null>(null)
   const isAuthorized = ref(false)
+  const activeAdminTab = ref<'mail' | 'content' | 'logs'>('mail')
 
   const loadingCampaigns = ref(false)
   const loadingDetailId = ref('')
@@ -643,6 +705,8 @@
   const recipientSearchPerformed = ref(false)
 
   const hasToken = computed(() => adminTokenInput.value.trim().length > 0)
+  const hasAdminAccess = computed(() => !!adminSession.value)
+  const canManageMail = computed(() => adminSession.value?.role === 'super_admin')
   const recipientSummary = computed(() => {
     const rule = composer.value.recipient_rule
     if (rule.mode === 'single') {
@@ -689,6 +753,32 @@
 
   const goBack = () => {
     void router.push('/')
+  }
+
+  const switchAdminTab = (tab: 'mail' | 'content' | 'logs') => {
+    activeAdminTab.value = tab
+    const nextQuery = { ...route.query }
+    if (tab === 'mail') {
+      delete nextQuery.tab
+    } else {
+      nextQuery.tab = tab
+    }
+    void router.replace({ path: '/admin', query: nextQuery })
+  }
+
+  const syncAdminTabFromRoute = () => {
+    const routeTab = route.query.tab
+    if (routeTab === 'content' || routeTab === 'logs' || routeTab === 'mail') {
+      activeAdminTab.value = routeTab
+      return
+    }
+    if (route.query.mode === 'single' || route.query.mode === 'has_save') {
+      activeAdminTab.value = 'mail'
+      return
+    }
+    if (!route.query.tab) {
+      activeAdminTab.value = 'mail'
+    }
   }
 
   const openUserAdmin = () => {
@@ -937,6 +1027,7 @@
     if (!mode) return
 
     if (mode === 'single') {
+      activeAdminTab.value = 'mail'
       const username = typeof route.query.username === 'string' ? route.query.username.trim() : ''
       if (!username) return
       applyRecipientPreset('single', { username })
@@ -947,6 +1038,7 @@
     }
 
     applyRecipientPreset('has_save')
+    activeAdminTab.value = 'mail'
     appliedRoutePresetSignature.value = signature
     showFloat('已切换为仅发送给已有服务端存档的账号', 'success')
     clearRoutePresetQuery()
@@ -1020,7 +1112,6 @@
     if (!token) {
       campaigns.value = []
       detail.value = null
-      isAuthorized.value = false
       return
     }
 
@@ -1037,9 +1128,6 @@
       tokenError.value = error instanceof Error ? error.message : '获取桃源乡邮件记录失败'
       campaigns.value = []
       isAuthorized.value = false
-      if (persistToken || token === getStoredAdminToken()) {
-        clearStoredAdminToken()
-      }
     } finally {
       loadingCampaigns.value = false
     }
@@ -1065,10 +1153,24 @@
     savingToken.value = true
     tokenError.value = ''
     try {
-      await refreshCampaigns(candidateToken, true)
+      adminSession.value = await verifyAdminSession(candidateToken, true)
+      if (adminSession.value.role === 'super_admin') {
+        await refreshCampaigns(candidateToken, true)
+      } else {
+        campaigns.value = []
+        detail.value = null
+        isAuthorized.value = false
+      }
       if (!tokenError.value) {
         showFloat('管理员口令已保存', 'success')
       }
+    } catch (error) {
+      adminSession.value = null
+      isAuthorized.value = false
+      campaigns.value = []
+      detail.value = null
+      tokenError.value = error instanceof Error ? error.message : '管理员验证失败'
+      showFloat(tokenError.value, 'danger')
     } finally {
       savingToken.value = false
     }
@@ -1081,6 +1183,7 @@
     campaigns.value = []
     detail.value = null
     isAuthorized.value = false
+    adminSession.value = null
     showFloat('管理员口令已清空', 'success')
   }
 
@@ -1200,15 +1303,26 @@
   }
 
   onMounted(async () => {
+    syncAdminTabFromRoute()
     if (adminTokenInput.value.trim()) {
-      await refreshCampaigns(adminTokenInput.value.trim())
+      try {
+        adminSession.value = await verifyAdminSession(adminTokenInput.value.trim())
+        if (adminSession.value.role === 'super_admin') {
+          await refreshCampaigns(adminTokenInput.value.trim())
+        }
+      } catch (error) {
+        adminSession.value = null
+        isAuthorized.value = false
+        tokenError.value = error instanceof Error ? error.message : '管理员验证失败'
+      }
     }
     applyComposerPresetFromRoute()
   })
 
   watch(
-    () => [route.query.mode, route.query.username],
+    () => [route.query.mode, route.query.username, route.query.tab],
     () => {
+      syncAdminTabFromRoute()
       applyComposerPresetFromRoute()
     }
   )
@@ -1255,11 +1369,37 @@
     min-height: 96px;
   }
 
+  .admin-top-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .admin-top-actions :deep(.btn) {
+    width: 100%;
+  }
+
+  .admin-composer-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 8px;
+    width: 100%;
+  }
+
+  .admin-composer-actions :deep(.btn) {
+    width: 100%;
+  }
+
   .recipient-search-row {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;
     gap: 8px;
     align-items: center;
+  }
+
+  .recipient-search-row__action {
+    width: 100%;
   }
 
   .recipient-search-results {
@@ -1422,6 +1562,96 @@
   .admin-table th {
     color: rgb(var(--color-muted));
     font-weight: 500;
+  }
+
+  .admin-delivery-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .admin-delivery-table-wrap {
+    overflow-x: auto;
+  }
+
+  .admin-delivery-cards {
+    display: none;
+  }
+
+  .admin-delivery-card {
+    border: 1px solid rgba(200, 164, 92, 0.16);
+    border-radius: 2px;
+    background: rgba(26, 26, 26, 0.16);
+    padding: 12px;
+  }
+
+  .admin-delivery-card__row {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .admin-delivery-card__row + .admin-delivery-card__row {
+    margin-top: 10px;
+  }
+
+  .admin-delivery-card__label {
+    font-size: 11px;
+    color: rgb(var(--color-muted));
+  }
+
+  .admin-delivery-card__value {
+    font-size: 12px;
+    color: rgb(var(--color-text));
+    line-height: 1.6;
+    word-break: break-word;
+  }
+
+  @media (min-width: 768px) {
+    .admin-top-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .admin-top-actions :deep(.btn) {
+      width: auto;
+    }
+
+    .admin-composer-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .admin-composer-actions :deep(.btn) {
+      width: auto;
+    }
+
+    .recipient-search-row__action {
+      width: auto;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .recipient-search-row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-delivery-table-wrap {
+      display: none;
+    }
+
+    .admin-delivery-cards {
+      display: grid;
+      gap: 10px;
+    }
+  }
+
+  @media (max-width: 480px) {
+    .admin-top-actions {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   :deep(.btn-primary) {

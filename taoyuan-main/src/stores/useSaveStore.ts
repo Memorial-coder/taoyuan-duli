@@ -52,7 +52,7 @@ const LEGACY_SAVE_KEY_PREFIX = 'taoyuanxiang_save_'
 const MAX_SLOTS = 3
 const ENCRYPTION_KEY = 'taoyuanxiang_2024_secret'
 const SAVE_FILE_EXT = '.tyx'
-const SAVE_VERSION = 3
+const SAVE_VERSION = 4
 
 interface SaveMeta {
   saveVersion: number
@@ -277,6 +277,7 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
       nextChildId: next.npc.nextChildId ?? undefined,
       daysMarried: next.npc.daysMarried ?? 0,
       daysZhiji: next.npc.daysZhiji ?? 0,
+      familyExpansion: next.npc.familyExpansion ?? next.npc.pregnancy ?? null,
       pregnancy: next.npc.pregnancy ?? null,
       childProposalPending: next.npc.childProposalPending ?? false,
       childProposalDeclinedCount: next.npc.childProposalDeclinedCount ?? 0,

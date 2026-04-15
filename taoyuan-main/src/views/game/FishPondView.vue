@@ -95,12 +95,12 @@
               <span class="text-[10px] text-muted">已报名 {{ fishPondStore.pondContestState.registeredFishIds.length }}</span>
             </div>
             <p class="text-[10px] text-muted mt-2">
-              评分维度：{{ fishPondStore.currentPondContestDef.scoringMetric }} ·
+              评分维度：{{ pondContestScoringMetricLabel }} ·
               {{ fishPondStore.currentPondContestDef.requireMature ? '需成熟' : '不要求成熟' }} ·
               {{ fishPondStore.currentPondContestDef.requireHealthy ? '需健康' : '不要求健康' }}
             </p>
             <p v-if="fishPondStore.lastPondContestSettlement?.weekId" class="text-[10px] text-accent mt-1">
-              上周结算：{{ fishPondStore.lastPondContestSettlement.weekId }} · 冠军 {{ fishPondStore.lastPondContestSettlement.winner?.fishName ?? '无' }}
+              上周结算：{{ lastPondContestWeekLabel }} · 冠军 {{ fishPondStore.lastPondContestSettlement.winner?.fishName ?? '无' }}
             </p>
           </div>
 
@@ -535,6 +535,20 @@
 
   const totalBreedCount = 400
 
+  const SEASON_LABELS = {
+    spring: '春',
+    summer: '夏',
+    autumn: '秋',
+    winter: '冬'
+  } as const
+
+  const formatWeekId = (weekId: string): string => {
+    const matched = weekId.match(/^(\d+)-(spring|summer|autumn|winter)-week-(\d+)$/)
+    if (!matched) return weekId
+    const [, year, season, week] = matched
+    return `第${year}年${SEASON_LABELS[season as keyof typeof SEASON_LABELS]}季第${week}周`
+  }
+
   const isDiscovered = (breedId: string): boolean => fishPondStore.discoveredBreeds.has(breedId)
 
   const discoveredCountByGen = (gen: number): number => {
@@ -651,6 +665,23 @@
   const detailFishRating = computed(() => (detailFish.value ? fishPondStore.getPondFishRatingSnapshot(detailFish.value.id) : null))
   const getFishRating = (fish: PondFish) => fishPondStore.getPondFishRatingSnapshot(fish.id)
   const detailFishContestEligible = computed(() => (detailFish.value ? fishPondStore.contestEligibleFish.some(entry => entry.fishInstanceId === detailFish.value?.id) : false))
+const pondContestScoringMetricLabel = computed(() => {
+  const metric = fishPondStore.currentPondContestDef?.scoringMetric
+  switch (metric) {
+    case 'showValue':
+      return '观赏值'
+    case 'foodValue':
+      return '食用品质'
+    case 'totalScore':
+      return '综合总评'
+    default:
+      return '综合评分'
+  }
+})
+  const lastPondContestWeekLabel = computed(() => {
+    const weekId = fishPondStore.lastPondContestSettlement?.weekId
+    return weekId ? formatWeekId(weekId) : ''
+  })
 
   /** 鱼详情弹窗属性条 */
   const fishAttributes = computed(() => {

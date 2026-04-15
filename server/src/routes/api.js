@@ -129,6 +129,9 @@ function buildAdminPermissions(role) {
     update_status: isSuperAdmin,
     delete_user: isSuperAdmin,
     view_audit_logs: isSuperAdmin,
+    manage_content: true,
+    view_content_logs: true,
+    view_gameplay_logs: true,
   };
 }
 
@@ -234,6 +237,49 @@ async function appendAdminAuditLog(req, action, targetUsername, detail) {
     target_username: targetUsername || '',
     detail,
   });
+}
+
+async function appendContentRevisionLog(req, action, payload, options = {}) {
+  return db.recordContentRevision({
+    content_key: options.contentKey || 'homepage_about',
+    title: payload?.aboutDialogTitle || payload?.title || '',
+    summary: options.summary || '',
+    action,
+    published: options.published === true,
+    operator_role: req.admin?.role || '',
+    operator_name: req.admin?.operator_name || '',
+    payload,
+  });
+}
+
+function normalizeHomepageAboutPayload(raw = {}) {
+  return {
+    aboutButtonEnabled: raw.aboutButtonEnabled !== false,
+    aboutButtonText: String(raw.aboutButtonText || '关于游戏').trim() || '关于游戏',
+    aboutDialogTitle: String(raw.aboutDialogTitle || '关于桃源乡').trim() || '关于桃源乡',
+    aboutDialogContent: String(raw.aboutDialogContent || '').replace(/\r\n/g, '\n').trim(),
+  };
+}
+
+function getHomepageAboutContent() {
+  const current = cfg.all();
+  return normalizeHomepageAboutPayload({
+    aboutButtonEnabled: current.taoyuan_about_button_enabled,
+    aboutButtonText: current.taoyuan_about_button_text,
+    aboutDialogTitle: current.taoyuan_about_dialog_title,
+    aboutDialogContent: current.taoyuan_about_dialog_content,
+  });
+}
+
+function publishHomepageAboutContent(content) {
+  const normalized = normalizeHomepageAboutPayload(content);
+  cfg.set({
+    taoyuan_about_button_enabled: normalized.aboutButtonEnabled,
+    taoyuan_about_button_text: normalized.aboutButtonText,
+    taoyuan_about_dialog_title: normalized.aboutDialogTitle,
+    taoyuan_about_dialog_content: normalized.aboutDialogContent,
+  });
+  return normalized;
 }
 
 router.use('/taoyuan/hall/uploads', express.static(taoyuanHall.HALL_UPLOADS_DIR, {
@@ -586,6 +632,153 @@ router.get('/admin/audit-logs', adminAuth, async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取操作日志失败' });
+  }
+});
+
+router.get('/admin/content/homepage-about', userAdminAuth, async (req, res) => {
+  try {
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.page_size, 20);
+    const revisions = await db.listContentRevisions({
+      contentKey: 'homepage_about',
+      page,
+      pageSize,
+    });
+    res.json({
+      ok: true,
+      content: getHomepageAboutContent(),
+      revisions,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取首页关于内容失败' });
+  }
+});
+
+router.post('/admin/content/homepage-about', userAdminAuth, async (req, res) => {
+  try {
+    const action = String(req.body?.action || 'publish').trim().toLowerCase();
+    if (!['draft', 'publish'].includes(action)) {
+      return res.status(400).json({ ok: false, msg: '无效的内容操作' });
+    }
+    const payload = normalizeHomepageAboutPayload(req.body || {});
+    const summary = String(req.body?.summary || '').trim().slice(0, 120);
+    const published = action === 'publish';
+
+    if (published) {
+      publishHomepageAboutContent(payload);
+      await appendAdminAuditLog(req, 'publish_homepage_about', '', {
+        about_button_enabled: payload.aboutButtonEnabled,
+        about_button_text: payload.aboutButtonText,
+        about_dialog_title: payload.aboutDialogTitle,
+      });
+    }
+
+    const revision = await appendContentRevisionLog(req, action, payload, {
+      contentKey: 'homepage_about',
+      summary,
+      published,
+    });
+
+    res.json({
+      ok: true,
+      action,
+      content: published ? getHomepageAboutContent() : payload,
+      revision,
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '保存首页关于内容失败' });
+  }
+});
+
+router.post('/admin/content/homepage-about/restore/:revisionId', userAdminAuth, async (req, res) => {
+  try {
+    const revision = await db.getContentRevision(req.params.revisionId);
+    if (!revision || revision.content_key !== 'homepage_about') {
+      return res.status(404).json({ ok: false, msg: '内容版本不存在' });
+    }
+    const payload = normalizeHomepageAboutPayload(revision.payload || {});
+    const content = publishHomepageAboutContent(payload);
+    const nextRevision = await appendContentRevisionLog(req, 'restore', content, {
+      contentKey: 'homepage_about',
+      summary: `恢复自版本 ${revision.id}`,
+      published: true,
+    });
+    await appendAdminAuditLog(req, 'restore_homepage_about', '', {
+      revision_id: revision.id,
+      about_dialog_title: content.aboutDialogTitle,
+    });
+    res.json({ ok: true, content, revision: nextRevision, restored_from: revision.id });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复首页关于内容失败' });
+  }
+});
+
+router.get('/admin/content/revisions', userAdminAuth, async (req, res) => {
+  try {
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.page_size, 20);
+    const contentKey = String(req.query.content_key || '').trim();
+    const result = await db.listContentRevisions({ contentKey, page, pageSize });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取内容版本日志失败' });
+  }
+});
+
+router.post('/admin/content/upload-image', userAdminAuth, async (req, res) => {
+  try {
+    const uploaded = await taoyuanHall.saveUploadedImage({
+      dataUrl: req.body?.data_url,
+      filename: req.body?.filename,
+      author: req.admin?.operator_name || '',
+    });
+    await appendAdminAuditLog(req, 'upload_content_image', '', {
+      file_url: uploaded.url,
+      alt: uploaded.alt,
+    });
+    res.json({ ok: true, ...uploaded });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '上传内容图片失败' });
+  }
+});
+
+router.get('/admin/gameplay-logs', userAdminAuth, async (req, res) => {
+  try {
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.page_size, 50);
+    const username = normalizeUsername(req.query.username);
+    const category = String(req.query.category || '').trim();
+    const keyword = String(req.query.keyword || '').trim();
+    const result = await db.listGameplayEventLogs({ page, pageSize, username, category, keyword });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取游戏日志失败' });
+  }
+});
+
+router.post('/taoyuan/logs/gameplay/batch', async (req, res) => {
+  try {
+    const rawLogs = Array.isArray(req.body?.logs) ? req.body.logs.slice(0, 100) : [];
+    if (rawLogs.length === 0) return res.json({ ok: true, count: 0 });
+    const usernameFromSession = normalizeUsername(req.session?.username || '');
+    const saved = [];
+    for (const item of rawLogs) {
+      const message = String(item?.message || '').trim();
+      if (!message) continue;
+      const normalizedUsername = usernameFromSession || (String(item?.username || '') === 'guest' ? 'guest' : '');
+      saved.push(await db.recordGameplayEventLog({
+        username: normalizedUsername,
+        day_label: String(item?.day_label || '').slice(0, 64),
+        category: String(item?.category || 'system').slice(0, 32),
+        message: message.slice(0, 512),
+        route_name: String(item?.route_name || '').slice(0, 128),
+        tags: Array.isArray(item?.tags) ? item.tags.slice(0, 16) : [],
+        meta: item?.meta && typeof item.meta === 'object' ? item.meta : {},
+      }));
+    }
+    res.json({ ok: true, count: saved.length });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '写入游戏日志失败' });
   }
 });
 

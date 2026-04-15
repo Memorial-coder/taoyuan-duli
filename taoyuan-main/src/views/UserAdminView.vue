@@ -1,6 +1,6 @@
 <template>
-  <div class="min-h-screen px-4 py-6 md:py-8" :class="{ 'pt-10': Capacitor.isNativePlatform() }">
-    <div class="mx-auto w-full max-w-[1480px] space-y-4">
+  <div class="min-h-screen px-0 py-3 md:px-1 md:py-4 xl:px-2 2xl:px-3" :class="{ 'pt-10': Capacitor.isNativePlatform() }">
+    <div class="w-full space-y-3 xl:space-y-4">
       <div class="game-panel space-y-4">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div class="space-y-2">
@@ -19,10 +19,20 @@
             </div>
           </div>
 
-          <div class="flex flex-wrap gap-2">
+          <div class="admin-top-actions">
             <button class="btn" @click="openMailAdmin()" :disabled="!canManageMail">
               <Mail :size="14" />
               <span>邮件管理</span>
+            </button>
+            <button class="btn" @click="openAdminPanel('content')">
+              <span>首页关于</span>
+            </button>
+            <button class="btn" @click="openAdminPanel('logs')">
+              <span>日志中心</span>
+            </button>
+            <button class="btn !bg-accent !text-bg" type="button">
+              <Users :size="14" />
+              <span>用户管理</span>
             </button>
             <button class="btn" @click="refreshAll" :disabled="loadingUsers || !hasToken || !isAuthorized">
               <RefreshCw :size="14" />
@@ -63,8 +73,8 @@
 
       <template v-if="hasToken && isAuthorized && adminSession">
         <div class="game-panel space-y-4">
-          <div class="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
-            <div class="grid gap-3 md:grid-cols-4 xl:flex-1">
+          <div class="flex flex-col gap-3 2xl:flex-row 2xl:items-end 2xl:justify-between">
+            <div class="grid gap-3 md:grid-cols-4 2xl:min-w-0 2xl:flex-1">
               <label class="admin-label md:col-span-2">
                 <span>搜索用户</span>
                 <input v-model="filters.keyword" type="text" class="admin-input" placeholder="按用户名或显示名搜索" @keydown.enter.prevent="applyFilters" />
@@ -91,10 +101,12 @@
               </label>
             </div>
 
-            <div class="flex flex-wrap gap-2">
+            <div class="admin-filter-summary">
               <span class="admin-chip">当前角色：{{ adminSession.role_label }}</span>
-              <span class="admin-chip">用户数：{{ totalUsers }}</span>
-              <button class="btn" @click="applyFilters">
+              <span class="admin-chip">用户总数：{{ totalUsers }}</span>
+              <span class="admin-chip">当前页：{{ users.length }}</span>
+              <span class="admin-chip">有存档：{{ usersWithSaveCount }}</span>
+              <button class="btn admin-filter-summary__action" @click="applyFilters">
                 <Search :size="14" />
                 <span>查询</span>
               </button>
@@ -102,7 +114,7 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-4 2xl:grid-cols-[minmax(0,1fr)_420px]">
+        <div class="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.8fr)_minmax(320px,1fr)] 2xl:grid-cols-[minmax(0,2.25fr)_minmax(340px,0.95fr)]">
           <div class="game-panel space-y-4">
             <div class="flex items-center justify-between gap-3">
               <p class="text-sm text-accent">用户列表</p>
@@ -111,54 +123,58 @@
 
             <div v-if="loadingUsers" class="text-xs text-muted">用户列表加载中...</div>
             <div v-else-if="!users.length" class="text-xs text-muted">当前没有符合条件的用户。</div>
-            <div v-else class="overflow-x-auto">
-              <table class="admin-table">
-                <thead>
-                  <tr>
-                    <th>用户名</th>
-                    <th>显示名</th>
-                    <th>额度</th>
-                    <th>注册时间</th>
-                    <th>状态</th>
-                    <th>存档文件</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr
-                    v-for="user in users"
-                    :key="user.username"
-                    class="admin-row"
-                    :class="{ 'admin-row--active': selectedUsername === user.username }"
-                  >
-                    <td>
-                      <button class="text-left hover:text-accent" @click="selectUser(user.username)">
-                        {{ user.username }}
-                      </button>
-                    </td>
-                    <td>{{ user.display_name || '-' }}</td>
-                    <td>{{ formatQuota(user.quota) }}</td>
-                    <td>{{ formatTime(user.created_at) }}</td>
-                    <td>
-                      <span class="admin-status" :class="`admin-status--${user.status}`">{{ formatUserStatus(user.status) }}</span>
-                    </td>
-                    <td>
-                      <div class="text-xs leading-5">
-                        <div>{{ user.save_file.exists ? user.save_file.file_name : '无文件' }}</div>
-                        <div class="text-muted">{{ user.save_file.slot_count }}/3 槽位</div>
-                      </div>
-                    </td>
-                    <td>
-                      <div class="flex flex-wrap gap-2">
-                        <button class="btn !px-2 !py-1" @click="selectUser(user.username)">详情</button>
-                        <button class="btn !px-2 !py-1" @click="openQuotaEditor(user)">改额度</button>
-                        <button class="btn !px-2 !py-1" @click="viewSave(user.username)">看存档</button>
-                        <button class="btn !px-2 !py-1" @click="openMailAdmin(user.username)" :disabled="!canManageMail">单发邮件</button>
-                      </div>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+            <div v-else class="admin-user-table-wrap">
+              <div class="admin-user-table admin-user-table--head">
+                <div>用户</div>
+                <div>状态</div>
+                <div>额度</div>
+                <div>最近保存</div>
+                <div>存档概览</div>
+                <div>操作</div>
+              </div>
+
+              <div
+                v-for="user in users"
+                :key="user.username"
+                class="admin-user-table admin-user-table--row"
+                :class="{ 'admin-user-table--active': selectedUsername === user.username }"
+              >
+                <div class="admin-user-line admin-user-line--user" data-label="用户">
+                  <button class="admin-user-cell" @click="selectUser(user.username)">
+                    <span class="admin-user-cell__primary">{{ user.display_name || user.username }}</span>
+                    <span class="admin-user-cell__secondary">@{{ user.username }}</span>
+                    <span class="admin-user-cell__secondary">注册于 {{ formatTime(user.created_at) }}</span>
+                  </button>
+                </div>
+
+                <div class="admin-user-line" data-label="状态">
+                  <span class="admin-status" :class="`admin-status--${user.status}`">{{ formatUserStatus(user.status) }}</span>
+                </div>
+
+                <div class="admin-user-line" data-label="额度">
+                  <div class="admin-user-line__value">{{ formatQuota(user.quota) }}</div>
+                  <div class="admin-user-line__hint">账户额度</div>
+                </div>
+
+                <div class="admin-user-line" data-label="最近保存">
+                  <div class="admin-user-line__value">{{ formatRecentSaveTime(user.save_file.updated_at) }}</div>
+                  <div class="admin-user-line__hint">{{ user.save_file.exists ? '最近服务端存档时间' : '尚无服务端存档' }}</div>
+                </div>
+
+                <div class="admin-user-line" data-label="存档概览">
+                  <div class="admin-user-line__value">{{ user.save_file.exists ? user.save_file.file_name : '无文件' }}</div>
+                  <div class="admin-user-line__hint">{{ user.save_file.slot_count }}/3 槽位 · {{ user.save_file.exists ? formatFileSize(user.save_file.file_size) : '未生成文件' }}</div>
+                </div>
+
+                <div class="admin-user-line admin-user-line--actions" data-label="操作">
+                  <div class="flex flex-wrap gap-2 xl:justify-end">
+                    <button class="btn !px-2 !py-1" @click="selectUser(user.username)">查看详情</button>
+                    <button class="btn !px-2 !py-1" @click="openQuotaEditor(user)">快速改额</button>
+                    <button class="btn !px-2 !py-1" @click="viewSave(user.username)">刷新存档</button>
+                    <button class="btn !px-2 !py-1" @click="openMailAdmin(user.username)" :disabled="!canManageMail">单发邮件</button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between text-xs text-muted">
@@ -172,7 +188,7 @@
             </div>
           </div>
 
-          <div class="space-y-4">
+          <div class="space-y-4 2xl:sticky 2xl:top-3 self-start min-w-0">
             <div class="game-panel space-y-4">
               <div class="flex items-center justify-between gap-3">
                 <div>
@@ -188,11 +204,13 @@
               <div v-if="loadingDetail" class="text-xs text-muted">用户详情加载中...</div>
               <div v-else-if="!selectedUser" class="text-xs text-muted">请先从左侧选择一个用户。</div>
               <template v-else>
-                <div class="grid gap-2 text-xs text-muted">
+                <div class="grid gap-2 text-xs text-muted md:grid-cols-2">
                   <div>用户名：<span class="text-text">{{ selectedUser.username }}</span></div>
                   <div>显示名：<span class="text-text">{{ selectedUser.display_name || '-' }}</span></div>
                   <div>额度：<span class="text-text">{{ formatQuota(selectedUser.quota) }}</span></div>
                   <div>注册时间：<span class="text-text">{{ formatTime(selectedUser.created_at) }}</span></div>
+                  <div>最近保存：<span class="text-text">{{ formatRecentSaveTime(selectedUser.save_file.updated_at) }}</span></div>
+                  <div>存档文件：<span class="text-text">{{ selectedUser.save_file.exists ? '已存在' : '暂无' }}</span></div>
                   <div>
                     状态：
                     <span class="admin-status" :class="`admin-status--${selectedUser.status}`">{{ formatUserStatus(selectedUser.status) }}</span>
@@ -208,10 +226,10 @@
                   <div class="text-xs text-muted leading-6">
                     <div>文件：{{ selectedUser.save_file.exists ? selectedUser.save_file.file_name : '无文件' }}</div>
                     <div v-if="selectedUser.save_file.exists">大小：{{ formatFileSize(selectedUser.save_file.file_size) }}</div>
-                    <div v-if="selectedUser.save_file.exists">更新时间：{{ formatTime(selectedUser.save_file.updated_at) }}</div>
+                    <div>最近保存时间：{{ formatRecentSaveTime(selectedUser.save_file.updated_at) }}</div>
                   </div>
 
-                  <div class="grid grid-cols-3 gap-2 text-xs">
+                  <div class="admin-slot-grid text-xs">
                     <div v-for="slot in selectedUser.save_file.slots" :key="slot.slot" class="admin-slot-card">
                       <div class="text-accent">槽位 {{ slot.slot + 1 }}</div>
                       <div class="text-muted mt-1">{{ slot.exists ? `已占用 · ${slot.raw_length} 字符` : '空' }}</div>
@@ -283,6 +301,35 @@
                     <span>{{ submittingMigrate ? '迁移中...' : '迁移存档' }}</span>
                   </button>
                 </div>
+
+                <div v-if="adminSession.permissions.view_gameplay_logs" class="admin-record-card space-y-3">
+                  <div class="flex items-center justify-between gap-3">
+                    <div>
+                      <p class="text-sm text-accent">近期游戏日志</p>
+                      <p class="text-xs text-muted mt-1">展示该用户最近 12 条长期保存的游戏日志。</p>
+                    </div>
+                    <button class="btn !px-2 !py-1" @click="reloadSelectedUserGameplayLogs" :disabled="loadingGameplayLogs">
+                      <RefreshCw :size="12" />
+                      <span>{{ loadingGameplayLogs ? '加载中...' : '刷新日志' }}</span>
+                    </button>
+                  </div>
+
+                  <div v-if="loadingGameplayLogs" class="text-xs text-muted">游戏日志加载中...</div>
+                  <div v-else-if="!gameplayLogs.length" class="text-xs text-muted">该用户最近没有长期保存的游戏日志。</div>
+                  <div v-else class="space-y-2 max-h-[32vh] overflow-y-auto pr-1">
+                    <div v-for="log in gameplayLogs" :key="log.id" class="admin-log-card">
+                      <div class="flex items-center justify-between gap-3 text-[11px] text-muted">
+                        <span class="text-accent">{{ log.category || 'system' }}</span>
+                        <span>{{ formatTime(log.created_at) }}</span>
+                      </div>
+                      <div class="text-xs text-text leading-6 break-all mt-1">{{ log.message }}</div>
+                      <div class="text-[11px] text-muted mt-1">
+                        {{ log.day_label ? `${log.day_label} · ` : '' }}{{ log.route_name || '未记录页面' }}
+                        <template v-if="log.tags?.length"> · 标签：{{ log.tags.join('、') }}</template>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </template>
             </div>
 
@@ -322,6 +369,7 @@
   import { Capacitor } from '@capacitor/core'
   import { ArrowLeft, Coins, FolderOutput, KeyRound, Mail, RefreshCw, Search, Trash2, Users } from 'lucide-vue-next'
   import { showFloat } from '@/composables/useGameLog'
+  import { fetchGameplayLogs, type GameplayLogEntry } from '@/utils/adminContentApi'
   import {
     clearAdminSessionToken,
     deleteAdminUser,
@@ -380,13 +428,34 @@
 
   const auditLogs = ref<AdminAuditLogEntry[]>([])
   const loadingAuditLogs = ref(false)
+  const gameplayLogs = ref<GameplayLogEntry[]>([])
+  const loadingGameplayLogs = ref(false)
 
   const hasToken = computed(() => adminTokenInput.value.trim().length > 0)
   const totalPages = computed(() => Math.max(1, Math.ceil(totalUsers.value / Math.max(1, filters.value.pageSize))))
   const canManageMail = computed(() => adminSession.value?.role === 'super_admin')
+  const usersWithSaveCount = computed(() => users.value.filter(user => user.save_file.exists).length)
+
+  const formatRecentSaveTime = (timestamp?: number | null) => {
+    return timestamp ? formatTime(timestamp) : '未保存'
+  }
+
+  type AdminTab = 'mail' | 'content' | 'logs'
 
   const goBack = () => {
     void router.push('/')
+  }
+
+  const openAdminPanel = (tab: AdminTab, username?: string) => {
+    if (tab === 'mail') {
+      void router.push(
+        username
+          ? { path: '/admin', query: { mode: 'single', username } }
+          : { path: '/admin' }
+      )
+      return
+    }
+    void router.push({ path: '/admin', query: { tab } })
   }
 
   const openMailAdmin = (username?: string) => {
@@ -394,11 +463,7 @@
       showFloat('邮件功能仅超级管理员可用', 'danger')
       return
     }
-    void router.push(
-      username
-        ? { path: '/admin', query: { mode: 'single', username } }
-        : { path: '/admin' }
-    )
+    openAdminPanel('mail', username)
   }
 
   const formatTime = (timestamp?: number | null) => {
@@ -469,6 +534,7 @@
     selectedUsername.value = ''
     selectedUser.value = null
     auditLogs.value = []
+    gameplayLogs.value = []
     resetDetailForms(null)
   }
 
@@ -499,9 +565,27 @@
     }
   }
 
+  const loadGameplayLogsForUser = async (username?: string) => {
+    if (!username || !adminSession.value?.permissions.view_gameplay_logs) {
+      gameplayLogs.value = []
+      return
+    }
+    loadingGameplayLogs.value = true
+    try {
+      const result = await fetchGameplayLogs({ username, page: 1, pageSize: 12 })
+      gameplayLogs.value = result.logs
+    } catch (error) {
+      gameplayLogs.value = []
+      showFloat(handleAdminRequestError(error, '读取用户游戏日志失败'), 'danger')
+    } finally {
+      loadingGameplayLogs.value = false
+    }
+  }
+
   const loadUserDetail = async (username: string) => {
     if (!username) {
       selectedUser.value = null
+      gameplayLogs.value = []
       resetDetailForms(null)
       return
     }
@@ -511,8 +595,10 @@
       selectedUser.value = detail
       selectedUsername.value = detail.username
       resetDetailForms(detail)
+      await loadGameplayLogsForUser(detail.username)
     } catch (error) {
       selectedUser.value = null
+      gameplayLogs.value = []
       resetDetailForms(null)
       showFloat(handleAdminRequestError(error, '读取用户详情失败'), 'danger')
     } finally {
@@ -596,6 +682,11 @@
   const reloadSelectedUser = async () => {
     if (!selectedUsername.value) return
     await loadUserDetail(selectedUsername.value)
+  }
+
+  const reloadSelectedUserGameplayLogs = async () => {
+    if (!selectedUser.value) return
+    await loadGameplayLogsForUser(selectedUser.value.username)
   }
 
   const openQuotaEditor = (user: UserAdminSummary) => {
@@ -792,6 +883,186 @@
     color: rgb(var(--color-text));
   }
 
+  .admin-top-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+    width: 100%;
+  }
+
+  .admin-top-actions :deep(.btn) {
+    width: 100%;
+  }
+
+  .admin-filter-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .admin-filter-summary__action {
+    width: 100%;
+  }
+
+  .admin-user-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    text-align: left;
+    color: inherit;
+  }
+
+  .admin-user-cell__primary {
+    color: rgb(var(--color-text));
+    font-size: 13px;
+  }
+
+  .admin-user-cell__secondary {
+    color: rgb(var(--color-muted));
+    font-size: 11px;
+    line-height: 1.5;
+  }
+
+  .admin-log-card {
+    border: 1px solid rgba(200, 164, 92, 0.12);
+    border-radius: 2px;
+    background: rgba(14, 18, 28, 0.36);
+    padding: 10px 12px;
+  }
+
+  .admin-user-table-wrap {
+    border: 1px solid rgba(200, 164, 92, 0.14);
+    border-radius: 2px;
+    overflow: hidden;
+    background: rgba(14, 18, 28, 0.16);
+  }
+
+  .admin-user-table {
+    display: grid;
+    grid-template-columns:
+      minmax(180px, 1.3fr)
+      minmax(88px, 0.6fr)
+      minmax(88px, 0.6fr)
+      minmax(150px, 0.95fr)
+      minmax(220px, 1.35fr)
+      minmax(220px, 1.3fr);
+    gap: 12px;
+    align-items: center;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .admin-user-table--head {
+    padding: 10px 14px;
+    background: rgba(200, 164, 92, 0.08);
+    border-bottom: 1px solid rgba(200, 164, 92, 0.14);
+    font-size: 11px;
+    color: rgb(var(--color-muted));
+  }
+
+  .admin-user-table--row {
+    padding: 12px 14px;
+    border-bottom: 1px solid rgba(200, 164, 92, 0.08);
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+
+  .admin-user-table--row:last-child {
+    border-bottom: none;
+  }
+
+  .admin-user-table--active {
+    background: rgba(200, 164, 92, 0.08);
+  }
+
+  .admin-user-line {
+    min-width: 0;
+  }
+
+  .admin-user-line__value {
+    font-size: 13px;
+    color: rgb(var(--color-text));
+    line-height: 1.6;
+    word-break: break-word;
+  }
+
+  .admin-user-line__hint {
+    margin-top: 4px;
+    font-size: 11px;
+    color: rgb(var(--color-muted));
+    line-height: 1.5;
+  }
+
+  .admin-user-line--actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  @media (max-width: 1535px) {
+    .admin-user-table {
+      grid-template-columns:
+        minmax(170px, 1.2fr)
+        minmax(82px, 0.55fr)
+        minmax(82px, 0.55fr)
+        minmax(130px, 0.85fr)
+        minmax(180px, 1.15fr)
+        minmax(200px, 1.15fr);
+      gap: 10px;
+    }
+  }
+
+  @media (max-width: 1279px) {
+    .admin-user-table-wrap {
+      border: none;
+      background: transparent;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .admin-user-table--head {
+      display: none;
+    }
+
+    .admin-user-table--row {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px 12px;
+      border: 1px solid rgba(200, 164, 92, 0.14);
+      background: rgba(26, 26, 26, 0.16);
+      padding: 12px;
+    }
+
+    .admin-user-line::before {
+      content: attr(data-label);
+      display: block;
+      margin-bottom: 4px;
+      font-size: 10px;
+      color: rgb(var(--color-muted));
+      letter-spacing: 0.02em;
+    }
+
+    .admin-user-line--user,
+    .admin-user-line--actions {
+      grid-column: span 2;
+    }
+
+    .admin-user-line--actions {
+      justify-content: flex-start;
+    }
+  }
+
+  @media (max-width: 767px) {
+    .admin-user-table--row {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-user-line--user,
+    .admin-user-line--actions {
+      grid-column: span 1;
+    }
+  }
+
   .admin-status {
     display: inline-flex;
     align-items: center;
@@ -821,36 +1092,56 @@
     border-color: rgba(184, 70, 70, 0.3);
   }
 
-  .admin-table {
-    width: 100%;
-    border-collapse: collapse;
-    min-width: 980px;
-    font-size: 12px;
-  }
-
-  .admin-table th,
-  .admin-table td {
-    border-bottom: 1px solid rgba(200, 164, 92, 0.12);
-    padding: 10px 8px;
-    text-align: left;
-    color: rgb(var(--color-text));
-    vertical-align: top;
-  }
-
-  .admin-table th {
-    color: rgb(var(--color-muted));
-    font-weight: 500;
-  }
-
-  .admin-row--active {
-    background: rgba(200, 164, 92, 0.06);
-  }
-
   .admin-slot-card {
     border: 1px solid rgba(200, 164, 92, 0.12);
     border-radius: 2px;
     padding: 8px;
     background: rgba(14, 18, 28, 0.42);
+  }
+
+  .admin-slot-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  @media (min-width: 768px) {
+    .admin-top-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .admin-top-actions :deep(.btn) {
+      width: auto;
+    }
+
+    .admin-filter-summary__action {
+      width: auto;
+    }
+
+    .admin-slot-grid {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 480px) {
+    .admin-top-actions {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-filter-summary {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .admin-chip {
+      width: 100%;
+    }
+
+    .admin-slot-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
   }
 
   :deep(.btn-danger) {

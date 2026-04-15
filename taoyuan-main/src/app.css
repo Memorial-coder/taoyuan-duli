@@ -75,17 +75,35 @@ button {
   padding-bottom: env(safe-area-inset-bottom, var(--spacing-2));
 }
 
+#app.app-shell--admin {
+  max-width: none;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+
 @media (min-width: 768px) {
   #app {
     max-width: 1180px;
     padding: var(--spacing-4);
     padding-bottom: var(--spacing-4);
   }
+
+  #app.app-shell--admin {
+    max-width: none;
+    padding: 12px;
+    padding-bottom: 12px;
+  }
 }
 
 @media (min-width: 1536px) {
   #app {
     max-width: 1260px;
+  }
+
+  #app.app-shell--admin {
+    max-width: none;
+    padding-left: 18px;
+    padding-right: 18px;
   }
 }
 

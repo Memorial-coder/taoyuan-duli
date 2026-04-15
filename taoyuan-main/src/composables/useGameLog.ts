@@ -55,7 +55,7 @@ export const _registerPerkChecker = (fn: () => void) => {
   _perkChecker = fn
 }
 
-// === 日志历史记录（内存中，不存档，刷新页面清空） ===
+// === 日志历史记录（前端保留历史；关键日志异步上报到服务端长期保存） ===
 
 export interface LogEntry {
   msg: string
@@ -65,8 +65,86 @@ export interface LogEntry {
   meta?: GameLogMeta
 }
 
+interface PersistedGameplayLogPayload {
+  message: string
+  day_label: string
+  category: GameLogCategory | 'system'
+  tags: GameLogTag[]
+  meta: GameLogMeta
+  route_name: string
+  username: string
+}
+
 /** 全部日志历史 */
 export const logHistory = ref<LogEntry[]>([])
+
+const gameplayLogQueue: PersistedGameplayLogPayload[] = []
+let gameplayLogFlushTimer: ReturnType<typeof setTimeout> | null = null
+let gameplayLogFlushInFlight = false
+
+const getCurrentRouteName = () => {
+  if (typeof window === 'undefined') return ''
+  const rawHash = String(window.location.hash || '')
+  if (!rawHash.startsWith('#')) return ''
+  const normalized = (rawHash.slice(1).split('?')[0] || '').trim()
+  return normalized || '/'
+}
+
+const getCurrentUsernameLabel = () => {
+  if (typeof window === 'undefined') return 'guest'
+  try {
+    return window.localStorage.getItem('taoyuanxiang_current_account') || 'guest'
+  } catch {
+    return 'guest'
+  }
+}
+
+const scheduleGameplayLogFlush = () => {
+  if (typeof window === 'undefined') return
+  if (gameplayLogFlushTimer) return
+  gameplayLogFlushTimer = window.setTimeout(() => {
+    gameplayLogFlushTimer = null
+    void flushGameplayLogQueue()
+  }, 1500)
+}
+
+const flushGameplayLogQueue = async () => {
+  if (typeof window === 'undefined') return
+  if (gameplayLogFlushInFlight || gameplayLogQueue.length === 0) return
+  gameplayLogFlushInFlight = true
+  const batch = gameplayLogQueue.splice(0, 50)
+  try {
+    await fetch('/api/taoyuan/logs/gameplay/batch', {
+      method: 'POST',
+      credentials: 'include',
+      keepalive: true,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ logs: batch }),
+    })
+  } catch {
+    gameplayLogQueue.unshift(...batch)
+  } finally {
+    gameplayLogFlushInFlight = false
+    if (gameplayLogQueue.length > 0) {
+      scheduleGameplayLogFlush()
+    }
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', () => {
+    if (gameplayLogQueue.length === 0) return
+    const payload = JSON.stringify({ logs: gameplayLogQueue.slice(0, 50) })
+    try {
+      navigator.sendBeacon('/api/taoyuan/logs/gameplay/batch', new Blob([payload], { type: 'application/json' }))
+      gameplayLogQueue.length = 0
+    } catch {
+      // ignore unload send failures
+    }
+  })
+}
 
 /** 天数标签获取器 — 由 GameLayout 注册以避免循环导入 */
 let _dayLabelGetter: (() => string) | null = null
@@ -80,7 +158,20 @@ export const _registerDayLabelGetter = (fn: () => string) => {
 export const addLog = (msg: string, options: { category?: GameLogCategory; tags?: GameLogTag[]; meta?: GameLogMeta } = {}) => {
   Qmsg.info(msg)
   const dayLabel = _dayLabelGetter?.() ?? ''
-  logHistory.value.push({ msg, dayLabel, category: options.category, tags: options.tags, meta: options.meta })
+  const category = options.category || 'system'
+  const tags = Array.isArray(options.tags) ? options.tags : []
+  const meta = options.meta || {}
+  logHistory.value.push({ msg, dayLabel, category, tags, meta })
+  gameplayLogQueue.push({
+    message: msg,
+    day_label: dayLabel,
+    category,
+    tags,
+    meta,
+    route_name: getCurrentRouteName(),
+    username: getCurrentUsernameLabel(),
+  })
+  scheduleGameplayLogFlush()
   _perkChecker?.()
 }
 

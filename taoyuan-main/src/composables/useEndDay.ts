@@ -1183,18 +1183,25 @@ export const handleEndDay = () => {
   }
 
   // 孕期每日更新
-  const pregResult = npcStore.dailyPregnancyUpdate()
+  const pregResult = npcStore.dailyFamilyExpansionUpdate()
   if (pregResult.born) {
     const qMsg =
       pregResult.born.quality === 'healthy' ? '健健康康的！' : pregResult.born.quality === 'premature' ? '虽然早产了一些，但平安无事。' : ''
-    addLog(`${pregResult.born.name}出生了！恭喜！${qMsg}`)
+    addLog(pregResult.born.origin === 'adoption' ? `${pregResult.born.name}来到了你们家！恭喜！${qMsg}` : `${pregResult.born.name}出生了！恭喜！${qMsg}`)
   }
   if (pregResult.stageChanged) {
-    const stageLabels: Record<string, string> = { early: '初期', mid: '中期', late: '后期', ready: '待产期' }
-    addLog(`孕期进入${stageLabels[pregResult.stageChanged.to]}。记得多多照顾配偶。`)
+    const stageLabels: Record<'pregnancy' | 'adoption', Record<string, string>> = {
+      pregnancy: { early: '初期', mid: '中期', late: '后期', ready: '待产期' },
+      adoption: { early: '筹备期', mid: '走访期', late: '安置期', ready: '迎接期' }
+    }
+    const prefix = pregResult.stageChanged.kind === 'adoption' ? '迎接孩子回家' : '孕期'
+    addLog(`${prefix}进入${stageLabels[pregResult.stageChanged.kind][pregResult.stageChanged.to]}。记得多多照顾配偶。`)
   }
   if (pregResult.miscarriage) {
     addLog('很遗憾……这次没能迎来新生命。双方都需要一段时间来恢复。')
+  }
+  if (pregResult.placementFailed) {
+    addLog('很遗憾……这次没能把孩子迎回家。你们都需要一点时间来缓一缓。')
   }
 
   // 子女成长（已出生的子女）

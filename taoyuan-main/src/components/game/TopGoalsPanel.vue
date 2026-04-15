@@ -25,9 +25,36 @@
       </div>
     </div>
 
+    <GuidanceDigestPanel surface-id="top_goals" title="周目标与活动摘要" />
+
+    <div v-if="decisionLoopActions.length > 0" class="border border-accent/15 rounded-xs px-3 py-3 bg-bg/10">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <p class="text-xs text-accent">本周承接路线</p>
+        <span class="text-[10px] text-muted">{{ decisionLoopActions.length }} 条</span>
+      </div>
+      <div class="grid grid-cols-1 gap-2 xl:grid-cols-3">
+        <button
+          v-for="action in decisionLoopActions"
+          :key="action.id"
+          type="button"
+          class="w-full rounded-xs border border-accent/10 px-2 py-2 text-left transition-colors hover:bg-accent/5"
+          @click="handleOpenDecisionAction(action)"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-[10px] text-accent">{{ getDecisionActionPath(action) }}</span>
+            <span class="text-[10px]" :class="action.adopted ? 'text-success' : 'text-muted'">
+              {{ action.adopted ? '已采纳' : getSurfaceCtaLabel(action.targetSurfaceId) }}
+            </span>
+          </div>
+          <p class="text-xs text-text mt-1">{{ action.label }}</p>
+          <p class="text-[10px] text-muted mt-1 leading-4">{{ action.summary }}</p>
+        </button>
+      </div>
+    </div>
+
     <div v-if="!collapsed" class="mt-3">
-      <div class="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:gap-4 2xl:grid-cols-12">
-        <section class="game-panel-muted px-3 py-3 2xl:col-span-4">
+      <div class="grid grid-cols-1 items-start gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,0.95fr)_minmax(0,1.15fr)] xl:gap-4">
+        <section class="game-panel-muted px-3 py-3 xl:self-start">
         <div class="flex items-center justify-between gap-3 mb-2">
           <p class="text-xs text-accent">今日目标</p>
           <span class="text-[11px] text-muted">{{ currentDayLabel }}</span>
@@ -44,7 +71,7 @@
         </div>
         </section>
 
-        <section class="game-panel-muted px-3 py-3 2xl:col-span-4">
+        <section class="game-panel-muted px-3 py-3 xl:self-start">
         <div class="flex items-center justify-between gap-3 mb-2">
           <p class="text-xs text-accent">当前里程碑</p>
           <span class="text-[11px] text-muted">{{ currentMainQuestProgress }}</span>
@@ -66,7 +93,7 @@
         <div v-else class="text-xs text-muted leading-6">你已经完成全部阶段目标，可以自由经营你的桃源。</div>
         </section>
 
-        <section class="game-panel-muted px-3 py-3 2xl:col-span-4">
+        <section class="game-panel-muted px-3 py-3 xl:self-start">
         <div v-if="goalStore.currentEventCampaign" class="rounded-xs border border-warning/20 bg-warning/5 px-2 py-2 mb-2">
           <div class="flex items-center justify-between gap-2">
             <p class="text-[11px] text-warning">本周活动</p>
@@ -82,6 +109,17 @@
           <div v-if="goalStore.currentThemeWeek" class="rounded-xs border border-accent/10 bg-accent/5 px-2 py-2">
             <p class="text-[11px] text-accent">{{ goalStore.currentThemeWeek.name }}</p>
             <p class="text-[10px] text-muted mt-1 leading-5">{{ goalStore.currentThemeWeek.description }}</p>
+            <div v-if="themeWeekCtas.length > 0" class="mt-2 flex flex-wrap gap-1">
+              <button
+                v-for="cta in themeWeekCtas"
+                :key="cta.id"
+                type="button"
+                class="btn !px-2 !py-1 text-[10px]"
+                @click="handleTopGoalsCta(cta)"
+              >
+                {{ cta.label }}
+              </button>
+            </div>
           </div>
           <div class="rounded-xs border border-warning/20 bg-warning/5 px-2 py-2">
             <div class="flex items-center justify-between gap-2">
@@ -96,6 +134,17 @@
             <p v-if="marketOverview.overflowPenaltyCount > 0" class="text-[10px] text-danger mt-1">
               当前有 {{ marketOverview.overflowPenaltyCount }} 个品类处于过剩压制，建议尽快换线出货。
             </p>
+            <div v-if="marketCtas.length > 0" class="mt-2 flex flex-wrap gap-1">
+              <button
+                v-for="cta in marketCtas"
+                :key="cta.id"
+                type="button"
+                class="btn !px-2 !py-1 text-[10px]"
+                @click="handleTopGoalsCta(cta)"
+              >
+                {{ cta.label }}
+              </button>
+            </div>
           </div>
           <div v-if="goalStore.currentThemeWeekGoals.length > 0" class="rounded-xs border border-success/20 bg-success/5 px-2 py-2">
             <div class="flex items-center justify-between gap-2">
@@ -112,11 +161,22 @@
                 <p class="text-[11px] text-muted mt-1 leading-5">{{ goal.description }}</p>
               </div>
             </div>
+            <div v-if="themeWeekGoalCtas.length > 0" class="mt-2 flex flex-wrap gap-1">
+              <button
+                v-for="cta in themeWeekGoalCtas"
+                :key="cta.id"
+                type="button"
+                class="btn !px-2 !py-1 text-[10px]"
+                @click="handleTopGoalsCta(cta)"
+              >
+                {{ cta.label }}
+              </button>
+            </div>
           </div>
           <div v-if="goalStore.lastWeeklyGoalSettlement" class="rounded-xs border border-accent/20 bg-accent/5 px-2 py-2">
             <div class="flex items-center justify-between gap-2">
               <p class="text-[11px] text-accent">上周结算</p>
-              <span class="text-[10px] text-muted">{{ goalStore.lastWeeklyGoalSettlement.weekId }}</span>
+              <span class="text-[10px] text-muted">{{ lastWeeklySettlementWeekLabel }}</span>
             </div>
             <p class="text-[10px] text-muted mt-1">
               完成 {{ goalStore.lastWeeklyGoalSettlement.completedGoalCount }}/{{ goalStore.lastWeeklyGoalSettlement.totalGoalCount }} ·
@@ -143,7 +203,7 @@
         </div>
         </section>
 
-        <section class="game-panel-muted px-3 py-3 lg:col-span-2 2xl:col-span-12">
+        <section class="game-panel-muted px-3 py-3 lg:col-span-2 xl:col-span-3">
         <div class="flex items-center justify-between gap-3 mb-2">
           <p class="text-xs text-accent">长期目标</p>
           <span class="text-[11px] text-muted">{{ longTermCompletedCount }} / {{ goalStore.longTermGoals.length }} 已完成</span>
@@ -167,10 +227,10 @@
                   <span :class="goal.completed ? 'text-success' : 'text-muted'">{{ goalStore.getGoalProgressText(goal) }}</span>
                 </div>
                 <p class="text-[11px] text-muted mt-1 leading-5">{{ goal.description }}</p>
+                </div>
               </div>
             </div>
           </div>
-        </div>
         </section>
       </div>
     </div>
@@ -179,20 +239,116 @@
 
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
+  import { useRoute } from 'vue-router'
+  import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
+  import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
+  import { useTutorialStore } from '@/stores/useTutorialStore'
   import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useShopStore } from '@/stores/useShopStore'
+  import type { GuidanceCrossSystemAction, GuidanceSurfaceId } from '@/types'
+
+  interface TopGoalsCta {
+    id: string
+    label: string
+    panelKey: PanelKey
+    routeId?: string
+    sourceSurfaceId?: GuidanceSurfaceId
+  }
 
   const gameStore = useGameStore()
   const goalStore = useGoalStore()
   const shopStore = useShopStore()
+  const tutorialStore = useTutorialStore()
+  const route = useRoute()
   const collapsed = ref(typeof window !== 'undefined' ? window.innerWidth < 768 : false)
   const expandedLongTermGroups = ref<string[]>([])
   const marketOverview = computed(() => shopStore.marketDynamicsOverview)
   const marketRouteHighlights = computed(() => shopStore.recommendedMarketDynamicsRoutes.slice(0, 2).map(route => route.label).join('、'))
+  const decisionLoopActions = computed(() => tutorialStore.guidanceCrossSystemOverview.weeklyDecisionLoop)
 
   const currentDayLabel = computed(() => `${gameStore.day}日待办`)
   const currentSeasonLabel = computed(() => `第${gameStore.year}年 ${SEASON_NAMES[gameStore.season]}季`)
+  const GUIDANCE_SURFACE_LABELS: Record<GuidanceSurfaceId, string> = {
+    wallet: '钱袋',
+    quest: '任务板',
+    breeding: '育种',
+    fishpond: '鱼塘',
+    museum: '博物馆',
+    guild: '公会',
+    hanhai: '瀚海',
+    npc: '关系',
+    shop: '商圈',
+    mail: '邮箱',
+    top_goals: '目标规划'
+  }
+  const GUIDANCE_SURFACE_PANEL_MAP: Partial<Record<GuidanceSurfaceId, PanelKey>> = {
+    wallet: 'wallet',
+    quest: 'quest',
+    breeding: 'breeding',
+    fishpond: 'fishpond',
+    museum: 'museum',
+    guild: 'guild',
+    hanhai: 'hanhai',
+    npc: 'village',
+    shop: 'shop',
+    mail: 'mail'
+  }
+  const formatWeekId = (weekId: string): string => {
+    const matched = weekId.match(/^(\d+)-(spring|summer|autumn|winter)-week-(\d+)$/)
+    if (!matched) return weekId
+    const [, year, season, week] = matched
+    return `第${year}年${SEASON_NAMES[season as keyof typeof SEASON_NAMES]}季第${week}周`
+  }
+  const getSurfaceLabel = (surfaceId: GuidanceSurfaceId) => GUIDANCE_SURFACE_LABELS[surfaceId] ?? surfaceId
+  const getSurfaceCtaLabel = (surfaceId: GuidanceSurfaceId) => {
+    switch (surfaceId) {
+      case 'shop':
+        return '去商圈'
+      case 'quest':
+        return '去任务板'
+      case 'breeding':
+        return '去育种'
+      case 'museum':
+        return '去博物馆'
+      case 'mail':
+        return '去邮箱'
+      default:
+        return `前往${getSurfaceLabel(surfaceId)}`
+    }
+  }
+  const getDecisionActionPath = (action: GuidanceCrossSystemAction) => {
+    const sourceLabel = getSurfaceLabel(action.sourceSurfaceId)
+    const targetLabel = getSurfaceLabel(action.targetSurfaceId)
+    return sourceLabel === targetLabel ? targetLabel : `${sourceLabel} -> ${targetLabel}`
+  }
+  const buildCtaFromAction = (action: GuidanceCrossSystemAction, label = getSurfaceCtaLabel(action.targetSurfaceId)): TopGoalsCta | null => {
+    const panelKey = GUIDANCE_SURFACE_PANEL_MAP[action.targetSurfaceId]
+    if (!panelKey) return null
+    return {
+      id: action.id,
+      label,
+      panelKey,
+      routeId: action.routeId,
+      sourceSurfaceId: action.sourceSurfaceId
+    }
+  }
+  const dedupeCtas = (ctas: Array<TopGoalsCta | null>) => {
+    const unique = new Map<string, TopGoalsCta>()
+    for (const cta of ctas) {
+      if (!cta) continue
+      const key = `${cta.panelKey}:${cta.label}`
+      if (!unique.has(key)) unique.set(key, cta)
+    }
+    return Array.from(unique.values())
+  }
+  const questDecisionAction = computed(() => decisionLoopActions.value.find(action => action.targetSurfaceId === 'quest') ?? null)
+  const marketDecisionAction = computed(() => decisionLoopActions.value.find(action => action.targetSurfaceId === 'shop') ?? null)
+  const breedingDecisionAction = computed(() => decisionLoopActions.value.find(action => action.targetSurfaceId === 'breeding') ?? null)
+  const lastWeeklySettlementWeekLabel = computed(() => {
+    const weekId = goalStore.lastWeeklyGoalSettlement?.weekId
+    return weekId ? formatWeekId(weekId) : ''
+  })
   const currentMainQuestProgress = computed(() => {
     const current = goalStore.currentMainQuest
     if (!current) return `${goalStore.completedMainQuestCount}/${goalStore.mainQuestStages.length}`
@@ -224,6 +380,25 @@
   })
 
   const longTermCompletedCount = computed(() => goalStore.longTermGoals.filter(g => g.completed).length)
+  const themeWeekCtas = computed(() => {
+    if (!goalStore.currentThemeWeek) return [] as TopGoalsCta[]
+    return dedupeCtas([
+      questDecisionAction.value ? buildCtaFromAction(questDecisionAction.value, '去任务板') : { id: 'theme-week-quest', label: '去任务板', panelKey: 'quest' },
+      breedingDecisionAction.value ? buildCtaFromAction(breedingDecisionAction.value, '去育种') : null
+    ])
+  })
+  const marketCtas = computed(() =>
+    dedupeCtas([
+      marketDecisionAction.value ? buildCtaFromAction(marketDecisionAction.value, '去商圈') : { id: 'market-shop', label: '去商圈', panelKey: 'shop' }
+    ])
+  )
+  const themeWeekGoalCtas = computed(() => {
+    if (goalStore.currentThemeWeekGoals.length === 0) return [] as TopGoalsCta[]
+    return dedupeCtas([
+      questDecisionAction.value ? buildCtaFromAction(questDecisionAction.value, '去任务板') : { id: 'weekly-goals-quest', label: '去任务板', panelKey: 'quest' },
+      breedingDecisionAction.value ? buildCtaFromAction(breedingDecisionAction.value, '去育种') : null
+    ])
+  })
 
   const toggleLongTermGroup = (label: string) => {
     const idx = expandedLongTermGroups.value.indexOf(label)
@@ -232,6 +407,20 @@
     } else {
       expandedLongTermGroups.value.push(label)
     }
+  }
+
+  const handleTopGoalsCta = (cta: TopGoalsCta) => {
+    if (cta.routeId && cta.sourceSurfaceId) {
+      tutorialStore.markGuidanceRouteAdopted(cta.routeId, cta.sourceSurfaceId)
+    }
+    if (route.name === cta.panelKey) return
+    navigateToPanel(cta.panelKey)
+  }
+
+  const handleOpenDecisionAction = (action: GuidanceCrossSystemAction) => {
+    const cta = buildCtaFromAction(action)
+    if (!cta) return
+    handleTopGoalsCta(cta)
   }
 
   onMounted(() => {

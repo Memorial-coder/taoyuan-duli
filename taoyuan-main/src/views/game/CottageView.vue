@@ -77,7 +77,7 @@
 
       <!-- 孕期面板 -->
       <div v-if="npcStore.pregnancy" class="border border-success/20 rounded-xs p-2 mb-2">
-        <p class="text-xs text-success mb-2">孕期 · {{ PREGNANCY_STAGE_LABELS[npcStore.pregnancy.stage] }}</p>
+        <p class="text-xs text-success mb-2">{{ npcStore.pregnancy.kind === 'adoption' ? '迎接孩子回家' : '孕期' }} · {{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_STAGE_LABELS[npcStore.pregnancy.stage] : PREGNANCY_STAGE_LABELS[npcStore.pregnancy.stage] }}</p>
         <!-- 阶段进度条 -->
         <div class="flex items-center space-x-1 mb-1.5">
           <span class="text-[10px] text-muted w-8 shrink-0">进度</span>
@@ -91,7 +91,7 @@
         </div>
         <!-- 安产率条 -->
         <div class="flex items-center space-x-1 mb-2">
-          <span class="text-[10px] text-muted w-8 shrink-0">安产</span>
+          <span class="text-[10px] text-muted w-8 shrink-0">{{ npcStore.pregnancy.kind === 'adoption' ? '准备度' : '安产' }}</span>
           <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
             <div
               class="h-full rounded-xs transition-all"
@@ -102,7 +102,7 @@
           <span class="text-[10px] text-muted shrink-0">{{ npcStore.pregnancy.careScore }}%</span>
         </div>
         <!-- 阶段提示 -->
-        <p class="text-[10px] text-muted/60 mb-2">{{ STAGE_TIPS[npcStore.pregnancy.stage] }}</p>
+        <p class="text-[10px] text-muted/60 mb-2">{{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_STAGE_TIPS[npcStore.pregnancy.stage] : STAGE_TIPS[npcStore.pregnancy.stage] }}</p>
         <!-- 照料操作 -->
         <div class="grid grid-cols-2 gap-1 mb-1">
           <Button
@@ -110,39 +110,39 @@
             :disabled="npcStore.pregnancy.giftedForPregnancy"
             @click="handlePregnancyCare('gift')"
           >
-            {{ npcStore.pregnancy.giftedForPregnancy ? '已送礼' : '送礼物' }}
+            {{ npcStore.pregnancy.kind === 'adoption' ? (npcStore.pregnancy.giftedForPregnancy ? '已准备心意' : '准备心意') : (npcStore.pregnancy.giftedForPregnancy ? '已送礼' : '送礼物') }}
           </Button>
           <Button
             class="py-0.5 px-1 text-[10px] justify-center"
             :disabled="npcStore.pregnancy.companionToday"
             @click="handlePregnancyCare('companion')"
           >
-            {{ npcStore.pregnancy.companionToday ? '已陪伴' : '陪伴聊天' }}
+            {{ npcStore.pregnancy.kind === 'adoption' ? (npcStore.pregnancy.companionToday ? '已走访' : '一起走访') : (npcStore.pregnancy.companionToday ? '已陪伴' : '陪伴聊天') }}
           </Button>
-          <Button class="py-0.5 px-1 text-[10px] justify-center" @click="handlePregnancyCare('supplement')">服用补品</Button>
+          <Button class="py-0.5 px-1 text-[10px] justify-center" @click="handlePregnancyCare('supplement')">{{ npcStore.pregnancy.kind === 'adoption' ? '置办用品' : '服用补品' }}</Button>
           <Button
             class="py-0.5 px-1 text-[10px] justify-center"
             :disabled="npcStore.pregnancy.caredToday"
             @click="handlePregnancyCare('rest')"
           >
-            {{ npcStore.pregnancy.caredToday ? '已休息' : '安排休息' }}
+            {{ npcStore.pregnancy.kind === 'adoption' ? (npcStore.pregnancy.caredToday ? '已整理' : '整理宅院') : (npcStore.pregnancy.caredToday ? '已休息' : '安排休息') }}
           </Button>
         </div>
         <!-- 医疗方案（待产期） -->
         <div v-if="npcStore.pregnancy.stage === 'ready'" class="border border-accent/20 rounded-xs p-2 mt-2">
-          <p class="text-[10px] text-accent mb-1.5">选择接生方式</p>
+          <p class="text-[10px] text-accent mb-1.5">{{ npcStore.pregnancy.kind === 'adoption' ? '选择迎接方案' : '选择接生方式' }}</p>
           <div v-if="!npcStore.pregnancy.medicalPlan" class="flex flex-col space-y-1">
             <Button class="py-0.5 px-1 text-[10px] w-full justify-center" @click="handleChooseMedical('normal')">
-              普通接生（1000文 · 80%安全）
+              {{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_MEDICAL_LABELS.normal : MEDICAL_LABELS.normal }}（1000文 · 80%安全）
             </Button>
             <Button class="py-0.5 px-1 text-[10px] w-full justify-center" @click="handleChooseMedical('advanced')">
-              高级接生（5000文 · 95%安全）
+              {{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_MEDICAL_LABELS.advanced : MEDICAL_LABELS.advanced }}（5000文 · 95%安全）
             </Button>
             <Button class="py-0.5 px-1 text-[10px] w-full justify-center text-accent" @click="handleChooseMedical('luxury')">
-              豪华接生（15000文 · 100%安全）
+              {{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_MEDICAL_LABELS.luxury : MEDICAL_LABELS.luxury }}（15000文 · 100%安全）
             </Button>
           </div>
-          <p v-else class="text-[10px] text-success">已选择：{{ MEDICAL_LABELS[npcStore.pregnancy.medicalPlan] }}</p>
+          <p v-else class="text-[10px] text-success">已选择：{{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_MEDICAL_LABELS[npcStore.pregnancy.medicalPlan] : MEDICAL_LABELS[npcStore.pregnancy.medicalPlan] }}</p>
         </div>
       </div>
 
@@ -150,7 +150,7 @@
       <div v-if="npcStore.children.length === 0 && !npcStore.pregnancy && !npcStore.childProposalPending">
         <div class="flex flex-col items-center justify-center py-6 text-muted">
           <Users :size="32" class="mb-2" />
-          <p class="text-xs">婚后生活安稳，也许将来会有小生命到来。</p>
+          <p class="text-xs">{{ npcStore.getPendingFamilyExpansionKind() === 'adoption' ? '婚后生活安稳，也许将来会迎一个孩子回家。' : '婚后生活安稳，也许将来会有小生命到来。' }}</p>
         </div>
       </div>
 
@@ -161,7 +161,7 @@
             <span class="text-xs text-accent">
               {{ child.name }}
               <span v-if="child.birthQuality === 'healthy'" class="text-[10px] text-success ml-0.5">[健康]</span>
-              <span v-else-if="child.birthQuality === 'premature'" class="text-[10px] text-muted/60 ml-0.5">[早产]</span>
+              <span v-else-if="child.birthQuality === 'premature'" class="text-[10px] text-muted/60 ml-0.5">[早产]</span>`n              <span v-if="child.origin === 'adoption'" class="text-[10px] text-accent ml-0.5">[领养]</span>
             </span>
             <div class="flex items-center space-x-1">
               <Button
@@ -758,6 +758,13 @@
     ready: '待产期（准备迎接）'
   }
 
+  const ADOPTION_STAGE_LABELS: Record<PregnancyStage, string> = {
+    early: '筹备期（准备心意）',
+    mid: '走访期（需要陪伴）',
+    late: '安置期（整理宅院）',
+    ready: '迎接期（准备接回）'
+  }
+
   const STAGE_TIPS: Record<PregnancyStage, string> = {
     early: '孕初期需要注意营养，送些食物或补品效果最好。',
     mid: '孕中期需要更多陪伴，多聊天可以大幅提升安产率。',
@@ -765,10 +772,23 @@
     ready: '即将临盆，请选择接生方式并做好最后的准备。'
   }
 
+  const ADOPTION_STAGE_TIPS: Record<PregnancyStage, string> = {
+    early: '筹备期要先准备心意和环境，让这件事有个温柔的开端。',
+    mid: '走访期更需要陪伴与沟通，一起把未来的打算聊清楚。',
+    late: '安置期要把宅院收拾妥当，为新成员腾出稳定的生活空间。',
+    ready: '迎接期已经到了，请选择迎接方案并做好最后的准备。'
+  }
+
   const MEDICAL_LABELS: Record<string, string> = {
     normal: '普通接生',
     advanced: '高级接生',
     luxury: '豪华接生'
+  }
+
+  const ADOPTION_MEDICAL_LABELS: Record<string, string> = {
+    normal: '普通安置',
+    advanced: '体面安置',
+    luxury: '圆满安置'
   }
 
   const AGEABLE_ITEMS = ['watermelon_wine', 'osmanthus_wine', 'peach_wine', 'jujube_wine', 'corn_wine', 'rice_vinegar']

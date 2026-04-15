@@ -829,7 +829,9 @@ export const WS09_RELATIONSHIP_TUNING_CONFIG = {
     householdDivisionEnabled: true,
     familyWishEnabled: true,
     zhijiProjectEnabled: true,
-    companionViewSummaryEnabled: true
+    companionViewSummaryEnabled: true,
+    sameSexMarriageEnabled: true,
+    sameSexFamilyExpansionEnabled: true
   },
   display: {
     familyWishPreviewLimit: 3,

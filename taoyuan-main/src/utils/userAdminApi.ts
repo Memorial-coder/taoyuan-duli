@@ -13,6 +13,9 @@ export interface AdminPermissions {
   update_status: boolean
   delete_user: boolean
   view_audit_logs: boolean
+  manage_content: boolean
+  view_content_logs: boolean
+  view_gameplay_logs: boolean
 }
 
 export interface AdminSessionInfo {
@@ -31,6 +34,9 @@ const emptyAdminPermissions = (): AdminPermissions => ({
   update_status: false,
   delete_user: false,
   view_audit_logs: false,
+  manage_content: false,
+  view_content_logs: false,
+  view_gameplay_logs: false,
 })
 
 export interface UserSaveSlotSummary {

@@ -10,6 +10,8 @@ const DATA_DIR = process.env.DB_STORAGE
 const USERS_FILE = path.join(DATA_DIR, 'users.json');
 const USER_META_FILE = path.join(DATA_DIR, 'user_admin_meta.json');
 const ADMIN_AUDIT_LOG_FILE = path.join(DATA_DIR, 'admin_audit_logs.json');
+const CONTENT_REVISION_LOG_FILE = path.join(DATA_DIR, 'admin_content_revisions.json');
+const GAMEPLAY_EVENT_LOG_FILE = path.join(DATA_DIR, 'taoyuan_gameplay_event_logs.json');
 const EXCHANGE_RATE = parseInt(process.env.EXCHANGE_RATE || '500000', 10);
 const DEFAULT_USER_QUOTA = parseInt(process.env.DEFAULT_USER_QUOTA || '2000000', 10);
 
@@ -147,6 +149,67 @@ function normalizeAuditLogEntry(entry = {}) {
   };
 }
 
+function loadContentRevisionStore() {
+  ensureDir();
+  try {
+    if (!fs.existsSync(CONTENT_REVISION_LOG_FILE)) return { revisions: [] };
+    const raw = JSON.parse(fs.readFileSync(CONTENT_REVISION_LOG_FILE, 'utf8'));
+    return Array.isArray(raw?.revisions) ? raw : { revisions: [] };
+  } catch {
+    return { revisions: [] };
+  }
+}
+
+function saveContentRevisionStore(store) {
+  ensureDir();
+  fs.writeFileSync(CONTENT_REVISION_LOG_FILE, JSON.stringify({ revisions: store?.revisions || [] }, null, 2), 'utf8');
+}
+
+function normalizeContentRevisionEntry(entry = {}) {
+  return {
+    id: String(entry.id || `content_rev_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+    content_key: String(entry.content_key || ''),
+    title: String(entry.title || ''),
+    summary: String(entry.summary || ''),
+    action: String(entry.action || 'draft'),
+    published: entry.published === true,
+    operator_role: String(entry.operator_role || ''),
+    operator_name: String(entry.operator_name || ''),
+    payload_json: entry.payload_json || '{}',
+    created_at: Number(entry.created_at) || nowSeconds(),
+  };
+}
+
+function loadGameplayEventLogStore() {
+  ensureDir();
+  try {
+    if (!fs.existsSync(GAMEPLAY_EVENT_LOG_FILE)) return { logs: [] };
+    const raw = JSON.parse(fs.readFileSync(GAMEPLAY_EVENT_LOG_FILE, 'utf8'));
+    return Array.isArray(raw?.logs) ? raw : { logs: [] };
+  } catch {
+    return { logs: [] };
+  }
+}
+
+function saveGameplayEventLogStore(store) {
+  ensureDir();
+  fs.writeFileSync(GAMEPLAY_EVENT_LOG_FILE, JSON.stringify({ logs: store?.logs || [] }, null, 2), 'utf8');
+}
+
+function normalizeGameplayEventLogEntry(entry = {}) {
+  return {
+    id: String(entry.id || `gameplay_log_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+    username: String(entry.username || ''),
+    day_label: String(entry.day_label || ''),
+    category: String(entry.category || 'system'),
+    message: String(entry.message || ''),
+    route_name: String(entry.route_name || ''),
+    tags_json: entry.tags_json || '[]',
+    meta_json: entry.meta_json || '{}',
+    created_at: Number(entry.created_at) || nowSeconds(),
+  };
+}
+
 function localUserToPublic(user) {
   if (!user || user.deleted_at) return null;
   const quota = Number(user.quota) || 0;
@@ -219,6 +282,40 @@ async function ensureMysqlReady() {
           PRIMARY KEY (id),
           KEY idx_action_created_at (action, created_at),
           KEY idx_target_username (target_username)
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS admin_content_revisions (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+          content_key VARCHAR(64) NOT NULL,
+          title VARCHAR(191) NOT NULL DEFAULT '',
+          summary VARCHAR(255) NOT NULL DEFAULT '',
+          action VARCHAR(32) NOT NULL DEFAULT 'draft',
+          published TINYINT(1) NOT NULL DEFAULT 0,
+          operator_role VARCHAR(32) NOT NULL DEFAULT '',
+          operator_name VARCHAR(64) NOT NULL DEFAULT '',
+          payload_json LONGTEXT NULL,
+          created_at BIGINT NOT NULL,
+          PRIMARY KEY (id),
+          KEY idx_content_key_created_at (content_key, created_at)
+        ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
+      `);
+
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS gameplay_event_logs (
+          id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+          username VARCHAR(64) NOT NULL DEFAULT '',
+          day_label VARCHAR(64) NOT NULL DEFAULT '',
+          category VARCHAR(32) NOT NULL DEFAULT 'system',
+          message VARCHAR(512) NOT NULL,
+          route_name VARCHAR(128) NOT NULL DEFAULT '',
+          tags_json LONGTEXT NULL,
+          meta_json LONGTEXT NULL,
+          created_at BIGINT NOT NULL,
+          PRIMARY KEY (id),
+          KEY idx_username_created_at (username, created_at),
+          KEY idx_category_created_at (category, created_at)
         ) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci
       `);
     })().catch(error => {
@@ -811,7 +908,6 @@ async function recordAdminAuditLog(entry = {}) {
 
   const store = loadAdminAuditLogStore();
   store.logs.unshift(normalized);
-  store.logs = store.logs.slice(0, 2000);
   saveAdminAuditLogStore(store);
   return normalized;
 }
@@ -872,6 +968,300 @@ async function listAdminAuditLogs(options = {}) {
   };
 }
 
+async function recordContentRevision(entry = {}) {
+  const now = nowSeconds();
+  const normalized = normalizeContentRevisionEntry({
+    ...entry,
+    payload_json: JSON.stringify(entry.payload || entry.payload_json || {}),
+    created_at: now,
+  });
+
+  if (MYSQL_ENABLED) {
+    await ensureMysqlReady();
+    await buildMysqlPool().execute(
+      `INSERT INTO admin_content_revisions
+       (content_key, title, summary, action, published, operator_role, operator_name, payload_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        normalized.content_key,
+        normalized.title,
+        normalized.summary,
+        normalized.action,
+        normalized.published ? 1 : 0,
+        normalized.operator_role,
+        normalized.operator_name,
+        normalized.payload_json,
+        normalized.created_at,
+      ]
+    );
+    return normalized;
+  }
+
+  const store = loadContentRevisionStore();
+  store.revisions.unshift(normalized);
+  saveContentRevisionStore(store);
+  return normalized;
+}
+
+async function listContentRevisions(options = {}) {
+  const page = Math.max(1, parseInt(options.page || '1', 10) || 1);
+  const pageSize = Math.min(100, Math.max(1, parseInt(options.pageSize || '20', 10) || 20));
+  const contentKey = String(options.contentKey || '').trim();
+
+  if (MYSQL_ENABLED) {
+    await ensureMysqlReady();
+    const params = [];
+    const where = [];
+    if (contentKey) {
+      where.push('content_key = ?');
+      params.push(contentKey);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const [[countRow]] = await buildMysqlPool().execute(
+      `SELECT COUNT(*) AS total FROM admin_content_revisions ${whereSql}`,
+      params
+    );
+    const offset = (page - 1) * pageSize;
+    const [rows] = await buildMysqlPool().query(
+      `SELECT id, content_key, title, summary, action, published, operator_role, operator_name, payload_json, created_at
+       FROM admin_content_revisions
+       ${whereSql}
+       ORDER BY created_at DESC, id DESC
+       LIMIT ${pageSize} OFFSET ${offset}`,
+      params
+    );
+    return {
+      total: Number(countRow?.total) || 0,
+      page,
+      pageSize,
+      revisions: rows.map(item => ({
+        id: String(item.id),
+        content_key: item.content_key,
+        title: item.title,
+        summary: item.summary,
+        action: item.action,
+        published: item.published === 1,
+        operator_role: item.operator_role,
+        operator_name: item.operator_name,
+        payload: (() => {
+          try {
+            return JSON.parse(item.payload_json || '{}');
+          } catch {
+            return {};
+          }
+        })(),
+        created_at: Number(item.created_at) || 0,
+      })),
+    };
+  }
+
+  const store = loadContentRevisionStore();
+  const filtered = store.revisions.filter(item => !contentKey || item.content_key === contentKey);
+  const offset = (page - 1) * pageSize;
+  return {
+    total: filtered.length,
+    page,
+    pageSize,
+    revisions: filtered.slice(offset, offset + pageSize).map(item => ({
+      ...item,
+      payload: (() => {
+        try {
+          return JSON.parse(item.payload_json || '{}');
+        } catch {
+          return {};
+        }
+      })(),
+    })),
+  };
+}
+
+async function getContentRevision(id) {
+  const revisionId = String(id || '').trim();
+  if (!revisionId) return null;
+
+  if (MYSQL_ENABLED) {
+    await ensureMysqlReady();
+    const numericId = parseInt(revisionId, 10);
+    if (!Number.isInteger(numericId) || numericId <= 0) return null;
+    const [rows] = await buildMysqlPool().execute(
+      `SELECT id, content_key, title, summary, action, published, operator_role, operator_name, payload_json, created_at
+       FROM admin_content_revisions WHERE id = ? LIMIT 1`,
+      [numericId]
+    );
+    const item = rows[0];
+    if (!item) return null;
+    return {
+      id: String(item.id),
+      content_key: item.content_key,
+      title: item.title,
+      summary: item.summary,
+      action: item.action,
+      published: item.published === 1,
+      operator_role: item.operator_role,
+      operator_name: item.operator_name,
+      payload: (() => {
+        try {
+          return JSON.parse(item.payload_json || '{}');
+        } catch {
+          return {};
+        }
+      })(),
+      created_at: Number(item.created_at) || 0,
+    };
+  }
+
+  const store = loadContentRevisionStore();
+  const item = store.revisions.find(entry => entry.id === revisionId);
+  if (!item) return null;
+  return {
+    ...item,
+    payload: (() => {
+      try {
+        return JSON.parse(item.payload_json || '{}');
+      } catch {
+        return {};
+      }
+    })(),
+  };
+}
+
+async function recordGameplayEventLog(entry = {}) {
+  const now = nowSeconds();
+  const normalized = normalizeGameplayEventLogEntry({
+    ...entry,
+    tags_json: JSON.stringify(Array.isArray(entry.tags) ? entry.tags : entry.tags_json || []),
+    meta_json: JSON.stringify(entry.meta || entry.meta_json || {}),
+    created_at: now,
+  });
+
+  if (MYSQL_ENABLED) {
+    await ensureMysqlReady();
+    await buildMysqlPool().execute(
+      `INSERT INTO gameplay_event_logs
+       (username, day_label, category, message, route_name, tags_json, meta_json, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        normalized.username,
+        normalized.day_label,
+        normalized.category,
+        normalized.message,
+        normalized.route_name,
+        normalized.tags_json,
+        normalized.meta_json,
+        normalized.created_at,
+      ]
+    );
+    return normalized;
+  }
+
+  const store = loadGameplayEventLogStore();
+  store.logs.unshift(normalized);
+  saveGameplayEventLogStore(store);
+  return normalized;
+}
+
+async function listGameplayEventLogs(options = {}) {
+  const page = Math.max(1, parseInt(options.page || '1', 10) || 1);
+  const pageSize = Math.min(200, Math.max(1, parseInt(options.pageSize || '50', 10) || 50));
+  const username = normalizeUsername(options.username || '');
+  const category = String(options.category || '').trim();
+  const keyword = String(options.keyword || '').trim();
+
+  if (MYSQL_ENABLED) {
+    await ensureMysqlReady();
+    const params = [];
+    const where = [];
+    if (username) {
+      where.push('username = ?');
+      params.push(username);
+    }
+    if (category) {
+      where.push('category = ?');
+      params.push(category);
+    }
+    if (keyword) {
+      where.push('(message LIKE ? OR meta_json LIKE ? OR day_label LIKE ?)');
+      params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+    }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    const [[countRow]] = await buildMysqlPool().execute(
+      `SELECT COUNT(*) AS total FROM gameplay_event_logs ${whereSql}`,
+      params
+    );
+    const offset = (page - 1) * pageSize;
+    const [rows] = await buildMysqlPool().query(
+      `SELECT id, username, day_label, category, message, route_name, tags_json, meta_json, created_at
+       FROM gameplay_event_logs
+       ${whereSql}
+       ORDER BY created_at DESC, id DESC
+       LIMIT ${pageSize} OFFSET ${offset}`,
+      params
+    );
+    return {
+      total: Number(countRow?.total) || 0,
+      page,
+      pageSize,
+      logs: rows.map(item => ({
+        id: String(item.id),
+        username: item.username,
+        day_label: item.day_label,
+        category: item.category,
+        message: item.message,
+        route_name: item.route_name,
+        tags: (() => {
+          try {
+            return JSON.parse(item.tags_json || '[]');
+          } catch {
+            return [];
+          }
+        })(),
+        meta: (() => {
+          try {
+            return JSON.parse(item.meta_json || '{}');
+          } catch {
+            return {};
+          }
+        })(),
+        created_at: Number(item.created_at) || 0,
+      })),
+    };
+  }
+
+  const store = loadGameplayEventLogStore();
+  const filtered = store.logs.filter(item => {
+    if (username && item.username !== username) return false;
+    if (category && item.category !== category) return false;
+    if (keyword) {
+      const haystack = `${item.message} ${item.meta_json || ''} ${item.day_label || ''}`.toLocaleLowerCase('zh-CN');
+      if (!haystack.includes(keyword.toLocaleLowerCase('zh-CN'))) return false;
+    }
+    return true;
+  });
+  const offset = (page - 1) * pageSize;
+  return {
+    total: filtered.length,
+    page,
+    pageSize,
+    logs: filtered.slice(offset, offset + pageSize).map(item => ({
+      ...item,
+      tags: (() => {
+        try {
+          return JSON.parse(item.tags_json || '[]');
+        } catch {
+          return [];
+        }
+      })(),
+      meta: (() => {
+        try {
+          return JSON.parse(item.meta_json || '{}');
+        } catch {
+          return {};
+        }
+      })(),
+    })),
+  };
+}
+
 module.exports = {
   getPool,
   registerUser,
@@ -888,6 +1278,11 @@ module.exports = {
   setUserStatus,
   recordAdminAuditLog,
   listAdminAuditLogs,
+  recordContentRevision,
+  listContentRevisions,
+  getContentRevision,
+  recordGameplayEventLog,
+  listGameplayEventLogs,
   getUserAccessState,
   EXCHANGE_RATE,
   MYSQL_ENABLED,

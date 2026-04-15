@@ -12,6 +12,8 @@ import type {
   HouseholdDivisionState,
   PregnancyState,
   PregnancyStage,
+  FamilyExpansionState,
+  FamilyExpansionKind,
   ProposalResponse,
   FarmHelperTask,
   HiredHelper,
@@ -111,6 +113,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 孕期状态（null = 无孕期） */
   const pregnancy = ref<PregnancyState | null>(null)
+  const familyExpansion = pregnancy as unknown as { value: FamilyExpansionState | null }
 
   /** 配偶是否已提议要孩子（等待玩家回应） */
   const childProposalPending = ref<boolean>(false)
@@ -169,6 +172,21 @@ export const useNpcStore = defineStore('npc', () => {
   const relationshipTuning = WS09_RELATIONSHIP_TUNING_CONFIG
   const relationshipFeatureFlags = relationshipTuning.featureFlags
   const relationshipTierRank: Record<'P0' | 'P1' | 'P2', number> = { P0: 0, P1: 1, P2: 2 }
+  const isSameSexMarriageEnabled = () => Boolean(relationshipFeatureFlags.sameSexMarriageEnabled)
+  const isSameSexFamilyExpansionEnabled = () => Boolean(relationshipFeatureFlags.sameSexFamilyExpansionEnabled)
+  const isSameSexPairWithNpc = (npcId: string | null | undefined): boolean => {
+    if (!npcId) return false
+    const npcDef = getNpcById(npcId)
+    if (!npcDef) return false
+    return npcDef.gender === usePlayerStore().gender
+  }
+  const canPursueMarriageWithNpc = (npcId: string | null | undefined): boolean => {
+    if (!npcId) return false
+    if (!isSameSexPairWithNpc(npcId)) return true
+    return isSameSexMarriageEnabled()
+  }
+  const getFamilyExpansionKindForNpc = (npcId: string | null | undefined): FamilyExpansionKind =>
+    isSameSexPairWithNpc(npcId) ? 'adoption' : 'pregnancy'
 
   const maxRelationshipTier = (left: 'P0' | 'P1' | 'P2', right: 'P0' | 'P1' | 'P2') =>
     relationshipTierRank[left] >= relationshipTierRank[right] ? left : right
@@ -840,6 +858,11 @@ export const useNpcStore = defineStore('npc', () => {
     return npcStates.value.find(s => s.zhiji) ?? null
   }
 
+  const getPendingFamilyExpansionKind = (): FamilyExpansionKind => getFamilyExpansionKindForNpc(getSpouse()?.npcId)
+
+  const getChildProposalPrompt = (): string =>
+    getPendingFamilyExpansionKind() === 'adoption' ? '最近我在想，我们是不是该迎一个孩子回家了？' : '最近我在想，我们是不是该要个孩子了？'
+
   const relationshipContentTier = computed<'P0' | 'P1' | 'P2'>(() => {
     if (
       children.value.length >= relationshipTuning.progression.tierUnlockChildCountP2 ||
@@ -1497,6 +1520,7 @@ export const useNpcStore = defineStore('npc', () => {
     if (childProposalPending.value) return false
     if (daysMarried.value < 7) return false
     if (spouse.friendship < 3000) return false
+    if (getFamilyExpansionKindForNpc(spouse.npcId) === 'adoption' && !isSameSexFamilyExpansionEnabled()) return false
     // 拒绝冷却：7天基础 + 每次拒绝额外7天
     if (childProposalDeclinedCount.value > 0) {
       const cooldownDays = 7 + childProposalDeclinedCount.value * 7
@@ -1514,17 +1538,21 @@ export const useNpcStore = defineStore('npc', () => {
   const respondToChildProposal = (response: ProposalResponse): { message: string; friendshipChange: number } => {
     childProposalPending.value = false
     const spouse = getSpouse()
+    const expansionKind = getPendingFamilyExpansionKind()
 
     switch (response) {
       case 'accept':
         pregnancy.value = {
+          kind: expansionKind,
           stage: 'early',
           daysInStage: 0,
           stageDays: PREGNANCY_STAGE_CONFIG.early.days,
           careScore: 50,
           caredToday: false,
+          giftedToday: false,
           giftedForPregnancy: false,
           companionToday: false,
+          supportPlan: null,
           medicalPlan: null,
           careMilestoneIds: []
         }
@@ -1629,13 +1657,15 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 分娩处理（内部方法） */
   const handleDelivery = (): {
-    born?: { name: string; quality: 'normal' | 'premature' | 'healthy' }
+    born?: { name: string; quality: 'normal' | 'premature' | 'healthy'; origin: 'birth' | 'adoption' }
     miscarriage?: boolean
+    placementFailed?: boolean
     unlockedMessages?: string[]
   } => {
     if (!pregnancy.value) return {}
 
     const spouse = getSpouse()
+    const expansionKind = pregnancy.value.kind ?? 'pregnancy'
 
     const plan = pregnancy.value.medicalPlan ?? 'normal'
     const planInfo = MEDICAL_PLANS[plan]
@@ -1652,7 +1682,7 @@ export const useNpcStore = defineStore('npc', () => {
       if (spouse) {
         spouse.friendship = Math.max(0, spouse.friendship - 200)
       }
-      return { miscarriage: true }
+      return expansionKind === 'adoption' ? { placementFailed: true } : { miscarriage: true }
     }
 
     // 根据安产分决定出生品质
@@ -1665,6 +1695,8 @@ export const useNpcStore = defineStore('npc', () => {
     const availableNames = namePool.filter(n => !usedNames.includes(n))
     const name = availableNames[Math.floor(Math.random() * availableNames.length)] ?? '小宝'
 
+    const origin: 'birth' | 'adoption' = expansionKind === 'adoption' ? 'adoption' : 'birth'
+
     children.value.push({
       id: nextChildId.value++,
       name,
@@ -1673,18 +1705,23 @@ export const useNpcStore = defineStore('npc', () => {
       friendship: birthQuality === 'healthy' ? 30 : 0,
       interactedToday: false,
       birthQuality,
+      origin,
       trainingState: createDefaultChildTrainingState()
     })
 
     pregnancy.value = null
-    return { born: { name, quality: birthQuality }, unlockedMessages: spouse ? syncRelationshipPerks(spouse.npcId) : [] }
+    return {
+      born: { name, quality: birthQuality, origin },
+      unlockedMessages: spouse ? syncRelationshipPerks(spouse.npcId) : []
+    }
   }
 
   /** 每日孕期更新 */
   const dailyPregnancyUpdate = (): {
-    stageChanged?: { from: PregnancyStage; to: PregnancyStage }
-    born?: { name: string; quality: 'normal' | 'premature' | 'healthy' }
+    stageChanged?: { from: PregnancyStage; to: PregnancyStage; kind: FamilyExpansionKind }
+    born?: { name: string; quality: 'normal' | 'premature' | 'healthy'; origin: 'birth' | 'adoption' }
     miscarriage?: boolean
+    placementFailed?: boolean
     unlockedMessages?: string[]
   } => {
     // 结婚天数递增
@@ -1716,11 +1753,12 @@ export const useNpcStore = defineStore('npc', () => {
       // 进入下一阶段
       const from = pregnancy.value.stage
       const nextStage = STAGE_ORDER[currentStageIndex + 1]!
+      const kind = pregnancy.value.kind ?? 'pregnancy'
       pregnancy.value.stage = nextStage
       pregnancy.value.daysInStage = 0
       pregnancy.value.stageDays = PREGNANCY_STAGE_CONFIG[nextStage].days
 
-      return { stageChanged: { from, to: nextStage }, unlockedMessages: [] }
+      return { stageChanged: { from, to: nextStage, kind }, unlockedMessages: [] }
     }
 
     return { unlockedMessages: [] }
@@ -2017,18 +2055,21 @@ export const useNpcStore = defineStore('npc', () => {
 
     // 新孕期系统
     pregnancy.value = (() => {
-      const rawPregnancy = (data as any).pregnancy
+      const rawPregnancy = (data as any).familyExpansion ?? (data as any).pregnancy
       if (!rawPregnancy || typeof rawPregnancy !== 'object') return null
       const pregnancyStages: PregnancyStage[] = ['early', 'mid', 'late', 'ready']
       const stage: PregnancyStage = pregnancyStages.includes(rawPregnancy.stage as PregnancyStage) ? (rawPregnancy.stage as PregnancyStage) : 'early'
       return {
+        kind: rawPregnancy.kind === 'adoption' ? 'adoption' : 'pregnancy',
         stage,
         daysInStage: Math.max(0, Number(rawPregnancy.daysInStage) || 0),
         stageDays: Math.max(1, Number(rawPregnancy.stageDays) || PREGNANCY_STAGE_CONFIG[stage].days),
         careScore: Math.max(0, Math.min(100, Number(rawPregnancy.careScore) || 0)),
         caredToday: !!rawPregnancy.caredToday,
+        giftedToday: !!(rawPregnancy.giftedToday ?? rawPregnancy.giftedForPregnancy),
         giftedForPregnancy: !!rawPregnancy.giftedForPregnancy,
         companionToday: !!rawPregnancy.companionToday,
+        supportPlan: ['normal', 'advanced', 'luxury'].includes(rawPregnancy.supportPlan) ? rawPregnancy.supportPlan : ['normal', 'advanced', 'luxury'].includes(rawPregnancy.medicalPlan) ? rawPregnancy.medicalPlan : null,
         medicalPlan: ['normal', 'advanced', 'luxury'].includes(rawPregnancy.medicalPlan) ? rawPregnancy.medicalPlan : null,
         careMilestoneIds: Array.isArray(rawPregnancy.careMilestoneIds)
           ? rawPregnancy.careMilestoneIds.filter((id: unknown) => typeof id === 'string')
@@ -2047,13 +2088,16 @@ export const useNpcStore = defineStore('npc', () => {
       else if (oldCountdown <= 8) stage = 'late'
       else if (oldCountdown <= 13) stage = 'mid'
       pregnancy.value = {
+        kind: 'pregnancy',
         stage,
         daysInStage: 0,
         stageDays: PREGNANCY_STAGE_CONFIG[stage].days,
         careScore: 50,
         caredToday: false,
+        giftedToday: false,
         giftedForPregnancy: false,
         companionToday: false,
+        supportPlan: null,
         medicalPlan: null,
         careMilestoneIds: []
       }
@@ -2087,6 +2131,7 @@ export const useNpcStore = defineStore('npc', () => {
     nextChildId,
     daysMarried,
     daysZhiji,
+    familyExpansion,
     pregnancy,
     householdDivision,
     familyWishBoard,
@@ -2126,6 +2171,11 @@ export const useNpcStore = defineStore('npc', () => {
     propose,
     getSpouse,
     getZhiji,
+    relationshipFeatureFlags,
+    canPursueMarriageWithNpc,
+    getFamilyExpansionKindForNpc,
+    getPendingFamilyExpansionKind,
+    getChildProposalPrompt,
     relationshipContentTier,
     getAvailableHouseholdRoles,
     getHouseholdRoleAssignment,
@@ -2156,8 +2206,11 @@ export const useNpcStore = defineStore('npc', () => {
     checkChildProposal,
     triggerChildProposal,
     respondToChildProposal,
+    performFamilyExpansionCare: performPregnancyCare,
     performPregnancyCare,
+    chooseFamilyExpansionPlan: chooseMedicalPlan,
     chooseMedicalPlan,
+    dailyFamilyExpansionUpdate: dailyPregnancyUpdate,
     dailyPregnancyUpdate,
     interactWithChild,
     dailyChildUpdate,
@@ -2166,7 +2219,9 @@ export const useNpcStore = defineStore('npc', () => {
     isTipGivenToday,
     getDailyTip,
     tipGivenToday,
+    FAMILY_EXPANSION_STAGE_CONFIG: PREGNANCY_STAGE_CONFIG,
     PREGNANCY_STAGE_CONFIG,
+    FAMILY_EXPANSION_PLANS: MEDICAL_PLANS,
     MEDICAL_PLANS,
     relationshipCompanionshipBaselineAudit,
     getRelationshipCompanionshipAuditOverview,

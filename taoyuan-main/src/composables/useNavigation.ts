@@ -29,6 +29,7 @@ import {
   ScrollText,
   Mail,
   User,
+  BookMarked,
   FlaskConical,
   Landmark,
   Swords,
@@ -51,6 +52,7 @@ export type PanelKey =
   | 'skills'
   | 'workshop'
   | 'achievement'
+  | 'glossary'
   | 'animal'
   | 'home'
   | 'wallet'
@@ -85,6 +87,7 @@ export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: ()
   { key: 'inventory', label: '背包', icon: Package },
   { key: 'skills', label: '技能', icon: Star },
   { key: 'achievement', label: '图鉴', icon: BookOpen },
+  { key: 'glossary', label: '百科', icon: BookMarked },
   { key: 'wallet', label: '钱包', icon: Wallet },
   { key: 'quest', label: '告示板', icon: ScrollText },
   { key: 'mail', label: '邮箱', icon: Mail },

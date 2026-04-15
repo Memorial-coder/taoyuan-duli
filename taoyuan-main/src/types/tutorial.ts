@@ -57,6 +57,7 @@ export interface GuidanceLoopLinkDef {
 export interface GuidanceSurfaceDigestState {
   surfaceId: GuidanceSurfaceId
   lastViewedDayTag: string
+  lastViewedDigestKey: string
   viewedCount: number
   lastInteractedSummaryId: string | null
   lastAdoptedRouteId: string | null

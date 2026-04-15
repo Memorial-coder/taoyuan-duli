@@ -128,7 +128,7 @@
       <div v-if="childProposalVisible" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full text-center">
           <Divider title label="家庭提议" />
-          <p class="text-xs leading-relaxed mb-4">{{ proposalSpouseName }}轻声说道：「最近我在想，我们是不是该要个孩子了？」</p>
+          <p class="text-xs leading-relaxed mb-4">{{ proposalSpouseName }}轻声说道：「{{ npcStore.getChildProposalPrompt() }}」</p>
           <div class="flex flex-col space-y-1.5">
             <Button class="w-full justify-center" @click="handleChildProposalResponse('accept')">「我也这么想。」</Button>
             <Button class="w-full justify-center" @click="handleChildProposalResponse('wait')">「再等等吧。」</Button>

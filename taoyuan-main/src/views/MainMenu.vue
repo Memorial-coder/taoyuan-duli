@@ -382,8 +382,8 @@
             <X :size="14" />
           </button>
           <Divider title class="my-4" :label="menuConfig.aboutDialogTitle" />
-          <div class="flex-1 overflow-y-auto text-xs text-muted whitespace-pre-wrap leading-6 px-1 pb-3">
-            {{ menuConfig.aboutDialogContent }}
+          <div class="flex-1 overflow-y-auto px-1 pb-3">
+            <div class="main-menu-about-markdown text-xs text-muted leading-6" v-html="aboutDialogHtml" />
           </div>
           <div class="flex justify-center pb-2">
             <Button :icon="Info" :icon-size="12" @click="showAbout = false">我知道了</Button>
@@ -398,6 +398,7 @@
   import { Play, FolderOpen, ArrowLeft, Trash2, Download, Upload, Settings, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus, Bug } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
+  import { renderSafeMarkdown } from '@/utils/safeMarkdown'
   import { ref, computed, onMounted, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
@@ -579,10 +580,12 @@
   }
 
   const handleOpenAdmin = () => {
-    void router.push('/admin/users')
+    void router.push('/admin')
   }
 
   const isDev = import.meta.env.DEV
+
+  const aboutDialogHtml = computed(() => renderSafeMarkdown(menuConfig.value.aboutDialogContent || '欢迎来到桃源乡。'))
 
   const handleOpenLateGameDebug = () => {
     void router.push('/dev/late-game')
@@ -796,6 +799,29 @@
   .main-menu-slot {
     min-height: 48px;
     gap: 10px;
+  }
+
+  .main-menu-about-markdown :deep(p),
+  .main-menu-about-markdown :deep(ul),
+  .main-menu-about-markdown :deep(ol),
+  .main-menu-about-markdown :deep(h1),
+  .main-menu-about-markdown :deep(h2),
+  .main-menu-about-markdown :deep(h3),
+  .main-menu-about-markdown :deep(pre) {
+    margin: 0 0 10px;
+  }
+
+  .main-menu-about-markdown :deep(ul),
+  .main-menu-about-markdown :deep(ol) {
+    padding-left: 18px;
+  }
+
+  .main-menu-about-markdown :deep(img) {
+    display: block;
+    max-width: 100%;
+    border-radius: 4px;
+    margin: 8px 0;
+    border: 1px solid rgba(200, 164, 92, 0.12);
   }
 
   @media (min-width: 1280px) {

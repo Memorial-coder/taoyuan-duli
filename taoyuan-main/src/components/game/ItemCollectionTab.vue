@@ -19,6 +19,21 @@
         </div>
       </div>
 
+      <div>
+        <p class="text-xs text-muted mb-1">按问题去百科</p>
+        <div class="flex flex-wrap gap-1">
+          <button
+            v-for="shortcut in glossaryShortcuts"
+            :key="shortcut.label"
+            class="px-1.5 py-0.5 text-xs rounded-xs border border-accent/20 text-muted hover:border-accent/50 hover:bg-accent/5 transition-colors"
+            @click="openGlossary(shortcut.preset)"
+          >
+            {{ shortcut.label }}
+          </button>
+        </div>
+        <p class="text-[10px] text-muted/70 mt-1">图鉴看收录与缺口，百科查机制、条件和路线。</p>
+      </div>
+
       <div class="relative">
         <Search :size="12" class="absolute left-2 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
         <input
@@ -125,9 +140,19 @@
           </div>
           <p class="text-[10px] text-muted mt-0.5">{{ milestone.description }}</p>
           <div class="flex flex-wrap gap-1 mt-1">
-            <span v-for="effect in milestone.effects" :key="effect.label" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/10 text-muted">
-              {{ effect.label }}
-            </span>
+            <template v-for="effect in milestone.effects" :key="effect.label">
+              <button
+                v-if="effect.panel"
+                type="button"
+                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent transition-colors hover:bg-accent/5"
+                @click="navigateToPanel(effect.panel)"
+              >
+                {{ effect.label }}
+              </button>
+              <span v-else class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/10 text-muted">
+                {{ effect.label }}
+              </span>
+            </template>
           </div>
         </div>
       </div>
@@ -268,7 +293,7 @@
 
               <template v-if="activeEquipEffects.length > 0">
                 <div v-for="(eff, i) in activeEquipEffects" :key="i" class="flex items-center justify-between mt-0.5">
-                  <span class="text-xs text-muted">{{ EFFECT_NAMES[eff.type] ?? eff.type }}</span>
+                  <span class="text-xs text-muted">{{ getEquipEffectLabel(eff.type) }}</span>
                   <span class="text-xs text-success">{{ formatEffectValue(eff) }}</span>
                 </div>
               </template>
@@ -290,19 +315,22 @@
   import { BookOpen, Lock, Search, FlaskConical, Waves, Swords, X } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import { useAchievementStore } from '@/stores/useAchievementStore'
-  import { ITEMS, getItemById, getItemSource } from '@/data/items'
+  import { ITEMS, getItemById } from '@/data/items'
   import { HYBRID_DEFS } from '@/data/breeding'
-  import { getCropById, getCropBySeedId } from '@/data/crops'
-  import { FISHING_LOCATIONS, getFishById } from '@/data/fish'
-  import { PROCESSING_RECIPES, PROCESSING_MACHINES, SPRINKLERS, FERTILIZERS, BAITS, TACKLES, BOMBS } from '@/data/processing'
-  import { FRUIT_TREE_DEFS } from '@/data/fruitTrees'
   import {
     COLLECTION_MILESTONES,
     COLLECTION_CATEGORY_NAMES,
     COLLECTION_CATEGORY_COLORS,
-    getCollectionUsageText,
     getUndiscoveredCollectionHint,
   } from '@/data/collectionRegistry'
+  import {
+    getItemExtraDetails,
+    getItemProducedBy,
+    getItemSourceText,
+    getItemUsageText,
+    getItemUsedIn,
+  } from '@/data/itemEncyclopedia'
+  import type { GlossaryOpenPreset } from '@/data/glossary'
   import { WEAPONS, ENCHANTMENTS, WEAPON_TYPE_NAMES } from '@/data/weapons'
   import { getRingById } from '@/data/rings'
   import { getHatById } from '@/data/hats'
@@ -310,10 +338,26 @@
   import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
   import type { ItemCategory } from '@/types'
 
+  const emit = defineEmits<{
+    (e: 'open-glossary', preset: GlossaryOpenPreset): void
+  }>()
+
   const achievementStore = useAchievementStore()
 
   const allItems = ITEMS
   const CATEGORY_NAMES = COLLECTION_CATEGORY_NAMES
+
+  const glossaryShortcuts: { label: string; preset: GlossaryOpenPreset }[] = [
+    { label: '怎么获得', preset: { intent: 'acquire' } },
+    { label: '有什么用', preset: { intent: 'usage' } },
+    { label: '怎么解锁', preset: { intent: 'unlock' } },
+    { label: '看地点/条件', preset: { intent: 'where' } },
+    { label: '查送礼', preset: { intent: 'gift' } },
+  ]
+
+  const openGlossary = (preset: GlossaryOpenPreset) => {
+    emit('open-glossary', preset)
+  }
 
   const collectionRef = ref<HTMLElement | null>(null)
   const collectionScrollTop = ref(0)
@@ -434,130 +478,25 @@
 
   const activeCollectionSource = computed(() => {
     if (!activeCollectionItem.value) return '未知'
-    return getItemSource(activeCollectionItem.value.id)
+    return getItemSourceText(activeCollectionItem.value.id)
   })
   const activeCollectionUsage = computed(() => {
     if (!activeCollectionItem.value) return '未知'
-    return getCollectionUsageText(activeCollectionItem.value)
+    return getItemUsageText(activeCollectionItem.value)
   })
-
-  const formatPercent = (value: number) => `${Math.round(value * 100)}%`
-  const getItemName = (id: string): string => getItemById(id)?.name ?? id
-  const formatCraftCost = (entries: { itemId: string; quantity: number }[]) => entries.map(entry => `${getItemName(entry.itemId)}×${entry.quantity}`).join('、')
 
   const activeCollectionExtraDetails = computed(() => {
     if (!activeCollectionItem.value) return [] as { label: string; value: string }[]
-
-    const item = activeCollectionItem.value
-    const details: { label: string; value: string }[] = []
-
-    if (item.category === 'crop') {
-      const crop = getCropById(item.id)
-      if (crop) {
-        details.push({ label: '对应种子', value: getItemName(crop.seedId) })
-        details.push({ label: '适种季节', value: crop.season.join('、') })
-        details.push({ label: '生长天数', value: `${crop.growthDays}天` })
-        details.push({ label: '播种价格', value: `${crop.seedPrice}文` })
-        details.push({ label: '深度灌溉', value: crop.deepWatering ? '需要' : '不需要' })
-        if (crop.regrowth && crop.regrowthDays) details.push({ label: '多次收获', value: `是（间隔${crop.regrowthDays}天）` })
-        if (crop.maxHarvests) details.push({ label: '最多收获', value: `${crop.maxHarvests}次` })
-        if (crop.giantCropEligible) details.push({ label: '巨型作物', value: '可形成巨型作物' })
-      }
-    } else if (item.category === 'seed') {
-      const crop = getCropBySeedId(item.id)
-      if (crop) {
-        details.push({ label: '对应作物', value: crop.name })
-        details.push({ label: '适种季节', value: crop.season.join('、') })
-        details.push({ label: '成熟时间', value: `${crop.growthDays}天` })
-        details.push({ label: '深度灌溉', value: crop.deepWatering ? '需要' : '不需要' })
-        if (crop.regrowth && crop.regrowthDays) details.push({ label: '多次收获', value: `是（间隔${crop.regrowthDays}天）` })
-        if (crop.maxHarvests) details.push({ label: '最多收获', value: `${crop.maxHarvests}次` })
-        if (crop.giantCropEligible) details.push({ label: '巨型作物', value: '可形成巨型作物' })
-      }
-    } else if (item.category === 'fish') {
-      const fish = getFishById(item.id)
-      if (fish) {
-        details.push({ label: '出没地点', value: FISHING_LOCATIONS.find(location => location.id === fish.location)?.name ?? (fish.location ?? '溪流') })
-        details.push({ label: '出没季节', value: fish.season.join('、') })
-        details.push({ label: '天气需求', value: fish.weather.includes('any') ? '不限' : fish.weather.join('、') })
-        details.push({ label: '难度', value: fish.difficulty })
-      }
-    } else if (item.category === 'fruit') {
-      const tree = FRUIT_TREE_DEFS.find(entry => entry.fruitId === item.id)
-      if (tree) {
-        details.push({ label: '来源果树', value: tree.name })
-        details.push({ label: '结果季节', value: tree.fruitSeason })
-        details.push({ label: '树苗', value: getItemName(tree.saplingId) })
-        details.push({ label: '成熟时间', value: `${tree.growthDays}天` })
-      }
-    } else if (item.category === 'sapling') {
-      const tree = FRUIT_TREE_DEFS.find(entry => entry.saplingId === item.id)
-      if (tree) {
-        details.push({ label: '对应果树', value: tree.name })
-        details.push({ label: '成熟时间', value: `${tree.growthDays}天` })
-        details.push({ label: '产果季节', value: tree.fruitSeason })
-        details.push({ label: '产出果实', value: tree.fruitName })
-      }
-    } else if (item.category === 'machine') {
-      const machineId = item.id.startsWith('machine_') ? item.id.replace(/^machine_/, '') : item.id
-      const machine = PROCESSING_MACHINES.find(entry => entry.id === machineId)
-      if (machine) {
-        details.push({ label: '制作费用', value: `${machine.craftMoney}文` })
-        details.push({ label: '制作材料', value: formatCraftCost(machine.craftCost) })
-      }
-    } else if (item.category === 'sprinkler') {
-      const sprinkler = SPRINKLERS.find(entry => entry.id === item.id)
-      if (sprinkler) {
-        details.push({ label: '覆盖范围', value: `${sprinkler.range}格` })
-        details.push({ label: '制作费用', value: `${sprinkler.craftMoney}文` })
-        details.push({ label: '制作材料', value: formatCraftCost(sprinkler.craftCost) })
-      }
-    } else if (item.category === 'fertilizer') {
-      const fertilizer = FERTILIZERS.find(entry => entry.id === item.id)
-      if (fertilizer) {
-        if (fertilizer.qualityBonus) details.push({ label: '品质加成', value: formatPercent(fertilizer.qualityBonus) })
-        if (fertilizer.growthSpeedup) details.push({ label: '生长加速', value: formatPercent(fertilizer.growthSpeedup) })
-        if (fertilizer.retainChance !== undefined) details.push({ label: '保湿概率', value: formatPercent(fertilizer.retainChance) })
-        details.push({ label: '商店价格', value: `${fertilizer.shopPrice}文` })
-      }
-    } else if (item.category === 'bait') {
-      const bait = BAITS.find(entry => entry.id === item.id)
-      if (bait) {
-        if (bait.shopPrice) details.push({ label: '商店价格', value: `${bait.shopPrice}文` })
-        if (bait.doubleCatchChance) details.push({ label: '双倍鱼获', value: formatPercent(bait.doubleCatchChance) })
-        if (bait.ignoresSeason) details.push({ label: '季节限制', value: '可无视季节限制' })
-      }
-    } else if (item.category === 'tackle') {
-      const tackle = TACKLES.find(entry => entry.id === item.id)
-      if (tackle) {
-        details.push({ label: '耐久', value: `${tackle.maxDurability}` })
-        details.push({ label: '需求鱼竿', value: tackle.requiredRodTier })
-        if (tackle.shopPrice) details.push({ label: '商店价格', value: `${tackle.shopPrice}文` })
-      }
-    } else if (item.category === 'bomb') {
-      const bomb = BOMBS.find(entry => entry.id === item.id)
-      if (bomb) {
-        details.push({ label: '矿石倍率', value: `${bomb.oreMultiplier}倍` })
-        details.push({ label: '清除怪物', value: bomb.clearsMonster ? '是' : '否' })
-      }
-    }
-
-    return details
+    return getItemExtraDetails(activeCollectionItem.value)
   })
 
   const activeCollectionProducedBy = computed(() => {
     if (!activeCollectionItem.value) return [] as string[]
-    return PROCESSING_RECIPES.filter(recipe => recipe.outputItemId === activeCollectionItem.value!.id).map(recipe => {
-      const machine = PROCESSING_MACHINES.find(entry => entry.id === recipe.machineType)
-      return `${machine?.name ?? recipe.machineType}：${recipe.description}`
-    })
+    return getItemProducedBy(activeCollectionItem.value.id)
   })
   const activeCollectionUsedIn = computed(() => {
     if (!activeCollectionItem.value) return [] as string[]
-    return PROCESSING_RECIPES.filter(recipe => recipe.inputItemId === activeCollectionItem.value!.id || recipe.extraInputs?.some(entry => entry.itemId === activeCollectionItem.value!.id)).map(recipe => {
-      const machine = PROCESSING_MACHINES.find(entry => entry.id === recipe.machineType)
-      return `${machine?.name ?? recipe.machineType}：${recipe.name} → ${getItemName(recipe.outputItemId)}`
-    })
+    return getItemUsedIn(activeCollectionItem.value.id)
   })
 
   const activeWeaponDef = computed(() => {
@@ -598,6 +537,7 @@
     luck: '幸运',
     travel_speed: '旅行加速',
   }
+  const getEquipEffectLabel = (effectType: string) => EFFECT_NAMES[effectType] ?? '特殊效果'
 
   const FLAT_VALUE_EFFECTS = new Set(['attack_bonus', 'max_hp_bonus', 'ore_bonus'])
   const formatEffectValue = (eff: { type: string; value: number }): string => {

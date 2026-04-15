@@ -18,6 +18,11 @@ const sanitizeUrl = (value: string): string => {
 const renderInlineMarkdown = (value: string): string => {
   let html = escapeHtml(value)
 
+  html = html.replace(/!\[([^\]]*?)\]\(([^)]+?)\)/g, (_, alt: string, url: string) => {
+    const safeUrl = sanitizeUrl(url)
+    if (!safeUrl) return alt || '图片'
+    return `<img src="${escapeHtml(safeUrl)}" alt="${escapeHtml(alt || '')}" loading="lazy" />`
+  })
   html = html.replace(/`([^`]+?)`/g, '<code>$1</code>')
   html = html.replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
   html = html.replace(/__([^_]+?)__/g, '<strong>$1</strong>')
