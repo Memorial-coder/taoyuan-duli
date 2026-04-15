@@ -47,6 +47,7 @@ import {
 } from '@/data/goals'
 import { buildScopedStorageKey, getStoredSaveMode, migrateLegacyScopedSlots, setStoredSaveMode, type SaveMode } from '@/utils/accountStorage'
 import { deleteServerSlotRaw, fetchServerSlotRaw, fetchServerSlots, saveServerSlotRaw, setServerActiveSlot } from '@/utils/serverSaveApi'
+import { _registerGameplaySaveContextGetter } from '@/composables/useGameLog'
 
 const LEGACY_SAVE_KEY_PREFIX = 'taoyuanxiang_save_'
 const MAX_SLOTS = 3
@@ -452,6 +453,12 @@ export const useSaveStore = defineStore('save', () => {
     server: -1
   })
   const storageMode = ref<SaveMode>(getStoredSaveMode())
+
+  _registerGameplaySaveContextGetter(() => ({
+    saveSlot: activeSlot.value >= 0 ? activeSlot.value : null,
+    saveMode: activeSlotMode.value ?? storageMode.value ?? null,
+  }))
+
   const qaGovernanceBaselineAudit = WS12_QA_GOVERNANCE_BASELINE_AUDIT
   const qaGovernanceStorageActionLocks = ref<string[]>([])
   const qaGovernanceTuning = WS12_QA_GOVERNANCE_TUNING_CONFIG
