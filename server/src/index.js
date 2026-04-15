@@ -14,6 +14,7 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const session = require('express-session');
 const db = require('./db');
+const taoyuanHall = require('./taoyuanHall');
 
 const DATA_DIR = path.dirname(process.env.DB_STORAGE);
 const DEFAULTS_DIR = path.join(__dirname, '../../data-defaults');
@@ -210,6 +211,12 @@ app.use(cors({
 app.use(morgan('combined'));
 app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: true, limit: '12mb' }));
+app.use('/taoyuan/hall/uploads', express.static(taoyuanHall.HALL_UPLOADS_DIR, {
+  etag: false,
+  lastModified: false,
+  maxAge: '7d',
+  fallthrough: false,
+}));
 app.use(session({
   name: 'taoyuan.sid',
   secret: process.env.SECRET_KEY,

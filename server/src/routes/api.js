@@ -257,7 +257,10 @@ function normalizeHomepageAboutPayload(raw = {}) {
     aboutButtonEnabled: raw.aboutButtonEnabled !== false,
     aboutButtonText: String(raw.aboutButtonText || '关于游戏').trim() || '关于游戏',
     aboutDialogTitle: String(raw.aboutDialogTitle || '关于桃源乡').trim() || '关于桃源乡',
-    aboutDialogContent: String(raw.aboutDialogContent || '').replace(/\r\n/g, '\n').trim(),
+    aboutDialogContent: String(raw.aboutDialogContent || '')
+      .replace(/\r\n/g, '\n')
+      .replace(/\]\((\/taoyuan\/hall\/uploads\/[^)]+)\)/g, '](/api$1)')
+      .trim(),
   };
 }
 
@@ -374,6 +377,7 @@ async function withTaoyuanExchangeLock(fn) {
 
 function getPublicConfigPayload(req) {
   const c = cfg.all();
+  const homepageAbout = getHomepageAboutContent();
   const username = req.session && req.session.username;
   const taoyuanTodayUsage = username
     ? getTaoyuanTodayUsage(username)
@@ -390,10 +394,10 @@ function getPublicConfigPayload(req) {
     taoyuan_return_button_enabled: c.taoyuan_return_button_enabled,
     taoyuan_return_button_text: c.taoyuan_return_button_text,
     taoyuan_return_button_url: sanitizeTaoyuanReturnButtonUrl(c.taoyuan_return_button_url),
-    taoyuan_about_button_enabled: c.taoyuan_about_button_enabled,
-    taoyuan_about_button_text: c.taoyuan_about_button_text,
-    taoyuan_about_dialog_title: c.taoyuan_about_dialog_title,
-    taoyuan_about_dialog_content: c.taoyuan_about_dialog_content,
+    taoyuan_about_button_enabled: homepageAbout.aboutButtonEnabled,
+    taoyuan_about_button_text: homepageAbout.aboutButtonText,
+    taoyuan_about_dialog_title: homepageAbout.aboutDialogTitle,
+    taoyuan_about_dialog_content: homepageAbout.aboutDialogContent,
   };
 }
 
@@ -749,7 +753,9 @@ router.get('/admin/gameplay-logs', userAdminAuth, async (req, res) => {
     const username = normalizeUsername(req.query.username);
     const category = String(req.query.category || '').trim();
     const keyword = String(req.query.keyword || '').trim();
-    const result = await db.listGameplayEventLogs({ page, pageSize, username, category, keyword });
+    const saveSlotRaw = parseInt(req.query.save_slot, 10);
+    const saveSlot = Number.isInteger(saveSlotRaw) && saveSlotRaw >= 0 && saveSlotRaw <= 2 ? saveSlotRaw : null;
+    const result = await db.listGameplayEventLogs({ page, pageSize, username, category, keyword, saveSlot });
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取游戏日志失败' });
@@ -766,6 +772,10 @@ router.post('/taoyuan/logs/gameplay/batch', async (req, res) => {
       const message = String(item?.message || '').trim();
       if (!message) continue;
       const normalizedUsername = usernameFromSession || (String(item?.username || '') === 'guest' ? 'guest' : '');
+      const saveSlotRaw = parseInt(item?.save_slot, 10);
+      const saveSlot = Number.isInteger(saveSlotRaw) && saveSlotRaw >= 0 && saveSlotRaw <= 2 ? saveSlotRaw : null;
+      const meta = item?.meta && typeof item.meta === 'object' ? { ...item.meta } : {};
+      if (saveSlot !== null) meta.save_slot = saveSlot;
       saved.push(await db.recordGameplayEventLog({
         username: normalizedUsername,
         day_label: String(item?.day_label || '').slice(0, 64),
@@ -773,7 +783,7 @@ router.post('/taoyuan/logs/gameplay/batch', async (req, res) => {
         message: message.slice(0, 512),
         route_name: String(item?.route_name || '').slice(0, 128),
         tags: Array.isArray(item?.tags) ? item.tags.slice(0, 16) : [],
-        meta: item?.meta && typeof item.meta === 'object' ? item.meta : {},
+        meta,
       }));
     }
     res.json({ ok: true, count: saved.length });

@@ -1,7 +1,0 @@
-FROM taoyuan-duli:latest
-
-# 在基础镜像无法重新拉取时，复用本地已有运行时层，
-# 只覆盖本轮已更新的服务端代码、前端静态产物与默认数据。
-COPY server ./server
-COPY taoyuan-main/docs ./taoyuan-main/docs
-COPY data-defaults ./data-defaults

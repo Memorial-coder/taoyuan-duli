@@ -41,6 +41,7 @@ export interface GameplayLogEntry {
   route_name: string
   tags: string[]
   meta: Record<string, unknown>
+  save_slot?: number | null
   created_at: number
 }
 
@@ -177,13 +178,16 @@ export const uploadAdminContentImage = async (file: File, tokenOverride?: string
 }
 
 export const fetchGameplayLogs = async (
-  params: { username?: string; category?: string; keyword?: string; page?: number; pageSize?: number },
+  params: { username?: string; category?: string; keyword?: string; saveSlot?: number | null; page?: number; pageSize?: number },
   tokenOverride?: string,
 ): Promise<GameplayLogListResult> => {
   const search = new URLSearchParams()
   if (params.username) search.set('username', params.username)
   if (params.category) search.set('category', params.category)
   if (params.keyword) search.set('keyword', params.keyword)
+  if (params.saveSlot !== null && params.saveSlot !== undefined && Number.isInteger(params.saveSlot) && params.saveSlot >= 0) {
+    search.set('save_slot', String(params.saveSlot))
+  }
   search.set('page', String(params.page || 1))
   search.set('page_size', String(params.pageSize || 50))
   const data = await adminRequest<GameplayLogListResult & { page_size?: number }>(`/api/admin/gameplay-logs?${search.toString()}`, undefined, tokenOverride)

@@ -9,6 +9,7 @@
 #### 0415 管理面板整合：首页「关于游戏」可编辑 + 长期日志中心
 - `src/views/TaoyuanAdminView.vue` 已从单一邮件页升级为统一桃源管理工作台，现整合 **邮件管理 / 首页关于 / 日志中心 / 用户管理** 入口；首页主菜单的“桃源管理”也已改为直达 `/admin`，不再默认跳到 `/admin/users`。
 - `src/components/game/AdminHomepageAboutPanel.vue`、`src/utils/adminContentApi.ts`、`server/src/routes/api.js`、`server/src/db.js` 已新增首页“关于游戏 / 关于桃源乡”内容管理链路：管理员可在后台编辑按钮文案、弹窗标题与正文，支持 Markdown 图文混排、图片上传插入、草稿保存、正式发布、版本记录与版本恢复；其中首页关于编辑器现已改成接近交流大厅发帖体验的“文字段 / 图片段”块编辑模式，而不是单一 Markdown 文本框。
+- `src/views/UserAdminView.vue`、`src/utils/adminContentApi.ts`、`src/composables/useGameLog.ts`、`server/src/routes/api.js`、`server/src/db.js` 已继续补强用户管理：列表新增“注册时间”独立列，用户详情改为弹窗查看，长期日志支持按用户的不同存档槽位分别筛选查看。
 - `src/views/MainMenu.vue`、`src/utils/safeMarkdown.ts` 已把首页关于弹窗从纯文本展示改为安全 Markdown 渲染，支持标题、列表、链接与图片，且仍保留安全 URL 白名单约束。
 - `server/src/db.js`、`server/src/routes/api.js`、`src/components/game/AdminLogCenterPanel.vue` 已新增内容版本日志与长期游戏日志中心；后台现在可查看首页关于内容的发布历史、版本备注，以及已持久化的游戏事件日志。
 - `src/composables/useGameLog.ts` 已把关键游戏日志改为“前端保留历史 + 异步批量上报服务端”，并在页面关闭前尝试通过 `sendBeacon` 补发，支持长期保存与后台回查。
@@ -36,6 +37,7 @@
 - `src/components/game/TopGoalsPanel.vue` 已把跨系统 weekly decision loop 收敛为玩家可见、可点击的常驻路线条，并为主题周、市场轮换和本周重点目标补上“去任务板 / 去商圈 / 去育种”等 CTA。
 - `src/components/game/TopGoalsPanel.vue` 已调整超宽屏布局为“内容自适应高度 + 非等高三列”，避免“本季目标”过长时把“今日目标 / 当前里程碑”一并撑成大块留白。
 - `src/views/game/MailView.vue` 已把移动端邮箱改成 master-detail 结构：手机上会先看邮件列表，进入详情后可直接“返回列表 / 上一封 / 下一封”，不再需要长距离回滚找下一封邮件。
+- `server/src/index.js`、`server/src/routes/api.js` 已为首页“关于游戏”内容图片补上旧路径兼容与公开访问别名，避免历史内容中的 `/taoyuan/hall/uploads/...` 图片在首页弹窗中继续显示为破图。
 
 ### 新增功能
 

@@ -114,7 +114,7 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1.8fr)_minmax(320px,1fr)] 2xl:grid-cols-[minmax(0,2.25fr)_minmax(340px,0.95fr)]">
+        <div class="space-y-4">
           <div class="game-panel space-y-4">
             <div class="flex items-center justify-between gap-3">
               <p class="text-sm text-accent">用户列表</p>
@@ -126,6 +126,7 @@
             <div v-else class="admin-user-table-wrap">
               <div class="admin-user-table admin-user-table--head">
                 <div>用户</div>
+                <div>注册时间</div>
                 <div>状态</div>
                 <div>额度</div>
                 <div>最近保存</div>
@@ -143,8 +144,12 @@
                   <button class="admin-user-cell" @click="selectUser(user.username)">
                     <span class="admin-user-cell__primary">{{ user.display_name || user.username }}</span>
                     <span class="admin-user-cell__secondary">@{{ user.username }}</span>
-                    <span class="admin-user-cell__secondary">注册于 {{ formatTime(user.created_at) }}</span>
                   </button>
+                </div>
+
+                <div class="admin-user-line" data-label="注册时间">
+                  <div class="admin-user-line__value">{{ formatTime(user.created_at) }}</div>
+                  <div class="admin-user-line__hint">创建账号时间</div>
                 </div>
 
                 <div class="admin-user-line" data-label="状态">
@@ -188,152 +193,7 @@
             </div>
           </div>
 
-          <div class="space-y-4 2xl:sticky 2xl:top-3 self-start min-w-0">
-            <div class="game-panel space-y-4">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <p class="text-sm text-accent">用户详情</p>
-                  <p v-if="selectedUser" class="text-xs text-muted mt-1">{{ selectedUser.username }}</p>
-                </div>
-                <button v-if="selectedUser" class="btn !px-2 !py-1" @click="reloadSelectedUser" :disabled="loadingDetail">
-                  <RefreshCw :size="12" />
-                  <span>{{ loadingDetail ? '加载中...' : '刷新' }}</span>
-                </button>
-              </div>
-
-              <div v-if="loadingDetail" class="text-xs text-muted">用户详情加载中...</div>
-              <div v-else-if="!selectedUser" class="text-xs text-muted">请先从左侧选择一个用户。</div>
-              <template v-else>
-                <div class="grid gap-2 text-xs text-muted md:grid-cols-2">
-                  <div>用户名：<span class="text-text">{{ selectedUser.username }}</span></div>
-                  <div>显示名：<span class="text-text">{{ selectedUser.display_name || '-' }}</span></div>
-                  <div>额度：<span class="text-text">{{ formatQuota(selectedUser.quota) }}</span></div>
-                  <div>注册时间：<span class="text-text">{{ formatTime(selectedUser.created_at) }}</span></div>
-                  <div>最近保存：<span class="text-text">{{ formatRecentSaveTime(selectedUser.save_file.updated_at) }}</span></div>
-                  <div>存档文件：<span class="text-text">{{ selectedUser.save_file.exists ? '已存在' : '暂无' }}</span></div>
-                  <div>
-                    状态：
-                    <span class="admin-status" :class="`admin-status--${selectedUser.status}`">{{ formatUserStatus(selectedUser.status) }}</span>
-                  </div>
-                </div>
-
-                <div class="admin-record-card space-y-3">
-                  <div class="flex items-center justify-between">
-                    <p class="text-sm text-accent">存档文件</p>
-                    <span class="text-xs text-muted">{{ selectedUser.save_file.slot_count }}/3 槽位</span>
-                  </div>
-
-                  <div class="text-xs text-muted leading-6">
-                    <div>文件：{{ selectedUser.save_file.exists ? selectedUser.save_file.file_name : '无文件' }}</div>
-                    <div v-if="selectedUser.save_file.exists">大小：{{ formatFileSize(selectedUser.save_file.file_size) }}</div>
-                    <div>最近保存时间：{{ formatRecentSaveTime(selectedUser.save_file.updated_at) }}</div>
-                  </div>
-
-                  <div class="admin-slot-grid text-xs">
-                    <div v-for="slot in selectedUser.save_file.slots" :key="slot.slot" class="admin-slot-card">
-                      <div class="text-accent">槽位 {{ slot.slot + 1 }}</div>
-                      <div class="text-muted mt-1">{{ slot.exists ? `已占用 · ${slot.raw_length} 字符` : '空' }}</div>
-                    </div>
-                  </div>
-
-                  <div class="flex flex-wrap gap-2">
-                    <button class="btn !px-2 !py-1" @click="viewSave(selectedUser.username)">刷新存档信息</button>
-                    <button
-                      v-if="adminSession.permissions.export_save"
-                      class="btn !px-2 !py-1"
-                      :disabled="!selectedUser.save_file.exists"
-                      @click="handleExportSave"
-                    >
-                      导出存档
-                    </button>
-                  </div>
-                </div>
-
-                <div class="admin-record-card space-y-3">
-                  <p class="text-sm text-accent">额度管理</p>
-                  <label class="admin-label">
-                    <span>额度</span>
-                    <input v-model.number="quotaForm" type="number" min="0" class="admin-input" />
-                  </label>
-                  <button class="btn" :disabled="submittingQuota" @click="handleSetQuota">
-                    <Coins :size="14" />
-                    <span>{{ submittingQuota ? '保存中...' : '保存额度' }}</span>
-                  </button>
-                  <button class="btn !px-3 !py-2 w-full md:w-auto" @click="openMailAdmin(selectedUser.username)" :disabled="!canManageMail">
-                    <Mail :size="14" />
-                    <span>给该账号单发邮件</span>
-                  </button>
-                </div>
-
-                <div v-if="adminSession.permissions.reset_password" class="admin-record-card space-y-3">
-                  <p class="text-sm text-accent">重置密码</p>
-                  <label class="admin-label">
-                    <span>新密码</span>
-                    <input v-model="passwordForm" type="text" minlength="6" class="admin-input" placeholder="至少 6 位" />
-                  </label>
-                  <button class="btn btn-danger !px-3 !py-2 w-full md:w-auto" :disabled="submittingPassword || passwordForm.length < 6" @click="handleResetPassword">
-                    <KeyRound :size="14" />
-                    <span>{{ submittingPassword ? '处理中...' : '重置密码' }}</span>
-                  </button>
-                </div>
-
-                <div v-if="adminSession.permissions.update_status || adminSession.permissions.delete_user" class="admin-record-card space-y-3">
-                  <p class="text-sm text-accent">状态管理</p>
-                  <div class="flex flex-wrap gap-2">
-                    <button v-if="adminSession.permissions.update_status" class="btn !px-2 !py-1" :disabled="selectedUser.status === 'active' || submittingStatus" @click="handleSetStatus('active')">恢复正常</button>
-                    <button v-if="adminSession.permissions.update_status" class="btn !px-2 !py-1 btn-danger" :disabled="selectedUser.status === 'banned' || selectedUser.status === 'deleted' || submittingStatus" @click="handleSetStatus('banned')">封禁用户</button>
-                    <button v-if="adminSession.permissions.delete_user" class="btn !px-2 !py-1 btn-danger" :disabled="selectedUser.status === 'deleted' || submittingStatus" @click="handleDeleteUser">删除用户</button>
-                  </div>
-                </div>
-
-                <div v-if="adminSession.permissions.migrate_save" class="admin-record-card space-y-3">
-                  <p class="text-sm text-accent">迁移存档</p>
-                  <label class="admin-label">
-                    <span>目标用户名</span>
-                    <input v-model="migrateForm.target_username" type="text" class="admin-input" placeholder="输入目标账号用户名" />
-                  </label>
-                  <label class="inline-flex items-center gap-2 text-xs text-muted">
-                    <input v-model="migrateForm.overwrite" type="checkbox" />
-                    <span>允许覆盖目标已有存档</span>
-                  </label>
-                  <button class="btn btn-danger !px-3 !py-2 w-full md:w-auto" :disabled="submittingMigrate || !migrateForm.target_username.trim() || !selectedUser.save_file.exists" @click="handleMigrateSave">
-                    <FolderOutput :size="14" />
-                    <span>{{ submittingMigrate ? '迁移中...' : '迁移存档' }}</span>
-                  </button>
-                </div>
-
-                <div v-if="adminSession.permissions.view_gameplay_logs" class="admin-record-card space-y-3">
-                  <div class="flex items-center justify-between gap-3">
-                    <div>
-                      <p class="text-sm text-accent">近期游戏日志</p>
-                      <p class="text-xs text-muted mt-1">展示该用户最近 12 条长期保存的游戏日志。</p>
-                    </div>
-                    <button class="btn !px-2 !py-1" @click="reloadSelectedUserGameplayLogs" :disabled="loadingGameplayLogs">
-                      <RefreshCw :size="12" />
-                      <span>{{ loadingGameplayLogs ? '加载中...' : '刷新日志' }}</span>
-                    </button>
-                  </div>
-
-                  <div v-if="loadingGameplayLogs" class="text-xs text-muted">游戏日志加载中...</div>
-                  <div v-else-if="!gameplayLogs.length" class="text-xs text-muted">该用户最近没有长期保存的游戏日志。</div>
-                  <div v-else class="space-y-2 max-h-[32vh] overflow-y-auto pr-1">
-                    <div v-for="log in gameplayLogs" :key="log.id" class="admin-log-card">
-                      <div class="flex items-center justify-between gap-3 text-[11px] text-muted">
-                        <span class="text-accent">{{ log.category || 'system' }}</span>
-                        <span>{{ formatTime(log.created_at) }}</span>
-                      </div>
-                      <div class="text-xs text-text leading-6 break-all mt-1">{{ log.message }}</div>
-                      <div class="text-[11px] text-muted mt-1">
-                        {{ log.day_label ? `${log.day_label} · ` : '' }}{{ log.route_name || '未记录页面' }}
-                        <template v-if="log.tags?.length"> · 标签：{{ log.tags.join('、') }}</template>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </div>
-
-            <div v-if="adminSession.permissions.view_audit_logs" class="game-panel space-y-4">
+          <div v-if="adminSession.permissions.view_audit_logs" class="game-panel space-y-4">
               <div class="flex items-center justify-between gap-3">
                 <p class="text-sm text-accent">操作日志</p>
                 <button class="btn !px-2 !py-1" @click="loadAuditLogs" :disabled="loadingAuditLogs">
@@ -356,7 +216,186 @@
                 </div>
               </div>
             </div>
-          </div>
+
+          <Transition name="panel-fade">
+            <div v-if="detailModalOpen" class="admin-detail-modal-backdrop" @click.self="closeDetailModal">
+              <div class="game-panel admin-detail-modal">
+                <div class="admin-detail-modal__header">
+                  <div>
+                    <p class="text-sm text-accent">用户详情</p>
+                    <p v-if="selectedUser" class="text-xs text-muted mt-1">{{ selectedUser.username }}</p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <button v-if="selectedUser" class="btn !px-2 !py-1" @click="reloadSelectedUser" :disabled="loadingDetail">
+                      <RefreshCw :size="12" />
+                      <span>{{ loadingDetail ? '加载中...' : '刷新' }}</span>
+                    </button>
+                    <button class="btn !px-2 !py-1" @click="closeDetailModal">
+                      <X :size="12" />
+                      <span>关闭</span>
+                    </button>
+                  </div>
+                </div>
+
+                <div class="admin-detail-modal__body">
+                  <div v-if="loadingDetail" class="text-xs text-muted">用户详情加载中...</div>
+                  <div v-else-if="!selectedUser" class="text-xs text-muted">请先从列表选择一个用户。</div>
+                  <template v-else>
+                    <div class="grid gap-4 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+                      <div class="space-y-4">
+                        <div class="admin-record-card space-y-3">
+                          <p class="text-sm text-accent">基础信息</p>
+                          <div class="grid gap-2 text-xs text-muted md:grid-cols-2">
+                            <div>用户名：<span class="text-text">{{ selectedUser.username }}</span></div>
+                            <div>显示名：<span class="text-text">{{ selectedUser.display_name || '-' }}</span></div>
+                            <div>额度：<span class="text-text">{{ formatQuota(selectedUser.quota) }}</span></div>
+                            <div>注册时间：<span class="text-text">{{ formatTime(selectedUser.created_at) }}</span></div>
+                            <div>最近保存：<span class="text-text">{{ formatRecentSaveTime(selectedUser.save_file.updated_at) }}</span></div>
+                            <div>存档文件：<span class="text-text">{{ selectedUser.save_file.exists ? '已存在' : '暂无' }}</span></div>
+                            <div>
+                              状态：
+                              <span class="admin-status" :class="`admin-status--${selectedUser.status}`">{{ formatUserStatus(selectedUser.status) }}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="admin-record-card space-y-3">
+                          <div class="flex items-center justify-between">
+                            <p class="text-sm text-accent">存档文件</p>
+                            <span class="text-xs text-muted">{{ selectedUser.save_file.slot_count }}/3 槽位</span>
+                          </div>
+
+                          <div class="text-xs text-muted leading-6">
+                            <div>文件：{{ selectedUser.save_file.exists ? selectedUser.save_file.file_name : '无文件' }}</div>
+                            <div v-if="selectedUser.save_file.exists">大小：{{ formatFileSize(selectedUser.save_file.file_size) }}</div>
+                            <div>最近保存时间：{{ formatRecentSaveTime(selectedUser.save_file.updated_at) }}</div>
+                          </div>
+
+                          <div class="admin-slot-grid text-xs">
+                            <div v-for="slot in selectedUser.save_file.slots" :key="slot.slot" class="admin-slot-card">
+                              <div class="text-accent">槽位 {{ slot.slot + 1 }}</div>
+                              <div class="text-muted mt-1">{{ slot.exists ? `已占用 · ${slot.raw_length} 字符` : '空' }}</div>
+                            </div>
+                          </div>
+
+                          <div class="flex flex-wrap gap-2">
+                            <button class="btn !px-2 !py-1" @click="viewSave(selectedUser.username)">刷新存档信息</button>
+                            <button
+                              v-if="adminSession.permissions.export_save"
+                              class="btn !px-2 !py-1"
+                              :disabled="!selectedUser.save_file.exists"
+                              @click="handleExportSave"
+                            >
+                              导出存档
+                            </button>
+                          </div>
+                        </div>
+
+                        <div class="admin-record-card space-y-3">
+                          <p class="text-sm text-accent">额度管理</p>
+                          <label class="admin-label">
+                            <span>额度</span>
+                            <input v-model.number="quotaForm" type="number" min="0" class="admin-input" />
+                          </label>
+                          <div class="flex flex-wrap gap-2">
+                            <button class="btn" :disabled="submittingQuota" @click="handleSetQuota">
+                              <Coins :size="14" />
+                              <span>{{ submittingQuota ? '保存中...' : '保存额度' }}</span>
+                            </button>
+                            <button class="btn !px-3 !py-2" @click="openMailAdmin(selectedUser.username)" :disabled="!canManageMail">
+                              <Mail :size="14" />
+                              <span>给该账号单发邮件</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        <div v-if="adminSession.permissions.reset_password" class="admin-record-card space-y-3">
+                          <p class="text-sm text-accent">重置密码</p>
+                          <label class="admin-label">
+                            <span>新密码</span>
+                            <input v-model="passwordForm" type="text" minlength="6" class="admin-input" placeholder="至少 6 位" />
+                          </label>
+                          <button class="btn btn-danger !px-3 !py-2 w-full md:w-auto" :disabled="submittingPassword || passwordForm.length < 6" @click="handleResetPassword">
+                            <KeyRound :size="14" />
+                            <span>{{ submittingPassword ? '处理中...' : '重置密码' }}</span>
+                          </button>
+                        </div>
+
+                        <div v-if="adminSession.permissions.update_status || adminSession.permissions.delete_user" class="admin-record-card space-y-3">
+                          <p class="text-sm text-accent">状态管理</p>
+                          <div class="flex flex-wrap gap-2">
+                            <button v-if="adminSession.permissions.update_status" class="btn !px-2 !py-1" :disabled="selectedUser.status === 'active' || submittingStatus" @click="handleSetStatus('active')">恢复正常</button>
+                            <button v-if="adminSession.permissions.update_status" class="btn !px-2 !py-1 btn-danger" :disabled="selectedUser.status === 'banned' || selectedUser.status === 'deleted' || submittingStatus" @click="handleSetStatus('banned')">封禁用户</button>
+                            <button v-if="adminSession.permissions.delete_user" class="btn !px-2 !py-1 btn-danger" :disabled="selectedUser.status === 'deleted' || submittingStatus" @click="handleDeleteUser">删除用户</button>
+                          </div>
+                        </div>
+
+                        <div v-if="adminSession.permissions.migrate_save" class="admin-record-card space-y-3">
+                          <p class="text-sm text-accent">迁移存档</p>
+                          <label class="admin-label">
+                            <span>目标用户名</span>
+                            <input v-model="migrateForm.target_username" type="text" class="admin-input" placeholder="输入目标账号用户名" />
+                          </label>
+                          <label class="inline-flex items-center gap-2 text-xs text-muted">
+                            <input v-model="migrateForm.overwrite" type="checkbox" />
+                            <span>允许覆盖目标已有存档</span>
+                          </label>
+                          <button class="btn btn-danger !px-3 !py-2 w-full md:w-auto" :disabled="submittingMigrate || !migrateForm.target_username.trim() || !selectedUser.save_file.exists" @click="handleMigrateSave">
+                            <FolderOutput :size="14" />
+                            <span>{{ submittingMigrate ? '迁移中...' : '迁移存档' }}</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="space-y-4">
+                        <div v-if="adminSession.permissions.view_gameplay_logs" class="admin-record-card space-y-3">
+                          <div class="flex items-center justify-between gap-3">
+                            <div>
+                              <p class="text-sm text-accent">长期游戏日志</p>
+                              <p class="text-xs text-muted mt-1">可分别查看该用户不同存档槽位的长期日志。</p>
+                            </div>
+                            <button class="btn !px-2 !py-1" @click="reloadSelectedUserGameplayLogs" :disabled="loadingGameplayLogs">
+                              <RefreshCw :size="12" />
+                              <span>{{ loadingGameplayLogs ? '加载中...' : '刷新日志' }}</span>
+                            </button>
+                          </div>
+
+                          <div class="flex flex-wrap gap-2">
+                            <button class="btn !px-2 !py-1" :class="{ '!bg-accent !text-bg': selectedGameplaySlot === 'all' }" @click="handleSelectGameplaySlot('all')">全部槽位</button>
+                            <button
+                              v-for="slot in [0, 1, 2]"
+                              :key="slot"
+                              class="btn !px-2 !py-1"
+                              :class="{ '!bg-accent !text-bg': selectedGameplaySlot === slot }"
+                              @click="handleSelectGameplaySlot(slot)"
+                            >
+                              槽位 {{ slot + 1 }}
+                            </button>
+                          </div>
+
+                          <div v-if="loadingGameplayLogs" class="text-xs text-muted">游戏日志加载中...</div>
+                          <div v-else-if="!gameplayLogs.length" class="text-xs text-muted">当前筛选下没有长期保存的游戏日志。</div>
+                          <div v-else class="space-y-2 max-h-[42vh] overflow-y-auto pr-1">
+                            <div v-for="log in gameplayLogs" :key="log.id" class="admin-log-card">
+                              <div class="flex items-center justify-between gap-3 text-[11px] text-muted">
+                                <span class="text-accent">{{ log.category || 'system' }}</span>
+                                <span>{{ formatTime(log.created_at) }}</span>
+                              </div>
+                              <div class="text-xs text-text leading-6 break-all mt-1">{{ log.message }}</div>
+                              <div class="text-[11px] text-muted mt-1">
+                                {{ formatGameplaySlotLabel(log.save_slot) }} · {{ log.day_label ? `${log.day_label} · ` : '' }}{{ log.route_name || '未记录页面' }}
+                                <template v-if="log.tags?.length"> · 标签：{{ log.tags.join('、') }}</template>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </Transition>
         </div>
       </template>
     </div>
@@ -367,7 +406,7 @@
   import { computed, onMounted, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import { Capacitor } from '@capacitor/core'
-  import { ArrowLeft, Coins, FolderOutput, KeyRound, Mail, RefreshCw, Search, Trash2, Users } from 'lucide-vue-next'
+  import { ArrowLeft, Coins, FolderOutput, KeyRound, Mail, RefreshCw, Search, Trash2, Users, X } from 'lucide-vue-next'
   import { showFloat } from '@/composables/useGameLog'
   import { fetchGameplayLogs, type GameplayLogEntry } from '@/utils/adminContentApi'
   import {
@@ -430,6 +469,8 @@
   const loadingAuditLogs = ref(false)
   const gameplayLogs = ref<GameplayLogEntry[]>([])
   const loadingGameplayLogs = ref(false)
+  const detailModalOpen = ref(false)
+  const selectedGameplaySlot = ref<'all' | number>('all')
 
   const hasToken = computed(() => adminTokenInput.value.trim().length > 0)
   const totalPages = computed(() => Math.max(1, Math.ceil(totalUsers.value / Math.max(1, filters.value.pageSize))))
@@ -535,6 +576,8 @@
     selectedUser.value = null
     auditLogs.value = []
     gameplayLogs.value = []
+    detailModalOpen.value = false
+    selectedGameplaySlot.value = 'all'
     resetDetailForms(null)
   }
 
@@ -572,7 +615,12 @@
     }
     loadingGameplayLogs.value = true
     try {
-      const result = await fetchGameplayLogs({ username, page: 1, pageSize: 12 })
+      const result = await fetchGameplayLogs({
+        username,
+        saveSlot: selectedGameplaySlot.value === 'all' ? null : selectedGameplaySlot.value,
+        page: 1,
+        pageSize: 18,
+      })
       gameplayLogs.value = result.logs
     } catch (error) {
       gameplayLogs.value = []
@@ -614,13 +662,16 @@
       users.value = result.users
       totalUsers.value = result.total
       if (!keepSelection || !selectedUsername.value || !users.value.some(item => item.username === selectedUsername.value)) {
-        selectedUsername.value = users.value[0]?.username || ''
+        selectedUsername.value = ''
       }
-      if (selectedUsername.value) {
+      if (detailModalOpen.value && selectedUsername.value) {
         await loadUserDetail(selectedUsername.value)
       } else {
-        selectedUser.value = null
-        resetDetailForms(null)
+        if (!detailModalOpen.value) {
+          selectedUser.value = null
+          gameplayLogs.value = []
+          resetDetailForms(null)
+        }
       }
     } catch (error) {
       tokenError.value = handleAdminRequestError(error, '获取用户列表失败')
@@ -676,7 +727,13 @@
   }
 
   const selectUser = async (username: string) => {
+    selectedGameplaySlot.value = 'all'
+    detailModalOpen.value = true
     await loadUserDetail(username)
+  }
+
+  const closeDetailModal = () => {
+    detailModalOpen.value = false
   }
 
   const reloadSelectedUser = async () => {
@@ -689,10 +746,18 @@
     await loadGameplayLogsForUser(selectedUser.value.username)
   }
 
+  const handleSelectGameplaySlot = async (slot: 'all' | number) => {
+    selectedGameplaySlot.value = slot
+    await reloadSelectedUserGameplayLogs()
+  }
+
+  const formatGameplaySlotLabel = (slot?: number | null) => {
+    return Number.isInteger(Number(slot)) && Number(slot) >= 0 ? `槽位 ${Number(slot) + 1}` : '未记录槽位'
+  }
+
   const openQuotaEditor = (user: UserAdminSummary) => {
-    selectedUsername.value = user.username
     quotaForm.value = user.quota
-    void loadUserDetail(user.username)
+    void selectUser(user.username)
   }
 
   const viewSave = async (username: string) => {
@@ -935,7 +1000,8 @@
   .admin-user-table-wrap {
     border: 1px solid rgba(200, 164, 92, 0.14);
     border-radius: 2px;
-    overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
     background: rgba(14, 18, 28, 0.16);
   }
 
@@ -943,6 +1009,7 @@
     display: grid;
     grid-template-columns:
       minmax(180px, 1.3fr)
+      minmax(144px, 0.95fr)
       minmax(88px, 0.6fr)
       minmax(88px, 0.6fr)
       minmax(150px, 0.95fr)
@@ -951,7 +1018,7 @@
     gap: 12px;
     align-items: center;
     width: 100%;
-    min-width: 0;
+    min-width: 1180px;
   }
 
   .admin-user-table--head {
@@ -999,10 +1066,43 @@
     justify-content: flex-end;
   }
 
+  .admin-detail-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 70;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px;
+    background: rgba(6, 8, 15, 0.82);
+    backdrop-filter: blur(6px);
+  }
+
+  .admin-detail-modal {
+    width: min(1400px, calc(100vw - 24px));
+    max-height: min(88vh, 960px);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .admin-detail-modal__header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .admin-detail-modal__body {
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
   @media (max-width: 1535px) {
     .admin-user-table {
       grid-template-columns:
         minmax(170px, 1.2fr)
+        minmax(132px, 0.9fr)
         minmax(82px, 0.55fr)
         minmax(82px, 0.55fr)
         minmax(130px, 0.85fr)
@@ -1019,6 +1119,7 @@
       display: flex;
       flex-direction: column;
       gap: 10px;
+      overflow: visible;
     }
 
     .admin-user-table--head {
@@ -1027,6 +1128,7 @@
 
     .admin-user-table--row {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+      min-width: 0;
       gap: 10px 12px;
       border: 1px solid rgba(200, 164, 92, 0.14);
       background: rgba(26, 26, 26, 0.16);
@@ -1060,6 +1162,17 @@
     .admin-user-line--user,
     .admin-user-line--actions {
       grid-column: span 1;
+    }
+
+    .admin-detail-modal {
+      width: calc(100vw - 16px);
+      max-height: calc(100vh - 16px);
+      padding: 12px;
+    }
+
+    .admin-detail-modal__header {
+      flex-direction: column;
+      align-items: stretch;
     }
   }
 

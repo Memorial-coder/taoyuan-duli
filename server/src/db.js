@@ -1166,6 +1166,9 @@ async function listGameplayEventLogs(options = {}) {
   const username = normalizeUsername(options.username || '');
   const category = String(options.category || '').trim();
   const keyword = String(options.keyword || '').trim();
+  const saveSlot = Number.isInteger(Number(options.saveSlot)) && Number(options.saveSlot) >= 0
+    ? Number(options.saveSlot)
+    : null;
 
   if (MYSQL_ENABLED) {
     await ensureMysqlReady();
@@ -1182,6 +1185,10 @@ async function listGameplayEventLogs(options = {}) {
     if (keyword) {
       where.push('(message LIKE ? OR meta_json LIKE ? OR day_label LIKE ?)');
       params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+    }
+    if (saveSlot !== null) {
+      where.push('meta_json LIKE ?');
+      params.push(`%"save_slot":${saveSlot}%`);
     }
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
     const [[countRow]] = await buildMysqlPool().execute(
@@ -1222,6 +1229,14 @@ async function listGameplayEventLogs(options = {}) {
             return {};
           }
         })(),
+        save_slot: (() => {
+          try {
+            const meta = JSON.parse(item.meta_json || '{}');
+            return Number.isInteger(Number(meta?.save_slot)) ? Number(meta.save_slot) : null;
+          } catch {
+            return null;
+          }
+        })(),
         created_at: Number(item.created_at) || 0,
       })),
     };
@@ -1231,6 +1246,14 @@ async function listGameplayEventLogs(options = {}) {
   const filtered = store.logs.filter(item => {
     if (username && item.username !== username) return false;
     if (category && item.category !== category) return false;
+    if (saveSlot !== null) {
+      try {
+        const meta = JSON.parse(item.meta_json || '{}');
+        if (Number(meta?.save_slot) !== saveSlot) return false;
+      } catch {
+        return false;
+      }
+    }
     if (keyword) {
       const haystack = `${item.message} ${item.meta_json || ''} ${item.day_label || ''}`.toLocaleLowerCase('zh-CN');
       if (!haystack.includes(keyword.toLocaleLowerCase('zh-CN'))) return false;
@@ -1256,6 +1279,14 @@ async function listGameplayEventLogs(options = {}) {
           return JSON.parse(item.meta_json || '{}');
         } catch {
           return {};
+        }
+      })(),
+      save_slot: (() => {
+        try {
+          const meta = JSON.parse(item.meta_json || '{}');
+          return Number.isInteger(Number(meta?.save_slot)) ? Number(meta.save_slot) : null;
+        } catch {
+          return null;
         }
       })(),
     })),

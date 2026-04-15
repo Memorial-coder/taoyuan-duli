@@ -73,6 +73,12 @@ interface PersistedGameplayLogPayload {
   meta: GameLogMeta
   route_name: string
   username: string
+  save_slot?: number | null
+}
+
+interface GameplaySaveContext {
+  saveSlot: number | null
+  saveMode: 'local' | 'server' | null
 }
 
 /** 全部日志历史 */
@@ -81,6 +87,7 @@ export const logHistory = ref<LogEntry[]>([])
 const gameplayLogQueue: PersistedGameplayLogPayload[] = []
 let gameplayLogFlushTimer: ReturnType<typeof setTimeout> | null = null
 let gameplayLogFlushInFlight = false
+let _gameplaySaveContextGetter: (() => GameplaySaveContext) | null = null
 
 const getCurrentRouteName = () => {
   if (typeof window === 'undefined') return ''
@@ -96,6 +103,18 @@ const getCurrentUsernameLabel = () => {
     return window.localStorage.getItem('taoyuanxiang_current_account') || 'guest'
   } catch {
     return 'guest'
+  }
+}
+
+export const _registerGameplaySaveContextGetter = (fn: () => GameplaySaveContext) => {
+  _gameplaySaveContextGetter = fn
+}
+
+const getCurrentGameplaySaveContext = (): GameplaySaveContext => {
+  try {
+    return _gameplaySaveContextGetter?.() ?? { saveSlot: null, saveMode: null }
+  } catch {
+    return { saveSlot: null, saveMode: null }
   }
 }
 
@@ -160,7 +179,12 @@ export const addLog = (msg: string, options: { category?: GameLogCategory; tags?
   const dayLabel = _dayLabelGetter?.() ?? ''
   const category = options.category || 'system'
   const tags = Array.isArray(options.tags) ? options.tags : []
-  const meta = options.meta || {}
+  const { saveSlot, saveMode } = getCurrentGameplaySaveContext()
+  const meta = {
+    ...(options.meta || {}),
+    ...(saveMode ? { save_mode: saveMode } : {}),
+    ...(saveSlot !== null ? { save_slot: saveSlot } : {}),
+  }
   logHistory.value.push({ msg, dayLabel, category, tags, meta })
   gameplayLogQueue.push({
     message: msg,
@@ -170,6 +194,7 @@ export const addLog = (msg: string, options: { category?: GameLogCategory; tags?
     meta,
     route_name: getCurrentRouteName(),
     username: getCurrentUsernameLabel(),
+    save_slot: saveSlot,
   })
   scheduleGameplayLogFlush()
   _perkChecker?.()
