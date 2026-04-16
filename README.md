@@ -30,8 +30,6 @@
 > **官方交流群**：1094297186 (QQ)
 
 ---
-
-
 <p align="center">
   <a href="游戏简介.md">玩家向简介</a> ·
   <a href="https://taoyuan.ymzcc.com/guide.html">新手教程</a> ·
@@ -62,8 +60,6 @@
 | 部署方式 | 本地启动、Docker、Docker Compose |
 
 ## 文档导航
-
-
 - 想直接试玩线上版本：访问 [在线体验](https://taoyuan.ymzcc.com/)
 - 想先判断游戏是不是你喜欢的类型：阅读 [游戏简介.md](游戏简介.md)
 - 想快速理解当前版本的开局路线：阅读 https://taoyuan.ymzcc.com/guide.html
