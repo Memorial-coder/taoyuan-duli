@@ -8,15 +8,28 @@
 <h1 align="center">桃源乡独立版</h1>
 
 <p align="center">
-  一个可独立部署的国风田园经营项目，把单人经营冒险与账号、云存档、交流大厅、游戏邮箱、AI 小助理等在线能力整合到一起。
+  <a href="https://taoyuan.ymzcc.com/" target="_blank">
+    <img src="https://img.shields.io/badge/在线体验-立即进入桃源乡-14b8a6?style=for-the-badge&logo=joy-con&logoColor=white" alt="在线体验">
+  </a>
+  <a href="https://github.com/setube/taoyuan" target="_blank">
+    <img src="https://img.shields.io/badge/开源地址-GitHub-black?style=for-the-badge&logo=github" alt="GitHub">
+  </a>
 </p>
 
-<p align="center" style="margin:20px 0;">
-  <a href="https://taoyuan.ymzcc.com/" style="display:inline-block; padding:12px 24px; background:#14b8a6; color:#fff; border-radius:8px; font-weight:bold; font-size:16px; text-decoration:none;">
-     立即在线游玩
-  </a><br>
-  <span style="font-family:monospace; color:#666;">https://taoyuan.ymzcc.com/</span>
+<p align="center">
+  <b>🌟 一个可独立部署的国风田园经营项目 🌟</b><br>
+  整合单人经营冒险与账号、云存档、交流大厅、游戏邮箱、AI 小助理等在线能力。
 </p>
+
+---
+
+### 🚀 快速访问
+
+> [!IMPORTANT]
+> **在线游玩地址**：[https://taoyuan.ymzcc.com/](https://taoyuan.ymzcc.com/)  
+> **官方交流群**：1094297186 (QQ)
+
+---
 
 
 <p align="center">
