@@ -1,3 +1,6 @@
+/*
+ * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
+ */
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
@@ -25,20 +28,46 @@ function ensureDir() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
 }
 
-function loadStore() {
+function createStoreCorruptionError(filePath) {
+  const error = new Error(`${path.basename(filePath)} 已损坏，拒绝以空状态继续运行`);
+  error.status = 500;
+  error.code = 'STORE_CORRUPTED';
+  return error;
+}
+
+function readJsonStoreStrict(filePath) {
   ensureDir();
+  if (!fs.existsSync(filePath)) return null;
   try {
-    if (!fs.existsSync(USERS_FILE)) return { users: [] };
-    const raw = JSON.parse(fs.readFileSync(USERS_FILE, 'utf8'));
-    return Array.isArray(raw?.users) ? raw : { users: [] };
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
   } catch {
-    return { users: [] };
+    throw createStoreCorruptionError(filePath);
   }
 }
 
-function saveStore(store) {
+function writeJsonFileAtomic(filePath, data) {
   ensureDir();
-  fs.writeFileSync(USERS_FILE, JSON.stringify(store, null, 2), 'utf8');
+  const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(tempPath, filePath);
+  } catch (error) {
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {}
+    throw error;
+  }
+}
+
+function loadStore() {
+  const raw = readJsonStoreStrict(USERS_FILE);
+  if (raw === null) return { users: [] };
+  if (!Array.isArray(raw?.users)) throw createStoreCorruptionError(USERS_FILE);
+  return raw;
+}
+
+function saveStore(store) {
+  writeJsonFileAtomic(USERS_FILE, store);
 }
 
 function normalizeUsername(username) {
@@ -78,19 +107,14 @@ function normalizeAdminStatus(status) {
 }
 
 function loadUserMetaStore() {
-  ensureDir();
-  try {
-    if (!fs.existsSync(USER_META_FILE)) return { users: {} };
-    const raw = JSON.parse(fs.readFileSync(USER_META_FILE, 'utf8'));
-    return raw && raw.users && typeof raw.users === 'object' ? raw : { users: {} };
-  } catch {
-    return { users: {} };
-  }
+  const raw = readJsonStoreStrict(USER_META_FILE);
+  if (raw === null) return { users: {} };
+  if (!raw || !raw.users || typeof raw.users !== 'object') throw createStoreCorruptionError(USER_META_FILE);
+  return raw;
 }
 
 function saveUserMetaStore(store) {
-  ensureDir();
-  fs.writeFileSync(USER_META_FILE, JSON.stringify({ users: store?.users || {} }, null, 2), 'utf8');
+  writeJsonFileAtomic(USER_META_FILE, { users: store?.users || {} });
 }
 
 function getLocalUserMeta(usernameKey) {

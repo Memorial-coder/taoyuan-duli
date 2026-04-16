@@ -337,7 +337,7 @@ export const useMuseumStore = defineStore('museum', () => {
     return HALL_ZONE_IDS.map(hallZoneId => {
       const progress = currentHallProgressMap.value[hallZoneId] ?? initialState.hallProgress[hallZoneId]
       const levelDefs = getHallLevelDefs(hallZoneId)
-      const currentLevelDef = [...levelDefs].reverse().find(level => level.level <= progress.level) ?? levelDefs[0] ?? null
+      const currentLevelDef = [...levelDefs].reverse().find(level => level.level <= progress.level) ?? null
       const nextLevelDef = levelDefs.find(level => level.level > progress.level) ?? null
       const hallSlots = exhibitSlotOverview.value.filter(slot => slot.hallZoneId === hallZoneId)
       return {
@@ -895,6 +895,19 @@ export const useMuseumStore = defineStore('museum', () => {
     }
 
     if (options?.startedNewWeek) {
+      scholarCommissionStates.value = Object.fromEntries(
+        Object.entries(scholarCommissionStates.value).map(([commissionId, state]) => [
+          commissionId,
+          {
+            ...state,
+            acceptedDayTag: '',
+            progress: 0,
+            completed: false,
+            rewarded: false,
+            expired: false
+          }
+        ])
+      )
       dailyLogs.push(
         `【博物馆】本周展陈概览：陈列评分 ${displayTelemetry.score}（${displayRatingBand.value.name}），访客热度 ${visitorTelemetry.score}（${visitorFlowBand.value.name}）。`
       )

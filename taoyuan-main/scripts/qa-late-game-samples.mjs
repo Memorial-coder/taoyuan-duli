@@ -77,7 +77,7 @@ for (const sampleId of REQUIRED_SAMPLE_IDS) {
   const goal = data.goal ?? {}
   const inventoryItems = Array.isArray(data.inventory?.items) ? data.inventory.items : []
 
-  assertCheck(meta.saveVersion === 3, `${sampleId} 的 saveVersion 不是 3。`)
+  assertCheck(meta.saveVersion === 4, `${sampleId} 的 saveVersion 不是 4。`)
   assertCheck(Number.isFinite(game.year) && game.year >= 1, `${sampleId} 缺少有效的 game.year。`)
   assertCheck(['spring', 'summer', 'autumn', 'winter'].includes(game.season), `${sampleId} 缺少有效的 game.season。`)
   assertCheck(Number.isFinite(game.day) && game.day >= 1 && game.day <= 28, `${sampleId} 缺少有效的 game.day。`)

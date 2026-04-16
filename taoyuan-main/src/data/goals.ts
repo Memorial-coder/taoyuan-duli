@@ -1125,14 +1125,14 @@ export const WS12_SAVE_MIGRATION_PROFILES: QaGovernanceMigrationProfileDef[] = [
   {
     id: 'ws12_profile_live_stable',
     label: '正式稳定迁移',
-    targetSaveVersion: 3,
+    targetSaveVersion: 4,
     rollbackOnFailure: true,
     compatibilityScope: ['player.economyTelemetry', 'tutorial.guidanceDigestState', 'guild.seasonState']
   },
   {
     id: 'ws12_profile_canary',
     label: '灰度观察迁移',
-    targetSaveVersion: 3,
+    targetSaveVersion: 4,
     rollbackOnFailure: true,
     compatibilityScope: ['quest.activityQuestWindowState', 'hanhai.cycleState', 'museum.saveVersion']
   }

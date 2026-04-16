@@ -1,3 +1,6 @@
+/*
+ * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
+ */
 const path = require('path');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
@@ -110,6 +113,20 @@ function validateCriticalEnv() {
 
   if (COOKIE_SAME_SITE === 'none' && !COOKIE_SECURE) {
     throw new Error('COOKIE_SAME_SITE=none 时必须同时启用 COOKIE_SECURE=true');
+  }
+
+  const mysqlRelatedKeys = ['MYSQL_HOST', 'MYSQL_PORT', 'MYSQL_USER', 'MYSQL_PASSWORD', 'MYSQL_DATABASE'];
+  const providedMysqlKeys = mysqlRelatedKeys.filter(key => String(process.env[key] || '').trim());
+  if (providedMysqlKeys.length > 0 && !db.MYSQL_ENABLED) {
+    throw new Error('检测到不完整的 MYSQL_* 配置；请补齐 MYSQL_HOST、MYSQL_USER、MYSQL_DATABASE，或移除全部 MYSQL_* 配置后再启动');
+  }
+
+  const mysqlPortRaw = String(process.env.MYSQL_PORT || '').trim();
+  if (mysqlPortRaw) {
+    const mysqlPort = parseInt(mysqlPortRaw, 10);
+    if (!Number.isInteger(mysqlPort) || mysqlPort <= 0) {
+      throw new Error('MYSQL_PORT 必须是正整数');
+    }
   }
 }
 

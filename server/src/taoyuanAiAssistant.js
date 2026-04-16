@@ -124,13 +124,6 @@ const SOURCE_WHITELIST = [
       '../data-defaults',
     ]),
   },
-  {
-    key: 'data',
-    abs: resolveExistingPath([
-      '../../data',
-      '../data',
-    ]),
-  },
 ];
 
 const SOURCE_ALLOWED_EXTENSIONS = new Set(['.js', '.ts', '.vue', '.json', '.md', '.html']);
@@ -478,7 +471,7 @@ const BUILTIN_KNOWLEDGE_BASE = [
     id: 'home-family',
     title: '家园、小屋与家庭',
     routeNames: ['home', 'cottage'],
-    keywords: ['家', '小屋', '休息', '睡觉', '家庭', '孩子', '配偶'],
+    keywords: ['家', '小屋', '休息', '睡觉', '家庭', '孩子', '配偶', '同性', '领养', '婚姻'],
     access: 'public',
     content:
       '家园和小屋相关页面会影响每日休息、家庭互动与部分恢复效果。休息会推进到第二天；太晚睡或体力见底时，恢复效果可能会下降，还可能伴随额外损失。与配偶和家庭相关的互动会逐步解锁，包括孩子相关事件。当前可婚 NPC 已支持同性婚姻；若是同性伴侣，后续家庭扩展会走“迎一个孩子回家”的专线，而不是沿用孕期设定。',
@@ -487,7 +480,7 @@ const BUILTIN_KNOWLEDGE_BASE = [
     id: 'npc-village',
     title: '村庄、NPC 与社交',
     routeNames: ['village'],
-    keywords: ['村庄', 'npc', '好感', '社交', '村民', '恋爱', '结婚'],
+    keywords: ['村庄', 'npc', '好感', '社交', '村民', '恋爱', '结婚', '同性', '知己', '婚姻', '领养'],
     access: 'public',
     content:
       '村庄区域主要承载 NPC 互动、好感度成长和关系推进。提升好感通常有助于解锁更多对话、事件或奖励。部分剧情与心事件会随着关系推进触发，因此日常交流、送礼和按任务指引推进都很重要。当前可婚 NPC 已支持同性婚姻；同性之间也保留知己线，作为非恋爱关系路线。',
@@ -3263,8 +3256,16 @@ function resolveExplicitDirectoryTarget(target = '') {
 
     if (!normalizedTarget.startsWith(`${rootKey}/`)) continue;
     const subPath = normalizedTarget.slice(rootKey.length + 1);
-    const absPath = path.join(root.abs, ...subPath.split('/'));
+    const absPath = path.resolve(root.abs, ...subPath.split('/'));
     try {
+      const relativeToRoot = path.relative(root.abs, absPath);
+      if (
+        relativeToRoot.startsWith('..')
+        || path.isAbsolute(relativeToRoot)
+        || SOURCE_BLOCKED_PATH_PATTERN.test(absPath)
+      ) {
+        continue;
+      }
       if (fs.existsSync(absPath) && fs.statSync(absPath).isDirectory()) {
         return {
           path: `${root.key}/${subPath}`.replace(/\\/g, '/'),
@@ -3520,8 +3521,16 @@ function resolveWhitelistRelativeFilePath(relativePath = '') {
 
     if (!normalizedRelativePath.startsWith(`${normalizedRootPath}/`)) continue;
     const subPath = rawRelativePath.slice(root.key.length + 1);
-    const absPath = path.join(root.abs, ...subPath.split('/'));
+    const absPath = path.resolve(root.abs, ...subPath.split('/'));
     try {
+      const relativeToRoot = path.relative(root.abs, absPath);
+      if (
+        relativeToRoot.startsWith('..')
+        || path.isAbsolute(relativeToRoot)
+        || SOURCE_BLOCKED_PATH_PATTERN.test(absPath)
+      ) {
+        continue;
+      }
       if (fs.existsSync(absPath) && fs.statSync(absPath).isFile()) return absPath;
     } catch {}
   }
@@ -3768,9 +3777,9 @@ function scoreRetrievedMatchForAnswer(item, queryPlan = {}) {
   return score;
 }
 
-function recallSearchCandidates(question, routeName, mode, queryPlan, knowledgeMatches = []) {
+function recallSearchCandidates(question, routeName, mode, queryPlan, knowledgeMatches = [], options = {}) {
   const recalledKnowledgeMatches = (knowledgeMatches || []).slice(0, SOURCE_RECALL_KNOWLEDGE_LIMIT);
-  const shouldSourceSearch = cfg.get('ai_assistant_source_read_enabled') === true && shouldSearchSource(recalledKnowledgeMatches, queryPlan);
+  const shouldSourceSearch = options.sourceReadEnabled === true && shouldSearchSource(recalledKnowledgeMatches, queryPlan);
 
   let sourceSymbolHits = [];
   let sourceIndexHits = [];
@@ -4240,6 +4249,8 @@ function buildAskTrace({
   matches,
   evidence,
   shouldSourceSearch,
+  sourceReadEnabled,
+  sourceIngestEnabled,
   modelTrace,
   timings,
   answer,
@@ -4276,9 +4287,9 @@ function buildAskTrace({
       sourcePreference: queryPlan?.sourcePreference || '',
     },
     sourceSearch: {
-      enabled: cfg.get('ai_assistant_source_read_enabled') === true,
+      enabled: sourceReadEnabled === true,
       executed: shouldSourceSearch === true,
-      ingestEnabled: cfg.get('ai_assistant_source_ingest_enabled') === true,
+      ingestEnabled: sourceIngestEnabled === true,
     },
     candidates: {
       knowledgeMatches: knowledgeMatches.map(toTraceCandidate),
@@ -4531,6 +4542,16 @@ async function askInternal(question, options = {}, debug = false) {
   if (!trimmedQuestion) throw createError('问题不能为空');
 
   const timings = { startedAt: Date.now() };
+  const sourceReadEnabled = options.sourceReadEnabled === true
+    ? true
+    : options.sourceReadEnabled === false
+      ? false
+      : cfg.get('ai_assistant_source_read_enabled') === true;
+  const sourceIngestEnabled = options.sourceIngestEnabled === true
+    ? true
+    : options.sourceIngestEnabled === false
+      ? false
+      : cfg.get('ai_assistant_source_ingest_enabled') === true;
 
   const publicConfig = getPublicConfig();
   if (!publicConfig.enabled) throw createError('AI 助手当前已关闭', 403);
@@ -4555,7 +4576,7 @@ async function askInternal(question, options = {}, debug = false) {
         mode,
         provider: 'guard',
         queryPlan: parseCodeQuestion(trimmedQuestion, String(options.routeName || '').trim()),
-        sourceSearch: { enabled: false, executed: false, ingestEnabled: false },
+        sourceSearch: { enabled: sourceReadEnabled, executed: false, ingestEnabled: sourceIngestEnabled },
         candidates: {
           knowledgeMatches: [],
           sourceDirectoryHits: [],
@@ -4578,7 +4599,9 @@ async function askInternal(question, options = {}, debug = false) {
   timings.afterParseMs = Date.now() - timings.startedAt;
   const knowledgeMatches = retrieveKnowledge(trimmedQuestion, routeName, mode, queryPlan);
   timings.afterKnowledgeMs = Date.now() - timings.startedAt;
-  const recallResult = recallSearchCandidates(trimmedQuestion, routeName, mode, queryPlan, knowledgeMatches);
+  const recallResult = recallSearchCandidates(trimmedQuestion, routeName, mode, queryPlan, knowledgeMatches, {
+    sourceReadEnabled,
+  });
   const {
     shouldSourceSearch,
     sourceDirectoryHits,
@@ -4591,7 +4614,7 @@ async function askInternal(question, options = {}, debug = false) {
   const evidence = buildEvidencePayload(matches);
   timings.afterRerankMs = Date.now() - timings.startedAt;
 
-  if (sourceHits.length && cfg.get('ai_assistant_source_ingest_enabled') === true) {
+  if (sourceHits.length && sourceIngestEnabled) {
     try { upsertAutoKnowledgeFromSource(trimmedQuestion, routeName, sourceHits); } catch {}
   }
 
@@ -4677,6 +4700,8 @@ async function askInternal(question, options = {}, debug = false) {
       matches,
       evidence,
       shouldSourceSearch,
+      sourceReadEnabled,
+      sourceIngestEnabled,
       modelTrace,
       timings,
       answer,
@@ -4686,6 +4711,14 @@ async function askInternal(question, options = {}, debug = false) {
 
 async function ask(question, options = {}) {
   return askInternal(question, options, false);
+}
+
+async function askPublic(question, options = {}) {
+  return askInternal(question, {
+    ...options,
+    sourceReadEnabled: false,
+    sourceIngestEnabled: false,
+  }, false);
 }
 
 async function askDebug(question, options = {}) {
@@ -4712,4 +4745,5 @@ module.exports = {
   draftKnowledgeFromSource,
   askDebug,
   ask,
+  askPublic,
 };

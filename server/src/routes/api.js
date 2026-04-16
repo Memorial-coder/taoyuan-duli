@@ -1,3 +1,6 @@
+/*
+ * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
+ */
 const express = require('express');
 const crypto = require('crypto');
 const fs = require('fs');
@@ -17,6 +20,15 @@ const DATA_DIR = process.env.DB_STORAGE
 
 const TAOYUAN_SAVES_DIR = path.join(DATA_DIR, 'taoyuan_saves');
 const TAOYUAN_EXCHANGE_LIMITS_FILE = path.join(DATA_DIR, 'taoyuan_exchange_limits.json');
+const PUBLIC_AI_ASK_WINDOW_MS = 60 * 1000;
+const PUBLIC_AI_ASK_MAX_REQUESTS = 8;
+const publicAiAskBuckets = new Map();
+
+function createRouteError(message, status = 400) {
+  const error = new Error(message);
+  error.status = status;
+  return error;
+}
 
 function ensureTaoyuanSavesDir() {
   fs.mkdirSync(TAOYUAN_SAVES_DIR, { recursive: true });
@@ -28,20 +40,27 @@ function getTaoyuanSavePath(username) {
 
 function loadTaoyuanUserSaves(username) {
   const defaults = { slots: { 0: null, 1: null, 2: null } };
+  const file = getTaoyuanSavePath(username);
+  if (!fs.existsSync(file)) return { ...defaults };
+
+  let raw;
   try {
-    const file = getTaoyuanSavePath(username);
-    if (!fs.existsSync(file)) return { ...defaults };
-    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return {
-      slots: {
-        0: typeof raw?.slots?.[0] === 'string' ? raw.slots[0] : null,
-        1: typeof raw?.slots?.[1] === 'string' ? raw.slots[1] : null,
-        2: typeof raw?.slots?.[2] === 'string' ? raw.slots[2] : null,
-      },
-    };
+    raw = JSON.parse(fs.readFileSync(file, 'utf8'));
   } catch {
-    return { ...defaults };
+    throw createRouteError('服务端存档文件已损坏，请先修复后再操作', 500);
   }
+
+  if (!raw || typeof raw !== 'object' || !raw.slots || typeof raw.slots !== 'object') {
+    throw createRouteError('服务端存档文件结构无效，请先修复后再操作', 500);
+  }
+
+  return {
+    slots: {
+      0: typeof raw.slots[0] === 'string' ? raw.slots[0] : null,
+      1: typeof raw.slots[1] === 'string' ? raw.slots[1] : null,
+      2: typeof raw.slots[2] === 'string' ? raw.slots[2] : null,
+    },
+  };
 }
 
 function saveTaoyuanUserSaves(username, data) {
@@ -199,7 +218,15 @@ function getSaveFileSummary(username) {
   const filePath = getTaoyuanSavePath(safeUsername);
   const exists = fs.existsSync(filePath);
   const stats = exists ? fs.statSync(filePath) : null;
-  const saveData = exists ? loadTaoyuanUserSaves(safeUsername) : { slots: { 0: null, 1: null, 2: null } };
+  let corrupted = false;
+  let saveData = { slots: { 0: null, 1: null, 2: null } };
+  if (exists) {
+    try {
+      saveData = loadTaoyuanUserSaves(safeUsername);
+    } catch {
+      corrupted = true;
+    }
+  }
   const slots = [0, 1, 2].map(slot => ({
     slot,
     exists: !!saveData.slots?.[slot],
@@ -211,9 +238,28 @@ function getSaveFileSummary(username) {
     file_path: filePath,
     file_size: stats ? stats.size : 0,
     updated_at: stats ? Math.floor(stats.mtimeMs / 1000) : null,
+    corrupted,
     slot_count: slots.filter(item => item.exists).length,
     slots,
   };
+}
+
+function consumePublicAiAskQuota(req) {
+  const now = Date.now();
+  const key = String(req.ip || req.headers['x-forwarded-for'] || 'unknown').trim() || 'unknown';
+  const bucket = publicAiAskBuckets.get(key) || [];
+  const recent = bucket.filter(timestamp => now - timestamp < PUBLIC_AI_ASK_WINDOW_MS);
+  if (recent.length >= PUBLIC_AI_ASK_MAX_REQUESTS) {
+    publicAiAskBuckets.set(key, recent);
+    return {
+      ok: false,
+      retryAfterMs: Math.max(1, PUBLIC_AI_ASK_WINDOW_MS - (now - recent[0])),
+    };
+  }
+
+  recent.push(now);
+  publicAiAskBuckets.set(key, recent);
+  return { ok: true, retryAfterMs: 0 };
 }
 
 function parsePositiveInt(value, fallback) {
@@ -492,7 +538,7 @@ router.get('/admin/users/:username', userAdminAuth, async (req, res) => {
       ok: true,
       user: {
         ...user,
-        save_file: getSaveFileSummary(username),
+        save_file: getSaveFileSummary(user.username),
       },
     });
   } catch (error) {
@@ -565,7 +611,7 @@ router.get('/admin/users/:username/save', userAdminAuth, async (req, res) => {
     const user = await db.getUserAdmin(username);
     if (!user) return res.status(404).json({ ok: false, msg: '用户不存在' });
 
-    res.json({ ok: true, save: getSaveFileSummary(username) });
+    res.json({ ok: true, save: getSaveFileSummary(user.username) });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取存档信息失败' });
   }
@@ -577,14 +623,15 @@ router.get('/admin/users/:username/save/export', adminAuth, async (req, res) => 
     const user = await db.getUserAdmin(username);
     if (!user) return res.status(404).json({ ok: false, msg: '用户不存在' });
 
-    const filePath = getTaoyuanSavePath(username);
+    const canonicalUsername = user.username;
+    const filePath = getTaoyuanSavePath(canonicalUsername);
     if (!fs.existsSync(filePath)) {
       return res.status(404).json({ ok: false, msg: '该用户没有存档文件' });
     }
 
-    await appendAdminAuditLog(req, 'export_user_save', username, { file_name: `${username}.json` });
+    await appendAdminAuditLog(req, 'export_user_save', canonicalUsername, { file_name: `${canonicalUsername}.json` });
     res.setHeader('Content-Type', 'application/json; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`${username}.json`)}`);
+    res.setHeader('Content-Disposition', `attachment; filename*=UTF-8''${encodeURIComponent(`${canonicalUsername}.json`)}`);
     res.send(fs.readFileSync(filePath, 'utf8'));
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '导出存档失败' });
@@ -607,8 +654,10 @@ router.post('/admin/users/:username/save/migrate', adminAuth, async (req, res) =
     if (!sourceUser) return res.status(404).json({ ok: false, msg: '源用户不存在' });
     if (!targetUser) return res.status(404).json({ ok: false, msg: '目标用户不存在' });
 
-    const sourcePath = getTaoyuanSavePath(sourceUsername);
-    const targetPath = getTaoyuanSavePath(targetUsername);
+    const canonicalSourceUsername = sourceUser.username;
+    const canonicalTargetUsername = targetUser.username;
+    const sourcePath = getTaoyuanSavePath(canonicalSourceUsername);
+    const targetPath = getTaoyuanSavePath(canonicalTargetUsername);
     if (!fs.existsSync(sourcePath)) {
       return res.status(404).json({ ok: false, msg: '源用户没有存档文件' });
     }
@@ -618,11 +667,16 @@ router.post('/admin/users/:username/save/migrate', adminAuth, async (req, res) =
 
     ensureTaoyuanSavesDir();
     fs.copyFileSync(sourcePath, targetPath);
-    await appendAdminAuditLog(req, 'migrate_user_save', sourceUsername, {
-      target_username: targetUsername,
+    await appendAdminAuditLog(req, 'migrate_user_save', canonicalSourceUsername, {
+      target_username: canonicalTargetUsername,
       overwrite,
     });
-    res.json({ ok: true, source: sourceUsername, target: targetUsername, save: getSaveFileSummary(targetUsername) });
+    res.json({
+      ok: true,
+      source: canonicalSourceUsername,
+      target: canonicalTargetUsername,
+      save: getSaveFileSummary(canonicalTargetUsername),
+    });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '迁移存档失败' });
   }
@@ -911,11 +965,16 @@ router.post('/taoyuan/quota/export', loginRequired, signRequired, async (req, re
 });
 
 router.get('/taoyuan/save/slots', loginRequired, (req, res) => {
-  const data = loadTaoyuanUserSaves(req.session.username);
-  res.json({ ok: true, slots: [0, 1, 2].map(slot => ({ slot, raw: data.slots[slot] || null })) });
+  try {
+    const data = loadTaoyuanUserSaves(req.session.username);
+    res.json({ ok: true, slots: [0, 1, 2].map(slot => ({ slot, raw: data.slots[slot] || null })) });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '读取服务端存档失败' });
+  }
 });
 
 router.get('/taoyuan/save/:slot', loginRequired, (req, res) => {
+  try {
   const slot = parseInt(req.params.slot, 10);
   if (!Number.isInteger(slot) || slot < 0 || slot > 2) {
     return res.status(400).json({ ok: false, msg: '无效的存档槽位' });
@@ -924,9 +983,13 @@ router.get('/taoyuan/save/:slot', loginRequired, (req, res) => {
   const raw = data.slots[slot] || null;
   if (!raw) return res.status(404).json({ ok: false, msg: '服务端存档不存在' });
   res.json({ ok: true, slot, raw });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '读取服务端存档失败' });
+  }
 });
 
 router.post('/taoyuan/save/active-slot', loginRequired, signRequired, (req, res) => {
+  try {
   const slot = parseInt(req.body?.slot, 10);
   if (!Number.isInteger(slot) || slot < 0 || slot > 2) {
     return res.status(400).json({ ok: false, msg: '无效的存档槽位' });
@@ -936,9 +999,13 @@ router.post('/taoyuan/save/active-slot', loginRequired, signRequired, (req, res)
   if (!raw) return res.status(404).json({ ok: false, msg: '服务端存档不存在' });
   taoyuanHall.setActiveSaveSlot(req.session.username, slot);
   res.json({ ok: true, slot });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '设置服务端当前存档失败' });
+  }
 });
 
 router.post('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
+  try {
   const slot = parseInt(req.params.slot, 10);
   const raw = typeof req.body?.raw === 'string' ? req.body.raw : '';
   if (!Number.isInteger(slot) || slot < 0 || slot > 2) {
@@ -950,9 +1017,13 @@ router.post('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
   saveTaoyuanUserSaves(req.session.username, data);
   taoyuanHall.setActiveSaveSlot(req.session.username, slot);
   res.json({ ok: true, slot });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '保存服务端存档失败' });
+  }
 });
 
 router.delete('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
+  try {
   const slot = parseInt(req.params.slot, 10);
   if (!Number.isInteger(slot) || slot < 0 || slot > 2) {
     return res.status(400).json({ ok: false, msg: '无效的存档槽位' });
@@ -962,6 +1033,9 @@ router.delete('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => 
   saveTaoyuanUserSaves(req.session.username, data);
   taoyuanHall.clearActiveSaveSlotIfMatches(req.session.username, slot);
   res.json({ ok: true, slot });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '删除服务端存档失败' });
+  }
 });
 
 router.get('/taoyuan/ai/config', (req, res) => {
@@ -970,7 +1044,13 @@ router.get('/taoyuan/ai/config', (req, res) => {
 
 router.post('/taoyuan/ai/ask', async (req, res) => {
   try {
-    const result = await taoyuanAiAssistant.ask(req.body?.question, {
+    const rateLimit = consumePublicAiAskQuota(req);
+    if (!rateLimit.ok) {
+      res.setHeader('Retry-After', String(Math.max(1, Math.ceil(rateLimit.retryAfterMs / 1000))));
+      return res.status(429).json({ ok: false, msg: 'AI 提问过于频繁，请稍后再试' });
+    }
+
+    const result = await taoyuanAiAssistant.askPublic(req.body?.question, {
       routeName: req.body?.route_name,
       contextLabel: req.body?.context_label,
     });

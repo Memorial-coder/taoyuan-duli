@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+﻿import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type {
   FishDef,
@@ -167,7 +167,9 @@ export const useFishingStore = defineStore('fishing', () => {
     if (!equippedTackle.value) return '没有装备浮漂。'
     const def = getTackleById(equippedTackle.value)
     if (tackleDurability.value > 0) {
-      inventoryStore.addItem(equippedTackle.value, 1)
+      if (!inventoryStore.canAddItem(equippedTackle.value, 1) || !inventoryStore.addItemExact(equippedTackle.value, 1)) {
+        return '背包空间不足，无法卸下浮漂。'
+      }
     }
     equippedTackle.value = null
     tackleDurability.value = 0
@@ -202,8 +204,19 @@ export const useFishingStore = defineStore('fishing', () => {
       return { success: false, message: '体力不足，无法钓鱼。' }
     }
 
+    const lureDietyActive = _fishingSkill.perk20 === 'lure_deity' || _fishingSkill.perk15 === 'bait_master'
+    let baitDef = equippedBait.value ? getBaitById(equippedBait.value) : null
+    if (equippedBait.value && baitDef && !lureDietyActive) {
+      const baitId = equippedBait.value
+      if (!inventoryStore.removeItem(baitId, 1)) {
+        equippedBait.value = null
+        baitDef = null
+      } else if (inventoryStore.getItemCount(baitId) <= 0) {
+        equippedBait.value = null
+      }
+    }
+
     // 确定鱼池：magic_bait 忽略季节但仍限地点
-    const baitDef = equippedBait.value ? getBaitById(equippedBait.value) : null
     const loc = fishingLocation.value
     const fishPool = baitDef?.ignoresSeason
       ? FISH.filter(f => (f.location ?? 'creek') === loc && (f.weather.includes('any') || f.weather.includes(gameStore.weather as any)))
@@ -214,15 +227,7 @@ export const useFishingStore = defineStore('fishing', () => {
       return { success: false, message: '当前季节和天气没有可钓的鱼。' }
     }
 
-    // 消耗鱼饵（从背包扣除1个，用完才取消装备；诱饵神永不消耗）
     activeBaitDef.value = baitDef ?? null
-    const lureDietyActive = _fishingSkill.perk20 === 'lure_deity' || _fishingSkill.perk15 === 'bait_master' // 诱饵神/诱饵宗师：鱼饵永不消耗
-    if (equippedBait.value && !lureDietyActive) {
-      inventoryStore.removeItem(equippedBait.value, 1)
-      if (inventoryStore.getItemCount(equippedBait.value) <= 0) {
-        equippedBait.value = null
-      }
-    }
 
     // 浮漂耐久-1
     activeTackleDef.value = tackleDef ?? null

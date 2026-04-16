@@ -1,10 +1,26 @@
+/*
+ * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
+ */
 import { createRouter, createWebHashHistory } from 'vue-router'
 
 const router = createRouter({
   history: createWebHashHistory(),
+  scrollBehavior(to, _from, savedPosition) {
+    if (savedPosition) return savedPosition
+    if (to.hash) {
+      return {
+        el: to.hash,
+        top: 12,
+        behavior: 'smooth',
+      }
+    }
+    return { top: 0 }
+  },
   routes: [
     { path: '/', name: 'menu', component: () => import('@/views/MainMenu.vue') },
     { path: '/auth', name: 'auth', component: () => import('@/views/AuthView.vue') },
+    { path: '/guide', name: 'guide', component: () => import('@/views/GuideView.vue') },
+    { path: '/guide-book', name: 'guide-book', component: () => import('@/views/GuideBookView.vue') },
     { path: '/admin', name: 'admin', component: () => import('@/views/TaoyuanAdminView.vue') },
     { path: '/admin/users', name: 'admin-users', component: () => import('@/views/UserAdminView.vue') },
     { path: '/hall', name: 'hall', component: () => import('@/views/HallView.vue') },

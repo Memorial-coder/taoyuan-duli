@@ -546,7 +546,7 @@ export const handleEndDay = () => {
   // 矿洞强制退出：无论玩家是否在探索中，睡觉/晕厥后都重置矿洞状态
   const miningStore = useMiningStore()
   if (miningStore.isExploring) {
-    miningStore.leaveMine()
+    miningStore.forceLeaveMine()
   }
 
   const landGodActive = skillStore.getSkill('farming').perk20 === 'land_god'
@@ -1186,7 +1186,13 @@ export const handleEndDay = () => {
   const pregResult = npcStore.dailyFamilyExpansionUpdate()
   if (pregResult.born) {
     const qMsg =
-      pregResult.born.quality === 'healthy' ? '健健康康的！' : pregResult.born.quality === 'premature' ? '虽然早产了一些，但平安无事。' : ''
+      pregResult.born.origin === 'adoption'
+        ? ''
+        : pregResult.born.quality === 'healthy'
+          ? '健健康康的！'
+          : pregResult.born.quality === 'premature'
+            ? '虽然早产了一些，但平安无事。'
+            : ''
     addLog(pregResult.born.origin === 'adoption' ? `${pregResult.born.name}来到了你们家！恭喜！${qMsg}` : `${pregResult.born.name}出生了！恭喜！${qMsg}`)
   }
   if (pregResult.stageChanged) {

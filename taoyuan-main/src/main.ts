@@ -1,3 +1,6 @@
+/*
+ * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
+ */
 import { createApp, toRaw } from 'vue'
 import { createPinia } from 'pinia'
 import router from '@/router'
@@ -5,7 +8,27 @@ import App from './App.vue'
 import './app.css'
 import { initCurrentAccount } from '@/utils/accountStorage'
 
+const logProjectCredit = () => {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  const scopedWindow = window as typeof window & {
+    __taoyuanProjectCreditLogged__?: boolean
+  }
+
+  if (scopedWindow.__taoyuanProjectCreditLogged__) {
+    return
+  }
+
+  scopedWindow.__taoyuanProjectCreditLogged__ = true
+  console.log(
+    '本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186'
+  )
+}
+
 const bootstrap = async () => {
+  logProjectCredit()
   await initCurrentAccount()
 
   const app = createApp(App)

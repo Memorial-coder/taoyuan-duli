@@ -2,7 +2,7 @@
   <div
     class="main-menu-root flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-6 md:gap-8"
     @click.once="startBgm"
-    :class="{ 'py-10': Capacitor.isNativePlatform() }"
+    :class="{ 'py-10': isNativePlatform }"
     @click="slotMenuOpen = null"
   >
     <!-- 标题 -->
@@ -55,23 +55,63 @@
         </section>
 
         <section class="game-panel-muted main-menu-preflight-card p-3 space-y-3">
-          <div class="space-y-1">
-            <p class="text-xs text-accent">存档方式</p>
-            <p class="text-[11px] text-muted leading-5">默认本地存储；切换后将按当前登录账号读取对应存档。</p>
-          </div>
-          <div class="grid grid-cols-1 gap-2">
-            <Button class="justify-center py-2 text-xs" :class="saveStore.storageMode === 'local' ? '!bg-accent !text-bg' : ''" @click="switchMode('local')">
-              本地存储
-            </Button>
-            <Button class="justify-center py-2 text-xs" :class="saveStore.storageMode === 'server' ? '!bg-accent !text-bg' : ''" @click="switchMode('server')">
-              服务端持久化
-            </Button>
-          </div>
-          <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-2">
-            <p class="text-[10px] text-accent">当前模式</p>
-            <p class="text-xs mt-1">{{ storageModeText }}</p>
-            <p class="text-[10px] text-muted mt-1 leading-5">{{ storageModeDesc }}</p>
-          </div>
+          <template v-if="isDesktopMenu">
+            <div class="space-y-1">
+              <p class="text-xs text-accent">存档方式</p>
+              <p class="text-[11px] text-muted leading-5">默认本地存储；切换后将按当前登录账号读取对应存档。</p>
+            </div>
+            <div class="grid grid-cols-1 gap-2">
+              <Button class="justify-center py-2 text-xs" :class="saveStore.storageMode === 'local' ? '!bg-accent !text-bg' : ''" @click="switchMode('local')">
+                本地存储
+              </Button>
+              <Button class="justify-center py-2 text-xs" :class="saveStore.storageMode === 'server' ? '!bg-accent !text-bg' : ''" @click="switchMode('server')">
+                服务端持久化
+              </Button>
+            </div>
+            <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-2">
+              <p class="text-[10px] text-accent">当前模式</p>
+              <p class="text-xs mt-1">{{ storageModeText }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-5">{{ storageModeDesc }}</p>
+            </div>
+          </template>
+          <template v-else>
+            <div class="space-y-1">
+              <p class="text-xs text-accent">存档与继续旅程</p>
+              <p class="text-[11px] text-muted leading-5">先选好存档方式，再直接查看这次要继续哪一档，会比来回滚动更方便。</p>
+            </div>
+            <div class="grid grid-cols-1 gap-2">
+              <Button class="justify-center py-2 text-xs" :class="saveStore.storageMode === 'local' ? '!bg-accent !text-bg' : ''" @click="switchMode('local')">
+                本地存储
+              </Button>
+              <Button class="justify-center py-2 text-xs" :class="saveStore.storageMode === 'server' ? '!bg-accent !text-bg' : ''" @click="switchMode('server')">
+                服务端持久化
+              </Button>
+            </div>
+            <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-2">
+              <p class="text-[10px] text-accent">当前模式</p>
+              <p class="text-xs mt-1">{{ storageModeText }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-5">{{ storageModeDesc }}</p>
+            </div>
+            <div class="border-t border-accent/15 pt-3">
+              <MainMenuContinueList
+                :existing-slots="existingSlots"
+                :slot-menu-open="slotMenuOpen"
+                :is-native-platform="isNativePlatform"
+                @load-slot="handleLoadGame"
+                @toggle-slot-menu="toggleSlotMenu"
+                @export-slot="handleExportSlot"
+                @delete-slot="handleDeleteSlot"
+                @import-slot="triggerImport"
+              >
+                <template #header="{ count }">
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <p class="text-xs text-accent">继续旅程</p>
+                    <span class="game-chip">已有 {{ count }} 个存档</span>
+                  </div>
+                </template>
+              </MainMenuContinueList>
+            </div>
+          </template>
         </section>
       </div>
     </div>
@@ -110,71 +150,32 @@
         </div>
         </section>
 
-        <section class="game-panel main-menu-section main-menu-continue-section space-y-3">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-          <div class="space-y-1">
-            <p class="game-section-title">继续旅程</p>
-            <p class="game-section-desc">如果你已经有存档，可以从这里继续，或导入以前的进度。</p>
-          </div>
-          <span class="game-chip">已有 {{ existingSlots.length }} 个存档</span>
-        </div>
-
-        <div v-if="existingSlots.length === 0" class="game-panel-muted main-menu-empty-state px-3 py-5 text-center">
-          <p class="text-xs text-muted">当前还没有可继续的旅程。</p>
-          <p class="text-[10px] text-muted mt-1">点击上方「新的旅程」，或导入已有存档。</p>
-        </div>
-
-        <div v-for="info in existingSlots" :key="info.slot" class="w-full">
-          <div class="flex space-x-1 w-full">
-            <button class="btn main-menu-slot flex-1 !justify-between" @click="handleLoadGame(info.slot)">
-              <span class="inline-flex items-center space-x-2 min-w-0">
-                <FolderOpen :size="14" class="shrink-0" />
-                <span class="truncate">存档 {{ info.slot + 1 }} · {{ info.playerName ?? '未命名' }}</span>
-              </span>
-              <span class="text-muted text-[11px] md:text-xs text-right shrink-0">
-                第{{ info.year }}年 {{ SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] }} 第{{ info.day }}天
-              </span>
-            </button>
-            <div class="relative">
-              <Button
-                class="px-2 h-full"
-                :icon="Settings"
-                :icon-size="12"
-                @click.stop="slotMenuOpen = slotMenuOpen === info.slot ? null : info.slot"
-              />
-              <div
-                v-if="slotMenuOpen === info.slot"
-                class="absolute right-0 top-full mt-1 z-10 flex flex-col border border-accent/30 rounded-xs overflow-hidden w-30"
-              >
-                <Button
-                  v-if="!Capacitor.isNativePlatform()"
-                  class="text-center !rounded-none justify-center !text-sm"
-                  :icon="Download"
-                  :icon-size="12"
-                  @click="handleExportSlot(info.slot)"
-                >
-                  导出
-                </Button>
-                <Button
-                  class="btn-danger !rounded-none text-center justify-center !text-sm"
-                  :icon="Trash2"
-                  :icon-size="12"
-                  @click="handleDeleteSlot(info.slot)"
-                >
-                  删除
-                </Button>
+        <section v-if="isDesktopMenu" class="game-panel main-menu-section main-menu-continue-section space-y-3">
+          <MainMenuContinueList
+            :existing-slots="existingSlots"
+            :slot-menu-open="slotMenuOpen"
+            :is-native-platform="isNativePlatform"
+            @load-slot="handleLoadGame"
+            @toggle-slot-menu="toggleSlotMenu"
+            @export-slot="handleExportSlot"
+            @delete-slot="handleDeleteSlot"
+            @import-slot="triggerImport"
+          >
+            <template #header="{ count }">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <div class="space-y-1">
+                  <p class="game-section-title">继续旅程</p>
+                  <p class="game-section-desc">如果你已经有存档，可以从这里继续，或导入以前的进度。</p>
+                </div>
+                <span class="game-chip">已有 {{ count }} 个存档</span>
               </div>
-            </div>
-          </div>
-        </div>
-
-        <template v-if="!Capacitor.isNativePlatform()">
-          <Button class="text-center justify-center" :icon="Upload" @click="triggerImport">导入存档</Button>
-          <input ref="fileInputRef" type="file" accept=".tyx" class="hidden" @change="handleImportFile" />
-        </template>
+            </template>
+          </MainMenuContinueList>
         </section>
       </div>
     </div>
+
+    <input v-if="!isNativePlatform" ref="fileInputRef" type="file" accept=".tyx" class="hidden" @change="handleImportFile" />
 
     <!-- 角色创建弹窗 -->
     <Transition name="panel-fade">
@@ -395,13 +396,14 @@
 </template>
 
 <script setup lang="ts">
-  import { Play, FolderOpen, ArrowLeft, Trash2, Download, Upload, Settings, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus, Bug } from 'lucide-vue-next'
+  import { Play, ArrowLeft, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus, Bug } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
+  import MainMenuContinueList from '@/components/game/MainMenuContinueList.vue'
   import { renderSafeMarkdown } from '@/utils/safeMarkdown'
-  import { ref, computed, onMounted, watch } from 'vue'
+  import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
   import { useRouter } from 'vue-router'
-  import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
+  import { useGameStore } from '@/stores/useGameStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useFarmStore } from '@/stores/useFarmStore'
   import { useAnimalStore } from '@/stores/useAnimalStore'
@@ -421,6 +423,7 @@
   const router = useRouter()
   const { startBgm } = useAudio()
   const pkg = _pkg as typeof _pkg & { title: string }
+  const isNativePlatform = Capacitor.isNativePlatform()
 
   const gameStore = useGameStore()
   const saveStore = useSaveStore()
@@ -441,6 +444,7 @@
   const showPrivacy = ref(false)
   const showFarmConfirm = ref(false)
   const showAbout = ref(false)
+  const isDesktopMenu = ref(typeof window === 'undefined' ? true : window.matchMedia('(min-width: 1280px)').matches)
   const menuConfig = ref({
     returnButtonEnabled: true,
     returnButtonText: '返回首页',
@@ -473,6 +477,7 @@
 
   const deleteTargetSlot = ref<number | null>(null)
   const currentUser = ref<null | { username: string; display_name?: string }>(null)
+  let desktopMenuMediaQuery: MediaQueryList | null = null
 
   const existingSlots = computed(() => slots.value.filter(slot => slot.exists))
   const storageModeText = computed(() => (saveStore.storageMode === 'local' ? '本地存储（当前设备）' : '服务端持久化（当前账号）'))
@@ -568,11 +573,11 @@
   }
 
   const handleOpenGuide = () => {
-    window.location.href = new URL('./guide.html', window.location.href).toString()
+    void router.push({ name: 'guide' })
   }
 
   const handleOpenGuideBook = () => {
-    window.location.href = new URL('./guide-book.html', window.location.href).toString()
+    void router.push({ name: 'guide-book' })
   }
 
   const handleOpenHall = () => {
@@ -594,6 +599,10 @@
   const switchMode = async (mode: 'local' | 'server') => {
     saveStore.setStorageMode(mode)
     await refreshSlots()
+  }
+
+  const toggleSlotMenu = (slot: number) => {
+    slotMenuOpen.value = slotMenuOpen.value === slot ? null : slot
   }
 
   const handleBackToMenu = () => {
@@ -733,6 +742,11 @@
 
   const fileInputRef = ref<HTMLInputElement | null>(null)
 
+  const handleDesktopMenuChange = (event: MediaQueryListEvent) => {
+    isDesktopMenu.value = event.matches
+    slotMenuOpen.value = null
+  }
+
   const triggerImport = () => {
     fileInputRef.value?.click()
   }
@@ -764,9 +778,27 @@
   }
 
   onMounted(() => {
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      desktopMenuMediaQuery = window.matchMedia('(min-width: 1280px)')
+      isDesktopMenu.value = desktopMenuMediaQuery.matches
+      if (typeof desktopMenuMediaQuery.addEventListener === 'function') {
+        desktopMenuMediaQuery.addEventListener('change', handleDesktopMenuChange)
+      } else {
+        desktopMenuMediaQuery.addListener(handleDesktopMenuChange)
+      }
+    }
     void refreshSlots()
     void loadMenuConfig()
     void loadCurrentUser()
+  })
+
+  onUnmounted(() => {
+    if (!desktopMenuMediaQuery) return
+    if (typeof desktopMenuMediaQuery.removeEventListener === 'function') {
+      desktopMenuMediaQuery.removeEventListener('change', handleDesktopMenuChange)
+    } else {
+      desktopMenuMediaQuery.removeListener(handleDesktopMenuChange)
+    }
   })
 
   watch(
@@ -794,11 +826,6 @@
     background: url(@/assets/logo.png) center / contain no-repeat;
     image-rendering: pixelated;
     flex-shrink: 0;
-  }
-
-  .main-menu-slot {
-    min-height: 48px;
-    gap: 10px;
   }
 
   .main-menu-about-markdown :deep(p),
@@ -879,16 +906,5 @@
       flex-direction: column;
     }
 
-    .main-menu-empty-state {
-      min-height: 112px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-
-    .main-menu-slot {
-      min-height: 54px;
-      padding-inline: 14px;
-    }
   }
 </style>

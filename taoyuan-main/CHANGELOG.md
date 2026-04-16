@@ -6,6 +6,16 @@
 
 ### 新增功能
 
+#### 0415 同性婚姻关系线收口
+- `src/stores/useNpcStore.ts` 已真正放开同性可婚 NPC 的赠帕约会与求婚主链，不再被旧的“只能向异性赠帕 / 求婚”判断拦截；同时补上了“知己与婚缘互斥”的 store 侧硬校验，旧档里的同性知己若想转婚缘，必须先断缘再发展。
+- `src/stores/useNpcStore.ts` 已把同性婚后的家庭扩展线从“表面文案分流”补成真实行为分流：`performPregnancyCare()` / `chooseMedicalPlan()` 现会按 `kind === 'adoption'` 切到 cloth / silk_cloth / felt 的安置用品消耗与“准备心意 / 一起走访 / 整理宅院 / 普通安置”等语义，不再继续复用孕期补品与接生文案。
+- `src/views/game/NpcView.vue` 已为同性知己旧档补出可发现的迁移提示：若当前是知己关系，会在婚缘面板里明确提示“先断缘再发展婚缘”，避免按钮灰掉但不给解释。
+- `src/views/game/CottageView.vue`、`src/composables/useEndDay.ts` 已补齐 adoption 视觉与日志语义：子女列表新增 `[领养]` 标签并移除 adoption 子女的 `[早产] / [健康]` 生育线标签；迎回孩子成功、阶段推进与失败日志也已走“迎一个孩子回家”的表述，不再混用孕期语义。
+- `src/stores/useNpcStore.ts` 已继续补齐同性婚姻边界与持久化：婚礼倒计时完成前会再次校验同性婚姻开关、家庭提议接受时会重验 pending / 进行中状态与 adoption 开关、领养子女读档时会保留 `origin='adoption'` 标记，不再在重载后退化成亲生子女。
+- `src/views/game/CottageView.vue` 已把家庭扩展按钮与可负担性提示做细：当天已完成一次家庭扩展动作后，其余操作会直接禁用；迎接方案在铜钱不足时也会提前置灰，不再让玩家点完才从日志里得知失败。
+- `src/components/game/GuideBookManual.vue`、`server/src/taoyuanAiAssistant.js` 已补齐游戏内百科和 AI 助手的同性婚姻 / adoption / 知己互斥说明与关键词，减少玩家在应用内查帮助时搜不到新规则的断层。
+- 本轮同性婚姻关系线收口已再次通过 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run type-check` 与 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run build` 验证。
+
 #### 0415 管理面板整合：首页「关于游戏」可编辑 + 长期日志中心
 - `src/views/TaoyuanAdminView.vue` 已从单一邮件页升级为统一桃源管理工作台，现整合 **邮件管理 / 首页关于 / 日志中心 / 用户管理** 入口；首页主菜单的“桃源管理”也已改为直达 `/admin`，不再默认跳到 `/admin/users`。
 - `src/components/game/AdminHomepageAboutPanel.vue`、`src/utils/adminContentApi.ts`、`server/src/routes/api.js`、`server/src/db.js` 已新增首页“关于游戏 / 关于桃源乡”内容管理链路：管理员可在后台编辑按钮文案、弹窗标题与正文，支持 Markdown 图文混排、图片上传插入、草稿保存、正式发布、版本记录与版本恢复；其中首页关于编辑器现已改成接近交流大厅发帖体验的“文字段 / 图片段”块编辑模式，而不是单一 Markdown 文本框。
@@ -36,6 +46,8 @@
 - `src/components/game/ItemCollectionTab.vue` 已把图鉴阶段里程碑里带 `panel` 的效果条目改成可点击入口，和未发现条目引导保持一致，不再只是静态标签。
 - `src/components/game/TopGoalsPanel.vue` 已把跨系统 weekly decision loop 收敛为玩家可见、可点击的常驻路线条，并为主题周、市场轮换和本周重点目标补上“去任务板 / 去商圈 / 去育种”等 CTA。
 - `src/components/game/TopGoalsPanel.vue` 已调整超宽屏布局为“内容自适应高度 + 非等高三列”，避免“本季目标”过长时把“今日目标 / 当前里程碑”一并撑成大块留白。
+- `src/views/GameLayout.vue` 已为 `game-layout-content` 增加统一滚动视口与场景内容锚点；任意场景切换成功后，内容区会平滑定位到目标规划下方的新场景开头，避免顶部大块目标规划保持不动时让玩家误以为场景没有切换。
+- `src/components/game/topGoals/TopGoalsGoalCard.vue` 与 `src/components/game/topGoals/TopGoalsDetailTabs.vue` 已继续收紧目标详情区的信息层级：长期目标 / 本季全部目标从“多层嵌套卡片”压平成更轻的列表式展开结构，顶部主卡片里的高亮 `action.label ->` 也已从描述文案下方压进同一行尾部，并去掉“点击可直达”辅助提示文案，进一步降低卡片高度与视觉噪音。
 - `src/views/game/MailView.vue` 已把移动端邮箱改成 master-detail 结构：手机上会先看邮件列表，进入详情后可直接“返回列表 / 上一封 / 下一封”，不再需要长距离回滚找下一封邮件。
 - `server/src/index.js`、`server/src/routes/api.js` 已为首页“关于游戏”内容图片补上旧路径兼容与公开访问别名，避免历史内容中的 `/taoyuan/hall/uploads/...` 图片在首页弹窗中继续显示为破图。
 
@@ -1623,3 +1635,18 @@
   - `npm run qa:late-game-samples`
   - `npm run type-check`
   - `npm run lint`
+
+#### 0416 审查整改进度补记
+- 已确认家庭心愿时长与完成态防线收口：
+  - `src/stores/useNpcStore.ts` 已用 `addDaysToRelationshipDayTag()` 按 `durationDays` 推导真实 `expiresDayTag`，周切换只在 `isRelationshipDayTagExpired()` 为真时过期；`completeFamilyWish()` 也会同时校验 `activeWishId`、`rewardClaimed`、`completedWishIds` 与完成进度，避免重复发奖 / 重复叠 streak。
+- 已确认鱼塘三条高频整改落地：
+  - `src/stores/useFishPondStore.ts` 已在 `pruneDisplayEntries()` 中让病鱼 / 未成熟 / 不达标样本自动退出展示槽；空塘日结也会衰减 `ornamentalFeedBuffDays` 与 `quarantineShieldDays`；鱼基因反序列化继续对 `mutationRate` 等字段做钳制，避免脏档把非法基因带回运行时。
+- 已确认公会周快照口径改为周增量：
+  - `src/stores/useGuildStore.ts` 现按 `lastSnapshot*` 基线写入 `contributionGained`、`goalClaims`、`bossClears`，并在跨周时冻结当周 `rankBand`，不再把累计值和新周档位写回上一周。
+- 已确认瀚海商路 / 遗迹闭环可跑通：
+  - `src/views/game/HanhaiView.vue` 已提供商路投资入口与遗迹提示；`src/stores/useHanhaiStore.ts` 已接入 `investInRoute()`、遗迹探索推进 `setCollections`，商路投资与套组收集不再停留在只读展示。
+- 已补本轮构建阻塞的日志类型与遗迹完成摘要：
+  - `src/types/log.ts` 已补 `hanhai_route_investment` 标签；`src/stores/useHanhaiStore.ts` 在遗迹探索完成套组时会把套组名写进日志摘要，避免本轮瀚海整改继续卡在 `npm run build`。
+- 当前复核状态：
+  - `npm run build` 已通过。
+  - 瀚海赌场“进行中赌局存档”问题仍未在本轮覆盖，后续需要单独继续收口。

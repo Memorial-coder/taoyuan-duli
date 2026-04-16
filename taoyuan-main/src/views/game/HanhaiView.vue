@@ -62,9 +62,21 @@
         <div class="grid grid-cols-1 gap-2">
           <div class="border border-accent/10 rounded-xs p-2">
             <p class="text-xs text-muted mb-1">商路投资</p>
-            <div v-for="route in visibleRouteInvestments" :key="route.id" class="flex items-center justify-between text-[10px] mt-0.5">
-              <span>{{ route.label }}</span>
-              <span class="text-accent">{{ getRouteStateText(route.id) }}</span>
+            <div v-for="route in visibleRouteInvestments" :key="route.id" class="flex items-center justify-between text-[10px] mt-0.5 gap-2">
+              <div class="min-w-0">
+                <p>{{ route.label }}</p>
+                <p class="text-muted">投入 {{ route.costMoney }} 文</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-accent whitespace-nowrap">{{ getRouteStateText(route.id) }}</span>
+                <Button
+                  v-if="!hanhaiStore.cycleState.routeInvestments[route.id]"
+                  class="!px-2 !py-1"
+                  @click="handleInvestRoute(route.id)"
+                >
+                  投资
+                </Button>
+              </div>
             </div>
           </div>
           <div class="border border-accent/10 rounded-xs p-2">
@@ -876,6 +888,11 @@
   const canUnlock = computed(() => bossDefeated.value && playerStore.money >= HANHAI_UNLOCK_COST)
   const handleUnlock = () => {
     const result = hanhaiStore.unlockHanhai()
+    if (!result.success) addLog(result.message)
+  }
+
+  const handleInvestRoute = (routeId: string) => {
+    const result = hanhaiStore.investInRoute(routeId)
     if (!result.success) addLog(result.message)
   }
 

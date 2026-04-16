@@ -473,6 +473,10 @@ export const useHanhaiStore = defineStore('hanhai', () => {
   })
   const activeTexasSession = ref<ActiveTexasSession | null>(null)
   const activeBuckshotSession = ref<ActiveBuckshotSession | null>(null)
+  const hasActiveCasinoSession = computed(() =>
+    !!(activeTexasSession.value && !activeTexasSession.value.settled)
+    || !!(activeBuckshotSession.value && !activeBuckshotSession.value.settled)
+  )
 
   const getItemName = (itemId: string): string => getItemById(itemId)?.name ?? itemId
   const getScaledShopWeeklyLimit = (weeklyLimit?: number) => {
@@ -487,6 +491,12 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       ...patch,
       routeInvestments: patch.routeInvestments ?? cycleState.value.routeInvestments,
       setCollections: patch.setCollections ?? cycleState.value.setCollections
+    }
+  }
+  const refreshProgressTier = () => {
+    cycleState.value = {
+      ...cycleState.value,
+      progressTier: mergeProgressTier(cycleState.value.progressTier, resolveProgressTier())
     }
   }
   const getDebugSnapshot = (): HanhaiDebugSnapshot => ({
@@ -1036,6 +1046,48 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     }
   }
 
+  const investInRoute = (routeId: string): { success: boolean; message: string } => {
+    const lockId = `invest_route:${routeId}`
+    if (!beginHanhaiAction(lockId)) return { success: false, message: '该商路投资正在处理中，请勿重复点击。' }
+
+    const snapshots = createHanhaiActionSnapshots()
+    try {
+      const route = HANHAI_ROUTE_INVESTMENTS.find(entry => entry.id === routeId)
+      if (!route) return { success: false, message: '商路不存在。' }
+      if (!unlocked.value) return { success: false, message: '瀚海尚未开通。' }
+      if (!isTierUnlocked(route.unlockTier)) return { success: false, message: `${route.label} 尚未解锁。` }
+      if (cycleState.value.routeInvestments[routeId]) return { success: false, message: `${route.label} 已在运转中。` }
+
+      const playerStore = usePlayerStore()
+      if (!playerStore.spendMoney(route.costMoney)) {
+        return { success: false, message: '金钱不足。' }
+      }
+
+      updateCycleState({
+        routeInvestments: {
+          ...cycleState.value.routeInvestments,
+          [routeId]: {
+            routeId,
+            totalInvested: route.costMoney,
+            tripsCompleted: 0
+          }
+        }
+      })
+      refreshProgressTier()
+      addLog(`【瀚海】已向「${route.label}」投入 ${route.costMoney} 文，商路开始运转。`, {
+        category: 'hanhai',
+        tags: ['hanhai_route_investment', 'late_game_cycle'],
+        meta: { routeId, costMoney: route.costMoney }
+      })
+      return { success: true, message: `已投入${route.costMoney}文，${route.label}开始运转。` }
+    } catch {
+      rollbackHanhaiAction(snapshots)
+      return { success: false, message: '商路投资失败，已回滚，请稍后再试。' }
+    } finally {
+      finishHanhaiAction(lockId)
+    }
+  }
+
   const getWeeklyRemaining = (itemId: string): number => {
     const item = HANHAI_SHOP_ITEMS.find(i => i.itemId === itemId)
     const weeklyLimit = getScaledShopWeeklyLimit(item?.weeklyLimit)
@@ -1150,10 +1202,39 @@ export const useHanhaiStore = defineStore('hanhai', () => {
         siteId,
         clears: getRelicRecord(siteId).clears + 1
       }
-      addLog(`你探索了${site.name}，带回了${site.relicTag}与一批异域收获。`, {
+      let completedSetLabel = ''
+      const nextSetCollections = { ...cycleState.value.setCollections }
+      for (const setDef of HANHAI_RELIC_SET_DEFS) {
+        if (!setDef.requiredRelicTags.includes(site.relicTag)) continue
+        const currentState = nextSetCollections[setDef.id] ?? {
+          setId: setDef.id,
+          collectedRelicTags: [],
+          completed: false
+        }
+        const collectedRelicTags = dedupeList([...currentState.collectedRelicTags, site.relicTag])
+        const completed = setDef.requiredRelicTags.every(tag => collectedRelicTags.includes(tag))
+        nextSetCollections[setDef.id] = {
+          setId: setDef.id,
+          collectedRelicTags,
+          completed
+        }
+        if (completed && !currentState.completed) {
+          completedSetLabel = setDef.label
+        }
+      }
+      updateCycleState({ setCollections: nextSetCollections })
+      refreshProgressTier()
+      const explorationSummary = completedSetLabel
+        ? `你探索了${site.name}，带回了${site.relicTag}与一批异域收获，并完成了套组「${completedSetLabel}」。`
+        : `你探索了${site.name}，带回了${site.relicTag}与一批异域收获。`
+      addLog(explorationSummary, {
         category: 'hanhai',
         tags: ['hanhai_relic_exploration'],
-        meta: { siteId, clears: relicRecords.value[siteId]?.clears ?? 0 }
+        meta: {
+          siteId,
+          clears: relicRecords.value[siteId]?.clears ?? 0,
+          completedSetLabel: completedSetLabel || undefined
+        }
       })
       return { success: true, message: `探索${site.name}成功。` }
     } catch {
@@ -1789,6 +1870,9 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     relicSiteSummaries,
     shopItemSummaries,
     relicSites,
+    activeTexasSession,
+    activeBuckshotSession,
+    hasActiveCasinoSession,
     totalRelicClears,
     currentThemeWeekHanhaiFocus,
     questBoardBiasProfile,
@@ -1800,6 +1884,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     updateCycleState,
     getDebugSnapshot,
     buyShopItem,
+    investInRoute,
     getRelicRecord,
     getRelicRemaining,
     exploreRelicSite,

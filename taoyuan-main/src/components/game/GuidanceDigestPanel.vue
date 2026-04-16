@@ -67,8 +67,7 @@
 
 <script setup lang="ts">
   import { computed, onMounted } from 'vue'
-  import { useRoute } from 'vue-router'
-  import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
+  import { resolveGuidancePromptTarget, runPromptAction } from '@/composables/usePromptNavigation'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import type { GuidanceSurfaceId } from '@/types'
 
@@ -78,24 +77,11 @@
   }>()
 
   const tutorialStore = useTutorialStore()
-  const route = useRoute()
   const GUIDANCE_TIER_LABELS = {
     P0: '初阶',
     P1: '进阶',
     P2: '高阶'
   } as const
-  const GUIDANCE_SURFACE_PANEL_MAP: Partial<Record<GuidanceSurfaceId, PanelKey>> = {
-    wallet: 'wallet',
-    quest: 'quest',
-    breeding: 'breeding',
-    fishpond: 'fishpond',
-    museum: 'museum',
-    guild: 'guild',
-    hanhai: 'hanhai',
-    npc: 'village',
-    shop: 'shop',
-    mail: 'mail'
-  }
 
   const snapshot = computed(() => tutorialStore.getGuidanceSurfaceSnapshot(props.surfaceId))
   const guidanceTierLabel = computed(() => GUIDANCE_TIER_LABELS[snapshot.value.unlockTier] ?? '初阶')
@@ -126,9 +112,16 @@
 
   const handleAdoptRoute = (routeId: string, targetSurfaceId: GuidanceSurfaceId) => {
     tutorialStore.markGuidanceRouteAdopted(routeId, props.surfaceId)
-    const targetPanel = GUIDANCE_SURFACE_PANEL_MAP[targetSurfaceId]
-    if (!targetPanel || route.name === targetPanel) return
-    navigateToPanel(targetPanel)
+    const target = resolveGuidancePromptTarget(targetSurfaceId, routeId)
+    if (!target) return
+    runPromptAction({
+      id: routeId,
+      label: '前往处理',
+      mode: 'cta',
+      panelKey: target.panelKey,
+      focusKey: target.focusKey,
+      disabledReason: target.disabledReason
+    })
   }
 
   onMounted(() => {

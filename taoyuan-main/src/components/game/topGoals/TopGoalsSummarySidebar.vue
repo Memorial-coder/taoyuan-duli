@@ -1,6 +1,9 @@
 <template>
   <aside class="min-w-0 space-y-3">
-    <section class="game-panel-muted min-w-0 px-3 py-3">
+    <section
+      class="game-panel-muted min-w-0 px-3 py-3"
+      :data-prompt-focus="buildPromptFocusAttr('current-main-quest')"
+    >
       <div v-if="currentEventCampaign" class="mb-2 rounded-xs border border-warning/20 bg-warning/5 px-2 py-2">
         <div class="flex items-center justify-between gap-2">
           <p class="text-[11px] text-warning">本周活动</p>
@@ -10,56 +13,26 @@
       </div>
 
       <div class="mb-2 flex items-center justify-between gap-3">
-        <div>
-          <p class="text-xs text-accent">本季概览</p>
-          <p class="mt-1 text-[10px] text-muted">{{ currentSeasonLabel }}</p>
-        </div>
-        <button
-          type="button"
-          class="rounded-xs border border-accent/20 px-2 py-1 text-[10px] text-accent transition-colors hover:bg-accent/5"
-          @click="emit('requestDetailTab', 'season')"
-        >
-          查看全部
-        </button>
+        <p class="text-xs text-accent">当前里程碑</p>
+        <span class="text-[11px] text-muted">{{ currentMainQuestProgress }}</span>
       </div>
 
-      <div class="space-y-2">
-        <div v-if="currentThemeWeek" class="rounded-xs border border-accent/10 bg-accent/5 px-2 py-2">
-          <p class="text-[11px] text-accent">{{ currentThemeWeek.name }}</p>
-          <p class="mt-1 text-[10px] text-muted leading-5">{{ currentThemeWeek.description }}</p>
-          <div v-if="themeWeekCtas.length > 0" class="mt-2 flex flex-wrap gap-1">
-            <button
-              v-for="cta in themeWeekCtas"
-              :key="cta.id"
-              type="button"
-              class="btn !px-2 !py-1 text-[10px]"
-              @click="emit('selectCta', cta)"
-            >
-              {{ cta.label }}
-            </button>
-          </div>
-        </div>
-
-        <div class="rounded-xs border border-accent/10 bg-bg/10 px-2 py-2">
-          <div class="flex items-center justify-between gap-2">
-            <p class="text-[11px] text-accent">优先季目标</p>
-            <span class="text-[10px] text-muted">{{ seasonCompletedCount }} / {{ seasonTotalCount }}</span>
-          </div>
-          <div v-if="seasonPreviewGoals.length > 0" class="mt-2 space-y-2">
-            <TopGoalsGoalCard
-              v-for="goal in seasonPreviewGoals"
-              :key="goal.id"
-              :goal="goal"
-              :get-goal-progress-text="getGoalProgressText"
-              :get-goal-source-text="getGoalSourceText"
-            />
-          </div>
-          <p v-else class="mt-2 text-xs text-muted leading-6">当前季节目标将在这里展示。</p>
-          <p v-if="seasonTotalCount > seasonPreviewGoals.length" class="mt-2 text-[10px] text-muted">
-            其余 {{ seasonTotalCount - seasonPreviewGoals.length }} 项季目标已移到下方详情区。
-          </p>
+      <div v-if="currentMainQuest" class="space-y-2">
+        <p class="text-sm text-text">{{ currentMainQuest.title }}</p>
+        <p class="text-[11px] text-muted leading-5">{{ currentMainQuest.description }}</p>
+        <div class="mt-2 space-y-2">
+          <TopGoalsGoalCard
+            v-for="condition in currentMainQuest.conditions"
+            :key="condition.id"
+            :goal="condition"
+            :action="getGoalAction(condition)"
+            :show-source="false"
+            :get-goal-progress-text="getGoalProgressText"
+            :get-goal-source-text="getGoalSourceText"
+          />
         </div>
       </div>
+      <div v-else class="text-xs text-muted leading-6">你已经完成全部主线阶段，可以自由经营你的桃源。</div>
     </section>
 
     <section class="game-panel-muted min-w-0 px-3 py-3">
@@ -94,7 +67,8 @@
         <span class="text-[10px] text-muted">{{ lastWeeklySettlementWeekLabel }}</span>
       </div>
       <p class="text-[10px] text-muted">
-        完成 {{ lastWeeklySettlement.completedGoalCount }}/{{ lastWeeklySettlement.totalGoalCount }} · 连周 {{ weeklyStreak.current }} · 最佳 {{ weeklyStreak.best }}
+        完成 {{ lastWeeklySettlement.completedGoalCount }}/{{ lastWeeklySettlement.totalGoalCount }} · 连周 {{ weeklyStreak.current }} · 最佳
+        {{ weeklyStreak.best }}
       </p>
       <p v-if="lastWeeklySettlement.rewardHighlights.length > 0" class="mt-1 text-[10px] text-success">
         奖励：{{ lastWeeklySettlement.rewardHighlights.slice(0, 2).join('；') }}
@@ -111,25 +85,21 @@
 
 <script setup lang="ts">
   import TopGoalsGoalCard from './TopGoalsGoalCard.vue'
-  import type { GoalState } from '@/stores/useGoalStore'
-  import type { WeeklyGoalSettlementSummary } from '@/types'
+  import type { GoalState, MainQuestStageState } from '@/stores/useGoalStore'
+  import type { PromptAction, WeeklyGoalSettlementSummary } from '@/types'
   import type {
     TopGoalsCta,
-    TopGoalsDetailTab,
     TopGoalsEventCampaignSummary,
     TopGoalsMarketOverview,
-    TopGoalsThemeWeekSummary,
     TopGoalsWeeklyStreakSummary
   } from './types'
 
   defineProps<{
+    buildPromptFocusAttr: (focusKey: string) => string
     currentEventCampaign: TopGoalsEventCampaignSummary | null
-    currentSeasonLabel: string
-    currentThemeWeek: TopGoalsThemeWeekSummary | null
-    themeWeekCtas: TopGoalsCta[]
-    seasonPreviewGoals: GoalState[]
-    seasonCompletedCount: number
-    seasonTotalCount: number
+    currentMainQuest: MainQuestStageState | null
+    currentMainQuestProgress: string
+    getGoalAction: (goal: GoalState) => PromptAction | null
     marketOverview: TopGoalsMarketOverview
     marketRouteHighlights: string
     marketCtas: TopGoalsCta[]
@@ -142,6 +112,5 @@
 
   const emit = defineEmits<{
     selectCta: [cta: TopGoalsCta]
-    requestDetailTab: [tab: TopGoalsDetailTab]
   }>()
 </script>

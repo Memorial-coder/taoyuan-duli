@@ -1,10 +1,11 @@
 import { computed } from 'vue'
 import { type PanelKey } from '@/composables/useNavigation'
+import { resolveGuidancePromptTarget } from '@/composables/usePromptNavigation'
 import { SEASON_NAMES, useGameStore } from '@/stores/useGameStore'
 import { useGoalStore } from '@/stores/useGoalStore'
 import { useShopStore } from '@/stores/useShopStore'
 import { useTutorialStore } from '@/stores/useTutorialStore'
-import type { GuidanceCrossSystemAction, GuidanceSurfaceId } from '@/types'
+import type { GoalState, GoalMetricKey, GuidanceCrossSystemAction, GuidanceSurfaceId, PromptAction, PromptJumpTarget } from '@/types'
 import type { TopGoalsCta, TopGoalsLongTermGroup } from './types'
 
 interface UseTopGoalsPanelModelOptions {
@@ -39,6 +40,23 @@ const GUIDANCE_SURFACE_PANEL_MAP: Partial<Record<GuidanceSurfaceId, PanelKey>> =
   npc: 'village',
   shop: 'shop',
   mail: 'mail'
+}
+
+const GOAL_METRIC_PROMPT_TARGETS: Partial<Record<GoalMetricKey, PromptJumpTarget & { label: string }>> = {
+  totalCropsHarvested: { panelKey: 'farm', label: '去农场' },
+  totalFishCaught: { panelKey: 'fishing', label: '去钓鱼' },
+  totalRecipesCooked: { panelKey: 'cooking', label: '去做饭' },
+  highestMineFloor: { panelKey: 'mining', label: '去矿洞' },
+  friendlyNpcCount: { panelKey: 'village', label: '去村庄' },
+  farmhouseLevel: { panelKey: 'cottage', label: '去小屋' },
+  completedBundles: { panelKey: 'achievement', label: '去图鉴' },
+  crabPotCount: { panelKey: 'fishing', label: '去钓鱼' },
+  childCount: { panelKey: 'cottage', label: '去小屋' },
+  caveUnlocked: { panelKey: 'home', label: '去设施' },
+  villageProjectLevel: { panelKey: 'village', label: '去村庄' },
+  hanhaiContractCompletions: { panelKey: 'hanhai', label: '去瀚海' },
+  museumExhibitLevel: { panelKey: 'museum', label: '去博物馆' },
+  familyWishCompletions: { panelKey: 'cottage', label: '去小屋' }
 }
 
 const LONG_TERM_GROUP_MAP: Record<string, string> = {
@@ -84,6 +102,20 @@ const dedupeCtas = (ctas: Array<TopGoalsCta | null>) => {
   return Array.from(unique.values())
 }
 
+const buildGoalAction = (goal: GoalState): PromptAction | null => {
+  const target = GOAL_METRIC_PROMPT_TARGETS[goal.metric]
+  if (!target) return null
+
+  return {
+    id: `goal-${goal.id}`,
+    label: target.label,
+    mode: 'card',
+    panelKey: target.panelKey,
+    focusKey: target.focusKey,
+    disabledReason: target.disabledReason
+  }
+}
+
 export const useTopGoalsPanelModel = ({ gameStore, goalStore, shopStore, tutorialStore }: UseTopGoalsPanelModelOptions) => {
   const marketOverview = computed(() => shopStore.marketDynamicsOverview)
   const marketRouteHighlights = computed(() => shopStore.recommendedMarketDynamicsRoutes.slice(0, 2).map(route => route.label).join('、'))
@@ -96,7 +128,6 @@ export const useTopGoalsPanelModel = ({ gameStore, goalStore, shopStore, tutoria
     const completed = goalStore.seasonGoals.filter(goal => goal.completed)
     return [...incomplete, ...completed]
   })
-  const seasonPreviewGoals = computed(() => seasonGoalsByPriority.value.slice(0, 3))
   const lastWeeklySettlementWeekLabel = computed(() => {
     const weekId = goalStore.lastWeeklyGoalSettlement?.weekId
     return weekId ? formatWeekId(weekId) : ''
@@ -139,13 +170,17 @@ export const useTopGoalsPanelModel = ({ gameStore, goalStore, shopStore, tutoria
     return sourceLabel === targetLabel ? targetLabel : `${sourceLabel} -> ${targetLabel}`
   }
   const buildNavigationCta = (action: GuidanceCrossSystemAction, label = getSurfaceCtaLabel(action.targetSurfaceId)): TopGoalsCta | null => {
-    const panelKey = GUIDANCE_SURFACE_PANEL_MAP[action.targetSurfaceId]
+    const promptTarget = resolveGuidancePromptTarget(action.targetSurfaceId, action.routeId)
+    const panelKey = promptTarget?.panelKey ?? GUIDANCE_SURFACE_PANEL_MAP[action.targetSurfaceId]
     if (!panelKey) return null
 
     return {
       id: action.id,
       label,
+      mode: 'cta',
       panelKey,
+      focusKey: promptTarget?.focusKey,
+      disabledReason: promptTarget?.disabledReason,
       routeId: action.routeId,
       sourceSurfaceId: action.sourceSurfaceId
     }
@@ -153,22 +188,19 @@ export const useTopGoalsPanelModel = ({ gameStore, goalStore, shopStore, tutoria
   const questDecisionAction = computed(() => decisionLoopActions.value.find(action => action.targetSurfaceId === 'quest') ?? null)
   const marketDecisionAction = computed(() => decisionLoopActions.value.find(action => action.targetSurfaceId === 'shop') ?? null)
   const breedingDecisionAction = computed(() => decisionLoopActions.value.find(action => action.targetSurfaceId === 'breeding') ?? null)
-  const themeWeekCtas = computed(() => {
-    if (!goalStore.currentThemeWeek) return [] as TopGoalsCta[]
-    return dedupeCtas([
-      questDecisionAction.value ? buildNavigationCta(questDecisionAction.value, '去任务板') : { id: 'theme-week-quest', label: '去任务板', panelKey: 'quest' },
-      breedingDecisionAction.value ? buildNavigationCta(breedingDecisionAction.value, '去育种') : null
-    ])
-  })
   const marketCtas = computed(() =>
     dedupeCtas([
-      marketDecisionAction.value ? buildNavigationCta(marketDecisionAction.value, '去商圈') : { id: 'market-shop', label: '去商圈', panelKey: 'shop' }
+      marketDecisionAction.value
+        ? buildNavigationCta(marketDecisionAction.value, '去商圈')
+        : { id: 'market-shop', label: '去商圈', mode: 'cta', panelKey: 'shop', focusKey: 'market-overview' }
     ])
   )
   const themeWeekGoalCtas = computed(() => {
     if (goalStore.currentThemeWeekGoals.length === 0) return [] as TopGoalsCta[]
     return dedupeCtas([
-      questDecisionAction.value ? buildNavigationCta(questDecisionAction.value, '去任务板') : { id: 'weekly-goals-quest', label: '去任务板', panelKey: 'quest' },
+      questDecisionAction.value
+        ? buildNavigationCta(questDecisionAction.value, '去任务板')
+        : { id: 'weekly-goals-quest', label: '去任务板', mode: 'cta', panelKey: 'quest', focusKey: 'prompt-hints' },
       breedingDecisionAction.value ? buildNavigationCta(breedingDecisionAction.value, '去育种') : null
     ])
   })
@@ -185,11 +217,10 @@ export const useTopGoalsPanelModel = ({ gameStore, goalStore, shopStore, tutoria
     marketRouteHighlights,
     seasonCompletedCount,
     seasonGoalsByPriority,
-    seasonPreviewGoals,
-    themeWeekCtas,
     themeWeekGoalCtas,
     lastWeeklySettlementWeekLabel,
     buildNavigationCta,
+    buildGoalAction,
     getDecisionActionPath,
     getSurfaceCtaLabel
   }

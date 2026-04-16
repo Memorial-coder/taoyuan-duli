@@ -632,6 +632,7 @@
   const posts = ref<HallPostSummary[]>([])
   const selectedPost = ref<HallPostDetail | null>(null)
   const selectedPostId = ref<string | null>(null)
+  const detailRequestId = ref(0)
 
   const loadingViewer = ref(false)
   const loadingPosts = ref(false)
@@ -806,15 +807,21 @@
   }
 
   const loadDetail = async (postId: string) => {
+    const activeRequestId = ++detailRequestId.value
     loadingDetail.value = true
     try {
-      selectedPost.value = await fetchHallPostDetail(postId)
+      const detail = await fetchHallPostDetail(postId)
+      if (activeRequestId !== detailRequestId.value || selectedPostId.value !== postId) return
+      selectedPost.value = detail
       selectedPostId.value = postId
     } catch (error) {
+      if (activeRequestId !== detailRequestId.value || selectedPostId.value !== postId) return
       selectedPost.value = null
       showFloat(error instanceof Error ? error.message : '获取帖子详情失败', 'danger')
     } finally {
-      loadingDetail.value = false
+      if (activeRequestId === detailRequestId.value) {
+        loadingDetail.value = false
+      }
     }
   }
 

@@ -108,6 +108,7 @@
   import { useAudio } from '@/composables/useAudio'
   import { showFloat } from '@/composables/useGameLog'
   import { initCurrentAccount } from '@/utils/accountStorage'
+  import { clearStoredAdminToken } from '@/utils/taoyuanMailboxAdminApi'
 
   const router = useRouter()
   const route = useRoute()
@@ -206,6 +207,7 @@
     } catch {
       // ignore
     }
+    clearStoredAdminToken()
     await initCurrentAccount()
     await loadCurrentUser()
     showFloat('已退出登录', 'success')

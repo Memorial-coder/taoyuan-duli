@@ -14,14 +14,16 @@
     </div>
 
     <!-- 内容 -->
-    <div class="game-panel game-layout-content flex-1 min-h-0 overflow-y-auto">
+    <div ref="contentViewport" class="game-panel game-layout-content flex-1 min-h-0 overflow-y-auto">
       <div class="game-layout-body">
         <TopGoalsPanel class="mb-2 md:mb-3 xl:mb-4" />
-        <router-view v-slot="{ Component }">
-          <Transition name="panel-fade" mode="out-in">
-            <component :is="Component" :key="$route.path" />
-          </Transition>
-        </router-view>
+        <div ref="sceneContentAnchor">
+          <router-view v-slot="{ Component }">
+            <Transition name="panel-fade" mode="out-in">
+              <component :is="Component" :key="$route.path" />
+            </Transition>
+          </router-view>
+        </div>
       </div>
     </div>
 
@@ -451,7 +453,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+  import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { useAnimalStore } from '@/stores/useAnimalStore'
   import { useGameStore, SEASON_NAMES } from '@/stores/useGameStore'
@@ -508,6 +510,8 @@
   const farmStore = useFarmStore()
   const mailboxStore = useMailboxStore()
   const { switchToSeasonalBgm } = useAudio()
+  const contentViewport = ref<HTMLDivElement | null>(null)
+  const sceneContentAnchor = ref<HTMLDivElement | null>(null)
 
   // 游戏未开始时重定向到主菜单
   if (!gameStore.isGameStarted) {
@@ -625,6 +629,32 @@
   const currentPanel = computed(() => {
     return (route.name as string) ?? 'farm'
   })
+
+  const getSceneAnchorScrollTop = () => {
+    const viewport = contentViewport.value
+    const anchor = sceneContentAnchor.value
+    if (!viewport || !anchor) return null
+
+    const viewportRect = viewport.getBoundingClientRect()
+    const anchorRect = anchor.getBoundingClientRect()
+    return Math.max(0, viewport.scrollTop + (anchorRect.top - viewportRect.top) - 6)
+  }
+
+  const scrollSceneIntoView = async () => {
+    const viewport = contentViewport.value
+    const nextTop = getSceneAnchorScrollTop()
+    if (!viewport || nextTop === null) return
+
+    const prefersReducedMotion =
+      typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        : false
+
+    viewport.scrollTo({
+      top: nextTop,
+      behavior: prefersReducedMotion ? 'auto' : 'smooth'
+    })
+  }
 
   const sleepLabel = computed(() => {
     if (gameStore.hour >= 24) return '倒头就睡'
@@ -867,6 +897,17 @@
       }
 
       resumeClock('modal')
+    }
+  )
+
+  watch(
+    () => route.name,
+    async (newRouteName, oldRouteName) => {
+      if (!newRouteName || !oldRouteName || newRouteName === oldRouteName) return
+      await nextTick()
+      requestAnimationFrame(() => {
+        void scrollSceneIntoView()
+      })
     }
   )
 

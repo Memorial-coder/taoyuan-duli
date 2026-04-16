@@ -30,6 +30,7 @@ export type GameLogTag =
   | 'breeding_completed'
   | 'breeding_discovery'
   | 'breeding_mutation'
+  | 'hanhai_route_investment'
   | 'hanhai_relic_exploration'
   | 'hanhai_relic_milestone'
   | 'hanhai_treasure_map'

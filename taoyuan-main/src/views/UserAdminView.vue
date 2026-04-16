@@ -455,6 +455,8 @@
   const selectedUsername = ref('')
   const selectedUser = ref<UserAdminDetail | null>(null)
   const loadingDetail = ref(false)
+  const detailRequestId = ref(0)
+  const gameplayLogRequestId = ref(0)
 
   const submittingQuota = ref(false)
   const submittingPassword = ref(false)
@@ -611,8 +613,10 @@
     }
   }
 
-  const loadGameplayLogsForUser = async (username?: string) => {
+  const loadGameplayLogsForUser = async (username?: string, requestId?: number) => {
+    const activeRequestId = requestId ?? ++gameplayLogRequestId.value
     if (!username || !adminSession.value?.permissions.view_gameplay_logs) {
+      if (activeRequestId !== gameplayLogRequestId.value || username !== selectedUsername.value) return
       gameplayLogs.value = []
       return
     }
@@ -624,12 +628,15 @@
         page: 1,
         pageSize: 18,
       })
+      if (activeRequestId !== gameplayLogRequestId.value || username !== selectedUsername.value) return
       gameplayLogs.value = result.logs
     } catch (error) {
       gameplayLogs.value = []
       showFloat(handleAdminRequestError(error, '读取用户游戏日志失败'), 'danger')
     } finally {
-      loadingGameplayLogs.value = false
+      if (activeRequestId === gameplayLogRequestId.value) {
+        loadingGameplayLogs.value = false
+      }
     }
   }
 
@@ -640,20 +647,26 @@
       resetDetailForms(null)
       return
     }
+    const activeRequestId = ++detailRequestId.value
+    gameplayLogRequestId.value = activeRequestId
     loadingDetail.value = true
     try {
       const detail = await fetchAdminUserDetail(username)
+      if (activeRequestId !== detailRequestId.value) return
       selectedUser.value = detail
       selectedUsername.value = detail.username
       resetDetailForms(detail)
-      await loadGameplayLogsForUser(detail.username)
+      await loadGameplayLogsForUser(detail.username, activeRequestId)
     } catch (error) {
+      if (activeRequestId !== detailRequestId.value) return
       selectedUser.value = null
       gameplayLogs.value = []
       resetDetailForms(null)
       showFloat(handleAdminRequestError(error, '读取用户详情失败'), 'danger')
     } finally {
-      loadingDetail.value = false
+      if (activeRequestId === detailRequestId.value) {
+        loadingDetail.value = false
+      }
     }
   }
 

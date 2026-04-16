@@ -55,25 +55,29 @@
     <div v-if="!collapsed" class="mt-3 space-y-3">
       <div class="grid grid-cols-1 items-start gap-3 xl:grid-cols-[minmax(0,1.55fr)_minmax(300px,0.95fr)] xl:gap-4">
         <TopGoalsExecutionDeck
+          :active-tab="activePlanTab"
+          :build-prompt-focus-attr="buildPromptFocusAttr"
           :current-day-label="currentDayLabel"
+          :current-season-label="currentSeasonLabel"
           :daily-goals="goalStore.dailyGoals"
-          :current-main-quest="goalStore.currentMainQuest"
-          :current-main-quest-progress="currentMainQuestProgress"
           :theme-week-goals="goalStore.currentThemeWeekGoals"
+          :season-goals="seasonGoalsByPriority"
+          :season-completed-count="seasonCompletedCount"
+          :season-total-count="goalStore.seasonGoals.length"
           :theme-week-goal-ctas="themeWeekGoalCtas"
+          :get-goal-action="buildGoalAction"
           :get-goal-progress-text="goalStore.getGoalProgressText"
           :get-goal-source-text="goalStore.getGoalSourceText"
           @select-cta="handleTopGoalsCta"
+          @select-tab="selectPlanTab"
         />
 
         <TopGoalsSummarySidebar
+          :build-prompt-focus-attr="buildPromptFocusAttr"
           :current-event-campaign="goalStore.currentEventCampaign"
-          :current-season-label="currentSeasonLabel"
-          :current-theme-week="goalStore.currentThemeWeek"
-          :theme-week-ctas="themeWeekCtas"
-          :season-preview-goals="seasonPreviewGoals"
-          :season-completed-count="seasonCompletedCount"
-          :season-total-count="goalStore.seasonGoals.length"
+          :current-main-quest="goalStore.currentMainQuest"
+          :current-main-quest-progress="currentMainQuestProgress"
+          :get-goal-action="buildGoalAction"
           :market-overview="marketOverview"
           :market-route-highlights="marketRouteHighlights"
           :market-ctas="marketCtas"
@@ -83,22 +87,20 @@
           :get-goal-progress-text="goalStore.getGoalProgressText"
           :get-goal-source-text="goalStore.getGoalSourceText"
           @select-cta="handleTopGoalsCta"
-          @request-detail-tab="selectDetailTab"
         />
       </div>
 
       <TopGoalsDetailTabs
-        :active-tab="detailTab"
-        :current-season-label="currentSeasonLabel"
+        :build-prompt-focus-attr="buildPromptFocusAttr"
+        :collapsed="detailsCollapsed"
         :expanded-long-term-groups="expandedLongTermGroups"
+        :get-goal-action="buildGoalAction"
         :long-term-completed-count="longTermCompletedCount"
         :long-term-goal-count="goalStore.longTermGoals.length"
         :long-term-goal-groups="longTermGoalGroups"
-        :season-completed-count="seasonCompletedCount"
-        :season-goals="seasonGoalsByPriority"
         :get-goal-progress-text="goalStore.getGoalProgressText"
         :get-goal-source-text="goalStore.getGoalSourceText"
-        @select-tab="selectDetailTab"
+        @toggle-collapsed="detailsCollapsed = !detailsCollapsed"
         @toggle-long-term-group="toggleLongTermGroup"
       />
     </div>
@@ -108,7 +110,7 @@
 <script setup lang="ts">
   import { onMounted, ref } from 'vue'
   import { useRoute } from 'vue-router'
-  import { navigateToPanel } from '@/composables/useNavigation'
+  import { navigateToPromptTarget, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import TopGoalsDetailTabs from '@/components/game/topGoals/TopGoalsDetailTabs.vue'
   import TopGoalsExecutionDeck from '@/components/game/topGoals/TopGoalsExecutionDeck.vue'
@@ -119,7 +121,7 @@
   import { useShopStore } from '@/stores/useShopStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import type { GuidanceCrossSystemAction } from '@/types'
-  import type { TopGoalsCta, TopGoalsDetailTab } from '@/components/game/topGoals/types'
+  import type { TopGoalsCta, TopGoalsPlanTab } from '@/components/game/topGoals/types'
 
   const gameStore = useGameStore()
   const goalStore = useGoalStore()
@@ -127,7 +129,8 @@
   const tutorialStore = useTutorialStore()
   const route = useRoute()
   const collapsed = ref(typeof window !== 'undefined' ? window.innerWidth < 768 : false)
-  const detailTab = ref<TopGoalsDetailTab>('longTerm')
+  const activePlanTab = ref<TopGoalsPlanTab>('daily')
+  const detailsCollapsed = ref(false)
   const expandedLongTermGroups = ref<string[]>([])
 
   const {
@@ -142,11 +145,10 @@
     marketRouteHighlights,
     seasonCompletedCount,
     seasonGoalsByPriority,
-    seasonPreviewGoals,
-    themeWeekCtas,
     themeWeekGoalCtas,
     lastWeeklySettlementWeekLabel,
     buildNavigationCta,
+    buildGoalAction,
     getDecisionActionPath,
     getSurfaceCtaLabel
   } = useTopGoalsPanelModel({ gameStore, goalStore, shopStore, tutorialStore })
@@ -160,8 +162,8 @@
     }
   }
 
-  const selectDetailTab = (tab: TopGoalsDetailTab) => {
-    detailTab.value = tab
+  const selectPlanTab = (tab: TopGoalsPlanTab) => {
+    activePlanTab.value = tab
   }
 
   const ensureInitialLongTermGroupExpanded = () => {
@@ -170,12 +172,42 @@
     if (nextGroup) expandedLongTermGroups.value = [nextGroup.label]
   }
 
+  const revealTopGoalsSection = async (sectionId: string) => {
+    collapsed.value = false
+    if (sectionId === 'daily-goals') {
+      activePlanTab.value = 'daily'
+      return
+    }
+    if (sectionId === 'theme-week-goals') {
+      activePlanTab.value = 'weekly'
+      return
+    }
+    if (sectionId === 'season-goals') {
+      activePlanTab.value = 'season'
+      return
+    }
+    if (sectionId === 'long-term-goals') {
+      detailsCollapsed.value = false
+      ensureInitialLongTermGroupExpanded()
+    }
+  }
+
+  const { buildPromptFocusAttr } = usePromptFocusPanel('top_goals', {
+    routeMatcher: () => route.path.startsWith('/game/'),
+    handlers: {
+      'daily-goals': async () => revealTopGoalsSection('daily-goals'),
+      'current-main-quest': async () => revealTopGoalsSection('current-main-quest'),
+      'theme-week-goals': async () => revealTopGoalsSection('theme-week-goals'),
+      'long-term-goals': async () => revealTopGoalsSection('long-term-goals'),
+      'season-goals': async () => revealTopGoalsSection('season-goals')
+    }
+  })
+
   const handleTopGoalsCta = (cta: TopGoalsCta) => {
     if (cta.routeId && cta.sourceSurfaceId) {
       tutorialStore.markGuidanceRouteAdopted(cta.routeId, cta.sourceSurfaceId)
     }
-    if (route.name === cta.panelKey) return
-    navigateToPanel(cta.panelKey)
+    navigateToPromptTarget(cta)
   }
 
   const handleOpenDecisionAction = (action: GuidanceCrossSystemAction) => {

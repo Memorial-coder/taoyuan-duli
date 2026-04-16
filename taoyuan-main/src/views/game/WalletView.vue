@@ -10,7 +10,11 @@
     </div>
     <p class="text-xs text-muted mb-3">永久被动加成，满足条件后自动解锁。</p>
 
-    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+    <div
+      class="border border-accent/20 rounded-xs p-3 mb-3"
+      :class="promptSectionClass('economy-overview')"
+      :data-prompt-focus="buildPromptFocusAttr('economy-overview')"
+    >
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-1.5 text-sm text-accent">
           <TrendingUp :size="14" />
@@ -52,12 +56,22 @@
           </div>
         </div>
       </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusWalletSection('weekly-budget', '看周预算')">看周预算</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="openShopPromptTarget('recommended-consumption', '去商圈推荐区')">
+          去商圈推荐区
+        </button>
+      </div>
     </div>
 
     <GuidanceDigestPanel surface-id="wallet" title="资金去向引导" />
     <QaGovernancePanel page-id="wallet" title="QA 治理总览" />
 
-    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+    <div
+      class="border border-accent/20 rounded-xs p-3 mb-3"
+      :class="promptSectionClass('recommended-consumption')"
+      :data-prompt-focus="buildPromptFocusAttr('recommended-consumption')"
+    >
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-1.5 text-sm text-accent">
           <Store :size="14" />
@@ -101,9 +115,19 @@
           <p v-if="walletCatalogRecommendedOffers.length === 0" class="text-[10px] text-muted">当前暂无额外推荐，先完成图鉴、主题周或流派节点解锁可获得更明确的商店路线提示。</p>
         </div>
       </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="openShopPromptTarget('recommended-consumption', '去万物铺推荐区')">
+          去万物铺推荐区
+        </button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusWalletSection('weekly-budget', '回看周预算')">回看周预算</button>
+      </div>
     </div>
 
-    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+    <div
+      class="border border-accent/20 rounded-xs p-3 mb-3"
+      :class="promptSectionClass('weekly-budget')"
+      :data-prompt-focus="buildPromptFocusAttr('weekly-budget')"
+    >
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm text-accent">周预算系统</span>
         <span class="text-xs text-muted">{{ weeklyBudgetActiveCount }}/{{ weeklyBudgetChannels.length }} 槽</span>
@@ -213,7 +237,11 @@
       </div>
     </div>
 
-    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+    <div
+      class="border border-accent/20 rounded-xs p-3 mb-3"
+      :class="promptSectionClass('quota-exchange')"
+      :data-prompt-focus="buildPromptFocusAttr('quota-exchange')"
+    >
       <div class="flex items-center justify-between mb-2">
         <span class="text-sm text-accent">额度兑换</span>
         <span class="text-xs text-muted">{{ playerStore.money }}文</span>
@@ -473,6 +501,7 @@
 <script setup lang="ts">
   import { ref, computed, onMounted } from 'vue'
   import { Wallet, CircleCheck, Lock, X, TrendingUp, AlertTriangle, Store } from 'lucide-vue-next'
+  import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useGoalStore } from '@/stores/useGoalStore'
@@ -490,6 +519,7 @@
   const walletStore = useWalletStore()
   const playerStore = usePlayerStore()
   const saveStore = useSaveStore()
+  const { buildPromptFocusAttr, isPromptFocusActive } = usePromptFocusPanel('wallet')
 
   const selectedItem = ref<WalletItemDef | null>(null)
   const showResetArchetypeConfirm = ref(false)
@@ -515,6 +545,28 @@
     aboutDialogTitle: '关于桃源乡',
     aboutDialogContent: '',
   })
+
+  const focusWalletSection = (focusKey: string, label: string) => {
+    runPromptAction({
+      id: `wallet-${focusKey}`,
+      label,
+      mode: 'cta',
+      panelKey: 'wallet',
+      focusKey
+    })
+  }
+
+  const openShopPromptTarget = (focusKey: string, label: string) => {
+    runPromptAction({
+      id: `shop-${focusKey}`,
+      label,
+      mode: 'cta',
+      panelKey: 'shop',
+      focusKey
+    })
+  }
+
+  const promptSectionClass = (focusKey: string) => (isPromptFocusActive(focusKey) ? 'prompt-focus-target--active' : '')
 
   const unlockedCount = computed(() => WALLET_ITEMS.filter(i => walletStore.has(i.id)).length)
   const economyOverview = computed(() => playerStore.getEconomyOverview())

@@ -103,6 +103,15 @@ export interface GuildSeasonState {
   asyncRankScore: number
   rankBand: GuildRankBand
   lastSnapshotWeekId: string
+  seasonBaselineContributionPoints: number
+  seasonBaselineGuildExp: number
+  seasonBaselineGoalClaims: number
+  seasonBaselineBossClears: number
+  seasonBaselineGuildLevel: number
+  lastSnapshotContributionPoints: number
+  lastSnapshotGuildExp: number
+  lastSnapshotGoalClaims: number
+  lastSnapshotBossClears: number
   snapshots: GuildSeasonSnapshot[]
 }
 

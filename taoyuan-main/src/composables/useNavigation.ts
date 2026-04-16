@@ -109,27 +109,27 @@ export const navigateToPanel = (panelKey: PanelKey) => {
     } finally {
       resumeAfterEnd('endday')
     }
-    return
+    return false
   }
 
   const arrivalHour = gameStore.hour + gameStore.getTravelCost(panelKey)
   const shopCheck = isShopOpen(panelKey, gameStore.day, arrivalHour)
   if (!shopCheck.open) {
     showFloat(shopCheck.reason!, 'danger')
-    return
+    return false
   }
 
   const travelResult = gameStore.travelTo(panelKey)
   if (!travelResult.ok) {
     if (travelResult.message) showFloat(travelResult.message, 'danger')
-    return
+    return false
   }
   if (travelResult.timeCost > 0) {
     addLog(travelResult.message)
   }
   if (travelResult.passedOut) {
     handleEndDay()
-    return
+    return false
   }
 
   sfxClick()
@@ -146,6 +146,8 @@ export const navigateToPanel = (panelKey: PanelKey) => {
   } else {
     resumeClock('navigation')
   }
+
+  return true
 }
 
 export const useNavigation = () => {

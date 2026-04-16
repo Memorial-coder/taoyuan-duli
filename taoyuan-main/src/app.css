@@ -190,6 +190,42 @@ button {
   line-height: 1.6;
 }
 
+.prompt-focus-target--active {
+  border-color: rgba(200, 164, 92, 0.62) !important;
+  box-shadow:
+    0 0 0 1px rgba(200, 164, 92, 0.45),
+    0 0 0 4px rgba(200, 164, 92, 0.08);
+}
+
+.prompt-action-card {
+  position: relative;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.prompt-action-card:hover,
+.prompt-action-card:active {
+  border-color: rgba(200, 164, 92, 0.45);
+  background: rgba(200, 164, 92, 0.08);
+}
+
+.prompt-action-card--clickable {
+  cursor: pointer;
+}
+
+.prompt-action-card--clickable:hover,
+.prompt-action-card--clickable:active {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+
+.prompt-action-cta {
+  min-height: 28px;
+}
+
 @media (min-width: 768px) {
   .game-panel {
     padding: var(--spacing-4);

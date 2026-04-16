@@ -91,6 +91,15 @@ export const useGuildStore = defineStore('guild', () => {
     asyncRankScore: 0,
     rankBand: 'novice',
     lastSnapshotWeekId: '',
+    seasonBaselineContributionPoints: 0,
+    seasonBaselineGuildExp: 0,
+    seasonBaselineGoalClaims: 0,
+    seasonBaselineBossClears: 0,
+    seasonBaselineGuildLevel: 0,
+    lastSnapshotContributionPoints: 0,
+    lastSnapshotGuildExp: 0,
+    lastSnapshotGoalClaims: 0,
+    lastSnapshotBossClears: 0,
     snapshots: []
   })
 
@@ -345,14 +354,26 @@ export const useGuildStore = defineStore('guild', () => {
     return 'novice'
   }
 
-  const buildAsyncRankScore = () => {
-    const bossClears = goalSummaries.value.filter(goal => goal.zone === 'boss' && goal.claimed).length
+  const getCompetitionTotals = () => ({
+    contributionPoints: contributionPoints.value,
+    guildExp: guildExp.value,
+    goalClaims: claimedGoals.value.length,
+    bossClears: goalSummaries.value.filter(goal => goal.zone === 'boss' && goal.claimed).length,
+    guildLevel: guildLevel.value
+  })
+
+  const buildAsyncRankScore = (totals = getCompetitionTotals()) => {
+    const seasonContributionPoints = Math.max(0, totals.contributionPoints - seasonState.value.seasonBaselineContributionPoints)
+    const seasonGuildExp = Math.max(0, totals.guildExp - seasonState.value.seasonBaselineGuildExp)
+    const seasonGoalClaims = Math.max(0, totals.goalClaims - seasonState.value.seasonBaselineGoalClaims)
+    const seasonBossClears = Math.max(0, totals.bossClears - seasonState.value.seasonBaselineBossClears)
+    const seasonGuildLevel = Math.max(0, totals.guildLevel - seasonState.value.seasonBaselineGuildLevel)
     return Math.round(
-      contributionPoints.value * guildProgressionConfig.asyncScoreContributionWeight +
-        guildExp.value * guildProgressionConfig.asyncScoreGuildExpWeight +
-        claimedGoals.value.length * guildProgressionConfig.asyncScoreClaimedGoalWeight +
-        bossClears * guildProgressionConfig.asyncScoreBossClearWeight +
-        guildLevel.value * guildProgressionConfig.asyncScoreGuildLevelWeight
+      seasonContributionPoints * guildProgressionConfig.asyncScoreContributionWeight +
+        seasonGuildExp * guildProgressionConfig.asyncScoreGuildExpWeight +
+        seasonGoalClaims * guildProgressionConfig.asyncScoreClaimedGoalWeight +
+        seasonBossClears * guildProgressionConfig.asyncScoreBossClearWeight +
+        seasonGuildLevel * guildProgressionConfig.asyncScoreGuildLevelWeight
     )
   }
 
@@ -644,27 +665,22 @@ export const useGuildStore = defineStore('guild', () => {
   }) => {
     const logs: string[] = []
     const nextPhase = resolveSeasonPhase(payload.weekOfSeason)
-    const nextAsyncRankScore = buildAsyncRankScore()
-    const nextRankBand = resolveRankBand(nextAsyncRankScore)
     const seasonChanged = seasonState.value.currentSeasonId !== payload.currentSeasonId
-
-    updateSeasonState({
-      currentSeasonId: payload.currentSeasonId,
-      currentPhase: nextPhase,
-      asyncRankScore: nextAsyncRankScore,
-      rankBand: nextRankBand
-    })
+    const currentTotals = getCompetitionTotals()
+    const currentSeasonRankScore = buildAsyncRankScore(currentTotals)
+    const currentSeasonRankBand = resolveRankBand(currentSeasonRankScore)
+    const nextAsyncRankScore = seasonChanged ? 0 : currentSeasonRankScore
+    const nextRankBand = seasonChanged ? 'novice' : currentSeasonRankBand
 
     if (payload.startedNewWeek) {
       if (seasonState.value.lastSnapshotWeekId !== payload.previousWeekId) {
-        const bossClears = goalSummaries.value.filter(goal => goal.zone === 'boss' && goal.claimed).length
         addSeasonSnapshot({
           seasonId: payload.previousSeasonId || payload.currentSeasonId,
           weekId: payload.previousWeekId,
-          contributionGained: Math.max(0, guildExp.value),
-          goalClaims: claimedGoals.value.length,
-          bossClears,
-          rankBand: nextRankBand
+          contributionGained: Math.max(0, currentTotals.contributionPoints - seasonState.value.lastSnapshotContributionPoints),
+          goalClaims: Math.max(0, currentTotals.goalClaims - seasonState.value.lastSnapshotGoalClaims),
+          bossClears: Math.max(0, currentTotals.bossClears - seasonState.value.lastSnapshotBossClears),
+          rankBand: currentSeasonRankBand
         })
       }
       weeklyPurchases.value = {}
@@ -675,6 +691,34 @@ export const useGuildStore = defineStore('guild', () => {
     if (seasonChanged) {
       logs.push(`【公会赛季】新的公会赛季 ${payload.currentSeasonId} 已开启。`)
     }
+
+    const nextSeasonStatePatch: Partial<GuildSeasonState> = {
+      currentSeasonId: payload.currentSeasonId,
+      currentPhase: nextPhase,
+      asyncRankScore: nextAsyncRankScore,
+      rankBand: nextRankBand
+    }
+
+    if (payload.startedNewWeek) {
+      nextSeasonStatePatch.lastSnapshotContributionPoints = currentTotals.contributionPoints
+      nextSeasonStatePatch.lastSnapshotGuildExp = currentTotals.guildExp
+      nextSeasonStatePatch.lastSnapshotGoalClaims = currentTotals.goalClaims
+      nextSeasonStatePatch.lastSnapshotBossClears = currentTotals.bossClears
+    }
+
+    if (seasonChanged) {
+      nextSeasonStatePatch.seasonBaselineContributionPoints = currentTotals.contributionPoints
+      nextSeasonStatePatch.seasonBaselineGuildExp = currentTotals.guildExp
+      nextSeasonStatePatch.seasonBaselineGoalClaims = currentTotals.goalClaims
+      nextSeasonStatePatch.seasonBaselineBossClears = currentTotals.bossClears
+      nextSeasonStatePatch.seasonBaselineGuildLevel = currentTotals.guildLevel
+      nextSeasonStatePatch.lastSnapshotContributionPoints = currentTotals.contributionPoints
+      nextSeasonStatePatch.lastSnapshotGuildExp = currentTotals.guildExp
+      nextSeasonStatePatch.lastSnapshotGoalClaims = currentTotals.goalClaims
+      nextSeasonStatePatch.lastSnapshotBossClears = currentTotals.bossClears
+    }
+
+    updateSeasonState(nextSeasonStatePatch)
 
     for (const message of logs) {
       addLog(message, {
@@ -747,6 +791,7 @@ export const useGuildStore = defineStore('guild', () => {
     }
 
     const rawSeasonState = (data as Record<string, unknown>).seasonState as Partial<GuildSeasonState> | undefined
+    const currentBossClears = goalSummaries.value.filter(goal => goal.zone === 'boss' && goal.claimed).length
     seasonState.value = {
       saveVersion: rawSeasonState?.saveVersion ?? 1,
       currentSeasonId: rawSeasonState?.currentSeasonId ?? '',
@@ -754,6 +799,15 @@ export const useGuildStore = defineStore('guild', () => {
       asyncRankScore: rawSeasonState?.asyncRankScore ?? 0,
       rankBand: rawSeasonState?.rankBand ?? 'novice',
       lastSnapshotWeekId: rawSeasonState?.lastSnapshotWeekId ?? '',
+      seasonBaselineContributionPoints: rawSeasonState?.seasonBaselineContributionPoints ?? 0,
+      seasonBaselineGuildExp: rawSeasonState?.seasonBaselineGuildExp ?? 0,
+      seasonBaselineGoalClaims: rawSeasonState?.seasonBaselineGoalClaims ?? 0,
+      seasonBaselineBossClears: rawSeasonState?.seasonBaselineBossClears ?? 0,
+      seasonBaselineGuildLevel: rawSeasonState?.seasonBaselineGuildLevel ?? 0,
+      lastSnapshotContributionPoints: rawSeasonState?.lastSnapshotContributionPoints ?? contributionPoints.value,
+      lastSnapshotGuildExp: rawSeasonState?.lastSnapshotGuildExp ?? guildExp.value,
+      lastSnapshotGoalClaims: rawSeasonState?.lastSnapshotGoalClaims ?? claimedGoals.value.length,
+      lastSnapshotBossClears: rawSeasonState?.lastSnapshotBossClears ?? currentBossClears,
       snapshots: rawSeasonState?.snapshots ?? []
     }
     guildActionLocks.value = []

@@ -630,7 +630,10 @@
               <Heart :size="12" />
               <span>姻缘</span>
             </p>
-            <template v-if="!selectedNpcState?.dating && !(npcStore.weddingCountdown > 0 && npcStore.weddingNpcId === selectedNpc)">
+            <template v-if="selectedNpcState?.zhiji">
+              <p class="text-[10px] text-muted/70 mb-1.5">你们当前是知己关系。若想发展婚缘，请先在下方知己面板中断缘，再回来赠帕开始约会。</p>
+            </template>
+            <template v-else-if="!selectedNpcState?.dating && !(npcStore.weddingCountdown > 0 && npcStore.weddingNpcId === selectedNpc)">
               <p v-if="npcStore.npcStates.some(s => s.married)" class="text-[10px] text-muted/50 mb-1">你已有伴侣，无法再赠帕。</p>
               <template v-else>
                 <div class="flex flex-col space-y-0.5 mb-1.5">

@@ -216,7 +216,7 @@
         emit('close')
       }
     } else {
-      showFloat('保存失败。', 'danger')
+      showFloat(saveStore.lastSaveErrorMessage || '保存失败。', 'danger')
     }
   }
 

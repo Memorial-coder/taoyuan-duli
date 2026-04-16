@@ -58,7 +58,7 @@ import { useFishPondStore } from './useFishPondStore'
 import { useDecorationStore } from './useDecorationStore'
 import { harvestFarmPlotWithRewards } from '@/composables/useFarmHarvest'
 import { addLog } from '@/composables/useGameLog'
-import { getWeekCycleInfo } from '@/utils/weekCycle'
+import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from '@/utils/weekCycle'
 
 /** 好感度上限：未婚 2500（10心），已婚 4000；美观度≥100额外+250 */
 const getFriendshipCap = (state: { married: boolean }, beautyCapBonus = 0): number =>
@@ -71,6 +71,45 @@ const FRIENDSHIP_THRESHOLDS: { level: FriendshipLevel; min: number }[] = [
   { level: 'acquaintance', min: 500 },
   { level: 'stranger', min: 0 }
 ]
+
+const SEASON_ORDER = ['spring', 'summer', 'autumn', 'winter'] as const
+
+const parseRelationshipDayTag = (dayTag?: string) => {
+  if (!dayTag) return null
+  const [yearText, seasonText, dayText] = dayTag.split('-')
+  if (!yearText || !seasonText || !dayText || !SEASON_ORDER.includes(seasonText as typeof SEASON_ORDER[number])) return null
+  const year = Number(yearText)
+  const day = Number(dayText)
+  if (!Number.isFinite(year) || !Number.isFinite(day)) return null
+  return {
+    year,
+    season: seasonText as typeof SEASON_ORDER[number],
+    day
+  }
+}
+
+const formatRelationshipDayTag = (absoluteDay: number) => {
+  const safeAbsoluteDay = Math.max(1, Math.floor(absoluteDay))
+  const year = Math.floor((safeAbsoluteDay - 1) / DAYS_PER_YEAR) + 1
+  const dayOfYear = ((safeAbsoluteDay - 1) % DAYS_PER_YEAR) + 1
+  const seasonIndex = Math.floor((dayOfYear - 1) / DAYS_PER_SEASON)
+  const day = ((dayOfYear - 1) % DAYS_PER_SEASON) + 1
+  return `${year}-${SEASON_ORDER[seasonIndex] ?? 'spring'}-${day}`
+}
+
+const addDaysToRelationshipDayTag = (dayTag: string, durationDays: number) => {
+  const parsed = parseRelationshipDayTag(dayTag)
+  if (!parsed) return dayTag
+  const absoluteDay = getAbsoluteDay(parsed.year, parsed.season, parsed.day)
+  return formatRelationshipDayTag(absoluteDay + Math.max(0, durationDays - 1))
+}
+
+const isRelationshipDayTagExpired = (expiresDayTag: string, currentDayTag: string) => {
+  const expires = parseRelationshipDayTag(expiresDayTag)
+  const current = parseRelationshipDayTag(currentDayTag)
+  if (!expires || !current) return false
+  return getAbsoluteDay(current.year, current.season, current.day) >= getAbsoluteDay(expires.year, expires.season, expires.day)
+}
 
 export const useNpcStore = defineStore('npc', () => {
   const validNpcIds = new Set(NPCS.map(npc => npc.id))
@@ -766,13 +805,11 @@ export const useNpcStore = defineStore('npc', () => {
     const npcDef = getNpcById(npcId)
     if (!npcDef?.marriageable) return { success: false, message: '无法与此人约会。' }
 
-    const playerStore = usePlayerStore()
-    if (npcDef.gender === playerStore.gender) {
-      return { success: false, message: '只能向异性赠帕。' }
-    }
+    if (!canPursueMarriageWithNpc(npcId)) return { success: false, message: '当前关系规则下，暂时无法与此人发展婚缘。' }
 
     if (state.dating) return { success: false, message: '你们已经在约会了。' }
     if (state.married) return { success: false, message: '你们已经结婚了。' }
+    if (state.zhiji) return { success: false, message: '你们已是知己，需先断缘再发展婚缘。' }
     if (npcStates.value.some(s => s.married)) return { success: false, message: '你已经结婚了。' }
     if (state.friendship < 2000) return { success: false, message: '好感度不足（需要8心/2000）。' }
 
@@ -808,11 +845,8 @@ export const useNpcStore = defineStore('npc', () => {
     const npcDef = getNpcById(npcId)
     if (!npcDef?.marriageable) return { success: false, message: '这个人无法求婚。' }
 
-    // 只允许异性求婚
-    const playerStore = usePlayerStore()
-    if (npcDef.gender === playerStore.gender) {
-      return { success: false, message: '只能向异性求婚。' }
-    }
+    if (!canPursueMarriageWithNpc(npcId)) return { success: false, message: '当前关系规则下，暂时无法与此人结婚。' }
+    if (state.zhiji) return { success: false, message: '你们已是知己，需先断缘再求婚。' }
 
     // 检查是否已有配偶
     const alreadyMarried = npcStates.value.some(s => s.married)
@@ -823,6 +857,7 @@ export const useNpcStore = defineStore('npc', () => {
 
     // 需要先约会
     if (!state.dating) return { success: false, message: '需要先赠帕约会。' }
+    if (state.zhiji) return { success: false, message: '你们已是知己，需先断缘再求婚。' }
 
     if (state.friendship < 2500) return { success: false, message: '好感度不足（需要10心/2500）。' }
 
@@ -1035,6 +1070,10 @@ export const useNpcStore = defineStore('npc', () => {
       if (!wishId) return false
       const wishDef = WS09_FAMILY_WISH_DEFS.find(wish => wish.id === wishId)
       if (!wishDef) return false
+      if (familyWishBoard.value.activeWishId !== wishId) return false
+      if (familyWishBoard.value.rewardClaimed) return false
+      if (familyWishBoard.value.completedWishIds.includes(wishId)) return false
+      if (familyWishBoard.value.progress < Math.max(1, familyWishBoard.value.targetValue)) return false
       const rewardResult = grantRelationshipReward(wishDef.reward, `家庭心愿「${wishDef.title}」`)
       if (!rewardResult.success) {
         addLog(rewardResult.message ?? `家庭心愿「${wishDef.title}」奖励发放失败。`, {
@@ -1046,6 +1085,10 @@ export const useNpcStore = defineStore('npc', () => {
       familyWishBoard.value = {
         ...familyWishBoard.value,
         activeWishId: null,
+        progress: 0,
+        targetValue: 0,
+        startedDayTag: '',
+        expiresDayTag: '',
         completedWishIds: familyWishBoard.value.completedWishIds.includes(wishId)
           ? familyWishBoard.value.completedWishIds
           : [...familyWishBoard.value.completedWishIds, wishId],
@@ -1106,7 +1149,13 @@ export const useNpcStore = defineStore('npc', () => {
     const candidates = getEligibleFamilyWishDefs().filter(wish => !familyWishBoard.value.completedWishIds.includes(wish.id))
     const nextWish = candidates[0] ?? null
     if (!nextWish) return null
-    activateFamilyWish(nextWish.id, currentDayTag, currentDayTag, nextWish.targetValue, nextWish.unlockTier)
+    activateFamilyWish(
+      nextWish.id,
+      currentDayTag,
+      addDaysToRelationshipDayTag(currentDayTag, nextWish.durationDays),
+      nextWish.targetValue,
+      nextWish.unlockTier
+    )
     return nextWish
   }
 
@@ -1163,7 +1212,13 @@ export const useNpcStore = defineStore('npc', () => {
     }
     const gameStore = useGameStore()
     const currentDayTag = `${gameStore.year}-${gameStore.season}-${gameStore.day}`
-    activateFamilyWish(nextWish.id, currentDayTag, currentDayTag, nextWish.targetValue, nextWish.unlockTier)
+    activateFamilyWish(
+      nextWish.id,
+      currentDayTag,
+      addDaysToRelationshipDayTag(currentDayTag, nextWish.durationDays),
+      nextWish.targetValue,
+      nextWish.unlockTier
+    )
     return {
       success: true,
       message: `已安排新的家庭心愿：${nextWish.title}。`,
@@ -1304,7 +1359,10 @@ export const useNpcStore = defineStore('npc', () => {
           } else {
             logs.push(`【家庭心愿】${completedWishId} 已达到完成条件，但奖励发放受阻，已保留至下次重试。`)
           }
-        } else if (familyWishBoard.value.expiresDayTag) {
+        } else if (
+          familyWishBoard.value.expiresDayTag &&
+          isRelationshipDayTagExpired(familyWishBoard.value.expiresDayTag, payload.currentDayTag)
+        ) {
           logs.push(`【家庭心愿】本周家庭心愿「${familyWishBoard.value.activeWishId}」已过期，将在下周重新编排。`)
           familyWishBoard.value = {
             ...familyWishBoard.value,
@@ -1427,6 +1485,10 @@ export const useNpcStore = defineStore('npc', () => {
     weddingCountdown.value--
     if (weddingCountdown.value <= 0) {
       const npcId = weddingNpcId.value
+      if (!canPursueMarriageWithNpc(npcId)) {
+        cancelWedding()
+        return { weddingToday: false, npcId: null, unlockedMessages: [] }
+      }
       const state = getNpcState(npcId)
       if (state) {
         state.married = true
@@ -1536,9 +1598,15 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 玩家回应提议 */
   const respondToChildProposal = (response: ProposalResponse): { message: string; friendshipChange: number } => {
+    if (!childProposalPending.value) return { message: '当前没有待回应的家庭提议。', friendshipChange: 0 }
+    if (pregnancy.value) return { message: '当前已有进行中的家庭扩展。', friendshipChange: 0 }
     childProposalPending.value = false
     const spouse = getSpouse()
+    if (!spouse) return { message: '当前没有可回应的家庭提议。', friendshipChange: 0 }
     const expansionKind = getPendingFamilyExpansionKind()
+    if (expansionKind === 'adoption' && !isSameSexFamilyExpansionEnabled()) {
+      return { message: '当前关系规则下，暂时无法继续该家庭扩展。', friendshipChange: 0 }
+    }
 
     switch (response) {
       case 'accept':
@@ -1559,7 +1627,7 @@ export const useNpcStore = defineStore('npc', () => {
         if (spouse) spouse.friendship = Math.min(spouse.friendship + 100, getFriendshipCap(spouse))
         childProposalDeclinedCount.value = 0
         daysSinceProposalDecline.value = 0
-        return { message: '你们决定迎接新的家庭成员。', friendshipChange: 100 }
+        return { message: expansionKind === 'adoption' ? '你们决定一起迎一个孩子回家。' : '你们决定迎接新的家庭成员。', friendshipChange: 100 }
 
       case 'decline':
         if (spouse) spouse.friendship = Math.max(0, spouse.friendship - 50)
@@ -1578,20 +1646,22 @@ export const useNpcStore = defineStore('npc', () => {
   const performPregnancyCare = (
     action: 'gift' | 'companion' | 'supplement' | 'rest'
   ): { success: boolean; message: string; careGain: number } => {
-    if (!pregnancy.value) return { success: false, message: '没有待产。', careGain: 0 }
+    if (!pregnancy.value) return { success: false, message: '当前没有进行中的家庭扩展。', careGain: 0 }
     if (pregnancy.value.caredToday) return { success: false, message: '今天已经照料过了。', careGain: 0 }
 
+    const expansionKind = pregnancy.value.kind ?? 'pregnancy'
     let careGain = 0
     let message = ''
 
     switch (action) {
       case 'gift': {
         if (pregnancy.value.giftedForPregnancy) {
-          return { success: false, message: '今天已经送过礼物了。', careGain: 0 }
+          return { success: false, message: expansionKind === 'adoption' ? '今天已经准备过心意了。' : '今天已经送过礼物了。', careGain: 0 }
         }
+        pregnancy.value.giftedToday = true
         pregnancy.value.giftedForPregnancy = true
         careGain = pregnancy.value.stage === 'early' ? 5 : 3
-        message = '你送了一份贴心的礼物。'
+        message = expansionKind === 'adoption' ? '你们认真准备了一份迎接新成员的心意。' : '你送了一份贴心的礼物。'
         break
       }
       case 'companion': {
@@ -1600,37 +1670,48 @@ export const useNpcStore = defineStore('npc', () => {
         }
         pregnancy.value.companionToday = true
         careGain = pregnancy.value.stage === 'mid' ? 5 : 3
-        message = '你陪伴了一会儿，聊了很多。'
+        message = expansionKind === 'adoption' ? '你们一起外出走访，聊了很多关于未来的事。' : '你陪伴了一会儿，聊了很多。'
         break
       }
       case 'supplement': {
         const inventoryStore = useInventoryStore()
-        const supplementItems: { id: string; gain: number }[] = [
-          { id: 'ginseng', gain: 6 },
-          { id: 'ginseng_tea', gain: 5 },
-          { id: 'herb', gain: 3 },
-          { id: 'green_tea_drink', gain: 3 },
-          { id: 'chrysanthemum_tea', gain: 3 },
-          { id: 'osmanthus_tea', gain: 3 }
-        ]
+        const supplementItems: { id: string; gain: number }[] =
+          expansionKind === 'adoption'
+            ? [
+                { id: 'cloth', gain: 6 },
+                { id: 'silk_cloth', gain: 5 },
+                { id: 'felt', gain: 4 }
+              ]
+            : [
+                { id: 'ginseng', gain: 6 },
+                { id: 'ginseng_tea', gain: 5 },
+                { id: 'herb', gain: 3 },
+                { id: 'green_tea_drink', gain: 3 },
+                { id: 'chrysanthemum_tea', gain: 3 },
+                { id: 'osmanthus_tea', gain: 3 }
+              ]
         let found = false
         for (const si of supplementItems) {
           if (inventoryStore.removeItem(si.id, 1)) {
             found = true
             careGain = si.gain
             const itemDef = getItemById(si.id)
-            message = `服用了${itemDef?.name ?? '补品'}。`
+            message = expansionKind === 'adoption' ? `你们置办了${itemDef?.name ?? '安置用品'}。` : `服用了${itemDef?.name ?? '补品'}。`
             break
           }
         }
         if (!found) {
-          return { success: false, message: '没有合适的补品（人参/草药/茶饮）。', careGain: 0 }
+          return {
+            success: false,
+            message: expansionKind === 'adoption' ? '缺少适合的安置用品。' : '没有合适的补品（人参/草药/茶饮）。',
+            careGain: 0
+          }
         }
         break
       }
       case 'rest': {
         careGain = pregnancy.value.stage === 'late' ? 5 : 2
-        message = '你让配偶好好休息了一天。'
+        message = expansionKind === 'adoption' ? '你们把宅院又整理了一遍，准备迎接新成员。' : '你让配偶好好休息了一天。'
         break
       }
     }
@@ -1642,8 +1723,8 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 选择接生方式（仅待产期） */
   const chooseMedicalPlan = (plan: 'normal' | 'advanced' | 'luxury'): { success: boolean; message: string } => {
-    if (!pregnancy.value) return { success: false, message: '没有待产。' }
-    if (pregnancy.value.stage !== 'ready') return { success: false, message: '还没到待产期。' }
+    if (!pregnancy.value) return { success: false, message: '当前没有待确认的家庭扩展。' }
+    if (pregnancy.value.stage !== 'ready') return { success: false, message: '还没到最终准备阶段。' }
 
     const planInfo = MEDICAL_PLANS[plan]
     const playerStore = usePlayerStore()
@@ -1651,8 +1732,13 @@ export const useNpcStore = defineStore('npc', () => {
       return { success: false, message: `金钱不足（需要${planInfo.cost}文）。` }
     }
 
+    pregnancy.value.supportPlan = plan
     pregnancy.value.medicalPlan = plan
-    return { success: true, message: `选择了${planInfo.label}（${planInfo.cost}文）。` }
+    const planLabel =
+      (pregnancy.value.kind ?? 'pregnancy') === 'adoption'
+        ? ({ normal: '普通安置', advanced: '体面安置', luxury: '圆满安置' } as const)[plan]
+        : planInfo.label
+    return { success: true, message: `选择了${planLabel}（${planInfo.cost}文）。` }
   }
 
   /** 分娩处理（内部方法） */
@@ -1687,7 +1773,9 @@ export const useNpcStore = defineStore('npc', () => {
 
     // 根据安产分决定出生品质
     const birthQuality: 'normal' | 'premature' | 'healthy' =
-      pregnancy.value.careScore >= 80 ? 'healthy' : pregnancy.value.careScore < 40 ? 'premature' : 'normal'
+      expansionKind === 'adoption'
+        ? (pregnancy.value.careScore >= 80 ? 'healthy' : 'normal')
+        : (pregnancy.value.careScore >= 80 ? 'healthy' : pregnancy.value.careScore < 40 ? 'premature' : 'normal')
 
     const isBoy = Math.random() < 0.5
     const namePool = isBoy ? CHILD_NAMES_MALE : CHILD_NAMES_FEMALE
@@ -2037,6 +2125,7 @@ export const useNpcStore = defineStore('npc', () => {
         friendship: Math.max(0, Number(c.friendship) || 0),
         interactedToday: !!c.interactedToday,
         birthQuality: ['normal', 'premature', 'healthy'].includes(c.birthQuality) ? c.birthQuality : 'normal',
+        origin: c.origin === 'adoption' ? 'adoption' : 'birth',
         trainingState: c.trainingState && typeof c.trainingState === 'object'
           ? {
               focus: ['farm', 'craft', 'social', 'spirit'].includes(c.trainingState.focus) ? c.trainingState.focus : null,

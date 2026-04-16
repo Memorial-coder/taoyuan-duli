@@ -55,7 +55,7 @@
 
       <!-- 机器列表（按类型分组） -->
       <div v-else class="flex flex-col space-y-2">
-        <div v-for="group in machineGroups" :key="group.machineType" class="border border-accent/10 rounded-xs">
+        <div v-for="group in machineGroupsView" :key="group.machineType" class="border border-accent/10 rounded-xs">
           <!-- 分组标题（可折叠） -->
           <div
             class="flex items-center justify-between px-2 py-1.5 cursor-pointer hover:bg-accent/5 select-none"
@@ -64,8 +64,8 @@
             <div class="flex items-center space-x-1">
               <span class="text-xs text-accent">{{ group.name }}</span>
               <span class="text-[10px] text-muted">×{{ group.slots.length }}</span>
-              <span v-if="group.slots.some(s => s.slot.ready)" class="text-[10px] text-success">
-                ({{ group.slots.filter(s => s.slot.ready).length }}可收取)
+              <span v-if="group.hasReady" class="text-[10px] text-success">
+                ({{ group.readyCount }}可收取)
               </span>
             </div>
             <span class="text-[10px] text-muted">{{ collapsedGroups.has(group.machineType) ? '▸' : '▾' }}</span>
@@ -73,7 +73,7 @@
 
           <div v-if="!collapsedGroups.has(group.machineType)" class="flex flex-wrap gap-1 px-2 pb-2">
             <Button
-              v-if="getGroupIdleCount(group.machineType) > 0"
+              v-if="group.idleCount > 0"
               class="text-[10px]"
               :icon="Boxes"
               :icon-size="10"
@@ -82,22 +82,22 @@
               批量加工
             </Button>
             <Button
-              v-if="getGroupReadyCount(group.machineType) > 0"
+              v-if="group.readyCount > 0"
               class="text-[10px] !bg-accent !text-bg"
               :icon="Package"
               :icon-size="10"
               @click.stop="handleCollectGroup(group.machineType)"
             >
-              一键收取 {{ getGroupReadyCount(group.machineType) }}
+              一键收取 {{ group.readyCount }}
             </Button>
             <Button
-              v-if="getGroupProcessingCount(group.machineType) > 0"
+              v-if="group.processingCount > 0"
               class="text-[10px]"
               :icon="X"
               :icon-size="10"
               @click.stop="handleCancelGroup(group.machineType)"
             >
-              全部取消 {{ getGroupProcessingCount(group.machineType) }}
+              全部取消 {{ group.processingCount }}
             </Button>
           </div>
 
@@ -119,49 +119,49 @@
               <!-- 空闲：选择配方 -->
               <div v-if="!slot.recipeId">
                 <!-- 种子制造机：按品质展开 -->
-                <template v-if="slot.machineType === 'seed_maker'">
-                  <div v-if="getSeedMakerQualityRecipes(slot.machineType).length > 0" class="grid space-y-1">
+                <template v-if="group.isSeedMaker">
+                  <div v-if="group.seedRecipeOptions.length > 0" class="grid space-y-1">
                     <Button
-                      v-for="qr in getSeedMakerQualityRecipes(slot.machineType)"
-                      :key="qr.recipe.id + ':' + qr.quality"
-                      :disabled="!qr.available"
-                      @click="handleStartProcessing(originalIndex, qr.recipe.id, qr.quality)"
+                      v-for="option in group.seedRecipeOptions"
+                      :key="option.key"
+                      :disabled="option.disabled"
+                      @click="handleStartProcessing(originalIndex, option.recipeId, option.quality)"
                     >
-                      {{ qr.recipe.name }}
+                      {{ option.displayName }}
                       <span
-                        v-if="qr.quality !== 'normal'"
+                        v-if="option.qualityLabel"
                         :class="{
-                          'text-quality-fine': qr.quality === 'fine',
-                          'text-quality-excellent': qr.quality === 'excellent',
-                          'text-quality-supreme': qr.quality === 'supreme'
+                          'text-quality-fine': option.quality === 'fine',
+                          'text-quality-excellent': option.quality === 'excellent',
+                          'text-quality-supreme': option.quality === 'supreme'
                         }"
                       >
-                        [{{ QUALITY_NAMES[qr.quality] }}]
+                        {{ option.qualityLabel }}
                       </span>
-                      <span class="text-muted">({{ qr.count }}/{{ qr.recipe.inputQuantity }})</span>
+                      <span class="text-muted">({{ option.count }}/{{ option.recipe.inputQuantity }})</span>
                     </Button>
                   </div>
-                  <p v-else class="text-xs text-muted">{{ onlyAvailable ? '没有材料足够的配方' : '无可用配方' }}</p>
+                  <p v-else class="text-xs text-muted">{{ group.emptyMessage }}</p>
                 </template>
                 <!-- 其他机器：普通配方列表 -->
                 <template v-else>
-                  <div v-if="getFilteredRecipes(slot.machineType).length > 0" class="grid space-y-1">
+                  <div v-if="group.recipeOptions.length > 0" class="grid space-y-1">
                     <Button
-                      v-for="recipe in getFilteredRecipes(slot.machineType)"
-                      :key="recipe.id"
-                      :disabled="(recipe.inputItemId !== null && !hasCombinedItem(recipe.inputItemId, recipe.inputQuantity)) || (recipe.extraInputs?.some(e => !hasCombinedItem(e.itemId, e.quantity)) ?? false)"
-                      @click="handleStartProcessing(originalIndex, recipe.id)"
+                      v-for="option in group.recipeOptions"
+                      :key="option.key"
+                      :disabled="option.disabled"
+                      @click="handleStartProcessing(originalIndex, option.recipeId)"
                     >
-                      {{ recipe.name }}
-                      <span v-if="recipe.inputItemId" class="text-muted">
-                        ({{ getItemName(recipe.inputItemId) }} {{ getCombinedItemCount(recipe.inputItemId) }}/{{ recipe.inputQuantity }})
+                      {{ option.displayName }}
+                      <span v-if="option.inputItemName" class="text-muted">
+                        ({{ option.inputItemName }} {{ option.count }}/{{ option.recipe.inputQuantity }})
                       </span>
-                      <span v-for="extra in recipe.extraInputs" :key="extra.itemId" class="text-muted">
-                        +{{ getItemName(extra.itemId) }} {{ getCombinedItemCount(extra.itemId) }}/{{ extra.quantity }}
+                      <span v-for="extra in option.extraInputs" :key="extra.key" class="text-muted">
+                        +{{ extra.itemName }} {{ extra.count }}/{{ extra.quantity }}
                       </span>
                     </Button>
                   </div>
-                  <p v-else class="text-xs text-muted">{{ onlyAvailable ? '没有材料足够的配方' : '无可用配方' }}</p>
+                  <p v-else class="text-xs text-muted">{{ group.emptyMessage }}</p>
                 </template>
               </div>
 
@@ -272,8 +272,8 @@
               <p class="text-xs text-muted mb-1">所需材料</p>
               <div v-for="mat in nextUpgrade.materials" :key="mat.itemId" class="flex items-center justify-between">
                 <span class="text-xs text-muted">{{ getItemById(mat.itemId)?.name }}</span>
-                <span class="text-xs" :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? '' : 'text-danger'">
-                  {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
+                <span class="text-xs" :class="getIndexedItemCount(mat.itemId) >= mat.quantity ? '' : 'text-danger'">
+                  {{ getIndexedItemCount(mat.itemId) }}/{{ mat.quantity }}
                 </span>
               </div>
               <div class="flex items-center justify-between mt-0.5">
@@ -333,8 +333,8 @@
             <p class="text-xs text-muted mb-1">所需材料</p>
             <div v-for="mat in craftModal.materials" :key="mat.itemId" class="flex items-center justify-between">
               <span class="text-xs text-muted">{{ getItemName(mat.itemId) }}</span>
-              <span class="text-xs" :class="getCombinedItemCount(mat.itemId) >= mat.quantity * displayQty ? '' : 'text-danger'">
-                {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity * displayQty }}
+              <span class="text-xs" :class="getIndexedItemCount(mat.itemId) >= mat.quantity * displayQty ? '' : 'text-danger'">
+                {{ getIndexedItemCount(mat.itemId) }}/{{ mat.quantity * displayQty }}
               </span>
             </div>
             <div v-if="craftModal.cost > 0" class="flex items-center justify-between mt-0.5">
@@ -413,64 +413,64 @@
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between text-xs">
               <span class="text-muted">空闲机器</span>
-              <span>{{ getGroupIdleCount(batchProcessModal.machineType) }} 台</span>
+              <span>{{ currentBatchGroup?.idleCount ?? 0 }} 台</span>
             </div>
             <div class="flex items-center justify-between text-xs mt-0.5">
               <span class="text-muted">加工中</span>
-              <span>{{ getGroupProcessingCount(batchProcessModal.machineType) }} 台</span>
+              <span>{{ currentBatchGroup?.processingCount ?? 0 }} 台</span>
             </div>
             <div class="flex items-center justify-between text-xs mt-0.5">
               <span class="text-muted">已完成</span>
-              <span>{{ getGroupReadyCount(batchProcessModal.machineType) }} 台</span>
+              <span>{{ currentBatchGroup?.readyCount ?? 0 }} 台</span>
             </div>
           </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted mb-1">选择配方</p>
-            <div v-if="batchProcessModal.machineType === 'seed_maker'" class="flex flex-col space-y-1 max-h-44 overflow-y-auto">
+            <div v-if="currentBatchGroup?.isSeedMaker" class="flex flex-col space-y-1 max-h-44 overflow-y-auto">
               <button
-                v-for="qr in getSeedMakerQualityRecipes(batchProcessModal.machineType)"
-                :key="qr.recipe.id + ':' + qr.quality"
+                v-for="option in currentBatchOptions"
+                :key="option.key"
                 class="btn text-xs justify-between mr-1"
                 :class="{
-                  '!bg-accent !text-bg': batchProcessModal.recipeId === qr.recipe.id && batchProcessModal.quality === qr.quality
+                  '!bg-accent !text-bg': batchProcessModal.recipeId === option.recipeId && batchProcessModal.quality === option.quality
                 }"
-                :disabled="!qr.available"
-                @click="selectBatchRecipe(qr.recipe.id, qr.quality)"
+                :disabled="option.disabled"
+                @click="selectBatchRecipe(option.recipeId, option.quality)"
               >
                 <span class="truncate text-left">
-                  {{ qr.recipe.name }}
+                  {{ option.displayName }}
                   <span
-                    v-if="qr.quality !== 'normal'"
+                    v-if="option.qualityLabel"
                     :class="{
-                      'text-quality-fine': qr.quality === 'fine',
-                      'text-quality-excellent': qr.quality === 'excellent',
-                      'text-quality-supreme': qr.quality === 'supreme'
+                      'text-quality-fine': option.quality === 'fine',
+                      'text-quality-excellent': option.quality === 'excellent',
+                      'text-quality-supreme': option.quality === 'supreme'
                     }"
                   >
-                    [{{ QUALITY_NAMES[qr.quality] }}]
+                    {{ option.qualityLabel }}
                   </span>
                 </span>
-                <span class="text-muted ml-2">{{ qr.count }}/{{ qr.recipe.inputQuantity }}</span>
+                <span class="text-muted ml-2">{{ option.count }}/{{ option.recipe.inputQuantity }}</span>
               </button>
-              <p v-if="getSeedMakerQualityRecipes(batchProcessModal.machineType).length === 0" class="text-xs text-muted">
-                {{ onlyAvailable ? '没有材料足够的配方' : '无可用配方' }}
+              <p v-if="currentBatchOptions.length === 0" class="text-xs text-muted">
+                {{ currentBatchGroup?.emptyMessage }}
               </p>
             </div>
             <div v-else class="flex flex-col space-y-1 max-h-44 overflow-y-auto">
               <button
-                v-for="recipe in getFilteredRecipes(batchProcessModal.machineType)"
-                :key="recipe.id"
+                v-for="option in currentBatchOptions"
+                :key="option.key"
                 class="btn text-xs justify-between mr-1"
-                :class="{ '!bg-accent !text-bg': batchProcessModal.recipeId === recipe.id }"
-                :disabled="!canProcessRecipe(recipe)"
-                @click="selectBatchRecipe(recipe.id)"
+                :class="{ '!bg-accent !text-bg': batchProcessModal.recipeId === option.recipeId }"
+                :disabled="option.disabled"
+                @click="selectBatchRecipe(option.recipeId)"
               >
-                <span class="truncate text-left">{{ recipe.name }}</span>
-                <span class="text-muted ml-2 whitespace-nowrap">{{ recipe.processingDays }}天</span>
+                <span class="truncate text-left">{{ option.displayName }}</span>
+                <span class="text-muted ml-2 whitespace-nowrap">{{ option.recipe.processingDays }}天</span>
               </button>
-              <p v-if="getFilteredRecipes(batchProcessModal.machineType).length === 0" class="text-xs text-muted">
-                {{ onlyAvailable ? '没有材料足够的配方' : '无可用配方' }}
+              <p v-if="currentBatchOptions.length === 0" class="text-xs text-muted">
+                {{ currentBatchGroup?.emptyMessage }}
               </p>
             </div>
           </div>
@@ -520,7 +520,7 @@
   import { ref, computed, watch } from 'vue'
   import { Hammer, Trash2, Package, Boxes, X, ArrowUpCircle } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
-  import type { MachineType, AnimalBuildingType, ChestTier, Quality } from '@/types'
+  import type { MachineType, AnimalBuildingType, ChestTier, ProcessingRecipeDef, ProcessingSlot, Quality } from '@/types'
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
   import { useAnimalStore } from '@/stores/useAnimalStore'
   import { useFarmStore } from '@/stores/useFarmStore'
@@ -586,16 +586,211 @@
     }
   })
 
-  const getFilteredRecipes = (machineType: MachineType) => {
-    const recipes = processingStore.getAvailableRecipes(machineType)
-    if (!onlyAvailable.value) return recipes
-    return recipes.filter(r =>
-      (r.inputItemId === null || hasCombinedItem(r.inputItemId, r.inputQuantity)) &&
-      (!r.extraInputs || r.extraInputs.every(e => hasCombinedItem(e.itemId, e.quantity)))
-    )
+  const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
+
+  interface CombinedInventoryIndex {
+    totalByItemId: Map<string, number>
+    totalByItemAndQuality: Map<string, number>
   }
 
-  const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
+  interface RecipeInputViewModel {
+    key: string
+    itemId: string
+    itemName: string
+    count: number
+    quantity: number
+  }
+
+  interface RecipeOptionViewModel {
+    key: string
+    recipe: ProcessingRecipeDef
+    recipeId: string
+    quality?: Quality
+    count: number
+    available: boolean
+    disabled: boolean
+    displayName: string
+    qualityLabel: string
+    inputItemName: string | null
+    extraInputs: RecipeInputViewModel[]
+  }
+
+  interface MachineSlotViewModel {
+    slot: ProcessingSlot
+    originalIndex: number
+  }
+
+  interface MachineGroupViewModel {
+    machineType: MachineType
+    name: string
+    slots: MachineSlotViewModel[]
+    idleCount: number
+    readyCount: number
+    processingCount: number
+    hasReady: boolean
+    isSeedMaker: boolean
+    recipeOptions: RecipeOptionViewModel[]
+    seedRecipeOptions: RecipeOptionViewModel[]
+    isEmpty: boolean
+    emptyMessage: string
+  }
+
+  const getInventoryQualityKey = (itemId: string, quality: Quality) => `${itemId}::${quality}`
+
+  const combinedInventoryIndex = computed<CombinedInventoryIndex>(() => {
+    const totalByItemId = new Map<string, number>()
+    const totalByItemAndQuality = new Map<string, number>()
+    const addItemCount = (itemId: string, quantity: number, quality: Quality = 'normal') => {
+      if (quantity <= 0) return
+      totalByItemId.set(itemId, (totalByItemId.get(itemId) ?? 0) + quantity)
+      const qualityKey = getInventoryQualityKey(itemId, quality)
+      totalByItemAndQuality.set(qualityKey, (totalByItemAndQuality.get(qualityKey) ?? 0) + quantity)
+    }
+
+    for (const item of inventoryStore.items) {
+      addItemCount(item.itemId, item.quantity, item.quality ?? 'normal')
+    }
+
+    if (warehouseStore.unlocked) {
+      for (const chest of warehouseStore.chests) {
+        for (const item of chest.items) {
+          addItemCount(item.itemId, item.quantity, item.quality ?? 'normal')
+        }
+      }
+    }
+
+    return {
+      totalByItemId,
+      totalByItemAndQuality
+    }
+  })
+
+  const getIndexedItemCount = (itemId: string, quality?: Quality): number => {
+    if (quality) {
+      return combinedInventoryIndex.value.totalByItemAndQuality.get(getInventoryQualityKey(itemId, quality)) ?? 0
+    }
+    return combinedInventoryIndex.value.totalByItemId.get(itemId) ?? 0
+  }
+
+  const hasIndexedItem = (itemId: string, quantity: number = 1, quality?: Quality) => getIndexedItemCount(itemId, quality) >= quantity
+
+  const canAffordCraft = (craftCost: { itemId: string; quantity: number }[], craftMoney: number): boolean => {
+    if (playerStore.money < craftMoney) return false
+    return craftCost.every(cost => hasIndexedItem(cost.itemId, cost.quantity))
+  }
+
+  const buildRecipeOption = (recipe: ProcessingRecipeDef, quality?: Quality): RecipeOptionViewModel => {
+    const count = recipe.inputItemId ? getIndexedItemCount(recipe.inputItemId, quality) : 0
+    const inputAvailable = recipe.inputItemId === null || hasIndexedItem(recipe.inputItemId, recipe.inputQuantity, quality)
+    const extraInputs = (recipe.extraInputs ?? []).map(extra => ({
+      key: `${recipe.id}:${extra.itemId}`,
+      itemId: extra.itemId,
+      itemName: getItemName(extra.itemId),
+      count: getIndexedItemCount(extra.itemId),
+      quantity: extra.quantity
+    }))
+    const available = inputAvailable && extraInputs.every(extra => extra.count >= extra.quantity)
+
+    return {
+      key: quality ? `${recipe.id}:${quality}` : recipe.id,
+      recipe,
+      recipeId: recipe.id,
+      quality,
+      count,
+      available,
+      disabled: !available,
+      displayName: recipe.name,
+      qualityLabel: quality && quality !== 'normal' ? `[${QUALITY_NAMES[quality]}]` : '',
+      inputItemName: recipe.inputItemId ? getItemName(recipe.inputItemId) : null,
+      extraInputs
+    }
+  }
+
+  const machineTypeOrder = new Map(PROCESSING_MACHINES.map((machine, index) => [machine.id as MachineType, index]))
+
+  const getSeedRecipeOptions = (machineType: MachineType): RecipeOptionViewModel[] => {
+    const result: RecipeOptionViewModel[] = []
+
+    for (const recipe of processingStore.getAvailableRecipes(machineType)) {
+      if (!recipe.inputItemId) continue
+
+      let hasAnyQuality = false
+      for (const quality of QUALITY_ORDER) {
+        const option = buildRecipeOption(recipe, quality)
+        if (option.count > 0) {
+          hasAnyQuality = true
+          result.push(option)
+        }
+      }
+
+      if (!hasAnyQuality && !onlyAvailable.value) {
+        result.push(buildRecipeOption(recipe, 'normal'))
+      }
+    }
+
+    return result
+  }
+
+  const getRecipeOptions = (machineType: MachineType): RecipeOptionViewModel[] => {
+    const options = processingStore.getAvailableRecipes(machineType).map(recipe => buildRecipeOption(recipe))
+    return onlyAvailable.value ? options.filter(option => option.available) : options
+  }
+
+  const machineGroupsView = computed((): MachineGroupViewModel[] => {
+    const groupMap = new Map<MachineType, MachineGroupViewModel>()
+
+    for (let i = 0; i < processingStore.machines.length; i++) {
+      const slot = processingStore.machines[i]!
+      let group = groupMap.get(slot.machineType)
+
+      if (!group) {
+        group = {
+          machineType: slot.machineType,
+          name: getMachineName(slot.machineType),
+          slots: [],
+          idleCount: 0,
+          readyCount: 0,
+          processingCount: 0,
+          hasReady: false,
+          isSeedMaker: slot.machineType === 'seed_maker',
+          recipeOptions: [],
+          seedRecipeOptions: [],
+          isEmpty: false,
+          emptyMessage: onlyAvailable.value ? '没有材料足够的配方' : '无可用配方'
+        }
+        groupMap.set(slot.machineType, group)
+      }
+
+      group.slots.push({ slot, originalIndex: i })
+
+      if (!slot.recipeId) {
+        group.idleCount++
+      } else if (slot.ready) {
+        group.readyCount++
+      } else {
+        group.processingCount++
+      }
+    }
+
+    for (const group of groupMap.values()) {
+      group.hasReady = group.readyCount > 0
+      group.emptyMessage = onlyAvailable.value ? '没有材料足够的配方' : '无可用配方'
+
+      if (group.idleCount <= 0) continue
+
+      if (group.isSeedMaker) {
+        group.seedRecipeOptions = getSeedRecipeOptions(group.machineType)
+        group.isEmpty = group.seedRecipeOptions.length === 0
+      } else {
+        group.recipeOptions = getRecipeOptions(group.machineType)
+        group.isEmpty = group.recipeOptions.length === 0
+      }
+    }
+
+    return [...groupMap.values()].sort((a, b) => (machineTypeOrder.get(a.machineType) ?? 99) - (machineTypeOrder.get(b.machineType) ?? 99))
+  })
+
+  const machineGroupsByType = computed(() => new Map(machineGroupsView.value.map(group => [group.machineType, group])))
 
   /** 种子制造机：按品质展开配方列表 */
   const getSeedMakerQualityRecipes = (machineType: MachineType) => {
@@ -664,12 +859,14 @@
 
   /** 获取某类型机器的已有数量 */
   const getMachineCountByType = (type: MachineType): number => {
-    return processingStore.machines.filter(m => m.machineType === type).length
+    return machineGroupsByType.value.get(type)?.slots.length ?? 0
   }
 
   const canProcessRecipe = (recipe: ReturnType<typeof processingStore.getAvailableRecipes>[number]) =>
     (recipe.inputItemId === null || hasCombinedItem(recipe.inputItemId, recipe.inputQuantity)) &&
     (recipe.extraInputs?.every(e => hasCombinedItem(e.itemId, e.quantity)) ?? true)
+
+  void [getSeedMakerQualityRecipes, machineGroups, getGroupIdleCount, getGroupReadyCount, getGroupProcessingCount, canProcessRecipe]
 
   const summarizeOutputNames = (outputs: string[]) => {
     const counts = new Map<string, number>()
@@ -714,30 +911,45 @@
     batchQuantity.value = 1
   }
 
-  const currentBatchRecipe = computed(() => {
-    if (!batchProcessModal.value?.recipeId) return null
-    return getProcessingRecipeById(batchProcessModal.value.recipeId) ?? null
+  const currentBatchGroup = computed(() => {
+    if (!batchProcessModal.value) return null
+    return machineGroupsByType.value.get(batchProcessModal.value.machineType) ?? null
   })
 
-  const currentBatchMachineName = computed(() => {
-    if (!batchProcessModal.value) return ''
-    return getMachineName(batchProcessModal.value.machineType)
+  const currentBatchOptions = computed(() => {
+    const group = currentBatchGroup.value
+    if (!group) return []
+    return group.isSeedMaker ? group.seedRecipeOptions : group.recipeOptions
   })
 
-  const batchMaxCount = computed(() => {
-    if (!batchProcessModal.value?.recipeId) return 0
-    return processingStore.getBatchProcessLimit(
-      batchProcessModal.value.machineType,
-      batchProcessModal.value.recipeId,
-      batchProcessModal.value.quality
-    )
+  const currentBatchOption = computed(() => {
+    const modal = batchProcessModal.value
+    if (!modal?.recipeId) return null
+    return currentBatchOptions.value.find(option => option.recipeId === modal.recipeId && option.quality === modal.quality) ?? null
   })
 
-  const batchQualityLabel = computed(() => {
-    const quality = batchProcessModal.value?.quality
-    if (!quality || quality === 'normal') return ''
-    return ` [${QUALITY_NAMES[quality]}]`
-  })
+  const currentBatchRecipe = computed(() => currentBatchOption.value?.recipe ?? null)
+
+  const currentBatchMachineName = computed(() => currentBatchGroup.value?.name ?? '')
+
+  const getRecipeOptionBatchLimit = (option: RecipeOptionViewModel | null, idleCount: number): number => {
+    if (!option || idleCount <= 0) return 0
+
+    let limit = idleCount
+    if (option.recipe.inputItemId !== null) {
+      limit = Math.min(limit, Math.floor(option.count / option.recipe.inputQuantity))
+    }
+
+    for (const extra of option.extraInputs) {
+      limit = Math.min(limit, Math.floor(extra.count / extra.quantity))
+    }
+
+    return Math.max(limit, 0)
+  }
+
+  const batchMaxCount = computed(() => getRecipeOptionBatchLimit(currentBatchOption.value, currentBatchGroup.value?.idleCount ?? 0))
+
+  const batchQualityLabel = computed(() => (currentBatchOption.value?.qualityLabel ? ` ${currentBatchOption.value.qualityLabel}` : ''))
 
   const setBatchQuantity = (value: number) => {
     batchQuantity.value = Math.max(1, Math.min(value, batchMaxCount.value || 1))
@@ -781,7 +993,7 @@
   const canUpgrade = computed(() => {
     const u = nextUpgrade.value
     if (!u) return false
-    return processingStore.canCraft(u.materials, u.cost)
+    return canAffordCraft(u.materials, u.cost)
   })
 
   const handleUpgradeFromModal = () => {
@@ -820,7 +1032,7 @@
     if (!item?.batchable) return 1
     let max = 999
     for (const m of item.materials) {
-      max = Math.min(max, Math.floor(getCombinedItemCount(m.itemId) / m.quantity))
+      max = Math.min(max, Math.floor(getIndexedItemCount(m.itemId) / m.quantity))
     }
     if (item.cost > 0) {
       max = Math.min(max, Math.floor(playerStore.money / item.cost))
@@ -857,7 +1069,7 @@
   ]
   const JADE_RING_MONEY = 500
 
-  const canCraftJadeRing = computed(() => processingStore.canCraft(JADE_RING_COST, JADE_RING_MONEY))
+  const canCraftJadeRing = computed(() => canAffordCraft(JADE_RING_COST, JADE_RING_MONEY))
 
   const STAMINA_FRUIT_COST = [
     { itemId: 'prismatic_shard', quantity: 1 },
@@ -869,7 +1081,7 @@
 
   const allSkillsAbove8 = computed(() => ['farming', 'foraging', 'fishing', 'mining'].every(s => skillStore.getSkill(s as any).level >= 8))
   const canCraftStaminaFruit = computed(
-    () => allSkillsAbove8.value && playerStore.staminaCapLevel < 4 && processingStore.canCraft(STAMINA_FRUIT_COST, STAMINA_FRUIT_MONEY)
+    () => allSkillsAbove8.value && playerStore.staminaCapLevel < 4 && canAffordCraft(STAMINA_FRUIT_COST, STAMINA_FRUIT_MONEY)
   )
 
   const craftCategories = computed((): { label: string; items: CraftableItem[] }[] => [
@@ -882,7 +1094,7 @@
         materials: m.craftCost,
         cost: m.craftMoney,
         onCraft: () => handleCraftMachine(m.id),
-        canCraft: () => processingStore.canCraft(m.craftCost, m.craftMoney) && processingStore.machineCount < processingStore.maxMachines,
+        canCraft: () => canAffordCraft(m.craftCost, m.craftMoney) && processingStore.machineCount < processingStore.maxMachines,
         badge: `已有${getMachineCountByType(m.id)}`,
         batchable: true,
         maxBatch: () => processingStore.maxMachines - processingStore.machineCount
@@ -898,7 +1110,7 @@
           materials: s.craftCost,
           cost: s.craftMoney,
           onCraft: () => handleCraftSprinkler(s.id),
-          canCraft: () => processingStore.canCraft(s.craftCost, s.craftMoney),
+          canCraft: () => canAffordCraft(s.craftCost, s.craftMoney),
           batchable: true
         })),
         ...FERTILIZERS.map(f => ({
@@ -908,7 +1120,7 @@
           materials: f.craftCost,
           cost: f.craftMoney,
           onCraft: () => handleCraftFertilizer(f.id),
-          canCraft: () => processingStore.canCraft(f.craftCost, f.craftMoney),
+          canCraft: () => canAffordCraft(f.craftCost, f.craftMoney),
           batchable: true
         })),
         {
@@ -918,7 +1130,7 @@
           materials: TAPPER.craftCost,
           cost: TAPPER.craftMoney,
           onCraft: () => handleCraftTapper(),
-          canCraft: () => processingStore.canCraft(TAPPER.craftCost, TAPPER.craftMoney),
+          canCraft: () => canAffordCraft(TAPPER.craftCost, TAPPER.craftMoney),
           batchable: true
         },
         {
@@ -928,7 +1140,7 @@
           materials: LIGHTNING_ROD.craftCost,
           cost: LIGHTNING_ROD.craftMoney,
           onCraft: () => handleCraftLightningRod(),
-          canCraft: () => processingStore.canCraft(LIGHTNING_ROD.craftCost, LIGHTNING_ROD.craftMoney),
+          canCraft: () => canAffordCraft(LIGHTNING_ROD.craftCost, LIGHTNING_ROD.craftMoney),
           badge: `已有${farmStore.lightningRods}`,
           batchable: true
         },
@@ -939,7 +1151,7 @@
           materials: SCARECROW.craftCost,
           cost: SCARECROW.craftMoney,
           onCraft: () => handleCraftScarecrow(),
-          canCraft: () => processingStore.canCraft(SCARECROW.craftCost, SCARECROW.craftMoney),
+          canCraft: () => canAffordCraft(SCARECROW.craftCost, SCARECROW.craftMoney),
           badge: `已有${farmStore.scarecrows}`,
           batchable: true
         },
@@ -953,7 +1165,7 @@
                 cost: AUTO_PETTER.craftMoney,
                 onCraft: () => handleCraftAutoPetter('coop'),
                 canCraft: () =>
-                  !animalStore.hasAutoPetter('coop') && processingStore.canCraft(AUTO_PETTER.craftCost, AUTO_PETTER.craftMoney),
+                  !animalStore.hasAutoPetter('coop') && canAffordCraft(AUTO_PETTER.craftCost, AUTO_PETTER.craftMoney),
                 badge: animalStore.hasAutoPetter('coop') ? '已安装' : undefined
               }
             ]
@@ -968,7 +1180,7 @@
                 cost: AUTO_PETTER.craftMoney,
                 onCraft: () => handleCraftAutoPetter('barn'),
                 canCraft: () =>
-                  !animalStore.hasAutoPetter('barn') && processingStore.canCraft(AUTO_PETTER.craftCost, AUTO_PETTER.craftMoney),
+                  !animalStore.hasAutoPetter('barn') && canAffordCraft(AUTO_PETTER.craftCost, AUTO_PETTER.craftMoney),
                 badge: animalStore.hasAutoPetter('barn') ? '已安装' : undefined
               }
             ]
@@ -985,7 +1197,7 @@
           materials: b.craftCost,
           cost: b.craftMoney,
           onCraft: () => handleCraftBait(b.id),
-          canCraft: () => processingStore.canCraft(b.craftCost, b.craftMoney),
+          canCraft: () => canAffordCraft(b.craftCost, b.craftMoney),
           batchable: true
         })),
         ...TACKLES.map(t => ({
@@ -995,7 +1207,7 @@
           materials: t.craftCost,
           cost: t.craftMoney,
           onCraft: () => handleCraftTackle(t.id),
-          canCraft: () => processingStore.canCraft(t.craftCost, t.craftMoney),
+          canCraft: () => canAffordCraft(t.craftCost, t.craftMoney),
           batchable: true
         })),
         {
@@ -1005,7 +1217,7 @@
           materials: CRAB_POT_CRAFT.craftCost,
           cost: CRAB_POT_CRAFT.craftMoney,
           onCraft: () => handleCraftCrabPot(),
-          canCraft: () => processingStore.canCraft(CRAB_POT_CRAFT.craftCost, CRAB_POT_CRAFT.craftMoney),
+          canCraft: () => canAffordCraft(CRAB_POT_CRAFT.craftCost, CRAB_POT_CRAFT.craftMoney),
           batchable: true
         }
       ]
@@ -1021,7 +1233,7 @@
           cost: b.craftMoney,
           onCraft: () => handleCraftBomb(b.id),
           canCraft: () =>
-            (b.id !== 'mega_bomb' || hasCombinedItem('mega_bomb_recipe')) && processingStore.canCraft(b.craftCost, b.craftMoney),
+            (b.id !== 'mega_bomb' || hasIndexedItem('mega_bomb_recipe')) && canAffordCraft(b.craftCost, b.craftMoney),
           batchable: true
         })),
         {
@@ -1063,7 +1275,7 @@
                 cost: def.craftMoney,
                 onCraft: () => handleCraftChest(tier),
                 canCraft: () =>
-                  warehouseStore.chests.length < warehouseStore.maxChests && processingStore.canCraft(def.craftCost, def.craftMoney),
+                  warehouseStore.chests.length < warehouseStore.maxChests && canAffordCraft(def.craftCost, def.craftMoney),
                 badge: `${warehouseStore.chests.length}/${warehouseStore.maxChests}`,
                 batchable: true,
                 maxBatch: () => warehouseStore.maxChests - warehouseStore.chests.length
@@ -1288,6 +1500,10 @@
 
   const handleCraftJadeRing = () => {
     if (!canCraftJadeRing.value) return
+    if (!inventoryStore.canAddItem('jade_ring', 1)) {
+      addLog('背包空间不足，无法制作翡翠戒指。')
+      return
+    }
     if (!playerStore.spendMoney(JADE_RING_MONEY)) return
     for (const c of JADE_RING_COST) {
       if (!removeCombinedItem(c.itemId, c.quantity)) {
@@ -1295,7 +1511,14 @@
         return
       }
     }
-    inventoryStore.addItem('jade_ring')
+    if (!inventoryStore.addItemExact('jade_ring')) {
+      playerStore.earnMoney(JADE_RING_MONEY)
+      for (const c of JADE_RING_COST) {
+        inventoryStore.addItem(c.itemId, c.quantity)
+      }
+      addLog('背包空间不足，翡翠戒指制作已回滚。')
+      return
+    }
     sfxClick()
     addLog('制造了翡翠戒指！可以用来求婚。')
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
@@ -1308,9 +1531,16 @@
 
   const handleCraftStaminaFruit = () => {
     if (!canCraftStaminaFruit.value) return
+    if (!inventoryStore.canAddItem('stamina_fruit', 1)) {
+      addLog('背包空间不足，无法制作仙桃。')
+      return
+    }
     if (processingStore.consumeCraftMaterials(STAMINA_FRUIT_COST, STAMINA_FRUIT_MONEY)) {
       sfxClick()
-      inventoryStore.addItem('stamina_fruit')
+      if (!inventoryStore.addItemExact('stamina_fruit')) {
+        addLog('背包空间不足，仙桃制作未完成。')
+        return
+      }
       addLog('制造了仙桃！在背包中使用可永久提升体力上限。')
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
       if (tr.message) addLog(tr.message)

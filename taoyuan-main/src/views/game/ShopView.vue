@@ -39,7 +39,12 @@
           <p v-if="currentShopNextBenefitHint" class="text-[10px] text-muted/70 mt-0.5">{{ currentShopNextBenefitHint }}</p>
         </div>
 
-        <div v-if="!shopStore.currentShopId" class="border border-accent/20 rounded-xs p-3 mb-3">
+        <div
+          v-if="!shopStore.currentShopId"
+          class="border border-accent/20 rounded-xs p-3 mb-3"
+          :class="promptSectionClass('economy-overview')"
+          :data-prompt-focus="buildPromptFocusAttr('economy-overview')"
+        >
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-1.5 text-sm text-accent">
               <TrendingUp :size="14" />
@@ -76,9 +81,20 @@
               </div>
             </div>
           </div>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('market-overview', '看市场看板')">看市场看板</button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('recommended-consumption', '看推荐货架')">
+              看推荐货架
+            </button>
+          </div>
         </div>
 
-        <div v-if="!shopStore.currentShopId" class="border border-warning/20 rounded-xs p-3 mb-3">
+        <div
+          v-if="!shopStore.currentShopId"
+          class="border border-warning/20 rounded-xs p-3 mb-3"
+          :class="promptSectionClass('market-overview')"
+          :data-prompt-focus="buildPromptFocusAttr('market-overview')"
+        >
           <div class="flex items-center justify-between mb-2 gap-2">
             <div class="flex items-center gap-1.5 text-sm text-warning">
               <Filter :size="14" />
@@ -168,6 +184,12 @@
                 {{ MARKET_CATEGORY_NAMES[info.category] }} · {{ TREND_NAMES[info.trend] }} ×{{ info.multiplier.toFixed(2) }}
               </span>
             </div>
+          </div>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('economy-overview', '回经营看板')">回经营看板</button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('recommended-consumption', '看推荐货架')">
+              看推荐货架
+            </button>
           </div>
         </div>
 
@@ -285,6 +307,7 @@
           </div>
           </div>
 
+          <div :class="promptSectionClass('recommended-consumption')" :data-prompt-focus="buildPromptFocusAttr('recommended-consumption')">
           <div v-if="shopStore.weeklySurpriseOffer" class="mb-4">
             <h4 class="text-accent text-sm mb-2">
               <Star :size="14" class="inline" />
@@ -377,6 +400,7 @@
                 <span class="text-xs text-accent whitespace-nowrap">{{ discounted(offer.price) }}文</span>
               </div>
             </div>
+          </div>
           </div>
 
           <h4 class="text-accent text-sm mb-2">
@@ -1464,6 +1488,7 @@
   import { addLog } from '@/composables/useGameLog'
   import { sfxBuy } from '@/composables/useAudio'
   import { showFloat } from '@/composables/useGameLog'
+  import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import { handleBuySeed, handleSellItem, handleSellItemAll, handleSellAll, QUALITY_NAMES } from '@/composables/useFarmActions'
   import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, MARKET_DISTRICT_LABELS, TREND_NAMES } from '@/data/market'
   import type { MarketCategory, MarketTrend } from '@/data/market'
@@ -1487,6 +1512,31 @@
   const tutorialStore = useTutorialStore()
   const goalStore = useGoalStore()
   const achievementStore = useAchievementStore()
+  const { buildPromptFocusAttr, isPromptFocusActive } = usePromptFocusPanel('shop', {
+    handlers: {
+      'economy-overview': () => {
+        shopStore.currentShopId = null
+      },
+      'market-overview': () => {
+        shopStore.currentShopId = null
+      },
+      'recommended-consumption': () => {
+        shopStore.currentShopId = 'wanwupu'
+      }
+    }
+  })
+
+  const focusShopSection = (focusKey: string, label: string) => {
+    runPromptAction({
+      id: `shop-${focusKey}`,
+      label,
+      mode: 'cta',
+      panelKey: 'shop',
+      focusKey
+    })
+  }
+
+  const promptSectionClass = (focusKey: string) => (isPromptFocusActive(focusKey) ? 'prompt-focus-target--active' : '')
 
   const tutorialHint = computed(() => {
     if (!tutorialStore.enabled || gameStore.year > 1) return null

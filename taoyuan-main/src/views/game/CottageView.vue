@@ -107,38 +107,40 @@
         <div class="grid grid-cols-2 gap-1 mb-1">
           <Button
             class="py-0.5 px-1 text-[10px] justify-center"
-            :disabled="npcStore.pregnancy.giftedForPregnancy"
+            :disabled="npcStore.pregnancy.caredToday || npcStore.pregnancy.giftedForPregnancy"
             @click="handlePregnancyCare('gift')"
           >
             {{ npcStore.pregnancy.kind === 'adoption' ? (npcStore.pregnancy.giftedForPregnancy ? '已准备心意' : '准备心意') : (npcStore.pregnancy.giftedForPregnancy ? '已送礼' : '送礼物') }}
           </Button>
           <Button
             class="py-0.5 px-1 text-[10px] justify-center"
-            :disabled="npcStore.pregnancy.companionToday"
+            :disabled="npcStore.pregnancy.caredToday || npcStore.pregnancy.companionToday"
             @click="handlePregnancyCare('companion')"
           >
             {{ npcStore.pregnancy.kind === 'adoption' ? (npcStore.pregnancy.companionToday ? '已走访' : '一起走访') : (npcStore.pregnancy.companionToday ? '已陪伴' : '陪伴聊天') }}
           </Button>
-          <Button class="py-0.5 px-1 text-[10px] justify-center" @click="handlePregnancyCare('supplement')">{{ npcStore.pregnancy.kind === 'adoption' ? '置办用品' : '服用补品' }}</Button>
+          <Button class="py-0.5 px-1 text-[10px] justify-center" :disabled="npcStore.pregnancy.caredToday" @click="handlePregnancyCare('supplement')">
+            {{ npcStore.pregnancy.kind === 'adoption' ? '置办用品' : '服用补品' }}
+          </Button>
           <Button
             class="py-0.5 px-1 text-[10px] justify-center"
             :disabled="npcStore.pregnancy.caredToday"
             @click="handlePregnancyCare('rest')"
           >
-            {{ npcStore.pregnancy.kind === 'adoption' ? (npcStore.pregnancy.caredToday ? '已整理' : '整理宅院') : (npcStore.pregnancy.caredToday ? '已休息' : '安排休息') }}
+            {{ npcStore.pregnancy.caredToday ? '今日已完成' : (npcStore.pregnancy.kind === 'adoption' ? '整理宅院' : '安排休息') }}
           </Button>
         </div>
         <!-- 医疗方案（待产期） -->
         <div v-if="npcStore.pregnancy.stage === 'ready'" class="border border-accent/20 rounded-xs p-2 mt-2">
           <p class="text-[10px] text-accent mb-1.5">{{ npcStore.pregnancy.kind === 'adoption' ? '选择迎接方案' : '选择接生方式' }}</p>
           <div v-if="!npcStore.pregnancy.medicalPlan" class="flex flex-col space-y-1">
-            <Button class="py-0.5 px-1 text-[10px] w-full justify-center" @click="handleChooseMedical('normal')">
+            <Button class="py-0.5 px-1 text-[10px] w-full justify-center" :disabled="playerStore.money < 1000" @click="handleChooseMedical('normal')">
               {{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_MEDICAL_LABELS.normal : MEDICAL_LABELS.normal }}（1000文 · 80%安全）
             </Button>
-            <Button class="py-0.5 px-1 text-[10px] w-full justify-center" @click="handleChooseMedical('advanced')">
+            <Button class="py-0.5 px-1 text-[10px] w-full justify-center" :disabled="playerStore.money < 5000" @click="handleChooseMedical('advanced')">
               {{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_MEDICAL_LABELS.advanced : MEDICAL_LABELS.advanced }}（5000文 · 95%安全）
             </Button>
-            <Button class="py-0.5 px-1 text-[10px] w-full justify-center text-accent" @click="handleChooseMedical('luxury')">
+            <Button class="py-0.5 px-1 text-[10px] w-full justify-center text-accent" :disabled="playerStore.money < 15000" @click="handleChooseMedical('luxury')">
               {{ npcStore.pregnancy.kind === 'adoption' ? ADOPTION_MEDICAL_LABELS.luxury : MEDICAL_LABELS.luxury }}（15000文 · 100%安全）
             </Button>
           </div>
@@ -160,8 +162,9 @@
           <div class="flex items-center justify-between mb-1">
             <span class="text-xs text-accent">
               {{ child.name }}
-              <span v-if="child.birthQuality === 'healthy'" class="text-[10px] text-success ml-0.5">[健康]</span>
-              <span v-else-if="child.birthQuality === 'premature'" class="text-[10px] text-muted/60 ml-0.5">[早产]</span>`n              <span v-if="child.origin === 'adoption'" class="text-[10px] text-accent ml-0.5">[领养]</span>
+              <span v-if="child.origin !== 'adoption' && child.birthQuality === 'healthy'" class="text-[10px] text-success ml-0.5">[健康]</span>
+              <span v-else-if="child.origin !== 'adoption' && child.birthQuality === 'premature'" class="text-[10px] text-muted/60 ml-0.5">[早产]</span>
+              <span v-if="child.origin === 'adoption'" class="text-[10px] text-accent ml-0.5">[领养]</span>
             </span>
             <div class="flex items-center space-x-1">
               <Button
@@ -899,7 +902,9 @@
   const handlePregnancyCare = (action: 'gift' | 'companion' | 'supplement' | 'rest') => {
     const result = npcStore.performPregnancyCare(action)
     addLog(result.message)
-    if (result.careGain > 0) addLog(`安产率 +${result.careGain}%`)
+    if (result.careGain > 0) {
+      addLog(`${npcStore.pregnancy?.kind === 'adoption' ? '准备度' : '安产率'} +${result.careGain}%`)
+    }
   }
 
   const handleChooseMedical = (plan: 'normal' | 'advanced' | 'luxury') => {

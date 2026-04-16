@@ -40,6 +40,7 @@ import { WS10_EVENT_OPERATION_TUNING_CONFIG } from '@/data/goals'
 import { getTodayEvent } from '@/data/events'
 import { getItemById, getRecipeById } from '@/data'
 import { MARKET_CATEGORY_NAMES } from '@/data/market'
+import { isRelationshipStageAtLeast } from '@/data/npcWorld'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useNpcStore } from './useNpcStore'
@@ -73,6 +74,11 @@ export const useQuestStore = defineStore('quest', () => {
 
   /** 已接取的进行中任务 */
   const activeQuests = ref<QuestInstance[]>([])
+
+  const meetsRelationshipRequirement = (quest: QuestInstance): boolean => {
+    if (!quest.relationshipStageRequired || !quest.npcId) return true
+    return isRelationshipStageAtLeast(npcStore.getRelationshipStage(quest.npcId), quest.relationshipStageRequired)
+  }
 
   /** 累计完成任务数 */
   const completedQuestCount = ref<number>(0)
@@ -734,6 +740,9 @@ export const useQuestStore = defineStore('quest', () => {
     if (idx === -1) return { success: false, message: '任务不存在。' }
 
     const quest = boardQuests.value[idx]!
+    if (!meetsRelationshipRequirement(quest)) {
+      return { success: false, message: `${quest.npcName} 当前关系未达到该委托要求。` }
+    }
     quest.accepted = true
 
     // 非送货类委托：检查背包中已有的物品数量
@@ -1281,6 +1290,7 @@ export const useQuestStore = defineStore('quest', () => {
   }
 
   const canSubmitQuest = (quest: QuestInstance): boolean => {
+    if (!meetsRelationshipRequirement(quest)) return false
     const currentStage = getCurrentSpecialOrderStage(quest)
     if (currentStage) {
       if (currentStage.comboRequirements?.length) {
@@ -1335,6 +1345,9 @@ export const useQuestStore = defineStore('quest', () => {
     if (idx === -1) return { success: false, message: '任务不存在。' }
 
     const quest = activeQuests.value[idx]!
+    if (!meetsRelationshipRequirement(quest)) {
+      return { success: false, message: `${quest.npcName} 当前关系未达到该委托要求。` }
+    }
     if (
       quest.type === 'special_order' &&
       specialOrderFeatureFlags.duplicateSettlementGuardEnabled &&

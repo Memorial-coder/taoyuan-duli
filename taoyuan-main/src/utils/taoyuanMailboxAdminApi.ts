@@ -89,6 +89,7 @@ export interface TaoyuanMailCampaignDetail {
 }
 
 const ADMIN_TOKEN_KEY = 'admin_token'
+const getScopedAdminTokenKey = () => buildScopedSingleKey(`${ADMIN_TOKEN_KEY}_`)
 
 const parseJsonSafe = async (res: Response) => {
   try {
@@ -100,17 +101,17 @@ const parseJsonSafe = async (res: Response) => {
 
 export const getStoredAdminToken = () => {
   if (typeof window === 'undefined') return ''
-  return window.localStorage.getItem(ADMIN_TOKEN_KEY) || ''
+  return window.localStorage.getItem(getScopedAdminTokenKey()) || ''
 }
 
 export const setStoredAdminToken = (token: string) => {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(ADMIN_TOKEN_KEY, token.trim())
+  window.localStorage.setItem(getScopedAdminTokenKey(), token.trim())
 }
 
 export const clearStoredAdminToken = () => {
   if (typeof window === 'undefined') return
-  window.localStorage.removeItem(ADMIN_TOKEN_KEY)
+  window.localStorage.removeItem(getScopedAdminTokenKey())
 }
 
 const ensureAdminToken = (tokenOverride?: string) => {
@@ -158,3 +159,4 @@ export const saveTaoyuanMailCampaign = async (payload: TaoyuanMailCampaignPayloa
   )
   return data.campaign
 }
+import { buildScopedSingleKey } from '@/utils/accountStorage'

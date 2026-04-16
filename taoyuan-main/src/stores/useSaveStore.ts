@@ -453,6 +453,7 @@ export const useSaveStore = defineStore('save', () => {
     server: -1
   })
   const storageMode = ref<SaveMode>(getStoredSaveMode())
+  const lastSaveErrorMessage = ref('')
 
   _registerGameplaySaveContextGetter(() => ({
     saveSlot: activeSlot.value >= 0 ? activeSlot.value : null,
@@ -511,6 +512,19 @@ export const useSaveStore = defineStore('save', () => {
       playerName: normalized.data.player?.playerName,
       savedAt: normalized.meta.savedAt
     }
+  }
+
+  const getSaveBlockReason = (): string => {
+    const miningStore = useMiningStore()
+    if (miningStore.isExploring) return '矿洞探索中无法保存，请先离开矿洞。'
+
+    const fishingStore = useFishingStore()
+    if (fishingStore.currentFish) return '钓鱼进行中无法保存，请先完成当前钓鱼。'
+
+    const hanhaiStore = useHanhaiStore()
+    if (hanhaiStore.hasActiveCasinoSession) return '瀚海赌局进行中无法保存，请先完成当前牌局。'
+
+    return ''
   }
 
   const qaGovernanceOverview = computed(() => {
@@ -845,7 +859,6 @@ export const useSaveStore = defineStore('save', () => {
       if (payload.home) homeStore.deserialize(payload.home)
       if (payload.fishing) fishingStore.deserialize(payload.fishing)
       walletStore.deserialize(payload.wallet)
-      goalStore.deserialize(payload.goal)
       if (payload.quest) questStore.deserialize(payload.quest)
       shopStore.deserialize(payload.shop)
       if (payload.settings) settingsStore.deserialize(payload.settings, normalized.meta.saveVersion)
@@ -860,6 +873,7 @@ export const useSaveStore = defineStore('save', () => {
       if (payload.hiddenNpc) hiddenNpcStore.deserialize(payload.hiddenNpc)
       if (payload.decoration) decorationStore.deserialize(payload.decoration)
       if (payload.villageProject) villageProjectStore.deserialize(payload.villageProject)
+      goalStore.deserialize(payload.goal)
 
       // 在相关 store 全部反序列化完成后，再统一同步 NPC 关系奖励，避免旧档奖励被吞或食谱被后续 store 覆盖
       npcStore.rehydrateRelationshipPerks({ grantInventoryRewards: true, emitMessages: false })
@@ -912,7 +926,6 @@ export const useSaveStore = defineStore('save', () => {
       homeStore.deserialize(backup.home)
       fishingStore.deserialize(backup.fishing)
       walletStore.deserialize(backup.wallet)
-      goalStore.deserialize(backup.goal)
       questStore.deserialize(backup.quest)
       shopStore.deserialize(backup.shop)
       settingsStore.deserialize(backup.settings)
@@ -927,6 +940,7 @@ export const useSaveStore = defineStore('save', () => {
       hiddenNpcStore.deserialize(backup.hiddenNpc)
       decorationStore.deserialize(backup.decoration)
       villageProjectStore.deserialize(backup.villageProject)
+      goalStore.deserialize(backup.goal)
       activeSlot.value = backup.activeSlot
       activeSlotMode.value = backup.activeSlotMode
       return false
@@ -983,6 +997,12 @@ export const useSaveStore = defineStore('save', () => {
   /** 保存到指定槽位 */
   const saveToSlot = async (slot: number): Promise<boolean> => {
     if (slot < 0 || slot >= MAX_SLOTS) return false
+    lastSaveErrorMessage.value = ''
+    const blockReason = getSaveBlockReason()
+    if (blockReason) {
+      lastSaveErrorMessage.value = blockReason
+      return false
+    }
     try {
       const data = buildCurrentSaveData()
       await setRawByMode(slot, encrypt(JSON.stringify(data)))
@@ -991,6 +1011,7 @@ export const useSaveStore = defineStore('save', () => {
       activeSlotsByMode.value[storageMode.value] = slot
       return true
     } catch {
+      if (!lastSaveErrorMessage.value) lastSaveErrorMessage.value = '保存失败。'
       return false
     }
   }
@@ -1127,6 +1148,7 @@ export const useSaveStore = defineStore('save', () => {
     qaGovernanceCrossSystemOverview,
     qaGovernanceStorageActionLocks,
     qaGovernanceTuning,
+    lastSaveErrorMessage,
     getQaGovernanceStorageOverview,
     setStorageMode,
     setQaGovernanceStorageMode,

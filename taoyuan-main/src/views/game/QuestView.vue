@@ -10,7 +10,11 @@
 
     <QaGovernancePanel page-id="quest" title="结算治理总览" />
 
-    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+    <div
+      class="border border-accent/20 rounded-xs p-3 mb-3"
+      :class="promptSectionClass('prompt-hints')"
+      :data-prompt-focus="buildPromptFocusAttr('prompt-hints')"
+    >
       <p class="text-xs text-muted mb-2">经营提示</p>
       <div v-if="goalStore.currentEventCampaign" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
         <div class="flex items-center justify-between gap-2">
@@ -65,9 +69,22 @@
           <p class="text-[10px] text-muted mt-1">{{ goal.description }}</p>
         </div>
       </div>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusQuestSection('main-quest', '看主线')">看主线</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusQuestSection('board-quests', '看委托')">看委托</button>
+        <button v-if="questStore.specialOrder" class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusQuestSection('special-order', '看特殊订单')">
+          看特殊订单
+        </button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusQuestSection('active-quests', '看进行中任务')">看进行中任务</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusQuestSection('village-route', '看村庄路线')">看村庄路线</button>
+      </div>
     </div>
 
-    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+    <div
+      class="border border-accent/20 rounded-xs p-3 mb-3"
+      :class="promptSectionClass('village-route')"
+      :data-prompt-focus="buildPromptFocusAttr('village-route')"
+    >
       <div class="flex items-center justify-between mb-2">
         <p class="text-xs text-muted">村庄建设线路</p>
         <span class="text-[10px] text-muted">{{ villagePhaseLabel }}</span>
@@ -105,7 +122,11 @@
     </div>
 
     <!-- 主线任务 -->
-    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+    <div
+      class="border border-accent/20 rounded-xs p-3 mb-3"
+      :class="promptSectionClass('main-quest')"
+      :data-prompt-focus="buildPromptFocusAttr('main-quest')"
+    >
       <p class="text-xs text-muted mb-2">
         <BookOpen :size="12" class="inline" />
         主线任务
@@ -131,7 +152,11 @@
     </div>
 
     <!-- 今日委托 -->
-    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+    <div
+      class="border border-accent/20 rounded-xs p-3 mb-3"
+      :class="promptSectionClass('board-quests')"
+      :data-prompt-focus="buildPromptFocusAttr('board-quests')"
+    >
       <p class="text-xs text-muted mb-2">
         <Calendar :size="12" class="inline" />
         今日委托
@@ -170,7 +195,12 @@
     </div>
 
     <!-- 特殊订单 -->
-    <div v-if="questStore.specialOrder" class="border border-accent/20 rounded-xs p-3 mb-3">
+    <div
+      v-if="questStore.specialOrder"
+      class="border border-accent/20 rounded-xs p-3 mb-3"
+      :class="promptSectionClass('special-order')"
+      :data-prompt-focus="buildPromptFocusAttr('special-order')"
+    >
       <p class="text-xs text-muted mb-2">
         <Star :size="12" class="inline" />
         特殊订单
@@ -200,7 +230,11 @@
     </div>
 
     <!-- 进行中 -->
-    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+    <div
+      class="border border-accent/20 rounded-xs p-3 mb-3"
+      :class="promptSectionClass('active-quests')"
+      :data-prompt-focus="buildPromptFocusAttr('active-quests')"
+    >
       <p class="text-xs text-muted mb-2">
         <Clock :size="12" class="inline" />
         进行中 ({{ questStore.activeQuests.length }}/{{ questStore.MAX_ACTIVE_QUESTS }})
@@ -558,6 +592,7 @@
   import { ref, computed, onMounted } from 'vue'
   import { ClipboardList, Calendar, Clock, Plus, CheckCircle, CircleCheck, Circle, Star, BookOpen, X } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import type { QuestInstance, RelationshipStage, VillagerQuestCategory } from '@/types'
@@ -577,6 +612,7 @@
   const goalStore = useGoalStore()
   const npcStore = useNpcStore()
   const villageProjectStore = useVillageProjectStore()
+  const { buildPromptFocusAttr, isPromptFocusActive } = usePromptFocusPanel('quest')
 
   const CATEGORY_LABELS: Record<VillagerQuestCategory, string> = {
     gathering: '采集',
@@ -599,6 +635,18 @@
   const getItemName = (id: string): string => {
     return getItemById(id)?.name ?? id
   }
+
+  const focusQuestSection = (focusKey: string, label: string) => {
+    runPromptAction({
+      id: `quest-${focusKey}`,
+      label,
+      mode: 'cta',
+      panelKey: 'quest',
+      focusKey
+    })
+  }
+
+  const promptSectionClass = (focusKey: string) => (isPromptFocusActive(focusKey) ? 'prompt-focus-target--active' : '')
 
   const getHybridName = (id: string): string => {
     return getCropById(id)?.name ?? getItemName(id)

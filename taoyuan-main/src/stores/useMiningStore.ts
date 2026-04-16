@@ -1510,6 +1510,26 @@ export const useMiningStore = defineStore('mining', () => {
   // ==================== 道具使用 ====================
 
   /** 在战斗/探索中使用道具 */
+  const forceLeaveMine = (): string => {
+    isExploring.value = false
+    inCombat.value = false
+    combatMonster.value = null
+    combatMonsterHp.value = 0
+    combatRound.value = 0
+    combatLog.value = []
+    combatIsBoss.value = false
+    floorGrid.value = []
+    _combatTileIndex.value = -1
+    monsterLureUsedOnFloor.value = false
+    slayerCharmActive.value = false
+    if (isInSkullCavern.value) {
+      isInSkullCavern.value = false
+      cachedSkullFloorData.value = null
+      return '已强制结束本次矿窟探索并退出。'
+    }
+    return '已强制结束本次矿洞探索并退出。'
+  }
+
   const useCombatItem = (itemId: string): { success: boolean; message: string } => {
     if (!inCombat.value && !isExploring.value) return { success: false, message: '不在矿洞中。' }
 
@@ -1776,6 +1796,7 @@ export const useMiningStore = defineStore('mining', () => {
     useMonsterLure,
     goNextFloor,
     leaveMine,
+    forceLeaveMine,
     serialize,
     deserialize
   }

@@ -1,13 +1,10 @@
-import type { PanelKey } from '@/composables/useNavigation'
 import type { GoalState } from '@/stores/useGoalStore'
 import type { GuidanceSurfaceId } from '@/types'
+import type { PromptAction } from '@/types'
 
-export type TopGoalsDetailTab = 'longTerm' | 'season'
+export type TopGoalsPlanTab = 'daily' | 'weekly' | 'season'
 
-export interface TopGoalsCta {
-  id: string
-  label: string
-  panelKey: PanelKey
+export interface TopGoalsCta extends PromptAction {
   routeId?: string
   sourceSurfaceId?: GuidanceSurfaceId
 }

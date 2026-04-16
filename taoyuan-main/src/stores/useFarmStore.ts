@@ -872,6 +872,7 @@ export const useFarmStore = defineStore('farm', () => {
     plot.growthDays = 0
     plot.watered = false
     plot.unwateredDays = 0
+    plot.seedGenetics = null
     return true
   }
 
@@ -892,6 +893,7 @@ export const useFarmStore = defineStore('farm', () => {
         plot.unwateredDays = 0
         plot.harvestCount = 0
         plot.fertilizer = null
+        plot.seedGenetics = null
       } else {
         plot.state = 'growing'
         plot.growthDays = crop.growthDays - crop.regrowthDays
@@ -906,6 +908,7 @@ export const useFarmStore = defineStore('farm', () => {
       plot.unwateredDays = 0
       plot.fertilizer = null
       plot.harvestCount = 0
+      plot.seedGenetics = null
     }
     return cropId
   }

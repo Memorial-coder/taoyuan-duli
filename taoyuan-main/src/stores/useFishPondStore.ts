@@ -420,8 +420,12 @@ export const useFishPondStore = defineStore('fishPond', () => {
   })
 
   const pruneDisplayEntries = () => {
-    const fishIds = new Set(pond.value.fish.map(fish => fish.id))
-    displayEntries.value = displayEntries.value.filter(entry => fishIds.has(entry.pondFishId))
+    const threshold = getMaintenanceConfig().highTierScoreThreshold
+    displayEntries.value = displayEntries.value.filter(entry => {
+      const fish = pond.value.fish.find(candidate => candidate.id === entry.pondFishId)
+      const rating = getPondFishRatingSnapshot(entry.pondFishId)
+      return !!fish && !!rating && !fish.sick && fish.mature && rating.totalScore >= threshold
+    })
   }
 
   const canAssignDisplayFish = (pondFishId: string): boolean => {
@@ -793,6 +797,11 @@ export const useFishPondStore = defineStore('fishPond', () => {
     }
 
     if (!pond.value.built || pond.value.fish.length === 0) {
+      maintenanceState.value = {
+        ...maintenanceState.value,
+        ornamentalFeedBuffDays: Math.max(0, maintenanceState.value.ornamentalFeedBuffDays - 1),
+        quarantineShieldDays: Math.max(0, maintenanceState.value.quarantineShieldDays - 1)
+      }
       pond.value.fedToday = false
       pond.value.collectedToday = false
       return result
@@ -1008,11 +1017,11 @@ export const useFishPondStore = defineStore('fishPond', () => {
             fishId: f.fishId,
             name: f.name ?? '',
             genetics: {
-              weight: f.genetics?.weight ?? 50,
-              growthRate: f.genetics?.growthRate ?? 50,
-              diseaseRes: f.genetics?.diseaseRes ?? 50,
-              qualityGene: f.genetics?.qualityGene ?? 30,
-              mutationRate: f.genetics?.mutationRate ?? 10
+              weight: clamp(Math.round(Number(f.genetics?.weight ?? 50)), 0, 100),
+              growthRate: clamp(Math.round(Number(f.genetics?.growthRate ?? 50)), 0, 100),
+              diseaseRes: clamp(Math.round(Number(f.genetics?.diseaseRes ?? 50)), 0, 100),
+              qualityGene: clamp(Math.round(Number(f.genetics?.qualityGene ?? 30)), 0, 100),
+              mutationRate: clamp(Math.round(Number(f.genetics?.mutationRate ?? 10)), 1, 50)
             },
             daysInPond: f.daysInPond ?? 0,
             mature: f.mature ?? false,
@@ -1048,11 +1057,11 @@ export const useFishPondStore = defineStore('fishPond', () => {
                   fishId,
                   name: typeof entry.name === 'string' ? entry.name : fishId,
                   genetics: {
-                    weight: entry.genetics?.weight ?? 50,
-                    growthRate: entry.genetics?.growthRate ?? 50,
-                    diseaseRes: entry.genetics?.diseaseRes ?? 50,
-                    qualityGene: entry.genetics?.qualityGene ?? 30,
-                    mutationRate: entry.genetics?.mutationRate ?? 10
+                    weight: clamp(Math.round(Number(entry.genetics?.weight ?? 50)), 0, 100),
+                    growthRate: clamp(Math.round(Number(entry.genetics?.growthRate ?? 50)), 0, 100),
+                    diseaseRes: clamp(Math.round(Number(entry.genetics?.diseaseRes ?? 50)), 0, 100),
+                    qualityGene: clamp(Math.round(Number(entry.genetics?.qualityGene ?? 30)), 0, 100),
+                    mutationRate: clamp(Math.round(Number(entry.genetics?.mutationRate ?? 10)), 1, 50)
                   },
                   daysInPond: Math.max(0, Number(entry.daysInPond) || 0),
                   mature: !!entry.mature,
