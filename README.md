@@ -34,8 +34,8 @@
 
 <p align="center">
   <a href="游戏简介.md">玩家向简介</a> ·
-  <a href="taoyuan-main/public/guide.html">新手教程</a> ·
-  <a href="taoyuan-main/public/guide-book.html">系统百科</a> ·
+  <a href="https://taoyuan.ymzcc.com/guide.html">新手教程</a> ·
+  <a href="https://taoyuan.ymzcc.com/guide-book.html">系统百科</a> ·
   <a href="https://github.com/setube/taoyuan">参考仓库</a> ·
   QQ 群：1094297186
 </p>
@@ -63,14 +63,14 @@
 
 ## 文档导航
 
+
 - 想直接试玩线上版本：访问 [在线体验](https://taoyuan.ymzcc.com/)
 - 想先判断游戏是不是你喜欢的类型：阅读 [游戏简介.md](游戏简介.md)
-- 想快速理解当前版本的开局路线：阅读 [taoyuan-main/public/guide.html](taoyuan-main/public/guide.html)
-- 想按系统查看更细的机制分工：阅读 [taoyuan-main/public/guide-book.html](taoyuan-main/public/guide-book.html)
+- 想快速理解当前版本的开局路线：阅读 https://taoyuan.ymzcc.com/guide.html
+- 想按系统查看更细的机制分工：阅读 https://taoyuan.ymzcc.com/guide-book.html
 - 想先把项目跑起来：阅读下面的 `快速开始`
 - 想部署到服务器：阅读 `Docker 与 Compose 部署`
 - 想改代码、联调或二开：阅读 `开发者说明`
-
 ## 游戏特色
 
 - **不是只靠种地撑全程**：除了田庄经营，还有矿洞、公会、鱼塘、育种、博物馆、瀚海、关系线和隐藏仙灵等多条成长线
@@ -537,8 +537,8 @@ npm run dev
 ## 交流与参考
 
 - 玩家向简介：[游戏简介.md](游戏简介.md)
-- 新手教程：[taoyuan-main/public/guide.html](taoyuan-main/public/guide.html)
-- 系统百科：[taoyuan-main/public/guide-book.html](taoyuan-main/public/guide-book.html)
+- 新手教程：https://taoyuan.ymzcc.com/guide.html
+- 系统百科：https://taoyuan.ymzcc.com/guide-book.html
 - 参考仓库：<https://github.com/setube/taoyuan>
 - 用户 QQ 群：1094297186
 
