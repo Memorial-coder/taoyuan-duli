@@ -1,3 +1,6 @@
+> 在线体验：[立即进入桃源乡独立版](https://taoyuan.ymzcc.com/)  
+> 链接地址：`https://taoyuan.ymzcc.com/`
+
 <p align="center">
   <img src="taoyuan-main/images/logo.png" alt="桃源乡独立版封面" width="760" />
 </p>
@@ -6,6 +9,11 @@
 
 <p align="center">
   一个可独立部署的国风田园经营项目，把单人经营冒险与账号、云存档、交流大厅、游戏邮箱、AI 小助理等在线能力整合到一起。
+</p>
+
+<p align="center">
+  <a href="https://taoyuan.ymzcc.com/"><strong>立即在线体验</strong></a><br />
+  <code>https://taoyuan.ymzcc.com/</code>
 </p>
 
 <p align="center">
@@ -39,6 +47,7 @@
 
 ## 文档导航
 
+- 想直接试玩线上版本：访问 [在线体验](https://taoyuan.ymzcc.com/)
 - 想先判断游戏是不是你喜欢的类型：阅读 [游戏简介.md](游戏简介.md)
 - 想快速理解当前版本的开局路线：阅读 [taoyuan-main/public/guide.html](taoyuan-main/public/guide.html)
 - 想按系统查看更细的机制分工：阅读 [taoyuan-main/public/guide-book.html](taoyuan-main/public/guide-book.html)
@@ -61,6 +70,11 @@
 <p align="center">
   <img src="taoyuan-main/images/1.png" alt="桃源乡独立版截图 1" width="48%" />
   <img src="taoyuan-main/images/2.png" alt="桃源乡独立版截图 2" width="48%" />
+</p>
+
+<p align="center">
+  <img src="taoyuan-main/images/3.png" alt="桃源乡独立版截图 3" width="48%" />
+  <img src="taoyuan-main/images/4.png" alt="桃源乡独立版截图 4" width="48%" />
 </p>
 
 ## 快速开始
