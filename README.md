@@ -11,10 +11,13 @@
   一个可独立部署的国风田园经营项目，把单人经营冒险与账号、云存档、交流大厅、游戏邮箱、AI 小助理等在线能力整合到一起。
 </p>
 
-<p align="center">
-  <a href="https://taoyuan.ymzcc.com/"><strong>立即在线体验</strong></a><br />
-  <code>https://taoyuan.ymzcc.com/</code>
+<p align="center" style="margin:20px 0;">
+  <a href="https://taoyuan.ymzcc.com/" style="display:inline-block; padding:12px 24px; background:#14b8a6; color:#fff; border-radius:8px; font-weight:bold; font-size:16px; text-decoration:none;">
+     立即在线游玩
+  </a><br>
+  <span style="font-family:monospace; color:#666;">https://taoyuan.ymzcc.com/</span>
 </p>
+
 
 <p align="center">
   <a href="游戏简介.md">玩家向简介</a> ·
