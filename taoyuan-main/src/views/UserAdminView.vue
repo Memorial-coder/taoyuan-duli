@@ -1,6 +1,6 @@
 <template>
-  <div class="min-h-screen px-0 py-3 md:px-1 md:py-4 xl:px-2 2xl:px-3" :class="{ 'pt-10': Capacitor.isNativePlatform() }">
-    <div class="w-full space-y-3 xl:space-y-4">
+  <div class="min-h-screen px-1 py-4 md:px-2 md:py-5 xl:px-3 2xl:px-4" :class="{ 'pt-10': Capacitor.isNativePlatform() }">
+    <div class="w-full space-y-4">
       <div class="game-panel space-y-4">
         <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div class="space-y-2">
@@ -29,6 +29,9 @@
             </button>
             <button class="btn" @click="openAdminPanel('logs')">
               <span>日志中心</span>
+            </button>
+            <button class="btn" @click="openAdminPanel('ai')">
+              <span>AI 助手</span>
             </button>
             <button class="btn !bg-accent !text-bg" type="button">
               <Users :size="14" />
@@ -486,7 +489,7 @@
     return timestamp ? formatTime(timestamp) : '未保存'
   }
 
-  type AdminTab = 'mail' | 'content' | 'logs'
+  type AdminTab = 'mail' | 'content' | 'logs' | 'ai'
 
   const goBack = () => {
     void router.push('/')

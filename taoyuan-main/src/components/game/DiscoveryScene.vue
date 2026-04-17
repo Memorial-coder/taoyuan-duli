@@ -1,22 +1,34 @@
 <template>
-  <div class="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-4">
-    <div class="game-panel max-w-lg w-full max-h-[80vh] overflow-y-auto border-accent/40">
-      <p class="text-[10px] text-accent/50 mb-1 text-center">{{ phaseLabel }}</p>
-      <h3 class="text-accent text-sm mb-3">{{ stepTitle }}</h3>
-      <div v-for="(scene, i) in playedScenes" :key="i" class="mb-3">
-        <p class="text-xs leading-relaxed">{{ scene.text }}</p>
-        <p v-if="scene.chosenResponse" class="text-xs text-accent mt-1 ml-2">→ {{ scene.chosenResponse }}</p>
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+    <div class="game-panel flex max-h-[80vh] w-full max-w-lg flex-col border-accent/40">
+      <div ref="contentEl" class="min-h-0 overflow-y-auto pr-1">
+        <p class="mb-1 text-center text-[10px] text-accent/50">{{ phaseLabel }}</p>
+        <h3 class="mb-3 text-sm text-accent">{{ stepTitle }}</h3>
+
+        <div v-for="(scene, index) in playedScenes" :key="index" class="mb-3">
+          <p class="text-xs leading-relaxed">{{ scene.text }}</p>
+          <p v-if="scene.chosenResponse" class="ml-2 mt-1 text-xs text-accent">-> {{ scene.chosenResponse }}</p>
+        </div>
+
+        <div v-if="currentScene">
+          <p class="text-xs leading-relaxed">{{ currentScene.text }}</p>
+          <p v-if="choiceResponse" class="ml-2 mt-2 text-xs text-accent">-> {{ choiceResponse }}</p>
+        </div>
       </div>
-      <div v-if="currentScene">
-        <p class="text-xs leading-relaxed mb-3">{{ currentScene.text }}</p>
-        <div v-if="currentScene.choices && !hasChosen" class="space-y-2 mt-3">
-          <Button v-for="(choice, ci) in currentScene.choices" :key="ci" class="w-full text-left" @click="handleChoice(choice)">
+
+      <div class="mt-3 shrink-0 border-t border-accent/10 pt-3">
+        <div v-if="hasChoices && !hasChosen" class="space-y-2">
+          <Button
+            v-for="(choice, index) in currentScene?.choices ?? []"
+            :key="index"
+            class="w-full text-left"
+            @click="handleChoice(choice)"
+          >
             {{ choice.text }}
           </Button>
         </div>
-        <p v-if="choiceResponse" class="text-xs text-accent mt-2 ml-2">→ {{ choiceResponse }}</p>
-        <Button v-if="!currentScene.choices || hasChosen" class="mt-3 w-full" @click="nextScene">
-          {{ isLastScene ? '结束' : '继续' }}
+        <Button v-else class="w-full justify-center" @click="nextScene">
+          {{ actionLabel }}
         </Button>
       </div>
     </div>
@@ -24,12 +36,14 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed } from 'vue'
-  import type { DiscoveryStep, DiscoveryPhase } from '@/types/hiddenNpc'
+  import { computed, nextTick, onMounted, ref, watch } from 'vue'
   import type { HeartEventScene } from '@/types'
+  import type { DiscoveryPhase, DiscoveryStep } from '@/types/hiddenNpc'
   import { getHiddenNpcById } from '@/data/hiddenNpcs'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import Button from '@/components/game/Button.vue'
+
+  type SceneChoice = NonNullable<HeartEventScene['choices']>[number]
 
   const props = defineProps<{
     npcId: string
@@ -57,22 +71,43 @@
     return props.step.logMessage ?? '神秘的异象'
   })
 
+  const contentEl = ref<HTMLDivElement | null>(null)
   const currentIndex = ref(0)
   const playedScenes = ref<{ text: string; chosenResponse?: string }[]>([])
   const hasChosen = ref(false)
   const choiceResponse = ref<string | null>(null)
 
-  const currentScene = computed<HeartEventScene | null>(() => {
-    return props.step.scenes[currentIndex.value] ?? null
+  const currentScene = computed<HeartEventScene | null>(() => props.step.scenes[currentIndex.value] ?? null)
+  const hasChoices = computed(() => (currentScene.value?.choices?.length ?? 0) > 0)
+  const isLastScene = computed(() => currentIndex.value >= props.step.scenes.length - 1)
+  const actionLabel = computed(() => {
+    if (!currentScene.value) return '关闭'
+    return isLastScene.value ? '结束' : '继续'
   })
 
-  const isLastScene = computed(() => {
-    return currentIndex.value >= props.step.scenes.length - 1
-  })
+  const scrollToBottom = () => {
+    const el = contentEl.value
+    if (!el) return
+    el.scrollTop = el.scrollHeight
+  }
 
-  const handleChoice = (choice: { text: string; friendshipChange: number; response: string }) => {
+  const resetState = () => {
+    currentIndex.value = 0
+    playedScenes.value = []
+    hasChosen.value = false
+    choiceResponse.value = null
+  }
+
+  const syncSceneState = async () => {
+    resetState()
+    await nextTick()
+    scrollToBottom()
+  }
+
+  const handleChoice = (choice: SceneChoice) => {
     hasChosen.value = true
     choiceResponse.value = choice.response
+
     if (!props.readonly && choice.friendshipChange !== 0) {
       const hiddenNpcStore = useHiddenNpcStore()
       hiddenNpcStore.addAffinity(props.npcId, choice.friendshipChange)
@@ -80,8 +115,13 @@
   }
 
   const nextScene = () => {
+    if (!currentScene.value) {
+      emit('close')
+      return
+    }
+
     playedScenes.value.push({
-      text: currentScene.value?.text ?? '',
+      text: currentScene.value.text,
       chosenResponse: choiceResponse.value ?? undefined
     })
 
@@ -90,8 +130,28 @@
       return
     }
 
-    currentIndex.value++
+    currentIndex.value += 1
     hasChosen.value = false
     choiceResponse.value = null
   }
+
+  watch(
+    () => `${props.npcId}:${props.step.id}`,
+    () => {
+      void syncSceneState()
+    }
+  )
+
+  watch(
+    [currentIndex, choiceResponse],
+    async () => {
+      await nextTick()
+      scrollToBottom()
+    },
+    { flush: 'post' }
+  )
+
+  onMounted(() => {
+    void syncSceneState()
+  })
 </script>

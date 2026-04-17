@@ -1078,19 +1078,23 @@ router.get('/admin/taoyuan/ai/config', adminAuth, (req, res) => {
 
 router.post('/admin/taoyuan/ai/config', adminAuth, (req, res) => {
   try {
+    const readBodyValue = (camelKey, snakeKey = camelKey) =>
+      req.body?.[camelKey] !== undefined ? req.body[camelKey] : req.body?.[snakeKey];
+
     const config = taoyuanAiAssistant.setAdminConfig({
-      enabled: req.body?.enabled,
-      mode: req.body?.mode,
-      sourceReadEnabled: req.body?.sourceReadEnabled,
-      sourceIngestEnabled: req.body?.sourceIngestEnabled,
-      assistantName: req.body?.assistantName,
-      welcomeMessage: req.body?.welcomeMessage,
-      apiUrl: req.body?.apiUrl,
-      apiKey: req.body?.apiKey,
-      model: req.body?.model,
-      temperature: req.body?.temperature,
-      systemPrompt: req.body?.systemPrompt,
-      blockedTopics: req.body?.blockedTopics,
+      enabled: readBodyValue('enabled'),
+      mode: readBodyValue('mode'),
+      sourceReadEnabled: readBodyValue('sourceReadEnabled', 'source_read_enabled'),
+      sourceIngestEnabled: readBodyValue('sourceIngestEnabled', 'source_ingest_enabled'),
+      assistantName: readBodyValue('assistantName', 'assistant_name'),
+      welcomeMessage: readBodyValue('welcomeMessage', 'welcome_message'),
+      consoleCreditMessage: readBodyValue('consoleCreditMessage', 'console_credit_message'),
+      apiUrl: readBodyValue('apiUrl', 'api_url'),
+      apiKey: readBodyValue('apiKey', 'api_key'),
+      model: readBodyValue('model'),
+      temperature: readBodyValue('temperature'),
+      systemPrompt: readBodyValue('systemPrompt', 'system_prompt'),
+      blockedTopics: readBodyValue('blockedTopics', 'blocked_topics'),
     });
     res.json({ ok: true, config });
   } catch (error) {

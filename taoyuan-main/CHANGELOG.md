@@ -27,6 +27,11 @@
 
 ### 修复
 
+#### 0417 仙灵显现场景弹层关闭异常修复
+- `src/components/game/DiscoveryScene.vue` 已重做仙灵“传闻 / 邂逅 / 显现”剧情弹层的收尾交互：正文区域改为独立滚动，底部操作区固定保留“继续 / 结束”按钮，并在场景切换时重置 `currentIndex`、`playedScenes`、`hasChosen` 与 `choiceResponse`，避免长文本把按钮挤出可视区，或上一段剧情的本地状态串到下一段后导致弹层看起来“关不掉”。
+- `src/views/GameLayout.vue`、`src/views/game/NpcView.vue` 已为 `DiscoveryScene` 挂载点补上基于 `npcId + step.id` 的 `key`，确保仙灵发现队列切到下一段剧情或在仙灵页回顾旧剧情时不会复用脏组件实例。
+- 本次修复已通过 `npm run build` 构建验证；尚未补写“已完成实机复现场景回归”的结论。
+
 #### 0414 存档权威与瀚海扑克结算收口
 - `server/src/routes/api.js` 已移除 `GET /api/taoyuan/save/:slot` 的 active slot 副作用，并新增显式服务端当前槽位设置接口，避免“读取存档=偷偷改奖励落点”。
 - `src/utils/serverSaveApi.ts`、`src/stores/useSaveStore.ts` 已在服务端读档成功后显式同步当前 active slot；邮箱奖励现在只会在“当前运行中的就是同一个服务端槽位”时自动热刷新，不再把本地会话误报成“已到账当前存档”。

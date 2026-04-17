@@ -9,6 +9,11 @@ import type {
   AiSourceSnippet,
 } from '@/types'
 
+const defaultConsoleCreditMessage =
+  '本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186'
+
+export const CONSOLE_CREDIT_UPDATED_EVENT = 'taoyuan-console-credit-updated'
+
 const parseJsonSafe = async (res: Response) => {
   try {
     return await res.json()
@@ -41,6 +46,7 @@ const mapPublicConfig = (data: any): AiAssistantPublicConfig => ({
   mode: data?.mode === 'standard' ? 'standard' : 'strict',
   assistantName: String(data?.assistantName || data?.assistant_name || '桃源小助理'),
   welcomeMessage: String(data?.welcomeMessage || data?.welcome_message || '你好，我是桃源小助理。'),
+  consoleCreditMessage: String(data?.consoleCreditMessage || data?.console_credit_message || defaultConsoleCreditMessage),
   providerConfigured: data?.providerConfigured === true || data?.provider_configured === true,
 })
 
@@ -224,23 +230,34 @@ export const saveAiAssistantAdminConfig = async (config: AiAssistantAdminConfig)
     body: JSON.stringify({
       enabled: config.enabled,
       mode: config.mode,
-      source_read_enabled: config.sourceReadEnabled,
-      source_ingest_enabled: config.sourceIngestEnabled,
-      assistant_name: config.assistantName,
-      welcome_message: config.welcomeMessage,
-      api_url: config.apiUrl,
-      api_key: config.apiKey,
+      sourceReadEnabled: config.sourceReadEnabled,
+      sourceIngestEnabled: config.sourceIngestEnabled,
+      assistantName: config.assistantName,
+      welcomeMessage: config.welcomeMessage,
+      consoleCreditMessage: config.consoleCreditMessage,
+      apiUrl: config.apiUrl,
+      apiKey: config.apiKey,
       model: config.model,
       temperature: config.temperature,
-      system_prompt: config.systemPrompt,
-      blocked_topics: config.blockedTopics,
+      systemPrompt: config.systemPrompt,
+      blockedTopics: config.blockedTopics,
     }),
   })
   const data = await parseJsonSafe(res)
   if (!res.ok || !data?.ok || !data?.config) {
     throw new Error(data?.msg || '保存 AI 管理配置失败')
   }
-  return mapAdminConfig(data.config)
+  const savedConfig = mapAdminConfig(data.config)
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent(CONSOLE_CREDIT_UPDATED_EVENT, {
+        detail: {
+          message: savedConfig.consoleCreditMessage,
+        },
+      })
+    )
+  }
+  return savedConfig
 }
 
 export const fetchAiSourceIndexStatus = async (): Promise<AiSourceIndexStatus> => {

@@ -7,29 +7,100 @@ import router from '@/router'
 import App from './App.vue'
 import './app.css'
 import { initCurrentAccount } from '@/utils/accountStorage'
+import { CONSOLE_CREDIT_UPDATED_EVENT, fetchAiAssistantConfig } from '@/utils/taoyuanAiApi'
 
-const logProjectCredit = () => {
-  if (typeof window === 'undefined') {
-    return
+const defaultProjectCreditMessage =
+  '本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186'
+const projectCreditUrlPattern = /(https?:\/\/[^\s，。,！？；;'"）】]+)/u
+
+let projectCreditMessage = defaultProjectCreditMessage
+let lastLoggedRouteKey = ''
+
+const getProjectConsoleLogger = () => {
+  if (typeof globalThis === 'undefined') {
+    return null
   }
 
-  const scopedWindow = window as typeof window & {
-    __taoyuanProjectCreditLogged__?: boolean
+  const consoleValue = Reflect.get(globalThis, 'console')
+  if (!consoleValue || typeof consoleValue !== 'object') {
+    return null
   }
 
-  if (scopedWindow.__taoyuanProjectCreditLogged__) {
-    return
-  }
-
-  scopedWindow.__taoyuanProjectCreditLogged__ = true
-  console.log(
-    '本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186'
-  )
+  const logValue = Reflect.get(consoleValue as object, 'log')
+  return typeof logValue === 'function'
+    ? (logValue as (...args: unknown[]) => void).bind(consoleValue)
+    : null
 }
 
+const getProjectCreditLogArgs = (message: string) => {
+  const normalizedMessage = message.trim()
+  if (!normalizedMessage) {
+    return []
+  }
+
+  const urlMatch = normalizedMessage.match(projectCreditUrlPattern)
+  if (!urlMatch || typeof urlMatch.index !== 'number') {
+    return [normalizedMessage]
+  }
+
+  const matchedUrl = urlMatch[0]
+  const prefix = normalizedMessage.slice(0, urlMatch.index).trim()
+  const suffix = normalizedMessage.slice(urlMatch.index + matchedUrl.length).trim()
+
+  return [prefix, matchedUrl, suffix].filter((segment): segment is string => segment.length > 0)
+}
+
+const loadProjectCreditMessage = async () => {
+  try {
+    const config = await fetchAiAssistantConfig()
+    const nextMessage = String(config.consoleCreditMessage || '').trim()
+    if (nextMessage) {
+      projectCreditMessage = nextMessage
+    }
+  } catch {
+    projectCreditMessage = defaultProjectCreditMessage
+  }
+}
+
+const handleProjectCreditMessageUpdated = (event: Event) => {
+  if (!(event instanceof CustomEvent)) {
+    return
+  }
+
+  const nextMessage = String(event.detail?.message || '').trim()
+  if (nextMessage) {
+    projectCreditMessage = nextMessage
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener(CONSOLE_CREDIT_UPDATED_EVENT, handleProjectCreditMessageUpdated)
+}
+
+const logProjectCredit = (routeKey: string) => {
+  if (!routeKey || routeKey === lastLoggedRouteKey) {
+    return
+  }
+
+  const log = getProjectConsoleLogger()
+  if (!log) {
+    return
+  }
+
+  lastLoggedRouteKey = routeKey
+  const logArgs = getProjectCreditLogArgs(projectCreditMessage)
+  if (logArgs.length === 0) {
+    return
+  }
+  log(...logArgs)
+}
+
+router.afterEach((to) => {
+  logProjectCredit(to.fullPath)
+})
+
 const bootstrap = async () => {
-  logProjectCredit()
-  await initCurrentAccount()
+  await Promise.all([initCurrentAccount(), loadProjectCreditMessage()])
 
   const app = createApp(App)
   const pinia = createPinia()
@@ -48,6 +119,10 @@ const bootstrap = async () => {
   app.use(pinia)
   app.use(router)
   app.mount('#app')
+
+  void router.isReady().then(() => {
+    logProjectCredit(router.currentRoute.value.fullPath || '/')
+  })
 }
 
 void bootstrap()

@@ -2,6 +2,7 @@
  * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
  */
 import { createRouter, createWebHashHistory } from 'vue-router'
+import { ensureLateGameDebugAccess, LATE_GAME_DEBUG_AUTH_QUERY_KEY } from '@/utils/lateGameDebugAccess'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -29,7 +30,10 @@ const router = createRouter({
           {
             path: '/dev/late-game',
             name: 'late-game-debug',
-            component: () => import('@/views/dev/LateGameDebugView.vue')
+            component: () => import('@/views/dev/LateGameDebugView.vue'),
+            meta: {
+              requiresSuperAdmin: true,
+            },
           }
         ]
       : []),
@@ -68,6 +72,23 @@ const router = createRouter({
       ]
     }
   ]
+})
+
+router.beforeEach(async to => {
+  if (to.meta?.requiresSuperAdmin !== true) return true
+  if (!import.meta.env.DEV) return { name: 'menu' }
+
+  try {
+    await ensureLateGameDebugAccess()
+    return true
+  } catch {
+    return {
+      name: 'menu',
+      query: {
+        [LATE_GAME_DEBUG_AUTH_QUERY_KEY]: '1',
+      },
+    }
+  }
 })
 
 export default router

@@ -8,6 +8,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      DB_STORAGE: /app/data/.storage.json
     ports:
       - "${HOST_PORT:-4014}:4013"
     volumes:

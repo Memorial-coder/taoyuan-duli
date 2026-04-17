@@ -14,7 +14,7 @@
                 桃源管理
               </h1>
               <p class="text-xs text-muted leading-6">
-                桃源乡独立版的管理入口，当前已接入邮箱发奖和公告。管理员口令需要由部署者在后端环境变量中单独配置，
+                桃源乡独立版的管理入口，当前已接入邮箱发奖、首页公告和 AI 助手配置。管理员口令需要由部署者在后端环境变量中单独配置，
                 前端不会内置默认口令。
               </p>
             </div>
@@ -29,6 +29,9 @@
             </button>
             <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'logs' }" @click="switchAdminTab('logs')">
               <span>日志中心</span>
+            </button>
+            <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'ai' }" @click="switchAdminTab('ai')">
+              <span>AI 助手</span>
             </button>
             <button class="btn" @click="openUserAdmin">
               <Users :size="14" />
@@ -68,10 +71,10 @@
 
         <div class="text-xs leading-6">
           <span v-if="adminSession" class="text-success">
-            已连接 {{ adminSession.role_label }} 权限。{{ canManageMail ? '可直接发送桃源乡邮件。' : '当前口令不具备邮件运营权限，但可查看内容与日志模块。' }}
+            已连接 {{ adminSession.role_label }} 权限。{{ canManageMail ? '可直接发送桃源乡邮件。' : '当前口令不具备邮件运营权限，但可查看内容、AI 与日志模块。' }}
           </span>
           <span v-else-if="tokenError" class="text-danger">{{ tokenError }}</span>
-          <span v-else class="text-muted">填写管理员口令后即可查看和发送桃源乡邮件。</span>
+          <span v-else class="text-muted">填写管理员口令后即可进入桃源管理，查看邮件、内容、AI 与日志模块。</span>
         </div>
       </div>
 
@@ -523,6 +526,10 @@
         :can-view-audit="canManageMail"
       />
 
+      <div v-if="hasToken && activeAdminTab === 'ai' && hasAdminAccess" class="game-panel">
+        <AiAssistantAdminPanel />
+      </div>
+
       <div v-if="hasToken && activeAdminTab === 'mail' && !canManageMail" class="game-panel text-xs text-muted leading-6">
         当前口令无邮件运营权限，请使用超级管理员口令后再查看邮件记录。
       </div>
@@ -538,6 +545,7 @@
   import Divider from '@/components/game/Divider.vue'
   import AdminHomepageAboutPanel from '@/components/game/AdminHomepageAboutPanel.vue'
   import AdminLogCenterPanel from '@/components/game/AdminLogCenterPanel.vue'
+  import AiAssistantAdminPanel from '@/components/game/AiAssistantAdminPanel.vue'
   import { showFloat } from '@/composables/useGameLog'
   import {
     clearStoredAdminToken,
@@ -693,7 +701,7 @@
   const composer = ref<ComposerState>(createComposer())
   const adminSession = ref<AdminSessionInfo | null>(null)
   const isAuthorized = ref(false)
-  const activeAdminTab = ref<'mail' | 'content' | 'logs'>('mail')
+  const activeAdminTab = ref<'mail' | 'content' | 'logs' | 'ai'>('mail')
 
   const loadingCampaigns = ref(false)
   const loadingDetailId = ref('')
@@ -755,7 +763,7 @@
     void router.push('/')
   }
 
-  const switchAdminTab = (tab: 'mail' | 'content' | 'logs') => {
+  const switchAdminTab = (tab: 'mail' | 'content' | 'logs' | 'ai') => {
     activeAdminTab.value = tab
     const nextQuery = { ...route.query }
     if (tab === 'mail') {
@@ -768,7 +776,7 @@
 
   const syncAdminTabFromRoute = () => {
     const routeTab = route.query.tab
-    if (routeTab === 'content' || routeTab === 'logs' || routeTab === 'mail') {
+    if (routeTab === 'content' || routeTab === 'logs' || routeTab === 'ai' || routeTab === 'mail') {
       activeAdminTab.value = routeTab
       return
     }

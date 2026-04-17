@@ -127,6 +127,7 @@ export interface AiAssistantPublicConfig {
   mode: AiAssistantMode
   assistantName: string
   welcomeMessage: string
+  consoleCreditMessage: string
   providerConfigured: boolean
 }
 

@@ -7,6 +7,7 @@ const DATA_DIR = process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) :
 const TAOYUAN_MAILBOX_FILE = path.join(DATA_DIR, 'taoyuan_mailbox.json');
 const TAOYUAN_SAVES_DIR = path.join(DATA_DIR, 'taoyuan_saves');
 const TAOYUAN_ACTIVE_SLOT_FILE = path.join(DATA_DIR, 'taoyuan_active_slots.json');
+const CURRENT_SAVE_VERSION = 4;
 
 const SAVE_ENCRYPTION_KEY = 'taoyuanxiang_2024_secret';
 const ITEM_MAX_STACK = 999;
@@ -274,7 +275,7 @@ function buildSaveMeta(metaLike = {}, savedAtFallback) {
     : (savedAtFallback || new Date().toISOString());
   const saveVersion = Number(metaLike?.saveVersion);
   return {
-    saveVersion: Number.isFinite(saveVersion) ? saveVersion : 2,
+    saveVersion: Number.isFinite(saveVersion) ? saveVersion : CURRENT_SAVE_VERSION,
     savedAt,
   };
 }

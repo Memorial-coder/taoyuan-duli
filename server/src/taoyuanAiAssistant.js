@@ -3964,12 +3964,17 @@ function getMode() {
   return cfg.get('ai_assistant_mode') === 'standard' ? 'standard' : 'strict';
 }
 
+const DEFAULT_CONSOLE_CREDIT_MESSAGE =
+  '本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186';
+
 function getPublicConfig() {
   const enabled = cfg.get('ai_assistant_enabled') !== false;
   const assistantName = String(cfg.get('ai_assistant_name') || '桃源小助理').trim() || '桃源小助理';
   const welcomeMessage =
     String(cfg.get('ai_assistant_welcome') || '').trim() ||
     '你好，我是桃源小助理。你可以问我玩法、系统机制和攻略建议。';
+  const consoleCreditMessage =
+    String(cfg.get('ai_assistant_console_credit') || '').trim() || DEFAULT_CONSOLE_CREDIT_MESSAGE;
   const apiUrl = String(cfg.get('ai_assistant_api_url') || '').trim();
   const model = String(cfg.get('ai_assistant_model') || '').trim();
   return {
@@ -3977,6 +3982,7 @@ function getPublicConfig() {
     mode: getMode(),
     assistantName,
     welcomeMessage,
+    consoleCreditMessage,
     providerConfigured: !!(apiUrl && model),
   };
 }
@@ -4016,6 +4022,8 @@ function setAdminConfig(input = {}) {
     ai_assistant_welcome:
       String(input.welcomeMessage || '').trim() ||
       '你好，我是桃源小助理。你可以问我玩法、系统机制和攻略建议。',
+    ai_assistant_console_credit:
+      String(input.consoleCreditMessage || '').trim() || DEFAULT_CONSOLE_CREDIT_MESSAGE,
     ai_assistant_api_url: String(input.apiUrl || '').trim(),
     ai_assistant_api_key: String(input.apiKey || '').trim(),
     ai_assistant_model: String(input.model || '').trim(),

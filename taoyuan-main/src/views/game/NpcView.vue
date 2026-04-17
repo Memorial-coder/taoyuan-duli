@@ -399,7 +399,14 @@
 
     <!-- 传闻回顾弹窗 -->
     <Transition name="panel-fade">
-      <DiscoveryScene v-if="reviewingRumorStep" :npc-id="reviewingRumorStep.npcId" :step="reviewingRumorStep.step" :readonly="true" @close="reviewingRumorStep = null" />
+      <DiscoveryScene
+        v-if="reviewingRumorStep"
+        :key="`${reviewingRumorStep.npcId}:${reviewingRumorStep.step.id}`"
+        :npc-id="reviewingRumorStep.npcId"
+        :step="reviewingRumorStep.step"
+        :readonly="true"
+        @close="reviewingRumorStep = null"
+      />
     </Transition>
 
     <!-- 仙灵交互弹窗 -->

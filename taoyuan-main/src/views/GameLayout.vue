@@ -75,6 +75,7 @@
     <Transition name="panel-fade">
       <DiscoveryScene
         v-if="pendingDiscoveryScene"
+        :key="`${pendingDiscoveryScene.npcId}:${pendingDiscoveryScene.step.id}`"
         :npc-id="pendingDiscoveryScene.npcId"
         :step="pendingDiscoveryScene.step"
         @close="closeDiscoveryScene"

@@ -392,6 +392,54 @@
         </div>
       </div>
     </Transition>
+
+    <Transition name="panel-fade">
+      <div
+        v-if="showLateGameDebugAuth"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-bg/80"
+        @click.self="closeLateGameDebugAuthDialog"
+      >
+        <div class="game-panel w-full max-w-sm mx-4 relative">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="closeLateGameDebugAuthDialog">
+            <X :size="14" />
+          </button>
+          <div class="space-y-3">
+            <div class="space-y-1">
+              <p class="text-sm text-accent flex items-center gap-1.5">
+                <Bug :size="14" />
+                后期调试需要口令
+              </p>
+              <p class="text-xs text-muted leading-5">
+                后期调试会直接改动样例、周循环和调试状态，仅允许使用超级管理员口令进入。
+              </p>
+            </div>
+
+            <div class="space-y-1">
+              <label class="text-xs text-muted">超级管理员口令</label>
+              <input
+                v-model="lateGameDebugTokenInput"
+                type="password"
+                autocomplete="current-password"
+                placeholder="填写超级管理员口令"
+                class="w-full px-3 py-2 bg-bg border border-accent/30 rounded-xs text-sm focus:border-accent outline-none"
+                @keydown.enter.prevent="submitLateGameDebugAuth"
+              />
+            </div>
+
+            <p v-if="lateGameDebugAuthError" class="text-xs text-danger leading-5">
+              {{ lateGameDebugAuthError }}
+            </p>
+
+            <div class="flex justify-center gap-3 pt-1">
+              <Button @click="closeLateGameDebugAuthDialog">取消</Button>
+              <Button :icon="KeyRound" :disabled="lateGameDebugAuthBusy || !lateGameDebugTokenInput.trim()" @click="submitLateGameDebugAuth">
+                {{ lateGameDebugAuthBusy ? '验证中' : '验证并进入' }}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -402,7 +450,7 @@
   import MainMenuContinueList from '@/components/game/MainMenuContinueList.vue'
   import { renderSafeMarkdown } from '@/utils/safeMarkdown'
   import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { useRoute, useRouter } from 'vue-router'
   import { useGameStore } from '@/stores/useGameStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useFarmStore } from '@/stores/useFarmStore'
@@ -419,8 +467,14 @@
   import type { FarmMapType, Gender } from '@/types'
   import { Capacitor } from '@capacitor/core'
   import { buildScopedSingleKey, initCurrentAccount, migrateLegacySingleValue } from '@/utils/accountStorage'
+  import {
+    ensureLateGameDebugAccess,
+    getStoredLateGameDebugToken,
+    LATE_GAME_DEBUG_AUTH_QUERY_KEY,
+  } from '@/utils/lateGameDebugAccess'
 
   const router = useRouter()
+  const route = useRoute()
   const { startBgm } = useAudio()
   const pkg = _pkg as typeof _pkg & { title: string }
   const isNativePlatform = Capacitor.isNativePlatform()
@@ -444,6 +498,10 @@
   const showPrivacy = ref(false)
   const showFarmConfirm = ref(false)
   const showAbout = ref(false)
+  const showLateGameDebugAuth = ref(false)
+  const lateGameDebugTokenInput = ref(getStoredLateGameDebugToken())
+  const lateGameDebugAuthBusy = ref(false)
+  const lateGameDebugAuthError = ref('')
   const isDesktopMenu = ref(typeof window === 'undefined' ? true : window.matchMedia('(min-width: 1280px)').matches)
   const menuConfig = ref({
     returnButtonEnabled: true,
@@ -592,8 +650,58 @@
 
   const aboutDialogHtml = computed(() => renderSafeMarkdown(menuConfig.value.aboutDialogContent || '欢迎来到桃源乡。'))
 
-  const handleOpenLateGameDebug = () => {
-    void router.push('/dev/late-game')
+  const openLateGameDebugAuthDialog = (errorMessage = '') => {
+    lateGameDebugTokenInput.value = getStoredLateGameDebugToken()
+    lateGameDebugAuthError.value = errorMessage
+    showLateGameDebugAuth.value = true
+  }
+
+  const closeLateGameDebugAuthDialog = () => {
+    showLateGameDebugAuth.value = false
+    lateGameDebugAuthBusy.value = false
+    lateGameDebugAuthError.value = ''
+    lateGameDebugTokenInput.value = getStoredLateGameDebugToken()
+  }
+
+  const consumeLateGameDebugAuthQuery = () => {
+    if (!(LATE_GAME_DEBUG_AUTH_QUERY_KEY in route.query)) return
+    const nextQuery = { ...route.query }
+    delete nextQuery[LATE_GAME_DEBUG_AUTH_QUERY_KEY]
+    void router.replace({ name: 'menu', query: nextQuery })
+  }
+
+  const handleOpenLateGameDebug = async () => {
+    try {
+      await ensureLateGameDebugAccess()
+      void router.push('/dev/late-game')
+    } catch (error) {
+      const message = error instanceof Error && error.message !== '请先填写管理员口令'
+        ? error.message
+        : ''
+      openLateGameDebugAuthDialog(message)
+    }
+  }
+
+  const submitLateGameDebugAuth = async () => {
+    const token = lateGameDebugTokenInput.value.trim()
+    if (!token) {
+      lateGameDebugAuthError.value = '请先填写超级管理员口令'
+      return
+    }
+
+    lateGameDebugAuthBusy.value = true
+    lateGameDebugAuthError.value = ''
+    try {
+      await ensureLateGameDebugAccess(token, true)
+      showFloat('后期调试口令验证通过', 'success')
+      closeLateGameDebugAuthDialog()
+      void router.push('/dev/late-game')
+    } catch (error) {
+      lateGameDebugAuthError.value = error instanceof Error ? error.message : '口令验证失败'
+      showFloat(lateGameDebugAuthError.value, 'danger')
+    } finally {
+      lateGameDebugAuthBusy.value = false
+    }
   }
 
   const switchMode = async (mode: 'local' | 'server') => {
@@ -807,6 +915,16 @@
       void refreshSlots()
     }
   )
+
+  watch(
+    () => route.query[LATE_GAME_DEBUG_AUTH_QUERY_KEY],
+    value => {
+      if (value !== '1') return
+      openLateGameDebugAuthDialog()
+      consumeLateGameDebugAuthQuery()
+    },
+    { immediate: true }
+  )
 </script>
 
 <style scoped>
@@ -831,10 +949,13 @@
   .main-menu-about-markdown :deep(p),
   .main-menu-about-markdown :deep(ul),
   .main-menu-about-markdown :deep(ol),
+  .main-menu-about-markdown :deep(blockquote),
+  .main-menu-about-markdown :deep(figure),
   .main-menu-about-markdown :deep(h1),
   .main-menu-about-markdown :deep(h2),
   .main-menu-about-markdown :deep(h3),
-  .main-menu-about-markdown :deep(pre) {
+  .main-menu-about-markdown :deep(pre),
+  .main-menu-about-markdown :deep(table) {
     margin: 0 0 10px;
   }
 
@@ -843,12 +964,54 @@
     padding-left: 18px;
   }
 
+  .main-menu-about-markdown :deep(a) {
+    color: rgb(var(--color-accent));
+    text-decoration: underline;
+  }
+
+  .main-menu-about-markdown :deep(blockquote) {
+    padding-left: 10px;
+    border-left: 2px solid rgba(200, 164, 92, 0.35);
+    color: rgb(var(--color-text));
+  }
+
+  .main-menu-about-markdown :deep(figure) {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .main-menu-about-markdown :deep(figcaption) {
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgb(var(--color-muted));
+    text-align: center;
+  }
+
+  .main-menu-about-markdown :deep(hr) {
+    border: 0;
+    border-top: 1px solid rgba(200, 164, 92, 0.16);
+    margin: 12px 0;
+  }
+
   .main-menu-about-markdown :deep(img) {
     display: block;
     max-width: 100%;
     border-radius: 4px;
     margin: 8px 0;
     border: 1px solid rgba(200, 164, 92, 0.12);
+  }
+
+  .main-menu-about-markdown :deep(table) {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .main-menu-about-markdown :deep(th),
+  .main-menu-about-markdown :deep(td) {
+    border: 1px solid rgba(200, 164, 92, 0.14);
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
   }
 
   @media (min-width: 1280px) {

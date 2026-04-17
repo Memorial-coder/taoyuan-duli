@@ -49,6 +49,10 @@ body.no-select {
   -webkit-touch-callout: none;
 }
 
+html {
+  scrollbar-gutter: stable;
+}
+
 /* 全局基础样式 */
 body {
   margin: 0;

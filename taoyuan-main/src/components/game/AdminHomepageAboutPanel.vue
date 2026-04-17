@@ -4,7 +4,7 @@
       <div class="flex items-center justify-between gap-3">
         <div>
           <p class="text-sm text-accent">首页「关于游戏」内容管理</p>
-          <p class="text-xs text-muted mt-1">支持像交流大厅一样分段编辑图文内容，每个文字段仍可使用 Markdown。</p>
+          <p class="text-xs text-muted mt-1">支持像交流大厅一样分段编辑图文内容，每个文字段可混用 Markdown 与安全 HTML。</p>
         </div>
         <div class="flex flex-wrap gap-2">
           <button class="btn !px-3 !py-2" @click="loadContent" :disabled="loading">
@@ -42,7 +42,7 @@
           <span>内容正文（图文块）</span>
           <span class="text-[11px] text-muted">共 {{ aboutBlocks.length }} 段</span>
         </div>
-        <p class="text-[11px] text-muted leading-5">可像交流大厅发帖一样插入图片、调整段落顺序；文字段内依然支持标题、列表、链接等 Markdown。</p>
+        <p class="text-[11px] text-muted leading-5">可像交流大厅发帖一样插入图片、调整段落顺序；文字段内支持标题、列表、链接等 Markdown，也支持安全 HTML 片段，如 <code>&lt;img&gt;</code>、<code>&lt;br&gt;</code>、<code>&lt;a&gt;</code>。</p>
 
         <div class="space-y-3">
           <div
@@ -79,7 +79,7 @@
               rows="6"
               maxlength="6000"
               class="admin-textarea"
-              placeholder="输入这一段正文。支持 Markdown：标题、列表、链接、强调等。"
+              placeholder="输入这一段正文。支持 Markdown，也支持安全 HTML，如 <img>、<br>、<a>。"
             />
 
             <div v-else class="space-y-2">
@@ -107,7 +107,7 @@
       </div>
 
       <div class="text-xs text-muted leading-6">
-        文字段支持示例：<code>## 二级标题</code>、<code>- 列表项</code>、<code>[链接](https://...)</code>；图片建议通过上方“插入图片”按钮上传。
+        文字段支持示例：<code>## 二级标题</code>、<code>- 列表项</code>、<code>[链接](https://...)</code>、<code>&lt;img src="/api/..." width="320" alt="配图" /&gt;</code>；图片仍建议优先通过上方“插入图片”按钮上传。
       </div>
     </div>
 
@@ -473,10 +473,13 @@
   .admin-markdown-preview :deep(p),
   .admin-markdown-preview :deep(ul),
   .admin-markdown-preview :deep(ol),
+  .admin-markdown-preview :deep(blockquote),
+  .admin-markdown-preview :deep(figure),
   .admin-markdown-preview :deep(h1),
   .admin-markdown-preview :deep(h2),
   .admin-markdown-preview :deep(h3),
-  .admin-markdown-preview :deep(pre) {
+  .admin-markdown-preview :deep(pre),
+  .admin-markdown-preview :deep(table) {
     margin: 0 0 10px;
   }
 
@@ -485,12 +488,54 @@
     padding-left: 18px;
   }
 
+  .admin-markdown-preview :deep(a) {
+    color: rgb(var(--color-accent));
+    text-decoration: underline;
+  }
+
+  .admin-markdown-preview :deep(blockquote) {
+    padding-left: 10px;
+    border-left: 2px solid rgba(200, 164, 92, 0.35);
+    color: rgb(var(--color-text));
+  }
+
+  .admin-markdown-preview :deep(figure) {
+    margin-left: 0;
+    margin-right: 0;
+  }
+
+  .admin-markdown-preview :deep(figcaption) {
+    margin-top: 6px;
+    font-size: 11px;
+    color: rgb(var(--color-muted));
+    text-align: center;
+  }
+
+  .admin-markdown-preview :deep(hr) {
+    border: 0;
+    border-top: 1px solid rgba(200, 164, 92, 0.16);
+    margin: 12px 0;
+  }
+
   .admin-markdown-preview :deep(img) {
     display: block;
     max-width: 100%;
     border-radius: 4px;
     margin: 8px 0;
     border: 1px solid rgba(200, 164, 92, 0.12);
+  }
+
+  .admin-markdown-preview :deep(table) {
+    width: 100%;
+    border-collapse: collapse;
+  }
+
+  .admin-markdown-preview :deep(th),
+  .admin-markdown-preview :deep(td) {
+    border: 1px solid rgba(200, 164, 92, 0.14);
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
   }
 
   .admin-content-block {
