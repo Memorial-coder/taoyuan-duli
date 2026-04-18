@@ -98,7 +98,9 @@
 - 容器内由 `server` 同时提供网页和 `/api`
 - 数据目录建议持久化挂载到 `/app/data`
 
-### 最快启动流程（推荐：直接拉取 GHCR 镜像）
+---
+
+### 一、最快启动流程（推荐：直接拉取镜像）
 
 ```bash
 docker pull ghcr.io/memorial-coder/taoyuan-duli:latest
@@ -126,7 +128,9 @@ http://127.0.0.1:4014
 - 上面的示例适合本机直接体验；如果后面要挂 HTTPS 域名或反向代理，再补充 `CORS_ALLOWED_ORIGINS`、`COOKIE_SECURE=true` 等生产配置
 - 命名卷 `taoyuan-duli-data` 会保存账号、会话、存档等运行数据，删除容器后数据仍可保留
 
-### 本地源码启动（适合二次开发和排查问题）
+---
+
+### 二、本地源码启动（适合二次开发和排查问题）
 
 如果你需要修改前端或后端代码，或者想更方便地定位构建问题，可以改用下面的源码启动方式。
 
@@ -199,43 +203,91 @@ http://127.0.0.1:4013
 
 ## Docker 与 Compose 部署
 
-如果你准备放到服务器上，推荐使用 Docker。当前仓库已经提供：
+默认推荐部署路线只有一条：`公开 GHCR 镜像 + Docker Compose`。其他方式只在你有额外需求时再用。
 
-- `Dockerfile`
-- `Dockerfile.repack`
-- `docker-compose.yml`
-- `.env.compose.example`
+### 怎么选
 
-### 方式一：直接构建并运行镜像
+- 服务器部署：优先用 `GHCR 镜像 + Compose`
+- 想自己控制构建过程：用 `Dockerfile` 本机构建
+- 服务器不能直接拉镜像：导出 `tar` 再上传
+- 想每次推送代码自动产出镜像：用 GitHub Actions
+- 已有本地基础镜像，只想快速回填代码：用 `Dockerfile.repack`
 
-先在项目根目录构建镜像：
+### 推荐方案：GHCR 镜像 + Compose
+
+1. 把 `.env.compose.example` 复制为根目录 `.env`，至少修改：
+
+- `SECRET_KEY`
+- `ADMIN_TOKEN`
+- `SUPER_ADMIN_TOKEN`
+
+2. 服务器目录建议保持为：
+
+```text
+/opt/lucky-test/
+  ├─ docker-compose.yml
+  ├─ .env
+  └─ data/
+```
+
+3. 使用下面的 `docker-compose.yml`：
+
+```yaml
+services:
+  taoyuan:
+    image: ghcr.io/memorial-coder/taoyuan-duli:latest
+    container_name: taoyuan
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_STORAGE: /app/data/.storage.json
+    ports:
+      - "${HOST_PORT:-4014}:4013"
+    volumes:
+      - ./data:/app/data
+```
+
+4. 启动或更新：
+
+```bash
+cd /opt/lucky-test
+docker compose pull
+docker compose up -d
+```
+
+5. 检查是否正常：
+
+```bash
+curl http://127.0.0.1:4014/api/health
+```
+
+补充说明：
+
+- 容器内服务固定监听 `4013`，对外通常映射为 `4014`
+- **必须**挂载 `/app/data`
+- 如果你要接 HTTPS 域名或反向代理，再补 `CORS_ALLOWED_ORIGINS`、`COOKIE_SECURE`、`COOKIE_SAME_SITE`
+- 如果你要用 MySQL，再补 `MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE`
+
+### 其他部署方式
+
+#### 自行构建镜像
+
+适合你想完全自己控制构建过程时使用。
 
 ```bash
 docker build -t taoyuan-duli:latest .
 ```
 
-生产运行示例：
+如果要继续用 Compose，直接把上面推荐配置里的 `image:` 改成：
 
-```bash
-docker run -d \
-  --name taoyuan-duli \
-  -p 4014:4013 \
-  -e SECRET_KEY=请替换成至少24位随机长字符串 \
-  -e ADMIN_TOKEN=请替换成至少12位管理员口令 \
-  -e SUPER_ADMIN_TOKEN=请替换成至少12位超级管理员口令 \
-  -e COOKIE_SECURE=true \
-  -e CORS_ALLOWED_ORIGINS=https://你的域名 \
-  -v taoyuan-duli-data:/app/data \
-  taoyuan-duli:latest
+```yaml
+image: taoyuan-duli:latest
 ```
 
-补充说明：
+#### 三、离线部署：导出 tar 再上传
 
-- **必须**挂载 `/app/data`，否则重建容器后用户、会话、存档、邮箱、审计日志等运行数据会丢失
-- 镜像已内置健康检查，可通过 `/api/health` 判活
-- 若你打算使用 **MySQL** 管理账号，请额外传入 `MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE`
-- 若你打算继续使用本地文件用户库，请不要传入上述 MySQL 变量
-- 容器内服务始终监听 **4013**，对外可按需映射为 `4014`、`80` 或 `443` 之后的反向代理入口
+适合服务器不能直接拉取镜像时使用。
 
 导出镜像：
 
@@ -243,45 +295,17 @@ docker run -d \
 docker save -o taoyuan-duli-latest.tar taoyuan-duli:latest
 ```
 
-### 方式二：手动上传镜像到服务器后使用 Compose
-
-如果你打算像现在这样：
-
-- 手动上传 `tar` 镜像包
-- 手动上传 `docker-compose.yml`
-- 手动上传运行用 `.env`
-
-那可以直接使用仓库根目录里的：
-
-- `docker-compose.yml`
-- `.env.compose.example`
-
-建议服务器目录结构类似：
-
-```text
-/opt/lucky-test/
-  ├─ taoyuan-duli-latest.tar
-  ├─ docker-compose.yml
-  ├─ .env
-  └─ data/
-```
-
-其中：
-
-- 容器名已经固定为 `taoyuan`
-- 数据目录使用 `./data:/app/data`
-- 你只需要把 `.env.compose.example` 改名为 `.env` 并填写真实值
-
-服务器上可按下面流程执行：
+服务器上执行：
 
 ```bash
 cd /opt/lucky-test
 docker load -i taoyuan-duli-latest.tar
-docker compose down
 docker compose up -d
 ```
 
-### 方式三：由 GitHub Actions 自动构建并推送到 GHCR
+这里的 `docker-compose.yml` 仍然沿用上一节推荐配置，只需要把 `image:` 改成 `taoyuan-duli:latest`。
+
+#### GitHub Actions 自动发布 GHCR
 
 如果仓库维护者希望在每次推送代码后，由 GitHub 自动构建镜像并发布，而不是在本地手动执行 `docker build`，可以使用仓库里的工作流文件：
 
@@ -309,28 +333,17 @@ docker compose up -d
 ghcr.io/memorial-coder/taoyuan-duli:latest
 ```
 
-如果部署侧准备让服务器直接拉 GHCR 镜像，可以把 Compose 改成类似下面的形式：
+之后每次代码推送到 `main`，维护者就**不需要再手动构建镜像**了。服务器只需要：
 
-```yaml
-services:
-  taoyuan:
-    image: ghcr.io/memorial-coder/taoyuan-duli:latest
-    container_name: taoyuan
-    restart: unless-stopped
-    env_file:
-      - .env
-    environment:
-      DB_STORAGE: /app/data/.storage.json
-    ports:
-      - "${HOST_PORT:-4014}:4013"
-    volumes:
-      - ./data:/app/data
+```bash
+cd /opt/lucky-test
+docker compose pull
+docker compose up -d
 ```
 
+#### 高级用法：`Dockerfile.repack`
 
-### `Dockerfile.repack` 的用途
-
-当前仓库默认 `docker-compose.yml` 使用的是 **`Dockerfile.repack`**。它会基于你本机已经存在的 `taoyuan-duli:latest` 镜像，只覆盖：
+仓库根目录默认的 `docker-compose.yml` 面向这个流程。它会基于你本机已经存在的 `taoyuan-duli:latest` 镜像，只覆盖：
 
 - `server/`
 - `taoyuan-main/docs`
@@ -355,7 +368,7 @@ services:
 docker compose up -d --build
 ```
 
-否则 compose 只会继续使用已有的 `taoyuan-duli:latest` 镜像，即使你本地代码已经更新，容器里仍然可能是旧页面。
+如果你不是在做本地快速回填，而是在做正式服务器部署，优先回到上面的 GHCR 路线。
 
 ## 技术栈
 
@@ -386,7 +399,7 @@ docker compose up -d --build
 ├─ data/                      # 运行时数据
 ├─ data-defaults/             # 默认配置与初始数据
 ├─ tools/                     # 辅助工具脚本
-├─ docker-compose.yml         # Compose 入口
+├─ docker-compose.yml         # 默认 Compose 入口（本地 repack 流程）
 ├─ Dockerfile                 # 完整构建镜像
 ├─ Dockerfile.repack          # 基于现有镜像快速回填构建
 ├─ .env.compose.example       # Compose 环境变量示例
@@ -408,25 +421,11 @@ docker compose up -d --build
 | 村民 / 婚姻 / 仙灵 | 关系与奇遇线 | 送礼、恋爱、婚姻、仙缘与长期加成 |
 | 在线功能 | 独立版差异能力 | 登录、云存档、交流大厅、邮箱、AI 小助理 |
 
-## 配置项速查
+## 部署配置速查
 
-直接运行 `server` 时，主要使用 `server/.env`；使用 `docker compose` 时，主要使用仓库根目录 `.env`，可从 `.env.compose.example` 复制得到。
+部署时主要看根目录 `.env`。如果你是本地源码直跑，再另外参考 `server/.env.example`。
 
-### `server/.env` 常用配置
-
-| 配置项 | 是否必填 | 作用 | 常见说明 |
-| --- | --- | --- | --- |
-| `PORT` | 否 | 后端监听端口 | 默认 `4013` |
-| `SECRET_KEY` | 是 | 会话签名密钥 | 至少 24 位，不能使用示例值 |
-| `ADMIN_TOKEN` | 是 | 普通管理员口令 | 至少 12 位，不能使用示例值 |
-| `SUPER_ADMIN_TOKEN` | 否 | 超级管理员口令 | 如填写，不能与 `ADMIN_TOKEN` 相同 |
-| `CORS_ALLOWED_ORIGINS` | 视情况 | 允许携带 Cookie 的来源列表 | 多个来源用逗号分隔 |
-| `COOKIE_SECURE` | 视部署方式 | 是否只在 HTTPS 下发送 Cookie | 反向代理到 HTTPS 时通常应设为 `true` |
-| `COOKIE_SAME_SITE` | 视部署方式 | Cookie 跨站策略 | 若设为 `none`，必须同时启用 `COOKIE_SECURE=true` |
-| `DB_STORAGE` | 否 | 本地存储文件路径 | 未配置时默认回落到 `data/.storage.json` |
-| `MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE` | 否 | MySQL 用户库配置 | 使用本地文件用户库时不要传入这些变量 |
-
-### Compose 根目录 `.env` 常用配置
+### 根目录 `.env` 常用配置
 
 | 配置项 | 是否常用 | 作用 | 常见说明 |
 | --- | --- | --- | --- |
@@ -437,8 +436,9 @@ docker compose up -d --build
 | `CORS_ALLOWED_ORIGINS` | 通常是 | 允许跨域携带 Cookie 的来源 | 生产环境建议填写真实域名 |
 | `COOKIE_SECURE` | 生产环境建议开启 | 控制 HTTPS Cookie | 与反向代理配置一起考虑 |
 | `COOKIE_SAME_SITE` | 视跨域策略 | Cookie 跨站策略 | 跨站登录常见为 `none` |
+| `MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE` | 否 | MySQL 用户库配置 | 不使用 MySQL 时留空即可 |
 
-## 安全上线检查清单
+## 上线检查清单
 
 - 不要直接使用示例 `SECRET_KEY`、`ADMIN_TOKEN`、`SUPER_ADMIN_TOKEN`
 - 不要把根目录 `.env` 或 `server/.env` 提交到仓库
@@ -448,16 +448,14 @@ docker compose up -d --build
 - 确认数据卷已挂载到 `/app/data`
 - 若使用 MySQL，额外备份数据库，不要只备份容器
 
-## 备份、升级与恢复
-
-### 建议备份哪些内容
+## 部署运维
 
 - `data/` 目录或容器挂载的数据卷
 - 当前使用的 `.env`
 - 若启用了 MySQL，再额外备份数据库
 - 如有自定义部署脚本，也一并备份
 
-### 升级建议流程
+### 升级
 
 1. 先备份 `data/`、`.env` 和数据库
 2. 准备新镜像，或等待 GitHub Actions 推送新的 GHCR 镜像，或在目标机器上构建新镜像
@@ -465,7 +463,7 @@ docker compose up -d --build
 4. 执行 `docker compose down` 后再 `docker compose up -d`
 5. 用 `/api/health` 和实际登录流程确认升级成功
 
-### 恢复建议流程
+### 恢复
 
 1. 停掉当前容器
 2. 还原旧数据目录或旧数据库
