@@ -91,33 +91,49 @@
 
 ## 快速开始
 
-如果你只是想先把游戏在自己电脑上跑起来，推荐先用“本地构建前端 + 直接启动后端”的方式。这样最容易排查问题，也不需要先理解完整的 Docker 流程。
+如果你只是想先把游戏跑起来，而不是立刻参与源码开发，推荐优先使用已经构建好的 GHCR 镜像。这样不需要先在本地构建前端，也不需要先安装前后端依赖。
 
-项目默认使用 **单端口 4013**：
+项目容器内默认监听 **4013**，下面的快速启动示例会把宿主机端口映射为 **4014**：
 
-- 前端先构建到 `taoyuan-main/docs`
-- 然后由 `server` 统一提供网页和 `/api`
+- 容器内由 `server` 同时提供网页和 `/api`
+- 数据目录建议持久化挂载到 `/app/data`
 
-### 最短启动流程
+### 最快启动流程（推荐：直接拉取 GHCR 镜像）
 
 ```bash
-cd taoyuan-main
-npm install
-npm run build
+docker login ghcr.io
+docker pull ghcr.io/memorial-coder/taoyuan-duli:latest
 
-cd ../server
-copy .env.example .env
-npm install
-npm start
+docker run -d \
+  --name taoyuan \
+  -p 4014:4013 \
+  -e SECRET_KEY=请替换成至少24位随机长字符串 \
+  -e ADMIN_TOKEN=请替换成至少12位管理员口令 \
+  -e SUPER_ADMIN_TOKEN=请替换成至少12位超级管理员口令 \
+  -e COOKIE_SECURE=false \
+  -e COOKIE_SAME_SITE=lax \
+  -v taoyuan-duli-data:/app/data \
+  ghcr.io/memorial-coder/taoyuan-duli:latest
 ```
 
 启动完成后，打开：
 
 ```text
-http://127.0.0.1:4013
+http://127.0.0.1:4014
 ```
 
-### 启动前你需要准备什么
+补充说明：
+
+- 如果 `ghcr.io/memorial-coder/taoyuan-duli` 已公开，可以跳过 `docker login ghcr.io`
+- 如果镜像包仍为私有，请使用 GitHub 用户名和带 `read:packages` 权限的 Personal Access Token 登录
+- 上面的示例适合本机直接体验；如果后面要挂 HTTPS 域名或反向代理，再补充 `CORS_ALLOWED_ORIGINS`、`COOKIE_SECURE=true` 等生产配置
+- 命名卷 `taoyuan-duli-data` 会保存账号、会话、存档等运行数据，删除容器后数据仍可保留
+
+### 本地源码启动（适合二次开发和排查问题）
+
+如果你需要修改前端或后端代码，或者想更方便地定位构建问题，可以改用下面的源码启动方式。
+
+#### 启动前你需要准备什么
 
 请先确认你的电脑已经安装：
 
@@ -126,7 +142,7 @@ http://127.0.0.1:4013
 
 建议使用较新的 Node.js LTS 版本。如果你已经能在终端里运行 `node -v` 和 `npm -v`，一般就可以继续。
 
-### 第 1 步：构建前端页面
+#### 第 1 步：构建前端页面
 
 在项目根目录打开终端，执行：
 
@@ -138,7 +154,7 @@ npm run build
 
 这一步会把游戏前端页面构建到 `taoyuan-main/docs`。构建完成后，后端才能把网页提供给浏览器打开。
 
-### 第 2 步：准备后端配置文件
+#### 第 2 步：准备后端配置文件
 
 继续在终端里执行：
 
@@ -157,7 +173,7 @@ copy .env.example .env
 
 > 注意：玩家登录密码不是在 `.env` 里写死的，而是玩家在注册页面自己设置。
 
-### 第 3 步：启动后端
+#### 第 3 步：启动后端
 
 还在 `server` 目录里，执行：
 
@@ -174,7 +190,7 @@ http://127.0.0.1:4013
 
 如果一切正常，你就能看到游戏首页。
 
-### 第 4 步：第一次进入后建议做什么
+#### 第 4 步：第一次进入后建议做什么
 
 第一次打开后，建议按下面顺序体验：
 
@@ -268,9 +284,9 @@ docker compose down
 docker compose up -d
 ```
 
-### 方式三：推送代码后由 GitHub Actions 自动构建并推送到 GHCR
+### 方式三：由 GitHub Actions 自动构建并推送到 GHCR
 
-如果你希望以后每次推送代码后，都由 GitHub 自动构建镜像，而不是自己手动执行 `docker build`，可以使用仓库里的工作流文件：
+如果仓库维护者希望在每次推送代码后，由 GitHub 自动构建镜像并发布，而不是在本地手动执行 `docker build`，可以使用仓库里的工作流文件：
 
 - `.github/workflows/docker-publish.yml`
 
@@ -296,7 +312,7 @@ docker compose up -d
 ghcr.io/memorial-coder/taoyuan-duli:latest
 ```
 
-如果你准备让服务器直接拉 GHCR 镜像，可以把 Compose 改成类似下面的形式：
+如果部署侧准备让服务器直接拉 GHCR 镜像，可以把 Compose 改成类似下面的形式：
 
 ```yaml
 services:
@@ -325,7 +341,7 @@ docker login ghcr.io
 - GitHub 用户名
 - 一个带 `read:packages` 权限的 Personal Access Token
 
-之后每次代码推送到 `main`，你就**不需要再自己手动构建镜像**了。常见更新流程会变成：
+之后每次代码推送到 `main`，维护者就**不需要再手动构建镜像**了。部署机器上的常见更新流程会变成：
 
 ```bash
 cd /opt/lucky-test

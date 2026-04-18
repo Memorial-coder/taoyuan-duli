@@ -15,7 +15,7 @@ taoyuan-main/dist-ssr/
 taoyuan-main/dist-electron/
 
 # Local runtime data
-data/
+/data/
 
 # Local signing keys
 taoyuan-main/android/key
