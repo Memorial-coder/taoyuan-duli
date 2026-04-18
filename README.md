@@ -101,7 +101,6 @@
 ### 最快启动流程（推荐：直接拉取 GHCR 镜像）
 
 ```bash
-docker login ghcr.io
 docker pull ghcr.io/memorial-coder/taoyuan-duli:latest
 
 docker run -d \
@@ -124,8 +123,6 @@ http://127.0.0.1:4014
 
 补充说明：
 
-- 如果 `ghcr.io/memorial-coder/taoyuan-duli` 已公开，可以跳过 `docker login ghcr.io`
-- 如果镜像包仍为私有，请使用 GitHub 用户名和带 `read:packages` 权限的 Personal Access Token 登录
 - 上面的示例适合本机直接体验；如果后面要挂 HTTPS 域名或反向代理，再补充 `CORS_ALLOWED_ORIGINS`、`COOKIE_SECURE=true` 等生产配置
 - 命名卷 `taoyuan-duli-data` 会保存账号、会话、存档等运行数据，删除容器后数据仍可保留
 
