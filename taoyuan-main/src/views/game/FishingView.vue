@@ -315,7 +315,7 @@
               <Button @click="showCloseConfirm = false">继续钓鱼</Button>
             </div>
           </div>
-          <FishingMiniGame v-bind="miniGameParams" @complete="handleMiniGameComplete" />
+          <FishingMiniGame v-bind="miniGameParams" :paused="showCloseConfirm" @complete="handleMiniGameComplete" />
         </div>
       </div>
     </Transition>

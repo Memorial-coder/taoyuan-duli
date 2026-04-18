@@ -1703,6 +1703,10 @@
 - `src/stores/useAiAssistantStore.ts`、`src/utils/taoyuanAiApi.ts` 已补 AI 助手重入保护，并修正管理端 `temperature=0` 被错误回读成 `0.2` 的问题。
 - `src/stores/useMailboxStore.ts` 已改为按当前真实运行会话判断是否需要在领奖后回读服务端槽位，减少面板模式切换带来的误判。
 - `src/stores/useInventoryStore.ts`、`src/stores/useWarehouseStore.ts`、`src/stores/usePlayerStore.ts`、`src/stores/useHiddenNpcStore.ts` 已把序列化快照改为真实克隆，不再把 live 引用暴露给事务回滚。
+- `src/stores/useInventoryStore.ts`、`src/views/game/MiningView.vue` 已让装备方案记住武器附魔版本，并在旧档反序列化时自动清理“双槽装备同一枚戒指 / 同类戒指”的异常状态。
+- `src/components/game/FishingMiniGame.vue`、`src/views/game/FishingView.vue` 已让“放弃钓鱼”确认框真正暂停小游戏本体，确认期间鱼不会继续结算逃跑。
+- `src/stores/useInventoryStore.ts` 已把 `removeItemAnywhere()` 调整为“跨主包/临时包按品质优先扣除”，避免不指定品质时先误吃临时背包里的高品质物资。
+- `src/stores/useWalletStore.ts` 已加入进度监听，常驻钱袋被动会在条件达成后即时补发，不再必须等到睡觉结算后才生效。
 - 当前复核状态：
   - `npm run type-check`
   - `npm run build`

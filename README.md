@@ -268,6 +268,77 @@ docker compose down
 docker compose up -d
 ```
 
+### 方式三：推送代码后由 GitHub Actions 自动构建并推送到 GHCR
+
+如果你希望以后每次推送代码后，都由 GitHub 自动构建镜像，而不是自己手动执行 `docker build`，可以使用仓库里的工作流文件：
+
+- `.github/workflows/docker-publish.yml`
+
+当前工作流会在以下条件下触发：
+
+- 推送到 `main`
+- 且改动包含 `Dockerfile`、`.dockerignore`、`server/**`、`taoyuan-main/**`、`data-defaults/**` 或工作流文件本身
+- 或者在 GitHub 网页手动执行 `Run workflow`
+
+启用前请先在 GitHub 仓库页面打开：
+
+- `Settings -> Actions -> General -> Workflow permissions`
+
+并将权限设为：
+
+- `Read and write permissions`
+
+这样工作流里的 `GITHUB_TOKEN` 才能把镜像推送到 GitHub Container Registry。
+
+推送成功后，镜像会发布到：
+
+```text
+ghcr.io/memorial-coder/taoyuan-duli:latest
+```
+
+如果你准备让服务器直接拉 GHCR 镜像，可以把 Compose 改成类似下面的形式：
+
+```yaml
+services:
+  taoyuan:
+    image: ghcr.io/memorial-coder/taoyuan-duli:latest
+    container_name: taoyuan
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DB_STORAGE: /app/data/.storage.json
+    ports:
+      - "${HOST_PORT:-4014}:4013"
+    volumes:
+      - ./data:/app/data
+```
+
+服务器首次拉取私有 GHCR 包时，通常需要先登录：
+
+```bash
+docker login ghcr.io
+```
+
+然后输入：
+
+- GitHub 用户名
+- 一个带 `read:packages` 权限的 Personal Access Token
+
+之后每次代码推送到 `main`，你就**不需要再自己手动构建镜像**了。常见更新流程会变成：
+
+```bash
+cd /opt/lucky-test
+docker compose pull
+docker compose up -d
+```
+
+补充说明：
+
+- 这套流程解决的是“自动构建并发布镜像”
+- 服务器是否自动更新容器，取决于你有没有额外配置自动部署
+- 如果还没有自动部署，服务器端仍需要手动执行一次 `docker compose pull && docker compose up -d`
+
 ### `Dockerfile.repack` 的用途
 
 当前仓库默认 `docker-compose.yml` 使用的是 **`Dockerfile.repack`**。它会基于你本机已经存在的 `taoyuan-duli:latest` 镜像，只覆盖：
@@ -400,7 +471,7 @@ docker compose up -d --build
 ### 升级建议流程
 
 1. 先备份 `data/`、`.env` 和数据库
-2. 准备新镜像，或在目标机器上构建新镜像
+2. 准备新镜像，或等待 GitHub Actions 推送新的 GHCR 镜像，或在目标机器上构建新镜像
 3. 保持数据挂载目录不变
 4. 执行 `docker compose down` 后再 `docker compose up -d`
 5. 用 `/api/health` 和实际登录流程确认升级成功

@@ -1,4 +1,4 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { getItemById } from '@/data'
 import { REWARD_TICKET_DEFS, REWARD_TICKET_EXCHANGE_OFFERS, REWARD_TICKET_LABELS } from '@/data/rewardTickets'
@@ -278,6 +278,21 @@ export const useWalletStore = defineStore('wallet', () => {
 
     return newlyUnlocked
   }
+
+  watch(
+    () => [
+      useAchievementStore().stats.totalMoneyEarned,
+      useAchievementStore().stats.totalCropsHarvested,
+      useAchievementStore().caughtFishIds.length,
+      useAchievementStore().cookedRecipeIds.length,
+      useSkillStore().getSkill('foraging').level,
+      useMiningStore().safePointFloor,
+    ],
+    () => {
+      checkAndUnlock()
+    },
+    { immediate: true }
+  )
 
   const canUnlockArchetype = (archetypeId: WalletArchetypeId): boolean => {
     const archetype = getWalletArchetypeById(archetypeId)

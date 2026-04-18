@@ -637,7 +637,7 @@
             >
               <span class="text-xs text-muted">武器</span>
               <span class="text-xs" :class="detailPreset.weaponDefId ? 'text-accent' : 'text-muted/40'">
-                {{ detailPreset.weaponDefId ? (getWeaponById(detailPreset.weaponDefId)?.name ?? '未知') : '无' }}
+                {{ detailPreset.weaponDefId ? getWeaponDisplayName(detailPreset.weaponDefId, detailPreset.weaponEnchantmentId ?? null) : '无' }}
               </span>
             </div>
             <div

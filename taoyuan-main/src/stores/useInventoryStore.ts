@@ -7,6 +7,7 @@ export interface EquipmentPreset {
   id: string
   name: string
   weaponDefId: string | null
+  weaponEnchantmentId: string | null
   ringSlot1DefId: string | null
   ringSlot2DefId: string | null
   hatDefId: string | null
@@ -409,6 +410,24 @@ export const useInventoryStore = defineStore('inventory', () => {
   const removeItemAnywhere = (itemId: string, quantity: number = 1, quality?: Quality): boolean => {
     if (getTotalItemCount(itemId, quality) < quantity) return false
     let remaining = quantity
+    if (quality === undefined) {
+      const qualityOrder: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
+      for (const currentQuality of qualityOrder) {
+        if (remaining <= 0) break
+        const fromTempAtQuality = Math.min(remaining, getTempItemCount(itemId, currentQuality))
+        if (fromTempAtQuality > 0) {
+          removeItemFromTemp(itemId, fromTempAtQuality, currentQuality)
+          remaining -= fromTempAtQuality
+        }
+        const fromMainAtQuality = Math.min(remaining, getItemCount(itemId, currentQuality))
+        if (fromMainAtQuality > 0) {
+          removeItem(itemId, fromMainAtQuality, currentQuality)
+          remaining -= fromMainAtQuality
+        }
+      }
+      return remaining <= 0
+    }
+
     const fromTemp = Math.min(remaining, getTempItemCount(itemId, quality))
     if (fromTemp > 0) {
       removeItemFromTemp(itemId, fromTemp, quality)
@@ -1002,6 +1021,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       id: Date.now().toString(),
       name,
       weaponDefId: null,
+      weaponEnchantmentId: null,
       ringSlot1DefId: null,
       ringSlot2DefId: null,
       hatDefId: null,
@@ -1028,6 +1048,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     const preset = equipmentPresets.value.find(p => p.id === id)
     if (!preset) return
     preset.weaponDefId = ownedWeapons.value[equippedWeaponIndex.value]?.defId ?? null
+    preset.weaponEnchantmentId = ownedWeapons.value[equippedWeaponIndex.value]?.enchantmentId ?? null
     preset.ringSlot1DefId = equippedRingSlot1.value >= 0 ? (ownedRings.value[equippedRingSlot1.value]?.defId ?? null) : null
     preset.ringSlot2DefId = equippedRingSlot2.value >= 0 ? (ownedRings.value[equippedRingSlot2.value]?.defId ?? null) : null
     preset.hatDefId = equippedHatIndex.value >= 0 ? (ownedHats.value[equippedHatIndex.value]?.defId ?? null) : null
@@ -1043,7 +1064,9 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     // 武器
     if (preset.weaponDefId) {
-      const idx = ownedWeapons.value.findIndex(w => w.defId === preset.weaponDefId)
+      const idx = ownedWeapons.value.findIndex(
+        w => w.defId === preset.weaponDefId && (preset.weaponEnchantmentId == null || w.enchantmentId === preset.weaponEnchantmentId)
+      )
       if (idx >= 0) equipWeapon(idx)
       else missing.push('武器')
     }
@@ -1191,7 +1214,19 @@ export const useInventoryStore = defineStore('inventory', () => {
 
     // 装备方案（向后兼容旧存档）
     equipmentPresets.value = ((data as Record<string, unknown>).equipmentPresets as EquipmentPreset[] | undefined) ?? []
+    equipmentPresets.value = equipmentPresets.value.map(preset => ({
+      ...preset,
+      weaponEnchantmentId: (preset as EquipmentPreset & { weaponEnchantmentId?: string | null }).weaponEnchantmentId ?? null
+    }))
     activePresetId.value = ((data as Record<string, unknown>).activePresetId as string | null | undefined) ?? null
+
+    if (equippedRingSlot1.value >= 0 && equippedRingSlot2.value >= 0) {
+      const slot1 = ownedRings.value[equippedRingSlot1.value] ?? null
+      const slot2 = ownedRings.value[equippedRingSlot2.value] ?? null
+      if (equippedRingSlot1.value === equippedRingSlot2.value || (slot1 && slot2 && slot1.defId === slot2.defId)) {
+        equippedRingSlot2.value = -1
+      }
+    }
   }
 
   return {

@@ -78,6 +78,7 @@
     scoreGain: number
     scoreLoss: number
     timeLimit: number
+    paused?: boolean
   }>()
 
   const emit = defineEmits<{
@@ -103,6 +104,7 @@
   let targetDirection = 0
   let animationId = 0
   let startTime = 0
+  let lastFrameTime = 0
 
   const startHold = () => {
     isHolding.value = true
@@ -136,6 +138,14 @@
 
   const gameLoop = (timestamp: number) => {
     if (!gameActive.value) return
+    const deltaMs = lastFrameTime > 0 ? timestamp - lastFrameTime : 0
+    lastFrameTime = timestamp
+
+    if (props.paused) {
+      startTime += deltaMs
+      animationId = requestAnimationFrame(gameLoop)
+      return
+    }
 
     // Timer
     const elapsed = (timestamp - startTime) / 1000
@@ -205,6 +215,7 @@
   const startGame = () => {
     gameActive.value = true
     startTime = performance.now()
+    lastFrameTime = startTime
     fishPos.value = CONTAINER_HEIGHT / 2 - FISH_HEIGHT / 2
     hookPos.value = 0
     score.value = 0

@@ -495,6 +495,31 @@
         </div>
       </div>
     </Transition>
+    <Transition name="panel-fade">
+      <div
+        v-if="showSwitchArchetypeConfirm && pendingArchetypeId"
+        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        @click.self="cancelSwitchArchetype"
+      >
+        <div class="game-panel max-w-xs w-full relative">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="cancelSwitchArchetype">
+            <X :size="14" />
+          </button>
+          <p class="text-sm text-warning mb-2">切换钱包流派</p>
+          <p class="text-xs text-muted leading-relaxed mb-2">
+            切换后会清空当前流派已解锁的节点进度，确认要从「{{ walletStore.currentArchetype?.name ?? '当前流派' }}」切到「{{ getArchetypeName(pendingArchetypeId) }}」吗？
+          </p>
+          <div class="border border-warning/20 rounded-xs p-2 mb-3 bg-warning/5">
+            <p class="text-xs text-warning">当前已解锁节点 {{ unlockedArchetypeNodeCount }} 个</p>
+            <p class="text-[10px] text-muted mt-1">该操作不会影响旧钱袋被动，只会重置当前流派路线。</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <button class="btn text-xs justify-center" @click="cancelSwitchArchetype">取消</button>
+            <button class="btn text-xs justify-center !bg-warning !text-bg" @click="confirmSwitchArchetype">确认切换</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -523,6 +548,8 @@
 
   const selectedItem = ref<WalletItemDef | null>(null)
   const showResetArchetypeConfirm = ref(false)
+  const showSwitchArchetypeConfirm = ref(false)
+  const pendingArchetypeId = ref<WalletArchetypeId | null>(null)
   const exchangeMoney = ref(100)
   const importing = ref(false)
   const exporting = ref(false)
@@ -767,13 +794,38 @@
     showResetArchetypeConfirm.value = true
   }
 
-  const handleSelectArchetype = (archetypeId: WalletArchetypeId) => {
+  const applyArchetypeSelection = (archetypeId: WalletArchetypeId) => {
     if (!walletStore.selectArchetype(archetypeId)) {
       showFloat(walletStore.getArchetypeUnlockHint(archetypeId), 'danger')
       return
     }
     showFloat(`已切换为${walletStore.currentArchetype?.name ?? '该流派'}`, 'accent')
     addLog(`你选择了钱包流派「${walletStore.currentArchetype?.name ?? archetypeId}」。`)
+  }
+
+  const cancelSwitchArchetype = () => {
+    showSwitchArchetypeConfirm.value = false
+    pendingArchetypeId.value = null
+  }
+
+  const confirmSwitchArchetype = () => {
+    if (!pendingArchetypeId.value) return
+    const nextId = pendingArchetypeId.value
+    cancelSwitchArchetype()
+    applyArchetypeSelection(nextId)
+  }
+
+  const handleSelectArchetype = (archetypeId: WalletArchetypeId) => {
+    if (
+      walletStore.currentArchetypeId &&
+      walletStore.currentArchetypeId !== archetypeId &&
+      unlockedArchetypeNodeCount.value > 0
+    ) {
+      pendingArchetypeId.value = archetypeId
+      showSwitchArchetypeConfirm.value = true
+      return
+    }
+    applyArchetypeSelection(archetypeId)
   }
 
   const handleUnlockNode = (nodeId: string) => {
@@ -792,6 +844,10 @@
     showResetArchetypeConfirm.value = false
     showFloat('已重置钱包流派', 'danger')
     addLog(`已重置钱包流派${prev ? `「${prev}」` : ''}。`)
+  }
+
+  const getArchetypeName = (archetypeId: WalletArchetypeId) => {
+    return walletStore.archetypes.find(archetype => archetype.id === archetypeId)?.name ?? archetypeId
   }
 
   const handleActivateWeeklyBudget = (channelId: WeeklyBudgetChannelId, tierId: string) => {
