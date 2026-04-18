@@ -1282,10 +1282,11 @@ export const handleEndDay = () => {
 
   let summary: string
   if (recoveryMode === 'passout') {
+    const pct = Math.round(recoveryPct * 100)
     summary =
       moneyLost > 0
-        ? `你体力耗尽倒下了……有人把你送回家。丢失了${moneyLost}文。次日仅恢复50%体力。`
-        : `你体力耗尽倒下了……次日仅恢复50%体力。`
+        ? `你体力耗尽倒下了……有人把你送回家。丢失了${moneyLost}文。次日仅恢复${pct}%体力。`
+        : `你体力耗尽倒下了……次日仅恢复${pct}%体力。`
   } else if (recoveryMode === 'late') {
     const pct = Math.round(recoveryPct * 100)
     summary = `你熬夜到很晚才睡……次日仅恢复${pct}%体力。`

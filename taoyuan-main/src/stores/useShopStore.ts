@@ -2239,24 +2239,16 @@ export const useShopStore = defineStore('shop', () => {
     if (idx === -1) return false
     const entry = shippingBox.value[idx]!
     if (entry.quantity < quantity) return false
-    // 先计算背包可用空间，避免 addItem 部分添加的副作用
-    const MAX_STACK = 999
-    let space = 0
-    for (const s of inventoryStore.items) {
-      if (s.itemId === itemId && s.quality === quality && s.quantity < MAX_STACK) {
-        space += MAX_STACK - s.quantity
-      }
-    }
-    space += (inventoryStore.capacity - inventoryStore.items.length) * MAX_STACK
-    const toTransfer = Math.min(quantity, space)
-    if (toTransfer <= 0) return false
-    if (!inventoryStore.canAddItem(itemId, toTransfer, quality)) return false
-    // 先从出货箱移除，再精确添加到背包
-    entry.quantity -= toTransfer
+    if (!inventoryStore.canAddItem(itemId, quantity, quality)) return false
+    entry.quantity -= quantity
     if (entry.quantity <= 0) {
       shippingBox.value.splice(idx, 1)
     }
-    return inventoryStore.addItemExact(itemId, toTransfer, quality)
+    if (!inventoryStore.addItemExact(itemId, quantity, quality)) {
+      entry.quantity += quantity
+      return false
+    }
+    return true
   }
 
   const shippingSettlementLock = ref<string | null>(null)
@@ -2280,10 +2272,25 @@ export const useShopStore = defineStore('shop', () => {
     try {
       shippingSettlementLock.value = dayKey
       let totalIncome = 0
+      const recentShippingBase = getRecentShipping()
+      const currentDayRecord = shippingHistory.value[dayKey] ?? {}
       const dayRecord: Record<string, number> = { ...(shippingHistory.value[dayKey] ?? {}) }
 
       for (const entry of shippingBox.value) {
-        totalIncome += calculateSellPrice(entry.itemId, entry.quantity, entry.quality)
+        const itemDef = getItemById(entry.itemId)
+        if (itemDef) {
+          const baseRecentVolume = recentShippingBase[itemDef.category as MarketCategory] ?? 0
+          const currentDayBaseVolume = currentDayRecord[itemDef.category as MarketCategory] ?? 0
+          const effectiveRecentVolume = Math.max(0, baseRecentVolume - currentDayBaseVolume + (dayRecord[itemDef.category as MarketCategory] ?? 0))
+          const marketMultiplier = getMarketMultiplier(
+            itemDef.category as MarketCategory,
+            gameStore.year,
+            gameStore.seasonIndex,
+            gameStore.day,
+            effectiveRecentVolume
+          )
+          totalIncome += Math.floor(calculateBaseSellPrice(entry.itemId, entry.quantity, entry.quality) * marketMultiplier)
+        }
         recordCompletedSale(entry.itemId, entry.quantity, 'shipping_box', dayRecord)
       }
 

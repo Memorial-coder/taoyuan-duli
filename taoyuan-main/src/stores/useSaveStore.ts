@@ -1031,6 +1031,9 @@ export const useSaveStore = defineStore('save', () => {
       if (payload.decoration) decorationStore.deserialize(payload.decoration)
       if (payload.villageProject) villageProjectStore.deserialize(payload.villageProject)
       goalStore.deserialize(payload.goal)
+      if (payload.game && payload.game.tomorrowWeather == null) {
+        gameStore.recalculateTomorrowWeather()
+      }
 
       // 鍦ㄧ浉鍏?store 鍏ㄩ儴鍙嶅簭鍒楀寲瀹屾垚鍚庯紝鍐嶇粺涓€鍚屾 NPC 鍏崇郴濂栧姳锛岄伩鍏嶆棫妗ｅ鍔辫鍚炴垨椋熻氨琚悗缁?store 瑕嗙洊
       npcStore.rehydrateRelationshipPerks({ grantInventoryRewards: true, emitMessages: false })

@@ -462,6 +462,7 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
+  import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { useSaveStore } from '@/stores/useSaveStore'
@@ -693,8 +694,9 @@
     const warnings: string[] = []
     const homeStore = useHomeStore()
     const staminaBonus = homeStore.getStaminaRecoveryBonus()
+    const villageBonus = useVillageProjectStore().getDailyRecoveryBonus()
     if (playerStore.stamina <= 0 || gameStore.hour >= 26) {
-      const pct = Math.round(Math.min(PASSOUT_STAMINA_RECOVERY + staminaBonus, 1) * 100)
+      const pct = Math.round(Math.min(PASSOUT_STAMINA_RECOVERY + staminaBonus + villageBonus, 1) * 100)
       const penaltyPct = Math.round(PASSOUT_MONEY_PENALTY_RATE * 100)
       if (pct < 100) {
         warnings.push(`体力仅恢复${pct}%，并损失${penaltyPct}%铜钱（上限${PASSOUT_MONEY_PENALTY_CAP}文）`)
@@ -704,7 +706,7 @@
     } else if (gameStore.hour >= 24) {
       const t = Math.min(Math.max(gameStore.hour - 24, 0), 1)
       const pct = Math.round(
-        Math.min(LATE_NIGHT_RECOVERY_MAX - t * (LATE_NIGHT_RECOVERY_MAX - LATE_NIGHT_RECOVERY_MIN) + staminaBonus, 1) * 100
+        Math.min(LATE_NIGHT_RECOVERY_MAX - t * (LATE_NIGHT_RECOVERY_MAX - LATE_NIGHT_RECOVERY_MIN) + staminaBonus + villageBonus, 1) * 100
       )
       if (pct < 100) {
         warnings.push(`体力仅恢复${pct}%`)

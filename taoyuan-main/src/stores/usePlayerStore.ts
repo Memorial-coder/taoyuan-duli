@@ -725,9 +725,20 @@ export const usePlayerStore = defineStore('player', () => {
     stamina.value = normalizeNonNegativeInteger(data.stamina, maxStamina.value)
     // 旧存档兼容：如果没有 bonusMaxStamina 字段，从 maxStamina 和 staminaCapLevel 推算
     if ((data as any).bonusMaxStamina == null) {
-      const expectedBase = STAMINA_CAPS[staminaCapLevel.value] ?? 120
-      const diff = maxStamina.value - expectedBase
-      if (diff > 0) bonusMaxStamina.value = diff
+      const exactCapIndex = STAMINA_CAPS.findIndex(cap => cap === maxStamina.value)
+      if (exactCapIndex >= 0) {
+        staminaCapLevel.value = exactCapIndex
+        bonusMaxStamina.value = 0
+      } else {
+        const inferredBaseIndex = [...STAMINA_CAPS]
+          .map((cap, index) => ({ cap, index }))
+          .reverse()
+          .find(entry => maxStamina.value >= entry.cap)?.index ?? 0
+        staminaCapLevel.value = inferredBaseIndex
+        const expectedBase = STAMINA_CAPS[staminaCapLevel.value] ?? 120
+        const diff = maxStamina.value - expectedBase
+        if (diff > 0) bonusMaxStamina.value = diff
+      }
     }
     // 确保 maxStamina 与 staminaCapLevel + bonusMaxStamina 一致（修复旧存档）
     const expectedMax = (STAMINA_CAPS[staminaCapLevel.value] ?? 120) + bonusMaxStamina.value
