@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
     <div class="game-panel w-full max-w-md text-center relative max-h-[80vh] flex flex-col">
       <button class="absolute top-2 right-2 text-muted hover:text-text" @click="$emit('close')">
@@ -28,6 +28,12 @@
           </div>
         </div>
       </div>
+      <div
+        v-if="saveStore.storageMode === 'server' && saveStore.pendingServerSlots.length > 0"
+        class="mb-3 rounded-xs border border-warning/30 bg-warning/10 px-3 py-2 text-left text-[10px] text-warning"
+      >
+        当前账号有 {{ saveStore.pendingServerSlots.length }} 个待同步服务端存档，服务恢复后会自动补传。
+      </div>
       <div class="mb-3">
         <Button
           class="text-center justify-center text-sm w-full"
@@ -46,6 +52,7 @@
               <span class="inline-flex items-center space-x-1">
                 <FolderOpen :size="12" />
                 <span>存档 {{ info.slot + 1 }}</span>
+                <span v-if="info.pendingSync" class="rounded-xs border border-warning/40 px-1 text-[10px] text-warning">待同步</span>
               </span>
               <span class="text-muted text-xs">
                 {{ info.playerName ?? '未命名' }} · 第{{ info.year }}年 {{ SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] }} 第{{
@@ -57,6 +64,7 @@
               <span class="inline-flex items-center space-x-1">
                 <FolderOpen :size="12" />
                 <span>存档 {{ info.slot + 1 }}</span>
+                <span v-if="info.pendingSync" class="rounded-xs border border-warning/40 px-1 text-[10px] text-warning">待同步</span>
               </span>
               <span class="text-muted text-xs">
                 {{ info.playerName ?? '未命名' }} · 第{{ info.year }}年 {{ SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] }} 第{{
@@ -205,12 +213,17 @@
     if (ok) {
       await refreshSlots()
       emit('change')
+      const queued = saveStore.lastSaveResultStatus === 'queued'
+      const savedMessage = saveStore.lastServerSyncMessage || `已保存到存档 ${saveStore.activeSlot + 1}。`
       if (props.saveIntent === 'save-return') {
-        showFloat(`已保存到存档 ${saveStore.activeSlot + 1}，正在返回。`, 'success')
+        showFloat(
+          queued ? '已本地保底，服务恢复后会自动同步，正在返回。' : `已保存到存档 ${saveStore.activeSlot + 1}，正在返回。`,
+          queued ? 'accent' : 'success'
+        )
         window.location.href = props.returnUrl || '/'
         return
       }
-      showFloat(`已保存到存档 ${saveStore.activeSlot + 1}。`, 'success')
+      showFloat(savedMessage, queued ? 'accent' : 'success')
       if (props.saveIntent === 'save') {
         emit('saved', 'save')
         emit('close')
@@ -297,7 +310,9 @@
   }
 
   onMounted(() => {
-    void refreshSlots()
+    void saveStore.syncPendingServerSaves().finally(() => {
+      void refreshSlots()
+    })
   })
 
   watch(

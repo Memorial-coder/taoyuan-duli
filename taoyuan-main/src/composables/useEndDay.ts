@@ -1,4 +1,4 @@
-import { useGameStore, SEASON_NAMES, WEATHER_NAMES } from '@/stores/useGameStore'
+﻿import { useGameStore, SEASON_NAMES, WEATHER_NAMES } from '@/stores/useGameStore'
 import { usePlayerStore } from '@/stores/usePlayerStore'
 import { useFarmStore } from '@/stores/useFarmStore'
 import { useInventoryStore } from '@/stores/useInventoryStore'
@@ -1796,7 +1796,12 @@ export const handleEndDay = () => {
   goalStore.evaluateProgressAndRewards()
 
   // 自动存档
-  void saveStore.autoSave()
+  void saveStore.autoSave().then(ok => {
+    if (!ok) return
+    if (saveStore.lastSaveResultStatus === 'queued') {
+      showFloat(saveStore.lastServerSyncMessage || '当前进度已先保存在浏览器，服务恢复后会自动同步。', 'accent')
+    }
+  })
 }
 
 export const useEndDay = () => {

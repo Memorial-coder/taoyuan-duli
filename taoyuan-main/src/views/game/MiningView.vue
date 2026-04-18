@@ -717,6 +717,7 @@
 
 <script setup lang="ts">
   import { ref, computed } from 'vue'
+  import { onBeforeRouteLeave } from 'vue-router'
   import {
     Mountain,
     Pickaxe,
@@ -752,7 +753,7 @@
   import type { CombatAction, MineTile } from '@/types'
   import { sfxMine, sfxAttack, sfxHurt, sfxClick, sfxEncounter, sfxDefend, sfxFlee, sfxVictory } from '@/composables/useAudio'
   import { useAudio } from '@/composables/useAudio'
-  import { addLog } from '@/composables/useGameLog'
+  import { addLog, showFloat } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
 
   const miningStore = useMiningStore()
@@ -763,6 +764,15 @@
   const achievementStore = useAchievementStore()
   const tutorialStore = useTutorialStore()
   const { startBattleBgm, resumeNormalBgm } = useAudio()
+
+  onBeforeRouteLeave((_to, _from, next) => {
+    if (miningStore.isExploring) {
+      showFloat('请先离开矿洞后再切换页面。', 'danger')
+      next(false)
+      return
+    }
+    next()
+  })
 
   const tutorialHint = computed(() => {
     if (!tutorialStore.enabled || gameStore.year > 1) return null

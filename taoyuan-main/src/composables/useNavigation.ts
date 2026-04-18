@@ -8,6 +8,8 @@ import { sfxClick, useAudio } from './useAudio'
 import { useGameClock } from './useGameClock'
 import { processHiddenNpcDiscovery } from './useHiddenNpcDiscovery'
 import { useTutorialStore } from '@/stores/useTutorialStore'
+import { useMiningStore } from '@/stores/useMiningStore'
+import { useHanhaiStore } from '@/stores/useHanhaiStore'
 import {
   Wheat,
   Egg,
@@ -99,6 +101,19 @@ export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: ()
 export const navigateToPanel = (panelKey: PanelKey) => {
   const gameStore = useGameStore()
   const { startBgm } = useAudio()
+  const currentRouteName = router.currentRoute.value.name
+  const miningStore = useMiningStore()
+  const hanhaiStore = useHanhaiStore()
+
+  if (currentRouteName === 'mining' && panelKey !== 'mining' && miningStore.isExploring) {
+    showFloat('请先离开矿洞后再切换页面。', 'danger')
+    return false
+  }
+
+  if (currentRouteName === 'hanhai' && panelKey !== 'hanhai' && hanhaiStore.hasActiveCasinoSession) {
+    showFloat('当前有进行中的瀚海牌局，请先完成当前牌局。', 'danger')
+    return false
+  }
 
   if (gameStore.isPastBedtime) {
     addLog('已经凌晨 2 点了，你必须休息。')

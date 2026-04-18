@@ -784,6 +784,7 @@
 
 <script setup lang="ts">
   import { ref, computed, onMounted, onUnmounted } from 'vue'
+  import { onBeforeRouteLeave } from 'vue-router'
   import { Tent, X, Dices, Trophy, Bug, Gem, Check, CircleDot, Spade, Crosshair, Map } from 'lucide-vue-next'
   import { useHanhaiStore } from '@/stores/useHanhaiStore'
   import { getItemById } from '@/data'
@@ -814,7 +815,7 @@
     BUCKSHOT_WIN_MULTIPLIER
   } from '@/data/hanhai'
   import type { BuckshotPlayerAction, BuckshotSetup, CricketDef, HanhaiRelicSiteDef, HanhaiShopItemDef, TexasSessionReport, TexasSetup, TexasTierId } from '@/types'
-  import { addLog } from '@/composables/useGameLog'
+  import { addLog, showFloat } from '@/composables/useGameLog'
   import { useAudio } from '@/composables/useAudio'
   import {
     sfxRouletteSpin,
@@ -880,6 +881,15 @@
 
   onUnmounted(() => {
     endHanhaiBgm()
+  })
+
+  onBeforeRouteLeave((_to, _from, next) => {
+    if (hanhaiStore.hasActiveCasinoSession) {
+      showFloat('当前有进行中的瀚海牌局，请先完成当前牌局。', 'danger')
+      next(false)
+      return
+    }
+    next()
   })
 
   // === 解锁逻辑 ===

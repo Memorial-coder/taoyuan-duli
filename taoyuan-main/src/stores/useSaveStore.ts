@@ -1,4 +1,4 @@
-import { computed, ref } from 'vue'
+﻿import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import CryptoJS from 'crypto-js'
 import { saveAs } from 'file-saver'
@@ -45,7 +45,7 @@ import {
   WS12_QA_GOVERNANCE_TUNING_CONFIG,
   WS12_SAVE_MIGRATION_PROFILES
 } from '@/data/goals'
-import { buildScopedStorageKey, getStoredSaveMode, migrateLegacyScopedSlots, setStoredSaveMode, type SaveMode } from '@/utils/accountStorage'
+import { buildScopedSingleKey, buildScopedStorageKey, ensureCurrentAccount, getStoredSaveMode, migrateLegacyScopedSlots, setStoredSaveMode, type SaveMode } from '@/utils/accountStorage'
 import { deleteServerSlotRaw, fetchServerSlotRaw, fetchServerSlots, saveServerSlotRaw, setServerActiveSlot } from '@/utils/serverSaveApi'
 import { _registerGameplaySaveContextGetter } from '@/composables/useGameLog'
 
@@ -54,6 +54,10 @@ const MAX_SLOTS = 3
 const ENCRYPTION_KEY = 'taoyuanxiang_2024_secret'
 const SAVE_FILE_EXT = '.tyx'
 const SAVE_VERSION = 4
+const PENDING_SERVER_SAVE_KEY_PREFIX = 'taoyuanxiang_pending_server_saves_'
+
+export type ServerSaveSyncStatus = 'idle' | 'syncing' | 'queued' | 'synced' | 'error'
+export type SaveExecutionStatus = 'saved' | 'queued' | 'failed'
 
 interface SaveMeta {
   saveVersion: number
@@ -73,12 +77,72 @@ const getSaveKey = (slot: number): string => {
   return `${scopedPrefix}${slot}`
 }
 
-/** 加密 JSON 字符串 */
+const getPendingServerSaveKey = (): string => buildScopedSingleKey(PENDING_SERVER_SAVE_KEY_PREFIX)
+
+const isValidSlot = (slot: number): boolean => Number.isInteger(slot) && slot >= 0 && slot < MAX_SLOTS
+
+const loadPendingServerSaveMap = (): PendingServerSaveMap => {
+  try {
+    const raw = localStorage.getItem(getPendingServerSaveKey())
+    if (!raw) return {}
+    const parsed = JSON.parse(raw) as Record<string, PendingServerSaveEntry>
+    if (!parsed || typeof parsed !== 'object') return {}
+    const next: PendingServerSaveMap = {}
+    for (const [slotKey, entry] of Object.entries(parsed)) {
+      const slot = Number(slotKey)
+      if (!isValidSlot(slot)) continue
+      if (!entry || typeof entry !== 'object' || typeof entry.raw !== 'string' || !entry.raw) continue
+      next[slot] = {
+        raw: entry.raw,
+        savedAt: typeof entry.savedAt === 'string' && entry.savedAt ? entry.savedAt : new Date().toISOString(),
+        updatedAt: Number.isFinite(Number(entry.updatedAt)) ? Number(entry.updatedAt) : Date.now()
+      }
+    }
+    return next
+  } catch {
+    return {}
+  }
+}
+
+const persistPendingServerSaveMap = (map: PendingServerSaveMap) => {
+  try {
+    const entries = Object.entries(map)
+      .filter(([slot, entry]) => isValidSlot(Number(slot)) && !!entry?.raw)
+      .map(([slot, entry]) => [slot, entry] as const)
+
+    if (entries.length === 0) {
+      localStorage.removeItem(getPendingServerSaveKey())
+      return
+    }
+
+    localStorage.setItem(getPendingServerSaveKey(), JSON.stringify(Object.fromEntries(entries)))
+  } catch {
+    /* ignore */
+  }
+}
+
+const getPendingServerSaveEntries = (): Array<{ slot: number; entry: PendingServerSaveEntry }> =>
+  Object.entries(loadPendingServerSaveMap())
+    .map(([slot, entry]) => ({ slot: Number(slot), entry: entry as PendingServerSaveEntry }))
+    .filter(item => isValidSlot(item.slot) && !!item.entry?.raw)
+
+const getPendingServerSlotNumbers = (): number[] =>
+  getPendingServerSaveEntries()
+    .map(item => item.slot)
+    .sort((left, right) => left - right)
+
+const buildPendingServerSaveEntry = (raw: string): PendingServerSaveEntry => ({
+  raw,
+  savedAt: new Date().toISOString(),
+  updatedAt: Date.now()
+})
+
+/** 鍔犲瘑 JSON 瀛楃涓?*/
 const encrypt = (json: string): string => {
   return CryptoJS.AES.encrypt(json, ENCRYPTION_KEY).toString()
 }
 
-/** 解密为 JSON 字符串，失败返回 null */
+/** 瑙ｅ瘑涓?JSON 瀛楃涓诧紝澶辫触杩斿洖 null */
 const decrypt = (cipher: string): string | null => {
   try {
     const bytes = CryptoJS.AES.decrypt(cipher, ENCRYPTION_KEY)
@@ -89,7 +153,7 @@ const decrypt = (cipher: string): string | null => {
   }
 }
 
-/** 解密并解析存档数据 */
+/** 瑙ｅ瘑骞惰В鏋愬瓨妗ｆ暟鎹?*/
 export const parseSaveData = (raw: string): Record<string, any> | null => {
   const decrypted = decrypt(raw)
   if (!decrypted) return null
@@ -109,6 +173,7 @@ export interface SaveSlotInfo {
   money?: number
   playerName?: string
   savedAt?: string
+  pendingSync?: boolean
 }
 
 export interface BuiltInSampleSaveInfo {
@@ -117,6 +182,14 @@ export interface BuiltInSampleSaveInfo {
   description: string
   tags: string[]
 }
+
+interface PendingServerSaveEntry {
+  raw: string
+  savedAt: string
+  updatedAt: number
+}
+
+type PendingServerSaveMap = Partial<Record<number, PendingServerSaveEntry>>
 
 const buildSaveMeta = (savedAt?: string, saveVersion: number = SAVE_VERSION): SaveMeta => ({
   saveVersion,
@@ -444,9 +517,9 @@ const normalizeSaveEnvelope = (raw: Record<string, any>): SaveEnvelope | null =>
   }
 }
 export const useSaveStore = defineStore('save', () => {
-  /** 当前活跃存档槽位（-1 表示未分配） */
+  /** 褰撳墠娲昏穬瀛樻。妲戒綅锛?1 琛ㄧず鏈垎閰嶏級 */
   const activeSlot = ref(-1)
-  /** 当前活跃存档槽位所属模式，用于防止切换存储介质后误写入 */
+  /** 褰撳墠娲昏穬瀛樻。妲戒綅鎵€灞炴ā寮忥紝鐢ㄤ簬闃叉鍒囨崲瀛樺偍浠嬭川鍚庤鍐欏叆 */
   const activeSlotMode = ref<SaveMode | null>(null)
   const activeSlotsByMode = ref<Record<SaveMode, number>>({
     local: -1,
@@ -454,6 +527,46 @@ export const useSaveStore = defineStore('save', () => {
   })
   const storageMode = ref<SaveMode>(getStoredSaveMode())
   const lastSaveErrorMessage = ref('')
+  const serverSyncStatus = ref<ServerSaveSyncStatus>('idle')
+  const pendingServerSlots = ref<number[]>(getPendingServerSlotNumbers())
+  const lastServerSyncMessage = ref('')
+  const lastSaveResultStatus = ref<SaveExecutionStatus>('saved')
+
+  const refreshPendingServerState = () => {
+    pendingServerSlots.value = getPendingServerSlotNumbers()
+    return pendingServerSlots.value
+  }
+
+  const setLastSaveState = (status: SaveExecutionStatus, errorMessage = '', syncMessage = lastServerSyncMessage.value) => {
+    lastSaveResultStatus.value = status
+    lastSaveErrorMessage.value = errorMessage
+    lastServerSyncMessage.value = syncMessage
+  }
+
+  const queuePendingServerSave = (slot: number, raw: string) => {
+    const map = loadPendingServerSaveMap()
+    map[slot] = buildPendingServerSaveEntry(raw)
+    persistPendingServerSaveMap(map)
+    refreshPendingServerState()
+  }
+
+  const clearPendingServerSave = (slot: number) => {
+    const map = loadPendingServerSaveMap()
+    delete map[slot]
+    persistPendingServerSaveMap(map)
+    refreshPendingServerState()
+  }
+
+  const getPendingServerRaw = (slot: number): string | null => {
+    const map = loadPendingServerSaveMap()
+    return typeof map[slot]?.raw === 'string' ? map[slot]!.raw : null
+  }
+
+  const applyActiveSlotSelection = (slot: number, mode: SaveMode = storageMode.value) => {
+    activeSlot.value = slot
+    activeSlotMode.value = slot >= 0 ? mode : null
+    activeSlotsByMode.value[mode] = slot
+  }
 
   _registerGameplaySaveContextGetter(() => ({
     saveSlot: activeSlot.value >= 0 ? activeSlot.value : null,
@@ -469,6 +582,7 @@ export const useSaveStore = defineStore('save', () => {
     setStoredSaveMode(mode)
     activeSlot.value = activeSlotsByMode.value[mode] ?? -1
     activeSlotMode.value = activeSlot.value >= 0 ? mode : null
+    refreshPendingServerState()
   }
 
   const createQaGovernanceStorageSnapshot = () => ({
@@ -497,7 +611,7 @@ export const useSaveStore = defineStore('save', () => {
 
   const createEmptySlots = (): SaveSlotInfo[] => Array.from({ length: MAX_SLOTS }, (_, slot) => ({ slot, exists: false }))
 
-  const parseSlotInfo = (slot: number, raw: string | null): SaveSlotInfo => {
+  const parseSlotInfo = (slot: number, raw: string | null, pendingSync = false): SaveSlotInfo => {
     if (!raw) return { slot, exists: false }
     const parsed = parseSaveData(raw)
     const normalized = parsed ? normalizeSaveEnvelope(parsed) : null
@@ -510,7 +624,8 @@ export const useSaveStore = defineStore('save', () => {
       day: normalized.data.game?.day,
       money: normalized.data.player?.money,
       playerName: normalized.data.player?.playerName,
-      savedAt: normalized.meta.savedAt
+      savedAt: normalized.meta.savedAt,
+      pendingSync
     }
   }
 
@@ -579,7 +694,7 @@ export const useSaveStore = defineStore('save', () => {
           const readyMachineCount = processingStore.machines.filter(machine => machine.ready).length
           active = readyMachineCount > 0 || !!questStore.specialOrder
           evidence = questStore.specialOrder
-            ? `特殊订单「${questStore.specialOrder.description}」可直接承接当前加工产出。`
+            ? `特殊订单“${questStore.specialOrder.description}”可直接承接当前加工产出。`
             : readyMachineCount > 0
               ? `当前有 ${readyMachineCount} 台机器产物待领取。`
               : ''
@@ -593,9 +708,9 @@ export const useSaveStore = defineStore('save', () => {
         case 'ws12_loop_activity_to_reward': {
           active = !!goalStore.currentEventCampaign || !!questStore.currentLimitedTimeQuestCampaign
           evidence = goalStore.currentEventCampaign
-            ? `当前活动「${goalStore.currentEventCampaign.label}」正在运行。`
+            ? `当前活动“${goalStore.currentEventCampaign.label}”正在运行。`
             : questStore.currentLimitedTimeQuestCampaign
-              ? `当前限时窗口「${questStore.currentLimitedTimeQuestCampaign.label}」待结算。`
+              ? `当前限时窗口“${questStore.currentLimitedTimeQuestCampaign.label}”待结算。`
               : ''
           break
         }
@@ -775,7 +890,7 @@ export const useSaveStore = defineStore('save', () => {
     const decorationStore = useDecorationStore()
     const villageProjectStore = useVillageProjectStore()
 
-    // 核心块缺失时直接拒绝加载，避免先重置当前会话再因反序列化失败把现场清空
+    // 鏍稿績鍧楃己澶辨椂鐩存帴鎷掔粷鍔犺浇锛岄伩鍏嶅厛閲嶇疆褰撳墠浼氳瘽鍐嶅洜鍙嶅簭鍒楀寲澶辫触鎶婄幇鍦烘竻绌?
     if (!payload.game || !payload.player || !payload.inventory || !payload.farm) {
       return false
     }
@@ -815,7 +930,7 @@ export const useSaveStore = defineStore('save', () => {
     }
 
     try {
-      // 先重置所有游戏态，避免缺块旧档继承当前会话中的残留状态
+      // 鍏堥噸缃墍鏈夋父鎴忔€侊紝閬垮厤缂哄潡鏃ф。缁ф壙褰撳墠浼氳瘽涓殑娈嬬暀鐘舵€?
       gameStore.$reset()
       playerStore.$reset()
       inventoryStore.$reset()
@@ -875,14 +990,14 @@ export const useSaveStore = defineStore('save', () => {
       if (payload.villageProject) villageProjectStore.deserialize(payload.villageProject)
       goalStore.deserialize(payload.goal)
 
-      // 在相关 store 全部反序列化完成后，再统一同步 NPC 关系奖励，避免旧档奖励被吞或食谱被后续 store 覆盖
+      // 鍦ㄧ浉鍏?store 鍏ㄩ儴鍙嶅簭鍒楀寲瀹屾垚鍚庯紝鍐嶇粺涓€鍚屾 NPC 鍏崇郴濂栧姳锛岄伩鍏嶆棫妗ｅ鍔辫鍚炴垨椋熻氨琚悗缁?store 瑕嗙洊
       npcStore.rehydrateRelationshipPerks({ grantInventoryRewards: true, emitMessages: false })
 
       activeSlot.value = slot
       activeSlotMode.value = storageMode.value
       activeSlotsByMode.value[storageMode.value] = slot
       return true
-    } catch {
+    } catch (error) {
       gameStore.$reset()
       playerStore.$reset()
       inventoryStore.$reset()
@@ -947,35 +1062,158 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
+  const buildMergedServerSlotStates = async (): Promise<Array<{ raw: string | null; pendingSync: boolean }>> => {
+    const pendingMap = loadPendingServerSaveMap()
+    try {
+      const raws = await fetchServerSlots()
+      return Array.from({ length: MAX_SLOTS }, (_, slot) => {
+        const pendingRaw = pendingMap[slot]?.raw ?? null
+        return {
+          raw: pendingRaw ?? raws[slot] ?? null,
+          pendingSync: !!pendingRaw
+        }
+      })
+    } catch (error) {
+      return Array.from({ length: MAX_SLOTS }, (_, slot) => ({
+        raw: pendingMap[slot]?.raw ?? null,
+        pendingSync: !!pendingMap[slot]?.raw
+      }))
+    }
+  }
+
+  const syncPendingServerSaves = async (options: { slots?: number[] } = {}) => {
+    const account = await ensureCurrentAccount()
+    if (!account || account === 'guest') {
+      const currentPending = refreshPendingServerState()
+      if (currentPending.length === 0 && serverSyncStatus.value === 'syncing') {
+        serverSyncStatus.value = 'idle'
+      }
+      return {
+        attempted: false,
+        syncedSlots: [] as number[],
+        failedSlots: [] as number[],
+        pendingSlots: [...currentPending]
+      }
+    }
+
+    const requestedSlots = Array.isArray(options.slots) ? options.slots.filter(isValidSlot) : []
+    const pendingEntries = getPendingServerSaveEntries()
+      .filter(item => requestedSlots.length === 0 || requestedSlots.includes(item.slot))
+      .sort((left, right) => left.entry.updatedAt - right.entry.updatedAt)
+
+    if (pendingEntries.length === 0) {
+      const currentPending = refreshPendingServerState()
+      if (currentPending.length === 0 && serverSyncStatus.value === 'syncing') {
+        serverSyncStatus.value = 'idle'
+      }
+      return {
+        attempted: false,
+        syncedSlots: [] as number[],
+        failedSlots: [] as number[],
+        pendingSlots: [...currentPending]
+      }
+    }
+
+    serverSyncStatus.value = 'syncing'
+    const syncedSlots: number[] = []
+    const failedSlots: number[] = []
+
+    for (const { slot, entry } of pendingEntries) {
+      try {
+        await saveServerSlotRaw(slot, entry.raw)
+        clearPendingServerSave(slot)
+        syncedSlots.push(slot)
+      } catch {
+        failedSlots.push(slot)
+      }
+    }
+
+    const remainingPending = refreshPendingServerState()
+    if (failedSlots.length > 0) {
+      serverSyncStatus.value = remainingPending.length > 0 ? 'queued' : 'error'
+      lastServerSyncMessage.value = '服务暂时不可用，已先保存在当前浏览器，恢复后会自动同步。'
+    } else if (remainingPending.length > 0) {
+      serverSyncStatus.value = 'queued'
+      lastServerSyncMessage.value = '部分待同步存档已同步到服务端，剩余内容会继续自动补传。'
+    } else if (syncedSlots.length > 0) {
+      serverSyncStatus.value = 'synced'
+      lastServerSyncMessage.value = '待同步存档已同步到服务端。'
+    } else {
+      serverSyncStatus.value = 'idle'
+      lastServerSyncMessage.value = ''
+    }
+
+    return {
+      attempted: true,
+      syncedSlots,
+      failedSlots,
+      pendingSlots: [...remainingPending]
+    }
+  }
+
+  const persistServerRaw = async (slot: number, raw: string): Promise<boolean> => {
+    const account = await ensureCurrentAccount()
+    if (!account || account === 'guest') {
+      setLastSaveState('failed', '请先登录后再使用服务端存档', '')
+      return false
+    }
+
+    queuePendingServerSave(slot, raw)
+    applyActiveSlotSelection(slot, 'server')
+
+    const syncResult = await syncPendingServerSaves({ slots: [slot] })
+    if (syncResult.syncedSlots.includes(slot)) {
+      setLastSaveState(
+        'saved',
+        '',
+        syncResult.pendingSlots.length > 0
+          ? '当前进度已同步，其他待同步存档会继续自动补传。'
+          : '已保存到服务端存档。'
+      )
+      return true
+    }
+
+    setLastSaveState('queued', '', '服务暂时不可用，当前进度已先保存在浏览器，恢复后会自动同步。')
+    return true
+  }
+
   const getRawByMode = async (slot: number): Promise<string | null> => {
     if (storageMode.value === 'server') {
-      return fetchServerSlotRaw(slot)
+      const pendingRaw = getPendingServerRaw(slot)
+      try {
+        const serverRaw = await fetchServerSlotRaw(slot)
+        return pendingRaw ?? serverRaw
+      } catch (error) {
+        if (pendingRaw) return pendingRaw
+        throw error
+      }
     }
     return localStorage.getItem(getSaveKey(slot))
   }
 
-  const setRawByMode = async (slot: number, raw: string) => {
+  const setRawByMode = async (slot: number, raw: string): Promise<boolean> => {
     if (storageMode.value === 'server') {
-      await saveServerSlotRaw(slot, raw)
-      return
+      return persistServerRaw(slot, raw)
     }
     localStorage.setItem(getSaveKey(slot), raw)
+    return true
   }
 
   const removeRawByMode = async (slot: number) => {
     if (storageMode.value === 'server') {
       await deleteServerSlotRaw(slot)
+      clearPendingServerSave(slot)
       return
     }
     localStorage.removeItem(getSaveKey(slot))
   }
 
-  /** 获取所有存档槽位信息 */
+  /** 鑾峰彇鎵€鏈夊瓨妗ｆЫ浣嶄俊鎭?*/
   const getSlots = async (): Promise<SaveSlotInfo[]> => {
     try {
       if (storageMode.value === 'server') {
-        const raws = await fetchServerSlots()
-        return raws.map((raw, slot) => parseSlotInfo(slot, raw))
+        const slotStates = await buildMergedServerSlotStates()
+        return slotStates.map((state, slot) => parseSlotInfo(slot, state.raw, state.pendingSync))
       }
       return Array.from({ length: MAX_SLOTS }, (_, slot) => parseSlotInfo(slot, localStorage.getItem(getSaveKey(slot))))
     } catch {
@@ -983,49 +1221,52 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
-  /** 为新游戏分配一个空闲槽位，无空闲则返回 -1 */
+  /** 涓烘柊娓告垙鍒嗛厤涓€涓┖闂叉Ы浣嶏紝鏃犵┖闂插垯杩斿洖 -1 */
   const assignNewSlot = async (): Promise<number> => {
     const slots = await getSlots()
     const empty = slots.find(s => !s.exists)
     const slot = empty ? empty.slot : -1
-    activeSlot.value = slot
-    activeSlotMode.value = slot >= 0 ? storageMode.value : null
-    activeSlotsByMode.value[storageMode.value] = slot
+    applyActiveSlotSelection(slot, storageMode.value)
     return slot
   }
 
-  /** 保存到指定槽位 */
+  /** 淇濆瓨鍒版寚瀹氭Ы浣?*/
   const saveToSlot = async (slot: number): Promise<boolean> => {
     if (slot < 0 || slot >= MAX_SLOTS) return false
     lastSaveErrorMessage.value = ''
     const blockReason = getSaveBlockReason()
     if (blockReason) {
-      lastSaveErrorMessage.value = blockReason
+      setLastSaveState('failed', blockReason, lastServerSyncMessage.value)
       return false
     }
     try {
       const data = buildCurrentSaveData()
-      await setRawByMode(slot, encrypt(JSON.stringify(data)))
-      activeSlot.value = slot
-      activeSlotMode.value = storageMode.value
-      activeSlotsByMode.value[storageMode.value] = slot
+      const ok = await setRawByMode(slot, encrypt(JSON.stringify(data)))
+      if (!ok) return false
+      if (storageMode.value !== 'server') {
+        applyActiveSlotSelection(slot, storageMode.value)
+        setLastSaveState('saved', '', '')
+      }
       return true
-    } catch {
-      if (!lastSaveErrorMessage.value) lastSaveErrorMessage.value = '保存失败。'
+    } catch (error) {
+      if (!lastSaveErrorMessage.value) {
+        setLastSaveState('failed', error instanceof Error ? error.message : '保存失败。', lastServerSyncMessage.value)
+      }
       return false
     }
   }
 
-  /** 自动存档到当前活跃槽位 */
+  /** 鑷姩瀛樻。鍒板綋鍓嶆椿璺冩Ы浣?*/
   const autoSave = async (): Promise<boolean> => {
     if (activeSlot.value < 0) return false
     if (activeSlotMode.value !== storageMode.value) return false
     return await saveToSlot(activeSlot.value)
   }
 
-  /** 从指定槽位加载 */
+  /** 浠庢寚瀹氭Ы浣嶅姞杞?*/
   const loadFromSlot = async (slot: number): Promise<boolean> => {
     try {
+      const hadPendingServerCopy = storageMode.value === 'server' && !!getPendingServerRaw(slot)
       const raw = await getRawByMode(slot)
       if (!raw) return false
 
@@ -1037,6 +1278,11 @@ export const useSaveStore = defineStore('save', () => {
       const applied = applySaveData(data, slot)
       if (!applied) return false
       if (storageMode.value === 'server') {
+        if (hadPendingServerCopy) {
+          applyActiveSlotSelection(slot, 'server')
+          void syncPendingServerSaves({ slots: [slot] })
+          return true
+        }
         try {
           await setServerActiveSlot(slot)
         } catch {
@@ -1058,7 +1304,7 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
-  /** 删除指定槽位 */
+  /** 鍒犻櫎鎸囧畾妲戒綅 */
   const deleteSlot = async (slot: number): Promise<boolean> => {
     if (slot < 0 || slot >= MAX_SLOTS) return false
     try {
@@ -1067,14 +1313,12 @@ export const useSaveStore = defineStore('save', () => {
       return false
     }
     if (activeSlot.value === slot && activeSlotMode.value === storageMode.value) {
-      activeSlot.value = -1
-      activeSlotMode.value = null
-      activeSlotsByMode.value[storageMode.value] = -1
+      applyActiveSlotSelection(-1, storageMode.value)
     }
     return true
   }
 
-  /** 导出存档为加密文件 */
+  /** 瀵煎嚭瀛樻。涓哄姞瀵嗘枃浠?*/
   const exportSave = async (slot: number): Promise<boolean> => {
     try {
       const raw = await getRawByMode(slot)
@@ -1082,7 +1326,7 @@ export const useSaveStore = defineStore('save', () => {
       const blob = new Blob([raw], { type: 'application/octet-stream' })
       const info = (await getSlots()).find(s => s.slot === slot)
       const name = info?.exists
-        ? `桃源乡_存档${slot + 1}_第${info.year}年${SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] ?? info.season}第${info.day}天`
+        ? `桃源乡_存档${slot + 1}_第${info.year}年_${SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] ?? info.season}_第${info.day}天`
         : `桃源乡_存档${slot + 1}`
       saveAs(blob, `${name}${SAVE_FILE_EXT}`)
       return true
@@ -1091,11 +1335,11 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
-  /** 从文件导入存档到指定槽位 */
+  /** 浠庢枃浠跺鍏ュ瓨妗ｅ埌鎸囧畾妲戒綅 */
   const importSave = async (slot: number, fileContent: string): Promise<boolean> => {
     if (slot < 0 || slot >= MAX_SLOTS) return false
     try {
-      // 验证文件内容可解密
+      // 楠岃瘉鏂囦欢鍐呭鍙В瀵?
       const data = parseSaveData(fileContent)
       if (!data || !normalizeSaveEnvelope(data)) return false
       const runtimeSnapshot = buildCurrentSaveData()
@@ -1109,8 +1353,7 @@ export const useSaveStore = defineStore('save', () => {
         activeSlotsByMode.value[previousActiveSlotMode] = previousActiveSlot
       }
       if (!validationPassed || !restorePassed) return false
-      await setRawByMode(slot, fileContent)
-      return true
+      return await setRawByMode(slot, fileContent)
     } catch {
       return false
     }
@@ -1143,6 +1386,10 @@ export const useSaveStore = defineStore('save', () => {
     activeSlot,
     activeSlotMode,
     storageMode,
+    serverSyncStatus,
+    pendingServerSlots,
+    lastServerSyncMessage,
+    lastSaveResultStatus,
     qaGovernanceBaselineAudit,
     qaGovernanceOverview,
     qaGovernanceCrossSystemOverview,
@@ -1150,12 +1397,14 @@ export const useSaveStore = defineStore('save', () => {
     qaGovernanceTuning,
     lastSaveErrorMessage,
     getQaGovernanceStorageOverview,
+    refreshPendingServerState,
     setStorageMode,
     setQaGovernanceStorageMode,
     getSlots,
     assignNewSlot,
     saveToSlot,
     autoSave,
+    syncPendingServerSaves,
     loadFromSlot,
     deleteSlot,
     exportSave,
@@ -1166,3 +1415,4 @@ export const useSaveStore = defineStore('save', () => {
     resetQaGovernanceRuntimeState
   }
 })
+

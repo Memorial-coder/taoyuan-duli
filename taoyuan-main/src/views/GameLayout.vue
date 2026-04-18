@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div
     v-if="gameStore.isGameStarted"
     class="game-layout-root flex h-screen flex-col gap-2 p-2 md:gap-4 md:p-4"
@@ -464,6 +464,7 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
+  import { useSaveStore } from '@/stores/useSaveStore'
   import { useFarmStore } from '@/stores/useFarmStore'
   import { useDialogs } from '@/composables/useDialogs'
   import type { MorningChoiceEvent } from '@/data/farmEvents'
@@ -510,6 +511,7 @@
   const playerStore = usePlayerStore()
   const farmStore = useFarmStore()
   const mailboxStore = useMailboxStore()
+  const saveStore = useSaveStore()
   const { switchToSeasonalBgm } = useAudio()
   const contentViewport = ref<HTMLDivElement | null>(null)
   const sceneContentAnchor = ref<HTMLDivElement | null>(null)
@@ -609,20 +611,29 @@
   })
 
   // 实时时钟生命周期
+  const pendingSaveSyncTimer = ref<number | null>(null)
   const mailRefreshTimer = ref<number | null>(null)
 
   onMounted(() => {
     startClock()
+    void saveStore.syncPendingServerSaves()
     void mailboxStore.refreshList().catch(() => {})
     mailRefreshTimer.value = window.setInterval(() => {
       void mailboxStore.refreshList().catch(() => {})
     }, 60000)
+    pendingSaveSyncTimer.value = window.setInterval(() => {
+      void saveStore.syncPendingServerSaves()
+    }, 15000)
   })
   onUnmounted(() => {
     stopClock()
     if (mailRefreshTimer.value !== null) {
       window.clearInterval(mailRefreshTimer.value)
       mailRefreshTimer.value = null
+    }
+    if (pendingSaveSyncTimer.value !== null) {
+      window.clearInterval(pendingSaveSyncTimer.value)
+      pendingSaveSyncTimer.value = null
     }
   })
 

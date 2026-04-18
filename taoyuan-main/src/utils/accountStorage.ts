@@ -4,8 +4,15 @@ const DEFAULT_SAVE_MODE = 'local'
 
 let currentAccountKey = DEFAULT_ACCOUNT_KEY
 let currentCsrfToken = ''
+let currentAccountRefreshPromise: Promise<CurrentAccountContext> | null = null
 
 export type SaveMode = 'local' | 'server'
+
+export interface CurrentAccountContext {
+  accountKey: string
+  csrfToken: string
+  loggedIn: boolean
+}
 
 const sanitizeAccountKey = (value: string | null | undefined): string => {
   const raw = String(value || '').normalize('NFKC').trim()
@@ -29,6 +36,20 @@ export const buildScopedSingleKey = (baseKey: string): string => {
 export const getCurrentCsrfToken = (): string => {
   return currentCsrfToken || ''
 }
+
+const persistCurrentAccountKey = () => {
+  try {
+    localStorage.setItem(ACCOUNT_STORAGE_KEY, currentAccountKey)
+  } catch {
+    /* ignore */
+  }
+}
+
+const buildCurrentAccountContext = (): CurrentAccountContext => ({
+  accountKey: currentAccountKey || DEFAULT_ACCOUNT_KEY,
+  csrfToken: currentCsrfToken || '',
+  loggedIn: !!currentAccountKey && currentAccountKey !== DEFAULT_ACCOUNT_KEY
+})
 
 export const getStoredSaveMode = (): SaveMode => {
   try {
@@ -81,22 +102,39 @@ export const migrateLegacySingleValue = (legacyKey: string, scopedKey: string) =
   }
 }
 
+export const clearCurrentAccountContext = () => {
+  currentAccountKey = DEFAULT_ACCOUNT_KEY
+  currentCsrfToken = ''
+  persistCurrentAccountKey()
+  return buildCurrentAccountContext()
+}
+
+export const forceRefreshCurrentAccountContext = async (): Promise<CurrentAccountContext> => {
+  if (currentAccountRefreshPromise) return currentAccountRefreshPromise
+
+  currentAccountRefreshPromise = (async () => {
+    try {
+      const res = await fetch('/api/me', { credentials: 'include' })
+      const data = await res.json().catch(() => null)
+      currentAccountKey = sanitizeAccountKey(data?.ok ? data?.user?.username : null)
+      currentCsrfToken = data?.ok && typeof data?.csrf_token === 'string' ? data.csrf_token : ''
+      persistCurrentAccountKey()
+      return buildCurrentAccountContext()
+    } catch {
+      return clearCurrentAccountContext()
+    }
+  })()
+
+  try {
+    return await currentAccountRefreshPromise
+  } finally {
+    currentAccountRefreshPromise = null
+  }
+}
+
 export const initCurrentAccount = async (): Promise<string> => {
-  try {
-    const res = await fetch('/api/me', { credentials: 'include' })
-    const data = await res.json().catch(() => null)
-    currentAccountKey = sanitizeAccountKey(data?.ok ? data?.user?.username : null)
-    currentCsrfToken = data?.ok && typeof data?.csrf_token === 'string' ? data.csrf_token : ''
-  } catch {
-    currentAccountKey = DEFAULT_ACCOUNT_KEY
-    currentCsrfToken = ''
-  }
-  try {
-    localStorage.setItem(ACCOUNT_STORAGE_KEY, currentAccountKey)
-  } catch {
-    /* ignore */
-  }
-  return currentAccountKey
+  const context = await forceRefreshCurrentAccountContext()
+  return context.accountKey
 }
 
 export const ensureCurrentAccount = async (): Promise<string> => {
@@ -106,8 +144,8 @@ export const ensureCurrentAccount = async (): Promise<string> => {
 
 export const ensureCurrentCsrfToken = async (): Promise<string> => {
   if (currentCsrfToken) return currentCsrfToken
-  await initCurrentAccount()
-  return currentCsrfToken
+  const context = await forceRefreshCurrentAccountContext()
+  return context.csrfToken
 }
 
 try {

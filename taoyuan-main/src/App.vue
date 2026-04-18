@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <RouterView />
   <AiAssistantWidget />
   <!-- APK 退出确认弹窗 -->
@@ -30,9 +30,13 @@
   import { ref, onBeforeUnmount, onMounted, watch } from 'vue'
   import { Capacitor } from '@capacitor/core'
   import { App as CapApp } from '@capacitor/app'
+  import { useSaveStore } from '@/stores/useSaveStore'
 
   const route = useRoute()
+  const saveStore = useSaveStore()
   const showExitConfirm = ref(false)
+  let visibilityHandler: (() => void) | null = null
+  let onlineHandler: (() => void) | null = null
 
   const syncAppShellLayout = () => {
     if (typeof document === 'undefined') return
@@ -60,6 +64,22 @@
     }
 
     syncAppShellLayout()
+    void saveStore.syncPendingServerSaves()
+
+    if (typeof document !== 'undefined') {
+      visibilityHandler = () => {
+        if (document.visibilityState !== 'visible') return
+        void saveStore.syncPendingServerSaves()
+      }
+      document.addEventListener('visibilitychange', visibilityHandler)
+    }
+
+    if (typeof window !== 'undefined') {
+      onlineHandler = () => {
+        void saveStore.syncPendingServerSaves()
+      }
+      window.addEventListener('online', onlineHandler)
+    }
 
     // Capacitor Android 返回键拦截
     if (Capacitor.isNativePlatform()) {
@@ -74,6 +94,14 @@
   })
 
   onBeforeUnmount(() => {
+    if (typeof document !== 'undefined' && visibilityHandler) {
+      document.removeEventListener('visibilitychange', visibilityHandler)
+      visibilityHandler = null
+    }
+    if (typeof window !== 'undefined' && onlineHandler) {
+      window.removeEventListener('online', onlineHandler)
+      onlineHandler = null
+    }
     if (typeof document === 'undefined') return
     document.getElementById('app')?.classList.remove('app-shell--admin')
   })

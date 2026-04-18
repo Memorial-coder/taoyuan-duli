@@ -1,12 +1,5 @@
 import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
-
-const parseJsonSafe = async (res: Response) => {
-  try {
-    return await res.json()
-  } catch {
-    return null
-  }
-}
+import { fetchProtectedJson, parseJsonSafe } from '@/utils/protectedApi'
 
 const ensureLoggedInContext = async () => {
   const account = await ensureCurrentAccount()
@@ -103,7 +96,7 @@ export const fetchTaoyuanExchangeContext = async (): Promise<TaoyuanExchangeCont
     dollars: typeof meData?.user?.dollars === 'number' ? meData.user.dollars : null,
     loggedIn: true,
     returnButtonEnabled: configData?.taoyuan_return_button_enabled !== false,
-      returnButtonText: configData?.taoyuan_return_button_text || '返回首页',
+    returnButtonText: configData?.taoyuan_return_button_text || '返回首页',
     returnButtonUrl: configData?.taoyuan_return_button_url || '/',
     aboutButtonEnabled: configData?.taoyuan_about_button_enabled !== false,
     aboutButtonText: configData?.taoyuan_about_button_text || '关于游戏',
@@ -114,20 +107,21 @@ export const fetchTaoyuanExchangeContext = async (): Promise<TaoyuanExchangeCont
 
 export const importQuotaToTaoyuan = async (money: number): Promise<TaoyuanExchangeResult> => {
   await ensureLoggedInContext()
-  const csrfToken = await ensureCurrentCsrfToken()
-  const res = await fetch('/api/taoyuan/quota/import', {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
-    body: JSON.stringify({ money }),
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureCurrentCsrfToken()
+    return fetch('/api/taoyuan/quota/import', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({ money }),
+    })
+  }, {
+    fallbackMessage: '导入额度失败',
+    networkErrorMessage: '额度兑换服务连接失败，请检查网络或稍后重试'
   })
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok) {
-    throw new Error(data?.msg || '导入额度失败')
-  }
   return {
     moneyReceived: data.money_received,
     quotaSpent: data.quota_spent,
@@ -144,20 +138,21 @@ export const importQuotaToTaoyuan = async (money: number): Promise<TaoyuanExchan
 
 export const exportTaoyuanToQuota = async (money: number): Promise<TaoyuanExchangeResult> => {
   await ensureLoggedInContext()
-  const csrfToken = await ensureCurrentCsrfToken()
-  const res = await fetch('/api/taoyuan/quota/export', {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
-    body: JSON.stringify({ money }),
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureCurrentCsrfToken()
+    return fetch('/api/taoyuan/quota/export', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({ money }),
+    })
+  }, {
+    fallbackMessage: '导出额度失败',
+    networkErrorMessage: '额度兑换服务连接失败，请检查网络或稍后重试'
   })
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok) {
-    throw new Error(data?.msg || '导出额度失败')
-  }
   return {
     moneySpent: data.money_spent,
     quotaGained: data.quota_gained,

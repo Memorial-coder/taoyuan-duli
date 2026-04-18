@@ -54,6 +54,7 @@
               <Button
                 v-if="commission.isRewardPending"
                 class="!bg-success !text-bg px-2 py-0.5 shrink-0"
+                :disabled="!canClaimScholarCommissionReward(commission.id)"
                 @click="handleClaimScholarCommission(commission.id)"
               >
                 领奖
@@ -159,7 +160,8 @@
             <Button
               v-if="museumStore.donatedCount >= ms.count && !isMilestoneClaimed(ms.count)"
               class="!bg-accent !text-bg px-2 py-0.5"
-              @click="museumStore.claimMilestone(ms.count)"
+              :disabled="!canClaimMilestoneReward(ms.count)"
+              @click="handleClaimMilestone(ms.count)"
             >
               领取
             </Button>
@@ -266,11 +268,14 @@
   import Button from '@/components/game/Button.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
+  import { showFloat } from '@/composables/useGameLog'
+  import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useMuseumStore } from '@/stores/useMuseumStore'
   import { MUSEUM_ITEMS, MUSEUM_CATEGORIES, MUSEUM_MILESTONES } from '@/data/museum'
   import type { MuseumItemDef, MuseumCategory } from '@/types'
   import { getItemById } from '@/data/items'
 
+  const inventoryStore = useInventoryStore()
   const museumStore = useMuseumStore()
 
   const activeCategory = ref<MuseumCategory>('ore')
@@ -309,6 +314,45 @@
     return getItemById(id)?.name ?? MUSEUM_ITEMS.find(i => i.id === id)?.name ?? id
   }
 
+  const canClaimScholarCommissionReward = (commissionId: string): boolean => {
+    const commission = museumStore.getScholarCommissionOverview(commissionId)
+    if (!commission?.isRewardPending) return false
+    const rewardItems = (commission.reward.items ?? []).map(item => ({
+      itemId: item.itemId,
+      quantity: item.quantity,
+      quality: 'normal' as const
+    }))
+    return rewardItems.length === 0 || inventoryStore.canAddItems(rewardItems)
+  }
+
+  const getScholarCommissionClaimBlockedReason = (commissionId: string): string => {
+    const commission = museumStore.getScholarCommissionOverview(commissionId)
+    if (!commission) return '学者委托不存在。'
+    if (!commission.isRewardPending) return '该学者委托尚未达到领奖条件。'
+    if (!canClaimScholarCommissionReward(commissionId)) return '请先整理背包，当前空间不足以领取学者委托奖励。'
+    return ''
+  }
+
+  const canClaimMilestoneReward = (count: number): boolean => {
+    const milestone = MUSEUM_MILESTONES.find(item => item.count === count)
+    if (!milestone || museumStore.donatedCount < count || isMilestoneClaimed(count)) return false
+    const rewardItems = (milestone.reward.items ?? []).map(item => ({
+      itemId: item.itemId,
+      quantity: item.quantity,
+      quality: 'normal' as const
+    }))
+    return rewardItems.length === 0 || inventoryStore.canAddItems(rewardItems)
+  }
+
+  const getMilestoneClaimBlockedReason = (count: number): string => {
+    const milestone = MUSEUM_MILESTONES.find(item => item.count === count)
+    if (!milestone) return '里程碑不存在。'
+    if (museumStore.donatedCount < count) return '当前尚未达到领取条件。'
+    if (isMilestoneClaimed(count)) return '该里程碑奖励已领取。'
+    if (!canClaimMilestoneReward(count)) return '请先整理背包，当前空间不足以领取里程碑奖励。'
+    return ''
+  }
+
   const handleDonate = (itemId: string) => {
     museumStore.donateItem(itemId)
   }
@@ -323,7 +367,24 @@
   }
 
   const handleClaimScholarCommission = (commissionId: string) => {
-    museumStore.claimScholarCommissionReward(commissionId)
+    const blockedReason = getScholarCommissionClaimBlockedReason(commissionId)
+    if (blockedReason) {
+      showFloat(blockedReason, 'danger')
+      return
+    }
+    const result = museumStore.claimScholarCommissionReward(commissionId)
+    showFloat(result.message, result.success ? 'success' : 'danger')
+  }
+
+  const handleClaimMilestone = (count: number) => {
+    const blockedReason = getMilestoneClaimBlockedReason(count)
+    if (blockedReason) {
+      showFloat(blockedReason, 'danger')
+      return
+    }
+    const milestone = MUSEUM_MILESTONES.find(item => item.count === count)
+    const ok = museumStore.claimMilestone(count)
+    showFloat(ok ? `已领取${milestone?.name ?? '里程碑奖励'}` : '领取里程碑奖励失败，请稍后重试。', ok ? 'success' : 'danger')
   }
 
   const isMilestoneClaimed = (count: number): boolean => {

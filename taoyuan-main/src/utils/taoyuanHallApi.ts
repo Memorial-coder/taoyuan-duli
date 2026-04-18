@@ -1,13 +1,6 @@
 import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
 import type { HallAdminReport, HallCategory, HallContentBlock, HallMineFilter, HallPostDetail, HallPostListResult, HallPostType, HallReportResult, HallSort, HallViewer } from '@/types'
-
-const parseJsonSafe = async (res: Response) => {
-  try {
-    return await res.json()
-  } catch {
-    return null
-  }
-}
+import { fetchProtectedJson, parseJsonSafe } from '@/utils/protectedApi'
 
 const ensureInteractionContext = async () => {
   const account = await ensureCurrentAccount()
@@ -81,22 +74,26 @@ export const createHallPost = async (payload: {
   type: HallPostType
   rewardAmount?: number
 }): Promise<HallPostDetail> => {
-  const csrfToken = await ensureInteractionContext()
-  const res = await fetch('/api/taoyuan/hall/posts', {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
-    body: JSON.stringify({
-      ...payload,
-      reward_amount: payload.rewardAmount,
-    }),
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureInteractionContext()
+    return fetch('/api/taoyuan/hall/posts', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({
+        ...payload,
+        reward_amount: payload.rewardAmount,
+      }),
+    })
+  }, {
+    fallbackMessage: '发帖失败',
+    networkErrorMessage: '交流大厅连接失败，请检查网络或稍后重试'
   })
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok || !data?.post) {
-    throw new Error(data?.msg || '发帖失败')
+  if (!data?.post) {
+    throw new Error('发帖失败')
   }
   return data.post
 }
@@ -111,23 +108,27 @@ const readFileAsDataUrl = (file: File): Promise<string> => {
 }
 
 export const uploadHallImage = async (file: File): Promise<{ url: string; alt: string }> => {
-  const csrfToken = await ensureInteractionContext()
   const dataUrl = await readFileAsDataUrl(file)
-  const res = await fetch('/api/taoyuan/hall/upload-image', {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
-    body: JSON.stringify({
-      data_url: dataUrl,
-      filename: file.name,
-    }),
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureInteractionContext()
+    return fetch('/api/taoyuan/hall/upload-image', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({
+        data_url: dataUrl,
+        filename: file.name,
+      }),
+    })
+  }, {
+    fallbackMessage: '上传图片失败',
+    networkErrorMessage: '交流大厅连接失败，请检查网络或稍后重试'
   })
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok || !data?.url) {
-    throw new Error(data?.msg || '上传图片失败')
+  if (!data?.url) {
+    throw new Error('上传图片失败')
   }
   return {
     url: String(data.url),
@@ -136,55 +137,67 @@ export const uploadHallImage = async (file: File): Promise<{ url: string; alt: s
 }
 
 export const createHallReply = async (postId: string, content: string, replyToId?: string | null): Promise<HallPostDetail> => {
-  const csrfToken = await ensureInteractionContext()
-  const res = await fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/replies`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
-    body: JSON.stringify({ content, reply_to_id: replyToId || undefined }),
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureInteractionContext()
+    return fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/replies`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({ content, reply_to_id: replyToId || undefined }),
+    })
+  }, {
+    fallbackMessage: '回复失败',
+    networkErrorMessage: '交流大厅连接失败，请检查网络或稍后重试'
   })
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok || !data?.post) {
-    throw new Error(data?.msg || '回复失败')
+  if (!data?.post) {
+    throw new Error('回复失败')
   }
   return data.post
 }
 
 export const reportHallPost = async (postId: string, reason: string): Promise<HallReportResult> => {
-  const csrfToken = await ensureInteractionContext()
-  const res = await fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/report`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
-    body: JSON.stringify({ reason }),
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureInteractionContext()
+    return fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/report`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({ reason }),
+    })
+  }, {
+    fallbackMessage: '举报帖子失败',
+    networkErrorMessage: '交流大厅连接失败，请检查网络或稍后重试'
   })
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok || !data?.report) {
-    throw new Error(data?.msg || '举报帖子失败')
+  if (!data?.report) {
+    throw new Error('举报帖子失败')
   }
   return data.report
 }
 
 export const reportHallReply = async (postId: string, replyId: string, reason: string): Promise<HallReportResult> => {
-  const csrfToken = await ensureInteractionContext()
-  const res = await fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/replies/${encodeURIComponent(replyId)}/report`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
-    body: JSON.stringify({ reason }),
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureInteractionContext()
+    return fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/replies/${encodeURIComponent(replyId)}/report`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({ reason }),
+    })
+  }, {
+    fallbackMessage: '举报回复失败',
+    networkErrorMessage: '交流大厅连接失败，请检查网络或稍后重试'
   })
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok || !data?.report) {
-    throw new Error(data?.msg || '举报回复失败')
+  if (!data?.report) {
+    throw new Error('举报回复失败')
   }
   return data.report
 }
@@ -268,92 +281,113 @@ export const deleteHallReplyByAdmin = async (postId: string, replyId: string): P
 }
 
 export const solveHallPost = async (postId: string, solved: boolean): Promise<HallPostDetail> => {
-  const csrfToken = await ensureInteractionContext()
-  const res = await fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/solve`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
-    body: JSON.stringify({ solved }),
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureInteractionContext()
+    return fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/solve`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({ solved }),
+    })
+  }, {
+    fallbackMessage: '更新求助状态失败',
+    networkErrorMessage: '交流大厅连接失败，请检查网络或稍后重试'
   })
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok || !data?.post) {
-    throw new Error(data?.msg || '更新求助状态失败')
+  if (!data?.post) {
+    throw new Error('更新求助状态失败')
   }
   return data.post
 }
 
 export const deleteHallPost = async (postId: string): Promise<void> => {
-  const csrfToken = await ensureInteractionContext()
-  const res = await fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}`, {
-    method: 'DELETE',
-    credentials: 'include',
-    headers: {
-      'X-CSRF-Token': csrfToken,
-    },
+  await fetchProtectedJson(async () => {
+    const csrfToken = await ensureInteractionContext()
+    return fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}`, {
+      method: 'DELETE',
+      credentials: 'include',
+      headers: {
+        'X-CSRF-Token': csrfToken,
+      },
+    })
+  }, {
+    fallbackMessage: '删帖失败',
+    networkErrorMessage: '交流大厅连接失败，请检查网络或稍后重试'
   })
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok) {
-    throw new Error(data?.msg || '删帖失败')
-  }
 }
 
 export const selectHallBestReply = async (postId: string, replyId: string): Promise<HallPostDetail> => {
-  const csrfToken = await ensureInteractionContext()
-  const res = await fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/best-reply`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-CSRF-Token': csrfToken,
-    },
-    body: JSON.stringify({ reply_id: replyId }),
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureInteractionContext()
+    return fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/best-reply`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({ reply_id: replyId }),
+    })
+  }, {
+    fallbackMessage: '设置最佳回复失败',
+    networkErrorMessage: '交流大厅连接失败，请检查网络或稍后重试'
   })
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok || !data?.post) {
-    throw new Error(data?.msg || '设置最佳回复失败')
+  if (!data?.post) {
+    throw new Error('设置最佳回复失败')
   }
   return data.post
 }
 
 export const likeHallPost = async (postId: string): Promise<HallPostDetail> => {
-  const csrfToken = await ensureInteractionContext()
-  const res = await fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/like`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'X-CSRF-Token': csrfToken },
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureInteractionContext()
+    return fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/like`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRF-Token': csrfToken },
+    })
+  }, {
+    fallbackMessage: '操作失败',
+    networkErrorMessage: '交流大厅连接失败，请检查网络或稍后重试'
   })
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok || !data?.post) throw new Error(data?.msg || '操作失败')
+  if (!data?.post) throw new Error('操作失败')
   return data.post
 }
 
 export const dislikeHallPost = async (postId: string): Promise<HallPostDetail> => {
-  const csrfToken = await ensureInteractionContext()
-  const res = await fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/dislike`, {
-    method: 'POST',
-    credentials: 'include',
-    headers: { 'X-CSRF-Token': csrfToken },
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureInteractionContext()
+    return fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/dislike`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRF-Token': csrfToken },
+    })
+  }, {
+    fallbackMessage: '操作失败',
+    networkErrorMessage: '交流大厅连接失败，请检查网络或稍后重试'
   })
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok || !data?.post) throw new Error(data?.msg || '操作失败')
+  if (!data?.post) throw new Error('操作失败')
   return data.post
 }
 
 export const likeHallReply = async (postId: string, replyId: string): Promise<HallPostDetail> => {
-  const csrfToken = await ensureInteractionContext()
-  const res = await fetch(
-    `/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/replies/${encodeURIComponent(replyId)}/like`,
-    {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'X-CSRF-Token': csrfToken },
-    },
-  )
-  const data = await parseJsonSafe(res)
-  if (!res.ok || !data?.ok || !data?.post) throw new Error(data?.msg || '操作失败')
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureInteractionContext()
+    return fetch(
+      `/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/replies/${encodeURIComponent(replyId)}/like`,
+      {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'X-CSRF-Token': csrfToken },
+      },
+    )
+  }, {
+    fallbackMessage: '操作失败',
+    networkErrorMessage: '交流大厅连接失败，请检查网络或稍后重试'
+  })
+  if (!data?.post) throw new Error('操作失败')
   return data.post
 }
 

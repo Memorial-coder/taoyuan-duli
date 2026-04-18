@@ -651,6 +651,10 @@
       addItemCount(item.itemId, item.quantity, item.quality ?? 'normal')
     }
 
+    for (const item of inventoryStore.tempItems) {
+      addItemCount(item.itemId, item.quantity, item.quality ?? 'normal')
+    }
+
     if (warehouseStore.unlocked) {
       for (const chest of warehouseStore.chests) {
         for (const item of chest.items) {

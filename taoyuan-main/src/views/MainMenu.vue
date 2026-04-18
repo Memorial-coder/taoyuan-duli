@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div
     class="main-menu-root flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-6 md:gap-8"
     @click.once="startBgm"
@@ -626,6 +626,7 @@
     }
     await initCurrentAccount()
     await loadCurrentUser()
+    saveStore.refreshPendingServerState()
     await refreshSlots()
     showFloat('已退出登录', 'success')
   }
@@ -706,6 +707,9 @@
 
   const switchMode = async (mode: 'local' | 'server') => {
     saveStore.setStorageMode(mode)
+    if (mode === 'server') {
+      await saveStore.syncPendingServerSaves()
+    }
     await refreshSlots()
   }
 
@@ -895,7 +899,9 @@
         desktopMenuMediaQuery.addListener(handleDesktopMenuChange)
       }
     }
-    void refreshSlots()
+    void saveStore.syncPendingServerSaves().finally(() => {
+      void refreshSlots()
+    })
     void loadMenuConfig()
     void loadCurrentUser()
   })

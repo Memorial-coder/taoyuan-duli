@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="space-y-3">
     <slot name="header" :count="existingSlots.length">
       <div class="flex flex-wrap items-center justify-between gap-3">
@@ -21,6 +21,7 @@
           <span class="inline-flex min-w-0 items-center space-x-2">
             <FolderOpen :size="14" class="shrink-0" />
             <span class="truncate">存档 {{ info.slot + 1 }} · {{ info.playerName ?? '未命名' }}</span>
+            <span v-if="info.pendingSync" class="rounded-xs border border-warning/40 px-1 text-[10px] text-warning">待同步</span>
           </span>
           <span class="shrink-0 text-right text-[11px] text-muted md:text-xs">
             第{{ info.year }}年 {{ SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] }} 第{{ info.day }}天

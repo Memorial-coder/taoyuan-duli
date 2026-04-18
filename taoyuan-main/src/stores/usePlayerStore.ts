@@ -301,8 +301,10 @@ export const usePlayerStore = defineStore('player', () => {
 
   /** 花费铜钱，返回是否成功 */
   const spendMoney = (amount: number, system: EconomySystemKey = 'system'): boolean => {
+    const rawAmount = Number(amount)
+    if (!Number.isFinite(rawAmount) || rawAmount < 0) return false
     const normalizedAmount = normalizeNonNegativeInteger(amount)
-    if (normalizedAmount <= 0) return false
+    if (normalizedAmount <= 0) return true
     if (money.value < normalizedAmount) return false
     money.value -= normalizedAmount
     economyTelemetry.value.lifetimeExpense.total += normalizedAmount

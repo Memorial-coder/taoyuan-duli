@@ -1887,6 +1887,20 @@
     if (!isNaN(val)) setBuyQuantity(val)
   }
 
+  const getMaxCarryableQuantity = (itemId: string, limit: number): number => {
+    let low = 0
+    let high = Math.max(0, Math.floor(limit))
+    while (low < high) {
+      const mid = Math.floor((low + high + 1) / 2)
+      if (inventoryStore.canAddItem(itemId, mid)) {
+        low = mid
+      } else {
+        high = mid - 1
+      }
+    }
+    return low
+  }
+
   const getMaxBuyable = (unitPrice: number, stockLimit?: number): number => {
     const affordable = unitPrice > 0 ? Math.floor(playerStore.money / unitPrice) : 0
     let max = Math.max(1, affordable)
@@ -1904,7 +1918,8 @@
     buttonText?: string,
     itemId?: string
   ) => {
-    shopModal.value = { type: 'buy', name, description, price, onBuy, canBuy, extraLines, buttonText, itemId }
+    const canBuyWithCapacity = () => canBuy() && (!itemId || inventoryStore.canAddItem(itemId, 1))
+    shopModal.value = { type: 'buy', name, description, price, onBuy, canBuy: canBuyWithCapacity, extraLines, buttonText, itemId }
   }
 
   const openBatchBuyModal = (
@@ -1917,6 +1932,10 @@
     batchMaxCount: () => number,
     itemId?: string
   ) => {
+    const getResolvedMaxCount = () => {
+      const baseMaxCount = Math.max(0, batchMaxCount())
+      return itemId ? Math.min(baseMaxCount, getMaxCarryableQuantity(itemId, baseMaxCount)) : baseMaxCount
+    }
     buyQuantity.value = 1
     shopModal.value = {
       type: 'buy',
@@ -1924,8 +1943,8 @@
       description,
       price: unitPrice,
       onBuy: onBuySingle,
-      canBuy,
-      batchBuy: { onBuy: batchOnBuy, maxCount: batchMaxCount },
+      canBuy: () => canBuy() && getResolvedMaxCount() > 0,
+      batchBuy: { onBuy: count => batchOnBuy(Math.min(count, Math.max(1, getResolvedMaxCount()))), maxCount: getResolvedMaxCount },
       itemId
     }
   }

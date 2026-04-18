@@ -27,6 +27,24 @@
 
 ### 修复
 
+#### 0418 Docker 重启后服务端存档自恢复与待同步保底
+- `src/utils/accountStorage.ts`、`src/utils/protectedApi.ts` 已补上“当前账号 / CSRF 强制刷新 + 受保护请求自动恢复”底层能力；在线写请求在遇到 `401 / 403` 时会先无刷新重拉账号上下文与 CSRF，再自动重试一次，不再默认要求玩家手动刷新页面。
+- `src/utils/serverSaveApi.ts`、`src/utils/mailboxApi.ts`、`src/utils/taoyuanHallApi.ts`、`src/utils/quotaExchangeApi.ts` 已统一接入这套恢复层；服务端存档、邮箱读写、交流大厅发帖 / 回帖 / 举报 / 图片上传、额度兑换等关键在线写操作现在会共享同一套登录态 / 鉴权恢复逻辑。
+- `src/stores/useSaveStore.ts` 已将服务端存档改成“先本地保底、后服务端同步”的链路：服务端模式下保存会先把当前加密快照写入按账号隔离的浏览器待同步缓存，再尝试上传；服务短暂不可用时不会直接丢档，而是保留待同步副本，待服务恢复后再自动补传。
+- `src/stores/useSaveStore.ts` 同时已补齐服务端槽位读取合并逻辑：如果某个槽位存在本地待同步副本，菜单与存档管理会优先读取这份最新快照，而不是把它误显示成“空槽位”或旧档内容。
+- `src/App.vue`、`src/views/MainMenu.vue`、`src/views/GameLayout.vue` 已接入自动补传触发点：应用启动、切回前台、浏览器重新联网、进入主菜单、进入游戏中都会主动尝试同步待上传存档；游戏运行期间另有轻量轮询持续补传，尽量覆盖 Docker 重启窗口。
+- `src/components/game/SaveManager.vue`、`src/components/game/MainMenuContinueList.vue`、`src/composables/useEndDay.ts` 已补上“待同步”可见提示与自动存档兜底反馈：手动保存成功但尚未上传时，会明确提示“已本地保底，稍后自动同步”；结束一天触发 autosave 时若命中待同步保底，也会给出非阻塞提醒，不再静默失败。
+- 本轮修复已完成 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run type-check` 与 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run build` 验证。
+
+#### 0418 工坊免费配方、切页残留态与领奖 / 批量购买收口
+- `src/stores/usePlayerStore.ts` 已修正 `spendMoney(0)` 语义：0 文消费现在视为成功 no-op，不再把工坊里的免费配方统一误判为“制作失败”。
+- `src/composables/useCombinedInventory.ts`、`src/views/game/ProcessingView.vue` 已把临时背包纳入工坊材料统计与真实扣料链路；免费肥料、保湿土、采脂器等配方现在会统一从“主背包 + 临时背包 + 仓库”读取和消耗材料，不再出现弹窗显示材料足够但点击后提示“材料不足 / 制作失败”的分叉。
+- `src/composables/useNavigation.ts`、`src/views/game/MiningView.vue`、`src/views/game/HanhaiView.vue` 已补上矿洞探索与瀚海牌局的切页守卫：进行中的探索 / 牌局不能直接切出页面，避免残留运行时状态继续拦截保存。
+- `src/views/game/MuseumView.vue` 已为学者委托奖励与博物馆里程碑奖励补上背包容量禁用态与失败提示，不再出现按钮可点但点击后像“没反应”的情况。
+- `src/views/game/ShopView.vue` 已把背包容量合入批量购买弹窗的 `canBuy / maxCount` 计算，批量购买数量不再只按金钱和库存上限推导。
+- `src/stores/useSaveStore.ts`、`src/utils/taoyuanHallApi.ts` 已顺手修正本轮构建阻塞细节，恢复 `npm run type-check` 与 `npm run build` 的通过状态。
+- 本轮修复已完成 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run type-check` 与 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run build` 验证。
+
 #### 0417 仙灵显现场景弹层关闭异常修复
 - `src/components/game/DiscoveryScene.vue` 已重做仙灵“传闻 / 邂逅 / 显现”剧情弹层的收尾交互：正文区域改为独立滚动，底部操作区固定保留“继续 / 结束”按钮，并在场景切换时重置 `currentIndex`、`playedScenes`、`hasChosen` 与 `choiceResponse`，避免长文本把按钮挤出可视区，或上一段剧情的本地状态串到下一段后导致弹层看起来“关不掉”。
 - `src/views/GameLayout.vue`、`src/views/game/NpcView.vue` 已为 `DiscoveryScene` 挂载点补上基于 `npcId + step.id` 的 `key`，确保仙灵发现队列切到下一段剧情或在仙灵页回顾旧剧情时不会复用脏组件实例。
