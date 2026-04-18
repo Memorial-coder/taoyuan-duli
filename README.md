@@ -115,6 +115,7 @@ docker run -d \
 ```
 
 访问 `http://127.0.0.1:4014` 即可看到游戏。生产环境请在运行前添加 `CORS_ALLOWED_ORIGINS`、`COOKIE_SECURE=true` 等安全配置。
+
 ---
 
 ### 方式二：本地源码启动（适合二次开发）
@@ -145,6 +146,7 @@ npm start
 ```
 
 服务启动后，打开 `http://127.0.0.1:4013` 访问游戏。确保 `taoyuan-main/docs` 已完成构建，否则前端页面将无法展示。
+
 ---
 
 ### 方式三：Docker Compose 部署（适合服务器）
