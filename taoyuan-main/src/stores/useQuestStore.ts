@@ -61,6 +61,7 @@ import { useSettingsStore } from './useSettingsStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { useWalletStore } from './useWalletStore'
 import { addLog } from '@/composables/useGameLog'
+import { getAbsoluteDay } from '@/utils/weekCycle'
 
 export const useQuestStore = defineStore('quest', () => {
   const inventoryStore = useInventoryStore()
@@ -547,6 +548,7 @@ export const useQuestStore = defineStore('quest', () => {
       breedingCompendiumEntries: CompendiumEntry[]
       discoveredPondBreedIds: string[]
       preferredThemeTag: 'breeding' | 'fishpond' | undefined
+      allowedActivitySourceIds?: string[]
       preferredHybridIds: string[]
       preferredMarketCategories: QuestMarketCategory[]
       discouragedMarketCategories: QuestMarketCategory[]
@@ -557,6 +559,7 @@ export const useQuestStore = defineStore('quest', () => {
       preferredThemeTag: specialOrderFeatureFlags.themeWeekBiasEnabled
         ? (marketQuestBias.preferredSpecialOrderThemeTag ?? goalStore.currentThemeWeek?.preferredQuestThemeTag)
         : undefined,
+      allowedActivitySourceIds: currentLimitedTimeQuestCampaign.value ? [...activityQuestWindowState.value.activeQuestTemplateIds] : undefined,
       preferredHybridIds: goalStore.currentThemeWeek?.breedingFocusHybridIds ?? [],
       preferredMarketCategories: marketQuestBias.preferredMarketCategories,
       discouragedMarketCategories: marketQuestBias.discouragedMarketCategories
@@ -2171,6 +2174,20 @@ export const useQuestStore = defineStore('quest', () => {
     const validTypes = ['delivery', 'fishing', 'mining', 'gathering', 'special_order', 'cooking', 'errand', 'festival_prep']
     const validCategories = ['gathering', 'cooking', 'fishing', 'errand', 'festival_prep']
     const validStages = ['recognize', 'familiar', 'friend', 'bestie', 'romance', 'married', 'family']
+    const normalizedDaysRemaining = Math.max(1, Number(quest.daysRemaining) || 1)
+    const normalizedOrderProgressState = normalizeOrderProgressState(quest.orderProgressState)
+    if (normalizedOrderProgressState && !Number.isFinite(Number(quest.orderProgressState?.initialDaysRemaining))) {
+      normalizedOrderProgressState.initialDaysRemaining = normalizedDaysRemaining
+    }
+    if (
+      normalizedOrderProgressState?.settlementSummary &&
+      !Number.isFinite(Number(quest.orderProgressState?.settlementSummary?.initialDaysRemaining))
+    ) {
+      normalizedOrderProgressState.settlementSummary = {
+        ...normalizedOrderProgressState.settlementSummary,
+        initialDaysRemaining: Math.max(normalizedOrderProgressState.settlementSummary.remainingDays, normalizedDaysRemaining)
+      }
+    }
 
     return {
       id: quest.id,
@@ -2184,7 +2201,7 @@ export const useQuestStore = defineStore('quest', () => {
       collectedQuantity: Math.max(0, Number(quest.collectedQuantity) || 0),
       moneyReward: Math.max(0, Number(quest.moneyReward) || 0),
       friendshipReward: Number(quest.friendshipReward) || 0,
-      daysRemaining: Math.max(1, Number(quest.daysRemaining) || 1),
+      daysRemaining: normalizedDaysRemaining,
       accepted: !!quest.accepted,
       sourceCategory: validCategories.includes(quest.sourceCategory) ? quest.sourceCategory : undefined,
       relationshipStageRequired: validStages.includes(quest.relationshipStageRequired) ? quest.relationshipStageRequired : undefined,
@@ -2217,7 +2234,7 @@ export const useQuestStore = defineStore('quest', () => {
       scoreHint: Array.isArray(quest.scoreHint) ? quest.scoreHint.filter((text: unknown) => typeof text === 'string') : undefined,
       antiRepeatTags: normalizeStringArray(quest.antiRepeatTags),
       antiRepeatCooldownWeeks: Number.isFinite(Number(quest.antiRepeatCooldownWeeks)) ? Math.max(1, Number(quest.antiRepeatCooldownWeeks)) : undefined,
-      orderProgressState: normalizeOrderProgressState(quest.orderProgressState),
+      orderProgressState: normalizedOrderProgressState,
       deliverySourceHint: Array.isArray(quest.deliverySourceHint) ? quest.deliverySourceHint.filter((text: unknown) => typeof text === 'string') : undefined,
       demandHint: typeof quest.demandHint === 'string' ? quest.demandHint : undefined,
       recommendedHybridIds: Array.isArray(quest.recommendedHybridIds)
@@ -2265,12 +2282,67 @@ export const useQuestStore = defineStore('quest', () => {
       : null
   )
 
+  const parseQuestDayTag = (dayTag?: string) => {
+    if (!dayTag) return null
+    const [yearText, seasonText, dayText] = dayTag.split('-')
+    if (!yearText || !seasonText || !dayText) return null
+    if (!['spring', 'summer', 'autumn', 'winter'].includes(seasonText)) return null
+    const year = Number(yearText)
+    const day = Number(dayText)
+    if (!Number.isFinite(year) || !Number.isFinite(day)) return null
+    return { year, season: seasonText as Season, day }
+  }
+
+  const getQuestAbsoluteDayFromTag = (dayTag?: string) => {
+    const parsed = parseQuestDayTag(dayTag)
+    if (!parsed) return null
+    return getAbsoluteDay(parsed.year, parsed.season, parsed.day)
+  }
+
+  const addDaysToQuestDayTag = (dayTag: string, durationDays: number) => {
+    const parsed = parseQuestDayTag(dayTag)
+    if (!parsed) return dayTag
+    const seasonOrder: Season[] = ['spring', 'summer', 'autumn', 'winter']
+    let { year, season, day } = parsed
+    let remaining = Math.max(1, Math.floor(durationDays))
+    while (remaining > 0) {
+      day += 1
+      if (day > 28) {
+        day = 1
+        const nextSeasonIndex = (seasonOrder.indexOf(season) + 1) % seasonOrder.length
+        if (nextSeasonIndex === 0) year += 1
+        season = seasonOrder[nextSeasonIndex] ?? 'spring'
+      }
+      remaining -= 1
+    }
+    return `${year}-${season}-${day}`
+  }
+
+  const isQuestDayTagReachedOrPassed = (currentDayTag?: string, targetDayTag?: string) => {
+    const currentAbsoluteDay = getQuestAbsoluteDayFromTag(currentDayTag)
+    const targetAbsoluteDay = getQuestAbsoluteDayFromTag(targetDayTag)
+    if (currentAbsoluteDay == null || targetAbsoluteDay == null) return false
+    return currentAbsoluteDay >= targetAbsoluteDay
+  }
+
+  const currentLimitedTimeQuestRemainingDays = computed(() => {
+    const campaign = currentLimitedTimeQuestCampaign.value
+    if (!campaign) return 0
+    const gameStore = useGameStore()
+    const currentDayTag = `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+    const currentAbsoluteDay = getQuestAbsoluteDayFromTag(currentDayTag)
+    const nextRefreshAbsoluteDay = getQuestAbsoluteDayFromTag(activityQuestWindowState.value.nextRefreshDayTag)
+    if (currentAbsoluteDay == null || nextRefreshAbsoluteDay == null) return campaign.durationDays
+    return Math.max(0, nextRefreshAbsoluteDay - currentAbsoluteDay)
+  })
+
   const activityQuestWindowOverview = computed(() => ({
     activeCampaign: currentLimitedTimeQuestCampaign.value,
     state: activityQuestWindowState.value,
     specialOrder: specialOrder.value,
     boardHint: marketQuestBiasProfile.value.boardHint,
-    specialOrderHint: marketQuestBiasProfile.value.specialOrderHint
+    specialOrderHint: marketQuestBiasProfile.value.specialOrderHint,
+    remainingDays: currentLimitedTimeQuestRemainingDays.value
   }))
 
   const activateActivityQuestWindow = (campaignId: string, templateIds: string[], refreshDayTag: string, nextRefreshDayTag: string) => {
@@ -2307,6 +2379,9 @@ export const useQuestStore = defineStore('quest', () => {
     activityQuestWindowState.value = {
       ...activityQuestWindowState.value,
       activeCampaignId: activityQuestWindowState.value.activeCampaignId === campaignId ? null : activityQuestWindowState.value.activeCampaignId,
+      activeQuestTemplateIds: activityQuestWindowState.value.activeCampaignId === campaignId ? [] : activityQuestWindowState.value.activeQuestTemplateIds,
+      lastRefreshDayTag: activityQuestWindowState.value.activeCampaignId === campaignId ? '' : activityQuestWindowState.value.lastRefreshDayTag,
+      nextRefreshDayTag: activityQuestWindowState.value.activeCampaignId === campaignId ? '' : activityQuestWindowState.value.nextRefreshDayTag,
       completedWindowIds: activityQuestWindowState.value.completedWindowIds.includes(campaignId)
         ? activityQuestWindowState.value.completedWindowIds
         : [...activityQuestWindowState.value.completedWindowIds, campaignId]
@@ -2372,17 +2447,34 @@ export const useQuestStore = defineStore('quest', () => {
         ? limitedTimeQuestCampaignDefs.find(campaign => campaign.linkedCampaignId === payload.activeEventCampaignId) ?? null
         : null
 
-    if (payload.startedNewWeek && matchedCampaign) {
-      if (activityQuestWindowState.value.activeCampaignId && activityQuestWindowState.value.activeCampaignId !== matchedCampaign.id) {
-        completeActivityQuestWindow(activityQuestWindowState.value.activeCampaignId)
-      }
-      activateActivityQuestWindow(matchedCampaign.id, [matchedCampaign.activitySourceId], payload.currentDayTag, payload.currentWeekId)
-      logs.push(`【活动任务】限时窗口已切换为「${matchedCampaign.label}」。`)
+    if (
+      activityQuestWindowState.value.activeCampaignId &&
+      (!matchedCampaign || matchedCampaign.id !== activityQuestWindowState.value.activeCampaignId)
+    ) {
+      completeActivityQuestWindow(activityQuestWindowState.value.activeCampaignId)
+      logs.push('【活动任务】当前限时任务窗口已结束。')
     }
 
-    if (!matchedCampaign && payload.startedNewWeek && activityQuestWindowState.value.activeCampaignId) {
+    if (
+      activityQuestWindowState.value.activeCampaignId &&
+      isQuestDayTagReachedOrPassed(payload.currentDayTag, activityQuestWindowState.value.nextRefreshDayTag)
+    ) {
       completeActivityQuestWindow(activityQuestWindowState.value.activeCampaignId)
-      logs.push('【活动任务】本周未匹配到新的限时任务窗口，旧活动窗口已收束。')
+      logs.push('【活动任务】限时任务窗口已按时收束。')
+    }
+
+    if (
+      matchedCampaign &&
+      activityQuestWindowState.value.activeCampaignId !== matchedCampaign.id &&
+      !activityQuestWindowState.value.completedWindowIds.includes(matchedCampaign.id)
+    ) {
+      activateActivityQuestWindow(
+        matchedCampaign.id,
+        [matchedCampaign.activitySourceId],
+        payload.currentDayTag,
+        addDaysToQuestDayTag(payload.currentDayTag, matchedCampaign.durationDays)
+      )
+      logs.push(`【活动任务】限时窗口已切换为「${matchedCampaign.label}」。`)
     }
 
     return {
@@ -2443,6 +2535,17 @@ export const useQuestStore = defineStore('quest', () => {
       : []
     // 加载后初始化主线任务（兼容旧存档）
     initMainQuest()
+    if ((data as Record<string, unknown>).completedQuestCount === undefined) {
+      const completedStoryQuestIds = new Set(completedMainQuests.value)
+      const inferredCompletedQuestCount = STORY_QUESTS.reduce((maxCount, quest) => {
+        if (!completedStoryQuestIds.has(quest.id)) return maxCount
+        const questTarget = quest.objectives
+          .filter(objective => objective.type === 'completeQuests')
+          .reduce((innerMax, objective) => Math.max(innerMax, objective.target ?? 0), 0)
+        return Math.max(maxCount, questTarget)
+      }, 0)
+      completedQuestCount.value = Math.max(completedQuestCount.value, inferredCompletedQuestCount)
+    }
   }
 
   return {
@@ -2454,6 +2557,7 @@ export const useQuestStore = defineStore('quest', () => {
     activityQuestWindowState,
     limitedTimeQuestCampaignDefs,
     currentLimitedTimeQuestCampaign,
+    currentLimitedTimeQuestRemainingDays,
     activityQuestWindowOverview,
     mainQuest,
     completedMainQuests,

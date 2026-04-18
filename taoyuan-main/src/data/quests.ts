@@ -2070,6 +2070,7 @@ export const generateSpecialOrder = (
     breedingCompendiumEntries?: CompendiumEntry[]
     discoveredPondBreedIds?: string[]
     preferredThemeTag?: 'breeding' | 'fishpond'
+    allowedActivitySourceIds?: string[]
     preferredHybridIds?: string[]
     preferredMarketCategories?: QuestMarketCategory[]
     discouragedMarketCategories?: QuestMarketCategory[]
@@ -2082,6 +2083,7 @@ export const generateSpecialOrder = (
   const discoveredHybridIds = new Set(options?.discoveredHybridIds ?? [])
   const compendiumMap = new Map((options?.breedingCompendiumEntries ?? []).map(entry => [entry.hybridId, entry]))
   const discoveredPondBreedIds = new Set(options?.discoveredPondBreedIds ?? [])
+  const allowedActivitySourceIds = new Set(options?.allowedActivitySourceIds ?? [])
   const preferredHybridIds = new Set(options?.preferredHybridIds ?? [])
   const preferredMarketCategories = new Set(options?.preferredMarketCategories ?? [])
   const discouragedMarketCategories = new Set(options?.discouragedMarketCategories ?? [])
@@ -2168,6 +2170,7 @@ export const generateSpecialOrder = (
     t =>
       t.tier === clampedTier &&
       (t.seasons.length === 0 || t.seasons.includes(season)) &&
+      (allowedActivitySourceIds.size <= 0 || allowedActivitySourceIds.has(t.activitySourceId ?? '')) &&
       (!t.requiredHybridId || discoveredHybridIds.has(t.requiredHybridId)) &&
       matchesBreedingRequirement(t) &&
       matchesFishpondRequirement(t)

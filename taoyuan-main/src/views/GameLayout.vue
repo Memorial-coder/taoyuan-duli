@@ -47,7 +47,7 @@
       </button>
     </div>
 
-    <SettingsDialog :open="showSettings" @close="showSettings = false" />
+    <SettingsDialog :open="showSettings" @close="closeSettings" />
 
     <Transition name="panel-fade">
       <SaveManager
@@ -559,6 +559,11 @@
   const openSettings = () => {
     applySettingsPauseOnOpen()
     showSettings.value = true
+  }
+
+  const closeSettings = () => {
+    resumeClock('settings')
+    showSettings.value = false
   }
 
   const openSaveManager = (payload: { intent: 'save' | 'save-return'; returnUrl: string }) => {

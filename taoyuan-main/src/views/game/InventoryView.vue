@@ -44,7 +44,7 @@
           v-for="(item, idx) in filteredItems"
           :key="idx"
           class="border border-accent/20 rounded-xs p-1.5 text-center cursor-pointer hover:bg-accent/5 transition-colors relative"
-          @click="activeItemKey = item.itemId + ':' + item.quality"
+          @click="activeItemIndex = inventoryStore.items.indexOf(item)"
         >
           <Lock v-if="item.locked" :size="10" class="absolute top-0.5 left-0.5 text-accent/60" />
           <div
@@ -81,6 +81,9 @@
         <div class="flex items-center justify-between mb-1.5">
           <span class="text-[10px] text-muted">背包满时溢出的物品，请及时取回</span>
           <Button v-if="!inventoryStore.isFull" class="py-0 px-1.5" @click="handleMoveAllFromTemp">全部取回</Button>
+        </div>
+        <div v-if="inventoryStore.isFull" class="mb-1.5">
+          <Button class="w-full py-0 px-1.5" @click="handleMoveAllFromTemp">全部取回</Button>
         </div>
         <div class="grid grid-cols-3 md:grid-cols-5 gap-1.5">
           <div
@@ -454,10 +457,10 @@
           <div class="flex flex-col space-y-1.5">
             <Button
               class="w-full justify-center"
-              :class="inventoryStore.isFull ? 'opacity-50' : ''"
+              :class="''"
               :icon="ArrowRight"
               :icon-size="12"
-              :disabled="inventoryStore.isFull"
+              :disabled="false"
               @click="handleMoveFromTemp"
             >
               放入背包
@@ -470,9 +473,9 @@
 
     <!-- 物品详情弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="activeItem" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="activeItemKey = null">
+      <div v-if="activeItem" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="activeItemIndex = null">
         <div class="game-panel max-w-xs w-full relative">
-          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="activeItemKey = null">
+          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="activeItemIndex = null">
             <X :size="14" />
           </button>
 
@@ -787,7 +790,7 @@
   import { getHatById } from '@/data/hats'
   import { getShoeById } from '@/data/shoes'
   import { QUALITY_NAMES } from '@/composables/useFarmActions'
-  import { addLog } from '@/composables/useGameLog'
+  import { addLog, showFloat } from '@/composables/useGameLog'
   import type { Quality, RingEffectType, ItemCategory } from '@/types'
 
   const inventoryStore = useInventoryStore()
@@ -1225,12 +1228,11 @@
 
   // === 物品弹窗 ===
 
-  const activeItemKey = ref<string | null>(null)
+  const activeItemIndex = ref<number | null>(null)
 
   const activeItem = computed(() => {
-    if (!activeItemKey.value) return null
-    const [itemId, quality] = activeItemKey.value.split(':')
-    return inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality) ?? null
+    if (activeItemIndex.value === null || activeItemIndex.value < 0 || activeItemIndex.value >= inventoryStore.items.length) return null
+    return inventoryStore.items[activeItemIndex.value] ?? null
   })
 
   const activeItemDef = computed(() => {
@@ -1273,7 +1275,7 @@
       }
       // 物品消耗完则关闭弹窗
       if (!inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
-        activeItemKey.value = null
+        activeItemIndex.value = null
       }
       return
     }
@@ -1293,7 +1295,7 @@
     addLog(msg)
     // 物品消耗完则关闭弹窗
     if (!inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
-      activeItemKey.value = null
+      activeItemIndex.value = null
     }
   }
 
@@ -1321,7 +1323,7 @@
     }
     // 物品消耗完则关闭弹窗
     if (!inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
-      activeItemKey.value = null
+      activeItemIndex.value = null
     }
   }
 
@@ -1330,7 +1332,7 @@
   const discardMode = ref(false)
   const discardQty = ref(1)
 
-  watch(activeItemKey, () => {
+  watch(activeItemIndex, () => {
     discardMode.value = false
   })
 
@@ -1345,14 +1347,18 @@
     if (!activeItem.value) return
     const { itemId, quality } = activeItem.value
     const name = activeItemDef.value?.name ?? ''
-    const qty = Math.min(discardQty.value, activeItem.value.quantity)
-    if (qty <= 0) return
+    const requestedQty = Math.floor(Number(discardQty.value))
+    if (!Number.isFinite(requestedQty) || requestedQty < 1) {
+      showFloat('请输入有效的正整数数量。', 'danger')
+      return
+    }
+    const qty = Math.min(requestedQty, activeItem.value.quantity)
     if (!inventoryStore.removeItem(itemId, qty, quality)) return
     addLog(`丢弃了${name}×${qty}。`)
     discardMode.value = false
     // 物品消耗完则关闭弹窗
     if (!inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
-      activeItemKey.value = null
+      activeItemIndex.value = null
     }
   }
 

@@ -1101,7 +1101,7 @@ export const useBreedingStore = defineStore('breeding', () => {
     const cropId = typeof value.cropId === 'string' ? value.cropId : ''
     if (!cropId) return null
     return {
-      id: typeof value.id === 'string' ? value.id : `seed_${cropId}_${Date.now()}`,
+      id: typeof value.id === 'string' ? value.id : generateGeneticsId(),
       cropId,
       generation: Math.max(0, Number(value.generation) || 0),
       sweetness: Math.max(0, Number(value.sweetness) || 0),
@@ -1155,7 +1155,7 @@ export const useBreedingStore = defineStore('breeding', () => {
         }
       })
       .filter((seed: BreedingSeed | null): seed is BreedingSeed => seed !== null)
-    stations.value = (data.stations ?? []).map((s: any) => ({
+    stations.value = (data.stations ?? []).slice(0, MAX_BREEDING_STATIONS).map((s: any) => ({
       parentA: normalizeSeedGenetics(s.parentA),
       parentB: normalizeSeedGenetics(s.parentB),
       daysProcessed: s.daysProcessed ?? 0,
@@ -1163,7 +1163,8 @@ export const useBreedingStore = defineStore('breeding', () => {
       result: normalizeSeedGenetics(s.result),
       ready: s.ready ?? false
     }))
-    stationCount.value = data.stationCount ?? 0
+    const rawStationCount = Math.max(0, Number(data.stationCount) || 0)
+    stationCount.value = Math.min(MAX_BREEDING_STATIONS, Math.max(rawStationCount, stations.value.length))
     seedBoxLevel.value = data.seedBoxLevel ?? 0
     researchLevel.value = data.researchLevel ?? 0
     favoriteSeedIds.value = (data.favoriteSeedIds ?? []).filter((id: string) => breedingBox.value.some(s => s.genetics.id === id))

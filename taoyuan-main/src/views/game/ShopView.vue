@@ -1636,7 +1636,7 @@
   }
 
   const trendColor = (trend: MarketTrend): string => {
-    if (trend === 'boom') return 'text-danger'
+    if (trend === 'boom') return 'text-success'
     if (trend === 'rising') return 'text-success'
     if (trend === 'falling') return 'text-warning'
     if (trend === 'crash') return 'text-danger'
@@ -2489,6 +2489,7 @@
 
   const canCraftHat = (hat: HatDef): boolean => {
     if (!hat.recipe) return false
+    if (inventoryStore.hasHat(hat.id)) return false
     if (playerStore.money < hat.recipeMoney) return false
     for (const mat of hat.recipe) {
       if (inventoryStore.getItemCount(mat.itemId) < mat.quantity) return false
@@ -2498,6 +2499,7 @@
 
   const canCraftShoe = (shoe: ShoeDef): boolean => {
     if (!shoe.recipe) return false
+    if (inventoryStore.hasShoe(shoe.id)) return false
     if (playerStore.money < shoe.recipeMoney) return false
     for (const mat of shoe.recipe) {
       if (inventoryStore.getItemCount(mat.itemId) < mat.quantity) return false
@@ -2614,7 +2616,7 @@
         const def = getItemById(inv.itemId)
         return { ...inv, def, originalIndex: index }
       })
-      .filter(item => item.def && !item.locked && (!allowed || allowed.has(item.def!.category)))
+      .filter(item => item.def && !item.locked && !item.itemId.startsWith('seed_') && (!allowed || allowed.has(item.def!.category)))
   })
 </script>
 

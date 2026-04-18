@@ -77,12 +77,33 @@ export interface HanhaiCycleState {
   lastWeeklyResetDayTag: string
 }
 
+export interface HanhaiActiveTexasSession {
+  sessionId: string
+  tierId: TexasTierId
+  tierName: string
+  entryFee: number
+  startedAtDayTag: string
+  reserveMoney: number
+  hands: TexasHandSetup[]
+  settled: boolean
+}
+
+export interface HanhaiActiveBuckshotSession {
+  sessionId: string
+  startedAtDayTag: string
+  shells: BuckshotSetup['shells']
+  playerFirst: boolean
+  settled: boolean
+}
+
 export interface HanhaiSaveData {
   unlocked: boolean
   casinoBetsToday: number
   weeklyPurchases: Record<string, number>
   relicRecords: Record<string, HanhaiRelicRecord>
   cycleState: HanhaiCycleState
+  activeTexasSession?: HanhaiActiveTexasSession | null
+  activeBuckshotSession?: HanhaiActiveBuckshotSession | null
 }
 
 export interface HanhaiCycleOverview {

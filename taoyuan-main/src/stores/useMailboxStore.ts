@@ -128,7 +128,7 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
       }
     }
 
-    if (saveStore.storageMode !== 'server' || saveStore.activeSlotMode !== 'server') {
+    if (currentSessionMode !== 'server') {
       return {
         attempted: false,
         current_session_synced: false,

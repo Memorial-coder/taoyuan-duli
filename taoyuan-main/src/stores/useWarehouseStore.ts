@@ -284,7 +284,10 @@ export const useWarehouseStore = defineStore('warehouse', () => {
   const serialize = () => {
     return {
       unlocked: unlocked.value,
-      chests: chests.value,
+      chests: chests.value.map(chest => ({
+        ...chest,
+        items: chest.items.map(item => ({ ...item }))
+      })),
       maxChests: maxChests.value
     }
   }

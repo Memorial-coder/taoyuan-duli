@@ -131,11 +131,11 @@
     farming: {
       intensive: [
         { id: 'grandmaster_farmer', name: '农耕宗师', description: '所有作物售价额外+20%' },
-        { id: 'estate_owner', name: '庄园主', description: '可同时管理的地块+4' }
+        { id: 'estate_owner', name: '庄园主', description: '作物售价+20%，加工品售价+40%，并保留双倍收成机会' }
       ],
       artisan: [
         { id: 'grandmaster_farmer', name: '农耕宗师', description: '所有作物售价额外+20%' },
-        { id: 'estate_owner', name: '庄园主', description: '可同时管理的地块+4' }
+        { id: 'estate_owner', name: '庄园主', description: '作物售价+20%，加工品售价+40%，并保留双倍收成机会' }
       ],
       coopmaster: [
         { id: 'livestock_baron', name: '牲畜大亨', description: '动物产品售价+30%' },
@@ -232,22 +232,22 @@
         { id: 'land_god', name: '土地神', description: '农田自动浇水，体力消耗归零' }
       ],
       livestock_baron: [
-        { id: 'beast_sovereign', name: '兽王', description: '动物产品售价+50%，品质必定极品' },
+        { id: 'beast_sovereign', name: '兽王', description: '动物产品售价+50%，产出数量翻倍' },
         { id: 'nature_bond', name: '自然契约', description: '动物每天自动+3心且永不生病' }
       ],
       animal_whisperer: [
-        { id: 'beast_sovereign', name: '兽王', description: '动物产品售价+50%，品质必定极品' },
+        { id: 'beast_sovereign', name: '兽王', description: '动物产品售价+50%，产出数量翻倍' },
         { id: 'nature_bond', name: '自然契约', description: '动物每天自动+3心且永不生病' }
       ]
     },
     foraging: {
       ancient_botanist: [
         { id: 'world_tree', name: '世界树', description: '采集物必定极品，数量+3' },
-        { id: 'philosopher', name: '炼金哲人', description: '食物恢复效果+200%' }
+        { id: 'philosopher', name: '炼金哲人', description: '食物恢复效果+200%，料理增益不会因日切而清空' }
       ],
       grand_alchemist: [
         { id: 'world_tree', name: '世界树', description: '采集物必定极品，数量+3' },
-        { id: 'philosopher', name: '炼金哲人', description: '食物恢复效果+200%' }
+        { id: 'philosopher', name: '炼金哲人', description: '食物恢复效果+200%，料理增益不会因日切而清空' }
       ],
       forest_guardian: [
         { id: 'forest_spirit', name: '森林精灵', description: '采集额外木材量翻4倍' },
@@ -268,11 +268,11 @@
         { id: 'ocean_trader', name: '海洋贸易商', description: '所有鱼售价+100%' }
       ],
       sea_captain: [
-        { id: 'sea_sovereign', name: '海洋霸主', description: '钓鱼体力消耗清零，必定优质鱼' },
+        { id: 'sea_sovereign', name: '海洋霸主', description: '钓鱼体力消耗清零，钓到的鱼品质至少为精品' },
         { id: 'lure_deity', name: '诱饵神', description: '鱼饵效果×8，且永不消耗' }
       ],
       bait_master: [
-        { id: 'sea_sovereign', name: '海洋霸主', description: '钓鱼体力消耗清零，必定优质鱼' },
+        { id: 'sea_sovereign', name: '海洋霸主', description: '钓鱼体力消耗清零，钓到的鱼品质至少为精品' },
         { id: 'lure_deity', name: '诱饵神', description: '鱼饵效果×8，且永不消耗' }
       ]
     },

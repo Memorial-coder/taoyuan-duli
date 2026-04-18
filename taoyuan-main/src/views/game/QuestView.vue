@@ -27,7 +27,7 @@
       <div v-if="questStore.currentLimitedTimeQuestCampaign" class="border border-warning/20 rounded-xs px-3 py-2 mb-2 bg-warning/5">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-warning">限时任务窗口</p>
-          <span class="text-[10px] text-muted">{{ questStore.currentLimitedTimeQuestCampaign.durationDays }} 天</span>
+          <span class="text-[10px] text-muted">剩余 {{ questStore.currentLimitedTimeQuestRemainingDays }} 天</span>
         </div>
         <p class="text-[10px] text-muted mt-1">{{ questStore.currentLimitedTimeQuestCampaign.description }}</p>
         <p class="text-[10px] text-success mt-1">活动来源：{{ questStore.currentLimitedTimeQuestCampaign.activitySourceLabel }}</p>

@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div>
     <!-- 标题 -->
     <div class="flex items-center justify-between mb-1">
@@ -8,7 +8,7 @@
       </div>
       <span class="text-xs text-muted">铁匠·小满</span>
     </div>
-    <p class="text-xs text-muted mb-3">消耗金属锭和铜钱升级工具，需等待2天。</p>
+    <p class="text-xs text-muted mb-3">消耗金属锭和铜钱升级工具，锻造完成后会自动归还。</p>
 
     <!-- 正在升级提示 -->
     <div v-if="inventoryStore.pendingUpgrade" class="border border-accent/30 rounded-xs px-3 py-2 mb-3 flex items-center justify-between">
@@ -60,12 +60,8 @@
           <!-- 当前状态 -->
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <div class="flex items-center justify-between">
-              <span class="text-xs text-muted">当前等级</span>
-              <span class="text-xs">{{ TIER_NAMES[selectedToolObj!.tier] }}</span>
-            </div>
-            <div class="flex items-center justify-between mt-0.5">
-              <span class="text-xs text-muted">体力减免</span>
-              <span class="text-xs">{{ staminaText(selectedToolObj!.tier) }}</span>
+              <span class="text-xs text-muted">{{ selectedTool === 'scythe' ? '批量收割范围' : '体力减免' }}</span>
+              <span class="text-xs">{{ selectedTool === 'scythe' ? `${inventoryStore.getToolBatchCount('scythe')}格` : staminaText(selectedToolObj!.tier) }}</span>
             </div>
             <template v-if="selectedTool === 'fishingRod'">
               <div class="flex items-center justify-between mt-0.5">
@@ -98,38 +94,16 @@
             <div class="border border-accent/10 rounded-xs p-2 mb-2">
               <p class="text-xs text-muted mb-1">升级至 {{ TIER_NAMES[selectedUpgradeCost.toTier] }}</p>
               <div class="flex items-center justify-between">
-                <span class="text-xs text-muted">铜钱</span>
-                <span class="text-xs" :class="playerStore.money >= selectedUpgradeCost.money ? '' : 'text-danger'">
-                  {{ selectedUpgradeCost.money }}文
-                </span>
-              </div>
-              <div v-for="mat in selectedUpgradeCost.materials" :key="mat.itemId" class="flex items-center justify-between mt-0.5">
-                <span class="text-xs text-muted">{{ getItemById(mat.itemId)?.name ?? mat.itemId }}</span>
-                <span class="text-xs" :class="getCombinedItemCount(mat.itemId) >= mat.quantity ? '' : 'text-danger'">
-                  {{ getCombinedItemCount(mat.itemId) }}/{{ mat.quantity }}
-                </span>
-              </div>
-              <template v-if="selectedFriendshipReq">
-                <div class="flex items-center justify-between mt-0.5">
-                  <span class="text-xs text-muted">小满好感</span>
-                  <span
-                    class="text-xs"
-                    :class="meetsLevel(npcStore.getFriendshipLevel('xiao_man'), selectedFriendshipReq) ? '' : 'text-danger'"
-                  >
-                    {{ LEVEL_NAMES[npcStore.getFriendshipLevel('xiao_man')] }} / {{ LEVEL_NAMES[selectedFriendshipReq] }}
-                  </span>
-                </div>
-              </template>
-            </div>
-
-            <!-- 升级效果预览 -->
-            <div class="border border-success/20 rounded-xs p-2 mb-2">
-              <p class="text-xs text-muted mb-1">升级效果</p>
-              <div class="flex items-center justify-between">
-                <span class="text-xs text-muted">体力减免</span>
+                <span class="text-xs text-muted">{{ selectedTool === 'scythe' ? '批量收割范围' : '体力减免' }}</span>
                 <span class="text-xs">
-                  {{ staminaText(selectedToolObj!.tier) }} →
-                  <span class="text-success">{{ staminaText(selectedUpgradeCost.toTier) }}</span>
+                  <template v-if="selectedTool === 'scythe'">
+                    {{ inventoryStore.getToolBatchCount('scythe') }}格 →
+                    <span class="text-success">{{ selectedUpgradeCost.toTier === 'basic' ? 1 : selectedUpgradeCost.toTier === 'iron' ? 3 : selectedUpgradeCost.toTier === 'steel' ? 5 : 9 }}格</span>
+                  </template>
+                  <template v-else>
+                    {{ staminaText(selectedToolObj!.tier) }} →
+                    <span class="text-success">{{ staminaText(selectedUpgradeCost.toTier) }}</span>
+                  </template>
                 </span>
               </div>
               <template v-if="selectedTool === 'fishingRod'">
@@ -187,7 +161,7 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
   import { getUpgradeCost, TOOL_NAMES, TIER_NAMES, getItemById } from '@/data'
-  import { ACTION_TIME_COSTS } from '@/data/timeConstants'
+  import { ACTION_TIME_COSTS, isShopOpen } from '@/data/timeConstants'
   import { addLog } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
   import type { ToolType, ToolTier, FriendshipLevel } from '@/types'
@@ -237,17 +211,13 @@
     return getUpgradeCost(selectedToolObj.value.type, selectedToolObj.value.tier) ?? null
   })
 
-  const selectedFriendshipReq = computed(() => {
-    if (!selectedUpgradeCost.value) return null
-    return TIER_FRIENDSHIP_REQ[selectedUpgradeCost.value.toTier] ?? null
-  })
-
   /** 该工具是否正在升级中 */
   const isUpgrading = (type: ToolType): boolean => {
     return inventoryStore.pendingUpgrade?.toolType === type
   }
 
   const canUpgrade = (type: ToolType): boolean => {
+    if (!isShopOpen('upgrade', gameStore.day, gameStore.hour).open) return false
     // 已有工具在升级中，不能再升级
     if (inventoryStore.pendingUpgrade) return false
 
@@ -274,6 +244,10 @@
     if (!tool) return ''
     const cost = getUpgradeCost(type, tool.tier)
     if (!cost) return ''
+    const shopAccess = isShopOpen('upgrade', gameStore.day, gameStore.hour)
+    if (!shopAccess.open) {
+      return shopAccess.reason || '铁匠铺当前未营业'
+    }
 
     const requiredLevel = TIER_FRIENDSHIP_REQ[cost.toTier]
     if (requiredLevel && !meetsLevel(npcStore.getFriendshipLevel('xiao_man'), requiredLevel)) {
@@ -296,7 +270,7 @@
     const cost = getUpgradeCost(type, tool.tier)
     if (!cost) return
     if (!canUpgrade(type)) {
-      addLog('条件不足，无法升级。')
+      addLog(getUpgradeBlockReason(type) || '条件不足，无法升级。')
       return
     }
 
@@ -306,7 +280,7 @@
     }
     inventoryStore.startUpgrade(type, cost.toTier)
 
-    addLog(`你把${TOOL_NAMES[type]}和材料交给了小满，${cost.money}文。2天后可以取回升级后的工具。`)
+    addLog(`你把${TOOL_NAMES[type]}和材料交给了小满，${cost.money}文。2天后会自动完成并归还。`)
     selectedTool.value = null
     const tr = gameStore.advanceTime(ACTION_TIME_COSTS.toolUpgrade)
     if (tr.message) addLog(tr.message)
@@ -316,3 +290,4 @@
     }
   }
 </script>
+

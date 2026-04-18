@@ -10,7 +10,7 @@ const REAL_MS_PER_GAME_MINUTE = 700
 /** tick 间隔（ms），越小显示越平滑 */
 const TICK_MS = 200
 
-type PauseReason = 'manual' | 'modal' | 'navigation' | 'visibility' | 'endday' | 'settings'
+type PauseReason = 'manual' | 'modal' | 'navigation' | 'visibility' | 'endday' | 'settings' | 'hanhaiCasino'
 
 // === 模块级单例状态 ===
 const gameSpeed = ref(1)

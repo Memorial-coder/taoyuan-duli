@@ -783,7 +783,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted } from 'vue'
+  import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
   import { onBeforeRouteLeave } from 'vue-router'
   import { Tent, X, Dices, Trophy, Bug, Gem, Check, CircleDot, Spade, Crosshair, Map } from 'lucide-vue-next'
   import { useHanhaiStore } from '@/stores/useHanhaiStore'
@@ -840,6 +840,7 @@
   import Button from '@/components/game/Button.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
+  import { useGameClock } from '@/composables/useGameClock'
 
   // suppress unused warnings for template-only refs
   void CRICKET_WIN_MULTIPLIER
@@ -849,6 +850,7 @@
   const hanhaiStore = useHanhaiStore()
   const playerStore = usePlayerStore()
   const { startHanhaiBgm, endHanhaiBgm } = useAudio()
+  const { pauseClock, resumeClock } = useGameClock()
   const activeTab = ref<'shop' | 'relic' | 'casino'>('shop')
   const shopModalItem = ref<HanhaiShopItemDef | null>(null)
 
@@ -881,6 +883,7 @@
 
   onUnmounted(() => {
     endHanhaiBgm()
+    resumeClock('hanhaiCasino')
   })
 
   onBeforeRouteLeave((_to, _from, next) => {
@@ -1298,6 +1301,14 @@
   // === 恶魔轮盘 ===
   const showBuckshotModal = ref(false)
   const buckshotSetup = ref<BuckshotSetup | null>(null)
+  const hasLongCasinoModal = computed(() => showTexasModal.value || showBuckshotModal.value)
+  watch(hasLongCasinoModal, open => {
+    if (open) {
+      pauseClock('hanhaiCasino')
+      return
+    }
+    resumeClock('hanhaiCasino')
+  })
 
   const handleBuckshot = () => {
     const result = hanhaiStore.startBuckshot()

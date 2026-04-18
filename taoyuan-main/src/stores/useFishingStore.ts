@@ -464,7 +464,7 @@ export const useFishingStore = defineStore('fishing', () => {
     } else {
       const achievementStore = useAchievementStore()
       achievementStore.discoverItem(currentFish.value.id)
-      achievementStore.recordFishCaught()
+      achievementStore.recordFishCaught(currentFish.value.id)
       useQuestStore().onItemObtained(currentFish.value.id, catchQty)
 
       // 4% 概率获得秘密笔记

@@ -470,6 +470,9 @@ export const useShopStore = defineStore('shop', () => {
     if (serviceLockHint) return serviceLockHint
 
     switch (offer.effect.type) {
+      case 'unlock_decoration':
+        if (!offer.decorationUnlockId) return '当前目录陈设配置不完整，暂时无法购买。'
+        return decorationStore.hasReachedMaxCount(offer.decorationUnlockId) ? '该陈设已达到拥有上限，无法重复解锁。' : ''
       case 'expand_warehouse':
         if (warehouseStore.maxChests + offer.effect.amount > warehouseStore.MAX_CHESTS_CAP) {
           return '剩余仓库箱位不足，无法完整扩建该商品提供的容量。'
@@ -627,7 +630,57 @@ export const useShopStore = defineStore('shop', () => {
     return true
   }
 
-  const buildCatalogClosureLogs = (offer: ShopCatalogOfferDef, spentMoney: number): string[] => {
+  type CatalogDecorationUnlockResult = {
+    decorationId: string
+    beforeBeauty: number
+    afterBeauty: number
+    beforeFriendshipBonus: number
+    afterFriendshipBonus: number
+    beforeDiscountBonus: number
+    afterDiscountBonus: number
+  }
+
+  const unlockCatalogDecoration = (
+    offer: ShopCatalogOfferDef
+  ): { success: boolean; message: string; result?: CatalogDecorationUnlockResult } => {
+    if (offer.effect.type !== 'unlock_decoration' || !offer.decorationUnlockId) {
+      return { success: false, message: '鐩綍闄堣閰嶇疆缂哄け锛屾棤娉曞畬鎴愯В閿併€?' }
+    }
+
+    const beforeBeauty = decorationStore.beautyScore
+    const beforeFriendshipBonus = decorationStore.dailyFriendshipBonus
+    const beforeDiscountBonus = decorationStore.shopDiscountBonus
+
+    const grantResult = decorationStore.grantDecoration(offer.decorationUnlockId)
+    if (!grantResult.success) {
+      return { success: false, message: grantResult.message }
+    }
+
+    const placeResult = decorationStore.placeDecoration(offer.decorationUnlockId)
+    if (!placeResult.success) {
+      return { success: false, message: placeResult.message }
+    }
+
+    return {
+      success: true,
+      message: placeResult.message,
+      result: {
+        decorationId: offer.decorationUnlockId,
+        beforeBeauty,
+        afterBeauty: decorationStore.beautyScore,
+        beforeFriendshipBonus,
+        afterFriendshipBonus: decorationStore.dailyFriendshipBonus,
+        beforeDiscountBonus,
+        afterDiscountBonus: decorationStore.shopDiscountBonus
+      }
+    }
+  }
+
+  const buildCatalogClosureLogs = (
+    offer: ShopCatalogOfferDef,
+    spentMoney: number,
+    decorationUnlockResult: CatalogDecorationUnlockResult | null = null
+  ): string[] => {
     const logs: string[] = []
     playerStore.recordSinkSpend(spentMoney, 'luxuryCatalog')
 
@@ -649,27 +702,13 @@ export const useShopStore = defineStore('shop', () => {
       logs.push(`【商店目录】该合同后续续费参考为 ${renewFee}文 / 周，可在到期前由自动续费承接。`)
     }
 
-    if (offer.effect.type === 'unlock_decoration' && offer.decorationUnlockId) {
-      const beforeBeauty = decorationStore.beautyScore
-      const beforeFriendship = decorationStore.dailyFriendshipBonus
-      const beforeDiscount = decorationStore.shopDiscountBonus
-      const grantResult = decorationStore.grantDecoration(offer.decorationUnlockId)
-      if (grantResult.success) {
-        const placeResult = decorationStore.placeDecoration(offer.decorationUnlockId)
-        if (placeResult.success) {
-          logs.push(`【商店目录】${offer.name}已送入家园陈设，美观度提升至${decorationStore.beautyScore}。`)
-          if (decorationStore.dailyFriendshipBonus > beforeFriendship) {
-            logs.push(`【商店目录】家园展示达到新阶段，村民每日好感加成已提升。`)
-          }
-          if (decorationStore.shopDiscountBonus > beforeDiscount) {
-            logs.push(`【商店目录】家园展示已带来额外熟客氛围，商店折扣加成提升至 ${decorationStore.shopDiscountBonus}%。`)
-          }
-        } else {
-          logs.push(`【商店目录】${offer.name}已计入收藏库，可前往家园装饰系统手动摆放。`)
-        }
+    if (offer.effect.type === 'unlock_decoration' && decorationUnlockResult) {
+      logs.push(`【商店目录】${offer.name}已送入家园陈设，美观度提升至${decorationUnlockResult.afterBeauty}。`)
+      if (decorationUnlockResult.afterFriendshipBonus > decorationUnlockResult.beforeFriendshipBonus) {
+        logs.push('【商店目录】家园展示达到新阶段，村民每日好感加成已提升。')
       }
-      if (beforeBeauty === decorationStore.beautyScore) {
-        logs.push(`【商店目录】展示型消费已与家园系统联动，继续补齐节庆与收藏陈设可冲击更高美观度奖励。`)
+      if (decorationUnlockResult.afterDiscountBonus > decorationUnlockResult.beforeDiscountBonus) {
+        logs.push(`【商店目录】家园展示已带来额外熟客氛围，商店折扣加成提升至 ${decorationUnlockResult.afterDiscountBonus}%。`)
       }
     }
 
@@ -1544,7 +1583,7 @@ export const useShopStore = defineStore('shop', () => {
 
     switch (offer.effect.type) {
       case 'unlock_decoration':
-        return !isCatalogOwned(offerId)
+        return !!offer.decorationUnlockId && !isCatalogOwned(offerId) && !decorationStore.hasReachedMaxCount(offer.decorationUnlockId)
       case 'expand_inventory_extra':
         return !offer.onceOnly || !isCatalogOwned(offerId)
       case 'expand_warehouse':
@@ -1611,10 +1650,26 @@ export const useShopStore = defineStore('shop', () => {
       }
 
       let success = false
+      let failureMessage = '购买失败，已自动退款。'
+      let decorationUnlockResult: CatalogDecorationUnlockResult | null = null
       switch (offer.effect.type) {
         case 'unlock_decoration':
-          ownedCatalogOfferIds.value.push(offerId)
-          success = true
+          if (!offer.decorationUnlockId) {
+            failureMessage = '当前目录陈设配置不完整，无法完成解锁。'
+            break
+          }
+          {
+            const unlockResult = unlockCatalogDecoration(offer)
+            if (!unlockResult.success || !unlockResult.result) {
+              failureMessage = unlockResult.message
+              break
+            }
+            if (!ownedCatalogOfferIds.value.includes(offerId)) {
+              ownedCatalogOfferIds.value.push(offerId)
+            }
+            decorationUnlockResult = unlockResult.result
+            success = true
+          }
           break
         case 'expand_inventory_extra': {
           for (let i = 0; i < offer.effect.amount; i++) {
@@ -1665,7 +1720,7 @@ export const useShopStore = defineStore('shop', () => {
 
       if (!success) {
         rollbackCatalogPurchase()
-        return { success: false, message: '购买失败，已自动退款。' }
+        return { success: false, message: failureMessage }
       }
 
       if (!markCatalogOfferPurchased(offerId)) {
@@ -1673,7 +1728,7 @@ export const useShopStore = defineStore('shop', () => {
         return { success: false, message: '购买失败，目录状态写入未完成，已自动退款。' }
       }
 
-      const closureLogs = buildCatalogClosureLogs(offer, totalCost)
+      const closureLogs = buildCatalogClosureLogs(offer, totalCost, decorationUnlockResult)
       for (const message of closureLogs) {
         addLog(message, {
           category: 'economy',

@@ -831,6 +831,7 @@
           <!-- E: 预期后代属性范围 -->
           <div v-if="offspringPreview" class="border border-accent/10 rounded-xs p-2 mb-3">
             <p class="text-xs text-muted mb-1">预期后代属性（均值 ± 波动）</p>
+            <p class="text-xs text-accent mb-2">预计后代：{{ offspringPreview.name }}</p>
             <div class="flex items-center justify-between">
               <span class="text-xs text-muted">甜度</span>
               <span class="text-xs">{{ offspringPreview.sweetness[0] }} ~ {{ offspringPreview.sweetness[1] }}</span>
@@ -1262,15 +1263,27 @@
     if (!seedA || !seedB) return null
     const a = seedA.genetics
     const b = seedB.genetics
+    const hybrid = a.cropId === b.cropId ? null : findPossibleHybrid(a.cropId, b.cropId)
+    const avgSweet = (a.sweetness + b.sweetness) / 2
+    const avgYield = (a.yield + b.yield) / 2
+    const avgRes = (a.resistance + b.resistance) / 2
+    if (hybrid && (avgSweet < hybrid.minSweetness || avgYield < hybrid.minYield)) return null
     const avgStability = (a.stability + b.stability) / 2
     const avgMutationRate = (a.mutationRate + b.mutationRate) / 2
     const fluctuationScale = (avgMutationRate / 50) * (1 - avgStability / 100)
     const maxFluctuation = Math.round(8 * fluctuationScale)
-    const midSweet = Math.round((a.sweetness + b.sweetness) / 2)
-    const midYield = Math.round((a.yield + b.yield) / 2)
-    const midRes = Math.round((a.resistance + b.resistance) / 2)
+    const midSweet = hybrid
+      ? Math.round(hybrid.baseGenetics.sweetness * 0.6 + avgSweet * 0.4)
+      : Math.round(avgSweet)
+    const midYield = hybrid
+      ? Math.round(hybrid.baseGenetics.yield * 0.6 + avgYield * 0.4)
+      : Math.round(avgYield)
+    const midRes = hybrid
+      ? Math.round(hybrid.baseGenetics.resistance * 0.6 + avgRes * 0.4)
+      : Math.round(avgRes)
     const newStability = Math.min(Math.round(avgStability) + 3, 95)
     return {
+      name: hybrid?.name ?? getCropName(a.cropId),
       sweetness: [Math.max(0, midSweet - maxFluctuation), Math.min(100, midSweet + maxFluctuation)],
       yield: [Math.max(0, midYield - maxFluctuation), Math.min(100, midYield + maxFluctuation)],
       resistance: [Math.max(0, midRes - maxFluctuation), Math.min(100, midRes + maxFluctuation)],

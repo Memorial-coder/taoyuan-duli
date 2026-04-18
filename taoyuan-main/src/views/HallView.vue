@@ -337,7 +337,7 @@
               <button
                 class="btn !px-2 !py-1"
                 :class="{ 'btn-active': selectedPost.viewer_liked }"
-                :disabled="!!likingPostId"
+                :disabled="!!likingPostId || !!dislikingPostId"
                 @click="likePost"
               >
                 <span>👍 {{ selectedPost.like_count ?? 0 }}</span>
@@ -345,7 +345,7 @@
               <button
                 class="btn !px-2 !py-1"
                 :class="{ 'btn-active': selectedPost.viewer_disliked }"
-                :disabled="!!dislikingPostId"
+                :disabled="!!likingPostId || !!dislikingPostId"
                 @click="dislikePost"
               >
                 <span>👎 {{ selectedPost.dislike_count ?? 0 }}</span>
@@ -1128,6 +1128,10 @@
 
   const submitPost = async () => {
     if (!(await ensureLoggedInForInteraction())) return
+    if (uploadingImage.value) {
+      showFloat('请等待图片上传完成后再发布。', 'danger')
+      return
+    }
     if (!composer.title.trim()) {
       showFloat('请输入帖子标题', 'danger')
       return
@@ -1236,9 +1240,11 @@
       if (!postId) {
         selectedPostId.value = null
         selectedPost.value = null
+        replyTarget.value = null
         return
       }
       if (postId === selectedPostId.value && selectedPost.value?.id === postId) return
+      replyTarget.value = null
       void loadDetail(postId)
     },
     { immediate: true }

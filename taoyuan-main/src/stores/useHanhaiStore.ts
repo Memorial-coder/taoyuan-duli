@@ -45,6 +45,8 @@ import type {
   BuckshotSetup,
   BuckshotPlayerAction,
   CasinoGameType,
+  HanhaiActiveBuckshotSession,
+  HanhaiActiveTexasSession,
   HanhaiCycleOverview,
   HanhaiCasinoRewardTrigger,
   HanhaiProgressTier,
@@ -70,27 +72,13 @@ import { useWalletStore } from './useWalletStore'
 import { useGoalStore } from './useGoalStore'
 import { useShopStore } from './useShopStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
+import { getWeekCycleInfo } from '@/utils/weekCycle'
 
 const dedupeList = <T,>(items: T[]): T[] => Array.from(new Set(items))
 type HanhaiQuestMarketCategory = 'crop' | 'fruit' | 'ore' | 'gem' | 'processed' | 'fish'
 type HanhaiQuestType = 'delivery' | 'gathering' | 'mining' | 'fishing'
-type ActiveTexasSession = {
-  sessionId: string
-  tierId: TexasTierId
-  tierName: string
-  entryFee: number
-  startedAtDayTag: string
-  reserveMoney: number
-  hands: TexasHandSetup[]
-  settled: boolean
-}
-type ActiveBuckshotSession = {
-  sessionId: string
-  startedAtDayTag: string
-  shells: BuckshotSetup['shells']
-  playerFirst: boolean
-  settled: boolean
-}
+type ActiveTexasSession = HanhaiActiveTexasSession
+type ActiveBuckshotSession = HanhaiActiveBuckshotSession
 
 const hanhaiTuning = HANHAI_OPERATION_TUNING_CONFIG
 const hanhaiFeatureFlags = hanhaiTuning.featureFlags
@@ -514,7 +502,55 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     const gameStore = useGameStore()
     return `${gameStore.year}-${gameStore.season}-${gameStore.day}`
   }
+  const getCurrentWeekInfo = () => {
+    const gameStore = useGameStore()
+    return getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
+  }
   const createCasinoSessionId = (prefix: 'texas' | 'buckshot') => `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
+
+  const cloneTexasHandSetup = (value: Partial<TexasHandSetup> | null | undefined): TexasHandSetup | null => {
+    if (!value || !Array.isArray(value.playerHole) || !Array.isArray(value.dealerHole) || !Array.isArray(value.community)) {
+      return null
+    }
+
+    const playerHole = value.playerHole.filter(card => card && typeof card === 'object').map(card => ({ ...card }))
+    const dealerHole = value.dealerHole.filter(card => card && typeof card === 'object').map(card => ({ ...card }))
+    const community = value.community.filter(card => card && typeof card === 'object').map(card => ({ ...card }))
+
+    if (playerHole.length < 2 || dealerHole.length < 2 || community.length < 5) return null
+    return { playerHole, dealerHole, community }
+  }
+
+  const cloneActiveTexasSession = (value: Partial<ActiveTexasSession> | null | undefined): ActiveTexasSession | null => {
+    if (!value || typeof value.sessionId !== 'string' || !value.sessionId || !Array.isArray(value.hands)) return null
+    const tierId = value.tierId
+    if (tierId !== 'beginner' && tierId !== 'normal' && tierId !== 'expert') return null
+    const hands = value.hands.map(hand => cloneTexasHandSetup(hand)).filter((hand): hand is TexasHandSetup => !!hand)
+    if (hands.length <= 0) return null
+    return {
+      sessionId: value.sessionId,
+      tierId,
+      tierName: typeof value.tierName === 'string' && value.tierName ? value.tierName : getTexasTier(tierId)?.name ?? tierId,
+      entryFee: Math.max(0, Math.floor(Number(value.entryFee) || 0)),
+      startedAtDayTag: typeof value.startedAtDayTag === 'string' ? value.startedAtDayTag : '',
+      reserveMoney: Math.max(0, Math.floor(Number(value.reserveMoney) || 0)),
+      hands,
+      settled: !!value.settled
+    }
+  }
+
+  const cloneActiveBuckshotSession = (value: Partial<ActiveBuckshotSession> | null | undefined): ActiveBuckshotSession | null => {
+    if (!value || typeof value.sessionId !== 'string' || !value.sessionId || !Array.isArray(value.shells)) return null
+    const shells = value.shells.filter(shell => shell === 'live' || shell === 'blank')
+    if (shells.length <= 0) return null
+    return {
+      sessionId: value.sessionId,
+      startedAtDayTag: typeof value.startedAtDayTag === 'string' ? value.startedAtDayTag : '',
+      shells: [...shells],
+      playerFirst: !!value.playerFirst,
+      settled: !!value.settled
+    }
+  }
 
   const beginHanhaiAction = (lockId: string): boolean => {
     if (!hanhaiFeatureFlags.hanhaiActionGuardEnabled) return true
@@ -1024,6 +1060,16 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     return bossCycleIds[Math.max(0, Math.min(bossCycleIds.length - 1, weekOfSeason - 1))] ?? bossCycleIds[0]!
   }
 
+  const syncCycleStateToCurrentWeek = () => {
+    const weekInfo = getCurrentWeekInfo()
+    cycleState.value = {
+      ...cycleState.value,
+      progressTier: mergeProgressTier(cycleState.value.progressTier, resolveProgressTier()),
+      bossCycleId: resolveBossCycleId(weekInfo.weekOfSeason),
+      lastWeeklyResetDayTag: cycleState.value.lastWeeklyResetDayTag || getCurrentDayTag()
+    }
+  }
+
   const unlockHanhai = (): { success: boolean; message: string } => {
     const lockId = 'unlock_hanhai'
     if (!beginHanhaiAction(lockId)) return { success: false, message: '瀚海商路正在开通中，请勿重复点击。' }
@@ -1036,6 +1082,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
         return { success: false, message: `金钱不足（需要${HANHAI_UNLOCK_COST}文）。` }
       }
       unlocked.value = true
+      syncCycleStateToCurrentWeek()
       addLog('修通了前往瀚海的商路！新的冒险等待着你。')
       return { success: true, message: '瀚海商路已开通！' }
     } catch {
@@ -1813,27 +1860,52 @@ export const useHanhaiStore = defineStore('hanhai', () => {
   const serialize = (): HanhaiSaveData => ({
     unlocked: unlocked.value,
     casinoBetsToday: casinoBetsToday.value,
-    weeklyPurchases: weeklyPurchases.value,
-    relicRecords: relicRecords.value,
-    cycleState: cycleState.value
+    weeklyPurchases: { ...weeklyPurchases.value },
+    relicRecords: Object.fromEntries(
+      Object.entries(relicRecords.value).map(([siteId, record]) => [siteId, { ...record }])
+    ),
+    cycleState: {
+      ...cycleState.value,
+      routeInvestments: Object.fromEntries(
+        Object.entries(cycleState.value.routeInvestments).map(([routeId, state]) => [routeId, { ...state }])
+      ),
+      setCollections: Object.fromEntries(
+        Object.entries(cycleState.value.setCollections).map(([setId, state]) => [
+          setId,
+          { ...state, collectedRelicTags: [...state.collectedRelicTags] }
+        ])
+      )
+    },
+    activeTexasSession: cloneActiveTexasSession(activeTexasSession.value),
+    activeBuckshotSession: cloneActiveBuckshotSession(activeBuckshotSession.value)
   })
 
   const deserialize = (data: Partial<HanhaiSaveData>) => {
     unlocked.value = data?.unlocked ?? false
     casinoBetsToday.value = data?.casinoBetsToday ?? 0
-    weeklyPurchases.value = data?.weeklyPurchases ?? {}
-    relicRecords.value = data?.relicRecords ?? {}
+    weeklyPurchases.value = { ...(data?.weeklyPurchases ?? {}) }
+    relicRecords.value = Object.fromEntries(
+      Object.entries(data?.relicRecords ?? {}).map(([siteId, record]) => [siteId, { ...record }])
+    )
     hanhaiActionLocks.value = []
     cycleState.value = {
       saveVersion: data?.cycleState?.saveVersion ?? 1,
       progressTier: data?.cycleState?.progressTier ?? 'P0',
-      routeInvestments: data?.cycleState?.routeInvestments ?? {},
-      setCollections: data?.cycleState?.setCollections ?? {},
+      routeInvestments: Object.fromEntries(
+        Object.entries(data?.cycleState?.routeInvestments ?? {}).map(([routeId, state]) => [routeId, { ...state }])
+      ),
+      setCollections: Object.fromEntries(
+        Object.entries(data?.cycleState?.setCollections ?? {}).map(([setId, state]) => [
+          setId,
+          { ...state, collectedRelicTags: [...(state.collectedRelicTags ?? [])] }
+        ])
+      ),
       bossCycleId: data?.cycleState?.bossCycleId ?? '',
       lastWeeklyResetDayTag: data?.cycleState?.lastWeeklyResetDayTag ?? ''
     }
-    activeTexasSession.value = null
-    activeBuckshotSession.value = null
+    if (unlocked.value) syncCycleStateToCurrentWeek()
+    activeTexasSession.value = cloneActiveTexasSession(data?.activeTexasSession)
+    activeBuckshotSession.value = cloneActiveBuckshotSession(data?.activeBuckshotSession)
   }
 
   const reset = () => {

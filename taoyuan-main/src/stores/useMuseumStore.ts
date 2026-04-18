@@ -898,14 +898,19 @@ export const useMuseumStore = defineStore('museum', () => {
       scholarCommissionStates.value = Object.fromEntries(
         Object.entries(scholarCommissionStates.value).map(([commissionId, state]) => [
           commissionId,
-          {
-            ...state,
-            acceptedDayTag: '',
-            progress: 0,
-            completed: false,
-            rewarded: false,
-            expired: false
-          }
+          state.completed && !state.rewarded
+            ? {
+                ...state,
+                expired: false
+              }
+            : {
+                ...state,
+                acceptedDayTag: '',
+                progress: 0,
+                completed: false,
+                rewarded: false,
+                expired: false
+              }
         ])
       )
       dailyLogs.push(

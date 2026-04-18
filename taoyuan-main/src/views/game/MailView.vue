@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div ref="mailViewRoot">
     <GuidanceDigestPanel surface-id="mail" title="活动邮件引导" />
 
@@ -24,10 +24,10 @@
           <Button class="w-full justify-center" :icon="RefreshCw" :icon-size="12" :disabled="mailboxStore.loading" @click="refreshMails">
             刷新邮件
           </Button>
-          <Button class="w-full justify-center" :icon="Inbox" :icon-size="12" @click="claimAllRewards">
+          <Button class="w-full justify-center" :icon="Inbox" :icon-size="12" :disabled="claimAllPending" @click="claimAllRewards">
             一键领取
           </Button>
-          <Button class="w-full justify-center" :icon="Trash2" :icon-size="12" @click="clearClaimed">
+          <Button class="w-full justify-center" :icon="Trash2" :icon-size="12" :disabled="clearClaimedPending" @click="clearClaimed">
             清空已领取
           </Button>
         </div>
@@ -129,6 +129,7 @@
               class="justify-center"
               :icon="Gift"
               :icon-size="12"
+              :disabled="claimCurrentPending"
               @click="claimCurrentMail"
             >
               领取奖励
@@ -171,6 +172,9 @@
   const activeMailId = ref<string | null>(null)
   const activeMail = ref<TaoyuanMailDetail | null>(null)
   const selectRequestId = ref(0)
+  const claimCurrentPending = ref(false)
+  const claimAllPending = ref(false)
+  const clearClaimedPending = ref(false)
   const mailViewRoot = ref<HTMLElement | null>(null)
   const isDesktop = ref(typeof window === 'undefined' ? true : window.innerWidth >= 768)
   const claimableMailCount = computed(() => mailboxStore.mails.filter(mail => mail.can_claim).length)
@@ -315,15 +319,19 @@
   }
 
   const selectMail = async (id: string) => {
-    activeMailId.value = id
+    const previousActiveMailId = activeMailId.value
+    const previousActiveMail = activeMail.value
     const requestId = ++selectRequestId.value
     try {
       const detail = await mailboxStore.openMail(id)
-      if (requestId !== selectRequestId.value || activeMailId.value !== id) return
+      if (requestId !== selectRequestId.value) return
+      activeMailId.value = id
       activeMail.value = detail
       if (!isDesktop.value) scrollMailViewToTop()
     } catch (error: any) {
       if (requestId !== selectRequestId.value) return
+      activeMailId.value = previousActiveMailId
+      activeMail.value = previousActiveMail
       showFloat(error?.message || '读取邮件失败', 'danger')
     }
   }
@@ -341,41 +349,60 @@
   }
 
   const claimCurrentMail = async () => {
-    if (!activeMailId.value) return
+    if (claimCurrentPending.value || !activeMail.value?.id) return
+    claimCurrentPending.value = true
     try {
-      const data = await mailboxStore.claimMail(activeMailId.value)
+      const data = await mailboxStore.claimMail(activeMail.value.id)
       activeMail.value = data.mail
+      activeMailId.value = data.mail.id
       syncActivityRewardMailState(data.mail)
       const feedback = resolveClaimSyncFeedback(data.save_sync_state)
       showFloat(feedback.text, feedback.type)
     } catch (error: any) {
-      showFloat(error?.message || '领取失败', 'danger')
+      showFloat(error?.message || '' + '领取失败', 'danger')
+    } finally {
+      claimCurrentPending.value = false
     }
   }
 
   const claimAllRewards = async () => {
+    if (claimAllPending.value) return
+    claimAllPending.value = true
     try {
       const data = await mailboxStore.claimAll()
       for (const claimed of data.claimed ?? []) {
         syncActivityRewardMailState(claimed?.mail)
       }
       await ensureSelection()
+      const claimedCount = data.claimed?.length || 0
+      const failedCount = data.failed?.length || 0
+      if (claimedCount === 0 && failedCount > 0) {
+        const failedMessage = data.failed?.[0]?.message || '一键领取失败'
+        showFloat(`未成功领取任何邮件：${failedMessage}`, 'danger')
+        return
+      }
       const feedback = resolveClaimSyncFeedback(data.save_sync_state)
-      const baseText = `已领取 ${data.claimed?.length || 0} 封邮件`
-      const suffix = data.failed?.length ? `，另有 ${data.failed.length} 封失败` : ''
-      showFloat(`${baseText}${suffix}。${feedback.text}`, data.failed?.length ? 'accent' : feedback.type)
+      const baseText = `已领取 ${claimedCount} 封邮件`
+      const suffix = failedCount ? `，另有 ${failedCount} 封失败` : ''
+      showFloat(`${baseText}${suffix}。${feedback.text}`, failedCount ? 'accent' : feedback.type)
     } catch (error: any) {
-      showFloat(error?.message || '一键领取失败', 'danger')
+      showFloat(error?.message || '' + '一键领取失败', 'danger')
+    } finally {
+      claimAllPending.value = false
     }
   }
 
   const clearClaimed = async () => {
+    if (clearClaimedPending.value) return
+    clearClaimedPending.value = true
     try {
       const data = await mailboxStore.clearClaimed()
       await ensureSelection()
       showFloat(`已清理 ${data.count || 0} 封已领取邮件`, 'success')
     } catch (error: any) {
-      showFloat(error?.message || '清理失败', 'danger')
+      showFloat(error?.message || '' + '清理失败', 'danger')
+    } finally {
+      clearClaimedPending.value = false
     }
   }
 
@@ -497,3 +524,4 @@
     justify-content: center;
   }
 </style>
+

@@ -13,7 +13,8 @@ import type {
   PondMaintenanceState,
   PondRatingBreakdownEntry,
   PondContestSettlementSummary,
-  PondContestState
+  PondContestState,
+  PondContestDef
 } from '@/types/fishPond'
 import type { Quality } from '@/types'
 import {
@@ -97,6 +98,9 @@ const normalizeDisplayEntries = (value: any): PondDisplayEntry[] => {
       assignedAtDayTag: typeof entry.assignedAtDayTag === 'string' ? entry.assignedAtDayTag : ''
     }))
 }
+
+type PondHighCareActionStatus = 'ready' | 'noEligibleFish' | 'missingItem' | 'dailyLimit'
+type PondDisplayAssignmentStatus = 'ready' | 'alreadyAssigned' | 'displayFull' | 'ineligible' | 'missingFish'
 
 export const useFishPondStore = defineStore('fishPond', () => {
   // === 状态 ===
@@ -402,6 +406,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
     const threshold = getMaintenanceConfig().highTierScoreThreshold
     return pondFishRatings.value.filter(entry => entry.totalScore >= threshold)
   })
+  const highCareEligibleFishRatings = computed(() => highTierFishRatings.value.filter(entry => entry.mature && !entry.sick))
 
   const displayOverview = computed(() => {
     const config = getMaintenanceConfig()
@@ -420,21 +425,21 @@ export const useFishPondStore = defineStore('fishPond', () => {
   })
 
   const pruneDisplayEntries = () => {
-    const threshold = getMaintenanceConfig().highTierScoreThreshold
-    displayEntries.value = displayEntries.value.filter(entry => {
-      const fish = pond.value.fish.find(candidate => candidate.id === entry.pondFishId)
-      const rating = getPondFishRatingSnapshot(entry.pondFishId)
-      return !!fish && !!rating && !fish.sick && fish.mature && rating.totalScore >= threshold
-    })
+    displayEntries.value = displayEntries.value.filter(entry => pond.value.fish.some(candidate => candidate.id === entry.pondFishId))
+  }
+
+  const getDisplayAssignmentStatus = (pondFishId: string): PondDisplayAssignmentStatus => {
+    const rating = getPondFishRatingSnapshot(pondFishId)
+    const fish = pond.value.fish.find(entry => entry.id === pondFishId)
+    if (displayAssignedFishIds.value.has(pondFishId)) return 'alreadyAssigned'
+    if (!rating || !fish) return 'missingFish'
+    if (fish.sick || !fish.mature || rating.totalScore < getMaintenanceConfig().highTierScoreThreshold) return 'ineligible'
+    if (displayEntries.value.length >= getMaintenanceConfig().displayTankSlotLimit) return 'displayFull'
+    return 'ready'
   }
 
   const canAssignDisplayFish = (pondFishId: string): boolean => {
-    const rating = getPondFishRatingSnapshot(pondFishId)
-    const fish = pond.value.fish.find(entry => entry.id === pondFishId)
-    if (!rating || !fish || fish.sick || !fish.mature) return false
-    if (displayAssignedFishIds.value.has(pondFishId)) return false
-    if (displayEntries.value.length >= getMaintenanceConfig().displayTankSlotLimit) return false
-    return rating.totalScore >= getMaintenanceConfig().highTierScoreThreshold
+    return getDisplayAssignmentStatus(pondFishId) === 'ready'
   }
 
   const assignDisplayFish = (pondFishId: string): boolean => {
@@ -464,11 +469,18 @@ export const useFishPondStore = defineStore('fishPond', () => {
     return true
   }
 
+  const getOrnamentalFeedStatus = (): PondHighCareActionStatus => {
+    if (!pond.value.built || highCareEligibleFishRatings.value.length <= 0) return 'noEligibleFish'
+    const currentDayTag = getCurrentDayTag()
+    if (maintenanceState.value.lastOrnamentalFeedDayTag === currentDayTag) return 'dailyLimit'
+    if (useInventoryStore().getItemCount('ornamental_feed') <= 0) return 'missingItem'
+    return 'ready'
+  }
+
   const useOrnamentalFeed = (): boolean => {
-    if (!pond.value.built || highTierFishRatings.value.length <= 0) return false
+    if (getOrnamentalFeedStatus() !== 'ready') return false
     const inventoryStore = useInventoryStore()
     const currentDayTag = getCurrentDayTag()
-    if (maintenanceState.value.lastOrnamentalFeedDayTag === currentDayTag) return false
     if (!inventoryStore.removeItem('ornamental_feed', 1)) return false
     maintenanceState.value = {
       ...maintenanceState.value,
@@ -478,11 +490,18 @@ export const useFishPondStore = defineStore('fishPond', () => {
     return true
   }
 
+  const getAdvancedPurifierStatus = (): PondHighCareActionStatus => {
+    if (!pond.value.built || highCareEligibleFishRatings.value.length <= 0) return 'noEligibleFish'
+    const currentDayTag = getCurrentDayTag()
+    if (maintenanceState.value.lastAdvancedPurifierDayTag === currentDayTag) return 'dailyLimit'
+    if (useInventoryStore().getItemCount('advanced_water_purifier') <= 0) return 'missingItem'
+    return 'ready'
+  }
+
   const useAdvancedPurifier = (): boolean => {
-    if (!pond.value.built || highTierFishRatings.value.length <= 0) return false
+    if (getAdvancedPurifierStatus() !== 'ready') return false
     const inventoryStore = useInventoryStore()
     const currentDayTag = getCurrentDayTag()
-    if (maintenanceState.value.lastAdvancedPurifierDayTag === currentDayTag) return false
     if (!inventoryStore.removeItem('advanced_water_purifier', 1)) return false
     pond.value.waterQuality = clamp(pond.value.waterQuality + getMaintenanceConfig().advancedPurifierRestore, 0, 100)
     maintenanceState.value = {
@@ -496,6 +515,14 @@ export const useFishPondStore = defineStore('fishPond', () => {
   const currentPondContestDef = computed(() =>
     pondContestState.value.contestId ? POND_CONTEST_DEFS.find(entry => entry.id === pondContestState.value.contestId) ?? null : null
   )
+  const contestUsesOrnamentalFeedBonus = (contest: PondContestDef): boolean =>
+    contest.scoringMetric === 'showValue' || contest.scoringMetric === 'totalScore'
+  const getContestScore = (entry: PondFishRatingSnapshot, contest: PondContestDef): number => {
+    const baseScore = entry[contest.scoringMetric]
+    if (!contestUsesOrnamentalFeedBonus(contest)) return baseScore
+    if (maintenanceState.value.ornamentalFeedBuffDays <= 0 || !entry.mature || entry.sick) return baseScore
+    return baseScore + getMaintenanceConfig().ornamentalFeedContestBonus
+  }
   const currentThemeWeekPondFocus = computed(() => {
     const goalStore = useGoalStore()
     const themeWeek = goalStore.currentThemeWeek
@@ -520,7 +547,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
         if (contest.unlockGenerationMin && entry.generation < contest.unlockGenerationMin) return false
         return true
       })
-      .sort((a, b) => b[contest.scoringMetric] - a[contest.scoringMetric])
+      .sort((a, b) => getContestScore(b, contest) - getContestScore(a, contest))
   })
 
   const pruneContestRegistrations = (): boolean => {
@@ -590,7 +617,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
         fishId: entry.fishId,
         fishName: entry.fishName,
         breedId: entry.breedId,
-        score: entry[contest.scoringMetric]
+        score: getContestScore(entry, contest)
       }))
       .sort((a, b) => b.score - a.score)
 
@@ -1044,7 +1071,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
             ['normal', 'fine', 'excellent', 'supreme'].includes(entry.quality)
         )
       : []
-    discoveredBreeds.value = new Set(data?.discoveredBreeds ?? [])
+    const discoveredBreedIds = new Set<string>(data?.discoveredBreeds ?? [])
     returnedFishPool.value = Object.fromEntries(
       Object.entries(data?.returnedFishPool && typeof data.returnedFishPool === 'object' ? data.returnedFishPool : {})
         .filter(([fishId]) => isPondableFish(fishId))
@@ -1072,6 +1099,15 @@ export const useFishPondStore = defineStore('fishPond', () => {
             : []
         ])
     )
+    for (const fish of pond.value.fish) {
+      if (fish.breedId) discoveredBreedIds.add(fish.breedId)
+    }
+    for (const entries of Object.values(returnedFishPool.value)) {
+      for (const fish of entries) {
+        if (fish.breedId) discoveredBreedIds.add(fish.breedId)
+      }
+    }
+    discoveredBreeds.value = discoveredBreedIds
     pondContestState.value = data?.pondContestState ?? createDefaultPondContestState()
     lastPondContestSettlement.value = data?.lastPondContestSettlement ?? null
     displayEntries.value = normalizeDisplayEntries(data?.displayEntries)
@@ -1114,9 +1150,12 @@ export const useFishPondStore = defineStore('fishPond', () => {
     treatSickFish,
     startBreeding,
     canAssignDisplayFish,
+    getDisplayAssignmentStatus,
     assignDisplayFish,
     removeDisplayFish,
+    getOrnamentalFeedStatus,
     useOrnamentalFeed,
+    getAdvancedPurifierStatus,
     useAdvancedPurifier,
     registerContestFish,
     unregisterContestFish,

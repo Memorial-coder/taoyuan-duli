@@ -678,6 +678,15 @@ export const usePlayerStore = defineStore('player', () => {
     needsIdentitySetup.value = false
   }
 
+  const normalizeDerivedState = () => {
+    const expectedMax = (STAMINA_CAPS[staminaCapLevel.value] ?? 120) + bonusMaxStamina.value
+    if (maxStamina.value !== expectedMax) {
+      maxStamina.value = expectedMax
+    }
+    stamina.value = Math.min(Math.max(0, stamina.value), maxStamina.value)
+    hp.value = Math.min(Math.max(0, hp.value), getMaxHp())
+  }
+
   const serialize = () => {
     return {
       playerName: playerName.value,
@@ -689,8 +698,12 @@ export const usePlayerStore = defineStore('player', () => {
       bonusMaxStamina: bonusMaxStamina.value,
       hp: hp.value,
       baseMaxHp: baseMaxHp.value,
-      economyTelemetry: economyTelemetry.value,
-      qaGovernanceRuntimeState: qaGovernanceRuntimeState.value
+      economyTelemetry: normalizeEconomyTelemetry(economyTelemetry.value),
+      qaGovernanceRuntimeState: {
+        ...qaGovernanceRuntimeState.value,
+        completedRegressionSuiteIds: [...qaGovernanceRuntimeState.value.completedRegressionSuiteIds],
+        claimedCompensationMailIds: [...qaGovernanceRuntimeState.value.claimedCompensationMailIds]
+      }
     }
   }
 
@@ -699,6 +712,12 @@ export const usePlayerStore = defineStore('player', () => {
     playerName.value = (data as any).playerName ?? '未命名'
     gender.value = (data as any).gender ?? 'male'
     needsIdentitySetup.value = !hasIdentity
+    const rawPlayerName = typeof (data as any).playerName === 'string' ? (data as any).playerName.trim() : ''
+    const rawGender = (data as any).gender
+    const hasGender = rawGender === 'male' || rawGender === 'female'
+    playerName.value = rawPlayerName || playerName.value
+    gender.value = hasGender ? rawGender : 'male'
+    needsIdentitySetup.value = !(rawPlayerName.length > 0 && hasGender)
     money.value = normalizeNonNegativeInteger(data.money, 500)
     staminaCapLevel.value = Math.min(STAMINA_CAPS.length - 1, normalizeNonNegativeInteger(data.staminaCapLevel, 0))
     bonusMaxStamina.value = normalizeNonNegativeInteger((data as any).bonusMaxStamina ?? 0)
@@ -717,7 +736,7 @@ export const usePlayerStore = defineStore('player', () => {
     }
     stamina.value = Math.min(stamina.value, maxStamina.value)
     baseMaxHp.value = Math.max(BASE_MAX_HP, normalizeNonNegativeInteger((data as any).baseMaxHp ?? BASE_MAX_HP, BASE_MAX_HP))
-    hp.value = Math.min(Math.max(0, normalizeNonNegativeInteger((data as any).hp ?? BASE_MAX_HP, BASE_MAX_HP)), getMaxHp())
+    hp.value = Math.max(0, normalizeNonNegativeInteger((data as any).hp ?? BASE_MAX_HP, BASE_MAX_HP))
     economyTelemetry.value = normalizeEconomyTelemetry((data as any).economyTelemetry)
     qaGovernanceRuntimeState.value = (() => {
       const raw = (data as any).qaGovernanceRuntimeState
@@ -798,6 +817,7 @@ export const usePlayerStore = defineStore('player', () => {
     earnMoney,
     setMoney,
     setIdentity,
+    normalizeDerivedState,
     serialize,
     deserialize
   }

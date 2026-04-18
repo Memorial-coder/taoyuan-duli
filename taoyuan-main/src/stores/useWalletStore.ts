@@ -257,7 +257,7 @@ export const useWalletStore = defineStore('wallet', () => {
     // 垂钓者令牌：钓到30种鱼
     if (!has('anglers_token')) {
       const fishIdSet = new Set(FISH.map(f => f.id))
-      const fishCount = achievementStore.discoveredItems.filter(id => fishIdSet.has(id)).length
+      const fishCount = achievementStore.caughtFishIds.filter(id => fishIdSet.has(id)).length
       if (fishCount >= 30) {
         unlock('anglers_token')
         newlyUnlocked.push('钓翁令牌')
@@ -265,7 +265,7 @@ export const useWalletStore = defineStore('wallet', () => {
     }
 
     // 厨师帽：烹饪10道不同食谱
-    if (!has('chefs_hat') && achievementStore.stats.totalRecipesCooked >= 10) {
+    if (!has('chefs_hat') && achievementStore.cookedRecipeIds.length >= 10) {
       unlock('chefs_hat')
       newlyUnlocked.push('厨师帽')
     }
@@ -542,6 +542,8 @@ export const useWalletStore = defineStore('wallet', () => {
       const validNodeIds = new Set(currentArchetype.value.nodes.map(node => node.id))
       unlockedNodeIds.value = unlockedNodeIds.value.filter(nodeId => validNodeIds.has(nodeId))
     }
+
+    checkAndUnlock()
   }
 
   const $reset = () => {

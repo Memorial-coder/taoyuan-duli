@@ -64,6 +64,11 @@ import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from
 const getFriendshipCap = (state: { married: boolean }, beautyCapBonus = 0): number =>
   (state.married ? 4000 : 2500) + beautyCapBonus
 
+const getEffectiveFriendshipCap = (state: { married: boolean }): number => {
+  const decorationStore = useDecorationStore()
+  return getFriendshipCap(state, decorationStore.beautyScore >= 100 ? 250 : 0)
+}
+
 /** 好感等级阈值 (10心制, 每心250点, 上限2500) */
 const FRIENDSHIP_THRESHOLDS: { level: FriendshipLevel; min: number }[] = [
   { level: 'bestFriend', min: 2000 },
@@ -635,7 +640,7 @@ export const useNpcStore = defineStore('npc', () => {
   const adjustFriendship = (npcId: string, amount: number): string[] => {
     const state = getNpcState(npcId)
     if (state) {
-      state.friendship = Math.min(Math.max(0, state.friendship + amount), getFriendshipCap(state))
+      state.friendship = Math.min(Math.max(0, state.friendship + amount), getEffectiveFriendshipCap(state))
       return syncRelationshipPerks(npcId)
     }
     return []
@@ -654,7 +659,7 @@ export const useNpcStore = defineStore('npc', () => {
     if (state.talkedToday) return null
 
     state.talkedToday = true
-    state.friendship = Math.min(state.friendship + 20, getFriendshipCap(state))
+    state.friendship = Math.min(state.friendship + 20, getEffectiveFriendshipCap(state))
     const unlockedMessages = syncRelationshipPerks(npcId)
 
     const npcDef = getNpcById(npcId)
@@ -772,7 +777,7 @@ export const useNpcStore = defineStore('npc', () => {
     const birthdayMultiplier = isBirthday(npcId) ? 4 : 1
 
     gain = Math.floor(gain * qualityMultiplier[quality] * birthdayMultiplier * giftBonusMultiplier)
-    state.friendship = Math.min(Math.max(0, state.friendship + gain), getFriendshipCap(state))
+    state.friendship = Math.min(Math.max(0, state.friendship + gain), getEffectiveFriendshipCap(state))
     const unlockedMessages = syncRelationshipPerks(npcId)
     const giftReturn = getNpcGiftReturn(npcId, getRelationshipStage(npcId))
     const returnedGift =
@@ -819,7 +824,7 @@ export const useNpcStore = defineStore('npc', () => {
     }
 
     state.dating = true
-    state.friendship = Math.min(state.friendship + 160, getFriendshipCap(state))
+    state.friendship = Math.min(state.friendship + 160, getEffectiveFriendshipCap(state))
     return {
       success: true,
       message: `${npcDef.name}羞红了脸，接过了你的丝帕……你们开始约会了！`,
@@ -869,7 +874,7 @@ export const useNpcStore = defineStore('npc', () => {
     // 设置婚礼倒计时而非立即结婚
     weddingCountdown.value = 3
     weddingNpcId.value = npcId
-    state.friendship = Math.min(state.friendship + 400, getFriendshipCap(state))
+    state.friendship = Math.min(state.friendship + 400, getEffectiveFriendshipCap(state))
     return {
       success: true,
       message: `${npcDef.name}含泪接受了你的翡翠戒指……婚礼将在3天后举行！`,
@@ -1434,7 +1439,7 @@ export const useNpcStore = defineStore('npc', () => {
     }
 
     state.zhiji = true
-    state.friendship = Math.min(state.friendship + 160, getFriendshipCap(state))
+    state.friendship = Math.min(state.friendship + 160, getEffectiveFriendshipCap(state))
     const label = playerStore.gender === 'male' ? '蓝颜知己' : '红颜知己'
     return {
       success: true,
@@ -1624,7 +1629,7 @@ export const useNpcStore = defineStore('npc', () => {
           medicalPlan: null,
           careMilestoneIds: []
         }
-        if (spouse) spouse.friendship = Math.min(spouse.friendship + 100, getFriendshipCap(spouse))
+        if (spouse) spouse.friendship = Math.min(spouse.friendship + 100, getEffectiveFriendshipCap(spouse))
         childProposalDeclinedCount.value = 0
         daysSinceProposalDecline.value = 0
         return { message: expansionKind === 'adoption' ? '你们决定一起迎一个孩子回家。' : '你们决定迎接新的家庭成员。', friendshipChange: 100 }
@@ -1957,10 +1962,9 @@ export const useNpcStore = defineStore('npc', () => {
     // 美观度好感加成
     const decorationStore = useDecorationStore()
     const beautyBonus = decorationStore.dailyFriendshipBonus
-    const beautyCapBonus = decorationStore.beautyScore >= 100 ? 250 : 0
     if (beautyBonus > 0) {
       for (const state of npcStates.value) {
-        const cap = getFriendshipCap(state, beautyCapBonus)
+        const cap = getEffectiveFriendshipCap(state)
         state.friendship = Math.min(cap, state.friendship + beautyBonus)
       }
     }

@@ -76,7 +76,7 @@ const mapAdminConfig = (data: any): AiAssistantAdminConfig => ({
   apiUrl: String(data?.apiUrl || data?.api_url || ''),
   apiKey: String(data?.apiKey || data?.api_key || ''),
   model: String(data?.model || ''),
-  temperature: Number(data?.temperature) || 0.2,
+  temperature: Number.isFinite(Number(data?.temperature)) ? Number(data?.temperature) : 0.2,
   systemPrompt: String(data?.systemPrompt || data?.system_prompt || ''),
   blockedTopics: String(data?.blockedTopics || data?.blocked_topics || ''),
 })

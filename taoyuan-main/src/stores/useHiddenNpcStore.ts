@@ -773,7 +773,11 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
 
   const serialize = () => ({
     spiritBondVersion: 2,
-    hiddenNpcStates: hiddenNpcStates.value
+    hiddenNpcStates: hiddenNpcStates.value.map(state => ({
+      ...state,
+      unlockedBlessingIds: [...state.unlockedBlessingIds],
+      claimedBondMemoryIds: [...state.claimedBondMemoryIds]
+    }))
   })
 
   const deserialize = (data: ReturnType<typeof serialize>) => {

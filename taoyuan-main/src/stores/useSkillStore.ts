@@ -150,13 +150,13 @@ export const useSkillStore = defineStore('skill', () => {
     for (const type of allTypes) {
       if (!arr.find(s => s.type === type)) {
         const newSkill = createSkill(type)
-        // 旧存档迁移：mining 的 fighter/warrior/brute → combat
+        // 旧存档迁移：mining 上误存的战斗分支 → combat
         if (type === 'combat') {
           const mining = arr.find(s => s.type === 'mining')
-          if (mining && mining.perk5 === 'fighter') {
+          if (mining && (mining.perk5 === 'fighter' || mining.perk5 === 'defender')) {
             newSkill.exp = mining.exp
             newSkill.level = mining.level
-            newSkill.perk5 = 'fighter'
+            newSkill.perk5 = mining.perk5
             newSkill.perk10 = mining.perk10
             mining.perk5 = null
             mining.perk10 = null

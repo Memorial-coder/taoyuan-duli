@@ -217,7 +217,9 @@
 
           <!-- 来源提示 -->
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
-            <p class="text-xs text-muted">{{ selectedItem.sourceHint }}</p>
+            <p class="text-xs text-muted">
+              {{ museumStore.isDonated(selectedItem.id) ? selectedItem.sourceHint : '捐赠后可查看该藏品的来源提示。' }}
+            </p>
           </div>
 
           <!-- 状态信息 -->

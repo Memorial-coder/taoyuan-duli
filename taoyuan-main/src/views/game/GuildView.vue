@@ -24,7 +24,7 @@
         </div>
         <div class="flex items-center justify-between">
           <span class="text-muted">赛季阶段</span>
-          <span>{{ getPhaseLabel(guildStore.seasonOverview.currentPhase) }}</span>
+          <span>{{ hasActiveSeason ? getPhaseLabel(guildStore.seasonOverview.currentPhase) : '未开启' }}</span>
         </div>
         <div class="flex items-center justify-between">
           <span class="text-muted">荣誉档位</span>
@@ -37,21 +37,24 @@
       </div>
 
       <div class="grid grid-cols-1 gap-2">
-        <div v-if="activeSeasonActivities.length > 0" class="border border-accent/10 rounded-xs p-2">
+        <div v-if="!hasActiveSeason" class="border border-accent/10 rounded-xs p-2">
+          <p class="text-xs text-muted leading-4">当前赛季尚未开启，先专注常驻讨伐、捐献和商店准备；周推进后会自动进入赛季节奏。</p>
+        </div>
+        <div v-if="hasActiveSeason && activeSeasonActivities.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">本阶段活动</p>
           <div v-for="activity in activeSeasonActivities" :key="activity.id" class="mt-1 first:mt-0">
             <p class="text-xs text-accent">{{ activity.title }}</p>
             <p class="text-[10px] text-muted leading-4 mt-0.5">{{ activity.summary }}</p>
           </div>
         </div>
-        <div v-if="activeMilestones.length > 0" class="border border-accent/10 rounded-xs p-2">
+        <div v-if="hasActiveSeason && activeMilestones.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">阶段里程碑</p>
           <div v-for="milestone in activeMilestones" :key="milestone.id" class="flex items-center justify-between text-[10px] mt-0.5">
             <span>{{ milestone.label }}</span>
             <span class="text-accent">{{ milestone.requiredAsyncScore }}分</span>
           </div>
         </div>
-        <div v-if="activeRewardPool" class="border border-accent/10 rounded-xs p-2">
+        <div v-if="hasActiveSeason && activeRewardPool" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">赛季奖励池</p>
           <p class="text-xs text-accent">{{ activeRewardPool.label }}</p>
           <p class="text-[10px] text-muted leading-4 mt-0.5">{{ activeRewardPool.summary }}</p>
@@ -216,10 +219,13 @@
             :icon="Gift"
             v-else-if="getKillCount(selectedGoal.monsterId) >= selectedGoal.killTarget"
             class="btn text-xs w-full justify-center !bg-accent !text-bg"
+            :disabled="!!goalClaimBlockedReason"
+            :class="goalClaimBlockedReason ? 'opacity-50 cursor-not-allowed' : '!bg-accent !text-bg'"
             @click="handleClaimGoal(selectedGoal.monsterId)"
           >
             领取奖励
           </Button>
+          <p v-if="goalClaimBlockedReason" class="text-xs text-danger mt-2">{{ goalClaimBlockedReason }}</p>
         </div>
       </div>
     </Transition>
@@ -489,9 +495,9 @@
           <Button
             v-else
             class="btn text-xs w-full justify-center"
-            :class="canBuyItem(shopModalItem) ? '!bg-accent !text-bg' : 'opacity-50 cursor-not-allowed'"
+            :class="!shopBuyBlockedReason ? '!bg-accent !text-bg' : 'opacity-50 cursor-not-allowed'"
             :icon="ShoppingCart"
-            :disabled="!canBuyItem(shopModalItem)"
+            :disabled="!!shopBuyBlockedReason"
             @click="handleBuyShopItem"
           >
             {{
@@ -500,6 +506,7 @@
                 : `购买 ${shopModalItem.contributionCost ? `${shopModalItem.contributionCost}贡献` : `${shopModalItem.price}文`}`
             }}
           </Button>
+          <p v-if="shopBuyBlockedReason" class="text-xs text-danger mt-2">{{ shopBuyBlockedReason }}</p>
         </div>
       </div>
     </Transition>
@@ -649,7 +656,7 @@
   import { MONSTER_DROP_SHOES, BOSS_DROP_SHOES, getShoeById } from '@/data/shoes'
   import type { MonsterDef, GuildShopItemDef, MonsterGoalDef } from '@/types'
   import { getItemById } from '@/data/items'
-  import { addLog } from '@/composables/useGameLog'
+  import { addLog, showFloat } from '@/composables/useGameLog'
 
   type Tab = 'goals' | 'shop' | 'bestiary' | 'donate'
 
@@ -674,6 +681,7 @@
 
   const getPhaseLabel = (phase: string) => PHASE_LABELS[phase as keyof typeof PHASE_LABELS] ?? phase
   const getRankBandLabel = (rankBand: string) => RANK_BAND_LABELS[rankBand] ?? rankBand
+  const hasActiveSeason = computed(() => Boolean(guildStore.seasonOverview.currentSeasonId))
   const activeSeasonActivities = computed(() => guildStore.featuredSeasonActivities)
   const activeMilestones = computed(() => guildStore.featuredSeasonMilestones)
   const activeRewardPool = computed(() => guildStore.activeRewardPoolOverview)
@@ -727,15 +735,34 @@
 
   const handleBuyShopItem = () => {
     if (!shopModalItem.value) return
+    const blockedReason = getShopBuyBlockedReason(shopModalItem.value, shopBuyQty.value)
+    if (blockedReason) {
+      showFloat(blockedReason, 'danger')
+      return
+    }
     const itemId = shopModalItem.value.itemId
     const qty = Math.min(shopBuyQty.value, maxShopBuyQty.value)
+    let purchased = 0
     for (let i = 0; i < qty; i++) {
-      if (!guildStore.buyShopItem(itemId)) break
+      if (!guildStore.buyShopItem(itemId)) {
+        if (purchased <= 0) {
+          showFloat('购买失败，请稍后重试。', 'danger')
+        }
+        break
+      }
+      purchased++
     }
-    shopModalItem.value = null
+    if (purchased > 0) {
+      shopModalItem.value = null
+    }
   }
 
   const handleClaimGoal = (monsterId: string) => {
+    const blockedReason = getGoalClaimBlockedReason(monsterId)
+    if (blockedReason) {
+      showFloat(blockedReason, 'danger')
+      return
+    }
     guildStore.claimGoal(monsterId)
     selectedGoal.value = null
   }
@@ -777,20 +804,49 @@
     return getItemById(itemId)?.name ?? itemId
   }
 
-  /** 判断能否购买商品 */
-  const canBuyItem = (item: GuildShopItemDef): boolean => {
-    if (!guildStore.isShopItemUnlocked(item.itemId)) return false
-    if (item.dailyLimit && guildStore.getDailyRemaining(item.itemId, item.dailyLimit) <= 0) return false
-    if (item.weeklyLimit && guildStore.getWeeklyRemaining(item.itemId, item.weeklyLimit) <= 0) return false
-    if (item.totalLimit && guildStore.getTotalRemaining(item.itemId, item.totalLimit) <= 0) return false
+  const getGoalClaimBlockedReason = (monsterId: string): string => {
+    const goal = MONSTER_GOALS.find(entry => entry.monsterId === monsterId)
+    if (!goal) return '讨伐目标不存在。'
+    if (guildStore.claimedGoals.includes(monsterId)) return '该讨伐奖励已领取。'
+    if (guildStore.getKillCount(monsterId) < goal.killTarget) return '当前尚未达到领取条件。'
+    const rewardItems = (goal.reward.items ?? []).map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
+    if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
+      return '请先整理背包，当前空间不足以领取讨伐奖励。'
+    }
+    return ''
+  }
+
+  const goalClaimBlockedReason = computed(() =>
+    selectedGoal.value ? getGoalClaimBlockedReason(selectedGoal.value.monsterId) : ''
+  )
+
+  const getShopBuyBlockedReason = (item: GuildShopItemDef, quantity = 1): string => {
+    const safeQty = Math.max(1, Math.floor(quantity))
+    if (!guildStore.isShopItemUnlocked(item.itemId)) return `公会 Lv.${item.unlockGuildLevel ?? '?'} 后解锁。`
+    if (item.dailyLimit && guildStore.getDailyRemaining(item.itemId, item.dailyLimit) < safeQty) return '今日剩余次数不足。'
+    if (item.weeklyLimit && guildStore.getWeeklyRemaining(item.itemId, item.weeklyLimit) < safeQty) return '本周剩余次数不足。'
+    if (item.totalLimit && guildStore.getTotalRemaining(item.itemId, item.totalLimit) < safeQty) return '该商品已达到总限购上限。'
     if (item.materials) {
       for (const mat of item.materials) {
-        if (inventoryStore.getItemCount(mat.itemId) < mat.quantity) return false
+        if (inventoryStore.getItemCount(mat.itemId) < mat.quantity * safeQty) {
+          return `${getMaterialName(mat.itemId)}不足。`
+        }
       }
     }
-    if (item.contributionCost) return guildStore.contributionPoints >= item.contributionCost
-    return playerStore.money >= item.price
+    if (item.contributionCost) {
+      if (guildStore.contributionPoints < item.contributionCost * safeQty) return '贡献点不足。'
+    } else if (playerStore.money < item.price * safeQty) {
+      return '铜钱不足。'
+    }
+    if (!item.equipType && !inventoryStore.canAddItem(item.itemId, safeQty)) {
+      return '请先整理背包，当前空间不足以购买该物品。'
+    }
+    return ''
   }
+
+  const shopBuyBlockedReason = computed(() =>
+    shopModalItem.value ? getShopBuyBlockedReason(shopModalItem.value, shopBuyQty.value) : ''
+  )
 
   const hasAnyKills = computed(() => Object.values(guildStore.monsterKills).some(v => v > 0))
 
@@ -893,11 +949,11 @@
       const w = BOSS_DROP_WEAPONS[bossFloor]
       if (w) drops.push({ name: getWeaponById(w)?.name ?? w, chance: null, firstKill: true })
       const r = BOSS_DROP_RINGS[bossFloor]
-      if (r) drops.push({ name: getRingById(r)?.name ?? r, chance: null, firstKill: false })
+      if (r) drops.push({ name: getRingById(r)?.name ?? r, chance: null, firstKill: true })
       const h = BOSS_DROP_HATS[bossFloor]
-      if (h) drops.push({ name: getHatById(h)?.name ?? h, chance: null, firstKill: false })
+      if (h) drops.push({ name: getHatById(h)?.name ?? h, chance: null, firstKill: true })
       const s = BOSS_DROP_SHOES[bossFloor]
-      if (s) drops.push({ name: getShoeById(s)?.name ?? s, chance: null, firstKill: false })
+      if (s) drops.push({ name: getShoeById(s)?.name ?? s, chance: null, firstKill: true })
     }
     return drops
   }

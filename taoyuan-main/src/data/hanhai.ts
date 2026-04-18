@@ -8,6 +8,7 @@ import type {
   HanhaiShopRotationDef,
   HanhaiRelicSiteDef,
   HanhaiRouteInvestmentDef,
+  HanhaiRewardBundle,
   HanhaiWeightedRewardBundle,
   QaCaseDef,
   ReleaseChecklistItem,
@@ -286,6 +287,34 @@ export const HANHAI_ROUTE_INVESTMENTS: HanhaiRouteInvestmentDef[] = [
     favoredCargoTags: ['祭仪', '珍宝', '赞助']
   }
 ]
+
+export const HANHAI_ROUTE_WEEKLY_YIELDS: Record<string, HanhaiRewardBundle> = {
+  westbound_silk_route: {
+    money: 900,
+    items: [
+      { itemId: 'hanhai_silk', quantity: 1 },
+      { itemId: 'hanhai_spice', quantity: 2 }
+    ],
+    ticketRewards: { caravan: 1 }
+  },
+  turquoise_exchange_route: {
+    money: 1800,
+    items: [
+      { itemId: 'hanhai_turquoise', quantity: 2 },
+      { itemId: 'hanhai_map', quantity: 1 }
+    ],
+    ticketRewards: { caravan: 1, exhibit: 1 }
+  },
+  moon_sand_ceremony_route: {
+    money: 3600,
+    items: [
+      { itemId: 'hanhai_silk', quantity: 2 },
+      { itemId: 'hanhai_turquoise', quantity: 3 },
+      { itemId: 'hanhai_map', quantity: 1 }
+    ],
+    ticketRewards: { exhibit: 1, research: 1 }
+  }
+}
 
 export const HANHAI_RELIC_SET_DEFS: HanhaiRelicSetDef[] = [
   {

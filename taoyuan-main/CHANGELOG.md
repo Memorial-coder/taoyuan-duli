@@ -1673,3 +1673,36 @@
 - 当前复核状态：
   - `npm run build` 已通过。
   - 瀚海赌场“进行中赌局存档”问题仍未在本轮覆盖，后续需要单独继续收口。
+
+#### 0418 存档链路、角色修正与多页交互收口
+- `src/stores/useSaveStore.ts` 新增账号作用域重载与服务端槽位安全分配保护，避免切账号后沿用错误存档模式，并在服务端槽位拉取失败时继续把真云档当空槽覆盖。
+- `src/stores/usePlayerStore.ts` 新增派生数值归一化入口，读档时不再过早按旧运行态裁剪 HP；旧档缺少 `gender` 时会正确进入身份补录流程。
+- `src/views/MainMenu.vue`、`src/views/AuthView.vue` 已在登录/退出后重载当前账号存档上下文，并改进退出失败时的反馈；旧档身份补录会立即尝试写回当前存档。
+- `src/views/GameLayout.vue` 已修复设置弹窗关闭后遗留 `settings` 暂停原因、导致时钟卡死的问题。
+- `src/composables/useHiddenNpcActions.ts` 已把隐世 NPC 供奉/特殊互动的时间推进从错误的 30/60 小时修正为 30/60 分钟。
+- `src/views/HallView.vue` 已阻止图片上传未完成时发帖，切帖时会清空引用回复目标，并收紧点赞/点踩的并发互斥。
+
+#### 0418 背包、烹饪、商店与工具升级修复
+- `src/views/game/ToolUpgradeView.vue` 现在会在提交升级前重新校验铁匠铺营业时间，不再允许打烊后继续提交升级。
+- `src/views/game/InventoryView.vue` 与 `src/stores/useInventoryStore.ts` 已修复临时背包在满包但仍可并堆时被错误锁死的问题，并为丢弃数量增加正整数校验；合成帽子/鞋子也会拦截重复制作。
+- `src/stores/useCookingStore.ts` 已在批量烹饪前校验成品是否有足够背包空间，避免先扣材料再把成品吞掉。
+- `src/views/game/ShopView.vue` 已让一键全卖排除种子，并修正 `boom` 行情颜色与合成帽子/鞋子的拥有态校验。
+
+#### 0418 后续玩法修复补记
+- `src/stores/useDecorationStore.ts`、`src/data/decorations.ts`、`src/data/shopCatalog.ts` 已修复目录装饰快照回滚与 `premium_golden_frame` 解锁链路，避免“付钱成功但家园里不能摆、异常回滚后仍保留美观度收益”。
+- `src/stores/useMuseumStore.ts`、`src/views/game/MuseumView.vue` 已保留“已完成待领取”的学者委托跨周可领奖状态，并隐藏未捐赠藏品的来源提示，避免周切周吞奖励和提前剧透。
+- `src/stores/useFishPondStore.ts` 已在旧档读档时从鱼塘现存样本与归还池回填 `discoveredBreeds`，避免图鉴被错误清空。
+- `src/stores/useAchievementStore.ts` 已把成就现金奖励改为不重复计入 `totalMoneyEarned`，并让旧档图鉴补录覆盖 `tempItems` 且保留原有“未知首次发现时间”口径，不再把读档当天误写成首次发现日。
+- `src/stores/useSkillStore.ts`、`src/stores/useBreedingStore.ts`、`src/stores/useQuestStore.ts` 已补强旧档兼容：战斗分支 `defender -> combat` 会正确迁移，缺失 `genetics.id` 的种子不再用易撞号兜底，`stationCount` 会与恢复出的育种台数量自动对齐，旧特殊订单缺少 `initialDaysRemaining` 时也会按实际剩余天数补全。
+- `src/stores/useSaveStore.ts`、`src/views/game/GuildView.vue` 已修复公会赛季基线字段在迁移时被裁掉、导致读档后赛季荣誉口径漂移的问题，并补上讨伐奖励/公会商店的明确阻塞反馈；赛季未开启时不再渲染完整赛季面板，BOSS 装备掉落标签也与一次性必得逻辑对齐。
+- `src/stores/useHanhaiStore.ts` 已让瀚海解锁/读档后立即同步阶段与首领轮换，并把德州/恶魔轮盘进行中会话纳入快照和反序列化，避免异常回滚把赌场局面直接清空。
+- `src/views/game/SkillView.vue`、`src/components/game/PerkSelectDialog.vue`、`src/views/game/BreedingView.vue` 已修正文案与预览口径：`庄园主 / 兽王 / 哲学家 / 海洋霸主` 说明现在与真实效果一致，成功杂交时的后代预览也会按真实杂交公式展示目标品系和属性范围。
+- `src/stores/useQuestStore.ts`、`src/data/quests.ts`、`src/views/game/QuestView.vue` 已让限时任务窗口按真实天数收束，并把活动窗口状态真正接入高阶订单生成；Quest 页顶部也会展示实际剩余天数，不再固定显示 `5/7/14 天`。
+- `src/views/game/HanhaiView.vue`、`src/composables/useGameClock.ts` 已让瀚海长局小游戏在德州/恶魔轮盘期间正确暂停游戏时钟，避免跨日把整局作废。
+- `src/stores/useAchievementStore.ts`、`src/stores/useFishingStore.ts`、`src/stores/useCookingStore.ts`、`src/stores/useWalletStore.ts` 已把 `anglers_token` / `chefs_hat` 改为按“实际钓到的鱼种 / 实际做过的不同菜谱”解锁，并在读档时即时补发符合条件的钱包被动。
+- `src/stores/useAiAssistantStore.ts`、`src/utils/taoyuanAiApi.ts` 已补 AI 助手重入保护，并修正管理端 `temperature=0` 被错误回读成 `0.2` 的问题。
+- `src/stores/useMailboxStore.ts` 已改为按当前真实运行会话判断是否需要在领奖后回读服务端槽位，减少面板模式切换带来的误判。
+- `src/stores/useInventoryStore.ts`、`src/stores/useWarehouseStore.ts`、`src/stores/usePlayerStore.ts`、`src/stores/useHiddenNpcStore.ts` 已把序列化快照改为真实克隆，不再把 live 引用暴露给事务回滚。
+- 当前复核状态：
+  - `npm run type-check`
+  - `npm run build`

@@ -429,6 +429,15 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
         asyncRankScore: 0,
         rankBand: 'novice',
         lastSnapshotWeekId: '',
+        seasonBaselineContributionPoints: 0,
+        seasonBaselineGuildExp: 0,
+        seasonBaselineGoalClaims: 0,
+        seasonBaselineBossClears: 0,
+        seasonBaselineGuildLevel: 0,
+        lastSnapshotContributionPoints: 0,
+        lastSnapshotGuildExp: 0,
+        lastSnapshotGoalClaims: 0,
+        lastSnapshotBossClears: 0,
         snapshots: []
       }
     }
@@ -452,6 +461,15 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
         asyncRankScore: next.guild.seasonState?.asyncRankScore ?? 0,
         rankBand: next.guild.seasonState?.rankBand ?? 'novice',
         lastSnapshotWeekId: next.guild.seasonState?.lastSnapshotWeekId ?? '',
+        seasonBaselineContributionPoints: next.guild.seasonState?.seasonBaselineContributionPoints ?? 0,
+        seasonBaselineGuildExp: next.guild.seasonState?.seasonBaselineGuildExp ?? 0,
+        seasonBaselineGoalClaims: next.guild.seasonState?.seasonBaselineGoalClaims ?? 0,
+        seasonBaselineBossClears: next.guild.seasonState?.seasonBaselineBossClears ?? 0,
+        seasonBaselineGuildLevel: next.guild.seasonState?.seasonBaselineGuildLevel ?? 0,
+        lastSnapshotContributionPoints: next.guild.seasonState?.lastSnapshotContributionPoints ?? 0,
+        lastSnapshotGuildExp: next.guild.seasonState?.lastSnapshotGuildExp ?? 0,
+        lastSnapshotGoalClaims: next.guild.seasonState?.lastSnapshotGoalClaims ?? 0,
+        lastSnapshotBossClears: next.guild.seasonState?.lastSnapshotBossClears ?? 0,
         snapshots: next.guild.seasonState?.snapshots ?? []
       }
     }
@@ -531,10 +549,32 @@ export const useSaveStore = defineStore('save', () => {
   const pendingServerSlots = ref<number[]>(getPendingServerSlotNumbers())
   const lastServerSyncMessage = ref('')
   const lastSaveResultStatus = ref<SaveExecutionStatus>('saved')
+  const serverSlotsFetchState = ref<'unknown' | 'available' | 'unavailable'>(
+    getStoredSaveMode() === 'server' ? 'unknown' : 'available'
+  )
 
   const refreshPendingServerState = () => {
     pendingServerSlots.value = getPendingServerSlotNumbers()
     return pendingServerSlots.value
+  }
+
+  const getSlotAllocationBlockReason = (): string => {
+    if (storageMode.value === 'server' && serverSlotsFetchState.value === 'unavailable') {
+      return '服务端存档暂时不可用，无法安全分配新槽位，请稍后重试。'
+    }
+    return ''
+  }
+
+  const reloadAccountScopedState = () => {
+    storageMode.value = getStoredSaveMode()
+    activeSlotsByMode.value = {
+      local: -1,
+      server: -1,
+    }
+    activeSlot.value = -1
+    activeSlotMode.value = null
+    serverSlotsFetchState.value = storageMode.value === 'server' ? 'unknown' : 'available'
+    refreshPendingServerState()
   }
 
   const setLastSaveState = (status: SaveExecutionStatus, errorMessage = '', syncMessage = lastServerSyncMessage.value) => {
@@ -580,6 +620,7 @@ export const useSaveStore = defineStore('save', () => {
   const setStorageMode = (mode: SaveMode) => {
     storageMode.value = mode
     setStoredSaveMode(mode)
+    serverSlotsFetchState.value = mode === 'server' ? 'unknown' : 'available'
     activeSlot.value = activeSlotsByMode.value[mode] ?? -1
     activeSlotMode.value = activeSlot.value >= 0 ? mode : null
     refreshPendingServerState()
@@ -926,7 +967,8 @@ export const useSaveStore = defineStore('save', () => {
       decoration: decorationStore.serialize(),
       villageProject: villageProjectStore.serialize(),
       activeSlot: activeSlot.value,
-      activeSlotMode: activeSlotMode.value
+      activeSlotMode: activeSlotMode.value,
+      activeSlotsByMode: { ...activeSlotsByMode.value }
     }
 
     try {
@@ -992,12 +1034,13 @@ export const useSaveStore = defineStore('save', () => {
 
       // 鍦ㄧ浉鍏?store 鍏ㄩ儴鍙嶅簭鍒楀寲瀹屾垚鍚庯紝鍐嶇粺涓€鍚屾 NPC 鍏崇郴濂栧姳锛岄伩鍏嶆棫妗ｅ鍔辫鍚炴垨椋熻氨琚悗缁?store 瑕嗙洊
       npcStore.rehydrateRelationshipPerks({ grantInventoryRewards: true, emitMessages: false })
+      playerStore.normalizeDerivedState()
 
       activeSlot.value = slot
       activeSlotMode.value = storageMode.value
       activeSlotsByMode.value[storageMode.value] = slot
       return true
-    } catch (error) {
+    } catch {
       gameStore.$reset()
       playerStore.$reset()
       inventoryStore.$reset()
@@ -1056,8 +1099,11 @@ export const useSaveStore = defineStore('save', () => {
       decorationStore.deserialize(backup.decoration)
       villageProjectStore.deserialize(backup.villageProject)
       goalStore.deserialize(backup.goal)
+      npcStore.rehydrateRelationshipPerks({ grantInventoryRewards: false, emitMessages: false })
+      playerStore.normalizeDerivedState()
       activeSlot.value = backup.activeSlot
       activeSlotMode.value = backup.activeSlotMode
+      activeSlotsByMode.value = { ...backup.activeSlotsByMode }
       return false
     }
   }
@@ -1066,6 +1112,7 @@ export const useSaveStore = defineStore('save', () => {
     const pendingMap = loadPendingServerSaveMap()
     try {
       const raws = await fetchServerSlots()
+      serverSlotsFetchState.value = 'available'
       return Array.from({ length: MAX_SLOTS }, (_, slot) => {
         const pendingRaw = pendingMap[slot]?.raw ?? null
         return {
@@ -1073,7 +1120,8 @@ export const useSaveStore = defineStore('save', () => {
           pendingSync: !!pendingRaw
         }
       })
-    } catch (error) {
+    } catch {
+      serverSlotsFetchState.value = 'unavailable'
       return Array.from({ length: MAX_SLOTS }, (_, slot) => ({
         raw: pendingMap[slot]?.raw ?? null,
         pendingSync: !!pendingMap[slot]?.raw
@@ -1224,6 +1272,11 @@ export const useSaveStore = defineStore('save', () => {
   /** 涓烘柊娓告垙鍒嗛厤涓€涓┖闂叉Ы浣嶏紝鏃犵┖闂插垯杩斿洖 -1 */
   const assignNewSlot = async (): Promise<number> => {
     const slots = await getSlots()
+    const blockReason = getSlotAllocationBlockReason()
+    if (blockReason) {
+      lastSaveErrorMessage.value = blockReason
+      return -1
+    }
     const empty = slots.find(s => !s.exists)
     const slot = empty ? empty.slot : -1
     applyActiveSlotSelection(slot, storageMode.value)
@@ -1275,6 +1328,7 @@ export const useSaveStore = defineStore('save', () => {
       const runtimeSnapshot = buildCurrentSaveData()
       const previousActiveSlot = activeSlot.value
       const previousActiveSlotMode = activeSlotMode.value
+      const previousActiveSlotsByMode = { ...activeSlotsByMode.value }
       const applied = applySaveData(data, slot)
       if (!applied) return false
       if (storageMode.value === 'server') {
@@ -1292,9 +1346,7 @@ export const useSaveStore = defineStore('save', () => {
           }
           activeSlot.value = previousActiveSlot
           activeSlotMode.value = previousActiveSlotMode
-          if (previousActiveSlotMode) {
-            activeSlotsByMode.value[previousActiveSlotMode] = previousActiveSlot
-          }
+          activeSlotsByMode.value = { ...previousActiveSlotsByMode }
           return false
         }
       }
@@ -1396,6 +1448,8 @@ export const useSaveStore = defineStore('save', () => {
     qaGovernanceStorageActionLocks,
     qaGovernanceTuning,
     lastSaveErrorMessage,
+    getSlotAllocationBlockReason,
+    reloadAccountScopedState,
     getQaGovernanceStorageOverview,
     refreshPendingServerState,
     setStorageMode,

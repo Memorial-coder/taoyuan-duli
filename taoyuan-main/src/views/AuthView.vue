@@ -109,11 +109,13 @@
   import { showFloat } from '@/composables/useGameLog'
   import { initCurrentAccount } from '@/utils/accountStorage'
   import { clearStoredAdminToken } from '@/utils/taoyuanMailboxAdminApi'
+  import { useSaveStore } from '@/stores/useSaveStore'
 
   const router = useRouter()
   const route = useRoute()
   const { startBgm } = useAudio()
   const pkg = _pkg as typeof _pkg & { title: string }
+  const saveStore = useSaveStore()
 
   const authMode = ref<'login' | 'register'>('login')
   const authSubmitting = ref(false)
@@ -190,6 +192,10 @@
       }
 
       await initCurrentAccount()
+      saveStore.reloadAccountScopedState()
+      if (saveStore.storageMode === 'server') {
+        await saveStore.syncPendingServerSaves()
+      }
       await loadCurrentUser()
       resetAuthForm()
       showFloat(authMode.value === 'login' ? '登录成功' : '注册成功，已自动登录', 'success')
@@ -202,14 +208,25 @@
   }
 
   const handleLogout = async () => {
+    let logoutRequestFailed = false
     try {
-      await fetch('/api/logout', { method: 'POST', credentials: 'include' })
+      const response = await fetch('/api/logout', { method: 'POST', credentials: 'include' })
+      logoutRequestFailed = !response.ok
     } catch {
-      // ignore
+      logoutRequestFailed = true
     }
     clearStoredAdminToken()
     await initCurrentAccount()
+    saveStore.reloadAccountScopedState()
     await loadCurrentUser()
+    if (currentUser.value) {
+      showFloat('退出登录未完成，请稍后重试。', 'danger')
+      return
+    }
+    if (logoutRequestFailed) {
+      showFloat('本地状态已刷新，如仍显示已登录请重试。', 'danger')
+      return
+    }
     showFloat('已退出登录', 'success')
   }
 

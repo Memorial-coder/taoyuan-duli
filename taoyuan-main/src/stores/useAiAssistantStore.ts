@@ -33,6 +33,7 @@ export const useAiAssistantStore = defineStore('aiAssistant', () => {
   const isOpen = ref(false)
   const isLoadingConfig = ref(false)
   const isAsking = ref(false)
+  const activeAskRequestId = ref(0)
   const isCheckingAdmin = ref(false)
   const isLoadingAdmin = ref(false)
   const isSavingAdmin = ref(false)
@@ -111,6 +112,14 @@ export const useAiAssistantStore = defineStore('aiAssistant', () => {
       showFloat('AI 助手当前已关闭', 'danger')
       return
     }
+    if (isAsking.value) {
+      showFloat('AI 助手正在整理上一条回答，请稍后再试。', 'danger')
+      return
+    }
+
+    const requestId = activeAskRequestId.value + 1
+    activeAskRequestId.value = requestId
+    isAsking.value = true
 
     messages.value.push({
       id: createId(),
@@ -128,7 +137,6 @@ export const useAiAssistantStore = defineStore('aiAssistant', () => {
       pending: true,
     })
 
-    isAsking.value = true
     try {
       const result = await askAiAssistant({
         question: trimmed,
@@ -158,7 +166,9 @@ export const useAiAssistantStore = defineStore('aiAssistant', () => {
           : message
       )
     } finally {
-      isAsking.value = false
+      if (activeAskRequestId.value === requestId) {
+        isAsking.value = false
+      }
     }
   }
 

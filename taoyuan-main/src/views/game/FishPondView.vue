@@ -116,12 +116,13 @@
             <div class="flex items-center justify-between gap-2">
               <div>
                 <p class="text-xs text-accent">高阶养护</p>
-                <p class="text-[10px] text-muted mt-0.5">高评分样鱼会额外消耗水质承压，观赏饲料与高级净水剂会直接影响周赛和展示表现。</p>
+                <p class="text-[10px] text-muted mt-0.5">高评分样鱼会额外消耗水质承压，观赏饲料会直接影响观赏向周赛与展示表现，高级净水剂则缓解高阶养护压力。</p>
               </div>
               <span class="text-[10px] text-muted">高阶样鱼 {{ fishPondStore.highTierFishRatings.length }}</span>
             </div>
             <p class="text-[10px] text-muted mt-2">
               观赏饲料：{{ fishPondStore.maintenanceState.ornamentalFeedBuffDays > 0 ? '生效中' : '未启用' }}
+              <template v-if="fishPondStore.displayOverview.contestBonus > 0">（观赏向周赛 +{{ fishPondStore.displayOverview.contestBonus }}）</template>
               <span class="text-accent/60"> · </span>
               隔离净水：{{ fishPondStore.maintenanceState.quarantineShieldDays > 0 ? `${fishPondStore.maintenanceState.quarantineShieldDays} 天` : '未启用' }}
             </p>
@@ -417,9 +418,10 @@
               class="w-full justify-center"
               :icon="Sparkles"
               :icon-size="12"
+              :disabled="detailFishDisplayButtonDisabled"
               @click="handleToggleDisplayFish"
             >
-              {{ fishPondStore.displayEntries.some(entry => entry.pondFishId === detailFish?.id) ? '移出展示池' : '加入展示池' }}
+              {{ detailFishDisplayButtonLabel }}
             </Button>
             <Button class="w-full justify-center" :icon="ArrowUp" :icon-size="12" @click="handleDetailRemove">取出到背包</Button>
           </div>
@@ -665,19 +667,37 @@
   const detailFishRating = computed(() => (detailFish.value ? fishPondStore.getPondFishRatingSnapshot(detailFish.value.id) : null))
   const getFishRating = (fish: PondFish) => fishPondStore.getPondFishRatingSnapshot(fish.id)
   const detailFishContestEligible = computed(() => (detailFish.value ? fishPondStore.contestEligibleFish.some(entry => entry.fishInstanceId === detailFish.value?.id) : false))
-const pondContestScoringMetricLabel = computed(() => {
-  const metric = fishPondStore.currentPondContestDef?.scoringMetric
-  switch (metric) {
-    case 'showValue':
-      return '观赏值'
-    case 'foodValue':
-      return '食用品质'
-    case 'totalScore':
-      return '综合总评'
-    default:
-      return '综合评分'
-  }
-})
+  const detailFishDisplayStatus = computed(() =>
+    detailFish.value ? fishPondStore.getDisplayAssignmentStatus(detailFish.value.id) : 'missingFish'
+  )
+  const detailFishDisplayButtonLabel = computed(() => {
+    switch (detailFishDisplayStatus.value) {
+      case 'alreadyAssigned':
+        return '移出展示池'
+      case 'displayFull':
+        return '展示池已满'
+      case 'ineligible':
+        return '暂不满足展示条件'
+      default:
+        return '加入展示池'
+    }
+  })
+  const detailFishDisplayButtonDisabled = computed(() => {
+    return detailFishDisplayStatus.value === 'displayFull' || detailFishDisplayStatus.value === 'ineligible' || detailFishDisplayStatus.value === 'missingFish'
+  })
+  const pondContestScoringMetricLabel = computed(() => {
+    const metric = fishPondStore.currentPondContestDef?.scoringMetric
+    switch (metric) {
+      case 'showValue':
+        return '观赏值'
+      case 'foodValue':
+        return '食用品质'
+      case 'totalScore':
+        return '综合总评'
+      default:
+        return '综合评分'
+    }
+  })
   const lastPondContestWeekLabel = computed(() => {
     const weekId = fishPondStore.lastPondContestSettlement?.weekId
     return weekId ? formatWeekId(weekId) : ''
@@ -728,13 +748,26 @@ const pondContestScoringMetricLabel = computed(() => {
 
   const handleToggleDisplayFish = () => {
     if (!detailFish.value) return
-    const assigned = fishPondStore.displayEntries.some(entry => entry.pondFishId === detailFish.value?.id)
-    const ok = assigned ? fishPondStore.removeDisplayFish(detailFish.value.id) : fishPondStore.assignDisplayFish(detailFish.value.id)
-    if (ok) {
-      showFloat(assigned ? '已移出展示池' : '已加入展示池', 'success')
-    } else {
-      showFloat('当前样鱼暂不满足展示池条件', 'danger')
+    const status = fishPondStore.getDisplayAssignmentStatus(detailFish.value.id)
+    if (status === 'alreadyAssigned') {
+      const ok = fishPondStore.removeDisplayFish(detailFish.value.id)
+      showFloat(ok ? '已移出展示池' : '当前样鱼无法移出展示池', ok ? 'success' : 'danger')
+      return
     }
+    if (status === 'ready') {
+      const ok = fishPondStore.assignDisplayFish(detailFish.value.id)
+      showFloat(ok ? '已加入展示池' : '当前样鱼暂不满足展示池条件', ok ? 'success' : 'danger')
+      return
+    }
+    if (status === 'displayFull') {
+      showFloat('展示池已满，请先移出其他展示样鱼', 'danger')
+      return
+    }
+    if (status === 'ineligible') {
+      showFloat('当前样鱼需成熟、健康且达到高评分后才能加入展示池', 'danger')
+      return
+    }
+    showFloat('当前样鱼已不在鱼塘中，无法调整展示', 'danger')
   }
 
   // === 操作 ===
@@ -745,7 +778,17 @@ const pondContestScoringMetricLabel = computed(() => {
       addLog('已为高评分样鱼投喂观赏饲料，本日周赛与展示表现会更稳定。')
       showFloat('观赏饲料生效', 'success')
     } else {
-      addLog('当前没有可承接高阶养护的样鱼，或今日已使用过观赏饲料。')
+      switch (fishPondStore.getOrnamentalFeedStatus()) {
+        case 'missingItem':
+          addLog('缺少观赏饲料，无法进行本次高阶养护。')
+          break
+        case 'dailyLimit':
+          addLog('今天已经使用过观赏饲料了。')
+          break
+        default:
+          addLog('当前没有成熟、健康且达到高评分的样鱼可使用观赏饲料。')
+          break
+      }
     }
   }
 
@@ -755,7 +798,17 @@ const pondContestScoringMetricLabel = computed(() => {
       addLog('已投入高级净水剂，高评分样鱼的隔离与水质压力暂时缓解。')
       showFloat('高级净水剂生效', 'success')
     } else {
-      addLog('当前没有可承接高阶养护的样鱼，或今日已使用过高级净水剂。')
+      switch (fishPondStore.getAdvancedPurifierStatus()) {
+        case 'missingItem':
+          addLog('缺少高级净水剂，无法进行本次高阶养护。')
+          break
+        case 'dailyLimit':
+          addLog('今天已经使用过高级净水剂了。')
+          break
+        default:
+          addLog('当前没有成熟、健康且达到高评分的样鱼可使用高级净水剂。')
+          break
+      }
     }
   }
 

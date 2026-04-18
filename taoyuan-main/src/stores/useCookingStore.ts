@@ -118,6 +118,9 @@ export const useCookingStore = defineStore('cooking', () => {
       if (idx < minQualityIndex) minQualityIndex = idx
     }
     const resultQuality = QUALITY_ORDER[minQualityIndex]!
+    if (!inventoryStore.canAddItem(`food_${recipe.id}`, maxPossible, resultQuality)) {
+      return { success: false, message: '背包空间不足，无法放入烹饪成品。' }
+    }
 
     // 批量消耗材料
     for (const ing of recipe.ingredients) {
@@ -127,7 +130,7 @@ export const useCookingStore = defineStore('cooking', () => {
     // 添加食物到背包
     inventoryStore.addItem(`food_${recipe.id}`, maxPossible, resultQuality)
     for (let i = 0; i < maxPossible; i++) {
-      useAchievementStore().recordRecipeCooked()
+      useAchievementStore().recordRecipeCooked(recipe.id)
     }
     const qualityTag = QUALITY_LABEL[resultQuality] ? `【${QUALITY_LABEL[resultQuality]}】` : ''
     const qtyTag = maxPossible > 1 ? `${maxPossible}份` : ''

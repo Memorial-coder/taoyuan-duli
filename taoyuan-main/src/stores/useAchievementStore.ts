@@ -31,6 +31,12 @@ export const useAchievementStore = defineStore('achievement', () => {
   /** 物品发现时间记录 { itemId: "第X年 春 第Y天" } */
   const discoveryTimes = ref<Record<string, string>>({})
 
+  /** 实际钓获过的鱼种 */
+  const caughtFishIds = ref<string[]>([])
+
+  /** 实际烹饪过的不同食谱 */
+  const cookedRecipeIds = ref<string[]>([])
+
   /** 已完成的成就ID集合 */
   const completedAchievements = ref<string[]>([])
 
@@ -59,11 +65,26 @@ export const useAchievementStore = defineStore('achievement', () => {
   // === 物品发现 ===
 
   const discoverItem = (itemId: string) => {
-    if (!discoveredItems.value.includes(itemId)) {
-      discoveredItems.value.push(itemId)
-      const gameStore = useGameStore()
-      const SEASON_NAMES: Record<string, string> = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' }
-      discoveryTimes.value[itemId] = `第${gameStore.year}年 ${SEASON_NAMES[gameStore.season] ?? gameStore.season} 第${gameStore.day}天`
+    return markItemDiscovered(itemId, buildCurrentDiscoveryTime())
+  }
+
+  const buildCurrentDiscoveryTime = (): string => {
+    const gameStore = useGameStore()
+    const SEASON_NAMES: Record<string, string> = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' }
+    return `第${gameStore.year}年 ${SEASON_NAMES[gameStore.season] ?? gameStore.season} 第${gameStore.day}天`
+  }
+
+  const markItemDiscovered = (itemId: string, discoveryTime?: string | null) => {
+    if (discoveredItems.value.includes(itemId)) {
+      if (discoveryTime && !discoveryTimes.value[itemId]) {
+        discoveryTimes.value[itemId] = discoveryTime
+      }
+      return
+    }
+
+    discoveredItems.value.push(itemId)
+    if (discoveryTime) {
+      discoveryTimes.value[itemId] = discoveryTime
     }
   }
 
@@ -81,8 +102,11 @@ export const useAchievementStore = defineStore('achievement', () => {
     stats.value.totalCropsHarvested++
   }
 
-  const recordFishCaught = () => {
+  const recordFishCaught = (fishId?: string) => {
     stats.value.totalFishCaught++
+    if (fishId && !caughtFishIds.value.includes(fishId)) {
+      caughtFishIds.value.push(fishId)
+    }
   }
 
   const recordMoneyEarned = (amount: number) => {
@@ -95,8 +119,11 @@ export const useAchievementStore = defineStore('achievement', () => {
     }
   }
 
-  const recordRecipeCooked = () => {
+  const recordRecipeCooked = (recipeId?: string) => {
     stats.value.totalRecipesCooked++
+    if (recipeId && !cookedRecipeIds.value.includes(recipeId)) {
+      cookedRecipeIds.value.push(recipeId)
+    }
   }
 
   const recordSkullCavernFloor = (floor: number) => {
@@ -245,7 +272,7 @@ export const useAchievementStore = defineStore('achievement', () => {
         completedAchievements.value.push(achievement.id)
         // 发放奖励
         if (achievement.reward.money) {
-          playerStore.earnMoney(achievement.reward.money)
+          playerStore.earnMoney(achievement.reward.money, { countAsEarned: false })
         }
         if (achievement.reward.items) {
           const rewardItems = achievement.reward.items.map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
@@ -295,7 +322,7 @@ export const useAchievementStore = defineStore('achievement', () => {
       completedBundles.value.push(bundleId)
       // 发放奖励
       if (bundle.reward.money) {
-        playerStore.earnMoney(bundle.reward.money)
+        playerStore.earnMoney(bundle.reward.money, { countAsEarned: false })
       }
       if (bundle.reward.items) {
         const rewardItems = bundle.reward.items.map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
@@ -367,6 +394,8 @@ export const useAchievementStore = defineStore('achievement', () => {
     return {
       discoveredItems: discoveredItems.value,
       discoveryTimes: discoveryTimes.value,
+      caughtFishIds: caughtFishIds.value,
+      cookedRecipeIds: cookedRecipeIds.value,
       completedAchievements: completedAchievements.value,
       bundleSubmissions: bundleSubmissions.value,
       completedBundles: completedBundles.value,
@@ -377,6 +406,12 @@ export const useAchievementStore = defineStore('achievement', () => {
   const deserialize = (data: ReturnType<typeof serialize>) => {
     discoveredItems.value = data.discoveredItems ?? []
     discoveryTimes.value = data.discoveryTimes ?? {}
+    caughtFishIds.value = Array.isArray((data as Record<string, unknown>).caughtFishIds)
+      ? ((data as Record<string, unknown>).caughtFishIds as unknown[]).filter((id): id is string => typeof id === 'string')
+      : []
+    cookedRecipeIds.value = Array.isArray((data as Record<string, unknown>).cookedRecipeIds)
+      ? ((data as Record<string, unknown>).cookedRecipeIds as unknown[]).filter((id): id is string => typeof id === 'string')
+      : []
     completedAchievements.value = data.completedAchievements ?? []
     bundleSubmissions.value = data.bundleSubmissions ?? {}
     completedBundles.value = data.completedBundles ?? []
@@ -406,16 +441,16 @@ export const useAchievementStore = defineStore('achievement', () => {
     }
     // 同步已拥有装备到图鉴（修复旧存档中装备未登记到图鉴的问题）
     const inventoryStore = useInventoryStore()
-    for (const w of inventoryStore.ownedWeapons) discoverItem(w.defId)
-    for (const r of inventoryStore.ownedRings) discoverItem(r.defId)
-    for (const h of inventoryStore.ownedHats) discoverItem(h.defId)
-    for (const s of inventoryStore.ownedShoes) discoverItem(s.defId)
+    for (const w of inventoryStore.ownedWeapons) markItemDiscovered(w.defId)
+    for (const r of inventoryStore.ownedRings) markItemDiscovered(r.defId)
+    for (const h of inventoryStore.ownedHats) markItemDiscovered(h.defId)
+    for (const s of inventoryStore.ownedShoes) markItemDiscovered(s.defId)
     // 同步背包中已有物品到图鉴
     const seen = new Set<string>()
-    for (const slot of inventoryStore.items) {
+    for (const slot of [...inventoryStore.items, ...(inventoryStore.tempItems ?? [])]) {
       if (!seen.has(slot.itemId)) {
         seen.add(slot.itemId)
-        discoverItem(slot.itemId)
+        markItemDiscovered(slot.itemId)
       }
     }
   }
@@ -423,6 +458,8 @@ export const useAchievementStore = defineStore('achievement', () => {
   return {
     discoveredItems,
     discoveryTimes,
+    caughtFishIds,
+    cookedRecipeIds,
     completedAchievements,
     bundleSubmissions,
     completedBundles,

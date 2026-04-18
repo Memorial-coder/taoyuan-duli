@@ -95,6 +95,13 @@ export const useInventoryStore = defineStore('inventory', () => {
   const cloneInventorySlots = (source: InventoryItem[]): InventorySnapshotSlot[] =>
     source.map(slot => ({ itemId: slot.itemId, quality: slot.quality, quantity: slot.quantity }))
 
+  const cloneTools = (source: Tool[]) => source.map(tool => ({ ...tool }))
+  const cloneOwnedWeapons = (source: OwnedWeapon[]) => source.map(weapon => ({ ...weapon }))
+  const cloneOwnedRings = (source: OwnedRing[]) => source.map(ring => ({ ...ring }))
+  const cloneOwnedHats = (source: OwnedHat[]) => source.map(hat => ({ ...hat }))
+  const cloneOwnedShoes = (source: OwnedShoe[]) => source.map(shoe => ({ ...shoe }))
+  const cloneEquipmentPresets = (source: EquipmentPreset[]) => source.map(preset => ({ ...preset }))
+
   const simulateAddToSlots = (
     mainSlots: InventorySnapshotSlot[],
     mainCapacity: number,
@@ -527,8 +534,15 @@ export const useInventoryStore = defineStore('inventory', () => {
   const moveAllFromTemp = (): number => {
     let movedCount = 0
     for (let i = tempItems.value.length - 1; i >= 0; i--) {
-      if (isFull.value) break
-      if (moveFromTemp(i)) movedCount++
+      const beforeQuantity = tempItems.value[i]?.quantity ?? 0
+      if (moveFromTemp(i)) {
+        movedCount++
+        continue
+      }
+      const afterQuantity = tempItems.value[i]?.quantity ?? 0
+      if (afterQuantity < beforeQuantity) {
+        movedCount++
+      }
     }
     return movedCount
   }
@@ -878,6 +892,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 合成帽子 */
   const craftHat = (defId: string): { success: boolean; message: string } => {
     const def = getHatById(defId)
+    if (hasHat(defId)) return { success: false, message: '你已经拥有这顶帽子了。' }
     if (!def || !def.recipe) return { success: false, message: '该帽子无法合成。' }
     for (const mat of def.recipe) {
       if (getItemCount(mat.itemId) < mat.quantity) {
@@ -956,6 +971,7 @@ export const useInventoryStore = defineStore('inventory', () => {
   /** 合成鞋子 */
   const craftShoe = (defId: string): { success: boolean; message: string } => {
     const def = getShoeById(defId)
+    if (hasShoe(defId)) return { success: false, message: '你已经拥有这双鞋子了。' }
     if (!def || !def.recipe) return { success: false, message: '该鞋子无法合成。' }
     for (const mat of def.recipe) {
       if (getItemCount(mat.itemId) < mat.quantity) {
@@ -1085,21 +1101,21 @@ export const useInventoryStore = defineStore('inventory', () => {
 
   const serialize = () => {
     return {
-      items: items.value,
+      items: cloneInventorySlots(items.value),
       capacity: capacity.value,
-      tempItems: tempItems.value,
-      tools: tools.value,
-      ownedWeapons: ownedWeapons.value,
+      tempItems: cloneInventorySlots(tempItems.value),
+      tools: cloneTools(tools.value),
+      ownedWeapons: cloneOwnedWeapons(ownedWeapons.value),
       equippedWeaponIndex: equippedWeaponIndex.value,
-      pendingUpgrade: pendingUpgrade.value,
-      ownedRings: ownedRings.value,
+      pendingUpgrade: pendingUpgrade.value ? { ...pendingUpgrade.value } : null,
+      ownedRings: cloneOwnedRings(ownedRings.value),
       equippedRingSlot1: equippedRingSlot1.value,
       equippedRingSlot2: equippedRingSlot2.value,
-      ownedHats: ownedHats.value,
+      ownedHats: cloneOwnedHats(ownedHats.value),
       equippedHatIndex: equippedHatIndex.value,
-      ownedShoes: ownedShoes.value,
+      ownedShoes: cloneOwnedShoes(ownedShoes.value),
       equippedShoeIndex: equippedShoeIndex.value,
-      equipmentPresets: equipmentPresets.value,
+      equipmentPresets: cloneEquipmentPresets(equipmentPresets.value),
       activePresetId: activePresetId.value
     }
   }

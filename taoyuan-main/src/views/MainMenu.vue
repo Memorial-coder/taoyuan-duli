@@ -619,16 +619,27 @@
   }
 
   const handleLogout = async () => {
+    let logoutRequestFailed = false
     try {
-      await fetch('/api/logout', { method: 'POST', credentials: 'include' })
+      const response = await fetch('/api/logout', { method: 'POST', credentials: 'include' })
+      logoutRequestFailed = !response.ok
     } catch {
+      logoutRequestFailed = true
       addLog('退出登录请求失败，已继续执行本地会话刷新。')
     }
     await initCurrentAccount()
+    saveStore.reloadAccountScopedState()
     await loadCurrentUser()
+    if (saveStore.storageMode === 'server') {
+      await saveStore.syncPendingServerSaves()
+    }
     saveStore.refreshPendingServerState()
     await refreshSlots()
-    showFloat('已退出登录', 'success')
+    if (currentUser.value) {
+      showFloat('退出登录未完成，请稍后重试。', 'danger')
+      return
+    }
+    showFloat(logoutRequestFailed ? '本地状态已刷新，如仍显示已登录请重试。' : '已退出登录', logoutRequestFailed ? 'danger' : 'success')
   }
 
   const handleOpenGuide = () => {
@@ -753,7 +764,7 @@
     // 分配空闲存档槽位
     const slot = await saveStore.assignNewSlot()
     if (slot < 0) {
-      showFloat('存档槽位已满，请先删除一个旧存档。')
+      showFloat(saveStore.getSlotAllocationBlockReason() || '存档槽位已满，请先删除一个旧存档。', 'danger')
       return
     }
     // 重置所有游戏 store 到初始状态，防止上一个存档数据残留
@@ -827,9 +838,12 @@
   }
 
   /** 旧存档身份设置完成 */
-  const handleIdentityConfirm = () => {
+  const handleIdentityConfirm = async () => {
     playerStore.setIdentity((charName.value.trim() || '未命名').slice(0, 4), charGender.value)
     showIdentitySetup.value = false
+    if (!(await saveStore.autoSave())) {
+      showFloat('角色信息已更新，但当前存档写回失败，请尽快手动保存。', 'danger')
+    }
     void router.push(resolveLoadedGameRoute())
   }
 
@@ -870,6 +884,12 @@
     const reader = new FileReader()
     reader.onload = () => {
       const content = reader.result as string
+      const slotAllocationBlockReason = saveStore.getSlotAllocationBlockReason()
+      if (slotAllocationBlockReason) {
+        showFloat(slotAllocationBlockReason, 'danger')
+        input.value = ''
+        return
+      }
       // 找到第一个空槽位导入，没有则提示
       const emptySlot = slots.value.find(s => !s.exists)
       if (!emptySlot) {
@@ -899,11 +919,16 @@
         desktopMenuMediaQuery.addListener(handleDesktopMenuChange)
       }
     }
-    void saveStore.syncPendingServerSaves().finally(() => {
-      void refreshSlots()
-    })
+    void (async () => {
+      await initCurrentAccount()
+      saveStore.reloadAccountScopedState()
+      if (saveStore.storageMode === 'server') {
+        await saveStore.syncPendingServerSaves()
+      }
+      await refreshSlots()
+      await loadCurrentUser()
+    })()
     void loadMenuConfig()
-    void loadCurrentUser()
   })
 
   onUnmounted(() => {
