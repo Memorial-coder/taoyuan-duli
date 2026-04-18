@@ -679,6 +679,21 @@
     return craftCost.every(cost => hasIndexedItem(cost.itemId, cost.quantity))
   }
 
+  const canCraftCarryItem = (itemId: string, craftCost: { itemId: string; quantity: number }[], craftMoney: number): boolean => {
+    return inventoryStore.canAddItem(itemId, 1) && canAffordCraft(craftCost, craftMoney)
+  }
+
+  const getCarryItemCraftFailureMessage = (
+    itemId: string,
+    itemName: string,
+    craftCost: { itemId: string; quantity: number }[],
+    craftMoney: number
+  ): string => {
+    if (!inventoryStore.canAddItem(itemId, 1)) return `背包空间不足，无法制作${itemName}。`
+    if (!canAffordCraft(craftCost, craftMoney)) return '材料不足。'
+    return `制作${itemName}失败，请重试。`
+  }
+
   const buildRecipeOption = (recipe: ProcessingRecipeDef, quality?: Quality): RecipeOptionViewModel => {
     const count = recipe.inputItemId ? getIndexedItemCount(recipe.inputItemId, quality) : 0
     const inputAvailable = recipe.inputItemId === null || hasIndexedItem(recipe.inputItemId, recipe.inputQuantity, quality)
@@ -1069,7 +1084,7 @@
   ]
   const JADE_RING_MONEY = 500
 
-  const canCraftJadeRing = computed(() => canAffordCraft(JADE_RING_COST, JADE_RING_MONEY))
+  const canCraftJadeRing = computed(() => inventoryStore.canAddItem('jade_ring', 1) && canAffordCraft(JADE_RING_COST, JADE_RING_MONEY))
 
   const STAMINA_FRUIT_COST = [
     { itemId: 'prismatic_shard', quantity: 1 },
@@ -1081,7 +1096,11 @@
 
   const allSkillsAbove8 = computed(() => ['farming', 'foraging', 'fishing', 'mining'].every(s => skillStore.getSkill(s as any).level >= 8))
   const canCraftStaminaFruit = computed(
-    () => allSkillsAbove8.value && playerStore.staminaCapLevel < 4 && canAffordCraft(STAMINA_FRUIT_COST, STAMINA_FRUIT_MONEY)
+    () =>
+      allSkillsAbove8.value &&
+      playerStore.staminaCapLevel < 4 &&
+      inventoryStore.canAddItem('stamina_fruit', 1) &&
+      canAffordCraft(STAMINA_FRUIT_COST, STAMINA_FRUIT_MONEY)
   )
 
   const craftCategories = computed((): { label: string; items: CraftableItem[] }[] => [
@@ -1110,7 +1129,7 @@
           materials: s.craftCost,
           cost: s.craftMoney,
           onCraft: () => handleCraftSprinkler(s.id),
-          canCraft: () => canAffordCraft(s.craftCost, s.craftMoney),
+          canCraft: () => canCraftCarryItem(s.id, s.craftCost, s.craftMoney),
           batchable: true
         })),
         ...FERTILIZERS.map(f => ({
@@ -1120,7 +1139,7 @@
           materials: f.craftCost,
           cost: f.craftMoney,
           onCraft: () => handleCraftFertilizer(f.id),
-          canCraft: () => canAffordCraft(f.craftCost, f.craftMoney),
+          canCraft: () => canCraftCarryItem(f.id, f.craftCost, f.craftMoney),
           batchable: true
         })),
         {
@@ -1130,7 +1149,7 @@
           materials: TAPPER.craftCost,
           cost: TAPPER.craftMoney,
           onCraft: () => handleCraftTapper(),
-          canCraft: () => canAffordCraft(TAPPER.craftCost, TAPPER.craftMoney),
+          canCraft: () => canCraftCarryItem(TAPPER.id, TAPPER.craftCost, TAPPER.craftMoney),
           batchable: true
         },
         {
@@ -1197,7 +1216,7 @@
           materials: b.craftCost,
           cost: b.craftMoney,
           onCraft: () => handleCraftBait(b.id),
-          canCraft: () => canAffordCraft(b.craftCost, b.craftMoney),
+          canCraft: () => canCraftCarryItem(b.id, b.craftCost, b.craftMoney),
           batchable: true
         })),
         ...TACKLES.map(t => ({
@@ -1207,7 +1226,7 @@
           materials: t.craftCost,
           cost: t.craftMoney,
           onCraft: () => handleCraftTackle(t.id),
-          canCraft: () => canAffordCraft(t.craftCost, t.craftMoney),
+          canCraft: () => canCraftCarryItem(t.id, t.craftCost, t.craftMoney),
           batchable: true
         })),
         {
@@ -1217,7 +1236,7 @@
           materials: CRAB_POT_CRAFT.craftCost,
           cost: CRAB_POT_CRAFT.craftMoney,
           onCraft: () => handleCraftCrabPot(),
-          canCraft: () => canAffordCraft(CRAB_POT_CRAFT.craftCost, CRAB_POT_CRAFT.craftMoney),
+          canCraft: () => canCraftCarryItem(CRAB_POT_CRAFT.id, CRAB_POT_CRAFT.craftCost, CRAB_POT_CRAFT.craftMoney),
           batchable: true
         }
       ]
@@ -1233,7 +1252,7 @@
           cost: b.craftMoney,
           onCraft: () => handleCraftBomb(b.id),
           canCraft: () =>
-            (b.id !== 'mega_bomb' || hasIndexedItem('mega_bomb_recipe')) && canAffordCraft(b.craftCost, b.craftMoney),
+            (b.id !== 'mega_bomb' || hasIndexedItem('mega_bomb_recipe')) && canCraftCarryItem(b.id, b.craftCost, b.craftMoney),
           batchable: true
         })),
         {
@@ -1337,9 +1356,10 @@
   }
 
   const handleCraftSprinkler = (sprinklerId: string) => {
+    const def = SPRINKLERS.find(s => s.id === sprinklerId)
+    const name = def?.name ?? sprinklerId
     if (processingStore.craftSprinkler(sprinklerId)) {
       sfxClick()
-      const name = SPRINKLERS.find(s => s.id === sprinklerId)?.name ?? sprinklerId
       addLog(`制造了${name}，已放入背包。去农场放置吧。`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
       if (tr.message) addLog(tr.message)
@@ -1348,14 +1368,15 @@
         return
       }
     } else {
-      addLog('材料不足。')
+      addLog(getCarryItemCraftFailureMessage(sprinklerId, name, def?.craftCost ?? [], def?.craftMoney ?? 0))
     }
   }
 
   const handleCraftFertilizer = (fertilizerId: string) => {
+    const def = FERTILIZERS.find(f => f.id === fertilizerId)
+    const name = def?.name ?? fertilizerId
     if (processingStore.craftFertilizer(fertilizerId)) {
       sfxClick()
-      const name = FERTILIZERS.find(f => f.id === fertilizerId)?.name ?? fertilizerId
       addLog(`制造了${name}，已放入背包。`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
       if (tr.message) addLog(tr.message)
@@ -1364,14 +1385,15 @@
         return
       }
     } else {
-      addLog('材料不足。')
+      addLog(getCarryItemCraftFailureMessage(fertilizerId, name, def?.craftCost ?? [], def?.craftMoney ?? 0))
     }
   }
 
   const handleCraftBait = (baitId: string) => {
+    const def = BAITS.find(b => b.id === baitId)
+    const name = def?.name ?? baitId
     if (processingStore.craftBait(baitId)) {
       sfxClick()
-      const name = BAITS.find(b => b.id === baitId)?.name ?? baitId
       addLog(`制造了${name}，已放入背包。`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
       if (tr.message) addLog(tr.message)
@@ -1380,14 +1402,15 @@
         return
       }
     } else {
-      addLog('材料不足。')
+      addLog(getCarryItemCraftFailureMessage(baitId, name, def?.craftCost ?? [], def?.craftMoney ?? 0))
     }
   }
 
   const handleCraftTackle = (tackleId: string) => {
+    const def = TACKLES.find(t => t.id === tackleId)
+    const name = def?.name ?? tackleId
     if (processingStore.craftTackle(tackleId)) {
       sfxClick()
-      const name = TACKLES.find(t => t.id === tackleId)?.name ?? tackleId
       addLog(`制造了${name}，已放入背包。`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
       if (tr.message) addLog(tr.message)
@@ -1396,7 +1419,7 @@
         return
       }
     } else {
-      addLog('材料不足。')
+      addLog(getCarryItemCraftFailureMessage(tackleId, name, def?.craftCost ?? [], def?.craftMoney ?? 0))
     }
   }
 
@@ -1411,7 +1434,7 @@
         return
       }
     } else {
-      addLog('材料不足。')
+      addLog(getCarryItemCraftFailureMessage(CRAB_POT_CRAFT.id, CRAB_POT_CRAFT.name, CRAB_POT_CRAFT.craftCost, CRAB_POT_CRAFT.craftMoney))
     }
   }
 
@@ -1426,7 +1449,7 @@
         return
       }
     } else {
-      addLog('材料不足。')
+      addLog(getCarryItemCraftFailureMessage(TAPPER.id, TAPPER.name, TAPPER.craftCost, TAPPER.craftMoney))
     }
   }
 
@@ -1483,9 +1506,10 @@
   }
 
   const handleCraftBomb = (bombId: string) => {
+    const def = BOMBS.find(b => b.id === bombId)
+    const name = def?.name ?? bombId
     if (processingStore.craftBomb(bombId)) {
       sfxClick()
-      const name = BOMBS.find(b => b.id === bombId)?.name ?? bombId
       addLog(`制造了${name}，已放入背包。`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.craftMachine)
       if (tr.message) addLog(tr.message)
@@ -1494,7 +1518,7 @@
         return
       }
     } else {
-      addLog('材料不足。')
+      addLog(getCarryItemCraftFailureMessage(bombId, name, def?.craftCost ?? [], def?.craftMoney ?? 0))
     }
   }
 

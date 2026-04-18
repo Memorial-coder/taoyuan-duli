@@ -553,10 +553,14 @@ export const useFishingStore = defineStore('fishing', () => {
     return items.length > 0 || money > 0 || blocked ? { items, money, blocked } : null
   }
 
-  const endFishing = () => {
+  const resetActiveFishingState = () => {
     currentFish.value = null
     activeBaitDef.value = null
     activeTackleDef.value = null
+  }
+
+  const endFishing = () => {
+    resetActiveFishingState()
   }
 
   // =========== 蟹笼系统 ===========
@@ -679,6 +683,9 @@ export const useFishingStore = defineStore('fishing', () => {
   }
 
   const deserialize = (data: ReturnType<typeof serialize>) => {
+    resetActiveFishingState()
+    lastTreasure.value = null
+    lastPerfect.value = false
     equippedBait.value = data.equippedBait ?? null
     equippedTackle.value = data.equippedTackle ?? null
     tackleDurability.value = data.tackleDurability ?? 0

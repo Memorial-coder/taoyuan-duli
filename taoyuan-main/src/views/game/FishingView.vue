@@ -423,7 +423,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed } from 'vue'
+  import { ref, computed, onUnmounted } from 'vue'
   import { Fish, X, Target, MapPin, Box, CircleDot } from 'lucide-vue-next'
   import { useAchievementStore } from '@/stores/useAchievementStore'
   import { useFishingStore } from '@/stores/useFishingStore'
@@ -712,6 +712,14 @@
     catchResult.value = null
   }
 
+  const abandonCurrentFishingAttempt = () => {
+    fishingStore.endFishing()
+    showCloseConfirm.value = false
+    showFishingModal.value = false
+    miniGameParams.value = null
+    miniGameCompleted.value = false
+  }
+
   const handleCloseFishingModal = () => {
     if (!miniGameCompleted.value) {
       showCloseConfirm.value = true
@@ -722,12 +730,16 @@
   }
 
   const handleConfirmClose = () => {
-    showCloseConfirm.value = false
-    showFishingModal.value = false
-    miniGameParams.value = null
+    abandonCurrentFishingAttempt()
     lastResult.value = '放弃了钓鱼，鱼跑掉了。'
     addLog('放弃了钓鱼，鱼跑掉了。')
   }
+
+  onUnmounted(() => {
+    if (fishingStore.currentFish) {
+      fishingStore.endFishing()
+    }
+  })
 
   // === Crab Pots ===
 
