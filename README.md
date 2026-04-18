@@ -327,30 +327,6 @@ services:
       - ./data:/app/data
 ```
 
-服务器首次拉取私有 GHCR 包时，通常需要先登录：
-
-```bash
-docker login ghcr.io
-```
-
-然后输入：
-
-- GitHub 用户名
-- 一个带 `read:packages` 权限的 Personal Access Token
-
-之后每次代码推送到 `main`，维护者就**不需要再手动构建镜像**了。部署机器上的常见更新流程会变成：
-
-```bash
-cd /opt/lucky-test
-docker compose pull
-docker compose up -d
-```
-
-补充说明：
-
-- 这套流程解决的是“自动构建并发布镜像”
-- 服务器是否自动更新容器，取决于你有没有额外配置自动部署
-- 如果还没有自动部署，服务器端仍需要手动执行一次 `docker compose pull && docker compose up -d`
 
 ### `Dockerfile.repack` 的用途
 
