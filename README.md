@@ -87,20 +87,17 @@
 <p align="center">
   <img src="taoyuan-main/images/3.png" alt="桃源乡独立版截图 3" width="48%" />
   <img src="taoyuan-main/images/4.png" alt="桃源乡独立版截图 4" width="48%" />
-</p>
+  
+### 部署指南
 
-## 快速开始
-
-如果你只是想先把游戏跑起来，而不是立刻参与源码开发，推荐优先使用已经构建好的 GHCR 镜像。这样不需要先在本地构建前端，也不需要先安装前后端依赖。
-
-项目容器内默认监听 **4013**，下面的快速启动示例会把宿主机端口映射为 **4014**：
-
-- 容器内由 `server` 同时提供网页和 `/api`
-- 数据目录建议持久化挂载到 `/app/data`
+### 前置条件
+- 若选择docker启动，请确保已安装 Docker（建议 20.10 以上）并确保 Docker Daemon 正常运行。
+- 若选择本地源码启动，请确保已安装 Node.js（LTS 版本）和 npm。
 
 ---
 
-### 一、最快启动流程（推荐：直接拉取镜像）
+### 方式一：快速启动（使用 GHCR 镜像）【推荐】
+一行命令即可运行，省去本地依赖安装和前端编译。
 
 ```bash
 docker pull ghcr.io/memorial-coder/taoyuan-duli:latest
@@ -108,129 +105,61 @@ docker pull ghcr.io/memorial-coder/taoyuan-duli:latest
 docker run -d \
   --name taoyuan \
   -p 4014:4013 \
-  -e SECRET_KEY=请替换成至少24位随机长字符串 \
-  -e ADMIN_TOKEN=请替换成至少12位管理员口令 \
-  -e SUPER_ADMIN_TOKEN=请替换成至少12位超级管理员口令 \
+  -e SECRET_KEY=请替换为至少24位随机字符串 \
+  -e ADMIN_TOKEN=请替换为管理员口令 \
+  -e SUPER_ADMIN_TOKEN=如需可填入超级管理员口令 \
   -e COOKIE_SECURE=false \
   -e COOKIE_SAME_SITE=lax \
   -v taoyuan-duli-data:/app/data \
   ghcr.io/memorial-coder/taoyuan-duli:latest
 ```
 
-启动完成后，打开：
-
-```text
-http://127.0.0.1:4014
-```
-
-补充说明：
-
-- 上面的示例适合本机直接体验；如果后面要挂 HTTPS 域名或反向代理，再补充 `CORS_ALLOWED_ORIGINS`、`COOKIE_SECURE=true` 等生产配置
-- 命名卷 `taoyuan-duli-data` 会保存账号、会话、存档等运行数据，删除容器后数据仍可保留
-
+访问 `http://127.0.0.1:4014` 即可看到游戏。生产环境请在运行前添加 `CORS_ALLOWED_ORIGINS`、`COOKIE_SECURE=true` 等安全配置。
 ---
 
-### 二、本地源码启动（适合二次开发和排查问题）
-
-如果你需要修改前端或后端代码，或者想更方便地定位构建问题，可以改用下面的源码启动方式。
-
-#### 启动前你需要准备什么
-
-请先确认你的电脑已经安装：
-
-- Node.js
-- npm
-
-建议使用较新的 Node.js LTS 版本。如果你已经能在终端里运行 `node -v` 和 `npm -v`，一般就可以继续。
-
-#### 第 1 步：构建前端页面
-
-在项目根目录打开终端，执行：
+### 方式二：本地源码启动（适合二次开发）
+1. **准备环境**：确保已安装 Node.js（建议 LTS）和 npm。
+2. **构建前端**：
 
 ```bash
 cd taoyuan-main
 npm install
-npm run build
+npm run build   # 输出至 taoyuan-main/docs
 ```
-
-这一步会把游戏前端页面构建到 `taoyuan-main/docs`。构建完成后，后端才能把网页提供给浏览器打开。
-
-#### 第 2 步：准备后端配置文件
-
-继续在终端里执行：
+3. **配置后端**：
 
 ```bash
 cd ../server
 copy .env.example .env
 ```
 
-然后请用编辑器打开 `server/.env`，至少修改下面几项：
-
-- `SECRET_KEY`：改成你自己的随机长字符串
-- `ADMIN_TOKEN`：改成你自己的管理员口令
-- `SUPER_ADMIN_TOKEN`：如果你需要超级管理员，也改成自己的；不需要可以先留空
-
-其他配置先保持默认也可以，第一次启动不用一次改完所有项。
-
-> 注意：玩家登录密码不是在 `.env` 里写死的，而是玩家在注册页面自己设置。
-
-#### 第 3 步：启动后端
-
-还在 `server` 目录里，执行：
+在 `server/.env` 中至少修改：
+- `SECRET_KEY`：随机长字符串
+- `ADMIN_TOKEN`：管理员口令
+- `SUPER_ADMIN_TOKEN`（可选）
+4. **启动后端**：
 
 ```bash
 npm install
 npm start
 ```
 
-看到服务成功启动后，打开浏览器访问：
+服务启动后，打开 `http://127.0.0.1:4013` 访问游戏。确保 `taoyuan-main/docs` 已完成构建，否则前端页面将无法展示。
+---
+
+### 方式三：Docker Compose 部署（适合服务器）
+创建根目录 `.env`（复制 `.env.compose.example`），并填写 `SECRET_KEY`、`ADMIN_TOKEN`、`SUPER_ADMIN_TOKEN`（如需）。
+
+目录结构示例：
 
 ```text
-http://127.0.0.1:4013
-```
-
-如果一切正常，你就能看到游戏首页。
-
-#### 第 4 步：第一次进入后建议做什么
-
-第一次打开后，建议按下面顺序体验：
-
-1. 先注册一个账号或登录
-2. 选择存档方式
-3. 开始新的旅程
-4. 优先跟主线、任务页和告示板推进
-5. 之后再体验云存档、交流大厅、游戏邮箱和 AI 小助理等独立版功能
-
-## Docker 与 Compose 部署
-
-默认推荐部署路线只有一条：`公开 GHCR 镜像 + Docker Compose`。其他方式只在你有额外需求时再用。
-
-### 怎么选
-
-- 服务器部署：优先用 `GHCR 镜像 + Compose`
-- 想自己控制构建过程：用 `Dockerfile` 本机构建
-- 服务器不能直接拉镜像：导出 `tar` 再上传
-- 想每次推送代码自动产出镜像：用 GitHub Actions
-- 已有本地基础镜像，只想快速回填代码：用 `Dockerfile.repack`
-
-### 推荐方案：GHCR 镜像 + Compose
-
-1. 把 `.env.compose.example` 复制为根目录 `.env`，至少修改：
-
-- `SECRET_KEY`
-- `ADMIN_TOKEN`
-- `SUPER_ADMIN_TOKEN`
-
-2. 服务器目录建议保持为：
-
-```text
-/opt/lucky-test/
+/opt/taoyuan/
   ├─ docker-compose.yml
   ├─ .env
-  └─ data/
+  └─ data/   # 用于持久化 /app/data
 ```
 
-3. 使用下面的 `docker-compose.yml`：
+`docker-compose.yml` 示例：
 
 ```yaml
 services:
@@ -238,8 +167,7 @@ services:
     image: ghcr.io/memorial-coder/taoyuan-duli:latest
     container_name: taoyuan
     restart: unless-stopped
-    env_file:
-      - .env
+    env_file: [.env]
     environment:
       DB_STORAGE: /app/data/.storage.json
     ports:
@@ -248,127 +176,23 @@ services:
       - ./data:/app/data
 ```
 
-4. 启动或更新：
+启动或更新：
 
 ```bash
-cd /opt/lucky-test
-docker compose pull
-docker compose up -d
+cd ......./taoyuan
+docker compose pull        # 拉取最新镜像
+docker compose up -d       # 启动或重启服务
 ```
 
-5. 检查是否正常：
+健康检查：
 
 ```bash
 curl http://127.0.0.1:4014/api/health
 ```
 
-补充说明：
 
-- 容器内服务固定监听 `4013`，对外通常映射为 `4014`
-- **必须**挂载 `/app/data`
-- 如果你要接 HTTPS 域名或反向代理，再补 `CORS_ALLOWED_ORIGINS`、`COOKIE_SECURE`、`COOKIE_SAME_SITE`
-- 如果你要用 MySQL，再补 `MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE`
+---
 
-### 其他部署方式
-
-#### 自行构建镜像
-
-适合你想完全自己控制构建过程时使用。
-
-```bash
-docker build -t taoyuan-duli:latest .
-```
-
-如果要继续用 Compose，直接把上面推荐配置里的 `image:` 改成：
-
-```yaml
-image: taoyuan-duli:latest
-```
-
-#### 三、离线部署：导出 tar 再上传
-
-适合服务器不能直接拉取镜像时使用。
-
-导出镜像：
-
-```bash
-docker save -o taoyuan-duli-latest.tar taoyuan-duli:latest
-```
-
-服务器上执行：
-
-```bash
-cd /opt/lucky-test
-docker load -i taoyuan-duli-latest.tar
-docker compose up -d
-```
-
-这里的 `docker-compose.yml` 仍然沿用上一节推荐配置，只需要把 `image:` 改成 `taoyuan-duli:latest`。
-
-#### GitHub Actions 自动发布 GHCR
-
-如果仓库维护者希望在每次推送代码后，由 GitHub 自动构建镜像并发布，而不是在本地手动执行 `docker build`，可以使用仓库里的工作流文件：
-
-- `.github/workflows/docker-publish.yml`
-
-当前工作流会在以下条件下触发：
-
-- 推送到 `main`
-- 且改动包含 `Dockerfile`、`.dockerignore`、`server/**`、`taoyuan-main/**`、`data-defaults/**` 或工作流文件本身
-- 或者在 GitHub 网页手动执行 `Run workflow`
-
-启用前请先在 GitHub 仓库页面打开：
-
-- `Settings -> Actions -> General -> Workflow permissions`
-
-并将权限设为：
-
-- `Read and write permissions`
-
-这样工作流里的 `GITHUB_TOKEN` 才能把镜像推送到 GitHub Container Registry。
-
-推送成功后，镜像会发布到：
-
-```text
-ghcr.io/memorial-coder/taoyuan-duli:latest
-```
-
-之后每次代码推送到 `main`，维护者就**不需要再手动构建镜像**了。服务器只需要：
-
-```bash
-cd /opt/lucky-test
-docker compose pull
-docker compose up -d
-```
-
-#### 高级用法：`Dockerfile.repack`
-
-仓库根目录默认的 `docker-compose.yml` 面向这个流程。它会基于你本机已经存在的 `taoyuan-duli:latest` 镜像，只覆盖：
-
-- `server/`
-- `taoyuan-main/docs`
-- `data-defaults/`
-
-这种方式适合“本地代码已改好，但当前网络不方便重新拉取 Docker Hub 基础镜像”的场景，能让前端静态资源和后端代码快速进入容器。
-
-对应配置类似：
-
-```yaml
-services:
-  taoyuan:
-    build:
-      context: .
-      dockerfile: Dockerfile.repack
-    image: taoyuan-duli:latest
-```
-
-如果你希望从头完整重建镜像，可以把 `docker-compose.yml` 里的 `dockerfile` 改回 `Dockerfile`，再执行：
-
-```bash
-docker compose up -d --build
-```
-
-如果你不是在做本地快速回填，而是在做正式服务器部署，优先回到上面的 GHCR 路线。
 
 ## 技术栈
 
