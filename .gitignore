@@ -1,5 +1,8 @@
 # Local assistant settings
 .claude/
+.codex-temp/
+CLAUDE.md
+CLAUDE.local.md
 
 # Local environment files
 .env
@@ -16,6 +19,9 @@ taoyuan-main/dist-electron/
 
 # Local runtime data
 /data/
+production/session-logs/
+production/session-state/active.md
+docs/consistency-failures.md
 
 # Local signing keys
 taoyuan-main/android/key
@@ -27,6 +33,8 @@ taoyuan-duli-latest.tar
 *.log
 
 # Local review / audit artifacts not for GitHub
+QA测试报告-*.md
+发布前检查清单-*.md
 *审查*.md
 *审核*.md
 error*.md
@@ -40,3 +48,7 @@ taoyuan-main/audit_*
 taoyuan-main/test_items.ts
 taoyuan-main/error.md
 taoyuan-main/playwright_*.py
+tools/__pycache__/
+tools/generate_ccgs_category_skills.py
+tools/localize_ccgs_skills_zh.py
+tools/migrate_ccgs_skills.py

@@ -456,7 +456,7 @@ export const useMiningStore = defineStore('mining', () => {
     // 扣体力（1 点基础，受镐/技能/buff 减免）
     const pickaxeMultiplier = inventoryStore.getToolStaminaMultiplier('pickaxe')
     const cookingStore = useCookingStore()
-    const miningBuff = cookingStore.activeBuff?.type === 'mining' ? cookingStore.activeBuff.value / 100 : 0
+    const miningBuff = cookingStore.getActiveMiningStaminaReduction()
     const walletStore = useWalletStore()
     const walletMiningReduction = walletStore.getMiningStaminaReduction()
     const ringMiningReduction = inventoryStore.getRingEffectValue('mining_stamina')
@@ -961,7 +961,8 @@ export const useMiningStore = defineStore('mining', () => {
     if (action === 'defend') {
       // 防御减少受到的伤害（重甲者专精：70%减伤，默认60%）
       const cookingStore = useCookingStore()
-      const defenseReduction = cookingStore.activeBuff?.type === 'defense' ? cookingStore.activeBuff.value / 100 : 0
+      const defenseReduction = cookingStore.getActiveDefenseReduction()
+      const defenseFlatBonus = cookingStore.getActiveDefenseFlatBonus()
       const _combatSkillD = skillStore.getSkill('combat')
       const tankReduction = _combatSkillD.perk20 === 'indestructible' || _combatSkillD.perk20 === 'shadow_sovereign' ? 0.95
         : _combatSkillD.perk15 === 'iron_fortress' || _combatSkillD.perk15 === 'phantom_blade' ? 0.85
@@ -974,7 +975,7 @@ export const useMiningStore = defineStore('mining', () => {
       const damage = Math.max(
         1,
         Math.floor(
-          monster.attack *
+          Math.max(0, monster.attack - defenseFlatBonus) *
             (1 - tankReduction) *
             (1 - defenseReduction) *
             sturdyReduction *
@@ -1088,14 +1089,15 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     // 怪物反击（含戒指减伤）
-    const defenseReduction = cookingStore.activeBuff?.type === 'defense' ? cookingStore.activeBuff.value / 100 : 0
+    const defenseReduction = cookingStore.getActiveDefenseReduction()
+    const defenseFlatBonus = cookingStore.getActiveDefenseFlatBonus()
     const fighterReduction = (_combatSkillE.perk5 === 'fighter' || _combatSkillE.perk15 === 'sword_saint' || _combatSkillE.perk15 === 'berserker' || _combatSkillE.perk20 === 'war_god' || _combatSkillE.perk20 === 'slaughter_king') ? 0.15 : 0
     const sturdyReduction = enchant?.special === 'sturdy' ? 0.85 : 1.0
     const ringDefenseBonus = inventoryStore.getRingEffectValue('defense_bonus')
     const monsterDamage = Math.max(
       1,
       Math.floor(
-        monster.attack *
+        Math.max(0, monster.attack - defenseFlatBonus) *
           (1 - fighterReduction) *
           (1 - defenseReduction) *
           sturdyReduction *
@@ -1696,6 +1698,15 @@ export const useMiningStore = defineStore('mining', () => {
     }
   }
 
+  const normalizeClaimedFloorArray = (value: unknown): number[] => {
+    if (!Array.isArray(value)) return []
+    return [...new Set(
+      value
+        .map(entry => Math.floor(Number(entry)))
+        .filter(entry => Number.isFinite(entry) && entry > 0)
+    )].sort((left, right) => left - right)
+  }
+
   const deserialize = (data: ReturnType<typeof serialize>) => {
     defeatedBosses.value = ((data as Record<string, unknown>).defeatedBosses as string[]) ?? []
 
@@ -1714,24 +1725,30 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     const progressFloor = Math.max(safePointFloor.value, data.currentFloor ?? 1)
-    claimedInfestedRewardFloors.value = ((data as Record<string, unknown>).claimedInfestedRewardFloors as number[] | undefined) ??
-      Array.from({ length: progressFloor }, (_, i) => i + 1).filter(f => getFloor(f)?.specialType === 'infested')
-    claimedBossRewardFloors.value = ((data as Record<string, unknown>).claimedBossRewardFloors as number[] | undefined) ??
-      Object.entries(BOSS_MONSTERS)
+    const legacyClaimedBossFloors = [...new Set([
+      ...normalizeClaimedFloorArray((data as Record<string, unknown>).claimedBossRewardFloors),
+      ...Object.entries(BOSS_MONSTERS)
         .filter(([, boss]) => defeatedBosses.value.includes(boss.id))
         .map(([floor]) => Number(floor))
-    claimedBossRingRewardFloors.value = ((data as Record<string, unknown>).claimedBossRingRewardFloors as number[] | undefined) ??
-      Object.entries(BOSS_MONSTERS)
-        .filter(([, boss]) => defeatedBosses.value.includes(boss.id))
-        .map(([floor]) => Number(floor))
-    claimedBossHatRewardFloors.value = ((data as Record<string, unknown>).claimedBossHatRewardFloors as number[] | undefined) ??
-      Object.entries(BOSS_MONSTERS)
-        .filter(([, boss]) => defeatedBosses.value.includes(boss.id))
-        .map(([floor]) => Number(floor))
-    claimedBossShoeRewardFloors.value = ((data as Record<string, unknown>).claimedBossShoeRewardFloors as number[] | undefined) ??
-      Object.entries(BOSS_MONSTERS)
-        .filter(([, boss]) => defeatedBosses.value.includes(boss.id))
-        .map(([floor]) => Number(floor))
+    ])].sort((left, right) => left - right)
+
+    claimedInfestedRewardFloors.value = normalizeClaimedFloorArray((data as Record<string, unknown>).claimedInfestedRewardFloors)
+    if (claimedInfestedRewardFloors.value.length === 0) {
+      claimedInfestedRewardFloors.value = Array.from({ length: progressFloor }, (_, i) => i + 1).filter(f => getFloor(f)?.specialType === 'infested')
+    }
+    claimedBossRewardFloors.value = legacyClaimedBossFloors
+    claimedBossRingRewardFloors.value = [...new Set([
+      ...legacyClaimedBossFloors,
+      ...normalizeClaimedFloorArray((data as Record<string, unknown>).claimedBossRingRewardFloors)
+    ])].sort((left, right) => left - right)
+    claimedBossHatRewardFloors.value = [...new Set([
+      ...legacyClaimedBossFloors,
+      ...normalizeClaimedFloorArray((data as Record<string, unknown>).claimedBossHatRewardFloors)
+    ])].sort((left, right) => left - right)
+    claimedBossShoeRewardFloors.value = [...new Set([
+      ...legacyClaimedBossFloors,
+      ...normalizeClaimedFloorArray((data as Record<string, unknown>).claimedBossShoeRewardFloors)
+    ])].sort((left, right) => left - right)
 
     // 骷髅矿穴状态
     isInSkullCavern.value = ((data as Record<string, unknown>).isInSkullCavern as boolean) ?? false

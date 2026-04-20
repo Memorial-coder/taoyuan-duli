@@ -48,7 +48,7 @@
           :class="r.itemId ? 'cursor-pointer hover:bg-accent/5' : ''"
           @click="r.itemId && (selectedResult = r)"
         >
-          <span class="text-xs" :class="r.quality ? QUALITY_COLORS[r.quality] : ''">{{ r.label }}</span>
+          <span class="text-xs" :class="r.failed ? 'text-danger' : r.quality ? QUALITY_COLORS[r.quality] : ''">{{ r.label }}</span>
           <span v-if="r.itemId" class="text-xs text-muted/50">详情 ›</span>
         </div>
       </div>
@@ -164,6 +164,7 @@
     itemId?: string
     quantity: number
     quality?: Quality
+    failed?: boolean
   }
 
   const QUALITY_COLORS: Record<Quality, string> = {
@@ -273,12 +274,48 @@
 
     const items = currentForage.value
     const gathered: ForageResult[] = []
+    const missed: string[] = []
     const skill = foragingSkill.value
     const forestFarm = isForestFarm.value
     const forestXpBonus = forestFarm ? 1.25 : 1.0
     const hiddenNpcStore = useHiddenNpcStore()
     const herbDouble = hiddenNpcStore.isAbilityActive('yue_tu_1')
     const moonHerbChance = hiddenNpcStore.isAbilityActive('yue_tu_3')
+    const questStore = useQuestStore()
+
+    const attemptGather = (
+      itemId: string,
+      quantity: number,
+      quality: Quality = 'normal',
+      options: {
+        trackQuest?: boolean
+        expReward?: number
+      } = {}
+    ) => {
+      const itemDef = getItemById(itemId)
+      const name = itemDef?.name ?? itemId
+      const itemLabel = quantity > 1 ? `${name}×${quantity}` : name
+
+      if (!inventoryStore.addItemExact(itemId, quantity, quality)) {
+        missed.push(itemLabel)
+        gathered.push({
+          label: `发现了${itemLabel}，但背包空间不足，没能带走`,
+          quantity: 0,
+          failed: true
+        })
+        return false
+      }
+
+      achievementStore.discoverItem(itemId)
+      if (options.trackQuest) {
+        questStore.onItemObtained(itemId, quantity)
+      }
+      if (options.expReward) {
+        skillStore.addExp('foraging', Math.floor(options.expReward * forestXpBonus))
+      }
+      gathered.push({ label: `获得了${itemLabel}`, itemId, quantity, quality })
+      return true
+    }
 
     for (const item of items) {
       const herbalistBonus = skill.perk5 === 'herbalist' ? 1.2 : 1.0
@@ -302,26 +339,20 @@
         const qty = (forestFarm && Math.random() < 0.2 ? 2 : 1) * worldTreeMult
         // 仙缘能力：药知（yue_tu_1）草药采集双倍
         const finalQty = herbDouble && (item.itemId === 'herb' || item.itemId === 'ginseng') ? qty * 2 : qty
-        inventoryStore.addItem(item.itemId, finalQty, quality)
-        achievementStore.discoverItem(item.itemId)
-        useQuestStore().onItemObtained(item.itemId, finalQty)
-        const itemDef = getItemById(item.itemId)
-        const name = itemDef?.name ?? item.itemId
-        gathered.push({ label: `获得了${finalQty > 1 ? `${name}×${finalQty}` : name}`, itemId: item.itemId, quantity: finalQty, quality })
-        skillStore.addExp('foraging', Math.floor(item.expReward * forestXpBonus))
+        attemptGather(item.itemId, finalQty, quality, {
+          trackQuest: true,
+          expReward: item.expReward
+        })
       }
     }
 
     if (skill.perk15 === 'forest_guardian' || skill.perk20 === 'forest_spirit') {
       const woodQty = skill.perk20 === 'forest_spirit' ? 3 : 2
-      inventoryStore.addItem('wood', woodQty)
-      gathered.push({ label: `获得了木材×${woodQty}`, itemId: 'wood', quantity: woodQty })
+      attemptGather('wood', woodQty)
     } else if (skill.perk10 === 'forester') {
-      inventoryStore.addItem('wood')
-      gathered.push({ label: '获得了木材', itemId: 'wood', quantity: 1 })
+      attemptGather('wood', 1)
     } else if (skill.perk5 === 'lumberjack' && Math.random() < 0.25) {
-      inventoryStore.addItem('wood')
-      gathered.push({ label: '获得了木材', itemId: 'wood', quantity: 1 })
+      attemptGather('wood', 1)
     }
 
     const extraItemQty = skill.perk20 === 'primal_tracker' ? 4 : skill.perk15 === 'wilderness_expert' ? 2 : skill.perk10 === 'tracker' ? 1 : 0
@@ -329,19 +360,12 @@
       const randomItem = items[Math.floor(Math.random() * items.length)]!
       const trackerAllSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
       const quality = skillStore.rollForageQuality(trackerAllSkillsBuff)
-      inventoryStore.addItem(randomItem.itemId, extraItemQty, quality)
-      achievementStore.discoverItem(randomItem.itemId)
-      const itemDef = getItemById(randomItem.itemId)
-      const name = itemDef?.name ?? randomItem.itemId
-      gathered.push({ label: `获得了${extraItemQty > 1 ? `${name}×${extraItemQty}` : name}`, itemId: randomItem.itemId, quantity: extraItemQty, quality })
+      attemptGather(randomItem.itemId, extraItemQty, quality)
     }
 
     // 仙缘能力：月华（yue_tu_3）采集8%概率获得月草
     if (moonHerbChance && Math.random() < 0.08) {
-      inventoryStore.addItem('moon_herb', 1)
-      achievementStore.discoverItem('moon_herb')
-      gathered.push({ label: '获得了月草', itemId: 'moon_herb', quantity: 1 })
-      skillStore.addExp('foraging', 15)
+      attemptGather('moon_herb', 1, 'normal', { expReward: 15 })
     }
 
     if (gathered.length === 0) {
@@ -358,6 +382,11 @@
         return g.quantity > 1 ? `${name}×${g.quantity}` : name
       })
     let msg = `在竹林中采集，获得了${names.join('、') || '空气'}。(-${cost}体力)`
+    if (names.length === 0 && missed.length > 0) {
+      msg = `在竹林中采集，发现了${missed.join('、')}，但背包空间不足，没能带走。(-${cost}体力)`
+    } else if (missed.length > 0) {
+      msg += ` 但背包满了，${missed.join('、')}没能带走。`
+    }
     if (leveledUp) msg += ` 采集提升到${newLevel}级！`
     addLog(msg)
 

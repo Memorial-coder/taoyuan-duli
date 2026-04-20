@@ -181,9 +181,14 @@ export const useSettingsStore = defineStore('settings', () => {
       ? data.lateGameBalanceOverrides
       : {}
     syncQmsgConfig()
-    const { sfxEnabled, bgmEnabled } = useAudio()
+    const { sfxEnabled, bgmEnabled, startBgm, stopBgm } = useAudio()
     sfxEnabled.value = data?.sfxEnabled ?? true
     bgmEnabled.value = data?.bgmEnabled ?? true
+    if (bgmEnabled.value) {
+      startBgm()
+    } else {
+      stopBgm()
+    }
   }
 
   // 初始化时立即同步到 Qmsg，确保新游戏/首次加载也能生效

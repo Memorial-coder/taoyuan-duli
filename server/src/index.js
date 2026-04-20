@@ -18,6 +18,7 @@ const morgan = require('morgan');
 const session = require('express-session');
 const db = require('./db');
 const taoyuanHall = require('./taoyuanHall');
+const officialManagedConfig = require('./officialManagedConfig');
 
 const DATA_DIR = path.dirname(process.env.DB_STORAGE);
 const DEFAULTS_DIR = path.join(__dirname, '../../data-defaults');
@@ -126,6 +127,34 @@ function validateCriticalEnv() {
     const mysqlPort = parseInt(mysqlPortRaw, 10);
     if (!Number.isInteger(mysqlPort) || mysqlPort <= 0) {
       throw new Error('MYSQL_PORT 必须是正整数');
+    }
+  }
+  const officialControlEnabled = String(process.env.OFFICIAL_CONTROL_ENABLED || '').trim().toLowerCase() === 'true';
+  if (officialControlEnabled) {
+    const requiredOfficialEnv = [
+      'OFFICIAL_CONTROL_BASE_URL',
+      'OFFICIAL_INSTANCE_ID',
+      'OFFICIAL_LICENSE_KEY',
+      'OFFICIAL_PUBLIC_ORIGIN',
+      'OFFICIAL_CONTROL_PUBLIC_KEY',
+    ].filter(key => !String(process.env[key] || '').trim());
+
+    if (requiredOfficialEnv.length) {
+      throw new Error(`OFFICIAL_CONTROL_ENABLED=true 时缺少必要环境变量：${requiredOfficialEnv.join(', ')}`);
+    }
+
+    const baseUrl = new URL(String(process.env.OFFICIAL_CONTROL_BASE_URL || '').trim());
+    const isLocalOfficialControl = ['127.0.0.1', 'localhost', '::1'].includes(String(baseUrl.hostname || '').trim().toLowerCase());
+    if (baseUrl.protocol !== 'https:' && !isLocalOfficialControl) {
+      throw new Error('OFFICIAL_CONTROL_BASE_URL 必须使用 HTTPS，除非显式指向 localhost/127.0.0.1');
+    }
+
+    const cacheTtl = String(process.env.OFFICIAL_CONTROL_CACHE_TTL_SEC || '').trim();
+    if (cacheTtl) {
+      const parsedCacheTtl = parseInt(cacheTtl, 10);
+      if (!Number.isInteger(parsedCacheTtl) || parsedCacheTtl <= 0) {
+        throw new Error('OFFICIAL_CONTROL_CACHE_TTL_SEC 必须是正整数');
+      }
     }
   }
 }
@@ -292,6 +321,7 @@ async function startServer() {
     } else {
       console.log('⚠️ 未启用 MySQL，账号将继续使用本地 users.json');
     }
+    await officialManagedConfig.start();
   } catch (error) {
     console.error('❌ MySQL 初始化失败：', error.message || error);
     process.exit(1);

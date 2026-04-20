@@ -60,6 +60,7 @@ export interface TaoyuanMailDetail extends TaoyuanMailSummary {
 export interface MailClaimSyncState {
   attempted: boolean
   current_session_synced: boolean
+  current_storage_mode: 'local' | 'server'
   current_session_mode: 'local' | 'server' | null
   current_session_slot: number | null
   claimed_save_slots: number[]
@@ -70,6 +71,16 @@ export interface MailClaimSyncState {
     | 'no_active_session_slot'
     | 'current_session_slot_mismatch'
     | 'load_failed'
+  reason_detail:
+    | 'synced'
+    | 'no_save_slot'
+    | 'current_storage_mode_not_server'
+    | 'current_runtime_session_not_server'
+    | 'no_active_runtime_session_slot'
+    | 'current_runtime_session_slot_mismatch'
+    | 'current_runtime_session_has_pending_local_copy'
+    | 'load_failed'
+  message: string
 }
 
 const toSummary = (mail: TaoyuanMailSummary | TaoyuanMailDetail): TaoyuanMailSummary => ({
@@ -107,6 +118,8 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     unreadCount.value = mails.value.filter(item => item.unread).length
   }
 
+  const buildClaimSyncState = (state: MailClaimSyncState): MailClaimSyncState => state
+
   const syncAfterClaim = async (saveSlots: Array<number | null | undefined>): Promise<MailClaimSyncState> => {
     const saveStore = useSaveStore()
     const normalizedSaveSlots = Array.from(new Set(
@@ -114,62 +127,111 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
         .filter((slot): slot is number => slot !== null && slot !== undefined && Number.isInteger(slot))
         .map(slot => Number(slot))
     ))
-    const currentSessionMode = saveStore.activeSlotMode ?? null
-    const currentSessionSlot = saveStore.activeSlot >= 0 ? saveStore.activeSlot : null
+    const currentStorageMode = saveStore.storageMode
+    const currentSessionMode = saveStore.runtimeSessionMode ?? null
+    const currentSessionSlot = saveStore.runtimeSessionSlot >= 0 ? saveStore.runtimeSessionSlot : null
 
     if (normalizedSaveSlots.length === 0) {
-      return {
+      return buildClaimSyncState({
         attempted: false,
         current_session_synced: false,
+        current_storage_mode: currentStorageMode,
         current_session_mode: currentSessionMode,
         current_session_slot: currentSessionSlot,
         claimed_save_slots: [],
-        reason: 'no_save_slot'
-      }
+        reason: 'no_save_slot',
+        reason_detail: 'no_save_slot',
+        message: '奖励领取完成，但这批邮件没有写入存档槽位。'
+      })
+    }
+
+    if (currentStorageMode !== 'server') {
+      return buildClaimSyncState({
+        attempted: false,
+        current_session_synced: false,
+        current_storage_mode: currentStorageMode,
+        current_session_mode: currentSessionMode,
+        current_session_slot: currentSessionSlot,
+        claimed_save_slots: normalizedSaveSlots,
+        reason: 'current_session_not_server',
+        reason_detail: 'current_storage_mode_not_server',
+        message: '奖励已写入服务端存档，但当前面板未停留在服务端模式，未自动回读运行态。'
+      })
     }
 
     if (currentSessionMode !== 'server') {
-      return {
+      return buildClaimSyncState({
         attempted: false,
         current_session_synced: false,
+        current_storage_mode: currentStorageMode,
         current_session_mode: currentSessionMode,
         current_session_slot: currentSessionSlot,
         claimed_save_slots: normalizedSaveSlots,
-        reason: 'current_session_not_server'
-      }
+        reason: 'current_session_not_server',
+        reason_detail: 'current_runtime_session_not_server',
+        message: '奖励已写入服务端存档，但当前运行中的会话并非服务端载入会话，未自动回读。'
+      })
     }
 
     if (currentSessionSlot === null) {
-      return {
+      return buildClaimSyncState({
         attempted: false,
         current_session_synced: false,
+        current_storage_mode: currentStorageMode,
         current_session_mode: currentSessionMode,
         current_session_slot: null,
         claimed_save_slots: normalizedSaveSlots,
-        reason: 'no_active_session_slot'
-      }
+        reason: 'no_active_session_slot',
+        reason_detail: 'no_active_runtime_session_slot',
+        message: '奖励已写入服务端存档，但当前没有可安全回读的服务端运行槽位。'
+      })
     }
 
     if (!normalizedSaveSlots.includes(currentSessionSlot)) {
-      return {
+      return buildClaimSyncState({
         attempted: false,
         current_session_synced: false,
+        current_storage_mode: currentStorageMode,
         current_session_mode: currentSessionMode,
         current_session_slot: currentSessionSlot,
         claimed_save_slots: normalizedSaveSlots,
-        reason: 'current_session_slot_mismatch'
-      }
+        reason: 'current_session_slot_mismatch',
+        reason_detail: 'current_runtime_session_slot_mismatch',
+        message: '奖励已写入其他服务端槽位，当前运行态仍停留在不同槽位，未自动切换回读。'
+      })
     }
 
-    const synced = await saveStore.loadFromSlot(currentSessionSlot)
-    return {
+    if (saveStore.hasPendingServerSave(currentSessionSlot)) {
+      return buildClaimSyncState({
+        attempted: false,
+        current_session_synced: false,
+        current_storage_mode: currentStorageMode,
+        current_session_mode: currentSessionMode,
+        current_session_slot: currentSessionSlot,
+        claimed_save_slots: normalizedSaveSlots,
+        reason: 'load_failed',
+        reason_detail: 'current_runtime_session_has_pending_local_copy',
+        message: '奖励已写入当前服务端槽位，但本地仍有待同步副本，已跳过自动回读以避免旧副本覆盖运行态。'
+      })
+    }
+
+    const synced = await saveStore.loadFromSlot(currentSessionSlot, {
+      mode: 'server',
+      allowPendingServerCopy: false
+    })
+    return buildClaimSyncState({
       attempted: true,
       current_session_synced: synced,
+      current_storage_mode: currentStorageMode,
       current_session_mode: currentSessionMode,
       current_session_slot: currentSessionSlot,
       claimed_save_slots: normalizedSaveSlots,
-      reason: synced ? 'synced' : 'load_failed'
-    }
+      reason: synced ? 'synced' : 'load_failed',
+      reason_detail: synced ? 'synced' : 'load_failed',
+      message: synced
+        ? '奖励已同步到当前服务端运行会话。'
+        : '奖励已写入当前服务端槽位，但自动回读失败，请手动重新载入查看。'
+    })
   }
 
   const refreshList = async () => {

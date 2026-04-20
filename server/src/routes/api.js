@@ -38,8 +38,29 @@ function getTaoyuanSavePath(username) {
   return path.join(TAOYUAN_SAVES_DIR, `${String(username)}.json`);
 }
 
+function normalizeTaoyuanSlotEntry(entry) {
+  if (typeof entry === 'string' && entry) {
+    return { raw: entry, revision: 0 };
+  }
+  if (!entry || typeof entry !== 'object' || typeof entry.raw !== 'string' || !entry.raw) {
+    return null;
+  }
+  return {
+    raw: entry.raw,
+    revision: Number.isFinite(Number(entry.revision)) ? Math.floor(Number(entry.revision)) : 0,
+  };
+}
+
+function createEmptyTaoyuanSlots() {
+  return { 0: null, 1: null, 2: null };
+}
+
+function nextTaoyuanSlotRevision(currentRevision = 0) {
+  return Math.max(Date.now(), Math.floor(Number(currentRevision) || 0) + 1);
+}
+
 function loadTaoyuanUserSaves(username) {
-  const defaults = { slots: { 0: null, 1: null, 2: null } };
+  const defaults = { slots: createEmptyTaoyuanSlots() };
   const file = getTaoyuanSavePath(username);
   if (!fs.existsSync(file)) return { ...defaults };
 
@@ -56,9 +77,9 @@ function loadTaoyuanUserSaves(username) {
 
   return {
     slots: {
-      0: typeof raw.slots[0] === 'string' ? raw.slots[0] : null,
-      1: typeof raw.slots[1] === 'string' ? raw.slots[1] : null,
-      2: typeof raw.slots[2] === 'string' ? raw.slots[2] : null,
+      0: normalizeTaoyuanSlotEntry(raw.slots[0]),
+      1: normalizeTaoyuanSlotEntry(raw.slots[1]),
+      2: normalizeTaoyuanSlotEntry(raw.slots[2]),
     },
   };
 }
@@ -230,7 +251,7 @@ function getSaveFileSummary(username) {
   const slots = [0, 1, 2].map(slot => ({
     slot,
     exists: !!saveData.slots?.[slot],
-    raw_length: typeof saveData.slots?.[slot] === 'string' ? saveData.slots[slot].length : 0,
+    raw_length: typeof saveData.slots?.[slot]?.raw === 'string' ? saveData.slots[slot].raw.length : 0,
   }));
   return {
     exists,
@@ -310,6 +331,11 @@ function normalizeHomepageAboutPayload(raw = {}) {
   };
 }
 
+const OFFICIAL_MANAGED_HOMEPAGE_ABOUT_FIELDS = Object.freeze([
+  'taoyuan_about_dialog_title',
+  'taoyuan_about_dialog_content',
+]);
+
 function getHomepageAboutContent() {
   const current = cfg.all();
   return normalizeHomepageAboutPayload({
@@ -322,13 +348,22 @@ function getHomepageAboutContent() {
 
 function publishHomepageAboutContent(content) {
   const normalized = normalizeHomepageAboutPayload(content);
-  cfg.set({
-    taoyuan_about_button_enabled: normalized.aboutButtonEnabled,
-    taoyuan_about_button_text: normalized.aboutButtonText,
-    taoyuan_about_dialog_title: normalized.aboutDialogTitle,
-    taoyuan_about_dialog_content: normalized.aboutDialogContent,
-  });
-  return normalized;
+  if (typeof cfg.setWithMeta === 'function') {
+    cfg.setWithMeta({
+      taoyuan_about_button_enabled: normalized.aboutButtonEnabled,
+      taoyuan_about_button_text: normalized.aboutButtonText,
+      taoyuan_about_dialog_title: normalized.aboutDialogTitle,
+      taoyuan_about_dialog_content: normalized.aboutDialogContent,
+    });
+  } else {
+    cfg.set({
+      taoyuan_about_button_enabled: normalized.aboutButtonEnabled,
+      taoyuan_about_button_text: normalized.aboutButtonText,
+      taoyuan_about_dialog_title: normalized.aboutDialogTitle,
+      taoyuan_about_dialog_content: normalized.aboutDialogContent,
+    });
+  }
+  return getHomepageAboutContent();
 }
 
 router.use('/taoyuan/hall/uploads', express.static(taoyuanHall.HALL_UPLOADS_DIR, {
@@ -706,6 +741,8 @@ router.get('/admin/content/homepage-about', userAdminAuth, async (req, res) => {
       ok: true,
       content: getHomepageAboutContent(),
       revisions,
+      officialManagedStatus: cfg.getManagedStatus(),
+      readonlyManagedFields: [...OFFICIAL_MANAGED_HOMEPAGE_ABOUT_FIELDS],
     });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取首页关于内容失败' });
@@ -721,13 +758,14 @@ router.post('/admin/content/homepage-about', userAdminAuth, async (req, res) => 
     const payload = normalizeHomepageAboutPayload(req.body || {});
     const summary = String(req.body?.summary || '').trim().slice(0, 120);
     const published = action === 'publish';
+    let publishedContent = null;
 
     if (published) {
-      publishHomepageAboutContent(payload);
+      publishedContent = publishHomepageAboutContent(payload);
       await appendAdminAuditLog(req, 'publish_homepage_about', '', {
-        about_button_enabled: payload.aboutButtonEnabled,
-        about_button_text: payload.aboutButtonText,
-        about_dialog_title: payload.aboutDialogTitle,
+        about_button_enabled: publishedContent.aboutButtonEnabled,
+        about_button_text: publishedContent.aboutButtonText,
+        about_dialog_title: publishedContent.aboutDialogTitle,
       });
     }
 
@@ -740,7 +778,7 @@ router.post('/admin/content/homepage-about', userAdminAuth, async (req, res) => 
     res.json({
       ok: true,
       action,
-      content: published ? getHomepageAboutContent() : payload,
+      content: published ? publishedContent : payload,
       revision,
     });
   } catch (error) {
@@ -967,7 +1005,7 @@ router.post('/taoyuan/quota/export', loginRequired, signRequired, async (req, re
 router.get('/taoyuan/save/slots', loginRequired, (req, res) => {
   try {
     const data = loadTaoyuanUserSaves(req.session.username);
-    res.json({ ok: true, slots: [0, 1, 2].map(slot => ({ slot, raw: data.slots[slot] || null })) });
+    res.json({ ok: true, slots: [0, 1, 2].map(slot => ({ slot, raw: data.slots[slot]?.raw || null })) });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '读取服务端存档失败' });
   }
@@ -980,7 +1018,7 @@ router.get('/taoyuan/save/:slot', loginRequired, (req, res) => {
     return res.status(400).json({ ok: false, msg: '无效的存档槽位' });
   }
   const data = loadTaoyuanUserSaves(req.session.username);
-  const raw = data.slots[slot] || null;
+  const raw = data.slots[slot]?.raw || null;
   if (!raw) return res.status(404).json({ ok: false, msg: '服务端存档不存在' });
   res.json({ ok: true, slot, raw });
   } catch (error) {
@@ -995,7 +1033,7 @@ router.post('/taoyuan/save/active-slot', loginRequired, signRequired, (req, res)
     return res.status(400).json({ ok: false, msg: '无效的存档槽位' });
   }
   const data = loadTaoyuanUserSaves(req.session.username);
-  const raw = data.slots[slot] || null;
+  const raw = data.slots[slot]?.raw || null;
   if (!raw) return res.status(404).json({ ok: false, msg: '服务端存档不存在' });
   taoyuanHall.setActiveSaveSlot(req.session.username, slot);
   res.json({ ok: true, slot });
@@ -1008,15 +1046,24 @@ router.post('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
   try {
   const slot = parseInt(req.params.slot, 10);
   const raw = typeof req.body?.raw === 'string' ? req.body.raw : '';
+  const requestedRevision = Number.isFinite(Number(req.body?.revision)) ? Math.floor(Number(req.body.revision)) : null;
   if (!Number.isInteger(slot) || slot < 0 || slot > 2) {
     return res.status(400).json({ ok: false, msg: '无效的存档槽位' });
   }
   if (!raw) return res.status(400).json({ ok: false, msg: '缺少存档数据' });
   const data = loadTaoyuanUserSaves(req.session.username);
-  data.slots[slot] = raw;
+  const currentEntry = data.slots[slot];
+  const currentRevision = currentEntry?.revision ?? 0;
+  if (requestedRevision !== null && requestedRevision < currentRevision) {
+    return res.json({ ok: true, stale: true, slot, current_revision: currentRevision });
+  }
+  const nextRevision = requestedRevision !== null
+    ? Math.max(requestedRevision, currentRevision)
+    : nextTaoyuanSlotRevision(currentRevision);
+  data.slots[slot] = { raw, revision: nextRevision };
   saveTaoyuanUserSaves(req.session.username, data);
   taoyuanHall.setActiveSaveSlot(req.session.username, slot);
-  res.json({ ok: true, slot });
+  res.json({ ok: true, stale: false, slot, current_revision: nextRevision });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '保存服务端存档失败' });
   }

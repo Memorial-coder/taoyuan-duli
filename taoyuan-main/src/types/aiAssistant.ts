@@ -5,6 +5,8 @@ export type AiKnowledgeAccess = 'public' | 'standard'
 export type AiKnowledgeReviewStatus = 'draft' | 'published' | 'archived'
 export type AiKnowledgeSourceType = 'manual' | 'source' | 'source-auto' | 'built-in'
 
+import type { OfficialManagedConfigKey, OfficialManagedConfigStatus } from './officialManaged'
+
 export interface AiSourceIndexStatus {
   version: number
   builtAt: number
@@ -142,6 +144,8 @@ export interface AiAssistantAdminConfig extends AiAssistantPublicConfig {
   temperature: number
   systemPrompt: string
   blockedTopics: string
+  officialManagedStatus?: OfficialManagedConfigStatus
+  readonlyManagedFields: OfficialManagedConfigKey[]
 }
 
 export interface AiKnowledgeEntry {

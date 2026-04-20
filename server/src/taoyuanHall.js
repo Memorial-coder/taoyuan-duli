@@ -201,11 +201,19 @@ function loadUserSaveSlots(username) {
   if (!fs.existsSync(file)) return { slots: { 0: null, 1: null, 2: null } }
   try {
     const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
+    const normalizeSlotEntry = (entry) => {
+      if (typeof entry === 'string' && entry) return { raw: entry, revision: 0 }
+      if (!entry || typeof entry !== 'object' || typeof entry.raw !== 'string' || !entry.raw) return null
+      return {
+        raw: entry.raw,
+        revision: Number.isFinite(Number(entry.revision)) ? Math.floor(Number(entry.revision)) : 0,
+      }
+    }
     return {
       slots: {
-        0: typeof raw?.slots?.[0] === 'string' ? raw.slots[0] : null,
-        1: typeof raw?.slots?.[1] === 'string' ? raw.slots[1] : null,
-        2: typeof raw?.slots?.[2] === 'string' ? raw.slots[2] : null,
+        0: normalizeSlotEntry(raw?.slots?.[0]),
+        1: normalizeSlotEntry(raw?.slots?.[1]),
+        2: normalizeSlotEntry(raw?.slots?.[2]),
       }
     }
   } catch {
@@ -218,18 +226,22 @@ function saveUserSaveSlots(username, data) {
   fs.writeFileSync(getTaoyuanSavePath(username), JSON.stringify(data, null, 2), 'utf8')
 }
 
+function nextSlotRevision(currentRevision = 0) {
+  return Math.max(Date.now(), Math.floor(Number(currentRevision) || 0) + 1)
+}
+
 function getActiveSaveContext(username) {
   const saves = loadUserSaveSlots(username)
   let slot = getActiveSaveSlot(username)
   if (slot === null) {
-    const fallbackSlot = [0, 1, 2].find(index => typeof saves.slots[index] === 'string' && saves.slots[index])
+    const fallbackSlot = [0, 1, 2].find(index => typeof saves.slots[index]?.raw === 'string' && saves.slots[index]?.raw)
     if (fallbackSlot === undefined) {
       throw createError('当前账号没有可用的桃源服务端存档，无法进行悬赏结算')
     }
     slot = fallbackSlot
     setActiveSaveSlot(username, slot)
   }
-  const raw = saves.slots[slot]
+  const raw = saves.slots[slot]?.raw
   if (!raw) throw createError('当前账号没有可用的桃源服务端存档，无法进行悬赏结算')
   const decrypted = decryptTaoyuanRaw(raw)
   const saveContainer = normalizeGameplaySaveContainer(decrypted)
@@ -245,7 +257,11 @@ function updateActiveSaveMoney(username, delta) {
   const nextMoney = currentMoney + normalizedDelta
   if (nextMoney < 0) throw createError('桃源货币不足，无法完成悬赏操作')
   context.data.player.money = nextMoney
-  context.saves.slots[context.slot] = encryptTaoyuanData(serializeGameplaySaveContainer(context.saveContainer))
+  const currentRevision = context.saves.slots[context.slot]?.revision ?? 0
+  context.saves.slots[context.slot] = {
+    raw: encryptTaoyuanData(serializeGameplaySaveContainer(context.saveContainer)),
+    revision: nextSlotRevision(currentRevision)
+  }
   saveUserSaveSlots(username, context.saves)
   return {
     slot: context.slot,

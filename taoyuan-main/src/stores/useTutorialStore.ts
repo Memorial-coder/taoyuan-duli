@@ -41,6 +41,16 @@ const GUIDANCE_ROUTE_TARGET_SURFACE_MAP: Record<string, GuidanceSurfaceId> = {
   ws11_route_growth_to_breeding: 'breeding',
   ws11_route_focus_to_museum: 'museum'
 }
+const GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD = 'dismissedSummaryScopeKeys'
+const GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD = 'adoptedSummaryScopeKeys'
+const GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD = 'adoptedRouteScopeKeys'
+
+type GuidanceScopedStatusField =
+  | typeof GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD
+  | typeof GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD
+  | typeof GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD
+
+type GuidanceDigestStateRecord = GuidanceDigestState & Partial<Record<GuidanceScopedStatusField, string[]>>
 
 const normalizeStringArray = (value: unknown): string[] =>
   Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []
@@ -123,6 +133,84 @@ export const useTutorialStore = defineStore('tutorial', () => {
   const hanhaiStore = useHanhaiStore()
   const npcStore = useNpcStore()
 
+  const getGuidanceDigestStateRecord = (state: GuidanceDigestState = guidanceDigestState.value): GuidanceDigestStateRecord =>
+    state as GuidanceDigestStateRecord
+
+  const cloneGuidanceScopedStatusFields = (state: GuidanceDigestState = guidanceDigestState.value) => {
+    const record = getGuidanceDigestStateRecord(state)
+    return {
+      [GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD]: normalizeStringArray(record[GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD]),
+      [GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD]: normalizeStringArray(record[GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD]),
+      [GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD]: normalizeStringArray(record[GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD])
+    } satisfies Partial<Record<GuidanceScopedStatusField, string[]>>
+  }
+
+  const getGuidanceScopedStatusKeys = (field: GuidanceScopedStatusField) =>
+    normalizeStringArray(getGuidanceDigestStateRecord()[field])
+
+  const setGuidanceScopedStatusKeys = (field: GuidanceScopedStatusField, keys: string[]) => {
+    getGuidanceDigestStateRecord()[field] = dedupeStrings(keys)
+  }
+
+  const getCurrentGuidanceScopeContext = () => ({
+    themeWeekId: goalStore.uiGuidanceSourceOverview.currentThemeWeek?.id ?? null,
+    campaignId: goalStore.uiGuidanceSourceOverview.currentEventCampaign?.id ?? null
+  })
+
+  const isStoredGuidanceScopeCurrent = () => {
+    const currentScope = getCurrentGuidanceScopeContext()
+    return (
+      guidanceDigestState.value.currentThemeWeekId === currentScope.themeWeekId &&
+      guidanceDigestState.value.currentCampaignId === currentScope.campaignId
+    )
+  }
+
+  const buildGuidanceSummaryScopeKey = (summary: Pick<GuidancePanelSummaryState, 'id' | 'surfaceId' | 'headline' | 'detailLines' | 'recommendedRouteIds'>) =>
+    JSON.stringify({
+      kind: 'summary',
+      id: summary.id,
+      surfaceId: summary.surfaceId,
+      ...getCurrentGuidanceScopeContext(),
+      headline: summary.headline,
+      detailLines: [...summary.detailLines],
+      recommendedRouteIds: [...summary.recommendedRouteIds]
+    })
+
+  const buildGuidanceRouteScopeKey = (route: Pick<GuidanceRecommendationRouteState, 'id' | 'surfaceId' | 'targetSurfaceId' | 'label' | 'summary'>) =>
+    JSON.stringify({
+      kind: 'route',
+      id: route.id,
+      surfaceId: route.surfaceId,
+      targetSurfaceId: route.targetSurfaceId,
+      ...getCurrentGuidanceScopeContext(),
+      label: route.label,
+      summary: route.summary
+    })
+
+  const hasGuidanceLegacyFallback = (field: GuidanceScopedStatusField) =>
+    getGuidanceScopedStatusKeys(field).length === 0 && isStoredGuidanceScopeCurrent()
+
+  const isGuidanceSummaryDismissed = (summary: Pick<GuidancePanelSummaryState, 'id' | 'surfaceId' | 'headline' | 'detailLines' | 'recommendedRouteIds'>) =>
+    getGuidanceScopedStatusKeys(GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD).includes(buildGuidanceSummaryScopeKey(summary)) ||
+    (
+      hasGuidanceLegacyFallback(GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD) &&
+      guidanceDigestState.value.dismissedSummaryIds.includes(summary.id)
+    )
+
+  const isGuidanceSummaryAdopted = (summary: Pick<GuidancePanelSummaryState, 'id' | 'surfaceId' | 'headline' | 'detailLines' | 'recommendedRouteIds'>) =>
+    getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD).includes(buildGuidanceSummaryScopeKey(summary)) ||
+    (
+      hasGuidanceLegacyFallback(GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD) &&
+      guidanceDigestState.value.adoptedSummaryIds.includes(summary.id)
+    )
+
+  const isGuidanceRouteAdopted = (route: Pick<GuidanceRecommendationRouteState, 'id' | 'surfaceId' | 'targetSurfaceId' | 'label' | 'summary'>) =>
+    getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD).includes(buildGuidanceRouteScopeKey(route)) ||
+    (
+      hasGuidanceLegacyFallback(GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD) &&
+      guidanceDigestState.value.adoptedRouteIds.includes(route.id)
+    )
+
   const guidanceTier = computed<GuidanceTier>(() => {
     const segmentId = goalStore.uiGuidanceSourceOverview.currentSegment?.id ?? ''
     if (segmentId === 'endgame_tycoon') return 'P2'
@@ -158,7 +246,8 @@ export const useTutorialStore = defineStore('tutorial', () => {
     dismissedSummaryIds: [...guidanceDigestState.value.dismissedSummaryIds],
     adoptedSummaryIds: [...guidanceDigestState.value.adoptedSummaryIds],
     adoptedRouteIds: [...guidanceDigestState.value.adoptedRouteIds],
-    surfaceStates: guidanceDigestState.value.surfaceStates.map(state => ({ ...state }))
+    surfaceStates: guidanceDigestState.value.surfaceStates.map(state => ({ ...state })),
+    ...cloneGuidanceScopedStatusFields()
   })
 
   const rollbackGuidanceAction = (snapshot: GuidanceDigestState) => {
@@ -300,7 +389,13 @@ export const useTutorialStore = defineStore('tutorial', () => {
       ...def,
       active,
       priority,
-      status: guidanceDigestState.value.adoptedRouteIds.includes(def.id) ? 'adopted' : active ? 'available' : 'inactive',
+      status: isGuidanceRouteAdopted({
+        id: def.id,
+        surfaceId: def.surfaceId,
+        targetSurfaceId: GUIDANCE_ROUTE_TARGET_SURFACE_MAP[def.id] ?? def.surfaceId,
+        label: def.label,
+        summary
+      }) ? 'adopted' : active ? 'available' : 'inactive',
       targetSurfaceId: GUIDANCE_ROUTE_TARGET_SURFACE_MAP[def.id] ?? def.surfaceId,
       summary
     }
@@ -578,18 +673,23 @@ export const useTutorialStore = defineStore('tutorial', () => {
       recommendedRouteIds = []
     }
 
-    return {
+    const nextDetailLines = detailLines.slice(0, Math.max(1, guidanceDisplayConfig.maxDetailLineCount))
+    const summaryScopeState = {
       ...def,
       active,
       priority,
-      status: guidanceDigestState.value.dismissedSummaryIds.includes(def.id)
-        ? 'dismissed'
-        : guidanceDigestState.value.adoptedSummaryIds.includes(def.id)
-          ? 'adopted'
-          : 'fresh',
       headline,
-      detailLines: detailLines.slice(0, Math.max(1, guidanceDisplayConfig.maxDetailLineCount)),
+      detailLines: nextDetailLines,
       recommendedRouteIds
+    }
+
+    return {
+      ...summaryScopeState,
+      status: isGuidanceSummaryDismissed(summaryScopeState)
+        ? 'dismissed'
+        : isGuidanceSummaryAdopted(summaryScopeState)
+          ? 'adopted'
+          : 'fresh'
     }
   }
 
@@ -617,6 +717,90 @@ export const useTutorialStore = defineStore('tutorial', () => {
       ...activeGuidanceRouteIds.value
     ].join('|')
   )
+
+  const getCurrentGuidanceSummaryScopeKey = (summaryId: string) => {
+    const summaryState = guidancePanelSummaryStates.value.find(summary => summary.id === summaryId)
+    return summaryState ? buildGuidanceSummaryScopeKey(summaryState) : null
+  }
+
+  const getCurrentGuidanceRouteScopeKey = (routeId: string) => {
+    const routeState = guidanceRecommendationRouteStates.value.find(route => route.id === routeId)
+    return routeState ? buildGuidanceRouteScopeKey(routeState) : null
+  }
+
+  const hydrateGuidanceScopedStatusKeysFromLegacyIds = () => {
+    if (!isStoredGuidanceScopeCurrent()) return
+
+    if (
+      guidanceDigestState.value.dismissedSummaryIds.length > 0 &&
+      getGuidanceScopedStatusKeys(GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD).length === 0
+    ) {
+      setGuidanceScopedStatusKeys(
+        GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD,
+        guidancePanelSummaryStates.value
+          .filter(summary => guidanceDigestState.value.dismissedSummaryIds.includes(summary.id))
+          .map(buildGuidanceSummaryScopeKey)
+      )
+    }
+
+    if (
+      guidanceDigestState.value.adoptedSummaryIds.length > 0 &&
+      getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD).length === 0
+    ) {
+      setGuidanceScopedStatusKeys(
+        GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD,
+        guidancePanelSummaryStates.value
+          .filter(summary => guidanceDigestState.value.adoptedSummaryIds.includes(summary.id))
+          .map(buildGuidanceSummaryScopeKey)
+      )
+    }
+
+    if (
+      guidanceDigestState.value.adoptedRouteIds.length > 0 &&
+      getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD).length === 0
+    ) {
+      setGuidanceScopedStatusKeys(
+        GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD,
+        guidanceRecommendationRouteStates.value
+          .filter(route => guidanceDigestState.value.adoptedRouteIds.includes(route.id))
+          .map(buildGuidanceRouteScopeKey)
+      )
+    }
+  }
+
+  const pruneGuidanceScopedStatusKeysToCurrentContent = () => {
+    const currentSummaryScopeKeys = new Set(guidancePanelSummaryStates.value.map(buildGuidanceSummaryScopeKey))
+    const currentRouteScopeKeys = new Set(guidanceRecommendationRouteStates.value.map(buildGuidanceRouteScopeKey))
+
+    setGuidanceScopedStatusKeys(
+      GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD,
+      getGuidanceScopedStatusKeys(GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD).filter(key => currentSummaryScopeKeys.has(key))
+    )
+    setGuidanceScopedStatusKeys(
+      GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD,
+      getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD).filter(key => currentSummaryScopeKeys.has(key))
+    )
+    setGuidanceScopedStatusKeys(
+      GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD,
+      getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD).filter(key => currentRouteScopeKeys.has(key))
+    )
+  }
+
+  const syncLegacyGuidanceStatusIds = () => {
+    const dismissedSummaryScopeKeys = new Set(getGuidanceScopedStatusKeys(GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD))
+    const adoptedSummaryScopeKeys = new Set(getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD))
+    const adoptedRouteScopeKeys = new Set(getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD))
+
+    guidanceDigestState.value.dismissedSummaryIds = guidancePanelSummaryStates.value
+      .filter(summary => dismissedSummaryScopeKeys.has(buildGuidanceSummaryScopeKey(summary)))
+      .map(summary => summary.id)
+    guidanceDigestState.value.adoptedSummaryIds = guidancePanelSummaryStates.value
+      .filter(summary => adoptedSummaryScopeKeys.has(buildGuidanceSummaryScopeKey(summary)))
+      .map(summary => summary.id)
+    guidanceDigestState.value.adoptedRouteIds = guidanceRecommendationRouteStates.value
+      .filter(route => adoptedRouteScopeKeys.has(buildGuidanceRouteScopeKey(route)))
+      .map(route => route.id)
+  }
 
   const guidanceSurfaceSnapshots = computed<GuidanceSurfaceSnapshot[]>(() =>
     GUIDANCE_SURFACE_IDS.map(surfaceId => {
@@ -778,9 +962,20 @@ export const useTutorialStore = defineStore('tutorial', () => {
     if (!beginGuidanceAction(lockId)) return false
     const snapshot = createGuidanceDigestSnapshot()
     try {
-      if (guidanceDigestState.value.dismissedSummaryIds.includes(summaryId)) return false
+      hydrateGuidanceScopedStatusKeysFromLegacyIds()
+      const summaryScopeKey = getCurrentGuidanceSummaryScopeKey(summaryId)
+      if (!summaryScopeKey) return false
+      if (getGuidanceScopedStatusKeys(GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD).includes(summaryScopeKey)) return false
       const resolvedSurfaceId = surfaceId ?? guidancePanelSummaryDefs.find(def => def.id === summaryId)?.surfaceId
-      guidanceDigestState.value.dismissedSummaryIds = [...guidanceDigestState.value.dismissedSummaryIds, summaryId]
+      setGuidanceScopedStatusKeys(GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD, [
+        ...getGuidanceScopedStatusKeys(GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD),
+        summaryScopeKey
+      ])
+      setGuidanceScopedStatusKeys(
+        GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD,
+        getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD).filter(key => key !== summaryScopeKey)
+      )
+      syncLegacyGuidanceStatusIds()
       if (resolvedSurfaceId) {
         updateGuidanceSurfaceState(resolvedSurfaceId, state => ({
           ...state,
@@ -801,16 +996,32 @@ export const useTutorialStore = defineStore('tutorial', () => {
     if (!beginGuidanceAction(lockId)) return false
     const snapshot = createGuidanceDigestSnapshot()
     try {
-      if (guidanceDigestState.value.adoptedSummaryIds.includes(summaryId)) return false
+      hydrateGuidanceScopedStatusKeysFromLegacyIds()
+      const summaryScopeKey = getCurrentGuidanceSummaryScopeKey(summaryId)
+      if (!summaryScopeKey) return false
+      if (getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD).includes(summaryScopeKey)) return false
       const resolvedSurfaceId = surfaceId ?? guidancePanelSummaryDefs.find(def => def.id === summaryId)?.surfaceId
-      guidanceDigestState.value.adoptedSummaryIds = [...guidanceDigestState.value.adoptedSummaryIds, summaryId]
-      guidanceDigestState.value.dismissedSummaryIds = guidanceDigestState.value.dismissedSummaryIds.filter(id => id !== summaryId)
+      setGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD, [
+        ...getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD),
+        summaryScopeKey
+      ])
+      setGuidanceScopedStatusKeys(
+        GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD,
+        getGuidanceScopedStatusKeys(GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD).filter(key => key !== summaryScopeKey)
+      )
       const relatedRouteIds = guidancePanelSummaryStates.value.find(summary => summary.id === summaryId)?.recommendedRouteIds ?? []
       if (guidanceFeatureFlags.summaryAutoRouteSyncEnabled && relatedRouteIds.length > 0) {
-        guidanceDigestState.value.adoptedRouteIds = [
-          ...new Set([...guidanceDigestState.value.adoptedRouteIds, ...relatedRouteIds])
-        ]
+        setGuidanceScopedStatusKeys(
+          GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD,
+          [
+            ...getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD),
+            ...relatedRouteIds
+              .map(getCurrentGuidanceRouteScopeKey)
+              .filter((key): key is string => Boolean(key))
+          ]
+        )
       }
+      syncLegacyGuidanceStatusIds()
       if (resolvedSurfaceId) {
         updateGuidanceSurfaceState(resolvedSurfaceId, state => ({
           ...state,
@@ -832,16 +1043,32 @@ export const useTutorialStore = defineStore('tutorial', () => {
     if (!beginGuidanceAction(lockId)) return false
     const snapshot = createGuidanceDigestSnapshot()
     try {
-      if (guidanceDigestState.value.adoptedRouteIds.includes(routeId)) return false
+      hydrateGuidanceScopedStatusKeysFromLegacyIds()
+      const routeScopeKey = getCurrentGuidanceRouteScopeKey(routeId)
+      if (!routeScopeKey) return false
+      if (getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD).includes(routeScopeKey)) return false
       const resolvedSurfaceId = surfaceId ?? guidanceRecommendationRoutes.find(route => route.id === routeId)?.surfaceId
-      guidanceDigestState.value.adoptedRouteIds = [...guidanceDigestState.value.adoptedRouteIds, routeId]
+      setGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD, [
+        ...getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_ROUTE_SCOPE_KEYS_FIELD),
+        routeScopeKey
+      ])
       const relatedSummaryId = guidancePanelSummaryStates.value.find(
         summary => summary.surfaceId === (resolvedSurfaceId ?? summary.surfaceId) && summary.recommendedRouteIds.includes(routeId)
       )?.id
-      if (guidanceFeatureFlags.routeAutoSummarySyncEnabled && relatedSummaryId && !guidanceDigestState.value.adoptedSummaryIds.includes(relatedSummaryId)) {
-        guidanceDigestState.value.adoptedSummaryIds = [...guidanceDigestState.value.adoptedSummaryIds, relatedSummaryId]
-        guidanceDigestState.value.dismissedSummaryIds = guidanceDigestState.value.dismissedSummaryIds.filter(id => id !== relatedSummaryId)
+      if (guidanceFeatureFlags.routeAutoSummarySyncEnabled && relatedSummaryId) {
+        const relatedSummaryScopeKey = getCurrentGuidanceSummaryScopeKey(relatedSummaryId)
+        if (relatedSummaryScopeKey && !getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD).includes(relatedSummaryScopeKey)) {
+          setGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD, [
+            ...getGuidanceScopedStatusKeys(GUIDANCE_ADOPTED_SUMMARY_SCOPE_KEYS_FIELD),
+            relatedSummaryScopeKey
+          ])
+          setGuidanceScopedStatusKeys(
+            GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD,
+            getGuidanceScopedStatusKeys(GUIDANCE_DISMISSED_SUMMARY_SCOPE_KEYS_FIELD).filter(key => key !== relatedSummaryScopeKey)
+          )
+        }
       }
+      syncLegacyGuidanceStatusIds()
       if (resolvedSurfaceId) {
         updateGuidanceSurfaceState(resolvedSurfaceId, state => ({
           ...state,
@@ -866,6 +1093,7 @@ export const useTutorialStore = defineStore('tutorial', () => {
     if (!beginGuidanceAction(lockId)) return false
     const snapshot = createGuidanceDigestSnapshot()
     try {
+      hydrateGuidanceScopedStatusKeysFromLegacyIds()
       guidanceDigestState.value = {
         ...guidanceDigestState.value,
         version: Math.max(2, Number(guidanceDigestState.value.version) || 2),
@@ -873,8 +1101,11 @@ export const useTutorialStore = defineStore('tutorial', () => {
         activeRouteIds: [...activeGuidanceRouteIds.value],
         lastRefreshDayTag: dayTag,
         currentThemeWeekId: themeWeekId,
-        currentCampaignId: campaignId
+        currentCampaignId: campaignId,
+        ...cloneGuidanceScopedStatusFields()
       }
+      pruneGuidanceScopedStatusKeysToCurrentContent()
+      syncLegacyGuidanceStatusIds()
       return true
     } catch {
       rollbackGuidanceAction(snapshot)
@@ -961,8 +1192,9 @@ export const useTutorialStore = defineStore('tutorial', () => {
                 .filter((state): state is GuidanceSurfaceDigestState => state !== null)
             )
           : []
-      }
+      } as GuidanceDigestStateRecord
     })()
+    Object.assign(getGuidanceDigestStateRecord(), cloneGuidanceScopedStatusFields(data?.guidanceDigestState as GuidanceDigestState))
   }
 
   return {

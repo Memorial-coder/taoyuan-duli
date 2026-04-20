@@ -462,7 +462,7 @@ export const useProcessingStore = defineStore('processing', () => {
   /** 取消加工（退回原料，机器回到空闲状态） */
   const cancelProcessing = (slotIndex: number): boolean => {
     const slot = machines.value[slotIndex]
-    if (!slot || !slot.recipeId) return false
+    if (!slot || !slot.recipeId || slot.ready) return false
     const recipe = getProcessingRecipeById(slot.recipeId)
     const refundEntries: { itemId: string; quantity: number; quality?: Quality }[] = []
     // 如果正在加工且有原料投入，退回原料
@@ -609,6 +609,10 @@ export const useProcessingStore = defineStore('processing', () => {
               const restartPlan = buildVoidRestartPlan(voidInput.id, slot.recipeId)
               if (restartPlan && warehouseStore.consumeChestItemsExact(voidInput.id, restartPlan.entries)) {
                 slot.daysProcessed = 0
+                slot.totalDays = recipe.processingDays
+                if (slot.machineType === 'loom' && useHiddenNpcStore().isAbilityActive('gui_nv_1')) {
+                  slot.totalDays = Math.max(1, Math.ceil(slot.totalDays * 0.7))
+                }
                 slot.inputQuality = restartPlan.nextQuality
                 slot.ready = false
               } else {

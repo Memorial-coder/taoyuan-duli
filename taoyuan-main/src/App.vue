@@ -25,7 +25,7 @@
    * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
    */
   import { RouterView } from 'vue-router'
-  import { useRoute } from 'vue-router'
+  import { useRoute, useRouter } from 'vue-router'
   import AiAssistantWidget from '@/components/game/AiAssistantWidget.vue'
   import { ref, onBeforeUnmount, onMounted, watch } from 'vue'
   import { Capacitor } from '@capacitor/core'
@@ -33,10 +33,12 @@
   import { useSaveStore } from '@/stores/useSaveStore'
 
   const route = useRoute()
+  const router = useRouter()
   const saveStore = useSaveStore()
   const showExitConfirm = ref(false)
   let visibilityHandler: (() => void) | null = null
   let onlineHandler: (() => void) | null = null
+  let backButtonListener: { remove: () => Promise<void> } | null = null
 
   const syncAppShellLayout = () => {
     if (typeof document === 'undefined') return
@@ -48,6 +50,29 @@
 
   const exitApp = () => {
     void CapApp.exitApp()
+  }
+
+  const handleInAppBackNavigation = (): boolean => {
+    const routeName = typeof route.name === 'string' ? route.name : ''
+    if (routeName === 'guide-book') {
+      if (window.history.length > 1) {
+        void router.back()
+      } else {
+        void router.push({ name: 'guide' })
+      }
+      return true
+    }
+
+    if (routeName === 'guide') {
+      if (window.history.length > 1) {
+        void router.back()
+      } else {
+        void router.push({ name: 'menu' })
+      }
+      return true
+    }
+
+    return false
   }
 
   watch(
@@ -84,12 +109,16 @@
     // Capacitor Android 返回键拦截
     if (Capacitor.isNativePlatform()) {
       void CapApp.addListener('backButton', () => {
+        if (handleInAppBackNavigation()) return
         if (showExitConfirm.value) {
           showExitConfirm.value = false
         } else {
           showExitConfirm.value = true
         }
       })
+        .then(handle => {
+          backButtonListener = handle
+        })
     }
   })
 
@@ -101,6 +130,10 @@
     if (typeof window !== 'undefined' && onlineHandler) {
       window.removeEventListener('online', onlineHandler)
       onlineHandler = null
+    }
+    if (backButtonListener) {
+      void backButtonListener.remove()
+      backButtonListener = null
     }
     if (typeof document === 'undefined') return
     document.getElementById('app')?.classList.remove('app-shell--admin')

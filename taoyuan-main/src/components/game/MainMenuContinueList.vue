@@ -10,7 +10,12 @@
       </div>
     </slot>
 
-    <div v-if="existingSlots.length === 0" class="main-menu-empty-state game-panel-muted px-3 py-5 text-center">
+    <div v-if="slotReadBlocked" class="main-menu-empty-state rounded-xs border border-danger/30 bg-danger/10 px-3 py-5 text-center">
+      <p class="text-xs text-danger">服务端存档暂时不可读取，当前无法确认云端槽位是否已有进度。</p>
+      <p class="text-[10px] text-danger/80 mt-1 leading-5">为避免把真实云档误当成空槽覆盖，本页已暂停把它们显示成“空存档”。</p>
+    </div>
+
+    <div v-else-if="existingSlots.length === 0" class="main-menu-empty-state game-panel-muted px-3 py-5 text-center">
       <p class="text-xs text-muted">当前还没有可继续的旅程。</p>
       <p class="text-[10px] text-muted mt-1">点击上方「新的旅程」，或导入已有存档。</p>
     </div>
@@ -76,6 +81,7 @@
     existingSlots: SaveSlotInfo[]
     slotMenuOpen: number | null
     isNativePlatform: boolean
+    slotReadBlocked?: boolean
   }>()
 
   defineEmits<{

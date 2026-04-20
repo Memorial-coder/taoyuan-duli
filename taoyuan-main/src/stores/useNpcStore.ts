@@ -969,6 +969,45 @@ export const useNpcStore = defineStore('npc', () => {
     householdDivision.value.assignments = householdDivision.value.assignments.filter(entry => entry.npcId !== npcId)
   }
 
+  const syncNpcRelationshipCooperationState = (npcId: string) => {
+    const state = getNpcState(npcId)
+    if (!state) return
+
+    const canKeepHouseholdRole = state.married || state.zhiji
+    householdDivision.value.assignments = householdDivision.value.assignments.filter(
+      entry => entry.npcId !== npcId || canKeepHouseholdRole
+    )
+    state.activeHouseholdRoleId = canKeepHouseholdRole
+      ? (householdDivision.value.assignments.find(entry => entry.npcId === npcId)?.roleId ?? null)
+      : null
+
+    if (!state.zhiji) {
+      zhijiCompanionProjects.value = zhijiCompanionProjects.value.filter(project => project.npcId !== npcId)
+    }
+  }
+
+  const syncRelationshipCooperationState = () => {
+    const householdEligibleNpcIds = new Set(
+      npcStates.value
+        .filter(state => state.married || state.zhiji)
+        .map(state => state.npcId)
+    )
+    householdDivision.value.assignments = householdDivision.value.assignments.filter(entry => householdEligibleNpcIds.has(entry.npcId))
+
+    const zhijiNpcIds = new Set(
+      npcStates.value
+        .filter(state => state.zhiji)
+        .map(state => state.npcId)
+    )
+    zhijiCompanionProjects.value = zhijiCompanionProjects.value.filter(project => zhijiNpcIds.has(project.npcId))
+
+    for (const state of npcStates.value) {
+      state.activeHouseholdRoleId = householdEligibleNpcIds.has(state.npcId)
+        ? (householdDivision.value.assignments.find(entry => entry.npcId === state.npcId)?.roleId ?? null)
+        : null
+    }
+  }
+
   const progressHouseholdRole = (npcId: string, deltaDays = 1) => {
     const entry = getHouseholdRoleAssignment(npcId)
     if (!entry) return null
@@ -1472,6 +1511,7 @@ export const useNpcStore = defineStore('npc', () => {
     zhijiState.zhiji = false
     zhijiState.friendship = 1000
     daysZhiji.value = 0
+    syncNpcRelationshipCooperationState(zhijiState.npcId)
 
     return { success: true, message: `你和${npcDef?.name ?? '知己'}的知己之缘已断。` }
     } catch {
@@ -1534,6 +1574,7 @@ export const useNpcStore = defineStore('npc', () => {
     childProposalPending.value = false
     daysMarried.value = 0
     cancelWedding()
+    syncNpcRelationshipCooperationState(spouse.npcId)
 
     return { success: true, message: `你和${npcDef?.name ?? '配偶'}的婚姻结束了。` }
     } catch {
@@ -2119,6 +2160,7 @@ export const useNpcStore = defineStore('npc', () => {
         completed: !!project.completed,
         rewarded: !!project.rewarded
       }))
+    syncRelationshipCooperationState()
     children.value = (Array.isArray((data as any).children) ? (data as any).children : [])
       .filter((c: any) => c && typeof c === 'object')
       .map((c: any) => ({

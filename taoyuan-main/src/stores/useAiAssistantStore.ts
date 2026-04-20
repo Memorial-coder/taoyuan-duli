@@ -21,12 +21,15 @@ const defaultAdminConfig = (): AiAssistantAdminConfig => ({
   sourceReadEnabled: false,
   sourceIngestEnabled: false,
   sourceIndexStatus: undefined,
+  nounLexiconStatus: undefined,
   apiUrl: '',
   apiKey: '',
   model: '',
   temperature: 0.2,
   systemPrompt: '你是桃源乡游戏内 AI 助手。请只依据提供的知识片段回答。',
   blockedTopics: '',
+  officialManagedStatus: undefined,
+  readonlyManagedFields: [],
 })
 
 export const useAiAssistantStore = defineStore('aiAssistant', () => {

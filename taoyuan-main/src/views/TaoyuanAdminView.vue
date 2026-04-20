@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="min-h-screen px-1 py-4 md:px-2 md:py-5 xl:px-3 2xl:px-4" :class="{ 'pt-10': Capacitor.isNativePlatform() }">
     <div class="w-full space-y-4">
       <div class="game-panel space-y-4">
@@ -374,8 +374,9 @@
             <span class="text-xs text-muted">共 {{ campaigns.length }} 封</span>
           </div>
 
+          <div v-if="campaignListError" class="text-xs text-danger">{{ campaignListError }}</div>
           <div v-if="loadingCampaigns" class="text-xs text-muted">邮件记录加载中...</div>
-          <div v-else-if="!campaigns.length" class="text-xs text-muted">还没有邮件记录。</div>
+          <div v-else-if="!campaignListError && !campaigns.length" class="text-xs text-muted">还没有邮件记录。</div>
           <div v-else class="space-y-3 max-h-[72vh] overflow-y-auto pr-1">
             <div v-for="campaign in campaigns" :key="campaign.id" class="admin-record-card">
               <div class="flex items-start justify-between gap-3">
@@ -707,6 +708,11 @@
   const loadingDetailId = ref('')
   const loadingComposerId = ref('')
   const submittingCampaign = ref<'draft' | 'schedule' | 'send' | ''>('')
+  const campaignListError = ref('')
+  const campaignListRequestId = ref(0)
+  const campaignDetailRequestId = ref(0)
+  const composerLoadRequestId = ref(0)
+  const recipientSearchRequestId = ref(0)
   const recipientSearchKeyword = ref('')
   const recipientSearchLoading = ref(false)
   const recipientSearchResults = ref<UserAdminSummary[]>([])
@@ -848,21 +854,28 @@
     recipientSearchPerformed.value = false
   }
 
+  const isAdminCredentialError = (message: string) => /管理员口令无效|权限不足|管理员信息不完整/.test(message)
+
   const searchRecipients = async () => {
     const keyword = recipientSearchKeyword.value.trim()
     if (!keyword) {
       clearRecipientSearch()
       return
     }
+    const activeRequestId = ++recipientSearchRequestId.value
     recipientSearchLoading.value = true
     try {
       const result = await fetchAdminUsers({ keyword, status: 'active', page: 1, pageSize: 20 })
+      if (activeRequestId !== recipientSearchRequestId.value || recipientSearchKeyword.value.trim() !== keyword) return
       recipientSearchResults.value = result.users.filter(user => user.status === 'active')
       recipientSearchPerformed.value = true
     } catch (error) {
+      if (activeRequestId !== recipientSearchRequestId.value || recipientSearchKeyword.value.trim() !== keyword) return
       showFloat(error instanceof Error ? error.message : '查找用户失败', 'danger')
     } finally {
-      recipientSearchLoading.value = false
+      if (activeRequestId === recipientSearchRequestId.value) {
+        recipientSearchLoading.value = false
+      }
     }
   }
 
@@ -1118,31 +1131,48 @@
   const refreshCampaigns = async (tokenOverride?: string, persistToken = false) => {
     const token = String(tokenOverride || adminTokenInput.value || '').trim()
     if (!token) {
+      campaignListError.value = ''
       campaigns.value = []
       detail.value = null
       return
     }
 
+    const activeRequestId = ++campaignListRequestId.value
     loadingCampaigns.value = true
     tokenError.value = ''
+    campaignListError.value = ''
     try {
-      campaigns.value = await fetchTaoyuanMailCampaigns(token)
+      const nextCampaigns = await fetchTaoyuanMailCampaigns(token)
+      if (activeRequestId !== campaignListRequestId.value) return
+      campaigns.value = nextCampaigns
       isAuthorized.value = true
       if (persistToken) {
         setStoredAdminToken(token)
         adminTokenInput.value = token
       }
     } catch (error) {
+      if (activeRequestId !== campaignListRequestId.value) return
       tokenError.value = error instanceof Error ? error.message : '获取桃源乡邮件记录失败'
-      campaigns.value = []
-      isAuthorized.value = false
+      campaignListError.value = tokenError.value
+      if (isAdminCredentialError(tokenError.value)) {
+        campaigns.value = []
+        detail.value = null
+        isAuthorized.value = false
+      }
     } finally {
-      loadingCampaigns.value = false
+      if (activeRequestId === campaignListRequestId.value) {
+        loadingCampaigns.value = false
+      }
     }
   }
 
   const handleRefreshClick = () => {
-    void refreshCampaigns()
+    void (async () => {
+      await refreshCampaigns()
+      if (campaignListError.value) {
+        showFloat(campaignListError.value, 'danger')
+      }
+    })()
   }
 
   const useHasSaveRecipients = () => {
@@ -1164,7 +1194,12 @@
       adminSession.value = await verifyAdminSession(candidateToken, true)
       if (adminSession.value.role === 'super_admin') {
         await refreshCampaigns(candidateToken, true)
+        if (campaignListError.value) {
+          showFloat(campaignListError.value, 'danger')
+          return
+        }
       } else {
+        campaignListError.value = ''
         campaigns.value = []
         detail.value = null
         isAuthorized.value = false
@@ -1188,6 +1223,7 @@
     adminTokenInput.value = ''
     clearStoredAdminToken()
     tokenError.value = ''
+    campaignListError.value = ''
     campaigns.value = []
     detail.value = null
     isAuthorized.value = false
@@ -1196,15 +1232,21 @@
   }
 
   const openDetail = async (campaignId: string) => {
+    const activeRequestId = ++campaignDetailRequestId.value
     loadingDetailId.value = campaignId
     tokenError.value = ''
     try {
-      detail.value = await fetchTaoyuanMailCampaignDetail(campaignId)
+      const nextDetail = await fetchTaoyuanMailCampaignDetail(campaignId)
+      if (activeRequestId !== campaignDetailRequestId.value) return
+      detail.value = nextDetail
     } catch (error) {
+      if (activeRequestId !== campaignDetailRequestId.value) return
       tokenError.value = error instanceof Error ? error.message : '读取邮件详情失败'
       showFloat(tokenError.value, 'danger')
     } finally {
-      loadingDetailId.value = ''
+      if (activeRequestId === campaignDetailRequestId.value) {
+        loadingDetailId.value = ''
+      }
     }
   }
 
@@ -1224,10 +1266,12 @@
   }
 
   const loadCampaignIntoComposer = async (campaignId: string) => {
+    const activeRequestId = ++composerLoadRequestId.value
     loadingComposerId.value = campaignId
     tokenError.value = ''
     try {
       const result = await fetchTaoyuanMailCampaignDetail(campaignId)
+      if (activeRequestId !== composerLoadRequestId.value) return
       composer.value = {
         id: result.campaign.id,
         template_type: (result.campaign.template_type as TaoyuanMailTemplateType) || 'compensation',
@@ -1260,10 +1304,13 @@
       }
       showFloat('邮件草稿已载入', 'success')
     } catch (error) {
+      if (activeRequestId !== composerLoadRequestId.value) return
       tokenError.value = error instanceof Error ? error.message : '载入邮件草稿失败'
       showFloat(tokenError.value, 'danger')
     } finally {
-      loadingComposerId.value = ''
+      if (activeRequestId === composerLoadRequestId.value) {
+        loadingComposerId.value = ''
+      }
     }
   }
 
@@ -1668,3 +1715,4 @@
     border-color: rgba(200, 164, 92, 0.92);
   }
 </style>
+

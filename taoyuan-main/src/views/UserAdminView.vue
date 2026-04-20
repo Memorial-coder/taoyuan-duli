@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div class="min-h-screen px-1 py-4 md:px-2 md:py-5 xl:px-3 2xl:px-4" :class="{ 'pt-10': Capacitor.isNativePlatform() }">
     <div class="w-full space-y-4">
       <div class="game-panel space-y-4">
@@ -454,6 +454,7 @@
   const users = ref<UserAdminSummary[]>([])
   const totalUsers = ref(0)
   const loadingUsers = ref(false)
+  const usersRequestId = ref(0)
 
   const selectedUsername = ref('')
   const selectedUser = ref<UserAdminDetail | null>(null)
@@ -634,6 +635,7 @@
       if (activeRequestId !== gameplayLogRequestId.value || username !== selectedUsername.value) return
       gameplayLogs.value = result.logs
     } catch (error) {
+      if (activeRequestId !== gameplayLogRequestId.value || username !== selectedUsername.value) return
       gameplayLogs.value = []
       showFloat(handleAdminRequestError(error, '读取用户游戏日志失败'), 'danger')
     } finally {
@@ -674,10 +676,12 @@
   }
 
   const loadUsers = async (keepSelection = true) => {
+    const activeRequestId = ++usersRequestId.value
     loadingUsers.value = true
     tokenError.value = ''
     try {
       const result = await fetchAdminUsers(filters.value)
+      if (activeRequestId !== usersRequestId.value) return
       users.value = result.users
       totalUsers.value = result.total
       if (!keepSelection || !selectedUsername.value || !users.value.some(item => item.username === selectedUsername.value)) {
@@ -693,10 +697,13 @@
         }
       }
     } catch (error) {
+      if (activeRequestId !== usersRequestId.value) return
       tokenError.value = handleAdminRequestError(error, '获取用户列表失败')
       showFloat(tokenError.value, 'danger')
     } finally {
-      loadingUsers.value = false
+      if (activeRequestId === usersRequestId.value) {
+        loadingUsers.value = false
+      }
     }
   }
 
@@ -780,8 +787,10 @@
   }
 
   const viewSave = async (username: string) => {
+    const activeRequestId = ++detailRequestId.value
     try {
       const save = await fetchAdminUserSave(username)
+      if (activeRequestId !== detailRequestId.value) return
       if (selectedUser.value && selectedUser.value.username === username) {
         selectedUser.value = {
           ...selectedUser.value,
@@ -789,9 +798,11 @@
         }
       } else {
         await loadUserDetail(username)
+        if (activeRequestId !== detailRequestId.value || !selectedUser.value || selectedUser.value.username !== username) return
       }
       showFloat('存档信息已刷新', 'success')
     } catch (error) {
+      if (activeRequestId !== detailRequestId.value) return
       showFloat(handleAdminRequestError(error, '读取存档信息失败'), 'danger')
     }
   }
@@ -1379,3 +1390,4 @@
     background: rgba(184, 70, 70, 0.35);
   }
 </style>
+

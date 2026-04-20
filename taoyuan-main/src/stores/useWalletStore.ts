@@ -147,6 +147,7 @@ export const useWalletStore = defineStore('wallet', () => {
   const unlockedItems = ref<string[]>([])
   /** 当前选择的钱包流派 */
   const currentArchetypeId = ref<WalletArchetypeId | null>(null)
+  const unlockedNodeIdsByArchetype = ref<Partial<Record<WalletArchetypeId, string[]>>>({})
   /** 当前流派已解锁节点 */
   const unlockedNodeIds = ref<string[]>([])
   /** 统一资源券 / 凭证余额 */
@@ -218,6 +219,25 @@ export const useWalletStore = defineStore('wallet', () => {
   /** 检查是否已拥有某物品 */
   const has = (id: string): boolean => {
     return unlockedItems.value.includes(id)
+  }
+
+  const normalizeNodeIdList = (nodeIds: string[]): string[] => [...new Set(nodeIds.filter(nodeId => typeof nodeId === 'string'))]
+
+  const getSavedNodeIdsForArchetype = (archetypeId: WalletArchetypeId): string[] => {
+    return normalizeNodeIdList(unlockedNodeIdsByArchetype.value[archetypeId] ?? [])
+  }
+
+  const setSavedNodeIdsForArchetype = (archetypeId: WalletArchetypeId, nodeIds: string[]) => {
+    unlockedNodeIdsByArchetype.value = {
+      ...unlockedNodeIdsByArchetype.value,
+      [archetypeId]: normalizeNodeIdList(nodeIds)
+    }
+  }
+
+  const clearSavedNodeIdsForArchetype = (archetypeId: WalletArchetypeId) => {
+    const next = { ...unlockedNodeIdsByArchetype.value }
+    delete next[archetypeId]
+    unlockedNodeIdsByArchetype.value = next
   }
 
   /** 手动解锁 */
@@ -315,13 +335,19 @@ export const useWalletStore = defineStore('wallet', () => {
   const selectArchetype = (archetypeId: WalletArchetypeId): boolean => {
     if (!canUnlockArchetype(archetypeId)) return false
     if (currentArchetypeId.value !== archetypeId) {
+      if (currentArchetypeId.value) {
+        setSavedNodeIdsForArchetype(currentArchetypeId.value, unlockedNodeIds.value)
+      }
       currentArchetypeId.value = archetypeId
-      unlockedNodeIds.value = []
+      unlockedNodeIds.value = getSavedNodeIdsForArchetype(archetypeId)
     }
     return true
   }
 
   const resetArchetype = (): void => {
+    if (currentArchetypeId.value) {
+      clearSavedNodeIdsForArchetype(currentArchetypeId.value)
+    }
     currentArchetypeId.value = null
     unlockedNodeIds.value = []
   }
@@ -359,7 +385,10 @@ export const useWalletStore = defineStore('wallet', () => {
 
   const unlockNode = (nodeId: string): boolean => {
     if (!canUnlockNode(nodeId)) return false
-    unlockedNodeIds.value.push(nodeId)
+    unlockedNodeIds.value = [...unlockedNodeIds.value, nodeId]
+    if (currentArchetypeId.value) {
+      setSavedNodeIdsForArchetype(currentArchetypeId.value, unlockedNodeIds.value)
+    }
     return true
   }
 
@@ -538,6 +567,7 @@ export const useWalletStore = defineStore('wallet', () => {
       unlockedItems: unlockedItems.value,
       currentArchetypeId: currentArchetypeId.value,
       unlockedNodeIds: unlockedNodeIds.value,
+      unlockedNodeIdsByArchetype: unlockedNodeIdsByArchetype.value,
       rewardTickets: rewardTickets.value
     }
   }
@@ -545,6 +575,14 @@ export const useWalletStore = defineStore('wallet', () => {
   const deserialize = (data: ReturnType<typeof serialize> | undefined) => {
     unlockedItems.value = data?.unlockedItems ?? []
     currentArchetypeId.value = data?.currentArchetypeId ?? null
+    const rawNodeMap = data?.unlockedNodeIdsByArchetype
+    unlockedNodeIdsByArchetype.value = rawNodeMap && typeof rawNodeMap === 'object'
+      ? Object.fromEntries(
+          Object.entries(rawNodeMap)
+            .filter(([archetypeId]) => !!getWalletArchetypeById(archetypeId as WalletArchetypeId))
+            .map(([archetypeId, nodeIds]) => [archetypeId, normalizeNodeIdList(Array.isArray(nodeIds) ? nodeIds : [])])
+        ) as Partial<Record<WalletArchetypeId, string[]>>
+      : {}
     unlockedNodeIds.value = Array.isArray(data?.unlockedNodeIds) ? data!.unlockedNodeIds.filter(nodeId => typeof nodeId === 'string') : []
     rewardTickets.value = normalizeRewardTicketLedger(data?.rewardTickets)
 
@@ -555,7 +593,14 @@ export const useWalletStore = defineStore('wallet', () => {
 
     if (currentArchetype.value) {
       const validNodeIds = new Set(currentArchetype.value.nodes.map(node => node.id))
-      unlockedNodeIds.value = unlockedNodeIds.value.filter(nodeId => validNodeIds.has(nodeId))
+      const legacyNodeIds = unlockedNodeIds.value.filter(nodeId => validNodeIds.has(nodeId))
+      if (legacyNodeIds.length > 0 && getSavedNodeIdsForArchetype(currentArchetypeId.value!).length === 0) {
+        setSavedNodeIdsForArchetype(currentArchetypeId.value!, legacyNodeIds)
+      }
+      unlockedNodeIds.value = getSavedNodeIdsForArchetype(currentArchetypeId.value!).filter(nodeId => validNodeIds.has(nodeId))
+      setSavedNodeIdsForArchetype(currentArchetypeId.value!, unlockedNodeIds.value)
+    } else {
+      unlockedNodeIds.value = []
     }
 
     checkAndUnlock()
@@ -564,6 +609,7 @@ export const useWalletStore = defineStore('wallet', () => {
   const $reset = () => {
     unlockedItems.value = []
     currentArchetypeId.value = null
+    unlockedNodeIdsByArchetype.value = {}
     unlockedNodeIds.value = []
     rewardTickets.value = {}
   }

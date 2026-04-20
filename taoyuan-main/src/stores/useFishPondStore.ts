@@ -117,6 +117,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
 
   /** 已发现的品种ID集合（图鉴） */
   const discoveredBreeds = ref<Set<string>>(new Set())
+  const lastOrderSubmissionSnapshots = ref<PondFishRatingSnapshot[]>([])
 
   /** 从鱼塘取出后暂存的鱼个体信息，避免“取出→放回”反复重roll品种 */
   const returnedFishPool = ref<Record<string, Omit<PondFish, 'id'>[]>>({})
@@ -684,11 +685,16 @@ export const useFishPondStore = defineStore('fishPond', () => {
     generationMin?: number
     requireMature?: boolean
     requireHealthy?: boolean
-  }): boolean => {
+  }): PondFishRatingSnapshot[] | null => {
     const matches = getEligibleFishForOrder(options)
-    if (matches.length < options.quantity) return false
+    if (matches.length < options.quantity) {
+      lastOrderSubmissionSnapshots.value = []
+      return null
+    }
+    const selectedFish = matches.slice(0, options.quantity)
+    const submittedSnapshots = selectedFish.map(fish => buildPondFishRatingSnapshot(fish))
 
-    const removeIds = new Set(matches.slice(0, options.quantity).map(fish => fish.id))
+    const removeIds = new Set(selectedFish.map(fish => fish.id))
     pond.value.fish = pond.value.fish.filter(fish => !removeIds.has(fish.id))
 
     if (pond.value.breeding && (removeIds.has(pond.value.breeding.parentA) || removeIds.has(pond.value.breeding.parentB))) {
@@ -697,7 +703,8 @@ export const useFishPondStore = defineStore('fishPond', () => {
     pruneDisplayEntries()
     pruneContestRegistrations()
 
-    return true
+    lastOrderSubmissionSnapshots.value = submittedSnapshots
+    return submittedSnapshots
   }
 
   // === 喂食/清理/治疗 ===
@@ -1140,6 +1147,7 @@ export const useFishPondStore = defineStore('fishPond', () => {
     highTierFishRatings,
     maintenanceState,
     pondFishRatings,
+    lastOrderSubmissionSnapshots,
     pondEligibilitySnapshots,
     buildPond,
     upgradePond,

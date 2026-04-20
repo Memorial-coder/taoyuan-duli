@@ -97,6 +97,7 @@
                 :existing-slots="existingSlots"
                 :slot-menu-open="slotMenuOpen"
                 :is-native-platform="isNativePlatform"
+                :slot-read-blocked="slotReadBlocked"
                 @load-slot="handleLoadGame"
                 @toggle-slot-menu="toggleSlotMenu"
                 @export-slot="handleExportSlot"
@@ -155,6 +156,7 @@
             :existing-slots="existingSlots"
             :slot-menu-open="slotMenuOpen"
             :is-native-platform="isNativePlatform"
+            :slot-read-blocked="slotReadBlocked"
             @load-slot="handleLoadGame"
             @toggle-slot-menu="toggleSlotMenu"
             @export-slot="handleExportSlot"
@@ -538,6 +540,7 @@
   let desktopMenuMediaQuery: MediaQueryList | null = null
 
   const existingSlots = computed(() => slots.value.filter(slot => slot.exists))
+  const slotReadBlocked = computed(() => slots.value.some(slot => slot.readBlocked))
   const storageModeText = computed(() => (saveStore.storageMode === 'local' ? '本地存储（当前设备）' : '服务端持久化（当前账号）'))
   const storageModeDesc = computed(() =>
     saveStore.storageMode === 'local'

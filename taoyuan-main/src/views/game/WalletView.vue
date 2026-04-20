@@ -713,16 +713,23 @@
   })
   const unlockedArchetypeNodeCount = computed(() => walletStore.currentArchetypeNodes.filter(node => walletStore.isNodeUnlocked(node.id)).length)
   const sanitizedExchangeMoney = computed(() => Math.max(0, Math.floor(Number(exchangeMoney.value) || 0)))
+  const runtimeServerSlot = computed(() =>
+    saveStore.runtimeSessionMode === 'server' && saveStore.runtimeSessionSlot >= 0 ? saveStore.runtimeSessionSlot : null
+  )
+  const runtimeServerSessionHasPendingCopy = computed(() =>
+    runtimeServerSlot.value !== null ? saveStore.hasPendingServerSave(runtimeServerSlot.value) : false
+  )
   const hasServerExchangeSession = computed(() =>
     exchangeContext.value.loggedIn &&
     saveStore.storageMode === 'server' &&
-    saveStore.activeSlotMode === 'server' &&
-    saveStore.activeSlot >= 0
+    runtimeServerSlot.value !== null &&
+    !runtimeServerSessionHasPendingCopy.value
   )
   const exchangeSessionHint = computed(() => {
     if (!exchangeContext.value.loggedIn) return '请先登录账号后再进行额度兑换。'
     if (saveStore.storageMode !== 'server') return '请先切换到服务端持久化模式，并载入目标存档后再兑换。'
-    if (saveStore.activeSlotMode !== 'server' || saveStore.activeSlot < 0) return '请先载入一个服务端存档，再进行额度兑换。'
+    if (runtimeServerSlot.value === null) return '请先载入一个服务端存档，再进行额度兑换。'
+    if (runtimeServerSessionHasPendingCopy.value) return '当前服务端会话还有待同步的本地副本，请等同步完成后再进行额度兑换。'
     return ''
   })
   const quotaDisplay = computed(() => exchangeContext.value.quota ?? 0)
@@ -787,6 +794,30 @@
 
   const refreshExchangeContext = async () => {
     exchangeContext.value = await fetchTaoyuanExchangeContext()
+  }
+
+  const applyExchangeResultContext = (result: {
+    exchangeRateDollarPerMoney: number
+    exchangeRateQuotaPerMoney: number
+    dailyImportLimitMoney: number
+    dailyExportLimitMoney: number
+    todayImportedMoney: number
+    todayExportedMoney: number
+    quota: number | null
+    dollars: number | null
+  }) => {
+    exchangeContext.value = {
+      ...exchangeContext.value,
+      exchangeRateDollarPerMoney: result.exchangeRateDollarPerMoney,
+      exchangeRateQuotaPerMoney: result.exchangeRateQuotaPerMoney,
+      dailyImportLimitMoney: result.dailyImportLimitMoney,
+      dailyExportLimitMoney: result.dailyExportLimitMoney,
+      todayImportedMoney: result.todayImportedMoney,
+      todayExportedMoney: result.todayExportedMoney,
+      quota: result.quota ?? exchangeContext.value.quota,
+      dollars: result.dollars ?? exchangeContext.value.dollars,
+      loggedIn: true,
+    }
   }
 
   const openResetArchetypeConfirm = () => {
@@ -860,16 +891,40 @@
     addLog(`【票券兑换】${result.message}`)
   }
 
-  const persistExchangeResult = async () => {
-    if (saveStore.activeSlot < 0) {
-      addLog('兑换结果已更新到当前进度，请记得手动保存存档。')
-      return
+  const persistExchangeResult = async (rollbackMoney: number) => {
+    if (runtimeServerSlot.value === null || runtimeServerSessionHasPendingCopy.value) {
+      playerStore.setMoney(rollbackMoney)
+      try {
+        await refreshExchangeContext()
+      } catch {
+        void 0
+      }
+      showFloat('额度已变更，但当前没有可写回的服务端存档，已回滚本地铜钱。', 'danger')
+      addLog('额度兑换成功，但当前存档不可写回；已回滚本地铜钱。')
+      return false
     }
     const ok = await saveStore.autoSave()
     if (!ok) {
+      playerStore.setMoney(rollbackMoney)
+      try {
+        await refreshExchangeContext()
+      } catch {
+        void 0
+      }
+      showFloat('额度已变更，但当前存档写回失败，已回滚本地铜钱并刷新额度。', 'danger')
+      addLog('额度兑换成功，但存档写回失败；已回滚当前会话的铜钱并刷新额度。')
+      return false
+    }
+    return true
+    /* if (saveStore.activeSlot < 0) {
+      addLog('兑换结果已更新到当前进度，请记得手动保存存档。')
+      return
+    } */
+    /* const ok = await saveStore.autoSave()
+    if (!ok) {
       showFloat('兑换成功，但自动存档失败', 'danger')
       addLog('额度兑换成功，但自动存档失败。')
-    }
+    } */
   }
 
   const handleImport = async () => {
@@ -880,21 +935,12 @@
     if (!canImport.value) return
     importing.value = true
     try {
+      const previousMoney = playerStore.money
       const result = await importQuotaToTaoyuan(sanitizedExchangeMoney.value)
-      playerStore.setMoney(playerStore.money + (result.moneyReceived ?? 0))
-      exchangeContext.value = {
-        ...exchangeContext.value,
-        exchangeRateDollarPerMoney: result.exchangeRateDollarPerMoney,
-        exchangeRateQuotaPerMoney: result.exchangeRateQuotaPerMoney,
-        dailyImportLimitMoney: result.dailyImportLimitMoney,
-        dailyExportLimitMoney: result.dailyExportLimitMoney,
-        todayImportedMoney: result.todayImportedMoney,
-        todayExportedMoney: result.todayExportedMoney,
-        quota: result.quota ?? exchangeContext.value.quota,
-        dollars: result.dollars ?? exchangeContext.value.dollars,
-        loggedIn: true,
-      }
-      await persistExchangeResult()
+      playerStore.setMoney(previousMoney + (result.moneyReceived ?? 0))
+      applyExchangeResultContext(result)
+      const persisted = await persistExchangeResult(previousMoney)
+      if (!persisted) return
       showFloat(`+${result.moneyReceived ?? 0}文`, 'accent')
       addLog(`从账号额度导入了${result.moneyReceived ?? 0}文。`)
     } catch (error) {
@@ -912,21 +958,12 @@
     if (!canExport.value) return
     exporting.value = true
     try {
+      const previousMoney = playerStore.money
       const result = await exportTaoyuanToQuota(sanitizedExchangeMoney.value)
-      playerStore.setMoney(playerStore.money - (result.moneySpent ?? 0))
-      exchangeContext.value = {
-        ...exchangeContext.value,
-        exchangeRateDollarPerMoney: result.exchangeRateDollarPerMoney,
-        exchangeRateQuotaPerMoney: result.exchangeRateQuotaPerMoney,
-        dailyImportLimitMoney: result.dailyImportLimitMoney,
-        dailyExportLimitMoney: result.dailyExportLimitMoney,
-        todayImportedMoney: result.todayImportedMoney,
-        todayExportedMoney: result.todayExportedMoney,
-        quota: result.quota ?? exchangeContext.value.quota,
-        dollars: result.dollars ?? exchangeContext.value.dollars,
-        loggedIn: true,
-      }
-      await persistExchangeResult()
+      playerStore.setMoney(previousMoney - (result.moneySpent ?? 0))
+      applyExchangeResultContext(result)
+      const persisted = await persistExchangeResult(previousMoney)
+      if (!persisted) return
       showFloat(`+${result.quotaGained ?? 0}quota`, 'success')
       addLog(`导出了${result.moneySpent ?? 0}文，获得 ${result.quotaGained ?? 0} quota。`)
     } catch (error) {

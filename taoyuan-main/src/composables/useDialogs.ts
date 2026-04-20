@@ -27,6 +27,8 @@ type FestivalType =
   | 'tea_contest'
   | 'kite_flying'
 const currentFestival = ref<FestivalType | null>(null)
+const currentFestivalSessionKey = ref<string | null>(null)
+const claimedFestivalRewardKeys = ref<string[]>([])
 const pendingPerk = ref<{ skillType: SkillType; level: 5 | 10 | 15 | 20 } | null>(null)
 
 /** 宠物领养弹窗 */
@@ -130,20 +132,26 @@ export const closeEvent = () => {
 
 /** 显示节日庆典界面并播放小游戏专属 BGM */
 export const showFestival = (type: FestivalType) => {
+  const gameStore = useGameStore()
   currentFestival.value = type
+  currentFestivalSessionKey.value = `${gameStore.year}-${gameStore.season}-${gameStore.day}:${type}`
   const { startMinigameBgm } = useAudio()
   startMinigameBgm(type)
 }
 
 /** 关闭节日庆典并发放奖品 */
 export const closeFestival = (prize: number) => {
-  if (prize > 0) {
+  const rewardKey = currentFestivalSessionKey.value
+  if (!currentFestival.value || !rewardKey) return
+  if (prize > 0 && !claimedFestivalRewardKeys.value.includes(rewardKey)) {
     const playerStore = usePlayerStore()
     playerStore.earnMoney(prize)
+    claimedFestivalRewardKeys.value = [...claimedFestivalRewardKeys.value, rewardKey]
     showFloat(`+${prize}文`, 'accent')
     addLog(`节日奖金：${prize}文！`)
   }
   currentFestival.value = null
+  currentFestivalSessionKey.value = null
   // 如果还有事件叙述在显示，切换到季节节日 BGM；否则直接恢复季节 BGM
   if (currentEvent.value) {
     const { startFestivalBgm } = useAudio()

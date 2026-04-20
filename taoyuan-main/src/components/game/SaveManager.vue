@@ -34,6 +34,12 @@
       >
         当前账号有 {{ saveStore.pendingServerSlots.length }} 个待同步服务端存档，服务恢复后会自动补传。
       </div>
+      <div
+        v-if="slotReadBlocked"
+        class="mb-3 rounded-xs border border-danger/30 bg-danger/10 px-3 py-2 text-left text-[10px] leading-5 text-danger"
+      >
+        服务端槽位暂时不可读取，当前无法确认云端是否已有真实存档。为避免误覆盖，这些槽位不会再显示成“空槽位”。
+      </div>
       <div class="mb-3">
         <Button
           class="text-center justify-center text-sm w-full"
@@ -123,6 +129,11 @@
               </div>
             </div>
           </div>
+          <div v-else-if="info.readBlocked" class="flex space-x-1 w-full">
+            <div class="flex-1 rounded-xs border border-danger/30 bg-danger/10 px-3 py-2 text-xs text-danger">
+              存档 {{ info.slot + 1 }} — 状态未知，等待服务端恢复后再确认。
+            </div>
+          </div>
           <div v-else class="flex space-x-1 w-full">
             <div class="text-xs text-muted border border-accent/10 rounded-xs px-3 py-2 flex-1">存档 {{ info.slot + 1 }} — 空</div>
             <Button
@@ -167,7 +178,7 @@
 </template>
 
 <script setup lang="ts">
-  import { onMounted, ref, watch } from 'vue'
+  import { computed, onMounted, ref, watch } from 'vue'
   import { X, FolderOpen, Settings, Download, Trash2, Upload, CloudUpload, CloudDownload, Save } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
@@ -192,6 +203,7 @@
   const uploading = ref(false)
   const downloading = ref(false)
   const savingCurrent = ref(false)
+  const slotReadBlocked = computed(() => slots.value.some(slot => slot.readBlocked))
 
   const refreshSlots = async () => {
     slots.value = await saveStore.getSlots()
@@ -270,6 +282,12 @@
     const reader = new FileReader()
     reader.onload = () => {
       const content = reader.result as string
+      const slotAllocationBlockReason = saveStore.getSlotAllocationBlockReason()
+      if (slotAllocationBlockReason) {
+        showFloat(slotAllocationBlockReason, 'danger')
+        input.value = ''
+        return
+      }
       const emptySlot = slots.value.find(s => !s.exists)
       if (!emptySlot) {
         showFloat('存档槽位已满，请先删除一个旧存档。')

@@ -156,10 +156,23 @@ export const useFishingStore = defineStore('fishing', () => {
     const rodTier = inventoryStore.getTool('fishingRod')?.tier ?? 'basic'
     if (rodTier === 'basic') return { success: false, message: '需要铁制或更好的鱼竿才能装备浮漂。' }
     if (!inventoryStore.removeItem(type, 1)) return { success: false, message: '背包中没有该浮漂。' }
-    if (equippedTackle.value) unequipTackle()
+    if (equippedTackle.value) {
+      const unequipMessage = unequipTackle()
+      if (equippedTackle.value) {
+        inventoryStore.addItemExact(type, 1)
+        return { success: false, message: unequipMessage.replace('卸下', '更换') }
+      }
+    }
     equippedTackle.value = type
     tackleDurability.value = def.maxDurability
     return { success: true, message: `装备了${def.name}。(耐久: ${def.maxDurability})` }
+  }
+
+  const getFishPoolForBait = (baitDef: BaitDef | null): FishDef[] => {
+    const loc = fishingLocation.value
+    return baitDef?.ignoresSeason
+      ? FISH.filter(f => (f.location ?? 'creek') === loc && (f.weather.includes('any') || f.weather.includes(gameStore.weather as any)))
+      : availableFish.value
   }
 
   /** 卸下浮漂 */
@@ -205,43 +218,57 @@ export const useFishingStore = defineStore('fishing', () => {
     }
 
     const lureDietyActive = _fishingSkill.perk20 === 'lure_deity' || _fishingSkill.perk15 === 'bait_master'
-    let baitDef = equippedBait.value ? getBaitById(equippedBait.value) : null
-    if (equippedBait.value && baitDef && !lureDietyActive) {
-      const baitId = equippedBait.value
-      if (!inventoryStore.removeItem(baitId, 1)) {
+    const equippedBaitId = equippedBait.value
+    let baitDef: BaitDef | null = equippedBaitId ? (getBaitById(equippedBaitId) ?? null) : null
+    const previewFishPool = getFishPoolForBait(baitDef)
+
+    if (previewFishPool.length === 0) {
+      playerStore.restoreStamina(staminaCost)
+      return { success: false, message: '当前季节和天气没有可钓的鱼。' }
+    }
+
+    let consumedBaitId: BaitType | null = null
+    let shouldRestoreEquippedBait = false
+    if (equippedBaitId && baitDef && !lureDietyActive) {
+      if (!inventoryStore.removeItem(equippedBaitId, 1)) {
         equippedBait.value = null
         baitDef = null
-      } else if (inventoryStore.getItemCount(baitId) <= 0) {
-        equippedBait.value = null
+      } else {
+        consumedBaitId = equippedBaitId
+        if (inventoryStore.getItemCount(equippedBaitId) <= 0) {
+          equippedBait.value = null
+          shouldRestoreEquippedBait = true
+        }
       }
     }
 
     // 确定鱼池：magic_bait 忽略季节但仍限地点
-    const loc = fishingLocation.value
-    const fishPool = baitDef?.ignoresSeason
-      ? FISH.filter(f => (f.location ?? 'creek') === loc && (f.weather.includes('any') || f.weather.includes(gameStore.weather as any)))
-      : availableFish.value
+    const fishPool = getFishPoolForBait(baitDef)
 
     if (fishPool.length === 0) {
+      if (consumedBaitId) {
+        inventoryStore.addItemExact(consumedBaitId, 1)
+        if (shouldRestoreEquippedBait) {
+          equippedBait.value = consumedBaitId
+        }
+      }
       playerStore.restoreStamina(staminaCost)
       return { success: false, message: '当前季节和天气没有可钓的鱼。' }
     }
 
     activeBaitDef.value = baitDef ?? null
 
-    // 浮漂耐久-1
-    activeTackleDef.value = tackleDef ?? null
-    if (equippedTackle.value && tackleDef) {
-      tackleDurability.value--
-      if (tackleDurability.value <= 0) {
-        equippedTackle.value = null
-      }
-    }
-
     // 垃圾判定：基础12%概率钓到垃圾，钓鱼等级每级-1%，使用鱼饵减半
     const junkBase = 0.12 - skillStore.fishingLevel * 0.01
     const junkChance = Math.max(0, baitDef ? junkBase * 0.5 : junkBase)
     if (Math.random() < junkChance) {
+      activeTackleDef.value = tackleDef ?? null
+      if (equippedTackle.value && tackleDef) {
+        tackleDurability.value--
+        if (tackleDurability.value <= 0) {
+          equippedTackle.value = null
+        }
+      }
       const junkId = FISHING_JUNK[Math.floor(Math.random() * FISHING_JUNK.length)]!
       const junkName = getItemById(junkId)?.name ?? junkId
       const junkAdded = inventoryStore.addItemExact(junkId)
@@ -255,6 +282,24 @@ export const useFishingStore = defineStore('fishing', () => {
 
     // 随机选一条鱼
     const fish = pickRandomFish(fishPool)
+    if (!fish) {
+      if (consumedBaitId) {
+        inventoryStore.addItemExact(consumedBaitId, 1)
+        if (shouldRestoreEquippedBait) {
+          equippedBait.value = consumedBaitId
+        }
+      }
+      activeBaitDef.value = null
+      playerStore.restoreStamina(staminaCost)
+      return { success: false, message: '当前钓具和等级还钓不起这里的鱼。' }
+    }
+    activeTackleDef.value = tackleDef ?? null
+    if (equippedTackle.value && tackleDef) {
+      tackleDurability.value--
+      if (tackleDurability.value <= 0) {
+        equippedTackle.value = null
+      }
+    }
     currentFish.value = fish
     lastTreasure.value = null
     lastPerfect.value = false
@@ -338,7 +383,7 @@ export const useFishingStore = defineStore('fishing', () => {
   }
 
   /** 根据难度、钓鱼等级和鱼竿等级加权随机选鱼 */
-  const pickRandomFish = (pool?: FishDef[]): FishDef => {
+  const pickRandomFish = (pool?: FishDef[]): FishDef | null => {
     const fishPool = pool ?? availableFish.value
     const cookingStore = useCookingStore()
     const fishingBuff =
@@ -375,12 +420,13 @@ export const useFishingStore = defineStore('fishing', () => {
       return 0.5
     })
     const total = weights.reduce((a, b) => a + b, 0)
+    if (total <= 0) return null
     let roll = Math.random() * total
     for (let i = 0; i < fishPool.length; i++) {
       roll -= weights[i]!
       if (roll <= 0) return fishPool[i]!
     }
-    return fishPool[0]!
+    return null
   }
 
   /** 完成钓鱼（小游戏结束后调用） */
@@ -622,11 +668,12 @@ export const useFishingStore = defineStore('fishing', () => {
   })
 
   /** 每日收获蟹笼 (由 useEndDay 调用) */
-  const collectCrabPots = (): { itemId: string; name: string }[] => {
+  const collectCrabPots = (): { collected: { itemId: string; name: string }[]; blocked: { itemId: string; name: string }[] } => {
     const _crabFishSkill = skillStore.getSkill('fishing')
     const isLuremaster = _crabFishSkill.perk10 === 'luremaster' || _crabFishSkill.perk15 === 'bait_master' || _crabFishSkill.perk20 === 'lure_deity'
     const isMariner = _crabFishSkill.perk10 === 'mariner' || _crabFishSkill.perk15 === 'sea_captain' || _crabFishSkill.perk20 === 'sea_sovereign'
     const collected: { itemId: string; name: string }[] = []
+    const blocked: { itemId: string; name: string }[] = []
 
     for (const pot of crabPots.value) {
       if (!pot.hasBait && !isLuremaster) continue
@@ -647,14 +694,18 @@ export const useFishingStore = defineStore('fishing', () => {
 
       const totalWeight = pool.reduce((a, b) => a + b.weight, 0)
       let roll = Math.random() * totalWeight
+      let blockedThisPot = false
       for (const loot of pool) {
         roll -= loot.weight
         if (roll <= 0) {
+          const itemDef = getItemById(loot.itemId)
+          const itemName = itemDef?.name ?? loot.itemId
           if (!inventoryStore.addItemExact(loot.itemId, 1)) {
+            blocked.push({ itemId: loot.itemId, name: itemName })
+            blockedThisPot = true
             break
           }
-          const itemDef = getItemById(loot.itemId)
-          collected.push({ itemId: loot.itemId, name: itemDef?.name ?? loot.itemId })
+          collected.push({ itemId: loot.itemId, name: itemName })
           // 水产也算钓鱼经验
           if (itemDef) {
             skillStore.addExp('fishing', Math.floor(itemDef.sellPrice * 0.5))
@@ -666,10 +717,12 @@ export const useFishingStore = defineStore('fishing', () => {
       }
 
       // 消耗饵料
-      pot.hasBait = false
+      if (!blockedThisPot) {
+        pot.hasBait = false
+      }
     }
 
-    return collected
+    return { collected, blocked }
   }
 
   const serialize = () => {

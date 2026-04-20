@@ -587,9 +587,10 @@
         <div class="game-panel max-w-xs w-full text-center">
           <p class="text-sm text-accent mb-3">确定取出{{ getItemName(removeAgingConfirmSlot.itemId) }}吗？</p>
           <p class="text-xs text-muted mb-4">已陈酿{{ removeAgingConfirmSlot.daysAging }}天，满14天可提升品质。</p>
+          <p v-if="!canRemoveAgingConfirmSlot" class="text-xs text-danger mb-4">背包空间不足，无法取出，请先腾出空间。</p>
           <div class="flex space-x-3 justify-center">
             <Button @click="removeAgingConfirmIdx = null">取消</Button>
-            <Button @click="handleRemoveAging(removeAgingConfirmIdx!)">确认取出</Button>
+            <Button :disabled="!canRemoveAgingConfirmSlot" @click="handleRemoveAging(removeAgingConfirmIdx!)">确认取出</Button>
           </div>
         </div>
       </div>
@@ -635,6 +636,11 @@
   const removeAgingConfirmIdx = ref<number | null>(null)
   const removeAgingConfirmSlot = computed(() =>
     removeAgingConfirmIdx.value !== null ? (homeStore.cellarSlots[removeAgingConfirmIdx.value] ?? null) : null
+  )
+  const canRemoveAgingConfirmSlot = computed(() =>
+    removeAgingConfirmSlot.value
+      ? inventoryStore.canAddItem(removeAgingConfirmSlot.value.itemId, 1, removeAgingConfirmSlot.value.quality)
+      : false
   )
 
   const hireableNpcs = computed(() => npcStore.getHireableNpcs())
@@ -929,12 +935,20 @@
   }
 
   const handleRemoveAging = (index: number) => {
+    const slot = removeAgingConfirmSlot.value
     const result = homeStore.removeAging(index)
-    if (result) {
-      inventoryStore.addItem(result.itemId, 1, result.quality)
+    if (result.success) {
       const name = getItemName(result.itemId)
       addLog(`从酒窖取出了${name}。`)
+      removeAgingConfirmIdx.value = null
+      return
     }
+    if (result.reason === 'inventory_full' && slot) {
+      addLog(`背包空间不足，无法取出${getItemName(slot.itemId)}。`)
+      return
+    }
+
+    addLog('该酒窖物品已无法取出。')
     removeAgingConfirmIdx.value = null
   }
 </script>

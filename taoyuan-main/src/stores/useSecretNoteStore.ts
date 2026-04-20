@@ -10,6 +10,7 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
   const collectedNotes = ref<number[]>([])
   /** 已使用的笔记ID列表（宝藏类） */
   const usedNotes = ref<number[]>([])
+  const validNoteIds = new Set(SECRET_NOTES.map(note => note.id))
 
   const totalNotes = computed(() => SECRET_NOTES.length)
   const collectedCount = computed(() => collectedNotes.value.length)
@@ -81,8 +82,20 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
   })
 
   const deserialize = (data: any) => {
-    collectedNotes.value = data.collectedNotes ?? []
-    usedNotes.value = data.usedNotes ?? []
+    const normalizeNoteIds = (value: unknown): number[] => {
+      if (!Array.isArray(value)) return []
+
+      const uniqueIds = new Set<number>()
+      for (const noteId of value) {
+        if (typeof noteId !== 'number' || !Number.isInteger(noteId) || !validNoteIds.has(noteId)) continue
+        uniqueIds.add(noteId)
+      }
+      return [...uniqueIds]
+    }
+
+    collectedNotes.value = normalizeNoteIds(data?.collectedNotes)
+    const collectedSet = new Set(collectedNotes.value)
+    usedNotes.value = normalizeNoteIds(data?.usedNotes).filter(noteId => collectedSet.has(noteId))
   }
 
   return {
