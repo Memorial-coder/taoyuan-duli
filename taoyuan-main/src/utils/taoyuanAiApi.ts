@@ -4,6 +4,8 @@ import type {
   AiNounLexiconStatus,
   AiAssistantPublicConfig,
   AiKnowledgeEntry,
+  OfficialManagedConfigKey,
+  OfficialManagedConfigStatus,
   AiSourceIndexStatus,
   AiSourceDraftResult,
   AiSourceSnippet,
@@ -50,6 +52,28 @@ const mapPublicConfig = (data: any): AiAssistantPublicConfig => ({
   providerConfigured: data?.providerConfigured === true || data?.provider_configured === true,
 })
 
+const mapOfficialManagedStatus = (data: any): OfficialManagedConfigStatus | undefined => {
+  const source = String(data?.source || '').trim()
+  if (!['official_live', 'official_cached', 'local_default'].includes(source)) return undefined
+  return {
+    enabled: data?.enabled === true,
+    configured: data?.configured === true,
+    source: source as OfficialManagedConfigStatus['source'],
+    profileId: String(data?.profileId || data?.profile_id || ''),
+    version: String(data?.version || ''),
+    issuedAt: Number(data?.issuedAt || data?.issued_at) || 0,
+    expiresAt: Number(data?.expiresAt || data?.expires_at) || 0,
+    lastFetchedAt: Number(data?.lastFetchedAt || data?.last_fetched_at) || 0,
+    lastVerifiedAt: Number(data?.lastVerifiedAt || data?.last_verified_at) || 0,
+    lastError: String(data?.lastError || data?.last_error || ''),
+    managedKeys: Array.isArray(data?.managedKeys)
+      ? data.managedKeys.map((item: unknown) => String(item) as OfficialManagedConfigKey)
+      : Array.isArray(data?.managed_keys)
+        ? data.managed_keys.map((item: unknown) => String(item) as OfficialManagedConfigKey)
+        : [],
+  }
+}
+
 const mapAdminConfig = (data: any): AiAssistantAdminConfig => ({
   ...mapPublicConfig(data),
   sourceReadEnabled: data?.sourceReadEnabled === true || data?.source_read_enabled === true,
@@ -79,6 +103,12 @@ const mapAdminConfig = (data: any): AiAssistantAdminConfig => ({
   temperature: Number.isFinite(Number(data?.temperature)) ? Number(data?.temperature) : 0.2,
   systemPrompt: String(data?.systemPrompt || data?.system_prompt || ''),
   blockedTopics: String(data?.blockedTopics || data?.blocked_topics || ''),
+  officialManagedStatus: mapOfficialManagedStatus(data?.officialManagedStatus || data?.official_managed_status),
+  readonlyManagedFields: Array.isArray(data?.readonlyManagedFields)
+    ? data.readonlyManagedFields.map((item: unknown) => String(item) as OfficialManagedConfigKey)
+    : Array.isArray(data?.readonly_managed_fields)
+      ? data.readonly_managed_fields.map((item: unknown) => String(item) as OfficialManagedConfigKey)
+      : [],
 })
 
 const mapKnowledgeEntry = (data: any): AiKnowledgeEntry => ({
@@ -133,7 +163,12 @@ const mapNounLexiconStatus = (data: any): AiNounLexiconStatus => ({
 })
 
 export const fetchAiAssistantConfig = async (): Promise<AiAssistantPublicConfig> => {
-  const res = await fetch('/api/taoyuan/ai/config', { credentials: 'include' })
+  let res: Response
+  try {
+    res = await fetch('/api/taoyuan/ai/config', { credentials: 'include' })
+  } catch {
+    throw new Error('AI 助手连接失败，请检查网络后再试')
+  }
   const data = await parseJsonSafe(res)
   if (!res.ok || !data?.ok || !data?.config) {
     throw new Error(data?.msg || '获取 AI 助手配置失败')
@@ -146,18 +181,23 @@ export const askAiAssistant = async (payload: {
   routeName?: string
   contextLabel?: string
 }): Promise<AiAssistantAskResult> => {
-  const res = await fetch('/api/taoyuan/ai/ask', {
-    method: 'POST',
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      question: payload.question,
-      route_name: payload.routeName,
-      context_label: payload.contextLabel,
-    }),
-  })
+  let res: Response
+  try {
+    res = await fetch('/api/taoyuan/ai/ask', {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        question: payload.question,
+        route_name: payload.routeName,
+        context_label: payload.contextLabel,
+      }),
+    })
+  } catch {
+    throw new Error('AI 助手连接失败，请检查网络后再试')
+  }
   const data = await parseJsonSafe(res)
   if (!res.ok || !data?.ok) {
     throw new Error(data?.msg || 'AI 助手暂时不可用')

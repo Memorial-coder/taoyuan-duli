@@ -15,6 +15,40 @@ const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
 const QUALITY_MULTIPLIER: Record<Quality, number> = { normal: 1, fine: 1.25, excellent: 1.5, supreme: 2 }
 const QUALITY_LABEL: Record<Quality, string> = { normal: '', fine: '优良', excellent: '精品', supreme: '极品' }
 
+const VALID_BUFF_TYPES = new Set<NonNullable<RecipeDef['effect']['buff']>['type']>([
+  'fishing',
+  'mining',
+  'giftBonus',
+  'speed',
+  'defense',
+  'luck',
+  'farming',
+  'stamina',
+  'all_skills'
+])
+
+const normalizeActiveBuff = (value: unknown): RecipeDef['effect']['buff'] | null => {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Partial<NonNullable<RecipeDef['effect']['buff']>>
+  if (!raw.type || !VALID_BUFF_TYPES.has(raw.type)) return null
+  const numericValue = Number(raw.value)
+  if (!Number.isFinite(numericValue)) return null
+  return {
+    type: raw.type,
+    value: numericValue,
+    description: typeof raw.description === 'string' ? raw.description : ''
+  }
+}
+
+const getBuffDescription = (buff: RecipeDef['effect']['buff'] | null | undefined) => buff?.description ?? ''
+const isSkillBonusBuff = (buff: RecipeDef['effect']['buff'] | null | undefined) => /技能\+/.test(getBuffDescription(buff))
+const isStaminaReductionBuff = (buff: RecipeDef['effect']['buff'] | null | undefined) => getBuffDescription(buff).includes('体力消耗-')
+const isDefenseReductionBuff = (buff: RecipeDef['effect']['buff'] | null | undefined) => getBuffDescription(buff).includes('受到伤害-')
+const isDefenseFlatBuff = (buff: RecipeDef['effect']['buff'] | null | undefined) => getBuffDescription(buff).includes('防御+')
+const isInstantStaminaRestoreBuff = (buff: RecipeDef['effect']['buff'] | null | undefined) => getBuffDescription(buff).includes('体力全恢复')
+const getTemporaryMaxStaminaBuffAmount = (buff: RecipeDef['effect']['buff'] | null | undefined) =>
+  buff?.type === 'stamina' && getBuffDescription(buff).includes('体力上限+') ? Math.max(0, Math.floor(buff.value)) : 0
+
 export const useCookingStore = defineStore('cooking', () => {
   const inventoryStore = useInventoryStore()
   const playerStore = usePlayerStore()
@@ -42,6 +76,32 @@ export const useCookingStore = defineStore('cooking', () => {
 
   /** 当天生效的食物增益 */
   const activeBuff = ref<RecipeDef['effect']['buff'] | null>(null)
+
+  const syncTemporaryMaxStaminaBuff = (buff: RecipeDef['effect']['buff'] | null | undefined = activeBuff.value) => {
+    playerStore.setTemporaryFoodMaxStaminaBonus(getTemporaryMaxStaminaBuffAmount(buff))
+  }
+
+  const getActiveFarmingSkillBonus = () => (activeBuff.value?.type === 'farming' && isSkillBonusBuff(activeBuff.value) ? activeBuff.value.value : 0)
+  const getActiveFishingSkillBonus = () => (activeBuff.value?.type === 'fishing' && isSkillBonusBuff(activeBuff.value) ? activeBuff.value.value : 0)
+  const getActiveMiningSkillBonus = () => (activeBuff.value?.type === 'mining' && isSkillBonusBuff(activeBuff.value) ? activeBuff.value.value : 0)
+  const getActiveFarmingStaminaReduction = () =>
+    activeBuff.value?.type === 'farming'
+      ? isStaminaReductionBuff(activeBuff.value)
+        ? activeBuff.value.value / 100
+        : isSkillBonusBuff(activeBuff.value)
+          ? activeBuff.value.value * 0.01
+          : 0
+      : 0
+  const getActiveMiningStaminaReduction = () =>
+    activeBuff.value?.type === 'mining'
+      ? isStaminaReductionBuff(activeBuff.value)
+        ? activeBuff.value.value / 100
+        : isSkillBonusBuff(activeBuff.value)
+          ? activeBuff.value.value * 0.01
+          : 0
+      : 0
+  const getActiveDefenseReduction = () => (activeBuff.value?.type === 'defense' && isDefenseReductionBuff(activeBuff.value) ? activeBuff.value.value / 100 : 0)
+  const getActiveDefenseFlatBonus = () => (activeBuff.value?.type === 'defense' && isDefenseFlatBuff(activeBuff.value) ? activeBuff.value.value : 0)
 
   /** 已解锁的食谱定义 */
   const recipes = computed(() => unlockedRecipes.value.map(id => getRecipeById(id)).filter((r): r is RecipeDef => r !== undefined))
@@ -174,13 +234,26 @@ export const useCookingStore = defineStore('cooking', () => {
     }
     msg += '。'
 
+    if (recipe.effect.buff?.type === 'stamina') {
+      const normalizedBuff = { ...recipe.effect.buff }
+      msg += ` ${recipe.effect.buff.description}`
+      syncTemporaryMaxStaminaBuff(null)
+      if (isInstantStaminaRestoreBuff(normalizedBuff)) {
+        playerStore.restoreStamina(playerStore.maxStamina)
+        activeBuff.value = null
+      } else {
+        activeBuff.value = normalizedBuff
+        syncTemporaryMaxStaminaBuff(activeBuff.value)
+      }
+      return { success: true, message: msg }
+    }
+
     if (recipe.effect.buff) {
+      activeBuff.value = null
+      syncTemporaryMaxStaminaBuff(null)
       activeBuff.value = { ...recipe.effect.buff }
       msg += ` ${recipe.effect.buff.description}`
       // 「体力全恢复」类buff：立即将体力回满
-      if (recipe.effect.buff.type === 'stamina') {
-        playerStore.restoreStamina(playerStore.maxStamina)
-      }
     }
 
     return { success: true, message: msg }
@@ -199,6 +272,7 @@ export const useCookingStore = defineStore('cooking', () => {
   const dailyReset = () => {
     const foragingSkill = skillStore.getSkill('foraging')
     if (foragingSkill.perk20 !== 'philosopher') {
+      syncTemporaryMaxStaminaBuff(null)
       activeBuff.value = null
     }
   }
@@ -208,13 +282,22 @@ export const useCookingStore = defineStore('cooking', () => {
   }
 
   const deserialize = (data: ReturnType<typeof serialize>) => {
-    unlockedRecipes.value = data.unlockedRecipes
-    activeBuff.value = data.activeBuff
+    unlockedRecipes.value = Array.isArray(data?.unlockedRecipes) ? data.unlockedRecipes : unlockedRecipes.value
+    const nextBuff = normalizeActiveBuff(data?.activeBuff)
+    activeBuff.value = nextBuff
+    syncTemporaryMaxStaminaBuff(activeBuff.value)
   }
 
   return {
     unlockedRecipes,
     activeBuff,
+    getActiveFarmingSkillBonus,
+    getActiveFishingSkillBonus,
+    getActiveMiningSkillBonus,
+    getActiveFarmingStaminaReduction,
+    getActiveMiningStaminaReduction,
+    getActiveDefenseReduction,
+    getActiveDefenseFlatBonus,
     recipes,
     canCook,
     maxCookable,

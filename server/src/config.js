@@ -1,6 +1,7 @@
 // config.js - 系统配置（管理员可修改）
 const fs = require('fs');
 const path = require('path');
+const officialManagedConfig = require('./officialManagedConfig');
 
 const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
@@ -144,18 +145,63 @@ function jSave(file, data) {
 
 let _config = { ...DEFAULTS, ...jLoad(CONFIG_FILE, {}) };
 
+const MANAGED_KEYS = new Set(officialManagedConfig.MANAGED_KEYS || []);
+
+function getManagedEffectiveValue(key) {
+  return officialManagedConfig.getEffectiveValue(key, DEFAULTS[key]);
+}
+
+function buildEffectiveConfig() {
+  const effective = { ..._config };
+  for (const key of MANAGED_KEYS) {
+    effective[key] = getManagedEffectiveValue(key);
+  }
+  return effective;
+}
+
 function get(key) {
-  return key ? _config[key] : { ..._config };
+  if (!key) return buildEffectiveConfig();
+  if (MANAGED_KEYS.has(key)) {
+    return getManagedEffectiveValue(key);
+  }
+  return _config[key];
+}
+
+function setWithMeta(updates = {}) {
+  const nextLocal = {};
+  const ignoredManagedKeys = [];
+
+  for (const [key, value] of Object.entries(updates || {})) {
+    if (value === undefined) continue;
+    if (MANAGED_KEYS.has(key)) {
+      ignoredManagedKeys.push(key);
+      continue;
+    }
+    nextLocal[key] = value;
+  }
+
+  if (Object.keys(nextLocal).length > 0) {
+    _config = { ..._config, ...nextLocal };
+    jSave(CONFIG_FILE, _config);
+  }
+
+  return {
+    config: buildEffectiveConfig(),
+    appliedLocalKeys: Object.keys(nextLocal),
+    ignoredManagedKeys,
+  };
 }
 
 function set(updates) {
-  _config = { ..._config, ...updates };
-  jSave(CONFIG_FILE, _config);
-  return _config;
+  return setWithMeta(updates).config;
 }
 
 function all() {
-  return { ..._config };
+  return buildEffectiveConfig();
 }
 
-module.exports = { get, set, all, DEFAULTS };
+function getManagedStatus() {
+  return officialManagedConfig.getStatus();
+}
+
+module.exports = { get, set, setWithMeta, all, getManagedStatus, DEFAULTS };

@@ -316,6 +316,7 @@ export const useQuestStore = defineStore('quest', () => {
 
   const generateDailyQuests = (season: Season, day: number) => {
     const marketQuestBias = marketQuestBiasProfile.value
+    const allowedActivitySourceIds = currentLimitedTimeQuestCampaign.value ? [...activityQuestWindowState.value.activeQuestTemplateIds] : undefined
     boardQuests.value = [] // 清空旧的告示栏
     const shopStore = useShopStore()
     const serviceContractEffect = shopStore.getServiceContractEffectSummary('quest')
@@ -324,7 +325,8 @@ export const useQuestStore = defineStore('quest', () => {
       const quest = generateQuest(season, day, false, {
         preferredQuestTypes: marketQuestBias.preferredQuestTypes,
         preferredMarketCategories: marketQuestBias.preferredMarketCategories,
-        discouragedMarketCategories: marketQuestBias.discouragedMarketCategories
+        discouragedMarketCategories: marketQuestBias.discouragedMarketCategories,
+        allowedActivitySourceIds
       })
       if (quest) {
         boardQuests.value.push(quest)
@@ -335,7 +337,8 @@ export const useQuestStore = defineStore('quest', () => {
       const urgent = generateQuest(season, day, true, {
         preferredQuestTypes: marketQuestBias.preferredQuestTypes,
         preferredMarketCategories: marketQuestBias.preferredMarketCategories,
-        discouragedMarketCategories: marketQuestBias.discouragedMarketCategories
+        discouragedMarketCategories: marketQuestBias.discouragedMarketCategories,
+        allowedActivitySourceIds
       })
       if (urgent) boardQuests.value.push(urgent)
     }
@@ -809,7 +812,10 @@ export const useQuestStore = defineStore('quest', () => {
     }
   }
 
-  const evaluateSpecialOrderSettlement = (quest: QuestInstance): {
+  const evaluateSpecialOrderSettlement = (
+    quest: QuestInstance,
+    submittedPondFishSnapshots: Array<{ generation: number; totalScore: number; mature: boolean; sick: boolean }> = []
+  ): {
     score: number
     rank: SpecialOrderScoreRank
     threshold: SpecialOrderScoreRule['thresholds'][number] | null
@@ -923,19 +929,32 @@ export const useQuestStore = defineStore('quest', () => {
         }
       }
     } else if (quest.themeTag === 'fishpond') {
+      const pondSamples = submittedPondFishSnapshots
       const fishGenerationBonus = Math.min(
         specialOrderSettlementConfig.fishpondGenerationBonusCap,
-        (quest.requiredPondGenerationMin ?? 1) * specialOrderSettlementConfig.fishpondGenerationBonusPerTier
+        Math.max(
+          quest.requiredPondGenerationMin ?? 1,
+          pondSamples.length > 0 ? Math.max(...pondSamples.map(sample => sample.generation)) : 1
+        ) * specialOrderSettlementConfig.fishpondGenerationBonusPerTier
       )
       score += fishGenerationBonus
       scoreBreakdown.push(`鱼塘代数 +${fishGenerationBonus}`)
-      if (quest.requiredFishMature) {
+      if (quest.requiredFishMature && (pondSamples.length === 0 || pondSamples.every(sample => sample.mature))) {
         score += specialOrderSettlementConfig.fishpondTraitBonus
         scoreBreakdown.push(`成熟度达标 +${specialOrderSettlementConfig.fishpondTraitBonus}`)
       }
-      if (quest.requiredFishHealthy) {
+      if (quest.requiredFishHealthy && (pondSamples.length === 0 || pondSamples.every(sample => !sample.sick))) {
         score += specialOrderSettlementConfig.fishpondTraitBonus
         scoreBreakdown.push(`健康度达标 +${specialOrderSettlementConfig.fishpondTraitBonus}`)
+      }
+      if (pondSamples.length > 0) {
+        const averageTotalScore = pondSamples.reduce((sum, sample) => sum + sample.totalScore, 0) / pondSamples.length
+        const sampleScoreBonus = Math.min(
+          specialOrderSettlementConfig.requirementSummaryBonusCap,
+          Math.floor(averageTotalScore / specialOrderSettlementConfig.genericQuantityDivisor)
+        )
+        score += sampleScoreBonus
+        scoreBreakdown.push(`提交样本评分 +${sampleScoreBonus}`)
       }
       const summaryBonus = Math.min(
         specialOrderSettlementConfig.requirementSummaryBonusCap,
@@ -1344,6 +1363,7 @@ export const useQuestStore = defineStore('quest', () => {
     const walletStore = useWalletStore()
     const shopStore = useShopStore()
     const serviceContractEffect = shopStore.getServiceContractEffectSummary('quest')
+    const submittedPondFishSnapshots: Array<{ generation: number; totalScore: number; mature: boolean; sick: boolean }> = []
     const idx = activeQuests.value.findIndex(q => q.id === questId)
     if (idx === -1) return { success: false, message: '任务不存在。' }
 
@@ -1517,6 +1537,7 @@ export const useQuestStore = defineStore('quest', () => {
             rollbackSubmissionState()
             return { success: false, message: `${requirement.itemName}鱼塘交付失败，请稍后再试。` }
           }
+          submittedPondFishSnapshots.push(...fishPondStore.lastOrderSubmissionSnapshots)
         } else if (!inventoryStore.removeItemAnywhere(requirement.itemId, requirement.quantity)) {
           rollbackSubmissionState()
           return { success: false, message: `${requirement.itemName}不足，无法完成组合交付。` }
@@ -1571,12 +1592,17 @@ export const useQuestStore = defineStore('quest', () => {
       }
     }
 
+    if (quest.deliveryMode === 'pond' && submittedPondFishSnapshots.length === 0) {
+      submittedPondFishSnapshots.push(...fishPondStore.lastOrderSubmissionSnapshots)
+    }
+
     if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
       rollbackSubmissionState()
       return { success: false, message: '请先整理背包，提交后腾出的空间仍不足以领取委托奖励。' }
     }
 
-    const specialOrderSettlement = quest.type === 'special_order' ? evaluateSpecialOrderSettlement(quest) : null
+    const specialOrderSettlement =
+      quest.type === 'special_order' ? evaluateSpecialOrderSettlement(quest, submittedPondFishSnapshots) : null
     if (specialOrderSettlement) {
       quest.orderProgressState = buildCompletedSpecialOrderProgressState(quest, specialOrderSettlement)
     }

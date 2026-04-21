@@ -15,6 +15,20 @@
 
       <div v-if="errorMessage" class="text-xs text-danger leading-6">{{ errorMessage }}</div>
 
+      <div class="admin-managed-banner" :class="`admin-managed-banner--${officialManagedStatus?.source || 'local_default'}`">
+        <div class="text-xs leading-6">
+          官方文案状态：{{ getOfficialManagedSourceLabel(officialManagedStatus?.source) }}
+          <span v-if="officialManagedStatus?.profileId"> · {{ officialManagedStatus.profileId }}</span>
+          <span v-if="officialManagedStatus?.version"> · v{{ officialManagedStatus.version }}</span>
+        </div>
+        <div class="text-[11px] text-muted leading-5">
+          “弹窗标题”和“内容正文”已改为官方云控只读，本地后台只能查看当前生效内容，不能再把它们写入本地配置。
+        </div>
+        <div v-if="officialManagedStatus?.lastError" class="text-[11px] text-muted leading-5">
+          最近同步信息：{{ officialManagedStatus.lastError }}
+        </div>
+      </div>
+
       <div class="grid gap-3 md:grid-cols-2">
         <label class="admin-label">
           <span>按钮文案</span>
@@ -23,7 +37,7 @@
 
         <label class="admin-label">
           <span>弹窗标题</span>
-          <input v-model="form.aboutDialogTitle" type="text" maxlength="40" class="admin-input" />
+          <input v-model="form.aboutDialogTitle" type="text" maxlength="40" class="admin-input" :disabled="aboutTitleReadonly" readonly />
         </label>
       </div>
 
@@ -55,19 +69,19 @@
                 {{ block.type === 'text' ? `文字段 ${index + 1}` : `图片段 ${index + 1}` }}
               </p>
               <div class="flex flex-wrap gap-2">
-                <button class="btn !px-2 !py-1" @click="moveBlock(index, -1)" :disabled="index === 0">
+                <button class="btn !px-2 !py-1" @click="moveBlock(index, -1)" :disabled="aboutContentReadonly || index === 0">
                   上移
                 </button>
-                <button class="btn !px-2 !py-1" @click="moveBlock(index, 1)" :disabled="index === aboutBlocks.length - 1">
+                <button class="btn !px-2 !py-1" @click="moveBlock(index, 1)" :disabled="aboutContentReadonly || index === aboutBlocks.length - 1">
                   下移
                 </button>
-                <button class="btn !px-2 !py-1" @click="addTextBlock(index)">
+                <button class="btn !px-2 !py-1" @click="addTextBlock(index)" :disabled="aboutContentReadonly">
                   后面加文字
                 </button>
-                <button class="btn !px-2 !py-1" @click="triggerInsertImage(index)" :disabled="uploadingImage">
+                <button class="btn !px-2 !py-1" @click="triggerInsertImage(index)" :disabled="aboutContentReadonly || uploadingImage">
                   {{ uploadingImage && pendingInsertIndex === index ? '上传中...' : '后面插图' }}
                 </button>
-                <button class="btn btn-danger !px-2 !py-1" @click="removeBlock(index)">
+                <button class="btn btn-danger !px-2 !py-1" @click="removeBlock(index)" :disabled="aboutContentReadonly">
                   删除
                 </button>
               </div>
@@ -79,6 +93,8 @@
               rows="6"
               maxlength="6000"
               class="admin-textarea"
+              :disabled="aboutContentReadonly"
+              readonly
               placeholder="输入这一段正文。支持 Markdown，也支持安全 HTML，如 <img>、<br>、<a>。"
             />
 
@@ -92,17 +108,17 @@
 
       <div class="flex flex-wrap gap-2">
         <input ref="imageInputRef" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" @change="handleImageSelected" />
-        <button class="btn !px-3 !py-2" @click="addTextBlock()">
+        <button class="btn !px-3 !py-2" @click="addTextBlock()" :disabled="aboutContentReadonly">
           新增文字段
         </button>
-        <button class="btn !px-3 !py-2" :disabled="uploadingImage" @click="triggerInsertImage()">
+        <button class="btn !px-3 !py-2" :disabled="aboutContentReadonly || uploadingImage" @click="triggerInsertImage()">
           {{ uploadingImage ? '上传中...' : '插入图片' }}
         </button>
-        <button class="btn !px-3 !py-2" :disabled="savingAction !== ''" @click="saveAsDraft">
-          {{ savingAction === 'draft' ? '保存中...' : '保存草稿' }}
+        <button class="btn !px-3 !py-2" :disabled="savingAction !== '' || uploadingImage" @click="saveAsDraft">
+          {{ savingAction === 'draft' ? '保存中...' : uploadingImage ? '等待图片上传...' : '保存草稿' }}
         </button>
-        <button class="btn btn-primary !px-3 !py-2" :disabled="savingAction !== ''" @click="publishContent">
-          {{ savingAction === 'publish' ? '发布中...' : '发布到首页' }}
+        <button class="btn btn-primary !px-3 !py-2" :disabled="savingAction !== '' || uploadingImage" @click="publishContent">
+          {{ savingAction === 'publish' ? '发布中...' : uploadingImage ? '等待图片上传...' : '发布到首页' }}
         </button>
       </div>
 
@@ -168,7 +184,7 @@
     type HomepageAboutContentPayload,
   } from '@/utils/adminContentApi'
   import { showFloat } from '@/composables/useGameLog'
-  import type { HallContentBlock } from '@/types'
+  import type { HallContentBlock, OfficialManagedConfigKey, OfficialManagedConfigStatus } from '@/types'
 
   const props = defineProps<{
     canLoad: boolean
@@ -192,6 +208,8 @@
   const imageInputRef = ref<HTMLInputElement | null>(null)
   const pendingInsertIndex = ref<number | null>(null)
   const aboutBlocks = ref<HallContentBlock[]>([])
+  const officialManagedStatus = ref<OfficialManagedConfigStatus | undefined>(undefined)
+  const readonlyManagedFields = ref<OfficialManagedConfigKey[]>([])
 
   const createTempId = () => `about_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   const createTextBlock = (text = ''): HallContentBlock => ({ id: createTempId(), type: 'text', text })
@@ -245,6 +263,16 @@
   const serializedContent = computed(() => serializeBlocksToMarkdown(aboutBlocks.value))
   const previewHtml = computed(() => renderSafeMarkdown(serializedContent.value || '欢迎来到桃源乡。'))
 
+  const readonlyManagedFieldSet = computed(() => new Set(readonlyManagedFields.value))
+  const aboutTitleReadonly = computed(() => readonlyManagedFieldSet.value.has('taoyuan_about_dialog_title'))
+  const aboutContentReadonly = computed(() => readonlyManagedFieldSet.value.has('taoyuan_about_dialog_content'))
+
+  const getOfficialManagedSourceLabel = (source?: OfficialManagedConfigStatus['source']) => {
+    if (source === 'official_live') return '官方云控生效中'
+    if (source === 'official_cached') return '官方缓存回退中'
+    return '仓库默认文案'
+  }
+
   const formatTime = (timestamp?: number | null) => {
     if (!timestamp) return '-'
     return new Date(timestamp * 1000).toLocaleString('zh-CN', {
@@ -265,6 +293,8 @@
       form.value = { ...result.content }
       syncBlocksFromMarkdown(result.content.aboutDialogContent || '')
       revisions.value = result.revisions.revisions
+      officialManagedStatus.value = result.officialManagedStatus
+      readonlyManagedFields.value = result.readonlyManagedFields
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '读取首页关于内容失败'
       showFloat(errorMessage.value, 'danger')
@@ -275,6 +305,10 @@
 
   const saveContent = async (action: 'draft' | 'publish') => {
     if (!props.canLoad) return
+    if (uploadingImage.value) {
+      showFloat('仍有图片上传中，请等待上传完成后再保存或发布。', 'danger')
+      return
+    }
     savingAction.value = action
     errorMessage.value = ''
     try {
@@ -301,6 +335,8 @@
   const publishContent = () => void saveContent('publish')
 
   const applyRevisionToEditor = (revision: ContentRevisionEntry) => {
+    const currentDialogTitle = form.value.aboutDialogTitle
+    const currentDialogContent = form.value.aboutDialogContent
     form.value = {
       aboutButtonEnabled: revision.payload?.aboutButtonEnabled !== false,
       aboutButtonText: revision.payload?.aboutButtonText || '关于游戏',
@@ -308,6 +344,13 @@
       aboutDialogContent: revision.payload?.aboutDialogContent || '',
     }
     syncBlocksFromMarkdown(revision.payload?.aboutDialogContent || '')
+    if (aboutTitleReadonly.value) {
+      form.value.aboutDialogTitle = currentDialogTitle
+    }
+    if (aboutContentReadonly.value) {
+      form.value.aboutDialogContent = currentDialogContent
+      syncBlocksFromMarkdown(currentDialogContent)
+    }
     summary.value = revision.summary || ''
     showFloat(`已载入版本 ${revision.id}`, 'success')
   }
@@ -586,6 +629,31 @@
     color: #96deac;
     background: rgba(72, 146, 95, 0.14);
     border-color: rgba(72, 146, 95, 0.3);
+  }
+
+  .admin-managed-banner {
+    border: 1px solid rgba(200, 164, 92, 0.18);
+    border-radius: 2px;
+    padding: 10px 12px;
+    background: rgba(200, 164, 92, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .admin-managed-banner--official_live {
+    border-color: rgba(72, 146, 95, 0.3);
+    background: rgba(72, 146, 95, 0.1);
+  }
+
+  .admin-managed-banner--official_cached {
+    border-color: rgba(200, 164, 92, 0.26);
+    background: rgba(200, 164, 92, 0.12);
+  }
+
+  .admin-managed-banner--local_default {
+    border-color: rgba(120, 130, 150, 0.24);
+    background: rgba(120, 130, 150, 0.1);
   }
 
   :deep(.btn-primary) {

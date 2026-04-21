@@ -23,6 +23,10 @@ interface CellarSlot {
   daysAging: number
 }
 
+type RemoveAgingResult =
+  | { success: true; itemId: string; quality: Quality }
+  | { success: false; reason: 'invalid_slot' | 'inventory_full' }
+
 /** 品质升级顺序 */
 const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
 
@@ -170,11 +174,24 @@ export const useHomeStore = defineStore('home', () => {
   }
 
   /** 酒窖取出陈酿 */
-  const removeAging = (index: number): { itemId: string; quality: Quality } | null => {
-    if (index < 0 || index >= cellarSlots.value.length) return null
+  const removeAging = (index: number): RemoveAgingResult => {
+    if (index < 0 || index >= cellarSlots.value.length) {
+      return { success: false, reason: 'invalid_slot' }
+    }
+
     const slot = cellarSlots.value[index]!
+    const inventoryStore = useInventoryStore()
+
+    if (!inventoryStore.canAddItem(slot.itemId, 1, slot.quality)) {
+      return { success: false, reason: 'inventory_full' }
+    }
+
+    if (!inventoryStore.addItemExact(slot.itemId, 1, slot.quality)) {
+      return { success: false, reason: 'inventory_full' }
+    }
+
     cellarSlots.value.splice(index, 1)
-    return { itemId: slot.itemId, quality: slot.quality }
+    return { success: true, itemId: slot.itemId, quality: slot.quality }
   }
 
   /** 酒窖每日更新 */
@@ -216,11 +233,17 @@ export const useHomeStore = defineStore('home', () => {
     }
   }
 
+  const resolveLegacyGreenhouseUnlocked = (data: any): boolean => {
+    if (typeof data?.greenhouseUnlocked === 'boolean') return data.greenhouseUnlocked
+    const farmStore = useFarmStore()
+    return farmStore.greenhousePlots.length > 0 || farmStore.greenhouseLevel > 0
+  }
+
   const deserialize = (data: any) => {
     farmhouseLevel.value = data.farmhouseLevel ?? 0
     caveChoice.value = data.caveChoice ?? 'none'
     caveUnlocked.value = data.caveUnlocked ?? false
-    greenhouseUnlocked.value = data.greenhouseUnlocked ?? false
+    greenhouseUnlocked.value = resolveLegacyGreenhouseUnlocked(data)
     cellarSlots.value = data.cellarSlots ?? []
     // 加载后如果温室已解锁，确保温室地块初始化
     if (greenhouseUnlocked.value) {

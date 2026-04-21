@@ -4,12 +4,15 @@ import { SECRET_NOTES } from '@/data/secretNotes'
 import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { addLog } from '@/composables/useGameLog'
-
+/*
+ * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
+ */
 export const useSecretNoteStore = defineStore('secretNote', () => {
   /** 已收集的笔记ID列表 */
   const collectedNotes = ref<number[]>([])
   /** 已使用的笔记ID列表（宝藏类） */
   const usedNotes = ref<number[]>([])
+  const validNoteIds = new Set(SECRET_NOTES.map(note => note.id))
 
   const totalNotes = computed(() => SECRET_NOTES.length)
   const collectedCount = computed(() => collectedNotes.value.length)
@@ -81,8 +84,20 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
   })
 
   const deserialize = (data: any) => {
-    collectedNotes.value = data.collectedNotes ?? []
-    usedNotes.value = data.usedNotes ?? []
+    const normalizeNoteIds = (value: unknown): number[] => {
+      if (!Array.isArray(value)) return []
+
+      const uniqueIds = new Set<number>()
+      for (const noteId of value) {
+        if (typeof noteId !== 'number' || !Number.isInteger(noteId) || !validNoteIds.has(noteId)) continue
+        uniqueIds.add(noteId)
+      }
+      return [...uniqueIds]
+    }
+
+    collectedNotes.value = normalizeNoteIds(data?.collectedNotes)
+    const collectedSet = new Set(collectedNotes.value)
+    usedNotes.value = normalizeNoteIds(data?.usedNotes).filter(noteId => collectedSet.has(noteId))
   }
 
   return {

@@ -825,11 +825,16 @@
       }
     }
 
-    inventoryStore.addItem(itemId, qty)
-    achievementStore.discoverItem(itemId)
-    skillStore.addExp('mining', 5)
-    panResult.value = `淘到了${name}！(-${cost}体力)`
-    addLog(`淘金获得了${name}。(-${cost}体力)`)
+    const added = inventoryStore.addItemExact(itemId, qty)
+    if (added) {
+      achievementStore.discoverItem(itemId)
+      skillStore.addExp('mining', 5)
+      panResult.value = `淘到了${name}！(-${cost}体力)`
+      addLog(`淘金获得了${name}。(-${cost}体力)`)
+    } else {
+      panResult.value = `淘到了${name}，但背包空间不足，没能带走。(-${cost}体力)`
+      addLog(`淘金发现了${name}，但背包空间不足，没能带走。(-${cost}体力)`)
+    }
 
     const tr = gameStore.advanceTime(panTime.value)
     if (tr.message) addLog(tr.message)

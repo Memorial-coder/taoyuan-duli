@@ -38,36 +38,115 @@
     </section>
 
     <section class="game-panel space-y-3">
-      <div class="flex items-center justify-between gap-3">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div class="space-y-1">
-          <p class="game-section-title">样例存档</p>
-          <p class="game-section-desc">用于验证后期经济、育种、鱼塘与综合终局联动；同时作为 CORE-007 的实际加载入口。</p>
+          <p class="game-section-title">样例导航器</p>
+          <p class="game-section-desc">主样例负责高保真联调，回归样例负责卡边界；推荐落点和 smoke 提示都从同一套样例元数据读取。</p>
         </div>
-        <span class="game-chip">{{ sampleSaves.length }} 套内置样例</span>
+        <div class="flex flex-wrap gap-2">
+          <span class="game-chip">筛出 {{ filteredSampleCount }}/{{ sampleSaves.length }} 套</span>
+          <span class="game-chip">主样例 {{ flagshipSampleCount }}</span>
+          <span class="game-chip">回归样例 {{ regressionSampleCount }}</span>
+        </div>
       </div>
 
-      <div class="grid gap-3 xl:grid-cols-2">
-        <div v-for="sample in sampleSaves" :key="sample.id" class="game-panel-muted p-3 space-y-2">
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0 space-y-1">
-              <p class="text-xs text-accent">{{ sample.label }}</p>
-              <p class="text-[11px] text-muted leading-5">{{ sample.description }}</p>
-            </div>
-            <Button
-              class="shrink-0 justify-center"
-              :icon="sampleBusyId === sample.id ? LoaderCircle : DatabaseZap"
-              :disabled="sampleBusyId !== null"
-              @click="loadSample(sample.id)"
-            >
-              {{ sampleBusyId === sample.id ? '加载中' : '载入' }}
-            </Button>
-          </div>
-          <div class="flex flex-wrap gap-1">
-            <span v-for="tag in sample.tags" :key="tag" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent">
-              {{ tag }}
-            </span>
-          </div>
+      <div class="grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div class="relative">
+          <Search :size="14" class="absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            v-model="sampleSearch"
+            type="text"
+            placeholder="搜索样例名称、标签或焦点系统"
+            class="w-full pl-9 pr-3 py-2 bg-bg border border-accent/20 rounded-xs text-xs outline-none"
+          />
         </div>
+        <div class="text-[11px] text-muted self-center">
+          {{ activeSampleTag ? `当前标签：${activeSampleTag}` : '当前显示全部标签' }}
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <button
+          class="px-2 py-1 text-[10px] rounded-xs border transition-colors"
+          :class="!activeSampleTag ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted hover:border-accent/40'"
+          @click="activeSampleTag = ''"
+        >
+          全部
+        </button>
+        <button
+          v-for="tag in sampleTags"
+          :key="tag"
+          class="px-2 py-1 text-[10px] rounded-xs border transition-colors"
+          :class="activeSampleTag === tag ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted hover:border-accent/40'"
+          @click="activeSampleTag = activeSampleTag === tag ? '' : tag"
+        >
+          {{ tag }}
+        </button>
+      </div>
+
+      <div class="space-y-4">
+        <section v-for="group in groupedSampleSections" :key="group.tier" class="space-y-2">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div class="space-y-1">
+              <p class="text-xs text-accent">{{ group.title }}</p>
+              <p class="text-[11px] text-muted leading-5">{{ group.description }}</p>
+            </div>
+            <span class="game-chip">{{ group.items.length }} 套</span>
+          </div>
+
+          <div class="grid gap-3 xl:grid-cols-2">
+            <article v-for="sample in group.items" :key="sample.id" class="game-panel-muted p-3 space-y-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0 space-y-1">
+                  <p class="text-xs text-accent">{{ sample.label }}</p>
+                  <p class="text-[11px] text-muted leading-5">{{ sample.description }}</p>
+                </div>
+                <span class="text-[10px] px-2 py-1 rounded-xs border border-accent/20 text-accent whitespace-nowrap">
+                  推荐：{{ routeNameLabels[sample.recommendedRouteName] ?? sample.recommendedRouteName }}
+                </span>
+              </div>
+
+              <div class="flex flex-wrap gap-1">
+                <span v-for="tag in sample.tags" :key="tag" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent">
+                  {{ tag }}
+                </span>
+              </div>
+
+              <div class="space-y-1">
+                <p class="text-[10px] text-muted">覆盖系统</p>
+                <p class="text-[11px] leading-5 text-text">{{ sample.focusAreas.join(' · ') }}</p>
+              </div>
+
+              <div class="space-y-1">
+                <p class="text-[10px] text-muted">推荐 smoke 动作</p>
+                <ul class="space-y-1">
+                  <li v-for="check in sample.smokeChecks" :key="check.id" class="text-[11px] text-muted leading-5">
+                    · {{ check.label }}
+                  </li>
+                </ul>
+              </div>
+
+              <div class="grid gap-2 md:grid-cols-2">
+                <Button
+                  class="justify-center"
+                  :icon="sampleBusyKey === getSampleBusyKey(sample.id, 'load') ? LoaderCircle : DatabaseZap"
+                  :disabled="sampleBusyKey !== null"
+                  @click="loadSample(sample.id)"
+                >
+                  {{ sampleBusyKey === getSampleBusyKey(sample.id, 'load') ? '载入中' : '只载入' }}
+                </Button>
+                <Button
+                  class="justify-center"
+                  :icon="sampleBusyKey === getSampleBusyKey(sample.id, 'open') ? LoaderCircle : Play"
+                  :disabled="sampleBusyKey !== null"
+                  @click="loadAndOpenSample(sample.id, sample.recommendedRouteName)"
+                >
+                  {{ sampleBusyKey === getSampleBusyKey(sample.id, 'open') ? '进入中' : '载入并进入' }}
+                </Button>
+              </div>
+            </article>
+          </div>
+        </section>
       </div>
     </section>
 
@@ -370,6 +449,7 @@
     LoaderCircle,
     Play,
     RefreshCw,
+    Search,
     Settings2,
     ShieldCheck,
     Sparkles,
@@ -387,10 +467,21 @@
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useSettingsStore } from '@/stores/useSettingsStore'
   import type { LateGameBalanceOverride, LateGameFeatureFlag, RewardTicketType, Season } from '@/types'
+  import type { BuiltInSampleRouteName } from '@/data/sampleSaves'
 
   interface LateGameDebugCommandApi {
-    listSamples: () => Array<{ id: string; label: string; description: string; tags: string[] }>
+    listSamples: () => Array<{
+      id: string
+      label: string
+      description: string
+      tags: string[]
+      tier: 'flagship' | 'regression'
+      recommendedRouteName: BuiltInSampleRouteName
+      focusAreas: string[]
+      smokeChecks: Array<{ id: string; label: string }>
+    }>
     loadSample: (sampleId: string) => Promise<boolean>
+    loadAndOpenSample: (sampleId: string, routeName?: BuiltInSampleRouteName) => Promise<boolean>
     addMoney: (amount: number) => void
     advanceDay: () => void
     advanceToNextWeek: () => void
@@ -411,7 +502,9 @@
   const questStore = useQuestStore()
   const settingsStore = useSettingsStore()
 
-  const sampleBusyId = ref<string | null>(null)
+  const sampleBusyKey = ref<string | null>(null)
+  const sampleSearch = ref('')
+  const activeSampleTag = ref('')
   const addMoneyAmount = ref(10000)
   const specialOrderTier = ref(4)
   const debugYear = ref(2)
@@ -431,8 +524,76 @@
     guildLogistics: '公会后勤券',
     familyFavor: '家业情谊券'
   }
+  const routeNameLabels: Record<BuiltInSampleRouteName, string> = {
+    farm: '农场',
+    village: '村庄',
+    'village-projects': '村庄建设',
+    shop: '商店',
+    forage: '采集',
+    fishing: '钓鱼',
+    mining: '矿洞',
+    cooking: '烹饪',
+    workshop: '工坊',
+    upgrade: '工具升级',
+    inventory: '背包',
+    skills: '技能',
+    achievement: '成就',
+    glossary: '图鉴',
+    wallet: '钱包',
+    quest: '任务',
+    mail: '邮箱',
+    charinfo: '角色信息',
+    breeding: '育种',
+    museum: '博物馆',
+    guild: '公会',
+    hanhai: '瀚海',
+    fishpond: '鱼塘',
+    decoration: '装饰'
+  }
 
   const sampleSaves = computed(() => saveStore.getBuiltInSampleSaves())
+  const sampleTags = computed(() =>
+    Array.from(new Set(sampleSaves.value.flatMap(sample => sample.tags))).sort((a, b) => a.localeCompare(b, 'zh-CN'))
+  )
+  const filteredSamples = computed(() => {
+    const keyword = sampleSearch.value.trim().toLocaleLowerCase('zh-CN')
+    return sampleSaves.value.filter(sample => {
+      if (activeSampleTag.value && !sample.tags.includes(activeSampleTag.value)) return false
+      if (!keyword) return true
+      const haystack = [
+        sample.label,
+        sample.description,
+        sample.recommendedRouteName,
+        ...sample.tags,
+        ...sample.focusAreas,
+        ...sample.smokeChecks.map(check => check.label)
+      ].join(' ').toLocaleLowerCase('zh-CN')
+      return haystack.includes(keyword)
+    })
+  })
+  const groupedSampleSections = computed(() => {
+    const defs = [
+      {
+        tier: 'flagship' as const,
+        title: '主样例',
+        description: '用于检查一整条高保真后期链路，默认都能继续玩。'
+      },
+      {
+        tier: 'regression' as const,
+        title: '回归样例',
+        description: '用于卡住跨天、跨周、周赛结算和主题周刷新边界。'
+      }
+    ]
+    return defs
+      .map(def => ({
+        ...def,
+        items: filteredSamples.value.filter(sample => sample.tier === def.tier)
+      }))
+      .filter(group => group.items.length > 0)
+  })
+  const filteredSampleCount = computed(() => filteredSamples.value.length)
+  const flagshipSampleCount = computed(() => sampleSaves.value.filter(sample => sample.tier === 'flagship').length)
+  const regressionSampleCount = computed(() => sampleSaves.value.filter(sample => sample.tier === 'regression').length)
   const currentWeekInfo = computed(() => getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day))
   const economyOverview = computed(() => playerStore.getEconomyOverview())
   const latestSnapshot = computed(() => goalStore.latestWeeklyMetricSnapshot)
@@ -465,22 +626,53 @@
     void router.push(resolveLoadedGameRoute())
   }
 
+  const getSampleBusyKey = (sampleId: string, action: 'load' | 'open') => `${action}:${sampleId}`
+
+  const syncDebugCalendar = () => {
+    debugYear.value = gameStore.year
+    debugSeason.value = gameStore.season
+    debugDay.value = gameStore.day
+    debugHour.value = gameStore.hour
+  }
+
+  const openSampleRoute = async (routeName?: BuiltInSampleRouteName) => {
+    if (!routeName) {
+      openCurrentGame()
+      return
+    }
+    await router.push({ name: routeName })
+  }
+
   const loadSample = async (sampleId: string) => {
-    sampleBusyId.value = sampleId
+    sampleBusyKey.value = getSampleBusyKey(sampleId, 'load')
     try {
       const ok = await saveStore.loadBuiltInSampleSave(sampleId)
       if (ok) {
-        debugYear.value = gameStore.year
-        debugSeason.value = gameStore.season
-        debugDay.value = gameStore.day
-        debugHour.value = gameStore.hour
+        syncDebugCalendar()
         showFloat(`已载入样例：${sampleId}`, 'success')
       } else {
         showFloat('样例载入失败。', 'danger')
       }
       return ok
     } finally {
-      sampleBusyId.value = null
+      sampleBusyKey.value = null
+    }
+  }
+
+  const loadAndOpenSample = async (sampleId: string, routeName?: BuiltInSampleRouteName) => {
+    sampleBusyKey.value = getSampleBusyKey(sampleId, 'open')
+    try {
+      const ok = await saveStore.loadBuiltInSampleSave(sampleId)
+      if (!ok) {
+        showFloat('样例载入失败。', 'danger')
+        return false
+      }
+      syncDebugCalendar()
+      await openSampleRoute(routeName)
+      showFloat(`已载入并跳转：${sampleId}`, 'success')
+      return true
+    } finally {
+      sampleBusyKey.value = null
     }
   }
 
@@ -608,6 +800,7 @@
   const debugApi: LateGameDebugCommandApi = {
     listSamples: () => saveStore.getBuiltInSampleSaves(),
     loadSample,
+    loadAndOpenSample,
     addMoney: amount => {
       addMoneyAmount.value = amount
       handleAddMoney()

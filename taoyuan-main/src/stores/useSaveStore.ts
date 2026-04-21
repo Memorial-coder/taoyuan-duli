@@ -31,7 +31,13 @@ import { useTutorialStore } from './useTutorialStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useDecorationStore } from './useDecorationStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
-import { BUILT_IN_SAMPLE_SAVES, type BuiltInSampleSaveDef } from '@/data/sampleSaves'
+import {
+  BUILT_IN_SAMPLE_SAVES,
+  type BuiltInSampleSaveDef,
+  type BuiltInSampleRouteName,
+  type BuiltInSampleSmokeCheckDef,
+  type BuiltInSampleTier
+} from '@/data/sampleSaves'
 import { createDefaultMarketDynamicsState } from '@/data/market'
 import { createDefaultShopCatalogExpansionState } from '@/data/shopCatalog'
 import { createDefaultMuseumSaveData as createDefaultMuseumPayload } from '@/data/museum'
@@ -58,6 +64,10 @@ const PENDING_SERVER_SAVE_KEY_PREFIX = 'taoyuanxiang_pending_server_saves_'
 
 export type ServerSaveSyncStatus = 'idle' | 'syncing' | 'queued' | 'synced' | 'error'
 export type SaveExecutionStatus = 'saved' | 'queued' | 'failed'
+export interface LoadFromSlotOptions {
+  mode?: SaveMode
+  allowPendingServerCopy?: boolean
+}
 
 interface SaveMeta {
   saveVersion: number
@@ -95,7 +105,12 @@ const loadPendingServerSaveMap = (): PendingServerSaveMap => {
       next[slot] = {
         raw: entry.raw,
         savedAt: typeof entry.savedAt === 'string' && entry.savedAt ? entry.savedAt : new Date().toISOString(),
-        updatedAt: Number.isFinite(Number(entry.updatedAt)) ? Number(entry.updatedAt) : Date.now()
+        updatedAt: Number.isFinite(Number(entry.updatedAt)) ? Number(entry.updatedAt) : Date.now(),
+        revision: Number.isFinite(Number(entry.revision))
+          ? Number(entry.revision)
+          : Number.isFinite(Number(entry.updatedAt))
+            ? Number(entry.updatedAt)
+            : Date.now()
       }
     }
     return next
@@ -131,10 +146,11 @@ const getPendingServerSlotNumbers = (): number[] =>
     .map(item => item.slot)
     .sort((left, right) => left - right)
 
-const buildPendingServerSaveEntry = (raw: string): PendingServerSaveEntry => ({
+const buildPendingServerSaveEntry = (raw: string, revision: number): PendingServerSaveEntry => ({
   raw,
   savedAt: new Date().toISOString(),
-  updatedAt: Date.now()
+  updatedAt: Date.now(),
+  revision
 })
 
 /** 鍔犲瘑 JSON 瀛楃涓?*/
@@ -174,6 +190,7 @@ export interface SaveSlotInfo {
   playerName?: string
   savedAt?: string
   pendingSync?: boolean
+  readBlocked?: boolean
 }
 
 export interface BuiltInSampleSaveInfo {
@@ -181,12 +198,17 @@ export interface BuiltInSampleSaveInfo {
   label: string
   description: string
   tags: string[]
+  tier: BuiltInSampleTier
+  recommendedRouteName: BuiltInSampleRouteName
+  focusAreas: string[]
+  smokeChecks: BuiltInSampleSmokeCheckDef[]
 }
 
 interface PendingServerSaveEntry {
   raw: string
   savedAt: string
   updatedAt: number
+  revision: number
 }
 
 type PendingServerSaveMap = Partial<Record<number, PendingServerSaveEntry>>
@@ -347,6 +369,9 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
     next.npc = {
       npcStates: next.npc.npcStates ?? [],
       relationshipClues: next.npc.relationshipClues ?? [],
+      householdDivision: next.npc.householdDivision ?? undefined,
+      familyWishBoard: next.npc.familyWishBoard ?? undefined,
+      zhijiCompanionProjects: next.npc.zhijiCompanionProjects ?? [],
       children: next.npc.children ?? [],
       nextChildId: next.npc.nextChildId ?? undefined,
       daysMarried: next.npc.daysMarried ?? 0,
@@ -371,6 +396,12 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
       activeQuests: next.quest.activeQuests ?? [],
       completedQuestCount: next.quest.completedQuestCount ?? 0,
       specialOrder: next.quest.specialOrder ?? null,
+      specialOrderSettlementReceipts: next.quest.specialOrderSettlementReceipts ?? [],
+      recentSpecialOrderTagHistory: next.quest.recentSpecialOrderTagHistory ?? [],
+      weeklySpecialOrderState: next.quest.weeklySpecialOrderState ?? {
+        lastRefreshWeekId: '',
+        refreshMode: 'legacy'
+      },
       activityQuestWindowState: next.quest.activityQuestWindowState ?? {
         version: 1,
         activeCampaignId: null,
@@ -539,6 +570,8 @@ export const useSaveStore = defineStore('save', () => {
   const activeSlot = ref(-1)
   /** 褰撳墠娲昏穬瀛樻。妲戒綅鎵€灞炴ā寮忥紝鐢ㄤ簬闃叉鍒囨崲瀛樺偍浠嬭川鍚庤鍐欏叆 */
   const activeSlotMode = ref<SaveMode | null>(null)
+  const runtimeSessionSlot = ref(-1)
+  const runtimeSessionMode = ref<SaveMode | null>(null)
   const activeSlotsByMode = ref<Record<SaveMode, number>>({
     local: -1,
     server: -1
@@ -552,6 +585,11 @@ export const useSaveStore = defineStore('save', () => {
   const serverSlotsFetchState = ref<'unknown' | 'available' | 'unavailable'>(
     getStoredSaveMode() === 'server' ? 'unknown' : 'available'
   )
+  const lastIssuedServerRevisionBySlot = ref<Record<number, number>>({
+    0: 0,
+    1: 0,
+    2: 0
+  })
 
   const refreshPendingServerState = () => {
     pendingServerSlots.value = getPendingServerSlotNumbers()
@@ -573,6 +611,9 @@ export const useSaveStore = defineStore('save', () => {
     }
     activeSlot.value = -1
     activeSlotMode.value = null
+    runtimeSessionSlot.value = -1
+    runtimeSessionMode.value = null
+    lastIssuedServerRevisionBySlot.value = { 0: 0, 1: 0, 2: 0 }
     serverSlotsFetchState.value = storageMode.value === 'server' ? 'unknown' : 'available'
     refreshPendingServerState()
   }
@@ -585,7 +626,16 @@ export const useSaveStore = defineStore('save', () => {
 
   const queuePendingServerSave = (slot: number, raw: string) => {
     const map = loadPendingServerSaveMap()
-    map[slot] = buildPendingServerSaveEntry(raw)
+    const previousRevision = Math.max(
+      lastIssuedServerRevisionBySlot.value[slot] ?? 0,
+      map[slot]?.revision ?? 0
+    )
+    const nextRevision = Math.max(Date.now(), previousRevision + 1)
+    lastIssuedServerRevisionBySlot.value = {
+      ...lastIssuedServerRevisionBySlot.value,
+      [slot]: nextRevision
+    }
+    map[slot] = buildPendingServerSaveEntry(raw, nextRevision)
     persistPendingServerSaveMap(map)
     refreshPendingServerState()
   }
@@ -597,9 +647,34 @@ export const useSaveStore = defineStore('save', () => {
     refreshPendingServerState()
   }
 
+  const clearPendingServerSaveIfUnchanged = (slot: number, expectedEntry: PendingServerSaveEntry) => {
+    const map = loadPendingServerSaveMap()
+    const currentEntry = map[slot]
+    if (!currentEntry) return true
+    if (
+      currentEntry.revision !== expectedEntry.revision ||
+      currentEntry.updatedAt !== expectedEntry.updatedAt ||
+      currentEntry.raw !== expectedEntry.raw
+    ) {
+      refreshPendingServerState()
+      return false
+    }
+    delete map[slot]
+    persistPendingServerSaveMap(map)
+    refreshPendingServerState()
+    return true
+  }
+
   const getPendingServerRaw = (slot: number): string | null => {
     const map = loadPendingServerSaveMap()
     return typeof map[slot]?.raw === 'string' ? map[slot]!.raw : null
+  }
+
+  const hasPendingServerSave = (slot: number): boolean => !!getPendingServerRaw(slot)
+
+  const setRuntimeSession = (slot: number, mode: SaveMode | null) => {
+    runtimeSessionSlot.value = slot
+    runtimeSessionMode.value = slot >= 0 ? mode : null
   }
 
   const applyActiveSlotSelection = (slot: number, mode: SaveMode = storageMode.value) => {
@@ -650,13 +725,18 @@ export const useSaveStore = defineStore('save', () => {
     qaGovernanceStorageActionLocks.value = qaGovernanceStorageActionLocks.value.filter(id => id !== lockId)
   }
 
-  const createEmptySlots = (): SaveSlotInfo[] => Array.from({ length: MAX_SLOTS }, (_, slot) => ({ slot, exists: false }))
+  const createEmptySlots = (options: { readBlocked?: boolean } = {}): SaveSlotInfo[] =>
+    Array.from({ length: MAX_SLOTS }, (_, slot) => ({
+      slot,
+      exists: false,
+      readBlocked: options.readBlocked === true
+    }))
 
-  const parseSlotInfo = (slot: number, raw: string | null, pendingSync = false): SaveSlotInfo => {
-    if (!raw) return { slot, exists: false }
+  const parseSlotInfo = (slot: number, raw: string | null, pendingSync = false, readBlocked = false): SaveSlotInfo => {
+    if (!raw) return { slot, exists: false, readBlocked }
     const parsed = parseSaveData(raw)
     const normalized = parsed ? normalizeSaveEnvelope(parsed) : null
-    if (!normalized) return { slot, exists: false }
+    if (!normalized) return { slot, exists: false, readBlocked }
     return {
       slot,
       exists: true,
@@ -666,7 +746,8 @@ export const useSaveStore = defineStore('save', () => {
       money: normalized.data.player?.money,
       playerName: normalized.data.player?.playerName,
       savedAt: normalized.meta.savedAt,
-      pendingSync
+      pendingSync,
+      readBlocked
     }
   }
 
@@ -896,7 +977,7 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
-  const applySaveData = (data: Record<string, any>, slot: number): boolean => {
+  const applySaveData = (data: Record<string, any>, slot: number, mode: SaveMode = storageMode.value): boolean => {
     const normalized = normalizeSaveEnvelope(data)
     if (!normalized) return false
     const payload = normalized.data
@@ -968,39 +1049,109 @@ export const useSaveStore = defineStore('save', () => {
       villageProject: villageProjectStore.serialize(),
       activeSlot: activeSlot.value,
       activeSlotMode: activeSlotMode.value,
+      runtimeSessionSlot: runtimeSessionSlot.value,
+      runtimeSessionMode: runtimeSessionMode.value,
       activeSlotsByMode: { ...activeSlotsByMode.value }
     }
 
+    const resetRuntimeStores = () => {
+      const emptyState = {} as any
+      gameStore.deserialize(emptyState)
+      playerStore.deserialize(emptyState)
+      inventoryStore.deserialize(emptyState)
+      farmStore.deserialize({
+        farmSize: 4,
+        plots: Array.from({ length: 16 }, (_, id) => ({
+          id,
+          state: 'wasteland',
+          cropId: null,
+          growthDays: 0,
+          watered: false,
+          unwateredDays: 0,
+          fertilizer: null,
+          harvestCount: 0,
+          giantCropGroup: null,
+          seedGenetics: null,
+          infested: false,
+          infestedDays: 0,
+          weedy: false,
+          weedyDays: 0
+        })),
+        sprinklers: [],
+        fruitTrees: [],
+        greenhousePlots: [],
+        greenhouseLevel: 0,
+        wildTrees: [],
+        nextFruitTreeId: 0,
+        nextWildTreeId: 0,
+        lightningRods: 0,
+        scarecrows: 0,
+        giantCropCounter: 0
+      })
+      skillStore.deserialize(emptyState)
+      npcStore.deserialize(emptyState)
+      miningStore.deserialize(emptyState)
+      cookingStore.deserialize(emptyState)
+      processingStore.deserialize(emptyState)
+      achievementStore.deserialize(emptyState)
+      animalStore.deserialize(emptyState)
+      homeStore.deserialize(emptyState)
+      fishingStore.deserialize(emptyState)
+      walletStore.deserialize(emptyState)
+      goalStore.deserialize(emptyState)
+      questStore.deserialize(emptyState)
+      shopStore.deserialize(emptyState)
+      settingsStore.deserialize(emptyState, normalized.meta.saveVersion)
+      warehouseStore.deserialize(emptyState)
+      breedingStore.deserialize(emptyState)
+      museumStore.deserialize(emptyState)
+      guildStore.deserialize(emptyState)
+      secretNoteStore.deserialize(emptyState)
+      hanhaiStore.deserialize(emptyState)
+      fishPondStore.deserialize(emptyState)
+      tutorialStore.deserialize(emptyState)
+      hiddenNpcStore.deserialize(emptyState)
+      decorationStore.deserialize(emptyState)
+      villageProjectStore.deserialize(emptyState)
+    }
+
+    const restoreRuntimeStores = (snapshot: typeof backup) => {
+      gameStore.deserialize(snapshot.game)
+      playerStore.deserialize(snapshot.player)
+      inventoryStore.deserialize(snapshot.inventory)
+      farmStore.deserialize(snapshot.farm)
+      skillStore.deserialize(snapshot.skill)
+      npcStore.deserialize(snapshot.npc)
+      miningStore.deserialize(snapshot.mining)
+      cookingStore.deserialize(snapshot.cooking)
+      processingStore.deserialize(snapshot.processing)
+      achievementStore.deserialize(snapshot.achievement)
+      animalStore.deserialize(snapshot.animal)
+      homeStore.deserialize(snapshot.home)
+      fishingStore.deserialize(snapshot.fishing)
+      walletStore.deserialize(snapshot.wallet)
+      questStore.deserialize(snapshot.quest)
+      shopStore.deserialize(snapshot.shop)
+      settingsStore.deserialize(snapshot.settings, SAVE_VERSION)
+      warehouseStore.deserialize(snapshot.warehouse)
+      breedingStore.deserialize(snapshot.breeding)
+      museumStore.deserialize(snapshot.museum)
+      guildStore.deserialize(snapshot.guild)
+      secretNoteStore.deserialize(snapshot.secretNote)
+      hanhaiStore.deserialize(snapshot.hanhai)
+      fishPondStore.deserialize(snapshot.fishPond)
+      tutorialStore.deserialize(snapshot.tutorial)
+      hiddenNpcStore.deserialize(snapshot.hiddenNpc)
+      decorationStore.deserialize(snapshot.decoration)
+      villageProjectStore.deserialize(snapshot.villageProject)
+      goalStore.deserialize(snapshot.goal)
+      npcStore.rehydrateRelationshipPerks({ grantInventoryRewards: false, emitMessages: false })
+      playerStore.normalizeDerivedState()
+    }
+
     try {
-      // 鍏堥噸缃墍鏈夋父鎴忔€侊紝閬垮厤缂哄潡鏃ф。缁ф壙褰撳墠浼氳瘽涓殑娈嬬暀鐘舵€?
-      gameStore.$reset()
-      playerStore.$reset()
-      inventoryStore.$reset()
-      farmStore.$reset()
-      skillStore.$reset()
-      npcStore.$reset()
-      miningStore.$reset()
-      cookingStore.$reset()
-      processingStore.$reset()
-      achievementStore.$reset()
-      animalStore.$reset()
-      homeStore.$reset()
-      fishingStore.$reset()
-      walletStore.$reset()
-      goalStore.$reset()
-      questStore.$reset()
-      shopStore.$reset()
-      warehouseStore.$reset()
-      breedingStore.$reset()
-      museumStore.$reset()
-      guildStore.$reset()
-      secretNoteStore.$reset()
-      hanhaiStore.$reset()
-      fishPondStore.$reset()
-      tutorialStore.$reset()
-      hiddenNpcStore.$reset()
-      decorationStore.$reset()
-      villageProjectStore.$reset()
+      // 先把运行时状态还原到可反序列化的干净基线，避免旧会话残留污染样例或导入档
+      resetRuntimeStores()
 
       gameStore.deserialize(payload.game)
       playerStore.deserialize(payload.player)
@@ -1040,78 +1191,22 @@ export const useSaveStore = defineStore('save', () => {
       playerStore.normalizeDerivedState()
 
       activeSlot.value = slot
-      activeSlotMode.value = storageMode.value
-      activeSlotsByMode.value[storageMode.value] = slot
+      activeSlotMode.value = slot >= 0 ? mode : null
+      activeSlotsByMode.value[mode] = slot
+      setRuntimeSession(slot, mode)
       return true
     } catch {
-      gameStore.$reset()
-      playerStore.$reset()
-      inventoryStore.$reset()
-      farmStore.$reset()
-      skillStore.$reset()
-      npcStore.$reset()
-      miningStore.$reset()
-      cookingStore.$reset()
-      processingStore.$reset()
-      achievementStore.$reset()
-      animalStore.$reset()
-      homeStore.$reset()
-      fishingStore.$reset()
-      walletStore.$reset()
-      goalStore.$reset()
-      questStore.$reset()
-      shopStore.$reset()
-      warehouseStore.$reset()
-      breedingStore.$reset()
-      museumStore.$reset()
-      guildStore.$reset()
-      secretNoteStore.$reset()
-      hanhaiStore.$reset()
-      fishPondStore.$reset()
-      tutorialStore.$reset()
-      hiddenNpcStore.$reset()
-      decorationStore.$reset()
-      villageProjectStore.$reset()
-
-      gameStore.deserialize(backup.game)
-      playerStore.deserialize(backup.player)
-      inventoryStore.deserialize(backup.inventory)
-      farmStore.deserialize(backup.farm)
-      skillStore.deserialize(backup.skill)
-      npcStore.deserialize(backup.npc)
-      miningStore.deserialize(backup.mining)
-      cookingStore.deserialize(backup.cooking)
-      processingStore.deserialize(backup.processing)
-      achievementStore.deserialize(backup.achievement)
-      animalStore.deserialize(backup.animal)
-      homeStore.deserialize(backup.home)
-      fishingStore.deserialize(backup.fishing)
-      walletStore.deserialize(backup.wallet)
-      questStore.deserialize(backup.quest)
-      shopStore.deserialize(backup.shop)
-      settingsStore.deserialize(backup.settings)
-      warehouseStore.deserialize(backup.warehouse)
-      breedingStore.deserialize(backup.breeding)
-      museumStore.deserialize(backup.museum)
-      guildStore.deserialize(backup.guild)
-      secretNoteStore.deserialize(backup.secretNote)
-      hanhaiStore.deserialize(backup.hanhai)
-      fishPondStore.deserialize(backup.fishPond)
-      tutorialStore.deserialize(backup.tutorial)
-      hiddenNpcStore.deserialize(backup.hiddenNpc)
-      decorationStore.deserialize(backup.decoration)
-      villageProjectStore.deserialize(backup.villageProject)
-      goalStore.deserialize(backup.goal)
-      npcStore.rehydrateRelationshipPerks({ grantInventoryRewards: false, emitMessages: false })
-      playerStore.normalizeDerivedState()
+      restoreRuntimeStores(backup)
       activeSlot.value = backup.activeSlot
       activeSlotMode.value = backup.activeSlotMode
+      runtimeSessionSlot.value = backup.runtimeSessionSlot
+      runtimeSessionMode.value = backup.runtimeSessionMode
       activeSlotsByMode.value = { ...backup.activeSlotsByMode }
       return false
     }
   }
 
-  const buildMergedServerSlotStates = async (): Promise<Array<{ raw: string | null; pendingSync: boolean }>> => {
+  const buildMergedServerSlotStates = async (): Promise<Array<{ raw: string | null; pendingSync: boolean; readBlocked: boolean }>> => {
     const pendingMap = loadPendingServerSaveMap()
     try {
       const raws = await fetchServerSlots()
@@ -1120,14 +1215,16 @@ export const useSaveStore = defineStore('save', () => {
         const pendingRaw = pendingMap[slot]?.raw ?? null
         return {
           raw: pendingRaw ?? raws[slot] ?? null,
-          pendingSync: !!pendingRaw
+          pendingSync: !!pendingRaw,
+          readBlocked: false
         }
       })
     } catch {
       serverSlotsFetchState.value = 'unavailable'
       return Array.from({ length: MAX_SLOTS }, (_, slot) => ({
         raw: pendingMap[slot]?.raw ?? null,
-        pendingSync: !!pendingMap[slot]?.raw
+        pendingSync: !!pendingMap[slot]?.raw,
+        readBlocked: !pendingMap[slot]?.raw
       }))
     }
   }
@@ -1171,9 +1268,18 @@ export const useSaveStore = defineStore('save', () => {
 
     for (const { slot, entry } of pendingEntries) {
       try {
-        await saveServerSlotRaw(slot, entry.raw)
-        clearPendingServerSave(slot)
-        syncedSlots.push(slot)
+        const saveResult = await saveServerSlotRaw(slot, entry.raw, entry.revision)
+        lastIssuedServerRevisionBySlot.value = {
+          ...lastIssuedServerRevisionBySlot.value,
+          [slot]: Math.max(lastIssuedServerRevisionBySlot.value[slot] ?? 0, saveResult.currentRevision)
+        }
+        if (saveResult.stale) {
+          failedSlots.push(slot)
+          continue
+        }
+        if (clearPendingServerSaveIfUnchanged(slot, entry)) {
+          syncedSlots.push(slot)
+        }
       } catch {
         failedSlots.push(slot)
       }
@@ -1228,14 +1334,20 @@ export const useSaveStore = defineStore('save', () => {
     return true
   }
 
-  const getRawByMode = async (slot: number): Promise<string | null> => {
-    if (storageMode.value === 'server') {
+  const getRawByMode = async (
+    slot: number,
+    mode: SaveMode = storageMode.value,
+    options: { allowPendingServerCopy?: boolean } = {}
+  ): Promise<string | null> => {
+    if (mode === 'server') {
+      const allowPendingServerCopy = options.allowPendingServerCopy !== false
       const pendingRaw = getPendingServerRaw(slot)
+      if (pendingRaw && !allowPendingServerCopy) return null
       try {
         const serverRaw = await fetchServerSlotRaw(slot)
-        return pendingRaw ?? serverRaw
+        return allowPendingServerCopy ? (pendingRaw ?? serverRaw) : serverRaw
       } catch (error) {
-        if (pendingRaw) return pendingRaw
+        if (allowPendingServerCopy && pendingRaw) return pendingRaw
         throw error
       }
     }
@@ -1264,11 +1376,11 @@ export const useSaveStore = defineStore('save', () => {
     try {
       if (storageMode.value === 'server') {
         const slotStates = await buildMergedServerSlotStates()
-        return slotStates.map((state, slot) => parseSlotInfo(slot, state.raw, state.pendingSync))
+        return slotStates.map((state, slot) => parseSlotInfo(slot, state.raw, state.pendingSync, state.readBlocked))
       }
       return Array.from({ length: MAX_SLOTS }, (_, slot) => parseSlotInfo(slot, localStorage.getItem(getSaveKey(slot))))
     } catch {
-      return createEmptySlots()
+      return createEmptySlots({ readBlocked: storageMode.value === 'server' })
     }
   }
 
@@ -1296,11 +1408,13 @@ export const useSaveStore = defineStore('save', () => {
       return false
     }
     try {
+      const targetMode = storageMode.value
       const data = buildCurrentSaveData()
       const ok = await setRawByMode(slot, encrypt(JSON.stringify(data)))
       if (!ok) return false
-      if (storageMode.value !== 'server') {
-        applyActiveSlotSelection(slot, storageMode.value)
+      applyActiveSlotSelection(slot, targetMode)
+      setRuntimeSession(slot, targetMode)
+      if (targetMode !== 'server') {
         setLastSaveState('saved', '', '')
       }
       return true
@@ -1320,10 +1434,13 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   /** 浠庢寚瀹氭Ы浣嶅姞杞?*/
-  const loadFromSlot = async (slot: number): Promise<boolean> => {
+  const loadFromSlot = async (slot: number, options: LoadFromSlotOptions = {}): Promise<boolean> => {
     try {
-      const hadPendingServerCopy = storageMode.value === 'server' && !!getPendingServerRaw(slot)
-      const raw = await getRawByMode(slot)
+      const loadMode = options.mode ?? storageMode.value
+      const allowPendingServerCopy = options.allowPendingServerCopy !== false
+      const hadPendingServerCopy = loadMode === 'server' && !!getPendingServerRaw(slot)
+      if (hadPendingServerCopy && !allowPendingServerCopy) return false
+      const raw = await getRawByMode(slot, loadMode, { allowPendingServerCopy })
       if (!raw) return false
 
       const data = parseSaveData(raw)
@@ -1331,24 +1448,33 @@ export const useSaveStore = defineStore('save', () => {
       const runtimeSnapshot = buildCurrentSaveData()
       const previousActiveSlot = activeSlot.value
       const previousActiveSlotMode = activeSlotMode.value
+      const previousRuntimeSessionSlot = runtimeSessionSlot.value
+      const previousRuntimeSessionMode = runtimeSessionMode.value
       const previousActiveSlotsByMode = { ...activeSlotsByMode.value }
-      const applied = applySaveData(data, slot)
+      const applied = applySaveData(data, slot, loadMode)
       if (!applied) return false
-      if (storageMode.value === 'server') {
+      if (loadMode === 'server') {
         if (hadPendingServerCopy) {
           applyActiveSlotSelection(slot, 'server')
+          setRuntimeSession(slot, 'server')
           void syncPendingServerSaves({ slots: [slot] })
           return true
         }
         try {
           await setServerActiveSlot(slot)
         } catch {
-          const restored = applySaveData(runtimeSnapshot, previousActiveSlot)
+          const restored = applySaveData(
+            runtimeSnapshot,
+            previousRuntimeSessionSlot,
+            previousRuntimeSessionMode ?? previousActiveSlotMode ?? loadMode
+          )
           if (!restored) {
             return false
           }
           activeSlot.value = previousActiveSlot
           activeSlotMode.value = previousActiveSlotMode
+          runtimeSessionSlot.value = previousRuntimeSessionSlot
+          runtimeSessionMode.value = previousRuntimeSessionMode
           activeSlotsByMode.value = { ...previousActiveSlotsByMode }
           return false
         }
@@ -1369,6 +1495,9 @@ export const useSaveStore = defineStore('save', () => {
     }
     if (activeSlot.value === slot && activeSlotMode.value === storageMode.value) {
       applyActiveSlotSelection(-1, storageMode.value)
+    }
+    if (runtimeSessionSlot.value === slot && runtimeSessionMode.value === storageMode.value) {
+      setRuntimeSession(-1, null)
     }
     return true
   }
@@ -1400,13 +1529,17 @@ export const useSaveStore = defineStore('save', () => {
       const runtimeSnapshot = buildCurrentSaveData()
       const previousActiveSlot = activeSlot.value
       const previousActiveSlotMode = activeSlotMode.value
-      const validationPassed = applySaveData(data, previousActiveSlot)
-      const restorePassed = applySaveData(runtimeSnapshot, previousActiveSlot)
+      const previousRuntimeSessionSlot = runtimeSessionSlot.value
+      const previousRuntimeSessionMode = runtimeSessionMode.value
+      const previousActiveSlotsByMode = { ...activeSlotsByMode.value }
+      const restoreMode = previousRuntimeSessionMode ?? previousActiveSlotMode ?? storageMode.value
+      const validationPassed = applySaveData(data, previousActiveSlot, restoreMode)
+      const restorePassed = applySaveData(runtimeSnapshot, previousRuntimeSessionSlot, restoreMode)
       activeSlot.value = previousActiveSlot
       activeSlotMode.value = previousActiveSlotMode
-      if (previousActiveSlotMode) {
-        activeSlotsByMode.value[previousActiveSlotMode] = previousActiveSlot
-      }
+      runtimeSessionSlot.value = previousRuntimeSessionSlot
+      runtimeSessionMode.value = previousRuntimeSessionMode
+      activeSlotsByMode.value = { ...previousActiveSlotsByMode }
       if (!validationPassed || !restorePassed) return false
       return await setRawByMode(slot, fileContent)
     } catch {
@@ -1419,7 +1552,11 @@ export const useSaveStore = defineStore('save', () => {
       id: sample.id,
       label: sample.label,
       description: sample.description,
-      tags: [...sample.tags]
+      tags: [...sample.tags],
+      tier: sample.tier,
+      recommendedRouteName: sample.recommendedRouteName,
+      focusAreas: [...sample.focusAreas],
+      smokeChecks: sample.smokeChecks.map(check => ({ ...check }))
     }))
 
   const findBuiltInSampleSave = (sampleId: string): BuiltInSampleSaveDef | undefined => BUILT_IN_SAMPLE_SAVES.find(sample => sample.id === sampleId)
@@ -1440,6 +1577,8 @@ export const useSaveStore = defineStore('save', () => {
   return {
     activeSlot,
     activeSlotMode,
+    runtimeSessionSlot,
+    runtimeSessionMode,
     storageMode,
     serverSyncStatus,
     pendingServerSlots,
@@ -1455,6 +1594,7 @@ export const useSaveStore = defineStore('save', () => {
     reloadAccountScopedState,
     getQaGovernanceStorageOverview,
     refreshPendingServerState,
+    hasPendingServerSave,
     setStorageMode,
     setQaGovernanceStorageMode,
     getSlots,

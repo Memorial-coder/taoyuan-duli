@@ -15,11 +15,19 @@ const ensureInteractionContext = async () => {
 }
 
 export const fetchHallViewer = async (): Promise<HallViewer> => {
-  const res = await fetch('/api/me', { credentials: 'include' })
+  let res: Response
+  try {
+    res = await fetch('/api/me', { credentials: 'include' })
+  } catch {
+    throw new Error('交流大厅连接失败，请检查网络后再试')
+  }
   const data = await parseJsonSafe(res)
   const adminToken = typeof window !== 'undefined' ? window.localStorage.getItem('admin_token') || '' : ''
-  if (!res.ok || !data?.ok) {
+  if (res.status === 401 || res.status === 403) {
     return { loggedIn: false, username: null, displayName: null, isAdmin: !!adminToken }
+  }
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.msg || '交流大厅连接失败，请稍后重试')
   }
   return {
     loggedIn: true,

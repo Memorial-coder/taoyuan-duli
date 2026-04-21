@@ -11,6 +11,7 @@ const cfg = require('../config');
 const taoyuanHall = require('../taoyuanHall');
 const taoyuanMailbox = require('../taoyuanMailbox');
 const taoyuanAiAssistant = require('../taoyuanAiAssistant');
+const officialControlPlatform = require('../officialControlPlatform');
 
 const router = express.Router();
 
@@ -23,6 +24,7 @@ const TAOYUAN_EXCHANGE_LIMITS_FILE = path.join(DATA_DIR, 'taoyuan_exchange_limit
 const PUBLIC_AI_ASK_WINDOW_MS = 60 * 1000;
 const PUBLIC_AI_ASK_MAX_REQUESTS = 8;
 const publicAiAskBuckets = new Map();
+const OFFICIAL_CONTROL_SECOND_AUTH_SESSION_KEY = 'official_control_verified';
 
 function createRouteError(message, status = 400) {
   const error = new Error(message);
@@ -38,8 +40,29 @@ function getTaoyuanSavePath(username) {
   return path.join(TAOYUAN_SAVES_DIR, `${String(username)}.json`);
 }
 
+function normalizeTaoyuanSlotEntry(entry) {
+  if (typeof entry === 'string' && entry) {
+    return { raw: entry, revision: 0 };
+  }
+  if (!entry || typeof entry !== 'object' || typeof entry.raw !== 'string' || !entry.raw) {
+    return null;
+  }
+  return {
+    raw: entry.raw,
+    revision: Number.isFinite(Number(entry.revision)) ? Math.floor(Number(entry.revision)) : 0,
+  };
+}
+
+function createEmptyTaoyuanSlots() {
+  return { 0: null, 1: null, 2: null };
+}
+
+function nextTaoyuanSlotRevision(currentRevision = 0) {
+  return Math.max(Date.now(), Math.floor(Number(currentRevision) || 0) + 1);
+}
+
 function loadTaoyuanUserSaves(username) {
-  const defaults = { slots: { 0: null, 1: null, 2: null } };
+  const defaults = { slots: createEmptyTaoyuanSlots() };
   const file = getTaoyuanSavePath(username);
   if (!fs.existsSync(file)) return { ...defaults };
 
@@ -56,9 +79,9 @@ function loadTaoyuanUserSaves(username) {
 
   return {
     slots: {
-      0: typeof raw.slots[0] === 'string' ? raw.slots[0] : null,
-      1: typeof raw.slots[1] === 'string' ? raw.slots[1] : null,
-      2: typeof raw.slots[2] === 'string' ? raw.slots[2] : null,
+      0: normalizeTaoyuanSlotEntry(raw.slots[0]),
+      1: normalizeTaoyuanSlotEntry(raw.slots[1]),
+      2: normalizeTaoyuanSlotEntry(raw.slots[2]),
     },
   };
 }
@@ -172,6 +195,33 @@ function userAdminAuth(req, res, next) {
   next();
 }
 
+function resolveRequestHostname(req) {
+  if (req?.hostname) return String(req.hostname || '').trim().toLowerCase();
+  const host = String(req.headers?.host || '').trim().toLowerCase();
+  return host.replace(/:\d+$/, '');
+}
+
+function officialControlHostAuth(req, res, next) {
+  if (!officialControlPlatform.isPlatformEnabled()) {
+    return res.status(404).json({ ok: false, msg: '官方云控平台未启用' });
+  }
+  if (!officialControlPlatform.isHostAllowed(resolveRequestHostname(req))) {
+    return res.status(404).json({ ok: false, msg: '当前域名不可访问官方云控平台' });
+  }
+  next();
+}
+
+function hasOfficialControlSecondAuth(req) {
+  return req.session?.[OFFICIAL_CONTROL_SECOND_AUTH_SESSION_KEY] === true;
+}
+
+function officialControlSecondAuth(req, res, next) {
+  if (!hasOfficialControlSecondAuth(req)) {
+    return res.status(403).json({ ok: false, msg: '请先完成云控二次密码验证' });
+  }
+  next();
+}
+
 function loginRequired(req, res, next) {
   void (async () => {
     if (!req.session || !req.session.username) {
@@ -230,7 +280,7 @@ function getSaveFileSummary(username) {
   const slots = [0, 1, 2].map(slot => ({
     slot,
     exists: !!saveData.slots?.[slot],
-    raw_length: typeof saveData.slots?.[slot] === 'string' ? saveData.slots[slot].length : 0,
+    raw_length: typeof saveData.slots?.[slot]?.raw === 'string' ? saveData.slots[slot].raw.length : 0,
   }));
   return {
     exists,
@@ -310,6 +360,11 @@ function normalizeHomepageAboutPayload(raw = {}) {
   };
 }
 
+const OFFICIAL_MANAGED_HOMEPAGE_ABOUT_FIELDS = Object.freeze([
+  'taoyuan_about_dialog_title',
+  'taoyuan_about_dialog_content',
+]);
+
 function getHomepageAboutContent() {
   const current = cfg.all();
   return normalizeHomepageAboutPayload({
@@ -322,13 +377,22 @@ function getHomepageAboutContent() {
 
 function publishHomepageAboutContent(content) {
   const normalized = normalizeHomepageAboutPayload(content);
-  cfg.set({
-    taoyuan_about_button_enabled: normalized.aboutButtonEnabled,
-    taoyuan_about_button_text: normalized.aboutButtonText,
-    taoyuan_about_dialog_title: normalized.aboutDialogTitle,
-    taoyuan_about_dialog_content: normalized.aboutDialogContent,
-  });
-  return normalized;
+  if (typeof cfg.setWithMeta === 'function') {
+    cfg.setWithMeta({
+      taoyuan_about_button_enabled: normalized.aboutButtonEnabled,
+      taoyuan_about_button_text: normalized.aboutButtonText,
+      taoyuan_about_dialog_title: normalized.aboutDialogTitle,
+      taoyuan_about_dialog_content: normalized.aboutDialogContent,
+    });
+  } else {
+    cfg.set({
+      taoyuan_about_button_enabled: normalized.aboutButtonEnabled,
+      taoyuan_about_button_text: normalized.aboutButtonText,
+      taoyuan_about_dialog_title: normalized.aboutDialogTitle,
+      taoyuan_about_dialog_content: normalized.aboutDialogContent,
+    });
+  }
+  return getHomepageAboutContent();
 }
 
 router.use('/taoyuan/hall/uploads', express.static(taoyuanHall.HALL_UPLOADS_DIR, {
@@ -496,6 +560,22 @@ router.get('/public-config', (req, res) => {
   res.json(getPublicConfigPayload(req));
 });
 
+router.get('/official-control/v1/instances/config/current', (req, res) => {
+  try {
+    if (!officialControlPlatform.isPlatformEnabled() || !officialControlPlatform.isHostAllowed(resolveRequestHostname(req))) {
+      return res.status(404).json({ ok: false, msg: '官方配置分发接口不可用' });
+    }
+    const envelope = officialControlPlatform.resolveDistributionConfig({
+      instanceId: req.headers['x-instance-id'],
+      licenseKey: req.headers['x-license-key'],
+      publicOrigin: req.query.public_origin,
+    });
+    res.json(envelope);
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取官方配置失败' });
+  }
+});
+
 router.get('/admin/me', userAdminAuth, (req, res) => {
   res.json({
     ok: true,
@@ -504,6 +584,114 @@ router.get('/admin/me', userAdminAuth, (req, res) => {
     role_label: req.admin.role_label,
     permissions: buildAdminPermissions(req.admin.role),
   });
+});
+
+router.get('/admin/official-control/platform-status', userAdminAuth, officialControlHostAuth, (req, res) => {
+  res.json({
+    ok: true,
+    status: officialControlPlatform.getPlatformStatus({
+      hostname: resolveRequestHostname(req),
+      secondAuthVerified: hasOfficialControlSecondAuth(req),
+    }),
+  });
+});
+
+router.post('/admin/official-control/auth/login', userAdminAuth, officialControlHostAuth, (req, res) => {
+  try {
+    const password = String(req.body?.password || '').trim();
+    if (!password) {
+      return res.status(400).json({ ok: false, msg: '请先填写云控二次密码' });
+    }
+    if (!officialControlPlatform.verifyAdminPassword(password)) {
+      return res.status(403).json({ ok: false, msg: '云控二次密码错误' });
+    }
+    req.session[OFFICIAL_CONTROL_SECOND_AUTH_SESSION_KEY] = true;
+    res.json({
+      ok: true,
+      status: officialControlPlatform.getPlatformStatus({
+        hostname: resolveRequestHostname(req),
+        secondAuthVerified: true,
+      }),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '云控二次认证失败' });
+  }
+});
+
+router.post('/admin/official-control/auth/logout', userAdminAuth, officialControlHostAuth, (req, res) => {
+  if (req.session) {
+    delete req.session[OFFICIAL_CONTROL_SECOND_AUTH_SESSION_KEY];
+  }
+  res.json({
+    ok: true,
+    status: officialControlPlatform.getPlatformStatus({
+      hostname: resolveRequestHostname(req),
+      secondAuthVerified: false,
+    }),
+  });
+});
+
+router.get('/admin/official-control/config/current', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, (req, res) => {
+  res.json({
+    ok: true,
+    current: officialControlPlatform.getCurrentRelease(),
+    releases: officialControlPlatform.listReleaseRecords(20),
+    managedKeys: [...officialControlPlatform.MANAGED_KEYS],
+  });
+});
+
+router.post('/admin/official-control/config/publish', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, async (req, res) => {
+  try {
+    const release = officialControlPlatform.publishRelease(req.body?.values || req.body || {}, {
+      operator_name: req.admin?.operator_name,
+      operator_role: req.admin?.role,
+    });
+    if (typeof cfg.getManagedStatus === 'function') {
+      const officialManagedConfig = require('../officialManagedConfig');
+      await officialManagedConfig.refreshFromRemote('publish');
+    }
+    res.json({
+      ok: true,
+      current: release,
+      releases: officialControlPlatform.listReleaseRecords(20),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '发布官方配置失败' });
+  }
+});
+
+router.get('/admin/official-control/instances', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, (req, res) => {
+  res.json({
+    ok: true,
+    instances: officialControlPlatform.listInstances(),
+  });
+});
+
+router.post('/admin/official-control/instances', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, (req, res) => {
+  try {
+    const result = officialControlPlatform.createInstance(req.body || {});
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '创建实例失败' });
+  }
+});
+
+router.post('/admin/official-control/instances/:id/status', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, (req, res) => {
+  try {
+    const instance = officialControlPlatform.updateInstanceStatus(req.params.id, req.body || {});
+    res.json({ ok: true, instance });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新实例失败' });
+  }
+});
+
+router.post('/admin/official-control/instances/:id/reset-license', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, (req, res) => {
+  try {
+    const result = officialControlPlatform.resetInstanceLicense(req.params.id);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '重置实例密钥失败' });
+  }
 });
 
 router.get('/admin/users', userAdminAuth, async (req, res) => {
@@ -706,6 +894,8 @@ router.get('/admin/content/homepage-about', userAdminAuth, async (req, res) => {
       ok: true,
       content: getHomepageAboutContent(),
       revisions,
+      officialManagedStatus: cfg.getManagedStatus(),
+      readonlyManagedFields: [...OFFICIAL_MANAGED_HOMEPAGE_ABOUT_FIELDS],
     });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取首页关于内容失败' });
@@ -721,13 +911,14 @@ router.post('/admin/content/homepage-about', userAdminAuth, async (req, res) => 
     const payload = normalizeHomepageAboutPayload(req.body || {});
     const summary = String(req.body?.summary || '').trim().slice(0, 120);
     const published = action === 'publish';
+    let publishedContent = null;
 
     if (published) {
-      publishHomepageAboutContent(payload);
+      publishedContent = publishHomepageAboutContent(payload);
       await appendAdminAuditLog(req, 'publish_homepage_about', '', {
-        about_button_enabled: payload.aboutButtonEnabled,
-        about_button_text: payload.aboutButtonText,
-        about_dialog_title: payload.aboutDialogTitle,
+        about_button_enabled: publishedContent.aboutButtonEnabled,
+        about_button_text: publishedContent.aboutButtonText,
+        about_dialog_title: publishedContent.aboutDialogTitle,
       });
     }
 
@@ -740,7 +931,7 @@ router.post('/admin/content/homepage-about', userAdminAuth, async (req, res) => 
     res.json({
       ok: true,
       action,
-      content: published ? getHomepageAboutContent() : payload,
+      content: published ? publishedContent : payload,
       revision,
     });
   } catch (error) {
@@ -967,7 +1158,7 @@ router.post('/taoyuan/quota/export', loginRequired, signRequired, async (req, re
 router.get('/taoyuan/save/slots', loginRequired, (req, res) => {
   try {
     const data = loadTaoyuanUserSaves(req.session.username);
-    res.json({ ok: true, slots: [0, 1, 2].map(slot => ({ slot, raw: data.slots[slot] || null })) });
+    res.json({ ok: true, slots: [0, 1, 2].map(slot => ({ slot, raw: data.slots[slot]?.raw || null })) });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '读取服务端存档失败' });
   }
@@ -980,7 +1171,7 @@ router.get('/taoyuan/save/:slot', loginRequired, (req, res) => {
     return res.status(400).json({ ok: false, msg: '无效的存档槽位' });
   }
   const data = loadTaoyuanUserSaves(req.session.username);
-  const raw = data.slots[slot] || null;
+  const raw = data.slots[slot]?.raw || null;
   if (!raw) return res.status(404).json({ ok: false, msg: '服务端存档不存在' });
   res.json({ ok: true, slot, raw });
   } catch (error) {
@@ -995,7 +1186,7 @@ router.post('/taoyuan/save/active-slot', loginRequired, signRequired, (req, res)
     return res.status(400).json({ ok: false, msg: '无效的存档槽位' });
   }
   const data = loadTaoyuanUserSaves(req.session.username);
-  const raw = data.slots[slot] || null;
+  const raw = data.slots[slot]?.raw || null;
   if (!raw) return res.status(404).json({ ok: false, msg: '服务端存档不存在' });
   taoyuanHall.setActiveSaveSlot(req.session.username, slot);
   res.json({ ok: true, slot });
@@ -1008,15 +1199,24 @@ router.post('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
   try {
   const slot = parseInt(req.params.slot, 10);
   const raw = typeof req.body?.raw === 'string' ? req.body.raw : '';
+  const requestedRevision = Number.isFinite(Number(req.body?.revision)) ? Math.floor(Number(req.body.revision)) : null;
   if (!Number.isInteger(slot) || slot < 0 || slot > 2) {
     return res.status(400).json({ ok: false, msg: '无效的存档槽位' });
   }
   if (!raw) return res.status(400).json({ ok: false, msg: '缺少存档数据' });
   const data = loadTaoyuanUserSaves(req.session.username);
-  data.slots[slot] = raw;
+  const currentEntry = data.slots[slot];
+  const currentRevision = currentEntry?.revision ?? 0;
+  if (requestedRevision !== null && requestedRevision < currentRevision) {
+    return res.json({ ok: true, stale: true, slot, current_revision: currentRevision });
+  }
+  const nextRevision = requestedRevision !== null
+    ? Math.max(requestedRevision, currentRevision)
+    : nextTaoyuanSlotRevision(currentRevision);
+  data.slots[slot] = { raw, revision: nextRevision };
   saveTaoyuanUserSaves(req.session.username, data);
   taoyuanHall.setActiveSaveSlot(req.session.username, slot);
-  res.json({ ok: true, slot });
+  res.json({ ok: true, stale: false, slot, current_revision: nextRevision });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '保存服务端存档失败' });
   }

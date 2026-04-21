@@ -62,7 +62,26 @@ export const useAchievementStore = defineStore('achievement', () => {
 
   const discoveredCount = computed(() => discoveredItems.value.length)
 
+  /*
+
   // === 物品发现 ===
+
+  const discoverItem = (itemId: string) => {
+    if (!discoveredItems.value.includes(itemId)) {
+      discoveredItems.value.push(itemId)
+      const gameStore = useGameStore()
+      const SEASON_NAMES: Record<string, string> = { spring: '鏄?, summer: '澶?, autumn: '绉?, winter: '鍐? }
+      discoveryTimes.value[itemId] = `绗?{gameStore.year}骞?${SEASON_NAMES[gameStore.season] ?? gameStore.season} 绗?{gameStore.day}澶?
+    }
+  }
+
+  const buildCurrentDiscoveryTime = (): string => {
+    const gameStore = useGameStore()
+    const SEASON_NAMES: Record<string, string> = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' }
+    return `第${gameStore.year}年 ${SEASON_NAMES[gameStore.season] ?? gameStore.season} 第${gameStore.day}天`
+  }
+
+  */
 
   const discoverItem = (itemId: string) => {
     return markItemDiscovered(itemId, buildCurrentDiscoveryTime())
@@ -70,8 +89,13 @@ export const useAchievementStore = defineStore('achievement', () => {
 
   const buildCurrentDiscoveryTime = (): string => {
     const gameStore = useGameStore()
-    const SEASON_NAMES: Record<string, string> = { spring: '春', summer: '夏', autumn: '秋', winter: '冬' }
-    return `第${gameStore.year}年 ${SEASON_NAMES[gameStore.season] ?? gameStore.season} 第${gameStore.day}天`
+    const seasonNames: Record<string, string> = {
+      spring: '\u6625',
+      summer: '\u590f',
+      autumn: '\u79cb',
+      winter: '\u51ac'
+    }
+    return `\u7b2c${gameStore.year}\u5e74 ${seasonNames[gameStore.season] ?? gameStore.season} \u7b2c${gameStore.day}\u5929`
   }
 
   const markItemDiscovered = (itemId: string, discoveryTime?: string | null) => {

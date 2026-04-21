@@ -1,3 +1,6 @@
+/*
+ * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
+ */
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { FarmPlot, FarmSize, Season, Quality } from '@/types'
@@ -344,8 +347,15 @@ export const useFarmStore = defineStore('farm', () => {
   }
 
   /** 每日更新所有地块 */
-  const dailyUpdate = (isRainy: boolean): { newInfestations: number; pestDeaths: number; newWeeds: number; weedDeaths: number } => {
+  const dailyUpdate = (isRainy: boolean): {
+    newInfestations: number
+    pestDeaths: number
+    newWeeds: number
+    weedDeaths: number
+    wateredPlotIdsBeforeReset: number[]
+  } => {
     const sprinklerWatered = getAllWateredBySprinklers()
+    const wateredPlotIdsBeforeReset = new Set<number>()
     const walletGrowth = useWalletStore().getCropGrowthBonus()
     const gameStore = useGameStore()
     // 仙缘能力：春息（tao_yao_2）春季作物生长加速
@@ -407,6 +417,7 @@ export const useFarmStore = defineStore('farm', () => {
         plot.watered = true
         plot.unwateredDays = 0
       }
+      if (plot.watered) wateredPlotIdsBeforeReset.add(plot.id)
 
       // 处理浇水状态
       if (plot.watered) {
@@ -476,7 +487,13 @@ export const useFarmStore = defineStore('farm', () => {
       }
     }
 
-    return { newInfestations, pestDeaths, newWeeds, weedDeaths }
+    return {
+      newInfestations,
+      pestDeaths,
+      newWeeds,
+      weedDeaths,
+      wateredPlotIdsBeforeReset: [...wateredPlotIdsBeforeReset]
+    }
   }
   const onSeasonChange = (newSeason: Season): { witheredCount: number; reclaimedCount: number } => {
     let witheredCount = 0

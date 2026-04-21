@@ -48,7 +48,7 @@
           </div>
 
           <div class="ai-panel__quick">
-            <button v-for="item in quickQuestions" :key="item" class="ai-quick-btn" @click="void submitQuestion(item)">
+            <button v-for="item in quickQuestions" :key="item" class="ai-quick-btn" :disabled="store.isAsking" @click="void submitQuestion(item)">
               {{ item }}
             </button>
           </div>
@@ -147,6 +147,7 @@
   const submitQuestion = async (question?: string) => {
     const value = (question ?? draft.value).trim()
     if (!value) return
+    if (store.isAsking) return
     draft.value = ''
     await store.askQuestion(value, {
       routeName: currentRouteName.value,

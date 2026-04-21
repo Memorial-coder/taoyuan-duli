@@ -2467,13 +2467,19 @@ export const generateQuest = (
     preferredQuestTypes?: QuestType[]
     preferredMarketCategories?: QuestMarketCategory[]
     discouragedMarketCategories?: QuestMarketCategory[]
+    allowedActivitySourceIds?: string[]
   }
 ): QuestInstance | null => {
   const preferredQuestTypes = new Set(options?.preferredQuestTypes ?? [])
   const preferredMarketCategories = new Set(options?.preferredMarketCategories ?? [])
   const discouragedMarketCategories = new Set(options?.discouragedMarketCategories ?? [])
+  const allowedActivitySourceIds = new Set(options?.allowedActivitySourceIds ?? [])
 
-  const eligibleTemplates = QUEST_TEMPLATES.filter(template => template.targets.some(target => target.seasons.length === 0 || target.seasons.includes(season)))
+  const eligibleTemplates = QUEST_TEMPLATES.filter(
+    template =>
+      template.targets.some(target => target.seasons.length === 0 || target.seasons.includes(season)) &&
+      (allowedActivitySourceIds.size <= 0 || allowedActivitySourceIds.has((template as any).activitySourceId ?? ''))
+  )
   if (eligibleTemplates.length === 0) return null
 
   const weightedTemplates = eligibleTemplates.flatMap(template => {
@@ -2554,6 +2560,8 @@ export const generateQuest = (
     friendshipReward: isUrgent ? template.friendshipReward + 5 : template.friendshipReward,
     daysRemaining: isUrgent ? 1 : 2,
     accepted: false,
+    activitySourceId: (template as any).activitySourceId,
+    activitySourceLabel: (template as any).activitySourceLabel,
     isUrgent: isUrgent || undefined
   }
 }

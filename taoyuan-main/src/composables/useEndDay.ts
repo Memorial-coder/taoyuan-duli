@@ -570,7 +570,8 @@ export const handleEndDay = () => {
     activeRouteIds: [...tutorialStore.guidanceDigestState.activeRouteIds]
   }
   const highValueOrderTypes = new Set<string>()
-  const pestResult = farmStore.dailyUpdate(gameStore.isRainy || landGodActive)
+  const { wateredPlotIdsBeforeReset, ...pestResult } = farmStore.dailyUpdate(gameStore.isRainy || landGodActive)
+  const wateredPlotsBeforeReset = new Set(wateredPlotIdsBeforeReset)
   processingStore.dailyUpdate()
 
   // 育种台进度更新
@@ -582,7 +583,7 @@ export const handleEndDay = () => {
   const walletGrowthBonus = useWalletStore().getCropGrowthBonus()
   if (ringGrowthBonus > 0) {
     for (const plot of farmStore.plots) {
-      if ((plot.state === 'growing' || plot.state === 'planted') && plot.watered) {
+      if ((plot.state === 'growing' || plot.state === 'planted') && wateredPlotsBeforeReset.has(plot.id)) {
         plot.growthDays += ringGrowthBonus
         const crop = getCropById(plot.cropId!)
         if (crop) {
@@ -600,7 +601,7 @@ export const handleEndDay = () => {
   // 绿雨额外效果：作物加速生长 + 野树加速
   if (gameStore.weather === 'green_rain') {
     for (const plot of farmStore.plots) {
-      if ((plot.state === 'growing' || plot.state === 'planted') && plot.watered) {
+      if ((plot.state === 'growing' || plot.state === 'planted') && wateredPlotsBeforeReset.has(plot.id)) {
         plot.growthDays += 0.5
         const crop = getCropById(plot.cropId!)
         if (crop) {
@@ -1123,9 +1124,13 @@ export const handleEndDay = () => {
   // 蟹笼收获
   const fishingStore = useFishingStore()
   const crabPotHarvest = fishingStore.collectCrabPots()
-  if (crabPotHarvest.length > 0) {
-    const names = crabPotHarvest.map(c => c.name).join('、')
+  if (crabPotHarvest.collected.length > 0) {
+    const names = crabPotHarvest.collected.map(c => c.name).join('、')
     addLog(`蟹笼捕获了${names}。`)
+  }
+  if (crabPotHarvest.blocked.length > 0) {
+    const blockedNames = crabPotHarvest.blocked.map(c => c.name).join('、')
+    addLog(`蟹笼抓到了${blockedNames}，但背包空间不足，没能带走；有饵的蟹笼已保留饵料。`)
   }
 
   // 洞穴产出

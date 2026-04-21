@@ -772,6 +772,39 @@ export const useAnimalStore = defineStore('animal', () => {
     }
   }
 
+  const normalizeAnimalSave = (animal: any): Animal => {
+    const animalType = animal?.type as AnimalType
+    const animalDef = ANIMAL_DEFS.find(def => def.type === animalType)
+    const fallbackMood = animalType === 'horse' ? 128 : 200
+
+    return {
+      ...animal,
+      type: animalType,
+      name: typeof animal?.name === 'string' && animal.name.trim() ? animal.name : animalDef?.name ?? '动物',
+      friendship: Number.isFinite(animal?.friendship) ? animal.friendship : 0,
+      mood: Number.isFinite(animal?.mood) ? animal.mood : fallbackMood,
+      daysOwned: Number.isFinite(animal?.daysOwned) ? animal.daysOwned : 0,
+      daysSinceProduct: Number.isFinite(animal?.daysSinceProduct) ? animal.daysSinceProduct : 0,
+      wasFed: Boolean(animal?.wasFed),
+      fedWith: typeof animal?.fedWith === 'string' ? animal.fedWith : null,
+      wasPetted: Boolean(animal?.wasPetted),
+      hunger: Number.isFinite(animal?.hunger) ? animal.hunger : 0,
+      sick: Boolean(animal?.sick),
+      sickDays: Number.isFinite(animal?.sickDays) ? animal.sickDays : 0
+    }
+  }
+
+  const normalizePetSave = (savedPet: any): PetState | null => {
+    if (!savedPet || (savedPet.type !== 'cat' && savedPet.type !== 'dog')) return null
+
+    return {
+      type: savedPet.type as PetType,
+      name: typeof savedPet.name === 'string' && savedPet.name.trim() ? savedPet.name : savedPet.type === 'dog' ? '小狗' : '小猫',
+      friendship: Number.isFinite(savedPet.friendship) ? savedPet.friendship : 0,
+      wasPetted: Boolean(savedPet.wasPetted)
+    }
+  }
+
   const deserialize = (data: any) => {
     if (data.buildings) {
       const savedBuildings = data.buildings.map((b: any) => ({
@@ -786,17 +819,11 @@ export const useAnimalStore = defineStore('animal', () => {
       buildings.value = savedBuildings
     }
     if (data.animals) {
-      animals.value = data.animals.map((a: any) => ({
-        ...a,
-        hunger: a.hunger ?? 0,
-        sick: a.sick ?? false,
-        sickDays: a.sickDays ?? 0,
-        fedWith: a.fedWith ?? null
-      }))
+      animals.value = data.animals.map((a: any) => normalizeAnimalSave(a))
     }
     incubating.value = data.incubating ?? null
     barnIncubating.value = data.barnIncubating ?? null
-    pet.value = data.pet ?? null
+    pet.value = normalizePetSave(data.pet)
     grazedToday.value = data.grazedToday ?? false
     autoPetterBuildings.value = data.autoPetterBuildings ?? []
   }

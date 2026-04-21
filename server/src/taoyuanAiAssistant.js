@@ -3967,6 +3967,12 @@ function getMode() {
 const DEFAULT_CONSOLE_CREDIT_MESSAGE =
   '本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186';
 
+const OFFICIAL_MANAGED_AI_FIELDS = Object.freeze([
+  'ai_assistant_name',
+  'ai_assistant_welcome',
+  'ai_assistant_console_credit',
+]);
+
 function getPublicConfig() {
   const enabled = cfg.get('ai_assistant_enabled') !== false;
   const assistantName = String(cfg.get('ai_assistant_name') || '桃源小助理').trim() || '桃源小助理';
@@ -4003,6 +4009,8 @@ function getAdminConfig() {
       String(cfg.get('ai_assistant_system_prompt') || '').trim() ||
       '你是桃源乡游戏内 AI 助手。请只依据提供的知识片段回答。',
     blockedTopics: String(cfg.get('ai_assistant_blocked_topics') || '').trim(),
+    officialManagedStatus: cfg.getManagedStatus(),
+    readonlyManagedFields: [...OFFICIAL_MANAGED_AI_FIELDS],
   };
 }
 
@@ -4034,7 +4042,11 @@ function setAdminConfig(input = {}) {
     ai_assistant_blocked_topics: String(input.blockedTopics || '').trim(),
   };
 
-  cfg.set(updates);
+  if (typeof cfg.setWithMeta === 'function') {
+    cfg.setWithMeta(updates);
+  } else {
+    cfg.set(updates);
+  }
   return getAdminConfig();
 }
 
@@ -4735,6 +4747,7 @@ async function askDebug(question, options = {}) {
 
 module.exports = {
   ROUTE_LABELS,
+  OFFICIAL_MANAGED_AI_FIELDS,
   getPublicConfig,
   getAdminConfig,
   getSourceIndexStatus,

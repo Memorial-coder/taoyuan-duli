@@ -751,11 +751,15 @@ export const useGoalStore = defineStore('goal', () => {
     source: saved?.source ?? fresh.source
   })
 
-  const mergeSavedWeeklyGoalState = (fresh: WeeklyGoalState, saved?: Partial<WeeklyGoalState>): WeeklyGoalState => ({
+  const mergeSavedWeeklyGoalState = (
+    fresh: WeeklyGoalState,
+    saved?: Partial<WeeklyGoalState>,
+    options?: { treatLegacyCompletedAsRewarded?: boolean }
+  ): WeeklyGoalState => ({
     ...fresh,
     baselineValue: saved?.baselineValue ?? fresh.baselineValue,
     completed: saved?.completed ?? fresh.completed,
-    rewarded: saved?.rewarded ?? saved?.completed ?? fresh.rewarded,
+    rewarded: saved?.rewarded ?? ((options?.treatLegacyCompletedAsRewarded ?? false) && saved?.completed ? true : fresh.rewarded),
     source: 'weekly'
   })
 
@@ -776,12 +780,13 @@ export const useGoalStore = defineStore('goal', () => {
     defs: WeeklyGoalDef[],
     savedGoals: WeeklyGoalState[] | undefined,
     baselineSnapshot: Record<GoalMetricKey, number>,
-    weekId: string
+    weekId: string,
+    options?: { treatLegacyCompletedAsRewarded?: boolean }
   ) => {
     return defs.map(def => {
       const fresh = createWeeklyGoalState(def, weekId, baselineSnapshot[def.metric] ?? 0)
       const saved = savedGoals?.find(goal => goal.id === def.id)
-      return mergeSavedWeeklyGoalState(fresh, saved)
+      return mergeSavedWeeklyGoalState(fresh, saved, options)
     })
   }
 
@@ -1378,6 +1383,10 @@ export const useGoalStore = defineStore('goal', () => {
   const deserialize = (data: ReturnType<typeof serialize> | undefined) => {
     const snapshot = getMetricSnapshot()
     const currentWeekInfo = getCurrentWeekInfo()
+    const legacyWeeklyRewardsSettled =
+      data?.lastSettledWeeklyGoalWeekId === currentWeekInfo.seasonWeekId ||
+      (data?.lastWeeklyGoalSettlement?.weekId === currentWeekInfo.seasonWeekId) ||
+      (Array.isArray(data?.sentWeeklySettlementMailWeekIds) && data.sentWeeklySettlementMailWeekIds.includes(currentWeekInfo.seasonWeekId))
     mainQuestStages.value = mergeSavedMainQuestStages(data?.mainQuestStages)
     longTermGoals.value = mergeSavedGoalArray(LONG_TERM_GOAL_DEFS, data?.longTermGoals, {
       ...snapshot,
@@ -1420,7 +1429,9 @@ export const useGoalStore = defineStore('goal', () => {
 
     if (isWeeklyGoalFeatureEnabled() && data?.lastWeeklyGoalRefresh === currentWeekInfo.seasonWeekId) {
       const defs = getWeeklyGoalsBySeasonWeek(currentWeekInfo.season, currentWeekInfo.weekOfSeason) as WeeklyGoalDef[]
-      weeklyGoals.value = mergeSavedWeeklyGoalArray(defs, data?.weeklyGoals, snapshot, currentWeekInfo.seasonWeekId)
+      weeklyGoals.value = mergeSavedWeeklyGoalArray(defs, data?.weeklyGoals, snapshot, currentWeekInfo.seasonWeekId, {
+        treatLegacyCompletedAsRewarded: legacyWeeklyRewardsSettled
+      })
       lastWeeklyGoalRefresh.value = data.lastWeeklyGoalRefresh
     } else {
       weeklyGoals.value = []

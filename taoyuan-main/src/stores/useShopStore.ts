@@ -2392,6 +2392,16 @@ export const useShopStore = defineStore('shop', () => {
       if (id === 'mill_fish_feed' || id === 'recycle_fish_feed') return 'fish_feed'
       return id
     }
+    const normalizeShippedItems = (items: unknown[]) => {
+      const seen = new Set<string>()
+      return items.reduce<string[]>((result, item) => {
+        const migratedItemId = migrateRecipeId(item)
+        if (typeof migratedItemId !== 'string' || seen.has(migratedItemId)) return result
+        seen.add(migratedItemId)
+        result.push(migratedItemId)
+        return result
+      }, [])
+    }
 
     ownedCatalogOfferIds.value = Array.isArray(data?.ownedCatalogOfferIds) ? data.ownedCatalogOfferIds.filter((id: unknown) => typeof id === 'string') : []
     catalogExpansionState.value = normalizeShopCatalogExpansionState(data?.catalogExpansionState)
@@ -2416,7 +2426,7 @@ export const useShopStore = defineStore('shop', () => {
             quality: ['normal', 'fine', 'excellent', 'supreme'].includes(entry.quality) ? entry.quality : 'normal'
           }))
       : []
-    shippedItems.value = Array.isArray(data?.shippedItems) ? data.shippedItems.map(migrateRecipeId).filter((id: unknown) => typeof id === 'string') : []
+    shippedItems.value = Array.isArray(data?.shippedItems) ? normalizeShippedItems(data.shippedItems) : []
     shippingHistory.value = Object.fromEntries(
       Object.entries(data?.shippingHistory && typeof data.shippingHistory === 'object' ? data.shippingHistory : {}).map(([dayKey, record]) => [
         dayKey,

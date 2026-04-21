@@ -1,104 +1,103 @@
-> 在线体验：[立即进入桃源乡独立版](https://taoyuan.ymzcc.com/)  
-> 链接地址：`https://taoyuan.ymzcc.com/`
+> 閸︺劎鍤庢担鎾荤崣閿涙瓟缁斿宓嗘潻娑樺弳濡楀啯绨稊锛勫缁斿澧梋(https://taoyuan.ymzcc.com/)
+> 闁剧偓甯撮崷鏉挎絻閿涙瓪https://taoyuan.ymzcc.com/`
 
 <p align="center">
-  <img src="taoyuan-main/images/logo.png" alt="桃源乡独立版封面" width="760" />
+  <img src="taoyuan-main/images/logo.png" alt="濡楀啯绨稊锛勫缁斿澧楃亸渚€娼? width="760" />
 </p>
 
-<h1 align="center">桃源乡独立版</h1>
+<h1 align="center">濡楀啯绨稊锛勫缁斿澧?/h1>
 
 <p align="center">
   <a href="https://taoyuan.ymzcc.com/" target="_blank">
-    <img src="https://img.shields.io/badge/在线体验-立即进入桃源乡-14b8a6?style=for-the-badge&logo=joy-con&logoColor=white" alt="在线体验">
+    <img src="https://img.shields.io/badge/閸︺劎鍤庢担鎾荤崣-缁斿宓嗘潻娑樺弳濡楀啯绨稊?14b8a6?style=for-the-badge&logo=joy-con&logoColor=white" alt="閸︺劎鍤庢担鎾荤崣">
   </a>
   <a href="https://github.com/setube/taoyuan" target="_blank">
-    <img src="https://img.shields.io/badge/开源地址-GitHub-black?style=for-the-badge&logo=github" alt="GitHub">
+    <img src="https://img.shields.io/badge/瀵偓濠ф劕婀撮崸鈧?GitHub-black?style=for-the-badge&logo=github" alt="GitHub">
   </a>
 </p>
 
 <p align="center">
-  <b>🌟 一个可独立部署的国风田园经营项目 🌟</b><br>
-  整合单人经营冒险与账号、云存档、交流大厅、游戏邮箱、AI 小助理等在线能力。
+  <b>棣冨皞 娑撯偓娑擃亜褰查悪顒傜彌闁劎璁查惃鍕禇妞嬪海鏁崶顓犵病閽€銉┿€嶉惄?棣冨皞</b><br>
+  閺佹潙鎮庨崡鏇氭眽缂佸繗鎯€閸愭帡娅撴稉搴ゅ閸欐灚鈧椒绨€涙ɑ銆傞妴浣锋唉濞翠礁銇囬崢鍛偓浣圭埗閹村繘鍋栫粻渚库偓涓処 鐏忓繐濮悶鍡欑搼閸︺劎鍤庨懗钘夊閵?
 </p>
 
 ---
 
-### 🚀 快速访问
+### 棣冩畬 韫囶偊鈧喕顔栭梻?
 
 > [!IMPORTANT]
-> **在线游玩地址**：[https://taoyuan.ymzcc.com/](https://taoyuan.ymzcc.com/)  
-> **官方交流群**：1094297186 (QQ)
+> **閸︺劎鍤庡〒鍝ュ负閸︽澘娼?*閿涙瓟https://taoyuan.ymzcc.com/](https://taoyuan.ymzcc.com/)
+> **鐎规ɑ鏌熸禍銈嗙ウ缂?*閿?094297186 (QQ)
 
 ---
 <p align="center">
-  <a href="游戏简介.md">玩家向简介</a> ·
-  <a href="https://taoyuan.ymzcc.com/guide.html">新手教程</a> ·
-  <a href="https://taoyuan.ymzcc.com/guide-book.html">系统百科</a> ·
-  <a href="https://github.com/setube/taoyuan">参考仓库</a> ·
-  QQ 群：1094297186
+  <a href="濞撳憡鍨欑粻鈧禒?md">閻溾晛顔嶉崥鎴犵暆娴?/a> 璺?
+  <a href="https://taoyuan.ymzcc.com/guide.html">閺傜増澧滈弫娆戔柤</a> 璺?
+  <a href="https://taoyuan.ymzcc.com/guide-book.html">缁崵绮洪惂鍓ь潠</a> 璺?
+  <a href="https://github.com/setube/taoyuan">閸欏倽鈧啩绮ㄦ惔?/a> 璺?
+  QQ 缂囥倧绱?094297186
 </p>
 
 <p align="center">
-  <code>国风田园经营</code>
-  <code>单人冒险</code>
-  <code>任务板 / 主题周 / 周结算</code>
-  <code>鱼塘 / 育种 / 博物馆 / 公会 / 瀚海</code>
+  <code>閸ヤ粙顥撻悽鏉挎疮缂佸繗鎯€</code>
+  <code>閸楁洑姹夐崘鎺楁珦</code>
+  <code>娴犺濮熼弶?/ 娑撳顣介崨?/ 閸涖劎绮ㄧ粻?/code>
+  <code>妤哥厧顢?/ 閼茶尙顫?/ 閸楁氨澧挎＃?/ 閸忣兛绱?/ 閻庢碍鎹?/code>
   <code>Docker / Compose</code>
 </p>
 
-## 项目定位
+## 妞ゅ湱娲扮€规矮缍?
 
-| 项目 | 说明 |
+| 妞ゅ湱娲?| 鐠囧瓨妲?|
 | --- | --- |
-| 游戏定位 | 国风田园经营 + 探索冒险 + 关系养成 + 独立版在线能力 |
-| 核心体验 | 单人经营仍然是主轴，在线能力负责账号、持久化和辅助社交 |
-| 适用场景 | 本地自用、局域网试跑、朋友小范围共享、自建公网服务 |
-| 默认端口 | 单端口 `4013` |
-| 前端目录 | `taoyuan-main/` |
-| 后端目录 | `server/` |
-| 数据目录 | `data/` |
-| 部署方式 | 本地启动、Docker、Docker Compose |
+| 濞撳憡鍨欑€规矮缍?| 閸ヤ粙顥撻悽鏉挎疮缂佸繗鎯€ + 閹恒垻鍌ㄩ崘鎺楁珦 + 閸忓磭閮撮崗缁樺灇 + 閻欘剛鐝涢悧鍫濇躬缁捐儻鍏橀崝?|
+| 閺嶇绺炬担鎾荤崣 | 閸楁洑姹夌紒蹇氭儉娴犲秶鍔ч弰顖欏瘜鏉炶揪绱濋崷銊у殠閼宠棄濮忕拹鐔荤煑鐠愶箑褰块妴浣瑰瘮娑斿懎瀵查崪宀冪窡閸斺晝銇炴禍?|
+| 闁倻鏁ら崷鐑樻珯 | 閺堫剙婀撮懛顏嗘暏閵嗕礁鐪崺鐔虹秹鐠囨洝绐囬妴浣规箙閸欏鐨懠鍐ㄦ纯閸忓彉闊╅妴浣藉殰瀵ゅ搫鍙曠純鎴炴箛閸?|
+| 姒涙顓荤粩顖氬經 | 閸楁洜顏崣?`4013` |
+| 閸撳秶顏惄顔肩秿 | `taoyuan-main/` |
+| 閸氬海顏惄顔肩秿 | `server/` |
+| 閺佺増宓侀惄顔肩秿 | `data/` |
+| 闁劎璁查弬鐟扮础 | 閺堫剙婀撮崥顖氬З閵嗕笍ocker閵嗕笍ocker Compose |
 
-## 文档导航
-- 想直接试玩线上版本：访问 [在线体验](https://taoyuan.ymzcc.com/)
-- 想先判断游戏是不是你喜欢的类型：阅读 [游戏简介.md](游戏简介.md)
-- 想快速理解当前版本的开局路线：阅读 https://taoyuan.ymzcc.com/guide.html
-- 想按系统查看更细的机制分工：阅读 https://taoyuan.ymzcc.com/guide-book.html
-- 想先把项目跑起来：阅读下面的 `快速开始`
-- 想部署到服务器：阅读 `Docker 与 Compose 部署`
-- 想改代码、联调或二开：阅读 `开发者说明`
-## 游戏特色
+## 閺傚洦銆傜€佃壈鍩?
+- 閹磭娲块幒銉ㄧ槸閻溾晝鍤庢稉濠勫閺堫剨绱扮拋鍧楁６ [閸︺劎鍤庢担鎾荤崣](https://taoyuan.ymzcc.com/)
+- 閹啿鍘涢崚銈嗘焽濞撳憡鍨欓弰顖欑瑝閺勵垯缍橀崰婊勵偨閻ㄥ嫮琚崹瀣剁窗闂冨懓顕?[濞撳憡鍨欑粻鈧禒?md](濞撳憡鍨欑粻鈧禒?md)
+- 閹啿鎻╅柅鐔烘倞鐟欙絽缍嬮崜宥囧閺堫剛娈戝鈧仦鈧捄顖滃殠閿涙岸妲勭拠?https://taoyuan.ymzcc.com/guide.html
+- 閹櫕瀵滅化鑽ょ埠閺屻儳婀呴弴瀵哥矎閻ㄥ嫭婧€閸掕泛鍨庡銉窗闂冨懓顕?https://taoyuan.ymzcc.com/guide-book.html
+- 閹啿鍘涢幎濠囥€嶉惄顔跨獓鐠ч攱娼甸敍姘舵鐠囪绗呴棃銏㈡畱 `韫囶偊鈧喎绱戞慨濯?
+- 閹娊鍎寸純鎻掑煂閺堝秴濮熼崳顭掔窗闂冨懓顕?`Docker 娑?Compose 闁劎璁瞏
+- 閹櫕鏁兼禒锝囩垳閵嗕浇浠堢拫鍐╁灗娴滃苯绱戦敍姘舵鐠?`瀵偓閸欐垼鈧懓顕╅弰宸?
+## 濞撳憡鍨欓悧纭呭
 
-- **不是只靠种地撑全程**：除了田庄经营，还有矿洞、公会、鱼塘、育种、博物馆、瀚海、关系线和隐藏仙灵等多条成长线
-- **当前版本更强调“任务给方向”**：主线、告示板、委托、特殊订单、主题周、周结算会一起推动经营节奏
-- **六种田庄带来不同开局**：桃源、草甸、溪流、竹林、山丘、荒野会明显影响前几天的体验手感
-- **中后期系统已经成型**：鱼塘有周赛和展示池，育种有谱系与认证，公会和博物馆也都有完整承接
-- **独立版在线能力可单独部署**：支持注册登录、账号云存档、交流大厅、游戏邮箱、AI 小助理
+- **娑撳秵妲搁崣顏堟浆缁夊秴婀撮幘鎴濆弿缁?*閿涙岸娅庢禍鍡欐暞鎼村嫮绮￠拃銉礉鏉╂ɑ婀侀惌鎸庣閵嗕礁鍙曟导姘モ偓渚€濂旀繅妯糕偓浣藉仜缁夊秲鈧礁宕ラ悧鈺咁洬閵嗕胶鈧碍鎹ｉ妴浣稿彠缁崵鍤庨崪宀勬閽樺繋绮伴悘鐢电搼婢舵碍娼幋鎰版毐缁?
+- **瑜版挸澧犻悧鍫熸拱閺囨潙宸辩拫鍐ｂ偓婊€鎹㈤崝锛勭舶閺傜懓鎮滈垾?*閿涙矮瀵岀痪瑁も偓浣告啞缁€鐑樻緲閵嗕礁顫欓幍妯糕偓浣哄濞堝﹨顓归崡鏇樷偓浣峰瘜妫版ê鎳嗛妴浣告噯缂佹挾鐣绘导姘鐠ч攱甯归崝銊х病閽€銉ㄥΝ婵?
+- **閸忣厾顫掗悽鏉跨盀鐢附娼垫稉宥呮倱瀵偓鐏炩偓**閿涙碍顢堝┃鎰┾偓浣藉磸閻㈡悶鈧焦閭ù浣碘偓浣侯伓閺嬫ぜ鈧礁鍖楁稉妯糕偓浣藉礆闁插簼绱伴弰搴㈡▔瑜板崬鎼烽崜宥呭殤婢垛晝娈戞担鎾荤崣閹靛鍔?
+- **娑擃厼鎮楅張鐔洪兇缂佺喎鍑＄紒蹇斿灇閸?*閿涙岸濂旀繅妯绘箒閸涖劏绂岄崪灞界潔缁€鐑樼潨閿涘矁鍋涚粔宥嗘箒鐠嬭京閮存稉搴ゎ吇鐠囦緤绱濋崗顑跨窗閸滃苯宕ラ悧鈺咁洬娑旂喖鍏橀張澶婄暚閺佸瓨澹欓幒?
+- **閻欘剛鐝涢悧鍫濇躬缁捐儻鍏橀崝娑樺讲閸楁洜瀚柈銊ц**閿涙碍鏁幐浣规暈閸愬瞼娅ヨぐ鏇樷偓浣藉閸欒渹绨€涙ɑ銆傞妴浣锋唉濞翠礁銇囬崢鍛偓浣圭埗閹村繘鍋栫粻渚库偓涓処 鐏忓繐濮悶?
 
-如果你想看更完整的玩家向介绍，建议直接打开 [游戏简介.md](游戏简介.md)。
+婵″倹鐏夋担鐘冲厒閻娲跨€瑰本鏆ｉ惃鍕负鐎硅泛鎮滄禒瀣矝閿涘苯缂撶拋顔炬纯閹恒儲澧﹀鈧?[濞撳憡鍨欑粻鈧禒?md](濞撳憡鍨欑粻鈧禒?md)閵?
 
-## 游戏截图
+## 濞撳憡鍨欓幋顏勬禈
 
 <p align="center">
-  <img src="taoyuan-main/images/1.png" alt="桃源乡独立版截图 1" width="48%" />
-  <img src="taoyuan-main/images/2.png" alt="桃源乡独立版截图 2" width="48%" />
+  <img src="taoyuan-main/images/1.png" alt="濡楀啯绨稊锛勫缁斿澧楅幋顏勬禈 1" width="48%" />
+  <img src="taoyuan-main/images/2.png" alt="濡楀啯绨稊锛勫缁斿澧楅幋顏勬禈 2" width="48%" />
 </p>
 
 <p align="center">
-  <img src="taoyuan-main/images/3.png" alt="桃源乡独立版截图 3" width="48%" />
-  <img src="taoyuan-main/images/4.png" alt="桃源乡独立版截图 4" width="48%" />
-</p>
+  <img src="taoyuan-main/images/3.png" alt="濡楀啯绨稊锛勫缁斿澧楅幋顏勬禈 3" width="48%" />
+  <img src="taoyuan-main/images/4.png" alt="濡楀啯绨稊锛勫缁斿澧楅幋顏勬禈 4" width="48%" />
 
-## 快速开始
+### 闁劎璁查幐鍥у础
 
-如果你只是想先把游戏跑起来，而不是立刻参与源码开发，推荐优先使用已经构建好的 GHCR 镜像。这样不需要先在本地构建前端，也不需要先安装前后端依赖。
+### 閸撳秶鐤嗛弶鈥叉
+- 閼汇儵鈧瀚╠ocker閸氼垰濮╅敍宀冾嚞绾喕绻氬鎻掔暔鐟?Docker閿涘牆缂撶拋?20.10 娴犮儰绗傞敍澶婅嫙绾喕绻?Docker Daemon 濮濓絽鐖舵潻鎰攽閵?
+- 閼汇儵鈧瀚ㄩ張顒€婀村┃鎰垳閸氼垰濮╅敍宀冾嚞绾喕绻氬鎻掔暔鐟?Node.js閿涘湢TS 閻楀牊婀伴敍澶婃嫲 npm閵?
 
-项目容器内默认监听 **4013**，下面的快速启动示例会把宿主机端口映射为 **4014**：
+---
 
-- 容器内由 `server` 同时提供网页和 `/api`
-- 数据目录建议持久化挂载到 `/app/data`
-
-### 最快启动流程（推荐：直接拉取 GHCR 镜像）
+### 閺傜懓绱℃稉鈧敍姘彥闁喎鎯庨崝顭掔礄娴ｈ法鏁?GHCR 闂€婊冨剼閿涘鈧劖甯归懡鎰┾偓?
+娑撯偓鐞涘苯鎳℃禒銈呭祮閸欘垵绻嶇悰宀嬬礉閻礁骞撻張顒€婀存笟婵婄鐎瑰顥婇崪灞藉缁旑垳绱拠鎴欌偓?
 
 ```bash
 docker pull ghcr.io/memorial-coder/taoyuan-duli:latest
@@ -106,210 +105,63 @@ docker pull ghcr.io/memorial-coder/taoyuan-duli:latest
 docker run -d \
   --name taoyuan \
   -p 4014:4013 \
-  -e SECRET_KEY=请替换成至少24位随机长字符串 \
-  -e ADMIN_TOKEN=请替换成至少12位管理员口令 \
-  -e SUPER_ADMIN_TOKEN=请替换成至少12位超级管理员口令 \
+  -e SECRET_KEY=鐠囬攱娴涢幑顫礋閼峰啿鐨?4娴ｅ秹娈㈤張鍝勭摟缁楋缚瑕?\
+  -e ADMIN_TOKEN=鐠囬攱娴涢幑顫礋缁狅紕鎮婇崨妯哄經娴?\
+  -e SUPER_ADMIN_TOKEN=婵″倿娓堕崣顖氾綖閸忋儴绉寸痪褏顓搁悶鍡楁喅閸欙絼鎶?\
   -e COOKIE_SECURE=false \
   -e COOKIE_SAME_SITE=lax \
   -v taoyuan-duli-data:/app/data \
   ghcr.io/memorial-coder/taoyuan-duli:latest
 ```
 
-启动完成后，打开：
+鐠佸潡妫?`http://127.0.0.1:4014` 閸楀啿褰查惇瀣煂濞撳憡鍨欓妴鍌滄晸娴溠呭箚婢у啳顕崷銊ㄧ箥鐞涘苯澧犲ǎ璇插 `CORS_ALLOWED_ORIGINS`閵嗕梗COOKIE_SECURE=true` 缁涘鐣ㄩ崗銊╁帳缂冾喓鈧?
 
-```text
-http://127.0.0.1:4014
-```
+---
 
-补充说明：
-
-- 上面的示例适合本机直接体验；如果后面要挂 HTTPS 域名或反向代理，再补充 `CORS_ALLOWED_ORIGINS`、`COOKIE_SECURE=true` 等生产配置
-- 命名卷 `taoyuan-duli-data` 会保存账号、会话、存档等运行数据，删除容器后数据仍可保留
-
-### 本地源码启动（适合二次开发和排查问题）
-
-如果你需要修改前端或后端代码，或者想更方便地定位构建问题，可以改用下面的源码启动方式。
-
-#### 启动前你需要准备什么
-
-请先确认你的电脑已经安装：
-
-- Node.js
-- npm
-
-建议使用较新的 Node.js LTS 版本。如果你已经能在终端里运行 `node -v` 和 `npm -v`，一般就可以继续。
-
-#### 第 1 步：构建前端页面
-
-在项目根目录打开终端，执行：
+### 閺傜懓绱℃禍宀嬬窗閺堫剙婀村┃鎰垳閸氼垰濮╅敍鍫モ偓鍌氭値娴滃本顐煎鈧崣鎴礆
+1. **閸戝棗顦悳顖氼暔**閿涙氨鈥樻穱婵嗗嚒鐎瑰顥?Node.js閿涘牆缂撶拋?LTS閿涘鎷?npm閵?
+2. **閺嬪嫬缂撻崜宥囶伂**閿?
 
 ```bash
 cd taoyuan-main
 npm install
-npm run build
+npm run build   # 鏉堟挸鍤懛?taoyuan-main/docs
 ```
-
-这一步会把游戏前端页面构建到 `taoyuan-main/docs`。构建完成后，后端才能把网页提供给浏览器打开。
-
-#### 第 2 步：准备后端配置文件
-
-继续在终端里执行：
+3. **闁板秶鐤嗛崥搴ｎ伂**閿?
 
 ```bash
 cd ../server
 copy .env.example .env
 ```
 
-然后请用编辑器打开 `server/.env`，至少修改下面几项：
-
-- `SECRET_KEY`：改成你自己的随机长字符串
-- `ADMIN_TOKEN`：改成你自己的管理员口令
-- `SUPER_ADMIN_TOKEN`：如果你需要超级管理员，也改成自己的；不需要可以先留空
-
-其他配置先保持默认也可以，第一次启动不用一次改完所有项。
-
-> 注意：玩家登录密码不是在 `.env` 里写死的，而是玩家在注册页面自己设置。
-
-#### 第 3 步：启动后端
-
-还在 `server` 目录里，执行：
+閸?`server/.env` 娑擃叀鍤︾亸鎴滄叏閺€鐧哥窗
+- `SECRET_KEY`閿涙岸娈㈤張娲毐鐎涙顑佹稉?
+- `ADMIN_TOKEN`閿涙氨顓搁悶鍡楁喅閸欙絼鎶?
+- `SUPER_ADMIN_TOKEN`閿涘牆褰查柅澶涚礆
+4. **閸氼垰濮╅崥搴ｎ伂**閿?
 
 ```bash
 npm install
 npm start
 ```
 
-看到服务成功启动后，打开浏览器访问：
+閺堝秴濮熼崥顖氬З閸氬函绱濋幍鎾崇磻 `http://127.0.0.1:4013` 鐠佸潡妫跺〒鍛婂灆閵嗗倻鈥樻穱?`taoyuan-main/docs` 瀹告彃鐣幋鎰€鐚寸礉閸氾箑鍨崜宥囶伂妞ょ敻娼扮亸鍡樻￥濞夋洖鐫嶇粈鎭掆偓?
+
+---
+
+### 閺傜懓绱℃稉澶涚窗Docker Compose 闁劎璁查敍鍫モ偓鍌氭値閺堝秴濮熼崳顭掔礆
+閸掓稑缂撻弽鍦窗瑜?`.env`閿涘牆顦查崚?`.env.compose.example`閿涘绱濋獮璺猴綖閸?`SECRET_KEY`閵嗕梗ADMIN_TOKEN`閵嗕梗SUPER_ADMIN_TOKEN`閿涘牆顩ч棁鈧敍澶堚偓?
+
+閻╊喖缍嶇紒鎾寸€粈杞扮伐閿?
 
 ```text
-http://127.0.0.1:4013
+/opt/taoyuan/
+  閳规壕鏀?docker-compose.yml
+  閳规壕鏀?.env
+  閳规柡鏀?data/   # 閻劋绨幐浣风畽閸?/app/data
 ```
 
-如果一切正常，你就能看到游戏首页。
-
-#### 第 4 步：第一次进入后建议做什么
-
-第一次打开后，建议按下面顺序体验：
-
-1. 先注册一个账号或登录
-2. 选择存档方式
-3. 开始新的旅程
-4. 优先跟主线、任务页和告示板推进
-5. 之后再体验云存档、交流大厅、游戏邮箱和 AI 小助理等独立版功能
-
-## Docker 与 Compose 部署
-
-如果你准备放到服务器上，推荐使用 Docker。当前仓库已经提供：
-
-- `Dockerfile`
-- `Dockerfile.repack`
-- `docker-compose.yml`
-- `.env.compose.example`
-
-### 方式一：直接构建并运行镜像
-
-先在项目根目录构建镜像：
-
-```bash
-docker build -t taoyuan-duli:latest .
-```
-
-生产运行示例：
-
-```bash
-docker run -d \
-  --name taoyuan-duli \
-  -p 4014:4013 \
-  -e SECRET_KEY=请替换成至少24位随机长字符串 \
-  -e ADMIN_TOKEN=请替换成至少12位管理员口令 \
-  -e SUPER_ADMIN_TOKEN=请替换成至少12位超级管理员口令 \
-  -e COOKIE_SECURE=true \
-  -e CORS_ALLOWED_ORIGINS=https://你的域名 \
-  -v taoyuan-duli-data:/app/data \
-  taoyuan-duli:latest
-```
-
-补充说明：
-
-- **必须**挂载 `/app/data`，否则重建容器后用户、会话、存档、邮箱、审计日志等运行数据会丢失
-- 镜像已内置健康检查，可通过 `/api/health` 判活
-- 若你打算使用 **MySQL** 管理账号，请额外传入 `MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE`
-- 若你打算继续使用本地文件用户库，请不要传入上述 MySQL 变量
-- 容器内服务始终监听 **4013**，对外可按需映射为 `4014`、`80` 或 `443` 之后的反向代理入口
-
-导出镜像：
-
-```bash
-docker save -o taoyuan-duli-latest.tar taoyuan-duli:latest
-```
-
-### 方式二：手动上传镜像到服务器后使用 Compose
-
-如果你打算像现在这样：
-
-- 手动上传 `tar` 镜像包
-- 手动上传 `docker-compose.yml`
-- 手动上传运行用 `.env`
-
-那可以直接使用仓库根目录里的：
-
-- `docker-compose.yml`
-- `.env.compose.example`
-
-建议服务器目录结构类似：
-
-```text
-/opt/lucky-test/
-  ├─ taoyuan-duli-latest.tar
-  ├─ docker-compose.yml
-  ├─ .env
-  └─ data/
-```
-
-其中：
-
-- 容器名已经固定为 `taoyuan`
-- 数据目录使用 `./data:/app/data`
-- 你只需要把 `.env.compose.example` 改名为 `.env` 并填写真实值
-
-服务器上可按下面流程执行：
-
-```bash
-cd /opt/lucky-test
-docker load -i taoyuan-duli-latest.tar
-docker compose down
-docker compose up -d
-```
-
-### 方式三：由 GitHub Actions 自动构建并推送到 GHCR
-
-如果仓库维护者希望在每次推送代码后，由 GitHub 自动构建镜像并发布，而不是在本地手动执行 `docker build`，可以使用仓库里的工作流文件：
-
-- `.github/workflows/docker-publish.yml`
-
-当前工作流会在以下条件下触发：
-
-- 推送到 `main`
-- 且改动包含 `Dockerfile`、`.dockerignore`、`server/**`、`taoyuan-main/**`、`data-defaults/**` 或工作流文件本身
-- 或者在 GitHub 网页手动执行 `Run workflow`
-
-启用前请先在 GitHub 仓库页面打开：
-
-- `Settings -> Actions -> General -> Workflow permissions`
-
-并将权限设为：
-
-- `Read and write permissions`
-
-这样工作流里的 `GITHUB_TOKEN` 才能把镜像推送到 GitHub Container Registry。
-
-推送成功后，镜像会发布到：
-
-```text
-ghcr.io/memorial-coder/taoyuan-duli:latest
-```
-
-如果部署侧准备让服务器直接拉 GHCR 镜像，可以把 Compose 改成类似下面的形式：
+`docker-compose.yml` 缁€杞扮伐閿?
 
 ```yaml
 services:
@@ -317,8 +169,7 @@ services:
     image: ghcr.io/memorial-coder/taoyuan-duli:latest
     container_name: taoyuan
     restart: unless-stopped
-    env_file:
-      - .env
+    env_file: [.env]
     environment:
       DB_STORAGE: /app/data/.storage.json
     ports:
@@ -327,220 +178,169 @@ services:
       - ./data:/app/data
 ```
 
-服务器首次拉取私有 GHCR 包时，通常需要先登录：
+閸氼垰濮╅幋鏍ㄦ纯閺傚府绱?
 
 ```bash
-docker login ghcr.io
+cd ......./taoyuan
+docker compose pull        # 閹峰褰囬張鈧弬浼存殔閸?
+docker compose up -d       # 閸氼垰濮╅幋鏍櫢閸氼垱婀囬崝?
 ```
 
-然后输入：
-
-- GitHub 用户名
-- 一个带 `read:packages` 权限的 Personal Access Token
-
-之后每次代码推送到 `main`，维护者就**不需要再手动构建镜像**了。部署机器上的常见更新流程会变成：
-
-```bash
-cd /opt/lucky-test
-docker compose pull
-docker compose up -d
-```
-
-补充说明：
-
-- 这套流程解决的是“自动构建并发布镜像”
-- 服务器是否自动更新容器，取决于你有没有额外配置自动部署
-- 如果还没有自动部署，服务器端仍需要手动执行一次 `docker compose pull && docker compose up -d`
-
-### `Dockerfile.repack` 的用途
-
-当前仓库默认 `docker-compose.yml` 使用的是 **`Dockerfile.repack`**。它会基于你本机已经存在的 `taoyuan-duli:latest` 镜像，只覆盖：
-
-- `server/`
-- `taoyuan-main/docs`
-- `data-defaults/`
-
-这种方式适合“本地代码已改好，但当前网络不方便重新拉取 Docker Hub 基础镜像”的场景，能让前端静态资源和后端代码快速进入容器。
-
-对应配置类似：
-
-```yaml
-services:
-  taoyuan:
-    build:
-      context: .
-      dockerfile: Dockerfile.repack
-    image: taoyuan-duli:latest
-```
-
-如果你希望从头完整重建镜像，可以把 `docker-compose.yml` 里的 `dockerfile` 改回 `Dockerfile`，再执行：
-
-```bash
-docker compose up -d --build
-```
-
-否则 compose 只会继续使用已有的 `taoyuan-duli:latest` 镜像，即使你本地代码已经更新，容器里仍然可能是旧页面。
-
-## 技术栈
-
-| 模块 | 技术 | 说明 |
-| --- | --- | --- |
-| 前端框架 | Vue 3.5 + Pinia + Vue Router | 游戏界面、状态管理、页面路由 |
-| 构建与类型 | Vite 7 + TypeScript 5.9 | 前端构建、类型检查、开发联调 |
-| 样式 | TailwindCSS 3 + 原生 CSS | UI 布局与样式组织 |
-| 后端服务 | Express 4 + express-session + Helmet + CORS | 登录、存档、大厅、邮箱、AI 助手接口 |
-| 数据存储 | 本地文件用户库 / MySQL2 | 支持本地文件与 MySQL 两种账号模式 |
-| 多端能力 | Electron + Capacitor | 桌面打包与 Android 构建能力已在前端目录中保留 |
-| 部署 | Docker + Docker Compose | 本地、服务器、自定义镜像部署 |
-
-## 项目结构
-
-```text
-.
-├─ taoyuan-main/              # 前端源码、静态资源、构建产物
-│  ├─ src/                    # 游戏前端源码
-│  ├─ public/                 # 新手教程、系统百科等静态文件
-│  ├─ images/                 # README / 宣传图等素材
-│  ├─ docs/                   # Vite 构建输出目录
-│  └─ package.json            # 前端脚本与依赖
-├─ server/                    # 独立版后端
-│  ├─ src/                    # API、会话、存档、大厅、邮箱、AI 助手
-│  ├─ .env.example            # 后端配置示例
-│  └─ package.json            # 后端脚本与依赖
-├─ data/                      # 运行时数据
-├─ data-defaults/             # 默认配置与初始数据
-├─ tools/                     # 辅助工具脚本
-├─ docker-compose.yml         # Compose 入口
-├─ Dockerfile                 # 完整构建镜像
-├─ Dockerfile.repack          # 基于现有镜像快速回填构建
-├─ .env.compose.example       # Compose 环境变量示例
-├─ 游戏简介.md                # 玩家向介绍
-└─ README.md                  # 项目入口说明
-```
-
-## 游戏系统一览
-
-| 系统 | 定位 | 当前特点 |
-| --- | --- | --- |
-| 田庄 / 种植 | 开局保底经营线 | 六种田庄、轮作种植、设施升级、稳定现金流 |
-| 牧场 / 家园 | 日常经营扩展线 | 动物照料、产物维护、宅院布置与生活化体验 |
-| 钓鱼 / 鱼塘 | 中期经营线 | 钓鱼补现金流、鱼塘周赛、展示池、高阶养护 |
-| 矿洞 / 公会 | 冒险成长线 | 矿石素材、战斗推进、讨伐、捐献、荣誉与赛季 |
-| 育种 | 中后期实验线 | 谱系、认证、图鉴、品鉴周赛、规划器 |
-| 博物馆 | 收藏与展陈线 | 展陈评分、馆务推进、学者委托、长期收集目标 |
-| 瀚海 | 高阶段商路线 | 商路投资、遗迹勘探、轮换货架、异域经营 |
-| 村民 / 婚姻 / 仙灵 | 关系与奇遇线 | 送礼、恋爱、婚姻、仙缘与长期加成 |
-| 在线功能 | 独立版差异能力 | 登录、云存档、交流大厅、邮箱、AI 小助理 |
-
-## 配置项速查
-
-直接运行 `server` 时，主要使用 `server/.env`；使用 `docker compose` 时，主要使用仓库根目录 `.env`，可从 `.env.compose.example` 复制得到。
-
-### `server/.env` 常用配置
-
-| 配置项 | 是否必填 | 作用 | 常见说明 |
-| --- | --- | --- | --- |
-| `PORT` | 否 | 后端监听端口 | 默认 `4013` |
-| `SECRET_KEY` | 是 | 会话签名密钥 | 至少 24 位，不能使用示例值 |
-| `ADMIN_TOKEN` | 是 | 普通管理员口令 | 至少 12 位，不能使用示例值 |
-| `SUPER_ADMIN_TOKEN` | 否 | 超级管理员口令 | 如填写，不能与 `ADMIN_TOKEN` 相同 |
-| `CORS_ALLOWED_ORIGINS` | 视情况 | 允许携带 Cookie 的来源列表 | 多个来源用逗号分隔 |
-| `COOKIE_SECURE` | 视部署方式 | 是否只在 HTTPS 下发送 Cookie | 反向代理到 HTTPS 时通常应设为 `true` |
-| `COOKIE_SAME_SITE` | 视部署方式 | Cookie 跨站策略 | 若设为 `none`，必须同时启用 `COOKIE_SECURE=true` |
-| `DB_STORAGE` | 否 | 本地存储文件路径 | 未配置时默认回落到 `data/.storage.json` |
-| `MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE` | 否 | MySQL 用户库配置 | 使用本地文件用户库时不要传入这些变量 |
-
-### Compose 根目录 `.env` 常用配置
-
-| 配置项 | 是否常用 | 作用 | 常见说明 |
-| --- | --- | --- | --- |
-| `HOST_PORT` | 是 | 映射到宿主机的端口 | 常见为 `4014`、`80`、`443` 后的反代入口 |
-| `SECRET_KEY` | 是 | 传给容器内服务的会话密钥 | 规则同上 |
-| `ADMIN_TOKEN` | 是 | 传给容器内服务的管理员口令 | 规则同上 |
-| `SUPER_ADMIN_TOKEN` | 否 | 超级管理员口令 | 可留空 |
-| `CORS_ALLOWED_ORIGINS` | 通常是 | 允许跨域携带 Cookie 的来源 | 生产环境建议填写真实域名 |
-| `COOKIE_SECURE` | 生产环境建议开启 | 控制 HTTPS Cookie | 与反向代理配置一起考虑 |
-| `COOKIE_SAME_SITE` | 视跨域策略 | Cookie 跨站策略 | 跨站登录常见为 `none` |
-
-## 安全上线检查清单
-
-- 不要直接使用示例 `SECRET_KEY`、`ADMIN_TOKEN`、`SUPER_ADMIN_TOKEN`
-- 不要把根目录 `.env` 或 `server/.env` 提交到仓库
-- 生产环境建议通过 HTTPS 反向代理暴露服务
-- 若使用跨站 Cookie，确保 `COOKIE_SAME_SITE=none` 时同时启用 `COOKIE_SECURE=true`
-- 确认 `CORS_ALLOWED_ORIGINS` 填写的是实际访问地址，而不是临时测试地址
-- 确认数据卷已挂载到 `/app/data`
-- 若使用 MySQL，额外备份数据库，不要只备份容器
-
-## 备份、升级与恢复
-
-### 建议备份哪些内容
-
-- `data/` 目录或容器挂载的数据卷
-- 当前使用的 `.env`
-- 若启用了 MySQL，再额外备份数据库
-- 如有自定义部署脚本，也一并备份
-
-### 升级建议流程
-
-1. 先备份 `data/`、`.env` 和数据库
-2. 准备新镜像，或等待 GitHub Actions 推送新的 GHCR 镜像，或在目标机器上构建新镜像
-3. 保持数据挂载目录不变
-4. 执行 `docker compose down` 后再 `docker compose up -d`
-5. 用 `/api/health` 和实际登录流程确认升级成功
-
-### 恢复建议流程
-
-1. 停掉当前容器
-2. 还原旧数据目录或旧数据库
-3. 还原旧配置文件
-4. 重新加载旧镜像并启动
-5. 检查首页、登录、存档和后台入口是否正常
-
-## 常用运维命令
-
-查看容器状态：
-
-```bash
-docker compose ps
-```
-
-查看实时日志：
-
-```bash
-docker logs -f taoyuan
-```
-
-检查健康接口：
+閸嬨儱鎮嶅Λ鈧弻銉窗
 
 ```bash
 curl http://127.0.0.1:4014/api/health
 ```
 
-重建并启动：
+
+---
+
+
+## 閹垛偓閺堫垱鐖?
+
+| 濡€虫健 | 閹垛偓閺?| 鐠囧瓨妲?|
+| --- | --- | --- |
+| 閸撳秶顏鍡樼仸 | Vue 3.5 + Pinia + Vue Router | 濞撳憡鍨欓悾宀勬桨閵嗕胶濮搁幀浣侯吀閻炲棎鈧線銆夐棃銏ｇ熅閻?|
+| 閺嬪嫬缂撴稉搴ｈ閸?| Vite 7 + TypeScript 5.9 | 閸撳秶顏弸鍕紦閵嗕胶琚崹瀣梾閺屻儯鈧礁绱戦崣鎴ｄ粓鐠?|
+| 閺嶅嘲绱?| TailwindCSS 3 + 閸樼喓鏁?CSS | UI 鐢啫鐪稉搴㈢壉瀵繒绮嶇紒?|
+| 閸氬海顏張宥呭 | Express 4 + express-session + Helmet + CORS | 閻ц缍嶉妴浣哥摠濡楋絻鈧礁銇囬崢鍛偓渚€鍋栫粻渚库偓涓処 閸斺晜澧滈幒銉ュ經 |
+| 閺佺増宓佺€涙ê鍋?| 閺堫剙婀撮弬鍥︽閻劍鍩涙惔?/ MySQL2 | 閺€顖涘瘮閺堫剙婀撮弬鍥︽娑?MySQL 娑撱倗顫掔拹锕€褰垮Ο鈥崇础 |
+| 婢舵氨顏懗钘夊 | Electron + Capacitor | 濡楀矂娼伴幍鎾冲瘶娑?Android 閺嬪嫬缂撻懗钘夊瀹告彃婀崜宥囶伂閻╊喖缍嶆稉顓濈箽閻?|
+| 闁劎璁?| Docker + Docker Compose | 閺堫剙婀撮妴浣规箛閸斺€虫珤閵嗕浇鍤滅€规矮绠熼梹婊冨剼闁劎璁?|
+
+## 妞ゅ湱娲扮紒鎾寸€?
+
+```text
+.
+閳规壕鏀?taoyuan-main/              # 閸撳秶顏┃鎰垳閵嗕線娼ら幀浣界カ濠ф劑鈧焦鐎杞伴獓閻?
+閳? 閳规壕鏀?src/                    # 濞撳憡鍨欓崜宥囶伂濠ф劗鐖?
+閳? 閳规壕鏀?public/                 # 閺傜増澧滈弫娆戔柤閵嗕胶閮寸紒鐔烘缁夋垹鐡戦棃娆愨偓浣规瀮娴?
+閳? 閳规壕鏀?images/                 # README / 鐎癸絼绱堕崶鍓х搼缁辩姵娼?
+閳? 閳规壕鏀?docs/                   # Vite 閺嬪嫬缂撴潏鎾冲毉閻╊喖缍?
+閳? 閳规柡鏀?package.json            # 閸撳秶顏懘姘拱娑撳簼绶风挧?
+閳规壕鏀?server/                    # 閻欘剛鐝涢悧鍫濇倵缁?
+閳? 閳规壕鏀?src/                    # API閵嗕椒绱扮拠婵勨偓浣哥摠濡楋絻鈧礁銇囬崢鍛偓渚€鍋栫粻渚库偓涓処 閸斺晜澧?
+閳? 閳规壕鏀?.env.example            # 閸氬海顏柊宥囩枂缁€杞扮伐
+閳? 閳规柡鏀?package.json            # 閸氬海顏懘姘拱娑撳簼绶风挧?
+閳规壕鏀?data/                      # 鏉╂劘顢戦弮鑸垫殶閹?
+閳规壕鏀?data-defaults/             # 姒涙顓婚柊宥囩枂娑撳骸鍨垫慨瀣殶閹?
+閳规壕鏀?tools/                     # 鏉堝懎濮銉ュ徔閼存碍婀?
+閳规壕鏀?docker-compose.yml         # 姒涙顓?Compose 閸忋儱褰涢敍鍫熸拱閸?repack 濞翠胶鈻奸敍?
+閳规壕鏀?Dockerfile                 # 鐎瑰本鏆ｉ弸鍕紦闂€婊冨剼
+閳规壕鏀?Dockerfile.repack          # 閸╄桨绨悳鐗堟箒闂€婊冨剼韫囶偊鈧喎娲栨繅顐ｇ€?
+閳规壕鏀?.env.compose.example       # Compose 閻滎垰顣ㄩ崣姗€鍣虹粈杞扮伐
+閳规壕鏀?濞撳憡鍨欑粻鈧禒?md                # 閻溾晛顔嶉崥鎴滅矙缂?
+閳规柡鏀?README.md                  # 妞ゅ湱娲伴崗銉ュ經鐠囧瓨妲?
+```
+
+## 濞撳憡鍨欑化鑽ょ埠娑撯偓鐟?
+
+| 缁崵绮?| 鐎规矮缍?| 瑜版挸澧犻悧鍦仯 |
+| --- | --- | --- |
+| 閻㈡澘绨?/ 缁夊秵顦?| 瀵偓鐏炩偓娣囨繂绨崇紒蹇氭儉缁?| 閸忣厾顫掗悽鏉跨盀閵嗕浇鐤嗘担婊咁潚濡炲秲鈧浇顔曢弬钘夊磳缁狙佲偓浣呵旂€规氨骞囬柌鎴炵ウ |
+| 閻椦冩簚 / 鐎硅泛娲?| 閺冦儱鐖剁紒蹇氭儉閹碘晛鐫嶇痪?| 閸斻劎澧块悡褎鏋￠妴浣烽獓閻椻晝娣幎銈冣偓浣哥暍闂勩垹绔风純顔荤瑢閻㈢喐妞块崠鏍︾秼妤?|
+| 闁芥捇濂?/ 妤哥厧顢?| 娑擃厽婀＄紒蹇氭儉缁?| 闁芥捇濂旂悰銉у箛闁叉垶绁﹂妴渚€濂旀繅妯烘噯鐠ф稏鈧礁鐫嶇粈鐑樼潨閵嗕線鐝梼璺哄悋閹?|
+| 閻寧绀?/ 閸忣兛绱?| 閸愭帡娅撻幋鎰版毐缁?| 閻法鐓剁槐鐘虫綏閵嗕焦鍨弬妤佸腹鏉╂稏鈧浇顓挎导鎰┾偓浣瑰礃閻氼喓鈧浇宕崇懢澶夌瑢鐠ф稑顒?|
+| 閼茶尙顫?| 娑擃厼鎮楅張鐔风杽妤犲瞼鍤?| 鐠嬭京閮撮妴浣筋吇鐠囦降鈧礁娴橀柎娣偓浣告惂闁存潙鎳嗙挧娑栤偓浣筋潐閸掓帒娅?|
+| 閸楁氨澧挎＃?| 閺€鎯版娑撳骸鐫嶉梽鍫㈠殠 | 鐏炴洟妾茬拠鍕瀻閵嗕線顩崝鈩冨腹鏉╂稏鈧礁顒熼懓鍛潤閹垫ǜ鈧線鏆遍張鐔告暪闂嗗棛娲伴弽?|
+| 閻庢碍鎹?| 妤傛﹢妯佸▓闈涙櫌鐠侯垳鍤?| 閸熷棜鐭鹃幎鏇＄カ閵嗕線浠愭潻鐟板珟閹侯潿鈧浇鐤嗛幑銏ｆ彛閺嬭翰鈧礁绱撻崺鐔虹病閽€?|
+| 閺夋垶鐨?/ 婵犳艾些 / 娴犳瑧浼?| 閸忓磭閮存稉搴☆殞闁洨鍤?| 闁胶銇滈妴浣逛罕閻栦究鈧礁顭锋慨姹団偓浣风舶缂傛ü绗岄梹鎸庢埂閸旂姵鍨?|
+| 閸︺劎鍤庨崝鐔诲厴 | 閻欘剛鐝涢悧鍫濇▕瀵倽鍏橀崝?| 閻ц缍嶉妴浣风隘鐎涙ɑ銆傞妴浣锋唉濞翠礁銇囬崢鍛偓渚€鍋栫粻渚库偓涓処 鐏忓繐濮悶?|
+
+## 闁劎璁查柊宥囩枂闁喐鐓?
+
+闁劎璁查弮鏈靛瘜鐟曚胶婀呴弽鍦窗瑜?`.env`閵嗗倸顩ч弸婊€缍橀弰顖涙拱閸︾増绨惍浣烘纯鐠烘埊绱濋崘宥呭綗婢舵牕寮懓?`server/.env.example`閵?
+
+### 閺嶅湱娲拌ぐ?`.env` 鐢摜鏁ら柊宥囩枂
+
+| 闁板秶鐤嗘い?| 閺勵垰鎯佺敮鍝ユ暏 | 娴ｆ粎鏁?| 鐢瓕顫嗙拠瀛樻 |
+| --- | --- | --- | --- |
+| `HOST_PORT` | 閺?| 閺勭姴鐨犻崚鏉款問娑撶粯婧€閻ㄥ嫮顏崣?| 鐢瓕顫嗘稉?`4014`閵嗕梗80`閵嗕梗443` 閸氬海娈戦崣宥勫敩閸忋儱褰?|
+| `SECRET_KEY` | 閺?| 娴肩姷绮扮€圭懓娅掗崘鍛箛閸旓紕娈戞导姘崇樈鐎靛棝鎸?| 鐟欏嫬鍨崥灞肩瑐 |
+| `ADMIN_TOKEN` | 閺?| 娴肩姷绮扮€圭懓娅掗崘鍛箛閸旓紕娈戠粻锛勬倞閸涙ê褰涙禒?| 鐟欏嫬鍨崥灞肩瑐 |
+| `SUPER_ADMIN_TOKEN` | 閸?| 鐡掑懐楠囩粻锛勬倞閸涙ê褰涙禒?| 閸欘垳鏆€缁?|
+| `CORS_ALLOWED_ORIGINS` | 闁艾鐖堕弰?| 閸忎浇顔忕捄銊ョ厵閹煎搫鐢?Cookie 閻ㄥ嫭娼靛┃?| 閻㈢喍楠囬悳顖氼暔瀵ら缚顔呮繅顐㈠晸閻喎鐤勯崺鐔锋倳 |
+| `COOKIE_SECURE` | 閻㈢喍楠囬悳顖氼暔瀵ら缚顔呭鈧崥?| 閹貉冨煑 HTTPS Cookie | 娑撳骸寮介崥鎴滃敩閻炲棝鍘ょ純顔荤鐠х柉鈧啳妾?|
+| `COOKIE_SAME_SITE` | 鐟欏棜娉曢崺鐔虹摜閻?| Cookie 鐠恒劎鐝粵鏍殣 | 鐠恒劎鐝惂璇茬秿鐢瓕顫嗘稉?`none` |
+| `MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE` | 閸?| MySQL 閻劍鍩涙惔鎾诲帳缂?| 娑撳秳濞囬悽?MySQL 閺冨墎鏆€缁屽搫宓嗛崣?|
+
+## 娑撳﹦鍤庡Λ鈧弻銉︾閸?
+
+- 娑撳秷顩﹂惄瀛樺复娴ｈ法鏁ょ粈杞扮伐 `SECRET_KEY`閵嗕梗ADMIN_TOKEN`閵嗕梗SUPER_ADMIN_TOKEN`
+- 娑撳秷顩﹂幎濠冪壌閻╊喖缍?`.env` 閹?`server/.env` 閹绘劒姘﹂崚棰佺波鎼?
+- 閻㈢喍楠囬悳顖氼暔瀵ら缚顔呴柅姘崇箖 HTTPS 閸欏秴鎮滄禒锝囨倞閺嗘挳婀堕張宥呭
+- 閼汇儰濞囬悽銊ㄦ硶缁?Cookie閿涘瞼鈥樻穱?`COOKIE_SAME_SITE=none` 閺冭泛鎮撻弮璺烘儙閻?`COOKIE_SECURE=true`
+- 绾喛顓?`CORS_ALLOWED_ORIGINS` 婵夘偄鍟撻惃鍕Ц鐎圭偤妾拋鍧楁６閸︽澘娼冮敍宀冣偓灞肩瑝閺勵垯澶嶉弮鑸电ゴ鐠囨洖婀撮崸鈧?
+- 绾喛顓婚弫鐗堝祦閸楀嘲鍑￠幐鍌濇祰閸?`/app/data`
+- 閼汇儰濞囬悽?MySQL閿涘矂顤傛径鏍ь槵娴犺姤鏆熼幑顔肩氨閿涘奔绗夌憰浣稿涧婢跺洣鍞ょ€圭懓娅?
+
+## 闁劎璁叉潻鎰樊
+
+- `data/` 閻╊喖缍嶉幋鏍ь啇閸ｃ劍瀵曟潪鐣屾畱閺佺増宓侀崡?
+- 瑜版挸澧犳担璺ㄦ暏閻?`.env`
+- 閼汇儱鎯庨悽銊ょ啊 MySQL閿涘苯鍟€妫版繂顦绘径鍥﹀敜閺佺増宓佹惔?
+- 婵″倹婀侀懛顏勭暰娑斿鍎寸純鑼跺壖閺堫剨绱濇稊鐔剁楠炶泛顦禒?
+
+### 閸楀洨楠?
+
+1. 閸忓牆顦禒?`data/`閵嗕梗.env` 閸滃本鏆熼幑顔肩氨
+2. 閸戝棗顦弬浼存殔閸嶅骏绱濋幋鏍搼瀵?GitHub Actions 閹恒劑鈧焦鏌婇惃?GHCR 闂€婊冨剼閿涘本鍨ㄩ崷銊ф窗閺嶅洦婧€閸ｃ劋绗傞弸鍕紦閺備即鏆呴崓?
+3. 娣囨繃瀵旈弫鐗堝祦閹稿倽娴囬惄顔肩秿娑撳秴褰?
+4. 閹笛嗩攽 `docker compose down` 閸氬骸鍟€ `docker compose up -d`
+5. 閻?`/api/health` 閸滃苯鐤勯梽鍛瑜版洘绁︾粙瀣€樼拋銈呭磳缁狙勫灇閸?
+
+### 閹垹顦?
+
+1. 閸嬫粍甯€瑜版挸澧犵€圭懓娅?
+2. 鏉╂ê甯弮褎鏆熼幑顔炬窗瑜版洘鍨ㄩ弮褎鏆熼幑顔肩氨
+3. 鏉╂ê甯弮褔鍘ょ純顔芥瀮娴?
+4. 闁插秵鏌婇崝鐘烘祰閺冄囨殔閸嶅繐鑻熼崥顖氬З
+5. 濡偓閺屻儵顩绘い鐐光偓浣烘瑜版洏鈧礁鐡ㄥ锝呮嫲閸氬骸褰撮崗銉ュ經閺勵垰鎯佸锝呯埗
+
+## 鐢摜鏁ゆ潻鎰樊閸涙垝鎶?
+
+閺屻儳婀呯€圭懓娅掗悩鑸碘偓渚婄窗
+
+```bash
+docker compose ps
+```
+
+閺屻儳婀呯€圭偞妞傞弮銉ョ箶閿?
+
+```bash
+docker logs -f taoyuan
+```
+
+濡偓閺屻儱浠存惔閿嬪复閸欙綇绱?
+
+```bash
+curl http://127.0.0.1:4014/api/health
+```
+
+闁插秴缂撻獮璺烘儙閸旑煉绱?
 
 ```bash
 docker compose up -d --build
 ```
 
-停止并移除当前服务：
+閸嬫粍顒涢獮鍓佇╅梽銈呯秼閸撳秵婀囬崝鈽呯窗
 
 ```bash
 docker compose down
 ```
 
-如果你当前是本地直接运行模式，后端启动命令是：
+婵″倹鐏夋担鐘茬秼閸撳秵妲搁張顒€婀撮惄瀛樺复鏉╂劘顢戝Ο鈥崇础閿涘苯鎮楃粩顖氭儙閸斻劌鎳℃禒銈嗘Ц閿?
 
 ```bash
 cd server
 npm start
 ```
 
-## 开发者说明
+## 瀵偓閸欐垼鈧懓顕╅弰?
 
-如果你要继续开发、二开或本地联调，可以把前后端分开运行。
+婵″倹鐏夋担鐘侯洣缂佈呯敾瀵偓閸欐垯鈧椒绨╁鈧幋鏍ㄦ拱閸︽媽浠堢拫鍐跨礉閸欘垯浜掗幎濠傚閸氬海顏崚鍡楃磻鏉╂劘顢戦妴?
 
-### 前端开发
+### 閸撳秶顏鈧崣?
 
 ```bash
 cd taoyuan-main
@@ -548,14 +348,14 @@ npm install
 npm run dev
 ```
 
-常用命令：
+鐢摜鏁ら崨鎴掓姢閿?
 
-- `npm run build`：构建生产静态资源到 `taoyuan-main/docs`
-- `npm run lint`：执行前端 lint
-- `npm run type-check`：执行 TypeScript 检查
-- `npm run qa:late-game`：执行较完整的后期样本与静态检查流程
+- `npm run build`閿涙碍鐎铏规晸娴溠囨饯閹浇绁┃鎰煂 `taoyuan-main/docs`
+- `npm run lint`閿涙碍澧界悰灞藉缁?lint
+- `npm run type-check`閿涙碍澧界悰?TypeScript 濡偓閺?
+- `npm run qa:late-game`閿涙碍澧界悰宀冪窛鐎瑰本鏆ｉ惃鍕倵閺堢喐鐗遍張顑跨瑢闂堟瑦鈧焦顥呴弻銉︾ウ缁?
 
-### 后端开发
+### 閸氬海顏鈧崣?
 
 ```bash
 cd server
@@ -563,81 +363,81 @@ npm install
 npm run dev
 ```
 
-常用命令：
+鐢摜鏁ら崨鎴掓姢閿?
 
-- `npm start`：普通启动
-- `npm run dev`：使用 `node --watch` 监听改动
+- `npm start`閿涙碍娅橀柅姘儙閸?
+- `npm run dev`閿涙矮濞囬悽?`node --watch` 閻╂垵鎯夐弨鐟板З
 
-### 联调与构建说明
+### 閼辨棁鐨熸稉搴㈢€楦款嚛閺?
 
-- 正式对外服务时，`server` 会优先提供 `taoyuan-main/docs` 下的静态页面
-- 如果你改的是前端页面，记得重新执行 `taoyuan-main` 下的 `npm run build`
-- 如果你只改了后端接口，重新启动 `server` 或容器即可
-- 如果你使用的是 `Dockerfile.repack` 流程，前端修改只有在重新构建 `docs` 后才会进入镜像
+- 濮濓絽绱＄€电懓顦婚張宥呭閺冭绱漙server` 娴兼矮绱崗鍫熷絹娓?`taoyuan-main/docs` 娑撳娈戦棃娆愨偓渚€銆夐棃?
+- 婵″倹鐏夋担鐘虫暭閻ㄥ嫭妲搁崜宥囶伂妞ょ敻娼伴敍宀冾唶瀵版鍣搁弬鐗堝⒔鐞?`taoyuan-main` 娑撳娈?`npm run build`
+- 婵″倹鐏夋担鐘插涧閺€閫涚啊閸氬海顏幒銉ュ經閿涘矂鍣搁弬鏉挎儙閸?`server` 閹存牕顔愰崳銊ュ祮閸?
+- 婵″倹鐏夋担鐘卞▏閻劎娈戦弰?`Dockerfile.repack` 濞翠胶鈻奸敍灞藉缁旑垯鎱ㄩ弨鐟板涧閺堝婀柌宥嗘煀閺嬪嫬缂?`docs` 閸氬孩澧犳导姘崇箻閸忋儵鏆呴崓?
 
-## 常见问题
+## 鐢瓕顫嗛梻顕€顣?
 
-### 打开网页失败
+### 閹垫挸绱戠純鎴︺€夋径杈Е
 
-先检查两件事：
+閸忓牊顥呴弻銉よ⒈娴犳湹绨ㄩ敍?
 
-- 你有没有先执行 `npm run build`
-- 你现在是不是已经在 `server` 目录里执行了 `npm start`
+- 娴ｇ姵婀佸▽鈩冩箒閸忓牊澧界悰?`npm run build`
+- 娴ｇ姷骞囬崷銊︽Ц娑撳秵妲稿鑼病閸?`server` 閻╊喖缍嶉柌灞惧⒔鐞涘奔绨?`npm start`
 
-### 构建了前端，但页面还是旧的
+### 閺嬪嫬缂撴禍鍡楀缁旑垽绱濇担鍡涖€夐棃銏ｇ箷閺勵垱妫惃?
 
-优先排查这几项：
+娴兼ê鍘涢幒鎺撶叀鏉╂瑥鍤戞い鐧哥窗
 
-- 你是否重新执行了 `taoyuan-main` 下的 `npm run build`
-- 你是否只是 `docker compose up -d`，但没有重新构建镜像
-- 你当前是否仍在使用旧的 `taoyuan-duli:latest` 镜像
+- 娴ｇ姵妲搁崥锕傚櫢閺傜増澧界悰灞肩啊 `taoyuan-main` 娑撳娈?`npm run build`
+- 娴ｇ姵妲搁崥锕€褰ч弰?`docker compose up -d`閿涘奔绲惧▽鈩冩箒闁插秵鏌婇弸鍕紦闂€婊冨剼
+- 娴ｇ姴缍嬮崜宥嗘Ц閸氾缚绮涢崷銊ゅ▏閻劍妫惃?`taoyuan-duli:latest` 闂€婊冨剼
 
-### 端口被占用
+### 缁旑垰褰涚悮顐㈠窗閻?
 
-如果 `4013` 被别的程序占用了，可以修改 `server/.env` 里的 `PORT`。如果你用的是 Compose，则修改根目录 `.env` 里的 `HOST_PORT`。
+婵″倹鐏?`4013` 鐞氼偄鍩嗛惃鍕柤鎼村繐宕伴悽銊ょ啊閿涘苯褰叉禒銉ゆ叏閺€?`server/.env` 闁插瞼娈?`PORT`閵嗗倸顩ч弸婊€缍橀悽銊ф畱閺?Compose閿涘苯鍨穱顔芥暭閺嶅湱娲拌ぐ?`.env` 闁插瞼娈?`HOST_PORT`閵?
 
-### 登录或 Cookie 异常
+### 閻ц缍嶉幋?Cookie 瀵倸鐖?
 
-先优先检查：
+閸忓牅绱崗鍫燁梾閺屻儻绱?
 
-- `SECRET_KEY` 有没有改掉示例值
-- `CORS_ALLOWED_ORIGINS` 是否和你的访问地址一致
-- 跨站部署时是否正确设置了 `COOKIE_SECURE` 与 `COOKIE_SAME_SITE`
+- `SECRET_KEY` 閺堝鐥呴張澶嬫暭閹哄銇氭笟瀣偓?
+- `CORS_ALLOWED_ORIGINS` 閺勵垰鎯侀崪灞肩稑閻ㄥ嫯顔栭梻顔兼勾閸р偓娑撯偓閼?
+- 鐠恒劎鐝柈銊ц閺冭埖妲搁崥锔筋劀绾喛顔曠純顔荤啊 `COOKIE_SECURE` 娑?`COOKIE_SAME_SITE`
 
-### 数据丢失
+### 閺佺増宓佹稉銏犮亼
 
-如果你是本地直接运行，通常数据会保存在本地运行目录。
+婵″倹鐏夋担鐘虫Ц閺堫剙婀撮惄瀛樺复鏉╂劘顢戦敍宀勨偓姘埗閺佺増宓佹导姘箽鐎涙ê婀張顒€婀存潻鎰攽閻╊喖缍嶉妴?
 
-如果你是用 Docker 运行，必须挂载 `/app/data`，否则重建容器后数据会丢失。
+婵″倹鐏夋担鐘虫Ц閻?Docker 鏉╂劘顢戦敍灞界箑妞ょ粯瀵曟潪?`/app/data`閿涘苯鎯侀崚娆撳櫢瀵ゅ搫顔愰崳銊ユ倵閺佺増宓佹导姘丢婢朵究鈧?
 
-### 想继续使用本地文件用户库，而不是 MySQL
+### 閹磭鎴风紒顓濆▏閻劍婀伴崷鐗堟瀮娴犲墎鏁ら幋宄扮氨閿涘矁鈧奔绗夐弰?MySQL
 
-不要填写 `MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE`，后端会自动回退到本地文件用户库。
+娑撳秷顩︽繅顐㈠晸 `MYSQL_HOST / MYSQL_PORT / MYSQL_USER / MYSQL_PASSWORD / MYSQL_DATABASE`閿涘苯鎮楃粩顖欑窗閼奉亜濮╅崶鐐衡偓鈧崚鐗堟拱閸︾増鏋冩禒鍓佹暏閹村嘲绨遍妴?
 
-## 交流与参考
+## 娴溿倖绁︽稉搴″棘閼?
 
-- 玩家向简介：[游戏简介.md](游戏简介.md)
-- 新手教程：https://taoyuan.ymzcc.com/guide.html
-- 系统百科：https://taoyuan.ymzcc.com/guide-book.html
-- 参考仓库：<https://github.com/setube/taoyuan>
-- 用户 QQ 群：1094297186
+- 閻溾晛顔嶉崥鎴犵暆娴犲绱癧濞撳憡鍨欑粻鈧禒?md](濞撳憡鍨欑粻鈧禒?md)
+- 閺傜増澧滈弫娆戔柤閿涙ttps://taoyuan.ymzcc.com/guide.html
+- 缁崵绮洪惂鍓ь潠閿涙ttps://taoyuan.ymzcc.com/guide-book.html
+- 閸欏倽鈧啩绮ㄦ惔鎿勭窗<https://github.com/setube/taoyuan>
+- 閻劍鍩?QQ 缂囥倧绱?094297186
 
-## 默认说明
+## 姒涙顓荤拠瀛樻
 
-- 用户可在游戏首页自行注册/登录
-- 请务必在 `.env` 中自定义管理员口令与会话密钥，不要直接使用示例值
-- 如配置了 `SUPER_ADMIN_TOKEN`，则可启用“普通管理员 / 超级管理员”双角色
-- 游戏默认使用本地存档，也支持账号云存档
+- 閻劍鍩涢崣顖氭躬濞撳憡鍨欐＃鏍€夐懛顏囶攽濞夈劌鍞?閻ц缍?
+- 鐠囧嘲濮熻箛鍛躬 `.env` 娑擃叀鍤滅€规矮绠熺粻锛勬倞閸涙ê褰涙禒銈勭瑢娴兼俺鐦界€靛棝鎸滈敍灞肩瑝鐟曚胶娲块幒銉ゅ▏閻劎銇氭笟瀣偓?
+- 婵″倿鍘ょ純顔荤啊 `SUPER_ADMIN_TOKEN`閿涘苯鍨崣顖氭儙閻劉鈧粍娅橀柅姘鳖吀閻炲棗鎲?/ 鐡掑懐楠囩粻锛勬倞閸涙ǚ鈧繂寮荤憴鎺曞
+- 濞撳憡鍨欐妯款吇娴ｈ法鏁ら張顒€婀寸€涙ɑ銆傞敍灞肩瘍閺€顖涘瘮鐠愶箑褰挎禍鎴濈摠濡?
 
 ---
 
-## ⚖️ 开源声明与版权说明
+## 閳挎牭绗?瀵偓濠ф劕锛愰弰搴濈瑢閻楀牊娼堢拠瀛樻
 
-本仓库代码遵循 **[MIT](LICENSE)** 开源协议，但在使用与分流时请遵守以下约定：
+閺堫兛绮ㄦ惔鎾插敩閻線浼掑?**[MIT](LICENSE)** 瀵偓濠ф劕宕楃拋顕嗙礉娴ｅ棗婀担璺ㄦ暏娑撳骸鍨庡ù浣规鐠囩兘浼掔€瑰牅浜掓稉瀣鐎规熬绱?
 
-1. **注明出处**：若您引用本项目的核心代码、美术素材或在此基础上进行二次开发，**必须**在您的项目说明文档（README）或显著位置保留指向本仓库的链接。
-2. **禁止商用**：未经原作者书面许可，严禁将本项目（及其修改版本）用于任何形式的商业盈利行为（包括但不限于出售游戏激活码、内置付费充值、商业授权等）。
-3. **转载要求**：任何个人或组织在第三方平台（如 Bilibili、知乎、CSDN、个人博客等）转载、解说或发布本项目的相关教程、源码分析时，**必须显著注明出处及原作者信息**。
+1. **濞夈劍妲戦崙鍝勵槱**閿涙俺瀚㈤幃銊ョ穿閻劍婀版い鍦窗閻ㄥ嫭鐗宠箛鍐у敩閻降鈧胶绶ㄩ張顖滅閺夋劖鍨ㄩ崷銊︻劃閸╄櫣顢呮稉濠呯箻鐞涘奔绨╁▎鈥崇磻閸欐埊绱?*韫囧懘銆?*閸︺劍鍋嶉惃鍕€嶉惄顔款嚛閺勫孩鏋冨锝忕礄README閿涘鍨ㄩ弰鎹愭啿娴ｅ秶鐤嗘穱婵堟殌閹稿洤鎮滈張顑跨波鎼存挾娈戦柧鐐复閵?
+2. **缁備焦顒涢崯鍡欐暏**閿涙碍婀紒蹇撳斧娴ｆ粏鈧懍鍔熼棃銏ｎ啅閸欘垽绱濇稉銉ь洣鐏忓棙婀版い鍦窗閿涘牆寮烽崗鏈垫叏閺€鍦閺堫剨绱氶悽銊ょ艾娴犺缍嶈ぐ銏犵础閻ㄥ嫬鏅㈡稉姘辨畅閸掆晞顢戞稉鐚寸礄閸栧懏瀚担鍡曠瑝闂勬劒绨崙鍝勬暛濞撳憡鍨欏┑鈧ú鑽ょ垳閵嗕礁鍞寸純顔荤帛鐠愮懓鍘栭崐绗衡偓浣告櫌娑撴碍宸块弶鍐搼閿涘鈧?
+3. **鏉烆剝娴囩憰浣圭湴**閿涙矮鎹㈡担鏇氶嚋娴滅儤鍨ㄧ紒鍕矏閸︺劎顑囨稉澶嬫煙楠炲啿褰撮敍鍫濐洤 Bilibili閵嗕胶鐓℃稊搴涒偓涓哠DN閵嗕椒閲滄禍鍝勫触鐎广垻鐡戦敍澶庢祮鏉炲鈧浇袙鐠囧瓨鍨ㄩ崣鎴濈閺堫剟銆嶉惄顔炬畱閻╃鍙ч弫娆戔柤閵嗕焦绨惍浣稿瀻閺嬫劖妞傞敍?*韫囧懘銆忛弰鎹愭啿濞夈劍妲戦崙鍝勵槱閸欏﹤甯担婊嗏偓鍛繆閹?*閵?
 
 > [!CAUTION]
-> **尊重开源，始于致敬。** 桃源乡的每一行代码都倾注了开发者的心血，请在遵守协议的前提下进行交流与学习。
+> **鐏忓﹪鍣稿鈧┃鎰剁礉婵绨懛瀛樻殮閵?* 濡楀啯绨稊锛勬畱濮ｅ繋绔寸悰灞煎敩閻線鍏橀崐鐐暈娴滃棗绱戦崣鎴ｂ偓鍛畱韫囧啳顢呴敍宀冾嚞閸︺劑浼掔€瑰牆宕楃拋顔炬畱閸撳秵褰佹稉瀣箻鐞涘奔姘﹀ù浣风瑢鐎涳缚绡勯妴?

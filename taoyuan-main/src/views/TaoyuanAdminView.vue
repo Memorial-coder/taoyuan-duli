@@ -1,3 +1,6 @@
+﻿/*
+ * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
+ */
 <template>
   <div class="min-h-screen px-1 py-4 md:px-2 md:py-5 xl:px-3 2xl:px-4" :class="{ 'pt-10': Capacitor.isNativePlatform() }">
     <div class="w-full space-y-4">
@@ -32,6 +35,18 @@
             </button>
             <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'ai' }" @click="switchAdminTab('ai')">
               <span>AI 助手</span>
+            </button>
+            <button
+              v-if="hasAdminAccess && officialControlTabVisible"
+              class="btn"
+              :class="{ '!bg-accent !text-bg': activeAdminTab === 'cloud' }"
+              @click="switchAdminTab('cloud')"
+            >
+              <span>云控平台</span>
+            </button>
+            <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'debug' }" @click="switchAdminTab('debug')">
+              <Bug :size="14" />
+              <span>后期调试</span>
             </button>
             <button class="btn" @click="openUserAdmin">
               <Users :size="14" />
@@ -71,10 +86,10 @@
 
         <div class="text-xs leading-6">
           <span v-if="adminSession" class="text-success">
-            已连接 {{ adminSession.role_label }} 权限。{{ canManageMail ? '可直接发送桃源乡邮件。' : '当前口令不具备邮件运营权限，但可查看内容、AI 与日志模块。' }}
+            已连接 {{ adminSession.role_label }} 权限。{{ canManageMail ? '可直接发送桃源乡邮件。' : '当前口令不具备邮件运营权限，但可查看内容、AI、日志与基础后台模块。' }}
           </span>
           <span v-else-if="tokenError" class="text-danger">{{ tokenError }}</span>
-          <span v-else class="text-muted">填写管理员口令后即可进入桃源管理，查看邮件、内容、AI 与日志模块。</span>
+          <span v-else class="text-muted">填写管理员口令后即可进入桃源管理，查看邮件、内容、AI、日志与后期调试入口。</span>
         </div>
       </div>
 
@@ -374,8 +389,9 @@
             <span class="text-xs text-muted">共 {{ campaigns.length }} 封</span>
           </div>
 
+          <div v-if="campaignListError" class="text-xs text-danger">{{ campaignListError }}</div>
           <div v-if="loadingCampaigns" class="text-xs text-muted">邮件记录加载中...</div>
-          <div v-else-if="!campaigns.length" class="text-xs text-muted">还没有邮件记录。</div>
+          <div v-else-if="!campaignListError && !campaigns.length" class="text-xs text-muted">还没有邮件记录。</div>
           <div v-else class="space-y-3 max-h-[72vh] overflow-y-auto pr-1">
             <div v-for="campaign in campaigns" :key="campaign.id" class="admin-record-card">
               <div class="flex items-start justify-between gap-3">
@@ -530,6 +546,80 @@
         <AiAssistantAdminPanel />
       </div>
 
+      <div v-if="hasToken && activeAdminTab === 'cloud' && hasAdminAccess && officialControlTabVisible" class="game-panel">
+        <OfficialControlAdminPanel :can-load="hasAdminAccess" />
+      </div>
+
+      <div v-if="activeAdminTab === 'debug'" class="game-panel space-y-4">
+        <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div class="space-y-1">
+            <p class="text-sm text-accent flex items-center gap-2">
+              <Bug :size="16" />
+              <span>后期调试工作台</span>
+            </p>
+            <p class="text-xs text-muted leading-6">
+              这里负责进入后期样例与周循环调试页面。该入口现在不再依赖开发态构建，但仍只允许超级管理员口令使用。
+            </p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span class="game-chip">样例总数 {{ lateGameDebugSamples.length }}</span>
+            <span class="game-chip">主样例 {{ lateGameDebugFlagshipCount }}</span>
+            <span class="game-chip">回归样例 {{ lateGameDebugRegressionCount }}</span>
+          </div>
+        </div>
+
+        <div v-if="lateGameDebugRequiresAuthHint && !canManageLateGameDebug" class="text-xs text-danger leading-6">
+          检测到你尝试直接打开后期调试，请先在本页填写超级管理员口令，再进入调试工作台。
+        </div>
+
+        <div v-if="!hasToken" class="text-xs text-muted leading-6">
+          先填写管理员口令并完成验证，后期调试入口会根据权限自动开放。
+        </div>
+
+        <div v-else-if="hasAdminAccess && !canManageLateGameDebug" class="text-xs text-muted leading-6">
+          当前口令只有普通管理员权限，不能进入后期调试。请改用超级管理员口令。
+        </div>
+
+        <template v-else-if="canManageLateGameDebug">
+          <div class="grid gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.9fr)]">
+            <div class="space-y-3">
+              <div class="rounded-xs border border-accent/15 bg-bg/15 p-3 space-y-2">
+                <p class="text-xs text-accent">入口说明</p>
+                <p class="text-[11px] text-muted leading-5">
+                  进入后可直接载入主样例或回归样例，验证周切换、育种周赛、鱼塘周赛和主题周刷新边界。
+                </p>
+                <div class="flex flex-wrap gap-2">
+                  <button class="btn" @click="openLateGameDebug">
+                    <Play :size="14" />
+                    <span>进入后期调试</span>
+                  </button>
+                </div>
+              </div>
+
+              <div class="rounded-xs border border-accent/15 bg-bg/15 p-3 space-y-2">
+                <p class="text-xs text-accent">主样例</p>
+                <div class="grid gap-2 md:grid-cols-2">
+                  <div v-for="sample in lateGameDebugFlagshipSamples" :key="sample.id" class="rounded-xs border border-accent/10 px-3 py-2 bg-bg/10">
+                    <div class="text-[11px] text-text">{{ sample.label }}</div>
+                    <div class="text-[10px] text-muted mt-1">推荐落点：{{ lateGameDebugRouteLabel(sample.recommendedRouteName) }}</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-xs border border-accent/15 bg-bg/15 p-3 space-y-2">
+              <p class="text-xs text-accent">回归样例</p>
+              <div class="space-y-2">
+                <div v-for="sample in lateGameDebugRegressionSamples" :key="sample.id" class="rounded-xs border border-accent/10 px-3 py-2 bg-bg/10">
+                  <div class="text-[11px] text-text">{{ sample.label }}</div>
+                  <div class="text-[10px] text-muted mt-1">{{ sample.smokeChecks[0]?.label || sample.description }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </template>
+      </div>
+
       <div v-if="hasToken && activeAdminTab === 'mail' && !canManageMail" class="game-panel text-xs text-muted leading-6">
         当前口令无邮件运营权限，请使用超级管理员口令后再查看邮件记录。
       </div>
@@ -541,12 +631,14 @@
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { Capacitor } from '@capacitor/core'
-  import { ArrowLeft, KeyRound, Plus, RefreshCw, Search, ShieldCheck, Trash2, Users } from 'lucide-vue-next'
+  import { ArrowLeft, Bug, KeyRound, Play, Plus, RefreshCw, Search, ShieldCheck, Trash2, Users } from 'lucide-vue-next'
   import Divider from '@/components/game/Divider.vue'
   import AdminHomepageAboutPanel from '@/components/game/AdminHomepageAboutPanel.vue'
   import AdminLogCenterPanel from '@/components/game/AdminLogCenterPanel.vue'
   import AiAssistantAdminPanel from '@/components/game/AiAssistantAdminPanel.vue'
+  import OfficialControlAdminPanel from '@/components/game/OfficialControlAdminPanel.vue'
   import { showFloat } from '@/composables/useGameLog'
+  import { useSaveStore } from '@/stores/useSaveStore'
   import {
     clearStoredAdminToken,
     fetchTaoyuanMailCampaignDetail,
@@ -563,6 +655,8 @@
     type TaoyuanRewardType,
   } from '@/utils/taoyuanMailboxAdminApi'
   import { fetchAdminUsers, verifyAdminSession, type AdminSessionInfo, type UserAdminSummary } from '@/utils/userAdminApi'
+  import { fetchOfficialControlPlatformStatus } from '@/utils/officialControlApi'
+  import { LATE_GAME_DEBUG_AUTH_QUERY_KEY } from '@/utils/lateGameDebugAccess'
   import {
     filterRewardCatalog,
     getRewardCatalogEntry,
@@ -570,6 +664,7 @@
     type RewardCatalogEntry,
     type RewardCatalogType,
   } from '@/utils/taoyuanRewardCatalog'
+  import type { OfficialControlPlatformStatus } from '@/types'
 
   interface ComposerReward {
     uid: string
@@ -695,18 +790,25 @@
   const savingToken = ref(false)
   const tokenError = ref('')
   const appliedRoutePresetSignature = ref('')
+  const saveStore = useSaveStore()
 
   const campaigns = ref<TaoyuanMailCampaignSummary[]>([])
   const detail = ref<TaoyuanMailCampaignDetail | null>(null)
   const composer = ref<ComposerState>(createComposer())
   const adminSession = ref<AdminSessionInfo | null>(null)
   const isAuthorized = ref(false)
-  const activeAdminTab = ref<'mail' | 'content' | 'logs' | 'ai'>('mail')
+  const activeAdminTab = ref<'mail' | 'content' | 'logs' | 'ai' | 'cloud' | 'debug'>('mail')
+  const officialControlPlatformStatus = ref<OfficialControlPlatformStatus | null>(null)
 
   const loadingCampaigns = ref(false)
   const loadingDetailId = ref('')
   const loadingComposerId = ref('')
   const submittingCampaign = ref<'draft' | 'schedule' | 'send' | ''>('')
+  const campaignListError = ref('')
+  const campaignListRequestId = ref(0)
+  const campaignDetailRequestId = ref(0)
+  const composerLoadRequestId = ref(0)
+  const recipientSearchRequestId = ref(0)
   const recipientSearchKeyword = ref('')
   const recipientSearchLoading = ref(false)
   const recipientSearchResults = ref<UserAdminSummary[]>([])
@@ -715,6 +817,14 @@
   const hasToken = computed(() => adminTokenInput.value.trim().length > 0)
   const hasAdminAccess = computed(() => !!adminSession.value)
   const canManageMail = computed(() => adminSession.value?.role === 'super_admin')
+  const canManageLateGameDebug = computed(() => adminSession.value?.role === 'super_admin')
+  const officialControlTabVisible = computed(() => !!officialControlPlatformStatus.value?.enabled && officialControlPlatformStatus.value.hostAllowed)
+  const lateGameDebugRequiresAuthHint = computed(() => route.query[LATE_GAME_DEBUG_AUTH_QUERY_KEY] === '1')
+  const lateGameDebugSamples = computed(() => saveStore.getBuiltInSampleSaves())
+  const lateGameDebugFlagshipSamples = computed(() => lateGameDebugSamples.value.filter(sample => sample.tier === 'flagship'))
+  const lateGameDebugRegressionSamples = computed(() => lateGameDebugSamples.value.filter(sample => sample.tier === 'regression'))
+  const lateGameDebugFlagshipCount = computed(() => lateGameDebugFlagshipSamples.value.length)
+  const lateGameDebugRegressionCount = computed(() => lateGameDebugRegressionSamples.value.length)
   const recipientSummary = computed(() => {
     const rule = composer.value.recipient_rule
     if (rule.mode === 'single') {
@@ -763,7 +873,7 @@
     void router.push('/')
   }
 
-  const switchAdminTab = (tab: 'mail' | 'content' | 'logs' | 'ai') => {
+  const switchAdminTab = (tab: 'mail' | 'content' | 'logs' | 'ai' | 'cloud' | 'debug') => {
     activeAdminTab.value = tab
     const nextQuery = { ...route.query }
     if (tab === 'mail') {
@@ -776,7 +886,7 @@
 
   const syncAdminTabFromRoute = () => {
     const routeTab = route.query.tab
-    if (routeTab === 'content' || routeTab === 'logs' || routeTab === 'ai' || routeTab === 'mail') {
+    if (routeTab === 'content' || routeTab === 'logs' || routeTab === 'ai' || routeTab === 'cloud' || routeTab === 'debug' || routeTab === 'mail') {
       activeAdminTab.value = routeTab
       return
     }
@@ -789,8 +899,61 @@
     }
   }
 
+  const refreshOfficialControlPlatformVisibility = async () => {
+    if (!adminSession.value || !adminTokenInput.value.trim()) {
+      officialControlPlatformStatus.value = null
+      if (activeAdminTab.value === 'cloud') {
+        switchAdminTab('mail')
+      }
+      return
+    }
+    try {
+      officialControlPlatformStatus.value = await fetchOfficialControlPlatformStatus()
+      if (!officialControlTabVisible.value && activeAdminTab.value === 'cloud') {
+        switchAdminTab('mail')
+      }
+    } catch {
+      officialControlPlatformStatus.value = null
+      if (activeAdminTab.value === 'cloud') {
+        switchAdminTab('mail')
+      }
+    }
+  }
+
   const openUserAdmin = () => {
     void router.push('/admin/users')
+  }
+
+  const lateGameDebugRouteLabel = (routeName: string) => {
+    const routeLabels: Record<string, string> = {
+      farm: '农场',
+      village: '村庄',
+      'village-projects': '村庄建设',
+      shop: '商店',
+      forage: '采集',
+      fishing: '钓鱼',
+      mining: '矿洞',
+      cooking: '烹饪',
+      workshop: '工坊',
+      inventory: '背包',
+      wallet: '钱包',
+      quest: '任务',
+      mail: '邮箱',
+      breeding: '育种',
+      museum: '博物馆',
+      guild: '公会',
+      hanhai: '瀚海',
+      fishpond: '鱼塘',
+    }
+    return routeLabels[routeName] ?? routeName
+  }
+
+  const openLateGameDebug = () => {
+    if (!canManageLateGameDebug.value) {
+      showFloat('后期调试仅限超级管理员口令进入', 'danger')
+      return
+    }
+    void router.push({ name: 'late-game-debug' })
   }
 
   const formatTime = (timestamp?: number | null) => {
@@ -848,21 +1011,28 @@
     recipientSearchPerformed.value = false
   }
 
+  const isAdminCredentialError = (message: string) => /管理员口令无效|权限不足|管理员信息不完整/.test(message)
+
   const searchRecipients = async () => {
     const keyword = recipientSearchKeyword.value.trim()
     if (!keyword) {
       clearRecipientSearch()
       return
     }
+    const activeRequestId = ++recipientSearchRequestId.value
     recipientSearchLoading.value = true
     try {
       const result = await fetchAdminUsers({ keyword, status: 'active', page: 1, pageSize: 20 })
+      if (activeRequestId !== recipientSearchRequestId.value || recipientSearchKeyword.value.trim() !== keyword) return
       recipientSearchResults.value = result.users.filter(user => user.status === 'active')
       recipientSearchPerformed.value = true
     } catch (error) {
+      if (activeRequestId !== recipientSearchRequestId.value || recipientSearchKeyword.value.trim() !== keyword) return
       showFloat(error instanceof Error ? error.message : '查找用户失败', 'danger')
     } finally {
-      recipientSearchLoading.value = false
+      if (activeRequestId === recipientSearchRequestId.value) {
+        recipientSearchLoading.value = false
+      }
     }
   }
 
@@ -1118,31 +1288,48 @@
   const refreshCampaigns = async (tokenOverride?: string, persistToken = false) => {
     const token = String(tokenOverride || adminTokenInput.value || '').trim()
     if (!token) {
+      campaignListError.value = ''
       campaigns.value = []
       detail.value = null
       return
     }
 
+    const activeRequestId = ++campaignListRequestId.value
     loadingCampaigns.value = true
     tokenError.value = ''
+    campaignListError.value = ''
     try {
-      campaigns.value = await fetchTaoyuanMailCampaigns(token)
+      const nextCampaigns = await fetchTaoyuanMailCampaigns(token)
+      if (activeRequestId !== campaignListRequestId.value) return
+      campaigns.value = nextCampaigns
       isAuthorized.value = true
       if (persistToken) {
         setStoredAdminToken(token)
         adminTokenInput.value = token
       }
     } catch (error) {
+      if (activeRequestId !== campaignListRequestId.value) return
       tokenError.value = error instanceof Error ? error.message : '获取桃源乡邮件记录失败'
-      campaigns.value = []
-      isAuthorized.value = false
+      campaignListError.value = tokenError.value
+      if (isAdminCredentialError(tokenError.value)) {
+        campaigns.value = []
+        detail.value = null
+        isAuthorized.value = false
+      }
     } finally {
-      loadingCampaigns.value = false
+      if (activeRequestId === campaignListRequestId.value) {
+        loadingCampaigns.value = false
+      }
     }
   }
 
   const handleRefreshClick = () => {
-    void refreshCampaigns()
+    void (async () => {
+      await refreshCampaigns()
+      if (campaignListError.value) {
+        showFloat(campaignListError.value, 'danger')
+      }
+    })()
   }
 
   const useHasSaveRecipients = () => {
@@ -1164,7 +1351,12 @@
       adminSession.value = await verifyAdminSession(candidateToken, true)
       if (adminSession.value.role === 'super_admin') {
         await refreshCampaigns(candidateToken, true)
+        if (campaignListError.value) {
+          showFloat(campaignListError.value, 'danger')
+          return
+        }
       } else {
+        campaignListError.value = ''
         campaigns.value = []
         detail.value = null
         isAuthorized.value = false
@@ -1172,11 +1364,16 @@
       if (!tokenError.value) {
         showFloat('管理员口令已保存', 'success')
       }
+      await refreshOfficialControlPlatformVisibility()
+      if (activeAdminTab.value === 'debug' && canManageLateGameDebug.value && lateGameDebugRequiresAuthHint.value) {
+        void router.push({ name: 'late-game-debug' })
+      }
     } catch (error) {
       adminSession.value = null
       isAuthorized.value = false
       campaigns.value = []
       detail.value = null
+      officialControlPlatformStatus.value = null
       tokenError.value = error instanceof Error ? error.message : '管理员验证失败'
       showFloat(tokenError.value, 'danger')
     } finally {
@@ -1188,23 +1385,34 @@
     adminTokenInput.value = ''
     clearStoredAdminToken()
     tokenError.value = ''
+    campaignListError.value = ''
     campaigns.value = []
     detail.value = null
     isAuthorized.value = false
     adminSession.value = null
+    officialControlPlatformStatus.value = null
+    if (activeAdminTab.value === 'cloud') {
+      switchAdminTab('mail')
+    }
     showFloat('管理员口令已清空', 'success')
   }
 
   const openDetail = async (campaignId: string) => {
+    const activeRequestId = ++campaignDetailRequestId.value
     loadingDetailId.value = campaignId
     tokenError.value = ''
     try {
-      detail.value = await fetchTaoyuanMailCampaignDetail(campaignId)
+      const nextDetail = await fetchTaoyuanMailCampaignDetail(campaignId)
+      if (activeRequestId !== campaignDetailRequestId.value) return
+      detail.value = nextDetail
     } catch (error) {
+      if (activeRequestId !== campaignDetailRequestId.value) return
       tokenError.value = error instanceof Error ? error.message : '读取邮件详情失败'
       showFloat(tokenError.value, 'danger')
     } finally {
-      loadingDetailId.value = ''
+      if (activeRequestId === campaignDetailRequestId.value) {
+        loadingDetailId.value = ''
+      }
     }
   }
 
@@ -1224,10 +1432,12 @@
   }
 
   const loadCampaignIntoComposer = async (campaignId: string) => {
+    const activeRequestId = ++composerLoadRequestId.value
     loadingComposerId.value = campaignId
     tokenError.value = ''
     try {
       const result = await fetchTaoyuanMailCampaignDetail(campaignId)
+      if (activeRequestId !== composerLoadRequestId.value) return
       composer.value = {
         id: result.campaign.id,
         template_type: (result.campaign.template_type as TaoyuanMailTemplateType) || 'compensation',
@@ -1260,10 +1470,13 @@
       }
       showFloat('邮件草稿已载入', 'success')
     } catch (error) {
+      if (activeRequestId !== composerLoadRequestId.value) return
       tokenError.value = error instanceof Error ? error.message : '载入邮件草稿失败'
       showFloat(tokenError.value, 'danger')
     } finally {
-      loadingComposerId.value = ''
+      if (activeRequestId === composerLoadRequestId.value) {
+        loadingComposerId.value = ''
+      }
     }
   }
 
@@ -1315,12 +1528,14 @@
     if (adminTokenInput.value.trim()) {
       try {
         adminSession.value = await verifyAdminSession(adminTokenInput.value.trim())
+        await refreshOfficialControlPlatformVisibility()
         if (adminSession.value.role === 'super_admin') {
           await refreshCampaigns(adminTokenInput.value.trim())
         }
       } catch (error) {
         adminSession.value = null
         isAuthorized.value = false
+        officialControlPlatformStatus.value = null
         tokenError.value = error instanceof Error ? error.message : '管理员验证失败'
       }
     }
@@ -1668,3 +1883,4 @@
     border-color: rgba(200, 164, 92, 0.92);
   }
 </style>
+

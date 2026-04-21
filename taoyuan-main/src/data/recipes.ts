@@ -1333,7 +1333,7 @@ export const RECIPES: RecipeDef[] = [
     effect: {
       staminaRestore: 45,
       healthRestore: 20,
-      buff: { type: 'mining', value: 1, description: '矿工技能+1（当天）' }
+      buff: { type: 'mining', value: 1, description: '挖矿体力消耗-1%（当天）' }
     },
     unlockSource: '冬至包饺子奖励',
     description: '冬至时节包的暖心饺子。'
@@ -1550,7 +1550,7 @@ export const RECIPES: RecipeDef[] = [
     effect: {
       staminaRestore: 60,
       healthRestore: 30,
-      buff: { type: 'farming', value: 1, description: '农耕技能+1（当天）' }
+      buff: { type: 'farming', value: 1, description: '农耕体力消耗-1%（当天）' }
     },
     unlockSource: '大牛好感「知己」',
     description: '奢侈的松露炒饭，香气四溢。'
@@ -1613,7 +1613,7 @@ export const RECIPES: RecipeDef[] = [
     effect: {
       staminaRestore: 60,
       healthRestore: 30,
-      buff: { type: 'mining', value: 2, description: '采矿技能+2（当天）' }
+      buff: { type: 'mining', value: 2, description: '挖矿体力消耗-2%（当天）' }
     },
     unlockSource: '瀚海驿站购买香料后解锁',
     description: '西域风味的烤羊肉，香气扑鼻，力量倍增。'
@@ -1659,7 +1659,7 @@ export const RECIPES: RecipeDef[] = [
     effect: {
       staminaRestore: 45,
       healthRestore: 20,
-      buff: { type: 'farming', value: 2, description: '种植技能+2（当天）' }
+      buff: { type: 'farming', value: 2, description: '农耕体力消耗-2%（当天）' }
     },
     unlockSource: '收获椰枣后解锁',
     description: '甜蜜软糯的枣糕，补气养血。'

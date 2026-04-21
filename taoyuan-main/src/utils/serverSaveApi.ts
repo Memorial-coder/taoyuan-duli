@@ -40,11 +40,16 @@ export const fetchServerSlotRaw = async (slot: number): Promise<string | null> =
   return typeof data?.raw === 'string' ? data.raw : null
 }
 
-export const saveServerSlotRaw = async (slot: number, raw: string): Promise<void> => {
+export interface SaveServerSlotRawResult {
+  stale: boolean
+  currentRevision: number
+}
+
+export const saveServerSlotRaw = async (slot: number, raw: string, revision: number): Promise<SaveServerSlotRawResult> => {
   const safeSlot = normalizeSlot(slot)
   if (safeSlot === null) throw new Error('无效的存档槽位')
   await ensureLoggedInContext()
-  await fetchProtectedJson(async () => {
+  const { data } = await fetchProtectedJson(async () => {
     const csrfToken = await ensureCurrentCsrfToken()
     return fetch(`/api/taoyuan/save/${safeSlot}`, {
       method: 'POST',
@@ -53,12 +58,16 @@ export const saveServerSlotRaw = async (slot: number, raw: string): Promise<void
         'Content-Type': 'application/json',
         'X-CSRF-Token': csrfToken
       },
-      body: JSON.stringify({ raw })
+      body: JSON.stringify({ raw, revision })
     })
   }, {
     fallbackMessage: '保存服务端存档失败',
     networkErrorMessage: '服务端存档连接失败，请检查网络或稍后重试'
   })
+  return {
+    stale: data?.stale === true,
+    currentRevision: Number.isFinite(Number(data?.current_revision)) ? Number(data?.current_revision) : revision
+  }
 }
 
 export const setServerActiveSlot = async (slot: number): Promise<void> => {

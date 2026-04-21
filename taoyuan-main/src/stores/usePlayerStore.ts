@@ -162,6 +162,7 @@ export const usePlayerStore = defineStore('player', () => {
   const staminaCapLevel = ref(0) // 0=120, 1=160, 2=200, 3=250, 4=300
   /** 额外体力上限加成（仙翁金丹等），不受仙桃阶梯覆盖 */
   const bonusMaxStamina = ref(0)
+  const temporaryFoodMaxStaminaBonus = ref(0)
 
   // HP 系统
   const hp = ref(BASE_MAX_HP)
@@ -209,6 +210,11 @@ export const usePlayerStore = defineStore('player', () => {
     return hp.value <= getMaxHp() * 0.25
   }
 
+  const recomputeMaxStamina = () => {
+    maxStamina.value = (STAMINA_CAPS[staminaCapLevel.value] ?? 120) + bonusMaxStamina.value + temporaryFoodMaxStaminaBonus.value
+    stamina.value = Math.min(Math.max(0, stamina.value), maxStamina.value)
+  }
+
   /** 消耗体力（含仙缘灵护减免），返回是否成功 */
   const consumeStamina = (amount: number): boolean => {
     const normalizedAmount = Number(amount)
@@ -254,6 +260,7 @@ export const usePlayerStore = defineStore('player', () => {
   const dailyReset = (mode: 'normal' | 'late' | 'passout', bedHour?: number): { moneyLost: number; recoveryPct: number } => {
     let moneyLost = 0
     let recoveryPct = 1
+    let appliedRecoveryPct = 1
     switch (mode) {
       case 'normal':
         stamina.value = maxStamina.value
@@ -265,7 +272,8 @@ export const usePlayerStore = defineStore('player', () => {
         const villageBonus = useVillageProjectStore().getDailyRecoveryBonus()
         const t = Math.min(Math.max((bedHour ?? 24) - 24, 0), 1)
         recoveryPct = LATE_NIGHT_RECOVERY_MAX - t * (LATE_NIGHT_RECOVERY_MAX - LATE_NIGHT_RECOVERY_MIN) + staminaBonus + villageBonus
-        stamina.value = Math.floor(maxStamina.value * Math.min(recoveryPct, 1))
+        appliedRecoveryPct = Math.min(recoveryPct, 1)
+        stamina.value = Math.floor(maxStamina.value * appliedRecoveryPct)
         break
       }
       case 'passout': {
@@ -273,7 +281,8 @@ export const usePlayerStore = defineStore('player', () => {
         const staminaBonus2 = homeStore2.getStaminaRecoveryBonus()
         const villageBonus2 = useVillageProjectStore().getDailyRecoveryBonus()
         recoveryPct = PASSOUT_STAMINA_RECOVERY + staminaBonus2 + villageBonus2
-        stamina.value = Math.floor(maxStamina.value * Math.min(recoveryPct, 1))
+        appliedRecoveryPct = Math.min(recoveryPct, 1)
+        stamina.value = Math.floor(maxStamina.value * appliedRecoveryPct)
         moneyLost = Math.min(Math.floor(money.value * PASSOUT_MONEY_PENALTY_RATE), PASSOUT_MONEY_PENALTY_CAP)
         money.value -= moneyLost
         recordEconomyFlow('expense', moneyLost, 'system')
@@ -282,21 +291,26 @@ export const usePlayerStore = defineStore('player', () => {
     }
     // HP 每天都回满
     hp.value = getMaxHp()
-    return { moneyLost, recoveryPct }
+    return { moneyLost, recoveryPct: appliedRecoveryPct }
   }
 
   /** 提升体力上限 */
   const upgradeMaxStamina = (): boolean => {
     if (staminaCapLevel.value >= STAMINA_CAPS.length - 1) return false
     staminaCapLevel.value++
-    maxStamina.value = STAMINA_CAPS[staminaCapLevel.value]! + bonusMaxStamina.value
+    recomputeMaxStamina()
     return true
   }
 
   /** 增加额外体力上限加成（仙翁金丹等） */
   const addBonusMaxStamina = (amount: number) => {
     bonusMaxStamina.value += amount
-    maxStamina.value = STAMINA_CAPS[staminaCapLevel.value]! + bonusMaxStamina.value
+    recomputeMaxStamina()
+  }
+
+  const setTemporaryFoodMaxStaminaBonus = (amount: number) => {
+    temporaryFoodMaxStaminaBonus.value = normalizeNonNegativeInteger(amount)
+    recomputeMaxStamina()
   }
 
   /** 花费铜钱，返回是否成功 */
@@ -679,7 +693,7 @@ export const usePlayerStore = defineStore('player', () => {
   }
 
   const normalizeDerivedState = () => {
-    const expectedMax = (STAMINA_CAPS[staminaCapLevel.value] ?? 120) + bonusMaxStamina.value
+    const expectedMax = (STAMINA_CAPS[staminaCapLevel.value] ?? 120) + bonusMaxStamina.value + temporaryFoodMaxStaminaBonus.value
     if (maxStamina.value !== expectedMax) {
       maxStamina.value = expectedMax
     }
@@ -721,6 +735,7 @@ export const usePlayerStore = defineStore('player', () => {
     money.value = normalizeNonNegativeInteger(data.money, 500)
     staminaCapLevel.value = Math.min(STAMINA_CAPS.length - 1, normalizeNonNegativeInteger(data.staminaCapLevel, 0))
     bonusMaxStamina.value = normalizeNonNegativeInteger((data as any).bonusMaxStamina ?? 0)
+    temporaryFoodMaxStaminaBonus.value = 0
     maxStamina.value = normalizeNonNegativeInteger(data.maxStamina, STAMINA_CAPS[staminaCapLevel.value] ?? 120)
     stamina.value = normalizeNonNegativeInteger(data.stamina, maxStamina.value)
     // 旧存档兼容：如果没有 bonusMaxStamina 字段，从 maxStamina 和 staminaCapLevel 推算
@@ -741,7 +756,7 @@ export const usePlayerStore = defineStore('player', () => {
       }
     }
     // 确保 maxStamina 与 staminaCapLevel + bonusMaxStamina 一致（修复旧存档）
-    const expectedMax = (STAMINA_CAPS[staminaCapLevel.value] ?? 120) + bonusMaxStamina.value
+    const expectedMax = (STAMINA_CAPS[staminaCapLevel.value] ?? 120) + bonusMaxStamina.value + temporaryFoodMaxStaminaBonus.value
     if (maxStamina.value !== expectedMax) {
       maxStamina.value = expectedMax
     }
@@ -780,6 +795,7 @@ export const usePlayerStore = defineStore('player', () => {
     maxStamina,
     staminaCapLevel,
     bonusMaxStamina,
+    temporaryFoodMaxStaminaBonus,
     hp,
     baseMaxHp,
     economyTelemetry,
@@ -800,6 +816,7 @@ export const usePlayerStore = defineStore('player', () => {
     dailyReset,
     upgradeMaxStamina,
     addBonusMaxStamina,
+    setTemporaryFoodMaxStaminaBonus,
     spendMoney,
     recordSinkSpend,
     recordEconomyFlow,

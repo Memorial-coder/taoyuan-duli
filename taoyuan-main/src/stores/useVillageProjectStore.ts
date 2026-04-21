@@ -175,7 +175,7 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     const defaults = buildDonationState(projectId)
     if (!defaults) return undefined
 
-    return {
+    const normalizedState = {
       ...defaults,
       planId: state?.planId ?? defaults.planId,
       projectId: state?.projectId ?? defaults.projectId,
@@ -183,6 +183,15 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
       donatedItems: state?.donatedItems ?? defaults.donatedItems,
       claimedMilestoneIds: state?.claimedMilestoneIds ?? defaults.claimedMilestoneIds
     }
+
+    const donationPlan = VILLAGE_PROJECT_DEFS.find(entry => entry.id === projectId)?.donationPlan
+    const shouldResetRepeatableCycle =
+      !!donationPlan?.repeatable &&
+      normalizedState.totalAmount >= (donationPlan.targetAmount ?? 0) &&
+      (donationPlan.milestones ?? []).length > 0 &&
+      (donationPlan.milestones ?? []).every(milestone => normalizedState.claimedMilestoneIds.includes(milestone.id))
+
+    return shouldResetRepeatableCycle ? { ...defaults } : normalizedState
   }
 
   const projects = computed(() => {
@@ -1185,3 +1194,6 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     $reset
   }
 })
+/*
+ * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
+ */

@@ -1,4 +1,5 @@
 import { clearStoredAdminToken, getStoredAdminToken, setStoredAdminToken } from '@/utils/taoyuanMailboxAdminApi'
+import type { OfficialManagedConfigKey, OfficialManagedConfigStatus } from '@/types'
 
 export interface HomepageAboutContentPayload {
   aboutButtonEnabled: boolean
@@ -30,6 +31,8 @@ export interface ContentRevisionListResult {
 export interface HomepageAboutContentResult {
   content: HomepageAboutContentPayload
   revisions: ContentRevisionListResult
+  officialManagedStatus?: OfficialManagedConfigStatus
+  readonlyManagedFields: OfficialManagedConfigKey[]
 }
 
 export interface GameplayLogEntry {
@@ -93,6 +96,8 @@ export const fetchHomepageAboutContent = async (tokenOverride?: string): Promise
   const data = await adminRequest<{
     content: HomepageAboutContentPayload
     revisions: ContentRevisionListResult & { page_size?: number }
+    officialManagedStatus?: OfficialManagedConfigStatus
+    readonlyManagedFields?: OfficialManagedConfigKey[]
   }>('/api/admin/content/homepage-about?page_size=40', undefined, tokenOverride)
   return {
     content: {
@@ -107,6 +112,8 @@ export const fetchHomepageAboutContent = async (tokenOverride?: string): Promise
       pageSize: Number(data.revisions?.pageSize || data.revisions?.page_size) || 40,
       revisions: Array.isArray(data.revisions?.revisions) ? data.revisions.revisions : [],
     },
+    officialManagedStatus: data.officialManagedStatus,
+    readonlyManagedFields: Array.isArray(data.readonlyManagedFields) ? data.readonlyManagedFields : [],
   }
 }
 

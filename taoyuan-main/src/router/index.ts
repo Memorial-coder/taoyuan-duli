@@ -25,18 +25,14 @@ const router = createRouter({
     { path: '/admin', name: 'admin', component: () => import('@/views/TaoyuanAdminView.vue') },
     { path: '/admin/users', name: 'admin-users', component: () => import('@/views/UserAdminView.vue') },
     { path: '/hall', name: 'hall', component: () => import('@/views/HallView.vue') },
-    ...(import.meta.env.DEV
-      ? [
-          {
-            path: '/dev/late-game',
-            name: 'late-game-debug',
-            component: () => import('@/views/dev/LateGameDebugView.vue'),
-            meta: {
-              requiresSuperAdmin: true,
-            },
-          }
-        ]
-      : []),
+    {
+      path: '/dev/late-game',
+      name: 'late-game-debug',
+      component: () => import('@/views/dev/LateGameDebugView.vue'),
+      meta: {
+        requiresSuperAdmin: true,
+      },
+    },
     {
       path: '/game',
       component: () => import('@/views/GameLayout.vue'),
@@ -76,15 +72,15 @@ const router = createRouter({
 
 router.beforeEach(async to => {
   if (to.meta?.requiresSuperAdmin !== true) return true
-  if (!import.meta.env.DEV) return { name: 'menu' }
 
   try {
     await ensureLateGameDebugAccess()
     return true
   } catch {
     return {
-      name: 'menu',
+      name: 'admin',
       query: {
+        tab: 'debug',
         [LATE_GAME_DEBUG_AUTH_QUERY_KEY]: '1',
       },
     }
