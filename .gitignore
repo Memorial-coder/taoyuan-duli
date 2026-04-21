@@ -7,6 +7,8 @@ CLAUDE.local.md
 # Local environment files
 .env
 server/.env
+.env.offical
+server/.env.offical
 
 # Installed dependencies
 server/node_modules/

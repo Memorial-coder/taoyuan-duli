@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const officialControlPlatform = require('./officialControlPlatform');
 
 const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
@@ -71,7 +72,8 @@ function normalizeManagedValues(values = {}) {
 }
 
 function getRuntimeConfig() {
-  const enabled = parseBoolean(process.env.OFFICIAL_CONTROL_ENABLED);
+  const sourceMode = officialControlPlatform.isPlatformEnabled();
+  const enabled = sourceMode || parseBoolean(process.env.OFFICIAL_CONTROL_ENABLED);
   const cacheTtlSec = parsePositiveInt(process.env.OFFICIAL_CONTROL_CACHE_TTL_SEC, DEFAULT_CACHE_TTL_SEC);
   const baseUrl = String(process.env.OFFICIAL_CONTROL_BASE_URL || '').trim();
   const instanceId = String(process.env.OFFICIAL_INSTANCE_ID || '').trim();
@@ -88,7 +90,7 @@ function getRuntimeConfig() {
 
   return {
     enabled,
-    configured: enabled ? missing.length === 0 : false,
+    configured: sourceMode ? true : (enabled ? missing.length === 0 : false),
     missing,
     cacheTtlSec,
     baseUrl,
@@ -96,6 +98,7 @@ function getRuntimeConfig() {
     licenseKey,
     publicOrigin,
     publicKey,
+    sourceMode,
   };
 }
 
@@ -235,7 +238,7 @@ function scheduleNextRefresh(runtimeConfig) {
 }
 
 async function fetchRemoteEnvelope(runtimeConfig) {
-  const targetUrl = new URL('/v1/instances/config/current', runtimeConfig.baseUrl);
+  const targetUrl = new URL('/api/official-control/v1/instances/config/current', runtimeConfig.baseUrl);
   targetUrl.searchParams.set('public_origin', runtimeConfig.publicOrigin);
 
   if (targetUrl.protocol !== 'https:' && !isAllowedInsecureOrigin(targetUrl)) {
@@ -291,6 +294,28 @@ function verifyEnvelopeSignature(envelope, runtimeConfig) {
   }
 }
 
+function refreshFromSource(reason = 'manual') {
+  const runtimeConfig = getRuntimeConfig();
+  state.enabled = runtimeConfig.enabled;
+  state.configured = true;
+  state.lastFetchedAt = Date.now();
+  const envelope = officialControlPlatform.getCurrentEnvelope();
+
+  if (!envelope) {
+    state.lastError = '';
+    clearManagedValues('local_default');
+    return getStatus();
+  }
+
+  state.lastError = '';
+  state.lastVerifiedAt = Date.now();
+  updateStateFromEnvelope(envelope, 'official_live');
+  if (reason === 'startup') {
+    console.log(`[official-control] 官方源站配置已启用，profile=${state.profileId} version=${state.version}`);
+  }
+  return getStatus();
+}
+
 async function refreshFromRemote(reason = 'manual') {
   if (refreshPromise) return refreshPromise;
 
@@ -304,6 +329,10 @@ async function refreshFromRemote(reason = 'manual') {
       state.lastError = '';
       clearManagedValues('local_default');
       return getStatus();
+    }
+
+    if (runtimeConfig.sourceMode) {
+      return refreshFromSource(reason);
     }
 
     if (!runtimeConfig.configured) {
@@ -353,8 +382,10 @@ async function start() {
   const runtimeConfig = getRuntimeConfig();
   state.enabled = runtimeConfig.enabled;
   state.configured = runtimeConfig.enabled ? runtimeConfig.configured : false;
-  restoreCachedEnvelope(runtimeConfig);
-  scheduleNextRefresh(runtimeConfig);
+  if (!runtimeConfig.sourceMode) {
+    restoreCachedEnvelope(runtimeConfig);
+    scheduleNextRefresh(runtimeConfig);
+  }
 
   if (!runtimeConfig.enabled) return getStatus();
   return refreshFromRemote('startup');
@@ -383,6 +414,7 @@ function getStatus() {
     lastVerifiedAt: state.lastVerifiedAt,
     lastError: state.lastError,
     managedKeys: [...MANAGED_KEYS],
+    sourceMode: getRuntimeConfig().sourceMode,
   };
 }
 

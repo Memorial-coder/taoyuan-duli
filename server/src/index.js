@@ -5,6 +5,8 @@ const path = require('path');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 require('dotenv').config({ path: path.join(__dirname, '../../.env'), override: true });
+require('dotenv').config({ path: path.join(__dirname, '../.env.offical'), override: true });
+require('dotenv').config({ path: path.join(__dirname, '../../.env.offical'), override: true });
 
 if (!process.env.DB_STORAGE) {
   process.env.DB_STORAGE = path.join(__dirname, '../../data/.storage.json');
@@ -129,8 +131,9 @@ function validateCriticalEnv() {
       throw new Error('MYSQL_PORT 必须是正整数');
     }
   }
+  const officialControlPlatformEnabled = String(process.env.OFFICIAL_CONTROL_PLATFORM_ENABLED || '').trim().toLowerCase() === 'true';
   const officialControlEnabled = String(process.env.OFFICIAL_CONTROL_ENABLED || '').trim().toLowerCase() === 'true';
-  if (officialControlEnabled) {
+  if (officialControlEnabled && !officialControlPlatformEnabled) {
     const requiredOfficialEnv = [
       'OFFICIAL_CONTROL_BASE_URL',
       'OFFICIAL_INSTANCE_ID',
@@ -155,6 +158,17 @@ function validateCriticalEnv() {
       if (!Number.isInteger(parsedCacheTtl) || parsedCacheTtl <= 0) {
         throw new Error('OFFICIAL_CONTROL_CACHE_TTL_SEC 必须是正整数');
       }
+    }
+  }
+
+  if (officialControlPlatformEnabled) {
+    const privateKey = String(process.env.OFFICIAL_CONTROL_PRIVATE_KEY || '').trim();
+    const adminPassword = String(process.env.OFFICIAL_CONTROL_ADMIN_PASSWORD || '').trim();
+    if (!adminPassword) {
+      throw new Error('OFFICIAL_CONTROL_ADMIN_PASSWORD 不能为空');
+    }
+    if (!privateKey) {
+      throw new Error('OFFICIAL_CONTROL_PRIVATE_KEY 不能为空');
     }
   }
 }

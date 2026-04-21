@@ -14,20 +14,53 @@
         </p>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        <span class="game-chip">目标声望 {{ goalStore.goalReputation }}</span>
         <span class="game-chip">今日 {{ goalStore.dailyGoals.length }} 项</span>
-        <span class="game-chip">长期 {{ longTermCompletedCount }} / {{ goalStore.longTermGoals.length }}</span>
-        <span class="game-chip">连周 {{ goalStore.weeklyStreakState.current }} / 最佳 {{ goalStore.weeklyStreakState.best }}</span>
-        <span v-if="goalStore.currentEventCampaign" class="game-chip">活动 {{ goalStore.currentEventCampaign.label }}</span>
+        <span class="game-chip">里程碑 {{ currentMainQuestProgress }}</span>
+        <span v-if="goalStore.currentThemeWeek" class="game-chip">{{ goalStore.currentThemeWeek.name }}</span>
+        <template v-if="!collapsed">
+          <span class="game-chip">目标声望 {{ goalStore.goalReputation }}</span>
+          <span class="game-chip">长期 {{ longTermCompletedCount }} / {{ goalStore.longTermGoals.length }}</span>
+          <span class="game-chip">连周 {{ goalStore.weeklyStreakState.current }} / 最佳 {{ goalStore.weeklyStreakState.best }}</span>
+          <span v-if="goalStore.currentEventCampaign" class="game-chip">活动 {{ goalStore.currentEventCampaign.label }}</span>
+        </template>
         <button class="btn !px-2 !py-1" @click="collapsed = !collapsed">
-          <span>{{ collapsed ? '展开目标' : '收起目标' }}</span>
+          <span>{{ collapsed ? '展开完整规划' : '收起详细规划' }}</span>
         </button>
       </div>
     </div>
 
-    <GuidanceDigestPanel surface-id="top_goals" title="周目标与活动摘要" />
+    <div
+      v-if="collapsed"
+      class="rounded-xs border border-accent/15 bg-bg/10 px-3 py-3"
+    >
+      <div class="flex items-center justify-between gap-3">
+        <p class="text-xs text-accent">今日聚焦</p>
+        <span class="text-[10px] text-muted">{{ compactStatusLabel }}</span>
+      </div>
+      <p class="mt-2 text-sm text-text">{{ compactHeadline }}</p>
+      <p class="mt-1 text-[10px] text-muted leading-5">{{ compactSummary }}</p>
+      <div class="mt-3 flex flex-wrap gap-2">
+        <button
+          v-if="compactCta"
+          type="button"
+          class="btn !px-3 !py-1.5 text-[10px]"
+          @click="handleTopGoalsCta(compactCta)"
+        >
+          {{ compactCta.label }}
+        </button>
+        <button
+          type="button"
+          class="btn !px-3 !py-1.5 text-[10px]"
+          @click="collapsed = false"
+        >
+          查看完整规划
+        </button>
+      </div>
+    </div>
 
-    <div v-if="decisionLoopActions.length > 0" class="rounded-xs border border-accent/15 bg-bg/10 px-3 py-3">
+    <GuidanceDigestPanel v-else surface-id="top_goals" title="周目标与活动摘要" />
+
+    <div v-if="!collapsed && decisionLoopActions.length > 0" class="rounded-xs border border-accent/15 bg-bg/10 px-3 py-3">
       <div class="mb-2 flex items-center justify-between gap-2">
         <p class="text-xs text-accent">本周承接路线</p>
         <span class="text-[10px] text-muted">{{ decisionLoopActions.length }} 条</span>
@@ -108,7 +141,7 @@
 </template>
 
 <script setup lang="ts">
-  import { onMounted, ref } from 'vue'
+  import { computed, onMounted, ref } from 'vue'
   import { useRoute } from 'vue-router'
   import { navigateToPromptTarget, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
@@ -128,7 +161,7 @@
   const shopStore = useShopStore()
   const tutorialStore = useTutorialStore()
   const route = useRoute()
-  const collapsed = ref(typeof window !== 'undefined' ? window.innerWidth < 768 : false)
+  const collapsed = ref(true)
   const activePlanTab = ref<TopGoalsPlanTab>('daily')
   const detailsCollapsed = ref(false)
   const expandedLongTermGroups = ref<string[]>([])
@@ -152,6 +185,35 @@
     getDecisionActionPath,
     getSurfaceCtaLabel
   } = useTopGoalsPanelModel({ gameStore, goalStore, shopStore, tutorialStore })
+
+  const primaryDecisionAction = computed(() => decisionLoopActions.value[0] ?? null)
+  const primaryDailyGoal = computed(() => goalStore.dailyGoals.find(goal => !goal.completed) ?? goalStore.dailyGoals[0] ?? null)
+  const compactCta = computed<TopGoalsCta | null>(() => {
+    if (primaryDecisionAction.value) {
+      return buildNavigationCta(primaryDecisionAction.value)
+    }
+
+    const goalAction = primaryDailyGoal.value ? buildGoalAction(primaryDailyGoal.value) : null
+    return goalAction ? { ...goalAction, mode: 'cta' } : null
+  })
+  const compactHeadline = computed(() => {
+    if (primaryDecisionAction.value) return primaryDecisionAction.value.label
+    if (primaryDailyGoal.value) return `今天先做：${primaryDailyGoal.value.title}`
+    if (goalStore.currentMainQuest) return goalStore.currentMainQuest.title
+    return '今天先按当前里程碑慢慢推进'
+  })
+  const compactSummary = computed(() => {
+    if (primaryDecisionAction.value?.summary) return primaryDecisionAction.value.summary
+    if (goalStore.currentThemeWeek) return `本周主题：${goalStore.currentThemeWeek.name}。先按里程碑和今日目标慢慢推进就好。`
+    if (goalStore.currentMainQuest?.description) return goalStore.currentMainQuest.description
+    if (primaryDailyGoal.value) return `先完成「${primaryDailyGoal.value.title}」，会比同时追多条线更顺手。`
+    return '先处理眼前这一步，再决定要不要展开更完整的经营规划。'
+  })
+  const compactStatusLabel = computed(() => {
+    if (primaryDecisionAction.value) return `本周路线 ${decisionLoopActions.value.length} 条`
+    if (primaryDailyGoal.value) return `今日目标 ${goalStore.dailyGoals.length} 项`
+    return `里程碑 ${currentMainQuestProgress.value}`
+  })
 
   const toggleLongTermGroup = (label: string) => {
     const idx = expandedLongTermGroups.value.indexOf(label)

@@ -16,7 +16,7 @@
         </div>
       </div>
 
-      <div class="ai-admin-panel__group">
+      <div v-if="!isManagedReadonly('ai_assistant_name')" class="ai-admin-panel__group">
         <p class="ai-admin-panel__label">功能开关</p>
         <div class="ai-admin-panel__row">
           <button class="btn" :class="{ '!bg-accent !text-bg': store.adminConfig.enabled }" @click="store.adminConfig.enabled = true">开启</button>
@@ -24,7 +24,7 @@
         </div>
       </div>
 
-      <div class="ai-admin-panel__group">
+      <div v-if="!isManagedReadonly('ai_assistant_welcome')" class="ai-admin-panel__group">
         <p class="ai-admin-panel__label">回答模式</p>
         <div class="ai-admin-panel__row">
           <button class="btn" :class="{ '!bg-accent !text-bg': store.adminConfig.mode === 'strict' }" @click="store.adminConfig.mode = 'strict'">
@@ -36,7 +36,7 @@
         </div>
       </div>
 
-      <div class="ai-admin-panel__group">
+      <div v-if="!isManagedReadonly('ai_assistant_console_credit')" class="ai-admin-panel__group">
         <p class="ai-admin-panel__label">源码能力</p>
         <div class="ai-admin-panel__row">
           <button class="btn" :class="{ '!bg-accent !text-bg': store.adminConfig.sourceReadEnabled }" @click="store.adminConfig.sourceReadEnabled = true">
@@ -58,17 +58,17 @@
 
       <div class="ai-admin-panel__group">
         <label class="ai-admin-panel__label">助手名称</label>
-        <input v-model="store.adminConfig.assistantName" class="ai-admin-panel__input" maxlength="20" :disabled="isManagedReadonly('ai_assistant_name')" readonly />
+        <input v-model="store.adminConfig.assistantName" class="ai-admin-panel__input" maxlength="20" />
       </div>
 
       <div class="ai-admin-panel__group">
         <label class="ai-admin-panel__label">欢迎语</label>
-        <textarea v-model="store.adminConfig.welcomeMessage" rows="3" class="ai-admin-panel__textarea" maxlength="300" :disabled="isManagedReadonly('ai_assistant_welcome')" readonly />
+        <textarea v-model="store.adminConfig.welcomeMessage" rows="3" class="ai-admin-panel__textarea" maxlength="300" />
       </div>
 
       <div class="ai-admin-panel__group">
         <label class="ai-admin-panel__label">控制台署名文案</label>
-        <textarea v-model="store.adminConfig.consoleCreditMessage" rows="4" class="ai-admin-panel__textarea" maxlength="500" :disabled="isManagedReadonly('ai_assistant_console_credit')" readonly />
+        <textarea v-model="store.adminConfig.consoleCreditMessage" rows="4" class="ai-admin-panel__textarea" maxlength="500" />
         <p class="text-[11px] text-muted">前台会在页面进入和路由切换时输出这段文案；如果里面包含 URL，会自动把链接单独识别出来。</p>
       </div>
 

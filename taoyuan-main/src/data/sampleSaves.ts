@@ -1527,9 +1527,9 @@ const createFishpondCycleEveEnvelope = () => {
           built: true,
           level: 3,
           fish: [
-            { id: 'pf_cycle_1', fishId: 'carp', name: '锦鳞鲤鱼', genetics: createSampleFishGenetics(80, 72, 70, 82, 11), daysInPond: 10, mature: true, sick: false, sickDays: 0, breedId: 'koi_carp' },
-            { id: 'pf_cycle_2', fishId: 'bass', name: '深碧鲈鱼', genetics: createSampleFishGenetics(78, 69, 71, 76, 9), daysInPond: 9, mature: true, sick: false, sickDays: 0, breedId: 'deep_bass' },
-            { id: 'pf_cycle_3', fishId: 'carp', name: '锦鳞鲤鱼', genetics: createSampleFishGenetics(74, 68, 66, 72, 8), daysInPond: 8, mature: true, sick: false, sickDays: 0, breedId: 'koi_carp' }
+            { id: 'pf_cycle_1', fishId: 'carp', name: '锦鳞鲤鱼', genetics: createSampleFishGenetics(80, 72, 70, 82, 11), daysInPond: 10, mature: true, sick: false, sickDays: 0, breedId: 'g2_009' },
+            { id: 'pf_cycle_2', fishId: 'bass', name: '深碧鲈鱼', genetics: createSampleFishGenetics(78, 69, 71, 76, 9), daysInPond: 9, mature: true, sick: false, sickDays: 0, breedId: 'g2_049' },
+            { id: 'pf_cycle_3', fishId: 'carp', name: '锦鳞鲤鱼', genetics: createSampleFishGenetics(74, 68, 66, 72, 8), daysInPond: 8, mature: true, sick: false, sickDays: 0, breedId: 'g2_010' }
           ],
           waterQuality: 88,
           fedToday: true,
@@ -1537,8 +1537,8 @@ const createFishpondCycleEveEnvelope = () => {
           collectedToday: false
         },
         pendingProducts: [
-          { itemId: 'roe', quantity: 2, quality: 'fine' },
-          { itemId: 'roe', quantity: 1, quality: 'excellent' }
+          { itemId: 'carp', quality: 'fine' },
+          { itemId: 'bass', quality: 'excellent' }
         ],
         discoveredBreeds: ['koi_carp', 'deep_bass'],
         returnedFishPool: {},
@@ -1554,7 +1554,7 @@ const createFishpondCycleEveEnvelope = () => {
             pondFishId: 'pf_cycle_1',
             fishId: 'carp',
             fishName: '锦鳞鲤鱼',
-            breedId: 'koi_carp',
+            breedId: 'g2_009',
             snapshotScore: 86,
             snapshotShowValue: 90,
             snapshotGeneration: 3,

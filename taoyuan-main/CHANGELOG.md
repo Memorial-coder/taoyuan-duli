@@ -27,6 +27,23 @@
 
 ### 修复
 
+#### 0418 审查收口：存档未知态、活动任务约束与后台竞态补丁
+- `src/stores/useSaveStore.ts` 已补齐审查里漏掉的 quest / npc 迁移字段，读档迁移不再静默丢失 `specialOrderSettlementReceipts`、`recentSpecialOrderTagHistory`、`weeklySpecialOrderState`、`householdDivision`、`familyWishBoard`、`zhijiCompanionProjects`；同时把“服务端槽位读取失败”从“空槽位”拆成单独未知态，不再允许玩家把不可验证的云槽位误当成空槽继续覆盖。
+- `src/views/MainMenu.vue`、`src/components/game/MainMenuContinueList.vue`、`src/components/game/SaveManager.vue` 已把这类服务端未知槽位改成明确风险提示，并禁止在服务端槽位不可验证时继续导入到所谓“空槽”；玩家现在会看到“状态未知，等待服务端恢复后再确认”，而不是误导性的“当前没有可继续的旅程”或“空”。
+- `src/stores/useQuestStore.ts`、`src/data/quests.ts` 已把限时活动窗口真正接入公告板任务生成链路，活动窗口开启后，日常委托与紧急委托会按 `activeQuestTemplateIds` 约束到当前活动池，不再只在 UI 上展示活动而实际继续刷常规池。
+- `src/utils/taoyuanHallApi.ts`、`src/views/HallView.vue`、`src/utils/taoyuanAiApi.ts` 已统一修正网络异常表现：交流大厅读取 `viewer` 失败时不再直接把已登录玩家伪装成游客，AI 助手在断网或接口不可达时也不再把底层浏览器报错原样甩给玩家，而是回退成明确的中文连接失败提示。
+- `src/components/game/AdminHomepageAboutPanel.vue`、`src/views/TaoyuanAdminView.vue` 已补上后台上传/竞态守卫：首页“关于游戏”内容管理在图片上传完成前不能保存或发布；桃源邮件后台则增加了列表刷新、详情补载、草稿载入和收件人搜索的请求序号保护，避免旧请求回写新界面、刷新失败把记录误清空或把草稿内容覆盖错位。
+- `src/views/game/WalletView.vue` 已给额度兑换补上自动存档失败补偿：当 quota 已成功变更但当前服务端存档写回失败时，会立即把当前会话里的铜钱回滚到旧值，并强制刷新额度上下文，避免形成“额度已变、游戏钱没变”的账档分离。
+- `src/stores/useWalletStore.ts` 已把流派节点进度改为按流派分别持久化：切换流派时会保留旧流派已解锁节点，切回后可直接恢复原进度，不再出现“切一次流派把整个节点树洗掉”的问题。
+- `src/stores/useGameStore.ts` 已把跨区旅行的最终耗时统一到同一份速度增益口径：`getTravelCost()`、商店开门校验、真实推进时间和日志文案现在会一起吃到速度料理修正，不再出现“实际赶路变快，但入场校验和日志还按旧耗时”的错位。
+- `src/stores/usePlayerStore.ts` 已把日终重置返回的 `recoveryPct` 改成真正生效的恢复比例，熬夜/昏倒结算文案不再出现“恢复 110% 体力”这类和实际体力条不一致的提示。
+- `src/stores/useFishPondStore.ts`、`src/stores/useQuestStore.ts` 已把鱼塘高阶订单的结算评分接到“实际被提交的鱼”上：鱼塘交付现在会保留本次提交样本的评分/代数/健康快照，特殊订单结算会据此给出样本评分加成，而不再只按门槛文案静态打分。
+- `src/components/game/AiAssistantWidget.vue` 已把快捷问题和回车发送也纳入 `isAsking` 发送锁，请求飞行中不再继续清空草稿或插入新问题，避免 AI 助手出现多条待回复同时挂起的串线状态。
+- `src/views/UserAdminView.vue`、`src/views/TaoyuanAdminView.vue` 已继续补上后台旧请求守卫与错误态：用户列表切分页/筛选时现在只接受最后一次响应，切换用户时旧的游戏日志失败不会再清空当前用户日志；刷新存档信息时也会校验仍然指向同一位用户后才回写详情和提示成功；桃源邮件后台则在列表刷新、详情补载、草稿载入与收件人搜索上统一接入 request id，避免旧响应覆盖新界面，并在刷新失败时显式显示错误态而不是伪装成空列表。
+- `src/stores/useProcessingStore.ts`、`src/stores/useHomeStore.ts`、`src/stores/useGoalStore.ts`、`src/stores/useVillageProjectStore.ts`、`src/stores/useMiningStore.ts`、`src/stores/useCookingStore.ts` 已补齐一组旧档兼容与状态修复：加工取消不会误清已完成槽位，温室旧档会按既有温室地块/等级自动认定解锁，周目标 `completed` 但缺失 `rewarded` 的旧档迁移更收敛，可重复捐赠会在满额领完后正确复位，矿洞旧 boss 奖励 claim array 能从老字段迁移，料理 `activeBuff` 反序列化会清洗无效脏值。
+- `src/composables/useDialogs.ts`、`src/stores/useAchievementStore.ts` 已补上节日小游戏奖励 receipt 防重与成就发现时间辅助函数的损坏修复，避免节日领奖重复入账，并恢复受损编辑后导致的成就 store 语法/时间串问题。
+- 本轮修复已再次通过 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run type-check` 与 `npm --prefix d:\taoyuan-latest\taoyuan-duli\taoyuan-main run build` 验证。
+
 #### 0418 Docker 重启后服务端存档自恢复与待同步保底
 - `src/utils/accountStorage.ts`、`src/utils/protectedApi.ts` 已补上“当前账号 / CSRF 强制刷新 + 受保护请求自动恢复”底层能力；在线写请求在遇到 `401 / 403` 时会先无刷新重拉账号上下文与 CSRF，再自动重试一次，不再默认要求玩家手动刷新页面。
 - `src/utils/serverSaveApi.ts`、`src/utils/mailboxApi.ts`、`src/utils/taoyuanHallApi.ts`、`src/utils/quotaExchangeApi.ts` 已统一接入这套恢复层；服务端存档、邮箱读写、交流大厅发帖 / 回帖 / 举报 / 图片上传、额度兑换等关键在线写操作现在会共享同一套登录态 / 鉴权恢复逻辑。
@@ -1707,6 +1724,27 @@
 - `src/components/game/FishingMiniGame.vue`、`src/views/game/FishingView.vue` 已让“放弃钓鱼”确认框真正暂停小游戏本体，确认期间鱼不会继续结算逃跑。
 - `src/stores/useInventoryStore.ts` 已把 `removeItemAnywhere()` 调整为“跨主包/临时包按品质优先扣除”，避免不指定品质时先误吃临时背包里的高品质物资。
 - `src/stores/useWalletStore.ts` 已加入进度监听，常驻钱袋被动会在条件达成后即时补发，不再必须等到睡觉结算后才生效。
+- `src/stores/useGameStore.ts`、`src/stores/useSaveStore.ts` 已修复旅行体力没有吃到全局减耗、固定/节日天气可被强制覆写，以及旧档缺失 `tomorrowWeather` 时首日预报按错误季节推导的问题。
+- `src/stores/usePlayerStore.ts`、`src/views/GameLayout.vue`、`src/composables/useEndDay.ts` 已修正晚睡/昏倒后的体力恢复百分比文案，并补强旧档 `maxStamina` 对 `staminaCapLevel/bonusMaxStamina` 的推断。
+- `src/stores/useShopStore.ts` 已让出货箱结算按同日链式供需逐条重算行情，不再整箱按同一静态倍率结算；同时取回改为全有全无，不再静默部分成功。
+- `src/views/game/WalletView.vue` 已为“切换钱包流派”补确认弹窗，避免误点直接清空当前流派节点。
+- `src/views/game/ForageView.vue`、`src/views/game/FishingView.vue` 已去掉采集与淘金的“假成功”提示：背包放不下时不再继续显示“获得了 / 淘到了”，而是明确写成发现了但没能带走。
+- `src/stores/useFishingStore.ts` 已把“无鱼可钓先吞鱼饵”和“零权重鱼池强行回退到第一条鱼”的链路拆开处理，当前地点根本无鱼或玩家钓具/等级尚未达标时，不会再白白消耗鱼饵并误钩出越门槛鱼种。
+- `src/stores/useFishingStore.ts` 已为更换浮漂补上背包保护：满包且旧浮漂无法回收时会直接阻止更换，不再先吞旧浮漂再装备新浮漂。
+- `src/stores/useFishingStore.ts`、`src/composables/useEndDay.ts` 已为蟹笼收获补上满包失败反馈；背包放不下时会记录“抓到了但没能带走”，并保留有饵蟹笼的饵料，避免继续静默吞收获和鱼饵。
+- `src/stores/useAnimalStore.ts` 已在旧档反序列化时补齐 `mood / daysOwned / daysSinceProduct / wasFed / wasPetted / hunger / sick / sickDays / fedWith` 等动物日结字段，并同步归一化宠物状态，避免老档首个过夜把产出天数写成 `NaN` 后长期停产。
+- `src/stores/useSettingsStore.ts` 已让读档时真正同步 BGM 运行态：载入 `bgmEnabled=false` 的存档会立即停掉当前音乐，不再出现设置显示已关闭但 BGM 继续播放到玩家手动切换的错态。
+- `src/stores/useSecretNoteStore.ts` 已在读档时清洗秘密笔记状态：`collectedNotes / usedNotes` 现在会去重、过滤非法 ID，并强制保证 `used ⊆ collected`，避免脏档把笔记掉落与宝藏领奖链路永久卡死。
+- `src/stores/useProcessingStore.ts` 已让自动续作链路重新套用织布机的 `gui_nv_1` 缩时逻辑；隐世能力在虚空原料箱自动续作时不再失效，玩家无需手动停机重开才能吃到加速。
+- `src/stores/useFarmStore.ts`、`src/composables/useEndDay.ts` 已把“当天实际浇水/雨淋”的状态在日结前冻结成稳定快照，戒指加速与绿雨额外成长不再读取已被清空的 `plot.watered`，手动浇水和普通雨天作物也能正确吃到成长加成。
+- `src/stores/useHomeStore.ts`、`src/views/game/CottageView.vue` 已把酒窖取物改成原子流程：先校验背包容量，再完整入包，最后才移除酒窖槽位；满包时会在确认弹窗里明确提示并禁用取出，避免陈酿成品被直接吞掉。
+- `src/stores/useNpcStore.ts` 已在离婚/断知己后同步清理失效的家庭分工与知己协作状态，并在旧档反序列化后自动兜底校正，避免关系结束后无效协作项目继续推进或发奖励。
+- `src/stores/useTutorialStore.ts` 已把 guidance digest 的 dismiss/adopt 状态改成按“主题周/活动周期 + 当前内容签名”作用域记忆；同一 `summaryId/routeId` 到了新一周、新活动或内容变化时会重新变成 fresh/available，不再被旧状态永久吞掉。
+- `src/stores/useShopStore.ts` 已在旧档反序列化时对 `shippedItems` 做迁移后去重：`mill_fish_feed`、`recycle_fish_feed` 折叠为 `fish_feed` 后不会再重复计入出货图鉴、全出货判定与完美度。
+- `src/stores/useMailboxStore.ts`、`src/stores/useSaveStore.ts` 已把邮箱领奖后的自动回读收紧到“当前真实运行中的服务端会话”上，并在存在本地 pending 副本时直接跳过危险回读；同时新增更明确的 `reason_detail/message`，避免旧 `pendingRaw` 把刚领取的服务端奖励重新覆盖掉。
+- `src/stores/useSaveStore.ts` 已为同槽位待同步副本补上“仅当仍是同一版本才清理”的并发护栏：旧上传先返回时不会再把较新的 pending 副本误删，避免补传链路把新进度丢回旧版本。
+- `src/views/game/WalletView.vue`、`src/stores/useSaveStore.ts` 已把额度兑换绑定到“当前真实运行中的服务端会话”上，并在当前槽位仍有待同步本地副本时直接拦截兑换；这样不会再把 queued/pending 状态误当成已确认的服务端活动槽，降低资源写错档风险。
+- `src/stores/useCookingStore.ts`、`src/stores/useMiningStore.ts`、`src/data/recipes.ts` 已把料理 `activeBuff` 的“语义层”拆开处理：`体力上限+30（当天）` 现在会提供真实的临时体力上限而不再直接回满体力，`防御+3` 会按固定减伤而不是百分比误算；同时把原本实际按减耗生效的少数“农耕/采矿技能+1/+2”料理文案改成与真实效果一致，避免继续出现文案与结算错位。
 - 当前复核状态：
   - `npm run type-check`
   - `npm run build`

@@ -11,6 +11,7 @@ const cfg = require('../config');
 const taoyuanHall = require('../taoyuanHall');
 const taoyuanMailbox = require('../taoyuanMailbox');
 const taoyuanAiAssistant = require('../taoyuanAiAssistant');
+const officialControlPlatform = require('../officialControlPlatform');
 
 const router = express.Router();
 
@@ -23,6 +24,7 @@ const TAOYUAN_EXCHANGE_LIMITS_FILE = path.join(DATA_DIR, 'taoyuan_exchange_limit
 const PUBLIC_AI_ASK_WINDOW_MS = 60 * 1000;
 const PUBLIC_AI_ASK_MAX_REQUESTS = 8;
 const publicAiAskBuckets = new Map();
+const OFFICIAL_CONTROL_SECOND_AUTH_SESSION_KEY = 'official_control_verified';
 
 function createRouteError(message, status = 400) {
   const error = new Error(message);
@@ -190,6 +192,33 @@ function userAdminAuth(req, res, next) {
     return res.status(403).json({ ok: false, msg: '无权限' });
   }
   req.admin = admin;
+  next();
+}
+
+function resolveRequestHostname(req) {
+  if (req?.hostname) return String(req.hostname || '').trim().toLowerCase();
+  const host = String(req.headers?.host || '').trim().toLowerCase();
+  return host.replace(/:\d+$/, '');
+}
+
+function officialControlHostAuth(req, res, next) {
+  if (!officialControlPlatform.isPlatformEnabled()) {
+    return res.status(404).json({ ok: false, msg: '官方云控平台未启用' });
+  }
+  if (!officialControlPlatform.isHostAllowed(resolveRequestHostname(req))) {
+    return res.status(404).json({ ok: false, msg: '当前域名不可访问官方云控平台' });
+  }
+  next();
+}
+
+function hasOfficialControlSecondAuth(req) {
+  return req.session?.[OFFICIAL_CONTROL_SECOND_AUTH_SESSION_KEY] === true;
+}
+
+function officialControlSecondAuth(req, res, next) {
+  if (!hasOfficialControlSecondAuth(req)) {
+    return res.status(403).json({ ok: false, msg: '请先完成云控二次密码验证' });
+  }
   next();
 }
 
@@ -531,6 +560,22 @@ router.get('/public-config', (req, res) => {
   res.json(getPublicConfigPayload(req));
 });
 
+router.get('/official-control/v1/instances/config/current', (req, res) => {
+  try {
+    if (!officialControlPlatform.isPlatformEnabled() || !officialControlPlatform.isHostAllowed(resolveRequestHostname(req))) {
+      return res.status(404).json({ ok: false, msg: '官方配置分发接口不可用' });
+    }
+    const envelope = officialControlPlatform.resolveDistributionConfig({
+      instanceId: req.headers['x-instance-id'],
+      licenseKey: req.headers['x-license-key'],
+      publicOrigin: req.query.public_origin,
+    });
+    res.json(envelope);
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取官方配置失败' });
+  }
+});
+
 router.get('/admin/me', userAdminAuth, (req, res) => {
   res.json({
     ok: true,
@@ -539,6 +584,114 @@ router.get('/admin/me', userAdminAuth, (req, res) => {
     role_label: req.admin.role_label,
     permissions: buildAdminPermissions(req.admin.role),
   });
+});
+
+router.get('/admin/official-control/platform-status', userAdminAuth, officialControlHostAuth, (req, res) => {
+  res.json({
+    ok: true,
+    status: officialControlPlatform.getPlatformStatus({
+      hostname: resolveRequestHostname(req),
+      secondAuthVerified: hasOfficialControlSecondAuth(req),
+    }),
+  });
+});
+
+router.post('/admin/official-control/auth/login', userAdminAuth, officialControlHostAuth, (req, res) => {
+  try {
+    const password = String(req.body?.password || '').trim();
+    if (!password) {
+      return res.status(400).json({ ok: false, msg: '请先填写云控二次密码' });
+    }
+    if (!officialControlPlatform.verifyAdminPassword(password)) {
+      return res.status(403).json({ ok: false, msg: '云控二次密码错误' });
+    }
+    req.session[OFFICIAL_CONTROL_SECOND_AUTH_SESSION_KEY] = true;
+    res.json({
+      ok: true,
+      status: officialControlPlatform.getPlatformStatus({
+        hostname: resolveRequestHostname(req),
+        secondAuthVerified: true,
+      }),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '云控二次认证失败' });
+  }
+});
+
+router.post('/admin/official-control/auth/logout', userAdminAuth, officialControlHostAuth, (req, res) => {
+  if (req.session) {
+    delete req.session[OFFICIAL_CONTROL_SECOND_AUTH_SESSION_KEY];
+  }
+  res.json({
+    ok: true,
+    status: officialControlPlatform.getPlatformStatus({
+      hostname: resolveRequestHostname(req),
+      secondAuthVerified: false,
+    }),
+  });
+});
+
+router.get('/admin/official-control/config/current', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, (req, res) => {
+  res.json({
+    ok: true,
+    current: officialControlPlatform.getCurrentRelease(),
+    releases: officialControlPlatform.listReleaseRecords(20),
+    managedKeys: [...officialControlPlatform.MANAGED_KEYS],
+  });
+});
+
+router.post('/admin/official-control/config/publish', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, async (req, res) => {
+  try {
+    const release = officialControlPlatform.publishRelease(req.body?.values || req.body || {}, {
+      operator_name: req.admin?.operator_name,
+      operator_role: req.admin?.role,
+    });
+    if (typeof cfg.getManagedStatus === 'function') {
+      const officialManagedConfig = require('../officialManagedConfig');
+      await officialManagedConfig.refreshFromRemote('publish');
+    }
+    res.json({
+      ok: true,
+      current: release,
+      releases: officialControlPlatform.listReleaseRecords(20),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '发布官方配置失败' });
+  }
+});
+
+router.get('/admin/official-control/instances', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, (req, res) => {
+  res.json({
+    ok: true,
+    instances: officialControlPlatform.listInstances(),
+  });
+});
+
+router.post('/admin/official-control/instances', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, (req, res) => {
+  try {
+    const result = officialControlPlatform.createInstance(req.body || {});
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '创建实例失败' });
+  }
+});
+
+router.post('/admin/official-control/instances/:id/status', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, (req, res) => {
+  try {
+    const instance = officialControlPlatform.updateInstanceStatus(req.params.id, req.body || {});
+    res.json({ ok: true, instance });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新实例失败' });
+  }
+});
+
+router.post('/admin/official-control/instances/:id/reset-license', userAdminAuth, officialControlHostAuth, officialControlSecondAuth, (req, res) => {
+  try {
+    const result = officialControlPlatform.resetInstanceLicense(req.params.id);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '重置实例密钥失败' });
+  }
 });
 
 router.get('/admin/users', userAdminAuth, async (req, res) => {
