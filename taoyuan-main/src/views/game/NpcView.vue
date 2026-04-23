@@ -61,6 +61,31 @@
               : '当前尚未激活家庭心愿；后续页面会优先围绕婚后分工、知己协作与孩子成长组织新一轮家庭目标。'
           }}
         </p>
+        <div v-if="activeFamilyWishChain?.steps?.length" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
+          <p class="text-[10px] text-muted mb-1">家庭事件链</p>
+          <div v-for="step in activeFamilyWishChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[10px] mt-1 first:mt-0">
+            <div class="min-w-0">
+              <p class="text-accent">{{ step.title }}</p>
+              <p class="text-muted leading-4 mt-0.5">{{ step.summary }}</p>
+            </div>
+            <span :class="step.status === 'completed' ? 'text-success' : step.status === 'active' ? 'text-warning' : 'text-muted'">
+              {{ step.status === 'completed' ? '已完成' : step.status === 'active' ? '当前步骤' : '待推进' }}
+            </span>
+          </div>
+        </div>
+        <div v-if="activeZhijiProjectChain?.steps?.length" class="border border-accent/10 rounded-xs p-2 mt-2">
+          <p class="text-[10px] text-muted mb-1">知己协作链</p>
+          <p class="text-[10px] text-accent">{{ activeZhijiProjectChain.def.label }} · {{ activeZhijiProjectChain.progressLabel }}</p>
+          <div v-for="step in activeZhijiProjectChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[10px] mt-1 first:mt-0">
+            <div class="min-w-0">
+              <p class="text-accent">{{ step.title }}</p>
+              <p class="text-muted leading-4 mt-0.5">{{ step.summary }}</p>
+            </div>
+            <span :class="step.status === 'completed' ? 'text-success' : step.status === 'active' ? 'text-warning' : 'text-muted'">
+              {{ step.status === 'completed' ? '已完成' : step.status === 'active' ? '当前步骤' : '待推进' }}
+            </span>
+          </div>
+        </div>
       </div>
 
       <!-- NPC 网格：移动端紧凑，桌面端详细 -->
@@ -914,9 +939,19 @@
   const relationshipDebugSnapshot = computed(() => npcStore.getRelationshipDebugSnapshot())
   const familyWishOverview = computed(() => npcStore.getFamilyWishOverview())
   const activeFamilyWishDef = computed(() => familyWishOverview.value.defs.find(def => def.id === familyWishOverview.value.state.activeWishId) ?? null)
+  const activeFamilyWishChain = computed(() => npcStore.getFamilyWishChainPreview(activeFamilyWishDef.value?.id ?? ''))
+  const activeZhijiProjectChain = computed(() => {
+    const project = relationshipDebugSnapshot.value.zhijiCompanionProjects.find(entry => !entry.rewarded) ?? null
+    return project ? npcStore.getZhijiProjectChainPreview(project.projectId, project.npcId) : null
+  })
   const spiritBondOverview = computed(() => hiddenNpcStore.spiritBondAuditSnapshot)
   const selectedSpiritBlessingSummary = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getSpiritBlessingSummary(selectedHiddenNpc.value) : null))
   const selectedSpiritBlessings = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getAvailableSpiritBlessings(selectedHiddenNpc.value) : []))
+  const selectedSpiritMemoryChain = computed(() => {
+    const summary = selectedSpiritBlessingSummary.value
+    const nextMemoryId = summary?.memoryRewards.find(entry => !summary.claimedBondMemoryIds.includes(entry.id))?.id ?? summary?.memoryRewards[0]?.id
+    return selectedHiddenNpc.value && nextMemoryId ? hiddenNpcStore.getBondMemoryChainPreview(selectedHiddenNpc.value, nextMemoryId) : null
+  })
 
   const revealedHiddenNpcs = computed(() => hiddenNpcStore.getRevealedNpcs)
     const rumorHiddenNpcs = computed(() => hiddenNpcStore.getRumorNpcs)

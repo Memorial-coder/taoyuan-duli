@@ -6,6 +6,12 @@ import {
   HANHAI_CARAVAN_CONTRACT_DEFS,
   HANHAI_OPERATION_TUNING_CONFIG,
   HANHAI_RELIC_SET_DEFS,
+  WS14_HANHAI_BOSS_CYCLE_DEFS,
+  WS14_HANHAI_CARAVAN_CONTRACT_DEFS,
+  WS14_HANHAI_RELIC_SET_DEFS,
+  WS14_HANHAI_RELIC_SITES,
+  WS14_HANHAI_ROUTE_INVESTMENTS,
+  WS14_HANHAI_SHOP_ROTATIONS,
   HANHAI_ROUTE_INVESTMENTS,
   HANHAI_SHOP_ITEMS,
   HANHAI_SHOP_ROTATIONS,
@@ -88,30 +94,44 @@ const hanhaiRewardConfig = hanhaiTuning.rewards
 const hanhaiOperationsConfig = hanhaiTuning.operations
 
 const HANHAI_TIER_RANK: Record<HanhaiProgressTier, number> = { P0: 0, P1: 1, P2: 2 }
+const ALL_HANHAI_ROUTE_INVESTMENTS = [...HANHAI_ROUTE_INVESTMENTS, ...WS14_HANHAI_ROUTE_INVESTMENTS]
+const ALL_HANHAI_RELIC_SITES = [...HANHAI_RELIC_SITES, ...WS14_HANHAI_RELIC_SITES]
+const ALL_HANHAI_RELIC_SET_DEFS = [...HANHAI_RELIC_SET_DEFS, ...WS14_HANHAI_RELIC_SET_DEFS]
+const ALL_HANHAI_BOSS_CYCLE_DEFS = [...HANHAI_BOSS_CYCLE_DEFS, ...WS14_HANHAI_BOSS_CYCLE_DEFS]
+const ALL_HANHAI_CARAVAN_CONTRACT_DEFS = [...HANHAI_CARAVAN_CONTRACT_DEFS, ...WS14_HANHAI_CARAVAN_CONTRACT_DEFS]
+const ALL_HANHAI_SHOP_ROTATIONS = [...HANHAI_SHOP_ROTATIONS, ...WS14_HANHAI_SHOP_ROTATIONS]
 
 const HANHAI_ROUTE_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMarketCategory[]> = {
   westbound_silk_route: ['processed', 'crop', 'fruit'],
   turquoise_exchange_route: ['ore', 'gem', 'processed'],
-  moon_sand_ceremony_route: ['processed', 'gem', 'fruit']
+  moon_sand_ceremony_route: ['processed', 'gem', 'fruit'],
+  oasis_exchange_route: ['processed', 'fish', 'gem'],
+  starfall_patron_route: ['processed', 'gem', 'fish']
 }
 
 const HANHAI_RELIC_SITE_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMarketCategory[]> = {
   sunset_ruins: ['processed'],
   turquoise_pit: ['ore', 'gem'],
-  moon_sand_shrine: ['processed', 'fruit', 'gem']
+  moon_sand_shrine: ['processed', 'fruit', 'gem'],
+  mirage_observatory: ['processed', 'gem'],
+  stormglass_catacomb: ['ore', 'gem', 'processed']
 }
 
 const HANHAI_SET_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMarketCategory[]> = {
   merchant_ledger_set: ['processed', 'ore'],
   desert_ritual_set: ['processed', 'fruit'],
-  sun_moon_trade_set: ['processed', 'ore', 'gem']
+  sun_moon_trade_set: ['processed', 'ore', 'gem'],
+  oasis_exchange_set: ['processed', 'gem'],
+  stormglass_relic_set: ['ore', 'gem', 'processed']
 }
 
 const HANHAI_BOSS_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMarketCategory[]> = {
   dune_revenant: ['processed'],
   glass_scorpion: ['ore', 'gem'],
   sunken_colossus: ['processed', 'gem'],
-  sandstorm_wyrm: ['ore', 'gem', 'processed']
+  sandstorm_wyrm: ['ore', 'gem', 'processed'],
+  mirage_judge: ['processed', 'gem'],
+  starfall_leviathan: ['ore', 'gem', 'processed']
 }
 
 const HANHAI_CONTRACT_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMarketCategory[]> = {
@@ -119,7 +139,9 @@ const HANHAI_CONTRACT_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMark
   contract_turquoise_exchange: ['ore', 'gem', 'processed'],
   contract_moon_sand_patronage: ['processed', 'fruit', 'gem'],
   contract_koi_showcase_relay: ['fish', 'processed'],
-  contract_coldchain_specimen_route: ['fish', 'processed', 'gem']
+  contract_coldchain_specimen_route: ['fish', 'processed', 'gem'],
+  contract_oasis_archive_route: ['processed', 'gem', 'fish'],
+  contract_starfall_patronage: ['processed', 'gem']
 }
 
 const HANHAI_ITEM_TO_QUEST_MARKET_CATEGORIES: Record<string, HanhaiQuestMarketCategory[]> = {
@@ -714,10 +736,10 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
   const canBet = computed(() => casinoBetsToday.value < MAX_DAILY_BETS)
   const betsRemaining = computed(() => MAX_DAILY_BETS - casinoBetsToday.value)
-  const relicSites = computed(() => HANHAI_RELIC_SITES)
+  const relicSites = computed(() => ALL_HANHAI_RELIC_SITES)
   const totalRelicClears = computed(() => Object.values(relicRecords.value).reduce((sum, record) => sum + record.clears, 0))
   const relicSiteSummaries = computed<HanhaiRelicSiteSummary[]>(() =>
-    HANHAI_RELIC_SITES.map(site => {
+    ALL_HANHAI_RELIC_SITES.map(site => {
       const record = relicRecords.value[site.id] ?? { siteId: site.id, clears: 0, claimedMilestone: false }
       return {
         siteId: site.id,
@@ -782,12 +804,12 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       contractIds,
       relicSetIds,
       shopRotationIds,
-      routeLabels: resolveFocusLabels(routeIds, HANHAI_ROUTE_INVESTMENTS, entry => entry.label),
-      relicSiteLabels: resolveFocusLabels(relicSiteIds, HANHAI_RELIC_SITES, entry => entry.name),
-      bossCycleLabels: resolveFocusLabels(bossCycleIds, HANHAI_BOSS_CYCLE_DEFS, entry => entry.label),
-      contractLabels: resolveFocusLabels(contractIds, HANHAI_CARAVAN_CONTRACT_DEFS, entry => entry.label),
-      relicSetLabels: resolveFocusLabels(relicSetIds, HANHAI_RELIC_SET_DEFS, entry => entry.label),
-      shopRotationLabels: resolveFocusLabels(shopRotationIds, HANHAI_SHOP_ROTATIONS, entry => entry.label)
+      routeLabels: resolveFocusLabels(routeIds, ALL_HANHAI_ROUTE_INVESTMENTS, entry => entry.label),
+      relicSiteLabels: resolveFocusLabels(relicSiteIds, ALL_HANHAI_RELIC_SITES, entry => entry.name),
+      bossCycleLabels: resolveFocusLabels(bossCycleIds, ALL_HANHAI_BOSS_CYCLE_DEFS, entry => entry.label),
+      contractLabels: resolveFocusLabels(contractIds, ALL_HANHAI_CARAVAN_CONTRACT_DEFS, entry => entry.label),
+      relicSetLabels: resolveFocusLabels(relicSetIds, ALL_HANHAI_RELIC_SET_DEFS, entry => entry.label),
+      shopRotationLabels: resolveFocusLabels(shopRotationIds, ALL_HANHAI_SHOP_ROTATIONS, entry => entry.label)
     }
   })
 
@@ -798,7 +820,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
   const featuredRouteInvestments = computed(() => {
     const focusedIds = new Set(currentThemeWeekHanhaiFocus.value?.routeIds ?? [])
-    return [...HANHAI_ROUTE_INVESTMENTS]
+    return [...ALL_HANHAI_ROUTE_INVESTMENTS]
       .filter(route => isTierUnlocked(route.unlockTier) || focusedIds.has(route.id))
       .map(route => {
         const state = cycleState.value.routeInvestments[route.id]
@@ -820,7 +842,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
   const featuredCaravanContracts = computed(() => {
     const focusedIds = new Set(currentThemeWeekHanhaiFocus.value?.contractIds ?? [])
-    return [...HANHAI_CARAVAN_CONTRACT_DEFS]
+    return [...ALL_HANHAI_CARAVAN_CONTRACT_DEFS]
       .filter(contract => isTierUnlocked(contract.unlockTier) || focusedIds.has(contract.id))
       .sort((left, right) => {
         const leftWeight = (focusedIds.has(left.id) ? 2 : 0) + HANHAI_TIER_RANK[left.unlockTier]
@@ -832,7 +854,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
   const featuredRelicSets = computed(() => {
     const focusedIds = new Set(currentThemeWeekHanhaiFocus.value?.relicSetIds ?? [])
-    return [...HANHAI_RELIC_SET_DEFS]
+    return [...ALL_HANHAI_RELIC_SET_DEFS]
       .filter(setDef => isTierUnlocked(setDef.unlockTier) || focusedIds.has(setDef.id))
       .map(setDef => {
         const state = cycleState.value.setCollections[setDef.id]
@@ -853,20 +875,20 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
   const activeBossCycleOverview = computed(() => {
     const focusedIds = new Set(currentThemeWeekHanhaiFocus.value?.bossCycleIds ?? [])
-    const currentBoss = HANHAI_BOSS_CYCLE_DEFS.find(boss => boss.id === cycleState.value.bossCycleId) ?? null
+    const currentBoss = ALL_HANHAI_BOSS_CYCLE_DEFS.find(boss => boss.id === cycleState.value.bossCycleId) ?? null
     if (currentBoss) {
       return {
         ...currentBoss,
         focused: focusedIds.has(currentBoss.id)
       }
     }
-    const focusedBoss = HANHAI_BOSS_CYCLE_DEFS.find(boss => focusedIds.has(boss.id) && isTierUnlocked(boss.unlockTier))
+    const focusedBoss = ALL_HANHAI_BOSS_CYCLE_DEFS.find(boss => focusedIds.has(boss.id) && isTierUnlocked(boss.unlockTier))
     return focusedBoss ? { ...focusedBoss, focused: true } : null
   })
 
   const activeShopRotationOverview = computed(() => {
     const focusedIds = new Set(currentThemeWeekHanhaiFocus.value?.shopRotationIds ?? [])
-    const unlockedRotations = HANHAI_SHOP_ROTATIONS.filter(rotation => isTierUnlocked(rotation.unlockTier))
+    const unlockedRotations = ALL_HANHAI_SHOP_ROTATIONS.filter(rotation => isTierUnlocked(rotation.unlockTier))
     const activeRotation =
       unlockedRotations.find(rotation => focusedIds.has(rotation.id)) ??
       unlockedRotations[unlockedRotations.length - 1] ??
@@ -1055,7 +1077,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
   const resolveBossCycleId = (weekOfSeason: number) => {
     const bossCycleIds = hanhaiProgressionConfig.bossCycleOrder.filter(bossId =>
-      HANHAI_BOSS_CYCLE_DEFS.some(def => def.id === bossId)
+      ALL_HANHAI_BOSS_CYCLE_DEFS.some(def => def.id === bossId)
     )
     return bossCycleIds[Math.max(0, Math.min(bossCycleIds.length - 1, weekOfSeason - 1))] ?? bossCycleIds[0]!
   }
@@ -1099,7 +1121,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
     const snapshots = createHanhaiActionSnapshots()
     try {
-      const route = HANHAI_ROUTE_INVESTMENTS.find(entry => entry.id === routeId)
+      const route = ALL_HANHAI_ROUTE_INVESTMENTS.find(entry => entry.id === routeId)
       if (!route) return { success: false, message: '商路不存在。' }
       if (!unlocked.value) return { success: false, message: '瀚海尚未开通。' }
       if (!isTierUnlocked(route.unlockTier)) return { success: false, message: `${route.label} 尚未解锁。` }
@@ -1203,7 +1225,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
   }
 
   const getRelicRemaining = (siteId: string): number => {
-    const site = HANHAI_RELIC_SITES.find(entry => entry.id === siteId)
+    const site = ALL_HANHAI_RELIC_SITES.find(entry => entry.id === siteId)
     if (!site) return 0
     return Math.max(0, site.weeklyLimit - getRelicRecord(siteId).clears)
   }
@@ -1214,7 +1236,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
     const snapshots = createHanhaiActionSnapshots()
     try {
-      const site = HANHAI_RELIC_SITES.find(entry => entry.id === siteId)
+      const site = ALL_HANHAI_RELIC_SITES.find(entry => entry.id === siteId)
       if (!site) return { success: false, message: '遗迹不存在。' }
       if (getRelicRemaining(siteId) <= 0) {
         return { success: false, message: `${site.name}本周已经探查完毕。` }
@@ -1251,7 +1273,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       }
       let completedSetLabel = ''
       const nextSetCollections = { ...cycleState.value.setCollections }
-      for (const setDef of HANHAI_RELIC_SET_DEFS) {
+      for (const setDef of ALL_HANHAI_RELIC_SET_DEFS) {
         if (!setDef.requiredRelicTags.includes(site.relicTag)) continue
         const currentState = nextSetCollections[setDef.id] ?? {
           setId: setDef.id,
@@ -1298,7 +1320,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
 
     const snapshots = createHanhaiActionSnapshots()
     try {
-      const site = HANHAI_RELIC_SITES.find(entry => entry.id === siteId)
+      const site = ALL_HANHAI_RELIC_SITES.find(entry => entry.id === siteId)
       if (!site) return { success: false, message: '遗迹不存在。' }
 
       const record = getRelicRecord(siteId)

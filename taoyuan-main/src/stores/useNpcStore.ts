@@ -1035,6 +1035,28 @@ export const useNpcStore = defineStore('npc', () => {
     state: familyWishBoard.value
   })
 
+  const getFamilyWishChainPreview = (wishId = familyWishBoard.value.activeWishId ?? '') => {
+    const def = ALL_FAMILY_WISH_DEFS.find(wish => wish.id === wishId) ?? null
+    if (!def) return null
+    const isCompleted = familyWishBoard.value.completedWishIds.includes(wishId)
+    const isActive = familyWishBoard.value.activeWishId === wishId
+    const activeStepIndex = isCompleted ? (def.steps?.length ?? 0) : isActive ? 1 : 0
+    return {
+      def,
+      progressLabel: isActive ? `${familyWishBoard.value.progress}/${Math.max(1, familyWishBoard.value.targetValue)}` : isCompleted ? '已完成' : '未开始',
+      steps: (def.steps ?? []).map((step, index) => ({
+        ...step,
+        status: isCompleted
+          ? 'completed'
+          : index < activeStepIndex
+            ? 'completed'
+            : index === activeStepIndex
+              ? 'active'
+              : 'pending'
+      }))
+    }
+  }
+
   const activateFamilyWish = (wishId: string, startedDayTag: string, expiresDayTag: string, targetValue: number, unlockTier: 'P0' | 'P1' | 'P2' = 'P0') => {
     const lockId = `relationship_family_wish_${wishId}`
     if (!beginRelationshipAction(lockId)) return
@@ -1246,6 +1268,28 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getZhijiProjectState = (projectId: string, npcId?: string) =>
     zhijiCompanionProjects.value.find(project => project.projectId === projectId && (npcId ? project.npcId === npcId : true)) ?? null
+
+  const getZhijiProjectChainPreview = (projectId: string, npcId?: string) => {
+    const def = ALL_ZHIJI_COMPANION_PROJECT_DEFS.find(project => project.id === projectId) ?? null
+    if (!def) return null
+    const state = getZhijiProjectState(projectId, npcId)
+    const activeStepIndex = !state ? 0 : state.rewarded ? (def.steps?.length ?? 0) : state.completed ? 2 : 1
+    return {
+      def,
+      state,
+      progressLabel: state ? `${state.progress}/${Math.max(1, state.targetValue)}` : '未登记',
+      steps: (def.steps ?? []).map((step, index) => ({
+        ...step,
+        status: state?.rewarded
+          ? 'completed'
+          : index < activeStepIndex
+            ? 'completed'
+            : index === activeStepIndex
+              ? 'active'
+              : 'pending'
+      }))
+    }
+  }
 
   const activateNextFamilyWishForCurrentDay = () => {
     if (familyWishBoard.value.activeWishId) {
@@ -2323,11 +2367,13 @@ export const useNpcStore = defineStore('npc', () => {
     clearHouseholdRole,
     progressHouseholdRole,
     getFamilyWishOverview,
+    getFamilyWishChainPreview,
     activateFamilyWish,
     activateNextFamilyWishForCurrentDay,
     updateFamilyWishProgress,
     completeFamilyWish,
     getZhijiProjectState,
+    getZhijiProjectChainPreview,
     registerZhijiProject,
     registerNextZhijiProjectForCurrentWeek,
     progressZhijiProject,

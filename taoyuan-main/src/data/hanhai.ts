@@ -316,6 +316,37 @@ export const HANHAI_ROUTE_WEEKLY_YIELDS: Record<string, HanhaiRewardBundle> = {
   }
 }
 
+export const WS14_HANHAI_ROUTE_INVESTMENTS: HanhaiRouteInvestmentDef[] = [
+  {
+    id: 'oasis_exchange_route',
+    label: '绿洲互市线',
+    unlockTier: 'P1',
+    variantGroup: 'route_bias',
+    costMoney: 9200,
+    riskLevel: 'medium',
+    rewardSummary: '围绕绿洲互市、样本补给和馆务筹备扩展出的第二批商路，强化中后期活动承接。',
+    weeklyYieldSummary: '每周提供稳定的互市货流，适合承接博物馆和鱼塘展示线的中段需求。',
+    linkedSystems: ['quest', 'museum', 'shop'],
+    favoredCargoTags: ['样本', '互市', '补给'],
+    linkedRouteLabels: ['瀚海', '博物馆'],
+    rewardTierId: 'activity'
+  },
+  {
+    id: 'starfall_patron_route',
+    label: '陨砂赞助线',
+    unlockTier: 'P2',
+    variantGroup: 'route_bias',
+    costMoney: 19600,
+    riskLevel: 'high',
+    rewardSummary: '围绕高阶展陈、赞助和终局收尾扩展出的第二批高风险商路。',
+    weeklyYieldSummary: '更适合终局展示、瀚海赞助和高价目录轮换的活动收尾阶段。',
+    linkedSystems: ['museum', 'goal', 'shop'],
+    favoredCargoTags: ['赞助', '珍藏', '展陈'],
+    linkedRouteLabels: ['瀚海', '大厅'],
+    rewardTierId: 'showcase'
+  }
+]
+
 export const HANHAI_RELIC_SET_DEFS: HanhaiRelicSetDef[] = [
   {
     id: 'merchant_ledger_set',
@@ -340,6 +371,31 @@ export const HANHAI_RELIC_SET_DEFS: HanhaiRelicSetDef[] = [
     requiredRelicTags: ['商路遗物', '祭仪遗珍', '沙海矿藏'],
     rewardSummary: '作为终局收藏向目标，服务瀚海赞助、跨系统主题周与高规格订单。',
     linkedSystems: ['museum', 'quest', 'shop', 'goal']
+  }
+]
+
+export const WS14_HANHAI_RELIC_SET_DEFS: HanhaiRelicSetDef[] = [
+  {
+    id: 'oasis_exchange_set',
+    label: '绿洲互市套组',
+    unlockTier: 'P1',
+    variantGroup: 'relic_words',
+    requiredRelicTags: ['海市残卷', '鍟嗚矾閬楃墿'],
+    rewardSummary: '服务绿洲互市、馆务供给与周中活动承接的第二批遗迹套组。',
+    linkedSystems: ['museum', 'quest', 'goal'],
+    linkedRouteLabels: ['瀚海', '博物馆'],
+    rewardTierId: 'activity'
+  },
+  {
+    id: 'stormglass_relic_set',
+    label: '风暴琉砂套组',
+    unlockTier: 'P2',
+    variantGroup: 'relic_words',
+    requiredRelicTags: ['风暴遗骸', '绁华閬楃弽', '海市残卷'],
+    rewardSummary: '面向高阶瀚海遗迹、终局展陈和赞助收尾的第二批高规格遗迹套组。',
+    linkedSystems: ['museum', 'goal', 'shop'],
+    linkedRouteLabels: ['瀚海', '大厅'],
+    rewardTierId: 'showcase'
   }
 ]
 
@@ -379,6 +435,33 @@ export const HANHAI_BOSS_CYCLE_DEFS: HanhaiBossCycleDef[] = [
     threatLevel: 'prestige',
     rewardSummary: '作为季末终局 Boss，服务主题周高潮、终局订单与商路赞助收官。',
     linkedSystems: ['quest', 'museum', 'goal', 'shop']
+  }
+]
+
+export const WS14_HANHAI_BOSS_CYCLE_DEFS: HanhaiBossCycleDef[] = [
+  {
+    id: 'mirage_judge',
+    label: '海市审判者',
+    unlockTier: 'P1',
+    variantGroup: 'boss_finish',
+    preferredWeekOfSeason: [2, 3],
+    threatLevel: 'advanced',
+    rewardSummary: '围绕互市、样本护送和周中承接扩展出的第二批中段首领。',
+    linkedSystems: ['quest', 'museum', 'goal'],
+    linkedRouteLabels: ['瀚海', '任务'],
+    rewardTierId: 'activity'
+  },
+  {
+    id: 'starfall_leviathan',
+    label: '陨砂海魇',
+    unlockTier: 'P2',
+    variantGroup: 'boss_finish',
+    preferredWeekOfSeason: [4],
+    threatLevel: 'prestige',
+    rewardSummary: '围绕终局赞助、展示收尾和高阶活动预告扩展出的第二批收尾首领。',
+    linkedSystems: ['museum', 'goal', 'shop'],
+    linkedRouteLabels: ['瀚海', '大厅'],
+    rewardTierId: 'showcase'
   }
 ]
 
@@ -445,6 +528,39 @@ export const HANHAI_CARAVAN_CONTRACT_DEFS: HanhaiCaravanContractDef[] = [
   }
 ]
 
+export const WS14_HANHAI_CARAVAN_CONTRACT_DEFS: HanhaiCaravanContractDef[] = [
+  {
+    id: 'contract_oasis_archive_route',
+    label: '绿洲档案护送合同',
+    unlockTier: 'P1',
+    variantGroup: 'route_bias',
+    routeId: 'oasis_exchange_route',
+    durationWeeks: 1,
+    costMoney: 7200,
+    cargoTags: ['样本', '档案', '互市'],
+    riskLevel: 'medium',
+    rewardSummary: '承接馆务委托、样本护送和周中活动邮件的第二批瀚海合同。',
+    linkedSystems: ['quest', 'museum', 'shop'],
+    linkedRouteLabels: ['瀚海', '博物馆'],
+    rewardTierId: 'activity'
+  },
+  {
+    id: 'contract_starfall_patronage',
+    label: '陨砂赞助合同',
+    unlockTier: 'P2',
+    variantGroup: 'route_bias',
+    routeId: 'starfall_patron_route',
+    durationWeeks: 2,
+    costMoney: 14200,
+    cargoTags: ['赞助', '终局展陈', '收尾'],
+    riskLevel: 'high',
+    rewardSummary: '承接高阶赞助、收尾展示和终局活动预告的第二批瀚海合同。',
+    linkedSystems: ['museum', 'goal', 'shop'],
+    linkedRouteLabels: ['瀚海', '大厅'],
+    rewardTierId: 'showcase'
+  }
+]
+
 export const HANHAI_SHOP_ROTATIONS: HanhaiShopRotationDef[] = [
   {
     id: 'rotation_frontier_supplies',
@@ -466,6 +582,29 @@ export const HANHAI_SHOP_ROTATIONS: HanhaiShopRotationDef[] = [
     unlockTier: 'P2',
     featuredItemIds: ['hanhai_map', 'mega_bomb_recipe', 'hanhai_silk'],
     summary: '作为终局展示与高价投资的消费池，为高风险押运与终局活动预留货架。'
+  }
+]
+
+export const WS14_HANHAI_SHOP_ROTATIONS: HanhaiShopRotationDef[] = [
+  {
+    id: 'rotation_oasis_archive',
+    label: '绿洲样本轮换',
+    unlockTier: 'P1',
+    variantGroup: 'expedition',
+    featuredItemIds: ['hanhai_map', 'hanhai_turquoise', 'hanhai_spice'],
+    summary: '服务绿洲互市、馆务供给和样本护送的第二批货架轮换。',
+    linkedRouteLabels: ['瀚海', '博物馆'],
+    rewardTierId: 'activity'
+  },
+  {
+    id: 'rotation_starfall_patron',
+    label: '陨砂赞助轮换',
+    unlockTier: 'P2',
+    variantGroup: 'endgame',
+    featuredItemIds: ['hanhai_map', 'hanhai_silk', 'mega_bomb_recipe'],
+    summary: '服务赞助收尾、终局展示和高价目录承接的第二批高阶货架轮换。',
+    linkedRouteLabels: ['瀚海', '大厅'],
+    rewardTierId: 'showcase'
   }
 ]
 
@@ -512,6 +651,39 @@ export const HANHAI_RELIC_SITES: HanhaiRelicSiteDef[] = [
       items: [
         { itemId: 'hanhai_spice', quantity: 3 },
         { itemId: 'hanhai_turquoise', quantity: 1 }
+      ]
+    }
+  }
+]
+
+export const WS14_HANHAI_RELIC_SITES: HanhaiRelicSiteDef[] = [
+  {
+    id: 'mirage_observatory',
+    name: '海市观测台',
+    description: '漂浮在沙海中的观测残塔，会产出互市残卷与高价值样本线索。',
+    unlockCost: 3200,
+    weeklyLimit: 2,
+    relicTag: '海市残卷',
+    rewards: {
+      money: 3200,
+      items: [
+        { itemId: 'hanhai_map', quantity: 1 },
+        { itemId: 'hanhai_spice', quantity: 2 }
+      ]
+    }
+  },
+  {
+    id: 'stormglass_catacomb',
+    name: '风暴琉砂窟',
+    description: '被风暴淹没的琉砂墓窟，适合在后期活动周中搜集高规格遗骸。',
+    unlockCost: 4800,
+    weeklyLimit: 1,
+    relicTag: '风暴遗骸',
+    rewards: {
+      money: 4600,
+      items: [
+        { itemId: 'hanhai_turquoise', quantity: 2 },
+        { itemId: 'hanhai_silk', quantity: 1 }
       ]
     }
   }

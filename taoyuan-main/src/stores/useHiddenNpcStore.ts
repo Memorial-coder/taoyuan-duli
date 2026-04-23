@@ -586,6 +586,33 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     }
   }
 
+  const getBondMemoryChainPreview = (npcId: string, memoryId: string) => {
+    const state = getHiddenNpcState(npcId)
+    const memoryReward = ALL_SPIRIT_BOND_MEMORY_REWARDS.find(entry => entry.npcId === npcId && entry.id === memoryId) ?? null
+    if (!state || !memoryReward) return null
+    const activeStepIndex = state.claimedBondMemoryIds.includes(memoryId)
+      ? (memoryReward.steps?.length ?? 0)
+      : state.bonded
+        ? 2
+        : (state.courting || state.activeBlessingId || state.resonancePoints > 0)
+          ? 1
+          : 0
+    return {
+      memoryReward,
+      progressLabel: state.claimedBondMemoryIds.includes(memoryId) ? '已领取' : state.bonded ? '可收尾' : state.courting ? '推进中' : '未开始',
+      steps: (memoryReward.steps ?? []).map((step, index) => ({
+        ...step,
+        status: state.claimedBondMemoryIds.includes(memoryId)
+          ? 'completed'
+          : index < activeStepIndex
+            ? 'completed'
+            : index === activeStepIndex
+              ? 'active'
+              : 'pending'
+      }))
+    }
+  }
+
   const getAvailableSpiritBlessings = (npcId: string) => {
     if (!spiritFeatureFlags.spiritBlessingEnabled) return []
     const state = getHiddenNpcState(npcId)
@@ -822,6 +849,7 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     checkAbilityUnlocks,
     getActiveAbilities,
     getSpiritBlessingSummary,
+    getBondMemoryChainPreview,
     getAvailableSpiritBlessings,
     isAbilityActive,
     getAbilityValue,
