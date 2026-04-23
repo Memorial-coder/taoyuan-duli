@@ -1,5 +1,7 @@
 import { clearStoredAdminToken, getStoredAdminToken, setStoredAdminToken } from '@/utils/taoyuanMailboxAdminApi'
 import type { OfficialManagedConfigKey, OfficialManagedConfigStatus } from '@/types'
+import type { AndroidAppReleaseConfig } from '@/types/androidRelease'
+import { createDefaultAndroidAppReleaseConfig, normalizeAndroidAppReleaseConfig } from '@/utils/androidRelease'
 
 export interface HomepageAboutContentPayload {
   aboutButtonEnabled: boolean
@@ -53,6 +55,10 @@ export interface GameplayLogListResult {
   page: number
   pageSize: number
   logs: GameplayLogEntry[]
+}
+
+export interface AdminAndroidReleaseConfigResult {
+  config: AndroidAppReleaseConfig
 }
 
 const parseJsonSafe = async (res: Response) => {
@@ -203,5 +209,29 @@ export const fetchGameplayLogs = async (
     page: Number(data.page) || 1,
     pageSize: Number(data.pageSize || data.page_size) || params.pageSize || 50,
     logs: Array.isArray(data.logs) ? data.logs : [],
+  }
+}
+
+export const fetchAdminAndroidReleaseConfig = async (tokenOverride?: string): Promise<AdminAndroidReleaseConfigResult> => {
+  const data = await adminRequest<{ config?: AndroidAppReleaseConfig }>('/api/admin/taoyuan/android/release-config', undefined, tokenOverride)
+  return {
+    config: normalizeAndroidAppReleaseConfig(data?.config ?? createDefaultAndroidAppReleaseConfig()),
+  }
+}
+
+export const saveAdminAndroidReleaseConfig = async (
+  payload: AndroidAppReleaseConfig,
+  tokenOverride?: string,
+): Promise<AdminAndroidReleaseConfigResult> => {
+  const data = await adminRequest<{ config?: AndroidAppReleaseConfig }>(
+    '/api/admin/taoyuan/android/release-config',
+    {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    },
+    tokenOverride,
+  )
+  return {
+    config: normalizeAndroidAppReleaseConfig(data?.config ?? payload),
   }
 }

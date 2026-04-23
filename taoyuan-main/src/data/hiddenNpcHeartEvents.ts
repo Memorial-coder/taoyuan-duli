@@ -1,4 +1,4 @@
-import type { HeartEventDef, SpiritBlessingDef, SpiritBondTier } from '@/types'
+import type { HeartEventDef, SpiritBlessingDef, SpiritBondMemoryDef, SpiritBondTier } from '@/types'
 
 /** 隐藏NPC心事件（使用 HeartEventDef 格式，requiredFriendship 对应缘分阈值） */
 export const HIDDEN_NPC_HEART_EVENTS: HeartEventDef[] = [
@@ -546,7 +546,7 @@ export const WS09_HIDDEN_NPC_BLESSING_ASSIGNMENTS: Record<string, string[]> = {
   gui_nv: ['spirit_blessing_tide', 'spirit_blessing_legacy']
 }
 
-export const WS09_SPIRIT_BOND_MEMORY_REWARDS = [
+export const WS09_SPIRIT_BOND_MEMORY_REWARDS: SpiritBondMemoryDef[] = [
   {
     id: 'memory_long_ling_water_mark',
     npcId: 'long_ling',
@@ -579,7 +579,7 @@ export const WS09_SPIRIT_BOND_MEMORY_REWARDS = [
   }
 ] as const
 
-export const WS15_SPIRIT_BOND_MEMORY_REWARDS = [
+export const WS15_SPIRIT_BOND_MEMORY_REWARDS: SpiritBondMemoryDef[] = [
   {
     id: 'memory_long_ling_tide_archive',
     npcId: 'long_ling',
@@ -616,7 +616,7 @@ export const WS15_SPIRIT_BOND_MEMORY_REWARDS = [
       { id: 'memory_gui_nv_showcase_return_settlement', title: '收尾回响', summary: '收尾时把展示成果转成活动回顾和下一轮推荐摘要。', stepType: 'settlement', routeName: 'hall' }
     ]
   }
-] as const
+]
 
 export const createDefaultSpiritBondProgressState = () => ({
   bondTier: 'P0' as SpiritBondTier,

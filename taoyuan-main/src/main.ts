@@ -7,6 +7,7 @@ import router from '@/router'
 import App from './App.vue'
 import './app.css'
 import { initCurrentAccount } from '@/utils/accountStorage'
+import { installApiFetchBridge } from '@/utils/apiClient'
 import { CONSOLE_CREDIT_UPDATED_EVENT, fetchAiAssistantConfig } from '@/utils/taoyuanAiApi'
 
 const defaultProjectCreditMessage =
@@ -100,6 +101,7 @@ router.afterEach((to) => {
 })
 
 const bootstrap = async () => {
+  installApiFetchBridge()
   await Promise.all([initCurrentAccount(), loadProjectCreditMessage()])
 
   const app = createApp(App)

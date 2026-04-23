@@ -110,7 +110,6 @@
                   {{ downloading ? '下载中...' : '云端下载' }}
                 </Button>
                 <Button
-                  v-if="!Capacitor.isNativePlatform()"
                   :icon="Download"
                   :icon-size="12"
                   class="text-center !rounded-none justify-center text-sm"
@@ -151,7 +150,7 @@
       </div>
 
       <!-- 导入存档 -->
-      <template v-if="!Capacitor.isNativePlatform()">
+      <template>
         <Button :icon="Upload" class="text-center justify-center text-sm w-full" @click="triggerImport">导入存档</Button>
         <input ref="fileInputRef" type="file" accept=".tyx" class="hidden" @change="handleImportFile" />
       </template>
@@ -186,7 +185,6 @@
   import { useSaveStore } from '@/stores/useSaveStore'
   import { showFloat } from '@/composables/useGameLog'
   import { useWebdav } from '@/composables/useWebdav'
-  import { Capacitor } from '@capacitor/core'
 
   const props = withDefaults(defineProps<{ allowLoad?: boolean; saveIntent?: 'manage' | 'save' | 'save-return'; returnUrl?: string }>(), {
     allowLoad: false,

@@ -109,7 +109,7 @@ export interface SpiritBlessingDef {
     title: string
     summary: string
     stepType: 'trigger' | 'weekly' | 'settlement'
-    routeName?: 'home' | 'quest' | 'fishpond' | 'museum' | 'hanhai'
+    routeName?: 'home' | 'quest' | 'fishpond' | 'museum' | 'hanhai' | 'hall' | 'mail'
   }>
 }
 
@@ -124,7 +124,7 @@ export interface SpiritBondMemoryDef {
     title: string
     summary: string
     stepType: 'trigger' | 'weekly' | 'settlement'
-    routeName?: 'home' | 'quest' | 'fishpond' | 'museum' | 'hanhai'
+    routeName?: 'home' | 'quest' | 'fishpond' | 'museum' | 'hanhai' | 'hall' | 'mail'
   }>
 }
 

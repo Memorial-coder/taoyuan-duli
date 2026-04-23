@@ -152,6 +152,31 @@
         <p v-if="nextZhijiProject" class="text-[10px] text-muted/80 mt-2 leading-4">
           推荐为 {{ nextZhijiProject.npcName }} 推进「{{ nextZhijiProject.project.label }}」：{{ nextZhijiProject.project.rewardSummary }}
         </p>
+        <div v-if="activeFamilyWishChain?.steps?.length" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
+          <p class="text-[10px] text-muted mb-1">家庭事件链</p>
+          <div v-for="step in activeFamilyWishChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[10px] mt-1 first:mt-0">
+            <div class="min-w-0">
+              <p class="text-accent">{{ step.title }}</p>
+              <p class="text-muted leading-4 mt-0.5">{{ step.summary }}</p>
+            </div>
+            <span :class="step.status === 'completed' ? 'text-success' : step.status === 'active' ? 'text-warning' : 'text-muted'">
+              {{ step.status === 'completed' ? '已完成' : step.status === 'active' ? '当前步骤' : '待推进' }}
+            </span>
+          </div>
+        </div>
+        <div v-if="nextZhijiProjectChain?.steps?.length" class="border border-accent/10 rounded-xs p-2 mt-2">
+          <p class="text-[10px] text-muted mb-1">知己协作链</p>
+          <p class="text-[10px] text-accent">{{ nextZhijiProjectChain.def.label }} · {{ nextZhijiProjectChain.progressLabel }}</p>
+          <div v-for="step in nextZhijiProjectChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[10px] mt-1 first:mt-0">
+            <div class="min-w-0">
+              <p class="text-accent">{{ step.title }}</p>
+              <p class="text-muted leading-4 mt-0.5">{{ step.summary }}</p>
+            </div>
+            <span :class="step.status === 'completed' ? 'text-success' : step.status === 'active' ? 'text-warning' : 'text-muted'">
+              {{ step.status === 'completed' ? '已完成' : step.status === 'active' ? '当前步骤' : '待推进' }}
+            </span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -697,7 +722,6 @@
   import { getItemById, getNpcById } from '@/data'
   import { GREENHOUSE_UNLOCK_COST, GREENHOUSE_MATERIAL_COST, WAREHOUSE_UNLOCK_MATERIALS } from '@/data/buildings'
   import { CHEST_DEFS, CHEST_TIER_ORDER } from '@/data/items'
-  import { WS09_ZHIJI_COMPANION_PROJECT_DEFS } from '@/data/npcs'
   import type { Quality, ChestTier, VoidChestRole } from '@/types'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import Button from '@/components/game/Button.vue'
@@ -747,6 +771,7 @@
   const relationshipDebugSnapshot = computed(() => npcStore.getRelationshipDebugSnapshot())
   const familyWishOverview = computed(() => npcStore.getFamilyWishOverview())
   const activeFamilyWish = computed(() => familyWishOverview.value.defs.find(def => def.id === familyWishOverview.value.state.activeWishId) ?? null)
+  const activeFamilyWishChain = computed(() => npcStore.getFamilyWishChainPreview(activeFamilyWish.value?.id ?? ''))
   const nextFamilyWish = computed(
     () => familyWishOverview.value.defs.find(def => !familyWishOverview.value.state.completedWishIds.includes(def.id) && def.id !== familyWishOverview.value.state.activeWishId) ?? null
   )
@@ -756,13 +781,16 @@
     const npcDef = getNpcById(zhijiState.npcId)
     const projectId = (npcDef?.zhijiProjectIds ?? []).find(id => !npcStore.getZhijiProjectState(id, zhijiState.npcId))
     if (!projectId) return null
-    const projectDef = WS09_ZHIJI_COMPANION_PROJECT_DEFS.find(def => def.id === projectId)
-    if (!projectDef) return null
+    const projectPreview = npcStore.getZhijiProjectChainPreview(projectId, zhijiState.npcId)
+    if (!projectPreview) return null
     return {
       npcName: npcDef?.name ?? zhijiState.npcId,
-      project: projectDef
+      project: projectPreview.def
     }
   })
+  const nextZhijiProjectChain = computed(() =>
+    nextZhijiProject.value ? npcStore.getZhijiProjectChainPreview(nextZhijiProject.value.project.id, npcStore.getZhiji()?.npcId) : null
+  )
 
   const getVillageProjectName = (projectId: string) => villageProjectStore.getProjectSummary(projectId)?.name ?? projectId
   const getFirstAvailableDonationItem = (projectId: string) => {

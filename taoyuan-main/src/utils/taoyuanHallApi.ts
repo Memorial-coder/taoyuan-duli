@@ -93,12 +93,14 @@ export const createHallPost = async (payload: {
 }): Promise<HallPostDetail> => {
   const { data } = await fetchProtectedJson(async () => {
     const csrfToken = await ensureInteractionContext()
+    const adminToken = payload.isOfficial === true ? getAdminToken() : ''
     return fetch('/api/taoyuan/hall/posts', {
       method: 'POST',
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
         'X-CSRF-Token': csrfToken,
+        ...(adminToken ? { 'X-Admin-Token': adminToken } : {}),
       },
       body: JSON.stringify({
         ...payload,

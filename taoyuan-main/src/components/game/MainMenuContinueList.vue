@@ -44,7 +44,6 @@
             class="absolute right-0 top-full z-10 mt-1 flex w-30 flex-col overflow-hidden rounded-xs border border-accent/30"
           >
             <Button
-              v-if="!isNativePlatform"
               class="text-center !rounded-none justify-center !text-sm"
               :icon="Download"
               :icon-size="12"
@@ -65,7 +64,7 @@
       </div>
     </div>
 
-    <Button v-if="!isNativePlatform" class="text-center justify-center" :icon="Upload" @click="$emit('import-slot')">
+    <Button class="text-center justify-center" :icon="Upload" @click="$emit('import-slot')">
       导入存档
     </Button>
   </div>

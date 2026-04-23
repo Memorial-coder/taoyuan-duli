@@ -78,7 +78,7 @@ import { useWalletStore } from './useWalletStore'
 import { useGoalStore } from './useGoalStore'
 import { useShopStore } from './useShopStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
-import { getWeekCycleInfo } from '@/utils/weekCycle'
+import { getWeekCycleInfo, WEEKS_PER_SEASON } from '@/utils/weekCycle'
 
 const dedupeList = <T,>(items: T[]): T[] => Array.from(new Set(items))
 type HanhaiQuestMarketCategory = 'crop' | 'fruit' | 'ore' | 'gem' | 'processed' | 'fish'
@@ -1075,11 +1075,21 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     return rank[left] >= rank[right] ? left : right
   }
 
-  const resolveBossCycleId = (weekOfSeason: number) => {
-    const bossCycleIds = hanhaiProgressionConfig.bossCycleOrder.filter(bossId =>
-      ALL_HANHAI_BOSS_CYCLE_DEFS.some(def => def.id === bossId)
-    )
-    return bossCycleIds[Math.max(0, Math.min(bossCycleIds.length - 1, weekOfSeason - 1))] ?? bossCycleIds[0]!
+  const resolveBossCycleId = (weekOfSeason: number, absoluteWeek = getCurrentWeekInfo().absoluteWeek) => {
+    const configuredBosses = hanhaiProgressionConfig.bossCycleOrder
+      .map(bossId => ALL_HANHAI_BOSS_CYCLE_DEFS.find(def => def.id === bossId) ?? null)
+      .filter((boss): boss is (typeof ALL_HANHAI_BOSS_CYCLE_DEFS)[number] => !!boss)
+    const preferredBosses = configuredBosses.filter(boss => boss.preferredWeekOfSeason.includes(weekOfSeason))
+    const rotationPool =
+      preferredBosses.length > 0
+        ? preferredBosses
+        : configuredBosses.length > 0
+          ? configuredBosses
+          : ALL_HANHAI_BOSS_CYCLE_DEFS
+
+    if (!rotationPool.length) return ''
+    const seasonRotationIndex = Math.max(0, Math.floor(Math.max(0, absoluteWeek) / WEEKS_PER_SEASON))
+    return rotationPool[seasonRotationIndex % rotationPool.length]?.id ?? rotationPool[0]!.id
   }
 
   const syncCycleStateToCurrentWeek = () => {
@@ -1087,7 +1097,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     cycleState.value = {
       ...cycleState.value,
       progressTier: mergeProgressTier(cycleState.value.progressTier, resolveProgressTier()),
-      bossCycleId: resolveBossCycleId(weekInfo.weekOfSeason),
+      bossCycleId: resolveBossCycleId(weekInfo.weekOfSeason, weekInfo.absoluteWeek),
       lastWeeklyResetDayTag: cycleState.value.lastWeeklyResetDayTag || getCurrentDayTag()
     }
   }
@@ -1824,6 +1834,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     currentDayTag: string
     currentWeekId: string
     weekOfSeason: number
+    absoluteWeek: number
     startedNewWeek: boolean
   }) => {
     const logs: string[] = []
@@ -1840,7 +1851,7 @@ export const useHanhaiStore = defineStore('hanhai', () => {
       relicRecords.value = {}
       nextCycleState = {
         ...nextCycleState,
-        bossCycleId: resolveBossCycleId(payload.weekOfSeason),
+        bossCycleId: resolveBossCycleId(payload.weekOfSeason, payload.absoluteWeek),
         lastWeeklyResetDayTag: payload.currentDayTag,
         routeInvestments: Object.fromEntries(
           Object.entries(nextCycleState.routeInvestments).map(([routeId, state]) => [

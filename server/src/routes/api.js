@@ -446,6 +446,75 @@ function sanitizeTaoyuanReturnButtonUrl(value) {
   return '/';
 }
 
+function sanitizeAndroidReleaseDownloadUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+  try {
+    const parsed = new URL(raw);
+    if (!['https:', 'http:'].includes(parsed.protocol)) return '';
+    return parsed.toString();
+  } catch {
+    return '';
+  }
+}
+
+function normalizeAndroidAppReleaseConfig(raw = {}) {
+  const next = raw && typeof raw === 'object' ? raw : {};
+  const latestVersionName = String(next.latestVersionName ?? next.latest_version_name ?? '').trim();
+  const latestVersionCode = Math.max(0, parseInt(next.latestVersionCode ?? next.latest_version_code, 10) || 0);
+  const minSupportedVersionCode = Math.max(0, parseInt(next.minSupportedVersionCode ?? next.min_supported_version_code, 10) || 0);
+  return {
+    enabled: next.enabled === true,
+    latestVersionName,
+    latestVersionCode,
+    minSupportedVersionCode,
+    downloadUrl: sanitizeAndroidReleaseDownloadUrl(next.downloadUrl ?? next.download_url),
+    releaseNotes: String(next.releaseNotes ?? next.release_notes ?? '').trim(),
+    forceUpdateMessage:
+      String(next.forceUpdateMessage ?? next.force_update_message ?? '').trim()
+      || '褰撳墠瀹夊崜鐗堟湰杩囨棫锛岃鍏堟洿鏂板埌鏈€鏂板畨瑁呭寘鍚庡啀缁х画娓哥帺銆?',
+  };
+}
+
+function getAndroidAppReleaseConfig() {
+  const current = cfg.all();
+  return normalizeAndroidAppReleaseConfig({
+    enabled: current.android_app_updates_enabled,
+    latestVersionName: current.android_app_latest_version_name,
+    latestVersionCode: current.android_app_latest_version_code,
+    minSupportedVersionCode: current.android_app_min_supported_version_code,
+    downloadUrl: current.android_app_download_url,
+    releaseNotes: current.android_app_release_notes,
+    forceUpdateMessage: current.android_app_force_update_message,
+  });
+}
+
+function publishAndroidAppReleaseConfig(content) {
+  const normalized = normalizeAndroidAppReleaseConfig(content);
+  if (typeof cfg.setWithMeta === 'function') {
+    cfg.setWithMeta({
+      android_app_updates_enabled: normalized.enabled,
+      android_app_latest_version_name: normalized.latestVersionName,
+      android_app_latest_version_code: normalized.latestVersionCode,
+      android_app_min_supported_version_code: normalized.minSupportedVersionCode,
+      android_app_download_url: normalized.downloadUrl,
+      android_app_release_notes: normalized.releaseNotes,
+      android_app_force_update_message: normalized.forceUpdateMessage,
+    });
+  } else {
+    cfg.set({
+      android_app_updates_enabled: normalized.enabled,
+      android_app_latest_version_name: normalized.latestVersionName,
+      android_app_latest_version_code: normalized.latestVersionCode,
+      android_app_min_supported_version_code: normalized.minSupportedVersionCode,
+      android_app_download_url: normalized.downloadUrl,
+      android_app_release_notes: normalized.releaseNotes,
+      android_app_force_update_message: normalized.forceUpdateMessage,
+    });
+  }
+  return getAndroidAppReleaseConfig();
+}
+
 function getTaoyuanTodayUsage(username) {
   const all = taoyuanExchangeLimitsLoad();
   const today = todayBJ();
@@ -488,6 +557,7 @@ async function withTaoyuanExchangeLock(fn) {
 function getPublicConfigPayload(req) {
   const c = cfg.all();
   const homepageAbout = getHomepageAboutContent();
+  const androidApp = getAndroidAppReleaseConfig();
   const username = req.session && req.session.username;
   const taoyuanTodayUsage = username
     ? getTaoyuanTodayUsage(username)
@@ -508,6 +578,7 @@ function getPublicConfigPayload(req) {
     taoyuan_about_button_text: homepageAbout.aboutButtonText,
     taoyuan_about_dialog_title: homepageAbout.aboutDialogTitle,
     taoyuan_about_dialog_content: homepageAbout.aboutDialogContent,
+    android_app: androidApp,
   };
 }
 
@@ -971,6 +1042,33 @@ router.post('/admin/content/homepage-about/restore/:revisionId', userAdminAuth, 
     res.json({ ok: true, content, revision: nextRevision, restored_from: revision.id });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复首页关于内容失败' });
+  }
+});
+
+router.get('/admin/taoyuan/android/release-config', userAdminAuth, async (req, res) => {
+  try {
+    res.json({
+      ok: true,
+      config: getAndroidAppReleaseConfig(),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '鑾峰彇瀹夊崜鍙戝竷閰嶇疆澶辫触' });
+  }
+});
+
+router.post('/admin/taoyuan/android/release-config', userAdminAuth, async (req, res) => {
+  try {
+    const config = publishAndroidAppReleaseConfig(req.body || {});
+    await appendAdminAuditLog(req, 'update_android_release_config', '', {
+      enabled: config.enabled,
+      latest_version_name: config.latestVersionName,
+      latest_version_code: config.latestVersionCode,
+      min_supported_version_code: config.minSupportedVersionCode,
+      download_url: config.downloadUrl,
+    });
+    res.json({ ok: true, config });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '淇濆瓨瀹夊崜鍙戝竷閰嶇疆澶辫触' });
   }
 });
 
@@ -1562,14 +1660,31 @@ router.post('/taoyuan/hall/upload-image', loginRequired, signRequired, async (re
 
 router.post('/taoyuan/hall/posts', loginRequired, signRequired, async (req, res) => {
   try {
+    const admin = getAdminContext(req);
+    const requestedTemplateType = typeof req.body?.official_template_type === 'string'
+      ? req.body.official_template_type.trim()
+      : '';
+    const normalizedTemplateType = ['event_announcement', 'player_help_template', 'showcase_wrapup'].includes(requestedTemplateType)
+      ? requestedTemplateType
+      : null;
+    const requiresAdmin = req.body?.is_official === true || normalizedTemplateType === 'event_announcement' || normalizedTemplateType === 'showcase_wrapup';
+
+    if (requiresAdmin && !admin) {
+      return res.status(403).json({ ok: false, msg: '官方活动帖仅管理员可发布' });
+    }
+
     const post = await taoyuanHall.createPost({
       title: req.body?.title,
       content: req.body?.content,
       blocks: req.body?.blocks,
       type: req.body?.type,
       rewardAmount: req.body?.reward_amount,
-      isOfficial: req.body?.is_official === true,
-      officialTemplateType: req.body?.official_template_type,
+      isOfficial: admin ? req.body?.is_official === true : false,
+      officialTemplateType: admin
+        ? normalizedTemplateType
+        : normalizedTemplateType === 'player_help_template'
+          ? normalizedTemplateType
+          : null,
       activitySourceId: req.body?.activity_source_id,
       activitySourceLabel: req.body?.activity_source_label,
       relatedRouteLabels: Array.isArray(req.body?.related_route_labels) ? req.body.related_route_labels : [],

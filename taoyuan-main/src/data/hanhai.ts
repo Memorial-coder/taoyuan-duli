@@ -1179,7 +1179,7 @@ export const HANHAI_OPERATION_TUNING_CONFIG = {
     tierUnlockRelicClearsP1: 2,
     tierUnlockSetCompletionCountP2: 1,
     tierUnlockRelicClearsP2: 6,
-    bossCycleOrder: ['dune_revenant', 'glass_scorpion', 'sunken_colossus', 'sandstorm_wyrm']
+    bossCycleOrder: ['dune_revenant', 'glass_scorpion', 'mirage_judge', 'sunken_colossus', 'sandstorm_wyrm', 'starfall_leviathan']
   },
   rewards: {
     relicExploreMoneyMultiplier: 1,

@@ -1,6 +1,9 @@
 ﻿import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
+import { Capacitor } from '@capacitor/core'
 import CryptoJS from 'crypto-js'
+import { Directory, Encoding, Filesystem } from '@capacitor/filesystem'
+import { Share } from '@capacitor/share'
 import { saveAs } from 'file-saver'
 import { useGameStore, SEASON_NAMES } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
@@ -61,6 +64,7 @@ const ENCRYPTION_KEY = 'taoyuanxiang_2024_secret'
 const SAVE_FILE_EXT = '.tyx'
 const SAVE_VERSION = 4
 const PENDING_SERVER_SAVE_KEY_PREFIX = 'taoyuanxiang_pending_server_saves_'
+const sanitizeExportFileName = (value: string): string => value.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim() || 'taoyuan_save'
 
 export type ServerSaveSyncStatus = 'idle' | 'syncing' | 'queued' | 'synced' | 'error'
 export type SaveExecutionStatus = 'saved' | 'queued' | 'failed'
@@ -1372,15 +1376,15 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   /** 鑾峰彇鎵€鏈夊瓨妗ｆЫ浣嶄俊鎭?*/
-  const getSlots = async (): Promise<SaveSlotInfo[]> => {
+  const getSlots = async (mode: SaveMode = storageMode.value): Promise<SaveSlotInfo[]> => {
     try {
-      if (storageMode.value === 'server') {
+      if (mode === 'server') {
         const slotStates = await buildMergedServerSlotStates()
         return slotStates.map((state, slot) => parseSlotInfo(slot, state.raw, state.pendingSync, state.readBlocked))
       }
       return Array.from({ length: MAX_SLOTS }, (_, slot) => parseSlotInfo(slot, localStorage.getItem(getSaveKey(slot))))
     } catch {
-      return createEmptySlots({ readBlocked: storageMode.value === 'server' })
+      return createEmptySlots({ readBlocked: mode === 'server' })
     }
   }
 
@@ -1503,16 +1507,38 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   /** 瀵煎嚭瀛樻。涓哄姞瀵嗘枃浠?*/
-  const exportSave = async (slot: number): Promise<boolean> => {
+  const exportSave = async (slot: number, mode: SaveMode = storageMode.value): Promise<boolean> => {
     try {
-      const raw = await getRawByMode(slot)
+      const raw = await getRawByMode(slot, mode)
       if (!raw) return false
-      const blob = new Blob([raw], { type: 'application/octet-stream' })
-      const info = (await getSlots()).find(s => s.slot === slot)
+      const info = (await getSlots(mode)).find(s => s.slot === slot)
       const name = info?.exists
         ? `桃源乡_存档${slot + 1}_第${info.year}年_${SEASON_NAMES[info.season as keyof typeof SEASON_NAMES] ?? info.season}_第${info.day}天`
         : `桃源乡_存档${slot + 1}`
-      saveAs(blob, `${name}${SAVE_FILE_EXT}`)
+      const fileName = `${sanitizeExportFileName(name)}${SAVE_FILE_EXT}`
+
+      if (Capacitor.isNativePlatform()) {
+        await Filesystem.writeFile({
+          path: fileName,
+          data: raw,
+          directory: Directory.Cache,
+          encoding: Encoding.UTF8,
+        })
+        const uri = await Filesystem.getUri({
+          path: fileName,
+          directory: Directory.Cache,
+        })
+        await Share.share({
+          title: fileName,
+          text: '桃源乡存档文件',
+          url: uri.uri,
+          dialogTitle: '导出存档',
+        })
+        return true
+      }
+
+      const blob = new Blob([raw], { type: 'application/octet-stream' })
+      saveAs(blob, fileName)
       return true
     } catch {
       return false

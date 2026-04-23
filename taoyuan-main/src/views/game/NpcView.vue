@@ -321,6 +321,19 @@
             </span>
           </div>
         </div>
+        <div v-if="selectedSpiritMemoryChain?.steps?.length" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
+          <p class="text-[10px] text-muted mb-1">结缘记忆链</p>
+          <p class="text-[10px] text-accent">{{ selectedSpiritMemoryChain.memoryReward.summary }} · {{ selectedSpiritMemoryChain.progressLabel }}</p>
+          <div v-for="step in selectedSpiritMemoryChain.steps" :key="step.id" class="flex items-start justify-between gap-2 text-[10px] mt-1 first:mt-0">
+            <div class="min-w-0">
+              <p class="text-accent">{{ step.title }}</p>
+              <p class="text-muted leading-4 mt-0.5">{{ step.summary }}</p>
+            </div>
+            <span :class="step.status === 'completed' ? 'text-success' : step.status === 'active' ? 'text-warning' : 'text-muted'">
+              {{ step.status === 'completed' ? '已完成' : step.status === 'active' ? '当前步骤' : '待推进' }}
+            </span>
+          </div>
+        </div>
       </div>
 
       <!-- 已显现的仙灵 -->

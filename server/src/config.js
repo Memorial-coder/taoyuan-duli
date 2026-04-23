@@ -38,6 +38,13 @@ const DEFAULTS = {
   taoyuan_about_dialog_content: '欢迎来到桃源乡独立版。这是一款以种田、采集、养殖、钓鱼和经营为核心的文字田园模拟游戏。',
 
   // 桃源乡额度限制（单位：文，0 = 不限）
+  android_app_updates_enabled: false,
+  android_app_latest_version_name: '',
+  android_app_latest_version_code: 0,
+  android_app_min_supported_version_code: 0,
+  android_app_download_url: '',
+  android_app_release_notes: '',
+  android_app_force_update_message: '褰撳墠瀹夊崜鐗堟湰杩囨棫锛岃鍏堟洿鏂板埌鏈€鏂板畨瑁呭寘鍚庡啀缁х画娓哥帺銆?',
   taoyuan_daily_import_limit_money: 0,
   taoyuan_daily_export_limit_money: 0,
 

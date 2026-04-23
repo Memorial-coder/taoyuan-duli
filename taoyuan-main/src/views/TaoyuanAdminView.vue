@@ -30,6 +30,9 @@
             <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'content' }" @click="switchAdminTab('content')">
               <span>首页关于</span>
             </button>
+            <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'android' }" @click="switchAdminTab('android')">
+              <span>安卓发布</span>
+            </button>
             <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'logs' }" @click="switchAdminTab('logs')">
               <span>日志中心</span>
             </button>
@@ -536,6 +539,8 @@
 
       <AdminHomepageAboutPanel v-if="hasToken && activeAdminTab === 'content'" :can-load="hasAdminAccess" />
 
+      <AdminAndroidReleasePanel v-if="hasToken && activeAdminTab === 'android'" :can-load="hasAdminAccess" />
+
       <AdminLogCenterPanel
         v-if="hasToken && activeAdminTab === 'logs'"
         :can-load="hasAdminAccess"
@@ -634,6 +639,7 @@
   import { ArrowLeft, Bug, KeyRound, Play, Plus, RefreshCw, Search, ShieldCheck, Trash2, Users } from 'lucide-vue-next'
   import Divider from '@/components/game/Divider.vue'
   import AdminHomepageAboutPanel from '@/components/game/AdminHomepageAboutPanel.vue'
+  import AdminAndroidReleasePanel from '@/components/game/AdminAndroidReleasePanel.vue'
   import AdminLogCenterPanel from '@/components/game/AdminLogCenterPanel.vue'
   import AiAssistantAdminPanel from '@/components/game/AiAssistantAdminPanel.vue'
   import OfficialControlAdminPanel from '@/components/game/OfficialControlAdminPanel.vue'
@@ -797,7 +803,7 @@
   const composer = ref<ComposerState>(createComposer())
   const adminSession = ref<AdminSessionInfo | null>(null)
   const isAuthorized = ref(false)
-  const activeAdminTab = ref<'mail' | 'content' | 'logs' | 'ai' | 'cloud' | 'debug'>('mail')
+  const activeAdminTab = ref<'mail' | 'content' | 'android' | 'logs' | 'ai' | 'cloud' | 'debug'>('mail')
   const officialControlPlatformStatus = ref<OfficialControlPlatformStatus | null>(null)
 
   const loadingCampaigns = ref(false)
@@ -873,7 +879,7 @@
     void router.push('/')
   }
 
-  const switchAdminTab = (tab: 'mail' | 'content' | 'logs' | 'ai' | 'cloud' | 'debug') => {
+  const switchAdminTab = (tab: 'mail' | 'content' | 'android' | 'logs' | 'ai' | 'cloud' | 'debug') => {
     activeAdminTab.value = tab
     const nextQuery = { ...route.query }
     if (tab === 'mail') {
@@ -886,7 +892,7 @@
 
   const syncAdminTabFromRoute = () => {
     const routeTab = route.query.tab
-    if (routeTab === 'content' || routeTab === 'logs' || routeTab === 'ai' || routeTab === 'cloud' || routeTab === 'debug' || routeTab === 'mail') {
+    if (routeTab === 'content' || routeTab === 'android' || routeTab === 'logs' || routeTab === 'ai' || routeTab === 'cloud' || routeTab === 'debug' || routeTab === 'mail') {
       activeAdminTab.value = routeTab
       return
     }

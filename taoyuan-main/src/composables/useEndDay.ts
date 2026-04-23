@@ -1388,6 +1388,7 @@ export const handleEndDay = () => {
     currentDayTag: economyDayTag,
     currentWeekId: currentWeekInfo.seasonWeekId,
     weekOfSeason: currentWeekInfo.weekOfSeason,
+    absoluteWeek: currentWeekInfo.absoluteWeek,
     startedNewWeek: weekBoundaryEvent.startedNewWeek
   })
   const relationshipTick = npcStore.processRelationshipCycleTick({

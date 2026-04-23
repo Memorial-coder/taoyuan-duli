@@ -15,18 +15,20 @@
     "type-check": "vue-tsc -b",
     "qa:late-game-samples": "node scripts/qa-late-game-samples.mjs",
     "qa:late-game": "npm run qa:late-game-samples && npm run type-check && npm run lint",
-    "check": "pnpm run type-check && pnpm run lint",
+    "check": "npm run type-check && npm run lint",
     "build:electron": "vue-tsc -b && vite build && esbuild electron/main.js --bundle --platform=node --format=esm --outfile=dist-electron/main.js --external:electron && esbuild electron/preload.js --bundle --platform=node --format=cjs --outfile=dist-electron/preload.js --external:electron && electron-builder",
-    "build:android": "pnpm run build && npx cap sync android",
-    "build:apk": "pnpm run build:android && cd android && ./gradlew assembleRelease"
+    "build:android": "npm run build && npx cap sync android",
+    "build:apk": "npm run build:android && cd android && gradlew.bat assembleRelease"
   },
   "description": "一款文字版田园模拟经营游戏，灵感来自星露谷物语",
   "author": "setube",
   "dependencies": {
     "@capacitor/android": "^8.1.0",
     "@capacitor/app": "^8.0.1",
+    "@capacitor/browser": "^8.0.3",
     "@capacitor/core": "^8.1.0",
     "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/share": "^8.0.1",
     "@vueuse/core": "^14.2.0",
     "clipboard": "^2.0.11",
     "crypto-js": "^4.2.0",

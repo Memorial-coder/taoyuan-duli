@@ -176,7 +176,7 @@
       </div>
     </div>
 
-    <input v-if="!isNativePlatform" ref="fileInputRef" type="file" accept=".tyx" class="hidden" @change="handleImportFile" />
+    <input ref="fileInputRef" type="file" accept=".tyx" class="hidden" @change="handleImportFile" />
 
     <!-- 角色创建弹窗 -->
     <Transition name="panel-fade">

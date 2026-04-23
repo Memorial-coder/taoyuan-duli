@@ -260,6 +260,8 @@
           <div v-else class="space-y-4">
             <div class="space-y-3">
               <div class="flex flex-wrap items-center gap-2">
+                <span v-if="selectedPost.is_official" class="hall-tag hall-tag--featured">官方</span>
+                <span v-if="selectedPost.activity_source_label" class="hall-tag hall-tag--pinned">{{ selectedPost.activity_source_label }}</span>
                 <span v-if="selectedPost.pinned" class="hall-tag hall-tag--pinned">置顶</span>
                 <span v-if="selectedPost.featured" class="hall-tag hall-tag--featured">精</span>
                 <span class="hall-tag" :class="selectedPost.type === 'help' ? 'hall-tag--help' : 'hall-tag--discussion'">
@@ -313,6 +315,9 @@
                   <span>最后活跃：{{ formatTime(selectedPost.last_activity_at) }}</span>
                   <span v-if="selectedPost.reward_enabled && selectedPost.reward_amount > 0">悬赏状态：{{ rewardStatusText(selectedPost.reward_status) }}</span>
                 </div>
+                <p v-if="selectedPost.related_route_labels?.length" class="text-[11px] text-accent/80 mt-1">
+                  关联路线：{{ selectedPost.related_route_labels.join('、') }}
+                </p>
               </div>
 
               <div
