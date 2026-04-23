@@ -576,6 +576,18 @@ router.get('/official-control/v1/instances/config/current', (req, res) => {
   }
 });
 
+router.get('/official-control/v1/public/config/current', (req, res) => {
+  try {
+    if (!officialControlPlatform.isPlatformEnabled() || !officialControlPlatform.isHostAllowed(resolveRequestHostname(req))) {
+      return res.status(404).json({ ok: false, msg: '官方公开品牌配置接口不可用' });
+    }
+    const envelope = officialControlPlatform.resolvePublicDistributionConfig();
+    res.json(envelope);
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取官方公开品牌配置失败' });
+  }
+});
+
 router.get('/admin/me', userAdminAuth, (req, res) => {
   res.json({
     ok: true,
@@ -1253,6 +1265,7 @@ router.post('/taoyuan/ai/ask', async (req, res) => {
     const result = await taoyuanAiAssistant.askPublic(req.body?.question, {
       routeName: req.body?.route_name,
       contextLabel: req.body?.context_label,
+      contextSnapshot: req.body?.context_snapshot,
     });
     res.json({ ok: true, ...result });
   } catch (error) {
@@ -1265,6 +1278,7 @@ router.post('/admin/taoyuan/ai/ask-debug', adminAuth, async (req, res) => {
     const result = await taoyuanAiAssistant.askDebug(req.body?.question, {
       routeName: req.body?.route_name,
       contextLabel: req.body?.context_label,
+      contextSnapshot: req.body?.context_snapshot,
     });
     res.json({ ok: true, ...result });
   } catch (error) {
@@ -1514,6 +1528,7 @@ router.get('/taoyuan/hall/posts', (req, res) => {
       mine: req.query.mine,
       viewerUsername: req.session?.username || '',
       keyword: req.query.keyword,
+      activitySourceId: req.query.activity_source_id,
       page: parseInt(req.query.page, 10) || 1,
       pageSize: parseInt(req.query.page_size, 10) || 20,
     });
@@ -1553,6 +1568,11 @@ router.post('/taoyuan/hall/posts', loginRequired, signRequired, async (req, res)
       blocks: req.body?.blocks,
       type: req.body?.type,
       rewardAmount: req.body?.reward_amount,
+      isOfficial: req.body?.is_official === true,
+      officialTemplateType: req.body?.official_template_type,
+      activitySourceId: req.body?.activity_source_id,
+      activitySourceLabel: req.body?.activity_source_label,
+      relatedRouteLabels: Array.isArray(req.body?.related_route_labels) ? req.body.related_route_labels : [],
       author: req.session.username,
       authorDisplayName: req.session.display_name || req.session.username,
     });

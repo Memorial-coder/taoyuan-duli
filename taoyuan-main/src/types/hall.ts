@@ -3,6 +3,7 @@ export type HallCategory = 'all' | 'discussion' | 'help' | 'solved'
 export type HallMineFilter = 'all' | 'posts' | 'replies' | 'help'
 export type HallSort = 'latest' | 'hot' | 'reward'
 export type HallRewardStatus = 'none' | 'open' | 'closed' | 'paid'
+export type HallOfficialTemplateType = 'event_announcement' | 'player_help_template' | 'showcase_wrapup'
 
 export interface HallViewer {
   loggedIn: boolean
@@ -50,6 +51,11 @@ export interface HallPostSummary {
   title: string
   preview: string
   type: HallPostType
+  is_official?: boolean
+  official_template_type?: HallOfficialTemplateType | null
+  activity_source_id?: string | null
+  activity_source_label?: string | null
+  related_route_labels?: string[]
   solved: boolean
   reward_enabled: boolean
   reward_amount: number

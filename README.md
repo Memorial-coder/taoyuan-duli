@@ -251,6 +251,14 @@ curl http://127.0.0.1:4014/api/health
 
 部署时主要看根目录 `.env`。如果你是本地源码直跑，再另外参考 `server/.env.example`。
 
+### 默认公开品牌云控
+
+- 从当前版本开始，项目会默认从 `https://taoyuan.ymzcc.com/api/official-control/v1/public/config/current` 读取签名后的官方品牌文案。
+- 默认纳入同步的字段是：控制台署名、AI 助手名称、AI 欢迎语、首页“关于”标题、首页“关于”正文。
+- 这条链路只用于品牌/署名文案，不会覆盖模型地址、API Key、温度、回答模式等本地运行配置。
+- 如果官方接口暂时不可用，实例会自动回退到“最后一次有效缓存 -> 仓库默认值”。
+- 如果你明确不想读取这套默认公开品牌文案，可以在根目录 `.env` 里手动加入 `OFFICIAL_PUBLIC_BRANDING_DISABLE=true`。
+
 ### 根目录 `.env` 常用配置
 
 | 配置项 | 是否常用 | 作用 | 常见说明 |

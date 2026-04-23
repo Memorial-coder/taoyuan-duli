@@ -123,6 +123,14 @@
               </button>
             </div>
           </div>
+          <button
+            v-if="goalStore.currentEventCampaign"
+            class="hall-chip"
+            :class="{ 'hall-chip--active': currentActivityOnly }"
+            @click.stop="currentActivityOnly = !currentActivityOnly; currentPage = 1; void loadPosts()"
+          >
+            {{ currentActivityOnly ? `只看${currentActivityLabel}` : `筛选${currentActivityLabel}` }}
+          </button>
         </div>
       </div>
 
@@ -215,6 +223,8 @@
                 <div class="min-w-0">
                   <div class="flex flex-wrap items-center gap-2 mb-1">
                     <span class="text-sm text-text break-all">{{ post.title }}</span>
+                    <span v-if="post.is_official" class="hall-tag hall-tag--featured">官方</span>
+                    <span v-if="post.activity_source_label" class="hall-tag hall-tag--pinned">{{ post.activity_source_label }}</span>
                     <span v-if="post.pinned" class="hall-tag hall-tag--pinned">置顶</span>
                     <span v-if="post.featured" class="hall-tag hall-tag--featured">精</span>
                     <span class="hall-tag" :class="post.type === 'help' ? 'hall-tag--help' : 'hall-tag--discussion'">
@@ -227,6 +237,7 @@
                     <span v-if="post.is_mine" class="hall-tag hall-tag--mine">我的</span>
                   </div>
                   <p class="text-xs text-muted leading-6 hall-preview">{{ post.preview }}</p>
+                  <p v-if="post.related_route_labels?.length" class="text-[11px] text-accent/80 mt-1">关联路线：{{ post.related_route_labels.join('、') }}</p>
                 </div>
                 <span class="text-xs text-muted shrink-0">{{ post.reply_count }} 回复</span>
               </div>
@@ -471,6 +482,15 @@
             </div>
 
             <div>
+              <label class="text-xs text-muted mb-1 block">快捷模板</label>
+              <div class="flex flex-wrap gap-2">
+                <button class="hall-chip" @click="applyComposerTemplate('player_help_template')">玩家求助模板</button>
+                <button v-if="viewer.isAdmin" class="hall-chip" @click="applyComposerTemplate('event_announcement')">活动公告模板</button>
+                <button v-if="viewer.isAdmin" class="hall-chip" @click="applyComposerTemplate('showcase_wrapup')">收尾展示模板</button>
+              </div>
+            </div>
+
+            <div>
               <label class="text-xs text-muted mb-1 block">标题</label>
               <input
                 v-model="composer.title"
@@ -625,9 +645,11 @@
     featureHallPost,
   } from '@/utils/taoyuanHallApi'
   import type { HallAdminReport, HallCategory, HallContentBlock, HallMineFilter, HallPostDetail, HallPostSummary, HallPostType, HallSort, HallViewer } from '@/types'
+  import { useGoalStore } from '@/stores/useGoalStore'
 
   const router = useRouter()
   const route = useRoute()
+  const goalStore = useGoalStore()
 
   const viewer = ref<HallViewer>({ loggedIn: false, username: null, displayName: null })
   const viewerStatus = ref<'ready' | 'unavailable'>('ready')
@@ -657,6 +679,7 @@
   const mineFilter = ref<HallMineFilter>('all')
   const keyword = ref('')
   const keywordInput = ref('')
+  const currentActivityOnly = ref(false)
   const currentPage = ref(1)
   const pageSize = 20
   const totalPosts = ref(0)
@@ -670,6 +693,19 @@
     rewardAmount: 0,
   })
   const composerBlocks = ref<HallContentBlock[]>([])
+  const composerMeta = reactive<{
+    isOfficial: boolean
+    officialTemplateType: 'event_announcement' | 'player_help_template' | 'showcase_wrapup' | null
+    activitySourceId: string | null
+    activitySourceLabel: string | null
+    relatedRouteLabels: string[]
+  }>({
+    isOfficial: false,
+    officialTemplateType: null,
+    activitySourceId: null,
+    activitySourceLabel: null,
+    relatedRouteLabels: [],
+  })
   const imageInputRef = ref<HTMLInputElement | null>(null)
   const pendingInsertIndex = ref<number | null>(null)
 
@@ -713,6 +749,9 @@
   const selectedSortLabel = computed(() => sortOptions.find(item => item.value === sortBy.value)?.label || '最新')
   const selectedMineLabel = computed(() => mineOptions.find(item => item.value === mineFilter.value)?.label || '全部帖子')
 
+  const currentActivitySourceId = computed(() => goalStore.currentEventCampaign?.id ?? '')
+  const currentActivityLabel = computed(() => goalStore.currentEventCampaign?.label ?? '当前活动')
+
   const formatTime = (timestamp: number) => {
     if (!timestamp) return '--'
     return new Date(timestamp * 1000).toLocaleString('zh-CN', {
@@ -733,7 +772,58 @@
     composer.type = 'discussion'
     composer.rewardAmount = 0
     composerBlocks.value = [createTextBlock()]
+    composerMeta.isOfficial = false
+    composerMeta.officialTemplateType = null
+    composerMeta.activitySourceId = null
+    composerMeta.activitySourceLabel = null
+    composerMeta.relatedRouteLabels = []
     pendingInsertIndex.value = null
+  }
+
+  const applyComposerTemplate = (templateType: 'event_announcement' | 'player_help_template' | 'showcase_wrapup') => {
+    const currentCampaign = goalStore.currentEventCampaign
+    const nextThemeWeek = goalStore.nextThemeWeekPreview
+    const titlePrefix = currentCampaign?.label ?? currentActivityLabel.value
+    if (templateType === 'event_announcement') {
+      composer.type = 'discussion'
+      composer.title = `${titlePrefix} · 活动公告`
+      composerBlocks.value = [
+        createTextBlock(`【本周活动】${currentCampaign?.label ?? '当前活动'}\n\n推荐先从 ${currentCampaign?.linkedRouteLabels?.join('、') || '任务、商店与页面摘要'} 接入，再去完成当前活动链路中的重点目标。`),
+        createTextBlock('【本周节奏】\n1. 先看 TopGoals / Quest\n2. 再到对应玩法页承接内容\n3. 周中回邮箱领奖并查看下周预告'),
+      ]
+      composerMeta.isOfficial = viewer.value.isAdmin === true
+      composerMeta.officialTemplateType = 'event_announcement'
+      composerMeta.activitySourceId = currentCampaign?.id ?? null
+      composerMeta.activitySourceLabel = currentCampaign?.label ?? null
+      composerMeta.relatedRouteLabels = [...(currentCampaign?.linkedRouteLabels ?? [])]
+      return
+    }
+    if (templateType === 'showcase_wrapup') {
+      composer.type = 'discussion'
+      composer.title = `${titlePrefix} · 收尾展示`
+      composerBlocks.value = [
+        createTextBlock(`【本周收尾】欢迎分享你在${currentCampaign?.label ?? '当前活动'}中的高光成果、领奖情况和最推荐的路线。`),
+        createTextBlock(`【下周预告】${nextThemeWeek ? `${nextThemeWeek.name} 即将到来，可提前准备相关物资与样本。` : '下周主题周预告尚未生成。'}`),
+      ]
+      composerMeta.isOfficial = viewer.value.isAdmin === true
+      composerMeta.officialTemplateType = 'showcase_wrapup'
+      composerMeta.activitySourceId = currentCampaign?.id ?? null
+      composerMeta.activitySourceLabel = currentCampaign?.label ?? null
+      composerMeta.relatedRouteLabels = [...(currentCampaign?.linkedRouteLabels ?? [])]
+      return
+    }
+    composer.type = 'help'
+    composer.title = `${titlePrefix} · 玩家求助`
+    composer.rewardAmount = 0
+    composerBlocks.value = [
+      createTextBlock(`【我当前卡住的点】\n请描述你在${currentCampaign?.label ?? '当前活动'}里卡住的是报名、领奖、供货、展陈还是路线选择。`),
+      createTextBlock('【我已经试过的做法】\n列出你已经尝试过的页面、材料或路线，方便其他玩家更快帮你。'),
+    ]
+    composerMeta.isOfficial = false
+    composerMeta.officialTemplateType = 'player_help_template'
+    composerMeta.activitySourceId = currentCampaign?.id ?? null
+    composerMeta.activitySourceLabel = currentCampaign?.label ?? null
+    composerMeta.relatedRouteLabels = [...(currentCampaign?.linkedRouteLabels ?? [])]
   }
 
   const rewardStatusText = (status: string) => {
@@ -793,6 +883,7 @@
         sort: sortBy.value,
         mine: mineFilter.value,
         keyword: keyword.value,
+        activitySourceId: currentActivityOnly.value && currentActivitySourceId.value ? currentActivitySourceId.value : '',
         page: currentPage.value,
         pageSize,
       })
@@ -1156,6 +1247,13 @@
         blocks: composerBlocks.value,
         type: composer.type,
         rewardAmount: composer.type === 'help' ? composer.rewardAmount : 0,
+        isOfficial: composerMeta.isOfficial,
+        officialTemplateType: composerMeta.officialTemplateType,
+        activitySourceId: composerMeta.activitySourceId ?? goalStore.currentEventCampaign?.id ?? null,
+        activitySourceLabel: composerMeta.activitySourceLabel ?? goalStore.currentEventCampaign?.label ?? null,
+        relatedRouteLabels: composerMeta.relatedRouteLabels.length > 0
+          ? composerMeta.relatedRouteLabels
+          : [...(goalStore.currentEventCampaign?.linkedRouteLabels ?? [])],
       })
       resetComposer()
       showComposer.value = false

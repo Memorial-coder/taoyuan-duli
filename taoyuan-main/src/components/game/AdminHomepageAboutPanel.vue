@@ -15,20 +15,6 @@
 
       <div v-if="errorMessage" class="text-xs text-danger leading-6">{{ errorMessage }}</div>
 
-      <div class="admin-managed-banner" :class="`admin-managed-banner--${officialManagedStatus?.source || 'local_default'}`">
-        <div class="text-xs leading-6">
-          官方文案状态：{{ getOfficialManagedSourceLabel(officialManagedStatus?.source) }}
-          <span v-if="officialManagedStatus?.profileId"> · {{ officialManagedStatus.profileId }}</span>
-          <span v-if="officialManagedStatus?.version"> · v{{ officialManagedStatus.version }}</span>
-        </div>
-        <div class="text-[11px] text-muted leading-5">
-          “弹窗标题”和“内容正文”已改为官方云控只读，本地后台只能查看当前生效内容，不能再把它们写入本地配置。
-        </div>
-        <div v-if="officialManagedStatus?.lastError" class="text-[11px] text-muted leading-5">
-          最近同步信息：{{ officialManagedStatus.lastError }}
-        </div>
-      </div>
-
       <div class="grid gap-3 md:grid-cols-2">
         <label class="admin-label">
           <span>按钮文案</span>
@@ -184,7 +170,7 @@
     type HomepageAboutContentPayload,
   } from '@/utils/adminContentApi'
   import { showFloat } from '@/composables/useGameLog'
-  import type { HallContentBlock, OfficialManagedConfigKey, OfficialManagedConfigStatus } from '@/types'
+  import type { HallContentBlock, OfficialManagedConfigKey } from '@/types'
 
   const props = defineProps<{
     canLoad: boolean
@@ -208,7 +194,6 @@
   const imageInputRef = ref<HTMLInputElement | null>(null)
   const pendingInsertIndex = ref<number | null>(null)
   const aboutBlocks = ref<HallContentBlock[]>([])
-  const officialManagedStatus = ref<OfficialManagedConfigStatus | undefined>(undefined)
   const readonlyManagedFields = ref<OfficialManagedConfigKey[]>([])
 
   const createTempId = () => `about_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -267,12 +252,6 @@
   const aboutTitleReadonly = computed(() => readonlyManagedFieldSet.value.has('taoyuan_about_dialog_title'))
   const aboutContentReadonly = computed(() => readonlyManagedFieldSet.value.has('taoyuan_about_dialog_content'))
 
-  const getOfficialManagedSourceLabel = (source?: OfficialManagedConfigStatus['source']) => {
-    if (source === 'official_live') return '官方云控生效中'
-    if (source === 'official_cached') return '官方缓存回退中'
-    return '仓库默认文案'
-  }
-
   const formatTime = (timestamp?: number | null) => {
     if (!timestamp) return '-'
     return new Date(timestamp * 1000).toLocaleString('zh-CN', {
@@ -293,7 +272,6 @@
       form.value = { ...result.content }
       syncBlocksFromMarkdown(result.content.aboutDialogContent || '')
       revisions.value = result.revisions.revisions
-      officialManagedStatus.value = result.officialManagedStatus
       readonlyManagedFields.value = result.readonlyManagedFields
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '读取首页关于内容失败'
@@ -629,31 +607,6 @@
     color: #96deac;
     background: rgba(72, 146, 95, 0.14);
     border-color: rgba(72, 146, 95, 0.3);
-  }
-
-  .admin-managed-banner {
-    border: 1px solid rgba(200, 164, 92, 0.18);
-    border-radius: 2px;
-    padding: 10px 12px;
-    background: rgba(200, 164, 92, 0.08);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .admin-managed-banner--official_live {
-    border-color: rgba(72, 146, 95, 0.3);
-    background: rgba(72, 146, 95, 0.1);
-  }
-
-  .admin-managed-banner--official_cached {
-    border-color: rgba(200, 164, 92, 0.26);
-    background: rgba(200, 164, 92, 0.12);
-  }
-
-  .admin-managed-banner--local_default {
-    border-color: rgba(120, 130, 150, 0.24);
-    background: rgba(120, 130, 150, 0.1);
   }
 
   :deep(.btn-primary) {

@@ -1,6 +1,7 @@
 import type {
   AiAssistantAdminConfig,
   AiAssistantAskResult,
+  AiAssistantContextSnapshot,
   AiNounLexiconStatus,
   AiAssistantPublicConfig,
   AiKnowledgeEntry,
@@ -180,6 +181,7 @@ export const askAiAssistant = async (payload: {
   question: string
   routeName?: string
   contextLabel?: string
+  contextSnapshot?: AiAssistantContextSnapshot
 }): Promise<AiAssistantAskResult> => {
   let res: Response
   try {
@@ -193,6 +195,7 @@ export const askAiAssistant = async (payload: {
         question: payload.question,
         route_name: payload.routeName,
         context_label: payload.contextLabel,
+        context_snapshot: payload.contextSnapshot,
       }),
     })
   } catch {
@@ -215,6 +218,7 @@ export const askAiAssistantDebug = async (payload: {
   question: string
   routeName?: string
   contextLabel?: string
+  contextSnapshot?: AiAssistantContextSnapshot
 }): Promise<AiAssistantAskResult> => {
   const res = await fetch('/api/admin/taoyuan/ai/ask-debug', {
     method: 'POST',
@@ -224,6 +228,7 @@ export const askAiAssistantDebug = async (payload: {
       question: payload.question,
       route_name: payload.routeName,
       context_label: payload.contextLabel,
+      context_snapshot: payload.contextSnapshot,
     }),
   })
   const data = await parseJsonSafe(res)

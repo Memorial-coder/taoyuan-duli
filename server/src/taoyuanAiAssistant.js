@@ -4557,6 +4557,23 @@ async function callRemoteModel({ question, contextLabel, mode, snippets, queryPl
 
 const MAX_QUESTION_LENGTH = 1200;
 
+function buildContextSnapshotText(snapshot = null) {
+  if (!snapshot || typeof snapshot !== 'object') return '';
+  const lines = [];
+  if (snapshot.currentThemeWeekLabel) lines.push(`本周主题：${snapshot.currentThemeWeekLabel}`);
+  if (snapshot.currentEventCampaignLabel) lines.push(`当前活动：${snapshot.currentEventCampaignLabel}`);
+  if (snapshot.currentLimitedQuestLabel) lines.push(`限时任务：${snapshot.currentLimitedQuestLabel}`);
+  if (snapshot.activeFamilyWishTitle) lines.push(`家庭焦点：${snapshot.activeFamilyWishTitle}`);
+  if (snapshot.bondedSpiritName) lines.push(`仙缘焦点：${snapshot.bondedSpiritName}`);
+  if (Array.isArray(snapshot.highlightedRouteLabels) && snapshot.highlightedRouteLabels.length > 0) {
+    lines.push(`推荐路线：${snapshot.highlightedRouteLabels.join('、')}`);
+  }
+  if (Array.isArray(snapshot.previewMailTitles) && snapshot.previewMailTitles.length > 0) {
+    lines.push(`邮件节奏：${snapshot.previewMailTitles.join('、')}`);
+  }
+  return lines.join(' / ');
+}
+
 async function askInternal(question, options = {}, debug = false) {
   const trimmedQuestion = String(question || '').trim().slice(0, MAX_QUESTION_LENGTH);
   if (!trimmedQuestion) throw createError('问题不能为空');
@@ -4614,7 +4631,9 @@ async function askInternal(question, options = {}, debug = false) {
   }
 
   const routeName = String(options.routeName || '').trim();
-  const contextLabel = String(options.contextLabel || ROUTE_LABELS[routeName] || '').trim();
+  const baseContextLabel = String(options.contextLabel || ROUTE_LABELS[routeName] || '').trim();
+  const contextSnapshotText = buildContextSnapshotText(options.contextSnapshot);
+  const contextLabel = [baseContextLabel, contextSnapshotText].filter(Boolean).join(' / ');
   const queryPlan = parseCodeQuestion(trimmedQuestion, routeName);
   timings.afterParseMs = Date.now() - timings.startedAt;
   const knowledgeMatches = retrieveKnowledge(trimmedQuestion, routeName, mode, queryPlan);

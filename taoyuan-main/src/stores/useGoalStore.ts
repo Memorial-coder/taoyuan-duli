@@ -11,6 +11,8 @@ import {
   createDefaultEventOperationsState,
   WS10_EVENT_CAMPAIGN_DEFS,
   WS10_EVENT_MAIL_TEMPLATE_REFS,
+  WS13_EVENT_CAMPAIGN_DEFS,
+  WS13_EVENT_MAIL_TEMPLATE_REFS,
   WS10_EVENT_OPERATION_TUNING_CONFIG,
   WS10_EVENT_OPERATIONS_BASELINE_AUDIT,
   WEEKLY_GOAL_FAILURE_COMPENSATION_RULE
@@ -403,8 +405,8 @@ export const useGoalStore = defineStore('goal', () => {
   const weeklyBudgetHistory = ref<WeeklyBudgetArchive[]>([])
   const eventOperationsBaselineAudit = WS10_EVENT_OPERATIONS_BASELINE_AUDIT
   const eventOperationsState = ref<EventOperationsState>(createDefaultEventOperationsState())
-  const eventCampaignDefs = WS10_EVENT_CAMPAIGN_DEFS
-  const eventMailTemplateRefs = WS10_EVENT_MAIL_TEMPLATE_REFS
+  const eventCampaignDefs = [...WS10_EVENT_CAMPAIGN_DEFS, ...WS13_EVENT_CAMPAIGN_DEFS]
+  const eventMailTemplateRefs = [...WS10_EVENT_MAIL_TEMPLATE_REFS, ...WS13_EVENT_MAIL_TEMPLATE_REFS]
   const eventOperationTuning = WS10_EVENT_OPERATION_TUNING_CONFIG
   const eventOperationFeatureFlags = eventOperationTuning.featureFlags
   const eventOperationLocks = ref<string[]>([])
@@ -1566,7 +1568,11 @@ export const useGoalStore = defineStore('goal', () => {
     return eventCampaignDefs
       .filter(campaign => campaign.linkedThemeWeekIds.includes(themeWeekId))
       .filter(campaign => EVENT_CAMPAIGN_TIER_WEIGHT[campaign.unlockTier] <= unlockedWeight)
-      .sort((a, b) => EVENT_CAMPAIGN_TIER_WEIGHT[b.unlockTier] - EVENT_CAMPAIGN_TIER_WEIGHT[a.unlockTier])[0] ?? null
+      .sort((a, b) => {
+        const priorityDiff = (b.priority ?? 0) - (a.priority ?? 0)
+        if (priorityDiff !== 0) return priorityDiff
+        return EVENT_CAMPAIGN_TIER_WEIGHT[b.unlockTier] - EVENT_CAMPAIGN_TIER_WEIGHT[a.unlockTier]
+      })[0] ?? null
   }
   const buildEventMailReceiptKey = (weekId: string, templateId: string) => `event_${weekId}_${templateId}`
   const currentEventCampaign = computed(() => {
@@ -1605,7 +1611,8 @@ export const useGoalStore = defineStore('goal', () => {
           label: currentEventCampaign.value.label,
           description: currentEventCampaign.value.description,
           cadence: currentEventCampaign.value.cadence,
-          mailboxTemplateIds: [...currentEventCampaign.value.mailboxTemplateIds]
+          mailboxTemplateIds: [...currentEventCampaign.value.mailboxTemplateIds],
+          linkedRouteLabels: [...(currentEventCampaign.value.linkedRouteLabels ?? [])]
         }
       : null
     const mailTemplateTitles = currentEventCampaignSummary

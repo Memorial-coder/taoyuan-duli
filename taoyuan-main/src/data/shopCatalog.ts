@@ -124,6 +124,99 @@ export const WS10_ACTIVITY_OFFER_BUNDLES: ShopCatalogActivityOfferBundleDef[] = 
   }
 ] as const
 
+export const WS13_ACTIVITY_OFFER_BUNDLES: ShopCatalogActivityOfferBundleDef[] = [
+  {
+    id: 'ws13_fishpond_rotation_bundle',
+    campaignId: 'ws13_campaign_fishpond_rotation',
+    label: '鱼塘周赛承接包',
+    description: '承接鱼塘报名、养护和产物领取的第二批目录推荐包。',
+    unlockTier: 'P0',
+    variantGroup: 'fishpond',
+    targetAudience: ['newcomer_friendly', 'returnee_friendly'],
+    linkedThemeWeekIds: ['spring_pond_awakening', 'summer_pond_showcase', 'winter_pond_maintenance'],
+    recommendedOfferIds: ['weekly_pond_care_pack', 'func_angler_pack', 'weekly_inventory_bag'],
+    linkedSystems: ['shop', 'quest', 'fishPond'],
+    linkedRouteLabels: ['鱼塘', '任务', '邮箱'],
+    rewardTierId: 'steady',
+    onlineEngagementMode: 'hall_mail_ai'
+  },
+  {
+    id: 'ws13_breeding_rotation_bundle',
+    campaignId: 'ws13_campaign_breeding_rotation',
+    label: '育种周赛承接包',
+    description: '承接育种周赛、研究材料和图鉴推进的第二批目录推荐包。',
+    unlockTier: 'P0',
+    variantGroup: 'breeding',
+    targetAudience: ['newcomer_friendly', 'returnee_friendly'],
+    linkedThemeWeekIds: ['spring_sowing', 'summer_supply', 'autumn_harvest', 'winter_storage'],
+    recommendedOfferIds: ['func_builder_pack', 'weekly_inventory_bag', 'premium_research_assistant_contract'],
+    linkedSystems: ['shop', 'quest', 'goal'],
+    linkedRouteLabels: ['育种', '任务', '商店'],
+    rewardTierId: 'steady',
+    onlineEngagementMode: 'hall_mail_ai'
+  },
+  {
+    id: 'ws13_museum_supply_bundle',
+    campaignId: 'ws13_campaign_museum_supply',
+    label: '博物馆馆务承接包',
+    description: '承接馆务筹备、学者委托和展陈热度的第二批目录推荐包。',
+    unlockTier: 'P1',
+    variantGroup: 'museum',
+    targetAudience: ['returnee_friendly', 'endgame'],
+    linkedThemeWeekIds: ['spring_scholar', 'autumn_exhibition', 'winter_scholar'],
+    recommendedOfferIds: ['premium_museum_promotion_contract', 'premium_research_assistant_contract', 'premium_courtyard_stage'],
+    linkedSystems: ['shop', 'quest', 'museum'],
+    linkedRouteLabels: ['博物馆', '任务', '邮箱'],
+    rewardTierId: 'activity',
+    onlineEngagementMode: 'hall_mail_ai'
+  },
+  {
+    id: 'ws13_hanhai_supply_bundle',
+    campaignId: 'ws13_campaign_hanhai_supply',
+    label: '瀚海远征承接包',
+    description: '承接商路投资、遗迹勘探和轮换货架的第二批目录推荐包。',
+    unlockTier: 'P1',
+    variantGroup: 'hanhai',
+    targetAudience: ['returnee_friendly', 'endgame'],
+    linkedThemeWeekIds: ['summer_caravan', 'winter_storage', 'late_sink_rotation'],
+    recommendedOfferIds: ['weekly_caravan_supply_crate', 'premium_caravan_service_contract', 'premium_warehouse_charter'],
+    linkedSystems: ['shop', 'quest', 'market'],
+    linkedRouteLabels: ['瀚海', '任务', '商店'],
+    rewardTierId: 'activity',
+    onlineEngagementMode: 'hall_mail_ai'
+  },
+  {
+    id: 'ws13_fishpond_showcase_bundle',
+    campaignId: 'ws13_campaign_fishpond_showcase_wrapup',
+    label: '鱼塘展示收尾包',
+    description: '承接展示池高光、馆内展示和活动收尾奖励的第二批目录推荐包。',
+    unlockTier: 'P2',
+    variantGroup: 'fishpond',
+    targetAudience: ['returnee_friendly', 'endgame'],
+    linkedThemeWeekIds: ['summer_pond_showcase', 'late_sink_rotation'],
+    recommendedOfferIds: ['weekly_pond_care_pack', 'premium_museum_promotion_contract', 'premium_courtyard_stage'],
+    linkedSystems: ['shop', 'quest', 'fishPond', 'museum'],
+    linkedRouteLabels: ['鱼塘', '大厅', '邮箱'],
+    rewardTierId: 'showcase',
+    onlineEngagementMode: 'hall_mail_ai'
+  },
+  {
+    id: 'ws13_hanhai_patron_bundle',
+    campaignId: 'ws13_campaign_hanhai_patron_wrapup',
+    label: '瀚海赞助收尾包',
+    description: '承接瀚海赞助、终局展示和共建收尾的第二批目录推荐包。',
+    unlockTier: 'P2',
+    variantGroup: 'hanhai',
+    targetAudience: ['returnee_friendly', 'endgame'],
+    linkedThemeWeekIds: ['late_sink_rotation', 'winter_mining'],
+    recommendedOfferIds: ['premium_caravan_service_contract', 'premium_museum_promotion_contract', 'premium_warehouse_charter'],
+    linkedSystems: ['shop', 'quest', 'market', 'museum'],
+    linkedRouteLabels: ['瀚海', '博物馆', '大厅'],
+    rewardTierId: 'showcase',
+    onlineEngagementMode: 'hall_mail_ai'
+  }
+] as const
+
 const createShopCatalogOffer = (input: ShopCatalogOfferInput): ShopCatalogOfferDef => {
   const luxuryCategory = input.luxuryCategory ?? inferCatalogCategory(input)
   return {

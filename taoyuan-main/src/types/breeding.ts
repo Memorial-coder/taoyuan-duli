@@ -1,4 +1,6 @@
 /** 持久谱系快照节点 */
+import type { RewardTicketType } from './economy'
+
 export interface SeedLineageNode {
   /** 基因ID */
   id: string
@@ -194,9 +196,13 @@ export interface BreedingContestDef {
   id: string
   label: string
   description: string
-  scoringMetric: 'totalScore' | 'exhibitWorth'
+  scoringMetric: 'totalScore' | 'exhibitWorth' | 'sweetness' | 'yield' | 'stability' | 'generation'
+  variantGroup?: 'total_score' | 'single_trait' | 'lineage'
+  eligibilitySnapshotLabel?: string
   requiredCommercialTags?: BreedingCommercialTag[]
   rewardMoney: number
+  rewardTickets?: Partial<Record<RewardTicketType, number>>
+  rewardTierId?: string
 }
 
 export interface BreedingContestEntryResult {

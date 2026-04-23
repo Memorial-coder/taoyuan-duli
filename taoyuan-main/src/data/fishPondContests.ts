@@ -38,6 +38,54 @@ export const POND_CONTEST_DEFS: PondContestDef[] = [
   }
 ]
 
+export const WS14_POND_CONTEST_DEFS: PondContestDef[] = [
+  {
+    id: 'pond_showcase_gallery',
+    label: '展示样本组',
+    description: '更强调展示池中的观赏值和世代镜像快照，适合活动收尾和高光展示。',
+    category: 'showcase',
+    scoringMetric: 'showValue',
+    variantGroup: 'showcase',
+    eligibilitySnapshotLabel: '展示池高光 / 活动收尾',
+    unlockGenerationMin: 3,
+    requireMature: true,
+    requireHealthy: true,
+    rewardMoney: 1800,
+    rewardTickets: { exhibit: 1, caravan: 1 },
+    rewardTierId: 'activity'
+  },
+  {
+    id: 'pond_harvest_cycle',
+    label: '产物收成组',
+    description: '更强调成熟健康个体带来的产物回收，适合限时供货和周中补领奖励。',
+    category: 'food',
+    scoringMetric: 'foodValue',
+    variantGroup: 'harvest',
+    eligibilitySnapshotLabel: '待领取产物 / 成熟个体',
+    requireMature: true,
+    requireHealthy: true,
+    rewardMoney: 1700,
+    rewardTickets: { caravan: 1, research: 1 },
+    rewardTierId: 'activity'
+  },
+  {
+    id: 'pond_clean_water_keystone',
+    label: '水质养护组',
+    description: '更强调健康度和稳定性，适合高压养护周和冬季维护类活动。',
+    category: 'rare',
+    scoringMetric: 'healthScore',
+    variantGroup: 'maintenance',
+    eligibilitySnapshotLabel: '健康度 / 水质养护',
+    requireMature: true,
+    requireHealthy: true,
+    rewardMoney: 2200,
+    rewardTickets: { exhibit: 1, research: 1, caravan: 1 },
+    rewardTierId: 'showcase'
+  }
+]
+
+const ALL_POND_CONTEST_DEFS = [...POND_CONTEST_DEFS, ...WS14_POND_CONTEST_DEFS]
+
 export const createDefaultPondContestState = (): PondContestState => ({
   weekId: '',
   contestId: '',
@@ -47,6 +95,6 @@ export const createDefaultPondContestState = (): PondContestState => ({
 })
 
 export const getWeeklyPondContestDef = (absoluteWeek: number) => {
-  if (POND_CONTEST_DEFS.length === 0) return null
-  return POND_CONTEST_DEFS[Math.abs(absoluteWeek) % POND_CONTEST_DEFS.length] ?? null
+  if (ALL_POND_CONTEST_DEFS.length === 0) return null
+  return ALL_POND_CONTEST_DEFS[Math.abs(absoluteWeek) % ALL_POND_CONTEST_DEFS.length] ?? null
 }

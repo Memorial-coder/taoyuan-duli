@@ -104,6 +104,28 @@ export interface SpiritBlessingDef {
   durationDays: number
   linkedSystems: Array<'goal' | 'home' | 'quest' | 'fishPond'>
   rewardSummary: string
+  steps?: Array<{
+    id: string
+    title: string
+    summary: string
+    stepType: 'trigger' | 'weekly' | 'settlement'
+    routeName?: 'home' | 'quest' | 'fishpond' | 'museum' | 'hanhai'
+  }>
+}
+
+export interface SpiritBondMemoryDef {
+  id: string
+  npcId: string
+  unlockTier: SpiritBondTier
+  summary: string
+  linkedSystems?: Array<'goal' | 'home' | 'quest' | 'fishPond'>
+  steps?: Array<{
+    id: string
+    title: string
+    summary: string
+    stepType: 'trigger' | 'weekly' | 'settlement'
+    routeName?: 'home' | 'quest' | 'fishpond' | 'museum' | 'hanhai'
+  }>
 }
 
 /** 隐藏NPC定义 */

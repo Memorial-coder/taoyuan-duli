@@ -1873,5 +1873,92 @@ export const BUILT_IN_SAMPLE_SAVES: BuiltInSampleSaveDef[] = [
       boundaryAction: 'theme_week_refresh'
     },
     envelope: createThemeWeekRefreshEdgeEnvelope()
+  },
+  {
+    id: 'ws13_activity_midcycle',
+    label: 'WS13 活动编排中局样例',
+    description: '用于验证第二批活动编排、邮件节奏和商店承接包是否在中局阶段同时可见。',
+    tags: ['ws13', 'activity', 'mail', 'shop', 'quest'],
+    tier: 'regression',
+    recommendedRouteName: 'mail',
+    focusAreas: ['活动摘要', '邮件节奏', '目录承接'],
+    smokeChecks: [
+      { id: 'campaign_visible', label: '确认当前活动、邮件节奏和推荐路线都能在 Mail / Quest / TopGoals 看到。' },
+      { id: 'mail_preview', label: '确认预告类邮件模板和当前活动模板可被同一轮活动读取。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 64000, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'village_area' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 1, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      wallet: { minTicketTypes: 1 },
+      boundaryAction: 'none'
+    },
+    envelope: createLateEconomyEnvelope()
+  },
+  {
+    id: 'ws14_competition_boundary',
+    label: 'WS14 竞赛结算边界样例',
+    description: '用于验证第二批鱼塘 / 育种周赛规则变体在结算前夜仍能稳定承接报名与奖励。',
+    tags: ['ws14', 'contest', 'breeding', 'fishpond', 'boundary'],
+    tier: 'regression',
+    recommendedRouteName: 'breeding',
+    focusAreas: ['育种周赛', '鱼塘周赛', '结算前夜'],
+    smokeChecks: [
+      { id: 'breeding_ready', label: '确认育种周赛报名样本、评分维度和奖励档都可见。' },
+      { id: 'fishpond_ready', label: '确认鱼塘周赛报名样本、待领取产物和活动承接都可见。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 54000, requireEconomyTelemetry: true },
+      game: { currentLocation: 'farm', currentLocationGroup: 'farm' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 1, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      breeding: { unlocked: true, minBreedingBox: 3, minCompendiumEntries: 3, minRegisteredSeeds: 2 },
+      boundaryAction: 'breeding_settlement'
+    },
+    envelope: createBreedingContestSettlementEveEnvelope()
+  },
+  {
+    id: 'ws14_museum_hanhai_bridge',
+    label: 'WS14 博物馆 / 瀚海承接样例',
+    description: '用于验证第二批馆务委托、瀚海活动承接和跨系统推荐能在同一档中成立。',
+    tags: ['ws14', 'museum', 'hanhai', 'showcase', 'late-game'],
+    tier: 'flagship',
+    recommendedRouteName: 'museum',
+    focusAreas: ['馆务委托', '瀚海承接', '跨系统推荐'],
+    smokeChecks: [
+      { id: 'museum_focus', label: '确认馆区焦点、学者委托和活动承接提示都可见。' },
+      { id: 'hanhai_focus', label: '确认商路、遗迹和活动推荐路线能同时成立。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 188000, requireEconomyTelemetry: true },
+      game: { currentLocation: 'mine', currentLocationGroup: 'mine' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 2, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      museum: { minDonatedItems: 2 },
+      hanhai: { unlocked: true, minRelicRecords: 3 },
+      wallet: { minTicketTypes: 3 },
+      boundaryAction: 'none'
+    },
+    envelope: createEndgameShowcaseEnvelope()
+  },
+  {
+    id: 'ws15_relationship_event_chain',
+    label: 'WS15 关系线联动样例',
+    description: '用于验证第二批家庭 / 知己 / 仙灵事件链和活动焦点、任务承接、邮件预告能否同时成立。',
+    tags: ['ws15', 'family', 'zhiji', 'spirit', 'activity'],
+    tier: 'flagship',
+    recommendedRouteName: 'village',
+    focusAreas: ['家庭心愿', '知己协作', '仙灵记忆', '活动联动'],
+    smokeChecks: [
+      { id: 'relationship_focus', label: '确认家庭心愿、知己项目和仙灵焦点都在页面中可见。' },
+      { id: 'activity_bridge', label: '确认关系线能反向影响任务板、摘要或预告。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 86500, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'village_area' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 2, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      museum: { minDonatedItems: 2 },
+      wallet: { minTicketTypes: 2 },
+      boundaryAction: 'none'
+    },
+    envelope: createLateEconomyEnvelope()
   }
 ]

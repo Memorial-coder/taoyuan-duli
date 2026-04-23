@@ -9,11 +9,14 @@ export interface HanhaiRouteInvestmentDef {
   label: string
   unlockTier: HanhaiProgressTier
   costMoney: number
+  variantGroup?: 'route_bias' | 'expedition'
   riskLevel: 'low' | 'medium' | 'high'
   rewardSummary: string
   weeklyYieldSummary?: string
   linkedSystems?: HanhaiLinkedSystem[]
   favoredCargoTags?: string[]
+  linkedRouteLabels?: string[]
+  rewardTierId?: string
 }
 
 export interface HanhaiRouteInvestmentState {
@@ -32,25 +35,32 @@ export interface HanhaiRelicSetDef {
   id: string
   label: string
   unlockTier: HanhaiProgressTier
+  variantGroup?: 'relic_words' | 'collection'
   requiredRelicTags: string[]
   rewardSummary: string
   linkedSystems?: HanhaiLinkedSystem[]
+  linkedRouteLabels?: string[]
+  rewardTierId?: string
 }
 
 export interface HanhaiBossCycleDef {
   id: string
   label: string
   unlockTier: HanhaiProgressTier
+  variantGroup?: 'boss_finish' | 'seasonal'
   preferredWeekOfSeason: number[]
   threatLevel: HanhaiBossThreatLevel
   rewardSummary: string
   linkedSystems?: HanhaiLinkedSystem[]
+  linkedRouteLabels?: string[]
+  rewardTierId?: string
 }
 
 export interface HanhaiCaravanContractDef {
   id: string
   label: string
   unlockTier: HanhaiProgressTier
+  variantGroup?: 'route_bias' | 'escort'
   routeId: string
   durationWeeks: number
   costMoney: number
@@ -58,14 +68,19 @@ export interface HanhaiCaravanContractDef {
   riskLevel: 'low' | 'medium' | 'high'
   rewardSummary: string
   linkedSystems?: HanhaiLinkedSystem[]
+  linkedRouteLabels?: string[]
+  rewardTierId?: string
 }
 
 export interface HanhaiShopRotationDef {
   id: string
   label: string
   unlockTier: HanhaiProgressTier
+  variantGroup?: 'expedition' | 'endgame'
   featuredItemIds: string[]
   summary: string
+  linkedRouteLabels?: string[]
+  rewardTierId?: string
 }
 
 export interface HanhaiCycleState {

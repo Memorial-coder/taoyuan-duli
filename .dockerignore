@@ -1,6 +1,8 @@
 node_modules
 taoyuan-main/node_modules
 server/.env
+.env.offical
+server/.env.offical
 .git
 .vscode
 data

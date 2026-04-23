@@ -52,7 +52,7 @@ import {
   getHybridTier,
   getTotalStats
 } from '@/data/breeding'
-import { BREEDING_CONTEST_DEFS, createDefaultBreedingContestState, getWeeklyBreedingContestDef } from '@/data/breedingContests'
+import { BREEDING_CONTEST_DEFS, WS14_BREEDING_CONTEST_DEFS, createDefaultBreedingContestState, getWeeklyBreedingContestDef } from '@/data/breedingContests'
 import { getCropById } from '@/data/crops'
 import { getItemById } from '@/data/items'
 import { addLog } from '@/composables/useGameLog'
@@ -61,6 +61,7 @@ import { useGameStore } from './useGameStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useNpcStore } from './useNpcStore'
 import { usePlayerStore } from './usePlayerStore'
+import { useWalletStore } from './useWalletStore'
 import { useSettingsStore } from './useSettingsStore'
 import { BREEDING_SPECIAL_ORDER_THEME_AUDIT } from '@/data/goals'
 import { getWeekCycleInfo } from '@/utils/weekCycle'
@@ -480,8 +481,28 @@ export const useBreedingStore = defineStore('breeding', () => {
     })
   }
 
+  const breedingContestDefs = [...BREEDING_CONTEST_DEFS, ...WS14_BREEDING_CONTEST_DEFS]
+  const getBreedingContestScore = (genetics: SeedGenetics, scoringMetric: 'totalScore' | 'exhibitWorth' | 'sweetness' | 'yield' | 'stability' | 'generation') => {
+    const score = getBreedingScoreBreakdown(genetics)
+    switch (scoringMetric) {
+      case 'sweetness':
+        return genetics.sweetness
+      case 'yield':
+        return genetics.yield
+      case 'stability':
+        return genetics.stability
+      case 'generation':
+        return Math.min(100, 20 + genetics.generation * 8)
+      case 'exhibitWorth':
+        return score.exhibitWorth
+      case 'totalScore':
+      default:
+        return score.totalScore
+    }
+  }
+
   const currentBreedingContestDef = computed(() =>
-    breedingContestState.value.contestId ? BREEDING_CONTEST_DEFS.find(entry => entry.id === breedingContestState.value.contestId) ?? null : null
+    breedingContestState.value.contestId ? breedingContestDefs.find(entry => entry.id === breedingContestState.value.contestId) ?? null : null
   )
 
   const contestEligibleSeeds = computed(() => {
@@ -496,9 +517,9 @@ export const useBreedingStore = defineStore('breeding', () => {
         return true
       })
       .sort((a, b) => {
-        const scoreA = getBreedingScoreBreakdown(a.genetics)
-        const scoreB = getBreedingScoreBreakdown(b.genetics)
-        return scoreB[contest.scoringMetric] - scoreA[contest.scoringMetric]
+        const scoreA = getBreedingContestScore(a.genetics, contest.scoringMetric)
+        const scoreB = getBreedingContestScore(b.genetics, contest.scoringMetric)
+        return scoreB - scoreA
       })
   })
 
@@ -566,22 +587,22 @@ export const useBreedingStore = defineStore('breeding', () => {
     const ranking = breedingContestState.value.registeredSeedIds
       .map(id => breedingBox.value.find(seed => seed.genetics.id === id))
       .filter((seed): seed is BreedingSeed => seed !== undefined)
-      .map<BreedingContestEntryResult>(seed => {
-        const score = getBreedingScoreBreakdown(seed.genetics)
-        return {
-          geneticsId: seed.genetics.id,
-          cropId: seed.genetics.cropId,
-          label: seed.label,
-          hybridId: seed.genetics.hybridId,
-          score: score[contest.scoringMetric]
-        }
-      })
+      .map<BreedingContestEntryResult>(seed => ({
+        geneticsId: seed.genetics.id,
+        cropId: seed.genetics.cropId,
+        label: seed.label,
+        hybridId: seed.genetics.hybridId,
+        score: getBreedingContestScore(seed.genetics, contest.scoringMetric)
+      }))
       .sort((a, b) => b.score - a.score)
 
     const winner = ranking[0]
     const rewardSummary: string[] = []
     if (winner) {
       usePlayerStore().earnMoney(contest.rewardMoney, { countAsEarned: false, system: 'breeding' })
+      const walletStore = useWalletStore()
+      const grantedTickets = walletStore.addRewardTickets(contest.rewardTickets, { source: 'goal', applyMultiplier: false })
+      rewardSummary.push(...Object.entries(grantedTickets).map(([ticketType, amount]) => `${walletStore.getTicketLabel(ticketType as any)}脳${amount}`))
       rewardSummary.push(`${contest.rewardMoney}文`)
       addLog(`【育种周赛】${contest.label} 已结算，冠军样本为 ${winner.label}（${winner.score}分）。`, {
         category: 'breeding',

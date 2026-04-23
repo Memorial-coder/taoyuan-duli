@@ -2,21 +2,7 @@
   <div class="ai-admin-panel" :class="{ 'ai-admin-panel--scrollable': scrollable }">
     <div v-if="store.isLoadingAdmin" class="ai-admin-panel__loading">AI 管理配置加载中...</div>
     <template v-else>
-      <div class="ai-admin-panel__banner" :class="`ai-admin-panel__banner--${store.adminConfig.officialManagedStatus?.source || 'local_default'}`">
-        <div class="text-xs leading-6">
-          官方文案状态：{{ getOfficialManagedSourceLabel() }}
-          <span v-if="store.adminConfig.officialManagedStatus?.profileId"> · {{ store.adminConfig.officialManagedStatus.profileId }}</span>
-          <span v-if="store.adminConfig.officialManagedStatus?.version"> · v{{ store.adminConfig.officialManagedStatus.version }}</span>
-        </div>
-        <div class="text-[11px] text-muted leading-5">
-          助手名称、欢迎语和控制台署名文案已改为官方云控只读，本地后台仅能查看当前生效值。
-        </div>
-        <div v-if="store.adminConfig.officialManagedStatus?.lastError" class="text-[11px] text-muted leading-5">
-          最近同步信息：{{ store.adminConfig.officialManagedStatus.lastError }}
-        </div>
-      </div>
-
-      <div v-if="!isManagedReadonly('ai_assistant_name')" class="ai-admin-panel__group">
+      <div class="ai-admin-panel__group">
         <p class="ai-admin-panel__label">功能开关</p>
         <div class="ai-admin-panel__row">
           <button class="btn" :class="{ '!bg-accent !text-bg': store.adminConfig.enabled }" @click="store.adminConfig.enabled = true">开启</button>
@@ -24,7 +10,7 @@
         </div>
       </div>
 
-      <div v-if="!isManagedReadonly('ai_assistant_welcome')" class="ai-admin-panel__group">
+      <div class="ai-admin-panel__group">
         <p class="ai-admin-panel__label">回答模式</p>
         <div class="ai-admin-panel__row">
           <button class="btn" :class="{ '!bg-accent !text-bg': store.adminConfig.mode === 'strict' }" @click="store.adminConfig.mode = 'strict'">
@@ -36,7 +22,7 @@
         </div>
       </div>
 
-      <div v-if="!isManagedReadonly('ai_assistant_console_credit')" class="ai-admin-panel__group">
+      <div class="ai-admin-panel__group">
         <p class="ai-admin-panel__label">源码能力</p>
         <div class="ai-admin-panel__row">
           <button class="btn" :class="{ '!bg-accent !text-bg': store.adminConfig.sourceReadEnabled }" @click="store.adminConfig.sourceReadEnabled = true">
@@ -58,18 +44,25 @@
 
       <div class="ai-admin-panel__group">
         <label class="ai-admin-panel__label">助手名称</label>
-        <input v-model="store.adminConfig.assistantName" class="ai-admin-panel__input" maxlength="20" />
+        <input
+          v-model="store.adminConfig.assistantName"
+          class="ai-admin-panel__input"
+          maxlength="20"
+          :disabled="isManagedReadonly('ai_assistant_name')"
+          :readonly="isManagedReadonly('ai_assistant_name')"
+        />
       </div>
 
       <div class="ai-admin-panel__group">
         <label class="ai-admin-panel__label">欢迎语</label>
-        <textarea v-model="store.adminConfig.welcomeMessage" rows="3" class="ai-admin-panel__textarea" maxlength="300" />
-      </div>
-
-      <div class="ai-admin-panel__group">
-        <label class="ai-admin-panel__label">控制台署名文案</label>
-        <textarea v-model="store.adminConfig.consoleCreditMessage" rows="4" class="ai-admin-panel__textarea" maxlength="500" />
-        <p class="text-[11px] text-muted">前台会在页面进入和路由切换时输出这段文案；如果里面包含 URL，会自动把链接单独识别出来。</p>
+        <textarea
+          v-model="store.adminConfig.welcomeMessage"
+          rows="3"
+          class="ai-admin-panel__textarea"
+          maxlength="300"
+          :disabled="isManagedReadonly('ai_assistant_welcome')"
+          :readonly="isManagedReadonly('ai_assistant_welcome')"
+        />
       </div>
 
       <div class="ai-admin-panel__group">
@@ -145,13 +138,6 @@
     return readonlyManagedFieldSet.value.has(key)
   }
 
-  const getOfficialManagedSourceLabel = () => {
-    const source = store.adminConfig.officialManagedStatus?.source
-    if (source === 'official_live') return '官方云控生效中'
-    if (source === 'official_cached') return '官方缓存回退中'
-    return '仓库默认文案'
-  }
-
   const saveAdminConfig = async () => {
     await store.saveAdminConfig()
   }
@@ -215,31 +201,6 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-  }
-
-  .ai-admin-panel__banner {
-    border: 1px solid rgba(200, 164, 92, 0.18);
-    border-radius: 2px;
-    padding: 10px 12px;
-    background: rgba(200, 164, 92, 0.08);
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .ai-admin-panel__banner--official_live {
-    border-color: rgba(72, 146, 95, 0.3);
-    background: rgba(72, 146, 95, 0.1);
-  }
-
-  .ai-admin-panel__banner--official_cached {
-    border-color: rgba(200, 164, 92, 0.26);
-    background: rgba(200, 164, 92, 0.12);
-  }
-
-  .ai-admin-panel__banner--local_default {
-    border-color: rgba(120, 130, 150, 0.24);
-    background: rgba(120, 130, 150, 0.1);
   }
 
   .ai-admin-panel__label {

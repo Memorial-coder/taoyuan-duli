@@ -32,6 +32,7 @@ import {
   BREEDING_SPECIAL_ORDER_BASELINE,
   BREEDING_SPECIAL_ORDER_TUNING_CONFIG,
   WS10_LIMITED_TIME_QUEST_CAMPAIGN_DEFS,
+  WS13_LIMITED_TIME_QUEST_CAMPAIGN_DEFS,
   type QuestMarketCategory
 } from '@/data/quests'
 import { getStoryQuestById, getNextStoryQuest, getFirstStoryQuest, STORY_QUESTS } from '@/data/storyQuests'
@@ -102,7 +103,7 @@ export const useQuestStore = defineStore('quest', () => {
     refreshMode: 'legacy'
   })
   const activityQuestWindowState = ref<ActivityQuestWindowState>(createDefaultActivityQuestWindowState())
-  const limitedTimeQuestCampaignDefs = WS10_LIMITED_TIME_QUEST_CAMPAIGN_DEFS
+  const limitedTimeQuestCampaignDefs = [...WS10_LIMITED_TIME_QUEST_CAMPAIGN_DEFS, ...WS13_LIMITED_TIME_QUEST_CAMPAIGN_DEFS]
   const eventOperationTuning = WS10_EVENT_OPERATION_TUNING_CONFIG
   const activityQuestWindowLocks = ref<string[]>([])
 

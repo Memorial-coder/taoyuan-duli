@@ -2,7 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { showFloat } from '@/composables/useGameLog'
 import { askAiAssistant, fetchAiAssistantAdminConfig, fetchAiAssistantConfig, saveAiAssistantAdminConfig, verifyAiAssistantAdminAccess } from '@/utils/taoyuanAiApi'
-import type { AiAssistantAdminConfig, AiAssistantMessage, AiAssistantPublicConfig } from '@/types'
+import type { AiAssistantAdminConfig, AiAssistantContextSnapshot, AiAssistantMessage, AiAssistantPublicConfig } from '@/types'
 
 const createId = () => `ai_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
 
@@ -108,7 +108,7 @@ export const useAiAssistantStore = defineStore('aiAssistant', () => {
     if (publicConfig.value.enabled || isAdmin.value) appendWelcomeMessage()
   }
 
-  const askQuestion = async (question: string, context: { routeName?: string; contextLabel?: string } = {}) => {
+  const askQuestion = async (question: string, context: { routeName?: string; contextLabel?: string; contextSnapshot?: AiAssistantContextSnapshot } = {}) => {
     const trimmed = question.trim()
     if (!trimmed) return
     if (!publicConfig.value.enabled) {
@@ -145,6 +145,7 @@ export const useAiAssistantStore = defineStore('aiAssistant', () => {
         question: trimmed,
         routeName: context.routeName,
         contextLabel: context.contextLabel,
+        contextSnapshot: context.contextSnapshot,
       })
       messages.value = messages.value.map(message =>
         message.id === pendingId

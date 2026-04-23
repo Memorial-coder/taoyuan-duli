@@ -7,12 +7,19 @@ const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
   : path.join(__dirname, '../data');
 
-const CACHE_FILE = path.join(DATA_DIR, 'official_managed_config.json');
+const PUBLIC_BRANDING_CACHE_FILE = path.join(DATA_DIR, 'official_public_branding.json');
+const LEGACY_CACHE_FILE = path.join(DATA_DIR, 'official_managed_config.json');
 const REQUEST_TIMEOUT_MS = 8000;
 const DEFAULT_CACHE_TTL_SEC = 3600;
 const REFRESH_MIN_MS = 60 * 1000;
 const REFRESH_MAX_MS = 15 * 60 * 1000;
 const LOCALHOST_HOSTS = new Set(['127.0.0.1', 'localhost', '::1']);
+const DEFAULT_PUBLIC_BASE_URL = 'https://taoyuan.ymzcc.com';
+const DEFAULT_PUBLIC_KEY = [
+  '-----BEGIN PUBLIC KEY-----',
+  'MCowBQYDK2VwAyEAqFgXvjWW3PlhtWw+tTSb9WTbAQqEO2VHYbU3OQ+P2Y8=',
+  '-----END PUBLIC KEY-----',
+].join('\n');
 
 const MANAGED_KEYS = Object.freeze([
   'ai_assistant_console_credit',
@@ -73,31 +80,15 @@ function normalizeManagedValues(values = {}) {
 
 function getRuntimeConfig() {
   const sourceMode = officialControlPlatform.isPlatformEnabled();
-  const enabled = sourceMode || parseBoolean(process.env.OFFICIAL_CONTROL_ENABLED);
-  const cacheTtlSec = parsePositiveInt(process.env.OFFICIAL_CONTROL_CACHE_TTL_SEC, DEFAULT_CACHE_TTL_SEC);
-  const baseUrl = String(process.env.OFFICIAL_CONTROL_BASE_URL || '').trim();
-  const instanceId = String(process.env.OFFICIAL_INSTANCE_ID || '').trim();
-  const licenseKey = String(process.env.OFFICIAL_LICENSE_KEY || '').trim();
-  const publicOrigin = String(process.env.OFFICIAL_PUBLIC_ORIGIN || '').trim();
-  const publicKey = String(process.env.OFFICIAL_CONTROL_PUBLIC_KEY || '').trim();
-
-  const missing = [];
-  if (!baseUrl) missing.push('OFFICIAL_CONTROL_BASE_URL');
-  if (!instanceId) missing.push('OFFICIAL_INSTANCE_ID');
-  if (!licenseKey) missing.push('OFFICIAL_LICENSE_KEY');
-  if (!publicOrigin) missing.push('OFFICIAL_PUBLIC_ORIGIN');
-  if (!publicKey) missing.push('OFFICIAL_CONTROL_PUBLIC_KEY');
-
+  const disabled = parseBoolean(process.env.OFFICIAL_PUBLIC_BRANDING_DISABLE);
+  const enabled = sourceMode || !disabled;
   return {
     enabled,
-    configured: sourceMode ? true : (enabled ? missing.length === 0 : false),
-    missing,
-    cacheTtlSec,
-    baseUrl,
-    instanceId,
-    licenseKey,
-    publicOrigin,
-    publicKey,
+    configured: sourceMode ? true : !disabled,
+    missing: [],
+    cacheTtlSec: parsePositiveInt(process.env.OFFICIAL_CONTROL_CACHE_TTL_SEC, DEFAULT_CACHE_TTL_SEC),
+    baseUrl: DEFAULT_PUBLIC_BASE_URL,
+    publicKey: DEFAULT_PUBLIC_KEY,
     sourceMode,
   };
 }
@@ -108,7 +99,7 @@ function isAllowedInsecureOrigin(url) {
 
 function normalizePublicKey(rawValue) {
   const value = String(rawValue || '').trim();
-  if (!value) throw new Error('缺少 OFFICIAL_CONTROL_PUBLIC_KEY');
+  if (!value) throw new Error('缺少官方公钥');
 
   if (value.includes('BEGIN PUBLIC KEY')) {
     return crypto.createPublicKey(value.replace(/\\n/g, '\n'));
@@ -171,10 +162,10 @@ function clearManagedValues(source = 'local_default') {
   state.values = {};
 }
 
-function readCacheEnvelope() {
+function readCacheEnvelopeFrom(filePath) {
   try {
-    if (!fs.existsSync(CACHE_FILE)) return null;
-    const raw = JSON.parse(fs.readFileSync(CACHE_FILE, 'utf8'));
+    if (!fs.existsSync(filePath)) return null;
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
     if (!raw || typeof raw !== 'object') return null;
     return {
       envelope: normalizeEnvelope(raw.envelope || raw),
@@ -183,6 +174,10 @@ function readCacheEnvelope() {
   } catch {
     return null;
   }
+}
+
+function readCacheEnvelope() {
+  return readCacheEnvelopeFrom(PUBLIC_BRANDING_CACHE_FILE) || readCacheEnvelopeFrom(LEGACY_CACHE_FILE);
 }
 
 function writeCacheEnvelope(envelope) {
@@ -197,8 +192,8 @@ function writeCacheEnvelope(envelope) {
     },
     verifiedAt: state.lastVerifiedAt,
   };
-  fs.mkdirSync(path.dirname(CACHE_FILE), { recursive: true });
-  fs.writeFileSync(CACHE_FILE, JSON.stringify(payload, null, 2), 'utf8');
+  fs.mkdirSync(path.dirname(PUBLIC_BRANDING_CACHE_FILE), { recursive: true });
+  fs.writeFileSync(PUBLIC_BRANDING_CACHE_FILE, JSON.stringify(payload, null, 2), 'utf8');
 }
 
 function isCacheStillValid(cacheEntry, runtimeConfig) {
@@ -238,11 +233,10 @@ function scheduleNextRefresh(runtimeConfig) {
 }
 
 async function fetchRemoteEnvelope(runtimeConfig) {
-  const targetUrl = new URL('/api/official-control/v1/instances/config/current', runtimeConfig.baseUrl);
-  targetUrl.searchParams.set('public_origin', runtimeConfig.publicOrigin);
+  const targetUrl = new URL('/api/official-control/v1/public/config/current', runtimeConfig.baseUrl);
 
   if (targetUrl.protocol !== 'https:' && !isAllowedInsecureOrigin(targetUrl)) {
-    throw new Error('OFFICIAL_CONTROL_BASE_URL 必须使用 HTTPS，除非显式指向 localhost/127.0.0.1');
+    throw new Error('官方公开品牌云控地址必须使用 HTTPS，除非显式指向 localhost/127.0.0.1');
   }
 
   const controller = new AbortController();
@@ -252,8 +246,6 @@ async function fetchRemoteEnvelope(runtimeConfig) {
       method: 'GET',
       headers: {
         Accept: 'application/json',
-        'X-Instance-Id': runtimeConfig.instanceId,
-        'X-License-Key': runtimeConfig.licenseKey,
       },
       signal: controller.signal,
     });
@@ -266,12 +258,12 @@ async function fetchRemoteEnvelope(runtimeConfig) {
     }
 
     if (!response.ok) {
-      const message = String(data?.msg || data?.message || `官方配置中心请求失败（${response.status}）`).trim();
+      const message = String(data?.msg || data?.message || `官方配置中心请求失败，${response.status}`).trim();
       throw new Error(message);
     }
 
     if (data?.ok === false) {
-      throw new Error(String(data?.msg || data?.message || '官方配置中心拒绝了当前实例').trim());
+      throw new Error(String(data?.msg || data?.message || '官方配置中心暂时不可用').trim());
     }
 
     return normalizeEnvelope(data?.envelope || data);
@@ -335,15 +327,6 @@ async function refreshFromRemote(reason = 'manual') {
       return refreshFromSource(reason);
     }
 
-    if (!runtimeConfig.configured) {
-      state.lastError = `官方云控配置不完整：${runtimeConfig.missing.join(', ')}`;
-      restoreCachedEnvelope(runtimeConfig);
-      if (state.source !== 'official_cached') {
-        clearManagedValues('local_default');
-      }
-      return getStatus();
-    }
-
     try {
       const envelope = await fetchRemoteEnvelope(runtimeConfig);
       verifyEnvelopeSignature(envelope, runtimeConfig);
@@ -354,7 +337,7 @@ async function refreshFromRemote(reason = 'manual') {
       writeCacheEnvelope(envelope);
 
       if (reason === 'startup') {
-        console.log(`[official-control] 官方配置已启用，profile=${state.profileId} version=${state.version}`);
+        console.log(`[official-control] 公开品牌配置已启用，profile=${state.profileId} version=${state.version}`);
       }
     } catch (error) {
       state.lastError = error instanceof Error ? error.message : '官方配置同步失败';

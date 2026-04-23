@@ -26,10 +26,12 @@ import {
   createDefaultFamilyWishBoardState,
   createDefaultHouseholdDivisionState,
   WS09_FAMILY_WISH_DEFS,
+  WS15_FAMILY_WISH_DEFS,
   WS09_FAMILY_WISH_BOARD_CONFIG,
   WS09_HOUSEHOLD_ROLE_DEFS,
   WS09_RELATIONSHIP_TUNING_CONFIG,
-  WS09_ZHIJI_COMPANION_PROJECT_DEFS
+  WS09_ZHIJI_COMPANION_PROJECT_DEFS,
+  WS15_ZHIJI_COMPANION_PROJECT_DEFS
 } from '@/data/npcs'
 import { WEATHER_TIPS, getFortuneTip, getLivingTip, getRecipeTipMessage, NO_RECIPE_TIP, TIP_NPC_IDS } from '@/data/npcTips'
 import {
@@ -59,6 +61,9 @@ import { useDecorationStore } from './useDecorationStore'
 import { harvestFarmPlotWithRewards } from '@/composables/useFarmHarvest'
 import { addLog } from '@/composables/useGameLog'
 import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from '@/utils/weekCycle'
+
+const ALL_FAMILY_WISH_DEFS = [...WS09_FAMILY_WISH_DEFS, ...WS15_FAMILY_WISH_DEFS]
+const ALL_ZHIJI_COMPANION_PROJECT_DEFS = [...WS09_ZHIJI_COMPANION_PROJECT_DEFS, ...WS15_ZHIJI_COMPANION_PROJECT_DEFS]
 
 /** 好感度上限：未婚 2500（10心），已婚 4000；美观度≥100额外+250 */
 const getFriendshipCap = (state: { married: boolean }, beautyCapBonus = 0): number =>
@@ -1021,7 +1026,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getFamilyWishOverview = () => ({
     defs: relationshipFeatureFlags.familyWishEnabled
-      ? WS09_FAMILY_WISH_DEFS
+      ? ALL_FAMILY_WISH_DEFS
           .filter(def => relationshipTierRank[def.unlockTier] <= relationshipTierRank[relationshipContentTier.value])
           .slice(0, relationshipTuning.display.familyWishPreviewLimit)
       : [],
@@ -1035,7 +1040,7 @@ export const useNpcStore = defineStore('npc', () => {
     if (!beginRelationshipAction(lockId)) return
     try {
     if (!relationshipFeatureFlags.familyWishEnabled) return
-    if (!WS09_FAMILY_WISH_DEFS.some(wish => wish.id === wishId)) return
+    if (!ALL_FAMILY_WISH_DEFS.some(wish => wish.id === wishId)) return
     familyWishBoard.value = {
       ...familyWishBoard.value,
       unlockTier: maxRelationshipTier(familyWishBoard.value.unlockTier, unlockTier),
@@ -1112,7 +1117,7 @@ export const useNpcStore = defineStore('npc', () => {
     if (!beginRelationshipAction(lockId)) return false
     try {
       if (!wishId) return false
-      const wishDef = WS09_FAMILY_WISH_DEFS.find(wish => wish.id === wishId)
+      const wishDef = ALL_FAMILY_WISH_DEFS.find(wish => wish.id === wishId)
       if (!wishDef) return false
       if (familyWishBoard.value.activeWishId !== wishId) return false
       if (familyWishBoard.value.rewardClaimed) return false
@@ -1161,13 +1166,13 @@ export const useNpcStore = defineStore('npc', () => {
     const allowedWishIds = new Set(
       companionNpcIds.flatMap(npcId => getNpcById(npcId)?.familyWishIds ?? [])
     )
-    return WS09_FAMILY_WISH_DEFS
+    return ALL_FAMILY_WISH_DEFS
       .filter(wish => allowedWishIds.has(wish.id))
       .filter(wish => relationshipTierRank[relationshipContentTier.value] >= relationshipTierRank[wish.unlockTier])
   }
 
   const getAutoFamilyWishProgressDelta = (wishId: string) => {
-    const wishDef = WS09_FAMILY_WISH_DEFS.find(wish => wish.id === wishId)
+    const wishDef = ALL_FAMILY_WISH_DEFS.find(wish => wish.id === wishId)
     if (!wishDef) return 0
     const companionCount = npcStates.value.filter(state => state.married || state.zhiji).length
     const activeAssignmentCount = householdDivision.value.assignments.length
@@ -1220,7 +1225,7 @@ export const useNpcStore = defineStore('npc', () => {
     const rewarded: string[] = []
     for (const project of zhijiCompanionProjects.value) {
       if (project.rewarded) continue
-      const projectDef = WS09_ZHIJI_COMPANION_PROJECT_DEFS.find(def => def.id === project.projectId)
+      const projectDef = ALL_ZHIJI_COMPANION_PROJECT_DEFS.find(def => def.id === project.projectId)
       if (!projectDef) continue
       const fishPondStore = useFishPondStore()
       const delta =
@@ -1244,7 +1249,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   const activateNextFamilyWishForCurrentDay = () => {
     if (familyWishBoard.value.activeWishId) {
-      const currentWish = WS09_FAMILY_WISH_DEFS.find(wish => wish.id === familyWishBoard.value.activeWishId)
+      const currentWish = ALL_FAMILY_WISH_DEFS.find(wish => wish.id === familyWishBoard.value.activeWishId)
       return {
         success: false,
         message: `当前已有进行中的家庭心愿：${currentWish?.title ?? familyWishBoard.value.activeWishId}。`
@@ -1275,7 +1280,7 @@ export const useNpcStore = defineStore('npc', () => {
     if (!beginRelationshipAction(lockId)) return false
     try {
     if (!relationshipFeatureFlags.zhijiProjectEnabled) return false
-    const projectDef = WS09_ZHIJI_COMPANION_PROJECT_DEFS.find(project => project.id === projectId)
+    const projectDef = ALL_ZHIJI_COMPANION_PROJECT_DEFS.find(project => project.id === projectId)
     const state = getNpcState(npcId)
     if (!projectDef || !state) return false
     state.unlockedCompanionProjectIds = state.unlockedCompanionProjectIds.includes(projectId)
@@ -1317,7 +1322,7 @@ export const useNpcStore = defineStore('npc', () => {
       const project = getZhijiProjectState(projectId, npcId)
       if (!project || !project.completed) return false
       if (project.rewarded) return false
-      const projectDef = WS09_ZHIJI_COMPANION_PROJECT_DEFS.find(def => def.id === projectId)
+      const projectDef = ALL_ZHIJI_COMPANION_PROJECT_DEFS.find(def => def.id === projectId)
       if (!projectDef) return false
       const rewardResult = grantRelationshipReward(projectDef.reward, `知己协作「${projectDef.label}」`)
       if (!rewardResult.success) {
@@ -1356,7 +1361,7 @@ export const useNpcStore = defineStore('npc', () => {
     if (!registered) {
       return { success: false, message: '知己协作项目登记失败，请稍后再试。' }
     }
-    const projectDef = WS09_ZHIJI_COMPANION_PROJECT_DEFS.find(def => def.id === nextProjectId)
+    const projectDef = ALL_ZHIJI_COMPANION_PROJECT_DEFS.find(def => def.id === nextProjectId)
     return {
       success: true,
       message: `已为${npcDef?.name ?? zhijiState.npcId}登记知己协作：${projectDef?.label ?? nextProjectId}。`,

@@ -206,12 +206,26 @@ export interface ThemeWeekUiMeta {
 
 export type EventCampaignTier = 'P0' | 'P1' | 'P2'
 export type EventCampaignCadence = 'weekly' | 'biweekly' | 'seasonal'
+export type EventCampaignVariantGroup = 'fishpond' | 'breeding' | 'museum' | 'hanhai'
+export type EventCampaignAudience = 'newcomer_friendly' | 'returnee_friendly' | 'endgame'
+export type EventCampaignEngagementMode = 'local_first' | 'hall_mail_ai'
+export type EventMailTemplateType =
+  | 'activity_notice'
+  | 'activity_midweek'
+  | 'activity_reward'
+  | 'maintenance_notice'
+  | 'compensation'
+  | 'activity_preview'
+export type EventMailCadenceSlot = 'opening' | 'midweek' | 'settlement' | 'compensation' | 'preview'
 
 export interface EventMailTemplateRef {
   id: string
-  templateType: 'activity_reward' | 'maintenance_notice' | 'compensation'
+  templateType: EventMailTemplateType
+  cadenceSlot: EventMailCadenceSlot
   title: string
   summary: string
+  linkedRouteLabels?: string[]
+  previewHeadline?: string
 }
 
 export interface EventCampaignDef {
@@ -220,9 +234,18 @@ export interface EventCampaignDef {
   description: string
   unlockTier: EventCampaignTier
   cadence: EventCampaignCadence
+  variantGroup?: EventCampaignVariantGroup
+  targetAudience?: EventCampaignAudience[]
   linkedThemeWeekIds: string[]
   linkedSystems: EconomySystemKey[]
+  linkedRouteLabels?: string[]
   mailboxTemplateIds: string[]
+  mailCadence?: EventMailCadenceSlot[]
+  shopBundleId?: string
+  limitedQuestCampaignId?: string
+  rewardTierId?: string
+  onlineEngagementMode?: EventCampaignEngagementMode
+  priority?: number
   rewardSummary: string
 }
 

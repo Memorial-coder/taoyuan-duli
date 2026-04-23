@@ -5,7 +5,7 @@
         <div class="space-y-1">
           <p class="text-sm text-accent">官方云控平台</p>
           <p class="text-xs text-muted leading-6">
-            这里只在官方域名下显示，用来发布官方文案并管理可读取 `taoyuan.ymzcc.com` 配置的实例授权。
+            这里只在官方域名下显示，用来发布默认公开品牌文案；所有部署实例都会优先从 `taoyuan.ymzcc.com` 读取签名后的官方文案。
           </p>
         </div>
         <div class="flex flex-wrap gap-2">
@@ -23,7 +23,7 @@
           <span v-if="status?.profileId"> · {{ status.profileId }}</span>
         </div>
         <div class="text-[11px] text-muted leading-5">
-          先通过现有管理员口令，再通过这里的二次密码，才可发布官方配置和管理授权实例。
+          先通过现有管理员口令，再通过这里的二次密码，才可发布官方配置和管理保留的实例授权。
         </div>
       </div>
 
@@ -58,7 +58,7 @@
         <div class="space-y-1">
           <p class="text-sm text-accent">新密钥已生成</p>
           <p class="text-xs text-muted leading-6">
-            这串实例密钥只会回显一次，请立即保存。实例 ID：{{ latestIssuedLicense.instanceId }}
+            这串实例密钥只会回显一次，请立即保存。它只用于保留的授权实例能力，不影响默认公开品牌云控。实例 ID：{{ latestIssuedLicense.instanceId }}
           </p>
         </div>
         <textarea class="official-control-textarea" rows="3" readonly :value="latestIssuedLicense.licenseKey" />
@@ -69,7 +69,7 @@
           <div class="space-y-1">
             <p class="text-sm text-accent">官方文案发布</p>
             <p class="text-xs text-muted leading-6">
-              只发布这 5 个官方受控字段。发布后官方站立即生效，其他实例按读取周期同步。
+              只发布这 5 个官方品牌字段。发布后官方站立即生效，其他实例会默认按读取周期同步，无需额外实例密钥。
             </p>
           </div>
 
@@ -135,9 +135,9 @@
       <div class="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,0.8fr)_minmax(0,1.2fr)]">
         <div class="game-panel space-y-4">
           <div class="space-y-1">
-            <p class="text-sm text-accent">新增授权实例</p>
+            <p class="text-sm text-accent">新增授权实例（预留）</p>
             <p class="text-xs text-muted leading-6">
-              创建后会回显一次实例密钥。`public_origin` 一行一个，必须填完整 origin。
+              这块是给后续需要额外授权的实例能力预留的，不影响默认公开品牌云控。创建后会回显一次实例密钥，`public_origin` 一行一个，必须填完整 origin。
             </p>
           </div>
 
@@ -173,8 +173,8 @@
 
         <div class="game-panel space-y-4">
           <div class="space-y-1">
-            <p class="text-sm text-accent">实例授权管理</p>
-            <p class="text-xs text-muted leading-6">可以启停实例、维护来源白名单，并随时重置实例密钥。</p>
+            <p class="text-sm text-accent">实例授权管理（预留）</p>
+            <p class="text-xs text-muted leading-6">可以启停实例、维护来源白名单，并随时重置实例密钥；默认公开品牌云控本身不依赖这里。</p>
           </div>
 
           <div v-if="!instances.length" class="text-xs text-muted">还没有授权实例。</div>

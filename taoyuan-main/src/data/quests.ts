@@ -439,6 +439,108 @@ export const WS10_LIMITED_TIME_QUEST_CAMPAIGN_DEFS: LimitedTimeQuestCampaignDef[
   }
 ]
 
+export const WS13_LIMITED_TIME_QUEST_CAMPAIGN_DEFS: LimitedTimeQuestCampaignDef[] = [
+  {
+    id: 'ws13_fishpond_rotation_window',
+    label: '鱼塘活动任务窗',
+    description: '围绕样鱼报名、产物承接和展示池筹备建立的鱼塘活动任务窗口。',
+    unlockTier: 'P0',
+    linkedCampaignId: 'ws13_campaign_fishpond_rotation',
+    variantGroup: 'fishpond',
+    preferredThemeTag: 'fishpond',
+    activitySourceId: 'ws13_fishpond_rotation',
+    activitySourceLabel: '鱼塘周赛升级周',
+    durationDays: 7,
+    recommendedOfferIds: ['weekly_pond_care_pack', 'func_angler_pack'],
+    linkedRouteLabels: ['鱼塘', '任务', '邮箱'],
+    rewardTierId: 'steady',
+    onlineEngagementMode: 'hall_mail_ai',
+    rewardSummary: '用于承接鱼塘报名、产物领取与活动奖励邮件的第一组活动任务。'
+  },
+  {
+    id: 'ws13_breeding_rotation_window',
+    label: '育种活动任务窗',
+    description: '围绕周赛报名、谱系目标和研究补给建立的育种活动任务窗口。',
+    unlockTier: 'P0',
+    linkedCampaignId: 'ws13_campaign_breeding_rotation',
+    variantGroup: 'breeding',
+    preferredThemeTag: 'breeding',
+    activitySourceId: 'ws13_breeding_rotation',
+    activitySourceLabel: '育种周赛扩展周',
+    durationDays: 7,
+    recommendedOfferIds: ['func_builder_pack', 'weekly_inventory_bag'],
+    linkedRouteLabels: ['育种', '任务', '商店'],
+    rewardTierId: 'steady',
+    onlineEngagementMode: 'hall_mail_ai',
+    rewardSummary: '用于承接育种周赛、图鉴推进和特种订单的活动任务窗口。'
+  },
+  {
+    id: 'ws13_museum_supply_window',
+    label: '博物馆活动任务窗',
+    description: '围绕馆区焦点、学者委托和展陈筹备建立的博物馆活动任务窗口。',
+    unlockTier: 'P1',
+    linkedCampaignId: 'ws13_campaign_museum_supply',
+    variantGroup: 'museum',
+    activitySourceId: 'ws13_museum_supply',
+    activitySourceLabel: '博物馆策展供给周',
+    durationDays: 7,
+    recommendedOfferIds: ['premium_museum_promotion_contract', 'premium_research_assistant_contract'],
+    linkedRouteLabels: ['博物馆', '任务', '邮箱'],
+    rewardTierId: 'activity',
+    onlineEngagementMode: 'hall_mail_ai',
+    rewardSummary: '用于承接馆务委托、展陈筹备和活动收尾的第二批博物馆任务。'
+  },
+  {
+    id: 'ws13_hanhai_supply_window',
+    label: '瀚海活动任务窗',
+    description: '围绕商路投资、遗迹词条和轮换货架建立的瀚海活动任务窗口。',
+    unlockTier: 'P1',
+    linkedCampaignId: 'ws13_campaign_hanhai_supply',
+    variantGroup: 'hanhai',
+    activitySourceId: 'ws13_hanhai_supply',
+    activitySourceLabel: '瀚海远征承接周',
+    durationDays: 7,
+    recommendedOfferIds: ['weekly_caravan_supply_crate', 'premium_caravan_service_contract'],
+    linkedRouteLabels: ['瀚海', '任务', '商店'],
+    rewardTierId: 'activity',
+    onlineEngagementMode: 'hall_mail_ai',
+    rewardSummary: '用于承接商路投资、遗迹勘探和目录补给的第二批瀚海任务。'
+  },
+  {
+    id: 'ws13_fishpond_showcase_window',
+    label: '鱼塘展示收尾窗',
+    description: '围绕展示池高光、博物馆加成和活动收尾邮件建立的鱼塘展示收尾窗口。',
+    unlockTier: 'P2',
+    linkedCampaignId: 'ws13_campaign_fishpond_showcase_wrapup',
+    variantGroup: 'fishpond',
+    preferredThemeTag: 'fishpond',
+    activitySourceId: 'ws13_fishpond_showcase',
+    activitySourceLabel: '鱼塘展示收尾周',
+    durationDays: 5,
+    recommendedOfferIds: ['weekly_pond_care_pack', 'premium_museum_promotion_contract'],
+    linkedRouteLabels: ['鱼塘', '大厅', '邮箱'],
+    rewardTierId: 'showcase',
+    onlineEngagementMode: 'hall_mail_ai',
+    rewardSummary: '用于承接展示池成果、收尾奖励和活动展示贴的鱼塘收尾窗口。'
+  },
+  {
+    id: 'ws13_hanhai_patron_window',
+    label: '瀚海赞助收尾窗',
+    description: '围绕瀚海赞助、共建收尾和终局展示回流建立的瀚海收尾任务窗口。',
+    unlockTier: 'P2',
+    linkedCampaignId: 'ws13_campaign_hanhai_patron_wrapup',
+    variantGroup: 'hanhai',
+    activitySourceId: 'ws13_hanhai_patron',
+    activitySourceLabel: '瀚海赞助收尾周',
+    durationDays: 5,
+    recommendedOfferIds: ['premium_caravan_service_contract', 'premium_museum_promotion_contract'],
+    linkedRouteLabels: ['瀚海', '博物馆', '大厅'],
+    rewardTierId: 'showcase',
+    onlineEngagementMode: 'hall_mail_ai',
+    rewardSummary: '用于承接赞助收尾、终局展示和下一轮活动预告的瀚海收尾窗口。'
+  }
+]
+
 export const createDefaultActivityQuestWindowState = (): ActivityQuestWindowState => ({
   version: 1,
   activeCampaignId: null,

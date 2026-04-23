@@ -37,7 +37,7 @@ import {
   getPondableFish,
   isPondableFish
 } from '@/data/fishPond'
-import { POND_CONTEST_DEFS, createDefaultPondContestState, getWeeklyPondContestDef } from '@/data/fishPondContests'
+import { POND_CONTEST_DEFS, WS14_POND_CONTEST_DEFS, createDefaultPondContestState, getWeeklyPondContestDef } from '@/data/fishPondContests'
 import { getGen1BreedsForFish, findBreedByParents, getBreedById, getBreedsByGeneration } from '@/data/pondBreeds'
 import { getItemById } from '@/data/items'
 import { useGameStore } from './useGameStore'
@@ -513,8 +513,9 @@ export const useFishPondStore = defineStore('fishPond', () => {
     return true
   }
 
+  const pondContestDefs = [...POND_CONTEST_DEFS, ...WS14_POND_CONTEST_DEFS]
   const currentPondContestDef = computed(() =>
-    pondContestState.value.contestId ? POND_CONTEST_DEFS.find(entry => entry.id === pondContestState.value.contestId) ?? null : null
+    pondContestState.value.contestId ? pondContestDefs.find(entry => entry.id === pondContestState.value.contestId) ?? null : null
   )
   const contestUsesOrnamentalFeedBonus = (contest: PondContestDef): boolean =>
     contest.scoringMetric === 'showValue' || contest.scoringMetric === 'totalScore'

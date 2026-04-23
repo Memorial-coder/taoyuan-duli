@@ -767,18 +767,24 @@ export const WS10_EVENT_MAIL_TEMPLATE_REFS: EventMailTemplateRef[] = [
   {
     id: 'ws10_theme_week_settlement',
     templateType: 'activity_reward',
+    cadenceSlot: 'settlement',
+    linkedRouteLabels: ['Quest', 'Mail', 'TopGoals'],
     title: '主题周阶段结算',
     summary: '用于主题周中期 / 周末结算，回收主题周参与与奖励说明。'
   },
   {
     id: 'ws10_limited_time_campaign_notice',
     templateType: 'maintenance_notice',
+    cadenceSlot: 'opening',
+    linkedRouteLabels: ['Quest', 'Mail'],
     title: '限时活动说明',
     summary: '用于限时活动启用、规则说明与倒计时提醒。'
   },
   {
     id: 'ws10_activity_compensation',
     templateType: 'compensation',
+    cadenceSlot: 'compensation',
+    linkedRouteLabels: ['Mail', 'Hall'],
     title: '活动补偿说明',
     summary: '用于活动异常、补发奖励或临时降级时的补偿模板。'
   }
@@ -817,6 +823,168 @@ export const WS10_EVENT_CAMPAIGN_DEFS: EventCampaignDef[] = [
     linkedSystems: ['goal', 'quest', 'shop', 'system'],
     mailboxTemplateIds: ['ws10_theme_week_settlement', 'ws10_activity_compensation'],
     rewardSummary: '用于承接终局活动、共建收尾、补偿与长期回流说明。'
+  }
+]
+
+export const WS13_EVENT_MAIL_TEMPLATE_REFS: EventMailTemplateRef[] = [
+  {
+    id: 'ws13_activity_opening_brief',
+    templateType: 'activity_notice',
+    cadenceSlot: 'opening',
+    linkedRouteLabels: ['TopGoals', 'Quest', 'Mail'],
+    title: '本周活动开启说明',
+    summary: '用于在活动开始时说明本周活动主旋律、推荐路线和当前建议前往的玩法页。',
+    previewHeadline: '这封邮件会把“本周做什么、先去哪、先备什么”一次讲清楚。'
+  },
+  {
+    id: 'ws13_activity_midweek_digest',
+    templateType: 'activity_midweek',
+    cadenceSlot: 'midweek',
+    linkedRouteLabels: ['Mail', 'Quest', 'Hall'],
+    title: '活动周中提醒',
+    summary: '用于在周中提示活动剩余目标、可领取奖励和推荐补救路线。',
+    previewHeadline: '给回流玩家和中断中的玩家一个重新接回活动节奏的入口。'
+  },
+  {
+    id: 'ws13_activity_settlement_bonus',
+    templateType: 'activity_reward',
+    cadenceSlot: 'settlement',
+    linkedRouteLabels: ['Mail', 'TopGoals', 'Quest'],
+    title: '活动结算奖励',
+    summary: '用于活动收尾的主要结算奖励邮件，并附带下周推荐方向。',
+    previewHeadline: '奖励不再只是落袋，同时给出“下周去哪”的衔接说明。'
+  },
+  {
+    id: 'ws13_activity_next_week_preview',
+    templateType: 'activity_preview',
+    cadenceSlot: 'preview',
+    linkedRouteLabels: ['Mail', 'Shop', 'TopGoals'],
+    title: '下周活动预告',
+    summary: '用于在收尾阶段展示下周活动路线、建议物资和推荐页面。',
+    previewHeadline: '提前一封预告，把回流和囤货节奏一起做起来。'
+  }
+]
+
+export const WS13_EVENT_CAMPAIGN_DEFS: EventCampaignDef[] = [
+  {
+    id: 'ws13_campaign_fishpond_rotation',
+    label: '鱼塘周赛升级周',
+    description: '围绕春塘苏醒、夏夜展示与寒塘养护，把鱼塘周赛、待领取产物和展示池承接并入统一活动层。',
+    unlockTier: 'P0',
+    cadence: 'weekly',
+    variantGroup: 'fishpond',
+    targetAudience: ['newcomer_friendly', 'returnee_friendly'],
+    linkedThemeWeekIds: ['spring_pond_awakening', 'summer_pond_showcase', 'winter_pond_maintenance'],
+    linkedSystems: ['goal', 'quest', 'shop', 'fishPond'],
+    linkedRouteLabels: ['鱼塘', '任务', '邮箱'],
+    mailboxTemplateIds: ['ws13_activity_opening_brief', 'ws13_activity_midweek_digest', 'ws13_activity_settlement_bonus', 'ws13_activity_next_week_preview'],
+    mailCadence: ['opening', 'midweek', 'settlement', 'preview'],
+    shopBundleId: 'ws13_fishpond_rotation_bundle',
+    limitedQuestCampaignId: 'ws13_fishpond_rotation_window',
+    rewardTierId: 'steady',
+    onlineEngagementMode: 'hall_mail_ai',
+    priority: 30,
+    rewardSummary: '强调鱼塘周赛报名、产物承接、展示池镜像和活动奖励邮件的鱼塘活动周。'
+  },
+  {
+    id: 'ws13_campaign_breeding_rotation',
+    label: '育种周赛扩展周',
+    description: '围绕春种试育、盛夏量产、秋收精品与冬储补给，把育种周赛、图鉴推进和特种订单承接整合进活动层。',
+    unlockTier: 'P0',
+    cadence: 'weekly',
+    variantGroup: 'breeding',
+    targetAudience: ['newcomer_friendly', 'returnee_friendly'],
+    linkedThemeWeekIds: ['spring_sowing', 'summer_supply', 'autumn_harvest', 'winter_storage'],
+    linkedSystems: ['goal', 'quest', 'shop'],
+    linkedRouteLabels: ['育种', '任务', '商店'],
+    mailboxTemplateIds: ['ws13_activity_opening_brief', 'ws13_activity_midweek_digest', 'ws13_activity_settlement_bonus', 'ws13_activity_next_week_preview'],
+    mailCadence: ['opening', 'midweek', 'settlement', 'preview'],
+    shopBundleId: 'ws13_breeding_rotation_bundle',
+    limitedQuestCampaignId: 'ws13_breeding_rotation_window',
+    rewardTierId: 'steady',
+    onlineEngagementMode: 'hall_mail_ai',
+    priority: 30,
+    rewardSummary: '强调育种周赛、图鉴推进、研究补给与特种订单承接的育种活动周。'
+  },
+  {
+    id: 'ws13_campaign_museum_supply',
+    label: '博物馆策展供给周',
+    description: '围绕春研布展、秋展筹备和冬研考据，把学者委托、馆务展陈与活动邮件节奏整合到同一条策展线。',
+    unlockTier: 'P1',
+    cadence: 'biweekly',
+    variantGroup: 'museum',
+    targetAudience: ['returnee_friendly', 'endgame'],
+    linkedThemeWeekIds: ['spring_scholar', 'autumn_exhibition', 'winter_scholar'],
+    linkedSystems: ['goal', 'quest', 'shop'],
+    linkedRouteLabels: ['博物馆', '任务', '邮箱'],
+    mailboxTemplateIds: ['ws13_activity_opening_brief', 'ws13_activity_midweek_digest', 'ws13_activity_settlement_bonus', 'ws13_activity_next_week_preview'],
+    mailCadence: ['opening', 'midweek', 'settlement', 'preview'],
+    shopBundleId: 'ws13_museum_supply_bundle',
+    limitedQuestCampaignId: 'ws13_museum_supply_window',
+    rewardTierId: 'activity',
+    onlineEngagementMode: 'hall_mail_ai',
+    priority: 26,
+    rewardSummary: '强调馆区焦点、学者委托、展陈热度和活动承接提示的博物馆活动周。'
+  },
+  {
+    id: 'ws13_campaign_hanhai_supply',
+    label: '瀚海远征承接周',
+    description: '围绕夏行商路、冬储经营与豪华经营周，把瀚海商路、遗迹勘探和目录承接串成一条活动线。',
+    unlockTier: 'P1',
+    cadence: 'biweekly',
+    variantGroup: 'hanhai',
+    targetAudience: ['returnee_friendly', 'endgame'],
+    linkedThemeWeekIds: ['summer_caravan', 'winter_storage', 'late_sink_rotation'],
+    linkedSystems: ['goal', 'quest', 'shop', 'fishPond'],
+    linkedRouteLabels: ['瀚海', '任务', '商店'],
+    mailboxTemplateIds: ['ws13_activity_opening_brief', 'ws13_activity_midweek_digest', 'ws13_activity_settlement_bonus', 'ws13_activity_next_week_preview'],
+    mailCadence: ['opening', 'midweek', 'settlement', 'preview'],
+    shopBundleId: 'ws13_hanhai_supply_bundle',
+    limitedQuestCampaignId: 'ws13_hanhai_supply_window',
+    rewardTierId: 'activity',
+    onlineEngagementMode: 'hall_mail_ai',
+    priority: 26,
+    rewardSummary: '强调商路投资、遗迹勘探、轮换货架和高价目录承接的瀚海活动周。'
+  },
+  {
+    id: 'ws13_campaign_fishpond_showcase_wrapup',
+    label: '鱼塘展示收尾周',
+    description: '围绕展示池快照、博物馆加成和活动收尾，把本周高光鱼样和活动成果转成 Hall / Mail 的展示节奏。',
+    unlockTier: 'P2',
+    cadence: 'seasonal',
+    variantGroup: 'fishpond',
+    targetAudience: ['returnee_friendly', 'endgame'],
+    linkedThemeWeekIds: ['summer_pond_showcase', 'late_sink_rotation'],
+    linkedSystems: ['goal', 'quest', 'shop', 'fishPond'],
+    linkedRouteLabels: ['鱼塘', '大厅', '邮箱'],
+    mailboxTemplateIds: ['ws13_activity_settlement_bonus', 'ws13_activity_next_week_preview', 'ws10_activity_compensation'],
+    mailCadence: ['settlement', 'preview', 'compensation'],
+    shopBundleId: 'ws13_fishpond_showcase_bundle',
+    limitedQuestCampaignId: 'ws13_fishpond_showcase_window',
+    rewardTierId: 'showcase',
+    onlineEngagementMode: 'hall_mail_ai',
+    priority: 20,
+    rewardSummary: '强调鱼塘高光样本展示、收尾回顾与下一轮准备的活动收尾周。'
+  },
+  {
+    id: 'ws13_campaign_hanhai_patron_wrapup',
+    label: '瀚海赞助收尾周',
+    description: '围绕豪华经营周的赞助、收尾与共建编排，让 Hanhai / Museum / Shop 的终局承接以一场活动收束。',
+    unlockTier: 'P2',
+    cadence: 'seasonal',
+    variantGroup: 'hanhai',
+    targetAudience: ['returnee_friendly', 'endgame'],
+    linkedThemeWeekIds: ['late_sink_rotation', 'winter_mining'],
+    linkedSystems: ['goal', 'quest', 'shop', 'system'],
+    linkedRouteLabels: ['瀚海', '博物馆', '大厅'],
+    mailboxTemplateIds: ['ws13_activity_settlement_bonus', 'ws13_activity_next_week_preview', 'ws10_activity_compensation'],
+    mailCadence: ['settlement', 'preview', 'compensation'],
+    shopBundleId: 'ws13_hanhai_patron_bundle',
+    limitedQuestCampaignId: 'ws13_hanhai_patron_window',
+    rewardTierId: 'showcase',
+    onlineEngagementMode: 'hall_mail_ai',
+    priority: 20,
+    rewardSummary: '强调瀚海赞助、展陈收尾和回流预告的终局活动收尾周。'
   }
 ]
 

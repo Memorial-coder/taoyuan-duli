@@ -103,9 +103,14 @@ export interface ShopCatalogActivityOfferBundleDef {
   label: string
   description: string
   unlockTier: ShopCatalogContentTier
+  variantGroup?: 'fishpond' | 'breeding' | 'museum' | 'hanhai'
+  targetAudience?: Array<'newcomer_friendly' | 'returnee_friendly' | 'endgame'>
   linkedThemeWeekIds?: string[]
   recommendedOfferIds: string[]
   linkedSystems: ShopCatalogLinkedSystem[]
+  linkedRouteLabels?: string[]
+  rewardTierId?: string
+  onlineEngagementMode?: 'local_first' | 'hall_mail_ai'
 }
 
 export interface ShopCatalogOfferDef {

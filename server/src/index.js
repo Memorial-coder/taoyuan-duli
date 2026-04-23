@@ -5,7 +5,6 @@ const path = require('path');
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 require('dotenv').config({ path: path.join(__dirname, '../../.env'), override: true });
-require('dotenv').config({ path: path.join(__dirname, '../.env.offical'), override: true });
 require('dotenv').config({ path: path.join(__dirname, '../../.env.offical'), override: true });
 
 if (!process.env.DB_STORAGE) {
@@ -132,32 +131,11 @@ function validateCriticalEnv() {
     }
   }
   const officialControlPlatformEnabled = String(process.env.OFFICIAL_CONTROL_PLATFORM_ENABLED || '').trim().toLowerCase() === 'true';
-  const officialControlEnabled = String(process.env.OFFICIAL_CONTROL_ENABLED || '').trim().toLowerCase() === 'true';
-  if (officialControlEnabled && !officialControlPlatformEnabled) {
-    const requiredOfficialEnv = [
-      'OFFICIAL_CONTROL_BASE_URL',
-      'OFFICIAL_INSTANCE_ID',
-      'OFFICIAL_LICENSE_KEY',
-      'OFFICIAL_PUBLIC_ORIGIN',
-      'OFFICIAL_CONTROL_PUBLIC_KEY',
-    ].filter(key => !String(process.env[key] || '').trim());
-
-    if (requiredOfficialEnv.length) {
-      throw new Error(`OFFICIAL_CONTROL_ENABLED=true 时缺少必要环境变量：${requiredOfficialEnv.join(', ')}`);
-    }
-
-    const baseUrl = new URL(String(process.env.OFFICIAL_CONTROL_BASE_URL || '').trim());
-    const isLocalOfficialControl = ['127.0.0.1', 'localhost', '::1'].includes(String(baseUrl.hostname || '').trim().toLowerCase());
-    if (baseUrl.protocol !== 'https:' && !isLocalOfficialControl) {
-      throw new Error('OFFICIAL_CONTROL_BASE_URL 必须使用 HTTPS，除非显式指向 localhost/127.0.0.1');
-    }
-
-    const cacheTtl = String(process.env.OFFICIAL_CONTROL_CACHE_TTL_SEC || '').trim();
-    if (cacheTtl) {
-      const parsedCacheTtl = parseInt(cacheTtl, 10);
-      if (!Number.isInteger(parsedCacheTtl) || parsedCacheTtl <= 0) {
-        throw new Error('OFFICIAL_CONTROL_CACHE_TTL_SEC 必须是正整数');
-      }
+  const cacheTtl = String(process.env.OFFICIAL_CONTROL_CACHE_TTL_SEC || '').trim();
+  if (cacheTtl) {
+    const parsedCacheTtl = parseInt(cacheTtl, 10);
+    if (!Number.isInteger(parsedCacheTtl) || parsedCacheTtl <= 0) {
+      throw new Error('OFFICIAL_CONTROL_CACHE_TTL_SEC 必须是正整数');
     }
   }
 

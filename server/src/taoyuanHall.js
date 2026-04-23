@@ -365,6 +365,11 @@ function normalizePost(post) {
     best_reply_id: post.best_reply_id ? String(post.best_reply_id) : null,
     reward_paid_to: post.reward_paid_to ? String(post.reward_paid_to) : null,
     reward_paid_at: Number(post.reward_paid_at) || null,
+    is_official: post.is_official === true,
+    official_template_type: post.official_template_type ? String(post.official_template_type).slice(0, 40) : null,
+    activity_source_id: post.activity_source_id ? String(post.activity_source_id).slice(0, 64) : null,
+    activity_source_label: post.activity_source_label ? String(post.activity_source_label).slice(0, 80) : null,
+    related_route_labels: Array.isArray(post.related_route_labels) ? post.related_route_labels.map(String).slice(0, 6) : [],
     hidden: post.hidden === true,
     hidden_reason: post.hidden_reason ? String(post.hidden_reason).slice(0, 120) : null,
     author: String(post.author || ''),
@@ -471,6 +476,11 @@ function buildSummary(post, viewerUsername = '') {
     title: post.title,
     preview,
     type: post.type,
+    is_official: post.is_official === true,
+    official_template_type: post.official_template_type || null,
+    activity_source_id: post.activity_source_id || null,
+    activity_source_label: post.activity_source_label || null,
+    related_route_labels: Array.isArray(post.related_route_labels) ? [...post.related_route_labels] : [],
     solved: post.type === 'help' ? post.solved === true : false,
     reward_enabled: post.reward_enabled === true,
     reward_amount: Math.max(0, Math.floor(Number(post.reward_amount) || 0)),
@@ -515,7 +525,7 @@ function buildDetail(post, viewerUsername = '') {
   }
 }
 
-function listPosts({ category = 'all', sort = 'latest', mine = 'all', viewerUsername = '', keyword = '', page = 1, pageSize = DEFAULT_PAGE_SIZE } = {}) {
+function listPosts({ category = 'all', sort = 'latest', mine = 'all', viewerUsername = '', keyword = '', activitySourceId = '', page = 1, pageSize = DEFAULT_PAGE_SIZE } = {}) {
   const data = loadHallData()
   let posts = [...data.posts].filter(post => post.hidden !== true)
   const normalizedKeyword = sanitizeText(keyword, 50).toLowerCase()
@@ -539,6 +549,10 @@ function listPosts({ category = 'all', sort = 'latest', mine = 'all', viewerUser
       const haystack = `${post.title}\n${post.content}`.toLowerCase()
       return haystack.includes(normalizedKeyword)
     })
+  }
+
+  if (activitySourceId) {
+    posts = posts.filter(post => String(post.activity_source_id || '') === String(activitySourceId))
   }
 
   posts.sort((a, b) => {
@@ -576,7 +590,20 @@ function getPost(postId, viewerUsername = '') {
   return buildDetail(post, viewerUsername)
 }
 
-async function createPost({ title, content, blocks, type, author, authorDisplayName, rewardAmount }) {
+async function createPost({
+  title,
+  content,
+  blocks,
+  type,
+  author,
+  authorDisplayName,
+  rewardAmount,
+  isOfficial = false,
+  officialTemplateType = '',
+  activitySourceId = '',
+  activitySourceLabel = '',
+  relatedRouteLabels = [],
+}) {
   const cleanTitle = sanitizeText(title, 60)
   const cleanType = type === 'help' ? 'help' : 'discussion'
   const cleanBlocks = sanitizeBlocksForStorage(blocks, content)
@@ -608,6 +635,11 @@ async function createPost({ title, content, blocks, type, author, authorDisplayN
         best_reply_id: null,
         reward_paid_to: null,
         reward_paid_at: null,
+        is_official: isOfficial === true,
+        official_template_type: officialTemplateType ? String(officialTemplateType).slice(0, 40) : null,
+        activity_source_id: activitySourceId ? String(activitySourceId).slice(0, 64) : null,
+        activity_source_label: activitySourceLabel ? String(activitySourceLabel).slice(0, 80) : null,
+        related_route_labels: Array.isArray(relatedRouteLabels) ? relatedRouteLabels.map(item => String(item).slice(0, 40)).slice(0, 6) : [],
         author: String(author || ''),
         author_display_name: String(authorDisplayName || author || '匿名'),
         created_at: now,

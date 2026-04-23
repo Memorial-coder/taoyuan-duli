@@ -76,6 +76,7 @@ export interface MuseumScholarCommissionDef {
   title: string
   hallZoneId: MuseumHallZoneId
   difficulty: MuseumCommissionDifficulty
+  variantGroup?: 'mineral' | 'fossil' | 'artifact' | 'spirit'
   unlockExhibitLevel: number
   requiredHallLevel: number
   preferredCategories: MuseumCategory[]
@@ -83,6 +84,8 @@ export interface MuseumScholarCommissionDef {
   ratingTarget: number
   trafficTarget: number
   durationDays: number
+  linkedRouteLabels?: string[]
+  rewardTierId?: string
   reward: {
     money?: number
     reputation?: number

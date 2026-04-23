@@ -316,11 +316,15 @@ export interface LimitedTimeQuestCampaignDef {
   description: string
   unlockTier: 'P0' | 'P1' | 'P2'
   linkedCampaignId: string
+  variantGroup?: 'fishpond' | 'breeding' | 'museum' | 'hanhai'
   preferredThemeTag?: QuestThemeTag
   activitySourceId: string
   activitySourceLabel: string
   durationDays: number
   recommendedOfferIds?: string[]
+  linkedRouteLabels?: string[]
+  rewardTierId?: string
+  onlineEngagementMode?: 'local_first' | 'hall_mail_ai'
   rewardSummary: string
 }
 

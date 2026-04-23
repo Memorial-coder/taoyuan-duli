@@ -64,8 +64,8 @@ export const NPCS: NpcDef[] = [
     zhijiHeartEventIds: ['liu_niang_zhiji_7', 'liu_niang_zhiji_9'],
     companionshipTier: 'P0',
     householdRoleIds: ['home_care', 'social_coordination'],
-    familyWishIds: ['wish_shared_breakfast', 'wish_lakeside_outing'],
-    zhijiProjectIds: ['zhiji_story_salon', 'zhiji_household_archive']
+    familyWishIds: ['wish_shared_breakfast', 'wish_lakeside_outing', 'wish_market_feast'],
+    zhijiProjectIds: ['zhiji_story_salon', 'zhiji_household_archive', 'zhiji_festival_dispatch']
   },
   {
     id: 'a_shi',
@@ -94,8 +94,8 @@ export const NPCS: NpcDef[] = [
     zhijiHeartEventIds: ['a_shi_zhiji_7', 'a_shi_zhiji_9'],
     companionshipTier: 'P1',
     householdRoleIds: ['craft_assist', 'field_support'],
-    familyWishIds: ['wish_legacy_archive'],
-    zhijiProjectIds: ['zhiji_household_archive', 'zhiji_legacy_route']
+    familyWishIds: ['wish_legacy_archive', 'wish_archive_patron'],
+    zhijiProjectIds: ['zhiji_household_archive', 'zhiji_legacy_route', 'zhiji_specimen_route']
   },
   {
     id: 'qiu_yue',
@@ -128,8 +128,8 @@ export const NPCS: NpcDef[] = [
     zhijiHeartEventIds: ['qiu_yue_zhiji_7', 'qiu_yue_zhiji_9'],
     companionshipTier: 'P0',
     householdRoleIds: ['field_support', 'social_coordination'],
-    familyWishIds: ['wish_lakeside_outing'],
-    zhijiProjectIds: ['zhiji_story_salon']
+    familyWishIds: ['wish_lakeside_outing', 'wish_pond_moonwatch'],
+    zhijiProjectIds: ['zhiji_story_salon', 'zhiji_tide_route']
   },
   {
     id: 'lin_lao',
@@ -200,8 +200,8 @@ export const NPCS: NpcDef[] = [
     zhijiHeartEventIds: ['chun_lan_zhiji_7', 'chun_lan_zhiji_9'],
     companionshipTier: 'P1',
     householdRoleIds: ['home_care', 'craft_assist'],
-    familyWishIds: ['wish_shared_breakfast', 'wish_legacy_archive'],
-    zhijiProjectIds: ['zhiji_story_salon', 'zhiji_household_archive']
+    familyWishIds: ['wish_shared_breakfast', 'wish_legacy_archive', 'wish_spirit_archive'],
+    zhijiProjectIds: ['zhiji_story_salon', 'zhiji_household_archive', 'zhiji_spirit_salvage']
   },
   {
     id: 'xue_qin',
@@ -947,6 +947,172 @@ export const WS09_ZHIJI_COMPANION_PROJECT_DEFS: ZhijiCompanionProjectDef[] = [
       money: 2400,
       items: [{ itemId: 'hanhai_silk', quantity: 1 }]
     }
+  }
+]
+
+export const WS15_FAMILY_WISH_DEFS: FamilyWishDef[] = [
+  {
+    id: 'wish_market_feast',
+    title: '集市共宴',
+    description: '围绕活动周中的商店补给、料理筹备和好友往来组织一条更偏“节奏承接”的家庭心愿。',
+    unlockTier: 'P1',
+    category: 'social',
+    linkedSystem: 'quest',
+    targetValue: 4,
+    durationDays: 7,
+    rewardSummary: '完成后会返还一笔集市活动经费，并给活动承接型路线补一轮基础物资。',
+    reward: {
+      money: 1100,
+      items: [{ itemId: 'food_rice_ball', quantity: 3 }, { itemId: 'hanhai_spice', quantity: 1 }]
+    },
+    linkedNpcIds: ['liu_niang', 'chun_lan', 'mo_bai'],
+    recommendedRoleId: 'social_coordination',
+    steps: [
+      { id: 'wish_market_feast_trigger', title: '准备邀约', summary: '先把本周活动焦点、当前可领奖点和料理方向整理清楚。', stepType: 'trigger', linkedSystem: 'quest', routeName: 'quest' },
+      { id: 'wish_market_feast_weekly', title: '周中共宴', summary: '在周中推进料理、商店采买和同行互动，让活动节奏不只停在领奖。', stepType: 'weekly', linkedSystem: 'home', routeName: 'shop' },
+      { id: 'wish_market_feast_settlement', title: '收尾分享', summary: '在收尾时把成果同步到邮箱和活动展示节奏，形成下一周的准备感。', stepType: 'settlement', linkedSystem: 'goal', routeName: 'mail' }
+    ]
+  },
+  {
+    id: 'wish_archive_patron',
+    title: '馆藏赞助',
+    description: '围绕博物馆展陈、家庭档案和高价值收藏组织一条更偏后期展示的家庭心愿。',
+    unlockTier: 'P2',
+    category: 'childcare',
+    linkedSystem: 'goal',
+    targetValue: 2,
+    durationDays: 14,
+    rewardSummary: '完成后会返还一笔馆藏赞助资金，帮助衔接展陈和终局展示路线。',
+    reward: {
+      money: 2200,
+      items: [{ itemId: 'silk', quantity: 2 }, { itemId: 'ancient_tablet', quantity: 1 }]
+    },
+    linkedNpcIds: ['a_shi', 'dan_qing', 'mo_bai'],
+    recommendedRoleId: 'craft_assist',
+    steps: [
+      { id: 'wish_archive_patron_trigger', title: '整理家业', summary: '先把当前馆藏、家业目标和活动展示路线整理成可推进的收尾焦点。', stepType: 'trigger', linkedSystem: 'goal', routeName: 'home' },
+      { id: 'wish_archive_patron_weekly', title: '筹备赞助', summary: '周中推进收藏、展陈和样本准备，把家庭主题接到博物馆与瀚海。', stepType: 'weekly', linkedSystem: 'breeding', routeName: 'museum' },
+      { id: 'wish_archive_patron_settlement', title: '完成赞助', summary: '在收尾时把赞助和展示收益同步到长期目标和后续活动链路。', stepType: 'settlement', linkedSystem: 'goal', routeName: 'hanhai' }
+    ]
+  },
+  {
+    id: 'wish_pond_moonwatch',
+    title: '月下看塘',
+    description: '围绕夜间外出、鱼塘高光样本和轻陪伴互动组织一条更适合活动周的家庭心愿。',
+    unlockTier: 'P1',
+    category: 'social',
+    linkedSystem: 'fishing',
+    targetValue: 4,
+    durationDays: 7,
+    rewardSummary: '完成后会返还一笔夜游活动经费，并补一轮鱼塘养护物资。',
+    reward: {
+      money: 1200,
+      items: [{ itemId: 'bait', quantity: 4 }, { itemId: 'fish_feed', quantity: 1 }]
+    },
+    linkedNpcIds: ['qiu_yue', 'da_niu'],
+    recommendedRoleId: 'social_coordination',
+    steps: [
+      { id: 'wish_pond_moonwatch_trigger', title: '整理鱼样', summary: '先挑出本周最适合展示和报名的鱼样，确认本周鱼塘活动焦点。', stepType: 'trigger', linkedSystem: 'fishing', routeName: 'fishpond' },
+      { id: 'wish_pond_moonwatch_weekly', title: '夜游承接', summary: '在周中推进夜钓、养护和同行互动，让鱼塘线形成生活感。', stepType: 'weekly', linkedSystem: 'fishing', routeName: 'fishing' },
+      { id: 'wish_pond_moonwatch_settlement', title: '展示收尾', summary: '把活动成果转进展示池、任务板和邮箱提示，形成下一轮水产经营方向。', stepType: 'settlement', linkedSystem: 'goal', routeName: 'mail' }
+    ]
+  },
+  {
+    id: 'wish_spirit_archive',
+    title: '灵缘札记',
+    description: '围绕仙灵记忆、家园布置和非战斗长线目标组织一条更偏叙事承接的家庭心愿。',
+    unlockTier: 'P2',
+    category: 'spirit',
+    linkedSystem: 'goal',
+    targetValue: 2,
+    durationDays: 14,
+    rewardSummary: '完成后会返还一笔灵缘整理资金，帮助衔接仙灵记忆、展陈和活动预告。',
+    reward: {
+      money: 2100,
+      items: [{ itemId: 'spirit_feather', quantity: 1 }, { itemId: 'wild_mushroom', quantity: 4 }]
+    },
+    linkedNpcIds: ['mo_bai', 'liu_niang'],
+    recommendedRoleId: 'home_care',
+    steps: [
+      { id: 'wish_spirit_archive_trigger', title: '整理线索', summary: '先确认当前仙灵焦点、家庭目标和本周活动的叙事落点。', stepType: 'trigger', linkedSystem: 'goal', routeName: 'village' },
+      { id: 'wish_spirit_archive_weekly', title: '周中记录', summary: '周中推进供奉、家园布置和同行互动，让仙缘线有清晰承接。', stepType: 'weekly', linkedSystem: 'home', routeName: 'home' },
+      { id: 'wish_spirit_archive_settlement', title: '收尾归档', summary: '在收尾时把灵缘成果同步到任务板、邮箱和下周活动预告。', stepType: 'settlement', linkedSystem: 'goal', routeName: 'mail' }
+    ]
+  }
+]
+
+export const WS15_ZHIJI_COMPANION_PROJECT_DEFS: ZhijiCompanionProjectDef[] = [
+  {
+    id: 'zhiji_festival_dispatch',
+    label: '节气递送',
+    description: '围绕活动邮件、商店补给和玩家求助节奏建立第二批知己协作项目。',
+    unlockTier: 'P1',
+    linkedSystem: 'quest',
+    milestoneTarget: 2,
+    rewardSummary: '完成后会返还一笔活动承接资金，并补齐一轮商店与邮箱节奏。',
+    reward: {
+      money: 1200,
+      items: [{ itemId: 'food_rice_ball', quantity: 2 }]
+    },
+    steps: [
+      { id: 'zhiji_festival_dispatch_trigger', title: '记录缺口', summary: '先确认当前活动周缺的是承接、领奖还是求助流量。', stepType: 'trigger', linkedSystem: 'quest', routeName: 'quest' },
+      { id: 'zhiji_festival_dispatch_weekly', title: '周中协作', summary: '周中推进商店补给、任务承接和活动邮件节奏。', stepType: 'weekly', linkedSystem: 'quest', routeName: 'mail' },
+      { id: 'zhiji_festival_dispatch_settlement', title: '收尾反馈', summary: '收尾时把这条协作线转成活动摘要和玩家求助承接。', stepType: 'settlement', linkedSystem: 'quest', routeName: 'hall' }
+    ]
+  },
+  {
+    id: 'zhiji_specimen_route',
+    label: '样本护送',
+    description: '围绕鱼塘 / 博物馆 / 瀚海样本运输建立第二批知己协作项目。',
+    unlockTier: 'P2',
+    linkedSystem: 'fishing',
+    milestoneTarget: 3,
+    rewardSummary: '完成后会返还一笔样本护送资金，并给鱼塘和馆务路线补给一轮物资。',
+    reward: {
+      money: 1800,
+      items: [{ itemId: 'bait', quantity: 3 }, { itemId: 'hanhai_map', quantity: 1 }]
+    },
+    steps: [
+      { id: 'zhiji_specimen_route_trigger', title: '确认样本', summary: '先选出本周最值得推进的鱼样、馆藏或遗迹样本。', stepType: 'trigger', linkedSystem: 'fishing', routeName: 'fishpond' },
+      { id: 'zhiji_specimen_route_weekly', title: '推进护送', summary: '周中推进样本护送与活动承接，让鱼塘、博物馆和瀚海三线接通。', stepType: 'weekly', linkedSystem: 'fishing', routeName: 'museum' },
+      { id: 'zhiji_specimen_route_settlement', title: '形成闭环', summary: '收尾时把样本成果转成活动总结和下周推荐。', stepType: 'settlement', linkedSystem: 'quest', routeName: 'hanhai' }
+    ]
+  },
+  {
+    id: 'zhiji_tide_route',
+    label: '潮汐同行',
+    description: '围绕夜游、垂钓和水产周赛承接建立第二批知己协作项目。',
+    unlockTier: 'P1',
+    linkedSystem: 'fishing',
+    milestoneTarget: 2,
+    rewardSummary: '完成后会返还一笔外出经费，并补一轮鱼塘养护与轻量活动承接。',
+    reward: {
+      money: 1100,
+      items: [{ itemId: 'fish_feed', quantity: 1 }, { itemId: 'bait', quantity: 2 }]
+    },
+    steps: [
+      { id: 'zhiji_tide_route_trigger', title: '确定钓点', summary: '先确认本周活动最值得承接的钓点和鱼塘目标。', stepType: 'trigger', linkedSystem: 'fishing', routeName: 'fishing' },
+      { id: 'zhiji_tide_route_weekly', title: '同行推进', summary: '周中推进垂钓、养护和周赛报名，让活动节奏更完整。', stepType: 'weekly', linkedSystem: 'fishing', routeName: 'fishpond' },
+      { id: 'zhiji_tide_route_settlement', title: '分享鱼获', summary: '收尾时把鱼获和推荐路线同步到活动摘要。', stepType: 'settlement', linkedSystem: 'quest', routeName: 'mail' }
+    ]
+  },
+  {
+    id: 'zhiji_spirit_salvage',
+    label: '灵缘拾遗',
+    description: '围绕仙灵记忆、家园布置和展陈承接建立第二批知己协作项目。',
+    unlockTier: 'P2',
+    linkedSystem: 'home',
+    milestoneTarget: 4,
+    rewardSummary: '完成后会返还一笔灵缘整理经费，并给活动摘要和展示节奏补一轮承接。',
+    reward: {
+      money: 1600,
+      items: [{ itemId: 'spirit_feather', quantity: 1 }, { itemId: 'silk', quantity: 1 }]
+    },
+    steps: [
+      { id: 'zhiji_spirit_salvage_trigger', title: '整理旧线索', summary: '先确认当前家庭心愿、仙灵焦点和活动承接中哪一段最缺内容。', stepType: 'trigger', linkedSystem: 'home', routeName: 'village' },
+      { id: 'zhiji_spirit_salvage_weekly', title: '周中归整', summary: '周中推进家园布置、灵缘记忆和非战斗路线承接。', stepType: 'weekly', linkedSystem: 'home', routeName: 'home' },
+      { id: 'zhiji_spirit_salvage_settlement', title: '转成展示', summary: '收尾时把灵缘成果转成活动展示、推荐摘要和下一周预告。', stepType: 'settlement', linkedSystem: 'goal', routeName: 'mail' }
+    ]
   }
 ]
 

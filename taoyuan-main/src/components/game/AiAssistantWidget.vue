@@ -81,9 +81,17 @@
   import { useRoute, useRouter } from 'vue-router'
   import { Bot, Send, Shield, Sparkles, Trash2, X } from 'lucide-vue-next'
   import { useAiAssistantStore } from '@/stores/useAiAssistantStore'
+  import { useGoalStore } from '@/stores/useGoalStore'
+  import { useQuestStore } from '@/stores/useQuestStore'
+  import { useNpcStore } from '@/stores/useNpcStore'
+  import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { renderSafeMarkdown } from '@/utils/safeMarkdown'
 
   const store = useAiAssistantStore()
+  const goalStore = useGoalStore()
+  const questStore = useQuestStore()
+  const npcStore = useNpcStore()
+  const hiddenNpcStore = useHiddenNpcStore()
   const route = useRoute()
   const router = useRouter()
 
@@ -136,6 +144,29 @@
     return quickQuestionMap[currentRouteName.value] || ['这个游戏新手怎么玩？', '当前页面主要功能是什么？', '我接下来应该优先做什么？']
   })
 
+  const aiContextSnapshot = computed(() => {
+    const familyWishOverview = npcStore.getFamilyWishOverview()
+    const activeFamilyWish = familyWishOverview.defs.find(def => def.id === familyWishOverview.state.activeWishId) ?? null
+    const bondedNpc = hiddenNpcStore.getBondedNpc
+    return {
+      currentThemeWeekId: goalStore.currentThemeWeek?.id,
+      currentThemeWeekLabel: goalStore.currentThemeWeek?.name,
+      currentEventCampaignId: goalStore.currentEventCampaign?.id,
+      currentEventCampaignLabel: goalStore.currentEventCampaign?.label,
+      currentLimitedQuestCampaignId: questStore.currentLimitedTimeQuestCampaign?.id,
+      currentLimitedQuestLabel: questStore.currentLimitedTimeQuestCampaign?.label,
+      activeFamilyWishId: activeFamilyWish?.id,
+      activeFamilyWishTitle: activeFamilyWish?.title,
+      bondedSpiritId: bondedNpc?.id,
+      bondedSpiritName: bondedNpc?.name,
+      highlightedRouteLabels: [...(goalStore.currentEventCampaign?.linkedRouteLabels ?? [])],
+      previewMailTitles: goalStore.eventMailTemplateRefs
+        .filter(template => goalStore.currentEventCampaign?.mailboxTemplateIds.includes(template.id))
+        .map(template => template.title)
+        .slice(0, 4),
+    }
+  })
+
   const renderMessage = (content: string) => renderSafeMarkdown(content)
 
   const scrollToBottom = async () => {
@@ -152,6 +183,7 @@
     await store.askQuestion(value, {
       routeName: currentRouteName.value,
       contextLabel: currentContextLabel.value,
+      contextSnapshot: aiContextSnapshot.value,
     })
     await scrollToBottom()
   }

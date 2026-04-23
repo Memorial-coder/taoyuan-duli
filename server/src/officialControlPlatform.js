@@ -453,6 +453,15 @@ function resolveDistributionConfig(input = {}) {
   return envelope;
 }
 
+function resolvePublicDistributionConfig() {
+  assertPlatformEnabled();
+  const envelope = getCurrentEnvelope();
+  if (!envelope) {
+    throw createError('官方配置尚未发布', 404);
+  }
+  return envelope;
+}
+
 module.exports = {
   MANAGED_KEYS,
   DEFAULT_VALUES,
@@ -468,5 +477,6 @@ module.exports = {
   updateInstanceStatus,
   resetInstanceLicense,
   verifyAdminPassword,
+  resolvePublicDistributionConfig,
   resolveDistributionConfig,
 };

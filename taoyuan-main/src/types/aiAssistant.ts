@@ -185,6 +185,21 @@ export interface AiAssistantAskResult {
   trace?: AiAssistantDebugTrace
 }
 
+export interface AiAssistantContextSnapshot {
+  currentThemeWeekId?: string
+  currentThemeWeekLabel?: string
+  currentEventCampaignId?: string
+  currentEventCampaignLabel?: string
+  currentLimitedQuestCampaignId?: string
+  currentLimitedQuestLabel?: string
+  activeFamilyWishId?: string
+  activeFamilyWishTitle?: string
+  bondedSpiritId?: string
+  bondedSpiritName?: string
+  highlightedRouteLabels?: string[]
+  previewMailTitles?: string[]
+}
+
 export interface AiAssistantMessage {
   id: string
   role: AiAssistantRole

@@ -18,6 +18,7 @@ import { isTravelingMerchantDay, generateMerchantStock, TRAVELING_MERCHANT_POOL 
 import {
   SHOP_CATALOG_OFFERS,
   WS10_ACTIVITY_OFFER_BUNDLES,
+  WS13_ACTIVITY_OFFER_BUNDLES,
   SHOP_CATALOG_LUXURY_BASELINE_AUDIT,
   SHOP_CATALOG_TUNING_CONFIG,
   createDefaultShopCatalogExpansionState,
@@ -243,12 +244,13 @@ export const useShopStore = defineStore('shop', () => {
   const availableCatalogOffers = computed(() =>
     SHOP_CATALOG_OFFERS.filter(offer => isCatalogOfferVisibleForCurrentSeason(offer))
   )
+  const activityOfferBundles = [...WS10_ACTIVITY_OFFER_BUNDLES, ...WS13_ACTIVITY_OFFER_BUNDLES]
   const recommendedCatalogOffers = computed(() => {
     const walletStore = useWalletStore()
     const goalStore = useGoalStore()
     const themeWeek = goalStore.currentThemeWeek
     const activeCampaignBundle = goalStore.currentEventCampaign
-      ? WS10_ACTIVITY_OFFER_BUNDLES.find(bundle => bundle.campaignId === goalStore.currentEventCampaign?.id) ?? null
+      ? activityOfferBundles.find(bundle => bundle.campaignId === goalStore.currentEventCampaign?.id) ?? null
       : null
     const economyOverview = usePlayerStore().getEconomyOverview()
     const recommendedSinkSystems = new Set(
@@ -307,7 +309,7 @@ export const useShopStore = defineStore('shop', () => {
   const activityCampaignOfferBundle = computed(() => {
     const goalStore = useGoalStore()
     if (!goalStore.currentEventCampaign) return null
-    return WS10_ACTIVITY_OFFER_BUNDLES.find(bundle => bundle.campaignId === goalStore.currentEventCampaign?.id) ?? null
+    return activityOfferBundles.find(bundle => bundle.campaignId === goalStore.currentEventCampaign?.id) ?? null
   })
   const activityCampaignOfferRecommendations = computed(() =>
     activityCampaignOfferBundle.value

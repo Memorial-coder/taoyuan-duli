@@ -220,6 +220,106 @@ export const MUSEUM_SCHOLAR_COMMISSIONS: MuseumScholarCommissionDef[] = [
   }
 ]
 
+export const WS14_MUSEUM_SCHOLAR_COMMISSIONS: MuseumScholarCommissionDef[] = [
+  {
+    id: 'mineral_trade_register',
+    title: '矿晶交流名录',
+    hallZoneId: 'mineral_hall',
+    difficulty: 'advanced',
+    variantGroup: 'mineral',
+    unlockExhibitLevel: 18,
+    requiredHallLevel: 2,
+    preferredCategories: ['ore', 'gem'],
+    requiredDonationCount: 18,
+    ratingTarget: 38,
+    trafficTarget: 54,
+    durationDays: 8,
+    linkedRouteLabels: ['博物馆', '商店'],
+    rewardTierId: 'activity',
+    reward: { money: 2600, reputation: 2 },
+    contentTier: 'P1',
+    summary: '围绕矿晶馆二期策展与交易样本整理的第二批矿晶馆委托。'
+  },
+  {
+    id: 'mineral_patron_gallery',
+    title: '古矿指引展',
+    hallZoneId: 'mineral_hall',
+    difficulty: 'prestige',
+    variantGroup: 'mineral',
+    unlockExhibitLevel: 24,
+    requiredHallLevel: 2,
+    preferredCategories: ['ore', 'gem'],
+    requiredDonationCount: 24,
+    ratingTarget: 56,
+    trafficTarget: 78,
+    durationDays: 12,
+    linkedRouteLabels: ['博物馆', '瀚海'],
+    rewardTierId: 'showcase',
+    reward: { money: 4200, reputation: 3 },
+    contentTier: 'P2',
+    summary: '围绕高阶矿晶展厅和终局展示赞助的矿晶馆高阶委托。'
+  },
+  {
+    id: 'artifact_trade_story',
+    title: '古物流转记忆',
+    hallZoneId: 'artifact_hall',
+    difficulty: 'advanced',
+    variantGroup: 'artifact',
+    unlockExhibitLevel: 20,
+    requiredHallLevel: 1,
+    preferredCategories: ['artifact'],
+    requiredDonationCount: 20,
+    ratingTarget: 40,
+    trafficTarget: 58,
+    durationDays: 9,
+    linkedRouteLabels: ['博物馆', '任务'],
+    rewardTierId: 'activity',
+    reward: { money: 2800, reputation: 2 },
+    contentTier: 'P1',
+    summary: '围绕古物馆交流叙事与第二批活动承接的古物馆委托。'
+  },
+  {
+    id: 'artifact_patron_wrapup',
+    title: '古物收尾展',
+    hallZoneId: 'artifact_hall',
+    difficulty: 'prestige',
+    variantGroup: 'artifact',
+    unlockExhibitLevel: 26,
+    requiredHallLevel: 1,
+    preferredCategories: ['artifact', 'spirit'],
+    requiredDonationCount: 26,
+    ratingTarget: 62,
+    trafficTarget: 84,
+    durationDays: 12,
+    linkedRouteLabels: ['博物馆', '大厅'],
+    rewardTierId: 'showcase',
+    reward: { money: 4600, reputation: 3 },
+    contentTier: 'P2',
+    summary: '围绕古物馆高光展陈、活动收尾和大厅展示承接的古物馆高阶委托。'
+  },
+  {
+    id: 'spirit_bond_curation',
+    title: '灵物共鸣布展',
+    hallZoneId: 'spirit_hall',
+    difficulty: 'prestige',
+    variantGroup: 'spirit',
+    unlockExhibitLevel: 24,
+    requiredHallLevel: 1,
+    preferredCategories: ['spirit', 'artifact'],
+    requiredDonationCount: 22,
+    ratingTarget: 58,
+    trafficTarget: 80,
+    durationDays: 12,
+    linkedRouteLabels: ['博物馆', '仙灵'],
+    rewardTierId: 'showcase',
+    reward: { money: 4300, reputation: 4 },
+    contentTier: 'P2',
+    summary: '围绕灵物馆、仙灵结缘记忆和活动展示承接的第二批灵物馆委托。'
+  }
+]
+
+const ALL_MUSEUM_SCHOLAR_COMMISSIONS = [...MUSEUM_SCHOLAR_COMMISSIONS, ...WS14_MUSEUM_SCHOLAR_COMMISSIONS]
+
 export const MUSEUM_SHRINE_THEMES: MuseumShrineThemeDef[] = [
   {
     id: 'ancestral_echo',
@@ -305,7 +405,7 @@ export const MUSEUM_OPERATIONAL_CONFIG: MuseumOperationalConfig = {
   defaultShrineFavor: 0,
   exhibitSlots: MUSEUM_EXHIBIT_SLOTS,
   hallLevels: MUSEUM_HALL_LEVELS,
-  scholarCommissions: MUSEUM_SCHOLAR_COMMISSIONS,
+  scholarCommissions: ALL_MUSEUM_SCHOLAR_COMMISSIONS,
   shrineThemes: MUSEUM_SHRINE_THEMES,
   visitorFlowBands: MUSEUM_VISITOR_FLOW_BANDS,
   displayRatingBands: MUSEUM_DISPLAY_RATING_BANDS
@@ -388,7 +488,7 @@ const createDefaultExhibitSlotStateRecord = (): Record<string, MuseumExhibitSlot
 
 const createDefaultScholarCommissionStateRecord = (): Record<string, MuseumScholarCommissionState> => {
   return Object.fromEntries(
-    MUSEUM_SCHOLAR_COMMISSIONS.map(commission => [
+    ALL_MUSEUM_SCHOLAR_COMMISSIONS.map(commission => [
       commission.id,
       {
         id: commission.id,
@@ -495,7 +595,7 @@ const normalizeScholarCommissionStates = (raw: any): Record<string, MuseumSchola
   const next = createDefaultScholarCommissionStateRecord()
   const source = raw?.scholarCommissionStates && typeof raw.scholarCommissionStates === 'object' ? raw.scholarCommissionStates : {}
 
-  for (const commission of MUSEUM_SCHOLAR_COMMISSIONS) {
+  for (const commission of ALL_MUSEUM_SCHOLAR_COMMISSIONS) {
     const current = source[commission.id]
     next[commission.id] = {
       id: commission.id,
@@ -868,7 +968,7 @@ export const WS06_RELEASE_ANNOUNCEMENT = [
 export const getMuseumItemById = (id: string): MuseumItemDef | undefined => MUSEUM_ITEMS.find(item => item.id === id)
 
 /** 根据ID查找学者委托 */
-export const getMuseumScholarCommissionById = (id: string): MuseumScholarCommissionDef | undefined => MUSEUM_SCHOLAR_COMMISSIONS.find(item => item.id === id)
+export const getMuseumScholarCommissionById = (id: string): MuseumScholarCommissionDef | undefined => ALL_MUSEUM_SCHOLAR_COMMISSIONS.find(item => item.id === id)
 
 /** 根据ID查找祠堂主题 */
 export const getMuseumShrineThemeById = (id: string): MuseumShrineThemeDef | undefined => MUSEUM_SHRINE_THEMES.find(item => item.id === id)

@@ -10,6 +10,7 @@ import {
   MUSEUM_OPERATIONAL_CONFIG,
   MUSEUM_OPERATION_TUNING_CONFIG,
   MUSEUM_SCHOLAR_COMMISSIONS,
+  WS14_MUSEUM_SCHOLAR_COMMISSIONS,
   MUSEUM_SHRINE_THEMES,
   MUSEUM_SUSTAINED_OPERATION_AUDIT_CONFIG,
   MUSEUM_VISITOR_FLOW_BANDS,
@@ -44,6 +45,7 @@ import { useShopStore } from './useShopStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 
 const HALL_ZONE_IDS = [...new Set(MUSEUM_HALL_LEVELS.map(level => level.hallZoneId))] as MuseumHallZoneId[]
+const ALL_MUSEUM_SCHOLAR_COMMISSIONS = [...MUSEUM_SCHOLAR_COMMISSIONS, ...WS14_MUSEUM_SCHOLAR_COMMISSIONS]
 
 const getMuseumItemDef = (itemId: string) => MUSEUM_ITEMS.find(item => item.id === itemId)
 const DEFAULT_VISITOR_FLOW_BAND = MUSEUM_VISITOR_FLOW_BANDS[0]!
@@ -357,7 +359,7 @@ export const useMuseumStore = defineStore('museum', () => {
   })
 
   const scholarCommissionOverview = computed(() => {
-    return MUSEUM_SCHOLAR_COMMISSIONS.map(def => {
+    return ALL_MUSEUM_SCHOLAR_COMMISSIONS.map(def => {
       const state = scholarCommissionStates.value[def.id] ?? initialState.scholarCommissionStates[def.id]!
       const hallLevel = getHallLevel(def.hallZoneId)
       const unlocked = exhibitLevel.value >= def.unlockExhibitLevel && donatedCount.value >= def.requiredDonationCount && hallLevel >= def.requiredHallLevel
@@ -599,7 +601,7 @@ export const useMuseumStore = defineStore('museum', () => {
       spiritDonationCount: spiritDonationCount.value,
       unlockedExhibitSlotCount: unlockedExhibitSlotCount.value,
       hallLevelTotal: hallLevelTotal.value,
-      scholarCommissionCount: MUSEUM_SCHOLAR_COMMISSIONS.length,
+      scholarCommissionCount: ALL_MUSEUM_SCHOLAR_COMMISSIONS.length,
       availableScholarCommissionCount: availableScholarCommissionCount.value,
       shrineThemeCount: MUSEUM_SHRINE_THEMES.length,
       unlockedShrineThemeCount: unlockedShrineThemeCount.value,
@@ -1185,7 +1187,7 @@ export const useMuseumStore = defineStore('museum', () => {
     operationalConfig: MUSEUM_OPERATIONAL_CONFIG,
     exhibitSlotDefs: MUSEUM_OPERATIONAL_CONFIG.exhibitSlots,
     hallLevelDefs: MUSEUM_HALL_LEVELS,
-    scholarCommissionDefs: MUSEUM_SCHOLAR_COMMISSIONS,
+    scholarCommissionDefs: ALL_MUSEUM_SCHOLAR_COMMISSIONS,
     shrineThemeDefs: MUSEUM_SHRINE_THEMES,
     visitorFlowBands: MUSEUM_VISITOR_FLOW_BANDS,
     displayRatingBands: MUSEUM_DISPLAY_RATING_BANDS,

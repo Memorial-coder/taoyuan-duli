@@ -7,6 +7,7 @@ import {
   WS09_HIDDEN_NPC_BLESSING_ASSIGNMENTS,
   WS09_SPIRIT_BLESSING_DEFS,
   WS09_SPIRIT_BOND_MEMORY_REWARDS,
+  WS15_SPIRIT_BOND_MEMORY_REWARDS,
   WS09_SPIRIT_TUNING_CONFIG,
   WS09_SPIRIT_RESONANCE_CONFIG
 } from '@/data/hiddenNpcHeartEvents'
@@ -18,6 +19,8 @@ import { useQuestStore } from './useQuestStore'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
 import { WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT } from '@/data/goals'
+
+const ALL_SPIRIT_BOND_MEMORY_REWARDS = [...WS09_SPIRIT_BOND_MEMORY_REWARDS, ...WS15_SPIRIT_BOND_MEMORY_REWARDS]
 import router from '@/router'
 import type { HiddenNpcState, DiscoveryCondition, DiscoveryStep, AffinityLevel, BondBonusType } from '@/types/hiddenNpc'
 import type { Quality, HeartEventDef } from '@/types'
@@ -571,7 +574,7 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     const state = getHiddenNpcState(npcId)
     if (!state) return null
     const activeBlessing = WS09_SPIRIT_BLESSING_DEFS.find(blessing => blessing.id === state.activeBlessingId) ?? null
-    const memoryRewards = WS09_SPIRIT_BOND_MEMORY_REWARDS.filter(entry => entry.npcId === npcId)
+    const memoryRewards = ALL_SPIRIT_BOND_MEMORY_REWARDS.filter(entry => entry.npcId === npcId)
     return {
       npcId,
       bondTier: state.bondTier,

@@ -70,6 +70,16 @@ export interface HouseholdDivisionState {
 }
 
 export type FamilyWishCategory = 'household' | 'childcare' | 'social' | 'spirit'
+export type RelationshipEventChainStepType = 'trigger' | 'weekly' | 'settlement'
+
+export interface RelationshipEventChainStep {
+  id: string
+  title: string
+  summary: string
+  stepType: RelationshipEventChainStepType
+  linkedSystem?: 'home' | 'quest' | 'breeding' | 'fishing' | 'goal'
+  routeName?: 'home' | 'quest' | 'breeding' | 'fishing' | 'museum' | 'hanhai' | 'fishpond' | 'shop' | 'hall' | 'mail' | 'village'
+}
 
 export interface FamilyWishDef {
   id: string
@@ -84,6 +94,7 @@ export interface FamilyWishDef {
   reward?: RelationshipContentReward
   linkedNpcIds?: string[]
   recommendedRoleId?: HouseholdRoleId
+  steps?: RelationshipEventChainStep[]
 }
 
 export interface FamilyWishBoardState {
@@ -109,6 +120,7 @@ export interface ZhijiCompanionProjectDef {
   milestoneTarget: number
   rewardSummary: string
   reward?: RelationshipContentReward
+  steps?: RelationshipEventChainStep[]
 }
 
 export interface ZhijiCompanionProjectState {

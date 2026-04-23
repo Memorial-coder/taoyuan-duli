@@ -42,6 +42,7 @@ export const fetchHallPosts = async (params: {
   sort: HallSort
   mine: HallMineFilter
   keyword: string
+  activitySourceId?: string
   page: number
   pageSize: number
 }): Promise<HallPostListResult> => {
@@ -53,6 +54,9 @@ export const fetchHallPosts = async (params: {
     page: String(params.page),
     page_size: String(params.pageSize),
   })
+  if (params.activitySourceId) {
+    search.set('activity_source_id', params.activitySourceId)
+  }
   const res = await fetch(`/api/taoyuan/hall/posts?${search.toString()}`, { credentials: 'include' })
   const data = await parseJsonSafe(res)
   if (!res.ok || !data?.ok) {
@@ -81,6 +85,11 @@ export const createHallPost = async (payload: {
   blocks: HallContentBlock[]
   type: HallPostType
   rewardAmount?: number
+  isOfficial?: boolean
+  officialTemplateType?: 'event_announcement' | 'player_help_template' | 'showcase_wrapup' | null
+  activitySourceId?: string | null
+  activitySourceLabel?: string | null
+  relatedRouteLabels?: string[]
 }): Promise<HallPostDetail> => {
   const { data } = await fetchProtectedJson(async () => {
     const csrfToken = await ensureInteractionContext()
@@ -94,6 +103,11 @@ export const createHallPost = async (payload: {
       body: JSON.stringify({
         ...payload,
         reward_amount: payload.rewardAmount,
+        is_official: payload.isOfficial === true,
+        official_template_type: payload.officialTemplateType ?? null,
+        activity_source_id: payload.activitySourceId ?? null,
+        activity_source_label: payload.activitySourceLabel ?? null,
+        related_route_labels: payload.relatedRouteLabels ?? [],
       }),
     })
   }, {

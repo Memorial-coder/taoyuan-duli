@@ -579,6 +579,45 @@ export const WS09_SPIRIT_BOND_MEMORY_REWARDS = [
   }
 ] as const
 
+export const WS15_SPIRIT_BOND_MEMORY_REWARDS = [
+  {
+    id: 'memory_long_ling_tide_archive',
+    npcId: 'long_ling',
+    unlockTier: 'P2',
+    summary: '围绕潮汐、样本护送与活动收尾的第二批龙灵结缘记忆。',
+    linkedSystems: ['goal', 'fishPond', 'quest'],
+    steps: [
+      { id: 'memory_long_ling_tide_archive_trigger', title: '确认潮汐线索', summary: '先确认本周鱼塘 / 钓鱼 / 活动承接里最值得推进的潮汐目标。', stepType: 'trigger', routeName: 'fishpond' },
+      { id: 'memory_long_ling_tide_archive_weekly', title: '推进护送', summary: '周中推进样本护送和活动承接，让潮汐线不只停在被动收益。', stepType: 'weekly', routeName: 'quest' },
+      { id: 'memory_long_ling_tide_archive_settlement', title: '归档收尾', summary: '收尾时把潮汐成果转成活动总结和下周预告。', stepType: 'settlement', routeName: 'mail' }
+    ]
+  },
+  {
+    id: 'memory_tao_yao_festival_bloom',
+    npcId: 'tao_yao',
+    unlockTier: 'P1',
+    summary: '围绕庭院布置、活动公告和节气互动的第二批桃夭结缘记忆。',
+    linkedSystems: ['home', 'goal', 'quest'],
+    steps: [
+      { id: 'memory_tao_yao_festival_bloom_trigger', title: '整理庭院', summary: '先确认当前家园布置和本周活动最适合承接的生活线焦点。', stepType: 'trigger', routeName: 'home' },
+      { id: 'memory_tao_yao_festival_bloom_weekly', title: '周中盛放', summary: '周中推进活动公告、家园布置和轻陪伴目标。', stepType: 'weekly', routeName: 'hall' },
+      { id: 'memory_tao_yao_festival_bloom_settlement', title: '写成札记', summary: '收尾时把生活线成果转进邮箱和活动摘要。', stepType: 'settlement', routeName: 'mail' }
+    ]
+  },
+  {
+    id: 'memory_gui_nv_showcase_return',
+    npcId: 'gui_nv',
+    unlockTier: 'P2',
+    summary: '围绕古物展示、灵物馆承接和终局收尾的第二批归女结缘记忆。',
+    linkedSystems: ['goal', 'quest', 'home'],
+    steps: [
+      { id: 'memory_gui_nv_showcase_return_trigger', title: '确认展品', summary: '先确认本周最适合展示和收尾的古物、灵物或家园陈设。', stepType: 'trigger', routeName: 'museum' },
+      { id: 'memory_gui_nv_showcase_return_weekly', title: '周中承接', summary: '周中推进活动承接、展示整理和家庭叙事衔接。', stepType: 'weekly', routeName: 'quest' },
+      { id: 'memory_gui_nv_showcase_return_settlement', title: '收尾回响', summary: '收尾时把展示成果转成活动回顾和下一轮推荐摘要。', stepType: 'settlement', routeName: 'hall' }
+    ]
+  }
+] as const
+
 export const createDefaultSpiritBondProgressState = () => ({
   bondTier: 'P0' as SpiritBondTier,
   resonancePoints: 0,

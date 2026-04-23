@@ -19,6 +19,36 @@
           <p class="text-[10px] text-accent mt-1">
             活动邮件 {{ activityMailCount }} 封
           </p>
+          <div class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-bg/10">
+            <p class="text-[10px] text-muted">本周活动链路</p>
+            <p class="text-[10px] text-accent mt-1 leading-4">
+              {{ currentEventRouteLabelText }}
+            </p>
+            <p v-if="currentEventMailTemplateTitles.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+              本周邮件节奏：{{ currentEventMailTemplateTitles.join('、') }}
+            </p>
+          </div>
+          <div class="border border-success/10 rounded-xs px-2 py-2 mt-2 bg-success/5">
+            <p class="text-[10px] text-muted">当前可领奖点</p>
+            <p class="text-[10px] text-accent mt-1 leading-4">
+              {{ claimableActivityMailCount > 0 ? `当前有 ${claimableActivityMailCount} 封活动奖励邮件可领取。` : '当前没有待领取的活动奖励邮件，可优先推进活动目标或限时任务。' }}
+            </p>
+            <p v-if="questStore.currentLimitedTimeQuestCampaign" class="text-[10px] text-muted mt-1 leading-4">
+              限时任务：{{ questStore.currentLimitedTimeQuestCampaign.label }} · 剩余 {{ questStore.currentLimitedTimeQuestRemainingDays }} 天
+            </p>
+          </div>
+          <div class="border border-warning/10 rounded-xs px-2 py-2 mt-2 bg-warning/5">
+            <p class="text-[10px] text-muted">下周预告</p>
+            <p class="text-[10px] text-accent mt-1 leading-4">
+              {{ goalStore.nextThemeWeekPreview ? `下周主题：${goalStore.nextThemeWeekPreview.name}` : '下周主题周预告尚未生成。' }}
+            </p>
+            <p v-if="goalStore.nextThemeWeekPreview?.ui?.summaryLabel" class="text-[10px] text-muted mt-1 leading-4">
+              {{ goalStore.nextThemeWeekPreview.ui.summaryLabel }}
+            </p>
+            <p v-if="previewMailTemplateTitles.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+              预计邮件：{{ previewMailTemplateTitles.join('、') }}
+            </p>
+          </div>
         </div>
         <div class="flex flex-col space-y-1.5 mb-3">
           <Button class="w-full justify-center" :icon="RefreshCw" :icon-size="12" :disabled="mailboxStore.loading" @click="refreshMails">
@@ -178,7 +208,27 @@
   const mailViewRoot = ref<HTMLElement | null>(null)
   const isDesktop = ref(typeof window === 'undefined' ? true : window.innerWidth >= 768)
   const claimableMailCount = computed(() => mailboxStore.mails.filter(mail => mail.can_claim).length)
-  const activityMailCount = computed(() => mailboxStore.mails.filter(mail => mail.template_type === 'activity_reward').length)
+  const isActivityMailTemplate = (templateType?: string | null) =>
+    ['activity_reward', 'activity_notice', 'activity_midweek', 'activity_preview'].includes(String(templateType || ''))
+  const activityMailCount = computed(() => mailboxStore.mails.filter(mail => isActivityMailTemplate(mail.template_type)).length)
+  const claimableActivityMailCount = computed(() => mailboxStore.mails.filter(mail => mail.can_claim && mail.template_type === 'activity_reward').length)
+  const currentEventMailTemplateTitles = computed(() => {
+    if (!goalStore.currentEventCampaign) return []
+    return goalStore.eventMailTemplateRefs
+      .filter(template => goalStore.currentEventCampaign?.mailboxTemplateIds.includes(template.id))
+      .map(template => template.title)
+  })
+  const currentEventRouteLabelText = computed(() => {
+    const labels = goalStore.currentEventCampaign?.linkedRouteLabels ?? []
+    if (labels.length === 0) return '当前活动优先从任务、商店和页面摘要承接。'
+    return `推荐优先查看：${labels.join('、')}`
+  })
+  const previewMailTemplateTitles = computed(() => {
+    const templateIds = goalStore.eventMailTemplateRefs
+      .filter(template => template.cadenceSlot === 'preview')
+      .map(template => template.title)
+    return templateIds.slice(0, 2)
+  })
   const activeMailIndex = computed(() => mailboxStore.mails.findIndex(mail => mail.id === activeMailId.value))
   const hasPrevMail = computed(() => activeMailIndex.value > 0)
   const hasNextMail = computed(() => activeMailIndex.value >= 0 && activeMailIndex.value < mailboxStore.mails.length - 1)
@@ -248,6 +298,9 @@
   const templateLabel = (templateType: string) => {
     if (templateType === 'compensation') return '补偿'
     if (templateType === 'activity_reward') return '活动'
+    if (templateType === 'activity_notice') return '开启'
+    if (templateType === 'activity_midweek') return '周中'
+    if (templateType === 'activity_preview') return '预告'
     if (templateType === 'maintenance_notice') return '维护'
     return templateType
   }

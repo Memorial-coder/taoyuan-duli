@@ -105,12 +105,15 @@ export interface PondContestDef {
   label: string
   description: string
   category: PondContestCategory
-  scoringMetric: 'showValue' | 'foodValue' | 'totalScore'
+  scoringMetric: 'showValue' | 'foodValue' | 'totalScore' | 'healthScore'
+  variantGroup?: 'showcase' | 'harvest' | 'maintenance'
+  eligibilitySnapshotLabel?: string
   unlockGenerationMin?: number
   requireMature: boolean
   requireHealthy: boolean
   rewardMoney: number
   rewardTickets?: Partial<Record<RewardTicketType, number>>
+  rewardTierId?: string
 }
 
 export interface PondContestEntryResult {
