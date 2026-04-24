@@ -1,0 +1,222 @@
+import type {
+  ExpeditionRuntimeState,
+  RegionBossDef,
+  RegionDef,
+  RegionId,
+  RegionMapSaveData,
+  RegionRouteState,
+  RegionUnlockState,
+  RegionWeeklyFocusState,
+  RegionalResourceFamilyDef,
+  RegionalResourceFamilyId,
+  RegionRouteDef,
+  RegionTelemetrySnapshot
+} from '@/types/region'
+
+export const REGION_MAP_SAVE_VERSION = 1
+
+export const REGIONAL_RESOURCE_FAMILY_DEFS: RegionalResourceFamilyDef[] = [
+  {
+    id: 'ancient_archive',
+    label: '古迹残卷',
+    description: '围绕旧驿账册、残页拓片与古路文书组织的区域资源家族，服务任务、瀚海、博物馆与活动文书承接。',
+    linkedSystems: ['quest', 'shop', 'museum', 'hanhai']
+  },
+  {
+    id: 'ecology_specimen',
+    label: '生态样本',
+    description: '围绕鱼样、藻样、孢子和幼体记录组织的区域资源家族，服务鱼塘、展示、馆务与活动样本链。',
+    linkedSystems: ['quest', 'museum', 'fishPond', 'wallet']
+  },
+  {
+    id: 'ley_crystal',
+    label: '灵脉结晶',
+    description: '围绕高地矿髓、风蚀结晶与首领残核组织的区域资源家族，服务公会、建设、高阶准备与后续票券消耗。',
+    linkedSystems: ['quest', 'guild', 'villageProject', 'wallet']
+  }
+]
+
+export const REGION_DEFS: RegionDef[] = [
+  {
+    id: 'ancient_road',
+    name: '古驿荒道',
+    description: '围绕旧驿站、古路账册与护送风险建立的商路前段区域，适合作为瀚海与任务承接的前置地图。',
+    themeHint: '商路、古迹、护送、驿站、瀚海承接',
+    linkedSystems: ['quest', 'shop', 'museum', 'hanhai']
+  },
+  {
+    id: 'mirage_marsh',
+    name: '蜃潮泽地',
+    description: '围绕湿地生态、夜游观察与样本展示建立的研究型区域，适合作为鱼塘、馆务与展示活动的样本来源地。',
+    themeHint: '样本、夜游、湿地、展示、研究',
+    linkedSystems: ['quest', 'museum', 'fishPond', 'wallet']
+  },
+  {
+    id: 'cloud_highland',
+    name: '云岚高地',
+    description: '围绕高地矿脉、危险路段与精英清剿建立的战备区域，适合作为公会和建设高阶承接的战斗前线。',
+    themeHint: '高地、灵脉、精英、清剿、公会承接',
+    linkedSystems: ['quest', 'guild', 'villageProject', 'wallet']
+  }
+]
+
+export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
+  {
+    id: 'ancient_road_supply_relay',
+    regionId: 'ancient_road',
+    name: '旧驿补给线',
+    description: '沿着荒道旧驿推进，偏向补给、货物和沿线风险处理。',
+    nodeType: 'route',
+    staminaCost: 3,
+    timeCostHours: 0.5,
+    primaryResourceFamilyId: 'ancient_archive',
+    linkedSystems: ['quest', 'shop', 'hanhai']
+  },
+  {
+    id: 'ancient_road_archive_recovery',
+    regionId: 'ancient_road',
+    name: '残卷回收线',
+    description: '回收荒道沿线文书与残卷，偏向古迹说明与馆务承接。',
+    nodeType: 'handoff',
+    staminaCost: 4,
+    timeCostHours: 0.67,
+    primaryResourceFamilyId: 'ancient_archive',
+    linkedSystems: ['quest', 'museum', 'hanhai']
+  },
+  {
+    id: 'mirage_marsh_night_watch',
+    regionId: 'mirage_marsh',
+    name: '夜游观察线',
+    description: '围绕泽地夜间生态与样本观测展开，偏向样本发现与展示高光。',
+    nodeType: 'event',
+    staminaCost: 3,
+    timeCostHours: 0.5,
+    primaryResourceFamilyId: 'ecology_specimen',
+    linkedSystems: ['quest', 'museum', 'fishPond']
+  },
+  {
+    id: 'mirage_marsh_specimen_drive',
+    regionId: 'mirage_marsh',
+    name: '样本护送线',
+    description: '围绕样本整理、护送与活动承接展开，偏向周赛资格与馆务研究。',
+    nodeType: 'handoff',
+    staminaCost: 4,
+    timeCostHours: 0.67,
+    primaryResourceFamilyId: 'ecology_specimen',
+    linkedSystems: ['quest', 'museum', 'fishPond', 'wallet']
+  },
+  {
+    id: 'cloud_highland_patrol',
+    regionId: 'cloud_highland',
+    name: '高地巡路线',
+    description: '围绕危险地段巡路和补给推进展开，偏向公会清剿与建设备料。',
+    nodeType: 'elite',
+    staminaCost: 5,
+    timeCostHours: 0.75,
+    primaryResourceFamilyId: 'ley_crystal',
+    linkedSystems: ['quest', 'guild', 'villageProject']
+  },
+  {
+    id: 'cloud_highland_ley_crack',
+    regionId: 'cloud_highland',
+    name: '灵脉采晶线',
+    description: '围绕灵脉裂隙、采晶和高阶准备展开，偏向资源收束与首领前置。',
+    nodeType: 'route',
+    staminaCost: 4,
+    timeCostHours: 0.67,
+    primaryResourceFamilyId: 'ley_crystal',
+    linkedSystems: ['quest', 'guild', 'wallet']
+  }
+]
+
+export const REGION_BOSS_DEFS: RegionBossDef[] = [
+  {
+    id: 'ancient_road_overseer',
+    regionId: 'ancient_road',
+    name: '荒道监军',
+    description: '盘踞旧驿要冲的首领，会在补给、文书和护送节点之间切换压迫感。',
+    phases: [
+      { id: 'overseer_p1', label: '封路警戒', summary: '围绕路障与护送压力展开的开场阶段。' },
+      { id: 'overseer_p2', label: '账册追索', summary: '围绕残卷争夺和路线转移展开的中段阶段。' },
+      { id: 'overseer_p3', label: '旧驿决断', summary: '围绕高压指挥与终局收尾展开的阶段。' }
+    ]
+  },
+  {
+    id: 'mirage_marsh_devourer',
+    regionId: 'mirage_marsh',
+    name: '潮息异兽',
+    description: '潜伏在泽地深处的首领，会围绕水位、样本污染和展示样本争夺施压。',
+    phases: [
+      { id: 'marsh_p1', label: '潮雾逼近', summary: '围绕视野遮蔽和样本观察展开的开场阶段。' },
+      { id: 'marsh_p2', label: '沼心回响', summary: '围绕湿地异常与样本稳定展开的中段阶段。' },
+      { id: 'marsh_p3', label: '蜃潮吞噬', summary: '围绕高压生态反扑与终局展示展开的阶段。' }
+    ]
+  },
+  {
+    id: 'cloud_highland_warden',
+    regionId: 'cloud_highland',
+    name: '云岚守脉者',
+    description: '守在高地灵脉节点的首领，会围绕采晶压力、精英护卫和战备消耗施压。',
+    phases: [
+      { id: 'highland_p1', label: '碎岚压阵', summary: '围绕高地巡路和碎晶护卫展开的开场阶段。' },
+      { id: 'highland_p2', label: '脉核共振', summary: '围绕灵脉过载与战备压力展开的中段阶段。' },
+      { id: 'highland_p3', label: '守脉终战', summary: '围绕首领爆发与终局清剿展开的阶段。' }
+    ]
+  }
+]
+
+const createDefaultUnlockStates = (): Record<RegionId, RegionUnlockState> =>
+  Object.fromEntries(
+    REGION_DEFS.map(region => [region.id, { unlocked: false, unlockedDayTag: '' } satisfies RegionUnlockState])
+  ) as Record<RegionId, RegionUnlockState>
+
+const createDefaultRouteStates = (): Record<string, RegionRouteState> =>
+  Object.fromEntries(
+    REGION_ROUTE_DEFS.map(route => [
+      route.id,
+      {
+        routeId: route.id,
+        unlocked: false,
+        completions: 0,
+        lastCompletedDayTag: ''
+      } satisfies RegionRouteState
+    ])
+  )
+
+const createDefaultWeeklyFocusState = (): RegionWeeklyFocusState => ({
+  weekId: '',
+  focusedRegionId: null,
+  highlightedRouteIds: []
+})
+
+const createDefaultExpeditionRuntimeState = (): ExpeditionRuntimeState => ({
+  activeRegionId: null,
+  activeRouteId: null,
+  activeBossId: null,
+  startedAtDayTag: ''
+})
+
+const createDefaultTelemetry = (): RegionTelemetrySnapshot => ({
+  totalRouteCompletions: 0,
+  bossClears: 0,
+  resourceTurnIns: 0
+})
+
+const createDefaultResourceLedger = (): Record<RegionalResourceFamilyId, number> =>
+  Object.fromEntries(REGIONAL_RESOURCE_FAMILY_DEFS.map(family => [family.id, 0])) as Record<RegionalResourceFamilyId, number>
+
+export const createDefaultRegionMapSaveData = (): RegionMapSaveData => ({
+  saveVersion: REGION_MAP_SAVE_VERSION,
+  unlockStates: createDefaultUnlockStates(),
+  routeStates: createDefaultRouteStates(),
+  weeklyFocusState: createDefaultWeeklyFocusState(),
+  resourceLedger: createDefaultResourceLedger(),
+  expedition: createDefaultExpeditionRuntimeState(),
+  telemetry: createDefaultTelemetry()
+})
+
+export const getRegionDef = (regionId: RegionId) => REGION_DEFS.find(region => region.id === regionId) ?? null
+
+export const getRegionRoutes = (regionId: RegionId) => REGION_ROUTE_DEFS.filter(route => route.regionId === regionId)
+
+export const getRegionBossDef = (regionId: RegionId) => REGION_BOSS_DEFS.find(boss => boss.regionId === regionId) ?? null

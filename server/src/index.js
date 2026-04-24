@@ -68,6 +68,8 @@ const DEFAULT_ALLOWED_ORIGINS = [
   'http://localhost:4013',
   'http://127.0.0.1:4014',
   'http://localhost:4014',
+  'https://localhost',
+  'https://127.0.0.1',
 ];
 
 function parseAllowedOrigins() {

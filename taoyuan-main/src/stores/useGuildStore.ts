@@ -16,6 +16,7 @@ import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useGameStore } from './useGameStore'
 import { useGoalStore } from './useGoalStore'
+import { useRegionMapStore } from './useRegionMapStore'
 import { addLog } from '@/composables/useGameLog'
 
 type GuildQuestMarketCategory = 'processed' | 'animal_product' | 'ore' | 'gem'
@@ -43,6 +44,7 @@ const GUILD_RANK_BAND_LABELS: Record<GuildRankBand, string> = {
 
 export const useGuildStore = defineStore('guild', () => {
   const goalStore = useGoalStore()
+  const regionMapStore = useRegionMapStore()
   const guildSeasonTuning = GUILD_SEASON_TUNING_CONFIG
   const guildFeatureFlags = guildSeasonTuning.featureFlags
   const guildDisplayConfig = guildSeasonTuning.display
@@ -315,6 +317,9 @@ export const useGuildStore = defineStore('guild', () => {
     }
     if (guildAchievementProgress.value.nextTarget) {
       recommendedActions.push(`距离下一档公会成就还差 ${Math.max(0, guildAchievementProgress.value.nextTarget - guildAchievementProgress.value.current)} 个讨伐目标，可同步推进图鉴与荣誉展示。`)
+    }
+    if (regionMapStore.regionIntegrationEnabled && regionMapStore.currentWeeklyFocus.focusedRegionId === 'cloud_highland') {
+      recommendedActions.push('本周行旅图焦点落在云岚高地，可把高地巡路、灵脉采晶和公会战备补给串成同一条推进路线。')
     }
 
     return {

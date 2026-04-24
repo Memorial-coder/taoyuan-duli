@@ -4563,6 +4563,14 @@ function buildContextSnapshotText(snapshot = null) {
   if (snapshot.currentThemeWeekLabel) lines.push(`本周主题：${snapshot.currentThemeWeekLabel}`);
   if (snapshot.currentEventCampaignLabel) lines.push(`当前活动：${snapshot.currentEventCampaignLabel}`);
   if (snapshot.currentLimitedQuestLabel) lines.push(`限时任务：${snapshot.currentLimitedQuestLabel}`);
+  if (snapshot.primaryRouteLabel) lines.push(`本周主线：${snapshot.primaryRouteLabel}`);
+  if (Array.isArray(snapshot.secondaryRouteLabels) && snapshot.secondaryRouteLabels.length > 0) {
+    lines.push(`辅助路线：${snapshot.secondaryRouteLabels.join('、')}`);
+  }
+  if (Array.isArray(snapshot.claimableNodeLabels) && snapshot.claimableNodeLabels.length > 0) {
+    lines.push(`可领奖点：${snapshot.claimableNodeLabels.join('、')}`);
+  }
+  if (snapshot.nextWeekPrepSummary) lines.push(`下周准备：${snapshot.nextWeekPrepSummary}`);
   if (snapshot.activeFamilyWishTitle) lines.push(`家庭焦点：${snapshot.activeFamilyWishTitle}`);
   if (snapshot.bondedSpiritName) lines.push(`仙缘焦点：${snapshot.bondedSpiritName}`);
   if (Array.isArray(snapshot.highlightedRouteLabels) && snapshot.highlightedRouteLabels.length > 0) {

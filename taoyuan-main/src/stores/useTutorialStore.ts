@@ -839,7 +839,12 @@ export const useTutorialStore = defineStore('tutorial', () => {
         activeSurfaceIds: [],
         linkedSystems: [],
         sourceSummaryIds: [],
-        weeklyDecisionLoop: []
+        weeklyDecisionLoop: [],
+        weeklyPlanId: goalStore.weeklyPlanSnapshot.planId,
+        primaryRouteLabel: goalStore.weeklyPlanSnapshot.primaryRouteLabel,
+        secondaryRouteLabels: [...goalStore.weeklyPlanSnapshot.secondaryRouteLabels],
+        claimableNodeLabels: [...goalStore.weeklyPlanSnapshot.claimableNodeLabels],
+        nextWeekPrepSummary: goalStore.weeklyPlanSnapshot.nextWeekPrepSummary
       }
     }
     const activeSurfaceIds = guidanceSurfaceSnapshots.value
@@ -865,7 +870,9 @@ export const useTutorialStore = defineStore('tutorial', () => {
           summary: formatGuidanceTemplate(def.summaryTemplate, { targetHeadline, routeSummary: routeState.summary }),
           targetHeadline,
           linkedSystems: def.linkedSystems,
-          adopted: routeState.status === 'adopted'
+          adopted: routeState.status === 'adopted',
+          weeklyPlanId: goalStore.weeklyPlanSnapshot.planId,
+          primaryRouteLabel: goalStore.weeklyPlanSnapshot.primaryRouteLabel
         }
       })
       .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
@@ -875,7 +882,12 @@ export const useTutorialStore = defineStore('tutorial', () => {
       activeSurfaceIds,
       linkedSystems,
       sourceSummaryIds,
-      weeklyDecisionLoop
+      weeklyDecisionLoop,
+      weeklyPlanId: goalStore.weeklyPlanSnapshot.planId,
+      primaryRouteLabel: goalStore.weeklyPlanSnapshot.primaryRouteLabel,
+      secondaryRouteLabels: [...goalStore.weeklyPlanSnapshot.secondaryRouteLabels],
+      claimableNodeLabels: [...goalStore.weeklyPlanSnapshot.claimableNodeLabels],
+      nextWeekPrepSummary: goalStore.weeklyPlanSnapshot.nextWeekPrepSummary
     }
   })
 

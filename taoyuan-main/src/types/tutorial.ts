@@ -84,6 +84,11 @@ export interface GuidancePanelSummaryState extends GuidancePanelSummaryDef {
   headline: string
   detailLines: string[]
   recommendedRouteIds: string[]
+  weeklyPlanId?: string | null
+  primaryRouteLabel?: string | null
+  secondaryRouteLabels?: string[]
+  claimableNodeLabels?: string[]
+  nextWeekPrepSummary?: string
 }
 
 export interface GuidanceRecommendationRouteState extends GuidanceRecommendationRouteDef {
@@ -92,6 +97,8 @@ export interface GuidanceRecommendationRouteState extends GuidanceRecommendation
   status: GuidanceRouteStatus
   targetSurfaceId: GuidanceSurfaceId
   summary: string
+  weeklyPlanId?: string | null
+  primaryRouteLabel?: string | null
 }
 
 export interface GuidanceSurfaceSnapshot {
@@ -129,6 +136,8 @@ export interface GuidanceCrossSystemAction {
   targetHeadline: string
   linkedSystems: GuidanceLinkedSystem[]
   adopted: boolean
+  weeklyPlanId?: string | null
+  primaryRouteLabel?: string | null
 }
 
 export interface GuidanceCrossSystemOverview {
@@ -136,4 +145,9 @@ export interface GuidanceCrossSystemOverview {
   linkedSystems: GuidanceLinkedSystem[]
   sourceSummaryIds: string[]
   weeklyDecisionLoop: GuidanceCrossSystemAction[]
+  weeklyPlanId?: string | null
+  primaryRouteLabel?: string | null
+  secondaryRouteLabels?: string[]
+  claimableNodeLabels?: string[]
+  nextWeekPrepSummary?: string
 }

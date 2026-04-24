@@ -134,6 +134,35 @@
         </div>
       </div>
 
+      <div class="game-panel">
+        <div class="flex items-center justify-between gap-3 mb-3">
+          <p class="text-sm text-accent">本周路线摘要</p>
+          <span class="text-[11px] text-muted">{{ weeklyPlanSnapshot.weekId }}</span>
+        </div>
+        <div class="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-4">
+          <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
+            <p class="text-[10px] text-muted">本周主路线</p>
+            <p class="mt-1 text-xs text-accent">{{ weeklyPlanSnapshot.primaryRouteLabel }}</p>
+            <p class="mt-1 text-[10px] text-muted leading-4">{{ weeklyPlanSnapshot.primaryRouteSummary }}</p>
+          </div>
+          <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
+            <p class="text-[10px] text-muted">辅助路线</p>
+            <p class="mt-1 text-xs text-accent">{{ weeklyPlanSnapshot.secondaryRouteLabels.join('、') || '当前优先跟主路线。' }}</p>
+            <p class="mt-1 text-[10px] text-muted leading-4">{{ weeklyPlanSnapshot.secondaryRouteSummaries[0] || '如果主路线推进顺利，再补这条副线即可。' }}</p>
+          </div>
+          <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
+            <p class="text-[10px] text-muted">当前可领取</p>
+            <p class="mt-1 text-xs text-accent">{{ weeklyPlanSnapshot.claimableNodeLabels.join('、') || '当前没有额外领奖点。' }}</p>
+            <p class="mt-1 text-[10px] text-muted leading-4">大厅更适合用来发周中求助帖、补充领奖路径和展示收尾成果。</p>
+          </div>
+          <div class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
+            <p class="text-[10px] text-muted">下周准备</p>
+            <p class="mt-1 text-[10px] text-muted leading-4">{{ weeklyPlanSnapshot.nextWeekPrepSummary }}</p>
+            <p v-if="latestWeeklyChronicle" class="mt-1 text-[10px] text-accent/80">最近周纪行：{{ latestWeeklyChronicle.weekId }}</p>
+          </div>
+        </div>
+      </div>
+
       <div v-if="viewer.isAdmin && showAdminReports" class="game-panel space-y-3">
         <div class="flex items-center justify-between gap-3">
           <p class="text-sm text-accent">举报管理</p>
@@ -238,6 +267,8 @@
                   </div>
                   <p class="text-xs text-muted leading-6 hall-preview">{{ post.preview }}</p>
                   <p v-if="post.related_route_labels?.length" class="text-[11px] text-accent/80 mt-1">关联路线：{{ post.related_route_labels.join('、') }}</p>
+                  <p v-if="post.primary_route_label" class="text-[11px] text-warning mt-1">主路线：{{ post.primary_route_label }}</p>
+                  <p v-if="post.weekly_chronicle_week_id" class="text-[11px] text-muted mt-1">周纪行：{{ post.weekly_chronicle_week_id }}</p>
                 </div>
                 <span class="text-xs text-muted shrink-0">{{ post.reply_count }} 回复</span>
               </div>
@@ -317,6 +348,20 @@
                 </div>
                 <p v-if="selectedPost.related_route_labels?.length" class="text-[11px] text-accent/80 mt-1">
                   关联路线：{{ selectedPost.related_route_labels.join('、') }}
+                </p>
+                <p v-if="selectedPost.primary_route_label" class="text-[11px] text-warning mt-1">
+                  本周主路线：{{ selectedPost.primary_route_label }}
+                  <span v-if="selectedPost.secondary_route_labels?.length"> · 辅助：{{ selectedPost.secondary_route_labels.join('、') }}</span>
+                </p>
+                <p v-if="selectedPost.claimable_node_labels?.length" class="text-[11px] text-muted mt-1">
+                  当前可领：{{ selectedPost.claimable_node_labels.join('、') }}
+                </p>
+                <p v-if="selectedPost.next_week_prep_summary" class="text-[11px] text-muted mt-1">
+                  下周准备：{{ selectedPost.next_week_prep_summary }}
+                </p>
+                <p v-if="selectedPost.weekly_chronicle_week_id" class="text-[11px] text-accent/80 mt-1">
+                  周纪行来源：{{ selectedPost.weekly_chronicle_week_id }}
+                  <span v-if="selectedPost.chronicle_source_labels?.length"> · {{ selectedPost.chronicle_source_labels.join('、') }}</span>
                 </p>
               </div>
 
@@ -704,12 +749,26 @@
     activitySourceId: string | null
     activitySourceLabel: string | null
     relatedRouteLabels: string[]
+    weeklyPlanId: string | null
+    primaryRouteLabel: string | null
+    secondaryRouteLabels: string[]
+    claimableNodeLabels: string[]
+    nextWeekPrepSummary: string | null
+    weeklyChronicleWeekId: string | null
+    chronicleSourceLabels: string[]
   }>({
     isOfficial: false,
     officialTemplateType: null,
     activitySourceId: null,
     activitySourceLabel: null,
     relatedRouteLabels: [],
+    weeklyPlanId: null,
+    primaryRouteLabel: null,
+    secondaryRouteLabels: [],
+    claimableNodeLabels: [],
+    nextWeekPrepSummary: null,
+    weeklyChronicleWeekId: null,
+    chronicleSourceLabels: [],
   })
   const imageInputRef = ref<HTMLInputElement | null>(null)
   const pendingInsertIndex = ref<number | null>(null)
@@ -754,6 +813,8 @@
   const selectedSortLabel = computed(() => sortOptions.find(item => item.value === sortBy.value)?.label || '最新')
   const selectedMineLabel = computed(() => mineOptions.find(item => item.value === mineFilter.value)?.label || '全部帖子')
 
+  const weeklyPlanSnapshot = computed(() => goalStore.weeklyPlanSnapshot)
+  const latestWeeklyChronicle = computed(() => goalStore.latestWeeklyChronicleEntry)
   const currentActivitySourceId = computed(() => goalStore.currentEventCampaign?.id ?? '')
   const currentActivityLabel = computed(() => goalStore.currentEventCampaign?.label ?? '当前活动')
 
@@ -782,6 +843,13 @@
     composerMeta.activitySourceId = null
     composerMeta.activitySourceLabel = null
     composerMeta.relatedRouteLabels = []
+    composerMeta.weeklyPlanId = null
+    composerMeta.primaryRouteLabel = null
+    composerMeta.secondaryRouteLabels = []
+    composerMeta.claimableNodeLabels = []
+    composerMeta.nextWeekPrepSummary = null
+    composerMeta.weeklyChronicleWeekId = null
+    composerMeta.chronicleSourceLabels = []
     pendingInsertIndex.value = null
   }
 
@@ -789,46 +857,69 @@
     const currentCampaign = goalStore.currentEventCampaign
     const nextThemeWeek = goalStore.nextThemeWeekPreview
     const titlePrefix = currentCampaign?.label ?? currentActivityLabel.value
+    const currentPlan = weeklyPlanSnapshot.value
+    const latestChronicle = latestWeeklyChronicle.value
     if (templateType === 'event_announcement') {
       composer.type = 'discussion'
       composer.title = `${titlePrefix} · 活动公告`
       composerBlocks.value = [
-        createTextBlock(`【本周活动】${currentCampaign?.label ?? '当前活动'}\n\n推荐先从 ${currentCampaign?.linkedRouteLabels?.join('、') || '任务、商店与页面摘要'} 接入，再去完成当前活动链路中的重点目标。`),
-        createTextBlock('【本周节奏】\n1. 先看 TopGoals / Quest\n2. 再到对应玩法页承接内容\n3. 周中回邮箱领奖并查看下周预告'),
+        createTextBlock(`【本周开启】${currentCampaign?.label ?? '当前活动'}\n\n本周主路线是「${currentPlan.primaryRouteLabel}」，辅助路线为「${currentPlan.secondaryRouteLabels.join('、') || '当前优先跟主路线'}」。`),
+        createTextBlock(`【本周节奏】\n1. 先看 TopGoals / Quest\n2. 当前可领奖点：${currentPlan.claimableNodeLabels.join('、') || '暂无额外领奖点'}\n3. 下周准备：${currentPlan.nextWeekPrepSummary}`),
       ]
       composerMeta.isOfficial = viewer.value.isAdmin === true
       composerMeta.officialTemplateType = 'event_announcement'
       composerMeta.activitySourceId = currentCampaign?.id ?? null
       composerMeta.activitySourceLabel = currentCampaign?.label ?? null
       composerMeta.relatedRouteLabels = [...(currentCampaign?.linkedRouteLabels ?? [])]
+      composerMeta.weeklyPlanId = currentPlan.planId
+      composerMeta.primaryRouteLabel = currentPlan.primaryRouteLabel
+      composerMeta.secondaryRouteLabels = [...currentPlan.secondaryRouteLabels]
+      composerMeta.claimableNodeLabels = [...currentPlan.claimableNodeLabels]
+      composerMeta.nextWeekPrepSummary = currentPlan.nextWeekPrepSummary
+      composerMeta.weeklyChronicleWeekId = null
+      composerMeta.chronicleSourceLabels = []
       return
     }
     if (templateType === 'showcase_wrapup') {
       composer.type = 'discussion'
       composer.title = `${titlePrefix} · 收尾展示`
       composerBlocks.value = [
-        createTextBlock(`【本周收尾】欢迎分享你在${currentCampaign?.label ?? '当前活动'}中的高光成果、领奖情况和最推荐的路线。`),
-        createTextBlock(`【下周预告】${nextThemeWeek ? `${nextThemeWeek.name} 即将到来，可提前准备相关物资与样本。` : '下周主题周预告尚未生成。'}`),
+        createTextBlock(`【本周收尾】${latestChronicle ? latestChronicle.settlementSummary : `欢迎分享你在${currentCampaign?.label ?? '当前活动'}中的高光成果、领奖情况和最推荐的路线。`}`),
+        createTextBlock(`【高光与下周】${latestChronicle?.highlightSummaries.join('；') || '可围绕本周主路线、领奖点和活动展示来收尾。'}\n\n下周预告：${currentPlan.nextWeekPrepSummary || (nextThemeWeek ? `${nextThemeWeek.name} 即将到来，可提前准备相关物资与样本。` : '下周主题周预告尚未生成。')}`),
       ]
       composerMeta.isOfficial = viewer.value.isAdmin === true
       composerMeta.officialTemplateType = 'showcase_wrapup'
       composerMeta.activitySourceId = currentCampaign?.id ?? null
       composerMeta.activitySourceLabel = currentCampaign?.label ?? null
       composerMeta.relatedRouteLabels = [...(currentCampaign?.linkedRouteLabels ?? [])]
+      composerMeta.weeklyPlanId = currentPlan.planId
+      composerMeta.primaryRouteLabel = currentPlan.primaryRouteLabel
+      composerMeta.secondaryRouteLabels = [...currentPlan.secondaryRouteLabels]
+      composerMeta.claimableNodeLabels = [...currentPlan.claimableNodeLabels]
+      composerMeta.nextWeekPrepSummary = currentPlan.nextWeekPrepSummary
+      composerMeta.weeklyChronicleWeekId = latestChronicle?.weekId ?? null
+      composerMeta.chronicleSourceLabels = [...(latestChronicle?.highlightSummaries ?? [])]
       return
     }
     composer.type = 'help'
     composer.title = `${titlePrefix} · 玩家求助`
     composer.rewardAmount = 0
     composerBlocks.value = [
-      createTextBlock(`【我当前卡住的点】\n请描述你在${currentCampaign?.label ?? '当前活动'}里卡住的是报名、领奖、供货、展陈还是路线选择。`),
-      createTextBlock('【我已经试过的做法】\n列出你已经尝试过的页面、材料或路线，方便其他玩家更快帮你。'),
+      createTextBlock(`【我当前卡住的点】\n请描述你在本周主路线「${currentPlan.primaryRouteLabel}」里卡住的是报名、领奖、供货、展陈还是路线选择。`),
+      createTextBlock(`【我已经试过的做法】\n可补充你已经看过的辅助路线（${currentPlan.secondaryRouteLabels.join('、') || '暂无'}）、可领奖点（${currentPlan.claimableNodeLabels.join('、') || '暂无'}）和仍然没接上的地方。`),
     ]
     composerMeta.isOfficial = false
     composerMeta.officialTemplateType = 'player_help_template'
     composerMeta.activitySourceId = currentCampaign?.id ?? null
     composerMeta.activitySourceLabel = currentCampaign?.label ?? null
     composerMeta.relatedRouteLabels = [...(currentCampaign?.linkedRouteLabels ?? [])]
+    composerMeta.weeklyPlanId = currentPlan.planId
+    composerMeta.primaryRouteLabel = currentPlan.primaryRouteLabel
+    composerMeta.secondaryRouteLabels = [...currentPlan.secondaryRouteLabels]
+    composerMeta.claimableNodeLabels = [...currentPlan.claimableNodeLabels]
+    composerMeta.nextWeekPrepSummary = currentPlan.nextWeekPrepSummary
+    composerMeta.weeklyChronicleWeekId = null
+    composerMeta.chronicleSourceLabels = []
   }
 
   const rewardStatusText = (status: string) => {
@@ -1259,6 +1350,19 @@
         relatedRouteLabels: composerMeta.relatedRouteLabels.length > 0
           ? composerMeta.relatedRouteLabels
           : [...(goalStore.currentEventCampaign?.linkedRouteLabels ?? [])],
+        weeklyPlanId: composerMeta.weeklyPlanId ?? weeklyPlanSnapshot.value.planId,
+        primaryRouteLabel: composerMeta.primaryRouteLabel ?? weeklyPlanSnapshot.value.primaryRouteLabel,
+        secondaryRouteLabels: composerMeta.secondaryRouteLabels.length > 0
+          ? composerMeta.secondaryRouteLabels
+          : [...weeklyPlanSnapshot.value.secondaryRouteLabels],
+        claimableNodeLabels: composerMeta.claimableNodeLabels.length > 0
+          ? composerMeta.claimableNodeLabels
+          : [...weeklyPlanSnapshot.value.claimableNodeLabels],
+        nextWeekPrepSummary: composerMeta.nextWeekPrepSummary ?? weeklyPlanSnapshot.value.nextWeekPrepSummary,
+        weeklyChronicleWeekId: composerMeta.weeklyChronicleWeekId ?? latestWeeklyChronicle.value?.weekId ?? null,
+        chronicleSourceLabels: composerMeta.chronicleSourceLabels.length > 0
+          ? composerMeta.chronicleSourceLabels
+          : [...(latestWeeklyChronicle.value?.highlightSummaries ?? [])],
       })
       resetComposer()
       showComposer.value = false
@@ -1439,6 +1543,7 @@
   }
 
   onMounted(async () => {
+    goalStore.ensureInitialized()
     resetComposer()
     await loadViewer()
     await loadPosts()

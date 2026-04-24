@@ -16,6 +16,17 @@
       :data-prompt-focus="buildPromptFocusAttr('prompt-hints')"
     >
       <p class="text-xs text-muted mb-2">经营提示</p>
+      <div class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs text-accent">本周主路线</p>
+          <span class="text-[10px] text-muted">{{ weeklyPlanSnapshot.weekId }}</span>
+        </div>
+        <p class="text-[10px] text-accent mt-1">{{ weeklyPlanSnapshot.primaryRouteLabel }}</p>
+        <p class="text-[10px] text-muted mt-1">{{ weeklyPlanSnapshot.primaryRouteSummary }}</p>
+        <p v-if="weeklyPlanSnapshot.secondaryRouteLabels.length > 0" class="text-[10px] text-success mt-1">
+          辅助路线：{{ weeklyPlanSnapshot.secondaryRouteLabels.join('、') }}
+        </p>
+      </div>
       <div v-if="goalStore.currentEventCampaign" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-accent">活动编排</p>
@@ -26,17 +37,19 @@
       </div>
       <div v-if="questStore.currentLimitedTimeQuestCampaign" class="border border-warning/20 rounded-xs px-3 py-2 mb-2 bg-warning/5">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-xs text-warning">限时任务窗口</p>
+          <p class="text-xs text-warning">当前可领取 / 限时窗口</p>
           <span class="text-[10px] text-muted">剩余 {{ questStore.currentLimitedTimeQuestRemainingDays }} 天</span>
         </div>
         <p class="text-[10px] text-muted mt-1">{{ questStore.currentLimitedTimeQuestCampaign.description }}</p>
+        <p class="text-[10px] text-accent mt-1">{{ weeklyPlanSnapshot.claimableNodeLabels.join('、') || '当前没有额外领奖点。' }}</p>
         <p class="text-[10px] text-success mt-1">活动来源：{{ questStore.currentLimitedTimeQuestCampaign.activitySourceLabel }}</p>
       </div>
       <div v-if="goalStore.currentThemeWeek" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
         <div class="flex items-center justify-between gap-2">
-          <p class="text-xs text-accent">{{ goalStore.currentThemeWeek.name }}</p>
+          <p class="text-xs text-accent">下周准备 / 主题预告</p>
           <span class="text-[10px] text-muted">{{ goalStore.currentThemeWeek.startDay }}-{{ goalStore.currentThemeWeek.endDay }}日</span>
         </div>
+        <p class="text-[10px] text-accent mt-1">{{ weeklyPlanSnapshot.nextWeekPrepSummary }}</p>
         <p class="text-[10px] text-muted mt-1">{{ goalStore.currentThemeWeek.description }}</p>
       </div>
       <div v-if="questStore.specialOrder" class="border border-accent/10 rounded-xs px-3 py-2 mb-2 bg-accent/5">
@@ -610,6 +623,7 @@
   const questStore = useQuestStore()
   const inventoryStore = useInventoryStore()
   const goalStore = useGoalStore()
+  const weeklyPlanSnapshot = computed(() => goalStore.weeklyPlanSnapshot)
   const npcStore = useNpcStore()
   const villageProjectStore = useVillageProjectStore()
   const { buildPromptFocusAttr, isPromptFocusActive } = usePromptFocusPanel('quest')

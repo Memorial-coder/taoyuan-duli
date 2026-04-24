@@ -10,7 +10,9 @@ import { processHiddenNpcDiscovery } from './useHiddenNpcDiscovery'
 import { useTutorialStore } from '@/stores/useTutorialStore'
 import { useMiningStore } from '@/stores/useMiningStore'
 import { useHanhaiStore } from '@/stores/useHanhaiStore'
+import { useSettingsStore } from '@/stores/useSettingsStore'
 import {
+  Map,
   Wheat,
   Egg,
   Home,
@@ -65,6 +67,7 @@ export type PanelKey =
   | 'museum'
   | 'guild'
   | 'hanhai'
+  | 'region-map'
   | 'fishpond'
   | 'cottage'
   | 'decoration'
@@ -95,7 +98,8 @@ export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: ()
   { key: 'mail', label: '邮箱', icon: Mail },
   { key: 'museum', label: '博物馆', icon: Landmark },
   { key: 'guild', label: '公会', icon: Swords },
-  { key: 'hanhai', label: '瀚海', icon: Tent }
+  { key: 'hanhai', label: '瀚海', icon: Tent },
+  { key: 'region-map', label: '行旅图', icon: Map }
 ]
 
 export const navigateToPanel = (panelKey: PanelKey) => {
@@ -104,6 +108,12 @@ export const navigateToPanel = (panelKey: PanelKey) => {
   const currentRouteName = router.currentRoute.value.name
   const miningStore = useMiningStore()
   const hanhaiStore = useHanhaiStore()
+  const settingsStore = useSettingsStore()
+
+  if (panelKey === 'region-map' && !settingsStore.isFeatureEnabled('lateGameRegionMap')) {
+    showFloat('行旅图功能暂未开启。', 'accent')
+    return false
+  }
 
   if (currentRouteName === 'mining' && panelKey !== 'mining' && miningStore.isExploring) {
     showFloat('请先离开矿洞后再切换页面。', 'danger')

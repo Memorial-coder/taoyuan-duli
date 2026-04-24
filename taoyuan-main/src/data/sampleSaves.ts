@@ -1,5 +1,8 @@
+import { createDefaultRegionMapSaveData } from './regions'
+
 export type BuiltInSampleTier = 'flagship' | 'regression'
 export type BuiltInSampleRouteName =
+  | 'region-map'
   | 'farm'
   | 'village'
   | 'village-projects'
@@ -50,7 +53,7 @@ type GoalMetricKey =
   | 'familyWishCompletions'
 type GoalSource = 'random' | 'season' | 'weekly' | 'archetype_bias'
 type SampleSeason = 'spring' | 'summer' | 'autumn' | 'winter'
-type SampleLocationGroup = 'farm' | 'village_area' | 'nature' | 'mine' | 'hanhai'
+type SampleLocationGroup = 'farm' | 'village_area' | 'nature' | 'mine' | 'hanhai' | 'frontier'
 type SampleLocation = 'farm' | 'village' | 'shop' | 'bamboo_forest' | 'creek' | 'mine' | 'home'
 type RewardTicketType = 'construction' | 'exhibit' | 'caravan' | 'research' | 'guildLogistics' | 'familyFavor'
 
@@ -100,6 +103,16 @@ export interface BuiltInSampleRuntimeExpectations {
   }
   wallet?: {
     minTicketTypes?: number
+  }
+  weeklyPlan?: {
+    requirePrimaryRoute?: boolean
+    minClaimableNodes?: number
+    requireNextWeekPrep?: boolean
+    minActiveBridgeIds?: number
+  }
+  chronicle?: {
+    minEntries?: number
+    minEntriesAfterBoundary?: number
   }
   boundaryAction?: BuiltInSampleBoundaryAction
 }
@@ -343,6 +356,9 @@ const createLateGameSettingsState = (overrides: Record<string, boolean> = {}) =>
     lateGameVillageProsperity: true,
     lateGameSocialProgression: true,
     lateGameServiceContracts: true,
+    lateGameRegionMap: false,
+    lateGameExpeditionBoss: false,
+    lateGameRegionalResources: false,
     ...overrides
   },
   lateGameBalanceOverrides: {}
@@ -1691,7 +1707,110 @@ const createThemeWeekRefreshEdgeEnvelope = () => {
   })
 }
 
+const createRegionMapShowcaseEnvelope = () => {
+  const base = createLateEconomyEnvelope()
+  const regionMap = createDefaultRegionMapSaveData()
+  regionMap.unlockStates.ancient_road = { unlocked: true, unlockedDayTag: '2-autumn-20' }
+  regionMap.unlockStates.mirage_marsh = { unlocked: true, unlockedDayTag: '2-autumn-22' }
+  regionMap.unlockStates.cloud_highland = { unlocked: true, unlockedDayTag: '2-autumn-24' }
+  regionMap.routeStates.ancient_road_supply_relay = {
+    routeId: 'ancient_road_supply_relay',
+    unlocked: true,
+    completions: 2,
+    lastCompletedDayTag: '2-autumn-25'
+  }
+  regionMap.routeStates.ancient_road_archive_recovery = {
+    routeId: 'ancient_road_archive_recovery',
+    unlocked: true,
+    completions: 1,
+    lastCompletedDayTag: '2-autumn-26'
+  }
+  regionMap.routeStates.mirage_marsh_night_watch = {
+    routeId: 'mirage_marsh_night_watch',
+    unlocked: true,
+    completions: 2,
+    lastCompletedDayTag: '2-autumn-25'
+  }
+  regionMap.routeStates.mirage_marsh_specimen_drive = {
+    routeId: 'mirage_marsh_specimen_drive',
+    unlocked: true,
+    completions: 1,
+    lastCompletedDayTag: '2-autumn-26'
+  }
+  regionMap.routeStates.cloud_highland_patrol = {
+    routeId: 'cloud_highland_patrol',
+    unlocked: true,
+    completions: 2,
+    lastCompletedDayTag: '2-autumn-25'
+  }
+  regionMap.routeStates.cloud_highland_ley_crack = {
+    routeId: 'cloud_highland_ley_crack',
+    unlocked: true,
+    completions: 1,
+    lastCompletedDayTag: '2-autumn-26'
+  }
+  regionMap.weeklyFocusState = {
+    weekId: '2-autumn-week-4',
+    focusedRegionId: 'ancient_road',
+    highlightedRouteIds: ['ancient_road_supply_relay', 'ancient_road_archive_recovery']
+  }
+  regionMap.resourceLedger = {
+    ancient_archive: 7,
+    ecology_specimen: 5,
+    ley_crystal: 6
+  }
+  regionMap.expedition = {
+    activeRegionId: 'ancient_road',
+    activeRouteId: 'ancient_road_archive_recovery',
+    activeBossId: 'ancient_road_overseer',
+    startedAtDayTag: '2-autumn-26'
+  }
+  regionMap.telemetry = {
+    totalRouteCompletions: 9,
+    bossClears: 2,
+    resourceTurnIns: 4
+  }
+
+  return {
+    ...base,
+    data: {
+      ...base.data,
+      game: {
+        ...base.data.game,
+        currentLocationGroup: 'frontier'
+      },
+      settings: createLateGameSettingsState({
+        lateGameRegionMap: true,
+        lateGameExpeditionBoss: true,
+        lateGameRegionalResources: true
+      }),
+      regionMap
+    }
+  }
+}
+
 export const BUILT_IN_SAMPLE_SAVES: BuiltInSampleSaveDef[] = [
+  {
+    id: 'region_map_showcase',
+    label: '行旅图综合样例',
+    description: '用于验证行旅图入口、三地区已解锁状态、区域资源台账和当前远征摘要是否正确接线。',
+    tags: ['region-map', 'frontier', 'expedition', 'late-game'],
+    tier: 'flagship',
+    recommendedRouteName: 'region-map',
+    focusAreas: ['行旅图入口', '三地区状态', '区域资源台账', '当前远征'],
+    smokeChecks: [
+      { id: 'region_entry', label: '确认载入后可直接打开行旅图，并看到三张区域卡片。' },
+      { id: 'region_focus', label: '确认当前周焦点、当前远征和资源家族台账都已显示。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 86500, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'frontier' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 2, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      wallet: { minTicketTypes: 2 },
+      boundaryAction: 'none'
+    },
+    envelope: createRegionMapShowcaseEnvelope()
+  },
   {
     id: 'late_economy_foundation',
     label: '后期富裕经营档',
@@ -1960,5 +2079,92 @@ export const BUILT_IN_SAMPLE_SAVES: BuiltInSampleSaveDef[] = [
       boundaryAction: 'none'
     },
     envelope: createLateEconomyEnvelope()
+  },
+  {
+    id: 'ws17_week_plan_midgame',
+    label: 'WS17 周计划中局样例',
+    description: '用于验证 weekly plan snapshot 能在中局档里稳定生成主路线、领奖点和下周准备说明。',
+    tags: ['ws17', 'weekly-plan', 'midgame', 'quest'],
+    tier: 'regression',
+    recommendedRouteName: 'quest',
+    focusAreas: ['周主路线', '辅助路线', '可领奖点', '下周准备'],
+    smokeChecks: [
+      { id: 'weekly_plan_visible', label: '确认 TopGoals / Quest / Mail 使用同一份周计划快照。' },
+      { id: 'next_week_prep', label: '确认快照里始终保留下周准备说明。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 64000, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'village_area' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 1, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      weeklyPlan: { requirePrimaryRoute: true, requireNextWeekPrep: true },
+      wallet: { minTicketTypes: 1 },
+      boundaryAction: 'none'
+    },
+    envelope: createLateEconomyEnvelope()
+  },
+  {
+    id: 'ws18_unlock_bridge_first_settlement',
+    label: 'WS18 晋升桥首轮结算样例',
+    description: '用于验证中局玩家在周计划里能看到至少一条 active progress bridge，并能把它接到后期系统入口。',
+    tags: ['ws18', 'bridge', 'midgame', 'progression'],
+    tier: 'regression',
+    recommendedRouteName: 'quest',
+    focusAreas: ['中局晋升桥', '后期入口', '桥接路线'],
+    smokeChecks: [
+      { id: 'bridge_visible', label: '确认周计划中至少存在一条 active bridge。' },
+      { id: 'bridge_route', label: '确认 bridge 会放大周计划主路线或辅助路线。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 64000, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'village_area' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 1, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      weeklyPlan: { requirePrimaryRoute: true, minActiveBridgeIds: 1, requireNextWeekPrep: true },
+      wallet: { minTicketTypes: 1 },
+      boundaryAction: 'none'
+    },
+    envelope: createLateEconomyEnvelope()
+  },
+  {
+    id: 'ws19_online_fallback_readonly',
+    label: 'WS19 在线回退只读样例',
+    description: '用于验证即使在线层不可用，周计划快照仍能在本地页面稳定成立，保证离线可理解。',
+    tags: ['ws19', 'online', 'fallback', 'readonly'],
+    tier: 'regression',
+    recommendedRouteName: 'mail',
+    focusAreas: ['离线周计划', 'Mail 摘要', 'Hall 只读回退'],
+    smokeChecks: [
+      { id: 'local_weekly_plan', label: '确认不依赖在线邮件列表也能读到主路线和下周准备。' },
+      { id: 'claimable_nodes', label: '确认周计划里的领奖点标签仍然存在。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 64000, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'village_area' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 1, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      weeklyPlan: { requirePrimaryRoute: true, requireNextWeekPrep: true },
+      boundaryAction: 'none'
+    },
+    envelope: createLateEconomyEnvelope()
+  },
+  {
+    id: 'ws20_weekly_chronicle_settlement',
+    label: 'WS20 周纪行结算样例',
+    description: '用于验证周切换后会新增一条 weekly chronicle，并带主路线、高光和下周准备。',
+    tags: ['ws20', 'chronicle', 'weekly', 'settlement'],
+    tier: 'regression',
+    recommendedRouteName: 'mail',
+    focusAreas: ['周纪行生成', '结算回顾', '下周准备'],
+    smokeChecks: [
+      { id: 'chronicle_before', label: '确认样例在切周前仍是旧周，且周计划快照可读。' },
+      { id: 'chronicle_after', label: '执行一次日结后，确认新增周纪行条目。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 64000, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'village_area' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 1, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      weeklyPlan: { requirePrimaryRoute: true, minClaimableNodes: 1, requireNextWeekPrep: true },
+      chronicle: { minEntriesAfterBoundary: 1 },
+      boundaryAction: 'week_rollover'
+    },
+    envelope: createWeeklyRolloverEveEnvelope()
   }
 ]

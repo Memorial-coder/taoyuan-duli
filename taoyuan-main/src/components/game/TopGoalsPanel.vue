@@ -108,6 +108,7 @@
         <TopGoalsSummarySidebar
           :build-prompt-focus-attr="buildPromptFocusAttr"
           :current-event-campaign="goalStore.currentEventCampaign"
+          :weekly-plan-snapshot="goalStore.weeklyPlanSnapshot"
           :current-main-quest="goalStore.currentMainQuest"
           :current-main-quest-progress="currentMainQuestProgress"
           :get-goal-action="buildGoalAction"
@@ -115,6 +116,7 @@
           :market-route-highlights="marketRouteHighlights"
           :market-ctas="marketCtas"
           :last-weekly-settlement="goalStore.lastWeeklyGoalSettlement"
+          :latest-weekly-chronicle="goalStore.latestWeeklyChronicleEntry"
           :last-weekly-settlement-week-label="lastWeeklySettlementWeekLabel"
           :weekly-streak="goalStore.weeklyStreakState"
           :get-goal-progress-text="goalStore.getGoalProgressText"
@@ -197,12 +199,19 @@
     return goalAction ? { ...goalAction, mode: 'cta' } : null
   })
   const compactHeadline = computed(() => {
+    if (goalStore.weeklyPlanSnapshot.primaryRouteLabel) return `本周主线：${goalStore.weeklyPlanSnapshot.primaryRouteLabel}`
     if (primaryDecisionAction.value) return primaryDecisionAction.value.label
     if (primaryDailyGoal.value) return `今天先做：${primaryDailyGoal.value.title}`
     if (goalStore.currentMainQuest) return goalStore.currentMainQuest.title
     return '今天先按当前里程碑慢慢推进'
   })
   const compactSummary = computed(() => {
+    if (goalStore.weeklyPlanSnapshot.primaryRouteSummary) {
+      const secondary = goalStore.weeklyPlanSnapshot.secondaryRouteLabels.length > 0
+        ? `辅助路线：${goalStore.weeklyPlanSnapshot.secondaryRouteLabels.join('、')}。`
+        : ''
+      return `${goalStore.weeklyPlanSnapshot.primaryRouteSummary} ${secondary}下周准备：${goalStore.weeklyPlanSnapshot.nextWeekPrepSummary}`
+    }
     if (primaryDecisionAction.value?.summary) return primaryDecisionAction.value.summary
     if (goalStore.currentThemeWeek) return `本周主题：${goalStore.currentThemeWeek.name}。先按里程碑和今日目标慢慢推进就好。`
     if (goalStore.currentMainQuest?.description) return goalStore.currentMainQuest.description
@@ -210,6 +219,7 @@
     return '先处理眼前这一步，再决定要不要展开更完整的经营规划。'
   })
   const compactStatusLabel = computed(() => {
+    if (goalStore.weeklyPlanSnapshot.claimableNodeLabels.length > 0) return `可领 ${goalStore.weeklyPlanSnapshot.claimableNodeLabels.length} 处`
     if (primaryDecisionAction.value) return `本周路线 ${decisionLoopActions.value.length} 条`
     if (primaryDailyGoal.value) return `今日目标 ${goalStore.dailyGoals.length} 项`
     return `里程碑 ${currentMainQuestProgress.value}`

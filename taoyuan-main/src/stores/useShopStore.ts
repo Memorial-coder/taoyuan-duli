@@ -646,7 +646,7 @@ export const useShopStore = defineStore('shop', () => {
     offer: ShopCatalogOfferDef
   ): { success: boolean; message: string; result?: CatalogDecorationUnlockResult } => {
     if (offer.effect.type !== 'unlock_decoration' || !offer.decorationUnlockId) {
-      return { success: false, message: '鐩綍闄堣閰嶇疆缂哄け锛屾棤娉曞畬鎴愯В閿併€?' }
+      return { success: false, message: '目录陈设配置缺失，无法完成解锁。' }
     }
 
     const beforeBeauty = decorationStore.beautyScore

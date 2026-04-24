@@ -148,18 +148,24 @@
     const familyWishOverview = npcStore.getFamilyWishOverview()
     const activeFamilyWish = familyWishOverview.defs.find(def => def.id === familyWishOverview.state.activeWishId) ?? null
     const bondedNpc = hiddenNpcStore.getBondedNpc
+    const weeklyPlanSnapshot = goalStore.weeklyPlanSnapshot
     return {
+      weeklyPlanId: weeklyPlanSnapshot.planId,
       currentThemeWeekId: goalStore.currentThemeWeek?.id,
       currentThemeWeekLabel: goalStore.currentThemeWeek?.name,
       currentEventCampaignId: goalStore.currentEventCampaign?.id,
       currentEventCampaignLabel: goalStore.currentEventCampaign?.label,
       currentLimitedQuestCampaignId: questStore.currentLimitedTimeQuestCampaign?.id,
       currentLimitedQuestLabel: questStore.currentLimitedTimeQuestCampaign?.label,
+      primaryRouteLabel: weeklyPlanSnapshot.primaryRouteLabel,
+      secondaryRouteLabels: [...weeklyPlanSnapshot.secondaryRouteLabels],
+      claimableNodeLabels: [...weeklyPlanSnapshot.claimableNodeLabels],
+      nextWeekPrepSummary: weeklyPlanSnapshot.nextWeekPrepSummary,
       activeFamilyWishId: activeFamilyWish?.id,
       activeFamilyWishTitle: activeFamilyWish?.title,
       bondedSpiritId: bondedNpc?.id,
       bondedSpiritName: bondedNpc?.name,
-      highlightedRouteLabels: [...(goalStore.currentEventCampaign?.linkedRouteLabels ?? [])],
+      highlightedRouteLabels: [...new Set([weeklyPlanSnapshot.primaryRouteLabel, ...weeklyPlanSnapshot.secondaryRouteLabels])],
       previewMailTitles: goalStore.eventMailTemplateRefs
         .filter(template => goalStore.currentEventCampaign?.mailboxTemplateIds.includes(template.id))
         .map(template => template.title)
@@ -208,6 +214,7 @@
   )
 
   onMounted(() => {
+    goalStore.ensureInitialized()
     void store.loadConfig()
     void store.verifyAdminAccess()
   })

@@ -19,6 +19,7 @@ import type {
   QaGovernanceRuntimeState,
   QaGovernanceTransactionGuardDef,
   QaCaseDef,
+  ProgressBridgeDef,
   ReleaseChecklistItem,
   ThemeWeekDef,
   ThemeWeekRewardPoolEntry,
@@ -181,7 +182,10 @@ export const GOAL_BIAS_MAP: Partial<Record<GoalMetricKey, Array<'cashflow' | 'fa
   totalRecipesCooked: ['cooking'],
   highestMineFloor: ['mining'],
   friendlyNpcCount: ['social'],
-  discoveredCount: ['discovery']
+  discoveredCount: ['discovery'],
+  regionRouteCompletions: ['discovery'],
+  expeditionBossClears: ['mining'],
+  regionalResourceTurnIns: ['cashflow', 'discovery']
 }
 
 export const GOAL_SOURCE_LABELS: Record<GoalSource, string> = {
@@ -207,7 +211,10 @@ export const GOAL_METRIC_LABELS: Record<GoalMetricKey, string> = {
   villageProjectLevel: '村庄建设等级',
   hanhaiContractCompletions: '瀚海循环完成数',
   museumExhibitLevel: '博物馆展陈等级',
-  familyWishCompletions: '家庭心愿完成数'
+  familyWishCompletions: '家庭心愿完成数',
+  regionRouteCompletions: '区域路线完成数',
+  expeditionBossClears: '远征首领清关数',
+  regionalResourceTurnIns: '区域资源交付数'
 }
 
 export const GOAL_BIAS_RULES: GoalBiasRule[] = [
@@ -988,6 +995,125 @@ export const WS13_EVENT_CAMPAIGN_DEFS: EventCampaignDef[] = [
   }
 ]
 
+export const WS18_PROGRESS_BRIDGE_DEFS: ProgressBridgeDef[] = [
+  {
+    bridgeId: 'ws18_fishpond_unlock_bridge',
+    label: '鱼塘开塘桥',
+    targetSystem: 'fishpond',
+    entryCriteria: { minMoney: 1800, requireRouteLabels: ['Quest', 'TopGoals'] },
+    linkedThemeWeekIds: ['spring_pond_awakening', 'summer_fishing'],
+    linkedRouteLabels: ['鱼塘', '任务', '邮箱'],
+    weeklyObjective: '先把鱼塘建起来，再用本周任务和活动摘要承接第一次养护与投样。',
+    settlementHook: '第一次周切换后，把鱼塘样本、产物与可领奖点同步到任务与邮件摘要。',
+    nextWeekPrepSummary: '下周继续保留基础饵料和一批可投样鱼获，方便直接接上周赛或展示线。',
+    rewardSummary: '默认承接少量养护物资、资格放开和鱼塘路线摘要增强。',
+    priority: 100
+  },
+  {
+    bridgeId: 'ws18_fishpond_settlement_bridge',
+    label: '鱼塘首轮结算桥',
+    targetSystem: 'fishpond',
+    entryCriteria: { minMoney: 4200, requireRouteLabels: ['Mail', 'Quest'] },
+    linkedThemeWeekIds: ['summer_pond_showcase', 'winter_pond_maintenance'],
+    linkedRouteLabels: ['鱼塘', '大厅', '邮箱'],
+    weeklyObjective: '完成第一次报名、周中养护和展示准备，让鱼塘不只停在日常产物。',
+    settlementHook: '首次周赛或展示结算后，把奖励、展示结果和下周推荐同步进周纪行。',
+    nextWeekPrepSummary: '下周提前准备展示池样本和养护物资，方便从结算直接过渡到下一轮经营。',
+    rewardSummary: '默认承接少量展示票券、活动资格与收尾摘要增强。',
+    priority: 92
+  },
+  {
+    bridgeId: 'ws18_breeding_unlock_bridge',
+    label: '育种开线桥',
+    targetSystem: 'breeding',
+    entryCriteria: { minMoney: 2200, requireRouteLabels: ['Quest', 'Shop'] },
+    linkedThemeWeekIds: ['spring_sowing', 'summer_supply'],
+    linkedRouteLabels: ['育种', '任务', '商店'],
+    weeklyObjective: '先完成首轮育种解锁和样本入箱，再让任务和目录推荐接住第一次培育目标。',
+    settlementHook: '第一次收种或研究推进后，把品系方向、票券和推荐路线写进周计划快照。',
+    nextWeekPrepSummary: '下周继续保留基础亲本和研究消耗，方便直接进入周赛或特殊订单。',
+    rewardSummary: '默认承接少量研究票券、育种耗材与育种路线摘要增强。',
+    priority: 100
+  },
+  {
+    bridgeId: 'ws18_breeding_settlement_bridge',
+    label: '育种首轮结算桥',
+    targetSystem: 'breeding',
+    entryCriteria: { minMoney: 5200, requireRouteLabels: ['Quest', 'Mail'] },
+    linkedThemeWeekIds: ['autumn_harvest', 'winter_storage'],
+    linkedRouteLabels: ['育种', '任务', '邮箱'],
+    weeklyObjective: '完成第一次参赛或图鉴推进，把育种从单次实验变成有周节奏的成长线。',
+    settlementHook: '首次周赛或图鉴结算后，把研究票券、下一轮推荐品系和活动承接写进周纪行。',
+    nextWeekPrepSummary: '下周提前整理亲本、图鉴缺口和任务供货方向，保证结算后能继续接线。',
+    rewardSummary: '默认承接少量研究票券、活动资格与下周育种推荐摘要。',
+    priority: 90
+  },
+  {
+    bridgeId: 'ws18_museum_unlock_bridge',
+    label: '博物馆开馆桥',
+    targetSystem: 'museum',
+    entryCriteria: { minMoney: 3600, requireRouteLabels: ['Quest', 'Village'] },
+    linkedThemeWeekIds: ['spring_scholar', 'autumn_exhibition'],
+    linkedRouteLabels: ['博物馆', '任务', '邮箱'],
+    weeklyObjective: '先完成第一次捐赠和展位解锁，让任务、家园或挖矿成果有地方沉淀。',
+    settlementHook: '第一次捐赠或委托承接后，把展陈焦点、馆区热度和后续推荐同步到周计划。',
+    nextWeekPrepSummary: '下周优先保留一批适合捐赠或展陈的矿晶、古物或灵物样本。',
+    rewardSummary: '默认承接少量展陈票券、委托资格与展陈摘要增强。',
+    priority: 96
+  },
+  {
+    bridgeId: 'ws18_museum_settlement_bridge',
+    label: '博物馆首轮结算桥',
+    targetSystem: 'museum',
+    entryCriteria: { minMoney: 7600, requireRouteLabels: ['Mail', 'Hall'] },
+    linkedThemeWeekIds: ['autumn_exhibition', 'winter_scholar'],
+    linkedRouteLabels: ['博物馆', '大厅', '邮箱'],
+    weeklyObjective: '完成第一次馆务委托、展陈加热或活动承接，让博物馆进入稳定周循环。',
+    settlementHook: '首次委托或展陈高光结算后，把馆区成果、访客热度和下周推荐写入周纪行。',
+    nextWeekPrepSummary: '下周提前备好展陈样本和委托素材，方便直接衔接下一轮专题展。',
+    rewardSummary: '默认承接少量委托加成、展示资格和收尾摘要增强。',
+    priority: 88
+  },
+  {
+    bridgeId: 'ws18_hanhai_unlock_bridge',
+    label: '瀚海开通桥',
+    targetSystem: 'hanhai',
+    entryCriteria: { minMoney: 9000, requireRouteLabels: ['Shop', 'Quest'] },
+    linkedThemeWeekIds: ['summer_caravan', 'winter_storage'],
+    linkedRouteLabels: ['瀚海', '任务', '商店'],
+    weeklyObjective: '先完成瀚海开通和第一条商路投资，让资金线、供货线和后期路线真正接通。',
+    settlementHook: '第一次商路开通或遗迹勘探后，把瀚海焦点、补给需求和推荐目录同步到周计划。',
+    nextWeekPrepSummary: '下周提前准备补给包、藏宝图和高价值供货物资，方便继续推进商路。',
+    rewardSummary: '默认承接少量商路票券、补给资格和瀚海摘要增强。',
+    priority: 98
+  },
+  {
+    bridgeId: 'ws18_hanhai_settlement_bridge',
+    label: '瀚海首轮结算桥',
+    targetSystem: 'hanhai',
+    entryCriteria: { minMoney: 18000, requireRouteLabels: ['Mail', 'Hall'] },
+    linkedThemeWeekIds: ['late_sink_rotation', 'winter_mining'],
+    linkedRouteLabels: ['瀚海', '博物馆', '大厅'],
+    weeklyObjective: '完成第一次首领、合同或遗迹收尾，让瀚海从单次高端商路变成周循环的一部分。',
+    settlementHook: '首次合同或首领收尾后，把高光结果、轮换货架和下一周准备同步进周纪行与收尾展示。',
+    nextWeekPrepSummary: '下周优先准备高规格样本、合同物资和补给包，确保能承接下一轮瀚海活动。',
+    rewardSummary: '默认承接少量商路票券、展示资格与收尾摘要增强。',
+    priority: 86
+  }
+]
+
+export const WS20_EVENT_MAIL_TEMPLATE_REFS: EventMailTemplateRef[] = [
+  {
+    id: 'ws20_weekly_recap_digest',
+    templateType: 'weekly_recap',
+    cadenceSlot: 'recap',
+    linkedRouteLabels: ['Mail', 'TopGoals', 'Hall'],
+    title: '周纪行回顾',
+    summary: '用于在周切换后汇总本周主路线、高光结果、结算记录和下周准备说明。',
+    previewHeadline: '它不会替代奖励邮件，而是把“这周发生了什么”稳定沉淀下来。'
+  }
+]
+
 export const createDefaultEventOperationsState = (): EventOperationsState => ({
   version: 1,
   activeCampaignId: null,
@@ -1616,6 +1742,10 @@ export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
     hanhaiFocusContractIds: ['contract_silk_relay'],
     hanhaiFocusRelicSetIds: ['merchant_ledger_set'],
     hanhaiFocusShopRotationIds: ['rotation_frontier_supplies'],
+    regionFocusRegionIds: ['ancient_road'],
+    regionFocusRouteIds: ['ancient_road_supply_relay', 'ancient_road_archive_recovery'],
+    regionFocusBossIds: ['ancient_road_overseer'],
+    regionFocusResourceFamilies: ['ancient_archive'],
     familyFocusNpcIds: ['liu_niang', 'chun_lan'],
     familyFocusWishIds: ['wish_shared_breakfast'],
     familyFocusSpiritIds: ['tao_yao'],
@@ -1727,6 +1857,10 @@ export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
     guildFocusActivityIds: ['abyss_boss_campaign'],
     guildFocusMilestoneIds: ['guild_world_bulwark'],
     guildFocusRewardPoolIds: ['world_milestone_pool'],
+    regionFocusRegionIds: ['cloud_highland'],
+    regionFocusRouteIds: ['cloud_highland_patrol', 'cloud_highland_ley_crack'],
+    regionFocusBossIds: ['cloud_highland_warden'],
+    regionFocusResourceFamilies: ['ley_crystal'],
     hanhaiFocusRouteIds: ['moon_sand_ceremony_route'],
     hanhaiFocusRelicSiteIds: ['moon_sand_shrine'],
     hanhaiFocusBossCycleIds: ['sunken_colossus', 'sandstorm_wyrm'],
@@ -1769,6 +1903,10 @@ export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
     hanhaiFocusContractIds: ['contract_moon_sand_patronage'],
     hanhaiFocusRelicSetIds: ['sun_moon_trade_set'],
     hanhaiFocusShopRotationIds: ['rotation_endgame_patron'],
+    regionFocusRegionIds: ['ancient_road', 'cloud_highland'],
+    regionFocusRouteIds: ['ancient_road_archive_recovery', 'cloud_highland_ley_crack'],
+    regionFocusBossIds: ['ancient_road_overseer', 'cloud_highland_warden'],
+    regionFocusResourceFamilies: ['ancient_archive', 'ley_crystal'],
     familyFocusNpcIds: ['a_shi', 'chun_lan', 'mo_bai'],
     familyFocusWishIds: ['wish_legacy_archive'],
     familyFocusSpiritIds: ['shan_weng', 'long_ling'],
@@ -1827,6 +1965,10 @@ export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
     museumFocusScholarCommissionIds: ['ancestral_relic_field_report'],
     guildFocusActivityIds: ['ranked_hunt_board'],
     hanhaiFocusRelicSiteIds: ['sunset_ruins'],
+    regionFocusRegionIds: ['mirage_marsh'],
+    regionFocusRouteIds: ['mirage_marsh_night_watch', 'mirage_marsh_specimen_drive'],
+    regionFocusBossIds: ['mirage_marsh_devourer'],
+    regionFocusResourceFamilies: ['ecology_specimen'],
     ui: {
       badgeText: '春研',
       summaryLabel: '本周重点：采集见闻与布展筹备',
@@ -1895,6 +2037,10 @@ export const THEME_WEEK_DEFS: ThemeWeekDef[] = [
     guildFocusActivityIds: ['elite_logistics_auction'],
     hanhaiFocusRouteIds: ['turquoise_exchange_route'],
     hanhaiFocusContractIds: ['contract_turquoise_exchange'],
+    regionFocusRegionIds: ['ancient_road'],
+    regionFocusRouteIds: ['ancient_road_supply_relay', 'ancient_road_archive_recovery'],
+    regionFocusBossIds: ['ancient_road_overseer'],
+    regionFocusResourceFamilies: ['ancient_archive'],
     breedingFocusLabel: '夏行补给单',
     breedingFocusDescription: '更适合承接兼顾供货与远行补给的杂交作物订单。',
     breedingFocusHybridIds: ['honey_peach_melon', 'moonlight_rice'],
@@ -2161,7 +2307,7 @@ const THEME_WEEK_CROSS_GOAL_METRICS: Record<string, GoalMetricKey> = {
   winter_storage: 'totalRecipesCooked',
   winter_scholar: 'museumExhibitLevel',
   winter_pond_maintenance: 'familyWishCompletions',
-  winter_mining: 'hanhaiContractCompletions'
+  winter_mining: 'expeditionBossClears'
 }
 
 const WEEKLY_GOAL_METRIC_PRESETS: Partial<
@@ -2275,6 +2421,33 @@ const WEEKLY_GOAL_METRIC_PRESETS: Partial<
       { reputation: 12, items: [{ itemId: 'food_rice_ball', quantity: 2 }] },
       { reputation: 16, items: [{ itemId: 'osmanthus', quantity: 2 }] },
       { reputation: 10, items: [{ itemId: 'food_rice_ball', quantity: 1 }] }
+    ]
+  },
+  regionRouteCompletions: {
+    summary: '完成区域路线，验证本周行旅图推进是否真正形成闭环。',
+    targets: [1, 2, 1],
+    rewards: [
+      { reputation: 10, items: [{ itemId: 'bamboo', quantity: 2 }] },
+      { reputation: 14, items: [{ itemId: 'charcoal', quantity: 2 }] },
+      { reputation: 8, items: [{ itemId: 'food_rice_ball', quantity: 1 }] }
+    ]
+  },
+  expeditionBossClears: {
+    summary: '击败区域首领，验证高风险路线与战备节奏是否成立。',
+    targets: [1, 1, 1],
+    rewards: [
+      { reputation: 16, items: [{ itemId: 'gold_ore', quantity: 2 }] },
+      { reputation: 18, items: [{ itemId: 'gold_ore', quantity: 3 }] },
+      { reputation: 12, items: [{ itemId: 'food_rice_ball', quantity: 2 }] }
+    ]
+  },
+  regionalResourceTurnIns: {
+    summary: '交付区域资源，验证新地图成果是否真正进入旧系统承接链。',
+    targets: [2, 4, 2],
+    rewards: [
+      { reputation: 10, items: [{ itemId: 'herb', quantity: 3 }] },
+      { reputation: 14, items: [{ itemId: 'bamboo', quantity: 2 }] },
+      { reputation: 8, items: [{ itemId: 'food_rice_ball', quantity: 1 }] }
     ]
   }
 }

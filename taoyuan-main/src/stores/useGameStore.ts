@@ -274,7 +274,7 @@ export const useGameStore = defineStore('game', () => {
     tomorrowWeather.value = rollWeather(nextCalendar.season, nextCalendar.day, nextCalendar.year)
   }
 
-  /** 寮€濮嬫柊娓告垙 */
+  /** 开始新游戏 */
   const startNewGame = (mapType: FarmMapType = 'standard') => {
     year.value = 1
     season.value = 'spring'
@@ -289,7 +289,7 @@ export const useGameStore = defineStore('game', () => {
     isGameStarted.value = true
   }
 
-  /** 瀵煎嚭瀛樻。鏁版嵁 */
+  /** 导出存档数据 */
   const serialize = () => {
     return {
       year: year.value,
@@ -307,7 +307,7 @@ export const useGameStore = defineStore('game', () => {
     }
   }
 
-  /** 鍔犺浇瀛樻。鏁版嵁 */
+  /** 加载存档数据 */
   const deserialize = (data: any) => {
     year.value = data.year ?? 1
     season.value = data.season ?? 'spring'

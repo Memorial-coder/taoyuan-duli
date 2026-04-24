@@ -118,7 +118,7 @@
 
   const farmGroup = computed(() => pick(['farm', 'animal', 'cottage', 'home', 'breeding', 'fishpond', 'decoration']))
   const villageGroup = computed(() => pick(['village', 'shop', 'museum', 'guild']))
-  const wildGroup = computed(() => pick(['forage', 'fishing', 'mining', 'hanhai']))
+  const wildGroup = computed(() => pick(['forage', 'fishing', 'mining', 'hanhai', 'region-map']))
   const craftGroup = computed(() => pick(['cooking', 'workshop', 'upgrade']))
   const personalGroup = computed(() => pick(['charinfo', 'inventory', 'skills', 'achievement', 'wallet', 'quest', 'mail', 'glossary']))
 

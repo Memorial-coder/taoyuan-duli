@@ -13,6 +13,8 @@ import {
   WS10_EVENT_MAIL_TEMPLATE_REFS,
   WS13_EVENT_CAMPAIGN_DEFS,
   WS13_EVENT_MAIL_TEMPLATE_REFS,
+  WS18_PROGRESS_BRIDGE_DEFS,
+  WS20_EVENT_MAIL_TEMPLATE_REFS,
   WS10_EVENT_OPERATION_TUNING_CONFIG,
   WS10_EVENT_OPERATIONS_BASELINE_AUDIT,
   WEEKLY_GOAL_FAILURE_COMPENSATION_RULE
@@ -23,12 +25,21 @@ import { ECONOMY_SINK_CONTENT_DEFS, ECONOMY_TUNING_CONFIG } from '@/data/market'
 import type {
   EventOperationsState,
   LateGameMetricSnapshot,
+  ProgressBridgeDef,
+  ProgressBridgeEntryCriteria,
+  ProgressBridgeStageId,
+  ProgressBridgeState,
   RewardTicketType,
   ThemeWeekState,
   ThemeWeekRewardPoolEntry,
+  WeeklyChronicleEntry,
+  WeeklyChronicleHighlightType,
   WeeklyBudgetArchive,
   WeeklyBudgetChannelId,
   WeeklyBudgetPlan,
+  WeeklyPlanRoute,
+  WeeklyPlanRouteId,
+  WeeklyPlanSnapshot,
   WeeklyBudgetSelection,
   WeeklyBudgetTierDef,
   WeeklyGoalDef,
@@ -40,6 +51,7 @@ import type {
 } from '@/types'
 import { addLog, showFloat } from '@/composables/useGameLog'
 import { useAchievementStore } from './useAchievementStore'
+import { useBreedingStore } from './useBreedingStore'
 import { useFishingStore } from './useFishingStore'
 import { useFishPondStore } from './useFishPondStore'
 import { useGameStore, SEASON_NAMES } from './useGameStore'
@@ -53,6 +65,7 @@ import { useShopStore } from './useShopStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { useWalletStore } from './useWalletStore'
+import { useRegionMapStore } from './useRegionMapStore'
 import { getWeekCycleInfo, type WeekCycleInfo } from '@/utils/weekCycle'
 
 type GoalMetricKey =
@@ -72,6 +85,9 @@ type GoalMetricKey =
   | 'hanhaiContractCompletions'
   | 'museumExhibitLevel'
   | 'familyWishCompletions'
+  | 'regionRouteCompletions'
+  | 'expeditionBossClears'
+  | 'regionalResourceTurnIns'
 
 interface GoalRewardItem {
   itemId: string
@@ -122,10 +138,66 @@ export interface MainQuestStageState {
 }
 
 const FRIENDSHIP_GOAL_LEVELS = new Set(['friendly', 'bestFriend'])
-const GOAL_SAVE_VERSION = 5
+const GOAL_SAVE_VERSION = 6
 const WEEKLY_METRIC_ARCHIVE_VERSION = 1
 const WEEKLY_METRIC_ARCHIVE_LIMIT = 4
 const WEEKLY_BUDGET_ARCHIVE_LIMIT = 8
+const WEEKLY_CHRONICLE_LIMIT = 8
+
+const WEEKLY_PLAN_ROUTE_LABELS: Record<WeeklyPlanRouteId, string> = {
+  top_goals: 'TopGoals',
+  quest: '任务',
+  shop: '商店',
+  mail: '邮箱',
+  hall: '大厅',
+  npc: '关系',
+  home: '家园',
+  village: '村庄',
+  breeding: '育种',
+  fishpond: '鱼塘',
+  museum: '博物馆',
+  hanhai: '瀚海',
+  guild: '公会',
+  'region-map': '行旅图'
+}
+
+const ROUTE_LABEL_TO_WEEKLY_PLAN_ID: Record<string, WeeklyPlanRouteId> = {
+  topgoals: 'top_goals',
+  top_goals: 'top_goals',
+  topgoalspanel: 'top_goals',
+  quest: 'quest',
+  mail: 'mail',
+  shop: 'shop',
+  hall: 'hall',
+  npc: 'npc',
+  home: 'home',
+  village: 'village',
+  breeding: 'breeding',
+  fishpond: 'fishpond',
+  museum: 'museum',
+  hanhai: 'hanhai',
+  guild: 'guild',
+  topgoalszh: 'top_goals',
+  '任务': 'quest',
+  '邮箱': 'mail',
+  '商店': 'shop',
+  '大厅': 'hall',
+  '关系': 'npc',
+  '家园': 'home',
+  '村庄': 'village',
+  '育种': 'breeding',
+  '鱼塘': 'fishpond',
+  '博物馆': 'museum',
+  '瀚海': 'hanhai',
+  '公会': 'guild',
+  '行旅图': 'region-map',
+  regionmap: 'region-map',
+  region_map: 'region-map',
+  'region-map': 'region-map',
+  'topgoals面板': 'top_goals'
+}
+
+const PROGRESS_BRIDGE_STAGE_ORDER: ProgressBridgeStageId[] = ['unlock_hint', 'first_participation', 'first_settlement', 'next_week_handoff']
 
 const createEmptyWeeklyGoalStreakState = (): WeeklyGoalStreakState => ({
   current: 0,
@@ -218,6 +290,99 @@ const createEmptyWeeklyBudgetPlan = (weekId = '', activatedAtDayTag = ''): Weekl
   selections: {},
   ticketBalances: {}
 })
+
+const normalizeWeeklyPlanRouteId = (value: unknown): WeeklyPlanRouteId | null => {
+  if (typeof value !== 'string') return null
+  const normalized = value.trim().toLowerCase()
+  return ROUTE_LABEL_TO_WEEKLY_PLAN_ID[normalized] ?? (Object.keys(WEEKLY_PLAN_ROUTE_LABELS).includes(normalized) ? (normalized as WeeklyPlanRouteId) : null)
+}
+
+const normalizeProgressBridgeEntryCriteria = (value: unknown): ProgressBridgeEntryCriteria => {
+  if (!value || typeof value !== 'object') return {}
+  const raw = value as Partial<ProgressBridgeEntryCriteria>
+  return {
+    minMoney: Number.isFinite(Number(raw.minMoney)) ? Math.max(0, Number(raw.minMoney) || 0) : undefined,
+    minVillageProjectLevel: Number.isFinite(Number(raw.minVillageProjectLevel)) ? Math.max(0, Number(raw.minVillageProjectLevel) || 0) : undefined,
+    requireThemeWeekIds: Array.isArray(raw.requireThemeWeekIds) ? raw.requireThemeWeekIds.filter((id): id is string => typeof id === 'string') : undefined,
+    requireRouteLabels: Array.isArray(raw.requireRouteLabels) ? raw.requireRouteLabels.filter((label): label is string => typeof label === 'string') : undefined
+  }
+}
+
+const createDefaultProgressBridgeState = (def: ProgressBridgeDef): ProgressBridgeState => ({
+  bridgeId: def.bridgeId,
+  targetSystem: def.targetSystem,
+  stageId: 'unlock_hint',
+  entryCriteria: normalizeProgressBridgeEntryCriteria(def.entryCriteria),
+  weeklyObjective: def.weeklyObjective,
+  settlementHook: def.settlementHook,
+  linkedThemeWeekIds: [...def.linkedThemeWeekIds],
+  linkedRouteLabels: [...def.linkedRouteLabels],
+  rewardSummary: def.rewardSummary,
+  completedStageIds: [],
+  rewardClaimedStageIds: [],
+  lastUpdatedWeekId: '',
+  completed: false
+})
+
+const normalizeProgressBridgeState = (value: unknown, def?: ProgressBridgeDef): ProgressBridgeState | null => {
+  if (!value || typeof value !== 'object') return def ? createDefaultProgressBridgeState(def) : null
+  const raw = value as Partial<ProgressBridgeState>
+  const targetSystem =
+    raw.targetSystem === 'fishpond' || raw.targetSystem === 'breeding' || raw.targetSystem === 'museum' || raw.targetSystem === 'hanhai'
+      ? raw.targetSystem
+      : def?.targetSystem
+  if (!targetSystem) return null
+  const stageId = PROGRESS_BRIDGE_STAGE_ORDER.includes(raw.stageId as ProgressBridgeStageId)
+    ? (raw.stageId as ProgressBridgeStageId)
+    : 'unlock_hint'
+  return {
+    bridgeId: typeof raw.bridgeId === 'string' ? raw.bridgeId : def?.bridgeId ?? '',
+    targetSystem,
+    stageId,
+    entryCriteria: normalizeProgressBridgeEntryCriteria(raw.entryCriteria ?? def?.entryCriteria),
+    weeklyObjective: typeof raw.weeklyObjective === 'string' ? raw.weeklyObjective : def?.weeklyObjective ?? '',
+    settlementHook: typeof raw.settlementHook === 'string' ? raw.settlementHook : def?.settlementHook ?? '',
+    linkedThemeWeekIds: Array.isArray(raw.linkedThemeWeekIds)
+      ? raw.linkedThemeWeekIds.filter((id): id is string => typeof id === 'string')
+      : [...(def?.linkedThemeWeekIds ?? [])],
+    linkedRouteLabels: Array.isArray(raw.linkedRouteLabels)
+      ? raw.linkedRouteLabels.filter((label): label is string => typeof label === 'string')
+      : [...(def?.linkedRouteLabels ?? [])],
+    rewardSummary: typeof raw.rewardSummary === 'string' ? raw.rewardSummary : def?.rewardSummary ?? '',
+    completedStageIds: Array.isArray(raw.completedStageIds)
+      ? raw.completedStageIds.filter((id): id is ProgressBridgeStageId => PROGRESS_BRIDGE_STAGE_ORDER.includes(id as ProgressBridgeStageId))
+      : [],
+    rewardClaimedStageIds: Array.isArray(raw.rewardClaimedStageIds)
+      ? raw.rewardClaimedStageIds.filter((id): id is ProgressBridgeStageId => PROGRESS_BRIDGE_STAGE_ORDER.includes(id as ProgressBridgeStageId))
+      : [],
+    lastUpdatedWeekId: typeof raw.lastUpdatedWeekId === 'string' ? raw.lastUpdatedWeekId : '',
+    completed: raw.completed === true
+  }
+}
+
+const normalizeWeeklyChronicleEntry = (value: unknown): WeeklyChronicleEntry | null => {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Partial<WeeklyChronicleEntry>
+  if (typeof raw.weekId !== 'string' || !raw.weekId) return null
+  return {
+    weekId: raw.weekId,
+    themeWeekId: typeof raw.themeWeekId === 'string' ? raw.themeWeekId : null,
+    primaryRouteLabel: typeof raw.primaryRouteLabel === 'string' ? raw.primaryRouteLabel : '',
+    highlightTypes: Array.isArray(raw.highlightTypes)
+      ? raw.highlightTypes.filter((type): type is WeeklyChronicleHighlightType => ['goal', 'activity', 'fishpond', 'breeding', 'museum', 'hanhai', 'relationship'].includes(String(type)))
+      : [],
+    sourceReceiptIds: Array.isArray(raw.sourceReceiptIds) ? raw.sourceReceiptIds.filter((id): id is string => typeof id === 'string') : [],
+    settlementSummary: typeof raw.settlementSummary === 'string' ? raw.settlementSummary : '',
+    nextWeekPrepSummary: typeof raw.nextWeekPrepSummary === 'string' ? raw.nextWeekPrepSummary : '',
+    createdAtDayTag: typeof raw.createdAtDayTag === 'string' ? raw.createdAtDayTag : '',
+    secondaryRouteLabels: Array.isArray(raw.secondaryRouteLabels) ? raw.secondaryRouteLabels.filter((label): label is string => typeof label === 'string') : [],
+    highlightSummaries: Array.isArray(raw.highlightSummaries) ? raw.highlightSummaries.filter((summary): summary is string => typeof summary === 'string') : [],
+    sourceLabels: Array.isArray(raw.sourceLabels) ? raw.sourceLabels.filter((label): label is string => typeof label === 'string') : [],
+    weeklyPlanId: typeof raw.weeklyPlanId === 'string' ? raw.weeklyPlanId : undefined,
+    mirroredHallPostId: typeof raw.mirroredHallPostId === 'string' ? raw.mirroredHallPostId : null,
+    recapMailReceiptId: typeof raw.recapMailReceiptId === 'string' ? raw.recapMailReceiptId : null
+  }
+}
 
 const normalizeNumericRecord = <T extends string>(value: unknown): Partial<Record<T, number>> => {
   if (!value || typeof value !== 'object') return {}
@@ -403,10 +568,13 @@ export const useGoalStore = defineStore('goal', () => {
   const weeklyMetricArchive = ref<WeeklyMetricArchive>(createEmptyWeeklyMetricArchive())
   const weeklyBudgetPlan = ref<WeeklyBudgetPlan>(createEmptyWeeklyBudgetPlan())
   const weeklyBudgetHistory = ref<WeeklyBudgetArchive[]>([])
+  const progressBridgeStates = ref<ProgressBridgeState[]>([])
+  const weeklyChronicleEntries = ref<WeeklyChronicleEntry[]>([])
   const eventOperationsBaselineAudit = WS10_EVENT_OPERATIONS_BASELINE_AUDIT
   const eventOperationsState = ref<EventOperationsState>(createDefaultEventOperationsState())
   const eventCampaignDefs = [...WS10_EVENT_CAMPAIGN_DEFS, ...WS13_EVENT_CAMPAIGN_DEFS]
-  const eventMailTemplateRefs = [...WS10_EVENT_MAIL_TEMPLATE_REFS, ...WS13_EVENT_MAIL_TEMPLATE_REFS]
+  const eventMailTemplateRefs = [...WS10_EVENT_MAIL_TEMPLATE_REFS, ...WS13_EVENT_MAIL_TEMPLATE_REFS, ...WS20_EVENT_MAIL_TEMPLATE_REFS]
+  const progressBridgeDefs = [...WS18_PROGRESS_BRIDGE_DEFS]
   const eventOperationTuning = WS10_EVENT_OPERATION_TUNING_CONFIG
   const eventOperationFeatureFlags = eventOperationTuning.featureFlags
   const eventOperationLocks = ref<string[]>([])
@@ -449,6 +617,144 @@ export const useGoalStore = defineStore('goal', () => {
   const getCurrentWeekInfo = () => {
     const gameStore = useGameStore()
     return getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
+  }
+
+  const resolveWeeklyPlanRouteId = (routeLabel: string): WeeklyPlanRouteId | null => {
+    const trimmed = String(routeLabel || '').trim()
+    if (!trimmed) return null
+    const direct = normalizeWeeklyPlanRouteId(trimmed)
+    if (direct) return direct
+    return normalizeWeeklyPlanRouteId(trimmed.toLowerCase()) ?? null
+  }
+
+  const getWeeklyPlanRouteLabel = (routeId: WeeklyPlanRouteId) => WEEKLY_PLAN_ROUTE_LABELS[routeId] ?? routeId
+
+  const getProgressBridgeStageId = (def: ProgressBridgeDef): ProgressBridgeStageId => {
+    const playerStore = usePlayerStore()
+    const villageProjectStore = useVillageProjectStore()
+    const completedProjects = villageProjectStore.overviewSummary.completedProjects
+    const currentThemeWeekId = currentThemeWeek.value?.id ?? null
+    const requiresThemeWeekMatch =
+      Array.isArray(def.entryCriteria.requireThemeWeekIds) &&
+      def.entryCriteria.requireThemeWeekIds.length > 0 &&
+      currentThemeWeekId &&
+      def.entryCriteria.requireThemeWeekIds.includes(currentThemeWeekId)
+
+    if (Number.isFinite(Number(def.entryCriteria.minMoney)) && playerStore.money < Math.max(0, Number(def.entryCriteria.minMoney) || 0)) {
+      return 'unlock_hint'
+    }
+    if (
+      Number.isFinite(Number(def.entryCriteria.minVillageProjectLevel)) &&
+      completedProjects < Math.max(0, Number(def.entryCriteria.minVillageProjectLevel) || 0)
+    ) {
+      return 'unlock_hint'
+    }
+    if (Array.isArray(def.entryCriteria.requireThemeWeekIds) && def.entryCriteria.requireThemeWeekIds.length > 0 && !requiresThemeWeekMatch) {
+      return 'unlock_hint'
+    }
+
+    if (def.targetSystem === 'fishpond') {
+      const fishPondStore = useFishPondStore()
+      if (!fishPondStore.pond.built) return 'unlock_hint'
+      if (fishPondStore.pond.fish.length <= 0) return 'first_participation'
+      if (!fishPondStore.lastPondContestSettlement?.weekId) return 'first_settlement'
+      return 'next_week_handoff'
+    }
+
+    if (def.targetSystem === 'breeding') {
+      const breedingStore = useBreedingStore()
+      if (!breedingStore.unlocked) return 'unlock_hint'
+      if (breedingStore.breedingBox.length <= 0 && breedingStore.compendium.length <= 0) return 'first_participation'
+      if (!breedingStore.lastBreedingContestSettlement?.weekId) return 'first_settlement'
+      return 'next_week_handoff'
+    }
+
+    if (def.targetSystem === 'museum') {
+      const museumStore = useMuseumStore()
+      if (museumStore.donatedCount <= 0) return 'unlock_hint'
+      if (museumStore.availableScholarCommissionCount <= 0 && museumStore.exhibitLevel <= 1) return 'first_participation'
+      if (museumStore.availableScholarCommissionCount <= 0) return 'first_settlement'
+      return 'next_week_handoff'
+    }
+
+    const hanhaiStore = useHanhaiStore()
+    const debugSnapshot = hanhaiStore.getDebugSnapshot()
+    const activeInvestmentCount = Object.keys(debugSnapshot.cycleState.routeInvestments ?? {}).length
+    const totalRelicClearCount = Object.values(debugSnapshot.relicRecords ?? {}).reduce<number>(
+      (sum, record) => sum + Math.max(0, Number((record as { clears?: number } | undefined)?.clears) || 0),
+      0
+    )
+    if (!debugSnapshot.unlocked) return 'unlock_hint'
+    if (activeInvestmentCount <= 0 && totalRelicClearCount <= 0) return 'first_participation'
+    if (totalRelicClearCount <= 0) return 'first_settlement'
+    return 'next_week_handoff'
+  }
+
+  const syncProgressBridgeStates = (currentWeekId = getCurrentWeekInfo().seasonWeekId) => {
+    progressBridgeStates.value = progressBridgeDefs.map(def => {
+      const existing = progressBridgeStates.value.find(state => state.bridgeId === def.bridgeId)
+      const normalized = normalizeProgressBridgeState(existing, def) ?? createDefaultProgressBridgeState(def)
+      const stageId = getProgressBridgeStageId(def)
+      const stageIndex = PROGRESS_BRIDGE_STAGE_ORDER.indexOf(stageId)
+      const completedStageIds = stageIndex <= 0
+        ? []
+        : PROGRESS_BRIDGE_STAGE_ORDER.slice(0, stageIndex)
+
+      const completed =
+        stageId === 'next_week_handoff' &&
+        normalized.stageId === 'next_week_handoff' &&
+        normalized.lastUpdatedWeekId !== '' &&
+        normalized.lastUpdatedWeekId !== currentWeekId
+
+      return {
+        ...normalized,
+        stageId,
+        completedStageIds,
+        lastUpdatedWeekId: currentWeekId,
+        completed
+      }
+    })
+  }
+
+  const activeProgressBridgeStates = computed(() => {
+    const currentThemeWeekId = currentThemeWeek.value?.id ?? null
+    return progressBridgeStates.value
+      .filter(state => !state.completed)
+      .filter(state => {
+        if (!currentThemeWeekId || state.linkedThemeWeekIds.length <= 0) return true
+        return state.linkedThemeWeekIds.includes(currentThemeWeekId)
+      })
+      .sort((left, right) => {
+        const leftPriority = progressBridgeDefs.find(def => def.bridgeId === left.bridgeId)?.priority ?? 0
+        const rightPriority = progressBridgeDefs.find(def => def.bridgeId === right.bridgeId)?.priority ?? 0
+        return rightPriority - leftPriority
+      })
+      .slice(0, 2)
+  })
+
+  const recordWeeklyChronicleEntry = (entry: WeeklyChronicleEntry) => {
+    if (!entry.weekId) return false
+    weeklyChronicleEntries.value = [
+      entry,
+      ...weeklyChronicleEntries.value.filter(existing => existing.weekId !== entry.weekId)
+    ].slice(0, WEEKLY_CHRONICLE_LIMIT)
+    return true
+  }
+
+  const markWeeklyChronicleRecapMailSent = (weekId: string, recapMailReceiptId: string) => {
+    if (!weekId || !recapMailReceiptId) return false
+    const target = weeklyChronicleEntries.value.find(entry => entry.weekId === weekId)
+    if (!target) return false
+    target.recapMailReceiptId = recapMailReceiptId
+    return true
+  }
+
+  const markWeeklyChronicleMirroredHallPost = (weekId: string, hallPostId: string) => {
+    if (!weekId || !hallPostId) return false
+    const target = weeklyChronicleEntries.value.find(entry => entry.weekId === weekId)
+    if (!target) return false
+    target.mirroredHallPostId = hallPostId
+    return true
   }
 
   const isWeeklyGoalFeatureEnabled = () => settingsStore.isFeatureEnabled('lateGameWeeklyGoals')
@@ -592,6 +898,7 @@ export const useGoalStore = defineStore('goal', () => {
     const museumStore = useMuseumStore()
     const npcStore = useNpcStore()
     const villageProjectStore = useVillageProjectStore()
+    const regionMapStore = useRegionMapStore()
 
     switch (metric) {
       case 'totalMoneyEarned':
@@ -626,6 +933,12 @@ export const useGoalStore = defineStore('goal', () => {
         return museumStore.donatedCount
       case 'familyWishCompletions':
         return npcStore.getFamilyWishOverview().state.completedWishIds.length
+      case 'regionRouteCompletions':
+        return regionMapStore.regionIntegrationEnabled ? regionMapStore.saveData.telemetry.totalRouteCompletions : 0
+      case 'expeditionBossClears':
+        return regionMapStore.expeditionFeatureEnabled ? regionMapStore.saveData.telemetry.bossClears : 0
+      case 'regionalResourceTurnIns':
+        return regionMapStore.resourceFeatureEnabled ? regionMapStore.saveData.telemetry.resourceTurnIns : 0
       default:
         return 0
     }
@@ -647,7 +960,10 @@ export const useGoalStore = defineStore('goal', () => {
     villageProjectLevel: getMetricValue('villageProjectLevel'),
     hanhaiContractCompletions: getMetricValue('hanhaiContractCompletions'),
     museumExhibitLevel: getMetricValue('museumExhibitLevel'),
-    familyWishCompletions: getMetricValue('familyWishCompletions')
+    familyWishCompletions: getMetricValue('familyWishCompletions'),
+    regionRouteCompletions: getMetricValue('regionRouteCompletions'),
+    expeditionBossClears: getMetricValue('expeditionBossClears'),
+    regionalResourceTurnIns: getMetricValue('regionalResourceTurnIns')
   })
 
   const buildLateGameMetricSnapshot = (
@@ -995,6 +1311,7 @@ export const useGoalStore = defineStore('goal', () => {
       refreshThemeWeek(false)
     }
     ensureWeeklyBudgetPlan()
+    syncProgressBridgeStates(weekInfo.seasonWeekId)
     syncMainQuestStage()
   }
 
@@ -1261,6 +1578,36 @@ export const useGoalStore = defineStore('goal', () => {
     return true
   }
 
+  const createWeeklyChronicleEntry = (payload: {
+    weekId: string
+    themeWeekId?: string | null
+    primaryRouteLabel?: string
+    secondaryRouteLabels?: string[]
+    highlightTypes?: WeeklyChronicleHighlightType[]
+    highlightSummaries?: string[]
+    sourceReceiptIds?: string[]
+    sourceLabels?: string[]
+    settlementSummary: string
+    nextWeekPrepSummary?: string
+    createdAtDayTag?: string
+    weeklyPlanId?: string
+  }): WeeklyChronicleEntry => ({
+    weekId: payload.weekId,
+    themeWeekId: payload.themeWeekId ?? currentThemeWeek.value?.id ?? null,
+    primaryRouteLabel: payload.primaryRouteLabel ?? weeklyPlanSnapshot.value.primaryRouteLabel,
+    highlightTypes: payload.highlightTypes ?? [],
+    sourceReceiptIds: payload.sourceReceiptIds ?? [],
+    settlementSummary: payload.settlementSummary,
+    nextWeekPrepSummary: payload.nextWeekPrepSummary ?? weeklyPlanSnapshot.value.nextWeekPrepSummary,
+    createdAtDayTag: payload.createdAtDayTag ?? getCurrentDayTag(),
+    secondaryRouteLabels: payload.secondaryRouteLabels ?? [...weeklyPlanSnapshot.value.secondaryRouteLabels],
+    highlightSummaries: payload.highlightSummaries ?? [],
+    sourceLabels: payload.sourceLabels ?? [...weeklyPlanSnapshot.value.sourceLabels],
+    weeklyPlanId: payload.weeklyPlanId ?? weeklyPlanSnapshot.value.planId,
+    mirroredHallPostId: null,
+    recapMailReceiptId: null
+  })
+
   const evaluateProgressAndRewards = () => {
     ensureInitialized()
     const snapshot = getMetricSnapshot()
@@ -1356,6 +1703,7 @@ export const useGoalStore = defineStore('goal', () => {
     if (lastThemeWeekRefresh.value !== getCurrentThemeWeekTag()) {
       refreshThemeWeek(true)
     }
+    syncProgressBridgeStates(getCurrentWeekInfo().seasonWeekId)
   }
 
   const serialize = () => ({
@@ -1379,6 +1727,8 @@ export const useGoalStore = defineStore('goal', () => {
     weeklyMetricArchive: weeklyMetricArchive.value,
     weeklyBudgetPlan: weeklyBudgetPlan.value,
     weeklyBudgetHistory: weeklyBudgetHistory.value,
+    progressBridgeStates: progressBridgeStates.value,
+    weeklyChronicleEntries: weeklyChronicleEntries.value,
     eventOperationsState: eventOperationsState.value
   })
 
@@ -1452,6 +1802,21 @@ export const useGoalStore = defineStore('goal', () => {
     weeklyMetricArchive.value = normalizeWeeklyMetricArchive(data?.weeklyMetricArchive)
     weeklyBudgetPlan.value = normalizeWeeklyBudgetPlan(data?.weeklyBudgetPlan)
     weeklyBudgetHistory.value = normalizeWeeklyBudgetArchive(data?.weeklyBudgetHistory)
+    progressBridgeStates.value = Array.isArray((data as any)?.progressBridgeStates)
+      ? (data as any).progressBridgeStates
+          .map((state: unknown) => {
+            const bridgeId = typeof (state as any)?.bridgeId === 'string' ? (state as any).bridgeId : ''
+            const def = progressBridgeDefs.find(entry => entry.bridgeId === bridgeId)
+            return normalizeProgressBridgeState(state, def)
+          })
+          .filter((state: ProgressBridgeState | null): state is ProgressBridgeState => state !== null)
+      : []
+    weeklyChronicleEntries.value = Array.isArray((data as any)?.weeklyChronicleEntries)
+      ? (data as any).weeklyChronicleEntries
+          .map(normalizeWeeklyChronicleEntry)
+          .filter((entry: WeeklyChronicleEntry | null): entry is WeeklyChronicleEntry => entry !== null)
+          .slice(0, WEEKLY_CHRONICLE_LIMIT)
+      : []
     eventOperationsState.value = (() => {
       const raw = (data as any)?.eventOperationsState
       if (!raw || typeof raw !== 'object') return createDefaultEventOperationsState()
@@ -1470,6 +1835,7 @@ export const useGoalStore = defineStore('goal', () => {
     })()
     eventOperationLocks.value = []
     ensureInitialized()
+    syncProgressBridgeStates(currentWeekInfo.seasonWeekId)
     syncMainQuestStage()
   }
 
@@ -1583,6 +1949,174 @@ export const useGoalStore = defineStore('goal', () => {
     const themeWeekId = currentThemeWeek.value?.id ?? null
     return getPreferredEventCampaignForThemeWeek(themeWeekId)
   })
+  const weeklyPlanSnapshot = computed<WeeklyPlanSnapshot>(() => {
+    const routeCandidateMap = new Map<WeeklyPlanRouteId, { routeId: WeeklyPlanRouteId; routeLabel: string; priority: number; summaryParts: string[]; sourceLabels: Set<string> }>()
+    const regionMapStore = useRegionMapStore()
+    const addRouteCandidate = (
+      routeId: WeeklyPlanRouteId,
+      priority: number,
+      summary: string,
+      sourceLabel: string
+    ) => {
+      const existing = routeCandidateMap.get(routeId)
+      if (existing) {
+        existing.priority = Math.max(existing.priority, priority)
+        if (summary && !existing.summaryParts.includes(summary)) existing.summaryParts.push(summary)
+        if (sourceLabel) existing.sourceLabels.add(sourceLabel)
+        return
+      }
+      routeCandidateMap.set(routeId, {
+        routeId,
+        routeLabel: getWeeklyPlanRouteLabel(routeId),
+        priority,
+        summaryParts: summary ? [summary] : [],
+        sourceLabels: new Set(sourceLabel ? [sourceLabel] : [])
+      })
+    }
+
+    for (const bridge of activeProgressBridgeStates.value) {
+      const primaryBridgeRouteId = resolveWeeklyPlanRouteId(bridge.linkedRouteLabels[0] ?? bridge.targetSystem)
+      if (primaryBridgeRouteId) {
+        addRouteCandidate(primaryBridgeRouteId, 100, bridge.weeklyObjective, `晋升桥：${bridge.bridgeId}`)
+      }
+      const secondaryBridgeRouteId = resolveWeeklyPlanRouteId(bridge.linkedRouteLabels[1] ?? 'quest')
+      if (secondaryBridgeRouteId) {
+        addRouteCandidate(secondaryBridgeRouteId, 82, bridge.settlementHook, `晋升桥：${bridge.bridgeId}`)
+      }
+    }
+
+    for (const [index, routeLabel] of (currentEventCampaign.value?.linkedRouteLabels ?? []).entries()) {
+      const routeId = resolveWeeklyPlanRouteId(routeLabel)
+      if (!routeId) continue
+      addRouteCandidate(
+        routeId,
+        72 - index * 8,
+        `当前活动「${currentEventCampaign.value?.label ?? '本周活动'}」正在放大这条路线。`,
+        `活动：${currentEventCampaign.value?.label ?? '本周活动'}`
+      )
+    }
+
+    const focusedRegionSummary = regionMapStore.currentWeeklyFocus.focusedRegionId
+      ? regionMapStore.regionSummaries.find(region => region.id === regionMapStore.currentWeeklyFocus.focusedRegionId) ?? null
+      : null
+    if (regionMapStore.regionIntegrationEnabled && regionMapStore.activeExpeditionSummary?.region) {
+      addRouteCandidate(
+        'region-map',
+        74,
+        `当前已有一条进行中的行旅图路线，建议继续围绕「${regionMapStore.activeExpeditionSummary.region.name}」收束本周节奏。`,
+        `行旅图远征：${regionMapStore.activeExpeditionSummary.region.name}`
+      )
+    }
+    if (regionMapStore.regionIntegrationEnabled && focusedRegionSummary && focusedRegionSummary.unlocked) {
+      addRouteCandidate(
+        'region-map',
+        68,
+        `本周行旅图建议优先推进「${focusedRegionSummary.name}」，可从区域路线和首领结算反哺现有系统。`,
+        `行旅图：${focusedRegionSummary.name}`
+      )
+    }
+
+    if (currentThemeWeek.value?.preferredQuestThemeTag === 'breeding' || (currentThemeWeek.value?.breedingFocusHybridIds?.length ?? 0) > 0) {
+      addRouteCandidate('breeding', 58, `${currentThemeWeek.value?.name ?? '本周主题'} 正在放大育种和品系推进。`, `主题周：${currentThemeWeek.value?.name ?? '本周主题'}`)
+    }
+    if (currentThemeWeek.value?.preferredQuestThemeTag === 'fishpond' || currentThemeWeek.value?.id?.includes('pond')) {
+      addRouteCandidate('fishpond', 58, `${currentThemeWeek.value?.name ?? '本周主题'} 正在放大鱼塘、观赏或养护承接。`, `主题周：${currentThemeWeek.value?.name ?? '本周主题'}`)
+    }
+    if ((currentThemeWeek.value?.museumFocusHallZoneIds?.length ?? 0) > 0 || (currentThemeWeek.value?.museumFocusScholarCommissionIds?.length ?? 0) > 0) {
+      addRouteCandidate('museum', 56, `${currentThemeWeek.value?.name ?? '本周主题'} 正在放大展陈和馆务委托。`, `主题周：${currentThemeWeek.value?.name ?? '本周主题'}`)
+    }
+    if ((currentThemeWeek.value?.hanhaiFocusRouteIds?.length ?? 0) > 0 || (currentThemeWeek.value?.hanhaiFocusBossCycleIds?.length ?? 0) > 0) {
+      addRouteCandidate('hanhai', 56, `${currentThemeWeek.value?.name ?? '本周主题'} 正在放大瀚海商路、遗迹或首领循环。`, `主题周：${currentThemeWeek.value?.name ?? '本周主题'}`)
+    }
+    if ((currentThemeWeek.value?.guildFocusActivityIds?.length ?? 0) > 0) {
+      addRouteCandidate('guild', 48, `${currentThemeWeek.value?.name ?? '本周主题'} 正在放大公会赛季与讨伐承接。`, `主题周：${currentThemeWeek.value?.name ?? '本周主题'}`)
+    }
+    if (
+      regionMapStore.regionIntegrationEnabled &&
+      (
+        (currentThemeWeek.value?.regionFocusRegionIds?.length ?? 0) > 0 ||
+        (currentThemeWeek.value?.regionFocusRouteIds?.length ?? 0) > 0 ||
+        (currentThemeWeek.value?.regionFocusBossIds?.length ?? 0) > 0 ||
+        (currentThemeWeek.value?.regionFocusResourceFamilies?.length ?? 0) > 0
+      )
+    ) {
+      addRouteCandidate('region-map', 60, `${currentThemeWeek.value?.name ?? '本周主题'} 正在放大区域路线、区域资源与远征首领承接。`, `主题周：${currentThemeWeek.value?.name ?? '本周主题'}`)
+    }
+    if (
+      (currentThemeWeek.value?.familyFocusNpcIds?.length ?? 0) > 0 ||
+      (currentThemeWeek.value?.familyFocusWishIds?.length ?? 0) > 0 ||
+      (currentThemeWeek.value?.familyFocusSpiritIds?.length ?? 0) > 0
+    ) {
+      addRouteCandidate('npc', 44, `${currentThemeWeek.value?.name ?? '本周主题'} 也在放大家庭、知己和仙灵承接。`, `主题周：${currentThemeWeek.value?.name ?? '本周主题'}`)
+    }
+    if (currentThemeWeekGoals.value.length > 0) {
+      addRouteCandidate('quest', 54, '本周的行动承接仍以任务页为主入口。', '主题周目标')
+    }
+    if (recommendedEconomySinks.value.length > 0 || currentEventCampaign.value?.shopBundleId) {
+      addRouteCandidate('shop', 28, '本周商店与目录会承接补给、供货和补票需求。', '目录承接')
+    }
+    addRouteCandidate('mail', 24, '邮件页会统一承接奖励、预告和周纪行回顾。', '邮件承接')
+
+    const routes = [...routeCandidateMap.values()]
+      .sort((left, right) => right.priority - left.priority)
+      .map<WeeklyPlanRoute>(candidate => ({
+        routeId: candidate.routeId,
+        routeLabel: candidate.routeLabel,
+        summary: candidate.summaryParts.join(' '),
+        priority: candidate.priority,
+        sourceLabels: [...candidate.sourceLabels]
+      }))
+
+    const primaryRoute = routes[0] ?? {
+      routeId: 'quest' as WeeklyPlanRouteId,
+      routeLabel: getWeeklyPlanRouteLabel('quest'),
+      summary: '当前没有更高优先级的周路线时，默认先从任务页承接本周目标。',
+      priority: 1,
+      sourceLabels: ['默认回退']
+    }
+    const secondaryRoutes = routes.filter(route => route.routeId !== primaryRoute.routeId).slice(0, 1)
+    const chronicleWeekLabel = lastWeeklyGoalSettlement.value?.weekId ?? latestWeeklyChronicleEntry.value?.weekId ?? ''
+    const claimableNodes = [
+      focusedRegionSummary ? { id: 'region_focus', label: `行旅图焦点：${focusedRegionSummary.name}` } : null,
+      regionMapStore.hasActiveExpedition ? { id: 'region_expedition', label: `行旅图远征：${focusedRegionSummary?.name ?? '进行中路线'}` } : null,
+      currentEventCampaign.value ? { id: 'event_mail_chain', label: `活动链路：${currentEventCampaign.value.label}` } : null,
+      currentEventCampaign.value?.limitedQuestCampaignId ? { id: 'limited_time_window', label: '限时任务窗口：可在任务页查看' } : null,
+      lastWeeklyGoalSettlement.value ? { id: 'weekly_settlement_digest', label: `周结算：${chronicleWeekLabel}` } : null,
+      latestWeeklyChronicleEntry.value ? { id: 'weekly_chronicle', label: `周纪行：${latestWeeklyChronicleEntry.value.weekId}` } : null
+    ].filter((node): node is { id: string; label: string } => node !== null)
+
+    const nextWeekPrepSummary =
+      nextThemeWeekPreview.value?.ui?.summaryLabel ??
+      (nextThemeWeekPreview.value ? `下周主题「${nextThemeWeekPreview.value.name}」即将到来，可提前准备相关物资与样本。` : '下周主题周预告尚未生成。')
+    const sourceLabels = [
+      currentThemeWeek.value?.name ?? '',
+      currentEventCampaign.value?.label ?? '',
+      currentEventCampaign.value?.limitedQuestCampaignId ? '限时任务窗口' : '',
+      ...activeProgressBridgeStates.value.map(bridge => bridge.rewardSummary),
+      ...primaryRoute.sourceLabels,
+      ...secondaryRoutes.flatMap(route => route.sourceLabels)
+    ].filter(Boolean)
+
+    return {
+      planId: `${getCurrentThemeWeekTag()}:${primaryRoute.routeId}:${currentEventCampaign.value?.id ?? 'none'}`,
+      weekId: getCurrentThemeWeekTag(),
+      themeWeekId: currentThemeWeek.value?.id ?? null,
+      campaignId: currentEventCampaign.value?.id ?? null,
+      primaryRouteId: primaryRoute.routeId,
+      primaryRouteLabel: primaryRoute.routeLabel,
+      primaryRouteSummary: primaryRoute.summary,
+      secondaryRouteIds: secondaryRoutes.map(route => route.routeId),
+      secondaryRouteLabels: secondaryRoutes.map(route => route.routeLabel),
+      secondaryRouteSummaries: secondaryRoutes.map(route => route.summary),
+      claimableNodeIds: claimableNodes.map(node => node.id),
+      claimableNodeLabels: claimableNodes.map(node => node.label),
+      nextWeekPrepSummary,
+      sourceLabels: [...new Set(sourceLabels)],
+      activeBridgeIds: activeProgressBridgeStates.value.map(bridge => bridge.bridgeId),
+      routes
+    }
+  })
+  const latestWeeklyChronicleEntry = computed(() => weeklyChronicleEntries.value[0] ?? null)
   const eventOperationsOverview = computed(() => ({
     baselineAudit: eventOperationsBaselineAudit,
     activeCampaign: currentEventCampaign.value,
@@ -1635,6 +2169,8 @@ export const useGoalStore = defineStore('goal', () => {
       latestRiskReportSummary: economyOverview.latestRiskReport?.summary ?? '',
       currentThemeWeek: currentThemeWeekSummary,
       currentEventCampaign: currentEventCampaignSummary,
+      weeklyPlanSnapshot: weeklyPlanSnapshot.value,
+      activeProgressBridgeIds: [...weeklyPlanSnapshot.value.activeBridgeIds],
       themeWeekGoalIds: currentThemeWeekGoals.value.map(goal => goal.id),
       themeWeekGoalTitles: currentThemeWeekGoals.value.map(goal => goal.title),
       recommendedEconomySinks: recommendedEconomySinks.value.map(sink => ({
@@ -1653,10 +2189,13 @@ export const useGoalStore = defineStore('goal', () => {
     currentDayTag: uiGuidanceSourceOverview.value.currentDayTag,
     currentThemeWeekId: uiGuidanceSourceOverview.value.currentThemeWeek?.id ?? null,
     currentEventCampaignId: uiGuidanceSourceOverview.value.currentEventCampaign?.id ?? null,
+    weeklyPlanId: uiGuidanceSourceOverview.value.weeklyPlanSnapshot.planId,
+    primaryRouteLabel: uiGuidanceSourceOverview.value.weeklyPlanSnapshot.primaryRouteLabel,
     currentSegmentId: uiGuidanceSourceOverview.value.currentSegment?.id ?? null,
     themeWeekGoalIds: [...uiGuidanceSourceOverview.value.themeWeekGoalIds],
     recommendedSinkIds: uiGuidanceSourceOverview.value.recommendedEconomySinks.map(sink => sink.id),
-    mailTemplateTitles: [...uiGuidanceSourceOverview.value.mailTemplateTitles]
+    mailTemplateTitles: [...uiGuidanceSourceOverview.value.mailTemplateTitles],
+    claimableNodeLabels: [...uiGuidanceSourceOverview.value.weeklyPlanSnapshot.claimableNodeLabels]
   })
 
   const activateEventCampaign = (campaignId: string, dayTag = getCurrentDayTag()) => {
@@ -1826,6 +2365,10 @@ export const useGoalStore = defineStore('goal', () => {
     eventCampaignDefs,
     eventMailTemplateRefs,
     currentEventCampaign,
+    weeklyPlanSnapshot,
+    progressBridgeStates,
+    weeklyChronicleEntries,
+    latestWeeklyChronicleEntry,
     eventOperationsOverview,
     uiGuidanceSourceOverview,
     recommendedEconomySinks,
@@ -1860,6 +2403,10 @@ export const useGoalStore = defineStore('goal', () => {
     buildWeeklyGoalSettlementSummary,
     settleWeeklyGoals,
     markWeeklySettlementMailSent,
+    createWeeklyChronicleEntry,
+    recordWeeklyChronicleEntry,
+    markWeeklyChronicleRecapMailSent,
+    markWeeklyChronicleMirroredHallPost,
     grantManualReward,
     evaluateProgressAndRewards,
     getGoalProgressValue,

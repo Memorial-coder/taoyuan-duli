@@ -727,6 +727,26 @@
       title: '桃源乡维护公告',
       content: '本次维护内容如下，请留意更新说明。',
     },
+    activity_notice: {
+      label: '活动开启邮件',
+      title: '桃源乡本周活动开启',
+      content: '本周活动已经开启，请先查看本周主路线、当前可领奖点和下周准备说明。',
+    },
+    activity_midweek: {
+      label: '活动周中邮件',
+      title: '桃源乡周中提醒',
+      content: '本周活动进入周中阶段，请及时领取奖励并补上仍未接住的路线节点。',
+    },
+    activity_preview: {
+      label: '活动预告邮件',
+      title: '桃源乡下周预告',
+      content: '下周活动路线与准备物资如下，可提前安排商店补给、样本与任务承接。',
+    },
+    weekly_recap: {
+      label: '周纪行邮件',
+      title: '桃源乡周纪行回顾',
+      content: '以下是本周主路线、高光结果和下周准备摘要，请作为下一个自然周的衔接参考。',
+    },
   }
 
   const templateOptions = (Object.keys(templatePresets) as TaoyuanMailTemplateType[]).map(value => ({

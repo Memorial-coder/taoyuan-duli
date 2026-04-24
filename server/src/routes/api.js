@@ -472,7 +472,7 @@ function normalizeAndroidAppReleaseConfig(raw = {}) {
     releaseNotes: String(next.releaseNotes ?? next.release_notes ?? '').trim(),
     forceUpdateMessage:
       String(next.forceUpdateMessage ?? next.force_update_message ?? '').trim()
-      || '褰撳墠瀹夊崜鐗堟湰杩囨棫锛岃鍏堟洿鏂板埌鏈€鏂板畨瑁呭寘鍚庡啀缁х画娓哥帺銆?',
+      || '\u5f53\u524d\u5b89\u5353\u7248\u672c\u8fc7\u65e7\uff0c\u8bf7\u5148\u66f4\u65b0\u5230\u6700\u65b0\u5b89\u88c5\u5305\u540e\u518d\u7ee7\u7eed\u6e38\u73a9\u3002',
   };
 }
 
@@ -1052,7 +1052,7 @@ router.get('/admin/taoyuan/android/release-config', userAdminAuth, async (req, r
       config: getAndroidAppReleaseConfig(),
     });
   } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '鑾峰彇瀹夊崜鍙戝竷閰嶇疆澶辫触' });
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '\u83b7\u53d6\u5b89\u5353\u53d1\u5e03\u914d\u7f6e\u5931\u8d25' });
   }
 });
 
@@ -1068,7 +1068,7 @@ router.post('/admin/taoyuan/android/release-config', userAdminAuth, async (req, 
     });
     res.json({ ok: true, config });
   } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '淇濆瓨瀹夊崜鍙戝竷閰嶇疆澶辫触' });
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '\u4fdd\u5b58\u5b89\u5353\u53d1\u5e03\u914d\u7f6e\u5931\u8d25' });
   }
 });
 
@@ -1688,6 +1688,13 @@ router.post('/taoyuan/hall/posts', loginRequired, signRequired, async (req, res)
       activitySourceId: req.body?.activity_source_id,
       activitySourceLabel: req.body?.activity_source_label,
       relatedRouteLabels: Array.isArray(req.body?.related_route_labels) ? req.body.related_route_labels : [],
+      weeklyPlanId: req.body?.weekly_plan_id,
+      primaryRouteLabel: req.body?.primary_route_label,
+      secondaryRouteLabels: Array.isArray(req.body?.secondary_route_labels) ? req.body.secondary_route_labels : [],
+      claimableNodeLabels: Array.isArray(req.body?.claimable_node_labels) ? req.body.claimable_node_labels : [],
+      nextWeekPrepSummary: req.body?.next_week_prep_summary,
+      weeklyChronicleWeekId: req.body?.weekly_chronicle_week_id,
+      chronicleSourceLabels: Array.isArray(req.body?.chronicle_source_labels) ? req.body.chronicle_source_labels : [],
       author: req.session.username,
       authorDisplayName: req.session.display_name || req.session.username,
     });

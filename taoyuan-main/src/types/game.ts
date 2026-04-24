@@ -11,7 +11,7 @@ export type Weekday = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
 export type TimePeriod = 'morning' | 'afternoon' | 'evening' | 'night' | 'late_night'
 
 /** 地点分组 */
-export type LocationGroup = 'farm' | 'village_area' | 'nature' | 'mine' | 'hanhai'
+export type LocationGroup = 'farm' | 'village_area' | 'nature' | 'mine' | 'hanhai' | 'frontier'
 
 /** 游戏时间状态 */
 export interface GameTime {
@@ -41,8 +41,11 @@ export type LateGameFeatureFlag =
   | 'lateGameVillageProsperity'
   | 'lateGameSocialProgression'
   | 'lateGameServiceContracts'
+  | 'lateGameRegionMap'
+  | 'lateGameExpeditionBoss'
+  | 'lateGameRegionalResources'
 
-export type SystemFlagCategory = 'economy' | 'weekly' | 'hanhai' | 'fishPond' | 'museum' | 'village' | 'social' | 'shop'
+export type SystemFlagCategory = 'economy' | 'weekly' | 'hanhai' | 'fishPond' | 'museum' | 'village' | 'social' | 'shop' | 'region'
 
 export interface SystemFlagConfig {
   id: LateGameFeatureFlag

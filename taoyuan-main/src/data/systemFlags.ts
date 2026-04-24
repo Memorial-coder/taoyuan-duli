@@ -72,6 +72,30 @@ export const LATE_GAME_FEATURE_FLAGS: SystemFlagConfig[] = [
     category: 'shop',
     defaultEnabled: false,
     introducedSaveVersion: 2
+  },
+  {
+    id: 'lateGameRegionMap',
+    label: '行旅图区域层',
+    description: '控制行旅图入口、区域路线与区域周状态骨架。',
+    category: 'region',
+    defaultEnabled: false,
+    introducedSaveVersion: 4
+  },
+  {
+    id: 'lateGameExpeditionBoss',
+    label: '远征首领战层',
+    description: '控制独立于矿洞普通战斗的远征首领与阶段化挑战入口。',
+    category: 'region',
+    defaultEnabled: false,
+    introducedSaveVersion: 4
+  },
+  {
+    id: 'lateGameRegionalResources',
+    label: '区域资源家族',
+    description: '控制行旅图区域资源家族、区域资源台账与后续跨系统承接字段。',
+    category: 'region',
+    defaultEnabled: false,
+    introducedSaveVersion: 4
   }
 ]
 

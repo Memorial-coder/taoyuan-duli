@@ -34,6 +34,7 @@ import { useTutorialStore } from './useTutorialStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useDecorationStore } from './useDecorationStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
+import { useRegionMapStore } from './useRegionMapStore'
 import {
   BUILT_IN_SAMPLE_SAVES,
   type BuiltInSampleSaveDef,
@@ -64,7 +65,15 @@ const ENCRYPTION_KEY = 'taoyuanxiang_2024_secret'
 const SAVE_FILE_EXT = '.tyx'
 const SAVE_VERSION = 4
 const PENDING_SERVER_SAVE_KEY_PREFIX = 'taoyuanxiang_pending_server_saves_'
-const sanitizeExportFileName = (value: string): string => value.replace(/[<>:"/\\|?*\u0000-\u001f]/g, '_').trim() || 'taoyuan_save'
+const EXPORT_FILE_NAME_RESERVED_CHARS = new Set(['<', '>', ':', '"', '/', '\\', '|', '?', '*'])
+const sanitizeExportFileName = (value: string): string =>
+  Array.from(value)
+    .map(char => {
+      const code = char.charCodeAt(0)
+      return EXPORT_FILE_NAME_RESERVED_CHARS.has(char) || (code >= 0 && code <= 0x1f) ? '_' : char
+    })
+    .join('')
+    .trim() || 'taoyuan_save'
 
 export type ServerSaveSyncStatus = 'idle' | 'syncing' | 'queued' | 'synced' | 'error'
 export type SaveExecutionStatus = 'saved' | 'queued' | 'failed'
@@ -157,12 +166,12 @@ const buildPendingServerSaveEntry = (raw: string, revision: number): PendingServ
   revision
 })
 
-/** 鍔犲瘑 JSON 瀛楃涓?*/
+/** 加密 JSON 字符串 */
 const encrypt = (json: string): string => {
   return CryptoJS.AES.encrypt(json, ENCRYPTION_KEY).toString()
 }
 
-/** 瑙ｅ瘑涓?JSON 瀛楃涓诧紝澶辫触杩斿洖 null */
+/** 解密 JSON 字符串，失败返回 null */
 const decrypt = (cipher: string): string | null => {
   try {
     const bytes = CryptoJS.AES.decrypt(cipher, ENCRYPTION_KEY)
@@ -570,9 +579,9 @@ const normalizeSaveEnvelope = (raw: Record<string, any>): SaveEnvelope | null =>
   }
 }
 export const useSaveStore = defineStore('save', () => {
-  /** 褰撳墠娲昏穬瀛樻。妲戒綅锛?1 琛ㄧず鏈垎閰嶏級 */
+  /** 当前活跃存档槽位，-1 表示未分配 */
   const activeSlot = ref(-1)
-  /** 褰撳墠娲昏穬瀛樻。妲戒綅鎵€灞炴ā寮忥紝鐢ㄤ簬闃叉鍒囨崲瀛樺偍浠嬭川鍚庤鍐欏叆 */
+  /** 当前活跃存档槽位所属模式，用于防止切换存储介质后误写入 */
   const activeSlotMode = ref<SaveMode | null>(null)
   const runtimeSessionSlot = ref(-1)
   const runtimeSessionMode = ref<SaveMode | null>(null)
@@ -940,6 +949,7 @@ export const useSaveStore = defineStore('save', () => {
     const hiddenNpcStore = useHiddenNpcStore()
     const decorationStore = useDecorationStore()
     const villageProjectStore = useVillageProjectStore()
+    const regionMapStore = useRegionMapStore()
 
     const payload = {
       game: gameStore.serialize(),
@@ -970,7 +980,8 @@ export const useSaveStore = defineStore('save', () => {
       tutorial: tutorialStore.serialize(),
       hiddenNpc: hiddenNpcStore.serialize(),
       decoration: decorationStore.serialize(),
-      villageProject: villageProjectStore.serialize()
+      villageProject: villageProjectStore.serialize(),
+      regionMap: regionMapStore.serialize()
     }
 
     const savedAt = new Date().toISOString()
@@ -1015,8 +1026,9 @@ export const useSaveStore = defineStore('save', () => {
     const hiddenNpcStore = useHiddenNpcStore()
     const decorationStore = useDecorationStore()
     const villageProjectStore = useVillageProjectStore()
+    const regionMapStore = useRegionMapStore()
 
-    // 鏍稿績鍧楃己澶辨椂鐩存帴鎷掔粷鍔犺浇锛岄伩鍏嶅厛閲嶇疆褰撳墠浼氳瘽鍐嶅洜鍙嶅簭鍒楀寲澶辫触鎶婄幇鍦烘竻绌?
+      // 核心块缺失时直接拒绝加载，避免先重置当前会话再因反序列化失败把现场清空
     if (!payload.game || !payload.player || !payload.inventory || !payload.farm) {
       return false
     }
@@ -1051,6 +1063,7 @@ export const useSaveStore = defineStore('save', () => {
       hiddenNpc: hiddenNpcStore.serialize(),
       decoration: decorationStore.serialize(),
       villageProject: villageProjectStore.serialize(),
+      regionMap: regionMapStore.serialize(),
       activeSlot: activeSlot.value,
       activeSlotMode: activeSlotMode.value,
       runtimeSessionSlot: runtimeSessionSlot.value,
@@ -1117,6 +1130,7 @@ export const useSaveStore = defineStore('save', () => {
       hiddenNpcStore.deserialize(emptyState)
       decorationStore.deserialize(emptyState)
       villageProjectStore.deserialize(emptyState)
+      regionMapStore.deserialize(emptyState)
     }
 
     const restoreRuntimeStores = (snapshot: typeof backup) => {
@@ -1148,6 +1162,7 @@ export const useSaveStore = defineStore('save', () => {
       hiddenNpcStore.deserialize(snapshot.hiddenNpc)
       decorationStore.deserialize(snapshot.decoration)
       villageProjectStore.deserialize(snapshot.villageProject)
+      regionMapStore.deserialize(snapshot.regionMap)
       goalStore.deserialize(snapshot.goal)
       npcStore.rehydrateRelationshipPerks({ grantInventoryRewards: false, emitMessages: false })
       playerStore.normalizeDerivedState()
@@ -1185,6 +1200,7 @@ export const useSaveStore = defineStore('save', () => {
       if (payload.hiddenNpc) hiddenNpcStore.deserialize(payload.hiddenNpc)
       if (payload.decoration) decorationStore.deserialize(payload.decoration)
       if (payload.villageProject) villageProjectStore.deserialize(payload.villageProject)
+      if (payload.regionMap) regionMapStore.deserialize(payload.regionMap)
       goalStore.deserialize(payload.goal)
       if (payload.game && payload.game.tomorrowWeather == null) {
         gameStore.recalculateTomorrowWeather()
@@ -1375,7 +1391,7 @@ export const useSaveStore = defineStore('save', () => {
     localStorage.removeItem(getSaveKey(slot))
   }
 
-  /** 鑾峰彇鎵€鏈夊瓨妗ｆЫ浣嶄俊鎭?*/
+  /** 获取所有存档槽位信息 */
   const getSlots = async (mode: SaveMode = storageMode.value): Promise<SaveSlotInfo[]> => {
     try {
       if (mode === 'server') {
@@ -1388,7 +1404,7 @@ export const useSaveStore = defineStore('save', () => {
     }
   }
 
-  /** 涓烘柊娓告垙鍒嗛厤涓€涓┖闂叉Ы浣嶏紝鏃犵┖闂插垯杩斿洖 -1 */
+  /** 为新游戏分配一个空闲槽位，无空槽则返回 -1 */
   const assignNewSlot = async (): Promise<number> => {
     const slots = await getSlots()
     const blockReason = getSlotAllocationBlockReason()
@@ -1402,7 +1418,7 @@ export const useSaveStore = defineStore('save', () => {
     return slot
   }
 
-  /** 淇濆瓨鍒版寚瀹氭Ы浣?*/
+  /** 保存到指定槽位 */
   const saveToSlot = async (slot: number): Promise<boolean> => {
     if (slot < 0 || slot >= MAX_SLOTS) return false
     lastSaveErrorMessage.value = ''

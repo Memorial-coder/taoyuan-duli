@@ -56,6 +56,13 @@ export interface HallPostSummary {
   activity_source_id?: string | null
   activity_source_label?: string | null
   related_route_labels?: string[]
+  weekly_plan_id?: string | null
+  primary_route_label?: string | null
+  secondary_route_labels?: string[]
+  claimable_node_labels?: string[]
+  next_week_prep_summary?: string | null
+  weekly_chronicle_week_id?: string | null
+  chronicle_source_labels?: string[]
   solved: boolean
   reward_enabled: boolean
   reward_amount: number

@@ -56,7 +56,10 @@ const GOAL_METRIC_PROMPT_TARGETS: Partial<Record<GoalMetricKey, PromptJumpTarget
   villageProjectLevel: { panelKey: 'village', label: '去村庄' },
   hanhaiContractCompletions: { panelKey: 'hanhai', label: '去瀚海' },
   museumExhibitLevel: { panelKey: 'museum', label: '去博物馆' },
-  familyWishCompletions: { panelKey: 'cottage', label: '去小屋' }
+  familyWishCompletions: { panelKey: 'cottage', label: '去小屋' },
+  regionRouteCompletions: { panelKey: 'region-map', label: '去行旅图' },
+  expeditionBossClears: { panelKey: 'region-map', label: '去行旅图' },
+  regionalResourceTurnIns: { panelKey: 'region-map', label: '去行旅图' }
 }
 
 const LONG_TERM_GROUP_MAP: Record<string, string> = {

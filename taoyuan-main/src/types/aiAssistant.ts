@@ -186,12 +186,17 @@ export interface AiAssistantAskResult {
 }
 
 export interface AiAssistantContextSnapshot {
+  weeklyPlanId?: string
   currentThemeWeekId?: string
   currentThemeWeekLabel?: string
   currentEventCampaignId?: string
   currentEventCampaignLabel?: string
   currentLimitedQuestCampaignId?: string
   currentLimitedQuestLabel?: string
+  primaryRouteLabel?: string
+  secondaryRouteLabels?: string[]
+  claimableNodeLabels?: string[]
+  nextWeekPrepSummary?: string
   activeFamilyWishId?: string
   activeFamilyWishTitle?: string
   bondedSpiritId?: string

@@ -90,6 +90,13 @@ export const createHallPost = async (payload: {
   activitySourceId?: string | null
   activitySourceLabel?: string | null
   relatedRouteLabels?: string[]
+  weeklyPlanId?: string | null
+  primaryRouteLabel?: string | null
+  secondaryRouteLabels?: string[]
+  claimableNodeLabels?: string[]
+  nextWeekPrepSummary?: string | null
+  weeklyChronicleWeekId?: string | null
+  chronicleSourceLabels?: string[]
 }): Promise<HallPostDetail> => {
   const { data } = await fetchProtectedJson(async () => {
     const csrfToken = await ensureInteractionContext()
@@ -110,6 +117,13 @@ export const createHallPost = async (payload: {
         activity_source_id: payload.activitySourceId ?? null,
         activity_source_label: payload.activitySourceLabel ?? null,
         related_route_labels: payload.relatedRouteLabels ?? [],
+        weekly_plan_id: payload.weeklyPlanId ?? null,
+        primary_route_label: payload.primaryRouteLabel ?? null,
+        secondary_route_labels: payload.secondaryRouteLabels ?? [],
+        claimable_node_labels: payload.claimableNodeLabels ?? [],
+        next_week_prep_summary: payload.nextWeekPrepSummary ?? null,
+        weekly_chronicle_week_id: payload.weeklyChronicleWeekId ?? null,
+        chronicle_source_labels: payload.chronicleSourceLabels ?? [],
       }),
     })
   }, {

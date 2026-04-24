@@ -15,7 +15,15 @@ const TEMP_BAG_CAPACITY = 10;
 const MAX_TITLE_LENGTH = 60;
 const MAX_CONTENT_LENGTH = 5000;
 
-const VALID_TEMPLATE_TYPES = new Set(['compensation', 'activity_reward', 'maintenance_notice']);
+const VALID_TEMPLATE_TYPES = new Set([
+  'compensation',
+  'activity_reward',
+  'maintenance_notice',
+  'activity_notice',
+  'activity_midweek',
+  'activity_preview',
+  'weekly_recap'
+]);
 const VALID_RECIPIENT_MODES = new Set(['all', 'single', 'batch', 'keyword', 'has_save']);
 const VALID_REWARD_TYPES = new Set(['money', 'item', 'seed', 'weapon', 'ring', 'hat', 'shoe']);
 

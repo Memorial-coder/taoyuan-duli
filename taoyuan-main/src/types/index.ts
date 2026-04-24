@@ -29,6 +29,7 @@ export * from './log'
 export * from './shopCatalog'
 export * from './tutorial'
 export * from './promptNavigation'
+export * from './region'
 export type {
   BudgetChannelId,
   WeeklyBudgetChannelId,

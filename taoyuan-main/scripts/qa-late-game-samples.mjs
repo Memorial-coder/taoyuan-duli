@@ -572,8 +572,34 @@ const runRuntimeSmoke = async sample => {
     assertRuntime(countPositiveTicketTypes(walletStore.rewardTickets) >= expectation.wallet.minTicketTypes, `${sample.id} 钱包票券类型数不足。`)
   }
 
+  if (expectation.weeklyPlan) {
+    if (expectation.weeklyPlan.requirePrimaryRoute) {
+      assertRuntime(!!goalStore.weeklyPlanSnapshot?.primaryRouteLabel, `${sample.id} weeklyPlanSnapshot 缺少主路线。`)
+    }
+    if (expectation.weeklyPlan.minClaimableNodes) {
+      assertRuntime(
+        (goalStore.weeklyPlanSnapshot?.claimableNodeLabels?.length ?? 0) >= expectation.weeklyPlan.minClaimableNodes,
+        `${sample.id} weeklyPlanSnapshot 可领奖点数量不足。`,
+      )
+    }
+    if (expectation.weeklyPlan.requireNextWeekPrep) {
+      assertRuntime(!!goalStore.weeklyPlanSnapshot?.nextWeekPrepSummary, `${sample.id} weeklyPlanSnapshot 缺少下周准备说明。`)
+    }
+    if (expectation.weeklyPlan.minActiveBridgeIds) {
+      assertRuntime(
+        (goalStore.weeklyPlanSnapshot?.activeBridgeIds?.length ?? 0) >= expectation.weeklyPlan.minActiveBridgeIds,
+        `${sample.id} active progress bridge 数量不足。`,
+      )
+    }
+  }
+
+  if (expectation.chronicle?.minEntries) {
+    assertRuntime((goalStore.weeklyChronicleEntries?.length ?? 0) >= expectation.chronicle.minEntries, `${sample.id} 周纪行条目数量不足。`)
+  }
+
   const beforeWeekId = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId
   const beforeThemeWeekId = goalStore.currentThemeWeek?.id ?? ''
+  const beforeChronicleCount = goalStore.weeklyChronicleEntries?.length ?? 0
 
   switch (expectation.boundaryAction ?? 'none') {
     case 'week_rollover':
@@ -581,6 +607,12 @@ const runRuntimeSmoke = async sample => {
       assertRuntime(getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId !== beforeWeekId, `${sample.id} 日结后没有进入下一周。`)
       assertRuntime(goalStore.lastWeeklyGoalSettlement?.weekId === beforeWeekId, `${sample.id} 缺少上一周的周结算摘要。`)
       assertRuntime((goalStore.currentThemeWeek?.id ?? '') !== beforeThemeWeekId, `${sample.id} 主题周没有切换。`)
+      if (expectation.chronicle?.minEntriesAfterBoundary) {
+        assertRuntime(
+          (goalStore.weeklyChronicleEntries?.length ?? 0) >= beforeChronicleCount + expectation.chronicle.minEntriesAfterBoundary,
+          `${sample.id} 周切换后没有新增周纪行条目。`,
+        )
+      }
       break
     case 'breeding_settlement':
       handleEndDay()

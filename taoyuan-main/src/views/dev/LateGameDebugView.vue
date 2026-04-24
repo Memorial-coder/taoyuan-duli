@@ -525,6 +525,7 @@
     familyFavor: '家业情谊券'
   }
   const routeNameLabels: Record<BuiltInSampleRouteName, string> = {
+    'region-map': '行旅图',
     farm: '农场',
     village: '村庄',
     'village-projects': '村庄建设',
@@ -614,6 +615,7 @@
     if (gameStore.currentLocationGroup === 'nature') return '/game/forage'
     if (gameStore.currentLocationGroup === 'mine') return '/game/mining'
     if (gameStore.currentLocationGroup === 'hanhai') return '/game/hanhai'
+    if (gameStore.currentLocationGroup === 'frontier') return '/game/region-map'
     return '/game/farm'
   }
 

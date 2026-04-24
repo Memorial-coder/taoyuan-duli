@@ -1,4 +1,11 @@
-export type TaoyuanMailTemplateType = 'compensation' | 'activity_reward' | 'maintenance_notice'
+export type TaoyuanMailTemplateType =
+  | 'compensation'
+  | 'activity_reward'
+  | 'maintenance_notice'
+  | 'activity_notice'
+  | 'activity_midweek'
+  | 'activity_preview'
+  | 'weekly_recap'
 export type TaoyuanRecipientMode = 'all' | 'single' | 'batch' | 'keyword' | 'has_save'
 export type TaoyuanRewardType = 'money' | 'item' | 'seed' | 'weapon' | 'ring' | 'hat' | 'shoe'
 

@@ -10,19 +10,22 @@
         </div>
         <div class="detail-card mb-3">
           <div class="flex items-center justify-between mb-1">
-            <p class="text-xs text-accent">活动邮件摘要</p>
+            <p class="text-xs text-accent">周路线 / 邮件摘要</p>
             <span class="text-[10px] text-muted">可领 {{ claimableMailCount }}</span>
           </div>
           <p class="text-[10px] text-muted leading-4">
-            {{ goalStore.currentEventCampaign ? `当前活动：${goalStore.currentEventCampaign.label}` : '当前没有激活中的活动编排。' }}
+            {{ goalStore.currentEventCampaign ? `当前活动：${goalStore.currentEventCampaign.label}` : `当前主路线：${weeklyPlanSnapshot.primaryRouteLabel}` }}
           </p>
           <p class="text-[10px] text-accent mt-1">
-            活动邮件 {{ activityMailCount }} 封
+            活动邮件 {{ activityMailCount }} 封 · 周纪行 {{ latestWeeklyChronicle ? latestWeeklyChronicle.weekId : '待生成' }}
           </p>
           <div class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-bg/10">
-            <p class="text-[10px] text-muted">本周活动链路</p>
+            <p class="text-[10px] text-muted">本周主路线</p>
             <p class="text-[10px] text-accent mt-1 leading-4">
-              {{ currentEventRouteLabelText }}
+              {{ weeklyPlanSnapshot.primaryRouteLabel }}：{{ weeklyPlanSnapshot.primaryRouteSummary }}
+            </p>
+            <p v-if="weeklyPlanSnapshot.secondaryRouteLabels.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+              辅助路线：{{ weeklyPlanSnapshot.secondaryRouteLabels.join('、') }}
             </p>
             <p v-if="currentEventMailTemplateTitles.length > 0" class="text-[10px] text-muted mt-1 leading-4">
               本周邮件节奏：{{ currentEventMailTemplateTitles.join('、') }}
@@ -31,22 +34,29 @@
           <div class="border border-success/10 rounded-xs px-2 py-2 mt-2 bg-success/5">
             <p class="text-[10px] text-muted">当前可领奖点</p>
             <p class="text-[10px] text-accent mt-1 leading-4">
-              {{ claimableActivityMailCount > 0 ? `当前有 ${claimableActivityMailCount} 封活动奖励邮件可领取。` : '当前没有待领取的活动奖励邮件，可优先推进活动目标或限时任务。' }}
+              {{ weeklyPlanSnapshot.claimableNodeLabels.length > 0 ? weeklyPlanSnapshot.claimableNodeLabels.join('、') : '当前没有待领取的路线节点，可优先推进本周主路线。' }}
+            </p>
+            <p v-if="claimableActivityMailCount > 0" class="text-[10px] text-muted mt-1 leading-4">
+              当前有 {{ claimableActivityMailCount }} 封活动奖励邮件可领取。
             </p>
             <p v-if="questStore.currentLimitedTimeQuestCampaign" class="text-[10px] text-muted mt-1 leading-4">
               限时任务：{{ questStore.currentLimitedTimeQuestCampaign.label }} · 剩余 {{ questStore.currentLimitedTimeQuestRemainingDays }} 天
             </p>
           </div>
           <div class="border border-warning/10 rounded-xs px-2 py-2 mt-2 bg-warning/5">
-            <p class="text-[10px] text-muted">下周预告</p>
+            <p class="text-[10px] text-muted">下周准备</p>
             <p class="text-[10px] text-accent mt-1 leading-4">
-              {{ goalStore.nextThemeWeekPreview ? `下周主题：${goalStore.nextThemeWeekPreview.name}` : '下周主题周预告尚未生成。' }}
-            </p>
-            <p v-if="goalStore.nextThemeWeekPreview?.ui?.summaryLabel" class="text-[10px] text-muted mt-1 leading-4">
-              {{ goalStore.nextThemeWeekPreview.ui.summaryLabel }}
+              {{ weeklyPlanSnapshot.nextWeekPrepSummary }}
             </p>
             <p v-if="previewMailTemplateTitles.length > 0" class="text-[10px] text-muted mt-1 leading-4">
               预计邮件：{{ previewMailTemplateTitles.join('、') }}
+            </p>
+          </div>
+          <div v-if="latestWeeklyChronicle" class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-bg/10">
+            <p class="text-[10px] text-muted">最近周纪行</p>
+            <p class="text-[10px] text-accent mt-1 leading-4">{{ latestWeeklyChronicle.settlementSummary }}</p>
+            <p v-if="latestWeeklyChronicle.highlightSummaries.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+              本周高光：{{ latestWeeklyChronicle.highlightSummaries.join('、') }}
             </p>
           </div>
         </div>
@@ -199,6 +209,8 @@
   const mailboxStore = useMailboxStore()
   const goalStore = useGoalStore()
   const questStore = useQuestStore()
+  const weeklyPlanSnapshot = computed(() => goalStore.weeklyPlanSnapshot)
+  const latestWeeklyChronicle = computed(() => goalStore.latestWeeklyChronicleEntry)
   const activeMailId = ref<string | null>(null)
   const activeMail = ref<TaoyuanMailDetail | null>(null)
   const selectRequestId = ref(0)
@@ -217,11 +229,6 @@
     return goalStore.eventMailTemplateRefs
       .filter(template => goalStore.currentEventCampaign?.mailboxTemplateIds.includes(template.id))
       .map(template => template.title)
-  })
-  const currentEventRouteLabelText = computed(() => {
-    const labels = goalStore.currentEventCampaign?.linkedRouteLabels ?? []
-    if (labels.length === 0) return '当前活动优先从任务、商店和页面摘要承接。'
-    return `推荐优先查看：${labels.join('、')}`
   })
   const previewMailTemplateTitles = computed(() => {
     const templateIds = goalStore.eventMailTemplateRefs
@@ -301,6 +308,7 @@
     if (templateType === 'activity_notice') return '开启'
     if (templateType === 'activity_midweek') return '周中'
     if (templateType === 'activity_preview') return '预告'
+    if (templateType === 'weekly_recap') return '周纪行'
     if (templateType === 'maintenance_notice') return '维护'
     return templateType
   }
@@ -460,6 +468,7 @@
   }
 
   onMounted(async () => {
+    goalStore.ensureInitialized()
     updateViewportMode()
     if (typeof window !== 'undefined') window.addEventListener('resize', updateViewportMode)
     await refreshMails()

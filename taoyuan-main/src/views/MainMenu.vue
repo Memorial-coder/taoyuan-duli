@@ -630,6 +630,7 @@
     if (gameStore.currentLocationGroup === 'nature') return '/game/forage'
     if (gameStore.currentLocationGroup === 'mine') return '/game/mining'
     if (gameStore.currentLocationGroup === 'hanhai') return '/game/hanhai'
+    if (gameStore.currentLocationGroup === 'frontier') return '/game/region-map'
     return '/game/farm'
   }
 

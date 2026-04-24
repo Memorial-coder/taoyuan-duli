@@ -41,6 +41,7 @@ import { useGameStore } from './useGameStore'
 import { useGoalStore } from './useGoalStore'
 import { useFishPondStore } from './useFishPondStore'
 import { useNpcStore } from './useNpcStore'
+import { useRegionMapStore } from './useRegionMapStore'
 import { useShopStore } from './useShopStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 
@@ -181,6 +182,7 @@ export const useMuseumStore = defineStore('museum', () => {
   const playerStore = usePlayerStore()
   const goalStore = useGoalStore()
   const npcStore = useNpcStore()
+  const regionMapStore = useRegionMapStore()
   const villageProjectStore = useVillageProjectStore()
   const initialState = cloneMuseumSaveData(createDefaultMuseumSaveData())
 
@@ -536,6 +538,9 @@ export const useMuseumStore = defineStore('museum', () => {
     }
     if (activeTheme) {
       recommendedActions.push(`围绕祠堂主题「${activeTheme.name}」补齐 ${activeTheme.favoredCategories.join('、')} 藏品，可进一步放大展示评分与访客热度。`)
+    }
+    if (regionMapStore.regionIntegrationEnabled && regionMapStore.currentWeeklyFocus.focusedRegionId === 'mirage_marsh') {
+      recommendedActions.push('本周行旅图焦点落在蜃潮泽地，可优先把泽地样本、夜游观察和馆务展示承接到同一条研究线。')
     }
 
     return {

@@ -133,6 +133,7 @@ export const MIN_ACTION_MINUTES = 10
 
 // === 地点分组映射 ===
 export const TAB_TO_LOCATION_GROUP: Record<string, LocationGroup | null> = {
+  'region-map': 'frontier',
   farm: 'farm',
   animal: 'farm',
   home: 'farm',
@@ -179,7 +180,17 @@ export const TRAVEL_TIME: Record<string, number> = {
   'nature->hanhai': 0.5,
   'hanhai->nature': 0.5,
   'mine->hanhai': 0.5,
-  'hanhai->mine': 0.5
+  'hanhai->mine': 0.5,
+  'farm->frontier': 0.5,
+  'frontier->farm': 0.5,
+  'village_area->frontier': 0.33,
+  'frontier->village_area': 0.33,
+  'nature->frontier': 0.5,
+  'frontier->nature': 0.5,
+  'mine->frontier': 0.5,
+  'frontier->mine': 0.5,
+  'hanhai->frontier': 0.33,
+  'frontier->hanhai': 0.33
 }
 
 // === 移动体力消耗 ===
@@ -203,7 +214,17 @@ export const TRAVEL_STAMINA: Record<string, number> = {
   'nature->hanhai': 3,
   'hanhai->nature': 3,
   'mine->hanhai': 3,
-  'hanhai->mine': 3
+  'hanhai->mine': 3,
+  'farm->frontier': 3,
+  'frontier->farm': 3,
+  'village_area->frontier': 2,
+  'frontier->village_area': 2,
+  'nature->frontier': 3,
+  'frontier->nature': 3,
+  'mine->frontier': 3,
+  'frontier->mine': 3,
+  'hanhai->frontier': 2,
+  'frontier->hanhai': 2
 }
 
 const LOCATION_GROUP_NAMES: Record<LocationGroup, string> = {
@@ -211,7 +232,8 @@ const LOCATION_GROUP_NAMES: Record<LocationGroup, string> = {
   village_area: '桃源村',
   nature: '野外',
   mine: '矿洞',
-  hanhai: '瀚海'
+  hanhai: '瀚海',
+  frontier: '行旅图'
 }
 
 export const getLocationGroupName = (group: LocationGroup): string => {

@@ -148,6 +148,7 @@
       publish_homepage_about: '发布首页关于内容',
       restore_homepage_about: '恢复首页关于内容',
       upload_content_image: '上传内容图片',
+      update_android_release_config: '更新安卓发布配置',
     }
     return mapping[action] || action
   }

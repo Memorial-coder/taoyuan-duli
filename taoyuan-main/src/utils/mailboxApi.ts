@@ -79,7 +79,7 @@ export const createSystemMailboxCampaign = async (payload: {
   id: string
   title: string
   content: string
-  template_type: 'activity_reward' | 'maintenance_notice' | 'compensation' | 'activity_notice' | 'activity_midweek' | 'activity_preview'
+  template_type: 'activity_reward' | 'maintenance_notice' | 'compensation' | 'activity_notice' | 'activity_midweek' | 'activity_preview' | 'weekly_recap'
   rewards?: Array<{
     type: string
     amount?: number

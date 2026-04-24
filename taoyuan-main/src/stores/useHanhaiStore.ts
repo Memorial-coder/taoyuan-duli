@@ -76,6 +76,7 @@ import { usePlayerStore } from './usePlayerStore'
 import { useSettingsStore } from './useSettingsStore'
 import { useWalletStore } from './useWalletStore'
 import { useGoalStore } from './useGoalStore'
+import { useRegionMapStore } from './useRegionMapStore'
 import { useShopStore } from './useShopStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { getWeekCycleInfo, WEEKS_PER_SEASON } from '@/utils/weekCycle'
@@ -466,6 +467,7 @@ const mapHanhaiCategoriesToQuestTypes = (categories: HanhaiQuestMarketCategory[]
 
 export const useHanhaiStore = defineStore('hanhai', () => {
   const goalStore = useGoalStore()
+  const regionMapStore = useRegionMapStore()
   const shopStore = useShopStore()
   const villageProjectStore = useVillageProjectStore()
   const unlocked = ref(false)
@@ -1039,6 +1041,9 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     }
     if (activeBossCycleOverview.value) {
       recommendedActions.push(`当前首领「${activeBossCycleOverview.value.label}」更适合承接 ${questBoardBiasProfile.value.preferredMarketCategories.join(' / ')} 相关委托，可反向提升告示板质量。`)
+    }
+    if (regionMapStore.regionIntegrationEnabled && regionMapStore.currentWeeklyFocus.focusedRegionId === 'ancient_road') {
+      recommendedActions.push('本周行旅图焦点落在古驿荒道，可优先把荒道护送、残卷回收和瀚海合同准备接成同一条线。')
     }
 
     return {

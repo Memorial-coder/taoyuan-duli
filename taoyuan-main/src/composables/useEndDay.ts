@@ -24,6 +24,7 @@ import { useMiningStore } from '@/stores/useMiningStore'
 import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
 import { useMuseumStore } from '@/stores/useMuseumStore'
 import { useGuildStore } from '@/stores/useGuildStore'
+import { useRegionMapStore } from '@/stores/useRegionMapStore'
 import { getItemById, getTodayEvent, getNpcById, getCropById, getForageItems } from '@/data'
 import { getFertilizerById } from '@/data/processing'
 import { FISH } from '@/data/fish'
@@ -904,6 +905,17 @@ export const handleEndDay = () => {
   if (weekBoundaryEvent.startedNewWeek) {
     fishPondContestStore.refreshWeeklyContest(currentWeekInfo.seasonWeekId, currentWeekInfo.absoluteWeek)
   }
+  const outgoingWeeklyPlanSnapshot = {
+    ...goalStore.weeklyPlanSnapshot,
+    secondaryRouteIds: [...goalStore.weeklyPlanSnapshot.secondaryRouteIds],
+    secondaryRouteLabels: [...goalStore.weeklyPlanSnapshot.secondaryRouteLabels],
+    secondaryRouteSummaries: [...goalStore.weeklyPlanSnapshot.secondaryRouteSummaries],
+    claimableNodeIds: [...goalStore.weeklyPlanSnapshot.claimableNodeIds],
+    claimableNodeLabels: [...goalStore.weeklyPlanSnapshot.claimableNodeLabels],
+    sourceLabels: [...goalStore.weeklyPlanSnapshot.sourceLabels],
+    activeBridgeIds: [...goalStore.weeklyPlanSnapshot.activeBridgeIds],
+    routes: goalStore.weeklyPlanSnapshot.routes.map(route => ({ ...route, sourceLabels: [...route.sourceLabels] })),
+  }
   const dispatchWeeklySettlementMail = async () => {
     if (!weeklySettlementSummary) return
     const compensationItems = weeklySettlementSummary.items.filter(item => item.compensationGranted && item.failureCompensationReward)
@@ -937,6 +949,57 @@ export const handleEndDay = () => {
   }
   void dispatchWeeklySettlementMail()
   goalStore.onCalendarAdvanced(seasonChanged)
+  const regionMapStore = useRegionMapStore()
+  if (regionMapStore.regionIntegrationEnabled) {
+    regionMapStore.refreshUnlocksFromProgress(currentDayTag)
+  }
+  if (regionMapStore.regionIntegrationEnabled && weekBoundaryEvent.startedNewWeek) {
+    const currentThemeWeek = goalStore.currentThemeWeek
+    let focusedRegionId = regionMapStore.currentWeeklyFocus.focusedRegionId
+    if (
+      (currentThemeWeek?.regionFocusRegionIds?.length ?? 0) > 0 &&
+      currentThemeWeek?.regionFocusRegionIds?.[0]
+    ) {
+      focusedRegionId = currentThemeWeek.regionFocusRegionIds[0]
+    } else if (
+      (currentThemeWeek?.hanhaiFocusRouteIds?.length ?? 0) > 0 ||
+      (currentThemeWeek?.hanhaiFocusBossCycleIds?.length ?? 0) > 0 ||
+      currentThemeWeek?.id === 'summer_caravan'
+    ) {
+      focusedRegionId = 'ancient_road'
+    } else if (
+      currentThemeWeek?.preferredQuestThemeTag === 'fishpond' ||
+      (currentThemeWeek?.museumFocusHallZoneIds?.length ?? 0) > 0 ||
+      currentThemeWeek?.id?.includes('pond')
+    ) {
+      focusedRegionId = 'mirage_marsh'
+    } else if (
+      (currentThemeWeek?.guildFocusActivityIds?.length ?? 0) > 0 ||
+      currentThemeWeek?.id === 'winter_mining' ||
+      currentThemeWeek?.focusMetrics.includes('highestMineFloor')
+    ) {
+      focusedRegionId = 'cloud_highland'
+    } else {
+      const rotation = currentWeekInfo.absoluteWeek % 3
+      focusedRegionId = rotation === 0 ? 'ancient_road' : rotation === 1 ? 'mirage_marsh' : 'cloud_highland'
+    }
+
+    const highlightedRouteIds = regionMapStore.routeDefs
+      .filter(route => route.regionId === focusedRegionId)
+      .map(route => route.id)
+      .slice(0, 2)
+
+    regionMapStore.setWeeklyFocus(currentWeekInfo.seasonWeekId, focusedRegionId, highlightedRouteIds)
+    addLog(`【行旅图】本周区域焦点已刷新：${regionMapStore.regionDefs.find(region => region.id === focusedRegionId)?.name ?? '行旅图'}`, {
+      category: 'system',
+      tags: ['late_game_cycle', 'region_map_focus_refresh'],
+      meta: {
+        weekId: currentWeekInfo.seasonWeekId,
+        focusedRegionId,
+        highlightedRouteCount: highlightedRouteIds.length
+      }
+    })
+  }
   const eventOperationsTick = goalStore.processEventOperationsTick({
     currentDayTag,
     currentWeekId: currentWeekInfo.seasonWeekId,
@@ -1421,6 +1484,112 @@ export const handleEndDay = () => {
         bondedCount: spiritTick.bondedCount
       }
     })
+  }
+  if (weekBoundaryEvent.startedNewWeek) {
+    const chronicleHighlightTypes: Array<'goal' | 'activity' | 'fishpond' | 'breeding' | 'museum' | 'hanhai' | 'relationship'> = []
+    const chronicleHighlightSummaries: string[] = []
+    const chronicleSourceReceiptIds: string[] = []
+
+    if (weeklySettlementSummary) {
+      chronicleHighlightTypes.push('goal')
+      chronicleSourceReceiptIds.push(`weekly_settlement_${weeklySettlementSummary.weekId}`)
+      chronicleHighlightSummaries.push(`周目标完成 ${weeklySettlementSummary.completedGoalCount}/${weeklySettlementSummary.totalGoalCount}`)
+      if (weeklySettlementSummary.rewardHighlights.length > 0) {
+        chronicleHighlightSummaries.push(`奖励高光：${weeklySettlementSummary.rewardHighlights.slice(0, 2).join('；')}`)
+      }
+      if (weeklySettlementSummary.recommendationHighlights.length > 0) {
+        chronicleHighlightSummaries.push(`下周建议：${weeklySettlementSummary.recommendationHighlights.slice(0, 1).join('；')}`)
+      }
+    }
+
+    if (fishPondContestStore.lastPondContestSettlement?.weekId === previousWeekInfo.seasonWeekId) {
+      chronicleHighlightTypes.push('fishpond')
+      chronicleSourceReceiptIds.push(`fishpond_contest_${fishPondContestStore.lastPondContestSettlement.weekId}`)
+      chronicleHighlightSummaries.push(
+        `鱼塘周赛「${fishPondContestStore.lastPondContestSettlement.contestId}」已结算，样本 ${fishPondContestStore.lastPondContestSettlement.participantCount} 条。`
+      )
+    }
+
+    if (breedingContestStore.lastBreedingContestSettlement?.weekId === previousWeekInfo.seasonWeekId) {
+      chronicleHighlightTypes.push('breeding')
+      chronicleSourceReceiptIds.push(`breeding_contest_${breedingContestStore.lastBreedingContestSettlement.weekId}`)
+      chronicleHighlightSummaries.push(
+        `育种周赛「${breedingContestStore.lastBreedingContestSettlement.contestId}」已结算，样本 ${breedingContestStore.lastBreedingContestSettlement.participantCount} 份。`
+      )
+    }
+
+    if (museumStore.exhibitLevel > 0 || museumStore.availableScholarCommissionCount > 0) {
+      chronicleHighlightTypes.push('museum')
+      chronicleSourceReceiptIds.push(`museum_${previousWeekInfo.seasonWeekId}`)
+      chronicleHighlightSummaries.push(`博物馆当前展陈等级 ${museumStore.exhibitLevel}，可承接学者委托 ${museumStore.availableScholarCommissionCount} 条。`)
+    }
+
+    const hanhaiDebugSnapshot = hanhaiStore.getDebugSnapshot()
+    const hanhaiRelicClearDelta = Math.max(0, hanhaiStore.totalRelicClears - hanhaiWeeklyClearsBeforeTick)
+    const hanhaiInvestmentCount = Object.keys(hanhaiDebugSnapshot.cycleState.routeInvestments ?? {}).length
+    if (hanhaiDebugSnapshot.unlocked && (hanhaiRelicClearDelta > 0 || hanhaiInvestmentCount > 0)) {
+      chronicleHighlightTypes.push('hanhai')
+      chronicleSourceReceiptIds.push(`hanhai_${previousWeekInfo.seasonWeekId}`)
+      chronicleHighlightSummaries.push(`瀚海本周维持 ${hanhaiInvestmentCount} 条商路，遗迹推进 ${hanhaiRelicClearDelta} 次。`)
+    }
+
+    if (relationshipTick.activeFamilyWishId || relationshipTick.zhijiProjectCount > 0 || spiritTick.bondedCount > 0) {
+      chronicleHighlightTypes.push('relationship')
+      chronicleSourceReceiptIds.push(`relationship_${previousWeekInfo.seasonWeekId}`)
+      chronicleHighlightSummaries.push(
+        `关系线本周维持 ${relationshipTick.zhijiProjectCount} 条知己协作，家庭焦点为 ${relationshipTick.activeFamilyWishId ?? '待重编排'}。`
+      )
+    }
+
+    if (outgoingWeeklyPlanSnapshot.campaignId) {
+      chronicleHighlightTypes.push('activity')
+      chronicleSourceReceiptIds.push(`activity_${outgoingWeeklyPlanSnapshot.campaignId}`)
+      chronicleHighlightSummaries.push(`活动主线「${outgoingWeeklyPlanSnapshot.primaryRouteLabel}」已完成本周收尾并给出下周准备。`)
+    }
+
+    const chronicleEntry = goalStore.createWeeklyChronicleEntry({
+      weekId: previousWeekInfo.seasonWeekId,
+      themeWeekId: outgoingWeeklyPlanSnapshot.themeWeekId,
+      weeklyPlanId: outgoingWeeklyPlanSnapshot.planId,
+      primaryRouteLabel: outgoingWeeklyPlanSnapshot.primaryRouteLabel,
+      secondaryRouteLabels: outgoingWeeklyPlanSnapshot.secondaryRouteLabels,
+      highlightTypes: [...new Set(chronicleHighlightTypes)],
+      highlightSummaries: chronicleHighlightSummaries.length > 0
+        ? chronicleHighlightSummaries.slice(0, 4)
+        : [`本周围绕「${outgoingWeeklyPlanSnapshot.primaryRouteLabel}」推进，但尚未形成新的高光记录。`],
+      sourceReceiptIds: [...new Set(chronicleSourceReceiptIds)],
+      sourceLabels: outgoingWeeklyPlanSnapshot.sourceLabels,
+      settlementSummary: weeklySettlementSummary
+        ? `本周完成 ${weeklySettlementSummary.completedGoalCount}/${weeklySettlementSummary.totalGoalCount} 项周目标，主路线为「${outgoingWeeklyPlanSnapshot.primaryRouteLabel}」。`
+        : `本周完成周切换，主路线为「${outgoingWeeklyPlanSnapshot.primaryRouteLabel}」，可继续沿这条线推进。`,
+      nextWeekPrepSummary: outgoingWeeklyPlanSnapshot.nextWeekPrepSummary,
+      createdAtDayTag: currentDayTag
+    })
+    goalStore.recordWeeklyChronicleEntry(chronicleEntry)
+
+    const dispatchWeeklyRecapMail = async () => {
+      try {
+        const receiptId = `weekly_recap_${chronicleEntry.weekId}`
+        await createSystemMailboxCampaign({
+          id: receiptId,
+          title: `周纪行回顾：${chronicleEntry.weekId}`,
+          content: [
+            chronicleEntry.settlementSummary,
+            chronicleEntry.highlightSummaries.length > 0 ? `本周高光：${chronicleEntry.highlightSummaries.join('；')}` : '',
+            `下周准备：${chronicleEntry.nextWeekPrepSummary}`
+          ].filter(Boolean).join('\n'),
+          template_type: 'weekly_recap'
+        })
+        goalStore.markWeeklyChronicleRecapMailSent(chronicleEntry.weekId, receiptId)
+      } catch (error) {
+        addLog(`【周纪行】${chronicleEntry.weekId} recap 邮件发送失败：${error instanceof Error ? error.message : '未知错误'}`, {
+          category: 'goal',
+          tags: ['late_game_cycle'],
+          meta: { weekId: chronicleEntry.weekId }
+        })
+      }
+    }
+    void dispatchWeeklyRecapMail()
   }
   if (weekBoundaryEvent.startedNewWeek && goalStore.currentEventCampaign) {
     const activityLinkedSystems: string[] = []

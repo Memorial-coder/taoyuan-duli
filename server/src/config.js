@@ -44,7 +44,7 @@ const DEFAULTS = {
   android_app_min_supported_version_code: 0,
   android_app_download_url: '',
   android_app_release_notes: '',
-  android_app_force_update_message: '褰撳墠瀹夊崜鐗堟湰杩囨棫锛岃鍏堟洿鏂板埌鏈€鏂板畨瑁呭寘鍚庡啀缁х画娓哥帺銆?',
+  android_app_force_update_message: '\u5f53\u524d\u5b89\u5353\u7248\u672c\u8fc7\u65e7\uff0c\u8bf7\u5148\u66f4\u65b0\u5230\u6700\u65b0\u5b89\u88c5\u5305\u540e\u518d\u7ee7\u7eed\u6e38\u73a9\u3002',
   taoyuan_daily_import_limit_money: 0,
   taoyuan_daily_export_limit_money: 0,
 

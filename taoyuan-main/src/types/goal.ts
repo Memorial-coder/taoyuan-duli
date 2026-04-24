@@ -15,6 +15,9 @@ export type GoalMetricKey =
   | 'hanhaiContractCompletions'
   | 'museumExhibitLevel'
   | 'familyWishCompletions'
+  | 'regionRouteCompletions'
+  | 'expeditionBossClears'
+  | 'regionalResourceTurnIns'
 
 export interface GoalRewardItem {
   itemId: string
@@ -118,6 +121,10 @@ export interface ThemeWeekDef {
   hanhaiFocusContractIds?: string[]
   hanhaiFocusRelicSetIds?: string[]
   hanhaiFocusShopRotationIds?: string[]
+  regionFocusRegionIds?: Array<'ancient_road' | 'mirage_marsh' | 'cloud_highland'>
+  regionFocusRouteIds?: string[]
+  regionFocusBossIds?: string[]
+  regionFocusResourceFamilies?: Array<'ancient_archive' | 'ecology_specimen' | 'ley_crystal'>
   familyFocusNpcIds?: string[]
   familyFocusWishIds?: string[]
   familyFocusSpiritIds?: string[]
@@ -216,7 +223,8 @@ export type EventMailTemplateType =
   | 'maintenance_notice'
   | 'compensation'
   | 'activity_preview'
-export type EventMailCadenceSlot = 'opening' | 'midweek' | 'settlement' | 'compensation' | 'preview'
+  | 'weekly_recap'
+export type EventMailCadenceSlot = 'opening' | 'midweek' | 'settlement' | 'compensation' | 'preview' | 'recap'
 
 export interface EventMailTemplateRef {
   id: string
@@ -247,6 +255,108 @@ export interface EventCampaignDef {
   onlineEngagementMode?: EventCampaignEngagementMode
   priority?: number
   rewardSummary: string
+}
+
+export type WeeklyPlanRouteId =
+  | 'top_goals'
+  | 'quest'
+  | 'shop'
+  | 'mail'
+  | 'hall'
+  | 'npc'
+  | 'home'
+  | 'village'
+  | 'breeding'
+  | 'fishpond'
+  | 'museum'
+  | 'hanhai'
+  | 'guild'
+  | 'region-map'
+
+export interface WeeklyPlanRoute {
+  routeId: WeeklyPlanRouteId
+  routeLabel: string
+  summary: string
+  priority: number
+  sourceLabels: string[]
+}
+
+export interface WeeklyPlanSnapshot {
+  planId: string
+  weekId: string
+  themeWeekId: string | null
+  campaignId: string | null
+  primaryRouteId: WeeklyPlanRouteId
+  primaryRouteLabel: string
+  primaryRouteSummary: string
+  secondaryRouteIds: WeeklyPlanRouteId[]
+  secondaryRouteLabels: string[]
+  secondaryRouteSummaries: string[]
+  claimableNodeIds: string[]
+  claimableNodeLabels: string[]
+  nextWeekPrepSummary: string
+  sourceLabels: string[]
+  activeBridgeIds: string[]
+  routes: WeeklyPlanRoute[]
+}
+
+export type ProgressBridgeTargetSystem = 'fishpond' | 'breeding' | 'museum' | 'hanhai'
+export type ProgressBridgeStageId = 'unlock_hint' | 'first_participation' | 'first_settlement' | 'next_week_handoff'
+
+export interface ProgressBridgeEntryCriteria {
+  minMoney?: number
+  minVillageProjectLevel?: number
+  requireThemeWeekIds?: string[]
+  requireRouteLabels?: string[]
+}
+
+export interface ProgressBridgeDef {
+  bridgeId: string
+  label: string
+  targetSystem: ProgressBridgeTargetSystem
+  entryCriteria: ProgressBridgeEntryCriteria
+  linkedThemeWeekIds: string[]
+  linkedRouteLabels: string[]
+  weeklyObjective: string
+  settlementHook: string
+  nextWeekPrepSummary: string
+  rewardSummary: string
+  priority?: number
+}
+
+export interface ProgressBridgeState {
+  bridgeId: string
+  targetSystem: ProgressBridgeTargetSystem
+  stageId: ProgressBridgeStageId
+  entryCriteria: ProgressBridgeEntryCriteria
+  weeklyObjective: string
+  settlementHook: string
+  linkedThemeWeekIds: string[]
+  linkedRouteLabels: string[]
+  rewardSummary: string
+  completedStageIds: ProgressBridgeStageId[]
+  rewardClaimedStageIds: ProgressBridgeStageId[]
+  lastUpdatedWeekId: string
+  completed: boolean
+}
+
+export type WeeklyChronicleHighlightType = 'goal' | 'activity' | 'fishpond' | 'breeding' | 'museum' | 'hanhai' | 'relationship'
+
+export interface WeeklyChronicleEntry {
+  weekId: string
+  themeWeekId: string | null
+  primaryRouteLabel: string
+  highlightTypes: WeeklyChronicleHighlightType[]
+  sourceReceiptIds: string[]
+  settlementSummary: string
+  nextWeekPrepSummary: string
+  createdAtDayTag: string
+  secondaryRouteLabels: string[]
+  highlightSummaries: string[]
+  sourceLabels: string[]
+  weeklyPlanId?: string
+  mirroredHallPostId?: string | null
+  recapMailReceiptId?: string | null
 }
 
 export interface ThemeWeekCampaignState {

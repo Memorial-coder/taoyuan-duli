@@ -4,6 +4,21 @@
       class="game-panel-muted min-w-0 px-3 py-3"
       :data-prompt-focus="buildPromptFocusAttr('current-main-quest')"
     >
+      <div class="mb-2 rounded-xs border border-warning/20 bg-warning/5 px-2 py-2">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[11px] text-warning">本周主路线</p>
+          <span class="text-[10px] text-muted">{{ weeklyPlanSnapshot.weekId }}</span>
+        </div>
+        <p class="mt-1 text-[10px] text-accent leading-5">{{ weeklyPlanSnapshot.primaryRouteLabel }}</p>
+        <p class="mt-1 text-[10px] text-muted leading-5">{{ weeklyPlanSnapshot.primaryRouteSummary }}</p>
+        <p v-if="weeklyPlanSnapshot.secondaryRouteLabels.length > 0" class="mt-1 text-[10px] text-success">
+          辅助路线：{{ weeklyPlanSnapshot.secondaryRouteLabels.join('、') }}
+        </p>
+        <p v-if="weeklyPlanSnapshot.claimableNodeLabels.length > 0" class="mt-1 text-[10px] text-muted">
+          当前可领：{{ weeklyPlanSnapshot.claimableNodeLabels.join('、') }}
+        </p>
+        <p class="mt-1 text-[10px] text-muted leading-5">下周准备：{{ weeklyPlanSnapshot.nextWeekPrepSummary }}</p>
+      </div>
       <div v-if="currentEventCampaign" class="mb-2 rounded-xs border border-warning/20 bg-warning/5 px-2 py-2">
         <div class="flex items-center justify-between gap-2">
           <p class="text-[11px] text-warning">本周活动</p>
@@ -80,13 +95,25 @@
         建议：{{ lastWeeklySettlement.recommendationHighlights.slice(0, 2).join('；') }}
       </p>
     </section>
+
+    <section v-if="latestWeeklyChronicle" class="game-panel-muted min-w-0 px-3 py-3">
+      <div class="mb-2 flex items-center justify-between gap-2">
+        <p class="text-xs text-accent">最近周纪行</p>
+        <span class="text-[10px] text-muted">{{ latestWeeklyChronicle.weekId }}</span>
+      </div>
+      <p class="text-[10px] text-muted leading-5">{{ latestWeeklyChronicle.settlementSummary }}</p>
+      <p v-if="latestWeeklyChronicle.highlightSummaries.length > 0" class="mt-1 text-[10px] text-success">
+        高光：{{ latestWeeklyChronicle.highlightSummaries.join('；') }}
+      </p>
+      <p class="mt-1 text-[10px] text-muted">下周准备：{{ latestWeeklyChronicle.nextWeekPrepSummary }}</p>
+    </section>
   </aside>
 </template>
 
 <script setup lang="ts">
   import TopGoalsGoalCard from './TopGoalsGoalCard.vue'
   import type { GoalState, MainQuestStageState } from '@/stores/useGoalStore'
-  import type { PromptAction, WeeklyGoalSettlementSummary } from '@/types'
+  import type { PromptAction, WeeklyChronicleEntry, WeeklyGoalSettlementSummary, WeeklyPlanSnapshot } from '@/types'
   import type {
     TopGoalsCta,
     TopGoalsEventCampaignSummary,
@@ -97,6 +124,7 @@
   defineProps<{
     buildPromptFocusAttr: (focusKey: string) => string
     currentEventCampaign: TopGoalsEventCampaignSummary | null
+    weeklyPlanSnapshot: WeeklyPlanSnapshot
     currentMainQuest: MainQuestStageState | null
     currentMainQuestProgress: string
     getGoalAction: (goal: GoalState) => PromptAction | null
@@ -104,6 +132,7 @@
     marketRouteHighlights: string
     marketCtas: TopGoalsCta[]
     lastWeeklySettlement: WeeklyGoalSettlementSummary | null
+    latestWeeklyChronicle: WeeklyChronicleEntry | null
     lastWeeklySettlementWeekLabel: string
     weeklyStreak: TopGoalsWeeklyStreakSummary
     getGoalProgressText: (goal: GoalState) => string
