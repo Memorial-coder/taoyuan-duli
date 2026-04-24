@@ -1999,6 +1999,102 @@ export const useGoalStore = defineStore('goal', () => {
     const focusedRegionSummary = regionMapStore.currentWeeklyFocus.focusedRegionId
       ? regionMapStore.regionSummaries.find(region => region.id === regionMapStore.currentWeeklyFocus.focusedRegionId) ?? null
       : null
+    const focusedRegionRelay = (() => {
+      if (!regionMapStore.regionIntegrationEnabled || !focusedRegionSummary?.unlocked) return null
+
+      if (focusedRegionSummary.id === 'ancient_road') {
+        const archiveQty = regionMapStore.getFamilyResourceQuantity('ancient_archive')
+        return {
+          regionSummary: `本周行旅图建议优先推进「${focusedRegionSummary.name}」：先补商圈补给，再把护送和残卷成果交回任务板或瀚海。`,
+          downstreamRoutes: [
+            {
+              routeId: 'quest' as WeeklyPlanRouteId,
+              priority: 66,
+              summary: archiveQty > 0 ? `当前残卷库存 ${archiveQty} 份，任务板适合先接古迹说明和护送单。` : '任务板会承接古迹说明、护送与荒道路线结算。',
+              sourceLabel: `行旅图承接：${focusedRegionSummary.name}`
+            },
+            {
+              routeId: 'shop' as WeeklyPlanRouteId,
+              priority: 64,
+              summary: '商圈会承接荒道补给、护送耗材和档案整理消耗。',
+              sourceLabel: `行旅图承接：${focusedRegionSummary.name}`
+            },
+            {
+              routeId: 'hanhai' as WeeklyPlanRouteId,
+              priority: 62,
+              summary: '瀚海会承接荒道护送、古物说明和合同前置准备。',
+              sourceLabel: `行旅图承接：${focusedRegionSummary.name}`
+            }
+          ],
+          claimableNodeLabel: archiveQty > 0 ? `区域承接：荒道残卷×${archiveQty}` : '区域承接：荒道 -> 任务板 / 瀚海',
+          nextWeekPrepSummary: archiveQty > 0
+            ? `若继续推进古驿荒道，先补体力、空背包和护送补给，再把残卷×${archiveQty} 交回任务板或瀚海。`
+            : '若继续推进古驿荒道，先补体力、空背包和护送补给，再把护送成果交回任务板或瀚海。'
+        }
+      }
+
+      if (focusedRegionSummary.id === 'mirage_marsh') {
+        const specimenQty = regionMapStore.getFamilyResourceQuantity('ecology_specimen')
+        return {
+          regionSummary: `本周行旅图建议优先推进「${focusedRegionSummary.name}」：先留出样本和展示位，再把高光样本送去鱼塘、博物馆和活动邮件链。`,
+          downstreamRoutes: [
+            {
+              routeId: 'fishpond' as WeeklyPlanRouteId,
+              priority: 66,
+              summary: '鱼塘会承接泽地样本、展示池高光和周赛养护链。',
+              sourceLabel: `行旅图承接：${focusedRegionSummary.name}`
+            },
+            {
+              routeId: 'museum' as WeeklyPlanRouteId,
+              priority: 64,
+              summary: '博物馆会承接泽地样本的馆务委托、专题展示和研究说明。',
+              sourceLabel: `行旅图承接：${focusedRegionSummary.name}`
+            },
+            {
+              routeId: 'mail' as WeeklyPlanRouteId,
+              priority: 58,
+              summary: currentEventCampaign.value
+                ? `活动「${currentEventCampaign.value.label}」会通过邮件链继续承接泽地样本和中期提醒。`
+                : '邮箱会统一收束泽地样本的活动提醒、补偿和周纪行回顾。',
+              sourceLabel: `行旅图承接：${focusedRegionSummary.name}`
+            }
+          ],
+          claimableNodeLabel: specimenQty > 0 ? `区域承接：生态样本×${specimenQty}` : '区域承接：泽地 -> 鱼塘 / 博物馆',
+          nextWeekPrepSummary: specimenQty > 0
+            ? `若继续推进蜃潮泽地，先预留展示位和样本交付空间，把生态样本×${specimenQty} 转成鱼塘 / 馆务收益。`
+            : '若继续推进蜃潮泽地，先确保展示池与馆务委托有承接口，再出发补样本。'
+        }
+      }
+
+      const leyQty = regionMapStore.getFamilyResourceQuantity('ley_crystal')
+      return {
+        regionSummary: `本周行旅图建议优先推进「${focusedRegionSummary.name}」：先把巡路、采晶和前哨补给压稳，再回公会和村庄建设收束高地战备。`,
+        downstreamRoutes: [
+          {
+            routeId: 'guild' as WeeklyPlanRouteId,
+            priority: 68,
+            summary: '公会会承接高地清剿、灵脉收益和赛季战备准备。',
+            sourceLabel: `行旅图承接：${focusedRegionSummary.name}`
+          },
+          {
+            routeId: 'village' as WeeklyPlanRouteId,
+            priority: 64,
+            summary: '村庄建设会承接高地前哨、补给棚和山路前置。',
+            sourceLabel: `行旅图承接：${focusedRegionSummary.name}`
+          },
+          {
+            routeId: 'quest' as WeeklyPlanRouteId,
+            priority: 60,
+            summary: '任务板会继续承接高地清剿线、运材线和补给线，适合把高地循环接回日常周节奏。',
+            sourceLabel: `行旅图承接：${focusedRegionSummary.name}`
+          }
+        ],
+        claimableNodeLabel: leyQty > 0 ? `区域承接：灵脉结晶×${leyQty}` : '区域承接：高地 -> 公会 / 村庄',
+        nextWeekPrepSummary: leyQty > 0
+          ? `若继续推进云岚高地，先留足体力、空背包，并确认灵脉结晶×${leyQty} 能被公会与村庄建设接住。`
+          : '若继续推进云岚高地，先留足体力、空背包，并确认公会与村庄建设都能接住高地收益。'
+      }
+    })()
     if (regionMapStore.regionIntegrationEnabled && regionMapStore.activeExpeditionSummary?.region) {
       addRouteCandidate(
         'region-map',
@@ -2007,7 +2103,17 @@ export const useGoalStore = defineStore('goal', () => {
         `行旅图远征：${regionMapStore.activeExpeditionSummary.region.name}`
       )
     }
-    if (regionMapStore.regionIntegrationEnabled && focusedRegionSummary && focusedRegionSummary.unlocked) {
+    if (focusedRegionRelay) {
+      addRouteCandidate(
+        'region-map',
+        68,
+        focusedRegionRelay.regionSummary,
+        `行旅图：${focusedRegionSummary?.name ?? '本周区域'}`
+      )
+      for (const route of focusedRegionRelay.downstreamRoutes) {
+        addRouteCandidate(route.routeId, route.priority, route.summary, route.sourceLabel)
+      }
+    } else if (regionMapStore.regionIntegrationEnabled && focusedRegionSummary && focusedRegionSummary.unlocked) {
       addRouteCandidate(
         'region-map',
         68,
@@ -2078,7 +2184,11 @@ export const useGoalStore = defineStore('goal', () => {
     const secondaryRoutes = routes.filter(route => route.routeId !== primaryRoute.routeId).slice(0, 1)
     const chronicleWeekLabel = lastWeeklyGoalSettlement.value?.weekId ?? latestWeeklyChronicleEntry.value?.weekId ?? ''
     const claimableNodes = [
-      focusedRegionSummary ? { id: 'region_focus', label: `行旅图焦点：${focusedRegionSummary.name}` } : null,
+      focusedRegionRelay
+        ? { id: 'region_focus', label: focusedRegionRelay.claimableNodeLabel }
+        : focusedRegionSummary
+          ? { id: 'region_focus', label: `行旅图焦点：${focusedRegionSummary.name}` }
+          : null,
       regionMapStore.hasActiveExpedition ? { id: 'region_expedition', label: `行旅图远征：${focusedRegionSummary?.name ?? '进行中路线'}` } : null,
       ...(
         regionMapStore.regionIntegrationEnabled
@@ -2108,9 +2218,12 @@ export const useGoalStore = defineStore('goal', () => {
       latestWeeklyChronicleEntry.value ? { id: 'weekly_chronicle', label: `周纪行：${latestWeeklyChronicleEntry.value.weekId}` } : null
     ].filter((node): node is { id: string; label: string } => node !== null)
 
-    const nextWeekPrepSummary =
+    const previewSummary =
       nextThemeWeekPreview.value?.ui?.summaryLabel ??
-      (nextThemeWeekPreview.value ? `下周主题「${nextThemeWeekPreview.value.name}」即将到来，可提前准备相关物资与样本。` : '下周主题周预告尚未生成。')
+      (nextThemeWeekPreview.value ? `下周主题「${nextThemeWeekPreview.value.name}」即将到来，可提前准备相关物资与样本。` : '')
+    const nextWeekPrepSummary =
+      [focusedRegionRelay?.nextWeekPrepSummary ?? '', previewSummary].filter(Boolean).join(' ') ||
+      '下周主题周预告尚未生成。'
     const sourceLabels = [
       currentThemeWeek.value?.name ?? '',
       currentEventCampaign.value?.label ?? '',

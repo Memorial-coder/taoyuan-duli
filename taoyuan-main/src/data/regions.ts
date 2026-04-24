@@ -168,6 +168,20 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'guild', 'wallet'],
     encounterHint: '更偏灵脉采集和战备收束，适合准备高地首领或高风险票券路线。',
     handoffHint: '采晶后优先回公会和钱包处理奖励与高阶准备，再决定是否继续冲首领。'
+  },
+  {
+    id: 'cloud_highland_supply_push',
+    regionId: 'cloud_highland',
+    name: '前哨补给线',
+    description: '围绕前哨转运、补给棚整备与高地危险路线展开，偏向建设前置与首领前战备。',
+    nodeType: 'handoff',
+    unlockRouteIds: ['cloud_highland_patrol'],
+    staminaCost: 5,
+    timeCostHours: 0.84,
+    primaryResourceFamilyId: 'ley_crystal',
+    linkedSystems: ['quest', 'guild', 'villageProject', 'wallet'],
+    encounterHint: '这里会把清剿、补给和山路危险压成同一轮，适合在首领前检查战备是否齐整。',
+    handoffHint: '完成后优先回公会确认战备目标，再去村庄建设和钱包收束高地投入。'
   }
 ]
 

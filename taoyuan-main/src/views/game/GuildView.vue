@@ -16,6 +16,26 @@
 
     <QaGovernancePanel page-id="guild" title="公会治理总览" />
 
+    <div v-if="cloudHighlandGuildHandoff" class="border border-accent/20 rounded-xs p-2 mb-3 bg-accent/5">
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-xs text-accent">云岚高地承接</p>
+        <span class="text-[10px] text-muted">行旅图 -> 公会</span>
+      </div>
+      <p class="text-[10px] text-muted mt-1 leading-4">
+        高地已完成 {{ cloudHighlandGuildHandoff.completedRoutes }} 条节点，当前灵脉结晶库存 {{ cloudHighlandGuildHandoff.leyQty }} 份。
+      </p>
+      <p class="text-[10px] text-muted mt-1 leading-4">
+        公会当前更适合围绕「{{ cloudHighlandGuildHandoff.rewardPoolLabel }}」收束高地清剿、采晶和首领战备。
+      </p>
+      <p v-if="cloudHighlandGuildHandoff.projectNames.length > 0" class="text-[10px] text-accent mt-1">
+        联动建设：{{ cloudHighlandGuildHandoff.projectNames.join('、') }}
+      </p>
+      <div class="mt-2 flex flex-wrap gap-2">
+        <Button class="justify-center" @click="navigateToPanel('region-map')">去行旅图</Button>
+        <Button class="justify-center" @click="void router.push({ name: 'village-projects' })">去村庄建设</Button>
+      </div>
+    </div>
+
     <div class="border border-accent/20 rounded-xs p-2 mb-3">
       <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs mb-2">
         <div class="flex items-center justify-between">
@@ -635,6 +655,7 @@
 </template>
 
 <script setup lang="ts">
+  import { useRouter } from 'vue-router'
   import { ref, computed } from 'vue'
   import { Swords, Gift, CircleCheck, Circle, Lock, ShoppingCart, BookOpen, X, HandHeart } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
@@ -657,12 +678,18 @@
   import type { MonsterDef, GuildShopItemDef, MonsterGoalDef } from '@/types'
   import { getItemById } from '@/data/items'
   import { addLog, showFloat } from '@/composables/useGameLog'
+  import { navigateToPanel } from '@/composables/useNavigation'
+  import { useRegionMapStore } from '@/stores/useRegionMapStore'
+  import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
 
   type Tab = 'goals' | 'shop' | 'bestiary' | 'donate'
 
+  const router = useRouter()
   const guildStore = useGuildStore()
   const playerStore = usePlayerStore()
   const inventoryStore = useInventoryStore()
+  const regionMapStore = useRegionMapStore()
+  const villageProjectStore = useVillageProjectStore()
 
   const tab = ref<Tab>('goals')
   const goalZone = ref('all')
@@ -685,6 +712,25 @@
   const activeSeasonActivities = computed(() => guildStore.featuredSeasonActivities)
   const activeMilestones = computed(() => guildStore.featuredSeasonMilestones)
   const activeRewardPool = computed(() => guildStore.activeRewardPoolOverview)
+  const cloudHighlandGuildHandoff = computed(() => {
+    const leyQty = regionMapStore.getFamilyResourceQuantity('ley_crystal')
+    const completedRoutes = regionMapStore.getRegionCompletedRouteCount('cloud_highland')
+    const isFocused = regionMapStore.currentWeeklyFocus.focusedRegionId === 'cloud_highland'
+    if (!regionMapStore.regionIntegrationEnabled || (!isFocused && leyQty <= 0)) return null
+
+    const projectNames = villageProjectStore
+      .getLinkedProjectSummaries('guild')
+      .filter(project => project.available || project.completed)
+      .slice(0, 2)
+      .map(project => project.name)
+
+    return {
+      leyQty,
+      completedRoutes,
+      projectNames,
+      rewardPoolLabel: guildStore.crossSystemOverview.activeRewardPool?.label ?? guildStore.crossSystemOverview.currentRankBandLabel
+    }
+  })
 
   const openShopModal = (item: GuildShopItemDef) => {
     shopModalItem.value = item

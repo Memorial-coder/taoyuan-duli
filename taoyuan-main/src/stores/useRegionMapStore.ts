@@ -30,7 +30,8 @@ const ROUTE_ITEM_REWARDS: Record<string, Array<{ itemId: string; quantity: numbe
   mirage_marsh_specimen_drive: [{ itemId: 'luminous_algae', quantity: 1 }],
   mirage_marsh_ecology_alert: [{ itemId: 'luminous_algae', quantity: 1 }],
   cloud_highland_patrol: [{ itemId: 'ley_crystal_shard', quantity: 1 }],
-  cloud_highland_ley_crack: [{ itemId: 'wind_etched_core', quantity: 1 }]
+  cloud_highland_ley_crack: [{ itemId: 'wind_etched_core', quantity: 1 }],
+  cloud_highland_supply_push: [{ itemId: 'wind_etched_core', quantity: 1 }]
 }
 
 const BOSS_ITEM_REWARDS: Record<RegionId, Array<{ itemId: string; quantity: number }>> = {

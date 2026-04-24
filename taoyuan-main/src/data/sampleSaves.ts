@@ -1761,6 +1761,12 @@ const createRegionMapShowcaseEnvelope = () => {
     completions: 1,
     lastCompletedDayTag: '2-autumn-26'
   }
+  regionMap.routeStates.cloud_highland_supply_push = {
+    routeId: 'cloud_highland_supply_push',
+    unlocked: true,
+    completions: 1,
+    lastCompletedDayTag: '2-autumn-26'
+  }
   regionMap.weeklyFocusState = {
     weekId: '2-autumn-week-4',
     focusedRegionId: 'ancient_road',
@@ -1778,7 +1784,7 @@ const createRegionMapShowcaseEnvelope = () => {
     startedAtDayTag: '2-autumn-26'
   }
   regionMap.telemetry = {
-    totalRouteCompletions: 11,
+    totalRouteCompletions: 12,
     bossClears: 2,
     resourceTurnIns: 4
   }

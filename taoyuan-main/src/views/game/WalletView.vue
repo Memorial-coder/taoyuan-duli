@@ -10,6 +10,23 @@
     </div>
     <p class="text-xs text-muted mb-3">永久被动加成，满足条件后自动解锁。</p>
 
+    <div v-if="cloudHighlandWalletPrep" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-xs text-accent">云岚高地战备</p>
+        <span class="text-[10px] text-muted">行旅图 -> 高阶准备</span>
+      </div>
+      <p class="text-[10px] text-muted mt-1 leading-4">
+        当前灵脉结晶库存 {{ cloudHighlandWalletPrep.leyQty }} 份，建设券 {{ cloudHighlandWalletPrep.constructionTickets }}，后勤券 {{ cloudHighlandWalletPrep.guildLogisticsTickets }}。
+      </p>
+      <p class="text-[10px] text-muted mt-1 leading-4">
+        建议先确认高地巡路和首领前的预算、票券和背包余量，再继续冲下一轮高地战备。
+      </p>
+      <div class="mt-2 flex flex-wrap gap-2">
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('region-map')">去行旅图</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('guild')">去公会</button>
+      </div>
+    </div>
+
     <div
       class="border border-accent/20 rounded-xs p-3 mb-3"
       :class="promptSectionClass('economy-overview')"
@@ -526,10 +543,12 @@
 <script setup lang="ts">
   import { ref, computed, onMounted } from 'vue'
   import { Wallet, CircleCheck, Lock, X, TrendingUp, AlertTriangle, Store } from 'lucide-vue-next'
+  import { navigateToPanel } from '@/composables/useNavigation'
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useGoalStore } from '@/stores/useGoalStore'
+  import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { useShopStore } from '@/stores/useShopStore'
   import { useWalletStore } from '@/stores/useWalletStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
@@ -543,6 +562,7 @@
   const shopStore = useShopStore()
   const walletStore = useWalletStore()
   const playerStore = usePlayerStore()
+  const regionMapStore = useRegionMapStore()
   const saveStore = useSaveStore()
   const { buildPromptFocusAttr, isPromptFocusActive } = usePromptFocusPanel('wallet')
 
@@ -594,6 +614,17 @@
   }
 
   const promptSectionClass = (focusKey: string) => (isPromptFocusActive(focusKey) ? 'prompt-focus-target--active' : '')
+
+  const cloudHighlandWalletPrep = computed(() => {
+    const leyQty = regionMapStore.getFamilyResourceQuantity('ley_crystal')
+    const isFocused = regionMapStore.currentWeeklyFocus.focusedRegionId === 'cloud_highland'
+    if (!regionMapStore.regionIntegrationEnabled || (!isFocused && leyQty <= 0)) return null
+    return {
+      leyQty,
+      constructionTickets: walletStore.getRewardTicketBalance('construction'),
+      guildLogisticsTickets: walletStore.getRewardTicketBalance('guildLogistics')
+    }
+  })
 
   const unlockedCount = computed(() => WALLET_ITEMS.filter(i => walletStore.has(i.id)).length)
   const economyOverview = computed(() => playerStore.getEconomyOverview())

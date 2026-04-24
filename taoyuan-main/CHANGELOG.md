@@ -19,8 +19,12 @@
 - `src/stores/useRegionMapStore.ts` 现已支持公开 `runRouteExpedition()`：会真实消耗体力与时间、发放区域资源并写入结构化日志。
 - `src/types/region.ts`、`src/data/regions.ts`、`src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 已继续补上公开区域首领挑战：各区域首领拥有独立体力 / 时间成本，完成至少 1 条区域路线后即可触发最小首领挑战闭环。
 - `src/types/region.ts`、`src/data/regions.ts`、`src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 现已把古驿荒道 / 蜃潮泽地各自扩到 3 条节点，并补上路线前置解锁、运行时可执行性判断、路线类型/成本/提示展示，以及锁区时只给解锁向导的 handoff 摘要。
+- `src/data/regions.ts`、`src/stores/useRegionMapStore.ts`、`src/data/sampleSaves.ts` 已把云岚高地扩到第 3 条节点 `cloud_highland_supply_push`，并把高地样例档同步到 3 节点版本。
 - `src/views/game/ShopView.vue`、`src/views/game/FishPondView.vue`、`src/stores/useHanhaiStore.ts`、`src/stores/useMuseumStore.ts` 已把行旅图承接真正接到旧系统页：商圈和鱼塘会按“本周焦点或资源库存未清”条件显示区域承接卡；瀚海和博物馆则会基于区域资源库存与路线推进给出更具体的推荐动作。
+- `src/views/game/GuildView.vue`、`src/views/game/VillageView.vue`、`src/views/game/WalletView.vue`、`src/views/game/RegionMapView.vue` 已继续把云岚高地接到旧系统页：新增高地承接卡、高地战备卡和首领准备面板，让 Guild / VillageProject / 高阶准备链可见可点。
+- `src/stores/useGoalStore.ts` 已把行旅图周推荐从泛化入口提升为区域化周计划：会按当前焦点区域给 `region-map / quest / shop / hanhai / fishpond / museum / guild / village` 补充“为什么去、先准备什么、回来交给谁”的摘要，并把区域承接节点接入现有 `weeklyPlanSnapshot`。
 - `src/data/sampleSaves.ts` 已把 `region_map_showcase` 补成可直接覆盖鱼塘支线的综合样例；`e2e/game-smoke.spec.ts` 也已扩展为验证 `region-map -> shop -> fishpond` 三段烟测，而不只停在行旅图首页。
+- `e2e/game-smoke.spec.ts` 现已继续扩展为验证 `region-map -> shop -> fishpond -> guild -> wallet` 五段烟测，覆盖 Day 5 的高地承接面。
 - 通过 subagent 两轮定向审查后，已收口以下问题：
   - 正式 `region-map` 页面暴露开发态强操作的问题
   - 区域资源交付只增 telemetry、不扣台账的问题
@@ -40,7 +44,7 @@
   - `npm run build` 通过
   - `npm run test:e2e -- e2e/game-smoke.spec.ts` 通过
   - 公开路线巡行、公开资源交付、公开区域首领挑战三条主链均已打通
-  - region-map / shop / fishpond 三段承接链已有浏览器级回归覆盖
+  - region-map / shop / fishpond / guild / wallet 五段承接链已有浏览器级回归覆盖
 
 #### 0415 同性婚姻关系线收口
 - `src/stores/useNpcStore.ts` 已真正放开同性可婚 NPC 的赠帕约会与求婚主链，不再被旧的“只能向异性赠帕 / 求婚”判断拦截；同时补上了“知己与婚缘互斥”的 store 侧硬校验，旧档里的同性知己若想转婚缘，必须先断缘再发展。

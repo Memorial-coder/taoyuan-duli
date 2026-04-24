@@ -145,6 +145,20 @@
             </p>
 
             <div class="border border-accent/10 rounded-xs px-3 py-2">
+              <p class="text-[10px] text-muted mb-2">首领准备</p>
+              <p class="text-xs text-accent">{{ getBossPrepSummary(region.id).headline }}</p>
+              <div class="mt-2 space-y-1" v-if="getBossPrepSummary(region.id).detailLines.length > 0">
+                <p
+                  v-for="line in getBossPrepSummary(region.id).detailLines"
+                  :key="`${region.id}-boss-prep-${line}`"
+                  class="text-[10px] text-muted leading-4"
+                >
+                  · {{ line }}
+                </p>
+              </div>
+            </div>
+
+            <div class="border border-accent/10 rounded-xs px-3 py-2">
               <p class="text-[10px] text-muted mb-2">回流承接</p>
               <div class="flex flex-wrap gap-2">
                 <button
@@ -286,20 +300,26 @@
   import { getWeekCycleInfo } from '@/utils/weekCycle'
   import { useFishPondStore } from '@/stores/useFishPondStore'
   import { useGameStore } from '@/stores/useGameStore'
+  import { useGuildStore } from '@/stores/useGuildStore'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useHanhaiStore } from '@/stores/useHanhaiStore'
   import { useMuseumStore } from '@/stores/useMuseumStore'
+  import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { useShopStore } from '@/stores/useShopStore'
+  import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import type { RegionId, RegionLinkedSystem, RegionalResourceFamilyId } from '@/types/region'
 
   const fishPondStore = useFishPondStore()
   const gameStore = useGameStore()
+  const guildStore = useGuildStore()
   const goalStore = useGoalStore()
   const hanhaiStore = useHanhaiStore()
   const museumStore = useMuseumStore()
+  const playerStore = usePlayerStore()
   const regionMapStore = useRegionMapStore()
   const shopStore = useShopStore()
+  const villageProjectStore = useVillageProjectStore()
   const lastActionSummary = ref('')
   const isDev = import.meta.env.DEV
 
@@ -340,6 +360,49 @@
   const getRouteDisabledReason = (routeId: string) => {
     const routeStatus = regionMapStore.getRouteExpeditionStatus(routeId)
     return routeStatus.available ? '' : routeStatus.reason
+  }
+
+  const getBossPrepSummary = (regionId: RegionId) => {
+    const boss = regionMapStore.bossDefs.find(entry => entry.regionId === regionId)
+    if (!boss) {
+      return {
+        headline: '暂无首领配置',
+        detailLines: []
+      }
+    }
+
+    const routeCount = regionMapStore.getRegionCompletedRouteCount(regionId)
+    const unlockedRouteCount = getRegionRoutes(regionId).filter(route => isRouteUnlocked(route.id)).length
+    const status = regionMapStore.getBossExpeditionStatus(regionId)
+    const detailLines = [
+      `路线进度：已完成 ${routeCount}/${Math.max(unlockedRouteCount, 1)} 条可用路线。`,
+      `执行门槛：体力 ${boss.staminaCost} / 耗时 ${boss.timeCostHours}h。`,
+      status.available ? '当前条件已满足，可直接挑战。' : `当前阻塞：${status.reason}`
+    ]
+
+    if (regionId === 'cloud_highland') {
+      const projectNames = villageProjectStore
+        .getLinkedProjectSummaries('guild')
+        .filter(project => project.available || project.completed)
+        .slice(0, 2)
+        .map(project => project.name)
+      detailLines.push(`公会战备：Lv.${guildStore.guildLevel} / ${guildStore.crossSystemOverview.currentRankBandLabel}。`)
+      detailLines.push(
+        projectNames.length > 0
+          ? `建设承接：${projectNames.join('、')}。`
+          : '建设承接：当前暂无可见的高地联动建设。'
+      )
+      detailLines.push(`当前体力：${playerStore.stamina} / 灵脉结晶 ${regionMapStore.getFamilyResourceQuantity('ley_crystal')}。`)
+      return {
+        headline: '公会 -> 村庄建设 -> 首领',
+        detailLines
+      }
+    }
+
+    return {
+      headline: '路线 -> 首领',
+      detailLines
+    }
   }
 
   const LINKED_SYSTEM_PANEL_MAP: Record<RegionLinkedSystem, { key: PanelKey; label: string }> = {
@@ -420,11 +483,18 @@
       }
     }
 
+    const highlandProjectNames = villageProjectStore
+      .getLinkedProjectSummaries('guild')
+      .filter(project => project.available || project.completed)
+      .slice(0, 2)
+      .map(project => project.name)
     const detailLines = [
       goalStore.currentThemeWeek?.name ? `主题周承接：${goalStore.currentThemeWeek.name}` : '',
       `高地节点：已完成 ${regionMapStore.getRegionCompletedRouteCount('cloud_highland')}/${unlockedRouteCount} 条。`,
+      `公会战备：Lv.${guildStore.guildLevel} / ${guildStore.crossSystemOverview.currentRankBandLabel}。`,
+      highlandProjectNames.length > 0 ? `建设前置：${highlandProjectNames.join('、')}` : '',
       regionMapStore.getFamilyResourceQuantity('ley_crystal') > 0
-        ? `灵脉结晶：当前库存 ${regionMapStore.getFamilyResourceQuantity('ley_crystal')}，可继续接公会或建设承接。`
+        ? `灵脉结晶：当前库存 ${regionMapStore.getFamilyResourceQuantity('ley_crystal')}，可继续接公会、建设与高阶准备。`
         : ''
     ].filter(Boolean)
     return {

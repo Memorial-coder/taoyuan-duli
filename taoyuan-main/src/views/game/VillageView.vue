@@ -13,6 +13,26 @@
       </div>
     </div>
 
+    <section v-if="cloudHighlandVillageHandoff" class="game-panel-muted px-3 py-3">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <p class="text-xs text-accent">云岚高地承接</p>
+        <span class="text-[10px] text-muted">行旅图 -> 村庄建设</span>
+      </div>
+      <p class="text-[10px] text-muted leading-4">
+        高地已完成 {{ cloudHighlandVillageHandoff.completedRoutes }} 条节点，当前灵脉结晶库存 {{ cloudHighlandVillageHandoff.leyQty }} 份。
+      </p>
+      <p class="text-[10px] text-muted mt-1 leading-4">
+        这批收益更适合优先投入前哨、补给棚和山路开辟类建设，让高地首领和下轮巡路都有更稳的承接口。
+      </p>
+      <p v-if="cloudHighlandVillageHandoff.projectNames.length > 0" class="text-[10px] text-accent mt-1">
+        当前可接建设：{{ cloudHighlandVillageHandoff.projectNames.join('、') }}
+      </p>
+      <div class="mt-2 flex flex-wrap gap-2">
+        <Button class="justify-center" @click="navigateToPanel('region-map')">去行旅图</Button>
+        <Button class="justify-center" @click="navigateToPanel('guild')">去公会</Button>
+      </div>
+    </section>
+
     <div class="grid gap-3 lg:grid-cols-2">
       <section class="game-panel-muted px-3 py-3">
         <div class="flex items-center justify-between gap-2 mb-2">
@@ -207,6 +227,7 @@
   import Button from '@/components/game/Button.vue'
   import { getCombinedItemCount } from '@/composables/useCombinedInventory'
   import { addLog, logHistory, showFloat } from '@/composables/useGameLog'
+  import { navigateToPanel } from '@/composables/useNavigation'
   import { getItemById } from '@/data'
   import { useBreedingStore } from '@/stores/useBreedingStore'
   import { useFishPondStore } from '@/stores/useFishPondStore'
@@ -216,6 +237,7 @@
   import { useMuseumStore } from '@/stores/useMuseumStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
+  import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import type { ProsperityScoreBreakdown } from '@/types'
 
@@ -228,7 +250,27 @@
   const museumStore = useMuseumStore()
   const npcStore = useNpcStore()
   const playerStore = usePlayerStore()
+  const regionMapStore = useRegionMapStore()
   const villageProjectStore = useVillageProjectStore()
+
+  const cloudHighlandVillageHandoff = computed(() => {
+    const leyQty = regionMapStore.getFamilyResourceQuantity('ley_crystal')
+    const completedRoutes = regionMapStore.getRegionCompletedRouteCount('cloud_highland')
+    const isFocused = regionMapStore.currentWeeklyFocus.focusedRegionId === 'cloud_highland'
+    if (!regionMapStore.regionIntegrationEnabled || (!isFocused && leyQty <= 0)) return null
+
+    const projectNames = villageProjectStore
+      .getLinkedProjectSummaries('guild')
+      .filter(project => project.available || project.completed)
+      .slice(0, 2)
+      .map(project => project.name)
+
+    return {
+      leyQty,
+      completedRoutes,
+      projectNames
+    }
+  })
 
   const overview = computed(() => villageProjectStore.overviewSummary)
   const prosperity = computed<ProsperityScoreBreakdown>(() => {
