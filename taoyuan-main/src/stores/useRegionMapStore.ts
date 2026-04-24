@@ -25,10 +25,10 @@ import { addLog, showFloat } from '@/composables/useGameLog'
 const ROUTE_ITEM_REWARDS: Record<string, Array<{ itemId: string; quantity: number }>> = {
   ancient_road_supply_relay: [{ itemId: 'ancient_waybill', quantity: 1 }],
   ancient_road_archive_recovery: [{ itemId: 'archive_rubbing', quantity: 1 }],
-  ancient_road_convoy_risk: [{ itemId: 'relay_beacon_tag', quantity: 1 }],
+  ancient_road_convoy_risk: [{ itemId: 'archive_rubbing', quantity: 1 }],
   mirage_marsh_night_watch: [{ itemId: 'marsh_spore_sample', quantity: 1 }],
   mirage_marsh_specimen_drive: [{ itemId: 'luminous_algae', quantity: 1 }],
-  mirage_marsh_ecology_alert: [{ itemId: 'marsh_glow_pod', quantity: 1 }],
+  mirage_marsh_ecology_alert: [{ itemId: 'luminous_algae', quantity: 1 }],
   cloud_highland_patrol: [{ itemId: 'ley_crystal_shard', quantity: 1 }],
   cloud_highland_ley_crack: [{ itemId: 'wind_etched_core', quantity: 1 }]
 }

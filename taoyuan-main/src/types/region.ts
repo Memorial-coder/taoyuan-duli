@@ -56,6 +56,7 @@ export interface RegionBossDef {
   regionId: RegionId
   name: string
   description: string
+  rewardFamilyId: RegionalResourceFamilyId
   staminaCost: number
   timeCostHours: number
   phases: RegionBossPhaseDef[]

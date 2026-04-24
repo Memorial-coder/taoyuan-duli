@@ -133,7 +133,8 @@
               <button
                 v-if="isDev"
                 class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5"
-                :disabled="!region.unlocked"
+                :disabled="!canChallengeBoss(region.id)"
+                :title="getBossDisabledReason(region.id)"
                 @click="handleBossClear(region.id)"
               >
                 首领清关
@@ -208,7 +209,8 @@
                   <button
                     v-if="isDev"
                     class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
-                    :disabled="!isRouteUnlocked(route.id)"
+                    :disabled="!canRunRoute(route.id)"
+                    :title="getRouteDisabledReason(route.id)"
                     @click="handleStartRoute(route.id)"
                   >
                     开始路线
@@ -216,7 +218,8 @@
                   <button
                     v-if="isDev"
                     class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5"
-                    :disabled="!isRouteUnlocked(route.id)"
+                    :disabled="!canRunRoute(route.id)"
+                    :title="getRouteDisabledReason(route.id)"
                     @click="handleCompleteRoute(route.id)"
                   >
                     完成并结算
@@ -356,9 +359,19 @@
       .filter(Boolean)
 
   const getRegionHandoffSummary = (regionId: RegionId) => {
+    const regionSummary = regionMapStore.regionSummaries.find(region => region.id === regionId) ?? null
+    const unlockedRouteCount = getRegionRoutes(regionId).filter(route => isRouteUnlocked(route.id)).length
+
+    if (!regionSummary?.unlocked) {
+      return {
+        headline: '先推进解锁',
+        detailLines: [`当前解锁条件：${getUnlockSummary(regionId)}`]
+      }
+    }
+
     if (regionId === 'ancient_road') {
       const detailLines = [
-        `荒道节点：已完成 ${regionMapStore.getRegionCompletedRouteCount('ancient_road')}/${getRegionRoutes('ancient_road').length} 条，可继续补护送线和残卷线。`,
+        `荒道节点：已完成 ${regionMapStore.getRegionCompletedRouteCount('ancient_road')}/${unlockedRouteCount} 条，可继续补护送线和残卷线。`,
         goalStore.currentEventCampaign ? `活动承接：${goalStore.currentEventCampaign.label}` : '',
         hanhaiStore.crossSystemOverview.featuredCaravanContracts.length > 0
           ? `瀚海合同：${hanhaiStore.crossSystemOverview.featuredCaravanContracts.slice(0, 2).map(contract => contract.label).join('、')}`
@@ -384,7 +397,7 @@
 
     if (regionId === 'mirage_marsh') {
       const detailLines = [
-        `泽地节点：已完成 ${regionMapStore.getRegionCompletedRouteCount('mirage_marsh')}/${getRegionRoutes('mirage_marsh').length} 条，可继续补夜游、样本和异常线。`,
+        `泽地节点：已完成 ${regionMapStore.getRegionCompletedRouteCount('mirage_marsh')}/${unlockedRouteCount} 条，可继续补夜游、样本和异常线。`,
         fishPondStore.currentPondContestDef ? `鱼塘周赛：${fishPondStore.currentPondContestDef.label}` : '',
         fishPondStore.displayOverview.entryCount > 0
           ? `展示池：已摆入 ${fishPondStore.displayOverview.entryCount} 条高光样本，总观赏值 ${fishPondStore.displayOverview.totalShowValue}`
@@ -409,7 +422,7 @@
 
     const detailLines = [
       goalStore.currentThemeWeek?.name ? `主题周承接：${goalStore.currentThemeWeek.name}` : '',
-      `高地节点：已完成 ${regionMapStore.getRegionCompletedRouteCount('cloud_highland')}/${getRegionRoutes('cloud_highland').length} 条。`,
+      `高地节点：已完成 ${regionMapStore.getRegionCompletedRouteCount('cloud_highland')}/${unlockedRouteCount} 条。`,
       regionMapStore.getFamilyResourceQuantity('ley_crystal') > 0
         ? `灵脉结晶：当前库存 ${regionMapStore.getFamilyResourceQuantity('ley_crystal')}，可继续接公会或建设承接。`
         : ''
@@ -446,6 +459,11 @@
   }
 
   const handleCompleteRoute = (routeId: string) => {
+    const status = regionMapStore.getRouteExpeditionStatus(routeId)
+    if (!status.available) {
+      lastActionSummary.value = status.reason
+      return
+    }
     const result = regionMapStore.completeRouteAndGrantRewards(routeId, currentDayTag.value)
     lastActionSummary.value = result
       ? `路线已结算：获得 ${result.rewardAmount} 点家族进度${result.rewardItems.length > 0 ? `，并发放 ${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''}。`
@@ -453,6 +471,11 @@
   }
 
   const handleBossClear = (regionId: RegionId) => {
+    const status = regionMapStore.getBossExpeditionStatus(regionId)
+    if (!status.available) {
+      lastActionSummary.value = status.reason
+      return
+    }
     const result = regionMapStore.clearBossAndGrantRewards(regionId)
     lastActionSummary.value = result
       ? `首领已记录：获得 ${result.rewardAmount} 点家族进度${result.rewardItems.length > 0 ? `，并发放 ${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''}。`

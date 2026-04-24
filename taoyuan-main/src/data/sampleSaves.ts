@@ -1796,6 +1796,51 @@ const createRegionMapShowcaseEnvelope = () => {
         lateGameExpeditionBoss: true,
         lateGameRegionalResources: true
       }),
+      fishPond: {
+        pond: {
+          built: true,
+          level: 3,
+          fish: [
+            { id: 'pf_region_1', fishId: 'carp', name: '泽地锦鲤', genetics: createSampleFishGenetics(80, 72, 70, 82, 11), daysInPond: 10, mature: true, sick: false, sickDays: 0, breedId: 'g2_009' },
+            { id: 'pf_region_2', fishId: 'bass', name: '夜巡鲈鱼', genetics: createSampleFishGenetics(78, 69, 71, 76, 9), daysInPond: 9, mature: true, sick: false, sickDays: 0, breedId: 'g2_049' }
+          ],
+          waterQuality: 88,
+          fedToday: true,
+          breeding: null,
+          collectedToday: false
+        },
+        pendingProducts: [
+          { itemId: 'carp', quality: 'fine' },
+          { itemId: 'bass', quality: 'excellent' }
+        ],
+        discoveredBreeds: ['koi_carp', 'deep_bass'],
+        returnedFishPool: {},
+        pondContestState: {
+          weekId: '2-autumn-week-4',
+          contestId: resolveFishPondContestId(2, 'autumn', 26),
+          registeredFishIds: ['pf_region_1'],
+          settled: false,
+          lastSettlementDayTag: ''
+        },
+        displayEntries: [
+          {
+            pondFishId: 'pf_region_1',
+            fishId: 'carp',
+            fishName: '泽地锦鲤',
+            breedId: 'g2_009',
+            snapshotScore: 86,
+            snapshotShowValue: 90,
+            snapshotGeneration: 3,
+            assignedAtDayTag: '2-autumn-26'
+          }
+        ],
+        maintenanceState: {
+          ornamentalFeedBuffDays: 1,
+          quarantineShieldDays: 1,
+          lastOrnamentalFeedDayTag: '2-autumn-26',
+          lastAdvancedPurifierDayTag: '2-autumn-26'
+        }
+      },
       regionMap
     }
   }

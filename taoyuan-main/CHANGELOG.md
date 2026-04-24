@@ -18,6 +18,9 @@
 - `src/views/game/RegionMapView.vue` 现在除开发态调试按钮外，已新增玩家可用的公开“巡行”动作、公开资源交付按钮与回流承接跳转按钮，行旅图从静态占位页升级为最小可玩入口。
 - `src/stores/useRegionMapStore.ts` 现已支持公开 `runRouteExpedition()`：会真实消耗体力与时间、发放区域资源并写入结构化日志。
 - `src/types/region.ts`、`src/data/regions.ts`、`src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 已继续补上公开区域首领挑战：各区域首领拥有独立体力 / 时间成本，完成至少 1 条区域路线后即可触发最小首领挑战闭环。
+- `src/types/region.ts`、`src/data/regions.ts`、`src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 现已把古驿荒道 / 蜃潮泽地各自扩到 3 条节点，并补上路线前置解锁、运行时可执行性判断、路线类型/成本/提示展示，以及锁区时只给解锁向导的 handoff 摘要。
+- `src/views/game/ShopView.vue`、`src/views/game/FishPondView.vue`、`src/stores/useHanhaiStore.ts`、`src/stores/useMuseumStore.ts` 已把行旅图承接真正接到旧系统页：商圈和鱼塘会按“本周焦点或资源库存未清”条件显示区域承接卡；瀚海和博物馆则会基于区域资源库存与路线推进给出更具体的推荐动作。
+- `src/data/sampleSaves.ts` 已把 `region_map_showcase` 补成可直接覆盖鱼塘支线的综合样例；`e2e/game-smoke.spec.ts` 也已扩展为验证 `region-map -> shop -> fishpond` 三段烟测，而不只停在行旅图首页。
 - 通过 subagent 两轮定向审查后，已收口以下问题：
   - 正式 `region-map` 页面暴露开发态强操作的问题
   - 区域资源交付只增 telemetry、不扣台账的问题
@@ -25,10 +28,16 @@
   - 首领清关未校验区域解锁的问题
   - 巡行完成后残留“进行中的远征”状态的问题
   - 周焦点可能提前落到未解锁区域的问题
+  - 旧系统承接卡片会因历史完成次数而常驻的问题
+  - 承接卡片 CTA 只会跳回行旅图、不能继续走下游链路的问题
+  - 开发态“完成并结算 / 首领清关”绕过正式可执行性校验的问题
+  - 锁区 handoff 摘要过早展示后续路线与精英节点的问题
 - 当前工作区验证结果：
   - `npm run type-check` 通过
   - `npm run build` 通过
+  - `npm run test:e2e -- e2e/game-smoke.spec.ts` 通过
   - 公开路线巡行、公开资源交付、公开区域首领挑战三条主链均已打通
+  - region-map / shop / fishpond 三段承接链已有浏览器级回归覆盖
 
 #### 0415 同性婚姻关系线收口
 - `src/stores/useNpcStore.ts` 已真正放开同性可婚 NPC 的赠帕约会与求婚主链，不再被旧的“只能向异性赠帕 / 求婚”判断拦截；同时补上了“知己与婚缘互斥”的 store 侧硬校验，旧档里的同性知己若想转婚缘，必须先断缘再发展。
