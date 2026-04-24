@@ -720,7 +720,7 @@
 
     const projectNames = villageProjectStore
       .getLinkedProjectSummaries('guild')
-      .filter(project => project.available || project.completed)
+      .filter(project => project.available)
       .slice(0, 2)
       .map(project => project.name)
 

@@ -1769,8 +1769,8 @@ const createRegionMapShowcaseEnvelope = () => {
   }
   regionMap.weeklyFocusState = {
     weekId: '2-autumn-week-4',
-    focusedRegionId: 'ancient_road',
-    highlightedRouteIds: ['ancient_road_supply_relay', 'ancient_road_archive_recovery']
+    focusedRegionId: 'cloud_highland',
+    highlightedRouteIds: ['cloud_highland_ley_crack', 'cloud_highland_supply_push']
   }
   regionMap.resourceLedger = {
     ancient_archive: 7,

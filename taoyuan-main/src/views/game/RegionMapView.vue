@@ -372,10 +372,9 @@
     }
 
     const routeCount = regionMapStore.getRegionCompletedRouteCount(regionId)
-    const unlockedRouteCount = getRegionRoutes(regionId).filter(route => isRouteUnlocked(route.id)).length
     const status = regionMapStore.getBossExpeditionStatus(regionId)
     const detailLines = [
-      `路线进度：已完成 ${routeCount}/${Math.max(unlockedRouteCount, 1)} 条可用路线。`,
+      `路线门槛：已完成 ${routeCount} 条区域路线，达到 1 条即可开启首领挑战。`,
       `执行门槛：体力 ${boss.staminaCost} / 耗时 ${boss.timeCostHours}h。`,
       status.available ? '当前条件已满足，可直接挑战。' : `当前阻塞：${status.reason}`
     ]

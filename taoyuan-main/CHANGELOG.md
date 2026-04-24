@@ -25,6 +25,8 @@
 - `src/stores/useGoalStore.ts` 已把行旅图周推荐从泛化入口提升为区域化周计划：会按当前焦点区域给 `region-map / quest / shop / hanhai / fishpond / museum / guild / village` 补充“为什么去、先准备什么、回来交给谁”的摘要，并把区域承接节点接入现有 `weeklyPlanSnapshot`。
 - `src/data/sampleSaves.ts` 已把 `region_map_showcase` 补成可直接覆盖鱼塘支线的综合样例；`e2e/game-smoke.spec.ts` 也已扩展为验证 `region-map -> shop -> fishpond` 三段烟测，而不只停在行旅图首页。
 - `e2e/game-smoke.spec.ts` 现已继续扩展为验证 `region-map -> shop -> fishpond -> guild -> wallet` 五段烟测，覆盖 Day 5 的高地承接面。
+- `src/stores/useGoalStore.ts` 现已继续读取 `ThemeWeekDef.regionFocusRouteIds` 来生成区域周计划摘要，不再把玩家从本周高亮路线导向另一组非焦点路线；`region_expedition` 节点标签也已改成读取真实进行中的远征区域。
+- `src/views/game/GuildView.vue`、`src/views/game/VillageView.vue`、`src/data/sampleSaves.ts`、`e2e/game-smoke.spec.ts` 已补齐高地链路收口：Guild -> VillageProject 跳转改为真实 `/game/village-projects`，Village 承接卡补上去钱袋出口，样例档焦点路线改为与 `late_sink_rotation` 当前配置一致，浏览器烟测也会实际点穿这条链路。
 - 通过 subagent 两轮定向审查后，已收口以下问题：
   - 正式 `region-map` 页面暴露开发态强操作的问题
   - 区域资源交付只增 telemetry、不扣台账的问题
@@ -39,6 +41,8 @@
   - 旧样例档可能同时挂着 route / boss 远征态、导致当前远征语义失真的问题
   - 首领奖励家族依赖“区域第一条路线”推断、后续容易被路线顺序带偏的问题
   - 正式环境下当前远征异常残留时缺少可见收束入口的问题
+  - 周计划摘要未读取 `regionFocusRouteIds`、导致路线焦点和推荐文案不一致的问题
+  - 高地承接卡把已完成建设继续当作当前工作的问题
 - 当前工作区验证结果：
   - `npm run type-check` 通过
   - `npm run build` 通过

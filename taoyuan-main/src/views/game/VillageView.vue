@@ -30,6 +30,7 @@
       <div class="mt-2 flex flex-wrap gap-2">
         <Button class="justify-center" @click="navigateToPanel('region-map')">去行旅图</Button>
         <Button class="justify-center" @click="navigateToPanel('guild')">去公会</Button>
+        <Button class="justify-center" @click="void router.push({ name: 'wallet' })">去钱袋</Button>
       </div>
     </section>
 
@@ -261,7 +262,7 @@
 
     const projectNames = villageProjectStore
       .getLinkedProjectSummaries('guild')
-      .filter(project => project.available || project.completed)
+      .filter(project => project.available)
       .slice(0, 2)
       .map(project => project.name)
 
