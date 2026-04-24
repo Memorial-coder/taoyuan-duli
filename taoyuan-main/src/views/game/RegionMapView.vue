@@ -123,6 +123,13 @@
                 设为本周焦点
               </button>
               <button
+                class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5"
+                :disabled="!canChallengeBoss(region.id)"
+                @click="handleRunBoss(region.id)"
+              >
+                挑战首领
+              </button>
+              <button
                 v-if="isDev"
                 class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5"
                 :disabled="!region.unlocked"
@@ -322,10 +329,18 @@
   }
 
   const handleBossClear = (regionId: RegionId) => {
-    const result = regionMapStore.clearBossAndGrantRewards(regionId, currentDayTag.value)
+    const result = regionMapStore.clearBossAndGrantRewards(regionId)
     lastActionSummary.value = result
       ? `首领已记录：获得 ${result.rewardAmount} 点家族进度${result.rewardItems.length > 0 ? `，并发放 ${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''}。`
       : '当前区域未解锁，或远征首领子开关未开启。'
+  }
+
+  const canChallengeBoss = (regionId: RegionId) =>
+    regionMapStore.regionBossAvailability.find(entry => entry.regionId === regionId)?.available ?? false
+
+  const handleRunBoss = (regionId: RegionId) => {
+    const result = regionMapStore.runBossExpedition(regionId)
+    lastActionSummary.value = result.message
   }
 
   const handleRefreshUnlocks = () => {

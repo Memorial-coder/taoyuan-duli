@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="farm-view">
     <!-- 标签切换 -->
     <div class="flex space-x-1.5 mb-3">
       <Button

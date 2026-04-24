@@ -1,5 +1,5 @@
 <template>
-  <div class="border-b border-accent/30 pb-2 md:pb-3 flex flex-col space-y-1">
+  <div class="border-b border-accent/30 pb-2 md:pb-3 flex flex-col space-y-1" data-testid="status-bar">
     <!-- 第一行：日期时间天气 + 铜钱 -->
     <div class="flex items-center justify-between text-xs md:text-sm">
       <div class="flex items-center space-x-2 md:space-x-3">

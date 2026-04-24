@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="breeding-view">
     <!-- 标题 -->
     <div class="flex flex-col gap-2 mb-3">
       <div class="flex flex-wrap items-center justify-between gap-2">

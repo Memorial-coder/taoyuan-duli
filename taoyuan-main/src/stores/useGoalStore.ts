@@ -2033,6 +2033,7 @@ export const useGoalStore = defineStore('goal', () => {
     }
     if (
       regionMapStore.regionIntegrationEnabled &&
+      focusedRegionSummary?.unlocked &&
       (
         (currentThemeWeek.value?.regionFocusRegionIds?.length ?? 0) > 0 ||
         (currentThemeWeek.value?.regionFocusRouteIds?.length ?? 0) > 0 ||
@@ -2079,6 +2080,28 @@ export const useGoalStore = defineStore('goal', () => {
     const claimableNodes = [
       focusedRegionSummary ? { id: 'region_focus', label: `行旅图焦点：${focusedRegionSummary.name}` } : null,
       regionMapStore.hasActiveExpedition ? { id: 'region_expedition', label: `行旅图远征：${focusedRegionSummary?.name ?? '进行中路线'}` } : null,
+      ...(
+        regionMapStore.regionIntegrationEnabled
+          ? regionMapStore.resourceLedgerEntries
+              .filter(entry => entry.quantity > 0)
+              .slice(0, 2)
+              .map(entry => ({ id: `region_resource_${entry.id}`, label: `区域交付：${entry.label}×${entry.quantity}` }))
+          : []
+      ),
+      ...(
+        regionMapStore.expeditionFeatureEnabled
+          ? regionMapStore.regionBossAvailability
+              .filter(entry => entry.available)
+              .slice(0, 1)
+              .map(entry => {
+                const boss = regionMapStore.bossDefs.find(def => def.id === entry.bossId)
+                return {
+                  id: `region_boss_${entry.regionId}`,
+                  label: `区域首领：${boss?.name ?? entry.regionId} 可挑战`
+                }
+              })
+          : []
+      ),
       currentEventCampaign.value ? { id: 'event_mail_chain', label: `活动链路：${currentEventCampaign.value.label}` } : null,
       currentEventCampaign.value?.limitedQuestCampaignId ? { id: 'limited_time_window', label: '限时任务窗口：可在任务页查看' } : null,
       lastWeeklyGoalSettlement.value ? { id: 'weekly_settlement_digest', label: `周结算：${chronicleWeekLabel}` } : null,

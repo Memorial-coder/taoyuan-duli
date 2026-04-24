@@ -52,6 +52,8 @@ export interface RegionBossDef {
   regionId: RegionId
   name: string
   description: string
+  staminaCost: number
+  timeCostHours: number
   phases: RegionBossPhaseDef[]
 }
 

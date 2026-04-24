@@ -6,6 +6,30 @@
 
 ### 新增功能
 
+#### 0424 行旅图主线：区域地图骨架、公开巡行与审查收口
+- `src/types/region.ts`、`src/data/regions.ts`、`src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 已新增行旅图第一阶段骨架，统一收口三地区定义、路线状态、周焦点、区域资源台账、远征运行态与基础 telemetry。
+- `src/router/index.ts`、`src/composables/useNavigation.ts`、`src/data/timeConstants.ts`、`src/views/MainMenu.vue`、`src/views/dev/LateGameDebugView.vue`、`src/components/game/MobileMapMenu.vue` 已把 `region-map` 和 `frontier` 正式接入游戏路由、导航、旅行分组与样例跳转，读档后也能恢复到行旅图页。
+- `src/data/systemFlags.ts`、`src/types/game.ts` 已新增 `lateGameRegionMap`、`lateGameExpeditionBoss`、`lateGameRegionalResources` 三个特性开关，并把 `region` 纳入系统开关分类。
+- `src/stores/useSaveStore.ts` 已将 `regionMap` 纳入存档保存、读档回退、runtime reset / restore 链路；旧档缺失该字段时会自动回退到安全默认值。
+- `src/types/goal.ts`、`src/data/goals.ts`、`src/stores/useGoalStore.ts`、`src/components/game/topGoals/useTopGoalsPanelModel.ts`、`src/composables/useEndDay.ts` 已把 `regionRouteCompletions`、`expeditionBossClears`、`regionalResourceTurnIns` 接入主题周、周计划、周结和顶部目标承接，`region-map` 现可进入现有推荐链。
+- `src/stores/useGuildStore.ts`、`src/stores/useHanhaiStore.ts`、`src/stores/useMuseumStore.ts` 已开始消费当前行旅图焦点区域，老系统推荐动作不再把新区域当成外来面板。
+- `src/data/items.ts` 已新增第一批区域资源实体物品：`ancient_waybill`、`archive_rubbing`、`marsh_spore_sample`、`luminous_algae`、`ley_crystal_shard`、`wind_etched_core`，并补齐来源说明。
+- `src/data/sampleSaves.ts` 已新增 `region_map_showcase` 样例档，`BuiltInSampleRouteName` 也已补入 `region-map`，可直接从后期调试页跳转验证三地区、周焦点、资源台账和当前远征摘要。
+- `src/views/game/RegionMapView.vue` 现在除开发态调试按钮外，已新增玩家可用的公开“巡行”动作、公开资源交付按钮与回流承接跳转按钮，行旅图从静态占位页升级为最小可玩入口。
+- `src/stores/useRegionMapStore.ts` 现已支持公开 `runRouteExpedition()`：会真实消耗体力与时间、发放区域资源并写入结构化日志。
+- `src/types/region.ts`、`src/data/regions.ts`、`src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 已继续补上公开区域首领挑战：各区域首领拥有独立体力 / 时间成本，完成至少 1 条区域路线后即可触发最小首领挑战闭环。
+- 通过 subagent 两轮定向审查后，已收口以下问题：
+  - 正式 `region-map` 页面暴露开发态强操作的问题
+  - 区域资源交付只增 telemetry、不扣台账的问题
+  - 子开关未真正生效的问题
+  - 首领清关未校验区域解锁的问题
+  - 巡行完成后残留“进行中的远征”状态的问题
+  - 周焦点可能提前落到未解锁区域的问题
+- 当前工作区验证结果：
+  - `npm run type-check` 通过
+  - `npm run build` 通过
+  - 公开路线巡行、公开资源交付、公开区域首领挑战三条主链均已打通
+
 #### 0415 同性婚姻关系线收口
 - `src/stores/useNpcStore.ts` 已真正放开同性可婚 NPC 的赠帕约会与求婚主链，不再被旧的“只能向异性赠帕 / 求婚”判断拦截；同时补上了“知己与婚缘互斥”的 store 侧硬校验，旧档里的同性知己若想转婚缘，必须先断缘再发展。
 - `src/stores/useNpcStore.ts` 已把同性婚后的家庭扩展线从“表面文案分流”补成真实行为分流：`performPregnancyCare()` / `chooseMedicalPlan()` 现会按 `kind === 'adoption'` 切到 cloth / silk_cloth / felt 的安置用品消耗与“准备心意 / 一起走访 / 整理宅院 / 普通安置”等语义，不再继续复用孕期补品与接生文案。

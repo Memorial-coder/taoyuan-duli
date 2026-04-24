@@ -135,6 +135,8 @@ export const REGION_BOSS_DEFS: RegionBossDef[] = [
     regionId: 'ancient_road',
     name: '荒道监军',
     description: '盘踞旧驿要冲的首领，会在补给、文书和护送节点之间切换压迫感。',
+    staminaCost: 6,
+    timeCostHours: 1,
     phases: [
       { id: 'overseer_p1', label: '封路警戒', summary: '围绕路障与护送压力展开的开场阶段。' },
       { id: 'overseer_p2', label: '账册追索', summary: '围绕残卷争夺和路线转移展开的中段阶段。' },
@@ -146,6 +148,8 @@ export const REGION_BOSS_DEFS: RegionBossDef[] = [
     regionId: 'mirage_marsh',
     name: '潮息异兽',
     description: '潜伏在泽地深处的首领，会围绕水位、样本污染和展示样本争夺施压。',
+    staminaCost: 6,
+    timeCostHours: 1,
     phases: [
       { id: 'marsh_p1', label: '潮雾逼近', summary: '围绕视野遮蔽和样本观察展开的开场阶段。' },
       { id: 'marsh_p2', label: '沼心回响', summary: '围绕湿地异常与样本稳定展开的中段阶段。' },
@@ -157,6 +161,8 @@ export const REGION_BOSS_DEFS: RegionBossDef[] = [
     regionId: 'cloud_highland',
     name: '云岚守脉者',
     description: '守在高地灵脉节点的首领，会围绕采晶压力、精英护卫和战备消耗施压。',
+    staminaCost: 7,
+    timeCostHours: 1.17,
     phases: [
       { id: 'highland_p1', label: '碎岚压阵', summary: '围绕高地巡路和碎晶护卫展开的开场阶段。' },
       { id: 'highland_p2', label: '脉核共振', summary: '围绕灵脉过载与战备压力展开的中段阶段。' },

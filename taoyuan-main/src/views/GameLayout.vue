@@ -2,6 +2,7 @@
   <div
     v-if="gameStore.isGameStarted"
     class="game-layout-root flex h-screen flex-col gap-2 p-2 md:gap-4 md:p-4"
+    data-testid="game-layout"
     :class="{ 'py-10': Capacitor.isNativePlatform() }"
   >
     <!-- 状态栏 -->

@@ -1,6 +1,7 @@
 ﻿<template>
   <div
     class="main-menu-root flex min-h-screen flex-col items-center justify-center gap-6 px-4 py-6 md:gap-8"
+    data-testid="main-menu"
     @click.once="startBgm"
     :class="{ 'py-10': isNativePlatform }"
     @click="slotMenuOpen = null"
@@ -126,7 +127,7 @@
           <p class="game-section-desc">从这里开始新旅程，或进入常用功能。</p>
         </div>
         <div class="main-menu-entry-grid grid grid-cols-1 gap-2 md:grid-cols-2">
-          <Button class="text-center justify-center py-3 md:col-span-2" :icon="Play" @click="showPrivacy = true">新的旅程</Button>
+          <Button class="text-center justify-center py-3 md:col-span-2" data-testid="new-journey-button" :icon="Play" @click="showPrivacy = true">新的旅程</Button>
           <Button class="text-center justify-center" :icon="BookOpen" @click="handleOpenGuide">新手教程</Button>
           <Button class="text-center justify-center" :icon="BookOpen" @click="handleOpenGuideBook">百科全书</Button>
           <Button class="text-center justify-center" :icon="MessagesSquare" @click="handleOpenHall">交流大厅</Button>
@@ -192,6 +193,7 @@
               <label class="text-xs text-muted mb-1 block">你的名字</label>
               <input
                 v-model="charName"
+                data-testid="char-name-input"
                 type="text"
                 maxlength="4"
                 placeholder="请输入你的名字"
@@ -221,7 +223,7 @@
           </div>
           <div class="flex space-x-3 justify-center mt-4">
             <Button :icon-size="12" :icon="ArrowLeft" @click="handleBackToMenu">返回</Button>
-            <Button class="px-6" :disabled="!charName.trim()" :icon-size="12" :icon="Play" @click="handleCharCreateNext">下一步</Button>
+            <Button class="px-6" data-testid="char-create-next-button" :disabled="!charName.trim()" :icon-size="12" :icon="Play" @click="handleCharCreateNext">下一步</Button>
           </div>
         </div>
       </div>
@@ -240,6 +242,7 @@
               <button
                 v-for="farm in FARM_MAP_DEFS"
                 :key="farm.type"
+                :data-testid="`farm-option-${farm.type}`"
                 class="border border-accent/20 rounded-xs p-3 text-left transition-all cursor-pointer hover:border-accent/50"
                 @click="handleSelectFarm(farm.type)"
               >
@@ -270,7 +273,7 @@
               <p class="text-xs text-accent mb-4">{{ selectedFarmDef?.bonus }}</p>
               <div class="flex space-x-3 justify-center">
                 <Button :icon-size="12" :icon="ArrowLeft" @click="showFarmConfirm = false">取消</Button>
-                <Button class="px-6" :icon-size="12" :icon="Play" @click="handleNewGame">开始旅程</Button>
+                <Button class="px-6" data-testid="confirm-start-journey-button" :icon-size="12" :icon="Play" @click="handleNewGame">开始旅程</Button>
               </div>
             </div>
           </div>
@@ -371,7 +374,7 @@
           </div>
           <div class="flex space-x-3 justify-center">
             <Button class="!text-sm" :icon="ArrowLeft" @click="handlePrivacyDecline">不同意</Button>
-            <Button class="!text-sm px-6" :icon="ShieldCheck" @click="handlePrivacyAgree">同意并继续</Button>
+            <Button class="!text-sm px-6" data-testid="privacy-agree-button" :icon="ShieldCheck" @click="handlePrivacyAgree">同意并继续</Button>
           </div>
         </div>
       </div>

@@ -36,6 +36,8 @@ audit_*
 test_items.ts
 error.md
 playwright_*.py
+playwright-report/
+test-results/
 
 # Editor directories and files
 .claude/*

@@ -984,10 +984,19 @@ export const handleEndDay = () => {
       focusedRegionId = rotation === 0 ? 'ancient_road' : rotation === 1 ? 'mirage_marsh' : 'cloud_highland'
     }
 
-    const highlightedRouteIds = regionMapStore.routeDefs
-      .filter(route => route.regionId === focusedRegionId)
-      .map(route => route.id)
-      .slice(0, 2)
+    const unlockedRegionIds = regionMapStore.regionSummaries
+      .filter(region => region.unlocked)
+      .map(region => region.id)
+    if (!focusedRegionId || !unlockedRegionIds.includes(focusedRegionId)) {
+      focusedRegionId = unlockedRegionIds[0] ?? null
+    }
+
+    const highlightedRouteIds = focusedRegionId
+      ? regionMapStore.routeDefs
+          .filter(route => route.regionId === focusedRegionId)
+          .map(route => route.id)
+          .slice(0, 2)
+      : []
 
     regionMapStore.setWeeklyFocus(currentWeekInfo.seasonWeekId, focusedRegionId, highlightedRouteIds)
     addLog(`【行旅图】本周区域焦点已刷新：${regionMapStore.regionDefs.find(region => region.id === focusedRegionId)?.name ?? '行旅图'}`, {
