@@ -1042,6 +1042,13 @@ export const useHanhaiStore = defineStore('hanhai', () => {
     if (activeBossCycleOverview.value) {
       recommendedActions.push(`当前首领「${activeBossCycleOverview.value.label}」更适合承接 ${questBoardBiasProfile.value.preferredMarketCategories.join(' / ')} 相关委托，可反向提升告示板质量。`)
     }
+    const ancientArchiveBacklog = regionMapStore.getFamilyResourceQuantity('ancient_archive')
+    if (regionMapStore.regionIntegrationEnabled && ancientArchiveBacklog > 0) {
+      recommendedActions.push(`行旅图库存里还有 ${ancientArchiveBacklog} 份古迹残卷，可优先接瀚海合同前置、古物说明或赞助准备，不要让荒道收益停留在背包里。`)
+    }
+    if (regionMapStore.regionIntegrationEnabled && regionMapStore.getRegionCompletedRouteCount('ancient_road') >= 2) {
+      recommendedActions.push('古驿荒道已经形成稳定护送节奏，适合把荒道路线、瀚海合同和遗迹套组整理成同一轮长线经营。')
+    }
     if (regionMapStore.regionIntegrationEnabled && regionMapStore.currentWeeklyFocus.focusedRegionId === 'ancient_road') {
       recommendedActions.push('本周行旅图焦点落在古驿荒道，可优先把荒道护送、残卷回收和瀚海合同准备接成同一条线。')
     }

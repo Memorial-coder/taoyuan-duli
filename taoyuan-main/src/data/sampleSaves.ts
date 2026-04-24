@@ -1725,6 +1725,12 @@ const createRegionMapShowcaseEnvelope = () => {
     completions: 1,
     lastCompletedDayTag: '2-autumn-26'
   }
+  regionMap.routeStates.ancient_road_convoy_risk = {
+    routeId: 'ancient_road_convoy_risk',
+    unlocked: true,
+    completions: 1,
+    lastCompletedDayTag: '2-autumn-26'
+  }
   regionMap.routeStates.mirage_marsh_night_watch = {
     routeId: 'mirage_marsh_night_watch',
     unlocked: true,
@@ -1733,6 +1739,12 @@ const createRegionMapShowcaseEnvelope = () => {
   }
   regionMap.routeStates.mirage_marsh_specimen_drive = {
     routeId: 'mirage_marsh_specimen_drive',
+    unlocked: true,
+    completions: 1,
+    lastCompletedDayTag: '2-autumn-26'
+  }
+  regionMap.routeStates.mirage_marsh_ecology_alert = {
+    routeId: 'mirage_marsh_ecology_alert',
     unlocked: true,
     completions: 1,
     lastCompletedDayTag: '2-autumn-26'
@@ -1766,7 +1778,7 @@ const createRegionMapShowcaseEnvelope = () => {
     startedAtDayTag: '2-autumn-26'
   }
   regionMap.telemetry = {
-    totalRouteCompletions: 9,
+    totalRouteCompletions: 11,
     bossClears: 2,
     resourceTurnIns: 4
   }

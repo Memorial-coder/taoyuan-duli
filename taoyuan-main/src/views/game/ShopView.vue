@@ -3,6 +3,26 @@
     <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
     <GuidanceDigestPanel surface-id="shop" title="目录承接引导" />
     <QaGovernancePanel page-id="shop" title="市场治理总览" />
+    <div v-if="ancientRoadShopHandoff" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-xs text-accent">古驿荒道承接</p>
+        <span class="text-[10px] text-muted">行旅图 -> 商圈</span>
+      </div>
+      <p class="text-[10px] text-muted mt-1 leading-4">
+        荒道已完成 {{ ancientRoadShopHandoff.completedRoutes }} 条节点，当前古迹残卷库存 {{ ancientRoadShopHandoff.archiveQty }} 份。
+      </p>
+      <p class="text-[10px] text-muted mt-1 leading-4">
+        这批收益更适合先在商圈补齐护送和档案整理消耗，再继续回任务板或瀚海承接。
+      </p>
+      <p v-if="ancientRoadShopHandoff.offerNames.length > 0" class="text-[10px] text-accent mt-1">
+        补给推荐：{{ ancientRoadShopHandoff.offerNames.join('、') }}
+      </p>
+      <div class="mt-2 flex flex-wrap gap-2">
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('quest')">去任务板</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('hanhai')">去瀚海</button>
+        <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('region-map')">看行旅图</button>
+      </div>
+    </div>
 
     <!-- 返回按钮（在子商铺时显示） -->
     <Button v-if="shopStore.currentShopId" class="mb-3 w-full md:w-auto" :icon="ChevronLeft" @click="shopStore.currentShopId = null">
@@ -1488,12 +1508,14 @@
   import { addLog } from '@/composables/useGameLog'
   import { sfxBuy } from '@/composables/useAudio'
   import { showFloat } from '@/composables/useGameLog'
+  import { navigateToPanel } from '@/composables/useNavigation'
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import { handleBuySeed, handleSellItem, handleSellItemAll, handleSellAll, QUALITY_NAMES } from '@/composables/useFarmActions'
   import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, MARKET_DISTRICT_LABELS, TREND_NAMES } from '@/data/market'
   import type { MarketCategory, MarketTrend } from '@/data/market'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { useGoalStore } from '@/stores/useGoalStore'
+  import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useAchievementStore } from '@/stores/useAchievementStore'
@@ -1511,7 +1533,28 @@
   const homeStore = useHomeStore()
   const tutorialStore = useTutorialStore()
   const goalStore = useGoalStore()
+  const regionMapStore = useRegionMapStore()
   const achievementStore = useAchievementStore()
+
+  const ancientRoadShopHandoff = computed(() => {
+    const archiveQty = regionMapStore.getFamilyResourceQuantity('ancient_archive')
+    const completedRoutes = regionMapStore.getRegionCompletedRouteCount('ancient_road')
+    const isFocused = regionMapStore.currentWeeklyFocus.focusedRegionId === 'ancient_road'
+    if (!regionMapStore.regionIntegrationEnabled || (!isFocused && archiveQty <= 0)) return null
+
+    const offers = (
+      shopStore.activityCampaignOfferRecommendations.length > 0
+        ? shopStore.activityCampaignOfferRecommendations
+        : shopStore.recommendedCatalogOffers
+    ).slice(0, 2)
+
+    return {
+      archiveQty,
+      completedRoutes,
+      offerNames: offers.map(offer => offer.name)
+    }
+  })
+
   const { buildPromptFocusAttr, isPromptFocusActive } = usePromptFocusPanel('shop', {
     handlers: {
       'economy-overview': () => {

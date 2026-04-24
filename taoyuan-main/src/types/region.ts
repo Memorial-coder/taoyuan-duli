@@ -35,10 +35,14 @@ export interface RegionRouteDef {
   name: string
   description: string
   nodeType: Extract<RegionNodeType, 'route' | 'event' | 'elite' | 'handoff'>
+  unlockRouteIds?: string[]
+  unlockCompletionCount?: number
   staminaCost: number
   timeCostHours: number
   primaryResourceFamilyId: RegionalResourceFamilyId
   linkedSystems: RegionLinkedSystem[]
+  encounterHint?: string
+  handoffHint?: string
 }
 
 export interface RegionBossPhaseDef {

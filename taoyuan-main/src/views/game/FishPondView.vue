@@ -112,6 +112,24 @@
             <p class="text-[10px] text-muted mt-1">{{ fishPondStore.currentThemeWeekPondFocus.summary }}</p>
           </div>
 
+          <div v-if="mirageMarshFishPondHandoff" class="border border-accent/20 rounded-xs px-3 py-2 mt-2 bg-accent/5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">蜃潮泽地承接</p>
+              <span class="text-[10px] text-muted">行旅图 -> 鱼塘</span>
+            </div>
+            <p class="text-[10px] text-muted mt-1 leading-4">
+              泽地已完成 {{ mirageMarshFishPondHandoff.completedRoutes }} 条节点，当前生态样本库存 {{ mirageMarshFishPondHandoff.specimenQty }} 份。
+            </p>
+            <p class="text-[10px] text-muted mt-1 leading-4">
+              这批样本最适合先转成展示池高光、周赛报名和馆务研究，不要只停留在背包里。
+            </p>
+            <div class="mt-2 flex flex-wrap gap-2">
+              <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('museum')">去博物馆</button>
+              <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('mail')">去邮箱</button>
+              <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('region-map')">看行旅图</button>
+            </div>
+          </div>
+
           <div class="border border-accent/20 rounded-xs px-3 py-2 mt-2">
             <div class="flex items-center justify-between gap-2">
               <div>
@@ -511,7 +529,9 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useGameStore } from '@/stores/useGameStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
+  import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { addLog, showFloat } from '@/composables/useGameLog'
+  import { navigateToPanel } from '@/composables/useNavigation'
   import { handleEndDay } from '@/composables/useEndDay'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { POND_BUILD_COST, POND_UPGRADE_COSTS, POND_CAPACITY, PONDABLE_FISH, getPondableFish, FISH_BREEDING_DAYS } from '@/data/fishPond'
@@ -523,6 +543,7 @@
   const inventoryStore = useInventoryStore()
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
+  const regionMapStore = useRegionMapStore()
 
   const currentTab = ref<'pond' | 'compendium'>('pond')
   const selectedBreedingFish = ref<PondFish | null>(null)
@@ -559,6 +580,17 @@
   }
 
   const currentGenBreeds = computed(() => getBreedsByGeneration(compendiumGen.value))
+
+  const mirageMarshFishPondHandoff = computed(() => {
+    const specimenQty = regionMapStore.getFamilyResourceQuantity('ecology_specimen')
+    const completedRoutes = regionMapStore.getRegionCompletedRouteCount('mirage_marsh')
+    const isFocused = regionMapStore.currentWeeklyFocus.focusedRegionId === 'mirage_marsh'
+    if (!regionMapStore.regionIntegrationEnabled || (!isFocused && specimenQty <= 0)) return null
+    return {
+      specimenQty,
+      completedRoutes
+    }
+  })
 
   /** 图鉴完成度 */
   const completionPercent = computed(() => {

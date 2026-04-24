@@ -539,6 +539,13 @@ export const useMuseumStore = defineStore('museum', () => {
     if (activeTheme) {
       recommendedActions.push(`围绕祠堂主题「${activeTheme.name}」补齐 ${activeTheme.favoredCategories.join('、')} 藏品，可进一步放大展示评分与访客热度。`)
     }
+    const ecologySpecimenBacklog = regionMapStore.getFamilyResourceQuantity('ecology_specimen')
+    if (regionMapStore.regionIntegrationEnabled && ecologySpecimenBacklog > 0) {
+      recommendedActions.push(`行旅图库存里还有 ${ecologySpecimenBacklog} 份生态样本，适合优先接学者委托、专题展示和研究说明链。`)
+    }
+    if (regionMapStore.regionIntegrationEnabled && regionMapStore.getRegionCompletedRouteCount('mirage_marsh') >= 2) {
+      recommendedActions.push('蜃潮泽地已经形成稳定样本线，适合把夜游观察、生态异常和馆务展示收束成同一条研究链。')
+    }
     if (regionMapStore.regionIntegrationEnabled && regionMapStore.currentWeeklyFocus.focusedRegionId === 'mirage_marsh') {
       recommendedActions.push('本周行旅图焦点落在蜃潮泽地，可优先把泽地样本、夜游观察和馆务展示承接到同一条研究线。')
     }

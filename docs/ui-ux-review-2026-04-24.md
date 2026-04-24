@@ -16,12 +16,17 @@
 已执行：
 - `npm --prefix taoyuan-main run check`：通过，仅 4 条类型导入 warning
 - `npm --prefix taoyuan-main run build`：通过，但产物有超大 chunk 警告
+- 基于本机 `Edge 147.0.3912.72` 的真实页面烟测：已走通 `主菜单 -> 新建旅程 -> 农场 -> 商店 -> 任务 -> 钱包 -> 手机视口`
 
 未通过：
 - `npm --prefix taoyuan-main run qa:late-game-samples`：失败，`sampleSaves.ts` 依赖的 `./regions` 模块解析断链
 
 未执行成功：
 - 浏览器自动化烟测：本地 Playwright 包存在，但浏览器内核未安装；本次未继续下载额外运行时
+
+烟测产物：
+- 截图目录：[ui-smoke-2026-04-24](</D:/taoyuan-latest/taoyuan-duli/docs/ui-smoke-2026-04-24>)
+- 摘要 JSON：[summary.json](</D:/taoyuan-latest/taoyuan-duli/docs/ui-smoke-2026-04-24/summary.json>)
 
 ## 关键发现
 
@@ -44,6 +49,10 @@
 - 每页首屏只保留 1 个主摘要 + 1 个主动作区
 - 运营分析、推荐理由、跨系统提示默认折叠，改成“展开更多”
 - 把“看板页”和“执行页”拆层，而不是全部并列堆叠
+
+真实烟测补充：
+- 在 `1440x960` 和 `390x844` 两种视口下，`Farm / Shop / Quest / Wallet` 的首屏文本预览都先被 `StatusBar + TopGoalsPanel` 吃掉，页面自身内容明显靠后
+- 这说明问题不只是静态代码层面的“看起来很多”，而是运行态下首屏确实先看到全局经营摘要，再看到本页主体
 
 ### P1. 正文级内容大量使用 `10px/11px`，阅读负担偏高
 
@@ -94,6 +103,13 @@
 - 任何“整块卡片点击进入详情”的元素统一改成 `button` 或 `router-link`
 - 为 `.btn` 和卡片型交互增加 `:focus-visible`
 - 对卡片内次级操作避免“整行点击 + 内部再点按钮”的事件冲突结构
+
+新增证据：
+- [taoyuan-main/src/components/game/Button.vue:12] 没有透传 `$attrs`
+
+附带影响：
+- 传给 `Button` 组件的 `data-testid`、`aria-label`、`title`、`type` 等属性在最终 DOM 中会丢失
+- 这不仅影响自动化测试，也会进一步放大可访问性问题
 
 ### P1. 移动端快捷入口只有图标，没有足够的标签与焦点提示
 

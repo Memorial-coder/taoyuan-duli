@@ -25,8 +25,10 @@ import { addLog, showFloat } from '@/composables/useGameLog'
 const ROUTE_ITEM_REWARDS: Record<string, Array<{ itemId: string; quantity: number }>> = {
   ancient_road_supply_relay: [{ itemId: 'ancient_waybill', quantity: 1 }],
   ancient_road_archive_recovery: [{ itemId: 'archive_rubbing', quantity: 1 }],
+  ancient_road_convoy_risk: [{ itemId: 'relay_beacon_tag', quantity: 1 }],
   mirage_marsh_night_watch: [{ itemId: 'marsh_spore_sample', quantity: 1 }],
   mirage_marsh_specimen_drive: [{ itemId: 'luminous_algae', quantity: 1 }],
+  mirage_marsh_ecology_alert: [{ itemId: 'marsh_glow_pod', quantity: 1 }],
   cloud_highland_patrol: [{ itemId: 'ley_crystal_shard', quantity: 1 }],
   cloud_highland_ley_crack: [{ itemId: 'wind_etched_core', quantity: 1 }]
 }
@@ -85,16 +87,121 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       startedAtDayTag: saveData.value.expedition.startedAtDayTag
     }
   })
+  const getRegionCompletedRouteCount = (regionId: RegionId) =>
+    getRegionRoutes(regionId).filter(route => (saveData.value.routeStates[route.id]?.completions ?? 0) > 0).length
+
+  const getFamilyResourceQuantity = (familyId: RegionalResourceFamilyId) =>
+    resourceFeatureEnabled.value ? (saveData.value.resourceLedger[familyId] ?? 0) : 0
+
+  const getRouteUnlockStatus = (routeId: string) => {
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    if (!route) return { unlocked: false, reason: '路线不存在。' }
+    if (!saveData.value.unlockStates[route.regionId]?.unlocked) {
+      return { unlocked: false, reason: '该区域尚未解锁。' }
+    }
+    const state = saveData.value.routeStates[route.id]
+    if (state?.unlocked) return { unlocked: true, reason: '' }
+
+    const missingRouteIds = (route.unlockRouteIds ?? []).filter(requiredRouteId => (saveData.value.routeStates[requiredRouteId]?.completions ?? 0) <= 0)
+    if (missingRouteIds.length > 0) {
+      const missingNames = missingRouteIds
+        .map(requiredRouteId => REGION_ROUTE_DEFS.find(entry => entry.id === requiredRouteId)?.name ?? requiredRouteId)
+        .join('、')
+      return { unlocked: false, reason: `需先完成：${missingNames}。` }
+    }
+
+    const unlockCompletionCount = Math.max(0, route.unlockCompletionCount ?? 0)
+    if (unlockCompletionCount > 0 && getRegionCompletedRouteCount(route.regionId) < unlockCompletionCount) {
+      return { unlocked: false, reason: `需先完成该区域至少 ${unlockCompletionCount} 条路线。` }
+    }
+    return { unlocked: true, reason: '' }
+  }
+
+  const refreshRouteUnlocks = (regionId?: RegionId) => {
+    const routeDefs = regionId ? getRegionRoutes(regionId) : REGION_ROUTE_DEFS
+    for (const route of routeDefs) {
+      const current = saveData.value.routeStates[route.id]
+      const unlockStatus = getRouteUnlockStatus(route.id)
+      saveData.value.routeStates[route.id] = {
+        routeId: route.id,
+        unlocked: Boolean(current?.unlocked) || unlockStatus.unlocked,
+        completions: current?.completions ?? 0,
+        lastCompletedDayTag: current?.lastCompletedDayTag ?? ''
+      }
+    }
+  }
+
+  const getRouteExpeditionStatus = (routeId: string) => {
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    if (!route) return { available: false, reason: '路线不存在。' }
+
+    const unlockStatus = getRouteUnlockStatus(routeId)
+    if (!unlockStatus.unlocked) {
+      return { available: false, reason: unlockStatus.reason }
+    }
+
+    const gameStore = useGameStore()
+    const playerStore = usePlayerStore()
+    const inventoryStore = useInventoryStore()
+    const rewardItems = ROUTE_ITEM_REWARDS[route.id] ?? []
+
+    if (gameStore.isPastBedtime) {
+      return { available: false, reason: '已经太晚了，今天不适合再出发行旅图。' }
+    }
+    if (playerStore.stamina < route.staminaCost) {
+      return { available: false, reason: `体力不足，需要 ${route.staminaCost} 点体力。` }
+    }
+    if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
+      return { available: false, reason: '背包空间不足，无法携带本次区域收获。' }
+    }
+    return { available: true, reason: '' }
+  }
+  const getBossExpeditionStatus = (regionId: RegionId) => {
+    const boss = getRegionBossDef(regionId)
+    if (!saveData.value.unlockStates[regionId]?.unlocked) {
+      return { available: false, reason: '该区域尚未解锁。' }
+    }
+    if (!expeditionFeatureEnabled.value) {
+      return { available: false, reason: '远征首领功能当前未开启。' }
+    }
+    const completedRouteCount = getRegionRoutes(regionId)
+      .filter(route => (saveData.value.routeStates[route.id]?.completions ?? 0) > 0)
+      .length
+    if (completedRouteCount <= 0) {
+      return { available: false, reason: '至少先完成 1 条该区域路线，才能挑战区域首领。' }
+    }
+    if (!boss) {
+      return { available: false, reason: '当前区域首领未配置。' }
+    }
+
+    const gameStore = useGameStore()
+    const playerStore = usePlayerStore()
+    const inventoryStore = useInventoryStore()
+    const rewardItems = BOSS_ITEM_REWARDS[regionId] ?? []
+
+    if (gameStore.isPastBedtime) {
+      return { available: false, reason: '已经太晚了，今天不适合挑战区域首领。' }
+    }
+    if (playerStore.stamina < boss.staminaCost) {
+      return { available: false, reason: `体力不足，需要 ${boss.staminaCost} 点体力。` }
+    }
+    if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
+      return { available: false, reason: '背包空间不足，无法带回首领奖励。' }
+    }
+    return { available: true, reason: '' }
+  }
   const regionBossAvailability = computed(() =>
     REGION_DEFS.map(region => {
       const boss = getRegionBossDef(region.id)
       const completedRouteCount = getRegionRoutes(region.id)
         .filter(route => (saveData.value.routeStates[route.id]?.completions ?? 0) > 0)
         .length
+      const status = getBossExpeditionStatus(region.id)
       return {
         regionId: region.id,
         bossId: boss?.id ?? null,
-        available: Boolean(saveData.value.unlockStates[region.id]?.unlocked) && completedRouteCount > 0 && expeditionFeatureEnabled.value,
+        available: status.available,
+        disabledReason: status.reason,
         completedRouteCount
       }
     })
@@ -158,11 +265,12 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       const current = saveData.value.routeStates[route.id]
       saveData.value.routeStates[route.id] = {
         routeId: route.id,
-        unlocked: true,
+        unlocked: current?.unlocked ?? false,
         completions: current?.completions ?? 0,
         lastCompletedDayTag: current?.lastCompletedDayTag ?? ''
       }
     }
+    refreshRouteUnlocks(regionId)
   }
 
   const setWeeklyFocus = (weekId: string, focusedRegionId: RegionId | null, highlightedRouteIds: string[] = []) => {
@@ -175,6 +283,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
   const markRouteCompleted = (routeId: string, dayTag = '') => {
     const current = saveData.value.routeStates[routeId]
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     saveData.value.routeStates[routeId] = {
       routeId,
       unlocked: current?.unlocked ?? true,
@@ -182,6 +291,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       lastCompletedDayTag: dayTag
     }
     saveData.value.telemetry.totalRouteCompletions += 1
+    if (route) {
+      refreshRouteUnlocks(route.regionId)
+    }
   }
 
   const addFamilyResources = (familyId: RegionalResourceFamilyId, amount: number) => {
@@ -222,7 +334,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   const beginRoute = (routeId: string, startedAtDayTag = '') => {
     const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     if (!route) return false
-    if (!saveData.value.unlockStates[route.regionId]?.unlocked) return false
+    if (!getRouteUnlockStatus(routeId).unlocked) return false
     startExpedition(route.regionId, route.id, null, startedAtDayTag)
     return true
   }
@@ -231,7 +343,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const inventoryStore = useInventoryStore()
     const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     if (!route) return null
-    if (!saveData.value.unlockStates[route.regionId]?.unlocked) return null
+    if (!getRouteUnlockStatus(routeId).unlocked) return null
     markRouteCompleted(route.id, dayTag)
     addFamilyResources(route.primaryResourceFamilyId, route.nodeType === 'elite' ? 3 : 2)
     const rewardItems = ROUTE_ITEM_REWARDS[route.id] ?? []
@@ -250,25 +362,15 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   const runRouteExpedition = (routeId: string, dayTag = '') => {
     const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     if (!route) return { success: false, message: '路线不存在。' }
-    if (!saveData.value.unlockStates[route.regionId]?.unlocked) {
-      return { success: false, message: '该区域尚未解锁。' }
+    const status = getRouteExpeditionStatus(routeId)
+    if (!status.available) {
+      return { success: false, message: status.reason }
     }
 
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
-    const inventoryStore = useInventoryStore()
-
-    if (gameStore.isPastBedtime) {
-      return { success: false, message: '已经太晚了，今天不适合再出发行旅图。' }
-    }
     if (!playerStore.consumeStamina(route.staminaCost)) {
       return { success: false, message: `体力不足，需要 ${route.staminaCost} 点体力。` }
-    }
-
-    const rewardItems = ROUTE_ITEM_REWARDS[route.id] ?? []
-    if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
-      playerStore.restoreStamina(route.staminaCost)
-      return { success: false, message: '背包空间不足，无法携带本次区域收获。' }
     }
 
     const timeResult = gameStore.advanceTime(route.timeCostHours, { skipSpeedBuff: true })
@@ -336,38 +438,16 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   }
 
   const runBossExpedition = (regionId: RegionId) => {
-    if (!saveData.value.unlockStates[regionId]?.unlocked) {
-      return { success: false, message: '该区域尚未解锁。' }
+    const status = getBossExpeditionStatus(regionId)
+    if (!status.available) {
+      return { success: false, message: status.reason }
     }
-    if (!expeditionFeatureEnabled.value) {
-      return { success: false, message: '远征首领功能当前未开启。' }
-    }
-
-    const completedRouteCount = getRegionRoutes(regionId)
-      .filter(route => (saveData.value.routeStates[route.id]?.completions ?? 0) > 0)
-      .length
-    if (completedRouteCount <= 0) {
-      return { success: false, message: '至少先完成 1 条该区域路线，才能挑战区域首领。' }
-    }
-
     const boss = getRegionBossDef(regionId)
     if (!boss) return { success: false, message: '当前区域首领未配置。' }
 
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
-    const inventoryStore = useInventoryStore()
-    const rewardItems = BOSS_ITEM_REWARDS[regionId] ?? []
-
-    if (gameStore.isPastBedtime) {
-      return { success: false, message: '已经太晚了，今天不适合挑战区域首领。' }
-    }
-    if (!playerStore.consumeStamina(boss.staminaCost)) {
-      return { success: false, message: `体力不足，需要 ${boss.staminaCost} 点体力。` }
-    }
-    if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
-      playerStore.restoreStamina(boss.staminaCost)
-      return { success: false, message: '背包空间不足，无法带回首领奖励。' }
-    }
+    if (!playerStore.consumeStamina(boss.staminaCost)) return { success: false, message: `体力不足，需要 ${boss.staminaCost} 点体力。` }
 
     const timeResult = gameStore.advanceTime(boss.timeCostHours, { skipSpeedBuff: true })
     const result = clearBossAndGrantRewards(regionId)
@@ -488,6 +568,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       expedition,
       telemetry
     }
+    refreshRouteUnlocks()
   }
 
   return {
@@ -505,6 +586,12 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     hasActiveExpedition,
     activeExpeditionSummary,
     regionBossAvailability,
+    getRegionCompletedRouteCount,
+    getFamilyResourceQuantity,
+    getRouteUnlockStatus,
+    refreshRouteUnlocks,
+    getRouteExpeditionStatus,
+    getBossExpeditionStatus,
     currentWeeklyFocus,
     resourceLedgerEntries,
     reset,

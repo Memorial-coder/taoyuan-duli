@@ -70,7 +70,9 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     staminaCost: 3,
     timeCostHours: 0.5,
     primaryResourceFamilyId: 'ancient_archive',
-    linkedSystems: ['quest', 'shop', 'hanhai']
+    linkedSystems: ['quest', 'shop', 'hanhai'],
+    encounterHint: '适合先把补给、关券和沿线站点状态摸清，再决定后续护送还是回收残卷。',
+    handoffHint: '跑完后优先回任务板补物流单，或先去商圈补足下一轮护送消耗。'
   },
   {
     id: 'ancient_road_archive_recovery',
@@ -78,10 +80,27 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     name: '残卷回收线',
     description: '回收荒道沿线文书与残卷，偏向古迹说明与馆务承接。',
     nodeType: 'handoff',
+    unlockRouteIds: ['ancient_road_supply_relay'],
     staminaCost: 4,
     timeCostHours: 0.67,
     primaryResourceFamilyId: 'ancient_archive',
-    linkedSystems: ['quest', 'museum', 'hanhai']
+    linkedSystems: ['quest', 'museum', 'hanhai'],
+    encounterHint: '更偏档案回收和旧驿碑刻整理，适合补齐说明链与馆务资料。',
+    handoffHint: '残卷和拓片最适合回博物馆、瀚海做说明承接，也能带动任务页的古迹线。'
+  },
+  {
+    id: 'ancient_road_convoy_risk',
+    regionId: 'ancient_road',
+    name: '护送风险线',
+    description: '围绕车队压力、前哨警戒与危卡节点处理展开的精英节点。',
+    nodeType: 'elite',
+    unlockCompletionCount: 2,
+    staminaCost: 5,
+    timeCostHours: 0.84,
+    primaryResourceFamilyId: 'ancient_archive',
+    linkedSystems: ['quest', 'shop', 'hanhai'],
+    encounterHint: '这里会把护送、补给、站点风险压成一轮高压推进，更像首领前的实战预演。',
+    handoffHint: '完成后优先接限时护送和瀚海合同前置，顺手把商圈补给包一起消化。'
   },
   {
     id: 'mirage_marsh_night_watch',
@@ -92,7 +111,9 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     staminaCost: 3,
     timeCostHours: 0.5,
     primaryResourceFamilyId: 'ecology_specimen',
-    linkedSystems: ['quest', 'museum', 'fishPond']
+    linkedSystems: ['quest', 'museum', 'fishPond'],
+    encounterHint: '适合先摸清泽地夜游节奏，带回第一批可展示的样本与观察记录。',
+    handoffHint: '先回鱼塘看周赛和展示位，再把高光样本送进馆务或研究委托。'
   },
   {
     id: 'mirage_marsh_specimen_drive',
@@ -100,10 +121,27 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     name: '样本护送线',
     description: '围绕样本整理、护送与活动承接展开，偏向周赛资格与馆务研究。',
     nodeType: 'handoff',
+    unlockRouteIds: ['mirage_marsh_night_watch'],
     staminaCost: 4,
     timeCostHours: 0.67,
     primaryResourceFamilyId: 'ecology_specimen',
-    linkedSystems: ['quest', 'museum', 'fishPond', 'wallet']
+    linkedSystems: ['quest', 'museum', 'fishPond', 'wallet'],
+    encounterHint: '更偏样本整理与护送，适合把研究线、展示线和结算线串成一轮。',
+    handoffHint: '完成后优先回鱼塘上展示池或进博物馆接馆务，也能顺带吃活动邮件链。'
+  },
+  {
+    id: 'mirage_marsh_ecology_alert',
+    regionId: 'mirage_marsh',
+    name: '生态异常线',
+    description: '围绕水位异动、样本污染和幼体稳定展开的精英节点。',
+    nodeType: 'elite',
+    unlockCompletionCount: 2,
+    staminaCost: 5,
+    timeCostHours: 0.84,
+    primaryResourceFamilyId: 'ecology_specimen',
+    linkedSystems: ['quest', 'museum', 'fishPond', 'wallet'],
+    encounterHint: '这里会把夜游观察、异常压制和样本稳定压进同一轮，适合做首领前热身。',
+    handoffHint: '完成后优先收束到鱼塘展示、周赛和博物馆学者委托，把样本价值转成稳定回报。'
   },
   {
     id: 'cloud_highland_patrol',
@@ -114,7 +152,9 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     staminaCost: 5,
     timeCostHours: 0.75,
     primaryResourceFamilyId: 'ley_crystal',
-    linkedSystems: ['quest', 'guild', 'villageProject']
+    linkedSystems: ['quest', 'guild', 'villageProject'],
+    encounterHint: '适合先把高地巡路和清剿节奏压稳，再考虑上更高风险的灵脉线。',
+    handoffHint: '巡路成果优先回公会和建设承接，先把清剿奖励与材料出口接住。'
   },
   {
     id: 'cloud_highland_ley_crack',
@@ -125,7 +165,9 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     staminaCost: 4,
     timeCostHours: 0.67,
     primaryResourceFamilyId: 'ley_crystal',
-    linkedSystems: ['quest', 'guild', 'wallet']
+    linkedSystems: ['quest', 'guild', 'wallet'],
+    encounterHint: '更偏灵脉采集和战备收束，适合准备高地首领或高风险票券路线。',
+    handoffHint: '采晶后优先回公会和钱包处理奖励与高阶准备，再决定是否继续冲首领。'
   }
 ]
 
