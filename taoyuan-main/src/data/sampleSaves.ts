@@ -1773,7 +1773,7 @@ const createRegionMapShowcaseEnvelope = () => {
   }
   regionMap.expedition = {
     activeRegionId: 'ancient_road',
-    activeRouteId: 'ancient_road_archive_recovery',
+    activeRouteId: null,
     activeBossId: 'ancient_road_overseer',
     startedAtDayTag: '2-autumn-26'
   }

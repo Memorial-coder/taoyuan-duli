@@ -177,6 +177,7 @@ export const REGION_BOSS_DEFS: RegionBossDef[] = [
     regionId: 'ancient_road',
     name: '荒道监军',
     description: '盘踞旧驿要冲的首领，会在补给、文书和护送节点之间切换压迫感。',
+    rewardFamilyId: 'ancient_archive',
     staminaCost: 6,
     timeCostHours: 1,
     phases: [
@@ -190,6 +191,7 @@ export const REGION_BOSS_DEFS: RegionBossDef[] = [
     regionId: 'mirage_marsh',
     name: '潮息异兽',
     description: '潜伏在泽地深处的首领，会围绕水位、样本污染和展示样本争夺施压。',
+    rewardFamilyId: 'ecology_specimen',
     staminaCost: 6,
     timeCostHours: 1,
     phases: [
@@ -203,6 +205,7 @@ export const REGION_BOSS_DEFS: RegionBossDef[] = [
     regionId: 'cloud_highland',
     name: '云岚守脉者',
     description: '守在高地灵脉节点的首领，会围绕采晶压力、精英护卫和战备消耗施压。',
+    rewardFamilyId: 'ley_crystal',
     staminaCost: 7,
     timeCostHours: 1.17,
     phases: [

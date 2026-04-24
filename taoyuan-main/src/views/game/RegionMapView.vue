@@ -245,9 +245,9 @@
             ].filter(Boolean).join(' / ') || '暂无详情'
           }}
         </p>
-        <div v-if="isDev" class="flex justify-end mt-2">
+        <div class="flex justify-end mt-2">
           <button class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="regionMapStore.clearExpedition()">
-            清空远征状态
+            收束当前远征
           </button>
         </div>
       </div>

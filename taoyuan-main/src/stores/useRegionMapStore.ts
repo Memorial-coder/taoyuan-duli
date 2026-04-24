@@ -19,7 +19,7 @@ import { useInventoryStore } from './useInventoryStore'
 import { useMuseumStore } from './useMuseumStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
-import type { RegionId, RegionMapSaveData, RegionalResourceFamilyId } from '@/types/region'
+import type { ExpeditionRuntimeState, RegionId, RegionMapSaveData, RegionalResourceFamilyId } from '@/types/region'
 import { addLog, showFloat } from '@/composables/useGameLog'
 
 const ROUTE_ITEM_REWARDS: Record<string, Array<{ itemId: string; quantity: number }>> = {
@@ -87,6 +87,38 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       startedAtDayTag: saveData.value.expedition.startedAtDayTag
     }
   })
+
+  const createClearedExpeditionState = (): ExpeditionRuntimeState => ({
+    activeRegionId: null,
+    activeRouteId: null,
+    activeBossId: null,
+    startedAtDayTag: ''
+  })
+
+  const normalizeExpeditionState = (expedition: ExpeditionRuntimeState): ExpeditionRuntimeState => {
+    if (!expedition.activeRegionId || !REGION_DEFS.some(region => region.id === expedition.activeRegionId)) {
+      return createClearedExpeditionState()
+    }
+
+    const route = expedition.activeRouteId
+      ? REGION_ROUTE_DEFS.find(entry => entry.id === expedition.activeRouteId && entry.regionId === expedition.activeRegionId) ?? null
+      : null
+    const boss = expedition.activeBossId
+      ? REGION_BOSS_DEFS.find(entry => entry.id === expedition.activeBossId && entry.regionId === expedition.activeRegionId) ?? null
+      : null
+
+    if (!route && !boss) {
+      return createClearedExpeditionState()
+    }
+
+    return {
+      activeRegionId: expedition.activeRegionId,
+      activeRouteId: boss ? null : route?.id ?? null,
+      activeBossId: boss?.id ?? null,
+      startedAtDayTag: expedition.startedAtDayTag
+    }
+  }
+
   const getRegionCompletedRouteCount = (regionId: RegionId) =>
     getRegionRoutes(regionId).filter(route => (saveData.value.routeStates[route.id]?.completions ?? 0) > 0).length
 
@@ -139,6 +171,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (!unlockStatus.unlocked) {
       return { available: false, reason: unlockStatus.reason }
     }
+    if (saveData.value.expedition.activeRegionId) {
+      return { available: false, reason: '当前已有一条进行中的远征，请先收束当前远征记录。' }
+    }
 
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
@@ -160,6 +195,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const boss = getRegionBossDef(regionId)
     if (!saveData.value.unlockStates[regionId]?.unlocked) {
       return { available: false, reason: '该区域尚未解锁。' }
+    }
+    if (saveData.value.expedition.activeRegionId) {
+      return { available: false, reason: '当前已有一条进行中的远征，请先收束当前远征记录。' }
     }
     if (!expeditionFeatureEnabled.value) {
       return { available: false, reason: '远征首领功能当前未开启。' }
@@ -404,12 +442,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   }
 
   const clearExpedition = () => {
-    saveData.value.expedition = {
-      activeRegionId: null,
-      activeRouteId: null,
-      activeBossId: null,
-      startedAtDayTag: ''
-    }
+    saveData.value.expedition = createClearedExpeditionState()
   }
 
   const recordBossClear = () => {
@@ -421,8 +454,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   const clearBossAndGrantRewards = (regionId: RegionId) => {
     if (!saveData.value.unlockStates[regionId]?.unlocked) return null
     const inventoryStore = useInventoryStore()
-    const route = REGION_ROUTE_DEFS.find(entry => entry.regionId === regionId) ?? null
-    const familyId = route?.primaryResourceFamilyId ?? 'ley_crystal'
+    const boss = getRegionBossDef(regionId)
+    const familyId = boss?.rewardFamilyId ?? 'ley_crystal'
     if (!recordBossClear()) return null
     addFamilyResources(familyId, 4)
     const rewardItems = BOSS_ITEM_REWARDS[regionId] ?? []
@@ -542,7 +575,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         : []
     }
 
-    const expedition = {
+    const expedition = normalizeExpeditionState({
       activeRegionId: REGION_DEFS.some(region => region.id === data.expedition?.activeRegionId)
         ? data.expedition.activeRegionId as RegionId
         : null,
@@ -551,7 +584,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         ? String(data.expedition.activeBossId)
         : null,
       startedAtDayTag: typeof data.expedition?.startedAtDayTag === 'string' ? data.expedition.startedAtDayTag : ''
-    }
+    })
 
     const telemetry = {
       totalRouteCompletions: Math.max(0, Math.floor(Number(data.telemetry?.totalRouteCompletions) || 0)),
