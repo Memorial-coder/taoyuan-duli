@@ -22,7 +22,7 @@ import type {
   RegionalResourceFamilyId
 } from '@/types/region'
 
-export const REGION_MAP_SAVE_VERSION = 5
+export const REGION_MAP_SAVE_VERSION = 6
 
 export const REGIONAL_RESOURCE_FAMILY_DEFS: RegionalResourceFamilyDef[] = [
   {

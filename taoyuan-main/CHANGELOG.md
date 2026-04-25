@@ -46,11 +46,21 @@
 - `src/views/game/RegionMapView.vue` 已继续把旅后处理补成“回城办事回执”：不同区域现在会额外展示“交差回执 / 变现回执 / 解锁后续”三类结果，使旅后分发不只给建议，也开始显式说明回来后该先办哪几件事。
 
 #### 0425 行旅图深度探索化第六阶段：卷轴路网、迷雾显形与旅后处理补完
+- `src/data/regions.ts` 已把 `REGION_MAP_SAVE_VERSION` 提升到 `6`，用于承接节点推进与前线营地态相关的会话结构扩展。
 - `src/views/game/RegionMapView.vue` 已新增每个区域的“卷轴路网”主舞台，把主线 / 支线 / 深层 / 首领方向 / 营地位摆进同一块可规划区域，弱化原先纯路线卡片列表的按钮感。
 - `src/views/game/RegionMapView.vue` 已为路线与首领节点补上 `未知 / 已听说 / 已勘明 / 熟路` 四段可见度，并按认知阶段控制名称、说明、体力/耗时、提示文案与熟路增益是否显形，让地图认知开始真正解锁地图信息。
 - `src/views/game/RegionMapView.vue` 已把路网板与现有路线列表联动：当节点仍在迷雾中时，不再直接泄露完整路线细节；勘明后才逐步开放路线描述、成本、遭遇提示与捷径收益。
 - `src/types/region.ts`、`src/stores/useRegionMapStore.ts` 已把 `RegionExpeditionArchiveEntry` 扩展为携带 `journal`，并补齐 `journeyHistory` 的序列化 / 反序列化拷贝逻辑，使旅后处理页可以稳定回看推进、扎营、撤退与收束过程。
 - `src/views/game/RegionMapView.vue` 已把旅后处理常驻页进一步补完：最近回城结果与台账回看现会展示真实旅程过程线、已激活承接系统、动作状态徽标与回执状态，不再只依赖结算弹窗里的静态摘要。
+
+#### 0425 行旅图深度探索化第七阶段：节点推进与前线营地系统
+- `src/types/region.ts` 已新增 `RegionExpeditionNodeLane`、`RegionExpeditionNodeChoice`、`RegionExpeditionNodeRecord`、`RegionCampActionId` 与 `RegionExpeditionCampState`，并把 `RegionExpeditionSession` 扩展到 `campState` / `nodeHistory`，让“节点推进 + 营地决策”成为远征会话的一等状态。
+- `src/stores/useRegionMapStore.ts` 已新增 `buildExpeditionNodeChoices()`、`resolveExpeditionNodeChoice()` 与 `currentExpeditionNodeChoices`，使路线远征和首领远征都能在每个推进回合生成“正线 / 支线 / 深层 / 侧翼”节点选择，而不再只有抽象的默认步进。
+- `src/stores/useRegionMapStore.ts` 已重写 `advanceActiveExpedition()` 的推进语义：现在会按所选节点记录 `nodeHistory`、改变视野/风险/发现/负重/认知成长，并让遭遇生成开始感知你刚才走的是主线、支线还是深层节点。
+- `src/stores/useRegionMapStore.ts` 已把 `campActiveExpedition()` 从即时回血改成“进入前线营地”，并新增 `resolveCampAction()` 处理 `rest / sort / mark / scout` 四类营地动作；营地现在会携带夜间局势提示，并在行动后再决定继续推进或按规则收束返程。
+- `src/stores/useRegionMapStore.ts` 已补齐 `cloneSession()`、`normalizeExpeditionSession()` 与会话序列化链路对 `campState` / `nodeHistory` 的兼容读写，确保新远征态能安全保存、读回和旧档回退。
+- `src/views/game/RegionMapView.vue` 已把进行中远征面板升级为节点式旅程 UI：新增当前节点链、下一节点选择卡与前线营地操作区，正式把“继续正线 / 转向支线 / 扎营 / 返程”落成玩家可见的闭环。
+- `src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 已顺手把 `frontierDigest` 提升为“上周回顾 / 本周导向 / 风险提醒”结构：现在会读取最近回城结果、当前节点、下一节点选择、失败回滚建议与即时风险提示，而不再只是静态焦点摘要。
 
 #### 0424 行旅图主线：区域地图骨架、公开巡行与审查收口
 - `src/types/region.ts`、`src/data/regions.ts`、`src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 已新增行旅图第一阶段骨架，统一收口三地区定义、路线状态、周焦点、区域资源台账、远征运行态与基础 telemetry。

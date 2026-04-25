@@ -164,6 +164,32 @@ export interface RegionExpeditionLogEntry {
   tone: 'accent' | 'success' | 'danger'
 }
 
+export type RegionExpeditionNodeLane = 'main' | 'branch' | 'deep' | 'boss' | 'camp'
+
+export interface RegionExpeditionNodeRecord {
+  id: string
+  step: number
+  lane: RegionExpeditionNodeLane
+  label: string
+  summary: string
+}
+
+export interface RegionExpeditionNodeChoice {
+  id: string
+  lane: Exclude<RegionExpeditionNodeLane, 'camp'>
+  label: string
+  summary: string
+  risk: RegionExpeditionEncounterRisk
+}
+
+export type RegionCampActionId = 'rest' | 'sort' | 'mark' | 'scout'
+
+export interface RegionExpeditionCampState {
+  enteredAtStep: number
+  nightEventHint: string
+  availableActionIds: RegionCampActionId[]
+}
+
 export interface RegionExpeditionEncounterOption {
   id: 'cautious' | 'balanced' | 'bold'
   label: string
@@ -211,7 +237,9 @@ export interface RegionExpeditionSession {
   pendingRewardAmount: number
   pendingRewardItems: Array<{ itemId: string; quantity: number }>
   pendingEncounter: RegionExpeditionEncounter | null
+  campState: RegionExpeditionCampState | null
   encounteredEventIds: string[]
+  nodeHistory: RegionExpeditionNodeRecord[]
   journal: RegionExpeditionLogEntry[]
   recommendedRouteId: string | null
 }

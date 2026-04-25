@@ -151,6 +151,13 @@
           >
             -> {{ line }}
           </p>
+          <p
+            v-for="line in regionMapStore.frontierDigest.riskSummaries"
+            :key="`digest-risk-${line}`"
+            class="text-[10px] text-warning leading-4"
+          >
+            ! {{ line }}
+          </p>
         </div>
       </div>
 
@@ -583,20 +590,63 @@
           </p>
         </div>
 
+        <div class="mt-3 border border-accent/10 rounded-xs px-3 py-2 bg-bg/50">
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-[10px] text-muted">当前旅程节点</p>
+            <span class="text-[10px] text-accent">{{ currentSessionNodeHeadline }}</span>
+          </div>
+          <div class="flex flex-wrap gap-2 mt-2">
+            <span
+              v-for="entry in currentSession.nodeHistory"
+              :key="entry.id"
+              class="border rounded-xs px-2 py-1 text-[10px]"
+              :class="entry.lane === 'camp' ? 'border-success/20 text-success' : entry.lane === 'branch' ? 'border-warning/20 text-warning' : entry.lane === 'deep' || entry.lane === 'boss' ? 'border-danger/20 text-danger' : 'border-accent/20 text-accent'"
+            >
+              {{ entry.step > 0 ? `第 ${entry.step} 节点` : '出发' }} · {{ entry.label }}
+            </span>
+          </div>
+        </div>
+
+        <div
+          v-if="currentSession.status === 'ongoing' && currentSessionNodeChoices.length > 0 && !currentSession.pendingEncounter && !currentSession.campState"
+          class="mt-3 border border-accent/10 rounded-xs px-3 py-3 bg-bg/50"
+        >
+          <div class="flex items-center justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-[10px] text-muted">下一节点选择</p>
+              <p class="text-[10px] text-accent mt-1">这一段不再是纯步数推进，你可以先定这一步往主线还是侧线走。</p>
+            </div>
+            <span class="text-[10px] text-muted shrink-0">{{ currentSession.progressStep + 1 }}/{{ currentSession.totalSteps }}</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+            <button
+              v-for="choice in currentSessionNodeChoices"
+              :key="`${currentSession.sessionId}-${choice.id}`"
+              class="border rounded-xs px-3 py-3 text-left hover:bg-accent/5"
+              :class="choice.lane === 'branch' ? 'border-warning/20' : choice.lane === 'deep' || choice.lane === 'boss' ? 'border-danger/20' : 'border-accent/20'"
+              @click="handleAdvanceExpedition(choice.id)"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <p
+                  class="text-[10px]"
+                  :class="choice.lane === 'branch' ? 'text-warning' : choice.lane === 'deep' || choice.lane === 'boss' ? 'text-danger' : 'text-accent'"
+                >
+                  {{ choice.label }}
+                </p>
+                <span class="text-[10px] text-muted shrink-0">{{ getNodeLaneSummary(choice.lane) }}</span>
+              </div>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ choice.summary }}</p>
+            </button>
+          </div>
+        </div>
+
         <div class="flex flex-wrap gap-2 mt-3">
           <button
-            class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
-            :disabled="currentSession.status !== 'ongoing' || Boolean(currentSession.pendingEncounter)"
-            @click="handleAdvanceExpedition"
-          >
-            推进一段
-          </button>
-          <button
             class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5"
-            :disabled="currentSession.status !== 'ongoing' || currentSession.campUsed || Boolean(currentSession.pendingEncounter)"
+            :disabled="currentSession.status !== 'ongoing' || currentSession.campUsed || Boolean(currentSession.pendingEncounter) || Boolean(currentSession.campState)"
             @click="handleCampExpedition"
           >
-            扎营整备
+            搭前线营地
           </button>
           <button
             class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5"
@@ -612,6 +662,29 @@
           >
             结算收束
           </button>
+        </div>
+
+        <div v-if="currentSession.campState" class="mt-3 border border-success/20 rounded-xs px-3 py-3 bg-success/5">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-xs text-accent">前线营地</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ currentSession.campState.nightEventHint }}</p>
+            </div>
+            <span class="text-[10px] text-success shrink-0">已扎营</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+            <button
+              v-for="actionId in currentSession.campState.availableActionIds"
+              :key="`${currentSession.sessionId}-camp-${actionId}`"
+              class="border rounded-xs px-3 py-3 text-left hover:bg-bg/40"
+              :class="actionId === 'rest' || actionId === 'mark' ? 'border-success/20' : actionId === 'scout' ? 'border-warning/20' : 'border-accent/20'"
+              @click="handleResolveCampAction(actionId)"
+            >
+              <p class="text-[10px]" :class="CAMP_ACTION_META[actionId].toneClass">{{ CAMP_ACTION_META[actionId].label }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ CAMP_ACTION_META[actionId].summary }}</p>
+            </button>
+          </div>
+          <p class="text-[10px] text-muted mt-2 leading-4">营地动作完成后，才会继续回到节点选择；若预设为“扎营后收束”，则会在动作完成后直接返程。</p>
         </div>
 
         <div v-if="currentSession.pendingEncounter" class="mt-3 border border-warning/20 rounded-xs px-3 py-3 bg-warning/5">
@@ -654,7 +727,7 @@
                 <p class="text-[10px]" :class="entry.tone === 'danger' ? 'text-danger' : entry.tone === 'success' ? 'text-success' : 'text-accent'">
                   {{ entry.title }}
                 </p>
-                <span class="text-[10px] text-muted">第 {{ entry.step }} 段</span>
+                <span class="text-[10px] text-muted">{{ entry.step > 0 ? `第 ${entry.step} 节点` : '出发' }}</span>
               </div>
               <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
               <div v-if="entry.effects.length > 0" class="mt-1 space-y-1">
@@ -1213,8 +1286,10 @@
   import { useShopStore } from '@/stores/useShopStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import type {
+    RegionCampActionId,
     RegionExpeditionArchiveEntry,
     RegionExpeditionApproach,
+    RegionExpeditionNodeLane,
     RegionExpeditionRetreatRule,
     RegionId,
     RegionLinkedSystem,
@@ -1346,13 +1421,26 @@
     () => expeditionRetreatRuleOptions.find(entry => entry.value === selectedRetreatRule.value)?.description ?? ''
   )
   const currentSession = computed(() => regionMapStore.activeSession)
+  const currentSessionNodeChoices = computed(() => regionMapStore.currentExpeditionNodeChoices)
   const selectedJourneyAftermathId = ref<string | null>(null)
   const currentSessionShortcutSummary = computed(() =>
     currentSession.value?.routeId ? getRouteShortcutSummary(currentSession.value.routeId) : null
   )
+  const currentSessionNodeHeadline = computed(() => {
+    const session = currentSession.value
+    return session?.nodeHistory[session.nodeHistory.length - 1]?.label ?? '出发营地'
+  })
+  const getNodeLaneSummary = (lane: RegionExpeditionNodeLane) =>
+    lane === 'boss' ? '首领压进' : lane === 'deep' ? '深层推进' : lane === 'branch' ? '支线侧探' : lane === 'camp' ? '前线营地' : '主线推进'
+  const CAMP_ACTION_META: Record<RegionCampActionId, { label: string; summary: string; toneClass: string }> = {
+    rest: { label: '休整伤势', summary: '优先回复生命、稳住士气，把营火时间用在恢复。', toneClass: 'text-success' },
+    sort: { label: '整理补给', summary: '压低负重、梳理收获，让下一段推进有更多腾挪空间。', toneClass: 'text-accent' },
+    mark: { label: '标记路线', summary: '把坡口、路标和回撤线重新钉稳，换更低的后续风险。', toneClass: 'text-success' },
+    scout: { label: '观察侦察', summary: '派出夜间观察，提前看清下一个节点的局势。', toneClass: 'text-warning' }
+  }
   const getArchiveJourneyLines = (entry: RegionExpeditionArchiveEntry) => {
     const journalLines = entry.journal
-      .map(logEntry => `${logEntry.step > 0 ? `第 ${logEntry.step} 段` : '出发'} · ${logEntry.title}：${logEntry.summary}`)
+      .map(logEntry => `${logEntry.step > 0 ? `第 ${logEntry.step} 节点` : '出发'} · ${logEntry.title}：${logEntry.summary}`)
       .slice(-6)
 
     return journalLines.length > 0 ? journalLines : getExpeditionSettlementBuckets(entry.summaryLines).journeyLines.slice(0, 4)
@@ -1424,6 +1512,7 @@
   )
   const currentSessionStatusLabel = computed(() => {
     if (!currentSession.value) return '无'
+    if (currentSession.value.campState) return '前线营地'
     return currentSession.value.status === 'ongoing'
       ? '推进中'
       : currentSession.value.status === 'ready_to_settle'
@@ -2532,14 +2621,20 @@
     openSettlementDialog(result.title, result.lines, result.tone)
   }
 
-  const handleAdvanceExpedition = () => {
-    const result = regionMapStore.advanceActiveExpedition(currentDayTag.value)
+  const handleAdvanceExpedition = (choiceId?: string) => {
+    const result = regionMapStore.advanceActiveExpedition(choiceId, currentDayTag.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
     openSettlementDialog(result.title, result.lines, result.tone)
   }
 
   const handleCampExpedition = () => {
     const result = regionMapStore.campActiveExpedition(currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    openSettlementDialog(result.title, result.lines, result.tone)
+  }
+
+  const handleResolveCampAction = (actionId: RegionCampActionId) => {
+    const result = regionMapStore.resolveCampAction(actionId, currentDayTag.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
     openSettlementDialog(result.title, result.lines, result.tone)
   }
