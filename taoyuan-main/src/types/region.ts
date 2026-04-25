@@ -225,6 +225,7 @@ export interface RegionExpeditionArchiveEntry {
   endedAtDayTag: string
   outcome: Exclude<RegionExpeditionStatus, 'ongoing'>
   summaryLines: string[]
+  journal: RegionExpeditionLogEntry[]
 }
 
 export interface RegionTelemetrySnapshot {

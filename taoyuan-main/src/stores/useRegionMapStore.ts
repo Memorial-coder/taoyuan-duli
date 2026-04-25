@@ -280,6 +280,48 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     return next
   }
 
+  const getRouteShortcutProfile = (routeId: string) => {
+    const state = getRouteKnowledgeState(routeId)
+    if (state.familiarity >= 85 && state.surveyProgress >= 80) {
+      return {
+        level: 'mastered' as const,
+        label: '熟路',
+        stepReduction: 1,
+        visibilityBonus: 8,
+        dangerReduction: 4,
+        supplyBonus: { rations: 1, utility: 1 }
+      }
+    }
+    if (state.familiarity >= 60 && state.surveyProgress >= 55) {
+      return {
+        level: 'shortcut' as const,
+        label: '捷径已立',
+        stepReduction: 1,
+        visibilityBonus: 5,
+        dangerReduction: 2,
+        supplyBonus: { rations: 0, utility: 1 }
+      }
+    }
+    if (state.familiarity >= 35 || state.surveyProgress >= 40) {
+      return {
+        level: 'marked' as const,
+        label: '路标渐明',
+        stepReduction: 0,
+        visibilityBonus: 3,
+        dangerReduction: 1,
+        supplyBonus: { rations: 0, utility: 0 }
+      }
+    }
+    return {
+      level: 'none' as const,
+      label: '陌生路段',
+      stepReduction: 0,
+      visibilityBonus: 0,
+      dangerReduction: 0,
+      supplyBonus: { rations: 0, utility: 0 }
+    }
+  }
+
   const createClearedExpeditionState = (): ExpeditionRuntimeState => ({
     activeRegionId: null,
     activeRouteId: null,
@@ -995,7 +1037,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       startedAtDayTag: session.startedAtDayTag,
       endedAtDayTag,
       outcome: finalOutcome,
-      summaryLines: summaryLines.filter(Boolean).slice(0, 6)
+      summaryLines: summaryLines.filter(Boolean).slice(0, 6),
+      journal: session.journal.map(entry => ({ ...entry, effects: [...entry.effects] })).slice(-12)
     }
     saveData.value.journeyHistory = [entry, ...saveData.value.journeyHistory].slice(0, 12)
   }
@@ -1023,14 +1066,18 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (!route) return null
     const regionKnowledge = getRegionKnowledgeState(route.regionId)
     const routeKnowledge = getRouteKnowledgeState(route.id)
+    const shortcutProfile = getRouteShortcutProfile(route.id)
     const supplies = createDefaultRegionExpeditionSupplyState()
     if (approach === 'scout') supplies.utility += 1
     if (approach === 'greedy') supplies.rations = Math.max(1, supplies.rations - 1)
     if (route.nodeType === 'elite') supplies.medicine += 1
+    supplies.rations += shortcutProfile.supplyBonus.rations
+    supplies.utility += shortcutProfile.supplyBonus.utility
 
-    const totalSteps = route.nodeType === 'elite' ? 4 : 3
-    const visibilityBonus = Math.floor((regionKnowledge.intel + routeKnowledge.intel + routeKnowledge.surveyProgress) / 24)
-    const dangerMitigation = Math.floor((regionKnowledge.familiarity + routeKnowledge.familiarity) / 30)
+    const baseSteps = route.nodeType === 'elite' ? 4 : 3
+    const totalSteps = Math.max(2, baseSteps - shortcutProfile.stepReduction)
+    const visibilityBonus = Math.floor((regionKnowledge.intel + routeKnowledge.intel + routeKnowledge.surveyProgress) / 24) + shortcutProfile.visibilityBonus
+    const dangerMitigation = Math.floor((regionKnowledge.familiarity + routeKnowledge.familiarity) / 30) + shortcutProfile.dangerReduction
     const moraleBonus = Math.floor(routeKnowledge.familiarity / 25)
     const session: RegionExpeditionSession = {
       sessionId: createSessionToken(),
@@ -1067,7 +1114,12 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       `你以${approach === 'scout' ? '侦察' : approach === 'greedy' ? '激进' : '稳扎稳打'}的节奏进入「${route.name}」。`,
       [
         `预设撤退规则：${retreatRule === 'low_hp' ? '低血量撤离' : retreatRule === 'pack_full' ? '满载撤离' : retreatRule === 'after_camp' ? '扎营后收束' : '平衡推进'}`,
-        visibilityBonus > 0 || dangerMitigation > 0 ? `既有认知生效：视野 +${visibilityBonus}，初始风险 -${dangerMitigation}。` : '这条路仍较陌生，需要边走边摸清局势。'
+        visibilityBonus > 0 || dangerMitigation > 0 ? `既有认知生效：视野 +${visibilityBonus}，初始风险 -${dangerMitigation}。` : '这条路仍较陌生，需要边走边摸清局势。',
+        shortcutProfile.level === 'shortcut' || shortcutProfile.level === 'mastered'
+          ? `熟路增益：${shortcutProfile.label}，本趟推进段数缩减为 ${totalSteps}。`
+          : shortcutProfile.level === 'marked'
+            ? '沿途已立下部分路标，推进时更容易维持方向。'
+            : ''
       ],
       'accent'
     )
@@ -1675,6 +1727,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const inventoryStore = useInventoryStore()
     const playerStore = usePlayerStore()
     const finalStatus = session.status === 'ready_to_settle' ? 'victory' : session.status
+    const routeShortcutBefore = session.routeId ? getRouteShortcutProfile(session.routeId) : null
     let rewardAmount = 0
     let rewardItems: Array<{ itemId: string; quantity: number }> = []
     const bonusReward = Math.max(0, Math.floor(session.findings / (session.mode === 'boss' ? 3 : 2)))
@@ -1772,6 +1825,16 @@ export const useRegionMapStore = defineStore('regionMap', () => {
             ? addRouteKnowledge(session.routeId, { intel: 3, surveyProgress: 5, familiarity: 4 }, dayTag)
             : addRouteKnowledge(session.routeId, { intel: 1, surveyProgress: 2, familiarity: 1 }, dayTag)
       summaryLines.push(`路线熟悉：勘明 ${routeSettlementKnowledge.surveyProgress}/100，熟悉 ${routeSettlementKnowledge.familiarity}/100。`)
+      const routeShortcutAfter = getRouteShortcutProfile(session.routeId)
+      if (routeShortcutBefore && routeShortcutBefore.level !== routeShortcutAfter.level) {
+        summaryLines.push(
+          routeShortcutAfter.level === 'mastered'
+            ? '你已把这条路走成熟路，后续远征将更容易直接切入核心路段。'
+            : routeShortcutAfter.level === 'shortcut'
+              ? '你在这条路上立下了稳定捷径，后续远征会更快进入正线。'
+              : '这条路的关键路标逐渐清晰，后续摸图会更稳。'
+        )
+      }
     }
 
     archiveSession(session, finalStatus, dayTag, [
@@ -2218,7 +2281,11 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     resourceLedger: { ...saveData.value.resourceLedger },
     expedition: { ...saveData.value.expedition },
     activeSession: saveData.value.activeSession ? cloneSession(saveData.value.activeSession) : null,
-    journeyHistory: saveData.value.journeyHistory.map(entry => ({ ...entry, summaryLines: [...entry.summaryLines] })),
+    journeyHistory: saveData.value.journeyHistory.map(entry => ({
+      ...entry,
+      summaryLines: [...entry.summaryLines],
+      journal: entry.journal.map(logEntry => ({ ...logEntry, effects: [...logEntry.effects] }))
+    })),
     knowledgeState: Object.fromEntries(
       REGION_DEFS.map(region => {
         const state = getRegionKnowledgeState(region.id)
@@ -2426,11 +2493,33 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         endedAtDayTag?: unknown
         outcome?: unknown
         summaryLines?: unknown
+        journal?: unknown
       }
       const regionId = REGION_DEFS.some(region => region.id === normalizedEntry.regionId)
         ? (normalizedEntry.regionId as RegionId)
         : null
       if (!regionId) continue
+
+      const journal = Array.isArray(normalizedEntry.journal)
+        ? normalizedEntry.journal
+            .filter((logEntry: unknown) => logEntry && typeof logEntry === 'object')
+            .map((logEntry: unknown) => ({
+              id: typeof (logEntry as { id?: unknown }).id === 'string' ? String((logEntry as { id?: unknown }).id) : createSessionToken(),
+              step: Math.max(0, Math.floor(Number((logEntry as { step?: unknown }).step) || 0)),
+              title: typeof (logEntry as { title?: unknown }).title === 'string' ? String((logEntry as { title?: unknown }).title) : '远征记录',
+              summary: typeof (logEntry as { summary?: unknown }).summary === 'string' ? String((logEntry as { summary?: unknown }).summary) : '',
+              effects: Array.isArray((logEntry as { effects?: unknown }).effects)
+                ? ((logEntry as { effects?: unknown[] }).effects ?? []).filter((effect): effect is string => typeof effect === 'string')
+                : [],
+              tone:
+                (logEntry as { tone?: unknown }).tone === 'success' ||
+                (logEntry as { tone?: unknown }).tone === 'danger' ||
+                (logEntry as { tone?: unknown }).tone === 'accent'
+                  ? ((logEntry as { tone?: RegionExpeditionLogEntry['tone'] }).tone ?? 'accent')
+                  : 'accent'
+            }))
+            .slice(-12)
+        : []
 
       const archiveEntry: RegionExpeditionArchiveEntry = {
         id: typeof normalizedEntry.id === 'string' ? normalizedEntry.id : createSessionToken(),
@@ -2450,7 +2539,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
             : 'victory',
         summaryLines: Array.isArray(normalizedEntry.summaryLines)
           ? normalizedEntry.summaryLines.filter((line: unknown): line is string => typeof line === 'string').slice(0, 6)
-          : []
+          : [],
+        journal
       }
       normalizedHistory.push(archiveEntry)
       if (normalizedHistory.length >= 12) break
@@ -2687,6 +2777,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     journeyHistory,
     getRegionKnowledgeState,
     getRouteKnowledgeState,
+    getRouteShortcutProfile,
     getRegionCompletedRouteCount,
     getRegionWeeklyEventCompletions,
     getFamilyResourceQuantity,

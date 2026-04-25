@@ -30,6 +30,28 @@
 - `src/stores/useRegionMapStore.ts` 的 `serialize()` / `deserialize()` 已补入 `knowledgeState` / `routeKnowledgeState` 读写，配合 `normalize` 逻辑完成旧档迁移与新字段持久化。
 - `src/views/game/RegionMapView.vue` 已在区域卡和路线卡中展示“区域情报 / 地图勘明 / 熟域 / 路线勘明 / 路线熟悉”等标签和数值反馈，使玩家能直接看到自己把哪片地图真正走熟了。
 
+#### 0425 行旅图深度探索化第四阶段：熟路捷径、少步推进与路线增益显性化
+- `src/stores/useRegionMapStore.ts` 已新增 `getRouteShortcutProfile()`，把路线熟悉度和勘明进度收口为 `none / marked / shortcut / mastered` 四档熟路状态，用于表达“陌生路段 / 路标渐明 / 捷径已立 / 熟路”。
+- `src/stores/useRegionMapStore.ts` 已让 `createRouteSession()` 真正消费这套熟路档位：熟路状态会影响远征总段数、初始视野、初始风险与起始补给，使“重复跑同一路线”开始具备长期路线优化收益。
+- `src/stores/useRegionMapStore.ts` 已在 `settleActiveExpedition()` 中比较本次结算前后的熟路档位变化，并在结算摘要里显式提示“路标渐明 / 已立捷径 / 已成熟路”等跃迁结果。
+- `src/views/game/RegionMapView.vue` 已为路线卡补上熟路标签、熟路说明与当前捷径增益摘要，并在进行中远征面板中新增“熟路态势”区块，显式展示少步推进、开局视野、初始风险与补给优势。
+
+#### 0425 行旅图深度探索化第五阶段：旅后处理页雏形与回城分发承接
+- `0425todo.md` 已从 `0425plan.md` 拆出执行清单，按“已完成 / 高优先未完成 / 推荐实施顺序”重组，并把当前代码已落地进度回写成勾选项，便于后续 AI 连续实施。
+- `src/views/game/RegionMapView.vue` 已把远征收束弹层升级为第一版旅后处理界面：将结算内容拆分为“旅程回顾 / 回流分发 / 旅后处理”三段，而不再只是单段文字提示。
+- `src/views/game/RegionMapView.vue` 已新增旅后处理中的跨系统承接按钮，基于最近一次远征所属区域的 `linkedSystems` 生成跳转入口，使回城后可直接前往 Quest / Shop / Hanhai / FishPond / Museum / Guild / Village / Wallet 等下游面板。
+- `src/views/game/RegionMapView.vue` 已新增常驻“旅后分发”摘要卡，直接读取最近一次 `journeyHistory`，将最近回城结果拆成旅程回顾、回流分发与后续去向三栏，开始把“回城处理”从一次性弹窗提升为页面内持续可见的后续行动提示。
+- `src/views/game/RegionMapView.vue` 已继续把 T06 深化为结构化回流板：古驿荒道 / 蜃潮泽地 / 云岚高地的旅后处理现会额外展示“资源去向 / 推荐动作 / 为什么现在去”三层信息，并为每个区域生成更具体的 CTA 文案和行动理由。
+- `src/views/game/RegionMapView.vue` 已让最近远征记录支持重新打开旅后处理，并与新的结构化回流板共用同一套区域 handoff 逻辑，避免结算关闭后丢失后续承接信息。
+- `src/views/game/RegionMapView.vue` 已继续把旅后处理补成“回城办事回执”：不同区域现在会额外展示“交差回执 / 变现回执 / 解锁后续”三类结果，使旅后分发不只给建议，也开始显式说明回来后该先办哪几件事。
+
+#### 0425 行旅图深度探索化第六阶段：卷轴路网、迷雾显形与旅后处理补完
+- `src/views/game/RegionMapView.vue` 已新增每个区域的“卷轴路网”主舞台，把主线 / 支线 / 深层 / 首领方向 / 营地位摆进同一块可规划区域，弱化原先纯路线卡片列表的按钮感。
+- `src/views/game/RegionMapView.vue` 已为路线与首领节点补上 `未知 / 已听说 / 已勘明 / 熟路` 四段可见度，并按认知阶段控制名称、说明、体力/耗时、提示文案与熟路增益是否显形，让地图认知开始真正解锁地图信息。
+- `src/views/game/RegionMapView.vue` 已把路网板与现有路线列表联动：当节点仍在迷雾中时，不再直接泄露完整路线细节；勘明后才逐步开放路线描述、成本、遭遇提示与捷径收益。
+- `src/types/region.ts`、`src/stores/useRegionMapStore.ts` 已把 `RegionExpeditionArchiveEntry` 扩展为携带 `journal`，并补齐 `journeyHistory` 的序列化 / 反序列化拷贝逻辑，使旅后处理页可以稳定回看推进、扎营、撤退与收束过程。
+- `src/views/game/RegionMapView.vue` 已把旅后处理常驻页进一步补完：最近回城结果与台账回看现会展示真实旅程过程线、已激活承接系统、动作状态徽标与回执状态，不再只依赖结算弹窗里的静态摘要。
+
 #### 0424 行旅图主线：区域地图骨架、公开巡行与审查收口
 - `src/types/region.ts`、`src/data/regions.ts`、`src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 已新增行旅图第一阶段骨架，统一收口三地区定义、路线状态、周焦点、区域资源台账、远征运行态与基础 telemetry。
 - `src/router/index.ts`、`src/composables/useNavigation.ts`、`src/data/timeConstants.ts`、`src/views/MainMenu.vue`、`src/views/dev/LateGameDebugView.vue`、`src/components/game/MobileMapMenu.vue` 已把 `region-map` 和 `frontier` 正式接入游戏路由、导航、旅行分组与样例跳转，读档后也能恢复到行旅图页。
