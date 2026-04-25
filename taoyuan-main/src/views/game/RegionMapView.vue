@@ -65,6 +65,48 @@
         </p>
       </div>
 
+      <div class="border border-accent/20 rounded-xs p-3 mb-3">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs text-accent">远征筹备</p>
+            <p class="text-[10px] text-muted mt-1 leading-4">先决定推进风格与撤退规则，再出发。路线和首领现在都会进入多阶段远征，而不是一键完成。</p>
+          </div>
+          <span class="text-[10px] text-muted shrink-0">当前 HP {{ playerStore.hp }}/{{ playerStore.getMaxHp() }}</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+          <div>
+            <p class="text-[10px] text-muted mb-2">推进风格</p>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="entry in expeditionApproachOptions"
+                :key="`approach-${entry.value}`"
+                class="border rounded-xs px-2 py-1 text-[10px] hover:bg-accent/5"
+                :class="selectedApproach === entry.value ? 'border-accent text-accent' : 'border-accent/20 text-muted'"
+                @click="selectedApproach = entry.value"
+              >
+                {{ entry.label }}
+              </button>
+            </div>
+            <p class="text-[10px] text-muted mt-2 leading-4">{{ currentApproachDescription }}</p>
+          </div>
+          <div>
+            <p class="text-[10px] text-muted mb-2">撤退规则</p>
+            <div class="flex flex-wrap gap-2">
+              <button
+                v-for="entry in expeditionRetreatRuleOptions"
+                :key="`retreat-${entry.value}`"
+                class="border rounded-xs px-2 py-1 text-[10px] hover:bg-accent/5"
+                :class="selectedRetreatRule === entry.value ? 'border-accent text-accent' : 'border-accent/20 text-muted'"
+                @click="selectedRetreatRule = entry.value"
+              >
+                {{ entry.label }}
+              </button>
+            </div>
+            <p class="text-[10px] text-muted mt-2 leading-4">{{ currentRetreatRuleDescription }}</p>
+          </div>
+        </div>
+      </div>
+
       <div v-if="isDev" class="border border-accent/20 rounded-xs p-3 mb-3">
         <div class="flex items-center justify-between gap-3">
           <div class="min-w-0">
@@ -175,7 +217,19 @@
                 {{ region.id === regionMapStore.currentWeeklyFocus.focusedRegionId ? '当前焦点' : '普通' }}
               </span>
             </div>
+            <div class="flex items-center justify-between">
+              <span class="text-muted">区域情报</span>
+              <span class="text-accent">{{ getRegionKnowledgeSummary(region.id).intelLabel }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+              <span class="text-muted">地图勘明</span>
+              <span>{{ getRegionKnowledgeSummary(region.id).surveyLabel }}</span>
+            </div>
           </div>
+
+          <p class="text-[10px] text-muted mt-2 leading-4">
+            认知进度：情报 {{ getRegionKnowledgeSummary(region.id).intel }} / 勘明 {{ getRegionKnowledgeSummary(region.id).survey }} / 熟域 {{ getRegionKnowledgeSummary(region.id).familiarity }}
+          </p>
 
           <div class="mt-3 space-y-2">
             <div class="flex flex-wrap gap-2">
@@ -201,7 +255,7 @@
                 :title="getBossDisabledReason(region.id)"
                 @click="handleRunBoss(region.id)"
               >
-                挑战首领
+                发起首领远征
               </button>
               <button
                 v-if="isDev"
@@ -325,7 +379,12 @@
                       <span>{{ getRouteTypeLabel(route.nodeType) }}</span>
                       <span>体力 {{ route.staminaCost }}</span>
                       <span>耗时 {{ route.timeCostHours }}h</span>
+                      <span>认知 {{ getRouteKnowledgeSummary(route.id).intelLabel }}</span>
+                      <span>熟悉 {{ getRouteKnowledgeSummary(route.id).familiarityLabel }}</span>
                     </div>
+                    <p class="text-[10px] text-muted mt-1 leading-4">
+                      路线勘明 {{ getRouteKnowledgeSummary(route.id).surveyProgress }}/100 · 熟悉 {{ getRouteKnowledgeSummary(route.id).familiarity }}/100
+                    </p>
                     <p v-if="route.encounterHint" class="text-[10px] text-muted mt-1 leading-4">
                       - {{ route.encounterHint }}
                     </p>
@@ -343,7 +402,7 @@
                     :title="getRouteDisabledReason(route.id)"
                     @click="handleRunRoute(route.id)"
                   >
-                    巡行
+                    发起远征
                   </button>
                   <button
                     v-if="isDev"
@@ -373,21 +432,127 @@
         </div>
       </div>
 
-      <div v-if="regionMapStore.activeExpeditionSummary" class="border border-accent/20 rounded-xs p-3 mb-3">
-        <p class="text-xs text-accent">当前远征</p>
-        <p class="text-[10px] text-muted mt-1 leading-4">
-          {{
-            [
-              regionMapStore.activeExpeditionSummary.region?.name,
-              regionMapStore.activeExpeditionSummary.route?.name,
-              regionMapStore.activeExpeditionSummary.boss?.name
-            ].filter(Boolean).join(' / ') || '暂无详情'
-          }}
-        </p>
-        <div class="flex justify-end mt-2">
-          <button class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="regionMapStore.clearExpedition()">
-            收束当前远征
+      <div v-if="currentSession" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs text-accent">进行中远征：{{ currentSession.targetName }}</p>
+            <p class="text-[10px] text-muted mt-1 leading-4">
+              {{ currentSessionRegionLabel }} / {{ currentSession.mode === 'boss' ? '首领远征' : '路线远征' }} / {{ currentSessionStatusLabel }}
+            </p>
+          </div>
+          <span class="text-[10px] shrink-0" :class="currentSession.status === 'failure' ? 'text-danger' : currentSession.status === 'ready_to_settle' ? 'text-success' : 'text-accent'">
+            {{ currentSession.progressStep }}/{{ currentSession.totalSteps }}
+          </span>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-x-3 gap-y-1 text-[10px] mt-3">
+          <div class="flex items-center justify-between"><span class="text-muted">生命</span><span>{{ playerStore.hp }}/{{ playerStore.getMaxHp() }}</span></div>
+          <div class="flex items-center justify-between"><span class="text-muted">士气</span><span>{{ currentSession.morale }}</span></div>
+          <div class="flex items-center justify-between"><span class="text-muted">风险</span><span>{{ currentSession.danger }}</span></div>
+          <div class="flex items-center justify-between"><span class="text-muted">视野</span><span>{{ currentSession.visibility }}</span></div>
+          <div class="flex items-center justify-between"><span class="text-muted">负重</span><span>{{ currentSession.carryLoad }}/{{ currentSession.maxCarryLoad }}</span></div>
+          <div class="flex items-center justify-between"><span class="text-muted">发现</span><span>{{ currentSession.findings }}</span></div>
+          <div class="flex items-center justify-between"><span class="text-muted">口粮</span><span>{{ currentSession.supplies.rations }}</span></div>
+          <div class="flex items-center justify-between"><span class="text-muted">药剂 / 器具</span><span>{{ currentSession.supplies.medicine }} / {{ currentSession.supplies.utility }}</span></div>
+        </div>
+
+        <div class="flex flex-wrap gap-2 mt-3">
+          <button
+            class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+            :disabled="currentSession.status !== 'ongoing' || Boolean(currentSession.pendingEncounter)"
+            @click="handleAdvanceExpedition"
+          >
+            推进一段
           </button>
+          <button
+            class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5"
+            :disabled="currentSession.status !== 'ongoing' || currentSession.campUsed || Boolean(currentSession.pendingEncounter)"
+            @click="handleCampExpedition"
+          >
+            扎营整备
+          </button>
+          <button
+            class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5"
+            :disabled="currentSession.status !== 'ongoing'"
+            @click="handleRetreatExpedition"
+          >
+            主动撤退
+          </button>
+          <button
+            class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+            :disabled="currentSession.status === 'ongoing'"
+            @click="handleSettleExpedition"
+          >
+            结算收束
+          </button>
+        </div>
+
+        <div v-if="currentSession.pendingEncounter" class="mt-3 border border-warning/20 rounded-xs px-3 py-3 bg-warning/5">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-xs text-accent">途中遭遇：{{ currentSession.pendingEncounter.title }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ currentSession.pendingEncounter.summary }}</p>
+            </div>
+            <span class="text-[10px] shrink-0" :class="currentSession.pendingEncounter.risk === 'high' ? 'text-danger' : currentSession.pendingEncounter.risk === 'medium' ? 'text-warning' : 'text-success'">
+              {{ currentSession.pendingEncounter.risk === 'high' ? '高风险' : currentSession.pendingEncounter.risk === 'medium' ? '中风险' : '低风险' }}
+            </span>
+          </div>
+          <div v-if="currentSession.pendingEncounter.detailLines.length > 0" class="mt-2 space-y-1">
+            <p v-for="line in currentSession.pendingEncounter.detailLines" :key="`${currentSession.pendingEncounter.id}-${line}`" class="text-[10px] text-muted leading-4">- {{ line }}</p>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
+            <button
+              v-for="option in currentSession.pendingEncounter.options"
+              :key="`${currentSession.pendingEncounter.id}-${option.id}`"
+              class="border rounded-xs px-2 py-2 text-left hover:bg-accent/5"
+              :class="option.tone === 'danger' ? 'border-danger/20' : option.tone === 'success' ? 'border-success/20' : 'border-accent/20'"
+              @click="handleResolveEncounter(option.id)"
+            >
+              <p class="text-[10px]" :class="option.tone === 'danger' ? 'text-danger' : option.tone === 'success' ? 'text-success' : 'text-accent'">{{ option.label }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ option.summary }}</p>
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-3 border border-accent/10 rounded-xs px-3 py-2">
+          <p class="text-[10px] text-muted mb-2">旅程日志</p>
+          <div class="space-y-2" v-if="currentSession.journal.length > 0">
+            <div
+              v-for="entry in currentSession.journal.slice().reverse()"
+              :key="entry.id"
+              class="border rounded-xs px-2 py-2"
+              :class="entry.tone === 'danger' ? 'border-danger/20' : entry.tone === 'success' ? 'border-success/20' : 'border-accent/10'"
+            >
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-[10px]" :class="entry.tone === 'danger' ? 'text-danger' : entry.tone === 'success' ? 'text-success' : 'text-accent'">
+                  {{ entry.title }}
+                </p>
+                <span class="text-[10px] text-muted">第 {{ entry.step }} 段</span>
+              </div>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+              <div v-if="entry.effects.length > 0" class="mt-1 space-y-1">
+                <p v-for="effect in entry.effects" :key="`${entry.id}-${effect}`" class="text-[10px] text-muted leading-4">- {{ effect }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="regionMapStore.journeyHistory.length > 0" class="border border-accent/20 rounded-xs p-3 mb-3">
+        <p class="text-xs text-muted mb-2">最近远征记录</p>
+        <div class="space-y-2">
+          <div v-for="entry in regionMapStore.journeyHistory" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">{{ entry.targetName }}</p>
+                <p class="text-[10px] text-muted mt-0.5 leading-4">{{ getRegionName(entry.regionId) }} / {{ entry.mode === 'boss' ? '首领远征' : '路线远征' }} / {{ getArchiveOutcomeLabel(entry.outcome) }}</p>
+              </div>
+              <span class="text-[10px] text-muted shrink-0">{{ entry.endedAtDayTag || entry.startedAtDayTag }}</span>
+            </div>
+            <div class="mt-2 space-y-1">
+              <p v-for="line in entry.summaryLines" :key="`${entry.id}-${line}`" class="text-[10px] text-muted leading-4">- {{ line }}</p>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -459,7 +624,13 @@
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { useShopStore } from '@/stores/useShopStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
-  import type { RegionId, RegionLinkedSystem, RegionalResourceFamilyId } from '@/types/region'
+  import type {
+    RegionExpeditionApproach,
+    RegionExpeditionRetreatRule,
+    RegionId,
+    RegionLinkedSystem,
+    RegionalResourceFamilyId
+  } from '@/types/region'
 
   const fishPondStore = useFishPondStore()
   const gameStore = useGameStore()
@@ -476,6 +647,8 @@
   const selectedRegionId = ref<RegionId | null>(regionMapStore.currentWeeklyFocus.focusedRegionId ?? null)
   const settlementDialog = ref<{ title: string; lines: string[]; tone: 'success' | 'danger' | 'accent' } | null>(null)
   const isDev = import.meta.env.DEV
+  const selectedApproach = ref<RegionExpeditionApproach>('steady')
+  const selectedRetreatRule = ref<RegionExpeditionRetreatRule>('balanced')
 
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
   const currentWeekId = computed(() => getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId)
@@ -517,6 +690,39 @@
         ? 'border-accent/30'
         : 'border-success/30'
   )
+  const expeditionApproachOptions: Array<{ value: RegionExpeditionApproach; label: string; description: string }> = [
+    { value: 'steady', label: '稳健推进', description: '默认节奏，状态均衡，适合首次摸图或稳定推进。' },
+    { value: 'scout', label: '侦察优先', description: '更容易保持视野与控伤，但负重和爆发略弱。' },
+    { value: 'greedy', label: '激进搜刮', description: '更快积累发现与负重，但风险和损耗都更高。' }
+  ]
+  const expeditionRetreatRuleOptions: Array<{ value: RegionExpeditionRetreatRule; label: string; description: string }> = [
+    { value: 'balanced', label: '平衡推进', description: '手动判断什么时候撤退或收束。' },
+    { value: 'low_hp', label: '低血撤离', description: '生命线过低时自动撤退，适合保守推进。' },
+    { value: 'pack_full', label: '满载撤离', description: '负重逼近上限时自动带着战利品撤出。' },
+    { value: 'after_camp', label: '扎营后收束', description: '打一轮、扎一次营，再带着记录返程。' }
+  ]
+  const currentApproachDescription = computed(
+    () => expeditionApproachOptions.find(entry => entry.value === selectedApproach.value)?.description ?? ''
+  )
+  const currentRetreatRuleDescription = computed(
+    () => expeditionRetreatRuleOptions.find(entry => entry.value === selectedRetreatRule.value)?.description ?? ''
+  )
+  const currentSession = computed(() => regionMapStore.activeSession)
+  const currentSessionRegionLabel = computed(() =>
+    currentSession.value ? getRegionName(currentSession.value.regionId) : '未指定区域'
+  )
+  const currentSessionStatusLabel = computed(() => {
+    if (!currentSession.value) return '无'
+    return currentSession.value.status === 'ongoing'
+      ? '推进中'
+      : currentSession.value.status === 'ready_to_settle'
+        ? '待收束'
+        : currentSession.value.status === 'retreated'
+          ? '已撤退'
+          : currentSession.value.status === 'failure'
+            ? '已失利'
+            : '已完成'
+  })
 
   const setActionSummary = (message: string, tone: 'success' | 'danger' | 'accent' = 'success') => {
     lastActionSummary.value = message
@@ -555,6 +761,30 @@
 
   const getUnlockSummary = (regionId: RegionId) => regionMapStore.getRegionUnlockProgress(regionId).summary
 
+  const getRegionName = (regionId: RegionId) => regionMapStore.regionDefs.find(region => region.id === regionId)?.name ?? regionId
+
+  const getKnowledgeTierLabel = (value: number, tiers: [string, string, string, string]) =>
+    value >= 80 ? tiers[3] : value >= 55 ? tiers[2] : value >= 25 ? tiers[1] : tiers[0]
+
+  const getRegionKnowledgeSummary = (regionId: RegionId) => {
+    const state = regionMapStore.getRegionKnowledgeState(regionId)
+    return {
+      ...state,
+      intelLabel: getKnowledgeTierLabel(state.intel, ['未知地带', '已有传闻', '情报成形', '了然于胸']),
+      surveyLabel: getKnowledgeTierLabel(state.survey, ['迷雾未散', '略有踏勘', '道路渐明', '地图勘透']),
+      familiarityLabel: getKnowledgeTierLabel(state.familiarity, ['初来乍到', '勉强认路', '往返熟悉', '熟路可循'])
+    }
+  }
+
+  const getRouteKnowledgeSummary = (routeId: string) => {
+    const state = regionMapStore.getRouteKnowledgeState(routeId)
+    return {
+      ...state,
+      intelLabel: getKnowledgeTierLabel(state.intel, ['未摸清', '略知线索', '节点明确', '路况尽知']),
+      familiarityLabel: getKnowledgeTierLabel(state.familiarity, ['陌生', '记住入口', '越走越熟', '熟路'])
+    }
+  }
+
   const getRegionRoutes = (regionId: RegionId) => regionMapStore.routeDefs.filter(route => route.regionId === regionId)
 
   const getRouteCompletionLabel = (routeId: string) => {
@@ -590,6 +820,9 @@
 
   const getCompleteRouteDisabledReason = (routeId: string) =>
     regionMapStore.activeExpeditionSummary?.route?.id === routeId ? '' : getRouteDisabledReason(routeId)
+
+  const getArchiveOutcomeLabel = (outcome: 'ready_to_settle' | 'victory' | 'retreated' | 'failure') =>
+    outcome === 'victory' || outcome === 'ready_to_settle' ? '凯旋' : outcome === 'retreated' ? '撤退回城' : '失利撤出'
 
   const canRunEvent = (eventId: string) => regionMapStore.getEventAvailability(eventId).available
 
@@ -764,9 +997,9 @@
   }
 
   const handleRunRoute = (routeId: string) => {
-    const result = regionMapStore.runRouteExpedition(routeId, currentDayTag.value)
+    const result = regionMapStore.startRouteExpeditionSession(routeId, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
-    openSettlementDialog(result.success ? '路线结算' : '路线未完成', [result.message], result.success ? 'success' : 'danger')
+    openSettlementDialog(result.title, result.lines, result.tone)
   }
 
   const handleRunEvent = (eventId: string) => {
@@ -838,9 +1071,39 @@
     regionMapStore.regionBossAvailability.find(entry => entry.regionId === regionId)?.disabledReason ?? ''
 
   const handleRunBoss = (regionId: RegionId) => {
-    const result = regionMapStore.runBossExpedition(regionId, currentDayTag.value)
+    const result = regionMapStore.startBossExpeditionSession(regionId, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
-    openSettlementDialog(result.success ? '首领结算' : '首领回退', [result.message], result.success ? 'success' : 'danger')
+    openSettlementDialog(result.title, result.lines, result.tone)
+  }
+
+  const handleAdvanceExpedition = () => {
+    const result = regionMapStore.advanceActiveExpedition(currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    openSettlementDialog(result.title, result.lines, result.tone)
+  }
+
+  const handleCampExpedition = () => {
+    const result = regionMapStore.campActiveExpedition(currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    openSettlementDialog(result.title, result.lines, result.tone)
+  }
+
+  const handleRetreatExpedition = () => {
+    const result = regionMapStore.retreatActiveExpedition(currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    openSettlementDialog(result.title, result.lines, result.tone)
+  }
+
+  const handleResolveEncounter = (optionId: 'cautious' | 'balanced' | 'bold') => {
+    const result = regionMapStore.resolveActiveEncounter(optionId, currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    openSettlementDialog(result.title, result.lines, result.tone)
+  }
+
+  const handleSettleExpedition = () => {
+    const result = regionMapStore.settleActiveExpedition(currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    openSettlementDialog(result.title, result.lines, result.tone)
   }
 
   const handleRefreshUnlocks = () => {

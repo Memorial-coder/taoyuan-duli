@@ -3,6 +3,11 @@ import type {
   RegionBossDef,
   RegionBossOutcomeState,
   RegionDef,
+  RegionExpeditionArchiveEntry,
+  RegionExpeditionSession,
+  RegionKnowledgeState,
+  RegionRouteKnowledgeState,
+  RegionExpeditionSupplyState,
   RegionEventDef,
   RegionEventState,
   RegionId,
@@ -17,7 +22,7 @@ import type {
   RegionalResourceFamilyId
 } from '@/types/region'
 
-export const REGION_MAP_SAVE_VERSION = 3
+export const REGION_MAP_SAVE_VERSION = 5
 
 export const REGIONAL_RESOURCE_FAMILY_DEFS: RegionalResourceFamilyDef[] = [
   {
@@ -498,6 +503,34 @@ const createDefaultEventStates = (): Record<string, RegionEventState> =>
     ])
   )
 
+const createDefaultKnowledgeState = (): Record<RegionId, RegionKnowledgeState> =>
+  Object.fromEntries(
+    REGION_DEFS.map(region => [
+      region.id,
+      {
+        regionId: region.id,
+        intel: 0,
+        survey: 0,
+        familiarity: 0,
+        lastUpdatedDayTag: ''
+      } satisfies RegionKnowledgeState
+    ])
+  ) as Record<RegionId, RegionKnowledgeState>
+
+const createDefaultRouteKnowledgeState = (): Record<string, RegionRouteKnowledgeState> =>
+  Object.fromEntries(
+    REGION_ROUTE_DEFS.map(route => [
+      route.id,
+      {
+        routeId: route.id,
+        intel: 0,
+        surveyProgress: 0,
+        familiarity: 0,
+        lastUpdatedDayTag: ''
+      } satisfies RegionRouteKnowledgeState
+    ])
+  )
+
 const createDefaultWeeklyFocusState = (): RegionWeeklyFocusState => ({
   weekId: '',
   focusedRegionId: null,
@@ -526,6 +559,16 @@ const createDefaultTelemetry = (): RegionTelemetrySnapshot => ({
   bossClears: 0,
   resourceTurnIns: 0
 })
+
+export const createDefaultRegionExpeditionSupplyState = (): RegionExpeditionSupplyState => ({
+  rations: 2,
+  medicine: 1,
+  utility: 1
+})
+
+export const createDefaultRegionExpeditionSession = (): RegionExpeditionSession | null => null
+
+export const createDefaultRegionJourneyHistory = (): RegionExpeditionArchiveEntry[] => []
 
 const createDefaultBossClearCounts = (): Record<RegionId, number> =>
   Object.fromEntries(REGION_DEFS.map(region => [region.id, 0])) as Record<RegionId, number>
@@ -557,6 +600,10 @@ export const createDefaultRegionMapSaveData = (): RegionMapSaveData => ({
   weeklyEventState: createDefaultWeeklyEventState(),
   resourceLedger: createDefaultResourceLedger(),
   expedition: createDefaultExpeditionRuntimeState(),
+  activeSession: createDefaultRegionExpeditionSession(),
+  journeyHistory: createDefaultRegionJourneyHistory(),
+  knowledgeState: createDefaultKnowledgeState(),
+  routeKnowledgeState: createDefaultRouteKnowledgeState(),
   telemetry: createDefaultTelemetry(),
   bossClearCounts: createDefaultBossClearCounts(),
   bossFailureStreaks: createDefaultBossFailureStreaks(),

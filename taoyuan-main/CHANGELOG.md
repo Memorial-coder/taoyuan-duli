@@ -6,6 +6,30 @@
 
 ### 新增功能
 
+#### 0425 行旅图深度探索化第一版：远征会话、途中推进、扎营与远征日志
+- `src/types/region.ts`、`src/data/regions.ts` 已把行旅图存档结构扩到 `activeSession`、`journeyHistory`、补给状态、旅程日志与远征归档，`REGION_MAP_SAVE_VERSION` 也已提升到 `4`，用于承接多阶段远征与旧档兼容。
+- `src/stores/useRegionMapStore.ts` 已新增第一版多阶段远征状态机：公开支持 `startRouteExpeditionSession()`、`startBossExpeditionSession()`、`advanceActiveExpedition()`、`campActiveExpedition()`、`retreatActiveExpedition()`、`settleActiveExpedition()`，路线与首领开始共用同一套远征运行时。
+- `src/stores/useRegionMapStore.ts` 已把行旅图从“点击即结算”切到“出发 -> 途中推进 -> 扎营/撤退 -> 回城收束”链路，并在运行时纳入生命、士气、风险、视野、补给、负重、发现值与推荐回补路线。
+- `src/stores/useRegionMapStore.ts` 已为远征补入结构化旅程日志、最近远征归档、会话序列化/反序列化与旧档回退清洗；`hasActiveExpedition`、`activeExpeditionSummary`、前线摘要与首领失败建议也已切到新会话态读取。
+- `src/views/game/RegionMapView.vue` 已新增正式玩家可见的远征筹备 UI：支持选择推进风格（steady / scout / greedy）与撤退规则（balanced / low_hp / pack_full / after_camp），不再只有一个“巡行 / 挑战首领”按钮。
+- `src/views/game/RegionMapView.vue` 已新增进行中远征面板、途中操作按钮（推进一段 / 扎营整备 / 主动撤退 / 结算收束）、旅程日志列表与最近远征记录面板，行旅图正式具备“探索过程可见”的第一版体验。
+- 当前这一轮深度探索化改造继续保留旧的周焦点、资源台账、首领结果、区域承接摘要与旧系统跳转，确保 Quest / Shop / Hanhai / FishPond / Museum / Guild / Village / Wallet 不会因新会话态断线。
+
+#### 0425 行旅图深度探索化第二阶段：途中遭遇、周事件并入远征会话
+- `src/types/region.ts` 已新增 `RegionExpeditionEncounterKind`、`RegionExpeditionEncounterRisk`、`RegionExpeditionEncounter`、`RegionExpeditionEncounterOption`，并为 `RegionExpeditionSession` 补入 `pendingEncounter`、`encounteredEventIds`，让远征会话正式具备“途中遭遇待处理态”。
+- `src/stores/useRegionMapStore.ts` 已新增 `cloneEncounter()`、`createEncounterOptions()`、`createWeeklyEventEncounter()`、`createGenericEncounter()`、`createStepEncounter()`、`recordEncounteredWeeklyEvent()` 与 `resolveActiveEncounter()`，开始把周事件池与会话推进联动成真正的旅途中遭遇处理链。
+- `src/stores/useRegionMapStore.ts` 现已在 `advanceActiveExpedition()` 中按推进阶段、风险、视野、策略与区域周事件池生成待处理遭遇；存在 `pendingEncounter` 时会阻止继续推进或扎营，迫使玩家先处理当前路段局势。
+- `src/stores/useRegionMapStore.ts` 已让 `resolveActiveEncounter()` 根据 `cautious / balanced / bold` 三种选项调整风险、视野、士气、负重、发现、临时奖励与事件完成度，并把结果写回旅程日志与待结算收获。
+- `src/views/game/RegionMapView.vue` 已新增“途中遭遇”面板，在进行中远征里直接展示遭遇标题、风险级别、细节说明与三种应对按钮，使事件开始真正发生在旅途过程中，而不是只留在区域列表里单独处理。
+
+#### 0425 行旅图深度探索化第三阶段：地图认知、路线勘明与熟路反馈
+- `src/types/region.ts` 已新增 `RegionKnowledgeState`、`RegionRouteKnowledgeState`，并把 `RegionMapSaveData` 扩展到 `knowledgeState` / `routeKnowledgeState`，用于持久化区域情报、地图勘明与路线熟悉度。
+- `src/data/regions.ts` 已将 `REGION_MAP_SAVE_VERSION` 提升到 `5`，补入地图认知默认值与旧档兼容初始化，保证已有存档在接入认知层后仍能安全回退与继续游玩。
+- `src/stores/useRegionMapStore.ts` 已新增 `getRegionKnowledgeState()`、`getRouteKnowledgeState()`、`addRegionKnowledge()`、`addRouteKnowledge()`，并让远征推进、扎营、途中遭遇处理、周事件收束、路线完成、首领凯旋与结算回城都能真实推动地图认知成长。
+- `src/stores/useRegionMapStore.ts` 现已让既有认知反向作用于远征开局：走熟的路线会提供额外初始视野、降低部分前线压力，并影响补给回滚推荐，不再只是展示型数值。
+- `src/stores/useRegionMapStore.ts` 的 `serialize()` / `deserialize()` 已补入 `knowledgeState` / `routeKnowledgeState` 读写，配合 `normalize` 逻辑完成旧档迁移与新字段持久化。
+- `src/views/game/RegionMapView.vue` 已在区域卡和路线卡中展示“区域情报 / 地图勘明 / 熟域 / 路线勘明 / 路线熟悉”等标签和数值反馈，使玩家能直接看到自己把哪片地图真正走熟了。
+
 #### 0424 行旅图主线：区域地图骨架、公开巡行与审查收口
 - `src/types/region.ts`、`src/data/regions.ts`、`src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 已新增行旅图第一阶段骨架，统一收口三地区定义、路线状态、周焦点、区域资源台账、远征运行态与基础 telemetry。
 - `src/router/index.ts`、`src/composables/useNavigation.ts`、`src/data/timeConstants.ts`、`src/views/MainMenu.vue`、`src/views/dev/LateGameDebugView.vue`、`src/components/game/MobileMapMenu.vue` 已把 `region-map` 和 `frontier` 正式接入游戏路由、导航、旅行分组与样例跳转，读档后也能恢复到行旅图页。

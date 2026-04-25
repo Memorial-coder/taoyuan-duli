@@ -6,6 +6,7 @@ import {
   REGION_EVENT_DEFS,
   REGION_ROUTE_DEFS,
   REGIONAL_RESOURCE_FAMILY_DEFS,
+  createDefaultRegionExpeditionSupplyState,
   createDefaultRegionMapSaveData,
   getRegionBossDef,
   getRegionEvents,
@@ -16,8 +17,17 @@ import { getEnchantmentById, getWeaponById } from '@/data/weapons'
 import type {
   ExpeditionRuntimeState,
   RegionBossDef,
+  RegionExpeditionApproach,
+  RegionExpeditionEncounter,
+  RegionExpeditionEncounterOption,
+  RegionExpeditionArchiveEntry,
+  RegionKnowledgeState,
+  RegionExpeditionLogEntry,
+  RegionExpeditionRetreatRule,
+  RegionExpeditionSession,
   RegionId,
   RegionMapSaveData,
+  RegionRouteKnowledgeState,
   RegionalResourceFamilyId
 } from '@/types/region'
 import {
@@ -27,6 +37,7 @@ import {
   getExpectedIncomingDamage,
   getLifestealHeal
 } from '@/utils/combatRuntime'
+import { getItemById } from '@/data/items'
 import { useAchievementStore } from './useAchievementStore'
 import { useCookingStore } from './useCookingStore'
 import { useFishPondStore } from './useFishPondStore'
@@ -82,6 +93,75 @@ const createEmptyActiveEventMap = () => ({
 const getWeeklyRotationSeed = (weekId: string, regionId: RegionId) =>
   [...`${weekId}:${regionId}`].reduce((seed, char) => seed + char.charCodeAt(0), 0)
 
+const formatRewardItems = (rewardItems: Array<{ itemId: string; quantity: number }>) =>
+  rewardItems.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`).join('、')
+
+const createSessionToken = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
+
+const createEmptyRegionKnowledgeState = (regionId: RegionId): RegionKnowledgeState => ({
+  regionId,
+  intel: 0,
+  survey: 0,
+  familiarity: 0,
+  lastUpdatedDayTag: ''
+})
+
+const createEmptyRouteKnowledgeState = (routeId: string): RegionRouteKnowledgeState => ({
+  routeId,
+  intel: 0,
+  surveyProgress: 0,
+  familiarity: 0,
+  lastUpdatedDayTag: ''
+})
+
+const cloneEncounter = (encounter: RegionExpeditionEncounter | null): RegionExpeditionEncounter | null =>
+  encounter
+    ? {
+        ...encounter,
+        detailLines: [...encounter.detailLines],
+        rewardItems: encounter.rewardItems.map(item => ({ ...item })),
+        options: encounter.options.map(option => ({ ...option }))
+      }
+    : null
+
+const mergeRewardItems = (
+  baseItems: Array<{ itemId: string; quantity: number }>,
+  extraItems: Array<{ itemId: string; quantity: number }>
+) => {
+  const itemMap = new Map<string, number>()
+  for (const item of [...baseItems, ...extraItems]) {
+    if (!item.itemId || item.quantity <= 0) continue
+    itemMap.set(item.itemId, (itemMap.get(item.itemId) ?? 0) + item.quantity)
+  }
+  return Array.from(itemMap.entries()).map(([itemId, quantity]) => ({ itemId, quantity }))
+}
+
+const createEncounterOptions = (kind: RegionExpeditionEncounter['kind']): RegionExpeditionEncounterOption[] => {
+  if (kind === 'weekly_event') {
+    return [
+      { id: 'cautious', label: '谨慎处理', summary: '保守推进，优先稳住补给与风险。', tone: 'accent' },
+      { id: 'balanced', label: '顺势推进', summary: '按原定节奏处理，兼顾收益与队伍状态。', tone: 'success' },
+      { id: 'bold', label: '强势介入', summary: '争取额外收获，但会抬高风险和损耗。', tone: 'danger' }
+    ]
+  }
+
+  if (kind === 'hazard' || kind === 'boss_prep') {
+    return [
+      { id: 'cautious', label: '稳扎稳打', summary: '降低风险，尽量避免额外损伤。', tone: 'accent' },
+      { id: 'balanced', label: '维持推进', summary: '接受少量损耗，保持当前节奏。', tone: 'success' },
+      { id: 'bold', label: '强行突破', summary: '直接冲过去，可能换取额外发现。', tone: 'danger' }
+    ]
+  }
+
+  return [
+    { id: 'cautious', label: '收稳再走', summary: '保住现有所得，顺手整理沿途信息。', tone: 'accent' },
+    { id: 'balanced', label: '按计划收取', summary: '按标准节奏处理，不额外冒险。', tone: 'success' },
+    { id: 'bold', label: '加码追收', summary: '想办法再榨出一点收益，但会更危险。', tone: 'danger' }
+  ]
+}
+
 export const useRegionMapStore = defineStore('regionMap', () => {
   const saveData = ref<RegionMapSaveData>(createDefaultRegionMapSaveData())
   const recentActionTimestamps = ref<Record<string, number>>({})
@@ -128,7 +208,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   )
 
   const unlockedRegionCount = computed(() => regionSummaries.value.filter(region => region.unlocked).length)
-  const hasActiveExpedition = computed(() => Boolean(saveData.value.expedition.activeRegionId))
+  const hasActiveExpedition = computed(() => Boolean(saveData.value.activeSession || saveData.value.expedition.activeRegionId))
   const currentWeeklyFocus = computed(() => saveData.value.weeklyFocusState)
   const currentWeeklyEventState = computed(() => saveData.value.weeklyEventState)
   const resourceLedgerEntries = computed(() =>
@@ -138,18 +218,67 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }))
   )
   const activeExpeditionSummary = computed(() => {
-    if (!saveData.value.expedition.activeRegionId) return null
-    const region = REGION_DEFS.find(entry => entry.id === saveData.value.expedition.activeRegionId) ?? null
-    const route = REGION_ROUTE_DEFS.find(entry => entry.id === saveData.value.expedition.activeRouteId) ?? null
-    const boss = REGION_BOSS_DEFS.find(entry => entry.id === saveData.value.expedition.activeBossId) ?? null
+    const runtimeSource = saveData.value.activeSession
+      ? {
+          activeRegionId: saveData.value.activeSession.regionId,
+          activeRouteId: saveData.value.activeSession.routeId,
+          activeBossId: saveData.value.activeSession.bossId,
+          startedAtDayTag: saveData.value.activeSession.startedAtDayTag
+        }
+      : saveData.value.expedition
+
+    if (!runtimeSource.activeRegionId) return null
+    const region = REGION_DEFS.find(entry => entry.id === runtimeSource.activeRegionId) ?? null
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === runtimeSource.activeRouteId) ?? null
+    const boss = REGION_BOSS_DEFS.find(entry => entry.id === runtimeSource.activeBossId) ?? null
     return {
       region,
       route,
       boss,
-      startedAtDayTag: saveData.value.expedition.startedAtDayTag
+      startedAtDayTag: runtimeSource.startedAtDayTag
     }
   })
   const lastBossOutcome = computed(() => saveData.value.lastBossOutcome)
+  const activeSession = computed(() => saveData.value.activeSession)
+  const journeyHistory = computed(() => saveData.value.journeyHistory)
+
+  const getRegionKnowledgeState = (regionId: RegionId) => saveData.value.knowledgeState[regionId] ?? createEmptyRegionKnowledgeState(regionId)
+
+  const getRouteKnowledgeState = (routeId: string) => saveData.value.routeKnowledgeState[routeId] ?? createEmptyRouteKnowledgeState(routeId)
+
+  const addRegionKnowledge = (
+    regionId: RegionId,
+    gains: Partial<Pick<RegionKnowledgeState, 'intel' | 'survey' | 'familiarity'>>,
+    dayTag = ''
+  ) => {
+    const current = getRegionKnowledgeState(regionId)
+    const next: RegionKnowledgeState = {
+      regionId,
+      intel: clamp(current.intel + Math.max(0, Math.floor(Number(gains.intel) || 0)), 0, 100),
+      survey: clamp(current.survey + Math.max(0, Math.floor(Number(gains.survey) || 0)), 0, 100),
+      familiarity: clamp(current.familiarity + Math.max(0, Math.floor(Number(gains.familiarity) || 0)), 0, 100),
+      lastUpdatedDayTag: dayTag || current.lastUpdatedDayTag
+    }
+    saveData.value.knowledgeState[regionId] = next
+    return next
+  }
+
+  const addRouteKnowledge = (
+    routeId: string,
+    gains: Partial<Pick<RegionRouteKnowledgeState, 'intel' | 'surveyProgress' | 'familiarity'>>,
+    dayTag = ''
+  ) => {
+    const current = getRouteKnowledgeState(routeId)
+    const next: RegionRouteKnowledgeState = {
+      routeId,
+      intel: clamp(current.intel + Math.max(0, Math.floor(Number(gains.intel) || 0)), 0, 100),
+      surveyProgress: clamp(current.surveyProgress + Math.max(0, Math.floor(Number(gains.surveyProgress) || 0)), 0, 100),
+      familiarity: clamp(current.familiarity + Math.max(0, Math.floor(Number(gains.familiarity) || 0)), 0, 100),
+      lastUpdatedDayTag: dayTag || current.lastUpdatedDayTag
+    }
+    saveData.value.routeKnowledgeState[routeId] = next
+    return next
+  }
 
   const createClearedExpeditionState = (): ExpeditionRuntimeState => ({
     activeRegionId: null,
@@ -271,7 +400,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (!unlockStatus.unlocked) {
       return { available: false, reason: unlockStatus.reason }
     }
-    if (saveData.value.expedition.activeRegionId) {
+    if (hasActiveExpedition.value) {
       return { available: false, reason: '当前已有一条进行中的远征，请先收束当前远征记录。' }
     }
 
@@ -311,7 +440,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       return { available: false, reason: '本周该事件已处理完成。' }
     }
 
-    if (saveData.value.expedition.activeRegionId) {
+    if (hasActiveExpedition.value) {
       return { available: false, reason: '当前已有进行中的远征记录，请先收束。' }
     }
 
@@ -339,11 +468,14 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     return unlockedRoutes
       .map(route => {
         const completions = saveData.value.routeStates[route.id]?.completions ?? 0
+        const routeKnowledge = getRouteKnowledgeState(route.id)
         const score =
           (highlightedRouteIds.has(route.id) ? 4 : 0) +
           (completions <= 0 ? 3 : 0) +
           (route.nodeType === 'route' ? 2 : route.nodeType === 'handoff' ? 1 : 0) +
-          Math.max(0, 2 - completions)
+          Math.max(0, 2 - completions) +
+          Math.floor(routeKnowledge.familiarity / 20) +
+          Math.floor(routeKnowledge.intel / 30)
         return { route, score }
       })
       .sort((left, right) => right.score - left.score)[0]?.route ?? null
@@ -354,7 +486,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (!saveData.value.unlockStates[regionId]?.unlocked) {
       return { available: false, reason: '该区域尚未解锁。' }
     }
-    if (saveData.value.expedition.activeRegionId) {
+    if (hasActiveExpedition.value) {
       return { available: false, reason: '当前已有一条进行中的远征，请先收束当前远征记录。' }
     }
     const completedRouteCount = getRegionCompletedRouteCount(regionId)
@@ -423,6 +555,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (focusedRegion?.unlocked) {
       highlightSummaries.push(`本周焦点：${focusedRegion.name}`)
       nextHookSummaries.push(`优先承接：${focusedRegion.linkedSystems.slice(0, 2).join(' / ')}`)
+      const focusedKnowledge = getRegionKnowledgeState(focusedRegion.id)
+      if (focusedKnowledge.intel > 0 || focusedKnowledge.survey > 0) {
+        highlightSummaries.push(`地图认知：情报 ${focusedKnowledge.intel} / 勘明 ${focusedKnowledge.survey}`)
+      }
       const focusedEvents = getActiveRegionEvents(focusedRegion.id).map(event => event.name)
       if (focusedEvents.length > 0) {
         highlightSummaries.push(`本周事件：${focusedEvents.join(' / ')}`)
@@ -600,6 +736,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
     saveData.value.telemetry.totalRouteCompletions += 1
     if (route) {
+      addRegionKnowledge(route.regionId, { intel: 6, survey: 8, familiarity: 4 }, dayTag)
+      addRouteKnowledge(route.id, { intel: 8, surveyProgress: 12, familiarity: 10 }, dayTag)
       refreshRouteUnlocks(route.regionId)
     }
   }
@@ -649,6 +787,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
   const clearExpedition = () => {
     saveData.value.expedition = createClearedExpeditionState()
+    saveData.value.activeSession = null
   }
 
   const completeRouteAndGrantRewards = (routeId: string, dayTag = '') => {
@@ -669,6 +808,996 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       familyId: route.primaryResourceFamilyId,
       rewardAmount,
       rewardItems
+    }
+  }
+
+  const cloneSession = (session: RegionExpeditionSession): RegionExpeditionSession => ({
+    ...session,
+    supplies: { ...session.supplies },
+    pendingRewardItems: session.pendingRewardItems.map(item => ({ ...item })),
+    pendingEncounter: cloneEncounter(session.pendingEncounter),
+    encounteredEventIds: [...session.encounteredEventIds],
+    journal: session.journal.map(entry => ({ ...entry, effects: [...entry.effects] }))
+  })
+
+  const createWeeklyEventEncounter = (session: RegionExpeditionSession, eventId: string): RegionExpeditionEncounter | null => {
+    const event = REGION_EVENT_DEFS.find(entry => entry.id === eventId && entry.regionId === session.regionId)
+    if (!event) return null
+    return {
+      id: createSessionToken(),
+      step: session.progressStep,
+      kind: 'weekly_event',
+      title: `途中事件：${event.name}`,
+      summary: event.description,
+      detailLines: [
+        event.encounterHint ? `线索：${event.encounterHint}` : '前线斥候带来了新的现场信息。',
+        event.handoffHint ? `承接：${event.handoffHint}` : '若处理妥当，可直接转化为区域推进收益。'
+      ].filter(Boolean),
+      risk: session.danger >= 50 ? 'high' : session.danger >= 28 ? 'medium' : 'low',
+      sourceEventId: event.id,
+      rewardFamilyId: event.rewardFamilyId,
+      rewardAmount: Math.max(1, event.rewardAmount),
+      rewardItems: (EVENT_ITEM_REWARDS[event.id] ?? []).map(item => ({ ...item })),
+      options: createEncounterOptions('weekly_event')
+    }
+  }
+
+  const createGenericEncounter = (session: RegionExpeditionSession): RegionExpeditionEncounter => {
+    const kind: RegionExpeditionEncounter['kind'] =
+      session.mode === 'boss' && session.progressStep >= Math.max(1, session.totalSteps - 1)
+        ? 'boss_prep'
+        : session.danger >= 45 || session.visibility <= 45
+          ? 'hazard'
+          : session.approach === 'greedy'
+            ? 'cache'
+            : 'traveler'
+
+    const encounterConfig: Record<RegionExpeditionEncounter['kind'], { title: string; summary: string; risk: RegionExpeditionEncounter['risk']; detailLines: string[] }> = {
+      weekly_event: {
+        title: '途中事件',
+        summary: '区域局势出现了新的分支。',
+        risk: 'medium',
+        detailLines: []
+      },
+      hazard: {
+        title: '前线险段',
+        summary: '前方路况突然恶化，需要重新评估推进方式。',
+        risk: 'high',
+        detailLines: ['若强行通过，可能会增加风险与伤害。', '谨慎处理则更容易保住补给与士气。']
+      },
+      cache: {
+        title: '遗落收获',
+        summary: '斥候发现了一处可疑补给点或遗落物资堆。',
+        risk: 'medium',
+        detailLines: ['继续搜刮可能带来额外收获。', '处理不当也可能拖慢节奏，抬高暴露风险。']
+      },
+      traveler: {
+        title: '路途中转',
+        summary: '路线上出现了可交互的行脚人、补给痕迹或临时据点。',
+        risk: 'low',
+        detailLines: ['妥善交涉可能换来视野、补给或额外线索。', '也可以选择不节外生枝，尽快赶路。']
+      },
+      boss_prep: {
+        title: '决战前夜',
+        summary: '首领区域前的最后准备窗口已经出现，你可以调整最后的进入姿态。',
+        risk: 'high',
+        detailLines: ['准备充分会改善最终决战状态。', '若急于突入，可能用更高风险换取更高收益。']
+      }
+    }
+
+    const config = encounterConfig[kind]
+    return {
+      id: createSessionToken(),
+      step: session.progressStep,
+      kind,
+      title: config.title,
+      summary: config.summary,
+      detailLines: [...config.detailLines],
+      risk: config.risk,
+      sourceEventId: null,
+      rewardFamilyId: session.pendingRewardFamilyId,
+      rewardAmount: kind === 'cache' ? 2 : kind === 'traveler' ? 1 : kind === 'boss_prep' ? 2 : 1,
+      rewardItems: [],
+      options: createEncounterOptions(kind)
+    }
+  }
+
+  const createStepEncounter = (session: RegionExpeditionSession): RegionExpeditionEncounter | null => {
+    if (session.progressStep <= 0 || session.progressStep >= session.totalSteps) return null
+
+    const availableWeeklyEventIds = getRegionActiveEventIds(session.regionId).filter(eventId => {
+      if (session.encounteredEventIds.includes(eventId)) return false
+      const event = REGION_EVENT_DEFS.find(entry => entry.id === eventId && entry.regionId === session.regionId)
+      if (!event) return false
+      const state = saveData.value.eventStates[event.id]
+      const maxWeeklyCompletions = Math.max(1, event.maxWeeklyCompletions ?? 1)
+      return (state?.weeklyCompletions ?? 0) < maxWeeklyCompletions
+    })
+
+    if (availableWeeklyEventIds.length > 0) {
+      const eventIndex = (session.progressStep + session.findings + (session.mode === 'boss' ? 1 : 0)) % availableWeeklyEventIds.length
+      return createWeeklyEventEncounter(session, availableWeeklyEventIds[eventIndex] ?? availableWeeklyEventIds[0] ?? '')
+    }
+
+    const shouldCreateGenericEncounter =
+      session.progressStep === 1 ||
+      session.mode === 'boss' ||
+      session.approach === 'greedy' ||
+      session.danger >= 32 ||
+      session.visibility <= 52
+
+    return shouldCreateGenericEncounter ? createGenericEncounter(session) : null
+  }
+
+  const recordEncounteredWeeklyEvent = (eventId: string, dayTag = '') => {
+    const event = REGION_EVENT_DEFS.find(entry => entry.id === eventId)
+    if (!event) return false
+    const current = saveData.value.eventStates[event.id] ?? {
+      eventId: event.id,
+      totalCompletions: 0,
+      weeklyCompletions: 0,
+      lastCompletedDayTag: '',
+      lastActivatedWeekId: ''
+    }
+    saveData.value.eventStates[event.id] = {
+      eventId: event.id,
+      totalCompletions: current.totalCompletions + 1,
+      weeklyCompletions: current.weeklyCompletions + 1,
+      lastCompletedDayTag: dayTag,
+      lastActivatedWeekId: saveData.value.weeklyEventState.weekId
+    }
+    return true
+  }
+
+  const persistActiveSession = (session: RegionExpeditionSession | null) => {
+    if (!session) {
+      saveData.value.activeSession = null
+      saveData.value.expedition = createClearedExpeditionState()
+      return
+    }
+    saveData.value.activeSession = cloneSession(session)
+    startExpedition(session.regionId, session.routeId, session.bossId, session.startedAtDayTag)
+  }
+
+  const appendSessionJournal = (
+    session: RegionExpeditionSession,
+    title: string,
+    summary: string,
+    effects: string[] = [],
+    tone: RegionExpeditionLogEntry['tone'] = 'accent'
+  ) => {
+    session.journal = [
+      ...session.journal,
+      {
+        id: createSessionToken(),
+        step: session.progressStep,
+        title,
+        summary,
+        effects: effects.filter(Boolean),
+        tone
+      }
+    ].slice(-14)
+    return session
+  }
+
+  const archiveSession = (
+    session: RegionExpeditionSession,
+    outcome: 'ready_to_settle' | 'victory' | 'retreated' | 'failure',
+    endedAtDayTag: string,
+    summaryLines: string[]
+  ) => {
+    const finalOutcome = outcome === 'ready_to_settle' ? 'victory' : outcome
+    const entry: RegionExpeditionArchiveEntry = {
+      id: session.sessionId,
+      regionId: session.regionId,
+      mode: session.mode,
+      targetName: session.targetName,
+      startedAtDayTag: session.startedAtDayTag,
+      endedAtDayTag,
+      outcome: finalOutcome,
+      summaryLines: summaryLines.filter(Boolean).slice(0, 6)
+    }
+    saveData.value.journeyHistory = [entry, ...saveData.value.journeyHistory].slice(0, 12)
+  }
+
+  const getSessionStepTimeHours = (session: RegionExpeditionSession) => {
+    const route = session.routeId ? REGION_ROUTE_DEFS.find(entry => entry.id === session.routeId) ?? null : null
+    const boss = session.bossId ? REGION_BOSS_DEFS.find(entry => entry.id === session.bossId) ?? null : null
+    const totalTimeHours = route?.timeCostHours ?? boss?.timeCostHours ?? 0.5
+    return Math.max(0.17, Number((totalTimeHours / Math.max(1, session.totalSteps)).toFixed(2)))
+  }
+
+  const resolveSessionTargetLabel = (regionId: RegionId, routeId: string | null, bossId: string | null) => {
+    if (routeId) return REGION_ROUTE_DEFS.find(entry => entry.id === routeId)?.name ?? routeId
+    if (bossId) return REGION_BOSS_DEFS.find(entry => entry.id === bossId)?.name ?? bossId
+    return REGION_DEFS.find(entry => entry.id === regionId)?.name ?? regionId
+  }
+
+  const createRouteSession = (
+    routeId: string,
+    startedAtDayTag: string,
+    approach: RegionExpeditionApproach,
+    retreatRule: RegionExpeditionRetreatRule
+  ) => {
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    if (!route) return null
+    const regionKnowledge = getRegionKnowledgeState(route.regionId)
+    const routeKnowledge = getRouteKnowledgeState(route.id)
+    const supplies = createDefaultRegionExpeditionSupplyState()
+    if (approach === 'scout') supplies.utility += 1
+    if (approach === 'greedy') supplies.rations = Math.max(1, supplies.rations - 1)
+    if (route.nodeType === 'elite') supplies.medicine += 1
+
+    const totalSteps = route.nodeType === 'elite' ? 4 : 3
+    const visibilityBonus = Math.floor((regionKnowledge.intel + routeKnowledge.intel + routeKnowledge.surveyProgress) / 24)
+    const dangerMitigation = Math.floor((regionKnowledge.familiarity + routeKnowledge.familiarity) / 30)
+    const moraleBonus = Math.floor(routeKnowledge.familiarity / 25)
+    const session: RegionExpeditionSession = {
+      sessionId: createSessionToken(),
+      mode: 'route',
+      regionId: route.regionId,
+      routeId: route.id,
+      bossId: null,
+      targetName: route.name,
+      startedAtDayTag,
+      approach,
+      retreatRule,
+      status: 'ongoing',
+      progressStep: 0,
+      totalSteps,
+      carryLoad: 0,
+      maxCarryLoad: approach === 'greedy' ? 8 : approach === 'scout' ? 6 : 7,
+      visibility: clamp((approach === 'scout' ? 76 : approach === 'greedy' ? 45 : 60) + visibilityBonus, 0, 100),
+      morale: clamp((approach === 'greedy' ? 54 : approach === 'scout' ? 60 : 66) + moraleBonus, 0, 100),
+      danger: clamp((route.nodeType === 'elite' ? 24 : route.nodeType === 'handoff' ? 14 : 12) - dangerMitigation, 0, 100),
+      findings: 0,
+      campUsed: false,
+      supplies,
+      pendingRewardFamilyId: route.primaryResourceFamilyId,
+      pendingRewardAmount: getRouteRewardAmount(route.id),
+      pendingRewardItems: (ROUTE_ITEM_REWARDS[route.id] ?? []).map(item => ({ ...item })),
+      pendingEncounter: null,
+      encounteredEventIds: [],
+      journal: [],
+      recommendedRouteId: null
+    }
+    appendSessionJournal(
+      session,
+      '整装出发',
+      `你以${approach === 'scout' ? '侦察' : approach === 'greedy' ? '激进' : '稳扎稳打'}的节奏进入「${route.name}」。`,
+      [
+        `预设撤退规则：${retreatRule === 'low_hp' ? '低血量撤离' : retreatRule === 'pack_full' ? '满载撤离' : retreatRule === 'after_camp' ? '扎营后收束' : '平衡推进'}`,
+        visibilityBonus > 0 || dangerMitigation > 0 ? `既有认知生效：视野 +${visibilityBonus}，初始风险 -${dangerMitigation}。` : '这条路仍较陌生，需要边走边摸清局势。'
+      ],
+      'accent'
+    )
+    return session
+  }
+
+  const createBossSession = (
+    regionId: RegionId,
+    startedAtDayTag: string,
+    approach: RegionExpeditionApproach,
+    retreatRule: RegionExpeditionRetreatRule
+  ) => {
+    const boss = getRegionBossDef(regionId)
+    if (!boss) return null
+    const regionKnowledge = getRegionKnowledgeState(regionId)
+    const supplies = createDefaultRegionExpeditionSupplyState()
+    supplies.medicine += 1
+    if (approach === 'scout') supplies.utility += 1
+    if (approach === 'greedy') supplies.rations = Math.max(1, supplies.rations - 1)
+
+    const visibilityBonus = Math.floor((regionKnowledge.intel + regionKnowledge.survey) / 28)
+    const dangerMitigation = Math.floor(regionKnowledge.familiarity / 22)
+    const session: RegionExpeditionSession = {
+      sessionId: createSessionToken(),
+      mode: 'boss',
+      regionId,
+      routeId: null,
+      bossId: boss.id,
+      targetName: boss.name,
+      startedAtDayTag,
+      approach,
+      retreatRule,
+      status: 'ongoing',
+      progressStep: 0,
+      totalSteps: Math.max(3, boss.phases.length + 1),
+      carryLoad: 0,
+      maxCarryLoad: approach === 'greedy' ? 9 : 7,
+      visibility: clamp((approach === 'scout' ? 68 : 52) + visibilityBonus, 0, 100),
+      morale: clamp((approach === 'greedy' ? 52 : 64) + Math.floor(regionKnowledge.familiarity / 30), 0, 100),
+      danger: clamp(28 - dangerMitigation, 0, 100),
+      findings: 1,
+      campUsed: false,
+      supplies,
+      pendingRewardFamilyId: boss.rewardFamilyId,
+      pendingRewardAmount: getBossRewardAmount(regionId),
+      pendingRewardItems: (BOSS_ITEM_REWARDS[regionId] ?? []).map(item => ({ ...item })),
+      pendingEncounter: null,
+      encounteredEventIds: [],
+      journal: [],
+      recommendedRouteId: null
+    }
+    appendSessionJournal(
+      session,
+      '首领远征就绪',
+      `你开始逼近「${boss.name}」的活动范围，准备逐段压缩前线空间。`,
+      [
+        '已切换为多阶段首领远征，可途中扎营、撤退或收束。',
+        visibilityBonus > 0 || dangerMitigation > 0 ? `区域认知提供了额外准备：视野 +${visibilityBonus}，前线压力 -${dangerMitigation}。` : '该区域深层仍缺少足够认知，决战前需要边推进边摸清。'
+      ],
+      'accent'
+    )
+    return session
+  }
+
+  const startRouteExpeditionSession = (
+    routeId: string,
+    dayTag = '',
+    approach: RegionExpeditionApproach = 'steady',
+    retreatRule: RegionExpeditionRetreatRule = 'balanced'
+  ) => {
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    if (!route) return { success: false, message: '路线不存在。', title: '无法出发', lines: ['路线不存在。'], tone: 'danger' as const }
+    if (shouldBlockRapidRepeatAction(`route:start:${routeId}`)) {
+      return { success: false, message: '刚刚已经发起过这条路线，请稍候再试。', title: '无法出发', lines: ['刚刚已经发起过这条路线，请稍候再试。'], tone: 'danger' as const }
+    }
+    const status = getRouteExpeditionStatus(routeId)
+    if (!status.available) {
+      return { success: false, message: status.reason, title: '无法出发', lines: [status.reason], tone: 'danger' as const }
+    }
+
+    const playerStore = usePlayerStore()
+    if (!playerStore.consumeStamina(route.staminaCost)) {
+      return { success: false, message: `体力不足，需要 ${route.staminaCost} 点体力。`, title: '无法出发', lines: [`体力不足，需要 ${route.staminaCost} 点体力。`], tone: 'danger' as const }
+    }
+
+    const session = createRouteSession(routeId, dayTag, approach, retreatRule)
+    if (!session) {
+      playerStore.restoreStamina(route.staminaCost)
+      return { success: false, message: '路线远征初始化失败。', title: '无法出发', lines: ['路线远征初始化失败。'], tone: 'danger' as const }
+    }
+
+    persistActiveSession(session)
+    const regionName = REGION_DEFS.find(region => region.id === route.regionId)?.name ?? route.regionId
+    addLog(`【行旅图】已发起 ${regionName}·${route.name} 远征，采用 ${approach} 节奏。`, {
+      category: 'goal',
+      tags: ['late_game_cycle'],
+      meta: {
+        regionId: route.regionId,
+        routeId: route.id,
+        approach,
+        retreatRule,
+        staminaCost: route.staminaCost
+      }
+    })
+    showFloat(`远征出发：${route.name}`, 'accent')
+
+    return {
+      success: true,
+      message: `已发起 ${regionName}·${route.name} 远征。`,
+      title: '远征已出发',
+      lines: [
+        `目标：${route.name}`,
+        `已消耗 ${route.staminaCost} 点体力，进入多阶段推进。`,
+        `当前策略：${approach === 'scout' ? '侦察优先' : approach === 'greedy' ? '激进搜刮' : '稳健推进'} / ${retreatRule === 'low_hp' ? '低血量撤离' : retreatRule === 'pack_full' ? '满载撤离' : retreatRule === 'after_camp' ? '扎营后收束' : '平衡推进'}`
+      ],
+      tone: 'accent' as const
+    }
+  }
+
+  const startBossExpeditionSession = (
+    regionId: RegionId,
+    dayTag = '',
+    approach: RegionExpeditionApproach = 'steady',
+    retreatRule: RegionExpeditionRetreatRule = 'balanced'
+  ) => {
+    const boss = getRegionBossDef(regionId)
+    if (!boss) return { success: false, message: '当前区域首领未配置。', title: '无法出发', lines: ['当前区域首领未配置。'], tone: 'danger' as const }
+    if (shouldBlockRapidRepeatAction(`boss:start:${regionId}`)) {
+      return { success: false, message: '刚刚已经发起过这场首领远征，请稍候再试。', title: '无法出发', lines: ['刚刚已经发起过这场首领远征，请稍候再试。'], tone: 'danger' as const }
+    }
+    const status = getBossExpeditionStatus(regionId)
+    if (!status.available) {
+      return { success: false, message: status.reason, title: '无法出发', lines: [status.reason], tone: 'danger' as const }
+    }
+
+    const playerStore = usePlayerStore()
+    if (!playerStore.consumeStamina(boss.staminaCost)) {
+      return { success: false, message: `体力不足，需要 ${boss.staminaCost} 点体力。`, title: '无法出发', lines: [`体力不足，需要 ${boss.staminaCost} 点体力。`], tone: 'danger' as const }
+    }
+
+    const session = createBossSession(regionId, dayTag, approach, retreatRule)
+    if (!session) {
+      playerStore.restoreStamina(boss.staminaCost)
+      return { success: false, message: '首领远征初始化失败。', title: '无法出发', lines: ['首领远征初始化失败。'], tone: 'danger' as const }
+    }
+
+    persistActiveSession(session)
+    addLog(`【行旅图】已发起区域首领远征「${boss.name}」，采用 ${approach} 节奏。`, {
+      category: 'goal',
+      tags: ['late_game_cycle'],
+      meta: {
+        regionId,
+        bossId: boss.id,
+        approach,
+        retreatRule,
+        staminaCost: boss.staminaCost
+      }
+    })
+    showFloat(`首领远征：${boss.name}`, 'accent')
+
+    return {
+      success: true,
+      message: `已发起首领远征「${boss.name}」。`,
+      title: '首领远征已出发',
+      lines: [
+        `目标：${boss.name}`,
+        `已消耗 ${boss.staminaCost} 点体力，接下来需逐段推进至决战。`,
+        `当前策略：${approach === 'scout' ? '侦察优先' : approach === 'greedy' ? '激进搜刮' : '稳健推进'} / ${retreatRule === 'low_hp' ? '低血量撤离' : retreatRule === 'pack_full' ? '满载撤离' : retreatRule === 'after_camp' ? '扎营后收束' : '平衡推进'}`
+      ],
+      tone: 'accent' as const
+    }
+  }
+
+  const advanceActiveExpedition = (_dayTag = '') => {
+    const session = saveData.value.activeSession ? cloneSession(saveData.value.activeSession) : null
+    if (!session) {
+      return { success: false, message: '当前没有进行中的远征。', title: '无法推进', lines: ['当前没有进行中的远征。'], tone: 'danger' as const }
+    }
+    if (session.pendingEncounter) {
+      return {
+        success: false,
+        message: '当前有一个待处理的途中遭遇，请先决定如何应对。',
+        title: '无法推进',
+        lines: ['当前有一个待处理的途中遭遇，请先决定如何应对。'],
+        tone: 'danger' as const
+      }
+    }
+    if (session.status !== 'ongoing') {
+      return {
+        success: false,
+        message: session.status === 'ready_to_settle' ? '远征已经抵达收束阶段，请直接结算。' : '当前远征已脱离进行中状态，请直接收束。',
+        title: '无法推进',
+        lines: [session.status === 'ready_to_settle' ? '远征已经抵达收束阶段，请直接结算。' : '当前远征已脱离进行中状态，请直接收束。'],
+        tone: 'danger' as const
+      }
+    }
+
+    const gameStore = useGameStore()
+    const playerStore = usePlayerStore()
+    const stepNumber = session.progressStep + 1
+    const routeDef = session.routeId ? REGION_ROUTE_DEFS.find(entry => entry.id === session.routeId) ?? null : null
+    const stepTimeHours = getSessionStepTimeHours(session)
+    const timeResult = gameStore.advanceTime(stepTimeHours, { skipSpeedBuff: true })
+    const effects: string[] = []
+
+    if (stepNumber % 2 === 1) {
+      if (session.supplies.rations > 0) {
+        session.supplies.rations -= 1
+        session.morale = clamp(session.morale + 6, 0, 100)
+        effects.push('消耗 1 份口粮，士气回稳。')
+      } else {
+        session.morale = clamp(session.morale - 6, 0, 100)
+        session.danger = clamp(session.danger + 3, 0, 100)
+        effects.push('口粮见底，队伍开始焦躁。')
+      }
+    }
+
+    if (session.approach === 'scout' && session.supplies.utility > 0 && stepNumber === 1) {
+      session.supplies.utility -= 1
+      session.visibility = clamp(session.visibility + 12, 0, 100)
+      effects.push('使用 1 份器具进行侦察，视野提升。')
+    }
+
+    const baseDamage = session.mode === 'boss' ? 8 + stepNumber * 3 : 4 + stepNumber * 2
+    let damage = baseDamage + Math.floor(session.danger / 24)
+    if (session.approach === 'scout') damage = Math.max(1, damage - 2)
+    if (session.approach === 'greedy') damage += 2
+
+    if (session.supplies.medicine > 0 && playerStore.hp <= Math.max(18, Math.floor(playerStore.getMaxHp() * 0.4))) {
+      session.supplies.medicine -= 1
+      const recoverAmount = 10 + stepNumber * 2
+      playerStore.restoreHealth(recoverAmount)
+      effects.push(`消耗 1 份药剂，回复 ${recoverAmount} 点生命。`)
+    }
+
+    const actualDamage = playerStore.takeDamage(damage)
+    if (actualDamage > 0) {
+      effects.push(`途中承受 ${actualDamage} 点伤害。`)
+    }
+
+    session.progressStep = stepNumber
+    session.visibility = clamp(session.visibility + (session.approach === 'scout' ? 6 : session.approach === 'greedy' ? -3 : 2), 0, 100)
+    session.morale = clamp(session.morale + (session.approach === 'greedy' ? -2 : 1), 0, 100)
+    session.danger = clamp(session.danger + (session.mode === 'boss' ? 10 : routeDef?.nodeType === 'elite' ? 8 : 6) + (session.approach === 'greedy' ? 3 : 0), 0, 100)
+    session.findings += session.approach === 'greedy' ? 3 : session.approach === 'scout' ? 2 : 2
+    session.carryLoad = clamp(session.carryLoad + (session.approach === 'greedy' ? 2 : 1), 0, session.maxCarryLoad)
+    const regionKnowledge = addRegionKnowledge(
+      session.regionId,
+      {
+        intel: session.approach === 'scout' ? 5 : session.approach === 'greedy' ? 2 : 3,
+        survey: session.mode === 'boss' ? 2 : 3,
+        familiarity: session.mode === 'boss' ? 1 : 2
+      },
+      _dayTag
+    )
+    effects.push(`区域认知提升：情报 ${regionKnowledge.intel}/100，勘明 ${regionKnowledge.survey}/100。`)
+    if (session.routeId) {
+      const routeKnowledge = addRouteKnowledge(
+        session.routeId,
+        {
+          intel: routeDef?.nodeType === 'elite' ? 5 : 4,
+          surveyProgress: routeDef?.nodeType === 'handoff' ? 3 : 5,
+          familiarity: stepNumber >= session.totalSteps ? 8 : 4
+        },
+        _dayTag
+      )
+      effects.push(`路线熟悉度提升：勘明 ${routeKnowledge.surveyProgress}/100，熟悉 ${routeKnowledge.familiarity}/100。`)
+    }
+
+    let summary = `你推进了第 ${stepNumber}/${session.totalSteps} 段。`
+    let tone: RegionExpeditionLogEntry['tone'] = 'accent'
+
+    if (session.mode === 'boss' && stepNumber >= session.totalSteps) {
+      const boss = getRegionBossDef(session.regionId)
+      if (boss) {
+        const combatResult = simulateBossExpedition(session.regionId, boss)
+        const hpDelta = Math.max(0, playerStore.hp - Math.max(0, combatResult.projectedHp))
+        if (hpDelta > 0) {
+          playerStore.takeDamage(hpDelta)
+          effects.push(`决战阶段额外损失 ${hpDelta} 点生命。`)
+        }
+        effects.push(combatResult.supportSummary)
+        effects.push(...combatResult.phaseLines.slice(0, 2))
+        if (combatResult.success) {
+          session.status = 'ready_to_settle'
+          session.pendingRewardAmount += Math.max(1, Math.floor(session.findings / 3))
+          summary = `你已压制 ${boss.name}，可以回城收束这趟首领远征。`
+          tone = 'success'
+        } else {
+          session.status = 'failure'
+          session.recommendedRouteId = combatResult.recommendedRouteId ?? getRecommendedRecoveryRoute(session.regionId)?.id ?? null
+          summary = `你在 ${boss.name} 面前被迫后撤，这趟远征转入失败收束。`
+          tone = 'danger'
+        }
+      }
+    } else if (session.progressStep >= session.totalSteps) {
+      session.status = 'ready_to_settle'
+      session.pendingRewardAmount += Math.max(1, Math.floor(session.findings / 2))
+      summary = `你已完成 ${session.targetName} 的前线推进，可以回城清点战利品。`
+      tone = 'success'
+    }
+
+    if (session.status === 'ongoing' && session.carryLoad >= session.maxCarryLoad) {
+      session.recommendedRouteId = getRecommendedRecoveryRoute(session.regionId)?.id ?? null
+      effects.push('负重已接近上限。')
+      if (session.retreatRule === 'pack_full') {
+        session.status = 'retreated'
+        summary = '按照预设的满载撤离规则，你决定带着现有收获撤回营地。'
+        tone = 'accent'
+      }
+    }
+
+    if (session.status === 'ongoing' && playerStore.hp <= Math.max(12, Math.floor(playerStore.getMaxHp() * 0.2))) {
+      effects.push('当前生命值已经非常危险。')
+      if (session.retreatRule === 'low_hp') {
+        session.status = 'retreated'
+        session.recommendedRouteId = getRecommendedRecoveryRoute(session.regionId)?.id ?? null
+        summary = '队伍生命线过低，已按预设规则自动撤离。'
+        tone = 'accent'
+      }
+    }
+
+    if (playerStore.hp <= 0) {
+      session.status = 'failure'
+      session.recommendedRouteId = getRecommendedRecoveryRoute(session.regionId)?.id ?? null
+      summary = '队伍在途中彻底失去战线，被迫带着残余记录撤出。'
+      tone = 'danger'
+    }
+
+    if (session.status === 'ongoing') {
+      const encounter = createStepEncounter(session)
+      if (encounter) {
+        session.pendingEncounter = encounter
+        effects.push(`途中出现了新的遭遇：${encounter.title}。`)
+      }
+    }
+
+    appendSessionJournal(session, `推进第 ${stepNumber} 段`, summary, effects, tone)
+    persistActiveSession(session)
+    showFloat(session.status === 'failure' ? '远征失利' : session.status === 'ready_to_settle' ? '远征收束' : '远征推进', tone)
+
+    return {
+      success: true,
+      message: `${summary}${timeResult.message ? ` ${timeResult.message}` : ''}`.trim(),
+      title: session.status === 'failure' ? '远征失利' : session.status === 'ready_to_settle' ? '远征可收束' : '远征推进',
+      lines: [
+        `目标：${session.targetName}`,
+        `进度：${session.progressStep}/${session.totalSteps}｜负重 ${session.carryLoad}/${session.maxCarryLoad}｜发现 ${session.findings}`,
+        `生命 ${playerStore.hp}/${playerStore.getMaxHp()}｜士气 ${session.morale}｜风险 ${session.danger}｜视野 ${session.visibility}`,
+        session.pendingEncounter ? `遭遇：${session.pendingEncounter.title}` : '',
+        ...effects
+      ].filter(Boolean),
+      tone: tone === 'danger' ? ('danger' as const) : tone === 'success' ? ('success' as const) : ('accent' as const)
+    }
+  }
+
+  const campActiveExpedition = (_dayTag = '') => {
+    const session = saveData.value.activeSession ? cloneSession(saveData.value.activeSession) : null
+    if (!session) {
+      return { success: false, message: '当前没有进行中的远征。', title: '无法扎营', lines: ['当前没有进行中的远征。'], tone: 'danger' as const }
+    }
+    if (session.status !== 'ongoing') {
+      return { success: false, message: '当前远征已不在可扎营阶段。', title: '无法扎营', lines: ['当前远征已不在可扎营阶段。'], tone: 'danger' as const }
+    }
+    if (session.campUsed) {
+      return { success: false, message: '本次远征已经扎营过一次。', title: '无法扎营', lines: ['本次远征已经扎营过一次。'], tone: 'danger' as const }
+    }
+    if (session.progressStep <= 0) {
+      return { success: false, message: '至少先推进一段，再决定是否扎营。', title: '无法扎营', lines: ['至少先推进一段，再决定是否扎营。'], tone: 'danger' as const }
+    }
+    if (session.pendingEncounter) {
+      return { success: false, message: '当前有一个待处理遭遇，请先决定如何应对。', title: '无法扎营', lines: ['当前有一个待处理遭遇，请先决定如何应对。'], tone: 'danger' as const }
+    }
+
+    const gameStore = useGameStore()
+    const playerStore = usePlayerStore()
+    const timeResult = gameStore.advanceTime(0.25, { skipSpeedBuff: true })
+    const effects: string[] = []
+    let recoverAmount = 10
+
+    if (session.supplies.rations > 0) {
+      session.supplies.rations -= 1
+      recoverAmount += 6
+      effects.push('消耗 1 份口粮稳定队伍状态。')
+    }
+    if (session.supplies.medicine > 0) {
+      session.supplies.medicine -= 1
+      recoverAmount += 8
+      effects.push('消耗 1 份药剂修整伤势。')
+    }
+    if (session.supplies.utility > 0) {
+      session.supplies.utility -= 1
+      session.visibility = clamp(session.visibility + 6, 0, 100)
+      effects.push('消耗 1 份器具加固营地与标记。')
+    }
+
+    playerStore.restoreHealth(recoverAmount)
+    session.campUsed = true
+    session.morale = clamp(session.morale + 14, 0, 100)
+    session.danger = clamp(session.danger - 10, 0, 100)
+    const regionKnowledge = addRegionKnowledge(session.regionId, { intel: 2, survey: 5, familiarity: 2 }, _dayTag)
+    effects.push(`扎营勘察让区域勘明提升至 ${regionKnowledge.survey}/100。`)
+    if (session.routeId) {
+      const routeKnowledge = addRouteKnowledge(session.routeId, { intel: 2, surveyProgress: 6, familiarity: 4 }, _dayTag)
+      effects.push(`沿途标记更新：路线勘明 ${routeKnowledge.surveyProgress}/100，熟悉 ${routeKnowledge.familiarity}/100。`)
+    }
+    appendSessionJournal(session, '途中扎营', `你在 ${session.targetName} 途中完成了一次整备。`, [`恢复 ${recoverAmount} 点生命。`, ...effects], 'success')
+
+    if (session.retreatRule === 'after_camp') {
+      session.status = 'retreated'
+      session.recommendedRouteId = getRecommendedRecoveryRoute(session.regionId)?.id ?? null
+      appendSessionJournal(session, '扎营后收束', '按照预设撤退规则，队伍决定带着现有记录回城。', [], 'accent')
+    }
+
+    persistActiveSession(session)
+    showFloat('途中扎营', 'success')
+    return {
+      success: true,
+      message: `已完成一次途中扎营。${timeResult.message ? ` ${timeResult.message}` : ''}`.trim(),
+      title: '扎营完成',
+      lines: [
+        `目标：${session.targetName}`,
+        `生命 ${playerStore.hp}/${playerStore.getMaxHp()}｜士气 ${session.morale}｜风险 ${session.danger}`,
+        ...effects,
+        session.retreatRule === 'after_camp' ? '已按预设规则切换为回撤收束。' : ''
+      ].filter(Boolean),
+      tone: 'success' as const
+    }
+  }
+
+  const retreatActiveExpedition = (_dayTag = '') => {
+    const session = saveData.value.activeSession ? cloneSession(saveData.value.activeSession) : null
+    if (!session) {
+      return { success: false, message: '当前没有进行中的远征。', title: '无法撤退', lines: ['当前没有进行中的远征。'], tone: 'danger' as const }
+    }
+    if (session.status !== 'ongoing') {
+      return { success: false, message: '当前远征已不在可撤退阶段。', title: '无法撤退', lines: ['当前远征已不在可撤退阶段。'], tone: 'danger' as const }
+    }
+    session.status = 'retreated'
+    session.recommendedRouteId = getRecommendedRecoveryRoute(session.regionId)?.id ?? null
+    if (session.pendingEncounter) {
+      appendSessionJournal(session, '放弃处理中遭遇', `你放弃了「${session.pendingEncounter.title}」的后续处理，决定立即返程。`, ['该遭遇不会再在本次远征中继续展开。'], 'accent')
+      session.pendingEncounter = null
+    }
+    appendSessionJournal(session, '主动撤退', `你决定从「${session.targetName}」提前撤离，保留已记录的线索。`, ['本次将按部分收益收束。'], 'accent')
+    persistActiveSession(session)
+    showFloat('远征撤退', 'accent')
+    return {
+      success: true,
+      message: '已将当前远征切换为撤退收束。',
+      title: '已撤退',
+      lines: ['你可以立即结算当前远征，按部分收益带回记录与战利品。'],
+      tone: 'accent' as const
+    }
+  }
+
+  const resolveActiveEncounter = (optionId: RegionExpeditionEncounterOption['id'], dayTag = '') => {
+    const session = saveData.value.activeSession ? cloneSession(saveData.value.activeSession) : null
+    if (!session || !session.pendingEncounter) {
+      return { success: false, message: '当前没有待处理的途中遭遇。', title: '无法处理遭遇', lines: ['当前没有待处理的途中遭遇。'], tone: 'danger' as const }
+    }
+    if (session.status !== 'ongoing') {
+      return { success: false, message: '当前远征已不处于可处理遭遇的推进阶段。', title: '无法处理遭遇', lines: ['当前远征已不处于可处理遭遇的推进阶段。'], tone: 'danger' as const }
+    }
+
+    const encounter = cloneEncounter(session.pendingEncounter)
+    if (!encounter) {
+      return { success: false, message: '途中遭遇状态异常。', title: '无法处理遭遇', lines: ['途中遭遇状态异常。'], tone: 'danger' as const }
+    }
+
+    const playerStore = usePlayerStore()
+    const effects: string[] = []
+    let tone: RegionExpeditionLogEntry['tone'] = optionId === 'bold' ? 'danger' : optionId === 'balanced' ? 'success' : 'accent'
+    let summary = `你处理了「${encounter.title}」。`
+    let rewardMultiplier = optionId === 'cautious' ? 0.7 : optionId === 'bold' ? 1.5 : 1
+
+    if (encounter.kind === 'hazard') {
+      session.danger = clamp(session.danger + (optionId === 'bold' ? 8 : optionId === 'balanced' ? 2 : -6), 0, 100)
+      session.visibility = clamp(session.visibility + (optionId === 'cautious' ? 4 : optionId === 'bold' ? -4 : 0), 0, 100)
+      const damage = optionId === 'bold' ? 7 : optionId === 'balanced' ? 4 : 1
+      const actualDamage = playerStore.takeDamage(damage)
+      if (actualDamage > 0) effects.push(`额外承受 ${actualDamage} 点伤害。`)
+      if (optionId === 'cautious') effects.push('你压住了前线暴露，风险明显下降。')
+      if (optionId === 'bold') effects.push('你强行闯过险段，队伍暴露大幅提升。')
+    } else if (encounter.kind === 'cache') {
+      session.carryLoad = clamp(session.carryLoad + (optionId === 'bold' ? 2 : 1), 0, session.maxCarryLoad)
+      session.findings += optionId === 'bold' ? 2 : 1
+      session.morale = clamp(session.morale + (optionId === 'cautious' ? 1 : optionId === 'balanced' ? 2 : 3), 0, 100)
+      session.danger = clamp(session.danger + (optionId === 'bold' ? 5 : 1), 0, 100)
+      effects.push(optionId === 'bold' ? '你让队伍深入翻查，额外榨出了一批沿途收获。' : '你收稳了可见物资，继续保持推进节奏。')
+    } else if (encounter.kind === 'traveler') {
+      session.visibility = clamp(session.visibility + (optionId === 'cautious' ? 6 : optionId === 'balanced' ? 4 : 2), 0, 100)
+      session.morale = clamp(session.morale + (optionId === 'bold' ? 3 : 2), 0, 100)
+      session.danger = clamp(session.danger + (optionId === 'bold' ? 3 : -2), 0, 100)
+      if (optionId === 'cautious' && session.supplies.rations > 0) {
+        session.supplies.rations -= 1
+        effects.push('你分出 1 份口粮换取了更清晰的前路线索。')
+      } else {
+        effects.push('你从路上痕迹中整理出一批可用情报。')
+      }
+    } else if (encounter.kind === 'boss_prep') {
+      session.visibility = clamp(session.visibility + (optionId === 'cautious' ? 4 : optionId === 'balanced' ? 2 : 0), 0, 100)
+      session.morale = clamp(session.morale + (optionId === 'bold' ? 4 : optionId === 'balanced' ? 2 : 1), 0, 100)
+      session.danger = clamp(session.danger + (optionId === 'bold' ? 6 : optionId === 'balanced' ? 1 : -4), 0, 100)
+      if (optionId !== 'cautious') {
+        session.pendingRewardAmount += optionId === 'bold' ? 2 : 1
+        effects.push(optionId === 'bold' ? '你前压布置，决战阶段将带着更高的推进收益预期。' : '你完成了基础布置，决战收益略有提升。')
+      } else {
+        effects.push('你把最后的准备压回稳妥区，队伍状态更适合决战。')
+      }
+    }
+
+    if (encounter.kind === 'weekly_event') {
+      if (encounter.sourceEventId) {
+        session.encounteredEventIds = [...new Set([...session.encounteredEventIds, encounter.sourceEventId])]
+        recordEncounteredWeeklyEvent(encounter.sourceEventId, dayTag)
+      }
+      session.danger = clamp(session.danger + (optionId === 'bold' ? 5 : optionId === 'balanced' ? 1 : -3), 0, 100)
+      session.morale = clamp(session.morale + (optionId === 'bold' ? 3 : optionId === 'balanced' ? 2 : 1), 0, 100)
+      session.visibility = clamp(session.visibility + (optionId === 'cautious' ? 3 : 1), 0, 100)
+      effects.push(optionId === 'bold' ? '你强行把局势拉进自己的推进节奏，前线压力也随之上升。' : optionId === 'balanced' ? '你把这一段区域局势稳稳接住了。' : '你谨慎收束现场，优先带走关键线索。')
+    }
+
+    const rewardAmount = Math.max(0, Math.floor(encounter.rewardAmount * rewardMultiplier))
+    if (encounter.rewardFamilyId && rewardAmount > 0) {
+      session.pendingRewardAmount += rewardAmount
+      effects.push(`暂存 ${rewardAmount} 份区域资源，待回城统一收束。`)
+    }
+
+    const rewardItems = encounter.rewardItems
+      .map(item => ({ ...item, quantity: Math.max(0, Math.floor(item.quantity * rewardMultiplier)) }))
+      .filter(item => item.quantity > 0)
+    if (rewardItems.length > 0) {
+      session.pendingRewardItems = mergeRewardItems(session.pendingRewardItems, rewardItems)
+      effects.push(`暂存物资：${formatRewardItems(rewardItems)}`)
+    }
+
+    if (optionId === 'bold') {
+      session.findings += 1
+      session.carryLoad = clamp(session.carryLoad + (encounter.kind === 'hazard' ? 0 : 1), 0, session.maxCarryLoad)
+    }
+
+    if (optionId === 'cautious' && encounter.kind !== 'hazard') {
+      session.danger = clamp(session.danger - 2, 0, 100)
+    }
+
+    summary =
+      optionId === 'bold'
+        ? `你以强势方式处理了「${encounter.title}」，换来了更高收益，也抬高了风险。`
+        : optionId === 'balanced'
+          ? `你按计划处理了「${encounter.title}」，队伍节奏维持稳定。`
+          : `你谨慎应对了「${encounter.title}」，优先保住了前线状态。`
+
+    const encounterIntelGain = encounter.kind === 'weekly_event' ? 6 : encounter.kind === 'traveler' ? 5 : encounter.kind === 'boss_prep' ? 4 : 3
+    const encounterSurveyGain = optionId === 'bold' ? 4 : optionId === 'balanced' ? 3 : 2
+    const regionKnowledge = addRegionKnowledge(
+      session.regionId,
+      {
+        intel: encounterIntelGain,
+        survey: encounterSurveyGain,
+        familiarity: encounter.kind === 'traveler' ? 3 : optionId === 'cautious' ? 2 : 1
+      },
+      dayTag
+    )
+    effects.push(`地图认知推进：区域情报 ${regionKnowledge.intel}/100。`)
+    if (session.routeId) {
+      const routeKnowledge = addRouteKnowledge(
+        session.routeId,
+        {
+          intel: Math.max(2, Math.floor(encounterIntelGain / 2) + 1),
+          surveyProgress: encounter.kind === 'weekly_event' ? 5 : 3,
+          familiarity: encounter.kind === 'traveler' || optionId === 'cautious' ? 2 : 1
+        },
+        dayTag
+      )
+      effects.push(`路线记录补全：勘明 ${routeKnowledge.surveyProgress}/100，熟悉 ${routeKnowledge.familiarity}/100。`)
+    }
+
+    appendSessionJournal(session, encounter.title, summary, effects, tone)
+    session.pendingEncounter = null
+    persistActiveSession(session)
+    showFloat('遭遇已处理', tone)
+    return {
+      success: true,
+      message: summary,
+      title: '遭遇已处理',
+      lines: [
+        `目标：${session.targetName}`,
+        `当前进度 ${session.progressStep}/${session.totalSteps}｜士气 ${session.morale}｜风险 ${session.danger}｜视野 ${session.visibility}`,
+        ...effects
+      ],
+      tone: tone === 'danger' ? ('danger' as const) : tone === 'success' ? ('success' as const) : ('accent' as const)
+    }
+  }
+
+  const settleActiveExpedition = (dayTag = '') => {
+    const session = saveData.value.activeSession ? cloneSession(saveData.value.activeSession) : null
+    if (!session) {
+      return { success: false, message: '当前没有可收束的远征。', title: '无法收束', lines: ['当前没有可收束的远征。'], tone: 'danger' as const }
+    }
+    if (session.status === 'ongoing') {
+      return { success: false, message: '这趟远征仍在途中，请先推进、扎营或撤退。', title: '无法收束', lines: ['这趟远征仍在途中，请先推进、扎营或撤退。'], tone: 'danger' as const }
+    }
+
+    const inventoryStore = useInventoryStore()
+    const playerStore = usePlayerStore()
+    const finalStatus = session.status === 'ready_to_settle' ? 'victory' : session.status
+    let rewardAmount = 0
+    let rewardItems: Array<{ itemId: string; quantity: number }> = []
+    const bonusReward = Math.max(0, Math.floor(session.findings / (session.mode === 'boss' ? 3 : 2)))
+    let title = '远征结算'
+    let tone: 'success' | 'danger' | 'accent' = finalStatus === 'failure' ? 'danger' : finalStatus === 'victory' ? 'success' : 'accent'
+    const summaryLines = [`目标：${session.targetName}`, `进度：${session.progressStep}/${session.totalSteps}`]
+
+    if (finalStatus === 'victory') {
+      rewardAmount = Math.max(1, session.pendingRewardAmount + bonusReward)
+      rewardItems = session.pendingRewardItems.map(item => ({ ...item }))
+      if (session.mode === 'route' && session.routeId && session.pendingRewardFamilyId) {
+        markRouteCompleted(session.routeId, dayTag)
+        addFamilyResources(session.pendingRewardFamilyId, rewardAmount)
+      }
+      if (session.mode === 'boss' && session.bossId && session.pendingRewardFamilyId) {
+        recordBossClear(session.regionId, session.bossId, session.pendingRewardFamilyId, rewardAmount, dayTag)
+        addFamilyResources(session.pendingRewardFamilyId, rewardAmount)
+      }
+      title = session.mode === 'boss' ? '首领远征凯旋' : '远征顺利收束'
+      summaryLines.push(`带回 ${rewardAmount} 份区域资源。`)
+    } else if (finalStatus === 'retreated') {
+      rewardAmount = session.pendingRewardFamilyId ? Math.max(0, Math.floor((session.pendingRewardAmount + bonusReward) * 0.5)) : 0
+      rewardItems = session.pendingRewardItems.map(item => ({ ...item, quantity: Math.max(0, Math.floor(item.quantity / 2)) })).filter(item => item.quantity > 0)
+      if (session.pendingRewardFamilyId && rewardAmount > 0) {
+        addFamilyResources(session.pendingRewardFamilyId, rewardAmount)
+      }
+      if (session.mode === 'boss' && session.bossId) {
+        const recommendedRouteId = session.recommendedRouteId ?? getRecommendedRecoveryRoute(session.regionId)?.id ?? null
+        saveData.value.lastBossOutcome = {
+          regionId: session.regionId,
+          bossId: session.bossId,
+          outcome: 'failure',
+          rewardFamilyId: session.pendingRewardFamilyId,
+          rewardAmount,
+          resolvedDayTag: dayTag,
+          summary: recommendedRouteId ? `首领远征主动撤退，建议先回补给路线：${resolveSessionTargetLabel(session.regionId, recommendedRouteId, null)}` : '首领远征主动撤退，建议先补足状态再战。',
+          recommendedRouteId,
+          failureStreak: saveData.value.bossFailureStreaks[session.regionId] ?? 0
+        }
+      }
+      title = '远征半途回撤'
+      summaryLines.push(rewardAmount > 0 ? `保留 ${rewardAmount} 份区域资源。` : '几乎没有带回可用收获。')
+    } else {
+      if (session.mode === 'boss' && session.bossId && session.pendingRewardFamilyId) {
+        const currentFailureStreak = saveData.value.bossFailureStreaks[session.regionId] ?? 0
+        const pityRewardAmount = resourceFeatureEnabled.value && currentFailureStreak <= 0 && (saveData.value.bossClearCounts[session.regionId] ?? 0) <= 0 ? 1 : 0
+        const refund = Math.max(1, Math.floor((getRegionBossDef(session.regionId)?.staminaCost ?? 2) / 2))
+        playerStore.restoreStamina(refund)
+        if (pityRewardAmount > 0) {
+          addFamilyResources(session.pendingRewardFamilyId, pityRewardAmount)
+        }
+        rewardAmount = pityRewardAmount
+        recordBossFailure(
+          session.regionId,
+          session.bossId,
+          session.pendingRewardFamilyId,
+          pityRewardAmount,
+          session.recommendedRouteId ?? getRecommendedRecoveryRoute(session.regionId)?.id ?? null,
+          dayTag
+        )
+        summaryLines.push(`返还 ${refund} 点体力。`)
+        if (pityRewardAmount > 0) {
+          summaryLines.push(`发放 ${pityRewardAmount} 份保底区域资源。`)
+        }
+      } else if (session.pendingRewardFamilyId) {
+        rewardAmount = Math.max(0, Math.floor(session.findings / 3))
+        if (rewardAmount > 0) {
+          addFamilyResources(session.pendingRewardFamilyId, rewardAmount)
+        }
+        summaryLines.push(rewardAmount > 0 ? `仍带回 ${rewardAmount} 份零散资源。` : '没能带回成型战利品。')
+      }
+      title = '远征失利'
+    }
+
+    if (rewardItems.length > 0 && inventoryStore.canAddItems(rewardItems)) {
+      inventoryStore.addItemsExact(rewardItems)
+      summaryLines.push(`物品战利品：${formatRewardItems(rewardItems)}`)
+    } else if (rewardItems.length > 0) {
+      summaryLines.push('背包空间不足，部分物品战利品未能带回。')
+      rewardItems = []
+    }
+
+    const regionSettlementKnowledge =
+      finalStatus === 'victory'
+        ? addRegionKnowledge(session.regionId, { intel: 6, survey: 8, familiarity: 6 }, dayTag)
+        : finalStatus === 'retreated'
+          ? addRegionKnowledge(session.regionId, { intel: 3, survey: 4, familiarity: 3 }, dayTag)
+          : addRegionKnowledge(session.regionId, { intel: 2, survey: 3, familiarity: 1 }, dayTag)
+    summaryLines.push(`区域认知：情报 ${regionSettlementKnowledge.intel}/100，勘明 ${regionSettlementKnowledge.survey}/100。`)
+    if (session.routeId) {
+      const routeSettlementKnowledge =
+        finalStatus === 'victory'
+          ? addRouteKnowledge(session.routeId, { intel: 6, surveyProgress: 10, familiarity: 8 }, dayTag)
+          : finalStatus === 'retreated'
+            ? addRouteKnowledge(session.routeId, { intel: 3, surveyProgress: 5, familiarity: 4 }, dayTag)
+            : addRouteKnowledge(session.routeId, { intel: 1, surveyProgress: 2, familiarity: 1 }, dayTag)
+      summaryLines.push(`路线熟悉：勘明 ${routeSettlementKnowledge.surveyProgress}/100，熟悉 ${routeSettlementKnowledge.familiarity}/100。`)
+    }
+
+    archiveSession(session, finalStatus, dayTag, [
+      `${finalStatus === 'victory' ? '凯旋' : finalStatus === 'retreated' ? '撤退' : '失利'}：${session.targetName}`,
+      ...summaryLines.slice(1)
+    ])
+    addLog(`【行旅图】${title}：${session.targetName}。`, {
+      category: 'goal',
+      tags: ['late_game_cycle'],
+      meta: {
+        regionId: session.regionId,
+        routeId: session.routeId,
+        bossId: session.bossId,
+        status: finalStatus,
+        rewardAmount
+      }
+    })
+    persistActiveSession(null)
+    showFloat(title, tone)
+
+    return {
+      success: finalStatus !== 'failure',
+      message: `${title}：${session.targetName}。`,
+      title,
+      lines: summaryLines,
+      tone
     }
   }
 
@@ -702,7 +1831,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     const regionName = REGION_DEFS.find(region => region.id === route.regionId)?.name ?? route.regionId
     const rewardSummary = result.rewardItems.length > 0
-      ? `，获得 ${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}`
+      ? `，获得 ${formatRewardItems(result.rewardItems)}`
       : ''
     addLog(`【行旅图】已完成 ${regionName}·${route.name}，消耗 ${route.staminaCost} 体力${rewardSummary}。`, {
       category: 'goal',
@@ -744,6 +1873,15 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
     const rewardAmount = resourceFeatureEnabled.value ? event.rewardAmount : 0
     addFamilyResources(event.rewardFamilyId, rewardAmount)
+    addRegionKnowledge(
+      event.regionId,
+      {
+        intel: 4 + event.rewardAmount,
+        survey: 2 + Math.floor(event.rewardAmount / 2),
+        familiarity: 1
+      },
+      dayTag
+    )
     const rewardItems = EVENT_ITEM_REWARDS[event.id] ?? []
     if (rewardItems.length > 0 && inventoryStore.canAddItems(rewardItems)) {
       inventoryStore.addItemsExact(rewardItems)
@@ -795,7 +1933,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     return {
       success: true,
-      message: `已完成事件「${event.name}」。${timeResult.message ? `${timeResult.message} ` : ''}${result.rewardAmount > 0 ? `获得 ${result.rewardAmount} 点区域资源` : '已完成本次事件推进'}${result.rewardItems.length > 0 ? `，并带回 ${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''}。`.trim()
+      message: `已完成事件「${event.name}」。${timeResult.message ? `${timeResult.message} ` : ''}${result.rewardAmount > 0 ? `获得 ${result.rewardAmount} 点区域资源` : '已完成本次事件推进'}${result.rewardItems.length > 0 ? `，并带回 ${formatRewardItems(result.rewardItems)}` : ''}。`.trim()
     }
   }
 
@@ -939,6 +2077,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       recommendedRouteId: null,
       failureStreak: 0
     }
+    addRegionKnowledge(regionId, { intel: 12, survey: 10, familiarity: 8 }, dayTag)
     return true
   }
 
@@ -1032,7 +2171,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     const regionName = REGION_DEFS.find(region => region.id === regionId)?.name ?? regionId
     const rewardSummary = result.rewardItems.length > 0
-      ? `，获得 ${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}`
+      ? `，获得 ${formatRewardItems(result.rewardItems)}`
       : ''
     addLog(`【行旅图】已击败 ${regionName} 首领「${boss.name}」，消耗 ${boss.staminaCost} 体力${rewardSummary}。`, {
       category: 'goal',
@@ -1078,11 +2217,246 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     },
     resourceLedger: { ...saveData.value.resourceLedger },
     expedition: { ...saveData.value.expedition },
+    activeSession: saveData.value.activeSession ? cloneSession(saveData.value.activeSession) : null,
+    journeyHistory: saveData.value.journeyHistory.map(entry => ({ ...entry, summaryLines: [...entry.summaryLines] })),
+    knowledgeState: Object.fromEntries(
+      REGION_DEFS.map(region => {
+        const state = getRegionKnowledgeState(region.id)
+        return [region.id, { ...state }]
+      })
+    ) as Record<RegionId, RegionKnowledgeState>,
+    routeKnowledgeState: Object.fromEntries(
+      REGION_ROUTE_DEFS.map(route => {
+        const state = getRouteKnowledgeState(route.id)
+        return [route.id, { ...state }]
+      })
+    ) as Record<string, RegionRouteKnowledgeState>,
     telemetry: { ...saveData.value.telemetry },
     bossClearCounts: { ...saveData.value.bossClearCounts },
     bossFailureStreaks: { ...saveData.value.bossFailureStreaks },
     lastBossOutcome: { ...saveData.value.lastBossOutcome }
   })
+
+  const normalizeExpeditionSession = (raw: any): RegionExpeditionSession | null => {
+    if (!raw || typeof raw !== 'object') return null
+    const regionId = REGION_DEFS.some(region => region.id === raw.regionId) ? (raw.regionId as RegionId) : null
+    if (!regionId) return null
+    const routeId = typeof raw.routeId === 'string' && REGION_ROUTE_DEFS.some(route => route.id === raw.routeId && route.regionId === regionId)
+      ? String(raw.routeId)
+      : null
+    const bossId = typeof raw.bossId === 'string' && REGION_BOSS_DEFS.some(boss => boss.id === raw.bossId && boss.regionId === regionId)
+      ? String(raw.bossId)
+      : null
+    if (!routeId && !bossId) return null
+
+    const targetName = typeof raw.targetName === 'string' && raw.targetName
+      ? raw.targetName
+      : resolveSessionTargetLabel(regionId, routeId, bossId)
+    const totalSteps = Math.max(1, Math.floor(Number(raw.totalSteps) || 1))
+    const progressStep = clamp(Math.floor(Number(raw.progressStep) || 0), 0, totalSteps)
+    const pendingRewardItems = Array.isArray(raw.pendingRewardItems)
+      ? raw.pendingRewardItems
+          .filter((item: unknown) => item && typeof item === 'object')
+          .map((item: unknown) => ({
+            itemId: typeof (item as { itemId?: unknown }).itemId === 'string' ? String((item as { itemId?: unknown }).itemId) : '',
+            quantity: Math.max(0, Math.floor(Number((item as { quantity?: unknown }).quantity) || 0))
+          }))
+          .filter((item: { itemId: string; quantity: number }) => item.itemId && item.quantity > 0)
+      : []
+    const journal = Array.isArray(raw.journal)
+      ? raw.journal
+          .filter((entry: unknown) => entry && typeof entry === 'object')
+          .map((entry: unknown) => ({
+            id: typeof (entry as { id?: unknown }).id === 'string' ? String((entry as { id?: unknown }).id) : createSessionToken(),
+            step: Math.max(0, Math.floor(Number((entry as { step?: unknown }).step) || 0)),
+            title: typeof (entry as { title?: unknown }).title === 'string' ? String((entry as { title?: unknown }).title) : '远征记录',
+            summary: typeof (entry as { summary?: unknown }).summary === 'string' ? String((entry as { summary?: unknown }).summary) : '',
+            effects: Array.isArray((entry as { effects?: unknown }).effects)
+              ? ((entry as { effects?: unknown[] }).effects ?? []).filter((effect): effect is string => typeof effect === 'string')
+              : [],
+            tone:
+              (entry as { tone?: unknown }).tone === 'success' ||
+              (entry as { tone?: unknown }).tone === 'danger' ||
+              (entry as { tone?: unknown }).tone === 'accent'
+                ? ((entry as { tone?: RegionExpeditionLogEntry['tone'] }).tone ?? 'accent')
+                : 'accent'
+          }))
+      : []
+    const pendingEncounter = raw.pendingEncounter && typeof raw.pendingEncounter === 'object'
+      ? (() => {
+          const encounterRaw = raw.pendingEncounter as {
+            id?: unknown
+            step?: unknown
+            kind?: unknown
+            title?: unknown
+            summary?: unknown
+            detailLines?: unknown
+            risk?: unknown
+            sourceEventId?: unknown
+            rewardFamilyId?: unknown
+            rewardAmount?: unknown
+            rewardItems?: unknown
+            options?: unknown
+          }
+          const kind =
+            encounterRaw.kind === 'weekly_event' ||
+            encounterRaw.kind === 'hazard' ||
+            encounterRaw.kind === 'cache' ||
+            encounterRaw.kind === 'traveler' ||
+            encounterRaw.kind === 'boss_prep'
+              ? encounterRaw.kind
+              : null
+          if (!kind) return null
+          const rewardItems = Array.isArray(encounterRaw.rewardItems)
+            ? encounterRaw.rewardItems
+                .filter((item: unknown) => item && typeof item === 'object')
+                .map((item: unknown) => ({
+                  itemId: typeof (item as { itemId?: unknown }).itemId === 'string' ? String((item as { itemId?: unknown }).itemId) : '',
+                  quantity: Math.max(0, Math.floor(Number((item as { quantity?: unknown }).quantity) || 0))
+                }))
+                .filter((item: { itemId: string; quantity: number }) => item.itemId && item.quantity > 0)
+            : []
+          const options = Array.isArray(encounterRaw.options)
+            ? encounterRaw.options
+                .filter((option: unknown) => option && typeof option === 'object')
+                .map((option: unknown) => {
+                  const normalizedOption = option as { id?: unknown; label?: unknown; summary?: unknown; tone?: unknown }
+                  const optionId =
+                    normalizedOption.id === 'cautious' || normalizedOption.id === 'balanced' || normalizedOption.id === 'bold'
+                      ? normalizedOption.id
+                      : null
+                  if (!optionId) return null
+                  return {
+                    id: optionId,
+                    label: typeof normalizedOption.label === 'string' ? normalizedOption.label : optionId,
+                    summary: typeof normalizedOption.summary === 'string' ? normalizedOption.summary : '',
+                    tone:
+                      normalizedOption.tone === 'success' || normalizedOption.tone === 'danger' || normalizedOption.tone === 'accent'
+                        ? normalizedOption.tone
+                        : 'accent'
+                  } satisfies RegionExpeditionEncounterOption
+                })
+                .filter((option): option is RegionExpeditionEncounterOption => Boolean(option))
+            : createEncounterOptions(kind)
+
+          return {
+            id: typeof encounterRaw.id === 'string' ? encounterRaw.id : createSessionToken(),
+            step: Math.max(0, Math.floor(Number(encounterRaw.step) || 0)),
+            kind,
+            title: typeof encounterRaw.title === 'string' ? encounterRaw.title : '途中遭遇',
+            summary: typeof encounterRaw.summary === 'string' ? encounterRaw.summary : '',
+            detailLines: Array.isArray(encounterRaw.detailLines)
+              ? encounterRaw.detailLines.filter((line: unknown): line is string => typeof line === 'string').slice(0, 4)
+              : [],
+            risk: encounterRaw.risk === 'low' || encounterRaw.risk === 'high' ? encounterRaw.risk : 'medium',
+            sourceEventId:
+              typeof encounterRaw.sourceEventId === 'string' && REGION_EVENT_DEFS.some(event => event.id === encounterRaw.sourceEventId)
+                ? String(encounterRaw.sourceEventId)
+                : null,
+            rewardFamilyId: REGIONAL_RESOURCE_FAMILY_DEFS.some(family => family.id === encounterRaw.rewardFamilyId)
+              ? (encounterRaw.rewardFamilyId as RegionalResourceFamilyId)
+              : null,
+            rewardAmount: Math.max(0, Math.floor(Number(encounterRaw.rewardAmount) || 0)),
+            rewardItems,
+            options: options.length > 0 ? options : createEncounterOptions(kind)
+          } satisfies RegionExpeditionEncounter
+        })()
+      : null
+    const encounteredEventIds = Array.isArray(raw.encounteredEventIds)
+      ? raw.encounteredEventIds.filter((entry: unknown): entry is string => typeof entry === 'string' && REGION_EVENT_DEFS.some(event => event.id === entry))
+      : []
+
+    return {
+      sessionId: typeof raw.sessionId === 'string' && raw.sessionId ? raw.sessionId : createSessionToken(),
+      mode: raw.mode === 'boss' ? 'boss' : 'route',
+      regionId,
+      routeId,
+      bossId,
+      targetName,
+      startedAtDayTag: typeof raw.startedAtDayTag === 'string' ? raw.startedAtDayTag : '',
+      approach: raw.approach === 'scout' || raw.approach === 'greedy' ? raw.approach : 'steady',
+      retreatRule:
+        raw.retreatRule === 'low_hp' || raw.retreatRule === 'pack_full' || raw.retreatRule === 'after_camp'
+          ? raw.retreatRule
+          : 'balanced',
+      status:
+        raw.status === 'ready_to_settle' || raw.status === 'victory' || raw.status === 'retreated' || raw.status === 'failure'
+          ? raw.status
+          : 'ongoing',
+      progressStep,
+      totalSteps,
+      carryLoad: clamp(Math.floor(Number(raw.carryLoad) || 0), 0, Math.max(1, Math.floor(Number(raw.maxCarryLoad) || 1))),
+      maxCarryLoad: Math.max(1, Math.floor(Number(raw.maxCarryLoad) || 1)),
+      visibility: clamp(Math.floor(Number(raw.visibility) || 0), 0, 100),
+      morale: clamp(Math.floor(Number(raw.morale) || 0), 0, 100),
+      danger: clamp(Math.floor(Number(raw.danger) || 0), 0, 100),
+      findings: Math.max(0, Math.floor(Number(raw.findings) || 0)),
+      campUsed: Boolean(raw.campUsed),
+      supplies: {
+        rations: Math.max(0, Math.floor(Number(raw.supplies?.rations) || 0)),
+        medicine: Math.max(0, Math.floor(Number(raw.supplies?.medicine) || 0)),
+        utility: Math.max(0, Math.floor(Number(raw.supplies?.utility) || 0))
+      },
+      pendingRewardFamilyId: REGIONAL_RESOURCE_FAMILY_DEFS.some(family => family.id === raw.pendingRewardFamilyId)
+        ? (raw.pendingRewardFamilyId as RegionalResourceFamilyId)
+        : null,
+      pendingRewardAmount: Math.max(0, Math.floor(Number(raw.pendingRewardAmount) || 0)),
+      pendingRewardItems,
+      pendingEncounter,
+      encounteredEventIds,
+      journal,
+      recommendedRouteId:
+        typeof raw.recommendedRouteId === 'string' && REGION_ROUTE_DEFS.some(route => route.id === raw.recommendedRouteId)
+          ? String(raw.recommendedRouteId)
+          : null
+    }
+  }
+
+  const normalizeJourneyHistory = (raw: any): RegionExpeditionArchiveEntry[] => {
+    if (!Array.isArray(raw)) return []
+    const normalizedHistory: RegionExpeditionArchiveEntry[] = []
+    for (const entry of raw) {
+      if (!entry || typeof entry !== 'object') continue
+      const normalizedEntry = entry as {
+        id?: unknown
+        regionId?: unknown
+        mode?: unknown
+        targetName?: unknown
+        startedAtDayTag?: unknown
+        endedAtDayTag?: unknown
+        outcome?: unknown
+        summaryLines?: unknown
+      }
+      const regionId = REGION_DEFS.some(region => region.id === normalizedEntry.regionId)
+        ? (normalizedEntry.regionId as RegionId)
+        : null
+      if (!regionId) continue
+
+      const archiveEntry: RegionExpeditionArchiveEntry = {
+        id: typeof normalizedEntry.id === 'string' ? normalizedEntry.id : createSessionToken(),
+        regionId,
+        mode: normalizedEntry.mode === 'boss' ? 'boss' : 'route',
+        targetName:
+          typeof normalizedEntry.targetName === 'string'
+            ? normalizedEntry.targetName
+            : resolveSessionTargetLabel(regionId, null, null),
+        startedAtDayTag: typeof normalizedEntry.startedAtDayTag === 'string' ? normalizedEntry.startedAtDayTag : '',
+        endedAtDayTag: typeof normalizedEntry.endedAtDayTag === 'string' ? normalizedEntry.endedAtDayTag : '',
+        outcome:
+          normalizedEntry.outcome === 'ready_to_settle' ||
+          normalizedEntry.outcome === 'retreated' ||
+          normalizedEntry.outcome === 'failure'
+            ? normalizedEntry.outcome
+            : 'victory',
+        summaryLines: Array.isArray(normalizedEntry.summaryLines)
+          ? normalizedEntry.summaryLines.filter((line: unknown): line is string => typeof line === 'string').slice(0, 6)
+          : []
+      }
+      normalizedHistory.push(archiveEntry)
+      if (normalizedHistory.length >= 12) break
+    }
+    return normalizedHistory
+  }
 
   const deserialize = (data: any) => {
     const fallback = createDefaultRegionMapSaveData()
@@ -1171,6 +2545,41 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       startedAtDayTag: typeof data.expedition?.startedAtDayTag === 'string' ? data.expedition.startedAtDayTag : ''
     })
 
+    const activeSession = normalizeExpeditionSession(data.activeSession)
+    const journeyHistory = normalizeJourneyHistory(data.journeyHistory)
+
+    const knowledgeState = { ...fallback.knowledgeState }
+    for (const region of REGION_DEFS) {
+      const raw = data.knowledgeState?.[region.id]
+      if (!raw || typeof raw !== 'object') continue
+      knowledgeState[region.id] = {
+        regionId: region.id,
+        intel: clamp(Math.floor(Number((raw as { intel?: unknown }).intel) || 0), 0, 100),
+        survey: clamp(Math.floor(Number((raw as { survey?: unknown }).survey) || 0), 0, 100),
+        familiarity: clamp(Math.floor(Number((raw as { familiarity?: unknown }).familiarity) || 0), 0, 100),
+        lastUpdatedDayTag:
+          typeof (raw as { lastUpdatedDayTag?: unknown }).lastUpdatedDayTag === 'string'
+            ? String((raw as { lastUpdatedDayTag?: unknown }).lastUpdatedDayTag)
+            : ''
+      }
+    }
+
+    const routeKnowledgeState = { ...fallback.routeKnowledgeState }
+    for (const route of REGION_ROUTE_DEFS) {
+      const raw = data.routeKnowledgeState?.[route.id]
+      if (!raw || typeof raw !== 'object') continue
+      routeKnowledgeState[route.id] = {
+        routeId: route.id,
+        intel: clamp(Math.floor(Number((raw as { intel?: unknown }).intel) || 0), 0, 100),
+        surveyProgress: clamp(Math.floor(Number((raw as { surveyProgress?: unknown }).surveyProgress) || 0), 0, 100),
+        familiarity: clamp(Math.floor(Number((raw as { familiarity?: unknown }).familiarity) || 0), 0, 100),
+        lastUpdatedDayTag:
+          typeof (raw as { lastUpdatedDayTag?: unknown }).lastUpdatedDayTag === 'string'
+            ? String((raw as { lastUpdatedDayTag?: unknown }).lastUpdatedDayTag)
+            : ''
+      }
+    }
+
     const telemetry = {
       totalRouteCompletions: Math.max(0, Math.floor(Number(data.telemetry?.totalRouteCompletions) || 0)),
       bossClears: Math.max(0, Math.floor(Number(data.telemetry?.bossClears) || 0)),
@@ -1232,7 +2641,18 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       weeklyFocusState,
       weeklyEventState,
       resourceLedger,
-      expedition,
+      expedition: activeSession
+        ? normalizeExpeditionState({
+            activeRegionId: activeSession.regionId,
+            activeRouteId: activeSession.routeId,
+            activeBossId: activeSession.bossId,
+            startedAtDayTag: activeSession.startedAtDayTag
+          })
+        : expedition,
+      activeSession,
+      journeyHistory,
+      knowledgeState,
+      routeKnowledgeState,
       telemetry,
       bossClearCounts,
       bossFailureStreaks,
@@ -1263,6 +2683,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     frontierDigest,
     regionBossAvailability,
     regionEventEntries,
+    activeSession,
+    journeyHistory,
+    getRegionKnowledgeState,
+    getRouteKnowledgeState,
     getRegionCompletedRouteCount,
     getRegionWeeklyEventCompletions,
     getFamilyResourceQuantity,
@@ -1291,6 +2715,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     recordResourceTurnIn,
     startExpedition,
     beginRoute,
+    startRouteExpeditionSession,
+    startBossExpeditionSession,
+    advanceActiveExpedition,
+    campActiveExpedition,
+    retreatActiveExpedition,
+    resolveActiveEncounter,
+    settleActiveExpedition,
     completeRouteAndGrantRewards,
     runRouteExpedition,
     completeEventAndGrantRewards,

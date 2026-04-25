@@ -2,6 +2,18 @@ export type RegionId = 'ancient_road' | 'mirage_marsh' | 'cloud_highland'
 
 export type RegionNodeType = 'route' | 'event' | 'elite' | 'boss' | 'camp' | 'handoff'
 
+export type RegionExpeditionMode = 'route' | 'boss'
+
+export type RegionExpeditionApproach = 'steady' | 'scout' | 'greedy'
+
+export type RegionExpeditionRetreatRule = 'balanced' | 'low_hp' | 'pack_full' | 'after_camp'
+
+export type RegionExpeditionStatus = 'ongoing' | 'ready_to_settle' | 'victory' | 'retreated' | 'failure'
+
+export type RegionExpeditionEncounterKind = 'weekly_event' | 'hazard' | 'cache' | 'traveler' | 'boss_prep'
+
+export type RegionExpeditionEncounterRisk = 'low' | 'medium' | 'high'
+
 export type RegionalResourceFamilyId = 'ancient_archive' | 'ecology_specimen' | 'ley_crystal'
 
 export type RegionLinkedSystem =
@@ -108,6 +120,22 @@ export interface RegionEventState {
   lastActivatedWeekId: string
 }
 
+export interface RegionKnowledgeState {
+  regionId: RegionId
+  intel: number
+  survey: number
+  familiarity: number
+  lastUpdatedDayTag: string
+}
+
+export interface RegionRouteKnowledgeState {
+  routeId: string
+  intel: number
+  surveyProgress: number
+  familiarity: number
+  lastUpdatedDayTag: string
+}
+
 export interface RegionWeeklyEventState {
   weekId: string
   activeEventIdsByRegion: Record<RegionId, string[]>
@@ -119,6 +147,84 @@ export interface ExpeditionRuntimeState {
   activeRouteId: string | null
   activeBossId: string | null
   startedAtDayTag: string
+}
+
+export interface RegionExpeditionSupplyState {
+  rations: number
+  medicine: number
+  utility: number
+}
+
+export interface RegionExpeditionLogEntry {
+  id: string
+  step: number
+  title: string
+  summary: string
+  effects: string[]
+  tone: 'accent' | 'success' | 'danger'
+}
+
+export interface RegionExpeditionEncounterOption {
+  id: 'cautious' | 'balanced' | 'bold'
+  label: string
+  summary: string
+  tone: 'accent' | 'success' | 'danger'
+}
+
+export interface RegionExpeditionEncounter {
+  id: string
+  step: number
+  kind: RegionExpeditionEncounterKind
+  title: string
+  summary: string
+  detailLines: string[]
+  risk: RegionExpeditionEncounterRisk
+  sourceEventId: string | null
+  rewardFamilyId: RegionalResourceFamilyId | null
+  rewardAmount: number
+  rewardItems: Array<{ itemId: string; quantity: number }>
+  options: RegionExpeditionEncounterOption[]
+}
+
+export interface RegionExpeditionSession {
+  sessionId: string
+  mode: RegionExpeditionMode
+  regionId: RegionId
+  routeId: string | null
+  bossId: string | null
+  targetName: string
+  startedAtDayTag: string
+  approach: RegionExpeditionApproach
+  retreatRule: RegionExpeditionRetreatRule
+  status: RegionExpeditionStatus
+  progressStep: number
+  totalSteps: number
+  carryLoad: number
+  maxCarryLoad: number
+  visibility: number
+  morale: number
+  danger: number
+  findings: number
+  campUsed: boolean
+  supplies: RegionExpeditionSupplyState
+  pendingRewardFamilyId: RegionalResourceFamilyId | null
+  pendingRewardAmount: number
+  pendingRewardItems: Array<{ itemId: string; quantity: number }>
+  pendingEncounter: RegionExpeditionEncounter | null
+  encounteredEventIds: string[]
+  journal: RegionExpeditionLogEntry[]
+  recommendedRouteId: string | null
+}
+
+export interface RegionExpeditionArchiveEntry {
+  id: string
+  regionId: RegionId
+  mode: RegionExpeditionMode
+  targetName: string
+  startedAtDayTag: string
+  endedAtDayTag: string
+  outcome: Exclude<RegionExpeditionStatus, 'ongoing'>
+  summaryLines: string[]
 }
 
 export interface RegionTelemetrySnapshot {
@@ -148,6 +254,10 @@ export interface RegionMapSaveData {
   weeklyEventState: RegionWeeklyEventState
   resourceLedger: Record<RegionalResourceFamilyId, number>
   expedition: ExpeditionRuntimeState
+  activeSession: RegionExpeditionSession | null
+  journeyHistory: RegionExpeditionArchiveEntry[]
+  knowledgeState: Record<RegionId, RegionKnowledgeState>
+  routeKnowledgeState: Record<string, RegionRouteKnowledgeState>
   telemetry: RegionTelemetrySnapshot
   bossClearCounts: Record<RegionId, number>
   bossFailureStreaks: Record<RegionId, number>
