@@ -247,6 +247,7 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
       unlockedItems: [],
       currentArchetypeId: null,
       unlockedNodeIds: [],
+      unlockedNodeIdsByArchetype: {},
       rewardTickets: {}
     }
   } else {
@@ -254,6 +255,10 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
       unlockedItems: Array.isArray(next.wallet.unlockedItems) ? next.wallet.unlockedItems : [],
       currentArchetypeId: next.wallet.currentArchetypeId ?? null,
       unlockedNodeIds: Array.isArray(next.wallet.unlockedNodeIds) ? next.wallet.unlockedNodeIds : [],
+      unlockedNodeIdsByArchetype:
+        next.wallet.unlockedNodeIdsByArchetype && typeof next.wallet.unlockedNodeIdsByArchetype === 'object'
+          ? next.wallet.unlockedNodeIdsByArchetype
+          : {},
       rewardTickets: next.wallet.rewardTickets ?? {}
     }
   }

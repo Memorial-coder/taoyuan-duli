@@ -952,6 +952,11 @@ export const handleEndDay = () => {
   const regionMapStore = useRegionMapStore()
   if (regionMapStore.regionIntegrationEnabled) {
     regionMapStore.refreshUnlocksFromProgress(currentDayTag)
+    regionMapStore.ensureWeeklyEventRuntime(
+      currentWeekInfo.seasonWeekId,
+      regionMapStore.currentWeeklyFocus.focusedRegionId,
+      currentDayTag
+    )
   }
   if (regionMapStore.regionIntegrationEnabled && weekBoundaryEvent.startedNewWeek) {
     const currentThemeWeek = goalStore.currentThemeWeek
@@ -999,6 +1004,7 @@ export const handleEndDay = () => {
       : []
 
     regionMapStore.setWeeklyFocus(currentWeekInfo.seasonWeekId, focusedRegionId, highlightedRouteIds)
+    const activeEventIdsByRegion = regionMapStore.refreshWeeklyEventRuntime(currentWeekInfo.seasonWeekId, focusedRegionId, currentDayTag)
     addLog(`【行旅图】本周区域焦点已刷新：${regionMapStore.regionDefs.find(region => region.id === focusedRegionId)?.name ?? '行旅图'}`, {
       category: 'system',
       tags: ['late_game_cycle', 'region_map_focus_refresh'],
@@ -1008,6 +1014,20 @@ export const handleEndDay = () => {
         highlightedRouteCount: highlightedRouteIds.length
       }
     })
+    addLog(
+      `【行旅图】本周区域事件已重建：${Object.entries(activeEventIdsByRegion)
+        .filter(([, eventIds]) => eventIds.length > 0)
+        .map(([regionId, eventIds]) => `${regionMapStore.regionDefs.find(region => region.id === regionId)?.name ?? regionId} ${eventIds.length} 个`)
+        .join('；') || '暂无可用事件'}`,
+      {
+        category: 'system',
+        tags: ['late_game_cycle'],
+        meta: {
+          weekId: currentWeekInfo.seasonWeekId,
+          focusedRegionId
+        }
+      }
+    )
   }
   const eventOperationsTick = goalStore.processEventOperationsTick({
     currentDayTag,
@@ -1137,15 +1157,14 @@ export const handleEndDay = () => {
       addLog(`${spouseName}一早做了一份${getItemById(food)?.name ?? '食物'}。`)
     }
 
-    // 收获：30%（好感>=2500），最多3块，背包满时不收
-    if (spouse.friendship >= 2500 && !inventoryStore.isFull && Math.random() < 0.3 + bonusChance) {
+    // 收获：30%（好感>=2500），最多3块，背包满时不收；换季当天不抢在枯萎结算前收获
+    if (spouse.friendship >= 2500 && !inventoryStore.isFull && !seasonChanged && Math.random() < 0.3 + bonusChance) {
       const harvestable = farmStore.plots.filter(p => p.state === 'harvestable')
       const harvestCount = Math.min(harvestable.length, 3)
       let harvested = 0
       for (let i = 0; i < harvestCount; i++) {
         const targetPlot = harvestable[i]!
-        const spouseQuality = skillStore.rollCropQuality()
-        const result = harvestFarmPlotWithRewards(targetPlot.id, { qualityOverride: spouseQuality })
+        const result = harvestFarmPlotWithRewards(targetPlot.id)
         if (result.success) harvested += result.harvestedPlots
       }
       if (harvested > 0) addLog(`${spouseName}一早帮你收了${harvested}块地的庄稼。`)
@@ -1301,7 +1320,7 @@ export const handleEndDay = () => {
   questStore.generateDailyQuests(gameStore.season, gameStore.day)
 
   // 特殊订单：前期保留旧周末梯度，进入中后期后切换到真实周循环刷新
-  if (currentWeekInfo.isWeekEnd) {
+  if (weekBoundaryEvent.startedNewWeek) {
     if (questStore.isWeeklySpecialOrderRefreshActive(currentWeekInfo.absoluteWeek)) {
       const weeklyRefreshResult = questStore.processSpecialOrderWeeklyRefresh({
         season: gameStore.season,

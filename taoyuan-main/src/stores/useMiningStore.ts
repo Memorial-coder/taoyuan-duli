@@ -42,6 +42,13 @@ import { useWalletStore } from './useWalletStore'
 import { useSecretNoteStore } from './useSecretNoteStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import type { SkullCavernFloorDef } from '@/data/mine'
+import {
+  buildPlayerCombatRuntime,
+  calculateIncomingDamage,
+  getDefendHeal,
+  getLifestealHeal,
+  rollAttackOutcome
+} from '@/utils/combatRuntime'
 
 const DEFEAT_MONEY_PENALTY_RATE = 0.1
 const DEFEAT_MONEY_PENALTY_CAP = 15000
@@ -933,180 +940,136 @@ export const useMiningStore = defineStore('mining', () => {
   // ==================== 战斗 ====================
 
   /** 战斗操作 */
-  const combatAction = (action: CombatAction): { message: string; combatOver: boolean; won: boolean } => {
+  const buildMiningCombatRuntime = () => {
+    const cookingStore = useCookingStore()
+    const guildStore = useGuildStore()
+    const owned = inventoryStore.getEquippedWeapon()
+    const weaponDef = getWeaponById(owned.defId)
+    const enchant = owned.enchantmentId ? getEnchantmentById(owned.enchantmentId) : null
+    const combatSkill = skillStore.getSkill('combat')
+    const allSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
+
+    return {
+      weaponDef,
+      runtime: buildPlayerCombatRuntime({
+        weaponAttack: inventoryStore.getWeaponAttack(),
+        weaponCritRate: inventoryStore.getWeaponCritRate(),
+        weaponType: weaponDef?.type ?? null,
+        enchantSpecial: enchant?.special ?? null,
+        combatLevel: skillStore.combatLevel,
+        allSkillsBuff,
+        ringAttackBonus: inventoryStore.getRingEffectValue('attack_bonus'),
+        ringCritBonus: inventoryStore.getRingEffectValue('crit_rate_bonus'),
+        ringLuck: inventoryStore.getRingEffectValue('luck'),
+        ringDefenseBonus: inventoryStore.getRingEffectValue('defense_bonus'),
+        ringVampiric: inventoryStore.getRingEffectValue('vampiric'),
+        guildAttackBonus: guildStore.getGuildAttackBonus(),
+        guildBadgeBonusAttack: guildBadgeBonusAttack.value,
+        guildDefenseBonus: guildBonusDefense.value,
+        cookingDefenseReduction: cookingStore.getActiveDefenseReduction(),
+        cookingDefenseFlatBonus: cookingStore.getActiveDefenseFlatBonus(),
+        perk5: combatSkill.perk5,
+        perk10: combatSkill.perk10,
+        perk15: combatSkill.perk15,
+        perk20: combatSkill.perk20
+      })
+    }
+  }
+
+  const combatAction = (action: CombatAction): { message: string; combatOver: boolean; won: boolean } => combatActionRuntime(action)
+
+  const combatActionRuntime = (action: CombatAction): { message: string; combatOver: boolean; won: boolean } => {
     if (!inCombat.value || !combatMonster.value) {
       return { message: '不在战斗中。', combatOver: true, won: false }
     }
 
     combatRound.value++
     const monster = combatMonster.value
+    const { runtime } = buildMiningCombatRuntime()
 
-    // BOSS 战不可逃跑
     if (action === 'flee') {
       if (combatIsBoss.value) {
-        combatLog.value.push('BOSS战无法逃跑！')
-        return { message: 'BOSS战无法逃跑！', combatOver: false, won: false }
+        combatLog.value.push('BOSS 战无法逃跑。')
+        return { message: 'BOSS 战无法逃跑。', combatOver: false, won: false }
       }
       inCombat.value = false
-      // 逃跑时格子标记为 revealed（怪物还在但已翻开）
       if (_combatTileIndex.value >= 0) {
         const tile = floorGrid.value[_combatTileIndex.value]
         if (tile) tile.state = 'revealed'
         _combatTileIndex.value = -1
       }
-      combatLog.value.push('你逃跑了！')
+      combatLog.value.push('你逃跑了。')
       return { message: '成功逃离了战斗。', combatOver: true, won: false }
     }
 
     if (action === 'defend') {
-      // 防御减少受到的伤害（重甲者专精：70%减伤，默认60%）
-      const cookingStore = useCookingStore()
-      const defenseReduction = cookingStore.getActiveDefenseReduction()
-      const defenseFlatBonus = cookingStore.getActiveDefenseFlatBonus()
-      const _combatSkillD = skillStore.getSkill('combat')
-      const tankReduction = _combatSkillD.perk20 === 'indestructible' || _combatSkillD.perk20 === 'shadow_sovereign' ? 0.95
-        : _combatSkillD.perk15 === 'iron_fortress' || _combatSkillD.perk15 === 'phantom_blade' ? 0.85
-        : _combatSkillD.perk10 === 'tank' ? 0.7 : 0.6
-      // 坚韧附魔
-      const owned = inventoryStore.getEquippedWeapon()
-      const enchant = owned.enchantmentId ? getEnchantmentById(owned.enchantmentId) : null
-      const sturdyReduction = enchant?.special === 'sturdy' ? 0.85 : 1.0
-      const ringDefenseBonus = inventoryStore.getRingEffectValue('defense_bonus')
-      const damage = Math.max(
-        1,
-        Math.floor(
-          Math.max(0, monster.attack - defenseFlatBonus) *
-            (1 - tankReduction) *
-            (1 - defenseReduction) *
-            sturdyReduction *
-            (1 - ringDefenseBonus) *
-            (1 - guildBonusDefense.value)
-        )
-      )
+      const damage = calculateIncomingDamage({
+        incomingAttack: monster.attack,
+        flatReduction: runtime.defendDefense.flatReduction,
+        modifiers: runtime.defendDefense.damageMultipliers
+      })
       playerStore.takeDamage(damage)
-      let defendMsg = `你举盾防御，受到${damage}点伤害。`
 
-      // 守护者专精：防御回合回血；perk15/perk20 回血量更多
-      const _combatSkillDef = skillStore.getSkill('combat')
-      if (_combatSkillDef.perk20 === 'indestructible' || _combatSkillDef.perk20 === 'shadow_sovereign') {
-        const healAmt = Math.floor(playerStore.getMaxHp() * 0.15)
-        playerStore.restoreHealth(healAmt)
-        defendMsg += `（铁壁：回复${healAmt}HP）`
-      } else if (_combatSkillDef.perk15 === 'iron_fortress' || _combatSkillDef.perk15 === 'phantom_blade') {
-        playerStore.restoreHealth(15)
-        defendMsg += '（精英防御：回复15HP）'
-      } else if (_combatSkillDef.perk5 === 'defender') {
-        playerStore.restoreHealth(5)
-        defendMsg += '（守护者回复5HP）'
+      let defendMsg = `你举盾防御，受到${damage}点伤害。`
+      const defendHealAmount = getDefendHeal({
+        maxHp: playerStore.getMaxHp(),
+        healFlat: runtime.defendHealFlat,
+        healRatio: runtime.defendHealRatio
+      })
+      if (defendHealAmount > 0) {
+        playerStore.restoreHealth(defendHealAmount)
+        defendMsg += ` 防守回气，恢复${defendHealAmount}HP。`
       }
 
       combatLog.value.push(defendMsg)
-
       if (playerStore.hp <= 0) {
         return handleDefeat()
       }
-      return { message: `防御！受到${damage}点伤害。`, combatOver: false, won: false }
+      return { message: defendMsg, combatOver: false, won: false }
     }
 
-    // === 攻击 ===
-    const cookingStore = useCookingStore()
-    const owned = inventoryStore.getEquippedWeapon()
-    const weaponDef = getWeaponById(owned.defId)
-    const enchant = owned.enchantmentId ? getEnchantmentById(owned.enchantmentId) : null
+    const attackOutcome = rollAttackOutcome(runtime.attack, monster.defense)
+    combatMonsterHp.value -= attackOutcome.damage
+    combatMonsterHp.value -= attackOutcome.extraDamage
 
-    // 基础攻击力（含戒指加成 + 料理全技能加成）
-    const ringAttackBonus = inventoryStore.getRingEffectValue('attack_bonus')
-    const allSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
-    const guildStore = useGuildStore()
-    const baseAttack =
-      inventoryStore.getWeaponAttack() +
-      (skillStore.combatLevel + allSkillsBuff) * 2 +
-      ringAttackBonus +
-      guildBadgeBonusAttack.value +
-      guildStore.getGuildAttackBonus()
-    const _combatSkillA = skillStore.getSkill('combat')
-    const bruteBonus = (_combatSkillA.perk20 === 'war_god' || _combatSkillA.perk20 === 'slaughter_king') ? 2.0
-      : (_combatSkillA.perk15 === 'berserker' || _combatSkillA.perk15 === 'sword_saint') ? 1.55
-      : _combatSkillA.perk10 === 'brute' ? 1.25 : 1.0
-
-    // 暴击判定（含戒指加成 + 幸运加成）
-    const ringCritBonus = inventoryStore.getRingEffectValue('crit_rate_bonus')
-    const ringLuck = inventoryStore.getRingEffectValue('luck')
-    const critRate = inventoryStore.getWeaponCritRate() + ringCritBonus + ringLuck * 0.5
-    const isCrit = Math.random() < critRate
-    const critMult = isCrit ? 1.5 : 1.0
-
-    const damageToMonster = Math.max(1, Math.floor((baseAttack - monster.defense) * bruteBonus * critMult))
-    combatMonsterHp.value -= damageToMonster
-    const totalDamageDealt = damageToMonster
-
-    let msg = `你攻击${monster.name}，造成${damageToMonster}点伤害。`
-    if (isCrit) msg = `暴击！${msg}`
-
-    // 匕首追加攻击（25%概率，造成50%伤害）
-    let extraDamage = 0
-    if (weaponDef?.type === 'dagger' && Math.random() < 0.25) {
-      const bonusDamage = Math.max(1, Math.floor(damageToMonster * 0.5))
-      combatMonsterHp.value -= bonusDamage
-      extraDamage = bonusDamage
-      msg += ` 追加攻击！额外造成${bonusDamage}点伤害！`
+    let msg = `你攻击${monster.name}，造成${attackOutcome.damage}点伤害。`
+    if (attackOutcome.isCrit) {
+      msg = `暴击！${msg}`
+    }
+    if (attackOutcome.didExtraStrike) {
+      msg += ` 追击触发，额外造成${attackOutcome.extraDamage}点伤害。`
     }
 
-    // 锤眩晕判定（20%概率跳过怪物反击）
-    const isStunned = weaponDef?.type === 'club' && Math.random() < 0.2
-
-    // 吸血（附魔 + 戒指叠加）
-    const ringVampiric = inventoryStore.getRingEffectValue('vampiric')
-    const totalVampiric = (enchant?.special === 'vampiric' ? 0.15 : 0) + ringVampiric
-    if (totalVampiric > 0) {
-      const healAmount = Math.floor((totalDamageDealt + extraDamage) * totalVampiric)
-      if (healAmount > 0) {
-        playerStore.restoreHealth(healAmount)
-        msg += ` 吸血回复${healAmount}HP！`
-      }
+    const lifestealHeal = getLifestealHeal(attackOutcome.totalDamage, runtime.attack.lifesteal)
+    if (lifestealHeal > 0) {
+      playerStore.restoreHealth(lifestealHeal)
+      msg += ` 吸血恢复${lifestealHeal}HP。`
     }
 
     if (combatMonsterHp.value <= 0) {
-      // 怪物被击败
-      return handleMonsterDefeat(monster, msg, totalDamageDealt + extraDamage)
+      return handleMonsterDefeat(monster, msg, attackOutcome.totalDamage)
     }
 
-    if (isStunned) {
-      msg += ` ${monster.name}被震晕了！`
+    if (attackOutcome.didStun) {
+      msg += ` ${monster.name}被震晕了，没能反击。`
       combatLog.value.push(msg)
       return { message: msg, combatOver: false, won: false }
     }
 
-    // 闪避判定（杂技师25%，幻影剑客40%，暗影霸主80%）
-    const _combatSkillE = skillStore.getSkill('combat')
-    const dodgeRate = _combatSkillE.perk20 === 'shadow_sovereign' ? 0.80
-      : _combatSkillE.perk15 === 'phantom_blade' ? 0.40
-      : _combatSkillE.perk10 === 'acrobat' ? 0.25 : 0
+    const dodgeRate = runtime.defense.dodgeRate ?? 0
     if (dodgeRate > 0 && Math.random() < dodgeRate) {
-      msg += ` 你灵巧地闪避了${monster.name}的反击！`
+      msg += ` 你灵巧地闪避了${monster.name}的反击。`
       combatLog.value.push(msg)
       return { message: msg, combatOver: false, won: false }
     }
 
-    // 怪物反击（含戒指减伤）
-    const defenseReduction = cookingStore.getActiveDefenseReduction()
-    const defenseFlatBonus = cookingStore.getActiveDefenseFlatBonus()
-    const fighterReduction = (_combatSkillE.perk5 === 'fighter' || _combatSkillE.perk15 === 'sword_saint' || _combatSkillE.perk15 === 'berserker' || _combatSkillE.perk20 === 'war_god' || _combatSkillE.perk20 === 'slaughter_king') ? 0.15 : 0
-    const sturdyReduction = enchant?.special === 'sturdy' ? 0.85 : 1.0
-    const ringDefenseBonus = inventoryStore.getRingEffectValue('defense_bonus')
-    const monsterDamage = Math.max(
-      1,
-      Math.floor(
-        Math.max(0, monster.attack - defenseFlatBonus) *
-          (1 - fighterReduction) *
-          (1 - defenseReduction) *
-          sturdyReduction *
-          (1 - ringDefenseBonus) *
-          (1 - guildBonusDefense.value)
-      )
-    )
-    playerStore.takeDamage(monsterDamage)
-    msg += ` ${monster.name}反击，你受到${monsterDamage}点伤害。`
+    const counterDamage = calculateIncomingDamage({
+      incomingAttack: monster.attack,
+      flatReduction: runtime.defense.flatReduction,
+      modifiers: runtime.defense.damageMultipliers
+    })
+    playerStore.takeDamage(counterDamage)
+    msg += ` ${monster.name}反击，你受到${counterDamage}点伤害。`
     combatLog.value.push(msg)
 
     if (playerStore.hp <= 0) {
@@ -1116,7 +1079,6 @@ export const useMiningStore = defineStore('mining', () => {
     return { message: msg, combatOver: false, won: false }
   }
 
-  /** 处理怪物击败（普通怪和 BOSS 共用） */
   const handleMonsterDefeat = (
     monster: MonsterDef,
     msg: string,
@@ -1171,13 +1133,12 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     // 屠杀之王/狂战士：击杀回血
-    const _combatSkillK = skillStore.getSkill('combat')
-    if (_combatSkillK.perk20 === 'slaughter_king' || _combatSkillK.perk20 === 'war_god') {
-      const healOnKill = Math.floor(playerStore.getMaxHp() * 0.2)
-      playerStore.restoreHealth(healOnKill)
-    } else if (_combatSkillK.perk15 === 'berserker' || _combatSkillK.perk15 === 'sword_saint') {
-      const healOnKill = Math.floor(playerStore.getMaxHp() * 0.1)
-      playerStore.restoreHealth(healOnKill)
+    const killHealRatio = buildMiningCombatRuntime().runtime.killHealRatio
+    if (killHealRatio > 0) {
+      const healOnKill = Math.floor(playerStore.getMaxHp() * killHealRatio)
+      if (healOnKill > 0) {
+        playerStore.restoreHealth(healOnKill)
+      }
     }
 
     // 武器掉落（普通怪物，非 BOSS）

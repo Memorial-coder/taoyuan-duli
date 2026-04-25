@@ -111,6 +111,7 @@ const MARKET_TREND_PRIORITY: Record<MarketTrend, number> = {
   crash: 1
 }
 const ALL_MARKET_CATEGORIES = Object.keys(MARKET_CATEGORY_NAMES) as MarketCategory[]
+const BASE_WAREHOUSE_CHEST_SLOTS = 3
 
 const buildDayKeyFromAbsoluteDay = (absoluteDay: number): string => {
   const safeAbsoluteDay = Math.max(1, Math.floor(absoluteDay))
@@ -192,6 +193,21 @@ export const useShopStore = defineStore('shop', () => {
     if (SHOP_CATALOG_TUNING_CONFIG.disabledLuxuryCategories.includes(offer.luxuryCategory)) return false
     if (SHOP_CATALOG_TUNING_CONFIG.disabledPriceBands.includes(offer.priceBand)) return false
     return true
+  }
+
+  const getWarehouseServiceCapacityTarget = (state: ShopCatalogExpansionState = catalogExpansionState.value) => {
+    const capacityDelta = Object.entries(state.warehouseServiceStates).reduce((sum, [offerId, entitlement]) => {
+      if (entitlement.status !== 'active') return sum
+      const offer = SHOP_CATALOG_OFFERS.find(candidate => candidate.id === offerId)
+      if (!offer?.warehouseServiceConfig) return sum
+      return sum + Math.max(0, offer.warehouseServiceConfig.capacityDelta ?? 0)
+    }, 0)
+
+    return Math.min(warehouseStore.MAX_CHESTS_CAP, BASE_WAREHOUSE_CHEST_SLOTS + capacityDelta)
+  }
+
+  const syncWarehouseServiceCapacity = (state: ShopCatalogExpansionState = catalogExpansionState.value) => {
+    warehouseStore.maxChests = getWarehouseServiceCapacityTarget(state)
   }
 
   const isCatalogOfferVisibleForCurrentSeason = (offer: ShopCatalogOfferDef): boolean => {
@@ -549,6 +565,7 @@ export const useShopStore = defineStore('shop', () => {
     if (shouldBroadcastSeasonRefresh) nextState.operationalMeta.lastSeasonRefreshDayKey = payload.currentDayTag
 
     catalogExpansionState.value = nextState
+    syncWarehouseServiceCapacity(nextState)
 
     const logs: string[] = []
     if (autoRenewedOffers.length > 0) {
@@ -629,6 +646,7 @@ export const useShopStore = defineStore('shop', () => {
     }
 
     catalogExpansionState.value = nextState
+    syncWarehouseServiceCapacity(nextState)
     return true
   }
 
@@ -2407,6 +2425,7 @@ export const useShopStore = defineStore('shop', () => {
 
     ownedCatalogOfferIds.value = Array.isArray(data?.ownedCatalogOfferIds) ? data.ownedCatalogOfferIds.filter((id: unknown) => typeof id === 'string') : []
     catalogExpansionState.value = normalizeShopCatalogExpansionState(data?.catalogExpansionState)
+    syncWarehouseServiceCapacity(catalogExpansionState.value)
     travelingStockKey.value = typeof data?.travelingStockKey === 'string' ? data.travelingStockKey : ''
     travelingStock.value = Array.isArray(data?.travelingStock)
       ? data.travelingStock

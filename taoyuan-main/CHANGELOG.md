@@ -27,6 +27,10 @@
 - `e2e/game-smoke.spec.ts` 现已继续扩展为验证 `region-map -> shop -> fishpond -> guild -> wallet` 五段烟测，覆盖 Day 5 的高地承接面。
 - `src/stores/useGoalStore.ts` 现已继续读取 `ThemeWeekDef.regionFocusRouteIds` 来生成区域周计划摘要，不再把玩家从本周高亮路线导向另一组非焦点路线；`region_expedition` 节点标签也已改成读取真实进行中的远征区域。
 - `src/views/game/GuildView.vue`、`src/views/game/VillageView.vue`、`src/data/sampleSaves.ts`、`e2e/game-smoke.spec.ts` 已补齐高地链路收口：Guild -> VillageProject 跳转改为真实 `/game/village-projects`，Village 承接卡补上去钱袋出口，样例档焦点路线改为与 `late_sink_rotation` 当前配置一致，浏览器烟测也会实际点穿这条链路。
+- `src/composables/useNavigation.ts` 已移除 `region-map` 的前置导航拦截，行旅图页面现在始终可进入；未满足条件时由页面内展示解锁要求，而不是在入口处直接挡住。
+- `src/stores/useRegionMapStore.ts` 已取消 `lateGameRegionMap` 对行旅图可用性的运行时总开关控制，页面是否可玩改为仅由玩家进度与区域解锁状态决定；`lateGameExpeditionBoss`、`lateGameRegionalResources` 继续保留为对应子系统的细分控制。
+- `src/views/game/RegionMapView.vue` 已在进入页内运行时调用 `refreshUnlocksFromProgress()`，满足条件的旧存档会在进页时立即补刷为可玩状态，不再要求先走一次调试开关。
+- `src/views/dev/LateGameDebugView.vue` 已把晚期功能按钮在非 `DEV` 环境下改为只读展示，避免正式审查时出现“按钮看起来可点、实际不会生效”的误导。
 - 通过 subagent 两轮定向审查后，已收口以下问题：
   - 正式 `region-map` 页面暴露开发态强操作的问题
   - 区域资源交付只增 telemetry、不扣台账的问题

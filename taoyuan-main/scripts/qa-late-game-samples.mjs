@@ -432,6 +432,7 @@ const loadRuntimeModules = async () => {
       const villageProjectStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useVillageProjectStore.ts')).href)
       const museumStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useMuseumStore.ts')).href)
       const hanhaiStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useHanhaiStore.ts')).href)
+      const regionMapStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useRegionMapStore.ts')).href)
       const walletStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useWalletStore.ts')).href)
       const weekCycleModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/utils/weekCycle.ts')).href)
       const endDayModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/composables/useEndDay.ts')).href)
@@ -447,6 +448,7 @@ const loadRuntimeModules = async () => {
         villageProjectStore: villageProjectStoreModule.useVillageProjectStore(),
         museumStore: museumStoreModule.useMuseumStore(),
         hanhaiStore: hanhaiStoreModule.useHanhaiStore(),
+        regionMapStore: regionMapStoreModule.useRegionMapStore(),
         walletStore: walletStoreModule.useWalletStore(),
         getWeekCycleInfo: weekCycleModule.getWeekCycleInfo,
         handleEndDay: endDayModule.handleEndDay,
@@ -474,6 +476,7 @@ const runRuntimeSmoke = async sample => {
     villageProjectStore,
     museumStore,
     hanhaiStore,
+    regionMapStore,
     walletStore,
     getWeekCycleInfo,
     handleEndDay,
@@ -487,6 +490,8 @@ const runRuntimeSmoke = async sample => {
   await router.push({ name: sample.recommendedRouteName })
 
   const expectation = sample.runtimeExpectations
+  const currentDayTag = `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+  const beforeWeekId = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId
   assertRuntime(gameStore.isGameStarted === true, `${sample.id} 导入后 gameStore.isGameStarted 不是 true。`)
   assertRuntime(gameStore.currentLocation === expectation.game.currentLocation, `${sample.id} 当前地点不是 ${expectation.game.currentLocation}。`)
   assertRuntime(gameStore.currentLocationGroup === expectation.game.currentLocationGroup, `${sample.id} 当前地点组不是 ${expectation.game.currentLocationGroup}。`)
@@ -572,6 +577,143 @@ const runRuntimeSmoke = async sample => {
     assertRuntime(countPositiveTicketTypes(walletStore.rewardTickets) >= expectation.wallet.minTicketTypes, `${sample.id} 钱包票券类型数不足。`)
   }
 
+  if (expectation.regionMap) {
+    if (expectation.regionMap.minUnlockedRegions) {
+      assertRuntime(
+        regionMapStore.unlockedRegionCount >= expectation.regionMap.minUnlockedRegions,
+        `${sample.id} regionMap 解锁区域数量不足。`,
+      )
+    }
+    if (expectation.regionMap.focusRegionId) {
+      assertRuntime(
+        regionMapStore.currentWeeklyFocus.focusedRegionId === expectation.regionMap.focusRegionId,
+        `${sample.id} regionMap 当前焦点区域不符合预期。`,
+      )
+    }
+    if (expectation.regionMap.requireFocusedRegionUnlocked) {
+      const focusedRegionId = regionMapStore.currentWeeklyFocus.focusedRegionId
+      assertRuntime(!!focusedRegionId, `${sample.id} regionMap 缺少当前焦点区域。`)
+      if (focusedRegionId) {
+        assertRuntime(
+          regionMapStore.saveData.unlockStates[focusedRegionId]?.unlocked === true,
+          `${sample.id} regionMap 当前焦点区域未解锁。`,
+        )
+      }
+    }
+    if (expectation.regionMap.requireActiveExpedition !== undefined) {
+      assertRuntime(
+        regionMapStore.hasActiveExpedition === expectation.regionMap.requireActiveExpedition,
+        `${sample.id} regionMap 当前远征状态不符合预期。`,
+      )
+    }
+    if (expectation.regionMap.minCompletedRoutesByRegion) {
+      for (const [regionId, minCompletedRoutes] of Object.entries(expectation.regionMap.minCompletedRoutesByRegion)) {
+        if (!minCompletedRoutes) continue
+        assertRuntime(
+          regionMapStore.getRegionCompletedRouteCount(regionId) >= minCompletedRoutes,
+          `${sample.id} regionMap ${regionId} 已完成路线数量不足。`,
+        )
+      }
+    }
+    if (expectation.regionMap.minBossClearCountsByRegion) {
+      for (const [regionId, minBossClears] of Object.entries(expectation.regionMap.minBossClearCountsByRegion)) {
+        if (!minBossClears) continue
+        assertRuntime(
+          (regionMapStore.saveData.bossClearCounts?.[regionId] ?? 0) >= minBossClears,
+          `${sample.id} regionMap ${regionId} 首领击破记录不足。`,
+        )
+      }
+    }
+    if (expectation.regionMap.minBossFailureStreakByRegion) {
+      for (const [regionId, minFailureStreak] of Object.entries(expectation.regionMap.minBossFailureStreakByRegion)) {
+        if (!minFailureStreak) continue
+        assertRuntime(
+          (regionMapStore.saveData.bossFailureStreaks?.[regionId] ?? 0) >= minFailureStreak,
+          `${sample.id} regionMap ${regionId} 首领失败保底层数不足。`,
+        )
+      }
+    }
+    if (expectation.regionMap.lastBossOutcome) {
+      assertRuntime(
+        regionMapStore.lastBossOutcome.outcome === expectation.regionMap.lastBossOutcome,
+        `${sample.id} regionMap 最近一次首领结果不符合预期。`,
+      )
+    }
+  }
+
+  if (expectation.regionMap) {
+    regionMapStore.ensureWeeklyEventRuntime(beforeWeekId, regionMapStore.currentWeeklyFocus.focusedRegionId, currentDayTag)
+    const focusedRegionId = regionMapStore.currentWeeklyFocus.focusedRegionId
+    if (focusedRegionId) {
+      const activeEventIds = regionMapStore.currentWeeklyEventState.activeEventIdsByRegion[focusedRegionId] ?? []
+      assertRuntime(activeEventIds.length > 0, `${sample.id} regionMap 焦点区域缺少本周事件池。`)
+    }
+
+    if (sample.id === 'region_map_showcase') {
+      if (regionMapStore.hasActiveExpedition) {
+        regionMapStore.clearExpedition()
+      }
+      gameStore.hour = 8
+      playerStore.stamina = Math.max(playerStore.stamina, playerStore.maxStamina ?? playerStore.stamina)
+      const showcaseFocusRegionId = regionMapStore.currentWeeklyFocus.focusedRegionId
+      const showcaseEventId = showcaseFocusRegionId
+        ? (regionMapStore.currentWeeklyEventState.activeEventIdsByRegion[showcaseFocusRegionId] ?? [])[0] ?? null
+        : null
+      if (showcaseEventId) {
+        const beforeEventWeeklyCompletions = regionMapStore.saveData.eventStates[showcaseEventId]?.weeklyCompletions ?? 0
+        const beforeEventStamina = playerStore.stamina
+        const eventResult = regionMapStore.runRegionEvent(showcaseEventId, currentDayTag)
+        assertRuntime(eventResult.success === true, `${sample.id} 未能成功执行 runRegionEvent()。`)
+        assertRuntime(
+          (regionMapStore.saveData.eventStates[showcaseEventId]?.weeklyCompletions ?? 0) === beforeEventWeeklyCompletions + 1,
+          `${sample.id} runRegionEvent() 未正确推进 weeklyCompletions。`,
+        )
+        assertRuntime(playerStore.stamina < beforeEventStamina, `${sample.id} runRegionEvent() 未消耗体力。`)
+      }
+
+      const availableBossRegionId = regionMapStore.regionBossAvailability.find(entry => entry.available)?.regionId ?? null
+      if (availableBossRegionId) {
+        const beforeBossOutcome = regionMapStore.lastBossOutcome.outcome
+        await new Promise(resolve => setTimeout(resolve, 1100))
+        const bossResult = regionMapStore.runBossExpedition(availableBossRegionId, currentDayTag)
+        assertRuntime(typeof bossResult.message === 'string' && bossResult.message.length > 0, `${sample.id} runBossExpedition() 缺少结果消息。`)
+        assertRuntime(
+          regionMapStore.lastBossOutcome.outcome === 'victory' || regionMapStore.lastBossOutcome.outcome === 'failure',
+          `${sample.id} runBossExpedition() 未写入首领结果。`,
+        )
+        assertRuntime(
+          regionMapStore.lastBossOutcome.outcome !== beforeBossOutcome || bossResult.success === true,
+          `${sample.id} runBossExpedition() 未触发有效状态变化。`,
+        )
+      }
+    }
+
+    if (sample.id === 'region_three_way_showcase') {
+      if (regionMapStore.hasActiveExpedition) {
+        regionMapStore.clearExpedition()
+      }
+      gameStore.hour = 8
+      playerStore.stamina = Math.max(playerStore.stamina, playerStore.maxStamina ?? playerStore.stamina)
+      playerStore.hp = playerStore.getMaxHp()
+      const failureRegionId = regionMapStore.regionBossAvailability.find(entry => entry.available)?.regionId ?? 'ancient_road'
+      const failureStatus = regionMapStore.getBossExpeditionStatus(failureRegionId)
+      assertRuntime(failureStatus.available === true, `${sample.id} 失败保底用例未拿到可执行的首领入口：${failureStatus.reason}`)
+      regionMapStore.saveData.bossFailureStreaks[failureRegionId] = 0
+      const failureBoss = regionMapStore.bossDefs.find(entry => entry.regionId === failureRegionId)
+      if (failureBoss) {
+        failureBoss.phases.forEach(phase => {
+          phase.enemyAttack = 999
+          phase.enemyDefense = Math.max(phase.enemyDefense, 20)
+        })
+      }
+      await new Promise(resolve => setTimeout(resolve, 1100))
+      const failureResult = regionMapStore.runBossExpedition(failureRegionId, currentDayTag)
+      assertRuntime(failureResult.success === false, `${sample.id} runBossExpedition() 未走到失败保底分支。`)
+      assertRuntime(regionMapStore.lastBossOutcome.outcome === 'failure', `${sample.id} 首领失败后未写入 failure outcome。`)
+      assertRuntime((regionMapStore.saveData.bossFailureStreaks[failureRegionId] ?? 0) >= 1, `${sample.id} 首领失败后未累积 failureStreak。`)
+    }
+  }
+
   if (expectation.weeklyPlan) {
     if (expectation.weeklyPlan.requirePrimaryRoute) {
       assertRuntime(!!goalStore.weeklyPlanSnapshot?.primaryRouteLabel, `${sample.id} weeklyPlanSnapshot 缺少主路线。`)
@@ -597,9 +739,26 @@ const runRuntimeSmoke = async sample => {
     assertRuntime((goalStore.weeklyChronicleEntries?.length ?? 0) >= expectation.chronicle.minEntries, `${sample.id} 周纪行条目数量不足。`)
   }
 
-  const beforeWeekId = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId
   const beforeThemeWeekId = goalStore.currentThemeWeek?.id ?? ''
   const beforeChronicleCount = goalStore.weeklyChronicleEntries?.length ?? 0
+  const beforeRegionWeekId = regionMapStore.currentWeeklyFocus?.weekId ?? ''
+  if (expectation.regionMap && (expectation.boundaryAction === 'week_rollover' || expectation.boundaryAction === 'theme_week_refresh')) {
+    regionMapStore.ensureWeeklyEventRuntime(beforeWeekId, regionMapStore.currentWeeklyFocus.focusedRegionId, currentDayTag)
+    if (regionMapStore.hasActiveExpedition) {
+      regionMapStore.clearExpedition()
+    }
+    gameStore.hour = 8
+    playerStore.stamina = Math.max(playerStore.stamina, playerStore.maxStamina ?? playerStore.stamina)
+    const focusedRegionId = regionMapStore.currentWeeklyFocus.focusedRegionId
+    const boundaryEventId = focusedRegionId
+      ? (regionMapStore.currentWeeklyEventState.activeEventIdsByRegion[focusedRegionId] ?? [])[0] ?? null
+      : null
+    if (boundaryEventId && regionMapStore.getEventAvailability(boundaryEventId).available) {
+      const boundaryEventResult = regionMapStore.runRegionEvent(boundaryEventId, currentDayTag)
+      assertRuntime(boundaryEventResult.success === true, `${sample.id} 周切换前未能成功执行区域事件。`)
+    }
+    assertRuntime(beforeRegionWeekId === beforeWeekId, `${sample.id} regionMap 预载周焦点 weekId 与当前游戏周不一致。`)
+  }
 
   switch (expectation.boundaryAction ?? 'none') {
     case 'week_rollover':
@@ -607,10 +766,47 @@ const runRuntimeSmoke = async sample => {
       assertRuntime(getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId !== beforeWeekId, `${sample.id} 日结后没有进入下一周。`)
       assertRuntime(goalStore.lastWeeklyGoalSettlement?.weekId === beforeWeekId, `${sample.id} 缺少上一周的周结算摘要。`)
       assertRuntime((goalStore.currentThemeWeek?.id ?? '') !== beforeThemeWeekId, `${sample.id} 主题周没有切换。`)
+      if (expectation.regionMap) {
+        assertRuntime(regionMapStore.currentWeeklyFocus.weekId !== beforeRegionWeekId, `${sample.id} regionMap 周焦点未随周切换刷新。`)
+        assertRuntime(
+          regionMapStore.currentWeeklyFocus.weekId === getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId,
+          `${sample.id} regionMap 周切换后焦点 weekId 未对齐当前游戏周。`,
+        )
+        const focusedRegionId = regionMapStore.currentWeeklyFocus.focusedRegionId
+        assertRuntime(
+          !focusedRegionId || regionMapStore.saveData.unlockStates[focusedRegionId]?.unlocked === true,
+          `${sample.id} regionMap 周切换后焦点区域未解锁。`,
+        )
+      }
+      if (expectation.regionMap) {
+        const focusedRegionId = regionMapStore.currentWeeklyFocus.focusedRegionId
+        assertRuntime(
+          regionMapStore.currentWeeklyEventState.weekId === getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId,
+          `${sample.id} regionMap 周切换后事件 runtime 未同步到当前周。`,
+        )
+        assertRuntime(
+          Object.values(regionMapStore.saveData.eventStates).every(state => (state?.weeklyCompletions ?? 0) === 0),
+          `${sample.id} regionMap 周切换后事件 weeklyCompletions 未重置。`,
+        )
+        assertRuntime(
+          !focusedRegionId || (regionMapStore.currentWeeklyEventState.activeEventIdsByRegion[focusedRegionId] ?? []).length > 0,
+          `${sample.id} regionMap 周切换后焦点区域缺少事件池。`,
+        )
+      }
       if (expectation.chronicle?.minEntriesAfterBoundary) {
         assertRuntime(
           (goalStore.weeklyChronicleEntries?.length ?? 0) >= beforeChronicleCount + expectation.chronicle.minEntriesAfterBoundary,
           `${sample.id} 周切换后没有新增周纪行条目。`,
+        )
+      }
+      if (expectation.regionMap) {
+        assertRuntime(
+          regionMapStore.currentWeeklyEventState.weekId === getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId,
+          `${sample.id} regionMap 主题周刷新后事件 runtime 未同步到当前周。`,
+        )
+        assertRuntime(
+          Object.values(regionMapStore.saveData.eventStates).every(state => (state?.weeklyCompletions ?? 0) === 0),
+          `${sample.id} regionMap 主题周刷新后事件 weeklyCompletions 未重置。`,
         )
       }
       break
@@ -628,6 +824,13 @@ const runRuntimeSmoke = async sample => {
       handleEndDay()
       assertRuntime(getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId !== beforeWeekId, `${sample.id} 日结后没有进入下一周。`)
       assertRuntime((goalStore.currentThemeWeek?.id ?? '') !== beforeThemeWeekId, `${sample.id} 新周主题没有刷新。`)
+      if (expectation.regionMap) {
+        assertRuntime(regionMapStore.currentWeeklyFocus.weekId !== beforeRegionWeekId, `${sample.id} regionMap 主题周刷新后焦点未重建。`)
+        assertRuntime(
+          regionMapStore.currentWeeklyFocus.weekId === getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId,
+          `${sample.id} regionMap 主题周刷新后焦点 weekId 未对齐当前游戏周。`,
+        )
+      }
       break
     default:
       break

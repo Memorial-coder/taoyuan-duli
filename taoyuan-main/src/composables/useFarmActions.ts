@@ -557,7 +557,10 @@ export const handleBatchHarvest = () => {
       .map(([name, count]) => (count > 1 ? `${name}x${count}` : name))
       .join('、')
     addLog(`一键收获了${harvested}株作物：${cropSummary}。`)
-    const tr = gameStore.advanceTime(ACTION_TIME_COSTS.batchHarvest * inventoryStore.getToolStaminaMultiplier('scythe'))
+    const batchSegments = Math.max(1, Math.ceil(harvested / 6))
+    const tr = gameStore.advanceTime(
+      ACTION_TIME_COSTS.batchHarvest * batchSegments * inventoryStore.getToolStaminaMultiplier('scythe')
+    )
     if (tr.message) addLog(tr.message)
     if (tr.passedOut) handleEndDay()
   } else {

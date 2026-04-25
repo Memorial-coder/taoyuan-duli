@@ -131,6 +131,8 @@ export const useQuestStore = defineStore('quest', () => {
     activityQuestWindowState.value = { ...snapshot.activityQuestWindowState }
   }
 
+  const buildActivityQuestWindowCompletionKey = (campaignId: string, scopeKey: string) => `${campaignId}@${scopeKey || 'legacy'}`
+
   /** 每日生成新任务到告示栏 */
   const dedupeList = <T,>(items: T[]): T[] => Array.from(new Set(items))
 
@@ -1386,6 +1388,7 @@ export const useQuestStore = defineStore('quest', () => {
       inventoryStore.deserialize(inventorySnapshot)
       fishPondStore.deserialize(fishPondSnapshot)
     }
+    let finalStageAlreadySubmitted = false
 
     const currentStage = getCurrentSpecialOrderStage(quest)
     if (currentStage) {
@@ -1419,6 +1422,9 @@ export const useQuestStore = defineStore('quest', () => {
               rollbackSubmissionState()
               return { success: false, message: `${requirement.itemName}鱼塘交付失败，请稍后再试。` }
             }
+            if (isFinalStage) {
+              submittedPondFishSnapshots.push(...fishPondStore.lastOrderSubmissionSnapshots)
+            }
           } else if (!inventoryStore.removeItemAnywhere(requirement.itemId, requirement.quantity)) {
             rollbackSubmissionState()
             return { success: false, message: `${requirement.itemName}不足，无法完成当前订单阶段。` }
@@ -1445,6 +1451,9 @@ export const useQuestStore = defineStore('quest', () => {
         ) {
           rollbackSubmissionState()
           return { success: false, message: `${targetItemName}鱼塘交付失败，请稍后再试。` }
+        }
+        if (isFinalStage) {
+          submittedPondFishSnapshots.push(...fishPondStore.lastOrderSubmissionSnapshots)
         }
       } else {
         const effectiveProgress = getStageEffectiveProgress(quest, currentStage)
@@ -1516,9 +1525,12 @@ export const useQuestStore = defineStore('quest', () => {
 
       const stageTransition = advanceSpecialOrderStageState(quest, currentStage, targetQuantity)
       quest.orderProgressState = stageTransition.progressState
+      finalStageAlreadySubmitted = true
     }
 
-    if (hasComboRequirements(quest)) {
+    if (finalStageAlreadySubmitted) {
+      // 最终阶段已完成本轮交付，下面只继续做整单结算，避免再次进入通用交付流程。
+    } else if (hasComboRequirements(quest)) {
       const unsatisfiedRequirement = getUnsatisfiedComboRequirement(quest)
       if (unsatisfiedRequirement) {
         return { success: false, message: getComboRequirementShortfallMessage(unsatisfiedRequirement) }
@@ -2397,21 +2409,28 @@ export const useQuestStore = defineStore('quest', () => {
     }
   }
 
-  const completeActivityQuestWindow = (campaignId = activityQuestWindowState.value.activeCampaignId ?? '') => {
+  const completeActivityQuestWindow = (
+    campaignId = activityQuestWindowState.value.activeCampaignId ?? '',
+    completionScopeKey = ''
+  ) => {
     const lockId = `activity_window_complete_${campaignId}`
     if (!beginActivityQuestWindowAction(lockId)) return false
     const snapshot = createActivityQuestWindowSnapshot()
     try {
     if (!campaignId) return false
+    const completionKey = buildActivityQuestWindowCompletionKey(
+      campaignId,
+      completionScopeKey || activityQuestWindowState.value.lastRefreshDayTag || 'legacy'
+    )
     activityQuestWindowState.value = {
       ...activityQuestWindowState.value,
       activeCampaignId: activityQuestWindowState.value.activeCampaignId === campaignId ? null : activityQuestWindowState.value.activeCampaignId,
       activeQuestTemplateIds: activityQuestWindowState.value.activeCampaignId === campaignId ? [] : activityQuestWindowState.value.activeQuestTemplateIds,
       lastRefreshDayTag: activityQuestWindowState.value.activeCampaignId === campaignId ? '' : activityQuestWindowState.value.lastRefreshDayTag,
       nextRefreshDayTag: activityQuestWindowState.value.activeCampaignId === campaignId ? '' : activityQuestWindowState.value.nextRefreshDayTag,
-      completedWindowIds: activityQuestWindowState.value.completedWindowIds.includes(campaignId)
+      completedWindowIds: activityQuestWindowState.value.completedWindowIds.includes(completionKey)
         ? activityQuestWindowState.value.completedWindowIds
-        : [...activityQuestWindowState.value.completedWindowIds, campaignId]
+        : [...activityQuestWindowState.value.completedWindowIds, completionKey]
     }
     return true
     } catch {
@@ -2478,7 +2497,7 @@ export const useQuestStore = defineStore('quest', () => {
       activityQuestWindowState.value.activeCampaignId &&
       (!matchedCampaign || matchedCampaign.id !== activityQuestWindowState.value.activeCampaignId)
     ) {
-      completeActivityQuestWindow(activityQuestWindowState.value.activeCampaignId)
+      completeActivityQuestWindow(activityQuestWindowState.value.activeCampaignId, payload.currentWeekId)
       logs.push('【活动任务】当前限时任务窗口已结束。')
     }
 
@@ -2486,14 +2505,14 @@ export const useQuestStore = defineStore('quest', () => {
       activityQuestWindowState.value.activeCampaignId &&
       isQuestDayTagReachedOrPassed(payload.currentDayTag, activityQuestWindowState.value.nextRefreshDayTag)
     ) {
-      completeActivityQuestWindow(activityQuestWindowState.value.activeCampaignId)
+      completeActivityQuestWindow(activityQuestWindowState.value.activeCampaignId, payload.currentWeekId)
       logs.push('【活动任务】限时任务窗口已按时收束。')
     }
 
     if (
       matchedCampaign &&
       activityQuestWindowState.value.activeCampaignId !== matchedCampaign.id &&
-      !activityQuestWindowState.value.completedWindowIds.includes(matchedCampaign.id)
+      !activityQuestWindowState.value.completedWindowIds.includes(buildActivityQuestWindowCompletionKey(matchedCampaign.id, payload.currentWeekId))
     ) {
       activateActivityQuestWindow(
         matchedCampaign.id,
@@ -2538,7 +2557,9 @@ export const useQuestStore = defineStore('quest', () => {
         activeQuestTemplateIds: normalizeStringArray(raw.activeQuestTemplateIds) ?? [],
         lastRefreshDayTag: typeof raw.lastRefreshDayTag === 'string' ? raw.lastRefreshDayTag : '',
         nextRefreshDayTag: typeof raw.nextRefreshDayTag === 'string' ? raw.nextRefreshDayTag : '',
-        completedWindowIds: normalizeStringArray(raw.completedWindowIds) ?? [],
+        completedWindowIds: (normalizeStringArray(raw.completedWindowIds) ?? []).map(entry =>
+          entry.includes('@') ? entry : buildActivityQuestWindowCompletionKey(entry, 'legacy')
+        ),
         claimedRewardMailIds: normalizeStringArray(raw.claimedRewardMailIds) ?? []
       }
     })()

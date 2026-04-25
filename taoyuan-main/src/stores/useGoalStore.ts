@@ -2225,6 +2225,9 @@ export const useGoalStore = defineStore('goal', () => {
               })
           : []
       ),
+      regionMapStore.regionIntegrationEnabled && regionMapStore.lastBossOutcome.outcome !== 'none' && regionMapStore.lastBossOutcome.summary
+        ? { id: 'region_boss_outcome', label: regionMapStore.lastBossOutcome.summary }
+        : null,
       currentEventCampaign.value ? { id: 'event_mail_chain', label: `活动链路：${currentEventCampaign.value.label}` } : null,
       currentEventCampaign.value?.limitedQuestCampaignId ? { id: 'limited_time_window', label: '限时任务窗口：可在任务页查看' } : null,
       lastWeeklyGoalSettlement.value ? { id: 'weekly_settlement_digest', label: `周结算：${chronicleWeekLabel}` } : null,
@@ -2234,8 +2237,16 @@ export const useGoalStore = defineStore('goal', () => {
     const previewSummary =
       nextThemeWeekPreview.value?.ui?.summaryLabel ??
       (nextThemeWeekPreview.value ? `下周主题「${nextThemeWeekPreview.value.name}」即将到来，可提前准备相关物资与样本。` : '')
+    const preferredRegionHook =
+      regionMapStore.regionIntegrationEnabled
+        ? (
+            regionMapStore.lastBossOutcome.outcome === 'failure'
+              ? regionMapStore.frontierDigest.nextHookSummaries.find(summary => summary.startsWith('失败回滚：'))
+              : undefined
+          ) ?? regionMapStore.frontierDigest.nextHookSummaries[0] ?? ''
+        : ''
     const nextWeekPrepSummary =
-      [focusedRegionRelay?.nextWeekPrepSummary ?? '', previewSummary].filter(Boolean).join(' ') ||
+      [focusedRegionRelay?.nextWeekPrepSummary ?? '', preferredRegionHook, previewSummary].filter(Boolean).join(' ') ||
       '下周主题周预告尚未生成。'
     const sourceLabels = [
       currentThemeWeek.value?.name ?? '',

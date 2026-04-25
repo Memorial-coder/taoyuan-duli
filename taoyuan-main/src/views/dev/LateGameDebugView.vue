@@ -181,7 +181,7 @@
             <input v-model.number="debugHour" type="number" min="6" max="25" step="0.5" class="w-full px-2 py-1 bg-bg border border-accent/20 rounded-xs text-xs outline-none" />
           </div>
           <div class="grid gap-2 md:grid-cols-2">
-            <Button class="justify-center" :icon="Wand2" :disabled="!gameStore.isGameStarted" @click="applyCalendarDebug">覆写日期（不跑完整结算）</Button>
+            <Button class="justify-center" :icon="Wand2" :disabled="!gameStore.isGameStarted" @click="applyCalendarDebug">推进到指定日期</Button>
             <Button class="justify-center" :icon="Sparkles" :disabled="!gameStore.isGameStarted" @click="goalStore.refreshThemeWeek(true)">重发主题周提示</Button>
           </div>
         </div>
@@ -376,6 +376,7 @@
         <div class="space-y-1">
           <p class="game-section-title">后期特性开关</p>
           <p class="game-section-desc">复用 CORE-001 的 feature flag 底座，验证开发态覆盖是否工作。</p>
+          <p v-if="!canEditFeatureFlags" class="text-[11px] text-warning">当前不是开发环境，以下开关为只读展示，按钮不会生效。</p>
         </div>
         <div class="space-y-2">
           <div v-for="flag in settingsStore.lateGameFeatureConfigs" :key="flag.id" class="game-panel-muted p-3">
@@ -389,13 +390,14 @@
                 </p>
               </div>
               <div class="flex shrink-0 gap-2">
-                <Button class="justify-center" :icon="ShieldCheck" @click="toggleFeature(flag.id)">
+                <Button class="justify-center" :icon="ShieldCheck" :disabled="!canEditFeatureFlags" @click="toggleFeature(flag.id)">
                   {{ featureState[flag.id] ? '关闭' : '开启' }}
                 </Button>
                 <Button
                   v-if="settingsStore.lateGameFeatureOverrides[flag.id] !== undefined"
                   class="justify-center"
                   :icon="Trash2"
+                  :disabled="!canEditFeatureFlags"
                   @click="settingsStore.clearFeatureOverride(flag.id)"
                 >
                   清除
@@ -405,7 +407,7 @@
           </div>
         </div>
         <div class="flex justify-end">
-          <Button class="justify-center" :icon="Trash2" @click="settingsStore.clearAllFeatureOverrides()">清空全部覆盖</Button>
+          <Button class="justify-center" :icon="Trash2" :disabled="!canEditFeatureFlags" @click="settingsStore.clearAllFeatureOverrides()">清空全部覆盖</Button>
         </div>
       </section>
 
@@ -501,6 +503,7 @@
   const playerStore = usePlayerStore()
   const questStore = useQuestStore()
   const settingsStore = useSettingsStore()
+  const canEditFeatureFlags = import.meta.env.DEV
 
   const sampleBusyKey = ref<string | null>(null)
   const sampleSearch = ref('')
@@ -730,20 +733,35 @@
       return
     }
 
-    gameStore.year = Math.max(1, Math.floor(debugYear.value || 1))
-    gameStore.season = debugSeason.value
-    gameStore.day = Math.min(28, Math.max(1, Math.floor(debugDay.value || 1)))
-    gameStore.hour = Math.min(25, Math.max(6, Number(debugHour.value || 8)))
-    gameStore.weather = 'sunny'
-    gameStore.setTomorrowWeather('sunny')
-    gameStore.currentLocation = 'farm'
-    gameStore.currentLocationGroup = 'farm'
-  goalStore.refreshDailyGoals(false)
-  goalStore.refreshSeasonGoals(false)
-  goalStore.refreshWeeklyGoals(false)
-  goalStore.refreshThemeWeek(true)
-  goalStore.evaluateProgressAndRewards()
-    showFloat('已覆写调试日期并刷新目标 / 主题周（未执行完整跨系统结算）。', 'accent')
+    const targetYear = Math.max(1, Math.floor(debugYear.value || 1))
+    const targetSeason = debugSeason.value
+    const targetDay = Math.min(28, Math.max(1, Math.floor(debugDay.value || 1)))
+    const targetHour = Math.min(25, Math.max(6, Number(debugHour.value || 8)))
+    const currentAbsoluteDay = (gameStore.year - 1) * 112 + gameStore.seasonIndex * 28 + gameStore.day
+    const targetSeasonIndex = seasonOptions.indexOf(targetSeason)
+    const targetAbsoluteDay = (targetYear - 1) * 112 + targetSeasonIndex * 28 + targetDay
+
+    if (targetAbsoluteDay < currentAbsoluteDay) {
+      showFloat('调试时间不再允许直接回退，请改为载入更早样例或旧档。', 'danger')
+      return
+    }
+
+    let guard = Math.max(0, targetAbsoluteDay - currentAbsoluteDay) + 2
+    while (guard-- > 0) {
+      const absoluteDayNow = (gameStore.year - 1) * 112 + gameStore.seasonIndex * 28 + gameStore.day
+      if (absoluteDayNow >= targetAbsoluteDay) break
+      handleEndDay()
+    }
+
+    const arrivedAbsoluteDay = (gameStore.year - 1) * 112 + gameStore.seasonIndex * 28 + gameStore.day
+    if (arrivedAbsoluteDay !== targetAbsoluteDay) {
+      showFloat('未能推进到目标日期，请检查当前时间状态。', 'danger')
+      return
+    }
+
+    gameStore.hour = targetHour
+    syncDebugCalendar()
+    showFloat('已通过完整结算推进到指定日期，并同步目标 / 主题周。', 'success')
   }
 
   const injectSpecialOrder = () => {

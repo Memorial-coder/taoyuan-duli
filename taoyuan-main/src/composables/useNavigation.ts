@@ -10,7 +10,6 @@ import { processHiddenNpcDiscovery } from './useHiddenNpcDiscovery'
 import { useTutorialStore } from '@/stores/useTutorialStore'
 import { useMiningStore } from '@/stores/useMiningStore'
 import { useHanhaiStore } from '@/stores/useHanhaiStore'
-import { useSettingsStore } from '@/stores/useSettingsStore'
 import {
   Map,
   Wheat,
@@ -108,12 +107,6 @@ export const navigateToPanel = (panelKey: PanelKey) => {
   const currentRouteName = router.currentRoute.value.name
   const miningStore = useMiningStore()
   const hanhaiStore = useHanhaiStore()
-  const settingsStore = useSettingsStore()
-
-  if (panelKey === 'region-map' && !settingsStore.isFeatureEnabled('lateGameRegionMap')) {
-    showFloat('行旅图功能暂未开启。', 'accent')
-    return false
-  }
 
   if (currentRouteName === 'mining' && panelKey !== 'mining' && miningStore.isExploring) {
     showFloat('请先离开矿洞后再切换页面。', 'danger')

@@ -1,4 +1,5 @@
-import { createDefaultRegionMapSaveData } from './regions'
+import { createDefaultRegionMapSaveData, getRegionBossDef } from './regions.ts'
+import type { RegionId, RegionalResourceFamilyId } from '@/types/region'
 
 export type BuiltInSampleTier = 'flagship' | 'regression'
 export type BuiltInSampleRouteName =
@@ -103,6 +104,16 @@ export interface BuiltInSampleRuntimeExpectations {
   }
   wallet?: {
     minTicketTypes?: number
+  }
+  regionMap?: {
+    minUnlockedRegions?: number
+    focusRegionId?: 'ancient_road' | 'mirage_marsh' | 'cloud_highland'
+    requireFocusedRegionUnlocked?: boolean
+    requireActiveExpedition?: boolean
+    minCompletedRoutesByRegion?: Partial<Record<'ancient_road' | 'mirage_marsh' | 'cloud_highland', number>>
+    minBossClearCountsByRegion?: Partial<Record<'ancient_road' | 'mirage_marsh' | 'cloud_highland', number>>
+    minBossFailureStreakByRegion?: Partial<Record<'ancient_road' | 'mirage_marsh' | 'cloud_highland', number>>
+    lastBossOutcome?: 'none' | 'victory' | 'failure'
   }
   weeklyPlan?: {
     requirePrimaryRoute?: boolean
@@ -1788,6 +1799,27 @@ const createRegionMapShowcaseEnvelope = () => {
     bossClears: 2,
     resourceTurnIns: 4
   }
+  regionMap.bossClearCounts = {
+    ancient_road: 1,
+    mirage_marsh: 1,
+    cloud_highland: 0
+  }
+  regionMap.bossFailureStreaks = {
+    ancient_road: 0,
+    mirage_marsh: 0,
+    cloud_highland: 0
+  }
+  regionMap.lastBossOutcome = {
+    regionId: 'mirage_marsh',
+    bossId: getRegionBossDef('mirage_marsh')?.id ?? null,
+    outcome: 'victory',
+    rewardFamilyId: 'ecology_specimen',
+    rewardAmount: 2,
+    resolvedDayTag: '2-autumn-26',
+    summary: '蜃潮泽地首领已被收束，可继续把样本交回鱼塘和博物馆。',
+    recommendedRouteId: null,
+    failureStreak: 0
+  }
 
   return {
     ...base,
@@ -1852,6 +1884,132 @@ const createRegionMapShowcaseEnvelope = () => {
   }
 }
 
+const resetRegionMapSampleState = (regionMap: ReturnType<typeof createDefaultRegionMapSaveData>) => {
+  regionMap.unlockStates.ancient_road = { unlocked: false, unlockedDayTag: '' }
+  regionMap.unlockStates.mirage_marsh = { unlocked: false, unlockedDayTag: '' }
+  regionMap.unlockStates.cloud_highland = { unlocked: false, unlockedDayTag: '' }
+
+  for (const routeId of Object.keys(regionMap.routeStates)) {
+    regionMap.routeStates[routeId] = {
+      routeId,
+      unlocked: false,
+      completions: 0,
+      lastCompletedDayTag: ''
+    }
+  }
+
+  regionMap.weeklyFocusState = {
+    weekId: '2-autumn-week-4',
+    focusedRegionId: null,
+    highlightedRouteIds: []
+  }
+  regionMap.resourceLedger = {
+    ancient_archive: 0,
+    ecology_specimen: 0,
+    ley_crystal: 0
+  }
+  regionMap.expedition = {
+    activeRegionId: null,
+    activeRouteId: null,
+    activeBossId: null,
+    startedAtDayTag: ''
+  }
+  regionMap.telemetry = {
+    totalRouteCompletions: 0,
+    bossClears: 0,
+    resourceTurnIns: 0
+  }
+  regionMap.bossClearCounts = {
+    ancient_road: 0,
+    mirage_marsh: 0,
+    cloud_highland: 0
+  }
+  regionMap.bossFailureStreaks = {
+    ancient_road: 0,
+    mirage_marsh: 0,
+    cloud_highland: 0
+  }
+  regionMap.lastBossOutcome = {
+    regionId: null,
+    bossId: null,
+    outcome: 'none',
+    rewardFamilyId: null,
+    rewardAmount: 0,
+    resolvedDayTag: '',
+    summary: '',
+    recommendedRouteId: null,
+    failureStreak: 0
+  }
+}
+
+const setSampleRegionUnlocked = (
+  regionMap: ReturnType<typeof createDefaultRegionMapSaveData>,
+  regionId: RegionId,
+  unlockedDayTag = '2-autumn-24'
+) => {
+  regionMap.unlockStates[regionId] = {
+    unlocked: true,
+    unlockedDayTag
+  }
+}
+
+const setSampleRouteProgress = (
+  regionMap: ReturnType<typeof createDefaultRegionMapSaveData>,
+  routeId: string,
+  completions: number,
+  lastCompletedDayTag = '2-autumn-26',
+  unlocked = true
+) => {
+  regionMap.routeStates[routeId] = {
+    routeId,
+    unlocked,
+    completions,
+    lastCompletedDayTag: completions > 0 ? lastCompletedDayTag : ''
+  }
+}
+
+const syncRegionMapSampleTelemetry = (regionMap: ReturnType<typeof createDefaultRegionMapSaveData>) => {
+  regionMap.telemetry.totalRouteCompletions = Object.values(regionMap.routeStates).reduce(
+    (sum, routeState) => sum + (routeState.completions ?? 0),
+    0
+  )
+  regionMap.telemetry.bossClears = Object.values(regionMap.bossClearCounts).reduce(
+    (sum, count) => sum + (count ?? 0),
+    0
+  )
+}
+
+const createRegionMapVariantEnvelope = (
+  configure: (envelope: Record<string, any>, regionMap: ReturnType<typeof createDefaultRegionMapSaveData>) => void
+) => {
+  const envelope = createRegionMapShowcaseEnvelope()
+  const regionMap = envelope.data.regionMap as ReturnType<typeof createDefaultRegionMapSaveData>
+  configure(envelope, regionMap)
+  syncRegionMapSampleTelemetry(regionMap)
+  return envelope
+}
+
+const createSingleRegionMidgameEnvelope = (
+  regionId: RegionId,
+  completedRouteIds: string[],
+  resourceFamilyId: RegionalResourceFamilyId,
+  resourceAmount: number
+) =>
+  createRegionMapVariantEnvelope((envelope, regionMap) => {
+    resetRegionMapSampleState(regionMap)
+    setSampleRegionUnlocked(regionMap, regionId)
+    completedRouteIds.forEach((routeId, index) => {
+      setSampleRouteProgress(regionMap, routeId, index === 0 ? 2 : 1)
+    })
+    regionMap.resourceLedger[resourceFamilyId] = resourceAmount
+    regionMap.weeklyFocusState = {
+      weekId: '2-autumn-week-4',
+      focusedRegionId: regionId,
+      highlightedRouteIds: completedRouteIds.slice(0, 2)
+    }
+    envelope.data.game.currentLocationGroup = 'frontier'
+  })
+
 export const BUILT_IN_SAMPLE_SAVES: BuiltInSampleSaveDef[] = [
   {
     id: 'region_map_showcase',
@@ -1869,10 +2027,341 @@ export const BUILT_IN_SAMPLE_SAVES: BuiltInSampleSaveDef[] = [
       player: { minMoney: 86500, requireEconomyTelemetry: true },
       game: { currentLocation: 'village', currentLocationGroup: 'frontier' },
       goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 2, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      regionMap: {
+        minUnlockedRegions: 3,
+        focusRegionId: 'cloud_highland',
+        requireFocusedRegionUnlocked: true,
+        requireActiveExpedition: true,
+        minCompletedRoutesByRegion: {
+          ancient_road: 3,
+          mirage_marsh: 3,
+          cloud_highland: 3
+        },
+        minBossClearCountsByRegion: {
+          ancient_road: 1,
+          mirage_marsh: 1
+        },
+        lastBossOutcome: 'victory'
+      },
+      weeklyPlan: { requirePrimaryRoute: true, minClaimableNodes: 3, requireNextWeekPrep: true, minActiveBridgeIds: 1 },
       wallet: { minTicketTypes: 2 },
       boundaryAction: 'none'
     },
     envelope: createRegionMapShowcaseEnvelope()
+  },
+  {
+    id: 'region_ancient_road_midgame',
+    label: '荒道中盘样例',
+    description: '单区域中盘样例，重点覆盖古驿荒道的路线推进、焦点同步和任务/商圈/瀚海承接。',
+    tags: ['region-map', 'frontier', 'ancient-road', 'midgame'],
+    tier: 'flagship',
+    recommendedRouteName: 'region-map',
+    focusAreas: ['荒道中盘', '路线闭环', '任务与瀚海承接'],
+    smokeChecks: [
+      { id: 'region_focus', label: '确认载入后焦点落在古驿荒道，路线完成数和区域库存都已到位。' },
+      { id: 'handoff_path', label: '确认任务板、商圈和瀚海仍能接住荒道中盘资源与推荐。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 86500, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'frontier' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 2, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      regionMap: {
+        minUnlockedRegions: 1,
+        focusRegionId: 'ancient_road',
+        requireFocusedRegionUnlocked: true,
+        minCompletedRoutesByRegion: {
+          ancient_road: 2
+        }
+      },
+      weeklyPlan: { requirePrimaryRoute: true, minClaimableNodes: 2, requireNextWeekPrep: true },
+      wallet: { minTicketTypes: 2 },
+      boundaryAction: 'none'
+    },
+    envelope: createSingleRegionMidgameEnvelope(
+      'ancient_road',
+      ['ancient_road_supply_relay', 'ancient_road_archive_recovery'],
+      'ancient_archive',
+      4
+    )
+  },
+  {
+    id: 'region_mirage_marsh_midgame',
+    label: '泽地中盘样例',
+    description: '单区域中盘样例，重点覆盖蜃潮泽地的样本推进、鱼塘展示和博物馆承接。',
+    tags: ['region-map', 'frontier', 'mirage-marsh', 'midgame'],
+    tier: 'flagship',
+    recommendedRouteName: 'region-map',
+    focusAreas: ['泽地中盘', '样本回流', '鱼塘与博物馆承接'],
+    smokeChecks: [
+      { id: 'region_focus', label: '确认载入后焦点落在蜃潮泽地，样本库存和路线完成数可读。' },
+      { id: 'handoff_path', label: '确认鱼塘和博物馆可以继续承接泽地样本。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 86500, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'frontier' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 2, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      regionMap: {
+        minUnlockedRegions: 1,
+        focusRegionId: 'mirage_marsh',
+        requireFocusedRegionUnlocked: true,
+        minCompletedRoutesByRegion: {
+          mirage_marsh: 2
+        }
+      },
+      weeklyPlan: { requirePrimaryRoute: true, minClaimableNodes: 2, requireNextWeekPrep: true },
+      wallet: { minTicketTypes: 2 },
+      boundaryAction: 'none'
+    },
+    envelope: createSingleRegionMidgameEnvelope(
+      'mirage_marsh',
+      ['mirage_marsh_night_watch', 'mirage_marsh_specimen_drive'],
+      'ecology_specimen',
+      5
+    )
+  },
+  {
+    id: 'region_cloud_highland_midgame',
+    label: '高地中盘样例',
+    description: '单区域中盘样例，重点覆盖云岚高地的战备推进、公会承接和村庄建设前置。',
+    tags: ['region-map', 'frontier', 'cloud-highland', 'midgame'],
+    tier: 'flagship',
+    recommendedRouteName: 'region-map',
+    focusAreas: ['高地中盘', '公会战备', '村庄建设承接'],
+    smokeChecks: [
+      { id: 'region_focus', label: '确认载入后焦点落在云岚高地，灵脉结晶与路线完成数可读。' },
+      { id: 'handoff_path', label: '确认公会、村庄建设和钱包仍能接住高地资源。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 86500, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'frontier' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 2, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      regionMap: {
+        minUnlockedRegions: 1,
+        focusRegionId: 'cloud_highland',
+        requireFocusedRegionUnlocked: true,
+        minCompletedRoutesByRegion: {
+          cloud_highland: 2
+        }
+      },
+      weeklyPlan: { requirePrimaryRoute: true, minClaimableNodes: 2, requireNextWeekPrep: true },
+      wallet: { minTicketTypes: 2 },
+      boundaryAction: 'none'
+    },
+    envelope: createSingleRegionMidgameEnvelope(
+      'cloud_highland',
+      ['cloud_highland_patrol', 'cloud_highland_ley_crack'],
+      'ley_crystal',
+      5
+    )
+  },
+  {
+    id: 'region_three_way_showcase',
+    label: '三区域联动样例',
+    description: '覆盖三张区域同时在线时的焦点、资源库存、首领记录和系统承接。',
+    tags: ['region-map', 'frontier', 'showcase', 'three-way'],
+    tier: 'flagship',
+    recommendedRouteName: 'region-map',
+    focusAreas: ['三区域联动', '周焦点', '资源承接', '首领战绩'],
+    smokeChecks: [
+      { id: 'region_entry', label: '确认三张区域都已解锁，且可从同一入口查看。' },
+      { id: 'digest_state', label: '确认焦点摘要、资源库存和首领结果能同时展示。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 86500, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'frontier' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 2, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      regionMap: {
+        minUnlockedRegions: 3,
+        focusRegionId: 'ancient_road',
+        requireFocusedRegionUnlocked: true,
+        minCompletedRoutesByRegion: {
+          ancient_road: 2,
+          mirage_marsh: 2,
+          cloud_highland: 2
+        },
+        minBossClearCountsByRegion: {
+          ancient_road: 1,
+          mirage_marsh: 1,
+          cloud_highland: 1
+        },
+        lastBossOutcome: 'victory'
+      },
+      weeklyPlan: { requirePrimaryRoute: true, minClaimableNodes: 4, requireNextWeekPrep: true, minActiveBridgeIds: 1 },
+      wallet: { minTicketTypes: 2 },
+      boundaryAction: 'none'
+    },
+    envelope: createRegionMapVariantEnvelope((envelope, regionMap) => {
+      resetRegionMapSampleState(regionMap)
+      setSampleRegionUnlocked(regionMap, 'ancient_road', '2-autumn-20')
+      setSampleRegionUnlocked(regionMap, 'mirage_marsh', '2-autumn-22')
+      setSampleRegionUnlocked(regionMap, 'cloud_highland', '2-autumn-24')
+      setSampleRouteProgress(regionMap, 'ancient_road_supply_relay', 2)
+      setSampleRouteProgress(regionMap, 'ancient_road_archive_recovery', 1)
+      setSampleRouteProgress(regionMap, 'mirage_marsh_night_watch', 2)
+      setSampleRouteProgress(regionMap, 'mirage_marsh_specimen_drive', 1)
+      setSampleRouteProgress(regionMap, 'cloud_highland_patrol', 2)
+      setSampleRouteProgress(regionMap, 'cloud_highland_ley_crack', 1)
+      regionMap.weeklyFocusState = {
+        weekId: '2-autumn-week-4',
+        focusedRegionId: 'ancient_road',
+        highlightedRouteIds: ['ancient_road_supply_relay', 'ancient_road_archive_recovery']
+      }
+      regionMap.resourceLedger = {
+        ancient_archive: 4,
+        ecology_specimen: 4,
+        ley_crystal: 4
+      }
+      regionMap.bossClearCounts = {
+        ancient_road: 1,
+        mirage_marsh: 1,
+        cloud_highland: 1
+      }
+      regionMap.lastBossOutcome = {
+        regionId: 'cloud_highland',
+        bossId: getRegionBossDef('cloud_highland')?.id ?? null,
+        outcome: 'victory',
+        rewardFamilyId: 'ley_crystal',
+        rewardAmount: 2,
+        resolvedDayTag: '2-autumn-26',
+        summary: '云岚高地首领刚刚收束，可回公会和村庄建设继续吃掉高地收益。',
+        recommendedRouteId: null,
+        failureStreak: 0
+      }
+      regionMap.telemetry.resourceTurnIns = 3
+      envelope.data.game.currentLocationGroup = 'frontier'
+    })
+  },
+  {
+    id: 'region_boss_failure_recovery',
+    label: '首领失败回滚样例',
+    description: '覆盖首领失败后的保底、失败层数、推荐回滚路线和后续恢复挂点。',
+    tags: ['region-map', 'frontier', 'boss', 'failure-recovery'],
+    tier: 'regression',
+    recommendedRouteName: 'region-map',
+    focusAreas: ['首领失败保底', '失败回滚', '后续挂点'],
+    smokeChecks: [
+      { id: 'failure_state', label: '确认载入后能看到最近一次首领失败的结果摘要和保底状态。' },
+      { id: 'recovery_hook', label: '确认推荐回滚路线和区域库存仍能继续推进。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 86500, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'frontier' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 2, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      regionMap: {
+        minUnlockedRegions: 1,
+        focusRegionId: 'ancient_road',
+        requireFocusedRegionUnlocked: true,
+        minCompletedRoutesByRegion: {
+          ancient_road: 2
+        },
+        minBossFailureStreakByRegion: {
+          ancient_road: 1
+        },
+        lastBossOutcome: 'failure'
+      },
+      weeklyPlan: { requirePrimaryRoute: true, minClaimableNodes: 2, requireNextWeekPrep: true },
+      wallet: { minTicketTypes: 2 },
+      boundaryAction: 'none'
+    },
+    envelope: createRegionMapVariantEnvelope((envelope, regionMap) => {
+      resetRegionMapSampleState(regionMap)
+      setSampleRegionUnlocked(regionMap, 'ancient_road')
+      setSampleRouteProgress(regionMap, 'ancient_road_supply_relay', 2)
+      setSampleRouteProgress(regionMap, 'ancient_road_archive_recovery', 1)
+      regionMap.weeklyFocusState = {
+        weekId: '2-autumn-week-4',
+        focusedRegionId: 'ancient_road',
+        highlightedRouteIds: ['ancient_road_supply_relay', 'ancient_road_archive_recovery']
+      }
+      regionMap.resourceLedger.ancient_archive = 2
+      regionMap.bossFailureStreaks.ancient_road = 1
+      regionMap.lastBossOutcome = {
+        regionId: 'ancient_road',
+        bossId: getRegionBossDef('ancient_road')?.id ?? null,
+        outcome: 'failure',
+        rewardFamilyId: 'ancient_archive',
+        rewardAmount: 1,
+        resolvedDayTag: '2-autumn-26',
+        summary: '荒道监军刚刚逼退，建议先回旧驿补给线整理补给后再战。',
+        recommendedRouteId: 'ancient_road_supply_relay',
+        failureStreak: 1
+      }
+      regionMap.telemetry.resourceTurnIns = 1
+      envelope.data.game.currentLocationGroup = 'frontier'
+    })
+  },
+  {
+    id: 'region_week_rollover_edge',
+    label: '区域周切换边界样例',
+    description: '覆盖周切换前夜的区域焦点、资源库存与周计划重建边界。',
+    tags: ['region-map', 'frontier', 'boundary', 'week-rollover'],
+    tier: 'regression',
+    recommendedRouteName: 'region-map',
+    focusAreas: ['周切换', '区域焦点刷新', '边界回归'],
+    smokeChecks: [
+      { id: 'pre_boundary', label: '确认载入时已经位于周切换前夜，区域焦点和库存可读。' },
+      { id: 'advance_once', label: '执行一次日结后，确认区域焦点和周计划仍保持可用。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 64000, requireEconomyTelemetry: true },
+      game: { currentLocation: 'village', currentLocationGroup: 'frontier' },
+      goal: { minDailyGoals: 1, minSeasonGoals: 1, minWeeklyGoals: 1, minLongTermGoals: 1, minWeeklySnapshots: 1, requireThemeWeek: true },
+      regionMap: {
+        minUnlockedRegions: 2,
+        focusRegionId: 'ancient_road',
+        requireFocusedRegionUnlocked: true,
+        minCompletedRoutesByRegion: {
+          ancient_road: 2,
+          cloud_highland: 1
+        }
+      },
+      weeklyPlan: { requirePrimaryRoute: true, minClaimableNodes: 2, requireNextWeekPrep: true },
+      wallet: { minTicketTypes: 1 },
+      boundaryAction: 'week_rollover'
+    },
+    envelope: createRegionMapVariantEnvelope((envelope, regionMap) => {
+      const rolloverEnvelope = createWeeklyRolloverEveEnvelope()
+      envelope.meta = rolloverEnvelope.meta
+      envelope.data = {
+        ...rolloverEnvelope.data,
+        settings: createLateGameSettingsState({
+          lateGameRegionMap: true,
+          lateGameExpeditionBoss: true,
+          lateGameRegionalResources: true
+        }),
+        regionMap
+      }
+      envelope.data.game.currentLocationGroup = 'frontier'
+      resetRegionMapSampleState(regionMap)
+      setSampleRegionUnlocked(regionMap, 'ancient_road', '2-autumn-19')
+      setSampleRegionUnlocked(regionMap, 'cloud_highland', '2-autumn-20')
+      setSampleRouteProgress(regionMap, 'ancient_road_supply_relay', 2, '2-autumn-21')
+      setSampleRouteProgress(regionMap, 'ancient_road_archive_recovery', 1, '2-autumn-21')
+      setSampleRouteProgress(regionMap, 'cloud_highland_patrol', 1, '2-autumn-21')
+      regionMap.weeklyFocusState = {
+        weekId: getSeasonWeekId(2, 'autumn', 21),
+        focusedRegionId: 'ancient_road',
+        highlightedRouteIds: ['ancient_road_supply_relay', 'ancient_road_archive_recovery']
+      }
+      regionMap.resourceLedger = {
+        ancient_archive: 3,
+        ecology_specimen: 0,
+        ley_crystal: 2
+      }
+      regionMap.lastBossOutcome = {
+        regionId: 'ancient_road',
+        bossId: getRegionBossDef('ancient_road')?.id ?? null,
+        outcome: 'victory',
+        rewardFamilyId: 'ancient_archive',
+        rewardAmount: 2,
+        resolvedDayTag: '2-autumn-20',
+        summary: '周切换前夜刚收束荒道首领，可观察新周焦点是否正确重建。',
+        recommendedRouteId: null,
+        failureStreak: 0
+      }
+      regionMap.bossClearCounts.ancient_road = 1
+      regionMap.telemetry.resourceTurnIns = 2
+    })
   },
   {
     id: 'late_economy_foundation',

@@ -5,16 +5,39 @@
         <Map :size="14" />
         <span>行旅图</span>
       </div>
-      <span class="text-xs" :class="regionMapStore.featureEnabled ? 'text-success' : 'text-muted'">
-        {{ regionMapStore.featureEnabled ? '已接线' : '未开启' }}
+      <span class="text-xs" :class="regionMapStore.unlockedRegionCount > 0 ? 'text-success' : 'text-muted'">
+        {{ regionMapStore.unlockedRegionCount > 0 ? '已开放' : '按进度开放' }}
       </span>
     </div>
 
-    <div v-if="!regionMapStore.featureEnabled" class="border border-accent/20 rounded-xs p-3 mb-3">
-      <p class="text-sm text-muted">行旅图功能当前处于关闭状态。</p>
+    <div v-if="regionMapStore.unlockedRegionCount <= 0" class="border border-accent/20 rounded-xs p-3 mb-3">
+      <div class="flex items-center gap-2 mb-2 text-accent/70">
+        <Map :size="18" />
+        <span class="text-xs">未开放时也可先查看开放条件</span>
+      </div>
+      <p class="text-sm text-muted">行旅图会随着玩家进度逐步开放。</p>
       <p class="text-xs text-muted mt-1 leading-5">
-        Day 1 已完成入口、状态和存档骨架接线。开启 `lateGameRegionMap` 后，这里会作为区域总入口承接后续区域路线与远征内容。
-      </p>
+        当任意区域满足解锁条件后，这里会自动切换成正式可推进的区域总入口，不再需要额外开关。      </p>
+      <p class="text-xs text-accent/80 mt-2 leading-5">现在不再需要额外开关，任一区域满足条件后会自动进入可用状态。</p>
+      <div class="mt-3 space-y-2">
+        <div
+          v-for="entry in lockedRegionUnlockGuides"
+          :key="`region-unlock-guide-${entry.id}`"
+          class="border border-accent/10 rounded-xs p-3"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-xs text-accent">{{ entry.name }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.description }}</p>
+            </div>
+            <span class="text-[10px] shrink-0" :class="entry.ready ? 'text-success' : 'text-muted'">
+              {{ entry.ready ? '条件已满足' : '尚未满足' }}
+            </span>
+          </div>
+          <p class="text-[10px] text-muted mt-2 leading-4">{{ entry.summary }}</p>
+          <p class="text-[10px] text-accent/80 mt-1 leading-4">承接方向：{{ entry.linkedSystems.join(' / ') }}</p>
+        </div>
+      </div>
     </div>
 
     <template v-else>
@@ -60,11 +83,61 @@
             </button>
           </div>
         </div>
-        <p v-if="lastActionSummary" class="text-[10px] text-success mt-2 leading-4">{{ lastActionSummary }}</p>
+        <p
+          v-if="lastActionSummary"
+          class="text-[10px] mt-2 leading-4"
+          :class="actionToneClass"
+        >
+          {{ lastActionSummary }}
+        </p>
+      </div>
+
+      <div class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
+        <p class="text-xs text-accent">{{ regionMapStore.frontierDigest.headline }}</p>
+        <div class="mt-2 space-y-1">
+          <p
+            v-for="line in regionMapStore.frontierDigest.highlightSummaries"
+            :key="`digest-highlight-${line}`"
+            class="text-[10px] text-muted leading-4"
+          >
+            - {{ line }}
+          </p>
+          <p
+            v-for="line in regionMapStore.frontierDigest.nextHookSummaries"
+            :key="`digest-hook-${line}`"
+            class="text-[10px] text-accent/80 leading-4"
+          >
+            -> {{ line }}
+          </p>
+        </div>
+      </div>
+
+      <div class="border border-accent/20 rounded-xs p-3 mb-3">
+        <div class="flex items-center justify-between gap-3 mb-2">
+          <p class="text-xs text-muted">区域切换</p>
+          <button
+            class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] hover:bg-accent/5"
+            :class="selectedRegionId === null ? 'text-accent' : 'text-muted'"
+            @click="selectedRegionId = null"
+          >
+            全部区域
+          </button>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            v-for="region in regionMapStore.regionSummaries"
+            :key="`region-filter-${region.id}`"
+            class="border rounded-xs px-2 py-1 text-[10px] hover:bg-accent/5"
+            :class="selectedRegionId === region.id ? 'border-accent text-accent' : 'border-accent/20 text-muted'"
+            @click="selectedRegionId = region.id"
+          >
+            {{ region.name }}
+          </button>
+        </div>
       </div>
 
       <div class="space-y-2 mb-3">
-        <div v-for="region in regionMapStore.regionSummaries" :key="region.id" class="border border-accent/20 rounded-xs p-3">
+        <div v-for="region in visibleRegionSummaries" :key="region.id" class="border border-accent/20 rounded-xs p-3">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <p class="text-sm text-accent">{{ region.name }}</p>
@@ -187,6 +260,58 @@
             </div>
 
             <div class="space-y-2">
+              <div class="border border-accent/10 rounded-xs px-3 py-2">
+                <div class="flex items-center justify-between gap-3">
+                  <p class="text-[10px] text-muted">本周区域事件</p>
+                  <span class="text-[10px] text-accent">{{ getActiveRegionEvents(region.id).length }}/{{ getRegionWeeklyEventCapacity(region.id) }}</span>
+                </div>
+                <p v-if="getActiveRegionEvents(region.id).length === 0" class="text-[10px] text-muted mt-2 leading-4">
+                  当前没有激活事件，通常会在周切换或同步焦点后刷新。
+                </p>
+                <div v-else class="space-y-2 mt-2">
+                  <div
+                    v-for="event in getActiveRegionEvents(region.id)"
+                    :key="event.id"
+                    class="border border-accent/10 rounded-xs px-3 py-2"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <p class="text-xs text-accent">{{ event.name }}</p>
+                        <p class="text-[10px] text-muted mt-0.5 leading-4">{{ event.description }}</p>
+                        <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px] text-muted">
+                          <span>体力 {{ event.staminaCost }}</span>
+                          <span>耗时 {{ event.timeCostHours }}h</span>
+                          <span>资源 +{{ event.rewardAmount }}</span>
+                        </div>
+                        <p v-if="event.encounterHint" class="text-[10px] text-muted mt-1 leading-4">
+                          - {{ event.encounterHint }}
+                        </p>
+                        <p v-if="event.handoffHint" class="text-[10px] text-accent/80 mt-1 leading-4">
+                          -> {{ event.handoffHint }}
+                        </p>
+                      </div>
+                      <span class="text-[10px] shrink-0 text-muted">本周 {{ event.weeklyCompletions }}/{{ event.maxWeeklyCompletions ?? 1 }}</span>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2 mt-2">
+                      <button
+                        class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+                        :disabled="!canRunEvent(event.id)"
+                        :title="getEventDisabledReason(event.id)"
+                        @click="handleRunEvent(event.id)"
+                      >
+                        处理事件
+                      </button>
+                    </div>
+                    <p v-if="getEventDisabledReason(event.id)" class="text-[10px] text-muted mt-2 leading-4">
+                      {{ getEventDisabledReason(event.id) }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-2">
               <div
                 v-for="route in getRegionRoutes(region.id)"
                 :key="route.id"
@@ -232,8 +357,8 @@
                   <button
                     v-if="isDev"
                     class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5"
-                    :disabled="!canRunRoute(route.id)"
-                    :title="getRouteDisabledReason(route.id)"
+                    :disabled="!canCompleteRoute(route.id)"
+                    :title="getCompleteRouteDisabledReason(route.id)"
                     @click="handleCompleteRoute(route.id)"
                   >
                     完成并结算
@@ -289,12 +414,38 @@
           </div>
         </div>
       </div>
+
+      <div
+        v-if="settlementDialog"
+        class="fixed inset-0 z-40 flex items-center justify-center bg-black/45 px-4"
+        @click.self="settlementDialog = null"
+      >
+        <div class="w-full max-w-md border rounded-xs bg-bg p-4" :class="settlementToneClass">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-sm text-accent">{{ settlementDialog.title }}</p>
+              <div class="mt-2 space-y-1">
+                <p
+                  v-for="line in settlementDialog.lines"
+                  :key="`settlement-line-${line}`"
+                  class="text-[11px] leading-5 text-muted"
+                >
+                  {{ line }}
+                </p>
+              </div>
+            </div>
+            <button class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-muted hover:bg-accent/5" @click="settlementDialog = null">
+              关闭
+            </button>
+          </div>
+        </div>
+      </div>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-  import { computed, ref } from 'vue'
+  import { computed, ref, watch } from 'vue'
   import { Map } from 'lucide-vue-next'
   import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
   import { getWeekCycleInfo } from '@/utils/weekCycle'
@@ -321,6 +472,9 @@
   const shopStore = useShopStore()
   const villageProjectStore = useVillageProjectStore()
   const lastActionSummary = ref('')
+  const actionTone = ref<'success' | 'danger' | 'accent'>('success')
+  const selectedRegionId = ref<RegionId | null>(regionMapStore.currentWeeklyFocus.focusedRegionId ?? null)
+  const settlementDialog = ref<{ title: string; lines: string[]; tone: 'success' | 'danger' | 'accent' } | null>(null)
   const isDev = import.meta.env.DEV
 
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
@@ -334,6 +488,70 @@
   })
 
   const currentThemeWeekLabel = computed(() => goalStore.currentThemeWeek?.name ?? currentWeekId.value)
+  const visibleRegionSummaries = computed(() =>
+    selectedRegionId.value
+      ? regionMapStore.regionSummaries.filter(region => region.id === selectedRegionId.value)
+      : regionMapStore.regionSummaries
+  )
+  const lockedRegionUnlockGuides = computed(() =>
+    regionMapStore.regionDefs.map(region => {
+      const progress = regionMapStore.getRegionUnlockProgress(region.id)
+      return {
+        ...region,
+        ready: progress.ready,
+        summary: progress.summary
+      }
+    })
+  )
+  const actionToneClass = computed(() =>
+    actionTone.value === 'danger'
+      ? 'text-danger'
+      : actionTone.value === 'accent'
+        ? 'text-accent'
+        : 'text-success'
+  )
+  const settlementToneClass = computed(() =>
+    settlementDialog.value?.tone === 'danger'
+      ? 'border-danger/30'
+      : settlementDialog.value?.tone === 'accent'
+        ? 'border-accent/30'
+        : 'border-success/30'
+  )
+
+  const setActionSummary = (message: string, tone: 'success' | 'danger' | 'accent' = 'success') => {
+    lastActionSummary.value = message
+    actionTone.value = tone
+  }
+
+  const openSettlementDialog = (title: string, lines: string[], tone: 'success' | 'danger' | 'accent' = 'success') => {
+    settlementDialog.value = {
+      title,
+      lines: lines.filter(Boolean),
+      tone
+    }
+  }
+
+  const ensureWeeklyEventRuntime = () => {
+    regionMapStore.refreshUnlocksFromProgress(currentDayTag.value)
+    regionMapStore.ensureWeeklyEventRuntime(currentWeekId.value, regionMapStore.currentWeeklyFocus.focusedRegionId, currentDayTag.value)
+  }
+
+  watch(
+    [currentDayTag, currentWeekId, () => regionMapStore.currentWeeklyFocus.focusedRegionId],
+    () => {
+      ensureWeeklyEventRuntime()
+    },
+    { immediate: true }
+  )
+
+  watch(
+    () => regionMapStore.currentWeeklyFocus.focusedRegionId,
+    focusedRegionId => {
+      if (focusedRegionId && selectedRegionId.value !== null) {
+        selectedRegionId.value = focusedRegionId
+      }
+    }
+  )
 
   const getUnlockSummary = (regionId: RegionId) => regionMapStore.getRegionUnlockProgress(regionId).summary
 
@@ -357,9 +575,27 @@
 
   const canRunRoute = (routeId: string) => regionMapStore.getRouteExpeditionStatus(routeId).available
 
+  const canCompleteRoute = (routeId: string) =>
+    regionMapStore.activeExpeditionSummary?.route?.id === routeId || canRunRoute(routeId)
+
   const getRouteDisabledReason = (routeId: string) => {
     const routeStatus = regionMapStore.getRouteExpeditionStatus(routeId)
     return routeStatus.available ? '' : routeStatus.reason
+  }
+
+  const getActiveRegionEvents = (regionId: RegionId) => regionMapStore.getActiveRegionEvents(regionId)
+
+  const getRegionWeeklyEventCapacity = (regionId: RegionId) =>
+    regionMapStore.currentWeeklyFocus.focusedRegionId === regionId ? 3 : 2
+
+  const getCompleteRouteDisabledReason = (routeId: string) =>
+    regionMapStore.activeExpeditionSummary?.route?.id === routeId ? '' : getRouteDisabledReason(routeId)
+
+  const canRunEvent = (eventId: string) => regionMapStore.getEventAvailability(eventId).available
+
+  const getEventDisabledReason = (eventId: string) => {
+    const eventStatus = regionMapStore.getEventAvailability(eventId)
+    return eventStatus.available ? '' : eventStatus.reason
   }
 
   const getBossPrepSummary = (regionId: RegionId) => {
@@ -508,47 +744,91 @@
 
   const handleUnlockRegion = (regionId: RegionId) => {
     regionMapStore.unlockRegion(regionId, currentDayTag.value)
-    lastActionSummary.value = `已解锁 ${regionMapStore.regionDefs.find(region => region.id === regionId)?.name ?? regionId}。`
+    setActionSummary(`已解锁 ${regionMapStore.regionDefs.find(region => region.id === regionId)?.name ?? regionId}。`)
   }
 
   const handleFocusRegion = (regionId: RegionId) => {
     const highlightedRouteIds = getRegionRoutes(regionId).map(route => route.id).slice(0, 2)
     regionMapStore.setWeeklyFocus(currentWeekId.value, regionId, highlightedRouteIds)
-    lastActionSummary.value = `本周区域焦点已切到 ${regionMapStore.regionDefs.find(region => region.id === regionId)?.name ?? regionId}。`
+    regionMapStore.refreshWeeklyEventRuntime(currentWeekId.value, regionId, currentDayTag.value)
+    selectedRegionId.value = regionId
+    setActionSummary(`本周区域焦点已切到 ${regionMapStore.regionDefs.find(region => region.id === regionId)?.name ?? regionId}。`, 'accent')
   }
 
   const handleStartRoute = (routeId: string) => {
     const ok = regionMapStore.beginRoute(routeId, currentDayTag.value)
-    lastActionSummary.value = ok ? `已开始路线：${getRegionRoutes(regionMapStore.saveData.expedition.activeRegionId ?? 'ancient_road').find(route => route.id === routeId)?.name ?? routeId}。` : '当前路线未解锁，无法开始。'
+    setActionSummary(
+      ok ? `已开始路线：${getRegionRoutes(regionMapStore.saveData.expedition.activeRegionId ?? 'ancient_road').find(route => route.id === routeId)?.name ?? routeId}。` : '当前路线未解锁，无法开始。',
+      ok ? 'accent' : 'danger'
+    )
   }
 
   const handleRunRoute = (routeId: string) => {
     const result = regionMapStore.runRouteExpedition(routeId, currentDayTag.value)
-    lastActionSummary.value = result.message
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    openSettlementDialog(result.success ? '路线结算' : '路线未完成', [result.message], result.success ? 'success' : 'danger')
+  }
+
+  const handleRunEvent = (eventId: string) => {
+    const result = regionMapStore.runRegionEvent(eventId, currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    openSettlementDialog(result.success ? '区域事件结算' : '区域事件未完成', [result.message], result.success ? 'success' : 'danger')
   }
 
   const handleCompleteRoute = (routeId: string) => {
-    const status = regionMapStore.getRouteExpeditionStatus(routeId)
-    if (!status.available) {
-      lastActionSummary.value = status.reason
-      return
+    const isActiveRoute = regionMapStore.activeExpeditionSummary?.route?.id === routeId
+    if (!isActiveRoute) {
+      const status = regionMapStore.getRouteExpeditionStatus(routeId)
+      if (!status.available) {
+        setActionSummary(status.reason, 'danger')
+        return
+      }
     }
     const result = regionMapStore.completeRouteAndGrantRewards(routeId, currentDayTag.value)
-    lastActionSummary.value = result
-      ? `路线已结算：获得 ${result.rewardAmount} 点家族进度${result.rewardItems.length > 0 ? `，并发放 ${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''}。`
-      : '当前路线未解锁，无法结算。'
+    if (isActiveRoute && result) {
+      regionMapStore.clearExpedition()
+    }
+    setActionSummary(
+      result
+        ? `路线已结算：获得 ${result.rewardAmount} 点家族进度${result.rewardItems.length > 0 ? `，并发放 ${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''}。`
+        : '当前路线未解锁，无法结算。',
+      result ? 'success' : 'danger'
+    )
+    openSettlementDialog(
+      result ? '路线结算' : '路线未完成',
+      result
+        ? [
+            `区域资源 +${result.rewardAmount}`,
+            result.rewardItems.length > 0 ? `物品奖励：${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''
+          ]
+        : ['当前路线未解锁，无法结算。'],
+      result ? 'success' : 'danger'
+    )
   }
 
   const handleBossClear = (regionId: RegionId) => {
     const status = regionMapStore.getBossExpeditionStatus(regionId)
     if (!status.available) {
-      lastActionSummary.value = status.reason
+      setActionSummary(status.reason, 'danger')
       return
     }
-    const result = regionMapStore.clearBossAndGrantRewards(regionId)
-    lastActionSummary.value = result
-      ? `首领已记录：获得 ${result.rewardAmount} 点家族进度${result.rewardItems.length > 0 ? `，并发放 ${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''}。`
-      : '当前区域未解锁，或远征首领子开关未开启。'
+    const result = regionMapStore.clearBossAndGrantRewards(regionId, currentDayTag.value)
+    setActionSummary(
+      result
+        ? `首领已记录：获得 ${result.rewardAmount} 点家族进度${result.rewardItems.length > 0 ? `，并发放 ${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''}。`
+        : '当前区域未解锁，无法记录首领结果。',
+      result ? 'success' : 'danger'
+    )
+    openSettlementDialog(
+      result ? '首领结算' : '首领未完成',
+      result
+        ? [
+            `区域资源 +${result.rewardAmount}`,
+            result.rewardItems.length > 0 ? `物品奖励：${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''
+          ]
+        : ['当前区域未解锁，无法记录首领结果。'],
+      result ? 'success' : 'danger'
+    )
   }
 
   const canChallengeBoss = (regionId: RegionId) =>
@@ -558,20 +838,23 @@
     regionMapStore.regionBossAvailability.find(entry => entry.regionId === regionId)?.disabledReason ?? ''
 
   const handleRunBoss = (regionId: RegionId) => {
-    const result = regionMapStore.runBossExpedition(regionId)
-    lastActionSummary.value = result.message
+    const result = regionMapStore.runBossExpedition(regionId, currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    openSettlementDialog(result.success ? '首领结算' : '首领回退', [result.message], result.success ? 'success' : 'danger')
   }
 
   const handleRefreshUnlocks = () => {
     const unlocked = regionMapStore.refreshUnlocksFromProgress(currentDayTag.value)
-    lastActionSummary.value = unlocked.length > 0 ? `按现有进度自动解锁：${unlocked.join('、')}。` : '当前没有新增区域被自动解锁。'
+    setActionSummary(unlocked.length > 0 ? `按现有进度自动解锁：${unlocked.join('、')}。` : '当前没有新增区域被自动解锁。', unlocked.length > 0 ? 'success' : 'accent')
   }
 
   const handleSyncWeeklyFocus = () => {
     const focusedId = regionMapStore.currentWeeklyFocus.focusedRegionId ?? 'ancient_road'
     const highlightedRouteIds = getRegionRoutes(focusedId).map(route => route.id).slice(0, 2)
     regionMapStore.setWeeklyFocus(currentWeekId.value, focusedId, highlightedRouteIds)
-    lastActionSummary.value = `已同步本周焦点为 ${regionMapStore.regionDefs.find(region => region.id === focusedId)?.name ?? focusedId}。`
+    regionMapStore.refreshWeeklyEventRuntime(currentWeekId.value, focusedId, currentDayTag.value)
+    selectedRegionId.value = focusedId
+    setActionSummary(`已同步本周焦点为 ${regionMapStore.regionDefs.find(region => region.id === focusedId)?.name ?? focusedId}。`, 'accent')
   }
 
   const handleResourceTurnIn = () => {
@@ -579,13 +862,16 @@
     const route = getRegionRoutes(focusedRegionId)[0]
     const familyId = route?.primaryResourceFamilyId ?? 'ancient_archive'
     const ok = regionMapStore.recordResourceTurnIn(familyId, 1)
-    lastActionSummary.value = ok ? `已交付 1 份${regionMapStore.resourceFamilyDefs.find(family => family.id === familyId)?.label ?? familyId}。` : '交付失败：当前资源不足，或区域资源子开关未开启。'
+    setActionSummary(ok ? `已交付 1 份${regionMapStore.resourceFamilyDefs.find(family => family.id === familyId)?.label ?? familyId}。` : '交付失败：当前资源不足。', ok ? 'success' : 'danger')
   }
 
   const handlePublicResourceTurnIn = (familyId: RegionalResourceFamilyId) => {
     const ok = regionMapStore.recordResourceTurnIn(familyId, 1)
-    lastActionSummary.value = ok
-      ? `已交付 1 份${regionMapStore.resourceFamilyDefs.find(family => family.id === familyId)?.label ?? familyId}。`
-      : '交付失败：当前资源不足，或区域资源子开关未开启。'
+    setActionSummary(
+      ok
+        ? `已交付 1 份${regionMapStore.resourceFamilyDefs.find(family => family.id === familyId)?.label ?? familyId}。`
+        : '交付失败：当前资源不足。',
+      ok ? 'success' : 'danger'
+    )
   }
 </script>

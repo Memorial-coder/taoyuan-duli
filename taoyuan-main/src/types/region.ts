@@ -49,6 +49,9 @@ export interface RegionBossPhaseDef {
   id: string
   label: string
   summary: string
+  enemyHp: number
+  enemyAttack: number
+  enemyDefense: number
 }
 
 export interface RegionBossDef {
@@ -60,6 +63,23 @@ export interface RegionBossDef {
   staminaCost: number
   timeCostHours: number
   phases: RegionBossPhaseDef[]
+}
+
+export interface RegionEventDef {
+  id: string
+  regionId: RegionId
+  name: string
+  description: string
+  unlockRouteIds?: string[]
+  unlockCompletionCount?: number
+  staminaCost: number
+  timeCostHours: number
+  rewardFamilyId: RegionalResourceFamilyId
+  rewardAmount: number
+  linkedSystems: RegionLinkedSystem[]
+  encounterHint?: string
+  handoffHint?: string
+  maxWeeklyCompletions?: number
 }
 
 export interface RegionUnlockState {
@@ -80,6 +100,20 @@ export interface RegionWeeklyFocusState {
   highlightedRouteIds: string[]
 }
 
+export interface RegionEventState {
+  eventId: string
+  totalCompletions: number
+  weeklyCompletions: number
+  lastCompletedDayTag: string
+  lastActivatedWeekId: string
+}
+
+export interface RegionWeeklyEventState {
+  weekId: string
+  activeEventIdsByRegion: Record<RegionId, string[]>
+  lastRefreshedDayTag: string
+}
+
 export interface ExpeditionRuntimeState {
   activeRegionId: RegionId | null
   activeRouteId: string | null
@@ -93,12 +127,29 @@ export interface RegionTelemetrySnapshot {
   resourceTurnIns: number
 }
 
+export interface RegionBossOutcomeState {
+  regionId: RegionId | null
+  bossId: string | null
+  outcome: 'none' | 'victory' | 'failure'
+  rewardFamilyId: RegionalResourceFamilyId | null
+  rewardAmount: number
+  resolvedDayTag: string
+  summary: string
+  recommendedRouteId: string | null
+  failureStreak: number
+}
+
 export interface RegionMapSaveData {
   saveVersion: number
   unlockStates: Record<RegionId, RegionUnlockState>
   routeStates: Record<string, RegionRouteState>
+  eventStates: Record<string, RegionEventState>
   weeklyFocusState: RegionWeeklyFocusState
+  weeklyEventState: RegionWeeklyEventState
   resourceLedger: Record<RegionalResourceFamilyId, number>
   expedition: ExpeditionRuntimeState
   telemetry: RegionTelemetrySnapshot
+  bossClearCounts: Record<RegionId, number>
+  bossFailureStreaks: Record<RegionId, number>
+  lastBossOutcome: RegionBossOutcomeState
 }
