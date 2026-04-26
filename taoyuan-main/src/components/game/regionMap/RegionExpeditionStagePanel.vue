@@ -38,6 +38,7 @@
     session: RegionExpeditionSession
     regionLabel: string
     statusLabel: string
+    compactMode?: boolean
     playerHp: number
     playerMaxHp: number
     nodeChoices: RegionExpeditionNodeChoice[]
@@ -91,6 +92,8 @@
     revealedLineCount: 1,
     actionLocked: true
   })
+  const compactFrontlineExpanded = ref(false)
+  const compactNotesExpanded = ref(false)
 
   const snapshot = ref({
     sessionId: '',
@@ -115,8 +118,10 @@
 
   const latestJournal = computed(() => props.session.journal[props.session.journal.length - 1] ?? null)
   const recentJournal = computed(() => props.session.journal.slice(-3).reverse())
+  const compactRecentJournal = computed(() => recentJournal.value.slice(0, 2))
   const nodeTrail = computed(() => props.session.nodeHistory.slice(-8))
   const visibleSignalLines = computed(() => props.signalLines.slice(0, 3))
+  const compactEncounterTrail = computed(() => props.encounterTrail.slice(0, 3))
   const carryPreviewLines = computed(() =>
     props.session.carryItems.slice(0, 4).map(item => `${item.label} x${item.quantity} · ${item.note}`)
   )
@@ -380,6 +385,14 @@
     { immediate: true }
   )
 
+  watch(
+    () => props.session.sessionId,
+    () => {
+      compactFrontlineExpanded.value = false
+      compactNotesExpanded.value = false
+    }
+  )
+
   onBeforeUnmount(() => {
     clearTimers()
   })
@@ -407,7 +420,279 @@
           <div class="h-1.5 rounded-xs bg-accent transition-all duration-500" :style="{ width: `${progressPercent}%` }"></div>
         </div>
 
-        <div class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)_260px]">
+        <div v-if="compactMode" class="mt-4 space-y-3 pb-28">
+          <div class="grid grid-cols-2 gap-2">
+            <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
+              <p class="text-[10px] text-muted">生命</p>
+              <p class="text-sm mt-1">{{ playerHp }}/{{ playerMaxHp }}</p>
+            </div>
+            <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
+              <p class="text-[10px] text-muted">士气</p>
+              <p class="text-sm mt-1">{{ session.morale }}</p>
+            </div>
+            <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
+              <p class="text-[10px] text-muted">风险</p>
+              <p class="text-sm mt-1">{{ session.danger }}</p>
+            </div>
+            <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
+              <p class="text-[10px] text-muted">推进</p>
+              <p class="text-sm mt-1 text-accent">{{ session.progressStep }}/{{ session.totalSteps }}</p>
+            </div>
+          </div>
+
+          <div v-if="visibleSignalLines.length > 0" class="border border-warning/20 rounded-xs px-3 py-3 bg-warning/5">
+            <p class="text-[10px] text-muted">本次主线信号</p>
+            <div class="space-y-1 mt-2">
+              <p v-for="line in visibleSignalLines" :key="`compact-signal-${line}`" class="text-[10px] text-warning leading-4">
+                ! {{ line }}
+              </p>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[10px] text-muted">节点足迹</p>
+              <span class="text-[10px] text-accent">{{ nodeTrail.length }} 段</span>
+            </div>
+            <div class="region-map-scroll-rail overflow-x-auto pt-2">
+              <div class="region-map-scroll-track flex flex-nowrap gap-2 min-w-max">
+                <span
+                  v-for="entry in nodeTrail"
+                  :key="`compact-node-${entry.id}`"
+                  class="region-map-scroll-card border rounded-xs px-2 py-1 text-[10px] whitespace-nowrap"
+                  :class="entry.id === session.nodeHistory[session.nodeHistory.length - 1]?.id ? 'border-accent/40 text-accent bg-accent/10' : 'border-accent/10 text-muted bg-bg/70'"
+                >
+                  {{ entry.step > 0 ? `第${entry.step}步` : '出发' }} · {{ entry.label }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <Transition name="panel-fade" mode="out-in">
+            <div
+              :key="sceneKey"
+              class="border rounded-xs px-3 py-4 min-h-[300px] flex flex-col justify-between"
+              :class="scenePanelClass"
+              data-testid="region-expedition-primary-card"
+            >
+              <div>
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-[10px]" :class="getPhaseToneClass(revealState.phase)">{{ getPhaseLabel(revealState.phase) }}</p>
+                    <p class="text-base text-text mt-1">{{ sceneTitle }}</p>
+                    <p class="text-[11px] text-muted mt-2 leading-5">{{ sceneSummary }}</p>
+                  </div>
+                  <span class="text-[10px] shrink-0" :class="getPhaseToneClass(revealState.phase)">
+                    {{ getPhaseLabel(revealState.phase) }}
+                  </span>
+                </div>
+
+                <div class="space-y-2 mt-4">
+                  <p
+                    v-for="line in visibleSceneLines"
+                    :key="`${revealState.phase}-${line}`"
+                    class="text-[11px] leading-5"
+                    :class="revealState.phase === 'encounter_reveal' || revealState.phase === 'encounter_result' ? 'text-warning' : revealState.phase === 'camp_reveal' || revealState.phase === 'camp_result' ? 'text-success' : 'text-muted'"
+                  >
+                    - {{ line }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="mt-5">
+                <button
+                  v-if="primaryActionMode === 'waiting'"
+                  class="w-full border border-accent/20 rounded-xs px-3 py-2 text-[11px] text-accent/80 bg-bg/70 cursor-default"
+                  disabled
+                >
+                  {{ revealState.phase === 'intro' ? '正在校准出发信息…' : revealState.phase === 'node_reveal' ? '正在揭示下一段路线…' : revealState.phase === 'encounter_reveal' ? '遭遇正在浮现…' : '营地场景正在落定…' }}
+                </button>
+                <p v-else-if="primaryActionMode === 'settlement'" class="text-[10px] text-success leading-4">
+                  已进入回城阶段，底部动作坞会负责最后的收束操作。
+                </p>
+                <p v-else class="text-[10px] text-muted leading-4">
+                  当前合法操作已经移到底部动作坞，主场景只保留这一步最关键的反馈。
+                </p>
+              </div>
+            </div>
+          </Transition>
+
+          <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
+            <button class="flex w-full items-center justify-between gap-3 text-left" @click="compactFrontlineExpanded = !compactFrontlineExpanded">
+              <div class="min-w-0">
+                <p class="text-[10px] text-muted">前线状态</p>
+                <p class="text-[10px] text-accent mt-1">HP / 士气 / 风险 / 准备度放这里集中看。</p>
+              </div>
+              <span class="text-[10px] text-accent shrink-0">{{ compactFrontlineExpanded ? '收起' : '展开' }}</span>
+            </button>
+            <div v-if="compactFrontlineExpanded" class="mt-3 space-y-3">
+              <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
+                <div class="flex items-center justify-between"><span class="text-muted">视野</span><span>{{ session.visibility }}</span></div>
+                <div class="flex items-center justify-between"><span class="text-muted">负重</span><span>{{ session.carryLoad }}/{{ session.maxCarryLoad }}</span></div>
+                <div class="flex items-center justify-between"><span class="text-muted">发现</span><span>{{ session.findings }}</span></div>
+                <div class="flex items-center justify-between"><span class="text-muted">口粮</span><span>{{ session.supplies.rations }}</span></div>
+                <div class="flex items-center justify-between"><span class="text-muted">药剂/器具</span><span>{{ session.supplies.medicine }} / {{ session.supplies.utility }}</span></div>
+                <div class="flex items-center justify-between"><span class="text-muted">准备</span><span class="text-accent">{{ session.frontlinePrep }}</span></div>
+                <div class="flex items-center justify-between"><span class="text-muted">天气</span><span>{{ getWeatherLabel(session.riskState.weather) }}</span></div>
+                <div class="flex items-center justify-between"><span class="text-muted">异变</span><span>{{ session.riskState.anomaly }}</span></div>
+              </div>
+              <div v-if="shortcutSummary" class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/70">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-muted">熟路态势</p>
+                  <span class="text-[10px]" :class="shortcutSummary.toneClass">{{ shortcutSummary.label }}</span>
+                </div>
+                <p class="text-[10px] mt-2 leading-4" :class="shortcutSummary.level === 'none' ? 'text-muted' : 'text-accent'">{{ shortcutSummary.headline }}</p>
+                <p class="text-[10px] mt-1 leading-4" :class="shortcutSummary.level === 'none' ? 'text-muted' : 'text-success'">{{ shortcutSummary.benefitSummary }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
+            <button class="flex w-full items-center justify-between gap-3 text-left" @click="compactNotesExpanded = !compactNotesExpanded">
+              <div class="min-w-0">
+                <p class="text-[10px] text-muted">近况与足迹</p>
+                <p class="text-[10px] text-accent mt-1">最近 2 条日志、遭遇留痕和携带清单放这里回看。</p>
+              </div>
+              <span class="text-[10px] text-accent shrink-0">{{ compactNotesExpanded ? '收起' : '展开' }}</span>
+            </button>
+            <div v-if="compactNotesExpanded" class="mt-3 space-y-3">
+              <div class="space-y-2">
+                <div
+                  v-for="entry in compactRecentJournal"
+                  :key="`compact-journal-${entry.id}`"
+                  class="border rounded-xs px-2 py-2"
+                  :class="entry.tone === 'danger' ? 'border-danger/20 bg-danger/5' : entry.tone === 'success' ? 'border-success/20 bg-success/5' : 'border-accent/10 bg-bg/70'"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-[10px]" :class="entry.tone === 'danger' ? 'text-danger' : entry.tone === 'success' ? 'text-success' : 'text-accent'">
+                      {{ entry.title }}
+                    </p>
+                    <span class="text-[10px] text-muted">{{ entry.step > 0 ? `第${entry.step}步` : '出发' }}</span>
+                  </div>
+                  <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+                </div>
+              </div>
+
+              <div v-if="compactEncounterTrail.length > 0" class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/70">
+                <p class="text-[10px] text-muted mb-2">事件留痕</p>
+                <div class="space-y-1">
+                  <p v-for="entry in compactEncounterTrail" :key="`compact-trail-${entry.id}`" class="text-[10px] text-muted leading-4">
+                    {{ getEncounterKindLabel(entry.kind) }} · {{ entry.summary }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/70">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-muted">携带清单</p>
+                  <span class="text-[10px]" :class="carryPreviewLines.length > 0 ? 'text-accent' : 'text-muted'">{{ session.carryItems.length }} 项</span>
+                </div>
+                <div v-if="carryPreviewLines.length > 0" class="space-y-1 mt-2">
+                  <p v-for="line in carryPreviewLines.slice(0, 3)" :key="`compact-carry-${line}`" class="text-[10px] text-muted leading-4">{{ line }}</p>
+                </div>
+                <p v-else class="text-[10px] text-muted mt-2 leading-4">当前没有额外的途中携带物。</p>
+              </div>
+            </div>
+          </div>
+
+          <div
+            class="compact-expedition-action-dock border border-accent/20 rounded-xs bg-bg/95 px-3 pt-3"
+            data-testid="region-expedition-action-dock"
+          >
+            <div class="space-y-2">
+              <div v-if="primaryActionMode === 'choice'" class="grid grid-cols-1 gap-2">
+                <button
+                  v-for="choice in nodeChoices"
+                  :key="`compact-choice-${choice.id}`"
+                  class="border rounded-xs px-3 py-3 text-left hover:bg-bg/40 disabled:opacity-60"
+                  :class="choice.lane === 'branch' ? 'border-success/20' : choice.lane === 'deep' || choice.lane === 'boss' ? 'border-danger/20' : 'border-accent/20'"
+                  :disabled="revealState.actionLocked"
+                  :data-testid="`region-expedition-choice-${choice.id}`"
+                  @click="triggerWithLock(() => emit('advance', choice.id))"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <p class="text-[10px]" :class="getNodeLaneToneClass(choice.lane)">{{ choice.label }}</p>
+                    <span class="text-[10px] text-muted shrink-0">{{ getNodeLaneLabel(choice.lane) }}</span>
+                  </div>
+                  <p class="text-[10px] text-muted mt-1 leading-4">{{ choice.summary }}</p>
+                </button>
+              </div>
+
+              <div v-else-if="primaryActionMode === 'encounter' && session.pendingEncounter" class="grid grid-cols-1 gap-2">
+                <button
+                  v-for="option in session.pendingEncounter.options"
+                  :key="`compact-encounter-${option.id}`"
+                  class="border rounded-xs px-3 py-3 text-left hover:bg-bg/40 disabled:opacity-60"
+                  :class="option.tone === 'danger' ? 'border-danger/20' : option.tone === 'success' ? 'border-success/20' : 'border-accent/20'"
+                  :disabled="revealState.actionLocked"
+                  :data-testid="`region-expedition-encounter-${option.id}`"
+                  @click="triggerWithLock(() => emit('resolveEncounter', option.id))"
+                >
+                  <p class="text-[10px]" :class="option.tone === 'danger' ? 'text-danger' : option.tone === 'success' ? 'text-success' : 'text-accent'">
+                    {{ option.label }}
+                  </p>
+                  <p class="text-[10px] text-muted mt-1 leading-4">{{ option.summary }}</p>
+                </button>
+              </div>
+
+              <div v-else-if="primaryActionMode === 'camp' && session.campState" class="grid grid-cols-1 gap-2">
+                <button
+                  v-for="actionId in session.campState.availableActionIds"
+                  :key="`compact-camp-${actionId}`"
+                  class="border rounded-xs px-3 py-3 text-left hover:bg-bg/40 disabled:opacity-60"
+                  :class="CAMP_ACTION_META[actionId].borderClass"
+                  :disabled="revealState.actionLocked"
+                  :data-testid="`region-expedition-camp-${actionId}`"
+                  @click="triggerWithLock(() => emit('resolveCamp', actionId))"
+                >
+                  <p class="text-[10px]" :class="CAMP_ACTION_META[actionId].toneClass">{{ CAMP_ACTION_META[actionId].label }}</p>
+                  <p class="text-[10px] text-muted mt-1 leading-4">{{ CAMP_ACTION_META[actionId].summary }}</p>
+                </button>
+              </div>
+
+              <div v-else-if="primaryActionMode === 'settlement'" class="flex flex-col gap-2">
+                <button
+                  class="w-full border border-success/20 rounded-xs px-3 py-3 text-[11px] text-success hover:bg-success/5 disabled:opacity-60"
+                  :disabled="revealState.actionLocked"
+                  data-testid="region-expedition-settle"
+                  @click="triggerWithLock(() => emit('settle'))"
+                >
+                  结算收束
+                </button>
+              </div>
+
+              <div v-else class="flex flex-col gap-2">
+                <button class="w-full border border-accent/20 rounded-xs px-3 py-2 text-[11px] text-accent/80 bg-bg/70 cursor-default" disabled>
+                  {{ revealState.phase === 'intro' ? '正在校准出发信息…' : revealState.phase === 'node_reveal' ? '正在揭示下一段路线…' : revealState.phase === 'encounter_reveal' ? '遭遇正在浮现…' : '营地场景正在落定…' }}
+                </button>
+              </div>
+
+              <div
+                v-if="primaryActionMode === 'choice' && session.status === 'ongoing' && !session.pendingEncounter && !session.campState"
+                class="grid grid-cols-1 gap-2"
+              >
+                <button
+                  class="w-full border border-success/20 rounded-xs px-3 py-2 text-[11px] text-success hover:bg-success/5 disabled:opacity-60"
+                  :disabled="revealState.actionLocked || session.campUsed"
+                  data-testid="region-expedition-open-camp"
+                  @click="triggerWithLock(() => emit('camp'))"
+                >
+                  搭前线营地
+                </button>
+                <button
+                  class="w-full border border-danger/20 rounded-xs px-3 py-2 text-[11px] text-danger hover:bg-danger/5 disabled:opacity-60"
+                  :disabled="revealState.actionLocked"
+                  data-testid="region-expedition-retreat"
+                  @click="triggerWithLock(() => emit('retreat'))"
+                >
+                  主动撤退
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[220px_minmax(0,1fr)_260px]">
           <section class="space-y-3">
             <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
               <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px]">
@@ -653,3 +938,28 @@
     </div>
   </Transition>
 </template>
+
+<style scoped>
+  .region-map-scroll-rail {
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .region-map-scroll-track {
+    width: max-content;
+  }
+
+  .region-map-scroll-card {
+    scroll-snap-align: start;
+  }
+
+  .compact-expedition-action-dock {
+    position: sticky;
+    bottom: calc(0.25rem + env(safe-area-inset-bottom, 0px));
+    z-index: 5;
+    padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -10px 24px rgba(0, 0, 0, 0.24);
+  }
+</style>

@@ -1682,13 +1682,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       if (current?.unlocked) continue
       const progress = getRegionUnlockProgress(region.id)
       if (!progress.ready) continue
-      unlockRegion(region.id, dayTag)
+      applyUnlockedRegionState(region.id, dayTag)
       unlockedRegionIds.push(region.id)
     }
     return unlockedRegionIds
   }
 
-  const unlockRegion = (regionId: RegionId, unlockedDayTag = '') => {
+  const applyUnlockedRegionState = (regionId: RegionId, unlockedDayTag = '') => {
     saveData.value.unlockStates[regionId] = {
       unlocked: true,
       unlockedDayTag
@@ -1706,6 +1706,27 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     syncStructuralState(regionId, unlockedDayTag)
     if (saveData.value.weeklyFocusState.weekId) {
       refreshWeeklyEventRuntime(saveData.value.weeklyFocusState.weekId, saveData.value.weeklyFocusState.focusedRegionId, unlockedDayTag)
+    }
+  }
+
+  const applyLockedRegionState = (regionId: RegionId) => {
+    saveData.value.unlockStates[regionId] = {
+      unlocked: false,
+      unlockedDayTag: ''
+    }
+    for (const route of getRegionRoutes(regionId)) {
+      const current = saveData.value.routeStates[route.id]
+      saveData.value.routeStates[route.id] = {
+        routeId: route.id,
+        unlocked: false,
+        completions: current?.completions ?? 0,
+        lastCompletedDayTag: current?.lastCompletedDayTag ?? ''
+      }
+    }
+    refreshRouteUnlocks(regionId)
+    syncStructuralState(regionId, '')
+    if (saveData.value.weeklyFocusState.weekId) {
+      refreshWeeklyEventRuntime(saveData.value.weeklyFocusState.weekId, saveData.value.weeklyFocusState.focusedRegionId, '')
     }
   }
 
@@ -4913,6 +4934,20 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         clearExpedition()
         return true
       },
+      forceUnlockRegion: (regionId: RegionId, unlockedDayTag = '') => {
+        if (!REGION_DEFS.some(region => region.id === regionId)) return false
+        applyUnlockedRegionState(regionId, unlockedDayTag)
+        return true
+      },
+      setRegionUnlockedForDebug: (regionId: RegionId, unlocked: boolean, unlockedDayTag = '') => {
+        if (!REGION_DEFS.some(region => region.id === regionId)) return false
+        if (unlocked) {
+          applyUnlockedRegionState(regionId, unlockedDayTag)
+        } else {
+          applyLockedRegionState(regionId)
+        }
+        return true
+      },
       startFirstManualSession: () => {
         clearExpedition()
         const gameStore = useGameStore()
@@ -4989,7 +5024,6 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     reset,
     getRegionUnlockProgress,
     refreshUnlocksFromProgress,
-    unlockRegion,
     setWeeklyFocus,
     refreshWeeklyEventRuntime,
     ensureWeeklyEventRuntime,

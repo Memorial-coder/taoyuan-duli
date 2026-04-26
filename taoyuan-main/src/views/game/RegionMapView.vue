@@ -41,7 +41,7 @@
     </div>
 
     <template v-else>
-      <div class="border border-accent/20 rounded-xs p-2 mb-3">
+      <div v-if="!isCompactMobile" class="border border-accent/20 rounded-xs p-2 mb-3">
         <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
           <div class="flex items-center justify-between">
             <span class="text-muted">已解锁区域</span>
@@ -65,7 +65,7 @@
         </p>
       </div>
 
-      <div class="border border-accent/20 rounded-xs p-3 mb-3">
+      <div v-if="!isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <p class="text-xs text-accent">远征筹备</p>
@@ -107,34 +107,7 @@
         </div>
       </div>
 
-      <div v-if="isDev" class="border border-accent/20 rounded-xs p-3 mb-3">
-        <div class="flex items-center justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-xs text-accent">开发态操作</p>
-            <p class="text-[10px] text-muted mt-1 leading-4">用于快速验证区域解锁、周焦点、路线完成和首领记录是否贯通。</p>
-          </div>
-          <div class="flex flex-wrap gap-2 shrink-0">
-            <button class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleRefreshUnlocks">
-              刷新解锁
-            </button>
-            <button class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleSyncWeeklyFocus">
-              同步周焦点
-            </button>
-            <button class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5" @click="handleResourceTurnIn">
-              记 1 次交付
-            </button>
-          </div>
-        </div>
-        <p
-          v-if="lastActionSummary"
-          class="text-[10px] mt-2 leading-4"
-          :class="actionToneClass"
-        >
-          {{ lastActionSummary }}
-        </p>
-      </div>
-
-      <div class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
+      <div v-if="!isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
         <p class="text-xs text-accent">{{ regionMapStore.frontierDigest.headline }}</p>
         <div class="mt-2 space-y-1">
           <p
@@ -161,27 +134,141 @@
         </div>
       </div>
 
-      <div class="border border-accent/20 rounded-xs p-3 mb-3">
-        <div class="flex items-center justify-between gap-3 mb-2">
-          <p class="text-xs text-muted">区域切换</p>
+      <div
+        class="border border-accent/20 rounded-xs p-4 mb-3"
+        style="background-image: linear-gradient(135deg, rgba(168, 138, 86, 0.12), rgba(36, 39, 56, 0.72));"
+      >
+        <div class="flex flex-col md:flex-row md:items-start md:justify-between gap-3 mb-3">
+          <div class="min-w-0">
+            <p class="text-[10px] tracking-[0.28em] text-accent/70">区域切换</p>
+            <p class="text-sm text-accent mt-1">先选定这趟要展开查看的区域</p>
+            <p class="text-[10px] text-muted mt-1 leading-4">切到单一区域时，路线、传闻、季节变体和同行合同会更集中地展开。</p>
+          </div>
+          <div class="shrink-0 md:text-right">
+            <p class="text-[10px] text-muted">当前筛选</p>
+            <p class="text-sm text-accent mt-1">{{ selectedRegionFilterLabel }}</p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
           <button
-            class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] hover:bg-accent/5"
-            :class="selectedRegionId === null ? 'text-accent' : 'text-muted'"
+            class="border rounded-xs px-4 py-3 min-h-[88px] text-left transition-colors"
+            :class="allRegionsSelected ? 'border-accent bg-accent/10 text-accent' : 'border-accent/15 bg-bg/50 text-muted hover:bg-accent/5'"
+            data-testid="region-switch-all"
+            :aria-pressed="allRegionsSelected"
             @click="selectedRegionId = null"
           >
-            全部区域
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm">全部区域</p>
+                <p class="text-[10px] mt-2 leading-4" :class="allRegionsSelected ? 'text-accent/80' : 'text-muted'">
+                  一次查看整张行旅图，适合统览本周焦点与多区域承接。
+                </p>
+              </div>
+              <span class="text-[10px] shrink-0" :class="allRegionsSelected ? 'text-success' : 'text-muted'">
+                {{ allRegionsSelected ? '当前展开' : '总览' }}
+              </span>
+            </div>
+            <div class="mt-3 flex items-center justify-between gap-3 text-[10px]">
+              <span :class="allRegionsSelected ? 'text-accent/80' : 'text-muted'">
+                已开放 {{ regionMapStore.unlockedRegionCount }}/{{ regionMapStore.regionDefs.length }} 区
+              </span>
+              <span :class="allRegionsSelected ? 'text-accent' : 'text-muted'">焦点：{{ currentFocusLabel }}</span>
+            </div>
           </button>
-        </div>
-        <div class="flex flex-wrap gap-2">
+
           <button
             v-for="region in regionMapStore.regionSummaries"
             :key="`region-filter-${region.id}`"
-            class="border rounded-xs px-2 py-1 text-[10px] hover:bg-accent/5"
-            :class="selectedRegionId === region.id ? 'border-accent text-accent' : 'border-accent/20 text-muted'"
+            class="border rounded-xs px-4 py-3 min-h-[88px] text-left transition-colors"
+            :class="selectedRegionId === region.id ? 'border-accent bg-accent/10 text-accent' : 'border-accent/15 bg-bg/50 text-muted hover:bg-accent/5'"
+            :data-testid="`region-switch-${region.id}`"
+            :aria-pressed="selectedRegionId === region.id"
             @click="selectedRegionId = region.id"
           >
-            {{ region.name }}
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-sm">{{ region.name }}</p>
+                <p class="text-[10px] mt-2 leading-4" :class="selectedRegionId === region.id ? 'text-accent/80' : 'text-muted'">
+                  {{ region.description }}
+                </p>
+              </div>
+              <span
+                class="text-[10px] shrink-0"
+                :class="selectedRegionId === region.id ? 'text-success' : region.id === regionMapStore.currentWeeklyFocus.focusedRegionId ? 'text-accent' : 'text-muted'"
+              >
+                {{ selectedRegionId === region.id ? '当前展开' : region.id === regionMapStore.currentWeeklyFocus.focusedRegionId ? '本周焦点' : '区域入口' }}
+              </span>
+            </div>
+            <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
+              <span :class="selectedRegionId === region.id ? 'text-accent/80' : 'text-muted'">
+                路线 {{ region.completedRouteCount }}/{{ region.routeCount }}
+              </span>
+              <span :class="selectedRegionId === region.id ? 'text-accent/80' : 'text-muted'">
+                {{ region.themeHint }}
+              </span>
+              <span :class="region.unlocked ? 'text-success' : 'text-muted'">
+                {{ region.unlocked ? '已解锁' : '未解锁' }}
+              </span>
+            </div>
           </button>
+        </div>
+      </div>
+
+      <div v-if="lastActionSummary" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70">
+        <p class="text-[10px] text-muted">操作回执</p>
+        <p class="text-[11px] mt-2 leading-5" :class="actionToneClass">{{ lastActionSummary }}</p>
+      </div>
+
+      <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-[10px] tracking-[0.24em] text-accent/70">远征筹备</p>
+            <p class="text-xs text-accent mt-1">{{ currentSession ? `进行中：${currentSession.targetName}` : '先定推进风格，再发起探索。' }}</p>
+            <p class="text-[10px] text-muted mt-1 leading-4">
+              已选 {{ currentApproachDescription ? expeditionApproachOptions.find(entry => entry.value === selectedApproach)?.label : '稳健推进' }} / {{ expeditionRetreatRuleOptions.find(entry => entry.value === selectedRetreatRule)?.label ?? '平衡推进' }}
+            </p>
+          </div>
+          <button
+            class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 shrink-0"
+            @click="mobilePrepExpanded = !mobilePrepExpanded"
+          >
+            {{ mobilePrepExpanded ? '收起' : '展开' }}
+          </button>
+        </div>
+
+        <div v-if="mobilePrepExpanded" class="space-y-3 mt-3">
+          <div>
+            <p class="text-[10px] text-muted mb-2">推进风格</p>
+            <div class="grid grid-cols-1 gap-2">
+              <button
+                v-for="entry in expeditionApproachOptions"
+                :key="`compact-approach-${entry.value}`"
+                class="border rounded-xs px-3 py-2 text-left hover:bg-accent/5"
+                :class="selectedApproach === entry.value ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted'"
+                @click="selectedApproach = entry.value"
+              >
+                <p class="text-[10px]">{{ entry.label }}</p>
+                <p class="text-[10px] mt-1 leading-4 text-muted">{{ entry.description }}</p>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-[10px] text-muted mb-2">撤退规则</p>
+            <div class="grid grid-cols-1 gap-2">
+              <button
+                v-for="entry in expeditionRetreatRuleOptions"
+                :key="`compact-retreat-${entry.value}`"
+                class="border rounded-xs px-3 py-2 text-left hover:bg-accent/5"
+                :class="selectedRetreatRule === entry.value ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted'"
+                @click="selectedRetreatRule = entry.value"
+              >
+                <p class="text-[10px]">{{ entry.label }}</p>
+                <p class="text-[10px] mt-1 leading-4 text-muted">{{ entry.description }}</p>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -190,7 +277,7 @@
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <p class="text-sm text-accent">{{ region.name }}</p>
-              <p class="text-xs text-muted mt-1 leading-5">{{ region.description }}</p>
+              <p class="text-xs text-muted mt-1 leading-5" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ region.description }}</p>
             </div>
             <span class="text-[10px] shrink-0" :class="region.unlocked ? 'text-success' : 'text-muted'">
               {{ region.unlocked ? '已解锁' : '未解锁' }}
@@ -238,7 +325,7 @@
             认知进度：情报 {{ getRegionKnowledgeSummary(region.id).intel }} / 勘明 {{ getRegionKnowledgeSummary(region.id).survey }} / 熟域 {{ getRegionKnowledgeSummary(region.id).familiarity }}
           </p>
 
-          <div class="mt-3 space-y-2">
+          <div v-if="region.unlocked" class="mt-3 space-y-2">
             <div
               class="border border-accent/10 rounded-xs px-3 py-3 overflow-hidden"
               style="background-image: linear-gradient(135deg, rgba(168, 138, 86, 0.12), rgba(24, 24, 24, 0.04));"
@@ -247,6 +334,7 @@
                 <div class="min-w-0">
                   <p class="text-[10px] text-muted">卷轴路网</p>
                   <p class="text-xs text-accent mt-1">{{ getRegionMapBoardSummary(region.id).headline }}</p>
+                  <p v-if="isCompactMobile" class="text-[10px] text-muted mt-2 leading-4">左右滑动看路段，路线按钮仍以下方清单为准。</p>
                 </div>
                 <div class="shrink-0 text-right">
                   <span class="text-[10px]" :class="getRegionFogMeta(region.id).toneClass">{{ getRegionFogMeta(region.id).label }}</span>
@@ -255,24 +343,33 @@
               </div>
 
               <div class="mt-3 space-y-3">
-                <div class="overflow-x-auto pb-1">
-                  <div class="flex items-stretch gap-2 min-w-[700px]">
+                <div
+                  class="region-map-scroll-rail overflow-x-auto pb-1"
+                  :data-testid="`region-map-rail-${region.id}`"
+                >
+                  <div class="region-map-scroll-track flex items-stretch gap-2 min-w-[540px] md:min-w-[700px]">
                     <template v-for="(node, index) in getRegionMapNodes(region.id)" :key="`map-node-${node.key}`">
-                      <div class="w-40 shrink-0 border rounded-xs px-3 py-2" :class="getMapNodeCardClass(node)">
+                      <div
+                        class="region-map-scroll-card w-36 md:w-40 shrink-0 border rounded-xs px-3 py-2"
+                        :class="getMapNodeCardClass(node)"
+                        :data-node-current="isFocusedMapNode(region.id, node, index) ? 'true' : undefined"
+                        :data-node-autofocus="selectedRegionId === region.id && index === 0 ? 'true' : undefined"
+                      >
                         <div class="flex items-center justify-between gap-2">
                           <span class="text-[10px]" :class="node.laneToneClass">{{ node.laneLabel }}</span>
                           <span class="text-[10px]" :class="node.stageToneClass">{{ node.stageLabel }}</span>
                         </div>
                         <p class="text-xs text-accent mt-2">{{ node.title }}</p>
-                        <p class="text-[10px] text-muted mt-1 leading-4">{{ node.description }}</p>
+                        <p class="text-[10px] text-muted mt-1 leading-4" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ node.description }}</p>
                         <div class="mt-2 space-y-1" v-if="node.detailLines.length > 0">
                           <p v-for="line in node.detailLines.slice(0, 3)" :key="`${node.key}-${line}`" class="text-[10px] text-muted leading-4">
                             · {{ line }}
                           </p>
                         </div>
                         <button
-                          class="mt-3 w-full border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:text-muted disabled:hover:bg-transparent"
-                          :disabled="node.disabled"
+                          class="mt-3 w-full border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+                          :class="node.disabled ? 'opacity-60 text-muted' : ''"
+                          :aria-disabled="node.disabled"
                           :title="node.disabledReason"
                           @click="handleMapNodeAction(node)"
                         >
@@ -291,13 +388,13 @@
                   </div>
                 </div>
 
-                <div v-if="getSecondaryMapNodes(region.id).length > 0" class="overflow-x-auto pb-1">
-                  <div class="flex items-stretch gap-2 min-w-[360px] pl-8">
+                <div v-if="getSecondaryMapNodes(region.id).length > 0" class="region-map-scroll-rail overflow-x-auto pb-1">
+                  <div class="region-map-scroll-track flex items-stretch gap-2 min-w-[280px] md:min-w-[360px] pl-5 md:pl-8">
                     <div class="w-16 shrink-0 flex items-center justify-center text-[10px] text-success">支线岔口</div>
                     <div
                       v-for="node in getSecondaryMapNodes(region.id)"
                       :key="`map-side-${node.key}`"
-                      class="w-40 shrink-0 border rounded-xs px-3 py-2"
+                      class="region-map-scroll-card w-36 md:w-40 shrink-0 border rounded-xs px-3 py-2"
                       :class="getMapNodeCardClass(node)"
                     >
                       <div class="flex items-center justify-between gap-2">
@@ -305,15 +402,16 @@
                         <span class="text-[10px]" :class="node.stageToneClass">{{ node.stageLabel }}</span>
                       </div>
                       <p class="text-xs text-accent mt-2">{{ node.title }}</p>
-                      <p class="text-[10px] text-muted mt-1 leading-4">{{ node.description }}</p>
+                      <p class="text-[10px] text-muted mt-1 leading-4" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ node.description }}</p>
                       <div class="mt-2 space-y-1" v-if="node.detailLines.length > 0">
                         <p v-for="line in node.detailLines.slice(0, 2)" :key="`${node.key}-detail-${line}`" class="text-[10px] text-muted leading-4">
                           · {{ line }}
                         </p>
                       </div>
                       <button
-                        class="mt-3 w-full border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:text-muted disabled:hover:bg-transparent"
-                        :disabled="node.disabled"
+                        class="mt-3 w-full border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+                        :class="node.disabled ? 'opacity-60 text-muted' : ''"
+                        :aria-disabled="node.disabled"
                         :title="node.disabledReason"
                         @click="handleMapNodeAction(node)"
                       >
@@ -322,10 +420,19 @@
                     </div>
                   </div>
                 </div>
+
+                <button
+                  v-if="isCompactMobile"
+                  class="w-full border border-accent/20 rounded-xs px-3 py-2 text-[10px] text-accent hover:bg-accent/5"
+                  @click="toggleCompactRegionSection(region.id)"
+                >
+                  {{ isCompactRegionSectionOpen(region.id) ? '收起区域细节' : '展开区域细节' }}
+                </button>
               </div>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div v-if="!isCompactMobile || isCompactRegionSectionOpen(region.id)" class="space-y-2">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
               <div class="border border-accent/10 rounded-xs px-3 py-2">
                 <div class="flex items-center justify-between gap-2">
                   <p class="text-[10px] text-muted">季节变体快照</p>
@@ -379,49 +486,25 @@
                   </div>
                 </div>
               </div>
-            </div>
+              </div>
 
-            <div class="flex flex-wrap gap-2">
-              <button
-                v-if="isDev"
-                class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] hover:bg-accent/5"
-                :class="region.unlocked ? 'text-muted' : 'text-accent'"
-                :disabled="region.unlocked"
-                @click="handleUnlockRegion(region.id)"
-              >
-                {{ region.unlocked ? '已解锁' : '手动解锁' }}
-              </button>
-              <button
-                v-if="isDev"
-                class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5"
-                @click="handleFocusRegion(region.id)"
-              >
-                设为本周焦点
-              </button>
+              <div class="flex flex-col sm:flex-row flex-wrap gap-2">
               <button
                 class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5"
-                :disabled="!canChallengeBoss(region.id)"
+                :class="[isCompactMobile ? 'w-full' : '', !canChallengeBoss(region.id) ? 'opacity-60' : '']"
+                :aria-disabled="!canChallengeBoss(region.id)"
                 :title="getBossDisabledReason(region.id)"
                 :data-testid="`region-boss-primary-${region.id}`"
                 @click="handleRunBoss(region.id)"
               >
                 发起首领远征
               </button>
-              <button
-                v-if="isDev"
-                class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5"
-                :disabled="!canChallengeBoss(region.id)"
-                :title="getBossDisabledReason(region.id)"
-                @click="handleBossClear(region.id)"
-              >
-                首领清关
-              </button>
-            </div>
-            <p v-if="getBossDisabledReason(region.id)" class="text-[10px] text-muted leading-4">
-              {{ getBossDisabledReason(region.id) }}
-            </p>
+              </div>
+              <p v-if="getBossDisabledReason(region.id)" class="text-[10px] text-muted leading-4">
+                {{ getBossDisabledReason(region.id) }}
+              </p>
 
-            <div class="border border-accent/10 rounded-xs px-3 py-2">
+              <div class="border border-accent/10 rounded-xs px-3 py-2">
               <p class="text-[10px] text-muted mb-2">首领准备</p>
               <p class="text-xs text-accent">{{ getBossMapPreview(region.id).description }}</p>
               <div class="flex items-center justify-between gap-2 mt-2">
@@ -437,9 +520,9 @@
                   · {{ line }}
                 </p>
               </div>
-            </div>
+              </div>
 
-            <div class="border border-accent/10 rounded-xs px-3 py-2">
+              <div class="border border-accent/10 rounded-xs px-3 py-2">
               <p class="text-[10px] text-muted mb-2">回流承接</p>
               <div class="flex flex-wrap gap-2">
                 <button
@@ -451,9 +534,9 @@
                   去{{ panel.label }}
                 </button>
               </div>
-            </div>
+              </div>
 
-            <div class="border border-accent/10 rounded-xs px-3 py-2">
+              <div class="border border-accent/10 rounded-xs px-3 py-2">
               <p class="text-[10px] text-muted mb-2">本区重点承接</p>
               <p class="text-xs text-accent">{{ getRegionHandoffSummary(region.id).headline }}</p>
               <div class="mt-2 space-y-1" v-if="getRegionHandoffSummary(region.id).detailLines.length > 0">
@@ -465,10 +548,10 @@
                   · {{ line }}
                 </p>
               </div>
-            </div>
+              </div>
 
-            <div class="space-y-2">
-              <div class="border border-accent/10 rounded-xs px-3 py-2">
+              <div class="space-y-2">
+                <div class="border border-accent/10 rounded-xs px-3 py-2">
                 <div class="flex items-center justify-between gap-3">
                   <p class="text-[10px] text-muted">本周区域事件</p>
                   <span class="text-[10px] text-accent">{{ getActiveRegionEvents(region.id).length }}/{{ getRegionWeeklyEventCapacity(region.id) }}</span>
@@ -504,7 +587,8 @@
                     <div class="flex flex-wrap gap-2 mt-2">
                       <button
                         class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
-                        :disabled="!canRunEvent(event.id)"
+                        :class="!canRunEvent(event.id) ? 'opacity-60' : ''"
+                        :aria-disabled="!canRunEvent(event.id)"
                         :title="getEventDisabledReason(event.id)"
                         @click="handleRunEvent(event.id)"
                       >
@@ -517,6 +601,7 @@
                   </div>
                 </div>
               </div>
+            </div>
             </div>
 
             <div class="space-y-2">
@@ -532,7 +617,7 @@
                       <span class="text-[10px]" :class="getRouteMapPreview(route).stageToneClass">{{ getRouteMapPreview(route).stageLabel }}</span>
                       <span class="border border-accent/10 rounded-xs px-1.5 py-0.5 text-[10px] text-muted">{{ getRouteTypeLabel(route.nodeType) }}</span>
                     </div>
-                    <p class="text-[10px] text-muted mt-1 leading-4">{{ getRouteMapPreview(route).description }}</p>
+                    <p class="text-[10px] text-muted mt-1 leading-4" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ getRouteMapPreview(route).description }}</p>
                     <div class="flex flex-wrap gap-2 mt-2 text-[10px] text-muted">
                       <span v-if="getRouteMapPreview(route).stage !== 'unknown'">认知 {{ getRouteKnowledgeSummary(route.id).intelLabel }}</span>
                       <span v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered'">体力 {{ route.staminaCost }}</span>
@@ -555,30 +640,15 @@
                         <span :class="signal.toneClass">{{ signal.label }}</span>
                       </span>
                     </div>
-                    <p v-if="getRouteMapPreview(route).stage !== 'unknown'" class="text-[10px] text-muted mt-2 leading-4">
-                      路线勘明 {{ getRouteKnowledgeSummary(route.id).surveyProgress }}/100 · 熟悉 {{ getRouteKnowledgeSummary(route.id).familiarity }}/100
-                    </p>
-                    <p
-                      v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered'"
-                      class="text-[10px] mt-2 leading-4"
-                      :class="getAutoPatrolStatus(route.id).mode === 'blocked' ? 'text-warning' : getRouteShortcutSummary(route.id).level === 'none' ? 'text-muted' : 'text-accent/80'"
-                    >
-                      {{ getRouteDispatchSummary(route) }}
-                    </p>
-                    <p v-if="route.encounterHint && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')" class="text-[10px] text-muted mt-1 leading-4">
-                      - {{ route.encounterHint }}
-                    </p>
-                    <p v-if="route.handoffHint && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')" class="text-[10px] text-accent/80 mt-1 leading-4">
-                      -> {{ route.handoffHint }}
-                    </p>
                   </div>
                   <span class="text-[10px] shrink-0 text-muted">{{ getRouteCompletionLabel(route.id) }}</span>
                 </div>
 
-                <div class="flex flex-wrap gap-2 mt-2">
+                <div :class="isCompactMobile ? 'flex flex-col gap-2 mt-3' : 'flex flex-wrap gap-2 mt-2'">
                   <button
                     class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
-                    :disabled="!canRunRoute(route.id)"
+                    :class="[isCompactMobile ? 'w-full' : '', !canRunRoute(route.id) ? 'opacity-60' : '']"
+                    :aria-disabled="!canRunRoute(route.id)"
                     :title="getRouteDisabledReason(route.id)"
                     :data-testid="`region-route-primary-${route.id}`"
                     :data-expedition-mode="shouldAutoRunRoute(route.id) ? 'auto' : 'manual'"
@@ -586,60 +656,69 @@
                   >
                     {{ getRouteRunActionLabel(route.id) }}
                   </button>
-                  <button
-                    v-if="isDev"
-                    class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
-                    :disabled="!canRunRoute(route.id)"
-                    :title="getRouteDisabledReason(route.id)"
-                    :data-testid="`region-route-dev-start-${route.id}`"
-                    @click="handleStartRoute(route.id)"
-                  >
-                    开始路线
-                  </button>
-                  <button
-                    v-if="isDev"
-                    class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5"
-                    :disabled="!canCompleteRoute(route.id)"
-                    :title="getCompleteRouteDisabledReason(route.id)"
-                    :data-testid="`region-route-dev-complete-${route.id}`"
-                    @click="handleCompleteRoute(route.id)"
-                  >
-                    完成并结算
-                  </button>
                 </div>
-                <div
-                  v-if="getActiveCompanionContract(route.id) || getCompanionContractCandidates(route.id).length > 0"
-                  class="mt-2 border border-accent/10 rounded-xs px-3 py-2 bg-bg/50"
+
+                <button
+                  v-if="isCompactMobile"
+                  class="mt-2 w-full border border-accent/20 rounded-xs px-3 py-2 text-[10px] text-accent hover:bg-accent/5"
+                  @click="toggleCompactRouteDetails(route.id)"
                 >
-                  <div class="flex items-center justify-between gap-3">
-                    <p class="text-[10px] text-muted">同伴远行合同</p>
-                    <span class="text-[10px]" :class="getActiveCompanionContract(route.id) ? 'text-warning' : 'text-muted'">
-                      {{ getActiveCompanionContract(route.id) ? '已挂合同' : '可派合同' }}
-                    </span>
-                  </div>
-                  <template v-if="getActiveCompanionContract(route.id)">
-                    <p class="text-[10px] text-accent mt-2">
-                      {{ getActiveCompanionContract(route.id)?.npcName }} / {{ getActiveCompanionContract(route.id)?.relationshipStageLabel }}
-                    </p>
-                    <p class="text-[10px] text-muted mt-1 leading-4">{{ getActiveCompanionContract(route.id)?.summary }}</p>
-                    <div class="flex flex-wrap gap-2 mt-2">
+                  {{ isCompactRouteDetailsOpen(route.id) ? '收起路线细节' : '展开路线细节' }}
+                </button>
+
+                <div v-if="!isCompactMobile || isCompactRouteDetailsOpen(route.id)" class="mt-2 space-y-2">
+                  <p v-if="getRouteMapPreview(route).stage !== 'unknown'" class="text-[10px] text-muted leading-4">
+                    路线勘明 {{ getRouteKnowledgeSummary(route.id).surveyProgress }}/100 · 熟悉 {{ getRouteKnowledgeSummary(route.id).familiarity }}/100
+                  </p>
+                  <p
+                    v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered'"
+                    class="text-[10px] leading-4"
+                    :class="getAutoPatrolStatus(route.id).mode === 'blocked' ? 'text-warning' : getRouteShortcutSummary(route.id).level === 'none' ? 'text-muted' : 'text-accent/80'"
+                  >
+                    {{ getRouteDispatchSummary(route) }}
+                  </p>
+                  <p v-if="route.encounterHint && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')" class="text-[10px] text-muted leading-4">
+                    - {{ route.encounterHint }}
+                  </p>
+                  <p v-if="route.handoffHint && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')" class="text-[10px] text-accent/80 leading-4">
+                    -> {{ route.handoffHint }}
+                  </p>
+                  <div
+                    v-if="getActiveCompanionContract(route.id) || getCompanionContractCandidates(route.id).length > 0"
+                    class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/50"
+                  >
+                    <div class="flex items-center justify-between gap-3">
+                      <p class="text-[10px] text-muted">同伴远行合同</p>
+                      <span class="text-[10px]" :class="getActiveCompanionContract(route.id) ? 'text-warning' : 'text-muted'">
+                        {{ getActiveCompanionContract(route.id) ? '已挂合同' : '可派合同' }}
+                      </span>
+                    </div>
+                    <template v-if="getActiveCompanionContract(route.id)">
+                      <p class="text-[10px] text-accent mt-2">
+                        {{ getActiveCompanionContract(route.id)?.npcName }} / {{ getActiveCompanionContract(route.id)?.relationshipStageLabel }}
+                      </p>
+                      <p class="text-[10px] text-muted mt-1 leading-4">{{ getActiveCompanionContract(route.id)?.summary }}</p>
+                      <div class="flex flex-wrap gap-2 mt-2">
+                        <button
+                          class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5"
+                          :class="isCompactMobile ? 'w-full' : ''"
+                          @click="handleClearCompanionContract(route.id)"
+                        >
+                          撤回合同
+                        </button>
+                      </div>
+                    </template>
+                    <div v-else class="flex flex-col sm:flex-row flex-wrap gap-2 mt-2">
                       <button
-                        class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5"
-                        @click="handleClearCompanionContract(route.id)"
+                        v-for="candidate in getCompanionContractCandidates(route.id).slice(0, 3)"
+                        :key="`${route.id}-${candidate.npcId}`"
+                        class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+                        :class="isCompactMobile ? 'w-full' : ''"
+                        @click="handleAssignCompanionContract(route.id, candidate.npcId)"
                       >
-                        撤回合同
+                        挂 {{ candidate.npcName }}
                       </button>
                     </div>
-                  </template>
-                  <div v-else class="flex flex-wrap gap-2 mt-2">
-                    <button
-                      v-for="candidate in getCompanionContractCandidates(route.id).slice(0, 3)"
-                      :key="`${route.id}-${candidate.npcId}`"
-                      class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
-                      @click="handleAssignCompanionContract(route.id, candidate.npcId)"
-                    >
-                      挂 {{ candidate.npcName }}
-                    </button>
                   </div>
                 </div>
                 <p v-if="getRouteDisabledReason(route.id)" class="text-[10px] text-muted mt-2 leading-4">
@@ -648,6 +727,80 @@
               </div>
             </div>
           </div>
+          <div v-else class="mt-3 border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-[10px] text-muted">锁区预览</p>
+                <p class="text-xs text-accent mt-1">当前区域尚未开放，不会展开路线、首领和事件操作。</p>
+              </div>
+              <span class="text-[10px] shrink-0 text-warning">待解锁</span>
+            </div>
+            <div class="mt-3 space-y-2 text-[10px] leading-4">
+              <p class="text-muted">解锁条件：{{ getUnlockSummary(region.id) }}</p>
+              <p class="text-muted">主题方向：{{ region.themeHint }}</p>
+              <p class="text-accent/80">解锁后承接：{{ region.linkedSystems.join(' / ') }}</p>
+              <p class="text-muted">先满足解锁条件，下面这些路网、路线和首领入口才会真正开放。</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-[10px] tracking-[0.24em] text-accent/70">总览摘要</p>
+            <p class="text-xs text-accent mt-1">把全局状态放到后面看，不抢当前区域操作。</p>
+          </div>
+          <span class="text-[10px] text-muted shrink-0">主题周 {{ currentThemeWeekLabel }}</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 mt-3">
+          <div
+            v-for="card in compactSummaryCards"
+            :key="`compact-summary-${card.label}`"
+            class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60"
+          >
+            <p class="text-[10px] text-muted">{{ card.label }}</p>
+            <p class="text-sm mt-1" :class="card.toneClass">{{ card.value }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-[10px] tracking-[0.24em] text-accent/70">前线导向</p>
+            <p class="text-xs text-accent mt-1">{{ regionMapStore.frontierDigest.headline }}</p>
+          </div>
+          <button
+            class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 shrink-0"
+            @click="mobileDigestExpanded = !mobileDigestExpanded"
+          >
+            {{ mobileDigestExpanded ? '收起' : '展开' }}
+          </button>
+        </div>
+
+        <div v-if="mobileDigestExpanded" class="mt-3 space-y-1">
+          <p
+            v-for="line in regionMapStore.frontierDigest.highlightSummaries"
+            :key="`compact-digest-highlight-${line}`"
+            class="text-[10px] text-muted leading-4"
+          >
+            - {{ line }}
+          </p>
+          <p
+            v-for="line in regionMapStore.frontierDigest.nextHookSummaries"
+            :key="`compact-digest-hook-${line}`"
+            class="text-[10px] text-accent/80 leading-4"
+          >
+            -> {{ line }}
+          </p>
+          <p
+            v-for="line in regionMapStore.frontierDigest.riskSummaries"
+            :key="`compact-digest-risk-${line}`"
+            class="text-[10px] text-warning leading-4"
+          >
+            ! {{ line }}
+          </p>
         </div>
       </div>
 
@@ -900,6 +1053,7 @@
         :signal-lines="currentSessionSignalLines"
         :approach-label="currentSessionApproachLabel"
         :retreat-label="currentSessionRetreatLabel"
+        :compact-mode="isCompactMobile"
         @advance="handleAdvanceExpedition"
         @camp="handleCampExpedition"
         @retreat="handleRetreatExpedition"
@@ -925,12 +1079,22 @@
               </span>
             </div>
           </div>
-          <span class="text-[10px] shrink-0" :class="latestJourneyAftermathSummary.toneClass">
-            {{ getArchiveOutcomeLabel(latestJourneyAftermathSummary.entry.outcome) }}
-          </span>
+          <div class="shrink-0 text-right">
+            <span class="text-[10px]" :class="latestJourneyAftermathSummary.toneClass">
+              {{ getArchiveOutcomeLabel(latestJourneyAftermathSummary.entry.outcome) }}
+            </span>
+            <button
+              v-if="isCompactMobile"
+              class="mt-2 block border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+              @click="mobileLatestAftermathExpanded = !mobileLatestAftermathExpanded"
+            >
+              {{ mobileLatestAftermathExpanded ? '收起' : '展开' }}
+            </button>
+          </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+        <div v-if="!isCompactMobile || mobileLatestAftermathExpanded" class="space-y-3 mt-3">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
           <div class="border border-accent/10 rounded-xs px-3 py-2">
             <p class="text-[10px] text-muted mb-2">旅程回顾</p>
             <div class="space-y-1">
@@ -1065,11 +1229,24 @@
             去{{ action.label }}
           </button>
         </div>
+        </div>
       </div>
 
       <div v-if="regionMapStore.journeyHistory.length > 0" class="border border-accent/20 rounded-xs p-3 mb-3">
-        <p class="text-xs text-muted mb-2">最近远征记录</p>
-        <div class="space-y-2">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div class="min-w-0">
+            <p class="text-xs text-muted">最近远征记录</p>
+            <p class="text-[10px] text-muted mt-1 leading-4">最近的推进、撤退和回城会在这里回看。</p>
+          </div>
+          <button
+            v-if="isCompactMobile"
+            class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 shrink-0"
+            @click="mobileHistoryExpanded = !mobileHistoryExpanded"
+          >
+            {{ mobileHistoryExpanded ? '收起' : `展开 ${regionMapStore.journeyHistory.length} 条` }}
+          </button>
+        </div>
+        <div v-if="!isCompactMobile || mobileHistoryExpanded" class="space-y-2">
           <div v-for="entry in regionMapStore.journeyHistory" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
@@ -1132,10 +1309,18 @@
               {{ getArchiveOutcomeLabel(selectedJourneyAftermathSummary.entry.outcome) }}
             </span>
             <p class="text-[10px] text-muted mt-1">{{ selectedJourneyAftermathSummary.entry.endedAtDayTag || selectedJourneyAftermathSummary.entry.startedAtDayTag }}</p>
+            <button
+              v-if="isCompactMobile"
+              class="mt-2 block border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+              @click="mobileSelectedAftermathExpanded = !mobileSelectedAftermathExpanded"
+            >
+              {{ mobileSelectedAftermathExpanded ? '收起' : '展开' }}
+            </button>
           </div>
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+        <div v-if="!isCompactMobile || mobileSelectedAftermathExpanded" class="space-y-3 mt-3">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
             <p class="text-[10px] text-muted mb-2">旅程回顾</p>
             <div class="space-y-1">
@@ -1257,11 +1442,24 @@
             </div>
           </div>
         </div>
+        </div>
       </div>
 
       <div class="border border-accent/20 rounded-xs p-3">
-        <p class="text-xs text-muted mb-2">资源家族总览</p>
-        <div class="space-y-2">
+        <div class="flex items-start justify-between gap-3 mb-2">
+          <div class="min-w-0">
+            <p class="text-xs text-muted">资源家族总览</p>
+            <p class="text-[10px] text-muted mt-1 leading-4">把远征回流带来的库存集中看，避免首屏堆太多资源说明。</p>
+          </div>
+          <button
+            v-if="isCompactMobile"
+            class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 shrink-0"
+            @click="mobileLedgerExpanded = !mobileLedgerExpanded"
+          >
+            {{ mobileLedgerExpanded ? '收起' : `展开 ${regionMapStore.resourceLedgerEntries.length} 组` }}
+          </button>
+        </div>
+        <div v-if="!isCompactMobile || mobileLedgerExpanded" class="space-y-2">
           <div v-for="entry in regionMapStore.resourceLedgerEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2">
             <div class="flex items-center justify-between gap-3">
               <div class="min-w-0">
@@ -1285,10 +1483,15 @@
 
       <div
         v-if="settlementDialog"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4"
+        class="fixed inset-0 z-50 flex bg-black/45"
+        :class="isCompactMobile ? 'items-end justify-stretch px-0' : 'items-center justify-center px-4'"
         @click.self="settlementDialog = null"
       >
-        <div class="w-full max-w-2xl border rounded-xs bg-bg p-4 max-h-[85vh] overflow-y-auto" :class="settlementToneClass">
+        <div
+          class="w-full border bg-bg overflow-y-auto"
+          :class="[settlementToneClass, isCompactMobile ? 'max-w-none rounded-none px-3 py-3 min-h-[88vh] max-h-[100vh]' : 'max-w-2xl rounded-xs p-4 max-h-[85vh]']"
+          :style="isCompactMobile ? 'padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));' : ''"
+        >
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <p class="text-sm text-accent">{{ settlementDialog.title }}</p>
@@ -1300,6 +1503,7 @@
                 :aftermath-lines="expeditionSettlementDialog.aftermathLines"
                 :handoff-board="expeditionSettlementDialog.handoffBoard"
                 :actions="expeditionSettlementDialog.actions"
+                :compact-mode="isCompactMobile"
                 @navigate="handleSettlementAction"
                 @close="settlementDialog = null"
               />
@@ -1455,7 +1659,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, ref, watch } from 'vue'
+  import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
   import { Map } from 'lucide-vue-next'
   import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
   import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
@@ -1552,7 +1756,15 @@
       }
 
   const settlementDialog = ref<SettlementDialogState | null>(null)
-  const isDev = import.meta.env.DEV
+  const isCompactMobile = ref(false)
+  const mobilePrepExpanded = ref(false)
+  const mobileDigestExpanded = ref(false)
+  const mobileHistoryExpanded = ref(false)
+  const mobileLedgerExpanded = ref(false)
+  const mobileLatestAftermathExpanded = ref(true)
+  const mobileSelectedAftermathExpanded = ref(false)
+  const compactRegionSectionState = ref<Record<string, boolean>>({})
+  const compactRouteDetailState = ref<Record<string, boolean>>({})
   const selectedApproach = ref<RegionExpeditionApproach>('steady')
   const selectedRetreatRule = ref<RegionExpeditionRetreatRule>('balanced')
 
@@ -1567,6 +1779,17 @@
   })
 
   const currentThemeWeekLabel = computed(() => goalStore.currentThemeWeek?.name ?? currentWeekId.value)
+  const allRegionsSelected = computed(() => selectedRegionId.value === null)
+  const selectedRegionFilterLabel = computed(() => {
+    if (selectedRegionId.value === null) return '全部区域'
+    return regionMapStore.regionDefs.find(region => region.id === selectedRegionId.value)?.name ?? '全部区域'
+  })
+  const compactSummaryCards = computed(() => [
+    { label: '已解锁区域', value: `${regionMapStore.unlockedRegionCount}/${regionMapStore.regionDefs.length}`, toneClass: 'text-accent' },
+    { label: '运行中远征', value: regionMapStore.hasActiveExpedition ? '进行中' : '无', toneClass: regionMapStore.hasActiveExpedition ? 'text-success' : 'text-muted' },
+    { label: '本周焦点', value: currentFocusLabel.value, toneClass: 'text-accent' },
+    { label: '资源家族', value: `${regionMapStore.resourceFamilyDefs.length} 组`, toneClass: 'text-muted' }
+  ])
   const visibleRegionSummaries = computed(() =>
     selectedRegionId.value
       ? regionMapStore.regionSummaries.filter(region => region.id === selectedRegionId.value)
@@ -1616,6 +1839,45 @@
   const currentRetreatRuleDescription = computed(
     () => expeditionRetreatRuleOptions.find(entry => entry.value === selectedRetreatRule.value)?.description ?? ''
   )
+  const syncCompactViewportMode = () => {
+    isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  }
+  const toggleCompactRegionSection = (regionId: RegionId) => {
+    compactRegionSectionState.value = {
+      ...compactRegionSectionState.value,
+      [regionId]: !compactRegionSectionState.value[regionId]
+    }
+  }
+  const isCompactRegionSectionOpen = (regionId: RegionId) => Boolean(compactRegionSectionState.value[regionId])
+  const toggleCompactRouteDetails = (routeId: string) => {
+    compactRouteDetailState.value = {
+      ...compactRouteDetailState.value,
+      [routeId]: !compactRouteDetailState.value[routeId]
+    }
+  }
+  const isCompactRouteDetailsOpen = (routeId: string) => Boolean(compactRouteDetailState.value[routeId])
+  const isFocusedMapNode = (regionId: RegionId, node: RegionMapBoardNode, index = 0) => {
+    const session = currentSession.value
+    if (session?.regionId === regionId) {
+      if (session.mode === 'boss') return node.kind === 'boss'
+      if (session.routeId && node.kind === 'route' && node.routeId === session.routeId) return true
+    }
+    return selectedRegionId.value === regionId && index === 0
+  }
+  const scrollCompactRegionRailIntoView = async () => {
+    if (!isCompactMobile.value || !selectedRegionId.value || typeof document === 'undefined') return
+    await nextTick()
+    const rail = document.querySelector(`[data-testid="region-map-rail-${selectedRegionId.value}"]`) as HTMLElement | null
+    if (!rail) return
+    const target =
+      (rail.querySelector('[data-node-current="true"]') as HTMLElement | null) ??
+      (rail.querySelector('[data-node-autofocus="true"]') as HTMLElement | null)
+    target?.scrollIntoView({
+      block: 'nearest',
+      inline: 'center',
+      behavior: 'smooth'
+    })
+  }
   const getApproachLabel = (approach: RegionExpeditionApproach) =>
     expeditionApproachOptions.find(entry => entry.value === approach)?.label ?? '稳健推进'
   const getRetreatRuleLabel = (retreatRule: RegionExpeditionRetreatRule) =>
@@ -1760,6 +2022,26 @@
             ? '已失利'
             : '已完成'
   })
+
+  onMounted(() => {
+    syncCompactViewportMode()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', syncCompactViewportMode)
+    }
+  })
+
+  onUnmounted(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', syncCompactViewportMode)
+    }
+  })
+
+  watch(
+    [isCompactMobile, selectedRegionId, () => currentSession.value?.sessionId, () => currentSession.value?.progressStep],
+    () => {
+      void scrollCompactRegionRailIntoView()
+    }
+  )
 
   const setActionSummary = (message: string, tone: 'success' | 'danger' | 'accent' = 'success') => {
     lastActionSummary.value = message
@@ -2522,9 +2804,6 @@
   const getRouteRunActionLabel = (routeId: string) =>
     shouldAutoRunRoute(routeId) ? '自动巡行' : getAutoPatrolStatus(routeId).mode === 'blocked' ? '手动探索' : '发起远征'
 
-  const canCompleteRoute = (routeId: string) =>
-    regionMapStore.activeExpeditionSummary?.route?.id === routeId || canRunRoute(routeId)
-
   const getRouteDisabledReason = (routeId: string) => {
     const routeStatus = regionMapStore.getRouteExpeditionStatus(routeId)
     return routeStatus.available ? '' : routeStatus.reason
@@ -2757,7 +3036,10 @@
 
   const handleMapNodeAction = (node: RegionMapBoardNode) => {
     if (node.disabled) {
-      if (node.disabledReason) setActionSummary(node.disabledReason, 'accent')
+      if (node.disabledReason) {
+        setActionSummary(node.disabledReason, 'accent')
+        openSettlementDialog('暂时无法前往', [node.disabledReason], 'accent')
+      }
       return
     }
 
@@ -2775,9 +3057,6 @@
 
   const getRegionWeeklyEventCapacity = (regionId: RegionId) =>
     regionMapStore.currentWeeklyFocus.focusedRegionId === regionId ? 3 : 2
-
-  const getCompleteRouteDisabledReason = (routeId: string) =>
-    regionMapStore.activeExpeditionSummary?.route?.id === routeId ? '' : getRouteDisabledReason(routeId)
 
   const getArchiveOutcomeLabel = (outcome: 'ready_to_settle' | 'victory' | 'retreated' | 'failure') =>
     outcome === 'victory' || outcome === 'ready_to_settle' ? '凯旋' : outcome === 'retreated' ? '撤退回城' : '失利撤出'
@@ -2938,29 +3217,6 @@
     handleNavigate(panelKey)
   }
 
-  const handleUnlockRegion = (regionId: RegionId) => {
-    regionMapStore.unlockRegion(regionId, currentDayTag.value)
-    setActionSummary(`已解锁 ${regionMapStore.regionDefs.find(region => region.id === regionId)?.name ?? regionId}。`)
-  }
-
-  const handleFocusRegion = (regionId: RegionId) => {
-    const highlightedRouteIds = getRegionRoutes(regionId).map(route => route.id).slice(0, 2)
-    regionMapStore.setWeeklyFocus(currentWeekId.value, regionId, highlightedRouteIds)
-    regionMapStore.refreshWeeklyEventRuntime(currentWeekId.value, regionId, currentDayTag.value)
-    selectedRegionId.value = regionId
-    setActionSummary(`本周区域焦点已切到 ${regionMapStore.regionDefs.find(region => region.id === regionId)?.name ?? regionId}。`, 'accent')
-  }
-
-  const handleStartRoute = (routeId: string) => {
-    const result = regionMapStore.startRouteExpeditionSession(routeId, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value)
-    setActionSummary(result.message, result.success ? 'success' : 'danger')
-    if (result.success) {
-      settlementDialog.value = null
-    } else {
-      openSettlementDialog(result.title, result.lines, result.tone)
-    }
-  }
-
   const handleRunRoute = (routeId: string) => {
     if (shouldAutoRunRoute(routeId)) {
       const result = regionMapStore.runRouteExpedition(routeId, currentDayTag.value)
@@ -2994,61 +3250,6 @@
     openSettlementDialog(result.success ? '区域事件结算' : '区域事件未完成', [result.message], result.success ? 'success' : 'danger')
   }
 
-  const handleCompleteRoute = (routeId: string) => {
-    const isActiveRoute = regionMapStore.activeExpeditionSummary?.route?.id === routeId
-    if (!isActiveRoute) {
-      const status = regionMapStore.getRouteExpeditionStatus(routeId)
-      if (!status.available) {
-        setActionSummary(status.reason, 'danger')
-        return
-      }
-    }
-    const result = regionMapStore.completeRouteAndGrantRewards(routeId, currentDayTag.value)
-    if (isActiveRoute && result) {
-      regionMapStore.clearExpedition()
-    }
-    setActionSummary(
-      result
-        ? `路线已结算：获得 ${result.rewardAmount} 点家族进度${result.rewardItems.length > 0 ? `，并发放 ${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''}。`
-        : '当前路线未解锁，无法结算。',
-      result ? 'success' : 'danger'
-    )
-    openSettlementDialog(
-      result ? '路线结算' : '路线未完成',
-      result
-        ? [
-            `区域资源 +${result.rewardAmount}`,
-            result.rewardItems.length > 0 ? `物品奖励：${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''
-          ]
-        : ['当前路线未解锁，无法结算。'],
-      result ? 'success' : 'danger'
-    )
-  }
-
-  const handleBossClear = (regionId: RegionId) => {
-    const status = regionMapStore.getBossExpeditionStatus(regionId)
-    if (!status.available) {
-      setActionSummary(status.reason, 'danger')
-      return
-    }
-    const result = regionMapStore.clearBossAndGrantRewards(regionId, currentDayTag.value)
-    setActionSummary(
-      result
-        ? `首领已记录：获得 ${result.rewardAmount} 点家族进度${result.rewardItems.length > 0 ? `，并发放 ${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''}。`
-        : '当前区域未解锁，无法记录首领结果。',
-      result ? 'success' : 'danger'
-    )
-    openSettlementDialog(
-      result ? '首领结算' : '首领未完成',
-      result
-        ? [
-            `区域资源 +${result.rewardAmount}`,
-            result.rewardItems.length > 0 ? `物品奖励：${result.rewardItems.map(item => `${item.itemId}×${item.quantity}`).join('、')}` : ''
-          ]
-        : ['当前区域未解锁，无法记录首领结果。'],
-      result ? 'success' : 'danger'
-    )
-  }
 
   const canChallengeBoss = (regionId: RegionId) =>
     regionMapStore.regionBossAvailability.find(entry => entry.regionId === regionId)?.available ?? false
@@ -3131,28 +3332,6 @@
     setActionSummary(`已将「${entry.targetName}」设为当前旅后处理回看。`, 'accent')
   }
 
-  const handleRefreshUnlocks = () => {
-    const unlocked = regionMapStore.refreshUnlocksFromProgress(currentDayTag.value)
-    setActionSummary(unlocked.length > 0 ? `按现有进度自动解锁：${unlocked.join('、')}。` : '当前没有新增区域被自动解锁。', unlocked.length > 0 ? 'success' : 'accent')
-  }
-
-  const handleSyncWeeklyFocus = () => {
-    const focusedId = regionMapStore.currentWeeklyFocus.focusedRegionId ?? 'ancient_road'
-    const highlightedRouteIds = getRegionRoutes(focusedId).map(route => route.id).slice(0, 2)
-    regionMapStore.setWeeklyFocus(currentWeekId.value, focusedId, highlightedRouteIds)
-    regionMapStore.refreshWeeklyEventRuntime(currentWeekId.value, focusedId, currentDayTag.value)
-    selectedRegionId.value = focusedId
-    setActionSummary(`已同步本周焦点为 ${regionMapStore.regionDefs.find(region => region.id === focusedId)?.name ?? focusedId}。`, 'accent')
-  }
-
-  const handleResourceTurnIn = () => {
-    const focusedRegionId = regionMapStore.currentWeeklyFocus.focusedRegionId ?? 'ancient_road'
-    const route = getRegionRoutes(focusedRegionId)[0]
-    const familyId = route?.primaryResourceFamilyId ?? 'ancient_archive'
-    const ok = regionMapStore.recordResourceTurnIn(familyId, 1)
-    setActionSummary(ok ? `已交付 1 份${regionMapStore.resourceFamilyDefs.find(family => family.id === familyId)?.label ?? familyId}。` : '交付失败：当前资源不足。', ok ? 'success' : 'danger')
-  }
-
   const handlePublicResourceTurnIn = (familyId: RegionalResourceFamilyId) => {
     const ok = regionMapStore.recordResourceTurnIn(familyId, 1)
     setActionSummary(
@@ -3163,3 +3342,27 @@
     )
   }
 </script>
+
+<style scoped>
+  .compact-clamp-3 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    overflow: hidden;
+  }
+
+  .region-map-scroll-rail {
+    scroll-snap-type: x mandatory;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
+  }
+
+  .region-map-scroll-track {
+    width: max-content;
+  }
+
+  .region-map-scroll-card {
+    scroll-snap-align: start;
+  }
+</style>

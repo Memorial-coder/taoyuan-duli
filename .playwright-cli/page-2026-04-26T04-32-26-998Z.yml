@@ -1,0 +1,76 @@
+- generic [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "桃源乡" [level=1] [ref=e7]
+      - paragraph [ref=e8]: 开始前先选好账号和存档方式，这样以后继续游戏会更方便。
+    - generic [ref=e9]:
+      - generic [ref=e10]:
+        - paragraph [ref=e11]: 开始前确认
+        - paragraph [ref=e12]: 先确认账号和存档方式，开始后会更顺手。
+      - generic [ref=e13]:
+        - generic [ref=e14]:
+          - generic [ref=e16]:
+            - paragraph [ref=e17]: 账号状态
+            - generic [ref=e18]: 当前未登录。前往独立登录页后，可使用账号云存档、交流大厅互动、额度兑换和邮箱功能。
+          - generic [ref=e19]:
+            - paragraph [ref=e20]: 登录与注册已拆分为独立页面，支持中文用户名与唯一校验。
+            - paragraph [ref=e21]: 未登录直接开始旅程时，存档无法保存，建议先注册账号后再游玩。
+            - generic [ref=e22]:
+              - button "前往登录页" [ref=e23] [cursor=pointer]:
+                - img [ref=e24]
+                - generic [ref=e27]: 前往登录页
+              - button "前往注册页" [ref=e28] [cursor=pointer]:
+                - img [ref=e29]
+                - generic [ref=e32]: 前往注册页
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - paragraph [ref=e35]: 存档方式
+            - paragraph [ref=e36]: 默认本地存储；切换后将按当前登录账号读取对应存档。
+          - generic [ref=e37]:
+            - button "本地存储" [ref=e38] [cursor=pointer]:
+              - generic [ref=e39]: 本地存储
+            - button "服务端持久化" [ref=e40] [cursor=pointer]:
+              - generic [ref=e41]: 服务端持久化
+          - generic [ref=e42]:
+            - paragraph [ref=e43]: 当前模式
+            - paragraph [ref=e44]: 本地存储（当前设备）
+            - paragraph [ref=e45]: 适合当前设备持续游玩，导入导出备份更直接。
+    - generic [ref=e47]:
+      - generic [ref=e48]:
+        - generic [ref=e49]:
+          - paragraph [ref=e50]: 开始与入口
+          - paragraph [ref=e51]: 从这里开始新旅程，或进入常用功能。
+        - generic [ref=e52]:
+          - button "新的旅程" [ref=e53] [cursor=pointer]:
+            - img [ref=e54]
+            - generic [ref=e56]: 新的旅程
+          - button "新手教程" [ref=e57] [cursor=pointer]:
+            - img [ref=e58]
+            - generic [ref=e60]: 新手教程
+          - button "百科全书" [ref=e61] [cursor=pointer]:
+            - img [ref=e62]
+            - generic [ref=e64]: 百科全书
+          - button "交流大厅" [ref=e65] [cursor=pointer]:
+            - img [ref=e66]
+            - generic [ref=e69]: 交流大厅
+          - button "桃源管理" [ref=e70] [cursor=pointer]:
+            - img [ref=e71]
+            - generic [ref=e74]: 桃源管理
+          - button "关于游戏" [ref=e75] [cursor=pointer]:
+            - img [ref=e76]
+            - generic [ref=e78]: 关于游戏
+      - generic [ref=e80]:
+        - generic [ref=e81]:
+          - generic [ref=e82]:
+            - paragraph [ref=e83]: 继续旅程
+            - paragraph [ref=e84]: 如果你已经有存档，可以从这里继续，或导入以前的进度。
+          - generic [ref=e85]: 已有 0 个存档
+        - generic [ref=e86]:
+          - paragraph [ref=e87]: 当前还没有可继续的旅程。
+          - paragraph [ref=e88]: 点击上方「新的旅程」，或导入已有存档。
+        - button "导入存档" [ref=e89] [cursor=pointer]:
+          - img [ref=e90]
+          - generic [ref=e93]: 导入存档
+  - button "桃源小助理" [ref=e94] [cursor=pointer]:
+    - img [ref=e95]
+    - generic [ref=e98]: 桃源小助理

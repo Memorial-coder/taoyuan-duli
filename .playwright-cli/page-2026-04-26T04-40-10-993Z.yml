@@ -1,0 +1,236 @@
+- generic [ref=e2]:
+  - generic [ref=e99]:
+    - generic [ref=e100]:
+      - generic [ref=e101]:
+        - generic [ref=e102]:
+          - generic [ref=e103]: 桃源乡
+          - generic [ref=e104]: 富春
+          - generic [ref=e105]: 第2年
+          - generic [ref=e106]: 秋 第26天
+          - generic [ref=e107]: (周五)
+          - generic [ref=e108]: 上午 10:43
+          - generic [ref=e109]: 晴
+        - generic [ref=e110]:
+          - button "保存" [ref=e111] [cursor=pointer]
+          - button "保存并返回" [ref=e112] [cursor=pointer]
+          - generic [ref=e113]:
+            - img [ref=e114]
+            - text: 86500文
+      - generic [ref=e119]:
+        - generic [ref=e120]: 今日行情
+        - generic [ref=e121]: 农产品↓下跌
+        - generic [ref=e122]: 鱼类↑上涨
+        - generic [ref=e123]: 加工品↑上涨
+        - generic [ref=e124]: 矿石↑上涨
+        - generic [ref=e125]: 宝石↑上涨
+      - generic [ref=e127]:
+        - generic [ref=e129]:
+          - img [ref=e130]
+          - text: 220/220
+        - img [ref=e135]
+    - button "休息" [ref=e141] [cursor=pointer]:
+      - img [ref=e142]
+      - generic [ref=e144]: 休息
+    - generic [ref=e146]:
+      - generic [ref=e147]:
+        - generic [ref=e148]:
+          - generic [ref=e149]:
+            - paragraph [ref=e150]: 目标规划
+            - paragraph [ref=e151]: 当前里程碑：第1阶段 · 田园新生
+            - paragraph [ref=e152]: 本周主题：豪华经营周（22-28日）
+          - generic [ref=e153]:
+            - generic [ref=e154]: 今日 3 项
+            - generic [ref=e155]: 里程碑 0/3
+            - generic [ref=e156]: 豪华经营周
+            - button "展开完整规划" [ref=e157] [cursor=pointer]:
+              - generic [ref=e158]: 展开完整规划
+        - generic [ref=e159]:
+          - generic [ref=e160]:
+            - paragraph [ref=e161]: 今日聚焦
+            - generic [ref=e162]: 可领 3 处
+          - paragraph [ref=e163]: 本周主线：瀚海
+          - paragraph [ref=e164]: 完成第一次首领、合同或遗迹收尾，让瀚海从单次高端商路变成周循环的一部分。 瀚海会承接 残卷回收线、护送风险线 的古物说明和合同前置准备。 豪华经营周 正在放大瀚海商路、遗迹或首领循环。 辅助路线：博物馆。下周准备：若继续推进古驿荒道的 残卷回收线、护送风险线，先补体力、空背包和护送补给，再把残卷×4 交回任务板或瀚海。 本周导向：任务板 / 商圈 本周重点：囤货、料理与现金回流
+          - generic [ref=e165]:
+            - button "去商圈" [ref=e166] [cursor=pointer]
+            - button "查看完整规划" [ref=e167] [cursor=pointer]
+      - generic [ref=e169]:
+        - generic [ref=e170]:
+          - generic [ref=e171]:
+            - img [ref=e172]
+            - generic [ref=e174]: 行旅图
+          - generic [ref=e175]: 已开放
+        - generic [ref=e176]:
+          - generic [ref=e177]:
+            - generic [ref=e178]:
+              - generic [ref=e179]: 已解锁区域
+              - generic [ref=e180]: 2/3
+            - generic [ref=e181]:
+              - generic [ref=e182]: 运行中远征
+              - generic [ref=e183]: 无
+            - generic [ref=e184]:
+              - generic [ref=e185]: 本周焦点
+              - generic [ref=e186]: 古驿荒道
+            - generic [ref=e187]:
+              - generic [ref=e188]: 资源家族
+              - generic [ref=e189]: 3 组
+          - paragraph [ref=e190]: 当前主题周：豪华经营周。当前入口已接通区域状态、路线完成、首领记录与资源台账，后续将继续把结算接到旧系统。
+        - generic [ref=e191]:
+          - generic [ref=e192]:
+            - generic [ref=e193]:
+              - paragraph [ref=e194]: 远征筹备
+              - paragraph [ref=e195]: 先决定推进风格与撤退规则，再出发。路线和首领现在都会进入多阶段远征，而不是一键完成。
+            - generic [ref=e196]: 当前 HP 120/120
+          - generic [ref=e197]:
+            - generic [ref=e198]:
+              - paragraph [ref=e199]: 推进风格
+              - generic [ref=e200]:
+                - button "稳健推进" [ref=e201] [cursor=pointer]
+                - button "侦察优先" [ref=e202] [cursor=pointer]
+                - button "激进搜刮" [ref=e203] [cursor=pointer]
+              - paragraph [ref=e204]: 默认节奏，状态均衡，适合首次摸图或稳定推进。
+            - generic [ref=e205]:
+              - paragraph [ref=e206]: 撤退规则
+              - generic [ref=e207]:
+                - button "平衡推进" [ref=e208] [cursor=pointer]
+                - button "低血撤离" [ref=e209] [cursor=pointer]
+                - button "满载撤离" [ref=e210] [cursor=pointer]
+                - button "扎营后收束" [ref=e211] [cursor=pointer]
+              - paragraph [ref=e212]: 手动判断什么时候撤退或收束。
+        - generic [ref=e213]:
+          - paragraph [ref=e214]: 古驿荒道 · 上周回顾 / 本周导向
+          - generic [ref=e215]:
+            - paragraph [ref=e216]: "- 本周焦点：古驿荒道"
+            - paragraph [ref=e217]: "- 本周事件：沙市易卷 / 绕路援车 / 驿灯失照"
+            - paragraph [ref=e218]: "- 区域库存：古驿残卷 x4"
+            - paragraph [ref=e219]: "-> 本周导向：任务板 / 商圈"
+            - paragraph [ref=e220]: "-> 优先交付：古驿残卷 x4"
+        - generic [ref=e221]:
+          - generic [ref=e222]:
+            - generic [ref=e223]:
+              - paragraph [ref=e224]: 区域切换
+              - paragraph [ref=e225]: 先选定这趟要展开查看的区域
+              - paragraph [ref=e226]: 切到单一区域时，路线、传闻、季节变体和同行合同会更集中地展开。
+            - generic [ref=e227]:
+              - paragraph [ref=e228]: 当前筛选
+              - paragraph [ref=e229]: 蜃潮泽地
+          - generic [ref=e230]:
+            - button "全部区域 一次查看整张行旅图，适合统览本周焦点与多区域承接。 总览 已开放 2/3 区 焦点：古驿荒道" [ref=e622] [cursor=pointer]:
+              - generic [ref=e232]:
+                - generic [ref=e233]:
+                  - paragraph [ref=e234]: 全部区域
+                  - paragraph [ref=e235]: 一次查看整张行旅图，适合统览本周焦点与多区域承接。
+                - generic [ref=e236]: 总览
+              - generic [ref=e237]:
+                - generic [ref=e238]: 已开放 2/3 区
+                - generic [ref=e239]: 焦点：古驿荒道
+            - button "古驿荒道 围绕旧驿站、商队补给、古路账册与押运风险展开的商路前段区域，适合作为瀚海与任务链的前置空间。 本周焦点 路线 2/4 商路、古迹、护送、驿站、瀚海承接 已解锁" [ref=e624] [cursor=pointer]:
+              - generic [ref=e241]:
+                - generic [ref=e242]:
+                  - paragraph [ref=e243]: 古驿荒道
+                  - paragraph [ref=e244]: 围绕旧驿站、商队补给、古路账册与押运风险展开的商路前段区域，适合作为瀚海与任务链的前置空间。
+                - generic [ref=e245]: 本周焦点
+              - generic [ref=e246]:
+                - generic [ref=e247]: 路线 2/4
+                - generic [ref=e248]: 商路、古迹、护送、驿站、瀚海承接
+                - generic [ref=e249]: 已解锁
+            - button "蜃潮泽地 围绕湿地夜游、样本观察、生态异常与展示回流展开的研究型区域，适合作为鱼塘与博物馆的样本来源地。 当前展开 路线 0/4 样本、夜游、湿地、展示、研究 未解锁" [active] [pressed] [ref=e625] [cursor=pointer]:
+              - generic [ref=e251]:
+                - generic [ref=e252]:
+                  - paragraph [ref=e253]: 蜃潮泽地
+                  - paragraph [ref=e254]: 围绕湿地夜游、样本观察、生态异常与展示回流展开的研究型区域，适合作为鱼塘与博物馆的样本来源地。
+                - generic [ref=e255]: 当前展开
+              - generic [ref=e256]:
+                - generic [ref=e257]: 路线 0/4
+                - generic [ref=e258]: 样本、夜游、湿地、展示、研究
+                - generic [ref=e259]: 未解锁
+            - button "云岚高地 围绕高地巡路、灵脉采集、前哨补给与精英清剿展开的战备区域，适合作为公会与村建高阶承接前线。 区域入口 路线 0/4 高地、灵脉、精英、清剿、公会承接 已解锁" [ref=e260] [cursor=pointer]:
+              - generic [ref=e261]:
+                - generic [ref=e262]:
+                  - paragraph [ref=e263]: 云岚高地
+                  - paragraph [ref=e264]: 围绕高地巡路、灵脉采集、前哨补给与精英清剿展开的战备区域，适合作为公会与村建高阶承接前线。
+                - generic [ref=e265]: 区域入口
+              - generic [ref=e266]:
+                - generic [ref=e267]: 路线 0/4
+                - generic [ref=e268]: 高地、灵脉、精英、清剿、公会承接
+                - generic [ref=e269]: 已解锁
+        - generic [ref=e626]:
+          - generic [ref=e627]:
+            - generic [ref=e628]:
+              - paragraph [ref=e629]: 蜃潮泽地
+              - paragraph [ref=e630]: 围绕湿地夜游、样本观察、生态异常与展示回流展开的研究型区域，适合作为鱼塘与博物馆的样本来源地。
+            - generic [ref=e631]: 未解锁
+          - generic [ref=e632]:
+            - generic [ref=e633]:
+              - generic [ref=e634]: 主题
+              - generic [ref=e635]: 样本、夜游、湿地、展示、研究
+            - generic [ref=e636]:
+              - generic [ref=e637]: 路线
+              - generic [ref=e638]: 0/4
+            - generic [ref=e639]:
+              - generic [ref=e640]: 接线系统
+              - generic [ref=e641]: quest / museum / fishPond / wallet
+            - generic [ref=e642]:
+              - generic [ref=e643]: 首领
+              - generic [ref=e644]: 潮息异兽
+            - generic [ref=e645]:
+              - generic [ref=e646]: 解锁进度
+              - generic [ref=e647]: 博物馆捐赠 4/6 或 已建鱼塘 是
+            - generic [ref=e648]:
+              - generic [ref=e649]: 周焦点
+              - generic [ref=e650]: 普通
+            - generic [ref=e651]:
+              - generic [ref=e652]: 区域情报
+              - generic [ref=e653]: 未知地带
+            - generic [ref=e654]:
+              - generic [ref=e655]: 地图勘明
+              - generic [ref=e656]: 迷雾未散
+          - paragraph [ref=e657]: 认知进度：情报 0 / 勘明 0 / 熟域 0
+          - generic [ref=e658]:
+            - generic [ref=e659]:
+              - generic [ref=e660]:
+                - paragraph [ref=e661]: 锁区预览
+                - paragraph [ref=e662]: 当前区域尚未开放，不会展开路线、首领和事件操作。
+              - generic [ref=e663]: 待解锁
+            - generic [ref=e664]:
+              - paragraph [ref=e665]: 解锁条件：博物馆捐赠 4/6 或 已建鱼塘 是
+              - paragraph [ref=e666]: 主题方向：样本、夜游、湿地、展示、研究
+              - paragraph [ref=e667]: 解锁后承接：quest / museum / fishPond / wallet
+              - paragraph [ref=e668]: 先满足解锁条件，下面这些路网、路线和首领入口才会真正开放。
+        - generic [ref=e575]:
+          - generic [ref=e577]:
+            - paragraph [ref=e578]: 资源家族总览
+            - paragraph [ref=e579]: 把远征回流带来的库存集中看，避免首屏堆太多资源说明。
+          - generic [ref=e580]:
+            - generic [ref=e581]:
+              - generic [ref=e582]:
+                - generic [ref=e583]:
+                  - paragraph [ref=e584]: 古驿残卷
+                  - paragraph [ref=e585]: 围绕旧驿账册、拓片、押运票据与荒道文书形成的区域资源家族，主要承接任务、商圈、瀚海与馆务说明链。
+                - generic [ref=e586]: "4"
+              - button "交付 1 份" [ref=e588] [cursor=pointer]
+            - generic [ref=e589]:
+              - generic [ref=e590]:
+                - generic [ref=e591]:
+                  - paragraph [ref=e592]: 生态样本
+                  - paragraph [ref=e593]: 围绕鱼样、藻样、孢瓶与湿地记录形成的区域资源家族，主要承接鱼塘展示、馆务研究与样本活动。
+                - generic [ref=e594]: "0"
+              - button "交付 1 份" [disabled] [ref=e596]
+            - generic [ref=e597]:
+              - generic [ref=e598]:
+                - generic [ref=e599]:
+                  - paragraph [ref=e600]: 灵脉结晶
+                  - paragraph [ref=e601]: 围绕高地灵脉、风蚀晶核与守脉残片形成的区域资源家族，主要承接公会、村建与高阶战备。
+                - generic [ref=e602]: "0"
+              - button "交付 1 份" [disabled] [ref=e604]
+    - generic [ref=e605]:
+      - button [ref=e606] [cursor=pointer]:
+        - img [ref=e607]
+      - button [ref=e609] [cursor=pointer]:
+        - img [ref=e610]
+      - button [ref=e613] [cursor=pointer]:
+        - img [ref=e614]
+      - button [ref=e617] [cursor=pointer]:
+        - img [ref=e618]
+  - button "桃源小助理" [ref=e94] [cursor=pointer]:
+    - img [ref=e95]
+    - generic [ref=e98]: 桃源小助理
