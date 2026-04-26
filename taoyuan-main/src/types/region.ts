@@ -1,3 +1,6 @@
+import type { Season, Weather } from './game'
+import type { RelationshipStage } from './npc'
+
 export type RegionId = 'ancient_road' | 'mirage_marsh' | 'cloud_highland'
 
 export type RegionNodeType = 'route' | 'event' | 'elite' | 'boss' | 'camp' | 'handoff'
@@ -10,7 +13,7 @@ export type RegionExpeditionRetreatRule = 'balanced' | 'low_hp' | 'pack_full' | 
 
 export type RegionExpeditionStatus = 'ongoing' | 'ready_to_settle' | 'victory' | 'retreated' | 'failure'
 
-export type RegionExpeditionEncounterKind = 'weekly_event' | 'hazard' | 'cache' | 'traveler' | 'boss_prep'
+export type RegionExpeditionEncounterKind = 'weekly_event' | 'hazard' | 'cache' | 'traveler' | 'support' | 'anomaly' | 'boss_prep'
 
 export type RegionExpeditionEncounterRisk = 'low' | 'medium' | 'high'
 
@@ -136,6 +139,45 @@ export interface RegionRouteKnowledgeState {
   lastUpdatedDayTag: string
 }
 
+export type RegionMapNodeVisibilityStage = 'unknown' | 'heard' | 'surveyed' | 'mastered'
+
+export interface RegionMapNodeState {
+  nodeKey: string
+  regionId: RegionId
+  routeId: string | null
+  bossId: string | null
+  nodeType: Extract<RegionNodeType, 'route' | 'event' | 'elite' | 'handoff' | 'boss'>
+  visibilityStage: RegionMapNodeVisibilityStage
+  visitCount: number
+  surveyCount: number
+  lastVisitedDayTag: string
+}
+
+export interface RegionCampSiteState {
+  campKey: string
+  regionId: RegionId
+  routeId: string | null
+  bossId: string | null
+  visitCount: number
+  restCount: number
+  sortCount: number
+  markCount: number
+  scoutCount: number
+  safetyProgress: number
+  stashTier: number
+  lastUsedDayTag: string
+}
+
+export type RegionShortcutStateLevel = 'none' | 'marked' | 'shortcut' | 'mastered'
+
+export interface RegionShortcutState {
+  routeId: string
+  level: RegionShortcutStateLevel
+  masteryRuns: number
+  markedEntrances: number
+  lastUpdatedDayTag: string
+}
+
 export interface RegionWeeklyEventState {
   weekId: string
   activeEventIdsByRegion: Record<RegionId, string[]>
@@ -164,6 +206,26 @@ export interface RegionExpeditionLogEntry {
   tone: 'accent' | 'success' | 'danger'
 }
 
+export type RegionExpeditionCarryItemCategory = 'resource' | 'clue' | 'refined' | 'supply'
+
+export interface RegionExpeditionCarryItem {
+  id: string
+  label: string
+  category: RegionExpeditionCarryItemCategory
+  quantity: number
+  burden: number
+  note: string
+}
+
+export type RegionExpeditionWeather = 'clear' | 'wind' | 'fog' | 'storm'
+
+export interface RegionExpeditionRiskState {
+  weather: RegionExpeditionWeather
+  pollution: number
+  alertness: number
+  anomaly: number
+}
+
 export type RegionExpeditionNodeLane = 'main' | 'branch' | 'deep' | 'boss' | 'camp'
 
 export interface RegionExpeditionNodeRecord {
@@ -188,6 +250,14 @@ export interface RegionExpeditionCampState {
   enteredAtStep: number
   nightEventHint: string
   availableActionIds: RegionCampActionId[]
+}
+
+export interface RegionExpeditionEncounterMemory {
+  id: string
+  kind: RegionExpeditionEncounterKind
+  optionId: 'cautious' | 'balanced' | 'bold'
+  summary: string
+  nextKind: RegionExpeditionEncounterKind | null
 }
 
 export interface RegionExpeditionEncounterOption {
@@ -227,18 +297,23 @@ export interface RegionExpeditionSession {
   totalSteps: number
   carryLoad: number
   maxCarryLoad: number
+  carryItems: RegionExpeditionCarryItem[]
   visibility: number
   morale: number
   danger: number
   findings: number
+  frontlinePrep: number
+  riskState: RegionExpeditionRiskState
   campUsed: boolean
   supplies: RegionExpeditionSupplyState
   pendingRewardFamilyId: RegionalResourceFamilyId | null
   pendingRewardAmount: number
   pendingRewardItems: Array<{ itemId: string; quantity: number }>
   pendingEncounter: RegionExpeditionEncounter | null
+  queuedEncounterKind: RegionExpeditionEncounterKind | null
   campState: RegionExpeditionCampState | null
   encounteredEventIds: string[]
+  encounterMemory: RegionExpeditionEncounterMemory[]
   nodeHistory: RegionExpeditionNodeRecord[]
   journal: RegionExpeditionLogEntry[]
   recommendedRouteId: string | null
@@ -253,6 +328,7 @@ export interface RegionExpeditionArchiveEntry {
   endedAtDayTag: string
   outcome: Exclude<RegionExpeditionStatus, 'ongoing'>
   summaryLines: string[]
+  carryItems: RegionExpeditionCarryItem[]
   journal: RegionExpeditionLogEntry[]
 }
 
@@ -274,6 +350,86 @@ export interface RegionBossOutcomeState {
   failureStreak: number
 }
 
+export interface RegionSeasonalState {
+  regionId: RegionId
+  weekId: string
+  season: Season
+  weather: Weather
+  activeVariantId: string | null
+  activeVariantLabel: string
+  summary: string
+  detailLines: string[]
+  affectedRouteIds: string[]
+  manualExplorationRequired: boolean
+  seenVariantIds: string[]
+  lastUpdatedDayTag: string
+}
+
+export interface RegionRumorSupplyEntry {
+  id: string
+  regionId: RegionId
+  title: string
+  summary: string
+  detailLines: string[]
+  sourceNpcId: string
+  sourceNpcName: string
+  sourceLocation: string
+  relationshipStage: RelationshipStage
+  relationshipStageLabel: string
+  targetRouteId: string | null
+  tags: string[]
+  requiresManualExploration: boolean
+}
+
+export interface RegionRumorBoardEntry extends RegionRumorSupplyEntry {
+  weekId: string
+  fulfilled: boolean
+  fulfilledDayTag: string
+}
+
+export interface RegionRumorBoardState {
+  weekId: string
+  lastRefreshedDayTag: string
+  entriesByRegion: Record<RegionId, RegionRumorBoardEntry[]>
+}
+
+export type RegionCompanionSourceType = 'spouse' | 'zhiji' | 'helper'
+
+export type RegionCompanionContractStatus = 'active' | 'completed' | 'failed'
+
+export interface RegionCompanionContract {
+  id: string
+  npcId: string
+  npcName: string
+  sourceType: RegionCompanionSourceType
+  relationshipStage: RelationshipStage
+  relationshipStageLabel: string
+  regionId: RegionId
+  routeId: string
+  assignedDayTag: string
+  expiresDayTag: string
+  durationDays: number
+  riskModifier: number
+  moraleBonus: number
+  summary: string
+  chronicleTitle: string
+  settlementLines: string[]
+  status: RegionCompanionContractStatus
+  resolvedDayTag: string
+}
+
+export type RegionAutoPatrolMode = 'manual' | 'ready' | 'blocked'
+
+export interface RegionAutoPatrolState {
+  routeId: string
+  enabled: boolean
+  mode: RegionAutoPatrolMode
+  lastAutoSettledDayTag: string
+  lastEvaluatedDayTag: string
+  blockedReason: string
+  blockedTags: string[]
+}
+
 export interface RegionMapSaveData {
   saveVersion: number
   unlockStates: Record<RegionId, RegionUnlockState>
@@ -287,8 +443,47 @@ export interface RegionMapSaveData {
   journeyHistory: RegionExpeditionArchiveEntry[]
   knowledgeState: Record<RegionId, RegionKnowledgeState>
   routeKnowledgeState: Record<string, RegionRouteKnowledgeState>
+  mapNodeStates: Record<string, RegionMapNodeState>
+  campStates: Record<string, RegionCampSiteState>
+  shortcutStates: Record<string, RegionShortcutState>
+  seasonalRegionStates: Record<RegionId, RegionSeasonalState>
+  companionContracts: RegionCompanionContract[]
+  rumorBoard: RegionRumorBoardState
+  autoPatrolStates: Record<string, RegionAutoPatrolState>
   telemetry: RegionTelemetrySnapshot
   bossClearCounts: Record<RegionId, number>
   bossFailureStreaks: Record<RegionId, number>
+  lastBossOutcome: RegionBossOutcomeState
+}
+
+export interface RegionMapMetaState {
+  unlockStates: Record<RegionId, RegionUnlockState>
+  routeStates: Record<string, RegionRouteState>
+  eventStates: Record<string, RegionEventState>
+  weeklyFocusState: RegionWeeklyFocusState
+  weeklyEventState: RegionWeeklyEventState
+  knowledgeState: Record<RegionId, RegionKnowledgeState>
+  routeKnowledgeState: Record<string, RegionRouteKnowledgeState>
+  mapNodeStates: Record<string, RegionMapNodeState>
+  shortcutStates: Record<string, RegionShortcutState>
+  seasonalRegionStates: Record<RegionId, RegionSeasonalState>
+  companionContracts: RegionCompanionContract[]
+  rumorBoard: RegionRumorBoardState
+  autoPatrolStates: Record<string, RegionAutoPatrolState>
+  telemetry: RegionTelemetrySnapshot
+  bossClearCounts: Record<RegionId, number>
+  bossFailureStreaks: Record<RegionId, number>
+}
+
+export interface RegionMapSessionState {
+  expedition: ExpeditionRuntimeState
+  activeSession: RegionExpeditionSession | null
+  currentExpeditionNodeChoices: RegionExpeditionNodeChoice[]
+  campStates: Record<string, RegionCampSiteState>
+}
+
+export interface RegionMapSettlementState {
+  resourceLedger: Record<RegionalResourceFamilyId, number>
+  journeyHistory: RegionExpeditionArchiveEntry[]
   lastBossOutcome: RegionBossOutcomeState
 }

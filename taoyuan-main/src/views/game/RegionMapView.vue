@@ -325,6 +325,62 @@
               </div>
             </div>
 
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+              <div class="border border-accent/10 rounded-xs px-3 py-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-muted">季节变体快照</p>
+                  <span class="text-[10px]" :class="getRegionVariantSnapshot(region.id).activeVariantId ? 'text-warning' : 'text-success'">
+                    {{ getRegionVariantSnapshot(region.id).activeVariantId ? getRegionVariantSnapshot(region.id).activeVariantLabel : '常态版图' }}
+                  </span>
+                </div>
+                <p class="text-xs text-accent mt-1">{{ getRegionVariantSnapshot(region.id).summary }}</p>
+                <div class="space-y-1 mt-2">
+                  <p
+                    v-for="line in getRegionVariantSnapshot(region.id).detailLines.slice(0, 3)"
+                    :key="`${region.id}-variant-${line}`"
+                    class="text-[10px] text-muted leading-4"
+                  >
+                    路 {{ line }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="border border-accent/10 rounded-xs px-3 py-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-muted">本周传闻板</p>
+                  <span
+                    class="text-[10px]"
+                    :class="getRegionRumorBoard(region.id).some(entry => !entry.fulfilled) ? 'text-warning' : 'text-success'"
+                  >
+                    {{ getRegionRumorBoard(region.id).length }} 条
+                  </span>
+                </div>
+                <p v-if="getRegionRumorBoard(region.id).length === 0" class="text-[10px] text-muted mt-2 leading-4">
+                  本周暂时没有挂出来的区域传闻，等天气、时间或人手窗口刷新后再来看看。
+                </p>
+                <div v-else class="space-y-2 mt-2">
+                  <div
+                    v-for="entry in getRegionRumorBoard(region.id)"
+                    :key="entry.id"
+                    class="border border-accent/10 rounded-xs px-2 py-2"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <p class="text-[10px] text-accent">{{ entry.title }}</p>
+                        <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+                        <p class="text-[10px] text-muted mt-1 leading-4">
+                          {{ entry.sourceNpcName }} / {{ entry.sourceLocation }} / {{ entry.relationshipStageLabel }}
+                        </p>
+                      </div>
+                      <span class="text-[10px] shrink-0" :class="entry.fulfilled ? 'text-success' : 'text-warning'">
+                        {{ entry.fulfilled ? '已兑现' : '待兑现' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="flex flex-wrap gap-2">
               <button
                 v-if="isDev"
@@ -346,6 +402,7 @@
                 class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5"
                 :disabled="!canChallengeBoss(region.id)"
                 :title="getBossDisabledReason(region.id)"
+                :data-testid="`region-boss-primary-${region.id}`"
                 @click="handleRunBoss(region.id)"
               >
                 发起首领远征
@@ -466,18 +523,17 @@
               <div
                 v-for="route in getRegionRoutes(region.id)"
                 :key="route.id"
-                class="border border-accent/10 rounded-xs px-3 py-2"
+                class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/40"
               >
                 <div class="flex items-start justify-between gap-3">
                   <div class="min-w-0">
-                    <div class="flex items-center gap-2">
+                    <div class="flex flex-wrap items-center gap-2">
                       <p class="text-xs text-accent">{{ getRouteMapPreview(route).title }}</p>
                       <span class="text-[10px]" :class="getRouteMapPreview(route).stageToneClass">{{ getRouteMapPreview(route).stageLabel }}</span>
+                      <span class="border border-accent/10 rounded-xs px-1.5 py-0.5 text-[10px] text-muted">{{ getRouteTypeLabel(route.nodeType) }}</span>
                     </div>
-                    <p class="text-[10px] text-muted mt-0.5 leading-4">{{ getRouteMapPreview(route).description }}</p>
-                    <div class="flex flex-wrap gap-x-3 gap-y-1 mt-2 text-[10px] text-muted">
-                      <span>{{ getRouteTypeLabel(route.nodeType) }}</span>
-                      <span>{{ getRouteMapPreview(route).stageLabel }}</span>
+                    <p class="text-[10px] text-muted mt-1 leading-4">{{ getRouteMapPreview(route).description }}</p>
+                    <div class="flex flex-wrap gap-2 mt-2 text-[10px] text-muted">
                       <span v-if="getRouteMapPreview(route).stage !== 'unknown'">认知 {{ getRouteKnowledgeSummary(route.id).intelLabel }}</span>
                       <span v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered'">体力 {{ route.staminaCost }}</span>
                       <span v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered'">耗时 {{ route.timeCostHours }}h</span>
@@ -489,22 +545,25 @@
                         {{ getRouteShortcutSummary(route.id).label }}
                       </span>
                     </div>
-                    <p v-if="getRouteMapPreview(route).stage !== 'unknown'" class="text-[10px] text-muted mt-1 leading-4">
+                    <div v-if="getRouteDispatchSignals(route).length > 0" class="flex flex-wrap gap-2 mt-2">
+                      <span
+                        v-for="signal in getRouteDispatchSignals(route)"
+                        :key="`${route.id}-${signal.label}`"
+                        class="border rounded-xs px-2 py-0.5 text-[10px]"
+                        :class="signal.shellClass"
+                      >
+                        <span :class="signal.toneClass">{{ signal.label }}</span>
+                      </span>
+                    </div>
+                    <p v-if="getRouteMapPreview(route).stage !== 'unknown'" class="text-[10px] text-muted mt-2 leading-4">
                       路线勘明 {{ getRouteKnowledgeSummary(route.id).surveyProgress }}/100 · 熟悉 {{ getRouteKnowledgeSummary(route.id).familiarity }}/100
                     </p>
                     <p
                       v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered'"
-                      class="text-[10px] mt-1 leading-4"
-                      :class="getRouteShortcutSummary(route.id).level === 'none' ? 'text-muted' : 'text-accent/80'"
+                      class="text-[10px] mt-2 leading-4"
+                      :class="getAutoPatrolStatus(route.id).mode === 'blocked' ? 'text-warning' : getRouteShortcutSummary(route.id).level === 'none' ? 'text-muted' : 'text-accent/80'"
                     >
-                      {{ getRouteShortcutSummary(route.id).headline }}
-                    </p>
-                    <p
-                      v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered'"
-                      class="text-[10px] mt-1 leading-4"
-                      :class="getRouteShortcutSummary(route.id).level === 'none' ? 'text-muted' : 'text-success'"
-                    >
-                      {{ getRouteShortcutSummary(route.id).benefitSummary }}
+                      {{ getRouteDispatchSummary(route) }}
                     </p>
                     <p v-if="route.encounterHint && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')" class="text-[10px] text-muted mt-1 leading-4">
                       - {{ route.encounterHint }}
@@ -521,15 +580,18 @@
                     class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
                     :disabled="!canRunRoute(route.id)"
                     :title="getRouteDisabledReason(route.id)"
+                    :data-testid="`region-route-primary-${route.id}`"
+                    :data-expedition-mode="shouldAutoRunRoute(route.id) ? 'auto' : 'manual'"
                     @click="handleRunRoute(route.id)"
                   >
-                    发起远征
+                    {{ getRouteRunActionLabel(route.id) }}
                   </button>
                   <button
                     v-if="isDev"
                     class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
                     :disabled="!canRunRoute(route.id)"
                     :title="getRouteDisabledReason(route.id)"
+                    :data-testid="`region-route-dev-start-${route.id}`"
                     @click="handleStartRoute(route.id)"
                   >
                     开始路线
@@ -539,10 +601,46 @@
                     class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5"
                     :disabled="!canCompleteRoute(route.id)"
                     :title="getCompleteRouteDisabledReason(route.id)"
+                    :data-testid="`region-route-dev-complete-${route.id}`"
                     @click="handleCompleteRoute(route.id)"
                   >
                     完成并结算
                   </button>
+                </div>
+                <div
+                  v-if="getActiveCompanionContract(route.id) || getCompanionContractCandidates(route.id).length > 0"
+                  class="mt-2 border border-accent/10 rounded-xs px-3 py-2 bg-bg/50"
+                >
+                  <div class="flex items-center justify-between gap-3">
+                    <p class="text-[10px] text-muted">同伴远行合同</p>
+                    <span class="text-[10px]" :class="getActiveCompanionContract(route.id) ? 'text-warning' : 'text-muted'">
+                      {{ getActiveCompanionContract(route.id) ? '已挂合同' : '可派合同' }}
+                    </span>
+                  </div>
+                  <template v-if="getActiveCompanionContract(route.id)">
+                    <p class="text-[10px] text-accent mt-2">
+                      {{ getActiveCompanionContract(route.id)?.npcName }} / {{ getActiveCompanionContract(route.id)?.relationshipStageLabel }}
+                    </p>
+                    <p class="text-[10px] text-muted mt-1 leading-4">{{ getActiveCompanionContract(route.id)?.summary }}</p>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                      <button
+                        class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5"
+                        @click="handleClearCompanionContract(route.id)"
+                      >
+                        撤回合同
+                      </button>
+                    </div>
+                  </template>
+                  <div v-else class="flex flex-wrap gap-2 mt-2">
+                    <button
+                      v-for="candidate in getCompanionContractCandidates(route.id).slice(0, 3)"
+                      :key="`${route.id}-${candidate.npcId}`"
+                      class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+                      @click="handleAssignCompanionContract(route.id, candidate.npcId)"
+                    >
+                      挂 {{ candidate.npcName }}
+                    </button>
+                  </div>
                 </div>
                 <p v-if="getRouteDisabledReason(route.id)" class="text-[10px] text-muted mt-2 leading-4">
                   {{ getRouteDisabledReason(route.id) }}
@@ -553,7 +651,7 @@
         </div>
       </div>
 
-      <div v-if="currentSession" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
+      <div v-if="currentSession && false" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <p class="text-xs text-accent">进行中远征：{{ currentSession.targetName }}</p>
@@ -575,6 +673,55 @@
           <div class="flex items-center justify-between"><span class="text-muted">发现</span><span>{{ currentSession.findings }}</span></div>
           <div class="flex items-center justify-between"><span class="text-muted">口粮</span><span>{{ currentSession.supplies.rations }}</span></div>
           <div class="flex items-center justify-between"><span class="text-muted">药剂 / 器具</span><span>{{ currentSession.supplies.medicine }} / {{ currentSession.supplies.utility }}</span></div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+          <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/50">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-[10px] text-muted">前线态势</p>
+              <span class="text-[10px] text-accent">准备 {{ currentSession.frontlinePrep }}</span>
+            </div>
+            <div class="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] mt-2">
+              <div class="flex items-center justify-between">
+                <span class="text-muted">天气</span>
+                <span :class="getWeatherToneClass(currentSession.riskState.weather)">{{ getWeatherLabel(currentSession.riskState.weather) }}</span>
+              </div>
+              <div class="flex items-center justify-between"><span class="text-muted">污染</span><span>{{ currentSession.riskState.pollution }}</span></div>
+              <div class="flex items-center justify-between"><span class="text-muted">警戒</span><span>{{ currentSession.riskState.alertness }}</span></div>
+              <div class="flex items-center justify-between"><span class="text-muted">异变</span><span>{{ currentSession.riskState.anomaly }}</span></div>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/50">
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-[10px] text-muted">携带层</p>
+              <span class="text-[10px]" :class="currentSession.carryItems.length > 0 ? 'text-accent' : 'text-muted'">{{ currentSession.carryItems.length }} 项</span>
+            </div>
+            <div v-if="currentSession.carryItems.length > 0" class="space-y-1 mt-2">
+              <p v-for="item in currentSession.carryItems" :key="item.id" class="text-[10px] leading-4">
+                <span class="text-accent">{{ item.label }} x{{ item.quantity }}</span>
+                <span class="text-muted"> · {{ getCarryCategoryLabel(item.category) }} · 负重 {{ item.burden }}</span>
+              </p>
+            </div>
+            <p v-else class="text-[10px] text-muted mt-2 leading-4">当前没有额外途中携带物。</p>
+          </div>
+        </div>
+
+        <div class="mt-3 border border-accent/10 rounded-xs px-3 py-2 bg-bg/50">
+          <div class="flex items-center justify-between gap-3">
+            <p class="text-[10px] text-muted">事件链留痕</p>
+            <span class="text-[10px]" :class="currentSession.queuedEncounterKind ? 'text-warning' : 'text-muted'">
+              {{ currentSession.queuedEncounterKind ? `后续指向 ${getEncounterKindLabel(currentSession.queuedEncounterKind)}` : '暂无强制后续' }}
+            </span>
+          </div>
+          <div v-if="currentSessionEncounterTrail.length > 0" class="space-y-1 mt-2">
+            <p v-for="entry in currentSessionEncounterTrail" :key="entry.id" class="text-[10px] leading-4">
+              <span class="text-accent">{{ getEncounterKindLabel(entry.kind) }}</span>
+              <span class="text-muted"> · {{ entry.summary }}</span>
+              <span v-if="entry.nextKind" class="text-warning"> · 后续 {{ getEncounterKindLabel(entry.nextKind) }}</span>
+            </p>
+          </div>
+          <p v-else class="text-[10px] text-muted mt-2 leading-4">当前还没有形成可追踪的遭遇留痕。</p>
         </div>
 
         <div v-if="currentSessionShortcutSummary" class="mt-3 border border-accent/10 rounded-xs px-3 py-2">
@@ -680,8 +827,8 @@
               :class="actionId === 'rest' || actionId === 'mark' ? 'border-success/20' : actionId === 'scout' ? 'border-warning/20' : 'border-accent/20'"
               @click="handleResolveCampAction(actionId)"
             >
-              <p class="text-[10px]" :class="CAMP_ACTION_META[actionId].toneClass">{{ CAMP_ACTION_META[actionId].label }}</p>
-              <p class="text-[10px] text-muted mt-1 leading-4">{{ CAMP_ACTION_META[actionId].summary }}</p>
+              <p class="text-[10px]" :class="CAMP_ACTION_META[actionId]?.toneClass ?? 'text-accent'">{{ CAMP_ACTION_META[actionId]?.label ?? actionId }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ CAMP_ACTION_META[actionId]?.summary ?? '' }}</p>
             </button>
           </div>
           <p class="text-[10px] text-muted mt-2 leading-4">营地动作完成后，才会继续回到节点选择；若预设为“扎营后收束”，则会在动作完成后直接返程。</p>
@@ -737,6 +884,29 @@
           </div>
         </div>
       </div>
+
+      <RegionExpeditionStagePanel
+        v-if="currentSession"
+        :session="currentSession"
+        :region-label="currentSessionRegionLabel"
+        :status-label="currentSessionStatusLabel"
+        :player-hp="playerStore.hp"
+        :player-max-hp="playerStore.getMaxHp()"
+        :node-choices="currentSessionNodeChoices"
+        :encounter-trail="currentSessionEncounterTrail"
+        :current-node-headline="currentSessionNodeHeadline"
+        :shortcut-summary="currentSessionShortcutSummary"
+        :intro-lines="currentSessionIntroLines"
+        :signal-lines="currentSessionSignalLines"
+        :approach-label="currentSessionApproachLabel"
+        :retreat-label="currentSessionRetreatLabel"
+        @advance="handleAdvanceExpedition"
+        @camp="handleCampExpedition"
+        @retreat="handleRetreatExpedition"
+        @settle="handleSettleExpedition"
+        @resolve-camp="handleResolveCampAction"
+        @resolve-encounter="handleResolveEncounter"
+      />
 
       <div v-if="latestJourneyAftermathSummary" class="border border-accent/20 rounded-xs p-3 mb-3">
         <div class="flex items-start justify-between gap-3">
@@ -911,6 +1081,9 @@
             <div class="mt-2 space-y-1">
               <p v-for="line in entry.summaryLines" :key="`${entry.id}-${line}`" class="text-[10px] text-muted leading-4">- {{ line }}</p>
             </div>
+            <p v-if="entry.carryItems.length > 0" class="text-[10px] text-muted mt-2 leading-4">
+              携带清单：{{ formatCarryManifest(entry.carryItems, 4) }}
+            </p>
             <div class="mt-3 flex flex-wrap gap-2">
               <button
                 class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5"
@@ -1112,19 +1285,31 @@
 
       <div
         v-if="settlementDialog"
-        class="fixed inset-0 z-40 flex items-center justify-center bg-black/45 px-4"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/45 px-4"
         @click.self="settlementDialog = null"
       >
         <div class="w-full max-w-2xl border rounded-xs bg-bg p-4 max-h-[85vh] overflow-y-auto" :class="settlementToneClass">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
               <p class="text-sm text-accent">{{ settlementDialog.title }}</p>
-              <div v-if="settlementDialog.kind === 'expedition'" class="mt-3 space-y-3">
+              <JourneySettlementReveal
+                v-if="expeditionSettlementDialog"
+                class="mt-3"
+                :journey-lines="expeditionSettlementDialog.journeyLines"
+                :reward-lines="expeditionSettlementDialog.rewardLines"
+                :aftermath-lines="expeditionSettlementDialog.aftermathLines"
+                :handoff-board="expeditionSettlementDialog.handoffBoard"
+                :actions="expeditionSettlementDialog.actions"
+                @navigate="handleSettlementAction"
+                @close="settlementDialog = null"
+              />
+
+              <div v-else-if="false" class="mt-3 space-y-3">
                 <div class="border border-accent/10 rounded-xs px-3 py-3">
                   <p class="text-[10px] text-muted mb-2">旅程回顾</p>
                   <div class="space-y-1">
                     <p
-                      v-for="line in settlementDialog.journeyLines"
+                      v-for="line in expeditionSettlementDialog?.journeyLines ?? []"
                       :key="`settlement-journey-${line}`"
                       class="text-[11px] leading-5 text-muted"
                     >
@@ -1137,7 +1322,7 @@
                   <p class="text-[10px] text-muted mb-2">回流分发</p>
                   <div class="space-y-1">
                     <p
-                      v-for="line in settlementDialog.rewardLines"
+                      v-for="line in expeditionSettlementDialog?.rewardLines ?? []"
                       :key="`settlement-reward-${line}`"
                       class="text-[11px] leading-5"
                       :class="line.includes('物品') || line.includes('资源') || line.includes('发放') || line.includes('返还') ? 'text-success' : 'text-muted'"
@@ -1151,7 +1336,7 @@
                   <p class="text-[10px] text-muted mb-2">旅后处理</p>
                   <div class="space-y-1">
                     <p
-                      v-for="line in settlementDialog.aftermathLines"
+                      v-for="line in expeditionSettlementDialog?.aftermathLines ?? []"
                       :key="`settlement-aftermath-${line}`"
                       class="text-[11px] leading-5 text-muted"
                     >
@@ -1159,16 +1344,16 @@
                     </p>
                   </div>
 
-                  <div v-if="settlementDialog.handoffBoard" class="mt-3 border border-accent/10 rounded-xs px-3 py-3 bg-accent/5">
+                  <div v-if="expeditionSettlementDialog?.handoffBoard" class="mt-3 border border-accent/10 rounded-xs px-3 py-3 bg-accent/5">
                     <p class="text-[10px] text-muted">戏剧化回流入口</p>
-                    <p class="text-[11px] text-accent mt-1">{{ settlementDialog.handoffBoard.headline }}</p>
+                    <p class="text-[11px] text-accent mt-1">{{ expeditionSettlementDialog?.handoffBoard?.headline }}</p>
 
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                       <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
                         <p class="text-[10px] text-muted mb-2">资源去向</p>
                         <div class="space-y-1">
                           <p
-                            v-for="line in settlementDialog.handoffBoard.resourceLines"
+                            v-for="line in expeditionSettlementDialog?.handoffBoard?.resourceLines ?? []"
                             :key="`settlement-resource-${line}`"
                             class="text-[10px] text-muted leading-4"
                           >
@@ -1181,7 +1366,7 @@
                         <p class="text-[10px] text-muted mb-2">推荐动作</p>
                         <div class="space-y-2">
                           <div
-                            v-for="action in settlementDialog.handoffBoard.actionCards"
+                            v-for="action in expeditionSettlementDialog?.handoffBoard?.actionCards ?? []"
                             :key="`settlement-action-card-${action.key}`"
                             class="border border-success/20 rounded-xs px-2 py-2 bg-bg/70"
                           >
@@ -1206,7 +1391,7 @@
                         <p class="text-[10px] text-muted mb-2">为什么现在去</p>
                         <div class="space-y-1">
                           <p
-                            v-for="line in settlementDialog.handoffBoard.whyNowLines"
+                            v-for="line in expeditionSettlementDialog?.handoffBoard?.whyNowLines ?? []"
                             :key="`settlement-why-now-${line}`"
                             class="text-[10px] text-muted leading-4"
                           >
@@ -1216,9 +1401,9 @@
                       </div>
                     </div>
 
-                    <div v-if="settlementDialog.handoffBoard.receiptSections.length > 0" class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
+                    <div v-if="(expeditionSettlementDialog?.handoffBoard?.receiptSections?.length ?? 0) > 0" class="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3">
                       <div
-                        v-for="section in settlementDialog.handoffBoard.receiptSections"
+                        v-for="section in expeditionSettlementDialog?.handoffBoard?.receiptSections ?? []"
                         :key="`settlement-receipt-${section.title}`"
                         class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60"
                       >
@@ -1236,9 +1421,9 @@
                     </div>
                   </div>
 
-                  <div v-else-if="settlementDialog.actions.length > 0" class="mt-3 flex flex-wrap gap-2">
+                  <div v-else-if="(expeditionSettlementDialog?.actions?.length ?? 0) > 0" class="mt-3 flex flex-wrap gap-2">
                     <button
-                      v-for="action in settlementDialog.actions"
+                      v-for="action in expeditionSettlementDialog?.actions ?? []"
                       :key="`settlement-action-${action.key}`"
                       class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
                       @click="handleSettlementAction(action.key)"
@@ -1272,6 +1457,8 @@
 <script setup lang="ts">
   import { computed, ref, watch } from 'vue'
   import { Map } from 'lucide-vue-next'
+  import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
+  import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
   import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
   import { getWeekCycleInfo } from '@/utils/weekCycle'
   import { useFishPondStore } from '@/stores/useFishPondStore'
@@ -1289,8 +1476,13 @@
     RegionCampActionId,
     RegionExpeditionArchiveEntry,
     RegionExpeditionApproach,
+    RegionExpeditionCarryItem,
+    RegionExpeditionCarryItemCategory,
+    RegionExpeditionEncounterKind,
+    RegionExpeditionEncounterMemory,
     RegionExpeditionNodeLane,
     RegionExpeditionRetreatRule,
+    RegionExpeditionWeather,
     RegionId,
     RegionLinkedSystem,
     RegionRouteDef,
@@ -1339,6 +1531,7 @@
     whyNowLines: string[]
     receiptSections: JourneyHandoffReceiptSection[]
   }
+  type RouteDispatchSignal = { label: string; toneClass: string; shellClass: string }
   type SettlementDialogState =
     | {
         kind: 'simple'
@@ -1367,7 +1560,7 @@
   const currentWeekId = computed(() => getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId)
 
   const currentFocusLabel = computed(() => {
-    const focusedId = regionMapStore.currentWeeklyFocus.focusedRegionId
+    const focusedId = regionMapStore.metaState.weeklyFocusState.focusedRegionId
     if (!focusedId) return '未设置'
     const match = regionMapStore.regionDefs.find(region => region.id === focusedId)
     return match?.name ?? '未设置'
@@ -1403,6 +1596,9 @@
         ? 'border-accent/30'
         : 'border-success/30'
   )
+  const expeditionSettlementDialog = computed(() =>
+    settlementDialog.value?.kind === 'expedition' ? settlementDialog.value : null
+  )
   const expeditionApproachOptions: Array<{ value: RegionExpeditionApproach; label: string; description: string }> = [
     { value: 'steady', label: '稳健推进', description: '默认节奏，状态均衡，适合首次摸图或稳定推进。' },
     { value: 'scout', label: '侦察优先', description: '更容易保持视野与控伤，但负重和爆发略弱。' },
@@ -1420,10 +1616,20 @@
   const currentRetreatRuleDescription = computed(
     () => expeditionRetreatRuleOptions.find(entry => entry.value === selectedRetreatRule.value)?.description ?? ''
   )
-  const currentSession = computed(() => regionMapStore.activeSession)
-  const currentSessionNodeChoices = computed(() => regionMapStore.currentExpeditionNodeChoices)
+  const getApproachLabel = (approach: RegionExpeditionApproach) =>
+    expeditionApproachOptions.find(entry => entry.value === approach)?.label ?? '稳健推进'
+  const getRetreatRuleLabel = (retreatRule: RegionExpeditionRetreatRule) =>
+    expeditionRetreatRuleOptions.find(entry => entry.value === retreatRule)?.label ?? '平衡推进'
+  const currentSession = computed<any>(() => regionMapStore.sessionState.activeSession)
+  const currentSessionNodeChoices = computed<any[]>(() => regionMapStore.sessionState.currentExpeditionNodeChoices)
   const selectedJourneyAftermathId = ref<string | null>(null)
-  const currentSessionShortcutSummary = computed(() =>
+  const currentSessionApproachLabel = computed(() =>
+    currentSession.value ? getApproachLabel(currentSession.value.approach) : '稳健推进'
+  )
+  const currentSessionRetreatLabel = computed(() =>
+    currentSession.value ? getRetreatRuleLabel(currentSession.value.retreatRule) : '平衡推进'
+  )
+  const currentSessionShortcutSummary = computed<any>(() =>
     currentSession.value?.routeId ? getRouteShortcutSummary(currentSession.value.routeId) : null
   )
   const currentSessionNodeHeadline = computed(() => {
@@ -1432,7 +1638,37 @@
   })
   const getNodeLaneSummary = (lane: RegionExpeditionNodeLane) =>
     lane === 'boss' ? '首领压进' : lane === 'deep' ? '深层推进' : lane === 'branch' ? '支线侧探' : lane === 'camp' ? '前线营地' : '主线推进'
-  const CAMP_ACTION_META: Record<RegionCampActionId, { label: string; summary: string; toneClass: string }> = {
+  const getWeatherLabel = (weather: RegionExpeditionWeather) =>
+    weather === 'storm' ? '风暴' : weather === 'fog' ? '浓雾' : weather === 'wind' ? '劲风' : '晴稳'
+  const getWeatherToneClass = (weather: RegionExpeditionWeather) =>
+    weather === 'storm' ? 'text-danger' : weather === 'fog' ? 'text-warning' : weather === 'wind' ? 'text-accent' : 'text-success'
+  const getCarryCategoryLabel = (category: RegionExpeditionCarryItemCategory) =>
+    category === 'clue' ? '线索' : category === 'refined' ? '精炼' : category === 'supply' ? '补给' : '资源'
+  const getEncounterKindLabel = (kind: RegionExpeditionEncounterKind | null) =>
+    kind === 'hazard'
+      ? '险段'
+      : kind === 'cache'
+        ? '收获'
+        : kind === 'traveler'
+          ? '旅者'
+          : kind === 'support'
+            ? '支援'
+            : kind === 'anomaly'
+              ? '异变'
+              : kind === 'boss_prep'
+                ? '前夜'
+                : kind === 'weekly_event'
+                  ? '事件'
+                  : '未定'
+  const formatCarryManifest = (carryItems: RegionExpeditionCarryItem[], limit = 4) =>
+    carryItems
+      .slice(0, limit)
+      .map(item => `${item.label} x${item.quantity}（${getCarryCategoryLabel(item.category)} / 负重 ${item.burden}）`)
+      .join(' / ')
+  const currentSessionEncounterTrail = computed<RegionExpeditionEncounterMemory[]>(() =>
+    currentSession.value ? [...currentSession.value.encounterMemory].slice(-4).reverse() : []
+  )
+  const CAMP_ACTION_META: Record<string, { label: string; summary: string; toneClass: string }> = {
     rest: { label: '休整伤势', summary: '优先回复生命、稳住士气，把营火时间用在恢复。', toneClass: 'text-success' },
     sort: { label: '整理补给', summary: '压低负重、梳理收获，让下一段推进有更多腾挪空间。', toneClass: 'text-accent' },
     mark: { label: '标记路线', summary: '把坡口、路标和回撤线重新钉稳，换更低的后续风险。', toneClass: 'text-success' },
@@ -1451,6 +1687,7 @@
     const handoff = getRegionHandoffSummary(entry.regionId)
     const handoffBoard = buildJourneyHandoffBoard(entry.regionId)
     const actions = buildSettlementActionPanels(entry.regionId)
+    const carryLine = entry.carryItems.length > 0 ? `携带清单：${formatCarryManifest(entry.carryItems, 4)}` : ''
     const lastBossOutcomeDayTag = regionMapStore.lastBossOutcome.resolvedDayTag || ''
     const entryDayTag = entry.endedAtDayTag || entry.startedAtDayTag || ''
     const extraAftermathLines =
@@ -1465,7 +1702,7 @@
       entry,
       regionName: getRegionName(entry.regionId),
       journeyLines: getArchiveJourneyLines(entry),
-      rewardLines: buckets.rewardLines.slice(0, 4),
+      rewardLines: [...new Set([carryLine, ...buckets.rewardLines].filter(Boolean))].slice(0, 4),
       aftermathLines: [
         ...extraAftermathLines,
         ...buckets.aftermathLines,
@@ -1493,15 +1730,15 @@
     }
   }
   const latestJourneyAftermathSummary = computed(() => {
-    const entry = regionMapStore.journeyHistory[0] ?? null
+    const entry = regionMapStore.settlementState.journeyHistory[0] ?? null
     return entry ? getArchiveAftermathSummary(entry) : null
   })
   const selectedJourneyAftermathEntry = computed(() => {
     if (selectedJourneyAftermathId.value) {
-      const matched = regionMapStore.journeyHistory.find(entry => entry.id === selectedJourneyAftermathId.value) ?? null
+      const matched = regionMapStore.settlementState.journeyHistory.find(entry => entry.id === selectedJourneyAftermathId.value) ?? null
       if (matched) return matched
     }
-    return regionMapStore.journeyHistory[0] ?? null
+    return regionMapStore.settlementState.journeyHistory[0] ?? null
   })
   const selectedJourneyAftermathSummary = computed(() => {
     const entry = selectedJourneyAftermathEntry.value
@@ -1913,7 +2150,8 @@
         line.includes('返还') ||
         line.includes('发放') ||
         line.includes('保留') ||
-        line.includes('带回')
+        line.includes('带回') ||
+        line.includes('携带清单')
       ) {
         rewardLines.push(line)
         continue
@@ -1925,7 +2163,9 @@
         line.includes('建议') ||
         line.includes('熟路') ||
         line.includes('捷径') ||
-        line.includes('路标')
+        line.includes('路标') ||
+        line.includes('前线态势') ||
+        line.includes('事件链留痕')
       ) {
         aftermathLines.push(line)
         continue
@@ -1984,6 +2224,7 @@
   const ensureWeeklyEventRuntime = () => {
     regionMapStore.refreshUnlocksFromProgress(currentDayTag.value)
     regionMapStore.ensureWeeklyEventRuntime(currentWeekId.value, regionMapStore.currentWeeklyFocus.focusedRegionId, currentDayTag.value)
+    regionMapStore.ensureFrontierWorldSignals(currentDayTag.value)
   }
 
   watch(
@@ -2078,6 +2319,184 @@
     }
   }
 
+  const getRegionVariantSnapshot = (regionId: RegionId) =>
+    regionMapStore.metaState.seasonalRegionStates[regionId] ?? {
+      regionId,
+      weekId: '',
+      season: gameStore.season,
+      weather: gameStore.weather,
+      activeVariantId: null,
+      activeVariantLabel: '',
+      summary: '当前区域尚未生成季节变体快照。',
+      detailLines: [],
+      affectedRouteIds: [],
+      manualExplorationRequired: false,
+      seenVariantIds: [],
+      lastUpdatedDayTag: ''
+    }
+
+  const getRegionRumorBoard = (regionId: RegionId) => regionMapStore.metaState.rumorBoard.entriesByRegion[regionId] ?? []
+
+  const getAutoPatrolStatus = (routeId: string) =>
+    regionMapStore.metaState.autoPatrolStates[routeId] ?? {
+      routeId,
+      enabled: true,
+      mode: 'manual',
+      lastAutoSettledDayTag: '',
+      lastEvaluatedDayTag: '',
+      blockedReason: '',
+      blockedTags: []
+    }
+
+  const getActiveCompanionContract = (routeId: string) =>
+    regionMapStore.metaState.companionContracts.find(contract => contract.routeId === routeId && contract.status === 'active') ?? null
+
+  const getCompanionContractCandidates = (routeId: string) => regionMapStore.getCompanionContractCandidates(routeId)
+
+  const currentSessionIntroLines = computed(() => {
+    const session = currentSession.value
+    if (!session) return []
+
+    const lines = [
+      `策略：${getApproachLabel(session.approach)} / ${getRetreatRuleLabel(session.retreatRule)}`,
+      `前线态势：准备 ${session.frontlinePrep} / 天气 ${getWeatherLabel(session.riskState.weather)} / 风险 ${session.danger}`,
+      `补给：口粮 ${session.supplies.rations} / 药剂 ${session.supplies.medicine} / 器具 ${session.supplies.utility}`
+    ]
+
+    const activeContract = session.routeId ? getActiveCompanionContract(session.routeId) : null
+    if (activeContract) {
+      lines.push(`同行合同：${activeContract.npcName} / ${activeContract.relationshipStageLabel}`)
+    }
+
+    const rumorCount = getRegionRumorBoard(session.regionId).filter(entry => !entry.fulfilled).length
+    if (rumorCount > 0) {
+      lines.push(`本周传闻：当前仍有 ${rumorCount} 条区域传闻等待兑现。`)
+    }
+
+    const seasonalState = getRegionVariantSnapshot(session.regionId)
+    if (
+      seasonalState.activeVariantId &&
+      (!session.routeId || seasonalState.affectedRouteIds.length === 0 || seasonalState.affectedRouteIds.includes(session.routeId))
+    ) {
+      lines.push(`季节变体：${seasonalState.activeVariantLabel}`)
+    }
+
+    return lines.slice(0, 4)
+  })
+
+  const currentSessionSignalLines = computed(() => {
+    const session = currentSession.value
+    if (!session) return []
+
+    const lines: string[] = []
+    const seasonalState = getRegionVariantSnapshot(session.regionId)
+    if (
+      seasonalState.activeVariantId &&
+      (!session.routeId || seasonalState.affectedRouteIds.length === 0 || seasonalState.affectedRouteIds.includes(session.routeId))
+    ) {
+      lines.push(`季节变体：${seasonalState.activeVariantLabel} · ${seasonalState.summary}`)
+    }
+
+    const rumorEntries = getRegionRumorBoard(session.regionId).filter(entry => !entry.fulfilled)
+    if (rumorEntries.length > 0) {
+      lines.push(`传闻未兑：${rumorEntries.slice(0, 2).map(entry => entry.title).join(' / ')}`)
+    }
+
+    if (session.routeId) {
+      const autoPatrolStatus = getAutoPatrolStatus(session.routeId)
+      if (autoPatrolStatus.mode === 'blocked' && autoPatrolStatus.blockedReason) {
+        lines.push(`必须手动：${autoPatrolStatus.blockedReason}`)
+      }
+      const activeContract = getActiveCompanionContract(session.routeId)
+      if (activeContract) {
+        lines.push(`同行合同：${activeContract.npcName} · ${activeContract.summary}`)
+      }
+    }
+
+    return lines.slice(0, 3)
+  })
+
+  const getRouteDispatchSignals = (route: RegionRouteDef): RouteDispatchSignal[] => {
+    const signals: RouteDispatchSignal[] = []
+    const autoPatrolStatus = getAutoPatrolStatus(route.id)
+    const seasonalState = getRegionVariantSnapshot(route.regionId)
+    const rumorCount = getRegionRumorBoard(route.regionId).filter(entry => !entry.fulfilled).length
+    const activeContract = getActiveCompanionContract(route.id)
+
+    if (
+      seasonalState.activeVariantId &&
+      (seasonalState.affectedRouteIds.length === 0 || seasonalState.affectedRouteIds.includes(route.id))
+    ) {
+      signals.push({
+        label: seasonalState.activeVariantLabel,
+        toneClass: 'text-warning',
+        shellClass: 'border-warning/20 bg-warning/5'
+      })
+    }
+
+    if (rumorCount > 0) {
+      signals.push({
+        label: `${rumorCount} 条传闻`,
+        toneClass: 'text-accent',
+        shellClass: 'border-accent/20 bg-accent/5'
+      })
+    }
+
+    if (activeContract) {
+      signals.push({
+        label: `同行 ${activeContract.npcName}`,
+        toneClass: 'text-success',
+        shellClass: 'border-success/20 bg-success/5'
+      })
+    }
+
+    if (autoPatrolStatus.mode === 'ready') {
+      signals.push({
+        label: '熟路可巡行',
+        toneClass: 'text-success',
+        shellClass: 'border-success/20 bg-success/5'
+      })
+    } else if (autoPatrolStatus.mode === 'blocked') {
+      signals.push({
+        label: '必须手动',
+        toneClass: 'text-warning',
+        shellClass: 'border-warning/20 bg-warning/5'
+      })
+    } else {
+      signals.push({
+        label: '手动勘探',
+        toneClass: 'text-muted',
+        shellClass: 'border-accent/10 bg-bg/60'
+      })
+    }
+
+    return signals.slice(0, 4)
+  }
+
+  const getRouteDispatchSummary = (route: RegionRouteDef) => {
+    const autoPatrolStatus = getAutoPatrolStatus(route.id)
+    if (autoPatrolStatus.mode === 'blocked' && autoPatrolStatus.blockedReason) {
+      return `自动巡行被阻塞：${autoPatrolStatus.blockedReason}`
+    }
+
+    const activeContract = getActiveCompanionContract(route.id)
+    if (activeContract) {
+      return `同行合同：${activeContract.summary}`
+    }
+
+    const seasonalState = getRegionVariantSnapshot(route.regionId)
+    if (
+      seasonalState.activeVariantId &&
+      (seasonalState.affectedRouteIds.length === 0 || seasonalState.affectedRouteIds.includes(route.id))
+    ) {
+      return `变体信号：${seasonalState.summary}`
+    }
+
+    if (route.handoffHint) return route.handoffHint
+    if (route.encounterHint) return route.encounterHint
+    return getRouteShortcutSummary(route.id).headline
+  }
+
   const getRegionRoutes = (regionId: RegionId) => regionMapStore.routeDefs.filter(route => route.regionId === regionId)
 
   const getRouteCompletionLabel = (routeId: string) => {
@@ -2097,6 +2516,11 @@
   const isRouteUnlocked = (routeId: string) => regionMapStore.getRouteUnlockStatus(routeId).unlocked
 
   const canRunRoute = (routeId: string) => regionMapStore.getRouteExpeditionStatus(routeId).available
+
+  const shouldAutoRunRoute = (routeId: string) => getAutoPatrolStatus(routeId).mode === 'ready'
+
+  const getRouteRunActionLabel = (routeId: string) =>
+    shouldAutoRunRoute(routeId) ? '自动巡行' : getAutoPatrolStatus(routeId).mode === 'blocked' ? '手动探索' : '发起远征'
 
   const canCompleteRoute = (routeId: string) =>
     regionMapStore.activeExpeditionSummary?.route?.id === routeId || canRunRoute(routeId)
@@ -2148,26 +2572,10 @@
   }
 
   const getRouteVisibilityStage = (route: RegionRouteDef): MapVisibilityStage => {
-    const routeState = regionMapStore.saveData.routeStates[route.id]
-    const routeKnowledge = getRouteKnowledgeSummary(route.id)
-    const regionKnowledge = getRegionKnowledgeSummary(route.regionId)
-
-    if ((routeState?.completions ?? 0) > 0 || routeKnowledge.familiarity >= 55) return 'mastered'
-    if (routeState?.unlocked || routeKnowledge.surveyProgress >= 40 || routeKnowledge.intel >= 45 || regionKnowledge.survey >= 55) return 'surveyed'
-    if (routeKnowledge.intel >= 15 || routeKnowledge.surveyProgress >= 15 || regionKnowledge.intel >= 25 || regionKnowledge.survey >= 25) return 'heard'
-    return 'unknown'
+    return regionMapStore.getRouteNodeVisibilityStage(route.id)
   }
 
-  const getBossVisibilityStage = (regionId: RegionId): MapVisibilityStage => {
-    const regionKnowledge = getRegionKnowledgeSummary(regionId)
-    const completedRouteCount = regionMapStore.getRegionCompletedRouteCount(regionId)
-    const latestBossOutcome = regionMapStore.lastBossOutcome
-
-    if (latestBossOutcome.regionId === regionId && latestBossOutcome.outcome === 'victory') return 'mastered'
-    if (canChallengeBoss(regionId) || completedRouteCount >= 2 || regionKnowledge.survey >= 55) return 'surveyed'
-    if (completedRouteCount >= 1 || regionKnowledge.intel >= 35) return 'heard'
-    return 'unknown'
-  }
+  const getBossVisibilityStage = (regionId: RegionId): MapVisibilityStage => regionMapStore.getBossNodeVisibilityStage(regionId)
 
   const getRouteLaneMeta = (route: RegionRouteDef) =>
     route.nodeType === 'elite'
@@ -2180,6 +2588,8 @@
     const stage = getRouteVisibilityStage(route)
     const routeKnowledge = getRouteKnowledgeSummary(route.id)
     const shortcutSummary = getRouteShortcutSummary(route.id)
+    const nodeState = regionMapStore.getRouteMapNodeState(route.id)
+    const campState = regionMapStore.getCampSiteState(route.regionId, route.id, null)
     const stageMeta = getVisibilityStageMeta(stage)
     const laneMeta = getRouteLaneMeta(route)
     const visibleTitle = stage === 'unknown' ? `未明${laneMeta.label}` : route.name
@@ -2195,10 +2605,12 @@
         ? [
             `体力 ${route.staminaCost} / 耗时 ${route.timeCostHours}h`,
             `认知 ${routeKnowledge.intelLabel} / 熟悉 ${routeKnowledge.familiarityLabel}`,
+            nodeState.visitCount > 0 ? `节点足迹：踏入 ${nodeState.visitCount} 次 / 勘位 ${nodeState.surveyCount} 次` : '',
+            campState.visitCount > 0 ? `营地档案：标记 ${campState.markCount} / 侦察 ${campState.scoutCount} / 整理 ${campState.sortCount}` : '',
             shortcutSummary.level === 'none' ? '' : shortcutSummary.benefitSummary
           ].filter(Boolean)
         : stage === 'heard'
-          ? [`节点定位：${laneMeta.label}`, `当前状态：${stageMeta.label}`]
+          ? [`节点定位：${laneMeta.label}`, `当前状态：${stageMeta.label}`, nodeState.visitCount > 0 ? `已留下 ${nodeState.visitCount} 次足迹。` : '']
           : ['继续完成主线、事件与区域探索，才能让节点从迷雾里浮出来。']
 
     return {
@@ -2216,6 +2628,8 @@
     const stage = getBossVisibilityStage(regionId)
     const stageMeta = getVisibilityStageMeta(stage)
     const prepSummary = getBossPrepSummary(regionId)
+    const nodeState = regionMapStore.getBossMapNodeState(regionId)
+    const campState = boss ? regionMapStore.getCampSiteState(regionId, null, boss.id) : null
 
     return {
       stage,
@@ -2230,7 +2644,11 @@
             : '首领方向仍埋在迷雾最深处，至少先走通一条区域路线再来勘它。',
       detailLines:
         stage === 'mastered' || stage === 'surveyed'
-          ? prepSummary.detailLines.slice(0, 3)
+          ? [
+              ...prepSummary.detailLines.slice(0, 2),
+              nodeState.visitCount > 0 ? `深层足迹：逼近 ${nodeState.visitCount} 次 / 勘位 ${nodeState.surveyCount} 次` : '',
+              campState && campState.visitCount > 0 ? `营地档案：标记 ${campState.markCount} / 侦察 ${campState.scoutCount} / 休整 ${campState.restCount}` : ''
+            ].filter(Boolean)
           : stage === 'heard'
             ? [`当前阶段：${prepSummary.headline}`]
             : ['先让主线浮出地形，再为首领方向腾出战备和勘明空间。']
@@ -2258,7 +2676,7 @@
           stageToneClass: preview.stageToneClass,
           disabled: !canStart,
           disabledReason: preview.stage === 'unknown' ? '该节点仍被迷雾遮蔽。' : getRouteDisabledReason(route.id),
-          actionLabel: canStart ? '发起远征' : preview.stage === 'unknown' ? '迷雾中' : '待解锁'
+          actionLabel: canStart ? getRouteRunActionLabel(route.id) : preview.stage === 'unknown' ? '迷雾中' : '待解锁'
         }
       })
 
@@ -2303,7 +2721,7 @@
           stageToneClass: preview.stageToneClass,
           disabled: !canStart,
           disabledReason: preview.stage === 'unknown' ? '支线节点仍被迷雾遮蔽。' : getRouteDisabledReason(route.id),
-          actionLabel: canStart ? '发起远征' : preview.stage === 'unknown' ? '迷雾中' : '待解锁'
+          actionLabel: canStart ? getRouteRunActionLabel(route.id) : preview.stage === 'unknown' ? '迷雾中' : '待解锁'
         } satisfies RegionMapBoardNode
       })
 
@@ -2534,17 +2952,40 @@
   }
 
   const handleStartRoute = (routeId: string) => {
-    const ok = regionMapStore.beginRoute(routeId, currentDayTag.value)
-    setActionSummary(
-      ok ? `已开始路线：${getRegionRoutes(regionMapStore.saveData.expedition.activeRegionId ?? 'ancient_road').find(route => route.id === routeId)?.name ?? routeId}。` : '当前路线未解锁，无法开始。',
-      ok ? 'accent' : 'danger'
-    )
+    const result = regionMapStore.startRouteExpeditionSession(routeId, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    if (result.success) {
+      settlementDialog.value = null
+    } else {
+      openSettlementDialog(result.title, result.lines, result.tone)
+    }
   }
 
   const handleRunRoute = (routeId: string) => {
+    if (shouldAutoRunRoute(routeId)) {
+      const result = regionMapStore.runRouteExpedition(routeId, currentDayTag.value)
+      setActionSummary(result.message, result.success ? 'success' : 'danger')
+      openSettlementDialog(result.success ? '自动巡行' : '无法自动巡行', [result.message], result.success ? 'success' : 'danger')
+      return
+    }
+
     const result = regionMapStore.startRouteExpeditionSession(routeId, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
-    openSettlementDialog(result.title, result.lines, result.tone)
+    if (result.success) {
+      settlementDialog.value = null
+    } else {
+      openSettlementDialog(result.title, result.lines, result.tone)
+    }
+  }
+
+  const handleAssignCompanionContract = (routeId: string, npcId: string) => {
+    const result = regionMapStore.assignCompanionContract(routeId, npcId, currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+  }
+
+  const handleClearCompanionContract = (routeId: string) => {
+    const result = regionMapStore.clearCompanionContract(routeId, currentDayTag.value)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
   }
 
   const handleRunEvent = (eventId: string) => {
@@ -2618,37 +3059,61 @@
   const handleRunBoss = (regionId: RegionId) => {
     const result = regionMapStore.startBossExpeditionSession(regionId, currentDayTag.value, selectedApproach.value, selectedRetreatRule.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
-    openSettlementDialog(result.title, result.lines, result.tone)
+    if (result.success) {
+      settlementDialog.value = null
+    } else {
+      openSettlementDialog(result.title, result.lines, result.tone)
+    }
   }
 
   const handleAdvanceExpedition = (choiceId?: string) => {
     const result = regionMapStore.advanceActiveExpedition(choiceId, currentDayTag.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
-    openSettlementDialog(result.title, result.lines, result.tone)
+    if (result.success) {
+      settlementDialog.value = null
+    } else {
+      openSettlementDialog(result.title, result.lines, result.tone)
+    }
   }
 
   const handleCampExpedition = () => {
     const result = regionMapStore.campActiveExpedition(currentDayTag.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
-    openSettlementDialog(result.title, result.lines, result.tone)
+    if (result.success) {
+      settlementDialog.value = null
+    } else {
+      openSettlementDialog(result.title, result.lines, result.tone)
+    }
   }
 
   const handleResolveCampAction = (actionId: RegionCampActionId) => {
     const result = regionMapStore.resolveCampAction(actionId, currentDayTag.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
-    openSettlementDialog(result.title, result.lines, result.tone)
+    if (result.success) {
+      settlementDialog.value = null
+    } else {
+      openSettlementDialog(result.title, result.lines, result.tone)
+    }
   }
 
   const handleRetreatExpedition = () => {
     const result = regionMapStore.retreatActiveExpedition(currentDayTag.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
-    openSettlementDialog(result.title, result.lines, result.tone)
+    if (result.success) {
+      settlementDialog.value = null
+    } else {
+      openSettlementDialog(result.title, result.lines, result.tone)
+    }
   }
 
   const handleResolveEncounter = (optionId: 'cautious' | 'balanced' | 'bold') => {
     const result = regionMapStore.resolveActiveEncounter(optionId, currentDayTag.value)
     setActionSummary(result.message, result.success ? 'success' : 'danger')
-    openSettlementDialog(result.title, result.lines, result.tone)
+    if (result.success) {
+      settlementDialog.value = null
+    } else {
+      openSettlementDialog(result.title, result.lines, result.tone)
+    }
   }
 
   const handleSettleExpedition = () => {

@@ -15,6 +15,7 @@
       <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'bundles' }" @click="tab = 'bundles'">祠堂</Button>
       <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'shipping' }" @click="tab = 'shipping'">出货</Button>
       <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'notes' }" @click="tab = 'notes'">笔记</Button>
+      <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'chronicle' }" @click="tab = 'chronicle'">见闻册</Button>
       <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'glossary' }" @click="openGlossaryTab">百科</Button>
     </div>
 
@@ -343,6 +344,104 @@
       </div>
     </Transition>
 
+    <template v-if="tab === 'chronicle'">
+      <div class="flex flex-wrap gap-1 mb-2">
+        <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': chronicleRegionFilter === 'all' }" @click="chronicleRegionFilter = 'all'">
+          全区域
+        </Button>
+        <Button
+          v-for="regionId in chronicleOverview.regionOptions"
+          :key="`chronicle-region-${regionId}`"
+          class="shrink-0 justify-center"
+          :class="{ '!bg-accent !text-bg': chronicleRegionFilter === regionId }"
+          @click="chronicleRegionFilter = regionId"
+        >
+          {{ getChronicleRegionLabel(regionId) }}
+        </Button>
+      </div>
+
+      <div class="flex flex-wrap gap-1 mb-2">
+        <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': chronicleSeasonFilter === 'all' }" @click="chronicleSeasonFilter = 'all'">
+          全季节
+        </Button>
+        <Button
+          v-for="seasonOption in chronicleOverview.seasonOptions"
+          :key="`chronicle-season-${seasonOption}`"
+          class="shrink-0 justify-center"
+          :class="{ '!bg-accent !text-bg': chronicleSeasonFilter === seasonOption }"
+          @click="chronicleSeasonFilter = seasonOption"
+        >
+          {{ SEASON_LABELS[seasonOption] }}
+        </Button>
+      </div>
+
+      <div class="flex flex-wrap gap-1 mb-2">
+        <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': chronicleTypeFilter === 'all' }" @click="chronicleTypeFilter = 'all'">
+          全类型
+        </Button>
+        <Button
+          v-for="typeOption in CHRONICLE_TYPE_OPTIONS"
+          :key="`chronicle-type-${typeOption}`"
+          class="shrink-0 justify-center"
+          :class="{ '!bg-accent !text-bg': chronicleTypeFilter === typeOption }"
+          @click="chronicleTypeFilter = typeOption"
+        >
+          {{ getChronicleTypeLabel(typeOption) }}
+        </Button>
+      </div>
+
+      <p class="text-xs text-muted mb-2">已收录 {{ chronicleOverview.filteredCount }}/{{ chronicleOverview.totalEntries }} 条见闻</p>
+
+      <div v-if="chronicleOverview.entries.length === 0" class="border border-accent/10 rounded-xs p-3">
+        <p class="text-sm text-muted">当前筛选条件下还没有见闻条目。</p>
+        <p class="text-xs text-muted mt-1">继续远征、兑现传闻、触发区域变体或结算同伴合同后，这里会开始沉淀记录。</p>
+      </div>
+
+      <div v-else class="space-y-2 max-h-72 overflow-y-auto">
+        <div v-for="entry in chronicleOverview.entries" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2">
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <p class="text-xs text-accent">{{ entry.title }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+            </div>
+            <span class="text-[10px] text-muted shrink-0">{{ entry.lastRecordedDayTag || '未标记日期' }}</span>
+          </div>
+          <p class="text-[10px] text-muted mt-2 leading-4">
+            {{ getChronicleRegionLabel(entry.regionId) }} / {{ getChronicleTypeLabel(entry.type) }} /
+            {{ entry.season ? SEASON_LABELS[entry.season] : '无季节' }}
+            <template v-if="entry.weather"> / {{ WEATHER_LABELS[entry.weather] }}</template>
+            <template v-if="entry.companionName"> / {{ entry.companionName }}</template>
+          </p>
+          <div v-if="entry.detailLines.length > 0" class="space-y-1 mt-2">
+            <p v-for="line in entry.detailLines" :key="`${entry.id}-${line}`" class="text-[10px] text-muted leading-4">- {{ line }}</p>
+          </div>
+          <p v-if="entry.discoverCount > 1" class="text-[10px] text-warning mt-2">同源条目已合并 {{ entry.discoverCount }} 次，保留首次与最近一次记录。</p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+        <div class="border border-accent/10 rounded-xs px-3 py-2">
+          <p class="text-[10px] text-muted mb-2">最近传闻回执</p>
+          <div v-if="chronicleOverview.recentRumorReceipts.length === 0" class="text-[10px] text-muted">还没有传闻被兑现。</div>
+          <div v-else class="space-y-1">
+            <p v-for="receipt in chronicleOverview.recentRumorReceipts" :key="receipt.id" class="text-[10px] text-muted leading-4">
+              {{ receipt.title }} / {{ receipt.sourceNpcName }} / {{ receipt.resolvedDayTag || '未标记' }}
+            </p>
+          </div>
+        </div>
+
+        <div class="border border-accent/10 rounded-xs px-3 py-2">
+          <p class="text-[10px] text-muted mb-2">留影卡</p>
+          <div v-if="chronicleOverview.recentPhotoMoments.length === 0" class="text-[10px] text-muted">留影卡会随着见闻沉淀一起生成。</div>
+          <div v-else class="space-y-1">
+            <p v-for="moment in chronicleOverview.recentPhotoMoments" :key="moment.id" class="text-[10px] text-muted leading-4">
+              {{ moment.label }} / {{ moment.frameHint }} / {{ moment.capturedDayTag || '未标记' }}
+            </p>
+          </div>
+        </div>
+      </div>
+    </template>
+
     <!-- 图鉴百科 -->
     <template v-if="tab === 'glossary'">
       <GlossaryTab :preset="glossaryPreset" @preset-applied="glossaryPreset = null" />
@@ -417,6 +516,7 @@
   import { useSecretNoteStore } from '@/stores/useSecretNoteStore'
   import { useShopStore } from '@/stores/useShopStore'
   import { useSkillStore } from '@/stores/useSkillStore'
+  import { useFrontierChronicleStore } from '@/stores/useFrontierChronicleStore'
   import { ACHIEVEMENTS, COMMUNITY_BUNDLES } from '@/data/achievements'
   import { ITEMS, getItemById } from '@/data/items'
   import { HYBRID_DEFS } from '@/data/breeding'
@@ -426,7 +526,7 @@
   import { COLLECTION_CATEGORY_NAMES, COLLECTION_CATEGORY_COLORS } from '@/data/collectionRegistry'
   import { sfxClick } from '@/composables/useAudio'
   import { addLog } from '@/composables/useGameLog'
-  import type { ItemCategory, AchievementDef, CommunityBundleDef, SecretNoteDef } from '@/types'
+  import type { ItemCategory, AchievementDef, CommunityBundleDef, SecretNoteDef, RegionId, Season, Weather } from '@/types'
 
   const achievementStore = useAchievementStore()
   const inventoryStore = useInventoryStore()
@@ -438,10 +538,14 @@
   const questStore = useQuestStore()
   const museumStore = useMuseumStore()
   const guildStore = useGuildStore()
+  const frontierChronicleStore = useFrontierChronicleStore()
 
-  type Tab = 'collection' | 'achievements' | 'bundles' | 'shipping' | 'notes' | 'glossary'
+  type Tab = 'collection' | 'achievements' | 'bundles' | 'shipping' | 'notes' | 'chronicle' | 'glossary'
   const tab = ref<Tab>('collection')
   const glossaryPreset = ref<GlossaryOpenPreset | null>(null)
+  const chronicleRegionFilter = ref<RegionId | 'all'>('all')
+  const chronicleSeasonFilter = ref<Season | 'all'>('all')
+  const chronicleTypeFilter = ref<'all' | 'journey' | 'rumor' | 'variant' | 'companion' | 'photo'>('all')
 
   const TAB_HINTS: Record<Tab, string> = {
     collection: '图鉴负责看收录、缺口和解锁进度；百科负责查机制、条件和路线。',
@@ -449,10 +553,45 @@
     bundles: '祠堂页适合集中查看提交需求和阶段奖励。',
     shipping: '出货页适合检查你还没卖过的条目和分类空缺。',
     notes: '笔记页适合查剧情线索、藏宝提示和世界观碎片。',
+    chronicle: '见闻册适合回看区域、季节、传闻和同伴远行沉淀下来的行旅条目。',
     glossary: '百科适合按“怎么获得 / 有什么用 / 怎么解锁”来查资料。',
   }
 
   const currentTabHint = computed(() => TAB_HINTS[tab.value])
+
+  const CHRONICLE_TYPE_OPTIONS = ['journey', 'rumor', 'variant', 'companion', 'photo'] as const
+  const CHRONICLE_TYPE_LABELS: Record<(typeof CHRONICLE_TYPE_OPTIONS)[number], string> = {
+    journey: '行旅',
+    rumor: '传闻',
+    variant: '变体',
+    companion: '同伴',
+    photo: '留影'
+  }
+  const SEASON_LABELS: Record<Season, string> = {
+    spring: '春',
+    summer: '夏',
+    autumn: '秋',
+    winter: '冬'
+  }
+  const WEATHER_LABELS: Record<Weather, string> = {
+    sunny: '晴',
+    rainy: '雨',
+    stormy: '雷雨',
+    snowy: '雪',
+    windy: '大风',
+    green_rain: '绿雨'
+  }
+  const chronicleOverview = computed(() =>
+    frontierChronicleStore.getChronicleOverview({
+      regionId: chronicleRegionFilter.value,
+      season: chronicleSeasonFilter.value,
+      type: chronicleTypeFilter.value
+    })
+  )
+  const getChronicleRegionLabel = (regionId: RegionId | null) =>
+    regionId === 'ancient_road' ? '古驿荒道' : regionId === 'mirage_marsh' ? '蜃潮泽地' : regionId === 'cloud_highland' ? '云岚高地' : '无区域'
+  const getChronicleTypeLabel = (type: (typeof CHRONICLE_TYPE_OPTIONS)[number] | 'all') =>
+    type === 'all' ? '全部' : CHRONICLE_TYPE_LABELS[type]
 
   const openGlossaryTab = () => {
     glossaryPreset.value = null

@@ -8,18 +8,29 @@ import {
   REGIONAL_RESOURCE_FAMILY_DEFS,
   createDefaultRegionExpeditionSupplyState,
   createDefaultRegionMapSaveData,
+  getBossMapNodeKey,
+  getCampSiteKey,
   getRegionBossDef,
   getRegionEvents,
-  getRegionRoutes
+  getRegionRoutes,
+  getRouteMapNodeKey
 } from '@/data/regions'
 import { addLog, showFloat } from '@/composables/useGameLog'
 import { getEnchantmentById, getWeaponById } from '@/data/weapons'
+import { getNpcById } from '@/data'
 import type {
   ExpeditionRuntimeState,
   RegionBossDef,
   RegionCampActionId,
+  RegionCampSiteState,
+  RegionCompanionContract,
+  RegionCompanionSourceType,
+  RegionExpeditionCarryItem,
+  RegionExpeditionCarryItemCategory,
   RegionExpeditionApproach,
   RegionExpeditionEncounter,
+  RegionExpeditionEncounterKind,
+  RegionExpeditionEncounterMemory,
   RegionExpeditionEncounterOption,
   RegionExpeditionArchiveEntry,
   RegionKnowledgeState,
@@ -29,10 +40,22 @@ import type {
   RegionExpeditionNodeRecord,
   RegionExpeditionRetreatRule,
   RegionExpeditionSession,
+  RegionExpeditionRiskState,
+  RegionExpeditionWeather,
   RegionId,
   RegionLinkedSystem,
+  RegionMapMetaState,
+  RegionMapNodeState,
+  RegionMapNodeVisibilityStage,
   RegionMapSaveData,
+  RegionMapSessionState,
+  RegionMapSettlementState,
+  RegionRumorBoardEntry,
   RegionRouteKnowledgeState,
+  RegionSeasonalState,
+  RegionShortcutState,
+  RegionShortcutStateLevel,
+  RegionAutoPatrolState,
   RegionalResourceFamilyId
 } from '@/types/region'
 import {
@@ -52,9 +75,13 @@ import { useHanhaiStore } from './useHanhaiStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useMiningStore } from './useMiningStore'
 import { useMuseumStore } from './useMuseumStore'
+import { useNpcStore } from './useNpcStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useSkillStore } from './useSkillStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
+import { useFrontierChronicleStore } from './useFrontierChronicleStore'
+import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from '@/utils/weekCycle'
+import type { Season, Weather } from '@/types'
 
 const ROUTE_ITEM_REWARDS: Record<string, Array<{ itemId: string; quantity: number }>> = {
   ancient_road_supply_relay: [{ itemId: 'ancient_waybill', quantity: 1 }],
@@ -121,6 +148,252 @@ const createEmptyRouteKnowledgeState = (routeId: string): RegionRouteKnowledgeSt
   lastUpdatedDayTag: ''
 })
 
+const createEmptyMapNodeState = (
+  nodeKey: string,
+  regionId: RegionId,
+  routeId: string | null,
+  bossId: string | null,
+  nodeType: RegionMapNodeState['nodeType']
+): RegionMapNodeState => ({
+  nodeKey,
+  regionId,
+  routeId,
+  bossId,
+  nodeType,
+  visibilityStage: 'unknown',
+  visitCount: 0,
+  surveyCount: 0,
+  lastVisitedDayTag: ''
+})
+
+const createEmptyRouteMapNodeState = (routeId: string) => {
+  const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+  return route
+    ? createEmptyMapNodeState(getRouteMapNodeKey(route.id), route.regionId, route.id, null, route.nodeType)
+    : createEmptyMapNodeState(getRouteMapNodeKey(routeId), 'ancient_road', routeId, null, 'route')
+}
+
+const createEmptyBossMapNodeState = (regionId: RegionId) =>
+  createEmptyMapNodeState(getBossMapNodeKey(regionId), regionId, null, getRegionBossDef(regionId)?.id ?? null, 'boss')
+
+const createEmptyCampSiteState = (regionId: RegionId, routeId: string | null, bossId: string | null): RegionCampSiteState => ({
+  campKey: getCampSiteKey(regionId, routeId, bossId),
+  regionId,
+  routeId,
+  bossId,
+  visitCount: 0,
+  restCount: 0,
+  sortCount: 0,
+  markCount: 0,
+  scoutCount: 0,
+  safetyProgress: 0,
+  stashTier: 0,
+  lastUsedDayTag: ''
+})
+
+const createEmptyShortcutState = (routeId: string): RegionShortcutState => ({
+  routeId,
+  level: 'none',
+  masteryRuns: 0,
+  markedEntrances: 0,
+  lastUpdatedDayTag: ''
+})
+
+const VISIBILITY_STAGE_ORDER: RegionMapNodeVisibilityStage[] = ['unknown', 'heard', 'surveyed', 'mastered']
+
+const getMoreVisibleStage = (
+  current: RegionMapNodeVisibilityStage,
+  next: RegionMapNodeVisibilityStage
+): RegionMapNodeVisibilityStage =>
+  VISIBILITY_STAGE_ORDER.indexOf(next) > VISIBILITY_STAGE_ORDER.indexOf(current) ? next : current
+
+const buildShortcutProfileFromLevel = (level: RegionShortcutStateLevel) =>
+  level === 'mastered'
+    ? {
+        level,
+        label: '熟路',
+        stepReduction: 1,
+        visibilityBonus: 8,
+        dangerReduction: 4,
+        supplyBonus: { rations: 1, utility: 1 }
+      }
+    : level === 'shortcut'
+      ? {
+          level,
+          label: '捷径已立',
+          stepReduction: 1,
+          visibilityBonus: 5,
+          dangerReduction: 2,
+          supplyBonus: { rations: 0, utility: 1 }
+        }
+      : level === 'marked'
+        ? {
+            level,
+            label: '路标渐明',
+            stepReduction: 0,
+            visibilityBonus: 3,
+            dangerReduction: 1,
+            supplyBonus: { rations: 0, utility: 0 }
+          }
+        : {
+            level,
+            label: '陌生路段',
+            stepReduction: 0,
+            visibilityBonus: 0,
+            dangerReduction: 0,
+            supplyBonus: { rations: 0, utility: 0 }
+        }
+
+const CALENDAR_SEASON_ORDER: Season[] = ['spring', 'summer', 'autumn', 'winter']
+
+type RegionVariantRule = {
+  id: string
+  regionId: RegionId
+  label: string
+  summary: string
+  detailLines: string[]
+  affectedRouteIds: string[]
+  seasons?: Season[] | 'all'
+  weathers?: Weather[] | 'all'
+  manualExplorationRequired: boolean
+}
+
+const REGION_VARIANT_RULES: RegionVariantRule[] = [
+  {
+    id: 'ancient_road_sand_echo',
+    regionId: 'ancient_road',
+    label: '流沙回声',
+    summary: '风带把旧驿站与残卷夹层重新吹开，荒道本周更像一张会变的纸页。',
+    detailLines: ['补给中继与残卷回收线更容易翻出夹层线索。', '自动巡行容易直接略过这批新显形节点。'],
+    affectedRouteIds: ['ancient_road_supply_relay', 'ancient_road_archive_recovery'],
+    seasons: ['spring', 'autumn'],
+    weathers: ['windy'],
+    manualExplorationRequired: true
+  },
+  {
+    id: 'ancient_road_storm_convoy',
+    regionId: 'ancient_road',
+    label: '押运改道',
+    summary: '坏天气逼得沿线商队改换路口，护送和瀚海线索会一起改写。',
+    detailLines: ['护送风险线会抬高，但也更容易接住新的合同流向。'],
+    affectedRouteIds: ['ancient_road_convoy_risk', 'ancient_road_watchtower_scout'],
+    seasons: 'all',
+    weathers: ['rainy', 'stormy'],
+    manualExplorationRequired: true
+  },
+  {
+    id: 'ancient_road_frost_station',
+    regionId: 'ancient_road',
+    label: '霜站封页',
+    summary: '冬季把旧驿站压成了更静止的站点，很多细碎文书需要亲自翻开。',
+    detailLines: ['残卷和站内押运票据更适合手动收束。'],
+    affectedRouteIds: ['ancient_road_supply_relay', 'ancient_road_archive_recovery'],
+    seasons: ['winter'],
+    manualExplorationRequired: true
+  },
+  {
+    id: 'mirage_marsh_green_tide',
+    regionId: 'mirage_marsh',
+    label: '藻潮外翻',
+    summary: '绿雨后的泽地会把浅层样本翻到外圈，路线显形与风险一起上扬。',
+    detailLines: ['样本驱动和生态警报的权重会更高。', '这周的样本更适合及时送去展示池或研究口。'],
+    affectedRouteIds: ['mirage_marsh_specimen_drive', 'mirage_marsh_ecology_alert'],
+    seasons: ['summer'],
+    weathers: ['green_rain', 'rainy'],
+    manualExplorationRequired: true
+  },
+  {
+    id: 'mirage_marsh_night_mist',
+    regionId: 'mirage_marsh',
+    label: '夜雾回巡',
+    summary: '夜里薄雾把泽地旧巡路重新接起来，脚印和鱼讯都会挪位。',
+    detailLines: ['夜巡与苇荡线更容易撞上传闻兑现点。'],
+    affectedRouteIds: ['mirage_marsh_night_watch', 'mirage_marsh_reed_drift'],
+    seasons: 'all',
+    weathers: ['windy', 'rainy'],
+    manualExplorationRequired: true
+  },
+  {
+    id: 'mirage_marsh_cold_shallows',
+    regionId: 'mirage_marsh',
+    label: '寒潮退泽',
+    summary: '冬日寒潮让部分浅滩短暂露出，能看见平时不会显形的样本痕迹。',
+    detailLines: ['夜巡线更安全，但样本窗口很短。'],
+    affectedRouteIds: ['mirage_marsh_night_watch', 'mirage_marsh_specimen_drive'],
+    seasons: ['winter'],
+    weathers: ['snowy', 'windy'],
+    manualExplorationRequired: true
+  },
+  {
+    id: 'cloud_highland_ley_bloom',
+    regionId: 'cloud_highland',
+    label: '裂脉外涌',
+    summary: '高地灵脉的外涌把旧裂口重新点亮，晶体与风险都会在前线抬头。',
+    detailLines: ['灵脉裂口与巡修线都值得亲自确认。'],
+    affectedRouteIds: ['cloud_highland_ley_crack', 'cloud_highland_patrol'],
+    seasons: 'all',
+    weathers: ['sunny', 'windy'],
+    manualExplorationRequired: true
+  },
+  {
+    id: 'cloud_highland_snow_bridge',
+    regionId: 'cloud_highland',
+    label: '霜桥折光',
+    summary: '雪天把云桥边缘的旧折光点重新翻出来，前哨与建设链会一起受影响。',
+    detailLines: ['云桥观察位和补给推进线会更需要手动校准。'],
+    affectedRouteIds: ['cloud_highland_skybridge_watch', 'cloud_highland_supply_push'],
+    seasons: ['winter'],
+    weathers: ['snowy'],
+    manualExplorationRequired: true
+  },
+  {
+    id: 'cloud_highland_storm_front',
+    regionId: 'cloud_highland',
+    label: '前哨乱流',
+    summary: '强风或雷雨把高地前哨线吹得更乱，巡修与补给不再适合放手自动跑。',
+    detailLines: ['这周的高地收益更看重亲自判断推进顺序。'],
+    affectedRouteIds: ['cloud_highland_patrol', 'cloud_highland_supply_push'],
+    seasons: 'all',
+    weathers: ['windy', 'stormy'],
+    manualExplorationRequired: true
+  }
+]
+
+const variantRuleMatches = (rule: RegionVariantRule, season: Season, weather: Weather) => {
+  const seasonOk = !rule.seasons || rule.seasons === 'all' || rule.seasons.includes(season)
+  const weatherOk = !rule.weathers || rule.weathers === 'all' || rule.weathers.includes(weather)
+  return seasonOk && weatherOk
+}
+
+const parseCalendarDayTag = (dayTag: string) => {
+  const [yearText, seasonText, dayText] = dayTag.split('-')
+  if (!yearText || !seasonText || !dayText || !CALENDAR_SEASON_ORDER.includes(seasonText as Season)) return null
+  const year = Number(yearText)
+  const day = Number(dayText)
+  if (!Number.isFinite(year) || !Number.isFinite(day)) return null
+  return {
+    year,
+    season: seasonText as Season,
+    day
+  }
+}
+
+const formatCalendarDayTag = (absoluteDay: number) => {
+  const safeAbsoluteDay = Math.max(1, Math.floor(absoluteDay))
+  const year = Math.floor((safeAbsoluteDay - 1) / DAYS_PER_YEAR) + 1
+  const dayOfYear = ((safeAbsoluteDay - 1) % DAYS_PER_YEAR) + 1
+  const seasonIndex = Math.floor((dayOfYear - 1) / DAYS_PER_SEASON)
+  const season = CALENDAR_SEASON_ORDER[seasonIndex] ?? 'spring'
+  const day = ((dayOfYear - 1) % DAYS_PER_SEASON) + 1
+  return `${year}-${season}-${day}`
+}
+
+const addDaysToCalendarDayTag = (dayTag: string, durationDays: number) => {
+  const parsed = parseCalendarDayTag(dayTag)
+  if (!parsed) return dayTag
+  return formatCalendarDayTag(getAbsoluteDay(parsed.year, parsed.season, parsed.day) + Math.max(0, durationDays))
+}
+
 const cloneEncounter = (encounter: RegionExpeditionEncounter | null): RegionExpeditionEncounter | null =>
   encounter
     ? {
@@ -157,6 +430,22 @@ const createEncounterOptions = (kind: RegionExpeditionEncounter['kind']): Region
       { id: 'cautious', label: '稳扎稳打', summary: '降低风险，尽量避免额外损伤。', tone: 'accent' },
       { id: 'balanced', label: '维持推进', summary: '接受少量损耗，保持当前节奏。', tone: 'success' },
       { id: 'bold', label: '强行突破', summary: '直接冲过去，可能换取额外发现。', tone: 'danger' }
+    ]
+  }
+
+  if (kind === 'support') {
+    return [
+      { id: 'cautious', label: '稳接支援', summary: '优先把支援变成补给和路线信息。', tone: 'accent' },
+      { id: 'balanced', label: '并入队列', summary: '维持行军节奏，把支援安全并入推进链。', tone: 'success' },
+      { id: 'bold', label: '借势前压', summary: '趁支援刚到就继续压进，换更高收益。', tone: 'danger' }
+    ]
+  }
+
+  if (kind === 'anomaly') {
+    return [
+      { id: 'cautious', label: '压制异变', summary: '优先稳住污染和异常扩散，降低后续风险。', tone: 'accent' },
+      { id: 'balanced', label: '测量前推', summary: '边观察边推进，兼顾收益和异常样本。', tone: 'success' },
+      { id: 'bold', label: '强取样本', summary: '直接深入异变中心，可能换更高线索但后遗症更重。', tone: 'danger' }
     ]
   }
 
@@ -252,6 +541,717 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
   const getRouteKnowledgeState = (routeId: string) => saveData.value.routeKnowledgeState[routeId] ?? createEmptyRouteKnowledgeState(routeId)
 
+  const getRouteMapNodeState = (routeId: string) =>
+    saveData.value.mapNodeStates[getRouteMapNodeKey(routeId)] ?? createEmptyRouteMapNodeState(routeId)
+
+  const getBossMapNodeState = (regionId: RegionId) =>
+    saveData.value.mapNodeStates[getBossMapNodeKey(regionId)] ?? createEmptyBossMapNodeState(regionId)
+
+  const getCampSiteState = (regionId: RegionId, routeId: string | null, bossId: string | null) =>
+    saveData.value.campStates[getCampSiteKey(regionId, routeId, bossId)] ?? createEmptyCampSiteState(regionId, routeId, bossId)
+
+  const getShortcutState = (routeId: string) =>
+    saveData.value.shortcutStates[routeId] ?? createEmptyShortcutState(routeId)
+
+  const getRouteNodeVisibilityStage = (routeId: string): RegionMapNodeVisibilityStage => {
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    if (!route) return 'unknown'
+    const routeState = saveData.value.routeStates[route.id]
+    const routeKnowledge = getRouteKnowledgeState(route.id)
+    const regionKnowledge = getRegionKnowledgeState(route.regionId)
+
+    if ((routeState?.completions ?? 0) > 0 || routeKnowledge.familiarity >= 55) return 'mastered'
+    if (routeState?.unlocked || routeKnowledge.surveyProgress >= 40 || routeKnowledge.intel >= 45 || regionKnowledge.survey >= 55) return 'surveyed'
+    if (routeKnowledge.intel >= 15 || routeKnowledge.surveyProgress >= 15 || regionKnowledge.intel >= 25 || regionKnowledge.survey >= 25) return 'heard'
+    return 'unknown'
+  }
+
+  const getBossNodeVisibilityStage = (regionId: RegionId): RegionMapNodeVisibilityStage => {
+    const regionKnowledge = getRegionKnowledgeState(regionId)
+    const completedRouteCount = getRegionCompletedRouteCount(regionId)
+    const latestBossOutcome = saveData.value.lastBossOutcome
+
+    if (latestBossOutcome.regionId === regionId && latestBossOutcome.outcome === 'victory') return 'mastered'
+    if (getBossExpeditionStatus(regionId).available || completedRouteCount >= 2 || regionKnowledge.survey >= 55) return 'surveyed'
+    if (completedRouteCount >= 1 || regionKnowledge.intel >= 35) return 'heard'
+    return 'unknown'
+  }
+
+  const syncRouteMapNodeState = (routeId: string, dayTag = '', visitDelta = 0, surveyDelta = 0) => {
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    if (!route) return null
+    const current = getRouteMapNodeState(routeId)
+    const next: RegionMapNodeState = {
+      ...current,
+      regionId: route.regionId,
+      routeId: route.id,
+      bossId: null,
+      nodeType: route.nodeType,
+      visibilityStage: getMoreVisibleStage(current.visibilityStage, getRouteNodeVisibilityStage(routeId)),
+      visitCount: current.visitCount + Math.max(0, visitDelta),
+      surveyCount: current.surveyCount + Math.max(0, surveyDelta),
+      lastVisitedDayTag: dayTag || current.lastVisitedDayTag
+    }
+    saveData.value.mapNodeStates[next.nodeKey] = next
+    return next
+  }
+
+  const syncBossMapNodeState = (regionId: RegionId, dayTag = '', visitDelta = 0, surveyDelta = 0) => {
+    const boss = getRegionBossDef(regionId)
+    const current = getBossMapNodeState(regionId)
+    const next: RegionMapNodeState = {
+      ...current,
+      regionId,
+      routeId: null,
+      bossId: boss?.id ?? current.bossId,
+      nodeType: 'boss',
+      visibilityStage: getMoreVisibleStage(current.visibilityStage, getBossNodeVisibilityStage(regionId)),
+      visitCount: current.visitCount + Math.max(0, visitDelta),
+      surveyCount: current.surveyCount + Math.max(0, surveyDelta),
+      lastVisitedDayTag: dayTag || current.lastVisitedDayTag
+    }
+    saveData.value.mapNodeStates[next.nodeKey] = next
+    return next
+  }
+
+  const syncShortcutState = (routeId: string, dayTag = '', markedEntrancesDelta = 0) => {
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    if (!route) return null
+    const routeState = saveData.value.routeStates[route.id]
+    const routeKnowledge = getRouteKnowledgeState(route.id)
+    const current = getShortcutState(route.id)
+    const nextLevel: RegionShortcutStateLevel =
+      (routeState?.completions ?? 0) > 0 || (routeKnowledge.familiarity >= 85 && routeKnowledge.surveyProgress >= 80)
+        ? 'mastered'
+        : routeKnowledge.familiarity >= 60 && routeKnowledge.surveyProgress >= 55
+          ? 'shortcut'
+          : routeKnowledge.familiarity >= 35 || routeKnowledge.surveyProgress >= 40
+            ? 'marked'
+            : 'none'
+    const next: RegionShortcutState = {
+      routeId: route.id,
+      level: nextLevel,
+      masteryRuns: Math.max(current.masteryRuns, routeState?.completions ?? 0),
+      markedEntrances: Math.max(current.markedEntrances + Math.max(0, markedEntrancesDelta), nextLevel === 'none' ? 0 : 1),
+      lastUpdatedDayTag: dayTag || current.lastUpdatedDayTag
+    }
+    saveData.value.shortcutStates[route.id] = next
+    return next
+  }
+
+  const syncStructuralState = (regionId?: RegionId, dayTag = '') => {
+    const routeDefs = regionId ? getRegionRoutes(regionId) : REGION_ROUTE_DEFS
+    for (const route of routeDefs) {
+      syncRouteMapNodeState(route.id, dayTag)
+      syncShortcutState(route.id, dayTag)
+    }
+    const regionIds = regionId ? [regionId] : REGION_DEFS.map(region => region.id)
+    for (const currentRegionId of regionIds) {
+      syncBossMapNodeState(currentRegionId, dayTag)
+    }
+  }
+
+  const recordCampSiteUsage = (
+    regionId: RegionId,
+    routeId: string | null,
+    bossId: string | null,
+    usage: 'enter' | RegionCampActionId,
+    dayTag = ''
+  ) => {
+    const current = getCampSiteState(regionId, routeId, bossId)
+    const next: RegionCampSiteState = {
+      ...current,
+      visitCount: current.visitCount + (usage === 'enter' ? 1 : 0),
+      restCount: current.restCount + (usage === 'rest' ? 1 : 0),
+      sortCount: current.sortCount + (usage === 'sort' ? 1 : 0),
+      markCount: current.markCount + (usage === 'mark' ? 1 : 0),
+      scoutCount: current.scoutCount + (usage === 'scout' ? 1 : 0),
+      safetyProgress: Math.min(
+        12,
+        current.safetyProgress +
+          (usage === 'enter' ? 1 : 0) +
+          (usage === 'rest' ? 2 : 0) +
+          (usage === 'mark' ? 2 : 0) +
+          (usage === 'scout' ? 1 : 0)
+      ),
+      stashTier: Math.min(3, current.stashTier + (usage === 'sort' ? 1 : 0)),
+      lastUsedDayTag: dayTag || current.lastUsedDayTag
+    }
+    saveData.value.campStates[next.campKey] = next
+    return next
+  }
+
+  const getCampSiteSessionBonuses = (regionId: RegionId, routeId: string | null, bossId: string | null) => {
+    const campState = getCampSiteState(regionId, routeId, bossId)
+    return {
+      visibilityBonus: Math.min(6, campState.markCount + campState.scoutCount * 2),
+      dangerReduction: Math.min(4, Math.floor(campState.safetyProgress / 2)),
+      frontlinePrep: Math.min(3, campState.markCount + Math.floor(campState.scoutCount / 2)),
+      supplyBonus: {
+        rations: Math.min(1, campState.stashTier),
+        medicine: Math.min(1, Math.floor(campState.restCount / 2)),
+        utility: Math.min(1, Math.floor((campState.sortCount + campState.scoutCount) / 2))
+      },
+      headline:
+        campState.visitCount > 0
+          ? `前线旧营：已记录 ${campState.visitCount} 次停留，开局会继承一部分路标和补给整理。`
+          : ''
+    }
+  }
+
+  const metaState = computed<RegionMapMetaState>(() => ({
+    unlockStates: saveData.value.unlockStates,
+    routeStates: saveData.value.routeStates,
+    eventStates: saveData.value.eventStates,
+    weeklyFocusState: saveData.value.weeklyFocusState,
+    weeklyEventState: saveData.value.weeklyEventState,
+    knowledgeState: saveData.value.knowledgeState,
+    routeKnowledgeState: saveData.value.routeKnowledgeState,
+    mapNodeStates: saveData.value.mapNodeStates,
+    shortcutStates: saveData.value.shortcutStates,
+    seasonalRegionStates: saveData.value.seasonalRegionStates,
+    companionContracts: saveData.value.companionContracts,
+    rumorBoard: saveData.value.rumorBoard,
+    autoPatrolStates: saveData.value.autoPatrolStates,
+    telemetry: saveData.value.telemetry,
+    bossClearCounts: saveData.value.bossClearCounts,
+    bossFailureStreaks: saveData.value.bossFailureStreaks
+  }))
+
+  const sessionState = computed<RegionMapSessionState>(() => ({
+    expedition: saveData.value.expedition,
+    activeSession: saveData.value.activeSession,
+    currentExpeditionNodeChoices: currentExpeditionNodeChoices.value,
+    campStates: saveData.value.campStates
+  }))
+
+  const settlementState = computed<RegionMapSettlementState>(() => ({
+    resourceLedger: saveData.value.resourceLedger,
+    journeyHistory: saveData.value.journeyHistory,
+    lastBossOutcome: saveData.value.lastBossOutcome
+  }))
+
+  const getRegionDisplayName = (regionId: RegionId) => REGION_DEFS.find(region => region.id === regionId)?.name ?? regionId
+
+  const syncSeasonalRegionState = (regionId: RegionId, weekId: string, dayTag: string) => {
+    const gameStore = useGameStore()
+    const frontierChronicleStore = useFrontierChronicleStore()
+    const current = saveData.value.seasonalRegionStates[regionId] ?? createDefaultRegionMapSaveData().seasonalRegionStates[regionId]
+    const matchedRule = REGION_VARIANT_RULES.find(
+      rule => rule.regionId === regionId && variantRuleMatches(rule, gameStore.season, gameStore.weather)
+    )
+    const next: RegionSeasonalState = {
+      regionId,
+      weekId,
+      season: gameStore.season,
+      weather: gameStore.weather,
+      activeVariantId: matchedRule?.id ?? null,
+      activeVariantLabel: matchedRule?.label ?? '',
+      summary:
+        matchedRule?.summary ??
+        `${getRegionDisplayName(regionId)} 当前没有额外显形的季节变体，熟路更适合作为稳定回流线。`,
+      detailLines:
+        matchedRule?.detailLines ??
+        [
+          `当前季节 ${gameStore.seasonName} / 天气 ${gameStore.weatherName}，区域版图保持常态轮廓。`,
+          '如果本周没有额外传闻或同伴合同，这里的熟路更适合自动巡行。'
+        ],
+      affectedRouteIds: matchedRule?.affectedRouteIds ?? [],
+      manualExplorationRequired: Boolean(matchedRule?.manualExplorationRequired),
+      seenVariantIds:
+        matchedRule?.id && !current.seenVariantIds.includes(matchedRule.id)
+          ? [...current.seenVariantIds, matchedRule.id]
+          : [...current.seenVariantIds],
+      lastUpdatedDayTag: dayTag
+    }
+    saveData.value.seasonalRegionStates[regionId] = next
+
+    if (matchedRule?.id && !current.seenVariantIds.includes(matchedRule.id)) {
+      const entryKey = `variant:${matchedRule.id}`
+      frontierChronicleStore.recordChronicleEntry({
+        entryKey,
+        type: 'variant',
+        title: `${getRegionDisplayName(regionId)}·${matchedRule.label}`,
+        summary: matchedRule.summary,
+        detailLines: [...matchedRule.detailLines],
+        regionId,
+        season: gameStore.season,
+        weather: gameStore.weather,
+        rumorId: null,
+        companionNpcId: null,
+        companionName: '',
+        variantId: matchedRule.id,
+        firstRecordedDayTag: dayTag,
+        lastRecordedDayTag: dayTag,
+        tags: ['见闻册', '季节变体', matchedRule.label]
+      })
+      frontierChronicleStore.recordPhotoMoment({
+        chronicleEntryKey: entryKey,
+        label: `${getRegionDisplayName(regionId)}留影卡`,
+        frameHint: `${matchedRule.label} / ${gameStore.seasonName} / ${gameStore.weatherName}`,
+        regionId,
+        season: gameStore.season,
+        weather: gameStore.weather,
+        capturedDayTag: dayTag
+      })
+      frontierChronicleStore.recordRegionNotable(regionId, matchedRule.id)
+    }
+
+    return next
+  }
+
+  const buildWeeklyRumorEntries = (regionId: RegionId, weekId: string): RegionRumorBoardEntry[] => {
+    const npcStore = useNpcStore()
+    const supplyEntries = npcStore.getRegionRumorSupplyOverview(regionId)
+    if (supplyEntries.length <= 0) return []
+
+    const offset = getWeeklyRotationSeed(weekId, regionId) % supplyEntries.length
+    const orderedEntries = supplyEntries.map((_, index) => supplyEntries[(index + offset) % supplyEntries.length]!)
+    const pickedEntries = orderedEntries.slice(0, Math.min(2, orderedEntries.length))
+    return pickedEntries.map(entry => ({
+      ...entry,
+      weekId,
+      fulfilled: false,
+      fulfilledDayTag: ''
+    }))
+  }
+
+  const syncRumorBoardRuntime = (weekId: string, dayTag: string) => {
+    if (saveData.value.rumorBoard.weekId === weekId) return saveData.value.rumorBoard
+
+    saveData.value.rumorBoard = {
+      weekId,
+      lastRefreshedDayTag: dayTag,
+      entriesByRegion: {
+        ancient_road: buildWeeklyRumorEntries('ancient_road', weekId),
+        mirage_marsh: buildWeeklyRumorEntries('mirage_marsh', weekId),
+        cloud_highland: buildWeeklyRumorEntries('cloud_highland', weekId)
+      }
+    }
+    return saveData.value.rumorBoard
+  }
+
+  const getActiveCompanionContract = (routeId: string) =>
+    saveData.value.companionContracts.find(contract => contract.routeId === routeId && contract.status === 'active') ?? null
+
+  const getCompanionContractCandidates = (routeId: string) => {
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    if (!route) return [] as Array<{
+      npcId: string
+      npcName: string
+      sourceType: RegionCompanionSourceType
+      relationshipStage: RegionCompanionContract['relationshipStage']
+      relationshipStageLabel: string
+      summary: string
+      riskModifier: number
+      moraleBonus: number
+    }>
+
+    const npcStore = useNpcStore()
+    const candidates = [] as Array<{
+      npcId: string
+      npcName: string
+      sourceType: RegionCompanionSourceType
+      relationshipStage: RegionCompanionContract['relationshipStage']
+      relationshipStageLabel: string
+      summary: string
+      riskModifier: number
+      moraleBonus: number
+    }>
+    const seenNpcIds = new Set<string>()
+
+    const spouse = npcStore.getSpouse()
+    if (spouse && !seenNpcIds.has(spouse.npcId)) {
+      const stage = npcStore.getRelationshipStage(spouse.npcId)
+      candidates.push({
+        npcId: spouse.npcId,
+        npcName: getNpcById(spouse.npcId)?.name ?? spouse.npcId,
+        sourceType: 'spouse',
+        relationshipStage: stage,
+        relationshipStageLabel: npcStore.getRelationshipStageText(spouse.npcId),
+        summary: `配偶会优先替你照看 ${route.name} 这一线的补给与回程承接。`,
+        riskModifier: 2,
+        moraleBonus: 6
+      })
+      seenNpcIds.add(spouse.npcId)
+    }
+
+    const zhiji = npcStore.getZhiji()
+    if (zhiji && !seenNpcIds.has(zhiji.npcId)) {
+      const stage = npcStore.getRelationshipStage(zhiji.npcId)
+      candidates.push({
+        npcId: zhiji.npcId,
+        npcName: getNpcById(zhiji.npcId)?.name ?? zhiji.npcId,
+        sourceType: 'zhiji',
+        relationshipStage: stage,
+        relationshipStageLabel: npcStore.getRelationshipStageText(zhiji.npcId),
+        summary: `知己更擅长替你把 ${route.name} 的见闻整理成后续承接。`,
+        riskModifier: 1,
+        moraleBonus: 8
+      })
+      seenNpcIds.add(zhiji.npcId)
+    }
+
+    for (const helper of npcStore.hiredHelpers) {
+      if (seenNpcIds.has(helper.npcId)) continue
+      const stage = npcStore.getRelationshipStage(helper.npcId)
+      candidates.push({
+        npcId: helper.npcId,
+        npcName: getNpcById(helper.npcId)?.name ?? helper.npcId,
+        sourceType: 'helper',
+        relationshipStage: stage,
+        relationshipStageLabel: npcStore.getRelationshipStageText(helper.npcId),
+        summary: `帮手愿意跟着你跑一趟 ${route.name}，主要负责沿线补给和杂务。`,
+        riskModifier: 1,
+        moraleBonus: 4
+      })
+      seenNpcIds.add(helper.npcId)
+    }
+
+    return candidates
+  }
+
+  const resolveRumorBoardEntries = (regionId: RegionId, routeId: string | null, dayTag: string, note: string) => {
+    const frontierChronicleStore = useFrontierChronicleStore()
+    const gameStore = useGameStore()
+    const entries = saveData.value.rumorBoard.entriesByRegion[regionId] ?? []
+    const matchedEntries = entries.filter(entry => !entry.fulfilled && (!entry.targetRouteId || entry.targetRouteId === routeId))
+    if (matchedEntries.length <= 0) return [] as RegionRumorBoardEntry[]
+
+    saveData.value.rumorBoard.entriesByRegion[regionId] = entries.map(entry =>
+      matchedEntries.some(candidate => candidate.id === entry.id)
+        ? {
+            ...entry,
+            fulfilled: true,
+            fulfilledDayTag: dayTag
+          }
+        : entry
+    )
+
+    for (const entry of matchedEntries) {
+      const entryKey = `rumor:${entry.id}`
+      frontierChronicleStore.recordRumorReceipt({
+        rumorId: entry.id,
+        regionId,
+        title: entry.title,
+        sourceNpcId: entry.sourceNpcId,
+        sourceNpcName: entry.sourceNpcName,
+        resolvedDayTag: dayTag,
+        summary: note
+      })
+      frontierChronicleStore.recordChronicleEntry({
+        entryKey,
+        type: 'rumor',
+        title: `${entry.sourceNpcName}的传闻回执`,
+        summary: entry.summary,
+        detailLines: [...entry.detailLines, `兑现结果：${note}`].slice(0, 6),
+        regionId,
+        season: gameStore.season,
+        weather: gameStore.weather,
+        rumorId: entry.id,
+        companionNpcId: null,
+        companionName: '',
+        variantId: null,
+        firstRecordedDayTag: dayTag,
+        lastRecordedDayTag: dayTag,
+        tags: ['见闻册', '传闻', entry.title]
+      })
+      frontierChronicleStore.recordPhotoMoment({
+        chronicleEntryKey: entryKey,
+        label: `${entry.title}留影卡`,
+        frameHint: `${entry.sourceNpcName} / ${entry.sourceLocation}`,
+        regionId,
+        season: gameStore.season,
+        weather: gameStore.weather,
+        capturedDayTag: dayTag
+      })
+      frontierChronicleStore.recordRegionNotable(regionId, entry.id)
+    }
+
+    if (routeId) {
+      syncAutoPatrolState(routeId, dayTag)
+    }
+
+    return matchedEntries
+  }
+
+  const resolveCompanionContract = (
+    routeId: string | null,
+    outcome: 'completed' | 'failed',
+    dayTag: string,
+    noteLines: string[]
+  ) => {
+    if (!routeId) return null
+    const contract = getActiveCompanionContract(routeId)
+    if (!contract) return null
+
+    const npcStore = useNpcStore()
+    const frontierChronicleStore = useFrontierChronicleStore()
+    const gameStore = useGameStore()
+    const relationshipDelta = outcome === 'completed' ? (contract.sourceType === 'helper' ? 20 : 35) : -10
+    npcStore.adjustFriendship(contract.npcId, relationshipDelta)
+
+    saveData.value.companionContracts = saveData.value.companionContracts.map(entry =>
+      entry.id === contract.id
+        ? {
+            ...entry,
+            status: outcome,
+            resolvedDayTag: dayTag,
+            settlementLines: [...entry.settlementLines, ...noteLines].slice(0, 6)
+          }
+        : entry
+    )
+
+    const resolvedContract = saveData.value.companionContracts.find(entry => entry.id === contract.id) ?? contract
+    const entryKey = `companion:${resolvedContract.id}`
+    frontierChronicleStore.recordChronicleEntry({
+      entryKey,
+      type: 'companion',
+      title: resolvedContract.chronicleTitle,
+      summary: resolvedContract.summary,
+      detailLines: [...resolvedContract.settlementLines, `关系变化：${relationshipDelta >= 0 ? '+' : ''}${relationshipDelta}`].slice(0, 6),
+      regionId: resolvedContract.regionId,
+      season: gameStore.season,
+      weather: gameStore.weather,
+      rumorId: null,
+      companionNpcId: resolvedContract.npcId,
+      companionName: resolvedContract.npcName,
+      variantId: null,
+      firstRecordedDayTag: dayTag,
+      lastRecordedDayTag: dayTag,
+      tags: ['见闻册', '同伴合同', resolvedContract.npcName]
+    })
+    frontierChronicleStore.recordPhotoMoment({
+      chronicleEntryKey: entryKey,
+      label: `${resolvedContract.npcName}同行留影`,
+      frameHint: resolvedContract.sourceType === 'helper' ? '帮手合同' : '关系同行',
+      regionId: resolvedContract.regionId,
+      season: gameStore.season,
+      weather: gameStore.weather,
+      capturedDayTag: dayTag
+    })
+    frontierChronicleStore.recordRegionNotable(resolvedContract.regionId, resolvedContract.id)
+    syncAutoPatrolState(routeId, dayTag)
+    return resolvedContract
+  }
+
+  const recordJourneyChronicle = (
+    entryKey: string,
+    regionId: RegionId,
+    title: string,
+    summary: string,
+    detailLines: string[],
+    dayTag: string,
+    companionNpcId: string | null = null,
+    companionName = '',
+    variantId: string | null = null
+  ) => {
+    const frontierChronicleStore = useFrontierChronicleStore()
+    const gameStore = useGameStore()
+    frontierChronicleStore.recordChronicleEntry({
+      entryKey,
+      type: 'journey',
+      title,
+      summary,
+      detailLines: detailLines.slice(0, 6),
+      regionId,
+      season: gameStore.season,
+      weather: gameStore.weather,
+      rumorId: null,
+      companionNpcId,
+      companionName,
+      variantId,
+      firstRecordedDayTag: dayTag,
+      lastRecordedDayTag: dayTag,
+      tags: ['见闻册', '行旅纪', getRegionDisplayName(regionId)]
+    })
+    frontierChronicleStore.recordPhotoMoment({
+      chronicleEntryKey: entryKey,
+      label: `${title}留影卡`,
+      frameHint: `${gameStore.seasonName} / ${gameStore.weatherName}`,
+      regionId,
+      season: gameStore.season,
+      weather: gameStore.weather,
+      capturedDayTag: dayTag
+    })
+  }
+
+  const syncAutoPatrolState = (routeId: string, dayTag: string) => {
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    if (!route) {
+      return (
+        saveData.value.autoPatrolStates[routeId] ?? {
+          routeId,
+          enabled: true,
+          mode: 'manual',
+          lastAutoSettledDayTag: '',
+          lastEvaluatedDayTag: dayTag,
+          blockedReason: '路线不存在。',
+          blockedTags: []
+        }
+      )
+    }
+
+    const current = saveData.value.autoPatrolStates[routeId] ?? {
+      routeId,
+      enabled: true,
+      mode: 'manual',
+      lastAutoSettledDayTag: '',
+      lastEvaluatedDayTag: '',
+      blockedReason: '',
+      blockedTags: []
+    }
+    const shortcutProfile = getRouteShortcutProfile(routeId)
+    const seasonalState = saveData.value.seasonalRegionStates[route.regionId]
+    const activeRumors = (saveData.value.rumorBoard.entriesByRegion[route.regionId] ?? []).filter(
+      entry => !entry.fulfilled && (!entry.targetRouteId || entry.targetRouteId === routeId)
+    )
+    const activeContract = getActiveCompanionContract(routeId)
+    const blockedTags = [] as string[]
+    const blockedReasons = [] as string[]
+
+    if (shortcutProfile.level !== 'mastered') {
+      blockedReasons.push('这条路线还没进入熟路阶段，默认仍需手动探索。')
+    }
+    if (
+      seasonalState?.activeVariantId &&
+      seasonalState.manualExplorationRequired &&
+      seasonalState.affectedRouteIds.includes(routeId)
+    ) {
+      blockedTags.push('变体')
+      blockedReasons.push(`季节变体「${seasonalState.activeVariantLabel}」要求本周继续手动确认。`)
+    }
+    if (activeRumors.length > 0) {
+      blockedTags.push('传闻')
+      blockedReasons.push(`还有 ${activeRumors.length} 条传闻待兑现。`)
+    }
+    if (activeContract) {
+      blockedTags.push('同伴')
+      blockedReasons.push(`已挂上 ${activeContract.npcName} 的同行合同。`)
+    }
+    if (!current.enabled) {
+      blockedTags.push('关闭')
+      blockedReasons.push('你已手动关闭这条熟路的自动巡行。')
+    }
+
+    const nextState: RegionAutoPatrolState = {
+      routeId,
+      enabled: current.enabled,
+      mode:
+        shortcutProfile.level !== 'mastered'
+          ? 'manual'
+          : blockedReasons.length > 0
+            ? 'blocked'
+            : 'ready',
+      lastAutoSettledDayTag: current.lastAutoSettledDayTag,
+      lastEvaluatedDayTag: dayTag,
+      blockedReason: blockedReasons.join(' '),
+      blockedTags
+    }
+    saveData.value.autoPatrolStates[routeId] = nextState
+    return nextState
+  }
+
+  const syncAutoPatrolStates = (dayTag: string) => {
+    for (const route of REGION_ROUTE_DEFS) {
+      syncAutoPatrolState(route.id, dayTag)
+    }
+  }
+
+  const ensureFrontierWorldSignals = (dayTag = '') => {
+    const gameStore = useGameStore()
+    const effectiveDayTag = dayTag || `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+    const weekId = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId
+    for (const region of REGION_DEFS) {
+      syncSeasonalRegionState(region.id, weekId, effectiveDayTag)
+    }
+    syncRumorBoardRuntime(weekId, effectiveDayTag)
+    syncAutoPatrolStates(effectiveDayTag)
+    return {
+      weekId,
+      dayTag: effectiveDayTag
+    }
+  }
+
+  const getRegionVariantSnapshot = (regionId: RegionId, dayTag = '') => {
+    ensureFrontierWorldSignals(dayTag)
+    return saveData.value.seasonalRegionStates[regionId]
+  }
+
+  const getRumorBoardForRegion = (regionId: RegionId, dayTag = '') => {
+    ensureFrontierWorldSignals(dayTag)
+    return saveData.value.rumorBoard.entriesByRegion[regionId] ?? []
+  }
+
+  const getAutoPatrolStatus = (routeId: string, dayTag = '') => {
+    const runtime = ensureFrontierWorldSignals(dayTag)
+    return saveData.value.autoPatrolStates[routeId] ?? syncAutoPatrolState(routeId, runtime.dayTag)
+  }
+
+  const assignCompanionContract = (routeId: string, npcId: string, dayTag = '') => {
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    if (!route) return { success: false, message: '路线不存在。' }
+    if (hasActiveExpedition.value) return { success: false, message: '当前已有进行中的远征，先收束再派合同。' }
+
+    const runtime = ensureFrontierWorldSignals(dayTag)
+    const existingActiveContract = saveData.value.companionContracts.find(contract => contract.status === 'active')
+    if (existingActiveContract && existingActiveContract.routeId !== routeId) {
+      return { success: false, message: `当前已有 ${existingActiveContract.npcName} 的同行合同在路上。` }
+    }
+    if (getActiveCompanionContract(routeId)?.npcId === npcId) {
+      return { success: true, message: '这位同伴已经挂在这条路线上了。' }
+    }
+
+    const candidate = getCompanionContractCandidates(routeId).find(entry => entry.npcId === npcId)
+    if (!candidate) return { success: false, message: '当前没有可派发的同伴合同。' }
+
+    const contract: RegionCompanionContract = {
+      id: createSessionToken(),
+      npcId: candidate.npcId,
+      npcName: candidate.npcName,
+      sourceType: candidate.sourceType,
+      relationshipStage: candidate.relationshipStage,
+      relationshipStageLabel: candidate.relationshipStageLabel,
+      regionId: route.regionId,
+      routeId,
+      assignedDayTag: runtime.dayTag,
+      expiresDayTag: addDaysToCalendarDayTag(runtime.dayTag, 3),
+      durationDays: 3,
+      riskModifier: candidate.riskModifier,
+      moraleBonus: candidate.moraleBonus,
+      summary: candidate.summary,
+      chronicleTitle: `${candidate.npcName}·${route.name}同行回执`,
+      settlementLines: [
+        `${candidate.npcName} 已接下 ${route.name} 的同行合同。`,
+        candidate.summary,
+        candidate.sourceType === 'helper' ? '这份合同更偏向补给与杂务支援。' : '这份合同会把关系线与见闻册一起接进旅后处理。'
+      ],
+      status: 'active',
+      resolvedDayTag: ''
+    }
+
+    saveData.value.companionContracts = [
+      contract,
+      ...saveData.value.companionContracts.filter(entry => entry.status !== 'active')
+    ].slice(0, 16)
+    syncAutoPatrolState(routeId, runtime.dayTag)
+    return {
+      success: true,
+      message: `${candidate.npcName} 已接下 ${route.name} 的同行合同，这周默认需要手动探索。`
+    }
+  }
+
+  const clearCompanionContract = (routeId: string, dayTag = '') => {
+    const activeContract = getActiveCompanionContract(routeId)
+    if (!activeContract) return { success: false, message: '这条路线当前没有挂着同行合同。' }
+    saveData.value.companionContracts = saveData.value.companionContracts.filter(entry => entry.id !== activeContract.id)
+    syncAutoPatrolState(routeId, dayTag)
+    return {
+      success: true,
+      message: `已撤回 ${activeContract.npcName} 的同行合同。`
+    }
+  }
+
   const addRegionKnowledge = (
     regionId: RegionId,
     gains: Partial<Pick<RegionKnowledgeState, 'intel' | 'survey' | 'familiarity'>>,
@@ -266,6 +1266,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       lastUpdatedDayTag: dayTag || current.lastUpdatedDayTag
     }
     saveData.value.knowledgeState[regionId] = next
+    syncStructuralState(regionId, dayTag)
     return next
   }
 
@@ -283,49 +1284,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       lastUpdatedDayTag: dayTag || current.lastUpdatedDayTag
     }
     saveData.value.routeKnowledgeState[routeId] = next
+    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    if (route) syncStructuralState(route.regionId, dayTag)
     return next
   }
 
   const getRouteShortcutProfile = (routeId: string) => {
-    const state = getRouteKnowledgeState(routeId)
-    if (state.familiarity >= 85 && state.surveyProgress >= 80) {
-      return {
-        level: 'mastered' as const,
-        label: '熟路',
-        stepReduction: 1,
-        visibilityBonus: 8,
-        dangerReduction: 4,
-        supplyBonus: { rations: 1, utility: 1 }
-      }
-    }
-    if (state.familiarity >= 60 && state.surveyProgress >= 55) {
-      return {
-        level: 'shortcut' as const,
-        label: '捷径已立',
-        stepReduction: 1,
-        visibilityBonus: 5,
-        dangerReduction: 2,
-        supplyBonus: { rations: 0, utility: 1 }
-      }
-    }
-    if (state.familiarity >= 35 || state.surveyProgress >= 40) {
-      return {
-        level: 'marked' as const,
-        label: '路标渐明',
-        stepReduction: 0,
-        visibilityBonus: 3,
-        dangerReduction: 1,
-        supplyBonus: { rations: 0, utility: 0 }
-      }
-    }
-    return {
-      level: 'none' as const,
-      label: '陌生路段',
-      stepReduction: 0,
-      visibilityBonus: 0,
-      dangerReduction: 0,
-      supplyBonus: { rations: 0, utility: 0 }
-    }
+    return buildShortcutProfileFromLevel(getShortcutState(routeId).level)
   }
 
   const createClearedExpeditionState = (): ExpeditionRuntimeState => ({
@@ -438,6 +1403,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         lastCompletedDayTag: current?.lastCompletedDayTag ?? ''
       }
     }
+    syncStructuralState(regionId)
   }
 
   const getRouteExpeditionStatus = (routeId: string) => {
@@ -636,6 +1602,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         if (session.danger >= 60) riskSummaries.push(`风险提醒：当前风险 ${session.danger}，建议优先扎营、标记路线或直接回撤。`)
         if (session.carryLoad >= Math.max(1, session.maxCarryLoad - 1)) riskSummaries.push(`负重提醒：当前负重 ${session.carryLoad}/${session.maxCarryLoad}，继续深推前先整理补给更稳。`)
         if (session.visibility <= 40) riskSummaries.push(`视野提醒：当前视野 ${session.visibility}，支线观察或营地侦察能更快补清地图。`)
+        if (session.riskState.pollution >= 30 || session.riskState.anomaly >= 28) riskSummaries.push(`异变提醒：污染 ${session.riskState.pollution} / 异变 ${session.riskState.anomaly}，继续强推会把后续遭遇链抬成高压分支。`)
+        if (session.mode === 'boss' && session.frontlinePrep <= Math.max(1, session.progressStep)) riskSummaries.push(`决战提醒：前线准备仅 ${session.frontlinePrep}，建议先做支援、扎营或侧翼布置再压首领。`)
       }
     }
 
@@ -669,6 +1637,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
   const reset = () => {
     saveData.value = createDefaultRegionMapSaveData()
+    syncStructuralState()
   }
 
   const getRegionUnlockProgress = (regionId: RegionId) => {
@@ -734,6 +1703,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       }
     }
     refreshRouteUnlocks(regionId)
+    syncStructuralState(regionId, unlockedDayTag)
     if (saveData.value.weeklyFocusState.weekId) {
       refreshWeeklyEventRuntime(saveData.value.weeklyFocusState.weekId, saveData.value.weeklyFocusState.focusedRegionId, unlockedDayTag)
     }
@@ -807,9 +1777,12 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
     saveData.value.telemetry.totalRouteCompletions += 1
     if (route) {
+      syncRouteMapNodeState(route.id, dayTag, 1, 1)
+      syncShortcutState(route.id, dayTag)
       addRegionKnowledge(route.regionId, { intel: 6, survey: 8, familiarity: 4 }, dayTag)
       addRouteKnowledge(route.id, { intel: 8, surveyProgress: 12, familiarity: 10 }, dayTag)
       refreshRouteUnlocks(route.regionId)
+      syncAutoPatrolState(route.id, dayTag)
     }
   }
 
@@ -874,6 +1847,98 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
   const getLinkedSystemLabels = (linkedSystems: RegionLinkedSystem[]) =>
     [...new Set(linkedSystems)].map(system => LINKED_SYSTEM_LABELS[system]).filter(Boolean)
+
+  const getResourceFamilyLabel = (familyId: RegionalResourceFamilyId | null) =>
+    familyId ? REGIONAL_RESOURCE_FAMILY_DEFS.find(entry => entry.id === familyId)?.label ?? familyId : '区域收获'
+
+  const createInitialRiskState = (regionId: RegionId, approach: RegionExpeditionApproach): RegionExpeditionRiskState => ({
+    weather:
+      regionId === 'ancient_road'
+        ? (approach === 'scout' ? 'wind' : 'clear')
+        : regionId === 'mirage_marsh'
+          ? (approach === 'scout' ? 'fog' : 'wind')
+          : (approach === 'greedy' ? 'storm' : 'wind'),
+    pollution: regionId === 'mirage_marsh' ? 18 : regionId === 'cloud_highland' ? 8 : 4,
+    alertness: regionId === 'ancient_road' ? 14 : regionId === 'cloud_highland' ? 16 : 10,
+    anomaly: regionId === 'mirage_marsh' ? 12 : regionId === 'cloud_highland' ? 6 : 4
+  })
+
+  const createCarryItem = (
+    label: string,
+    category: RegionExpeditionCarryItemCategory,
+    quantity: number,
+    burden: number,
+    note: string
+  ): RegionExpeditionCarryItem => ({
+    id: createSessionToken(),
+    label,
+    category,
+    quantity: Math.max(1, Math.floor(quantity)),
+    burden: Math.max(1, Math.floor(burden)),
+    note
+  })
+
+  const mergeCarryItems = (baseItems: RegionExpeditionCarryItem[], extraItems: RegionExpeditionCarryItem[]) => {
+    const carryMap = new Map<string, RegionExpeditionCarryItem>()
+    for (const item of [...baseItems, ...extraItems]) {
+      if (!item.label || item.quantity <= 0 || item.burden <= 0) continue
+      const key = `${item.label}::${item.category}::${item.note}`
+      const current = carryMap.get(key)
+      if (current) {
+        current.quantity += item.quantity
+        current.burden += item.burden
+      } else {
+        carryMap.set(key, { ...item })
+      }
+    }
+    return Array.from(carryMap.values())
+  }
+
+  const summarizeCarryItems = (carryItems: RegionExpeditionCarryItem[]) =>
+    carryItems.map(item => `${item.label}(${item.category}) x${item.quantity}`).join(' / ')
+
+  const recalculateCarryLoad = (session: RegionExpeditionSession) => {
+    session.carryLoad = clamp(session.carryItems.reduce((total, item) => total + item.burden, 0), 0, session.maxCarryLoad)
+    return session.carryLoad
+  }
+
+  const addCarryItems = (session: RegionExpeditionSession, carryItems: RegionExpeditionCarryItem[]) => {
+    session.carryItems = mergeCarryItems(session.carryItems, carryItems)
+    recalculateCarryLoad(session)
+    return session.carryItems
+  }
+
+  const getEncounterKindLabel = (kind: RegionExpeditionEncounterKind) =>
+    kind === 'hazard'
+      ? '险段'
+      : kind === 'cache'
+        ? '收获'
+        : kind === 'traveler'
+          ? '旅者'
+          : kind === 'support'
+            ? '支援'
+            : kind === 'anomaly'
+              ? '异变'
+              : kind === 'boss_prep'
+                ? '前夜'
+                : '事件'
+
+  const createEncounterMemorySummary = (kind: RegionExpeditionEncounterKind, optionId: RegionExpeditionEncounterOption['id']) =>
+    `${getEncounterKindLabel(kind)} / ${optionId === 'bold' ? '强势推进' : optionId === 'balanced' ? '维持节奏' : '谨慎处理'}`
+
+  const getFollowUpEncounterKind = (
+    kind: RegionExpeditionEncounterKind,
+    optionId: RegionExpeditionEncounterOption['id'],
+    session: RegionExpeditionSession
+  ): RegionExpeditionEncounterKind | null => {
+    if (kind === 'hazard') return optionId === 'bold' ? 'anomaly' : optionId === 'cautious' ? 'support' : 'traveler'
+    if (kind === 'cache') return optionId === 'bold' ? 'hazard' : optionId === 'cautious' ? 'traveler' : 'support'
+    if (kind === 'traveler') return optionId === 'bold' ? 'cache' : 'support'
+    if (kind === 'support') return optionId === 'bold' ? 'cache' : session.mode === 'boss' ? 'boss_prep' : null
+    if (kind === 'anomaly') return optionId === 'cautious' ? 'support' : optionId === 'balanced' ? 'hazard' : 'anomaly'
+    if (kind === 'boss_prep') return optionId === 'bold' ? 'anomaly' : optionId === 'cautious' ? 'support' : null
+    return optionId === 'bold' ? 'hazard' : optionId === 'balanced' ? 'traveler' : 'support'
+  }
 
   const createNodeRecord = (
     step: number,
@@ -992,8 +2057,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   const cloneSession = (session: RegionExpeditionSession): RegionExpeditionSession => ({
     ...session,
     supplies: { ...session.supplies },
+    carryItems: session.carryItems.map(item => ({ ...item })),
     pendingRewardItems: session.pendingRewardItems.map(item => ({ ...item })),
     pendingEncounter: cloneEncounter(session.pendingEncounter),
+    riskState: { ...session.riskState },
     campState: session.campState
       ? {
           enteredAtStep: session.campState.enteredAtStep,
@@ -1001,6 +2068,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
           availableActionIds: [...session.campState.availableActionIds]
         }
       : null,
+    encounterMemory: session.encounterMemory.map(entry => ({ ...entry })),
     encounteredEventIds: [...session.encounteredEventIds],
     nodeHistory: session.nodeHistory.map(entry => ({ ...entry })),
     journal: session.journal.map(entry => ({ ...entry, effects: [...entry.effects] }))
@@ -1028,22 +2096,32 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
   }
 
-  const createGenericEncounter = (session: RegionExpeditionSession): RegionExpeditionEncounter => {
+  const createGenericEncounter = (session: RegionExpeditionSession, forcedKind: RegionExpeditionEncounterKind | null = null): RegionExpeditionEncounter => {
     const lastNodeLane = session.nodeHistory[session.nodeHistory.length - 1]?.lane ?? 'main'
+    const lastMemory = session.encounterMemory[session.encounterMemory.length - 1] ?? null
     const kind: RegionExpeditionEncounter['kind'] =
-      session.mode === 'boss' && session.progressStep >= Math.max(1, session.totalSteps - 1)
+      forcedKind ??
+      (session.mode === 'boss' && session.progressStep >= Math.max(1, session.totalSteps - 1)
         ? 'boss_prep'
         : lastNodeLane === 'branch'
-          ? session.approach === 'greedy'
+          ? session.riskState.anomaly >= 30
+            ? 'anomaly'
+            : session.approach === 'greedy'
             ? 'cache'
             : 'traveler'
           : lastNodeLane === 'deep'
+            ? session.riskState.alertness >= 32 || session.riskState.pollution >= 24
+              ? 'anomaly'
+              : 'hazard'
+          : session.riskState.alertness >= 40 || session.danger >= 45 || session.visibility <= 45
             ? 'hazard'
-        : session.danger >= 45 || session.visibility <= 45
-          ? 'hazard'
-          : session.approach === 'greedy'
-            ? 'cache'
-            : 'traveler'
+            : session.riskState.pollution >= 28 || session.riskState.anomaly >= 28
+              ? 'anomaly'
+              : session.approach === 'greedy'
+                ? 'cache'
+                : session.progressStep % 2 === 0
+                  ? 'support'
+                  : 'traveler')
 
     const encounterConfig: Record<RegionExpeditionEncounter['kind'], { title: string; summary: string; risk: RegionExpeditionEncounter['risk']; detailLines: string[] }> = {
       weekly_event: {
@@ -1070,6 +2148,18 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         risk: 'low',
         detailLines: ['妥善交涉可能换来视野、补给或额外线索。', '也可以选择不节外生枝，尽快赶路。']
       },
+      support: {
+        title: '沿线支援',
+        summary: '你捕捉到了能真正改善前线状态的支援窗口。',
+        risk: 'low',
+        detailLines: ['可能是补给组、临时据点或回流系统派来的照应。', '处理得当会直接缓和风险、补足补给或提高首领准备度。']
+      },
+      anomaly: {
+        title: '异变扩散',
+        summary: '局势里开始出现更危险的污染、异常回响或警戒波动。',
+        risk: 'high',
+        detailLines: ['若继续放任，后续推进与首领决战都会受到更明显的拖累。', '也可以借机带回更稀有的异常样本与深层线索。']
+      },
       boss_prep: {
         title: '决战前夜',
         summary: '首领区域前的最后准备窗口已经出现，你可以调整最后的进入姿态。',
@@ -1079,17 +2169,25 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
 
     const config = encounterConfig[kind]
+    const detailLines = [
+      ...(lastMemory ? [`前次留痕：${lastMemory.summary}，这一次局势也受到了影响。`] : []),
+      ...(session.frontlinePrep > 0 ? [`前线准备 ${session.frontlinePrep}｜当前节点链已经形成了可延续的前压节奏。`] : []),
+      ...(session.riskState.weather !== 'clear' ? [`天气压力：当前为${session.riskState.weather === 'wind' ? '劲风' : session.riskState.weather === 'fog' ? '浓雾' : '风暴'}。`] : []),
+      ...(session.riskState.pollution > 0 ? [`污染 ${session.riskState.pollution}/100｜警戒 ${session.riskState.alertness}/100｜异变 ${session.riskState.anomaly}/100。`] : []),
+      ...(session.carryItems.length > 0 ? [`携带层：${summarizeCarryItems(session.carryItems)}。`] : []),
+      ...config.detailLines
+    ].slice(0, 5)
     return {
       id: createSessionToken(),
       step: session.progressStep,
       kind,
       title: config.title,
       summary: config.summary,
-      detailLines: [...config.detailLines],
+      detailLines,
       risk: config.risk,
       sourceEventId: null,
       rewardFamilyId: session.pendingRewardFamilyId,
-      rewardAmount: kind === 'cache' ? 2 : kind === 'traveler' ? 1 : kind === 'boss_prep' ? 2 : 1,
+      rewardAmount: kind === 'cache' ? 2 : kind === 'traveler' ? 1 : kind === 'support' ? 1 : kind === 'anomaly' ? 2 : kind === 'boss_prep' ? 2 : 1,
       rewardItems: [],
       options: createEncounterOptions(kind)
     }
@@ -1097,6 +2195,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
   const createStepEncounter = (session: RegionExpeditionSession): RegionExpeditionEncounter | null => {
     if (session.progressStep <= 0 || session.progressStep >= session.totalSteps) return null
+
+    if (session.queuedEncounterKind) {
+      return createGenericEncounter(session, session.queuedEncounterKind)
+    }
 
     const availableWeeklyEventIds = getRegionActiveEventIds(session.regionId).filter(eventId => {
       if (session.encounteredEventIds.includes(eventId)) return false
@@ -1117,7 +2219,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       session.mode === 'boss' ||
       session.approach === 'greedy' ||
       session.danger >= 32 ||
-      session.visibility <= 52
+      session.visibility <= 52 ||
+      session.riskState.pollution >= 22 ||
+      session.riskState.alertness >= 24 ||
+      session.riskState.anomaly >= 18
 
     return shouldCreateGenericEncounter ? createGenericEncounter(session) : null
   }
@@ -1188,7 +2293,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       startedAtDayTag: session.startedAtDayTag,
       endedAtDayTag,
       outcome: finalOutcome,
-      summaryLines: summaryLines.filter(Boolean).slice(0, 6),
+      summaryLines: summaryLines.filter(Boolean).slice(0, 9),
+      carryItems: session.carryItems.map(item => ({ ...item })),
       journal: session.journal.map(entry => ({ ...entry, effects: [...entry.effects] })).slice(-12)
     }
     saveData.value.journeyHistory = [entry, ...saveData.value.journeyHistory].slice(0, 12)
@@ -1215,20 +2321,36 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   ) => {
     const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     if (!route) return null
+    ensureFrontierWorldSignals(startedAtDayTag)
     const regionKnowledge = getRegionKnowledgeState(route.regionId)
     const routeKnowledge = getRouteKnowledgeState(route.id)
     const shortcutProfile = getRouteShortcutProfile(route.id)
+    const campSiteBonus = getCampSiteSessionBonuses(route.regionId, route.id, null)
+    const seasonalState = saveData.value.seasonalRegionStates[route.regionId]
+    const activeRumors = (saveData.value.rumorBoard.entriesByRegion[route.regionId] ?? []).filter(
+      entry => !entry.fulfilled && (!entry.targetRouteId || entry.targetRouteId === route.id)
+    )
+    const companionContract = getActiveCompanionContract(route.id)
     const supplies = createDefaultRegionExpeditionSupplyState()
     if (approach === 'scout') supplies.utility += 1
     if (approach === 'greedy') supplies.rations = Math.max(1, supplies.rations - 1)
     if (route.nodeType === 'elite') supplies.medicine += 1
     supplies.rations += shortcutProfile.supplyBonus.rations
+    supplies.rations += campSiteBonus.supplyBonus.rations
+    supplies.medicine += campSiteBonus.supplyBonus.medicine
     supplies.utility += shortcutProfile.supplyBonus.utility
+    supplies.utility += campSiteBonus.supplyBonus.utility
 
     const baseSteps = route.nodeType === 'elite' ? 4 : 3
     const totalSteps = Math.max(2, baseSteps - shortcutProfile.stepReduction)
-    const visibilityBonus = Math.floor((regionKnowledge.intel + routeKnowledge.intel + routeKnowledge.surveyProgress) / 24) + shortcutProfile.visibilityBonus
-    const dangerMitigation = Math.floor((regionKnowledge.familiarity + routeKnowledge.familiarity) / 30) + shortcutProfile.dangerReduction
+    const visibilityBonus =
+      Math.floor((regionKnowledge.intel + routeKnowledge.intel + routeKnowledge.surveyProgress) / 24) +
+      shortcutProfile.visibilityBonus +
+      campSiteBonus.visibilityBonus
+    const dangerMitigation =
+      Math.floor((regionKnowledge.familiarity + routeKnowledge.familiarity) / 30) +
+      shortcutProfile.dangerReduction +
+      campSiteBonus.dangerReduction
     const moraleBonus = Math.floor(routeKnowledge.familiarity / 25)
     const session: RegionExpeditionSession = {
       sessionId: createSessionToken(),
@@ -1245,21 +2367,44 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       totalSteps,
       carryLoad: 0,
       maxCarryLoad: approach === 'greedy' ? 8 : approach === 'scout' ? 6 : 7,
+      carryItems: [],
       visibility: clamp((approach === 'scout' ? 76 : approach === 'greedy' ? 45 : 60) + visibilityBonus, 0, 100),
       morale: clamp((approach === 'greedy' ? 54 : approach === 'scout' ? 60 : 66) + moraleBonus, 0, 100),
       danger: clamp((route.nodeType === 'elite' ? 24 : route.nodeType === 'handoff' ? 14 : 12) - dangerMitigation, 0, 100),
       findings: 0,
+      frontlinePrep: (route.nodeType === 'handoff' ? 1 : 0) + campSiteBonus.frontlinePrep,
+      riskState: createInitialRiskState(route.regionId, approach),
       campUsed: false,
       supplies,
       pendingRewardFamilyId: route.primaryResourceFamilyId,
       pendingRewardAmount: getRouteRewardAmount(route.id),
       pendingRewardItems: (ROUTE_ITEM_REWARDS[route.id] ?? []).map(item => ({ ...item })),
       pendingEncounter: null,
+      queuedEncounterKind: null,
       campState: null,
       encounteredEventIds: [],
+      encounterMemory: [],
       nodeHistory: [createNodeRecord(0, 'main', '出发营地', `你从营地踏上「${route.name}」的前线。`)],
       journal: [],
       recommendedRouteId: null
+    }
+    if (
+      seasonalState?.activeVariantId &&
+      seasonalState.manualExplorationRequired &&
+      seasonalState.affectedRouteIds.includes(route.id)
+    ) {
+      session.visibility = clamp(session.visibility + 3, 0, 100)
+      session.danger = clamp(session.danger + 4, 0, 100)
+      session.riskState.alertness = clamp(session.riskState.alertness + 8, 0, 100)
+    }
+    if (activeRumors.length > 0) {
+      session.findings += activeRumors.length
+      session.visibility = clamp(session.visibility + 2, 0, 100)
+    }
+    if (companionContract) {
+      session.danger = clamp(session.danger - companionContract.riskModifier, 0, 100)
+      session.morale = clamp(session.morale + companionContract.moraleBonus, 0, 100)
+      session.frontlinePrep = clamp(session.frontlinePrep + 1, 0, 100)
     }
     appendSessionJournal(
       session,
@@ -1272,7 +2417,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
           ? `熟路增益：${shortcutProfile.label}，本趟推进段数缩减为 ${totalSteps}。`
           : shortcutProfile.level === 'marked'
             ? '沿途已立下部分路标，推进时更容易维持方向。'
-            : ''
+            : '',
+        campSiteBonus.headline,
+        seasonalState?.activeVariantId && seasonalState.affectedRouteIds.includes(route.id)
+          ? `季节变体：${seasonalState.activeVariantLabel}，本周这条线默认要手动确认。`
+          : '',
+        activeRumors.length > 0 ? `待兑现传闻：${activeRumors.map(entry => entry.title).join(' / ')}` : '',
+        companionContract ? `同行合同：${companionContract.npcName} 已挂在这条线。` : ''
       ],
       'accent'
     )
@@ -1288,13 +2439,17 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const boss = getRegionBossDef(regionId)
     if (!boss) return null
     const regionKnowledge = getRegionKnowledgeState(regionId)
+    const campSiteBonus = getCampSiteSessionBonuses(regionId, null, boss.id)
     const supplies = createDefaultRegionExpeditionSupplyState()
     supplies.medicine += 1
     if (approach === 'scout') supplies.utility += 1
     if (approach === 'greedy') supplies.rations = Math.max(1, supplies.rations - 1)
+    supplies.rations += campSiteBonus.supplyBonus.rations
+    supplies.medicine += campSiteBonus.supplyBonus.medicine
+    supplies.utility += campSiteBonus.supplyBonus.utility
 
-    const visibilityBonus = Math.floor((regionKnowledge.intel + regionKnowledge.survey) / 28)
-    const dangerMitigation = Math.floor(regionKnowledge.familiarity / 22)
+    const visibilityBonus = Math.floor((regionKnowledge.intel + regionKnowledge.survey) / 28) + campSiteBonus.visibilityBonus
+    const dangerMitigation = Math.floor(regionKnowledge.familiarity / 22) + campSiteBonus.dangerReduction
     const session: RegionExpeditionSession = {
       sessionId: createSessionToken(),
       mode: 'boss',
@@ -1310,18 +2465,23 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       totalSteps: Math.max(3, boss.phases.length + 1),
       carryLoad: 0,
       maxCarryLoad: approach === 'greedy' ? 9 : 7,
+      carryItems: [],
       visibility: clamp((approach === 'scout' ? 68 : 52) + visibilityBonus, 0, 100),
       morale: clamp((approach === 'greedy' ? 52 : 64) + Math.floor(regionKnowledge.familiarity / 30), 0, 100),
       danger: clamp(28 - dangerMitigation, 0, 100),
       findings: 1,
+      frontlinePrep: Math.floor(regionKnowledge.survey / 25) + campSiteBonus.frontlinePrep,
+      riskState: createInitialRiskState(regionId, approach),
       campUsed: false,
       supplies,
       pendingRewardFamilyId: boss.rewardFamilyId,
       pendingRewardAmount: getBossRewardAmount(regionId),
       pendingRewardItems: (BOSS_ITEM_REWARDS[regionId] ?? []).map(item => ({ ...item })),
       pendingEncounter: null,
+      queuedEncounterKind: null,
       campState: null,
       encounteredEventIds: [],
+      encounterMemory: [],
       nodeHistory: [createNodeRecord(0, 'boss', '前线集结', `你开始逼近「${boss.name}」的外围活动范围。`)],
       journal: [],
       recommendedRouteId: null
@@ -1332,7 +2492,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       `你开始逼近「${boss.name}」的活动范围，准备逐段压缩前线空间。`,
       [
         '已切换为多阶段首领远征，可途中扎营、撤退或收束。',
-        visibilityBonus > 0 || dangerMitigation > 0 ? `区域认知提供了额外准备：视野 +${visibilityBonus}，前线压力 -${dangerMitigation}。` : '该区域深层仍缺少足够认知，决战前需要边推进边摸清。'
+        visibilityBonus > 0 || dangerMitigation > 0 ? `区域认知提供了额外准备：视野 +${visibilityBonus}，前线压力 -${dangerMitigation}。` : '该区域深层仍缺少足够认知，决战前需要边推进边摸清。',
+        campSiteBonus.headline
       ],
       'accent'
     )
@@ -1501,8 +2662,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const laneVisibilityBonus = choice.lane === 'branch' ? 6 : choice.lane === 'boss' ? 2 : choice.lane === 'deep' ? -2 : 2
     const laneDangerDelta = choice.lane === 'branch' ? 1 : choice.lane === 'boss' ? 6 : choice.lane === 'deep' ? 5 : 3
     const laneFindingsBonus = choice.lane === 'branch' ? 2 : choice.lane === 'boss' ? 2 : choice.lane === 'deep' ? 3 : 1
-    const laneCarryBonus = choice.lane === 'deep' ? 2 : 1
+    const laneCarryBonus = choice.lane === 'deep' || choice.lane === 'boss' ? 2 : 1
     const laneMoraleDelta = choice.lane === 'branch' ? 0 : choice.lane === 'boss' ? 1 : choice.lane === 'deep' ? -1 : 1
+    const carryItemsForNode: RegionExpeditionCarryItem[] = []
 
     if (stepNumber % 2 === 1) {
       if (session.supplies.rations > 0) {
@@ -1528,6 +2690,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (session.approach === 'greedy') damage += 2
     if (choice.lane === 'branch') damage = Math.max(1, damage - 1)
     if (choice.lane === 'deep' || choice.lane === 'boss') damage += 2
+    if (session.riskState.weather === 'storm') damage += 2
+    if (session.riskState.weather === 'fog') session.visibility = clamp(session.visibility - 4, 0, 100)
 
     if (session.supplies.medicine > 0 && playerStore.hp <= Math.max(18, Math.floor(playerStore.getMaxHp() * 0.4))) {
       session.supplies.medicine -= 1
@@ -1551,7 +2715,44 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       100
     )
     session.findings += (session.approach === 'greedy' ? 3 : session.approach === 'scout' ? 2 : 2) + laneFindingsBonus
-    session.carryLoad = clamp(session.carryLoad + (session.approach === 'greedy' ? 2 : 1) + laneCarryBonus, 0, session.maxCarryLoad)
+    session.frontlinePrep += (choice.lane === 'branch' ? 2 : choice.lane === 'boss' ? 3 : choice.lane === 'deep' ? 2 : 1) + (session.approach === 'scout' ? 1 : 0)
+    session.riskState.weather =
+      session.regionId === 'mirage_marsh'
+        ? (stepNumber % 3 === 0 ? 'storm' : stepNumber % 2 === 0 ? 'fog' : 'wind')
+        : session.regionId === 'cloud_highland'
+          ? (stepNumber % 2 === 0 ? 'wind' : 'storm')
+          : (stepNumber % 3 === 0 ? 'wind' : 'clear')
+    session.riskState.pollution = clamp(
+      session.riskState.pollution + (session.regionId === 'mirage_marsh' ? 4 : 1) + (choice.lane === 'deep' ? 3 : choice.lane === 'branch' ? 1 : 0),
+      0,
+      100
+    )
+    session.riskState.alertness = clamp(
+      session.riskState.alertness + (choice.lane === 'boss' ? 10 : choice.lane === 'deep' ? 7 : choice.lane === 'branch' ? 3 : 5),
+      0,
+      100
+    )
+    session.riskState.anomaly = clamp(
+      session.riskState.anomaly + (session.regionId === 'mirage_marsh' ? 5 : session.regionId === 'cloud_highland' ? 2 : 1) + (choice.lane === 'boss' ? 4 : choice.lane === 'deep' ? 3 : 0),
+      0,
+      100
+    )
+    if (choice.lane === 'branch') {
+      carryItemsForNode.push(createCarryItem(`${getResourceFamilyLabel(session.pendingRewardFamilyId)}线索包`, 'clue', 1, laneCarryBonus, '侧探节点带回的可承接线索。'))
+    } else if (choice.lane === 'deep' || choice.lane === 'boss') {
+      carryItemsForNode.push(createCarryItem(`${getResourceFamilyLabel(session.pendingRewardFamilyId)}粗样`, 'resource', 1, laneCarryBonus, '深层节点回收的高压收获。'))
+    } else {
+      carryItemsForNode.push(createCarryItem(`${getResourceFamilyLabel(session.pendingRewardFamilyId)}回收物`, 'resource', 1, laneCarryBonus, '正线推进中收稳的常规收获。'))
+    }
+    addCarryItems(session, carryItemsForNode)
+    effects.push(`局势变量：前线准备 ${session.frontlinePrep}｜天气 ${session.riskState.weather} / 污染 ${session.riskState.pollution} / 警戒 ${session.riskState.alertness} / 异变 ${session.riskState.anomaly}。`)
+    effects.push(`携带层：${summarizeCarryItems(carryItemsForNode)}｜当前总负重 ${session.carryLoad}/${session.maxCarryLoad}。`)
+    if (session.routeId) {
+      syncRouteMapNodeState(session.routeId, _dayTag, 1, choice.lane === 'branch' || choice.lane === 'deep' ? 1 : 0)
+      syncShortcutState(session.routeId, _dayTag, choice.lane === 'branch' ? 1 : 0)
+    } else {
+      syncBossMapNodeState(session.regionId, _dayTag, 1, choice.lane === 'branch' ? 1 : 0)
+    }
     const regionKnowledge = addRegionKnowledge(
       session.regionId,
       {
@@ -1581,7 +2782,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (session.mode === 'boss' && stepNumber >= session.totalSteps) {
       const boss = getRegionBossDef(session.regionId)
       if (boss) {
-        const combatResult = simulateBossExpedition(session.regionId, boss)
+        const combatResult = simulateBossExpedition(session.regionId, boss, session)
         const hpDelta = Math.max(0, playerStore.hp - Math.max(0, combatResult.projectedHp))
         if (hpDelta > 0) {
           playerStore.takeDamage(hpDelta)
@@ -1639,6 +2840,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       const encounter = createStepEncounter(session)
       if (encounter) {
         session.pendingEncounter = encounter
+        if (session.queuedEncounterKind === encounter.kind) {
+          session.queuedEncounterKind = null
+        }
         effects.push(`途中出现了新的遭遇：${encounter.title}。`)
       }
     }
@@ -1693,9 +2897,11 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     session.morale = clamp(session.morale + 4, 0, 100)
     session.danger = clamp(session.danger - 4, 0, 100)
     const regionKnowledge = addRegionKnowledge(session.regionId, { intel: 1, survey: 3, familiarity: 1 }, _dayTag)
+    const campSiteState = recordCampSiteUsage(session.regionId, session.routeId, session.bossId, 'enter', _dayTag)
     const effects = [
       session.campState.nightEventHint,
       `营地搭起后，区域勘明推进到 ${regionKnowledge.survey}/100。`,
+      `营地档案：已记录 ${campSiteState.visitCount} 次前线停留。`,
       '现在可以选择：休整伤势、整理补给、标记路线，或派出观察侦察。'
     ]
     appendSessionJournal(session, '前线扎营', `你在 ${session.targetName} 的途中搭起了一处前线营地。`, effects, 'accent')
@@ -1749,18 +2955,26 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       playerStore.restoreHealth(recoverAmount)
       session.morale = clamp(session.morale + 10, 0, 100)
       session.danger = clamp(session.danger - 6, 0, 100)
+      session.riskState.alertness = clamp(session.riskState.alertness - 6, 0, 100)
       const regionKnowledge = addRegionKnowledge(session.regionId, { intel: 1, survey: 1, familiarity: 2 }, _dayTag)
       effects.push(`营地休整后，区域熟悉度进一步沉淀到 ${regionKnowledge.familiarity}/100。`)
       summary = `你让队伍在营地里完成了一轮休整，恢复 ${recoverAmount} 点生命。`
       tone = 'success'
     } else if (actionId === 'sort') {
-      const carryReduction = session.supplies.utility > 0 ? 2 : 1
+      const carryLoadBeforeSort = session.carryLoad
       if (session.supplies.utility > 0) {
         session.supplies.utility -= 1
         effects.push('消耗 1 份器具，把散乱物资重新装进可继续携带的状态。')
       }
-      session.carryLoad = clamp(session.carryLoad - carryReduction, 0, session.maxCarryLoad)
+      session.carryItems = session.carryItems.map(item =>
+        item.category === 'resource' && item.burden > 1
+          ? { ...item, category: 'refined', burden: Math.max(1, item.burden - 1), note: `${item.note} 已在营地中压缩整理。` }
+          : item
+      )
+      recalculateCarryLoad(session)
+      const carryReduction = Math.max(0, carryLoadBeforeSort - session.carryLoad)
       session.findings += 1
+      session.frontlinePrep += 1
       session.morale = clamp(session.morale + 5, 0, 100)
       const regionKnowledge = addRegionKnowledge(session.regionId, { intel: 2, survey: 1, familiarity: 1 }, _dayTag)
       effects.push(`整理后腾出了 ${carryReduction} 格负重空间，区域情报也推进到 ${regionKnowledge.intel}/100。`)
@@ -1773,6 +2987,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         effects.push('消耗 1 份器具，把回撤线、路标和观察点都重新标清。')
       }
       session.danger = clamp(session.danger - 8, 0, 100)
+      session.frontlinePrep += 2
+      session.riskState.alertness = clamp(session.riskState.alertness - 5, 0, 100)
       const regionKnowledge = addRegionKnowledge(session.regionId, { intel: 1, survey: 4, familiarity: 2 }, _dayTag)
       effects.push(`区域勘明推进到 ${regionKnowledge.survey}/100。`)
       if (session.routeId) {
@@ -1788,6 +3004,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       }
       session.visibility = clamp(session.visibility + 12, 0, 100)
       session.danger = clamp(session.danger + 1, 0, 100)
+      session.frontlinePrep += 3
+      session.riskState.pollution = clamp(session.riskState.pollution - 2, 0, 100)
+      session.riskState.anomaly = clamp(session.riskState.anomaly - 1, 0, 100)
       const regionKnowledge = addRegionKnowledge(session.regionId, { intel: 5, survey: 2, familiarity: 1 }, _dayTag)
       effects.push(`夜间观察推进了区域情报：${regionKnowledge.intel}/100。`)
       if (session.routeId) {
@@ -1798,6 +3017,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
 
     session.campState = null
+    const persistentCampState = recordCampSiteUsage(session.regionId, session.routeId, session.bossId, actionId, _dayTag)
+    effects.push(`局势回看：前线准备 ${session.frontlinePrep}｜天气 ${session.riskState.weather} / 污染 ${session.riskState.pollution} / 警戒 ${session.riskState.alertness} / 异变 ${session.riskState.anomaly}。`)
+    effects.push(session.carryItems.length > 0 ? `携带层现状：${summarizeCarryItems(session.carryItems)}。` : '携带层现状：当前没有额外携带物。')
+    effects.push(`营地档案：休整 ${persistentCampState.restCount} / 整理 ${persistentCampState.sortCount} / 标记 ${persistentCampState.markCount} / 侦察 ${persistentCampState.scoutCount}。`)
     appendSessionJournal(session, `营地动作：${actionId === 'rest' ? '休整伤势' : actionId === 'sort' ? '整理补给' : actionId === 'mark' ? '标记路线' : '观察侦察'}`, summary, effects, tone)
 
     if (session.retreatRule === 'after_camp') {
@@ -1868,38 +3091,99 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     const playerStore = usePlayerStore()
     const effects: string[] = []
+    const carryItemsFromEncounter: RegionExpeditionCarryItem[] = []
     let tone: RegionExpeditionLogEntry['tone'] = optionId === 'bold' ? 'danger' : optionId === 'balanced' ? 'success' : 'accent'
     let summary = `你处理了「${encounter.title}」。`
-    let rewardMultiplier = optionId === 'cautious' ? 0.7 : optionId === 'bold' ? 1.5 : 1
+    const rewardMultiplier = optionId === 'cautious' ? 0.7 : optionId === 'bold' ? 1.5 : 1
 
     if (encounter.kind === 'hazard') {
       session.danger = clamp(session.danger + (optionId === 'bold' ? 8 : optionId === 'balanced' ? 2 : -6), 0, 100)
       session.visibility = clamp(session.visibility + (optionId === 'cautious' ? 4 : optionId === 'bold' ? -4 : 0), 0, 100)
+      session.riskState.alertness = clamp(session.riskState.alertness + (optionId === 'bold' ? 8 : optionId === 'balanced' ? 3 : -4), 0, 100)
+      session.riskState.anomaly = clamp(session.riskState.anomaly + (optionId === 'bold' ? 3 : optionId === 'balanced' ? 1 : -1), 0, 100)
       const damage = optionId === 'bold' ? 7 : optionId === 'balanced' ? 4 : 1
       const actualDamage = playerStore.takeDamage(damage)
       if (actualDamage > 0) effects.push(`额外承受 ${actualDamage} 点伤害。`)
       if (optionId === 'cautious') effects.push('你压住了前线暴露，风险明显下降。')
       if (optionId === 'bold') effects.push('你强行闯过险段，队伍暴露大幅提升。')
     } else if (encounter.kind === 'cache') {
-      session.carryLoad = clamp(session.carryLoad + (optionId === 'bold' ? 2 : 1), 0, session.maxCarryLoad)
       session.findings += optionId === 'bold' ? 2 : 1
       session.morale = clamp(session.morale + (optionId === 'cautious' ? 1 : optionId === 'balanced' ? 2 : 3), 0, 100)
       session.danger = clamp(session.danger + (optionId === 'bold' ? 5 : 1), 0, 100)
+      session.riskState.alertness = clamp(session.riskState.alertness + (optionId === 'bold' ? 6 : optionId === 'balanced' ? 2 : -1), 0, 100)
+      carryItemsFromEncounter.push(
+        createCarryItem(
+          optionId === 'bold' ? `${getResourceFamilyLabel(session.pendingRewardFamilyId)}重装收获` : `${getResourceFamilyLabel(session.pendingRewardFamilyId)}沿途回收物`,
+          optionId === 'cautious' ? 'refined' : 'resource',
+          optionId === 'bold' ? 2 : 1,
+          optionId === 'bold' ? 2 : 1,
+          optionId === 'bold' ? '翻查得更深，带回了一批更占负重的收获。' : '沿路整收下来的可回城处理物资。'
+        )
+      )
       effects.push(optionId === 'bold' ? '你让队伍深入翻查，额外榨出了一批沿途收获。' : '你收稳了可见物资，继续保持推进节奏。')
     } else if (encounter.kind === 'traveler') {
       session.visibility = clamp(session.visibility + (optionId === 'cautious' ? 6 : optionId === 'balanced' ? 4 : 2), 0, 100)
       session.morale = clamp(session.morale + (optionId === 'bold' ? 3 : 2), 0, 100)
       session.danger = clamp(session.danger + (optionId === 'bold' ? 3 : -2), 0, 100)
+      session.riskState.alertness = clamp(session.riskState.alertness + (optionId === 'bold' ? 2 : -3), 0, 100)
+      carryItemsFromEncounter.push(
+        createCarryItem(
+          optionId === 'cautious' ? '旅者路书' : '途中传闻',
+          'clue',
+          1,
+          1,
+          optionId === 'cautious' ? '用补给换来的可靠路书。' : '从旅者和沿线痕迹中整理出的线索。'
+        )
+      )
       if (optionId === 'cautious' && session.supplies.rations > 0) {
         session.supplies.rations -= 1
         effects.push('你分出 1 份口粮换取了更清晰的前路线索。')
       } else {
         effects.push('你从路上痕迹中整理出一批可用情报。')
       }
+    } else if (encounter.kind === 'support') {
+      session.visibility = clamp(session.visibility + (optionId === 'cautious' ? 4 : optionId === 'balanced' ? 2 : 1), 0, 100)
+      session.morale = clamp(session.morale + (optionId === 'bold' ? 4 : optionId === 'balanced' ? 3 : 2), 0, 100)
+      session.danger = clamp(session.danger - (optionId === 'cautious' ? 5 : optionId === 'balanced' ? 3 : 1), 0, 100)
+      session.frontlinePrep += optionId === 'bold' ? 4 : optionId === 'balanced' ? 3 : 2
+      session.riskState.alertness = clamp(session.riskState.alertness - (optionId === 'bold' ? 2 : 4), 0, 100)
+      if (optionId !== 'bold') {
+        session.supplies.rations += 1
+        effects.push('沿线支援补回了 1 份口粮。')
+      }
+      carryItemsFromEncounter.push(
+        createCarryItem(
+          optionId === 'bold' ? '支援前压包' : '沿线补给箱',
+          'supply',
+          1,
+          1,
+          optionId === 'bold' ? '把支援直接转成下一段推进用的前压配置。' : '支援队临时补给给前线留下的可用储备。'
+        )
+      )
+      effects.push(optionId === 'bold' ? '你借着支援窗口继续前压，把补给直接转成了推进势能。' : '你把支援稳稳接住，前线状态明显改善。')
+    } else if (encounter.kind === 'anomaly') {
+      session.visibility = clamp(session.visibility + (optionId === 'cautious' ? 1 : optionId === 'balanced' ? 0 : -2), 0, 100)
+      session.danger = clamp(session.danger + (optionId === 'bold' ? 6 : optionId === 'balanced' ? 2 : -1), 0, 100)
+      session.findings += optionId === 'bold' ? 2 : 1
+      session.riskState.pollution = clamp(session.riskState.pollution + (optionId === 'bold' ? 8 : optionId === 'balanced' ? 3 : -5), 0, 100)
+      session.riskState.alertness = clamp(session.riskState.alertness + (optionId === 'bold' ? 5 : optionId === 'balanced' ? 2 : -2), 0, 100)
+      session.riskState.anomaly = clamp(session.riskState.anomaly + (optionId === 'bold' ? 9 : optionId === 'balanced' ? 4 : -6), 0, 100)
+      carryItemsFromEncounter.push(
+        createCarryItem(
+          optionId === 'cautious' ? '异变观测笔记' : '异常样本',
+          optionId === 'cautious' ? 'clue' : 'resource',
+          1,
+          optionId === 'bold' ? 2 : 1,
+          optionId === 'cautious' ? '压制异变时留下的可复盘记录。' : '从异常现场强行带回的高压样本。'
+        )
+      )
+      effects.push(optionId === 'cautious' ? '你优先压住了异常扩散，把问题控制在可处理范围内。' : optionId === 'balanced' ? '你边测量边前推，保住了样本也没有完全失控。' : '你强行深入异变核心，虽然带回了样本，但后遗压也更高。')
     } else if (encounter.kind === 'boss_prep') {
       session.visibility = clamp(session.visibility + (optionId === 'cautious' ? 4 : optionId === 'balanced' ? 2 : 0), 0, 100)
       session.morale = clamp(session.morale + (optionId === 'bold' ? 4 : optionId === 'balanced' ? 2 : 1), 0, 100)
       session.danger = clamp(session.danger + (optionId === 'bold' ? 6 : optionId === 'balanced' ? 1 : -4), 0, 100)
+      session.frontlinePrep += optionId === 'bold' ? 5 : optionId === 'balanced' ? 3 : 2
+      session.riskState.alertness = clamp(session.riskState.alertness + (optionId === 'bold' ? 4 : optionId === 'balanced' ? 1 : -3), 0, 100)
       if (optionId !== 'cautious') {
         session.pendingRewardAmount += optionId === 'bold' ? 2 : 1
         effects.push(optionId === 'bold' ? '你前压布置，决战阶段将带着更高的推进收益预期。' : '你完成了基础布置，决战收益略有提升。')
@@ -1916,6 +3200,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       session.danger = clamp(session.danger + (optionId === 'bold' ? 5 : optionId === 'balanced' ? 1 : -3), 0, 100)
       session.morale = clamp(session.morale + (optionId === 'bold' ? 3 : optionId === 'balanced' ? 2 : 1), 0, 100)
       session.visibility = clamp(session.visibility + (optionId === 'cautious' ? 3 : 1), 0, 100)
+      session.riskState.alertness = clamp(session.riskState.alertness + (optionId === 'bold' ? 3 : optionId === 'balanced' ? 1 : -2), 0, 100)
+      session.frontlinePrep += optionId === 'bold' ? 2 : 1
       effects.push(optionId === 'bold' ? '你强行把局势拉进自己的推进节奏，前线压力也随之上升。' : optionId === 'balanced' ? '你把这一段区域局势稳稳接住了。' : '你谨慎收束现场，优先带走关键线索。')
     }
 
@@ -1933,14 +3219,29 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       effects.push(`暂存物资：${formatRewardItems(rewardItems)}`)
     }
 
+    if (carryItemsFromEncounter.length > 0) {
+      addCarryItems(session, carryItemsFromEncounter)
+      effects.push(`携带层更新：${summarizeCarryItems(carryItemsFromEncounter)}｜当前总负重 ${session.carryLoad}/${session.maxCarryLoad}。`)
+    }
+
     if (optionId === 'bold') {
       session.findings += 1
-      session.carryLoad = clamp(session.carryLoad + (encounter.kind === 'hazard' ? 0 : 1), 0, session.maxCarryLoad)
     }
 
     if (optionId === 'cautious' && encounter.kind !== 'hazard') {
       session.danger = clamp(session.danger - 2, 0, 100)
     }
+
+    const nextEncounterKind = getFollowUpEncounterKind(encounter.kind, optionId, session)
+    const encounterMemory: RegionExpeditionEncounterMemory = {
+      id: createSessionToken(),
+      kind: encounter.kind,
+      optionId,
+      summary: createEncounterMemorySummary(encounter.kind, optionId),
+      nextKind: nextEncounterKind
+    }
+    session.encounterMemory = [...session.encounterMemory, encounterMemory].slice(-6)
+    session.queuedEncounterKind = nextEncounterKind
 
     summary =
       optionId === 'bold'
@@ -1949,7 +3250,14 @@ export const useRegionMapStore = defineStore('regionMap', () => {
           ? `你按计划处理了「${encounter.title}」，队伍节奏维持稳定。`
           : `你谨慎应对了「${encounter.title}」，优先保住了前线状态。`
 
-    const encounterIntelGain = encounter.kind === 'weekly_event' ? 6 : encounter.kind === 'traveler' ? 5 : encounter.kind === 'boss_prep' ? 4 : 3
+    const encounterIntelGain =
+      encounter.kind === 'weekly_event'
+        ? 6
+        : encounter.kind === 'traveler' || encounter.kind === 'anomaly'
+          ? 5
+          : encounter.kind === 'support' || encounter.kind === 'boss_prep'
+            ? 4
+            : 3
     const encounterSurveyGain = optionId === 'bold' ? 4 : optionId === 'balanced' ? 3 : 2
     const regionKnowledge = addRegionKnowledge(
       session.regionId,
@@ -1973,6 +3281,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       )
       effects.push(`路线记录补全：勘明 ${routeKnowledge.surveyProgress}/100，熟悉 ${routeKnowledge.familiarity}/100。`)
     }
+
+    effects.push(`局势回写：前线准备 ${session.frontlinePrep}｜天气 ${session.riskState.weather} / 污染 ${session.riskState.pollution} / 警戒 ${session.riskState.alertness} / 异变 ${session.riskState.anomaly}。`)
+    effects.push(`事件留痕：${encounterMemory.summary}${nextEncounterKind ? `，下一次更可能牵出「${getEncounterKindLabel(nextEncounterKind)}」链。` : '，暂时没有强制后续分支。'}`)
 
     appendSessionJournal(session, encounter.title, summary, effects, tone)
     session.pendingEncounter = null
@@ -2113,6 +3424,53 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       }
     }
 
+    summaryLines.push(session.carryItems.length > 0 ? `携带清单：${summarizeCarryItems(session.carryItems)}。` : '携带清单：未形成额外途中携带物。')
+    summaryLines.push(
+      `前线态势：准备 ${session.frontlinePrep}｜天气 ${session.riskState.weather} / 污染 ${session.riskState.pollution} / 警戒 ${session.riskState.alertness} / 异变 ${session.riskState.anomaly}。`
+    )
+    if (session.encounterMemory.length > 0) {
+      summaryLines.push(`事件链留痕：${session.encounterMemory.slice(-3).map(entry => entry.summary).join(' / ')}。`)
+    }
+
+    const seasonalState = getRegionVariantSnapshot(session.regionId, dayTag)
+    if (
+      seasonalState.activeVariantId &&
+      (!session.routeId || seasonalState.affectedRouteIds.length <= 0 || seasonalState.affectedRouteIds.includes(session.routeId))
+    ) {
+      summaryLines.push(`季节变体：${seasonalState.activeVariantLabel}。`)
+    }
+    const resolvedRumors = resolveRumorBoardEntries(
+      session.regionId,
+      session.routeId,
+      dayTag,
+      `${session.targetName} 已完成本周的手动确认与回城回执。`
+    )
+    if (resolvedRumors.length > 0) {
+      summaryLines.push(`兑现传闻：${resolvedRumors.map(entry => entry.title).join(' / ')}。`)
+    }
+    const resolvedContract = resolveCompanionContract(
+      session.routeId,
+      finalStatus === 'failure' ? 'failed' : 'completed',
+      dayTag,
+      [
+        `${session.targetName} 已${finalStatus === 'failure' ? '失利收束' : '顺利回城'}。`,
+        finalStatus === 'failure' ? '同行合同没有完全兑现，后续关系会稍受影响。' : '同行合同已转成额外见闻和关系推进。'
+      ]
+    )
+    if (resolvedContract) {
+      summaryLines.push(`同行合同：${resolvedContract.npcName} 的合同已${resolvedContract.status === 'failed' ? '失效' : '结算'}。`)
+    }
+    recordJourneyChronicle(
+      session.sessionId,
+      session.regionId,
+      `${session.targetName} 行旅纪`,
+      finalStatus === 'failure' ? `${session.targetName} 以失利收束，但仍留下了可回看的见闻。` : `${session.targetName} 的本趟远征已写入见闻册。`,
+      summaryLines.slice(0, 6),
+      dayTag,
+      resolvedContract?.npcId ?? null,
+      resolvedContract?.npcName ?? '',
+      seasonalState.activeVariantId
+    )
     archiveSession(session, finalStatus, dayTag, [
       `${finalStatus === 'victory' ? '凯旋' : finalStatus === 'retreated' ? '撤退' : '失利'}：${session.targetName}`,
       ...summaryLines.slice(1)
@@ -2150,6 +3508,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (!status.available) {
       return { success: false, message: status.reason }
     }
+    const autoPatrolStatus = getAutoPatrolStatus(routeId, dayTag)
+    if (autoPatrolStatus.mode !== 'ready') {
+      return { success: false, message: autoPatrolStatus.blockedReason || '这条路线当前还不适合自动巡行。' }
+    }
 
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
@@ -2167,6 +3529,11 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       return { success: false, message: '路线结算失败。' }
     }
     clearExpedition()
+    saveData.value.autoPatrolStates[routeId] = {
+      ...autoPatrolStatus,
+      mode: 'ready',
+      lastAutoSettledDayTag: dayTag || `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+    }
 
     const regionName = REGION_DEFS.find(region => region.id === route.regionId)?.name ?? route.regionId
     const rewardSummary = result.rewardItems.length > 0
@@ -2182,6 +3549,22 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         timeCostHours: route.timeCostHours
       }
     })
+    const seasonalState = getRegionVariantSnapshot(route.regionId, dayTag)
+    recordJourneyChronicle(
+      `auto-route:${route.id}:${dayTag || `${gameStore.year}-${gameStore.season}-${gameStore.day}`}`,
+      route.regionId,
+      `${route.name} 自动巡行回执`,
+      `熟路自动巡行已完成 ${route.name}，稳定回收了本周区域收益。`,
+      [
+        `自动巡行：${route.name}`,
+        rewardSummary ? `回收结果：${rewardSummary.slice(1)}` : '本次主要完成熟路回收，没有额外物资挤压。',
+        seasonalState.activeVariantId ? `当前区域仍存在变体「${seasonalState.activeVariantLabel}」，后续仍要留意手动线。` : '当前区域没有额外季节变体压在熟路上。'
+      ],
+      dayTag || `${gameStore.year}-${gameStore.season}-${gameStore.day}`,
+      null,
+      '',
+      seasonalState.activeVariantId
+    )
     showFloat(`行旅图推进：${route.name}`, 'accent')
 
     return {
@@ -2318,24 +3701,54 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
   }
 
-  const simulateBossExpedition = (regionId: RegionId, boss: RegionBossDef) => {
+  const simulateBossExpedition = (regionId: RegionId, boss: RegionBossDef, session: RegionExpeditionSession | null = null) => {
     const { playerHp, maxHp, weaponLabel, runtime } = buildRegionBossPlayerRuntime()
     const completedRouteCount = getRegionCompletedRouteCount(regionId)
     const weeklyEventCompletions = getRegionWeeklyEventCompletions(regionId)
     const familyStock = getFamilyResourceQuantity(boss.rewardFamilyId)
     const failureStreak = saveData.value.bossFailureStreaks[regionId] ?? 0
     const focusBonus = currentWeeklyFocus.value.focusedRegionId === regionId ? 1 : 0
-    const supportDamageBonus = completedRouteCount * 2 + weeklyEventCompletions * 2 + Math.min(6, familyStock) + focusBonus * 2 + failureStreak
-    const supportMitigation = Math.min(0.35, weeklyEventCompletions * 0.04 + failureStreak * 0.05 + focusBonus * 0.03)
+    const branchCount = session?.nodeHistory.filter(node => node.lane === 'branch').length ?? 0
+    const deepCount = session?.nodeHistory.filter(node => node.lane === 'deep' || node.lane === 'boss').length ?? 0
+    const campCount = session?.nodeHistory.filter(node => node.lane === 'camp').length ?? 0
+    const supportCount = session?.encounterMemory.filter(entry => entry.kind === 'support').length ?? 0
+    const anomalyCount = session?.encounterMemory.filter(entry => entry.kind === 'anomaly').length ?? 0
+    const hazardBoldCount = session?.encounterMemory.filter(entry => entry.kind === 'hazard' && entry.optionId === 'bold').length ?? 0
+    const frontlinePrepBonus = Math.min(12, session?.frontlinePrep ?? 0)
+    const weatherPressure =
+      session?.riskState.weather === 'storm' ? 3 : session?.riskState.weather === 'fog' ? 2 : session?.riskState.weather === 'wind' ? 1 : 0
+    const anomalyPressure = Math.floor((session?.riskState.anomaly ?? 0) / 14) + anomalyCount * 2
+    const alertPressure = Math.floor((session?.riskState.alertness ?? 0) / 20)
+    const pollutionPressure = Math.floor((session?.riskState.pollution ?? 0) / 18)
+    const supportDamageBonus =
+      completedRouteCount * 2 +
+      weeklyEventCompletions * 2 +
+      Math.min(6, familyStock) +
+      focusBonus * 2 +
+      failureStreak +
+      frontlinePrepBonus +
+      branchCount +
+      deepCount +
+      supportCount * 2
+    const supportMitigation = Math.min(
+      0.55,
+      weeklyEventCompletions * 0.04 +
+        failureStreak * 0.05 +
+        focusBonus * 0.03 +
+        Math.min(0.2, frontlinePrepBonus * 0.015) +
+        supportCount * 0.04 +
+        campCount * 0.03
+    )
 
     const phaseLines: string[] = []
     let projectedHp = playerHp
     for (const phase of boss.phases) {
       const expectedDamage = getExpectedAttackDamage(runtime.attack, phase.enemyDefense)
-      const effectiveDamagePerRound = Math.max(1, Math.ceil(expectedDamage + supportDamageBonus))
+      const effectiveDamagePerRound = Math.max(1, Math.ceil(expectedDamage + supportDamageBonus - anomalyPressure))
       const rounds = Math.max(1, Math.ceil(phase.enemyHp / effectiveDamagePerRound))
       const expectedIncomingPerRound = getExpectedIncomingDamage(phase.enemyAttack, runtime.defense, Math.max(0.55, 1 - runtime.attack.stunChance! * 0.4))
-      const phaseDamageTaken = Math.max(1, Math.ceil(rounds * expectedIncomingPerRound * (1 - supportMitigation)))
+      const incomingPressureMultiplier = 1 + weatherPressure * 0.05 + alertPressure * 0.04 + pollutionPressure * 0.03 + hazardBoldCount * 0.04
+      const phaseDamageTaken = Math.max(1, Math.ceil(rounds * expectedIncomingPerRound * (1 - supportMitigation) * incomingPressureMultiplier))
       const phaseLifesteal = getLifestealHeal(Math.ceil(rounds * expectedDamage), runtime.attack.lifesteal)
       projectedHp = Math.min(maxHp, projectedHp - phaseDamageTaken + phaseLifesteal)
 
@@ -2349,7 +3762,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
           projectedHp,
           weaponLabel,
           phaseLines,
-          supportSummary: `路线 ${completedRouteCount} / 事件 ${weeklyEventCompletions} / 资源库存 ${familyStock} / 失败保底 ${failureStreak}`,
+          supportSummary:
+            session
+              ? `路线 ${completedRouteCount} / 事件 ${weeklyEventCompletions} / 前线准备 ${frontlinePrepBonus} / 支援链 ${supportCount} / 异变压力 ${anomalyPressure + pollutionPressure}`
+              : `路线 ${completedRouteCount} / 事件 ${weeklyEventCompletions} / 资源库存 ${familyStock} / 失败保底 ${failureStreak}`,
           recommendedRouteId: getRecommendedRecoveryRoute(regionId)?.id ?? null
         }
       }
@@ -2368,7 +3784,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       projectedHp,
       weaponLabel,
       phaseLines,
-      supportSummary: `路线 ${completedRouteCount} / 事件 ${weeklyEventCompletions} / 资源库存 ${familyStock} / 焦点加成 ${focusBonus > 0 ? '有' : '无'}`
+      supportSummary:
+        session
+          ? `路线 ${completedRouteCount} / 事件 ${weeklyEventCompletions} / 前线准备 ${frontlinePrepBonus} / 支援链 ${supportCount} / 焦点加成 ${focusBonus > 0 ? '有' : '无'}`
+          : `路线 ${completedRouteCount} / 事件 ${weeklyEventCompletions} / 资源库存 ${familyStock} / 焦点加成 ${focusBonus > 0 ? '有' : '无'}`
     }
   }
 
@@ -2396,6 +3815,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       recommendedRouteId,
       failureStreak: nextFailureStreak
     }
+    syncBossMapNodeState(regionId, dayTag, 1, 1)
     return nextFailureStreak
   }
 
@@ -2416,6 +3836,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       recommendedRouteId: null,
       failureStreak: 0
     }
+    syncBossMapNodeState(regionId, dayTag, 1, 2)
     addRegionKnowledge(regionId, { intel: 12, survey: 10, familiarity: 8 }, dayTag)
     return true
   }
@@ -2560,6 +3981,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     journeyHistory: saveData.value.journeyHistory.map(entry => ({
       ...entry,
       summaryLines: [...entry.summaryLines],
+      carryItems: entry.carryItems.map(item => ({ ...item })),
       journal: entry.journal.map(logEntry => ({ ...logEntry, effects: [...logEntry.effects] }))
     })),
     knowledgeState: Object.fromEntries(
@@ -2574,6 +3996,57 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         return [route.id, { ...state }]
       })
     ) as Record<string, RegionRouteKnowledgeState>,
+    mapNodeStates: Object.fromEntries(
+      Object.entries(saveData.value.mapNodeStates).map(([nodeKey, state]) => [nodeKey, { ...state }])
+    ) as Record<string, RegionMapNodeState>,
+    campStates: Object.fromEntries(
+      Object.entries(saveData.value.campStates).map(([campKey, state]) => [campKey, { ...state }])
+    ) as Record<string, RegionCampSiteState>,
+    shortcutStates: Object.fromEntries(
+      Object.entries(saveData.value.shortcutStates).map(([routeId, state]) => [routeId, { ...state }])
+    ) as Record<string, RegionShortcutState>,
+    seasonalRegionStates: Object.fromEntries(
+      REGION_DEFS.map(region => {
+        const state = saveData.value.seasonalRegionStates[region.id]
+        return [
+          region.id,
+          {
+            ...state,
+            detailLines: [...state.detailLines],
+            affectedRouteIds: [...state.affectedRouteIds],
+            seenVariantIds: [...state.seenVariantIds]
+          }
+        ]
+      })
+    ) as Record<RegionId, RegionSeasonalState>,
+    companionContracts: saveData.value.companionContracts.map(contract => ({
+      ...contract,
+      settlementLines: [...contract.settlementLines]
+    })),
+    rumorBoard: {
+      weekId: saveData.value.rumorBoard.weekId,
+      lastRefreshedDayTag: saveData.value.rumorBoard.lastRefreshedDayTag,
+      entriesByRegion: {
+        ancient_road: saveData.value.rumorBoard.entriesByRegion.ancient_road.map(entry => ({
+          ...entry,
+          detailLines: [...entry.detailLines],
+          tags: [...entry.tags]
+        })),
+        mirage_marsh: saveData.value.rumorBoard.entriesByRegion.mirage_marsh.map(entry => ({
+          ...entry,
+          detailLines: [...entry.detailLines],
+          tags: [...entry.tags]
+        })),
+        cloud_highland: saveData.value.rumorBoard.entriesByRegion.cloud_highland.map(entry => ({
+          ...entry,
+          detailLines: [...entry.detailLines],
+          tags: [...entry.tags]
+        }))
+      }
+    },
+    autoPatrolStates: Object.fromEntries(
+      Object.entries(saveData.value.autoPatrolStates).map(([routeId, state]) => [routeId, { ...state, blockedTags: [...state.blockedTags] }])
+    ) as Record<string, RegionAutoPatrolState>,
     telemetry: { ...saveData.value.telemetry },
     bossClearCounts: { ...saveData.value.bossClearCounts },
     bossFailureStreaks: { ...saveData.value.bossFailureStreaks },
@@ -2597,6 +4070,11 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       : resolveSessionTargetLabel(regionId, routeId, bossId)
     const totalSteps = Math.max(1, Math.floor(Number(raw.totalSteps) || 1))
     const progressStep = clamp(Math.floor(Number(raw.progressStep) || 0), 0, totalSteps)
+    const normalizedApproach = raw.approach === 'scout' || raw.approach === 'greedy' ? raw.approach : 'steady'
+    const normalizedRetreatRule =
+      raw.retreatRule === 'low_hp' || raw.retreatRule === 'pack_full' || raw.retreatRule === 'after_camp'
+        ? raw.retreatRule
+        : 'balanced'
     const pendingRewardItems = Array.isArray(raw.pendingRewardItems)
       ? raw.pendingRewardItems
           .filter((item: unknown) => item && typeof item === 'object')
@@ -2605,6 +4083,23 @@ export const useRegionMapStore = defineStore('regionMap', () => {
             quantity: Math.max(0, Math.floor(Number((item as { quantity?: unknown }).quantity) || 0))
           }))
           .filter((item: { itemId: string; quantity: number }) => item.itemId && item.quantity > 0)
+      : []
+    const carryItems = Array.isArray(raw.carryItems)
+      ? raw.carryItems
+          .filter((item: unknown) => item && typeof item === 'object')
+          .map((item: unknown) => ({
+            id: typeof (item as { id?: unknown }).id === 'string' ? String((item as { id?: unknown }).id) : createSessionToken(),
+            label: typeof (item as { label?: unknown }).label === 'string' ? String((item as { label?: unknown }).label) : '途中收获',
+            category:
+              (item as { category?: unknown }).category === 'clue' ||
+              (item as { category?: unknown }).category === 'refined' ||
+              (item as { category?: unknown }).category === 'supply'
+                ? ((item as { category?: RegionExpeditionCarryItemCategory }).category ?? 'resource')
+                : 'resource',
+            quantity: Math.max(1, Math.floor(Number((item as { quantity?: unknown }).quantity) || 1)),
+            burden: Math.max(1, Math.floor(Number((item as { burden?: unknown }).burden) || 1)),
+            note: typeof (item as { note?: unknown }).note === 'string' ? String((item as { note?: unknown }).note) : ''
+          }))
       : []
     const journal = Array.isArray(raw.journal)
       ? raw.journal
@@ -2646,6 +4141,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
             encounterRaw.kind === 'hazard' ||
             encounterRaw.kind === 'cache' ||
             encounterRaw.kind === 'traveler' ||
+            encounterRaw.kind === 'support' ||
+            encounterRaw.kind === 'anomaly' ||
             encounterRaw.kind === 'boss_prep'
               ? encounterRaw.kind
               : null
@@ -2708,6 +4205,40 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const encounteredEventIds = Array.isArray(raw.encounteredEventIds)
       ? raw.encounteredEventIds.filter((entry: unknown): entry is string => typeof entry === 'string' && REGION_EVENT_DEFS.some(event => event.id === entry))
       : []
+    const encounterMemory = Array.isArray(raw.encounterMemory)
+      ? raw.encounterMemory
+          .filter((entry: unknown) => entry && typeof entry === 'object')
+          .map((entry: unknown) => ({
+            id: typeof (entry as { id?: unknown }).id === 'string' ? String((entry as { id?: unknown }).id) : createSessionToken(),
+            kind:
+              (entry as { kind?: unknown }).kind === 'hazard' ||
+              (entry as { kind?: unknown }).kind === 'cache' ||
+              (entry as { kind?: unknown }).kind === 'traveler' ||
+              (entry as { kind?: unknown }).kind === 'support' ||
+              (entry as { kind?: unknown }).kind === 'anomaly' ||
+              (entry as { kind?: unknown }).kind === 'boss_prep' ||
+              (entry as { kind?: unknown }).kind === 'weekly_event'
+                ? ((entry as { kind?: RegionExpeditionEncounterKind }).kind ?? 'weekly_event')
+                : 'weekly_event',
+            optionId:
+              (entry as { optionId?: unknown }).optionId === 'cautious' ||
+              (entry as { optionId?: unknown }).optionId === 'bold'
+                ? ((entry as { optionId?: 'cautious' | 'balanced' | 'bold' }).optionId ?? 'balanced')
+                : 'balanced',
+            summary: typeof (entry as { summary?: unknown }).summary === 'string' ? String((entry as { summary?: unknown }).summary) : '',
+            nextKind:
+              (entry as { nextKind?: unknown }).nextKind === 'hazard' ||
+              (entry as { nextKind?: unknown }).nextKind === 'cache' ||
+              (entry as { nextKind?: unknown }).nextKind === 'traveler' ||
+              (entry as { nextKind?: unknown }).nextKind === 'support' ||
+              (entry as { nextKind?: unknown }).nextKind === 'anomaly' ||
+              (entry as { nextKind?: unknown }).nextKind === 'boss_prep' ||
+              (entry as { nextKind?: unknown }).nextKind === 'weekly_event'
+                ? ((entry as { nextKind?: RegionExpeditionEncounterKind }).nextKind ?? null)
+                : null
+          }))
+          .slice(-6)
+      : []
     const campState = raw.campState && typeof raw.campState === 'object'
       ? {
           enteredAtStep: Math.max(0, Math.floor(Number(raw.campState.enteredAtStep) || 0)),
@@ -2719,28 +4250,30 @@ export const useRegionMapStore = defineStore('regionMap', () => {
             bossId,
             targetName,
             startedAtDayTag: '',
-            approach: raw.approach === 'scout' || raw.approach === 'greedy' ? raw.approach : 'steady',
-            retreatRule:
-              raw.retreatRule === 'low_hp' || raw.retreatRule === 'pack_full' || raw.retreatRule === 'after_camp'
-                ? raw.retreatRule
-                : 'balanced',
+            approach: normalizedApproach,
+            retreatRule: normalizedRetreatRule,
             status: 'ongoing',
             progressStep,
             totalSteps,
             carryLoad: 0,
             maxCarryLoad: 1,
+            carryItems: [],
             visibility: 0,
             morale: 0,
             danger: 0,
             findings: 0,
+            frontlinePrep: 0,
+            riskState: createInitialRiskState(regionId, normalizedApproach),
             campUsed: true,
             supplies: { rations: 0, medicine: 0, utility: 0 },
             pendingRewardFamilyId: null,
             pendingRewardAmount: 0,
             pendingRewardItems: [],
             pendingEncounter: null,
+            queuedEncounterKind: null,
             campState: null,
             encounteredEventIds: [],
+            encounterMemory: [],
             nodeHistory: [],
             journal: [],
             recommendedRouteId: null
@@ -2752,6 +4285,20 @@ export const useRegionMapStore = defineStore('regionMap', () => {
             : ['rest', 'sort', 'mark', 'scout']
         }
       : null
+    const riskState = {
+      weather:
+        raw.riskState?.weather === 'wind' || raw.riskState?.weather === 'fog' || raw.riskState?.weather === 'storm'
+          ? (raw.riskState.weather as RegionExpeditionWeather)
+          : 'clear',
+      pollution: clamp(Math.floor(Number(raw.riskState?.pollution) || 0), 0, 100),
+      alertness: clamp(Math.floor(Number(raw.riskState?.alertness) || 0), 0, 100),
+      anomaly: clamp(Math.floor(Number(raw.riskState?.anomaly) || 0), 0, 100)
+    } satisfies RegionExpeditionRiskState
+    const maxCarryLoad = Math.max(1, Math.floor(Number(raw.maxCarryLoad) || 1))
+    const carryLoad =
+      carryItems.length > 0
+        ? clamp(carryItems.reduce((total: number, item: RegionExpeditionCarryItem) => total + item.burden, 0), 0, maxCarryLoad)
+        : clamp(Math.floor(Number(raw.carryLoad) || 0), 0, maxCarryLoad)
     const nodeHistory = Array.isArray(raw.nodeHistory)
       ? raw.nodeHistory
           .filter((entry: unknown) => entry && typeof entry === 'object')
@@ -2781,23 +4328,23 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       bossId,
       targetName,
       startedAtDayTag: typeof raw.startedAtDayTag === 'string' ? raw.startedAtDayTag : '',
-      approach: raw.approach === 'scout' || raw.approach === 'greedy' ? raw.approach : 'steady',
-      retreatRule:
-        raw.retreatRule === 'low_hp' || raw.retreatRule === 'pack_full' || raw.retreatRule === 'after_camp'
-          ? raw.retreatRule
-          : 'balanced',
+      approach: normalizedApproach,
+      retreatRule: normalizedRetreatRule,
       status:
         raw.status === 'ready_to_settle' || raw.status === 'victory' || raw.status === 'retreated' || raw.status === 'failure'
           ? raw.status
           : 'ongoing',
       progressStep,
       totalSteps,
-      carryLoad: clamp(Math.floor(Number(raw.carryLoad) || 0), 0, Math.max(1, Math.floor(Number(raw.maxCarryLoad) || 1))),
-      maxCarryLoad: Math.max(1, Math.floor(Number(raw.maxCarryLoad) || 1)),
+      carryLoad,
+      maxCarryLoad,
+      carryItems,
       visibility: clamp(Math.floor(Number(raw.visibility) || 0), 0, 100),
       morale: clamp(Math.floor(Number(raw.morale) || 0), 0, 100),
       danger: clamp(Math.floor(Number(raw.danger) || 0), 0, 100),
       findings: Math.max(0, Math.floor(Number(raw.findings) || 0)),
+      frontlinePrep: Math.max(0, Math.floor(Number(raw.frontlinePrep) || 0)),
+      riskState,
       campUsed: Boolean(raw.campUsed),
       supplies: {
         rations: Math.max(0, Math.floor(Number(raw.supplies?.rations) || 0)),
@@ -2810,8 +4357,19 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       pendingRewardAmount: Math.max(0, Math.floor(Number(raw.pendingRewardAmount) || 0)),
       pendingRewardItems,
       pendingEncounter,
+      queuedEncounterKind:
+        raw.queuedEncounterKind === 'hazard' ||
+        raw.queuedEncounterKind === 'cache' ||
+        raw.queuedEncounterKind === 'traveler' ||
+        raw.queuedEncounterKind === 'support' ||
+        raw.queuedEncounterKind === 'anomaly' ||
+        raw.queuedEncounterKind === 'boss_prep' ||
+        raw.queuedEncounterKind === 'weekly_event'
+          ? (raw.queuedEncounterKind as RegionExpeditionEncounterKind)
+          : null,
       campState,
       encounteredEventIds,
+      encounterMemory,
       nodeHistory: nodeHistory.length > 0 ? nodeHistory : [createNodeRecord(0, raw.mode === 'boss' ? 'boss' : 'main', raw.mode === 'boss' ? '前线集结' : '出发营地', raw.mode === 'boss' ? `你开始逼近「${targetName}」的外围活动范围。` : `你从营地踏上「${targetName}」的前线。`)],
       journal,
       recommendedRouteId:
@@ -2835,6 +4393,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         endedAtDayTag?: unknown
         outcome?: unknown
         summaryLines?: unknown
+        carryItems?: unknown
         journal?: unknown
       }
       const regionId = REGION_DEFS.some(region => region.id === normalizedEntry.regionId)
@@ -2862,6 +4421,23 @@ export const useRegionMapStore = defineStore('regionMap', () => {
             }))
             .slice(-12)
         : []
+      const carryItems = Array.isArray(normalizedEntry.carryItems)
+        ? normalizedEntry.carryItems
+            .filter((item: unknown) => item && typeof item === 'object')
+            .map((item: unknown) => ({
+              id: typeof (item as { id?: unknown }).id === 'string' ? String((item as { id?: unknown }).id) : createSessionToken(),
+              label: typeof (item as { label?: unknown }).label === 'string' ? String((item as { label?: unknown }).label) : '途中收获',
+              category:
+                (item as { category?: unknown }).category === 'clue' ||
+                (item as { category?: unknown }).category === 'refined' ||
+                (item as { category?: unknown }).category === 'supply'
+                  ? ((item as { category?: RegionExpeditionCarryItemCategory }).category ?? 'resource')
+                  : 'resource',
+              quantity: Math.max(1, Math.floor(Number((item as { quantity?: unknown }).quantity) || 1)),
+              burden: Math.max(1, Math.floor(Number((item as { burden?: unknown }).burden) || 1)),
+              note: typeof (item as { note?: unknown }).note === 'string' ? String((item as { note?: unknown }).note) : ''
+            }))
+        : []
 
       const archiveEntry: RegionExpeditionArchiveEntry = {
         id: typeof normalizedEntry.id === 'string' ? normalizedEntry.id : createSessionToken(),
@@ -2882,6 +4458,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         summaryLines: Array.isArray(normalizedEntry.summaryLines)
           ? normalizedEntry.summaryLines.filter((line: unknown): line is string => typeof line === 'string').slice(0, 6)
           : [],
+        carryItems,
         journal
       }
       normalizedHistory.push(archiveEntry)
@@ -3012,6 +4589,231 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       }
     }
 
+    const mapNodeStates = { ...fallback.mapNodeStates }
+    for (const route of REGION_ROUTE_DEFS) {
+      const nodeKey = getRouteMapNodeKey(route.id)
+      const raw = data.mapNodeStates?.[nodeKey]
+      if (!raw || typeof raw !== 'object') continue
+      mapNodeStates[nodeKey] = {
+        nodeKey,
+        regionId: route.regionId,
+        routeId: route.id,
+        bossId: null,
+        nodeType: route.nodeType,
+        visibilityStage:
+          raw.visibilityStage === 'heard' || raw.visibilityStage === 'surveyed' || raw.visibilityStage === 'mastered'
+            ? (raw.visibilityStage as RegionMapNodeVisibilityStage)
+            : 'unknown',
+        visitCount: Math.max(0, Math.floor(Number(raw.visitCount) || 0)),
+        surveyCount: Math.max(0, Math.floor(Number(raw.surveyCount) || 0)),
+        lastVisitedDayTag: typeof raw.lastVisitedDayTag === 'string' ? raw.lastVisitedDayTag : ''
+      }
+    }
+    for (const region of REGION_DEFS) {
+      const nodeKey = getBossMapNodeKey(region.id)
+      const raw = data.mapNodeStates?.[nodeKey]
+      if (!raw || typeof raw !== 'object') continue
+      mapNodeStates[nodeKey] = {
+        nodeKey,
+        regionId: region.id,
+        routeId: null,
+        bossId: getRegionBossDef(region.id)?.id ?? null,
+        nodeType: 'boss',
+        visibilityStage:
+          raw.visibilityStage === 'heard' || raw.visibilityStage === 'surveyed' || raw.visibilityStage === 'mastered'
+            ? (raw.visibilityStage as RegionMapNodeVisibilityStage)
+            : 'unknown',
+        visitCount: Math.max(0, Math.floor(Number(raw.visitCount) || 0)),
+        surveyCount: Math.max(0, Math.floor(Number(raw.surveyCount) || 0)),
+        lastVisitedDayTag: typeof raw.lastVisitedDayTag === 'string' ? raw.lastVisitedDayTag : ''
+      }
+    }
+
+    const campStates = { ...fallback.campStates }
+    for (const route of REGION_ROUTE_DEFS) {
+      const campKey = getCampSiteKey(route.regionId, route.id, null)
+      const raw = data.campStates?.[campKey]
+      if (!raw || typeof raw !== 'object') continue
+      campStates[campKey] = {
+        campKey,
+        regionId: route.regionId,
+        routeId: route.id,
+        bossId: null,
+        visitCount: Math.max(0, Math.floor(Number(raw.visitCount) || 0)),
+        restCount: Math.max(0, Math.floor(Number(raw.restCount) || 0)),
+        sortCount: Math.max(0, Math.floor(Number(raw.sortCount) || 0)),
+        markCount: Math.max(0, Math.floor(Number(raw.markCount) || 0)),
+        scoutCount: Math.max(0, Math.floor(Number(raw.scoutCount) || 0)),
+        safetyProgress: Math.max(0, Math.floor(Number(raw.safetyProgress) || 0)),
+        stashTier: Math.max(0, Math.floor(Number(raw.stashTier) || 0)),
+        lastUsedDayTag: typeof raw.lastUsedDayTag === 'string' ? raw.lastUsedDayTag : ''
+      }
+    }
+    for (const region of REGION_DEFS) {
+      const bossId = getRegionBossDef(region.id)?.id ?? null
+      const campKey = getCampSiteKey(region.id, null, bossId)
+      const raw = data.campStates?.[campKey]
+      if (!raw || typeof raw !== 'object') continue
+      campStates[campKey] = {
+        campKey,
+        regionId: region.id,
+        routeId: null,
+        bossId,
+        visitCount: Math.max(0, Math.floor(Number(raw.visitCount) || 0)),
+        restCount: Math.max(0, Math.floor(Number(raw.restCount) || 0)),
+        sortCount: Math.max(0, Math.floor(Number(raw.sortCount) || 0)),
+        markCount: Math.max(0, Math.floor(Number(raw.markCount) || 0)),
+        scoutCount: Math.max(0, Math.floor(Number(raw.scoutCount) || 0)),
+        safetyProgress: Math.max(0, Math.floor(Number(raw.safetyProgress) || 0)),
+        stashTier: Math.max(0, Math.floor(Number(raw.stashTier) || 0)),
+        lastUsedDayTag: typeof raw.lastUsedDayTag === 'string' ? raw.lastUsedDayTag : ''
+      }
+    }
+
+    const shortcutStates = { ...fallback.shortcutStates }
+    for (const route of REGION_ROUTE_DEFS) {
+      const raw = data.shortcutStates?.[route.id]
+      if (!raw || typeof raw !== 'object') continue
+      shortcutStates[route.id] = {
+        routeId: route.id,
+        level:
+          raw.level === 'marked' || raw.level === 'shortcut' || raw.level === 'mastered'
+            ? (raw.level as RegionShortcutStateLevel)
+            : 'none',
+        masteryRuns: Math.max(0, Math.floor(Number(raw.masteryRuns) || 0)),
+        markedEntrances: Math.max(0, Math.floor(Number(raw.markedEntrances) || 0)),
+        lastUpdatedDayTag: typeof raw.lastUpdatedDayTag === 'string' ? raw.lastUpdatedDayTag : ''
+      }
+    }
+
+    const seasonalRegionStates = { ...fallback.seasonalRegionStates }
+    for (const region of REGION_DEFS) {
+      const raw = data.seasonalRegionStates?.[region.id]
+      if (!raw || typeof raw !== 'object') continue
+      seasonalRegionStates[region.id] = {
+        regionId: region.id,
+        weekId: typeof raw.weekId === 'string' ? raw.weekId : '',
+        season: raw.season === 'summer' || raw.season === 'autumn' || raw.season === 'winter' ? raw.season : 'spring',
+        weather:
+          raw.weather === 'rainy' ||
+          raw.weather === 'stormy' ||
+          raw.weather === 'snowy' ||
+          raw.weather === 'windy' ||
+          raw.weather === 'green_rain'
+            ? raw.weather
+            : 'sunny',
+        activeVariantId: typeof raw.activeVariantId === 'string' ? raw.activeVariantId : null,
+        activeVariantLabel: typeof raw.activeVariantLabel === 'string' ? raw.activeVariantLabel : '',
+        summary: typeof raw.summary === 'string' ? raw.summary : '',
+        detailLines: Array.isArray(raw.detailLines) ? raw.detailLines.filter((line: unknown): line is string => typeof line === 'string').slice(0, 6) : [],
+        affectedRouteIds: Array.isArray(raw.affectedRouteIds)
+          ? raw.affectedRouteIds.filter((entry: unknown): entry is string => typeof entry === 'string')
+          : [],
+        manualExplorationRequired: Boolean(raw.manualExplorationRequired),
+        seenVariantIds: Array.isArray(raw.seenVariantIds)
+          ? raw.seenVariantIds.filter((entry: unknown): entry is string => typeof entry === 'string')
+          : [],
+        lastUpdatedDayTag: typeof raw.lastUpdatedDayTag === 'string' ? raw.lastUpdatedDayTag : ''
+      }
+    }
+
+    const companionContracts = Array.isArray(data.companionContracts)
+      ? data.companionContracts
+          .filter((entry: unknown) => entry && typeof entry === 'object')
+          .map((raw: any) => ({
+            id: typeof raw.id === 'string' ? raw.id : createSessionToken(),
+            npcId: typeof raw.npcId === 'string' ? raw.npcId : '',
+            npcName: typeof raw.npcName === 'string' ? raw.npcName : '',
+            sourceType: raw.sourceType === 'spouse' || raw.sourceType === 'zhiji' ? raw.sourceType : 'helper',
+            relationshipStage:
+              raw.relationshipStage === 'familiar' ||
+              raw.relationshipStage === 'friend' ||
+              raw.relationshipStage === 'bestie' ||
+              raw.relationshipStage === 'romance' ||
+              raw.relationshipStage === 'married' ||
+              raw.relationshipStage === 'family'
+                ? raw.relationshipStage
+                : 'recognize',
+            relationshipStageLabel: typeof raw.relationshipStageLabel === 'string' ? raw.relationshipStageLabel : '',
+            regionId: REGION_DEFS.some(region => region.id === raw.regionId) ? (raw.regionId as RegionId) : 'ancient_road',
+            routeId: typeof raw.routeId === 'string' ? raw.routeId : '',
+            assignedDayTag: typeof raw.assignedDayTag === 'string' ? raw.assignedDayTag : '',
+            expiresDayTag: typeof raw.expiresDayTag === 'string' ? raw.expiresDayTag : '',
+            durationDays: Math.max(1, Math.floor(Number(raw.durationDays) || 1)),
+            riskModifier: Math.max(0, Math.floor(Number(raw.riskModifier) || 0)),
+            moraleBonus: Math.max(0, Math.floor(Number(raw.moraleBonus) || 0)),
+            summary: typeof raw.summary === 'string' ? raw.summary : '',
+            chronicleTitle: typeof raw.chronicleTitle === 'string' ? raw.chronicleTitle : '',
+            settlementLines: Array.isArray(raw.settlementLines)
+              ? raw.settlementLines.filter((line: unknown): line is string => typeof line === 'string').slice(0, 6)
+              : [],
+            status: raw.status === 'completed' || raw.status === 'failed' ? raw.status : 'active',
+            resolvedDayTag: typeof raw.resolvedDayTag === 'string' ? raw.resolvedDayTag : ''
+          }))
+          .slice(0, 16)
+      : []
+
+    const rumorBoard = {
+      weekId: typeof data.rumorBoard?.weekId === 'string' ? data.rumorBoard.weekId : '',
+      lastRefreshedDayTag: typeof data.rumorBoard?.lastRefreshedDayTag === 'string' ? data.rumorBoard.lastRefreshedDayTag : '',
+      entriesByRegion: {
+        ancient_road: [] as RegionRumorBoardEntry[],
+        mirage_marsh: [] as RegionRumorBoardEntry[],
+        cloud_highland: [] as RegionRumorBoardEntry[]
+      }
+    }
+    for (const region of REGION_DEFS) {
+      rumorBoard.entriesByRegion[region.id] = Array.isArray(data.rumorBoard?.entriesByRegion?.[region.id])
+        ? data.rumorBoard.entriesByRegion[region.id]
+            .filter((entry: unknown) => entry && typeof entry === 'object')
+            .map((raw: any) => ({
+              id: typeof raw.id === 'string' ? raw.id : createSessionToken(),
+              regionId: region.id,
+              title: typeof raw.title === 'string' ? raw.title : '区域传闻',
+              summary: typeof raw.summary === 'string' ? raw.summary : '',
+              detailLines: Array.isArray(raw.detailLines)
+                ? raw.detailLines.filter((line: unknown): line is string => typeof line === 'string').slice(0, 4)
+                : [],
+              sourceNpcId: typeof raw.sourceNpcId === 'string' ? raw.sourceNpcId : '',
+              sourceNpcName: typeof raw.sourceNpcName === 'string' ? raw.sourceNpcName : '',
+              sourceLocation: typeof raw.sourceLocation === 'string' ? raw.sourceLocation : '',
+              relationshipStage:
+                raw.relationshipStage === 'familiar' ||
+                raw.relationshipStage === 'friend' ||
+                raw.relationshipStage === 'bestie' ||
+                raw.relationshipStage === 'romance' ||
+                raw.relationshipStage === 'married' ||
+                raw.relationshipStage === 'family'
+                  ? raw.relationshipStage
+                  : 'recognize',
+              relationshipStageLabel: typeof raw.relationshipStageLabel === 'string' ? raw.relationshipStageLabel : '',
+              targetRouteId: typeof raw.targetRouteId === 'string' ? raw.targetRouteId : null,
+              tags: Array.isArray(raw.tags) ? raw.tags.filter((tag: unknown): tag is string => typeof tag === 'string').slice(0, 8) : [],
+              requiresManualExploration: Boolean(raw.requiresManualExploration),
+              weekId: typeof raw.weekId === 'string' ? raw.weekId : rumorBoard.weekId,
+              fulfilled: Boolean(raw.fulfilled),
+              fulfilledDayTag: typeof raw.fulfilledDayTag === 'string' ? raw.fulfilledDayTag : ''
+            }))
+        : []
+    }
+
+    const autoPatrolStates = { ...fallback.autoPatrolStates }
+    for (const route of REGION_ROUTE_DEFS) {
+      const raw = data.autoPatrolStates?.[route.id]
+      if (!raw || typeof raw !== 'object') continue
+      autoPatrolStates[route.id] = {
+        routeId: route.id,
+        enabled: raw.enabled !== false,
+        mode: raw.mode === 'ready' || raw.mode === 'blocked' ? raw.mode : 'manual',
+        lastAutoSettledDayTag: typeof raw.lastAutoSettledDayTag === 'string' ? raw.lastAutoSettledDayTag : '',
+        lastEvaluatedDayTag: typeof raw.lastEvaluatedDayTag === 'string' ? raw.lastEvaluatedDayTag : '',
+        blockedReason: typeof raw.blockedReason === 'string' ? raw.blockedReason : '',
+        blockedTags: Array.isArray(raw.blockedTags)
+          ? raw.blockedTags.filter((tag: unknown): tag is string => typeof tag === 'string').slice(0, 4)
+          : []
+      }
+    }
+
     const telemetry = {
       totalRouteCompletions: Math.max(0, Math.floor(Number(data.telemetry?.totalRouteCompletions) || 0)),
       bossClears: Math.max(0, Math.floor(Number(data.telemetry?.bossClears) || 0)),
@@ -3085,14 +4887,46 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       journeyHistory,
       knowledgeState,
       routeKnowledgeState,
+      mapNodeStates,
+      campStates,
+      shortcutStates,
+      seasonalRegionStates,
+      companionContracts,
+      rumorBoard,
+      autoPatrolStates,
       telemetry,
       bossClearCounts,
       bossFailureStreaks,
       lastBossOutcome
     }
     refreshRouteUnlocks()
+    syncStructuralState()
+    ensureFrontierWorldSignals()
     if (saveData.value.weeklyFocusState.weekId && saveData.value.weeklyEventState.weekId !== saveData.value.weeklyFocusState.weekId) {
       refreshWeeklyEventRuntime(saveData.value.weeklyFocusState.weekId, saveData.value.weeklyFocusState.focusedRegionId, '')
+    }
+  }
+
+  if (import.meta.env.DEV) {
+    ;(globalThis as any).__TAOYUAN_REGION_MAP_DEBUG__ = {
+      clearActiveExpedition: () => {
+        clearExpedition()
+        return true
+      },
+      startFirstManualSession: () => {
+        clearExpedition()
+        const gameStore = useGameStore()
+        const dayTag = `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+        const route = REGION_ROUTE_DEFS.find(entry => getRouteExpeditionStatus(entry.id).available) ?? null
+        if (route) {
+          return startRouteExpeditionSession(route.id, dayTag, 'steady', 'balanced')
+        }
+        const bossRegion = REGION_DEFS.find(entry => getBossExpeditionStatus(entry.id).available) ?? null
+        if (bossRegion) {
+          return startBossExpeditionSession(bossRegion.id, dayTag, 'steady', 'balanced')
+        }
+        return { success: false, message: 'no_debug_session_available' }
+      }
     }
   }
 
@@ -3106,6 +4940,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     expeditionFeatureEnabled,
     resourceFeatureEnabled,
     regionIntegrationEnabled,
+    metaState,
+    sessionState,
+    settlementState,
     saveData,
     regionSummaries,
     unlockedRegionCount,
@@ -3120,6 +4957,19 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     journeyHistory,
     getRegionKnowledgeState,
     getRouteKnowledgeState,
+    getRouteMapNodeState,
+    getBossMapNodeState,
+    getCampSiteState,
+    getShortcutState,
+    getRouteNodeVisibilityStage,
+    getBossNodeVisibilityStage,
+    getRegionVariantSnapshot,
+    getRumorBoardForRegion,
+    getCompanionContractCandidates,
+    assignCompanionContract,
+    clearCompanionContract,
+    getAutoPatrolStatus,
+    ensureFrontierWorldSignals,
     getRouteShortcutProfile,
     getRegionCompletedRouteCount,
     getRegionWeeklyEventCompletions,

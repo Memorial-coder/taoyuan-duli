@@ -1,19 +1,26 @@
 import type {
+  RegionCampSiteState,
+  RegionCompanionContract,
   ExpeditionRuntimeState,
+  RegionAutoPatrolState,
   RegionBossDef,
   RegionBossOutcomeState,
   RegionDef,
   RegionExpeditionArchiveEntry,
   RegionExpeditionSession,
   RegionKnowledgeState,
+  RegionMapNodeState,
   RegionRouteKnowledgeState,
   RegionExpeditionSupplyState,
   RegionEventDef,
   RegionEventState,
   RegionId,
   RegionMapSaveData,
+  RegionRumorBoardState,
   RegionRouteDef,
   RegionRouteState,
+  RegionSeasonalState,
+  RegionShortcutState,
   RegionTelemetrySnapshot,
   RegionUnlockState,
   RegionWeeklyEventState,
@@ -22,7 +29,14 @@ import type {
   RegionalResourceFamilyId
 } from '@/types/region'
 
-export const REGION_MAP_SAVE_VERSION = 6
+export const REGION_MAP_SAVE_VERSION = 9
+
+export const getRouteMapNodeKey = (routeId: string) => `route:${routeId}`
+
+export const getBossMapNodeKey = (regionId: RegionId) => `boss:${regionId}`
+
+export const getCampSiteKey = (regionId: RegionId, routeId: string | null, bossId: string | null) =>
+  routeId ? `route:${routeId}` : `boss:${bossId ?? regionId}`
 
 export const REGIONAL_RESOURCE_FAMILY_DEFS: RegionalResourceFamilyDef[] = [
   {
@@ -570,6 +584,96 @@ export const createDefaultRegionExpeditionSession = (): RegionExpeditionSession 
 
 export const createDefaultRegionJourneyHistory = (): RegionExpeditionArchiveEntry[] => []
 
+const createDefaultMapNodeStates = (): Record<string, RegionMapNodeState> => ({
+  ...Object.fromEntries(
+    REGION_ROUTE_DEFS.map(route => [
+      getRouteMapNodeKey(route.id),
+      {
+        nodeKey: getRouteMapNodeKey(route.id),
+        regionId: route.regionId,
+        routeId: route.id,
+        bossId: null,
+        nodeType: route.nodeType,
+        visibilityStage: 'unknown',
+        visitCount: 0,
+        surveyCount: 0,
+        lastVisitedDayTag: ''
+      } satisfies RegionMapNodeState
+    ])
+  ),
+  ...Object.fromEntries(
+    REGION_DEFS.map(region => [
+      getBossMapNodeKey(region.id),
+      {
+        nodeKey: getBossMapNodeKey(region.id),
+        regionId: region.id,
+        routeId: null,
+        bossId: getRegionBossDef(region.id)?.id ?? null,
+        nodeType: 'boss',
+        visibilityStage: 'unknown',
+        visitCount: 0,
+        surveyCount: 0,
+        lastVisitedDayTag: ''
+      } satisfies RegionMapNodeState
+    ])
+  )
+}) as Record<string, RegionMapNodeState>
+
+const createDefaultCampStates = (): Record<string, RegionCampSiteState> => ({
+  ...Object.fromEntries(
+    REGION_ROUTE_DEFS.map(route => [
+      getCampSiteKey(route.regionId, route.id, null),
+      {
+        campKey: getCampSiteKey(route.regionId, route.id, null),
+        regionId: route.regionId,
+        routeId: route.id,
+        bossId: null,
+        visitCount: 0,
+        restCount: 0,
+        sortCount: 0,
+        markCount: 0,
+        scoutCount: 0,
+        safetyProgress: 0,
+        stashTier: 0,
+        lastUsedDayTag: ''
+      } satisfies RegionCampSiteState
+    ])
+  ),
+  ...Object.fromEntries(
+    REGION_DEFS.map(region => [
+      getCampSiteKey(region.id, null, getRegionBossDef(region.id)?.id ?? null),
+      {
+        campKey: getCampSiteKey(region.id, null, getRegionBossDef(region.id)?.id ?? null),
+        regionId: region.id,
+        routeId: null,
+        bossId: getRegionBossDef(region.id)?.id ?? null,
+        visitCount: 0,
+        restCount: 0,
+        sortCount: 0,
+        markCount: 0,
+        scoutCount: 0,
+        safetyProgress: 0,
+        stashTier: 0,
+        lastUsedDayTag: ''
+      } satisfies RegionCampSiteState
+    ])
+  )
+}) as Record<string, RegionCampSiteState>
+
+const createDefaultShortcutStates = (): Record<string, RegionShortcutState> =>
+  Object.fromEntries(
+    REGION_ROUTE_DEFS.map(route => [
+      route.id,
+      {
+        routeId: route.id,
+        level: 'none',
+        masteryRuns: 0,
+        markedEntrances: 0,
+        lastUpdatedDayTag: ''
+      } satisfies RegionShortcutState
+    ])
+  ) as Record<string, RegionShortcutState>
+
 const createDefaultBossClearCounts = (): Record<RegionId, number> =>
   Object.fromEntries(REGION_DEFS.map(region => [region.id, 0])) as Record<RegionId, number>
 
@@ -591,6 +695,55 @@ const createDefaultBossOutcomeState = (): RegionBossOutcomeState => ({
 const createDefaultResourceLedger = (): Record<RegionalResourceFamilyId, number> =>
   Object.fromEntries(REGIONAL_RESOURCE_FAMILY_DEFS.map(family => [family.id, 0])) as Record<RegionalResourceFamilyId, number>
 
+const createDefaultSeasonalRegionStates = (): Record<RegionId, RegionSeasonalState> =>
+  Object.fromEntries(
+    REGION_DEFS.map(region => [
+      region.id,
+      {
+        regionId: region.id,
+        weekId: '',
+        season: 'spring',
+        weather: 'sunny',
+        activeVariantId: null,
+        activeVariantLabel: '',
+        summary: '',
+        detailLines: [],
+        affectedRouteIds: [],
+        manualExplorationRequired: false,
+        seenVariantIds: [],
+        lastUpdatedDayTag: ''
+      } satisfies RegionSeasonalState
+    ])
+  ) as unknown as Record<RegionId, RegionSeasonalState>
+
+const createDefaultRumorBoardState = (): RegionRumorBoardState => ({
+  weekId: '',
+  lastRefreshedDayTag: '',
+  entriesByRegion: {
+    ancient_road: [],
+    mirage_marsh: [],
+    cloud_highland: []
+  }
+})
+
+const createDefaultCompanionContracts = (): RegionCompanionContract[] => []
+
+const createDefaultAutoPatrolStates = (): Record<string, RegionAutoPatrolState> =>
+  Object.fromEntries(
+    REGION_ROUTE_DEFS.map(route => [
+      route.id,
+      {
+        routeId: route.id,
+        enabled: true,
+        mode: 'manual',
+        lastAutoSettledDayTag: '',
+        lastEvaluatedDayTag: '',
+        blockedReason: '',
+        blockedTags: []
+      } satisfies RegionAutoPatrolState
+    ])
+  ) as Record<string, RegionAutoPatrolState>
+
 export const createDefaultRegionMapSaveData = (): RegionMapSaveData => ({
   saveVersion: REGION_MAP_SAVE_VERSION,
   unlockStates: createDefaultUnlockStates(),
@@ -604,6 +757,13 @@ export const createDefaultRegionMapSaveData = (): RegionMapSaveData => ({
   journeyHistory: createDefaultRegionJourneyHistory(),
   knowledgeState: createDefaultKnowledgeState(),
   routeKnowledgeState: createDefaultRouteKnowledgeState(),
+  mapNodeStates: createDefaultMapNodeStates(),
+  campStates: createDefaultCampStates(),
+  shortcutStates: createDefaultShortcutStates(),
+  seasonalRegionStates: createDefaultSeasonalRegionStates(),
+  companionContracts: createDefaultCompanionContracts(),
+  rumorBoard: createDefaultRumorBoardState(),
+  autoPatrolStates: createDefaultAutoPatrolStates(),
   telemetry: createDefaultTelemetry(),
   bossClearCounts: createDefaultBossClearCounts(),
   bossFailureStreaks: createDefaultBossFailureStreaks(),

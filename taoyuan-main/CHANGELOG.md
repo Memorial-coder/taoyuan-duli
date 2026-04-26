@@ -4,6 +4,20 @@
 
 ## [未发布]
 
+### 0425 行旅图交互重构：混合节奏版
+- `src/views/game/RegionMapView.vue` 已将进行中远征从页面内长列表重构为覆盖式“远征台面”，把总览层和手动远征层拆成更接近矿洞 / 瀚海节奏的双层结构。
+- `src/components/game/regionMap/RegionExpeditionStagePanel.vue` 已新增手动远征分阶段主场景，负责 `intro / node_reveal / choice_pick / encounter_reveal / encounter_result / camp_reveal / camp_result / settlement_reveal` 的揭示节奏与动作条收口。
+- `src/components/game/regionMap/JourneySettlementReveal.vue` 已新增三段式旅后结算演出，按“旅程回顾 / 回流分发 / 旅后承接”组织既有 handoff board，而不是直接平铺最终结果。
+- `src/stores/useRegionMapStore.ts` 已补入 DEV 专用 `globalThis.__TAOYUAN_REGION_MAP_DEBUG__` 调试入口，用于稳定拉起手动远征 smoke 场景，同时保持正式存档与远征规则接口不变。
+- `e2e/game-smoke.spec.ts` 已扩展 RegionMap 手动远征冒烟流，并已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run lint` 与 `npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 验证。
+
+### 0425 行旅图 4.3 同步推进第一版
+- `src/types/region.ts`、`src/data/regions.ts`、`src/stores/useRegionMapStore.ts` 已扩展 `seasonalRegionStates`、`companionContracts`、`rumorBoard`、`autoPatrolStates` 四类持久态，并将 `REGION_MAP_SAVE_VERSION` 提升到 `9`。
+- `src/stores/useNpcStore.ts` 已新增 `getRegionRumorSupplyOverview()`，直接复用 `npcWorld` 的季节 / 天气 / 时间 / 关系阶段条件产出区域传闻供给视图。
+- `src/stores/useFrontierChronicleStore.ts` 已新增见闻册 store，提供 `recordChronicleEntry()`、`recordRumorReceipt()`、`recordPhotoMoment()` 与 `getChronicleOverview()`，并接入 `useSaveStore` 序列化链路。
+- `src/views/game/RegionMapView.vue` 已补入季节变体快照、本周传闻板、自动巡行阻塞原因与同伴合同挂载 UI；`runRouteExpedition()` 现会被变体 / 传闻 / 同伴合同阻塞。
+- `src/views/game/AchievementView.vue` 已新增“见闻册”分区，支持按区域 / 季节 / 类型筛选见闻条目，并展示最近传闻回执与留影卡。
+
 ### 新增功能
 
 #### 0425 行旅图深度探索化第一版：远征会话、途中推进、扎营与远征日志
@@ -61,6 +75,24 @@
 - `src/stores/useRegionMapStore.ts` 已补齐 `cloneSession()`、`normalizeExpeditionSession()` 与会话序列化链路对 `campState` / `nodeHistory` 的兼容读写，确保新远征态能安全保存、读回和旧档回退。
 - `src/views/game/RegionMapView.vue` 已把进行中远征面板升级为节点式旅程 UI：新增当前节点链、下一节点选择卡与前线营地操作区，正式把“继续正线 / 转向支线 / 扎营 / 返程”落成玩家可见的闭环。
 - `src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 已顺手把 `frontierDigest` 提升为“上周回顾 / 本周导向 / 风险提醒”结构：现在会读取最近回城结果、当前节点、下一节点选择、失败回滚建议与即时风险提示，而不再只是静态焦点摘要。
+
+#### 0425 行旅图深度探索化第八阶段：事件链深化、携带层、风险层与首领终点化
+- `src/types/region.ts` 已新增 `RegionExpeditionCarryItemCategory`、`RegionExpeditionCarryItem`、`RegionExpeditionWeather`、`RegionExpeditionRiskState`、`RegionExpeditionEncounterMemory`，并把 `RegionExpeditionSession` / `RegionExpeditionArchiveEntry` 扩展到 `carryItems`、`frontlinePrep`、`riskState`、`queuedEncounterKind`、`encounterMemory`，让途中携带层和事件链后效成为远征运行时的正式状态。
+- `src/data/regions.ts` 已将 `REGION_MAP_SAVE_VERSION` 提升到 `7`，用于承接扩展后的携带层、风险层与事件记忆字段，并继续保证旧档反序列化兼容。
+- `src/stores/useRegionMapStore.ts` 已新增 `createCarryItem()`、`mergeCarryItems()`、`summarizeCarryItems()`、`createEncounterMemorySummary()`、`getFollowUpEncounterKind()` 等 helper，把途中收获从抽象负重数字升级为真实携带物层，并让遭遇处理开始生成可追踪的事件链留痕与后续分支。
+- `src/stores/useRegionMapStore.ts` 已继续深化 `createGenericEncounter()`、`createStepEncounter()` 与 `resolveActiveEncounter()`：补入 `support / anomaly` 两类遭遇，处理结果会影响 `天气 / 污染 / 警戒 / 异变 / 前线准备`，并把下一段更可能出现的遭遇链写回 `queuedEncounterKind`。
+- `src/stores/useRegionMapStore.ts` 已把 `advanceActiveExpedition()`、`resolveCampAction()`、`settleActiveExpedition()` 统一接入新携带层和风险层；节点推进、营地整理、旅后归档与结算摘要现在都会读取 `carryItems`、`frontlinePrep`、`riskState` 与 `encounterMemory`。
+- `src/stores/useRegionMapStore.ts` 已让 `simulateBossExpedition()` 读取真实旅途状态：决战结果现在会受到节点选择、营地准备、支援链、异变压力、天气与前线准备度影响，使首领不再只是“走满步数后套一层固定模拟”。
+- `src/views/game/RegionMapView.vue` 已为进行中远征补上“前线态势 / 携带层 / 事件链留痕”三块常驻信息，并把旅后回看与最近远征记录继续接上携带清单和扩展后的收束摘要，让 3.1 / 3.2 / 3.3 / 3.4 的新状态不只停留在 Store 里。
+
+#### 0425 行旅图深度探索化第九阶段：Store 分层、节点/营地持久态与熟路自动巡行
+- `src/types/region.ts` 已新增 `RegionMapNodeState`、`RegionCampSiteState`、`RegionShortcutState` 及 `RegionMapMetaState / RegionMapSessionState / RegionMapSettlementState`，并把 `RegionMapSaveData` 扩展到 `mapNodeStates`、`campStates`、`shortcutStates`，为 4.x 的结构层和后期分层提供正式存档位。
+- `src/data/regions.ts` 已将 `REGION_MAP_SAVE_VERSION` 提升到 `8`，并补入三类新持久态的默认构造：路线/首领节点足迹、路线/首领营地档案，以及每条路线的捷径档位快照。
+- `src/stores/useRegionMapStore.ts` 已新增 `getRouteMapNodeState()`、`getBossMapNodeState()`、`getCampSiteState()`、`getShortcutState()`、`syncStructuralState()` 与 `recordCampSiteUsage()` 等结构层 helper，让节点显形、营地档案和熟路状态从视图临时推导改为 Store 内部的正式长期态。
+- `src/stores/useRegionMapStore.ts` 现已公开 `metaState`、`sessionState`、`settlementState` 三层接口，并在知识成长、路线完成、首领成败、扎营与营地动作后自动同步结构层状态，开始把长期元状态、单次远征状态和旅后回看状态从同一块平铺读法里拆开。
+- `src/stores/useRegionMapStore.ts` 已让 `createRouteSession()` / `createBossSession()` 读取既有 `campStates` 作为开局加成来源：旧营留下的标记、侦察和整理记录会反过来提供开局视野、补给和前线准备，使营地第一次成为真正能跨趟远征沉淀的长期资产。
+- `src/views/game/RegionMapView.vue` 已把路线与首领预览切到读取 Store 内部的节点足迹与营地档案；路线说明里现可看到节点踏入次数、勘位次数和营地档案摘要，而不是只靠知识值临时猜测当前阶段。
+- `src/views/game/RegionMapView.vue` 已开始消费 `metaState / sessionState / settlementState` 三层接口，并把“熟路”继续推进到玩家可感知的后期分层：对已经彻底走熟的路线，主按钮和卷轴路网入口都会切成“自动巡行”，直接调用 `runRouteExpedition()` 进行稳定回收。
 
 #### 0424 行旅图主线：区域地图骨架、公开巡行与审查收口
 - `src/types/region.ts`、`src/data/regions.ts`、`src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 已新增行旅图第一阶段骨架，统一收口三地区定义、路线状态、周焦点、区域资源台账、远征运行态与基础 telemetry。

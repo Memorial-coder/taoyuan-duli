@@ -35,6 +35,7 @@ import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useDecorationStore } from './useDecorationStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { useRegionMapStore } from './useRegionMapStore'
+import { useFrontierChronicleStore } from './useFrontierChronicleStore'
 import {
   BUILT_IN_SAMPLE_SAVES,
   type BuiltInSampleSaveDef,
@@ -955,6 +956,7 @@ export const useSaveStore = defineStore('save', () => {
     const decorationStore = useDecorationStore()
     const villageProjectStore = useVillageProjectStore()
     const regionMapStore = useRegionMapStore()
+    const frontierChronicleStore = useFrontierChronicleStore()
 
     const payload = {
       game: gameStore.serialize(),
@@ -986,7 +988,8 @@ export const useSaveStore = defineStore('save', () => {
       hiddenNpc: hiddenNpcStore.serialize(),
       decoration: decorationStore.serialize(),
       villageProject: villageProjectStore.serialize(),
-      regionMap: regionMapStore.serialize()
+      regionMap: regionMapStore.serialize(),
+      frontierChronicle: frontierChronicleStore.serialize()
     }
 
     const savedAt = new Date().toISOString()
@@ -1032,6 +1035,7 @@ export const useSaveStore = defineStore('save', () => {
     const decorationStore = useDecorationStore()
     const villageProjectStore = useVillageProjectStore()
     const regionMapStore = useRegionMapStore()
+    const frontierChronicleStore = useFrontierChronicleStore()
 
       // 核心块缺失时直接拒绝加载，避免先重置当前会话再因反序列化失败把现场清空
     if (!payload.game || !payload.player || !payload.inventory || !payload.farm) {
@@ -1069,6 +1073,7 @@ export const useSaveStore = defineStore('save', () => {
       decoration: decorationStore.serialize(),
       villageProject: villageProjectStore.serialize(),
       regionMap: regionMapStore.serialize(),
+      frontierChronicle: frontierChronicleStore.serialize(),
       activeSlot: activeSlot.value,
       activeSlotMode: activeSlotMode.value,
       runtimeSessionSlot: runtimeSessionSlot.value,
@@ -1136,6 +1141,7 @@ export const useSaveStore = defineStore('save', () => {
       decorationStore.deserialize(emptyState)
       villageProjectStore.deserialize(emptyState)
       regionMapStore.deserialize(emptyState)
+      frontierChronicleStore.deserialize(emptyState)
     }
 
     const restoreRuntimeStores = (snapshot: typeof backup) => {
@@ -1168,6 +1174,7 @@ export const useSaveStore = defineStore('save', () => {
       decorationStore.deserialize(snapshot.decoration)
       villageProjectStore.deserialize(snapshot.villageProject)
       regionMapStore.deserialize(snapshot.regionMap)
+      frontierChronicleStore.deserialize(snapshot.frontierChronicle)
       goalStore.deserialize(snapshot.goal)
       npcStore.rehydrateRelationshipPerks({ grantInventoryRewards: false, emitMessages: false })
       playerStore.normalizeDerivedState()
@@ -1206,6 +1213,8 @@ export const useSaveStore = defineStore('save', () => {
       if (payload.decoration) decorationStore.deserialize(payload.decoration)
       if (payload.villageProject) villageProjectStore.deserialize(payload.villageProject)
       if (payload.regionMap) regionMapStore.deserialize(payload.regionMap)
+      if (payload.frontierChronicle) frontierChronicleStore.deserialize(payload.frontierChronicle)
+      else frontierChronicleStore.deserialize({})
       goalStore.deserialize(payload.goal)
       if (payload.game && payload.game.tomorrowWeather == null) {
         gameStore.recalculateTomorrowWeather()

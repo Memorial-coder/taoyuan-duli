@@ -18,7 +18,11 @@ import type {
   FarmHelperTask,
   HiredHelper,
   ZhijiCompanionProjectState,
-  RelationshipContentReward
+  RelationshipContentReward,
+  RegionId,
+  RegionRumorSupplyEntry,
+  Season,
+  Weather
 } from '@/types'
 import { NPCS, getNpcById, getHeartEventsForNpc, RECIPES, getTodayEvent } from '@/data'
 import {
@@ -43,8 +47,10 @@ import {
   getNpcScheduleStatus,
   getNpcScheduleTimeline,
   getNpcShopDiscount,
+  getRelationshipStageRank,
   getRelationshipStageFromState,
   getRelationshipStageLabel,
+  isRelationshipStageAtLeast,
   NPC_RELATIONSHIP_BENEFITS,
   RELATIONSHIP_STAGE_META
 } from '@/data/npcWorld'
@@ -64,6 +70,139 @@ import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from
 
 const ALL_FAMILY_WISH_DEFS = [...WS09_FAMILY_WISH_DEFS, ...WS15_FAMILY_WISH_DEFS]
 const ALL_ZHIJI_COMPANION_PROJECT_DEFS = [...WS09_ZHIJI_COMPANION_PROJECT_DEFS, ...WS15_ZHIJI_COMPANION_PROJECT_DEFS]
+
+type RegionRumorTemplate = {
+  id: string
+  regionId: RegionId
+  npcId: string
+  title: string
+  summary: string
+  detailLines: string[]
+  targetRouteId: string | null
+  minStage: RelationshipStage
+  seasons?: Season[] | 'all'
+  weathers?: Weather[] | 'all'
+  festivalIds?: string[]
+  tags: string[]
+}
+
+const REGION_RUMOR_TEMPLATES: RegionRumorTemplate[] = [
+  {
+    id: 'ancient_road_station_ledger',
+    regionId: 'ancient_road',
+    npcId: 'chen_bo',
+    title: '驿站换签传闻',
+    summary: '陈伯说旧驿站最近又有人翻出没对上的押运签条，荒道沿线很可能还有能补全账册的断档。',
+    detailLines: ['更适合先查补给中继与驿站旧库。', '如果这周先处理，任务板和商圈会更容易接住这批线索。'],
+    targetRouteId: 'ancient_road_supply_relay',
+    minStage: 'recognize',
+    seasons: 'all',
+    weathers: ['sunny', 'windy'],
+    tags: ['荒道', '商路', '账册']
+  },
+  {
+    id: 'ancient_road_archives',
+    regionId: 'ancient_road',
+    npcId: 'liu_niang',
+    title: '夹层残卷传闻',
+    summary: '柳娘提到旧路账册里夹着一页被风沙磨薄的残卷，若赶在本季风口前去找，可能还能辨出手记。',
+    detailLines: ['需要更仔细的手动摸图，自动巡行容易错过夹层。'],
+    targetRouteId: 'ancient_road_archive_recovery',
+    minStage: 'familiar',
+    seasons: ['spring', 'autumn', 'winter'],
+    tags: ['荒道', '残卷', '考据']
+  },
+  {
+    id: 'ancient_road_convoy',
+    regionId: 'ancient_road',
+    npcId: 'yun_fei',
+    title: '押运改道传闻',
+    summary: '云飞收到风声，说这周有一支押运队临时绕开旧哨口，沿线护送和瀚海线索可能会一起松动。',
+    detailLines: ['更适合带着手动探索去确认护送改道的分叉。'],
+    targetRouteId: 'ancient_road_convoy_risk',
+    minStage: 'friend',
+    seasons: 'all',
+    weathers: ['sunny', 'windy', 'rainy'],
+    tags: ['荒道', '押运', '瀚海']
+  },
+  {
+    id: 'mirage_marsh_reed',
+    regionId: 'mirage_marsh',
+    npcId: 'qiu_yue',
+    title: '苇荡鱼讯传闻',
+    summary: '秋月说这几天泽地边缘的水色不对，苇荡间有一批会跟天气换位的鱼讯，错过就要等下周。',
+    detailLines: ['先去看芦苇浅滩与夜巡点，周赛和展示池都吃这批样本。'],
+    targetRouteId: 'mirage_marsh_reed_drift',
+    minStage: 'friend',
+    seasons: ['spring', 'summer', 'autumn'],
+    weathers: ['sunny', 'windy', 'green_rain'],
+    tags: ['泽地', '鱼讯', '样本']
+  },
+  {
+    id: 'mirage_marsh_spore',
+    regionId: 'mirage_marsh',
+    npcId: 'lin_lao',
+    title: '孢潮样本传闻',
+    summary: '林老提到泽地孢潮会在特定湿热天气后翻涌，若能及时进去，博物馆的研究交付会轻松很多。',
+    detailLines: ['这类样本需要当周手动确认，不宜直接自动巡回。'],
+    targetRouteId: 'mirage_marsh_specimen_drive',
+    minStage: 'friend',
+    seasons: ['summer', 'autumn'],
+    weathers: ['rainy', 'green_rain', 'stormy'],
+    tags: ['泽地', '孢潮', '研究']
+  },
+  {
+    id: 'mirage_marsh_watch',
+    regionId: 'mirage_marsh',
+    npcId: 'da_niu',
+    title: '夜巡脚印传闻',
+    summary: '大牛说夜里泽地边缘常有不该出现的脚印，若顺着夜巡路线去看，也许能带回更完整的生态记录。',
+    detailLines: ['适合在夜巡线手动推进，顺带确认展示池能不能接住。'],
+    targetRouteId: 'mirage_marsh_night_watch',
+    minStage: 'familiar',
+    seasons: 'all',
+    tags: ['泽地', '夜巡', '踪迹']
+  },
+  {
+    id: 'cloud_highland_ley',
+    regionId: 'cloud_highland',
+    npcId: 'a_shi',
+    title: '裂脉回响传闻',
+    summary: '阿石说高地灵脉最近有重新张开的迹象，若顺着裂脉口推进，能更快摸到本周的晶体回流。',
+    detailLines: ['优先去灵脉裂口，适合补公会战备与建设前置。'],
+    targetRouteId: 'cloud_highland_ley_crack',
+    minStage: 'familiar',
+    seasons: 'all',
+    weathers: ['sunny', 'windy', 'snowy'],
+    tags: ['高地', '灵脉', '战备']
+  },
+  {
+    id: 'cloud_highland_skybridge',
+    regionId: 'cloud_highland',
+    npcId: 'zhao_mujiang',
+    title: '云桥松扣传闻',
+    summary: '赵木匠收到前哨返修单，说云桥观察位有一段松扣，若现在去看，能顺便接住新的建设材料线。',
+    detailLines: ['适合先做观测，再把回流接去村庄和公会。'],
+    targetRouteId: 'cloud_highland_skybridge_watch',
+    minStage: 'friend',
+    seasons: 'all',
+    weathers: ['sunny', 'windy', 'snowy'],
+    tags: ['高地', '云桥', '建设']
+  },
+  {
+    id: 'cloud_highland_patrol',
+    regionId: 'cloud_highland',
+    npcId: 'sun_tiejiang',
+    title: '前哨巡修传闻',
+    summary: '孙铁匠提到本周前哨巡修会顺带清一条旧哨路线，如果跟上这趟节奏，高地回流会更容易放大。',
+    detailLines: ['适合先巡逻再补给，属于这周高地最稳的手动线。'],
+    targetRouteId: 'cloud_highland_patrol',
+    minStage: 'friend',
+    seasons: 'all',
+    weathers: ['sunny', 'windy', 'snowy'],
+    tags: ['高地', '前哨', '巡修']
+  }
+]
 
 /** 好感度上限：未婚 2500（10心），已婚 4000；美观度≥100额外+250 */
 const getFriendshipCap = (state: { married: boolean }, beautyCapBonus = 0): number =>
@@ -504,6 +643,60 @@ export const useNpcStore = defineStore('npc', () => {
       weather: gameStore.weather,
       festivalId: todayEvent?.id ?? null
     })
+  }
+
+  const getRegionRumorSupplyOverview = (regionId: RegionId): RegionRumorSupplyEntry[] => {
+    const gameStore = useGameStore()
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day)
+    const festivalId = todayEvent?.id ?? null
+
+    return REGION_RUMOR_TEMPLATES.filter(template => {
+      if (template.regionId !== regionId) return false
+      if (template.seasons && template.seasons !== 'all' && !template.seasons.includes(gameStore.season)) return false
+      if (template.weathers && template.weathers !== 'all' && !template.weathers.includes(gameStore.weather)) return false
+      if (template.festivalIds && !template.festivalIds.includes(festivalId ?? '')) return false
+
+      const relationshipStage = getRelationshipStage(template.npcId)
+      if (!isRelationshipStageAtLeast(relationshipStage, template.minStage)) return false
+
+      const scheduleStatus = getNpcScheduleStatus(template.npcId, {
+        season: gameStore.season,
+        day: gameStore.day,
+        hour: gameStore.hour,
+        weather: gameStore.weather,
+        festivalId
+      })
+      return scheduleStatus.available
+    })
+      .map(template => {
+        const relationshipStage = getRelationshipStage(template.npcId)
+        const scheduleStatus = getNpcScheduleStatus(template.npcId, {
+          season: gameStore.season,
+          day: gameStore.day,
+          hour: gameStore.hour,
+          weather: gameStore.weather,
+          festivalId
+        })
+        return {
+          id: template.id,
+          regionId: template.regionId,
+          title: template.title,
+          summary: template.summary,
+          detailLines: [...template.detailLines],
+          sourceNpcId: template.npcId,
+          sourceNpcName: getNpcById(template.npcId)?.name ?? template.npcId,
+          sourceLocation: scheduleStatus.location,
+          relationshipStage,
+          relationshipStageLabel: getRelationshipStageLabel(relationshipStage),
+          targetRouteId: template.targetRouteId,
+          tags: [...template.tags],
+          requiresManualExploration: true
+        } satisfies RegionRumorSupplyEntry
+      })
+      .sort((left, right) => {
+        const stageDelta = getRelationshipStageRank(right.relationshipStage) - getRelationshipStageRank(left.relationshipStage)
+        return stageDelta !== 0 ? stageDelta : left.sourceNpcName.localeCompare(right.sourceNpcName, 'zh-CN')
+      })
   }
 
   /** 同步关系奖励（兼容旧存档缺字段；返回提示日志） */
@@ -2342,6 +2535,7 @@ export const useNpcStore = defineStore('npc', () => {
     getScheduleStatus,
     getScheduleTimeline,
     getNextScheduleText,
+    getRegionRumorSupplyOverview,
     syncRelationshipPerks,
     relationshipClues,
     isBirthday,
