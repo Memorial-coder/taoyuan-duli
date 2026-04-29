@@ -201,7 +201,16 @@ function getGuildSeasonMailboxConfig() {
 
 function saveMailboxData(data) {
   ensureDir(TAOYUAN_MAILBOX_FILE);
-  fs.writeFileSync(TAOYUAN_MAILBOX_FILE, JSON.stringify(data, null, 2), 'utf8');
+  const tempPath = `${TAOYUAN_MAILBOX_FILE}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(tempPath, TAOYUAN_MAILBOX_FILE);
+  } catch (error) {
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {}
+    throw error;
+  }
 }
 
 async function withMailboxLock(fn) {

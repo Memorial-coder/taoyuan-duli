@@ -134,6 +134,91 @@
         </div>
       </div>
 
+      <div class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70" data-testid="region-primary-action-card">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-[10px] tracking-[0.24em] text-accent/70">当前建议动作</p>
+            <p class="text-sm text-accent mt-1">{{ primaryJourneyActionCard.title }}</p>
+            <p class="text-xs text-muted mt-2 leading-5">{{ primaryJourneyActionCard.summary }}</p>
+          </div>
+          <span class="text-[10px] shrink-0" :class="primaryJourneyActionCard.statusToneClass">{{ primaryJourneyActionCard.statusLabel }}</span>
+        </div>
+        <div v-if="primaryJourneyActionCard.detailLines.length > 0" class="mt-3 space-y-1">
+          <p
+            v-for="line in primaryJourneyActionCard.detailLines"
+            :key="`primary-journey-action-${line}`"
+            class="text-xs text-muted leading-5"
+          >
+            · {{ line }}
+          </p>
+        </div>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button
+            class="border border-accent/20 rounded-xs px-3 py-2 text-xs text-accent hover:bg-accent/5"
+            :class="isCompactMobile ? 'w-full' : ''"
+            @click="handlePrimaryJourneyAction"
+          >
+            {{ primaryJourneyActionCard.ctaLabel }}
+          </button>
+        </div>
+      </div>
+
+      <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70">
+        <div class="flex items-center justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-[10px] tracking-[0.24em] text-accent/70">行旅步骤</p>
+            <p class="text-xs text-accent mt-1">把移动端收口成“选区 -> 看路 -> 出发 -> 推进 -> 回城”。</p>
+          </div>
+          <span class="text-[10px] shrink-0 text-success">当前：{{ mobileJourneyFlowSteps.find(step => step.active)?.label ?? '选区' }}</span>
+        </div>
+        <div class="region-map-scroll-rail overflow-x-auto pt-3">
+          <div class="region-map-scroll-track flex gap-2 min-w-max">
+            <button
+              v-for="step in mobileJourneyFlowSteps"
+              :key="`mobile-flow-${step.id}`"
+              class="region-map-scroll-card w-32 min-h-[96px] shrink-0 border rounded-xs px-3 py-2 text-left"
+              :class="step.active ? 'border-accent bg-accent/10 text-accent' : step.done ? 'border-success/20 bg-success/5 text-success' : 'border-accent/10 bg-bg/60 text-muted'"
+              :data-testid="`region-mobile-flow-step-${step.id}`"
+              :disabled="!step.enabled"
+              @click="handleMobileFlowStep(step.id)"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs">{{ step.label }}</p>
+                <span class="text-[10px]">{{ step.done ? '已过' : step.active ? '当前' : step.enabled ? '跳转' : '待到达' }}</span>
+              </div>
+              <p class="mt-2 text-xs leading-5" :class="step.active ? 'text-accent/80' : step.done ? 'text-success' : 'text-muted'">
+                {{ step.summary }}
+              </p>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="shouldShowJourneyTermPrimer" class="border border-warning/20 rounded-xs p-3 mb-3 bg-warning/5">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-[10px] tracking-[0.24em] text-warning/80">看图说明</p>
+            <p class="text-xs text-accent mt-1">第一次看行旅图时，先记住这几个高频词就够了。</p>
+          </div>
+          <button
+            class="border border-warning/20 rounded-xs px-2 py-1 text-xs text-warning hover:bg-warning/10 shrink-0"
+            @click="dismissJourneyTermPrimer"
+          >
+            知道了
+          </button>
+        </div>
+        <div class="grid grid-cols-1 gap-2 mt-3">
+          <div
+            v-for="entry in journeyTermPrimerCards"
+            :key="`journey-term-primer-${entry.term}`"
+            class="border border-warning/10 rounded-xs px-3 py-2 bg-bg/60"
+          >
+            <p class="text-[10px] text-warning">{{ entry.term }}</p>
+            <p class="text-xs text-muted mt-1 leading-5">{{ entry.summary }}</p>
+          </div>
+        </div>
+      </div>
+
       <div
         class="border border-accent/20 rounded-xs p-4 mb-3"
         style="background-image: linear-gradient(135deg, rgba(168, 138, 86, 0.12), rgba(36, 39, 56, 0.72));"
@@ -142,7 +227,7 @@
           <div class="min-w-0">
             <p class="text-[10px] tracking-[0.28em] text-accent/70">区域切换</p>
             <p class="text-sm text-accent mt-1">先选定这趟要展开查看的区域</p>
-            <p class="text-[10px] text-muted mt-1 leading-4">切到单一区域时，路线、传闻、季节变体和同行合同会更集中地展开。</p>
+            <p class="text-xs text-muted mt-1 leading-5">切到单一区域时，路线、传闻、季节变体和同行合同会更集中地展开。</p>
           </div>
           <div class="shrink-0 md:text-right">
             <p class="text-[10px] text-muted">当前筛选</p>
@@ -150,61 +235,35 @@
           </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3">
-          <button
-            class="border rounded-xs px-4 py-3 min-h-[88px] text-left transition-colors"
-            :class="allRegionsSelected ? 'border-accent bg-accent/10 text-accent' : 'border-accent/15 bg-bg/50 text-muted hover:bg-accent/5'"
-            data-testid="region-switch-all"
-            :aria-pressed="allRegionsSelected"
-            @click="selectedRegionId = null"
-          >
-            <div class="flex items-start justify-between gap-3">
-              <div class="min-w-0">
-                <p class="text-sm">全部区域</p>
-                <p class="text-[10px] mt-2 leading-4" :class="allRegionsSelected ? 'text-accent/80' : 'text-muted'">
-                  一次查看整张行旅图，适合统览本周焦点与多区域承接。
-                </p>
-              </div>
-              <span class="text-[10px] shrink-0" :class="allRegionsSelected ? 'text-success' : 'text-muted'">
-                {{ allRegionsSelected ? '当前展开' : '总览' }}
-              </span>
-            </div>
-            <div class="mt-3 flex items-center justify-between gap-3 text-[10px]">
-              <span :class="allRegionsSelected ? 'text-accent/80' : 'text-muted'">
-                已开放 {{ regionMapStore.unlockedRegionCount }}/{{ regionMapStore.regionDefs.length }} 区
-              </span>
-              <span :class="allRegionsSelected ? 'text-accent' : 'text-muted'">焦点：{{ currentFocusLabel }}</span>
-            </div>
-          </button>
-
+        <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
           <button
             v-for="region in regionMapStore.regionSummaries"
             :key="`region-filter-${region.id}`"
             class="border rounded-xs px-4 py-3 min-h-[88px] text-left transition-colors"
-            :class="selectedRegionId === region.id ? 'border-accent bg-accent/10 text-accent' : 'border-accent/15 bg-bg/50 text-muted hover:bg-accent/5'"
+            :class="currentSelectedRegionId === region.id ? 'border-accent bg-accent/10 text-accent' : 'border-accent/15 bg-bg/50 text-muted hover:bg-accent/5'"
             :data-testid="`region-switch-${region.id}`"
-            :aria-pressed="selectedRegionId === region.id"
-            @click="selectedRegionId = region.id"
+            :aria-pressed="currentSelectedRegionId === region.id"
+            @click="handleSelectRegionFilter(region.id)"
           >
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <p class="text-sm">{{ region.name }}</p>
-                <p class="text-[10px] mt-2 leading-4" :class="selectedRegionId === region.id ? 'text-accent/80' : 'text-muted'">
+                <p class="text-xs mt-2 leading-5" :class="currentSelectedRegionId === region.id ? 'text-accent/80' : 'text-muted'">
                   {{ region.description }}
                 </p>
               </div>
               <span
                 class="text-[10px] shrink-0"
-                :class="selectedRegionId === region.id ? 'text-success' : region.id === regionMapStore.currentWeeklyFocus.focusedRegionId ? 'text-accent' : 'text-muted'"
+                :class="currentSelectedRegionId === region.id ? 'text-success' : region.id === regionMapStore.currentWeeklyFocus.focusedRegionId ? 'text-accent' : 'text-muted'"
               >
-                {{ selectedRegionId === region.id ? '当前展开' : region.id === regionMapStore.currentWeeklyFocus.focusedRegionId ? '本周焦点' : '区域入口' }}
+                {{ currentSelectedRegionId === region.id ? '当前展开' : region.id === regionMapStore.currentWeeklyFocus.focusedRegionId ? '本周焦点' : '区域入口' }}
               </span>
             </div>
             <div class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px]">
-              <span :class="selectedRegionId === region.id ? 'text-accent/80' : 'text-muted'">
+              <span :class="currentSelectedRegionId === region.id ? 'text-accent/80' : 'text-muted'">
                 路线 {{ region.completedRouteCount }}/{{ region.routeCount }}
               </span>
-              <span :class="selectedRegionId === region.id ? 'text-accent/80' : 'text-muted'">
+              <span :class="currentSelectedRegionId === region.id ? 'text-accent/80' : 'text-muted'">
                 {{ region.themeHint }}
               </span>
               <span :class="region.unlocked ? 'text-success' : 'text-muted'">
@@ -225,12 +284,12 @@
           <div class="min-w-0">
             <p class="text-[10px] tracking-[0.24em] text-accent/70">远征筹备</p>
             <p class="text-xs text-accent mt-1">{{ currentSession ? `进行中：${currentSession.targetName}` : '先定推进风格，再发起探索。' }}</p>
-            <p class="text-[10px] text-muted mt-1 leading-4">
+            <p class="text-xs text-muted mt-1 leading-5">
               已选 {{ currentApproachDescription ? expeditionApproachOptions.find(entry => entry.value === selectedApproach)?.label : '稳健推进' }} / {{ expeditionRetreatRuleOptions.find(entry => entry.value === selectedRetreatRule)?.label ?? '平衡推进' }}
             </p>
           </div>
           <button
-            class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 shrink-0"
+            class="border border-accent/20 rounded-xs px-2 py-1 text-xs text-accent hover:bg-accent/5 shrink-0"
             @click="mobilePrepExpanded = !mobilePrepExpanded"
           >
             {{ mobilePrepExpanded ? '收起' : '展开' }}
@@ -248,8 +307,8 @@
                 :class="selectedApproach === entry.value ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted'"
                 @click="selectedApproach = entry.value"
               >
-                <p class="text-[10px]">{{ entry.label }}</p>
-                <p class="text-[10px] mt-1 leading-4 text-muted">{{ entry.description }}</p>
+                <p class="text-xs">{{ entry.label }}</p>
+                <p class="text-xs mt-1 leading-5 text-muted">{{ entry.description }}</p>
               </button>
             </div>
           </div>
@@ -264,15 +323,15 @@
                 :class="selectedRetreatRule === entry.value ? 'border-accent text-accent bg-accent/10' : 'border-accent/20 text-muted'"
                 @click="selectedRetreatRule = entry.value"
               >
-                <p class="text-[10px]">{{ entry.label }}</p>
-                <p class="text-[10px] mt-1 leading-4 text-muted">{{ entry.description }}</p>
+                <p class="text-xs">{{ entry.label }}</p>
+                <p class="text-xs mt-1 leading-5 text-muted">{{ entry.description }}</p>
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="space-y-2 mb-3">
+      <div ref="regionListAnchor" class="space-y-2 mb-3">
         <div v-for="region in visibleRegionSummaries" :key="region.id" class="border border-accent/20 rounded-xs p-3">
           <div class="flex items-start justify-between gap-3">
             <div class="min-w-0">
@@ -316,25 +375,25 @@
               <span class="text-accent">{{ getRegionKnowledgeSummary(region.id).intelLabel }}</span>
             </div>
             <div class="flex items-center justify-between">
-              <span class="text-muted">地图勘明</span>
+              <span class="text-muted">地图摸清</span>
               <span>{{ getRegionKnowledgeSummary(region.id).surveyLabel }}</span>
             </div>
           </div>
 
           <p class="text-[10px] text-muted mt-2 leading-4">
-            认知进度：情报 {{ getRegionKnowledgeSummary(region.id).intel }} / 勘明 {{ getRegionKnowledgeSummary(region.id).survey }} / 熟域 {{ getRegionKnowledgeSummary(region.id).familiarity }}
+            看清进度：情报 {{ getRegionKnowledgeSummary(region.id).intel }} / 摸清 {{ getRegionKnowledgeSummary(region.id).survey }} / 走熟 {{ getRegionKnowledgeSummary(region.id).familiarity }}
           </p>
 
-          <div v-if="region.unlocked" class="mt-3 space-y-2">
+          <div v-if="region.unlocked && shouldRenderRegionDetail(region.id)" class="mt-3 space-y-2">
             <div
               class="border border-accent/10 rounded-xs px-3 py-3 overflow-hidden"
               style="background-image: linear-gradient(135deg, rgba(168, 138, 86, 0.12), rgba(24, 24, 24, 0.04));"
             >
               <div class="flex items-start justify-between gap-3">
                 <div class="min-w-0">
-                  <p class="text-[10px] text-muted">卷轴路网</p>
+                  <p class="text-[10px] text-muted">路线总览</p>
                   <p class="text-xs text-accent mt-1">{{ getRegionMapBoardSummary(region.id).headline }}</p>
-                  <p v-if="isCompactMobile" class="text-[10px] text-muted mt-2 leading-4">左右滑动看路段，路线按钮仍以下方清单为准。</p>
+                  <p v-if="isCompactMobile" class="text-[10px] text-muted mt-2 leading-4">这里先看推进进度，真正出发统一以下方路线卡和首领入口为准。</p>
                 </div>
                 <div class="shrink-0 text-right">
                   <span class="text-[10px]" :class="getRegionFogMeta(region.id).toneClass">{{ getRegionFogMeta(region.id).label }}</span>
@@ -353,7 +412,7 @@
                         class="region-map-scroll-card w-36 md:w-40 shrink-0 border rounded-xs px-3 py-2"
                         :class="getMapNodeCardClass(node)"
                         :data-node-current="isFocusedMapNode(region.id, node, index) ? 'true' : undefined"
-                        :data-node-autofocus="selectedRegionId === region.id && index === 0 ? 'true' : undefined"
+                        :data-node-autofocus="currentSelectedRegionId === region.id && index === 0 ? 'true' : undefined"
                       >
                         <div class="flex items-center justify-between gap-2">
                           <span class="text-[10px]" :class="node.laneToneClass">{{ node.laneLabel }}</span>
@@ -373,7 +432,7 @@
                           :title="node.disabledReason"
                           @click="handleMapNodeAction(node)"
                         >
-                          {{ node.actionLabel }}
+                          {{ getMapNodeActionLabel(node) }}
                         </button>
                       </div>
 
@@ -415,7 +474,7 @@
                         :title="node.disabledReason"
                         @click="handleMapNodeAction(node)"
                       >
-                        {{ node.actionLabel }}
+                        {{ getMapNodeActionLabel(node) }}
                       </button>
                     </div>
                   </div>
@@ -523,7 +582,7 @@
               </div>
 
               <div class="border border-accent/10 rounded-xs px-3 py-2">
-              <p class="text-[10px] text-muted mb-2">回流承接</p>
+              <p class="text-[10px] text-muted mb-2">回城去向</p>
               <div class="flex flex-wrap gap-2">
                 <button
                   v-for="panel in getLinkedPanels(region.linkedSystems)"
@@ -537,7 +596,7 @@
               </div>
 
               <div class="border border-accent/10 rounded-xs px-3 py-2">
-              <p class="text-[10px] text-muted mb-2">本区重点承接</p>
+              <p class="text-[10px] text-muted mb-2">本区回城重点</p>
               <p class="text-xs text-accent">{{ getRegionHandoffSummary(region.id).headline }}</p>
               <div class="mt-2 space-y-1" v-if="getRegionHandoffSummary(region.id).detailLines.length > 0">
                 <p
@@ -605,34 +664,75 @@
             </div>
 
             <div class="space-y-2">
-              <div
-                v-for="route in getRegionRoutes(region.id)"
-                :key="route.id"
-                class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/40"
-              >
-                <div class="flex items-start justify-between gap-3">
-                  <div class="min-w-0">
-                    <div class="flex flex-wrap items-center gap-2">
-                      <p class="text-xs text-accent">{{ getRouteMapPreview(route).title }}</p>
-                      <span class="text-[10px]" :class="getRouteMapPreview(route).stageToneClass">{{ getRouteMapPreview(route).stageLabel }}</span>
-                      <span class="border border-accent/10 rounded-xs px-1.5 py-0.5 text-[10px] text-muted">{{ getRouteTypeLabel(route.nodeType) }}</span>
-                    </div>
-                    <p class="text-[10px] text-muted mt-1 leading-4" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ getRouteMapPreview(route).description }}</p>
-                    <div class="flex flex-wrap gap-2 mt-2 text-[10px] text-muted">
-                      <span v-if="getRouteMapPreview(route).stage !== 'unknown'">认知 {{ getRouteKnowledgeSummary(route.id).intelLabel }}</span>
-                      <span v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered'">体力 {{ route.staminaCost }}</span>
-                      <span v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered'">耗时 {{ route.timeCostHours }}h</span>
-                      <span v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered'">熟悉 {{ getRouteKnowledgeSummary(route.id).familiarityLabel }}</span>
-                      <span
-                        v-if="getRouteMapPreview(route).stage === 'mastered' || getRouteMapPreview(route).stage === 'surveyed'"
+                <div
+                  v-for="route in getRegionRoutes(region.id)"
+                  :key="route.id"
+                  class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/40"
+                  :data-testid="`region-route-card-${route.id}`"
+                >
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <div class="flex flex-wrap items-center gap-2">
+                        <p class="text-xs text-accent">{{ getRouteMapPreview(route).title }}</p>
+                        <span class="text-[10px]" :class="getRouteMapPreview(route).stageToneClass">{{ getRouteMapPreview(route).stageLabel }}</span>
+                        <span class="border border-accent/10 rounded-xs px-1.5 py-0.5 text-[10px] text-muted">{{ getRouteTypeLabel(route.nodeType) }}</span>
+                      </div>
+                      <p class="text-[10px] text-muted mt-1 leading-4" :class="isCompactMobile ? 'compact-clamp-3' : ''">{{ getRouteMapPreview(route).description }}</p>
+                      <p
+                        v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered' || getRouteMapPreview(route).stage === 'heard'"
+                        class="text-[10px] mt-2 leading-4"
+                        :class="getRouteDecisionSummary(route).focusToneClass"
+                      >
+                        {{ getRouteDecisionSummary(route).headline }}
+                      </p>
+                      <div class="flex flex-wrap gap-2 mt-2 text-[10px] text-muted">
+                        <span
+                          v-if="getRouteMapPreview(route).stage !== 'unknown'"
+                          class="border rounded-xs px-1.5 py-0.5"
+                          :class="getRouteDecisionSummary(route).focusToneClass === 'text-danger' ? 'border-danger/20 text-danger' : getRouteDecisionSummary(route).focusToneClass === 'text-success' ? 'border-success/20 text-success' : getRouteDecisionSummary(route).focusToneClass === 'text-warning' ? 'border-warning/20 text-warning' : 'border-accent/20 text-accent'"
+                        >
+                          {{ getRouteDecisionSummary(route).focusLabel }}
+                        </span>
+                        <span
+                          v-if="getRouteMapPreview(route).stage !== 'unknown'"
+                          class="border rounded-xs px-1.5 py-0.5"
+                          :class="getRouteDecisionSummary(route).riskToneClass === 'text-danger' ? 'border-danger/20 text-danger' : getRouteDecisionSummary(route).riskToneClass === 'text-success' ? 'border-success/20 text-success' : getRouteDecisionSummary(route).riskToneClass === 'text-warning' ? 'border-warning/20 text-warning' : 'border-accent/20 text-accent'"
+                        >
+                          {{ getRouteDecisionSummary(route).riskLabel }}
+                        </span>
+                        <span
+                          v-if="getRouteMapPreview(route).stage !== 'unknown'"
+                          class="border border-accent/10 rounded-xs px-1.5 py-0.5 text-accent/80"
+                        >
+                          主要带回 {{ getRouteDecisionSummary(route).rewardLabel }}
+                        </span>
+                        <span
+                          v-if="getRouteMapPreview(route).stage !== 'unknown'"
+                          class="border rounded-xs px-1.5 py-0.5"
+                          :class="getRouteDecisionSummary(route).modeToneClass === 'text-success' ? 'border-success/20 text-success' : getRouteDecisionSummary(route).modeToneClass === 'text-warning' ? 'border-warning/20 text-warning' : 'border-accent/10 text-muted'"
+                        >
+                          {{ getRouteDecisionSummary(route).modeLabel }}
+                        </span>
+                        <span v-if="!isCompactMobile && getRouteMapPreview(route).stage !== 'unknown'">认知 {{ getRouteKnowledgeSummary(route.id).intelLabel }}</span>
+                        <span v-if="!isCompactMobile && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')">体力 {{ route.staminaCost }}</span>
+                        <span v-if="!isCompactMobile && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')">耗时 {{ route.timeCostHours }}h</span>
+                        <span v-if="!isCompactMobile && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')">熟悉 {{ getRouteKnowledgeSummary(route.id).familiarityLabel }}</span>
+                        <span
+                        v-if="!isCompactMobile && (getRouteMapPreview(route).stage === 'mastered' || getRouteMapPreview(route).stage === 'surveyed')"
                         :class="getRouteShortcutSummary(route.id).toneClass"
                       >
                         {{ getRouteShortcutSummary(route.id).label }}
                       </span>
-                    </div>
-                    <div v-if="getRouteDispatchSignals(route).length > 0" class="flex flex-wrap gap-2 mt-2">
-                      <span
-                        v-for="signal in getRouteDispatchSignals(route)"
+                      </div>
+                      <p
+                        v-if="getRouteDecisionSummary(route).linkedSummary && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')"
+                        class="text-[10px] text-accent/80 mt-2 leading-4"
+                      >
+                        回城优先：{{ getRouteDecisionSummary(route).linkedSummary }}
+                      </p>
+                      <div v-if="!isCompactMobile && getRouteDispatchSignals(route).length > 0" class="flex flex-wrap gap-2 mt-2">
+                        <span
+                          v-for="signal in getRouteDispatchSignals(route)"
                         :key="`${route.id}-${signal.label}`"
                         class="border rounded-xs px-2 py-0.5 text-[10px]"
                         :class="signal.shellClass"
@@ -726,6 +826,22 @@
                 </p>
               </div>
             </div>
+            </div>
+          <div v-else-if="region.unlocked && isCompactMobile" class="mt-3 border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <p class="text-[10px] text-muted">这一区先不摊开全部细节</p>
+                <p class="text-xs text-accent mt-1">先决定要不要看 {{ region.name }} 的路线、首领准备和回城去向。</p>
+                <p class="text-[10px] text-muted mt-2 leading-4">移动端先只保留这一层概要，避免把整页路线和台账一次性压出来。</p>
+              </div>
+              <span class="text-[10px] shrink-0 text-muted">待展开</span>
+            </div>
+            <button
+              class="mt-3 w-full border border-accent/20 rounded-xs px-3 py-2 text-[10px] text-accent hover:bg-accent/5"
+              @click="handleSelectRegionFilter(region.id)"
+            >
+              只看这个区域
+            </button>
           </div>
           <div v-else class="mt-3 border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
             <div class="flex items-start justify-between gap-3">
@@ -745,30 +861,10 @@
         </div>
       </div>
 
-      <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70">
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <p class="text-[10px] tracking-[0.24em] text-accent/70">总览摘要</p>
-            <p class="text-xs text-accent mt-1">把全局状态放到后面看，不抢当前区域操作。</p>
-          </div>
-          <span class="text-[10px] text-muted shrink-0">主题周 {{ currentThemeWeekLabel }}</span>
-        </div>
-        <div class="grid grid-cols-2 gap-2 mt-3">
-          <div
-            v-for="card in compactSummaryCards"
-            :key="`compact-summary-${card.label}`"
-            class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60"
-          >
-            <p class="text-[10px] text-muted">{{ card.label }}</p>
-            <p class="text-sm mt-1" :class="card.toneClass">{{ card.value }}</p>
-          </div>
-        </div>
-      </div>
-
       <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-[10px] tracking-[0.24em] text-accent/70">前线导向</p>
+            <p class="text-[10px] tracking-[0.24em] text-accent/70">补充信息</p>
             <p class="text-xs text-accent mt-1">{{ regionMapStore.frontierDigest.headline }}</p>
           </div>
           <button
@@ -779,7 +875,19 @@
           </button>
         </div>
 
-        <div v-if="mobileDigestExpanded" class="mt-3 space-y-1">
+        <div v-if="mobileDigestExpanded" class="mt-3 space-y-3">
+          <div class="grid grid-cols-2 gap-2">
+            <div
+              v-for="card in compactSummaryCards"
+              :key="`compact-summary-${card.label}`"
+              class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60"
+            >
+              <p class="text-[10px] text-muted">{{ card.label }}</p>
+              <p class="text-sm mt-1" :class="card.toneClass">{{ card.value }}</p>
+            </div>
+          </div>
+
+          <div class="space-y-1">
           <p
             v-for="line in regionMapStore.frontierDigest.highlightSummaries"
             :key="`compact-digest-highlight-${line}`"
@@ -801,6 +909,7 @@
           >
             ! {{ line }}
           </p>
+          </div>
         </div>
       </div>
 
@@ -1038,44 +1147,46 @@
         </div>
       </div>
 
-      <RegionExpeditionStagePanel
-        v-if="currentSession"
-        :session="currentSession"
-        :region-label="currentSessionRegionLabel"
-        :status-label="currentSessionStatusLabel"
-        :player-hp="playerStore.hp"
-        :player-max-hp="playerStore.getMaxHp()"
-        :node-choices="currentSessionNodeChoices"
-        :encounter-trail="currentSessionEncounterTrail"
-        :current-node-headline="currentSessionNodeHeadline"
-        :shortcut-summary="currentSessionShortcutSummary"
-        :intro-lines="currentSessionIntroLines"
-        :signal-lines="currentSessionSignalLines"
-        :approach-label="currentSessionApproachLabel"
-        :retreat-label="currentSessionRetreatLabel"
-        :compact-mode="isCompactMobile"
-        @advance="handleAdvanceExpedition"
-        @camp="handleCampExpedition"
-        @retreat="handleRetreatExpedition"
-        @settle="handleSettleExpedition"
-        @resolve-camp="handleResolveCampAction"
-        @resolve-encounter="handleResolveEncounter"
-      />
+      <div v-if="currentSession" ref="stagePanelAnchor">
+        <RegionExpeditionStagePanel
+          :session="currentSession"
+          :region-label="currentSessionRegionLabel"
+          :status-label="currentSessionStatusLabel"
+          :player-hp="playerStore.hp"
+          :player-max-hp="playerStore.getMaxHp()"
+          :node-choices="currentSessionNodeChoices"
+          :encounter-trail="currentSessionEncounterTrail"
+          :current-node-headline="currentSessionNodeHeadline"
+          :shortcut-summary="currentSessionShortcutSummary"
+          :intro-lines="currentSessionIntroLines"
+          :signal-lines="currentSessionSignalLines"
+          :approach-label="currentSessionApproachLabel"
+          :retreat-label="currentSessionRetreatLabel"
+          :compact-mode="isCompactMobile"
+          @advance="handleAdvanceExpedition"
+          @camp="handleCampExpedition"
+          @retreat="handleRetreatExpedition"
+          @settle="handleSettleExpedition"
+          @resolve-camp="handleResolveCampAction"
+          @resolve-encounter="handleResolveEncounter"
+        />
+      </div>
 
-      <div v-if="latestJourneyAftermathSummary" class="border border-accent/20 rounded-xs p-3 mb-3">
+      <div v-if="latestJourneyAftermathSummary" ref="latestAftermathAnchor" class="border border-accent/20 rounded-xs p-3 mb-3">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-xs text-accent">旅后分发：{{ latestJourneyAftermathSummary.entry.targetName }}</p>
-            <p class="text-[10px] text-muted mt-1 leading-4">
+            <p class="text-xs text-accent">回城办事单：{{ latestJourneyAftermathSummary.entry.targetName }}</p>
+            <p class="text-xs text-muted mt-1 leading-5">
               {{ latestJourneyAftermathSummary.regionName }} / {{ latestJourneyAftermathSummary.entry.mode === 'boss' ? '首领远征' : '路线远征' }} / 最近一次回城结果
             </p>
             <div v-if="latestJourneyAftermathSummary.actions.length > 0" class="flex flex-wrap gap-2 mt-2">
               <span
                 v-for="action in latestJourneyAftermathSummary.actions"
                 :key="`latest-activated-${latestJourneyAftermathSummary.entry.id}-${action.key}`"
-                class="border border-accent/20 rounded-xs px-2 py-0.5 text-[10px] text-accent/80"
+                class="border rounded-xs px-2 py-0.5 text-[10px]"
+                :class="getJourneyActionTagMeta(latestJourneyAftermathSummary.entry.id, action.key).className"
               >
-                已激活 {{ action.label }}
+                {{ getJourneyActionTagMeta(latestJourneyAftermathSummary.entry.id, action.key).labelPrefix }} {{ action.label }}
               </span>
             </div>
           </div>
@@ -1137,13 +1248,22 @@
         </div>
 
         <div v-if="latestJourneyAftermathSummary.handoffBoard" class="mt-3 border border-accent/10 rounded-xs px-3 py-3 bg-accent/5">
-          <p class="text-[10px] text-muted">戏剧化回流入口</p>
+          <p class="text-[10px] text-muted">回城办事入口</p>
           <p class="text-xs text-accent mt-1">{{ latestJourneyAftermathSummary.handoffBoard.headline }}</p>
 
           <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
             <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
               <p class="text-[10px] text-muted mb-2">资源去向</p>
-              <div class="space-y-1">
+              <div v-if="isCompactMobile && hasResourceLedgerEntries" class="space-y-2">
+                <p class="text-xs text-muted leading-5">这趟带回的区域资源已经并到下方“资源家族总览”，库存和交付以下方总览为准。</p>
+                <button
+                  class="w-full border border-accent/20 rounded-xs px-2 py-1 text-xs text-accent hover:bg-accent/5"
+                  @click="scrollToResourceLedger"
+                >
+                  去看资源总览
+                </button>
+              </div>
+              <div v-else class="space-y-1">
                 <p
                   v-for="line in latestJourneyAftermathSummary.handoffBoard.resourceLines"
                   :key="`latest-resource-flow-${latestJourneyAftermathSummary.entry.id}-${line}`"
@@ -1166,16 +1286,21 @@
                     <div class="min-w-0">
                       <div class="flex items-center justify-between gap-2">
                         <p class="text-[10px] text-accent">去{{ action.label }}</p>
-                        <span class="text-[10px] shrink-0" :class="action.statusToneClass">{{ action.statusLabel }}</span>
+                        <span
+                          class="text-[10px] shrink-0"
+                          :class="getJourneyActionStatus(latestJourneyAftermathSummary.entry.id, action.key, action.statusLabel, action.statusToneClass).statusToneClass"
+                        >
+                          {{ getJourneyActionStatus(latestJourneyAftermathSummary.entry.id, action.key, action.statusLabel, action.statusToneClass).statusLabel }}
+                        </span>
                       </div>
                       <p class="text-[10px] text-muted mt-1 leading-4">{{ action.summary }}</p>
                       <p class="text-[10px] text-accent/80 mt-1 leading-4">为什么现在去：{{ action.reason }}</p>
                     </div>
                     <button
                       class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 shrink-0"
-                      @click="handleNavigate(action.key)"
+                      @click="handleJourneyActionNavigate(latestJourneyAftermathSummary.entry.id, action.key)"
                     >
-                      前往
+                      {{ isJourneyActionProcessed(latestJourneyAftermathSummary.entry.id, action.key) ? '再次前往' : '前往' }}
                     </button>
                   </div>
                 </div>
@@ -1223,31 +1348,42 @@
           <button
             v-for="action in latestJourneyAftermathSummary.actions"
             :key="`latest-journey-action-${action.key}`"
-            class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
-            @click="handleNavigate(action.key)"
+            class="border rounded-xs px-2 py-1 text-[10px]"
+            :class="getJourneyActionButtonMeta(latestJourneyAftermathSummary.entry.id, action.key, action.label).className"
+            @click="handleJourneyActionNavigate(latestJourneyAftermathSummary.entry.id, action.key)"
           >
-            去{{ action.label }}
+            {{ getJourneyActionButtonMeta(latestJourneyAftermathSummary.entry.id, action.key, action.label).label }}
           </button>
         </div>
         </div>
       </div>
 
-      <div v-if="regionMapStore.journeyHistory.length > 0" class="border border-accent/20 rounded-xs p-3 mb-3">
+      <div v-if="visibleJourneyHistoryEntries.length > 0" class="border border-accent/20 rounded-xs p-3 mb-3">
         <div class="flex items-start justify-between gap-3 mb-2">
           <div class="min-w-0">
             <p class="text-xs text-muted">最近远征记录</p>
-            <p class="text-[10px] text-muted mt-1 leading-4">最近的推进、撤退和回城会在这里回看。</p>
+            <p class="text-xs text-muted mt-1 leading-5">最新一条回城办事单已单独置顶，这里只保留更早的记录，默认看最近 2 条。</p>
           </div>
           <button
             v-if="isCompactMobile"
             class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 shrink-0"
+            @click="mobileHistorySectionExpanded = !mobileHistorySectionExpanded"
+          >
+            {{ mobileHistorySectionExpanded ? '收起历史' : `展开 ${journeyHistoryOverflowEntries.length} 条` }}
+          </button>
+          <button
+            v-else-if="hasMoreJourneyHistoryEntries"
+            class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 shrink-0"
             @click="mobileHistoryExpanded = !mobileHistoryExpanded"
           >
-            {{ mobileHistoryExpanded ? '收起' : `展开 ${regionMapStore.journeyHistory.length} 条` }}
+            {{ mobileHistoryExpanded ? '只看最近 2 条' : `展开全部 ${journeyHistoryOverflowEntries.length} 条` }}
           </button>
         </div>
-        <div v-if="!isCompactMobile || mobileHistoryExpanded" class="space-y-2">
-          <div v-for="entry in regionMapStore.journeyHistory" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2">
+        <p v-if="isCompactMobile && !mobileHistorySectionExpanded" class="text-xs text-muted leading-5">
+          {{ mobileHistoryCollapsedSummary }}
+        </p>
+        <div v-else class="space-y-2">
+          <div v-for="entry in visibleJourneyHistoryEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2">
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <p class="text-xs text-accent">{{ entry.targetName }}</p>
@@ -1277,44 +1413,59 @@
               <button
                 v-for="action in getArchiveAftermathSummary(entry).actions.slice(0, 3)"
                 :key="`${entry.id}-action-${action.key}`"
-                class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
-                @click="handleNavigate(action.key)"
+                class="border rounded-xs px-2 py-1 text-[10px]"
+                :class="getJourneyActionButtonMeta(entry.id, action.key, action.label).className"
+                @click="handleJourneyActionNavigate(entry.id, action.key)"
               >
-                去{{ action.label }}
+                {{ getJourneyActionButtonMeta(entry.id, action.key, action.label).label }}
               </button>
             </div>
           </div>
+          <button
+            v-if="isCompactMobile && hasMoreJourneyHistoryEntries"
+            class="w-full border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+            @click="mobileHistoryExpanded = !mobileHistoryExpanded"
+          >
+            {{ mobileHistoryExpanded ? '只看最近 2 条' : `展开全部 ${journeyHistoryOverflowEntries.length} 条` }}
+          </button>
         </div>
       </div>
 
-      <div v-if="selectedJourneyAftermathSummary" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
+      <div v-if="pinnedJourneyAftermathSummary" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
-            <p class="text-xs text-accent">旅后处理台账：{{ selectedJourneyAftermathSummary.entry.targetName }}</p>
+            <p class="text-xs text-accent">旅后处理台账：{{ pinnedJourneyAftermathSummary.entry.targetName }}</p>
             <p class="text-[10px] text-muted mt-1 leading-4">
-              {{ selectedJourneyAftermathSummary.regionName }} / {{ selectedJourneyAftermathSummary.entry.mode === 'boss' ? '首领远征' : '路线远征' }} / 常驻页内回看
+              {{ pinnedJourneyAftermathSummary.regionName }} / {{ pinnedJourneyAftermathSummary.entry.mode === 'boss' ? '首领远征' : '路线远征' }} / 常驻页内回看
             </p>
-            <div v-if="selectedJourneyAftermathSummary.actions.length > 0" class="flex flex-wrap gap-2 mt-2">
+            <div v-if="pinnedJourneyAftermathSummary.actions.length > 0" class="flex flex-wrap gap-2 mt-2">
               <span
-                v-for="action in selectedJourneyAftermathSummary.actions"
-                :key="`selected-activated-${selectedJourneyAftermathSummary.entry.id}-${action.key}`"
-                class="border border-accent/20 rounded-xs px-2 py-0.5 text-[10px] text-accent/80"
+                v-for="action in pinnedJourneyAftermathSummary.actions"
+                :key="`selected-activated-${pinnedJourneyAftermathSummary.entry.id}-${action.key}`"
+                class="border rounded-xs px-2 py-0.5 text-[10px]"
+                :class="getJourneyActionTagMeta(pinnedJourneyAftermathSummary.entry.id, action.key).className"
               >
-                已激活 {{ action.label }}
+                {{ getJourneyActionTagMeta(pinnedJourneyAftermathSummary.entry.id, action.key).labelPrefix }} {{ action.label }}
               </span>
             </div>
           </div>
           <div class="shrink-0 text-right">
-            <span class="text-[10px]" :class="selectedJourneyAftermathSummary.toneClass">
-              {{ getArchiveOutcomeLabel(selectedJourneyAftermathSummary.entry.outcome) }}
+            <span class="text-[10px]" :class="pinnedJourneyAftermathSummary.toneClass">
+              {{ getArchiveOutcomeLabel(pinnedJourneyAftermathSummary.entry.outcome) }}
             </span>
-            <p class="text-[10px] text-muted mt-1">{{ selectedJourneyAftermathSummary.entry.endedAtDayTag || selectedJourneyAftermathSummary.entry.startedAtDayTag }}</p>
+            <p class="text-[10px] text-muted mt-1">{{ pinnedJourneyAftermathSummary.entry.endedAtDayTag || pinnedJourneyAftermathSummary.entry.startedAtDayTag }}</p>
             <button
               v-if="isCompactMobile"
               class="mt-2 block border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
               @click="mobileSelectedAftermathExpanded = !mobileSelectedAftermathExpanded"
             >
               {{ mobileSelectedAftermathExpanded ? '收起' : '展开' }}
+            </button>
+            <button
+              class="mt-2 block border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+              @click="clearSelectedJourneyAftermath"
+            >
+              结束回看
             </button>
           </div>
         </div>
@@ -1325,8 +1476,8 @@
             <p class="text-[10px] text-muted mb-2">旅程回顾</p>
             <div class="space-y-1">
               <p
-                v-for="line in selectedJourneyAftermathSummary.journeyLines"
-                :key="`selected-journey-${selectedJourneyAftermathSummary.entry.id}-${line}`"
+                v-for="line in pinnedJourneyAftermathSummary.journeyLines"
+                :key="`selected-journey-${pinnedJourneyAftermathSummary.entry.id}-${line}`"
                 class="text-[10px] text-muted leading-4"
               >
                 · {{ line }}
@@ -1338,8 +1489,8 @@
             <p class="text-[10px] text-muted mb-2">回流分发</p>
             <div class="space-y-1">
               <p
-                v-for="line in selectedJourneyAftermathSummary.rewardLines"
-                :key="`selected-reward-${selectedJourneyAftermathSummary.entry.id}-${line}`"
+                v-for="line in pinnedJourneyAftermathSummary.rewardLines"
+                :key="`selected-reward-${pinnedJourneyAftermathSummary.entry.id}-${line}`"
                 class="text-[10px] leading-4"
                 :class="line.includes('物品') || line.includes('资源') || line.includes('发放') || line.includes('返还') ? 'text-success' : 'text-muted'"
               >
@@ -1349,14 +1500,14 @@
           </div>
         </div>
 
-        <div v-if="selectedJourneyAftermathSummary.handoffBoard" class="mt-3 space-y-3">
+        <div v-if="pinnedJourneyAftermathSummary.handoffBoard" class="mt-3 space-y-3">
           <div class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
             <p class="text-[10px] text-muted">后续去向</p>
-            <p class="text-xs text-accent mt-1">{{ selectedJourneyAftermathSummary.handoffBoard.headline }}</p>
+            <p class="text-xs text-accent mt-1">{{ pinnedJourneyAftermathSummary.handoffBoard.headline }}</p>
             <div class="space-y-1 mt-2">
               <p
-                v-for="line in selectedJourneyAftermathSummary.aftermathLines"
-                :key="`selected-aftermath-${selectedJourneyAftermathSummary.entry.id}-${line}`"
+                v-for="line in pinnedJourneyAftermathSummary.aftermathLines"
+                :key="`selected-aftermath-${pinnedJourneyAftermathSummary.entry.id}-${line}`"
                 class="text-[10px] text-muted leading-4"
               >
                 · {{ line }}
@@ -1367,10 +1518,19 @@
           <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
               <p class="text-[10px] text-muted mb-2">资源去向</p>
-              <div class="space-y-1">
+              <div v-if="isCompactMobile && hasResourceLedgerEntries" class="space-y-2">
+                <p class="text-xs text-muted leading-5">这趟带回的区域资源已经并到下方“资源家族总览”，回看时不用再把同一批库存重新读一遍。</p>
+                <button
+                  class="w-full border border-accent/20 rounded-xs px-2 py-1 text-xs text-accent hover:bg-accent/5"
+                  @click="scrollToResourceLedger"
+                >
+                  去看资源总览
+                </button>
+              </div>
+              <div v-else class="space-y-1">
                 <p
-                  v-for="line in selectedJourneyAftermathSummary.handoffBoard.resourceLines"
-                  :key="`selected-resource-${selectedJourneyAftermathSummary.entry.id}-${line}`"
+                  v-for="line in pinnedJourneyAftermathSummary.handoffBoard.resourceLines"
+                  :key="`selected-resource-${pinnedJourneyAftermathSummary.entry.id}-${line}`"
                   class="text-[10px] text-muted leading-4"
                 >
                   · {{ line }}
@@ -1378,40 +1538,45 @@
               </div>
             </div>
 
-            <div class="border border-success/20 rounded-xs px-3 py-2 bg-success/5">
-              <p class="text-[10px] text-muted mb-2">推荐动作</p>
-              <div class="space-y-2">
-                <div
-                  v-for="action in selectedJourneyAftermathSummary.handoffBoard.actionCards"
-                  :key="`selected-action-card-${selectedJourneyAftermathSummary.entry.id}-${action.key}`"
-                  class="border border-success/20 rounded-xs px-2 py-2 bg-bg/70"
-                >
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
-                      <div class="flex items-center justify-between gap-2">
+              <div class="border border-success/20 rounded-xs px-3 py-2 bg-success/5">
+                <p class="text-[10px] text-muted mb-2">推荐动作</p>
+                <div class="space-y-2">
+                  <div
+                    v-for="action in pinnedJourneyAftermathSummary.handoffBoard.actionCards"
+                    :key="`selected-action-card-${pinnedJourneyAftermathSummary.entry.id}-${action.key}`"
+                    class="border border-success/20 rounded-xs px-2 py-2 bg-bg/70"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <div class="min-w-0">
+                        <div class="flex items-center justify-between gap-2">
                         <p class="text-[10px] text-accent">去{{ action.label }}</p>
-                        <span class="text-[10px] shrink-0" :class="action.statusToneClass">{{ action.statusLabel }}</span>
+                          <span
+                            class="text-[10px] shrink-0"
+                            :class="getJourneyActionStatus(pinnedJourneyAftermathSummary.entry.id, action.key, action.statusLabel, action.statusToneClass).statusToneClass"
+                          >
+                            {{ getJourneyActionStatus(pinnedJourneyAftermathSummary.entry.id, action.key, action.statusLabel, action.statusToneClass).statusLabel }}
+                          </span>
+                        </div>
+                        <p class="text-[10px] text-muted mt-1 leading-4">{{ action.summary }}</p>
+                        <p class="text-[10px] text-accent/80 mt-1 leading-4">为什么现在去：{{ action.reason }}</p>
                       </div>
-                      <p class="text-[10px] text-muted mt-1 leading-4">{{ action.summary }}</p>
-                      <p class="text-[10px] text-accent/80 mt-1 leading-4">为什么现在去：{{ action.reason }}</p>
+                      <button
+                        class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 shrink-0"
+                        @click="handleJourneyActionNavigate(pinnedJourneyAftermathSummary.entry.id, action.key)"
+                      >
+                        {{ isJourneyActionProcessed(pinnedJourneyAftermathSummary.entry.id, action.key) ? '再次前往' : '前往' }}
+                      </button>
                     </div>
-                    <button
-                      class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 shrink-0"
-                      @click="handleNavigate(action.key)"
-                    >
-                      前往
-                    </button>
                   </div>
                 </div>
               </div>
-            </div>
 
             <div class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
               <p class="text-[10px] text-muted mb-2">为什么现在去</p>
               <div class="space-y-1">
                 <p
-                  v-for="line in selectedJourneyAftermathSummary.handoffBoard.whyNowLines"
-                  :key="`selected-why-now-${selectedJourneyAftermathSummary.entry.id}-${line}`"
+                  v-for="line in pinnedJourneyAftermathSummary.handoffBoard.whyNowLines"
+                  :key="`selected-why-now-${pinnedJourneyAftermathSummary.entry.id}-${line}`"
                   class="text-[10px] text-muted leading-4"
                 >
                   · {{ line }}
@@ -1420,10 +1585,10 @@
             </div>
           </div>
 
-          <div v-if="selectedJourneyAftermathSummary.handoffBoard.receiptSections.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div v-if="pinnedJourneyAftermathSummary.handoffBoard.receiptSections.length > 0" class="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div
-              v-for="section in selectedJourneyAftermathSummary.handoffBoard.receiptSections"
-              :key="`selected-receipt-${selectedJourneyAftermathSummary.entry.id}-${section.title}`"
+              v-for="section in pinnedJourneyAftermathSummary.handoffBoard.receiptSections"
+              :key="`selected-receipt-${pinnedJourneyAftermathSummary.entry.id}-${section.title}`"
               class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60"
             >
               <div class="flex items-center justify-between gap-2 mb-2">
@@ -1433,7 +1598,7 @@
               <div class="space-y-1">
                 <p
                   v-for="line in section.lines"
-                  :key="`selected-receipt-line-${selectedJourneyAftermathSummary.entry.id}-${section.title}-${line}`"
+                  :key="`selected-receipt-line-${pinnedJourneyAftermathSummary.entry.id}-${section.title}-${line}`"
                   class="text-[10px] text-muted leading-4"
                 >
                   · {{ line }}
@@ -1442,10 +1607,22 @@
             </div>
           </div>
         </div>
+
+        <div v-else-if="pinnedJourneyAftermathSummary.actions.length > 0" class="mt-3 flex flex-wrap gap-2">
+          <button
+            v-for="action in pinnedJourneyAftermathSummary.actions"
+            :key="`selected-journey-action-${pinnedJourneyAftermathSummary.entry.id}-${action.key}`"
+            class="border rounded-xs px-2 py-1 text-[10px]"
+            :class="getJourneyActionButtonMeta(pinnedJourneyAftermathSummary.entry.id, action.key, action.label).className"
+            @click="handleJourneyActionNavigate(pinnedJourneyAftermathSummary.entry.id, action.key)"
+          >
+            {{ getJourneyActionButtonMeta(pinnedJourneyAftermathSummary.entry.id, action.key, action.label).label }}
+          </button>
+        </div>
         </div>
       </div>
 
-      <div class="border border-accent/20 rounded-xs p-3">
+      <div ref="resourceLedgerAnchor" class="border border-accent/20 rounded-xs p-3">
         <div class="flex items-start justify-between gap-3 mb-2">
           <div class="min-w-0">
             <p class="text-xs text-muted">资源家族总览</p>
@@ -1489,7 +1666,7 @@
       >
         <div
           class="w-full border bg-bg overflow-y-auto"
-          :class="[settlementToneClass, isCompactMobile ? 'max-w-none rounded-none px-3 py-3 min-h-[88vh] max-h-[100vh]' : 'max-w-2xl rounded-xs p-4 max-h-[85vh]']"
+          :class="[settlementToneClass, isCompactMobile ? 'max-w-none rounded-t-sm px-3 py-3 max-h-[88vh]' : 'max-w-2xl rounded-xs p-4 max-h-[85vh]']"
           :style="isCompactMobile ? 'padding-bottom: calc(0.75rem + env(safe-area-inset-bottom, 0px));' : ''"
         >
           <div class="flex items-start justify-between gap-3">
@@ -1663,6 +1840,7 @@
   import { Map } from 'lucide-vue-next'
   import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
   import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
+  import { addLog, showFloat } from '@/composables/useGameLog'
   import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
   import { getWeekCycleInfo } from '@/utils/weekCycle'
   import { useFishPondStore } from '@/stores/useFishPondStore'
@@ -1706,11 +1884,33 @@
   const villageProjectStore = useVillageProjectStore()
   const lastActionSummary = ref('')
   const actionTone = ref<'success' | 'danger' | 'accent'>('success')
-  const selectedRegionId = ref<RegionId | null>(regionMapStore.currentWeeklyFocus.focusedRegionId ?? null)
+  const selectedRegionId = ref<RegionId | null>(
+    regionMapStore.regionSummaries.find(region => region.id === regionMapStore.currentWeeklyFocus.focusedRegionId && region.unlocked)?.id
+      ?? regionMapStore.regionSummaries.find(region => region.unlocked)?.id
+      ?? regionMapStore.regionSummaries[0]?.id
+      ?? null
+  )
+  const regionListAnchor = ref<HTMLElement | null>(null)
+  const stagePanelAnchor = ref<HTMLElement | null>(null)
+  const latestAftermathAnchor = ref<HTMLElement | null>(null)
+  const resourceLedgerAnchor = ref<HTMLElement | null>(null)
   type SettlementDialogAction = { key: PanelKey; label: string }
   type StatusChip = { statusLabel: string; statusToneClass: string }
   type SettlementDialogActionCard = SettlementDialogAction & { summary: string; reason: string } & StatusChip
   type JourneyHandoffReceiptSection = { title: string; lines: string[] } & StatusChip
+  type PrimaryJourneyActionCard = {
+    kind: 'session' | 'focus' | 'aftermath' | 'fallback'
+    title: string
+    summary: string
+    detailLines: string[]
+    ctaLabel: string
+    statusLabel: string
+    statusToneClass: string
+    regionId: RegionId | null
+    routeId: string | null
+    panelKey: PanelKey | null
+  }
+  type MobileJourneyFlowStepId = 'region' | 'route' | 'prep' | 'session' | 'aftermath'
   type MapVisibilityStage = 'unknown' | 'heard' | 'surveyed' | 'mastered'
   type RegionMapBoardNode = {
     key: string
@@ -1748,6 +1948,7 @@
         title: string
         lines: string[]
         tone: 'success' | 'danger' | 'accent'
+        entryId: string | null
         journeyLines: string[]
         rewardLines: string[]
         aftermathLines: string[]
@@ -1760,9 +1961,12 @@
   const mobilePrepExpanded = ref(false)
   const mobileDigestExpanded = ref(false)
   const mobileHistoryExpanded = ref(false)
+  const mobileHistorySectionExpanded = ref(false)
   const mobileLedgerExpanded = ref(false)
-  const mobileLatestAftermathExpanded = ref(true)
+  const mobileLatestAftermathExpanded = ref(false)
   const mobileSelectedAftermathExpanded = ref(false)
+  const selectedJourneyAftermathPinned = ref(false)
+  const journeyTermPrimerDismissed = ref(false)
   const compactRegionSectionState = ref<Record<string, boolean>>({})
   const compactRouteDetailState = ref<Record<string, boolean>>({})
   const selectedApproach = ref<RegionExpeditionApproach>('steady')
@@ -1779,10 +1983,15 @@
   })
 
   const currentThemeWeekLabel = computed(() => goalStore.currentThemeWeek?.name ?? currentWeekId.value)
-  const allRegionsSelected = computed(() => selectedRegionId.value === null)
+  const getPreferredRegionSelectionId = () =>
+    regionMapStore.regionSummaries.find(region => region.id === regionMapStore.currentWeeklyFocus.focusedRegionId && region.unlocked)?.id
+    ?? regionMapStore.regionSummaries.find(region => region.unlocked)?.id
+    ?? regionMapStore.regionSummaries[0]?.id
+    ?? null
+  const currentSelectedRegionId = computed<RegionId | null>(() => selectedRegionId.value ?? getPreferredRegionSelectionId())
   const selectedRegionFilterLabel = computed(() => {
-    if (selectedRegionId.value === null) return '全部区域'
-    return regionMapStore.regionDefs.find(region => region.id === selectedRegionId.value)?.name ?? '全部区域'
+    const regionId = currentSelectedRegionId.value
+    return regionMapStore.regionDefs.find(region => region.id === regionId)?.name ?? '未选定区域'
   })
   const compactSummaryCards = computed(() => [
     { label: '已解锁区域', value: `${regionMapStore.unlockedRegionCount}/${regionMapStore.regionDefs.length}`, toneClass: 'text-accent' },
@@ -1790,11 +1999,29 @@
     { label: '本周焦点', value: currentFocusLabel.value, toneClass: 'text-accent' },
     { label: '资源家族', value: `${regionMapStore.resourceFamilyDefs.length} 组`, toneClass: 'text-muted' }
   ])
-  const visibleRegionSummaries = computed(() =>
-    selectedRegionId.value
-      ? regionMapStore.regionSummaries.filter(region => region.id === selectedRegionId.value)
-      : regionMapStore.regionSummaries
+  const visibleRegionSummaries = computed(() => {
+    const regionId = currentSelectedRegionId.value
+    return regionId ? regionMapStore.regionSummaries.filter(region => region.id === regionId) : regionMapStore.regionSummaries
+  })
+  const latestJourneyHistoryEntryId = computed(() => regionMapStore.settlementState.journeyHistory[0]?.id ?? null)
+  const journeyHistoryOverflowEntries = computed(() => {
+    const latestEntryId = latestJourneyHistoryEntryId.value
+    return latestEntryId
+      ? regionMapStore.journeyHistory.filter(entry => entry.id !== latestEntryId)
+      : regionMapStore.journeyHistory
+  })
+  const hasMoreJourneyHistoryEntries = computed(() => journeyHistoryOverflowEntries.value.length > 2)
+  const visibleJourneyHistoryEntries = computed(() =>
+    mobileHistoryExpanded.value || !hasMoreJourneyHistoryEntries.value
+      ? journeyHistoryOverflowEntries.value
+      : journeyHistoryOverflowEntries.value.slice(0, 2)
   )
+  const mobileHistoryCollapsedSummary = computed(() =>
+    journeyHistoryOverflowEntries.value.length === 1
+      ? '另有 1 条更早远征记录，按需展开回看。'
+      : `另有 ${journeyHistoryOverflowEntries.value.length} 条更早远征记录，按需展开回看。`
+  )
+  const hasResourceLedgerEntries = computed(() => regionMapStore.resourceLedgerEntries.length > 0)
   const lockedRegionUnlockGuides = computed(() =>
     regionMapStore.regionDefs.map(region => {
       const progress = regionMapStore.getRegionUnlockProgress(region.id)
@@ -1842,6 +2069,53 @@
   const syncCompactViewportMode = () => {
     isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
   }
+  const scrollAnchorIntoView = async (anchor: HTMLElement | null) => {
+    if (!anchor) return
+    await nextTick()
+    const prefersReducedMotion =
+      typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        : false
+    anchor.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'start'
+    })
+  }
+  const scrollToDataTestId = async (testId: string) => {
+    if (typeof document === 'undefined') return
+    await nextTick()
+    const target = document.querySelector(`[data-testid="${testId}"]`) as HTMLElement | null
+    if (!target) return
+    const prefersReducedMotion =
+      typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        : false
+    target.scrollIntoView({
+      behavior: prefersReducedMotion ? 'auto' : 'smooth',
+      block: 'start'
+    })
+  }
+  const revealRegionSelection = (regionId: RegionId, routeId: string | null = null) => {
+    selectedRegionId.value = regionId
+    compactRegionSectionState.value = {
+      ...compactRegionSectionState.value,
+      [regionId]: true
+    }
+    if (routeId) {
+      compactRouteDetailState.value = {
+        ...compactRouteDetailState.value,
+        [routeId]: true
+      }
+    }
+  }
+  const getDefaultMobileRegionId = () => currentSelectedRegionId.value ?? getPreferredRegionSelectionId()
+  const handleSelectRegionFilter = (regionId: RegionId) => {
+    if (isCompactMobile.value) {
+      revealRegionSelection(regionId)
+      return
+    }
+    selectedRegionId.value = regionId
+  }
   const toggleCompactRegionSection = (regionId: RegionId) => {
     compactRegionSectionState.value = {
       ...compactRegionSectionState.value,
@@ -1849,6 +2123,7 @@
     }
   }
   const isCompactRegionSectionOpen = (regionId: RegionId) => Boolean(compactRegionSectionState.value[regionId])
+  const shouldRenderRegionDetail = (regionId: RegionId) => !isCompactMobile.value || currentSelectedRegionId.value === regionId
   const toggleCompactRouteDetails = (routeId: string) => {
     compactRouteDetailState.value = {
       ...compactRouteDetailState.value,
@@ -1862,21 +2137,30 @@
       if (session.mode === 'boss') return node.kind === 'boss'
       if (session.routeId && node.kind === 'route' && node.routeId === session.routeId) return true
     }
-    return selectedRegionId.value === regionId && index === 0
+    return currentSelectedRegionId.value === regionId && index === 0
   }
   const scrollCompactRegionRailIntoView = async () => {
-    if (!isCompactMobile.value || !selectedRegionId.value || typeof document === 'undefined') return
+    if (!isCompactMobile.value || !currentSelectedRegionId.value || typeof document === 'undefined') return
     await nextTick()
-    const rail = document.querySelector(`[data-testid="region-map-rail-${selectedRegionId.value}"]`) as HTMLElement | null
+    const rail = document.querySelector(`[data-testid="region-map-rail-${currentSelectedRegionId.value}"]`) as HTMLElement | null
     if (!rail) return
     const target =
       (rail.querySelector('[data-node-current="true"]') as HTMLElement | null) ??
       (rail.querySelector('[data-node-autofocus="true"]') as HTMLElement | null)
-    target?.scrollIntoView({
-      block: 'nearest',
-      inline: 'center',
-      behavior: 'smooth'
+    if (!target) return
+    const prefersReducedMotion =
+      typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+        ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+        : false
+    const nextLeft = Math.max(0, target.offsetLeft - (rail.clientWidth - target.clientWidth) / 2)
+    rail.scrollTo({
+      left: nextLeft,
+      behavior: prefersReducedMotion ? 'auto' : 'smooth'
     })
+  }
+  const scrollToResourceLedger = async () => {
+    mobileLedgerExpanded.value = true
+    await scrollAnchorIntoView(resourceLedgerAnchor.value)
   }
   const getApproachLabel = (approach: RegionExpeditionApproach) =>
     expeditionApproachOptions.find(entry => entry.value === approach)?.label ?? '稳健推进'
@@ -1991,21 +2275,68 @@
             : ('success' as const)
     }
   }
+  const isJourneyActionProcessed = (entryId: string, panelKey: PanelKey) => regionMapStore.isJourneyActionProcessed(entryId, panelKey)
+  const markJourneyActionProcessed = (entryId: string, panelKey: PanelKey) => {
+    regionMapStore.markJourneyActionProcessed(entryId, panelKey)
+  }
+  const getJourneyActionStatus = (
+    entryId: string,
+    panelKey: PanelKey,
+    statusLabel: string,
+    statusToneClass: string
+  ) =>
+    isJourneyActionProcessed(entryId, panelKey)
+      ? { statusLabel: '已处理', statusToneClass: 'text-success' }
+      : { statusLabel, statusToneClass }
+  const getJourneyActionTagMeta = (entryId: string, panelKey: PanelKey) =>
+    isJourneyActionProcessed(entryId, panelKey)
+      ? {
+          labelPrefix: '已处理',
+          className: 'border-success/20 text-success bg-success/5'
+        }
+      : {
+          labelPrefix: '已激活',
+          className: 'border-accent/20 text-accent/80'
+        }
+  const getJourneyActionButtonMeta = (entryId: string, panelKey: PanelKey, label: string) =>
+    isJourneyActionProcessed(entryId, panelKey)
+      ? {
+          label: `已处理 · ${label}`,
+          className: 'border-success/20 text-success bg-success/5 hover:bg-success/10'
+        }
+      : {
+          label: `去${label}`,
+          className: 'border-accent/20 text-accent hover:bg-accent/5'
+        }
   const latestJourneyAftermathSummary = computed(() => {
     const entry = regionMapStore.settlementState.journeyHistory[0] ?? null
     return entry ? getArchiveAftermathSummary(entry) : null
   })
+  const journeyTermPrimerCards = [
+    { term: '看清进度', summary: '表示你对这个区域知道了多少；越高，路线说明、风险和细节越清楚。' },
+    { term: '地图摸清', summary: '表示这片区域整体被踏勘到什么程度；越高，地图节点和路线信息越完整。' },
+    { term: '熟路', summary: '同一路线走多了会更顺，后续可能少走几段、开局更稳。' },
+    { term: '回城办事单', summary: '就是最近一次回城后最值得先去处理的承接清单。' }
+  ] as const
+  const shouldShowJourneyTermPrimer = computed(() => isCompactMobile.value && !journeyTermPrimerDismissed.value)
+  const dismissJourneyTermPrimer = () => {
+    journeyTermPrimerDismissed.value = true
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem('taoyuan_region_map_term_primer_seen_v1', '1')
+    }
+  }
   const selectedJourneyAftermathEntry = computed(() => {
     if (selectedJourneyAftermathId.value) {
-      const matched = regionMapStore.settlementState.journeyHistory.find(entry => entry.id === selectedJourneyAftermathId.value) ?? null
+      const matched = journeyHistoryOverflowEntries.value.find(entry => entry.id === selectedJourneyAftermathId.value) ?? null
       if (matched) return matched
     }
-    return regionMapStore.settlementState.journeyHistory[0] ?? null
+    return journeyHistoryOverflowEntries.value[0] ?? null
   })
   const selectedJourneyAftermathSummary = computed(() => {
     const entry = selectedJourneyAftermathEntry.value
     return entry ? getArchiveAftermathSummary(entry) : null
   })
+  const pinnedJourneyAftermathSummary = computed(() => (selectedJourneyAftermathPinned.value ? selectedJourneyAftermathSummary.value : null))
   const currentSessionRegionLabel = computed(() =>
     currentSession.value ? getRegionName(currentSession.value.regionId) : '未指定区域'
   )
@@ -2022,11 +2353,248 @@
             ? '已失利'
             : '已完成'
   })
+  const primaryJourneyActionCard = computed<PrimaryJourneyActionCard>(() => {
+    const session = currentSession.value
+    if (session) {
+      const nextChoiceSummary =
+        session.pendingEncounter
+          ? `先处理「${session.pendingEncounter.title}」再决定下一段。`
+          : session.campState
+            ? '你已经扎营，先在营地做完这一轮整备。'
+            : currentSessionNodeChoices.value.length > 0
+              ? `下一步：${currentSessionNodeChoices.value.slice(0, 2).map(choice => choice.label).join(' / ')}`
+              : `当前状态：${currentSessionStatusLabel.value}`
+
+      return {
+        kind: 'session',
+        title: `继续：${session.targetName}`,
+        summary:
+          session.status === 'ready_to_settle'
+            ? '这一趟已经可以回城收束，先把旅程结果带回去消化。'
+            : `当前推进到「${currentSessionNodeHeadline.value}」，最适合直接续上这趟远征。`,
+        detailLines: [
+          `${currentSessionRegionLabel.value} / ${currentSessionStatusLabel.value}`,
+          nextChoiceSummary,
+          currentSessionSignalLines.value[0] ?? ''
+        ].filter(Boolean),
+        ctaLabel:
+          session.pendingEncounter
+            ? '处理当前遭遇'
+            : session.campState
+              ? '打开前线营地'
+              : session.status === 'ready_to_settle'
+                ? '前往收束'
+                : '继续这趟远征',
+        statusLabel: session.status === 'ready_to_settle' ? '可回城' : '进行中',
+        statusToneClass: session.status === 'ready_to_settle' ? 'text-success' : 'text-accent',
+        regionId: session.regionId,
+        routeId: session.routeId,
+        panelKey: null
+      }
+    }
+
+    const focusedRegionId = regionMapStore.currentWeeklyFocus.focusedRegionId
+    const focusedRegion = focusedRegionId
+      ? regionMapStore.regionSummaries.find(region => region.id === focusedRegionId && region.unlocked) ?? null
+      : null
+
+    if (focusedRegion) {
+      const preferredRoute = getPreferredFocusRoute(focusedRegion.id)
+      const handoffSummary = getRegionHandoffSummary(focusedRegion.id)
+      const routeReady = preferredRoute ? canRunRoute(preferredRoute.id) : false
+      const routeBlockedReason = preferredRoute ? getRouteDisabledReason(preferredRoute.id) : ''
+      const routeSummary =
+        preferredRoute && routeReady
+          ? `推荐路线：${preferredRoute.name} · ${getRouteTypeLabel(preferredRoute.nodeType)}`
+          : preferredRoute
+            ? `当前主线：${preferredRoute.name}`
+            : `区域主题：${focusedRegion.themeHint}`
+
+      return {
+        kind: 'focus',
+        title: routeReady && preferredRoute ? `先看 ${focusedRegion.name} · ${preferredRoute.name}` : `先看本周焦点：${focusedRegion.name}`,
+        summary:
+          routeReady && preferredRoute
+            ? `本周先压「${preferredRoute.name}」，最容易把这片区域的推进和回城承接接起来。`
+            : `本周焦点仍在 ${focusedRegion.name}，先展开区域，把路线、传闻和首领前置看清。`,
+        detailLines: [
+          routeSummary,
+          routeReady
+            ? `回城去向：${handoffSummary.headline}`
+            : routeBlockedReason
+              ? `当前阻塞：${routeBlockedReason}`
+              : `区域承接：${handoffSummary.headline}`,
+          preferredRoute?.handoffHint ?? preferredRoute?.encounterHint ?? ''
+        ].filter(Boolean),
+        ctaLabel: routeReady ? '查看推荐路线' : '查看焦点区域',
+        statusLabel: routeReady ? '本周焦点' : '先补前置',
+        statusToneClass: routeReady ? 'text-success' : 'text-accent',
+        regionId: focusedRegion.id,
+        routeId: preferredRoute?.id ?? null,
+        panelKey: null
+      }
+    }
+
+    const latestAftermath = latestJourneyAftermathSummary.value
+    if (latestAftermath) {
+      const handoffActionCard =
+        latestAftermath.handoffBoard?.actionCards.find(action => !isJourneyActionProcessed(latestAftermath.entry.id, action.key)) ?? null
+      const fallbackAction =
+        latestAftermath.actions.find(action => !isJourneyActionProcessed(latestAftermath.entry.id, action.key)) ?? null
+      const nextAction = handoffActionCard ?? fallbackAction
+
+      if (!nextAction) {
+        return {
+          kind: 'fallback',
+          title: `${latestAftermath.entry.targetName} 已收尾`,
+          summary: '这趟回城办事单已经清完了，接下来可以继续本周焦点，或者直接准备下一次出发。',
+          detailLines: [
+            `${latestAftermath.regionName} / ${getArchiveOutcomeLabel(latestAftermath.entry.outcome)}`,
+            latestAftermath.rewardLines[0] ?? latestAftermath.aftermathLines[0] ?? ''
+          ].filter(Boolean),
+          ctaLabel: '查看区域入口',
+          statusLabel: '已收尾',
+          statusToneClass: 'text-success',
+          regionId: null,
+          routeId: null,
+          panelKey: null
+        }
+      }
+
+      return {
+        kind: 'aftermath',
+        title: `先处理：${latestAftermath.entry.targetName}`,
+        summary: `这趟回城最适合先去${nextAction.label}，把收获立刻转成后续收益。`,
+        detailLines: [
+          `${latestAftermath.regionName} / ${getArchiveOutcomeLabel(latestAftermath.entry.outcome)}`,
+          handoffActionCard?.reason
+            ? `为什么现在去：${handoffActionCard.reason}`
+            : latestAftermath.aftermathLines[0] ?? latestAftermath.rewardLines[0] ?? ''
+        ].filter(Boolean),
+        ctaLabel: `去${nextAction.label}`,
+        statusLabel: '待处理回城',
+        statusToneClass: latestAftermath.toneClass,
+        regionId: latestAftermath.entry.regionId,
+        routeId: null,
+        panelKey: nextAction.key
+      }
+    }
+
+    return {
+      kind: 'fallback',
+      title: '先从焦点区域开始规划',
+      summary: '当前没有进行中的远征，也没有新的回城办事单，先从已开放区域里挑一张图展开。',
+      detailLines: [`已开放 ${regionMapStore.unlockedRegionCount}/${regionMapStore.regionDefs.length} 区`, `当前主题周：${currentThemeWeekLabel.value}`],
+      ctaLabel: '查看区域入口',
+      statusLabel: '等待出发',
+      statusToneClass: 'text-muted',
+      regionId: null,
+      routeId: null,
+      panelKey: null
+    }
+  })
+  const hasPendingLatestAftermathAction = computed(() => {
+    const latest = latestJourneyAftermathSummary.value
+    if (!latest) return false
+    const pendingKeys = [
+      ...(latest.handoffBoard?.actionCards.map(action => action.key) ?? []),
+      ...latest.actions.map(action => action.key)
+    ]
+    return [...new Set(pendingKeys)].some(panelKey => !isJourneyActionProcessed(latest.entry.id, panelKey))
+  })
+  watch(
+    () => latestJourneyAftermathSummary.value?.entry.id ?? null,
+    () => {
+      mobileLatestAftermathExpanded.value = hasPendingLatestAftermathAction.value
+    },
+    { immediate: true }
+  )
+  const mobileJourneyFlowCurrentStep = computed<MobileJourneyFlowStepId>(() => {
+    if (currentSession.value) return 'session'
+    if (hasPendingLatestAftermathAction.value) return 'aftermath'
+    if (currentSelectedRegionId.value) {
+      return mobilePrepExpanded.value ? 'prep' : 'route'
+    }
+    return 'region'
+  })
+  const mobileJourneyFlowSteps = computed(() => {
+    const stepOrder: MobileJourneyFlowStepId[] = ['region', 'route', 'prep', 'session', 'aftermath']
+    const currentIndex = stepOrder.indexOf(mobileJourneyFlowCurrentStep.value)
+    return [
+      {
+        id: 'region' as const,
+        label: '选区',
+        summary: selectedRegionFilterLabel.value
+      },
+      {
+        id: 'route' as const,
+        label: '看路',
+        summary: currentSession.value ? currentSessionNodeHeadline.value : '先看用途和风险'
+      },
+      {
+        id: 'prep' as const,
+        label: '出发',
+        summary: `${getApproachLabel(selectedApproach.value)} / ${getRetreatRuleLabel(selectedRetreatRule.value)}`
+      },
+      {
+        id: 'session' as const,
+        label: '推进',
+        summary: currentSession.value ? currentSessionStatusLabel.value : '没有进行中远征'
+      },
+      {
+        id: 'aftermath' as const,
+        label: '回城',
+        summary: hasPendingLatestAftermathAction.value ? '先处理回城办事单' : '暂无待处理回城'
+      }
+    ].map((step, index) => ({
+      ...step,
+      active: step.id === mobileJourneyFlowCurrentStep.value,
+      done: currentIndex > index,
+      enabled:
+        step.id === 'region'
+        || (step.id === 'route' && Boolean(getDefaultMobileRegionId()))
+        || (step.id === 'prep' && Boolean(getDefaultMobileRegionId()))
+        || (step.id === 'session' && Boolean(currentSession.value))
+        || (step.id === 'aftermath' && Boolean(latestJourneyAftermathSummary.value))
+    }))
+  })
+  const handleMobileFlowStep = async (stepId: MobileJourneyFlowStepId) => {
+    if (stepId === 'region') {
+      const regionId = getDefaultMobileRegionId()
+      if (regionId) {
+        revealRegionSelection(regionId)
+      }
+      await scrollAnchorIntoView(regionListAnchor.value)
+      return
+    }
+
+    if (stepId === 'route' || stepId === 'prep') {
+      const regionId = getDefaultMobileRegionId()
+      if (!regionId) return
+      revealRegionSelection(regionId)
+      if (stepId === 'prep') {
+        mobilePrepExpanded.value = true
+      }
+      await scrollAnchorIntoView(regionListAnchor.value)
+      return
+    }
+
+    if (stepId === 'session' && currentSession.value) {
+      await scrollAnchorIntoView(stagePanelAnchor.value)
+      return
+    }
+
+    if (stepId === 'aftermath' && latestJourneyAftermathSummary.value) {
+      selectedJourneyAftermathId.value = latestJourneyAftermathSummary.value.entry.id
+      await scrollAnchorIntoView(latestAftermathAnchor.value)
+    }
+  }
 
   onMounted(() => {
     syncCompactViewportMode()
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', syncCompactViewportMode)
+      journeyTermPrimerDismissed.value = window.localStorage.getItem('taoyuan_region_map_term_primer_seen_v1') === '1'
     }
   })
 
@@ -2057,31 +2625,35 @@
     }
   }
 
-  const buildSettlementActionPanels = (regionId: RegionId | null) => {
+  function buildSettlementActionPanels(regionId: RegionId | null): SettlementDialogAction[] {
     if (!regionId) return [] as SettlementDialogAction[]
     const region = regionMapStore.regionDefs.find(entry => entry.id === regionId)
     if (!region) return [] as SettlementDialogAction[]
     return getLinkedPanels(region.linkedSystems).slice(0, 4)
   }
 
-  const createStatusChip = (ready: boolean, readyLabel = '已满足', pendingLabel = '待推进'): StatusChip => ({
-    statusLabel: ready ? readyLabel : pendingLabel,
-    statusToneClass: ready ? 'text-success' : 'text-muted'
-  })
+  function createStatusChip(ready: boolean, readyLabel = '已满足', pendingLabel = '待推进'): StatusChip {
+    return {
+      statusLabel: ready ? readyLabel : pendingLabel,
+      statusToneClass: ready ? 'text-success' : 'text-muted'
+    }
+  }
 
-  const createJourneyReceiptSection = (
+  function createJourneyReceiptSection(
     title: string,
     lines: string[],
     ready: boolean,
     readyLabel = '已形成回执',
     pendingLabel = '待继续推进'
-  ): JourneyHandoffReceiptSection => ({
-    title,
-    lines: lines.filter(Boolean),
-    ...createStatusChip(ready, readyLabel, pendingLabel)
-  })
+  ): JourneyHandoffReceiptSection {
+    return {
+      title,
+      lines: lines.filter(Boolean),
+      ...createStatusChip(ready, readyLabel, pendingLabel)
+    }
+  }
 
-  const buildJourneyReceiptSections = (regionId: RegionId | null): JourneyHandoffReceiptSection[] => {
+  function buildJourneyReceiptSections(regionId: RegionId | null): JourneyHandoffReceiptSection[] {
     if (!regionId) return []
 
     if (regionId === 'ancient_road') {
@@ -2214,7 +2786,7 @@
     ].filter(section => section.lines.length > 0)
   }
 
-  const buildJourneyHandoffBoard = (regionId: RegionId | null): JourneyHandoffBoard | null => {
+  function buildJourneyHandoffBoard(regionId: RegionId | null): JourneyHandoffBoard | null {
     if (!regionId) return null
 
     const allowedKeys = new Set(buildSettlementActionPanels(regionId).map(action => action.key))
@@ -2250,7 +2822,7 @@
             ? `当前活动「${goalStore.currentEventCampaign.label}」也能直接接住这趟荒道回流。`
             : '任务板最容易把本趟荒道见闻立刻变成明确进度。',
           questReady,
-          '可立刻交差',
+          '现在就去',
           '先补委托条件'
         ),
         createActionCard(
@@ -2259,7 +2831,7 @@
           shopFocus ? `围绕「${shopFocus}」补货，把这趟回城收益转成下一趟远行准备。` : '把荒道回收物换成补给、口粮和下一趟远行物资。',
           shopFocus ? `商圈当前就有「${shopFocus}」这类重点承接。` : '回城后立刻补货，能最快改善下一次出发质量。',
           shopReady,
-          '可立刻变现',
+          '随后处理',
           '待补可卖收益'
         ),
         createActionCard(
@@ -2268,7 +2840,7 @@
           hanhaiHint ? `把荒道带回的路引与线索接进瀚海：${hanhaiHint}` : '把荒道回流继续接成更远的商路、合同或遗迹线。',
           hanhaiHint ? '瀚海当前已经给出了明确的后续动作。' : '荒道最自然的长线出口，就是把线索继续推向瀚海。',
           hanhaiReady,
-          '后续已打开',
+          '可稍后去',
           '待触发后续'
         )
       ].filter(action => allowedKeys.has(action.key))
@@ -2300,7 +2872,7 @@
           specimenStock > 0 ? `先把生态样本 ${specimenStock} 份转进展示池、周赛养成或素材整理。` : '先看鱼塘周赛和展示池，把泽地回流变成持续收益。',
           pondContest ? `本周周赛「${pondContest}」正好能消化这趟泽地收获。` : '鱼塘通常是蜃潮泽地样本最先落地的地方。',
           fishpondReady,
-          '可立刻承接',
+          '现在就去',
           '待样本回流'
         ),
         createActionCard(
@@ -2311,7 +2883,7 @@
             : '先检查馆务和学者委托，把这趟样本变成收藏与研究推进。',
           museumFocus ? `馆务重点「${museumFocus}」和这趟泽地素材高度匹配。` : '蜃潮泽地的样本与异闻，最容易直接长进博物馆价值。',
           museumReady,
-          '可立刻交付',
+          '随后处理',
           '待馆务刷新'
         )
       ].filter(action => allowedKeys.has(action.key))
@@ -2345,7 +2917,7 @@
         '先去公会把高地推进成果接进战备与下一轮远征准备。',
         `当前公会战备位于 ${guildStore.crossSystemOverview.currentRankBandLabel}，现在最容易承接高地回流。`,
         guildReady,
-        '可立刻交差',
+        '现在就去',
         '待战备提升'
       ),
       createActionCard(
@@ -2354,7 +2926,7 @@
         projectName ? `继续推进「${projectName}」等高地建设前置。` : '把高地带回的成果继续投进村庄建设与长期前置。',
         projectName ? `当前就有「${projectName}」这类建设项可继续接力。` : '高地回流和村庄建设的联动最容易形成长期收益。',
         villageReady,
-        '建设可继续',
+        '随后处理',
         '待建设解锁'
       ),
       createActionCard(
@@ -2363,7 +2935,7 @@
         crystalStock > 0 ? `把灵脉结晶 ${crystalStock} 份继续转成高阶准备、预算与后续投入。` : '把高地回流继续转成高阶准备与预算安排。',
         goalStore.currentThemeWeek?.name ? `本周「${goalStore.currentThemeWeek.name}」会放大这部分高地回流价值。` : '高地收益最怕压仓，尽快转成准备更值。',
         walletReady,
-        '可立刻转化',
+        '可稍后去',
         '待形成库存'
       )
     ].filter(action => allowedKeys.has(action.key))
@@ -2382,7 +2954,7 @@
     }
   }
 
-  const getJourneyFollowUpNotes = (regionId: RegionId) => {
+  function getJourneyFollowUpNotes(regionId: RegionId): string[] {
     if (regionId === 'ancient_road') {
       const archiveStock = regionMapStore.getFamilyResourceQuantity('ancient_archive')
       const shopFocus = shopStore.activityCampaignOfferRecommendations[0]?.name ?? shopStore.recommendedCatalogOffers[0]?.name ?? ''
@@ -2420,7 +2992,7 @@
     ].filter(Boolean)
   }
 
-  const getExpeditionSettlementBuckets = (lines: string[]) => {
+  function getExpeditionSettlementBuckets(lines: string[]) {
     const journeyLines: string[] = []
     const rewardLines: string[] = []
     const aftermathLines: string[] = []
@@ -2480,6 +3052,7 @@
       title,
       lines: lines.filter(Boolean),
       tone,
+      entryId: latestJourney?.id ?? null,
       journeyLines: buckets.journeyLines,
       rewardLines: buckets.rewardLines,
       aftermathLines: aftermathLines.length > 0 ? aftermathLines : ['暂时没有额外的旅后处理提示。'],
@@ -2495,6 +3068,7 @@
       title: `旅后处理：${entry.targetName}`,
       lines: entry.summaryLines.filter(Boolean),
       tone: summary.tone,
+      entryId: entry.id,
       journeyLines: summary.journeyLines,
       rewardLines: summary.rewardLines,
       aftermathLines: summary.aftermathLines,
@@ -2520,21 +3094,22 @@
   watch(
     () => regionMapStore.currentWeeklyFocus.focusedRegionId,
     focusedRegionId => {
-      if (focusedRegionId && selectedRegionId.value !== null) {
+      if (focusedRegionId) {
         selectedRegionId.value = focusedRegionId
       }
     }
   )
 
   watch(
-    () => regionMapStore.journeyHistory.map(entry => entry.id),
+    () => journeyHistoryOverflowEntries.value.map(entry => entry.id),
     entryIds => {
       if (entryIds.length === 0) {
         selectedJourneyAftermathId.value = null
+        selectedJourneyAftermathPinned.value = false
         return
       }
 
-      if (!selectedJourneyAftermathId.value || !entryIds.includes(selectedJourneyAftermathId.value)) {
+      if (selectedJourneyAftermathPinned.value && (!selectedJourneyAftermathId.value || !entryIds.includes(selectedJourneyAftermathId.value))) {
         selectedJourneyAftermathId.value = entryIds[0] ?? null
       }
     },
@@ -2779,6 +3354,82 @@
     return getRouteShortcutSummary(route.id).headline
   }
 
+  const getRouteDecisionSummary = (route: RegionRouteDef) => {
+    const preview = getRouteMapPreview(route)
+    const shortcutSummary = getRouteShortcutSummary(route.id)
+    const autoPatrolStatus = getAutoPatrolStatus(route.id)
+    const resourceLabel = regionMapStore.resourceFamilyDefs.find(family => family.id === route.primaryResourceFamilyId)?.label ?? '区域资源'
+    const linkedLabels = getLinkedPanels(route.linkedSystems)
+      .slice(0, 2)
+      .map(panel => panel.label)
+      .join(' / ')
+
+    const focusMeta =
+      route.nodeType === 'elite'
+        ? {
+            label: '冲首领前置',
+            toneClass: 'text-danger',
+            headline: '这条线更适合先压风险、补前线准备，再决定要不要继续冲首领。'
+          }
+        : route.nodeType === 'handoff'
+          ? {
+              label: '冲回城承接',
+              toneClass: 'text-success',
+              headline: '这条线更适合把当前收益直接带回旧系统，快速形成闭环。'
+            }
+          : preview.stage === 'heard'
+            ? {
+                label: '先补情报',
+                toneClass: 'text-warning',
+                headline: '这条线当前更适合先把节点和路况看清，不适合一上来就压收益。'
+              }
+            : route.primaryResourceFamilyId === 'ancient_archive'
+              ? {
+                  label: '冲线索文书',
+                  toneClass: 'text-accent',
+                  headline: '适合优先补古迹残卷、路引和押运线索，把荒道推进接到任务板与瀚海。'
+                }
+              : route.primaryResourceFamilyId === 'ecology_specimen'
+                ? {
+                    label: '冲样本展示',
+                    toneClass: 'text-success',
+                    headline: '适合优先拿生态样本与观察记录，把泽地推进接到鱼塘和馆务。'
+                  }
+                : {
+                    label: '冲高地战备',
+                    toneClass: 'text-warning',
+                    headline: '适合优先收高地资源和战备前置，把推进接到公会与建设线。'
+                  }
+
+    const riskMeta =
+      route.nodeType === 'elite'
+        ? { label: '高风险', toneClass: 'text-danger' }
+        : route.nodeType === 'handoff'
+          ? { label: '中风险', toneClass: 'text-warning' }
+          : shortcutSummary.level === 'mastered'
+            ? { label: '低风险', toneClass: 'text-success' }
+            : { label: '稳步推进', toneClass: 'text-accent' }
+
+    const modeMeta =
+      autoPatrolStatus.mode === 'ready'
+        ? { label: '熟路可巡行', toneClass: 'text-success' }
+        : autoPatrolStatus.mode === 'blocked'
+          ? { label: '必须手动', toneClass: 'text-warning' }
+          : { label: '手动探索', toneClass: 'text-muted' }
+
+    return {
+      headline: focusMeta.headline,
+      focusLabel: focusMeta.label,
+      focusToneClass: focusMeta.toneClass,
+      riskLabel: riskMeta.label,
+      riskToneClass: riskMeta.toneClass,
+      modeLabel: modeMeta.label,
+      modeToneClass: modeMeta.toneClass,
+      rewardLabel: resourceLabel,
+      linkedSummary: linkedLabels
+    }
+  }
+
   const getRegionRoutes = (regionId: RegionId) => regionMapStore.routeDefs.filter(route => route.regionId === regionId)
 
   const getRouteCompletionLabel = (routeId: string) => {
@@ -2934,6 +3585,22 @@
     }
   }
 
+  const getPreferredFocusRoute = (regionId: RegionId) => {
+    const regionRoutes = getRegionRoutes(regionId)
+    const highlightedRoutes = regionMapStore.currentWeeklyFocus.highlightedRouteIds
+      .map(routeId => regionRoutes.find(route => route.id === routeId) ?? null)
+      .filter((route): route is RegionRouteDef => Boolean(route))
+
+    return (
+      highlightedRoutes.find(route => canRunRoute(route.id)) ??
+      highlightedRoutes.find(route => getRouteMapPreview(route).stage !== 'unknown') ??
+      regionRoutes.find(route => canRunRoute(route.id)) ??
+      regionRoutes.find(route => getRouteMapPreview(route).stage !== 'unknown') ??
+      regionRoutes[0] ??
+      null
+    )
+  }
+
   const getRegionMapNodes = (regionId: RegionId) => {
     const routeNodes: RegionMapBoardNode[] = getRegionRoutes(regionId)
       .filter(route => route.nodeType !== 'handoff')
@@ -3030,9 +3697,13 @@
         ? 'border-success/30 bg-success/5'
         : node.stageLabel === '已勘明'
           ? 'border-accent/30 bg-accent/5'
-          : node.stageLabel === '已听说'
-            ? 'border-warning/20 bg-warning/5'
-            : 'border-dashed border-accent/15 bg-bg/40'
+        : node.stageLabel === '已听说'
+          ? 'border-warning/20 bg-warning/5'
+          : 'border-dashed border-accent/15 bg-bg/40'
+  const getMapNodeActionLabel = (node: RegionMapBoardNode) => {
+    if (!isCompactMobile.value || node.disabled) return node.actionLabel
+    return node.kind === 'boss' ? '查看首领准备' : '查看下方路线'
+  }
 
   const handleMapNodeAction = (node: RegionMapBoardNode) => {
     if (node.disabled) {
@@ -3041,6 +3712,21 @@
         openSettlementDialog('暂时无法前往', [node.disabledReason], 'accent')
       }
       return
+    }
+
+    if (isCompactMobile.value) {
+      revealRegionSelection(node.regionId, node.routeId ?? null)
+      if (node.kind === 'boss') {
+        setActionSummary(`已定位到「${node.title}」，出发入口在下方首领准备区。`, 'accent')
+        void scrollToDataTestId(`region-boss-primary-${node.regionId}`)
+        return
+      }
+
+      if (node.routeId) {
+        setActionSummary(`已定位到「${node.title}」，真正出发按钮在下方路线卡。`, 'accent')
+        void scrollToDataTestId(`region-route-card-${node.routeId}`)
+        return
+      }
     }
 
     if (node.kind === 'boss') {
@@ -3211,8 +3897,56 @@
   const handleNavigate = (panelKey: PanelKey) => {
     navigateToPanel(panelKey)
   }
+  const handleJourneyActionNavigate = (entryId: string, panelKey: PanelKey) => {
+    markJourneyActionProcessed(entryId, panelKey)
+    handleNavigate(panelKey)
+  }
+
+  const handlePrimaryJourneyAction = async () => {
+    const action = primaryJourneyActionCard.value
+
+    if (action.kind === 'session' && action.regionId) {
+      revealRegionSelection(action.regionId, action.routeId)
+      await scrollAnchorIntoView(stagePanelAnchor.value)
+      return
+    }
+
+    if (action.kind === 'focus' && action.regionId) {
+      revealRegionSelection(action.regionId, action.routeId)
+      await scrollAnchorIntoView(regionListAnchor.value)
+      return
+    }
+
+    if (action.kind === 'aftermath') {
+      if (action.panelKey) {
+        const latestEntryId = latestJourneyAftermathSummary.value?.entry.id
+        if (latestEntryId) {
+          handleJourneyActionNavigate(latestEntryId, action.panelKey)
+        } else {
+          handleNavigate(action.panelKey)
+        }
+        return
+      }
+
+      if (latestJourneyAftermathSummary.value) {
+        selectedJourneyAftermathId.value = latestJourneyAftermathSummary.value.entry.id
+        revealRegionSelection(latestJourneyAftermathSummary.value.entry.regionId)
+      }
+      await scrollAnchorIntoView(latestAftermathAnchor.value)
+      return
+    }
+
+    const regionId = getPreferredRegionSelectionId()
+    if (regionId) {
+      selectedRegionId.value = regionId
+    }
+    await scrollAnchorIntoView(regionListAnchor.value)
+  }
 
   const handleSettlementAction = (panelKey: PanelKey) => {
+    if (settlementDialog.value?.kind === 'expedition' && settlementDialog.value.entryId) {
+      markJourneyActionProcessed(settlementDialog.value.entryId, panelKey)
+    }
     settlementDialog.value = null
     handleNavigate(panelKey)
   }
@@ -3329,17 +4063,28 @@
 
   const handleSelectJourneyAftermath = (entry: RegionExpeditionArchiveEntry) => {
     selectedJourneyAftermathId.value = entry.id
+    selectedJourneyAftermathPinned.value = true
+    mobileSelectedAftermathExpanded.value = true
     setActionSummary(`已将「${entry.targetName}」设为当前旅后处理回看。`, 'accent')
+  }
+  const clearSelectedJourneyAftermath = () => {
+    selectedJourneyAftermathPinned.value = false
+    selectedJourneyAftermathId.value = null
+    mobileSelectedAftermathExpanded.value = false
+    setActionSummary('已收起常驻旅后回看，页面只保留最新办事单与历史入口。', 'accent')
   }
 
   const handlePublicResourceTurnIn = (familyId: RegionalResourceFamilyId) => {
+    const familyLabel = regionMapStore.resourceFamilyDefs.find(family => family.id === familyId)?.label ?? familyId
     const ok = regionMapStore.recordResourceTurnIn(familyId, 1)
+    const successMessage = `已交付 1 份${familyLabel}，当前会计入“区域资源交付数”，用于周目标与承接验证。`
+    const failureMessage = '交付失败：当前资源不足。'
     setActionSummary(
-      ok
-        ? `已交付 1 份${regionMapStore.resourceFamilyDefs.find(family => family.id === familyId)?.label ?? familyId}。`
-        : '交付失败：当前资源不足。',
+      ok ? successMessage : failureMessage,
       ok ? 'success' : 'danger'
     )
+    showFloat(ok ? `已交付 1 份${familyLabel}` : failureMessage, ok ? 'success' : 'danger')
+    addLog(`【行旅图】${ok ? successMessage : failureMessage}`)
   }
 </script>
 

@@ -8,17 +8,49 @@
       </div>
       <span class="text-xs text-muted">{{ unlockedCount }}/{{ WALLET_ITEMS.length }}</span>
     </div>
-    <p class="text-xs text-muted mb-3">永久被动加成，满足条件后自动解锁。</p>
+    <p v-if="!isCompactMobile" class="text-xs text-muted mb-3">永久被动加成，满足条件后自动解锁。</p>
 
+    <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70" data-testid="wallet-primary-action-card">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-[10px] tracking-[0.24em] text-accent/70">当前推荐动作</p>
+          <p class="text-sm text-accent mt-1">{{ walletPrimaryActionCard.title }}</p>
+          <p class="text-xs text-muted mt-2 leading-5">{{ walletPrimaryActionCard.summary }}</p>
+        </div>
+        <span class="text-[10px] shrink-0" :class="walletPrimaryActionCard.statusToneClass">{{ walletPrimaryActionCard.statusLabel }}</span>
+      </div>
+      <div v-if="walletPrimaryActionCard.detailLines.length > 0" class="mt-3 space-y-1">
+        <p v-for="line in walletPrimaryActionCard.detailLines" :key="`wallet-primary-action-${line}`" class="text-xs text-muted leading-5">
+          · {{ line }}
+        </p>
+      </div>
+      <button class="mt-3 w-full border border-accent/20 rounded-xs px-3 py-2 text-xs text-accent hover:bg-accent/5" @click="handleWalletPrimaryAction">
+        {{ walletPrimaryActionCard.ctaLabel }}
+      </button>
+    </div>
+
+    <div v-if="isCompactMobile" class="border border-accent/15 rounded-xs px-3 py-2 mb-3 bg-bg/10">
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-xs text-accent">钱袋提示</p>
+          <p class="text-xs text-muted mt-1 leading-5">先看本周预算和当前资金去向，需要时再展开高地战备、经济摘要和商圈豪华消费路线。</p>
+        </div>
+        <button class="btn !px-2 !py-1 text-xs shrink-0" @click="walletPreludeExpanded = !walletPreludeExpanded">
+          {{ walletPreludeExpanded || walletPreludeForceOpen ? '收起' : '展开' }}
+        </button>
+      </div>
+    </div>
+
+    <template v-if="!isCompactMobile || walletPreludeExpanded || walletPreludeForceOpen">
     <div v-if="cloudHighlandWalletPrep" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
       <div class="flex items-center justify-between gap-2">
         <p class="text-xs text-accent">云岚高地战备</p>
         <span class="text-[10px] text-muted">行旅图 -> 高阶准备</span>
       </div>
-      <p class="text-[10px] text-muted mt-1 leading-4">
+      <p class="text-xs text-muted mt-1 leading-5">
         当前灵脉结晶库存 {{ cloudHighlandWalletPrep.leyQty }} 份，建设券 {{ cloudHighlandWalletPrep.constructionTickets }}，后勤券 {{ cloudHighlandWalletPrep.guildLogisticsTickets }}。
       </p>
-      <p class="text-[10px] text-muted mt-1 leading-4">
+      <p class="text-xs text-muted mt-1 leading-5">
         建议先确认高地巡路和首领前的预算、票券和背包余量，再继续冲下一轮高地战备。
       </p>
       <div class="mt-2 flex flex-wrap gap-2">
@@ -139,6 +171,7 @@
         <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusWalletSection('weekly-budget', '回看周预算')">回看周预算</button>
       </div>
     </div>
+    </template>
 
     <div
       class="border border-accent/20 rounded-xs p-3 mb-3"
@@ -205,11 +238,30 @@
       </div>
     </div>
 
-    <div class="border border-accent/20 rounded-xs p-3 mb-3">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-sm text-accent">资源券 / 凭证</span>
-        <span class="text-xs text-muted">{{ rewardTicketFilledCount }}/{{ rewardTicketEntries.length }} 已入账</span>
+    <div
+      class="border border-accent/20 rounded-xs p-3 mb-3"
+      :class="promptSectionClass('reward-ticket')"
+      :data-prompt-focus="buildPromptFocusAttr('reward-ticket')"
+    >
+      <div class="flex items-center justify-between gap-3 mb-2">
+        <div class="min-w-0">
+          <span class="text-sm text-accent">资源券 / 凭证</span>
+          <p v-if="isCompactMobile && !isWalletSectionOpen('reward-ticket')" class="mt-1 text-xs text-muted leading-5">
+            先看当前哪些票券已经到账，需要时再展开兑换列表。
+          </p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="text-xs text-muted">{{ rewardTicketFilledCount }}/{{ rewardTicketEntries.length }} 已入账</span>
+          <button
+            v-if="isCompactMobile"
+            class="border border-accent/20 rounded-xs px-2 py-1 text-xs text-accent hover:bg-accent/5"
+            @click="toggleWalletSection('reward-ticket')"
+          >
+            {{ isWalletSectionOpen('reward-ticket') ? '收起' : '展开' }}
+          </button>
+        </div>
       </div>
+      <template v-if="!isCompactMobile || isWalletSectionOpen('reward-ticket')">
       <p class="text-xs text-muted mb-2">高阶经营奖励会逐步改为票券发放，可在这里查看余额并兑换对应的专项补给。</p>
 
       <div class="space-y-2 mb-3">
@@ -252,6 +304,7 @@
           </button>
         </div>
       </div>
+      </template>
     </div>
 
     <div
@@ -259,10 +312,25 @@
       :class="promptSectionClass('quota-exchange')"
       :data-prompt-focus="buildPromptFocusAttr('quota-exchange')"
     >
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-sm text-accent">额度兑换</span>
-        <span class="text-xs text-muted">{{ playerStore.money }}文</span>
+      <div class="flex items-center justify-between gap-3 mb-2">
+        <div class="min-w-0">
+          <span class="text-sm text-accent">额度兑换</span>
+          <p v-if="isCompactMobile && !isWalletSectionOpen('quota-exchange')" class="mt-1 text-xs text-muted leading-5">
+            需要时再展开额度明细和双向兑换操作。
+          </p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="text-xs text-muted">{{ playerStore.money }}文</span>
+          <button
+            v-if="isCompactMobile"
+            class="border border-accent/20 rounded-xs px-2 py-1 text-xs text-accent hover:bg-accent/5"
+            @click="toggleWalletSection('quota-exchange')"
+          >
+            {{ isWalletSectionOpen('quota-exchange') ? '收起' : '展开' }}
+          </button>
+        </div>
       </div>
+      <template v-if="!isCompactMobile || isWalletSectionOpen('quota-exchange')">
       <p class="text-xs text-muted mb-2">桃源铜钱可与账号额度双向兑换，汇率由管理员统一配置。</p>
 
       <div class="border border-accent/10 rounded-xs p-2 mb-2">
@@ -327,13 +395,33 @@
           {{ exporting ? '导出中...' : '导出铜钱→额度' }}
         </button>
       </div>
+      </template>
     </div>
 
-    <div class="border border-accent/20 rounded-xs p-3 mb-3">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-sm text-accent">钱包流派</span>
-        <span class="text-xs text-muted">{{ walletStore.currentArchetype ? '已选择' : '未选择' }}</span>
+    <div
+      class="border border-accent/20 rounded-xs p-3 mb-3"
+      :class="promptSectionClass('archetype-overview')"
+      :data-prompt-focus="buildPromptFocusAttr('archetype-overview')"
+    >
+      <div class="flex items-center justify-between gap-3 mb-2">
+        <div class="min-w-0">
+          <span class="text-sm text-accent">钱包流派</span>
+          <p v-if="isCompactMobile && !isWalletSectionOpen('archetype-overview')" class="mt-1 text-xs text-muted leading-5">
+            需要时再展开流派列表和节点路线。
+          </p>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span class="text-xs text-muted">{{ walletStore.currentArchetype ? '已选择' : '未选择' }}</span>
+          <button
+            v-if="isCompactMobile"
+            class="border border-accent/20 rounded-xs px-2 py-1 text-xs text-accent hover:bg-accent/5"
+            @click="toggleWalletSection('archetype-overview')"
+          >
+            {{ isWalletSectionOpen('archetype-overview') ? '收起' : '展开' }}
+          </button>
+        </div>
       </div>
+      <template v-if="!isCompactMobile || isWalletSectionOpen('archetype-overview')">
       <p class="text-xs text-muted mb-3">在旧钱包被动之外，可额外选择一个经营流派，影响目标偏好与商店推荐。</p>
 
       <div class="grid grid-cols-1 gap-2 mb-3">
@@ -431,6 +519,7 @@
           <p class="text-[10px] text-muted mt-1">条件：{{ walletStore.getNodeUnlockHint(node.id) }}</p>
         </div>
       </div>
+      </template>
     </div>
 
     <div class="flex flex-col space-y-1.5">
@@ -541,7 +630,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted } from 'vue'
+  import { ref, computed, onMounted, onUnmounted } from 'vue'
   import { Wallet, CircleCheck, Lock, X, TrendingUp, AlertTriangle, Store } from 'lucide-vue-next'
   import { navigateToPanel } from '@/composables/useNavigation'
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
@@ -565,6 +654,23 @@
   const regionMapStore = useRegionMapStore()
   const saveStore = useSaveStore()
   const { buildPromptFocusAttr, isPromptFocusActive } = usePromptFocusPanel('wallet')
+  const isCompactMobile = ref(false)
+  const walletPreludeExpanded = ref(false)
+  const walletSectionExpandedState = ref<Record<string, boolean>>({})
+  const syncCompactViewportMode = () => {
+    isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  }
+  const walletPreludeForceOpen = computed(() =>
+    ['economy-overview', 'recommended-consumption'].some(key => isPromptFocusActive(key))
+  )
+  const isWalletSectionOpen = (sectionKey: string) =>
+    !isCompactMobile.value || walletSectionExpandedState.value[sectionKey] || isPromptFocusActive(sectionKey)
+  const toggleWalletSection = (sectionKey: string) => {
+    walletSectionExpandedState.value = {
+      ...walletSectionExpandedState.value,
+      [sectionKey]: !isWalletSectionOpen(sectionKey)
+    }
+  }
 
   const selectedItem = ref<WalletItemDef | null>(null)
   const showResetArchetypeConfirm = ref(false)
@@ -822,6 +928,102 @@
     if (limit <= 0) return true
     return (exchangeContext.value.todayExportedMoney || 0) + sanitizedExchangeMoney.value <= limit
   })
+  const walletPrimaryActionCard = computed(() => {
+    if (cloudHighlandWalletPrep.value) {
+      return {
+        action: 'weekly-budget',
+        title: '先看高地战备预算',
+        summary: '这批高地收益先和周预算、票券余量对上，再决定是继续补前置还是直接回高地推进。',
+        detailLines: [
+          `灵脉结晶 ${cloudHighlandWalletPrep.value.leyQty} 份`,
+          `建设券 ${cloudHighlandWalletPrep.value.constructionTickets} / 后勤券 ${cloudHighlandWalletPrep.value.guildLogisticsTickets}`
+        ],
+        statusLabel: '高地战备',
+        statusToneClass: 'text-accent',
+        ctaLabel: '看周预算'
+      }
+    }
+    if (weeklyBudgetActiveCount.value < weeklyBudgetChannels.value.length) {
+      return {
+        action: 'weekly-budget',
+        title: '先补本周预算',
+        summary: '本周预算槽还没配满，先定资金去向，后面的商圈投入、票券积累和流派收益都会更稳。',
+        detailLines: [
+          `已投入 ${weeklyBudgetActiveCount.value}/${weeklyBudgetChannels.value.length} 槽`,
+          weeklyBudgetTicketSummary.value
+        ],
+        statusLabel: '待投入',
+        statusToneClass: 'text-warning',
+        ctaLabel: '看周预算'
+      }
+    }
+    const affordableTicketOffer = rewardTicketExchangeOffers.value.find(offer => offer.affordable)
+    if (affordableTicketOffer) {
+      return {
+        action: 'reward-ticket',
+        title: '先兑一轮票券补给',
+        summary: '当前手里已经有能立刻兑现的票券，先换成专项补给，再决定后面把钱压去哪条线更直观。',
+        detailLines: [`可兑：${affordableTicketOffer.label}`, `消耗 ${affordableTicketOffer.costTickets} ${affordableTicketOffer.ticketLabel}`],
+        statusLabel: '可兑换',
+        statusToneClass: 'text-success',
+        ctaLabel: '看票券兑换'
+      }
+    }
+    if (walletCatalogRecommendedOffers.value.length > 0 || shopStore.weeklySurpriseOffer) {
+      return {
+        action: 'shop-recommend',
+        title: '先看商圈豪华消费路线',
+        summary: '这页里最容易马上产生体感变化的，通常是推荐货架和每周精选，先看这里再决定要不要切别的投入线。',
+        detailLines: [
+          shopStore.weeklySurpriseOffer ? `本周精选：${shopStore.weeklySurpriseOffer.name}` : '已有推荐货架可承接当前路线',
+          `目录推荐 ${walletCatalogRecommendedOffers.value.length} 项`
+        ],
+        statusLabel: '消费路线',
+        statusToneClass: 'text-accent',
+        ctaLabel: '去商圈推荐区'
+      }
+    }
+    if (!walletStore.currentArchetype) {
+      return {
+        action: 'archetype-overview',
+        title: '先定钱包流派',
+        summary: '还没选流派时，钱袋更像纯被动页；先定一条经营偏好，后面的商店和目标推荐才会更集中。',
+        detailLines: ['先挑一个当前最想放大的经营方向，再往下解节点。'],
+        statusLabel: '未选择',
+        statusToneClass: 'text-warning',
+        ctaLabel: '看钱包流派'
+      }
+    }
+    return {
+      action: 'quota-exchange',
+      title: '先核对额度兑换条件',
+      summary: '预算、票券和流派都已经在跑时，下一步更像是确认当前服务端会话和额度上下文是否就绪。',
+      detailLines: [exchangePreviewLabel.value],
+      statusLabel: hasServerExchangeSession.value ? '可兑换' : '待绑定',
+      statusToneClass: hasServerExchangeSession.value ? 'text-success' : 'text-muted',
+      ctaLabel: '看额度兑换'
+    }
+  })
+
+  const handleWalletPrimaryAction = () => {
+    switch (walletPrimaryActionCard.value.action) {
+      case 'weekly-budget':
+        focusWalletSection('weekly-budget', '看周预算')
+        break
+      case 'reward-ticket':
+        focusWalletSection('reward-ticket', '看票券兑换')
+        break
+      case 'shop-recommend':
+        openShopPromptTarget('recommended-consumption', '去商圈推荐区')
+        break
+      case 'archetype-overview':
+        focusWalletSection('archetype-overview', '看钱包流派')
+        break
+      default:
+        focusWalletSection('quota-exchange', '看额度兑换')
+        break
+    }
+  }
 
   const refreshExchangeContext = async () => {
     exchangeContext.value = await fetchTaoyuanExchangeContext()
@@ -1005,6 +1207,16 @@
   }
 
   onMounted(() => {
+    syncCompactViewportMode()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', syncCompactViewportMode)
+    }
     void refreshExchangeContext()
+  })
+
+  onUnmounted(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', syncCompactViewportMode)
+    }
   })
 </script>

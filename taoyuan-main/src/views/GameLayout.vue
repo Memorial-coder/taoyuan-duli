@@ -1,12 +1,12 @@
 ﻿<template>
   <div
     v-if="gameStore.isGameStarted"
-    class="game-layout-root flex h-screen flex-col gap-2 p-2 md:gap-4 md:p-4"
+    class="game-layout-root flex h-screen flex-col gap-1 p-1.5 md:gap-4 md:p-4"
     data-testid="game-layout"
     :class="{ 'py-10': Capacitor.isNativePlatform() }"
   >
     <!-- 状态栏 -->
-    <StatusBar @request-sleep="showSleepConfirm = true" @request-save-manager="openSaveManager" />
+    <StatusBar @request-sleep="showSleepConfirm = true" @request-save-prompt="openSavePrompt" />
 
     <div class="game-layout-header-actions">
       <Button class="game-layout-sleep-btn text-center justify-center !text-sm" :icon="Moon" :icon-size="12" @click.stop="showSleepConfirm = true">
@@ -17,7 +17,7 @@
     <!-- 内容 -->
     <div ref="contentViewport" class="game-panel game-layout-content flex-1 min-h-0 overflow-y-auto">
       <div class="game-layout-body">
-        <TopGoalsPanel class="mb-2 md:mb-3 xl:mb-4" />
+        <TopGoalsPanel class="mb-0.5 md:mb-3 xl:mb-4" />
         <div ref="sceneContentAnchor">
           <router-view v-slot="{ Component }">
             <Transition name="panel-fade" mode="out-in">
@@ -28,23 +28,11 @@
       </div>
     </div>
 
-    <!-- 右下角快捷按钮 -->
+    <!-- 移动端总入口 -->
     <div class="game-side-actions">
-      <button class="mobile-map-btn" @click="showMobileMap = true">
+      <button class="mobile-hub-btn" data-testid="mobile-hub-button" @click="showMobileMap = true">
         <Map :size="20" />
-      </button>
-      <button class="mobile-setting-btn" @click="openSettings">
-        <SettingsIcon :size="20" />
-      </button>
-      <button class="mobile-mail-btn" @click="openMailbox">
-        <Mail :size="20" />
         <span v-if="mailboxStore.unreadCount > 0" class="mail-badge">{{ mailboxStore.unreadCount > 99 ? '99+' : mailboxStore.unreadCount }}</span>
-      </button>
-      <button v-if="warehouseStore.hasVoidChest" class="mobile-void-btn" @click="showVoidModal = true">
-        <Archive :size="20" />
-      </button>
-      <button class="mobile-log-btn" @click="showLogModal = true">
-        <History :size="20" />
       </button>
     </div>
 
@@ -59,8 +47,34 @@
       />
     </Transition>
 
+    <Transition name="panel-fade">
+      <div
+        v-if="showSavePrompt"
+        class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+        @click.self="showSavePrompt = false"
+      >
+        <div class="game-panel w-full max-w-xs text-center">
+          <Divider title class="my-4" label="保存进度" />
+          <p class="text-xs text-muted leading-5 mb-4">这次保存后，要直接返回吗？</p>
+          <div class="flex flex-col space-y-1.5">
+            <Button class="w-full justify-center !bg-accent !text-bg" @click="confirmSavePrompt('save')">仅保存</Button>
+            <Button class="w-full justify-center" @click="confirmSavePrompt('save-return')">保存并返回</Button>
+            <Button class="w-full justify-center text-muted" @click="showSavePrompt = false">取消</Button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
     <!-- 移动端地图菜单 -->
-    <MobileMapMenu :open="showMobileMap" :current="currentPanel" @close="showMobileMap = false" />
+    <MobileMapMenu
+      :open="showMobileMap"
+      :current="currentPanel"
+      :has-void-chest="warehouseStore.hasVoidChest"
+      @close="showMobileMap = false"
+      @open-settings="openSettingsFromMenu"
+      @open-log="openLogFromMenu"
+      @open-void="openVoidFromMenu"
+    />
 
     <!-- 季节事件弹窗 -->
     <Transition name="panel-fade">
@@ -484,7 +498,7 @@
   import { useGameClock } from '@/composables/useGameClock'
   import { useAudio } from '@/composables/useAudio'
   import type { Quality } from '@/types'
-  import { Moon, X, Map, Settings as SettingsIcon, Archive, ArrowDown, ArrowDownToLine, History, Trash2, Mail } from 'lucide-vue-next'
+  import { Moon, X, Map, ArrowDown, ArrowDownToLine, Trash2 } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import MobileMapMenu from '@/components/game/MobileMapMenu.vue'
@@ -554,6 +568,7 @@
 
   /** 设置弹窗 */
   const showSettings = ref(false)
+  const showSavePrompt = ref(false)
   const showSaveManager = ref(false)
   const saveIntent = ref<'manage' | 'save' | 'save-return'>('manage')
   const saveReturnUrl = ref('/')
@@ -568,19 +583,35 @@
     showSettings.value = false
   }
 
+  const openSavePrompt = (returnUrl: string) => {
+    saveReturnUrl.value = returnUrl || '/'
+    showSavePrompt.value = true
+  }
+
   const openSaveManager = (payload: { intent: 'save' | 'save-return'; returnUrl: string }) => {
     saveIntent.value = payload.intent
     saveReturnUrl.value = payload.returnUrl || '/'
+    showSavePrompt.value = false
     showSaveManager.value = true
   }
 
-  const openMailbox = async () => {
-    try {
-      await mailboxStore.refreshList()
-    } catch {
-      void 0
-    }
-    void router.push({ name: 'mail' })
+  const confirmSavePrompt = (intent: 'save' | 'save-return') => {
+    openSaveManager({ intent, returnUrl: saveReturnUrl.value || '/' })
+  }
+
+  const openSettingsFromMenu = () => {
+    showMobileMap.value = false
+    openSettings()
+  }
+
+  const openLogFromMenu = () => {
+    showMobileMap.value = false
+    showLogModal.value = true
+  }
+
+  const openVoidFromMenu = () => {
+    showMobileMap.value = false
+    showVoidModal.value = true
   }
 
   /** 日志弹窗 */
@@ -1011,19 +1042,13 @@
     bottom: calc(calc(0.35rem * 10) + env(safe-area-inset-bottom, 0px));
     z-index: 40;
     display: flex;
-    flex-direction: column-reverse;
-    gap: 8px;
   }
 
-  .mobile-map-btn,
-  .mobile-setting-btn,
-  .mobile-mail-btn,
-  .mobile-void-btn,
-  .mobile-log-btn {
+  .mobile-hub-btn {
     position: relative;
     z-index: 40;
-    width: 40px;
-    height: 40px;
+    width: 46px;
+    height: 46px;
     border-radius: 2px;
     background: rgb(var(--color-panel));
     border: 2px solid var(--color-accent);
@@ -1042,27 +1067,16 @@
     .game-side-actions {
       right: 18px;
       bottom: 18px;
-      gap: 10px;
     }
 
-    .mobile-map-btn,
-    .mobile-setting-btn,
-    .mobile-mail-btn,
-    .mobile-void-btn,
-    .mobile-log-btn {
-      width: 42px;
-      height: 42px;
+    .mobile-hub-btn {
+      width: 48px;
+      height: 48px;
     }
   }
 
-  .mobile-map-btn:hover,
-  .mobile-map-btn:active,
-  .mobile-mail-btn:hover,
-  .mobile-mail-btn:active,
-  .mobile-void-btn:hover,
-  .mobile-void-btn:active,
-  .mobile-log-btn:hover,
-  .mobile-log-btn:active {
+  .mobile-hub-btn:hover,
+  .mobile-hub-btn:active {
     background: var(--color-accent);
     color: rgb(var(--color-bg));
   }

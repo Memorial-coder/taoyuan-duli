@@ -6,6 +6,42 @@
       <span>任务</span>
     </div>
 
+    <div v-if="isCompactMobile" class="border border-accent/15 rounded-xs px-3 py-2 mb-3 bg-bg/10">
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-xs text-accent">任务提示</p>
+          <p class="text-xs text-muted mt-1 leading-5">先看主线、今日委托和进行中任务，需要时再展开经营提示与建设线路。</p>
+        </div>
+        <button class="btn !px-2 !py-1 text-xs shrink-0" @click="questPreludeExpanded = !questPreludeExpanded">
+          {{ questPreludeExpanded || questPreludeForceOpen ? '收起' : '展开' }}
+        </button>
+      </div>
+    </div>
+
+    <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70" data-testid="quest-primary-action-card">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-[10px] tracking-[0.24em] text-accent/70">当前推荐动作</p>
+          <p class="text-sm text-accent mt-1">{{ mobileQuestPrimaryActionCard.title }}</p>
+          <p class="text-xs text-muted mt-2 leading-5">{{ mobileQuestPrimaryActionCard.summary }}</p>
+        </div>
+        <span class="text-[10px] shrink-0" :class="mobileQuestPrimaryActionCard.statusToneClass">{{ mobileQuestPrimaryActionCard.statusLabel }}</span>
+      </div>
+      <div v-if="mobileQuestPrimaryActionCard.detailLines.length > 0" class="mt-3 space-y-1">
+        <p
+          v-for="line in mobileQuestPrimaryActionCard.detailLines"
+          :key="`quest-primary-action-${line}`"
+          class="text-xs text-muted leading-5"
+        >
+          · {{ line }}
+        </p>
+      </div>
+      <button class="mt-3 w-full border border-accent/20 rounded-xs px-3 py-2 text-xs text-accent hover:bg-accent/5" @click="handleMobileQuestPrimaryAction">
+        {{ mobileQuestPrimaryActionCard.ctaLabel }}
+      </button>
+    </div>
+
+    <template v-if="!isCompactMobile || questPreludeExpanded || questPreludeForceOpen">
     <GuidanceDigestPanel surface-id="quest" title="任务路线引导" />
 
     <QaGovernancePanel page-id="quest" title="结算治理总览" />
@@ -133,6 +169,7 @@
       </div>
       <div v-else class="text-xs text-muted">当前暂无与委托/订单直接联动的建设项目。</div>
     </div>
+    </template>
 
     <!-- 主线任务 -->
     <div
@@ -602,7 +639,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted } from 'vue'
+  import { ref, computed, onMounted, onUnmounted } from 'vue'
   import { ClipboardList, Calendar, Clock, Plus, CheckCircle, CircleCheck, Circle, Star, BookOpen, X } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
@@ -623,10 +660,16 @@
   const questStore = useQuestStore()
   const inventoryStore = useInventoryStore()
   const goalStore = useGoalStore()
+  const isCompactMobile = ref(false)
+  const questPreludeExpanded = ref(false)
   const weeklyPlanSnapshot = computed(() => goalStore.weeklyPlanSnapshot)
   const npcStore = useNpcStore()
   const villageProjectStore = useVillageProjectStore()
   const { buildPromptFocusAttr, isPromptFocusActive } = usePromptFocusPanel('quest')
+  const syncCompactViewportMode = () => {
+    isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  }
+  const questPreludeForceOpen = computed(() => ['prompt-hints', 'village-route'].some(key => isPromptFocusActive(key)))
 
   const CATEGORY_LABELS: Record<VillagerQuestCategory, string> = {
     gathering: '采集',
@@ -900,6 +943,173 @@
   })
 
   const canSubmitMainQuest = computed(() => questStore.canSubmitMainQuest())
+  const availableQuestSlots = computed(() => Math.max(0, questStore.MAX_ACTIVE_QUESTS - questStore.activeQuests.length))
+  const firstReadyActiveQuest = computed(() => questStore.activeQuests.find(quest => canSubmit(quest)) ?? null)
+  const urgentBoardQuest = computed(() => questStore.boardQuests.find(quest => quest.isUrgent) ?? null)
+
+  type QuestPrimaryActionCard = {
+    title: string
+    summary: string
+    detailLines: string[]
+    statusLabel: string
+    statusToneClass: string
+    ctaLabel: string
+    action: 'main' | 'board' | 'special' | 'active' | 'village-route'
+    questId?: string
+  }
+
+  const mobileQuestPrimaryActionCard = computed<QuestPrimaryActionCard>(() => {
+    if (mainQuestDef.value && canSubmitMainQuest.value) {
+      return {
+        title: '先交主线',
+        summary: '当前主线已经满足提交条件，先领掉这一段回报，再决定今天接哪张单子。',
+        detailLines: [`第${mainQuestDef.value.chapter}章 · ${mainQuestDef.value.title}`, chapterTitle.value].filter(
+          (line): line is string => !!line
+        ),
+        statusLabel: '可提交',
+        statusToneClass: 'text-success',
+        ctaLabel: '去交主线',
+        action: 'main'
+      }
+    }
+
+    if (firstReadyActiveQuest.value) {
+      return {
+        title: '先交进行中的任务',
+        summary: '这条任务已经可提交，先腾出任务栏，再决定要不要接新的委托或特殊订单。',
+        detailLines: [
+          firstReadyActiveQuest.value.description,
+          getQuestRewardPreview(firstReadyActiveQuest.value)
+        ].filter((line): line is string => !!line),
+        statusLabel: '可提交',
+        statusToneClass: 'text-success',
+        ctaLabel: '去交这条任务',
+        action: 'active',
+        questId: firstReadyActiveQuest.value.id
+      }
+    }
+
+    if (urgentBoardQuest.value && availableQuestSlots.value > 0) {
+      return {
+        title: '先看紧急委托',
+        summary: '这条委托只剩 1 天，适合先确认能不能接，避免今天错过。',
+        detailLines: [
+          urgentBoardQuest.value.description,
+          getQuestRewardPreview(urgentBoardQuest.value)
+        ].filter((line): line is string => !!line),
+        statusLabel: '紧急',
+        statusToneClass: 'text-danger',
+        ctaLabel: '看这张委托',
+        action: 'board',
+        questId: urgentBoardQuest.value.id
+      }
+    }
+
+    if (questStore.specialOrder && !questStore.specialOrder.accepted && availableQuestSlots.value > 0) {
+      return {
+        title: '先看特殊订单',
+        summary: '本期特殊订单还没接，先看交付要求和奖励，再决定要不要占用一个任务栏位。',
+        detailLines: [
+          `剩余 ${questStore.specialOrder.daysRemaining} 天`,
+          getQuestRewardPreview(questStore.specialOrder)
+        ].filter((line): line is string => !!line),
+        statusLabel: '特单',
+        statusToneClass: 'text-warning',
+        ctaLabel: '看特殊订单',
+        action: 'special'
+      }
+    }
+
+    if (mainQuestDef.value && !questStore.mainQuest?.accepted) {
+      return {
+        title: '先接主线',
+        summary: '主线还没接下来，先挂上这条长期目标，后面做委托时也更容易顺手推进。',
+        detailLines: [`第${mainQuestDef.value.chapter}章 · ${mainQuestDef.value.title}`, mainQuestDef.value.description],
+        statusLabel: '主线',
+        statusToneClass: 'text-accent',
+        ctaLabel: '去看主线',
+        action: 'main'
+      }
+    }
+
+    if (mainQuestDef.value && questStore.mainQuest?.accepted) {
+      return {
+        title: '先看主线差哪一步',
+        summary: '主线已经在推进中，先确认还差什么，再决定今天的委托怎么配更顺。',
+        detailLines: [`第${mainQuestDef.value.chapter}章 · ${mainQuestDef.value.title}`, mainQuestDef.value.description],
+        statusLabel: '推进中',
+        statusToneClass: 'text-accent',
+        ctaLabel: '看主线进度',
+        action: 'main'
+      }
+    }
+
+    if (questStore.activeQuests[0]) {
+      const activeQuest = questStore.activeQuests[0]
+      return {
+        title: '先推正在进行的任务',
+        summary: '任务栏里已经有进行中的单子，先看最上面这条进度，避免今天来回切任务。',
+        detailLines: [
+          activeQuest.description,
+          `进度 ${getEffectiveProgress(activeQuest)}/${getQuestProgressMax(activeQuest)} · 剩余 ${activeQuest.daysRemaining} 天`
+        ],
+        statusLabel: '进行中',
+        statusToneClass: 'text-accent',
+        ctaLabel: '看这条任务',
+        action: 'active',
+        questId: activeQuest.id
+      }
+    }
+
+    if (questStore.boardQuests[0]) {
+      return {
+        title: '先挑一张今日委托',
+        summary: '主线和特单都不着急时，先接一张今天最顺手的委托，起步最快。',
+        detailLines: [
+          questStore.boardQuests[0].description,
+          getQuestRewardPreview(questStore.boardQuests[0])
+        ].filter((line): line is string => !!line),
+        statusLabel: '委托',
+        statusToneClass: 'text-accent',
+        ctaLabel: '看今日委托',
+        action: 'board',
+        questId: questStore.boardQuests[0].id
+      }
+    }
+
+    return {
+      title: '先补村庄任务加成',
+      summary: '当前没有立刻要交的单子时，先补任务容量和收益加成，后面接委托会更顺。',
+      detailLines: [
+        `可接任务数 +${villageProjectStore.getQuestCapacityBonus()}`,
+        `委托铜钱加成 ${Math.round(villageProjectStore.getQuestMoneyBonusRate() * 100)}%`
+      ],
+      statusLabel: '建设',
+      statusToneClass: 'text-warning',
+      ctaLabel: '看村庄路线',
+      action: 'village-route'
+    }
+  })
+  const handleMobileQuestPrimaryAction = () => {
+    const action = mobileQuestPrimaryActionCard.value
+    if (action.action === 'main') {
+      questModal.value = { type: 'main' }
+      return
+    }
+    if (action.action === 'special') {
+      questModal.value = { type: 'special' }
+      return
+    }
+    if (action.action === 'board' && action.questId) {
+      questModal.value = { type: 'board', questId: action.questId }
+      return
+    }
+    if (action.action === 'active' && action.questId) {
+      questModal.value = { type: 'active', questId: action.questId }
+      return
+    }
+    focusQuestSection('village-route', '看村庄路线')
+  }
 
   const handleAcceptMain = () => {
     const result = questStore.acceptMainQuest()
@@ -952,7 +1162,17 @@
   }
 
   onMounted(() => {
+    syncCompactViewportMode()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', syncCompactViewportMode)
+    }
     questStore.initMainQuest()
     goalStore.ensureInitialized()
+  })
+
+  onUnmounted(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', syncCompactViewportMode)
+    }
   })
 </script>

@@ -430,6 +430,8 @@ export interface RegionAutoPatrolState {
   blockedTags: string[]
 }
 
+export type RegionJourneyActionState = Record<string, string[]>
+
 export interface RegionMapSaveData {
   saveVersion: number
   unlockStates: Record<RegionId, RegionUnlockState>
@@ -450,6 +452,7 @@ export interface RegionMapSaveData {
   companionContracts: RegionCompanionContract[]
   rumorBoard: RegionRumorBoardState
   autoPatrolStates: Record<string, RegionAutoPatrolState>
+  journeyActionState: RegionJourneyActionState
   telemetry: RegionTelemetrySnapshot
   bossClearCounts: Record<RegionId, number>
   bossFailureStreaks: Record<RegionId, number>
@@ -485,5 +488,6 @@ export interface RegionMapSessionState {
 export interface RegionMapSettlementState {
   resourceLedger: Record<RegionalResourceFamilyId, number>
   journeyHistory: RegionExpeditionArchiveEntry[]
+  journeyActionState: RegionJourneyActionState
   lastBossOutcome: RegionBossOutcomeState
 }

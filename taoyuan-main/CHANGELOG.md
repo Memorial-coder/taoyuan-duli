@@ -4,6 +4,71 @@
 
 ## [未发布]
 
+### 0426 农田一键操作禁用态可见性热修
+- `src/views/game/FarmView.vue` 已为田庄「一键操作」弹窗的 7 个批量按钮补入 `farm-batch-action` 定制样式：保留原有 `disabled` 语义，但不再依赖全局 `.btn:disabled { opacity: 0.35; }` 直接压暗整颗按钮。
+- `src/views/game/FarmView.vue` 现会在禁用态显式固定按钮底色、边框色、文案色与 `-webkit-text-fill-color`；部分安卓 WebView / 手机浏览器上原本近似“消失”的 0 项按钮，现会稳定显示为灰色不可操作态。
+- 本轮已再次通过 `npm --prefix taoyuan-main run build` 验证。
+
+### 0426 钱袋 / 公会 / 鱼塘移动端首屏三段式扩展
+- `src/views/game/WalletView.vue` 已新增移动端 `walletPreludeExpanded` / `walletPreludeForceOpen` / `walletPrimaryActionCard` / `handleWalletPrimaryAction()`：钱袋页首屏现会先收口成“提示 + 当前推荐动作 + 周预算/额度等主模块”，并把 `云岚高地战备 / 后期经济观测 / Guidance / QA / 商圈豪华消费路线` 下沉到可展开区。
+- `src/views/game/WalletView.vue` 已为 `资源券 / 凭证` 与 `钱包流派` 补入 prompt focus 标记，移动端当前推荐动作现可直接跳到 `reward-ticket / archetype-overview` 等本页锚点，不必先手动翻长页。
+- `src/views/game/WalletView.vue` 已补 `walletSectionExpandedState`、`isWalletSectionOpen()` 与 `toggleWalletSection()`：`资源券 / 凭证`、`额度兑换`、`钱包流派` 三个重内容区在移动端默认改成按需展开，只有用户主动展开或命中当前推荐动作 / prompt focus 时才完整挂载。
+- `src/views/game/GuildView.vue` 已新增移动端 `guildPreludeExpanded` / `guildPrimaryActionCard` / `handleGuildPrimaryAction()`：公会页现在会优先收口成“先领奖励 / 先开第一条讨伐线 / 先捐献 / 先回高地承接 / 先看公会商店”的单一首动作，而 `赛季总览 / 高地承接 / 经营联动` 会在移动端默认收起。
+- `src/views/game/FishPondView.vue` 已新增移动端 `fishPondPreludeExpanded` / `fishPondPrimaryActionCard` / `handleFishPondPrimaryAction()`：鱼塘页会优先把 `建造 / 收获 / 治疗 / 喂食 / 泽地样本承接` 这类当前最值动作前置，并把 `周赛 / 主题周 / 展示池 / 资格快照` 等重说明块改成移动端展开后再显示。
+- `scripts/qa-mobile-ui-smoke.mjs` 已继续扩展到 `wallet / guild / fishpond`，`docs/ui-smoke-2026-04-26/summary.json` 与截图目录现总计 21 张图；除 `13~15` 三张 `390 x 844` 证据图外，又新增 `16~18` 的 `360 x 780` 与 `19~21` 的 `430 x 932` 复核图，用于确认这三个页在三档手机视口里都能把主动作留在首屏。
+- `playwright.config.ts` 已把 `webServer.reuseExistingServer` 改为 `!process.env.CI`：本地跑 `test:e2e` 时会复用已存在的 4175 开发服，不再和 `qa:mobile-ui-smoke` 互相抢端口。
+- 本轮已再次通过 `npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 与 `npm --prefix taoyuan-main run qa:mobile-ui-smoke` 验证。
+
+### 0426 移动端首屏密度、当前页去重与截图 smoke 收尾
+- `src/components/game/TopGoalsPanel.vue` 已补 `currentPanelName` / `rawCompactCta` / `compactCtaTargetsCurrentPanel`：当移动端已经停在当前推荐页时，`TopGoals` 折叠态不再重复给一枚“点回本页”的 CTA，而是改成更短的“当前页就是今天该推进的地方”摘要。
+- `src/components/game/TopGoalsPanel.vue` 已把“更多 / 收起”统一固定到卡片右上角，并移除折叠卡内部重复的“查看完整规划”按钮；展开与收起时不再需要在不同位置重新找控制入口。
+- `src/components/game/TopGoalsPanel.vue`、`src/views/game/ShopView.vue`、`src/views/game/QuestView.vue`、`src/views/game/RegionMapView.vue` 已把移动端首屏真正需要阅读的提示和推荐动作详情继续抬到 `text-xs`，并给相关主卡补入 `data-testid`，便于真实视口复核。
+- `src/views/game/RegionMapView.vue` 已把 `scrollCompactRegionRailIntoView()` 从 `target.scrollIntoView()` 改成只滚动 rail 的横向 `scrollLeft`；移动端不再因为自动聚焦当前节点，把 `primaryJourneyActionCard` 挤出首屏。
+- `src/views/GameLayout.vue`、`src/components/game/MobileMapMenu.vue` 已补 `mobile-hub-button`、`mobile-map-menu`、`mobile-map-menu-primary-entry` 等测试标识，用于单独验证地图菜单入口和当前推荐入口是否可达。
+- `src/components/game/StatusBar.vue` 与 `src/views/GameLayout.vue` 已把顶栏保存入口从“保存 / 保存并返回”双按钮收成单一“保存”，点击后会先弹出“仅保存 / 保存并返回”的确认层，再进入原有 `SaveManager` 流程，减轻首行拥挤而不改动既有保存链路。
+- 已新增 `scripts/qa-mobile-ui-smoke.mjs` 与 `npm run qa:mobile-ui-smoke`：脚本会生成 `docs/ui-smoke-2026-04-26/summary.json` 和 12 张移动端截图，覆盖 `390 x 844 / 360 x 780 / 430 x 932` 三档视口，以及行旅图进行中远征 / 旅后处理 / 地图菜单单独页。
+- 最新 smoke 结果已确认：`docs/ui-smoke-2026-04-26/summary.json` 中商店 / 任务 / 行旅图三页首屏均能直接露出主操作模块，且本轮截图未记录 console error、page error 或 request failure。
+
+### 0426 商店 / 任务页移动端首屏推荐动作补齐
+- `src/views/game/ShopView.vue` 已新增移动端 `shopPrimaryActionCard` / `handleShopPrimaryAction()`：商圈总览会按当前上下文在“看推荐货架 / 看市场看板 / 去万物铺 / 回到当前店铺货架”之间收口成单一首个动作，而不是只把买卖切换和大段说明同时摊在首屏。
+- `src/views/game/ShopView.vue` 现会在移动端 `sell` 视角优先把首个推荐动作切到市场看板，在 `buy` 视角优先把首个动作切到推荐货架；若已在店内买入货架，则不再额外挂同级引导卡，避免“内容已经很清楚时还多一层提示”。
+- `src/views/game/QuestView.vue` 已新增移动端 `mobileQuestPrimaryActionCard` / `handleMobileQuestPrimaryAction()`：页首会按 `可提交主线 > 可提交进行中 > 紧急委托 > 特殊订单 > 主线推进` 的顺序，给出单一推荐动作并直接拉起对应任务弹层。
+- `src/views/game/QuestView.vue` 的移动端任务首屏现在开始更明确地区分 `TopGoals` 与页内引导职责：`TopGoals` 负责“今天先做什么”，页内动作卡只回答“进了任务页先点哪里”。
+- 本轮已再次通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 验证。
+
+### 0426 行旅图移动端任务流收口、路网单主交互与回城办事单去重
+- `src/views/game/RegionMapView.vue` 已新增 `mobileJourneyFlowSteps` / `handleMobileFlowStep()`，把移动端行旅图收口成 `选区 -> 看路 -> 出发 -> 推进 -> 回城` 五步节奏；首屏新增横向步骤条，并允许直接滚动跳到当前相关区块。
+- `src/views/game/RegionMapView.vue` 已为移动端补入 `handleSelectRegionFilter()`、`handleSelectAllRegions()` 与 `shouldRenderRegionDetail()`：在“全部区域”模式下只保留区域摘要，不再把每个区域的路线、传闻、台账整段一起挂出，减少首屏重渲染与信息过载。
+- `src/views/game/RegionMapView.vue` 已把移动端卷轴路网改成“看进度，不直接在这里出发”的单主交互；`getMapNodeActionLabel()` 与 `handleMapNodeAction()` 现会把玩家从路网节点引导到下方路线卡或首领准备区，真正发起远征统一以下方主 CTA 为准。
+- `src/views/game/RegionMapView.vue` 已移除区域切换里的“全部区域”总览卡，并把默认筛选、首屏推荐文案、步骤条摘要与回退逻辑统一改成落在真实区域上，不再保留 `null => 全部区域` 的旧入口状态。
+- `src/views/game/RegionMapView.vue` 已把 `latestJourneyAftermathSummary` 与历史区去重：最新一条回城办事单继续置顶，历史列表改为只展示更早的远征记录，避免刚结算完的同一趟旅程在同页重复出现两遍。
+- `src/views/game/RegionMapView.vue` 已把手机端更早历史记录整段默认收起，并新增 `mobileHistorySectionExpanded`；旧远征列表现在只有主动展开时才挂出，减少非首屏长列表在首轮浏览时的干扰。
+- `src/views/game/RegionMapView.vue` 已把常驻“旅后处理台账”改成显式 pin 模式：新增 `selectedJourneyAftermathPinned` 与 `pinnedJourneyAftermathSummary`，只有玩家在历史里主动点“设为当前回看”后才出现，避免最新办事单与常驻回看默认重复。
+- `src/views/game/RegionMapView.vue` 已为移动端补入首见 `journeyTermPrimerCards` / `dismissJourneyTermPrimer()` 术语卡，首次解释“看清进度 / 地图摸清 / 熟路 / 回城办事单”，并用 localStorage 记住已确认状态。
+- `src/views/game/RegionMapView.vue` 已给最新办事单与常驻回看的“资源去向”区补入 `resourceLedgerAnchor` / `scrollToResourceLedger()`；手机端改成直接跳去下方 `资源家族总览`，避免同一批库存在线路回执、常驻回看和台账里重复展开。
+- `src/views/game/RegionMapView.vue` 已把首屏关键正文从 `text-[10px]` 提到 `text-xs`：覆盖 `primaryJourneyActionCard` 摘要、术语说明卡、历史摘要、资源导流文案等真正第一眼会读到的说明层；同时 `mobileLatestAftermathExpanded` 改为按 `hasPendingLatestAftermathAction` 自动决定默认展开，没待处理动作时不再把整块最新办事单默认摊开。
+- `src/components/game/MobileMapMenu.vue` 已把最近一次 `journeyHistory` 接入“当前推荐”区，并收成“1 个主推荐 + 若干顺路提醒”；地图菜单现在能直接把最新回城办事单送到推荐承接页，而不只会提示进行中远征、本周主线和未读邮件。
+- `src/stores/useRegionMapStore.ts`、`src/types/region.ts`、`src/data/regions.ts` 已补入持久化 `journeyActionState`，并将 `REGION_MAP_SAVE_VERSION` 提升到 `10`；回城办事单“已处理”状态现在会在行旅图、历史回看和地图菜单之间共用，不再只存在于当前页面实例里。
+- `src/components/game/regionMap/JourneySettlementReveal.vue` 与 `src/views/game/RegionMapView.vue` 已把部分内向型文案改成更玩家口径的“回城办事入口 / 回城去向 / 地图摸清 / 看清进度”等说法，减少移动端首屏术语理解成本。
+- 本轮已再次通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts`，其中包含 `region map mobile layout keeps rail scoped and actions reachable` 冒烟覆盖。
+
+### 0426 行旅图首屏建议动作、旅后已处理状态与移动端信息收口
+- `src/views/game/RegionMapView.vue` 已新增首屏 `primaryJourneyActionCard`，并把优先级收口为 `进行中远征 > 本周焦点区域 > 最新旅后办事单 > 默认规划入口`；卡片支持滚动锚点跳转，能直接带用户去区域列表、进行中远征台面或最近一次旅后处理区。
+- `src/views/game/RegionMapView.vue` 已为路线卡补入 `getRouteDecisionSummary()`，把“适合干什么 / 主要带回什么 / 风险高低 / 是否适合自动巡行”前置成扫读结论层，原有认知、熟路、传闻和合同等细节继续保留在下层。
+- `src/views/game/RegionMapView.vue` 已把旅后承接动作统一改走 `processedJourneyActionState`、`handleJourneyActionNavigate()` 与 `getJourneyActionStatus()`，最新回城、历史回看、常驻台账和结算弹层现在都会共享“已处理”状态，而不是各自悬挂一套未收口入口。
+- `src/views/game/RegionMapView.vue` 已新增 `getJourneyActionTagMeta()`、`getJourneyActionButtonMeta()`，让旅后动作在 UI 上能明确区分“已激活 / 已处理 / 再次前往”；当最近一趟旅后动作都处理完后，首屏建议动作也会自动退回到继续规划，而不会一直顶着旧办事单。
+- `src/views/game/RegionMapView.vue` 的 expedition settlement dialog 现已携带 `entryId`，从 `JourneySettlementReveal` 或归档旅后处理里直接跳转下游面板时，也会同步记下这条动作已经处理过。
+- `src/components/game/TopGoalsPanel.vue` 已新增移动端 `isCompactMobile` 紧凑分支，默认只保留“当前主线 + 一个 CTA + 展开入口”的轻量摘要；`src/components/game/MobileMapMenu.vue` 已新增“当前推荐”区，优先承接进行中远征、可领奖点、未读邮件和本周焦点。
+- `src/views/GameLayout.vue` 与睡觉按钮布局本轮未调整；当前移动端顶部压缩只落在 `TopGoalsPanel` 与行旅图/地图菜单自身的信息收口，避免改动用户已明确要求保持不动的休息按钮。
+- 本轮已再次通过 `npm --prefix taoyuan-main run type-check` 与 `npm --prefix taoyuan-main run build` 验证。
+
+### 0426 行旅图锁区与调试入口收口
+- `src/views/game/RegionMapView.vue` 已移除正式玩法页里的开发态操作面板，以及区域 / 路线上的 `手动解锁`、`首领清关`、`设为本周焦点` 等调试入口；RegionMap 正式页现只保留玩家真实会使用的玩法路径。
+- `src/stores/useRegionMapStore.ts` 已将原先可被页面直接调用的 `unlockRegion()` 收回为内部 `applyUnlockedRegionState()` 逻辑，不再把“裸解锁”暴露给正式 gameplay；同时补入 dev-only `forceUnlockRegion()` 与 `setRegionUnlockedForDebug()` 供调试和 e2e 使用。
+- `src/views/game/RegionMapView.vue` 已把未解锁区域改成统一锁区说明卡：顶部区域切换仍可预览锁区，但下方不再展开卷轴路网、路线主按钮、首领入口、区域事件与承接操作，避免“看得到但玩不了”的伪入口。
+- `src/views/game/RegionMapView.vue` 已把路线、首领、地图节点与区域事件的阻塞态改成“可点出原因”的反馈链：正式页点击被阻塞动作时，会写入操作回执并弹出阻塞原因，不再依赖原生 `disabled` 静默吞掉交互。
+- `e2e/game-smoke.spec.ts` 已补入锁区说明与阻塞反馈的 RegionMap 冒烟覆盖，并再次通过 `npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 复核；Docker 4014 运行态也已确认不再显示开发态按钮。
+
 ### 0425 行旅图交互重构：混合节奏版
 - `src/views/game/RegionMapView.vue` 已将进行中远征从页面内长列表重构为覆盖式“远征台面”，把总览层和手动远征层拆成更接近矿洞 / 瀚海节奏的双层结构。
 - `src/components/game/regionMap/RegionExpeditionStagePanel.vue` 已新增手动远征分阶段主场景，负责 `intro / node_reveal / choice_pick / encounter_reveal / encounter_result / camp_reveal / camp_result / settlement_reveal` 的揭示节奏与动作条收口。

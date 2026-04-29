@@ -1,64 +1,88 @@
 <template>
-  <div class="game-panel space-y-3 px-3 py-3">
-    <div class="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <p class="text-sm text-accent">目标规划</p>
-        <p class="mt-1 text-[11px] text-muted">
-          <template v-if="goalStore.currentMainQuest">
-            当前里程碑：第{{ goalStore.currentMainQuest.id }}阶段 · {{ goalStore.currentMainQuest.title }}
-          </template>
-          <template v-else>当前里程碑：已完成全部主线阶段</template>
-        </p>
-        <p v-if="goalStore.currentThemeWeek" class="mt-1 text-[11px] text-accent/80">
-          本周主题：{{ goalStore.currentThemeWeek.name }}（{{ goalStore.currentThemeWeek.startDay }}-{{ goalStore.currentThemeWeek.endDay }}日）
-        </p>
+  <div class="game-panel space-y-2 px-2.5 py-2 md:space-y-3 md:px-3 md:py-3">
+    <template v-if="isCompactMobile && collapsed">
+      <div class="rounded-xs border border-accent/15 bg-bg/10 px-2.5 py-2" data-testid="top-goals-compact-card">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="flex items-center gap-2 flex-wrap">
+              <p class="text-sm text-accent">目标规划</p>
+              <span class="text-[10px] text-muted">{{ compactStatusLabel }}</span>
+            </div>
+            <p class="mt-1.5 text-sm text-text">{{ compactHeadline }}</p>
+            <p class="mt-1 text-xs text-muted leading-5 compact-clamp-2">{{ mobileCompactSummary }}</p>
+          </div>
+          <button type="button" class="btn !px-2 !py-1 text-xs shrink-0" @click="toggleCollapsed">
+            {{ topGoalsToggleLabel }}
+          </button>
+        </div>
+        <div class="mt-2.5 flex flex-wrap gap-2">
+          <button
+            v-if="compactCta"
+            type="button"
+            class="btn !px-3 !py-1.5 text-xs"
+            @click="handleTopGoalsCta(compactCta)"
+          >
+            {{ compactCta.label }}
+          </button>
+        </div>
       </div>
+    </template>
+
+    <template v-else>
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-sm text-accent">目标规划</p>
+          <p class="mt-1 text-[11px] text-muted">
+            <template v-if="goalStore.currentMainQuest">
+              当前里程碑：第{{ goalStore.currentMainQuest.id }}阶段 · {{ goalStore.currentMainQuest.title }}
+            </template>
+            <template v-else>当前里程碑：已完成全部主线阶段</template>
+          </p>
+          <p v-if="goalStore.currentThemeWeek" class="mt-1 text-[11px] text-accent/80">
+            本周主题：{{ goalStore.currentThemeWeek.name }}（{{ goalStore.currentThemeWeek.startDay }}-{{ goalStore.currentThemeWeek.endDay }}日）
+          </p>
+        </div>
+        <button type="button" class="btn !px-2 !py-1 text-xs shrink-0" @click="toggleCollapsed">
+          {{ topGoalsToggleLabel }}
+        </button>
+      </div>
+
       <div class="flex flex-wrap items-center gap-2">
-        <span class="game-chip">今日 {{ goalStore.dailyGoals.length }} 项</span>
-        <span class="game-chip">里程碑 {{ currentMainQuestProgress }}</span>
-        <span v-if="goalStore.currentThemeWeek" class="game-chip">{{ goalStore.currentThemeWeek.name }}</span>
-        <template v-if="!collapsed">
-          <span class="game-chip">目标声望 {{ goalStore.goalReputation }}</span>
-          <span class="game-chip">长期 {{ longTermCompletedCount }} / {{ goalStore.longTermGoals.length }}</span>
-          <span class="game-chip">连周 {{ goalStore.weeklyStreakState.current }} / 最佳 {{ goalStore.weeklyStreakState.best }}</span>
-          <span v-if="goalStore.currentEventCampaign" class="game-chip">活动 {{ goalStore.currentEventCampaign.label }}</span>
-        </template>
-        <button class="btn !px-2 !py-1" @click="collapsed = !collapsed">
-          <span>{{ collapsed ? '展开完整规划' : '收起详细规划' }}</span>
-        </button>
+          <span class="game-chip">今日 {{ goalStore.dailyGoals.length }} 项</span>
+          <span class="game-chip">里程碑 {{ currentMainQuestProgress }}</span>
+          <span v-if="goalStore.currentThemeWeek" class="game-chip">{{ goalStore.currentThemeWeek.name }}</span>
+          <template v-if="!collapsed">
+            <span class="game-chip">目标声望 {{ goalStore.goalReputation }}</span>
+            <span class="game-chip">长期 {{ longTermCompletedCount }} / {{ goalStore.longTermGoals.length }}</span>
+            <span class="game-chip">连周 {{ goalStore.weeklyStreakState.current }} / 最佳 {{ goalStore.weeklyStreakState.best }}</span>
+            <span v-if="goalStore.currentEventCampaign" class="game-chip">活动 {{ goalStore.currentEventCampaign.label }}</span>
+          </template>
       </div>
-    </div>
 
-    <div
-      v-if="collapsed"
-      class="rounded-xs border border-accent/15 bg-bg/10 px-3 py-3"
-    >
-      <div class="flex items-center justify-between gap-3">
-        <p class="text-xs text-accent">今日聚焦</p>
-        <span class="text-[10px] text-muted">{{ compactStatusLabel }}</span>
+      <div
+        v-if="collapsed"
+        class="rounded-xs border border-accent/15 bg-bg/10 px-3 py-3"
+      >
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-xs text-accent">今日聚焦</p>
+          <span class="text-[10px] text-muted">{{ compactStatusLabel }}</span>
+        </div>
+        <p class="mt-2 text-sm text-text">{{ compactHeadline }}</p>
+        <p class="mt-1 text-xs text-muted leading-5">{{ compactSummary }}</p>
+        <div class="mt-3 flex flex-wrap gap-2">
+          <button
+            v-if="compactCta"
+            type="button"
+            class="btn !px-3 !py-1.5 text-xs"
+            @click="handleTopGoalsCta(compactCta)"
+          >
+            {{ compactCta.label }}
+          </button>
+        </div>
       </div>
-      <p class="mt-2 text-sm text-text">{{ compactHeadline }}</p>
-      <p class="mt-1 text-[10px] text-muted leading-5">{{ compactSummary }}</p>
-      <div class="mt-3 flex flex-wrap gap-2">
-        <button
-          v-if="compactCta"
-          type="button"
-          class="btn !px-3 !py-1.5 text-[10px]"
-          @click="handleTopGoalsCta(compactCta)"
-        >
-          {{ compactCta.label }}
-        </button>
-        <button
-          type="button"
-          class="btn !px-3 !py-1.5 text-[10px]"
-          @click="collapsed = false"
-        >
-          查看完整规划
-        </button>
-      </div>
-    </div>
+    </template>
 
-    <GuidanceDigestPanel v-else surface-id="top_goals" title="周目标与活动摘要" />
+    <GuidanceDigestPanel v-if="!collapsed" surface-id="top_goals" title="周目标与活动摘要" />
 
     <div v-if="!collapsed && decisionLoopActions.length > 0" class="rounded-xs border border-accent/15 bg-bg/10 px-3 py-3">
       <div class="mb-2 flex items-center justify-between gap-2">
@@ -143,7 +167,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref } from 'vue'
+  import { computed, onMounted, onUnmounted, ref } from 'vue'
   import { useRoute } from 'vue-router'
   import { navigateToPromptTarget, usePromptFocusPanel } from '@/composables/usePromptNavigation'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
@@ -164,6 +188,7 @@
   const tutorialStore = useTutorialStore()
   const route = useRoute()
   const collapsed = ref(true)
+  const isCompactMobile = ref(false)
   const activePlanTab = ref<TopGoalsPlanTab>('daily')
   const detailsCollapsed = ref(false)
   const expandedLongTermGroups = ref<string[]>([])
@@ -190,13 +215,20 @@
 
   const primaryDecisionAction = computed(() => decisionLoopActions.value[0] ?? null)
   const primaryDailyGoal = computed(() => goalStore.dailyGoals.find(goal => !goal.completed) ?? goalStore.dailyGoals[0] ?? null)
-  const compactCta = computed<TopGoalsCta | null>(() => {
+  const currentPanelName = computed(() => (typeof route.name === 'string' ? route.name : ''))
+  const rawCompactCta = computed<TopGoalsCta | null>(() => {
     if (primaryDecisionAction.value) {
       return buildNavigationCta(primaryDecisionAction.value)
     }
 
     const goalAction = primaryDailyGoal.value ? buildGoalAction(primaryDailyGoal.value) : null
     return goalAction ? { ...goalAction, mode: 'cta' } : null
+  })
+  const compactCtaTargetsCurrentPanel = computed(() => {
+    return Boolean(rawCompactCta.value?.panelKey && rawCompactCta.value.panelKey === currentPanelName.value)
+  })
+  const compactCta = computed<TopGoalsCta | null>(() => {
+    return compactCtaTargetsCurrentPanel.value ? null : rawCompactCta.value
   })
   const compactHeadline = computed(() => {
     if (goalStore.weeklyPlanSnapshot.primaryRouteLabel) return `本周主线：${goalStore.weeklyPlanSnapshot.primaryRouteLabel}`
@@ -224,6 +256,23 @@
     if (primaryDailyGoal.value) return `今日目标 ${goalStore.dailyGoals.length} 项`
     return `里程碑 ${currentMainQuestProgress.value}`
   })
+  const mobileCompactSummary = computed(() => {
+    if (compactCtaTargetsCurrentPanel.value) return '当前页已经是今天最该推进的地方，先按下方主操作继续。'
+    if (primaryDecisionAction.value?.summary) return primaryDecisionAction.value.summary
+    if (goalStore.weeklyPlanSnapshot.primaryRouteSummary) return goalStore.weeklyPlanSnapshot.primaryRouteSummary
+    if (goalStore.currentMainQuest?.description) return goalStore.currentMainQuest.description
+    if (primaryDailyGoal.value) return `先完成「${primaryDailyGoal.value.title}」，把当前主线往前推进一格。`
+    return '先按当前主线推进，再决定要不要展开完整规划。'
+  })
+  const topGoalsToggleLabel = computed(() => (collapsed.value ? '更多' : '收起'))
+
+  const syncCompactViewportMode = () => {
+    isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  }
+
+  const toggleCollapsed = () => {
+    collapsed.value = !collapsed.value
+  }
 
   const toggleLongTermGroup = (label: string) => {
     const idx = expandedLongTermGroups.value.indexOf(label)
@@ -289,17 +338,41 @@
   }
 
   onMounted(() => {
+    syncCompactViewportMode()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', syncCompactViewportMode)
+    }
     goalStore.ensureInitialized()
     goalStore.evaluateProgressAndRewards()
     ensureInitialLongTermGroupExpanded()
+  })
+
+  onUnmounted(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', syncCompactViewportMode)
+    }
   })
 </script>
 
 <style scoped>
   @media (max-width: 768px) {
     .game-panel {
-      padding-top: 10px;
-      padding-bottom: 10px;
+      padding-top: 8px;
+      padding-bottom: 8px;
     }
+  }
+
+  .compact-clamp-2 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .compact-clamp-1 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    overflow: hidden;
   }
 </style>

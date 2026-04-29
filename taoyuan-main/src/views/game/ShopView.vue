@@ -1,8 +1,21 @@
 <template>
   <div>
     <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
-    <GuidanceDigestPanel surface-id="shop" title="目录承接引导" />
-    <QaGovernancePanel page-id="shop" title="市场治理总览" />
+    <div v-if="isCompactMobile && !shopStore.currentShopId" class="border border-accent/15 rounded-xs px-3 py-2 mb-3 bg-bg/10">
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-xs text-accent">商圈提示</p>
+          <p class="text-xs text-muted mt-1 leading-5">先看买卖切换和当前货架，需要时再展开市场与承接说明。</p>
+        </div>
+        <button class="btn !px-2 !py-1 text-xs shrink-0" @click="shopPreludeExpanded = !shopPreludeExpanded">
+          {{ shopPreludeExpanded || shopPreludeForceOpen ? '收起' : '展开' }}
+        </button>
+      </div>
+    </div>
+
+    <template v-if="!isCompactMobile || shopPreludeExpanded || shopPreludeForceOpen">
+      <GuidanceDigestPanel surface-id="shop" title="目录承接引导" />
+      <QaGovernancePanel page-id="shop" title="市场治理总览" />
     <div v-if="ancientRoadShopHandoff" class="border border-accent/20 rounded-xs p-3 mb-3 bg-accent/5">
       <div class="flex items-center justify-between gap-2">
         <p class="text-xs text-accent">古驿荒道承接</p>
@@ -23,11 +36,39 @@
         <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="navigateToPanel('region-map')">看行旅图</button>
       </div>
     </div>
+    </template>
 
     <!-- 返回按钮（在子商铺时显示） -->
     <Button v-if="shopStore.currentShopId" class="mb-3 w-full md:w-auto" :icon="ChevronLeft" @click="shopStore.currentShopId = null">
       返回商圈
     </Button>
+
+    <div
+      v-if="isCompactMobile && (!shopStore.currentShopId || mobileTab === 'sell')"
+      class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70"
+      data-testid="shop-primary-action-card"
+    >
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-[10px] tracking-[0.24em] text-accent/70">当前推荐动作</p>
+          <p class="text-sm text-accent mt-1">{{ shopPrimaryActionCard.title }}</p>
+          <p class="text-xs text-muted mt-2 leading-5">{{ shopPrimaryActionCard.summary }}</p>
+        </div>
+        <span class="text-[10px] shrink-0" :class="shopPrimaryActionCard.statusToneClass">{{ shopPrimaryActionCard.statusLabel }}</span>
+      </div>
+      <div v-if="shopPrimaryActionCard.detailLines.length > 0" class="mt-3 space-y-1">
+        <p
+          v-for="line in shopPrimaryActionCard.detailLines"
+          :key="`shop-primary-action-${line}`"
+          class="text-xs text-muted leading-5"
+        >
+          · {{ line }}
+        </p>
+      </div>
+      <button class="mt-3 w-full border border-accent/20 rounded-xs px-3 py-2 text-xs text-accent hover:bg-accent/5" @click="handleShopPrimaryAction">
+        {{ shopPrimaryActionCard.ctaLabel }}
+      </button>
+    </div>
 
     <!-- 移动端：购买/出售切换 -->
     <div class="flex space-x-1.5 mb-3 md:hidden">
@@ -59,6 +100,7 @@
           <p v-if="currentShopNextBenefitHint" class="text-[10px] text-muted/70 mt-0.5">{{ currentShopNextBenefitHint }}</p>
         </div>
 
+        <template v-if="!isCompactMobile || shopPreludeExpanded || shopPreludeForceOpen">
         <div
           v-if="!shopStore.currentShopId"
           class="border border-accent/20 rounded-xs p-3 mb-3"
@@ -212,6 +254,7 @@
             </button>
           </div>
         </div>
+        </template>
 
         <!-- ====== 商圈总览 ====== -->
         <template v-if="!shopStore.currentShopId">
@@ -1460,7 +1503,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed } from 'vue'
+  import { ref, computed, onMounted, onUnmounted } from 'vue'
   import {
     ShoppingCart,
     Coins,
@@ -1535,6 +1578,14 @@
   const goalStore = useGoalStore()
   const regionMapStore = useRegionMapStore()
   const achievementStore = useAchievementStore()
+  const isCompactMobile = ref(false)
+  const shopPreludeExpanded = ref(false)
+  const syncCompactViewportMode = () => {
+    isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  }
+  const shopPreludeForceOpen = computed(() =>
+    ['economy-overview', 'market-overview', 'recommended-consumption'].some(key => isPromptFocusActive(key))
+  )
 
   const ancientRoadShopHandoff = computed(() => {
     const archiveQty = regionMapStore.getFamilyResourceQuantity('ancient_archive')
@@ -1693,6 +1744,19 @@
 
   const mobileTab = ref<'buy' | 'sell'>('buy')
 
+  onMounted(() => {
+    syncCompactViewportMode()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', syncCompactViewportMode)
+    }
+  })
+
+  onUnmounted(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', syncCompactViewportMode)
+    }
+  })
+
   // === 一键出售确认 ===
 
   const showSellAllConfirm = ref(false)
@@ -1719,6 +1783,109 @@
     if (poolId === 'weekly') {
       window.localStorage.setItem('taoyuan_last_weekly_seen_week', String(shopStore.currentWeekId))
     }
+  }
+
+  type ShopPrimaryActionCard = {
+    title: string
+    summary: string
+    detailLines: string[]
+    statusLabel: string
+    statusToneClass: string
+    ctaLabel: string
+    action: 'current-shop' | 'market-overview' | 'recommended-catalog' | 'wanwupu'
+    pool?: ShopCatalogOfferDef['pool']
+  }
+
+  const currentShopLabel = computed(() => SHOPS.find(shop => shop.id === shopStore.currentShopId)?.name ?? '当前商铺')
+  const shopPrimaryCatalogOffer = computed<ShopCatalogOfferDef | null>(() => {
+    return (
+      shopStore.weeklySurpriseOffer ??
+      shopStore.activityCampaignOfferRecommendations[0] ??
+      shopStore.themeWeekRewardPoolOfferRecommendations[0] ??
+      shopStore.recommendedCatalogOffers[0] ??
+      null
+    )
+  })
+  const shopPrimaryActionCard = computed<ShopPrimaryActionCard>(() => {
+    if (shopStore.currentShopId) {
+      return {
+        title: `回到${currentShopLabel.value}货架`,
+        summary:
+          mobileTab.value === 'sell'
+            ? '你当前停在卖出页，先切回这家店的买入货架，再决定要不要顺手清背包。'
+            : '这家店已经打开，先看当前货架和熟客折扣，再决定要不要回商圈换店。',
+        detailLines: [currentShopRelationshipHint.value, currentShopNextBenefitHint.value].filter(
+          (line): line is string => !!line
+        ),
+        statusLabel: '店内',
+        statusToneClass: 'text-accent',
+        ctaLabel: mobileTab.value === 'sell' ? '切回买入货架' : '继续逛这家',
+        action: 'current-shop'
+      }
+    }
+
+    if (mobileTab.value === 'sell') {
+      const primaryMarketLine =
+        marketRegionalProcurementCards.value[0]
+          ? `地区收购：${marketRegionalProcurementCards.value[0].districtLabel}`
+          : marketPositiveHighlights.value[0]
+            ? `热类：${MARKET_CATEGORY_NAMES[marketPositiveHighlights.value[0].category]}`
+            : marketOverview.value.phaseDescription
+      return {
+        title: '先看市场看板',
+        summary: '你现在在卖出页，先确认今天的行情和地区收购，再决定先清哪类货。',
+        detailLines: [marketOverview.value.phaseLabel, primaryMarketLine].filter((line): line is string => !!line),
+        statusLabel: '行情',
+        statusToneClass: 'text-warning',
+        ctaLabel: '看市场看板',
+        action: 'market-overview'
+      }
+    }
+
+    if (shopPrimaryCatalogOffer.value) {
+      return {
+        title: '先看推荐货架',
+        summary: '商圈里最容易马上产生体感收益的，通常是万物铺当前这批推荐货架，先看这里再决定要不要分流去别家。',
+        detailLines: [
+          `推荐商品：${shopPrimaryCatalogOffer.value.name}`,
+          catalogOfferSubtitle(shopPrimaryCatalogOffer.value)
+        ],
+        statusLabel: '推荐',
+        statusToneClass: 'text-success',
+        ctaLabel: '去万物铺',
+        action: 'recommended-catalog',
+        pool: shopPrimaryCatalogOffer.value.pool
+      }
+    }
+
+    return {
+      title: '先去万物铺补常用货架',
+      summary: '如果你只是想先开始今天的商圈操作，先去万物铺最稳，补完常用消耗后再按目标切去别家。',
+      detailLines: shopStore.isMerchantHere ? ['今天有旅行商人限时特卖，可顺手一起看看。'] : [],
+      statusLabel: '起步',
+      statusToneClass: 'text-accent',
+      ctaLabel: '去万物铺',
+      action: 'wanwupu'
+    }
+  })
+  const handleShopPrimaryAction = () => {
+    const action = shopPrimaryActionCard.value
+    if (action.action === 'current-shop') {
+      mobileTab.value = 'buy'
+      if (shopStore.currentShopId === 'wanwupu' && shopPrimaryCatalogOffer.value) {
+        selectCatalogPool(shopPrimaryCatalogOffer.value.pool)
+      }
+      return
+    }
+    if (action.action === 'market-overview') {
+      focusShopSection('market-overview', '看市场看板')
+      return
+    }
+    mobileTab.value = 'buy'
+    if (action.action === 'recommended-catalog' && action.pool) {
+      selectCatalogPool(action.pool)
+    }
+    enterShop('wanwupu')
   }
 
   const catalogSummaryCards = computed(() => {

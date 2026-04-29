@@ -50,6 +50,7 @@ import type {
   RegionMapSaveData,
   RegionMapSessionState,
   RegionMapSettlementState,
+  RegionJourneyActionState,
   RegionRumorBoardEntry,
   RegionRouteKnowledgeState,
   RegionSeasonalState,
@@ -728,8 +729,34 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   const settlementState = computed<RegionMapSettlementState>(() => ({
     resourceLedger: saveData.value.resourceLedger,
     journeyHistory: saveData.value.journeyHistory,
+    journeyActionState: saveData.value.journeyActionState,
     lastBossOutcome: saveData.value.lastBossOutcome
   }))
+
+  const syncJourneyActionStateWithHistory = () => {
+    const validEntryIds = new Set(saveData.value.journeyHistory.map(entry => entry.id))
+    saveData.value.journeyActionState = Object.fromEntries(
+      Object.entries(saveData.value.journeyActionState)
+        .filter(([entryId]) => validEntryIds.has(entryId))
+        .map(([entryId, panelKeys]) => [
+          entryId,
+          [...new Set((Array.isArray(panelKeys) ? panelKeys : []).filter((panelKey): panelKey is string => typeof panelKey === 'string'))]
+        ])
+    ) as RegionJourneyActionState
+  }
+
+  const getJourneyActionState = (entryId: string) => saveData.value.journeyActionState[entryId] ?? []
+
+  const isJourneyActionProcessed = (entryId: string, panelKey: string) => getJourneyActionState(entryId).includes(panelKey)
+
+  const markJourneyActionProcessed = (entryId: string, panelKey: string) => {
+    if (!entryId || !panelKey || isJourneyActionProcessed(entryId, panelKey)) return
+    saveData.value.journeyActionState = {
+      ...saveData.value.journeyActionState,
+      [entryId]: [...getJourneyActionState(entryId), panelKey]
+    }
+    syncJourneyActionStateWithHistory()
+  }
 
   const getRegionDisplayName = (regionId: RegionId) => REGION_DEFS.find(region => region.id === regionId)?.name ?? regionId
 
@@ -2319,6 +2346,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       journal: session.journal.map(entry => ({ ...entry, effects: [...entry.effects] })).slice(-12)
     }
     saveData.value.journeyHistory = [entry, ...saveData.value.journeyHistory].slice(0, 12)
+    syncJourneyActionStateWithHistory()
   }
 
   const getSessionStepTimeHours = (session: RegionExpeditionSession) => {
@@ -4068,6 +4096,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     autoPatrolStates: Object.fromEntries(
       Object.entries(saveData.value.autoPatrolStates).map(([routeId, state]) => [routeId, { ...state, blockedTags: [...state.blockedTags] }])
     ) as Record<string, RegionAutoPatrolState>,
+    journeyActionState: Object.fromEntries(
+      Object.entries(saveData.value.journeyActionState).map(([entryId, panelKeys]) => [entryId, [...new Set(panelKeys.filter(panelKey => typeof panelKey === 'string'))]])
+    ) as RegionJourneyActionState,
     telemetry: { ...saveData.value.telemetry },
     bossClearCounts: { ...saveData.value.bossClearCounts },
     bossFailureStreaks: { ...saveData.value.bossFailureStreaks },
@@ -4832,8 +4863,17 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         blockedTags: Array.isArray(raw.blockedTags)
           ? raw.blockedTags.filter((tag: unknown): tag is string => typeof tag === 'string').slice(0, 4)
           : []
-      }
+        }
     }
+
+    const journeyActionState = Object.fromEntries(
+      Object.entries(data.journeyActionState ?? {})
+        .filter(([entryId, panelKeys]) => typeof entryId === 'string' && Array.isArray(panelKeys))
+        .map(([entryId, panelKeys]) => [
+          entryId,
+          [...new Set((panelKeys as unknown[]).filter((panelKey): panelKey is string => typeof panelKey === 'string'))]
+        ])
+    ) as RegionJourneyActionState
 
     const telemetry = {
       totalRouteCompletions: Math.max(0, Math.floor(Number(data.telemetry?.totalRouteCompletions) || 0)),
@@ -4915,11 +4955,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       companionContracts,
       rumorBoard,
       autoPatrolStates,
+      journeyActionState,
       telemetry,
       bossClearCounts,
       bossFailureStreaks,
       lastBossOutcome
     }
+    syncJourneyActionStateWithHistory()
     refreshRouteUnlocks()
     syncStructuralState()
     ensureFrontierWorldSignals()
@@ -4990,6 +5032,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     activeSession,
     currentExpeditionNodeChoices,
     journeyHistory,
+    isJourneyActionProcessed,
+    markJourneyActionProcessed,
     getRegionKnowledgeState,
     getRouteKnowledgeState,
     getRouteMapNodeState,

@@ -15,6 +15,7 @@
     "type-check": "vue-tsc -b",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",
+    "qa:mobile-ui-smoke": "node scripts/qa-mobile-ui-smoke.mjs",
     "qa:late-game-samples": "node scripts/qa-late-game-samples.mjs",
     "qa:late-game": "npm run qa:late-game-samples && npm run type-check && npm run lint",
     "check": "npm run type-check && npm run lint",

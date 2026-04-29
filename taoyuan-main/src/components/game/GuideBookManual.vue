@@ -77,7 +77,7 @@
       </section>
       <section class="game-panel-muted p-3 space-y-2">
         <p class="text-xs text-accent">显式保存与活跃槽位</p>
-        <p class="text-[11px] text-muted leading-5">无论是主菜单继续、顶栏保存还是保存并返回，底层都围绕“当前活跃存档槽位”运转。</p>
+        <p class="text-[11px] text-muted leading-5">无论是主菜单继续、顶栏保存，还是保存弹窗里的“保存并返回”，底层都围绕“当前活跃存档槽位”运转。</p>
         <p class="text-[11px] text-muted leading-5">所以遇到“为什么保存不生效”时，第一反应不是怀疑按钮坏了，而是先确认自己当前是不是有正确的活动存档。</p>
       </section>
     </div>

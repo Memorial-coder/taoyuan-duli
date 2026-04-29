@@ -86,6 +86,32 @@
   const compactCompletedStages = computed(() =>
     stageDefs.value.slice(0, stageIndex.value).map((stage, index) => `${index + 1}. ${stage.label}`)
   )
+  const compactCompletedStageCards = computed(() =>
+    stageDefs.value
+      .slice(0, stageIndex.value)
+      .map((stage, index) => ({
+        key: stage.key,
+        label: `${index + 1}. ${stage.label}`,
+        preview: stage.lines[0] ?? '这一段已处理完成。'
+      }))
+      .slice(-2)
+      .reverse()
+  )
+  const nextStagePreview = computed(() => stageDefs.value[stageIndex.value + 1] ?? null)
+  const compactStageProgressLabel = computed(() => `${Math.max(1, visibleCurrentLines.value.length)}/${Math.max(1, currentStage.value.lines.length)} 条`)
+  const compactStageSnapshotCards = computed(() =>
+    stageDefs.value.map((stage, index) => ({
+      key: stage.key,
+      label: stage.label,
+      value: `${stage.lines.length} 条`,
+      toneClass:
+        index < stageIndex.value
+          ? 'text-success'
+          : index === stageIndex.value
+            ? 'text-accent'
+            : 'text-muted'
+    }))
+  )
 
   const openStage = (target: number) => {
     stageIndex.value = Math.max(0, Math.min(target, stageDefs.value.length - 1))
@@ -147,6 +173,17 @@
     </div>
 
     <div class="mt-3 space-y-3">
+      <div v-if="compactMode" class="grid grid-cols-3 gap-2">
+        <div
+          v-for="card in compactStageSnapshotCards"
+          :key="`compact-stage-snapshot-${card.key}`"
+          class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/60"
+        >
+          <p class="text-[10px] text-muted">{{ card.label }}</p>
+          <p class="mt-1 text-xs" :class="card.toneClass">{{ card.value }}</p>
+        </div>
+      </div>
+
       <div v-if="compactMode && compactCompletedStages.length > 0" class="flex flex-wrap gap-2">
         <span
           v-for="label in compactCompletedStages"
@@ -165,7 +202,7 @@
       >
         <div class="flex items-center justify-between gap-2 mb-2">
           <p class="text-[10px] text-muted">{{ currentStage.label }}</p>
-          <span class="text-[10px] text-accent">当前揭示</span>
+          <span class="text-[10px] text-accent">当前揭示 · {{ compactStageProgressLabel }}</span>
         </div>
         <div class="space-y-1">
           <p
@@ -176,6 +213,29 @@
           >
             - {{ line }}
           </p>
+        </div>
+        <div v-if="nextStagePreview" class="mt-3 border border-accent/10 rounded-xs px-2 py-2 bg-bg/60">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[10px] text-muted">下一步</p>
+            <span class="text-[10px] text-accent">{{ nextStagePreview.label }}</span>
+          </div>
+          <p class="text-[10px] text-muted mt-1 leading-4">
+            {{ nextStagePreview.lines[0] ?? `继续揭示 ${nextStagePreview.label}。` }}
+          </p>
+        </div>
+      </div>
+
+      <div v-if="compactMode && compactCompletedStageCards.length > 0" class="space-y-2">
+        <div
+          v-for="stage in compactCompletedStageCards"
+          :key="`compact-completed-stage-${stage.key}`"
+          class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60"
+        >
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[10px] text-muted">{{ stage.label }}</p>
+            <span class="text-[10px] text-success">已看</span>
+          </div>
+          <p class="text-[10px] text-muted mt-1 leading-4">{{ stage.preview }}</p>
         </div>
       </div>
 
@@ -208,7 +268,7 @@
       </div>
 
       <div v-if="stageIndex >= 2 && handoffBoard" class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/60">
-        <p class="text-[10px] text-muted">回流承接入口</p>
+        <p class="text-[10px] text-muted">回城办事入口</p>
         <p class="text-xs text-accent mt-1">{{ handoffBoard.headline }}</p>
 
         <div :class="compactMode ? 'grid grid-cols-1 gap-3 mt-3' : 'grid grid-cols-1 md:grid-cols-3 gap-3 mt-3'">

@@ -88,7 +88,17 @@ function loadTaoyuanUserSaves(username) {
 
 function saveTaoyuanUserSaves(username, data) {
   ensureTaoyuanSavesDir();
-  fs.writeFileSync(getTaoyuanSavePath(username), JSON.stringify(data, null, 2), 'utf8');
+  const targetPath = getTaoyuanSavePath(username);
+  const tempPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
+  try {
+    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');
+    fs.renameSync(tempPath, targetPath);
+  } catch (error) {
+    try {
+      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
+    } catch {}
+    throw error;
+  }
 }
 
 function todayBJ() {

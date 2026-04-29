@@ -23,6 +23,16 @@ const MYSQL_PORT = parseInt(process.env.MYSQL_PORT || '3306', 10);
 
 let mysqlPool = null;
 let mysqlReadyPromise = null;
+let lastMysqlFallbackLogAt = 0;
+
+function logMysqlFallback(scope, error) {
+  const now = Date.now();
+  if (now - lastMysqlFallbackLogAt < 15000) return;
+  lastMysqlFallbackLogAt = now;
+  const code = String(error?.code || '').trim();
+  const message = String(error?.message || error || '').trim();
+  console.warn(`[db] MySQL unavailable during ${scope}, falling back to local store. ${code || message}`);
+}
 
 function ensureDir() {
   fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -216,8 +226,7 @@ function loadGameplayEventLogStore() {
 }
 
 function saveGameplayEventLogStore(store) {
-  ensureDir();
-  fs.writeFileSync(GAMEPLAY_EVENT_LOG_FILE, JSON.stringify({ logs: store?.logs || [] }, null, 2), 'utf8');
+  writeJsonFileAtomic(GAMEPLAY_EVENT_LOG_FILE, { logs: store?.logs || [] });
 }
 
 function normalizeGameplayEventLogEntry(entry = {}) {
@@ -484,10 +493,16 @@ function buildLocalPool() {
 
 function getPool() {
   if (!MYSQL_ENABLED) return buildLocalPool();
+  const localPool = buildLocalPool();
   return {
     async execute(sql, params = []) {
-      await ensureMysqlReady();
-      return buildMysqlPool().execute(sql, params);
+      try {
+        await ensureMysqlReady();
+        return await buildMysqlPool().execute(sql, params);
+      } catch (error) {
+        logMysqlFallback('pooled read query', error);
+        return localPool.execute(sql, params);
+      }
     },
   };
 }
@@ -581,8 +596,14 @@ async function verifyUser(username, password) {
 
 async function getUserAccessState(username) {
   if (MYSQL_ENABLED) {
-    const user = await getMysqlAdminUserByKey(username);
-    return user ? user.status : null;
+    try {
+      const user = await getMysqlAdminUserByKey(username);
+      return user ? user.status : null;
+    } catch (error) {
+      logMysqlFallback('getUserAccessState', error);
+      const { user } = getLocalAdminUserRecord(username);
+      return user ? user.status : 'active';
+    }
   }
   const { user } = getLocalAdminUserRecord(username);
   return user ? user.status : null;
@@ -590,14 +611,20 @@ async function getUserAccessState(username) {
 
 async function getUser(username) {
   if (MYSQL_ENABLED) {
-    const user = await getMysqlUserByKey(username);
-    if (!user || user.deleted_at) return null;
-    return {
-      username: user.username,
-      display_name: user.display_name || user.username,
-      quota: Number(user.quota) || 0,
-      dollars: parseFloat(((Number(user.quota) || 0) / EXCHANGE_RATE).toFixed(4)),
-    };
+    try {
+      const user = await getMysqlUserByKey(username);
+      if (!user || user.deleted_at) return null;
+      return {
+        username: user.username,
+        display_name: user.display_name || user.username,
+        quota: Number(user.quota) || 0,
+        dollars: parseFloat(((Number(user.quota) || 0) / EXCHANGE_RATE).toFixed(4)),
+      };
+    } catch (error) {
+      logMysqlFallback('getUser', error);
+      const { user } = findLocalUser(username);
+      return localUserToPublic(user);
+    }
   }
   const { user } = findLocalUser(username);
   return localUserToPublic(user);
@@ -1159,23 +1186,27 @@ async function recordGameplayEventLog(entry = {}) {
   });
 
   if (MYSQL_ENABLED) {
-    await ensureMysqlReady();
-    await buildMysqlPool().execute(
-      `INSERT INTO gameplay_event_logs
-       (username, day_label, category, message, route_name, tags_json, meta_json, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        normalized.username,
-        normalized.day_label,
-        normalized.category,
-        normalized.message,
-        normalized.route_name,
-        normalized.tags_json,
-        normalized.meta_json,
-        normalized.created_at,
-      ]
-    );
-    return normalized;
+    try {
+      await ensureMysqlReady();
+      await buildMysqlPool().execute(
+        `INSERT INTO gameplay_event_logs
+         (username, day_label, category, message, route_name, tags_json, meta_json, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          normalized.username,
+          normalized.day_label,
+          normalized.category,
+          normalized.message,
+          normalized.route_name,
+          normalized.tags_json,
+          normalized.meta_json,
+          normalized.created_at,
+        ]
+      );
+      return normalized;
+    } catch (error) {
+      logMysqlFallback('recordGameplayEventLog', error);
+    }
   }
 
   const store = loadGameplayEventLogStore();
@@ -1195,75 +1226,79 @@ async function listGameplayEventLogs(options = {}) {
     : null;
 
   if (MYSQL_ENABLED) {
-    await ensureMysqlReady();
-    const params = [];
-    const where = [];
-    if (username) {
-      where.push('username = ?');
-      params.push(username);
+    try {
+      await ensureMysqlReady();
+      const params = [];
+      const where = [];
+      if (username) {
+        where.push('username = ?');
+        params.push(username);
+      }
+      if (category) {
+        where.push('category = ?');
+        params.push(category);
+      }
+      if (keyword) {
+        where.push('(message LIKE ? OR meta_json LIKE ? OR day_label LIKE ?)');
+        params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
+      }
+      if (saveSlot !== null) {
+        where.push('meta_json LIKE ?');
+        params.push(`%"save_slot":${saveSlot}%`);
+      }
+      const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+      const [[countRow]] = await buildMysqlPool().execute(
+        `SELECT COUNT(*) AS total FROM gameplay_event_logs ${whereSql}`,
+        params
+      );
+      const offset = (page - 1) * pageSize;
+      const [rows] = await buildMysqlPool().query(
+        `SELECT id, username, day_label, category, message, route_name, tags_json, meta_json, created_at
+         FROM gameplay_event_logs
+         ${whereSql}
+         ORDER BY created_at DESC, id DESC
+         LIMIT ${pageSize} OFFSET ${offset}`,
+        params
+      );
+      return {
+        total: Number(countRow?.total) || 0,
+        page,
+        pageSize,
+        logs: rows.map(item => ({
+          id: String(item.id),
+          username: item.username,
+          day_label: item.day_label,
+          category: item.category,
+          message: item.message,
+          route_name: item.route_name,
+          tags: (() => {
+            try {
+              return JSON.parse(item.tags_json || '[]');
+            } catch {
+              return [];
+            }
+          })(),
+          meta: (() => {
+            try {
+              return JSON.parse(item.meta_json || '{}');
+            } catch {
+              return {};
+            }
+          })(),
+          save_slot: (() => {
+            try {
+              const meta = JSON.parse(item.meta_json || '{}');
+              return Number.isInteger(Number(meta?.save_slot)) ? Number(meta.save_slot) : null;
+            } catch {
+              return null;
+            }
+          })(),
+          created_at: Number(item.created_at) || 0,
+        })),
+      };
+    } catch (error) {
+      logMysqlFallback('listGameplayEventLogs', error);
     }
-    if (category) {
-      where.push('category = ?');
-      params.push(category);
-    }
-    if (keyword) {
-      where.push('(message LIKE ? OR meta_json LIKE ? OR day_label LIKE ?)');
-      params.push(`%${keyword}%`, `%${keyword}%`, `%${keyword}%`);
-    }
-    if (saveSlot !== null) {
-      where.push('meta_json LIKE ?');
-      params.push(`%"save_slot":${saveSlot}%`);
-    }
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const [[countRow]] = await buildMysqlPool().execute(
-      `SELECT COUNT(*) AS total FROM gameplay_event_logs ${whereSql}`,
-      params
-    );
-    const offset = (page - 1) * pageSize;
-    const [rows] = await buildMysqlPool().query(
-      `SELECT id, username, day_label, category, message, route_name, tags_json, meta_json, created_at
-       FROM gameplay_event_logs
-       ${whereSql}
-       ORDER BY created_at DESC, id DESC
-       LIMIT ${pageSize} OFFSET ${offset}`,
-      params
-    );
-    return {
-      total: Number(countRow?.total) || 0,
-      page,
-      pageSize,
-      logs: rows.map(item => ({
-        id: String(item.id),
-        username: item.username,
-        day_label: item.day_label,
-        category: item.category,
-        message: item.message,
-        route_name: item.route_name,
-        tags: (() => {
-          try {
-            return JSON.parse(item.tags_json || '[]');
-          } catch {
-            return [];
-          }
-        })(),
-        meta: (() => {
-          try {
-            return JSON.parse(item.meta_json || '{}');
-          } catch {
-            return {};
-          }
-        })(),
-        save_slot: (() => {
-          try {
-            const meta = JSON.parse(item.meta_json || '{}');
-            return Number.isInteger(Number(meta?.save_slot)) ? Number(meta.save_slot) : null;
-          } catch {
-            return null;
-          }
-        })(),
-        created_at: Number(item.created_at) || 0,
-      })),
-    };
   }
 
   const store = loadGameplayEventLogStore();

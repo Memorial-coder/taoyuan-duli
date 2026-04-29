@@ -1,7 +1,5 @@
 <template>
   <div>
-    <GuidanceDigestPanel surface-id="fishpond" title="鱼塘经营引导" />
-    <QaGovernancePanel page-id="fishpond" title="鱼塘治理总览" />
     <!-- 标题 -->
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center space-x-1.5 text-sm text-accent">
@@ -10,6 +8,42 @@
       </div>
       <span v-if="!fishPondStore.pond.built" class="text-xs text-muted">{{ fishPondStore.fishCount }}/{{ fishPondStore.capacity }}</span>
     </div>
+
+    <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70" data-testid="fishpond-primary-action-card">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-[10px] tracking-[0.24em] text-accent/70">当前推荐动作</p>
+          <p class="text-sm text-accent mt-1">{{ fishPondPrimaryActionCard.title }}</p>
+          <p class="text-xs text-muted mt-2 leading-5">{{ fishPondPrimaryActionCard.summary }}</p>
+        </div>
+        <span class="text-[10px] shrink-0" :class="fishPondPrimaryActionCard.statusToneClass">{{ fishPondPrimaryActionCard.statusLabel }}</span>
+      </div>
+      <div v-if="fishPondPrimaryActionCard.detailLines.length > 0" class="mt-3 space-y-1">
+        <p v-for="line in fishPondPrimaryActionCard.detailLines" :key="`fishpond-primary-action-${line}`" class="text-xs text-muted leading-5">
+          · {{ line }}
+        </p>
+      </div>
+      <button class="mt-3 w-full border border-accent/20 rounded-xs px-3 py-2 text-xs text-accent hover:bg-accent/5" @click="handleFishPondPrimaryAction">
+        {{ fishPondPrimaryActionCard.ctaLabel }}
+      </button>
+    </div>
+
+    <div v-if="isCompactMobile" class="border border-accent/15 rounded-xs px-3 py-2 mb-3 bg-bg/10">
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-xs text-accent">鱼塘提示</p>
+          <p class="text-xs text-muted mt-1 leading-5">先看鱼塘操作和塘中鱼，需要时再展开周赛、展示池、高阶养护和泽地承接说明。</p>
+        </div>
+        <button class="btn !px-2 !py-1 text-xs shrink-0" @click="fishPondPreludeExpanded = !fishPondPreludeExpanded">
+          {{ fishPondPreludeExpanded ? '收起' : '展开' }}
+        </button>
+      </div>
+    </div>
+
+    <template v-if="!isCompactMobile || fishPondPreludeExpanded">
+    <GuidanceDigestPanel surface-id="fishpond" title="鱼塘经营引导" />
+    <QaGovernancePanel page-id="fishpond" title="鱼塘治理总览" />
+    </template>
 
     <!-- 未建造 -->
     <div v-if="!fishPondStore.pond.built" class="border border-accent/10 rounded-xs py-6 flex flex-col items-center space-y-2">
@@ -86,6 +120,7 @@
             </div>
           </div>
 
+          <template v-if="!isCompactMobile || fishPondPreludeExpanded">
           <div v-if="fishPondStore.currentPondContestDef" class="border border-accent/20 rounded-xs px-3 py-2 mt-2 bg-accent/5">
             <div class="flex items-center justify-between gap-2">
               <div>
@@ -190,6 +225,7 @@
               </div>
             </div>
           </div>
+          </template>
         </div>
 
         <!-- 塘中鱼类 -->
@@ -519,7 +555,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed } from 'vue'
+  import { ref, computed, onMounted, onUnmounted } from 'vue'
   import { Waves, Droplets, Sparkles, HeartPulse, Package, ArrowUp, Hammer, Lock, Fish, Heart, X, Star } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
@@ -544,6 +580,11 @@
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const regionMapStore = useRegionMapStore()
+  const isCompactMobile = ref(false)
+  const fishPondPreludeExpanded = ref(false)
+  const syncCompactViewportMode = () => {
+    isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  }
 
   const currentTab = ref<'pond' | 'compendium'>('pond')
   const selectedBreedingFish = ref<PondFish | null>(null)
@@ -734,6 +775,72 @@
     const weekId = fishPondStore.lastPondContestSettlement?.weekId
     return weekId ? formatWeekId(weekId) : ''
   })
+  const fishPondPrimaryActionCard = computed(() => {
+    if (!fishPondStore.pond.built) {
+      return {
+        action: 'build',
+        title: '先建造鱼塘',
+        summary: '这页最先需要完成的是把鱼塘造出来，后面的养殖、繁殖、展示池和周赛才会真正开始转动。',
+        detailLines: ['先把基础设施落地，再谈养护和周赛。'],
+        statusLabel: '未建造',
+        statusToneClass: 'text-warning',
+        ctaLabel: '建造鱼塘'
+      }
+    }
+    if (fishPondStore.pendingProducts.length > 0 && !fishPondStore.pond.collectedToday) {
+      return {
+        action: 'collect',
+        title: '先收获这一轮产出',
+        summary: '已经有产物挂在鱼塘里了，先收进背包，再决定是继续养、转展示还是拿去承接别的系统。',
+        detailLines: [`当前待收 ${fishPondStore.pendingProducts.length} 件水产`],
+        statusLabel: '可收获',
+        statusToneClass: 'text-success',
+        ctaLabel: '立即收获'
+      }
+    }
+    if (fishPondStore.sickFish.length > 0) {
+      return {
+        action: 'treat',
+        title: '先治疗生病的鱼',
+        summary: '生病状态会拖慢后面的养殖和周赛表现，先把高风险问题压住，再继续整理展示和承接。',
+        detailLines: [`当前有 ${fishPondStore.sickFish.length} 条病鱼`],
+        statusLabel: '待治疗',
+        statusToneClass: 'text-warning',
+        ctaLabel: '去治疗'
+      }
+    }
+    if (!fishPondStore.pond.fedToday && fishPondStore.pond.fish.length > 0) {
+      return {
+        action: 'feed',
+        title: '先喂食塘中鱼',
+        summary: '今天还没喂食时，最值得先做的是把基础养护补上，这样后面的繁殖、展示和收获节奏才稳。',
+        detailLines: [`塘中共 ${fishPondStore.pond.fish.length} 条鱼`],
+        statusLabel: '待养护',
+        statusToneClass: 'text-accent',
+        ctaLabel: '去喂食'
+      }
+    }
+    if (mirageMarshFishPondHandoff.value) {
+      return {
+        action: 'museum',
+        title: '先把泽地样本送去承接',
+        summary: '这批样本现在更适合转成展示、馆务研究或周赛高光，不要只让它们停在塘里或背包里。',
+        detailLines: [`生态样本 ${mirageMarshFishPondHandoff.value.specimenQty} 份`, `已完成路线 ${mirageMarshFishPondHandoff.value.completedRoutes} 条`],
+        statusLabel: '泽地承接',
+        statusToneClass: 'text-accent',
+        ctaLabel: '去博物馆'
+      }
+    }
+    return {
+      action: 'pond',
+      title: '先看塘中鱼状态',
+      summary: '当前没有立刻要处理的异常时，先看鱼塘和展示池里哪几条鱼最值得继续养、挂展示或拿去报名。',
+      detailLines: [`展示池 ${fishPondStore.displayOverview.entryCount}/${fishPondStore.displayOverview.slotLimit}`, `周赛已报名 ${fishPondStore.pondContestState.registeredFishIds.length}`],
+      statusLabel: '常规经营',
+      statusToneClass: 'text-muted',
+      ctaLabel: '看鱼塘'
+    }
+  })
 
   /** 鱼详情弹窗属性条 */
   const fishAttributes = computed(() => {
@@ -920,6 +1027,42 @@
       addLog('背包中没有这种鱼。')
     }
   }
+
+  const handleFishPondPrimaryAction = () => {
+    switch (fishPondPrimaryActionCard.value.action) {
+      case 'build':
+        pondModal.value = 'build'
+        break
+      case 'collect':
+        handleCollect()
+        break
+      case 'treat':
+        handleTreat()
+        break
+      case 'feed':
+        handleFeed()
+        break
+      case 'museum':
+        navigateToPanel('museum')
+        break
+      default:
+        currentTab.value = 'pond'
+        break
+    }
+  }
+
+  onMounted(() => {
+    syncCompactViewportMode()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', syncCompactViewportMode)
+    }
+  })
+
+  onUnmounted(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', syncCompactViewportMode)
+    }
+  })
 
   const handleRemoveFish = (pondFishId: string) => {
     if (fishPondStore.removeFish(pondFishId)) {

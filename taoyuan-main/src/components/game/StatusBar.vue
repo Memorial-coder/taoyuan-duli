@@ -1,8 +1,8 @@
 <template>
-  <div class="border-b border-accent/30 pb-2 md:pb-3 flex flex-col space-y-1" data-testid="status-bar">
+  <div class="border-b border-accent/30 pb-1.5 md:pb-3 flex flex-col space-y-0.5 md:space-y-1" data-testid="status-bar">
     <!-- 第一行：日期时间天气 + 铜钱 -->
     <div class="flex items-center justify-between text-xs md:text-sm">
-      <div class="flex items-center space-x-2 md:space-x-3">
+      <div class="flex items-center space-x-1.5 md:space-x-3">
         <span class="text-accent font-bold">桃源乡</span>
         <span class="text-muted text-xs max-w-16 truncate">{{ playerStore.playerName }}</span>
         <span class="hidden md:inline">第{{ gameStore.year }}年</span>
@@ -11,12 +11,9 @@
         <span :class="{ 'text-danger': gameStore.isLateNight }">{{ gameStore.timeDisplay }}</span>
         <span class="text-muted">{{ WEATHER_NAMES[gameStore.weather] }}</span>
       </div>
-      <div class="flex items-center gap-2 shrink-0">
-        <button class="border border-accent/30 rounded-xs px-2 py-0.5 text-[10px] md:text-xs text-accent hover:bg-accent/10" @click="handleQuickSave">
+      <div class="flex items-center gap-1.5 shrink-0">
+        <button class="border border-accent/30 rounded-xs px-1.5 py-0.5 text-[10px] md:text-xs text-accent hover:bg-accent/10" @click="handleQuickSave">
           保存
-        </button>
-        <button class="border border-accent/30 rounded-xs px-2 py-0.5 text-[10px] md:text-xs text-accent hover:bg-accent/10" @click="handleSaveAndReturn">
-          保存并返回
         </button>
         <span class="text-accent shrink-0">
           <Coins :size="12" class="inline" />
@@ -39,7 +36,7 @@
 
     <!-- 第三行：状态条 + 音频控制 -->
     <div class="flex items-center justify-between text-xs flex-wrap">
-      <div class="flex items-center space-x-2 md:space-x-4 flex-wrap">
+      <div class="flex items-center space-x-1.5 md:space-x-4 flex-wrap">
         <!-- 体力 -->
         <div class="flex items-center space-x-1">
           <span :class="{ 'text-danger stamina-critical': playerStore.isExhausted }">
@@ -89,7 +86,7 @@
   import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, TREND_NAMES } from '@/data/market'
   import { Zap, Heart, Clock, Coins } from 'lucide-vue-next'
 
-  const emit = defineEmits<{ requestSleep: []; requestSaveManager: [payload: { intent: 'save' | 'save-return'; returnUrl: string }] }>()
+  const emit = defineEmits<{ requestSleep: []; requestSavePrompt: [returnUrl: string] }>()
 
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
@@ -114,11 +111,7 @@
   }
 
   const handleQuickSave = async () => {
-    emit('requestSaveManager', { intent: 'save', returnUrl: returnUrl.value || '/' })
-  }
-
-  const handleSaveAndReturn = async () => {
-    emit('requestSaveManager', { intent: 'save-return', returnUrl: returnUrl.value || '/' })
+    emit('requestSavePrompt', returnUrl.value || '/')
   }
 
   const staminaBarColor = computed(() => {

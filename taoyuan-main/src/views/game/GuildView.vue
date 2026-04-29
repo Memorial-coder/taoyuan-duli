@@ -1,6 +1,5 @@
 <template>
   <div>
-    <GuidanceDigestPanel surface-id="guild" title="公会赛季引导" />
     <div class="flex items-center justify-between mb-1">
       <div class="flex items-center space-x-1.5 text-sm text-accent">
         <Swords :size="14" />
@@ -14,6 +13,40 @@
       </div>
     </div>
 
+    <div v-if="isCompactMobile" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70" data-testid="guild-primary-action-card">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-[10px] tracking-[0.24em] text-accent/70">当前推荐动作</p>
+          <p class="text-sm text-accent mt-1">{{ guildPrimaryActionCard.title }}</p>
+          <p class="text-xs text-muted mt-2 leading-5">{{ guildPrimaryActionCard.summary }}</p>
+        </div>
+        <span class="text-[10px] shrink-0" :class="guildPrimaryActionCard.statusToneClass">{{ guildPrimaryActionCard.statusLabel }}</span>
+      </div>
+      <div v-if="guildPrimaryActionCard.detailLines.length > 0" class="mt-3 space-y-1">
+        <p v-for="line in guildPrimaryActionCard.detailLines" :key="`guild-primary-action-${line}`" class="text-xs text-muted leading-5">
+          · {{ line }}
+        </p>
+      </div>
+      <button class="mt-3 w-full border border-accent/20 rounded-xs px-3 py-2 text-xs text-accent hover:bg-accent/5" @click="handleGuildPrimaryAction">
+        {{ guildPrimaryActionCard.ctaLabel }}
+      </button>
+    </div>
+
+    <div v-if="isCompactMobile" class="border border-accent/15 rounded-xs px-3 py-2 mb-3 bg-bg/10">
+      <div class="flex items-center justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-xs text-accent">公会提示</p>
+          <p class="text-xs text-muted mt-1 leading-5">先看讨伐、捐献和商店，需要时再展开赛季总览、高地承接和经营联动说明。</p>
+        </div>
+        <button class="btn !px-2 !py-1 text-xs shrink-0" @click="guildPreludeExpanded = !guildPreludeExpanded">
+          {{ guildPreludeExpanded ? '收起' : '展开' }}
+        </button>
+      </div>
+    </div>
+
+    <template v-if="!isCompactMobile || guildPreludeExpanded">
+    <GuidanceDigestPanel surface-id="guild" title="公会赛季引导" />
+
     <QaGovernancePanel page-id="guild" title="公会治理总览" />
 
     <div v-if="cloudHighlandGuildHandoff" class="border border-accent/20 rounded-xs p-2 mb-3 bg-accent/5">
@@ -21,13 +54,13 @@
         <p class="text-xs text-accent">云岚高地承接</p>
         <span class="text-[10px] text-muted">行旅图 -> 公会</span>
       </div>
-      <p class="text-[10px] text-muted mt-1 leading-4">
+      <p class="text-xs text-muted mt-1 leading-5">
         高地已完成 {{ cloudHighlandGuildHandoff.completedRoutes }} 条节点，当前灵脉结晶库存 {{ cloudHighlandGuildHandoff.leyQty }} 份。
       </p>
-      <p class="text-[10px] text-muted mt-1 leading-4">
+      <p class="text-xs text-muted mt-1 leading-5">
         公会当前更适合围绕「{{ cloudHighlandGuildHandoff.rewardPoolLabel }}」收束高地清剿、采晶和首领战备。
       </p>
-      <p v-if="cloudHighlandGuildHandoff.projectNames.length > 0" class="text-[10px] text-accent mt-1">
+      <p v-if="cloudHighlandGuildHandoff.projectNames.length > 0" class="text-xs text-accent mt-1">
         联动建设：{{ cloudHighlandGuildHandoff.projectNames.join('、') }}
       </p>
       <div class="mt-2 flex flex-wrap gap-2">
@@ -119,6 +152,7 @@
         </div>
       </div>
     </div>
+    </template>
 
     <!-- 标签页 -->
     <div class="flex space-x-1 mb-3">
@@ -656,7 +690,7 @@
 
 <script setup lang="ts">
   import { useRouter } from 'vue-router'
-  import { ref, computed } from 'vue'
+  import { ref, computed, onMounted, onUnmounted } from 'vue'
   import { Swords, Gift, CircleCheck, Circle, Lock, ShoppingCart, BookOpen, X, HandHeart } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
@@ -690,6 +724,11 @@
   const inventoryStore = useInventoryStore()
   const regionMapStore = useRegionMapStore()
   const villageProjectStore = useVillageProjectStore()
+  const isCompactMobile = ref(false)
+  const guildPreludeExpanded = ref(false)
+  const syncCompactViewportMode = () => {
+    isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
+  }
 
   const tab = ref<Tab>('goals')
   const goalZone = ref('all')
@@ -895,6 +934,9 @@
   )
 
   const hasAnyKills = computed(() => Object.values(guildStore.monsterKills).some(v => v > 0))
+  const claimableGoals = computed(() =>
+    MONSTER_GOALS.filter(goal => guildStore.getKillCount(goal.monsterId) >= goal.killTarget && !guildStore.claimedGoals.includes(goal.monsterId))
+  )
 
   /** 可捐献物品列表 */
   const donatableItems = computed(() => {
@@ -903,6 +945,62 @@
       const def = getItemById(donation.itemId)
       return { itemId: donation.itemId, name: def?.name ?? donation.itemId, count, points: donation.points }
     })
+  })
+  const availableDonationCount = computed(() => donatableItems.value.filter(item => item.count > 0).length)
+  const guildPrimaryActionCard = computed(() => {
+    if (claimableGoals.value.length > 0) {
+      return {
+        action: 'claim-goal',
+        title: '先领一轮讨伐奖励',
+        summary: '已经有达标的讨伐目标了，先把这批铜钱和贡献点领下来，再决定是补商店还是继续冲下一档。',
+        detailLines: [`当前可领 ${claimableGoals.value.length} 项`, `第一项：${claimableGoals.value[0]?.monsterName ?? '讨伐奖励'}`],
+        statusLabel: '可领取',
+        statusToneClass: 'text-success',
+        ctaLabel: '看讨伐奖励'
+      }
+    }
+    if (!hasAnyKills.value) {
+      return {
+        action: 'goals',
+        title: '先开第一条讨伐线',
+        summary: '公会现在最需要的是先打出第一批击杀记录，这样后面的奖励、捐献和商店节奏才会转起来。',
+        detailLines: ['先从讨伐页挑一条最容易完成的目标开始。'],
+        statusLabel: '未开张',
+        statusToneClass: 'text-warning',
+        ctaLabel: '看讨伐'
+      }
+    }
+    if (availableDonationCount.value > 0) {
+      return {
+        action: 'donate',
+        title: '先捐献换贡献点',
+        summary: '背包里已经有可捐物资了，先换成贡献点，再决定要不要回公会商店补战备会更直接。',
+        detailLines: [`当前可捐 ${availableDonationCount.value} 种物资`, `贡献点 ${guildStore.contributionPoints}`],
+        statusLabel: '可捐献',
+        statusToneClass: 'text-accent',
+        ctaLabel: '去捐献'
+      }
+    }
+    if (cloudHighlandGuildHandoff.value) {
+      return {
+        action: 'region-map',
+        title: '先回高地承接线',
+        summary: '高地的采晶和清剿已经能往公会奖励池里接了，先确认前线准备，再决定是补建设还是继续推进。',
+        detailLines: [`灵脉结晶 ${cloudHighlandGuildHandoff.value.leyQty} 份`, `已完成路线 ${cloudHighlandGuildHandoff.value.completedRoutes} 条`],
+        statusLabel: '高地承接',
+        statusToneClass: 'text-accent',
+        ctaLabel: '去行旅图'
+      }
+    }
+    return {
+      action: 'shop',
+      title: '先看公会商店',
+      summary: '当前没有立刻可领奖或可捐的动作时，最适合先看公会商店还能补哪批稳收益的战备。',
+      detailLines: [`贡献点 ${guildStore.contributionPoints}`, `公会 Lv.${guildStore.guildLevel}`],
+      statusLabel: '常规推进',
+      statusToneClass: 'text-muted',
+      ctaLabel: '看公会商店'
+    }
   })
 
   const ZONE_FILTERS = [
@@ -929,6 +1027,40 @@
   const isGoalClaimed = (monsterId: string): boolean => {
     return guildStore.claimedGoals.includes(monsterId)
   }
+
+  const handleGuildPrimaryAction = () => {
+    switch (guildPrimaryActionCard.value.action) {
+      case 'claim-goal':
+        tab.value = 'goals'
+        selectedGoal.value = claimableGoals.value[0] ?? null
+        break
+      case 'goals':
+        tab.value = 'goals'
+        break
+      case 'donate':
+        tab.value = 'donate'
+        break
+      case 'region-map':
+        navigateToPanel('region-map')
+        break
+      default:
+        tab.value = 'shop'
+        break
+    }
+  }
+
+  onMounted(() => {
+    syncCompactViewportMode()
+    if (typeof window !== 'undefined') {
+      window.addEventListener('resize', syncCompactViewportMode)
+    }
+  })
+
+  onUnmounted(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('resize', syncCompactViewportMode)
+    }
+  })
 
   /** 怪物图鉴：合并普通怪+BOSS+骷髅矿穴 */
   const allMonsters = computed<MonsterDef[]>(() => {

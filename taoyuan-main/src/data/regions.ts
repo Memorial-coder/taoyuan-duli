@@ -29,7 +29,7 @@ import type {
   RegionalResourceFamilyId
 } from '@/types/region'
 
-export const REGION_MAP_SAVE_VERSION = 9
+export const REGION_MAP_SAVE_VERSION = 10
 
 export const getRouteMapNodeKey = (routeId: string) => `route:${routeId}`
 
@@ -764,6 +764,7 @@ export const createDefaultRegionMapSaveData = (): RegionMapSaveData => ({
   companionContracts: createDefaultCompanionContracts(),
   rumorBoard: createDefaultRumorBoardState(),
   autoPatrolStates: createDefaultAutoPatrolStates(),
+  journeyActionState: {},
   telemetry: createDefaultTelemetry(),
   bossClearCounts: createDefaultBossClearCounts(),
   bossFailureStreaks: createDefaultBossFailureStreaks(),

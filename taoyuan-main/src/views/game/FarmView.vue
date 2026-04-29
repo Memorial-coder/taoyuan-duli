@@ -91,62 +91,62 @@
             </button>
             <p class="text-accent text-sm mb-2">一键操作</p>
             <div class="flex flex-col space-y-1.5">
-              <button class="btn text-xs w-full justify-between" :disabled="unwateredCount === 0" @click="doBatchAction('water')">
-                <span class="flex items-center space-x-1">
+              <button class="btn farm-batch-action text-xs" :disabled="unwateredCount === 0" @click="doBatchAction('water')">
+                <span class="farm-batch-action__label">
                   <Droplets :size="12" />
                   <span>一键浇水</span>
                 </span>
-                <span class="text-muted">{{ unwateredCount }} 块</span>
+                <span class="farm-batch-action__count">{{ unwateredCount }} 块</span>
               </button>
-              <button class="btn text-xs w-full justify-between" :disabled="wastelandCount === 0" @click="doBatchAction('till')">
-                <span class="flex items-center space-x-1">
+              <button class="btn farm-batch-action text-xs" :disabled="wastelandCount === 0" @click="doBatchAction('till')">
+                <span class="farm-batch-action__label">
                   <Shovel :size="12" />
                   <span>一键开垦</span>
                 </span>
-                <span class="text-muted">{{ wastelandCount }} 块</span>
+                <span class="farm-batch-action__count">{{ wastelandCount }} 块</span>
               </button>
-              <button class="btn text-xs w-full justify-between" :disabled="harvestableCount === 0" @click="doBatchAction('harvest')">
-                <span class="flex items-center space-x-1">
+              <button class="btn farm-batch-action text-xs" :disabled="harvestableCount === 0" @click="doBatchAction('harvest')">
+                <span class="farm-batch-action__label">
                   <Wheat :size="12" />
                   <span>一键收获</span>
                 </span>
-                <span class="text-muted">{{ harvestableCount }} 块</span>
+                <span class="farm-batch-action__count">{{ harvestableCount }} 块</span>
               </button>
               <button
-                class="btn text-xs w-full justify-between"
+                class="btn farm-batch-action text-xs"
                 :disabled="tilledEmptyCount === 0 || (plantableSeeds.length === 0 && plantableBreedingSeeds.length === 0)"
                 @click="doBatchAction('plant')"
               >
-                <span class="flex items-center space-x-1">
+                <span class="farm-batch-action__label">
                   <Sprout :size="12" />
                   <span>一键种植</span>
                 </span>
-                <span class="text-muted">{{ tilledEmptyCount }} 块</span>
+                <span class="farm-batch-action__count">{{ tilledEmptyCount }} 块</span>
               </button>
               <button
-                class="btn text-xs w-full justify-between"
+                class="btn farm-batch-action text-xs"
                 :disabled="fertilizableCount === 0 || fertilizerItems.length === 0"
                 @click="doBatchAction('fertilize')"
               >
-                <span class="flex items-center space-x-1">
+                <span class="farm-batch-action__label">
                   <CirclePlus :size="12" />
                   <span>一键施肥</span>
                 </span>
-                <span class="text-muted">{{ fertilizableCount }} 块</span>
+                <span class="farm-batch-action__count">{{ fertilizableCount }} 块</span>
               </button>
-              <button class="btn text-xs w-full justify-between" :disabled="infestedCount === 0" @click="doBatchAction('curePest')">
-                <span class="flex items-center space-x-1">
+              <button class="btn farm-batch-action text-xs" :disabled="infestedCount === 0" @click="doBatchAction('curePest')">
+                <span class="farm-batch-action__label">
                   <Bug :size="12" />
                   <span>一键除虫</span>
                 </span>
-                <span class="text-muted">{{ infestedCount }} 块</span>
+                <span class="farm-batch-action__count">{{ infestedCount }} 块</span>
               </button>
-              <button class="btn text-xs w-full justify-between" :disabled="weedyCount === 0" @click="doBatchAction('clearWeed')">
-                <span class="flex items-center space-x-1">
+              <button class="btn farm-batch-action text-xs" :disabled="weedyCount === 0" @click="doBatchAction('clearWeed')">
+                <span class="farm-batch-action__label">
                   <Leaf :size="12" />
                   <span>一键除草</span>
                 </span>
-                <span class="text-muted">{{ weedyCount }} 块</span>
+                <span class="farm-batch-action__count">{{ weedyCount }} 块</span>
               </button>
             </div>
           </div>
@@ -2354,5 +2354,48 @@
   .farm-plot {
     height: 0;
     padding-bottom: 100%;
+  }
+
+  .farm-batch-action {
+    width: 100%;
+    min-height: 40px;
+    justify-content: space-between;
+    gap: 12px;
+    text-align: left;
+  }
+
+  .farm-batch-action__label {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 6px;
+    color: rgb(var(--color-text));
+  }
+
+  .farm-batch-action__count {
+    flex-shrink: 0;
+    color: rgb(var(--color-muted));
+  }
+
+  .farm-batch-action:disabled {
+    opacity: 1;
+    cursor: not-allowed;
+    color: rgb(var(--color-muted));
+    background-color: rgba(var(--color-panel), 0.92);
+    border-color: rgba(200, 164, 92, 0.18);
+    -webkit-text-fill-color: rgb(var(--color-muted));
+  }
+
+  .farm-batch-action:disabled:hover {
+    background-color: rgba(var(--color-panel), 0.92);
+    color: rgb(var(--color-muted));
+    -webkit-text-fill-color: rgb(var(--color-muted));
+  }
+
+  .farm-batch-action:disabled .farm-batch-action__label,
+  .farm-batch-action:disabled .farm-batch-action__count {
+    color: rgb(var(--color-muted));
+    opacity: 1;
+    -webkit-text-fill-color: rgb(var(--color-muted));
   }
 </style>
