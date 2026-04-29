@@ -1935,6 +1935,7 @@
     whyNowLines: string[]
     receiptSections: JourneyHandoffReceiptSection[]
   }
+  type LinkedPanel = { key: PanelKey; label: string }
   type RouteDispatchSignal = { label: string; toneClass: string; shellClass: string }
   type SettlementDialogState =
     | {
@@ -3116,9 +3117,13 @@
     { immediate: true }
   )
 
-  const getUnlockSummary = (regionId: RegionId) => regionMapStore.getRegionUnlockProgress(regionId).summary
+  function getUnlockSummary(regionId: RegionId) {
+    return regionMapStore.getRegionUnlockProgress(regionId).summary
+  }
 
-  const getRegionName = (regionId: RegionId) => regionMapStore.regionDefs.find(region => region.id === regionId)?.name ?? regionId
+  function getRegionName(regionId: RegionId) {
+    return regionMapStore.regionDefs.find(region => region.id === regionId)?.name ?? regionId
+  }
 
   const getKnowledgeTierLabel = (value: number, tiers: [string, string, string, string]) =>
     value >= 80 ? tiers[3] : value >= 55 ? tiers[2] : value >= 25 ? tiers[1] : tiers[0]
@@ -3430,7 +3435,9 @@
     }
   }
 
-  const getRegionRoutes = (regionId: RegionId) => regionMapStore.routeDefs.filter(route => route.regionId === regionId)
+  function getRegionRoutes(regionId: RegionId) {
+    return regionMapStore.routeDefs.filter(route => route.regionId === regionId)
+  }
 
   const getRouteCompletionLabel = (routeId: string) => {
     const state = regionMapStore.saveData.routeStates[routeId]
@@ -3446,7 +3453,9 @@
 
   const getRouteTypeLabel = (nodeType: keyof typeof ROUTE_NODE_TYPE_LABEL_MAP) => ROUTE_NODE_TYPE_LABEL_MAP[nodeType] ?? '路线'
 
-  const isRouteUnlocked = (routeId: string) => regionMapStore.getRouteUnlockStatus(routeId).unlocked
+  function isRouteUnlocked(routeId: string) {
+    return regionMapStore.getRouteUnlockStatus(routeId).unlocked
+  }
 
   const canRunRoute = (routeId: string) => regionMapStore.getRouteExpeditionStatus(routeId).available
 
@@ -3796,23 +3805,36 @@
     }
   }
 
-  const LINKED_SYSTEM_PANEL_MAP: Record<RegionLinkedSystem, { key: PanelKey; label: string }> = {
-    quest: { key: 'quest', label: '任务板' },
-    shop: { key: 'shop', label: '商圈' },
-    museum: { key: 'museum', label: '博物馆' },
-    guild: { key: 'guild', label: '公会' },
-    hanhai: { key: 'hanhai', label: '瀚海' },
-    fishPond: { key: 'fishpond', label: '鱼塘' },
-    villageProject: { key: 'village', label: '村庄' },
-    wallet: { key: 'wallet', label: '钱包' }
+  function getLinkedSystemPanel(system: RegionLinkedSystem): LinkedPanel | null {
+    switch (system) {
+      case 'quest':
+        return { key: 'quest', label: '任务板' }
+      case 'shop':
+        return { key: 'shop', label: '商圈' }
+      case 'museum':
+        return { key: 'museum', label: '博物馆' }
+      case 'guild':
+        return { key: 'guild', label: '公会' }
+      case 'hanhai':
+        return { key: 'hanhai', label: '瀚海' }
+      case 'fishPond':
+        return { key: 'fishpond', label: '鱼塘' }
+      case 'villageProject':
+        return { key: 'village', label: '村庄' }
+      case 'wallet':
+        return { key: 'wallet', label: '钱包' }
+      default:
+        return null
+    }
   }
 
-  const getLinkedPanels = (linkedSystems: RegionLinkedSystem[]) =>
-    [...new Set(linkedSystems)]
-      .map(system => LINKED_SYSTEM_PANEL_MAP[system])
-      .filter(Boolean)
+  function getLinkedPanels(linkedSystems: RegionLinkedSystem[]): LinkedPanel[] {
+    return [...new Set(linkedSystems)]
+      .map(system => getLinkedSystemPanel(system))
+      .filter((panel): panel is LinkedPanel => panel !== null)
+  }
 
-  const getRegionHandoffSummary = (regionId: RegionId) => {
+  function getRegionHandoffSummary(regionId: RegionId) {
     const regionSummary = regionMapStore.regionSummaries.find(region => region.id === regionId) ?? null
     const unlockedRouteCount = getRegionRoutes(regionId).filter(route => isRouteUnlocked(route.id)).length
 
