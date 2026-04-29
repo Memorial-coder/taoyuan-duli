@@ -503,7 +503,7 @@
     </div>
 
     <Transition name="panel-fade">
-      <div v-if="showComposer" class="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 p-4" @click.self="showComposer = false">
+      <div v-if="showComposer" class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-bg/80 p-4" @click.self="showComposer = false">
         <div class="game-panel w-full max-w-2xl">
           <div class="flex items-center justify-between gap-3 mb-4">
             <p class="text-sm text-accent flex items-center gap-2">

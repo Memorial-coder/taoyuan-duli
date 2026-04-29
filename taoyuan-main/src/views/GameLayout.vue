@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div
     v-if="gameStore.isGameStarted"
     class="game-layout-root flex h-screen flex-col gap-1 p-1.5 md:gap-4 md:p-4"
@@ -50,7 +50,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showSavePrompt"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+        class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
         @click.self="showSavePrompt = false"
       >
         <div class="game-panel w-full max-w-xs text-center">
@@ -99,7 +99,7 @@
 
     <!-- 互动节日 -->
     <Transition name="panel-fade">
-      <div v-if="currentFestival" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="currentFestival" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <FishingContestView v-if="currentFestival === 'fishing_contest'" @complete="closeFestival" />
         <HarvestFairView v-if="currentFestival === 'harvest_fair'" @complete="closeFestival" />
         <DragonBoatView v-if="currentFestival === 'dragon_boat'" @complete="closeFestival" />
@@ -119,7 +119,7 @@
 
     <!-- 宠物领养弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="pendingPetAdoption" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="pendingPetAdoption" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full text-center">
           <Divider title label="小动物来访" />
           <p class="text-xs leading-relaxed mb-3">一只小动物在你家门口徘徊，看起来很想有个家。你要收养它吗？</p>
@@ -143,7 +143,7 @@
 
     <!-- 子女提议弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="childProposalVisible" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="childProposalVisible" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full text-center">
           <Divider title label="家庭提议" />
           <p class="text-xs leading-relaxed mb-4">{{ proposalSpouseName }}轻声说道：「{{ npcStore.getChildProposalPrompt() }}」</p>
@@ -158,7 +158,7 @@
 
     <!-- 晨间选项事件弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="pendingFarmEvent" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="pendingFarmEvent" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full text-center">
           <p class="text-xs leading-relaxed mb-4">{{ pendingFarmEvent.message }}</p>
           <div class="flex flex-col space-y-1.5">
@@ -174,7 +174,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showVoidModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showVoidModal = false"
       >
         <div class="game-panel max-w-sm w-full">
@@ -267,7 +267,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showVoidDepositModal && voidDepositChestId"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showVoidDepositModal = false"
       >
         <div class="game-panel max-w-sm w-full">
@@ -297,7 +297,7 @@
     <Transition name="panel-fade">
       <div
         v-if="voidQtyModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
         @click.self="voidQtyModal = null"
       >
         <div class="game-panel max-w-xs w-full">
@@ -345,7 +345,7 @@
     <Transition name="panel-fade">
       <div
         v-if="voidItemDetail && voidItemDef"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="voidItemDetail = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -389,7 +389,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showLogModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showLogModal = false"
       >
         <div class="game-panel max-w-md w-full max-h-[80vh] flex flex-col relative">
@@ -438,7 +438,7 @@
 
     <!-- 日志清空确认 -->
     <Transition name="panel-fade">
-      <div v-if="clearLogTarget !== undefined" class="fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
+      <div v-if="clearLogTarget !== undefined" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
         <div class="game-panel max-w-xs w-full text-center">
           <p class="text-xs leading-relaxed mb-4">
             {{ clearLogTarget === null ? '确认清空全部日志？' : `确认清空「${clearLogTarget}」的日志？` }}
@@ -453,7 +453,7 @@
 
     <!-- 休息确认 -->
     <Transition name="panel-fade">
-      <div v-if="showSleepConfirm" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="showSleepConfirm" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full text-center">
           <Divider title>{{ sleepLabel }}</Divider>
           <p class="text-xs leading-relaxed mb-1">{{ sleepSummary }}</p>

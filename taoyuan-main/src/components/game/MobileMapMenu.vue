@@ -1,7 +1,11 @@
 <template>
   <Transition name="panel-fade">
-    <div v-if="props.open" class="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-3" @click.self="$emit('close')">
-      <div class="map-container game-panel w-full max-w-sm md:max-w-150 max-h-[85vh] overflow-y-auto relative" data-testid="mobile-map-menu">
+    <div v-if="props.open" class="game-modal-overlay fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-3" @click.self="$emit('close')">
+      <div
+        class="map-container game-panel w-full max-w-sm md:max-w-150 max-h-[85vh] overflow-y-auto relative"
+        :style="{ '--mobile-map-tile-scale': mobileMapTileScaleCss }"
+        data-testid="mobile-map-menu"
+      >
         <button
           class="absolute top-4 right-4 px-2 py-1 text-xs transition-colors hover:border-accent/60 hover:bg-panel/80 text-muted border border-accent/20"
           @click="$emit('close')"
@@ -54,7 +58,7 @@
               <span class="tool-entry-title">虚空箱</span>
               <span class="tool-entry-meta">远程存取库存</span>
             </button>
-            <button class="tool-entry-btn" @click="$emit('open-settings')">
+            <button class="tool-entry-btn" data-testid="mobile-map-menu-open-settings" @click="$emit('open-settings')">
               <span class="tool-entry-title">设置</span>
               <span class="tool-entry-meta">音量、存档与选项</span>
             </button>
@@ -65,8 +69,15 @@
         <div class="map-area">
           <p class="map-area-title">田庄</p>
           <div class="map-area-grid">
-            <button v-for="t in farmGroup" :key="t.key" class="map-loc" :class="{ 'map-loc-active': props.current === t.key }" @click="go(t.key)">
-              <component :is="t.getIcon ? t.getIcon() : t.icon" :size="18" />
+            <button
+              v-for="t in farmGroup"
+              :key="t.key"
+              class="map-loc"
+              :class="{ 'map-loc-active': props.current === t.key }"
+              :data-testid="`mobile-map-loc-${t.key}`"
+              @click="go(t.key)"
+            >
+              <component :is="t.getIcon ? t.getIcon() : t.icon" :size="mobileMapLocIconSize" />
               <span>{{ t.label }}</span>
             </button>
           </div>
@@ -84,9 +95,10 @@
                 :key="t.key"
                 class="map-loc"
                 :class="{ 'map-loc-active': props.current === t.key }"
+                :data-testid="`mobile-map-loc-${t.key}`"
                 @click="go(t.key)"
               >
-                <component :is="t.getIcon ? t.getIcon() : t.icon" :size="18" />
+                <component :is="t.getIcon ? t.getIcon() : t.icon" :size="mobileMapLocIconSize" />
                 <span>{{ t.label }}</span>
               </button>
             </div>
@@ -99,9 +111,10 @@
                 :key="t.key"
                 class="map-loc"
                 :class="{ 'map-loc-active': props.current === t.key }"
+                :data-testid="`mobile-map-loc-${t.key}`"
                 @click="go(t.key)"
               >
-                <component :is="t.getIcon ? t.getIcon() : t.icon" :size="18" />
+                <component :is="t.getIcon ? t.getIcon() : t.icon" :size="mobileMapLocIconSize" />
                 <span>{{ t.label }}</span>
               </button>
             </div>
@@ -119,9 +132,10 @@
               :key="t.key"
               class="map-loc"
               :class="{ 'map-loc-active': props.current === t.key }"
+              :data-testid="`mobile-map-loc-${t.key}`"
               @click="go(t.key)"
             >
-              <component :is="t.getIcon ? t.getIcon() : t.icon" :size="18" />
+              <component :is="t.getIcon ? t.getIcon() : t.icon" :size="mobileMapLocIconSize" />
               <span>{{ t.label }}</span>
             </button>
           </div>
@@ -138,9 +152,10 @@
               :key="t.key"
               class="map-loc"
               :class="{ 'map-loc-active': props.current === t.key }"
+              :data-testid="`mobile-map-loc-${t.key}`"
               @click="go(t.key)"
             >
-              <component :is="t.getIcon ? t.getIcon() : t.icon" :size="18" />
+              <component :is="t.getIcon ? t.getIcon() : t.icon" :size="mobileMapLocIconSize" />
               <span>{{ t.label }}</span>
             </button>
           </div>
@@ -158,12 +173,14 @@
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
+  import { DEFAULT_FONT_SIZE, MIN_FONT_SIZE, useSettingsStore } from '@/stores/useSettingsStore'
 
   const props = defineProps<{ open: boolean; current: string; hasVoidChest?: boolean }>()
   const emit = defineEmits<{ close: []; 'open-settings': []; 'open-log': []; 'open-void': [] }>()
   const goalStore = useGoalStore()
   const mailboxStore = useMailboxStore()
   const regionMapStore = useRegionMapStore()
+  const settingsStore = useSettingsStore()
 
   type QuickEntry = {
     key: PanelKey
@@ -296,6 +313,12 @@
   })
   const primaryQuickEntry = computed(() => quickEntries.value[0] ?? null)
   const secondaryQuickEntries = computed(() => quickEntries.value.slice(1))
+  const mobileMapTileScale = computed(() => {
+    const scale = settingsStore.fontSize / DEFAULT_FONT_SIZE
+    return Math.min(1, Math.max(MIN_FONT_SIZE / DEFAULT_FONT_SIZE, scale))
+  })
+  const mobileMapTileScaleCss = computed(() => mobileMapTileScale.value.toFixed(3))
+  const mobileMapLocIconSize = computed(() => Math.round(18 * mobileMapTileScale.value))
 
   const farmGroup = computed(() => pick(['farm', 'animal', 'cottage', 'home', 'breeding', 'fishpond', 'decoration']))
   const villageGroup = computed(() => pick(['village', 'shop', 'museum', 'guild']))
@@ -316,17 +339,27 @@
 </script>
 
 <style scoped>
+  .game-modal-overlay > .map-container.game-panel.max-w-sm {
+    width: min(100%, 384px);
+  }
+
+  @media (min-width: 768px) {
+    .game-modal-overlay > .map-container.game-panel.max-w-sm {
+      width: min(100%, 600px);
+    }
+  }
+
   /* 地图菜单 */
   .map-area {
     border: 1px dashed rgba(200, 164, 92, 0.3);
     border-radius: 2px;
-    padding: 8px;
+    padding: calc(8px * var(--mobile-map-tile-scale, 1));
   }
 
   .map-area-title {
-    font-size: 10px;
+    font-size: calc(10px * var(--mobile-map-tile-scale, 1));
     color: var(--color-muted);
-    margin-bottom: 6px;
+    margin-bottom: calc(6px * var(--mobile-map-tile-scale, 1));
     letter-spacing: 0.1em;
     text-align: center;
   }
@@ -335,17 +368,19 @@
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
-    margin: 6px;
+    margin: calc(6px * var(--mobile-map-tile-scale, 1));
   }
 
   .map-loc {
     display: flex;
     flex-direction: column;
     align-items: center;
-    margin: 2px;
-    padding: 6px 8px;
-    min-width: 52px;
-    font-size: 10px;
+    gap: calc(4px * var(--mobile-map-tile-scale, 1));
+    margin: calc(2px * var(--mobile-map-tile-scale, 1));
+    padding: calc(6px * var(--mobile-map-tile-scale, 1)) calc(8px * var(--mobile-map-tile-scale, 1));
+    min-width: calc(52px * var(--mobile-map-tile-scale, 1));
+    font-size: calc(10px * var(--mobile-map-tile-scale, 1));
+    line-height: 1.3;
     color: rgb(var(--color-text));
     background: rgb(var(--color-bg));
     border: 1px solid rgba(200, 164, 92, 0.2);
@@ -371,9 +406,9 @@
   .map-path {
     text-align: center;
     color: rgba(200, 164, 92, 0.3);
-    font-size: 10px;
+    font-size: calc(10px * var(--mobile-map-tile-scale, 1));
     line-height: 1;
-    padding: 4px 0;
+    padding: calc(4px * var(--mobile-map-tile-scale, 1)) 0;
     letter-spacing: 0.3em;
   }
 

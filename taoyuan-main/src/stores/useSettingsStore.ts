@@ -10,9 +10,13 @@ import type { ItemCategory, LateGameBalanceConfig, LateGameBalanceOverride, Late
 export type QmsgPosition = 'topleft' | 'top' | 'topright' | 'left' | 'center' | 'right' | 'bottomleft' | 'bottom' | 'bottomright'
 export type QmsgLimitWidthWrap = 'no-wrap' | 'wrap' | 'ellipsis'
 
-const DEFAULT_FONT_SIZE = 16
+export const DEFAULT_FONT_SIZE = 12
+export const MIN_FONT_SIZE = 8
+export const MAX_FONT_SIZE = 24
 const DEFAULT_THEME: ThemeKey = 'dark'
 const DEFAULT_QMSG_POSITION: QmsgPosition = 'top'
+
+const clampFontSize = (value: number) => Math.min(MAX_FONT_SIZE, Math.max(MIN_FONT_SIZE, Math.round(value)))
 
 export const useSettingsStore = defineStore('settings', () => {
   const fontSize = ref(DEFAULT_FONT_SIZE)
@@ -36,7 +40,8 @@ export const useSettingsStore = defineStore('settings', () => {
   const lateGameBalanceOverrides = ref<LateGameBalanceOverride>({})
 
   const applyFontSize = () => {
-    document.documentElement.style.fontSize = fontSize.value + 'px'
+    fontSize.value = clampFontSize(fontSize.value)
+    document.documentElement.style.fontSize = `${fontSize.value}px`
   }
 
   const applyTheme = () => {
@@ -47,7 +52,7 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   const changeFontSize = (delta: number) => {
-    fontSize.value = Math.min(24, Math.max(12, fontSize.value + delta))
+    fontSize.value = clampFontSize(fontSize.value + delta)
     applyFontSize()
   }
 
@@ -158,7 +163,7 @@ export const useSettingsStore = defineStore('settings', () => {
 
   const deserialize = (data: any, saveVersion?: number) => {
     setLateGameFeatureBaselineSaveVersion(saveVersion)
-    fontSize.value = data?.fontSize ?? DEFAULT_FONT_SIZE
+    fontSize.value = clampFontSize(data?.fontSize ?? DEFAULT_FONT_SIZE)
     applyFontSize()
     theme.value = data?.theme ?? DEFAULT_THEME
     applyTheme()

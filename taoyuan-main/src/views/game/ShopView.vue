@@ -1251,7 +1251,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showSellFilterModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showSellFilterModal = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -1285,7 +1285,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showSellAllConfirm"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showSellAllConfirm = false"
       >
         <div class="game-panel max-w-xs w-full">
@@ -1303,7 +1303,7 @@
     <Transition name="panel-fade">
       <div
         v-if="buyModalData || (sellModalData && sellModalItem)"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-40 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-40 p-4"
         @click.self="shopModal = null"
       >
         <!-- 购买弹窗 -->

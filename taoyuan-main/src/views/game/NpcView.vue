@@ -454,7 +454,7 @@
 
     <!-- NPC 交互弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="selectedNpc" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="selectedNpc = null">
+      <div v-if="selectedNpc" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="selectedNpc = null">
         <div class="game-panel max-w-lg w-full max-h-[80vh] overflow-y-auto">
           <!-- 头部：名称 + 关闭 -->
           <div class="flex justify-between items-start mb-2">
@@ -859,7 +859,7 @@
           <Transition name="panel-fade">
             <div
               v-if="activeGiftItem && activeGiftDef"
-              class="fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4"
+              class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4"
               @click.self="activeGiftKey = null"
             >
               <div class="game-panel max-w-xs w-full relative">

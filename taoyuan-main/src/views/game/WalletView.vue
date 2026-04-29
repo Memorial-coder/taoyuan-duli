@@ -545,7 +545,7 @@
     <Transition name="panel-fade">
       <div
         v-if="selectedItem"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="selectedItem = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -579,7 +579,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showResetArchetypeConfirm"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showResetArchetypeConfirm = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -604,7 +604,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showSwitchArchetypeConfirm && pendingArchetypeId"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="cancelSwitchArchetype"
       >
         <div class="game-panel max-w-xs w-full relative">

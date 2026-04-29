@@ -288,7 +288,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showUpgradeModal && homeStore.nextUpgrade"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showUpgradeModal = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -337,7 +337,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showAgingModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showAgingModal = false"
       >
         <div class="game-panel max-w-xs w-full">
@@ -373,7 +373,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showCalendarModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showCalendarModal = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -462,7 +462,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showSpouseGiftModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showSpouseGiftModal = false"
       >
         <div class="game-panel max-w-sm w-full">
@@ -499,7 +499,7 @@
 
     <!-- 招募雇工弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="showHireModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="closeHireModal">
+      <div v-if="showHireModal" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="closeHireModal">
         <div class="game-panel max-w-sm w-full">
           <div class="flex items-center justify-between mb-2">
             <p class="text-sm text-accent">招募雇工</p>
@@ -563,7 +563,7 @@
     <Transition name="panel-fade">
       <div
         v-if="dismissConfirmNpcId"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="dismissConfirmNpcId = null"
       >
         <div class="game-panel max-w-xs w-full text-center">
@@ -581,7 +581,7 @@
     <Transition name="panel-fade">
       <div
         v-if="removeAgingConfirmSlot"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="removeAgingConfirmIdx = null"
       >
         <div class="game-panel max-w-xs w-full text-center">

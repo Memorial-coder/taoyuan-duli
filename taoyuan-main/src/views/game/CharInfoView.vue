@@ -105,7 +105,7 @@
 
     <!-- 装备选择弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="activeSlot" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="activeSlot = null">
+      <div v-if="activeSlot" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="activeSlot = null">
         <div class="game-panel max-w-xs w-full relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="activeSlot = null">
             <X :size="14" />

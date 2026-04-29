@@ -205,7 +205,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showBaitModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showBaitModal = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -249,7 +249,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showTackleModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showTackleModal = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -296,7 +296,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showFishingModal && miniGameParams"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="handleCloseFishingModal"
       >
         <div class="game-panel max-w-sm w-full relative">
@@ -322,7 +322,7 @@
 
     <!-- 钓鱼结果弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="catchResult" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+      <div v-if="catchResult" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="dismissCatchResult">
             <X :size="14" />
@@ -383,7 +383,7 @@
     <Transition name="panel-fade">
       <div
         v-if="selectedFish"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="selectedFish = null"
       >
         <div class="game-panel max-w-xs w-full relative">

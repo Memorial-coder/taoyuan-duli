@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
+  <div class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4">
     <div class="game-panel flex max-h-[80vh] w-full max-w-lg flex-col border-accent/40">
       <div ref="contentEl" class="min-h-0 overflow-y-auto pr-1">
         <p class="mb-1 text-center text-[10px] text-accent/50">{{ phaseLabel }}</p>

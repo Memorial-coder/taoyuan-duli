@@ -428,7 +428,7 @@
     <Transition name="panel-fade">
       <div
         v-if="shopModalItem"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="shopModalItem = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -472,7 +472,7 @@
 
     <!-- 幸运轮盘弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="showRouletteModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="showRouletteModal" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full">
           <p class="text-sm text-accent text-center mb-1">幸运轮盘</p>
           <p class="text-xs text-muted text-center mb-3">投注 {{ rouletteBetAmount }}文</p>
@@ -507,7 +507,7 @@
 
     <!-- 骰子弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="showDiceModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="showDiceModal" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full">
           <p class="text-sm text-accent text-center mb-1">骰子猜大小</p>
           <p class="text-xs text-muted text-center mb-4">
@@ -554,7 +554,7 @@
 
     <!-- 猜杯弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="showCupModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="showCupModal" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full">
           <p class="text-sm text-accent text-center mb-1">猜杯</p>
           <p class="text-xs text-muted text-center mb-4">你选了第{{ cupGuess + 1 }}杯</p>
@@ -609,7 +609,7 @@
 
     <!-- 斗蛐蛐弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="showCricketModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="showCricketModal" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full">
           <p class="text-sm text-accent text-center mb-1">斗蛐蛐</p>
           <p class="text-xs text-muted text-center mb-4">
@@ -717,7 +717,7 @@
 
     <!-- 翻牌寻宝弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="showCardModal" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="showCardModal" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full">
           <p class="text-sm text-accent text-center mb-1">翻牌寻宝</p>
           <p class="text-xs text-muted text-center mb-4">你选了第{{ cardPick + 1 }}张</p>
@@ -768,14 +768,14 @@
 
     <!-- 瀚海扑克弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="showTexasModal && texasSetup" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="showTexasModal && texasSetup" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <TexasHoldemGame :setup="texasSetup" @complete="handleTexasComplete" />
       </div>
     </Transition>
 
     <!-- 恶魔轮盘弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="showBuckshotModal && buckshotSetup" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="showBuckshotModal && buckshotSetup" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <BuckshotRouletteGame :setup="buckshotSetup" @complete="handleBuckshotComplete" />
       </div>
     </Transition>

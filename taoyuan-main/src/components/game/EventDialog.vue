@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 bg-bg/90 flex items-center justify-center z-50 p-8">
+  <div class="game-modal-overlay fixed inset-0 bg-bg/90 flex items-center justify-center z-50 p-8">
     <div class="game-panel max-w-lg w-full max-h-[80vh] overflow-y-auto" :class="seasonBorderClass">
       <h2 class="text-sm mb-1 flex items-center gap-2" :class="seasonTextClass">
         <span>{{ seasonIcon }}</span>

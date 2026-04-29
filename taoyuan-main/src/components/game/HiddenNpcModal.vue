@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="emit('close')">
+  <div class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="emit('close')">
     <div class="game-panel max-w-lg w-full max-h-[80vh] overflow-y-auto">
       <!-- 头部 -->
       <div class="flex justify-between items-start mb-2">

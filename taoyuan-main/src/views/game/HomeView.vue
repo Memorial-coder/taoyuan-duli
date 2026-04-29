@@ -341,7 +341,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showGreenhouseModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showGreenhouseModal = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -389,7 +389,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showWarehouseUnlockModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showWarehouseUnlockModal = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -434,7 +434,7 @@
 
     <!-- 箱子详情弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="openChestId" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="openChestId = null">
+      <div v-if="openChestId" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="openChestId = null">
         <div v-if="currentOpenChest" class="game-panel max-w-sm w-full">
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center space-x-1.5">
@@ -502,7 +502,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showChestDepositModal && openChestId"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showChestDepositModal = false"
       >
         <div class="game-panel max-w-sm w-full">
@@ -532,7 +532,7 @@
     <Transition name="panel-fade">
       <div
         v-if="chestQtyModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-[60] p-4"
         @click.self="chestQtyModal = null"
       >
         <div class="game-panel max-w-xs w-full">
@@ -580,7 +580,7 @@
     <Transition name="panel-fade">
       <div
         v-if="dismantleChestId"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="dismantleChestId = null"
       >
         <div class="game-panel max-w-xs w-full">
@@ -617,7 +617,7 @@
     <Transition name="panel-fade">
       <div
         v-if="chestItemDetail && chestItemDef"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="chestItemDetail = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -659,7 +659,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showAddChestModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showAddChestModal = false"
       >
         <div class="game-panel max-w-sm w-full">

@@ -65,7 +65,7 @@
     <Transition name="panel-fade">
       <div
         v-if="activeAchievement"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="activeAchievement = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -155,7 +155,7 @@
     <Transition name="panel-fade">
       <div
         v-if="activeBundle"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="activeBundle = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -244,7 +244,7 @@
     <Transition name="panel-fade">
       <div
         v-if="activeShippingItem"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="activeShippingId = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -315,7 +315,7 @@
 
     <!-- 秘密笔记详情弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="activeNote" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="activeNote = null">
+      <div v-if="activeNote" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="activeNote = null">
         <div class="game-panel max-w-xs w-full relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="activeNote = null">
             <X :size="14" />

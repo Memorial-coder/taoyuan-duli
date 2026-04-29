@@ -5,7 +5,7 @@
   <Transition name="panel-fade">
     <div
       v-if="showAndroidUpdateDialog"
-      class="fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4"
+      class="game-modal-overlay fixed inset-0 z-[10000] flex items-center justify-center bg-black/70 p-4"
       @click.self="androidUpdateMode === 'optional' ? dismissOptionalAndroidUpdate() : undefined"
     >
       <div class="game-panel max-h-[88vh] w-full max-w-lg overflow-y-auto">
@@ -96,7 +96,7 @@
   <Transition name="panel-fade">
     <div
       v-if="showExitConfirm"
-      class="fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4"
+      class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-[9999] p-4"
       @click.self="showExitConfirm = false"
     >
       <div class="game-panel max-w-xs w-full text-center">

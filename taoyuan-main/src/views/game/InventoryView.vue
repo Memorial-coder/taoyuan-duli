@@ -316,7 +316,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showPresetModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showPresetModal = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -381,7 +381,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showFilterModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showFilterModal = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -413,7 +413,7 @@
     <Transition name="panel-fade">
       <div
         v-if="activeTempItem"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="activeTempIdx = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -473,7 +473,7 @@
 
     <!-- 物品详情弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="activeItem" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="activeItemIndex = null">
+      <div v-if="activeItem" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="activeItemIndex = null">
         <div class="game-panel max-w-xs w-full relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="activeItemIndex = null">
             <X :size="14" />
@@ -593,7 +593,7 @@
     <Transition name="panel-fade">
       <div
         v-if="activeWeaponIdx !== null && activeWeaponDef"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="activeWeaponIdx = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -649,7 +649,7 @@
     <Transition name="panel-fade">
       <div
         v-if="activeRingIdx !== null && activeRingDef"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="activeRingIdx = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -701,7 +701,7 @@
     <Transition name="panel-fade">
       <div
         v-if="activeHatIdx !== null && activeHatDef"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="activeHatIdx = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -738,7 +738,7 @@
     <Transition name="panel-fade">
       <div
         v-if="activeShoeIdx !== null && activeShoeDef"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="activeShoeIdx = null"
       >
         <div class="game-panel max-w-xs w-full relative">

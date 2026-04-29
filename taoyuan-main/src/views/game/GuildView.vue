@@ -221,7 +221,7 @@
     <Transition name="panel-fade">
       <div
         v-if="selectedGoal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="selectedGoal = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -307,7 +307,7 @@
     <Transition name="panel-fade">
       <div
         v-if="donateModalItem"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="donateModalItem = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -436,7 +436,7 @@
     <Transition name="panel-fade">
       <div
         v-if="shopModalItem"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-40 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-40 p-4"
         @click.self="shopModalItem = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -602,7 +602,7 @@
     <Transition name="panel-fade">
       <div
         v-if="selectedMonster"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="selectedMonster = null"
       >
         <div class="game-panel max-w-xs w-full relative">

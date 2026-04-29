@@ -1,5 +1,5 @@
-﻿<template>
-  <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
+<template>
+  <div class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
     <div class="game-panel w-full max-w-md text-center relative max-h-[80vh] flex flex-col">
       <button class="absolute top-2 right-2 text-muted hover:text-text" @click="$emit('close')">
         <X :size="14" />
@@ -159,7 +159,7 @@
       <Transition name="panel-fade">
         <div
           v-if="deleteTargetSlot !== null"
-          class="fixed inset-0 z-60 flex items-center justify-center bg-bg/80"
+          class="game-modal-overlay fixed inset-0 z-60 flex items-center justify-center bg-bg/80"
           @click.self="deleteTargetSlot = null"
         >
           <div class="game-panel w-full max-w-xs mx-4 text-center">

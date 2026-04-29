@@ -161,7 +161,7 @@
     <Transition name="panel-fade">
       <div
         v-if="activeCollectionItem"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="activeCollectionId = null"
       >
         <div class="game-panel max-w-xs w-full relative max-h-[80vh] overflow-y-auto">

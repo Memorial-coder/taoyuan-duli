@@ -232,7 +232,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showUpgradeModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showUpgradeModal = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -316,7 +316,7 @@
 
     <!-- 制造弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="craftModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="craftModal = null">
+      <div v-if="craftModal" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="craftModal = null">
         <div class="game-panel max-w-xs w-full relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="craftModal = null">
             <X :size="14" />
@@ -400,7 +400,7 @@
     <Transition name="panel-fade">
       <div
         v-if="batchProcessModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="batchProcessModal = null"
       >
         <div class="game-panel max-w-sm w-full relative">

@@ -403,7 +403,7 @@
 
     <!-- 鱼详情弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="detailFish" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="detailFish = null">
+      <div v-if="detailFish" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="detailFish = null">
         <div class="game-panel max-w-xs w-full relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="detailFish = null">
             <X :size="14" />
@@ -485,7 +485,7 @@
 
     <!-- 建造/升级弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="pondModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="pondModal = null">
+      <div v-if="pondModal" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="pondModal = null">
         <div class="game-panel max-w-xs w-full relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="pondModal = null">
             <X :size="14" />

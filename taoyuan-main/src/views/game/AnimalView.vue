@@ -423,7 +423,7 @@
     <Transition name="panel-fade">
       <div
         v-if="buyListBuilding"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="buyListBuilding = null"
       >
         <div class="game-panel max-w-xs w-full">
@@ -448,7 +448,7 @@
 
     <!-- 购买动物详情弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="buyModal" class="fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4" @click.self="buyModal = null">
+      <div v-if="buyModal" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4" @click.self="buyModal = null">
         <div class="game-panel max-w-xs w-full">
           <div class="flex items-center justify-between mb-2">
             <p class="text-sm text-accent">{{ buyModal.name }}</p>
@@ -468,7 +468,7 @@
 
     <!-- 出售动物确认弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="sellTarget" class="fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4" @click.self="sellTarget = null">
+      <div v-if="sellTarget" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4" @click.self="sellTarget = null">
         <div class="game-panel max-w-xs w-full relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="sellTarget = null">
             <X :size="14" />
@@ -496,7 +496,7 @@
     <Transition name="panel-fade">
       <div
         v-if="upgradeModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="upgradeModal = null"
       >
         <div class="game-panel max-w-xs w-full relative">

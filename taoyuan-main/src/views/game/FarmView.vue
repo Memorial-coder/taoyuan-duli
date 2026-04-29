@@ -82,7 +82,7 @@
       <Transition name="panel-fade">
         <div
           v-if="showBatchActions"
-          class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
           @click.self="showBatchActions = false"
         >
           <div class="game-panel max-w-xs w-full relative">
@@ -203,7 +203,7 @@
       <Transition name="panel-fade">
         <div
           v-if="activePlot"
-          class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
           @click.self="activePlotId = null"
         >
           <div class="game-panel max-w-xs w-full relative">
@@ -389,7 +389,7 @@
       <Transition name="panel-fade">
         <div
           v-if="showBatchPlant"
-          class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
           @click.self="showBatchPlant = false"
         >
           <div class="game-panel max-w-xs w-full relative">
@@ -441,7 +441,7 @@
       <Transition name="panel-fade">
         <div
           v-if="showBatchFertilize"
-          class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
           @click.self="showBatchFertilize = false"
         >
           <div class="game-panel max-w-xs w-full relative">
@@ -518,7 +518,7 @@
       <Transition name="panel-fade">
         <div
           v-if="showShippingBox"
-          class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
           @click.self="showShippingBox = false"
         >
           <div class="game-panel max-w-xs w-full relative">
@@ -664,7 +664,7 @@
       <Transition name="panel-fade">
         <div
           v-if="chopFruitTreeTarget"
-          class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
           @click.self="chopFruitTreeTarget = null"
         >
           <div class="game-panel max-w-xs w-full relative">
@@ -689,7 +689,7 @@
       <Transition name="panel-fade">
         <div
           v-if="chopWildTreeTarget"
-          class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+          class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
           @click.self="chopWildTreeTarget = null"
         >
           <div class="game-panel max-w-xs w-full relative">
@@ -817,7 +817,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showGreenhouseModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showGreenhouseModal = false"
       >
         <div class="game-panel max-w-sm w-full relative">
@@ -878,7 +878,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showGhUpgradeModal && nextGhUpgrade"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showGhUpgradeModal = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -913,7 +913,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showGhBatchPlant"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showGhBatchPlant = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -963,7 +963,7 @@
     <Transition name="panel-fade">
       <div
         v-if="activeGhPlot"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="activeGhPlotId = null"
       >
         <div class="game-panel max-w-xs w-full relative">

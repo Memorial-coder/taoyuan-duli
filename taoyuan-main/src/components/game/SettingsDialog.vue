@@ -1,18 +1,24 @@
 <template>
   <Transition name="panel-fade">
-    <div v-if="open" class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" @click.self="$emit('close')">
-      <div class="game-panel w-full max-w-xs text-center relative">
+    <div
+      v-if="open"
+      class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4"
+      data-testid="settings-dialog-overlay"
+      @click.self="$emit('close')"
+    >
+      <div class="game-panel settings-dialog-shell w-full max-w-xs text-center relative" data-testid="settings-dialog">
         <button class="absolute top-2 right-2 text-muted hover:text-text" @click="$emit('close')">
           <X :size="14" />
         </button>
         <Divider title class="my-4" label="设置" />
         <!-- 分类导航 -->
-        <div class="grid grid-cols-3 justify-center gap-1 mb-3">
+        <div class="settings-dialog-tabs grid grid-cols-3 justify-center gap-1 mb-3">
           <button
             v-for="tab in SETTINGS_TABS"
             :key="tab.key"
-            class="text-xs py-1 px-3 border rounded-xs transition-colors"
+            class="settings-dialog-tab text-xs py-1 px-3 border rounded-xs transition-colors"
             :class="activeTab === tab.key ? 'border-accent bg-accent/20 text-accent' : 'border-accent/20 text-muted hover:text-text'"
+            :data-testid="`settings-tab-${tab.key}`"
             @click="activeTab = tab.key"
           >
             <component :is="tab.icon" :size="12" class="inline-block align-[-2px] mr-1" />
@@ -23,9 +29,9 @@
         <div class="flex flex-col space-y-3">
           <!-- ===== 通用 ===== -->
           <template v-if="activeTab === 'general'">
-            <div class="max-h-[40vh] overflow-y-auto">
+            <div class="settings-dialog-scroll max-h-[40vh] overflow-y-auto">
               <!-- 时间控制 -->
-              <div class="border border-accent/20 rounded-xs p-3 mr-1 mb-2">
+              <div class="settings-dialog-card border border-accent/20 rounded-xs mr-1 mb-2">
                 <p class="text-xs text-muted mb-2">时间控制</p>
                 <div class="flex items-center justify-center space-x-2">
                   <Button :icon="isSettingsPaused ? Play : Pause" :icon-size="12" class="py-1 px-3" @click="toggleSettingsPause">
@@ -36,7 +42,7 @@
               </div>
 
               <!-- 音频控制 -->
-              <div class="border border-accent/20 rounded-xs p-3 mr-1 mb-2">
+              <div class="settings-dialog-card border border-accent/20 rounded-xs mr-1 mb-2">
                 <p class="text-xs text-muted mb-2">音频</p>
                 <div class="flex items-center justify-center space-x-2">
                   <Button :icon="sfxEnabled ? Volume2 : VolumeX" :icon-size="12" class="py-1 px-3" @click="toggleSfx">音效</Button>
@@ -45,7 +51,7 @@
               </div>
 
               <!-- 新手提示 -->
-              <div class="border border-accent/20 rounded-xs p-3 mr-1 mb-2">
+              <div class="settings-dialog-card border border-accent/20 rounded-xs mr-1 mb-2">
                 <p class="text-xs text-muted mb-2">新手提示</p>
                 <p class="text-[10px] text-muted/50 mb-2">柳村长的晨间建议和面板引导文字</p>
                 <div class="flex items-center justify-center space-x-2">
@@ -63,7 +69,7 @@
               </div>
 
               <!-- WebDAV 云同步 -->
-              <div class="border border-accent/20 rounded-xs p-3 mr-1">
+              <div class="settings-dialog-card border border-accent/20 rounded-xs mr-1">
                 <div class="flex items-center justify-between mb-2">
                   <p class="text-xs text-muted">WebDAV 云同步</p>
                   <div class="flex space-x-1">
@@ -157,38 +163,41 @@
           <!-- ===== 外观 ===== -->
           <template v-if="activeTab === 'display'">
             <!-- 字体大小 -->
-            <div class="border border-accent/20 rounded-xs p-3">
+            <div class="settings-dialog-card border border-accent/20 rounded-xs" data-testid="settings-font-size-card">
               <p class="text-xs text-muted mb-2">字体大小</p>
-              <div class="flex items-center justify-center space-x-3">
+              <div class="settings-dialog-stepper flex items-center justify-center space-x-3">
                 <Button
-                  class="py-1 px-3"
+                  class="settings-stepper-btn py-1 px-3"
                   :icon="Minus"
                   :icon-size="12"
-                  :disabled="settingsStore.fontSize <= 12"
+                  :disabled="settingsStore.fontSize <= MIN_FONT_SIZE"
+                  data-testid="settings-font-size-decrease"
                   @click="settingsStore.changeFontSize(-1)"
                 />
-                <span class="text-sm w-8 text-center">{{ settingsStore.fontSize }}</span>
+                <span class="settings-stepper-value text-sm w-8 text-center" data-testid="settings-font-size-value">{{ settingsStore.fontSize }}</span>
                 <Button
-                  class="py-1 px-3"
+                  class="settings-stepper-btn py-1 px-3"
                   :icon="Plus"
                   :icon-size="12"
-                  :disabled="settingsStore.fontSize >= 24"
+                  :disabled="settingsStore.fontSize >= MAX_FONT_SIZE"
+                  data-testid="settings-font-size-increase"
                   @click="settingsStore.changeFontSize(1)"
                 />
               </div>
             </div>
 
             <!-- 配色主题 -->
-            <div class="border border-accent/20 rounded-xs p-3">
+            <div class="settings-dialog-card border border-accent/20 rounded-xs">
               <p class="text-xs text-muted mb-2">配色主题</p>
               <div class="flex items-center justify-center space-x-2">
                 <button
                   v-for="t in THEMES"
                   :key="t.key"
-                  class="w-8 h-8 border rounded-xs flex items-center justify-center text-[10px] transition-colors"
+                  class="settings-theme-swatch border rounded-xs flex items-center justify-center text-[10px] transition-colors"
                   :class="settingsStore.theme === t.key ? 'border-accent' : 'border-accent/20'"
                   :style="{ backgroundColor: t.bg, color: t.text }"
                   :title="t.name"
+                  :data-testid="`settings-theme-${t.key}`"
                   @click="settingsStore.changeTheme(t.key)"
                 >
                   {{ t.name.charAt(0) }}
@@ -199,9 +208,9 @@
 
           <!-- ===== 通知 ===== -->
           <template v-if="activeTab === 'notification'">
-            <div class="max-h-[40vh] overflow-y-auto flex flex-col space-y-3">
+            <div class="settings-dialog-scroll max-h-[40vh] overflow-y-auto flex flex-col space-y-3">
               <!-- 通知位置 -->
-              <div class="border border-accent/20 rounded-xs p-3 mr-1">
+              <div class="settings-dialog-card border border-accent/20 rounded-xs mr-1">
                 <p class="text-xs text-muted mb-2">弹出位置</p>
                 <div class="grid grid-cols-3 gap-1 w-24 mx-auto">
                   <button
@@ -220,7 +229,7 @@
               </div>
 
               <!-- 持续时间 -->
-              <div class="border border-accent/20 rounded-xs p-3 mr-1">
+              <div class="settings-dialog-card border border-accent/20 rounded-xs mr-1">
                 <p class="text-xs text-muted mb-2">持续时间</p>
                 <div class="flex items-center justify-center space-x-2">
                   <Button
@@ -242,7 +251,7 @@
               </div>
 
               <!-- 最大数量 -->
-              <div class="border border-accent/20 rounded-xs p-3 mr-1">
+              <div class="settings-dialog-card border border-accent/20 rounded-xs mr-1">
                 <p class="text-xs text-muted mb-2">最大数量</p>
                 <div class="flex items-center justify-center space-x-2">
                   <Button
@@ -264,7 +273,7 @@
               </div>
 
               <!-- 宽度限制 -->
-              <div class="border border-accent/20 rounded-xs p-3 mr-1">
+              <div class="settings-dialog-card border border-accent/20 rounded-xs mr-1">
                 <p class="text-xs text-muted mb-2">限制宽度</p>
                 <div class="flex items-center justify-center space-x-1 mb-2">
                   <Button
@@ -317,7 +326,7 @@
               </div>
 
               <!-- 开关选项 -->
-              <div class="border border-accent/20 rounded-xs p-3 mr-1 flex flex-col space-y-2">
+              <div class="settings-dialog-card border border-accent/20 rounded-xs mr-1 flex flex-col space-y-2">
                 <div v-for="opt in TOGGLE_OPTIONS" :key="opt.key" class="flex flex-col items-center space-y-1">
                   <span class="text-xs text-muted">{{ opt.label }}</span>
                   <div class="flex items-center space-x-1">
@@ -343,7 +352,13 @@
         </div>
 
         <!-- 存档管理（全局底部） -->
-        <Button :icon="FolderOpen" :icon-size="12" class="py-1 px-3 w-full justify-center mt-3" @click="showSaveManager = true">
+        <Button
+          :icon="FolderOpen"
+          :icon-size="12"
+          class="settings-save-button py-1 px-3 w-full justify-center mt-3"
+          data-testid="settings-save-manager-button"
+          @click="showSaveManager = true"
+        >
           存档管理
         </Button>
       </div>
@@ -387,7 +402,7 @@
   import { useAudio } from '@/composables/useAudio'
   import { useGameClock } from '@/composables/useGameClock'
   import { useGameLog } from '@/composables/useGameLog'
-  import { useSettingsStore, type QmsgPosition, type QmsgLimitWidthWrap } from '@/stores/useSettingsStore'
+  import { MAX_FONT_SIZE, MIN_FONT_SIZE, useSettingsStore, type QmsgPosition, type QmsgLimitWidthWrap } from '@/stores/useSettingsStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { useWebdav } from '@/composables/useWebdav'
   import { THEMES } from '@/data/themes'
@@ -511,6 +526,57 @@
 </script>
 
 <style scoped>
+  .settings-dialog-shell {
+    min-width: 0;
+  }
+
+  .settings-dialog-tabs {
+    gap: 4px;
+    margin-bottom: 12px;
+  }
+
+  .settings-dialog-tab {
+    min-height: 36px;
+    padding: 0 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .settings-dialog-card {
+    padding: 12px;
+  }
+
+  .settings-dialog-scroll {
+    padding-right: 4px;
+  }
+
+  .settings-dialog-stepper {
+    gap: 12px;
+  }
+
+  .settings-stepper-btn {
+    min-width: 68px;
+    min-height: 44px;
+    padding: 0 12px;
+  }
+
+  .settings-stepper-value {
+    min-width: 44px;
+    flex-shrink: 0;
+  }
+
+  .settings-theme-swatch {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+
+  .settings-save-button {
+    min-height: 40px;
+  }
+
   .yes-select {
     -webkit-user-select: unset;
     user-select: unset;

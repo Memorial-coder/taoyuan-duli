@@ -181,7 +181,7 @@
 
     <!-- 角色创建弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="showCharCreate && !showFarmSelect" class="fixed inset-0 z-50 flex items-center justify-center bg-bg/80">
+      <div v-if="showCharCreate && !showFarmSelect" class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-bg/80">
         <div class="game-panel w-full max-w-xs mx-4 relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="handleBackToMenu">
             <X :size="14" />
@@ -231,7 +231,7 @@
 
     <!-- 农场选择弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="showFarmSelect" class="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 p-4">
+      <div v-if="showFarmSelect" class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-bg/80 p-4">
         <div class="game-panel w-full max-w-xl max-h-[80vh] flex flex-col relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text z-10" @click="handleBackToCharCreate">
             <X :size="14" />
@@ -261,7 +261,7 @@
         <Transition name="panel-fade">
           <div
             v-if="showFarmConfirm"
-            class="fixed inset-0 z-60 flex items-center justify-center bg-bg/80"
+            class="game-modal-overlay fixed inset-0 z-60 flex items-center justify-center bg-bg/80"
             @click.self="showFarmConfirm = false"
           >
             <div class="game-panel w-full max-w-xs mx-4 text-center relative">
@@ -283,7 +283,7 @@
 
     <!-- 旧存档身份设置弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="showIdentitySetup" class="fixed inset-0 z-50 flex items-center justify-center bg-bg/80">
+      <div v-if="showIdentitySetup" class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-bg/80">
         <div class="game-panel w-full max-w-xs mx-4 relative">
           <p class="text-accent text-sm mb-2 text-center">设置角色信息</p>
           <p class="text-xs text-muted mb-4 text-center">检测到角色信息为空，请设置你的角色信息</p>
@@ -331,7 +331,7 @@
     <Transition name="panel-fade">
       <div
         v-if="deleteTargetSlot !== null"
-        class="fixed inset-0 z-50 flex items-center justify-center bg-bg/80"
+        class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-bg/80"
         @click.self="deleteTargetSlot = null"
       >
         <div class="game-panel w-full max-w-xs mx-4 text-center">
@@ -347,7 +347,7 @@
 
     <!-- 隐私协议弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="showPrivacy" class="fixed inset-0 z-50 flex items-center justify-center bg-bg/80" @click.self="handlePrivacyDecline">
+      <div v-if="showPrivacy" class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-bg/80" @click.self="handlePrivacyDecline">
         <div class="game-panel w-full max-w-md mx-4 max-h-[80vh] flex flex-col">
           <h2 class="text-accent text-lg mb-3 text-center">
             <ShieldCheck :size="14" class="inline" />
@@ -381,7 +381,7 @@
     </Transition>
 
     <Transition name="panel-fade">
-      <div v-if="showAbout" class="fixed inset-0 z-50 flex items-center justify-center bg-bg/80" @click.self="showAbout = false">
+      <div v-if="showAbout" class="game-modal-overlay fixed inset-0 z-50 flex items-center justify-center bg-bg/80" @click.self="showAbout = false">
         <div class="game-panel w-full max-w-md mx-4 max-h-[80vh] flex flex-col relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="showAbout = false">
             <X :size="14" />

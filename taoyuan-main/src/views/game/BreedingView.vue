@@ -473,7 +473,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showCraftModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showCraftModal = false"
       >
         <div class="game-panel max-w-sm w-full relative">
@@ -520,7 +520,7 @@
 
     <!-- 种子详情弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="detailSeed" class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="detailSeed = null">
+      <div v-if="detailSeed" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" @click.self="detailSeed = null">
         <div class="game-panel max-w-xs w-full relative">
           <button class="absolute top-2 right-2 text-muted hover:text-text" @click="detailSeed = null">
             <X :size="14" />
@@ -607,7 +607,7 @@
     <Transition name="panel-fade">
       <div
         v-if="activeHybrid"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="activeHybrid = null"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -675,7 +675,7 @@
     <Transition name="panel-fade">
       <div
         v-if="showSeedBoxUpgradeModal"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="showSeedBoxUpgradeModal = false"
       >
         <div class="game-panel max-w-xs w-full relative">
@@ -760,7 +760,7 @@
     <Transition name="panel-fade">
       <div
         v-if="breedingSelectSlot !== null"
-        class="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
         @click.self="cancelBreedingSelect"
       >
         <div class="game-panel max-w-xs w-full relative">

@@ -1,5 +1,5 @@
 <template>
-  <div class="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+  <div class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
     <div class="game-panel max-w-lg w-full max-h-[80vh] overflow-y-auto">
       <h3 class="text-accent text-sm mb-3">{{ event.title }}</h3>
 

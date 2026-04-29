@@ -161,6 +161,47 @@ button {
   border-radius: 2px;
 }
 
+.game-modal-overlay {
+  --game-modal-shell-xs: 320px;
+  --game-modal-shell-sm: 384px;
+  --game-modal-shell-md: 448px;
+  --game-modal-shell-lg: 512px;
+  --game-modal-shell-xl: 576px;
+  --game-modal-shell-2xl: 672px;
+  padding: 16px;
+}
+
+.game-modal-overlay > .game-panel:is(.max-w-xs, .max-w-sm, .max-w-md, .max-w-lg, .max-w-xl, .max-w-2xl) {
+  box-sizing: border-box;
+  max-width: none;
+  margin-left: 0;
+  margin-right: 0;
+}
+
+.game-modal-overlay > .game-panel.max-w-xs {
+  width: min(100%, var(--game-modal-shell-xs));
+}
+
+.game-modal-overlay > .game-panel.max-w-sm {
+  width: min(100%, var(--game-modal-shell-sm));
+}
+
+.game-modal-overlay > .game-panel.max-w-md {
+  width: min(100%, var(--game-modal-shell-md));
+}
+
+.game-modal-overlay > .game-panel.max-w-lg {
+  width: min(100%, var(--game-modal-shell-lg));
+}
+
+.game-modal-overlay > .game-panel.max-w-xl {
+  width: min(100%, var(--game-modal-shell-xl));
+}
+
+.game-modal-overlay > .game-panel.max-w-2xl {
+  width: min(100%, var(--game-modal-shell-2xl));
+}
+
 .game-section-title {
   color: var(--color-accent);
   font-size: 0.75rem;
@@ -233,6 +274,10 @@ button {
 @media (min-width: 768px) {
   .game-panel {
     padding: var(--spacing-4);
+  }
+
+  .game-modal-overlay {
+    padding: 24px;
   }
 }
 
