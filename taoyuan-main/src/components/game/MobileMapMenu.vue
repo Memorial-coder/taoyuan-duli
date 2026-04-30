@@ -35,6 +35,7 @@
               v-for="entry in secondaryQuickEntries"
               :key="`quick-link-${entry.key}-${entry.title}`"
               class="quick-link-chip"
+              :data-testid="`mobile-map-quick-link-${entry.key}`"
               @click="goQuickEntry(entry)"
             >
               <span class="quick-link-chip-title">{{ entry.title }}</span>
@@ -47,20 +48,40 @@
           <p class="map-area-title">常用工具</p>
           <div class="tool-entry-grid">
             <button class="tool-entry-btn" @click="go('mail')">
-              <span class="tool-entry-title">邮箱</span>
-              <span class="tool-entry-meta">{{ mailboxStore.unreadCount > 0 ? `${mailboxStore.unreadCount > 99 ? '99+' : mailboxStore.unreadCount} 未读` : '查看奖励与消息' }}</span>
+              <span class="tool-entry-icon-shell">
+                <Mail :size="mobileMapToolIconSize" />
+              </span>
+              <span class="tool-entry-copy">
+                <span class="tool-entry-title">邮箱</span>
+                <span class="tool-entry-meta">{{ mailboxStore.unreadCount > 0 ? `${mailboxStore.unreadCount > 99 ? '99+' : mailboxStore.unreadCount} 未读` : '查看奖励与消息' }}</span>
+              </span>
             </button>
             <button class="tool-entry-btn" @click="$emit('open-log')">
-              <span class="tool-entry-title">日志</span>
-              <span class="tool-entry-meta">回看最近记录</span>
+              <span class="tool-entry-icon-shell">
+                <ScrollText :size="mobileMapToolIconSize" />
+              </span>
+              <span class="tool-entry-copy">
+                <span class="tool-entry-title">日志</span>
+                <span class="tool-entry-meta">回看最近记录</span>
+              </span>
             </button>
             <button v-if="props.hasVoidChest" class="tool-entry-btn" @click="$emit('open-void')">
-              <span class="tool-entry-title">虚空箱</span>
-              <span class="tool-entry-meta">远程存取库存</span>
+              <span class="tool-entry-icon-shell">
+                <Package :size="mobileMapToolIconSize" />
+              </span>
+              <span class="tool-entry-copy">
+                <span class="tool-entry-title">虚空箱</span>
+                <span class="tool-entry-meta">远程存取库存</span>
+              </span>
             </button>
             <button class="tool-entry-btn" data-testid="mobile-map-menu-open-settings" @click="$emit('open-settings')">
-              <span class="tool-entry-title">设置</span>
-              <span class="tool-entry-meta">音量、存档与选项</span>
+              <span class="tool-entry-icon-shell">
+                <Settings :size="mobileMapToolIconSize" />
+              </span>
+              <span class="tool-entry-copy">
+                <span class="tool-entry-title">设置</span>
+                <span class="tool-entry-meta">音量、存档与选项</span>
+              </span>
             </button>
           </div>
         </div>
@@ -167,13 +188,13 @@
 
 <script setup lang="ts">
   import { computed } from 'vue'
-  import { X } from 'lucide-vue-next'
+  import { Mail, Package, ScrollText, Settings, X } from 'lucide-vue-next'
   import { TABS, navigateToPanel } from '@/composables/useNavigation'
   import type { PanelKey } from '@/composables/useNavigation'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
-  import { DEFAULT_FONT_SIZE, MIN_FONT_SIZE, useSettingsStore } from '@/stores/useSettingsStore'
+  import { MAX_FONT_SIZE, MIN_FONT_SIZE, useSettingsStore } from '@/stores/useSettingsStore'
 
   const props = defineProps<{ open: boolean; current: string; hasVoidChest?: boolean }>()
   const emit = defineEmits<{ close: []; 'open-settings': []; 'open-log': []; 'open-void': [] }>()
@@ -181,6 +202,9 @@
   const mailboxStore = useMailboxStore()
   const regionMapStore = useRegionMapStore()
   const settingsStore = useSettingsStore()
+  const MOBILE_MAP_SCALE_BASELINE = 16
+  const MOBILE_MAP_MIN_SCALE = MIN_FONT_SIZE / MOBILE_MAP_SCALE_BASELINE
+  const MOBILE_MAP_MAX_SCALE = MAX_FONT_SIZE / MOBILE_MAP_SCALE_BASELINE
 
   type QuickEntry = {
     key: PanelKey
@@ -314,11 +338,12 @@
   const primaryQuickEntry = computed(() => quickEntries.value[0] ?? null)
   const secondaryQuickEntries = computed(() => quickEntries.value.slice(1))
   const mobileMapTileScale = computed(() => {
-    const scale = settingsStore.fontSize / DEFAULT_FONT_SIZE
-    return Math.min(1, Math.max(MIN_FONT_SIZE / DEFAULT_FONT_SIZE, scale))
+    const scale = settingsStore.fontSize / MOBILE_MAP_SCALE_BASELINE
+    return Math.min(MOBILE_MAP_MAX_SCALE, Math.max(MOBILE_MAP_MIN_SCALE, scale))
   })
   const mobileMapTileScaleCss = computed(() => mobileMapTileScale.value.toFixed(3))
-  const mobileMapLocIconSize = computed(() => Math.round(18 * mobileMapTileScale.value))
+  const mobileMapLocIconSize = computed(() => Number((18 * mobileMapTileScale.value).toFixed(2)))
+  const mobileMapToolIconSize = computed(() => Number((16 * mobileMapTileScale.value).toFixed(2)))
 
   const farmGroup = computed(() => pick(['farm', 'animal', 'cottage', 'home', 'breeding', 'fishpond', 'decoration']))
   const villageGroup = computed(() => pick(['village', 'shop', 'museum', 'guild']))
@@ -414,20 +439,20 @@
 
   .quick-entry-stack {
     display: grid;
-    gap: 8px;
-    margin-top: 8px;
+    gap: calc(8px * var(--mobile-map-tile-scale, 1));
+    margin-top: calc(8px * var(--mobile-map-tile-scale, 1));
   }
 
   .quick-entry-btn {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 10px;
+    gap: calc(10px * var(--mobile-map-tile-scale, 1));
     width: 100%;
     text-align: left;
     border: 1px solid rgba(200, 164, 92, 0.2);
     border-radius: 2px;
-    padding: 8px 10px;
+    padding: calc(8px * var(--mobile-map-tile-scale, 1)) calc(10px * var(--mobile-map-tile-scale, 1));
     background: rgb(var(--color-bg));
     transition:
       background-color 0.15s,
@@ -443,13 +468,14 @@
   }
 
   .quick-entry-title {
-    font-size: 12px;
+    font-size: calc(12px * var(--mobile-map-tile-scale, 1));
     color: var(--color-accent);
+    line-height: 1.35;
   }
 
   .quick-entry-summary {
-    margin-top: 4px;
-    font-size: 10px;
+    margin-top: calc(4px * var(--mobile-map-tile-scale, 1));
+    font-size: calc(10px * var(--mobile-map-tile-scale, 1));
     line-height: 1.5;
     color: var(--color-muted);
   }
@@ -458,8 +484,8 @@
     flex-shrink: 0;
     border: 1px solid rgba(200, 164, 92, 0.2);
     border-radius: 2px;
-    padding: 2px 6px;
-    font-size: 10px;
+    padding: calc(2px * var(--mobile-map-tile-scale, 1)) calc(6px * var(--mobile-map-tile-scale, 1));
+    font-size: calc(10px * var(--mobile-map-tile-scale, 1));
     color: var(--color-accent);
     background: rgba(200, 164, 92, 0.08);
   }
@@ -467,25 +493,26 @@
   .tool-entry-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    margin-top: 8px;
+    gap: calc(8px * var(--mobile-map-tile-scale, 1));
+    margin-top: calc(8px * var(--mobile-map-tile-scale, 1));
   }
 
   .quick-link-row {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
-    margin-top: 8px;
+    gap: calc(8px * var(--mobile-map-tile-scale, 1));
+    margin-top: calc(8px * var(--mobile-map-tile-scale, 1));
   }
 
   .quick-link-chip {
     display: flex;
     align-items: center;
-    gap: 6px;
+    gap: calc(6px * var(--mobile-map-tile-scale, 1));
     border: 1px solid rgba(200, 164, 92, 0.16);
     border-radius: 2px;
-    padding: 6px 8px;
-    font-size: 10px;
+    padding: calc(6px * var(--mobile-map-tile-scale, 1)) calc(8px * var(--mobile-map-tile-scale, 1));
+    font-size: calc(10px * var(--mobile-map-tile-scale, 1));
+    line-height: 1.35;
     color: var(--color-muted);
     background: rgba(200, 164, 92, 0.06);
     transition:
@@ -510,15 +537,14 @@
   }
 
   .tool-entry-btn {
-    display: flex;
-    flex-direction: column;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: flex-start;
-    justify-content: flex-start;
-    gap: 4px;
-    min-height: 52px;
+    gap: calc(8px * var(--mobile-map-tile-scale, 1));
+    min-height: calc(56px * var(--mobile-map-tile-scale, 1));
     border: 1px solid rgba(200, 164, 92, 0.2);
     border-radius: 2px;
-    padding: 8px 10px;
+    padding: calc(8px * var(--mobile-map-tile-scale, 1)) calc(10px * var(--mobile-map-tile-scale, 1));
     text-align: left;
     background: rgb(var(--color-bg));
     transition:
@@ -527,19 +553,46 @@
       color 0.15s;
   }
 
+  .tool-entry-icon-shell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: calc(24px * var(--mobile-map-tile-scale, 1));
+    height: calc(24px * var(--mobile-map-tile-scale, 1));
+    border: 1px solid rgba(200, 164, 92, 0.2);
+    border-radius: 2px;
+    background: rgba(200, 164, 92, 0.08);
+    color: var(--color-accent);
+    flex-shrink: 0;
+  }
+
+  .tool-entry-copy {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: calc(4px * var(--mobile-map-tile-scale, 1));
+    min-width: 0;
+  }
+
   .tool-entry-btn:hover,
   .tool-entry-btn:active {
     background: rgba(200, 164, 92, 0.12);
     border-color: rgba(200, 164, 92, 0.5);
   }
 
+  .tool-entry-btn:hover .tool-entry-icon-shell,
+  .tool-entry-btn:active .tool-entry-icon-shell {
+    border-color: rgba(200, 164, 92, 0.45);
+    background: rgba(200, 164, 92, 0.14);
+  }
+
   .tool-entry-title {
-    font-size: 12px;
+    font-size: calc(12px * var(--mobile-map-tile-scale, 1));
     color: var(--color-accent);
   }
 
   .tool-entry-meta {
-    font-size: 10px;
+    font-size: calc(10px * var(--mobile-map-tile-scale, 1));
     line-height: 1.5;
     color: var(--color-muted);
   }

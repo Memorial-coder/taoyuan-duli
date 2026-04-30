@@ -10,7 +10,7 @@ import type { ItemCategory, LateGameBalanceConfig, LateGameBalanceOverride, Late
 export type QmsgPosition = 'topleft' | 'top' | 'topright' | 'left' | 'center' | 'right' | 'bottomleft' | 'bottom' | 'bottomright'
 export type QmsgLimitWidthWrap = 'no-wrap' | 'wrap' | 'ellipsis'
 
-export const DEFAULT_FONT_SIZE = 12
+export const DEFAULT_FONT_SIZE = 16
 export const MIN_FONT_SIZE = 8
 export const MAX_FONT_SIZE = 24
 const DEFAULT_THEME: ThemeKey = 'dark'
