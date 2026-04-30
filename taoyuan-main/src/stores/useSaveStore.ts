@@ -1646,6 +1646,7 @@ export const useSaveStore = defineStore('save', () => {
     qaGovernanceStorageActionLocks,
     qaGovernanceTuning,
     lastSaveErrorMessage,
+    getSaveBlockReason,
     getSlotAllocationBlockReason,
     reloadAccountScopedState,
     getQaGovernanceStorageOverview,

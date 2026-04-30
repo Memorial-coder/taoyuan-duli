@@ -521,6 +521,8 @@
   import DiscoveryScene from '@/components/game/DiscoveryScene.vue'
   import { Capacitor } from '@capacitor/core'
 
+  const BACKGROUND_AUTOSAVE_INTERVAL_MS = 60_000
+
   const router = useRouter()
   const route = useRoute()
   const gameStore = useGameStore()
@@ -649,8 +651,23 @@
   })
 
   // 实时时钟生命周期
+  const backgroundAutoSaveTimer = ref<number | null>(null)
+  const backgroundAutoSaveInFlight = ref(false)
   const pendingSaveSyncTimer = ref<number | null>(null)
   const mailRefreshTimer = ref<number | null>(null)
+
+  const runBackgroundAutoSave = async () => {
+    if (backgroundAutoSaveInFlight.value) return
+    if (showSaveManager.value || showSavePrompt.value) return
+    if (saveStore.getSaveBlockReason()) return
+
+    backgroundAutoSaveInFlight.value = true
+    try {
+      await saveStore.autoSave()
+    } finally {
+      backgroundAutoSaveInFlight.value = false
+    }
+  }
 
   onMounted(() => {
     startClock()
@@ -662,9 +679,16 @@
     pendingSaveSyncTimer.value = window.setInterval(() => {
       void saveStore.syncPendingServerSaves()
     }, 15000)
+    backgroundAutoSaveTimer.value = window.setInterval(() => {
+      void runBackgroundAutoSave()
+    }, BACKGROUND_AUTOSAVE_INTERVAL_MS)
   })
   onUnmounted(() => {
     stopClock()
+    if (backgroundAutoSaveTimer.value !== null) {
+      window.clearInterval(backgroundAutoSaveTimer.value)
+      backgroundAutoSaveTimer.value = null
+    }
     if (mailRefreshTimer.value !== null) {
       window.clearInterval(mailRefreshTimer.value)
       mailRefreshTimer.value = null
