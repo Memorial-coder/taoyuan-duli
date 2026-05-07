@@ -1,5 +1,5 @@
-> 在线体验：[立即进入桃源乡独立版](https://taoyuan.ymzcc.com/)  
-> 链接地址：`https://taoyuan.ymzcc.com/`
+> 在线体验：[立即进入桃源乡独立版](http://taoyuanxiang.ymzcc.com/)  
+> 链接地址：`http://taoyuanxiang.ymzcc.com/`
 
 <p align="center">
   <img src="taoyuan-main/images/logo.png" alt="桃源乡独立版封面" width="760" />
@@ -8,7 +8,7 @@
 <h1 align="center">桃源乡独立版</h1>
 
 <p align="center">
-  <a href="https://taoyuan.ymzcc.com/" target="_blank">
+  <a href="http://taoyuanxiang.ymzcc.com/" target="_blank">
     <img src="https://img.shields.io/badge/在线体验-立即进入桃源乡-14b8a6?style=for-the-badge&logo=joy-con&logoColor=white" alt="在线体验">
   </a>
   <a href="https://github.com/setube/taoyuan" target="_blank">
@@ -26,14 +26,14 @@
 ### 🚀 快速访问
 
 > [!IMPORTANT]
-> **在线游玩地址**：[https://taoyuan.ymzcc.com/](https://taoyuan.ymzcc.com/)  
+> **在线游玩地址**：[http://taoyuanxiang.ymzcc.com/)](http://taoyuanxiang.ymzcc.com/)
 > **官方交流群**：1094297186 (QQ)
 
 ---
 <p align="center">
   <a href="游戏简介.md">玩家向简介</a> ·
-  <a href="https://taoyuan.ymzcc.com/guide.html">新手教程</a> ·
-  <a href="https://taoyuan.ymzcc.com/guide-book.html">系统百科</a> ·
+  <a href="http://taoyuanxiang.ymzcc.com/guide.html">新手教程</a> ·
+  <a href="http://taoyuanxiang.ymzcc.com/guide-book.html">系统百科</a> ·
   <a href="https://github.com/setube/taoyuan">参考仓库</a> ·
   QQ 群：1094297186
 </p>
@@ -60,7 +60,7 @@
 | 部署方式 | 本地启动、Docker、Docker Compose |
 
 ## 文档导航
-- 想直接试玩线上版本：访问 [在线体验](https://taoyuan.ymzcc.com/)
+- 想直接试玩线上版本：访问 [在线体验](http://taoyuanxiang.ymzcc.com/)
 - 想先判断游戏是不是你喜欢的类型：阅读 [游戏简介.md](游戏简介.md)
 - 想快速理解当前版本的开局路线：阅读 https://taoyuan.ymzcc.com/guide.html
 - 想按系统查看更细的机制分工：阅读 https://taoyuan.ymzcc.com/guide-book.html
@@ -417,8 +417,8 @@ npm run dev
 ## 交流与参考
 
 - 玩家向简介：[游戏简介.md](游戏简介.md)
-- 新手教程：https://taoyuan.ymzcc.com/guide.html
-- 系统百科：https://taoyuan.ymzcc.com/guide-book.html
+- 新手教程：http://taoyuanxiang.ymzcc.com/guide.html
+- 系统百科：http://taoyuanxiang.ymzcc.com/guide-book.html
 - 参考仓库：<https://github.com/setube/taoyuan>
 - 用户 QQ 群：1094297186
 
