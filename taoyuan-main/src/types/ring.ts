@@ -22,6 +22,14 @@ export type EquipmentEffectType =
   | 'ore_bonus'
   | 'luck'
   | 'travel_speed'
+  | 'journey_stamina_reduction'
+  | 'journey_scout_bonus'
+  | 'journey_carry_bonus'
+  | 'journey_hazard_resist'
+  | 'journey_event_bonus'
+  | 'camp_recovery_bonus'
+  | 'boss_pressure_resist'
+  | 'resource_find_bonus'
 
 /** 兼容别名 */
 export type RingEffectType = EquipmentEffectType

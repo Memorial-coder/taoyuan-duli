@@ -137,6 +137,39 @@ export const EQUIPMENT_SETS: EquipmentSetDef[] = [
 
   // === 公会专属 ===
   {
+    id: 'road_relay_set',
+    name: '驿路行军套',
+    description: '围绕荒道护送、补给周转与回城承接打造的行旅图套装。',
+    pieces: { weapon: 'ancient_road_wayblade', ring: 'relay_command_ring', hat: 'roadwarden_hood', shoe: 'courier_stride_boots' },
+    bonuses: [
+      { count: 2, effects: [{ type: 'journey_stamina_reduction', value: 0.05 }], description: '行旅图体力消耗 -5%' },
+      { count: 3, effects: [{ type: 'journey_carry_bonus', value: 1 }, { type: 'journey_event_bonus', value: 0.08 }], description: '负重 +1，承接效率提升' },
+      { count: 4, effects: [{ type: 'camp_recovery_bonus', value: 8 }, { type: 'boss_pressure_resist', value: 0.05 }], description: '扎营恢复增强，首领压力下降' }
+    ]
+  },
+  {
+    id: 'marsh_specimen_set',
+    name: '泽地样本套',
+    description: '围绕样本、夜游和异常观察打造的行旅图套装。',
+    pieces: { weapon: 'marsh_whisper_dagger', ring: 'specimen_lens_ring', hat: 'sporeglass_hood', shoe: 'reedstep_waders' },
+    bonuses: [
+      { count: 2, effects: [{ type: 'journey_scout_bonus', value: 6 }], description: '侦察 +6' },
+      { count: 3, effects: [{ type: 'resource_find_bonus', value: 0.12 }, { type: 'journey_event_bonus', value: 0.08 }], description: '样本回收与事件收益提升' },
+      { count: 4, effects: [{ type: 'camp_recovery_bonus', value: 10 }, { type: 'journey_hazard_resist', value: 5 }], description: '异常恢复与压险能力提升' }
+    ]
+  },
+  {
+    id: 'highland_bastion_set',
+    name: '高地壁垒套',
+    description: '围绕高压承伤、战备压制和首领收束打造的行旅图套装。',
+    pieces: { weapon: 'highland_bastion_maul', ring: 'bulwark_crystal_ring', hat: 'skywatch_helm', shoe: 'stormforged_greaves' },
+    bonuses: [
+      { count: 2, effects: [{ type: 'journey_hazard_resist', value: 6 }], description: '压险 +6' },
+      { count: 3, effects: [{ type: 'boss_pressure_resist', value: 0.08 }, { type: 'journey_carry_bonus', value: 1 }], description: '首领压力下降，负重提升' },
+      { count: 4, effects: [{ type: 'resource_find_bonus', value: 0.12 }, { type: 'camp_recovery_bonus', value: 8 }], description: '高地回流与扎营恢复提升' }
+    ]
+  },
+  {
     id: 'guild_champion_set',
     name: '公会勇士套装',
     description: '冒险家公会精英战士的专属装备',

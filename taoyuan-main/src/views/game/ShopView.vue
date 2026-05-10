@@ -2571,7 +2571,15 @@
     treasure_find: '宝箱概率',
     ore_bonus: '矿石额外',
     luck: '幸运',
-    travel_speed: '旅行加速'
+    travel_speed: '旅行加速',
+    journey_stamina_reduction: '远征减耗',
+    journey_scout_bonus: '远征侦察',
+    journey_carry_bonus: '远征负重',
+    journey_hazard_resist: '远征压险',
+    journey_event_bonus: '远征事件',
+    camp_recovery_bonus: '扎营恢复',
+    boss_pressure_resist: '首领抗压',
+    resource_find_bonus: '资源回收'
   }
 
   const craftableRings = computed(() => CRAFTABLE_RINGS)

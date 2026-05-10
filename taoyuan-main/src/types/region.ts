@@ -1,5 +1,8 @@
 import type { Season, Weather } from './game'
 import type { RelationshipStage } from './npc'
+import type { SkillType } from './skill'
+import type { WeaponType } from './item'
+import type { EquipmentEffectType } from './ring'
 
 export type RegionId = 'ancient_road' | 'mirage_marsh' | 'cloud_highland'
 
@@ -28,6 +31,109 @@ export type RegionLinkedSystem =
   | 'fishPond'
   | 'villageProject'
   | 'wallet'
+  | 'inventory'
+  | 'skills'
+
+export interface JourneyRequiredStats {
+  minHpPercent: number
+  minStamina: number
+  minBuildScore: number
+  focusLines: string[]
+}
+
+export type JourneyXpRewardBucket = Partial<Record<SkillType, number>>
+
+export interface JourneyXpRewardDef {
+  victory?: JourneyXpRewardBucket
+  retreated?: JourneyXpRewardBucket
+  failure?: JourneyXpRewardBucket
+}
+
+export interface JourneyOutcomeModifiers {
+  staminaCostReduction: number
+  scoutBonus: number
+  carryBonus: number
+  hazardResist: number
+  eventBonus: number
+  campRecoveryBonus: number
+  bossPressureResist: number
+  resourceFindBonus: number
+  rewardMultiplier: number
+  knowledgeBonus: number
+  experienceMultiplier: number
+  supplyBonus: {
+    rations: number
+    medicine: number
+    utility: number
+  }
+}
+
+export interface JourneyBuildSnapshot {
+  weaponType: WeaponType
+  weaponLabel: string
+  matchedWeaponBias: boolean
+  skillLevels: Record<SkillType, number>
+  equipmentBonuses: Partial<Record<EquipmentEffectType, number>>
+  affinityScore: number
+  buildScore: number
+  outcome: JourneyOutcomeModifiers
+  missingStats: string[]
+  summaryLines: string[]
+}
+
+export interface JourneyCraftingRewardDef {
+  kind: 'weapon' | 'ring' | 'hat' | 'shoe'
+  defId: string
+  enchantmentId?: string | null
+}
+
+export interface JourneyCraftingRecipeDef {
+  id: string
+  regionId: RegionId
+  name: string
+  description: string
+  requiredItems: Array<{ itemId: string; quantity: number }>
+  requiredMoney: number
+  reward: JourneyCraftingRewardDef
+  unlockRouteIds?: string[]
+  unlockBossIds?: string[]
+  tags: string[]
+}
+
+export interface JourneyAwakeningDef {
+  id: string
+  regionId: RegionId
+  skillType: SkillType
+  name: string
+  description: string
+  requiredFamilyId: RegionalResourceFamilyId
+  requiredFamilyAmount: number
+  requiredRouteCompletions: number
+  modifiers: Partial<JourneyOutcomeModifiers>
+  summaryLines: string[]
+}
+
+export interface JourneyCampModuleDef {
+  id: string
+  regionId: RegionId
+  name: string
+  description: string
+  requiredFamilyId: RegionalResourceFamilyId
+  requiredFamilyAmount: number
+  modifiers: Partial<JourneyOutcomeModifiers>
+  supplyBonus?: Partial<JourneyOutcomeModifiers['supplyBonus']>
+}
+
+export interface JourneyRoutePermitDef {
+  id: string
+  regionId: RegionId
+  name: string
+  description: string
+  requiredFamilyId: RegionalResourceFamilyId
+  requiredFamilyAmount: number
+  requiredRouteIds: string[]
+  modifiers: Partial<JourneyOutcomeModifiers>
+}
 
 export interface RegionalResourceFamilyDef {
   id: RegionalResourceFamilyId
@@ -56,6 +162,12 @@ export interface RegionRouteDef {
   timeCostHours: number
   primaryResourceFamilyId: RegionalResourceFamilyId
   linkedSystems: RegionLinkedSystem[]
+  journeyAffinities: SkillType[]
+  weaponBias: WeaponType[]
+  xpRewards: JourneyXpRewardDef
+  requiredStats: JourneyRequiredStats
+  craftingUnlocks: string[]
+  awakeningUnlocks: string[]
   encounterHint?: string
   handoffHint?: string
 }
@@ -77,6 +189,12 @@ export interface RegionBossDef {
   rewardFamilyId: RegionalResourceFamilyId
   staminaCost: number
   timeCostHours: number
+  journeyAffinities: SkillType[]
+  weaponBias: WeaponType[]
+  xpRewards: JourneyXpRewardDef
+  requiredStats: JourneyRequiredStats
+  craftingUnlocks: string[]
+  awakeningUnlocks: string[]
   phases: RegionBossPhaseDef[]
 }
 
@@ -92,6 +210,12 @@ export interface RegionEventDef {
   rewardFamilyId: RegionalResourceFamilyId
   rewardAmount: number
   linkedSystems: RegionLinkedSystem[]
+  journeyAffinities: SkillType[]
+  weaponBias: WeaponType[]
+  xpRewards: JourneyXpRewardDef
+  requiredStats: JourneyRequiredStats
+  craftingUnlocks: string[]
+  awakeningUnlocks: string[]
   encounterHint?: string
   handoffHint?: string
   maxWeeklyCompletions?: number
@@ -457,6 +581,10 @@ export interface RegionMapSaveData {
   bossClearCounts: Record<RegionId, number>
   bossFailureStreaks: Record<RegionId, number>
   lastBossOutcome: RegionBossOutcomeState
+  journeyCraftingUnlocks: Record<string, boolean>
+  journeyAwakenings: Record<string, boolean>
+  journeyCampModules: Record<string, number>
+  journeyRouteLicenses: Record<string, number>
 }
 
 export interface RegionMapMetaState {
@@ -476,6 +604,10 @@ export interface RegionMapMetaState {
   telemetry: RegionTelemetrySnapshot
   bossClearCounts: Record<RegionId, number>
   bossFailureStreaks: Record<RegionId, number>
+  journeyCraftingUnlocks: Record<string, boolean>
+  journeyAwakenings: Record<string, boolean>
+  journeyCampModules: Record<string, number>
+  journeyRouteLicenses: Record<string, number>
 }
 
 export interface RegionMapSessionState {

@@ -15,6 +15,7 @@ import {
   getRegionRoutes,
   getRouteMapNodeKey
 } from '@/data/regions'
+import { JOURNEY_AWAKENINGS, JOURNEY_CAMP_MODULES, JOURNEY_CRAFTING_RECIPES, JOURNEY_ROUTE_PERMITS } from '@/data/journeyHub'
 import { addLog, showFloat } from '@/composables/useGameLog'
 import { getEnchantmentById, getWeaponById } from '@/data/weapons'
 import { getNpcById } from '@/data'
@@ -42,6 +43,9 @@ import type {
   RegionExpeditionSession,
   RegionExpeditionRiskState,
   RegionExpeditionWeather,
+  JourneyBuildSnapshot,
+  JourneyOutcomeModifiers,
+  RegionEventDef,
   RegionId,
   RegionLinkedSystem,
   RegionMapMetaState,
@@ -52,6 +56,7 @@ import type {
   RegionMapSettlementState,
   RegionJourneyActionState,
   RegionRumorBoardEntry,
+  RegionRouteDef,
   RegionRouteKnowledgeState,
   RegionSeasonalState,
   RegionShortcutState,
@@ -67,6 +72,7 @@ import {
   getLifestealHeal
 } from '@/utils/combatRuntime'
 import { getItemById } from '@/data/items'
+import { buildJourneyBuildSnapshot, createEmptyJourneyOutcomeModifiers } from './journeyBuild'
 import { useAchievementStore } from './useAchievementStore'
 import { useCookingStore } from './useCookingStore'
 import { useFishPondStore } from './useFishPondStore'
@@ -82,7 +88,7 @@ import { useSkillStore } from './useSkillStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { useFrontierChronicleStore } from './useFrontierChronicleStore'
 import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from '@/utils/weekCycle'
-import type { Season, Weather } from '@/types'
+import type { Season, SkillType, Weather } from '@/types'
 
 const ROUTE_ITEM_REWARDS: Record<string, Array<{ itemId: string; quantity: number }>> = {
   ancient_road_supply_relay: [{ itemId: 'ancient_waybill', quantity: 1 }],
@@ -512,6 +518,133 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       quantity: resourceFeatureEnabled.value ? (saveData.value.resourceLedger[family.id] ?? 0) : 0
     }))
   )
+  const getJourneyProgressionState = () => ({
+    journeyAwakenings: { ...saveData.value.journeyAwakenings },
+    journeyCampModules: { ...saveData.value.journeyCampModules },
+    journeyRouteLicenses: { ...saveData.value.journeyRouteLicenses }
+  })
+
+  const getRouteJourneyBuildSnapshot = (routeId: string) => {
+    let route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    if (!route) return null
+    return buildJourneyBuildSnapshot(
+      {
+        regionId: route.regionId,
+        label: route.name,
+        journeyAffinities: route.journeyAffinities,
+        weaponBias: route.weaponBias,
+        requiredStats: route.requiredStats
+      },
+      getJourneyProgressionState()
+    )
+  }
+
+  const getEventJourneyBuildSnapshot = (eventId: string) => {
+    const event = REGION_EVENT_DEFS.find(entry => entry.id === eventId)
+    if (!event) return null
+    return buildJourneyBuildSnapshot(
+      {
+        regionId: event.regionId,
+        label: event.name,
+        journeyAffinities: event.journeyAffinities,
+        weaponBias: event.weaponBias,
+        requiredStats: event.requiredStats
+      },
+      getJourneyProgressionState()
+    )
+  }
+
+  const getBossJourneyBuildSnapshot = (regionId: RegionId) => {
+    let boss = getRegionBossDef(regionId)
+    if (!boss) return null
+    return buildJourneyBuildSnapshot(
+      {
+        regionId,
+        label: boss.name,
+        journeyAffinities: boss.journeyAffinities,
+        weaponBias: boss.weaponBias,
+        requiredStats: boss.requiredStats
+      },
+      getJourneyProgressionState()
+    )
+  }
+
+  const getJourneyAdjustedStaminaCost = (baseCost: number, snapshot: JourneyBuildSnapshot | null) =>
+    Math.max(
+      1,
+      Math.floor(
+        Math.max(1, baseCost) * (1 - clamp(snapshot?.outcome.staminaCostReduction ?? 0, 0, 0.45))
+      )
+    )
+
+  const getJourneyOutcomeModifiersForRoute = (routeId: string): JourneyOutcomeModifiers =>
+    getRouteJourneyBuildSnapshot(routeId)?.outcome ?? createEmptyJourneyOutcomeModifiers()
+
+  const getJourneyOutcomeModifiersForEvent = (eventId: string): JourneyOutcomeModifiers =>
+    getEventJourneyBuildSnapshot(eventId)?.outcome ?? createEmptyJourneyOutcomeModifiers()
+
+  const getJourneyOutcomeModifiersForBoss = (regionId: RegionId): JourneyOutcomeModifiers =>
+    getBossJourneyBuildSnapshot(regionId)?.outcome ?? createEmptyJourneyOutcomeModifiers()
+
+  const getJourneyOutcomeForSession = (session: Pick<RegionExpeditionSession, 'mode' | 'regionId' | 'routeId'>): JourneyOutcomeModifiers => {
+    if (session.mode === 'boss') return getJourneyOutcomeModifiersForBoss(session.regionId)
+    if (session.routeId) return getJourneyOutcomeModifiersForRoute(session.routeId)
+    return createEmptyJourneyOutcomeModifiers()
+  }
+
+  const unlockJourneyCrafting = (recipeIds: string[] = []) => {
+    for (const recipeId of recipeIds) {
+      if (!JOURNEY_CRAFTING_RECIPES.some(recipe => recipe.id === recipeId)) continue
+      saveData.value.journeyCraftingUnlocks[recipeId] = true
+    }
+  }
+
+  const unlockJourneyAwakenings = (awakeningIds: string[] = []) => {
+    for (const awakeningId of awakeningIds) {
+      if (!JOURNEY_AWAKENINGS.some(entry => entry.id === awakeningId)) continue
+      if (!(awakeningId in saveData.value.journeyAwakenings)) {
+        saveData.value.journeyAwakenings[awakeningId] = false
+      }
+    }
+  }
+
+  const journeyCraftingEntries = computed(() =>
+    JOURNEY_CRAFTING_RECIPES.map(recipe => ({
+      ...recipe,
+      unlocked: Boolean(saveData.value.journeyCraftingUnlocks[recipe.id]),
+      crafted:
+        recipe.reward.kind === 'weapon'
+          ? useInventoryStore().ownedWeapons.some(
+              weapon => weapon.defId === recipe.reward.defId && (recipe.reward.enchantmentId == null || weapon.enchantmentId === recipe.reward.enchantmentId)
+            )
+          : recipe.reward.kind === 'ring'
+            ? useInventoryStore().hasRing(recipe.reward.defId)
+            : recipe.reward.kind === 'hat'
+              ? useInventoryStore().hasHat(recipe.reward.defId)
+              : useInventoryStore().hasShoe(recipe.reward.defId)
+    }))
+  )
+
+  const journeyAwakeningEntries = computed(() =>
+    JOURNEY_AWAKENINGS.map(entry => ({
+      ...entry,
+      unlocked: Boolean(saveData.value.journeyAwakenings[entry.id])
+    }))
+  )
+
+  const journeyCampModuleEntries = computed(() =>
+    JOURNEY_CAMP_MODULES.map(entry => ({
+      ...entry,
+      level: saveData.value.journeyCampModules[entry.id] ?? 0
+    }))
+  )
+
+  const journeyRoutePermitEntries = computed(() =>
+    JOURNEY_ROUTE_PERMITS.map(entry => ({
+      ...entry,
+      level: saveData.value.journeyRouteLicenses[entry.id] ?? 0
+    }))
+  )
   const activeExpeditionSummary = computed(() => {
     const runtimeSource = saveData.value.activeSession
       ? {
@@ -555,7 +688,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     saveData.value.shortcutStates[routeId] ?? createEmptyShortcutState(routeId)
 
   const getRouteNodeVisibilityStage = (routeId: string): RegionMapNodeVisibilityStage => {
-    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    let route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     if (!route) return 'unknown'
     const routeState = saveData.value.routeStates[route.id]
     const routeKnowledge = getRouteKnowledgeState(route.id)
@@ -579,7 +712,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   }
 
   const syncRouteMapNodeState = (routeId: string, dayTag = '', visitDelta = 0, surveyDelta = 0) => {
-    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    let route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     if (!route) return null
     const current = getRouteMapNodeState(routeId)
     const next: RegionMapNodeState = {
@@ -598,7 +731,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   }
 
   const syncBossMapNodeState = (regionId: RegionId, dayTag = '', visitDelta = 0, surveyDelta = 0) => {
-    const boss = getRegionBossDef(regionId)
+    let boss = getRegionBossDef(regionId)
     const current = getBossMapNodeState(regionId)
     const next: RegionMapNodeState = {
       ...current,
@@ -716,7 +849,11 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     autoPatrolStates: saveData.value.autoPatrolStates,
     telemetry: saveData.value.telemetry,
     bossClearCounts: saveData.value.bossClearCounts,
-    bossFailureStreaks: saveData.value.bossFailureStreaks
+    bossFailureStreaks: saveData.value.bossFailureStreaks,
+    journeyCraftingUnlocks: saveData.value.journeyCraftingUnlocks,
+    journeyAwakenings: saveData.value.journeyAwakenings,
+    journeyCampModules: saveData.value.journeyCampModules,
+    journeyRouteLicenses: saveData.value.journeyRouteLicenses
   }))
 
   const sessionState = computed<RegionMapSessionState>(() => ({
@@ -1434,7 +1571,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   }
 
   const getRouteExpeditionStatus = (routeId: string) => {
-    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    let route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     if (!route) return { available: false, reason: '路线不存在。' }
 
     const unlockStatus = getRouteUnlockStatus(routeId)
@@ -1448,6 +1585,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
     const inventoryStore = useInventoryStore()
+    const buildSnapshot = getRouteJourneyBuildSnapshot(routeId)
+    route = { ...route, staminaCost: getJourneyAdjustedStaminaCost(route.staminaCost, buildSnapshot) }
     const rewardItems = ROUTE_ITEM_REWARDS[route.id] ?? []
 
     if (gameStore.isPastBedtime) {
@@ -1463,7 +1602,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   }
 
   const getEventAvailability = (eventId: string) => {
-    const event = REGION_EVENT_DEFS.find(entry => entry.id === eventId)
+    let event = REGION_EVENT_DEFS.find(entry => entry.id === eventId)
     if (!event) return { available: false, reason: '区域事件不存在。' }
     const unlockStatus = getEventUnlockStatus(eventId)
     if (!unlockStatus.unlocked) {
@@ -1488,6 +1627,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
     const inventoryStore = useInventoryStore()
+    const buildSnapshot = getEventJourneyBuildSnapshot(eventId)
+    event = { ...event, staminaCost: getJourneyAdjustedStaminaCost(event.staminaCost, buildSnapshot) }
     const rewardItems = EVENT_ITEM_REWARDS[event.id] ?? []
     if (gameStore.isPastBedtime) {
       return { available: false, reason: '已经太晚了，今天不适合再处理区域事件。' }
@@ -1523,7 +1664,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   }
 
   const getBossExpeditionStatus = (regionId: RegionId) => {
-    const boss = getRegionBossDef(regionId)
+    let boss = getRegionBossDef(regionId)
     if (!saveData.value.unlockStates[regionId]?.unlocked) {
       return { available: false, reason: '该区域尚未解锁。' }
     }
@@ -1541,6 +1682,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
     const inventoryStore = useInventoryStore()
+    const buildSnapshot = getBossJourneyBuildSnapshot(regionId)
+    boss = { ...boss, staminaCost: getJourneyAdjustedStaminaCost(boss.staminaCost, buildSnapshot) }
     const rewardItems = BOSS_ITEM_REWARDS[regionId] ?? []
 
     if (gameStore.isPastBedtime) {
@@ -1860,6 +2003,124 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     return true
   }
 
+  const isJourneyRecipeUnlocked = (recipeId: string) => Boolean(saveData.value.journeyCraftingUnlocks[recipeId])
+
+  const canCraftJourneyRecipe = (recipeId: string) => {
+    const recipe = JOURNEY_CRAFTING_RECIPES.find(entry => entry.id === recipeId)
+    if (!recipe) return { ok: false, reason: '配方不存在。' }
+    if (!isJourneyRecipeUnlocked(recipeId)) return { ok: false, reason: '这张旅程配方尚未解锁。' }
+    const inventoryStore = useInventoryStore()
+    const playerStore = usePlayerStore()
+    if (playerStore.money < recipe.requiredMoney) return { ok: false, reason: `铜钱不足，需要 ${recipe.requiredMoney} 文。` }
+    for (const material of recipe.requiredItems) {
+      if (inventoryStore.getItemCount(material.itemId) < material.quantity) {
+        return { ok: false, reason: `${getItemById(material.itemId)?.name ?? material.itemId} 不足。` }
+      }
+    }
+    if (recipe.reward.kind === 'weapon') {
+      const duplicated = inventoryStore.ownedWeapons.some(
+        weapon => weapon.defId === recipe.reward.defId && (recipe.reward.enchantmentId == null || weapon.enchantmentId === recipe.reward.enchantmentId)
+      )
+      if (duplicated) return { ok: false, reason: '这把武器已经锻造过了。' }
+    }
+    if (recipe.reward.kind === 'ring' && inventoryStore.hasRing(recipe.reward.defId)) return { ok: false, reason: '这枚戒指已经拥有。' }
+    if (recipe.reward.kind === 'hat' && inventoryStore.hasHat(recipe.reward.defId)) return { ok: false, reason: '这顶帽子已经拥有。' }
+    if (recipe.reward.kind === 'shoe' && inventoryStore.hasShoe(recipe.reward.defId)) return { ok: false, reason: '这双鞋子已经拥有。' }
+    return { ok: true, reason: '' }
+  }
+
+  const craftJourneyRecipe = (recipeId: string) => {
+    const recipe = JOURNEY_CRAFTING_RECIPES.find(entry => entry.id === recipeId)
+    if (!recipe) return { success: false, message: '配方不存在。' }
+    const availability = canCraftJourneyRecipe(recipeId)
+    if (!availability.ok) return { success: false, message: availability.reason }
+    const inventoryStore = useInventoryStore()
+    const playerStore = usePlayerStore()
+    for (const material of recipe.requiredItems) {
+      inventoryStore.removeItem(material.itemId, material.quantity)
+    }
+    playerStore.spendMoney(recipe.requiredMoney)
+    if (recipe.reward.kind === 'weapon') {
+      inventoryStore.addWeapon(recipe.reward.defId, recipe.reward.enchantmentId ?? null)
+    } else if (recipe.reward.kind === 'ring') {
+      inventoryStore.addRing(recipe.reward.defId)
+    } else if (recipe.reward.kind === 'hat') {
+      inventoryStore.addHat(recipe.reward.defId)
+    } else {
+      inventoryStore.addShoe(recipe.reward.defId)
+    }
+    addLog(`【行旅图】已完成旅程锻造「${recipe.name}」。`, {
+      category: 'goal',
+      tags: ['late_game_cycle'],
+      meta: { recipeId: recipe.id, regionId: recipe.regionId }
+    })
+    showFloat(`旅程锻造：${recipe.name}`, 'success')
+    return { success: true, message: `已完成「${recipe.name}」锻造。` }
+  }
+
+  const unlockJourneyAwakening = (awakeningId: string) => {
+    const entry = JOURNEY_AWAKENINGS.find(item => item.id === awakeningId)
+    if (!entry) return { success: false, message: '觉醒不存在。' }
+    if (saveData.value.journeyAwakenings[awakeningId]) return { success: false, message: '该觉醒已经激活。' }
+    if (getRegionCompletedRouteCount(entry.regionId) < entry.requiredRouteCompletions) {
+      return { success: false, message: `需要先完成 ${entry.requiredRouteCompletions} 条该区域路线。` }
+    }
+    if (!consumeFamilyResources(entry.requiredFamilyId, entry.requiredFamilyAmount)) {
+      return { success: false, message: `${getResourceFamilyLabel(entry.requiredFamilyId)} 不足。` }
+    }
+    saveData.value.journeyAwakenings[awakeningId] = true
+    addLog(`【行旅图】已激活旅程觉醒「${entry.name}」。`, {
+      category: 'goal',
+      tags: ['late_game_cycle'],
+      meta: { awakeningId, regionId: entry.regionId, skillType: entry.skillType }
+    })
+    showFloat(`觉醒：${entry.name}`, 'success')
+    return { success: true, message: `已激活「${entry.name}」。` }
+  }
+
+  const unlockJourneyCampModule = (moduleId: string) => {
+    const entry = JOURNEY_CAMP_MODULES.find(item => item.id === moduleId)
+    if (!entry) return { success: false, message: '营地模组不存在。' }
+    if ((saveData.value.journeyCampModules[moduleId] ?? 0) > 0) return { success: false, message: '该营地模组已经安装。' }
+    if (!consumeFamilyResources(entry.requiredFamilyId, entry.requiredFamilyAmount)) {
+      return { success: false, message: `${getResourceFamilyLabel(entry.requiredFamilyId)} 不足。` }
+    }
+    saveData.value.journeyCampModules[moduleId] = 1
+    showFloat(`营地模组：${entry.name}`, 'success')
+    return { success: true, message: `已安装「${entry.name}」。` }
+  }
+
+  const unlockJourneyRoutePermit = (permitId: string) => {
+    const entry = JOURNEY_ROUTE_PERMITS.find(item => item.id === permitId)
+    if (!entry) return { success: false, message: '许可证不存在。' }
+    if ((saveData.value.journeyRouteLicenses[permitId] ?? 0) > 0) return { success: false, message: '该许可证已经签发。' }
+    const missingRoute = entry.requiredRouteIds.find(routeId => (saveData.value.routeStates[routeId]?.completions ?? 0) <= 0)
+    if (missingRoute) {
+      return { success: false, message: `需要先跑通路线：${REGION_ROUTE_DEFS.find(route => route.id === missingRoute)?.name ?? missingRoute}` }
+    }
+    if (!consumeFamilyResources(entry.requiredFamilyId, entry.requiredFamilyAmount)) {
+      return { success: false, message: `${getResourceFamilyLabel(entry.requiredFamilyId)} 不足。` }
+    }
+    saveData.value.journeyRouteLicenses[permitId] = 1
+    showFloat(`许可证：${entry.name}`, 'success')
+    return { success: true, message: `已签发「${entry.name}」。` }
+  }
+
+  const grantJourneyXpRewards = (
+    xpRewards: RegionRouteDef['xpRewards'] | RegionEventDef['xpRewards'] | RegionBossDef['xpRewards'],
+    outcome: 'victory' | 'retreated' | 'failure',
+    experienceMultiplier = 0
+  ) => {
+    const bucket = xpRewards[outcome]
+    if (!bucket) return
+    const skillStore = useSkillStore()
+    for (const [skillType, amount] of Object.entries(bucket) as Array<[SkillType, number]>) {
+      const normalizedAmount = Math.max(0, Math.floor(Number(amount) || 0))
+      if (normalizedAmount <= 0) continue
+      skillStore.addExp(skillType, Math.max(1, Math.floor(normalizedAmount * (1 + experienceMultiplier))))
+    }
+  }
+
   const startExpedition = (regionId: RegionId, routeId: string | null = null, bossId: string | null = null, startedAtDayTag = '') => {
     saveData.value.expedition = {
       activeRegionId: regionId,
@@ -1890,7 +2151,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     hanhai: '瀚海',
     fishPond: '鱼塘',
     villageProject: '村庄',
-    wallet: '钱包'
+    wallet: '钱包',
+    inventory: '背包',
+    skills: '技能'
   }
 
   const getLinkedSystemLabels = (linkedSystems: RegionLinkedSystem[]) =>
@@ -2086,9 +2349,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     if (!route) return null
     if (!getRouteUnlockStatus(routeId).unlocked) return null
-    const rewardAmount = resourceFeatureEnabled.value ? getRouteRewardAmount(route.id) : 0
+    const journeyOutcome = getJourneyOutcomeModifiersForRoute(routeId)
+    const rewardAmount = resourceFeatureEnabled.value ? Math.max(0, Math.round(getRouteRewardAmount(route.id) * (1 + journeyOutcome.rewardMultiplier + journeyOutcome.resourceFindBonus * 0.5))) : 0
     markRouteCompleted(route.id, dayTag)
     addFamilyResources(route.primaryResourceFamilyId, rewardAmount)
+    unlockJourneyCrafting(route.craftingUnlocks)
+    unlockJourneyAwakenings(route.awakeningUnlocks)
+    grantJourneyXpRewards(route.xpRewards, 'victory', journeyOutcome.experienceMultiplier)
     const rewardItems = ROUTE_ITEM_REWARDS[route.id] ?? []
     if (rewardItems.length > 0 && inventoryStore.canAddItems(rewardItems)) {
       inventoryStore.addItemsExact(rewardItems)
@@ -2276,7 +2543,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   }
 
   const recordEncounteredWeeklyEvent = (eventId: string, dayTag = '') => {
-    const event = REGION_EVENT_DEFS.find(entry => entry.id === eventId)
+    let event = REGION_EVENT_DEFS.find(entry => entry.id === eventId)
     if (!event) return false
     const current = saveData.value.eventStates[event.id] ?? {
       eventId: event.id,
@@ -2370,6 +2637,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   ) => {
     const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     if (!route) return null
+    const buildSnapshot = getRouteJourneyBuildSnapshot(routeId)
+    const journeyOutcome = buildSnapshot?.outcome ?? createEmptyJourneyOutcomeModifiers()
     ensureFrontierWorldSignals(startedAtDayTag)
     const regionKnowledge = getRegionKnowledgeState(route.regionId)
     const routeKnowledge = getRouteKnowledgeState(route.id)
@@ -2389,18 +2658,23 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     supplies.medicine += campSiteBonus.supplyBonus.medicine
     supplies.utility += shortcutProfile.supplyBonus.utility
     supplies.utility += campSiteBonus.supplyBonus.utility
+    supplies.rations += journeyOutcome.supplyBonus.rations
+    supplies.medicine += journeyOutcome.supplyBonus.medicine
+    supplies.utility += journeyOutcome.supplyBonus.utility
 
     const baseSteps = route.nodeType === 'elite' ? 4 : 3
-    const totalSteps = Math.max(2, baseSteps - shortcutProfile.stepReduction)
+    const totalSteps = Math.max(2, baseSteps - shortcutProfile.stepReduction - Math.floor(journeyOutcome.scoutBonus / 18))
     const visibilityBonus =
       Math.floor((regionKnowledge.intel + routeKnowledge.intel + routeKnowledge.surveyProgress) / 24) +
       shortcutProfile.visibilityBonus +
-      campSiteBonus.visibilityBonus
+      campSiteBonus.visibilityBonus +
+      journeyOutcome.scoutBonus
     const dangerMitigation =
       Math.floor((regionKnowledge.familiarity + routeKnowledge.familiarity) / 30) +
       shortcutProfile.dangerReduction +
-      campSiteBonus.dangerReduction
-    const moraleBonus = Math.floor(routeKnowledge.familiarity / 25)
+      campSiteBonus.dangerReduction +
+      journeyOutcome.hazardResist
+    const moraleBonus = Math.floor(routeKnowledge.familiarity / 25) + Math.floor(journeyOutcome.rewardMultiplier * 20)
     const session: RegionExpeditionSession = {
       sessionId: createSessionToken(),
       mode: 'route',
@@ -2415,18 +2689,18 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       progressStep: 0,
       totalSteps,
       carryLoad: 0,
-      maxCarryLoad: approach === 'greedy' ? 8 : approach === 'scout' ? 6 : 7,
+      maxCarryLoad: (approach === 'greedy' ? 8 : approach === 'scout' ? 6 : 7) + journeyOutcome.carryBonus,
       carryItems: [],
       visibility: clamp((approach === 'scout' ? 76 : approach === 'greedy' ? 45 : 60) + visibilityBonus, 0, 100),
       morale: clamp((approach === 'greedy' ? 54 : approach === 'scout' ? 60 : 66) + moraleBonus, 0, 100),
       danger: clamp((route.nodeType === 'elite' ? 24 : route.nodeType === 'handoff' ? 14 : 12) - dangerMitigation, 0, 100),
-      findings: 0,
-      frontlinePrep: (route.nodeType === 'handoff' ? 1 : 0) + campSiteBonus.frontlinePrep,
+      findings: Math.floor(journeyOutcome.resourceFindBonus * 5),
+      frontlinePrep: (route.nodeType === 'handoff' ? 1 : 0) + campSiteBonus.frontlinePrep + Math.floor(journeyOutcome.bossPressureResist * 18),
       riskState: createInitialRiskState(route.regionId, approach),
       campUsed: false,
       supplies,
       pendingRewardFamilyId: route.primaryResourceFamilyId,
-      pendingRewardAmount: getRouteRewardAmount(route.id),
+      pendingRewardAmount: Math.max(1, Math.round(getRouteRewardAmount(route.id) * (1 + journeyOutcome.rewardMultiplier))),
       pendingRewardItems: (ROUTE_ITEM_REWARDS[route.id] ?? []).map(item => ({ ...item })),
       pendingEncounter: null,
       queuedEncounterKind: null,
@@ -2487,6 +2761,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   ) => {
     const boss = getRegionBossDef(regionId)
     if (!boss) return null
+    const buildSnapshot = getBossJourneyBuildSnapshot(regionId)
+    const journeyOutcome = buildSnapshot?.outcome ?? createEmptyJourneyOutcomeModifiers()
     const regionKnowledge = getRegionKnowledgeState(regionId)
     const campSiteBonus = getCampSiteSessionBonuses(regionId, null, boss.id)
     const supplies = createDefaultRegionExpeditionSupplyState()
@@ -2496,9 +2772,12 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     supplies.rations += campSiteBonus.supplyBonus.rations
     supplies.medicine += campSiteBonus.supplyBonus.medicine
     supplies.utility += campSiteBonus.supplyBonus.utility
+    supplies.rations += journeyOutcome.supplyBonus.rations
+    supplies.medicine += journeyOutcome.supplyBonus.medicine
+    supplies.utility += journeyOutcome.supplyBonus.utility
 
-    const visibilityBonus = Math.floor((regionKnowledge.intel + regionKnowledge.survey) / 28) + campSiteBonus.visibilityBonus
-    const dangerMitigation = Math.floor(regionKnowledge.familiarity / 22) + campSiteBonus.dangerReduction
+    const visibilityBonus = Math.floor((regionKnowledge.intel + regionKnowledge.survey) / 28) + campSiteBonus.visibilityBonus + journeyOutcome.scoutBonus
+    const dangerMitigation = Math.floor(regionKnowledge.familiarity / 22) + campSiteBonus.dangerReduction + journeyOutcome.hazardResist
     const session: RegionExpeditionSession = {
       sessionId: createSessionToken(),
       mode: 'boss',
@@ -2513,18 +2792,18 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       progressStep: 0,
       totalSteps: Math.max(3, boss.phases.length + 1),
       carryLoad: 0,
-      maxCarryLoad: approach === 'greedy' ? 9 : 7,
+      maxCarryLoad: (approach === 'greedy' ? 9 : 7) + journeyOutcome.carryBonus,
       carryItems: [],
       visibility: clamp((approach === 'scout' ? 68 : 52) + visibilityBonus, 0, 100),
       morale: clamp((approach === 'greedy' ? 52 : 64) + Math.floor(regionKnowledge.familiarity / 30), 0, 100),
       danger: clamp(28 - dangerMitigation, 0, 100),
-      findings: 1,
-      frontlinePrep: Math.floor(regionKnowledge.survey / 25) + campSiteBonus.frontlinePrep,
+      findings: 1 + Math.floor(journeyOutcome.resourceFindBonus * 6),
+      frontlinePrep: Math.floor(regionKnowledge.survey / 25) + campSiteBonus.frontlinePrep + Math.floor(journeyOutcome.bossPressureResist * 22),
       riskState: createInitialRiskState(regionId, approach),
       campUsed: false,
       supplies,
       pendingRewardFamilyId: boss.rewardFamilyId,
-      pendingRewardAmount: getBossRewardAmount(regionId),
+      pendingRewardAmount: Math.max(1, Math.round(getBossRewardAmount(regionId) * (1 + journeyOutcome.rewardMultiplier))),
       pendingRewardItems: (BOSS_ITEM_REWARDS[regionId] ?? []).map(item => ({ ...item })),
       pendingEncounter: null,
       queuedEncounterKind: null,
@@ -2555,7 +2834,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     approach: RegionExpeditionApproach = 'steady',
     retreatRule: RegionExpeditionRetreatRule = 'balanced'
   ) => {
-    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    let route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     if (!route) return { success: false, message: '路线不存在。', title: '无法出发', lines: ['路线不存在。'], tone: 'danger' as const }
     if (shouldBlockRapidRepeatAction(`route:start:${routeId}`)) {
       return { success: false, message: '刚刚已经发起过这条路线，请稍候再试。', title: '无法出发', lines: ['刚刚已经发起过这条路线，请稍候再试。'], tone: 'danger' as const }
@@ -2565,6 +2844,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       return { success: false, message: status.reason, title: '无法出发', lines: [status.reason], tone: 'danger' as const }
     }
 
+    const buildSnapshot = getRouteJourneyBuildSnapshot(routeId)
+    route = { ...route, staminaCost: getJourneyAdjustedStaminaCost(route.staminaCost, buildSnapshot) }
     const playerStore = usePlayerStore()
     if (!playerStore.consumeStamina(route.staminaCost)) {
       return { success: false, message: `体力不足，需要 ${route.staminaCost} 点体力。`, title: '无法出发', lines: [`体力不足，需要 ${route.staminaCost} 点体力。`], tone: 'danger' as const }
@@ -2598,7 +2879,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       lines: [
         `目标：${route.name}`,
         `已消耗 ${route.staminaCost} 点体力，进入多阶段推进。`,
-        `当前策略：${approach === 'scout' ? '侦察优先' : approach === 'greedy' ? '激进搜刮' : '稳健推进'} / ${retreatRule === 'low_hp' ? '低血量撤离' : retreatRule === 'pack_full' ? '满载撤离' : retreatRule === 'after_camp' ? '扎营后收束' : '平衡推进'}`
+        `当前策略：${approach === 'scout' ? '侦察优先' : approach === 'greedy' ? '激进搜刮' : '稳健推进'} / ${retreatRule === 'low_hp' ? '低血量撤离' : retreatRule === 'pack_full' ? '满载撤离' : retreatRule === 'after_camp' ? '扎营后收束' : '平衡推进'}`,
+        ...(buildSnapshot?.summaryLines.slice(0, 2) ?? [])
       ],
       tone: 'accent' as const
     }
@@ -2610,7 +2892,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     approach: RegionExpeditionApproach = 'steady',
     retreatRule: RegionExpeditionRetreatRule = 'balanced'
   ) => {
-    const boss = getRegionBossDef(regionId)
+    let boss = getRegionBossDef(regionId)
     if (!boss) return { success: false, message: '当前区域首领未配置。', title: '无法出发', lines: ['当前区域首领未配置。'], tone: 'danger' as const }
     if (shouldBlockRapidRepeatAction(`boss:start:${regionId}`)) {
       return { success: false, message: '刚刚已经发起过这场首领远征，请稍候再试。', title: '无法出发', lines: ['刚刚已经发起过这场首领远征，请稍候再试。'], tone: 'danger' as const }
@@ -2620,6 +2902,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       return { success: false, message: status.reason, title: '无法出发', lines: [status.reason], tone: 'danger' as const }
     }
 
+    const buildSnapshot = getBossJourneyBuildSnapshot(regionId)
+    boss = { ...boss, staminaCost: getJourneyAdjustedStaminaCost(boss.staminaCost, buildSnapshot) }
     const playerStore = usePlayerStore()
     if (!playerStore.consumeStamina(boss.staminaCost)) {
       return { success: false, message: `体力不足，需要 ${boss.staminaCost} 点体力。`, title: '无法出发', lines: [`体力不足，需要 ${boss.staminaCost} 点体力。`], tone: 'danger' as const }
@@ -2652,7 +2936,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       lines: [
         `目标：${boss.name}`,
         `已消耗 ${boss.staminaCost} 点体力，接下来需逐段推进至决战。`,
-        `当前策略：${approach === 'scout' ? '侦察优先' : approach === 'greedy' ? '激进搜刮' : '稳健推进'} / ${retreatRule === 'low_hp' ? '低血量撤离' : retreatRule === 'pack_full' ? '满载撤离' : retreatRule === 'after_camp' ? '扎营后收束' : '平衡推进'}`
+        `当前策略：${approach === 'scout' ? '侦察优先' : approach === 'greedy' ? '激进搜刮' : '稳健推进'} / ${retreatRule === 'low_hp' ? '低血量撤离' : retreatRule === 'pack_full' ? '满载撤离' : retreatRule === 'after_camp' ? '扎营后收束' : '平衡推进'}`,
+        ...(buildSnapshot?.summaryLines.slice(0, 2) ?? [])
       ],
       tone: 'accent' as const
     }
@@ -2693,6 +2978,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
+    const journeyOutcome = getJourneyOutcomeForSession(session)
     const stepNumber = session.progressStep + 1
     const routeDef = session.routeId ? REGION_ROUTE_DEFS.find(entry => entry.id === session.routeId) ?? null : null
     const choice = resolveExpeditionNodeChoice(session, choiceId)
@@ -2734,7 +3020,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
 
     const baseDamage = session.mode === 'boss' ? 8 + stepNumber * 3 : 4 + stepNumber * 2
-    let damage = baseDamage + Math.floor(session.danger / 24)
+    let damage = baseDamage + Math.floor(session.danger / 24) - Math.floor(journeyOutcome.hazardResist / 6)
     if (session.approach === 'scout') damage = Math.max(1, damage - 2)
     if (session.approach === 'greedy') damage += 2
     if (choice.lane === 'branch') damage = Math.max(1, damage - 1)
@@ -2756,14 +3042,18 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     session.progressStep = stepNumber
     session.nodeHistory = [...session.nodeHistory, createNodeRecord(stepNumber, choice.lane, choice.label, choice.summary)].slice(-12)
-    session.visibility = clamp(session.visibility + (session.approach === 'scout' ? 6 : session.approach === 'greedy' ? -3 : 2) + laneVisibilityBonus, 0, 100)
-    session.morale = clamp(session.morale + (session.approach === 'greedy' ? -2 : 1) + laneMoraleDelta, 0, 100)
-    session.danger = clamp(
-      session.danger + (session.mode === 'boss' ? 10 : routeDef?.nodeType === 'elite' ? 8 : 6) + (session.approach === 'greedy' ? 3 : 0) + laneDangerDelta,
+    session.visibility = clamp(
+      session.visibility + (session.approach === 'scout' ? 6 : session.approach === 'greedy' ? -3 : 2) + laneVisibilityBonus + Math.floor(journeyOutcome.scoutBonus / 5),
       0,
       100
     )
-    session.findings += (session.approach === 'greedy' ? 3 : session.approach === 'scout' ? 2 : 2) + laneFindingsBonus
+    session.morale = clamp(session.morale + (session.approach === 'greedy' ? -2 : 1) + laneMoraleDelta, 0, 100)
+    session.danger = clamp(
+      session.danger + (session.mode === 'boss' ? 10 : routeDef?.nodeType === 'elite' ? 8 : 6) + (session.approach === 'greedy' ? 3 : 0) + laneDangerDelta - Math.floor(journeyOutcome.hazardResist / 4),
+      0,
+      100
+    )
+    session.findings += (session.approach === 'greedy' ? 3 : session.approach === 'scout' ? 2 : 2) + laneFindingsBonus + Math.floor(journeyOutcome.resourceFindBonus * 3)
     session.frontlinePrep += (choice.lane === 'branch' ? 2 : choice.lane === 'boss' ? 3 : choice.lane === 'deep' ? 2 : 1) + (session.approach === 'scout' ? 1 : 0)
     session.riskState.weather =
       session.regionId === 'mirage_marsh'
@@ -2939,17 +3229,20 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
 
     const gameStore = useGameStore()
+    const journeyOutcome = getJourneyOutcomeForSession(session)
     const timeResult = gameStore.advanceTime(0.17, { skipSpeedBuff: true })
     session.campUsed = true
     session.campState = createCampState(session)
     session.nodeHistory = [...session.nodeHistory, createNodeRecord(session.progressStep, 'camp', '前线营地', session.campState.nightEventHint)].slice(-12)
-    session.morale = clamp(session.morale + 4, 0, 100)
-    session.danger = clamp(session.danger - 4, 0, 100)
+    session.morale = clamp(session.morale + 4 + Math.floor(journeyOutcome.campRecoveryBonus / 6), 0, 100)
+    session.danger = clamp(session.danger - 4 - Math.floor(journeyOutcome.hazardResist / 8), 0, 100)
+    session.visibility = clamp(session.visibility + Math.floor(journeyOutcome.scoutBonus / 10), 0, 100)
     const regionKnowledge = addRegionKnowledge(session.regionId, { intel: 1, survey: 3, familiarity: 1 }, _dayTag)
     const campSiteState = recordCampSiteUsage(session.regionId, session.routeId, session.bossId, 'enter', _dayTag)
     const effects = [
       session.campState.nightEventHint,
       `营地搭起后，区域勘明推进到 ${regionKnowledge.survey}/100。`,
+      journeyOutcome.campRecoveryBonus > 0 ? `本次 build 让扎营恢复额外抬升了 ${Math.floor(journeyOutcome.campRecoveryBonus / 6)} 点士气。` : '',
       `营地档案：已记录 ${campSiteState.visitCount} 次前线停留。`,
       '现在可以选择：休整伤势、整理补给、标记路线，或派出观察侦察。'
     ]
@@ -2984,13 +3277,14 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
+    const journeyOutcome = getJourneyOutcomeForSession(session)
     const timeResult = gameStore.advanceTime(0.17, { skipSpeedBuff: true })
     const effects: string[] = [session.campState.nightEventHint]
     let summary = '你处理了一次前线营地动作。'
     let tone: RegionExpeditionLogEntry['tone'] = 'accent'
 
     if (actionId === 'rest') {
-      let recoverAmount = 8
+      let recoverAmount = 8 + Math.floor(journeyOutcome.campRecoveryBonus / 2)
       if (session.supplies.rations > 0) {
         session.supplies.rations -= 1
         recoverAmount += 6
@@ -3003,7 +3297,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       }
       playerStore.restoreHealth(recoverAmount)
       session.morale = clamp(session.morale + 10, 0, 100)
-      session.danger = clamp(session.danger - 6, 0, 100)
+      session.danger = clamp(session.danger - 6 - Math.floor(journeyOutcome.hazardResist / 10), 0, 100)
       session.riskState.alertness = clamp(session.riskState.alertness - 6, 0, 100)
       const regionKnowledge = addRegionKnowledge(session.regionId, { intel: 1, survey: 1, familiarity: 2 }, _dayTag)
       effects.push(`营地休整后，区域熟悉度进一步沉淀到 ${regionKnowledge.familiarity}/100。`)
@@ -3023,7 +3317,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       recalculateCarryLoad(session)
       const carryReduction = Math.max(0, carryLoadBeforeSort - session.carryLoad)
       session.findings += 1
-      session.frontlinePrep += 1
+      session.frontlinePrep += 1 + Math.floor(journeyOutcome.carryBonus / 3)
       session.morale = clamp(session.morale + 5, 0, 100)
       const regionKnowledge = addRegionKnowledge(session.regionId, { intel: 2, survey: 1, familiarity: 1 }, _dayTag)
       effects.push(`整理后腾出了 ${carryReduction} 格负重空间，区域情报也推进到 ${regionKnowledge.intel}/100。`)
@@ -3032,10 +3326,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     } else if (actionId === 'mark') {
       if (session.supplies.utility > 0) {
         session.supplies.utility -= 1
-        session.visibility = clamp(session.visibility + 6, 0, 100)
+        session.visibility = clamp(session.visibility + 6 + Math.floor(journeyOutcome.scoutBonus / 8), 0, 100)
         effects.push('消耗 1 份器具，把回撤线、路标和观察点都重新标清。')
       }
-      session.danger = clamp(session.danger - 8, 0, 100)
+      session.danger = clamp(session.danger - 8 - Math.floor(journeyOutcome.hazardResist / 8), 0, 100)
       session.frontlinePrep += 2
       session.riskState.alertness = clamp(session.riskState.alertness - 5, 0, 100)
       const regionKnowledge = addRegionKnowledge(session.regionId, { intel: 1, survey: 4, familiarity: 2 }, _dayTag)
@@ -3051,7 +3345,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         session.supplies.utility -= 1
         effects.push('消耗 1 份器具派出夜间观察，换回了更清晰的前线轮廓。')
       }
-      session.visibility = clamp(session.visibility + 12, 0, 100)
+      session.visibility = clamp(session.visibility + 12 + Math.floor(journeyOutcome.scoutBonus / 6), 0, 100)
       session.danger = clamp(session.danger + 1, 0, 100)
       session.frontlinePrep += 3
       session.riskState.pollution = clamp(session.riskState.pollution - 2, 0, 100)
@@ -3364,6 +3658,15 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const playerStore = usePlayerStore()
     const finalStatus = session.status === 'ready_to_settle' ? 'victory' : session.status
     const routeShortcutBefore = session.routeId ? getRouteShortcutProfile(session.routeId) : null
+    const routeDef = session.routeId ? REGION_ROUTE_DEFS.find(entry => entry.id === session.routeId) ?? null : null
+    const bossDef = session.bossId ? REGION_BOSS_DEFS.find(entry => entry.id === session.bossId) ?? null : null
+    const journeySnapshot =
+      session.mode === 'boss'
+        ? getBossJourneyBuildSnapshot(session.regionId)
+        : session.routeId
+          ? getRouteJourneyBuildSnapshot(session.routeId)
+          : null
+    const journeyOutcome = journeySnapshot?.outcome ?? createEmptyJourneyOutcomeModifiers()
     let rewardAmount = 0
     let rewardItems: Array<{ itemId: string; quantity: number }> = []
     const bonusReward = Math.max(0, Math.floor(session.findings / (session.mode === 'boss' ? 3 : 2)))
@@ -3372,20 +3675,28 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const summaryLines = [`目标：${session.targetName}`, `进度：${session.progressStep}/${session.totalSteps}`]
 
     if (finalStatus === 'victory') {
-      rewardAmount = Math.max(1, session.pendingRewardAmount + bonusReward)
+      rewardAmount = Math.max(1, Math.round((session.pendingRewardAmount + bonusReward) * (1 + journeyOutcome.rewardMultiplier + journeyOutcome.resourceFindBonus * 0.4)))
       rewardItems = session.pendingRewardItems.map(item => ({ ...item }))
       if (session.mode === 'route' && session.routeId && session.pendingRewardFamilyId) {
         markRouteCompleted(session.routeId, dayTag)
         addFamilyResources(session.pendingRewardFamilyId, rewardAmount)
+        if (routeDef) {
+          unlockJourneyCrafting(routeDef.craftingUnlocks)
+          unlockJourneyAwakenings(routeDef.awakeningUnlocks)
+        }
       }
       if (session.mode === 'boss' && session.bossId && session.pendingRewardFamilyId) {
         recordBossClear(session.regionId, session.bossId, session.pendingRewardFamilyId, rewardAmount, dayTag)
         addFamilyResources(session.pendingRewardFamilyId, rewardAmount)
+        if (bossDef) {
+          unlockJourneyCrafting(bossDef.craftingUnlocks)
+          unlockJourneyAwakenings(bossDef.awakeningUnlocks)
+        }
       }
       title = session.mode === 'boss' ? '首领远征凯旋' : '远征顺利收束'
       summaryLines.push(`带回 ${rewardAmount} 份区域资源。`)
     } else if (finalStatus === 'retreated') {
-      rewardAmount = session.pendingRewardFamilyId ? Math.max(0, Math.floor((session.pendingRewardAmount + bonusReward) * 0.5)) : 0
+      rewardAmount = session.pendingRewardFamilyId ? Math.max(0, Math.floor((session.pendingRewardAmount + bonusReward) * (0.5 + journeyOutcome.rewardMultiplier * 0.3))) : 0
       rewardItems = session.pendingRewardItems.map(item => ({ ...item, quantity: Math.max(0, Math.floor(item.quantity / 2)) })).filter(item => item.quantity > 0)
       if (session.pendingRewardFamilyId && rewardAmount > 0) {
         addFamilyResources(session.pendingRewardFamilyId, rewardAmount)
@@ -3429,7 +3740,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
           summaryLines.push(`发放 ${pityRewardAmount} 份保底区域资源。`)
         }
       } else if (session.pendingRewardFamilyId) {
-        rewardAmount = Math.max(0, Math.floor(session.findings / 3))
+        rewardAmount = Math.max(0, Math.floor((session.findings / 3) * (1 + journeyOutcome.resourceFindBonus * 0.25)))
         if (rewardAmount > 0) {
           addFamilyResources(session.pendingRewardFamilyId, rewardAmount)
         }
@@ -3471,6 +3782,12 @@ export const useRegionMapStore = defineStore('regionMap', () => {
               : '这条路的关键路标逐渐清晰，后续摸图会更稳。'
         )
       }
+    }
+
+    if (routeDef) {
+      grantJourneyXpRewards(routeDef.xpRewards, finalStatus, journeyOutcome.experienceMultiplier)
+    } else if (bossDef) {
+      grantJourneyXpRewards(bossDef.xpRewards, finalStatus, journeyOutcome.experienceMultiplier)
     }
 
     summaryLines.push(session.carryItems.length > 0 ? `携带清单：${summarizeCarryItems(session.carryItems)}。` : '携带清单：未形成额外途中携带物。')
@@ -3548,7 +3865,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   }
 
   const runRouteExpedition = (routeId: string, dayTag = '') => {
-    const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
+    let route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
     if (!route) return { success: false, message: '路线不存在。' }
     if (shouldBlockRapidRepeatAction(`route:${routeId}`)) {
       return { success: false, message: '刚刚已经处理过这条路线，请稍候再试。' }
@@ -3564,6 +3881,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
+    const buildSnapshot = getRouteJourneyBuildSnapshot(routeId)
+    route = { ...route, staminaCost: getJourneyAdjustedStaminaCost(route.staminaCost, buildSnapshot) }
     startExpedition(route.regionId, route.id, null, dayTag)
     if (!playerStore.consumeStamina(route.staminaCost)) {
       clearExpedition()
@@ -3627,6 +3946,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const event = REGION_EVENT_DEFS.find(entry => entry.id === eventId)
     if (!event) return null
     if (!getEventAvailability(eventId).available) return null
+    const journeyOutcome = getJourneyOutcomeModifiersForEvent(eventId)
 
     const current = saveData.value.eventStates[event.id] ?? {
       eventId: event.id,
@@ -3642,13 +3962,16 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       lastCompletedDayTag: dayTag,
       lastActivatedWeekId: saveData.value.weeklyEventState.weekId
     }
-    const rewardAmount = resourceFeatureEnabled.value ? event.rewardAmount : 0
+    const rewardAmount = resourceFeatureEnabled.value ? Math.max(0, Math.round(event.rewardAmount * (1 + journeyOutcome.rewardMultiplier + journeyOutcome.eventBonus))) : 0
     addFamilyResources(event.rewardFamilyId, rewardAmount)
+    unlockJourneyCrafting(event.craftingUnlocks)
+    unlockJourneyAwakenings(event.awakeningUnlocks)
+    grantJourneyXpRewards(event.xpRewards, 'victory', journeyOutcome.experienceMultiplier)
     addRegionKnowledge(
       event.regionId,
       {
-        intel: 4 + event.rewardAmount,
-        survey: 2 + Math.floor(event.rewardAmount / 2),
+        intel: 4 + event.rewardAmount + Math.floor(journeyOutcome.knowledgeBonus * 10),
+        survey: 2 + Math.floor(event.rewardAmount / 2) + Math.floor(journeyOutcome.knowledgeBonus * 8),
         familiarity: 1
       },
       dayTag
@@ -3667,7 +3990,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   }
 
   const runRegionEvent = (eventId: string, dayTag = '') => {
-    const event = REGION_EVENT_DEFS.find(entry => entry.id === eventId)
+    let event = REGION_EVENT_DEFS.find(entry => entry.id === eventId)
     if (!event) return { success: false, message: '区域事件不存在。' }
     if (shouldBlockRapidRepeatAction(`event:${eventId}`)) {
       return { success: false, message: '刚刚已经处理过这个区域事件，请稍候再试。' }
@@ -3679,6 +4002,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
+    const buildSnapshot = getEventJourneyBuildSnapshot(eventId)
+    event = { ...event, staminaCost: getJourneyAdjustedStaminaCost(event.staminaCost, buildSnapshot) }
     if (!playerStore.consumeStamina(event.staminaCost)) {
       return { success: false, message: `体力不足，需要 ${event.staminaCost} 点体力。` }
     }
@@ -3752,6 +4077,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
   const simulateBossExpedition = (regionId: RegionId, boss: RegionBossDef, session: RegionExpeditionSession | null = null) => {
     const { playerHp, maxHp, weaponLabel, runtime } = buildRegionBossPlayerRuntime()
+    const journeyOutcome = getBossJourneyBuildSnapshot(regionId)?.outcome ?? createEmptyJourneyOutcomeModifiers()
     const completedRouteCount = getRegionCompletedRouteCount(regionId)
     const weeklyEventCompletions = getRegionWeeklyEventCompletions(regionId)
     const familyStock = getFamilyResourceQuantity(boss.rewardFamilyId)
@@ -3786,14 +4112,15 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         focusBonus * 0.03 +
         Math.min(0.2, frontlinePrepBonus * 0.015) +
         supportCount * 0.04 +
-        campCount * 0.03
+        campCount * 0.03 +
+        journeyOutcome.bossPressureResist
     )
 
     const phaseLines: string[] = []
     let projectedHp = playerHp
     for (const phase of boss.phases) {
       const expectedDamage = getExpectedAttackDamage(runtime.attack, phase.enemyDefense)
-      const effectiveDamagePerRound = Math.max(1, Math.ceil(expectedDamage + supportDamageBonus - anomalyPressure))
+      const effectiveDamagePerRound = Math.max(1, Math.ceil(expectedDamage + supportDamageBonus + Math.floor(journeyOutcome.resourceFindBonus * 10) - anomalyPressure))
       const rounds = Math.max(1, Math.ceil(phase.enemyHp / effectiveDamagePerRound))
       const expectedIncomingPerRound = getExpectedIncomingDamage(phase.enemyAttack, runtime.defense, Math.max(0.55, 1 - runtime.attack.stunChance! * 0.4))
       const incomingPressureMultiplier = 1 + weatherPressure * 0.05 + alertPressure * 0.04 + pollutionPressure * 0.03 + hazardBoldCount * 0.04
@@ -3895,9 +4222,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const inventoryStore = useInventoryStore()
     const boss = getRegionBossDef(regionId)
     const familyId = boss?.rewardFamilyId ?? 'ley_crystal'
-    const rewardAmount = resourceFeatureEnabled.value ? getBossRewardAmount(regionId) : 0
+    const journeyOutcome = getJourneyOutcomeModifiersForBoss(regionId)
+    const rewardAmount = resourceFeatureEnabled.value ? Math.max(0, Math.round(getBossRewardAmount(regionId) * (1 + journeyOutcome.rewardMultiplier + journeyOutcome.resourceFindBonus * 0.4))) : 0
     if (!boss || !recordBossClear(regionId, boss.id, familyId, rewardAmount, dayTag)) return null
     addFamilyResources(familyId, rewardAmount)
+    unlockJourneyCrafting(boss.craftingUnlocks)
+    unlockJourneyAwakenings(boss.awakeningUnlocks)
+    grantJourneyXpRewards(boss.xpRewards, 'victory', journeyOutcome.experienceMultiplier)
     const rewardItems = BOSS_ITEM_REWARDS[regionId] ?? []
     if (rewardItems.length > 0 && inventoryStore.canAddItems(rewardItems)) {
       inventoryStore.addItemsExact(rewardItems)
@@ -3918,11 +4249,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (!status.available) {
       return { success: false, message: status.reason }
     }
-    const boss = getRegionBossDef(regionId)
+    let boss = getRegionBossDef(regionId)
     if (!boss) return { success: false, message: '当前区域首领未配置。' }
 
     const gameStore = useGameStore()
     const playerStore = usePlayerStore()
+    const buildSnapshot = getBossJourneyBuildSnapshot(regionId)
+    boss = { ...boss, staminaCost: getJourneyAdjustedStaminaCost(boss.staminaCost, buildSnapshot) }
     startExpedition(regionId, null, boss.id, dayTag)
     if (!playerStore.consumeStamina(boss.staminaCost)) {
       clearExpedition()
@@ -4102,7 +4435,11 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     telemetry: { ...saveData.value.telemetry },
     bossClearCounts: { ...saveData.value.bossClearCounts },
     bossFailureStreaks: { ...saveData.value.bossFailureStreaks },
-    lastBossOutcome: { ...saveData.value.lastBossOutcome }
+    lastBossOutcome: { ...saveData.value.lastBossOutcome },
+    journeyCraftingUnlocks: { ...saveData.value.journeyCraftingUnlocks },
+    journeyAwakenings: { ...saveData.value.journeyAwakenings },
+    journeyCampModules: { ...saveData.value.journeyCampModules },
+    journeyRouteLicenses: { ...saveData.value.journeyRouteLicenses }
   })
 
   const normalizeExpeditionSession = (raw: any): RegionExpeditionSession | null => {
@@ -4567,6 +4904,26 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       }
     }
 
+    const journeyCraftingUnlocks = { ...fallback.journeyCraftingUnlocks }
+    for (const recipe of JOURNEY_CRAFTING_RECIPES) {
+      journeyCraftingUnlocks[recipe.id] = Boolean(data.journeyCraftingUnlocks?.[recipe.id])
+    }
+
+    const journeyAwakenings = { ...fallback.journeyAwakenings }
+    for (const awakening of JOURNEY_AWAKENINGS) {
+      journeyAwakenings[awakening.id] = Boolean(data.journeyAwakenings?.[awakening.id])
+    }
+
+    const journeyCampModules = { ...fallback.journeyCampModules }
+    for (const moduleDef of JOURNEY_CAMP_MODULES) {
+      journeyCampModules[moduleDef.id] = Math.max(0, Math.floor(Number(data.journeyCampModules?.[moduleDef.id]) || 0))
+    }
+
+    const journeyRouteLicenses = { ...fallback.journeyRouteLicenses }
+    for (const permit of JOURNEY_ROUTE_PERMITS) {
+      journeyRouteLicenses[permit.id] = Math.max(0, Math.floor(Number(data.journeyRouteLicenses?.[permit.id]) || 0))
+    }
+
     const resourceLedger = { ...fallback.resourceLedger }
     for (const family of REGIONAL_RESOURCE_FAMILY_DEFS) {
       resourceLedger[family.id] = Math.max(0, Math.floor(Number(data.resourceLedger?.[family.id]) || 0))
@@ -4959,7 +5316,11 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       telemetry,
       bossClearCounts,
       bossFailureStreaks,
-      lastBossOutcome
+      lastBossOutcome,
+      journeyCraftingUnlocks,
+      journeyAwakenings,
+      journeyCampModules,
+      journeyRouteLicenses
     }
     syncJourneyActionStateWithHistory()
     refreshRouteUnlocks()
@@ -5032,6 +5393,10 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     activeSession,
     currentExpeditionNodeChoices,
     journeyHistory,
+    journeyCraftingEntries,
+    journeyAwakeningEntries,
+    journeyCampModuleEntries,
+    journeyRoutePermitEntries,
     isJourneyActionProcessed,
     markJourneyActionProcessed,
     getRegionKnowledgeState,
@@ -5061,6 +5426,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     getRouteExpeditionStatus,
     getEventAvailability,
     getBossExpeditionStatus,
+    getRouteJourneyBuildSnapshot,
+    getEventJourneyBuildSnapshot,
+    getBossJourneyBuildSnapshot,
     currentWeeklyFocus,
     currentWeeklyEventState,
     resourceLedgerEntries,
@@ -5075,6 +5443,11 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     addFamilyResources,
     consumeFamilyResources,
     recordResourceTurnIn,
+    canCraftJourneyRecipe,
+    craftJourneyRecipe,
+    unlockJourneyAwakening,
+    unlockJourneyCampModule,
+    unlockJourneyRoutePermit,
     startExpedition,
     beginRoute,
     startRouteExpeditionSession,

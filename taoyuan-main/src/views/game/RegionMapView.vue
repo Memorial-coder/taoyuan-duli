@@ -770,6 +770,45 @@
                   <p v-if="getRouteMapPreview(route).stage !== 'unknown'" class="text-[10px] text-muted leading-4">
                     路线勘明 {{ getRouteKnowledgeSummary(route.id).surveyProgress }}/100 · 熟悉 {{ getRouteKnowledgeSummary(route.id).familiarity }}/100
                   </p>
+                  <div
+                    v-if="getRouteBuildAdvice(route) && (getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered')"
+                    class="border border-accent/10 rounded-xs px-3 py-2 bg-accent/5"
+                  >
+                    <div class="flex items-center justify-between gap-3">
+                      <p class="text-[10px] text-muted">构筑接入提示</p>
+                      <span class="text-[10px] text-accent">构筑分 {{ getRouteBuildAdvice(route)?.buildScore }}</span>
+                    </div>
+                    <p class="text-[10px] text-accent mt-1 leading-4">
+                      出发体力 {{ route.staminaCost }} -> {{ getRouteBuildAdvice(route)?.adjustedStaminaCost }}，推荐先看 {{ getRouteDecisionSummary(route).rewardLabel }}。
+                    </p>
+                    <p
+                      v-for="line in getRouteBuildAdvice(route)?.summaryLines ?? []"
+                      :key="`${route.id}-build-line-${line}`"
+                      class="text-[10px] text-muted mt-1 leading-4"
+                    >
+                      · {{ line }}
+                    </p>
+                    <p v-if="getRouteBuildAdvice(route)?.focusLine" class="text-[10px] text-accent/80 mt-1 leading-4">
+                      这条线当前更吃：{{ getRouteBuildAdvice(route)?.focusLine }}
+                    </p>
+                    <p v-if="getRouteBuildAdvice(route)?.missingLine" class="text-[10px] text-warning mt-1 leading-4">
+                      当前短板：{{ getRouteBuildAdvice(route)?.missingLine }}
+                    </p>
+                    <div class="flex flex-wrap gap-2 mt-2">
+                      <button
+                        class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+                        @click="handleNavigate('inventory')"
+                      >
+                        去背包调装备
+                      </button>
+                      <button
+                        class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5"
+                        @click="handleNavigate('skills')"
+                      >
+                        去技能补构筑
+                      </button>
+                    </div>
+                  </div>
                   <p
                     v-if="getRouteMapPreview(route).stage === 'surveyed' || getRouteMapPreview(route).stage === 'mastered'"
                     class="text-[10px] leading-4"
@@ -1655,6 +1694,147 @@
               </button>
             </div>
           </div>
+
+          <div v-if="visibleJourneyCraftingEntries.length > 0" class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/40">
+            <div class="flex items-center justify-between gap-3 mb-2">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">旅程锻造</p>
+                <p class="text-[10px] text-muted mt-1 leading-4">区域素材与首领解锁会在这里汇总成旅装、武器与套装件。</p>
+              </div>
+              <button class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleNavigate('inventory')">
+                去背包
+              </button>
+            </div>
+            <div class="space-y-2">
+              <div v-for="recipe in visibleJourneyCraftingEntries" :key="recipe.id" class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-xs text-accent">{{ recipe.name }}</p>
+                    <p class="text-[10px] text-muted mt-1 leading-4">{{ recipe.description }}</p>
+                    <p class="text-[10px] text-muted mt-1 leading-4">材料：{{ formatJourneyRecipeMaterials(recipe) }}</p>
+                    <p class="text-[10px] text-muted mt-1 leading-4">铜钱：{{ recipe.requiredMoney }}</p>
+                    <p v-if="!getJourneyRecipeStatus(recipe.id).ok" class="text-[10px] text-warning mt-1 leading-4">
+                      {{ getJourneyRecipeStatus(recipe.id).reason }}
+                    </p>
+                  </div>
+                  <span class="text-[10px] shrink-0" :class="recipe.crafted ? 'text-success' : 'text-muted'">
+                    {{ recipe.crafted ? '已完成' : '可锻造' }}
+                  </span>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-2">
+                  <button
+                    class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5"
+                    :disabled="recipe.crafted || !getJourneyRecipeStatus(recipe.id).ok"
+                    @click="handleCraftJourneyRecipe(recipe.id)"
+                  >
+                    {{ recipe.crafted ? '已锻造' : '执行锻造' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="visibleJourneyAwakeningEntries.length > 0" class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/40">
+            <div class="flex items-center justify-between gap-3 mb-2">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">技能觉醒</p>
+                <p class="text-[10px] text-muted mt-1 leading-4">区域账本会反哺现有五技能，不额外切出第六基础技能。</p>
+              </div>
+              <button class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleNavigate('skills')">
+                去技能
+              </button>
+            </div>
+            <div class="space-y-2">
+              <div v-for="entry in visibleJourneyAwakeningEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-xs text-accent">{{ entry.name }}</p>
+                    <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.description }}</p>
+                    <p class="text-[10px] text-muted mt-1 leading-4">需要 {{ entry.requiredFamilyAmount }} 份{{ getResourceFamilyLabel(entry.requiredFamilyId) }} / {{ entry.requiredRouteCompletions }} 条区域路线。</p>
+                    <p v-if="!canUnlockJourneyAwakening(entry).ok" class="text-[10px] text-warning mt-1 leading-4">
+                      {{ canUnlockJourneyAwakening(entry).reason }}
+                    </p>
+                  </div>
+                  <span class="text-[10px] shrink-0" :class="entry.unlocked ? 'text-success' : 'text-muted'">
+                    {{ entry.unlocked ? '已激活' : '待激活' }}
+                  </span>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-2">
+                  <button
+                    class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5"
+                    :disabled="entry.unlocked || !canUnlockJourneyAwakening(entry).ok"
+                    @click="handleUnlockJourneyAwakening(entry.id)"
+                  >
+                    {{ entry.unlocked ? '已激活' : '激活觉醒' }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="visibleJourneyCampModuleEntries.length > 0 || visibleJourneyRoutePermitEntries.length > 0" class="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            <div v-if="visibleJourneyCampModuleEntries.length > 0" class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/40">
+              <p class="text-xs text-accent">营地模组</p>
+              <p class="text-[10px] text-muted mt-1 mb-2 leading-4">把区域账本继续沉淀成前线模组，直接影响扎营与长线推进。</p>
+              <div class="space-y-2">
+                <div v-for="entry in visibleJourneyCampModuleEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="text-xs text-accent">{{ entry.name }}</p>
+                      <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.description }}</p>
+                      <p class="text-[10px] text-muted mt-1 leading-4">需要 {{ entry.requiredFamilyAmount }} 份{{ getResourceFamilyLabel(entry.requiredFamilyId) }}</p>
+                      <p v-if="!canUnlockJourneyCampModule(entry).ok" class="text-[10px] text-warning mt-1 leading-4">
+                        {{ canUnlockJourneyCampModule(entry).reason }}
+                      </p>
+                    </div>
+                    <span class="text-[10px] shrink-0" :class="entry.level > 0 ? 'text-success' : 'text-muted'">
+                      {{ entry.level > 0 ? `Lv.${entry.level}` : '未安装' }}
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap gap-2 mt-2">
+                    <button
+                      class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5"
+                      :disabled="entry.level > 0 || !canUnlockJourneyCampModule(entry).ok"
+                      @click="handleUnlockJourneyCampModule(entry.id)"
+                    >
+                      {{ entry.level > 0 ? '已安装' : '安装模组' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="visibleJourneyRoutePermitEntries.length > 0" class="border border-accent/10 rounded-xs px-3 py-3 bg-bg/40">
+              <p class="text-xs text-accent">许可证与捷径精通</p>
+              <p class="text-[10px] text-muted mt-1 mb-2 leading-4">把区域账本转成路线许可证，强化后续熟路与路线掌控。</p>
+              <div class="space-y-2">
+                <div v-for="entry in visibleJourneyRoutePermitEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-3 py-2 bg-bg/60">
+                  <div class="flex items-start justify-between gap-3">
+                    <div class="min-w-0">
+                      <p class="text-xs text-accent">{{ entry.name }}</p>
+                      <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.description }}</p>
+                      <p class="text-[10px] text-muted mt-1 leading-4">需要 {{ entry.requiredFamilyAmount }} 份{{ getResourceFamilyLabel(entry.requiredFamilyId) }}</p>
+                      <p v-if="!canUnlockJourneyRoutePermit(entry).ok" class="text-[10px] text-warning mt-1 leading-4">
+                        {{ canUnlockJourneyRoutePermit(entry).reason }}
+                      </p>
+                    </div>
+                    <span class="text-[10px] shrink-0" :class="entry.level > 0 ? 'text-success' : 'text-muted'">
+                      {{ entry.level > 0 ? `Lv.${entry.level}` : '未签发' }}
+                    </span>
+                  </div>
+                  <div class="flex flex-wrap gap-2 mt-2">
+                    <button
+                      class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5"
+                      :disabled="entry.level > 0 || !canUnlockJourneyRoutePermit(entry).ok"
+                      @click="handleUnlockJourneyRoutePermit(entry.id)"
+                    >
+                      {{ entry.level > 0 ? '已签发' : '签发许可证' }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1840,6 +2020,7 @@
   import { Map } from 'lucide-vue-next'
   import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
   import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
+  import { getItemById } from '@/data/items'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
   import { getWeekCycleInfo } from '@/utils/weekCycle'
@@ -1937,6 +2118,13 @@
   }
   type LinkedPanel = { key: PanelKey; label: string }
   type RouteDispatchSignal = { label: string; toneClass: string; shellClass: string }
+  type RouteBuildAdvice = {
+    adjustedStaminaCost: number
+    buildScore: number
+    summaryLines: string[]
+    missingLine: string
+    focusLine: string
+  }
   type SettlementDialogState =
     | {
         kind: 'simple'
@@ -2023,6 +2211,22 @@
       : `另有 ${journeyHistoryOverflowEntries.value.length} 条更早远征记录，按需展开回看。`
   )
   const hasResourceLedgerEntries = computed(() => regionMapStore.resourceLedgerEntries.length > 0)
+  const visibleJourneyCraftingEntries = computed(() => {
+    const regionId = currentSelectedRegionId.value
+    return regionMapStore.journeyCraftingEntries.filter(entry => (!regionId || entry.regionId === regionId) && (entry.unlocked || entry.crafted))
+  })
+  const visibleJourneyAwakeningEntries = computed(() => {
+    const regionId = currentSelectedRegionId.value
+    return regionMapStore.journeyAwakeningEntries.filter(entry => !regionId || entry.regionId === regionId)
+  })
+  const visibleJourneyCampModuleEntries = computed(() => {
+    const regionId = currentSelectedRegionId.value
+    return regionMapStore.journeyCampModuleEntries.filter(entry => !regionId || entry.regionId === regionId)
+  })
+  const visibleJourneyRoutePermitEntries = computed(() => {
+    const regionId = currentSelectedRegionId.value
+    return regionMapStore.journeyRoutePermitEntries.filter(entry => !regionId || entry.regionId === regionId)
+  })
   const lockedRegionUnlockGuides = computed(() =>
     regionMapStore.regionDefs.map(region => {
       const progress = regionMapStore.getRegionUnlockProgress(region.id)
@@ -2630,7 +2834,70 @@
     if (!regionId) return [] as SettlementDialogAction[]
     const region = regionMapStore.regionDefs.find(entry => entry.id === regionId)
     if (!region) return [] as SettlementDialogAction[]
-    return getLinkedPanels(region.linkedSystems).slice(0, 4)
+    return getLinkedPanels(region.linkedSystems).slice(0, 6)
+  }
+
+  function getJourneyAdjustedStaminaCost(baseCost: number, staminaCostReduction: number) {
+    return Math.max(1, Math.floor(Math.max(1, baseCost) * (1 - Math.min(0.45, Math.max(0, staminaCostReduction)))))
+  }
+
+  function getRouteBuildAdvice(route: RegionRouteDef): RouteBuildAdvice | null {
+    const snapshot = regionMapStore.getRouteJourneyBuildSnapshot(route.id)
+    if (!snapshot) return null
+    return {
+      adjustedStaminaCost: getJourneyAdjustedStaminaCost(route.staminaCost, snapshot.outcome.staminaCostReduction),
+      buildScore: snapshot.buildScore,
+      summaryLines: snapshot.summaryLines.slice(0, 2),
+      missingLine: snapshot.missingStats[0] ?? '',
+      focusLine: route.requiredStats.focusLines[0] ?? ''
+    }
+  }
+
+  function getJourneyRecipeStatus(recipeId: string) {
+    return regionMapStore.canCraftJourneyRecipe(recipeId)
+  }
+
+  function canUnlockJourneyAwakening(entry: (typeof regionMapStore.journeyAwakeningEntries)[number]) {
+    if (entry.unlocked) return { ok: false, reason: '该觉醒已激活。' }
+    if (regionMapStore.getRegionCompletedRouteCount(entry.regionId) < entry.requiredRouteCompletions) {
+      return { ok: false, reason: `需先完成 ${entry.requiredRouteCompletions} 条该区域路线。` }
+    }
+    if (regionMapStore.getFamilyResourceQuantity(entry.requiredFamilyId) < entry.requiredFamilyAmount) {
+      return { ok: false, reason: `${entry.requiredFamilyAmount} 份${getResourceFamilyLabel(entry.requiredFamilyId)}不足。` }
+    }
+    return { ok: true, reason: '' }
+  }
+
+  function canUnlockJourneyCampModule(entry: (typeof regionMapStore.journeyCampModuleEntries)[number]) {
+    if (entry.level > 0) return { ok: false, reason: '该模组已安装。' }
+    if (regionMapStore.getFamilyResourceQuantity(entry.requiredFamilyId) < entry.requiredFamilyAmount) {
+      return { ok: false, reason: `${entry.requiredFamilyAmount} 份${getResourceFamilyLabel(entry.requiredFamilyId)}不足。` }
+    }
+    return { ok: true, reason: '' }
+  }
+
+  function canUnlockJourneyRoutePermit(entry: (typeof regionMapStore.journeyRoutePermitEntries)[number]) {
+    if (entry.level > 0) return { ok: false, reason: '该许可证已签发。' }
+    const missingRoute = entry.requiredRouteIds.find(routeId => (regionMapStore.saveData.routeStates[routeId]?.completions ?? 0) <= 0)
+    if (missingRoute) {
+      return {
+        ok: false,
+        reason: `需先完成 ${getRegionRoutes(entry.regionId).find(route => route.id === missingRoute)?.name ?? missingRoute}。`
+      }
+    }
+    if (regionMapStore.getFamilyResourceQuantity(entry.requiredFamilyId) < entry.requiredFamilyAmount) {
+      return { ok: false, reason: `${entry.requiredFamilyAmount} 份${getResourceFamilyLabel(entry.requiredFamilyId)}不足。` }
+    }
+    return { ok: true, reason: '' }
+  }
+
+  function formatJourneyRecipeMaterials(recipe: (typeof regionMapStore.journeyCraftingEntries)[number]) {
+    return recipe.requiredItems
+      .map(item => {
+        const itemName = getItemById(item.itemId)?.name ?? item.itemId
+        return `${itemName} x${item.quantity}`
+      })
+      .join(' / ')
   }
 
   function createStatusChip(ready: boolean, readyLabel = '已满足', pendingLabel = '待推进'): StatusChip {
@@ -3123,6 +3390,10 @@
 
   function getRegionName(regionId: RegionId) {
     return regionMapStore.regionDefs.find(region => region.id === regionId)?.name ?? regionId
+  }
+
+  function getResourceFamilyLabel(familyId: RegionalResourceFamilyId) {
+    return regionMapStore.resourceFamilyDefs.find(entry => entry.id === familyId)?.label ?? familyId
   }
 
   const getKnowledgeTierLabel = (value: number, tiers: [string, string, string, string]) =>
@@ -3823,6 +4094,10 @@
         return { key: 'village', label: '村庄' }
       case 'wallet':
         return { key: 'wallet', label: '钱包' }
+      case 'inventory':
+        return { key: 'inventory', label: '背包' }
+      case 'skills':
+        return { key: 'skills', label: '技能' }
       default:
         return null
     }
@@ -4107,6 +4382,30 @@
     )
     showFloat(ok ? `已交付 1 份${familyLabel}` : failureMessage, ok ? 'success' : 'danger')
     addLog(`【行旅图】${ok ? successMessage : failureMessage}`)
+  }
+
+  const handleCraftJourneyRecipe = (recipeId: string) => {
+    const result = regionMapStore.craftJourneyRecipe(recipeId)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    showFloat(result.message, result.success ? 'success' : 'danger')
+  }
+
+  const handleUnlockJourneyAwakening = (awakeningId: string) => {
+    const result = regionMapStore.unlockJourneyAwakening(awakeningId)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    showFloat(result.message, result.success ? 'success' : 'danger')
+  }
+
+  const handleUnlockJourneyCampModule = (moduleId: string) => {
+    const result = regionMapStore.unlockJourneyCampModule(moduleId)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    showFloat(result.message, result.success ? 'success' : 'danger')
+  }
+
+  const handleUnlockJourneyRoutePermit = (permitId: string) => {
+    const result = regionMapStore.unlockJourneyRoutePermit(permitId)
+    setActionSummary(result.message, result.success ? 'success' : 'danger')
+    showFloat(result.message, result.success ? 'success' : 'danger')
   }
 </script>
 

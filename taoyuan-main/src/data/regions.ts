@@ -1,4 +1,5 @@
 import type {
+  JourneyRequiredStats,
   RegionCampSiteState,
   RegionCompanionContract,
   ExpeditionRuntimeState,
@@ -28,8 +29,10 @@ import type {
   RegionalResourceFamilyDef,
   RegionalResourceFamilyId
 } from '@/types/region'
+import type { SkillType, WeaponType } from '@/types'
+import { JOURNEY_AWAKENINGS, JOURNEY_CAMP_MODULES, JOURNEY_CRAFTING_RECIPES, JOURNEY_ROUTE_PERMITS } from './journeyHub'
 
-export const REGION_MAP_SAVE_VERSION = 10
+export const REGION_MAP_SAVE_VERSION = 11
 
 export const getRouteMapNodeKey = (routeId: string) => `route:${routeId}`
 
@@ -37,6 +40,243 @@ export const getBossMapNodeKey = (regionId: RegionId) => `boss:${regionId}`
 
 export const getCampSiteKey = (regionId: RegionId, routeId: string | null, bossId: string | null) =>
   routeId ? `route:${routeId}` : `boss:${bossId ?? regionId}`
+
+const withJourneyLinks = <T extends { linkedSystems: RegionDef['linkedSystems'] }>(def: T): T => ({
+  ...def,
+  linkedSystems: [...new Set([...def.linkedSystems, 'inventory', 'skills'])]
+})
+
+const createRequiredStats = (
+  minHpPercent: number,
+  minStamina: number,
+  minBuildScore: number,
+  focusLines: string[]
+): JourneyRequiredStats => ({
+  minHpPercent,
+  minStamina,
+  minBuildScore,
+  focusLines
+})
+
+const createXpRewards = (
+  primary: SkillType,
+  secondary: SkillType,
+  tertiary: SkillType
+) => ({
+  victory: {
+    [primary]: 16,
+    [secondary]: 10,
+    [tertiary]: 6
+  },
+  retreated: {
+    [primary]: 8,
+    [secondary]: 4,
+    [tertiary]: 2
+  },
+  failure: {
+    [primary]: 4,
+    [secondary]: 2,
+    [tertiary]: 1
+  }
+})
+
+const ancientRoadRouteMeta = (
+  weaponBias: WeaponType[],
+  craftingUnlocks: string[],
+  requiredStats: JourneyRequiredStats
+) => ({
+  journeyAffinities: ['foraging', 'combat', 'farming'] as SkillType[],
+  weaponBias,
+  xpRewards: createXpRewards('foraging', 'combat', 'farming'),
+  requiredStats,
+  craftingUnlocks,
+  awakeningUnlocks: ['ancient_road_archivist_stride', 'ancient_road_convoy_guard']
+})
+
+const mirageRouteMeta = (
+  weaponBias: WeaponType[],
+  craftingUnlocks: string[],
+  requiredStats: JourneyRequiredStats
+) => ({
+  journeyAffinities: ['fishing', 'foraging', 'combat'] as SkillType[],
+  weaponBias,
+  xpRewards: createXpRewards('fishing', 'foraging', 'combat'),
+  requiredStats,
+  craftingUnlocks,
+  awakeningUnlocks: ['mirage_marsh_specimen_reader', 'mirage_marsh_calm_water']
+})
+
+const highlandRouteMeta = (
+  weaponBias: WeaponType[],
+  craftingUnlocks: string[],
+  requiredStats: JourneyRequiredStats
+) => ({
+  journeyAffinities: ['mining', 'combat', 'farming'] as SkillType[],
+  weaponBias,
+  xpRewards: createXpRewards('mining', 'combat', 'farming'),
+  requiredStats,
+  craftingUnlocks,
+  awakeningUnlocks: ['cloud_highland_ley_forge', 'cloud_highland_quartermaster']
+})
+
+const REGION_ROUTE_JOURNEY_META: Record<
+  string,
+  Pick<
+    RegionRouteDef,
+    'journeyAffinities' | 'weaponBias' | 'xpRewards' | 'requiredStats' | 'craftingUnlocks' | 'awakeningUnlocks'
+  >
+> = {
+  ancient_road_supply_relay: ancientRoadRouteMeta(
+    ['sword'],
+    ['courier_stride_boots_recipe'],
+    createRequiredStats(0.28, 3, 16, ['优先稳住口粮、侦察和护送节奏。'])
+  ),
+  ancient_road_watchtower_scout: ancientRoadRouteMeta(
+    ['dagger', 'sword'],
+    ['relay_command_ring_recipe'],
+    createRequiredStats(0.3, 4, 20, ['这条线偏侦察，先看视野和事件把控。'])
+  ),
+  ancient_road_archive_recovery: ancientRoadRouteMeta(
+    ['dagger'],
+    ['relay_command_ring_recipe'],
+    createRequiredStats(0.3, 4, 22, ['先把样本和线索背回来，再回城承接。'])
+  ),
+  ancient_road_convoy_risk: ancientRoadRouteMeta(
+    ['sword', 'club'],
+    ['ancient_road_wayblade_recipe'],
+    createRequiredStats(0.42, 5, 30, ['这是荒道首领前的高压预演，别空装硬压。'])
+  ),
+  mirage_marsh_night_watch: mirageRouteMeta(
+    ['dagger'],
+    ['reedstep_waders_recipe'],
+    createRequiredStats(0.28, 3, 18, ['先做夜游观察，再追求样本密度。'])
+  ),
+  mirage_marsh_reed_drift: mirageRouteMeta(
+    ['dagger'],
+    ['reedstep_waders_recipe'],
+    createRequiredStats(0.3, 4, 20, ['偏观察与采样，侦察与幸运收益更高。'])
+  ),
+  mirage_marsh_specimen_drive: mirageRouteMeta(
+    ['dagger', 'sword'],
+    ['specimen_lens_ring_recipe'],
+    createRequiredStats(0.32, 4, 24, ['更偏样本护送与回流兑现。'])
+  ),
+  mirage_marsh_ecology_alert: mirageRouteMeta(
+    ['dagger', 'club'],
+    ['marsh_whisper_dagger_recipe'],
+    createRequiredStats(0.4, 5, 30, ['高压异常线更吃恢复、冷静与危险控制。'])
+  ),
+  cloud_highland_ley_crack: highlandRouteMeta(
+    ['club', 'sword'],
+    ['bulwark_crystal_ring_recipe'],
+    createRequiredStats(0.35, 4, 22, ['先把晶体和补给采回来，再谈高压线。'])
+  ),
+  cloud_highland_skybridge_watch: highlandRouteMeta(
+    ['sword', 'club'],
+    ['skywatch_helm_recipe'],
+    createRequiredStats(0.38, 4, 24, ['偏巡路与观察，装备不足时别先冲主线。'])
+  ),
+  cloud_highland_patrol: highlandRouteMeta(
+    ['club', 'sword'],
+    ['highland_bastion_maul_recipe'],
+    createRequiredStats(0.45, 5, 32, ['这是高地主战节奏，承伤和破障很重要。'])
+  ),
+  cloud_highland_supply_push: highlandRouteMeta(
+    ['club'],
+    ['bulwark_crystal_ring_recipe'],
+    createRequiredStats(0.48, 5, 34, ['补给线会直接决定你能不能稳定接首领。'])
+  )
+}
+
+const REGION_EVENT_JOURNEY_META: Record<
+  string,
+  Pick<
+    RegionEventDef,
+    'journeyAffinities' | 'weaponBias' | 'xpRewards' | 'requiredStats' | 'craftingUnlocks' | 'awakeningUnlocks'
+  >
+> = {
+  ancient_road_station_blackout: ancientRoadRouteMeta(['dagger', 'sword'], [], createRequiredStats(0.26, 2, 14, ['适合补侦察与轻回流。'])),
+  ancient_road_sand_market: ancientRoadRouteMeta(['dagger'], [], createRequiredStats(0.28, 3, 16, ['更偏线索与残卷回收。'])),
+  ancient_road_detour_rescue: ancientRoadRouteMeta(['sword', 'club'], [], createRequiredStats(0.38, 4, 24, ['护送与压险权重更高。'])),
+  mirage_marsh_spore_bloom: mirageRouteMeta(['dagger'], [], createRequiredStats(0.26, 2, 14, ['适合快速补样本。'])),
+  mirage_marsh_moon_nursery: mirageRouteMeta(['dagger'], [], createRequiredStats(0.28, 3, 16, ['偏样本稳定与观察。'])),
+  mirage_marsh_reed_migration: mirageRouteMeta(['dagger', 'club'], [], createRequiredStats(0.34, 4, 22, ['更吃异常处理与恢复。'])),
+  cloud_highland_ley_surge: highlandRouteMeta(['club'], [], createRequiredStats(0.32, 3, 18, ['偏晶体回收与补给准备。'])),
+  cloud_highland_signal_patrol: highlandRouteMeta(['sword', 'club'], [], createRequiredStats(0.36, 4, 22, ['偏巡路与战备。'])),
+  cloud_highland_cache_collapse: highlandRouteMeta(['club'], [], createRequiredStats(0.42, 4, 28, ['更吃承伤与撤退控制。']))
+}
+
+const REGION_BOSS_JOURNEY_META: Record<
+  string,
+  Pick<
+    RegionBossDef,
+    'journeyAffinities' | 'weaponBias' | 'xpRewards' | 'requiredStats' | 'craftingUnlocks' | 'awakeningUnlocks'
+  >
+> = {
+  ancient_road_overseer: {
+    journeyAffinities: ['combat', 'foraging', 'farming'],
+    weaponBias: ['sword', 'club'],
+    xpRewards: createXpRewards('combat', 'foraging', 'farming'),
+    requiredStats: createRequiredStats(0.55, 6, 42, ['首领线更吃护送稳定、承伤和口粮统筹。']),
+    craftingUnlocks: ['roadwarden_hood_recipe'],
+    awakeningUnlocks: ['ancient_road_convoy_guard']
+  },
+  mirage_marsh_devourer: {
+    journeyAffinities: ['combat', 'fishing', 'foraging'],
+    weaponBias: ['dagger', 'club'],
+    xpRewards: createXpRewards('combat', 'fishing', 'foraging'),
+    requiredStats: createRequiredStats(0.55, 6, 42, ['首领线更吃异常控制、夜巡恢复和样本节奏。']),
+    craftingUnlocks: ['sporeglass_hood_recipe'],
+    awakeningUnlocks: ['mirage_marsh_calm_water']
+  },
+  cloud_highland_warden: {
+    journeyAffinities: ['combat', 'mining', 'farming'],
+    weaponBias: ['club', 'sword'],
+    xpRewards: createXpRewards('combat', 'mining', 'farming'),
+    requiredStats: createRequiredStats(0.6, 7, 46, ['首领线更吃高地战备、承伤和补给闭环。']),
+    craftingUnlocks: ['stormforged_greaves_recipe'],
+    awakeningUnlocks: ['cloud_highland_quartermaster']
+  }
+}
+
+const withJourneyRouteMeta = (
+  route: Omit<
+    RegionRouteDef,
+    'journeyAffinities' | 'weaponBias' | 'xpRewards' | 'requiredStats' | 'craftingUnlocks' | 'awakeningUnlocks'
+  >
+): RegionRouteDef => {
+  const journeyMeta = REGION_ROUTE_JOURNEY_META[route.id as keyof typeof REGION_ROUTE_JOURNEY_META]!
+  return {
+    ...withJourneyLinks(route),
+    ...journeyMeta
+  } as RegionRouteDef
+}
+
+const withJourneyEventMeta = (
+  event: Omit<
+    RegionEventDef,
+    'journeyAffinities' | 'weaponBias' | 'xpRewards' | 'requiredStats' | 'craftingUnlocks' | 'awakeningUnlocks'
+  >
+): RegionEventDef => {
+  const journeyMeta = REGION_EVENT_JOURNEY_META[event.id as keyof typeof REGION_EVENT_JOURNEY_META]!
+  return {
+    ...withJourneyLinks(event),
+    ...journeyMeta
+  } as RegionEventDef
+}
+
+const withJourneyBossMeta = (
+  boss: Omit<
+    RegionBossDef,
+    'journeyAffinities' | 'weaponBias' | 'xpRewards' | 'requiredStats' | 'craftingUnlocks' | 'awakeningUnlocks'
+  >
+): RegionBossDef => {
+  const journeyMeta = REGION_BOSS_JOURNEY_META[boss.id as keyof typeof REGION_BOSS_JOURNEY_META]!
+  return {
+    ...boss,
+    ...journeyMeta
+  } as RegionBossDef
+}
 
 export const REGIONAL_RESOURCE_FAMILY_DEFS: RegionalResourceFamilyDef[] = [
   {
@@ -60,31 +300,31 @@ export const REGIONAL_RESOURCE_FAMILY_DEFS: RegionalResourceFamilyDef[] = [
 ]
 
 export const REGION_DEFS: RegionDef[] = [
-  {
+  withJourneyLinks({
     id: 'ancient_road',
     name: '古驿荒道',
     description: '围绕旧驿站、商队补给、古路账册与押运风险展开的商路前段区域，适合作为瀚海与任务链的前置空间。',
     themeHint: '商路、古迹、护送、驿站、瀚海承接',
     linkedSystems: ['quest', 'shop', 'museum', 'hanhai']
-  },
-  {
+  }),
+  withJourneyLinks({
     id: 'mirage_marsh',
     name: '蜃潮泽地',
     description: '围绕湿地夜游、样本观察、生态异常与展示回流展开的研究型区域，适合作为鱼塘与博物馆的样本来源地。',
     themeHint: '样本、夜游、湿地、展示、研究',
     linkedSystems: ['quest', 'museum', 'fishPond', 'wallet']
-  },
-  {
+  }),
+  withJourneyLinks({
     id: 'cloud_highland',
     name: '云岚高地',
     description: '围绕高地巡路、灵脉采集、前哨补给与精英清剿展开的战备区域，适合作为公会与村建高阶承接前线。',
     themeHint: '高地、灵脉、精英、清剿、公会承接',
     linkedSystems: ['quest', 'guild', 'villageProject', 'wallet']
-  }
+  })
 ]
 
 export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
-  {
+  withJourneyRouteMeta({
     id: 'ancient_road_supply_relay',
     regionId: 'ancient_road',
     name: '旧驿补给线',
@@ -96,8 +336,8 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'shop', 'hanhai'],
     encounterHint: '先把站点、补给和沿线路况摸清，再决定是压押运还是走残卷回收。',
     handoffHint: '完成后优先回任务板补物流单，或先去商圈补下一趟押运消耗。'
-  },
-  {
+  }),
+  withJourneyRouteMeta({
     id: 'ancient_road_watchtower_scout',
     regionId: 'ancient_road',
     name: '烽亭探哨线',
@@ -110,8 +350,8 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'shop', 'hanhai'],
     encounterHint: '比补给线更前压，适合提前摸清押运绕行点和路障口。',
     handoffHint: '回流后优先衔接押运任务和商圈补给推荐，给瀚海合同预热。'
-  },
-  {
+  }),
+  withJourneyRouteMeta({
     id: 'ancient_road_archive_recovery',
     regionId: 'ancient_road',
     name: '残卷回收线',
@@ -124,8 +364,8 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'museum', 'hanhai'],
     encounterHint: '更偏档案回收和旧驿刻记整理，适合补齐说明链与馆务资料。',
     handoffHint: '残卷与拓片最适合回博物馆和瀚海做说明承接，也能带动任务页的古迹线。'
-  },
-  {
+  }),
+  withJourneyRouteMeta({
     id: 'ancient_road_convoy_risk',
     regionId: 'ancient_road',
     name: '护送风险线',
@@ -138,8 +378,8 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'shop', 'hanhai'],
     encounterHint: '把押运、补给和站点风险压成一轮高压推进，更接近首领战节奏。',
     handoffHint: '完成后优先接限时护送与瀚海合同前置，顺手把商圈补给包消化掉。'
-  },
-  {
+  }),
+  withJourneyRouteMeta({
     id: 'mirage_marsh_night_watch',
     regionId: 'mirage_marsh',
     name: '夜游观察线',
@@ -151,8 +391,8 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'museum', 'fishPond'],
     encounterHint: '先摸清夜游节奏，带回第一批可展示样本与观察记录。',
     handoffHint: '优先回鱼塘看展示位，再把高亮样本送进馆务或研究委托。'
-  },
-  {
+  }),
+  withJourneyRouteMeta({
     id: 'mirage_marsh_reed_drift',
     regionId: 'mirage_marsh',
     name: '苇流漂采线',
@@ -165,8 +405,8 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'museum', 'fishPond'],
     encounterHint: '更偏样本密集采集，适合把泽地的展示素材快速攒起来。',
     handoffHint: '回流时优先看鱼塘展示和馆务推荐，让样本直接转成可见价值。'
-  },
-  {
+  }),
+  withJourneyRouteMeta({
     id: 'mirage_marsh_specimen_drive',
     regionId: 'mirage_marsh',
     name: '样本护送线',
@@ -179,8 +419,8 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'museum', 'fishPond', 'wallet'],
     encounterHint: '更偏样本整理与护送，适合把研究线、展示线和结算线串成一轮。',
     handoffHint: '完成后优先回鱼塘上展示池或进博物馆接馆务，也能顺带触发活动邮件链。'
-  },
-  {
+  }),
+  withJourneyRouteMeta({
     id: 'mirage_marsh_ecology_alert',
     regionId: 'mirage_marsh',
     name: '生态异常线',
@@ -193,8 +433,8 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'museum', 'fishPond', 'wallet'],
     encounterHint: '把夜游、异常压制和样本稳定压进同一轮，适合首领前热身。',
     handoffHint: '完成后优先收束到鱼塘展示、周赛和博物馆学者委托，把样本价值转成稳定回报。'
-  },
-  {
+  }),
+  withJourneyRouteMeta({
     id: 'cloud_highland_ley_crack',
     regionId: 'cloud_highland',
     name: '灵脉采晶线',
@@ -206,8 +446,8 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'guild', 'wallet'],
     encounterHint: '偏向灵脉资源收束，适合给高地首领与高风险票券路线做准备。',
     handoffHint: '采晶后优先回公会和钱包处理奖励与战备，再决定是否继续冲首领。'
-  },
-  {
+  }),
+  withJourneyRouteMeta({
     id: 'cloud_highland_skybridge_watch',
     regionId: 'cloud_highland',
     name: '云桥巡望线',
@@ -220,8 +460,8 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'guild', 'villageProject'],
     encounterHint: '更偏前线稳定和路况侦察，适合在冲精英线前先稳住节奏。',
     handoffHint: '回流后优先衔接公会清剿推荐和村建前哨项目，让高地投入有出口。'
-  },
-  {
+  }),
+  withJourneyRouteMeta({
     id: 'cloud_highland_patrol',
     regionId: 'cloud_highland',
     name: '高地清剿线',
@@ -234,8 +474,8 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'guild', 'villageProject'],
     encounterHint: '把巡路、清剿与战备推进压成一轮，更接近高地首领的实战强度。',
     handoffHint: '完成后优先回公会和村建承接，把清剿奖励和材料出口接稳。'
-  },
-  {
+  }),
+  withJourneyRouteMeta({
     id: 'cloud_highland_supply_push',
     regionId: 'cloud_highland',
     name: '前哨补给线',
@@ -248,11 +488,11 @@ export const REGION_ROUTE_DEFS: RegionRouteDef[] = [
     linkedSystems: ['quest', 'guild', 'villageProject', 'wallet'],
     encounterHint: '把清剿、补给与山路风险压成一轮，适合在首领前检查战备是否齐整。',
     handoffHint: '完成后优先回公会确认目标，再去村庄建设和钱包收束高地投入。'
-  }
+  })
 ]
 
 export const REGION_EVENT_DEFS: RegionEventDef[] = [
-  {
+  withJourneyEventMeta({
     id: 'ancient_road_station_blackout',
     regionId: 'ancient_road',
     name: '驿灯失照',
@@ -264,8 +504,8 @@ export const REGION_EVENT_DEFS: RegionEventDef[] = [
     linkedSystems: ['quest', 'shop'],
     encounterHint: '适合在本周刚切焦点时快速热身。',
     handoffHint: '完成后优先去任务板或商圈吃掉补给与押运推荐。'
-  },
-  {
+  }),
+  withJourneyEventMeta({
     id: 'ancient_road_sand_market',
     regionId: 'ancient_road',
     name: '沙市易卷',
@@ -278,8 +518,8 @@ export const REGION_EVENT_DEFS: RegionEventDef[] = [
     linkedSystems: ['museum', 'hanhai'],
     encounterHint: '适合补齐荒道文书与馆务说明链。',
     handoffHint: '回流后优先去馆务或瀚海，把回收文书转成展示和合同前置。'
-  },
-  {
+  }),
+  withJourneyEventMeta({
     id: 'ancient_road_detour_rescue',
     regionId: 'ancient_road',
     name: '绕路援车',
@@ -292,8 +532,8 @@ export const REGION_EVENT_DEFS: RegionEventDef[] = [
     linkedSystems: ['quest', 'shop', 'hanhai'],
     encounterHint: '适合首领前验证荒道补给和押运是否已经成形。',
     handoffHint: '完成后优先接护送、商路合同和补给包，形成一轮高压推进。'
-  },
-  {
+  }),
+  withJourneyEventMeta({
     id: 'mirage_marsh_spore_bloom',
     regionId: 'mirage_marsh',
     name: '潮雾孢华',
@@ -305,8 +545,8 @@ export const REGION_EVENT_DEFS: RegionEventDef[] = [
     linkedSystems: ['museum', 'fishPond'],
     encounterHint: '适合作为泽地本周事件的起步点。',
     handoffHint: '先回鱼塘展示，再决定是否送进馆务。'
-  },
-  {
+  }),
+  withJourneyEventMeta({
     id: 'mirage_marsh_moon_nursery',
     regionId: 'mirage_marsh',
     name: '月汐育群',
@@ -319,8 +559,8 @@ export const REGION_EVENT_DEFS: RegionEventDef[] = [
     linkedSystems: ['quest', 'fishPond'],
     encounterHint: '更偏展示型和研究型样本，适合补鱼塘周赛资格。',
     handoffHint: '回流后优先看鱼塘周赛与展示池，再决定是否走活动任务。'
-  },
-  {
+  }),
+  withJourneyEventMeta({
     id: 'mirage_marsh_reed_migration',
     regionId: 'mirage_marsh',
     name: '苇带迁潮',
@@ -333,8 +573,8 @@ export const REGION_EVENT_DEFS: RegionEventDef[] = [
     linkedSystems: ['quest', 'museum', 'wallet'],
     encounterHint: '适合作为泽地精英前的节奏压缩事件。',
     handoffHint: '完成后优先承接学者委托、展示高亮与样本结算。'
-  },
-  {
+  }),
+  withJourneyEventMeta({
     id: 'cloud_highland_ley_surge',
     regionId: 'cloud_highland',
     name: '脉潮突涌',
@@ -346,8 +586,8 @@ export const REGION_EVENT_DEFS: RegionEventDef[] = [
     linkedSystems: ['guild', 'wallet'],
     encounterHint: '适合作为高地本周的快节奏热身事件。',
     handoffHint: '先回公会和钱包吃掉战备与票券承接。'
-  },
-  {
+  }),
+  withJourneyEventMeta({
     id: 'cloud_highland_signal_patrol',
     regionId: 'cloud_highland',
     name: '风哨复讯',
@@ -360,8 +600,8 @@ export const REGION_EVENT_DEFS: RegionEventDef[] = [
     linkedSystems: ['guild', 'villageProject'],
     encounterHint: '偏向高地前线稳定和清剿前准备。',
     handoffHint: '回流后优先看公会焦点活动和村建前哨项目。'
-  },
-  {
+  }),
+  withJourneyEventMeta({
     id: 'cloud_highland_cache_collapse',
     regionId: 'cloud_highland',
     name: '前仓塌线',
@@ -374,11 +614,11 @@ export const REGION_EVENT_DEFS: RegionEventDef[] = [
     linkedSystems: ['quest', 'guild', 'villageProject', 'wallet'],
     encounterHint: '适合作为高地精英线和首领战前的战备压测事件。',
     handoffHint: '完成后优先衔接清剿、建设材料与高阶投入收束。'
-  }
+  })
 ]
 
 export const REGION_BOSS_DEFS: RegionBossDef[] = [
-  {
+  withJourneyBossMeta({
     id: 'ancient_road_overseer',
     regionId: 'ancient_road',
     name: '荒道监军',
@@ -412,8 +652,8 @@ export const REGION_BOSS_DEFS: RegionBossDef[] = [
         enemyDefense: 12
       }
     ]
-  },
-  {
+  }),
+  withJourneyBossMeta({
     id: 'mirage_marsh_devourer',
     regionId: 'mirage_marsh',
     name: '潮息异兽',
@@ -447,8 +687,8 @@ export const REGION_BOSS_DEFS: RegionBossDef[] = [
         enemyDefense: 13
       }
     ]
-  },
-  {
+  }),
+  withJourneyBossMeta({
     id: 'cloud_highland_warden',
     regionId: 'cloud_highland',
     name: '云岚守脉者',
@@ -482,7 +722,7 @@ export const REGION_BOSS_DEFS: RegionBossDef[] = [
         enemyDefense: 15
       }
     ]
-  }
+  })
 ]
 
 const createDefaultUnlockStates = (): Record<RegionId, RegionUnlockState> =>
@@ -744,6 +984,18 @@ const createDefaultAutoPatrolStates = (): Record<string, RegionAutoPatrolState> 
     ])
   ) as Record<string, RegionAutoPatrolState>
 
+const createDefaultJourneyCraftingUnlocks = (): Record<string, boolean> =>
+  Object.fromEntries(JOURNEY_CRAFTING_RECIPES.map(recipe => [recipe.id, false])) as Record<string, boolean>
+
+const createDefaultJourneyAwakenings = (): Record<string, boolean> =>
+  Object.fromEntries(JOURNEY_AWAKENINGS.map(entry => [entry.id, false])) as Record<string, boolean>
+
+const createDefaultJourneyCampModules = (): Record<string, number> =>
+  Object.fromEntries(JOURNEY_CAMP_MODULES.map(entry => [entry.id, 0])) as Record<string, number>
+
+const createDefaultJourneyRouteLicenses = (): Record<string, number> =>
+  Object.fromEntries(JOURNEY_ROUTE_PERMITS.map(entry => [entry.id, 0])) as Record<string, number>
+
 export const createDefaultRegionMapSaveData = (): RegionMapSaveData => ({
   saveVersion: REGION_MAP_SAVE_VERSION,
   unlockStates: createDefaultUnlockStates(),
@@ -768,7 +1020,11 @@ export const createDefaultRegionMapSaveData = (): RegionMapSaveData => ({
   telemetry: createDefaultTelemetry(),
   bossClearCounts: createDefaultBossClearCounts(),
   bossFailureStreaks: createDefaultBossFailureStreaks(),
-  lastBossOutcome: createDefaultBossOutcomeState()
+  lastBossOutcome: createDefaultBossOutcomeState(),
+  journeyCraftingUnlocks: createDefaultJourneyCraftingUnlocks(),
+  journeyAwakenings: createDefaultJourneyAwakenings(),
+  journeyCampModules: createDefaultJourneyCampModules(),
+  journeyRouteLicenses: createDefaultJourneyRouteLicenses()
 })
 
 export const getRegionDef = (regionId: RegionId) => REGION_DEFS.find(region => region.id === regionId) ?? null

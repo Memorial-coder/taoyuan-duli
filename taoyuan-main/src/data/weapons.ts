@@ -414,6 +414,39 @@ export const WEAPONS: Record<string, WeaponDef> = {
   },
 
   // === 公会专属 ===
+  ancient_road_wayblade: {
+    id: 'ancient_road_wayblade',
+    name: '古驿行军剑',
+    type: 'sword',
+    attack: 44,
+    critRate: 0.12,
+    description: '为古驿护送与押线节奏打造的稳健长剑，适合行旅图中段到首领前的持续推进。',
+    shopPrice: null,
+    shopMaterials: [],
+    fixedEnchantment: null
+  },
+  marsh_whisper_dagger: {
+    id: 'marsh_whisper_dagger',
+    name: '泽雾低语匕',
+    type: 'dagger',
+    attack: 40,
+    critRate: 0.22,
+    description: '将泽地夜游与样本线的轻快节奏锻进刃身，适合侦察、分支与样本回收。',
+    shopPrice: null,
+    shopMaterials: [],
+    fixedEnchantment: null
+  },
+  highland_bastion_maul: {
+    id: 'highland_bastion_maul',
+    name: '云岚壁垒锤',
+    type: 'club',
+    attack: 52,
+    critRate: 0.08,
+    description: '把高地战备、补给与压制节奏压进重锤，适合首领承压与高压推进。',
+    shopPrice: null,
+    shopMaterials: [],
+    fixedEnchantment: null
+  },
   guild_war_blade: {
     id: 'guild_war_blade',
     name: '公会战刃',

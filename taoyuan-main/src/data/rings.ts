@@ -468,6 +468,48 @@ export const RINGS: RingDef[] = [
 
   // === 公会专属 ===
   {
+    id: 'relay_command_ring',
+    name: '驿传统筹戒',
+    description: '把驿路押运与统筹经验压进戒环，适合荒道护送、回城承接与行装周转。',
+    effects: [
+      { type: 'journey_carry_bonus', value: 1 },
+      { type: 'journey_event_bonus', value: 0.08 },
+      { type: 'journey_stamina_reduction', value: 0.05 }
+    ],
+    recipe: null,
+    recipeMoney: 0,
+    obtainSource: '行旅图锻造',
+    sellPrice: 980
+  },
+  {
+    id: 'specimen_lens_ring',
+    name: '样本折光戒',
+    description: '围绕样本读解和泽地观察打造的镜片戒环，适合侦察、事件和样本回流。',
+    effects: [
+      { type: 'journey_scout_bonus', value: 8 },
+      { type: 'resource_find_bonus', value: 0.12 },
+      { type: 'luck', value: 0.04 }
+    ],
+    recipe: null,
+    recipeMoney: 0,
+    obtainSource: '行旅图锻造',
+    sellPrice: 1020
+  },
+  {
+    id: 'bulwark_crystal_ring',
+    name: '灵脉壁垒戒',
+    description: '将高地晶体战备压成前线壁垒，对高压远征与首领线尤其有效。',
+    effects: [
+      { type: 'journey_hazard_resist', value: 8 },
+      { type: 'boss_pressure_resist', value: 0.08 },
+      { type: 'defense_bonus', value: 0.08 }
+    ],
+    recipe: null,
+    recipeMoney: 0,
+    obtainSource: '行旅图锻造',
+    sellPrice: 1080
+  },
+  {
     id: 'guild_war_ring',
     name: '公会战戒',
     description: '冒险家公会精英成员的战斗指环，蕴含公会的力量。',

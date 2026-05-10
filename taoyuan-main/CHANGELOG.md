@@ -4,6 +4,19 @@
 
 ## [未发布]
 
+### 0430 字号默认恢复、关键弹窗抗缩窄与移动地图菜单逐档联动
+- `src/stores/useSettingsStore.ts` 已将 `DEFAULT_FONT_SIZE` 恢复为 `16`，并继续保留 `8-24` clamp；新玩家默认不会再以偏小字号开局，旧档仍按已保存值读取。
+- `src/app.css` 已新增 `game-modal-overlay` 固定壳体规则，`SettingsDialog`、`SaveManager`、`MobileMapMenu` 等关键弹窗在 `max-w-xs / max-w-sm` 下不再跟随根字号一起缩窄；主要遮罩边距、弹窗外框和核心热区改为稳定 px 基线。
+- `src/components/game/SettingsDialog.vue` 已为 tab、字号步进器、主题色块和存档管理入口补入固定最小高度/宽度与测试标识；字体缩小时弹窗不再变得更窄更挤。
+- `src/components/game/MobileMapMenu.vue` 已把移动地图菜单的缩放基准改为 `16`，并把 `当前推荐 / quick link / 常用工具 / 区域格子` 全部接入同一套 `--mobile-map-tile-scale`；`15 / 14 / 13 / 12` 与 `17 / 18` 这些相邻档位都会有可见响应，不再只有 `12` 以下才明显变化。
+- 本轮已结合 `e2e/game-smoke.spec.ts` 中的设置弹窗与移动地图菜单回归继续验证相邻字号档位响应。
+
+### 0430 行旅图崩溃热修与后台静默自动存档
+- `src/views/game/RegionMapView.vue` 已将一批初始化期会互相引用的 helper 收口为函数声明，避开构建产物中的 TDZ 顺序问题；此前部分设备 / 构建版本里会出现 `Cannot access ... before initialization`，并导致行旅图整页崩溃。
+- `src/views/GameLayout.vue` 已新增后台 `BACKGROUND_AUTOSAVE_INTERVAL_MS = 60_000` 的静默自动保存定时器，且会避开 `SaveManager`、手动保存确认窗与并发保存中的场景，不打断当前流程。
+- `src/stores/useSaveStore.ts` 已暴露 `getSaveBlockReason()` 给后台自动保存复用；矿洞探索中、钓鱼进行中、瀚海赌局进行中这些本就禁止手动存档的场景，现在也会让自动保存自行退避，而不是反复尝试失败。
+- 本轮已再次通过 `npm --prefix taoyuan-main run build` 与 `npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 验证。
+
 ### 0426 农田一键操作禁用态可见性热修
 - `src/views/game/FarmView.vue` 已为田庄「一键操作」弹窗的 7 个批量按钮补入 `farm-batch-action` 定制样式：保留原有 `disabled` 语义，但不再依赖全局 `.btn:disabled { opacity: 0.35; }` 直接压暗整颗按钮。
 - `src/views/game/FarmView.vue` 现会在禁用态显式固定按钮底色、边框色、文案色与 `-webkit-text-fill-color`；部分安卓 WebView / 手机浏览器上原本近似“消失”的 0 项按钮，现会稳定显示为灰色不可操作态。

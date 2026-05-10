@@ -411,6 +411,51 @@ export const SHOES: ShoeDef[] = [
 
   // === 公会专属 ===
   {
+    id: 'courier_stride_boots',
+    name: '邮驿疾行靴',
+    description: '强调赶路、周转与侦察节奏的轻靴，让荒道回流更快接成下一趟出发。',
+    effects: [
+      { type: 'journey_stamina_reduction', value: 0.06 },
+      { type: 'journey_scout_bonus', value: 4 },
+      { type: 'travel_speed', value: 0.12 }
+    ],
+    shopPrice: null,
+    recipe: null,
+    recipeMoney: 0,
+    obtainSource: '行旅图锻造',
+    sellPrice: 1180
+  },
+  {
+    id: 'reedstep_waders',
+    name: '芦迹涉行靴',
+    description: '在泽地里稳住节奏、压住异常的轻便涉水靴，适合长线样本回流。',
+    effects: [
+      { type: 'camp_recovery_bonus', value: 8 },
+      { type: 'journey_hazard_resist', value: 5 },
+      { type: 'resource_find_bonus', value: 0.08 }
+    ],
+    shopPrice: null,
+    recipe: null,
+    recipeMoney: 0,
+    obtainSource: '行旅图锻造',
+    sellPrice: 1220
+  },
+  {
+    id: 'stormforged_greaves',
+    name: '风铸壁行胫甲',
+    description: '高地首领线开放后的重甲靴，专门为高压远征和回城战备收束设计。',
+    effects: [
+      { type: 'journey_hazard_resist', value: 6 },
+      { type: 'boss_pressure_resist', value: 0.08 },
+      { type: 'defense_bonus', value: 0.06 }
+    ],
+    shopPrice: null,
+    recipe: null,
+    recipeMoney: 0,
+    obtainSource: '行旅图锻造',
+    sellPrice: 1260
+  },
+  {
     id: 'guild_war_boots',
     name: '公会战靴',
     description: '冒险家公会精英成员的战斗靴，轻便且坚韧。',

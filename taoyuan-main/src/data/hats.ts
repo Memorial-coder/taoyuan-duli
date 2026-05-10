@@ -402,6 +402,51 @@ export const HATS: HatDef[] = [
 
   // === 公会专属 ===
   {
+    id: 'roadwarden_hood',
+    name: '驿路统御兜帽',
+    description: '荒道首领线开放后的统御兜帽，强化押运统筹、补给收束与回城承接。',
+    effects: [
+      { type: 'journey_event_bonus', value: 0.1 },
+      { type: 'journey_carry_bonus', value: 1 },
+      { type: 'camp_recovery_bonus', value: 6 }
+    ],
+    shopPrice: null,
+    recipe: null,
+    recipeMoney: 0,
+    obtainSource: '行旅图锻造',
+    sellPrice: 1200
+  },
+  {
+    id: 'sporeglass_hood',
+    name: '孢镜夜巡兜帽',
+    description: '泽地主线成熟后开放的观察兜帽，强化样本、异常与夜游观察节奏。',
+    effects: [
+      { type: 'journey_scout_bonus', value: 6 },
+      { type: 'journey_hazard_resist', value: 4 },
+      { type: 'resource_find_bonus', value: 0.1 }
+    ],
+    shopPrice: null,
+    recipe: null,
+    recipeMoney: 0,
+    obtainSource: '行旅图锻造',
+    sellPrice: 1240
+  },
+  {
+    id: 'skywatch_helm',
+    name: '天巡哨盔',
+    description: '为高地巡路、战备和首领压线节奏设计的重盔，兼顾视野与承压。',
+    effects: [
+      { type: 'journey_scout_bonus', value: 4 },
+      { type: 'boss_pressure_resist', value: 0.06 },
+      { type: 'max_hp_bonus', value: 12 }
+    ],
+    shopPrice: null,
+    recipe: null,
+    recipeMoney: 0,
+    obtainSource: '行旅图锻造',
+    sellPrice: 1260
+  },
+  {
     id: 'guild_war_helm',
     name: '公会战盔',
     description: '冒险家公会精英成员的战斗头盔，坚固而威严。',
