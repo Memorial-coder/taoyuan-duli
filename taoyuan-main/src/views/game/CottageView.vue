@@ -35,6 +35,7 @@
         <span class="text-[10px] text-muted">精通神像</span>
       </div>
       <p class="text-xs text-accent">{{ dailyBlessingPreview.label }}</p>
+      <p class="text-[10px] text-muted mt-1">{{ dailyBlessingPreview.sourceLabel }} · {{ dailyBlessingPreview.sourceSummary }}</p>
       <p class="text-xs text-muted mt-1">{{ dailyBlessingPreview.summary }}</p>
     </div>
 

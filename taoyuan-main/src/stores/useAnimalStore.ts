@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { AnimalBuildingType, AnimalType, Animal, Quality, PetState, PetType, IncubationState } from '@/types'
+import type { AnimalBuildingType, AnimalType, Animal, Quality, PetState, PetType, IncubationState, PetCompanionEvent, PetCareSlotSummary } from '@/types'
 import {
   ANIMAL_BUILDINGS,
   ANIMAL_DEFS,
@@ -9,13 +9,16 @@ import {
   INCUBATION_MAP,
   PREMIUM_FEED_ID,
   NOURISHING_FEED_ID,
-  VITALITY_FEED_ID
+  VITALITY_FEED_ID,
+  getTodayEvent
 } from '@/data'
 import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useGameStore } from './useGameStore'
 import { useSkillStore } from './useSkillStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
+import { useHomeStore } from './useHomeStore'
+import { useVillageProjectStore } from './useVillageProjectStore'
 import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
 
 export const useAnimalStore = defineStore('animal', () => {
@@ -33,7 +36,7 @@ export const useAnimalStore = defineStore('animal', () => {
   const barnIncubating = ref<IncubationState | null>(null)
 
   /** 宠物状态 */
-  const pet = ref<PetState | null>(null)
+  const pets = ref<PetState[]>([])
 
   /** 今天是否已放牧 */
   const grazedToday = ref(false)
@@ -44,6 +47,55 @@ export const useAnimalStore = defineStore('animal', () => {
   const coopBuilt = computed(() => buildings.value.find(b => b.type === 'coop')?.built ?? false)
   const barnBuilt = computed(() => buildings.value.find(b => b.type === 'barn')?.built ?? false)
   const stableBuilt = computed(() => buildings.value.find(b => b.type === 'stable')?.built ?? false)
+  const pet = computed(() => pets.value[0] ?? null)
+  const homeStore = useHomeStore()
+  const villageProjectStore = useVillageProjectStore()
+  const completedVillageProjectCount = computed(() => villageProjectStore.overviewSummary.completedProjects)
+  const petCapacity = computed(() => {
+    let capacity = 1
+    if (homeStore.farmhouseLevel >= 2) capacity += 1
+    if (homeStore.farmhouseLevel >= 3 || completedVillageProjectCount.value >= 8) capacity += 1
+    return capacity
+  })
+  const canAdoptAdditionalPet = computed(() => pets.value.length < petCapacity.value)
+  const petCareSlots = computed<PetCareSlotSummary[]>(() => [
+    {
+      id: 'nest',
+      label: '宠物窝',
+      unlocked: true,
+      summary: '照料角已经铺好，宠物会把这里当作自己的家。',
+      requirement: '初始开放'
+    },
+    {
+      id: 'bowl',
+      label: '食盆位',
+      unlocked: homeStore.farmhouseLevel >= 2,
+      summary: homeStore.farmhouseLevel >= 2 ? '食盆位开放后，第二只宠物路线也会一起出现。' : '把农舍升到 2 级后开放。', 
+      requirement: '农舍 2 级'
+    },
+    {
+      id: 'charm',
+      label: '饰物位',
+      unlocked: homeStore.farmhouseLevel >= 3 || completedVillageProjectCount.value >= 8,
+      summary:
+        homeStore.farmhouseLevel >= 3 || completedVillageProjectCount.value >= 8
+          ? '可挂护符与家居小饰，第三只宠物路线也会随之松动。'
+          : '农舍 3 级或村庄建设完成 8 项后开放。',
+      requirement: '农舍 3 级 / 建设 8 项'
+    }
+  ])
+  const petRouteProgress = computed(() => [
+    {
+      label: '第二只宠物',
+      unlocked: petCapacity.value >= 2,
+      requirement: '农舍 2 级'
+    },
+    {
+      label: '第三只宠物',
+      unlocked: petCapacity.value >= 3,
+      requirement: '农舍 3 级或完成 8 项村庄建设'
+    }
+  ])
 
   const coopAnimals = computed(() =>
     animals.value.filter(a => {
@@ -214,9 +266,10 @@ export const useAnimalStore = defineStore('animal', () => {
       animal.friendship = Math.min(1000, animal.friendship + Math.floor(5 * coopmasterBonus))
       count++
     }
-    if (pet.value && !pet.value.wasPetted) {
-      pet.value.wasPetted = true
-      pet.value.friendship = Math.min(1000, pet.value.friendship + 5)
+    for (const companion of pets.value) {
+      if (companion.wasPetted) continue
+      companion.wasPetted = true
+      companion.friendship = Math.min(1000, companion.friendship + 5)
       count++
     }
     return count
@@ -382,37 +435,127 @@ export const useAnimalStore = defineStore('animal', () => {
   // ============================================================
 
   /** 领养宠物 */
-  const adoptPet = (type: PetType, name: string) => {
-    pet.value = { type, name, friendship: 0, wasPetted: false }
+  const getCurrentDayTag = () => {
+    const gameStore = useGameStore()
+    return `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+  }
+
+  const recordPetMilestones = (companion: PetState, previousFriendship: number) => {
+    const playerStore = usePlayerStore()
+    const dayTag = getCurrentDayTag()
+    if (previousFriendship < 250 && companion.friendship >= 250) {
+      playerStore.markLifestyleUnlock(`pet_bond_familiar_${companion.id}`, dayTag)
+    }
+    if (previousFriendship < 600 && companion.friendship >= 600) {
+      playerStore.markLifestyleUnlock(`pet_bond_close_${companion.id}`, dayTag)
+    }
+    if (previousFriendship < 900 && companion.friendship >= 900) {
+      playerStore.markLifestyleUnlock(`pet_bond_family_${companion.id}`, dayTag)
+    }
+  }
+
+  const adoptPet = (type: PetType, name: string): boolean => {
+    if (!canAdoptAdditionalPet.value) return false
+    const trimmed = name.trim() || (type === 'dog' ? '旺财' : '小花')
+    const companion: PetState = {
+      id: `${type}_${Date.now()}`,
+      type,
+      name: trimmed,
+      friendship: 0,
+      wasPetted: false
+    }
+    pets.value.push(companion)
+    usePlayerStore().markLifestyleUnlock(`pet_adopted_${companion.id}`, getCurrentDayTag())
+    return true
   }
 
   /** 抚摸宠物 */
-  const petThePet = (): boolean => {
-    if (!pet.value || pet.value.wasPetted) return false
-    pet.value.wasPetted = true
-    pet.value.friendship = Math.min(1000, pet.value.friendship + 5)
+  const petThePet = (petId?: string): boolean => {
+    const companion = petId ? pets.value.find(entry => entry.id === petId) : pets.value[0]
+    if (!companion || companion.wasPetted) return false
+    const previousFriendship = companion.friendship
+    companion.wasPetted = true
+    companion.friendship = Math.min(1000, companion.friendship + 5)
+    recordPetMilestones(companion, previousFriendship)
     return true
   }
 
   /** 每日宠物更新 */
-  const dailyPetUpdate = (): { item?: string } => {
-    if (!pet.value) return {}
+  const dailyPetUpdate = (): { events: PetCompanionEvent[] } => {
+    if (pets.value.length === 0) return { events: [] }
 
-    // 未抚摸扣好感
-    if (!pet.value.wasPetted) {
-      pet.value.friendship = Math.max(0, pet.value.friendship - 2)
+    const gameStore = useGameStore()
+    const inventoryStore = useInventoryStore()
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
+    const events: PetCompanionEvent[] = []
+    const findPools: Record<PetType, string[]> = {
+      dog: ['herb', 'wild_berry', 'pine_cone', 'bamboo_shoot', 'wild_mushroom'],
+      cat: ['wild_berry', 'pine_cone', 'wild_mushroom', 'bamboo_shoot', 'herb']
     }
-    pet.value.wasPetted = false
+    const dogRumors = [
+      '田犬绕着院门打转，像是在催你去村口看看今天的热闹。',
+      '田犬叼着一截红绳回来，像在提醒你别错过今天的来访和集市。',
+      '田犬在门前连叫了几声，像是提前闻到了节庆和商路的风声。'
+    ]
+    const catRumors = [
+      '猫把爪子搭在纸页上，像是在提醒你回头翻一翻最近的纸条和线索。',
+      '猫把一片叶子压在桌角，像是替你记住了某个要去核实的地方。',
+      '猫蹲在窗边盯着远处，像是对村里新的传闻比你更早一步知道。'
+    ]
 
-    // 高好感带回采集物
-    if (pet.value.friendship >= 800 && Math.random() < 0.1) {
-      const finds = ['herb', 'wild_berry', 'pine_cone', 'bamboo_shoot', 'wild_mushroom']
-      const item = finds[Math.floor(Math.random() * finds.length)]!
-      const inventoryStore = useInventoryStore()
-      inventoryStore.addItem(item, 1)
-      return { item }
+    for (const companion of pets.value) {
+      const previousFriendship = companion.friendship
+      if (!companion.wasPetted) {
+        companion.friendship = Math.max(0, companion.friendship - 2)
+      }
+      companion.wasPetted = false
+      recordPetMilestones(companion, previousFriendship)
+
+      if (companion.friendship >= 850 && Math.random() < 0.12) {
+        const pool = findPools[companion.type]
+        const itemId = pool[Math.floor(Math.random() * pool.length)]!
+        inventoryStore.addItem(itemId, 1)
+        events.push({
+          petId: companion.id,
+          petName: companion.name,
+          type: 'gift',
+          itemId,
+          message:
+            companion.type === 'dog'
+              ? `田犬报喜，${companion.name}从院外衔回了${itemId}。`
+              : `灵宠衔物，${companion.name}悄悄把一份小收获放到了门边。`
+        })
+        continue
+      }
+
+      if (todayEvent && companion.friendship >= 500 && Math.random() < 0.18) {
+        events.push({
+          petId: companion.id,
+          petName: companion.name,
+          type: 'festival',
+          message:
+            companion.type === 'dog'
+              ? `${companion.name}在院门前格外兴奋，像是在催你早点去「${todayEvent.name}」看看。`
+              : `${companion.name}绕着你的衣摆转了两圈，像是也知道今天是「${todayEvent.name}」。`
+        })
+        continue
+      }
+
+      if (companion.friendship >= 600 && Math.random() < 0.14) {
+        const rumorPool = companion.type === 'dog' ? dogRumors : catRumors
+        events.push({
+          petId: companion.id,
+          petName: companion.name,
+          type: 'rumor',
+          message:
+            companion.type === 'dog'
+              ? `田犬报喜：${companion.name}${rumorPool[Math.floor(Math.random() * rumorPool.length)]!}`
+              : `猫叼线索：${companion.name}${rumorPool[Math.floor(Math.random() * rumorPool.length)]!}`
+        })
+      }
     }
-    return {}
+
+    return { events }
   }
 
   // ============================================================
@@ -732,8 +875,13 @@ export const useAnimalStore = defineStore('animal', () => {
   const renameAnimal = (id: string, newName: string): boolean => {
     const trimmed = newName.trim()
     if (!trimmed || trimmed.length > 8) return false
-    if (id === 'pet' && pet.value) {
-      pet.value.name = trimmed
+    if (id === 'pet' && pets.value[0]) {
+      pets.value[0].name = trimmed
+      return true
+    }
+    const companion = pets.value.find(entry => entry.id === id)
+    if (companion) {
+      companion.name = trimmed
       return true
     }
     const animal = animals.value.find(a => a.id === id)
@@ -766,6 +914,7 @@ export const useAnimalStore = defineStore('animal', () => {
       animals: animals.value,
       incubating: incubating.value,
       barnIncubating: barnIncubating.value,
+      pets: pets.value,
       pet: pet.value,
       grazedToday: grazedToday.value,
       autoPetterBuildings: autoPetterBuildings.value
@@ -798,11 +947,23 @@ export const useAnimalStore = defineStore('animal', () => {
     if (!savedPet || (savedPet.type !== 'cat' && savedPet.type !== 'dog')) return null
 
     return {
+      id: typeof savedPet.id === 'string' && savedPet.id.trim() ? savedPet.id : `${savedPet.type}_${Date.now()}`,
       type: savedPet.type as PetType,
       name: typeof savedPet.name === 'string' && savedPet.name.trim() ? savedPet.name : savedPet.type === 'dog' ? '小狗' : '小猫',
       friendship: Number.isFinite(savedPet.friendship) ? savedPet.friendship : 0,
       wasPetted: Boolean(savedPet.wasPetted)
     }
+  }
+
+  const normalizePetSaveList = (savedPets: unknown, legacyPet: unknown): PetState[] => {
+    if (Array.isArray(savedPets)) {
+      return savedPets
+        .map(entry => normalizePetSave(entry))
+        .filter((entry): entry is PetState => entry != null)
+        .slice(0, 3)
+    }
+    const normalizedLegacyPet = normalizePetSave(legacyPet)
+    return normalizedLegacyPet ? [normalizedLegacyPet] : []
   }
 
   const deserialize = (data: any) => {
@@ -823,7 +984,7 @@ export const useAnimalStore = defineStore('animal', () => {
     }
     incubating.value = data.incubating ?? null
     barnIncubating.value = data.barnIncubating ?? null
-    pet.value = normalizePetSave(data.pet)
+    pets.value = normalizePetSaveList(data.pets, data.pet)
     grazedToday.value = data.grazedToday ?? false
     autoPetterBuildings.value = data.autoPetterBuildings ?? []
   }
@@ -833,7 +994,12 @@ export const useAnimalStore = defineStore('animal', () => {
     animals,
     incubating,
     barnIncubating,
+    pets,
     pet,
+    petCapacity,
+    petCareSlots,
+    petRouteProgress,
+    canAdoptAdditionalPet,
     grazedToday,
     coopBuilt,
     barnBuilt,

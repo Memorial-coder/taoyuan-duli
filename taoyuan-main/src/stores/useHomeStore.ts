@@ -10,6 +10,7 @@ import {
   CELLAR_AGING_DAYS,
   CELLAR_MAX_SLOTS
 } from '@/data/buildings'
+import { HOME_RENOVATIONS } from '@/data/homeRenovations'
 import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useFarmStore } from './useFarmStore'
@@ -40,6 +41,7 @@ export const useHomeStore = defineStore('home', () => {
   const caveUnlocked = ref(false)
   const greenhouseUnlocked = ref(false)
   const cellarSlots = ref<CellarSlot[]>([])
+  const homeRenovationStates = ref<Record<string, boolean>>({})
 
   const farmhouseName = computed(() => {
     const names: Record<FarmhouseLevel, string> = { 0: '茅屋', 1: '砖房', 2: '宅院', 3: '酒窖宅院' }
@@ -70,6 +72,32 @@ export const useHomeStore = defineStore('home', () => {
             : '当前宅院尚未承接明显的家庭经营压力，可按农舍升级与设施节奏推进。'
     }
   })
+  const homeRenovationSummaries = computed(() =>
+    HOME_RENOVATIONS.map(def => {
+      const unlocked = homeRenovationStates.value[def.id] === true
+      const missingFarmhouseLevel = farmhouseLevel.value < def.requiredFarmhouseLevel
+      const missingMaterials = def.materialCost
+        .filter(mat => getCombinedItemCount(mat.itemId) < mat.quantity)
+        .map(mat => `${mat.itemId}×${mat.quantity - getCombinedItemCount(mat.itemId)}`)
+      const missingMoney = def.cost > usePlayerStore().money ? def.cost - usePlayerStore().money : 0
+      const blockedReason = unlocked
+        ? ''
+        : missingFarmhouseLevel
+          ? `需要农舍 ${def.requiredFarmhouseLevel} 级。`
+          : missingMaterials.length > 0
+            ? `还缺 ${missingMaterials.join('、')}。`
+            : missingMoney > 0
+              ? `还差 ${missingMoney} 文。`
+              : ''
+
+      return {
+        ...def,
+        unlocked,
+        available: !unlocked && !blockedReason,
+        blockedReason
+      }
+    })
+  )
 
   /** 升级农舍 */
   const upgradeFarmhouse = (): boolean => {
@@ -159,6 +187,35 @@ export const useHomeStore = defineStore('home', () => {
     return true
   }
 
+  const hasHomeRenovation = (id: string) => homeRenovationStates.value[id] === true
+
+  const unlockHomeRenovation = (id: string): { success: boolean; message: string } => {
+    const renovation = HOME_RENOVATIONS.find(entry => entry.id === id)
+    const playerStore = usePlayerStore()
+    if (!renovation) return { success: false, message: '扩建项目不存在。' }
+    if (hasHomeRenovation(id)) return { success: false, message: `${renovation.name}已经完成了。` }
+    if (farmhouseLevel.value < renovation.requiredFarmhouseLevel) {
+      return { success: false, message: `需要先把农舍提升到 ${renovation.requiredFarmhouseLevel} 级。` }
+    }
+    for (const mat of renovation.materialCost) {
+      if (getCombinedItemCount(mat.itemId) < mat.quantity) {
+        return { success: false, message: `${renovation.name}所需材料不足。` }
+      }
+    }
+    if (!playerStore.spendMoney(renovation.cost)) {
+      return { success: false, message: `${renovation.name}所需铜钱不足。` }
+    }
+    for (const mat of renovation.materialCost) {
+      removeCombinedItem(mat.itemId, mat.quantity)
+    }
+    homeRenovationStates.value = {
+      ...homeRenovationStates.value,
+      [id]: true
+    }
+    playerStore.markLifestyleUnlock(`home_renovation_${id}`, '')
+    return { success: true, message: `完成了${renovation.name}，家里多了新的生活空间。` }
+  }
+
   /** 酒窖放入陈酿 */
   const startAging = (itemId: string, quality: Quality): boolean => {
     if (!hasCellar.value) return false
@@ -229,7 +286,8 @@ export const useHomeStore = defineStore('home', () => {
       caveChoice: caveChoice.value,
       caveUnlocked: caveUnlocked.value,
       greenhouseUnlocked: greenhouseUnlocked.value,
-      cellarSlots: cellarSlots.value
+      cellarSlots: cellarSlots.value,
+      homeRenovationStates: { ...homeRenovationStates.value }
     }
   }
 
@@ -245,6 +303,9 @@ export const useHomeStore = defineStore('home', () => {
     caveUnlocked.value = data.caveUnlocked ?? false
     greenhouseUnlocked.value = resolveLegacyGreenhouseUnlocked(data)
     cellarSlots.value = data.cellarSlots ?? []
+    homeRenovationStates.value = Object.fromEntries(
+      Object.entries(data?.homeRenovationStates ?? {}).map(([id, unlocked]) => [id, Boolean(unlocked)])
+    )
     // 加载后如果温室已解锁，确保温室地块初始化
     if (greenhouseUnlocked.value) {
       const farmStore = useFarmStore()
@@ -262,12 +323,16 @@ export const useHomeStore = defineStore('home', () => {
     nextUpgrade,
     hasCellar,
     companionHomeOverview,
+    homeRenovationStates,
+    homeRenovationSummaries,
     upgradeFarmhouse,
     unlockCave,
     chooseCave,
     dailyCaveUpdate,
     unlockGreenhouse,
     unlockGreenhouseByPermit,
+    hasHomeRenovation,
+    unlockHomeRenovation,
     startAging,
     removeAging,
     dailyCellarUpdate,

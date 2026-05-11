@@ -197,6 +197,7 @@ export const useFishingStore = defineStore('fishing', () => {
     const tackleStaminaReduction = tackleDef?.staminaReduction ?? 0
     const ringFishingReduction = inventoryStore.getRingEffectValue('fishing_stamina')
     const ringGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
+    const blessingFishingReduction = skillStore.getBlessingEffectValue('fishing_stamina')
     const _fishingSkill = skillStore.getSkill('fishing')
     // perk20: 鱼神/海洋霸主/诱饵神 体力消耗清零
     const zeroStamina = _fishingSkill.perk20 === 'fish_god' || _fishingSkill.perk20 === 'sea_sovereign' || _fishingSkill.perk20 === 'lure_deity'
@@ -210,6 +211,7 @@ export const useFishingStore = defineStore('fishing', () => {
           (1 - tackleStaminaReduction) *
           (1 - ringFishingReduction) *
           (1 - ringGlobalReduction) *
+          (1 - blessingFishingReduction) *
           (1 - seaCaptainReduction)
       )
     )
@@ -367,6 +369,10 @@ export const useFishingStore = defineStore('fishing', () => {
     if (ringCalmBonus > 0) {
       fishSpeed *= 1 - ringCalmBonus
     }
+    const blessingCalmBonus = skillStore.getBlessingEffectValue('fishing_calm')
+    if (blessingCalmBonus > 0) {
+      fishSpeed *= 1 - blessingCalmBonus
+    }
 
     return {
       fishName: fish.name,
@@ -456,6 +462,12 @@ export const useFishingStore = defineStore('fishing', () => {
     // 戒指效果：鱼品质提升
     const ringFishQualityBonus = inventoryStore.getRingEffectValue('fish_quality_bonus')
     if (ringFishQualityBonus > 0 && Math.random() < ringFishQualityBonus) {
+      const idx = qualityOrder.indexOf(quality)
+      const newIdx = Math.min(idx + 1, qualityOrder.length - 1)
+      quality = qualityOrder[newIdx]!
+    }
+    const blessingFishQualityBonus = skillStore.getBlessingEffectValue('fish_quality_bonus')
+    if (blessingFishQualityBonus > 0 && Math.random() < blessingFishQualityBonus) {
       const idx = qualityOrder.indexOf(quality)
       const newIdx = Math.min(idx + 1, qualityOrder.length - 1)
       quality = qualityOrder[newIdx]!
@@ -557,7 +569,9 @@ export const useFishingStore = defineStore('fishing', () => {
     const luckBuff = cookingStore.activeBuff?.type === 'luck' ? 0.05 : 0
     const ringTreasureFind = inventoryStore.getRingEffectValue('treasure_find')
     const ringLuck = inventoryStore.getRingEffectValue('luck')
-    const chance = 0.15 + skillStore.fishingLevel * 0.01 + luckBuff + ringTreasureFind + ringLuck * 0.3
+    const blessingTreasureFind = skillStore.getBlessingEffectValue('treasure_find')
+    const blessingLuck = skillStore.getBlessingEffectValue('luck')
+    const chance = 0.15 + skillStore.fishingLevel * 0.01 + luckBuff + ringTreasureFind + blessingTreasureFind + (ringLuck + blessingLuck) * 0.3
     if (Math.random() >= chance) return null
 
     // 随机1-2个奖品

@@ -804,7 +804,11 @@
     const animalStore = useAnimalStore()
     const defaultName = petChoice.value === 'cat' ? '小花' : '旺财'
     const name = petNameInput.value.trim() || defaultName
-    animalStore.adoptPet(petChoice.value, name)
+    const adopted = animalStore.adoptPet(petChoice.value, name)
+    if (!adopted) {
+      addLog('现在还不能收养新的小动物，先把家里安顿得更周全一些。')
+      return
+    }
     closePetAdoption()
     petChoice.value = null
     petNameInput.value = ''

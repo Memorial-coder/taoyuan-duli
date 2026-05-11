@@ -53,7 +53,7 @@
         <p class="text-xs text-muted">当前暂无新的建设项目可推进，先看看维护计划、捐赠计划或其他系统前置进度。</p>
       </div>
 
-      <div v-if="villageWorldChangeHighlights.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+    <div v-if="villageWorldChangeHighlights.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
         <p class="text-xs text-muted mb-1">世界变化</p>
         <div v-for="entry in villageWorldChangeHighlights" :key="entry.id" class="mt-1 first:mt-0">
           <p class="text-[10px] text-accent">{{ entry.projectName }} · {{ entry.title }}</p>
@@ -110,6 +110,64 @@
       <p class="text-xs text-accent">{{ advancedWorkbenchReward.label }}</p>
       <p class="text-xs text-muted mt-1">{{ advancedWorkbenchReward.summary }}</p>
       <p class="text-[10px] text-muted/80 mt-1">挂接位置：{{ advancedWorkbenchReward.panelHint }}</p>
+    </div>
+
+    <div v-if="animalStore.pets.length > 0" class="border border-accent/20 rounded-xs p-3 mb-4">
+      <div class="flex items-center justify-between mb-1">
+        <p class="text-sm text-accent">宠物角</p>
+        <span class="text-[10px] text-muted">{{ animalStore.pets.length }}/{{ animalStore.petCapacity }}</span>
+      </div>
+      <p class="text-xs text-muted mb-2">宠物路线会跟着家居和家园成长一起展开，不会作为独立孤岛系统存在。</p>
+      <div class="space-y-1">
+        <div v-for="slot in animalStore.petCareSlots" :key="slot.id" class="flex items-center justify-between text-[10px] border border-accent/10 rounded-xs px-2 py-1.5">
+          <span>{{ slot.label }}</span>
+          <span :class="slot.unlocked ? 'text-success' : 'text-muted'">{{ slot.unlocked ? '已开放' : slot.requirement }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="border border-accent/20 rounded-xs p-3 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-sm text-accent">房屋扩建</p>
+        <span class="text-[10px] text-muted">农舍 {{ homeStore.farmhouseLevel }} 级</span>
+      </div>
+      <div class="space-y-2">
+        <div v-for="entry in homeStore.homeRenovationSummaries" :key="entry.id" class="border border-accent/10 rounded-xs p-2">
+          <div class="flex items-center justify-between gap-2">
+            <div class="min-w-0">
+              <p class="text-xs text-accent">{{ entry.name }}</p>
+              <p class="text-[10px] text-muted mt-0.5 leading-4">{{ entry.description }}</p>
+            </div>
+            <span :class="entry.unlocked ? 'text-success text-[10px]' : 'text-muted text-[10px]'">{{ entry.unlocked ? '已完成' : `需 ${entry.cost} 文` }}</span>
+          </div>
+          <p class="text-[10px] text-muted mt-1">解锁：{{ entry.featureLabels.join(' / ') }}</p>
+          <p class="text-[10px] text-muted mt-1">材料：{{ getHomeRenovationMaterialText(entry.materialCost) }}</p>
+          <div class="flex items-center justify-between gap-2 mt-2">
+            <p class="text-[10px]" :class="entry.available ? 'text-success' : 'text-muted'">
+              {{ entry.unlocked ? '这处扩建已经并入家园日常。' : entry.blockedReason || '材料和铜钱已满足，可以开工。' }}
+            </p>
+            <Button v-if="!entry.unlocked" class="justify-center !px-2 !py-1" :disabled="!entry.available" @click="handleUnlockHomeRenovation(entry.id)">
+              开工
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="border border-accent/20 rounded-xs p-3 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-sm text-accent">功能性家居</p>
+        <span class="text-[10px] text-muted">展示与生活并进</span>
+      </div>
+      <div class="space-y-1.5">
+        <div v-for="entry in functionalFurnitureEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-2">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs text-accent">{{ entry.label }}</p>
+            <span :class="entry.unlocked ? 'text-success text-[10px]' : 'text-muted text-[10px]'">{{ entry.unlocked ? '已启用' : entry.requirement }}</span>
+          </div>
+          <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+        </div>
+      </div>
     </div>
 
     <!-- 家庭 / 陪伴 -->
@@ -731,6 +789,7 @@
   import { computed, ref } from 'vue'
   import { useRouter } from 'vue-router'
   import { ArrowDown, ArrowDownToLine, Building, Mountain, Leaf, Pencil, Plus, Trash2, Unlock, Warehouse, X } from 'lucide-vue-next'
+  import { useAnimalStore } from '@/stores/useAnimalStore'
   import { useHomeStore } from '@/stores/useHomeStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useNpcStore } from '@/stores/useNpcStore'
@@ -738,6 +797,7 @@
   import { useProcessingStore } from '@/stores/useProcessingStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
+  import { useWalletStore } from '@/stores/useWalletStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
   import { getItemById, getNpcById } from '@/data'
@@ -748,15 +808,66 @@
   import Button from '@/components/game/Button.vue'
 
   const router = useRouter()
+  const animalStore = useAnimalStore()
   const homeStore = useHomeStore()
   const inventoryStore = useInventoryStore()
   const npcStore = useNpcStore()
   const playerStore = usePlayerStore()
   const skillStore = useSkillStore()
+  const walletStore = useWalletStore()
   const warehouseStore = useWarehouseStore()
   const processingStore = useProcessingStore()
   const villageProjectStore = useVillageProjectStore()
   const advancedWorkbenchReward = computed(() => skillStore.masteryRewards.find(entry => entry.id === 'advanced_workbench') ?? null)
+  const lifestyleSnapshot = computed(() => playerStore.getLifestyleDiscoverySnapshot())
+  const functionalFurnitureEntries = computed(() => {
+    const unlockedBooks = Object.keys(lifestyleSnapshot.value.lifestyleUnlocks).filter(id => id.startsWith('book_')).length
+    const mysteryBoxKinds = Object.keys(lifestyleSnapshot.value.mysteryBoxes).length
+    const prizeMilestones = Object.keys(lifestyleSnapshot.value.prizeProgress).length
+    const sealedBoxes = walletStore.mysteryBoxEntries.reduce((sum, entry) => sum + entry.count, 0)
+
+    return [
+      {
+        id: 'bookshelf_slot',
+        label: '书架位',
+        unlocked: homeStore.hasHomeRenovation('scholar_room'),
+        requirement: '需完成「书房偏厢」',
+        summary: homeStore.hasHomeRenovation('scholar_room')
+          ? `当前已收进 ${unlockedBooks} 本游学书肆藏书，后续可继续承接见闻书与技能书。`
+          : '先腾出书房偏厢，才能把书商和见闻书真正安进家里。'
+      },
+      {
+        id: 'blessing_slot',
+        label: '祝福位',
+        unlocked: homeStore.hasHomeRenovation('ancestral_display_wall'),
+        requirement: '需完成「祠前陈设墙」',
+        summary: homeStore.hasHomeRenovation('ancestral_display_wall')
+          ? skillStore.dailyBlessingPreview
+            ? `今日可供奉「${skillStore.dailyBlessingPreview.label}」，家居位已经开始认精通祝福。`
+            : '祝福位已备好，等精通神像线继续展开后会承接更多每日偏向。'
+          : '把祝福做成看得见的家居位，而不是只留在一行系统字里。'
+      },
+      {
+        id: 'trophy_slot',
+        label: '奖杯位',
+        unlocked: homeStore.hasHomeRenovation('ancestral_display_wall'),
+        requirement: '需完成「祠前陈设墙」',
+        summary: homeStore.hasHomeRenovation('ancestral_display_wall')
+          ? `当前可挂出 ${villageProjectStore.overviewSummary.completedProjects} 项村庄建设与阶段成果的陈列回响。`
+          : '后续节庆连胜、村庄成果和主题活动奖章都会优先往这里收。'
+      },
+      {
+        id: 'memento_slot',
+        label: '纪念物位',
+        unlocked: homeStore.hasHomeRenovation('tea_corner') || homeStore.hasHomeRenovation('ancestral_display_wall'),
+        requirement: '需完成「待客茶角」或「祠前陈设墙」',
+        summary:
+          homeStore.hasHomeRenovation('tea_corner') || homeStore.hasHomeRenovation('ancestral_display_wall')
+            ? `当前已能承接 ${mysteryBoxKinds} 类密匣见闻、${sealedBoxes} 只待开密匣与 ${prizeMilestones} 条赏格进度，轻收藏开始真正在家里落脚。`
+            : '节庆纪念、密匣见闻和赏格回响，后续都会优先沉淀到这一类家居位里。'
+      }
+    ]
+  })
 
   const showGreenhouseModal = ref(false)
   const showWarehouseUnlockModal = ref(false)
@@ -769,6 +880,8 @@
   const getItemName = (itemId: string): string => {
     return getItemById(itemId)?.name ?? itemId
   }
+  const getHomeRenovationMaterialText = (materials: { itemId: string; quantity: number }[]) =>
+    materials.map(mat => `${getItemName(mat.itemId)}×${mat.quantity}`).join('、')
 
   const villageOverview = computed(() => villageProjectStore.overviewSummary)
   const villageAvailableProjects = computed(() => villageProjectStore.queryProjects({ completed: false }).filter(project => project.available).slice(0, 3))
@@ -852,6 +965,11 @@
   }
   const handleRegisterNextZhijiProject = () => {
     const result = npcStore.registerNextZhijiProjectForCurrentWeek()
+    showFloat(result.message, result.success ? 'success' : 'danger')
+    if (!result.success) addLog(result.message)
+  }
+  const handleUnlockHomeRenovation = (id: string) => {
+    const result = homeStore.unlockHomeRenovation(id)
     showFloat(result.message, result.success ? 'success' : 'danger')
     if (!result.success) addLog(result.message)
   }

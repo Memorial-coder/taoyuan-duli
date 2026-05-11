@@ -12,6 +12,7 @@ export interface EquipmentPreset {
   ringSlot2DefId: string | null
   hatDefId: string | null
   shoeDefId: string | null
+  trinketDefId: string | null
 }
 import { showFloat } from '@/composables/useGameLog'
 import { getItemById } from '@/data/items'
@@ -19,6 +20,7 @@ import { getWeaponById, getEnchantmentById, getWeaponSellPrice } from '@/data/we
 import { getRingById } from '@/data/rings'
 import { getHatById } from '@/data/hats'
 import { getShoeById } from '@/data/shoes'
+import { TRINKETS, getTrinketById, type TrinketDef } from '@/data/trinkets'
 import { EQUIPMENT_SETS } from '@/data/equipmentSets'
 import { usePlayerStore } from './usePlayerStore'
 import { useAchievementStore } from './useAchievementStore'
@@ -30,6 +32,7 @@ const TEMP_CAPACITY = 10
 export const MAX_EQUIPMENT_PRESETS = 10
 
 export const useInventoryStore = defineStore('inventory', () => {
+  const playerStore = usePlayerStore()
   const items = ref<InventoryItem[]>([])
   const capacity = ref(INITIAL_CAPACITY)
   const tools = ref<Tool[]>([
@@ -62,6 +65,8 @@ export const useInventoryStore = defineStore('inventory', () => {
   const ownedShoes = ref<OwnedShoe[]>([])
   /** 当前装备的鞋子索引（-1 = 空） */
   const equippedShoeIndex = ref(-1)
+  /** 当前装备的护符 / 饰物 */
+  const equippedTrinketId = ref<string | null>(null)
 
   /** 装备方案列表 */
   const equipmentPresets = ref<EquipmentPreset[]>([])
@@ -102,6 +107,24 @@ export const useInventoryStore = defineStore('inventory', () => {
   const cloneOwnedHats = (source: OwnedHat[]) => source.map(hat => ({ ...hat }))
   const cloneOwnedShoes = (source: OwnedShoe[]) => source.map(shoe => ({ ...shoe }))
   const cloneEquipmentPresets = (source: EquipmentPreset[]) => source.map(preset => ({ ...preset }))
+  const isTrinketSlotUnlocked = computed(() => playerStore.hasLifestyleDiscovery('masteryUnlocks', 'mastery_combat'))
+  const unlockedTrinkets = computed<TrinketDef[]>(() => {
+    if (!isTrinketSlotUnlocked.value) return []
+    const snapshot = playerStore.getLifestyleDiscoverySnapshot()
+    return TRINKETS.filter(def => {
+      switch (def.unlockRule) {
+        case 'prize_progress':
+          return Object.keys(snapshot.prizeProgress).length > 0
+        case 'mystery_box':
+          return Object.keys(snapshot.mysteryBoxes).length > 0
+        case 'combat_mastery':
+          return playerStore.hasLifestyleDiscovery('masteryUnlocks', 'mastery_combat')
+        default:
+          return false
+      }
+    })
+  })
+  const equippedTrinket = computed(() => (equippedTrinketId.value ? getTrinketById(equippedTrinketId.value) ?? null : null))
 
   const simulateAddToSlots = (
     mainSlots: InventorySnapshotSlot[],
@@ -745,6 +768,11 @@ export const useInventoryStore = defineStore('inventory', () => {
         }
       }
     }
+    if (equippedTrinket.value) {
+      for (const eff of equippedTrinket.value.effects) {
+        if (eff.type === effectType) total += eff.value
+      }
+    }
     // 套装奖励
     for (const b of activeSetBonuses.value) {
       if (b.type === effectType) total += b.value
@@ -1011,6 +1039,24 @@ export const useInventoryStore = defineStore('inventory', () => {
   }
 
   // ============================================================
+  // 饰物系统
+  // ============================================================
+
+  const equipTrinket = (defId: string): boolean => {
+    if (!isTrinketSlotUnlocked.value) return false
+    if (!unlockedTrinkets.value.some(def => def.id === defId)) return false
+    equippedTrinketId.value = defId
+    playerStore.markLifestyleUnlock(`trinket_equipped_${defId}`)
+    return true
+  }
+
+  const unequipTrinket = (): boolean => {
+    if (!equippedTrinketId.value) return false
+    equippedTrinketId.value = null
+    return true
+  }
+
+  // ============================================================
   // 装备方案系统
   // ============================================================
 
@@ -1025,7 +1071,8 @@ export const useInventoryStore = defineStore('inventory', () => {
       ringSlot1DefId: null,
       ringSlot2DefId: null,
       hatDefId: null,
-      shoeDefId: null
+      shoeDefId: null,
+      trinketDefId: null
     })
     return true
   }
@@ -1053,6 +1100,7 @@ export const useInventoryStore = defineStore('inventory', () => {
     preset.ringSlot2DefId = equippedRingSlot2.value >= 0 ? (ownedRings.value[equippedRingSlot2.value]?.defId ?? null) : null
     preset.hatDefId = equippedHatIndex.value >= 0 ? (ownedHats.value[equippedHatIndex.value]?.defId ?? null) : null
     preset.shoeDefId = equippedShoeIndex.value >= 0 ? (ownedShoes.value[equippedShoeIndex.value]?.defId ?? null) : null
+    preset.trinketDefId = equippedTrinketId.value
   }
 
   /** 应用装备方案 */
@@ -1114,6 +1162,12 @@ export const useInventoryStore = defineStore('inventory', () => {
       unequipShoe()
     }
 
+    if (preset.trinketDefId) {
+      if (!equipTrinket(preset.trinketDefId)) missing.push('饰物')
+    } else {
+      unequipTrinket()
+    }
+
     activePresetId.value = id
 
     if (missing.length > 0) {
@@ -1138,6 +1192,7 @@ export const useInventoryStore = defineStore('inventory', () => {
       equippedHatIndex: equippedHatIndex.value,
       ownedShoes: cloneOwnedShoes(ownedShoes.value),
       equippedShoeIndex: equippedShoeIndex.value,
+      equippedTrinketId: equippedTrinketId.value,
       equipmentPresets: cloneEquipmentPresets(equipmentPresets.value),
       activePresetId: activePresetId.value
     }
@@ -1211,12 +1266,17 @@ export const useInventoryStore = defineStore('inventory', () => {
     ownedShoes.value = ((data as Record<string, unknown>).ownedShoes as OwnedShoe[]) ?? []
     equippedShoeIndex.value = ((data as Record<string, unknown>).equippedShoeIndex as number | undefined) ?? -1
     if (equippedShoeIndex.value >= ownedShoes.value.length) equippedShoeIndex.value = -1
+    equippedTrinketId.value = typeof (data as Record<string, unknown>).equippedTrinketId === 'string' ? ((data as Record<string, unknown>).equippedTrinketId as string) : null
+    if (equippedTrinketId.value && !unlockedTrinkets.value.some(def => def.id === equippedTrinketId.value)) {
+      equippedTrinketId.value = null
+    }
 
     // 装备方案（向后兼容旧存档）
     equipmentPresets.value = ((data as Record<string, unknown>).equipmentPresets as EquipmentPreset[] | undefined) ?? []
     equipmentPresets.value = equipmentPresets.value.map(preset => ({
       ...preset,
-      weaponEnchantmentId: (preset as EquipmentPreset & { weaponEnchantmentId?: string | null }).weaponEnchantmentId ?? null
+      weaponEnchantmentId: (preset as EquipmentPreset & { weaponEnchantmentId?: string | null }).weaponEnchantmentId ?? null,
+      trinketDefId: (preset as EquipmentPreset & { trinketDefId?: string | null }).trinketDefId ?? null
     }))
     activePresetId.value = ((data as Record<string, unknown>).activePresetId as string | null | undefined) ?? null
 
@@ -1300,6 +1360,9 @@ export const useInventoryStore = defineStore('inventory', () => {
     craftHat,
     ownedShoes,
     equippedShoeIndex,
+    unlockedTrinkets,
+    equippedTrinket,
+    equippedTrinketId,
     addShoe,
     hasShoe,
     equipShoe,
@@ -1307,6 +1370,8 @@ export const useInventoryStore = defineStore('inventory', () => {
     sellShoe,
     removeShoe,
     craftShoe,
+    equipTrinket,
+    unequipTrinket,
     equipmentPresets,
     activePresetId,
     createEquipmentPreset,

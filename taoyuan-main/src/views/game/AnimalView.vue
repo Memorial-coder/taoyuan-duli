@@ -12,40 +12,71 @@
 
     <!-- 宠物区域 -->
     <div class="mb-4 border border-accent/20 rounded-xs p-3">
-      <p class="text-xs text-muted mb-2">宠物</p>
-      <template v-if="animalStore.pet">
-        <div class="flex items-center justify-between mb-1">
-          <div class="flex items-center space-x-1">
-            <template v-if="renamingId === 'pet'">
-              <input
-                v-model="renameInput"
-                class="bg-bg border border-accent/30 rounded-xs px-1 py-0.5 text-xs text-text w-20 focus:border-accent outline-none placeholder:text-muted/40 transition-colors"
-                maxlength="8"
-                @keyup.enter="confirmRename"
-                @keyup.escape="cancelRename"
-              />
-              <Button class="py-0 px-1" @click="confirmRename">确定</Button>
-              <Button class="py-0 px-1" @click="cancelRename">取消</Button>
-            </template>
-            <template v-else>
-              <span class="text-xs text-accent">{{ animalStore.pet.type === 'cat' ? '猫' : '狗' }} — {{ animalStore.pet.name }}</span>
-              <button class="text-muted hover:text-accent" @click="startRename('pet', animalStore.pet!.name)">
-                <Pencil :size="10" />
-              </button>
-            </template>
-          </div>
-          <Button class="py-0 px-1" :icon="Hand" :disabled="animalStore.pet.wasPetted" @click="handlePetThePet">
-            {{ animalStore.pet.wasPetted ? '已摸' : '抚摸' }}
-          </Button>
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs text-muted">宠物</p>
+        <div class="flex items-center gap-2">
+          <span class="text-[10px] text-muted">{{ petRoster.length }}/{{ animalStore.petCapacity }}</span>
+          <Button v-if="petRoster.length > 0 && animalStore.canAdoptAdditionalPet" class="py-0 px-1" @click="showPetAdoptionModal = true">收养新宠</Button>
         </div>
-        <div class="flex items-center space-x-1">
-          <span class="text-[10px] text-muted w-6">好感</span>
-          <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
-            <div class="h-full rounded-xs bg-danger transition-all" :style="{ width: Math.floor(animalStore.pet.friendship / 10) + '%' }" />
+      </div>
+      <template v-if="petRoster.length > 0">
+        <div class="border border-accent/10 rounded-xs p-2 mb-2 bg-bg/10">
+          <p class="text-[10px] text-muted mb-1">宠物路线</p>
+          <div class="space-y-1">
+            <div v-for="route in animalStore.petRouteProgress" :key="route.label" class="flex items-center justify-between text-[10px]">
+              <span>{{ route.label }}</span>
+              <span :class="route.unlocked ? 'text-success' : 'text-muted'">{{ route.unlocked ? '已开放' : route.requirement }}</span>
+            </div>
           </div>
-          <span class="text-[10px] text-muted">{{ animalStore.pet.friendship }}/1000</span>
         </div>
-        <p v-if="animalStore.pet.friendship >= 800" class="text-xs text-success mt-1">好感度很高，每天有机会叼回采集物！</p>
+        <div class="border border-accent/10 rounded-xs p-2 mb-2">
+          <p class="text-[10px] text-muted mb-1">宠物角</p>
+          <div class="space-y-1">
+            <div v-for="slot in animalStore.petCareSlots" :key="slot.id" class="border border-accent/10 rounded-xs px-2 py-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-xs text-accent">{{ slot.label }}</span>
+                <span :class="slot.unlocked ? 'text-success text-[10px]' : 'text-muted text-[10px]'">{{ slot.unlocked ? '已开放' : slot.requirement }}</span>
+              </div>
+              <p class="text-[10px] text-muted mt-0.5 leading-4">{{ slot.summary }}</p>
+            </div>
+          </div>
+        </div>
+        <div class="space-y-2">
+          <div v-for="companion in petRoster" :key="companion.id" class="border border-accent/10 rounded-xs p-2">
+            <div class="flex items-center justify-between mb-1">
+              <div class="flex items-center space-x-1">
+                <template v-if="renamingId === companion.id">
+                  <input
+                    v-model="renameInput"
+                    class="bg-bg border border-accent/30 rounded-xs px-1 py-0.5 text-xs text-text w-20 focus:border-accent outline-none placeholder:text-muted/40 transition-colors"
+                    maxlength="8"
+                    @keyup.enter="confirmRename"
+                    @keyup.escape="cancelRename"
+                  />
+                  <Button class="py-0 px-1" @click="confirmRename">确定</Button>
+                  <Button class="py-0 px-1" @click="cancelRename">取消</Button>
+                </template>
+                <template v-else>
+                  <span class="text-xs text-accent">{{ companion.type === 'cat' ? '猫' : '狗' }} — {{ companion.name }}</span>
+                  <button class="text-muted hover:text-accent" @click="startRename(companion.id, companion.name)">
+                    <Pencil :size="10" />
+                  </button>
+                </template>
+              </div>
+              <Button class="py-0 px-1" :icon="Hand" :disabled="companion.wasPetted" @click="handlePetThePet(companion.id)">
+                {{ companion.wasPetted ? '已摸' : '抚摸' }}
+              </Button>
+            </div>
+            <div class="flex items-center space-x-1">
+              <span class="text-[10px] text-muted w-6">好感</span>
+              <div class="flex-1 h-1.5 bg-bg rounded-xs border border-accent/10">
+                <div class="h-full rounded-xs bg-danger transition-all" :style="{ width: Math.floor(companion.friendship / 10) + '%' }" />
+              </div>
+              <span class="text-[10px] text-muted">{{ companion.friendship }}/1000</span>
+            </div>
+            <p class="text-[10px] text-muted mt-1 leading-4">{{ getPetCompanionHint(companion) }}</p>
+          </div>
+        </div>
       </template>
       <div v-else class="flex flex-col items-center justify-center py-6 text-muted">
         <Home :size="32" class="mb-2" />
@@ -446,6 +477,33 @@
       </div>
     </Transition>
 
+    <Transition name="panel-fade">
+      <div
+        v-if="showPetAdoptionModal"
+        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
+        @click.self="closePetAdoptionModal"
+      >
+        <div class="game-panel max-w-xs w-full">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-sm text-accent">收养新宠</p>
+            <Button class="py-0 px-1" :icon="X" :icon-size="12" @click="closePetAdoptionModal" />
+          </div>
+          <p class="text-xs text-muted mb-2">第二只和第三只宠物会更偏向生活层轻反馈，不会替代主线推进。</p>
+          <div class="flex space-x-2 mb-3">
+            <Button class="flex-1 justify-center" :class="petAdoptionType === 'cat' ? '!bg-accent !text-bg' : ''" @click="petAdoptionType = 'cat'">猫</Button>
+            <Button class="flex-1 justify-center" :class="petAdoptionType === 'dog' ? '!bg-accent !text-bg' : ''" @click="petAdoptionType = 'dog'">狗</Button>
+          </div>
+          <input
+            v-model="petAdoptionName"
+            class="w-full bg-bg border border-accent/30 rounded-xs px-2 py-1 text-xs text-text focus:border-accent outline-none placeholder:text-muted/40 transition-colors mb-3"
+            :placeholder="petAdoptionType === 'dog' ? '田犬' : '狸奴'"
+            maxlength="8"
+          />
+          <Button class="w-full justify-center" :disabled="!petAdoptionType" @click="handleAdoptAdditionalPet">带它回家</Button>
+        </div>
+      </div>
+    </Transition>
+
     <!-- 购买动物详情弹窗 -->
     <Transition name="panel-fade">
       <div v-if="buyModal" class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-60 p-4" @click.self="buyModal = null">
@@ -681,6 +739,7 @@
 
   /** 未喂食动物数量 */
   const unfedCount = computed(() => animalStore.animals.filter(a => !a.wasFed).length)
+  const petRoster = computed(() => animalStore.pets)
 
   /** 兽药库存数量 */
   const medicineCount = computed(() => inventoryStore.getItemCount('animal_medicine'))
@@ -770,6 +829,17 @@
     if (mood > 200) return 'bg-success'
     if (mood > 100) return 'bg-accent'
     return 'bg-danger'
+  }
+
+  const getPetCompanionHint = (companion: { type: AnimalType | 'cat' | 'dog'; friendship: number }) => {
+    if (companion.type === 'dog') {
+      if (companion.friendship >= 850) return '田犬报喜：高好感时更常衔回小收获，也更容易替你嗅到节庆和来访的风声。'
+      if (companion.friendship >= 600) return '田犬报喜：偶尔会在门前提醒你村口有动静。'
+      return '多抚摸、多照看，田犬会越来越像家里的一位帮手。'
+    }
+    if (companion.friendship >= 850) return '猫叼线索：高好感时更常衔物，也会替你记住纸条和传闻。'
+    if (companion.friendship >= 600) return '猫叼线索：偶尔会把你没留意的细节留在窗边或桌角。'
+    return '多陪陪它，猫会慢慢开始把你当作真正的家人。'
   }
 
   // === 放牧 ===
@@ -898,10 +968,11 @@
     }
   }
 
-  const handlePetThePet = () => {
-    const success = animalStore.petThePet()
+  const handlePetThePet = (petId?: string) => {
+    const success = animalStore.petThePet(petId)
+    const companion = petRoster.value.find(entry => entry.id === petId) ?? animalStore.pet
     if (success) {
-      addLog(`抚摸了${animalStore.pet?.name ?? '宠物'}，好感度+5。`)
+      addLog(`抚摸了${companion?.name ?? '宠物'}，好感度+5。`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.petAnimal)
       if (tr.message) addLog(tr.message)
       if (tr.passedOut) handleEndDay()
@@ -911,9 +982,7 @@
   }
 
   const unpettedCount = computed(() => {
-    let count = animalStore.animals.filter(a => !a.wasPetted).length
-    if (animalStore.pet && !animalStore.pet.wasPetted) count++
-    return count
+    return animalStore.animals.filter(a => !a.wasPetted).length + petRoster.value.filter(entry => !entry.wasPetted).length
   })
 
   const handlePetAll = () => {
@@ -1016,6 +1085,28 @@
     const result = animalStore.healAllSick()
     if (result.healedCount > 0) addLog(`用兽药治疗了${result.healedCount}只动物。`)
     if (result.noMedicineCount > 0) addLog(`兽药不足，${result.noMedicineCount}只动物未能治疗。`)
+  }
+
+  const showPetAdoptionModal = ref(false)
+  const petAdoptionType = ref<'cat' | 'dog' | null>(null)
+  const petAdoptionName = ref('')
+
+  const closePetAdoptionModal = () => {
+    showPetAdoptionModal.value = false
+    petAdoptionType.value = null
+    petAdoptionName.value = ''
+  }
+
+  const handleAdoptAdditionalPet = () => {
+    if (!petAdoptionType.value) return
+    const defaultName = petAdoptionType.value === 'dog' ? '田犬' : '狸奴'
+    const adopted = animalStore.adoptPet(petAdoptionType.value, petAdoptionName.value.trim() || defaultName)
+    if (adopted) {
+      addLog(`家里又添了一位新成员「${petAdoptionName.value.trim() || defaultName}」。`)
+      closePetAdoptionModal()
+      return
+    }
+    addLog('现在还不能再收养新宠，先把家里安顿得更周全一些。')
   }
 
   // === 改名 ===

@@ -101,10 +101,14 @@
           </p>
         </div>
       </div>
-      <div class="border border-accent/10 rounded-xs px-2 py-2 text-center mt-1" :class="trinketReward?.unlocked ? 'bg-accent/5' : ''">
+      <div
+        class="border border-accent/10 rounded-xs px-2 py-2 text-center mt-1"
+        :class="trinketReward?.unlocked ? 'bg-accent/5 cursor-pointer hover:bg-accent/10' : ''"
+        @click="trinketReward?.unlocked && (activeSlot = 'trinket')"
+      >
         <p class="text-[10px] text-muted">护符 / 饰物位</p>
         <p class="text-xs" :class="trinketReward?.unlocked ? 'text-accent' : 'text-muted/40'">
-          {{ trinketReward?.unlocked ? '已解锁，后续可挂护符' : '需战斗精通' }}
+          {{ trinketReward?.unlocked ? equippedTrinketName ?? '已解锁，选择饰物' : '需战斗精通' }}
         </p>
       </div>
     </div>
@@ -238,6 +242,36 @@
               <p v-else class="text-xs text-muted/40 text-center py-2">暂无鞋子</p>
             </div>
           </template>
+
+          <template v-else-if="activeSlot === 'trinket'">
+            <p class="text-sm text-accent mb-2">选择护符 / 饰物</p>
+            <div class="flex flex-col space-y-1 max-h-60 overflow-y-auto">
+              <div
+                v-if="inventoryStore.equippedTrinketId"
+                class="flex items-center border border-danger/20 rounded-xs px-2 py-1.5 cursor-pointer hover:bg-danger/5 mr-1"
+                @click="handleUnequipTrinketFromPopup"
+              >
+                <span class="text-xs text-danger">卸下当前饰物</span>
+              </div>
+              <template v-if="unlockedTrinketList.length > 0">
+                <div
+                  v-for="trinket in unlockedTrinketList"
+                  :key="trinket.id"
+                  class="flex items-center justify-between border rounded-xs px-2 py-1.5 cursor-pointer hover:bg-accent/5 mr-1"
+                  :class="trinket.id === inventoryStore.equippedTrinketId ? 'border-accent/30' : 'border-accent/10'"
+                  @click="handleEquipTrinketFromPopup(trinket.id)"
+                >
+                  <div class="min-w-0">
+                    <span class="text-xs" :class="trinket.id === inventoryStore.equippedTrinketId ? 'text-accent' : ''">{{ trinket.name }}</span>
+                    <p class="text-[10px] text-muted truncate">{{ formatEquipEffects(trinket.effects) }}</p>
+                    <p class="text-[10px] text-muted/80 truncate">{{ trinket.sourceSummary }}</p>
+                  </div>
+                  <span v-if="trinket.id === inventoryStore.equippedTrinketId" class="text-[10px] text-accent shrink-0 ml-1">当前</span>
+                </div>
+              </template>
+              <p v-else class="text-xs text-muted/40 text-center py-2">还没有解锁可装备的饰物</p>
+            </div>
+          </template>
         </div>
       </div>
     </Transition>
@@ -323,6 +357,7 @@
   import { getRingById } from '@/data/rings'
   import { getHatById } from '@/data/hats'
   import { getShoeById } from '@/data/shoes'
+  import { getTrinketById } from '@/data/trinkets'
   import type { EquipmentEffectType } from '@/types'
   import { WALLET_ITEMS } from '@/data/wallet'
   import { navigateToPanel } from '@/composables/useNavigation'
@@ -344,7 +379,7 @@
 
   // === 装备槽位 ===
 
-  const activeSlot = ref<'weapon' | 'ring1' | 'ring2' | 'hat' | 'shoe' | null>(null)
+  const activeSlot = ref<'weapon' | 'ring1' | 'ring2' | 'hat' | 'shoe' | 'trinket' | null>(null)
 
   // === 武器 ===
 
@@ -552,6 +587,27 @@
     const def = idx >= 0 ? getShoeById(inventoryStore.ownedShoes[idx]!.defId) : null
     if (inventoryStore.unequipShoe()) {
       addLog(`卸下了${def?.name ?? '鞋子'}。`)
+      activeSlot.value = null
+    }
+  }
+
+  // === 饰物 ===
+
+  const equippedTrinketName = computed(() => inventoryStore.equippedTrinket?.name ?? null)
+  const unlockedTrinketList = computed(() => inventoryStore.unlockedTrinkets)
+
+  const handleEquipTrinketFromPopup = (defId: string) => {
+    if (inventoryStore.equipTrinket(defId)) {
+      const def = getTrinketById(defId)
+      addLog(`装备了${def?.name ?? '饰物'}。`)
+      activeSlot.value = null
+    }
+  }
+
+  const handleUnequipTrinketFromPopup = () => {
+    const def = inventoryStore.equippedTrinket
+    if (inventoryStore.unequipTrinket()) {
+      addLog(`卸下了${def?.name ?? '饰物'}。`)
       activeSlot.value = null
     }
   }

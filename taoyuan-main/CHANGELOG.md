@@ -11,6 +11,18 @@
 - `src/data/regions.ts` 已把 `journeyHub` 导入改为显式 `.ts` 路径，修复 `qa:late-game-samples` 在 Node ESM 下无法解析模块的问题。
 - 本阶段已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:late-game-samples`。
 
+### 0510 WS08 / S7 生活设施、奖励循环与家园成长 2.0（第一批进展）
+- `src/types/economy.ts`、`src/data/prizeTickets.ts`、`src/data/rewardTickets.ts`、`src/stores/useWalletStore.ts`、`src/views/game/WalletView.vue` 已把奖券循环扩成第一版生活层回流器：阶段赏格继续保留，同时正式接入 `密匣 / 山泽遗箱 / 灵物封匣` 这批可统一开启的神秘箱奖励。
+- `src/data/mysteryBoxes.ts` 已新增神秘箱命名层、来源提示与奖励层配置；`useWalletStore.openMysteryBox()` 现会统一校验库存、背包空间并发放对应开匣奖励。
+- `src/types/animal.ts`、`src/stores/useAnimalStore.ts` 已把宠物从单一占位升级为可承接多宠物路线的结构：支持宠物列表、容量判定、宠物角位、亲密度里程碑，以及 `灵宠衔物 / 田犬报喜 / 猫叼线索 / 节日互动` 这批第一版轻反馈。
+- `src/views/game/AnimalView.vue`、`src/views/game/HomeView.vue`、`src/views/GameLayout.vue`、`src/composables/useEndDay.ts` 已把这批宠物深化真正露到玩家侧：牧场页可查看宠物路线与宠物角位、可在条件满足后收养新宠，小屋 / 日结日志也会认出宠物的衔物与报信结果。
+- `src/data/homeRenovations.ts`、`src/stores/useHomeStore.ts`、`src/views/game/HomeView.vue` 已补上 `T74` 的第一版扩建与功能家居：`书房偏厢 / 待客茶角 / 祠前陈设墙` 现在可实际消耗材料与铜钱解锁，并会把 `书架位 / 祝福位 / 奖杯位 / 纪念物位` 挂接到家园页的真实摘要里。
+- `src/data/blessings.ts`、`src/data/trinkets.ts`、`src/stores/useSkillStore.ts`、`src/stores/useInventoryStore.ts` 已补上 `T75` 的第一版祝福 / 饰物系统：`祠堂签 / 山神兆 / 节气气运` 现在是正式数据配置，`护符 / 玉佩 / 灵器碎片` 也可在角色页作为轻构筑位装备。
+- `src/stores/useFishingStore.ts`、`src/stores/useQuestStore.ts`、`src/stores/useShopStore.ts`、`src/views/game/CharInfoView.vue`、`src/views/game/SkillView.vue`、`src/views/game/CottageView.vue` 已把这批效果接到旧系统与 UI：祝福会真实影响钓鱼体力 / calm / 宝箱、任务板偏好和商店折扣 / 出售价，饰物则通过统一装备加成参与商店、钓鱼、挖矿等既有链路。
+- `src/stores/useWalletStore.ts` 已补回奖券阶段与密匣记录的生活账本写回，确保第一批饰物解锁条件能被真实触发，而不是停留在静态配置上。
+- 当前进展已完成 `T70`、`T71`、`T72`、`T73`、`T74`、`T75` 的落地与回写，下一步继续承接 `T76 新邻居 / 新住户`。
+- 本阶段当前增量已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:late-game-samples`。
+
 ### 0510 WS00 / S0 基线梳理与统一记录入口
 - `src/stores/usePlayerStore.ts` 新增 `lifestyleDiscoveryLedger`，并接入序列化、反序列化、快照读取与礼物线索/秘密线索/世界修复/稀有来访/特殊订单/精通/奖券/密匣/生活解锁等统一记录入口。
 - `src/data/achievements.ts`、`src/data/villageProjects.ts`、`src/data/travelingMerchant.ts`、`src/data/secretNotes.ts`、`src/data/quests.ts`、`src/views/game/CottageView.vue`、`src/views/game/SkillView.vue` 已补上 `WS01 ~ WS08` 对应的扩展锚点注释。

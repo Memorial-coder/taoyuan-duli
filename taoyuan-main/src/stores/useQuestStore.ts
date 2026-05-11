@@ -201,6 +201,7 @@ export const useQuestStore = defineStore('quest', () => {
     const hanhaiStore = useHanhaiStore()
     const hiddenNpcStore = useHiddenNpcStore()
     const museumStore = useMuseumStore()
+    const skillStore = useSkillStore()
     const guildQuestBias = guildStore.questBoardBiasProfile
     const hanhaiQuestBias = hanhaiStore.questBoardBiasProfile
     const museumQuestBias = museumStore.questBoardBiasProfile
@@ -225,6 +226,7 @@ export const useQuestStore = defineStore('quest', () => {
     }
     const bondedSpiritId = hiddenNpcStore.getBondedNpc?.id ?? null
     const activeSpiritBlessing = bondedSpiritId ? hiddenNpcStore.getSpiritBlessingSummary(bondedSpiritId)?.activeBlessing ?? null : null
+    const activeDailyBlessing = skillStore.dailyBlessingPreview
     const relationshipPreferredCategories = WS09_RELATIONSHIP_TUNING_CONFIG.featureFlags.companionQuestBiasEnabled
       ? dedupeList<QuestMarketCategory>([
           ...(activeFamilyWish ? familyWishToCategories[activeFamilyWish.id] ?? [] : []),
@@ -260,6 +262,7 @@ export const useQuestStore = defineStore('quest', () => {
     const preferredMarketCategories = dedupeList<QuestMarketCategory>([
       ...marketPreferredCategories,
       ...relationshipPreferredCategories,
+      ...((activeDailyBlessing?.preferredMarketCategories ?? []) as QuestMarketCategory[]),
       ...(museumQuestBias.preferredMarketCategories as QuestMarketCategory[]),
       ...(guildQuestBias.preferredMarketCategories as QuestMarketCategory[]),
       ...(hanhaiQuestBias.preferredMarketCategories as QuestMarketCategory[])
@@ -314,6 +317,7 @@ export const useQuestStore = defineStore('quest', () => {
     ].filter(Boolean))
     const boardHint = [
       highlightedLabels.length > 0 ? `【市场联动】今日告示板更偏向 ${highlightedLabels.join('、')} 相关委托。` : '',
+      activeDailyBlessing ? `【今日祝福】${activeDailyBlessing.sourceLabel}「${activeDailyBlessing.label}」会把告示板轻推向${activeDailyBlessing.preferredMarketCategories.map(category => MARKET_CATEGORY_NAMES[category]).join('、')}。` : '',
       relationshipFocusLabels.length > 0 ? `【陪伴联动】本周可围绕 ${relationshipFocusLabels.slice(0, 3).join('、')} 筹备家务、外出与家业委托。` : '',
       guildQuestBias.boardHint,
       hanhaiQuestBias.boardHint,
@@ -323,6 +327,7 @@ export const useQuestStore = defineStore('quest', () => {
       .join(' ')
     const specialOrderHint = [
       highlightedLabels.length > 0 ? `市场联动：本周订单更关注${highlightedLabels.join('、')}供货。` : '',
+      activeDailyBlessing ? `今日祝福：${activeDailyBlessing.sourceLabel}「${activeDailyBlessing.label}」会提高相关供货与跑图委托的出现感。` : '',
       activeFamilyWish ? `陪伴联动：家庭心愿「${activeFamilyWish.title}」会放大 ${relationshipPreferredCategories.map(category => MARKET_CATEGORY_NAMES[category]).join('、') || '陪伴类'} 筹备需求。` : '',
       activeSpiritBlessing ? `仙缘联动：当前祝福「${activeSpiritBlessing.label}」会提高相关外出 / 供货委托的出现感。` : '',
       guildQuestBias.specialOrderHint,

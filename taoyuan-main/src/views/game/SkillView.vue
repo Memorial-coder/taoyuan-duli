@@ -114,6 +114,7 @@
           <div v-if="skillStore.dailyBlessingPreview" class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-accent/5">
             <p class="text-[10px] text-muted">今日祝福预告</p>
             <p class="text-xs text-accent mt-0.5">{{ skillStore.dailyBlessingPreview.label }}</p>
+            <p class="text-[10px] text-muted mt-0.5">{{ skillStore.dailyBlessingPreview.sourceLabel }} · {{ skillStore.dailyBlessingPreview.sourceSummary }}</p>
             <p class="text-[10px] text-muted mt-0.5">{{ skillStore.dailyBlessingPreview.summary }}</p>
           </div>
         </div>

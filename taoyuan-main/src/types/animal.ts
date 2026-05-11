@@ -100,10 +100,27 @@ export type CaveChoice = 'none' | 'mushroom' | 'fruit_bat'
 export type PetType = 'cat' | 'dog'
 
 export interface PetState {
+  id: string
   type: PetType
   name: string
   friendship: number
   wasPetted: boolean
+}
+
+export interface PetCompanionEvent {
+  petId: string
+  petName: string
+  type: 'gift' | 'rumor' | 'festival'
+  message: string
+  itemId?: string
+}
+
+export interface PetCareSlotSummary {
+  id: 'nest' | 'bowl' | 'charm'
+  label: string
+  unlocked: boolean
+  summary: string
+  requirement: string
 }
 
 export interface IncubationState {

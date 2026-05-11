@@ -1185,10 +1185,12 @@ export const handleEndDay = () => {
 
   // 宠物每日更新
   const petResult = animalStore.dailyPetUpdate()
-  if (petResult.item) {
-    const petName = animalStore.pet?.name ?? '宠物'
-    const itemDef2 = getItemById(petResult.item)
-    addLog(`${petName}叼回来一个${itemDef2?.name ?? petResult.item}。`)
+  for (const event of petResult.events) {
+    if (event.itemId) {
+      const itemDef2 = getItemById(event.itemId)
+      addLog(`${event.petName}带回了${itemDef2?.name ?? event.itemId}。`)
+    }
+    addLog(event.message)
   }
 
   // 鱼塘每日更新

@@ -19,6 +19,7 @@ import type {
 } from '@/types'
 import { useAchievementStore } from './useAchievementStore'
 import { useInventoryStore } from './useInventoryStore'
+import { usePlayerStore } from './usePlayerStore'
 import { useSkillStore } from './useSkillStore'
 import { useMiningStore } from './useMiningStore'
 import { useNpcStore } from './useNpcStore'
@@ -552,6 +553,7 @@ export const useWalletStore = defineStore('wallet', () => {
   const addMysteryBoxes = (boxId: string, amount: number): boolean => {
     const normalizedAmount = Math.max(0, Math.floor(Number(amount) || 0))
     if (!getMysteryBoxDef(boxId) || normalizedAmount <= 0) return false
+    usePlayerStore().markMysteryBoxCatalogued(boxId)
     mysteryBoxes.value = {
       ...mysteryBoxes.value,
       [boxId]: (mysteryBoxes.value[boxId] ?? 0) + normalizedAmount
@@ -579,6 +581,7 @@ export const useWalletStore = defineStore('wallet', () => {
     }
     mysteryBoxes.value = nextBoxes
     inventoryStore.addItemsExact(rewardItems)
+    usePlayerStore().markMysteryBoxCatalogued(boxId)
     return { success: true, message: `你开启了${def.label}，获得${reward.label}。` }
   }
 
@@ -615,6 +618,7 @@ export const useWalletStore = defineStore('wallet', () => {
     for (const boxReward of offer.rewardMysteryBoxes ?? []) {
       addMysteryBoxes(boxReward.boxId, boxReward.quantity)
     }
+    usePlayerStore().markPrizeProgress(offer.poolStageId ?? offer.ticketType)
 
     return {
       success: true,

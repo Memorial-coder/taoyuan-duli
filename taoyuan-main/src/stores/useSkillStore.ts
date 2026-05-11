@@ -1,7 +1,8 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { SkillType, SkillState, SkillPerk5, SkillPerk10, SkillPerk15, SkillPerk20 } from '@/types'
+import type { SkillType, SkillState, SkillPerk5, SkillPerk10, SkillPerk15, SkillPerk20, RingEffectType } from '@/types'
 import { HYBRID_MASTERY_DEFS, MASTERY_REWARD_DEFS, PRIMARY_MASTERY_DEFS } from '@/data/mastery'
+import { BLESSINGS } from '@/data/blessings'
 import { useInventoryStore } from './useInventoryStore'
 import { useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
@@ -68,17 +69,15 @@ export const useSkillStore = defineStore('skill', () => {
     const blessingReward = masteryRewards.value.find(entry => entry.id === 'blessing_altar' && entry.unlocked)
     if (!blessingReward) return null
     const gameStore = useGameStore()
-    const blessingPool = [
-      { id: 'fishing', label: '鱼汛顺风', summary: '今天更适合先去钓鱼和鱼塘。' },
-      { id: 'foraging', label: '山野回响', summary: '今天更适合先去采集和跑见闻。' },
-      { id: 'mining', label: '矿脉发亮', summary: '今天更适合先补矿洞和工料。' },
-      { id: 'social', label: '人情上扬', summary: '今天更适合送礼、跑席面和做关系线。' },
-      { id: 'trade', label: '商路活络', summary: '今天更适合接委托、看赏格和处理出货。' }
-    ] as const
     const seasonOffset = gameStore.season === 'spring' ? 3 : gameStore.season === 'summer' ? 7 : gameStore.season === 'autumn' ? 11 : 17
-    const blessing = blessingPool[(gameStore.year * 37 + gameStore.day * 13 + seasonOffset) % blessingPool.length]
+    const blessing = BLESSINGS[(gameStore.year * 37 + gameStore.day * 13 + seasonOffset) % BLESSINGS.length]
     return blessing
   })
+  const getBlessingEffectValue = (effectType: RingEffectType): number => {
+    const blessing = dailyBlessingPreview.value
+    if (!blessing) return 0
+    return blessing.effects.filter(effect => effect.type === effectType).reduce((sum, effect) => sum + effect.value, 0)
+  }
 
   const refreshMasteryUnlocks = () => {
     const playerStore = usePlayerStore()
@@ -252,6 +251,7 @@ export const useSkillStore = defineStore('skill', () => {
     masteryPoints,
     masteryRewards,
     dailyBlessingPreview,
+    getBlessingEffectValue,
     getSkill,
     addExp,
     getExpToNextLevel,

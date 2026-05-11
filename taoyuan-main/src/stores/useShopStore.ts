@@ -1575,10 +1575,11 @@ export const useShopStore = defineStore('shop', () => {
     const walletStore = useWalletStore()
     const walletDiscount = walletStore.getShopDiscount(shopId)
     const ringDiscount = inventoryStore.getRingEffectValue('shop_discount')
+    const blessingDiscount = skillStore.getBlessingEffectValue('shop_discount')
     const spiritDiscount = useHiddenNpcStore().getAbilityValue('hu_xian_1') / 100
     const relationshipDiscount = getRelationshipDiscountRate(shopId)
     const decorationDiscount = useDecorationStore().shopDiscountBonus / 100
-    return 1 - (1 - walletDiscount) * (1 - ringDiscount) * (1 - spiritDiscount) * (1 - relationshipDiscount) * (1 - decorationDiscount)
+    return 1 - (1 - walletDiscount) * (1 - ringDiscount) * (1 - blessingDiscount) * (1 - spiritDiscount) * (1 - relationshipDiscount) * (1 - decorationDiscount)
   }
 
   const getDiscountBreakdown = (shopId?: string | null) => {
@@ -1588,6 +1589,7 @@ export const useShopStore = defineStore('shop', () => {
     return {
       walletDiscount: walletStore.getShopDiscount(effectiveShopId),
       ringDiscount: inventoryStore.getRingEffectValue('shop_discount'),
+      blessingDiscount: skillStore.getBlessingEffectValue('shop_discount'),
       spiritDiscount: useHiddenNpcStore().getAbilityValue('hu_xian_1') / 100,
       relationshipDiscount: getRelationshipDiscountRate(effectiveShopId),
       decorationDiscount: useDecorationStore().shopDiscountBonus / 100,
@@ -1960,11 +1962,12 @@ export const useShopStore = defineStore('shop', () => {
     if (itemDef.category === 'ore' && mineSkill.perk20 === 'forge_god') bonus *= 3.0
     else if (itemDef.category === 'ore' && mineSkill.perk20 === 'earth_pulse') bonus *= 1.5
     const ringSelBonus = inventoryStore.getRingEffectValue('sell_price_bonus')
+    const blessingSellBonus = skillStore.getBlessingEffectValue('sell_price_bonus')
     // 仙缘结缘：狐仙出售加成
     const hiddenNpcStore = useHiddenNpcStore()
     const sellBonusData = hiddenNpcStore.getBondBonusByType('sell_bonus')
     const spiritSellBonus = sellBonusData?.type === 'sell_bonus' ? sellBonusData.percent / 100 : 0
-    return Math.floor(itemDef.sellPrice * quantity * QUALITY_PRICE_MULTIPLIERS[quality] * bonus * (1 + ringSelBonus) * (1 + spiritSellBonus))
+    return Math.floor(itemDef.sellPrice * quantity * QUALITY_PRICE_MULTIPLIERS[quality] * bonus * (1 + ringSelBonus + blessingSellBonus) * (1 + spiritSellBonus))
   }
 
   const buildSellPriceModifierSteps = (itemId: string, quality: Quality): PriceModifierStep[] => {
@@ -2052,6 +2055,14 @@ export const useShopStore = defineStore('shop', () => {
       category: 'equipment',
       multiplier: 1 + ringSellBonus,
       description: `装备效果 +${Math.round(ringSellBonus * 100)}%`
+    })
+    const blessingSellBonus = skillStore.getBlessingEffectValue('sell_price_bonus')
+    pushStep({
+      id: 'daily_blessing_sell_bonus',
+      label: '今日祝福：出货回响',
+      category: 'environment',
+      multiplier: 1 + blessingSellBonus,
+      description: `祝福效果 +${Math.round(blessingSellBonus * 100)}%`
     })
 
     const sellBonusData = hiddenNpcStore.getBondBonusByType('sell_bonus')
