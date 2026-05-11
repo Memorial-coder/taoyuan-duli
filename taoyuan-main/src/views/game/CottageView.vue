@@ -29,6 +29,15 @@
       </div>
     </div>
 
+    <div v-if="dailyBlessingPreview" class="border border-accent/20 rounded-xs p-3 mb-4 bg-accent/5">
+      <div class="flex items-center justify-between mb-1">
+        <span class="text-sm text-accent">今日祝福</span>
+        <span class="text-[10px] text-muted">精通神像</span>
+      </div>
+      <p class="text-xs text-accent">{{ dailyBlessingPreview.label }}</p>
+      <p class="text-xs text-muted mt-1">{{ dailyBlessingPreview.summary }}</p>
+    </div>
+
     <!-- 家人 -->
     <div v-if="npcStore.getSpouse()" class="border border-accent/20 rounded-xs p-3 mb-4">
       <p class="text-sm text-accent mb-2">
@@ -663,6 +672,7 @@
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useGoalStore } from '@/stores/useGoalStore'
+  import { useSkillStore } from '@/stores/useSkillStore'
   import { SEASON_NAMES } from '@/stores/useGameStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { getCombinedItemCount } from '@/composables/useCombinedInventory'
@@ -683,7 +693,9 @@
   const npcStore = useNpcStore()
   const playerStore = usePlayerStore()
   const goalStore = useGoalStore()
+  const skillStore = useSkillStore()
   const villageProjectStore = useVillageProjectStore()
+  const dailyBlessingPreview = computed(() => skillStore.dailyBlessingPreview)
 
   const releaseConfirmChildId = ref<number | null>(null)
   const showUpgradeModal = ref(false)

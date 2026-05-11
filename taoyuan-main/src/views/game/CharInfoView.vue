@@ -101,6 +101,12 @@
           </p>
         </div>
       </div>
+      <div class="border border-accent/10 rounded-xs px-2 py-2 text-center mt-1" :class="trinketReward?.unlocked ? 'bg-accent/5' : ''">
+        <p class="text-[10px] text-muted">护符 / 饰物位</p>
+        <p class="text-xs" :class="trinketReward?.unlocked ? 'text-accent' : 'text-muted/40'">
+          {{ trinketReward?.unlocked ? '已解锁，后续可挂护符' : '需战斗精通' }}
+        </p>
+      </div>
     </div>
 
     <!-- 装备选择弹窗 -->
@@ -331,6 +337,7 @@
   const npcStore = useNpcStore()
   const gameStore = useGameStore()
   const achievementStore = useAchievementStore()
+  const trinketReward = computed(() => skillStore.masteryRewards.find(entry => entry.id === 'trinket_slot') ?? null)
 
   // === 身份 ===
   const genderLabel = computed(() => (playerStore.gender === 'male' ? '男' : '女'))

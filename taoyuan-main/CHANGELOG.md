@@ -2015,12 +2015,37 @@
   - `npm run build` 已通过。
   - `npm run qa:late-game-samples` 已通过。
 
-### 0510 WS05 / S5 特殊订单、主题周与公告板 2.0（第一批进展）
+### 0510 WS05 / S5 特殊订单、主题周与公告板 2.0
 
 - `src/stores/useQuestStore.ts` 已新增完成委托历史记录与“做过同类”判断，当前会按 NPC、描述、完成日与奖励摘要回写最近订单历史，并持久化到存档。
 - `src/views/game/QuestView.vue` 已在委托板与进行中任务区补上“做过同类”“传闻轻任务”标记，并新增订单历史面板，开始把“谁让我做了什么”从一次性日志沉淀成可回看信息。
 - `src/types/quest.ts`、`src/data/quests.ts` 已扩展 `rumor` 类轻任务分类、口语化来源标签与传闻任务标识，并新增一批村口流言 / 鱼汛口风 / 节前风声 / 商路异动来源的轻委托模板。
 - `src/stores/useQuestStore.ts` 的日常委托生成现在会额外尝试补一条传闻轻任务，让公告板更像“今天村里在传什么”，而不是只有制式收集单。
+- `src/data/quests.ts` 已为重复出现的村民委托补上“熟客加急”高阶变体：再次接到同类活时会提高数量与报酬，并在 Quest 页显式标出升级标签。
+- 新建 `src/data/prizeTickets.ts`，正式补入“乡约牌 / 祠堂赏格 / 村衙赏契”的桃源乡命名层、阶段奖池定义与来源提示，开始把票券做成长期期待链而不是单次兑换条目。
+- `src/stores/useWalletStore.ts` 已新增票券累计入账账本、当前赏格阶段判定与奖池预览计算；阶段进度按累计入账推进，不会因为玩家已经消费当前余额而回退。
+- `src/data/rewardTickets.ts` 已补入更完整的赏格条目与奖池标签，当前兑换项开始覆盖功能种子、关系向补给、家居材料与研究准备方向。
+- `src/data/quests.ts` 已让一部分普通村民委托开始少量回流建设券 / 展陈券 / 商路票 / 研究券，使“普通任务 -> 票券 -> 赏格”第一次形成完整闭环。
+- `src/views/game/WalletView.vue`、`src/views/game/QuestView.vue` 已新增阶段赏格预览与来源说明：前者负责展示当前奖池阶段与兑换入口，后者负责把这条长期回报链接回任务面板。
+- `src/data/quests.ts` 已为首批特殊订单补入 `requiredVillageProjectIds`、`requiredSecretNoteIds` 与生活线索回流字段；当前部分订单会要求先修起节庆暖房 / 商队驿站 / 学舍，或先读过对应纸条，再进入订单池。
+- `src/stores/useQuestStore.ts` 已在特殊订单生成时读取已完成社区修复与已获得纸条状态，把“世界前置条件”真正送进订单筛选，而不是只写在设计文案里。
+- `src/views/game/QuestView.vue` 现会通过订单要求和奖励摘要把这些前置/回流直接展示出来，玩家能更清楚看到某张高阶订单为什么现在还不会刷，以及做完后会带回什么生活线索。
+- `src/data/quests.ts` 本轮又补入了一批更有角色味的高阶段特殊订单，覆盖 `云飞 / 雪琴 / 王大婶 / 丹青 / 孙铁匠` 等角色，并把高地接运、街景补缮、席前统筹、行旅残卷、前哨校准这些高阶段需求接进订单池。
+- 这些新增模板已经把 `高地连续远征`、`多系统连锁目标`、`大额高质量供货` 三类挑战单正式并进 S5，使特殊订单不再主要围绕少数旧 NPC 循环。
+- 本轮验证：
+  - `npm run type-check` 已通过。
+  - `npm run build` 已通过。
+  - `npm run qa:late-game-samples` 已通过。
+
+### 0510 WS06 / S6 终局精通 2.0（第一批进展）
+
+- 新建 `src/data/mastery.ts`，正式补入 5 个主技能精通与 3 个混合精通定义，统一声明解锁门槛、奖励摘要与风味说明，作为后续功能性奖励的挂接底座。
+- `src/stores/useSkillStore.ts` 已新增 `primaryMasteries`、`hybridMasteries`、`masteryPoints` 与 `refreshMasteryUnlocks()`，当前会根据技能等级实时判定精通状态，并把已达成的精通写入 `usePlayerStore` 的 `masteryUnlocks` 账本。
+- `src/views/game/SkillView.vue` 已新增“终局精通”面板：现在能直接回看五条主精通、三条混合精通、各自门槛、风味说明和当前进度，不需要等到功能奖励全做完才看到入口。
+- `src/data/mastery.ts` 已继续补入功能性精通奖励定义，覆盖 `每日祝福神像 / 护符饰物位 / 高级工台权限 / 稀有资源转化配方 / 特殊地图标记能力` 这 5 类精通回报。
+- `src/stores/useSkillStore.ts` 已新增 `masteryRewards` 与 `dailyBlessingPreview`，让精通奖励开始具备每日可感知的轻反馈，而不是停留在“已解锁”文本。
+- `src/views/game/CottageView.vue`、`src/views/game/CharInfoView.vue`、`src/views/game/HomeView.vue`、`src/views/GuideView.vue` 已分别接入今日祝福、饰物位、高级工台权限与地图标记能力提示，让 S6 奖励正式进入日常浏览动线。
+- 本轮已完成 `T60 ~ T65`，S6 阶段可以正式收口。
 - 本轮验证：
   - `npm run type-check` 已通过。
   - `npm run build` 已通过。

@@ -24,6 +24,15 @@
         </div>
       </section>
 
+      <section v-if="journeyMapReward" class="game-panel space-y-3">
+        <Divider title label="精通标记能力" />
+        <div class="game-panel-muted p-3 text-xs leading-6">
+          <p class="text-accent">{{ journeyMapReward.label }}</p>
+          <p class="mt-1">{{ journeyMapReward.summary }}</p>
+          <p class="mt-1 text-muted/80">{{ journeyMapReward.unlocked ? '你已经解锁这条远征判断能力，后续路线页和行旅图会继续吃这层标记。' : '解锁行旅大师后，这里会开始承接更明确的路线标记和远征判断能力。' }}</p>
+        </div>
+      </section>
+
       <section id="preflight" class="game-panel space-y-3">
         <Divider title label="1. 开始前确认" />
         <div class="grid gap-3 md:grid-cols-2">
@@ -264,6 +273,7 @@
 </template>
 
 <script setup lang="ts">
+  import { computed } from 'vue'
   import { useRouter } from 'vue-router'
   import {
     ArrowLeft,
@@ -287,8 +297,11 @@
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import GuidePageFrame, { type GuidePageSectionLink } from '@/components/game/GuidePageFrame.vue'
+  import { useSkillStore } from '@/stores/useSkillStore'
 
   const router = useRouter()
+  const skillStore = useSkillStore()
+  const journeyMapReward = computed(() => skillStore.masteryRewards.find(entry => entry.id === 'journey_map_markers') ?? null)
 
   const sections: GuidePageSectionLink[] = [
     { id: 'preflight', label: '开始前确认' },

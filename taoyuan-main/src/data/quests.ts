@@ -28,6 +28,7 @@ import { getNpcById } from './npcs'
 import { getCropById } from './crops'
 import { getBreedById } from './pondBreeds'
 import { getItemById } from './items'
+import { SECRET_NOTES } from './secretNotes'
 import { isRelationshipStageAtLeast, NPC_VILLAGER_QUEST_PROFILES } from './npcWorld'
 
 // WS05 anchor: the quest pool and special orders already provide the base surface
@@ -198,6 +199,10 @@ interface SpecialOrderTemplate {
   requiredPondGenerationMin?: number
   requiredFishMature?: boolean
   requiredFishHealthy?: boolean
+  requiredVillageProjectIds?: string[]
+  requiredSecretNoteIds?: number[]
+  buildingClueId?: string
+  buildingClueText?: string
 }
 
 const SPECIAL_ORDER_SCORE_RULES = {
@@ -674,9 +679,12 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     requiredCommercialTags: ['bulk_supply'],
     requiredBreedScoreMin: 52,
     requiredStabilityRank: 'emerging',
+    requiredVillageProjectIds: ['festival_greenhouse'],
     themeTag: 'breeding',
     preferredSeasons: ['spring'],
-    bonusSummary: ['春种主题周期间更容易刷出。']
+    buildingClueId: 'festival_greenhouse_supply_clue',
+    buildingClueText: '柳娘提到，节庆暖房一旦修好，试菜和备花的供货单会稳定得多。',
+    bonusSummary: ['春种主题周期间更容易刷出。', '完成后更容易触发与节庆暖房相关的筹备话题。']
   },
   {
     name: '金油薯备货',
@@ -707,9 +715,13 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     requiredCommercialTags: ['bulk_supply', 'storage'],
     requiredBreedScoreMin: 58,
     requiredStabilityRank: 'emerging',
+    requiredVillageProjectIds: ['caravan_station'],
+    requiredSecretNoteIds: [13],
     themeTag: 'breeding',
     preferredSeasons: ['spring'],
-    bonusSummary: ['适合作为早期稳定供货的育种订单。']
+    buildingClueId: 'caravan_station_route_clue',
+    buildingClueText: '陈伯说，驿站若真修起来，像这样的备货单就不必每回都临时凑人和车。',
+    bonusSummary: ['适合作为早期稳定供货的育种订单。', '更偏向接在商路线索和驿站修复之后出现。']
   },
   // === 第3梯度 (第21天): 困难, 7天时限, 数量大, 奖励丰厚 ===
   {
@@ -838,7 +850,10 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     requiredYieldMin: 52,
     requiredGenerationMin: 4,
     requiredParentCropIds: ['tea', 'chrysanthemum'],
-    bonusSummary: ['茶肆开始挑选更成熟的茶系谱系，要求图鉴里已有稳定批次。']
+    requiredVillageProjectIds: ['village_school'],
+    buildingClueId: 'village_school_archive_clue',
+    buildingClueText: '春兰提到，学舍若有像样的讲席和档案角，茶样与谱系记录都会更好核对。',
+    bonusSummary: ['茶肆开始挑选更成熟的茶系谱系，要求图鉴里已有稳定批次。', '完成后更容易接到与学舍讲席或茶样记录有关的后续单。']
   },
   {
     name: '莲心茶席',
@@ -1223,6 +1238,8 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     activitySourceId: 'cave_research_week',
     activitySourceLabel: '洞窟研究周',
     orderStageType: 'multi',
+    requiredVillageProjectIds: ['village_school_ii'],
+    requiredSecretNoteIds: [12],
     stageDefinitions: createMultiStageDefinitions({
       stages: [
         {
@@ -1657,6 +1674,188 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     requiredFishMature: true,
     requiredFishHealthy: true,
     bonusSummary: ['洞窟联合研究周会优先挑选“样本 + 研究器材”的组合交付。']
+  },
+  {
+    name: '高地巡路补给令',
+    targetItemId: 'ley_crystal_shard',
+    targetItemName: '高地巡路补给令',
+    quantity: 8,
+    days: 7,
+    moneyReward: 5400,
+    itemReward: [{ itemId: 'battery', quantity: 1 }],
+    ticketReward: { caravan: 2, construction: 1 },
+    seasons: [],
+    npcId: 'yun_fei',
+    tier: 4,
+    rewardProfileId: 'trade_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'highland_route_supply_week',
+    activitySourceLabel: '高地接运周',
+    orderStageType: 'combo',
+    requiredVillageProjectIds: ['caravan_station_ii'],
+    comboRequirements: [
+      { id: 'combo_ley_crystal', itemId: 'ley_crystal_shard', itemName: '灵脉碎晶', quantity: 6, note: '作为高地补给与灵脉校准的核心耗材。' },
+      { id: 'combo_route_battery', itemId: 'battery', itemName: '电池组', quantity: 2, note: '用于前哨灯塔和沿线标识供电。' }
+    ],
+    stageDefinitions: createComboStageDefinitions({
+      title: '备齐高地巡路补给',
+      description: '云飞要把这批补给直接压到高地前哨，要求灵脉碎晶和供电件一次齐备。',
+      requirements: [
+        { id: 'combo_ley_crystal', itemId: 'ley_crystal_shard', itemName: '灵脉碎晶', quantity: 6, note: '作为高地补给与灵脉校准的核心耗材。' },
+        { id: 'combo_route_battery', itemId: 'battery', itemName: '电池组', quantity: 2, note: '用于前哨灯塔和沿线标识供电。' }
+      ],
+      requirementSummary: ['高地补给单会同时吃掉区域资源和工坊供电件。']
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.procurement_stability,
+    antiRepeatTags: ['region', 'highland', 'route_supply'],
+    bonusSummary: ['高地接运周会优先刷这种“区域资源 + 工坊补给”型大单。']
+  },
+  {
+    name: '街市节景补缮单',
+    targetItemId: 'bamboo',
+    targetItemName: '街市节景补缮单',
+    quantity: 10,
+    days: 7,
+    moneyReward: 3600,
+    itemReward: [{ itemId: 'camphor_incense', quantity: 1 }],
+    ticketReward: { exhibit: 2 },
+    seasons: ['summer', 'autumn'],
+    npcId: 'xue_qin',
+    tier: 3,
+    rewardProfileId: 'exhibit_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'street_scene_refresh_week',
+    activitySourceLabel: '街景布置周',
+    orderStageType: 'combo',
+    requiredVillageProjectIds: ['festival_greenhouse'],
+    comboRequirements: [
+      { id: 'combo_scene_bamboo', itemId: 'bamboo', itemName: '竹子', quantity: 6, note: '用于摊位和街口框架补缮。' },
+      { id: 'combo_scene_ribbon', itemId: 'silk_ribbon', itemName: '丝带', quantity: 2, note: '用于节景挂饰收尾。' },
+      { id: 'combo_scene_incense', itemId: 'pine_incense', itemName: '松香', quantity: 2, note: '用于陈列区的香气点缀。' }
+    ],
+    stageDefinitions: createComboStageDefinitions({
+      title: '备齐街市节景套组',
+      description: '雪琴这回要的不是单一材料，而是一整套能立刻上街的节景补缮包。',
+      requirements: [
+        { id: 'combo_scene_bamboo', itemId: 'bamboo', itemName: '竹子', quantity: 6, note: '用于摊位和街口框架补缮。' },
+        { id: 'combo_scene_ribbon', itemId: 'silk_ribbon', itemName: '丝带', quantity: 2, note: '用于节景挂饰收尾。' },
+        { id: 'combo_scene_incense', itemId: 'pine_incense', itemName: '松香', quantity: 2, note: '用于陈列区的香气点缀。' }
+      ],
+      requirementSummary: ['更像街景搭建单，而不是普通的单材料采购。']
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.procurement_stability,
+    antiRepeatTags: ['festival', 'street_scene', 'display'],
+    bonusSummary: ['完成后更容易看到街口和摊位装点真的跟着升级。']
+  },
+  {
+    name: '席前统筹总单',
+    targetItemId: 'pumpkin',
+    targetItemName: '席前统筹总单',
+    quantity: 16,
+    days: 7,
+    moneyReward: 5200,
+    itemReward: [{ itemId: 'sesame_oil', quantity: 2 }],
+    ticketReward: { exhibit: 1, caravan: 1 },
+    seasons: ['autumn'],
+    npcId: 'wang_dashen',
+    tier: 4,
+    rewardProfileId: 'exhibit_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'banquet_master_week',
+    activitySourceLabel: '节前大席周',
+    orderStageType: 'combo',
+    comboRequirements: [
+      { id: 'combo_banquet_pumpkin', itemId: 'pumpkin', itemName: '南瓜', quantity: 10, note: '席面主菜底材。' },
+      { id: 'combo_banquet_wine', itemId: 'rice_wine', itemName: '米酒', quantity: 4, note: '桌前酒饮要一并到位。' },
+      { id: 'combo_banquet_tea', itemId: 'osmanthus_tea', itemName: '桂花茶', quantity: 2, note: '用于席前暖盏与候客。' }
+    ],
+    stageDefinitions: createComboStageDefinitions({
+      title: '备齐席前统筹货单',
+      description: '王大婶要的是能直接接上整场席面的总单，不再只是单一食材跑腿。',
+      requirements: [
+        { id: 'combo_banquet_pumpkin', itemId: 'pumpkin', itemName: '南瓜', quantity: 10, note: '席面主菜底材。' },
+        { id: 'combo_banquet_wine', itemId: 'rice_wine', itemName: '米酒', quantity: 4, note: '桌前酒饮要一并到位。' },
+        { id: 'combo_banquet_tea', itemId: 'osmanthus_tea', itemName: '桂花茶', quantity: 2, note: '用于席前暖盏与候客。' }
+      ],
+      requirementSummary: ['宴席总单会同时吃作物、酒饮与席前热茶。']
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.procurement_stability,
+    antiRepeatTags: ['banquet', 'multi_supply', 'kitchen'],
+    bonusSummary: ['这类总单更像“你已经能统筹一整桌席面”后的认可。']
+  },
+  {
+    name: '行旅残卷修补案',
+    targetItemId: 'archive_rubbing',
+    targetItemName: '行旅残卷修补案',
+    quantity: 6,
+    days: 7,
+    moneyReward: 3800,
+    itemReward: [{ itemId: 'pine_incense', quantity: 1 }],
+    ticketReward: { research: 1, exhibit: 1 },
+    seasons: [],
+    npcId: 'dan_qing',
+    tier: 3,
+    rewardProfileId: 'research_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'travel_archive_week',
+    activitySourceLabel: '行旅见闻周',
+    orderStageType: 'combo',
+    requiredSecretNoteIds: [13],
+    comboRequirements: [
+      { id: 'combo_archive_rubbing', itemId: 'archive_rubbing', itemName: '残卷拓片', quantity: 3, note: '用于还原行旅图卷的正文脉络。' },
+      { id: 'combo_archive_cloth', itemId: 'cloth', itemName: '布匹', quantity: 2, note: '用于托裱残页。' },
+      { id: 'combo_archive_incense', itemId: 'pine_incense', itemName: '松香', quantity: 1, note: '用于熏纸防潮。' }
+    ],
+    stageDefinitions: createComboStageDefinitions({
+      title: '修补行旅残卷',
+      description: '丹青想把旅路见闻整理成能长期保存的卷册，需要拓片、托裱布和防潮香一起备齐。',
+      requirements: [
+        { id: 'combo_archive_rubbing', itemId: 'archive_rubbing', itemName: '残卷拓片', quantity: 3, note: '用于还原行旅图卷的正文脉络。' },
+        { id: 'combo_archive_cloth', itemId: 'cloth', itemName: '布匹', quantity: 2, note: '用于托裱残页。' },
+        { id: 'combo_archive_incense', itemId: 'pine_incense', itemName: '松香', quantity: 1, note: '用于熏纸防潮。' }
+      ],
+      requirementSummary: ['见闻整理单会同时检查区域拓片、家用布料和防潮耗材。']
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.procurement_stability,
+    antiRepeatTags: ['archive', 'travelogue', 'research'],
+    bonusSummary: ['更适合接在商路线索和纸条见闻真正跑起来之后。']
+  },
+  {
+    name: '前哨器具校准单',
+    targetItemId: 'wind_etched_core',
+    targetItemName: '前哨器具校准单',
+    quantity: 9,
+    days: 7,
+    moneyReward: 5600,
+    itemReward: [{ itemId: 'iron_bar', quantity: 2 }],
+    ticketReward: { construction: 2, research: 1 },
+    seasons: [],
+    npcId: 'sun_tiejiang',
+    tier: 4,
+    rewardProfileId: 'operations_mix',
+    orderVersion: '3.0',
+    activitySourceId: 'outpost_calibration_week',
+    activitySourceLabel: '前哨校准周',
+    orderStageType: 'combo',
+    requiredVillageProjectIds: ['support_shed'],
+    comboRequirements: [
+      { id: 'combo_wind_core', itemId: 'wind_etched_core', itemName: '风蚀晶核', quantity: 2, note: '作为高压器具校准的核心样件。' },
+      { id: 'combo_iron_bar', itemId: 'iron_bar', itemName: '铁锭', quantity: 6, note: '用于重做校准支架。' },
+      { id: 'combo_battery_single', itemId: 'battery', itemName: '电池组', quantity: 1, note: '用于临时供电。' }
+    ],
+    stageDefinitions: createComboStageDefinitions({
+      title: '提交前哨校准套件',
+      description: '孙铁匠要的是一整套能直接拉去前哨开工的校准件。',
+      requirements: [
+        { id: 'combo_wind_core', itemId: 'wind_etched_core', itemName: '风蚀晶核', quantity: 2, note: '作为高压器具校准的核心样件。' },
+        { id: 'combo_iron_bar', itemId: 'iron_bar', itemName: '铁锭', quantity: 6, note: '用于重做校准支架。' },
+        { id: 'combo_battery_single', itemId: 'battery', itemName: '电池组', quantity: 1, note: '用于临时供电。' }
+      ],
+      requirementSummary: ['高地器具校准单会同时消耗区域素材、铁匠产物和供电件。']
+    }),
+    orderScoreRule: SPECIAL_ORDER_SCORE_RULES.procurement_stability,
+    antiRepeatTags: ['outpost', 'smithy', 'highland_tooling'],
+    bonusSummary: ['这类单更像真正的高地前哨后勤，而不只是矿料征集。']
   },
 
 ]
@@ -2357,6 +2556,8 @@ export const generateSpecialOrder = (
     discoveredHybridIds?: string[]
     breedingCompendiumEntries?: CompendiumEntry[]
     discoveredPondBreedIds?: string[]
+    completedVillageProjectIds?: string[]
+    collectedSecretNoteIds?: number[]
     preferredThemeTag?: 'breeding' | 'fishpond'
     allowedActivitySourceIds?: string[]
     preferredHybridIds?: string[]
@@ -2371,6 +2572,8 @@ export const generateSpecialOrder = (
   const discoveredHybridIds = new Set(options?.discoveredHybridIds ?? [])
   const compendiumMap = new Map((options?.breedingCompendiumEntries ?? []).map(entry => [entry.hybridId, entry]))
   const discoveredPondBreedIds = new Set(options?.discoveredPondBreedIds ?? [])
+  const completedVillageProjectIds = new Set(options?.completedVillageProjectIds ?? [])
+  const collectedSecretNoteIds = new Set(options?.collectedSecretNoteIds ?? [])
   const allowedActivitySourceIds = new Set(options?.allowedActivitySourceIds ?? [])
   const preferredHybridIds = new Set(options?.preferredHybridIds ?? [])
   const preferredMarketCategories = new Set(options?.preferredMarketCategories ?? [])
@@ -2454,6 +2657,32 @@ export const generateSpecialOrder = (
     return false
   }
 
+  const matchesVillageProjectRequirement = (template: SpecialOrderTemplate): boolean => {
+    if (!template.requiredVillageProjectIds?.length) return true
+    return template.requiredVillageProjectIds.every(projectId => completedVillageProjectIds.has(projectId))
+  }
+
+  const matchesSecretNoteRequirement = (template: SpecialOrderTemplate): boolean => {
+    if (!template.requiredSecretNoteIds?.length) return true
+    return template.requiredSecretNoteIds.every(noteId => collectedSecretNoteIds.has(noteId))
+  }
+
+  const getSecretNoteTitle = (noteId: number): string => {
+    return SECRET_NOTES.find(note => note.id === noteId)?.title ?? `纸条 #${noteId}`
+  }
+
+  const getVillageProjectLabel = (projectId: string): string => {
+    const projectLabelMap: Record<string, string> = {
+      support_shed: '矿料棚',
+      festival_greenhouse: '节庆暖房',
+      caravan_station: '商队驿站',
+      caravan_station_ii: '驿站扩建',
+      village_school: '村学讲舍',
+      village_school_ii: '学舍扩建'
+    }
+    return projectLabelMap[projectId] ?? projectId
+  }
+
   const valid = SPECIAL_ORDER_TEMPLATES.filter(
     t =>
       t.tier === clampedTier &&
@@ -2461,7 +2690,9 @@ export const generateSpecialOrder = (
       (allowedActivitySourceIds.size <= 0 || allowedActivitySourceIds.has(t.activitySourceId ?? '')) &&
       (!t.requiredHybridId || discoveredHybridIds.has(t.requiredHybridId)) &&
       matchesBreedingRequirement(t) &&
-      matchesFishpondRequirement(t)
+      matchesFishpondRequirement(t) &&
+      matchesVillageProjectRequirement(t) &&
+      matchesSecretNoteRequirement(t)
   )
   if (valid.length === 0) {
     traceOptions?.onTrace?.({
@@ -2475,6 +2706,12 @@ export const generateSpecialOrder = (
 
   const getRequirementSummary = (template: SpecialOrderTemplate): string[] => {
     const summary: string[] = []
+    if (template.requiredVillageProjectIds?.length) {
+      summary.push(`需先完成社区修复：${template.requiredVillageProjectIds.map(getVillageProjectLabel).join('、')}`)
+    }
+    if (template.requiredSecretNoteIds?.length) {
+      summary.push(`需先读过线索纸条：${template.requiredSecretNoteIds.map(noteId => getSecretNoteTitle(noteId)).join('、')}`)
+    }
     if (template.requiredHybridId) {
       summary.push(`已发现杂交：${getCropById(template.requiredHybridId)?.name ?? template.requiredHybridId}`)
     }
@@ -2705,6 +2942,8 @@ export const generateSpecialOrder = (
     daysRemaining: template.days,
     accepted: false,
     itemReward: template.itemReward,
+    buildingClueId: template.buildingClueId,
+    buildingClueText: template.buildingClueText,
     themeTag: template.themeTag,
     activitySourceId: template.activitySourceId,
     activitySourceLabel: template.activitySourceLabel,

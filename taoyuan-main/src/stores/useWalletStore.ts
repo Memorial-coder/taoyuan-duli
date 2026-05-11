@@ -1,6 +1,7 @@
 import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { getItemById } from '@/data'
+import { getMysteryBoxDef, MYSTERY_BOX_DEFS, MYSTERY_BOX_NAMING_LAYERS, MYSTERY_BOX_SOURCE_HINTS } from '@/data/mysteryBoxes'
 import { getActiveRewardTicketPrizeStage, PRIZE_TICKET_NAMING_LAYERS, REWARD_TICKET_PRIZE_STAGES, REWARD_TICKET_SOURCE_HINTS } from '@/data/prizeTickets'
 import { REWARD_TICKET_DEFS, REWARD_TICKET_EXCHANGE_OFFERS, REWARD_TICKET_LABELS } from '@/data/rewardTickets'
 import { WALLET_ARCHETYPES, WALLET_ITEMS, getWalletArchetypeById, getWalletNodeById } from '@/data/wallet'
@@ -155,6 +156,7 @@ export const useWalletStore = defineStore('wallet', () => {
   const rewardTickets = ref<RewardTicketLedger>({})
   /** 统一资源券 / 凭证累计入账，用于驱动阶段奖池，不因当前已消费余额而回退 */
   const rewardTicketLifetimeEarned = ref<RewardTicketLedger>({})
+  const mysteryBoxes = ref<Record<string, number>>({})
   const archetypes = computed(() => WALLET_ARCHETYPES)
 
   /** 已解锁的钱袋物品定义 */
@@ -208,12 +210,26 @@ export const useWalletStore = defineStore('wallet', () => {
     })
   )
   const rewardTicketSourceHints = computed(() => [...REWARD_TICKET_SOURCE_HINTS])
+  const mysteryBoxNaming = computed(() => ({
+    summaryLines: MYSTERY_BOX_NAMING_LAYERS.map(layer => `${layer.label}：${layer.summary}`),
+    sourceLines: [...MYSTERY_BOX_SOURCE_HINTS]
+  }))
+  const mysteryBoxEntries = computed(() =>
+    MYSTERY_BOX_DEFS.map(def => ({
+      ...def,
+      count: Math.max(0, Number(mysteryBoxes.value[def.id]) || 0),
+      rewardPreview: def.rewardEntries.map(entry => `${entry.label}：${entry.summary}`).join(' / ')
+    }))
+  )
   const ticketExchangeOffers = computed(() =>
     REWARD_TICKET_EXCHANGE_OFFERS.map(offer => ({
       ...offer,
       balance: rewardTickets.value[offer.ticketType] ?? 0,
       affordable: (rewardTickets.value[offer.ticketType] ?? 0) >= offer.costTickets,
       rewardSummary: offer.rewardItems.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`).join('、'),
+      mysteryBoxSummary: (offer.rewardMysteryBoxes ?? [])
+        .map(box => `${getMysteryBoxDef(box.boxId)?.label ?? box.boxId}×${box.quantity}`)
+        .join('、'),
       poolStageLabel: rewardTicketPrizeStageEntries.value.find(stage => stage.id === offer.poolStageId)?.label ?? '',
       poolTagsLabel: (offer.poolTags ?? []).join('、')
     }))
@@ -533,6 +549,39 @@ export const useWalletStore = defineStore('wallet', () => {
     return true
   }
 
+  const addMysteryBoxes = (boxId: string, amount: number): boolean => {
+    const normalizedAmount = Math.max(0, Math.floor(Number(amount) || 0))
+    if (!getMysteryBoxDef(boxId) || normalizedAmount <= 0) return false
+    mysteryBoxes.value = {
+      ...mysteryBoxes.value,
+      [boxId]: (mysteryBoxes.value[boxId] ?? 0) + normalizedAmount
+    }
+    return true
+  }
+
+  const openMysteryBox = (boxId: string): { success: boolean; message: string } => {
+    const def = getMysteryBoxDef(boxId)
+    if (!def) return { success: false, message: '找不到这只密匣。' }
+    if ((mysteryBoxes.value[boxId] ?? 0) <= 0) return { success: false, message: `${def.label}数量不足。` }
+    const reward = def.rewardEntries[Math.floor(Math.random() * def.rewardEntries.length)]
+    if (!reward) return { success: false, message: `${def.label}里暂时没有可开的内容。` }
+    const rewardItems = reward.rewardItems.map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
+    if (!inventoryStore.canAddItems(rewardItems)) {
+      return { success: false, message: '背包空间不足，暂时无法开匣。' }
+    }
+
+    const nextBoxes = { ...mysteryBoxes.value }
+    const remaining = (nextBoxes[boxId] ?? 0) - 1
+    if (remaining > 0) {
+      nextBoxes[boxId] = remaining
+    } else {
+      delete nextBoxes[boxId]
+    }
+    mysteryBoxes.value = nextBoxes
+    inventoryStore.addItemsExact(rewardItems)
+    return { success: true, message: `你开启了${def.label}，获得${reward.label}。` }
+  }
+
   const redeemRewardTicketOffer = (offerId: string): { success: boolean; message: string; offer?: RewardTicketExchangeOffer } => {
     const offer = REWARD_TICKET_EXCHANGE_OFFERS.find(entry => entry.id === offerId)
     if (!offer) return { success: false, message: '兑换项目不存在。' }
@@ -545,7 +594,7 @@ export const useWalletStore = defineStore('wallet', () => {
     }
 
     const rewardItems = offer.rewardItems.map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
-    if (!inventoryStore.canAddItems(rewardItems)) {
+    if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
       return { success: false, message: '背包空间不足，暂时无法兑换。', offer }
     }
 
@@ -558,10 +607,13 @@ export const useWalletStore = defineStore('wallet', () => {
       }
     }
 
-    if (!inventoryStore.addItemsExact(rewardItems)) {
+    if (rewardItems.length > 0 && !inventoryStore.addItemsExact(rewardItems)) {
       inventoryStore.deserialize(inventorySnapshot)
       addRewardTickets({ [offer.ticketType]: offer.costTickets }, { applyMultiplier: false, source: 'ticket_refund' })
       return { success: false, message: '兑换失败，已返还票券。', offer }
+    }
+    for (const boxReward of offer.rewardMysteryBoxes ?? []) {
+      addMysteryBoxes(boxReward.boxId, boxReward.quantity)
     }
 
     return {
@@ -606,7 +658,8 @@ export const useWalletStore = defineStore('wallet', () => {
       unlockedNodeIds: unlockedNodeIds.value,
       unlockedNodeIdsByArchetype: unlockedNodeIdsByArchetype.value,
       rewardTickets: rewardTickets.value,
-      rewardTicketLifetimeEarned: rewardTicketLifetimeEarned.value
+      rewardTicketLifetimeEarned: rewardTicketLifetimeEarned.value,
+      mysteryBoxes: mysteryBoxes.value
     }
   }
 
@@ -628,6 +681,14 @@ export const useWalletStore = defineStore('wallet', () => {
         ? data.rewardTicketLifetimeEarned
         : data?.rewardTickets
     )
+    mysteryBoxes.value = data?.mysteryBoxes && typeof data.mysteryBoxes === 'object'
+      ? Object.fromEntries(
+          Object.entries(data.mysteryBoxes)
+            .filter(([boxId, amount]) => getMysteryBoxDef(boxId) && Number.isFinite(Number(amount)))
+            .map(([boxId, amount]) => [boxId, Math.max(0, Math.floor(Number(amount) || 0))] as const)
+            .filter(([, amount]) => amount > 0)
+        )
+      : {}
 
     if (currentArchetypeId.value && !getWalletArchetypeById(currentArchetypeId.value)) {
       currentArchetypeId.value = null
@@ -656,6 +717,7 @@ export const useWalletStore = defineStore('wallet', () => {
     unlockedNodeIds.value = []
     rewardTickets.value = {}
     rewardTicketLifetimeEarned.value = {}
+    mysteryBoxes.value = {}
   }
 
   return {
@@ -664,6 +726,7 @@ export const useWalletStore = defineStore('wallet', () => {
     unlockedNodeIds,
     rewardTickets,
     rewardTicketLifetimeEarned,
+    mysteryBoxes,
     archetypes,
     unlockedDefs,
     currentArchetype,
@@ -678,6 +741,8 @@ export const useWalletStore = defineStore('wallet', () => {
     activeRewardTicketPrizeStage,
     rewardTicketPrizeStageEntries,
     rewardTicketSourceHints,
+    mysteryBoxNaming,
+    mysteryBoxEntries,
     ticketExchangeOffers,
     has,
     unlock,
@@ -703,6 +768,8 @@ export const useWalletStore = defineStore('wallet', () => {
     canAffordRewardTickets,
     addRewardTickets,
     spendRewardTickets,
+    addMysteryBoxes,
+    openMysteryBox,
     redeemRewardTicketOffer,
     getShopDiscount,
     getForageQualityBoost,

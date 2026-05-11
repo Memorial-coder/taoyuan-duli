@@ -1,7 +1,10 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { SkillType, SkillState, SkillPerk5, SkillPerk10, SkillPerk15, SkillPerk20 } from '@/types'
+import { HYBRID_MASTERY_DEFS, MASTERY_REWARD_DEFS, PRIMARY_MASTERY_DEFS } from '@/data/mastery'
 import { useInventoryStore } from './useInventoryStore'
+import { useGameStore } from './useGameStore'
+import { usePlayerStore } from './usePlayerStore'
 
 /** 各等级所需累计经验 **/
 const EXP_TABLE = [0, 100, 380, 770, 1300, 2150, 3300, 4800, 6900, 10000, 15000, 21000, 28500, 37500, 48000, 60500, 75000, 91500, 110000, 131000, 155000]
@@ -29,6 +32,67 @@ export const useSkillStore = defineStore('skill', () => {
   const miningLevel = computed(() => getSkill('mining').level)
   const foragingLevel = computed(() => getSkill('foraging').level)
   const combatLevel = computed(() => getSkill('combat').level)
+  const primaryMasteries = computed(() =>
+    PRIMARY_MASTERY_DEFS.map(def => {
+      const skill = getSkill(def.skillType)
+      return {
+        ...def,
+        level: skill.level,
+        unlocked: skill.level >= def.requirementLevel
+      }
+    })
+  )
+  const hybridMasteries = computed(() =>
+    HYBRID_MASTERY_DEFS.map(def => ({
+      ...def,
+      unlocked: Object.entries(def.skillRequirements).every(([skillType, requiredLevel]) => getSkill(skillType as SkillType).level >= (requiredLevel ?? 0)),
+      progressLines: Object.entries(def.skillRequirements).map(
+        ([skillType, requiredLevel]) => `${skillType === 'farming' ? '农耕' : skillType === 'foraging' ? '采集' : skillType === 'fishing' ? '钓鱼' : skillType === 'mining' ? '挖矿' : '战斗'} Lv.${getSkill(skillType as SkillType).level}/${requiredLevel}`
+      )
+    }))
+  )
+  const masteryPoints = computed(
+    () => primaryMasteries.value.filter(entry => entry.unlocked).length + hybridMasteries.value.filter(entry => entry.unlocked).length * 2
+  )
+  const unlockedMasteryIds = computed(() => [
+    ...primaryMasteries.value.filter(entry => entry.unlocked).map(entry => entry.id),
+    ...hybridMasteries.value.filter(entry => entry.unlocked).map(entry => entry.id)
+  ])
+  const masteryRewards = computed(() =>
+    MASTERY_REWARD_DEFS.map(def => ({
+      ...def,
+      unlocked: unlockedMasteryIds.value.includes(def.unlockMasteryId)
+    }))
+  )
+  const dailyBlessingPreview = computed(() => {
+    const blessingReward = masteryRewards.value.find(entry => entry.id === 'blessing_altar' && entry.unlocked)
+    if (!blessingReward) return null
+    const gameStore = useGameStore()
+    const blessingPool = [
+      { id: 'fishing', label: '鱼汛顺风', summary: '今天更适合先去钓鱼和鱼塘。' },
+      { id: 'foraging', label: '山野回响', summary: '今天更适合先去采集和跑见闻。' },
+      { id: 'mining', label: '矿脉发亮', summary: '今天更适合先补矿洞和工料。' },
+      { id: 'social', label: '人情上扬', summary: '今天更适合送礼、跑席面和做关系线。' },
+      { id: 'trade', label: '商路活络', summary: '今天更适合接委托、看赏格和处理出货。' }
+    ] as const
+    const seasonOffset = gameStore.season === 'spring' ? 3 : gameStore.season === 'summer' ? 7 : gameStore.season === 'autumn' ? 11 : 17
+    const blessing = blessingPool[(gameStore.year * 37 + gameStore.day * 13 + seasonOffset) % blessingPool.length]
+    return blessing
+  })
+
+  const refreshMasteryUnlocks = () => {
+    const playerStore = usePlayerStore()
+    for (const entry of primaryMasteries.value) {
+      if (entry.unlocked) {
+        playerStore.markMasteryUnlocked(entry.id)
+      }
+    }
+    for (const entry of hybridMasteries.value) {
+      if (entry.unlocked) {
+        playerStore.markMasteryUnlocked(entry.id)
+      }
+    }
+  }
 
   /** 增加经验并自动升级（含戒指经验加成） */
   const addExp = (type: SkillType, amount: number): { leveledUp: boolean; newLevel: number } => {
@@ -48,6 +112,8 @@ export const useSkillStore = defineStore('skill', () => {
         break
       }
     }
+
+    refreshMasteryUnlocks()
 
     return { leveledUp, newLevel: skill.level }
   }
@@ -171,6 +237,7 @@ export const useSkillStore = defineStore('skill', () => {
       if (!('perk20' in s)) (s as SkillState).perk20 = null
     }
     skills.value = arr
+    refreshMasteryUnlocks()
   }
 
   return {
@@ -180,6 +247,11 @@ export const useSkillStore = defineStore('skill', () => {
     miningLevel,
     foragingLevel,
     combatLevel,
+    primaryMasteries,
+    hybridMasteries,
+    masteryPoints,
+    masteryRewards,
+    dailyBlessingPreview,
     getSkill,
     addExp,
     getExpToNextLevel,
@@ -192,6 +264,7 @@ export const useSkillStore = defineStore('skill', () => {
     rollCropQualityWithBonus,
     rollFishQuality,
     rollForageQuality,
+    refreshMasteryUnlocks,
     serialize,
     deserialize
   }

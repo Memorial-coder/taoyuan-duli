@@ -100,6 +100,18 @@
       </div>
     </div>
 
+    <div class="border border-accent/20 rounded-xs p-3 mb-4" v-if="advancedWorkbenchReward">
+      <div class="flex items-center justify-between mb-1">
+        <p class="text-sm text-accent">精通设施</p>
+        <span class="text-[10px]" :class="advancedWorkbenchReward.unlocked ? 'text-success' : 'text-muted'">
+          {{ advancedWorkbenchReward.unlocked ? '已解锁' : '待解锁' }}
+        </span>
+      </div>
+      <p class="text-xs text-accent">{{ advancedWorkbenchReward.label }}</p>
+      <p class="text-xs text-muted mt-1">{{ advancedWorkbenchReward.summary }}</p>
+      <p class="text-[10px] text-muted/80 mt-1">挂接位置：{{ advancedWorkbenchReward.panelHint }}</p>
+    </div>
+
     <!-- 家庭 / 陪伴 -->
     <div class="border border-accent/20 rounded-xs p-3 mb-4">
       <div class="flex items-center justify-between mb-2">
@@ -724,6 +736,7 @@
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useProcessingStore } from '@/stores/useProcessingStore'
+  import { useSkillStore } from '@/stores/useSkillStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
@@ -739,9 +752,11 @@
   const inventoryStore = useInventoryStore()
   const npcStore = useNpcStore()
   const playerStore = usePlayerStore()
+  const skillStore = useSkillStore()
   const warehouseStore = useWarehouseStore()
   const processingStore = useProcessingStore()
   const villageProjectStore = useVillageProjectStore()
+  const advancedWorkbenchReward = computed(() => skillStore.masteryRewards.find(entry => entry.id === 'advanced_workbench') ?? null)
 
   const showGreenhouseModal = ref(false)
   const showWarehouseUnlockModal = ref(false)

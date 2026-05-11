@@ -32,6 +32,7 @@ export interface RewardTicketExchangeOffer {
   description: string
   costTickets: number
   rewardItems: { itemId: string; quantity: number }[]
+  rewardMysteryBoxes?: { boxId: string; quantity: number }[]
   poolStageId?: string
   counterLabel?: string
   poolTags?: string[]

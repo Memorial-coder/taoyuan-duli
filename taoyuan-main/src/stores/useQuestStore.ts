@@ -59,6 +59,7 @@ import { useHanhaiStore } from './useHanhaiStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useMuseumStore } from './useMuseumStore'
 import { useSettingsStore } from './useSettingsStore'
+import { useSecretNoteStore } from './useSecretNoteStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { useWalletStore } from './useWalletStore'
 import { addLog } from '@/composables/useGameLog'
@@ -589,11 +590,14 @@ export const useQuestStore = defineStore('quest', () => {
     const breedingStore = useBreedingStore()
     const fishPondStore = useFishPondStore()
     const goalStore = useGoalStore()
+    const secretNoteStore = useSecretNoteStore()
     const marketQuestBias = marketQuestBiasProfile.value
     const generationOptions: {
       discoveredHybridIds: string[]
       breedingCompendiumEntries: CompendiumEntry[]
       discoveredPondBreedIds: string[]
+      completedVillageProjectIds: string[]
+      collectedSecretNoteIds: number[]
       preferredThemeTag: 'breeding' | 'fishpond' | undefined
       allowedActivitySourceIds?: string[]
       preferredHybridIds: string[]
@@ -603,6 +607,8 @@ export const useQuestStore = defineStore('quest', () => {
       discoveredHybridIds: breedingStore.compendium.map(entry => entry.hybridId),
       breedingCompendiumEntries: breedingStore.compendium,
       discoveredPondBreedIds: [...fishPondStore.discoveredBreeds],
+      completedVillageProjectIds: villageProjectStore.projects.filter(project => project.completed).map(project => project.id),
+      collectedSecretNoteIds: [...secretNoteStore.collectedNotes],
       preferredThemeTag: specialOrderFeatureFlags.themeWeekBiasEnabled
         ? (marketQuestBias.preferredSpecialOrderThemeTag ?? goalStore.currentThemeWeek?.preferredQuestThemeTag)
         : undefined,

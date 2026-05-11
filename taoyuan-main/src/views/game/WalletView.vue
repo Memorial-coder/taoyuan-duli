@@ -341,7 +341,10 @@
             {{ [offer.counterLabel, offer.poolStageLabel].filter(Boolean).join(' · ') }}
           </p>
           <p v-if="offer.poolTagsLabel" class="text-[10px] text-muted/80 mt-0.5">奖池标签：{{ offer.poolTagsLabel }}</p>
-          <p class="text-[10px] text-muted mt-1">兑换内容：{{ offer.rewardSummary }}</p>
+          <p class="text-[10px] text-muted mt-1">
+            兑换内容：{{ offer.rewardSummary || offer.mysteryBoxSummary || '按赏格发放' }}
+          </p>
+          <p v-if="offer.mysteryBoxSummary" class="text-[10px] text-accent mt-0.5">附带密匣：{{ offer.mysteryBoxSummary }}</p>
           <button
             class="mt-2 border border-accent/20 rounded-xs px-2 py-1 text-[10px] transition-colors"
             :class="offer.affordable ? 'text-accent hover:bg-accent/5' : 'text-muted opacity-50 cursor-not-allowed'"
@@ -350,6 +353,37 @@
           >
             消耗 {{ offer.costTickets }} {{ offer.ticketLabel }}兑换
           </button>
+        </div>
+      </div>
+
+      <div class="border border-accent/10 rounded-xs p-2 mt-3">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <p class="text-xs text-accent">密匣 / 遗箱</p>
+            <p class="text-[10px] text-muted mt-0.5">统一开启入口：祠后开匣案</p>
+          </div>
+          <span class="text-[10px] text-muted">{{ mysteryBoxEntries.filter(entry => entry.count > 0).length }}/{{ mysteryBoxEntries.length }} 已入账</span>
+        </div>
+        <div class="mt-2 space-y-1">
+          <p v-for="line in mysteryBoxNaming.summaryLines" :key="line" class="text-[10px] text-muted leading-4">{{ line }}</p>
+        </div>
+        <div class="mt-2 space-y-2">
+          <div v-for="entry in mysteryBoxEntries" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">{{ entry.label }}</p>
+              <span class="text-[10px]" :class="entry.count > 0 ? 'text-success' : 'text-muted'">{{ entry.count }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-0.5">{{ entry.aliasLabel }} · 来源：{{ entry.sourceHints.join('、') }}</p>
+            <p class="text-[10px] text-muted mt-1">{{ entry.rewardPreview }}</p>
+            <button
+              class="mt-2 border border-accent/20 rounded-xs px-2 py-1 text-[10px] transition-colors"
+              :class="entry.count > 0 ? 'text-accent hover:bg-accent/5' : 'text-muted opacity-50 cursor-not-allowed'"
+              :disabled="entry.count <= 0"
+              @click="handleOpenMysteryBox(entry.id)"
+            >
+              开启{{ entry.label }}
+            </button>
+          </div>
         </div>
       </div>
       </template>
@@ -872,6 +906,8 @@
   const rewardTicketLifetimeTotal = computed(() => walletStore.rewardTicketLifetimeTotal)
   const activeRewardTicketPrizeStage = computed(() => walletStore.activeRewardTicketPrizeStage)
   const rewardTicketPrizeStageEntries = computed(() => walletStore.rewardTicketPrizeStageEntries)
+  const mysteryBoxNaming = computed(() => walletStore.mysteryBoxNaming)
+  const mysteryBoxEntries = computed(() => walletStore.mysteryBoxEntries)
   const rewardTicketExchangeOffers = computed(() =>
     walletStore.ticketExchangeOffers.map(offer => ({
       ...offer,
@@ -1174,6 +1210,12 @@
     const result = walletStore.redeemRewardTicketOffer(offerId)
     showFloat(result.message, result.success ? 'success' : 'danger')
     addLog(`【票券兑换】${result.message}`)
+  }
+
+  const handleOpenMysteryBox = (boxId: string) => {
+    const result = walletStore.openMysteryBox(boxId)
+    showFloat(result.message, result.success ? 'success' : 'danger')
+    addLog(`【开匣】${result.message}`)
   }
 
   const persistExchangeResult = async (rollbackMoney: number) => {

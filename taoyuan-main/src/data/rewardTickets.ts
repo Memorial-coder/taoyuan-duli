@@ -151,5 +151,17 @@ export const REWARD_TICKET_EXCHANGE_OFFERS: RewardTicketExchangeOffer[] = [
       { itemId: 'quartz', quantity: 6 },
       { itemId: 'herb', quantity: 8 }
     ]
+  },
+  {
+    id: 'research_mystery_box',
+    ticketType: 'research',
+    label: '灵封试开匣',
+    description: '把一部分研究券换成一只真正可开的封匣，适合作为后期轻循环入口。',
+    costTickets: 5,
+    poolStageId: 'masterwork',
+    counterLabel: '村衙赏契',
+    poolTags: ['神秘箱', '深层惊喜'],
+    rewardItems: [],
+    rewardMysteryBoxes: [{ boxId: 'spirit_seal_crate', quantity: 1 }]
   }
 ]
