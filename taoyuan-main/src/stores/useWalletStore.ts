@@ -1,6 +1,7 @@
 import { ref, computed, watch } from 'vue'
 import { defineStore } from 'pinia'
 import { getItemById } from '@/data'
+import { getActiveRewardTicketPrizeStage, PRIZE_TICKET_NAMING_LAYERS, REWARD_TICKET_PRIZE_STAGES, REWARD_TICKET_SOURCE_HINTS } from '@/data/prizeTickets'
 import { REWARD_TICKET_DEFS, REWARD_TICKET_EXCHANGE_OFFERS, REWARD_TICKET_LABELS } from '@/data/rewardTickets'
 import { WALLET_ARCHETYPES, WALLET_ITEMS, getWalletArchetypeById, getWalletNodeById } from '@/data/wallet'
 import { FISH } from '@/data/fish'
@@ -152,6 +153,8 @@ export const useWalletStore = defineStore('wallet', () => {
   const unlockedNodeIds = ref<string[]>([])
   /** 统一资源券 / 凭证余额 */
   const rewardTickets = ref<RewardTicketLedger>({})
+  /** 统一资源券 / 凭证累计入账，用于驱动阶段奖池，不因当前已消费余额而回退 */
+  const rewardTicketLifetimeEarned = ref<RewardTicketLedger>({})
   const archetypes = computed(() => WALLET_ARCHETYPES)
 
   /** 已解锁的钱袋物品定义 */
@@ -173,15 +176,46 @@ export const useWalletStore = defineStore('wallet', () => {
   const rewardTicketEntries = computed(() =>
     REWARD_TICKET_DEFS.map(def => ({
       ...def,
-      balance: rewardTickets.value[def.id] ?? 0
+      balance: rewardTickets.value[def.id] ?? 0,
+      lifetimeEarned: rewardTicketLifetimeEarned.value[def.id] ?? 0
     }))
   )
+  const rewardTicketLifetimeTotal = computed(() =>
+    Object.values(rewardTicketLifetimeEarned.value).reduce((total, amount) => total + Math.max(0, Number(amount) || 0), 0)
+  )
+  const rewardTicketPrizeNaming = computed(() => ({
+    intakeLabel: PRIZE_TICKET_NAMING_LAYERS[0]?.label ?? '乡约牌',
+    exchangeLabel: PRIZE_TICKET_NAMING_LAYERS[1]?.label ?? '祠堂赏格',
+    highTierLabel: PRIZE_TICKET_NAMING_LAYERS[2]?.label ?? '村衙赏契',
+    summaryLines: PRIZE_TICKET_NAMING_LAYERS.map(layer => `${layer.label}：${layer.summary}`)
+  }))
+  const activeRewardTicketPrizeStage = computed(() => getActiveRewardTicketPrizeStage(rewardTicketLifetimeTotal.value))
+  const rewardTicketPrizeStageEntries = computed(() =>
+    REWARD_TICKET_PRIZE_STAGES.map((stage, index, list) => {
+      const nextStage = list[index + 1] ?? null
+      const earned = rewardTicketLifetimeTotal.value
+      const unlocked = earned >= stage.unlockLifetimeTickets
+      const progressBase = unlocked ? earned - stage.unlockLifetimeTickets : 0
+      const progressGoal = nextStage ? Math.max(1, nextStage.unlockLifetimeTickets - stage.unlockLifetimeTickets) : 0
+      return {
+        ...stage,
+        unlocked,
+        active: activeRewardTicketPrizeStage.value.id === stage.id,
+        progressValue: nextStage ? Math.min(progressGoal, Math.max(0, progressBase)) : 0,
+        progressGoal,
+        nextStageLabel: nextStage?.label ?? null
+      }
+    })
+  )
+  const rewardTicketSourceHints = computed(() => [...REWARD_TICKET_SOURCE_HINTS])
   const ticketExchangeOffers = computed(() =>
     REWARD_TICKET_EXCHANGE_OFFERS.map(offer => ({
       ...offer,
       balance: rewardTickets.value[offer.ticketType] ?? 0,
       affordable: (rewardTickets.value[offer.ticketType] ?? 0) >= offer.costTickets,
-      rewardSummary: offer.rewardItems.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`).join('、')
+      rewardSummary: offer.rewardItems.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`).join('、'),
+      poolStageLabel: rewardTicketPrizeStageEntries.value.find(stage => stage.id === offer.poolStageId)?.label ?? '',
+      poolTagsLabel: (offer.poolTags ?? []).join('、')
     }))
   )
 
@@ -472,10 +506,13 @@ export const useWalletStore = defineStore('wallet', () => {
     if (grantedEntries.length === 0) return {}
 
     const nextLedger: RewardTicketLedger = { ...rewardTickets.value }
+    const nextLifetimeLedger: RewardTicketLedger = { ...rewardTicketLifetimeEarned.value }
     for (const [ticketType, amount] of grantedEntries) {
       nextLedger[ticketType as RewardTicketType] = (nextLedger[ticketType as RewardTicketType] ?? 0) + amount
+      nextLifetimeLedger[ticketType as RewardTicketType] = (nextLifetimeLedger[ticketType as RewardTicketType] ?? 0) + amount
     }
     rewardTickets.value = nextLedger
+    rewardTicketLifetimeEarned.value = nextLifetimeLedger
 
     return Object.fromEntries(grantedEntries) as RewardTicketLedger
   }
@@ -568,7 +605,8 @@ export const useWalletStore = defineStore('wallet', () => {
       currentArchetypeId: currentArchetypeId.value,
       unlockedNodeIds: unlockedNodeIds.value,
       unlockedNodeIdsByArchetype: unlockedNodeIdsByArchetype.value,
-      rewardTickets: rewardTickets.value
+      rewardTickets: rewardTickets.value,
+      rewardTicketLifetimeEarned: rewardTicketLifetimeEarned.value
     }
   }
 
@@ -585,6 +623,11 @@ export const useWalletStore = defineStore('wallet', () => {
       : {}
     unlockedNodeIds.value = Array.isArray(data?.unlockedNodeIds) ? data!.unlockedNodeIds.filter(nodeId => typeof nodeId === 'string') : []
     rewardTickets.value = normalizeRewardTicketLedger(data?.rewardTickets)
+    rewardTicketLifetimeEarned.value = normalizeRewardTicketLedger(
+      data?.rewardTicketLifetimeEarned && Object.keys(data.rewardTicketLifetimeEarned).length > 0
+        ? data.rewardTicketLifetimeEarned
+        : data?.rewardTickets
+    )
 
     if (currentArchetypeId.value && !getWalletArchetypeById(currentArchetypeId.value)) {
       currentArchetypeId.value = null
@@ -612,6 +655,7 @@ export const useWalletStore = defineStore('wallet', () => {
     unlockedNodeIdsByArchetype.value = {}
     unlockedNodeIds.value = []
     rewardTickets.value = {}
+    rewardTicketLifetimeEarned.value = {}
   }
 
   return {
@@ -619,6 +663,7 @@ export const useWalletStore = defineStore('wallet', () => {
     currentArchetypeId,
     unlockedNodeIds,
     rewardTickets,
+    rewardTicketLifetimeEarned,
     archetypes,
     unlockedDefs,
     currentArchetype,
@@ -628,6 +673,11 @@ export const useWalletStore = defineStore('wallet', () => {
     currentArchetypeMainEffectSummary,
     currentArchetypeNodeEffects,
     rewardTicketEntries,
+    rewardTicketLifetimeTotal,
+    rewardTicketPrizeNaming,
+    activeRewardTicketPrizeStage,
+    rewardTicketPrizeStageEntries,
+    rewardTicketSourceHints,
     ticketExchangeOffers,
     has,
     unlock,

@@ -11,9 +11,12 @@ import {
   getVillageProjectFundingPhase,
   getVillageProjectPlayerSegment
 } from '@/data/villageProjects'
+import { COMMUNITY_BUNDLES } from '@/data/achievements'
 import { getItemById } from '@/data'
 import type {
+  CommunityBundleVillageProjectHook,
   VillageProjectCheckResult,
+  VillageProjectBundleLinkSummary,
   VillageProjectContentTier,
   VillageProjectDebugSnapshot,
   VillageProjectDonationState,
@@ -26,6 +29,8 @@ import type {
   VillageProjectProjectSummary,
   VillageProjectQueryOptions,
   VillageProjectRegionalEffectSummary,
+  VillageProjectRestorationChangeSummary,
+  VillageProjectRestorationMilestoneSummary,
   VillageProjectRequirement,
   VillageProjectRequirementProgress,
   VillageProjectSaveData,
@@ -52,6 +57,7 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
   const projectStates = ref<Record<string, VillageProjectState>>({})
   const maintenanceStates = ref<Record<string, VillageProjectMaintenanceState>>({})
   const donationStates = ref<Record<string, VillageProjectDonationState>>({})
+  const achievementStore = useAchievementStore()
   const playerStore = usePlayerStore()
   const SEASON_ORDER: Season[] = ['spring', 'summer', 'autumn', 'winter']
 
@@ -290,7 +296,6 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
   })
 
   const getRequirementCurrentValue = (requirement: VillageProjectRequirement): number => {
-    const achievementStore = useAchievementStore()
     const breedingStore = useBreedingStore()
     const guildStore = useGuildStore()
     const hanhaiStore = useHanhaiStore()
@@ -566,6 +571,78 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
       .filter((summary): summary is VillageProjectDonationSummary => Boolean(summary))
   })
 
+  const getBundleHookForProject = (projectId: string): CommunityBundleVillageProjectHook | undefined =>
+    COMMUNITY_BUNDLES.find(bundle => bundle.villageProjectHook?.linkedProjectIds.includes(projectId))?.villageProjectHook
+
+  const getProjectRestorationSummary = (projectId: string): VillageProjectRestorationMilestoneSummary | undefined => {
+    const project = getProject(projectId)
+    const profile = project?.restorationProfile
+    if (!project || !profile) return undefined
+
+    const bundleIds = profile.bundleIds.length > 0 ? profile.bundleIds : getBundleHookForProject(projectId)?.linkedProjectIds ?? []
+    const completedBundleCount = bundleIds.filter(bundleId => achievementStore.completedBundles.includes(bundleId)).length
+
+    return {
+      projectId: project.id,
+      projectName: project.name,
+      milestoneLabel: profile.milestoneLabel,
+      bundleIds,
+      completedBundleCount,
+      totalBundleCount: bundleIds.length,
+      completedProject: project.completed,
+      preRumors: profile.preRumors,
+      postComments: profile.postComments,
+      crossEntryFeedback: profile.crossEntryFeedback,
+      worldChanges: profile.worldChanges
+    }
+  }
+
+  const bundleProjectMappings = computed<VillageProjectBundleLinkSummary[]>(() => {
+    return COMMUNITY_BUNDLES.flatMap(bundle => {
+      const hook = bundle.villageProjectHook
+      if (!hook) return []
+
+      return hook.linkedProjectIds.map(projectId => {
+        const project = getProject(projectId)
+        return {
+          bundleId: bundle.id,
+          bundleName: bundle.name,
+          projectId,
+          projectName: project?.name ?? projectId,
+          focus: hook.focus,
+          summary: hook.summary,
+          completedBundle: achievementStore.completedBundles.includes(bundle.id),
+          completedProject: project?.completed ?? false
+        }
+      })
+    })
+  })
+
+  const communityRestorationEffects = computed<VillageProjectRestorationChangeSummary[]>(() => {
+    return projects.value.flatMap(project => {
+      const profile = project.restorationProfile
+      if (!profile) return []
+
+      return profile.worldChanges.map(change => ({
+        ...change,
+        projectId: project.id,
+        projectName: project.name,
+        milestoneLabel: profile.milestoneLabel,
+        unlocked: project.completed
+      }))
+    })
+  })
+
+  const restorationMilestones = computed<VillageProjectRestorationMilestoneSummary[]>(() => {
+    return projects.value
+      .map(project => getProjectRestorationSummary(project.id))
+      .filter((summary): summary is VillageProjectRestorationMilestoneSummary => Boolean(summary))
+  })
+
+  const worldShortcutUnlocks = computed<VillageProjectRestorationChangeSummary[]>(() =>
+    communityRestorationEffects.value.filter(effect => effect.type === 'shortcut')
+  )
+
   const projectSummaries = computed<VillageProjectProjectSummary[]>(() => {
     return projects.value.map(project => {
       const requirements = getProjectRequirementProgresses(project.id)
@@ -592,6 +669,7 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
         maintenance: getProjectMaintenanceSummary(project.id),
         donation: getProjectDonationSummary(project.id),
         regional: getProjectRegionalSummary(project.id)!,
+        restoration: getProjectRestorationSummary(project.id),
         operational: operationalSummaries.value.find(summary => summary.id === project.id)!
       }
     })
@@ -1061,6 +1139,22 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
       tags: ['village_project_completed'],
       meta: { projectId: project.id, fundingPhase: project.fundingPhase, buildMode: project.buildMode }
     })
+    if (project.restorationProfile) {
+      for (const change of project.restorationProfile.worldChanges) {
+        addLog(`【世界变化】${project.name}：${change.title}。${change.summary}`, {
+          category: 'village',
+          tags: ['village_project_world_change'],
+          meta: { projectId: project.id, changeId: change.id, changeType: change.type }
+        })
+      }
+      for (const comment of project.restorationProfile.postComments) {
+        addLog(`【村里反应】${comment}`, {
+          category: 'village',
+          tags: ['village_project_npc_feedback'],
+          meta: { projectId: project.id }
+        })
+      }
+    }
     useGoalStore().evaluateProgressAndRewards()
     return { success: true, message: `${project.name}建设完成！` }
   }
@@ -1146,6 +1240,10 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     maintenanceSummaries,
     donationSummaries,
     projectSummaries,
+    bundleProjectMappings,
+    communityRestorationEffects,
+    restorationMilestones,
+    worldShortcutUnlocks,
     linkedSystemProjects,
     isProjectCompleted,
     hasProject,
@@ -1165,6 +1263,7 @@ export const useVillageProjectStore = defineStore('villageProject', () => {
     getProjectMaintenanceSummary,
     getProjectDonationSummary,
     getProjectRegionalSummary,
+    getProjectRestorationSummary,
     getOperationalSummary,
     getLinkedProjects,
     getLinkedProjectSummaries,

@@ -32,6 +32,9 @@ export interface RewardTicketExchangeOffer {
   description: string
   costTickets: number
   rewardItems: { itemId: string; quantity: number }[]
+  poolStageId?: string
+  counterLabel?: string
+  poolTags?: string[]
 }
 
 export interface BudgetChannelEffect {

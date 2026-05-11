@@ -127,6 +127,19 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     })
   )
 
+  const unlockRumorLead = (npcId: string): boolean => {
+    const state = getHiddenNpcState(npcId)
+    const def = getHiddenNpcById(npcId)
+    if (!state || !def || state.discoveryPhase !== 'unknown') return false
+    const rumorStep = def.discoverySteps.find(step => step.phase === 'rumor')
+    if (!rumorStep) return false
+    state.discoveryPhase = 'rumor'
+    if (!state.completedSteps.includes(rumorStep.id)) {
+      state.completedSteps = [...state.completedSteps, rumorStep.id]
+    }
+    return true
+  }
+
   const getBondedNpc = computed(() => {
     const state = hiddenNpcStates.value.find(s => s.bonded)
     return state ? getHiddenNpcById(state.npcId) : undefined
@@ -834,6 +847,7 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
     getAffinityLevel,
     getRevealedNpcs,
     getRumorNpcs,
+    unlockRumorLead,
     getBondedNpc,
     isManifestationDay,
     evaluateCondition,

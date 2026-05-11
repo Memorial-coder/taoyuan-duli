@@ -1021,6 +1021,8 @@ export const ACHIEVEMENTS: AchievementDef[] = [
 ]
 
 /** 祠堂任务板 */
+// WS01 anchor: community bundles are the first-layer restoration goals that can
+// later drive visible map changes, shortcuts, and shared village progress.
 export const COMMUNITY_BUNDLES: CommunityBundleDef[] = [
   {
     id: 'spring_bundle',
@@ -1032,7 +1034,12 @@ export const COMMUNITY_BUNDLES: CommunityBundleDef[] = [
       { itemId: 'bamboo_shoot', quantity: 3 },
       { itemId: 'tea', quantity: 2 }
     ],
-    reward: { money: 500, items: [{ itemId: 'seed_peach', quantity: 3 }], description: '500文 + 桃种子×3' }
+    reward: { money: 500, items: [{ itemId: 'seed_peach', quantity: 3 }], description: '500文 + 桃种子×3' },
+    villageProjectHook: {
+      focus: 'production',
+      linkedProjectIds: ['workbench_corner', 'festival_greenhouse'],
+      summary: '春耕物资最适合先接工台角与节庆暖房，能把种植、修补和后续节庆筹备连成一条线。'
+    }
   },
   {
     id: 'summer_bundle',
@@ -1044,7 +1051,12 @@ export const COMMUNITY_BUNDLES: CommunityBundleDef[] = [
       { itemId: 'lotus_root', quantity: 2 },
       { itemId: 'chili', quantity: 3 }
     ],
-    reward: { money: 800, items: [{ itemId: 'seed_lotus_seed', quantity: 2 }], description: '800文 + 莲子种子×2' }
+    reward: { money: 800, items: [{ itemId: 'seed_lotus_seed', quantity: 2 }], description: '800文 + 莲子种子×2' },
+    villageProjectHook: {
+      focus: 'production',
+      linkedProjectIds: ['festival_greenhouse'],
+      summary: '盛夏物资会直接抬高暖房价值，适合提前把节前培育与短活动供货能力修出来。'
+    }
   },
   {
     id: 'autumn_bundle',
@@ -1081,7 +1093,12 @@ export const COMMUNITY_BUNDLES: CommunityBundleDef[] = [
       { itemId: 'sesame_oil', quantity: 1 },
       { itemId: 'peach_wine', quantity: 1 }
     ],
-    reward: { money: 2000, description: '2000文' }
+    reward: { money: 2000, description: '2000文' },
+    villageProjectHook: {
+      focus: 'service',
+      linkedProjectIds: ['caravan_station'],
+      summary: '加工品礼单最适合承接商队驿站，能把村口货栈、后期大单和商路服务一起带活。'
+    }
   },
   {
     id: 'friendship_bundle',
@@ -1092,7 +1109,12 @@ export const COMMUNITY_BUNDLES: CommunityBundleDef[] = [
       { itemId: 'chrysanthemum', quantity: 2 },
       { itemId: 'osmanthus', quantity: 2 }
     ],
-    reward: { money: 1500, description: '1500文' }
+    reward: { money: 1500, description: '1500文' },
+    villageProjectHook: {
+      focus: 'service',
+      linkedProjectIds: ['village_school'],
+      summary: '乡情礼单最适合先开学舍，让关系、记录和后续人物型内容不再只停留在送礼表层。'
+    }
   },
   // 渔获
   {
@@ -1105,7 +1127,12 @@ export const COMMUNITY_BUNDLES: CommunityBundleDef[] = [
       { itemId: 'bass', quantity: 2 },
       { itemId: 'catfish', quantity: 1 }
     ],
-    reward: { money: 1000, description: '1000文' }
+    reward: { money: 1000, description: '1000文' },
+    villageProjectHook: {
+      focus: 'service',
+      linkedProjectIds: ['hot_spring'],
+      summary: '常规渔获礼单适合承接温泉整修，能把休养区、日常恢复和村民评论一起带起来。'
+    }
   },
   {
     id: 'rare_fish_bundle',
@@ -1130,7 +1157,12 @@ export const COMMUNITY_BUNDLES: CommunityBundleDef[] = [
       { itemId: 'gold_ore', quantity: 3 },
       { itemId: 'quartz', quantity: 3 }
     ],
-    reward: { money: 1000, description: '1000文' }
+    reward: { money: 1000, description: '1000文' },
+    villageProjectHook: {
+      focus: 'production',
+      linkedProjectIds: ['support_shed'],
+      summary: '矿石礼单最适合先投矿料棚与支架，把矿材回收、公会后勤和材料调度真正修顺。'
+    }
   },
   {
     id: 'gem_bundle',
@@ -1142,7 +1174,12 @@ export const COMMUNITY_BUNDLES: CommunityBundleDef[] = [
       { itemId: 'moonstone', quantity: 1 },
       { itemId: 'obsidian', quantity: 1 }
     ],
-    reward: { money: 3000, items: [{ itemId: 'dragon_jade', quantity: 1 }], description: '3000文 + 龙玉×1' }
+    reward: { money: 3000, items: [{ itemId: 'dragon_jade', quantity: 1 }], description: '3000文 + 龙玉×1' },
+    villageProjectHook: {
+      focus: 'shortcut',
+      linkedProjectIds: ['caravan_station_ii'],
+      summary: '珍宝礼单更适合承接驿站二期，把公告牌、歇脚区和商路升级做成真正的村口捷径。'
+    }
   },
   // 畜产品
   {

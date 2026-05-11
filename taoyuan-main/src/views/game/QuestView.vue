@@ -226,6 +226,15 @@
           <div class="min-w-0">
             <p class="text-xs truncate min-w-0" :class="quest.isUrgent ? 'text-red-400' : ''">{{ quest.description }}</p>
             <div class="flex flex-wrap gap-1 mt-0.5">
+              <span v-if="questStore.hasCompletedQuestHistory(quest)" class="text-[10px] px-1 rounded-xs border border-success/20 text-success">
+                做过同类
+              </span>
+              <span v-if="quest.variantLabel" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
+                {{ quest.variantLabel }}
+              </span>
+              <span v-if="quest.rumorTask" class="text-[10px] px-1 rounded-xs border border-warning/20 text-warning">
+                传闻轻任务
+              </span>
               <span v-if="quest.isUrgent" class="text-[10px] px-1 rounded-xs border border-red-500/40 text-red-400">
                 紧急 · 仅剩1天
               </span>
@@ -236,6 +245,7 @@
                 需{{ getStageLabel(quest.relationshipStageRequired) }}
               </span>
             </div>
+            <p v-if="quest.sourceLabel" class="text-[10px] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
             <p v-if="getQuestRewardPreview(quest)" class="text-[10px] text-muted/70 mt-0.5 truncate">{{ getQuestRewardPreview(quest) }}</p>
             <p v-if="getQuestRelationshipPreview(quest)" class="text-[10px] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
           </div>
@@ -279,6 +289,35 @@
       </div>
     </div>
 
+    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <div>
+          <p class="text-xs text-muted">奖券与阶段赏格</p>
+          <p class="text-[10px] text-muted mt-0.5">
+            委托入账按「{{ rewardTicketPrizeNaming.intakeLabel }}」记，兑换统一走「{{ rewardTicketPrizeNaming.exchangeLabel }}」。
+          </p>
+        </div>
+        <span class="text-[10px] text-accent">{{ activeRewardTicketPrizeStage.label }}</span>
+      </div>
+      <div class="space-y-1.5 mb-2">
+        <p v-for="line in rewardTicketSourceHints" :key="line" class="text-[10px] text-muted leading-4">
+          {{ line }}
+        </p>
+      </div>
+      <div class="space-y-1.5">
+        <div v-for="stage in rewardTicketPrizeStageEntries" :key="stage.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs" :class="stage.active ? 'text-accent' : stage.unlocked ? 'text-success' : 'text-text'">{{ stage.label }}</p>
+            <span class="text-[10px]" :class="stage.active ? 'text-accent' : stage.unlocked ? 'text-success' : 'text-muted'">
+              {{ stage.active ? '当前奖池' : stage.unlocked ? '已解锁' : `累计 ${stage.unlockLifetimeTickets} 张` }}
+            </span>
+          </div>
+          <p class="text-[10px] text-muted mt-1">{{ stage.spotlightRewards.join('、') }}</p>
+          <p class="text-[10px] text-muted/80 mt-0.5">{{ stage.notes[0] }}</p>
+        </div>
+      </div>
+    </div>
+
     <!-- 进行中 -->
     <div
       class="border border-accent/20 rounded-xs p-3 mb-3"
@@ -305,6 +344,12 @@
             <div class="min-w-0">
               <p class="text-xs truncate min-w-0">{{ quest.description }}</p>
               <div class="flex flex-wrap gap-1 mt-0.5" v-if="quest.isUrgent || quest.sourceCategory || quest.relationshipStageRequired || quest.themeTag || quest.bonusSummary?.length || quest.activitySourceLabel || quest.orderScoreRule">
+                <span v-if="quest.variantLabel" class="text-[10px] px-1 rounded-xs border border-accent/20 text-accent">
+                  {{ quest.variantLabel }}
+                </span>
+                <span v-if="quest.rumorTask" class="text-[10px] px-1 rounded-xs border border-warning/20 text-warning">
+                  传闻轻任务
+                </span>
                 <span v-if="quest.isUrgent" class="text-[10px] px-1 rounded-xs border border-red-500/40 text-red-400">
                   紧急委托
                 </span>
@@ -324,6 +369,7 @@
                   {{ getStageLabel(quest.relationshipStageRequired) }}
                 </span>
               </div>
+              <p v-if="quest.sourceLabel" class="text-[10px] text-warning/80 mt-0.5 truncate">{{ quest.sourceLabel }}</p>
               <p v-if="getQuestRelationshipPreview(quest)" class="text-[10px] text-accent/70 mt-0.5 truncate">{{ getQuestRelationshipPreview(quest) }}</p>
             </div>
             <span class="text-xs whitespace-nowrap ml-2" :class="canSubmit(quest) ? 'text-success' : 'text-muted'">
@@ -351,6 +397,28 @@
       <p class="text-xs text-muted">
         累计完成委托 {{ questStore.completedQuestCount }} 个 · 主线进度 {{ questStore.completedMainQuests.length }}/{{ totalMainQuestCount }}
       </p>
+    </div>
+
+    <div class="border border-accent/10 rounded-xs p-3 mt-3">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-xs text-muted">订单历史</p>
+        <span class="text-[10px] text-accent">{{ questStore.completedQuestHistory.length }} 条</span>
+      </div>
+      <div v-if="questStore.completedQuestHistory.length === 0" class="text-[10px] text-muted">还没有已完成订单记录。</div>
+      <div v-else class="space-y-1.5">
+        <div v-for="entry in questStore.completedQuestHistory.slice(0, 6)" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-1.5">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs text-accent truncate">{{ entry.npcName }}：{{ entry.description }}</p>
+            <span class="text-[10px]" :class="entry.isSpecialOrder ? 'text-warning' : 'text-muted'">
+              {{ entry.isSpecialOrder ? '特单' : '委托' }}
+            </span>
+          </div>
+          <p class="text-[10px] text-muted mt-0.5">{{ entry.completedDayTag }} / {{ entry.rewardSummary }}</p>
+          <p v-if="entry.activitySourceLabel || entry.themeTag" class="text-[10px] text-muted/70 mt-0.5">
+            {{ [entry.activitySourceLabel, getHistoryThemeLabel(entry.themeTag)].filter(Boolean).join(' / ') }}
+          </p>
+        </div>
+      </div>
     </div>
 
     <!-- 任务详情弹窗 -->
@@ -651,6 +719,7 @@
   import { useNpcStore } from '@/stores/useNpcStore'
   import { useQuestStore } from '@/stores/useQuestStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
+  import { useWalletStore } from '@/stores/useWalletStore'
   import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
   import { getSpecialOrderRewardProfile } from '@/data/quests'
   import { getItemById, getStoryQuestById, CHAPTER_TITLES, STORY_QUESTS } from '@/data'
@@ -665,6 +734,7 @@
   const weeklyPlanSnapshot = computed(() => goalStore.weeklyPlanSnapshot)
   const npcStore = useNpcStore()
   const villageProjectStore = useVillageProjectStore()
+  const walletStore = useWalletStore()
   const { buildPromptFocusAttr, isPromptFocusActive } = usePromptFocusPanel('quest')
   const syncCompactViewportMode = () => {
     isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
@@ -676,7 +746,8 @@
     cooking: '烹饪筹备',
     fishing: '钓鱼',
     errand: '跑腿',
-    festival_prep: '节庆筹备'
+    festival_prep: '节庆筹备',
+    rumor: '传闻请托'
   }
 
   const STAGE_LABELS: Record<RelationshipStage, string> = {
@@ -770,6 +841,8 @@
     if (themeTag === 'breeding') return '育种订单'
     return '特殊订单'
   }
+  const getHistoryThemeLabel = (themeTag?: string): string =>
+    themeTag === 'fishpond' || themeTag === 'breeding' ? getThemeLabel(themeTag) : ''
 
   const getOrderStageTypeLabel = (orderStageType?: QuestInstance['orderStageType']): string => {
     if (orderStageType === 'combo') return '组合交付'
@@ -896,6 +969,11 @@
     }
     return `${quest.targetItemName} × ${quest.targetQuantity}`
   }
+
+  const rewardTicketPrizeNaming = computed(() => walletStore.rewardTicketPrizeNaming)
+  const activeRewardTicketPrizeStage = computed(() => walletStore.activeRewardTicketPrizeStage)
+  const rewardTicketPrizeStageEntries = computed(() => walletStore.rewardTicketPrizeStageEntries.slice(0, 3))
+  const rewardTicketSourceHints = computed(() => walletStore.rewardTicketSourceHints.slice(0, 3))
 
   const villagePhaseLabelMap = {
     bootstrap: '中期过渡',

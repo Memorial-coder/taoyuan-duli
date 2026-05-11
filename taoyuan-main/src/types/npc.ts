@@ -9,6 +9,23 @@ export type RelationshipStage = 'recognize' | 'familiar' | 'friend' | 'bestie' |
 /** WS09 关系线内容梯度 */
 export type RelationshipContentTier = 'P0' | 'P1' | 'P2'
 
+export type GiftPreference = 'loved' | 'liked' | 'hated' | 'neutral'
+export type RelationshipClueKind = 'gift' | 'birthday' | 'habit' | 'festival'
+export type RelationshipClueSource = 'talk' | 'festival' | 'home' | 'secret_note' | 'shop' | 'rumor' | 'gift_test' | 'birthday'
+export type RelationshipCluePrecision = 'hint' | 'exact' | 'confirmed'
+
+export interface RelationshipClueEntry {
+  npcId: string
+  clueId: string
+  text: string
+  kind: RelationshipClueKind
+  source: RelationshipClueSource
+  precision: RelationshipCluePrecision
+  discoveredDayTag?: string
+  itemId?: string
+  preference?: Exclude<GiftPreference, 'neutral'>
+}
+
 export type NpcPerkType = 'shop_discount' | 'quest_unlock' | 'item_reward' | 'recipe_hint' | 'daily_bonus' | 'family_event'
 
 export interface NpcPerkEffect {

@@ -31,6 +31,38 @@ export interface SeasonEventDef {
     | 'kite_flying'
 }
 
+export interface SeasonEventResolutionContext {
+  year?: number
+  villageProjectLevel?: number
+  closeRelationshipCount?: number
+  hasSpouse?: boolean
+  themeWeekLabel?: string | null
+}
+
+export interface SeasonEventVariantNotes {
+  driverLabels: string[]
+  stallNotes: string[]
+  dialogueNotes: string[]
+  prizePoolNotes: string[]
+  decorationNotes: string[]
+}
+
+export interface ResolvedSeasonEventDef extends SeasonEventDef {
+  prepChecklist: string[]
+  variantNotes?: SeasonEventVariantNotes
+}
+
+export interface SeasonalWindowActivityDef {
+  id: string
+  name: string
+  season: Season
+  startDay: number
+  endDay: number
+  description: string
+  prepChecklist: string[]
+  rumor: string
+}
+
 export const SEASON_EVENTS: SeasonEventDef[] = [
   {
     id: 'spring_festival',
@@ -371,7 +403,152 @@ export const SEASON_EVENTS: SeasonEventDef[] = [
   }
 ]
 
+export const SHORT_SEASON_ACTIVITIES: SeasonalWindowActivityDef[] = [
+  {
+    id: 'river_run_week',
+    name: '鱼汛周 / 夜钓会',
+    season: 'summer',
+    startDay: 10,
+    endDay: 12,
+    description: '河面鱼汛转旺，夜里也更适合顺手补鱼获与饲料。',
+    prepChecklist: ['先补鱼饵、鱼饲料与体力餐', '留 1-2 晚给夜钓', '有鱼塘的话顺手补竞赛用鱼'],
+    rumor: '村里都说这几天河面鱼口最好，夜里灯一挂就该去。'
+  },
+  {
+    id: 'hillside_forage_days',
+    name: '限时采集周',
+    season: 'spring',
+    startDay: 19,
+    endDay: 21,
+    description: '山腰花期正盛，采集物和礼物素材都更值得跑一趟。',
+    prepChecklist: ['留一点背包格子给花材和野果', '顺手准备两份送礼素材', '若要跑捷径，先看村里修复进度'],
+    rumor: '这几天山坡上花开得密，错过就要再等一季。'
+  },
+  {
+    id: 'harvest_preview_market',
+    name: '节前预热摊 / 小市集',
+    season: 'autumn',
+    startDay: 19,
+    endDay: 21,
+    description: '丰收宴前的小摊已经开张，适合临时补货与观察今年展会风向。',
+    prepChecklist: ['把高品质作物和加工品先挑出来', '预留送礼和参赛预算', '顺手看一眼节日奖池和值得换的货'],
+    rumor: '广场上已经开始摆摊，大家都在猜今年展台要摆什么。'
+  }
+]
+
+const FESTIVAL_PREP_CHECKLIST: Partial<Record<NonNullable<SeasonEventDef['festivalType']>, string[]>> = {
+  fishing_contest: ['准备高品质鱼饵和体力餐', '留一段夜间或傍晚时间给钓鱼', '提前整理背包，别让鱼获爆仓'],
+  harvest_fair: ['准备 3-5 件高品质作物或加工品', '留一点预算给节庆摊位', '想冲排名的话，别把极品展品提前卖掉'],
+  dragon_boat: ['提前留些体力药和食物', '把当天重体力活挪开', '想顺手送礼的话先备一份节令食材'],
+  lantern_riddle: ['备一份体面礼物给想推进关系的人', '晚上预留时间去广场', '如果最近收到传闻，先带着线索去看'],
+  pot_throwing: ['把白天的农活先清掉', '准备一份老人喜好的礼物', '高关系 NPC 这天更容易给额外评论'],
+  dumpling_making: ['提前备米面和家常食材', '想看家庭反馈就留一段晚上时间', '节日前先腾一点背包空间领礼物'],
+  firework_show: ['白天先做完体力活', '留一点铜钱给年末摊位', '带一份合适的礼物会更值'],
+  tea_contest: ['保留茶叶和清淡食材', '先清体力活，留下午和傍晚时间', '想拿更好评价就别把高品质茶材先卖掉'],
+  kite_flying: ['把布料和轻礼物留一份', '下午风起时更适合参加', '有关系目标的话，先看谁会来广场']
+}
+
+const getFestivalPrepChecklist = (event: SeasonEventDef): string[] => {
+  if (event.festivalType && FESTIVAL_PREP_CHECKLIST[event.festivalType]) {
+    return [...(FESTIVAL_PREP_CHECKLIST[event.festivalType] ?? [])]
+  }
+  return ['预留一点送礼预算', '提前留几格背包空间', '把重体力活尽量安排在节日前后']
+}
+
+const normalizeResolutionContext = (contextOrYear?: number | SeasonEventResolutionContext): SeasonEventResolutionContext => {
+  if (typeof contextOrYear === 'number') return { year: contextOrYear }
+  return contextOrYear ?? {}
+}
+
+const buildVariantNotes = (event: SeasonEventDef, context: SeasonEventResolutionContext): SeasonEventVariantNotes | undefined => {
+  const year = Math.max(1, context.year ?? 1)
+  if (year < 2) return undefined
+  const driverLabels: string[] = ['第二年起节庆变化']
+  const stallNotes: string[] = []
+  const dialogueNotes: string[] = []
+  const prizePoolNotes: string[] = []
+  const decorationNotes: string[] = []
+
+  if ((context.villageProjectLevel ?? 0) >= 2) {
+    driverLabels.push('村庄建设等级')
+    stallNotes.push('修复后的摊位和便道会进入节庆现场布置。')
+    decorationNotes.push('广场、桥口或河岸会出现更多修复后的招牌、灯饰与摊棚。')
+  }
+
+  if ((context.closeRelationshipCount ?? 0) >= 3 || context.hasSpouse) {
+    driverLabels.push('NPC 关系状态')
+    dialogueNotes.push('熟识村民会根据你最近的关系推进、参赛表现或送礼习惯给出新台词。')
+    prizePoolNotes.push('高关系阶段会出现更像“私下照顾”的奖励评论与隐藏提示。')
+  }
+
+  if (context.themeWeekLabel) {
+    driverLabels.push(`当季主题周：${context.themeWeekLabel}`)
+    stallNotes.push(`本次节庆会顺带呼应「${context.themeWeekLabel}」的主题摊位。`)
+    prizePoolNotes.push(`奖池会混入与「${context.themeWeekLabel}」相关的功能物和收藏品。`)
+  }
+
+  if (event.interactive) {
+    prizePoolNotes.push('第二年起会追加一档更偏长期回报的奖池。')
+    prizePoolNotes.push('若连续夺冠，会逐步出现隐藏庆功评论与更稀有的奖池提示。')
+  } else {
+    dialogueNotes.push('即使不是互动节，第二年起也会有更多围观对话和节前闲谈。')
+  }
+
+  return {
+    driverLabels,
+    stallNotes,
+    dialogueNotes,
+    prizePoolNotes,
+    decorationNotes
+  }
+}
+
+export const resolveSeasonEvent = (
+  event: SeasonEventDef,
+  contextOrYear?: number | SeasonEventResolutionContext
+): ResolvedSeasonEventDef => {
+  const context = normalizeResolutionContext(contextOrYear)
+  const year = Math.max(1, context.year ?? 1)
+  const variantNotes = buildVariantNotes(event, context)
+  const isYearTwoPlus = year >= 2
+  const appendedNarrative: string[] = []
+  if (isYearTwoPlus) {
+    appendedNarrative.push('今年的节庆和去年已经不完全一样，村里的人明显更会过日子了。')
+    if (variantNotes?.stallNotes[0]) appendedNarrative.push(variantNotes.stallNotes[0])
+    if (variantNotes?.dialogueNotes[0]) appendedNarrative.push(variantNotes.dialogueNotes[0])
+  }
+
+  return {
+    ...event,
+    description: isYearTwoPlus ? `${event.description} 第二年起会随村庄成长出现更多变化。` : event.description,
+    effects: {
+      ...event.effects,
+      friendshipBonus: event.effects.friendshipBonus != null ? event.effects.friendshipBonus + (isYearTwoPlus ? 1 : 0) : undefined,
+      moneyReward: event.effects.moneyReward != null ? event.effects.moneyReward + (isYearTwoPlus ? 80 : 0) : undefined
+    },
+    narrative: [...event.narrative, ...appendedNarrative],
+    prepChecklist: getFestivalPrepChecklist(event),
+    variantNotes
+  }
+}
+
+export const getSeasonEventsForDay = (
+  season: Season,
+  day: number,
+  contextOrYear?: number | SeasonEventResolutionContext
+): ResolvedSeasonEventDef[] => {
+  return SEASON_EVENTS.filter(event => event.season === season && event.day === day).map(event => resolveSeasonEvent(event, contextOrYear))
+}
+
+export const getSeasonalActivitiesForDay = (season: Season, day: number): SeasonalWindowActivityDef[] => {
+  return SHORT_SEASON_ACTIVITIES.filter(activity => activity.season === season && day >= activity.startDay && day <= activity.endDay)
+}
+
 /** 根据季节和日期获取当天事件 */
-export const getTodayEvent = (season: Season, day: number): SeasonEventDef | undefined => {
-  return SEASON_EVENTS.find(e => e.season === season && e.day === day)
+export const getTodayEvent = (
+  season: Season,
+  day: number,
+  contextOrYear?: number | SeasonEventResolutionContext
+): ResolvedSeasonEventDef | undefined => {
+  return getSeasonEventsForDay(season, day, contextOrYear)[0]
 }

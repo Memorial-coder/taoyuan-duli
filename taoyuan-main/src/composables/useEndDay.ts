@@ -1865,7 +1865,7 @@ export const handleEndDay = () => {
   checkRecipeUnlocks()
 
   // 季节事件
-  const event = getTodayEvent(gameStore.season, gameStore.day)
+  const event = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
   if (event) {
     applyEventEffects(event)
     if (event.interactive && event.festivalType) {

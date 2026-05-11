@@ -49,6 +49,12 @@ export interface AchievementDef {
   }
 }
 
+export interface CommunityBundleVillageProjectHook {
+  focus: 'shortcut' | 'production' | 'service'
+  linkedProjectIds: string[]
+  summary: string
+}
+
 /** 祠堂任务定义 */
 export interface CommunityBundleDef {
   id: string
@@ -60,4 +66,5 @@ export interface CommunityBundleDef {
     items?: { itemId: string; quantity: number }[]
     description: string
   }
+  villageProjectHook?: CommunityBundleVillageProjectHook
 }

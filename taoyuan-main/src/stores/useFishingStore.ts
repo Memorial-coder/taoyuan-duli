@@ -515,7 +515,7 @@ export const useFishingStore = defineStore('fishing', () => {
 
       // 4% 概率获得秘密笔记
       if (Math.random() < 0.04) {
-        useSecretNoteStore().tryCollectNote()
+        useSecretNoteStore().tryCollectNote('fishing')
       }
 
       // 经验

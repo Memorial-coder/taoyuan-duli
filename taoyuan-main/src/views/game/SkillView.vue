@@ -4,6 +4,8 @@
       <Star :size="14" class="inline" />
       技能
     </h3>
+    <!-- WS06 anchor: this skill/perk panel is the existing base for future
+         mastery-style endgame growth that converges multiple progression lines. -->
     <div class="space-y-3">
       <div v-for="skill in skillStore.skills" :key="skill.type" class="game-panel">
         <!-- 标题行：图标 + 名称等级 + 经验 -->

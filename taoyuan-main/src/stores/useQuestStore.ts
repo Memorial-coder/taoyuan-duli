@@ -64,6 +64,20 @@ import { useWalletStore } from './useWalletStore'
 import { addLog } from '@/composables/useGameLog'
 import { getAbsoluteDay } from '@/utils/weekCycle'
 
+type CompletedQuestHistoryEntry = {
+  id: string
+  questId: string
+  signature: string
+  npcId: string
+  npcName: string
+  description: string
+  completedDayTag: string
+  rewardSummary: string
+  activitySourceLabel?: string
+  themeTag?: string
+  isSpecialOrder: boolean
+}
+
 export const useQuestStore = defineStore('quest', () => {
   const inventoryStore = useInventoryStore()
   const playerStore = usePlayerStore()
@@ -84,6 +98,7 @@ export const useQuestStore = defineStore('quest', () => {
 
   /** 累计完成任务数 */
   const completedQuestCount = ref<number>(0)
+  const completedQuestHistory = ref<CompletedQuestHistoryEntry[]>([])
 
   /** 当前可接取的特殊订单 */
   const specialOrder = ref<QuestInstance | null>(null)
@@ -112,6 +127,19 @@ export const useQuestStore = defineStore('quest', () => {
 
   /** 最大同时接取任务数 */
   const MAX_ACTIVE_QUESTS = computed(() => 3 + villageProjectStore.getQuestCapacityBonus())
+  const COMPLETED_QUEST_HISTORY_LIMIT = 24
+
+  const buildQuestHistoryDayTag = () => {
+    const gameStore = useGameStore()
+    return `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+  }
+
+  const buildQuestHistorySignature = (quest: QuestInstance) => `${quest.type}:${quest.npcId}:${quest.targetItemId}:${quest.activitySourceId ?? 'daily'}`
+  const buildVillagerQuestRepeatSignature = (quest: Pick<QuestInstance, 'npcId' | 'targetItemId' | 'sourceCategory'>) =>
+    `villager:${quest.npcId}:${quest.targetItemId}:${quest.sourceCategory ?? 'daily'}`
+
+  const hasCompletedQuestHistory = (quest: QuestInstance) =>
+    completedQuestHistory.value.some(entry => entry.signature === buildQuestHistorySignature(quest))
 
   const beginActivityQuestWindowAction = (lockId: string): boolean => {
     if (activityQuestWindowLocks.value.includes(lockId)) return false
@@ -351,14 +379,27 @@ export const useQuestStore = defineStore('quest', () => {
       if (getTodayEvent(season, day)) return 'festival_prep' as VillagerQuestCategory
       if (marketQuestBias.preferredVillagerCategory) return marketQuestBias.preferredVillagerCategory
 
-      const rotation: VillagerQuestCategory[] = ['gathering', 'cooking', 'fishing', 'errand']
+      const rotation: VillagerQuestCategory[] = ['gathering', 'cooking', 'fishing', 'errand', 'rumor']
       return rotation[(day - 1) % rotation.length] ?? null
     })()
 
-    const villagerQuest = generateVillagerQuest(season, relationshipStages, preferredCategory)
+    const completedVillagerQuestSignatures = completedQuestHistory.value
+      .filter(entry => !entry.isSpecialOrder)
+      .map(entry => entry.signature.startsWith('villager:') ? entry.signature : '')
+      .filter(Boolean)
+
+    const villagerQuest = generateVillagerQuest(season, relationshipStages, preferredCategory, completedVillagerQuestSignatures)
     if (villagerQuest) {
       const duplicateNpc = boardQuests.value.some(q => q.npcId === villagerQuest.npcId && q.sourceCategory)
       if (!duplicateNpc) boardQuests.value.push(villagerQuest)
+    }
+
+    if (Math.random() < 0.75) {
+      const rumorQuest = generateVillagerQuest(season, relationshipStages, 'rumor', completedVillagerQuestSignatures)
+      if (rumorQuest) {
+        const duplicateRumorNpc = boardQuests.value.some(q => q.npcId === rumorQuest.npcId && q.rumorTask)
+        if (!duplicateRumorNpc) boardQuests.value.push(rumorQuest)
+      }
     }
 
     if (marketQuestBias.boardHint) {
@@ -1669,6 +1710,34 @@ export const useQuestStore = defineStore('quest', () => {
       rememberSpecialOrderReceipt(quest.id)
     }
 
+    const rewardSummaryParts = [`${finalMoneyReward}文`, `${quest.npcName}好感+${finalFriendshipReward}`]
+    if (quest.itemReward?.length) {
+      rewardSummaryParts.push(quest.itemReward.map(i => `${getItemById(i.itemId)?.name ?? i.itemId}×${i.quantity}`).join('、'))
+    }
+    if (Object.keys(grantedTicketRewards).length > 0) {
+      rewardSummaryParts.push(
+        Object.entries(grantedTicketRewards)
+          .map(([ticketType, amount]) => `${walletStore.getTicketLabel(ticketType as RewardTicketType)}×${amount}`)
+          .join('、')
+      )
+    }
+    completedQuestHistory.value = [
+      {
+        id: `${quest.id}:${buildQuestHistoryDayTag()}`,
+        questId: quest.id,
+        signature: quest.sourceCategory ? buildVillagerQuestRepeatSignature(quest) : buildQuestHistorySignature(quest),
+        npcId: quest.npcId,
+        npcName: quest.npcName,
+        description: quest.description,
+        completedDayTag: buildQuestHistoryDayTag(),
+        rewardSummary: rewardSummaryParts.join(' / '),
+        activitySourceLabel: quest.activitySourceLabel,
+        themeTag: quest.themeTag,
+        isSpecialOrder: quest.type === 'special_order'
+      },
+      ...completedQuestHistory.value
+    ].slice(0, COMPLETED_QUEST_HISTORY_LIMIT)
+
     // 从活跃列表移除
     activeQuests.value.splice(idx, 1)
 
@@ -2009,6 +2078,7 @@ export const useQuestStore = defineStore('quest', () => {
       boardQuests: boardQuests.value,
       activeQuests: activeQuests.value,
       completedQuestCount: completedQuestCount.value,
+      completedQuestHistory: completedQuestHistory.value,
       specialOrder: specialOrder.value,
       specialOrderSettlementReceipts: specialOrderSettlementReceipts.value,
       recentSpecialOrderTagHistory: recentSpecialOrderTagHistory.value,
@@ -2029,6 +2099,27 @@ export const useQuestStore = defineStore('quest', () => {
     if (input === 'pond') return 'pond'
     if (input === 'inventory') return 'inventory'
     return undefined
+  }
+
+  const normalizeCompletedQuestHistory = (input: unknown): CompletedQuestHistoryEntry[] => {
+    if (!Array.isArray(input)) return []
+    return input
+      .filter((entry): entry is Record<string, unknown> => !!entry && typeof entry === 'object')
+      .map(entry => ({
+        id: typeof entry.id === 'string' ? entry.id : `${String(entry.questId ?? 'quest')}:${String(entry.completedDayTag ?? '')}`,
+        questId: typeof entry.questId === 'string' ? entry.questId : '',
+        signature: typeof entry.signature === 'string' ? entry.signature : '',
+        npcId: typeof entry.npcId === 'string' ? entry.npcId : '',
+        npcName: typeof entry.npcName === 'string' ? entry.npcName : '',
+        description: typeof entry.description === 'string' ? entry.description : '',
+        completedDayTag: typeof entry.completedDayTag === 'string' ? entry.completedDayTag : '',
+        rewardSummary: typeof entry.rewardSummary === 'string' ? entry.rewardSummary : '',
+        activitySourceLabel: typeof entry.activitySourceLabel === 'string' ? entry.activitySourceLabel : undefined,
+        themeTag: entry.themeTag === 'breeding' || entry.themeTag === 'fishpond' ? entry.themeTag : undefined,
+        isSpecialOrder: entry.isSpecialOrder === true
+      }))
+      .filter(entry => entry.questId.length > 0 && entry.signature.length > 0)
+      .slice(0, COMPLETED_QUEST_HISTORY_LIMIT)
   }
 
   const normalizeStagePhaseType = (input: unknown): SpecialOrderStageDef['phaseType'] => {
@@ -2544,6 +2635,7 @@ export const useQuestStore = defineStore('quest', () => {
     boardQuests.value = (Array.isArray(data?.boardQuests) ? data.boardQuests : []).map(normalizeQuestInstance).filter((quest): quest is QuestInstance => quest !== null)
     activeQuests.value = (Array.isArray(data?.activeQuests) ? data.activeQuests : []).map(normalizeQuestInstance).filter((quest): quest is QuestInstance => quest !== null)
     completedQuestCount.value = data.completedQuestCount ?? 0
+    completedQuestHistory.value = normalizeCompletedQuestHistory((data as Record<string, unknown>).completedQuestHistory)
     specialOrder.value = normalizeQuestInstance((data as Record<string, unknown>).specialOrder ?? null)
     specialOrderSettlementReceipts.value = normalizeStringArray((data as Record<string, unknown>).specialOrderSettlementReceipts) ?? []
     recentSpecialOrderTagHistory.value = normalizeStringArray((data as Record<string, unknown>).recentSpecialOrderTagHistory) ?? []
@@ -2600,6 +2692,7 @@ export const useQuestStore = defineStore('quest', () => {
     boardQuests,
     activeQuests,
     completedQuestCount,
+    completedQuestHistory,
     specialOrder,
     lastSpecialOrderGenerationTrace,
     activityQuestWindowState,
@@ -2610,6 +2703,7 @@ export const useQuestStore = defineStore('quest', () => {
     mainQuest,
     completedMainQuests,
     MAX_ACTIVE_QUESTS,
+    hasCompletedQuestHistory,
     generateDailyQuests,
     generateSpecialOrder,
     processSpecialOrderWeeklyRefresh,

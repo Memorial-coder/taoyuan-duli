@@ -489,7 +489,7 @@ export const useMiningStore = defineStore('mining', () => {
 
     // 3% 概率获得秘密笔记
     if (Math.random() < 0.03) {
-      useSecretNoteStore().tryCollectNote()
+      useSecretNoteStore().tryCollectNote('mining')
     }
 
     // 根据类型处理
@@ -1263,6 +1263,9 @@ export const useMiningStore = defineStore('mining', () => {
     msg += ` ${monster.name}被击败了！(+${monster.expReward}经验)`
     if (drops.length > 0) msg += ` 掉落了物品。`
     if (inventoryBlocked) msg += ' 部分掉落因背包空间不足未领取。'
+    if (Math.random() < 0.05) {
+      useSecretNoteStore().tryCollectNote('monster')
+    }
     combatLog.value.push(msg)
 
     // === 更新格子状态 ===

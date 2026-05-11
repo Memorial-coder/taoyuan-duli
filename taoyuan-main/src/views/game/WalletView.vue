@@ -264,6 +264,50 @@
       <template v-if="!isCompactMobile || isWalletSectionOpen('reward-ticket')">
       <p class="text-xs text-muted mb-2">高阶经营奖励会逐步改为票券发放，可在这里查看余额并兑换对应的专项补给。</p>
 
+      <div class="border border-accent/10 rounded-xs p-2 mb-3 bg-accent/5">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <p class="text-xs text-accent">奖券命名与兑奖入口</p>
+            <p class="text-[10px] text-muted mt-0.5">
+              入账按「{{ rewardTicketPrizeNaming.intakeLabel }}」记，日常兑换走「{{ rewardTicketPrizeNaming.exchangeLabel }}」，高阶段奖励会并入「{{ rewardTicketPrizeNaming.highTierLabel }}」。
+            </p>
+          </div>
+          <span class="text-[10px] text-success">累计 {{ rewardTicketLifetimeTotal }} 张</span>
+        </div>
+        <div class="mt-2 space-y-1">
+          <p v-for="line in rewardTicketPrizeNaming.summaryLines" :key="line" class="text-[10px] text-muted leading-4">
+            {{ line }}
+          </p>
+        </div>
+      </div>
+
+      <div class="border border-accent/10 rounded-xs p-2 mb-3">
+        <div class="flex items-center justify-between gap-2">
+          <div>
+            <p class="text-xs text-accent">阶段奖池预览</p>
+            <p class="text-[10px] text-muted mt-0.5">当前主阶段：{{ activeRewardTicketPrizeStage.label }}</p>
+          </div>
+          <span class="text-[10px]" :class="rewardTicketLifetimeTotal > 0 ? 'text-success' : 'text-muted'">
+            {{ activeRewardTicketPrizeStage.summary }}
+          </span>
+        </div>
+        <div class="space-y-2 mt-2">
+          <div v-for="stage in rewardTicketPrizeStageEntries" :key="stage.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs" :class="stage.active ? 'text-accent' : stage.unlocked ? 'text-success' : 'text-text'">{{ stage.label }}</p>
+              <span class="text-[10px]" :class="stage.active ? 'text-accent' : stage.unlocked ? 'text-success' : 'text-muted'">
+                {{ stage.unlocked ? (stage.active ? '当前阶段' : '已见过') : `累计 ${stage.unlockLifetimeTickets} 张解锁` }}
+              </span>
+            </div>
+            <p class="text-[10px] text-muted mt-1">{{ stage.spotlightRewards.join('、') }}</p>
+            <p class="text-[10px] text-muted/80 mt-1">{{ stage.notes[0] }}</p>
+            <p v-if="stage.nextStageLabel && stage.active" class="text-[10px] text-success mt-1">
+              距离下一档「{{ stage.nextStageLabel }}」还差 {{ Math.max(0, stage.progressGoal - stage.progressValue) }} 张累计奖券。
+            </p>
+          </div>
+        </div>
+      </div>
+
       <div class="space-y-2 mb-3">
         <div
           v-for="entry in rewardTicketEntries"
@@ -293,6 +337,10 @@
             </div>
             <span class="text-[10px] text-muted">{{ offer.balance }}/{{ offer.costTickets }}</span>
           </div>
+          <p v-if="offer.counterLabel || offer.poolStageLabel" class="text-[10px] text-success mt-1">
+            {{ [offer.counterLabel, offer.poolStageLabel].filter(Boolean).join(' · ') }}
+          </p>
+          <p v-if="offer.poolTagsLabel" class="text-[10px] text-muted/80 mt-0.5">奖池标签：{{ offer.poolTagsLabel }}</p>
           <p class="text-[10px] text-muted mt-1">兑换内容：{{ offer.rewardSummary }}</p>
           <button
             class="mt-2 border border-accent/20 rounded-xs px-2 py-1 text-[10px] transition-colors"
@@ -820,6 +868,10 @@
   const weeklyBudgetActiveCount = computed(() => Object.keys(weeklyBudgetPlan.value.selections).length)
   const rewardTicketEntries = computed(() => walletStore.rewardTicketEntries)
   const rewardTicketFilledCount = computed(() => rewardTicketEntries.value.filter(entry => entry.balance > 0).length)
+  const rewardTicketPrizeNaming = computed(() => walletStore.rewardTicketPrizeNaming)
+  const rewardTicketLifetimeTotal = computed(() => walletStore.rewardTicketLifetimeTotal)
+  const activeRewardTicketPrizeStage = computed(() => walletStore.activeRewardTicketPrizeStage)
+  const rewardTicketPrizeStageEntries = computed(() => walletStore.rewardTicketPrizeStageEntries)
   const rewardTicketExchangeOffers = computed(() =>
     walletStore.ticketExchangeOffers.map(offer => ({
       ...offer,

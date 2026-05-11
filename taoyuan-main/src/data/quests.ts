@@ -30,6 +30,9 @@ import { getBreedById } from './pondBreeds'
 import { getItemById } from './items'
 import { isRelationshipStageAtLeast, NPC_VILLAGER_QUEST_PROFILES } from './npcWorld'
 
+// WS05 anchor: the quest pool and special orders already provide the base surface
+// for character-flavored orders, seasonal windows, and long-tail reward loops.
+
 export const QUEST_TEMPLATES: QuestTemplateDef[] = [
   {
     type: 'delivery',
@@ -1758,6 +1761,10 @@ interface VillagerQuestTemplate {
   recipeReward?: string[]
   buildingClueId?: string
   buildingClueText?: string
+  sourceLabel?: string
+  descriptionTemplate?: string
+  rumorTask?: boolean
+  ticketReward?: Partial<Record<RewardTicketType, number>>
 }
 
 const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
@@ -2095,6 +2102,144 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     friendshipReward: 10,
     itemReward: [{ itemId: 'iron_bar', quantity: 1 }],
     bonusSummary: ['云飞说镖局存货里还有铁锭，顺手给你一块。']
+  },
+  {
+    id: 'chen_bo_market_rumor',
+    npcId: 'chen_bo',
+    category: 'rumor',
+    minStage: 'recognize',
+    targetItemId: 'wood',
+    targetItemName: '木材',
+    minQty: 4,
+    maxQty: 7,
+    days: 1,
+    rewardMultiplier: 5,
+    friendshipReward: 4,
+    sourceLabel: '村口流言',
+    rumorTask: true,
+    descriptionTemplate: '{npcName}托人捎话：驿口临时缺几捆{targetItemName}，谁手边有就先送过去。',
+    bonusSummary: ['像是村里临时传开的口信，做完常会接到更正式的跑腿活。']
+  },
+  {
+    id: 'qiu_yue_fish_rumor',
+    npcId: 'qiu_yue',
+    category: 'rumor',
+    minStage: 'recognize',
+    targetItemId: 'bait',
+    targetItemName: '鱼饵',
+    minQty: 4,
+    maxQty: 6,
+    days: 1,
+    rewardMultiplier: 5,
+    friendshipReward: 4,
+    sourceLabel: '鱼汛口风',
+    rumorTask: true,
+    descriptionTemplate: '河边都在传：{npcName}今天想试一试新鱼汛，正缺一小包{targetItemName}。',
+    itemReward: [{ itemId: 'standard_bait', quantity: 4 }],
+    bonusSummary: ['更像随口请托，不会占用你太多准备时间。']
+  },
+  {
+    id: 'wang_dashen_kitchen_rumor',
+    npcId: 'wang_dashen',
+    category: 'rumor',
+    minStage: 'recognize',
+    targetItemId: 'rice',
+    targetItemName: '稻米',
+    minQty: 2,
+    maxQty: 4,
+    days: 1,
+    rewardMultiplier: 6,
+    friendshipReward: 4,
+    sourceLabel: '灶台消息',
+    rumorTask: true,
+    descriptionTemplate: '灶房那边传出话来：{npcName}想先试一锅新米饭，缺几份顺手好米。',
+    itemReward: [{ itemId: 'sesame_oil', quantity: 1 }]
+  },
+  {
+    id: 'liu_niang_festival_rumor',
+    npcId: 'liu_niang',
+    category: 'rumor',
+    minStage: 'familiar',
+    targetItemId: 'osmanthus',
+    targetItemName: '桂花',
+    minQty: 1,
+    maxQty: 3,
+    days: 1,
+    rewardMultiplier: 7,
+    friendshipReward: 5,
+    seasons: ['summer', 'autumn'],
+    sourceLabel: '节前风声',
+    rumorTask: true,
+    descriptionTemplate: '有人说{npcName}今天在找几枝香气足的{targetItemName}，像是在为节前席面试香。',
+    bonusSummary: ['节前消息类轻任务会更常牵出后续的节庆筹备单。']
+  },
+  {
+    id: 'dan_qing_tea_rumor',
+    npcId: 'dan_qing',
+    category: 'rumor',
+    minStage: 'familiar',
+    targetItemId: 'tea',
+    targetItemName: '茶叶',
+    minQty: 1,
+    maxQty: 2,
+    days: 1,
+    rewardMultiplier: 7,
+    friendshipReward: 5,
+    sourceLabel: '茶肆闲谈',
+    rumorTask: true,
+    descriptionTemplate: '茶肆里有人提起：{npcName}今晚想临时凑个小文会，只差一点顺手的新茶。 ',
+    itemReward: [{ itemId: 'osmanthus', quantity: 1 }]
+  },
+  {
+    id: 'yun_fei_route_rumor',
+    npcId: 'yun_fei',
+    category: 'rumor',
+    minStage: 'familiar',
+    targetItemId: 'stone',
+    targetItemName: '石材',
+    minQty: 5,
+    maxQty: 8,
+    days: 1,
+    rewardMultiplier: 5,
+    friendshipReward: 4,
+    sourceLabel: '商路异动',
+    rumorTask: true,
+    descriptionTemplate: '镖局那边放出消息：{npcName}今天临时补路，缺一批能马上垫上的{targetItemName}。',
+    bonusSummary: ['商路传闻常和后续的运输或护送订单连起来。']
+  },
+  {
+    id: 'lin_lao_herb_rumor',
+    npcId: 'lin_lao',
+    category: 'rumor',
+    minStage: 'familiar',
+    targetItemId: 'herb',
+    targetItemName: '草药',
+    minQty: 2,
+    maxQty: 4,
+    days: 1,
+    rewardMultiplier: 6,
+    friendshipReward: 5,
+    sourceLabel: '雨后见闻',
+    rumorTask: true,
+    descriptionTemplate: '雨后有人看见{npcName}在问哪儿还能采到新鲜{targetItemName}，像是手边药方临时要添一味。',
+    itemReward: [{ itemId: 'green_tea_drink', quantity: 1 }]
+  },
+  {
+    id: 'xiao_man_bamboo_rumor',
+    npcId: 'xiao_man',
+    category: 'rumor',
+    minStage: 'recognize',
+    targetItemId: 'bamboo',
+    targetItemName: '竹子',
+    minQty: 2,
+    maxQty: 4,
+    days: 1,
+    rewardMultiplier: 5,
+    friendshipReward: 4,
+    sourceLabel: '摊前吆喝',
+    rumorTask: true,
+    descriptionTemplate: '广场边有人帮{npcName}招呼：今天只差几截顺手的{targetItemName}就能把小摊支起来。',
+    itemReward: [{ itemId: 'wood', quantity: 4 }]
   }
 ]
 
@@ -2103,13 +2248,39 @@ const VILLAGER_CATEGORY_LABELS: Record<VillagerQuestCategory, string> = {
   cooking: '烹饪筹备',
   fishing: '钓鱼',
   errand: '跑腿',
-  festival_prep: '节庆筹备'
+  festival_prep: '节庆筹备',
+  rumor: '传闻请托'
+}
+
+const getVillagerQuestTicketReward = (
+  template: VillagerQuestTemplate,
+  isRepeatVariant: boolean
+): Partial<Record<RewardTicketType, number>> | undefined => {
+  if (template.ticketReward && Object.keys(template.ticketReward).length > 0) {
+    return template.ticketReward
+  }
+  if (template.rumorTask) return undefined
+
+  if (template.category === 'festival_prep') {
+    return { exhibit: isRepeatVariant ? 2 : 1 }
+  }
+  if (template.category === 'fishing' && (template.minStage === 'friend' || template.minStage === 'bestie')) {
+    return { caravan: 1 }
+  }
+  if (template.category === 'cooking') {
+    return { research: 1 }
+  }
+  if (template.category === 'gathering' && template.buildingClueId) {
+    return { construction: 1 }
+  }
+  return undefined
 }
 
 export const generateVillagerQuest = (
   season: Season,
   relationshipStages: Record<string, RelationshipStage>,
-  preferredCategory?: VillagerQuestCategory | null
+  preferredCategory?: VillagerQuestCategory | null,
+  completedQuestSignatures: string[] = []
 ): QuestInstance | null => {
   const valid = VILLAGER_QUEST_TEMPLATES.filter(template => {
     const stage = relationshipStages[template.npcId]
@@ -2127,9 +2298,18 @@ export const generateVillagerQuest = (
   const template = templatePool[Math.floor(Math.random() * templatePool.length)]!
   const npcDef = getNpcById(template.npcId)
   const npcName = npcDef?.name ?? template.npcId
-  const quantity = template.minQty + Math.floor(Math.random() * (template.maxQty - template.minQty + 1))
-  const moneyReward = Math.floor(quantity * template.rewardMultiplier * 12)
+  const baseQuantity = template.minQty + Math.floor(Math.random() * (template.maxQty - template.minQty + 1))
+  const repeatSignature = `villager:${template.npcId}:${template.targetItemId}:${template.category}`
+  const isRepeatVariant = completedQuestSignatures.includes(repeatSignature)
+  const quantity = isRepeatVariant ? baseQuantity + Math.max(1, Math.floor(baseQuantity * 0.25)) : baseQuantity
+  const moneyReward = Math.floor(quantity * template.rewardMultiplier * 12 * (isRepeatVariant ? 1.25 : 1))
   const categoryLabel = VILLAGER_CATEGORY_LABELS[template.category]
+  const description = template.descriptionTemplate
+    ? template.descriptionTemplate
+        .replace(/\{npcName\}/g, npcName)
+        .replace(/\{targetItemName\}/g, template.targetItemName)
+        .replace(/\{quantity\}/g, String(quantity))
+    : `${npcName}有一份${categoryLabel}委托：需要${quantity}个${template.targetItemName}。`
 
   questCounter++
   return {
@@ -2141,25 +2321,31 @@ export const generateVillagerQuest = (
           ? 'errand'
           : template.category === 'festival_prep'
             ? 'festival_prep'
-            : template.category,
+            : template.category === 'rumor'
+              ? 'errand'
+              : template.category,
     npcId: template.npcId,
     npcName,
-    description: `${npcName}有一份${categoryLabel}委托：需要${quantity}个${template.targetItemName}。`,
+    description,
     targetItemId: template.targetItemId,
     targetItemName: template.targetItemName,
     targetQuantity: quantity,
     collectedQuantity: 0,
     moneyReward,
     friendshipReward: template.friendshipReward,
+    ticketReward: getVillagerQuestTicketReward(template, isRepeatVariant),
     daysRemaining: template.days,
     accepted: false,
     sourceCategory: template.category,
+    sourceLabel: template.sourceLabel,
+    rumorTask: template.rumorTask,
+    variantLabel: isRepeatVariant ? '熟客加急' : undefined,
     relationshipStageRequired: template.minStage,
     itemReward: template.itemReward,
     recipeReward: template.recipeReward,
     buildingClueId: template.buildingClueId,
     buildingClueText: template.buildingClueText,
-    bonusSummary: template.bonusSummary
+    bonusSummary: isRepeatVariant ? [...(template.bonusSummary ?? []), '这是做过同类委托后的熟客加急版。'] : template.bonusSummary
   }
 }
 

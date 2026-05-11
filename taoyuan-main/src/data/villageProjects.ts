@@ -8,6 +8,9 @@ import type {
   VillageProjectPlayerSegmentDefinition
 } from '@/types/villageProject'
 
+// WS01 anchor: village projects are the existing world-restoration layer that can
+// grow into route changes, service unlocks, and persistent village feedback.
+
 export const VILLAGE_PROJECT_SAVE_VERSION = 2
 
 export const VILLAGE_PROJECT_OPERATIONAL_CONFIG: VillageProjectOperationalConfig = {
@@ -322,7 +325,29 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
     buildMode: 'standard',
     contentTier: 'P0',
     unlockEffects: [],
-    regionalEffects: []
+    regionalEffects: [],
+    restorationProfile: {
+      bundleIds: ['spring_bundle'],
+      milestoneLabel: '工台与修补起步',
+      preRumors: ['赵木匠最近总在念叨：再不把零散木料收成工台，后面的修补活会越堆越乱。'],
+      postComments: ['赵木匠说工台角总算立住了，往后修器具和补木作都不用再临时借地方。'],
+      crossEntryFeedback: ['家园设施页会开始把工台角和后续建设承接更稳定地挂出来。'],
+      worldChanges: [
+        {
+          id: 'workbench_corner_entry_unlock',
+          type: 'entry',
+          title: '设施页承接更明确',
+          summary: '家园与村庄建设入口开始稳定提示工台角相关建设，不再像一次性花钱后就沉底。',
+          targetPanel: 'home'
+        },
+        {
+          id: 'workbench_corner_dialogue_unlock',
+          type: 'dialogue',
+          title: '木作与修补闲谈开启',
+          summary: '木匠系 NPC 会开始提起修补、器具维护和后续建设准备。'
+        }
+      ]
+    }
   },
   {
     id: 'support_shed',
@@ -344,7 +369,29 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
     buildMode: 'standard',
     contentTier: 'P0',
     unlockEffects: [],
-    regionalEffects: []
+    regionalEffects: [],
+    restorationProfile: {
+      bundleIds: ['ore_bundle'],
+      milestoneLabel: '矿料调度起步',
+      preRumors: ['阿石提过好几次，矿料不是不够，是散得太乱，少个像样的棚架就总会耽误差事。'],
+      postComments: ['阿石说矿料棚撑起来后，矿材、器具和后勤交接总算能走一条顺路。'],
+      crossEntryFeedback: ['公会和建设页会更明确点出矿料类承接，不再只剩一条抽象加成。'],
+      worldChanges: [
+        {
+          id: 'support_shed_shortcut_unlock',
+          type: 'shortcut',
+          title: '矿料交接路线变短',
+          summary: '农场边的矿料棚把矿材、支架和备用器具收拢到一处，日常调度明显更顺。'
+        },
+        {
+          id: 'support_shed_service_unlock',
+          type: 'service',
+          title: '矿料后勤更稳定',
+          summary: '矿料类差事和公会后勤开始拥有更清楚的承接点，建设不再像单次消耗。',
+          targetPanel: 'guild'
+        }
+      ]
+    }
   },
   {
     id: 'festival_greenhouse',
@@ -393,7 +440,34 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
         ],
         linkedSystems: ['goal', 'quest']
       }
-    ]
+    ],
+    restorationProfile: {
+      bundleIds: ['spring_bundle', 'summer_bundle'],
+      milestoneLabel: '节前培育位启用',
+      preRumors: ['柳娘最近总担心花材和敏感作物赶不上节前的好时机，村里一直缺个稳当的暖房位。'],
+      postComments: ['柳娘说暖房启用后，节庆前总算能把花材和娇嫩作物养稳，不必再看天吃饭。'],
+      crossEntryFeedback: ['后续日历与主题周提醒会更容易把节前备货直接指向暖房与节庆筹备。'],
+      worldChanges: [
+        {
+          id: 'festival_greenhouse_service_unlock',
+          type: 'service',
+          title: '节前培育位上线',
+          summary: '暖房开始承担节庆前的稳定培育和保香准备，让节前筹备有了真实设施支点。'
+        },
+        {
+          id: 'festival_greenhouse_calendar_unlock',
+          type: 'calendar',
+          title: '节庆准备开始有落点',
+          summary: '后续日历和主题周提醒可以把节前供货、花材和预热活动直接挂到暖房上。'
+        },
+        {
+          id: 'festival_greenhouse_dialogue_unlock',
+          type: 'dialogue',
+          title: '节前闲谈更新',
+          summary: '节庆相关 NPC 会开始提起暖房、花材和这几天更值得优先准备的物资。'
+        }
+      ]
+    }
   },
   {
     id: 'caravan_station',
@@ -461,7 +535,36 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
         ],
         linkedSystems: ['quest', 'hanhai']
       }
-    ]
+    ],
+    restorationProfile: {
+      bundleIds: ['artisan_bundle'],
+      milestoneLabel: '商路停靠点启用',
+      preRumors: ['红豆觉得村口总少一处像样的停靠点，不然好货、急单和商队都只会路过不落脚。'],
+      postComments: ['红豆说驿站一开，商队终于愿意留下来歇脚，村口的活气一下子就起来了。'],
+      crossEntryFeedback: ['行旅图、高地承接和任务页会更明确提到村口驿站这条后续线路。'],
+      worldChanges: [
+        {
+          id: 'caravan_station_shortcut_unlock',
+          type: 'shortcut',
+          title: '村口商路捷径开启',
+          summary: '驿站启用后，村口停靠、接单和货栈整合到同一处，跑商与交接不再绕来绕去。'
+        },
+        {
+          id: 'caravan_station_service_unlock',
+          type: 'service',
+          title: '商队服务开始落地',
+          summary: '订单池、停靠区和后续商路功能开始以驿站为核心承接，世界不再只是数字加成。',
+          targetPanel: 'quest'
+        },
+        {
+          id: 'caravan_station_entry_unlock',
+          type: 'entry',
+          title: '村口设施可被看见',
+          summary: '村庄建设、行旅图和相关承接页会开始把村口驿站视为真实入口来提示。',
+          targetPanel: 'region-map'
+        }
+      ]
+    }
   },
   {
     id: 'village_school',
@@ -557,7 +660,28 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
         ],
         linkedSystems: ['quest', 'museum', 'goal']
       }
-    ]
+    ],
+    restorationProfile: {
+      bundleIds: ['friendship_bundle'],
+      milestoneLabel: '学舍记录与授课启用',
+      preRumors: ['素素总说村里事情越来越多，可账册、讲席和人情往来还像各管各的，迟早会乱。'],
+      postComments: ['素素说学舍一开，村里的账目、讲席和人情往来终于有了体面去处。'],
+      crossEntryFeedback: ['家园和任务承接页会开始更明确提到学舍、关系推进和后续展示位。'],
+      worldChanges: [
+        {
+          id: 'village_school_service_unlock',
+          type: 'service',
+          title: '学舍服务区启用',
+          summary: '记录、授课和展示承接开始有固定据点，关系和委托不再像散落条目。'
+        },
+        {
+          id: 'village_school_dialogue_unlock',
+          type: 'dialogue',
+          title: '学舍闲谈加入村中对话',
+          summary: '村民会开始提起学舍、授课和谁最近常去帮忙，关系发展更像发生在村里。'
+        }
+      ]
+    }
   },
   {
     id: 'hot_spring',
@@ -616,7 +740,28 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
         ],
         linkedSystems: ['quest', 'goal']
       }
-    ]
+    ],
+    restorationProfile: {
+      bundleIds: ['fish_bundle'],
+      milestoneLabel: '温泉休养区恢复',
+      preRumors: ['林老总念着旧泉荒在那里可惜，忙完活的人连个正经歇脚处都没有。'],
+      postComments: ['林老说旧泉重新活过来后，村里总算多了个能真正歇口气的地方。'],
+      crossEntryFeedback: ['设施页和后续生活层入口会更常提到休养、恢复和温泉相关承接。'],
+      worldChanges: [
+        {
+          id: 'hot_spring_shortcut_unlock',
+          type: 'shortcut',
+          title: '山脚休养路线恢复',
+          summary: '山脚旧泉被重新引流后，村里的休养动线终于重新接上，不再只是地图背景。'
+        },
+        {
+          id: 'hot_spring_service_unlock',
+          type: 'service',
+          title: '休养设施重新可用',
+          summary: '温泉作为真实恢复设施重新进入村庄循环，能被玩家每天感知。'
+        }
+      ]
+    }
   },
   {
     id: 'village_school_ii',
@@ -850,6 +995,27 @@ export const VILLAGE_PROJECT_DEFS: VillageProjectAuditTaggedDef[] = [
         ],
         linkedSystems: ['quest', 'hanhai', 'goal']
       }
-    ]
+    ],
+    restorationProfile: {
+      bundleIds: ['gem_bundle'],
+      milestoneLabel: '商路公告与歇脚区扩建',
+      preRumors: ['云飞觉得现在的驿站能停靠，却还算不上真正的商路枢纽，公告牌和歇脚区都还差着一口气。'],
+      postComments: ['云飞说二期货棚和公告牌补齐后，村口终于像个真正能留住商队和消息的地方了。'],
+      crossEntryFeedback: ['任务板和行旅图会更容易把商路承接、额外委托和驿站状态一起说清。'],
+      worldChanges: [
+        {
+          id: 'caravan_station_ii_shortcut_unlock',
+          type: 'shortcut',
+          title: '村口承接一步到位',
+          summary: '货棚、公告牌和歇脚区连成完整节点后，村口从“可停靠”升级成“可办事”的真正捷径。'
+        },
+        {
+          id: 'caravan_station_ii_service_unlock',
+          type: 'service',
+          title: '商路枢纽进入运营态',
+          summary: '驿站二期会把额外委托、路线公告和后续来访承接到同一套村口服务里。'
+        }
+      ]
+    }
   }
 ]

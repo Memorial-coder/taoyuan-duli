@@ -42,12 +42,36 @@ const FIGHTER_HP_BONUS = 25
 const WARRIOR_HP_BONUS = 40
 const ECONOMY_TELEMETRY_SAVE_VERSION = 1
 const ECONOMY_RECENT_SNAPSHOT_LIMIT = 14
+const LIFESTYLE_DISCOVERY_SAVE_VERSION = 1
 const ASSET_QUALITY_MULTIPLIERS: Record<'normal' | 'fine' | 'excellent' | 'supreme', number> = {
   normal: 1,
   fine: 1.25,
   excellent: 1.5,
   supreme: 2
 }
+
+type LifestyleDiscoveryEntry = {
+  firstSeenDayTag: string
+  lastSeenDayTag: string
+  count: number
+}
+
+type LifestyleDiscoveryBucket = Record<string, LifestyleDiscoveryEntry>
+
+type LifestyleDiscoveryLedger = {
+  saveVersion: number
+  giftClues: LifestyleDiscoveryBucket
+  secretLeads: LifestyleDiscoveryBucket
+  worldRestorations: LifestyleDiscoveryBucket
+  rareVisitors: LifestyleDiscoveryBucket
+  specialOrders: LifestyleDiscoveryBucket
+  masteryUnlocks: LifestyleDiscoveryBucket
+  prizeProgress: LifestyleDiscoveryBucket
+  mysteryBoxes: LifestyleDiscoveryBucket
+  lifestyleUnlocks: LifestyleDiscoveryBucket
+}
+
+type LifestyleDiscoveryBucketKey = Exclude<keyof LifestyleDiscoveryLedger, 'saveVersion'>
 const normalizeNonNegativeInteger = (value: unknown, fallback = 0) => {
   const numericValue = Number(value)
   if (!Number.isFinite(numericValue)) return Math.max(0, Math.floor(fallback))
@@ -73,6 +97,56 @@ const createEmptyEconomyTelemetry = (): EconomyTelemetryState => ({
   },
   latestRiskReport: null
 })
+
+const createEmptyLifestyleDiscoveryLedger = (): LifestyleDiscoveryLedger => ({
+  saveVersion: LIFESTYLE_DISCOVERY_SAVE_VERSION,
+  giftClues: {},
+  secretLeads: {},
+  worldRestorations: {},
+  rareVisitors: {},
+  specialOrders: {},
+  masteryUnlocks: {},
+  prizeProgress: {},
+  mysteryBoxes: {},
+  lifestyleUnlocks: {}
+})
+
+const normalizeLifestyleDiscoveryBucket = (bucket: unknown): LifestyleDiscoveryBucket => {
+  if (!bucket || typeof bucket !== 'object') return {}
+  return Object.fromEntries(
+    Object.entries(bucket)
+      .filter(([id, value]) => typeof id === 'string' && value && typeof value === 'object')
+      .map(([id, value]) => {
+        const raw = value as Partial<LifestyleDiscoveryEntry>
+        const firstSeenDayTag = typeof raw.firstSeenDayTag === 'string' ? raw.firstSeenDayTag : ''
+        const lastSeenDayTag = typeof raw.lastSeenDayTag === 'string' ? raw.lastSeenDayTag : firstSeenDayTag
+        return [
+          id,
+          {
+            firstSeenDayTag,
+            lastSeenDayTag,
+            count: Math.max(0, Number(raw.count) || 0)
+          }
+        ]
+      })
+  )
+}
+
+const normalizeLifestyleDiscoveryLedger = (ledger: Partial<LifestyleDiscoveryLedger> | undefined): LifestyleDiscoveryLedger => {
+  const fallback = createEmptyLifestyleDiscoveryLedger()
+  return {
+    saveVersion: LIFESTYLE_DISCOVERY_SAVE_VERSION,
+    giftClues: normalizeLifestyleDiscoveryBucket(ledger?.giftClues ?? fallback.giftClues),
+    secretLeads: normalizeLifestyleDiscoveryBucket(ledger?.secretLeads ?? fallback.secretLeads),
+    worldRestorations: normalizeLifestyleDiscoveryBucket(ledger?.worldRestorations ?? fallback.worldRestorations),
+    rareVisitors: normalizeLifestyleDiscoveryBucket(ledger?.rareVisitors ?? fallback.rareVisitors),
+    specialOrders: normalizeLifestyleDiscoveryBucket(ledger?.specialOrders ?? fallback.specialOrders),
+    masteryUnlocks: normalizeLifestyleDiscoveryBucket(ledger?.masteryUnlocks ?? fallback.masteryUnlocks),
+    prizeProgress: normalizeLifestyleDiscoveryBucket(ledger?.prizeProgress ?? fallback.prizeProgress),
+    mysteryBoxes: normalizeLifestyleDiscoveryBucket(ledger?.mysteryBoxes ?? fallback.mysteryBoxes),
+    lifestyleUnlocks: normalizeLifestyleDiscoveryBucket(ledger?.lifestyleUnlocks ?? fallback.lifestyleUnlocks)
+  }
+}
 
 const normalizeEconomyRiskReport = (report: Partial<EconomyRiskReport> | null | undefined): EconomyRiskReport | null => {
   if (!report || typeof report !== 'object') return null
@@ -168,6 +242,7 @@ export const usePlayerStore = defineStore('player', () => {
   const hp = ref(BASE_MAX_HP)
   const baseMaxHp = ref(BASE_MAX_HP)
   const economyTelemetry = ref<EconomyTelemetryState>(createEmptyEconomyTelemetry())
+  const lifestyleDiscoveryLedger = ref<LifestyleDiscoveryLedger>(createEmptyLifestyleDiscoveryLedger())
   const qaGovernanceRuntimeState = ref<QaGovernanceRuntimeState>(createDefaultQaGovernanceRuntimeState())
   const qaGovernanceActionLocks = ref<string[]>([])
   const qaGovernanceTuning = WS12_QA_GOVERNANCE_TUNING_CONFIG
@@ -692,6 +767,36 @@ export const usePlayerStore = defineStore('player', () => {
     needsIdentitySetup.value = false
   }
 
+  const recordLifestyleDiscovery = (bucket: LifestyleDiscoveryBucketKey, id: string, dayTag = '') => {
+    const normalizedId = typeof id === 'string' ? id.trim() : ''
+    if (!normalizedId) return
+    const normalizedDayTag = typeof dayTag === 'string' ? dayTag.trim() : ''
+    const currentBucket = lifestyleDiscoveryLedger.value[bucket]
+    const currentEntry = currentBucket[normalizedId]
+    currentBucket[normalizedId] = {
+      firstSeenDayTag: currentEntry?.firstSeenDayTag || normalizedDayTag,
+      lastSeenDayTag: normalizedDayTag || currentEntry?.lastSeenDayTag || currentEntry?.firstSeenDayTag || '',
+      count: (currentEntry?.count ?? 0) + 1
+    }
+  }
+
+  const hasLifestyleDiscovery = (bucket: LifestyleDiscoveryBucketKey, id: string) => {
+    const normalizedId = typeof id === 'string' ? id.trim() : ''
+    return normalizedId.length > 0 && lifestyleDiscoveryLedger.value[bucket][normalizedId] != null
+  }
+
+  const getLifestyleDiscoverySnapshot = () => normalizeLifestyleDiscoveryLedger(lifestyleDiscoveryLedger.value)
+
+  const markGiftClueDiscovered = (id: string, dayTag = '') => recordLifestyleDiscovery('giftClues', id, dayTag)
+  const markSecretLeadUnlocked = (id: string, dayTag = '') => recordLifestyleDiscovery('secretLeads', id, dayTag)
+  const markWorldRestorationSeen = (id: string, dayTag = '') => recordLifestyleDiscovery('worldRestorations', id, dayTag)
+  const recordRareVisitorVisit = (id: string, dayTag = '') => recordLifestyleDiscovery('rareVisitors', id, dayTag)
+  const markSpecialOrderArchived = (id: string, dayTag = '') => recordLifestyleDiscovery('specialOrders', id, dayTag)
+  const markMasteryUnlocked = (id: string, dayTag = '') => recordLifestyleDiscovery('masteryUnlocks', id, dayTag)
+  const markPrizeProgress = (id: string, dayTag = '') => recordLifestyleDiscovery('prizeProgress', id, dayTag)
+  const markMysteryBoxCatalogued = (id: string, dayTag = '') => recordLifestyleDiscovery('mysteryBoxes', id, dayTag)
+  const markLifestyleUnlock = (id: string, dayTag = '') => recordLifestyleDiscovery('lifestyleUnlocks', id, dayTag)
+
   const normalizeDerivedState = () => {
     const expectedMax = (STAMINA_CAPS[staminaCapLevel.value] ?? 120) + bonusMaxStamina.value + temporaryFoodMaxStaminaBonus.value
     if (maxStamina.value !== expectedMax) {
@@ -713,6 +818,7 @@ export const usePlayerStore = defineStore('player', () => {
       hp: hp.value,
       baseMaxHp: baseMaxHp.value,
       economyTelemetry: normalizeEconomyTelemetry(economyTelemetry.value),
+      lifestyleDiscoveryLedger: normalizeLifestyleDiscoveryLedger(lifestyleDiscoveryLedger.value),
       qaGovernanceRuntimeState: {
         ...qaGovernanceRuntimeState.value,
         completedRegressionSuiteIds: [...qaGovernanceRuntimeState.value.completedRegressionSuiteIds],
@@ -764,6 +870,7 @@ export const usePlayerStore = defineStore('player', () => {
     baseMaxHp.value = Math.max(BASE_MAX_HP, normalizeNonNegativeInteger((data as any).baseMaxHp ?? BASE_MAX_HP, BASE_MAX_HP))
     hp.value = Math.max(0, normalizeNonNegativeInteger((data as any).hp ?? BASE_MAX_HP, BASE_MAX_HP))
     economyTelemetry.value = normalizeEconomyTelemetry((data as any).economyTelemetry)
+    lifestyleDiscoveryLedger.value = normalizeLifestyleDiscoveryLedger((data as any).lifestyleDiscoveryLedger)
     qaGovernanceRuntimeState.value = (() => {
       const raw = (data as any).qaGovernanceRuntimeState
       const fallback = createDefaultQaGovernanceRuntimeState()
@@ -799,6 +906,7 @@ export const usePlayerStore = defineStore('player', () => {
     hp,
     baseMaxHp,
     economyTelemetry,
+    lifestyleDiscoveryLedger,
     qaGovernanceRuntimeState,
     qaGovernanceActionLocks,
     qaGovernanceTuning,
@@ -845,6 +953,17 @@ export const usePlayerStore = defineStore('player', () => {
     earnMoney,
     setMoney,
     setIdentity,
+    hasLifestyleDiscovery,
+    getLifestyleDiscoverySnapshot,
+    markGiftClueDiscovered,
+    markSecretLeadUnlocked,
+    markWorldRestorationSeen,
+    recordRareVisitorVisit,
+    markSpecialOrderArchived,
+    markMasteryUnlocked,
+    markPrizeProgress,
+    markMysteryBoxCatalogued,
+    markLifestyleUnlock,
     normalizeDerivedState,
     serialize,
     deserialize

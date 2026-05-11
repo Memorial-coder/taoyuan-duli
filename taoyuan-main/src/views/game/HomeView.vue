@@ -53,6 +53,14 @@
         <p class="text-xs text-muted">当前暂无新的建设项目可推进，先看看维护计划、捐赠计划或其他系统前置进度。</p>
       </div>
 
+      <div v-if="villageWorldChangeHighlights.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+        <p class="text-xs text-muted mb-1">世界变化</p>
+        <div v-for="entry in villageWorldChangeHighlights" :key="entry.id" class="mt-1 first:mt-0">
+          <p class="text-[10px] text-accent">{{ entry.projectName }} · {{ entry.title }}</p>
+          <p class="text-[10px] text-muted leading-4">{{ entry.summary }}</p>
+        </div>
+      </div>
+
       <div class="grid grid-cols-1 gap-2">
         <div v-if="villageMaintenanceHighlights.length > 0" class="border border-accent/10 rounded-xs p-2">
           <p class="text-xs text-muted mb-1">维护提醒</p>
@@ -749,6 +757,7 @@
 
   const villageOverview = computed(() => villageProjectStore.overviewSummary)
   const villageAvailableProjects = computed(() => villageProjectStore.queryProjects({ completed: false }).filter(project => project.available).slice(0, 3))
+  const villageWorldChangeHighlights = computed(() => villageProjectStore.communityRestorationEffects.filter(entry => entry.unlocked).slice(0, 3))
   const villageMaintenanceHighlights = computed(() => villageProjectStore.maintenanceSummaries.filter(summary => summary.unlocked).slice(0, 2))
   const villageDonationHighlights = computed(() => villageProjectStore.donationSummaries.filter(summary => summary.unlocked).slice(0, 2))
 

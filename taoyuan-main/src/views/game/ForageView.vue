@@ -140,6 +140,7 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useQuestStore } from '@/stores/useQuestStore'
+  import { useSecretNoteStore } from '@/stores/useSecretNoteStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useWalletStore } from '@/stores/useWalletStore'
   import type { Quality } from '@/types'
@@ -366,6 +367,10 @@
     // 仙缘能力：月华（yue_tu_3）采集8%概率获得月草
     if (moonHerbChance && Math.random() < 0.08) {
       attemptGather('moon_herb', 1, 'normal', { expReward: 15 })
+    }
+
+    if (Math.random() < 0.03) {
+      useSecretNoteStore().tryCollectNote('resource')
     }
 
     if (gathered.length === 0) {

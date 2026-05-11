@@ -30,7 +30,7 @@ import type {
   RegionalResourceFamilyId
 } from '@/types/region'
 import type { SkillType, WeaponType } from '@/types'
-import { JOURNEY_AWAKENINGS, JOURNEY_CAMP_MODULES, JOURNEY_CRAFTING_RECIPES, JOURNEY_ROUTE_PERMITS } from './journeyHub'
+import { JOURNEY_AWAKENINGS, JOURNEY_CAMP_MODULES, JOURNEY_CRAFTING_RECIPES, JOURNEY_ROUTE_PERMITS } from './journeyHub.ts'
 
 export const REGION_MAP_SAVE_VERSION = 11
 

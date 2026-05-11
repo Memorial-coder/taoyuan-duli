@@ -12,8 +12,11 @@ import { useWarehouseStore } from './useWarehouseStore'
 import { useNpcStore } from './useNpcStore'
 import { useAchievementStore } from './useAchievementStore'
 import { useGoalStore } from './useGoalStore'
+import { useVillageProjectStore } from './useVillageProjectStore'
 import { getCropsBySeason, getItemById, getNpcById } from '@/data'
 import { BAITS, TACKLES, FERTILIZERS } from '@/data/processing'
+import { getSeasonEventsForDay } from '@/data/events'
+import { BOOKSELLER_VISITOR_ID, generateBooksellerStock, getRareVisitorsForDay } from '@/data/bookseller'
 import { isTravelingMerchantDay, generateMerchantStock, TRAVELING_MERCHANT_POOL } from '@/data/travelingMerchant'
 import {
   SHOP_CATALOG_OFFERS,
@@ -49,7 +52,9 @@ import {
   type MarketSubstituteRewardState,
   type MarketThemeEncouragementState
 } from '@/data/market'
+import { getBookById } from '@/data/books'
 import type { TravelingMerchantStock } from '@/data/travelingMerchant'
+import type { BooksellerStockEntry } from '@/data/bookseller'
 import type {
   PriceBreakdownEntry,
   PriceModifierStep,
@@ -180,7 +185,12 @@ export const useShopStore = defineStore('shop', () => {
   const npcStore = useNpcStore()
   const achievementStore = useAchievementStore()
   const goalStore = useGoalStore()
+  const villageProjectStore = useVillageProjectStore()
   const decorationStore = useDecorationStore()
+
+  const buildCurrentDayTag = () => `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+  const getCompletedVillageProjectIds = () => villageProjectStore.projectSummaries.filter(project => project.completed).map(project => project.id)
+  const getCurrentFestivalIds = () => getSeasonEventsForDay(gameStore.season, gameStore.day, gameStore.year).map(event => event.id)
 
   const ownedCatalogOfferIds = ref<string[]>([])
   const catalogExpansionState = ref<ShopCatalogExpansionState>(createDefaultShopCatalogExpansionState())
@@ -2195,13 +2205,21 @@ export const useShopStore = defineStore('shop', () => {
 
   const travelingStock = ref<TravelingMerchantStock[]>([])
   const travelingStockKey = ref('')
+  const booksellerStock = ref<BooksellerStockEntry[]>([])
+  const booksellerStockKey = ref('')
+  const ownedBooksellerBookIds = ref<string[]>([])
 
   const isMerchantHere = computed(() => isTravelingMerchantDay(gameStore.day))
+  const isBooksellerHere = computed(() => getRareVisitorsForDay(gameStore.season, gameStore.day).some(visitor => visitor.id === BOOKSELLER_VISITOR_ID))
 
   const refreshMerchantStock = () => {
     const key = `${gameStore.year}_${gameStore.seasonIndex}_${gameStore.day}`
     if (travelingStockKey.value === key) return
-    travelingStock.value = generateMerchantStock(gameStore.year, gameStore.seasonIndex, gameStore.day, gameStore.season)
+    travelingStock.value = generateMerchantStock(gameStore.year, gameStore.seasonIndex, gameStore.day, gameStore.season, {
+      festivalIds: getCurrentFestivalIds(),
+      completedVillageProjectIds: getCompletedVillageProjectIds()
+    })
+    playerStore.recordRareVisitorVisit('traveling_merchant', buildCurrentDayTag())
     // 仙缘能力：狐运（hu_xian_3）旅行商人多1件稀有品
     if (useHiddenNpcStore().isAbilityActive('hu_xian_3')) {
       const existingIds = new Set(travelingStock.value.map(s => s.itemId))
@@ -2222,6 +2240,20 @@ export const useShopStore = defineStore('shop', () => {
     travelingStockKey.value = key
   }
 
+  const refreshBooksellerStock = () => {
+    const key = `${gameStore.year}_${gameStore.seasonIndex}_${gameStore.day}`
+    if (booksellerStockKey.value === key) return
+    booksellerStock.value = generateBooksellerStock(
+      gameStore.year,
+      gameStore.seasonIndex,
+      gameStore.day,
+      gameStore.season,
+      ownedBooksellerBookIds.value
+    )
+    playerStore.recordRareVisitorVisit(BOOKSELLER_VISITOR_ID, buildCurrentDayTag())
+    booksellerStockKey.value = key
+  }
+
   const buyFromTraveler = (itemId: string): boolean => {
     const item = travelingStock.value.find(s => s.itemId === itemId)
     if (!item || item.quantity <= 0) return false
@@ -2233,6 +2265,29 @@ export const useShopStore = defineStore('shop', () => {
       return false
     }
     item.quantity--
+    return true
+  }
+
+  const hasOwnedBooksellerBook = (bookId: string) => ownedBooksellerBookIds.value.includes(bookId)
+
+  const buyFromBookseller = (bookId: string): boolean => {
+    const entry = booksellerStock.value.find(book => book.id === bookId)
+    if (!entry || entry.quantity <= 0 || hasOwnedBooksellerBook(bookId)) return false
+    if (!playerStore.spendMoney(entry.price)) return false
+    const bookDef = getBookById(bookId)
+    if (!bookDef) {
+      playerStore.earnMoney(entry.price, { countAsEarned: false })
+      return false
+    }
+    if (bookDef.bonusMaxStamina) {
+      playerStore.addBonusMaxStamina(bookDef.bonusMaxStamina)
+    }
+    if (bookDef.skillExp) {
+      skillStore.addExp(bookDef.skillExp.type, bookDef.skillExp.amount)
+    }
+    ownedBooksellerBookIds.value = [...ownedBooksellerBookIds.value, bookId]
+    entry.quantity = 0
+    playerStore.markLifestyleUnlock(bookId, buildCurrentDayTag())
     return true
   }
 
@@ -2400,6 +2455,9 @@ export const useShopStore = defineStore('shop', () => {
     catalogExpansionState: catalogExpansionState.value,
     travelingStockKey: travelingStockKey.value,
     travelingStock: travelingStock.value,
+    booksellerStockKey: booksellerStockKey.value,
+    booksellerStock: booksellerStock.value,
+    ownedBooksellerBookIds: ownedBooksellerBookIds.value,
     shippingBox: shippingBox.value,
     shippedItems: shippedItems.value,
     shippingHistory: shippingHistory.value,
@@ -2436,6 +2494,28 @@ export const useShopStore = defineStore('shop', () => {
             price: Math.max(0, Number(entry.price) || 0),
             quantity: Math.max(0, Number(entry.quantity) || 0)
           }))
+      : []
+    booksellerStockKey.value = typeof data?.booksellerStockKey === 'string' ? data.booksellerStockKey : ''
+    ownedBooksellerBookIds.value = Array.isArray(data?.ownedBooksellerBookIds)
+      ? data.ownedBooksellerBookIds.filter((id: unknown) => typeof id === 'string')
+      : []
+    booksellerStock.value = Array.isArray(data?.booksellerStock)
+      ? data.booksellerStock
+          .filter((entry: any) => entry && typeof entry.id === 'string')
+          .map((entry: any) => {
+            const book = getBookById(entry.id)
+            return {
+              ...(book ?? {
+                id: entry.id,
+                name: typeof entry.name === 'string' ? entry.name : entry.id,
+                type: 'insight' as const,
+                price: Math.max(0, Number(entry.price) || 0),
+                description: typeof entry.description === 'string' ? entry.description : '',
+                effectSummary: typeof entry.effectSummary === 'string' ? entry.effectSummary : ''
+              }),
+              quantity: Math.max(0, Number(entry.quantity) || 0)
+            }
+          })
       : []
     shippingBox.value = Array.isArray(data?.shippingBox)
       ? data.shippingBox
@@ -2550,6 +2630,13 @@ export const useShopStore = defineStore('shop', () => {
     isMerchantHere,
     refreshMerchantStock,
     buyFromTraveler,
+    // 书商
+    booksellerStock,
+    ownedBooksellerBookIds,
+    isBooksellerHere,
+    refreshBooksellerStock,
+    hasOwnedBooksellerBook,
+    buyFromBookseller,
     // 出货箱
     shippingBox,
     addToShippingBox,

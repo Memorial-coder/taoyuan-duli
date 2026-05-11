@@ -7,6 +7,7 @@ import { useGameStore } from '@/stores/useGameStore'
 import { useInventoryStore } from '@/stores/useInventoryStore'
 import { usePlayerStore } from '@/stores/usePlayerStore'
 import { useQuestStore } from '@/stores/useQuestStore'
+import { useSecretNoteStore } from '@/stores/useSecretNoteStore'
 import { useShopStore } from '@/stores/useShopStore'
 import { useSkillStore } from '@/stores/useSkillStore'
 import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
@@ -83,6 +84,9 @@ export const handlePlotClick = (plotId: number) => {
       return
     }
     farmStore.tillPlot(plotId)
+    if (Math.random() < 0.03) {
+      useSecretNoteStore().tryCollectNote('digging')
+    }
     sfxDig()
     showFloat(`-${cost}体力`, 'danger')
     addLog(`你开垦了一块荒地。(-${cost}体力)`)
@@ -434,6 +438,9 @@ export const handleBatchTill = () => {
     )
     if (!playerStore.consumeStamina(cost)) break
     farmStore.tillPlot(plot.id)
+    if (Math.random() < 0.03) {
+      useSecretNoteStore().tryCollectNote('digging')
+    }
     tilled++
   }
 

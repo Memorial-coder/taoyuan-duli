@@ -300,6 +300,42 @@
             </div>
           </div>
 
+          <div v-if="shopStore.isBooksellerHere" class="mb-4">
+            <h4 class="text-accent text-sm mb-2">
+              <MapPin :size="14" class="inline" />
+              游学书肆 · 行脚书生
+            </h4>
+            <p class="text-muted text-xs mb-2">书生每季只来一次，今天能买的书这季只有今天能拿到。</p>
+            <div class="flex flex-col space-y-2">
+              <div
+                v-for="book in shopStore.booksellerStock"
+                :key="book.id"
+                class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-2"
+                :class="book.quantity > 0 ? 'cursor-pointer hover:bg-accent/5' : 'opacity-60'"
+                @click="
+                  book.quantity > 0 &&
+                  openBuyModal(
+                    book.name,
+                    getBooksellerItemDesc(book.description, book.effectSummary),
+                    book.price,
+                    () => handleBuyFromBookseller(book.id, book.name, book.price),
+                    () => book.quantity > 0 && playerStore.money >= book.price,
+                    [`${bookTypeLabel(book.type)} · ${book.effectSummary}`]
+                  )
+                "
+              >
+                <div class="min-w-0">
+                  <p class="text-sm">{{ book.name }}</p>
+                  <p class="text-muted text-xs">{{ bookTypeLabel(book.type) }} · {{ book.description }}</p>
+                  <p class="text-[10px] text-accent mt-1">{{ book.effectSummary }}</p>
+                </div>
+                <span class="text-xs text-accent whitespace-nowrap">
+                  {{ book.quantity > 0 ? `${book.price}文` : '已藏' }}
+                </span>
+              </div>
+            </div>
+          </div>
+
           <!-- 六大商铺卡片 -->
           <div class="flex flex-col space-y-2">
             <div
@@ -1537,6 +1573,7 @@
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { useHomeStore } from '@/stores/useHomeStore'
   import { getItemById, getNpcById } from '@/data'
+  import { BOOK_TYPE_LABELS } from '@/data/books'
   import { getCropBySeedId } from '@/data/crops'
   import { SHOP_NPC_RELATION_MAP } from '@/data/npcWorld'
   import { SHOPS, isShopAvailable, getShopClosedReason } from '@/data/shops'
@@ -1861,7 +1898,10 @@
     return {
       title: '先去万物铺补常用货架',
       summary: '如果你只是想先开始今天的商圈操作，先去万物铺最稳，补完常用消耗后再按目标切去别家。',
-      detailLines: shopStore.isMerchantHere ? ['今天有旅行商人限时特卖，可顺手一起看看。'] : [],
+      detailLines: [
+        ...(shopStore.isMerchantHere ? ['今天有旅行商人限时特卖，可顺手一起看看。'] : []),
+        ...(shopStore.isBooksellerHere ? ['行脚书生今天在场，游学书肆这季只开这一天。'] : [])
+      ],
       statusLabel: '起步',
       statusToneClass: 'text-accent',
       ctaLabel: '去万物铺',
@@ -2335,6 +2375,9 @@
   if (shopStore.isMerchantHere) {
     shopStore.refreshMerchantStock()
   }
+  if (shopStore.isBooksellerHere) {
+    shopStore.refreshBooksellerStock()
+  }
 
   const handleBuyFromTraveler = (itemId: string, name: string, originalPrice: number) => {
     const actualPrice = discounted(originalPrice)
@@ -2346,6 +2389,20 @@
       addLog('铜钱不足或背包已满。')
     }
   }
+
+  const handleBuyFromBookseller = (bookId: string, name: string, originalPrice: number) => {
+    if (shopStore.buyFromBookseller(bookId)) {
+      sfxBuy()
+      showFloat(`-${originalPrice}文`, 'danger')
+      addLog(`从行脚书生处买下了《${name}》。(-${originalPrice}文)`)
+    } else {
+      addLog('铜钱不足，或这本书已经收进藏书了。')
+    }
+  }
+
+  const bookTypeLabel = (type: keyof typeof BOOK_TYPE_LABELS) => BOOK_TYPE_LABELS[type]
+
+  const getBooksellerItemDesc = (description: string, effectSummary: string) => `${description} ${effectSummary}`
 
   // === 万物铺 ===
 

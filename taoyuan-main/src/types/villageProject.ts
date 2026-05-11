@@ -42,6 +42,7 @@ export type VillageProjectLinkedSystem = 'quest' | 'goal' | 'museum' | 'guild' |
 export type VillageProjectAuditMetricCategory = 'core' | 'guardrail'
 export type VillageProjectContentTier = 'P0' | 'P1' | 'P2'
 export type VillageProjectBuildMode = 'standard' | 'staged' | 'donation'
+export type VillageProjectRestorationChangeType = 'entry' | 'shortcut' | 'service' | 'dialogue' | 'calendar'
 export type VillageProjectRegionalFunctionType =
   | 'orderBoard'
   | 'themeWeek'
@@ -94,6 +95,23 @@ export interface VillageProjectRegionalEffect {
   summary: string
   functionChanges?: VillageProjectRegionalFunctionChange[]
   linkedSystems?: VillageProjectLinkedSystem[]
+}
+
+export interface VillageProjectRestorationChange {
+  id: string
+  type: VillageProjectRestorationChangeType
+  title: string
+  summary: string
+  targetPanel?: string
+}
+
+export interface VillageProjectRestorationProfile {
+  bundleIds: string[]
+  milestoneLabel: string
+  preRumors: string[]
+  postComments: string[]
+  crossEntryFeedback: string[]
+  worldChanges: VillageProjectRestorationChange[]
 }
 
 export interface VillageProjectDonationMilestone {
@@ -180,6 +198,7 @@ export interface VillageProjectDef {
   maintenancePlan?: MaintenancePlan
   donationPlan?: VillageProjectDonationPlan
   regionalEffects?: VillageProjectRegionalEffect[]
+  restorationProfile?: VillageProjectRestorationProfile
 }
 
 export interface VillageProjectState {
@@ -350,6 +369,38 @@ export interface VillageProjectRegionalEffectSummary {
   areas: VillageProjectRegionalAreaSummary[]
 }
 
+export interface VillageProjectBundleLinkSummary {
+  bundleId: string
+  bundleName: string
+  projectId: string
+  projectName: string
+  focus: 'shortcut' | 'production' | 'service'
+  summary: string
+  completedBundle: boolean
+  completedProject: boolean
+}
+
+export interface VillageProjectRestorationMilestoneSummary {
+  projectId: string
+  projectName: string
+  milestoneLabel: string
+  bundleIds: string[]
+  completedBundleCount: number
+  totalBundleCount: number
+  completedProject: boolean
+  preRumors: string[]
+  postComments: string[]
+  crossEntryFeedback: string[]
+  worldChanges: VillageProjectRestorationChange[]
+}
+
+export interface VillageProjectRestorationChangeSummary extends VillageProjectRestorationChange {
+  projectId: string
+  projectName: string
+  milestoneLabel: string
+  unlocked: boolean
+}
+
 export interface VillageProjectOverviewSummary {
   totalProjects: number
   completedProjects: number
@@ -397,6 +448,7 @@ export interface VillageProjectProjectSummary {
   maintenance?: VillageProjectMaintenanceSummary
   donation?: VillageProjectDonationSummary
   regional: VillageProjectRegionalEffectSummary
+  restoration?: VillageProjectRestorationMilestoneSummary
   operational: VillageProjectOperationalSummary
 }
 

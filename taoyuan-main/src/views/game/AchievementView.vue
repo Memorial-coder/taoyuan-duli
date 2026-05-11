@@ -188,6 +188,14 @@
             <p class="text-xs text-accent">{{ activeBundle.reward.description }}</p>
           </div>
 
+          <div v-if="getBundleVillageProjectLinks(activeBundle).length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+            <p class="text-xs text-muted mb-1">推荐承接建设</p>
+            <div v-for="entry in getBundleVillageProjectLinks(activeBundle)" :key="`${activeBundle.id}-${entry.projectId}`" class="mt-1 first:mt-0">
+              <p class="text-xs text-accent">{{ entry.projectName }}</p>
+              <p class="text-[10px] text-muted leading-4">{{ entry.summary }}</p>
+            </div>
+          </div>
+
           <!-- 提交按钮 -->
           <div v-if="!achievementStore.isBundleComplete(activeBundle.id)" class="flex flex-col space-y-1">
             <Button
@@ -284,7 +292,7 @@
       <div v-if="secretNoteStore.collectedCount === 0" class="flex flex-col items-center justify-center py-10 space-y-3">
         <ScrollText :size="48" class="text-accent/30" />
         <p class="text-sm text-muted">尚未收集到秘密笔记</p>
-        <p class="text-xs text-muted/60 text-center max-w-60">在挖矿、钓鱼、采集时有概率获得秘密笔记</p>
+        <p class="text-xs text-muted/60 text-center max-w-60">挖矿、钓鱼、挖地、伐木、采集、击败怪物和特殊资源点都有机会带回秘密笔记。</p>
       </div>
       <template v-else>
         <div class="flex items-center justify-between mb-2">
@@ -298,7 +306,7 @@
             class="border rounded-xs p-1.5 text-center text-xs transition-colors truncate mr-1"
             :class="
               secretNoteStore.isCollected(note.id)
-                ? 'border-accent/20 cursor-pointer hover:bg-accent/5 ' + noteTypeColor(note.type)
+                ? 'border-accent/20 cursor-pointer hover:bg-accent/5 ' + noteTypeColor(note)
                 : 'border-accent/10 text-muted/30'
             "
             @click="secretNoteStore.isCollected(note.id) ? (activeNote = note) : null"
@@ -327,17 +335,36 @@
           </div>
 
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
-            <p class="text-xs mb-1" :class="noteTypeColor(activeNote.type)">{{ NOTE_TYPE_LABELS[activeNote.type] ?? activeNote.type }}</p>
+            <p class="text-xs mb-1" :class="noteTypeColor(activeNote)">{{ NOTE_TYPE_LABELS[getNoteCategory(activeNote)] ?? getNoteCategory(activeNote) }}</p>
             <p class="text-xs">{{ activeNote.content }}</p>
           </div>
 
-          <div v-if="activeNote.usable && !secretNoteStore.isUsed(activeNote.id)" class="mt-2">
-            <Button class="w-full justify-center !bg-accent !text-bg" @click="handleUseNote(activeNote.id)">使用笔记</Button>
+          <div v-if="activeNotePreview" class="border border-accent/10 rounded-xs p-2 mb-2">
+            <div class="flex items-center justify-between gap-2">
+              <span class="text-xs text-muted">线索状态</span>
+              <span class="text-xs" :class="NOTE_STATUS_CLASS[activeNotePreview.status]">{{ NOTE_STATUS_LABELS[activeNotePreview.status] }}</span>
+            </div>
+            <p class="text-xs text-accent mt-1">{{ activeNotePreview.summary }}</p>
+            <p class="text-[10px] text-muted mt-1 leading-4">
+              {{ activeNotePreview.readable ? activeNotePreview.hint : activeNotePreview.readableReason }}
+            </p>
+            <div v-if="activeNotePreview.unmetConditions.length > 0" class="mt-2 flex flex-wrap gap-1">
+              <span v-for="condition in activeNotePreview.unmetConditions" :key="condition" class="text-[10px] border border-warning/20 text-warning rounded-xs px-1 py-0.5">
+                {{ condition }}
+              </span>
+            </div>
+            <p v-if="activeNotePreview.resolvedDayTag" class="text-[10px] text-success mt-2">已于 {{ activeNotePreview.resolvedDayTag }} 验证</p>
           </div>
-          <div v-else-if="activeNote.usable && secretNoteStore.isUsed(activeNote.id)" class="border border-success/30 rounded-xs p-2">
+
+          <div v-if="activeNotePreview && activeNotePreview.status !== 'resolved' && (activeNote.verification || activeNote.usable)" class="mt-2">
+            <Button class="w-full justify-center !bg-accent !text-bg" @click="handleUseNote(activeNote.id)">
+              {{ activeNote.verification ? '验证线索' : '使用笔记' }}
+            </Button>
+          </div>
+          <div v-else-if="activeNotePreview?.status === 'resolved'" class="border border-success/30 rounded-xs p-2">
             <div class="flex items-center space-x-1">
               <CircleCheck :size="12" class="text-success" />
-              <span class="text-xs text-success">已使用</span>
+              <span class="text-xs text-success">已验证</span>
             </div>
           </div>
         </div>
@@ -517,6 +544,7 @@
   import { useShopStore } from '@/stores/useShopStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useFrontierChronicleStore } from '@/stores/useFrontierChronicleStore'
+  import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { ACHIEVEMENTS, COMMUNITY_BUNDLES } from '@/data/achievements'
   import { ITEMS, getItemById } from '@/data/items'
   import { HYBRID_DEFS } from '@/data/breeding'
@@ -539,6 +567,7 @@
   const museumStore = useMuseumStore()
   const guildStore = useGuildStore()
   const frontierChronicleStore = useFrontierChronicleStore()
+  const villageProjectStore = useVillageProjectStore()
 
   type Tab = 'collection' | 'achievements' | 'bundles' | 'shipping' | 'notes' | 'chronicle' | 'glossary'
   const tab = ref<Tab>('collection')
@@ -614,6 +643,8 @@
     const done = bundle.requiredItems.filter(r => getSubmittedCount(bundle.id, r.itemId) >= r.quantity).length
     return `${done}/${bundle.requiredItems.length}`
   }
+  const getBundleVillageProjectLinks = (bundle: CommunityBundleDef) =>
+    villageProjectStore.bundleProjectMappings.filter(entry => entry.bundleId === bundle.id)
 
   /** 秘密笔记弹窗 */
   const activeNote = ref<SecretNoteDef | null>(null)
@@ -625,21 +656,46 @@
     return getItemById(activeShippingId.value) ?? null
   })
 
+  const getNoteCategory = (note: SecretNoteDef) => {
+    if (note.category) return note.category
+    if (note.type === 'treasure') return 'treasure'
+    if (note.type === 'npc') return 'gift'
+    if (note.type === 'story') return 'rumor'
+    return 'location'
+  }
+
   const NOTE_TYPE_COLORS: Record<string, string> = {
-    tip: 'text-accent',
+    gift: 'text-water',
     treasure: 'text-success',
-    npc: 'text-water',
-    story: 'text-muted'
+    location: 'text-accent',
+    rumor: 'text-warning',
+    character: 'text-danger'
   }
 
   const NOTE_TYPE_LABELS: Record<string, string> = {
-    tip: '提示',
+    gift: '礼物线索',
     treasure: '宝藏',
-    npc: '人物',
-    story: '故事'
+    location: '地点谜题',
+    rumor: '世界传闻',
+    character: '人物秘闻'
   }
 
-  const noteTypeColor = (type: string): string => NOTE_TYPE_COLORS[type] ?? 'text-accent'
+  const NOTE_STATUS_LABELS: Record<string, string> = {
+    untracked: '未追踪',
+    tracked: '待验证',
+    ready: '可验证',
+    resolved: '已验证'
+  }
+
+  const NOTE_STATUS_CLASS: Record<string, string> = {
+    untracked: 'text-muted',
+    tracked: 'text-warning',
+    ready: 'text-accent',
+    resolved: 'text-success'
+  }
+
+  const noteTypeColor = (note: SecretNoteDef): string => NOTE_TYPE_COLORS[getNoteCategory(note)] ?? 'text-accent'
+  const activeNotePreview = computed(() => (activeNote.value ? secretNoteStore.getVerificationPreview(activeNote.value.id) : null))
 
   const handleUseNote = (noteId: number) => {
     const result = secretNoteStore.useNote(noteId)

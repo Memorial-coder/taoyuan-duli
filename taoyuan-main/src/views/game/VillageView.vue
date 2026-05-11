@@ -103,6 +103,54 @@
       </div>
     </section>
 
+    <section v-if="bundleProjectMappings.length > 0" class="game-panel-muted px-3 py-3">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <p class="text-xs text-accent">祠堂 -> 建设映射</p>
+        <span class="text-[10px] text-muted">{{ bundleProjectMappings.length }} 组承接</span>
+      </div>
+      <div class="space-y-2">
+        <div
+          v-for="entry in bundleProjectMappings"
+          :key="`${entry.bundleId}-${entry.projectId}`"
+          class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="text-[11px] text-accent">{{ entry.bundleName }} -> {{ entry.projectName }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+            </div>
+            <span class="text-[10px] whitespace-nowrap" :class="entry.completedProject ? 'text-success' : entry.completedBundle ? 'text-warning' : 'text-muted'">
+              {{ entry.completedProject ? '已落地' : entry.completedBundle ? '可转建设' : '待祠堂推进' }}
+            </span>
+          </div>
+          <p class="text-[10px] text-accent/80 mt-1">偏向：{{ restorationFocusLabels[entry.focus] }}</p>
+        </div>
+      </div>
+    </section>
+
+    <section v-if="restorationMilestones.length > 0" class="game-panel-muted px-3 py-3">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <p class="text-xs text-accent">世界变化总览</p>
+        <span class="text-[10px] text-muted">{{ unlockedRestorationCount }}/{{ totalRestorationCount }} 项已生效</span>
+      </div>
+      <div class="grid grid-cols-2 gap-2 text-[11px]">
+        <div v-for="entry in restorationTypeOverview" :key="entry.type" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-muted">{{ entry.label }}</span>
+            <span class="text-accent">{{ entry.unlocked }}/{{ entry.total }}</span>
+          </div>
+          <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+        </div>
+      </div>
+      <div v-if="worldShortcutUnlocks.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
+        <p class="text-[10px] text-accent mb-1">已恢复的路线 / 捷径</p>
+        <div v-for="entry in worldShortcutUnlocks" :key="entry.id" class="mt-1 first:mt-0">
+          <p class="text-[10px] text-text">{{ entry.projectName }} · {{ entry.title }}</p>
+          <p class="text-[10px] text-muted leading-4">{{ entry.summary }}</p>
+        </div>
+      </div>
+    </section>
+
     <section class="game-panel-muted px-3 py-3">
       <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-xs text-accent">建设树</p>
@@ -126,6 +174,43 @@
               </div>
 
               <p class="text-[10px] text-muted mt-1 leading-4">{{ project.blockedReason ?? '当前条件已满足，可直接推进。' }}</p>
+
+              <div v-if="project.restoration" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-accent">{{ project.restoration.milestoneLabel }}</p>
+                  <span class="text-[10px]" :class="project.completed ? 'text-success' : 'text-muted'">
+                    祠堂承接 {{ project.restoration.completedBundleCount }}/{{ project.restoration.totalBundleCount }}
+                  </span>
+                </div>
+                <p v-if="project.restoration.bundleIds.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+                  关联祠堂：{{ getRestorationBundleNames(project.restoration.bundleIds).join('、') }}
+                </p>
+                <div v-if="!project.completed && project.restoration.preRumors.length > 0" class="mt-2">
+                  <p class="text-[10px] text-muted mb-1">前置传闻</p>
+                  <p v-for="(line, index) in project.restoration.preRumors" :key="`${project.id}-rumor-${index}`" class="text-[10px] text-muted leading-4 mt-0.5">
+                    - {{ line }}
+                  </p>
+                </div>
+                <div v-if="project.completed" class="mt-2">
+                  <p class="text-[10px] text-muted mb-1">修完后世界变化</p>
+                  <div v-for="change in project.restoration.worldChanges" :key="change.id" class="mt-1 first:mt-0">
+                    <p class="text-[10px] text-text">{{ worldChangeTypeLabels[change.type] }} · {{ change.title }}</p>
+                    <p class="text-[10px] text-muted leading-4">{{ change.summary }}</p>
+                  </div>
+                  <div v-if="project.restoration.postComments.length > 0" class="mt-2">
+                    <p class="text-[10px] text-muted mb-1">村里反应</p>
+                    <p v-for="(line, index) in project.restoration.postComments" :key="`${project.id}-comment-${index}`" class="text-[10px] text-muted leading-4 mt-0.5">
+                      - {{ line }}
+                    </p>
+                  </div>
+                  <div v-if="project.restoration.crossEntryFeedback.length > 0" class="mt-2">
+                    <p class="text-[10px] text-muted mb-1">其他入口反馈</p>
+                    <p v-for="(line, index) in project.restoration.crossEntryFeedback" :key="`${project.id}-feedback-${index}`" class="text-[10px] text-muted leading-4 mt-0.5">
+                      - {{ line }}
+                    </p>
+                  </div>
+                </div>
+              </div>
 
               <div v-if="project.requirementProgresses.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/10">
                 <p class="text-[10px] text-muted mb-1">跨系统门槛</p>
@@ -274,6 +359,9 @@
   })
 
   const overview = computed(() => villageProjectStore.overviewSummary)
+  const bundleProjectMappings = computed(() => villageProjectStore.bundleProjectMappings)
+  const restorationMilestones = computed(() => villageProjectStore.restorationMilestones)
+  const worldShortcutUnlocks = computed(() => villageProjectStore.worldShortcutUnlocks.filter(entry => entry.unlocked))
   const prosperity = computed<ProsperityScoreBreakdown>(() => {
     const completedProjects = villageProjectStore.projectSummaries.filter(project => project.completed).length
     const activeMaintenance = villageProjectStore.maintenanceSummaries.filter(summary => summary.active).length
@@ -372,6 +460,42 @@
       .slice(-8)
       .reverse()
   )
+  const worldChangeTypeLabels = {
+    entry: '入口变化',
+    shortcut: '路线捷径',
+    service: '服务变化',
+    dialogue: 'NPC 反应',
+    calendar: '日历提示'
+  } as const
+  const restorationFocusLabels = {
+    shortcut: '交通 / 捷径',
+    production: '生产便利',
+    service: '新服务 / 稀有来访承接'
+  } as const
+  const totalRestorationCount = computed(() => villageProjectStore.communityRestorationEffects.length)
+  const unlockedRestorationCount = computed(() => villageProjectStore.communityRestorationEffects.filter(entry => entry.unlocked).length)
+  const restorationTypeOverview = computed(() =>
+    (Object.keys(worldChangeTypeLabels) as Array<keyof typeof worldChangeTypeLabels>).map(type => {
+      const entries = villageProjectStore.communityRestorationEffects.filter(entry => entry.type === type)
+      const unlocked = entries.filter(entry => entry.unlocked).length
+      return {
+        type,
+        label: worldChangeTypeLabels[type],
+        unlocked,
+        total: entries.length,
+        summary:
+          type === 'shortcut'
+            ? '修完后会直接改善跑图、交接或休养路线。'
+            : type === 'service'
+              ? '修完后会解锁新的服务点、设施点或长期承接点。'
+              : type === 'dialogue'
+                ? '修完后 NPC 会开始提起这件事，不再像世界没发生变化。'
+                : type === 'calendar'
+                  ? '后续日历、主题周和节前提醒会开始吃到这些设施状态。'
+                  : '入口页和其他承接页会开始把这批设施当成真实状态展示。'
+      }
+    })
+  )
 
   const phaseLabelMap = {
     bootstrap: '中期过渡',
@@ -408,6 +532,13 @@
   ])
 
   const getItemName = (itemId: string) => getItemById(itemId)?.name ?? itemId
+  const getRestorationBundleNames = (bundleIds: string[]) =>
+    bundleIds
+      .map(bundleId => {
+        const mapping = bundleProjectMappings.value.find(entry => entry.bundleId === bundleId)
+        return mapping?.bundleName ?? bundleId
+      })
+      .filter((name, index, array) => array.indexOf(name) === index)
   const getVillageProjectMoneyCost = (projectId: string) =>
     villageProjectStore.projects.find(entry => entry.id === projectId)?.moneyCost ?? 0
   const getVillageProjectMaterials = (projectId: string) =>

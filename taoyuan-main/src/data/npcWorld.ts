@@ -1,4 +1,14 @@
-import type { NpcState, RelationshipStage, Season, VillagerQuestCategory, Weather, Weekday } from '@/types'
+import type {
+  GiftPreference,
+  NpcState,
+  RelationshipCluePrecision,
+  RelationshipClueSource,
+  RelationshipStage,
+  Season,
+  VillagerQuestCategory,
+  Weather,
+  Weekday
+} from '@/types'
 
 export const RELATIONSHIP_STAGE_ORDER: RelationshipStage[] = ['recognize', 'familiar', 'friend', 'bestie', 'romance', 'married', 'family']
 
@@ -31,6 +41,90 @@ export const getRelationshipStageFromState = (
   if (friendship >= 250) return 'familiar'
   return 'recognize'
 }
+
+export interface NpcGiftClueTemplate {
+  npcId: string
+  clueId: string
+  source: RelationshipClueSource
+  precision: RelationshipCluePrecision
+  itemId?: string
+  preference?: Exclude<GiftPreference, 'neutral'>
+  text: string
+}
+
+export const NPC_GIFT_CLUE_TEMPLATES: NpcGiftClueTemplate[] = [
+  { npcId: 'chen_bo', clueId: 'chen_bo_talk_tea', source: 'talk', precision: 'hint', itemId: 'tea', preference: 'liked', text: '陈伯聊天时总把茶和老伙计并着提，像是天天离不开这口热茶。' },
+  { npcId: 'chen_bo', clueId: 'chen_bo_shop_ginseng', source: 'shop', precision: 'exact', itemId: 'ginseng', preference: 'loved', text: '万物铺货架旁有张小纸条写着：上好人参，陈伯自己都舍不得便宜卖。' },
+  { npcId: 'chen_bo', clueId: 'chen_bo_rumor_quartz', source: 'rumor', precision: 'exact', itemId: 'quartz', preference: 'hated', text: '有人说陈伯最怕收一堆没用的石英，摆柜台上像添堵。' },
+
+  { npcId: 'liu_niang', clueId: 'liu_niang_talk_flowers', source: 'talk', precision: 'hint', itemId: 'chrysanthemum', preference: 'liked', text: '柳娘谈花时语气总会慢下来，像是对清雅的花草格外上心。' },
+  { npcId: 'liu_niang', clueId: 'liu_niang_note_osmanthus', source: 'secret_note', precision: 'exact', itemId: 'osmanthus', preference: 'loved', text: '秘密纸条记着：柳娘每到秋天都会在桂花树下坐很久。' },
+  { npcId: 'liu_niang', clueId: 'liu_niang_home_firewood', source: 'home', precision: 'exact', itemId: 'firewood', preference: 'hated', text: '她家回廊打理得很细，粗糙的柴火灰总让她皱眉。' },
+
+  { npcId: 'a_shi', clueId: 'a_shi_talk_ore', source: 'talk', precision: 'hint', itemId: 'iron_ore', preference: 'liked', text: '阿石提到矿石时会多说几句，显然比花花草草更容易跟他搭话。' },
+  { npcId: 'a_shi', clueId: 'a_shi_note_copper', source: 'secret_note', precision: 'exact', itemId: 'copper_ore', preference: 'liked', text: '秘密纸条写着：铁匠铺那位其实偏爱摸起来发温的铜。' },
+  { npcId: 'a_shi', clueId: 'a_shi_festival_wintersweet', source: 'festival', precision: 'exact', itemId: 'wintersweet', preference: 'hated', text: '节庆路过花案时，阿石看见腊梅只说“太香了”，像是在躲。' },
+
+  { npcId: 'qiu_yue', clueId: 'qiu_yue_talk_fish', source: 'talk', precision: 'hint', itemId: 'carp', preference: 'liked', text: '秋月聊起鱼总比聊别的精神，送水里来的东西大多不会错。' },
+  { npcId: 'qiu_yue', clueId: 'qiu_yue_note_koi', source: 'secret_note', precision: 'exact', itemId: 'koi', preference: 'loved', text: '纸条上说：她眼里真正算“王者”的，只有锦鲤。' },
+  { npcId: 'qiu_yue', clueId: 'qiu_yue_rumor_ore', source: 'rumor', precision: 'exact', itemId: 'iron_ore', preference: 'hated', text: '村里都知道秋月嫌矿石又沉又没意思，送她这类东西准没戏。' },
+
+  { npcId: 'lin_lao', clueId: 'lin_lao_home_herb', source: 'home', precision: 'hint', itemId: 'herb', preference: 'liked', text: '药铺里晒着各色草药，林老拣药时那股认真劲看得出他识得其中好坏。' },
+  { npcId: 'lin_lao', clueId: 'lin_lao_talk_ginseng', source: 'talk', precision: 'exact', itemId: 'ginseng', preference: 'loved', text: '林老说过“参气最足，最能见人心”，显然对人参格外看重。' },
+  { npcId: 'lin_lao', clueId: 'lin_lao_shop_ruby', source: 'shop', precision: 'exact', itemId: 'ruby', preference: 'hated', text: '药铺账册旁记着：华而不实的宝石，不如一味真药。' },
+
+  { npcId: 'xiao_man', clueId: 'xiao_man_talk_sweet', source: 'talk', precision: 'hint', itemId: 'sweet_potato', preference: 'liked', text: '小满提到甜口点心时眼睛都亮了，显然比药草和清茶更对胃口。' },
+  { npcId: 'xiao_man', clueId: 'xiao_man_home_watermelon', source: 'home', precision: 'exact', itemId: 'watermelon', preference: 'loved', text: '木匠工坊角落里总能找到啃剩的西瓜皮，多半不是赵木匠留下的。' },
+  { npcId: 'xiao_man', clueId: 'xiao_man_rumor_tea', source: 'rumor', precision: 'exact', itemId: 'tea', preference: 'hated', text: '大家都说小满最怕被抓去陪着喝茶，一听就犯困。' },
+
+  { npcId: 'chun_lan', clueId: 'chun_lan_home_tea', source: 'home', precision: 'hint', itemId: 'tea', preference: 'liked', text: '茶庄里哪怕是散茶她也会认真收好，送跟茶有关的东西大概率不坏。' },
+  { npcId: 'chun_lan', clueId: 'chun_lan_talk_osmanthus', source: 'talk', precision: 'exact', itemId: 'osmanthus', preference: 'loved', text: '春兰说桂香最能压住秋燥，提到时连语气都柔了。' },
+  { npcId: 'chun_lan', clueId: 'chun_lan_shop_ore', source: 'shop', precision: 'exact', itemId: 'copper_ore', preference: 'hated', text: '茶庄账册旁写着：矿灰味会坏茶气，别往这儿带。' },
+
+  { npcId: 'xue_qin', clueId: 'xue_qin_talk_cloth', source: 'talk', precision: 'hint', itemId: 'rabbit_fur', preference: 'liked', text: '雪琴对能入画、能入色的轻软材料都很留意。' },
+  { npcId: 'xue_qin', clueId: 'xue_qin_home_peacock', source: 'home', precision: 'exact', itemId: 'peacock_feather', preference: 'loved', text: '画室里压着几根孔雀羽做笔样，她显然很珍惜这种颜色。' },
+  { npcId: 'xue_qin', clueId: 'xue_qin_rumor_stone', source: 'rumor', precision: 'exact', itemId: 'stone', preference: 'hated', text: '有人拿石头跟雪琴开玩笑，她只回了一句“太粗”。' },
+
+  { npcId: 'su_su', clueId: 'su_su_shop_wool', source: 'shop', precision: 'hint', itemId: 'wool', preference: 'liked', text: '绸缎庄最常翻的就是毛料和丝料册子，送纺织材料通常不吃亏。' },
+  { npcId: 'su_su', clueId: 'su_su_talk_silk', source: 'talk', precision: 'exact', itemId: 'silk', preference: 'loved', text: '素素说过真正顺手的丝，一摸便知。她自己最看重的也正是这个。' },
+  { npcId: 'su_su', clueId: 'su_su_rumor_stone', source: 'rumor', precision: 'exact', itemId: 'stone', preference: 'hated', text: '把石头灰往素素的布料边一放，准会被她嫌弃。' },
+
+  { npcId: 'hong_dou', clueId: 'hong_dou_talk_drink', source: 'talk', precision: 'hint', itemId: 'peanut', preference: 'liked', text: '红豆聊酒时总要顺口提下酒菜，能配酒的通常更受她欢迎。' },
+  { npcId: 'hong_dou', clueId: 'hong_dou_home_wine', source: 'home', precision: 'exact', itemId: 'watermelon_wine', preference: 'loved', text: '酒庄深处封着她自己舍不得开的西瓜酒，谁都知道那是她心头好。' },
+  { npcId: 'hong_dou', clueId: 'hong_dou_rumor_tea', source: 'rumor', precision: 'exact', itemId: 'tea', preference: 'hated', text: '酒庄里的人都笑她：端茶比端酒还别扭。' },
+
+  { npcId: 'dan_qing', clueId: 'dan_qing_talk_books', source: 'talk', precision: 'hint', itemId: 'tea', preference: 'liked', text: '丹青讲诗讲久了总要换口清茶，文雅东西往往更容易对他的胃口。' },
+  { npcId: 'dan_qing', clueId: 'dan_qing_home_bamboo', source: 'home', precision: 'exact', itemId: 'bamboo', preference: 'loved', text: '他在竹林里抄书作诗，提起竹子时总像提起知己。' },
+  { npcId: 'dan_qing', clueId: 'dan_qing_rumor_firewood', source: 'rumor', precision: 'exact', itemId: 'firewood', preference: 'hated', text: '有人说给丹青送柴火像让他背书箱，半点也不风雅。' },
+
+  { npcId: 'da_niu', clueId: 'da_niu_home_milk', source: 'home', precision: 'hint', itemId: 'milk', preference: 'liked', text: '牧场边到处都是奶桶和草料，跟牲口有关的东西他大多看着就高兴。' },
+  { npcId: 'da_niu', clueId: 'da_niu_talk_hay', source: 'talk', precision: 'exact', itemId: 'hay', preference: 'loved', text: '大牛说得最认真的一句话就是：好草比金子还实在。' },
+  { npcId: 'da_niu', clueId: 'da_niu_rumor_ruby', source: 'rumor', precision: 'exact', itemId: 'ruby', preference: 'hated', text: '把红宝石递给大牛，他大概只会问能不能拿去换几车草。' },
+
+  { npcId: 'wang_dashen', clueId: 'wang_dashen_talk_rice', source: 'talk', precision: 'hint', itemId: 'rice', preference: 'liked', text: '王大婶一聊到米饭和灶火，整个人都精神起来。' },
+  { npcId: 'wang_dashen', clueId: 'wang_dashen_note_rice', source: 'secret_note', precision: 'exact', itemId: 'rice', preference: 'loved', text: '秘密纸条写着：王大婶一直惦记着能煮出最好的米饭。' },
+  { npcId: 'wang_dashen', clueId: 'wang_dashen_rumor_obsidian', source: 'rumor', precision: 'exact', itemId: 'obsidian', preference: 'hated', text: '谁也不会把乌漆嘛黑的石头往灶台边送，王大婶更不会喜欢。' }
+]
+
+export const NPC_BIRTHDAY_SPECIAL_LINES: Partial<Record<string, string[]>> = {
+  chen_bo: ['陈伯捧着礼物哈哈大笑，说这份心意比红包还暖。', '他把礼物收得格外郑重，还叮嘱你今天别空着肚子回去。'],
+  liu_niang: ['柳娘轻轻道谢，说这是她今年最妥帖的一份生日心意。', '她把礼物抱在怀里，连说话都比平时更轻了。'],
+  a_shi: ['阿石沉默了好一会儿，只低声说了句“我会记住”。', '他把礼物收好后难得多站了一会儿，像是不舍得这份心意过去。'],
+  qiu_yue: ['秋月几乎要跳起来，说这份礼物比今天的风还让人高兴。', '她笑着说今年生日已经圆满了一半。'],
+  lin_lao: ['林老点点头，说礼物合心，药香里都多了些人情味。'],
+  xiao_man: ['小满抱着礼物原地转了两圈，说今年生日终于有能拿出去炫耀的东西。'],
+  chun_lan: ['春兰把礼物放在案边，看了又看，说这份心意她会慢慢记着。'],
+  xue_qin: ['雪琴低声说这颜色和气味都刚好，像是替今天添了一笔。'],
+  su_su: ['素素摸着礼物边角，认真说这份东西她会亲手收好。'],
+  hong_dou: ['红豆笑得比平时更响，说这份礼物值得她今晚多开一坛。'],
+  dan_qing: ['丹青抬手一礼，说这份礼已足以写进今日诗稿。'],
+  da_niu: ['大牛高兴得脸都红了，说今年生日的好运气全在这儿了。']
+}
+
+export const getNpcGiftClueTemplates = (npcId: string): NpcGiftClueTemplate[] =>
+  NPC_GIFT_CLUE_TEMPLATES.filter(template => template.npcId === npcId)
+
+export const getNpcBirthdaySpecialLines = (npcId: string): string[] => [...(NPC_BIRTHDAY_SPECIAL_LINES[npcId] ?? [])]
 
 export interface NpcScheduleRule {
   from: number

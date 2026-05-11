@@ -5,6 +5,8 @@
         <component :is="npcStore.getSpouse() ? Heart : Home" :size="14" class="inline" />
         小屋
       </span>
+      <!-- WS02 anchor: the cottage calendar is the future prep/planning surface for
+           birthdays, festivals, rare visitors, and short seasonal activity windows. -->
       <button class="text-muted hover:text-accent transition-colors" @click="showCalendarModal = true">
         <Calendar :size="14" />
       </button>
@@ -410,7 +412,9 @@
               class="text-center py-1 border border-transparent transition-colors"
               :class="[
                 entry.isToday ? 'bg-accent/20 border-accent/40' : '',
-                entry.festivals.length > 0 || entry.birthdays.length > 0 ? 'cursor-pointer hover:bg-accent/10 rounded-sm' : '',
+                entry.festivals.length > 0 || entry.birthdays.length > 0 || entry.rareVisitors.length > 0 || entry.activities.length > 0
+                  ? 'cursor-pointer hover:bg-accent/10 rounded-sm'
+                  : '',
                 selectedCalendarDay === entry.day ? 'border-accent/30' : ''
               ]"
               @click="handleSelectDay(entry)"
@@ -421,6 +425,8 @@
               <div class="flex justify-center space-x-px mt-px min-h-1.5">
                 <span v-if="entry.festivals.length > 0" class="w-1 h-1 rounded-full bg-danger inline-block" />
                 <span v-if="entry.birthdays.length > 0" class="w-1 h-1 rounded-full bg-success inline-block" />
+                <span v-if="entry.rareVisitors.length > 0" class="w-1 h-1 rounded-full bg-accent inline-block" />
+                <span v-if="entry.activities.length > 0" class="w-1 h-1 rounded-full bg-warning inline-block" />
               </div>
             </div>
           </div>
@@ -435,23 +441,72 @@
               <span class="w-1.5 h-1.5 rounded-full bg-success inline-block" />
               <span>生日</span>
             </span>
+            <span class="text-[10px] text-muted flex items-center space-x-0.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-accent inline-block" />
+              <span>稀有来访</span>
+            </span>
+            <span class="text-[10px] text-muted flex items-center space-x-0.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-warning inline-block" />
+              <span>短活动</span>
+            </span>
           </div>
 
           <!-- 选中日详情 -->
           <div
-            v-if="selectedDayEntry && (selectedDayEntry.festivals.length > 0 || selectedDayEntry.birthdays.length > 0)"
+            v-if="selectedDayEntry && (selectedDayEntry.festivals.length > 0 || selectedDayEntry.birthdays.length > 0 || selectedDayEntry.rareVisitors.length > 0 || selectedDayEntry.activities.length > 0)"
             class="border border-accent/10 rounded-xs p-2 mt-2"
           >
             <p class="text-[10px] text-accent mb-1">
               {{ SEASON_NAMES[calendarSeason] }}{{ selectedCalendarDay }}日
               <span v-if="selectedDayEntry.isToday" class="text-danger ml-1">(今天)</span>
             </p>
-            <div v-for="f in selectedDayEntry.festivals" :key="f.name" class="mb-0.5">
+            <div v-for="f in selectedDayEntry.festivals" :key="f.name" class="mb-1">
               <span class="text-[10px] text-danger">{{ f.name }}</span>
               <span class="text-[10px] text-muted ml-1">{{ f.description }}</span>
+              <p v-if="f.variantNotes?.driverLabels?.length" class="text-[10px] text-muted mt-0.5 leading-4">
+                变化驱动：{{ f.variantNotes.driverLabels.join('、') }}
+              </p>
+              <p v-if="f.prepChecklist.length > 0" class="text-[10px] text-warning mt-0.5 leading-4">
+                备货建议：{{ f.prepChecklist.slice(0, 2).join('；') }}
+              </p>
             </div>
-            <div v-for="b in selectedDayEntry.birthdays" :key="b.npcName">
+            <div v-for="b in selectedDayEntry.birthdays" :key="b.npcName" class="mb-0.5">
               <span class="text-[10px] text-success">{{ b.npcName }}的生日</span>
+            </div>
+            <div v-for="visitor in selectedDayEntry.rareVisitors" :key="visitor.id" class="mb-1">
+              <span class="text-[10px] text-accent">{{ visitor.name }}</span>
+              <span class="text-[10px] text-muted ml-1">{{ visitor.description }}</span>
+            </div>
+            <div v-for="activity in selectedDayEntry.activities" :key="activity.id">
+              <span class="text-[10px] text-warning">{{ activity.name }}</span>
+              <span class="text-[10px] text-muted ml-1">{{ activity.description }}</span>
+            </div>
+          </div>
+
+          <div class="grid gap-2 mt-2">
+            <div class="border border-accent/10 rounded-xs p-2 bg-bg/10">
+              <p class="text-[10px] text-accent">今日事件</p>
+              <p v-for="line in calendarTodayLines" :key="`calendar-today-${line}`" class="text-[10px] text-muted mt-1 leading-4">
+                {{ line }}
+              </p>
+            </div>
+            <div class="border border-warning/10 rounded-xs p-2 bg-warning/5">
+              <p class="text-[10px] text-warning">近期准备</p>
+              <p v-for="line in calendarUpcomingPrepLines" :key="`calendar-prep-${line}`" class="text-[10px] text-muted mt-1 leading-4">
+                {{ line }}
+              </p>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 bg-accent/5">
+              <p class="text-[10px] text-accent">稀有来访</p>
+              <p v-for="line in calendarRareVisitorLines" :key="`calendar-visitor-${line}`" class="text-[10px] text-muted mt-1 leading-4">
+                {{ line }}
+              </p>
+            </div>
+            <div class="border border-success/10 rounded-xs p-2 bg-success/5">
+              <p class="text-[10px] text-success">长线提醒</p>
+              <p v-for="line in calendarLongReminderLines" :key="`calendar-long-${line}`" class="text-[10px] text-muted mt-1 leading-4">
+                {{ line }}
+              </p>
             </div>
           </div>
         </div>
@@ -607,10 +662,14 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
+  import { useGoalStore } from '@/stores/useGoalStore'
   import { SEASON_NAMES } from '@/stores/useGameStore'
+  import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { getCombinedItemCount } from '@/composables/useCombinedInventory'
   import { getItemById, getNpcById, NPCS } from '@/data'
-  import { SEASON_EVENTS } from '@/data/events'
+  import { getSeasonEventsForDay, getSeasonalActivitiesForDay } from '@/data/events'
+  import { getRareVisitorsForDay, getUpcomingRareVisitors } from '@/data/bookseller'
+  import { getUpcomingTravelingMerchantVisits } from '@/data/travelingMerchant'
   import { ACTION_TIME_COSTS, WEEKDAYS, WEEKDAY_NAMES } from '@/data/timeConstants'
   import type { Quality, ChildStage, PregnancyStage, Season, FarmHelperTask } from '@/types'
   import { addLog } from '@/composables/useGameLog'
@@ -623,6 +682,8 @@
   const gameStore = useGameStore()
   const npcStore = useNpcStore()
   const playerStore = usePlayerStore()
+  const goalStore = useGoalStore()
+  const villageProjectStore = useVillageProjectStore()
 
   const releaseConfirmChildId = ref<number | null>(null)
   const showUpgradeModal = ref(false)
@@ -807,14 +868,58 @@
   const SEASONS: Season[] = ['spring', 'summer', 'autumn', 'winter']
   const calendarSeason = ref<Season>(gameStore.season)
   const selectedCalendarDay = ref<number | null>(null)
+  const CALENDAR_SEASON_ORDER: Season[] = ['spring', 'summer', 'autumn', 'winter']
+
+  const getNextCalendarPoint = (year: number, season: Season, day: number) => {
+    let nextYear = year
+    let nextSeason = season
+    let nextDay = day + 1
+    if (nextDay > 28) {
+      nextDay = 1
+      const nextSeasonIndex = CALENDAR_SEASON_ORDER.indexOf(season) + 1
+      if (nextSeasonIndex >= CALENDAR_SEASON_ORDER.length) {
+        nextSeason = 'spring'
+        nextYear += 1
+      } else {
+        nextSeason = CALENDAR_SEASON_ORDER[nextSeasonIndex]!
+      }
+    }
+    return { year: nextYear, season: nextSeason, day: nextDay }
+  }
+
+  const calendarResolutionContext = computed(() => ({
+    year: gameStore.year,
+    villageProjectLevel: villageProjectStore.villageProjectLevel,
+    closeRelationshipCount: npcStore.npcStates.filter(state => state.friendship >= 1000).length,
+    hasSpouse: !!npcStore.getSpouse(),
+    themeWeekLabel: goalStore.currentThemeWeek?.name ?? null
+  }))
+
+  const formatCalendarDay = (season: Season, day: number) => `${SEASON_NAMES[season]}${day}日`
 
   const calendarDays = computed(() => {
     const s = calendarSeason.value
     const entries = []
     for (let d = 1; d <= 28; d++) {
-      const festivals = SEASON_EVENTS.filter(e => e.season === s && e.day === d).map(e => ({ name: e.name, description: e.description }))
+      const festivals = getSeasonEventsForDay(s, d, calendarResolutionContext.value).map(event => ({
+        id: event.id,
+        name: event.name,
+        description: event.description,
+        prepChecklist: event.prepChecklist,
+        variantNotes: event.variantNotes
+      }))
       const birthdays = NPCS.filter(npc => npc.birthday?.season === s && npc.birthday?.day === d).map(npc => ({ npcName: npc.name }))
-      entries.push({ day: d, festivals, birthdays, isToday: s === gameStore.season && d === gameStore.day })
+      const rareVisitors = getRareVisitorsForDay(s, d).map(visitor => ({
+        id: visitor.id,
+        name: `${visitor.stallName} · ${visitor.name}`,
+        description: visitor.teaser
+      }))
+      const activities = getSeasonalActivitiesForDay(s, d).map(activity => ({
+        id: activity.id,
+        name: activity.name,
+        description: activity.description
+      }))
+      entries.push({ day: d, festivals, birthdays, rareVisitors, activities, isToday: s === gameStore.season && d === gameStore.day })
     }
     return entries
   })
@@ -829,11 +934,97 @@
     selectedCalendarDay.value = null
   }
 
-  const handleSelectDay = (entry: { day: number; festivals: { name: string }[]; birthdays: { npcName: string }[] }) => {
-    if (entry.festivals.length > 0 || entry.birthdays.length > 0) {
+  const handleSelectDay = (
+    entry: {
+      day: number
+      festivals: { name: string }[]
+      birthdays: { npcName: string }[]
+      rareVisitors: { id: string }[]
+      activities: { id: string }[]
+    }
+  ) => {
+    if (entry.festivals.length > 0 || entry.birthdays.length > 0 || entry.rareVisitors.length > 0 || entry.activities.length > 0) {
       selectedCalendarDay.value = selectedCalendarDay.value === entry.day ? null : entry.day
     }
   }
+
+  const currentCalendarEntry = computed(() => {
+    return calendarDays.value.find(entry => entry.isToday) ?? null
+  })
+
+  const calendarTodayLines = computed(() => {
+    const lines: string[] = []
+    const entry = currentCalendarEntry.value
+    if (!entry) return ['今天暂无特殊日历节点，可以按主路线自由安排。']
+    if (entry.festivals.length > 0) {
+      entry.festivals.forEach(festival => lines.push(`今天是「${festival.name}」，${festival.description}`))
+    }
+    if (entry.birthdays.length > 0) {
+      lines.push(`今天有人过生日：${entry.birthdays.map(birthday => birthday.npcName).join('、')}`)
+    }
+    if (entry.rareVisitors.length > 0) {
+      lines.push(`今天有稀有来访：${entry.rareVisitors.map(visitor => visitor.name).join('、')}`)
+    }
+    if (entry.activities.length > 0) {
+      lines.push(`今日短活动：${entry.activities.map(activity => activity.name).join('、')}`)
+    }
+    return lines.length > 0 ? lines : ['今天暂无特殊日历节点，可以按主路线自由安排。']
+  })
+
+  const calendarUpcomingPrepLines = computed(() => {
+    const lines: string[] = []
+    let cursor = { year: gameStore.year, season: gameStore.season, day: gameStore.day }
+    for (let offset = 1; offset <= 3; offset++) {
+      cursor = getNextCalendarPoint(cursor.year, cursor.season, cursor.day)
+      const birthdays = NPCS.filter(npc => npc.birthday?.season === cursor.season && npc.birthday?.day === cursor.day).map(npc => npc.name)
+      if (birthdays.length > 0 && offset <= 2) {
+        lines.push(`${offset}天后是${formatCalendarDay(cursor.season, cursor.day)}，记得准备 ${birthdays.join('、')} 的生日礼物。`)
+      }
+      const festivals = getSeasonEventsForDay(cursor.season, cursor.day, calendarResolutionContext.value)
+      if (festivals.length > 0) {
+        festivals.forEach(festival => {
+          lines.push(`${offset}天后是「${festival.name}」，建议先备：${festival.prepChecklist.slice(0, 2).join('；')}`)
+        })
+      }
+      const activities = getSeasonalActivitiesForDay(cursor.season, cursor.day)
+      if (activities.length > 0) {
+        activities.forEach(activity => {
+          lines.push(`${offset}天后会进「${activity.name}」，${activity.prepChecklist[0] ?? activity.description}`)
+        })
+      }
+    }
+    if (['rainy', 'stormy', 'green_rain'].includes(gameStore.tomorrowWeather)) {
+      const tomorrowWeatherLabel =
+        gameStore.tomorrowWeather === 'green_rain' ? '绿雨' : gameStore.tomorrowWeather === 'stormy' ? '雷雨' : '雨天'
+      lines.push(`明日天气为${tomorrowWeatherLabel}，相关窗口更值得提前腾时间。`)
+    }
+    return lines.slice(0, 4).length > 0 ? lines.slice(0, 4) : ['接下来三天没有必须强备的节点，可以按主路线慢慢排。']
+  })
+
+  const calendarRareVisitorLines = computed(() => {
+    const lines: string[] = []
+    const rareVisitors = getUpcomingRareVisitors(gameStore.season, gameStore.day, 7, gameStore.year)
+    rareVisitors.slice(0, 3).forEach(visit => {
+      lines.push(`${visit.daysAway}天后 ${formatCalendarDay(visit.season, visit.day)}：${visit.visitor.stallName} / ${visit.visitor.name}。${visit.visitor.prepHints[0] ?? visit.visitor.teaser}`)
+    })
+    const merchantVisits = getUpcomingTravelingMerchantVisits(gameStore.season, gameStore.day, 5, gameStore.year)
+    merchantVisits.slice(0, 2).forEach(visit => {
+      lines.push(`${visit.daysAway}天后 ${formatCalendarDay(visit.season, visit.day)} 是旅行商人摆摊日，适合预留一小笔稀有货预算。`)
+    })
+    return lines.length > 0 ? lines : ['本周没有新的稀有来访提醒，但书商和节庆商人的日子依旧值得常看。']
+  })
+
+  const calendarLongReminderLines = computed(() => {
+    const lines: string[] = []
+    lines.push(`本季主题周：${goalStore.currentThemeWeek?.name ?? '尚未命名'}。`)
+    lines.push(`村庄建设已推进到 ${villageProjectStore.villageProjectLevel} 阶段，节庆和来访会逐步吃到这个进度。`)
+    const nextRestoration = villageProjectStore.restorationMilestones.find(milestone => !milestone.completedProject)
+    if (nextRestoration) {
+      lines.push(`下一条世界变化里程碑：${nextRestoration.milestoneLabel}。`)
+    }
+    lines.push('节日前备货、稀有来访和短活动只需要轻准备，不需要每天高压打卡。')
+    return lines
+  })
 
   const currentBenefit = computed(() => {
     switch (homeStore.farmhouseLevel) {

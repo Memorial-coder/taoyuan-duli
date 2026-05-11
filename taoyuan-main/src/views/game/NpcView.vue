@@ -619,11 +619,27 @@
           </div>
 
           <div v-if="selectedRelationshipClues.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
-            <p class="text-xs text-muted mb-1">已获得线索</p>
+            <div class="flex items-start justify-between gap-2 mb-1">
+              <div>
+                <p class="text-xs text-muted mb-1">已获得线索</p>
+                <p class="text-[10px] text-muted/70 mt-0.5">{{ selectedGiftKnowledgeStageText }}</p>
+              </div>
+              <div class="flex flex-wrap justify-end gap-1 text-[10px]">
+                <span class="border border-warning/20 text-warning rounded-xs px-1 py-0.5">模糊 {{ selectedGiftKnowledgeSummary.hintCount }}</span>
+                <span class="border border-accent/20 text-accent rounded-xs px-1 py-0.5">明确 {{ selectedGiftKnowledgeSummary.exactCount }}</span>
+                <span class="border border-success/20 text-success rounded-xs px-1 py-0.5">验证 {{ selectedGiftKnowledgeSummary.confirmedCount }}</span>
+              </div>
+            </div>
             <div class="space-y-1">
-              <p v-for="clue in selectedRelationshipClues" :key="clue.clueId" class="text-[10px] text-accent/90 leading-4">
-                {{ clue.text }}
-              </p>
+              <div v-for="clue in selectedRelationshipClues" :key="clue.clueId" class="border border-accent/10 rounded-xs px-2 py-1.5">
+                <div class="flex flex-wrap items-center gap-1 mb-1 text-[10px]">
+                  <span class="border border-accent/20 text-accent rounded-xs px-1 py-0.5">{{ CLUE_KIND_LABELS[clue.kind] }}</span>
+                  <span class="border rounded-xs px-1 py-0.5" :class="CLUE_PRECISION_CLASS[clue.precision]">{{ CLUE_PRECISION_LABELS[clue.precision] }}</span>
+                  <span class="text-muted/70">{{ CLUE_SOURCE_LABELS[clue.source] }}</span>
+                  <span v-if="clue.discoveredDayTag" class="text-muted/50">{{ clue.discoveredDayTag }}</span>
+                </div>
+                <p class="text-[10px] text-accent/90 leading-4">{{ clue.text }}</p>
+              </div>
             </div>
           </div>
 
@@ -838,7 +854,7 @@
                       {{ getItemById(item.itemId)?.name }}
                     </span>
                     <span
-                      v-if="getGiftPreference(item.itemId) !== 'neutral'"
+                      v-if="getGiftPreference(item.itemId) !== 'unknown'"
                       class="text-[10px]"
                       :class="GIFT_PREF_CLASS[getGiftPreference(item.itemId)]"
                     >
@@ -886,7 +902,7 @@
                 </div>
                 <div v-if="activeGiftReaction" class="border border-accent/10 rounded-xs p-2 mb-2">
                   <div class="flex items-center justify-between">
-                    <span class="text-xs text-muted">{{ selectedNpcDef?.name }}觉得</span>
+                    <span class="text-xs text-muted">{{ activeGiftReaction.label }}</span>
                     <span class="text-xs" :class="activeGiftReaction.className">
                       {{ activeGiftReaction.text }}
                     </span>
@@ -928,7 +944,7 @@
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { triggerHeartEvent } from '@/composables/useDialogs'
   import { handleEndDay } from '@/composables/useEndDay'
-  import type { FriendshipLevel, Quality, VillageProjectRequirementProgress } from '@/types'
+  import type { FriendshipLevel, GiftPreference, Quality, RelationshipClueEntry, VillageProjectRequirementProgress } from '@/types'
   import Button from '@/components/game/Button.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
@@ -1214,7 +1230,17 @@
   const selectedGiftReturnSummaries = computed(() => (selectedNpc.value ? npcStore.getRelationshipGiftReturnSummaries(selectedNpc.value) : []))
   const selectedNextRelationshipBenefits = computed(() => (selectedNpc.value ? npcStore.getNextRelationshipBenefits(selectedNpc.value) : []))
   const selectedRelationshipClues = computed(() => (selectedNpc.value ? npcStore.getRelationshipCluesForNpc(selectedNpc.value) : []))
-  const todayEvent = computed(() => getTodayEvent(gameStore.season, gameStore.day) ?? null)
+  const selectedGiftKnowledgeSummary = computed(() =>
+    selectedNpc.value ? npcStore.getGiftKnowledgeSummary(selectedNpc.value) : { hintCount: 0, exactCount: 0, confirmedCount: 0 }
+  )
+  const selectedGiftKnowledgeStageText = computed(() => {
+    const summary = selectedGiftKnowledgeSummary.value
+    if (summary.confirmedCount > 0) return `已经亲手验证 ${summary.confirmedCount} 条礼物偏好。`
+    if (summary.exactCount > 0) return `已经掌握 ${summary.exactCount} 条明确礼物偏好。`
+    if (summary.hintCount > 0) return `已经攒下 ${summary.hintCount} 条模糊线索，还需要继续观察。`
+    return '暂时还没有摸清礼物偏好，可以通过对话、纸条、节日和送礼继续记录。'
+  })
+  const todayEvent = computed(() => getTodayEvent(gameStore.season, gameStore.day, gameStore.year) ?? null)
   const canInteractWithSelectedNpc = computed(() => {
     if (!selectedNpc.value) return false
     if (selectedNpcState.value?.married) return true
@@ -1338,46 +1364,80 @@
 
   // === 送礼偏好 ===
 
-  type GiftPreference = 'loved' | 'liked' | 'hated' | 'neutral'
+  type KnownGiftPreference = GiftPreference | 'unknown'
 
-  const getGiftPreference = (itemId: string): GiftPreference => {
-    const npcDef = selectedNpcDef.value
-    if (!npcDef) return 'neutral'
-    if (npcDef.lovedItems.includes(itemId)) return 'loved'
-    if (npcDef.likedItems.includes(itemId)) return 'liked'
-    if (npcDef.hatedItems.includes(itemId)) return 'hated'
-    return 'neutral'
+  const getGiftPreference = (itemId: string): KnownGiftPreference => {
+    if (!selectedNpc.value) return 'unknown'
+    return npcStore.getKnownGiftPreference(selectedNpc.value, itemId)
   }
 
-  const GIFT_PREF_LABELS: Record<GiftPreference, string> = {
+  const GIFT_PREF_LABELS: Record<KnownGiftPreference, string> = {
     loved: '最爱',
     liked: '喜欢',
     hated: '讨厌',
-    neutral: ''
+    neutral: '',
+    unknown: ''
   }
-  const GIFT_PREF_CLASS: Record<GiftPreference, string> = {
+  const GIFT_PREF_CLASS: Record<KnownGiftPreference, string> = {
     loved: 'text-danger',
     liked: 'text-success',
     hated: 'text-muted',
-    neutral: ''
+    neutral: '',
+    unknown: ''
   }
-  const GIFT_PREF_ORDER: Record<GiftPreference, number> = {
+  const GIFT_PREF_ORDER: Record<KnownGiftPreference, number> = {
     loved: 0,
     liked: 1,
-    neutral: 2,
-    hated: 3
+    unknown: 2,
+    neutral: 3,
+    hated: 4
   }
-  const GIFT_REACTION_TEXT: Record<GiftPreference, string> = {
+  const GIFT_REACTION_TEXT: Record<KnownGiftPreference, string> = {
     loved: '非常喜欢',
     liked: '还不错',
     hated: '讨厌',
-    neutral: '一般'
+    neutral: '一般',
+    unknown: '还没摸清'
+  }
+
+  const CLUE_KIND_LABELS: Record<RelationshipClueEntry['kind'], string> = {
+    gift: '礼物',
+    birthday: '生日',
+    habit: '习惯',
+    festival: '节庆'
+  }
+
+  const CLUE_SOURCE_LABELS: Record<RelationshipClueEntry['source'], string> = {
+    talk: '日常交谈',
+    festival: '节庆观察',
+    home: '家中见闻',
+    secret_note: '纸条线索',
+    shop: '商铺消息',
+    rumor: '村中传闻',
+    gift_test: '亲手送礼',
+    birthday: '生日回响'
+  }
+
+  const CLUE_PRECISION_LABELS: Record<RelationshipClueEntry['precision'], string> = {
+    hint: '模糊线索',
+    exact: '明确偏好',
+    confirmed: '已验证'
+  }
+
+  const CLUE_PRECISION_CLASS: Record<RelationshipClueEntry['precision'], string> = {
+    hint: 'border-warning/20 text-warning',
+    exact: 'border-accent/20 text-accent',
+    confirmed: 'border-success/20 text-success'
   }
 
   const activeGiftReaction = computed(() => {
     if (!activeGiftItem.value || !selectedNpcDef.value) return null
     const pref = getGiftPreference(activeGiftItem.value.itemId)
-    return { text: GIFT_REACTION_TEXT[pref], className: GIFT_PREF_CLASS[pref] }
+    return {
+      label: pref === 'unknown' ? '当前记录' : `${selectedNpcDef.value.name}觉得`,
+      text: GIFT_REACTION_TEXT[pref],
+      className: GIFT_PREF_CLASS[pref] || 'text-muted'
+    }
   })
 
   const levelColor = (level: FriendshipLevel): string => {
@@ -1465,6 +1525,10 @@
 
       if (result.returnedGift) {
         addLog(result.returnedGift.summary)
+      }
+      if (result.birthdayMessage) {
+        dialogueText.value = result.birthdayMessage
+        addLog(result.birthdayMessage)
       }
       result.unlockedMessages?.forEach(message => addLog(message))
 

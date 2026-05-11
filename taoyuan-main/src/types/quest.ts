@@ -7,7 +7,7 @@ import type { BreedingCommercialTag, BreedingStabilityRank } from './breeding'
 export type QuestType = 'delivery' | 'fishing' | 'mining' | 'gathering' | 'special_order' | 'cooking' | 'errand' | 'festival_prep'
 
 /** 村民委托侧重类别 */
-export type VillagerQuestCategory = 'gathering' | 'cooking' | 'fishing' | 'errand' | 'festival_prep'
+export type VillagerQuestCategory = 'gathering' | 'cooking' | 'fishing' | 'errand' | 'festival_prep' | 'rumor'
 
 /** 特殊订单主题标签 */
 export type QuestThemeTag = 'breeding' | 'fishpond'
@@ -232,6 +232,12 @@ export interface QuestInstance {
   accepted: boolean
   /** 村民委托类别 */
   sourceCategory?: VillagerQuestCategory
+  /** 更口语化的来源标签 */
+  sourceLabel?: string
+  /** 是否为传闻型轻任务 */
+  rumorTask?: boolean
+  /** 重复委托升级标签 */
+  variantLabel?: string
   /** 接取所需关系阶段 */
   relationshipStageRequired?: RelationshipStage
   /** 物品奖励（特殊订单） */

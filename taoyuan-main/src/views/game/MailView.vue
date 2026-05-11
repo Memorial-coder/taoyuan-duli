@@ -52,6 +52,15 @@
               预计邮件：{{ previewMailTemplateTitles.join('、') }}
             </p>
           </div>
+          <div class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-bg/10">
+            <p class="text-[10px] text-muted">本周日历提醒</p>
+            <p v-for="line in calendarPrepDigestLines" :key="`mail-calendar-${line}`" class="text-[10px] text-accent mt-1 leading-4">
+              {{ line }}
+            </p>
+            <p v-for="line in rareVisitorDigestLines" :key="`mail-visitor-${line}`" class="text-[10px] text-muted mt-1 leading-4">
+              {{ line }}
+            </p>
+          </div>
           <div v-if="latestWeeklyChronicle" class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-bg/10">
             <p class="text-[10px] text-muted">最近周纪行</p>
             <p class="text-[10px] text-accent mt-1 leading-4">{{ latestWeeklyChronicle.settlementSummary }}</p>
@@ -191,9 +200,14 @@
 
 <script setup lang="ts">
   import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+  import { useGameStore, SEASON_NAMES, WEATHER_NAMES } from '@/stores/useGameStore'
   import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useQuestStore } from '@/stores/useQuestStore'
+  import { NPCS } from '@/data/npcs'
+  import { getSeasonEventsForDay, getSeasonalActivitiesForDay } from '@/data/events'
+  import { getUpcomingRareVisitors } from '@/data/bookseller'
+  import { getUpcomingTravelingMerchantVisits } from '@/data/travelingMerchant'
   import { getItemById } from '@/data/items'
   import { getWeaponById } from '@/data/weapons'
   import { getRingById } from '@/data/rings'
@@ -206,6 +220,7 @@
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import type { MailClaimSyncState, TaoyuanMailDetail, TaoyuanMailReward, TaoyuanMailSummary } from '@/stores/useMailboxStore'
 
+  const gameStore = useGameStore()
   const mailboxStore = useMailboxStore()
   const goalStore = useGoalStore()
   const questStore = useQuestStore()
@@ -235,6 +250,61 @@
       .filter(template => template.cadenceSlot === 'preview')
       .map(template => template.title)
     return templateIds.slice(0, 2)
+  })
+  const formatCalendarDay = (season: keyof typeof SEASON_NAMES, day: number) => `${SEASON_NAMES[season]}${day}日`
+  const getNextCalendarPoint = (year: number, season: keyof typeof SEASON_NAMES, day: number) => {
+    const seasons = ['spring', 'summer', 'autumn', 'winter'] as const
+    let nextYear = year
+    let nextSeason = season
+    let nextDay = day + 1
+    if (nextDay > 28) {
+      nextDay = 1
+      const nextSeasonIndex = seasons.indexOf(season) + 1
+      if (nextSeasonIndex >= seasons.length) {
+        nextSeason = 'spring'
+        nextYear += 1
+      } else {
+        nextSeason = seasons[nextSeasonIndex]!
+      }
+    }
+    return { year: nextYear, season: nextSeason, day: nextDay }
+  }
+  const calendarPrepDigestLines = computed(() => {
+    const lines: string[] = []
+    let cursor = { year: gameStore.year, season: gameStore.season, day: gameStore.day }
+    for (let offset = 1; offset <= 3; offset++) {
+      cursor = getNextCalendarPoint(cursor.year, cursor.season, cursor.day)
+      const birthdays = NPCS.filter(npc => npc.birthday?.season === cursor.season && npc.birthday?.day === cursor.day).map(npc => npc.name)
+      if (birthdays.length > 0 && offset <= 2) {
+        lines.push(`${offset}天后 ${formatCalendarDay(cursor.season, cursor.day)} 有生日：${birthdays.join('、')}`)
+      }
+      const events = getSeasonEventsForDay(cursor.season, cursor.day, cursor.year)
+      events.forEach(event => {
+        lines.push(`${offset}天后「${event.name}」：${event.prepChecklist.slice(0, 2).join('；')}`)
+      })
+      const activities = getSeasonalActivitiesForDay(cursor.season, cursor.day)
+      activities.forEach(activity => {
+        lines.push(`${offset}天后进入「${activity.name}」：${activity.prepChecklist[0] ?? activity.description}`)
+      })
+    }
+    if (['rainy', 'stormy', 'green_rain'].includes(gameStore.tomorrowWeather)) {
+      lines.push(`明日天气：${WEATHER_NAMES[gameStore.tomorrowWeather]}，相关窗口更值得提前安排。`)
+    }
+    return lines.slice(0, 4).length > 0 ? lines.slice(0, 4) : ['未来三天没有硬性节点，可以按周计划慢慢推进。']
+  })
+  const rareVisitorDigestLines = computed(() => {
+    const lines: string[] = []
+    getUpcomingRareVisitors(gameStore.season, gameStore.day, 7, gameStore.year)
+      .slice(0, 2)
+      .forEach(visit => {
+        lines.push(`${visit.daysAway}天后 ${formatCalendarDay(visit.season, visit.day)}：${visit.visitor.stallName} / ${visit.visitor.name}`)
+      })
+    getUpcomingTravelingMerchantVisits(gameStore.season, gameStore.day, 5, gameStore.year)
+      .slice(0, 1)
+      .forEach(visit => {
+        lines.push(`${visit.daysAway}天后旅行商人摆摊，适合预留一点稀有货预算。`)
+      })
+    return lines.length > 0 ? lines : ['本周暂无新的稀有来访提醒。']
   })
   const activeMailIndex = computed(() => mailboxStore.mails.findIndex(mail => mail.id === activeMailId.value))
   const hasPrevMail = computed(() => activeMailIndex.value > 0)

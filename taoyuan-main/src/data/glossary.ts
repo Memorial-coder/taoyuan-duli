@@ -198,26 +198,12 @@ const buildGlossary = (): GlossaryEntry[] => {
   }
 
   for (const npc of NPCS) {
-    const relatedEntryIds = uniqueStrings([
-      ...npc.lovedItems.map(getGlossaryEntryIdForItemId),
-      ...npc.likedItems.map(getGlossaryEntryIdForItemId),
-      ...(npc.hatedItems ?? []).map(getGlossaryEntryIdForItemId),
-    ])
     const details: GlossaryDetail[] = [
       { label: '身份', value: npc.role },
       { label: '性格', value: npc.personality },
       { label: '生日', value: npc.birthday ? `${SEASON_NAMES[npc.birthday.season] ?? npc.birthday.season}季第${npc.birthday.day}天` : '不详' },
+      { label: '送礼研究', value: '礼物偏好需通过对话、纸条、节日观察与亲自送礼逐步记录。' },
     ]
-
-    if (npc.lovedItems.length > 0) {
-      details.push({ label: '最爱礼物', value: npc.lovedItems.map(id => getItemById(id)?.name ?? id).join('、') })
-    }
-    if (npc.likedItems.length > 0) {
-      details.push({ label: '喜欢礼物', value: npc.likedItems.map(id => getItemById(id)?.name ?? id).join('、') })
-    }
-    if (npc.hatedItems && npc.hatedItems.length > 0) {
-      details.push({ label: '讨厌礼物', value: npc.hatedItems.map(id => getItemById(id)?.name ?? id).join('、') })
-    }
 
     entries.push(makeEntry({
       id: `npc_${npc.id}`,
@@ -231,7 +217,7 @@ const buildGlossary = (): GlossaryEntry[] => {
         { panel: 'village', label: '去桃源村社交' },
         { panel: 'quest', label: '看告示板与委托' },
       ],
-      relatedEntryIds,
+      relatedEntryIds: [],
       keywords: ['村民', '送礼', '好感', '礼物偏好', npc.role, npc.personality],
       intents: ['gift', 'system'],
     }))

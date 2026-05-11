@@ -4,6 +4,18 @@
 
 ## [未发布]
 
+### 0510 WS01 / S1 社区修复与世界变化 2.0
+- `src/types/achievement.ts`、`src/types/villageProject.ts`、`src/data/achievements.ts`、`src/data/villageProjects.ts` 已新增祠堂 -> 建设映射与世界变化结构，正式支持建设项挂接 `bundle` 承接、前置传闻、修后评论、跨入口反馈，以及 `entry / shortcut / service / dialogue / calendar` 五类世界变化。
+- `src/stores/useVillageProjectStore.ts` 已新增 `bundleProjectMappings`、`communityRestorationEffects`、`restorationMilestones`、`worldShortcutUnlocks` 与对应摘要查询，并在建设完成时写入世界变化与村里反应日志。
+- `src/views/game/VillageView.vue`、`src/views/game/HomeView.vue`、`src/views/game/AchievementView.vue` 已把这批 WS01 内容露出到玩家侧：祠堂礼单会提示推荐建设，村庄建设页会展示祠堂承接、世界变化总览、修前传闻与修后反馈，家园设施页也会同步显示已激活的变化。
+- `src/data/regions.ts` 已把 `journeyHub` 导入改为显式 `.ts` 路径，修复 `qa:late-game-samples` 在 Node ESM 下无法解析模块的问题。
+- 本阶段已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:late-game-samples`。
+
+### 0510 WS00 / S0 基线梳理与统一记录入口
+- `src/stores/usePlayerStore.ts` 新增 `lifestyleDiscoveryLedger`，并接入序列化、反序列化、快照读取与礼物线索/秘密线索/世界修复/稀有来访/特殊订单/精通/奖券/密匣/生活解锁等统一记录入口。
+- `src/data/achievements.ts`、`src/data/villageProjects.ts`、`src/data/travelingMerchant.ts`、`src/data/secretNotes.ts`、`src/data/quests.ts`、`src/views/game/CottageView.vue`、`src/views/game/SkillView.vue` 已补上 `WS01 ~ WS08` 对应的扩展锚点注释。
+- 已通过 `npm --prefix taoyuan-main run type-check` 作为本阶段最小验证。
+
 ### 0430 字号默认恢复、关键弹窗抗缩窄与移动地图菜单逐档联动
 - `src/stores/useSettingsStore.ts` 已将 `DEFAULT_FONT_SIZE` 恢复为 `16`，并继续保留 `8-24` clamp；新玩家默认不会再以偏小字号开局，旧档仍按已保存值读取。
 - `src/app.css` 已新增 `game-modal-overlay` 固定壳体规则，`SettingsDialog`、`SaveManager`、`MobileMapMenu` 等关键弹窗在 `max-w-xs / max-w-sm` 下不再跟随根字号一起缩窄；主要遮罩边距、弹窗外框和核心热区改为稳定 px 基线。
@@ -1962,3 +1974,54 @@
 - 当前复核状态：
   - `npm run type-check`
   - `npm run build`
+
+### 0510 WS02 / S2 日历、稀有访客与短活动 2.0
+
+- `src/data/events.ts` 新增节日前备货清单、短活动窗口定义、节日第二年变化解析器与年二起的摊位 / 对话 / 奖池 / 装饰说明；当前节庆会根据村庄建设等级、关系状态与主题周生成变体提示。
+- `src/data/books.ts`、`src/data/bookseller.ts` 新建书籍与稀有访客骨架，补上游学书肆 / 行脚书生命名层、书商库存、购买记录字段、永久小增益字段，以及节庆商人 / 巡回艺人 / 异乡客的低频来访日程。
+- `src/data/travelingMerchant.ts` 已让旅行商人库存吃到季节、节庆与已完成村庄建设偏置，并补上未来几天摆摊日预览入口。
+- `src/stores/useShopStore.ts` 新增书商库存与购书持久化，来访当天会记录稀有访客发现；购书可发放一次性技能经验或体力上限增益，并保持旧档反序列化兼容。
+- `src/views/game/ShopView.vue` 已接入“游学书肆”当天货架，玩家可在商圈总览直接购买技艺书、见闻书、线索书和节令书。
+- `src/views/game/CottageView.vue` 已把时历改成四层信息面板：今日事件、近期准备、稀有来访、长线提醒，并补生日 / 节前 / 短活动 / 稀有来访标记与详情。
+- `src/views/game/MailView.vue` 已增加本周日历提醒，活动邮件页现在也会同步显示节日前备货、来访节奏和天气窗口。
+- `src/composables/useEndDay.ts`、`src/views/game/NpcView.vue` 已接入按年份解析后的节庆数据，第二年起的节庆说明不再完全沿用第一年。
+- 本轮验证：
+  - `npm run type-check` 已通过。
+  - `npm run build` 已通过。
+  - `npm run qa:late-game-samples` 已通过。
+
+### 0510 WS03 / S3 NPC 关系与礼物发现 2.0
+
+- `src/types/npc.ts` 新增礼物偏好、关系线索类型、线索来源、精度与结构化 `RelationshipClueEntry`，把“礼物线索”从松散文本升级成可排序、可展示、可兼容旧档的记录结构。
+- `src/data/npcWorld.ts` 新增首批核心 NPC 礼物线索模板与生日专属回响文本；当前已覆盖至少 12 名核心 NPC，且每人至少提供 3 类线索来源。
+- `src/stores/useNpcStore.ts` 已接入对话 / 节庆 / 居所 / 商铺传闻 / 秘密纸条 / 亲手送礼的礼物线索解锁逻辑，并补上“已知偏好摘要”“按精度排序”“生日额外推进”“旧档线索结构迁移”等第一版能力。
+- `src/views/game/NpcView.vue` 已把送礼列表和礼物弹窗改成只显示玩家已经掌握的偏好；未知礼物不会再被界面直接剧透，同时新增线索日志面板，明确区分模糊线索、明确偏好和已验证记录。
+- `src/data/glossary.ts` 已移除 NPC 百科里的“最爱礼物 / 喜欢礼物 / 讨厌礼物”直给列表，改为“送礼研究”提示，避免百科直接破坏关系发现流程。
+- 本轮验证：
+  - `npm run type-check` 已通过。
+  - `npm run build` 已通过。
+  - `npm run qa:late-game-samples` 已通过。
+
+### 0510 WS04 / S4 秘密纸条、线索链与发现记录 2.0
+
+- `src/types/secretNote.ts` 已扩展秘密笔记分类、掉落来源与验证定义，让纸条可以表达季节、天气、地点、时间、村庄建设、节日与隐藏线前置信号。
+- `src/data/secretNotes.ts` 已把第一批核心纸条收成五类内容，并为至少 10 张纸条补上验证动作、成功回报、记录文案、社区修复门槛或隐藏 NPC 前置信号。
+- `src/stores/useSecretNoteStore.ts` 已从“收集 / 使用”两步逻辑升级成“收集 / 追踪 / 验证 / 回报”闭环；当前会记录线索状态、掉落来源、验证条件、已解决时间，并支持隐藏线 rumor 解锁。
+- `src/views/game/AchievementView.vue` 的笔记页现在会展示线索分类、待验证 / 可验证 / 已验证状态、未满足条件与验证按钮，纸条不再只是静态文本收藏。
+- `src/composables/useFarmActions.ts`、`src/views/game/FarmView.vue`、`src/views/game/ForageView.vue`、`src/stores/useFishingStore.ts`、`src/stores/useMiningStore.ts` 已把挖地、伐木、采集、钓鱼、挖矿、怪物和特殊资源点接进纸条掉落来源。
+- `src/stores/useHiddenNpcStore.ts` 已补 `unlockRumorLead()`，让部分纸条验证成功后可以真正把仙灵前置信号写进发现链。
+- 本轮验证：
+  - `npm run type-check` 已通过。
+  - `npm run build` 已通过。
+  - `npm run qa:late-game-samples` 已通过。
+
+### 0510 WS05 / S5 特殊订单、主题周与公告板 2.0（第一批进展）
+
+- `src/stores/useQuestStore.ts` 已新增完成委托历史记录与“做过同类”判断，当前会按 NPC、描述、完成日与奖励摘要回写最近订单历史，并持久化到存档。
+- `src/views/game/QuestView.vue` 已在委托板与进行中任务区补上“做过同类”“传闻轻任务”标记，并新增订单历史面板，开始把“谁让我做了什么”从一次性日志沉淀成可回看信息。
+- `src/types/quest.ts`、`src/data/quests.ts` 已扩展 `rumor` 类轻任务分类、口语化来源标签与传闻任务标识，并新增一批村口流言 / 鱼汛口风 / 节前风声 / 商路异动来源的轻委托模板。
+- `src/stores/useQuestStore.ts` 的日常委托生成现在会额外尝试补一条传闻轻任务，让公告板更像“今天村里在传什么”，而不是只有制式收集单。
+- 本轮验证：
+  - `npm run type-check` 已通过。
+  - `npm run build` 已通过。
+  - `npm run qa:late-game-samples` 已通过。

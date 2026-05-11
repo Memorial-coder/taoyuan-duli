@@ -1094,6 +1094,7 @@
   import { useHomeStore } from '@/stores/useHomeStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
+  import { useSecretNoteStore } from '@/stores/useSecretNoteStore'
   import { useShopStore } from '@/stores/useShopStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useTutorialStore } from '@/stores/useTutorialStore'
@@ -1883,6 +1884,9 @@
     const woodQty = farmStore.removeFruitTree(target.id)
     if (woodQty > 0) {
       inventoryStore.addItem('wood', woodQty)
+      if (Math.random() < 0.03) {
+        useSecretNoteStore().tryCollectNote('tree')
+      }
       addLog(`砍掉了${treeName}，获得${woodQty}个木材。（体力-${cost}）`)
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.chopTree)
       if (tr.message) addLog(tr.message)
@@ -1973,6 +1977,9 @@
     inventoryStore.addItem('wood', qty)
     const { removed } = farmStore.chopWildTree(target.id)
     const treeName = getWildTreeName(target.type)
+    if (Math.random() < 0.03) {
+      useSecretNoteStore().tryCollectNote('tree')
+    }
     if (removed) {
       addLog(`伐木获得了${qty}个木材，${treeName}已被砍倒消失了。（体力-${cost}）`)
     } else {

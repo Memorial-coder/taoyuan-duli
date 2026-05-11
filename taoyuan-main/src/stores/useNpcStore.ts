@@ -1,9 +1,13 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type {
+  GiftPreference,
   NpcState,
   FriendshipLevel,
   RelationshipStage,
+  RelationshipClueEntry,
+  RelationshipCluePrecision,
+  RelationshipClueSource,
   HeartEventDef,
   Quality,
   ChildState,
@@ -40,6 +44,8 @@ import {
 import { WEATHER_TIPS, getFortuneTip, getLivingTip, getRecipeTipMessage, NO_RECIPE_TIP, TIP_NPC_IDS } from '@/data/npcTips'
 import {
   getNpcBenefitSummaries,
+  getNpcBirthdaySpecialLines,
+  getNpcGiftClueTemplates,
   getNpcGiftReturn,
   getNpcGiftReturnSummaries,
   getNpcNextBenefitSummaries,
@@ -59,6 +65,7 @@ import { getItemById } from '@/data/items'
 import { useInventoryStore } from './useInventoryStore'
 import { useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
+import { useSecretNoteStore } from './useSecretNoteStore'
 import { useCookingStore } from './useCookingStore'
 import { useFarmStore } from './useFarmStore'
 import { useAnimalStore } from './useAnimalStore'
@@ -318,8 +325,8 @@ export const useNpcStore = defineStore('npc', () => {
   /** 婚礼对象NPC ID */
   const weddingNpcId = ref<string | null>(null)
 
-  /** 已获得的建筑/生活线索 */
-  const relationshipClues = ref<{ npcId: string; clueId: string; text: string }[]>([])
+  /** 已获得的礼物 / 生活线索 */
+  const relationshipClues = ref<RelationshipClueEntry[]>([])
 
   /** 婚后分工状态 */
   const householdDivision = ref<HouseholdDivisionState>(createDefaultHouseholdDivisionState())
@@ -593,22 +600,126 @@ export const useNpcStore = defineStore('npc', () => {
   }
 
   const getRelationshipCluesForNpc = (npcId: string) => {
-    return relationshipClues.value.filter(clue => clue.npcId === npcId)
+    return relationshipClues.value
+      .filter(clue => clue.npcId === npcId)
+      .sort((left, right) => {
+        const precisionRank: Record<RelationshipCluePrecision, number> = { confirmed: 0, exact: 1, hint: 2 }
+        return precisionRank[left.precision] - precisionRank[right.precision]
+      })
   }
 
   const getShopDiscountBonus = (npcId: string): number => {
     return getNpcShopDiscount(npcId, getRelationshipStage(npcId))
   }
 
-  const addRelationshipClue = (npcId: string, clueId: string, text: string): boolean => {
+  const buildCurrentDayTag = () => {
+    const gameStore = useGameStore()
+    return `${gameStore.year}-${gameStore.season}-${gameStore.day}`
+  }
+
+  const addRelationshipClue = (
+    npcId: string,
+    clueId: string,
+    text: string,
+    options: Partial<Omit<RelationshipClueEntry, 'npcId' | 'clueId' | 'text'>> = {}
+  ): boolean => {
     if (relationshipClues.value.some(clue => clue.clueId === clueId)) return false
-    relationshipClues.value.push({ npcId, clueId, text })
+    relationshipClues.value.push({
+      npcId,
+      clueId,
+      text,
+      kind: options.kind ?? 'gift',
+      source: options.source ?? 'rumor',
+      precision: options.precision ?? 'exact',
+      discoveredDayTag: options.discoveredDayTag ?? buildCurrentDayTag(),
+      itemId: options.itemId,
+      preference: options.preference
+    })
     return true
+  }
+
+  const getKnownGiftPreference = (npcId: string, itemId: string): GiftPreference | 'unknown' => {
+    const relevantClues = getRelationshipCluesForNpc(npcId).filter(clue => clue.kind === 'gift' && clue.itemId === itemId)
+    const confirmed = relevantClues.find(clue => clue.precision === 'confirmed')
+    if (confirmed?.preference) return confirmed.preference
+    const exact = relevantClues.find(clue => clue.precision === 'exact')
+    if (exact?.preference) return exact.preference
+    return 'unknown'
+  }
+
+  const getGiftKnowledgeSummary = (npcId: string) => {
+    const giftClues = getRelationshipCluesForNpc(npcId).filter(clue => clue.kind === 'gift')
+    return {
+      hintCount: giftClues.filter(clue => clue.precision === 'hint').length,
+      exactCount: giftClues.filter(clue => clue.precision === 'exact').length,
+      confirmedCount: giftClues.filter(clue => clue.precision === 'confirmed').length
+    }
+  }
+
+  const unlockGiftClueTemplate = (template: ReturnType<typeof getNpcGiftClueTemplates>[number]) => {
+    const playerStore = usePlayerStore()
+    const added = addRelationshipClue(template.npcId, template.clueId, template.text, {
+      kind: 'gift',
+      source: template.source,
+      precision: template.precision,
+      itemId: template.itemId,
+      preference: template.preference
+    })
+    if (added) playerStore.markGiftClueDiscovered(template.clueId, buildCurrentDayTag())
+    return added
+  }
+
+  const unlockScriptedGiftClue = (npcId: string, itemId: string, preference: Exclude<GiftPreference, 'neutral'>) => {
+    const playerStore = usePlayerStore()
+    const clueId = `gift_check:${npcId}:${itemId}:${preference}`
+    const npcName = getNpcById(npcId)?.name ?? npcId
+    const itemName = getItemById(itemId)?.name ?? itemId
+    const prefText: Record<Exclude<GiftPreference, 'neutral'>, string> = {
+      loved: '非常喜欢',
+      liked: '喜欢',
+      hated: '讨厌'
+    }
+    const added = addRelationshipClue(npcId, clueId, `你亲手验证过：${npcName}对「${itemName}」${prefText[preference]}。`, {
+      kind: 'gift',
+      source: 'gift_test',
+      precision: 'confirmed',
+      itemId,
+      preference
+    })
+    if (added) playerStore.markGiftClueDiscovered(clueId, buildCurrentDayTag())
+    return added
+  }
+
+  const syncSecretNoteGiftClues = (npcId: string) => {
+    const secretNoteStore = useSecretNoteStore()
+    const noteTemplateMap: Partial<Record<string, Array<{ noteId: number; clueId: string }>>> = {
+      qiu_yue: [{ noteId: 3, clueId: 'qiu_yue_note_koi' }],
+      a_shi: [{ noteId: 7, clueId: 'a_shi_note_copper' }],
+      liu_niang: [{ noteId: 11, clueId: 'liu_niang_note_osmanthus' }],
+      wang_dashen: [{ noteId: 15, clueId: 'wang_dashen_note_rice' }]
+    }
+    const mapping = noteTemplateMap[npcId] ?? []
+    mapping.forEach(entry => {
+      if (!secretNoteStore.isCollected(entry.noteId)) return
+      const template = getNpcGiftClueTemplates(npcId).find(candidate => candidate.clueId === entry.clueId)
+      if (template) unlockGiftClueTemplate(template)
+    })
+  }
+
+  const unlockAmbientGiftClue = (npcId: string, preferredSources: RelationshipClueSource[]) => {
+    syncSecretNoteGiftClues(npcId)
+    const knownClueIds = new Set(getRelationshipCluesForNpc(npcId).map(clue => clue.clueId))
+    const templates = getNpcGiftClueTemplates(npcId)
+    for (const source of preferredSources) {
+      const template = templates.find(candidate => candidate.source === source && !knownClueIds.has(candidate.clueId))
+      if (template && unlockGiftClueTemplate(template)) return template
+    }
+    return null
   }
 
   const getScheduleStatus = (npcId: string) => {
     const gameStore = useGameStore()
-    const todayEvent = getTodayEvent(gameStore.season, gameStore.day)
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
 
     return getNpcScheduleStatus(npcId, {
       season: gameStore.season,
@@ -621,7 +732,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getScheduleTimeline = (npcId: string) => {
     const gameStore = useGameStore()
-    const todayEvent = getTodayEvent(gameStore.season, gameStore.day)
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
 
     return getNpcScheduleTimeline(npcId, {
       season: gameStore.season,
@@ -634,7 +745,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getNextScheduleText = (npcId: string): string | null => {
     const gameStore = useGameStore()
-    const todayEvent = getTodayEvent(gameStore.season, gameStore.day)
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
 
     return getNpcNextScheduleText(npcId, {
       season: gameStore.season,
@@ -647,7 +758,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getRegionRumorSupplyOverview = (regionId: RegionId): RegionRumorSupplyEntry[] => {
     const gameStore = useGameStore()
-    const todayEvent = getTodayEvent(gameStore.season, gameStore.day)
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
     const festivalId = todayEvent?.id ?? null
 
     return REGION_RUMOR_TEMPLATES.filter(template => {
@@ -855,6 +966,7 @@ export const useNpcStore = defineStore('npc', () => {
     const state = getNpcState(npcId)
     if (!state) return null
     if (state.talkedToday) return null
+    const gameStore = useGameStore()
 
     state.talkedToday = true
     state.friendship = Math.min(state.friendship + 20, getEffectiveFriendshipCap(state))
@@ -864,6 +976,22 @@ export const useNpcStore = defineStore('npc', () => {
     if (!npcDef) return null
 
     const scheduleStatus = getScheduleStatus(npcId)
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
+    const unlockedClueTemplate = unlockAmbientGiftClue(
+      npcId,
+      todayEvent
+        ? ['festival', 'talk', 'home', 'shop', 'rumor', 'secret_note']
+        : getRelationshipStageRank(getRelationshipStage(npcId)) >= getRelationshipStageRank('friend')
+          ? ['talk', 'home', 'rumor', 'shop', 'secret_note']
+          : ['talk', 'home', 'secret_note']
+    )
+    if (unlockedClueTemplate) {
+      unlockedMessages.push(
+        unlockedClueTemplate.source === 'festival'
+          ? `${npcDef.name}在节庆里的举动让你记住了一点礼物偏好。`
+          : `${npcDef.name}的话里藏着一条新的礼物线索。`
+      )
+    }
     if (scheduleStatus.specialDialogue) {
       return { message: replaceDialoguePlaceholders(scheduleStatus.specialDialogue), friendshipGain: 20, unlockedMessages }
     }
@@ -938,7 +1066,13 @@ export const useNpcStore = defineStore('npc', () => {
     itemId: string,
     giftBonusMultiplier: number = 1,
     quality: Quality = 'normal'
-  ): { gain: number; reaction: string; returnedGift?: { itemId: string; quantity: number; summary: string }; unlockedMessages?: string[] } | null => {
+  ): {
+    gain: number
+    reaction: string
+    birthdayMessage?: string
+    returnedGift?: { itemId: string; quantity: number; summary: string }
+    unlockedMessages?: string[]
+  } | null => {
     const state = getNpcState(npcId)
     if (!state) return null
     if (state.giftedToday) return null
@@ -977,6 +1111,23 @@ export const useNpcStore = defineStore('npc', () => {
     gain = Math.floor(gain * qualityMultiplier[quality] * birthdayMultiplier * giftBonusMultiplier)
     state.friendship = Math.min(Math.max(0, state.friendship + gain), getEffectiveFriendshipCap(state))
     const unlockedMessages = syncRelationshipPerks(npcId)
+    if (npcDef.lovedItems.includes(itemId)) unlockScriptedGiftClue(npcId, itemId, 'loved')
+    else if (npcDef.likedItems.includes(itemId)) unlockScriptedGiftClue(npcId, itemId, 'liked')
+    else if (npcDef.hatedItems.includes(itemId)) unlockScriptedGiftClue(npcId, itemId, 'hated')
+
+    let birthdayMessage: string | undefined
+    if (isBirthday(npcId) && gain > 0) {
+      const birthdayBonus = Math.max(12, Math.floor(gain * 0.12))
+      state.friendship = Math.min(state.friendship + birthdayBonus, getEffectiveFriendshipCap(state))
+      unlockedMessages.push(`${npcDef.name}在生日当天收下了这份心意，关系又推进了一步。`)
+      const birthdayLines = getNpcBirthdaySpecialLines(npcId)
+      birthdayMessage = birthdayLines.length > 0 ? birthdayLines[Math.floor(Math.random() * birthdayLines.length)] : `${npcDef.name}在生日这天显得格外开心。`
+      addRelationshipClue(npcId, `birthday:${npcId}:${itemId}`, `你记住了：${npcDef.name}在生日收到合心礼物时，会明显更愿意敞开心扉。`, {
+        kind: 'birthday',
+        source: 'birthday',
+        precision: 'confirmed'
+      })
+    }
     const giftReturn = getNpcGiftReturn(npcId, getRelationshipStage(npcId))
     const returnedGift =
       giftReturn && inventoryStore.canAddItem(giftReturn.itemId, giftReturn.quantity)
@@ -991,6 +1142,7 @@ export const useNpcStore = defineStore('npc', () => {
     return {
       gain,
       reaction,
+      birthdayMessage,
       returnedGift,
       unlockedMessages
     }
@@ -2347,11 +2499,63 @@ export const useNpcStore = defineStore('npc', () => {
     npcStates.value = [...savedStates, ...newNpcStates]
     relationshipClues.value = (Array.isArray((data as any).relationshipClues) ? (data as any).relationshipClues : [])
       .filter((clue: any) => clue && typeof clue === 'object' && clue?.clueId && clue?.text)
-      .map((clue: any) => ({
-        npcId: typeof clue.npcId === 'string' ? clue.npcId : '',
-        clueId: String(clue.clueId),
-        text: String(clue.text)
-      }))
+      .map((clue: any): RelationshipClueEntry | null => {
+        const npcId = typeof clue.npcId === 'string' && validNpcIds.has(clue.npcId) ? clue.npcId : null
+        if (!npcId) return null
+        const rawClueId = String(clue.clueId)
+        const rawKind = clue.kind
+        const rawSource = clue.source
+        const rawPrecision = clue.precision
+        let itemId = typeof clue.itemId === 'string' ? clue.itemId : undefined
+        let preference: Exclude<GiftPreference, 'neutral'> | undefined =
+          clue.preference === 'loved' || clue.preference === 'liked' || clue.preference === 'hated' ? clue.preference : undefined
+        if (!itemId || !preference) {
+          const scriptedMatch = rawClueId.match(/^gift_check:([^:]+):([^:]+):(loved|liked|hated)$/)
+          if (scriptedMatch) {
+            itemId = itemId ?? scriptedMatch[2]
+            preference = preference ?? (scriptedMatch[3] as Exclude<GiftPreference, 'neutral'>)
+          }
+        }
+        const kind =
+          rawKind === 'gift' || rawKind === 'birthday' || rawKind === 'habit' || rawKind === 'festival'
+            ? rawKind
+            : rawClueId.startsWith('birthday:')
+              ? 'birthday'
+              : 'gift'
+        const source =
+          rawSource === 'talk' ||
+          rawSource === 'festival' ||
+          rawSource === 'home' ||
+          rawSource === 'secret_note' ||
+          rawSource === 'shop' ||
+          rawSource === 'rumor' ||
+          rawSource === 'gift_test' ||
+          rawSource === 'birthday'
+            ? rawSource
+            : rawClueId.startsWith('birthday:')
+              ? 'birthday'
+              : rawClueId.startsWith('gift_check:')
+                ? 'gift_test'
+                : 'rumor'
+        const precision =
+          rawPrecision === 'hint' || rawPrecision === 'exact' || rawPrecision === 'confirmed'
+            ? rawPrecision
+            : rawClueId.startsWith('birthday:') || rawClueId.startsWith('gift_check:')
+              ? 'confirmed'
+              : 'exact'
+        return {
+          npcId,
+          clueId: rawClueId,
+          text: String(clue.text),
+          kind,
+          source,
+          precision,
+          discoveredDayTag: typeof clue.discoveredDayTag === 'string' ? clue.discoveredDayTag : undefined,
+          itemId,
+          preference
+        }
+      })
+      .filter((clue: RelationshipClueEntry | null): clue is RelationshipClueEntry => Boolean(clue))
     householdDivision.value = (() => {
       const raw = (data as any).householdDivision
       if (!raw || typeof raw !== 'object') return createDefaultHouseholdDivisionState()
@@ -2530,6 +2734,8 @@ export const useNpcStore = defineStore('npc', () => {
     getRelationshipGiftReturnSummaries,
     getNextRelationshipBenefits,
     getRelationshipCluesForNpc,
+    getKnownGiftPreference,
+    getGiftKnowledgeSummary,
     getShopDiscountBonus,
     addRelationshipClue,
     getScheduleStatus,
