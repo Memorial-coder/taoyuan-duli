@@ -448,6 +448,267 @@ const FESTIVAL_PREP_CHECKLIST: Partial<Record<NonNullable<SeasonEventDef['festiv
   kite_flying: ['把布料和轻礼物留一份', '下午风起时更适合参加', '有关系目标的话，先看谁会来广场']
 }
 
+type FestivalYearVariantSlot = 'yearTwo' | 'oddYear' | 'evenYear'
+
+interface FestivalYearVariantPreset {
+  stallNote: string
+  dialogueNote: string
+  prizePoolNote: string
+  decorationNote: string
+  bonusRewards?: { itemId: string; quantity: number }[]
+  moneyBonus?: number
+}
+
+const GENERIC_YEAR_VARIANTS: Record<FestivalYearVariantSlot, FestivalYearVariantPreset> = {
+  yearTwo: {
+    stallNote: '第二年起会增设一两个熟摊，卖的多是节前短缺的小补给。',
+    dialogueNote: '村民会提到去年节日留下的事，节庆不再像第一次见面。',
+    prizePoolNote: '奖池会混入纸张、野果或节令小礼，偏向补完和纪念。',
+    decorationNote: '广场会多出去年留下的彩绳、木牌和村民自制摆件。',
+    bonusRewards: [{ itemId: 'paper', quantity: 2 }]
+  },
+  oddYear: {
+    stallNote: '奇数年更偏人情摊位，适合补礼物、茶点和关系线材料。',
+    dialogueNote: '奇数年的闲谈更关注谁来了、谁帮忙布置、谁惦记着你。',
+    prizePoolNote: '奇数年奖池偏轻社交回馈，给小礼物和纪念物更多露出。',
+    decorationNote: '奇数年装点更柔和，村口会挂花绳、灯牌和祝福签。',
+    bonusRewards: [{ itemId: 'wild_berry', quantity: 2 }]
+  },
+  evenYear: {
+    stallNote: '偶数年更偏经营摊位，适合补消耗品、加工材料和活动用品。',
+    dialogueNote: '偶数年的评论更关注今年摊位、奖池和村庄修复后的变化。',
+    prizePoolNote: '偶数年奖池偏功能回馈，给备货、制作和出货一点轻支持。',
+    decorationNote: '偶数年装点更热闹，广场摊棚、桥口灯串和告示牌会更显眼。',
+    bonusRewards: [{ itemId: 'firewood', quantity: 3 }],
+    moneyBonus: 40
+  }
+}
+
+const FESTIVAL_YEAR_VARIANTS: Partial<Record<NonNullable<SeasonEventDef['festivalType']>, Record<FestivalYearVariantSlot, FestivalYearVariantPreset>>> = {
+  fishing_contest: {
+    yearTwo: {
+      stallNote: '第二年河岸会多出鱼饵小摊和临时称重台，钓鱼节更像正式比赛。',
+      dialogueNote: '李渔翁会比较你去年的鱼获，熟人会聊起你有没有换钓具。',
+      prizePoolNote: '第二年起奖池会追加鱼饵、鱼饲料和钓具材料这类长期钓鱼补给。',
+      decorationNote: '河岸挂起荷灯、鱼篓和计分木牌，地图上会显出水边节庆落点。',
+      bonusRewards: [{ itemId: 'standard_bait', quantity: 3 }]
+    },
+    oddYear: {
+      stallNote: '奇数年偏夜钓摊，傍晚会多卖安静鱼饵和暖身茶点。',
+      dialogueNote: '奇数年村民更爱聊鱼汛和夜里上钩的传闻。',
+      prizePoolNote: '奇数年奖池偏鱼获补完，会提示稀有鱼、鱼塘和图鉴缺口。',
+      decorationNote: '奇数年水面灯牌更密，河湾会多出夜钓灯影。',
+      bonusRewards: [{ itemId: 'fish_feed', quantity: 2 }]
+    },
+    evenYear: {
+      stallNote: '偶数年偏器具摊，河岸会摆出浮漂、鱼线和修竿工具。',
+      dialogueNote: '偶数年村民会更关注你的装备和比赛手法。',
+      prizePoolNote: '偶数年奖池偏功能补给，会混入鱼饵和鱼塘消耗品。',
+      decorationNote: '偶数年计分旗和临时码头更醒目，地图提示会更偏比赛动线。',
+      bonusRewards: [{ itemId: 'standard_bait', quantity: 2 }],
+      moneyBonus: 60
+    }
+  },
+  harvest_fair: {
+    yearTwo: {
+      stallNote: '第二年展台会分出作物、加工品和家畜副产区，摊位分工更清楚。',
+      dialogueNote: '村民会讨论你去年拿出的展品，今年会不会换一条供货线。',
+      prizePoolNote: '第二年起奖池会追加加工材料和展示纪念，鼓励继续补图鉴和出货。',
+      decorationNote: '广场摆上谷捆、木箱和展品牌，地图会更明显标出丰收宴区。',
+      bonusRewards: [{ itemId: 'rice_flour', quantity: 1 }]
+    },
+    oddYear: {
+      stallNote: '奇数年偏家常市集，摊位会卖更多节令小吃和送礼材料。',
+      dialogueNote: '奇数年闲谈更关注谁的展品最有故事。',
+      prizePoolNote: '奇数年奖池偏纪念和关系反馈，会提示展品背后的村民反应。',
+      decorationNote: '奇数年展台更像家宴，桌旗和花篮会更多。',
+      bonusRewards: [{ itemId: 'pumpkin_preserve', quantity: 1 }]
+    },
+    evenYear: {
+      stallNote: '偶数年偏贸易市集，摊位会突出高价加工品和订单供货。',
+      dialogueNote: '偶数年村民会更关注行情、出货和谁的摊位最会做生意。',
+      prizePoolNote: '偶数年奖池偏经营补给，会混入加工材料和小额铜钱。',
+      decorationNote: '偶数年广场会摆更多货架、秤台和收购牌。',
+      bonusRewards: [{ itemId: 'wheat_flour', quantity: 1 }],
+      moneyBonus: 80
+    }
+  },
+  dragon_boat: {
+    yearTwo: {
+      stallNote: '第二年河边会多出补给摊和赛前粽点摊，节日准备更有路线感。',
+      dialogueNote: '村民会提到去年哪支队伍划得最稳，也会打听你今年帮谁备货。',
+      prizePoolNote: '第二年起奖池会追加体力补给和节令食材。',
+      decorationNote: '桥口会挂彩旗和鼓架，地图上能看到河道赛线装点。',
+      bonusRewards: [{ itemId: 'herbal_paste', quantity: 1 }]
+    },
+    oddYear: {
+      stallNote: '奇数年偏祈福摊，河岸会卖更多香囊和药草。',
+      dialogueNote: '奇数年台词更关注祈愿、家人和队伍默契。',
+      prizePoolNote: '奇数年奖池偏恢复与护身小物。',
+      decorationNote: '奇数年河岸多挂艾草、彩绳和祈愿牌。',
+      bonusRewards: [{ itemId: 'herb', quantity: 3 }]
+    },
+    evenYear: {
+      stallNote: '偶数年偏赛具摊，鼓、桨、绳和补给箱更显眼。',
+      dialogueNote: '偶数年台词更关注速度、体力和赛线策略。',
+      prizePoolNote: '偶数年奖池偏赛前补给和木材消耗。',
+      decorationNote: '偶数年河道会多出浮标、鼓架和临时看台。',
+      bonusRewards: [{ itemId: 'firewood', quantity: 4 }],
+      moneyBonus: 50
+    }
+  },
+  lantern_riddle: {
+    yearTwo: {
+      stallNote: '第二年灯谜摊会分出纸谜、故事谜和人物谜，线索味更重。',
+      dialogueNote: '村民会拿去年你猜过的灯谜开玩笑，也会暗示新谜题来源。',
+      prizePoolNote: '第二年起奖池会追加纸张、宝石和线索类纪念。',
+      decorationNote: '夜市会挂更多谜签和灯架，地图提示会偏广场夜景。',
+      bonusRewards: [{ itemId: 'paper', quantity: 3 }]
+    },
+    oddYear: {
+      stallNote: '奇数年偏人物谜摊，适合顺手补关系线索。',
+      dialogueNote: '奇数年台词更像村民互相出题，常带一点私下喜好。',
+      prizePoolNote: '奇数年奖池偏礼物线索和小宝石。',
+      decorationNote: '奇数年灯架更密，人物灯牌会挂在广场边。',
+      bonusRewards: [{ itemId: 'jade', quantity: 1 }]
+    },
+    evenYear: {
+      stallNote: '偶数年偏故事谜摊，会把秘密纸条和旧传闻拎出来重讲。',
+      dialogueNote: '偶数年台词更关注村史、旧物和你已经验证过的线索。',
+      prizePoolNote: '偶数年奖池偏纸张、素材和小额铜钱。',
+      decorationNote: '偶数年会多出旧书摊、灯谜墙和村史灯牌。',
+      bonusRewards: [{ itemId: 'paper', quantity: 2 }],
+      moneyBonus: 40
+    }
+  },
+  pot_throwing: {
+    yearTwo: {
+      stallNote: '第二年投壶旁会多出老人茶摊和练手壶位。',
+      dialogueNote: '村民会记得你去年投壶准不准，熟人会给不同玩笑。',
+      prizePoolNote: '第二年起奖池会追加草药、茶点和小额纪念。',
+      decorationNote: '祠前会摆出投壶架、坐席和长辈题字。',
+      bonusRewards: [{ itemId: 'herb', quantity: 2 }]
+    },
+    oddYear: {
+      stallNote: '奇数年偏茶话摊，适合补老人关系和家常礼物。',
+      dialogueNote: '奇数年台词更像长辈闲谈，会顺带提到旧年规矩。',
+      prizePoolNote: '奇数年奖池偏关系反馈和小礼物。',
+      decorationNote: '奇数年祠前桌案、茶盏和布幔更多。',
+      bonusRewards: [{ itemId: 'green_tea_drink', quantity: 1 }]
+    },
+    evenYear: {
+      stallNote: '偶数年偏竞技摊，练习壶位和计分牌更醒目。',
+      dialogueNote: '偶数年台词更关注手感、准头和谁在旁边加油。',
+      prizePoolNote: '偶数年奖池偏功能消耗和小额铜钱。',
+      decorationNote: '偶数年投壶架、记分签和红绳会沿路摆开。',
+      bonusRewards: [{ itemId: 'firewood', quantity: 2 }],
+      moneyBonus: 30
+    }
+  },
+  dumpling_making: {
+    yearTwo: {
+      stallNote: '第二年会多出包馅摊、面点摊和家庭桌。',
+      dialogueNote: '村民会提到去年谁包得最好，也会问你今年带了什么馅。',
+      prizePoolNote: '第二年起奖池会追加米粉、面粉和家常食材。',
+      decorationNote: '广场会摆更多蒸笼、灯笼和团圆桌。',
+      bonusRewards: [{ itemId: 'rice_flour', quantity: 1 }]
+    },
+    oddYear: {
+      stallNote: '奇数年偏家常馅料摊，适合补烹饪材料。',
+      dialogueNote: '奇数年台词更关注家人、邻里和谁来帮忙包。',
+      prizePoolNote: '奇数年奖池偏家常食材和关系反馈。',
+      decorationNote: '奇数年桌席更近，灯笼和碗筷会摆满院边。',
+      bonusRewards: [{ itemId: 'wheat_flour', quantity: 1 }]
+    },
+    evenYear: {
+      stallNote: '偶数年偏试吃摊，村民会拿不同馅料做小评比。',
+      dialogueNote: '偶数年台词更关注口味、加工品和今年谁的手艺进步。',
+      prizePoolNote: '偶数年奖池偏加工材料和小额铜钱。',
+      decorationNote: '偶数年会多出试吃牌、蒸汽摊和厨房小旗。',
+      bonusRewards: [{ itemId: 'rice_vinegar', quantity: 1 }],
+      moneyBonus: 50
+    }
+  },
+  firework_show: {
+    yearTwo: {
+      stallNote: '第二年夜市会多出烟花摊、年末礼摊和守岁小桌。',
+      dialogueNote: '村民会聊起你去年在哪里看烟花，今年有没有约人同行。',
+      prizePoolNote: '第二年起奖池会追加纸张、柴火和年末纪念。',
+      decorationNote: '村口和屋檐会多出灯串、爆竹架和守岁牌。',
+      bonusRewards: [{ itemId: 'firewood', quantity: 5 }]
+    },
+    oddYear: {
+      stallNote: '奇数年偏年礼摊，适合补关系线和年末礼物。',
+      dialogueNote: '奇数年台词更关注团圆、告别和来年的约定。',
+      prizePoolNote: '奇数年奖池偏纪念小礼和关系反馈。',
+      decorationNote: '奇数年屋檐灯更暖，村口会挂更多年签。',
+      bonusRewards: [{ itemId: 'paper', quantity: 3 }]
+    },
+    evenYear: {
+      stallNote: '偶数年偏烟花工坊摊，柴火、纸张和小工具摆得更多。',
+      dialogueNote: '偶数年台词更关注烟花样式、摊位收入和年末筹备。',
+      prizePoolNote: '偶数年奖池偏制作材料和小额铜钱。',
+      decorationNote: '偶数年烟花架、灯串和倒计时木牌更醒目。',
+      bonusRewards: [{ itemId: 'firewood', quantity: 3 }],
+      moneyBonus: 80
+    }
+  },
+  tea_contest: {
+    yearTwo: {
+      stallNote: '第二年茶台会分出试水、试火和试茶具三个小摊。',
+      dialogueNote: '林老会记得你去年泡茶的手法，也会点评今年水火是否更稳。',
+      prizePoolNote: '第二年起奖池会追加茶饮、茶油和清淡食材。',
+      decorationNote: '广场会摆茶旗、竹席和水盏，地图提示会更偏茶台落点。',
+      bonusRewards: [{ itemId: 'green_tea_drink', quantity: 1 }]
+    },
+    oddYear: {
+      stallNote: '奇数年偏雅集茶摊，适合补关系对话和清淡礼物。',
+      dialogueNote: '奇数年台词更关注茶香、诗句和谁坐在谁旁边。',
+      prizePoolNote: '奇数年奖池偏茶饮和纪念反馈。',
+      decorationNote: '奇数年茶席更安静，竹帘和花盏会更多。',
+      bonusRewards: [{ itemId: 'chrysanthemum_tea', quantity: 1 }]
+    },
+    evenYear: {
+      stallNote: '偶数年偏茶商摊，会把茶油、茶饮和加工材料摆出来。',
+      dialogueNote: '偶数年台词更关注今年茶价和谁的茶最适合出货。',
+      prizePoolNote: '偶数年奖池偏经营补给和小额铜钱。',
+      decorationNote: '偶数年茶商牌、货篮和水桶会沿广场一侧排开。',
+      bonusRewards: [{ itemId: 'tea_oil', quantity: 1 }],
+      moneyBonus: 60
+    }
+  },
+  kite_flying: {
+    yearTwo: {
+      stallNote: '第二年风筝会多出纸鸢摊、修线摊和孩子们的试飞角。',
+      dialogueNote: '村民会记得去年谁的风筝飞得最高，今年会聊新图案。',
+      prizePoolNote: '第二年起奖池会追加纸张、布匹和轻纪念。',
+      decorationNote: '山坡和村口会挂风筝线、彩旗和试飞木桩。',
+      bonusRewards: [{ itemId: 'paper', quantity: 3 }]
+    },
+    oddYear: {
+      stallNote: '奇数年偏手作摊，适合补纸张、布匹和关系小礼。',
+      dialogueNote: '奇数年台词更关注风筝图案和谁帮谁扎线。',
+      prizePoolNote: '奇数年奖池偏手作材料和纪念反馈。',
+      decorationNote: '奇数年空地会多出彩绸、纸鸢和手作桌。',
+      bonusRewards: [{ itemId: 'cloth', quantity: 1 }]
+    },
+    evenYear: {
+      stallNote: '偶数年偏竞飞摊，风向牌、线轴和计高牌更醒目。',
+      dialogueNote: '偶数年台词更关注风向、比赛成绩和远处地势。',
+      prizePoolNote: '偶数年奖池偏制作材料和小额铜钱。',
+      decorationNote: '偶数年高台、风向旗和计高绳会标到地图提示里。',
+      bonusRewards: [{ itemId: 'paper', quantity: 2 }],
+      moneyBonus: 50
+    }
+  }
+}
+
+const getFestivalVariantPresets = (event: SeasonEventDef, year: number): FestivalYearVariantPreset[] => {
+  if (year < 2) return []
+  const presets = event.festivalType ? (FESTIVAL_YEAR_VARIANTS[event.festivalType] ?? GENERIC_YEAR_VARIANTS) : GENERIC_YEAR_VARIANTS
+  return [presets.yearTwo, year % 2 === 0 ? presets.evenYear : presets.oddYear]
+}
+
 const getFestivalPrepChecklist = (event: SeasonEventDef): string[] => {
   if (event.festivalType && FESTIVAL_PREP_CHECKLIST[event.festivalType]) {
     return [...(FESTIVAL_PREP_CHECKLIST[event.festivalType] ?? [])]
@@ -468,6 +729,17 @@ const buildVariantNotes = (event: SeasonEventDef, context: SeasonEventResolution
   const dialogueNotes: string[] = []
   const prizePoolNotes: string[] = []
   const decorationNotes: string[] = []
+  const yearVariantPresets = getFestivalVariantPresets(event, year)
+
+  if (yearVariantPresets.length > 0) {
+    driverLabels.push(year % 2 === 0 ? '双年度轮换：偶数年' : '双年度轮换：奇数年')
+    yearVariantPresets.forEach(preset => {
+      stallNotes.push(preset.stallNote)
+      dialogueNotes.push(preset.dialogueNote)
+      prizePoolNotes.push(preset.prizePoolNote)
+      decorationNotes.push(preset.decorationNote)
+    })
+  }
 
   if ((context.villageProjectLevel ?? 0) >= 2) {
     driverLabels.push('村庄建设等级')
@@ -509,6 +781,7 @@ export const resolveSeasonEvent = (
 ): ResolvedSeasonEventDef => {
   const context = normalizeResolutionContext(contextOrYear)
   const year = Math.max(1, context.year ?? 1)
+  const yearVariantPresets = getFestivalVariantPresets(event, year)
   const variantNotes = buildVariantNotes(event, context)
   const isYearTwoPlus = year >= 2
   const appendedNarrative: string[] = []
@@ -516,7 +789,11 @@ export const resolveSeasonEvent = (
     appendedNarrative.push('今年的节庆和去年已经不完全一样，村里的人明显更会过日子了。')
     if (variantNotes?.stallNotes[0]) appendedNarrative.push(variantNotes.stallNotes[0])
     if (variantNotes?.dialogueNotes[0]) appendedNarrative.push(variantNotes.dialogueNotes[0])
+    if (variantNotes?.prizePoolNotes[0]) appendedNarrative.push(variantNotes.prizePoolNotes[0])
   }
+  const yearVariantRewards = yearVariantPresets.flatMap(preset => preset.bonusRewards ?? [])
+  const resolvedItemRewards = [...(event.effects.itemReward ?? []), ...yearVariantRewards]
+  const yearVariantMoneyBonus = yearVariantPresets.reduce((sum, preset) => sum + (preset.moneyBonus ?? 0), 0)
 
   return {
     ...event,
@@ -524,7 +801,11 @@ export const resolveSeasonEvent = (
     effects: {
       ...event.effects,
       friendshipBonus: event.effects.friendshipBonus != null ? event.effects.friendshipBonus + (isYearTwoPlus ? 1 : 0) : undefined,
-      moneyReward: event.effects.moneyReward != null ? event.effects.moneyReward + (isYearTwoPlus ? 80 : 0) : undefined
+      moneyReward:
+        event.effects.moneyReward != null || yearVariantMoneyBonus > 0
+          ? (event.effects.moneyReward ?? 0) + (isYearTwoPlus ? 80 : 0) + yearVariantMoneyBonus
+          : undefined,
+      itemReward: resolvedItemRewards.length > 0 ? resolvedItemRewards : undefined
     },
     narrative: [...event.narrative, ...appendedNarrative],
     prepChecklist: getFestivalPrepChecklist(event),

@@ -7,7 +7,7 @@
     title="桃源乡百科全书"
     description="如果你已经玩到“东西越来越多、页面越来越杂、但又说不清该先管哪件”的阶段，就来看这页。它不是冷冰冰的系统表，而是帮你把桃源乡现在这堆玩法理顺的一本大手册。"
     :sections="sections"
-    :badges="['主菜单入口', '系统索引页', '统一到游戏 UI']"
+    :badges="['主菜单入口', '系统索引页', '统一到游戏 UI', '行旅图联动']"
   >
     <template #actions="{ jumpTo }">
       <Button class="justify-center" :icon="ArrowLeft" @click="goGuide">返回新手教程</Button>

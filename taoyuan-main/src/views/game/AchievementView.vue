@@ -10,6 +10,7 @@
 
     <!-- 标签切换 -->
     <div class="flex space-x-1 mb-3 overflow-x-auto pb-0.5" style="scrollbar-width:none;-ms-overflow-style:none">
+      <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'medals' }" @click="tab = 'medals'">大奖章</Button>
       <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'collection' }" @click="tab = 'collection'">图鉴</Button>
       <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'achievements' }" @click="tab = 'achievements'">成就</Button>
       <Button class="shrink-0 justify-center" :class="{ '!bg-accent !text-bg': tab === 'bundles' }" @click="tab = 'bundles'">祠堂</Button>
@@ -20,6 +21,62 @@
     </div>
 
     <p class="text-[10px] text-muted mb-3">{{ currentTabHint }}</p>
+
+    <!-- 收集大奖章 -->
+    <template v-if="tab === 'medals'">
+      <div class="border border-accent/20 rounded-xs p-3 mb-3">
+        <div class="flex items-center justify-between gap-3 mb-2">
+          <div>
+            <p class="text-sm text-accent">桃源大奖章</p>
+            <p class="text-[10px] text-muted mt-0.5">把长期收集、秘藏验证、精通成长和特殊事件收进同一张补完账。</p>
+          </div>
+          <span class="text-xs text-accent whitespace-nowrap">{{ grandMedalOverallPercent }}%</span>
+        </div>
+        <div class="h-1.5 bg-bg rounded-xs border border-accent/10 mb-2">
+          <div class="h-full bg-accent rounded-xs transition-all" :style="{ width: grandMedalOverallPercent + '%' }" />
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div v-for="line in grandMedalSummaryLines" :key="line.label" class="border border-accent/10 rounded-xs px-2 py-1.5">
+            <p class="text-[10px] text-muted">{{ line.label }}</p>
+            <p class="text-xs text-text mt-0.5">{{ line.value }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+        <button
+          v-for="track in grandMedalTracks"
+          :key="track.id"
+          type="button"
+          class="border border-accent/20 rounded-xs p-3 text-left hover:bg-accent/5 transition-colors"
+          @click="tab = track.tabTarget"
+        >
+          <div class="flex items-start justify-between gap-3 mb-2">
+            <div class="min-w-0">
+              <p class="text-sm" :class="track.toneClass">{{ track.label }}</p>
+              <p class="text-[10px] text-muted mt-0.5 leading-4">{{ track.summary }}</p>
+            </div>
+            <span class="text-xs whitespace-nowrap" :class="track.toneClass">{{ track.current }}/{{ track.target }}</span>
+          </div>
+          <div class="h-1.5 bg-bg rounded-xs border border-accent/10 mb-2">
+            <div class="h-full rounded-xs transition-all" :class="track.barClass" :style="{ width: track.percent + '%' }" />
+          </div>
+          <div class="space-y-1">
+            <p v-for="line in track.focusLines" :key="`${track.id}-${line}`" class="text-[10px] text-muted leading-4">- {{ line }}</p>
+          </div>
+          <p class="text-[10px] text-accent mt-2 leading-4">{{ track.rewardHint }}</p>
+        </button>
+      </div>
+
+      <div class="border border-accent/10 rounded-xs p-3 mt-3">
+        <div class="flex items-center justify-between gap-3">
+          <p class="text-xs text-accent">下一枚会改变什么</p>
+          <span class="text-[10px]" :class="nextGrandMedalFocus.toneClass">{{ nextGrandMedalFocus.label }}</span>
+        </div>
+        <p class="text-[10px] text-muted mt-1 leading-4">{{ nextGrandMedalFocus.hint }}</p>
+        <p class="text-[10px] text-muted mt-1 leading-4">奖励保持为回看、标签、入口提示和轻功能反馈，不额外堆叠爆炸数值。</p>
+      </div>
+    </template>
 
     <!-- 物品图鉴 -->
     <ItemCollectionTab v-if="tab === 'collection'" @open-glossary="handleOpenGlossary" />
@@ -539,6 +596,8 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useMuseumStore } from '@/stores/useMuseumStore'
   import { useNpcStore } from '@/stores/useNpcStore'
+  import { useGoalStore } from '@/stores/useGoalStore'
+  import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useQuestStore } from '@/stores/useQuestStore'
   import { useSecretNoteStore } from '@/stores/useSecretNoteStore'
   import { useShopStore } from '@/stores/useShopStore'
@@ -563,20 +622,23 @@
   const secretNoteStore = useSecretNoteStore()
   const skillStore = useSkillStore()
   const npcStore = useNpcStore()
+  const goalStore = useGoalStore()
+  const playerStore = usePlayerStore()
   const questStore = useQuestStore()
   const museumStore = useMuseumStore()
   const guildStore = useGuildStore()
   const frontierChronicleStore = useFrontierChronicleStore()
   const villageProjectStore = useVillageProjectStore()
 
-  type Tab = 'collection' | 'achievements' | 'bundles' | 'shipping' | 'notes' | 'chronicle' | 'glossary'
-  const tab = ref<Tab>('collection')
+  type Tab = 'medals' | 'collection' | 'achievements' | 'bundles' | 'shipping' | 'notes' | 'chronicle' | 'glossary'
+  const tab = ref<Tab>('medals')
   const glossaryPreset = ref<GlossaryOpenPreset | null>(null)
   const chronicleRegionFilter = ref<RegionId | 'all'>('all')
   const chronicleSeasonFilter = ref<Season | 'all'>('all')
   const chronicleTypeFilter = ref<'all' | 'journey' | 'rumor' | 'variant' | 'companion' | 'photo'>('all')
 
   const TAB_HINTS: Record<Tab, string> = {
+    medals: '大奖章把图鉴、秘藏、精通和特殊事件合成一张长期补完页。想看细项时，再回到对应页签。',
     collection: '图鉴负责看收录、缺口和解锁进度；百科负责查机制、条件和路线。',
     achievements: '成就更适合回看长期目标、奖励和完成节奏。',
     bundles: '祠堂页适合集中查看提交需求和阶段奖励。',
@@ -728,6 +790,151 @@
       groups[cat]!.push(item)
     }
     return groups
+  })
+
+  type GrandMedalTrack = {
+    id: 'collection' | 'secret' | 'mastery' | 'event'
+    label: string
+    current: number
+    target: number
+    percent: number
+    toneClass: string
+    barClass: string
+    summary: string
+    focusLines: string[]
+    rewardHint: string
+    tabTarget: Tab
+  }
+
+  const percentOf = (current: number, target: number) => {
+    if (target <= 0) return 0
+    return Math.min(100, Math.round((Math.max(0, current) / target) * 100))
+  }
+
+  const getMedalTone = (percent: number) => {
+    if (percent >= 100) return { toneClass: 'text-success', barClass: 'bg-success' }
+    if (percent >= 60) return { toneClass: 'text-accent', barClass: 'bg-accent' }
+    if (percent >= 30) return { toneClass: 'text-warning', barClass: 'bg-warning' }
+    return { toneClass: 'text-muted', barClass: 'bg-muted/50' }
+  }
+
+  const buildGrandMedalTrack = (track: Omit<GrandMedalTrack, 'percent' | 'toneClass' | 'barClass'>): GrandMedalTrack => {
+    const percent = percentOf(track.current, track.target)
+    return { ...track, percent, ...getMedalTone(percent) }
+  }
+
+  const verifiableSecretNotes = computed(() => SECRET_NOTES.filter(note => note.verification || note.usable))
+  const verifiedSecretNoteCount = computed(() => verifiableSecretNotes.value.filter(note => secretNoteStore.isUsed(note.id)).length)
+  const primaryMasteryUnlockedCount = computed(() => skillStore.primaryMasteries.filter(entry => entry.unlocked).length)
+  const hybridMasteryUnlockedCount = computed(() => skillStore.hybridMasteries.filter(entry => entry.unlocked).length)
+  const masteryRewardUnlockedCount = computed(() => skillStore.masteryRewards.filter(entry => entry.unlocked).length)
+  const masteryMedalTarget = computed(() => skillStore.primaryMasteries.length + skillStore.hybridMasteries.length + skillStore.masteryRewards.length)
+  const masteryMedalCurrent = computed(() => primaryMasteryUnlockedCount.value + hybridMasteryUnlockedCount.value + masteryRewardUnlockedCount.value)
+  const completedSpecialOrderCount = computed(() => questStore.completedQuestHistory.filter(entry => entry.isSpecialOrder).length)
+  const completedActivityWindowCount = computed(() => questStore.activityQuestWindowState.completedWindowIds.length)
+  const completedEventCampaignCount = computed(
+    () => goalStore.eventOperationsState.completedCampaignIds.length + goalStore.eventOperationsState.completedThemeWeekIds.length
+  )
+  const specialEventSurfaceCount = computed(
+    () =>
+      [
+        completedSpecialOrderCount.value,
+        completedActivityWindowCount.value,
+        completedEventCampaignCount.value,
+        chronicleOverview.value.totalEntries
+      ].filter(count => count > 0).length
+  )
+
+  const grandMedalTracks = computed<GrandMedalTrack[]>(() => [
+    buildGrandMedalTrack({
+      id: 'collection',
+      label: '图鉴大奖章',
+      current: achievementStore.discoveredCount + shopStore.shippedItems.length,
+      target: ITEMS.length + shippableItems.value.length,
+      summary: '把物品发现和出货补完合在一起看，避免图鉴、商店和出货记录分散。',
+      focusLines: [
+        `物品图鉴 ${achievementStore.discoveredCount}/${ITEMS.length}`,
+        `出货记录 ${shopStore.shippedItems.length}/${shippableItems.value.length}`,
+        `仍有 ${Math.max(0, ITEMS.length - achievementStore.discoveredCount)} 件物品等待首次发现`
+      ],
+      rewardHint: '轻奖励：点亮分类回看、出货缺口提示和百科跳转，不额外推高收益倍率。',
+      tabTarget: 'collection'
+    }),
+    buildGrandMedalTrack({
+      id: 'secret',
+      label: '秘藏大奖章',
+      current: secretNoteStore.collectedCount + verifiedSecretNoteCount.value,
+      target: secretNoteStore.totalNotes + verifiableSecretNotes.value.length,
+      summary: '把秘密笔记、藏宝线索和可验证纸条合成同一条秘藏进度。',
+      focusLines: [
+        `已收集纸条 ${secretNoteStore.collectedCount}/${secretNoteStore.totalNotes}`,
+        `已验证秘藏 ${verifiedSecretNoteCount.value}/${verifiableSecretNotes.value.length}`,
+        `生活账本线索 ${Object.keys(playerStore.getLifestyleDiscoverySnapshot().secretLeads).length} 条`
+      ],
+      rewardHint: '轻奖励：优先给验证状态、地点回忆和线索归档，不用堆叠大额奖励。',
+      tabTarget: 'notes'
+    }),
+    buildGrandMedalTrack({
+      id: 'mastery',
+      label: '精通大奖章',
+      current: masteryMedalCurrent.value,
+      target: masteryMedalTarget.value,
+      summary: '把主技能精通、混合精通和功能性精通奖励收进同一张成长证书。',
+      focusLines: [
+        `主技能精通 ${primaryMasteryUnlockedCount.value}/${skillStore.primaryMasteries.length}`,
+        `混合精通 ${hybridMasteryUnlockedCount.value}/${skillStore.hybridMasteries.length}`,
+        `功能奖励 ${masteryRewardUnlockedCount.value}/${skillStore.masteryRewards.length}`
+      ],
+      rewardHint: '轻奖励：显示祝福、饰物位、工台和地图标记的解锁回看，避免新增强数值堆叠。',
+      tabTarget: 'achievements'
+    }),
+    buildGrandMedalTrack({
+      id: 'event',
+      label: '特殊事件大奖章',
+      current: specialEventSurfaceCount.value,
+      target: 4,
+      summary: '把特殊订单、短活动窗口、活动周和行旅见闻作为特殊事件的四个收集面。',
+      focusLines: [
+        `特殊订单回执 ${completedSpecialOrderCount.value} 条`,
+        `限时活动窗口 ${completedActivityWindowCount.value} 个`,
+        `活动周 / 主题周记录 ${completedEventCampaignCount.value} 条`,
+        `见闻册条目 ${chronicleOverview.value.totalEntries} 条`
+      ],
+      rewardHint: goalStore.currentEventCampaign
+        ? `轻奖励：当前活动「${goalStore.currentEventCampaign.label}」会优先沉淀为回看与路线提示。`
+        : '轻奖励：优先沉淀回执、照片、路线提示和活动摘要，而不是额外数值膨胀。',
+      tabTarget: 'chronicle'
+    })
+  ])
+
+  const grandMedalOverallPercent = computed(() => {
+    if (grandMedalTracks.value.length === 0) return 0
+    return Math.round(grandMedalTracks.value.reduce((sum, track) => sum + track.percent, 0) / grandMedalTracks.value.length)
+  })
+
+  const grandMedalSummaryLines = computed(() => [
+    { label: '总完成', value: `${grandMedalOverallPercent.value}%` },
+    { label: '图鉴 / 出货', value: `${achievementStore.discoveredCount + shopStore.shippedItems.length}/${ITEMS.length + shippableItems.value.length}` },
+    { label: '秘藏 / 验证', value: `${secretNoteStore.collectedCount + verifiedSecretNoteCount.value}/${secretNoteStore.totalNotes + verifiableSecretNotes.value.length}` },
+    { label: '事件面', value: `${specialEventSurfaceCount.value}/4` }
+  ])
+
+  const nextGrandMedalFocus = computed(() => {
+    const pendingTrack = grandMedalTracks.value
+      .filter(track => track.percent < 100)
+      .sort((left, right) => left.percent - right.percent)[0]
+    if (!pendingTrack) {
+      return {
+        label: '全部点亮',
+        toneClass: 'text-success',
+        hint: '四条大奖章线都已经点亮，后续可以继续等待新图鉴、新秘藏或新活动扩容。'
+      }
+    }
+    return {
+      label: pendingTrack.label,
+      toneClass: pendingTrack.toneClass,
+      hint: pendingTrack.focusLines[0] ?? pendingTrack.summary
+    }
   })
 
   const isCompleted = (id: string): boolean => {

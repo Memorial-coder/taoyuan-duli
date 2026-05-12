@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import type { MonsterDef, CombatAction, MineFloorDef, MineTile, Quality } from '@/types'
 import {
@@ -17,6 +17,7 @@ import {
   getBombIndices
 } from '@/data'
 import { getBombById } from '@/data/processing'
+import { resolveEnvironmentWindow } from '@/data/environmentWindows'
 import { getItemById } from '@/data/items'
 import {
   getWeaponById,
@@ -68,6 +69,15 @@ export const useMiningStore = defineStore('mining', () => {
   const playerStore = usePlayerStore()
   const inventoryStore = useInventoryStore()
   const skillStore = useSkillStore()
+  const gameStore = useGameStore()
+  const environmentWindow = computed(() =>
+    resolveEnvironmentWindow({
+      season: gameStore.season,
+      weather: gameStore.weather,
+      day: gameStore.day,
+      year: gameStore.year
+    })
+  )
 
   /** 当前进度（主矿洞） */
   const currentFloor = ref(1)
@@ -474,6 +484,7 @@ export const useMiningStore = defineStore('mining', () => {
       1,
       Math.floor(
         2 *
+          environmentWindow.value.mining.staminaCostMultiplier *
           pickaxeMultiplier *
           (1 - skillStore.getStaminaReduction('mining')) *
           (1 - miningBuff) *
@@ -542,6 +553,7 @@ export const useMiningStore = defineStore('mining', () => {
     // 戒指矿石加成
     const ringOreBonus = inventoryStore.getRingEffectValue('ore_bonus')
     if (ringOreBonus > 0) quantity += Math.floor(ringOreBonus)
+    if (environmentWindow.value.mining.oreBonusChance > 0 && Math.random() < environmentWindow.value.mining.oreBonusChance) quantity += 1
     // 仙缘能力：灵狐眼（hu_xian_2）15%概率额外掉落矿石
     if (useHiddenNpcStore().isAbilityActive('hu_xian_2') && Math.random() < 0.15) quantity += 1
 
@@ -566,7 +578,8 @@ export const useMiningStore = defineStore('mining', () => {
     skillStore.addExp('mining', Math.floor(5 * hilltopXpBonus))
 
     tile.state = 'collected'
-    return { success: true, message: `挖到了${quantity}个矿石！(-${staminaCost}体力)`, startsCombat: false }
+    const windowSuffix = environmentWindow.value.mining.active ? ` ${environmentWindow.value.mining.label}：${environmentWindow.value.mining.summary}` : ''
+    return { success: true, message: `挖到了${quantity}个矿石！(-${staminaCost}体力)${windowSuffix}`, startsCombat: false }
   }
 
   /** 处理怪物格子 */
@@ -1732,6 +1745,7 @@ export const useMiningStore = defineStore('mining', () => {
   }
 
   return {
+    environmentWindow,
     currentFloor,
     safePointFloor,
     isExploring,

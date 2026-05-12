@@ -476,6 +476,18 @@
               <p v-if="f.variantNotes?.driverLabels?.length" class="text-[10px] text-muted mt-0.5 leading-4">
                 变化驱动：{{ f.variantNotes.driverLabels.join('、') }}
               </p>
+              <p v-if="f.variantNotes?.stallNotes?.length" class="text-[10px] text-accent mt-0.5 leading-4">
+                摊位变化：{{ f.variantNotes.stallNotes[0] }}
+              </p>
+              <p v-if="f.variantNotes?.dialogueNotes?.length" class="text-[10px] text-muted mt-0.5 leading-4">
+                对话变化：{{ f.variantNotes.dialogueNotes[0] }}
+              </p>
+              <p v-if="f.variantNotes?.prizePoolNotes?.length" class="text-[10px] text-warning mt-0.5 leading-4">
+                奖池变化：{{ f.variantNotes.prizePoolNotes[0] }}
+              </p>
+              <p v-if="f.variantNotes?.decorationNotes?.length" class="text-[10px] text-muted mt-0.5 leading-4">
+                地图装点：{{ f.variantNotes.decorationNotes[0] }}
+              </p>
               <p v-if="f.prepChecklist.length > 0" class="text-[10px] text-warning mt-0.5 leading-4">
                 备货建议：{{ f.prepChecklist.slice(0, 2).join('；') }}
               </p>
@@ -909,6 +921,13 @@
   }))
 
   const formatCalendarDay = (season: Season, day: number) => `${SEASON_NAMES[season]}${day}日`
+  const getFestivalVariantSummaryLines = (festival: { variantNotes?: { stallNotes?: string[]; dialogueNotes?: string[]; prizePoolNotes?: string[]; decorationNotes?: string[] } }) =>
+    [
+      festival.variantNotes?.stallNotes?.[0] ? `摊位：${festival.variantNotes.stallNotes[0]}` : '',
+      festival.variantNotes?.dialogueNotes?.[0] ? `台词：${festival.variantNotes.dialogueNotes[0]}` : '',
+      festival.variantNotes?.prizePoolNotes?.[0] ? `奖池：${festival.variantNotes.prizePoolNotes[0]}` : '',
+      festival.variantNotes?.decorationNotes?.[0] ? `装点：${festival.variantNotes.decorationNotes[0]}` : ''
+    ].filter(Boolean)
 
   const calendarDays = computed(() => {
     const s = calendarSeason.value
@@ -970,7 +989,10 @@
     const entry = currentCalendarEntry.value
     if (!entry) return ['今天暂无特殊日历节点，可以按主路线自由安排。']
     if (entry.festivals.length > 0) {
-      entry.festivals.forEach(festival => lines.push(`今天是「${festival.name}」，${festival.description}`))
+      entry.festivals.forEach(festival => {
+        lines.push(`今天是「${festival.name}」，${festival.description}`)
+        lines.push(...getFestivalVariantSummaryLines(festival).slice(0, 2))
+      })
     }
     if (entry.birthdays.length > 0) {
       lines.push(`今天有人过生日：${entry.birthdays.map(birthday => birthday.npcName).join('、')}`)

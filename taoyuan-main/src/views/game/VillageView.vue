@@ -153,6 +153,92 @@
 
     <section class="game-panel-muted px-3 py-3">
       <div class="flex items-center justify-between gap-2 mb-2">
+        <p class="text-xs text-accent">新住户与驻村线</p>
+        <span class="text-[10px] text-muted">
+          {{ unlockedVillageResidentSummaries.length }}/{{ villageResidentSummaries.length }} 已落地
+        </span>
+      </div>
+      <p class="text-[10px] text-muted leading-4">
+        这些住户会把货架、对话群、线索池和节庆回响接回村庄生活层，而不是只多一组立绘。
+      </p>
+      <div class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-bg/10">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[10px] text-accent">村民商业回响</p>
+          <span class="text-[10px] text-muted">{{ commerceEcho.hasRecentSales ? '已形成话题' : '等待出货样本' }}</span>
+        </div>
+        <p class="text-[11px] text-text mt-1">{{ commerceEcho.headline }}</p>
+        <p class="text-[10px] text-muted mt-1">{{ commerceEcho.trendLine }}</p>
+        <p class="text-[10px] text-accent/80 mt-1">{{ commerceEcho.longTermLine }}</p>
+        <p
+          v-for="line in commerceEcho.villagerFeedbackLines.slice(0, 2)"
+          :key="`village-commerce-feedback-${line}`"
+          class="text-[10px] text-muted leading-4 mt-0.5"
+        >
+          - {{ line }}
+        </p>
+        <div class="grid gap-2 md:grid-cols-3 mt-2">
+          <div
+            v-for="card in commerceEcho.npcFeedbackCards"
+            :key="`village-commerce-card-${card.id}`"
+            class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
+          >
+            <p class="text-[10px] text-accent mb-1">{{ card.label }}</p>
+            <p
+              v-for="line in card.lines.slice(0, 2)"
+              :key="`village-commerce-card-line-${card.id}-${line}`"
+              class="text-[10px] text-muted leading-4 mt-0.5"
+            >
+              - {{ line }}
+            </p>
+          </div>
+        </div>
+      </div>
+      <div class="space-y-2 mt-2">
+        <div
+          v-for="resident in villageResidentSummaries"
+          :key="resident.id"
+          class="border rounded-xs px-3 py-2"
+          :class="resident.unlocked ? 'border-success/30 bg-success/5' : 'border-accent/10 bg-bg/10'"
+        >
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="text-[11px]" :class="resident.unlocked ? 'text-success' : 'text-accent'">
+                {{ resident.routeLabel }} · {{ resident.name }}
+              </p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ resident.summary }}</p>
+            </div>
+            <span class="text-[10px] whitespace-nowrap" :class="resident.unlocked ? 'text-success' : 'text-muted'">
+              {{ resident.statusLabel }}
+            </span>
+          </div>
+
+          <div class="grid gap-2 md:grid-cols-2 mt-2">
+            <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+              <p class="text-[10px] text-accent">{{ resident.shelfLabel }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ resident.shelfSummary }}</p>
+            </div>
+            <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+              <p class="text-[10px] text-accent">{{ resident.dialogueGroupLabel }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ resident.dialogueSummary }}</p>
+            </div>
+            <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+              <p class="text-[10px] text-accent">{{ resident.cluePoolLabel }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ resident.clueSummary }}</p>
+            </div>
+            <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+              <p class="text-[10px] text-accent">节庆回响</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ resident.festivalComment }}</p>
+            </div>
+          </div>
+
+          <p v-if="resident.unlocked" class="text-[10px] text-accent/80 mt-2">驻村小事：{{ resident.smallEventSummary }}</p>
+          <p v-else class="text-[10px] text-muted mt-2">解锁条件：{{ resident.statusLabel }}</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="game-panel-muted px-3 py-3">
+      <div class="flex items-center justify-between gap-2 mb-2">
         <p class="text-xs text-accent">建设树</p>
         <span class="text-[10px] text-muted">按阶段分组</span>
       </div>
@@ -308,22 +394,29 @@
 </template>
 
 <script setup lang="ts">
-  import { computed } from 'vue'
+  import { computed, watchEffect } from 'vue'
   import { useRouter } from 'vue-router'
   import Button from '@/components/game/Button.vue'
   import { getCombinedItemCount } from '@/composables/useCombinedInventory'
   import { addLog, logHistory, showFloat } from '@/composables/useGameLog'
   import { navigateToPanel } from '@/composables/useNavigation'
   import { getItemById } from '@/data'
+  import {
+    getVillageResidentUnlockHint,
+    isVillageResidentUnlocked,
+    VILLAGE_RESIDENTS
+  } from '@/data/villageResidents'
   import { useBreedingStore } from '@/stores/useBreedingStore'
   import { useFishPondStore } from '@/stores/useFishPondStore'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useGuildStore } from '@/stores/useGuildStore'
   import { useHanhaiStore } from '@/stores/useHanhaiStore'
+  import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { useMuseumStore } from '@/stores/useMuseumStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
+  import { useShopStore } from '@/stores/useShopStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import type { ProsperityScoreBreakdown } from '@/types'
 
@@ -333,10 +426,12 @@
   const goalStore = useGoalStore()
   const guildStore = useGuildStore()
   const hanhaiStore = useHanhaiStore()
+  const hiddenNpcStore = useHiddenNpcStore()
   const museumStore = useMuseumStore()
   const npcStore = useNpcStore()
   const playerStore = usePlayerStore()
   const regionMapStore = useRegionMapStore()
+  const shopStore = useShopStore()
   const villageProjectStore = useVillageProjectStore()
 
   const cloudHighlandVillageHandoff = computed(() => {
@@ -454,6 +549,7 @@
         }
       })
   })
+  const commerceEcho = computed(() => shopStore.commerceEchoSummary)
   const recentVillageLogs = computed(() =>
     logHistory.value
       .filter(entry => entry.category === 'village')
@@ -474,6 +570,38 @@
   } as const
   const totalRestorationCount = computed(() => villageProjectStore.communityRestorationEffects.length)
   const unlockedRestorationCount = computed(() => villageProjectStore.communityRestorationEffects.filter(entry => entry.unlocked).length)
+  const villageResidentUnlockContext = computed(() => {
+    const lifestyleSnapshot = playerStore.getLifestyleDiscoverySnapshot()
+    return {
+      completedProjectIds: villageProjectStore.projectSummaries
+        .filter((project: { completed: boolean; id: string }) => project.completed)
+        .map((project: { id: string }) => project.id),
+      archivedSpecialOrderKeys: Object.keys(lifestyleSnapshot.specialOrders),
+      bondedSpiritIds: hiddenNpcStore.getBondedNpc?.id ? [hiddenNpcStore.getBondedNpc.id] : []
+    }
+  })
+  const villageResidentSummaries = computed(() =>
+    VILLAGE_RESIDENTS.map(resident => {
+      const unlocked = isVillageResidentUnlocked(resident, villageResidentUnlockContext.value)
+      return {
+        ...resident,
+        unlocked,
+        statusLabel: unlocked ? '已驻村' : getVillageResidentUnlockHint(resident, villageResidentUnlockContext.value)
+      }
+    })
+  )
+  const unlockedVillageResidentSummaries = computed(() =>
+    villageResidentSummaries.value.filter((entry: { unlocked: boolean }) => entry.unlocked)
+  )
+
+  watchEffect(() => {
+    villageResidentSummaries.value
+      .filter((entry: { unlocked: boolean; id: string }) => entry.unlocked && !playerStore.hasLifestyleDiscovery('lifestyleUnlocks', entry.id))
+      .forEach((entry: { id: string }) => {
+        playerStore.markLifestyleUnlock(entry.id)
+      })
+  })
+
   const restorationTypeOverview = computed(() =>
     (Object.keys(worldChangeTypeLabels) as Array<keyof typeof worldChangeTypeLabels>).map(type => {
       const entries = villageProjectStore.communityRestorationEffects.filter(entry => entry.type === type)

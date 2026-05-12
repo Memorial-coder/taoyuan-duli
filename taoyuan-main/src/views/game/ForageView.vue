@@ -32,6 +32,14 @@
         <span v-if="cookingLuckBuff > 0" class="text-[10px] text-success">料理运气+{{ cookingLuckBuff }}%</span>
         <span v-if="isForestFarm" class="text-[10px] text-success">森林农场：经验×1.25</span>
       </div>
+      <div v-if="environmentWindow.forage.active" class="border border-accent/10 rounded-xs p-2 mt-2 bg-bg/40">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[10px] text-accent">{{ environmentWindow.forage.label }}</p>
+          <span class="text-[10px] text-success">采集 / 行旅</span>
+        </div>
+        <p class="text-[10px] text-muted leading-4 mt-1">{{ environmentWindow.forage.summary }}</p>
+        <p class="text-[10px] text-muted/80 leading-4 mt-1">{{ environmentWindow.forage.routeHint }}</p>
+      </div>
     </div>
 
     <!-- 采集结果 -->
@@ -144,7 +152,7 @@
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useWalletStore } from '@/stores/useWalletStore'
   import type { Quality } from '@/types'
-  import { getForageItems, getItemById, getItemSource } from '@/data'
+  import { getForageItems, getItemById, getItemSource, resolveEnvironmentWindow } from '@/data'
   import { WEATHER_FORAGE_MODIFIER } from '@/data/forage'
   import { ACTION_TIME_COSTS, TOOL_TIME_SAVINGS, SKILL_TIME_REDUCTION_PER_LEVEL, MIN_ACTION_MINUTES } from '@/data/timeConstants'
   import { sfxForage } from '@/composables/useAudio'
@@ -219,6 +227,14 @@
   })
 
   const currentForage = computed(() => getForageItems(gameStore.season))
+  const environmentWindow = computed(() =>
+    resolveEnvironmentWindow({
+      season: gameStore.season,
+      weather: gameStore.weather,
+      day: gameStore.day,
+      year: gameStore.year
+    })
+  )
   const foragingSkill = computed(() => skillStore.getSkill('foraging'))
 
   const forageCost = computed(() =>
@@ -323,7 +339,11 @@
       const cookingBuff = cookingStore.activeBuff?.type === 'luck' ? cookingStore.activeBuff.value / 100 : 0
       const adjustedChance = Math.min(
         1,
-        item.chance * (WEATHER_FORAGE_MODIFIER[gameStore.weather] ?? 1) * herbalistBonus * (1 + cookingBuff)
+        item.chance *
+          (WEATHER_FORAGE_MODIFIER[gameStore.weather] ?? 1) *
+          environmentWindow.value.forage.forageChanceMultiplier *
+          herbalistBonus *
+          (1 + cookingBuff)
       )
       if (Math.random() < adjustedChance) {
         const forageAllSkillsBuff = cookingStore.activeBuff?.type === 'all_skills' ? cookingStore.activeBuff.value : 0
@@ -393,6 +413,7 @@
       msg += ` 但背包满了，${missed.join('、')}没能带走。`
     }
     if (leveledUp) msg += ` 采集提升到${newLevel}级！`
+    if (environmentWindow.value.forage.active) msg += ` ${environmentWindow.value.forage.label}：${environmentWindow.value.forage.summary}`
     addLog(msg)
 
     const tr = gameStore.advanceTime(forageTime.value)

@@ -72,6 +72,7 @@ import {
   getLifestealHeal
 } from '@/utils/combatRuntime'
 import { getItemById } from '@/data/items'
+import { resolveEnvironmentWindow } from '@/data/environmentWindows'
 import { buildJourneyBuildSnapshot, createEmptyJourneyOutcomeModifiers } from './journeyBuild'
 import { useAchievementStore } from './useAchievementStore'
 import { useCookingStore } from './useCookingStore'
@@ -2162,17 +2163,27 @@ export const useRegionMapStore = defineStore('regionMap', () => {
   const getResourceFamilyLabel = (familyId: RegionalResourceFamilyId | null) =>
     familyId ? REGIONAL_RESOURCE_FAMILY_DEFS.find(entry => entry.id === familyId)?.label ?? familyId : '区域收获'
 
-  const createInitialRiskState = (regionId: RegionId, approach: RegionExpeditionApproach): RegionExpeditionRiskState => ({
-    weather:
+  const createInitialRiskState = (regionId: RegionId, approach: RegionExpeditionApproach): RegionExpeditionRiskState => {
+    const gameStore = useGameStore()
+    const environment = resolveEnvironmentWindow({
+      season: gameStore.season,
+      weather: gameStore.weather,
+      day: gameStore.day,
+      year: gameStore.year
+    }).forage
+    const baseWeather =
       regionId === 'ancient_road'
         ? (approach === 'scout' ? 'wind' : 'clear')
         : regionId === 'mirage_marsh'
           ? (approach === 'scout' ? 'fog' : 'wind')
-          : (approach === 'greedy' ? 'storm' : 'wind'),
-    pollution: regionId === 'mirage_marsh' ? 18 : regionId === 'cloud_highland' ? 8 : 4,
-    alertness: regionId === 'ancient_road' ? 14 : regionId === 'cloud_highland' ? 16 : 10,
-    anomaly: regionId === 'mirage_marsh' ? 12 : regionId === 'cloud_highland' ? 6 : 4
-  })
+          : (approach === 'greedy' ? 'storm' : 'wind')
+    return {
+      weather: environment.journeyRiskWeather ?? baseWeather,
+      pollution: clamp((regionId === 'mirage_marsh' ? 18 : regionId === 'cloud_highland' ? 8 : 4) + environment.journeyPollutionDelta, 0, 100),
+      alertness: clamp((regionId === 'ancient_road' ? 14 : regionId === 'cloud_highland' ? 16 : 10) + environment.journeyDangerDelta, 0, 100),
+      anomaly: clamp((regionId === 'mirage_marsh' ? 12 : regionId === 'cloud_highland' ? 6 : 4) + environment.journeyAnomalyDelta, 0, 100)
+    }
+  }
 
   const createCarryItem = (
     label: string,

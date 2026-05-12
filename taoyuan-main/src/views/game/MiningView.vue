@@ -70,6 +70,25 @@
       </div>
     </div>
 
+    <div class="border border-accent/20 rounded-xs p-3 mb-4">
+      <div class="flex items-center justify-between mb-2">
+        <p class="text-sm text-accent">矿洞天气窗口</p>
+        <span class="text-[10px]" :class="miningStore.environmentWindow.mining.active ? 'text-success' : 'text-muted'">
+          {{ miningStore.environmentWindow.mining.label }}
+        </span>
+      </div>
+      <p class="text-xs text-muted leading-4">{{ miningStore.environmentWindow.mining.summary }}</p>
+      <div class="flex flex-wrap gap-1.5 mt-2">
+        <span
+          v-for="line in miningStore.environmentWindow.mining.detailLines"
+          :key="line"
+          class="border border-accent/10 rounded-xs px-2 py-0.5 text-[10px] text-muted"
+        >
+          {{ line }}
+        </span>
+      </div>
+    </div>
+
     <!-- 进入矿洞 -->
     <div
       class="border border-accent/20 rounded-xs px-3 py-2 mb-4 flex items-center justify-between cursor-pointer hover:bg-accent/5"

@@ -20,7 +20,33 @@
 - `src/data/blessings.ts`、`src/data/trinkets.ts`、`src/stores/useSkillStore.ts`、`src/stores/useInventoryStore.ts` 已补上 `T75` 的第一版祝福 / 饰物系统：`祠堂签 / 山神兆 / 节气气运` 现在是正式数据配置，`护符 / 玉佩 / 灵器碎片` 也可在角色页作为轻构筑位装备。
 - `src/stores/useFishingStore.ts`、`src/stores/useQuestStore.ts`、`src/stores/useShopStore.ts`、`src/views/game/CharInfoView.vue`、`src/views/game/SkillView.vue`、`src/views/game/CottageView.vue` 已把这批效果接到旧系统与 UI：祝福会真实影响钓鱼体力 / calm / 宝箱、任务板偏好和商店折扣 / 出售价，饰物则通过统一装备加成参与商店、钓鱼、挖矿等既有链路。
 - `src/stores/useWalletStore.ts` 已补回奖券阶段与密匣记录的生活账本写回，确保第一批饰物解锁条件能被真实触发，而不是停留在静态配置上。
-- 当前进展已完成 `T70`、`T71`、`T72`、`T73`、`T74`、`T75` 的落地与回写，下一步继续承接 `T76 新邻居 / 新住户`。
+- `src/data/villageResidents.ts` 已新增首批驻村住户定义，正式收口 `商队定居 / 学者驻村 / 山灵化人` 三条引入线，并为每条住户补齐货架、对话群、线索池、节庆回响与驻村小事描述。
+- `src/stores/useQuestStore.ts` 已在特殊订单完成时写回 `specialOrders` 生活账本，后续可以稳定用 `npc:xue_qin` 这类归档键驱动学者驻村等长期解锁，而不是临时读页面状态。
+- `src/stores/useShopStore.ts`、`src/views/game/ShopView.vue` 已把驻村货架回响接进商圈总览：已驻村住户会在目录运营总览下方露出对应货架摘要与线索池说明，开始真正影响商圈承接感。
+- `src/views/game/VillageView.vue` 已新增“新住户与驻村线”区块，集中展示住户引入条件、货架变化、对话群、线索池和节庆评论；已解锁住户还会写回 `lifestyleUnlocks` 生活账本，供后续动态地图与活世界反馈继续复用。
+- `src/views/game/RegionMapView.vue`、`src/views/GuideView.vue`、`src/views/GuideBookView.vue` 已补上 `T77` 的动态地图 / 活地图信号第一版：季节变体、稀有来访气泡、修复设施落点、节日装点与短活动窗口现在能在地图和引导入口统一露出。
+- `src/stores/useShopStore.ts` 已新增物品级近 7 天出货记录与 `commerceEchoSummary`，在原有品类供需之外补上“最近卖了什么 / 村里流行什么 / 当前行情如何”的可复用摘要。
+- `src/views/game/ShopView.vue` 已新增“出货回响与村民反馈”区块，并在万物铺货架摘要里说明季节、节日、熟客关系、修复进度、天气和驻村住户如何共同影响货架露出。
+- `src/views/game/VillageView.vue` 已把商圈回响同步到“新住户与驻村线”，玩家可在村庄建设入口看到最近流行货和村民闲谈，而不必只在商店页里回看。
+- 已完成 `T78 S7 回归验收`：奖券 / 密匣、宠物 / 家居、祝福 / 饰物、新住户 / 地图、出货回响均已接入既有页面、生活账本或跨系统摘要；入口集中在钱袋、牧场 / 小屋、角色、村庄、商店和地图，没有新增孤立页。
+- `src/views/game/AchievementView.vue` 已完成 `T79 收集类大奖章页第一版`：新增默认“大奖章”页签，统一汇总图鉴 / 出货、秘密笔记 / 秘藏验证、主技能 / 混合精通 / 功能奖励、特殊订单 / 活动窗口 / 活动周 / 见闻册四条长期补完线。
+- 大奖章页的奖励口径保持为分类回看、线索归档、解锁状态、路线提示和轻功能反馈，不新增高倍率或大额数值奖励；点击对应大奖章卡片可回到既有细分页签继续补完。
+- 当前进展已完成 `T70`、`T71`、`T72`、`T73`、`T74`、`T75`、`T76`、`T77`、`T77A`、`T78`、`T79` 的落地与回写，`S7 / WS08` 第一批正式收口，下一步进入 `S8 / WS07` 的 `T80 年度 / 双年度节日变化`。
+- 本阶段当前增量已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:late-game-samples`。
+
+### 0510 WS07 / S8 活世界反馈 2.0（第一批进展）
+- `src/data/events.ts` 已新增年度 / 双年度节日变体配置，并让 `resolveSeasonEvent()` 按年份、单双年、村庄修复等级和主题周上下文合成摊位、对话、奖池和地图装点提示。
+- `src/views/game/CottageView.vue`、`src/views/game/NpcView.vue`、`src/views/game/RegionMapView.vue` 已接入这批变体：小屋日历会展示今年节日变化，NPC 日程会补出当年节庆口风，行旅图节日气泡也会读取同一套变体结果。
+- `src/data/environmentWindows.ts` 已新增统一环境窗口解析，并由 `src/data/index.ts` 对外导出：钓鱼、挖矿、采集、行旅和节庆交付可按季节、天气、日期、年份与节庆状态读取同一套活世界信号。
+- `src/stores/useFishingStore.ts`、`src/views/game/FishingView.vue` 已接入天气窗口，影响垃圾率、鱼速、变向频率、小游戏时长、宝箱概率与起钓提示。
+- `src/stores/useMiningStore.ts`、`src/views/game/MiningView.vue` 已接入矿洞天气窗口，影响体力消耗、矿石额外产出概率、危险提示与挖矿日志。
+- `src/views/game/ForageView.vue` 已接入季节异象采集 / 行旅提示，采集概率会读取窗口倍率并在采集日志中补出环境摘要。
+- `src/stores/useQuestStore.ts` 已让节庆 / 节庆筹备委托完成时读取环境窗口，追加当日节庆交付回响。
+- `src/stores/useRegionMapStore.ts`、`src/views/game/RegionMapView.vue` 已让行旅风险初始态、活地图信号、路线派遣提示读取同一套环境窗口。
+- `src/stores/useShopStore.ts` 已新增长期出货品类 / 物品累计入档，并扩展 `commerceEchoSummary`，统一输出常卖路线、掌柜提及、货架变化、节庆物资、修复设施与 NPC 反馈卡。
+- `src/views/game/ShopView.vue` 已把长期出货口碑、掌柜提及和 NPC 反馈卡接入商圈看板，让“最近卖了什么 -> 村里流行什么 -> 货架怎么变”在商店页形成闭环。
+- `src/views/game/VillageView.vue`、`src/views/game/NpcView.vue` 已消费同一份商业回响摘要，村庄页与 NPC 弹窗会同步提到流行货物、节庆物资和修复设施反馈。
+- 当前进展已完成 `T80 年度 / 双年度节日变化`、`T81 环境事件 / 季节异象 / 天气窗口`、`T82 商业回响与村民反馈` 的落地与回写，下一步进入 `T83 动态地图高级状态`。
 - 本阶段当前增量已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:late-game-samples`。
 
 ### 0510 WS00 / S0 基线梳理与统一记录入口

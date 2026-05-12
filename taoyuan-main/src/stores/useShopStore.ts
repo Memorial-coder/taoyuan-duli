@@ -1,6 +1,6 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
-import { SEASON_NAMES, useGameStore } from './useGameStore'
+import { SEASON_NAMES, WEATHER_NAMES, useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useInventoryStore } from './useInventoryStore'
 import { useSkillStore } from './useSkillStore'
@@ -53,6 +53,11 @@ import {
   type MarketThemeEncouragementState
 } from '@/data/market'
 import { getBookById } from '@/data/books'
+import {
+  getVillageResidentUnlockHint,
+  isVillageResidentUnlocked,
+  VILLAGE_RESIDENTS
+} from '@/data/villageResidents'
 import type { TravelingMerchantStock } from '@/data/travelingMerchant'
 import type { BooksellerStockEntry } from '@/data/bookseller'
 import type {
@@ -107,6 +112,53 @@ const QUALITY_PRICE_LABELS: Record<Quality, string> = {
   fine: '优质',
   excellent: '精品',
   supreme: '极品'
+}
+const MARKET_CATEGORY_IDS: MarketCategory[] = ['crop', 'fish', 'animal_product', 'processed', 'fruit', 'ore', 'gem']
+const isMarketCategory = (category: string): category is MarketCategory =>
+  MARKET_CATEGORY_IDS.includes(category as MarketCategory)
+
+type RecentShippingItemSummary = {
+  itemId: string
+  name: string
+  category: MarketCategory
+  categoryLabel: string
+  quantity: number
+  trend: MarketTrend
+  trendLabel: string
+  multiplier: number
+}
+
+type LongTermShippingCategorySummary = {
+  category: MarketCategory
+  categoryLabel: string
+  quantity: number
+  sharePercent: number
+  trend: MarketTrend
+  trendLabel: string
+  representativeItemNames: string[]
+}
+
+type CommerceNpcFeedbackCard = {
+  id: 'popular_goods' | 'festival_supplies' | 'restoration_facilities'
+  label: string
+  tone: 'accent' | 'warning' | 'success'
+  lines: string[]
+}
+
+type CommerceEchoSummary = {
+  hasRecentSales: boolean
+  headline: string
+  trendLine: string
+  recentItems: RecentShippingItemSummary[]
+  longTermCategory: LongTermShippingCategorySummary | null
+  longTermLine: string
+  popularCategoryLabels: string[]
+  shopkeeperMentionLines: string[]
+  shelfInfluenceLines: string[]
+  villagerFeedbackLines: string[]
+  festivalSupplyLines: string[]
+  restorationFeedbackLines: string[]
+  npcFeedbackCards: CommerceNpcFeedbackCard[]
 }
 const MARKET_TREND_PRIORITY: Record<MarketTrend, number> = {
   boom: 5,
@@ -174,6 +226,8 @@ const cloneShippingHistoryState = (history: Record<string, Record<string, number
   ) as Record<string, Record<string, number>>
 }
 
+const cloneShippingTotals = <T extends string>(totals: Partial<Record<T, number>>) => ({ ...totals }) as Partial<Record<T, number>>
+
 export const useShopStore = defineStore('shop', () => {
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
@@ -187,9 +241,13 @@ export const useShopStore = defineStore('shop', () => {
   const goalStore = useGoalStore()
   const villageProjectStore = useVillageProjectStore()
   const decorationStore = useDecorationStore()
+  const hiddenNpcStore = useHiddenNpcStore()
 
   const buildCurrentDayTag = () => `${gameStore.year}-${gameStore.season}-${gameStore.day}`
-  const getCompletedVillageProjectIds = () => villageProjectStore.projectSummaries.filter(project => project.completed).map(project => project.id)
+  const getCompletedVillageProjectIds = (): string[] =>
+    villageProjectStore.projectSummaries
+      .filter((project: { completed: boolean; id: string }) => project.completed)
+      .map((project: { id: string }) => project.id)
   const getCurrentFestivalIds = () => getSeasonEventsForDay(gameStore.season, gameStore.day, gameStore.year).map(event => event.id)
 
   const ownedCatalogOfferIds = ref<string[]>([])
@@ -879,6 +937,31 @@ export const useShopStore = defineStore('shop', () => {
   const activeMarketSubstituteRewards = computed(() => marketDynamics.value.substituteRewards)
   const activeMarketThemeEncouragement = computed(() => marketDynamics.value.themeEncouragement)
   const currentMarketPriceInfos = computed(() => getDailyMarketInfo(gameStore.year, gameStore.seasonIndex, gameStore.day, getRecentShipping()))
+  const villageResidentShelfNotes = computed(() => {
+    const lifestyleSnapshot = playerStore.getLifestyleDiscoverySnapshot()
+    const unlockContext = {
+      completedProjectIds: getCompletedVillageProjectIds(),
+      archivedSpecialOrderKeys: Object.keys(lifestyleSnapshot.specialOrders),
+      bondedSpiritIds: hiddenNpcStore.getBondedNpc?.id ? [hiddenNpcStore.getBondedNpc.id] : []
+    }
+
+    return VILLAGE_RESIDENTS.map((resident: typeof VILLAGE_RESIDENTS[number]) => {
+      const unlocked = isVillageResidentUnlocked(resident, unlockContext)
+      return {
+        id: resident.id,
+        routeLabel: resident.routeLabel,
+        name: resident.name,
+        title: resident.title,
+        unlocked,
+        statusLabel: unlocked ? '已驻村' : getVillageResidentUnlockHint(resident, unlockContext),
+        shelfLabel: resident.shelfLabel,
+        shelfSummary: resident.shelfSummary,
+        cluePoolLabel: resident.cluePoolLabel,
+        clueSummary: resident.clueSummary,
+        festivalComment: resident.festivalComment
+      }
+    })
+  })
 
   const getMarketHotspotSummary = (category: MarketCategory) => {
     const hotspot = activeMarketHotspots.value.find(entry => entry.category === category) ?? null
@@ -2185,20 +2268,36 @@ export const useShopStore = defineStore('shop', () => {
     itemId: string,
     quantity: number,
     source: SellRecordSource,
-    dayRecordOverride?: Record<string, number>
+    dayRecordOverride?: Record<string, number>,
+    itemRecordOverride?: Record<string, number>,
+    dayKeyOverride?: string
   ) => {
     const itemDef = getItemById(itemId)
     if (!itemDef || quantity <= 0) return
 
-    const targetRecord = dayRecordOverride ?? { ...(shippingHistory.value[getCurrentShippingDayKey()] ?? {}) }
+    if (isMarketCategory(itemDef.category)) {
+      shippingLifetimeCategoryTotals.value[itemDef.category] = (shippingLifetimeCategoryTotals.value[itemDef.category] ?? 0) + quantity
+      shippingLifetimeItemTotals.value[itemId] = (shippingLifetimeItemTotals.value[itemId] ?? 0) + quantity
+    }
+
+    const dayKey = dayKeyOverride ?? getCurrentShippingDayKey()
+    const targetRecord = dayRecordOverride ?? { ...(shippingHistory.value[dayKey] ?? {}) }
     targetRecord[itemDef.category] = (targetRecord[itemDef.category] ?? 0) + quantity
+
+    const targetItemRecord = itemRecordOverride ?? { ...(shippingItemHistory.value[dayKey] ?? {}) }
+    targetItemRecord[itemId] = (targetItemRecord[itemId] ?? 0) + quantity
 
     if (source === 'shipping_box' && !shippedItems.value.includes(itemId)) {
       shippedItems.value.push(itemId)
     }
 
     if (!dayRecordOverride) {
-      shippingHistory.value[getCurrentShippingDayKey()] = targetRecord
+      shippingHistory.value[dayKey] = targetRecord
+    }
+    if (!itemRecordOverride) {
+      shippingItemHistory.value[dayKey] = targetItemRecord
+    }
+    if (!dayRecordOverride && !itemRecordOverride) {
       _pruneShippingHistory()
     }
   }
@@ -2352,6 +2451,9 @@ export const useShopStore = defineStore('shop', () => {
     const playerSnapshot = playerStore.serialize()
     const shippingBoxSnapshot = shippingBox.value.map(entry => ({ ...entry }))
     const shippingHistorySnapshot = cloneShippingHistoryState(shippingHistory.value)
+    const shippingItemHistorySnapshot = cloneShippingHistoryState(shippingItemHistory.value)
+    const shippingLifetimeCategoryTotalsSnapshot = cloneShippingTotals(shippingLifetimeCategoryTotals.value)
+    const shippingLifetimeItemTotalsSnapshot = { ...shippingLifetimeItemTotals.value }
     const shippedItemsSnapshot = [...shippedItems.value]
     const marketDynamicsSnapshot = deserializeMarketDynamics(marketDynamics.value)
 
@@ -2361,6 +2463,7 @@ export const useShopStore = defineStore('shop', () => {
       const recentShippingBase = getRecentShipping()
       const currentDayRecord = shippingHistory.value[dayKey] ?? {}
       const dayRecord: Record<string, number> = { ...(shippingHistory.value[dayKey] ?? {}) }
+      const itemDayRecord: Record<string, number> = { ...(shippingItemHistory.value[dayKey] ?? {}) }
 
       for (const entry of shippingBox.value) {
         const itemDef = getItemById(entry.itemId)
@@ -2377,10 +2480,11 @@ export const useShopStore = defineStore('shop', () => {
           )
           totalIncome += Math.floor(calculateBaseSellPrice(entry.itemId, entry.quantity, entry.quality) * marketMultiplier)
         }
-        recordCompletedSale(entry.itemId, entry.quantity, 'shipping_box', dayRecord)
+        recordCompletedSale(entry.itemId, entry.quantity, 'shipping_box', dayRecord, itemDayRecord, dayKey)
       }
 
       shippingHistory.value[dayKey] = dayRecord
+      shippingItemHistory.value[dayKey] = itemDayRecord
       _pruneShippingHistory()
       shippingBox.value = []
       marketDynamics.value = {
@@ -2406,6 +2510,9 @@ export const useShopStore = defineStore('shop', () => {
       playerStore.deserialize(playerSnapshot)
       shippingBox.value = shippingBoxSnapshot
       shippingHistory.value = shippingHistorySnapshot
+      shippingItemHistory.value = shippingItemHistorySnapshot
+      shippingLifetimeCategoryTotals.value = shippingLifetimeCategoryTotalsSnapshot
+      shippingLifetimeItemTotals.value = shippingLifetimeItemTotalsSnapshot
       shippedItems.value = shippedItemsSnapshot
       marketDynamics.value = marketDynamicsSnapshot
       return { success: false, skipped: false, totalIncome: 0, settledEntries: shippingBoxSnapshot.length, message: '出货箱结算失败，已自动回滚。' }
@@ -2428,6 +2535,12 @@ export const useShopStore = defineStore('shop', () => {
 
   /** 近期出货记录：dayKey → { category → quantity } */
   const shippingHistory = ref<Record<string, Record<string, number>>>({})
+  /** 近期出货记录：dayKey → { itemId → quantity }，用于村民反馈和流行货物回响。 */
+  const shippingItemHistory = ref<Record<string, Record<string, number>>>({})
+  /** 长期出货品类累计：用于商店掌柜提及玩家长期路线。 */
+  const shippingLifetimeCategoryTotals = ref<Partial<Record<MarketCategory, number>>>({})
+  /** 长期出货物品累计：用于为长期品类挑选代表货物。 */
+  const shippingLifetimeItemTotals = ref<Record<string, number>>({})
 
   /** 将日期转为绝对天数（用于比较距离） */
   const _toAbsoluteDay = (year: number, seasonIndex: number, day: number): number => {
@@ -2443,6 +2556,14 @@ export const useShopStore = defineStore('shop', () => {
       const abs = _toAbsoluteDay(parts[0]!, parts[1]!, parts[2]!)
       if (now - abs > 7) {
         delete shippingHistory.value[key]
+        delete shippingItemHistory.value[key]
+      }
+    }
+    for (const key of Object.keys(shippingItemHistory.value)) {
+      const parts = key.split('-').map(Number)
+      const abs = _toAbsoluteDay(parts[0]!, parts[1]!, parts[2]!)
+      if (now - abs > 7) {
+        delete shippingItemHistory.value[key]
       }
     }
   }
@@ -2459,6 +2580,236 @@ export const useShopStore = defineStore('shop', () => {
     return result
   }
 
+  /** 获取近7天最容易被村民提起的具体出货物品。 */
+  const getRecentShippingItemSummaries = (limit = 6): RecentShippingItemSummary[] => {
+    _pruneShippingHistory()
+    const totals: Record<string, number> = {}
+    for (const record of Object.values(shippingItemHistory.value)) {
+      for (const [itemId, qty] of Object.entries(record)) {
+        totals[itemId] = (totals[itemId] ?? 0) + qty
+      }
+    }
+
+    return Object.entries(totals)
+      .map(([itemId, quantity]) => {
+        const itemDef = getItemById(itemId)
+        if (!itemDef || !isMarketCategory(itemDef.category)) return null
+        const marketInfo = currentMarketPriceInfos.value.find(info => info.category === itemDef.category)
+        return {
+          itemId,
+          name: itemDef.name,
+          category: itemDef.category,
+          categoryLabel: MARKET_CATEGORY_NAMES[itemDef.category],
+          quantity,
+          trend: marketInfo?.trend ?? 'stable',
+          trendLabel: marketInfo ? TREND_NAMES[marketInfo.trend] : TREND_NAMES.stable,
+          multiplier: marketInfo?.multiplier ?? 1
+        }
+      })
+      .filter((entry): entry is RecentShippingItemSummary => !!entry)
+      .sort((left, right) => {
+        if (right.quantity !== left.quantity) return right.quantity - left.quantity
+        return MARKET_TREND_PRIORITY[right.trend] - MARKET_TREND_PRIORITY[left.trend]
+      })
+      .slice(0, limit)
+  }
+
+  const getLongTermShippingCategorySummaries = (limit = 3): LongTermShippingCategorySummary[] => {
+    const entries = Object.entries(shippingLifetimeCategoryTotals.value)
+      .filter(([category, quantity]) => isMarketCategory(category) && (quantity ?? 0) > 0)
+      .map(([category, quantity]) => ({
+        category: category as MarketCategory,
+        quantity: quantity ?? 0,
+        marketInfo: currentMarketPriceInfos.value.find(info => info.category === category)
+      }))
+
+    const totalQuantity = entries.reduce((sum, entry) => sum + entry.quantity, 0)
+    if (totalQuantity <= 0) return []
+
+    return entries
+      .map(entry => {
+        const representativeItemNames = Object.entries(shippingLifetimeItemTotals.value)
+          .map(([itemId, quantity]) => {
+            const itemDef = getItemById(itemId)
+            if (!itemDef || itemDef.category !== entry.category || quantity <= 0) return null
+            return { name: itemDef.name, quantity }
+          })
+          .filter((item): item is { name: string; quantity: number } => !!item)
+          .sort((left, right) => right.quantity - left.quantity)
+          .slice(0, 3)
+          .map(item => item.name)
+
+        return {
+          category: entry.category,
+          categoryLabel: MARKET_CATEGORY_NAMES[entry.category],
+          quantity: entry.quantity,
+          sharePercent: Math.round((entry.quantity / totalQuantity) * 100),
+          trend: entry.marketInfo?.trend ?? 'stable',
+          trendLabel: entry.marketInfo ? TREND_NAMES[entry.marketInfo.trend] : TREND_NAMES.stable,
+          representativeItemNames
+        }
+      })
+      .sort((left, right) => {
+        if (right.quantity !== left.quantity) return right.quantity - left.quantity
+        return MARKET_TREND_PRIORITY[right.trend] - MARKET_TREND_PRIORITY[left.trend]
+      })
+      .slice(0, limit)
+  }
+
+  const commerceEchoSummary = computed<CommerceEchoSummary>(() => {
+    const recentItems = getRecentShippingItemSummaries(5)
+    const longTermCategorySummaries = getLongTermShippingCategorySummaries(3)
+    const recentCategories = getRecentShipping()
+    const categoryEntries = Object.entries(recentCategories)
+      .filter(([category]) => isMarketCategory(category))
+      .map(([category, quantity]) => ({
+        category: category as MarketCategory,
+        quantity: quantity ?? 0,
+        marketInfo: currentMarketPriceInfos.value.find(info => info.category === category)
+      }))
+      .sort((left, right) => {
+        if (right.quantity !== left.quantity) return right.quantity - left.quantity
+        return MARKET_TREND_PRIORITY[right.marketInfo?.trend ?? 'stable'] - MARKET_TREND_PRIORITY[left.marketInfo?.trend ?? 'stable']
+      })
+
+    const popularCategoryLabels = categoryEntries.slice(0, 3).map(entry => MARKET_CATEGORY_NAMES[entry.category])
+    const topItem = recentItems[0] ?? null
+    const topCategory = categoryEntries[0] ?? null
+    const currentEvents = getSeasonEventsForDay(gameStore.season, gameStore.day, gameStore.year)
+    const festivalLabel = currentEvents[0]?.name ?? ''
+    const bestRelationshipShop = Object.entries(SHOP_NPC_RELATION_MAP)
+      .map(([shopId, npcId]) => ({
+        shopId,
+        npcId,
+        npcName: getNpcById(npcId)?.name ?? npcId,
+        discount: getRelationshipDiscountRate(shopId)
+      }))
+      .sort((left, right) => right.discount - left.discount)[0] ?? null
+    const completedProjectCount = getCompletedVillageProjectIds().length
+    const unlockedResidentCount = villageResidentShelfNotes.value.filter(entry => entry.unlocked).length
+    const seasonLabel = SEASON_NAMES[gameStore.season]
+    const weatherLabel = WEATHER_NAMES[gameStore.weather]
+    const topLongTermCategory = longTermCategorySummaries[0] ?? null
+    const representativeLongTermItems = topLongTermCategory?.representativeItemNames.join('、') ?? ''
+    const longTermLine = topLongTermCategory
+      ? `长期出货：${topLongTermCategory.categoryLabel}累计 ${topLongTermCategory.quantity} 件，占已记录出货 ${topLongTermCategory.sharePercent}%，掌柜会把它记成你的常卖路线。`
+      : '长期出货：暂无累计路线；持续卖出同一类商品后，商店会开始主动提及。'
+
+    const festivalSupplyLines = festivalLabel
+      ? [
+          `${festivalLabel}正在改变今日话题，村民会把${popularCategoryLabels[0] ?? '当季物资'}和节庆礼盒一起拿来比较。`,
+          topItem
+            ? `节前采买会顺带问起「${topItem.name}」能不能继续供货，商店会把临时补给和同类商品摆得更近。`
+            : '节前采买还缺少近期出货样本，商店暂时只按节庆基础补给轮换。'
+        ]
+      : [
+          '今天没有正式节庆，节庆物资反馈会暂存到下一次活动窗口再放大。',
+          topLongTermCategory
+            ? `掌柜仍会记住你长期出货的${topLongTermCategory.categoryLabel}，等节庆来临时优先判断是否能转成筹备物资。`
+            : '还没有可转成节庆筹备口径的长期出货路线。'
+        ]
+
+    const restorationFeedbackLines = completedProjectCount > 0
+      ? [
+          `已有 ${completedProjectCount} 项修复设施落地，村民会把新路线、新服务和补给需求挂在闲谈里。`,
+          topLongTermCategory
+            ? `${topLongTermCategory.categoryLabel}的长期出货会被拿去对照这些设施，商店会判断是否需要扩一格同类货架。`
+            : '设施已经在改变村图，但还需要更多出货样本来触发商品侧反馈。'
+        ]
+      : [
+          '修复设施尚未形成明显话题，村民反馈仍偏向基础补给和日常买卖。',
+          '完成更多村庄建设后，NPC 会开始提到新道路、新服务和货架变化。'
+        ]
+
+    const shopkeeperMentionLines = [
+      topLongTermCategory
+        ? `掌柜提及：你长期卖${topLongTermCategory.categoryLabel}，${representativeLongTermItems ? `尤其常见「${representativeLongTermItems}」` : '已经形成稳定供货口碑'}。`
+        : '掌柜提及：常卖路线还没成形，先连续卖出同一类商品试试。',
+      topItem
+        ? `今日短话题：最近「${topItem.name}」被问得最多，会影响店内配套补给摆位。`
+        : '今日短话题：近 7 天没有明显流行货，货架仍按季节和市场轮换。',
+      festivalLabel
+        ? `节庆口风：${festivalLabel}会把临时礼盒、易周转商品和相关出货样本放到同一组说明。`
+        : '节庆口风：非节庆日只保留轻提示，不强行抬高节庆商品。'
+    ]
+
+    const shelfInfluenceLines = [
+      `${seasonLabel}季货架会优先露出当季种子、季节限定包与本周精选。`,
+      topLongTermCategory
+        ? `长期出货偏向${topLongTermCategory.categoryLabel}，店内会多提同类补给、加工承接或寄售位置。`
+        : '长期出货偏向尚未稳定，店内暂不把某一类商品固定成常驻话题。',
+      festivalLabel
+        ? `${festivalLabel}当天会把节庆礼盒、临时补给和可周转商品顶到更显眼的位置。`
+        : '今天没有正式节庆，商圈会按周精选、季节货架和当前行情正常轮换。',
+      bestRelationshipShop && bestRelationshipShop.discount > 0
+        ? `${bestRelationshipShop.npcName}已给出熟客价，关系折扣会影响你今天更愿意补哪家货架。`
+        : '熟客关系尚未形成明显折扣，货架推荐仍以季节、行情和当前修复进度为主。',
+      completedProjectCount > 0
+        ? `村庄已有 ${completedProjectCount} 项建设落地，修复进度会把补给、寄售与服务合同推到更靠前。`
+        : '村庄建设仍在起步，商圈暂时以基础补给和低风险商品为主。',
+      `${weatherLabel}天气会影响雨天补给、牧场备货和山路/鱼塘相关消耗的展示权重。`,
+      unlockedResidentCount > 0
+        ? `${unlockedResidentCount} 位驻村住户已带来新货架，商圈会把他们的寄售台和线索池并入总览。`
+        : '还没有新住户落地，驻村货架回响会在商队、学者或山灵入住后出现。'
+    ]
+
+    const villagerFeedbackLines = topItem
+      ? [
+          `村口闲谈：最近卖出的「${topItem.name}」最多，大家会把它当成本周最容易被提起的流行货。`,
+          topCategory
+            ? `铺子记账：${MARKET_CATEGORY_NAMES[topCategory.category]}近 7 天出货 ${topCategory.quantity} 件，当前行情为${topCategory.marketInfo ? TREND_NAMES[topCategory.marketInfo.trend] : '平稳'}。`
+            : `铺子记账：近期具体出货以「${topItem.name}」为主。`,
+          topItem.trend === 'boom' || topItem.trend === 'rising'
+            ? `村民反馈：有人开始问还有没有更多「${topItem.name}」，万物铺会更愿意把配套补给摆在前排。`
+            : topItem.trend === 'falling' || topItem.trend === 'crash'
+              ? `村民反馈：「${topItem.name}」最近卖得多但行情偏弱，铺子会提醒你留意过剩。`
+              : `村民反馈：「${topItem.name}」卖得稳定，适合作为日常周转而不是短线抢价。`
+        ]
+      : [
+          '村口闲谈：近 7 天还没有形成明确流行货，先卖出一批作物、鱼获或加工品后，商圈会开始记录反馈。',
+          '铺子记账：暂无具体出货样本，今日货架仍按季节、节庆、关系、修复进度与天气常规轮换。'
+        ]
+
+    const npcFeedbackCards: CommerceNpcFeedbackCard[] = [
+      {
+        id: 'popular_goods',
+        label: '流行货物',
+        tone: 'accent',
+        lines: villagerFeedbackLines.slice(0, 3)
+      },
+      {
+        id: 'festival_supplies',
+        label: '节庆物资',
+        tone: festivalLabel ? 'warning' : 'accent',
+        lines: festivalSupplyLines
+      },
+      {
+        id: 'restoration_facilities',
+        label: '修复设施',
+        tone: completedProjectCount > 0 ? 'success' : 'accent',
+        lines: restorationFeedbackLines
+      }
+    ]
+
+    return {
+      hasRecentSales: recentItems.length > 0,
+      headline: topItem ? `最近村里流行：${topItem.name}` : '最近村里流行：暂无明确样本',
+      trendLine: topItem
+        ? `${topItem.categoryLabel} · 近 7 天 ${topItem.quantity} 件 · ${topItem.trendLabel} ×${topItem.multiplier.toFixed(2)}`
+        : '卖出或结算出货箱后，这里会显示最常被村民提起的货物。',
+      recentItems,
+      longTermCategory: topLongTermCategory,
+      longTermLine,
+      popularCategoryLabels,
+      shopkeeperMentionLines,
+      shelfInfluenceLines,
+      villagerFeedbackLines,
+      festivalSupplyLines,
+      restorationFeedbackLines,
+      npcFeedbackCards
+    }
+  })
+
   // === 序列化 ===
 
   const serialize = () => ({
@@ -2472,6 +2823,9 @@ export const useShopStore = defineStore('shop', () => {
     shippingBox: shippingBox.value,
     shippedItems: shippedItems.value,
     shippingHistory: shippingHistory.value,
+    shippingItemHistory: shippingItemHistory.value,
+    shippingLifetimeCategoryTotals: shippingLifetimeCategoryTotals.value,
+    shippingLifetimeItemTotals: shippingLifetimeItemTotals.value,
     marketDynamics: marketDynamics.value
   })
 
@@ -2549,6 +2903,59 @@ export const useShopStore = defineStore('shop', () => {
         )
       ])
     )
+    shippingItemHistory.value = Object.fromEntries(
+      Object.entries(data?.shippingItemHistory && typeof data.shippingItemHistory === 'object' ? data.shippingItemHistory : {}).map(([dayKey, record]) => [
+        dayKey,
+        Object.fromEntries(
+          Object.entries(record && typeof record === 'object' ? record : {})
+            .map(([itemId, quantity]) => [migrateRecipeId(itemId), Math.max(0, Number(quantity) || 0)])
+            .filter(([itemId, quantity]) => typeof itemId === 'string' && !!getItemById(itemId) && Number(quantity) > 0)
+        )
+      ])
+    )
+
+    const rawLifetimeCategoryTotals =
+      data?.shippingLifetimeCategoryTotals && typeof data.shippingLifetimeCategoryTotals === 'object'
+        ? data.shippingLifetimeCategoryTotals
+        : {}
+    const rawLifetimeItemTotals =
+      data?.shippingLifetimeItemTotals && typeof data.shippingLifetimeItemTotals === 'object'
+        ? data.shippingLifetimeItemTotals
+        : {}
+
+    shippingLifetimeCategoryTotals.value = Object.fromEntries(
+      Object.entries(rawLifetimeCategoryTotals)
+        .filter(([category, quantity]) => isMarketCategory(category) && Number(quantity) > 0)
+        .map(([category, quantity]) => [category, Math.max(0, Number(quantity) || 0)])
+    ) as Partial<Record<MarketCategory, number>>
+    shippingLifetimeItemTotals.value = Object.fromEntries(
+      Object.entries(rawLifetimeItemTotals)
+        .map(([itemId, quantity]) => [migrateRecipeId(itemId), Math.max(0, Number(quantity) || 0)])
+        .filter(([itemId, quantity]) => typeof itemId === 'string' && !!getItemById(itemId) && Number(quantity) > 0)
+    ) as Record<string, number>
+
+    if (Object.keys(rawLifetimeCategoryTotals).length === 0) {
+      const fallbackCategoryTotals: Partial<Record<MarketCategory, number>> = {}
+      for (const record of Object.values(shippingHistory.value)) {
+        for (const [category, quantity] of Object.entries(record)) {
+          if (isMarketCategory(category)) {
+            fallbackCategoryTotals[category] = (fallbackCategoryTotals[category] ?? 0) + Math.max(0, Number(quantity) || 0)
+          }
+        }
+      }
+      shippingLifetimeCategoryTotals.value = fallbackCategoryTotals
+    }
+    if (Object.keys(rawLifetimeItemTotals).length === 0) {
+      const fallbackItemTotals: Record<string, number> = {}
+      for (const record of Object.values(shippingItemHistory.value)) {
+        for (const [itemId, quantity] of Object.entries(record)) {
+          if (getItemById(itemId)) {
+            fallbackItemTotals[itemId] = (fallbackItemTotals[itemId] ?? 0) + Math.max(0, Number(quantity) || 0)
+          }
+        }
+      }
+      shippingLifetimeItemTotals.value = fallbackItemTotals
+    }
     marketDynamics.value = deserializeMarketDynamics(data?.marketDynamics)
     currentShopId.value = null
   }
@@ -2604,6 +3011,8 @@ export const useShopStore = defineStore('shop', () => {
     marketDynamicsRoutingDefs,
     currentMarketDynamicsPhase,
     currentMarketPriceInfos,
+    villageResidentShelfNotes,
+    commerceEchoSummary,
     marketDynamicsOverview,
     recommendedMarketDynamicsRoutes,
     activeMarketHotspots,
@@ -2658,6 +3067,7 @@ export const useShopStore = defineStore('shop', () => {
     shippedItems,
     // 行情供需
     getRecentShipping,
+    getRecentShippingItemSummaries,
     // 序列化
     serialize,
     deserialize

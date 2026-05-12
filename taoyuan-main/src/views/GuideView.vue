@@ -21,6 +21,7 @@
         <div class="flex flex-wrap gap-2">
           <Button class="justify-center !px-3 !py-2" :icon="Sparkles" @click="jumpTo('core-loop')">看核心循环</Button>
           <Button class="justify-center !px-3 !py-2" :icon="ClipboardList" @click="goGuideBookHash('quest-week')">任务板 / 主题周</Button>
+          <Button class="justify-center !px-3 !py-2" :icon="Map" @click="goRegionMap">看行旅图</Button>
         </div>
       </section>
 
@@ -30,6 +31,23 @@
           <p class="text-accent">{{ journeyMapReward.label }}</p>
           <p class="mt-1">{{ journeyMapReward.summary }}</p>
           <p class="mt-1 text-muted/80">{{ journeyMapReward.unlocked ? '你已经解锁这条远征判断能力，后续路线页和行旅图会继续吃这层标记。' : '解锁行旅大师后，这里会开始承接更明确的路线标记和远征判断能力。' }}</p>
+        </div>
+      </section>
+
+      <section class="game-panel space-y-3">
+        <Divider title label="今天值不值得看地图" />
+        <div class="game-panel-muted p-3 space-y-2">
+          <p class="text-[11px] text-muted leading-5">
+            现在的行旅图不只是远征入口，也会顺手告诉你今天有没有季节变体、稀有来访、节庆装点、修复设施落点和短活动窗口。
+          </p>
+          <div class="space-y-1 text-xs leading-5">
+            <p v-for="line in guideWorldSignalNotes" :key="`guide-world-signal-${line}`">- {{ line }}</p>
+            <p v-if="guideWorldSignalNotes.length === 0" class="text-muted">今天没有特别密集的地图信号，行旅图更适合当稳定回流线去看。</p>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <Button class="justify-center !px-3 !py-2" :icon="Map" @click="goRegionMap">直接去行旅图</Button>
+          <Button class="justify-center !px-3 !py-2" :icon="BookMarked" @click="goGuideBookHash('quest-week')">先看任务板 / 主题周</Button>
         </div>
       </section>
 
@@ -297,10 +315,18 @@
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import GuidePageFrame, { type GuidePageSectionLink } from '@/components/game/GuidePageFrame.vue'
+  import { getRareVisitorsForDay } from '@/data/bookseller'
+  import { getSeasonalActivitiesForDay, getSeasonEventsForDay } from '@/data/events'
+  import { useGameStore } from '@/stores/useGameStore'
+  import { useGoalStore } from '@/stores/useGoalStore'
   import { useSkillStore } from '@/stores/useSkillStore'
+  import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
 
   const router = useRouter()
+  const gameStore = useGameStore()
+  const goalStore = useGoalStore()
   const skillStore = useSkillStore()
+  const villageProjectStore = useVillageProjectStore()
   const journeyMapReward = computed(() => skillStore.masteryRewards.find(entry => entry.id === 'journey_map_markers') ?? null)
 
   const sections: GuidePageSectionLink[] = [
@@ -323,7 +349,37 @@
     void router.push({ name: 'guide-book' })
   }
 
+  const goRegionMap = () => {
+    void router.push({ name: 'region-map' })
+  }
+
   const goGuideBookHash = (hash: string) => {
     void router.push({ name: 'guide-book', hash: `#${hash}` })
   }
+
+  const guideWorldSignalNotes = computed(() => {
+    const notes: string[] = []
+    const todayVisitors = getRareVisitorsForDay(gameStore.season, gameStore.day)
+    const todayEvents = getSeasonEventsForDay(gameStore.season, gameStore.day, gameStore.year)
+    const todayActivities = getSeasonalActivitiesForDay(gameStore.season, gameStore.day)
+    const activeRestoration = villageProjectStore.communityRestorationEffects.filter(entry => entry.unlocked)
+
+    if (todayVisitors.length > 0) {
+      notes.push(`稀有来访：${todayVisitors.map(visitor => `${visitor.name}·${visitor.stallName}`).join('、')}`)
+    }
+    if (todayEvents.length > 0) {
+      notes.push(`节庆装点：${todayEvents[0]?.variantNotes?.decorationNotes[0] ?? todayEvents[0]?.description ?? '今天村里会有节庆布置变化'}`)
+    }
+    if (todayActivities.length > 0) {
+      notes.push(`短活动窗口：${todayActivities[0]?.name}，${todayActivities[0]?.prepChecklist[0] ?? '值得顺手改一下今天的节奏'}`)
+    }
+    if (activeRestoration.length > 0) {
+      notes.push(`修复落点：${activeRestoration.slice(0, 2).map(entry => entry.title).join('、')}`)
+    }
+    if (goalStore.currentThemeWeek?.name) {
+      notes.push(`主题周承接：${goalStore.currentThemeWeek.name} 会一起影响今天该看哪些地图信号。`)
+    }
+
+    return notes.slice(0, 4)
+  })
 </script>

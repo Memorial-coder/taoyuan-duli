@@ -541,6 +541,9 @@
               </span>
             </div>
             <p v-if="todayEvent" class="text-[10px] text-danger mb-1">今日节日：{{ todayEvent.name }}</p>
+            <p v-if="todayEvent?.variantNotes?.dialogueNotes?.[0]" class="text-[10px] text-warning mb-1">
+              年度台词：{{ todayEvent.variantNotes.dialogueNotes[0] }}
+            </p>
             <p class="text-xs text-accent">{{ selectedScheduleStatus.location }}</p>
             <p class="text-[10px] text-muted mt-0.5">{{ selectedScheduleStatus.summary }}</p>
             <p v-if="selectedScheduleStatus.reason" class="text-[10px] text-warning mt-1">{{ selectedScheduleStatus.reason }}</p>
@@ -567,6 +570,21 @@
                 <p class="text-[10px] text-muted/70 leading-4">{{ entry.summary }}</p>
               </div>
             </div>
+          </div>
+
+          <!-- 村中商业话题 -->
+          <div v-if="selectedNpcCommerceFeedbackLines.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
+            <div class="flex items-center justify-between gap-2 mb-1">
+              <p class="text-xs text-muted">村中话题反馈</p>
+              <span class="text-[10px] text-accent">商圈 / 节庆 / 修复</span>
+            </div>
+            <p
+              v-for="line in selectedNpcCommerceFeedbackLines"
+              :key="`selected-npc-commerce-${line}`"
+              class="text-[10px] text-muted leading-4 mt-0.5"
+            >
+              - {{ line }}
+            </p>
           </div>
 
           <!-- 关系收益 -->
@@ -934,6 +952,7 @@
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
+  import { useShopStore } from '@/stores/useShopStore'
   import { NPCS, getNpcById, getItemById, getHeartEventById, getTodayEvent } from '@/data'
   import { getNpcRelationshipFocusLabels } from '@/data/npcWorld'
   import { getHiddenNpcById } from '@/data/hiddenNpcs'
@@ -962,6 +981,7 @@
   const tutorialStore = useTutorialStore()
   const hiddenNpcStore = useHiddenNpcStore()
   const villageProjectStore = useVillageProjectStore()
+  const shopStore = useShopStore()
 
   const activeTab = ref<'villager' | 'spirit'>('villager')
   const selectedHiddenNpc = ref<string | null>(null)
@@ -1233,6 +1253,21 @@
   const selectedGiftKnowledgeSummary = computed(() =>
     selectedNpc.value ? npcStore.getGiftKnowledgeSummary(selectedNpc.value) : { hintCount: 0, exactCount: 0, confirmedCount: 0 }
   )
+  const commerceEcho = computed(() => shopStore.commerceEchoSummary)
+  const selectedNpcCommerceFeedbackLines = computed(() => {
+    if (!selectedNpcDef.value) return []
+    const npcName = selectedNpcDef.value.name
+    const lines = [
+      `${npcName}听到的商圈话题：${commerceEcho.value.headline}。`,
+      commerceEcho.value.longTermCategory
+        ? `${npcName}会提起你长期出货的${commerceEcho.value.longTermCategory.categoryLabel}，觉得这已经像村里的一条固定供货线。`
+        : `${npcName}还没听出你固定常卖哪类货，等长期出货样本更多后会出现更具体的闲谈。`,
+      ...commerceEcho.value.npcFeedbackCards.map((card: { label: string; lines: string[] }) =>
+        card.lines[0] ? `${card.label}：${card.lines[0]}` : ''
+      )
+    ]
+    return lines.filter((line): line is string => !!line).slice(0, 5)
+  })
   const selectedGiftKnowledgeStageText = computed(() => {
     const summary = selectedGiftKnowledgeSummary.value
     if (summary.confirmedCount > 0) return `已经亲手验证 ${summary.confirmedCount} 条礼物偏好。`

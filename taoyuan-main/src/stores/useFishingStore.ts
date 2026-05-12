@@ -14,6 +14,7 @@ import type {
   MiniGameRating
 } from '@/types'
 import { getAvailableFish, getBaitById, getTackleById, getItemById } from '@/data'
+import { resolveEnvironmentWindow } from '@/data/environmentWindows'
 import { FISH } from '@/data/fish'
 import { useGameStore } from './useGameStore'
 import { usePlayerStore } from './usePlayerStore'
@@ -82,6 +83,14 @@ export const useFishingStore = defineStore('fishing', () => {
 
   /** 当前可钓的鱼 */
   const availableFish = computed(() => getAvailableFish(gameStore.season, gameStore.weather, fishingLocation.value))
+  const environmentWindow = computed(() =>
+    resolveEnvironmentWindow({
+      season: gameStore.season,
+      weather: gameStore.weather,
+      day: gameStore.day,
+      year: gameStore.year
+    })
+  )
 
   const companionshipFishingFocus = computed(() => {
     const familyWishOverview = npcStore.getFamilyWishOverview()
@@ -262,7 +271,7 @@ export const useFishingStore = defineStore('fishing', () => {
 
     // 垃圾判定：基础12%概率钓到垃圾，钓鱼等级每级-1%，使用鱼饵减半
     const junkBase = 0.12 - skillStore.fishingLevel * 0.01
-    const junkChance = Math.max(0, baitDef ? junkBase * 0.5 : junkBase)
+    const junkChance = Math.max(0, (baitDef ? junkBase * 0.5 : junkBase) + environmentWindow.value.fishing.junkChanceDelta)
     if (Math.random() < junkChance) {
       activeTackleDef.value = tackleDef ?? null
       if (equippedTackle.value && tackleDef) {
@@ -309,6 +318,7 @@ export const useFishingStore = defineStore('fishing', () => {
     let msg = `抛竿入水……感觉有${fish.name}在附近！(-${staminaCost}体力)`
     if (activeBaitDef.value) msg += ` [${activeBaitDef.value.name}]`
     if (activeTackleDef.value) msg += ` [${activeTackleDef.value.name}]`
+    if (environmentWindow.value.fishing.active) msg += ` ${environmentWindow.value.fishing.label}：${environmentWindow.value.fishing.summary}`
     return { success: true, message: msg }
   }
 
@@ -324,7 +334,7 @@ export const useFishingStore = defineStore('fishing', () => {
 
     // 基础时限（鱼竿等级）
     const rodTimeMap: Record<ToolTier, number> = { basic: 30, iron: 33, steel: 36, iridium: 40 }
-    const timeLimit = rodTimeMap[rodTier]
+    let timeLimit = rodTimeMap[rodTier]
 
     // 鱼速度（难度为默认，鱼种可覆盖）
     const difficultySpeedMap: Record<string, number> = { easy: 1.0, normal: 2.0, hard: 3.0, legendary: 4.0 }
@@ -372,6 +382,11 @@ export const useFishingStore = defineStore('fishing', () => {
     const blessingCalmBonus = skillStore.getBlessingEffectValue('fishing_calm')
     if (blessingCalmBonus > 0) {
       fishSpeed *= 1 - blessingCalmBonus
+    }
+    if (environmentWindow.value.fishing.active) {
+      fishSpeed *= environmentWindow.value.fishing.fishSpeedMultiplier
+      fishChangeDir *= environmentWindow.value.fishing.fishChangeDirMultiplier
+      timeLimit += environmentWindow.value.fishing.treasureChanceBonus > 0.03 ? 2 : 0
     }
 
     return {
@@ -571,7 +586,14 @@ export const useFishingStore = defineStore('fishing', () => {
     const ringLuck = inventoryStore.getRingEffectValue('luck')
     const blessingTreasureFind = skillStore.getBlessingEffectValue('treasure_find')
     const blessingLuck = skillStore.getBlessingEffectValue('luck')
-    const chance = 0.15 + skillStore.fishingLevel * 0.01 + luckBuff + ringTreasureFind + blessingTreasureFind + (ringLuck + blessingLuck) * 0.3
+    const chance =
+      0.15 +
+      skillStore.fishingLevel * 0.01 +
+      luckBuff +
+      ringTreasureFind +
+      blessingTreasureFind +
+      (ringLuck + blessingLuck) * 0.3 +
+      environmentWindow.value.fishing.treasureChanceBonus
     if (Math.random() >= chance) return null
 
     // 随机1-2个奖品
@@ -762,6 +784,7 @@ export const useFishingStore = defineStore('fishing', () => {
 
   return {
     availableFish,
+    environmentWindow,
     companionshipFishingFocus,
     fishingLocation,
     currentFish,

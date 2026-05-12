@@ -190,6 +190,73 @@
             </div>
           </div>
 
+          <div class="border border-accent/20 rounded-xs px-2 py-2 mb-2 bg-accent/5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[10px] text-accent">出货回响与村民反馈</p>
+              <span class="text-[10px] text-muted">{{ commerceEcho.hasRecentSales ? '近7天样本' : '等待样本' }}</span>
+            </div>
+            <p class="text-xs text-text mt-1">{{ commerceEcho.headline }}</p>
+            <p class="text-[10px] text-muted mt-1">{{ commerceEcho.trendLine }}</p>
+            <p class="text-[10px] text-accent/80 mt-1">{{ commerceEcho.longTermLine }}</p>
+            <div v-if="commerceEcho.recentItems.length > 0" class="flex flex-wrap gap-1.5 mt-2">
+              <span
+                v-for="item in commerceEcho.recentItems.slice(0, 4)"
+                :key="`commerce-echo-item-${item.itemId}`"
+                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent"
+              >
+                {{ item.name }} ×{{ item.quantity }} · {{ item.trendLabel }}
+              </span>
+            </div>
+            <div class="grid gap-2 md:grid-cols-3 mt-2">
+              <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <p class="text-[10px] text-accent mb-1">村民怎么说</p>
+                <p
+                  v-for="line in commerceEcho.villagerFeedbackLines.slice(0, 3)"
+                  :key="`commerce-feedback-${line}`"
+                  class="text-[10px] text-muted leading-4 mt-0.5"
+                >
+                  - {{ line }}
+                </p>
+              </div>
+              <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <p class="text-[10px] text-accent mb-1">掌柜会提到</p>
+                <p
+                  v-for="line in commerceEcho.shopkeeperMentionLines.slice(0, 3)"
+                  :key="`commerce-shopkeeper-${line}`"
+                  class="text-[10px] text-muted leading-4 mt-0.5"
+                >
+                  - {{ line }}
+                </p>
+              </div>
+              <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <p class="text-[10px] text-accent mb-1">货架为什么变</p>
+                <p
+                  v-for="line in commerceEcho.shelfInfluenceLines.slice(0, 4)"
+                  :key="`commerce-shelf-${line}`"
+                  class="text-[10px] text-muted leading-4 mt-0.5"
+                >
+                  - {{ line }}
+                </p>
+              </div>
+            </div>
+            <div v-if="commerceEcho.npcFeedbackCards.length > 0" class="grid gap-2 md:grid-cols-3 mt-2">
+              <div
+                v-for="card in commerceEcho.npcFeedbackCards"
+                :key="`commerce-npc-card-${card.id}`"
+                class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
+              >
+                <p class="text-[10px] text-accent mb-1">NPC 反馈 · {{ card.label }}</p>
+                <p
+                  v-for="line in card.lines.slice(0, 2)"
+                  :key="`commerce-npc-card-line-${card.id}-${line}`"
+                  class="text-[10px] text-muted leading-4 mt-0.5"
+                >
+                  - {{ line }}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div v-if="marketThemeEncouragementSummary" class="border border-success/20 rounded-xs px-2 py-2 mb-2 bg-success/5">
             <div class="flex items-center justify-between gap-2">
               <p class="text-[10px] text-success">主题承接</p>
@@ -386,6 +453,24 @@
               <p class="text-[10px] text-accent mb-1">当前货架摘要</p>
               <p class="text-xs text-muted">{{ currentCatalogPoolSummary }}</p>
               <p class="text-[10px] text-muted/80 mt-1">{{ catalogRefreshHint }}</p>
+              <p class="text-[10px] text-accent/80 mt-1">{{ commerceEcho.shelfInfluenceLines.slice(0, 2).join(' ') }}</p>
+            </div>
+
+            <div v-if="unlockedVillageResidentShelfNotes.length > 0" class="border border-success/20 rounded-xs p-2 mt-2 bg-success/5">
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <p class="text-[10px] text-success">驻村货架回响</p>
+                <span class="text-[10px] text-muted">{{ unlockedVillageResidentShelfNotes.length }} 组已生效</span>
+              </div>
+              <div class="space-y-1.5">
+                <div v-for="entry in unlockedVillageResidentShelfNotes" :key="entry.id" class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-xs text-text">{{ entry.routeLabel }} · {{ entry.shelfLabel }}</p>
+                    <span class="text-[10px] text-success">{{ entry.name }}</span>
+                  </div>
+                  <p class="text-[10px] text-muted mt-1">{{ entry.shelfSummary }}</p>
+                  <p class="text-[10px] text-success/80 mt-0.5">{{ entry.cluePoolLabel }}：{{ entry.clueSummary }}</p>
+                </div>
+              </div>
             </div>
 
           <div v-if="activeServiceContracts.length > 0" class="border border-warning/20 rounded-xs p-2 mt-2 bg-warning/5">
@@ -1746,6 +1831,10 @@
     }
   })
   const marketRecommendedRouteCards = computed(() => shopStore.recommendedMarketDynamicsRoutes.slice(0, 3))
+  const unlockedVillageResidentShelfNotes = computed(() =>
+    shopStore.villageResidentShelfNotes.filter((entry: { unlocked: boolean }) => entry.unlocked)
+  )
+  const commerceEcho = computed(() => shopStore.commerceEchoSummary)
 
   // === 行情系统 ===
 
@@ -1871,7 +1960,7 @@
       return {
         title: '先看市场看板',
         summary: '你现在在卖出页，先确认今天的行情和地区收购，再决定先清哪类货。',
-        detailLines: [marketOverview.value.phaseLabel, primaryMarketLine].filter((line): line is string => !!line),
+        detailLines: [marketOverview.value.phaseLabel, commerceEcho.value.headline, primaryMarketLine].filter((line): line is string => !!line),
         statusLabel: '行情',
         statusToneClass: 'text-warning',
         ctaLabel: '看市场看板',

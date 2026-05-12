@@ -134,6 +134,55 @@
         </div>
       </div>
 
+      <div v-if="frontierWorldSignalCards.length > 0" class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70">
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <p class="text-xs text-accent">活地图信号</p>
+            <p class="text-[10px] text-muted mt-1 leading-4">
+              这里把季节变体、来访气泡、修复设施落点、节庆装点和短活动窗口压成同一层地图提示，不再散在别的页里。
+            </p>
+          </div>
+          <span class="text-[10px] text-muted shrink-0">{{ frontierWorldSignalCards.length }} 条</span>
+        </div>
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-2 mt-3">
+          <div
+            v-for="state in frontierMapAdvancedStates"
+            :key="state.id"
+            class="border rounded-xs px-2 py-2"
+            :class="state.shellClass"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[10px]" :class="state.toneClass">{{ state.label }}</p>
+              <span class="text-[10px] text-muted">{{ state.statusLabel }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-1 leading-4">{{ state.summary }}</p>
+            <p
+              v-for="line in state.detailLines.slice(0, 2)"
+              :key="`frontier-map-state-${state.id}-${line}`"
+              class="text-[10px] text-accent/80 mt-0.5 leading-4"
+            >
+              - {{ line }}
+            </p>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-3">
+          <div
+            v-for="entry in frontierWorldSignalCards"
+            :key="entry.id"
+            class="border rounded-xs px-3 py-2"
+            :class="entry.shellClass"
+          >
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[10px]" :class="entry.toneClass">{{ entry.label }}</p>
+              <span class="text-[10px] text-muted">{{ entry.statusLabel }}</span>
+            </div>
+            <p class="text-xs text-text mt-1">{{ entry.title }}</p>
+            <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+            <p class="text-[10px] text-accent/80 mt-1 leading-4">{{ entry.detail }}</p>
+          </div>
+        </div>
+      </div>
+
       <div class="border border-accent/20 rounded-xs p-3 mb-3 bg-bg/70" data-testid="region-primary-action-card">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
@@ -2020,6 +2069,9 @@
   import { Map } from 'lucide-vue-next'
   import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
   import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
+  import { getRareVisitorsForDay } from '@/data/bookseller'
+  import { resolveEnvironmentWindow } from '@/data/environmentWindows'
+  import { getSeasonalActivitiesForDay, getSeasonEventsForDay } from '@/data/events'
   import { getItemById } from '@/data/items'
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { navigateToPanel, type PanelKey } from '@/composables/useNavigation'
@@ -2125,6 +2177,30 @@
     missingLine: string
     focusLine: string
   }
+  type FrontierMapOverlayKind = 'season' | 'visitor' | 'repair' | 'activity'
+  type FrontierWorldSignalCard = {
+    id: string
+    kind: FrontierMapOverlayKind
+    label: string
+    title: string
+    summary: string
+    detail: string
+    priority: number
+    routeIds: string[]
+    statusLabel: string
+    toneClass: string
+    shellClass: string
+  }
+  type FrontierMapAdvancedState = {
+    id: FrontierMapOverlayKind
+    label: string
+    statusLabel: string
+    summary: string
+    detailLines: string[]
+    active: boolean
+    toneClass: string
+    shellClass: string
+  }
   type SettlementDialogState =
     | {
         kind: 'simple'
@@ -2160,6 +2236,42 @@
   const compactRouteDetailState = ref<Record<string, boolean>>({})
   const selectedApproach = ref<RegionExpeditionApproach>('steady')
   const selectedRetreatRule = ref<RegionExpeditionRetreatRule>('balanced')
+  const frontierMapAdvancedStateDefs: Array<{
+    id: FrontierMapOverlayKind
+    label: string
+    emptySummary: string
+    activeToneClass: string
+    activeShellClass: string
+  }> = [
+    {
+      id: 'season',
+      label: '季节版',
+      emptySummary: '当前没有区域季节变体显形，路线按常规地貌显示。',
+      activeToneClass: 'text-warning',
+      activeShellClass: 'border-warning/20 bg-warning/5'
+    },
+    {
+      id: 'visitor',
+      label: '来访版',
+      emptySummary: '今日暂无稀有来访气泡，地图不会额外挂出临时摊位。',
+      activeToneClass: 'text-accent',
+      activeShellClass: 'border-accent/20 bg-accent/5'
+    },
+    {
+      id: 'repair',
+      label: '修复版',
+      emptySummary: '还没有新的修复设施落点需要强调，村图保持基础路线。',
+      activeToneClass: 'text-success',
+      activeShellClass: 'border-success/20 bg-success/5'
+    },
+    {
+      id: 'activity',
+      label: '活动版',
+      emptySummary: '节庆、短活动和环境窗口暂未叠加成活动层。',
+      activeToneClass: 'text-danger',
+      activeShellClass: 'border-danger/20 bg-danger/5'
+    }
+  ]
 
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
   const currentWeekId = computed(() => getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day).seasonWeekId)
@@ -2172,6 +2284,101 @@
   })
 
   const currentThemeWeekLabel = computed(() => goalStore.currentThemeWeek?.name ?? currentWeekId.value)
+  const festivalResolutionContext = computed(() => ({
+    year: gameStore.year,
+    villageProjectLevel: villageProjectStore.villageProjectLevel,
+    themeWeekLabel: goalStore.currentThemeWeek?.name ?? null
+  }))
+  const todayRegionEvents = computed(() => getSeasonEventsForDay(gameStore.season, gameStore.day, festivalResolutionContext.value))
+  const todaySeasonalActivities = computed(() => getSeasonalActivitiesForDay(gameStore.season, gameStore.day))
+  const todayRareVisitors = computed(() => getRareVisitorsForDay(gameStore.season, gameStore.day))
+  const environmentWindow = computed(() =>
+    resolveEnvironmentWindow({
+      season: gameStore.season,
+      weather: gameStore.weather,
+      day: gameStore.day,
+      year: gameStore.year,
+      isFestivalDay: todayRegionEvents.value.length > 0
+    })
+  )
+  const frontierWorldSignalCards = computed<FrontierWorldSignalCard[]>(() => {
+    const cards: FrontierWorldSignalCard[] = []
+
+    const seasonalCards = regionMapStore.regionSummaries
+      .filter(region => region.unlocked)
+      .map(region => {
+        const snapshot = regionMapStore.getRegionVariantSnapshot(region.id, currentDayTag.value)
+        return snapshot.activeVariantId
+          ? {
+              id: `variant:${region.id}:${snapshot.activeVariantId}`,
+              label: '季节变体',
+              title: `${region.name} · ${snapshot.activeVariantLabel}`,
+              summary: snapshot.summary,
+              detail: snapshot.detailLines[0] ?? '这片区域本周更适合手动看一眼。'
+            }
+          : null
+      })
+      .filter((entry): entry is FrontierWorldSignalCard => !!entry)
+
+    cards.push(...seasonalCards.slice(0, 3))
+    if (environmentWindow.value.forage.active) {
+      cards.push({
+        id: `environment:${environmentWindow.value.id}`,
+        label: '环境窗口',
+        title: environmentWindow.value.forage.label,
+        summary: environmentWindow.value.forage.summary,
+        detail: environmentWindow.value.forage.routeHint
+      })
+    }
+
+    cards.push(
+      ...todayRareVisitors.value.slice(0, 2).map(visitor => ({
+        id: `visitor:${visitor.id}`,
+        label: '来访气泡',
+        title: `${visitor.name} · ${visitor.stallName}`,
+        summary: visitor.teaser,
+        detail: visitor.prepHints[0] ?? '今天只会停这一天，值不值得专门去看由你自己决定。'
+      }))
+    )
+
+    cards.push(
+      ...todayRegionEvents.value.slice(0, 2).map(event => ({
+        id: `festival:${event.id}`,
+        label: '节庆装点',
+        title: event.name,
+        summary: event.variantNotes?.decorationNotes[0] ?? event.description,
+        detail:
+          event.variantNotes?.stallNotes[0] ??
+          event.prepChecklist?.[0] ??
+          '今天的节庆会直接改动广场、摊位和村口布置。'
+      }))
+    )
+
+    cards.push(
+      ...todaySeasonalActivities.value.slice(0, 2).map(activity => ({
+        id: `activity:${activity.id}`,
+        label: '短活动窗口',
+        title: activity.name,
+        summary: activity.description,
+        detail: activity.prepChecklist[0] ?? '这几天值得顺手改一下行程，别按平常节奏硬跑。'
+      }))
+    )
+
+    const restorationCards = villageProjectStore.communityRestorationEffects
+      .filter(entry => entry.unlocked && (entry.type === 'service' || entry.type === 'entry'))
+      .slice(0, 3)
+      .map(entry => ({
+        id: `restoration:${entry.id}`,
+        label: entry.type === 'service' ? '设施落点' : '新摊位落点',
+        title: entry.title,
+        summary: entry.summary,
+        detail: `${entry.projectName} 已进入地图承接层。`
+      }))
+
+    cards.push(...restorationCards)
+
+    return cards.slice(0, 8)
+  })
   const getPreferredRegionSelectionId = () =>
     regionMapStore.regionSummaries.find(region => region.id === regionMapStore.currentWeeklyFocus.focusedRegionId && region.unlocked)?.id
     ?? regionMapStore.regionSummaries.find(region => region.unlocked)?.id
@@ -3531,6 +3738,9 @@
     }
 
     const rumorEntries = getRegionRumorBoard(session.regionId).filter(entry => !entry.fulfilled)
+    if (environmentWindow.value.forage.active) {
+      lines.push(`环境窗口：${environmentWindow.value.forage.routeHint}`)
+    }
     if (rumorEntries.length > 0) {
       lines.push(`传闻未兑：${rumorEntries.slice(0, 2).map(entry => entry.title).join(' / ')}`)
     }
@@ -3580,6 +3790,14 @@
         label: `同行 ${activeContract.npcName}`,
         toneClass: 'text-success',
         shellClass: 'border-success/20 bg-success/5'
+      })
+    }
+
+    if (environmentWindow.value.forage.active) {
+      signals.push({
+        label: environmentWindow.value.forage.label,
+        toneClass: 'text-warning',
+        shellClass: 'border-warning/20 bg-warning/5'
       })
     }
 

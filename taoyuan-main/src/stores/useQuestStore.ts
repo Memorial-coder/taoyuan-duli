@@ -39,6 +39,7 @@ import { getStoryQuestById, getNextStoryQuest, getFirstStoryQuest, STORY_QUESTS 
 import { getNpcById, WS09_RELATIONSHIP_TUNING_CONFIG } from '@/data/npcs'
 import { WS10_EVENT_OPERATION_TUNING_CONFIG } from '@/data/goals'
 import { getTodayEvent } from '@/data/events'
+import { resolveEnvironmentWindow } from '@/data/environmentWindows'
 import { getItemById, getRecipeById } from '@/data'
 import { MARKET_CATEGORY_NAMES } from '@/data/market'
 import { isRelationshipStageAtLeast } from '@/data/npcWorld'
@@ -1417,6 +1418,7 @@ export const useQuestStore = defineStore('quest', () => {
     const villageProjectStore = useVillageProjectStore()
     const walletStore = useWalletStore()
     const shopStore = useShopStore()
+    const gameStore = useGameStore()
     const serviceContractEffect = shopStore.getServiceContractEffectSummary('quest')
     const submittedPondFishSnapshots: Array<{ generation: number; totalScore: number; mature: boolean; sick: boolean }> = []
     const idx = activeQuests.value.findIndex(q => q.id === questId)
@@ -1718,7 +1720,10 @@ export const useQuestStore = defineStore('quest', () => {
     completedQuestCount.value++
 
     if (quest.type === 'special_order') {
+      const archiveDayTag = buildQuestHistoryDayTag()
       rememberSpecialOrderReceipt(quest.id)
+      playerStore.markSpecialOrderArchived(quest.id, archiveDayTag)
+      playerStore.markSpecialOrderArchived(`npc:${quest.npcId}`, archiveDayTag)
     }
 
     const rewardSummaryParts = [`${finalMoneyReward}文`, `${quest.npcName}好感+${finalFriendshipReward}`]
@@ -1798,6 +1803,16 @@ export const useQuestStore = defineStore('quest', () => {
     }
     if (clueMessage) {
       message += clueMessage
+    }
+    const environmentWindow = resolveEnvironmentWindow({
+      season: gameStore.season,
+      weather: gameStore.weather,
+      day: gameStore.day,
+      year: gameStore.year,
+      isFestivalDay: Boolean(getTodayEvent(gameStore.season, gameStore.day, { year: gameStore.year }))
+    })
+    if (environmentWindow.forage.active && (quest.sourceCategory === 'festival_prep' || getTodayEvent(gameStore.season, gameStore.day, { year: gameStore.year }))) {
+      message += ` ${environmentWindow.forage.festivalDeliveryLine}`
     }
 
     return { success: true, message }

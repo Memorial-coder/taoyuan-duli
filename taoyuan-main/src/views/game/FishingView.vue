@@ -30,6 +30,25 @@
 
     <div class="border border-accent/20 rounded-xs p-3 mb-4">
       <div class="flex items-center justify-between mb-2">
+        <p class="text-sm text-accent">天气窗口</p>
+        <span class="text-[10px]" :class="fishingStore.environmentWindow.fishing.active ? 'text-success' : 'text-muted'">
+          {{ fishingStore.environmentWindow.fishing.label }}
+        </span>
+      </div>
+      <p class="text-xs text-muted leading-4">{{ fishingStore.environmentWindow.fishing.summary }}</p>
+      <div class="flex flex-wrap gap-1.5 mt-2">
+        <span
+          v-for="line in fishingStore.environmentWindow.fishing.detailLines"
+          :key="line"
+          class="border border-accent/10 rounded-xs px-2 py-0.5 text-[10px] text-muted"
+        >
+          {{ line }}
+        </span>
+      </div>
+    </div>
+
+    <div class="border border-accent/20 rounded-xs p-3 mb-4">
+      <div class="flex items-center justify-between mb-2">
         <p class="text-sm text-accent">陪伴 / 仙缘提示</p>
         <span class="text-[10px] text-muted">{{ fishingStore.companionshipFishingFocus.bondedSpiritId ? '仙缘联动' : '家庭联动' }}</span>
       </div>
