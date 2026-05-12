@@ -46,7 +46,9 @@
 - `src/stores/useShopStore.ts` 已新增长期出货品类 / 物品累计入档，并扩展 `commerceEchoSummary`，统一输出常卖路线、掌柜提及、货架变化、节庆物资、修复设施与 NPC 反馈卡。
 - `src/views/game/ShopView.vue` 已把长期出货口碑、掌柜提及和 NPC 反馈卡接入商圈看板，让“最近卖了什么 -> 村里流行什么 -> 货架怎么变”在商店页形成闭环。
 - `src/views/game/VillageView.vue`、`src/views/game/NpcView.vue` 已消费同一份商业回响摘要，村庄页与 NPC 弹窗会同步提到流行货物、节庆物资和修复设施反馈。
-- 当前进展已完成 `T80 年度 / 双年度节日变化`、`T81 环境事件 / 季节异象 / 天气窗口`、`T82 商业回响与村民反馈` 的落地与回写，下一步进入 `T83 动态地图高级状态`。
+- `src/views/game/RegionMapView.vue` 已把活地图信号升级为四类高级状态：季节版、来访版、修复版、活动版先汇总成状态卡，再按优先级展示季节变体、稀有来访、修复落点、节庆 / 短活动 / 环境窗口等具体信号。
+- 行旅图的当前远征信号与路线派遣标签现在会读取高级状态摘要，使同一张地图能先回答“今天是什么版”，再展开具体变化。
+- 当前进展已完成 `T80 年度 / 双年度节日变化`、`T81 环境事件 / 季节异象 / 天气窗口`、`T82 商业回响与村民反馈`、`T83 动态地图高级状态` 的落地与回写，下一步进入 `T84 S8 回归验收`。
 - 本阶段当前增量已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:late-game-samples`。
 
 ### 0510 WS00 / S0 基线梳理与统一记录入口

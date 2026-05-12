@@ -2306,15 +2306,21 @@
 
     const seasonalCards = regionMapStore.regionSummaries
       .filter(region => region.unlocked)
-      .map(region => {
+      .map((region): FrontierWorldSignalCard | null => {
         const snapshot = regionMapStore.getRegionVariantSnapshot(region.id, currentDayTag.value)
         return snapshot.activeVariantId
           ? {
               id: `variant:${region.id}:${snapshot.activeVariantId}`,
+              kind: 'season' as const,
               label: '季节变体',
               title: `${region.name} · ${snapshot.activeVariantLabel}`,
               summary: snapshot.summary,
-              detail: snapshot.detailLines[0] ?? '这片区域本周更适合手动看一眼。'
+              detail: snapshot.detailLines[0] ?? '这片区域本周更适合手动看一眼。',
+              priority: 90,
+              routeIds: snapshot.affectedRouteIds,
+              statusLabel: '季节版',
+              toneClass: 'text-warning',
+              shellClass: 'border-warning/20 bg-warning/5'
             }
           : null
       })
@@ -2324,43 +2330,67 @@
     if (environmentWindow.value.forage.active) {
       cards.push({
         id: `environment:${environmentWindow.value.id}`,
+        kind: 'activity' as const,
         label: '环境窗口',
         title: environmentWindow.value.forage.label,
         summary: environmentWindow.value.forage.summary,
-        detail: environmentWindow.value.forage.routeHint
+        detail: environmentWindow.value.forage.routeHint,
+        priority: 82,
+        routeIds: [],
+        statusLabel: '活动版',
+        toneClass: 'text-danger',
+        shellClass: 'border-danger/20 bg-danger/5'
       })
     }
 
     cards.push(
       ...todayRareVisitors.value.slice(0, 2).map(visitor => ({
         id: `visitor:${visitor.id}`,
+        kind: 'visitor' as const,
         label: '来访气泡',
         title: `${visitor.name} · ${visitor.stallName}`,
         summary: visitor.teaser,
-        detail: visitor.prepHints[0] ?? '今天只会停这一天，值不值得专门去看由你自己决定。'
+        detail: visitor.prepHints[0] ?? '今天只会停这一天，值不值得专门去看由你自己决定。',
+        priority: 78,
+        routeIds: [],
+        statusLabel: '来访版',
+        toneClass: 'text-accent',
+        shellClass: 'border-accent/20 bg-accent/5'
       }))
     )
 
     cards.push(
       ...todayRegionEvents.value.slice(0, 2).map(event => ({
         id: `festival:${event.id}`,
+        kind: 'activity' as const,
         label: '节庆装点',
         title: event.name,
         summary: event.variantNotes?.decorationNotes[0] ?? event.description,
         detail:
           event.variantNotes?.stallNotes[0] ??
           event.prepChecklist?.[0] ??
-          '今天的节庆会直接改动广场、摊位和村口布置。'
+          '今天的节庆会直接改动广场、摊位和村口布置。',
+        priority: 74,
+        routeIds: [],
+        statusLabel: '活动版',
+        toneClass: 'text-danger',
+        shellClass: 'border-danger/20 bg-danger/5'
       }))
     )
 
     cards.push(
       ...todaySeasonalActivities.value.slice(0, 2).map(activity => ({
         id: `activity:${activity.id}`,
+        kind: 'activity' as const,
         label: '短活动窗口',
         title: activity.name,
         summary: activity.description,
-        detail: activity.prepChecklist[0] ?? '这几天值得顺手改一下行程，别按平常节奏硬跑。'
+        detail: activity.prepChecklist[0] ?? '这几天值得顺手改一下行程，别按平常节奏硬跑。',
+        priority: 70,
+        routeIds: [],
+        statusLabel: '活动版',
+        toneClass: 'text-danger',
+        shellClass: 'border-danger/20 bg-danger/5'
       }))
     )
 
@@ -2369,16 +2399,39 @@
       .slice(0, 3)
       .map(entry => ({
         id: `restoration:${entry.id}`,
+        kind: 'repair' as const,
         label: entry.type === 'service' ? '设施落点' : '新摊位落点',
         title: entry.title,
         summary: entry.summary,
-        detail: `${entry.projectName} 已进入地图承接层。`
+        detail: `${entry.projectName} 已进入地图承接层。`,
+        priority: 66,
+        routeIds: [],
+        statusLabel: '修复版',
+        toneClass: 'text-success',
+        shellClass: 'border-success/20 bg-success/5'
       }))
 
     cards.push(...restorationCards)
 
-    return cards.slice(0, 8)
+    return cards.sort((left, right) => right.priority - left.priority).slice(0, 8)
   })
+  const frontierMapAdvancedStates = computed<FrontierMapAdvancedState[]>(() =>
+    frontierMapAdvancedStateDefs.map(def => {
+      const cards = frontierWorldSignalCards.value.filter(card => card.kind === def.id)
+      const topCard = cards[0] ?? null
+      const active = cards.length > 0
+      return {
+        id: def.id,
+        label: def.label,
+        statusLabel: active ? `${cards.length} 层` : '待触发',
+        summary: topCard ? `${topCard.title}：${topCard.summary}` : def.emptySummary,
+        detailLines: cards.slice(0, 3).map(card => `${card.label} · ${card.detail}`),
+        active,
+        toneClass: active ? def.activeToneClass : 'text-muted',
+        shellClass: active ? def.activeShellClass : 'border-accent/10 bg-bg/10'
+      }
+    })
+  )
   const getPreferredRegionSelectionId = () =>
     regionMapStore.regionSummaries.find(region => region.id === regionMapStore.currentWeeklyFocus.focusedRegionId && region.unlocked)?.id
     ?? regionMapStore.regionSummaries.find(region => region.unlocked)?.id
@@ -3738,8 +3791,14 @@
     }
 
     const rumorEntries = getRegionRumorBoard(session.regionId).filter(entry => !entry.fulfilled)
+    const activeAdvancedStateLabels = frontierMapAdvancedStates.value
+      .filter(state => state.active)
+      .map(state => state.label)
     if (environmentWindow.value.forage.active) {
       lines.push(`环境窗口：${environmentWindow.value.forage.routeHint}`)
+    }
+    if (activeAdvancedStateLabels.length > 0) {
+      lines.push(`高级状态：${activeAdvancedStateLabels.join(' / ')}`)
     }
     if (rumorEntries.length > 0) {
       lines.push(`传闻未兑：${rumorEntries.slice(0, 2).map(entry => entry.title).join(' / ')}`)
@@ -3756,7 +3815,7 @@
       }
     }
 
-    return lines.slice(0, 3)
+    return lines.slice(0, 4)
   })
 
   const getRouteDispatchSignals = (route: RegionRouteDef): RouteDispatchSignal[] => {
@@ -3796,8 +3855,17 @@
     if (environmentWindow.value.forage.active) {
       signals.push({
         label: environmentWindow.value.forage.label,
-        toneClass: 'text-warning',
-        shellClass: 'border-warning/20 bg-warning/5'
+        toneClass: 'text-danger',
+        shellClass: 'border-danger/20 bg-danger/5'
+      })
+    }
+
+    const routeOverlaySignals = frontierWorldSignalCards.value.filter(card => card.routeIds.includes(route.id) && card.kind !== 'season')
+    if (routeOverlaySignals[0]) {
+      signals.push({
+        label: routeOverlaySignals[0].label,
+        toneClass: routeOverlaySignals[0].toneClass,
+        shellClass: routeOverlaySignals[0].shellClass
       })
     }
 
