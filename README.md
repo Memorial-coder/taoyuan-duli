@@ -1,4 +1,4 @@
-> 在线体验：[立即进入桃源乡独立版](http://taoyuanxiang.ymzcc.com/)  
+﻿> 在线体验：[立即进入桃源乡独立版](http://taoyuanxiang.ymzcc.com/)  
 > 链接地址：`http://taoyuanxiang.ymzcc.com/`
 
 <p align="center">
@@ -62,6 +62,7 @@
 ## 文档导航
 - 想直接试玩线上版本：访问 [在线体验](http://taoyuanxiang.ymzcc.com/)
 - 想先判断游戏是不是你喜欢的类型：阅读 [游戏简介.md](游戏简介.md)
+- 想按步骤体验 `v2.6.0` 这轮新变化：阅读 [v2.6体验教程.md](v2.6体验教程.md)
 - 想快速理解当前版本的开局路线：阅读 https://taoyuan.ymzcc.com/guide.html
 - 想按系统查看更细的机制分工：阅读 https://taoyuan.ymzcc.com/guide-book.html
 - 想先把项目跑起来：阅读下面的 `快速开始`
@@ -77,6 +78,12 @@
 
 如果你想看更完整的玩家向介绍，建议直接打开 [游戏简介.md](游戏简介.md)。
 
+## 场景印象
+
+<p align="center">
+  <img src="taoyuan-main/images/generated/key-art/main-visual-peach-village.png" alt="桃源乡独立版主视觉" width="92%" />
+</p>
+
 ## 游戏截图
 
 <p align="center">
@@ -87,7 +94,20 @@
 <p align="center">
   <img src="taoyuan-main/images/3.png" alt="桃源乡独立版截图 3" width="48%" />
   <img src="taoyuan-main/images/4.png" alt="桃源乡独立版截图 4" width="48%" />
-  
+</p>
+
+<p align="center">
+  <img src="taoyuan-main/images/generated/region-headers/ancient-road-header.png" alt="古驿荒道区域图" width="31%" />
+  <img src="taoyuan-main/images/generated/region-headers/mirage-marsh-header.png" alt="蜃潮泽地区域图" width="31%" />
+  <img src="taoyuan-main/images/generated/region-headers/cloud-highland-header.png" alt="云岚高地区域图" width="31%" />
+</p>
+
+<p align="center">
+  <img src="taoyuan-main/images/generated/event-scenes/yuan-ri-event.png" alt="元日活动场景" width="31%" />
+  <img src="taoyuan-main/images/generated/event-scenes/dragon-boat-riverside-event.png" alt="赛龙舟活动场景" width="31%" />
+  <img src="taoyuan-main/images/generated/event-scenes/zhong-qiu-event.png" alt="中秋活动场景" width="31%" />
+</p>
+
 ### 部署指南
 
 ### 前置条件

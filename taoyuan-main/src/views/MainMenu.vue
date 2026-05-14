@@ -149,6 +149,10 @@
             {{ menuConfig.aboutButtonText }}
           </Button>
         </div>
+        <div v-if="publicConfigStatusSummary || publicConfigStatusDetail" class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-2 text-[11px] text-muted leading-5">
+          <p v-if="publicConfigStatusSummary">{{ publicConfigStatusSummary }}</p>
+          <p v-if="publicConfigStatusDetail" class="mt-1">{{ publicConfigStatusDetail }}</p>
+        </div>
         </section>
 
         <section v-if="isDesktopMenu" class="game-panel main-menu-section main-menu-continue-section space-y-3">
@@ -424,6 +428,7 @@
   import type { FarmMapType, Gender } from '@/types'
   import { Capacitor } from '@capacitor/core'
   import { buildScopedSingleKey, initCurrentAccount, migrateLegacySingleValue } from '@/utils/accountStorage'
+  import type { OfficialManagedConfigKey, OfficialManagedConfigStatus } from '@/types'
 
   const router = useRouter()
   const { startBgm } = useAudio()
@@ -458,6 +463,46 @@
     aboutButtonText: '关于游戏',
     aboutDialogTitle: '关于桃源乡',
     aboutDialogContent: '欢迎来到桃源乡。',
+  })
+  const publicConfigStatus = ref<OfficialManagedConfigStatus | null>(null)
+  const publicConfigReadonlyFields = ref<OfficialManagedConfigKey[]>([])
+  const publicConfigReturnUrlFallback = ref(false)
+  const publicConfigFetchFallback = ref(false)
+  const publicConfigManagedFieldLabelMap: Record<OfficialManagedConfigKey, string> = {
+    ai_assistant_console_credit: 'AI 控制台署名',
+    ai_assistant_name: 'AI 助手名称',
+    ai_assistant_welcome: 'AI 欢迎语',
+    taoyuan_about_dialog_title: '关于弹窗标题',
+    taoyuan_about_dialog_content: '关于弹窗正文',
+  }
+
+  const publicConfigSourceLabel = computed(() => {
+    const source = publicConfigStatus.value?.source
+    if (source === 'official_live') return '官方实时'
+    if (source === 'official_cached') return '官方缓存'
+    if (source === 'local_default') return '本地默认'
+    return ''
+  })
+  const publicConfigStatusSummary = computed(() => {
+    if (publicConfigFetchFallback.value) {
+      return '公共配置当前未连上服务端，主菜单正在使用本地默认配置。'
+    }
+    if (!publicConfigStatus.value) return ''
+    const sourceLabel = publicConfigSourceLabel.value || '未知来源'
+    return `公共配置当前生效来源：${sourceLabel}。`
+  })
+  const publicConfigStatusDetail = computed(() => {
+    const parts: string[] = []
+    if (publicConfigReadonlyFields.value.length) {
+      parts.push(`托管字段：${publicConfigReadonlyFields.value.map(field => publicConfigManagedFieldLabelMap[field] || field).join('、')}`)
+    }
+    if (publicConfigReturnUrlFallback.value) {
+      parts.push('返回入口链接存在安全回退，当前已改为站内首页。')
+    }
+    if (publicConfigStatus.value?.lastError) {
+      parts.push(`最近回退原因：${publicConfigStatus.value.lastError}`)
+    }
+    return parts.join(' ')
   })
 
   const resolveSafeReturnButtonUrl = (rawValue: unknown): { url: string; fallback: boolean } => {
@@ -532,10 +577,18 @@
   }
 
   const loadMenuConfig = async () => {
+    publicConfigFetchFallback.value = false
     try {
       const res = await fetch('/api/public-config', { credentials: 'include' })
       const data = await res.json()
-      if (!data?.ok) return
+      if (!data?.ok) {
+        publicConfigFetchFallback.value = true
+        publicConfigStatus.value = null
+        publicConfigReadonlyFields.value = []
+        publicConfigReturnUrlFallback.value = false
+        addLog('公共配置接口返回失败，继续使用本地默认菜单配置。')
+        return
+      }
       const safeReturnUrl = resolveSafeReturnButtonUrl(data.taoyuan_return_button_url)
       menuConfig.value = {
         returnButtonEnabled: data.taoyuan_return_button_enabled !== false,
@@ -546,10 +599,17 @@
         aboutDialogTitle: data.taoyuan_about_dialog_title || '关于桃源乡',
         aboutDialogContent: data.taoyuan_about_dialog_content || '欢迎来到桃源乡。',
       }
-      if (safeReturnUrl.fallback) {
+      publicConfigStatus.value = data.officialManagedStatus || null
+      publicConfigReadonlyFields.value = Array.isArray(data.readonlyManagedFields) ? data.readonlyManagedFields : []
+      publicConfigReturnUrlFallback.value = Boolean(data.taoyuan_return_button_url_fallback) || safeReturnUrl.fallback
+      if (publicConfigReturnUrlFallback.value) {
         addLog('公共配置中的返回链接不安全，已自动回退为站内首页。')
       }
     } catch {
+      publicConfigFetchFallback.value = true
+      publicConfigStatus.value = null
+      publicConfigReadonlyFields.value = []
+      publicConfigReturnUrlFallback.value = false
       addLog('公共配置拉取失败，继续使用本地默认菜单配置。')
     }
   }

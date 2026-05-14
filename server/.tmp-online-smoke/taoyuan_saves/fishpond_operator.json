@@ -1,0 +1,10 @@
+{
+  "id": "fishpond_operator",
+  "label": "鱼塘经营档",
+  "tags": ["late-game", "fishpond", "weekly-cycle", "quest"],
+  "loader": "built-in",
+  "notes": [
+    "通过开发态样例存档加载器直接注入",
+    "重点验证鱼塘成熟鱼群、待收取产物和周赛代理值"
+  ]
+}

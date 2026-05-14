@@ -1,0 +1,178 @@
+{
+  "queryHints": [
+    {
+      "id": "fish-feed-query",
+      "pattern": "鱼饲料|喂鱼|鱼塘饲料|鱼食|fish[_ -]?feed|feedfish",
+      "flags": "i",
+      "terms": ["fish_feed", "feedFish", "鱼饲料", "鱼塘", "喂食", "药铺", "yaopu"],
+      "routeHints": ["fishpond", "shop"],
+      "questionTypes": ["resource-source", "shop-purchase"]
+    },
+    {
+      "id": "fishpond-query",
+      "pattern": "鱼塘|养鱼|鱼苗|繁殖鱼|病鱼|水质|fishpond",
+      "flags": "i",
+      "terms": ["fishpond", "FishPond", "useFishPondStore", "鱼塘", "feedFish", "cleanPond"],
+      "routeHints": ["fishpond"],
+      "questionTypes": ["page-feature", "precondition"]
+    },
+    {
+      "id": "shop-query",
+      "pattern": "药铺|在哪里买|哪买|购买|商店|店里",
+      "flags": "i",
+      "terms": ["shop", "Shop", "yaopu", "药铺", "itemId", "price"],
+      "routeHints": ["shop"],
+      "questionTypes": ["shop-purchase", "resource-source"]
+    },
+    {
+      "id": "pond-clean-query",
+      "pattern": "水质改良剂|净水|净化|清理鱼塘",
+      "flags": "i",
+      "terms": ["water_purifier", "cleanPond", "水质改良剂", "鱼塘", "yaopu"],
+      "routeHints": ["fishpond", "shop"],
+      "questionTypes": ["resource-source", "precondition"]
+    },
+    {
+      "id": "feed-query",
+      "pattern": "喂食|喂养|饲料",
+      "flags": "i",
+      "terms": ["feed", "wasFed", "喂食", "饲料"],
+      "questionTypes": ["precondition"]
+    },
+    {
+      "id": "seed-source-query",
+      "pattern": "种子|种苗|播种|在哪买种|买种子|哪里买种|种子来源|种子怎么获得",
+      "flags": "i",
+      "terms": ["seed", "seedId", "seedPrice", "wanwupu", "availableSeeds", "种子", "万物铺", "当季"],
+      "routeHints": ["farm", "shop"],
+      "questionTypes": ["resource-source", "shop-purchase"]
+    },
+    {
+      "id": "season-crop-query",
+      "pattern": "当季|这季|这个季节|春季作物|夏季作物|秋季作物|冬季作物|春天种|夏天种|秋天种|冬天种",
+      "flags": "i",
+      "terms": ["season", "getCropsBySeason", "availableSeeds", "spring", "summer", "autumn", "winter", "当季", "季节"],
+      "routeHints": ["farm", "shop"],
+      "questionTypes": ["page-feature", "resource-source"]
+    }
+  ],
+  "synonyms": [
+    { "canonical": "seed", "aliases": ["种子", "种苗", "播种", "买种子", "种子在哪买", "种子来源"] },
+    { "canonical": "wanwupu", "aliases": ["万物铺", "陈伯", "万物店", "综合商店"] },
+    { "canonical": "fish_feed", "aliases": ["鱼饲料", "喂鱼饲料", "鱼塘饲料", "鱼食"] },
+    { "canonical": "feedFish", "aliases": ["喂鱼", "喂食鱼", "给鱼喂食", "鱼塘喂食"] },
+    { "canonical": "yaopu", "aliases": ["药铺", "药店", "药房"] },
+    { "canonical": "fishpond", "aliases": ["鱼塘", "养鱼", "养殖鱼", "鱼池"] },
+    { "canonical": "bait", "aliases": ["鱼饵", "饵料", "钓鱼饵"] },
+    { "canonical": "recipe", "aliases": ["配方", "食谱", "公式", "合成表"] },
+    { "canonical": "condition", "aliases": ["条件", "前置", "限制", "要求", "解锁"] },
+    { "canonical": "shop", "aliases": ["商店", "商铺", "店里", "购买", "在哪里买", "哪里买"] },
+    { "canonical": "source", "aliases": ["来源", "获得", "获取", "产出", "怎么来"] }
+  ],
+  "conceptExpansions": [
+    { "id": "firewood", "pattern": "柴火|firewood", "flags": "i", "terms": ["firewood", "柴火"] },
+    { "id": "equipment-set", "pattern": "套装|set bonus|equipment set", "flags": "i", "terms": ["equipmentSets", "setBonus", "set", "套装"] },
+    { "id": "harvest-set", "pattern": "丰收套装|harvest set", "flags": "i", "terms": ["harvest_set", "harvestSet", "丰收套装", "equipmentSets"] },
+    { "id": "fruit-tree", "pattern": "果树|fruit tree", "flags": "i", "terms": ["fruitTree", "fruitTrees", "removeFruitTree", "wildTrees", "果树"] },
+    { "id": "fish-feed", "pattern": "鱼饲料|fish[_ -]?feed", "flags": "i", "terms": ["fish_feed", "fishFeed", "鱼饲料", "feedFish", "useFishPondStore"] },
+    { "id": "ui-entry", "pattern": "按钮|入口|怎么点|点击|界面|页面|显示|弹窗", "flags": "i", "terms": ["button", "dialog", "modal", "view", "component", "页面", "按钮", "入口"] },
+    { "id": "npc-gift", "pattern": "喜好|偏好|送礼|好感", "flags": "i", "terms": ["gift", "favorite", "preferences", "喜好", "好感", "npc"] },
+    { "id": "fish-condition", "pattern": "鱼出现条件|鱼在哪|鱼什么时候出现|钓鱼条件", "flags": "i", "terms": ["fish", "season", "weather", "location", "timeRequirement", "钓鱼", "鱼类"] },
+    { "id": "docs-config", "pattern": "默认配置|README|玩法说明|游戏说明", "flags": "i", "terms": ["README", "readme", "默认配置", "sys_config", "说明文档"] }
+  ],
+  "routeAliases": [
+    { "routeName": "menu", "aliases": ["主菜单", "开始界面"] },
+    { "routeName": "hall", "aliases": ["交流大厅", "大厅"] },
+    { "routeName": "farm", "aliases": ["农场", "田地", "种地"] },
+    { "routeName": "animal", "aliases": ["畜棚", "养殖", "宠物"] },
+    { "routeName": "home", "aliases": ["家园", "宅邸"] },
+    { "routeName": "cottage", "aliases": ["小屋", "家庭"] },
+    { "routeName": "village", "aliases": ["村庄", "npc", "村民"] },
+    { "routeName": "shop", "aliases": ["商店", "商圈", "店铺"] },
+    { "routeName": "forage", "aliases": ["采集", "野外采集"] },
+    { "routeName": "fishing", "aliases": ["钓鱼", "渔场", "钓点"] },
+    { "routeName": "mining", "aliases": ["矿洞", "挖矿"] },
+    { "routeName": "cooking", "aliases": ["烹饪", "料理"] },
+    { "routeName": "workshop", "aliases": ["作坊", "工坊", "加工"] },
+    { "routeName": "upgrade", "aliases": ["升级", "工具升级"] },
+    { "routeName": "inventory", "aliases": ["背包", "仓库", "库存"] },
+    { "routeName": "skills", "aliases": ["技能", "专精"] },
+    { "routeName": "achievement", "aliases": ["成就"] },
+    { "routeName": "wallet", "aliases": ["钱包", "兑换"] },
+    { "routeName": "quest", "aliases": ["任务", "主线", "委托"] },
+    { "routeName": "charinfo", "aliases": ["角色信息", "人物面板"] },
+    { "routeName": "breeding", "aliases": ["育种", "杂交"] },
+    { "routeName": "museum", "aliases": ["博物馆", "捐赠"] },
+    { "routeName": "guild", "aliases": ["公会"] },
+    { "routeName": "hanhai", "aliases": ["瀚海"] },
+    { "routeName": "fishpond", "aliases": ["鱼塘", "养鱼", "鱼池"] }
+  ],
+  "resourceCatalog": [
+    {
+      "id": "crop_seed",
+      "title": "作物种子",
+      "aliases": ["种子", "种苗", "买种子", "种子来源", "在哪买种子", "哪里有种子"],
+      "terms": ["seed", "seedId", "seedPrice", "availableSeeds", "wanwupu", "种子", "万物铺", "当季"],
+      "sourceTerms": ["万物铺", "陈伯", "当季", "季节", "农场"],
+      "shopTerms": ["万物铺", "wanwupu", "shop"],
+      "routeHints": ["farm", "shop"],
+      "questionTypes": ["resource-source", "shop-purchase"]
+    },
+    {
+      "id": "fish_feed",
+      "title": "鱼饲料",
+      "aliases": ["鱼饲料", "鱼塘饲料", "鱼食"],
+      "terms": ["fish_feed", "fishFeed", "feedFish", "鱼饲料", "鱼塘"],
+      "sourceTerms": ["获得", "来源", "药铺", "购买", "price", "itemId"],
+      "shopTerms": ["药铺", "shop", "yaopu"],
+      "routeHints": ["fishpond", "shop"],
+      "questionTypes": ["resource-source", "shop-purchase"]
+    },
+    {
+      "id": "water_purifier",
+      "title": "水质改良剂",
+      "aliases": ["水质改良剂", "净水剂", "净化剂"],
+      "terms": ["water_purifier", "cleanPond", "水质改良剂", "净水"],
+      "sourceTerms": ["药铺", "购买", "鱼塘", "清理", "水质"],
+      "shopTerms": ["药铺", "shop", "yaopu"],
+      "routeHints": ["fishpond", "shop"],
+      "questionTypes": ["resource-source", "shop-purchase", "precondition"]
+    },
+    {
+      "id": "bait",
+      "title": "鱼饵",
+      "aliases": ["鱼饵", "饵料", "钓鱼饵"],
+      "terms": ["bait", "鱼饵", "饵料"],
+      "sourceTerms": ["渔具铺", "购买", "钓鱼"],
+      "shopTerms": ["渔具铺", "shop"],
+      "routeHints": ["fishing", "shop"],
+      "questionTypes": ["resource-source", "shop-purchase"]
+    }
+  ],
+  "shopCatalog": [
+    {
+      "id": "yaopu",
+      "title": "药铺",
+      "aliases": ["药铺", "药店", "药房"],
+      "terms": ["yaopu", "药铺", "shop", "price", "itemId"],
+      "routeHints": ["shop"],
+      "questionTypes": ["shop-purchase", "resource-source"]
+    },
+    {
+      "id": "fishing_shop",
+      "title": "渔具铺",
+      "aliases": ["渔具铺", "渔具店"],
+      "terms": ["fishingShop", "渔具铺", "鱼饵", "浮漂"],
+      "routeHints": ["shop", "fishing"],
+      "questionTypes": ["shop-purchase", "resource-source"]
+    },
+    {
+      "id": "smithy",
+      "title": "铁匠铺",
+      "aliases": ["铁匠铺", "铁匠店"],
+      "terms": ["smithy", "铁匠铺", "工具升级", "矿石"],
+      "routeHints": ["shop", "upgrade", "mining"],
+      "questionTypes": ["shop-purchase", "resource-source"]
+    }
+  ]
+}

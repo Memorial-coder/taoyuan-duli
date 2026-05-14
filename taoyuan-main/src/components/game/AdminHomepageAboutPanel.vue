@@ -15,7 +15,10 @@
 
       <div v-if="errorMessage" class="text-xs text-danger leading-6">{{ errorMessage }}</div>
       <div v-if="officialManagedStatus" class="text-[11px] text-muted leading-5">
-        当前生效来源：{{ sourceLabel }} · 托管字段：{{ readonlyManagedFields.length ? readonlyManagedFields.join('、') : '无' }}
+        当前生效来源：{{ sourceLabel }} · 托管字段：{{ readonlyManagedFieldsText }}
+        <div v-if="officialManagedStatus.lastError" class="mt-1 text-warning">
+          最近回退原因：{{ officialManagedStatus.lastError }}
+        </div>
       </div>
 
       <div class="grid gap-3 md:grid-cols-2">
@@ -199,6 +202,13 @@
   const aboutBlocks = ref<HallContentBlock[]>([])
   const readonlyManagedFields = ref<OfficialManagedConfigKey[]>([])
   const officialManagedStatus = ref<OfficialManagedConfigStatus | null>(null)
+  const managedFieldLabelMap: Record<OfficialManagedConfigKey, string> = {
+    ai_assistant_console_credit: 'AI 控制台署名',
+    ai_assistant_name: 'AI 助手名称',
+    ai_assistant_welcome: 'AI 欢迎语',
+    taoyuan_about_dialog_title: '关于弹窗标题',
+    taoyuan_about_dialog_content: '关于弹窗正文',
+  }
 
   const createTempId = () => `about_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   const createTextBlock = (text = ''): HallContentBlock => ({ id: createTempId(), type: 'text', text })
@@ -251,7 +261,18 @@
 
   const serializedContent = computed(() => serializeBlocksToMarkdown(aboutBlocks.value))
   const previewHtml = computed(() => renderSafeMarkdown(serializedContent.value || '欢迎来到桃源乡。'))
-  const sourceLabel = computed(() => officialManagedStatus.value?.source || 'local_default')
+  const sourceLabel = computed(() => {
+    const source = officialManagedStatus.value?.source
+    if (source === 'official_live') return '官方实时'
+    if (source === 'official_cached') return '官方缓存'
+    if (source === 'local_default') return '本地默认'
+    return '未知'
+  })
+  const readonlyManagedFieldsText = computed(() => (
+    readonlyManagedFields.value.length
+      ? readonlyManagedFields.value.map(field => managedFieldLabelMap[field] || field).join('、')
+      : '无'
+  ))
 
   const readonlyManagedFieldSet = computed(() => new Set(readonlyManagedFields.value))
   const aboutTitleReadonly = computed(() => readonlyManagedFieldSet.value.has('taoyuan_about_dialog_title'))

@@ -4,6 +4,9 @@
     <template v-else>
       <div v-if="store.adminConfig.officialManagedStatus" class="text-[11px] text-muted leading-5">
         当前生效来源：{{ sourceLabel }} · 托管字段：{{ readonlyManagedFieldsText }}
+        <div v-if="store.adminConfig.officialManagedStatus.lastError" class="mt-1 text-warning">
+          最近回退原因：{{ store.adminConfig.officialManagedStatus.lastError }}
+        </div>
       </div>
 
       <div class="ai-admin-panel__group">
@@ -136,6 +139,13 @@
 
   const store = useAiAssistantStore()
   const router = useRouter()
+  const managedFieldLabelMap: Record<string, string> = {
+    ai_assistant_console_credit: 'AI 控制台署名',
+    ai_assistant_name: 'AI 助手名称',
+    ai_assistant_welcome: 'AI 欢迎语',
+    taoyuan_about_dialog_title: '关于弹窗标题',
+    taoyuan_about_dialog_content: '关于弹窗正文',
+  }
   const readonlyManagedFieldSet = computed(() => new Set(store.adminConfig.readonlyManagedFields || []))
   const sourceLabel = computed(() => {
     const source = store.adminConfig.officialManagedStatus?.source
@@ -146,7 +156,7 @@
   })
   const readonlyManagedFieldsText = computed(() => {
     const fields = store.adminConfig.readonlyManagedFields || []
-    return fields.length ? fields.join('、') : '无'
+    return fields.length ? fields.map(field => managedFieldLabelMap[field] || field).join('、') : '无'
   })
 
   const isManagedReadonly = (key: 'ai_assistant_name' | 'ai_assistant_welcome' | 'ai_assistant_console_credit') => {

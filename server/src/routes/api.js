@@ -521,6 +521,8 @@ function getPublicConfigPayload(req) {
   const c = cfg.all();
   const homepageAbout = getHomepageAboutContent();
   const androidApp = getAndroidAppReleaseConfig();
+  const rawReturnButtonUrl = String(c.taoyuan_return_button_url || '').trim();
+  const safeReturnButtonUrl = sanitizeTaoyuanReturnButtonUrl(rawReturnButtonUrl);
   const username = req.session && req.session.username;
   const taoyuanTodayUsage = username
     ? getTaoyuanTodayUsage(username)
@@ -536,11 +538,14 @@ function getPublicConfigPayload(req) {
     taoyuan_today_exported_money: taoyuanTodayUsage.export_money,
     taoyuan_return_button_enabled: c.taoyuan_return_button_enabled,
     taoyuan_return_button_text: c.taoyuan_return_button_text,
-    taoyuan_return_button_url: sanitizeTaoyuanReturnButtonUrl(c.taoyuan_return_button_url),
+    taoyuan_return_button_url: safeReturnButtonUrl,
+    taoyuan_return_button_url_fallback: !!rawReturnButtonUrl && safeReturnButtonUrl !== rawReturnButtonUrl,
     taoyuan_about_button_enabled: homepageAbout.aboutButtonEnabled,
     taoyuan_about_button_text: homepageAbout.aboutButtonText,
     taoyuan_about_dialog_title: homepageAbout.aboutDialogTitle,
     taoyuan_about_dialog_content: homepageAbout.aboutDialogContent,
+    officialManagedStatus: cfg.getManagedStatus(),
+    readonlyManagedFields: [...OFFICIAL_MANAGED_HOMEPAGE_ABOUT_FIELDS],
     android_app: androidApp,
   };
 }

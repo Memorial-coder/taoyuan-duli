@@ -14,7 +14,7 @@
                 交流大厅
               </h1>
               <p class="text-xs text-muted leading-6">
-                这里是桃源乡的论坛 + 求助大厅。任何人都能浏览，登录当前游戏账号后即可发帖、回复与管理自己的求助帖。
+                {{ hallAvailabilityDescription }}
               </p>
             </div>
           </div>
@@ -38,7 +38,7 @@
         <div class="mt-3 text-xs">
           <span v-if="viewerStatus === 'unavailable'" class="text-warning">大厅连接暂时不可用。</span>
           <span v-else-if="viewerStatus === 'interactive'" class="text-success">当前账号：{{ viewer.displayName || viewer.username }}（可互动）</span>
-          <span v-else class="text-muted">当前为游客浏览模式。</span>
+          <span v-else class="text-muted">当前为游客浏览模式，登录后可参与互动。</span>
         </div>
       </div>
 
@@ -659,7 +659,12 @@
       </div>
     </div>
 
-    <button class="hall-fab md:hidden" @click="openComposer">
+    <button
+      class="hall-fab md:hidden"
+      :class="{ 'hall-fab--disabled': viewerStatus !== 'interactive' || loadingViewer }"
+      :disabled="viewerStatus !== 'interactive' || loadingViewer"
+      @click="openComposer"
+    >
       <SquarePen :size="18" />
     </button>
   </div>
@@ -788,6 +793,15 @@
 
   const totalPages = computed(() => Math.max(1, Math.ceil(totalPosts.value / pageSize)))
   const toolbarMenu = ref<null | 'category' | 'sort' | 'mine'>(null)
+  const hallAvailabilityDescription = computed(() => {
+    if (viewerStatus.value === 'interactive') {
+      return '这里是桃源乡的论坛 + 求助大厅。你当前已经登录，可以发帖、回复，也能继续管理自己的求助帖。'
+    }
+    if (viewerStatus.value === 'unavailable') {
+      return '这里是桃源乡的论坛 + 求助大厅。当前大厅服务暂时不可用，互动入口会先停用，稍后刷新后再试。'
+    }
+    return '这里是桃源乡的论坛 + 求助大厅。任何人都能先浏览帖子，登录当前游戏账号后再参与发帖、回复与管理自己的求助帖。'
+  })
   const orderedReplies = computed(() => {
     if (!selectedPost.value) return []
     return [...selectedPost.value.replies].sort((a, b) => {
@@ -1844,6 +1858,11 @@
     background: rgba(200, 164, 92, 0.92);
     color: rgb(var(--color-bg));
     box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  }
+
+  .hall-fab--disabled {
+    opacity: 0.5;
+    box-shadow: none;
   }
 
   @media (max-width: 768px) {

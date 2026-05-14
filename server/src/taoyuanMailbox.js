@@ -3,8 +3,11 @@ const path = require('path');
 const db = require('./db');
 const {
   createError,
+  ensureTaoyuanSavesDir,
   getActiveSaveContext,
   persistGameplayData,
+  TAOYUAN_SAVES_DIR,
+  writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime');
 
 const DATA_DIR = process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) : path.join(__dirname, '../data');
@@ -190,16 +193,7 @@ function getGuildSeasonMailboxConfig() {
 
 function saveMailboxData(data) {
   ensureDir(TAOYUAN_MAILBOX_FILE);
-  const tempPath = `${TAOYUAN_MAILBOX_FILE}.${process.pid}.${Date.now()}.tmp`;
-  try {
-    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');
-    fs.renameSync(tempPath, TAOYUAN_MAILBOX_FILE);
-  } catch (error) {
-    try {
-      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    } catch {}
-    throw error;
-  }
+  writeJsonFileAtomic(TAOYUAN_MAILBOX_FILE, data);
 }
 
 async function withMailboxLock(fn) {

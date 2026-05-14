@@ -1,0 +1,10 @@
+{
+  "id": "endgame_showcase",
+  "label": "终局综合档",
+  "tags": ["endgame", "economy", "breeding", "fishpond", "museum", "hanhai", "village"],
+  "loader": "built-in",
+  "notes": [
+    "通过开发态样例存档加载器直接注入",
+    "重点验证终局多系统联动、结构化日志与周快照复用"
+  ]
+}

@@ -262,6 +262,7 @@ module.exports = {
   getTaoyuanSavePath,
   normalizeSlotEntry,
   createEmptySlots,
+  writeJsonFileAtomic,
   loadUserSaveSlots,
   saveUserSaveSlots,
   loadActiveSlots,

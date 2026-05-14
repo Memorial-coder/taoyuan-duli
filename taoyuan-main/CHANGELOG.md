@@ -2088,6 +2088,14 @@
 - `src/stores/useMailboxStore.ts`、`src/stores/useSaveStore.ts` 已把邮箱领奖后的自动回读收紧到“当前真实运行中的服务端会话”上，并在存在本地 pending 副本时直接跳过危险回读；同时新增更明确的 `reason_detail/message`，避免旧 `pendingRaw` 把刚领取的服务端奖励重新覆盖掉。
 - `src/stores/useSaveStore.ts` 已为同槽位待同步副本补上“仅当仍是同一版本才清理”的并发护栏：旧上传先返回时不会再把较新的 pending 副本误删，避免补传链路把新进度丢回旧版本。
 - `src/views/game/WalletView.vue`、`src/stores/useSaveStore.ts` 已把额度兑换绑定到“当前真实运行中的服务端会话”上，并在当前槽位仍有待同步本地副本时直接拦截兑换；这样不会再把 queued/pending 状态误当成已确认的服务端活动槽，降低资源写错档风险。
+- `src/views/MainMenu.vue` 已把公共配置的真实生效状态直接露给主菜单：当前会显示官方实时 / 官方缓存 / 本地默认来源、托管字段，以及返回入口链接被安全回退时的显式提示，不再只在日志里埋原因。
+- `src/views/HallView.vue` 已把大厅首屏说明收口到真实三态：在线可互动、游客只读、服务不可用分别给出不同描述；移动端发帖浮按钮也会随真实可互动状态禁用。
+- `scripts/run-e2e.mjs`、`scripts/port-utils.mjs`、`playwright.config.ts` 已统一 E2E 起服方式：端口分配与 dev server 由 `run-e2e.mjs` 接管，Playwright 不再自己抢固定 `4175` 端口，当前剩余失败已收敛为本环境浏览器启动 `spawn EPERM`。
+- `server/src/taoyuanSaveRuntime.js`、`server/src/taoyuanMailbox.js`、`server/src/taoyuanHall.js` 已统一复用原子 JSON 写回 helper；大厅 / 邮箱数据文件不再各自直接 `writeFileSync(JSON.stringify(...))`，在线奖励与悬赏相关数据写回更稳。
+- `src/components/game/AiAssistantAdminPanel.vue`、`src/components/game/AdminHomepageAboutPanel.vue` 已补统一状态摘要：当前会把来源标签转成中文，并直接显示托管字段与最近回退原因，后台不再只露一个生硬的 source code。
+- `server/scripts/qa-online-smoke.mjs` 已补第一版在线 smoke，并通过健康检查、公共配置、AI 公共配置、大厅列表与未登录拒绝路径的实跑验证；在线链路开始具备最低限度的自动验活能力。
+- `server/scripts/qa-online-smoke.mjs` 已继续扩到真实登录 / 写入主链路：当前会临时注册账号、建立会话与 CSRF、写服务端槽位、设置当前槽位、创建大厅帖子、创建系统邮件并回读邮箱列表，在线 smoke 不再只停留在匿名读接口。
+- `server/src/taoyuanMailbox.js` 已补回 `ensureTaoyuanSavesDir` 与 `TAOYUAN_SAVES_DIR` 的 runtime 引入，修复 `POST /api/taoyuan/mail/system-campaign` 在“仅发送给有服务端存档的账号”路径上会直接 500 的问题。
 - `src/stores/useCookingStore.ts`、`src/stores/useMiningStore.ts`、`src/data/recipes.ts` 已把料理 `activeBuff` 的“语义层”拆开处理：`体力上限+30（当天）` 现在会提供真实的临时体力上限而不再直接回满体力，`防御+3` 会按固定减伤而不是百分比误算；同时把原本实际按减耗生效的少数“农耕/采矿技能+1/+2”料理文案改成与真实效果一致，避免继续出现文案与结算错位。
 - 当前复核状态：
   - `npm run type-check`

@@ -1,0 +1,97 @@
+{
+  "campaigns": [
+    {
+      "id": "mail_campaign_1778769833674_z6uok8",
+      "created_at": 1778769833,
+      "created_by": "smk_tzve27",
+      "created_by_display_name": "Smoketzve27",
+      "sent_at": 1778769833,
+      "sent_count": 1,
+      "title": "smoke mail 1778769833531",
+      "content": "smoke mail content",
+      "template_type": "activity_notice",
+      "recipient_rule": {
+        "mode": "single",
+        "username": "smk_tzve27",
+        "usernames": [],
+        "keyword": "",
+        "target_slot": null,
+        "targets": []
+      },
+      "rewards": [],
+      "duplicate_compensation_money": 0,
+      "expires_at": null,
+      "scheduled_at": null,
+      "updated_at": 1778769833,
+      "recipient_count_preview": 1,
+      "status": "sent"
+    },
+    {
+      "id": "mail_campaign_1778769775880_nwzrsu",
+      "title": "smoke mail 1778769775743",
+      "content": "smoke mail content",
+      "template_type": "activity_notice",
+      "status": "sent",
+      "recipient_rule": {
+        "mode": "single",
+        "username": "smk_s8059g",
+        "usernames": [],
+        "keyword": "",
+        "target_slot": null,
+        "targets": []
+      },
+      "rewards": [],
+      "duplicate_compensation_money": 0,
+      "expires_at": null,
+      "scheduled_at": null,
+      "created_at": 1778769775,
+      "updated_at": 1778769775,
+      "sent_at": 1778769775,
+      "created_by": "smk_s8059g",
+      "created_by_display_name": "Smokes8059g",
+      "recipient_count_preview": 1,
+      "sent_count": 1
+    }
+  ],
+  "deliveries": [
+    {
+      "id": "mail_delivery_1778769775921_mx46j1",
+      "campaign_id": "mail_campaign_1778769775880_nwzrsu",
+      "username": "smk_s8059g",
+      "recipient_display_name": "Smokes8059g",
+      "title": "smoke mail 1778769775743",
+      "content": "smoke mail content",
+      "template_type": "activity_notice",
+      "rewards": [],
+      "target_slot": 0,
+      "duplicate_compensation_money": 0,
+      "created_at": 1778769775,
+      "sent_at": 1778769775,
+      "expires_at": null,
+      "read_at": null,
+      "claimed_at": null,
+      "deleted_at": null,
+      "claim_result": null
+    },
+    {
+      "id": "mail_delivery_1778769833716_il8iav",
+      "campaign_id": "mail_campaign_1778769833674_z6uok8",
+      "username": "smk_tzve27",
+      "recipient_display_name": "Smoketzve27",
+      "title": "smoke mail 1778769833531",
+      "content": "smoke mail content",
+      "template_type": "activity_notice",
+      "rewards": [],
+      "target_slot": 0,
+      "duplicate_compensation_money": 0,
+      "created_at": 1778769833,
+      "sent_at": 1778769833,
+      "expires_at": null,
+      "read_at": null,
+      "claimed_at": null,
+      "deleted_at": null,
+      "claim_result": null
+    }
+  ],
+  "claim_logs": []
+}

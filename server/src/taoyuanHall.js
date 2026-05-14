@@ -6,6 +6,7 @@ const {
   clearActiveSaveSlotIfMatches,
   getActiveSaveContext,
   persistGameplayData,
+  writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime')
 
 const TAOYUAN_HALL_FILE = path.join(
@@ -199,7 +200,7 @@ function loadHallData() {
 
 function saveHallData(data) {
   ensureHallDir()
-  fs.writeFileSync(TAOYUAN_HALL_FILE, JSON.stringify(data, null, 2), 'utf8')
+  writeJsonFileAtomic(TAOYUAN_HALL_FILE, data)
 }
 
 async function withHallLock(fn) {
