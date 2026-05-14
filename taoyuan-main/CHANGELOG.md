@@ -2096,6 +2096,7 @@
 - `server/scripts/qa-online-smoke.mjs` 已补第一版在线 smoke，并通过健康检查、公共配置、AI 公共配置、大厅列表与未登录拒绝路径的实跑验证；在线链路开始具备最低限度的自动验活能力。
 - `server/scripts/qa-online-smoke.mjs` 已继续扩到真实登录 / 写入主链路：当前会临时注册账号、建立会话与 CSRF、写服务端槽位、设置当前槽位、创建大厅帖子、创建系统邮件并回读邮箱列表，在线 smoke 不再只停留在匿名读接口。
 - `server/src/taoyuanMailbox.js` 已补回 `ensureTaoyuanSavesDir` 与 `TAOYUAN_SAVES_DIR` 的 runtime 引入，修复 `POST /api/taoyuan/mail/system-campaign` 在“仅发送给有服务端存档的账号”路径上会直接 500 的问题。
+- `server/scripts/qa-online-smoke.mjs` 已继续扩到更深玩家链路：现在还会验证登录后回帖、奖励邮件已读、奖励领取、服务端存档回读验钱，以及本人帖子删除；同时 smoke server 会强制使用隔离 `DB_STORAGE`，避免本机其它副本或外部 MySQL 波动污染回归结果。
 - `src/stores/useCookingStore.ts`、`src/stores/useMiningStore.ts`、`src/data/recipes.ts` 已把料理 `activeBuff` 的“语义层”拆开处理：`体力上限+30（当天）` 现在会提供真实的临时体力上限而不再直接回满体力，`防御+3` 会按固定减伤而不是百分比误算；同时把原本实际按减耗生效的少数“农耕/采矿技能+1/+2”料理文案改成与真实效果一致，避免继续出现文案与结算错位。
 - 当前复核状态：
   - `npm run type-check`

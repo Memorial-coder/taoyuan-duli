@@ -71,7 +71,7 @@ export const useAnimalStore = defineStore('animal', () => {
       id: 'bowl',
       label: '食盆位',
       unlocked: homeStore.farmhouseLevel >= 2,
-      summary: homeStore.farmhouseLevel >= 2 ? '食盆位开放后，第二只宠物路线也会一起出现。' : '把农舍升到 2 级后开放。', 
+      summary: homeStore.farmhouseLevel >= 2 ? '食盆已经摆好，家里也能开始准备第二只宠物了。' : '把农舍升到 2 级后开放。',
       requirement: '农舍 2 级'
     },
     {
@@ -80,7 +80,7 @@ export const useAnimalStore = defineStore('animal', () => {
       unlocked: homeStore.farmhouseLevel >= 3 || completedVillageProjectCount.value >= 8,
       summary:
         homeStore.farmhouseLevel >= 3 || completedVillageProjectCount.value >= 8
-          ? '可挂护符与家居小饰，第三只宠物路线也会随之松动。'
+          ? '这里已经能挂上饰物，家里也可以开始准备第三只宠物了。'
           : '农舍 3 级或村庄建设完成 8 项后开放。',
       requirement: '农舍 3 级 / 建设 8 项'
     }

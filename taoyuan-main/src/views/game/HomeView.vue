@@ -45,12 +45,12 @@
               <p class="text-xs text-accent truncate">{{ project.name }}</p>
               <span class="text-[10px] text-muted whitespace-nowrap">{{ project.contentTier }} · {{ project.fundingPhase }}</span>
             </div>
-            <p class="text-[10px] text-muted mt-0.5 leading-4">{{ project.blockedReason ?? '材料、铜钱和专项进度已满足，可直接推进。' }}</p>
+            <p class="text-[10px] text-muted mt-0.5 leading-4">{{ project.blockedReason ?? '材料和铜钱都够了，现在就能动工。' }}</p>
           </div>
         </div>
       </div>
       <div v-else class="border border-accent/10 rounded-xs p-2 mb-2">
-        <p class="text-xs text-muted">当前暂无新的建设项目可推进，先看看维护计划、捐赠计划或其他系统前置进度。</p>
+        <p class="text-xs text-muted">眼下没有新的建设能立刻开工，先去看看维护安排、捐赠计划，或者补一补前面的进度。</p>
       </div>
 
     <div v-if="villageWorldChangeHighlights.length > 0" class="border border-accent/10 rounded-xs p-2 mb-2">
@@ -109,7 +109,7 @@
       </div>
       <p class="text-xs text-accent">{{ advancedWorkbenchReward.label }}</p>
       <p class="text-xs text-muted mt-1">{{ advancedWorkbenchReward.summary }}</p>
-      <p class="text-[10px] text-muted/80 mt-1">挂接位置：{{ advancedWorkbenchReward.panelHint }}</p>
+      <p class="text-[10px] text-muted/80 mt-1">现在会出现在：{{ advancedWorkbenchReward.panelHint }}</p>
     </div>
 
     <div v-if="animalStore.pets.length > 0" class="border border-accent/20 rounded-xs p-3 mb-4">
@@ -117,7 +117,7 @@
         <p class="text-sm text-accent">宠物角</p>
         <span class="text-[10px] text-muted">{{ animalStore.pets.length }}/{{ animalStore.petCapacity }}</span>
       </div>
-      <p class="text-xs text-muted mb-2">宠物路线会跟着家居和家园成长一起展开，不会作为独立孤岛系统存在。</p>
+      <p class="text-xs text-muted mb-2">家里越住越舒坦，宠物角也会慢慢完善；继续扩建农舍，就能陆续开放新的照料位置。</p>
       <div class="space-y-1">
         <div v-for="slot in animalStore.petCareSlots" :key="slot.id" class="flex items-center justify-between text-[10px] border border-accent/10 rounded-xs px-2 py-1.5">
           <span>{{ slot.label }}</span>
@@ -144,7 +144,7 @@
           <p class="text-[10px] text-muted mt-1">材料：{{ getHomeRenovationMaterialText(entry.materialCost) }}</p>
           <div class="flex items-center justify-between gap-2 mt-2">
             <p class="text-[10px]" :class="entry.available ? 'text-success' : 'text-muted'">
-              {{ entry.unlocked ? '这处扩建已经并入家园日常。' : entry.blockedReason || '材料和铜钱已满足，可以开工。' }}
+              {{ entry.unlocked ? '这处扩建已经收拾妥当，平时会一直陪着你用。' : entry.blockedReason || '材料和铜钱都够了，现在就能开工。' }}
             </p>
             <Button v-if="!entry.unlocked" class="justify-center !px-2 !py-1" :disabled="!entry.available" @click="handleUnlockHomeRenovation(entry.id)">
               开工
@@ -833,7 +833,7 @@
         unlocked: homeStore.hasHomeRenovation('scholar_room'),
         requirement: '需完成「书房偏厢」',
         summary: homeStore.hasHomeRenovation('scholar_room')
-          ? `当前已收进 ${unlockedBooks} 本游学书肆藏书，后续可继续承接见闻书与技能书。`
+          ? `书架上已经摆进了 ${unlockedBooks} 本藏书，后面还能继续慢慢添新书。`
           : '先腾出书房偏厢，才能把书商和见闻书真正安进家里。'
       },
       {
@@ -843,9 +843,9 @@
         requirement: '需完成「祠前陈设墙」',
         summary: homeStore.hasHomeRenovation('ancestral_display_wall')
           ? skillStore.dailyBlessingPreview
-            ? `今日可供奉「${skillStore.dailyBlessingPreview.label}」，家居位已经开始认精通祝福。`
-            : '祝福位已备好，等精通神像线继续展开后会承接更多每日偏向。'
-          : '把祝福做成看得见的家居位，而不是只留在一行系统字里。'
+            ? `今天可以供奉「${skillStore.dailyBlessingPreview.label}」，祝福已经在家里有了落脚的地方。`
+            : '祝福位已经备好，后面还会慢慢放进更多日常供奉。'
+          : '把陈设墙收拾出来后，家里的祝福位也会跟着准备好。'
       },
       {
         id: 'trophy_slot',
@@ -863,8 +863,8 @@
         requirement: '需完成「待客茶角」或「祠前陈设墙」',
         summary:
           homeStore.hasHomeRenovation('tea_corner') || homeStore.hasHomeRenovation('ancestral_display_wall')
-            ? `当前已能承接 ${mysteryBoxKinds} 类密匣见闻、${sealedBoxes} 只待开密匣与 ${prizeMilestones} 条赏格进度，轻收藏开始真正在家里落脚。`
-            : '节庆纪念、密匣见闻和赏格回响，后续都会优先沉淀到这一类家居位里。'
+            ? `现在已经能摆下 ${mysteryBoxKinds} 类密匣见闻、${sealedBoxes} 只待开的密匣和 ${prizeMilestones} 条赏格纪念，家里会越来越有故事感。`
+            : '节庆纪念、密匣见闻和赏格回响，后面都会慢慢摆进这些位置。'
       }
     ]
   })

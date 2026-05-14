@@ -21,7 +21,7 @@
       </div>
       <template v-if="petRoster.length > 0">
         <div class="border border-accent/10 rounded-xs p-2 mb-2 bg-bg/10">
-          <p class="text-[10px] text-muted mb-1">宠物路线</p>
+          <p class="text-[10px] text-muted mb-1">宠物扩展</p>
           <div class="space-y-1">
             <div v-for="route in animalStore.petRouteProgress" :key="route.label" class="flex items-center justify-between text-[10px]">
               <span>{{ route.label }}</span>
@@ -31,13 +31,45 @@
         </div>
         <div class="border border-accent/10 rounded-xs p-2 mb-2">
           <p class="text-[10px] text-muted mb-1">宠物角</p>
+          <p class="text-[10px] text-muted/80 mb-2 leading-4">点开每个位置，可以看看它现在能做什么、还差什么，以及下一步该去哪里。</p>
           <div class="space-y-1">
-            <div v-for="slot in animalStore.petCareSlots" :key="slot.id" class="border border-accent/10 rounded-xs px-2 py-1.5">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-xs text-accent">{{ slot.label }}</span>
-                <span :class="slot.unlocked ? 'text-success text-[10px]' : 'text-muted text-[10px]'">{{ slot.unlocked ? '已开放' : slot.requirement }}</span>
+            <div
+              v-for="slot in animalStore.petCareSlots"
+              :key="slot.id"
+              class="border rounded-xs px-2 py-1.5"
+              :class="expandedPetCareSlotId === slot.id ? 'border-accent/20 bg-bg/10' : 'border-accent/10'"
+            >
+              <button type="button" class="w-full text-left" @click="togglePetCareSlotGuide(slot.id)">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <span class="text-xs text-accent">{{ slot.label }}</span>
+                    <p class="text-[10px] text-muted mt-0.5 leading-4">{{ slot.summary }}</p>
+                  </div>
+                  <div class="shrink-0 text-right">
+                    <span :class="slot.unlocked ? 'text-success text-[10px]' : 'text-muted text-[10px]'">{{ slot.unlocked ? '已开放' : slot.requirement }}</span>
+                    <p class="text-[10px] text-accent/80 mt-1">{{ expandedPetCareSlotId === slot.id ? '收起说明' : '查看说明' }}</p>
+                  </div>
+                </div>
+              </button>
+              <div v-if="expandedPetCareSlotId === slot.id" class="mt-2 border-t border-accent/10 pt-2 space-y-2">
+                <p
+                  v-for="line in getPetCareSlotGuide(slot).detailLines"
+                  :key="`${slot.id}-${line}`"
+                  class="text-[10px] text-muted leading-4"
+                >
+                  · {{ line }}
+                </p>
+                <div v-if="getPetCareSlotGuide(slot).actions.length > 0" class="flex flex-wrap gap-2">
+                  <Button
+                    v-for="action in getPetCareSlotGuide(slot).actions"
+                    :key="`${slot.id}-${action.key}`"
+                    class="justify-center py-0 px-2"
+                    @click="handlePetCareGuideAction(action)"
+                  >
+                    {{ action.label }}
+                  </Button>
+                </div>
               </div>
-              <p class="text-[10px] text-muted mt-0.5 leading-4">{{ slot.summary }}</p>
             </div>
           </div>
         </div>
@@ -488,7 +520,7 @@
             <p class="text-sm text-accent">收养新宠</p>
             <Button class="py-0 px-1" :icon="X" :icon-size="12" @click="closePetAdoptionModal" />
           </div>
-          <p class="text-xs text-muted mb-2">第二只和第三只宠物会更偏向生活层轻反馈，不会替代主线推进。</p>
+          <p class="text-xs text-muted mb-2">第二只和第三只宠物更像陪伴和生活点缀，平时会带来一些轻松的小反馈。</p>
           <div class="flex space-x-2 mb-3">
             <Button class="flex-1 justify-center" :class="petAdoptionType === 'cat' ? '!bg-accent !text-bg' : ''" @click="petAdoptionType = 'cat'">猫</Button>
             <Button class="flex-1 justify-center" :class="petAdoptionType === 'dog' ? '!bg-accent !text-bg' : ''" @click="petAdoptionType = 'dog'">狗</Button>
@@ -621,6 +653,7 @@
 
 <script setup lang="ts">
   import { ref, computed } from 'vue'
+  import { useRouter } from 'vue-router'
   import { Hammer, ShoppingCart, Hand, Apple, Home, ArrowUp, Egg, X, Coins, Syringe, Pencil } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import { useAnimalStore } from '@/stores/useAnimalStore'
@@ -629,11 +662,12 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { ANIMAL_BUILDINGS, ANIMAL_DEFS, HAY_ITEM_ID, getItemById, getBuildingUpgrade, INCUBATION_MAP, FEED_DEFS } from '@/data'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
-  import type { AnimalBuildingType, AnimalType, AnimalDef } from '@/types'
+  import type { AnimalBuildingType, AnimalType, AnimalDef, PetCareSlotSummary } from '@/types'
   import { addLog } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
   import { useTutorialStore } from '@/stores/useTutorialStore'
 
+  const router = useRouter()
   const animalStore = useAnimalStore()
   const inventoryStore = useInventoryStore()
   const playerStore = usePlayerStore()
@@ -740,6 +774,7 @@
   /** 未喂食动物数量 */
   const unfedCount = computed(() => animalStore.animals.filter(a => !a.wasFed).length)
   const petRoster = computed(() => animalStore.pets)
+  const expandedPetCareSlotId = ref<PetCareSlotSummary['id'] | null>(null)
 
   /** 兽药库存数量 */
   const medicineCount = computed(() => inventoryStore.getItemCount('animal_medicine'))
@@ -840,6 +875,66 @@
     if (companion.friendship >= 850) return '猫叼线索：高好感时更常衔物，也会替你记住纸条和传闻。'
     if (companion.friendship >= 600) return '猫叼线索：偶尔会把你没留意的细节留在窗边或桌角。'
     return '多陪陪它，猫会慢慢开始把你当作真正的家人。'
+  }
+
+  type PetCareGuideAction = {
+    key: 'adopt' | 'home' | 'village-projects'
+    label: string
+  }
+
+  type PetCareGuide = {
+    detailLines: string[]
+    actions: PetCareGuideAction[]
+  }
+
+  const togglePetCareSlotGuide = (slotId: PetCareSlotSummary['id']) => {
+    expandedPetCareSlotId.value = expandedPetCareSlotId.value === slotId ? null : slotId
+  }
+
+  const getPetCareSlotGuide = (slot: PetCareSlotSummary): PetCareGuide => {
+    if (slot.id === 'nest') {
+      const actions: PetCareGuideAction[] = [
+        { key: 'home', label: '去看家园' },
+        ...(animalStore.canAdoptAdditionalPet ? [{ key: 'adopt', label: '收养新宠' } satisfies PetCareGuideAction] : [])
+      ]
+      return {
+        detailLines: [
+          '这里是第一只宠物安家的地方，平时可以在牧场页陪它、抚摸它，也能慢慢攒好感。',
+          animalStore.canAdoptAdditionalPet ? '家里已经腾出了新位置，想添新伙伴的话，可以直接点下面的收养入口。' : '想再添新伙伴的话，先把农舍继续扩建。'
+        ],
+        actions
+      }
+    }
+
+    if (slot.id === 'bowl') {
+      const actions: PetCareGuideAction[] = [{ key: 'home', label: '去看设施' }]
+      return {
+        detailLines: slot.unlocked
+          ? ['食盆已经摆好，家里可以开始准备第二只宠物了。', '如果还想继续扩出更多位置，优先去看看农舍升级。']
+          : ['把农舍升到 2 级后，这里就会摆上食盆。', '食盆位一开，第二只宠物也会跟着有地方住。'],
+        actions
+      }
+    }
+
+    const actions: PetCareGuideAction[] = [
+      { key: 'home', label: '去看设施' },
+      { key: 'village-projects', label: '去看建设' }
+    ]
+    return {
+      detailLines: slot.unlocked
+        ? ['饰物位已经备好，可以慢慢把宠物角布置得更像一个家。', '这通常也意味着家里已经有条件准备第三只宠物了。']
+        : ['想开放这里，可以把农舍升到 3 级，或者多推进几项村庄建设。', '等位置腾出来后，第三只宠物也会跟着有动静。'],
+      actions
+    }
+  }
+
+  const handlePetCareGuideAction = (action: PetCareGuideAction) => {
+    if (action.key === 'adopt') {
+      showPetAdoptionModal.value = true
+      return
+    }
+
+    void router.push({ name: action.key })
   }
 
   // === 放牧 ===

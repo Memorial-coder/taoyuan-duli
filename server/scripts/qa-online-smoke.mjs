@@ -1,10 +1,13 @@
 import { spawn } from 'node:child_process'
 import net from 'node:net'
 import path from 'node:path'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
+const require = createRequire(import.meta.url)
+const { decryptTaoyuanRaw, encryptTaoyuanData } = require('../src/taoyuanSaveRuntime')
 const serverRoot = path.resolve(__dirname, '..')
 const smokeStorageFile = path.resolve(serverRoot, '.tmp-online-smoke', '.storage.json')
 const host = '127.0.0.1'
@@ -248,12 +251,21 @@ try {
     sessionState.csrfToken = data.csrf_token
   })
 
-  const rawSavePayload = Buffer.from(JSON.stringify({
+  const rawSavePayload = encryptTaoyuanData({
     player: {
       money: 1200,
       name: sessionState.username,
     },
-  }), 'utf8').toString('base64')
+    inventory: {
+      items: [],
+      tempItems: [],
+      ownedWeapons: [],
+      ownedRings: [],
+      ownedHats: [],
+      ownedShoes: [],
+      capacity: 24,
+    },
+  })
 
   await runCheck('POST /api/taoyuan/save/:slot write path', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/save/0', {
@@ -316,6 +328,23 @@ try {
     assert(data?.ok === true && data?.post?.id === createdPostId, 'hall post detail payload is incomplete')
   })
 
+  let createdReplyId = ''
+  await runCheck('POST /api/taoyuan/hall/posts/:id/replies write path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/hall/posts/${encodeURIComponent(createdPostId)}/replies`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        content: 'smoke reply content',
+      }),
+    })
+    assert(response.ok, `hall reply create returned ${response.status}`)
+    assert(data?.ok === true && data?.post?.replies?.length, 'hall reply payload is incomplete')
+    createdReplyId = String(data.post.replies[data.post.replies.length - 1]?.id || '')
+    assert(createdReplyId, 'hall reply id was not created')
+  })
+
   await runCheck('POST /api/taoyuan/mail/system-campaign write path', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/mail/system-campaign', {
       method: 'POST',
@@ -332,11 +361,85 @@ try {
     assert(data?.ok === true && data?.campaign?.id, 'system campaign payload is incomplete')
   })
 
+  const adminToken = String(process.env.ADMIN_TOKEN || '').trim()
+  let rewardMailId = ''
+  await runCheck('POST /api/admin/taoyuan/mail/campaigns reward path', async () => {
+    assert(adminToken, 'ADMIN_TOKEN is required for reward mail smoke')
+    const { response, data } = await fetchAuthedJson('/api/admin/taoyuan/mail/campaigns', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken,
+      },
+      body: JSON.stringify({
+        action: 'send',
+        template_type: 'activity_reward',
+        title: `smoke reward ${Date.now()}`,
+        content: 'smoke reward content',
+        recipient_rule: {
+          mode: 'single',
+          username: sessionState.username,
+          target_slot: 0,
+        },
+        rewards: [
+          {
+            type: 'money',
+            amount: 321,
+          },
+        ],
+        duplicate_compensation_money: 0,
+      }),
+    })
+    assert(response.ok, `admin reward campaign returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.campaign?.id, 'admin reward campaign payload is incomplete')
+  })
+
   await runCheck('GET /api/taoyuan/mail/list login state', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/mail/list')
     assert(response.ok, `mail list returned ${response.status}`)
     assert(data?.ok === true, 'mail list did not return ok=true')
     assert(Array.isArray(data?.mails), 'mail list payload is incomplete')
+    rewardMailId = String(data.mails.find(item => item?.can_claim === true)?.id || '')
+    assert(rewardMailId, 'reward mail was not delivered to mailbox list')
+  })
+
+  await runCheck('GET /api/taoyuan/mail/:id detail path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/mail/${encodeURIComponent(rewardMailId)}`)
+    assert(response.ok, `mail detail returned ${response.status}`)
+    assert(data?.ok === true && data?.mail?.id === rewardMailId, 'mail detail payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/mail/:id/read write path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/mail/${encodeURIComponent(rewardMailId)}/read`, {
+      method: 'POST',
+    })
+    assert(response.ok, `mail read returned ${response.status}`)
+    assert(data?.ok === true && data?.mail?.read_at, 'mail read payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/mail/:id/claim reward path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/mail/${encodeURIComponent(rewardMailId)}/claim`, {
+      method: 'POST',
+    })
+    assert(response.ok, `mail claim returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.result?.money_added === 321, 'mail claim payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/save/:slot reward persistence', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(response.ok, `save slot read returned ${response.status}`)
+    assert(data?.ok === true && typeof data?.raw === 'string', 'save slot read payload is incomplete')
+    const decrypted = decryptTaoyuanRaw(data.raw)
+    assert(Number(decrypted?.player?.money) === 1521, `reward payout did not persist to save slot, current money=${decrypted?.player?.money}`)
+  })
+
+  await runCheck('DELETE /api/taoyuan/hall/posts/:id owner cleanup', async () => {
+    assert(createdReplyId, 'reply creation did not complete before cleanup')
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/hall/posts/${encodeURIComponent(createdPostId)}`, {
+      method: 'DELETE',
+    })
+    assert(response.ok, `hall post delete returned ${response.status}`)
+    assert(data?.ok === true, 'hall post delete payload is incomplete')
   })
 
   console.log('[qa-online-smoke] OK')
