@@ -411,9 +411,11 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
 
   if (next.quest && typeof next.quest === 'object') {
     next.quest = {
+      ...next.quest,
       boardQuests: next.quest.boardQuests ?? [],
       activeQuests: next.quest.activeQuests ?? [],
       completedQuestCount: next.quest.completedQuestCount ?? 0,
+      completedQuestHistory: next.quest.completedQuestHistory ?? [],
       specialOrder: next.quest.specialOrder ?? null,
       specialOrderSettlementReceipts: next.quest.specialOrderSettlementReceipts ?? [],
       recentSpecialOrderTagHistory: next.quest.recentSpecialOrderTagHistory ?? [],
@@ -441,20 +443,33 @@ const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number):
       catalogExpansionState: createDefaultShopCatalogExpansionState(),
       travelingStockKey: '',
       travelingStock: [],
+      booksellerStockKey: '',
+      booksellerStock: [],
+      ownedBooksellerBookIds: [],
       shippingBox: [],
       shippedItems: [],
       shippingHistory: {},
+      shippingItemHistory: {},
+      shippingLifetimeCategoryTotals: {},
+      shippingLifetimeItemTotals: {},
       marketDynamics: createDefaultMarketDynamicsState()
     }
   } else {
     next.shop = {
+      ...next.shop,
       ownedCatalogOfferIds: next.shop.ownedCatalogOfferIds ?? [],
       catalogExpansionState: next.shop.catalogExpansionState ?? createDefaultShopCatalogExpansionState(),
       travelingStockKey: next.shop.travelingStockKey ?? '',
       travelingStock: next.shop.travelingStock ?? [],
+      booksellerStockKey: next.shop.booksellerStockKey ?? '',
+      booksellerStock: next.shop.booksellerStock ?? [],
+      ownedBooksellerBookIds: next.shop.ownedBooksellerBookIds ?? [],
       shippingBox: next.shop.shippingBox ?? [],
       shippedItems: next.shop.shippedItems ?? [],
       shippingHistory: next.shop.shippingHistory ?? {},
+      shippingItemHistory: next.shop.shippingItemHistory ?? {},
+      shippingLifetimeCategoryTotals: next.shop.shippingLifetimeCategoryTotals ?? {},
+      shippingLifetimeItemTotals: next.shop.shippingLifetimeItemTotals ?? {},
       marketDynamics: next.shop.marketDynamics ?? createDefaultMarketDynamicsState()
     }
   }

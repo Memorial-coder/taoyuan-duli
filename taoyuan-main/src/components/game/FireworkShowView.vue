@@ -107,9 +107,10 @@
         </p>
         <p class="text-xs">
           总奖金：
-          <span class="text-accent">{{ score }}</span>
+          <span class="text-accent">{{ displayTotalPrize }}</span>
           文
           <span v-if="completedRounds === 5" class="text-accent finish-flash">（全通+200文！）</span>
+          <span v-if="props.bonusMoney > 0" class="text-success">（含年度追加{{ props.bonusMoney }}文）</span>
         </p>
       </div>
       <Button class="w-full" @click="handleClaim">领取奖励</Button>
@@ -133,6 +134,15 @@
   } from '@/composables/useAudio'
   import Button from '@/components/game/Button.vue'
 
+  const props = withDefaults(
+    defineProps<{
+      bonusMoney?: number
+    }>(),
+    {
+      bonusMoney: 0
+    }
+  )
+
   const emit = defineEmits<{ complete: [prize: number] }>()
 
   type Phase = 'ready' | 'watching' | 'repeating' | 'round_success' | 'round_fail' | 'finished'
@@ -151,6 +161,7 @@
   /** 回忆阶段倒计时 */
   const recallTimeLeft = ref(0)
   const recallTimeLimit = ref(0)
+  const displayTotalPrize = computed(() => score.value + props.bonusMoney)
 
   const fireworkColors = ['#c8a45c', '#c34043', '#5a9e6f', '#c8a45c', '#c34043', '#5a9e6f']
 

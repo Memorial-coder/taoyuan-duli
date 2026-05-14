@@ -166,7 +166,8 @@ export const generateBooksellerStock = (
 ): BooksellerStockEntry[] => {
   const seed = year * 13000 + seasonIndex * 1100 + day * 43
   const rng = seededRandom(seed)
-  const available = [...BOOKS].sort(() => rng() - 0.5)
+  const ownedBookSet = new Set(ownedBookIds)
+  const available = BOOKS.filter(book => !ownedBookSet.has(book.id)).sort(() => rng() - 0.5)
   const weighted = available
     .map(book => ({
       book,
@@ -176,7 +177,7 @@ export const generateBooksellerStock = (
     .slice(0, 4)
     .map(entry => ({
       ...entry.book,
-      quantity: ownedBookIds.includes(entry.book.id) ? 0 : 1
+      quantity: 1
     }))
 
   return weighted

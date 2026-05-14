@@ -2148,6 +2148,19 @@ export const useQuestStore = defineStore('quest', () => {
       .slice(0, COMPLETED_QUEST_HISTORY_LIMIT)
   }
 
+  const backfillArchivedSpecialOrdersFromHistory = () => {
+    for (const entry of completedQuestHistory.value) {
+      if (!entry.isSpecialOrder) continue
+      const completedDayTag = entry.completedDayTag || 'legacy'
+      if (!playerStore.hasLifestyleDiscovery('specialOrders', entry.questId)) {
+        playerStore.markSpecialOrderArchived(entry.questId, completedDayTag)
+      }
+      if (entry.npcId && !playerStore.hasLifestyleDiscovery('specialOrders', `npc:${entry.npcId}`)) {
+        playerStore.markSpecialOrderArchived(`npc:${entry.npcId}`, completedDayTag)
+      }
+    }
+  }
+
   const normalizeStagePhaseType = (input: unknown): SpecialOrderStageDef['phaseType'] => {
     if (input === 'prepare') return 'prepare'
     if (input === 'verify') return 'verify'
@@ -2662,6 +2675,7 @@ export const useQuestStore = defineStore('quest', () => {
     activeQuests.value = (Array.isArray(data?.activeQuests) ? data.activeQuests : []).map(normalizeQuestInstance).filter((quest): quest is QuestInstance => quest !== null)
     completedQuestCount.value = data.completedQuestCount ?? 0
     completedQuestHistory.value = normalizeCompletedQuestHistory((data as Record<string, unknown>).completedQuestHistory)
+    backfillArchivedSpecialOrdersFromHistory()
     specialOrder.value = normalizeQuestInstance((data as Record<string, unknown>).specialOrder ?? null)
     specialOrderSettlementReceipts.value = normalizeStringArray((data as Record<string, unknown>).specialOrderSettlementReceipts) ?? []
     recentSpecialOrderTagHistory.value = normalizeStringArray((data as Record<string, unknown>).recentSpecialOrderTagHistory) ?? []

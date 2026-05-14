@@ -2,7 +2,6 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { SECRET_NOTES, getItemById, getTodayEvent } from '@/data'
 import type { SecretNoteCategory, SecretNoteDef, SecretNoteSource } from '@/types'
-import { useAchievementStore } from './useAchievementStore'
 import { useGameStore } from './useGameStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useInventoryStore } from './useInventoryStore'
@@ -17,6 +16,7 @@ type SecretLeadState = {
   source: SecretNoteSource | ''
   unlockedDayTag: string
   resolvedDayTag: string
+  recordText: string
 }
 
 type SecretNoteVerificationStatus = 'untracked' | 'tracked' | 'ready' | 'resolved'
@@ -68,12 +68,13 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
         noteId,
         source: current?.source || source,
         unlockedDayTag,
-        resolvedDayTag: current?.resolvedDayTag || ''
+        resolvedDayTag: current?.resolvedDayTag || '',
+        recordText: current?.recordText || ''
       }
     }
   }
 
-  const resolveLead = (noteId: number) => {
+  const resolveLead = (noteId: number, recordText = '') => {
     const current = getLeadState(noteId)
     if (!current) {
       ensureLeadTracked(noteId)
@@ -85,9 +86,11 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
           noteId,
           source: '',
           unlockedDayTag: buildCurrentDayTag(),
-          resolvedDayTag: ''
+          resolvedDayTag: '',
+          recordText: ''
         }),
-        resolvedDayTag: buildCurrentDayTag()
+        resolvedDayTag: buildCurrentDayTag(),
+        recordText: recordText || noteLeadStates.value[noteId]?.recordText || ''
       }
     }
   }
@@ -108,7 +111,6 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
     const npcStore = useNpcStore()
     const inventoryStore = useInventoryStore()
     const playerStore = usePlayerStore()
-    const achievementStore = useAchievementStore()
     const unmetConditions: string[] = []
 
     if ((verification.readableProjectLevel ?? 0) > villageProjectStore.villageProjectLevel) {
@@ -175,10 +177,9 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
     if (verification.requiredItemId) {
       const requiredCount = Math.max(1, verification.requiredItemCount ?? 1)
       const hasInventoryItem = inventoryStore.getItemCount(verification.requiredItemId) >= requiredCount
-      const discovered = achievementStore.isDiscovered(verification.requiredItemId)
-      if (!hasInventoryItem && !discovered) {
+      if (!hasInventoryItem) {
         const itemName = getItemById(verification.requiredItemId)?.name ?? verification.requiredItemId
-        unmetConditions.push(`需先拿到${itemName}${requiredCount > 1 ? `×${requiredCount}` : ''}`)
+        unmetConditions.push(`需随身带着${itemName}${requiredCount > 1 ? `×${requiredCount}` : ''}`)
       }
     }
     if (typeof verification.requiredMoney === 'number' && playerStore.money < verification.requiredMoney) {
@@ -214,7 +215,8 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
       summary: verification?.summary ?? '这是一张以阅读和记录为主的纸条。',
       hint: verification?.hint ?? '继续留意相关地点、人物和时机。',
       unmetConditions: evaluation.unmetConditions,
-      resolvedDayTag: getLeadState(noteId)?.resolvedDayTag ?? ''
+      resolvedDayTag: getLeadState(noteId)?.resolvedDayTag ?? '',
+      recordText: status === 'resolved' ? getLeadState(noteId)?.recordText || verification?.recordText || '' : ''
     }
   }
 
@@ -223,7 +225,8 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
     const uncollected = SECRET_NOTES.filter(note => !collectedNotes.value.includes(note.id))
     if (uncollected.length === 0) return null
     const sourceMatched = uncollected.filter(note => !note.sourceHints || note.sourceHints.includes(source))
-    const pool = sourceMatched.length > 0 ? sourceMatched : uncollected
+    const pool = sourceMatched.length > 0 ? sourceMatched : uncollected.filter(note => !note.sourceHints || note.sourceHints.length === 0)
+    if (pool.length === 0) return null
     const note = pool[Math.floor(Math.random() * pool.length)]!
     collectedNotes.value.push(note.id)
     if (note.verification) {
@@ -265,7 +268,7 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
     }
 
     usedNotes.value.push(noteId)
-    resolveLead(noteId)
+    resolveLead(noteId, noteDef.verification?.recordText ?? '')
 
     const rewards: string[] = []
     if (noteDef.reward?.money) {
@@ -287,6 +290,10 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
 
     const resultText = rewards.length > 0 ? `获得了${rewards.join('、')}。` : '这条线索被你正式写进了见闻记录。'
     const successText = noteDef.verification?.successText ?? '你顺着笔记上的线索完成了一次验证。'
+    if (noteDef.verification?.recordText) {
+      playerStore.markSecretLeadUnlocked(`record:${noteId}`, buildCurrentDayTag())
+      addLog(noteDef.verification.recordText)
+    }
     addLog(`秘密笔记 #${noteId} 验证成功：${successText}`)
     if (rewards.length > 0) {
       addLog(`使用了秘密笔记 #${noteId}，获得了${rewards.join('、')}！`)
@@ -324,7 +331,8 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
               noteId,
               source: source === 'tree' || source === 'mining' || source === 'fishing' || source === 'digging' || source === 'monster' || source === 'resource' ? source : '',
               unlockedDayTag: typeof (raw as any).unlockedDayTag === 'string' ? (raw as any).unlockedDayTag : '',
-              resolvedDayTag: typeof (raw as any).resolvedDayTag === 'string' ? (raw as any).resolvedDayTag : ''
+              resolvedDayTag: typeof (raw as any).resolvedDayTag === 'string' ? (raw as any).resolvedDayTag : '',
+              recordText: typeof (raw as any).recordText === 'string' ? (raw as any).recordText : ''
             }
           ] as const
         })

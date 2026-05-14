@@ -291,7 +291,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed } from 'vue'
+  import { computed, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import {
     ArrowLeft,
@@ -319,15 +319,26 @@
   import { getSeasonalActivitiesForDay, getSeasonEventsForDay } from '@/data/events'
   import { useGameStore } from '@/stores/useGameStore'
   import { useGoalStore } from '@/stores/useGoalStore'
+  import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
 
   const router = useRouter()
   const gameStore = useGameStore()
   const goalStore = useGoalStore()
+  const regionMapStore = useRegionMapStore()
   const skillStore = useSkillStore()
   const villageProjectStore = useVillageProjectStore()
   const journeyMapReward = computed(() => skillStore.masteryRewards.find(entry => entry.id === 'journey_map_markers') ?? null)
+  const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
+
+  watch(
+    currentDayTag,
+    dayTag => {
+      regionMapStore.ensureFrontierWorldSignals(dayTag)
+    },
+    { immediate: true }
+  )
 
   const sections: GuidePageSectionLink[] = [
     { id: 'preflight', label: '开始前确认' },
@@ -363,6 +374,17 @@
     const todayEvents = getSeasonEventsForDay(gameStore.season, gameStore.day, gameStore.year)
     const todayActivities = getSeasonalActivitiesForDay(gameStore.season, gameStore.day)
     const activeRestoration = villageProjectStore.communityRestorationEffects.filter(entry => entry.unlocked)
+    const activeSeasonalVariants = regionMapStore.regionSummaries
+      .filter(region => region.unlocked)
+      .map(region => ({
+        region,
+        snapshot: regionMapStore.metaState.seasonalRegionStates[region.id] ?? null
+      }))
+      .filter(entry => !!entry.snapshot?.activeVariantId)
+
+    if (activeSeasonalVariants.length > 0) {
+      notes.push(`季节变体：${activeSeasonalVariants.slice(0, 2).map(entry => `${entry.region.name}·${entry.snapshot?.activeVariantLabel}`).join('、')}`)
+    }
 
     if (todayVisitors.length > 0) {
       notes.push(`稀有来访：${todayVisitors.map(visitor => `${visitor.name}·${visitor.stallName}`).join('、')}`)

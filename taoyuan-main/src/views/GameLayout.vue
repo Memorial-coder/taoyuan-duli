@@ -100,15 +100,15 @@
     <!-- 互动节日 -->
     <Transition name="panel-fade">
       <div v-if="currentFestival" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
-        <FishingContestView v-if="currentFestival === 'fishing_contest'" @complete="closeFestival" />
-        <HarvestFairView v-if="currentFestival === 'harvest_fair'" @complete="closeFestival" />
-        <DragonBoatView v-if="currentFestival === 'dragon_boat'" @complete="closeFestival" />
-        <LanternRiddleView v-if="currentFestival === 'lantern_riddle'" @complete="closeFestival" />
-        <PotThrowingView v-if="currentFestival === 'pot_throwing'" @complete="closeFestival" />
-        <DumplingMakingView v-if="currentFestival === 'dumpling_making'" @complete="closeFestival" />
-        <FireworkShowView v-if="currentFestival === 'firework_show'" @complete="closeFestival" />
-        <TeaContestView v-if="currentFestival === 'tea_contest'" @complete="closeFestival" />
-        <KiteFlyingView v-if="currentFestival === 'kite_flying'" @complete="closeFestival" />
+        <FishingContestView v-if="currentFestival === 'fishing_contest'" :bonus-money="festivalBonusMoney" @complete="closeFestival" />
+        <HarvestFairView v-if="currentFestival === 'harvest_fair'" :bonus-money="festivalBonusMoney" @complete="closeFestival" />
+        <DragonBoatView v-if="currentFestival === 'dragon_boat'" :bonus-money="festivalBonusMoney" @complete="closeFestival" />
+        <LanternRiddleView v-if="currentFestival === 'lantern_riddle'" :bonus-money="festivalBonusMoney" @complete="closeFestival" />
+        <PotThrowingView v-if="currentFestival === 'pot_throwing'" :bonus-money="festivalBonusMoney" @complete="closeFestival" />
+        <DumplingMakingView v-if="currentFestival === 'dumpling_making'" :bonus-money="festivalBonusMoney" @complete="closeFestival" />
+        <FireworkShowView v-if="currentFestival === 'firework_show'" :bonus-money="festivalBonusMoney" @complete="closeFestival" />
+        <TeaContestView v-if="currentFestival === 'tea_contest'" :bonus-money="festivalBonusMoney" @complete="closeFestival" />
+        <KiteFlyingView v-if="currentFestival === 'kite_flying'" :bonus-money="festivalBonusMoney" @complete="closeFestival" />
       </div>
     </Transition>
 
@@ -543,6 +543,7 @@
     currentEvent,
     pendingHeartEvent,
     currentFestival,
+    currentFestivalEvent,
     pendingPerk,
     pendingPetAdoption,
     childProposalVisible,
@@ -557,6 +558,8 @@
     closeFarmEvent,
     closeDiscoveryScene
   } = useDialogs()
+
+  const festivalBonusMoney = computed(() => currentFestivalEvent.value?.effects.moneyReward ?? 0)
 
   const npcStore = useNpcStore()
 

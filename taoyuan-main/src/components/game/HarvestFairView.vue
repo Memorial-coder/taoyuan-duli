@@ -119,9 +119,15 @@
       </div>
 
       <div class="mb-3 text-xs text-center border border-accent/20 p-2">
-        <span v-if="playerRank === 1" class="text-accent">恭喜你荣获金奖！奖金 1000文</span>
-        <span v-else-if="playerRank === 2" class="text-success">你获得了银奖！奖金 500文</span>
-        <span v-else-if="playerRank === 3" class="text-success">你获得了铜奖！奖金 200文</span>
+        <span v-if="playerRank === 1" class="text-accent">
+          恭喜你荣获金奖！奖金 {{ displayPrizeForRank(1) }}文<span v-if="props.bonusMoney > 0">（含年度追加{{ props.bonusMoney }}文）</span>
+        </span>
+        <span v-else-if="playerRank === 2" class="text-success">
+          你获得了银奖！奖金 {{ displayPrizeForRank(2) }}文<span v-if="props.bonusMoney > 0">（含年度追加{{ props.bonusMoney }}文）</span>
+        </span>
+        <span v-else-if="playerRank === 3" class="text-success">
+          你获得了铜奖！奖金 {{ displayPrizeForRank(3) }}文<span v-if="props.bonusMoney > 0">（含年度追加{{ props.bonusMoney }}文）</span>
+        </span>
         <span v-else class="text-muted">很遗憾，没有获得名次。明年再来吧！</span>
       </div>
 
@@ -147,6 +153,15 @@
     sfxRankLose
   } from '@/composables/useAudio'
   import Button from '@/components/game/Button.vue'
+
+  const props = withDefaults(
+    defineProps<{
+      bonusMoney?: number
+    }>(),
+    {
+      bonusMoney: 0
+    }
+  )
 
   const emit = defineEmits<{
     complete: [prize: number]
@@ -179,6 +194,8 @@
     score: number
   }
 
+  const BASE_PRIZES: Record<number, number> = { 1: 1000, 2: 500, 3: 200 }
+
   const selectedItems = ref<SelectedItem[]>([])
   const submitted = ref(false)
   const rankings = ref<Participant[]>([])
@@ -208,6 +225,8 @@
     const idx = rankings.value.findIndex(e => e.name === '你')
     return idx === -1 ? 99 : idx + 1
   })
+
+  const displayPrizeForRank = (rank: number) => (BASE_PRIZES[rank] ?? 0) + props.bonusMoney
 
   const qualityClass = (quality: Quality): string => {
     const classes: Record<Quality, string> = {
@@ -283,8 +302,7 @@
 
   const handleClaim = () => {
     sfxRewardClaim()
-    const prizes: Record<number, number> = { 1: 1000, 2: 500, 3: 200 }
-    const prize = prizes[playerRank.value] ?? 0
+    const prize = BASE_PRIZES[playerRank.value] ?? 0
     emit('complete', prize)
   }
 </script>

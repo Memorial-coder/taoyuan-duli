@@ -2378,11 +2378,19 @@ export const useShopStore = defineStore('shop', () => {
     return true
   }
 
-  const hasOwnedBooksellerBook = (bookId: string) => ownedBooksellerBookIds.value.includes(bookId)
+  const hasOwnedBooksellerBook = (bookId: string) =>
+    ownedBooksellerBookIds.value.includes(bookId) || playerStore.hasLifestyleDiscovery('lifestyleUnlocks', bookId)
 
   const buyFromBookseller = (bookId: string): boolean => {
     const entry = booksellerStock.value.find(book => book.id === bookId)
-    if (!entry || entry.quantity <= 0 || hasOwnedBooksellerBook(bookId)) return false
+    if (!entry || entry.quantity <= 0) return false
+    if (hasOwnedBooksellerBook(bookId)) {
+      if (!ownedBooksellerBookIds.value.includes(bookId)) {
+        ownedBooksellerBookIds.value = [...ownedBooksellerBookIds.value, bookId]
+      }
+      entry.quantity = 0
+      return false
+    }
     if (!playerStore.spendMoney(entry.price)) return false
     const bookDef = getBookById(bookId)
     if (!bookDef) {
@@ -2675,6 +2683,11 @@ export const useShopStore = defineStore('shop', () => {
     const popularCategoryLabels = categoryEntries.slice(0, 3).map(entry => MARKET_CATEGORY_NAMES[entry.category])
     const topItem = recentItems[0] ?? null
     const topCategory = categoryEntries[0] ?? null
+    const hasRecentCategorySales = categoryEntries.length > 0
+    const categoryFallbackHeadline = topCategory ? `最近村里流行：${MARKET_CATEGORY_NAMES[topCategory.category]}` : '最近村里流行：暂无明确样本'
+    const categoryFallbackTrendLine = topCategory
+      ? `${MARKET_CATEGORY_NAMES[topCategory.category]} · 近 7 天 ${topCategory.quantity} 件 · ${topCategory.marketInfo ? TREND_NAMES[topCategory.marketInfo.trend] : TREND_NAMES.stable}`
+      : '卖出或结算出货箱后，这里会显示最常被村民提起的货物。'
     const currentEvents = getSeasonEventsForDay(gameStore.season, gameStore.day, gameStore.year)
     const festivalLabel = currentEvents[0]?.name ?? ''
     const bestRelationshipShop = Object.entries(SHOP_NPC_RELATION_MAP)
@@ -2749,8 +2762,8 @@ export const useShopStore = defineStore('shop', () => {
         : '村庄建设仍在起步，商圈暂时以基础补给和低风险商品为主。',
       `${weatherLabel}天气会影响雨天补给、牧场备货和山路/鱼塘相关消耗的展示权重。`,
       unlockedResidentCount > 0
-        ? `${unlockedResidentCount} 位驻村住户已带来新货架，商圈会把他们的寄售台和线索池并入总览。`
-        : '还没有新住户落地，驻村货架回响会在商队、学者或山灵入住后出现。'
+        ? `${unlockedResidentCount} 位驻村住户已带来新的寄售风向，商圈会把他们的货架回响和线索传闻并入总览。`
+        : '还没有新住户落地，驻村回响会在商队、学者或山灵入住后出现。'
     ]
 
     const villagerFeedbackLines = topItem
@@ -2766,8 +2779,12 @@ export const useShopStore = defineStore('shop', () => {
               : `村民反馈：「${topItem.name}」卖得稳定，适合作为日常周转而不是短线抢价。`
         ]
       : [
-          '村口闲谈：近 7 天还没有形成明确流行货，先卖出一批作物、鱼获或加工品后，商圈会开始记录反馈。',
-          '铺子记账：暂无具体出货样本，今日货架仍按季节、节庆、关系、修复进度与天气常规轮换。'
+          hasRecentCategorySales && topCategory
+            ? `村口闲谈：旧账本还留着${MARKET_CATEGORY_NAMES[topCategory.category]}的近 7 天出货记录，具体物品样本会从下一次卖货开始补齐。`
+            : '村口闲谈：近 7 天还没有形成明确流行货，先卖出一批作物、鱼获或加工品后，商圈会开始记录反馈。',
+          hasRecentCategorySales && topCategory
+            ? `铺子记账：${MARKET_CATEGORY_NAMES[topCategory.category]}近 7 天出货 ${topCategory.quantity} 件，当前行情为${topCategory.marketInfo ? TREND_NAMES[topCategory.marketInfo.trend] : '平稳'}。`
+            : '铺子记账：暂无具体出货样本，今日货架仍按季节、节庆、关系、修复进度与天气常规轮换。'
         ]
 
     const npcFeedbackCards: CommerceNpcFeedbackCard[] = [
@@ -2792,11 +2809,11 @@ export const useShopStore = defineStore('shop', () => {
     ]
 
     return {
-      hasRecentSales: recentItems.length > 0,
-      headline: topItem ? `最近村里流行：${topItem.name}` : '最近村里流行：暂无明确样本',
+      hasRecentSales: recentItems.length > 0 || hasRecentCategorySales,
+      headline: topItem ? `最近村里流行：${topItem.name}` : categoryFallbackHeadline,
       trendLine: topItem
         ? `${topItem.categoryLabel} · 近 7 天 ${topItem.quantity} 件 · ${topItem.trendLabel} ×${topItem.multiplier.toFixed(2)}`
-        : '卖出或结算出货箱后，这里会显示最常被村民提起的货物。',
+        : categoryFallbackTrendLine,
       recentItems,
       longTermCategory: topLongTermCategory,
       longTermLine,

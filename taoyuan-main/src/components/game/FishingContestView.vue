@@ -145,9 +145,15 @@
       </div>
 
       <div class="mb-3 text-xs text-center border border-accent/20 p-2">
-        <span v-if="playerRank === 1" class="text-accent">恭喜你获得冠军！奖金 500文</span>
-        <span v-else-if="playerRank === 2" class="text-success">你获得了亚军！奖金 200文</span>
-        <span v-else-if="playerRank === 3" class="text-success">你获得了季军！奖金 100文</span>
+        <span v-if="playerRank === 1" class="text-accent">
+          恭喜你获得冠军！奖金 {{ displayPrizeForRank(1) }}文<span v-if="props.bonusMoney > 0">（含年度追加{{ props.bonusMoney }}文）</span>
+        </span>
+        <span v-else-if="playerRank === 2" class="text-success">
+          你获得了亚军！奖金 {{ displayPrizeForRank(2) }}文<span v-if="props.bonusMoney > 0">（含年度追加{{ props.bonusMoney }}文）</span>
+        </span>
+        <span v-else-if="playerRank === 3" class="text-success">
+          你获得了季军！奖金 {{ displayPrizeForRank(3) }}文<span v-if="props.bonusMoney > 0">（含年度追加{{ props.bonusMoney }}文）</span>
+        </span>
         <span v-else class="text-muted">很遗憾，没有获得名次。下次再努力吧！</span>
       </div>
 
@@ -174,10 +180,20 @@
   } from '@/composables/useAudio'
   import Button from '@/components/game/Button.vue'
 
+  const props = withDefaults(
+    defineProps<{
+      bonusMoney?: number
+    }>(),
+    {
+      bonusMoney: 0
+    }
+  )
+
   const emit = defineEmits<{ complete: [prize: number] }>()
 
   type Phase = 'ready' | 'casting' | 'waiting' | 'tension' | 'round_result' | 'finished'
   type CatchGrade = 'perfect' | 'good' | 'poor' | 'escaped'
+  const BASE_PRIZES: Record<number, number> = { 1: 500, 2: 200, 3: 100 }
 
   /** 鱼的三个等级池 */
   const FISH_TIERS = {
@@ -253,6 +269,8 @@
         return 'catch-poor'
     }
   })
+
+  const displayPrizeForRank = (rank: number) => (BASE_PRIZES[rank] ?? 0) + props.bonusMoney
 
   /** 根据等级随机生成一条鱼 */
   const randomFish = (grade: 'perfect' | 'good' | 'poor'): CatchRecord => {
@@ -403,8 +421,7 @@
     else if (rank === 2) sfxRankSecond()
     else if (rank === 3) sfxRankThird()
     else sfxRankLose()
-    const prizes: Record<number, number> = { 1: 500, 2: 200, 3: 100 }
-    emit('complete', prizes[playerRank.value] ?? 0)
+    emit('complete', BASE_PRIZES[playerRank.value] ?? 0)
   }
 
   onUnmounted(() => {

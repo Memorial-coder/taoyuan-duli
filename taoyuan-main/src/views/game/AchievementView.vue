@@ -411,6 +411,10 @@
               </span>
             </div>
             <p v-if="activeNotePreview.resolvedDayTag" class="text-[10px] text-success mt-2">已于 {{ activeNotePreview.resolvedDayTag }} 验证</p>
+            <div v-if="activeNotePreview.recordText" class="mt-2 border border-success/20 rounded-xs p-2 bg-success/5">
+              <p class="text-[10px] text-success">见闻记录</p>
+              <p class="text-xs text-text mt-1 leading-4">{{ activeNotePreview.recordText }}</p>
+            </div>
           </div>
 
           <div v-if="activeNotePreview && activeNotePreview.status !== 'resolved' && (activeNote.verification || activeNote.usable)" class="mt-2">
@@ -423,6 +427,7 @@
               <CircleCheck :size="12" class="text-success" />
               <span class="text-xs text-success">已验证</span>
             </div>
+            <p v-if="activeNotePreview.recordText" class="text-[10px] text-muted mt-2 leading-4">{{ activeNotePreview.recordText }}</p>
           </div>
         </div>
       </div>
@@ -835,7 +840,7 @@
   const completedEventCampaignCount = computed(
     () => goalStore.eventOperationsState.completedCampaignIds.length + goalStore.eventOperationsState.completedThemeWeekIds.length
   )
-  const specialEventSurfaceCount = computed(
+  const completedEventSurfaceCount = computed(
     () =>
       [
         completedSpecialOrderCount.value,
@@ -890,10 +895,10 @@
     }),
     buildGrandMedalTrack({
       id: 'event',
-      label: '特殊事件大奖章',
-      current: specialEventSurfaceCount.value,
+      label: '特殊事件面大奖章',
+      current: completedEventSurfaceCount.value,
       target: 4,
-      summary: '把特殊订单、短活动窗口、活动周和行旅见闻作为特殊事件的四个收集面。',
+      summary: `事件面点亮 ${completedEventSurfaceCount.value}/4：特殊订单、短活动窗口、活动周和行旅见闻各算一个收集面。`,
       focusLines: [
         `特殊订单回执 ${completedSpecialOrderCount.value} 条`,
         `限时活动窗口 ${completedActivityWindowCount.value} 个`,
@@ -916,7 +921,7 @@
     { label: '总完成', value: `${grandMedalOverallPercent.value}%` },
     { label: '图鉴 / 出货', value: `${achievementStore.discoveredCount + shopStore.shippedItems.length}/${ITEMS.length + shippableItems.value.length}` },
     { label: '秘藏 / 验证', value: `${secretNoteStore.collectedCount + verifiedSecretNoteCount.value}/${secretNoteStore.totalNotes + verifiableSecretNotes.value.length}` },
-    { label: '事件面', value: `${specialEventSurfaceCount.value}/4` }
+    { label: '事件面点亮', value: `${completedEventSurfaceCount.value}/4` }
   ])
 
   const nextGrandMedalFocus = computed(() => {

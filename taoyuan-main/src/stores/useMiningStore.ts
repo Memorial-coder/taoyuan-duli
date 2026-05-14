@@ -478,6 +478,7 @@ export const useMiningStore = defineStore('mining', () => {
     const walletMiningReduction = walletStore.getMiningStaminaReduction()
     const ringMiningReduction = inventoryStore.getRingEffectValue('mining_stamina')
     const ringGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
+    const blessingMiningReduction = skillStore.getBlessingEffectValue('mining_stamina')
     // 仙缘能力：聚气（shan_weng_1）挖矿体力-15%
     const spiritMiningReduction = useHiddenNpcStore().getAbilityValue('shan_weng_1') / 100
     const staminaCost = Math.max(
@@ -491,6 +492,7 @@ export const useMiningStore = defineStore('mining', () => {
           (1 - walletMiningReduction) *
           (1 - ringMiningReduction) *
           (1 - ringGlobalReduction) *
+          (1 - blessingMiningReduction) *
           (1 - spiritMiningReduction)
       )
     )
@@ -550,9 +552,14 @@ export const useMiningStore = defineStore('mining', () => {
     if ((miningSkill.perk15 === 'vein_seeker' || miningSkill.perk15 === 'master_smith') && Math.random() < 0.3) quantity *= 2
     // perk20 矿石加成：大地脉动/锻造神 50%概率×3
     if ((miningSkill.perk20 === 'earth_pulse' || miningSkill.perk20 === 'forge_god') && Math.random() < 0.5) quantity = Math.floor(quantity * 3)
-    // 戒指矿石加成
+    // 装备 / 饰物矿石加成：整数部分固定加，小数部分按概率额外 +1。
     const ringOreBonus = inventoryStore.getRingEffectValue('ore_bonus')
-    if (ringOreBonus > 0) quantity += Math.floor(ringOreBonus)
+    if (ringOreBonus > 0) {
+      const fixedOreBonus = Math.floor(ringOreBonus)
+      const fractionalOreBonus = ringOreBonus - fixedOreBonus
+      quantity += fixedOreBonus
+      if (fractionalOreBonus > 0 && Math.random() < fractionalOreBonus) quantity += 1
+    }
     if (environmentWindow.value.mining.oreBonusChance > 0 && Math.random() < environmentWindow.value.mining.oreBonusChance) quantity += 1
     // 仙缘能力：灵狐眼（hu_xian_2）15%概率额外掉落矿石
     if (useHiddenNpcStore().isAbilityActive('hu_xian_2') && Math.random() < 0.15) quantity += 1
@@ -678,9 +685,9 @@ export const useMiningStore = defineStore('mining', () => {
     const floor = getActiveFloorData()
     const treasureRings = TREASURE_DROP_RINGS[floor?.zone ?? 'shallow']
     if (treasureRings) {
-      const ringTreasureBonus = inventoryStore.getRingEffectValue('treasure_find')
+      const treasureBonus = inventoryStore.getRingEffectValue('treasure_find') + skillStore.getBlessingEffectValue('treasure_find')
       for (const tr of treasureRings) {
-        if (Math.random() < tr.chance + ringTreasureBonus * tr.chance) {
+        if (Math.random() < Math.min(tr.chance + treasureBonus * tr.chance, 1)) {
           inventoryStore.addRing(tr.ringId)
           recordRingLoot(tr.ringId)
           const ringDef = getRingById(tr.ringId)
@@ -697,9 +704,9 @@ export const useMiningStore = defineStore('mining', () => {
     // 宝箱帽子掉落
     const treasureHats = TREASURE_DROP_HATS[floor?.zone ?? 'shallow']
     if (treasureHats) {
-      const treasureBonus = inventoryStore.getRingEffectValue('treasure_find')
+      const treasureBonus = inventoryStore.getRingEffectValue('treasure_find') + skillStore.getBlessingEffectValue('treasure_find')
       for (const th of treasureHats) {
-        if (Math.random() < th.chance + treasureBonus * th.chance) {
+        if (Math.random() < Math.min(th.chance + treasureBonus * th.chance, 1)) {
           inventoryStore.addHat(th.hatId)
           recordHatLoot(th.hatId)
           items.push({ itemId: th.hatId, quantity: 1 })
@@ -710,9 +717,9 @@ export const useMiningStore = defineStore('mining', () => {
     // 宝箱鞋子掉落
     const treasureShoes = TREASURE_DROP_SHOES[floor?.zone ?? 'shallow']
     if (treasureShoes) {
-      const treasureBonus = inventoryStore.getRingEffectValue('treasure_find')
+      const treasureBonus = inventoryStore.getRingEffectValue('treasure_find') + skillStore.getBlessingEffectValue('treasure_find')
       for (const ts of treasureShoes) {
-        if (Math.random() < ts.chance + treasureBonus * ts.chance) {
+        if (Math.random() < Math.min(ts.chance + treasureBonus * ts.chance, 1)) {
           inventoryStore.addShoe(ts.shoeId)
           recordShoeLoot(ts.shoeId)
           items.push({ itemId: ts.shoeId, quantity: 1 })
@@ -723,9 +730,9 @@ export const useMiningStore = defineStore('mining', () => {
     // 宝箱武器掉落
     const treasureWeapons = TREASURE_DROP_WEAPONS[floor?.zone ?? 'shallow']
     if (treasureWeapons) {
-      const treasureBonus = inventoryStore.getRingEffectValue('treasure_find')
+      const treasureBonus = inventoryStore.getRingEffectValue('treasure_find') + skillStore.getBlessingEffectValue('treasure_find')
       for (const tw of treasureWeapons) {
-        if (Math.random() < tw.chance + treasureBonus * tw.chance) {
+        if (Math.random() < Math.min(tw.chance + treasureBonus * tw.chance, 1)) {
           const enchantId = rollRandomEnchantment()
           inventoryStore.addWeapon(tw.weaponId, enchantId)
           recordWeaponLoot(tw.weaponId, enchantId)
@@ -1111,10 +1118,12 @@ export const useMiningStore = defineStore('mining', () => {
     const enchant = owned.enchantmentId ? getEnchantmentById(owned.enchantmentId) : null
     const ringDropBonus = inventoryStore.getRingEffectValue('monster_drop_bonus')
     const ringLuckBonus = inventoryStore.getRingEffectValue('luck')
+    const blessingLuckBonus = skillStore.getBlessingEffectValue('luck')
     const luckyBonus =
       (enchant?.special === 'lucky' ? 0.2 : 0) +
       ringDropBonus +
       ringLuckBonus * 0.5 +
+      blessingLuckBonus * 0.5 +
       (slayerCharmActive.value ? 0.2 : 0) +
       guildBonusDropRate.value
 

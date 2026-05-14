@@ -692,13 +692,15 @@ export const useNpcStore = defineStore('npc', () => {
 
   const syncSecretNoteGiftClues = (npcId: string) => {
     const secretNoteStore = useSecretNoteStore()
-    const noteTemplateMap: Partial<Record<string, Array<{ noteId: number; clueId: string }>>> = {
-      qiu_yue: [{ noteId: 3, clueId: 'qiu_yue_note_koi' }],
-      a_shi: [{ noteId: 7, clueId: 'a_shi_note_copper' }],
-      liu_niang: [{ noteId: 11, clueId: 'liu_niang_note_osmanthus' }],
-      wang_dashen: [{ noteId: 15, clueId: 'wang_dashen_note_rice' }]
-    }
-    const mapping = noteTemplateMap[npcId] ?? []
+    const noteGiftClueMap: Array<{ noteId: number; npcId: string; clueId: string }> = [
+      { noteId: 3, npcId: 'li_yu', clueId: 'li_yu_note_koi' },
+      { noteId: 7, npcId: 'sun_tiejiang', clueId: 'sun_tiejiang_note_copper' },
+      { noteId: 11, npcId: 'liu_niang', clueId: 'liu_niang_note_osmanthus' },
+      { noteId: 15, npcId: 'wang_dashen', clueId: 'wang_dashen_note_rice' },
+      { noteId: 19, npcId: 'zhou_xiucai', clueId: 'zhou_xiucai_note_tea' },
+      { noteId: 23, npcId: 'chen_bo', clueId: 'chen_bo_shop_ginseng' }
+    ]
+    const mapping = noteGiftClueMap.filter(entry => entry.npcId === npcId)
     mapping.forEach(entry => {
       if (!secretNoteStore.isCollected(entry.noteId)) return
       const template = getNpcGiftClueTemplates(npcId).find(candidate => candidate.clueId === entry.clueId)
@@ -1122,7 +1124,7 @@ export const useNpcStore = defineStore('npc', () => {
       unlockedMessages.push(`${npcDef.name}在生日当天收下了这份心意，关系又推进了一步。`)
       const birthdayLines = getNpcBirthdaySpecialLines(npcId)
       birthdayMessage = birthdayLines.length > 0 ? birthdayLines[Math.floor(Math.random() * birthdayLines.length)] : `${npcDef.name}在生日这天显得格外开心。`
-      addRelationshipClue(npcId, `birthday:${npcId}:${itemId}`, `你记住了：${npcDef.name}在生日收到合心礼物时，会明显更愿意敞开心扉。`, {
+      addRelationshipClue(npcId, `birthday:${npcId}`, `你记住了：${npcDef.name}在生日收到合心礼物时，会明显更愿意敞开心扉。`, {
         kind: 'birthday',
         source: 'birthday',
         precision: 'confirmed'

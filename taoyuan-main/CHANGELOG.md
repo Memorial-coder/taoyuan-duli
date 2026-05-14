@@ -4,6 +4,32 @@
 
 ## [未发布]
 
+### 0512 审查修复（第一批：互动节年度奖池）
+- `src/composables/useEndDay.ts` 已让互动节改为“先解析年度节庆变体，再按互动节跳过日结中的奖池型铜钱 / 物品发放”，避免同一天既在 `applyEventEffects()` 里先发一轮、又在小游戏领奖 `closeFestival()` 里再发一轮。
+- `src/composables/useDialogs.ts` 继续作为互动节统一领奖口：年度追加铜钱 / 物品仍由 `closeFestival()` 发放，但现在只承担一次最终结算，不再与日结重复叠发。
+- `src/views/GameLayout.vue` 已把当前互动节的 `moneyReward` 作为 `bonusMoney` 透传给排名类小游戏，使页面展示奖金时能与实际到账一致。
+- `src/components/game/FishingContestView.vue`、`src/components/game/HarvestFairView.vue`、`src/components/game/DragonBoatView.vue` 已补上“含年度追加 x 文”的展示文案，并保持 emit 仍只回传基础排名奖金，避免 UI 显示总额、逻辑又重复加总。
+- `src/components/game/LanternRiddleView.vue`、`src/components/game/PotThrowingView.vue`、`src/components/game/DumplingMakingView.vue`、`src/components/game/FireworkShowView.vue`、`src/components/game/TeaContestView.vue`、`src/components/game/KiteFlyingView.vue` 也已补齐同样的 `bonusMoney` 展示层，确保所有互动节小游戏都按同一口径显示“含年度追加”的总奖金。
+- 本批修复已通过 `npm --prefix taoyuan-main run type-check`，用于回写 `0512审查.md` 中“互动节第二年奖池没有真正进入小游戏结算 / 可能双发”的问题。
+
+### 0512 审查修复（第二批：行旅图纯读快照）
+- `src/stores/useRegionMapStore.ts` 已正式拆出 `peekRegionVariantSnapshot()`、`peekRumorBoardForRegion()`、`peekAutoPatrolStatus()` 三个纯读接口，用来和原本会触发 `ensureFrontierWorldSignals()` 的同步型 getter 分层。
+- `src/views/game/RegionMapView.vue` 已把本地 `getRegionVariantSnapshot / getRegionRumorBoard / getAutoPatrolStatus` wrapper 改指向 `peek` 接口，减少 UI computed 再次误用写状态 getter 的风险。
+- 这批调整不改变行旅图当前展示逻辑，只把“读取快照”和“主动同步世界信号”从 API 语义上拆开，便于后续继续收口 0512 审查里提到的副作用风险。
+- 本批修复已通过 `npm --prefix taoyuan-main run type-check`。
+
+### 0512 审查修复（第三批：秘密纸条记录回看）
+- `src/stores/useSecretNoteStore.ts` 已把 `recordText` 写进 `noteLeadStates`，并在验证成功时跟随 `resolvedDayTag` 一起持久化，避免纸条一旦验证完就只剩即时日志、缺少后续可回看的记录层。
+- `src/stores/useSecretNoteStore.ts` 的 `getVerificationPreview()` 现会在已验证状态下回传 `recordText`，同时兼容旧记录缺字段时回退到 `verification.recordText`。
+- `src/views/game/AchievementView.vue` 已在秘密笔记详情里补上“见闻记录”展示区，验证完成后可以直接回看这张纸条最终沉淀下来的记录文本，而不再只有“已验证”标签。
+- 本批修复已通过 `npm --prefix taoyuan-main run type-check`，用于回写 `0512审查.md` 中“recordText 没进入可回看记录”的问题。
+
+### 0512 审查修复（第四批：驻村文案降口径）
+- `src/data/villageResidents.ts` 已把 `shelfSummary` 从“像是已经接通真实货架”的写法收口成“寄售风向 / 寄售风声 / 寄留消息”，避免当前展示层文案走在实现前面。
+- `src/stores/useShopStore.ts` 的 `commerceEchoSummary.shelfInfluenceLines` 已把“寄售台和线索池并入总览”改成“货架回响和线索传闻并入总览”，与当前真实能力对齐。
+- `src/views/game/ShopView.vue`、`src/views/game/VillageView.vue` 已把“驻村货架回响 / 已生效 / 线索池”一类强承诺措辞调整为“驻村回响 / 可追踪 / 线索风声”，先把玩家侧口径收回到当前展示层能承载的范围。
+- 本批修复已通过 `npm --prefix taoyuan-main run type-check`，用于回写 `0512审查.md` 中“驻村新货架 / 线索池已生效目前只有展示层”的问题。
+
 ### 0510 WS01 / S1 社区修复与世界变化 2.0
 - `src/types/achievement.ts`、`src/types/villageProject.ts`、`src/data/achievements.ts`、`src/data/villageProjects.ts` 已新增祠堂 -> 建设映射与世界变化结构，正式支持建设项挂接 `bundle` 承接、前置传闻、修后评论、跨入口反馈，以及 `entry / shortcut / service / dialogue / calendar` 五类世界变化。
 - `src/stores/useVillageProjectStore.ts` 已新增 `bundleProjectMappings`、`communityRestorationEffects`、`restorationMilestones`、`worldShortcutUnlocks` 与对应摘要查询，并在建设完成时写入世界变化与村里反应日志。
@@ -48,8 +74,13 @@
 - `src/views/game/VillageView.vue`、`src/views/game/NpcView.vue` 已消费同一份商业回响摘要，村庄页与 NPC 弹窗会同步提到流行货物、节庆物资和修复设施反馈。
 - `src/views/game/RegionMapView.vue` 已把活地图信号升级为四类高级状态：季节版、来访版、修复版、活动版先汇总成状态卡，再按优先级展示季节变体、稀有来访、修复落点、节庆 / 短活动 / 环境窗口等具体信号。
 - 行旅图的当前远征信号与路线派遣标签现在会读取高级状态摘要，使同一张地图能先回答“今天是什么版”，再展开具体变化。
-- 当前进展已完成 `T80 年度 / 双年度节日变化`、`T81 环境事件 / 季节异象 / 天气窗口`、`T82 商业回响与村民反馈`、`T83 动态地图高级状态` 的落地与回写，下一步进入 `T84 S8 回归验收`。
+- 已完成 `T84 S8 回归验收`：年度节日、环境窗口、商业回响与动态地图高级状态已共同接入日历、NPC、商店、村庄和行旅图；同一季节 / 节日 / 天气窗口不再只是静态背景，玩家能从多入口感知同一张村图正在变化。
+- 当前进展已完成 `T80 年度 / 双年度节日变化`、`T81 环境事件 / 季节异象 / 天气窗口`、`T82 商业回响与村民反馈`、`T83 动态地图高级状态`、`T84 S8 回归验收` 的落地与回写，`S8 / WS07` 正式收口，下一步进入 `S9 统一收口与发布准备`。
 - 本阶段当前增量已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:late-game-samples`。
+
+### 0510 S9 统一收口与发布准备（T90）
+- 已完成 `T90 回写开发向与玩家向 changelog`：根 `CHANGELOG.md` 追加玩家向 `0510 长线扩展总收口`，把 `WS01 ~ WS08` 的体验变化收成可发布说明；本文件保留并串联开发向阶段记录，覆盖 `WS00 / S0`、`WS01 / S1`、`WS02 / S2`、`WS03 / S3`、`WS04 / S4`、`WS05 / S5`、`WS06 / S6`、`WS08 / S7`、`WS07 / S8`。
+- 当前发布准备口径确认：本轮长线扩展的玩家入口集中在村庄建设、时历 / 邮件、NPC、笔记 / 大奖章、任务板、技能、钱袋、牧场 / 小屋 / 家园、商店与行旅图；后续 `T91 ~ T93` 继续补 smoke 截图、AI 助手知识项和总体验收。
 
 ### 0510 WS00 / S0 基线梳理与统一记录入口
 - `src/stores/usePlayerStore.ts` 新增 `lifestyleDiscoveryLedger`，并接入序列化、反序列化、快照读取与礼物线索/秘密线索/世界修复/稀有来访/特殊订单/精通/奖券/密匣/生活解锁等统一记录入口。

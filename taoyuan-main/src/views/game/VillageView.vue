@@ -159,7 +159,7 @@
         </span>
       </div>
       <p class="text-[10px] text-muted leading-4">
-        这些住户会把货架、对话群、线索池和节庆回响接回村庄生活层，而不是只多一组立绘。
+        这些住户当前会先带来货架风向、对话群、线索传闻和节庆回响，再逐步接回更完整的村庄生活层。
       </p>
       <div class="border border-accent/10 rounded-xs px-2 py-2 mt-2 bg-bg/10">
         <div class="flex items-center justify-between gap-2">
@@ -412,6 +412,7 @@
   import { useGuildStore } from '@/stores/useGuildStore'
   import { useHanhaiStore } from '@/stores/useHanhaiStore'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
+  import { useGameStore } from '@/stores/useGameStore'
   import { useMuseumStore } from '@/stores/useMuseumStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
@@ -427,6 +428,7 @@
   const guildStore = useGuildStore()
   const hanhaiStore = useHanhaiStore()
   const hiddenNpcStore = useHiddenNpcStore()
+  const gameStore = useGameStore()
   const museumStore = useMuseumStore()
   const npcStore = useNpcStore()
   const playerStore = usePlayerStore()
@@ -593,12 +595,13 @@
   const unlockedVillageResidentSummaries = computed(() =>
     villageResidentSummaries.value.filter((entry: { unlocked: boolean }) => entry.unlocked)
   )
+  const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
 
   watchEffect(() => {
     villageResidentSummaries.value
       .filter((entry: { unlocked: boolean; id: string }) => entry.unlocked && !playerStore.hasLifestyleDiscovery('lifestyleUnlocks', entry.id))
       .forEach((entry: { id: string }) => {
-        playerStore.markLifestyleUnlock(entry.id)
+        playerStore.markLifestyleUnlock(entry.id, currentDayTag.value)
       })
   })
 

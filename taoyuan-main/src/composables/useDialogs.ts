@@ -5,7 +5,9 @@ import type { SeasonEventDef } from '@/data/events'
 import type { MorningChoiceEvent } from '@/data/farmEvents'
 import { WEDDING_EVENT } from '@/data/heartEvents'
 import { HIDDEN_NPCS } from '@/data/hiddenNpcs'
+import { getItemById } from '@/data/items'
 import { useGameStore } from '@/stores/useGameStore'
+import { useInventoryStore } from '@/stores/useInventoryStore'
 import { useNpcStore } from '@/stores/useNpcStore'
 import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
 import { usePlayerStore } from '@/stores/usePlayerStore'
@@ -27,6 +29,7 @@ type FestivalType =
   | 'tea_contest'
   | 'kite_flying'
 const currentFestival = ref<FestivalType | null>(null)
+const currentFestivalEvent = ref<SeasonEventDef | null>(null)
 const currentFestivalSessionKey = ref<string | null>(null)
 const claimedFestivalRewardKeys = ref<string[]>([])
 const pendingPerk = ref<{ skillType: SkillType; level: 5 | 10 | 15 | 20 } | null>(null)
@@ -131,9 +134,10 @@ export const closeEvent = () => {
 }
 
 /** 显示节日庆典界面并播放小游戏专属 BGM */
-export const showFestival = (type: FestivalType) => {
+export const showFestival = (type: FestivalType, event?: SeasonEventDef) => {
   const gameStore = useGameStore()
   currentFestival.value = type
+  currentFestivalEvent.value = event ?? null
   currentFestivalSessionKey.value = `${gameStore.year}-${gameStore.season}-${gameStore.day}:${type}`
   const { startMinigameBgm } = useAudio()
   startMinigameBgm(type)
@@ -145,12 +149,37 @@ export const closeFestival = (prize: number) => {
   if (!currentFestival.value || !rewardKey) return
   if (prize > 0 && !claimedFestivalRewardKeys.value.includes(rewardKey)) {
     const playerStore = usePlayerStore()
-    playerStore.earnMoney(prize)
+    const inventoryStore = useInventoryStore()
+    const festivalBonusMoney = currentFestivalEvent.value?.effects.moneyReward ?? 0
+    const festivalBonusItems = currentFestivalEvent.value?.effects.itemReward ?? []
+    const totalMoney = prize + festivalBonusMoney
+    if (totalMoney > 0) {
+      playerStore.earnMoney(totalMoney)
+    }
+    if (festivalBonusItems.length > 0) {
+      const rewardItems = festivalBonusItems.map(item => ({
+        itemId: item.itemId,
+        quantity: item.quantity,
+        quality: 'normal' as const
+      }))
+      if (inventoryStore.canAddItems(rewardItems)) {
+        inventoryStore.addItemsExact(rewardItems)
+        const itemText = festivalBonusItems
+          .map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`)
+          .join('、')
+        addLog(`年度奖池追加：${itemText}。`)
+      } else {
+        addLog('年度奖池追加物品因背包空间不足未能领取。')
+      }
+    }
     claimedFestivalRewardKeys.value = [...claimedFestivalRewardKeys.value, rewardKey]
-    showFloat(`+${prize}文`, 'accent')
-    addLog(`节日奖金：${prize}文！`)
+    if (totalMoney > 0) {
+      showFloat(`+${totalMoney}文`, 'accent')
+      addLog(festivalBonusMoney > 0 ? `节日奖金：${prize}文，年度奖池追加${festivalBonusMoney}文！` : `节日奖金：${prize}文！`)
+    }
   }
   currentFestival.value = null
+  currentFestivalEvent.value = null
   currentFestivalSessionKey.value = null
   // 如果还有事件叙述在显示，切换到季节节日 BGM；否则直接恢复季节 BGM
   if (currentEvent.value) {
@@ -223,6 +252,7 @@ export const useDialogs = () => {
     currentEvent,
     pendingHeartEvent,
     currentFestival,
+    currentFestivalEvent,
     pendingPerk,
     pendingPetAdoption,
     childProposalVisible,

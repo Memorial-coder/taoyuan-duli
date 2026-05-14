@@ -109,9 +109,10 @@
         </p>
         <p class="text-xs">
           总奖金：
-          <span class="text-accent">{{ score }}</span>
+          <span class="text-accent">{{ displayTotalPrize }}</span>
           文
           <span v-if="correctCount === 5" class="text-accent finish-flash">（全对+300文！）</span>
+          <span v-if="props.bonusMoney > 0" class="text-success">（含年度追加{{ props.bonusMoney }}文）</span>
         </p>
       </div>
       <Button class="w-full" @click="handleClaim">领取奖励</Button>
@@ -120,7 +121,7 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, onUnmounted } from 'vue'
+  import { ref, computed, onUnmounted } from 'vue'
   import { Lightbulb, Lamp, Timer } from 'lucide-vue-next'
   import {
     sfxGameStart,
@@ -133,6 +134,15 @@
     sfxMiniPerfect
   } from '@/composables/useAudio'
   import Button from '@/components/game/Button.vue'
+
+  const props = withDefaults(
+    defineProps<{
+      bonusMoney?: number
+    }>(),
+    {
+      bonusMoney: 0
+    }
+  )
 
   const emit = defineEmits<{ complete: [prize: number] }>()
 
@@ -223,6 +233,7 @@
   let phaseTimeout: ReturnType<typeof setTimeout> | null = null
 
   const currentRiddle = ref<Riddle>(RIDDLE_POOL[0]!)
+  const displayTotalPrize = computed(() => score.value + props.bonusMoney)
 
   const dotClass = (idx: number) => {
     const r = results.value[idx]

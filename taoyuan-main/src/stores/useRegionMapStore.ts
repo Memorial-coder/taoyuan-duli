@@ -1343,15 +1343,32 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     return saveData.value.seasonalRegionStates[regionId]
   }
 
+  const peekRegionVariantSnapshot = (regionId: RegionId): RegionSeasonalState =>
+    saveData.value.seasonalRegionStates[regionId] ?? createDefaultRegionMapSaveData().seasonalRegionStates[regionId]
+
   const getRumorBoardForRegion = (regionId: RegionId, dayTag = '') => {
     ensureFrontierWorldSignals(dayTag)
     return saveData.value.rumorBoard.entriesByRegion[regionId] ?? []
   }
 
+  const peekRumorBoardForRegion = (regionId: RegionId): RegionRumorBoardEntry[] =>
+    saveData.value.rumorBoard.entriesByRegion[regionId] ?? []
+
   const getAutoPatrolStatus = (routeId: string, dayTag = '') => {
     const runtime = ensureFrontierWorldSignals(dayTag)
     return saveData.value.autoPatrolStates[routeId] ?? syncAutoPatrolState(routeId, runtime.dayTag)
   }
+
+  const peekAutoPatrolStatus = (routeId: string): RegionAutoPatrolState =>
+    saveData.value.autoPatrolStates[routeId] ?? {
+      routeId,
+      enabled: true,
+      mode: 'manual',
+      lastAutoSettledDayTag: '',
+      lastEvaluatedDayTag: '',
+      blockedReason: '',
+      blockedTags: []
+    }
 
   const assignCompanionContract = (routeId: string, npcId: string, dayTag = '') => {
     const route = REGION_ROUTE_DEFS.find(entry => entry.id === routeId)
@@ -2164,13 +2181,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     familyId ? REGIONAL_RESOURCE_FAMILY_DEFS.find(entry => entry.id === familyId)?.label ?? familyId : '区域收获'
 
   const createInitialRiskState = (regionId: RegionId, approach: RegionExpeditionApproach): RegionExpeditionRiskState => {
-    const gameStore = useGameStore()
-    const environment = resolveEnvironmentWindow({
-      season: gameStore.season,
-      weather: gameStore.weather,
-      day: gameStore.day,
-      year: gameStore.year
-    }).forage
+    const environment = getCurrentEnvironmentJourneyWindow()
     const baseWeather =
       regionId === 'ancient_road'
         ? (approach === 'scout' ? 'wind' : 'clear')
@@ -2184,6 +2195,18 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       anomaly: clamp((regionId === 'mirage_marsh' ? 12 : regionId === 'cloud_highland' ? 6 : 4) + environment.journeyAnomalyDelta, 0, 100)
     }
   }
+
+  const getCurrentEnvironmentJourneyWindow = () => {
+    const gameStore = useGameStore()
+    return resolveEnvironmentWindow({
+      season: gameStore.season,
+      weather: gameStore.weather,
+      day: gameStore.day,
+      year: gameStore.year
+    }).forage
+  }
+
+  const formatSignedDelta = (value: number) => value > 0 ? `+${value}` : `${value}`
 
   const createCarryItem = (
     label: string,
@@ -2655,6 +2678,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const routeKnowledge = getRouteKnowledgeState(route.id)
     const shortcutProfile = getRouteShortcutProfile(route.id)
     const campSiteBonus = getCampSiteSessionBonuses(route.regionId, route.id, null)
+    const environment = getCurrentEnvironmentJourneyWindow()
+    const environmentVisibilityDelta = environment.journeyVisibilityDelta
     const seasonalState = saveData.value.seasonalRegionStates[route.regionId]
     const activeRumors = (saveData.value.rumorBoard.entriesByRegion[route.regionId] ?? []).filter(
       entry => !entry.fulfilled && (!entry.targetRouteId || entry.targetRouteId === route.id)
@@ -2702,7 +2727,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       carryLoad: 0,
       maxCarryLoad: (approach === 'greedy' ? 8 : approach === 'scout' ? 6 : 7) + journeyOutcome.carryBonus,
       carryItems: [],
-      visibility: clamp((approach === 'scout' ? 76 : approach === 'greedy' ? 45 : 60) + visibilityBonus, 0, 100),
+      visibility: clamp((approach === 'scout' ? 76 : approach === 'greedy' ? 45 : 60) + visibilityBonus + environmentVisibilityDelta, 0, 100),
       morale: clamp((approach === 'greedy' ? 54 : approach === 'scout' ? 60 : 66) + moraleBonus, 0, 100),
       danger: clamp((route.nodeType === 'elite' ? 24 : route.nodeType === 'handoff' ? 14 : 12) - dangerMitigation, 0, 100),
       findings: Math.floor(journeyOutcome.resourceFindBonus * 5),
@@ -2747,6 +2772,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       [
         `预设撤退规则：${retreatRule === 'low_hp' ? '低血量撤离' : retreatRule === 'pack_full' ? '满载撤离' : retreatRule === 'after_camp' ? '扎营后收束' : '平衡推进'}`,
         visibilityBonus > 0 || dangerMitigation > 0 ? `既有认知生效：视野 +${visibilityBonus}，初始风险 -${dangerMitigation}。` : '这条路仍较陌生，需要边走边摸清局势。',
+        environmentVisibilityDelta !== 0 ? `环境窗口：${environment.label}，开局视野 ${formatSignedDelta(environmentVisibilityDelta)}。` : '',
         shortcutProfile.level === 'shortcut' || shortcutProfile.level === 'mastered'
           ? `熟路增益：${shortcutProfile.label}，本趟推进段数缩减为 ${totalSteps}。`
           : shortcutProfile.level === 'marked'
@@ -2776,6 +2802,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const journeyOutcome = buildSnapshot?.outcome ?? createEmptyJourneyOutcomeModifiers()
     const regionKnowledge = getRegionKnowledgeState(regionId)
     const campSiteBonus = getCampSiteSessionBonuses(regionId, null, boss.id)
+    const environment = getCurrentEnvironmentJourneyWindow()
+    const environmentVisibilityDelta = environment.journeyVisibilityDelta
     const supplies = createDefaultRegionExpeditionSupplyState()
     supplies.medicine += 1
     if (approach === 'scout') supplies.utility += 1
@@ -2805,7 +2833,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       carryLoad: 0,
       maxCarryLoad: (approach === 'greedy' ? 9 : 7) + journeyOutcome.carryBonus,
       carryItems: [],
-      visibility: clamp((approach === 'scout' ? 68 : 52) + visibilityBonus, 0, 100),
+      visibility: clamp((approach === 'scout' ? 68 : 52) + visibilityBonus + environmentVisibilityDelta, 0, 100),
       morale: clamp((approach === 'greedy' ? 52 : 64) + Math.floor(regionKnowledge.familiarity / 30), 0, 100),
       danger: clamp(28 - dangerMitigation, 0, 100),
       findings: 1 + Math.floor(journeyOutcome.resourceFindBonus * 6),
@@ -2832,6 +2860,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       [
         '已切换为多阶段首领远征，可途中扎营、撤退或收束。',
         visibilityBonus > 0 || dangerMitigation > 0 ? `区域认知提供了额外准备：视野 +${visibilityBonus}，前线压力 -${dangerMitigation}。` : '该区域深层仍缺少足够认知，决战前需要边推进边摸清。',
+        environmentVisibilityDelta !== 0 ? `环境窗口：${environment.label}，开局视野 ${formatSignedDelta(environmentVisibilityDelta)}。` : '',
         campSiteBonus.headline
       ],
       'accent'
@@ -5419,11 +5448,14 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     getRouteNodeVisibilityStage,
     getBossNodeVisibilityStage,
     getRegionVariantSnapshot,
+    peekRegionVariantSnapshot,
     getRumorBoardForRegion,
+    peekRumorBoardForRegion,
     getCompanionContractCandidates,
     assignCompanionContract,
     clearCompanionContract,
     getAutoPatrolStatus,
+    peekAutoPatrolStatus,
     ensureFrontierWorldSignals,
     getRouteShortcutProfile,
     getRegionCompletedRouteCount,

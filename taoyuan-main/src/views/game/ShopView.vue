@@ -403,6 +403,31 @@
             </div>
           </div>
 
+          <div v-if="todayAmbientRareVisitors.length > 0" class="mb-4">
+            <h4 class="text-accent text-sm mb-2">
+              <MapPin :size="14" class="inline" />
+              今日来访 · 村口停驻
+            </h4>
+            <div class="flex flex-col space-y-2">
+              <div
+                v-for="visitor in todayAmbientRareVisitors"
+                :key="visitor.id"
+                class="border border-accent/20 rounded-xs px-3 py-2"
+              >
+                <div class="flex items-start justify-between gap-3">
+                  <div class="min-w-0">
+                    <p class="text-sm text-text">{{ visitor.name }} · {{ visitor.stallName }}</p>
+                    <p class="text-muted text-xs mt-0.5">{{ visitor.teaser }}</p>
+                    <p class="text-[10px] text-muted mt-1">{{ visitor.prepHints.slice(0, 2).join(' / ') }}</p>
+                  </div>
+                  <Button class="shrink-0 px-2 py-1 text-[10px]" @click="handleRecordRareVisitor(visitor.id, visitor.name)">
+                    {{ hasRecordedRareVisitor(visitor.id) ? '已拜访' : '拜访' }}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- 六大商铺卡片 -->
           <div class="flex flex-col space-y-2">
             <div
@@ -458,8 +483,8 @@
 
             <div v-if="unlockedVillageResidentShelfNotes.length > 0" class="border border-success/20 rounded-xs p-2 mt-2 bg-success/5">
               <div class="flex items-center justify-between gap-2 mb-1">
-                <p class="text-[10px] text-success">驻村货架回响</p>
-                <span class="text-[10px] text-muted">{{ unlockedVillageResidentShelfNotes.length }} 组已生效</span>
+                <p class="text-[10px] text-success">驻村回响</p>
+                <span class="text-[10px] text-muted">{{ unlockedVillageResidentShelfNotes.length }} 组可追踪</span>
               </div>
               <div class="space-y-1.5">
                 <div v-for="entry in unlockedVillageResidentShelfNotes" :key="entry.id" class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
@@ -468,7 +493,7 @@
                     <span class="text-[10px] text-success">{{ entry.name }}</span>
                   </div>
                   <p class="text-[10px] text-muted mt-1">{{ entry.shelfSummary }}</p>
-                  <p class="text-[10px] text-success/80 mt-0.5">{{ entry.cluePoolLabel }}：{{ entry.clueSummary }}</p>
+                  <p class="text-[10px] text-success/80 mt-0.5">{{ entry.cluePoolLabel }}风声：{{ entry.clueSummary }}</p>
                 </div>
               </div>
             </div>
@@ -1659,6 +1684,7 @@
   import { useHomeStore } from '@/stores/useHomeStore'
   import { getItemById, getNpcById } from '@/data'
   import { BOOK_TYPE_LABELS } from '@/data/books'
+  import { BOOKSELLER_VISITOR_ID, getRareVisitorsForDay } from '@/data/bookseller'
   import { getCropBySeedId } from '@/data/crops'
   import { SHOP_NPC_RELATION_MAP } from '@/data/npcWorld'
   import { SHOPS, isShopAvailable, getShopClosedReason } from '@/data/shops'
@@ -1708,6 +1734,15 @@
   const shopPreludeForceOpen = computed(() =>
     ['economy-overview', 'market-overview', 'recommended-consumption'].some(key => isPromptFocusActive(key))
   )
+  const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
+  const todayAmbientRareVisitors = computed(() =>
+    getRareVisitorsForDay(gameStore.season, gameStore.day).filter(visitor => visitor.id !== BOOKSELLER_VISITOR_ID)
+  )
+  const hasRecordedRareVisitor = (visitorId: string) => playerStore.hasLifestyleDiscovery('rareVisitors', visitorId)
+  const handleRecordRareVisitor = (visitorId: string, visitorName: string) => {
+    playerStore.recordRareVisitorVisit(visitorId, currentDayTag.value)
+    addLog(`【稀有来访】你在村口拜访了${visitorName}，这次来访已写入长期记录。`)
+  }
 
   const ancientRoadShopHandoff = computed(() => {
     const archiveQty = regionMapStore.getFamilyResourceQuantity('ancient_archive')

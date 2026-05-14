@@ -367,13 +367,14 @@
       }
     }
 
+    let treeSourceTouched = false
     if (skill.perk15 === 'forest_guardian' || skill.perk20 === 'forest_spirit') {
       const woodQty = skill.perk20 === 'forest_spirit' ? 3 : 2
-      attemptGather('wood', woodQty)
+      treeSourceTouched = attemptGather('wood', woodQty) || treeSourceTouched
     } else if (skill.perk10 === 'forester') {
-      attemptGather('wood', 1)
+      treeSourceTouched = attemptGather('wood', 1) || treeSourceTouched
     } else if (skill.perk5 === 'lumberjack' && Math.random() < 0.25) {
-      attemptGather('wood', 1)
+      treeSourceTouched = attemptGather('wood', 1) || treeSourceTouched
     }
 
     const extraItemQty = skill.perk20 === 'primal_tracker' ? 4 : skill.perk15 === 'wilderness_expert' ? 2 : skill.perk10 === 'tracker' ? 1 : 0
@@ -387,6 +388,10 @@
     // 仙缘能力：月华（yue_tu_3）采集8%概率获得月草
     if (moonHerbChance && Math.random() < 0.08) {
       attemptGather('moon_herb', 1, 'normal', { expReward: 15 })
+    }
+
+    if (treeSourceTouched && Math.random() < 0.03) {
+      useSecretNoteStore().tryCollectNote('tree')
     }
 
     if (Math.random() < 0.03) {

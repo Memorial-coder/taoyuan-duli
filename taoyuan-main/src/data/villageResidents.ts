@@ -53,7 +53,7 @@ export const VILLAGE_RESIDENTS: VillageResidentDef[] = [
       requirementLabel: '完成「商队驿站扩建」'
     },
     shelfLabel: '西路行脚货架',
-    shelfSummary: '补进沿路常缺的行脚货、便携补给和少量节前周转品。',
+    shelfSummary: '商圈会开始围绕沿路常缺的行脚货、便携补给和节前周转品给出寄售风向。',
     dialogueGroupLabel: '驿站夜话',
     dialogueSummary: '村民会开始聊到外路消息、商队歇脚和谁最近在村口做成了生意。',
     cluePoolLabel: '边贸传闻',
@@ -75,7 +75,7 @@ export const VILLAGE_RESIDENTS: VillageResidentDef[] = [
       requirementLabel: '完成雪琴的特殊订单'
     },
     shelfLabel: '学舍寄售架',
-    shelfSummary: '会寄售抄录纸、见闻册和少量偏研究向的小物件。',
+    shelfSummary: '商圈会开始出现抄录纸、见闻册和研究向小物件的寄售风声。',
     dialogueGroupLabel: '课后闲谈',
     dialogueSummary: '村民会开始提到谁最近常去学舍、谁留下了新札记，以及哪段关系被大家看在眼里。',
     cluePoolLabel: '抄录见闻',
@@ -96,7 +96,7 @@ export const VILLAGE_RESIDENTS: VillageResidentDef[] = [
       requirementLabel: '与任意一位隐世灵体结下羁绊'
     },
     shelfLabel: '山灵寄物台',
-    shelfSummary: '偶尔会留下护符材料、异色花枝或只在特殊天气前后出现的细小供物。',
+    shelfSummary: '村里偶尔会传出护符材料、异色花枝和特殊天气供物的寄留消息。',
     dialogueGroupLabel: '林泉低语',
     dialogueSummary: '村民会开始提起“那位借宿客”带来的气运变化、奇怪脚印和不太像凡人的作息。',
     cluePoolLabel: '山神兆闻',

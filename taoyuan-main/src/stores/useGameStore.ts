@@ -19,6 +19,7 @@ import { useAnimalStore } from './useAnimalStore'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
+import { useVillageProjectStore } from './useVillageProjectStore'
 import { processHiddenNpcDiscovery } from '@/composables/useHiddenNpcDiscovery'
 
 /** 瀛ｈ妭椤哄簭 */
@@ -174,6 +175,43 @@ export const useGameStore = defineStore('game', () => {
     return { ok: true, passedOut: false, message: '' }
   }
 
+  const getActiveShortcutIdsForTravel = (from: LocationGroup, to: LocationGroup): string[] => {
+    const key = `${from}->${to}`
+    const shortcutIds = useVillageProjectStore().worldShortcutUnlocks
+      .filter(entry => entry.unlocked)
+      .map(entry => entry.id)
+    const matchesRoute = (id: string) => {
+      if (id === 'support_shed_shortcut_unlock') {
+        return ['farm->mine', 'mine->farm', 'village_area->mine', 'mine->village_area'].includes(key)
+      }
+      if (id === 'hot_spring_shortcut_unlock') {
+        return ['farm->nature', 'nature->farm', 'village_area->nature', 'nature->village_area'].includes(key)
+      }
+      if (id === 'caravan_station_shortcut_unlock' || id === 'caravan_station_ii_shortcut_unlock') {
+        return [
+          'farm->village_area',
+          'village_area->farm',
+          'village_area->frontier',
+          'frontier->village_area',
+          'village_area->hanhai',
+          'hanhai->village_area',
+          'farm->frontier',
+          'frontier->farm'
+        ].includes(key)
+      }
+      return false
+    }
+    return shortcutIds.filter(matchesRoute)
+  }
+
+  const getShortcutTravelMultiplier = (from: LocationGroup, to: LocationGroup) => {
+    const activeShortcutCount = getActiveShortcutIdsForTravel(from, to).length
+    return activeShortcutCount > 0 ? 1 - Math.min(0.3, activeShortcutCount * 0.12) : 1
+  }
+
+  const getShortcutStaminaReduction = (from: LocationGroup, to: LocationGroup) =>
+    Math.min(2, getActiveShortcutIdsForTravel(from, to).length)
+
   /** 鏌ヨ鍒囨崲鍒扮洰鏍?tab 鐨勭Щ鍔ㄨ€楁椂 */
   const getTravelCost = (targetTab: string): number => {
     const targetGroup = TAB_TO_LOCATION_GROUP[targetTab]
@@ -190,6 +228,7 @@ export const useGameStore = defineStore('game', () => {
     if (travelSpeedBonus > 0) {
       multiplier *= 1 - travelSpeedBonus
     }
+    multiplier *= getShortcutTravelMultiplier(currentLocationGroup.value, targetGroup)
     return getEffectiveActionHours(baseCost * multiplier)
   }
 
@@ -209,7 +248,9 @@ export const useGameStore = defineStore('game', () => {
     const inventoryStore = useInventoryStore()
     const ringGlobalReduction = inventoryStore.getRingEffectValue('stamina_reduction')
     const reducedBaseStamina = Math.max(1, Math.floor(baseStamina * (1 - ringGlobalReduction)))
-    const staminaCost = animalStore.hasHorse ? Math.max(1, Math.floor(reducedBaseStamina / 2)) : reducedBaseStamina
+    const shortcutReduction = getShortcutStaminaReduction(currentLocationGroup.value, targetGroup)
+    const staminaAfterShortcut = Math.max(1, reducedBaseStamina - shortcutReduction)
+    const staminaCost = animalStore.hasHorse ? Math.max(1, Math.floor(staminaAfterShortcut / 2)) : staminaAfterShortcut
     const playerStore = usePlayerStore()
     if (!playerStore.consumeStamina(staminaCost)) {
       return {

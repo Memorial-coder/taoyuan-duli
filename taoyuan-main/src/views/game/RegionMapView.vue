@@ -2301,14 +2301,46 @@
       isFestivalDay: todayRegionEvents.value.length > 0
     })
   )
+  const getAnyUnlockedRouteIds = (limit = 3): string[] =>
+    regionMapStore.routeDefs
+      .filter(route => regionMapStore.getRouteUnlockStatus(route.id).unlocked)
+      .map(route => route.id)
+      .slice(0, limit)
+  const getUnlockedRouteIdsBySystems = (
+    systems: RegionLinkedSystem[],
+    limit = 3
+  ): string[] => {
+    const routeIds = regionMapStore.routeDefs
+      .filter(route => regionMapStore.getRouteUnlockStatus(route.id).unlocked)
+      .filter(route => route.linkedSystems.some(system => systems.includes(system)))
+      .map(route => route.id)
+      .slice(0, limit)
+    return routeIds.length > 0 ? routeIds : getAnyUnlockedRouteIds(limit)
+  }
+  const getVisitorSignalRouteIds = (kind: string): string[] => {
+    if (kind === 'merchant') return getUnlockedRouteIdsBySystems(['shop', 'quest', 'hanhai'])
+    if (kind === 'performer') return getUnlockedRouteIdsBySystems(['quest', 'villageProject'])
+    return getUnlockedRouteIdsBySystems(['hanhai', 'shop', 'quest'])
+  }
+  const getFestivalSignalRouteIds = (festivalType?: string): string[] => {
+    if (festivalType === 'fishing_contest') return getUnlockedRouteIdsBySystems(['fishPond', 'quest'])
+    if (festivalType === 'harvest_fair' || festivalType === 'tea_contest') return getUnlockedRouteIdsBySystems(['shop', 'quest'])
+    if (festivalType === 'dragon_boat' || festivalType === 'kite_flying') return getUnlockedRouteIdsBySystems(['quest', 'villageProject'])
+    return getUnlockedRouteIdsBySystems(['quest', 'shop', 'villageProject'])
+  }
+  const getActivitySignalRouteIds = (activityId: string): string[] => {
+    if (activityId === 'river_run_week') return getUnlockedRouteIdsBySystems(['fishPond', 'quest'])
+    if (activityId === 'harvest_preview_market') return getUnlockedRouteIdsBySystems(['shop', 'quest'])
+    return getUnlockedRouteIdsBySystems(['quest', 'villageProject'])
+  }
   const frontierWorldSignalCards = computed<FrontierWorldSignalCard[]>(() => {
     const cards: FrontierWorldSignalCard[] = []
 
     const seasonalCards = regionMapStore.regionSummaries
       .filter(region => region.unlocked)
       .map((region): FrontierWorldSignalCard | null => {
-        const snapshot = regionMapStore.getRegionVariantSnapshot(region.id, currentDayTag.value)
-        return snapshot.activeVariantId
+        const snapshot = regionMapStore.metaState.seasonalRegionStates[region.id]
+        return snapshot?.activeVariantId
           ? {
               id: `variant:${region.id}:${snapshot.activeVariantId}`,
               kind: 'season' as const,
@@ -2336,7 +2368,7 @@
         summary: environmentWindow.value.forage.summary,
         detail: environmentWindow.value.forage.routeHint,
         priority: 82,
-        routeIds: [],
+        routeIds: getUnlockedRouteIdsBySystems(['quest', 'fishPond', 'villageProject']),
         statusLabel: '活动版',
         toneClass: 'text-danger',
         shellClass: 'border-danger/20 bg-danger/5'
@@ -2352,7 +2384,7 @@
         summary: visitor.teaser,
         detail: visitor.prepHints[0] ?? '今天只会停这一天，值不值得专门去看由你自己决定。',
         priority: 78,
-        routeIds: [],
+        routeIds: getVisitorSignalRouteIds(visitor.kind),
         statusLabel: '来访版',
         toneClass: 'text-accent',
         shellClass: 'border-accent/20 bg-accent/5'
@@ -2371,7 +2403,7 @@
           event.prepChecklist?.[0] ??
           '今天的节庆会直接改动广场、摊位和村口布置。',
         priority: 74,
-        routeIds: [],
+        routeIds: getFestivalSignalRouteIds(event.festivalType),
         statusLabel: '活动版',
         toneClass: 'text-danger',
         shellClass: 'border-danger/20 bg-danger/5'
@@ -2387,7 +2419,7 @@
         summary: activity.description,
         detail: activity.prepChecklist[0] ?? '这几天值得顺手改一下行程，别按平常节奏硬跑。',
         priority: 70,
-        routeIds: [],
+        routeIds: getActivitySignalRouteIds(activity.id),
         statusLabel: '活动版',
         toneClass: 'text-danger',
         shellClass: 'border-danger/20 bg-danger/5'
@@ -2405,7 +2437,7 @@
         summary: entry.summary,
         detail: `${entry.projectName} 已进入地图承接层。`,
         priority: 66,
-        routeIds: [],
+        routeIds: getUnlockedRouteIdsBySystems(['villageProject', 'quest']),
         statusLabel: '修复版',
         toneClass: 'text-success',
         shellClass: 'border-success/20 bg-success/5'
@@ -3713,33 +3745,11 @@
   }
 
   const getRegionVariantSnapshot = (regionId: RegionId) =>
-    regionMapStore.metaState.seasonalRegionStates[regionId] ?? {
-      regionId,
-      weekId: '',
-      season: gameStore.season,
-      weather: gameStore.weather,
-      activeVariantId: null,
-      activeVariantLabel: '',
-      summary: '当前区域尚未生成季节变体快照。',
-      detailLines: [],
-      affectedRouteIds: [],
-      manualExplorationRequired: false,
-      seenVariantIds: [],
-      lastUpdatedDayTag: ''
-    }
+    regionMapStore.peekRegionVariantSnapshot(regionId)
 
-  const getRegionRumorBoard = (regionId: RegionId) => regionMapStore.metaState.rumorBoard.entriesByRegion[regionId] ?? []
+  const getRegionRumorBoard = (regionId: RegionId) => regionMapStore.peekRumorBoardForRegion(regionId)
 
-  const getAutoPatrolStatus = (routeId: string) =>
-    regionMapStore.metaState.autoPatrolStates[routeId] ?? {
-      routeId,
-      enabled: true,
-      mode: 'manual',
-      lastAutoSettledDayTag: '',
-      lastEvaluatedDayTag: '',
-      blockedReason: '',
-      blockedTags: []
-    }
+  const getAutoPatrolStatus = (routeId: string) => regionMapStore.peekAutoPatrolStatus(routeId)
 
   const getActiveCompanionContract = (routeId: string) =>
     regionMapStore.metaState.companionContracts.find(contract => contract.routeId === routeId && contract.status === 'active') ?? null

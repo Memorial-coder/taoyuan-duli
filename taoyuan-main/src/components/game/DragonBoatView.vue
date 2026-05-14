@@ -88,9 +88,15 @@
       </div>
 
       <div class="border border-accent/20 p-2 mb-3 text-center">
-        <span v-if="playerRank === 1" class="text-accent text-xs finish-flash">恭喜你获得冠军！奖金 800文</span>
-        <span v-else-if="playerRank === 2" class="text-success text-xs">你获得了亚军！奖金 400文</span>
-        <span v-else class="text-muted text-xs">获得了季军。奖金 200文</span>
+        <span v-if="playerRank === 1" class="text-accent text-xs finish-flash">
+          恭喜你获得冠军！奖金 {{ displayPrizeForRank(1) }}文<span v-if="props.bonusMoney > 0">（含年度追加{{ props.bonusMoney }}文）</span>
+        </span>
+        <span v-else-if="playerRank === 2" class="text-success text-xs">
+          你获得了亚军！奖金 {{ displayPrizeForRank(2) }}文<span v-if="props.bonusMoney > 0">（含年度追加{{ props.bonusMoney }}文）</span>
+        </span>
+        <span v-else class="text-muted text-xs">
+          获得了季军。奖金 {{ displayPrizeForRank(3) }}文<span v-if="props.bonusMoney > 0">（含年度追加{{ props.bonusMoney }}文）</span>
+        </span>
       </div>
 
       <Button class="w-full" @click="handleClaim">领取奖励</Button>
@@ -113,6 +119,15 @@
   } from '@/composables/useAudio'
   import Button from '@/components/game/Button.vue'
 
+  const props = withDefaults(
+    defineProps<{
+      bonusMoney?: number
+    }>(),
+    {
+      bonusMoney: 0
+    }
+  )
+
   const emit = defineEmits<{ complete: [prize: number] }>()
 
   type Phase = 'ready' | 'countdown' | 'racing' | 'finished'
@@ -124,6 +139,18 @@
   interface Boat {
     name: string
     progress: number
+  }
+
+  const getBasePrizeForRank = (rank: number) => {
+    if (rank === 1) return 800
+    if (rank === 2) return 400
+    return 200
+  }
+
+  const advanceNpcBoat = (index: number) => {
+    const boat = boats.value[index]
+    if (!boat) return
+    boat.progress += Math.floor(Math.random() * 4) + 2
   }
 
   const boats = ref<Boat[]>([
@@ -147,6 +174,8 @@
     const idx = rankings.value.findIndex(b => b.name === '你')
     return idx === -1 ? 3 : idx + 1
   })
+
+  const displayPrizeForRank = (rank: number) => getBasePrizeForRank(rank) + props.bonusMoney
 
   const boatColor = (i: number) => {
     if (i === 0) return 'text-accent'
@@ -190,8 +219,8 @@
 
     // NPC自动划船
     raceTimer = setInterval(() => {
-      boats.value[1]!.progress += Math.floor(Math.random() * 4) + 2
-      boats.value[2]!.progress += Math.floor(Math.random() * 4) + 2
+      advanceNpcBoat(1)
+      advanceNpcBoat(2)
     }, 500)
 
     // 倒计时
@@ -236,8 +265,7 @@
 
   const handleClaim = () => {
     sfxRewardClaim()
-    const prizes: Record<number, number> = { 1: 800, 2: 400, 3: 200 }
-    emit('complete', prizes[playerRank.value] ?? 200)
+    emit('complete', getBasePrizeForRank(playerRank.value))
   }
 
   onUnmounted(() => {

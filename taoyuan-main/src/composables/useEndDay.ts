@@ -280,7 +280,10 @@ const checkAchievementRecipes = () => {
 }
 
 /** 应用季节事件效果 */
-const applyEventEffects = (event: { id: string; name: string; description: string; effects: any }) => {
+const applyEventEffects = (
+  event: { id: string; name: string; description: string; effects: any },
+  options: { skipPrizePoolRewards?: boolean } = {}
+) => {
   const playerStore = usePlayerStore()
   const npcStore = useNpcStore()
   const inventoryStore = useInventoryStore()
@@ -292,7 +295,7 @@ const applyEventEffects = (event: { id: string; name: string; description: strin
       state.friendship = Math.min(state.friendship + effects.friendshipBonus, cap)
     }
   }
-  if (effects.moneyReward) {
+  if (effects.moneyReward && !options.skipPrizePoolRewards) {
     playerStore.earnMoney(effects.moneyReward)
     showFloat(`+${effects.moneyReward}文`, 'accent')
   }
@@ -300,7 +303,7 @@ const applyEventEffects = (event: { id: string; name: string; description: strin
     playerStore.restoreStamina(effects.staminaBonus)
     showFloat(`+${effects.staminaBonus}体力`, 'success')
   }
-  if (effects.itemReward) {
+  if (effects.itemReward && !options.skipPrizePoolRewards) {
     const rewardItems = effects.itemReward.map((item: { itemId: string; quantity: number }) => ({
       itemId: item.itemId,
       quantity: item.quantity,
@@ -1869,19 +1872,20 @@ export const handleEndDay = () => {
   // 季节事件
   const event = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
   if (event) {
-    applyEventEffects(event)
-    if (event.interactive && event.festivalType) {
-      showFestival(event.festivalType)
-    } else {
-      const { startFestivalBgm } = useAudio()
-      startFestivalBgm(gameStore.season)
-    }
     // 替换 narrative 中的动态占位符
     const ORDINALS = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']
     const yearStr = gameStore.year <= 10 ? ORDINALS[gameStore.year - 1]! : String(gameStore.year)
     const resolved = {
       ...event,
       narrative: event.narrative.map(line => line.replace('{year}', yearStr))
+    }
+
+    applyEventEffects(resolved, { skipPrizePoolRewards: Boolean(resolved.interactive && resolved.festivalType) })
+    if (event.interactive && event.festivalType) {
+      showFestival(event.festivalType, resolved)
+    } else {
+      const { startFestivalBgm } = useAudio()
+      startFestivalBgm(gameStore.season)
     }
     showEvent(resolved)
   }

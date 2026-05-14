@@ -542,7 +542,7 @@
             </div>
             <p v-if="todayEvent" class="text-[10px] text-danger mb-1">今日节日：{{ todayEvent.name }}</p>
             <p v-if="todayEvent?.variantNotes?.dialogueNotes?.[0]" class="text-[10px] text-warning mb-1">
-              年度台词：{{ todayEvent.variantNotes.dialogueNotes[0] }}
+              台词变化提示：{{ todayEvent.variantNotes.dialogueNotes[0] }}
             </p>
             <p class="text-xs text-accent">{{ selectedScheduleStatus.location }}</p>
             <p class="text-[10px] text-muted mt-0.5">{{ selectedScheduleStatus.summary }}</p>
@@ -953,6 +953,7 @@
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
   import { useShopStore } from '@/stores/useShopStore'
+  import { useSkillStore } from '@/stores/useSkillStore'
   import { NPCS, getNpcById, getItemById, getHeartEventById, getTodayEvent } from '@/data'
   import { getNpcRelationshipFocusLabels } from '@/data/npcWorld'
   import { getHiddenNpcById } from '@/data/hiddenNpcs'
@@ -982,6 +983,7 @@
   const hiddenNpcStore = useHiddenNpcStore()
   const villageProjectStore = useVillageProjectStore()
   const shopStore = useShopStore()
+  const skillStore = useSkillStore()
 
   const activeTab = ref<'villager' | 'spirit'>('villager')
   const selectedHiddenNpc = ref<string | null>(null)
@@ -1545,7 +1547,8 @@
     }
     const cookingGiftBonus = cookingStore.activeBuff?.type === 'giftBonus' ? cookingStore.activeBuff.value : 1
     const ringGiftBonus = inventoryStore.getRingEffectValue('gift_friendship')
-    const giftMultiplier = cookingGiftBonus * (1 + ringGiftBonus)
+    const blessingGiftBonus = skillStore.getBlessingEffectValue('gift_friendship')
+    const giftMultiplier = cookingGiftBonus * (1 + ringGiftBonus + blessingGiftBonus)
     const result = npcStore.giveGift(selectedNpc.value, itemId, giftMultiplier, quality)
     if (result) {
       const itemName = getItemById(itemId)?.name ?? itemId

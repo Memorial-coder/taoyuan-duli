@@ -131,8 +131,9 @@
         </p>
         <p class="text-xs">
           奖金：
-          <span class="text-accent">{{ prize }}</span>
+          <span class="text-accent">{{ displayPrize }}</span>
           文
+          <span v-if="props.bonusMoney > 0" class="text-success">（含年度追加{{ props.bonusMoney }}文）</span>
         </p>
       </div>
       <Button class="w-full" @click="handleClaim">领取奖励</Button>
@@ -155,6 +156,15 @@
     sfxRankSecond
   } from '@/composables/useAudio'
   import Button from '@/components/game/Button.vue'
+
+  const props = withDefaults(
+    defineProps<{
+      bonusMoney?: number
+    }>(),
+    {
+      bonusMoney: 0
+    }
+  )
 
   const emit = defineEmits<{ complete: [prize: number] }>()
 
@@ -183,6 +193,7 @@
   let shuffleTimeout: ReturnType<typeof setTimeout> | null = null
 
   const prize = computed(() => Math.min(1000, dumplingCount.value * 100))
+  const displayPrize = computed(() => prize.value + props.bonusMoney)
 
   /** 打乱按钮顺序：随机交换1-3个位置 */
   const shuffleButtons = () => {

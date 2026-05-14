@@ -93,8 +93,9 @@
         </p>
         <p class="text-xs">
           奖金：
-          <span class="text-accent">{{ prize }}</span>
+          <span class="text-accent">{{ displayPrize }}</span>
           文
+          <span v-if="props.bonusMoney > 0" class="text-success">（含年度追加{{ props.bonusMoney }}文）</span>
         </p>
       </div>
       <Button class="w-full" @click="handleClaim">领取奖励</Button>
@@ -117,6 +118,15 @@
     sfxRankThird
   } from '@/composables/useAudio'
   import Button from '@/components/game/Button.vue'
+
+  const props = withDefaults(
+    defineProps<{
+      bonusMoney?: number
+    }>(),
+    {
+      bonusMoney: 0
+    }
+  )
 
   const emit = defineEmits<{ complete: [prize: number] }>()
 
@@ -148,6 +158,7 @@
     if (score.value >= 60) return 200
     return 50
   })
+  const displayPrize = computed(() => prize.value + props.bonusMoney)
 
   /** requestAnimationFrame 主循环 */
   const gameLoop = (timestamp: number) => {

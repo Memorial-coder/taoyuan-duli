@@ -814,7 +814,8 @@
     const cookingStore = useCookingStore()
     const cookingGiftBonus = cookingStore.activeBuff?.type === 'giftBonus' ? cookingStore.activeBuff.value : 1
     const ringGiftBonus = inventoryStore.getRingEffectValue('gift_friendship')
-    const giftMultiplier = cookingGiftBonus * (1 + ringGiftBonus)
+    const blessingGiftBonus = skillStore.getBlessingEffectValue('gift_friendship')
+    const giftMultiplier = cookingGiftBonus * (1 + ringGiftBonus + blessingGiftBonus)
     const result = npcStore.giveGift(spouseState.value.npcId, itemId, giftMultiplier, quality)
     if (result) {
       const itemName = getItemById(itemId)?.name ?? itemId
