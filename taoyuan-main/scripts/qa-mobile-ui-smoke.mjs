@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { findAvailablePort } from './port-utils.mjs'
 import { chromium, expect } from '@playwright/test'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -10,9 +11,11 @@ const repoRoot = path.resolve(__dirname, '..')
 const workspaceRoot = path.resolve(repoRoot, '..')
 const outputDir = path.resolve(workspaceRoot, 'docs', 'ui-smoke-2026-04-26')
 const host = '127.0.0.1'
-const port = 4175
-const baseURL = process.env.TAOYUAN_BASE_URL?.trim() || `http://${host}:${port}`
-const shouldStartDevServer = process.env.TAOYUAN_SKIP_DEV_SERVER !== '1'
+const preferredPort = Number(process.env.TAOYUAN_E2E_PORT || 4175)
+const configuredBaseURL = process.env.TAOYUAN_BASE_URL?.trim() || ''
+const port = configuredBaseURL ? preferredPort : await findAvailablePort(host, preferredPort)
+const baseURL = configuredBaseURL || `http://${host}:${port}`
+const shouldStartDevServer = process.env.TAOYUAN_SKIP_DEV_SERVER !== '1' && !configuredBaseURL
 const sampleId = 'region_map_showcase'
 
 const consoleErrors = []

@@ -1,6 +1,12 @@
 const fs = require('fs')
 const path = require('path')
-const crypto = require('crypto')
+const {
+  createError,
+  setActiveSaveSlot,
+  clearActiveSaveSlotIfMatches,
+  getActiveSaveContext,
+  persistGameplayData,
+} = require('./taoyuanSaveRuntime')
 
 const TAOYUAN_HALL_FILE = path.join(
   process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) : path.join(__dirname, '../data'),
@@ -10,16 +16,6 @@ const TAOYUAN_HALL_FILE = path.join(
 const HALL_UPLOADS_DIR = path.join(
   process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) : path.join(__dirname, '../data'),
   'taoyuan_hall_uploads'
-)
-
-const TAOYUAN_SAVES_DIR = path.join(
-  process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) : path.join(__dirname, '../data'),
-  'taoyuan_saves'
-)
-
-const TAOYUAN_ACTIVE_SLOT_FILE = path.join(
-  process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) : path.join(__dirname, '../data'),
-  'taoyuan_active_slots.json'
 )
 
 const IMAGE_MIME_EXT = {
@@ -32,16 +28,9 @@ const IMAGE_MIME_EXT = {
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 const DEFAULT_PAGE_SIZE = 20
 const MAX_PAGE_SIZE = 50
-const SAVE_ENCRYPTION_KEY = 'taoyuanxiang_2024_secret'
 const MAX_REPORT_REASON_LENGTH = 200
 
 let _taoyuanHallLockTail = Promise.resolve()
-
-function createError(message, status = 400) {
-  const error = new Error(message)
-  error.status = status
-  return error
-}
 
 function makeId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
@@ -55,214 +44,15 @@ function ensureUploadsDir() {
   fs.mkdirSync(HALL_UPLOADS_DIR, { recursive: true })
 }
 
-function ensureTaoyuanSavesDir() {
-  fs.mkdirSync(TAOYUAN_SAVES_DIR, { recursive: true })
-}
-
-function ensureActiveSlotDir() {
-  fs.mkdirSync(path.dirname(TAOYUAN_ACTIVE_SLOT_FILE), { recursive: true })
-}
-
-function getTaoyuanSavePath(username) {
-  return path.join(TAOYUAN_SAVES_DIR, `${String(username)}.json`)
-}
-
-function loadActiveSlots() {
-  try {
-    if (!fs.existsSync(TAOYUAN_ACTIVE_SLOT_FILE)) return {}
-    const raw = JSON.parse(fs.readFileSync(TAOYUAN_ACTIVE_SLOT_FILE, 'utf8'))
-    return raw && typeof raw === 'object' ? raw : {}
-  } catch {
-    return {}
-  }
-}
-
-function saveActiveSlots(data) {
-  ensureActiveSlotDir()
-  fs.writeFileSync(TAOYUAN_ACTIVE_SLOT_FILE, JSON.stringify(data, null, 2), 'utf8')
-}
-
-function setActiveSaveSlot(username, slot) {
-  const normalizedSlot = Number.isInteger(Number(slot)) ? Number(slot) : null
-  const data = loadActiveSlots()
-  if (!username) return
-  if (normalizedSlot === null || normalizedSlot < 0 || normalizedSlot > 2) {
-    delete data[String(username)]
-  } else {
-    data[String(username)] = normalizedSlot
-  }
-  saveActiveSlots(data)
-}
-
-function clearActiveSaveSlotIfMatches(username, slot) {
-  const data = loadActiveSlots()
-  if (data[String(username)] === Number(slot)) {
-    delete data[String(username)]
-    saveActiveSlots(data)
-  }
-}
-
-function getActiveSaveSlot(username) {
-  const slot = loadActiveSlots()[String(username)]
-  return Number.isInteger(Number(slot)) ? Number(slot) : null
-}
-
-function evpBytesToKey(passwordBuffer, saltBuffer, keyLen, ivLen) {
-  let derived = Buffer.alloc(0)
-  let block = Buffer.alloc(0)
-  while (derived.length < keyLen + ivLen) {
-    const hash = crypto.createHash('md5')
-    hash.update(block)
-    hash.update(passwordBuffer)
-    hash.update(saltBuffer)
-    block = hash.digest()
-    derived = Buffer.concat([derived, block])
-  }
-  return {
-    key: derived.slice(0, keyLen),
-    iv: derived.slice(keyLen, keyLen + ivLen),
-  }
-}
-
-function decryptTaoyuanRaw(raw) {
-  try {
-    const input = Buffer.from(String(raw || ''), 'base64')
-    if (input.length < 16 || input.slice(0, 8).toString('utf8') !== 'Salted__') return null
-    const salt = input.slice(8, 16)
-    const payload = input.slice(16)
-    const { key, iv } = evpBytesToKey(Buffer.from(SAVE_ENCRYPTION_KEY, 'utf8'), salt, 32, 16)
-    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv)
-    const decrypted = Buffer.concat([decipher.update(payload), decipher.final()]).toString('utf8')
-    return JSON.parse(decrypted)
-  } catch {
-    return null
-  }
-}
-
-function encryptTaoyuanData(data) {
-  const salt = crypto.randomBytes(8)
-  const { key, iv } = evpBytesToKey(Buffer.from(SAVE_ENCRYPTION_KEY, 'utf8'), salt, 32, 16)
-  const cipher = crypto.createCipheriv('aes-256-cbc', key, iv)
-  const encrypted = Buffer.concat([cipher.update(JSON.stringify(data), 'utf8'), cipher.final()])
-  return Buffer.concat([Buffer.from('Salted__'), salt, encrypted]).toString('base64')
-}
-
-function buildSaveMeta(metaLike = {}, savedAtFallback) {
-  const savedAt = typeof metaLike?.savedAt === 'string' && metaLike.savedAt
-    ? metaLike.savedAt
-    : (savedAtFallback || new Date().toISOString())
-  const saveVersion = Number(metaLike?.saveVersion)
-  return {
-    saveVersion: Number.isFinite(saveVersion) ? saveVersion : 2,
-    savedAt,
-  }
-}
-
-function normalizeGameplaySaveContainer(rawData) {
-  if (!rawData || typeof rawData !== 'object') return null
-
-  if (rawData.data && typeof rawData.data === 'object') {
-    const savedAt = typeof rawData.savedAt === 'string' && rawData.savedAt
-      ? rawData.savedAt
-      : (rawData.meta?.savedAt || new Date().toISOString())
-    return {
-      wrapped: true,
-      root: {
-        ...rawData,
-        meta: buildSaveMeta(rawData.meta || {}, savedAt),
-        savedAt,
-      },
-      gameplayData: rawData.data,
-    }
-  }
-
-  return {
-    wrapped: false,
-    root: rawData,
-    gameplayData: rawData,
-  }
-}
-
-function serializeGameplaySaveContainer(container) {
-  const savedAt = new Date().toISOString()
-  if (container?.wrapped) {
-    container.root.meta = buildSaveMeta(container.root.meta || {}, savedAt)
-    container.root.meta.savedAt = savedAt
-    container.root.savedAt = savedAt
-    container.root.data = container.gameplayData
-    return container.root
-  }
-  return container?.gameplayData || container?.root || null
-}
-
-function loadUserSaveSlots(username) {
-  ensureTaoyuanSavesDir()
-  const file = getTaoyuanSavePath(username)
-  if (!fs.existsSync(file)) return { slots: { 0: null, 1: null, 2: null } }
-  try {
-    const raw = JSON.parse(fs.readFileSync(file, 'utf8'))
-    const normalizeSlotEntry = (entry) => {
-      if (typeof entry === 'string' && entry) return { raw: entry, revision: 0 }
-      if (!entry || typeof entry !== 'object' || typeof entry.raw !== 'string' || !entry.raw) return null
-      return {
-        raw: entry.raw,
-        revision: Number.isFinite(Number(entry.revision)) ? Math.floor(Number(entry.revision)) : 0,
-      }
-    }
-    return {
-      slots: {
-        0: normalizeSlotEntry(raw?.slots?.[0]),
-        1: normalizeSlotEntry(raw?.slots?.[1]),
-        2: normalizeSlotEntry(raw?.slots?.[2]),
-      }
-    }
-  } catch {
-    return { slots: { 0: null, 1: null, 2: null } }
-  }
-}
-
-function saveUserSaveSlots(username, data) {
-  ensureTaoyuanSavesDir()
-  fs.writeFileSync(getTaoyuanSavePath(username), JSON.stringify(data, null, 2), 'utf8')
-}
-
-function nextSlotRevision(currentRevision = 0) {
-  return Math.max(Date.now(), Math.floor(Number(currentRevision) || 0) + 1)
-}
-
-function getActiveSaveContext(username) {
-  const saves = loadUserSaveSlots(username)
-  let slot = getActiveSaveSlot(username)
-  if (slot === null) {
-    const fallbackSlot = [0, 1, 2].find(index => typeof saves.slots[index]?.raw === 'string' && saves.slots[index]?.raw)
-    if (fallbackSlot === undefined) {
-      throw createError('当前账号没有可用的桃源服务端存档，无法进行悬赏结算')
-    }
-    slot = fallbackSlot
-    setActiveSaveSlot(username, slot)
-  }
-  const raw = saves.slots[slot]?.raw
-  if (!raw) throw createError('当前账号没有可用的桃源服务端存档，无法进行悬赏结算')
-  const decrypted = decryptTaoyuanRaw(raw)
-  const saveContainer = normalizeGameplaySaveContainer(decrypted)
-  const data = saveContainer?.gameplayData
-  if (!data?.player) throw createError('桃源存档解析失败，无法进行悬赏结算')
-  return { slot, saves, data, saveContainer }
-}
-
 function updateActiveSaveMoney(username, delta) {
-  const context = getActiveSaveContext(username)
+  const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源服务端存档，无法进行悬赏结算')
+  context.username = username
   const currentMoney = Math.max(0, Math.floor(Number(context.data?.player?.money) || 0))
   const normalizedDelta = Math.floor(Number(delta) || 0)
   const nextMoney = currentMoney + normalizedDelta
   if (nextMoney < 0) throw createError('桃源货币不足，无法完成悬赏操作')
   context.data.player.money = nextMoney
-  const currentRevision = context.saves.slots[context.slot]?.revision ?? 0
-  context.saves.slots[context.slot] = {
-    raw: encryptTaoyuanData(serializeGameplaySaveContainer(context.saveContainer)),
-    revision: nextSlotRevision(currentRevision)
-  }
-  saveUserSaveSlots(username, context.saves)
+  persistGameplayData(context)
   return {
     slot: context.slot,
     money: nextMoney,

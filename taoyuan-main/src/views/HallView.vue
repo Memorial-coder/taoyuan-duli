@@ -28,7 +28,7 @@
               <RefreshCw :size="14" />
               <span>刷新</span>
             </button>
-            <button class="btn" @click="openComposer">
+            <button class="btn" @click="openComposer" :disabled="viewerStatus !== 'interactive' || loadingViewer">
               <SquarePen :size="14" />
               <span>发帖</span>
             </button>
@@ -36,9 +36,9 @@
         </div>
 
         <div class="mt-3 text-xs">
-          <span v-if="viewerStatus === 'unavailable'" class="text-warning">当前登录状态暂时无法确认，请检查网络后再试。</span>
-          <span v-else-if="viewer.loggedIn" class="text-success">当前账号：{{ viewer.displayName || viewer.username }}（可发帖 / 回复）</span>
-          <span v-else class="text-muted">当前为游客浏览模式，请先登录游戏账号后再发帖或回复。</span>
+          <span v-if="viewerStatus === 'unavailable'" class="text-warning">大厅连接暂时不可用。</span>
+          <span v-else-if="viewerStatus === 'interactive'" class="text-success">当前账号：{{ viewer.displayName || viewer.username }}（可互动）</span>
+          <span v-else class="text-muted">当前为游客浏览模式。</span>
         </div>
       </div>
 
@@ -702,7 +702,7 @@
   const goalStore = useGoalStore()
 
   const viewer = ref<HallViewer>({ loggedIn: false, username: null, displayName: null })
-  const viewerStatus = ref<'ready' | 'unavailable'>('ready')
+  const viewerStatus = ref<'interactive' | 'readonly' | 'unavailable'>('readonly')
   const posts = ref<HallPostSummary[]>([])
   const selectedPost = ref<HallPostDetail | null>(null)
   const selectedPostId = ref<string | null>(null)
@@ -958,7 +958,7 @@
     loadingViewer.value = true
     try {
       viewer.value = await fetchHallViewer()
-      viewerStatus.value = 'ready'
+      viewerStatus.value = viewer.value.loggedIn ? 'interactive' : 'readonly'
     } catch (error) {
       viewerStatus.value = 'unavailable'
       showFloat(error instanceof Error ? error.message : '交流大厅连接失败，请检查网络后再试', 'danger')
@@ -1241,7 +1241,7 @@
     if (viewerStatus.value === 'unavailable') {
       return false
     }
-    if (!viewer.value.loggedIn) {
+    if (viewerStatus.value !== 'interactive' || !viewer.value.loggedIn) {
       showFloat('请先登录游戏账号后再互动', 'danger')
       return false
     }

@@ -24,7 +24,7 @@ export const fetchHallViewer = async (): Promise<HallViewer> => {
   const data = await parseJsonSafe(res)
   const adminToken = typeof window !== 'undefined' ? window.localStorage.getItem('admin_token') || '' : ''
   if (res.status === 401 || res.status === 403) {
-    return { loggedIn: false, username: null, displayName: null, isAdmin: !!adminToken }
+    return { loggedIn: false, username: null, displayName: null, isAdmin: !!adminToken, status: 'readonly' }
   }
   if (!res.ok || !data?.ok) {
     throw new Error(data?.msg || '交流大厅连接失败，请稍后重试')
@@ -34,6 +34,7 @@ export const fetchHallViewer = async (): Promise<HallViewer> => {
     username: data.user?.username || null,
     displayName: data.user?.display_name || data.user?.username || null,
     isAdmin: !!adminToken,
+    status: 'interactive',
   }
 }
 

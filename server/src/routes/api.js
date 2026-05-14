@@ -12,6 +12,13 @@ const taoyuanHall = require('../taoyuanHall');
 const taoyuanMailbox = require('../taoyuanMailbox');
 const taoyuanAiAssistant = require('../taoyuanAiAssistant');
 const officialControlPlatform = require('../officialControlPlatform');
+const {
+  ensureTaoyuanSavesDir,
+  getTaoyuanSavePath,
+  loadUserSaveSlots,
+  saveUserSaveSlots,
+  nextSlotRevision,
+} = require('../taoyuanSaveRuntime');
 
 const router = express.Router();
 
@@ -19,7 +26,6 @@ const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
   : path.join(__dirname, '../../../data');
 
-const TAOYUAN_SAVES_DIR = path.join(DATA_DIR, 'taoyuan_saves');
 const TAOYUAN_EXCHANGE_LIMITS_FILE = path.join(DATA_DIR, 'taoyuan_exchange_limits.json');
 const PUBLIC_AI_ASK_WINDOW_MS = 60 * 1000;
 const PUBLIC_AI_ASK_MAX_REQUESTS = 8;
@@ -32,72 +38,19 @@ function createRouteError(message, status = 400) {
   return error;
 }
 
-function ensureTaoyuanSavesDir() {
-  fs.mkdirSync(TAOYUAN_SAVES_DIR, { recursive: true });
-}
-
-function getTaoyuanSavePath(username) {
-  return path.join(TAOYUAN_SAVES_DIR, `${String(username)}.json`);
-}
-
-function normalizeTaoyuanSlotEntry(entry) {
-  if (typeof entry === 'string' && entry) {
-    return { raw: entry, revision: 0 };
-  }
-  if (!entry || typeof entry !== 'object' || typeof entry.raw !== 'string' || !entry.raw) {
-    return null;
-  }
-  return {
-    raw: entry.raw,
-    revision: Number.isFinite(Number(entry.revision)) ? Math.floor(Number(entry.revision)) : 0,
-  };
-}
-
-function createEmptyTaoyuanSlots() {
-  return { 0: null, 1: null, 2: null };
-}
-
-function nextTaoyuanSlotRevision(currentRevision = 0) {
-  return Math.max(Date.now(), Math.floor(Number(currentRevision) || 0) + 1);
-}
-
 function loadTaoyuanUserSaves(username) {
-  const defaults = { slots: createEmptyTaoyuanSlots() };
-  const file = getTaoyuanSavePath(username);
-  if (!fs.existsSync(file)) return { ...defaults };
-
-  let raw;
   try {
-    raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+    return loadUserSaveSlots(username);
   } catch {
     throw createRouteError('服务端存档文件已损坏，请先修复后再操作', 500);
   }
-
-  if (!raw || typeof raw !== 'object' || !raw.slots || typeof raw.slots !== 'object') {
-    throw createRouteError('服务端存档文件结构无效，请先修复后再操作', 500);
-  }
-
-  return {
-    slots: {
-      0: normalizeTaoyuanSlotEntry(raw.slots[0]),
-      1: normalizeTaoyuanSlotEntry(raw.slots[1]),
-      2: normalizeTaoyuanSlotEntry(raw.slots[2]),
-    },
-  };
 }
 
 function saveTaoyuanUserSaves(username, data) {
-  ensureTaoyuanSavesDir();
-  const targetPath = getTaoyuanSavePath(username);
-  const tempPath = `${targetPath}.${process.pid}.${Date.now()}.tmp`;
   try {
-    fs.writeFileSync(tempPath, JSON.stringify(data, null, 2), 'utf8');
-    fs.renameSync(tempPath, targetPath);
+    return saveUserSaveSlots(username, data);
   } catch (error) {
-    try {
-      if (fs.existsSync(tempPath)) fs.unlinkSync(tempPath);
-    } catch {}
-    throw error;
+    throw createRouteError(error?.message || '服务端存档写入失败', error?.status || 500);
   }
 }
 
@@ -1332,7 +1285,7 @@ router.post('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
   }
   const nextRevision = requestedRevision !== null
     ? Math.max(requestedRevision, currentRevision)
-    : nextTaoyuanSlotRevision(currentRevision);
+    : nextSlotRevision(currentRevision);
   data.slots[slot] = { raw, revision: nextRevision };
   saveTaoyuanUserSaves(req.session.username, data);
   taoyuanHall.setActiveSaveSlot(req.session.username, slot);

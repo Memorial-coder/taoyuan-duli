@@ -2,6 +2,10 @@
   <div class="ai-admin-panel" :class="{ 'ai-admin-panel--scrollable': scrollable }">
     <div v-if="store.isLoadingAdmin" class="ai-admin-panel__loading">AI 管理配置加载中...</div>
     <template v-else>
+      <div v-if="store.adminConfig.officialManagedStatus" class="text-[11px] text-muted leading-5">
+        当前生效来源：{{ sourceLabel }} · 托管字段：{{ readonlyManagedFieldsText }}
+      </div>
+
       <div class="ai-admin-panel__group">
         <p class="ai-admin-panel__label">功能开关</p>
         <div class="ai-admin-panel__row">
@@ -67,13 +71,13 @@
 
       <div class="ai-admin-panel__group">
         <label class="ai-admin-panel__label">模型 API 地址</label>
-        <input v-model="store.adminConfig.apiUrl" class="ai-admin-panel__input" placeholder="如 https://api.example.com/v1" />
+        <input v-model="store.adminConfig.apiUrl" class="ai-admin-panel__input" placeholder="如：https://api.example.com/v1" />
       </div>
 
       <div class="ai-admin-panel__group grid grid-cols-1 gap-2 md:grid-cols-2">
         <div>
           <label class="ai-admin-panel__label">模型名称</label>
-          <input v-model="store.adminConfig.model" class="ai-admin-panel__input" placeholder="如 gpt-4o-mini" />
+          <input v-model="store.adminConfig.model" class="ai-admin-panel__input" placeholder="如：gpt-4o-mini" />
         </div>
         <div>
           <label class="ai-admin-panel__label">温度</label>
@@ -133,6 +137,17 @@
   const store = useAiAssistantStore()
   const router = useRouter()
   const readonlyManagedFieldSet = computed(() => new Set(store.adminConfig.readonlyManagedFields || []))
+  const sourceLabel = computed(() => {
+    const source = store.adminConfig.officialManagedStatus?.source
+    if (source === 'official_live') return '官方实时'
+    if (source === 'official_cached') return '官方缓存'
+    if (source === 'local_default') return '本地默认'
+    return '未知'
+  })
+  const readonlyManagedFieldsText = computed(() => {
+    const fields = store.adminConfig.readonlyManagedFields || []
+    return fields.length ? fields.join('、') : '无'
+  })
 
   const isManagedReadonly = (key: 'ai_assistant_name' | 'ai_assistant_welcome' | 'ai_assistant_console_credit') => {
     return readonlyManagedFieldSet.value.has(key)
@@ -143,7 +158,7 @@
   }
 
   const openKnowledgeAdminPage = () => {
-    void router.push('/admin/ai-knowledge')
+    void router.push({ path: '/admin', query: { tab: 'ai' } })
   }
 
   onMounted(() => {

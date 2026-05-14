@@ -420,7 +420,11 @@
                     <p class="text-muted text-xs mt-0.5">{{ visitor.teaser }}</p>
                     <p class="text-[10px] text-muted mt-1">{{ visitor.prepHints.slice(0, 2).join(' / ') }}</p>
                   </div>
-                  <Button class="shrink-0 px-2 py-1 text-[10px]" @click="handleRecordRareVisitor(visitor.id, visitor.name)">
+                  <Button
+                    class="shrink-0 px-2 py-1 text-[10px]"
+                    :disabled="hasRecordedRareVisitor(visitor.id)"
+                    @click="handleRecordRareVisitor(visitor.id, visitor.name)"
+                  >
                     {{ hasRecordedRareVisitor(visitor.id) ? '已拜访' : '拜访' }}
                   </Button>
                 </div>
@@ -1740,6 +1744,7 @@
   )
   const hasRecordedRareVisitor = (visitorId: string) => playerStore.hasLifestyleDiscovery('rareVisitors', visitorId)
   const handleRecordRareVisitor = (visitorId: string, visitorName: string) => {
+    if (hasRecordedRareVisitor(visitorId)) return
     playerStore.recordRareVisitorVisit(visitorId, currentDayTag.value)
     addLog(`【稀有来访】你在村口拜访了${visitorName}，这次来访已写入长期记录。`)
   }

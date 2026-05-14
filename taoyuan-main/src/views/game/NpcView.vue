@@ -964,6 +964,7 @@
   import { addLog, showFloat } from '@/composables/useGameLog'
   import { triggerHeartEvent } from '@/composables/useDialogs'
   import { handleEndDay } from '@/composables/useEndDay'
+  import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
   import type { FriendshipLevel, GiftPreference, Quality, RelationshipClueEntry, VillageProjectRequirementProgress } from '@/types'
   import Button from '@/components/game/Button.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
@@ -1277,7 +1278,7 @@
     if (summary.hintCount > 0) return `已经攒下 ${summary.hintCount} 条模糊线索，还需要继续观察。`
     return '暂时还没有摸清礼物偏好，可以通过对话、纸条、节日和送礼继续记录。'
   })
-  const todayEvent = computed(() => getTodayEvent(gameStore.season, gameStore.day, gameStore.year) ?? null)
+  const todayEvent = computed(() => getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext()) ?? null)
   const canInteractWithSelectedNpc = computed(() => {
     if (!selectedNpc.value) return false
     if (selectedNpcState.value?.married) return true

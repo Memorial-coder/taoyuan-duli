@@ -123,21 +123,21 @@ export const MASTERY_REWARD_DEFS: MasteryRewardDef[] = [
     id: 'advanced_workbench',
     label: '高级工台权限',
     unlockMasteryId: 'mastery_mining',
-    summary: '设施页会开始承接高阶工台和精修加工位。',
+    summary: '设施页会先提示高阶工台与精修加工位的后续方向。',
     panelHint: '设施'
   },
   {
     id: 'transmutation_recipe',
     label: '稀有资源转化配方',
     unlockMasteryId: 'mastery_research',
-    summary: '精通会开始承接更深层的资源转化和研究型加工方向。',
+    summary: '精通会先标出更深层资源转化与研究型加工的后续方向。',
     panelHint: '技能 / 后续加工线'
   },
   {
     id: 'journey_map_markers',
     label: '特殊地图标记能力',
     unlockMasteryId: 'mastery_journey',
-    summary: '资料与行旅系统会开始承接更偏路线和远征判断的标记能力。',
+    summary: '资料与行旅系统会先提示更偏路线和远征判断的标记能力方向。',
     panelHint: '新手路线 / 行旅图'
   }
 ]

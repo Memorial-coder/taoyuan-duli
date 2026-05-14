@@ -65,6 +65,7 @@ import { useVillageProjectStore } from './useVillageProjectStore'
 import { useWalletStore } from './useWalletStore'
 import { addLog } from '@/composables/useGameLog'
 import { getAbsoluteDay } from '@/utils/weekCycle'
+import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 
 type CompletedQuestHistoryEntry = {
   id: string
@@ -383,7 +384,7 @@ export const useQuestStore = defineStore('quest', () => {
 
     const relationshipStages = Object.fromEntries(npcStore.npcStates.map(state => [state.npcId, npcStore.getRelationshipStage(state.npcId)]))
     const preferredCategory: VillagerQuestCategory | null = (() => {
-      if (getTodayEvent(season, day)) return 'festival_prep' as VillagerQuestCategory
+      if (getTodayEvent(season, day, buildSeasonEventResolutionContext())) return 'festival_prep' as VillagerQuestCategory
       if (marketQuestBias.preferredVillagerCategory) return marketQuestBias.preferredVillagerCategory
 
       const rotation: VillagerQuestCategory[] = ['gathering', 'cooking', 'fishing', 'errand', 'rumor']
@@ -1809,9 +1810,12 @@ export const useQuestStore = defineStore('quest', () => {
       weather: gameStore.weather,
       day: gameStore.day,
       year: gameStore.year,
-      isFestivalDay: Boolean(getTodayEvent(gameStore.season, gameStore.day, { year: gameStore.year }))
+      isFestivalDay: Boolean(getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext()))
     })
-    if (environmentWindow.forage.active && (quest.sourceCategory === 'festival_prep' || getTodayEvent(gameStore.season, gameStore.day, { year: gameStore.year }))) {
+    if (
+      environmentWindow.forage.active &&
+      (quest.sourceCategory === 'festival_prep' || getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext()))
+    ) {
       message += ` ${environmentWindow.forage.festivalDeliveryLine}`
     }
 

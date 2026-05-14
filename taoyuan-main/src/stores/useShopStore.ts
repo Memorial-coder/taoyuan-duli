@@ -52,12 +52,13 @@ import {
   type MarketSubstituteRewardState,
   type MarketThemeEncouragementState
 } from '@/data/market'
-import { getBookById } from '@/data/books'
+import { BOOKS, getBookById } from '@/data/books'
 import {
   getVillageResidentUnlockHint,
   isVillageResidentUnlocked,
   VILLAGE_RESIDENTS
 } from '@/data/villageResidents'
+import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 import type { TravelingMerchantStock } from '@/data/travelingMerchant'
 import type { BooksellerStockEntry } from '@/data/bookseller'
 import type {
@@ -248,7 +249,8 @@ export const useShopStore = defineStore('shop', () => {
     villageProjectStore.projectSummaries
       .filter((project: { completed: boolean; id: string }) => project.completed)
       .map((project: { id: string }) => project.id)
-  const getCurrentFestivalIds = () => getSeasonEventsForDay(gameStore.season, gameStore.day, gameStore.year).map(event => event.id)
+  const getCurrentFestivalIds = () =>
+    getSeasonEventsForDay(gameStore.season, gameStore.day, buildSeasonEventResolutionContext()).map(event => event.id)
 
   const ownedCatalogOfferIds = ref<string[]>([])
   const catalogExpansionState = ref<ShopCatalogExpansionState>(createDefaultShopCatalogExpansionState())
@@ -2263,6 +2265,23 @@ export const useShopStore = defineStore('shop', () => {
 
   const getCurrentShippingDayKey = (): string => `${gameStore.year}-${gameStore.seasonIndex}-${gameStore.day}`
 
+  const buildFallbackLifetimeCategoryTotalsFromKnownItems = (itemIds: string[]) => {
+    const totals: Partial<Record<MarketCategory, number>> = {}
+    for (const itemId of itemIds) {
+      const itemDef = getItemById(itemId)
+      if (!itemDef || !isMarketCategory(itemDef.category)) continue
+      totals[itemDef.category] = (totals[itemDef.category] ?? 0) + 1
+    }
+    return totals
+  }
+
+  const buildFallbackLifetimeItemTotalsFromKnownItems = (itemIds: string[]) =>
+    Object.fromEntries(
+      itemIds
+        .filter(itemId => !!getItemById(itemId))
+        .map(itemId => [itemId, 1])
+    ) as Record<string, number>
+
   /** 统一记录出售后对市场历史的影响，避免卖店与出货箱分叉。 */
   const recordCompletedSale = (
     itemId: string,
@@ -2353,12 +2372,16 @@ export const useShopStore = defineStore('shop', () => {
   const refreshBooksellerStock = () => {
     const key = `${gameStore.year}_${gameStore.seasonIndex}_${gameStore.day}`
     if (booksellerStockKey.value === key) return
+    const discoveredOwnedBookIds = new Set<string>([
+      ...ownedBooksellerBookIds.value,
+      ...BOOKS.filter(book => playerStore.hasLifestyleDiscovery('lifestyleUnlocks', book.id)).map(book => book.id)
+    ])
     booksellerStock.value = generateBooksellerStock(
       gameStore.year,
       gameStore.seasonIndex,
       gameStore.day,
       gameStore.season,
-      ownedBooksellerBookIds.value
+      [...discoveredOwnedBookIds]
     )
     playerStore.recordRareVisitorVisit(BOOKSELLER_VISITOR_ID, buildCurrentDayTag())
     booksellerStockKey.value = key
@@ -2688,7 +2711,7 @@ export const useShopStore = defineStore('shop', () => {
     const categoryFallbackTrendLine = topCategory
       ? `${MARKET_CATEGORY_NAMES[topCategory.category]} · 近 7 天 ${topCategory.quantity} 件 · ${topCategory.marketInfo ? TREND_NAMES[topCategory.marketInfo.trend] : TREND_NAMES.stable}`
       : '卖出或结算出货箱后，这里会显示最常被村民提起的货物。'
-    const currentEvents = getSeasonEventsForDay(gameStore.season, gameStore.day, gameStore.year)
+    const currentEvents = getSeasonEventsForDay(gameStore.season, gameStore.day, buildSeasonEventResolutionContext())
     const festivalLabel = currentEvents[0]?.name ?? ''
     const bestRelationshipShop = Object.entries(SHOP_NPC_RELATION_MAP)
       .map(([shopId, npcId]) => ({
@@ -2960,6 +2983,10 @@ export const useShopStore = defineStore('shop', () => {
           }
         }
       }
+      for (const [category, quantity] of Object.entries(buildFallbackLifetimeCategoryTotalsFromKnownItems(shippedItems.value))) {
+        if (!isMarketCategory(category)) continue
+        fallbackCategoryTotals[category] = Math.max(fallbackCategoryTotals[category] ?? 0, quantity ?? 0)
+      }
       shippingLifetimeCategoryTotals.value = fallbackCategoryTotals
     }
     if (Object.keys(rawLifetimeItemTotals).length === 0) {
@@ -2970,6 +2997,9 @@ export const useShopStore = defineStore('shop', () => {
             fallbackItemTotals[itemId] = (fallbackItemTotals[itemId] ?? 0) + Math.max(0, Number(quantity) || 0)
           }
         }
+      }
+      for (const [itemId, quantity] of Object.entries(buildFallbackLifetimeItemTotalsFromKnownItems(shippedItems.value))) {
+        fallbackItemTotals[itemId] = Math.max(fallbackItemTotals[itemId] ?? 0, quantity)
       }
       shippingLifetimeItemTotals.value = fallbackItemTotals
     }

@@ -82,8 +82,8 @@ export const NPC_GIFT_CLUE_TEMPLATES: NpcGiftClueTemplate[] = [
   { npcId: 'chun_lan', clueId: 'chun_lan_shop_ore', source: 'shop', precision: 'exact', itemId: 'copper_ore', preference: 'hated', text: '茶庄账册旁写着：矿灰味会坏茶气，别往这儿带。' },
 
   { npcId: 'xue_qin', clueId: 'xue_qin_talk_cloth', source: 'talk', precision: 'hint', itemId: 'chrysanthemum', preference: 'liked', text: '雪琴对能入画、能入色的花材都很留意。' },
-  { npcId: 'xue_qin', clueId: 'xue_qin_home_peacock', source: 'home', precision: 'exact', itemId: 'peacock_feather', preference: 'loved', text: '画室里压着几根孔雀羽做笔样，她显然很珍惜这种颜色。' },
-  { npcId: 'xue_qin', clueId: 'xue_qin_rumor_stone', source: 'rumor', precision: 'exact', itemId: 'stone', preference: 'hated', text: '有人拿石头跟雪琴开玩笑，她只回了一句“太粗”。' },
+  { npcId: 'xue_qin', clueId: 'xue_qin_home_moonstone', source: 'home', precision: 'exact', itemId: 'moonstone', preference: 'loved', text: '画室案头压着一枚月光石镇纸，她落笔前总会先把它摆正。' },
+  { npcId: 'xue_qin', clueId: 'xue_qin_rumor_pickles', source: 'rumor', precision: 'exact', itemId: 'pickled_cabbage', preference: 'hated', text: '有人拿腌菜味跟雪琴打趣，她只皱眉说那味道会把颜料都熏浊。' },
 
   { npcId: 'su_su', clueId: 'su_su_shop_wool', source: 'shop', precision: 'hint', itemId: 'wool', preference: 'liked', text: '绸缎庄最常翻的就是毛料和丝料册子，送纺织材料通常不吃亏。' },
   { npcId: 'su_su', clueId: 'su_su_talk_silk', source: 'talk', precision: 'exact', itemId: 'silk', preference: 'loved', text: '素素说过真正顺手的丝，一摸便知。她自己最看重的也正是这个。' },
@@ -93,7 +93,7 @@ export const NPC_GIFT_CLUE_TEMPLATES: NpcGiftClueTemplate[] = [
   { npcId: 'hong_dou', clueId: 'hong_dou_home_wine', source: 'home', precision: 'exact', itemId: 'watermelon_wine', preference: 'loved', text: '酒庄深处封着她自己舍不得开的西瓜酒，谁都知道那是她心头好。' },
   { npcId: 'hong_dou', clueId: 'hong_dou_rumor_tea', source: 'rumor', precision: 'exact', itemId: 'tea', preference: 'hated', text: '酒庄里的人都笑她：端茶比端酒还别扭。' },
 
-  { npcId: 'dan_qing', clueId: 'dan_qing_talk_books', source: 'talk', precision: 'hint', itemId: 'tea', preference: 'liked', text: '丹青讲诗讲久了总要换口清茶，文雅东西往往更容易对他的胃口。' },
+  { npcId: 'dan_qing', clueId: 'dan_qing_talk_books', source: 'talk', precision: 'hint', itemId: 'tea', preference: 'loved', text: '丹青讲诗讲久了总要换口清茶，提到茶时那股神情像是在等真正懂他的人。' },
   { npcId: 'dan_qing', clueId: 'dan_qing_home_bamboo', source: 'home', precision: 'exact', itemId: 'bamboo', preference: 'loved', text: '他在竹林里抄书作诗，提起竹子时总像提起知己。' },
   { npcId: 'dan_qing', clueId: 'dan_qing_rumor_firewood', source: 'rumor', precision: 'exact', itemId: 'firewood', preference: 'hated', text: '有人说给丹青送柴火像让他背书箱，半点也不风雅。' },
 

@@ -1338,25 +1338,18 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     }
   }
 
-  const getRegionVariantSnapshot = (regionId: RegionId, dayTag = '') => {
-    ensureFrontierWorldSignals(dayTag)
-    return saveData.value.seasonalRegionStates[regionId]
-  }
+  const getRegionVariantSnapshot = (regionId: RegionId) => peekRegionVariantSnapshot(regionId)
 
   const peekRegionVariantSnapshot = (regionId: RegionId): RegionSeasonalState =>
     saveData.value.seasonalRegionStates[regionId] ?? createDefaultRegionMapSaveData().seasonalRegionStates[regionId]
 
-  const getRumorBoardForRegion = (regionId: RegionId, dayTag = '') => {
-    ensureFrontierWorldSignals(dayTag)
-    return saveData.value.rumorBoard.entriesByRegion[regionId] ?? []
-  }
+  const getRumorBoardForRegion = (regionId: RegionId) => peekRumorBoardForRegion(regionId)
 
   const peekRumorBoardForRegion = (regionId: RegionId): RegionRumorBoardEntry[] =>
     saveData.value.rumorBoard.entriesByRegion[regionId] ?? []
 
-  const getAutoPatrolStatus = (routeId: string, dayTag = '') => {
-    const runtime = ensureFrontierWorldSignals(dayTag)
-    return saveData.value.autoPatrolStates[routeId] ?? syncAutoPatrolState(routeId, runtime.dayTag)
+  const getAutoPatrolStatus = (routeId: string) => {
+    return peekAutoPatrolStatus(routeId)
   }
 
   const peekAutoPatrolStatus = (routeId: string): RegionAutoPatrolState =>
@@ -2942,6 +2935,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       return { success: false, message: status.reason, title: '无法出发', lines: [status.reason], tone: 'danger' as const }
     }
 
+    ensureFrontierWorldSignals(dayTag)
     const buildSnapshot = getBossJourneyBuildSnapshot(regionId)
     boss = { ...boss, staminaCost: getJourneyAdjustedStaminaCost(boss.staminaCost, buildSnapshot) }
     const playerStore = usePlayerStore()
@@ -3693,6 +3687,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (session.status === 'ongoing') {
       return { success: false, message: '这趟远征仍在途中，请先推进、扎营或撤退。', title: '无法收束', lines: ['这趟远征仍在途中，请先推进、扎营或撤退。'], tone: 'danger' as const }
     }
+    ensureFrontierWorldSignals(dayTag)
 
     const inventoryStore = useInventoryStore()
     const playerStore = usePlayerStore()
@@ -3838,7 +3833,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       summaryLines.push(`事件链留痕：${session.encounterMemory.slice(-3).map(entry => entry.summary).join(' / ')}。`)
     }
 
-    const seasonalState = getRegionVariantSnapshot(session.regionId, dayTag)
+    const seasonalState = getRegionVariantSnapshot(session.regionId)
     if (
       seasonalState.activeVariantId &&
       (!session.routeId || seasonalState.affectedRouteIds.length <= 0 || seasonalState.affectedRouteIds.includes(session.routeId))
@@ -3914,7 +3909,8 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     if (!status.available) {
       return { success: false, message: status.reason }
     }
-    const autoPatrolStatus = getAutoPatrolStatus(routeId, dayTag)
+    ensureFrontierWorldSignals(dayTag)
+    const autoPatrolStatus = getAutoPatrolStatus(routeId)
     if (autoPatrolStatus.mode !== 'ready') {
       return { success: false, message: autoPatrolStatus.blockedReason || '这条路线当前还不适合自动巡行。' }
     }
@@ -3957,7 +3953,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         timeCostHours: route.timeCostHours
       }
     })
-    const seasonalState = getRegionVariantSnapshot(route.regionId, dayTag)
+    const seasonalState = getRegionVariantSnapshot(route.regionId)
     recordJourneyChronicle(
       `auto-route:${route.id}:${dayTag || `${gameStore.year}-${gameStore.season}-${gameStore.day}`}`,
       route.regionId,

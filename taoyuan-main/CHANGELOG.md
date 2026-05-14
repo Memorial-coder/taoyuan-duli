@@ -30,6 +30,53 @@
 - `src/views/game/ShopView.vue`、`src/views/game/VillageView.vue` 已把“驻村货架回响 / 已生效 / 线索池”一类强承诺措辞调整为“驻村回响 / 可追踪 / 线索风声”，先把玩家侧口径收回到当前展示层能承载的范围。
 - 本批修复已通过 `npm --prefix taoyuan-main run type-check`，用于回写 `0512审查.md` 中“驻村新货架 / 线索池已生效目前只有展示层”的问题。
 
+### 0512 审查修复（第五批：稀有来访拜访幂等）
+- `src/views/game/ShopView.vue` 已把非书商稀有来访的“拜访 / 已拜访”按钮改成真正幂等：已记录来访时按钮会禁用，`handleRecordRareVisitor()` 也会在已记录状态下直接早退。
+- 这样同一天同一位稀有来访不会再因为重复点击而重复写入 `rareVisitors` 长期记录，也不会反复刷同一条“已写入长期记录”的日志。
+- 本批修复已通过 `npm --prefix taoyuan-main run type-check`。
+
+### 0512 审查修复（第六批：精通奖励文案降口径）
+- `src/data/mastery.ts` 已把 `advanced_workbench`、`transmutation_recipe`、`journey_map_markers` 三条奖励摘要从“像是已落地功能”的口吻收回到“后续方向 / 提示能力”的真实口径。
+- `src/views/GuideView.vue` 里“精通标记能力”的已解锁 / 未解锁说明也已同步改口，避免新手路线页继续把这条能力描述成完整落地的远征功能。
+- 这样当前精通页、小屋 / 行旅相关提示仍能保留成长指向，但不会再把尚未真正接成完整功能链的内容描述得像已实装系统。
+- 本批修复已通过 `npm --prefix taoyuan-main run type-check`，用于回写 `0512审查.md` 中“精通奖励文案大于系统”的问题。
+
+### 0512 审查修复（第七批：节庆解析上下文统一）
+- 新增 `src/utils/seasonEventContext.ts`，把 `year / villageProjectLevel / closeRelationshipCount / hasSpouse / themeWeekLabel` 收成统一的节庆解析上下文。
+- `src/composables/useEndDay.ts`、`src/views/game/NpcView.vue`、`src/views/GuideView.vue`、`src/stores/useShopStore.ts`、`src/stores/useQuestStore.ts`、`src/stores/useSecretNoteStore.ts`、`src/stores/useAnimalStore.ts` 现已统一改用这份上下文解析当天节庆或判断节日状态，避免不同入口只按 `year` 单独解析、导致第二年节庆变体口径不一致。
+- 当前这批调整优先覆盖真正会展示节庆变体内容的入口；只需要判断“今天是不是节日”的轻调用保持原样，不额外扩大改动面。
+- 本批修复已通过 `npm --prefix taoyuan-main run type-check`，用于回写 `0512审查.md` 中“节庆变体在不同调用点上下文不一致”的问题。
+
+### 0512 审查修复（第八批：礼物线索模板对齐）
+- `src/data/npcWorld.ts` 已继续清理礼物线索模板与真实偏好表的剩余冲突：雪琴的“家中孔雀羽 / 讨厌石头”已改为真实偏好的 `moonstone / pickled_cabbage`，丹青的茶线索也从 `liked` 改回真实的 `loved` 口径。
+- 这样当前 NPC 页、纸条同步与送礼结算会继续沿同一份偏好事实表工作，不再出现线索文本和真实反应不一致的残留错配。
+- 本批修复已通过 `npm --prefix taoyuan-main run type-check`。
+
+### 0512 审查修复（第九批：行旅图 getter 纯读化）
+- `src/stores/useRegionMapStore.ts` 已把旧 `getRegionVariantSnapshot()`、`getRumorBoardForRegion()`、`getAutoPatrolStatus()` 从“读时触发 `ensureFrontierWorldSignals()`”收口为真正纯读 getter，统一走已存在的 `peek*` 快照语义。
+- `settleActiveExpedition()` 与 `runRouteExpedition()` 这类主动动作现在会在自身流程里显式调用 `ensureFrontierWorldSignals()`，把世界信号同步留在“主动刷新 / 主动结算”语义里，而不是继续藏在读取接口里。
+- 这样当前行旅图不只是页面层避开了副作用，store API 本身也不再鼓励“读时写状态”的旧用法，便于后续继续维护 `seasonalRegionStates / rumorBoard / autoPatrolStates` 的证据口径。
+- 本批修复已通过 `npm --prefix taoyuan-main run type-check`，用于回写 `0512审查.md` 中“行旅图 getter 在 UI 或收束流程里读时写状态”的问题。
+
+### 0512 审查修复（第十批：收尾验证）
+- 本轮已再次通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:late-game-samples`。
+- `git diff --check` 当前无新增 trailing whitespace，仅剩 CRLF 转换提示；本轮改动未引入新的内容级格式卫生问题。
+- 结合本轮逐条复核结果，`0512审查.md` 中能在当前工作区确认仍存在、且适合本轮以小块补丁收口的高风险 / 中风险问题，已经逐批落地修复并回写文档。
+
+### 0514 审查修复（第一批：复审补漏与旧档兼容收口）
+- 已新增根目录 `0514审查.md`，这轮不再重复列失效旧项，而是只记录当前工作区里仍真实存在的问题与“无法安全硬猜历史”的兼容边界。
+- `src/stores/useNpcStore.ts` 已补齐剩余 5 处 `getTodayEvent(...)` 旧签名调用，NPC 日程、下一步去向、区域传闻供给和当天对话线索现在也会走统一的 `buildSeasonEventResolutionContext()`。
+- `src/stores/useShopStore.ts` 的书商库存刷新已从只看 `ownedBooksellerBookIds`，扩成同时识别 `playerStore.lifestyleDiscoveryLedger.lifestyleUnlocks`；旧档即便缺已购书 ID，只要账本里已经记过这本书，也不会再被书商继续刷回当天库存。
+- `src/stores/useRegionMapStore.ts` 已让首领远征启动前补做 `ensureFrontierWorldSignals(dayTag)`，保证首领线和普通路线远征在季节变体、传闻板与当日环境信号上使用同一份最新态势。
+- `src/stores/useShopStore.ts` 对缺失 `shippingLifetimeCategoryTotals / shippingLifetimeItemTotals` 的旧档补了一层保守恢复：除了近 7 天账本，现在还会参考 `shippedItems` 的长期痕迹回填常卖品类与代表货物，避免长期商业回响完全塌成短样本。
+- 本批修复已通过 `npm --prefix taoyuan-main run type-check`。
+- 本批补漏随后已重新通过 `npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:late-game-samples`；`git diff --check` 无新增内容级格式问题，仅剩 CRLF 提示。
+
+### 0514 全仓审查（第一版：客户端 + 在线链路 + 后台配置）
+- 已新增根目录 `0514全仓审查.md`，这轮把审查范围从单机玩法扩到整个仓库，首批问题按 B1/B2/B3/B4 四段记录：坏档 / 奖励 / 状态闭环、跨系统一致性、在线链路 / 服务端 / 后台，以及验证门 / 发布视角收口。
+- 当前首批全仓高风险问题集中在三类：服务端玩家存档写回仍有非原子落盘点（邮箱 / 大厅悬赏链路）、AI 助手源码索引白名单与真实管理端组件结构已漂移，以及全仓在线链路缺少最小可发布 smoke。
+- `server/src` 本轮已补做全量 `node --check`，当前语法层无直接报错；但这轮同时记录了验证门风险：`qa:mobile-ui-smoke` 在本环境浏览器启动时报 `spawn EPERM`，`test:e2e -- e2e/game-smoke.spec.ts` 在与其他 dev server 并行时会因固定 `4175` 端口冲突失败。
+
 ### 0510 WS01 / S1 社区修复与世界变化 2.0
 - `src/types/achievement.ts`、`src/types/villageProject.ts`、`src/data/achievements.ts`、`src/data/villageProjects.ts` 已新增祠堂 -> 建设映射与世界变化结构，正式支持建设项挂接 `bundle` 承接、前置传闻、修后评论、跨入口反馈，以及 `entry / shortcut / service / dialogue / calendar` 五类世界变化。
 - `src/stores/useVillageProjectStore.ts` 已新增 `bundleProjectMappings`、`communityRestorationEffects`、`restorationMilestones`、`worldShortcutUnlocks` 与对应摘要查询，并在建设完成时写入世界变化与村里反应日志。

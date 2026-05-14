@@ -30,7 +30,7 @@
         <div class="game-panel-muted p-3 text-xs leading-6">
           <p class="text-accent">{{ journeyMapReward.label }}</p>
           <p class="mt-1">{{ journeyMapReward.summary }}</p>
-          <p class="mt-1 text-muted/80">{{ journeyMapReward.unlocked ? '你已经解锁这条远征判断能力，后续路线页和行旅图会继续吃这层标记。' : '解锁行旅大师后，这里会开始承接更明确的路线标记和远征判断能力。' }}</p>
+          <p class="mt-1 text-muted/80">{{ journeyMapReward.unlocked ? '你已经解锁这条远征判断方向提示，后续路线页和行旅图会继续沿着这层标记扩展。' : '解锁行旅大师后，这里会开始提示更明确的路线标记与远征判断方向。' }}</p>
         </div>
       </section>
 
@@ -322,6 +322,7 @@
   import { useRegionMapStore } from '@/stores/useRegionMapStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
+  import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 
   const router = useRouter()
   const gameStore = useGameStore()
@@ -371,7 +372,7 @@
   const guideWorldSignalNotes = computed(() => {
     const notes: string[] = []
     const todayVisitors = getRareVisitorsForDay(gameStore.season, gameStore.day)
-    const todayEvents = getSeasonEventsForDay(gameStore.season, gameStore.day, gameStore.year)
+    const todayEvents = getSeasonEventsForDay(gameStore.season, gameStore.day, buildSeasonEventResolutionContext())
     const todayActivities = getSeasonalActivitiesForDay(gameStore.season, gameStore.day)
     const activeRestoration = villageProjectStore.communityRestorationEffects.filter(entry => entry.unlocked)
     const activeSeasonalVariants = regionMapStore.regionSummaries

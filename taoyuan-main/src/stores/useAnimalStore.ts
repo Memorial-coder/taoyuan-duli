@@ -20,6 +20,7 @@ import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useHomeStore } from './useHomeStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
+import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 
 export const useAnimalStore = defineStore('animal', () => {
   const buildings = ref<{ type: AnimalBuildingType; built: boolean; level: number }[]>([
@@ -486,7 +487,7 @@ export const useAnimalStore = defineStore('animal', () => {
 
     const gameStore = useGameStore()
     const inventoryStore = useInventoryStore()
-    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext())
     const events: PetCompanionEvent[] = []
     const findPools: Record<PetType, string[]> = {
       dog: ['herb', 'wild_berry', 'pine_cone', 'bamboo_shoot', 'wild_mushroom'],

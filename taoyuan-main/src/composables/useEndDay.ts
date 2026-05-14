@@ -39,6 +39,7 @@ import { sfxSleep, useAudio } from './useAudio'
 import { harvestFarmPlotWithRewards } from './useFarmHarvest'
 import { createSystemMailboxCampaign } from '@/utils/mailboxApi'
 import { getWeekBoundaryEvent, getWeekCycleInfo } from '@/utils/weekCycle'
+import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 import {
   MORNING_NARRATIONS,
   NARRATIONS_NO_LOSS,
@@ -1870,7 +1871,7 @@ export const handleEndDay = () => {
   checkRecipeUnlocks()
 
   // 季节事件
-  const event = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
+  const event = getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext())
   if (event) {
     // 替换 narrative 中的动态占位符
     const ORDINALS = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十']

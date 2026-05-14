@@ -74,6 +74,7 @@ import { useDecorationStore } from './useDecorationStore'
 import { harvestFarmPlotWithRewards } from '@/composables/useFarmHarvest'
 import { addLog } from '@/composables/useGameLog'
 import { DAYS_PER_SEASON, DAYS_PER_YEAR, getAbsoluteDay, getWeekCycleInfo } from '@/utils/weekCycle'
+import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 
 const ALL_FAMILY_WISH_DEFS = [...WS09_FAMILY_WISH_DEFS, ...WS15_FAMILY_WISH_DEFS]
 const ALL_ZHIJI_COMPANION_PROJECT_DEFS = [...WS09_ZHIJI_COMPANION_PROJECT_DEFS, ...WS15_ZHIJI_COMPANION_PROJECT_DEFS]
@@ -721,7 +722,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getScheduleStatus = (npcId: string) => {
     const gameStore = useGameStore()
-    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext())
 
     return getNpcScheduleStatus(npcId, {
       season: gameStore.season,
@@ -734,7 +735,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getScheduleTimeline = (npcId: string) => {
     const gameStore = useGameStore()
-    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext())
 
     return getNpcScheduleTimeline(npcId, {
       season: gameStore.season,
@@ -747,7 +748,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getNextScheduleText = (npcId: string): string | null => {
     const gameStore = useGameStore()
-    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext())
 
     return getNpcNextScheduleText(npcId, {
       season: gameStore.season,
@@ -760,7 +761,7 @@ export const useNpcStore = defineStore('npc', () => {
 
   const getRegionRumorSupplyOverview = (regionId: RegionId): RegionRumorSupplyEntry[] => {
     const gameStore = useGameStore()
-    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext())
     const festivalId = todayEvent?.id ?? null
 
     return REGION_RUMOR_TEMPLATES.filter(template => {
@@ -978,7 +979,7 @@ export const useNpcStore = defineStore('npc', () => {
     if (!npcDef) return null
 
     const scheduleStatus = getScheduleStatus(npcId)
-    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
+    const todayEvent = getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext())
     const unlockedClueTemplate = unlockAmbientGiftClue(
       npcId,
       todayEvent

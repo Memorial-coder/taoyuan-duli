@@ -14,6 +14,9 @@
       </div>
 
       <div v-if="errorMessage" class="text-xs text-danger leading-6">{{ errorMessage }}</div>
+      <div v-if="officialManagedStatus" class="text-[11px] text-muted leading-5">
+        当前生效来源：{{ sourceLabel }} · 托管字段：{{ readonlyManagedFields.length ? readonlyManagedFields.join('、') : '无' }}
+      </div>
 
       <div class="grid gap-3 md:grid-cols-2">
         <label class="admin-label">
@@ -170,7 +173,7 @@
     type HomepageAboutContentPayload,
   } from '@/utils/adminContentApi'
   import { showFloat } from '@/composables/useGameLog'
-  import type { HallContentBlock, OfficialManagedConfigKey } from '@/types'
+  import type { HallContentBlock, OfficialManagedConfigKey, OfficialManagedConfigStatus } from '@/types'
 
   const props = defineProps<{
     canLoad: boolean
@@ -195,6 +198,7 @@
   const pendingInsertIndex = ref<number | null>(null)
   const aboutBlocks = ref<HallContentBlock[]>([])
   const readonlyManagedFields = ref<OfficialManagedConfigKey[]>([])
+  const officialManagedStatus = ref<OfficialManagedConfigStatus | null>(null)
 
   const createTempId = () => `about_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`
   const createTextBlock = (text = ''): HallContentBlock => ({ id: createTempId(), type: 'text', text })
@@ -247,6 +251,7 @@
 
   const serializedContent = computed(() => serializeBlocksToMarkdown(aboutBlocks.value))
   const previewHtml = computed(() => renderSafeMarkdown(serializedContent.value || '欢迎来到桃源乡。'))
+  const sourceLabel = computed(() => officialManagedStatus.value?.source || 'local_default')
 
   const readonlyManagedFieldSet = computed(() => new Set(readonlyManagedFields.value))
   const aboutTitleReadonly = computed(() => readonlyManagedFieldSet.value.has('taoyuan_about_dialog_title'))
@@ -272,6 +277,7 @@
       form.value = { ...result.content }
       syncBlocksFromMarkdown(result.content.aboutDialogContent || '')
       revisions.value = result.revisions.revisions
+      officialManagedStatus.value = result.officialManagedStatus || null
       readonlyManagedFields.value = result.readonlyManagedFields
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '读取首页关于内容失败'

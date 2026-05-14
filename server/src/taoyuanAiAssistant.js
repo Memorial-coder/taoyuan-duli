@@ -372,7 +372,7 @@ const SOURCE_SYMBOL_KIND_LABELS = {
   module: '模块符号',
 };
 
-const AI_ASSISTANT_INTERNAL_PATH_PATTERN = /(?:^|[\/])(server\/src\/taoyuanAiAssistant\.js|taoyuan-main\/src\/views\/admin\/AiKnowledgeAdminView\.vue|taoyuan-main\/src\/utils\/taoyuanAiApi\.ts|taoyuan-main\/src\/types\/aiAssistant\.ts)(?:$|[\/])/i;
+const AI_ASSISTANT_INTERNAL_PATH_PATTERN = /(?:^|[\/])(server\/src\/taoyuanAiAssistant\.js|taoyuan-main\/src\/components\/game\/AiAssistantAdminPanel\.vue|taoyuan-main\/src\/utils\/taoyuanAiApi\.ts|taoyuan-main\/src\/types\/aiAssistant\.ts)(?:$|[\/])/i;
 const SOURCE_RUNTIME_DATA_PATH_PATTERN = /(^|[\/])data[\/](checkins|lotteries|pat|pity|quota_requests|rob_history|rob_stats|taoyuan_active_slots|taoyuan_exchange_limits|taoyuan_hall|winners)\.json$/i;
 
 let sourceIndexCache = {

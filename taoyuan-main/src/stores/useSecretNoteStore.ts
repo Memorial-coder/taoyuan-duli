@@ -10,6 +10,7 @@ import { useNpcStore } from './useNpcStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
 import { addLog } from '@/composables/useGameLog'
+import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 
 type SecretLeadState = {
   noteId: number
@@ -162,7 +163,7 @@ export const useSecretNoteStore = defineStore('secretNote', () => {
       unmetConditions.push(`需村庄建设达到 ${verification.requiredVillageProjectLevel} 级`)
     }
     if (verification.requiredFestivalId) {
-      const todayEvent = getTodayEvent(gameStore.season, gameStore.day, gameStore.year)
+      const todayEvent = getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext())
       if (todayEvent?.id !== verification.requiredFestivalId) {
         unmetConditions.push('需在指定节日当天验证')
       }

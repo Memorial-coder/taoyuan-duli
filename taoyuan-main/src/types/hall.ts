@@ -10,6 +10,7 @@ export interface HallViewer {
   username: string | null
   displayName: string | null
   isAdmin?: boolean
+  status?: 'interactive' | 'readonly'
 }
 
 export interface HallReply {
