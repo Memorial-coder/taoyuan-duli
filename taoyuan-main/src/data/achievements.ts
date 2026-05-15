@@ -37,7 +37,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     name: '丰收之王',
     description: '累计收获200次作物。',
     condition: { type: 'cropHarvest', count: 200 },
-    reward: { money: 1000, items: [{ itemId: 'compost', quantity: 10 }] }
+    reward: { money: 1000, items: [{ itemId: 'basic_fertilizer', quantity: 10 }] }
   },
   // 钓鱼
   {

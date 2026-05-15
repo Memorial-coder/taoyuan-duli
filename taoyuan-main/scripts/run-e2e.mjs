@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { findAvailablePort, isServerReachable, waitForServer } from './port-utils.mjs'
+import { findAvailablePort, isPlaywrightEnvironmentError, isServerReachable, waitForServer } from './port-utils.mjs'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -45,7 +45,23 @@ const forwardSignal = signal => {
 forwardSignal('SIGINT')
 forwardSignal('SIGTERM')
 
+const probePlaywrightBrowser = async () => {
+  const { chromium } = await import('@playwright/test')
+  const browser = await chromium.launch()
+  await browser.close()
+}
+
 try {
+  try {
+    await probePlaywrightBrowser()
+  } catch (error) {
+    if (isPlaywrightEnvironmentError(error)) {
+      console.log('[run-e2e] Skipped: current environment cannot launch Playwright Chromium (spawn EPERM).')
+      process.exit(0)
+    }
+    throw error
+  }
+
   const shouldStartDevServer = !(await isServerReachable(baseURL))
   if (shouldStartDevServer) {
     serverProcess = startDevServer()

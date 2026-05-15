@@ -65,6 +65,18 @@ export interface LogEntry {
   meta?: GameLogMeta
 }
 
+interface AddLogOptions {
+  category?: GameLogCategory
+  tags?: GameLogTag[]
+  meta?: GameLogMeta
+  silent?: boolean
+}
+
+interface LogCaptureContext {
+  silent?: boolean
+  onLog?: (entry: LogEntry) => void
+}
+
 interface PersistedGameplayLogPayload {
   message: string
   day_label: string
@@ -88,6 +100,7 @@ const gameplayLogQueue: PersistedGameplayLogPayload[] = []
 let gameplayLogFlushTimer: ReturnType<typeof setTimeout> | null = null
 let gameplayLogFlushInFlight = false
 let _gameplaySaveContextGetter: (() => GameplaySaveContext) | null = null
+const logCaptureStack: LogCaptureContext[] = []
 
 const getCurrentRouteName = () => {
   if (typeof window === 'undefined') return ''
@@ -108,6 +121,20 @@ const getCurrentUsernameLabel = () => {
 
 export const _registerGameplaySaveContextGetter = (fn: () => GameplaySaveContext) => {
   _gameplaySaveContextGetter = fn
+}
+
+const getActiveLogCaptureContext = (): LogCaptureContext | null => {
+  if (logCaptureStack.length <= 0) return null
+  return logCaptureStack[logCaptureStack.length - 1] ?? null
+}
+
+export const withLogCapture = <T>(context: LogCaptureContext, runner: () => T): T => {
+  logCaptureStack.push(context)
+  try {
+    return runner()
+  } finally {
+    logCaptureStack.pop()
+  }
 }
 
 const getCurrentGameplaySaveContext = (): GameplaySaveContext => {
@@ -174,8 +201,12 @@ export const _registerDayLabelGetter = (fn: () => string) => {
 }
 
 /** 添加日志消息（显示为 toast 通知，同时记录到历史） */
-export const addLog = (msg: string, options: { category?: GameLogCategory; tags?: GameLogTag[]; meta?: GameLogMeta } = {}) => {
-  Qmsg.info(msg)
+export const addLog = (msg: string, options: AddLogOptions = {}) => {
+  const activeCapture = getActiveLogCaptureContext()
+  const shouldSilence = Boolean(options.silent || activeCapture?.silent)
+  if (!shouldSilence) {
+    Qmsg.info(msg)
+  }
   const dayLabel = _dayLabelGetter?.() ?? ''
   const category = options.category || 'system'
   const tags = Array.isArray(options.tags) ? options.tags : []
@@ -186,6 +217,7 @@ export const addLog = (msg: string, options: { category?: GameLogCategory; tags?
     ...(saveSlot !== null ? { save_slot: saveSlot } : {}),
   }
   logHistory.value.push({ msg, dayLabel, category, tags, meta })
+  activeCapture?.onLog?.({ msg, dayLabel, category, tags, meta })
   gameplayLogQueue.push({
     message: msg,
     day_label: dayLabel,
@@ -202,6 +234,8 @@ export const addLog = (msg: string, options: { category?: GameLogCategory; tags?
 
 /** 显示浮动文本反馈（显示为 toast 通知） */
 export const showFloat = (text: string, color: FloatColor = 'accent') => {
+  const activeCapture = getActiveLogCaptureContext()
+  if (activeCapture?.silent) return
   switch (color) {
     case 'danger':
       Qmsg.error(text, { timeout: 1500 })

@@ -25,13 +25,14 @@ import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
 import { useMuseumStore } from '@/stores/useMuseumStore'
 import { useGuildStore } from '@/stores/useGuildStore'
 import { useRegionMapStore } from '@/stores/useRegionMapStore'
+import { usePlayerRecordCenterStore } from '@/stores/usePlayerRecordCenterStore'
 import { getItemById, getTodayEvent, getNpcById, getCropById, getForageItems } from '@/data'
 import { getFertilizerById } from '@/data/processing'
 import { FISH } from '@/data/fish'
 import { RECIPES } from '@/data/recipes'
 import { CAVE_UNLOCK_EARNINGS } from '@/data/buildings'
 import { TOOL_NAMES, TIER_NAMES } from '@/data/upgrades'
-import { addLog, showFloat } from './useGameLog'
+import { addLog, showFloat, withLogCapture, type LogEntry } from './useGameLog'
 import { getDailyMarketInfo, MARKET_CATEGORY_NAMES, ECONOMY_AUDIT_CONFIG } from '@/data/market'
 import { WEEKLY_BUDGET_CHANNEL_MAP } from '@/data/weeklyBudgets'
 import { showEvent, showFestival, triggerWeddingEvent, triggerPetAdoption, showFarmEvent, showDiscoveryScene } from './useDialogs'
@@ -39,6 +40,7 @@ import { sfxSleep, useAudio } from './useAudio'
 import { harvestFarmPlotWithRewards } from './useFarmHarvest'
 import { createSystemMailboxCampaign } from '@/utils/mailboxApi'
 import { getWeekBoundaryEvent, getWeekCycleInfo } from '@/utils/weekCycle'
+import type { DailyDigestAlert, DailyDigestSection, DailyDigestTone } from '@/types'
 import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 import {
   MORNING_NARRATIONS,
@@ -355,7 +357,9 @@ const applyMorningEffect = (effect?: MorningEffect) => {
       break
     }
     case 'gainItem':
-      if (!inventoryStore.addItemExact(effect.itemId, effect.qty)) {
+      if (!getItemById(effect.itemId)) {
+        addLog(`晨间事件奖励配置异常：${effect.itemId} 不存在。`)
+      } else if (!inventoryStore.addItemExact(effect.itemId, effect.qty)) {
         addLog(`背包空间不足，未能领取${getItemById(effect.itemId)?.name ?? effect.itemId}。`)
       }
       break
@@ -510,8 +514,16 @@ const buildWeeklyEconomyRiskReport = (playerStore: ReturnType<typeof usePlayerSt
 /** 日结算处理 */
 export const handleEndDay = () => {
   sfxSleep()
+  const capturedEndDayLogs: LogEntry[] = []
+  const recordCenterStore = usePlayerRecordCenterStore()
 
-  const gameStore = useGameStore()
+  return withLogCapture(
+    {
+      silent: true,
+      onLog: entry => capturedEndDayLogs.push(entry)
+    },
+    () => {
+      const gameStore = useGameStore()
   const playerStore = usePlayerStore()
   const farmStore = useFarmStore()
   const inventoryStore = useInventoryStore()
@@ -547,6 +559,9 @@ export const handleEndDay = () => {
   }
   const bedHour = gameStore.hour
   const previousWeekInfo = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
+  const endingWeather = gameStore.weather
+  const deferredLogs: string[] = []
+  let deferredMoBaiStaminaBonus = 0
 
   // 矿洞强制退出：无论玩家是否在探索中，睡觉/晕厥后都重置矿洞状态
   const miningStore = useMiningStore()
@@ -666,21 +681,17 @@ export const handleEndDay = () => {
   }
 
   // 雇工喂食结算（必须在 animalStore.dailyUpdate 之前，确保喂食状态生效）
-  // 每天仅消耗一次草料：此处喂食用于过夜检查，dailyUpdate 后用 markAllFed 标记新一天
   const helperFeedResult = npcStore.processDailyHelpers(['feed'])
   for (const msg of helperFeedResult.messages) addLog(msg)
-  const helperFeedSuccess = helperFeedResult.allFed
 
   const spouse = npcStore.getSpouse()
-  let spouseFedSuccess = false
-  if (spouse && !helperFeedSuccess) {
+  if (spouse && !helperFeedResult.allFed) {
     const bonusChanceEve = spouse.friendship >= 2500 ? 0.1 : 0
     if (Math.random() < 0.4 + bonusChanceEve) {
       const result = animalStore.feedAll()
       if (result.fedCount > 0) {
         const spouseDefEve = getNpcById(spouse.npcId)
         addLog(`${spouseDefEve?.name ?? '配偶'}帮你喂了所有牲畜。`)
-        spouseFedSuccess = result.noFeedCount === 0
       } else if (result.noFeedCount > 0) {
         const spouseDefEve = getNpcById(spouse.npcId)
         addLog(`${spouseDefEve?.name ?? '配偶'}想帮你喂牲畜，但草料不足。`)
@@ -760,8 +771,8 @@ export const handleEndDay = () => {
         break
       case 'mo_bai':
         if (Math.random() < 0.25 + bonusChance2) {
-          playerStore.restoreStamina(15)
-          addLog(`${zhijiName}${getZhijiQuote('mo_bai')} (+15体力)`)
+          deferredMoBaiStaminaBonus += 15
+          deferredLogs.push(`${zhijiName}${getZhijiQuote('mo_bai')} (+15体力)`)
         }
         break
       case 'liu_niang':
@@ -882,6 +893,15 @@ export const handleEndDay = () => {
 
   // 先结算旧日期目标，避免换季后旧季目标被新季目标覆盖
   goalStore.evaluateProgressAndRewards()
+  const weeklyGoalsSettlementSnapshot = goalStore.weeklyGoals.map(goal => ({
+    ...goal,
+    reward: {
+      money: goal.reward.money,
+      reputation: goal.reward.reputation,
+      items: goal.reward.items?.map(item => ({ ...item })),
+      unlockHint: goal.reward.unlockHint
+    }
+  }))
 
   // === 日期推进 ===
   const { seasonChanged, oldSeason } = gameStore.nextDay()
@@ -893,7 +913,8 @@ export const handleEndDay = () => {
     ? goalStore.settleWeeklyGoals({
         weekInfo: previousWeekInfo,
         settledAtDayTag: currentDayTag,
-        enableCompensation: true
+        enableCompensation: true,
+        weeklyGoalsSnapshot: weeklyGoalsSettlementSnapshot
       })
     : null
   if (weekBoundaryEvent.startedNewWeek) {
@@ -947,7 +968,8 @@ export const handleEndDay = () => {
       addLog(`【周目标结算】${weeklySettlementSummary.weekId} 周结算邮件发送失败：${error instanceof Error ? error.message : '未知错误'}`, {
         category: 'goal',
         tags: ['weekly_goals_settlement_mail_failed', 'late_game_cycle'],
-        meta: { weekId: weeklySettlementSummary.weekId }
+        meta: { weekId: weeklySettlementSummary.weekId },
+        silent: true
       })
     }
   }
@@ -1094,7 +1116,8 @@ export const handleEndDay = () => {
             weekId: currentWeekInfo.seasonWeekId,
             campaignId: campaign.id,
             templateId
-          }
+          },
+          silent: true
         })
       }
     }
@@ -1129,13 +1152,9 @@ export const handleEndDay = () => {
     addLog(`${animalResult.healed.join('、')}吃饱后恢复了健康。`)
   }
 
-  // 晨间标记：dailyUpdate 已重置 wasFed，若前面喂食成功则标记新一天已喂食（不再消耗草料）
-  if (helperFeedSuccess || spouseFedSuccess) {
-    animalStore.markAllFed()
-  }
-
   // 晨间工作：雇工浇水/收获/除草
-  const helperMorningResult = npcStore.processDailyHelpers(['water', 'harvest', 'weed'])
+  const helperMorningTasks: Array<'water' | 'harvest' | 'weed'> = seasonChanged ? ['water', 'weed'] : ['water', 'harvest', 'weed']
+  const helperMorningResult = npcStore.processDailyHelpers(helperMorningTasks)
   for (const msg of helperMorningResult.messages) addLog(msg)
 
   // 晨间工作：配偶浇水/做饭/收获
@@ -1155,7 +1174,7 @@ export const handleEndDay = () => {
 
     // 做饭：30% + bonus（好感>=2000）
     if (spouse.friendship >= 2000 && Math.random() < 0.3 + bonusChance) {
-      const foods = ['food_rice_ball', 'food_congee', 'food_steamed_bun', 'food_honey_tea', 'food_stir_fry', 'food_dumpling']
+      const foods = ['food_rice_ball', 'food_congee', 'food_steamed_bun', 'food_honey_tea', 'food_stir_fried_cabbage', 'food_jiaozi']
       const food = foods[Math.floor(Math.random() * foods.length)]!
       inventoryStore.addItem(food)
       addLog(`${spouseName}一早做了一份${getItemById(food)?.name ?? '食物'}。`)
@@ -1377,6 +1396,10 @@ export const handleEndDay = () => {
   }
 
   const { moneyLost, recoveryPct } = playerStore.dailyReset(recoveryMode, bedHour)
+  if (deferredMoBaiStaminaBonus > 0) {
+    playerStore.restoreStamina(deferredMoBaiStaminaBonus)
+  }
+  for (const msg of deferredLogs) addLog(msg)
 
   // 仙灵结缘每日奖励（必须在 dailyReset 之后，否则 stamina_restore 会被覆盖）
   const bondMessages = hiddenNpcStore.dailyBondBonus()
@@ -1425,8 +1448,8 @@ export const handleEndDay = () => {
     tutorialStore.setFlag('justChangedSeason')
   }
 
-  // 闪电
-  if (gameStore.weather === 'stormy') {
+  // 闪电按刚结束那天的天气结算，避免把明天预报提前结算进来
+  if (endingWeather === 'stormy') {
     const strike = farmStore.lightningStrike()
     if (strike.absorbed) {
       inventoryStore.addItem('battery')
@@ -1616,11 +1639,12 @@ export const handleEndDay = () => {
         })
         goalStore.markWeeklyChronicleRecapMailSent(chronicleEntry.weekId, receiptId)
       } catch (error) {
-        addLog(`【周纪行】${chronicleEntry.weekId} recap 邮件发送失败：${error instanceof Error ? error.message : '未知错误'}`, {
-          category: 'goal',
-          tags: ['late_game_cycle'],
-          meta: { weekId: chronicleEntry.weekId }
-        })
+      addLog(`【周纪行】${chronicleEntry.weekId} recap 邮件发送失败：${error instanceof Error ? error.message : '未知错误'}`, {
+        category: 'goal',
+        tags: ['late_game_cycle'],
+        meta: { weekId: chronicleEntry.weekId },
+        silent: true
+      })
       }
     }
     void dispatchWeeklyRecapMail()
@@ -2006,12 +2030,201 @@ export const handleEndDay = () => {
 
   goalStore.evaluateProgressAndRewards()
 
+  const digestMessages = capturedEndDayLogs.map(entry => entry.msg)
+  const uniqueLines = (lines: string[]) => Array.from(new Set(lines.filter(Boolean))).slice(0, 3)
+  const collectDigestLines = (...patterns: Array<string | RegExp>) =>
+    uniqueLines(
+      digestMessages.filter(message =>
+        patterns.some(pattern =>
+          typeof pattern === 'string' ? message.includes(pattern) : pattern.test(message)
+        )
+      )
+    )
+  const classifyDigestTone = (message: string): DailyDigestTone => {
+    if (/异常|失败|未能|被毁|死亡|受伤|丢失|暴跌|枯萎/.test(message)) return 'danger'
+    if (/不足|过期|病重|覆盖|提醒|倒计时|困倦/.test(message)) return 'warning'
+    if (/解锁|获得|完成|产出|刷新|恢复|自动浇水|繁殖成功|出生|结算|推进/.test(message)) return 'success'
+    return 'normal'
+  }
+  const digestAlerts = uniqueLines(
+    digestMessages.filter(message => /异常|失败|未能|不足|过期|死亡|枯萎|被毁|病重|受伤|丢失|暴跌/.test(message))
+  ).map((message): DailyDigestAlert => ({
+    message,
+    tone: classifyDigestTone(message)
+  }))
+
+  const digestSections: DailyDigestSection[] = []
+  const pushDigestSection = (section: DailyDigestSection) => {
+    const cleaned = {
+      ...section,
+      headline: section.headline || '暂无摘要',
+      detailLines: uniqueLines(section.detailLines).slice(0, 3)
+    }
+    digestSections.push(cleaned)
+  }
+
+  const recoveryDetails = uniqueLines([
+    ...(seasonChanged ? [`季节更替：${SEASON_NAMES[oldSeason]} → ${SEASON_NAMES[gameStore.season]}`] : []),
+    ...collectDigestLines('明日天气预报'),
+    ...(gameStore.isRainy ? ['今天下雨，作物自动浇水。'] : []),
+    ...collectDigestLines('距离换季还有'),
+    ...collectDigestLines('避雷针', '闪电'),
+  ])
+  pushDigestSection({
+    sectionId: 'recovery_weather',
+    title: '恢复与天气',
+    tone: recoveryMode === 'passout' ? 'danger' : recoveryMode === 'late' ? 'warning' : gameStore.isRainy ? 'success' : 'normal',
+    headline: summary,
+    detailLines: recoveryDetails,
+    priority: 10
+  })
+
+  const farmHighlights = uniqueLines([
+    upgradeResult?.completed ? `工具升级已完成：${TOOL_NAMES[upgradeResult.toolType]} → ${TIER_NAMES[upgradeResult.targetTier]}级。` : '',
+    crowResult.attacked ? `乌鸦袭击：${crowResult.cropName}受到影响。` : '',
+    pestResult.newInfestations > 0 ? `虫害来袭：${pestResult.newInfestations}块地遭到侵袭。` : '',
+    pestResult.newWeeds > 0 ? `杂草蔓延：${pestResult.newWeeds}块地长出了杂草。` : '',
+    giantCrops.length > 0 ? `发现了${giantCrops.length}株巨型作物。` : '',
+    fruitResult.fruits.length > 0 ? `果树产出了${fruitResult.fruits.length}个水果。` : '',
+    wildTreeResult.products.length > 0 ? `采脂器收获了${wildTreeResult.products.length}项野生树产物。` : '',
+    caveProducts.length > 0 ? `山洞中发现了${caveProducts.length}项产出。` : '',
+  ])
+  pushDigestSection({
+    sectionId: 'farm_production',
+    title: '农场与产出',
+    tone:
+      crowResult.attacked || pestResult.pestDeaths > 0 || pestResult.weedDeaths > 0
+        ? 'danger'
+        : pestResult.newInfestations > 0 || pestResult.newWeeds > 0 || giantCrops.length > 0
+          ? 'warning'
+          : 'success',
+    headline: farmHighlights[0] ?? '农场今日平稳推进。',
+    detailLines: uniqueLines([
+      ...farmHighlights.slice(1),
+      ...collectDigestLines('山洞中发现了', '果树产出了', '采脂器收获了', '巨型', '虫害来袭', '杂草蔓延')
+    ]),
+    priority: 20
+  })
+
+  const animalHighlights = uniqueLines([
+    animalResult.products.length > 0 ? `动物们产出了${animalResult.products.length}件产品。` : '',
+    animalResult.died.length > 0 ? `${animalResult.died.length}只动物/家禽离世。` : '',
+    animalResult.gotSick.length > 0 ? `${animalResult.gotSick.length}只动物出现了生病状态。` : '',
+    animalResult.healed.length > 0 ? `${animalResult.healed.length}只动物恢复健康。` : '',
+    incubatorResult.hatched ? `鸡舍孵化器孵出了一只${incubatorResult.hatched.name}。` : '',
+    barnIncubatorResult.hatched ? `牲口棚孵化器孵出了一只${barnIncubatorResult.hatched.name}。` : '',
+    fishPondStore.pond.built ? (digestMessages.find(message => message.includes('鱼塘')) ?? '') : '',
+    crabPotHarvest.collected.length > 0 ? `蟹笼捕获了${crabPotHarvest.collected.map(c => c.name).join('、')}。` : '',
+  ])
+  pushDigestSection({
+    sectionId: 'animal_fishpond',
+    title: '动物与鱼塘',
+    tone:
+      animalResult.died.length > 0 || animalResult.gotSick.length > 0 || collectDigestLines('死亡了', '病重').length > 0
+        ? 'danger'
+        : animalResult.products.length > 0 || incubatorResult.hatched || barnIncubatorResult.hatched
+          ? 'success'
+          : 'normal',
+    headline: animalHighlights[0] ?? '动物与鱼塘今日没有新的大波动。',
+    detailLines: uniqueLines([
+      ...animalHighlights.slice(1),
+      ...collectDigestLines('动物们产出了', '鱼塘产出了', '蟹笼捕获了', '蟹笼抓到了', '孵化器', '带回了')
+    ]),
+    priority: 30
+  })
+
+  const socialHighlights = uniqueLines([
+    morningEvent?.type === 'choice' ? `晨间出现了一个选择事件。` : morningEvent ? `晨间事件：${morningEvent.message}` : '',
+    ...relationshipTick.logs,
+    ...spiritTick.messages,
+    ...bondMessages.messages,
+    weddingResult.weddingToday ? `今日触发婚礼事件。` : '',
+    pregResult.born ? `家庭成员迎来了新变化。` : '',
+    pregResult.stageChanged ? `孕期/领养阶段发生了推进。` : '',
+    discoveryTriggered.length > 0 ? `触发了${discoveryTriggered.length}条仙灵发现。` : '',
+    newAbilities.length > 0 ? `获得了${newAbilities.length}项仙缘能力。` : '',
+  ])
+  pushDigestSection({
+    sectionId: 'social_events',
+    title: '关系与事件',
+    tone:
+      pregResult.miscarriage || pregResult.placementFailed
+        ? 'danger'
+        : weddingResult.weddingToday || pregResult.born || newAbilities.length > 0 || discoveryTriggered.length > 0
+          ? 'success'
+          : relationshipTick.logs.length > 0 || spiritTick.messages.length > 0
+            ? 'warning'
+            : 'normal',
+    headline: socialHighlights[0] ?? '关系与晨间事件今天较为平稳。',
+    detailLines: uniqueLines([
+      ...socialHighlights.slice(1),
+      ...collectDigestLines('好感', '【仙缘】', '大喜之日', '出生了', '来到了你们家', '似乎有话想和你说', '发现了', '结缘')
+    ]),
+    priority: 40
+  })
+
+  const currentRiskReport = playerStore.economyTelemetry.latestRiskReport
+  const economyHighlights = uniqueLines([
+    shippingSettlement.success ? shippingSettlement.message : `市场结算：${shippingSettlement.message}`,
+    weeklySettlementSummary ? `周目标：${weeklySettlementSummary.completedGoalCount}/${weeklySettlementSummary.totalGoalCount}。` : '',
+    expiredQuests.length > 0 ? `有 ${expiredQuests.length} 条委托到期。` : '',
+    newWalletItems.length > 0 ? `钱袋新增 ${newWalletItems.length} 项物品。` : '',
+    currentRiskReport?.level && currentRiskReport.level !== 'healthy' ? currentRiskReport.summary : '',
+    weekBoundaryEvent.startedNewWeek ? `已完成周切换。` : '',
+  ])
+  pushDigestSection({
+    sectionId: 'economy_orders',
+    title: '经济与订单',
+    tone:
+      currentRiskReport?.level === 'critical' || shippingSettlement.success === false
+        ? 'danger'
+        : currentRiskReport?.level === 'warning' || currentRiskReport?.level === 'watch' || expiredQuests.length > 0
+          ? 'warning'
+          : 'success',
+    headline: economyHighlights[0] ?? '经济与订单今日运行平稳。',
+    detailLines: uniqueLines([
+      ...economyHighlights.slice(1),
+      ...collectDigestLines('市场结算', '周预算', '周快照', '经济观测', '今日行情', '委托', '过期', '活动联动')
+    ]),
+    priority: 50
+  })
+
+  const weeklyHighlights = uniqueLines([
+    weeklySettlementSummary ? `本周完成 ${weeklySettlementSummary.completedGoalCount}/${weeklySettlementSummary.totalGoalCount} 项周目标。` : '',
+    weeklySettlementSummary?.rewardHighlights?.length ? `奖励高光：${weeklySettlementSummary.rewardHighlights.slice(0, 2).join('；')}` : '',
+    weeklySettlementSummary?.recommendationHighlights?.length ? `下周建议：${weeklySettlementSummary.recommendationHighlights.slice(0, 1).join('；')}` : '',
+    newAbilities.length > 0 ? `新仙缘能力：${newAbilities.map(a => a.name).slice(0, 2).join('、')}。` : '',
+    newWalletItems.length > 0 ? `新钱袋物品：${newWalletItems.join('、')}。` : '',
+    goalStore.currentEventCampaign ? `活动编排：${goalStore.currentEventCampaign.label} 正在承接。` : '',
+    regionMapStore.regionIntegrationEnabled && weekBoundaryEvent.startedNewWeek ? `行旅图本周焦点已刷新。` : '',
+  ])
+  pushDigestSection({
+    sectionId: 'weekly_progress',
+    title: '周进度与解锁',
+    tone: weeklySettlementSummary || newAbilities.length > 0 || newWalletItems.length > 0 ? 'success' : 'normal',
+    headline: weeklyHighlights[0] ?? '本日暂无新的周级进度变化。',
+    detailLines: uniqueLines([
+      ...weeklyHighlights.slice(1),
+      ...collectDigestLines('周纪行', '食谱', '解锁', '行旅图', '周目标', '活动编排', '成就', '钱袋物品', '年度奖池', '经营引导')
+    ]),
+    priority: 60
+  })
+
+  recordCenterStore.recordDailyDigest({
+    dayTag: currentDayTag,
+    title: `日结摘要 · ${gameStore.year}年${SEASON_NAMES[gameStore.season]}${gameStore.day}日`,
+    sections: digestSections.sort((left, right) => left.priority - right.priority),
+    alerts: digestAlerts,
+    createdAt: Date.now()
+  })
+
   // 自动存档
   void saveStore.autoSave().then(ok => {
     if (!ok) return
     if (saveStore.lastSaveResultStatus === 'queued') {
       showFloat(saveStore.lastServerSyncMessage || '当前进度已先保存在浏览器，服务恢复后会自动同步。', 'accent')
     }
+  })
   })
 }
 

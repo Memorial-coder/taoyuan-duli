@@ -3,13 +3,15 @@
  */
 const path = require('path');
 
-require('dotenv').config({ path: path.join(__dirname, '../.env') });
-require('dotenv').config({ path: path.join(__dirname, '../../.env'), override: true });
-require('dotenv').config({ path: path.join(__dirname, '../../.env.offical'), override: true });
-
 if (!process.env.DB_STORAGE) {
   process.env.DB_STORAGE = path.join(__dirname, '../../data/.storage.json');
 }
+const initialDbStorage = process.env.DB_STORAGE;
+
+require('dotenv').config({ path: path.join(__dirname, '../.env') });
+require('dotenv').config({ path: path.join(__dirname, '../../.env'), override: true });
+require('dotenv').config({ path: path.join(__dirname, '../../.env.offical'), override: true });
+process.env.DB_STORAGE = initialDbStorage;
 
 const fs = require('fs');
 const express = require('express');

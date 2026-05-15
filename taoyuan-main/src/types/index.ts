@@ -30,6 +30,7 @@ export * from './shopCatalog'
 export * from './tutorial'
 export * from './promptNavigation'
 export * from './region'
+export * from './recordCenter'
 export type {
   BudgetChannelId,
   WeeklyBudgetChannelId,

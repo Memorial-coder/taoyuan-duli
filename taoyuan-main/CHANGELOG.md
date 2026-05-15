@@ -4,6 +4,21 @@
 
 ## [未发布]
 
+### 0515 审查修复（第一批：奖励断链、日结顺序与区域结算收口）
+- 修正了多处玩法数据里失效的 `itemId`，覆盖晨间事件、成就、主题周奖励、关系奖励、公告板与组合订单等链路，不再出现“看起来发了奖励，实际什么都没到账”的假反馈。
+- 配偶晨间做饭奖励池改为只使用真实存在的菜品；晨间事件奖励失败时也会明确区分配置异常和背包不足。
+- 修复了几条会直接影响玩法平衡的日结顺序问题：去掉“喂一次草料顶两天”的免费复用、跨季时禁止雇工抢收过季作物、墨白体力奖励延后到 `dailyReset()` 之后、雷暴改为按刚结束那天的天气结算。
+- 行旅图路线、事件与首领奖励返回值改为只包含真正入包的物品，区域事件结算不再在扣时后再次被 bedtime 校验拦下。
+- 钓鱼宝箱现在只会在主鱼成功入包后结算；主线任务提交流程也补上了提交锁和完整回滚。
+- 周目标跨周结算改为使用旧周 `weeklyGoals` 快照；`Top Goals` 与任务页主线冲突的“主线里程碑”文案先统一收口成“经营里程碑”。
+- 仙缘记忆链领取补上了归属、结缘状态和阶级校验，并把进度文案从“已领取”收口为“已归档”。
+- `src/stores/useMiningStore.ts` 已把主矿洞 BOSS 的首杀武器、戒指、帽子、鞋子和楼层主奖励统一收进 `grantMainMineBossRewards()`；战斗胜利分支不再先写 `defeatedBosses` 和装备、再因为背包校验失败把楼层奖励卡成半结算。
+- `server/scripts/qa-online-smoke.mjs` 已继续扩到“游客 -> 注册登录 -> 存档槽位 -> 大厅发帖 / 回帖 -> 系统邮件 / 管理员奖励邮件 -> 已读 / 领取 -> 存档回读验钱 -> 删除本人帖子”的完整最小在线主链路，并会像服务端一样主动加载 `.env` 系列配置。
+- `src/types/hiddenNpc.ts`、`src/data/hiddenNpcHeartEvents.ts`、`src/stores/useHiddenNpcStore.ts`、`src/views/game/NpcView.vue` 已把结缘记忆补成真实可领取链路：每条记忆现有明确奖励，归档时会校验仙灵归属与灵契层级、检查背包容量、在异常时回滚，并在 NPC 页提供“归档记忆”按钮。
+- `server/scripts/qa-online-smoke.mjs` 已继续覆盖“悬赏求助帖 -> 最佳回复发奖 -> 二号玩家服务端存档验钱 -> 删帖退款 -> 举报 -> 管理员处理”这组更深在线链路，当前全仓 smoke 已不再只停留在普通发帖与领奖。
+- `server/src/routes/api.js`、`src/utils/officialControlApi.ts`、`src/types/officialControlPlatform.ts`、`src/components/game/OfficialControlAdminPanel.vue` 已补云控后台运行态摘要入口；平台启用时可直接查看当前实际生效来源、托管字段与最近回退原因。
+- `taoyuan-main/scripts/port-utils.mjs`、`scripts/run-e2e.mjs`、`scripts/qa-mobile-ui-smoke.mjs` 已把 Playwright `browserType.launch: spawn EPERM` 识别为环境限制并显式 skip，当前不会再把浏览器启动受限误记成仓库失败。
+- 本批修复已重新通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run lint`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:late-game-samples` 与 `npm --prefix server run qa:online-smoke`。
 ### 0512 审查修复（第一批：互动节年度奖池）
 - `src/composables/useEndDay.ts` 已让互动节改为“先解析年度节庆变体，再按互动节跳过日结中的奖池型铜钱 / 物品发放”，避免同一天既在 `applyEventEffects()` 里先发一轮、又在小游戏领奖 `closeFestival()` 里再发一轮。
 - `src/composables/useDialogs.ts` 继续作为互动节统一领奖口：年度追加铜钱 / 物品仍由 `closeFestival()` 发放，但现在只承担一次最终结算，不再与日结重复叠发。
@@ -2177,3 +2192,10 @@
   - `npm run type-check` 已通过。
   - `npm run build` 已通过。
   - `npm run qa:late-game-samples` 已通过。
+### 0515 睡后摘要与记录中心收口
+- `src/composables/useEndDay.ts` 现在会把夜间结算日志静默收集后再压成 6 个摘要分组，睡醒后先弹 `日结摘要`，不再连续刷 toast。
+- 新增 `src/stores/usePlayerRecordCenterStore.ts` 与 `src/types/recordCenter.ts`，把日结摘要单独存档，并记住上次打开的记录中心 tab 和日结未读状态。
+- `src/views/GameLayout.vue` 把旧日志 modal 换成了新的 `记录中心`，移动端入口文案也从“日志”改成了“记录”。
+- `src/components/game/PlayerRecordCenterPanel.vue` 和 `src/components/game/DailyDigestSummaryDialog.vue` 把玩家侧内容拆成 `日结 / 见闻 / 线索 / 系统` 四个页签，长期记录和系统流水不再堆在一起。
+- `src/composables/useGameLog.ts` 新增了静默收集能力，夜间结算可以保留系统历史，但不会再把同一批内容连续炸成一串通知。
+- 本轮已通过 `npm run type-check` 和 `npm run build`。

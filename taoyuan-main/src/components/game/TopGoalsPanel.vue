@@ -36,7 +36,7 @@
             <template v-if="goalStore.currentMainQuest">
               当前里程碑：第{{ goalStore.currentMainQuest.id }}阶段 · {{ goalStore.currentMainQuest.title }}
             </template>
-            <template v-else>当前里程碑：已完成全部主线阶段</template>
+            <template v-else>当前里程碑：已完成全部经营阶段</template>
           </p>
           <p v-if="goalStore.currentThemeWeek" class="mt-1 text-[11px] text-accent/80">
             本周主题：{{ goalStore.currentThemeWeek.name }}（{{ goalStore.currentThemeWeek.startDay }}-{{ goalStore.currentThemeWeek.endDay }}日）
@@ -231,7 +231,7 @@
     return compactCtaTargetsCurrentPanel.value ? null : rawCompactCta.value
   })
   const compactHeadline = computed(() => {
-    if (goalStore.weeklyPlanSnapshot.primaryRouteLabel) return `本周主线：${goalStore.weeklyPlanSnapshot.primaryRouteLabel}`
+    if (goalStore.weeklyPlanSnapshot.primaryRouteLabel) return `本周重点：${goalStore.weeklyPlanSnapshot.primaryRouteLabel}`
     if (primaryDecisionAction.value) return primaryDecisionAction.value.label
     if (primaryDailyGoal.value) return `今天先做：${primaryDailyGoal.value.title}`
     if (goalStore.currentMainQuest) return goalStore.currentMainQuest.title
@@ -261,8 +261,8 @@
     if (primaryDecisionAction.value?.summary) return primaryDecisionAction.value.summary
     if (goalStore.weeklyPlanSnapshot.primaryRouteSummary) return goalStore.weeklyPlanSnapshot.primaryRouteSummary
     if (goalStore.currentMainQuest?.description) return goalStore.currentMainQuest.description
-    if (primaryDailyGoal.value) return `先完成「${primaryDailyGoal.value.title}」，把当前主线往前推进一格。`
-    return '先按当前主线推进，再决定要不要展开完整规划。'
+    if (primaryDailyGoal.value) return `先完成「${primaryDailyGoal.value.title}」，把当前里程碑往前推进一格。`
+    return '先按当前里程碑推进，再决定要不要展开完整规划。'
   })
   const topGoalsToggleLabel = computed(() => (collapsed.value ? '更多' : '收起'))
 

@@ -36,3 +36,6 @@ export async function waitForServer(url, timeoutMs = 120_000) {
   }
   throw new Error(`Timed out waiting for dev server at ${url}`)
 }
+
+export const isPlaywrightEnvironmentError = error =>
+  /browserType\.launch: spawn EPERM|spawn EPERM/i.test(String(error?.stack || error?.message || error || ''))

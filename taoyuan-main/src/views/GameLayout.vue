@@ -78,18 +78,18 @@
 
     <!-- 季节事件弹窗 -->
     <Transition name="panel-fade">
-      <EventDialog v-if="currentEvent" :event="currentEvent" @close="closeEvent" />
+    <EventDialog v-if="currentEvent && !blockFollowupDialogs" :event="currentEvent" @close="closeEvent" />
     </Transition>
 
     <!-- 心事件弹窗 -->
     <Transition name="panel-fade">
-      <HeartEventDialog v-if="pendingHeartEvent" :event="pendingHeartEvent" @close="closeHeartEvent" />
+    <HeartEventDialog v-if="pendingHeartEvent && !blockFollowupDialogs" :event="pendingHeartEvent" @close="closeHeartEvent" />
     </Transition>
 
     <!-- 仙灵发现场景弹窗 -->
     <Transition name="panel-fade">
       <DiscoveryScene
-        v-if="pendingDiscoveryScene"
+        v-if="pendingDiscoveryScene && !blockFollowupDialogs"
         :key="`${pendingDiscoveryScene.npcId}:${pendingDiscoveryScene.step.id}`"
         :npc-id="pendingDiscoveryScene.npcId"
         :step="pendingDiscoveryScene.step"
@@ -99,7 +99,7 @@
 
     <!-- 互动节日 -->
     <Transition name="panel-fade">
-      <div v-if="currentFestival" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+        <div v-if="currentFestival && !blockFollowupDialogs" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <FishingContestView v-if="currentFestival === 'fishing_contest'" :bonus-money="festivalBonusMoney" @complete="closeFestival" />
         <HarvestFairView v-if="currentFestival === 'harvest_fair'" :bonus-money="festivalBonusMoney" @complete="closeFestival" />
         <DragonBoatView v-if="currentFestival === 'dragon_boat'" :bonus-money="festivalBonusMoney" @complete="closeFestival" />
@@ -114,12 +114,12 @@
 
     <!-- 技能专精选择弹窗 -->
     <Transition name="panel-fade">
-      <PerkSelectDialog v-if="pendingPerk" :skill-type="pendingPerk.skillType" :level="pendingPerk.level" @select="handlePerkSelect" />
+      <PerkSelectDialog v-if="pendingPerk && !blockFollowupDialogs" :skill-type="pendingPerk.skillType" :level="pendingPerk.level" @select="handlePerkSelect" />
     </Transition>
 
     <!-- 宠物领养弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="pendingPetAdoption" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="pendingPetAdoption && !blockFollowupDialogs" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full text-center">
           <Divider title label="小动物来访" />
           <p class="text-xs leading-relaxed mb-3">一只小动物在你家门口徘徊，看起来很想有个家。你要收养它吗？</p>
@@ -143,7 +143,7 @@
 
     <!-- 子女提议弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="childProposalVisible" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="childProposalVisible && !blockFollowupDialogs" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full text-center">
           <Divider title label="家庭提议" />
           <p class="text-xs leading-relaxed mb-4">{{ proposalSpouseName }}轻声说道：「{{ npcStore.getChildProposalPrompt() }}」</p>
@@ -158,7 +158,7 @@
 
     <!-- 晨间选项事件弹窗 -->
     <Transition name="panel-fade">
-      <div v-if="pendingFarmEvent" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+      <div v-if="pendingFarmEvent && !blockFollowupDialogs" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
         <div class="game-panel max-w-xs w-full text-center">
           <p class="text-xs leading-relaxed mb-4">{{ pendingFarmEvent.message }}</p>
           <div class="flex flex-col space-y-1.5">
@@ -385,70 +385,26 @@
       </div>
     </Transition>
 
-    <!-- 日志弹窗 -->
+    <!-- 记录中心 -->
     <Transition name="panel-fade">
       <div
-        v-if="showLogModal"
-        class="game-modal-overlay fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4"
-        @click.self="showLogModal = false"
+        v-if="showRecordCenter"
+        class="game-modal-overlay fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-3 md:p-4"
+        @click.self="showRecordCenter = false"
       >
-        <div class="game-panel max-w-md w-full max-h-[80vh] flex flex-col relative">
-          <button class="absolute top-2 right-2 text-muted hover:text-text" @click="showLogModal = false">
-            <X :size="14" />
-          </button>
-          <div class="flex items-center justify-between mb-3">
-            <p class="text-sm text-accent">
-              <History :size="14" class="inline" />
-              日志
-            </p>
-            <Button
-              v-if="groupedLogs.length > 0"
-              class="py-0 px-1.5 text-[10px] mr-5"
-              :icon="Trash2"
-              :icon-size="10"
-              @click="requestClearLogs(null)"
-            >
-              清空全部
-            </Button>
-          </div>
-          <div class="flex-1 overflow-y-auto min-h-0">
-            <div v-if="groupedLogs.length === 0" class="flex flex-col items-center justify-center py-8 text-muted">
-              <History :size="32" class="mb-2" />
-              <p class="text-xs">暂无日志记录</p>
-            </div>
-            <div v-for="(group, gi) in groupedLogs" :key="gi" class="mb-3">
-              <div class="flex items-center justify-between">
-                <Divider :label="group.label" class="flex-1" />
-                <button
-                  class="text-muted hover:text-danger ml-1.5 flex-shrink-0"
-                  title="清空该日日志"
-                  @click="requestClearLogs(group.label)"
-                >
-                  <X :size="12" />
-                </button>
-              </div>
-              <div class="flex flex-col space-y-0.5">
-                <p v-for="(msg, mi) in group.messages" :key="mi" class="text-xs text-muted px-1">{{ msg }}</p>
-              </div>
-            </div>
-          </div>
+        <div class="game-panel flex w-full max-w-6xl flex-col max-h-[92vh]">
+          <PlayerRecordCenterPanel :initial-tab="recordCenterInitialTab" @close="showRecordCenter = false" />
         </div>
       </div>
     </Transition>
 
-    <!-- 日志清空确认 -->
     <Transition name="panel-fade">
-      <div v-if="clearLogTarget !== undefined" class="game-modal-overlay fixed inset-0 bg-black/70 flex items-center justify-center z-[60] p-4">
-        <div class="game-panel max-w-xs w-full text-center">
-          <p class="text-xs leading-relaxed mb-4">
-            {{ clearLogTarget === null ? '确认清空全部日志？' : `确认清空「${clearLogTarget}」的日志？` }}
-          </p>
-          <div class="flex space-x-3 justify-center">
-            <Button @click="clearLogTarget = undefined">取消</Button>
-            <Button class="btn-danger" :icon="Trash2" :icon-size="12" @click="executeClearLogs">确认</Button>
-          </div>
-        </div>
-      </div>
+      <DailyDigestSummaryDialog
+        v-if="showDailyDigestSummary && latestUnreadDailyDigest"
+        :digest="latestUnreadDailyDigest"
+        @close="closeDailyDigestSummary"
+        @open-record-center="openRecordCenterFromDigest"
+      />
     </Transition>
 
     <!-- 休息确认 -->
@@ -485,7 +441,7 @@
   import { useDialogs } from '@/composables/useDialogs'
   import type { MorningChoiceEvent } from '@/data/farmEvents'
   import { handleEndDay } from '@/composables/useEndDay'
-  import { addLog, logHistory, clearAllLogs, clearDayLogs, _registerDayLabelGetter } from '@/composables/useGameLog'
+  import { addLog, _registerDayLabelGetter } from '@/composables/useGameLog'
   import {
     LATE_NIGHT_RECOVERY_MAX,
     LATE_NIGHT_RECOVERY_MIN,
@@ -497,11 +453,14 @@
   import { CHEST_DEFS } from '@/data/items'
   import { useGameClock } from '@/composables/useGameClock'
   import { useAudio } from '@/composables/useAudio'
-  import type { Quality } from '@/types'
-  import { Moon, X, Map, ArrowDown, ArrowDownToLine, Trash2 } from 'lucide-vue-next'
+  import type { Quality, RecordCenterTabId } from '@/types'
+  import { Moon, X, Map, ArrowDown, ArrowDownToLine } from 'lucide-vue-next'
+  import { usePlayerRecordCenterStore } from '@/stores/usePlayerRecordCenterStore'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
+  import DailyDigestSummaryDialog from '@/components/game/DailyDigestSummaryDialog.vue'
   import MobileMapMenu from '@/components/game/MobileMapMenu.vue'
+  import PlayerRecordCenterPanel from '@/components/game/PlayerRecordCenterPanel.vue'
   import StatusBar from '@/components/game/StatusBar.vue'
   import TopGoalsPanel from '@/components/game/TopGoalsPanel.vue'
   import EventDialog from '@/components/game/EventDialog.vue'
@@ -527,6 +486,7 @@
   const route = useRoute()
   const gameStore = useGameStore()
   const playerStore = usePlayerStore()
+  const playerRecordCenterStore = usePlayerRecordCenterStore()
   const farmStore = useFarmStore()
   const mailboxStore = useMailboxStore()
   const saveStore = useSaveStore()
@@ -611,7 +571,8 @@
 
   const openLogFromMenu = () => {
     showMobileMap.value = false
-    showLogModal.value = true
+    recordCenterInitialTab.value = playerRecordCenterStore.getPreferredOpenTab()
+    showRecordCenter.value = true
   }
 
   const openVoidFromMenu = () => {
@@ -620,38 +581,44 @@
   }
 
   /** 日志弹窗 */
-  const showLogModal = ref(false)
+  const showRecordCenter = ref(false)
   /** 日志清空确认：undefined=不显示, null=清空全部, string=清空指定天 */
-  const clearLogTarget = ref<string | null | undefined>(undefined)
-  const requestClearLogs = (dayLabel: string | null) => {
-    clearLogTarget.value = dayLabel
+  const showDailyDigestSummary = ref(false)
+  const latestUnreadDailyDigest = computed(() => (playerRecordCenterStore.hasUnreadDailyDigest ? playerRecordCenterStore.latestDailyDigest : null))
+  const recordCenterInitialTab = ref<RecordCenterTabId>(playerRecordCenterStore.getPreferredOpenTab())
+  const blockFollowupDialogs = computed(() => showDailyDigestSummary.value || showRecordCenter.value)
+
+  const closeDailyDigestSummary = () => {
+    const latestDayTag = playerRecordCenterStore.latestDailyDigest?.dayTag
+    if (latestDayTag) playerRecordCenterStore.markDailyDigestRead(latestDayTag)
+    showDailyDigestSummary.value = false
   }
-  const executeClearLogs = () => {
-    if (clearLogTarget.value === null) clearAllLogs()
-    else if (clearLogTarget.value) clearDayLogs(clearLogTarget.value)
-    clearLogTarget.value = undefined
+
+  const openRecordCenterFromDigest = () => {
+    const latestDayTag = playerRecordCenterStore.latestDailyDigest?.dayTag
+    if (latestDayTag) playerRecordCenterStore.markDailyDigestRead(latestDayTag)
+    recordCenterInitialTab.value = 'daily'
+    showDailyDigestSummary.value = false
+    showRecordCenter.value = true
   }
-  watch(showLogModal, v => {
-    if (!v) clearLogTarget.value = undefined
-  })
+
+  watch(
+    latestUnreadDailyDigest,
+    digest => {
+      if (!digest) return
+      showDailyDigestSummary.value = true
+    },
+    { immediate: true }
+  )
 
   // 注册天数标签获取器
   _registerDayLabelGetter(() => `第${gameStore.year}年 ${SEASON_NAMES[gameStore.season]} 第${gameStore.day}天`)
 
   /** 按天分组的日志（最新天在前，每天内也倒序） */
   const groupedLogs = computed(() => {
-    const groups: { label: string; messages: string[] }[] = []
-    let currentLabel: string | null = null
-    for (const entry of logHistory.value) {
-      if (entry.dayLabel !== currentLabel) {
-        currentLabel = entry.dayLabel
-        groups.push({ label: currentLabel, messages: [] })
-      }
-      groups[groups.length - 1]!.messages.push(entry.msg)
-    }
-    for (const g of groups) g.messages.reverse()
-    return groups.reverse()
+    return [] as Array<{ label: string; messages: string[] }>
   })
+  void groupedLogs
 
   // 实时时钟生命周期
   const backgroundAutoSaveTimer = ref<number | null>(null)
@@ -841,7 +808,11 @@
     if (choice.effect) {
       switch (choice.effect.type) {
         case 'gainItem':
-          inventoryStore.addItem(choice.effect.itemId, choice.effect.qty)
+          if (!getItemById(choice.effect.itemId)) {
+            addLog(`晨间事件奖励配置异常：${choice.effect.itemId} 不存在。`)
+          } else if (!inventoryStore.addItem(choice.effect.itemId, choice.effect.qty)) {
+            addLog(`未能领取${getItemName(choice.effect.itemId)}，请先整理背包。`)
+          }
           break
         case 'gainMoney':
           playerStore.earnMoney(choice.effect.amount)
@@ -966,7 +937,8 @@
         showMobileMap.value ||
         showSleepConfirm.value ||
         showSaveManager.value ||
-        showLogModal.value ||
+        showRecordCenter.value ||
+        showDailyDigestSummary.value ||
         showVoidModal.value ||
         showVoidDepositModal.value ||
         !!voidQtyModal.value ||

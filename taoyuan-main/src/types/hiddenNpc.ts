@@ -119,6 +119,10 @@ export interface SpiritBondMemoryDef {
   unlockTier: SpiritBondTier
   summary: string
   linkedSystems?: Array<'goal' | 'home' | 'quest' | 'fishPond'>
+  reward?: {
+    money?: number
+    items?: Array<{ itemId: string; quantity: number }>
+  }
   steps?: Array<{
     id: string
     title: string

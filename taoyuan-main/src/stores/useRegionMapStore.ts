@@ -2384,15 +2384,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     unlockJourneyAwakenings(route.awakeningUnlocks)
     grantJourneyXpRewards(route.xpRewards, 'victory', journeyOutcome.experienceMultiplier)
     const rewardItems = ROUTE_ITEM_REWARDS[route.id] ?? []
-    if (rewardItems.length > 0 && inventoryStore.canAddItems(rewardItems)) {
-      inventoryStore.addItemsExact(rewardItems)
-    }
+    const grantedRewardItems = rewardItems.length > 0 && inventoryStore.canAddItems(rewardItems) ? (inventoryStore.addItemsExact(rewardItems), rewardItems) : []
     return {
       routeId: route.id,
       regionId: route.regionId,
       familyId: route.primaryResourceFamilyId,
       rewardAmount,
-      rewardItems
+      rewardItems: grantedRewardItems
     }
   }
 
@@ -3981,10 +3979,17 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const inventoryStore = useInventoryStore()
     const event = REGION_EVENT_DEFS.find(entry => entry.id === eventId)
     if (!event) return null
-    if (!getEventAvailability(eventId).available) return null
+    const unlockStatus = getEventUnlockStatus(eventId)
+    if (!unlockStatus.unlocked) return null
+    const activeEventIds = getRegionActiveEventIds(event.regionId)
+    if (!activeEventIds.includes(event.id)) return null
+    const state = saveData.value.eventStates[event.id]
+    const maxWeeklyCompletions = Math.max(1, event.maxWeeklyCompletions ?? 1)
+    if ((state?.weeklyCompletions ?? 0) >= maxWeeklyCompletions) return null
+    if (hasActiveExpedition.value) return null
     const journeyOutcome = getJourneyOutcomeModifiersForEvent(eventId)
 
-    const current = saveData.value.eventStates[event.id] ?? {
+    const current = state ?? {
       eventId: event.id,
       totalCompletions: 0,
       weeklyCompletions: 0,
@@ -4013,15 +4018,13 @@ export const useRegionMapStore = defineStore('regionMap', () => {
       dayTag
     )
     const rewardItems = EVENT_ITEM_REWARDS[event.id] ?? []
-    if (rewardItems.length > 0 && inventoryStore.canAddItems(rewardItems)) {
-      inventoryStore.addItemsExact(rewardItems)
-    }
+    const grantedRewardItems = rewardItems.length > 0 && inventoryStore.canAddItems(rewardItems) ? (inventoryStore.addItemsExact(rewardItems), rewardItems) : []
     return {
       eventId: event.id,
       regionId: event.regionId,
       familyId: event.rewardFamilyId,
       rewardAmount,
-      rewardItems
+      rewardItems: grantedRewardItems
     }
   }
 
@@ -4260,20 +4263,22 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const familyId = boss?.rewardFamilyId ?? 'ley_crystal'
     const journeyOutcome = getJourneyOutcomeModifiersForBoss(regionId)
     const rewardAmount = resourceFeatureEnabled.value ? Math.max(0, Math.round(getBossRewardAmount(regionId) * (1 + journeyOutcome.rewardMultiplier + journeyOutcome.resourceFindBonus * 0.4))) : 0
-    if (!boss || !recordBossClear(regionId, boss.id, familyId, rewardAmount, dayTag)) return null
+    if (!boss) return null
+    const rewardItems = BOSS_ITEM_REWARDS[regionId] ?? []
+    const grantedRewardItems = rewardItems.length > 0 && inventoryStore.canAddItems(rewardItems) ? rewardItems : []
+    if (!recordBossClear(regionId, boss.id, familyId, rewardAmount, dayTag)) return null
     addFamilyResources(familyId, rewardAmount)
     unlockJourneyCrafting(boss.craftingUnlocks)
     unlockJourneyAwakenings(boss.awakeningUnlocks)
     grantJourneyXpRewards(boss.xpRewards, 'victory', journeyOutcome.experienceMultiplier)
-    const rewardItems = BOSS_ITEM_REWARDS[regionId] ?? []
-    if (rewardItems.length > 0 && inventoryStore.canAddItems(rewardItems)) {
-      inventoryStore.addItemsExact(rewardItems)
+    if (grantedRewardItems.length > 0) {
+      inventoryStore.addItemsExact(grantedRewardItems)
     }
     return {
       regionId,
       familyId,
       rewardAmount,
-      rewardItems
+      rewardItems: grantedRewardItems
     }
   }
 

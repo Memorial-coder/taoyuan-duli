@@ -19,6 +19,7 @@ import { useQuestStore } from './useQuestStore'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
 import { WS09_FAMILY_COMPANIONSHIP_BASELINE_AUDIT } from '@/data/goals'
+import { getItemById } from '@/data/items'
 
 const ALL_SPIRIT_BOND_MEMORY_REWARDS = [...WS09_SPIRIT_BOND_MEMORY_REWARDS, ...WS15_SPIRIT_BOND_MEMORY_REWARDS]
 import router from '@/router'
@@ -612,7 +613,7 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
           : 0
     return {
       memoryReward,
-      progressLabel: state.claimedBondMemoryIds.includes(memoryId) ? '已领取' : state.bonded ? '可收尾' : state.courting ? '推进中' : '未开始',
+      progressLabel: state.claimedBondMemoryIds.includes(memoryId) ? '已归档' : state.bonded ? '可收尾' : state.courting ? '推进中' : '未开始',
       steps: (memoryReward.steps ?? []).map((step, index) => ({
         ...step,
         status: state.claimedBondMemoryIds.includes(memoryId)
@@ -674,13 +675,64 @@ export const useHiddenNpcStore = defineStore('hiddenNpc', () => {
 
   const claimBondMemory = (npcId: string, memoryId: string) => {
     const lockId = `spirit_claim_memory_${npcId}_${memoryId}`
-    if (!beginSpiritAction(lockId)) return false
+    if (!beginSpiritAction(lockId)) {
+      return { success: false, message: '这段结缘记忆正在归档中，请稍候再试。' }
+    }
     try {
-    if (!spiritFeatureFlags.bondMemoryEnabled) return false
-    const state = getHiddenNpcState(npcId)
-    if (!state || state.claimedBondMemoryIds.includes(memoryId)) return false
-    state.claimedBondMemoryIds = [...state.claimedBondMemoryIds, memoryId]
-    return true
+      if (!spiritFeatureFlags.bondMemoryEnabled) {
+        return { success: false, message: '当前版本尚未开放结缘记忆归档。' }
+      }
+      const state = getHiddenNpcState(npcId)
+      const memoryReward = ALL_SPIRIT_BOND_MEMORY_REWARDS.find(entry => entry.npcId === npcId && entry.id === memoryId) ?? null
+      if (!state || !memoryReward) {
+        return { success: false, message: '这段结缘记忆不存在。' }
+      }
+      if (state.claimedBondMemoryIds.includes(memoryId)) {
+        return { success: false, message: '这段结缘记忆已经归档过了。' }
+      }
+      if (!state.bonded) {
+        return { success: false, message: '尚未和这位仙灵结缘，暂时不能归档这段记忆。' }
+      }
+      const tierOrder: Record<'P0' | 'P1' | 'P2', number> = { P0: 0, P1: 1, P2: 2 }
+      if (tierOrder[state.bondTier] < tierOrder[memoryReward.unlockTier]) {
+        return { success: false, message: '当前灵契层级不足，还不能归档这段记忆。' }
+      }
+
+      const snapshots = createSpiritActionSnapshots()
+      const playerStore = usePlayerStore()
+      const inventoryStore = useInventoryStore()
+      const rewardItems = memoryReward.reward?.items ?? []
+      if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
+        return { success: false, message: '背包空间不足，暂时无法归档这段记忆奖励。' }
+      }
+
+      try {
+        if (memoryReward.reward?.money) {
+          playerStore.earnMoney(memoryReward.reward.money)
+        }
+        if (rewardItems.length > 0 && !inventoryStore.addItemsExact(rewardItems)) {
+          rollbackSpiritAction(snapshots)
+          return { success: false, message: '背包空间不足，暂时无法归档这段记忆奖励。' }
+        }
+        state.claimedBondMemoryIds = [...state.claimedBondMemoryIds, memoryId]
+      } catch {
+        rollbackSpiritAction(snapshots)
+        return { success: false, message: '归档这段结缘记忆时出现异常，已回滚。' }
+      }
+
+      const rewardSummaryParts: string[] = []
+      if ((memoryReward.reward?.money ?? 0) > 0) {
+        rewardSummaryParts.push(`${memoryReward.reward?.money}文`)
+      }
+      for (const item of rewardItems) {
+        rewardSummaryParts.push(`${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`)
+      }
+      return {
+        success: true,
+        message: rewardSummaryParts.length > 0
+          ? `已归档结缘记忆「${memoryReward.summary}」，并获得${rewardSummaryParts.join('、')}。`
+          : `已归档结缘记忆「${memoryReward.summary}」。`
+      }
     } finally {
       finishSpiritAction(lockId)
     }

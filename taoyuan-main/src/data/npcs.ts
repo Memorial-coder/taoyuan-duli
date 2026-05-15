@@ -885,7 +885,7 @@ export const WS09_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     rewardSummary: '完成后会返还一笔外出活动经费，并补给鱼饵。',
     reward: {
       money: 900,
-      items: [{ itemId: 'bait', quantity: 3 }]
+      items: [{ itemId: 'standard_bait', quantity: 3 }]
     },
     linkedNpcIds: ['qiu_yue', 'mo_bai', 'da_niu'],
     recommendedRoleId: 'social_coordination'
@@ -985,7 +985,7 @@ export const WS15_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     rewardSummary: '完成后会返还一笔馆藏赞助资金，帮助衔接展陈和终局展示路线。',
     reward: {
       money: 2200,
-      items: [{ itemId: 'silk', quantity: 2 }, { itemId: 'ancient_tablet', quantity: 1 }]
+      items: [{ itemId: 'silk', quantity: 2 }, { itemId: 'bamboo_scroll', quantity: 1 }]
     },
     linkedNpcIds: ['a_shi', 'dan_qing', 'mo_bai'],
     recommendedRoleId: 'craft_assist',
@@ -1007,7 +1007,7 @@ export const WS15_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     rewardSummary: '完成后会返还一笔夜游活动经费，并补一轮鱼塘养护物资。',
     reward: {
       money: 1200,
-      items: [{ itemId: 'bait', quantity: 4 }, { itemId: 'fish_feed', quantity: 1 }]
+      items: [{ itemId: 'standard_bait', quantity: 4 }, { itemId: 'fish_feed', quantity: 1 }]
     },
     linkedNpcIds: ['qiu_yue', 'da_niu'],
     recommendedRoleId: 'social_coordination',
@@ -1029,7 +1029,7 @@ export const WS15_FAMILY_WISH_DEFS: FamilyWishDef[] = [
     rewardSummary: '完成后会返还一笔灵缘整理资金，帮助衔接仙灵记忆、展陈和活动预告。',
     reward: {
       money: 2100,
-      items: [{ itemId: 'spirit_feather', quantity: 1 }, { itemId: 'wild_mushroom', quantity: 4 }]
+      items: [{ itemId: 'peacock_feather', quantity: 1 }, { itemId: 'wild_mushroom', quantity: 4 }]
     },
     linkedNpcIds: ['mo_bai', 'liu_niang'],
     recommendedRoleId: 'home_care',
@@ -1070,7 +1070,7 @@ export const WS15_ZHIJI_COMPANION_PROJECT_DEFS: ZhijiCompanionProjectDef[] = [
     rewardSummary: '完成后会返还一笔样本护送资金，并给鱼塘和馆务路线补给一轮物资。',
     reward: {
       money: 1800,
-      items: [{ itemId: 'bait', quantity: 3 }, { itemId: 'hanhai_map', quantity: 1 }]
+      items: [{ itemId: 'standard_bait', quantity: 3 }, { itemId: 'hanhai_map', quantity: 1 }]
     },
     steps: [
       { id: 'zhiji_specimen_route_trigger', title: '确认样本', summary: '先选出本周最值得推进的鱼样、馆藏或遗迹样本。', stepType: 'trigger', linkedSystem: 'fishing', routeName: 'fishpond' },
@@ -1088,7 +1088,7 @@ export const WS15_ZHIJI_COMPANION_PROJECT_DEFS: ZhijiCompanionProjectDef[] = [
     rewardSummary: '完成后会返还一笔外出经费，并补一轮鱼塘养护与轻量活动承接。',
     reward: {
       money: 1100,
-      items: [{ itemId: 'fish_feed', quantity: 1 }, { itemId: 'bait', quantity: 2 }]
+      items: [{ itemId: 'fish_feed', quantity: 1 }, { itemId: 'standard_bait', quantity: 2 }]
     },
     steps: [
       { id: 'zhiji_tide_route_trigger', title: '确定钓点', summary: '先确认本周活动最值得承接的钓点和鱼塘目标。', stepType: 'trigger', linkedSystem: 'fishing', routeName: 'fishing' },
@@ -1106,7 +1106,7 @@ export const WS15_ZHIJI_COMPANION_PROJECT_DEFS: ZhijiCompanionProjectDef[] = [
     rewardSummary: '完成后会返还一笔灵缘整理经费，并给活动摘要和展示节奏补一轮承接。',
     reward: {
       money: 1600,
-      items: [{ itemId: 'spirit_feather', quantity: 1 }, { itemId: 'silk', quantity: 1 }]
+      items: [{ itemId: 'peacock_feather', quantity: 1 }, { itemId: 'silk', quantity: 1 }]
     },
     steps: [
       { id: 'zhiji_spirit_salvage_trigger', title: '整理旧线索', summary: '先确认当前家庭心愿、仙灵焦点和活动承接中哪一段最缺内容。', stepType: 'trigger', linkedSystem: 'home', routeName: 'village' },

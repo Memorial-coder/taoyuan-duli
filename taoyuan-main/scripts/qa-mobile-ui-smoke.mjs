@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process'
 import { mkdir, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { findAvailablePort } from './port-utils.mjs'
+import { findAvailablePort, isPlaywrightEnvironmentError } from './port-utils.mjs'
 import { chromium, expect } from '@playwright/test'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -271,6 +271,17 @@ async function driveSettlementToAftermath(page) {
 }
 
 async function main() {
+  try {
+    const probeBrowser = await chromium.launch()
+    await probeBrowser.close()
+  } catch (error) {
+    if (isPlaywrightEnvironmentError(error)) {
+      console.log('[qa-mobile-ui-smoke] Skipped: current environment cannot launch Playwright Chromium (spawn EPERM).')
+      return
+    }
+    throw error
+  }
+
   await mkdir(outputDir, { recursive: true })
   const shouldLaunchServer = shouldStartDevServer && !(await isServerReachable(baseURL))
   const server = shouldLaunchServer ? startDevServer() : null

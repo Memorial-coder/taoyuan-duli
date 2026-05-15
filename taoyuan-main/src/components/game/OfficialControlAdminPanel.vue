@@ -16,6 +16,12 @@
       </div>
 
       <div v-if="errorMessage" class="text-xs text-danger leading-6">{{ errorMessage }}</div>
+      <div v-if="runtimeManagedStatus" class="text-[11px] text-muted leading-5">
+        当前生效来源：{{ runtimeSourceLabel }} · 托管字段：{{ runtimeReadonlyManagedFieldsText }}
+        <div v-if="runtimeManagedStatus.lastError" class="mt-1 text-warning">
+          最近回退原因：{{ runtimeManagedStatus.lastError }}
+        </div>
+      </div>
 
       <div class="official-control-banner" :class="`official-control-banner--${status?.secondAuthVerified ? 'active' : 'locked'}`">
         <div class="text-xs leading-6">
@@ -231,13 +237,14 @@
 </template>
 
 <script setup lang="ts">
-  import { onMounted, ref } from 'vue'
+  import { computed, onMounted, ref } from 'vue'
   import { showFloat } from '@/composables/useGameLog'
   import {
     createOfficialControlInstance,
     fetchOfficialControlCurrentConfig,
     fetchOfficialControlInstances,
     fetchOfficialControlPlatformStatus,
+    fetchOfficialControlRuntimeStatus,
     loginOfficialControlSecondAuth,
     logoutOfficialControlSecondAuth,
     publishOfficialControlConfig,
@@ -248,6 +255,8 @@
     OfficialControlInstanceRecord,
     OfficialControlPlatformStatus,
     OfficialControlReleaseRecord,
+    OfficialManagedConfigKey,
+    OfficialManagedConfigStatus,
     OfficialManagedConfigValues,
   } from '@/types'
 
@@ -286,6 +295,27 @@
     enabled: true,
   })
   const instanceOriginDrafts = ref<Record<string, string>>({})
+  const runtimeManagedStatus = ref<OfficialManagedConfigStatus | null>(null)
+  const runtimeReadonlyManagedFields = ref<OfficialManagedConfigKey[]>([])
+  const managedFieldLabelMap: Record<OfficialManagedConfigKey, string> = {
+    ai_assistant_console_credit: 'AI 控制台署名',
+    ai_assistant_name: 'AI 助手名称',
+    ai_assistant_welcome: 'AI 欢迎语',
+    taoyuan_about_dialog_title: '关于弹窗标题',
+    taoyuan_about_dialog_content: '关于弹窗正文',
+  }
+  const runtimeSourceLabel = computed(() => {
+    const source = runtimeManagedStatus.value?.source
+    if (source === 'official_live') return '官方实时'
+    if (source === 'official_cached') return '官方缓存'
+    if (source === 'local_default') return '本地默认'
+    return '未知'
+  })
+  const runtimeReadonlyManagedFieldsText = computed(() => (
+    runtimeReadonlyManagedFields.value.length
+      ? runtimeReadonlyManagedFields.value.map(field => managedFieldLabelMap[field] || field).join('、')
+      : '无'
+  ))
 
   const formatTime = (timestamp?: number | null) => {
     if (!timestamp) return '-'
@@ -329,6 +359,14 @@
 
   const loadStatus = async () => {
     status.value = await fetchOfficialControlPlatformStatus()
+    try {
+      const runtimeStatusResult = await fetchOfficialControlRuntimeStatus()
+      runtimeManagedStatus.value = runtimeStatusResult.runtimeManagedStatus || null
+      runtimeReadonlyManagedFields.value = runtimeStatusResult.readonlyManagedFields
+    } catch {
+      runtimeManagedStatus.value = null
+      runtimeReadonlyManagedFields.value = []
+    }
   }
 
   const loadProtectedData = async () => {

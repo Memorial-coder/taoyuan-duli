@@ -333,6 +333,15 @@
               {{ step.status === 'completed' ? '已完成' : step.status === 'active' ? '当前步骤' : '待推进' }}
             </span>
           </div>
+          <div class="mt-2 flex justify-end">
+            <Button
+              class="justify-center"
+              :disabled="selectedSpiritMemoryChain.progressLabel !== '可收尾'"
+              @click="handleClaimBondMemory"
+            >
+              归档记忆
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -1004,6 +1013,15 @@
     const nextMemoryId = summary?.memoryRewards.find(entry => !summary.claimedBondMemoryIds.includes(entry.id))?.id ?? summary?.memoryRewards[0]?.id
     return selectedHiddenNpc.value && nextMemoryId ? hiddenNpcStore.getBondMemoryChainPreview(selectedHiddenNpc.value, nextMemoryId) : null
   })
+
+  const handleClaimBondMemory = () => {
+    if (!selectedHiddenNpc.value || !selectedSpiritMemoryChain.value) return
+    const result = hiddenNpcStore.claimBondMemory(selectedHiddenNpc.value, selectedSpiritMemoryChain.value.memoryReward.id)
+    addLog(result.message)
+    if (result.success) {
+      dialogueText.value = result.message
+    }
+  }
 
   const revealedHiddenNpcs = computed(() => hiddenNpcStore.getRevealedNpcs)
     const rumorHiddenNpcs = computed(() => hiddenNpcStore.getRumorNpcs)

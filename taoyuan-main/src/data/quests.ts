@@ -118,8 +118,8 @@ export const QUEST_TEMPLATES: QuestTemplateDef[] = [
       { itemId: 'copper_bar', name: '铜锭', minQty: 1, maxQty: 3, seasons: [], unitPrice: 50 },
       { itemId: 'iron_bar', name: '铁锭', minQty: 1, maxQty: 2, seasons: [], unitPrice: 90 },
       { itemId: 'honey', name: '蜂蜜', minQty: 1, maxQty: 3, seasons: ['spring', 'summer', 'autumn'], unitPrice: 60 },
-      { itemId: 'rice_wine', name: '米酒', minQty: 1, maxQty: 2, seasons: [], unitPrice: 80 },
-      { itemId: 'cooking_oil', name: '食用油', minQty: 1, maxQty: 2, seasons: [], unitPrice: 70 }
+      { itemId: 'tavern_rice_wine', name: '米酒', minQty: 1, maxQty: 2, seasons: [], unitPrice: 80 },
+      { itemId: 'sesame_oil', name: '食用油', minQty: 1, maxQty: 2, seasons: [], unitPrice: 70 }
     ],
     npcPool: ['sun_tiejiang', 'chun_lan', 'xue_qin', 'lin_lao'],
     rewardMultiplier: 5,
@@ -1567,7 +1567,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
       },
       {
         id: 'combo_rice_wine',
-        itemId: 'rice_wine',
+        itemId: 'tavern_rice_wine',
         itemName: '米酒',
         quantity: 6,
         note: '宴席物流需一并备齐酒饮。'
@@ -1589,7 +1589,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
         },
         {
           id: 'combo_rice_wine',
-          itemId: 'rice_wine',
+          itemId: 'tavern_rice_wine',
           itemName: '米酒',
           quantity: 6,
           note: '宴席物流需一并备齐酒饮。'
@@ -1766,7 +1766,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
     orderStageType: 'combo',
     comboRequirements: [
       { id: 'combo_banquet_pumpkin', itemId: 'pumpkin', itemName: '南瓜', quantity: 10, note: '席面主菜底材。' },
-      { id: 'combo_banquet_wine', itemId: 'rice_wine', itemName: '米酒', quantity: 4, note: '桌前酒饮要一并到位。' },
+      { id: 'combo_banquet_wine', itemId: 'tavern_rice_wine', itemName: '米酒', quantity: 4, note: '桌前酒饮要一并到位。' },
       { id: 'combo_banquet_tea', itemId: 'osmanthus_tea', itemName: '桂花茶', quantity: 2, note: '用于席前暖盏与候客。' }
     ],
     stageDefinitions: createComboStageDefinitions({
@@ -1774,7 +1774,7 @@ const SPECIAL_ORDER_TEMPLATES: SpecialOrderTemplate[] = [
       description: '王大婶要的是能直接接上整场席面的总单，不再只是单一食材跑腿。',
       requirements: [
         { id: 'combo_banquet_pumpkin', itemId: 'pumpkin', itemName: '南瓜', quantity: 10, note: '席面主菜底材。' },
-        { id: 'combo_banquet_wine', itemId: 'rice_wine', itemName: '米酒', quantity: 4, note: '桌前酒饮要一并到位。' },
+        { id: 'combo_banquet_wine', itemId: 'tavern_rice_wine', itemName: '米酒', quantity: 4, note: '桌前酒饮要一并到位。' },
         { id: 'combo_banquet_tea', itemId: 'osmanthus_tea', itemName: '桂花茶', quantity: 2, note: '用于席前暖盏与候客。' }
       ],
       requirementSummary: ['宴席总单会同时吃作物、酒饮与席前热茶。']
@@ -2324,7 +2324,7 @@ const VILLAGER_QUEST_TEMPLATES: VillagerQuestTemplate[] = [
     npcId: 'qiu_yue',
     category: 'rumor',
     minStage: 'recognize',
-    targetItemId: 'bait',
+    targetItemId: 'standard_bait',
     targetItemName: '鱼饵',
     minQty: 4,
     maxQty: 6,

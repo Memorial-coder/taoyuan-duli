@@ -1,4 +1,4 @@
-import type { OfficialManagedConfigValues } from './officialManaged'
+import type { OfficialManagedConfigKey, OfficialManagedConfigStatus, OfficialManagedConfigValues } from './officialManaged'
 
 export interface OfficialControlPlatformStatus {
   enabled: boolean
@@ -12,6 +12,8 @@ export interface OfficialControlPlatformStatus {
   currentExpiresAt: number
   releaseCount: number
   instanceCount: number
+  runtimeManagedStatus?: OfficialManagedConfigStatus
+  readonlyManagedFields?: OfficialManagedConfigKey[]
 }
 
 export interface OfficialControlReleaseRecord {

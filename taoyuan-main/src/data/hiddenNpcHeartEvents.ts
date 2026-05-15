@@ -551,31 +551,51 @@ export const WS09_SPIRIT_BOND_MEMORY_REWARDS: SpiritBondMemoryDef[] = [
     id: 'memory_long_ling_water_mark',
     npcId: 'long_ling',
     unlockTier: 'P1',
-    summary: '龙灵系结缘记忆，承接瀑布、灵潭与远行前的守护事件。'
+    summary: '龙灵系结缘记忆，承接瀑布、灵潭与远行前的守护事件。',
+    reward: {
+      money: 480,
+      items: [{ itemId: 'quartz', quantity: 2 }]
+    }
   },
   {
     id: 'memory_tao_yao_orchard_bloom',
     npcId: 'tao_yao',
     unlockTier: 'P0',
-    summary: '桃夭系结缘记忆，承接宅院、桃林与生活化陪伴事件。'
+    summary: '桃夭系结缘记忆，承接宅院、桃林与生活化陪伴事件。',
+    reward: {
+      money: 320,
+      items: [{ itemId: 'peacock_feather', quantity: 1 }]
+    }
   },
   {
     id: 'memory_yue_tu_moon_trip',
     npcId: 'yue_tu',
     unlockTier: 'P1',
-    summary: '月兔系结缘记忆，承接夜游、采药与外出同游事件。'
+    summary: '月兔系结缘记忆，承接夜游、采药与外出同游事件。',
+    reward: {
+      money: 420,
+      items: [{ itemId: 'moonstone', quantity: 1 }]
+    }
   },
   {
     id: 'memory_shan_weng_herb_scroll',
     npcId: 'shan_weng',
     unlockTier: 'P2',
-    summary: '山翁系结缘记忆，承接终局修行、恢复与传承事件。'
+    summary: '山翁系结缘记忆，承接终局修行、恢复与传承事件。',
+    reward: {
+      money: 660,
+      items: [{ itemId: 'ginseng', quantity: 1 }, { itemId: 'bamboo_scroll', quantity: 1 }]
+    }
   },
   {
     id: 'memory_gui_nv_return_cloth',
     npcId: 'gui_nv',
     unlockTier: 'P2',
-    summary: '归女系结缘记忆，承接织物、宅院陈设与纪念事件链。'
+    summary: '归女系结缘记忆，承接织物、宅院陈设与纪念事件链。',
+    reward: {
+      money: 620,
+      items: [{ itemId: 'silk', quantity: 2 }]
+    }
   }
 ] as const
 
@@ -585,6 +605,10 @@ export const WS15_SPIRIT_BOND_MEMORY_REWARDS: SpiritBondMemoryDef[] = [
     npcId: 'long_ling',
     unlockTier: 'P2',
     summary: '围绕潮汐、样本护送与活动收尾的第二批龙灵结缘记忆。',
+    reward: {
+      money: 720,
+      items: [{ itemId: 'quartz', quantity: 2 }, { itemId: 'hanhai_map', quantity: 1 }]
+    },
     linkedSystems: ['goal', 'fishPond', 'quest'],
     steps: [
       { id: 'memory_long_ling_tide_archive_trigger', title: '确认潮汐线索', summary: '先确认本周鱼塘 / 钓鱼 / 活动承接里最值得推进的潮汐目标。', stepType: 'trigger', routeName: 'fishpond' },
@@ -597,6 +621,10 @@ export const WS15_SPIRIT_BOND_MEMORY_REWARDS: SpiritBondMemoryDef[] = [
     npcId: 'tao_yao',
     unlockTier: 'P1',
     summary: '围绕庭院布置、活动公告和节气互动的第二批桃夭结缘记忆。',
+    reward: {
+      money: 540,
+      items: [{ itemId: 'peacock_feather', quantity: 1 }, { itemId: 'herb', quantity: 2 }]
+    },
     linkedSystems: ['home', 'goal', 'quest'],
     steps: [
       { id: 'memory_tao_yao_festival_bloom_trigger', title: '整理庭院', summary: '先确认当前家园布置和本周活动最适合承接的生活线焦点。', stepType: 'trigger', routeName: 'home' },
@@ -609,6 +637,10 @@ export const WS15_SPIRIT_BOND_MEMORY_REWARDS: SpiritBondMemoryDef[] = [
     npcId: 'gui_nv',
     unlockTier: 'P2',
     summary: '围绕古物展示、灵物馆承接和终局收尾的第二批归女结缘记忆。',
+    reward: {
+      money: 760,
+      items: [{ itemId: 'silk', quantity: 1 }, { itemId: 'bamboo_scroll', quantity: 1 }]
+    },
     linkedSystems: ['goal', 'quest', 'home'],
     steps: [
       { id: 'memory_gui_nv_showcase_return_trigger', title: '确认展品', summary: '先确认本周最适合展示和收尾的古物、灵物或家园陈设。', stepType: 'trigger', routeName: 'museum' },

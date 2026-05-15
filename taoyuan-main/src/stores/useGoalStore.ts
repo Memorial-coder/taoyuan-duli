@@ -1123,6 +1123,18 @@ export const useGoalStore = defineStore('goal', () => {
     return summaryParts.join('、')
   }
 
+  const cloneGoalReward = (reward: GoalReward): GoalReward => ({
+    money: reward.money,
+    reputation: reward.reputation,
+    items: reward.items?.map(item => ({ ...item })),
+    unlockHint: reward.unlockHint
+  })
+
+  const cloneWeeklyGoalState = (goal: WeeklyGoalState): WeeklyGoalState => ({
+    ...goal,
+    reward: cloneGoalReward(goal.reward)
+  })
+
   const getWeeklyGoalRewardPool = (themeWeekId = currentThemeWeek.value?.id ?? ''): ThemeWeekRewardPoolEntry[] => {
     if (!themeWeekId) return []
     return getThemeWeekRewardPool(themeWeekId)
@@ -1420,14 +1432,15 @@ export const useGoalStore = defineStore('goal', () => {
   const buildWeeklyGoalSettlementSummary = (
     weekInfo: WeekCycleInfo,
     settledAtDayTag = getCurrentDayTag(),
-    options?: { enableCompensation?: boolean }
+    options?: { enableCompensation?: boolean; weeklyGoalsSnapshot?: WeeklyGoalState[] }
   ): WeeklyGoalSettlementSummary | null => {
-    if (!weeklyGoals.value.length) return null
+    const weeklyGoalsSource = options?.weeklyGoalsSnapshot ?? weeklyGoals.value
+    if (!weeklyGoalsSource.length) return null
     const snapshot = getMetricSnapshot()
     const enableCompensation = options?.enableCompensation ?? false
-    const completedGoalCount = weeklyGoals.value.filter(goal => goal.completed).length
-    const totalGoalCount = weeklyGoals.value.length
-    const linkedThemeWeekId = weeklyGoals.value[0]?.linkedThemeWeekId ?? currentThemeWeek.value?.id
+    const completedGoalCount = weeklyGoalsSource.filter(goal => goal.completed).length
+    const totalGoalCount = weeklyGoalsSource.length
+    const linkedThemeWeekId = weeklyGoalsSource[0]?.linkedThemeWeekId ?? currentThemeWeek.value?.id
     const appliedThemeRewardEntries = resolveAppliedThemeRewardEntries(
       completedGoalCount,
       totalGoalCount,
@@ -1437,7 +1450,7 @@ export const useGoalStore = defineStore('goal', () => {
       ? Math.max(0, WEEKLY_GOAL_FAILURE_COMPENSATION_RULE.maxCompensatedGoals)
       : 0
 
-    const items = weeklyGoals.value.map(goal => {
+    const items = weeklyGoalsSource.map(goal => {
       const progressValue = getGoalProgressValue(goal, snapshot)
       const rewardSummary = goal.completed ? formatGoalRewardSummary(goal.reward) : ''
       const progressRatio = goal.targetValue > 0 ? progressValue / goal.targetValue : 0
@@ -1500,22 +1513,27 @@ export const useGoalStore = defineStore('goal', () => {
     weekInfo: WeekCycleInfo
     settledAtDayTag?: string
     enableCompensation?: boolean
+    weeklyGoalsSnapshot?: WeeklyGoalState[]
   }) => {
-    ensureInitialized()
-    if (!weeklyGoals.value.length) return null
+    const weeklyGoalsSnapshot = (payload.weeklyGoalsSnapshot ?? weeklyGoals.value).map(goal => cloneWeeklyGoalState(goal))
+    if (!weeklyGoalsSnapshot.length) return null
     if (lastSettledWeeklyGoalWeekId.value === payload.weekInfo.seasonWeekId) {
       return lastWeeklyGoalSettlement.value?.weekId === payload.weekInfo.seasonWeekId ? lastWeeklyGoalSettlement.value : null
     }
 
     const settledAtDayTag = payload.settledAtDayTag ?? getCurrentDayTag()
     const summaryThemeRewardEntries = resolveAppliedThemeRewardEntries(
-      weeklyGoals.value.filter(goal => goal.completed).length,
-      weeklyGoals.value.length,
-      weeklyGoals.value[0]?.linkedThemeWeekId ?? currentThemeWeek.value?.id
+      weeklyGoalsSnapshot.filter(goal => goal.completed).length,
+      weeklyGoalsSnapshot.length,
+      weeklyGoalsSnapshot[0]?.linkedThemeWeekId ?? currentThemeWeek.value?.id
     )
 
-    for (const goal of weeklyGoals.value) {
+    for (const goal of weeklyGoalsSnapshot) {
       if (goal.completed && !goal.rewarded) {
+        const liveGoal = weeklyGoals.value.find(entry => entry.id === goal.id && entry.weekId === goal.weekId)
+        if (liveGoal) {
+          liveGoal.rewarded = true
+        }
         goal.rewarded = true
         grantReward('本周目标「' + goal.title + '」', goal.reward)
       }
@@ -1526,7 +1544,8 @@ export const useGoalStore = defineStore('goal', () => {
     }
 
     const summary = buildWeeklyGoalSettlementSummary(payload.weekInfo, settledAtDayTag, {
-      enableCompensation: payload.enableCompensation
+      enableCompensation: payload.enableCompensation,
+      weeklyGoalsSnapshot
     })
     if (!summary) return null
 
@@ -1638,7 +1657,7 @@ export const useGoalStore = defineStore('goal', () => {
     for (const stage of mainQuestStages.value) {
       if (stage.completed && !stage.rewarded) {
         stage.rewarded = true
-        grantReward('主线里程碑「' + stage.title + '」', stage.reward)
+        grantReward('经营里程碑「' + stage.title + '」', stage.reward)
       }
     }
 

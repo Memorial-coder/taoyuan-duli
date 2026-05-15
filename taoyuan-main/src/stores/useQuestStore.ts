@@ -2033,70 +2033,98 @@ export const useQuestStore = defineStore('quest', () => {
     if (!mainQuest.value || !mainQuest.value.accepted) {
       return { success: false, message: '没有可提交的主线任务。' }
     }
-
-    const def = getStoryQuestById(mainQuest.value.questId)
-    if (!def) return { success: false, message: '主线任务数据异常。' }
-    const inventorySnapshot = inventoryStore.serialize()
-    const rewardItems = (def.itemReward ?? []).map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
-
-    // 最终验证所有目标
-    for (let i = 0; i < def.objectives.length; i++) {
-      mainQuest.value.objectiveProgress[i] = evaluateObjective(def.objectives[i]!)
-    }
-    if (!mainQuest.value.objectiveProgress.every(p => p)) {
-      return { success: false, message: '主线任务目标尚未全部完成。' }
+    const submissionLockId = `main:${mainQuest.value.questId}`
+    if (!beginQuestSubmission(submissionLockId)) {
+      return { success: false, message: '该主线任务正在结算中，请勿重复点击。' }
     }
 
-    // deliverItem 类型扣除背包物品
-    for (const obj of def.objectives) {
-      if (obj.type === 'deliverItem' && obj.itemId && obj.itemQuantity) {
-        if (!inventoryStore.removeItemAnywhere(obj.itemId, obj.itemQuantity)) {
-          inventoryStore.deserialize(inventorySnapshot)
-          return { success: false, message: `背包中物品不足，无法提交。` }
+    let rollbackMainQuestSubmission: (() => void) | null = null
+    try {
+      const def = getStoryQuestById(mainQuest.value.questId)
+      if (!def) return { success: false, message: '主线任务数据异常。' }
+
+      const inventorySnapshot = inventoryStore.serialize()
+      const playerSnapshot = playerStore.serialize()
+      const npcSnapshot = npcStore.serialize()
+      const mainQuestSnapshot = mainQuest.value
+        ? {
+            ...mainQuest.value,
+            objectiveProgress: [...mainQuest.value.objectiveProgress]
+          }
+        : null
+      const completedMainQuestSnapshot = [...completedMainQuests.value]
+      const rewardItems = (def.itemReward ?? []).map(item => ({ itemId: item.itemId, quantity: item.quantity, quality: 'normal' as const }))
+
+      rollbackMainQuestSubmission = () => {
+        inventoryStore.deserialize(inventorySnapshot)
+        playerStore.deserialize(playerSnapshot)
+        npcStore.deserialize(npcSnapshot)
+        mainQuest.value = mainQuestSnapshot
+          ? {
+              ...mainQuestSnapshot,
+              objectiveProgress: [...mainQuestSnapshot.objectiveProgress]
+            }
+          : null
+        completedMainQuests.value = [...completedMainQuestSnapshot]
+      }
+
+      // 最终验证所有目标
+      for (let i = 0; i < def.objectives.length; i++) {
+        mainQuest.value!.objectiveProgress[i] = evaluateObjective(def.objectives[i]!)
+      }
+      if (!mainQuest.value!.objectiveProgress.every(p => p)) {
+        return { success: false, message: '主线任务目标尚未全部完成。' }
+      }
+
+      // deliverItem 类型扣除背包物品
+      for (const obj of def.objectives) {
+        if (obj.type === 'deliverItem' && obj.itemId && obj.itemQuantity) {
+          if (!inventoryStore.removeItemAnywhere(obj.itemId, obj.itemQuantity)) {
+            rollbackMainQuestSubmission()
+            return { success: false, message: '背包中物品不足，无法提交。' }
+          }
         }
       }
-    }
 
-    if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
-      inventoryStore.deserialize(inventorySnapshot)
-      return { success: false, message: '请先整理背包，提交后腾出的空间仍不足以领取主线奖励。' }
-    }
-
-    // 发放铜钱奖励
-    playerStore.earnMoney(def.moneyReward)
-
-    // 发放好感奖励
-    if (def.friendshipReward) {
-      for (const fr of def.friendshipReward) {
-        npcStore.adjustFriendship(fr.npcId, fr.amount)
+      if (rewardItems.length > 0 && !inventoryStore.canAddItems(rewardItems)) {
+        rollbackMainQuestSubmission()
+        return { success: false, message: '请先整理背包，提交后腾出的空间仍不足以领取主线奖励。' }
       }
-    }
 
-    // 发放物品奖励
-    if (def.itemReward) {
-      inventoryStore.addItemsExact(rewardItems)
-    }
+      playerStore.earnMoney(def.moneyReward)
 
-    // 记录完成
-    completedMainQuests.value.push(mainQuest.value.questId)
-    mainQuest.value = null
-
-    // 自动初始化下一个主线任务
-    initMainQuest()
-
-    const npcDef = getNpcById(def.npcId)
-    const npcName = npcDef?.name ?? def.npcId
-    let message = `【主线完成】${def.title}！${npcName}：获得${def.moneyReward}文。`
-    if (def.itemReward && def.itemReward.length > 0) {
-      message += ` 额外获得物品奖励。`
-    }
-    if (!mainQuest.value) {
-      if (completedMainQuests.value.length >= STORY_QUESTS.length) {
-        message += ` 恭喜！你已完成桃源乡全部主线任务！`
+      if (def.friendshipReward) {
+        for (const fr of def.friendshipReward) {
+          npcStore.adjustFriendship(fr.npcId, fr.amount)
+        }
       }
-    }
 
-    return { success: true, message }
+      if (rewardItems.length > 0 && !inventoryStore.addItemsExact(rewardItems)) {
+        rollbackMainQuestSubmission()
+        return { success: false, message: '主线奖励发放失败，请整理背包后重试。' }
+      }
+
+      completedMainQuests.value.push(mainQuest.value!.questId)
+      mainQuest.value = null
+      initMainQuest()
+
+      const npcDef = getNpcById(def.npcId)
+      const npcName = npcDef?.name ?? def.npcId
+      let message = `【主线完成】${def.title}！${npcName}：获得${def.moneyReward}文。`
+      if (def.itemReward && def.itemReward.length > 0) {
+        message += ' 额外获得物品奖励。'
+      }
+      if (!mainQuest.value && completedMainQuests.value.length >= STORY_QUESTS.length) {
+        message += ' 恭喜！你已完成桃源乡全部主线任务！'
+      }
+
+      return { success: true, message }
+    } catch (error) {
+      rollbackMainQuestSubmission?.()
+      return { success: false, message: `主线任务结算失败：${error instanceof Error ? error.message : '未知错误'}` }
+    } finally {
+      finishQuestSubmission(submissionLockId)
+    }
   }
 
   // ============================================================

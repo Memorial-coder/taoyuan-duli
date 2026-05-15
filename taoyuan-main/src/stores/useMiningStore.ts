@@ -292,12 +292,30 @@ export const useMiningStore = defineStore('mining', () => {
     }
   }
 
+  const hasPendingMainMineBossRewards = (floorNum: number): boolean => {
+    const bossId = BOSS_MONSTERS[floorNum]?.id
+    if (bossId && !defeatedBosses.value.includes(bossId)) return true
+    if (!claimedBossRewardFloors.value.includes(floorNum)) return true
+    if (BOSS_DROP_RINGS[floorNum] && !claimedBossRingRewardFloors.value.includes(floorNum)) return true
+    if (BOSS_DROP_HATS[floorNum] && !claimedBossHatRewardFloors.value.includes(floorNum)) return true
+    if (BOSS_DROP_SHOES[floorNum] && !claimedBossShoeRewardFloors.value.includes(floorNum)) return true
+    return false
+  }
+
   const grantMainMineBossRewards = (floorNum: number): { granted: boolean; message: string } => {
-    if (claimedBossRewardFloors.value.includes(floorNum)) {
+    if (!hasPendingMainMineBossRewards(floorNum)) {
       return { granted: false, message: '' }
     }
 
-    const oreRewards = BOSS_ORE_REWARDS[floorNum]
+    const bossId = BOSS_MONSTERS[floorNum]?.id ?? null
+    const shouldGrantFirstKill = !!bossId && !defeatedBosses.value.includes(bossId)
+    const shouldGrantMainReward = !claimedBossRewardFloors.value.includes(floorNum)
+    const weaponId = shouldGrantFirstKill ? (BOSS_DROP_WEAPONS[floorNum] ?? null) : null
+    const bossRingId = !claimedBossRingRewardFloors.value.includes(floorNum) ? (BOSS_DROP_RINGS[floorNum] ?? null) : null
+    const bossHatId = !claimedBossHatRewardFloors.value.includes(floorNum) ? (BOSS_DROP_HATS[floorNum] ?? null) : null
+    const bossShoeId = !claimedBossShoeRewardFloors.value.includes(floorNum) ? (BOSS_DROP_SHOES[floorNum] ?? null) : null
+    const oreRewards = shouldGrantMainReward ? BOSS_ORE_REWARDS[floorNum] : undefined
+
     if (oreRewards) {
       const rewardEntries = oreRewards.map(ore => ({ itemId: ore.itemId, quantity: ore.quantity }))
       if (!canGrantRewardEntries(rewardEntries)) {
@@ -309,12 +327,7 @@ export const useMiningStore = defineStore('mining', () => {
     }
 
     let message = ''
-    const moneyReward = BOSS_MONEY_REWARDS[floorNum] ?? 0
-    if (moneyReward > 0) {
-      playerStore.earnMoney(moneyReward)
-      recordMoneyLoot(moneyReward)
-      message += ` 获得${moneyReward}文！`
-    }
+    let oreRewardMessage = ''
     if (oreRewards) {
       const rewardEntries = oreRewards.map(ore => ({ itemId: ore.itemId, quantity: ore.quantity }))
       if (!grantRewardEntries(rewardEntries, true)) {
@@ -323,9 +336,60 @@ export const useMiningStore = defineStore('mining', () => {
           message: ' 背包空间不足，BOSS 楼层奖励暂未领取。请先整理背包后再尝试前进或离开。'
         }
       }
-      message += ` 获得了${getRewardNames(oreRewards)}！`
+      oreRewardMessage = ` 获得了${getRewardNames(oreRewards)}！`
     }
-    claimedBossRewardFloors.value.push(floorNum)
+
+    if (shouldGrantFirstKill && bossId) {
+      defeatedBosses.value.push(bossId)
+      if (weaponId) {
+        const bossWeaponDef = getWeaponById(weaponId)
+        const fixedEnchant = bossWeaponDef?.fixedEnchantment ?? null
+        inventoryStore.addWeapon(weaponId, fixedEnchant)
+        recordWeaponLoot(weaponId, fixedEnchant)
+        const displayName = getWeaponDisplayName(weaponId, fixedEnchant)
+        message += ` 首次击败BOSS！获得了传说武器：${displayName}！`
+      }
+    }
+
+    if (bossRingId) {
+      inventoryStore.addRing(bossRingId)
+      recordRingLoot(bossRingId)
+      claimedBossRingRewardFloors.value.push(floorNum)
+      const bossRingDef = getRingById(bossRingId)
+      message += ` 获得了戒指：${bossRingDef?.name ?? bossRingId}！`
+    }
+
+    if (bossHatId) {
+      inventoryStore.addHat(bossHatId)
+      recordHatLoot(bossHatId)
+      claimedBossHatRewardFloors.value.push(floorNum)
+      const bossHatDef = getHatById(bossHatId)
+      message += ` 获得了帽子：${bossHatDef?.name ?? bossHatId}！`
+    }
+
+    if (bossShoeId) {
+      inventoryStore.addShoe(bossShoeId)
+      recordShoeLoot(bossShoeId)
+      claimedBossShoeRewardFloors.value.push(floorNum)
+      const bossShoeDef = getShoeById(bossShoeId)
+      message += ` 获得了鞋子：${bossShoeDef?.name ?? bossShoeId}！`
+    }
+
+    const moneyReward = shouldGrantMainReward ? (BOSS_MONEY_REWARDS[floorNum] ?? 0) : 0
+    if (moneyReward > 0) {
+      playerStore.earnMoney(moneyReward)
+      recordMoneyLoot(moneyReward)
+      message += ` 获得${moneyReward}文！`
+    }
+
+    if (oreRewardMessage) {
+      message += oreRewardMessage
+    }
+
+    if (shouldGrantMainReward) {
+      claimedBossRewardFloors.value.push(floorNum)
+    }
+
     return { granted: true, message }
   }
 
@@ -334,7 +398,7 @@ export const useMiningStore = defineStore('mining', () => {
     const floor = getActiveFloorData()
     if (!floor) return { success: true, message: '' }
 
-    if (floor.specialType === 'boss' && stairsUsable.value && !claimedBossRewardFloors.value.includes(currentFloor.value)) {
+    if (floor.specialType === 'boss' && stairsUsable.value && hasPendingMainMineBossRewards(currentFloor.value)) {
       const result = grantMainMineBossRewards(currentFloor.value)
       if (!result.granted) {
         return { success: false, message: result.message.trim() || '请先领取 BOSS 楼层奖励。' }
@@ -1236,48 +1300,6 @@ export const useMiningStore = defineStore('mining', () => {
         msg += ` 获得了${bonusOreCount}个稀有矿石！`
       } else {
         // 主矿洞BOSS
-        const bossId = monster.id
-        const isFirstKill = !defeatedBosses.value.includes(bossId)
-
-        if (isFirstKill) {
-          defeatedBosses.value.push(bossId)
-          // 首杀掉落武器
-          const weaponId = BOSS_DROP_WEAPONS[currentFloor.value]
-          if (weaponId) {
-            const bossWeaponDef = getWeaponById(weaponId)
-            const fixedEnchant = bossWeaponDef?.fixedEnchantment ?? null
-            inventoryStore.addWeapon(weaponId, fixedEnchant)
-            recordWeaponLoot(weaponId, fixedEnchant)
-            const displayName = getWeaponDisplayName(weaponId, fixedEnchant)
-            msg += ` 首次击败BOSS！获得了传说武器：${displayName}！`
-          }
-        }
-        // 装备掉落（独立于首杀，使用 has* 去重，兼容旧存档补发）
-        const bossRingId = BOSS_DROP_RINGS[currentFloor.value]
-        if (bossRingId && !claimedBossRingRewardFloors.value.includes(currentFloor.value)) {
-          inventoryStore.addRing(bossRingId)
-          recordRingLoot(bossRingId)
-          claimedBossRingRewardFloors.value.push(currentFloor.value)
-          const bossRingDef = getRingById(bossRingId)
-          msg += ` 获得了戒指：${bossRingDef?.name ?? bossRingId}！`
-        }
-        const bossHatId = BOSS_DROP_HATS[currentFloor.value]
-        if (bossHatId && !claimedBossHatRewardFloors.value.includes(currentFloor.value)) {
-          inventoryStore.addHat(bossHatId)
-          recordHatLoot(bossHatId)
-          claimedBossHatRewardFloors.value.push(currentFloor.value)
-          const bossHatDef = getHatById(bossHatId)
-          msg += ` 获得了帽子：${bossHatDef?.name ?? bossHatId}！`
-        }
-        const bossShoeId = BOSS_DROP_SHOES[currentFloor.value]
-        if (bossShoeId && !claimedBossShoeRewardFloors.value.includes(currentFloor.value)) {
-          inventoryStore.addShoe(bossShoeId)
-          recordShoeLoot(bossShoeId)
-          claimedBossShoeRewardFloors.value.push(currentFloor.value)
-          const bossShoeDef = getShoeById(bossShoeId)
-          msg += ` 获得了鞋子：${bossShoeDef?.name ?? bossShoeId}！`
-        }
-
         msg += grantMainMineBossRewards(currentFloor.value).message
       }
     }

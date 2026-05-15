@@ -647,6 +647,14 @@ router.get('/admin/official-control/platform-status', userAdminAuth, officialCon
   });
 });
 
+router.get('/admin/official-control/runtime-status', userAdminAuth, officialControlHostAuth, (req, res) => {
+  res.json({
+    ok: true,
+    status: cfg.getManagedStatus(),
+    readonlyManagedFields: [...officialControlPlatform.MANAGED_KEYS],
+  });
+});
+
 router.post('/admin/official-control/auth/login', userAdminAuth, officialControlHostAuth, (req, res) => {
   try {
     const password = String(req.body?.password || '').trim();

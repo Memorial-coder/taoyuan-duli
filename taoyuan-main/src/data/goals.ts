@@ -85,7 +85,7 @@ export const MAIN_QUEST_STAGE_DEFS: MainQuestStageTemplate[] = [
       { id: 'main_stage_5_mine', title: '矿洞探秘', description: '矿洞最高到达 80 层。', metric: 'highestMineFloor', targetValue: 80, reward: {} },
       { id: 'main_stage_5_collect', title: '博物志成', description: '累计发现 50 种物品。', metric: 'discoveredCount', targetValue: 50, reward: {} }
     ],
-    reward: { money: 12000, reputation: 200, items: [{ itemId: 'food_rice_ball', quantity: 8 }, { itemId: 'wild_mushroom', quantity: 6 }], unlockHint: '你的桃源已成为世人口耳相传的传奇之地。恭喜你完成了所有主线里程碑！' }
+    reward: { money: 12000, reputation: 200, items: [{ itemId: 'food_rice_ball', quantity: 8 }, { itemId: 'wild_mushroom', quantity: 6 }], unlockHint: '你的桃源已成为世人口耳相传的传奇之地。恭喜你完成了所有经营里程碑！' }
   }
 ]
 
@@ -2218,7 +2218,7 @@ const THEME_WEEK_BASE_REWARD_POOLS: Record<'spring' | 'summer' | 'autumn' | 'win
       label: '夏行满贯奖',
       description: '全部周目标完成时，发放夏行主题完整承接奖励。',
       threshold: 'full',
-      bonusReward: { money: 420, reputation: 6, items: [{ itemId: 'bait_maker', quantity: 1 }] }
+      bonusReward: { money: 420, reputation: 6, items: [{ itemId: 'standard_bait', quantity: 8 }] }
     }
   ],
   autumn: [

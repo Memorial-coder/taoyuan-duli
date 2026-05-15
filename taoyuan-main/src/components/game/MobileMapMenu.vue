@@ -61,8 +61,8 @@
                 <ScrollText :size="mobileMapToolIconSize" />
               </span>
               <span class="tool-entry-copy">
-                <span class="tool-entry-title">日志</span>
-                <span class="tool-entry-meta">回看最近记录</span>
+                <span class="tool-entry-title">记录</span>
+                <span class="tool-entry-meta">查看日结、见闻和线索</span>
               </span>
             </button>
             <button v-if="props.hasVoidChest" class="tool-entry-btn" @click="$emit('open-void')">

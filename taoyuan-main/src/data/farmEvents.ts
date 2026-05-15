@@ -255,7 +255,7 @@ export const MORNING_NARRATIONS_SPRING: MorningNarration[] = [
   { message: '春雨淅淅沥沥下了一夜，田里的泥土松软得像刚发好的面。' },
   { message: '桃花开了，风一吹，粉色的花瓣漫天飞舞，落进你的头发里。' },
   { message: '清晨的田间雾气未散，远处的山峦若隐若现，美得像一幅水墨画。' },
-  { message: '篱笆边不知道什么时候钻出了几朵野蒲公英，黄澄澄的。', effect: { type: 'gainItem', itemId: 'dandelion', qty: 2 } },
+  { message: '篱笆边不知道什么时候钻出了几朵野蒲公英，黄澄澄的。', effect: { type: 'gainItem', itemId: 'herb', qty: 2 } },
   { message: '一只燕子衔着泥在屋檐下筑巢，来来回回忙了一早上。' },
   { message: '春风拂过麦苗，绿浪一波波涌过去，连心情也跟着舒展了。' }
 ]
@@ -265,7 +265,7 @@ export const MORNING_NARRATIONS_SUMMER: MorningNarration[] = [
   { message: '昨夜一场大雨，田埂边的水沟满了，几只青蛙跳进跳出。' },
   { message: '烈日还没出来，空气里已经有了暑意。蝉声从树林里传来，聒噪而热烈。' },
   { message: '荷塘边的荷花开了，粉白相间，蜻蜓停在花蕊上一动不动。' },
-  { message: '你在地里翻出了几个大西瓜，圆滚滚的，拍一拍声音很脆。', effect: { type: 'gainItem', itemId: 'melon', qty: 1 } },
+  { message: '你在地里翻出了几个大西瓜，圆滚滚的，拍一拍声音很脆。', effect: { type: 'gainItem', itemId: 'watermelon', qty: 1 } },
   { message: '今早的露水格外多，叶片上的水珠在阳光下折射出七彩光芒。' },
   { message: '热浪滚滚，连稻草人都好像晒蔫了。你给自己灌了两大碗水才出门。' }
 ]
@@ -322,7 +322,7 @@ export const MORNING_CHOICE_EVENTS_SPRING: MorningChoiceEvent[] = [
     id: 'spring_rain_mud',
     message: '春雨把田间小路变成了烂泥地，陈伯正愁眉苦脸地盯着一辆陷进泥坑的推车。',
     choices: [
-      { label: '一起去推车', result: '两个人使劲一推，车子出来了。陈伯拍着你的肩膀哈哈大笑，回头塞给你一把种子。', effect: { type: 'gainItem', itemId: 'seed_wheat', qty: 5 } },
+      { label: '一起去推车', result: '两个人使劲一推，车子出来了。陈伯拍着你的肩膀哈哈大笑，回头塞给你一把种子。', effect: { type: 'gainItem', itemId: 'seed_winter_wheat', qty: 5 } },
       { label: '绕道走', result: '你绕了远路，听说最后是阿石路过帮忙推出来的。' }
     ]
   }
@@ -360,8 +360,8 @@ export const MORNING_CHOICE_EVENTS_AUTUMN: MorningChoiceEvent[] = [
     id: 'autumn_mushroom',
     message: '秋雨过后，林老笑眯眯地提着一篮子蘑菇来找你：「山上的蘑菇冒出来了，你去采过吗？」',
     choices: [
-      { label: '「还没，带我去看看？」', result: '林老领你上山，采了满满一篮。他边走边讲哪种能吃哪种不能吃，你学到了不少。', effect: { type: 'gainItem', itemId: 'mushroom', qty: 4 } },
-      { label: '「我不太认识蘑菇……」', result: '林老哈哈大笑，从篮子里分了一半给你：「学嘛，慢慢来。」', effect: { type: 'gainItem', itemId: 'mushroom', qty: 2 } }
+      { label: '「还没，带我去看看？」', result: '林老领你上山，采了满满一篮。他边走边讲哪种能吃哪种不能吃，你学到了不少。', effect: { type: 'gainItem', itemId: 'wild_mushroom', qty: 4 } },
+      { label: '「我不太认识蘑菇……」', result: '林老哈哈大笑，从篮子里分了一半给你：「学嘛，慢慢来。」', effect: { type: 'gainItem', itemId: 'wild_mushroom', qty: 2 } }
     ]
   }
 ]

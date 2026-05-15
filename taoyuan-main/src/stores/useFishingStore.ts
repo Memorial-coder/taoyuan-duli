@@ -558,24 +558,38 @@ export const useFishingStore = defineStore('fishing', () => {
           : `成功钓上了${currentFish.value.name}！${ratingTag}`
     }
 
-    // 宝箱
-    const treasure = rollTreasureChest()
-    if (treasure) {
-      lastTreasure.value = treasure
-      const treasureNames = treasure.items.map(t => `${t.name}×${t.quantity}`).join('、')
-      if (treasure.money > 0) {
-        message += ` 宝箱：${treasureNames}${treasureNames ? '、' : ''}${treasure.money}文！`
-      } else {
-        message += ` 宝箱：${treasureNames}！`
+    // 宝箱只在主鱼成功入包后结算，避免背包满时出现“鱼没拿到但宝箱到账”
+    if (added) {
+      const treasure = rollTreasureChest()
+      if (treasure) {
+        lastTreasure.value = treasure
+        const treasureNames = treasure.items.map(t => `${t.name}×${t.quantity}`).join('、')
+        if (treasure.money > 0) {
+          message += ` 宝箱：${treasureNames}${treasureNames ? '、' : ''}${treasure.money}文！`
+        } else {
+          message += ` 宝箱：${treasureNames}！`
+        }
+        if (treasure.blocked) {
+          message += ' 但有部分宝箱物品因背包空间不足没能带走。'
+        }
       }
-      if (treasure.blocked) {
-        message += ' 但有部分宝箱物品因背包空间不足没能带走。'
-      }
+    } else {
+      lastTreasure.value = null
     }
 
     lastPerfect.value = rating === 'perfect'
     endFishing()
-    return { message, fishName: caughtFish.name, fishId: caughtFish.id, difficulty: caughtFish.difficulty, sellPrice: caughtFish.sellPrice, description: caughtFish.description, quality, quantity: catchQty, success: true }
+    return {
+      message,
+      fishName: caughtFish.name,
+      fishId: caughtFish.id,
+      difficulty: caughtFish.difficulty,
+      sellPrice: caughtFish.sellPrice,
+      description: caughtFish.description,
+      quality,
+      quantity: catchQty,
+      success: added
+    }
   }
 
   /** 钓鱼宝箱 */

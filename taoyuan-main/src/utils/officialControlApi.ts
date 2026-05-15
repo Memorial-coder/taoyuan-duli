@@ -5,6 +5,7 @@ import type {
   OfficialControlReleaseRecord,
   OfficialManagedConfigValues,
 } from '@/types'
+import type { OfficialManagedConfigKey, OfficialManagedConfigStatus } from '@/types'
 
 const parseJsonSafe = async (res: Response) => {
   try {
@@ -20,6 +21,28 @@ const getAdminHeaders = () => {
   return {
     'Content-Type': 'application/json',
     'X-Admin-Token': token,
+  }
+}
+
+const mapRuntimeManagedStatus = (data: any): OfficialManagedConfigStatus | undefined => {
+  const source = String(data?.source || '').trim()
+  if (!['official_live', 'official_cached', 'local_default'].includes(source)) return undefined
+  return {
+    enabled: data?.enabled === true,
+    configured: data?.configured === true,
+    source: source as OfficialManagedConfigStatus['source'],
+    profileId: String(data?.profileId || data?.profile_id || ''),
+    version: String(data?.version || ''),
+    issuedAt: Number(data?.issuedAt || data?.issued_at) || 0,
+    expiresAt: Number(data?.expiresAt || data?.expires_at) || 0,
+    lastFetchedAt: Number(data?.lastFetchedAt || data?.last_fetched_at) || 0,
+    lastVerifiedAt: Number(data?.lastVerifiedAt || data?.last_verified_at) || 0,
+    lastError: String(data?.lastError || data?.last_error || ''),
+    managedKeys: Array.isArray(data?.managedKeys)
+      ? data.managedKeys.map((item: unknown) => String(item) as OfficialManagedConfigKey)
+      : Array.isArray(data?.managed_keys)
+        ? data.managed_keys.map((item: unknown) => String(item) as OfficialManagedConfigKey)
+        : [],
   }
 }
 
@@ -39,7 +62,35 @@ const mapPlatformStatus = (data: any): OfficialControlPlatformStatus => ({
   currentExpiresAt: Number(data?.currentExpiresAt || data?.current_expires_at) || 0,
   releaseCount: Number(data?.releaseCount || data?.release_count) || 0,
   instanceCount: Number(data?.instanceCount || data?.instance_count) || 0,
+  runtimeManagedStatus: mapRuntimeManagedStatus(data?.runtimeManagedStatus || data?.runtime_managed_status),
+  readonlyManagedFields: Array.isArray(data?.readonlyManagedFields)
+    ? data.readonlyManagedFields.map((item: unknown) => String(item) as OfficialManagedConfigKey)
+    : Array.isArray(data?.readonly_managed_fields)
+      ? data.readonly_managed_fields.map((item: unknown) => String(item) as OfficialManagedConfigKey)
+      : [],
 })
+
+export const fetchOfficialControlRuntimeStatus = async (): Promise<{
+  runtimeManagedStatus?: OfficialManagedConfigStatus
+  readonlyManagedFields: OfficialManagedConfigKey[]
+}> => {
+  const res = await fetch('/api/admin/official-control/runtime-status', {
+    credentials: 'include',
+    headers: {
+      'X-Admin-Token': getStoredAdminToken(),
+    },
+  })
+  const data = await parseJsonSafe(res)
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.msg || '获取官方云控运行时状态失败')
+  }
+  return {
+    runtimeManagedStatus: mapRuntimeManagedStatus(data?.status),
+    readonlyManagedFields: Array.isArray(data?.readonlyManagedFields)
+      ? data.readonlyManagedFields.map((item: unknown) => String(item) as OfficialManagedConfigKey)
+      : [],
+  }
+}
 
 const mapReleaseRecord = (data: any): OfficialControlReleaseRecord => ({
   id: String(data?.id || ''),
