@@ -17,6 +17,9 @@
 ### 0518 联机统一房间状态机（L04）
 - 新增 `docs/online/08-room-state-machine.md`，把实时房间统一收成 `created / inviting / ready_check / countdown / running / paused / settling / closed / aborted` 九态，不再让不同玩法各自定义一套近义状态。
 - 房间生命周期事件、成员状态，以及正常关闭 / 异常关闭 / 断线恢复与逐成员结算凭证生成流程，也都已经在这份文档里统一，后续节会房间和多人远征都按这套底座扩展。
+### 0518 联机审计与补偿底座（L05）
+- 新增 `docs/online/09-audit-and-compensation.md`，把跨玩家变更的统一审计入口、奖励凭证扩展字段、补偿记录对象和管理端可读流水先定义出来，避免后面只写业务链路、不留后台证据。
+- 后续送礼、委托、房间结算与管理员人工修复，都要围绕 `SettlementReceipt + AuditLog + CompensationRecord` 三类对象来实现，不能再出现“奖励到账了但后台查不到原因”的黑箱链路。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。
