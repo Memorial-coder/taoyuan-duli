@@ -20,6 +20,10 @@
 ### 0518 联机审计与补偿底座（L05）
 - 新增 `docs/online/09-audit-and-compensation.md`，把跨玩家变更的统一审计入口、奖励凭证扩展字段、补偿记录对象和管理端可读流水先定义出来，避免后面只写业务链路、不留后台证据。
 - 后续送礼、委托、房间结算与管理员人工修复，都要围绕 `SettlementReceipt + AuditLog + CompensationRecord` 三类对象来实现，不能再出现“奖励到账了但后台查不到原因”的黑箱链路。
+### 0518 公开玩家档案（L10 第一轮）
+- 新增 `server/src/taoyuanSocialRuntime.js`、`src/utils/onlineProfileApi.ts`、`src/stores/useSocialStore.ts` 与 `src/views/game/SocialView.vue`，把第一版公开名片链路真正接进工程，而不再只是文档层规划。
+- 当前公开名片会从当前账号、服务端个人存档和现有运行态里自动整理出昵称、庄园名、季节进度、主营方向、最近活跃、公开称号、邻里身份与本周展示主题；同时支持玩家保存一句公开介绍和公开状态。
+- 游戏内也已经补出入口：`/game/social` 路由、导航映射、移动端地图菜单和旅行分组都已接通，后续好友 / 邻里系统可以直接复用这一块作为公开资料底板。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

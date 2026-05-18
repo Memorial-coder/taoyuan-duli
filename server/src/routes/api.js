@@ -11,6 +11,7 @@ const cfg = require('../config');
 const taoyuanHall = require('../taoyuanHall');
 const taoyuanMailbox = require('../taoyuanMailbox');
 const taoyuanAiAssistant = require('../taoyuanAiAssistant');
+const taoyuanSocialRuntime = require('../taoyuanSocialRuntime');
 const officialControlPlatform = require('../officialControlPlatform');
 const {
   ensureTaoyuanSavesDir,
@@ -645,6 +646,34 @@ router.get('/admin/official-control/platform-status', userAdminAuth, officialCon
       secondAuthVerified: hasOfficialControlSecondAuth(req),
     }),
   });
+});
+
+router.get('/taoyuan/online/profile', loginRequired, async (req, res) => {
+  try {
+    const profile = await taoyuanSocialRuntime.getOwnProfile(req.session.username);
+    res.json({ ok: true, profile });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取公开名片失败' });
+  }
+});
+
+router.post('/taoyuan/online/profile', loginRequired, signRequired, async (req, res) => {
+  try {
+    const profile = await taoyuanSocialRuntime.updateOwnProfile(req.session.username, req.body || {});
+    res.json({ ok: true, profile });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '保存公开名片失败' });
+  }
+});
+
+router.get('/taoyuan/online/profile/:username', async (req, res) => {
+  try {
+    const username = decodeRouteUsername(req.params.username);
+    const profile = await taoyuanSocialRuntime.getPublicProfile(username, req.session?.username || '');
+    res.json({ ok: true, profile });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取玩家名片失败' });
+  }
 });
 
 router.get('/admin/official-control/runtime-status', userAdminAuth, officialControlHostAuth, (req, res) => {
