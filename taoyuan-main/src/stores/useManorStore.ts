@@ -15,6 +15,8 @@ import {
 } from '@/utils/onlineProfileApi'
 
 export const useManorStore = defineStore('onlineManor', () => {
+  type ManorTemplateId = 'showcase' | 'operational' | 'festival' | 'collection' | 'story'
+
   const loading = ref(false)
   const snapshot = ref<OnlineManorSnapshot | null>(null)
   const errorMessage = ref('')
@@ -31,13 +33,20 @@ export const useManorStore = defineStore('onlineManor', () => {
   const favoriteActionRunning = ref(false)
   const favoriteOverview = ref<Awaited<ReturnType<typeof fetchFavoriteOverview>>>(null)
   const themeLabelDraft = ref('')
+  const templateIdDraft = ref<ManorTemplateId>('showcase')
   const themeActionRunning = ref(false)
+
+  const syncThemeDrafts = (nextSnapshot: OnlineManorSnapshot | null) => {
+    themeLabelDraft.value = nextSnapshot?.theme_week?.active_theme || nextSnapshot?.showcase_theme || ''
+    templateIdDraft.value = nextSnapshot?.theme_week?.template_id || 'showcase'
+  }
 
   const refreshSnapshot = async () => {
     loading.value = true
     errorMessage.value = ''
     try {
       snapshot.value = await fetchOwnManorSnapshot()
+      syncThemeDrafts(snapshot.value)
       return snapshot.value
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '获取庄园快照失败'
@@ -172,9 +181,10 @@ export const useManorStore = defineStore('onlineManor', () => {
         label: themeLabelDraft.value.trim() || snapshot.value.showcase_theme || '本周主题',
         season: snapshot.value.theme_week?.season || 'spring',
         week_tag: snapshot.value.theme_week?.week_tag || '',
+        template_id: templateIdDraft.value,
       })
       snapshot.value = result?.snapshot ?? snapshot.value
-      themeLabelDraft.value = ''
+      syncThemeDrafts(snapshot.value)
       await refreshFavoriteOverview()
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '保存主题周失败'
@@ -238,6 +248,7 @@ export const useManorStore = defineStore('onlineManor', () => {
     favoriteActionRunning,
     favoriteOverview,
     themeLabelDraft,
+    templateIdDraft,
     themeActionRunning,
     refreshSnapshot,
     createGuestbookEntry,

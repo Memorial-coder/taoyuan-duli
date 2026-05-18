@@ -14,7 +14,7 @@
       {{ manorStore.errorMessage }}
     </div>
 
-    <ManorPreviewCard :snapshot="manorStore.snapshot" />
+    <ManorPreviewCard :snapshot="manorStore.snapshot" :favorite-overview="manorStore.favoriteOverview" />
 
     <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
       <p class="text-xs text-accent">收藏与关注</p>
@@ -54,6 +54,42 @@
 
     <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
       <p class="text-xs text-accent">庄园主题周</p>
+      <div class="grid gap-2 md:grid-cols-2">
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-[10px] text-muted mb-1">展示模板</p>
+          <select
+            v-model="manorStore.templateIdDraft"
+            class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+          >
+            <option
+              v-for="option in manorStore.snapshot.theme_week.template_options"
+              :key="option.id"
+              :value="option.id"
+            >
+              {{ option.label }}
+            </option>
+          </select>
+          <p class="text-[10px] text-muted mt-2">
+            {{ manorStore.snapshot.theme_week.template_options.find(item => item.id === manorStore.templateIdDraft)?.summary || '选择一种公开展示方式。' }}
+          </p>
+        </div>
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-[10px] text-muted mb-1">模板速览</p>
+          <div class="grid gap-1">
+            <button
+              v-for="option in manorStore.snapshot.theme_week.template_options"
+              :key="option.id"
+              type="button"
+              class="text-left text-[10px] px-2 py-1 rounded-xs border transition-colors"
+              :class="manorStore.templateIdDraft === option.id ? 'border-accent/40 text-accent bg-accent/5' : 'border-accent/15 text-muted'"
+              @click="manorStore.templateIdDraft = option.id"
+            >
+              <span class="block">{{ option.label }}</span>
+              <span class="block mt-0.5 opacity-80">{{ option.summary }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
       <div class="grid gap-2 md:grid-cols-2">
         <div class="border border-accent/10 rounded-xs p-2">
           <p class="text-[10px] text-muted mb-1">当前主题</p>
@@ -232,8 +268,8 @@
     </div>
 
     <div class="game-panel border border-accent/10 rounded-xs p-3 text-[10px] text-muted space-y-1">
-      <p>当前这轮先完成 L20 的最小公开庄园快照：公开状态、展示主题、主视觉摘要、经营标签、当前重点和本周目标都已经有落点。</p>
-      <p>留言墙、访客痕迹、导览和收藏会在 `L21-L24` 继续接。</p>
+      <p>当前庄园公开页已经串起快照、留言、来访、导览、收藏、主题周与展示模板，公开庄园开始更像一个可持续经营的线上门面。</p>
+      <p>模板切换会跟随主题周一起保存，并直接驱动上方预览卡切换为展示类、经营类、节庆类、收藏类或故事类布局。</p>
     </div>
   </div>
 </template>

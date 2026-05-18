@@ -195,6 +195,34 @@ function saveThemeStore(store) {
   }, null, 2), 'utf8');
 }
 
+const MANOR_TEMPLATE_PRESETS = Object.freeze([
+  {
+    id: 'showcase',
+    label: '展示类布局',
+    summary: '突出当前主题、主视觉摘要和经营标签，适合向访客介绍庄园的总体气质。',
+  },
+  {
+    id: 'operational',
+    label: '经营类布局',
+    summary: '突出当前重点、庄园导览和访客记录，适合展示正在推进的经营节奏。',
+  },
+  {
+    id: 'festival',
+    label: '节庆类布局',
+    summary: '突出主题周、官方精选与当日来访摘要，适合节庆期间集中展示。',
+  },
+  {
+    id: 'collection',
+    label: '收藏类布局',
+    summary: '突出收藏庄园、热门庄园榜与同主题收藏，适合展示关联庄园网络。',
+  },
+  {
+    id: 'story',
+    label: '故事类布局',
+    summary: '突出留言墙、访客记录与主题路线，适合用讲故事的方式介绍庄园。',
+  },
+]);
+
 function makeId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -312,6 +340,7 @@ function normalizeThemeEntry(entry) {
     label: sanitizeText(entry?.label, 30),
     season: ['spring', 'summer', 'autumn', 'winter'].includes(String(entry?.season)) ? String(entry.season) : '',
     week_tag: sanitizeText(entry?.week_tag, 40),
+    template_id: MANOR_TEMPLATE_PRESETS.some(item => item.id === entry?.template_id) ? String(entry.template_id) : 'showcase',
     updated_at: Number(entry?.updated_at) || 0,
   };
 }
@@ -452,6 +481,8 @@ function buildThemeWeekState(username, gameplay = {}, showcaseTheme = '', public
     recommendations,
     official_pick: officialPick,
     seasonal_options: [...seasonalOptions],
+    template_id: savedTheme.template_id || 'showcase',
+    template_options: MANOR_TEMPLATE_PRESETS.map(item => ({ ...item })),
   };
 }
 
@@ -633,6 +664,7 @@ async function updateManorThemeWeek(username, payload = {}) {
     label: payload.label,
     season: payload.season,
     week_tag: payload.week_tag,
+    template_id: payload.template_id,
   });
   return buildManorSnapshot(username, username);
 }

@@ -190,6 +190,12 @@ export interface OnlineManorSnapshot {
     recommendations: string[]
     official_pick: { label: string; reason: string } | null
     seasonal_options: string[]
+    template_id: 'showcase' | 'operational' | 'festival' | 'collection' | 'story'
+    template_options: Array<{
+      id: 'showcase' | 'operational' | 'festival' | 'collection' | 'story'
+      label: string
+      summary: string
+    }>
   }
 }
 
@@ -481,6 +487,7 @@ export const saveManorThemeWeek = async (payload: {
   label: string
   season: string
   week_tag: string
+  template_id: 'showcase' | 'operational' | 'festival' | 'collection' | 'story'
 }) => {
   return requestSocialAction<{ ok: boolean; snapshot?: OnlineManorSnapshot }>('/api/taoyuan/online/manor/theme-week', {
     method: 'POST',
