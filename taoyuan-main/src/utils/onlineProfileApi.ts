@@ -181,6 +181,16 @@ export interface OnlineManorSnapshot {
   today_visit_summary: string
   is_favorited_by_viewer: boolean
   is_followed_by_viewer: boolean
+  theme_week: {
+    season: string
+    week_tag: string
+    active_theme: string
+    active_theme_source: 'owner' | 'showcase' | 'seasonal_default'
+    score: number
+    recommendations: string[]
+    official_pick: { label: string; reason: string } | null
+    seasonal_options: string[]
+  }
 }
 
 export const fetchOnlineProfile = async (): Promise<OnlineProfileResponse['profile'] | null> => {
@@ -461,6 +471,18 @@ export const saveManorGuide = async (payload: {
   }>
 }) => {
   return requestSocialAction<{ ok: boolean; snapshot?: OnlineManorSnapshot }>('/api/taoyuan/online/manor/guide', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
+export const saveManorThemeWeek = async (payload: {
+  label: string
+  season: string
+  week_tag: string
+}) => {
+  return requestSocialAction<{ ok: boolean; snapshot?: OnlineManorSnapshot }>('/api/taoyuan/online/manor/theme-week', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)

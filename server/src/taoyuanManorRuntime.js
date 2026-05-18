@@ -11,6 +11,7 @@ const TAOYUAN_MANOR_GUESTBOOK_FILE = path.join(DATA_DIR, 'taoyuan_manor_guestboo
 const TAOYUAN_MANOR_VISIT_FILE = path.join(DATA_DIR, 'taoyuan_manor_visits.json');
 const TAOYUAN_MANOR_GUIDE_FILE = path.join(DATA_DIR, 'taoyuan_manor_guides.json');
 const TAOYUAN_MANOR_FAVORITES_FILE = path.join(DATA_DIR, 'taoyuan_manor_favorites.json');
+const TAOYUAN_MANOR_THEME_FILE = path.join(DATA_DIR, 'taoyuan_manor_theme_weeks.json');
 
 function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
@@ -21,6 +22,13 @@ const SEASON_LABELS = Object.freeze({
   summer: '夏',
   autumn: '秋',
   winter: '冬',
+});
+
+const SEASONAL_THEME_OPTIONS = Object.freeze({
+  spring: ['花朝庭院', '春耕小院', '溪畔新绿'],
+  summer: ['荷风消暑', '夜灯乘凉', '丰产忙夏'],
+  autumn: ['金风收仓', '晒谷人家', '秋市客院'],
+  winter: ['围炉小院', '雪灯静夜', '冬藏暖居'],
 });
 
 function buildCurrentFocus(gameplay = {}) {
@@ -73,6 +81,10 @@ function ensureGuideStore() {
 
 function ensureFavoriteStore() {
   fs.mkdirSync(path.dirname(TAOYUAN_MANOR_FAVORITES_FILE), { recursive: true });
+}
+
+function ensureThemeStore() {
+  fs.mkdirSync(path.dirname(TAOYUAN_MANOR_THEME_FILE), { recursive: true });
 }
 
 function loadGuestbookStore() {
@@ -156,6 +168,30 @@ function saveFavoriteStore(store) {
   fs.writeFileSync(TAOYUAN_MANOR_FAVORITES_FILE, JSON.stringify({
     favorites: Array.isArray(store?.favorites) ? store.favorites : [],
     follows: Array.isArray(store?.follows) ? store.follows : [],
+  }, null, 2), 'utf8');
+}
+
+function loadThemeStore() {
+  ensureThemeStore();
+  try {
+    if (!fs.existsSync(TAOYUAN_MANOR_THEME_FILE)) return { themes: {}, official_picks: {} };
+    const raw = JSON.parse(fs.readFileSync(TAOYUAN_MANOR_THEME_FILE, 'utf8'));
+    return raw && typeof raw === 'object'
+      ? {
+          themes: raw.themes && typeof raw.themes === 'object' ? raw.themes : {},
+          official_picks: raw.official_picks && typeof raw.official_picks === 'object' ? raw.official_picks : {},
+        }
+      : { themes: {}, official_picks: {} };
+  } catch {
+    return { themes: {}, official_picks: {} };
+  }
+}
+
+function saveThemeStore(store) {
+  ensureThemeStore();
+  fs.writeFileSync(TAOYUAN_MANOR_THEME_FILE, JSON.stringify({
+    themes: store?.themes && typeof store.themes === 'object' ? store.themes : {},
+    official_picks: store?.official_picks && typeof store.official_picks === 'object' ? store.official_picks : {},
   }, null, 2), 'utf8');
 }
 
@@ -271,6 +307,15 @@ function normalizeFollowEntry(entry) {
   };
 }
 
+function normalizeThemeEntry(entry) {
+  return {
+    label: sanitizeText(entry?.label, 30),
+    season: ['spring', 'summer', 'autumn', 'winter'].includes(String(entry?.season)) ? String(entry.season) : '',
+    week_tag: sanitizeText(entry?.week_tag, 40),
+    updated_at: Number(entry?.updated_at) || 0,
+  };
+}
+
 function getGuideConfig(username) {
   const store = loadGuideStore();
   const key = String(username || '').trim();
@@ -288,6 +333,26 @@ function updateGuideConfig(username, patch = {}) {
   });
   store.guides[key] = next;
   saveGuideStore(store);
+  return next;
+}
+
+function getThemeConfig(username) {
+  const store = loadThemeStore();
+  const key = String(username || '').trim();
+  return normalizeThemeEntry(store.themes?.[key] || {});
+}
+
+function updateThemeConfig(username, patch = {}) {
+  const store = loadThemeStore();
+  const key = String(username || '').trim();
+  const current = normalizeThemeEntry(store.themes?.[key] || {});
+  const next = normalizeThemeEntry({
+    ...current,
+    ...patch,
+    updated_at: Math.floor(Date.now() / 1000),
+  });
+  store.themes[key] = next;
+  saveThemeStore(store);
   return next;
 }
 
@@ -334,6 +399,60 @@ function buildHotManorBoard() {
       favorite_count: info.count,
       theme: info.theme,
     }));
+}
+
+function buildThemeWeekTag(game = {}, goal = {}) {
+  const season = typeof game.season === 'string' ? game.season : '';
+  const year = Number.isFinite(Number(game.year)) ? Number(game.year) : 0;
+  const weekOfSeason = Number(goal?.currentThemeWeekState?.weekOfSeason);
+  if (!SEASON_LABELS[season] || year <= 0 || !Number.isInteger(weekOfSeason) || weekOfSeason <= 0) {
+    return '';
+  }
+  return `${year}-${season}-w${weekOfSeason}`;
+}
+
+function buildThemeWeekState(username, gameplay = {}, showcaseTheme = '', publicTags = [], favoriteCount = 0, placedDecorationCount = 0) {
+  const game = gameplay.game || {};
+  const goal = gameplay.goal || {};
+  const season = typeof game.season === 'string' ? game.season : 'spring';
+  const seasonalOptions = SEASONAL_THEME_OPTIONS[season] || SEASONAL_THEME_OPTIONS.spring;
+  const savedTheme = getThemeConfig(username);
+  const activeTheme = savedTheme.label || showcaseTheme || seasonalOptions[0];
+  const seasonalScore = seasonalOptions.includes(activeTheme) ? 35 : 15;
+  const decorationScore = Math.min(30, placedDecorationCount * 3);
+  const tagScore = Math.min(20, (Array.isArray(publicTags) ? publicTags.length : 0) * 4);
+  const socialScore = Math.min(15, favoriteCount * 5);
+  const totalScore = Math.max(10, Math.min(100, seasonalScore + decorationScore + tagScore + socialScore));
+  const recommendations = seasonalOptions.filter(option => option !== activeTheme).slice(0, 3);
+  const weekTag = buildThemeWeekTag(game, goal);
+  const officialPick = totalScore >= 75
+    ? {
+        label: '本周官方精选',
+        reason: `主题分 ${totalScore}，且季节主题与庄园当前陈设匹配度较高。`,
+      }
+    : null;
+
+  if (officialPick && weekTag) {
+    const store = loadThemeStore();
+    store.official_picks[weekTag] = {
+      manor_username: username,
+      label: officialPick.label,
+      reason: officialPick.reason,
+      updated_at: Math.floor(Date.now() / 1000),
+    };
+    saveThemeStore(store);
+  }
+
+  return {
+    season,
+    week_tag: weekTag,
+    active_theme: activeTheme,
+    active_theme_source: savedTheme.label ? 'owner' : showcaseTheme ? 'showcase' : 'seasonal_default',
+    score: totalScore,
+    recommendations,
+    official_pick: officialPick,
+    seasonal_options: [...seasonalOptions],
+  };
 }
 
 async function recordManorVisit(payload = {}, actor = {}) {
@@ -454,6 +573,13 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
   const ownerFollows = favoriteStore.follows
     .map(normalizeFollowEntry)
     .filter(entry => entry.owner_username === viewer);
+  const placedDecorationCount = Object.values(decoration?.placed ?? {}).reduce((sum, count) => sum + Math.max(0, Number(count) || 0), 0);
+  const publicTags = Array.isArray(profile.public_tags) ? profile.public_tags : [];
+  const favoriteCount = favoriteStore.favorites
+    .map(normalizeFavoriteEntry)
+    .filter(entry => entry.manor_username === user.username)
+    .length;
+  const themeWeek = buildThemeWeekState(user.username, gameplay, profile.showcase_theme, publicTags, favoriteCount, placedDecorationCount);
 
   return {
     username: user.username,
@@ -467,8 +593,8 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
     current_focus: buildCurrentFocus(gameplay),
     weekly_goal: sanitizeText(profile.showcase_theme || profile.primary_route_label || '本周经营展示', 60),
     visual_summary: buildVisualSummary(gameplay),
-    placed_decoration_count: Object.values(decoration?.placed ?? {}).reduce((sum, count) => sum + Math.max(0, Number(count) || 0), 0),
-    public_tags: Array.isArray(profile.public_tags) ? profile.public_tags : [],
+    placed_decoration_count: placedDecorationCount,
+    public_tags: publicTags,
     guestbook_entries: getGuestbookEntriesForTarget(user.username),
     visit_entries: visitEntries,
     guide_points: guideConfig.guide_points.sort((left, right) => left.order - right.order),
@@ -476,6 +602,7 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
     today_visit_summary: buildTodayVisitSummary(visitEntries),
     is_favorited_by_viewer: ownerFavorites.some(entry => entry.manor_username === user.username),
     is_followed_by_viewer: ownerFollows.some(entry => entry.manor_username === user.username),
+    theme_week: themeWeek,
   };
 }
 
@@ -497,6 +624,15 @@ async function updateManorGuide(username, payload = {}) {
   updateGuideConfig(username, {
     guide_points: guidePoints,
     guide_routes: guideRoutes,
+  });
+  return buildManorSnapshot(username, username);
+}
+
+async function updateManorThemeWeek(username, payload = {}) {
+  updateThemeConfig(username, {
+    label: payload.label,
+    season: payload.season,
+    week_tag: payload.week_tag,
   });
   return buildManorSnapshot(username, username);
 }
@@ -587,6 +723,7 @@ module.exports = {
   setGuestbookPinned,
   recordManorVisit,
   updateManorGuide,
+  updateManorThemeWeek,
   favoriteManor,
   followManor,
   listFavoriteOverview,

@@ -53,6 +53,43 @@
     </div>
 
     <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
+      <p class="text-xs text-accent">庄园主题周</p>
+      <div class="grid gap-2 md:grid-cols-2">
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-[10px] text-muted mb-1">当前主题</p>
+          <p class="text-xs text-accent">{{ manorStore.snapshot.theme_week.active_theme }}</p>
+          <p class="text-[10px] text-muted mt-1">来源：{{ manorStore.snapshot.theme_week.active_theme_source }}</p>
+          <p class="text-[10px] text-muted mt-2">主题分：{{ manorStore.snapshot.theme_week.score }}</p>
+        </div>
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-[10px] text-muted mb-1">官方精选</p>
+          <p class="text-xs text-accent">{{ manorStore.snapshot.theme_week.official_pick?.label || '暂无官方精选' }}</p>
+          <p class="text-[10px] text-muted mt-1">{{ manorStore.snapshot.theme_week.official_pick?.reason || '当前主题分尚未达到精选门槛。' }}</p>
+        </div>
+      </div>
+      <div class="border border-accent/10 rounded-xs p-2">
+        <p class="text-[10px] text-muted mb-1">主题推荐</p>
+        <div class="flex flex-wrap gap-1">
+          <span v-for="item in manorStore.snapshot.theme_week.recommendations" :key="item" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted">
+            {{ item }}
+          </span>
+          <span v-if="manorStore.snapshot.theme_week.recommendations.length === 0" class="text-[10px] text-muted">当前没有额外推荐。</span>
+        </div>
+      </div>
+      <div class="flex gap-2">
+        <input
+          v-model="manorStore.themeLabelDraft"
+          maxlength="30"
+          class="flex-1 bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+          placeholder="保存当前主题名"
+        />
+        <Button class="text-[10px]" :disabled="manorStore.themeActionRunning" @click="saveThemeWeek">
+          {{ manorStore.themeActionRunning ? '保存中…' : '保存主题' }}
+        </Button>
+      </div>
+    </div>
+
+    <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
       <p class="text-xs text-accent">留言墙</p>
       <div class="grid grid-cols-3 gap-2">
         <Button class="text-[10px]" :disabled="manorStore.guestbookActionRunning" @click="submitGuestbook('text')">留言</Button>
@@ -255,6 +292,10 @@
 
   const followManor = async () => {
     await manorStore.followCurrentManor().catch(() => {})
+  }
+
+  const saveThemeWeek = async () => {
+    await manorStore.saveThemeWeekSnapshot().catch(() => {})
   }
 
   onMounted(() => {

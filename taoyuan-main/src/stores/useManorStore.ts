@@ -10,6 +10,7 @@ import {
   recordManorVisit,
   replyManorGuestbookEntry,
   saveManorGuide,
+  saveManorThemeWeek,
   type OnlineManorSnapshot
 } from '@/utils/onlineProfileApi'
 
@@ -29,6 +30,8 @@ export const useManorStore = defineStore('onlineManor', () => {
   const guideActionRunning = ref(false)
   const favoriteActionRunning = ref(false)
   const favoriteOverview = ref<Awaited<ReturnType<typeof fetchFavoriteOverview>>>(null)
+  const themeLabelDraft = ref('')
+  const themeActionRunning = ref(false)
 
   const refreshSnapshot = async () => {
     loading.value = true
@@ -160,6 +163,27 @@ export const useManorStore = defineStore('onlineManor', () => {
     }
   }
 
+  const saveThemeWeekSnapshot = async () => {
+    if (!snapshot.value) return
+    themeActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      const result = await saveManorThemeWeek({
+        label: themeLabelDraft.value.trim() || snapshot.value.showcase_theme || '本周主题',
+        season: snapshot.value.theme_week?.season || 'spring',
+        week_tag: snapshot.value.theme_week?.week_tag || '',
+      })
+      snapshot.value = result?.snapshot ?? snapshot.value
+      themeLabelDraft.value = ''
+      await refreshFavoriteOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '保存主题周失败'
+      throw error
+    } finally {
+      themeActionRunning.value = false
+    }
+  }
+
   const refreshFavoriteOverview = async () => {
     favoriteOverview.value = await fetchFavoriteOverview()
     return favoriteOverview.value
@@ -213,12 +237,15 @@ export const useManorStore = defineStore('onlineManor', () => {
     guideActionRunning,
     favoriteActionRunning,
     favoriteOverview,
+    themeLabelDraft,
+    themeActionRunning,
     refreshSnapshot,
     createGuestbookEntry,
     replyGuestbookEntry,
     togglePinnedGuestbookEntry,
     createVisitRecord,
     saveGuideSnapshot,
+    saveThemeWeekSnapshot,
     refreshFavoriteOverview,
     favoriteCurrentManor,
     followCurrentManor,

@@ -753,6 +753,15 @@ router.post('/taoyuan/online/manor/guide', loginRequired, signRequired, async (r
   }
 });
 
+router.post('/taoyuan/online/manor/theme-week', loginRequired, signRequired, async (req, res) => {
+  try {
+    const snapshot = await taoyuanManorRuntime.updateManorThemeWeek(req.session.username, req.body || {});
+    res.json({ ok: true, snapshot });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '保存庄园主题周失败' });
+  }
+});
+
 router.post('/taoyuan/online/manor/:username/favorite', loginRequired, signRequired, async (req, res) => {
   try {
     const entry = await taoyuanManorRuntime.favoriteManor(req.session.username, decodeRouteUsername(req.params.username), req.body || {});

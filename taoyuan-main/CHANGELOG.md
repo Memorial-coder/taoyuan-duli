@@ -63,6 +63,10 @@
 - `server/src/taoyuanManorRuntime.js` 与 `server/src/routes/api.js` 已补出最小收藏 / 关注模型：支持收藏庄园、关注庄园更新，并返回同主题收藏列表与热门庄园榜。
 - `src/utils/onlineProfileApi.ts`、`src/stores/useManorStore.ts` 和 `src/views/game/ManorView.vue` 也同步接上了前端入口：现在可以直接在庄园页收藏或关注当前庄园，并查看收藏概览。
 - 当前热门庄园榜仍按收藏次数做轻量排序；后续若需要更真实的热度口径，可继续叠加来访、留言、互动与节庆参与等信号。
+### 0518 庄园主题周（L25 第一轮）
+- `server/src/taoyuanManorRuntime.js` 与 `server/src/routes/api.js` 已补出主题周最小模型：支持保存庄园当前主题、按季节生成主题周选项、计算主题分，并给出轻量官方精选判断。
+- `src/utils/onlineProfileApi.ts`、`src/stores/useManorStore.ts` 和 `src/views/game/ManorView.vue` 也同步接上了前端：现在庄园页可以直接看到当前主题、主题评分、推荐主题和官方精选摘要，并保存本周主题名。
+- 当前官方精选仍按轻量规则自动生成，还没有接独立运营后台；如果后面需要人工精选，会继续沿这条链路扩展。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。
