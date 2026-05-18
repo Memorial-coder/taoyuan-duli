@@ -432,6 +432,18 @@
             </div>
           </div>
         </div>
+
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-[10px] text-muted mb-1">订阅动态</p>
+          <div v-if="socialStore.subscriptionNotices.length === 0" class="text-[10px] text-muted">当前还没有订阅提示。</div>
+          <div v-for="notice in socialStore.subscriptionNotices" :key="notice.id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">{{ notice.title }}</p>
+              <span class="text-[10px] text-muted">{{ new Date(notice.createdAt).toLocaleTimeString('zh-CN', { hour12: false }) }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-1">{{ notice.message }}</p>
+          </div>
+        </div>
       </div>
     </template>
   </div>

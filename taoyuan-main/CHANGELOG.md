@@ -40,6 +40,9 @@
 - `server/src/taoyuanSocialRuntime.js` 与 `server/src/routes/api.js` 已补出最小订阅模型：可以新增、查看、取消订阅，支持庄园风格、玩法高手、村社 / 邻里、节庆活动四类目标。
 - `src/utils/onlineProfileApi.ts`、`src/stores/useSocialStore.ts` 和 `src/views/game/SocialView.vue` 也同步补出前端入口：当前可直接在社交页一键关注 / 订阅，并查看自己的订阅清单。
 - 动态提示当前先停留在订阅列表和快速入口层，真正的推送式更新提醒会等后续动态 / 通知系统继续补完。
+### 0518 L1 回归验收（L15）
+- `src/views/game/SocialView.vue` 已补出最小“订阅动态”面板；当前在执行关注 / 取消订阅后，会立即在同页看到对应提示，L1 阶段的“有反馈”要求已经成立。
+- 结合前面已经落地的公开名片、好友、邻里、标签和订阅链路，L1 现在可以视作第一轮闭环完成；剩余未做的是更深的 Presence、通知推送和庄园公开页展示，而不是基础链路缺失。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

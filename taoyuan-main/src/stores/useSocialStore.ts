@@ -92,6 +92,12 @@ export const useSocialStore = defineStore('onlineSocial', () => {
   const subscriptionsLoading = ref(false)
   const subscriptionsActionRunning = ref(false)
   const subscriptions = ref<OnlineSubscriptionEntry[]>([])
+  const subscriptionNotices = ref<Array<{
+    id: string
+    title: string
+    message: string
+    createdAt: number
+  }>>([])
 
   const hasProfile = computed(() => !!profile.value)
   const displayTitle = computed(() => profile.value?.public_title || profile.value?.display_name || profile.value?.player_name || '未命名玩家')
@@ -438,6 +444,15 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     errorMessage.value = ''
     try {
       await createSubscription({ target_type: targetType, target_id: targetId, label })
+      subscriptionNotices.value = [
+        {
+          id: `notice_${Date.now()}`,
+          title: '订阅已保存',
+          message: `你已经关注了「${label}」，后续这里会集中显示相关更新。`,
+          createdAt: Date.now()
+        },
+        ...subscriptionNotices.value
+      ].slice(0, 12)
       await refreshSubscriptions()
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '添加订阅失败'
@@ -452,6 +467,15 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     errorMessage.value = ''
     try {
       await removeSubscription(subscriptionId)
+      subscriptionNotices.value = [
+        {
+          id: `notice_${Date.now()}`,
+          title: '订阅已取消',
+          message: '你已经移除了一个关注项。',
+          createdAt: Date.now()
+        },
+        ...subscriptionNotices.value
+      ].slice(0, 12)
       await refreshSubscriptions()
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '取消订阅失败'
@@ -498,6 +522,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     subscriptionsLoading,
     subscriptionsActionRunning,
     subscriptions,
+    subscriptionNotices,
     refreshProfile,
     hydrateFromProfile,
     saveProfile,
