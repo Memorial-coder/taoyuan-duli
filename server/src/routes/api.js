@@ -753,6 +753,33 @@ router.post('/taoyuan/online/manor/guide', loginRequired, signRequired, async (r
   }
 });
 
+router.post('/taoyuan/online/manor/:username/favorite', loginRequired, signRequired, async (req, res) => {
+  try {
+    const entry = await taoyuanManorRuntime.favoriteManor(req.session.username, decodeRouteUsername(req.params.username), req.body || {});
+    res.json({ ok: true, entry });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '收藏庄园失败' });
+  }
+});
+
+router.post('/taoyuan/online/manor/:username/follow', loginRequired, signRequired, async (req, res) => {
+  try {
+    const entry = await taoyuanManorRuntime.followManor(req.session.username, decodeRouteUsername(req.params.username));
+    res.json({ ok: true, entry });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '关注庄园失败' });
+  }
+});
+
+router.get('/taoyuan/online/manor/favorites/overview', loginRequired, async (req, res) => {
+  try {
+    const overview = await taoyuanManorRuntime.listFavoriteOverview(req.session.username);
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取庄园收藏失败' });
+  }
+});
+
 router.get('/taoyuan/online/social/relationships', loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanSocialRuntime.listRelationshipOverview(req.session.username);

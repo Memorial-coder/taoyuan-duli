@@ -10,6 +10,7 @@ const DATA_DIR = process.env.DB_STORAGE
 const TAOYUAN_MANOR_GUESTBOOK_FILE = path.join(DATA_DIR, 'taoyuan_manor_guestbook.json');
 const TAOYUAN_MANOR_VISIT_FILE = path.join(DATA_DIR, 'taoyuan_manor_visits.json');
 const TAOYUAN_MANOR_GUIDE_FILE = path.join(DATA_DIR, 'taoyuan_manor_guides.json');
+const TAOYUAN_MANOR_FAVORITES_FILE = path.join(DATA_DIR, 'taoyuan_manor_favorites.json');
 
 function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
@@ -70,6 +71,10 @@ function ensureGuideStore() {
   fs.mkdirSync(path.dirname(TAOYUAN_MANOR_GUIDE_FILE), { recursive: true });
 }
 
+function ensureFavoriteStore() {
+  fs.mkdirSync(path.dirname(TAOYUAN_MANOR_FAVORITES_FILE), { recursive: true });
+}
+
 function loadGuestbookStore() {
   ensureGuestbookStore();
   try {
@@ -127,6 +132,30 @@ function saveGuideStore(store) {
   ensureGuideStore();
   fs.writeFileSync(TAOYUAN_MANOR_GUIDE_FILE, JSON.stringify({
     guides: store?.guides && typeof store.guides === 'object' ? store.guides : {},
+  }, null, 2), 'utf8');
+}
+
+function loadFavoriteStore() {
+  ensureFavoriteStore();
+  try {
+    if (!fs.existsSync(TAOYUAN_MANOR_FAVORITES_FILE)) return { favorites: [], follows: [] };
+    const raw = JSON.parse(fs.readFileSync(TAOYUAN_MANOR_FAVORITES_FILE, 'utf8'));
+    return raw && typeof raw === 'object'
+      ? {
+          favorites: Array.isArray(raw.favorites) ? raw.favorites : [],
+          follows: Array.isArray(raw.follows) ? raw.follows : [],
+        }
+      : { favorites: [], follows: [] };
+  } catch {
+    return { favorites: [], follows: [] };
+  }
+}
+
+function saveFavoriteStore(store) {
+  ensureFavoriteStore();
+  fs.writeFileSync(TAOYUAN_MANOR_FAVORITES_FILE, JSON.stringify({
+    favorites: Array.isArray(store?.favorites) ? store.favorites : [],
+    follows: Array.isArray(store?.follows) ? store.follows : [],
   }, null, 2), 'utf8');
 }
 
@@ -223,6 +252,25 @@ function normalizeGuideConfig(config) {
   };
 }
 
+function normalizeFavoriteEntry(entry) {
+  return {
+    id: String(entry?.id || makeId('manor_favorite')),
+    owner_username: String(entry?.owner_username || '').trim(),
+    manor_username: String(entry?.manor_username || '').trim(),
+    theme: sanitizeText(entry?.theme, 40),
+    created_at: Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+  };
+}
+
+function normalizeFollowEntry(entry) {
+  return {
+    id: String(entry?.id || makeId('manor_follow')),
+    owner_username: String(entry?.owner_username || '').trim(),
+    manor_username: String(entry?.manor_username || '').trim(),
+    created_at: Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+  };
+}
+
 function getGuideConfig(username) {
   const store = loadGuideStore();
   const key = String(username || '').trim();
@@ -266,6 +314,26 @@ function buildTodayVisitSummary(entries = []) {
   }
   const names = Array.from(new Set(todayEntries.map(entry => entry.visitor_display_name))).slice(0, 5);
   return `今天来过的人：${names.join('、')}。`;
+}
+
+function buildHotManorBoard() {
+  const store = loadFavoriteStore();
+  const counts = new Map();
+  for (const entry of store.favorites.map(normalizeFavoriteEntry)) {
+    const current = counts.get(entry.manor_username) || { count: 0, theme: entry.theme };
+    counts.set(entry.manor_username, {
+      count: current.count + 1,
+      theme: current.theme || entry.theme,
+    });
+  }
+  return Array.from(counts.entries())
+    .sort((left, right) => right[1].count - left[1].count)
+    .slice(0, 10)
+    .map(([manor_username, info]) => ({
+      manor_username,
+      favorite_count: info.count,
+      theme: info.theme,
+    }));
 }
 
 async function recordManorVisit(payload = {}, actor = {}) {
@@ -379,6 +447,13 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
   const decoration = gameplay.decoration || {};
   const visitEntries = getVisitsForTarget(user.username);
   const guideConfig = getGuideConfig(user.username);
+  const favoriteStore = loadFavoriteStore();
+  const ownerFavorites = favoriteStore.favorites
+    .map(normalizeFavoriteEntry)
+    .filter(entry => entry.owner_username === viewer);
+  const ownerFollows = favoriteStore.follows
+    .map(normalizeFollowEntry)
+    .filter(entry => entry.owner_username === viewer);
 
   return {
     username: user.username,
@@ -399,6 +474,8 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
     guide_points: guideConfig.guide_points.sort((left, right) => left.order - right.order),
     guide_routes: guideConfig.guide_routes,
     today_visit_summary: buildTodayVisitSummary(visitEntries),
+    is_favorited_by_viewer: ownerFavorites.some(entry => entry.manor_username === user.username),
+    is_followed_by_viewer: ownerFollows.some(entry => entry.manor_username === user.username),
   };
 }
 
@@ -424,6 +501,84 @@ async function updateManorGuide(username, payload = {}) {
   return buildManorSnapshot(username, username);
 }
 
+async function favoriteManor(username, targetUsername, payload = {}) {
+  const store = loadFavoriteStore();
+  const owner = String(username || '').trim();
+  const manor = String(targetUsername || '').trim();
+  if (!manor) throw createError('请先指定庄园主人');
+  const targetUser = await db.getUser(manor);
+  if (!targetUser) throw createError('目标庄园不存在', 404);
+  const existing = store.favorites
+    .map(normalizeFavoriteEntry)
+    .find(entry => entry.owner_username === owner && entry.manor_username === manor);
+  if (existing) return existing;
+  const snapshot = await buildManorSnapshot(manor, owner);
+  const entry = normalizeFavoriteEntry({
+    id: makeId('manor_favorite'),
+    owner_username: owner,
+    manor_username: manor,
+    theme: payload.theme || snapshot.showcase_theme,
+    created_at: Math.floor(Date.now() / 1000),
+  });
+  store.favorites = [entry, ...store.favorites];
+  saveFavoriteStore(store);
+  return entry;
+}
+
+async function followManor(username, targetUsername) {
+  const store = loadFavoriteStore();
+  const owner = String(username || '').trim();
+  const manor = String(targetUsername || '').trim();
+  if (!manor) throw createError('请先指定庄园主人');
+  const targetUser = await db.getUser(manor);
+  if (!targetUser) throw createError('目标庄园不存在', 404);
+  const existing = store.follows
+    .map(normalizeFollowEntry)
+    .find(entry => entry.owner_username === owner && entry.manor_username === manor);
+  if (existing) return existing;
+  const entry = normalizeFollowEntry({
+    id: makeId('manor_follow'),
+    owner_username: owner,
+    manor_username: manor,
+    created_at: Math.floor(Date.now() / 1000),
+  });
+  store.follows = [entry, ...store.follows];
+  saveFavoriteStore(store);
+  return entry;
+}
+
+async function listFavoriteOverview(username) {
+  const owner = String(username || '').trim();
+  const store = loadFavoriteStore();
+  const favorites = await Promise.all(
+    store.favorites
+      .map(normalizeFavoriteEntry)
+      .filter(entry => entry.owner_username === owner)
+      .sort((left, right) => right.created_at - left.created_at)
+      .map(async entry => ({
+        ...entry,
+        snapshot: await buildManorSnapshot(entry.manor_username, owner),
+      }))
+  );
+  const sameThemeFavorites = Object.values(
+    favorites.reduce((acc, entry) => {
+      const key = entry.theme || entry.snapshot.showcase_theme || '未分类主题';
+      acc[key] = acc[key] || [];
+      acc[key].push({
+        manor_username: entry.manor_username,
+        display_name: entry.snapshot.display_name,
+      });
+      return acc;
+    }, {})
+  ).filter(entries => entries.length > 1);
+
+  return {
+    favorites,
+    same_theme_favorites: sameThemeFavorites,
+    hot_manors: buildHotManorBoard(),
+  };
+}
+
 module.exports = {
   getOwnManorSnapshot,
   getPublicManorSnapshot,
@@ -432,4 +587,7 @@ module.exports = {
   setGuestbookPinned,
   recordManorVisit,
   updateManorGuide,
+  favoriteManor,
+  followManor,
+  listFavoriteOverview,
 };

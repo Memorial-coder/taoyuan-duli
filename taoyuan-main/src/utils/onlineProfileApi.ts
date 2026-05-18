@@ -179,6 +179,8 @@ export interface OnlineManorSnapshot {
     point_ids: string[]
   }>
   today_visit_summary: string
+  is_favorited_by_viewer: boolean
+  is_followed_by_viewer: boolean
 }
 
 export const fetchOnlineProfile = async (): Promise<OnlineProfileResponse['profile'] | null> => {
@@ -463,4 +465,51 @@ export const saveManorGuide = async (payload: {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
   })
+}
+
+export const favoriteManor = async (username: string, theme: string) => {
+  return requestSocialAction(`/api/taoyuan/online/manor/${encodeURIComponent(username)}/favorite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ theme })
+  })
+}
+
+export const followManor = async (username: string) => {
+  return requestSocialAction(`/api/taoyuan/online/manor/${encodeURIComponent(username)}/follow`, {
+    method: 'POST'
+  })
+}
+
+export interface OnlineFavoriteOverviewResponse {
+  ok: boolean
+  favorites: Array<{
+    id: string
+    owner_username: string
+    manor_username: string
+    theme: string
+    created_at: number
+    snapshot: OnlineManorSnapshot
+  }>
+  same_theme_favorites: Array<Array<{
+    manor_username: string
+    display_name: string
+  }>>
+  hot_manors: Array<{
+    manor_username: string
+    favorite_count: number
+    theme: string
+  }>
+}
+
+export const fetchFavoriteOverview = async (): Promise<OnlineFavoriteOverviewResponse | null> => {
+  const account = await ensureCurrentAccount()
+  if (!account || account === 'guest') return null
+  const { data } = await fetchProtectedJson<OnlineFavoriteOverviewResponse>(() => fetch('/api/taoyuan/online/manor/favorites/overview', {
+    credentials: 'include'
+  }), {
+    fallbackMessage: '获取庄园收藏失败',
+    networkErrorMessage: '庄园收藏服务连接失败，请检查网络或稍后重试'
+  })
+  return data ?? null
 }

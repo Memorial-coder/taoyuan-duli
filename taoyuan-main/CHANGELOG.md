@@ -59,6 +59,10 @@
 - `server/src/taoyuanManorRuntime.js` 与 `server/src/routes/api.js` 已补出最小导览配置接口：可以保存推荐参观点、主题参观路线，并生成今日来访摘要。
 - `src/utils/onlineProfileApi.ts`、`src/stores/useManorStore.ts` 和 `src/views/game/ManorView.vue` 也同步接上了导览前端：现在庄园主人可以录入参观点，页面会自动整理出一条基础导览路线和“今天来了哪些人”的摘要。
 - 当前导览回放仍是摘要式，不是逐步动画回放；更完整的可视化回放会在后续庄园深化阶段继续补。
+### 0518 庄园收藏与关注（L24 第一轮）
+- `server/src/taoyuanManorRuntime.js` 与 `server/src/routes/api.js` 已补出最小收藏 / 关注模型：支持收藏庄园、关注庄园更新，并返回同主题收藏列表与热门庄园榜。
+- `src/utils/onlineProfileApi.ts`、`src/stores/useManorStore.ts` 和 `src/views/game/ManorView.vue` 也同步接上了前端入口：现在可以直接在庄园页收藏或关注当前庄园，并查看收藏概览。
+- 当前热门庄园榜仍按收藏次数做轻量排序；后续若需要更真实的热度口径，可继续叠加来访、留言、互动与节庆参与等信号。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

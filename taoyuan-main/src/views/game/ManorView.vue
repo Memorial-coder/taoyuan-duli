@@ -17,6 +17,42 @@
     <ManorPreviewCard :snapshot="manorStore.snapshot" />
 
     <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
+      <p class="text-xs text-accent">收藏与关注</p>
+      <div class="flex gap-2">
+        <Button class="text-[10px]" :disabled="manorStore.favoriteActionRunning || manorStore.snapshot.is_favorited_by_viewer" @click="favoriteManor">
+          {{ manorStore.snapshot.is_favorited_by_viewer ? '已收藏' : '收藏庄园' }}
+        </Button>
+        <Button class="text-[10px]" :disabled="manorStore.favoriteActionRunning || manorStore.snapshot.is_followed_by_viewer" @click="followManor">
+          {{ manorStore.snapshot.is_followed_by_viewer ? '已关注更新' : '关注庄园更新' }}
+        </Button>
+      </div>
+      <div v-if="manorStore.favoriteOverview" class="grid gap-2 md:grid-cols-2">
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-[10px] text-muted mb-1">同主题收藏</p>
+          <div v-if="manorStore.favoriteOverview.same_theme_favorites.length === 0" class="text-[10px] text-muted">当前还没有同主题收藏列表。</div>
+          <div
+            v-for="(group, index) in manorStore.favoriteOverview.same_theme_favorites"
+            :key="index"
+            class="border border-accent/10 rounded-xs p-2 mb-1.5"
+          >
+            <p class="text-xs text-accent">{{ group.map(entry => entry.display_name).join('、') }}</p>
+          </div>
+        </div>
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-[10px] text-muted mb-1">热门庄园榜</p>
+          <div v-if="manorStore.favoriteOverview.hot_manors.length === 0" class="text-[10px] text-muted">当前还没有热门庄园榜。</div>
+          <div v-for="entry in manorStore.favoriteOverview.hot_manors" :key="entry.manor_username" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">{{ entry.manor_username }}</p>
+              <span class="text-[10px] text-muted">收藏 {{ entry.favorite_count }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-1">{{ entry.theme || '未分类主题' }}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
       <p class="text-xs text-accent">留言墙</p>
       <div class="grid grid-cols-3 gap-2">
         <Button class="text-[10px]" :disabled="manorStore.guestbookActionRunning" @click="submitGuestbook('text')">留言</Button>
@@ -213,9 +249,18 @@
     await manorStore.saveGuideSnapshot().catch(() => {})
   }
 
+  const favoriteManor = async () => {
+    await manorStore.favoriteCurrentManor().catch(() => {})
+  }
+
+  const followManor = async () => {
+    await manorStore.followCurrentManor().catch(() => {})
+  }
+
   onMounted(() => {
     if (!manorStore.snapshot) {
       void refreshSnapshot()
     }
+    void manorStore.refreshFavoriteOverview()
   })
 </script>

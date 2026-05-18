@@ -2,7 +2,10 @@ import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
   createManorGuestbookEntry,
+  favoriteManor,
   fetchOwnManorSnapshot,
+  fetchFavoriteOverview,
+  followManor,
   pinManorGuestbookEntry,
   recordManorVisit,
   replyManorGuestbookEntry,
@@ -24,6 +27,8 @@ export const useManorStore = defineStore('onlineManor', () => {
   const guidePointTitleDraft = ref('')
   const guidePointSummaryDraft = ref('')
   const guideActionRunning = ref(false)
+  const favoriteActionRunning = ref(false)
+  const favoriteOverview = ref<Awaited<ReturnType<typeof fetchFavoriteOverview>>>(null)
 
   const refreshSnapshot = async () => {
     loading.value = true
@@ -155,6 +160,43 @@ export const useManorStore = defineStore('onlineManor', () => {
     }
   }
 
+  const refreshFavoriteOverview = async () => {
+    favoriteOverview.value = await fetchFavoriteOverview()
+    return favoriteOverview.value
+  }
+
+  const favoriteCurrentManor = async () => {
+    if (!snapshot.value) return
+    favoriteActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await favoriteManor(snapshot.value.username, snapshot.value.showcase_theme)
+      await refreshSnapshot()
+      await refreshFavoriteOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '收藏庄园失败'
+      throw error
+    } finally {
+      favoriteActionRunning.value = false
+    }
+  }
+
+  const followCurrentManor = async () => {
+    if (!snapshot.value) return
+    favoriteActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await followManor(snapshot.value.username)
+      await refreshSnapshot()
+      await refreshFavoriteOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '关注庄园失败'
+      throw error
+    } finally {
+      favoriteActionRunning.value = false
+    }
+  }
+
   return {
     loading,
     snapshot,
@@ -169,11 +211,16 @@ export const useManorStore = defineStore('onlineManor', () => {
     guidePointTitleDraft,
     guidePointSummaryDraft,
     guideActionRunning,
+    favoriteActionRunning,
+    favoriteOverview,
     refreshSnapshot,
     createGuestbookEntry,
     replyGuestbookEntry,
     togglePinnedGuestbookEntry,
     createVisitRecord,
     saveGuideSnapshot,
+    refreshFavoriteOverview,
+    favoriteCurrentManor,
+    followCurrentManor,
   }
 })
