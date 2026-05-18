@@ -24,6 +24,10 @@
 - 新增 `server/src/taoyuanSocialRuntime.js`、`src/utils/onlineProfileApi.ts`、`src/stores/useSocialStore.ts` 与 `src/views/game/SocialView.vue`，把第一版公开名片链路真正接进工程，而不再只是文档层规划。
 - 当前公开名片会从当前账号、服务端个人存档和现有运行态里自动整理出昵称、庄园名、季节进度、主营方向、最近活跃、公开称号、邻里身份与本周展示主题；同时支持玩家保存一句公开介绍和公开状态。
 - 游戏内也已经补出入口：`/game/social` 路由、导航映射、移动端地图菜单和旅行分组都已接通，后续好友 / 邻里系统可以直接复用这一块作为公开资料底板。
+### 0518 好友系统基础（L11 第一轮）
+- `server/src/taoyuanSocialRuntime.js` 和 `server/src/routes/api.js` 已补出最小好友关系链路：好友申请、接受、拒绝、拉黑、解除拉黑，以及关系总览接口都已可调用。
+- `src/utils/onlineProfileApi.ts`、`src/stores/useSocialStore.ts` 和 `src/views/game/SocialView.vue` 也同步接上了前端骨架：现在同一页内就能发起申请、处理收到的申请、查看发出的申请、查看好友列表和已拉黑玩家。
+- 当前好友列表排序先按最近互动 / 最近活跃摘要做近似；更细的在线 Presence、订阅提醒和实时状态仍留待后续联机运行态继续补强。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

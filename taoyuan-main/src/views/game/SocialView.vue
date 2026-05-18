@@ -116,6 +116,76 @@
           </Button>
         </div>
       </div>
+
+      <div class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs text-accent">好友与拉黑</p>
+          <Button class="text-[10px]" :disabled="socialStore.relationshipLoading || socialStore.relationshipActionRunning" @click="refreshRelationships">
+            {{ socialStore.relationshipLoading ? '加载中…' : '刷新关系' }}
+          </Button>
+        </div>
+        <div class="flex gap-2">
+          <input
+            v-model="socialStore.friendUsernameDraft"
+            class="flex-1 bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+            placeholder="输入玩家用户名"
+          />
+          <Button class="text-[10px]" :disabled="socialStore.relationshipActionRunning" @click="sendFriendRequest">
+            加好友
+          </Button>
+          <Button class="text-[10px]" :disabled="socialStore.relationshipActionRunning" @click="blockPlayer">
+            拉黑
+          </Button>
+        </div>
+
+        <div class="grid gap-2 md:grid-cols-2">
+          <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-[10px] text-muted mb-1">收到的申请</p>
+            <div v-if="socialStore.incomingRequests.length === 0" class="text-[10px] text-muted">当前没有新的好友申请。</div>
+            <div v-for="entry in socialStore.incomingRequests" :key="entry.request_id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+              <p class="text-xs text-accent">{{ entry.profile.display_name }}</p>
+              <p class="text-[10px] text-muted mt-1">{{ entry.profile.recent_activity }}</p>
+              <div class="flex gap-2 mt-2">
+                <Button class="text-[10px]" :disabled="socialStore.relationshipActionRunning" @click="acceptRequest(entry.request_id!)">接受</Button>
+                <Button class="text-[10px]" :disabled="socialStore.relationshipActionRunning" @click="rejectRequest(entry.request_id!)">拒绝</Button>
+              </div>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-[10px] text-muted mb-1">发出的申请</p>
+            <div v-if="socialStore.outgoingRequests.length === 0" class="text-[10px] text-muted">当前没有待处理的外发申请。</div>
+            <div v-for="entry in socialStore.outgoingRequests" :key="entry.request_id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+              <p class="text-xs text-accent">{{ entry.profile.display_name }}</p>
+              <p class="text-[10px] text-muted mt-1">{{ entry.profile.recent_activity }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-[10px] text-muted mb-1">好友列表（按最近互动 / 活跃排序）</p>
+          <div v-if="socialStore.friends.length === 0" class="text-[10px] text-muted">当前还没有好友。</div>
+          <div v-for="entry in socialStore.friends" :key="entry.friendship_id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">{{ entry.profile.display_name }}</p>
+              <span class="text-[10px] text-muted">{{ entry.profile.public_title }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-1">{{ entry.profile.recent_activity }}</p>
+            <p class="text-[10px] text-muted mt-1">主营方向：{{ entry.profile.primary_route_label }} · 展示主题：{{ entry.profile.showcase_theme }}</p>
+          </div>
+        </div>
+
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-[10px] text-muted mb-1">已拉黑</p>
+          <div v-if="socialStore.blockedUsers.length === 0" class="text-[10px] text-muted">当前没有拉黑玩家。</div>
+          <div v-for="entry in socialStore.blockedUsers" :key="entry.block_id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">{{ entry.profile.display_name }}</p>
+              <Button class="text-[10px]" :disabled="socialStore.relationshipActionRunning" @click="unblockPlayer(entry.profile.username)">解除拉黑</Button>
+            </div>
+          </div>
+        </div>
+      </div>
     </template>
   </div>
 </template>
@@ -142,9 +212,34 @@
     await socialStore.saveProfile().catch(() => {})
   }
 
+  const refreshRelationships = async () => {
+    await socialStore.refreshRelationships().catch(() => {})
+  }
+
+  const sendFriendRequest = async () => {
+    await socialStore.submitFriendRequest().catch(() => {})
+  }
+
+  const acceptRequest = async (requestId: string) => {
+    await socialStore.acceptRequest(requestId).catch(() => {})
+  }
+
+  const rejectRequest = async (requestId: string) => {
+    await socialStore.rejectRequest(requestId).catch(() => {})
+  }
+
+  const blockPlayer = async () => {
+    await socialStore.blockTarget().catch(() => {})
+  }
+
+  const unblockPlayer = async (targetUsername: string) => {
+    await socialStore.unblockTarget(targetUsername).catch(() => {})
+  }
+
   onMounted(() => {
     if (!socialStore.profile) {
       void refreshProfile()
     }
+    void refreshRelationships()
   })
 </script>

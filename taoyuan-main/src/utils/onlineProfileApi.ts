@@ -26,6 +26,25 @@ export interface OnlineProfileResponse {
   msg?: string
 }
 
+export interface OnlineRelationCard {
+  request_id?: string
+  friendship_id?: string
+  block_id?: string
+  created_at: number
+  last_interaction_at?: number
+  friends_since?: number
+  profile: NonNullable<OnlineProfileResponse['profile']>
+}
+
+export interface OnlineRelationshipOverviewResponse {
+  ok: boolean
+  incoming_requests: OnlineRelationCard[]
+  outgoing_requests: OnlineRelationCard[]
+  friends: OnlineRelationCard[]
+  blocked_users: OnlineRelationCard[]
+  msg?: string
+}
+
 export const fetchOnlineProfile = async (): Promise<OnlineProfileResponse['profile'] | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
@@ -64,4 +83,72 @@ export const saveOnlineProfile = async (payload: {
     networkErrorMessage: '公开档案连接失败，请检查网络或稍后重试'
   })
   return data?.profile ?? null
+}
+
+const requestSocialAction = async <T = any>(path: string, init: RequestInit): Promise<T | null> => {
+  const account = await ensureCurrentAccount()
+  if (!account || account === 'guest') return null
+  const { data } = await fetchProtectedJson<T>(async () => {
+    const csrfToken = await ensureCurrentCsrfToken()
+    return fetch(path, {
+      credentials: 'include',
+      ...init,
+      headers: {
+        ...(init.headers || {}),
+        'X-CSRF-Token': csrfToken,
+      },
+    })
+  }, {
+    fallbackMessage: '桃源社交请求失败',
+    networkErrorMessage: '桃源社交服务连接失败，请检查网络或稍后重试'
+  })
+  return data
+}
+
+export const fetchRelationshipOverview = async (): Promise<OnlineRelationshipOverviewResponse | null> => {
+  const account = await ensureCurrentAccount()
+  if (!account || account === 'guest') return null
+  const { data } = await fetchProtectedJson<OnlineRelationshipOverviewResponse>(() => fetch('/api/taoyuan/online/social/relationships', {
+    credentials: 'include'
+  }), {
+    fallbackMessage: '获取好友关系失败',
+    networkErrorMessage: '好友关系服务连接失败，请检查网络或稍后重试'
+  })
+  return data ?? null
+}
+
+export const sendFriendRequest = async (targetUsername: string) => {
+  return requestSocialAction('/api/taoyuan/online/social/friend-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_username: targetUsername })
+  })
+}
+
+export const acceptFriendRequest = async (requestId: string) => {
+  return requestSocialAction(`/api/taoyuan/online/social/friend-requests/${encodeURIComponent(requestId)}/accept`, {
+    method: 'POST'
+  })
+}
+
+export const rejectFriendRequest = async (requestId: string) => {
+  return requestSocialAction(`/api/taoyuan/online/social/friend-requests/${encodeURIComponent(requestId)}/reject`, {
+    method: 'POST'
+  })
+}
+
+export const blockPlayer = async (targetUsername: string) => {
+  return requestSocialAction('/api/taoyuan/online/social/blocks', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_username: targetUsername })
+  })
+}
+
+export const unblockPlayer = async (targetUsername: string) => {
+  return requestSocialAction('/api/taoyuan/online/social/blocks/unblock', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_username: targetUsername })
+  })
 }

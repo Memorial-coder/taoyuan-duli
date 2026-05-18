@@ -54,6 +54,15 @@ const DEFAULT_PROFILE = Object.freeze({
   last_active_at: 0,
 });
 
+function createEmptySocialStore() {
+  return {
+    profiles: {},
+    friend_requests: [],
+    friendships: [],
+    blocks: [],
+  };
+}
+
 function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
 }
@@ -72,13 +81,18 @@ function ensureSocialProfileStore() {
 function loadSocialProfileStore() {
   ensureSocialProfileStore();
   try {
-    if (!fs.existsSync(TAOYUAN_SOCIAL_PROFILE_FILE)) return { profiles: {} };
+    if (!fs.existsSync(TAOYUAN_SOCIAL_PROFILE_FILE)) return createEmptySocialStore();
     const raw = JSON.parse(fs.readFileSync(TAOYUAN_SOCIAL_PROFILE_FILE, 'utf8'));
-    return raw && typeof raw === 'object' && raw.profiles && typeof raw.profiles === 'object'
-      ? raw
-      : { profiles: {} };
+    return raw && typeof raw === 'object'
+      ? {
+          profiles: raw.profiles && typeof raw.profiles === 'object' ? raw.profiles : {},
+          friend_requests: Array.isArray(raw.friend_requests) ? raw.friend_requests : [],
+          friendships: Array.isArray(raw.friendships) ? raw.friendships : [],
+          blocks: Array.isArray(raw.blocks) ? raw.blocks : [],
+        }
+      : createEmptySocialStore();
   } catch {
-    return { profiles: {} };
+    return createEmptySocialStore();
   }
 }
 
@@ -86,7 +100,18 @@ function saveSocialProfileStore(store) {
   ensureSocialProfileStore();
   writeJsonFileAtomic(TAOYUAN_SOCIAL_PROFILE_FILE, {
     profiles: store?.profiles && typeof store.profiles === 'object' ? store.profiles : {},
+    friend_requests: Array.isArray(store?.friend_requests) ? store.friend_requests : [],
+    friendships: Array.isArray(store?.friendships) ? store.friendships : [],
+    blocks: Array.isArray(store?.blocks) ? store.blocks : [],
   });
+}
+
+function makeId(prefix) {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeUsername(value) {
+  return String(value || '').normalize('NFKC').trim();
 }
 
 function normalizeStoredProfile(profile) {
@@ -196,7 +221,78 @@ function resolveActiveSaveContext(username) {
   }
 }
 
-async function buildProfile(username, viewerUsername = '') {
+function normalizeFriendRequest(request) {
+  return {
+    id: String(request?.id || makeId('friend_req')),
+    from_username: normalizeUsername(request?.from_username),
+    to_username: normalizeUsername(request?.to_username),
+    status: ['pending', 'accepted', 'rejected'].includes(String(request?.status)) ? String(request.status) : 'pending',
+    created_at: Number(request?.created_at) || Math.floor(Date.now() / 1000),
+    updated_at: Number(request?.updated_at) || Number(request?.created_at) || Math.floor(Date.now() / 1000),
+  };
+}
+
+function normalizeFriendship(friendship) {
+  const left = normalizeUsername(friendship?.username_a);
+  const right = normalizeUsername(friendship?.username_b);
+  const [username_a, username_b] = [left, right].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  return {
+    id: String(friendship?.id || makeId('friendship')),
+    username_a,
+    username_b,
+    created_at: Number(friendship?.created_at) || Math.floor(Date.now() / 1000),
+    updated_at: Number(friendship?.updated_at) || Number(friendship?.created_at) || Math.floor(Date.now() / 1000),
+    last_interaction_at: Number(friendship?.last_interaction_at) || Number(friendship?.updated_at) || Number(friendship?.created_at) || Math.floor(Date.now() / 1000),
+  };
+}
+
+function normalizeBlockRelation(entry) {
+  return {
+    id: String(entry?.id || makeId('block')),
+    blocker_username: normalizeUsername(entry?.blocker_username),
+    blocked_username: normalizeUsername(entry?.blocked_username),
+    created_at: Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+    updated_at: Number(entry?.updated_at) || Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+  };
+}
+
+function buildPairKey(left, right) {
+  return [normalizeUsername(left), normalizeUsername(right)].sort((a, b) => a.localeCompare(b, 'zh-CN')).join('::');
+}
+
+function isBlocked(store, left, right) {
+  const normalizedLeft = normalizeUsername(left);
+  const normalizedRight = normalizeUsername(right);
+  return store.blocks
+    .map(normalizeBlockRelation)
+    .some(entry =>
+      (entry.blocker_username === normalizedLeft && entry.blocked_username === normalizedRight) ||
+      (entry.blocker_username === normalizedRight && entry.blocked_username === normalizedLeft)
+    );
+}
+
+function findFriendship(store, left, right) {
+  const pairKey = buildPairKey(left, right);
+  return store.friendships
+    .map(normalizeFriendship)
+    .find(entry => buildPairKey(entry.username_a, entry.username_b) === pairKey) || null;
+}
+
+function findPendingRequest(store, left, right) {
+  const normalizedLeft = normalizeUsername(left);
+  const normalizedRight = normalizeUsername(right);
+  return store.friend_requests
+    .map(normalizeFriendRequest)
+    .find(entry =>
+      entry.status === 'pending' &&
+      (
+        (entry.from_username === normalizedLeft && entry.to_username === normalizedRight) ||
+        (entry.from_username === normalizedRight && entry.to_username === normalizedLeft)
+      )
+    ) || null;
+}
+
+async function buildProfile(username, viewerUsername = '', options = {}) {
   const user = await db.getUser(username);
   if (!user) throw createError('玩家不存在', 404);
 
@@ -205,7 +301,7 @@ async function buildProfile(username, viewerUsername = '') {
   const storedProfile = getStoredProfile(username);
   const isOwner = viewerUsername && viewerUsername === username;
 
-  if (!isOwner && storedProfile.visibility !== 'public') {
+  if (!isOwner && options.ignoreVisibility !== true && storedProfile.visibility !== 'public') {
     throw createError('该玩家未公开名片', 403);
   }
 
@@ -237,6 +333,10 @@ async function buildProfile(username, viewerUsername = '') {
   };
 }
 
+async function buildRelationCard(username, viewerUsername = '') {
+  return buildProfile(username, viewerUsername, { ignoreVisibility: true });
+}
+
 async function getOwnProfile(username) {
   updateStoredProfile(username, {});
   return buildProfile(username, username);
@@ -258,8 +358,215 @@ async function updateOwnProfile(username, payload = {}) {
   return buildProfile(username, username);
 }
 
+async function listRelationshipOverview(username) {
+  const store = loadSocialProfileStore();
+  const normalizedUsername = normalizeUsername(username);
+
+  const incoming_requests = await Promise.all(
+    store.friend_requests
+      .map(normalizeFriendRequest)
+      .filter(entry => entry.status === 'pending' && entry.to_username === normalizedUsername)
+      .sort((left, right) => right.created_at - left.created_at)
+      .map(async entry => ({
+        request_id: entry.id,
+        created_at: entry.created_at,
+        profile: await buildRelationCard(entry.from_username, normalizedUsername),
+      }))
+  );
+
+  const outgoing_requests = await Promise.all(
+    store.friend_requests
+      .map(normalizeFriendRequest)
+      .filter(entry => entry.status === 'pending' && entry.from_username === normalizedUsername)
+      .sort((left, right) => right.created_at - left.created_at)
+      .map(async entry => ({
+        request_id: entry.id,
+        created_at: entry.created_at,
+        profile: await buildRelationCard(entry.to_username, normalizedUsername),
+      }))
+  );
+
+  const friends = await Promise.all(
+    store.friendships
+      .map(normalizeFriendship)
+      .filter(entry => entry.username_a === normalizedUsername || entry.username_b === normalizedUsername)
+      .sort((left, right) => right.last_interaction_at - left.last_interaction_at)
+      .map(async entry => {
+        const otherUsername = entry.username_a === normalizedUsername ? entry.username_b : entry.username_a;
+        return {
+          friendship_id: entry.id,
+          friends_since: entry.created_at,
+          last_interaction_at: entry.last_interaction_at,
+          profile: await buildRelationCard(otherUsername, normalizedUsername),
+        };
+      })
+  );
+
+  const blocked_users = await Promise.all(
+    store.blocks
+      .map(normalizeBlockRelation)
+      .filter(entry => entry.blocker_username === normalizedUsername)
+      .sort((left, right) => right.updated_at - left.updated_at)
+      .map(async entry => ({
+        block_id: entry.id,
+        created_at: entry.created_at,
+        profile: await buildRelationCard(entry.blocked_username, normalizedUsername),
+      }))
+  );
+
+  return {
+    incoming_requests,
+    outgoing_requests,
+    friends,
+    blocked_users,
+  };
+}
+
+async function requestFriendship(username, targetUsername) {
+  const store = loadSocialProfileStore();
+  const requester = normalizeUsername(username);
+  const target = normalizeUsername(targetUsername);
+
+  if (!target) throw createError('请先填写好友用户名');
+  if (requester === target) throw createError('不能给自己发送好友申请');
+  const targetUser = await db.getUser(target);
+  if (!targetUser) throw createError('目标玩家不存在', 404);
+  if (isBlocked(store, requester, target)) throw createError('你与该玩家当前存在拉黑关系，无法发送申请');
+  if (findFriendship(store, requester, target)) throw createError('你们已经是好友了');
+  if (findPendingRequest(store, requester, target)) throw createError('这条好友申请已经在处理中');
+
+  const request = normalizeFriendRequest({
+    id: makeId('friend_req'),
+    from_username: requester,
+    to_username: target,
+    status: 'pending',
+    created_at: Math.floor(Date.now() / 1000),
+    updated_at: Math.floor(Date.now() / 1000),
+  });
+  store.friend_requests = [...store.friend_requests, request];
+  saveSocialProfileStore(store);
+  return request;
+}
+
+async function acceptFriendRequest(username, requestId) {
+  const store = loadSocialProfileStore();
+  const receiver = normalizeUsername(username);
+  const request = store.friend_requests
+    .map(normalizeFriendRequest)
+    .find(entry => entry.id === String(requestId || '').trim());
+
+  if (!request || request.status !== 'pending' || request.to_username !== receiver) {
+    throw createError('好友申请不存在或已失效', 404);
+  }
+  if (isBlocked(store, request.from_username, request.to_username)) {
+    throw createError('当前存在拉黑关系，无法接受好友申请');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  request.status = 'accepted';
+  request.updated_at = now;
+  const existingFriendship = findFriendship(store, request.from_username, request.to_username);
+  if (!existingFriendship) {
+    store.friendships = [
+      ...store.friendships,
+      normalizeFriendship({
+        id: makeId('friendship'),
+        username_a: request.from_username,
+        username_b: request.to_username,
+        created_at: now,
+        updated_at: now,
+        last_interaction_at: now,
+      }),
+    ];
+  }
+  store.friend_requests = store.friend_requests.map(entry => {
+    const normalized = normalizeFriendRequest(entry);
+    return normalized.id === request.id ? request : normalized;
+  });
+  saveSocialProfileStore(store);
+  return request;
+}
+
+async function rejectFriendRequest(username, requestId) {
+  const store = loadSocialProfileStore();
+  const receiver = normalizeUsername(username);
+  const request = store.friend_requests
+    .map(normalizeFriendRequest)
+    .find(entry => entry.id === String(requestId || '').trim());
+
+  if (!request || request.status !== 'pending' || request.to_username !== receiver) {
+    throw createError('好友申请不存在或已失效', 404);
+  }
+
+  request.status = 'rejected';
+  request.updated_at = Math.floor(Date.now() / 1000);
+  store.friend_requests = store.friend_requests.map(entry => {
+    const normalized = normalizeFriendRequest(entry);
+    return normalized.id === request.id ? request : normalized;
+  });
+  saveSocialProfileStore(store);
+  return request;
+}
+
+async function blockPlayer(username, targetUsername) {
+  const store = loadSocialProfileStore();
+  const blocker = normalizeUsername(username);
+  const blocked = normalizeUsername(targetUsername);
+
+  if (!blocked) throw createError('请先填写要拉黑的玩家');
+  if (blocker === blocked) throw createError('不能拉黑自己');
+  const targetUser = await db.getUser(blocked);
+  if (!targetUser) throw createError('目标玩家不存在', 404);
+
+  const existingBlock = store.blocks
+    .map(normalizeBlockRelation)
+    .find(entry => entry.blocker_username === blocker && entry.blocked_username === blocked);
+  if (!existingBlock) {
+    store.blocks = [
+      ...store.blocks,
+      normalizeBlockRelation({
+        id: makeId('block'),
+        blocker_username: blocker,
+        blocked_username: blocked,
+        created_at: Math.floor(Date.now() / 1000),
+        updated_at: Math.floor(Date.now() / 1000),
+      }),
+    ];
+  }
+
+  store.friendships = store.friendships
+    .map(normalizeFriendship)
+    .filter(entry => buildPairKey(entry.username_a, entry.username_b) !== buildPairKey(blocker, blocked));
+  store.friend_requests = store.friend_requests
+    .map(normalizeFriendRequest)
+    .filter(entry => buildPairKey(entry.from_username, entry.to_username) !== buildPairKey(blocker, blocked));
+  saveSocialProfileStore(store);
+  return { blocker_username: blocker, blocked_username: blocked };
+}
+
+async function unblockPlayer(username, targetUsername) {
+  const store = loadSocialProfileStore();
+  const blocker = normalizeUsername(username);
+  const blocked = normalizeUsername(targetUsername);
+  const before = store.blocks.length;
+  store.blocks = store.blocks
+    .map(normalizeBlockRelation)
+    .filter(entry => !(entry.blocker_username === blocker && entry.blocked_username === blocked));
+  if (store.blocks.length === before) {
+    throw createError('拉黑记录不存在', 404);
+  }
+  saveSocialProfileStore(store);
+  return { blocker_username: blocker, blocked_username: blocked };
+}
+
 module.exports = {
   getOwnProfile,
   getPublicProfile,
   updateOwnProfile,
+  listRelationshipOverview,
+  requestFriendship,
+  acceptFriendRequest,
+  rejectFriendRequest,
+  blockPlayer,
+  unblockPlayer,
 };

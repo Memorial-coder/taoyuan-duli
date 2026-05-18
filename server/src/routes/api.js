@@ -676,6 +676,60 @@ router.get('/taoyuan/online/profile/:username', async (req, res) => {
   }
 });
 
+router.get('/taoyuan/online/social/relationships', loginRequired, async (req, res) => {
+  try {
+    const overview = await taoyuanSocialRuntime.listRelationshipOverview(req.session.username);
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取好友列表失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/friend-requests', loginRequired, signRequired, async (req, res) => {
+  try {
+    const request = await taoyuanSocialRuntime.requestFriendship(req.session.username, req.body?.target_username);
+    res.json({ ok: true, request });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '发送好友申请失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/friend-requests/:requestId/accept', loginRequired, signRequired, async (req, res) => {
+  try {
+    const request = await taoyuanSocialRuntime.acceptFriendRequest(req.session.username, req.params.requestId);
+    res.json({ ok: true, request });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '接受好友申请失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/friend-requests/:requestId/reject', loginRequired, signRequired, async (req, res) => {
+  try {
+    const request = await taoyuanSocialRuntime.rejectFriendRequest(req.session.username, req.params.requestId);
+    res.json({ ok: true, request });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '拒绝好友申请失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/blocks', loginRequired, signRequired, async (req, res) => {
+  try {
+    const relation = await taoyuanSocialRuntime.blockPlayer(req.session.username, req.body?.target_username);
+    res.json({ ok: true, relation });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '拉黑玩家失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/blocks/unblock', loginRequired, signRequired, async (req, res) => {
+  try {
+    const relation = await taoyuanSocialRuntime.unblockPlayer(req.session.username, req.body?.target_username);
+    res.json({ ok: true, relation });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '解除拉黑失败' });
+  }
+});
+
 router.get('/admin/official-control/runtime-status', userAdminAuth, officialControlHostAuth, (req, res) => {
   res.json({
     ok: true,

@@ -1,10 +1,18 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
+  acceptFriendRequest,
+  blockPlayer,
   fetchOnlineProfile,
+  fetchRelationshipOverview,
+  rejectFriendRequest,
   saveOnlineProfile,
+  sendFriendRequest,
   type OnlineProfileResponse,
+  type OnlineRelationCard,
   type OnlineProfileVisibility
+  ,
+  unblockPlayer
 } from '@/utils/onlineProfileApi'
 
 export interface PublicProfile {
@@ -38,6 +46,13 @@ export const useSocialStore = defineStore('onlineSocial', () => {
   const draftPublicTitle = ref('')
   const draftNeighborhoodRole = ref('')
   const draftShowcaseTheme = ref('')
+  const friendUsernameDraft = ref('')
+  const relationshipLoading = ref(false)
+  const relationshipActionRunning = ref(false)
+  const incomingRequests = ref<OnlineRelationCard[]>([])
+  const outgoingRequests = ref<OnlineRelationCard[]>([])
+  const friends = ref<OnlineRelationCard[]>([])
+  const blockedUsers = ref<OnlineRelationCard[]>([])
 
   const hasProfile = computed(() => !!profile.value)
   const displayTitle = computed(() => profile.value?.public_title || profile.value?.display_name || profile.value?.player_name || '未命名玩家')
@@ -125,6 +140,100 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     }
   }
 
+  const refreshRelationships = async () => {
+    relationshipLoading.value = true
+    errorMessage.value = ''
+    try {
+      const data = await fetchRelationshipOverview()
+      incomingRequests.value = data?.incoming_requests ?? []
+      outgoingRequests.value = data?.outgoing_requests ?? []
+      friends.value = data?.friends ?? []
+      blockedUsers.value = data?.blocked_users ?? []
+      return data
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '获取好友关系失败'
+      throw error
+    } finally {
+      relationshipLoading.value = false
+    }
+  }
+
+  const submitFriendRequest = async () => {
+    const target = friendUsernameDraft.value.trim()
+    if (!target) return
+    relationshipActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await sendFriendRequest(target)
+      friendUsernameDraft.value = ''
+      await refreshRelationships()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '发送好友申请失败'
+      throw error
+    } finally {
+      relationshipActionRunning.value = false
+    }
+  }
+
+  const acceptRequest = async (requestId: string) => {
+    relationshipActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await acceptFriendRequest(requestId)
+      await refreshRelationships()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '接受好友申请失败'
+      throw error
+    } finally {
+      relationshipActionRunning.value = false
+    }
+  }
+
+  const rejectRequest = async (requestId: string) => {
+    relationshipActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await rejectFriendRequest(requestId)
+      await refreshRelationships()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '拒绝好友申请失败'
+      throw error
+    } finally {
+      relationshipActionRunning.value = false
+    }
+  }
+
+  const blockTarget = async () => {
+    const target = friendUsernameDraft.value.trim()
+    if (!target) return
+    relationshipActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await blockPlayer(target)
+      friendUsernameDraft.value = ''
+      await refreshRelationships()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '拉黑玩家失败'
+      throw error
+    } finally {
+      relationshipActionRunning.value = false
+    }
+  }
+
+  const unblockTarget = async (targetUsername: string) => {
+    relationshipActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await unblockPlayer(targetUsername)
+      await refreshRelationships()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '解除拉黑失败'
+      throw error
+    } finally {
+      relationshipActionRunning.value = false
+    }
+  }
+
   return {
     loading,
     saving,
@@ -137,11 +246,24 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     draftPublicTitle,
     draftNeighborhoodRole,
     draftShowcaseTheme,
+    friendUsernameDraft,
     hasProfile,
     displayTitle,
     hasDirtyDraft,
+    relationshipLoading,
+    relationshipActionRunning,
+    incomingRequests,
+    outgoingRequests,
+    friends,
+    blockedUsers,
     refreshProfile,
     hydrateFromProfile,
-    saveProfile
+    saveProfile,
+    refreshRelationships,
+    submitFriendRequest,
+    acceptRequest,
+    rejectRequest,
+    blockTarget,
+    unblockTarget
   }
 })
