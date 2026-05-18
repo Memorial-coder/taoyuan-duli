@@ -32,6 +32,10 @@
 - `server/src/taoyuanSocialRuntime.js` 与 `server/src/routes/api.js` 已补出邻里最小模型：邻里创建、入组申请、成员邀请、申请处理、公告更新、成员身份调整，以及邻里总览接口都已接通。
 - `src/utils/onlineProfileApi.ts`、`src/stores/useSocialStore.ts` 和 `src/views/game/SocialView.vue` 也同步长出邻里面板：现在可以创建邻里、查看公开邻里、申请加入、接受邀请、维护公告、查看成员和最近动态。
 - 当前邻里等级先按成员规模做轻量计算，容量提供 `3-12 / 12-30 / 30+` 三档入口；退出、踢人、邻里任务板与更完整的成长系统仍留给后续深化任务。
+### 0518 关系标签系统（L13 第一轮）
+- `server/src/taoyuanSocialRuntime.js` 已开始按现有单人存档自动推导关系标签：种植、钓鱼、育种、收藏、节庆、互助、装饰、探索这几类标签会按技能、收藏、关系、装饰和探索痕迹自动生成。
+- `src/stores/useSocialStore.ts` 和 `src/views/game/SocialView.vue` 也补上了“少量手选标签”入口；当前玩家可以在自动标签之外再固定最多 3 个公开标签。
+- 目前标签已显示在公开名片和好友列表里；庄园公开页展示会等后续 `L20` 正式落地后再接。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

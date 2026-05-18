@@ -50,9 +50,23 @@ const DEFAULT_PROFILE = Object.freeze({
   public_title: '',
   neighborhood_role: '',
   showcase_theme: '',
+  selected_tag_ids: [],
   updated_at: 0,
   last_active_at: 0,
 });
+
+const PROFILE_TAG_OPTIONS = Object.freeze([
+  { id: 'farming', label: '种植' },
+  { id: 'fishing', label: '钓鱼' },
+  { id: 'breeding', label: '育种' },
+  { id: 'collection', label: '收藏' },
+  { id: 'festival', label: '节庆' },
+  { id: 'mutual_aid', label: '互助' },
+  { id: 'decoration', label: '装饰' },
+  { id: 'exploration', label: '探索' },
+]);
+
+const PROFILE_TAG_LABELS = Object.freeze(Object.fromEntries(PROFILE_TAG_OPTIONS.map(entry => [entry.id, entry.label])));
 
 function createEmptySocialStore() {
   return {
@@ -128,6 +142,9 @@ function normalizeStoredProfile(profile) {
     public_title: sanitizeText(profile?.public_title, 24),
     neighborhood_role: sanitizeText(profile?.neighborhood_role, 24),
     showcase_theme: sanitizeText(profile?.showcase_theme, 24),
+    selected_tag_ids: Array.isArray(profile?.selected_tag_ids)
+      ? Array.from(new Set(profile.selected_tag_ids.map(entry => String(entry).trim()).filter(entry => PROFILE_TAG_LABELS[entry]))).slice(0, 3)
+      : [],
     updated_at: Number(profile?.updated_at) || 0,
     last_active_at: Number(profile?.last_active_at) || 0,
   };
@@ -345,6 +362,55 @@ function findPendingRequest(store, left, right) {
     ) || null;
 }
 
+function countFriendships(store, username) {
+  const normalizedUsername = normalizeUsername(username);
+  return store.friendships
+    .map(normalizeFriendship)
+    .filter(entry => entry.username_a === normalizedUsername || entry.username_b === normalizedUsername)
+    .length;
+}
+
+function buildAutoTagIds(store, username, gameplay = {}) {
+  const result = new Set();
+  const skill = gameplay.skill || {};
+  const breeding = gameplay.breeding || {};
+  const museum = gameplay.museum || {};
+  const goal = gameplay.goal || {};
+  const decoration = gameplay.decoration || {};
+  const regionMap = gameplay.regionMap || {};
+
+  const skills = Array.isArray(skill.skills) ? skill.skills : [];
+  if ((skills.find(entry => entry?.type === 'farming')?.level ?? 0) >= 6) result.add('farming');
+  if ((skills.find(entry => entry?.type === 'fishing')?.level ?? 0) >= 6) result.add('fishing');
+  if (breeding?.unlocked || (Array.isArray(breeding?.compendium) ? breeding.compendium.length : 0) > 0 || (Array.isArray(breeding?.breedingBox) ? breeding.breedingBox.length : 0) > 0) {
+    result.add('breeding');
+  }
+  if ((Array.isArray(museum?.donatedItems) ? museum.donatedItems.length : 0) >= 5) result.add('collection');
+  if (goal?.currentThemeWeekState || goal?.eventOperationsState?.activeCampaignId) result.add('festival');
+  if (countFriendships(store, username) > 0 || findMemberGroup(store, username)) result.add('mutual_aid');
+  const placedDecorationCount = Object.values(decoration?.placed ?? {}).reduce((sum, count) => sum + Math.max(0, Number(count) || 0), 0);
+  if (placedDecorationCount >= 3) result.add('decoration');
+  if ((Array.isArray(regionMap?.journeyHistory) ? regionMap.journeyHistory.length : 0) > 0) result.add('exploration');
+  return PROFILE_TAG_OPTIONS.map(entry => entry.id).filter(id => result.has(id));
+}
+
+function buildPublicTags(store, username, gameplay, storedProfile) {
+  const autoTagIds = buildAutoTagIds(store, username, gameplay);
+  const selectedTagIds = storedProfile.selected_tag_ids || [];
+  const orderedIds = [];
+  for (const id of selectedTagIds) {
+    if (!orderedIds.includes(id)) orderedIds.push(id);
+  }
+  for (const id of autoTagIds) {
+    if (!orderedIds.includes(id)) orderedIds.push(id);
+  }
+  return orderedIds.map(id => ({
+    id,
+    label: PROFILE_TAG_LABELS[id],
+    source: selectedTagIds.includes(id) ? 'selected' : 'auto',
+  }));
+}
+
 function findNeighborGroupById(store, groupId) {
   return store.neighbor_groups
     .map(normalizeNeighborGroup)
@@ -374,9 +440,10 @@ async function buildProfile(username, viewerUsername = '', options = {}) {
   const user = await db.getUser(username);
   if (!user) throw createError('玩家不存在', 404);
 
+  const store = loadSocialProfileStore();
   const saveContext = resolveActiveSaveContext(username);
   const gameplay = saveContext?.data || {};
-  const storedProfile = getStoredProfile(username);
+  const storedProfile = normalizeStoredProfile(store.profiles?.[String(username || '').trim()] || DEFAULT_PROFILE);
   const isOwner = viewerUsername && viewerUsername === username;
 
   if (!isOwner && options.ignoreVisibility !== true && storedProfile.visibility !== 'public') {
@@ -390,6 +457,7 @@ async function buildProfile(username, viewerUsername = '', options = {}) {
   const quest = gameplay.quest || {};
   const skill = gameplay.skill || {};
   const activeQuestCount = Array.isArray(quest.activeQuests) ? quest.activeQuests.length : 0;
+  const publicTags = buildPublicTags(store, username, gameplay, storedProfile);
 
   return {
     username: user.username,
@@ -406,6 +474,9 @@ async function buildProfile(username, viewerUsername = '', options = {}) {
     public_intro: storedProfile.public_intro,
     visibility: storedProfile.visibility,
     active_quest_count: activeQuestCount,
+    public_tags: publicTags,
+    selected_tag_ids: [...storedProfile.selected_tag_ids],
+    available_tag_options: PROFILE_TAG_OPTIONS.map(entry => ({ ...entry })),
     updated_at: storedProfile.updated_at,
     last_active_at: storedProfile.last_active_at,
   };
@@ -432,6 +503,7 @@ async function updateOwnProfile(username, payload = {}) {
     public_title: payload.public_title,
     neighborhood_role: payload.neighborhood_role,
     showcase_theme: payload.showcase_theme,
+    selected_tag_ids: payload.selected_tag_ids,
   });
   return buildProfile(username, username);
 }

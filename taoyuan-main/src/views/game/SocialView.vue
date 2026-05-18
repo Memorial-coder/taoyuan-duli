@@ -69,6 +69,21 @@
             <p class="text-accent mt-1">{{ socialStore.profile.showcase_theme }}</p>
           </div>
         </div>
+
+        <div class="border border-accent/10 rounded-xs p-2 text-xs">
+          <p class="text-[10px] text-muted">关系标签</p>
+          <div class="flex flex-wrap gap-1 mt-1">
+            <span
+              v-for="tag in socialStore.profile.public_tags"
+              :key="tag.id"
+              class="text-[10px] px-1.5 py-0.5 rounded-xs border"
+              :class="tag.source === 'selected' ? 'border-accent/40 text-accent bg-accent/5' : 'border-accent/15 text-muted'"
+            >
+              {{ tag.label }}
+            </span>
+            <span v-if="socialStore.profile.public_tags.length === 0" class="text-[10px] text-muted">当前还没有公开标签。</span>
+          </div>
+        </div>
       </div>
 
       <div class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
@@ -109,6 +124,20 @@
             placeholder="例如：这周主打鱼塘与博物馆补展，欢迎来看看。"
           />
         </label>
+        <div class="space-y-1">
+          <p class="text-[10px] text-muted">手选标签（最多 3 个）</p>
+          <div class="flex flex-wrap gap-1">
+            <button
+              v-for="tag in socialStore.profile.available_tag_options"
+              :key="tag.id"
+              class="text-[10px] px-1.5 py-0.5 rounded-xs border transition-colors"
+              :class="socialStore.draftSelectedTagIds.includes(tag.id) ? 'border-accent/40 text-accent bg-accent/5' : 'border-accent/15 text-muted'"
+              @click="toggleTag(tag.id)"
+            >
+              {{ tag.label }}
+            </button>
+          </div>
+        </div>
         <div class="flex items-center justify-between gap-2">
           <p class="text-[10px] text-muted">保存后会同步成公开名片预览。</p>
           <Button class="text-[10px]" :disabled="!socialStore.hasDirtyDraft || socialStore.saving" @click="saveProfile">
@@ -172,6 +201,16 @@
             </div>
             <p class="text-[10px] text-muted mt-1">{{ entry.profile.recent_activity }}</p>
             <p class="text-[10px] text-muted mt-1">主营方向：{{ entry.profile.primary_route_label }} · 展示主题：{{ entry.profile.showcase_theme }}</p>
+            <div class="flex flex-wrap gap-1 mt-2">
+              <span
+                v-for="tag in entry.profile.public_tags"
+                :key="tag.id"
+                class="text-[10px] px-1.5 py-0.5 rounded-xs border"
+                :class="tag.source === 'selected' ? 'border-accent/40 text-accent bg-accent/5' : 'border-accent/15 text-muted'"
+              >
+                {{ tag.label }}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -373,6 +412,10 @@
 
   const saveProfile = async () => {
     await socialStore.saveProfile().catch(() => {})
+  }
+
+  const toggleTag = (tagId: string) => {
+    socialStore.toggleSelectedTag(tagId)
   }
 
   const refreshRelationships = async () => {

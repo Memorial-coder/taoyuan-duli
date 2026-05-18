@@ -20,6 +20,16 @@ export interface OnlineProfileResponse {
     public_intro: string
     visibility: OnlineProfileVisibility
     active_quest_count: number
+    public_tags: Array<{
+      id: string
+      label: string
+      source: 'auto' | 'selected'
+    }>
+    selected_tag_ids: string[]
+    available_tag_options: Array<{
+      id: string
+      label: string
+    }>
     updated_at: number
     last_active_at: number
   }
@@ -114,6 +124,7 @@ export const saveOnlineProfile = async (payload: {
   public_title: string
   neighborhood_role: string
   showcase_theme: string
+  selected_tag_ids: string[]
 }): Promise<OnlineProfileResponse['profile'] | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null

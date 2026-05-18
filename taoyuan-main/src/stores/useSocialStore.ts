@@ -40,6 +40,16 @@ export interface PublicProfile {
   public_intro: string
   visibility: OnlineProfileVisibility
   active_quest_count: number
+  public_tags: Array<{
+    id: string
+    label: string
+    source: 'auto' | 'selected'
+  }>
+  selected_tag_ids: string[]
+  available_tag_options: Array<{
+    id: string
+    label: string
+  }>
   updated_at: number
   last_active_at: number
 }
@@ -56,6 +66,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
   const draftPublicTitle = ref('')
   const draftNeighborhoodRole = ref('')
   const draftShowcaseTheme = ref('')
+  const draftSelectedTagIds = ref<string[]>([])
   const friendUsernameDraft = ref('')
   const relationshipLoading = ref(false)
   const relationshipActionRunning = ref(false)
@@ -109,6 +120,9 @@ export const useSocialStore = defineStore('onlineSocial', () => {
       public_intro: raw.public_intro,
       visibility: raw.visibility,
       active_quest_count: raw.active_quest_count,
+      public_tags: raw.public_tags,
+      selected_tag_ids: raw.selected_tag_ids,
+      available_tag_options: raw.available_tag_options,
       updated_at: raw.updated_at,
       last_active_at: raw.last_active_at
     }
@@ -118,6 +132,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     draftPublicTitle.value = raw.public_title
     draftNeighborhoodRole.value = raw.neighborhood_role
     draftShowcaseTheme.value = raw.showcase_theme
+    draftSelectedTagIds.value = [...raw.selected_tag_ids]
   }
 
   const refreshProfile = async () => {
@@ -148,7 +163,8 @@ export const useSocialStore = defineStore('onlineSocial', () => {
         manor_name: draftManorName.value,
         public_title: draftPublicTitle.value,
         neighborhood_role: draftNeighborhoodRole.value,
-        showcase_theme: draftShowcaseTheme.value
+        showcase_theme: draftShowcaseTheme.value,
+        selected_tag_ids: draftSelectedTagIds.value
       })
       hydrateFromProfile(raw ?? undefined)
       lastLoadedAt.value = Date.now()
@@ -384,6 +400,17 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     }
   }
 
+  const toggleSelectedTag = (tagId: string) => {
+    const normalized = String(tagId || '').trim()
+    if (!normalized) return
+    if (draftSelectedTagIds.value.includes(normalized)) {
+      draftSelectedTagIds.value = draftSelectedTagIds.value.filter(entry => entry !== normalized)
+      return
+    }
+    if (draftSelectedTagIds.value.length >= 3) return
+    draftSelectedTagIds.value = [...draftSelectedTagIds.value, normalized]
+  }
+
   return {
     loading,
     saving,
@@ -396,6 +423,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     draftPublicTitle,
     draftNeighborhoodRole,
     draftShowcaseTheme,
+    draftSelectedTagIds,
     friendUsernameDraft,
     hasProfile,
     displayTitle,
@@ -433,6 +461,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     acceptNeighbor,
     rejectNeighbor,
     saveNeighborNoticeDraft,
-    changeNeighborRole
+    changeNeighborRole,
+    toggleSelectedTag
   }
 })
