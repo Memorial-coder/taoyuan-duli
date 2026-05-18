@@ -112,6 +112,52 @@
       </div>
     </div>
 
+    <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
+      <p class="text-xs text-accent">庄园导览</p>
+      <div class="grid gap-2 md:grid-cols-2">
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-[10px] text-muted mb-1">推荐参观点</p>
+          <input
+            v-model="manorStore.guidePointTitleDraft"
+            maxlength="30"
+            class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent mb-2"
+            placeholder="参观点标题"
+          />
+          <input
+            v-model="manorStore.guidePointSummaryDraft"
+            maxlength="120"
+            class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+            placeholder="告诉访客为什么值得看"
+          />
+          <div class="flex justify-end mt-2">
+            <Button class="text-[10px]" :disabled="manorStore.guideActionRunning" @click="saveGuide">
+              {{ manorStore.guideActionRunning ? '保存中…' : '加入导览点' }}
+            </Button>
+          </div>
+        </div>
+
+        <div class="border border-accent/10 rounded-xs p-2">
+          <p class="text-[10px] text-muted mb-1">今日来访摘要</p>
+          <p class="text-xs text-accent">{{ manorStore.snapshot.today_visit_summary }}</p>
+          <p class="text-[10px] text-muted mt-2">
+            当前主题路线：{{ manorStore.snapshot.guide_routes[0]?.title || '还没设置主题路线' }}
+          </p>
+          <p class="text-[10px] text-muted mt-1">
+            {{ manorStore.snapshot.guide_routes[0]?.summary || '保存第一个参观点后，会自动整理出一条基础参观路线。' }}
+          </p>
+        </div>
+      </div>
+
+      <div class="border border-accent/10 rounded-xs p-2">
+        <p class="text-[10px] text-muted mb-1">已设置参观点</p>
+        <div v-if="manorStore.snapshot.guide_points.length === 0" class="text-[10px] text-muted">当前还没有推荐参观点。</div>
+        <div v-for="point in manorStore.snapshot.guide_points" :key="point.id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+          <p class="text-xs text-accent">{{ point.order }}. {{ point.title }}</p>
+          <p class="text-[10px] text-muted mt-1">{{ point.summary }}</p>
+        </div>
+      </div>
+    </div>
+
     <div class="game-panel border border-accent/10 rounded-xs p-3 text-[10px] text-muted space-y-1">
       <p>当前这轮先完成 L20 的最小公开庄园快照：公开状态、展示主题、主视觉摘要、经营标签、当前重点和本周目标都已经有落点。</p>
       <p>留言墙、访客痕迹、导览和收藏会在 `L21-L24` 继续接。</p>
@@ -161,6 +207,10 @@
     if (purpose === 'gift') return '带礼探访'
     if (purpose === 'quest') return '带走需求'
     return '其他来意'
+  }
+
+  const saveGuide = async () => {
+    await manorStore.saveGuideSnapshot().catch(() => {})
   }
 
   onMounted(() => {

@@ -6,6 +6,7 @@ import {
   pinManorGuestbookEntry,
   recordManorVisit,
   replyManorGuestbookEntry,
+  saveManorGuide,
   type OnlineManorSnapshot
 } from '@/utils/onlineProfileApi'
 
@@ -20,6 +21,9 @@ export const useManorStore = defineStore('onlineManor', () => {
   const visitFeedbackDraft = ref('')
   const visitPurposeDraft = ref<'explore' | 'friend_visit' | 'gift' | 'quest' | 'other'>('explore')
   const visitActionRunning = ref(false)
+  const guidePointTitleDraft = ref('')
+  const guidePointSummaryDraft = ref('')
+  const guideActionRunning = ref(false)
 
   const refreshSnapshot = async () => {
     loading.value = true
@@ -113,6 +117,44 @@ export const useManorStore = defineStore('onlineManor', () => {
     }
   }
 
+  const saveGuideSnapshot = async () => {
+    if (!snapshot.value) return
+    const nextPoints = [
+      ...(snapshot.value.guide_points || []),
+      {
+        id: `point_${Date.now()}`,
+        title: guidePointTitleDraft.value.trim(),
+        summary: guidePointSummaryDraft.value.trim(),
+        order: (snapshot.value.guide_points?.length ?? 0) + 1,
+      }
+    ].filter(entry => entry.title)
+
+    const defaultRouteTitle = snapshot.value.showcase_theme || '本周参观路线'
+    guideActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      const result = await saveManorGuide({
+        guide_points: nextPoints,
+        guide_routes: [
+          {
+            id: 'default_route',
+            title: defaultRouteTitle,
+            summary: `围绕「${defaultRouteTitle}」整理出的推荐参观路线。`,
+            point_ids: nextPoints.map(entry => entry.id),
+          }
+        ]
+      })
+      snapshot.value = result?.snapshot ?? snapshot.value
+      guidePointTitleDraft.value = ''
+      guidePointSummaryDraft.value = ''
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '保存庄园导览失败'
+      throw error
+    } finally {
+      guideActionRunning.value = false
+    }
+  }
+
   return {
     loading,
     snapshot,
@@ -124,10 +166,14 @@ export const useManorStore = defineStore('onlineManor', () => {
     visitFeedbackDraft,
     visitPurposeDraft,
     visitActionRunning,
+    guidePointTitleDraft,
+    guidePointSummaryDraft,
+    guideActionRunning,
     refreshSnapshot,
     createGuestbookEntry,
     replyGuestbookEntry,
     togglePinnedGuestbookEntry,
     createVisitRecord,
+    saveGuideSnapshot,
   }
 })

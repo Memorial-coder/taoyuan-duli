@@ -9,6 +9,7 @@ const DATA_DIR = process.env.DB_STORAGE
   : path.join(__dirname, '../data');
 const TAOYUAN_MANOR_GUESTBOOK_FILE = path.join(DATA_DIR, 'taoyuan_manor_guestbook.json');
 const TAOYUAN_MANOR_VISIT_FILE = path.join(DATA_DIR, 'taoyuan_manor_visits.json');
+const TAOYUAN_MANOR_GUIDE_FILE = path.join(DATA_DIR, 'taoyuan_manor_guides.json');
 
 function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
@@ -65,6 +66,10 @@ function ensureVisitStore() {
   fs.mkdirSync(path.dirname(TAOYUAN_MANOR_VISIT_FILE), { recursive: true });
 }
 
+function ensureGuideStore() {
+  fs.mkdirSync(path.dirname(TAOYUAN_MANOR_GUIDE_FILE), { recursive: true });
+}
+
 function loadGuestbookStore() {
   ensureGuestbookStore();
   try {
@@ -102,6 +107,26 @@ function saveVisitStore(store) {
   ensureVisitStore();
   fs.writeFileSync(TAOYUAN_MANOR_VISIT_FILE, JSON.stringify({
     entries: Array.isArray(store?.entries) ? store.entries : [],
+  }, null, 2), 'utf8');
+}
+
+function loadGuideStore() {
+  ensureGuideStore();
+  try {
+    if (!fs.existsSync(TAOYUAN_MANOR_GUIDE_FILE)) return { guides: {} };
+    const raw = JSON.parse(fs.readFileSync(TAOYUAN_MANOR_GUIDE_FILE, 'utf8'));
+    return raw && typeof raw === 'object' && raw.guides && typeof raw.guides === 'object'
+      ? raw
+      : { guides: {} };
+  } catch {
+    return { guides: {} };
+  }
+}
+
+function saveGuideStore(store) {
+  ensureGuideStore();
+  fs.writeFileSync(TAOYUAN_MANOR_GUIDE_FILE, JSON.stringify({
+    guides: store?.guides && typeof store.guides === 'object' ? store.guides : {},
   }, null, 2), 'utf8');
 }
 
@@ -172,6 +197,52 @@ function normalizeVisitEntry(entry) {
   };
 }
 
+function normalizeGuidePoint(entry) {
+  return {
+    id: String(entry?.id || makeId('manor_point')),
+    title: sanitizeText(entry?.title, 30),
+    summary: sanitizeText(entry?.summary, 120),
+    order: Math.max(0, Math.floor(Number(entry?.order) || 0)),
+  };
+}
+
+function normalizeGuideRoute(entry) {
+  return {
+    id: String(entry?.id || makeId('manor_route')),
+    title: sanitizeText(entry?.title, 30),
+    summary: sanitizeText(entry?.summary, 120),
+    point_ids: Array.isArray(entry?.point_ids) ? entry.point_ids.map(pointId => String(pointId).trim()).filter(Boolean).slice(0, 12) : [],
+  };
+}
+
+function normalizeGuideConfig(config) {
+  return {
+    guide_points: Array.isArray(config?.guide_points) ? config.guide_points.map(normalizeGuidePoint).filter(entry => entry.title) : [],
+    guide_routes: Array.isArray(config?.guide_routes) ? config.guide_routes.map(normalizeGuideRoute).filter(entry => entry.title) : [],
+    updated_at: Number(config?.updated_at) || 0,
+  };
+}
+
+function getGuideConfig(username) {
+  const store = loadGuideStore();
+  const key = String(username || '').trim();
+  return normalizeGuideConfig(store.guides?.[key] || {});
+}
+
+function updateGuideConfig(username, patch = {}) {
+  const store = loadGuideStore();
+  const key = String(username || '').trim();
+  const current = normalizeGuideConfig(store.guides?.[key] || {});
+  const next = normalizeGuideConfig({
+    ...current,
+    ...patch,
+    updated_at: Math.floor(Date.now() / 1000),
+  });
+  store.guides[key] = next;
+  saveGuideStore(store);
+  return next;
+}
+
 function getVisitsForTarget(targetUsername) {
   const normalizedTarget = String(targetUsername || '').trim();
   const store = loadVisitStore();
@@ -179,6 +250,22 @@ function getVisitsForTarget(targetUsername) {
     .map(normalizeVisitEntry)
     .filter(entry => entry.target_username === normalizedTarget)
     .sort((left, right) => right.created_at - left.created_at);
+}
+
+function buildTodayVisitSummary(entries = []) {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const day = now.getDate();
+  const todayEntries = entries.filter(entry => {
+    const entryDate = new Date(entry.created_at * 1000);
+    return entryDate.getFullYear() === year && entryDate.getMonth() === month && entryDate.getDate() === day;
+  });
+  if (todayEntries.length === 0) {
+    return '今天还没有新的来访记录。';
+  }
+  const names = Array.from(new Set(todayEntries.map(entry => entry.visitor_display_name))).slice(0, 5);
+  return `今天来过的人：${names.join('、')}。`;
 }
 
 async function recordManorVisit(payload = {}, actor = {}) {
@@ -290,6 +377,8 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
   const gameplay = saveContext?.data || {};
   const game = gameplay.game || {};
   const decoration = gameplay.decoration || {};
+  const visitEntries = getVisitsForTarget(user.username);
+  const guideConfig = getGuideConfig(user.username);
 
   return {
     username: user.username,
@@ -306,7 +395,10 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
     placed_decoration_count: Object.values(decoration?.placed ?? {}).reduce((sum, count) => sum + Math.max(0, Number(count) || 0), 0),
     public_tags: Array.isArray(profile.public_tags) ? profile.public_tags : [],
     guestbook_entries: getGuestbookEntriesForTarget(user.username),
-    visit_entries: getVisitsForTarget(user.username),
+    visit_entries: visitEntries,
+    guide_points: guideConfig.guide_points.sort((left, right) => left.order - right.order),
+    guide_routes: guideConfig.guide_routes,
+    today_visit_summary: buildTodayVisitSummary(visitEntries),
   };
 }
 
@@ -318,6 +410,20 @@ async function getPublicManorSnapshot(username, viewerUsername = '') {
   return buildManorSnapshot(username, viewerUsername);
 }
 
+async function updateManorGuide(username, payload = {}) {
+  const guidePoints = Array.isArray(payload.guide_points)
+    ? payload.guide_points.map(normalizeGuidePoint).filter(entry => entry.title).slice(0, 12)
+    : undefined;
+  const guideRoutes = Array.isArray(payload.guide_routes)
+    ? payload.guide_routes.map(normalizeGuideRoute).filter(entry => entry.title).slice(0, 6)
+    : undefined;
+  updateGuideConfig(username, {
+    guide_points: guidePoints,
+    guide_routes: guideRoutes,
+  });
+  return buildManorSnapshot(username, username);
+}
+
 module.exports = {
   getOwnManorSnapshot,
   getPublicManorSnapshot,
@@ -325,4 +431,5 @@ module.exports = {
   replyGuestbookEntry,
   setGuestbookPinned,
   recordManorVisit,
+  updateManorGuide,
 };

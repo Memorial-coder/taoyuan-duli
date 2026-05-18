@@ -744,6 +744,15 @@ router.post('/taoyuan/online/manor/visit', loginRequired, signRequired, async (r
   }
 });
 
+router.post('/taoyuan/online/manor/guide', loginRequired, signRequired, async (req, res) => {
+  try {
+    const snapshot = await taoyuanManorRuntime.updateManorGuide(req.session.username, req.body || {});
+    res.json({ ok: true, snapshot });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '保存庄园导览失败' });
+  }
+});
+
 router.get('/taoyuan/online/social/relationships', loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanSocialRuntime.listRelationshipOverview(req.session.username);

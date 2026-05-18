@@ -166,6 +166,19 @@ export interface OnlineManorSnapshot {
     created_at: number
     updated_at: number
   }>
+  guide_points: Array<{
+    id: string
+    title: string
+    summary: string
+    order: number
+  }>
+  guide_routes: Array<{
+    id: string
+    title: string
+    summary: string
+    point_ids: string[]
+  }>
+  today_visit_summary: string
 }
 
 export const fetchOnlineProfile = async (): Promise<OnlineProfileResponse['profile'] | null> => {
@@ -425,6 +438,27 @@ export const recordManorVisit = async (payload: {
   }>
 }) => {
   return requestSocialAction('/api/taoyuan/online/manor/visit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
+export const saveManorGuide = async (payload: {
+  guide_points: Array<{
+    id?: string
+    title: string
+    summary: string
+    order: number
+  }>
+  guide_routes: Array<{
+    id?: string
+    title: string
+    summary: string
+    point_ids: string[]
+  }>
+}) => {
+  return requestSocialAction<{ ok: boolean; snapshot?: OnlineManorSnapshot }>('/api/taoyuan/online/manor/guide', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
