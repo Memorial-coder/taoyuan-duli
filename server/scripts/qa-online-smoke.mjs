@@ -598,6 +598,72 @@ try {
     assert(data?.ok === true && !data?.order?.assignee_username, 'public coop order cancel accept payload is incomplete')
   })
 
+  await runCheck('POST /api/taoyuan/online/orders/:id/accept public second path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/orders/${encodeURIComponent(publicCoopOrderId)}/accept`, {
+      method: 'POST',
+    })
+    assert(response.ok, `public coop order second accept returned ${response.status}`)
+    assert(data?.ok === true && data?.order?.assignee_username === secondarySessionState.username, 'public coop order second accept payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/deliver path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/orders/${encodeURIComponent(publicCoopOrderId)}/deliver`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        delivered_items: [
+          {
+            item_id: 'wheat',
+            quantity: 2,
+          },
+        ],
+        result_note: 'smoke delivery note',
+      }),
+    })
+    assert(response.ok, `coop order deliver returned ${response.status}`)
+    assert(data?.ok === true && data?.order?.delivery_status === 'submitted', 'coop order deliver payload is incomplete')
+    assert(data?.receipt?.status === 'pending_owner_confirm', 'coop order deliver receipt status is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/deliver duplicate guard path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/orders/${encodeURIComponent(publicCoopOrderId)}/deliver`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        delivered_items: [
+          {
+            item_id: 'wheat',
+            quantity: 2,
+          },
+        ],
+        result_note: 'smoke delivery note',
+      }),
+    })
+    assert(response.ok, `coop order duplicate deliver returned ${response.status}`)
+    assert(data?.ok === true && data?.duplicate_protected === true, 'coop order duplicate guard did not trigger')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/confirm-delivery path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/orders/${encodeURIComponent(publicCoopOrderId)}/confirm-delivery`, {
+      method: 'POST',
+    })
+    assert(response.ok, `coop order confirm delivery returned ${response.status}`)
+    assert(data?.ok === true && data?.order?.delivery_status === 'confirmed', 'coop order confirm delivery payload is incomplete')
+    assert(data?.receipt?.status === 'confirmed', 'coop order confirm receipt payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/save/:slot coop reward persistence', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(response.ok, `coop reward save read returned ${response.status}`)
+    assert(data?.ok === true && typeof data?.raw === 'string', 'coop reward save read payload is incomplete')
+    const decrypted = decryptTaoyuanRaw(data.raw)
+    assert(Number(decrypted?.player?.money) === 380, `coop order reward did not persist to second user save, current money=${decrypted?.player?.money}`)
+  })
+
   await runCheck('POST /api/taoyuan/online/orders expiring write path', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
       method: 'POST',
@@ -807,7 +873,7 @@ try {
     assert(response.ok, `second user save read returned ${response.status}`)
     assert(data?.ok === true && typeof data?.raw === 'string', 'second user save payload is incomplete')
     const decrypted = decryptTaoyuanRaw(data.raw)
-    assert(Number(decrypted?.player?.money) === 360, `best reply payout did not persist to second user save, current money=${decrypted?.player?.money}`)
+    assert(Number(decrypted?.player?.money) === 480, `best reply payout did not persist to second user save, current money=${decrypted?.player?.money}`)
   })
 
   let refundablePostId = ''

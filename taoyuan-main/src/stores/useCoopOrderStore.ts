@@ -4,8 +4,11 @@ import { ensureCurrentAccount } from '@/utils/accountStorage'
 import {
   acceptCoopOrder,
   cancelAcceptedCoopOrder,
+  confirmCoopOrderDelivery,
   createCoopOrder,
   fetchCoopOrderOverview,
+  retryCoopOrderCompensation,
+  submitCoopOrderDelivery,
   type OnlineCoopOrderOverviewResponse,
   type OnlineCoopOrderScope,
   type OnlineCoopOrderType,
@@ -33,6 +36,7 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
   const rewardValueDraft = ref(200)
   const rewardLabelDraft = ref('铜钱回报')
   const deadlineAtDraft = ref(buildDefaultDeadlineInput())
+  const deliveryDrafts = ref<Record<string, { itemId: string; quantity: number; note: string }>>({})
 
   const myOrders = computed(() =>
     (overview.value?.orders || []).filter(entry => entry.owner_username === currentUsername.value)
@@ -44,6 +48,14 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
 
   const visibleOrders = computed(() =>
     (overview.value?.orders || []).filter(entry => entry.owner_username !== currentUsername.value)
+  )
+
+  const myReceipts = computed(() =>
+    overview.value?.receipts || []
+  )
+
+  const myCompensations = computed(() =>
+    overview.value?.compensations || []
   )
 
   const refreshOverview = async () => {
@@ -131,6 +143,76 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     }
   }
 
+  const ensureDeliveryDraft = (orderId: string): { itemId: string; quantity: number; note: string } => {
+    if (!deliveryDrafts.value[orderId]) {
+      deliveryDrafts.value = {
+        ...deliveryDrafts.value,
+        [orderId]: {
+          itemId: '',
+          quantity: 1,
+          note: '',
+        },
+      }
+    }
+    return deliveryDrafts.value[orderId]!
+  }
+
+  const submitDelivery = async (orderId: string) => {
+    const draft = ensureDeliveryDraft(orderId)
+    actionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await submitCoopOrderDelivery(orderId, {
+        delivered_items: draft.itemId.trim()
+          ? [{ item_id: draft.itemId.trim(), quantity: Math.max(1, Math.floor(Number(draft.quantity) || 1)) }]
+          : [],
+        result_note: draft.note.trim(),
+      })
+      deliveryDrafts.value = {
+        ...deliveryDrafts.value,
+        [orderId]: {
+          itemId: '',
+          quantity: 1,
+          note: '',
+        },
+      }
+      await refreshOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '提交交付失败'
+      throw error
+    } finally {
+      actionRunning.value = false
+    }
+  }
+
+  const confirmDelivery = async (orderId: string) => {
+    actionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await confirmCoopOrderDelivery(orderId)
+      await refreshOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '确认交付失败'
+      throw error
+    } finally {
+      actionRunning.value = false
+    }
+  }
+
+  const retryCompensation = async (compensationId: string) => {
+    actionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await retryCoopOrderCompensation(compensationId)
+      await refreshOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '补偿重试失败'
+      throw error
+    } finally {
+      actionRunning.value = false
+    }
+  }
+
   return {
     loading,
     actionRunning,
@@ -145,13 +227,20 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     rewardValueDraft,
     rewardLabelDraft,
     deadlineAtDraft,
+    deliveryDrafts,
     myOrders,
     myAcceptedOrders,
     visibleOrders,
+    myReceipts,
+    myCompensations,
     refreshOverview,
     resetDrafts,
     submitOrder,
     acceptOrder,
     cancelAcceptedOrder,
+    ensureDeliveryDraft,
+    submitDelivery,
+    confirmDelivery,
+    retryCompensation,
   }
 })

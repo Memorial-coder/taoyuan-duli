@@ -835,6 +835,42 @@ router.post('/taoyuan/online/orders/:orderId/cancel-accept', loginRequired, sign
   }
 });
 
+router.post('/taoyuan/online/orders/:orderId/deliver', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCoopOrderRuntime.submitCoopOrderDelivery(req.params.orderId, req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '提交交付失败' });
+  }
+});
+
+router.post('/taoyuan/online/orders/:orderId/confirm-delivery', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCoopOrderRuntime.confirmCoopOrderDelivery(req.params.orderId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '确认交付失败' });
+  }
+});
+
+router.post('/taoyuan/online/orders/compensations/:compensationId/retry', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCoopOrderRuntime.replayCoopOrderCompensation(req.params.compensationId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '补偿重试失败' });
+  }
+});
+
 router.get('/taoyuan/online/social/relationships', loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanSocialRuntime.listRelationshipOverview(req.session.username);

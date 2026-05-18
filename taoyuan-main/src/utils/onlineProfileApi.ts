@@ -541,13 +541,69 @@ export interface OnlineCoopOrderEntry {
   assignee_display_name: string
   accepted_at: number
   canceled_at: number
+  active_receipt_id: string
+  delivery_status: 'none' | 'submitted' | 'confirmed' | 'compensation_pending'
+  delivery_note: string
+  delivered_items: Array<{
+    item_id: string
+    quantity: number
+  }>
+  settlement_confirmed_at: number
+  compensation_id: string
   created_at: number
   updated_at: number
+}
+
+export interface OnlineCoopReceiptEntry {
+  id: string
+  order_id: string
+  owner_username: string
+  assignee_username: string
+  reward_type: OnlineCoopRewardType
+  reward_value: number
+  reward_label: string
+  delivered_items: Array<{
+    item_id: string
+    quantity: number
+  }>
+  result_note: string
+  idempotency_key: string
+  status: 'pending_owner_confirm' | 'confirmed' | 'compensation_pending'
+  reward_result: string
+  compensation_id: string
+  created_at: number
+  confirmed_at: number
+  updated_at: number
+}
+
+export interface OnlineCoopCompensationEntry {
+  id: string
+  receipt_id: string
+  order_id: string
+  owner_username: string
+  assignee_username: string
+  reward_type: OnlineCoopRewardType
+  reward_value: number
+  reward_label: string
+  reason: string
+  last_error: string
+  status: 'pending' | 'resolved'
+  attempt_count: number
+  created_at: number
+  updated_at: number
+  resolved_at: number
 }
 
 export interface OnlineCoopOrderOverviewResponse {
   ok: boolean
   orders: OnlineCoopOrderEntry[]
+  receipts: OnlineCoopReceiptEntry[]
+  compensations: OnlineCoopCompensationEntry[]
+  reputation_summary: {
+    total: number
+    by_order_type: Record<string, number>
+    updated_at: number
+  }
   order_type_options: OnlineCoopOrderType[]
   scope_options: OnlineCoopOrderScope[]
   reward_type_options: OnlineCoopRewardType[]
@@ -591,6 +647,47 @@ export const acceptCoopOrder = async (orderId: string) => {
 
 export const cancelAcceptedCoopOrder = async (orderId: string) => {
   return requestSocialAction<{ ok: boolean; order?: OnlineCoopOrderEntry }>(`/api/taoyuan/online/orders/${encodeURIComponent(orderId)}/cancel-accept`, {
+    method: 'POST'
+  })
+}
+
+export const submitCoopOrderDelivery = async (orderId: string, payload: {
+  delivered_items: Array<{
+    item_id: string
+    quantity: number
+  }>
+  result_note: string
+}) => {
+  return requestSocialAction<{
+    ok: boolean
+    order?: OnlineCoopOrderEntry
+    receipt?: OnlineCoopReceiptEntry
+    duplicate_protected?: boolean
+  }>(`/api/taoyuan/online/orders/${encodeURIComponent(orderId)}/deliver`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
+export const confirmCoopOrderDelivery = async (orderId: string) => {
+  return requestSocialAction<{
+    ok: boolean
+    order?: OnlineCoopOrderEntry
+    receipt?: OnlineCoopReceiptEntry
+    compensation?: OnlineCoopCompensationEntry | null
+  }>(`/api/taoyuan/online/orders/${encodeURIComponent(orderId)}/confirm-delivery`, {
+    method: 'POST'
+  })
+}
+
+export const retryCoopOrderCompensation = async (compensationId: string) => {
+  return requestSocialAction<{
+    ok: boolean
+    order?: OnlineCoopOrderEntry
+    receipt?: OnlineCoopReceiptEntry
+    compensation?: OnlineCoopCompensationEntry
+  }>(`/api/taoyuan/online/orders/compensations/${encodeURIComponent(compensationId)}/retry`, {
     method: 'POST'
   })
 }

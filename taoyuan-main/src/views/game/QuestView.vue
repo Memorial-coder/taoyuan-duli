@@ -315,7 +315,40 @@
               <p class="text-[10px] text-muted mt-2">
                 {{ getCoopOrderTypeLabel(order.order_type) }} · 截止 {{ formatCoopDeadline(order.deadline_at) }}
               </p>
+              <p v-if="order.delivery_status !== 'none'" class="text-[10px] text-accent mt-1">
+                交付状态：{{ getCoopDeliveryStatusLabel(order.delivery_status) }}
+              </p>
+              <div v-if="order.delivery_status === 'none'" class="grid gap-2 md:grid-cols-[minmax(0,1fr)_100px] mt-2">
+                <input
+                  v-model="coopOrderStore.ensureDeliveryDraft(order.id).itemId"
+                  class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                  placeholder="资源 ID，例如 wheat"
+                />
+                <input
+                  v-model.number="coopOrderStore.ensureDeliveryDraft(order.id).quantity"
+                  type="number"
+                  min="1"
+                  class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                  placeholder="数量"
+                />
+              </div>
+              <textarea
+                v-if="order.delivery_status === 'none'"
+                v-model="coopOrderStore.ensureDeliveryDraft(order.id).note"
+                rows="2"
+                maxlength="160"
+                class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1.5 text-xs text-text outline-none focus:border-accent resize-none mt-2"
+                placeholder="交付说明，或者说明这次帮了什么。"
+              />
               <div class="flex justify-end mt-2">
+                <Button
+                  v-if="order.delivery_status === 'none'"
+                  class="text-[10px] mr-2"
+                  :disabled="coopOrderStore.actionRunning"
+                  @click="submitCoopDeliveryEntry(order.id)"
+                >
+                  提交交付
+                </Button>
                 <Button class="text-[10px]" :disabled="coopOrderStore.actionRunning || order.status !== 'open'" @click="cancelAcceptedCoopOrderEntry(order.id)">
                   取消接单
                 </Button>
@@ -343,6 +376,11 @@
               <p v-if="order.assignee_username" class="text-[10px] text-success mt-1">
                 当前接单人：{{ order.assignee_display_name || order.assignee_username }}
               </p>
+              <div v-if="order.delivery_status === 'submitted'" class="flex justify-end mt-2">
+                <Button class="text-[10px]" :disabled="coopOrderStore.actionRunning" @click="confirmCoopDeliveryEntry(order.id)">
+                  确认结算
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -374,6 +412,28 @@
                   @click="acceptCoopOrderEntry(order.id)"
                 >
                   {{ order.assignee_username ? '已有人接单' : '接这张单' }}
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-[10px] text-muted mb-1">结算凭证与补偿</p>
+            <div v-if="coopOrderStore.myReceipts.length === 0 && coopOrderStore.myCompensations.length === 0" class="text-[10px] text-muted">当前还没有新的结算凭证或补偿记录。</div>
+            <div v-for="receipt in coopOrderStore.myReceipts" :key="receipt.id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+              <p class="text-xs text-accent">凭证 {{ receipt.id }}</p>
+              <p class="text-[10px] text-muted mt-1">状态：{{ getCoopReceiptStatusLabel(receipt.status) }} · 回报：{{ getCoopRewardTypeLabel(receipt.reward_type) }} {{ receipt.reward_value }}</p>
+              <p class="text-[10px] text-muted mt-1">交付说明：{{ receipt.result_note || '未填写额外交付说明。' }}</p>
+              <p v-if="receipt.reward_result" class="text-[10px] text-success mt-1">{{ receipt.reward_result }}</p>
+            </div>
+            <div v-for="compensation in coopOrderStore.myCompensations" :key="compensation.id" class="border border-warning/20 rounded-xs p-2 mb-1.5 bg-warning/5">
+              <p class="text-xs text-warning">补偿 {{ compensation.id }}</p>
+              <p class="text-[10px] text-muted mt-1">状态：{{ compensation.status === 'pending' ? '待重试' : '已解决' }} · 已尝试 {{ compensation.attempt_count }} 次</p>
+              <p class="text-[10px] text-muted mt-1">{{ compensation.reason }}</p>
+              <p v-if="compensation.last_error" class="text-[10px] text-danger mt-1">{{ compensation.last_error }}</p>
+              <div v-if="compensation.status === 'pending'" class="flex justify-end mt-2">
+                <Button class="text-[10px]" :disabled="coopOrderStore.actionRunning" @click="retryCoopCompensationEntry(compensation.id)">
+                  重试补偿
                 </Button>
               </div>
             </div>
@@ -985,6 +1045,19 @@
   const getCoopRewardTypeLabel = (rewardType: OnlineCoopRewardType) =>
     COOP_REWARD_TYPE_OPTIONS.find(option => option.id === rewardType)?.label || rewardType
 
+  const getCoopDeliveryStatusLabel = (status: 'none' | 'submitted' | 'confirmed' | 'compensation_pending') => {
+    if (status === 'submitted') return '待发布人确认'
+    if (status === 'confirmed') return '已完成'
+    if (status === 'compensation_pending') return '补偿处理中'
+    return '未提交'
+  }
+
+  const getCoopReceiptStatusLabel = (status: 'pending_owner_confirm' | 'confirmed' | 'compensation_pending') => {
+    if (status === 'pending_owner_confirm') return '待发布人确认'
+    if (status === 'confirmed') return '已确认'
+    return '补偿处理中'
+  }
+
   const formatCoopDeadline = (timestamp: number) =>
     new Date(timestamp * 1000).toLocaleString('zh-CN', { hour12: false })
 
@@ -1002,6 +1075,18 @@
 
   const cancelAcceptedCoopOrderEntry = async (orderId: string) => {
     await coopOrderStore.cancelAcceptedOrder(orderId).catch(() => {})
+  }
+
+  const submitCoopDeliveryEntry = async (orderId: string) => {
+    await coopOrderStore.submitDelivery(orderId).catch(() => {})
+  }
+
+  const confirmCoopDeliveryEntry = async (orderId: string) => {
+    await coopOrderStore.confirmDelivery(orderId).catch(() => {})
+  }
+
+  const retryCoopCompensationEntry = async (compensationId: string) => {
+    await coopOrderStore.retryCompensation(compensationId).catch(() => {})
   }
 
   const focusQuestSection = (focusKey: string, label: string) => {

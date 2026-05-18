@@ -1,7 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
-const { createError, writeJsonFileAtomic } = require('./taoyuanSaveRuntime');
+const {
+  createError,
+  getActiveSaveContext,
+  persistGameplayData,
+  writeJsonFileAtomic,
+} = require('./taoyuanSaveRuntime');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
 
 const DATA_DIR = process.env.DB_STORAGE
@@ -24,6 +29,10 @@ const ORDER_TYPES = Object.freeze([
 
 const ORDER_SCOPES = Object.freeze(['public', 'neighbors', 'friends']);
 const ORDER_REWARD_TYPES = Object.freeze(['money', 'reputation', 'gift']);
+const ORDER_STATUSES = Object.freeze(['open', 'closed', 'expired']);
+const DELIVERY_STATUSES = Object.freeze(['none', 'submitted', 'confirmed', 'compensation_pending']);
+const RECEIPT_STATUSES = Object.freeze(['pending_owner_confirm', 'confirmed', 'compensation_pending']);
+const COMPENSATION_STATUSES = Object.freeze(['pending', 'resolved']);
 
 function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
@@ -33,20 +42,39 @@ function makeId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function normalizeTimestamp(value) {
+  const next = Math.floor(Number(value) || 0);
+  return next > 0 ? next : Math.floor(Date.now() / 1000);
+}
+
 function ensureCoopOrderStore() {
   fs.mkdirSync(path.dirname(TAOYUAN_COOP_ORDER_FILE), { recursive: true });
+}
+
+function createEmptyStore() {
+  return {
+    orders: [],
+    receipts: [],
+    compensations: [],
+    reputations: {},
+  };
 }
 
 function loadCoopOrderStore() {
   ensureCoopOrderStore();
   try {
-    if (!fs.existsSync(TAOYUAN_COOP_ORDER_FILE)) return { orders: [] };
+    if (!fs.existsSync(TAOYUAN_COOP_ORDER_FILE)) return createEmptyStore();
     const raw = JSON.parse(fs.readFileSync(TAOYUAN_COOP_ORDER_FILE, 'utf8'));
-    return raw && typeof raw === 'object' && Array.isArray(raw.orders)
-      ? raw
-      : { orders: [] };
+    return raw && typeof raw === 'object'
+      ? {
+          orders: Array.isArray(raw.orders) ? raw.orders : [],
+          receipts: Array.isArray(raw.receipts) ? raw.receipts : [],
+          compensations: Array.isArray(raw.compensations) ? raw.compensations : [],
+          reputations: raw.reputations && typeof raw.reputations === 'object' ? raw.reputations : {},
+        }
+      : createEmptyStore();
   } catch {
-    return { orders: [] };
+    return createEmptyStore();
   }
 }
 
@@ -54,6 +82,9 @@ function saveCoopOrderStore(store) {
   ensureCoopOrderStore();
   writeJsonFileAtomic(TAOYUAN_COOP_ORDER_FILE, {
     orders: Array.isArray(store?.orders) ? store.orders : [],
+    receipts: Array.isArray(store?.receipts) ? store.receipts : [],
+    compensations: Array.isArray(store?.compensations) ? store.compensations : [],
+    reputations: store?.reputations && typeof store.reputations === 'object' ? store.reputations : {},
   });
 }
 
@@ -72,9 +103,31 @@ function normalizeRewardType(value) {
   return ORDER_REWARD_TYPES.includes(normalized) ? normalized : 'money';
 }
 
-function normalizeTimestamp(value) {
-  const next = Math.floor(Number(value) || 0);
-  return next > 0 ? next : Math.floor(Date.now() / 1000);
+function normalizeOrderStatus(value) {
+  const normalized = String(value || '').trim();
+  return ORDER_STATUSES.includes(normalized) ? normalized : 'open';
+}
+
+function normalizeDeliveryStatus(value) {
+  const normalized = String(value || '').trim();
+  return DELIVERY_STATUSES.includes(normalized) ? normalized : 'none';
+}
+
+function normalizeReceiptStatus(value) {
+  const normalized = String(value || '').trim();
+  return RECEIPT_STATUSES.includes(normalized) ? normalized : 'pending_owner_confirm';
+}
+
+function normalizeCompensationStatus(value) {
+  const normalized = String(value || '').trim();
+  return COMPENSATION_STATUSES.includes(normalized) ? normalized : 'pending';
+}
+
+function normalizeDeliveredItem(entry) {
+  return {
+    item_id: sanitizeText(entry?.item_id, 40),
+    quantity: Math.max(1, Math.floor(Number(entry?.quantity) || 1)),
+  };
 }
 
 function normalizeOrder(order) {
@@ -90,13 +143,77 @@ function normalizeOrder(order) {
     reward_type: normalizeRewardType(order?.reward_type),
     reward_value: Math.max(0, Math.floor(Number(order?.reward_value) || 0)),
     reward_label: sanitizeText(order?.reward_label, 40),
-    status: ['open', 'closed', 'expired'].includes(String(order?.status)) ? String(order.status) : 'open',
+    status: normalizeOrderStatus(order?.status),
     assignee_username: String(order?.assignee_username || '').trim(),
     assignee_display_name: sanitizeText(order?.assignee_display_name, 30) || String(order?.assignee_username || ''),
     accepted_at: Math.max(0, Math.floor(Number(order?.accepted_at) || 0)),
     canceled_at: Math.max(0, Math.floor(Number(order?.canceled_at) || 0)),
+    active_receipt_id: String(order?.active_receipt_id || '').trim(),
+    delivery_status: normalizeDeliveryStatus(order?.delivery_status),
+    delivery_note: sanitizeText(order?.delivery_note, 160),
+    delivered_items: Array.isArray(order?.delivered_items)
+      ? order.delivered_items.map(normalizeDeliveredItem).filter(entry => entry.item_id)
+      : [],
+    settlement_confirmed_at: Math.max(0, Math.floor(Number(order?.settlement_confirmed_at) || 0)),
+    compensation_id: String(order?.compensation_id || '').trim(),
     created_at: normalizeTimestamp(order?.created_at),
     updated_at: normalizeTimestamp(order?.updated_at),
+  };
+}
+
+function normalizeSettlementReceipt(entry) {
+  return {
+    id: String(entry?.id || makeId('coop_receipt')),
+    order_id: String(entry?.order_id || '').trim(),
+    owner_username: String(entry?.owner_username || '').trim(),
+    assignee_username: String(entry?.assignee_username || '').trim(),
+    reward_type: normalizeRewardType(entry?.reward_type),
+    reward_value: Math.max(0, Math.floor(Number(entry?.reward_value) || 0)),
+    reward_label: sanitizeText(entry?.reward_label, 40),
+    delivered_items: Array.isArray(entry?.delivered_items)
+      ? entry.delivered_items.map(normalizeDeliveredItem).filter(item => item.item_id)
+      : [],
+    result_note: sanitizeText(entry?.result_note, 160),
+    idempotency_key: sanitizeText(entry?.idempotency_key, 120),
+    status: normalizeReceiptStatus(entry?.status),
+    reward_result: sanitizeText(entry?.reward_result, 80),
+    compensation_id: String(entry?.compensation_id || '').trim(),
+    created_at: normalizeTimestamp(entry?.created_at),
+    confirmed_at: Math.max(0, Math.floor(Number(entry?.confirmed_at) || 0)),
+    updated_at: normalizeTimestamp(entry?.updated_at),
+  };
+}
+
+function normalizeCompensationRecord(entry) {
+  return {
+    id: String(entry?.id || makeId('coop_compensation')),
+    receipt_id: String(entry?.receipt_id || '').trim(),
+    order_id: String(entry?.order_id || '').trim(),
+    owner_username: String(entry?.owner_username || '').trim(),
+    assignee_username: String(entry?.assignee_username || '').trim(),
+    reward_type: normalizeRewardType(entry?.reward_type),
+    reward_value: Math.max(0, Math.floor(Number(entry?.reward_value) || 0)),
+    reward_label: sanitizeText(entry?.reward_label, 40),
+    reason: sanitizeText(entry?.reason, 160),
+    last_error: sanitizeText(entry?.last_error, 160),
+    status: normalizeCompensationStatus(entry?.status),
+    attempt_count: Math.max(0, Math.floor(Number(entry?.attempt_count) || 0)),
+    created_at: normalizeTimestamp(entry?.created_at),
+    updated_at: normalizeTimestamp(entry?.updated_at),
+    resolved_at: Math.max(0, Math.floor(Number(entry?.resolved_at) || 0)),
+  };
+}
+
+function normalizeReputationProfile(entry) {
+  return {
+    total: Math.max(0, Math.floor(Number(entry?.total) || 0)),
+    by_order_type: entry?.by_order_type && typeof entry.by_order_type === 'object'
+      ? Object.fromEntries(
+          Object.entries(entry.by_order_type)
+            .map(([key, value]) => [String(key), Math.max(0, Math.floor(Number(value) || 0))])
+        )
+      : {},
+    updated_at: Math.max(0, Math.floor(Number(entry?.updated_at) || 0)),
   };
 }
 
@@ -114,6 +231,34 @@ function isOrderVisibleToViewer(order, viewerUsername) {
   return false;
 }
 
+function findOrderById(store, orderId) {
+  return store.orders
+    .map(normalizeOrder)
+    .find(order => order.id === String(orderId || '').trim()) || null;
+}
+
+function findReceiptById(store, receiptId) {
+  return store.receipts
+    .map(normalizeSettlementReceipt)
+    .find(receipt => receipt.id === String(receiptId || '').trim()) || null;
+}
+
+function findCompensationById(store, compensationId) {
+  return store.compensations
+    .map(normalizeCompensationRecord)
+    .find(record => record.id === String(compensationId || '').trim()) || null;
+}
+
+function findReceiptByIdempotencyKey(store, idempotencyKey) {
+  return store.receipts
+    .map(normalizeSettlementReceipt)
+    .find(receipt => receipt.idempotency_key === String(idempotencyKey || '').trim()) || null;
+}
+
+function buildReceiptIdempotencyKey(order) {
+  return `coop-order:${order.id}:assignee:${order.assignee_username}:accepted:${order.accepted_at || 0}`;
+}
+
 function markExpiredOrders(store) {
   const now = Math.floor(Date.now() / 1000);
   let changed = false;
@@ -126,6 +271,7 @@ function markExpiredOrders(store) {
         status: 'expired',
         assignee_username: '',
         assignee_display_name: '',
+        accepted_at: 0,
         updated_at: now,
       };
     }
@@ -136,6 +282,84 @@ function markExpiredOrders(store) {
     saveCoopOrderStore(store);
   }
   return nextOrders;
+}
+
+function applyMoneyReward(username, amount) {
+  const rewardAmount = Math.max(0, Math.floor(Number(amount) || 0));
+  if (rewardAmount <= 0) {
+    return { money: 0, slot: null };
+  }
+  const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源服务端存档，无法写入协作委托奖励');
+  context.username = username;
+  const currentMoney = Math.max(0, Math.floor(Number(context.data?.player?.money) || 0));
+  context.data.player.money = currentMoney + rewardAmount;
+  persistGameplayData(context);
+  return {
+    money: context.data.player.money,
+    slot: context.slot,
+  };
+}
+
+function applyReputationReward(store, receipt, order) {
+  const username = receipt.assignee_username;
+  const current = normalizeReputationProfile(store.reputations?.[username] || {});
+  const next = normalizeReputationProfile({
+    total: current.total + receipt.reward_value,
+    by_order_type: {
+      ...current.by_order_type,
+      [order.order_type]: (current.by_order_type[order.order_type] || 0) + receipt.reward_value,
+    },
+    updated_at: Math.floor(Date.now() / 1000),
+  });
+  store.reputations[username] = next;
+  return next;
+}
+
+function buildCompensationReason(error) {
+  const fallback = '写入结算奖励失败，已转入补偿队列';
+  return sanitizeText(error?.message || fallback, 160) || fallback;
+}
+
+function buildCompensationRecord(order, receipt, error) {
+  const now = Math.floor(Date.now() / 1000);
+  return normalizeCompensationRecord({
+    id: makeId('coop_compensation'),
+    receipt_id: receipt.id,
+    order_id: order.id,
+    owner_username: order.owner_username,
+    assignee_username: order.assignee_username,
+    reward_type: receipt.reward_type,
+    reward_value: receipt.reward_value,
+    reward_label: receipt.reward_label,
+    reason: buildCompensationReason(error),
+    last_error: sanitizeText(error?.message, 160),
+    status: 'pending',
+    attempt_count: 1,
+    created_at: now,
+    updated_at: now,
+    resolved_at: 0,
+  });
+}
+
+function applyRewardByReceipt(store, order, receipt) {
+  if (receipt.reward_type === 'money') {
+    const rewardState = applyMoneyReward(receipt.assignee_username, receipt.reward_value);
+    return {
+      reward_result: `铜钱已写入槽位 ${Number(rewardState.slot) + 1}`,
+      compensationNeeded: false,
+    };
+  }
+  if (receipt.reward_type === 'reputation') {
+    applyReputationReward(store, receipt, order);
+    return {
+      reward_result: '互助声望已记录',
+      compensationNeeded: false,
+    };
+  }
+  return {
+    reward_result: '礼物回报已记录，后续可按回包条目继续补发',
+    compensationNeeded: false,
+  };
 }
 
 async function createCoopOrder(payload = {}, actor = {}) {
@@ -175,6 +399,12 @@ async function createCoopOrder(payload = {}, actor = {}) {
     assignee_display_name: '',
     accepted_at: 0,
     canceled_at: 0,
+    active_receipt_id: '',
+    delivery_status: 'none',
+    delivery_note: '',
+    delivered_items: [],
+    settlement_confirmed_at: 0,
+    compensation_id: '',
     created_at: now,
     updated_at: now,
   });
@@ -182,12 +412,6 @@ async function createCoopOrder(payload = {}, actor = {}) {
   store.orders = [order, ...store.orders.map(normalizeOrder)];
   saveCoopOrderStore(store);
   return order;
-}
-
-function findOrderById(store, orderId) {
-  return store.orders
-    .map(normalizeOrder)
-    .find(order => order.id === String(orderId || '').trim()) || null;
 }
 
 async function acceptCoopOrder(orderId, actor = {}) {
@@ -206,13 +430,13 @@ async function acceptCoopOrder(orderId, actor = {}) {
   if (order.assignee_username) throw createError('这张求助单已经有人接下了');
 
   const now = Math.floor(Date.now() / 1000);
-  const nextOrder = {
+  const nextOrder = normalizeOrder({
     ...order,
     assignee_username: assigneeUsername,
     assignee_display_name: actor.displayName || assigneeUser.display_name || assigneeUsername,
     accepted_at: now,
     updated_at: now,
-  };
+  });
   store.orders = store.orders.map(entry => {
     const normalized = normalizeOrder(entry);
     return normalized.id === nextOrder.id ? nextOrder : normalized;
@@ -232,16 +456,17 @@ async function cancelAcceptedCoopOrder(orderId, actor = {}) {
   if (order.status !== 'open') throw createError(order.status === 'expired' ? '求助单已过期，不能取消接单' : '求助单当前不可取消');
   if (!order.assignee_username) throw createError('当前还没有人接这张求助单');
   if (order.assignee_username !== actorUsername) throw createError('只有当前接单人可以取消接单', 403);
+  if (order.delivery_status !== 'none') throw createError('这张求助单已经进入交付流程，不能再取消接单');
 
   const now = Math.floor(Date.now() / 1000);
-  const nextOrder = {
+  const nextOrder = normalizeOrder({
     ...order,
     assignee_username: '',
     assignee_display_name: '',
     accepted_at: 0,
     canceled_at: now,
     updated_at: now,
-  };
+  });
   store.orders = store.orders.map(entry => {
     const normalized = normalizeOrder(entry);
     return normalized.id === nextOrder.id ? nextOrder : normalized;
@@ -250,17 +475,263 @@ async function cancelAcceptedCoopOrder(orderId, actor = {}) {
   return nextOrder;
 }
 
+async function submitCoopOrderDelivery(orderId, payload = {}, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录后再提交交付', 401);
+
+  const store = loadCoopOrderStore();
+  markExpiredOrders(store);
+  const order = findOrderById(store, orderId);
+  if (!order) throw createError('求助单不存在', 404);
+  if (order.assignee_username !== actorUsername) throw createError('只有当前接单人可以提交交付', 403);
+  if (order.delivery_status !== 'none') {
+    const existingReceipt = order.active_receipt_id ? findReceiptById(store, order.active_receipt_id) : null;
+    if (existingReceipt && existingReceipt.assignee_username === actorUsername) {
+      return {
+        order,
+        receipt: existingReceipt,
+        duplicate_protected: true,
+      };
+    }
+    throw createError('这张求助单已经提交过交付记录');
+  }
+  if (order.status !== 'open') throw createError(order.status === 'expired' ? '求助单已过期，不能提交交付' : '求助单当前不可提交');
+
+  const deliveredItems = Array.isArray(payload.delivered_items)
+    ? payload.delivered_items.map(normalizeDeliveredItem).filter(item => item.item_id)
+    : [];
+  const resultNote = sanitizeText(payload.result_note, 160);
+  if (deliveredItems.length === 0 && resultNote.length < 2) {
+    throw createError('请至少填写一条资源记录或交付说明');
+  }
+
+  const idempotencyKey = buildReceiptIdempotencyKey(order);
+  const existingReceipt = findReceiptByIdempotencyKey(store, idempotencyKey);
+  if (existingReceipt) {
+    return {
+      order,
+      receipt: existingReceipt,
+      duplicate_protected: true,
+    };
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const receipt = normalizeSettlementReceipt({
+    id: makeId('coop_receipt'),
+    order_id: order.id,
+    owner_username: order.owner_username,
+    assignee_username: order.assignee_username,
+    reward_type: order.reward_type,
+    reward_value: order.reward_value,
+    reward_label: order.reward_label,
+    delivered_items: deliveredItems,
+    result_note: resultNote,
+    idempotency_key: idempotencyKey,
+    status: 'pending_owner_confirm',
+    reward_result: '',
+    compensation_id: '',
+    created_at: now,
+    confirmed_at: 0,
+    updated_at: now,
+  });
+
+  const nextOrder = normalizeOrder({
+    ...order,
+    status: 'closed',
+    active_receipt_id: receipt.id,
+    delivery_status: 'submitted',
+    delivery_note: resultNote,
+    delivered_items: deliveredItems,
+    updated_at: now,
+  });
+
+  store.receipts = [receipt, ...store.receipts.map(normalizeSettlementReceipt)];
+  store.orders = store.orders.map(entry => {
+    const normalized = normalizeOrder(entry);
+    return normalized.id === nextOrder.id ? nextOrder : normalized;
+  });
+  saveCoopOrderStore(store);
+  return {
+    order: nextOrder,
+    receipt,
+    duplicate_protected: false,
+  };
+}
+
+async function confirmCoopOrderDelivery(orderId, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录后再确认交付', 401);
+
+  const store = loadCoopOrderStore();
+  const order = findOrderById(store, orderId);
+  if (!order) throw createError('求助单不存在', 404);
+  if (order.owner_username !== actorUsername) throw createError('只有发布人可以确认交付', 403);
+  if (order.delivery_status !== 'submitted') throw createError('当前没有待确认的交付记录');
+  if (!order.active_receipt_id) throw createError('当前求助单缺少结算凭证');
+
+  const receipt = findReceiptById(store, order.active_receipt_id);
+  if (!receipt) throw createError('结算凭证不存在', 404);
+  if (receipt.status !== 'pending_owner_confirm') throw createError('这张结算凭证已经处理过了');
+
+  const now = Math.floor(Date.now() / 1000);
+  let nextReceipt = normalizeSettlementReceipt({
+    ...receipt,
+    updated_at: now,
+    confirmed_at: now,
+  });
+  let nextOrder = normalizeOrder({
+    ...order,
+    settlement_confirmed_at: now,
+    updated_at: now,
+  });
+
+  try {
+    const rewardOutcome = applyRewardByReceipt(store, order, receipt);
+    nextReceipt = normalizeSettlementReceipt({
+      ...nextReceipt,
+      status: 'confirmed',
+      reward_result: rewardOutcome.reward_result,
+      compensation_id: '',
+    });
+    nextOrder = normalizeOrder({
+      ...nextOrder,
+      delivery_status: 'confirmed',
+      compensation_id: '',
+    });
+  } catch (error) {
+    const compensation = buildCompensationRecord(order, receipt, error);
+    nextReceipt = normalizeSettlementReceipt({
+      ...nextReceipt,
+      status: 'compensation_pending',
+      reward_result: '奖励写入失败，已转入补偿队列',
+      compensation_id: compensation.id,
+    });
+    nextOrder = normalizeOrder({
+      ...nextOrder,
+      delivery_status: 'compensation_pending',
+      compensation_id: compensation.id,
+    });
+    store.compensations = [compensation, ...store.compensations.map(normalizeCompensationRecord)];
+  }
+
+  store.receipts = store.receipts.map(entry => {
+    const normalized = normalizeSettlementReceipt(entry);
+    return normalized.id === nextReceipt.id ? nextReceipt : normalized;
+  });
+  store.orders = store.orders.map(entry => {
+    const normalized = normalizeOrder(entry);
+    return normalized.id === nextOrder.id ? nextOrder : normalized;
+  });
+  saveCoopOrderStore(store);
+  return {
+    order: nextOrder,
+    receipt: nextReceipt,
+    compensation: nextOrder.compensation_id ? findCompensationById(store, nextOrder.compensation_id) : null,
+  };
+}
+
+async function replayCoopOrderCompensation(compensationId, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录后再重试补偿', 401);
+
+  const store = loadCoopOrderStore();
+  const compensation = findCompensationById(store, compensationId);
+  if (!compensation) throw createError('补偿记录不存在', 404);
+  const order = findOrderById(store, compensation.order_id);
+  if (!order) throw createError('关联求助单不存在', 404);
+  if (order.owner_username !== actorUsername) throw createError('只有发布人可以重试补偿', 403);
+  if (compensation.status !== 'pending') throw createError('这条补偿记录已经处理完成');
+  const receipt = findReceiptById(store, compensation.receipt_id);
+  if (!receipt) throw createError('关联结算凭证不存在', 404);
+
+  const now = Math.floor(Date.now() / 1000);
+  let nextCompensation = normalizeCompensationRecord({
+    ...compensation,
+    attempt_count: compensation.attempt_count + 1,
+    updated_at: now,
+  });
+
+  try {
+    const rewardOutcome = applyRewardByReceipt(store, order, receipt);
+    nextCompensation = normalizeCompensationRecord({
+      ...nextCompensation,
+      status: 'resolved',
+      resolved_at: now,
+      last_error: '',
+    });
+    const nextReceipt = normalizeSettlementReceipt({
+      ...receipt,
+      status: 'confirmed',
+      reward_result: rewardOutcome.reward_result,
+      updated_at: now,
+    });
+    const nextOrder = normalizeOrder({
+      ...order,
+      delivery_status: 'confirmed',
+      settlement_confirmed_at: now,
+      updated_at: now,
+    });
+    store.compensations = store.compensations.map(entry => {
+      const normalized = normalizeCompensationRecord(entry);
+      return normalized.id === nextCompensation.id ? nextCompensation : normalized;
+    });
+    store.receipts = store.receipts.map(entry => {
+      const normalized = normalizeSettlementReceipt(entry);
+      return normalized.id === nextReceipt.id ? nextReceipt : normalized;
+    });
+    store.orders = store.orders.map(entry => {
+      const normalized = normalizeOrder(entry);
+      return normalized.id === nextOrder.id ? nextOrder : normalized;
+    });
+    saveCoopOrderStore(store);
+    return {
+      compensation: nextCompensation,
+      receipt: nextReceipt,
+      order: nextOrder,
+    };
+  } catch (error) {
+    nextCompensation = normalizeCompensationRecord({
+      ...nextCompensation,
+      last_error: sanitizeText(error?.message, 160),
+    });
+    store.compensations = store.compensations.map(entry => {
+      const normalized = normalizeCompensationRecord(entry);
+      return normalized.id === nextCompensation.id ? nextCompensation : normalized;
+    });
+    saveCoopOrderStore(store);
+    throw createError(`补偿重试失败：${sanitizeText(error?.message, 120) || '未知错误'}`);
+  }
+}
+
 async function listVisibleCoopOrders(viewerUsername = '') {
   const store = loadCoopOrderStore();
+  const normalizedViewer = String(viewerUsername || '').trim();
   const orders = markExpiredOrders(store)
-    .filter(order => isOrderVisibleToViewer(order, viewerUsername))
+    .filter(order => isOrderVisibleToViewer(order, normalizedViewer))
     .sort((left, right) => {
       if (left.status !== right.status) return left.status === 'open' ? -1 : 1;
       return right.created_at - left.created_at;
     });
 
+  const receipts = store.receipts
+    .map(normalizeSettlementReceipt)
+    .filter(receipt => receipt.owner_username === normalizedViewer || receipt.assignee_username === normalizedViewer)
+    .sort((left, right) => right.created_at - left.created_at);
+
+  const compensations = store.compensations
+    .map(normalizeCompensationRecord)
+    .filter(record => record.owner_username === normalizedViewer || record.assignee_username === normalizedViewer)
+    .sort((left, right) => right.created_at - left.created_at);
+
+  const reputation_summary = normalizedViewer
+    ? normalizeReputationProfile(store.reputations?.[normalizedViewer] || {})
+    : normalizeReputationProfile({});
+
   return {
     orders,
+    receipts,
+    compensations,
+    reputation_summary,
     order_type_options: [...ORDER_TYPES],
     scope_options: [...ORDER_SCOPES],
     reward_type_options: [...ORDER_REWARD_TYPES],
@@ -271,5 +742,8 @@ module.exports = {
   createCoopOrder,
   acceptCoopOrder,
   cancelAcceptedCoopOrder,
+  submitCoopOrderDelivery,
+  confirmCoopOrderDelivery,
+  replayCoopOrderCompensation,
   listVisibleCoopOrders,
 };

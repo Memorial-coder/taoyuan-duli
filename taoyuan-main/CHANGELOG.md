@@ -86,6 +86,12 @@
 - `taoyuan-main/src/utils/onlineProfileApi.ts`、`taoyuan-main/src/stores/useCoopOrderStore.ts` 和 `taoyuan-main/src/views/game/QuestView.vue` 也同步补上了接单与取消接单入口，并在求助单列表里显示当前接单人。
 - `server/scripts/qa-online-smoke.mjs` 现已覆盖求助单接单、取消接单和短时过期验证，`L31` 的第一轮状态流转已经进入可重复执行的 smoke。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
+### 0518 交付与结算（L32 第一轮）
+- `server/src/taoyuanCoopOrderRuntime.js` 与 `/api/taoyuan/online/orders/:orderId/deliver`、`/confirm-delivery`、`/orders/compensations/:compensationId/retry` 已补出第一版交付结算链路：接单人可提交资源记录或交付说明，服务端会生成结算凭证，发布人确认后正式落账。
+- 这一轮同时把幂等和补偿口径并进来了：重复提交会回到同一张结算凭证，写奖失败会转成补偿记录，并保留后续人工重试入口。
+- `taoyuan-main/src/utils/onlineProfileApi.ts`、`taoyuan-main/src/stores/useCoopOrderStore.ts` 和 `taoyuan-main/src/views/game/QuestView.vue` 也同步接上了交付草稿、结算确认、凭证回看和补偿重试入口。
+- `server/scripts/qa-online-smoke.mjs` 现已覆盖接单、取消接单、交付提交、重复提交保护、发布人确认结算、奖励回写和过期状态回读。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。
