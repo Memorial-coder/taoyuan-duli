@@ -4,6 +4,16 @@
 
 ## [未发布]
 
+### 0518 联机执行锚点（L00 / L01）
+- 新增 `docs/online/README.md` 与 `docs/online/00-base-audit.md`，把 `0518联机plan.md` 的激进蓝图正式拆到可执行骨架里，并统一后续联机主线命名为 `庄园 / 邻里 / 委托 / 节会 / 村社`。
+- 新增 `docs/online/01-manor.md` 到 `05-society.md` 五条执行线，先把庄园展示、关系链、协作委托、节会房间和村社治理的落点分开，避免后续所有任务重新抢同一个“联机”大桶。
+- 当前在线底座也已经完成第一版盘点：`server/src/routes/api.js` 的账号 / CSRF / 服务端存档 / 邮箱 / 大厅接口，`server/src/taoyuanSaveRuntime.js` 的原子写与修订号，`server/src/taoyuanHall.js` 的顺序锁与悬赏结算，以及 `src/stores/useSaveStore.ts` 的待同步副本机制，都已标记出可复用边界与待扩展点。
+### 0518 云控静态文本宽松 HTML（第一批）
+- `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
+- 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。
+- 宽松样式白名单已覆盖常见排版与盒模型属性，如 `color`、`background-color`、`text-align`、`font-size`、`line-height`、`margin`、`padding`、`border`、`width`、`height`、`display`、`object-fit` 等；`url(...)`、`javascript:`、`expression(...)`、`var(...)` 一律剔除。
+- `src/components/game/AdminHomepageAboutPanel.vue` 与 `src/views/MainMenu.vue` 现统一改走宽松富文本渲染：首页“关于游戏”编辑预览和实际弹窗展示不再一边支持多行 HTML、一边只认单行片段。
+- `src/types/aiAssistant.ts`、`src/stores/useAiAssistantStore.ts`、`src/components/game/AiAssistantWidget.vue` 已给欢迎语消息补 `richStatic` 标记：AI 欢迎语可走宽松富文本渲染，普通 AI 回答仍保持严格 Markdown 渲染，不把实时问答气泡一起放宽。
 ### 0515 审查修复（第一批：奖励断链、日结顺序与区域结算收口）
 - 修正了多处玩法数据里失效的 `itemId`，覆盖晨间事件、成就、主题周奖励、关系奖励、公告板与组合订单等链路，不再出现“看起来发了奖励，实际什么都没到账”的假反馈。
 - 配偶晨间做饭奖励池改为只使用真实存在的菜品；晨间事件奖励失败时也会明确区分配置异常和背包不足。
