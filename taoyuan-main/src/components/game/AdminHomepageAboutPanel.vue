@@ -48,7 +48,7 @@
           <span>内容正文（图文块）</span>
           <span class="text-[11px] text-muted">共 {{ aboutBlocks.length }} 段</span>
         </div>
-        <p class="text-[11px] text-muted leading-5">可像交流大厅发帖一样插入图片、调整段落顺序；文字段内支持标题、列表、链接等 Markdown，也支持安全 HTML 片段，如 <code>&lt;img&gt;</code>、<code>&lt;br&gt;</code>、<code>&lt;a&gt;</code>。</p>
+        <p class="text-[11px] text-muted leading-5">可像交流大厅发帖一样插入图片、调整段落顺序；文字段内支持标题、列表、链接等 Markdown，也支持大部分富文本 HTML 与常见样式，如 <code>&lt;div style="text-align:center;color:#fff"&gt;</code>、<code>&lt;table&gt;</code>、<code>&lt;a&gt;</code>、<code>&lt;img&gt;</code>。</p>
 
         <div class="space-y-3">
           <div
@@ -87,7 +87,7 @@
               class="admin-textarea"
               :disabled="aboutContentReadonly"
               readonly
-              placeholder="输入这一段正文。支持 Markdown，也支持安全 HTML，如 <img>、<br>、<a>。"
+              placeholder="输入这一段正文。支持 Markdown，也支持大部分富文本 HTML 与常见样式。"
             />
 
             <div v-else class="space-y-2">
@@ -115,7 +115,7 @@
       </div>
 
       <div class="text-xs text-muted leading-6">
-        文字段支持示例：<code>## 二级标题</code>、<code>- 列表项</code>、<code>[链接](https://...)</code>、<code>&lt;img src="/api/..." width="320" alt="配图" /&gt;</code>；图片仍建议优先通过上方“插入图片”按钮上传。
+        文字段支持示例：<code>## 二级标题</code>、<code>- 列表项</code>、<code>[链接](https://...)</code>、<code>&lt;div style="text-align:center;color:#fff;line-height:1.8;margin:20px 0"&gt;...&lt;/div&gt;</code>、<code>&lt;img src="/api/..." width="320" alt="配图" /&gt;</code>；图片仍建议优先通过上方“插入图片”按钮上传。
       </div>
     </div>
 
@@ -166,7 +166,7 @@
 
 <script setup lang="ts">
   import { computed, ref, watch } from 'vue'
-  import { renderSafeMarkdown } from '@/utils/safeMarkdown'
+  import { renderRichContent } from '@/utils/safeMarkdown'
   import {
     fetchHomepageAboutContent,
     restoreHomepageAboutRevision,
@@ -260,7 +260,7 @@
   }
 
   const serializedContent = computed(() => serializeBlocksToMarkdown(aboutBlocks.value))
-  const previewHtml = computed(() => renderSafeMarkdown(serializedContent.value || '欢迎来到桃源乡。'))
+  const previewHtml = computed(() => renderRichContent(serializedContent.value || '欢迎来到桃源乡。'))
   const sourceLabel = computed(() => {
     const source = officialManagedStatus.value?.source
     if (source === 'official_live') return '官方实时'

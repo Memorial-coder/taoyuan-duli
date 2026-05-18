@@ -405,7 +405,7 @@
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import MainMenuContinueList from '@/components/game/MainMenuContinueList.vue'
-  import { renderSafeMarkdown } from '@/utils/safeMarkdown'
+  import { renderRichContent } from '@/utils/safeMarkdown'
   import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
   import { useRouter } from 'vue-router'
   import { useGameStore } from '@/stores/useGameStore'
@@ -625,7 +625,7 @@
     void router.push('/admin')
   }
 
-  const aboutDialogHtml = computed(() => renderSafeMarkdown(menuConfig.value.aboutDialogContent || '欢迎来到桃源乡。'))
+  const aboutDialogHtml = computed(() => renderRichContent(menuConfig.value.aboutDialogContent || '欢迎来到桃源乡。'))
 
   const switchMode = async (mode: 'local' | 'server') => {
     saveStore.setStorageMode(mode)

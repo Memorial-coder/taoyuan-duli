@@ -38,7 +38,7 @@
           <div ref="messageViewport" class="ai-panel__messages">
             <div v-for="message in store.messages" :key="message.id" class="ai-msg" :class="`ai-msg--${message.role}`">
               <div class="ai-msg__bubble" :class="{ 'ai-msg__bubble--error': message.error }">
-                <div v-if="message.role === 'assistant'" class="ai-msg__markdown" v-html="renderMessage(message.content)" />
+                <div v-if="message.role === 'assistant'" class="ai-msg__markdown" v-html="renderMessage(message)" />
                 <p v-else class="ai-msg__text">{{ message.content }}</p>
                 <div v-if="message.sources?.length" class="ai-msg__sources">
                   <span v-for="source in message.sources" :key="source" class="ai-source-tag">{{ source }}</span>
@@ -85,7 +85,8 @@
   import { useQuestStore } from '@/stores/useQuestStore'
   import { useNpcStore } from '@/stores/useNpcStore'
   import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
-  import { renderSafeMarkdown } from '@/utils/safeMarkdown'
+  import { renderRichContent, renderSafeMarkdown } from '@/utils/safeMarkdown'
+  import type { AiAssistantMessage } from '@/types'
 
   const store = useAiAssistantStore()
   const goalStore = useGoalStore()
@@ -173,7 +174,9 @@
     }
   })
 
-  const renderMessage = (content: string) => renderSafeMarkdown(content)
+  const renderMessage = (message: AiAssistantMessage) => (
+    message.richStatic ? renderRichContent(message.content) : renderSafeMarkdown(message.content)
+  )
 
   const scrollToBottom = async () => {
     await nextTick()

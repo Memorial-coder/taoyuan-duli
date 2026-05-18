@@ -3,14 +3,19 @@ import { defineStore } from 'pinia'
 import { ensureCurrentAccount } from '@/utils/accountStorage'
 import {
   acceptCoopOrder,
+  acceptCoopOrderStage,
   cancelAcceptedCoopOrder,
+  cancelAcceptedCoopOrderStage,
   confirmCoopOrderDelivery,
+  confirmCoopOrderStageDelivery,
   createCoopOrder,
   fetchCoopOrderOverview,
   retryCoopOrderCompensation,
   submitCoopOrderDelivery,
+  submitCoopOrderStageDelivery,
   type OnlineCoopOrderOverviewResponse,
   type OnlineCoopOrderScope,
+  type OnlineCoopOrderStageEntry,
   type OnlineCoopOrderType,
   type OnlineCoopRewardType,
 } from '@/utils/onlineProfileApi'
@@ -20,6 +25,20 @@ const buildDefaultDeadlineInput = () => {
   const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000)
   return localDate.toISOString().slice(0, 16)
 }
+
+const buildStageDraftId = () => `stage_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+
+const createEmptyStageDraft = (preferredOrderType: OnlineCoopOrderType) => ({
+  id: buildStageDraftId(),
+  title: '',
+  description: '',
+  preferredOrderType,
+  targetItemId: '',
+  targetQuantity: 1,
+})
+
+type StageDraft = ReturnType<typeof createEmptyStageDraft>
+type DeliveryDraft = { itemId: string; quantity: number; note: string }
 
 export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
   const loading = ref(false)
@@ -36,27 +55,27 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
   const rewardValueDraft = ref(200)
   const rewardLabelDraft = ref('铜钱回报')
   const deadlineAtDraft = ref(buildDefaultDeadlineInput())
-  const deliveryDrafts = ref<Record<string, { itemId: string; quantity: number; note: string }>>({})
+  const collaborationModeDraft = ref<'single' | 'multi_stage'>('single')
+  const stageDrafts = ref<StageDraft[]>([])
+  const deliveryDrafts = ref<Record<string, DeliveryDraft>>({})
 
   const myOrders = computed(() =>
     (overview.value?.orders || []).filter(entry => entry.owner_username === currentUsername.value)
   )
 
   const myAcceptedOrders = computed(() =>
-    (overview.value?.orders || []).filter(entry => entry.assignee_username === currentUsername.value)
+    (overview.value?.orders || []).filter(entry =>
+      entry.assignee_username === currentUsername.value ||
+      (entry.stages || []).some(stage => stage.assignee_username === currentUsername.value)
+    )
   )
 
   const visibleOrders = computed(() =>
     (overview.value?.orders || []).filter(entry => entry.owner_username !== currentUsername.value)
   )
 
-  const myReceipts = computed(() =>
-    overview.value?.receipts || []
-  )
-
-  const myCompensations = computed(() =>
-    overview.value?.compensations || []
-  )
+  const myReceipts = computed(() => overview.value?.receipts || [])
+  const myCompensations = computed(() => overview.value?.compensations || [])
 
   const reputationSummary = computed(() =>
     overview.value?.reputation_summary || {
@@ -96,6 +115,16 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     rewardValueDraft.value = 200
     rewardLabelDraft.value = '铜钱回报'
     deadlineAtDraft.value = buildDefaultDeadlineInput()
+    collaborationModeDraft.value = 'single'
+    stageDrafts.value = []
+  }
+
+  const addStageDraft = () => {
+    stageDrafts.value = [...stageDrafts.value, createEmptyStageDraft(orderTypeDraft.value)]
+  }
+
+  const removeStageDraft = (stageId: string) => {
+    stageDrafts.value = stageDrafts.value.filter(stage => stage.id !== stageId)
   }
 
   const submitOrder = async () => {
@@ -117,6 +146,17 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
         reward_type: rewardTypeDraft.value,
         reward_value: Math.max(1, Math.floor(Number(rewardValueDraft.value) || 0)),
         reward_label: rewardLabelDraft.value.trim(),
+        stage_definitions: collaborationModeDraft.value === 'multi_stage'
+          ? stageDrafts.value
+              .map(stage => ({
+                title: stage.title.trim(),
+                description: stage.description.trim(),
+                preferred_order_type: stage.preferredOrderType,
+                target_item_id: stage.targetItemId.trim(),
+                target_quantity: Math.max(1, Math.floor(Number(stage.targetQuantity) || 1)),
+              }))
+              .filter(stage => stage.title)
+          : [],
       })
       resetDrafts()
       await refreshOverview()
@@ -142,6 +182,20 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     }
   }
 
+  const acceptStage = async (orderId: string, stageId: string) => {
+    actionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await acceptCoopOrderStage(orderId, stageId)
+      await refreshOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '接力接单失败'
+      throw error
+    } finally {
+      actionRunning.value = false
+    }
+  }
+
   const cancelAcceptedOrder = async (orderId: string) => {
     actionRunning.value = true
     errorMessage.value = ''
@@ -156,39 +210,70 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     }
   }
 
-  const ensureDeliveryDraft = (orderId: string): { itemId: string; quantity: number; note: string } => {
-    if (!deliveryDrafts.value[orderId]) {
+  const cancelAcceptedStage = async (orderId: string, stageId: string) => {
+    actionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await cancelAcceptedCoopOrderStage(orderId, stageId)
+      await refreshOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '取消阶段接单失败'
+      throw error
+    } finally {
+      actionRunning.value = false
+    }
+  }
+
+  const buildDeliveryDraftKey = (orderId: string, stageId = '') => `${orderId}::${stageId || 'order'}`
+
+  const ensureDeliveryDraft = (orderId: string, stageId = ''): DeliveryDraft => {
+    const draftKey = buildDeliveryDraftKey(orderId, stageId)
+    if (!deliveryDrafts.value[draftKey]) {
       deliveryDrafts.value = {
         ...deliveryDrafts.value,
-        [orderId]: {
+        [draftKey]: {
           itemId: '',
           quantity: 1,
           note: '',
         },
       }
     }
-    return deliveryDrafts.value[orderId]!
+    return deliveryDrafts.value[draftKey]!
   }
 
-  const submitDelivery = async (orderId: string) => {
-    const draft = ensureDeliveryDraft(orderId)
+  const clearDeliveryDraft = (orderId: string, stageId = '') => {
+    const draftKey = buildDeliveryDraftKey(orderId, stageId)
+    deliveryDrafts.value = {
+      ...deliveryDrafts.value,
+      [draftKey]: {
+        itemId: '',
+        quantity: 1,
+        note: '',
+      },
+    }
+  }
+
+  const submitDelivery = async (orderId: string, stageId = '') => {
+    const draft = ensureDeliveryDraft(orderId, stageId)
     actionRunning.value = true
     errorMessage.value = ''
     try {
-      await submitCoopOrderDelivery(orderId, {
-        delivered_items: draft.itemId.trim()
-          ? [{ item_id: draft.itemId.trim(), quantity: Math.max(1, Math.floor(Number(draft.quantity) || 1)) }]
-          : [],
-        result_note: draft.note.trim(),
-      })
-      deliveryDrafts.value = {
-        ...deliveryDrafts.value,
-        [orderId]: {
-          itemId: '',
-          quantity: 1,
-          note: '',
-        },
+      if (stageId) {
+        await submitCoopOrderStageDelivery(orderId, stageId, {
+          delivered_items: draft.itemId.trim()
+            ? [{ item_id: draft.itemId.trim(), quantity: Math.max(1, Math.floor(Number(draft.quantity) || 1)) }]
+            : [],
+          result_note: draft.note.trim(),
+        })
+      } else {
+        await submitCoopOrderDelivery(orderId, {
+          delivered_items: draft.itemId.trim()
+            ? [{ item_id: draft.itemId.trim(), quantity: Math.max(1, Math.floor(Number(draft.quantity) || 1)) }]
+            : [],
+          result_note: draft.note.trim(),
+        })
       }
+      clearDeliveryDraft(orderId, stageId)
       await refreshOverview()
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '提交交付失败'
@@ -198,11 +283,15 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     }
   }
 
-  const confirmDelivery = async (orderId: string) => {
+  const confirmDelivery = async (orderId: string, stageId = '') => {
     actionRunning.value = true
     errorMessage.value = ''
     try {
-      await confirmCoopOrderDelivery(orderId)
+      if (stageId) {
+        await confirmCoopOrderStageDelivery(orderId, stageId)
+      } else {
+        await confirmCoopOrderDelivery(orderId)
+      }
       await refreshOverview()
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '确认交付失败'
@@ -226,6 +315,12 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     }
   }
 
+  const getAssignedStages = (order: { stages?: OnlineCoopOrderStageEntry[] } | null | undefined) =>
+    (order?.stages || []).filter(stage => stage.assignee_username === currentUsername.value)
+
+  const getOpenStages = (order: { stages?: OnlineCoopOrderStageEntry[] } | null | undefined) =>
+    (order?.stages || []).filter(stage => !stage.assignee_username && stage.delivery_status === 'none')
+
   return {
     loading,
     actionRunning,
@@ -240,6 +335,8 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     rewardValueDraft,
     rewardLabelDraft,
     deadlineAtDraft,
+    collaborationModeDraft,
+    stageDrafts,
     deliveryDrafts,
     myOrders,
     myAcceptedOrders,
@@ -249,12 +346,18 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     reputationSummary,
     refreshOverview,
     resetDrafts,
+    addStageDraft,
+    removeStageDraft,
     submitOrder,
     acceptOrder,
+    acceptStage,
     cancelAcceptedOrder,
+    cancelAcceptedStage,
     ensureDeliveryDraft,
     submitDelivery,
     confirmDelivery,
     retryCompensation,
+    getAssignedStages,
+    getOpenStages,
   }
 })

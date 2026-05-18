@@ -205,7 +205,7 @@
       <div class="flex items-center justify-between gap-2 mb-2">
         <div>
           <p class="text-xs text-muted">在线求助单</p>
-          <p class="text-[10px] text-muted mt-1">先把公开 / 好友 / 邻里求助发出去，接单和交付链路会在下一轮继续接。</p>
+          <p class="text-[10px] text-muted mt-1">现在已经支持单人求助和多段接力单，公开 / 好友 / 邻里范围都可以直接在这里组织协作。</p>
         </div>
         <Button class="text-[10px]" :disabled="coopOrderStore.loading || coopOrderStore.actionRunning" @click="refreshCoopOrders">
           {{ coopOrderStore.loading ? '加载中…' : '刷新求助单' }}
@@ -242,6 +242,13 @@
                 <option v-for="option in coopOrderScopeOptions" :key="option.id" :value="option.id">
                   {{ option.label }}
                 </option>
+              </select>
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              协作模式
+              <select v-model="coopOrderStore.collaborationModeDraft" class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
+                <option value="single">单阶段委托</option>
+                <option value="multi_stage">多段接力单</option>
               </select>
             </label>
             <label class="flex flex-col gap-1 text-[10px] text-muted">
@@ -292,8 +299,55 @@
             />
           </label>
 
+          <div v-if="coopOrderStore.collaborationModeDraft === 'multi_stage'" class="border border-accent/10 rounded-xs p-2 space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[10px] text-muted">接力阶段</p>
+              <Button class="text-[10px]" :disabled="coopOrderStore.actionRunning" @click="coopOrderStore.addStageDraft()">新增阶段</Button>
+            </div>
+            <div v-if="coopOrderStore.stageDrafts.length === 0" class="text-[10px] text-muted">当前还没有阶段，请至少补 2 个子目标。</div>
+            <div v-for="(stage, index) in coopOrderStore.stageDrafts" :key="stage.id" class="border border-accent/10 rounded-xs p-2 space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs text-accent">阶段 {{ index + 1 }}</p>
+                <Button class="text-[10px]" :disabled="coopOrderStore.actionRunning" @click="coopOrderStore.removeStageDraft(stage.id)">删除</Button>
+              </div>
+              <div class="grid gap-2 md:grid-cols-2">
+                <input
+                  v-model="stage.title"
+                  maxlength="40"
+                  class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                  placeholder="阶段标题，例如：先补齐冬菜"
+                />
+                <select v-model="stage.preferredOrderType" class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
+                  <option v-for="option in coopOrderTypeOptions" :key="option.id" :value="option.id">
+                    {{ option.label }}
+                  </option>
+                </select>
+                <input
+                  v-model="stage.targetItemId"
+                  maxlength="40"
+                  class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                  placeholder="目标资源 ID，例如 wheat"
+                />
+                <input
+                  v-model.number="stage.targetQuantity"
+                  type="number"
+                  min="1"
+                  class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                  placeholder="数量"
+                />
+              </div>
+              <textarea
+                v-model="stage.description"
+                rows="2"
+                maxlength="120"
+                class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1.5 text-xs text-text outline-none focus:border-accent resize-none"
+                placeholder="告诉接力的人这一段具体要做什么。"
+              />
+            </div>
+          </div>
+
           <div class="flex items-center justify-between gap-2">
-            <p class="text-[10px] text-muted">当前回报可以先走铜钱 / 声望 / 礼物说明，真正结算凭证和交付会在下一轮继续补。</p>
+            <p class="text-[10px] text-muted">单阶段会整单结算；多段接力单会把总回报按阶段拆分，并允许不同人各自完成擅长的一段。</p>
             <Button class="text-[10px]" :disabled="coopOrderStore.actionRunning" @click="submitCoopOrder">
               {{ coopOrderStore.actionRunning ? '发布中…' : '发布求助单' }}
             </Button>
@@ -315,10 +369,63 @@
               <p class="text-[10px] text-muted mt-2">
                 {{ getCoopOrderTypeLabel(order.order_type) }} · 截止 {{ formatCoopDeadline(order.deadline_at) }}
               </p>
-              <p v-if="order.delivery_status !== 'none'" class="text-[10px] text-accent mt-1">
+              <p v-if="order.collaboration_mode !== 'multi_stage' && order.delivery_status !== 'none'" class="text-[10px] text-accent mt-1">
                 交付状态：{{ getCoopDeliveryStatusLabel(order.delivery_status) }}
               </p>
-              <div v-if="order.delivery_status === 'none'" class="grid gap-2 md:grid-cols-[minmax(0,1fr)_100px] mt-2">
+              <div v-if="order.collaboration_mode === 'multi_stage'" class="space-y-2 mt-2">
+                <div v-for="stage in coopOrderStore.getAssignedStages(order)" :key="stage.id" class="border border-accent/10 rounded-xs p-2">
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <p class="text-xs text-accent">阶段 {{ stage.sequence }} · {{ stage.title }}</p>
+                      <p class="text-[10px] text-muted mt-1">{{ stage.description || '这段还没写说明。' }}</p>
+                    </div>
+                    <span class="text-[10px] text-muted">{{ getCoopDeliveryStatusLabel(stage.delivery_status) }}</span>
+                  </div>
+                  <p class="text-[10px] text-muted mt-2">
+                    {{ getCoopOrderTypeLabel(stage.preferred_order_type) }} · 目标 {{ stage.target_item_id || '未指定资源' }} ×{{ stage.target_quantity }}
+                  </p>
+                  <div v-if="stage.delivery_status === 'none'" class="grid gap-2 md:grid-cols-[minmax(0,1fr)_100px] mt-2">
+                    <input
+                      v-model="coopOrderStore.ensureDeliveryDraft(order.id, stage.id).itemId"
+                      class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                      placeholder="资源 ID，例如 wheat"
+                    />
+                    <input
+                      v-model.number="coopOrderStore.ensureDeliveryDraft(order.id, stage.id).quantity"
+                      type="number"
+                      min="1"
+                      class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                      placeholder="数量"
+                    />
+                  </div>
+                  <textarea
+                    v-if="stage.delivery_status === 'none'"
+                    v-model="coopOrderStore.ensureDeliveryDraft(order.id, stage.id).note"
+                    rows="2"
+                    maxlength="160"
+                    class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1.5 text-xs text-text outline-none focus:border-accent resize-none mt-2"
+                    placeholder="说明你完成了这一段什么工作。"
+                  />
+                  <div class="flex justify-end mt-2">
+                    <Button
+                      v-if="stage.delivery_status === 'none'"
+                      class="text-[10px] mr-2"
+                      :disabled="coopOrderStore.actionRunning"
+                      @click="submitCoopStageDeliveryEntry(order.id, stage.id)"
+                    >
+                      提交这一段
+                    </Button>
+                    <Button
+                      class="text-[10px]"
+                      :disabled="coopOrderStore.actionRunning || stage.delivery_status !== 'none'"
+                      @click="cancelAcceptedCoopStageEntry(order.id, stage.id)"
+                    >
+                      取消这一段
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <div v-else-if="order.delivery_status === 'none'" class="grid gap-2 md:grid-cols-[minmax(0,1fr)_100px] mt-2">
                 <input
                   v-model="coopOrderStore.ensureDeliveryDraft(order.id).itemId"
                   class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
@@ -333,14 +440,14 @@
                 />
               </div>
               <textarea
-                v-if="order.delivery_status === 'none'"
+                v-if="order.collaboration_mode !== 'multi_stage' && order.delivery_status === 'none'"
                 v-model="coopOrderStore.ensureDeliveryDraft(order.id).note"
                 rows="2"
                 maxlength="160"
                 class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1.5 text-xs text-text outline-none focus:border-accent resize-none mt-2"
                 placeholder="交付说明，或者说明这次帮了什么。"
               />
-              <div class="flex justify-end mt-2">
+              <div v-if="order.collaboration_mode !== 'multi_stage'" class="flex justify-end mt-2">
                 <Button
                   v-if="order.delivery_status === 'none'"
                   class="text-[10px] mr-2"
@@ -353,6 +460,9 @@
                   取消接单
                 </Button>
               </div>
+              <p v-if="order.collaboration_mode === 'multi_stage' && coopOrderStore.getAssignedStages(order).length === 0" class="text-[10px] text-muted mt-2">
+                当前接的是多段任务，但你还没有占到具体阶段；可以去“当前可见求助单”里接某一段。
+              </p>
             </div>
           </div>
 
@@ -379,7 +489,29 @@
               <p v-if="order.assignee_username" class="text-[10px] text-success mt-1">
                 当前接单人：{{ order.assignee_display_name || order.assignee_username }}
               </p>
-              <div v-if="order.delivery_status === 'submitted'" class="flex justify-end mt-2">
+              <div v-if="order.collaboration_mode === 'multi_stage'" class="space-y-2 mt-2">
+                <div v-for="stage in order.stages || []" :key="stage.id" class="border border-accent/10 rounded-xs p-2">
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <p class="text-xs text-accent">阶段 {{ stage.sequence }} · {{ stage.title }}</p>
+                      <p class="text-[10px] text-muted mt-1">{{ stage.description || '这段还没写说明。' }}</p>
+                    </div>
+                    <span class="text-[10px] text-muted">{{ getCoopDeliveryStatusLabel(stage.delivery_status) }}</span>
+                  </div>
+                  <p class="text-[10px] text-muted mt-2">
+                    {{ getCoopOrderTypeLabel(stage.preferred_order_type) }} · 目标 {{ stage.target_item_id || '未指定资源' }} ×{{ stage.target_quantity }}
+                  </p>
+                  <p v-if="stage.assignee_username" class="text-[10px] text-success mt-1">
+                    当前阶段接单人：{{ stage.assignee_display_name || stage.assignee_username }}
+                  </p>
+                  <div v-if="stage.delivery_status === 'submitted'" class="flex justify-end mt-2">
+                    <Button class="text-[10px]" :disabled="coopOrderStore.actionRunning" @click="confirmCoopStageDeliveryEntry(order.id, stage.id)">
+                      确认这一段
+                    </Button>
+                  </div>
+                </div>
+              </div>
+              <div v-else-if="order.delivery_status === 'submitted'" class="flex justify-end mt-2">
                 <Button class="text-[10px]" :disabled="coopOrderStore.actionRunning" @click="confirmCoopDeliveryEntry(order.id)">
                   确认结算
                 </Button>
@@ -405,10 +537,33 @@
               <p class="text-[10px] text-accent mt-1">
                 回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
               </p>
+              <div v-if="order.collaboration_mode === 'multi_stage'" class="space-y-2 mt-2">
+                <div v-for="stage in coopOrderStore.getOpenStages(order)" :key="stage.id" class="border border-accent/10 rounded-xs p-2">
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <p class="text-xs text-accent">阶段 {{ stage.sequence }} · {{ stage.title }}</p>
+                      <p class="text-[10px] text-muted mt-1">{{ stage.description || '这段还没写说明。' }}</p>
+                    </div>
+                    <span class="text-[10px] text-muted">可接力</span>
+                  </div>
+                  <p class="text-[10px] text-muted mt-2">
+                    {{ getCoopOrderTypeLabel(stage.preferred_order_type) }} · 目标 {{ stage.target_item_id || '未指定资源' }} ×{{ stage.target_quantity }}
+                  </p>
+                  <div class="flex justify-end mt-2">
+                    <Button
+                      class="text-[10px]"
+                      :disabled="coopOrderStore.actionRunning"
+                      @click="acceptCoopStageEntry(order.id, stage.id)"
+                    >
+                      接这一段
+                    </Button>
+                  </div>
+                </div>
+              </div>
               <p v-if="order.assignee_username" class="text-[10px] text-success mt-1">
                 当前接单人：{{ order.assignee_display_name || order.assignee_username }}
               </p>
-              <div class="flex justify-end mt-2">
+              <div v-if="order.collaboration_mode !== 'multi_stage'" class="flex justify-end mt-2">
                 <Button
                   class="text-[10px]"
                   :disabled="coopOrderStore.actionRunning || order.status !== 'open' || !!order.assignee_username"
@@ -426,6 +581,7 @@
             <div v-for="receipt in coopOrderStore.myReceipts" :key="receipt.id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
               <p class="text-xs text-accent">凭证 {{ receipt.id }}</p>
               <p class="text-[10px] text-muted mt-1">状态：{{ getCoopReceiptStatusLabel(receipt.status) }} · 回报：{{ getCoopRewardTypeLabel(receipt.reward_type) }} {{ receipt.reward_value }}</p>
+              <p v-if="receipt.stage_title" class="text-[10px] text-muted mt-1">对应阶段：{{ receipt.stage_title }}</p>
               <p class="text-[10px] text-muted mt-1">交付说明：{{ receipt.result_note || '未填写额外交付说明。' }}</p>
               <p v-if="receipt.help_reputation_delta > 0" class="text-[10px] text-accent mt-1">
                 互助声望 +{{ receipt.help_reputation_delta }} · {{ receipt.trust_level_label || '信赖已更新' }}
@@ -1106,16 +1262,32 @@
     await coopOrderStore.acceptOrder(orderId).catch(() => {})
   }
 
+  const acceptCoopStageEntry = async (orderId: string, stageId: string) => {
+    await coopOrderStore.acceptStage(orderId, stageId).catch(() => {})
+  }
+
   const cancelAcceptedCoopOrderEntry = async (orderId: string) => {
     await coopOrderStore.cancelAcceptedOrder(orderId).catch(() => {})
+  }
+
+  const cancelAcceptedCoopStageEntry = async (orderId: string, stageId: string) => {
+    await coopOrderStore.cancelAcceptedStage(orderId, stageId).catch(() => {})
   }
 
   const submitCoopDeliveryEntry = async (orderId: string) => {
     await coopOrderStore.submitDelivery(orderId).catch(() => {})
   }
 
+  const submitCoopStageDeliveryEntry = async (orderId: string, stageId: string) => {
+    await coopOrderStore.submitDelivery(orderId, stageId).catch(() => {})
+  }
+
   const confirmCoopDeliveryEntry = async (orderId: string) => {
     await coopOrderStore.confirmDelivery(orderId).catch(() => {})
+  }
+
+  const confirmCoopStageDeliveryEntry = async (orderId: string, stageId: string) => {
+    await coopOrderStore.confirmDelivery(orderId, stageId).catch(() => {})
   }
 
   const retryCoopCompensationEntry = async (compensationId: string) => {

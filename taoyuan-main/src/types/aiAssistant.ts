@@ -213,4 +213,5 @@ export interface AiAssistantMessage {
   sources?: string[]
   pending?: boolean
   error?: boolean
+  richStatic?: boolean
 }

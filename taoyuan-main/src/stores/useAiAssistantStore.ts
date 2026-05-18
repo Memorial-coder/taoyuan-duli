@@ -55,6 +55,7 @@ export const useAiAssistantStore = defineStore('aiAssistant', () => {
       role: 'assistant',
       content: publicConfig.value.welcomeMessage,
       createdAt: Date.now(),
+      richStatic: true,
     })
   }
 

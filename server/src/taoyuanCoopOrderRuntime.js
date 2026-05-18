@@ -33,6 +33,7 @@ const ORDER_STATUSES = Object.freeze(['open', 'closed', 'expired']);
 const DELIVERY_STATUSES = Object.freeze(['none', 'submitted', 'confirmed', 'compensation_pending']);
 const RECEIPT_STATUSES = Object.freeze(['pending_owner_confirm', 'confirmed', 'compensation_pending']);
 const COMPENSATION_STATUSES = Object.freeze(['pending', 'resolved']);
+const COLLABORATION_MODES = Object.freeze(['single', 'multi_stage']);
 
 function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
@@ -123,6 +124,11 @@ function normalizeCompensationStatus(value) {
   return COMPENSATION_STATUSES.includes(normalized) ? normalized : 'pending';
 }
 
+function normalizeCollaborationMode(value) {
+  const normalized = String(value || '').trim();
+  return COLLABORATION_MODES.includes(normalized) ? normalized : 'single';
+}
+
 function normalizeDeliveredItem(entry) {
   return {
     item_id: sanitizeText(entry?.item_id, 40),
@@ -130,7 +136,50 @@ function normalizeDeliveredItem(entry) {
   };
 }
 
+function buildRewardShares(totalReward, count) {
+  const safeCount = Math.max(1, Math.floor(Number(count) || 1));
+  const safeTotal = Math.max(0, Math.floor(Number(totalReward) || 0));
+  const base = Math.floor(safeTotal / safeCount);
+  let remainder = safeTotal - base * safeCount;
+  return Array.from({ length: safeCount }, () => {
+    const next = base + (remainder > 0 ? 1 : 0);
+    remainder = Math.max(0, remainder - 1);
+    return next;
+  });
+}
+
+function normalizeOrderStage(entry) {
+  return {
+    id: String(entry?.id || makeId('coop_stage')),
+    title: sanitizeText(entry?.title, 40),
+    description: sanitizeText(entry?.description, 120),
+    preferred_order_type: normalizeOrderType(entry?.preferred_order_type),
+    target_item_id: sanitizeText(entry?.target_item_id, 40),
+    target_quantity: Math.max(1, Math.floor(Number(entry?.target_quantity) || 1)),
+    reward_value: Math.max(0, Math.floor(Number(entry?.reward_value) || 0)),
+    reward_label: sanitizeText(entry?.reward_label, 40),
+    assignee_username: String(entry?.assignee_username || '').trim(),
+    assignee_display_name: sanitizeText(entry?.assignee_display_name, 30) || String(entry?.assignee_username || ''),
+    accepted_at: Math.max(0, Math.floor(Number(entry?.accepted_at) || 0)),
+    canceled_at: Math.max(0, Math.floor(Number(entry?.canceled_at) || 0)),
+    active_receipt_id: String(entry?.active_receipt_id || '').trim(),
+    delivery_status: normalizeDeliveryStatus(entry?.delivery_status),
+    delivery_note: sanitizeText(entry?.delivery_note, 160),
+    delivered_items: Array.isArray(entry?.delivered_items)
+      ? entry.delivered_items.map(normalizeDeliveredItem).filter(item => item.item_id)
+      : [],
+    compensation_id: String(entry?.compensation_id || '').trim(),
+    confirmed_at: Math.max(0, Math.floor(Number(entry?.confirmed_at) || 0)),
+    sequence: Math.max(1, Math.floor(Number(entry?.sequence) || 1)),
+    updated_at: normalizeTimestamp(entry?.updated_at),
+  };
+}
+
 function normalizeOrder(order) {
+  const stages = Array.isArray(order?.stages)
+    ? order.stages.map(normalizeOrderStage).sort((left, right) => left.sequence - right.sequence)
+    : [];
+  const resolvedMode = stages.length > 0 ? 'multi_stage' : normalizeCollaborationMode(order?.collaboration_mode);
   return {
     id: String(order?.id || makeId('coop_order')),
     owner_username: String(order?.owner_username || '').trim(),
@@ -138,6 +187,7 @@ function normalizeOrder(order) {
     title: sanitizeText(order?.title, 40),
     description: sanitizeText(order?.description, 160),
     order_type: normalizeOrderType(order?.order_type),
+    collaboration_mode: resolvedMode,
     scope: normalizeOrderScope(order?.scope),
     deadline_at: Math.max(0, Math.floor(Number(order?.deadline_at) || 0)),
     reward_type: normalizeRewardType(order?.reward_type),
@@ -152,19 +202,27 @@ function normalizeOrder(order) {
     delivery_status: normalizeDeliveryStatus(order?.delivery_status),
     delivery_note: sanitizeText(order?.delivery_note, 160),
     delivered_items: Array.isArray(order?.delivered_items)
-      ? order.delivered_items.map(normalizeDeliveredItem).filter(entry => entry.item_id)
+      ? order.delivered_items.map(normalizeDeliveredItem).filter(item => item.item_id)
       : [],
     settlement_confirmed_at: Math.max(0, Math.floor(Number(order?.settlement_confirmed_at) || 0)),
     compensation_id: String(order?.compensation_id || '').trim(),
+    stages,
     created_at: normalizeTimestamp(order?.created_at),
     updated_at: normalizeTimestamp(order?.updated_at),
   };
 }
 
 function normalizeSettlementReceipt(entry) {
+  const deliveredItems = Array.isArray(entry?.delivered_items)
+    ? entry.delivered_items.map(normalizeDeliveredItem).filter(item => item.item_id)
+    : [];
+  const deliveredTotalQuantity = deliveredItems.reduce((sum, item) => sum + item.quantity, 0);
+  const targetQuantity = Math.max(0, Math.floor(Number(entry?.target_quantity) || 0));
   return {
     id: String(entry?.id || makeId('coop_receipt')),
     order_id: String(entry?.order_id || '').trim(),
+    stage_id: String(entry?.stage_id || '').trim(),
+    stage_title: sanitizeText(entry?.stage_title, 40),
     owner_username: String(entry?.owner_username || '').trim(),
     owner_display_name: sanitizeText(entry?.owner_display_name, 30) || String(entry?.owner_username || ''),
     assignee_username: String(entry?.assignee_username || '').trim(),
@@ -172,9 +230,7 @@ function normalizeSettlementReceipt(entry) {
     reward_type: normalizeRewardType(entry?.reward_type),
     reward_value: Math.max(0, Math.floor(Number(entry?.reward_value) || 0)),
     reward_label: sanitizeText(entry?.reward_label, 40),
-    delivered_items: Array.isArray(entry?.delivered_items)
-      ? entry.delivered_items.map(normalizeDeliveredItem).filter(item => item.item_id)
-      : [],
+    delivered_items: deliveredItems,
     result_note: sanitizeText(entry?.result_note, 160),
     idempotency_key: sanitizeText(entry?.idempotency_key, 120),
     status: normalizeReceiptStatus(entry?.status),
@@ -183,6 +239,9 @@ function normalizeSettlementReceipt(entry) {
     help_reputation_delta: Math.max(0, Math.floor(Number(entry?.help_reputation_delta) || 0)),
     specialty_reputation_delta: Math.max(0, Math.floor(Number(entry?.specialty_reputation_delta) || 0)),
     trust_level_label: sanitizeText(entry?.trust_level_label, 20),
+    target_quantity: targetQuantity,
+    delivered_total_quantity: Math.max(0, Math.floor(Number(entry?.delivered_total_quantity) || deliveredTotalQuantity)),
+    overfulfilled_quantity: Math.max(0, Math.floor(Number(entry?.overfulfilled_quantity) || Math.max(0, deliveredTotalQuantity - targetQuantity))),
     created_at: normalizeTimestamp(entry?.created_at),
     confirmed_at: Math.max(0, Math.floor(Number(entry?.confirmed_at) || 0)),
     updated_at: normalizeTimestamp(entry?.updated_at),
@@ -194,6 +253,8 @@ function normalizeCompensationRecord(entry) {
     id: String(entry?.id || makeId('coop_compensation')),
     receipt_id: String(entry?.receipt_id || '').trim(),
     order_id: String(entry?.order_id || '').trim(),
+    stage_id: String(entry?.stage_id || '').trim(),
+    stage_title: sanitizeText(entry?.stage_title, 40),
     owner_username: String(entry?.owner_username || '').trim(),
     assignee_username: String(entry?.assignee_username || '').trim(),
     reward_type: normalizeRewardType(entry?.reward_type),
@@ -309,14 +370,26 @@ function buildViewerTrustSummary(store, viewerUsername) {
 }
 
 function buildOrderPriority(order, viewerSummary) {
-  const specialtyScore = Math.max(0, Math.floor(Number(viewerSummary?.by_order_type?.[order.order_type]) || 0));
+  const openStages = Array.isArray(order.stages)
+    ? order.stages.filter(stage => !stage.assignee_username && stage.delivery_status === 'none')
+    : [];
+  const candidateTypes = openStages.length > 0
+    ? openStages.map(stage => stage.preferred_order_type)
+    : [order.order_type];
+  const specialtyScore = candidateTypes.reduce((maxScore, type) => {
+    const score = Math.max(0, Math.floor(Number(viewerSummary?.by_order_type?.[type]) || 0));
+    return Math.max(maxScore, score);
+  }, 0);
+  const matchingStage = openStages.find(stage => Math.max(0, Math.floor(Number(viewerSummary?.by_order_type?.[stage.preferred_order_type]) || 0)) > 0) || null;
   const trustTarget = Array.isArray(viewerSummary?.top_helped_targets)
     ? viewerSummary.top_helped_targets.find(entry => entry.username === order.owner_username)
     : null;
   const helperScore = trustTarget ? Math.max(0, trustTarget.help_count * 3 + trustTarget.total_points) : 0;
-  const priorityScore = specialtyScore * 4 + helperScore;
+  const priorityScore = specialtyScore * 4 + helperScore + (matchingStage ? 2 : 0);
   const priorityReasons = [];
-  if (specialtyScore > 0) {
+  if (matchingStage) {
+    priorityReasons.push(`你更适合阶段「${matchingStage.title}」`);
+  } else if (specialtyScore > 0) {
     priorityReasons.push(`你在 ${order.order_type} 方向已有 ${specialtyScore} 点互助积累`);
   }
   if (trustTarget) {
@@ -348,6 +421,10 @@ function findOrderById(store, orderId) {
     .find(order => order.id === String(orderId || '').trim()) || null;
 }
 
+function findStageById(order, stageId) {
+  return (order?.stages || []).find(stage => stage.id === String(stageId || '').trim()) || null;
+}
+
 function findReceiptById(store, receiptId) {
   return store.receipts
     .map(normalizeSettlementReceipt)
@@ -366,8 +443,41 @@ function findReceiptByIdempotencyKey(store, idempotencyKey) {
     .find(receipt => receipt.idempotency_key === String(idempotencyKey || '').trim()) || null;
 }
 
-function buildReceiptIdempotencyKey(order) {
+function buildOrderReceiptIdempotencyKey(order) {
   return `coop-order:${order.id}:assignee:${order.assignee_username}:accepted:${order.accepted_at || 0}`;
+}
+
+function buildStageReceiptIdempotencyKey(order, stage) {
+  return `coop-order:${order.id}:stage:${stage.id}:assignee:${stage.assignee_username}:accepted:${stage.accepted_at || 0}`;
+}
+
+function syncMultiStageOrder(order) {
+  const normalized = normalizeOrder(order);
+  if (normalized.collaboration_mode !== 'multi_stage') return normalized;
+  const stages = normalized.stages || [];
+  const anyCompensation = stages.some(stage => stage.delivery_status === 'compensation_pending');
+  const allSettled = stages.length > 0 && stages.every(stage => ['confirmed', 'compensation_pending'].includes(stage.delivery_status));
+  const anyProgress = stages.some(stage => stage.assignee_username || stage.delivery_status !== 'none');
+  return normalizeOrder({
+    ...normalized,
+    status: normalized.status === 'expired' ? 'expired' : allSettled ? 'closed' : 'open',
+    delivery_status: anyCompensation ? 'compensation_pending' : allSettled ? 'confirmed' : anyProgress ? 'submitted' : 'none',
+    assignee_username: '',
+    assignee_display_name: '',
+    accepted_at: 0,
+    active_receipt_id: '',
+    delivery_note: '',
+    delivered_items: [],
+    compensation_id: anyCompensation ? (stages.find(stage => stage.compensation_id)?.compensation_id || '') : '',
+    settlement_confirmed_at: allSettled ? Math.max(0, ...stages.map(stage => stage.confirmed_at || 0)) : 0,
+  });
+}
+
+function updateStoredOrder(store, nextOrder) {
+  store.orders = store.orders.map(entry => {
+    const normalized = normalizeOrder(entry);
+    return normalized.id === nextOrder.id ? nextOrder : normalized;
+  });
 }
 
 function markExpiredOrders(store) {
@@ -375,18 +485,36 @@ function markExpiredOrders(store) {
   let changed = false;
   const nextOrders = store.orders.map(entry => {
     const order = normalizeOrder(entry);
-    if (order.status === 'open' && order.deadline_at > 0 && order.deadline_at <= now) {
-      changed = true;
-      return {
+    if (order.status !== 'open' || order.deadline_at <= 0 || order.deadline_at > now) return order;
+    changed = true;
+    if (order.collaboration_mode === 'multi_stage') {
+      const stages = order.stages.map(stage => {
+        if (stage.delivery_status === 'none') {
+          return normalizeOrderStage({
+            ...stage,
+            assignee_username: '',
+            assignee_display_name: '',
+            accepted_at: 0,
+            updated_at: now,
+          });
+        }
+        return stage;
+      });
+      return syncMultiStageOrder({
         ...order,
         status: 'expired',
-        assignee_username: '',
-        assignee_display_name: '',
-        accepted_at: 0,
         updated_at: now,
-      };
+        stages,
+      });
     }
-    return order;
+    return normalizeOrder({
+      ...order,
+      status: 'expired',
+      assignee_username: '',
+      assignee_display_name: '',
+      accepted_at: 0,
+      updated_at: now,
+    });
   });
   if (changed) {
     store.orders = nextOrders;
@@ -397,9 +525,7 @@ function markExpiredOrders(store) {
 
 function applyMoneyReward(username, amount) {
   const rewardAmount = Math.max(0, Math.floor(Number(amount) || 0));
-  if (rewardAmount <= 0) {
-    return { money: 0, slot: null };
-  }
+  if (rewardAmount <= 0) return { money: 0, slot: null };
   const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源服务端存档，无法写入协作委托奖励');
   context.username = username;
   const currentMoney = Math.max(0, Math.floor(Number(context.data?.player?.money) || 0));
@@ -411,14 +537,15 @@ function applyMoneyReward(username, amount) {
   };
 }
 
-function applyReputationReward(store, receipt, order) {
-  const username = receipt.assignee_username;
+function applyExplicitReputationReward(store, username, specialtyType, amount) {
+  const rewardAmount = Math.max(0, Math.floor(Number(amount) || 0));
+  if (rewardAmount <= 0) return normalizeReputationProfile(store.reputations?.[username] || {});
   const current = normalizeReputationProfile(store.reputations?.[username] || {});
   const next = normalizeReputationProfile({
-    total: current.total + receipt.reward_value,
+    total: current.total + rewardAmount,
     by_order_type: {
       ...current.by_order_type,
-      [order.order_type]: (current.by_order_type[order.order_type] || 0) + receipt.reward_value,
+      [specialtyType]: (current.by_order_type[specialtyType] || 0) + rewardAmount,
     },
     completed_count: current.completed_count,
     updated_at: Math.floor(Date.now() / 1000),
@@ -427,8 +554,7 @@ function applyReputationReward(store, receipt, order) {
   return next;
 }
 
-function applyMutualAidReputation(store, order, receipt) {
-  const username = receipt.assignee_username;
+function applyMutualAidReputation(store, username, specialtyType, receipt) {
   const current = normalizeReputationProfile(store.reputations?.[username] || {});
   const deliveredQuantity = Array.isArray(receipt.delivered_items)
     ? receipt.delivered_items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0)
@@ -444,7 +570,7 @@ function applyMutualAidReputation(store, order, receipt) {
     total: current.total + helpReputationDelta,
     by_order_type: {
       ...current.by_order_type,
-      [order.order_type]: (current.by_order_type[order.order_type] || 0) + helpReputationDelta,
+      [specialtyType]: (current.by_order_type[specialtyType] || 0) + helpReputationDelta,
     },
     completed_count: current.completed_count + 1,
     updated_at: Math.floor(Date.now() / 1000),
@@ -462,14 +588,16 @@ function buildCompensationReason(error) {
   return sanitizeText(error?.message || fallback, 160) || fallback;
 }
 
-function buildCompensationRecord(order, receipt, error) {
+function buildCompensationRecord(order, receipt, error, stage = null) {
   const now = Math.floor(Date.now() / 1000);
   return normalizeCompensationRecord({
     id: makeId('coop_compensation'),
     receipt_id: receipt.id,
     order_id: order.id,
+    stage_id: stage?.id || receipt.stage_id || '',
+    stage_title: stage?.title || receipt.stage_title || '',
     owner_username: order.owner_username,
-    assignee_username: order.assignee_username,
+    assignee_username: receipt.assignee_username,
     reward_type: receipt.reward_type,
     reward_value: receipt.reward_value,
     reward_label: receipt.reward_label,
@@ -483,24 +611,21 @@ function buildCompensationRecord(order, receipt, error) {
   });
 }
 
-function applyRewardByReceipt(store, order, receipt) {
+function applyRewardByReceipt(store, receipt, specialtyType) {
   if (receipt.reward_type === 'money') {
     const rewardState = applyMoneyReward(receipt.assignee_username, receipt.reward_value);
     return {
       reward_result: `铜钱已写入槽位 ${Number(rewardState.slot) + 1}`,
-      compensationNeeded: false,
     };
   }
   if (receipt.reward_type === 'reputation') {
-    applyReputationReward(store, receipt, order);
+    applyExplicitReputationReward(store, receipt.assignee_username, specialtyType, receipt.reward_value);
     return {
-      reward_result: '互助声望已记录',
-      compensationNeeded: false,
+      reward_result: '额外声望已写入',
     };
   }
   return {
     reward_result: '礼物回报已记录，后续可按回包条目继续补发',
-    compensationNeeded: false,
   };
 }
 
@@ -522,6 +647,51 @@ async function createCoopOrder(payload = {}, actor = {}) {
   const rewardValue = Math.max(0, Math.floor(Number(payload.reward_value) || 0));
   if (rewardValue <= 0) throw createError('回报数值至少为 1');
 
+  const rawStageDefinitions = Array.isArray(payload.stage_definitions)
+    ? payload.stage_definitions
+        .map(entry => ({
+          title: sanitizeText(entry?.title, 40),
+          description: sanitizeText(entry?.description, 120),
+          preferred_order_type: normalizeOrderType(entry?.preferred_order_type || payload.order_type),
+          target_item_id: sanitizeText(entry?.target_item_id, 40),
+          target_quantity: Math.max(1, Math.floor(Number(entry?.target_quantity) || 1)),
+        }))
+        .filter(entry => entry.title.length >= 2)
+    : [];
+
+  if (Array.isArray(payload.stage_definitions) && payload.stage_definitions.length > 0 && rawStageDefinitions.length < 2) {
+    throw createError('多段任务至少需要 2 个有效子目标');
+  }
+
+  if (rawStageDefinitions.length > 0 && rewardValue < rawStageDefinitions.length) {
+    throw createError('多段任务的回报数值至少要覆盖每个阶段');
+  }
+
+  const stageRewards = buildRewardShares(rewardValue, rawStageDefinitions.length);
+  const stages = rawStageDefinitions.map((stage, index) => normalizeOrderStage({
+    id: makeId('coop_stage'),
+    title: stage.title,
+    description: stage.description,
+    preferred_order_type: stage.preferred_order_type,
+    target_item_id: stage.target_item_id,
+    target_quantity: stage.target_quantity,
+    reward_value: stageRewards[index] || 0,
+    reward_label: payload.reward_label,
+    sequence: index + 1,
+    assignee_username: '',
+    assignee_display_name: '',
+    accepted_at: 0,
+    canceled_at: 0,
+    active_receipt_id: '',
+    delivery_status: 'none',
+    delivery_note: '',
+    delivered_items: [],
+    compensation_id: '',
+    confirmed_at: 0,
+    updated_at: now,
+  }));
+
+  const collaborationMode = stages.length > 0 ? 'multi_stage' : 'single';
   const store = loadCoopOrderStore();
   markExpiredOrders(store);
   const order = normalizeOrder({
@@ -531,6 +701,7 @@ async function createCoopOrder(payload = {}, actor = {}) {
     title,
     description,
     order_type: payload.order_type,
+    collaboration_mode: collaborationMode,
     scope: payload.scope,
     deadline_at: deadlineAt,
     reward_type: payload.reward_type,
@@ -547,13 +718,14 @@ async function createCoopOrder(payload = {}, actor = {}) {
     delivered_items: [],
     settlement_confirmed_at: 0,
     compensation_id: '',
+    stages,
     created_at: now,
     updated_at: now,
   });
 
-  store.orders = [order, ...store.orders.map(normalizeOrder)];
+  store.orders = [collaborationMode === 'multi_stage' ? syncMultiStageOrder(order) : order, ...store.orders.map(normalizeOrder)];
   saveCoopOrderStore(store);
-  return order;
+  return store.orders[0];
 }
 
 async function acceptCoopOrder(orderId, actor = {}) {
@@ -566,6 +738,7 @@ async function acceptCoopOrder(orderId, actor = {}) {
   markExpiredOrders(store);
   const order = findOrderById(store, orderId);
   if (!order) throw createError('求助单不存在', 404);
+  if (order.collaboration_mode === 'multi_stage') throw createError('这张求助单是多段接力单，请直接接具体阶段');
   if (order.owner_username === assigneeUsername) throw createError('不能接自己发布的求助单');
   if (!isOrderVisibleToViewer(order, assigneeUsername)) throw createError('当前无权接这张求助单', 403);
   if (order.status !== 'open') throw createError(order.status === 'expired' ? '求助单已过期' : '求助单当前不可接');
@@ -579,12 +752,54 @@ async function acceptCoopOrder(orderId, actor = {}) {
     accepted_at: now,
     updated_at: now,
   });
-  store.orders = store.orders.map(entry => {
-    const normalized = normalizeOrder(entry);
-    return normalized.id === nextOrder.id ? nextOrder : normalized;
-  });
+  updateStoredOrder(store, nextOrder);
   saveCoopOrderStore(store);
   return nextOrder;
+}
+
+async function acceptCoopOrderStage(orderId, stageId, actor = {}) {
+  const assigneeUsername = String(actor.username || '').trim();
+  if (!assigneeUsername) throw createError('请先登录后再接力接单', 401);
+  const assigneeUser = await db.getUser(assigneeUsername);
+  if (!assigneeUser) throw createError('当前玩家不存在', 404);
+
+  const store = loadCoopOrderStore();
+  markExpiredOrders(store);
+  const order = findOrderById(store, orderId);
+  if (!order) throw createError('求助单不存在', 404);
+  if (order.collaboration_mode !== 'multi_stage') throw createError('当前求助单不是多段任务');
+  if (order.owner_username === assigneeUsername) throw createError('不能接自己发布的求助单');
+  if (!isOrderVisibleToViewer(order, assigneeUsername)) throw createError('当前无权接这张求助单', 403);
+  if (order.status !== 'open') throw createError(order.status === 'expired' ? '求助单已过期' : '求助单当前不可接');
+
+  const stage = findStageById(order, stageId);
+  if (!stage) throw createError('目标阶段不存在', 404);
+  if (stage.assignee_username) throw createError('这一段已经有人接下了');
+  if (stage.delivery_status !== 'none') throw createError('这一段当前不可接');
+
+  const now = Math.floor(Date.now() / 1000);
+  const stages = order.stages.map(item =>
+    item.id === stage.id
+      ? normalizeOrderStage({
+          ...item,
+          assignee_username: assigneeUsername,
+          assignee_display_name: actor.displayName || assigneeUser.display_name || assigneeUsername,
+          accepted_at: now,
+          updated_at: now,
+        })
+      : item
+  );
+  const nextOrder = syncMultiStageOrder({
+    ...order,
+    stages,
+    updated_at: now,
+  });
+  updateStoredOrder(store, nextOrder);
+  saveCoopOrderStore(store);
+  return {
+    order: nextOrder,
+    stage: findStageById(nextOrder, stage.id),
+  };
 }
 
 async function cancelAcceptedCoopOrder(orderId, actor = {}) {
@@ -595,6 +810,7 @@ async function cancelAcceptedCoopOrder(orderId, actor = {}) {
   markExpiredOrders(store);
   const order = findOrderById(store, orderId);
   if (!order) throw createError('求助单不存在', 404);
+  if (order.collaboration_mode === 'multi_stage') throw createError('这张求助单是多段任务，请取消具体阶段');
   if (order.status !== 'open') throw createError(order.status === 'expired' ? '求助单已过期，不能取消接单' : '求助单当前不可取消');
   if (!order.assignee_username) throw createError('当前还没有人接这张求助单');
   if (order.assignee_username !== actorUsername) throw createError('只有当前接单人可以取消接单', 403);
@@ -609,12 +825,52 @@ async function cancelAcceptedCoopOrder(orderId, actor = {}) {
     canceled_at: now,
     updated_at: now,
   });
-  store.orders = store.orders.map(entry => {
-    const normalized = normalizeOrder(entry);
-    return normalized.id === nextOrder.id ? nextOrder : normalized;
-  });
+  updateStoredOrder(store, nextOrder);
   saveCoopOrderStore(store);
   return nextOrder;
+}
+
+async function cancelAcceptedCoopOrderStage(orderId, stageId, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录后再取消阶段接单', 401);
+
+  const store = loadCoopOrderStore();
+  markExpiredOrders(store);
+  const order = findOrderById(store, orderId);
+  if (!order) throw createError('求助单不存在', 404);
+  if (order.collaboration_mode !== 'multi_stage') throw createError('当前求助单不是多段任务');
+  if (order.status !== 'open') throw createError(order.status === 'expired' ? '求助单已过期，不能取消阶段接单' : '求助单当前不可取消');
+
+  const stage = findStageById(order, stageId);
+  if (!stage) throw createError('目标阶段不存在', 404);
+  if (!stage.assignee_username) throw createError('当前还没有人接下这一段');
+  if (stage.assignee_username !== actorUsername) throw createError('只有当前接单人可以取消这一段', 403);
+  if (stage.delivery_status !== 'none') throw createError('这一段已经进入交付流程，不能再取消');
+
+  const now = Math.floor(Date.now() / 1000);
+  const stages = order.stages.map(item =>
+    item.id === stage.id
+      ? normalizeOrderStage({
+          ...item,
+          assignee_username: '',
+          assignee_display_name: '',
+          accepted_at: 0,
+          canceled_at: now,
+          updated_at: now,
+        })
+      : item
+  );
+  const nextOrder = syncMultiStageOrder({
+    ...order,
+    stages,
+    updated_at: now,
+  });
+  updateStoredOrder(store, nextOrder);
+  saveCoopOrderStore(store);
+  return {
+    order: nextOrder,
+    stage: findStageById(nextOrder, stage.id),
+  };
 }
 
 async function submitCoopOrderDelivery(orderId, payload = {}, actor = {}) {
@@ -625,15 +881,12 @@ async function submitCoopOrderDelivery(orderId, payload = {}, actor = {}) {
   markExpiredOrders(store);
   const order = findOrderById(store, orderId);
   if (!order) throw createError('求助单不存在', 404);
+  if (order.collaboration_mode === 'multi_stage') throw createError('这张求助单是多段任务，请提交具体阶段的交付');
   if (order.assignee_username !== actorUsername) throw createError('只有当前接单人可以提交交付', 403);
   if (order.delivery_status !== 'none') {
     const existingReceipt = order.active_receipt_id ? findReceiptById(store, order.active_receipt_id) : null;
     if (existingReceipt && existingReceipt.assignee_username === actorUsername) {
-      return {
-        order,
-        receipt: existingReceipt,
-        duplicate_protected: true,
-      };
+      return { order, receipt: existingReceipt, duplicate_protected: true };
     }
     throw createError('这张求助单已经提交过交付记录');
   }
@@ -647,20 +900,19 @@ async function submitCoopOrderDelivery(orderId, payload = {}, actor = {}) {
     throw createError('请至少填写一条资源记录或交付说明');
   }
 
-  const idempotencyKey = buildReceiptIdempotencyKey(order);
+  const idempotencyKey = buildOrderReceiptIdempotencyKey(order);
   const existingReceipt = findReceiptByIdempotencyKey(store, idempotencyKey);
   if (existingReceipt) {
-    return {
-      order,
-      receipt: existingReceipt,
-      duplicate_protected: true,
-    };
+    return { order, receipt: existingReceipt, duplicate_protected: true };
   }
 
   const now = Math.floor(Date.now() / 1000);
+  const deliveredTotalQuantity = deliveredItems.reduce((sum, item) => sum + item.quantity, 0);
   const receipt = normalizeSettlementReceipt({
     id: makeId('coop_receipt'),
     order_id: order.id,
+    stage_id: '',
+    stage_title: '',
     owner_username: order.owner_username,
     owner_display_name: order.owner_display_name,
     assignee_username: order.assignee_username,
@@ -677,6 +929,9 @@ async function submitCoopOrderDelivery(orderId, payload = {}, actor = {}) {
     help_reputation_delta: 0,
     specialty_reputation_delta: 0,
     trust_level_label: '',
+    target_quantity: 0,
+    delivered_total_quantity: deliveredTotalQuantity,
+    overfulfilled_quantity: 0,
     created_at: now,
     confirmed_at: 0,
     updated_at: now,
@@ -693,13 +948,106 @@ async function submitCoopOrderDelivery(orderId, payload = {}, actor = {}) {
   });
 
   store.receipts = [receipt, ...store.receipts.map(normalizeSettlementReceipt)];
-  store.orders = store.orders.map(entry => {
-    const normalized = normalizeOrder(entry);
-    return normalized.id === nextOrder.id ? nextOrder : normalized;
-  });
+  updateStoredOrder(store, nextOrder);
   saveCoopOrderStore(store);
   return {
     order: nextOrder,
+    receipt,
+    duplicate_protected: false,
+  };
+}
+
+async function submitCoopOrderStageDelivery(orderId, stageId, payload = {}, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录后再提交阶段交付', 401);
+
+  const store = loadCoopOrderStore();
+  markExpiredOrders(store);
+  const order = findOrderById(store, orderId);
+  if (!order) throw createError('求助单不存在', 404);
+  if (order.collaboration_mode !== 'multi_stage') throw createError('当前求助单不是多段任务');
+  if (order.status !== 'open') throw createError(order.status === 'expired' ? '求助单已过期，不能提交交付' : '求助单当前不可提交');
+
+  const stage = findStageById(order, stageId);
+  if (!stage) throw createError('目标阶段不存在', 404);
+  if (stage.assignee_username !== actorUsername) throw createError('只有当前阶段接单人可以提交交付', 403);
+  if (stage.delivery_status !== 'none') {
+    const existingReceipt = stage.active_receipt_id ? findReceiptById(store, stage.active_receipt_id) : null;
+    if (existingReceipt && existingReceipt.assignee_username === actorUsername) {
+      return { order, stage, receipt: existingReceipt, duplicate_protected: true };
+    }
+    throw createError('这一段已经提交过交付记录');
+  }
+
+  const deliveredItems = Array.isArray(payload.delivered_items)
+    ? payload.delivered_items.map(normalizeDeliveredItem).filter(item => item.item_id)
+    : [];
+  const resultNote = sanitizeText(payload.result_note, 160);
+  if (deliveredItems.length === 0 && resultNote.length < 2) {
+    throw createError('请至少填写一条资源记录或交付说明');
+  }
+
+  const idempotencyKey = buildStageReceiptIdempotencyKey(order, stage);
+  const existingReceipt = findReceiptByIdempotencyKey(store, idempotencyKey);
+  if (existingReceipt) {
+    return { order, stage, receipt: existingReceipt, duplicate_protected: true };
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const deliveredTotalQuantity = deliveredItems.reduce((sum, item) => sum + item.quantity, 0);
+  const receipt = normalizeSettlementReceipt({
+    id: makeId('coop_receipt'),
+    order_id: order.id,
+    stage_id: stage.id,
+    stage_title: stage.title,
+    owner_username: order.owner_username,
+    owner_display_name: order.owner_display_name,
+    assignee_username: stage.assignee_username,
+    assignee_display_name: stage.assignee_display_name,
+    reward_type: order.reward_type,
+    reward_value: stage.reward_value,
+    reward_label: stage.reward_label || order.reward_label,
+    delivered_items: deliveredItems,
+    result_note: resultNote,
+    idempotency_key: idempotencyKey,
+    status: 'pending_owner_confirm',
+    reward_result: '',
+    compensation_id: '',
+    help_reputation_delta: 0,
+    specialty_reputation_delta: 0,
+    trust_level_label: '',
+    target_quantity: stage.target_quantity,
+    delivered_total_quantity: deliveredTotalQuantity,
+    overfulfilled_quantity: Math.max(0, deliveredTotalQuantity - stage.target_quantity),
+    created_at: now,
+    confirmed_at: 0,
+    updated_at: now,
+  });
+
+  const stages = order.stages.map(item =>
+    item.id === stage.id
+      ? normalizeOrderStage({
+          ...item,
+          active_receipt_id: receipt.id,
+          delivery_status: 'submitted',
+          delivery_note: resultNote,
+          delivered_items: deliveredItems,
+          updated_at: now,
+        })
+      : item
+  );
+  const nextOrder = syncMultiStageOrder({
+    ...order,
+    stages,
+    updated_at: now,
+  });
+
+  store.receipts = [receipt, ...store.receipts.map(normalizeSettlementReceipt)];
+  updateStoredOrder(store, nextOrder);
+  saveCoopOrderStore(store);
+  return {
+    order: nextOrder,
+    stage: findStageById(nextOrder, stage.id),
     receipt,
     duplicate_protected: false,
   };
@@ -712,6 +1060,7 @@ async function confirmCoopOrderDelivery(orderId, actor = {}) {
   const store = loadCoopOrderStore();
   const order = findOrderById(store, orderId);
   if (!order) throw createError('求助单不存在', 404);
+  if (order.collaboration_mode === 'multi_stage') throw createError('这张求助单是多段任务，请确认具体阶段');
   if (order.owner_username !== actorUsername) throw createError('只有发布人可以确认交付', 403);
   if (order.delivery_status !== 'submitted') throw createError('当前没有待确认的交付记录');
   if (!order.active_receipt_id) throw createError('当前求助单缺少结算凭证');
@@ -720,9 +1069,14 @@ async function confirmCoopOrderDelivery(orderId, actor = {}) {
   if (!receipt) throw createError('结算凭证不存在', 404);
   if (receipt.status !== 'pending_owner_confirm') throw createError('这张结算凭证已经处理过了');
 
+  const specialtyType = order.order_type;
   const now = Math.floor(Date.now() / 1000);
+  const reputationOutcome = applyMutualAidReputation(store, receipt.assignee_username, specialtyType, receipt);
   let nextReceipt = normalizeSettlementReceipt({
     ...receipt,
+    help_reputation_delta: reputationOutcome.helpReputationDelta,
+    specialty_reputation_delta: reputationOutcome.specialtyReputationDelta,
+    trust_level_label: reputationOutcome.trustLevel.label,
     updated_at: now,
     confirmed_at: now,
   });
@@ -731,16 +1085,9 @@ async function confirmCoopOrderDelivery(orderId, actor = {}) {
     settlement_confirmed_at: now,
     updated_at: now,
   });
-  const reputationOutcome = applyMutualAidReputation(store, order, receipt);
-  nextReceipt = normalizeSettlementReceipt({
-    ...nextReceipt,
-    help_reputation_delta: reputationOutcome.helpReputationDelta,
-    specialty_reputation_delta: reputationOutcome.specialtyReputationDelta,
-    trust_level_label: reputationOutcome.trustLevel.label,
-  });
 
   try {
-    const rewardOutcome = applyRewardByReceipt(store, order, receipt);
+    const rewardOutcome = applyRewardByReceipt(store, nextReceipt, specialtyType);
     nextReceipt = normalizeSettlementReceipt({
       ...nextReceipt,
       status: 'confirmed',
@@ -753,7 +1100,7 @@ async function confirmCoopOrderDelivery(orderId, actor = {}) {
       compensation_id: '',
     });
   } catch (error) {
-    const compensation = buildCompensationRecord(order, receipt, error);
+    const compensation = buildCompensationRecord(order, nextReceipt, error);
     nextReceipt = normalizeSettlementReceipt({
       ...nextReceipt,
       status: 'compensation_pending',
@@ -772,15 +1119,98 @@ async function confirmCoopOrderDelivery(orderId, actor = {}) {
     const normalized = normalizeSettlementReceipt(entry);
     return normalized.id === nextReceipt.id ? nextReceipt : normalized;
   });
-  store.orders = store.orders.map(entry => {
-    const normalized = normalizeOrder(entry);
-    return normalized.id === nextOrder.id ? nextOrder : normalized;
-  });
+  updateStoredOrder(store, nextOrder);
   saveCoopOrderStore(store);
   return {
     order: nextOrder,
     receipt: nextReceipt,
     compensation: nextOrder.compensation_id ? findCompensationById(store, nextOrder.compensation_id) : null,
+  };
+}
+
+async function confirmCoopOrderStageDelivery(orderId, stageId, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录后再确认阶段交付', 401);
+
+  const store = loadCoopOrderStore();
+  const order = findOrderById(store, orderId);
+  if (!order) throw createError('求助单不存在', 404);
+  if (order.collaboration_mode !== 'multi_stage') throw createError('当前求助单不是多段任务');
+  if (order.owner_username !== actorUsername) throw createError('只有发布人可以确认阶段交付', 403);
+
+  const stage = findStageById(order, stageId);
+  if (!stage) throw createError('目标阶段不存在', 404);
+  if (stage.delivery_status !== 'submitted') throw createError('当前阶段没有待确认的交付记录');
+  if (!stage.active_receipt_id) throw createError('当前阶段缺少结算凭证');
+
+  const receipt = findReceiptById(store, stage.active_receipt_id);
+  if (!receipt) throw createError('结算凭证不存在', 404);
+  if (receipt.status !== 'pending_owner_confirm') throw createError('这张结算凭证已经处理过了');
+
+  const specialtyType = stage.preferred_order_type || order.order_type;
+  const now = Math.floor(Date.now() / 1000);
+  const reputationOutcome = applyMutualAidReputation(store, receipt.assignee_username, specialtyType, receipt);
+  let nextReceipt = normalizeSettlementReceipt({
+    ...receipt,
+    help_reputation_delta: reputationOutcome.helpReputationDelta,
+    specialty_reputation_delta: reputationOutcome.specialtyReputationDelta,
+    trust_level_label: reputationOutcome.trustLevel.label,
+    updated_at: now,
+    confirmed_at: now,
+  });
+  let nextStage = normalizeOrderStage({
+    ...stage,
+    confirmed_at: now,
+    updated_at: now,
+  });
+
+  try {
+    const rewardOutcome = applyRewardByReceipt(store, nextReceipt, specialtyType);
+    nextReceipt = normalizeSettlementReceipt({
+      ...nextReceipt,
+      status: 'confirmed',
+      reward_result: rewardOutcome.reward_result,
+      compensation_id: '',
+    });
+    nextStage = normalizeOrderStage({
+      ...nextStage,
+      delivery_status: 'confirmed',
+      compensation_id: '',
+    });
+  } catch (error) {
+    const compensation = buildCompensationRecord(order, nextReceipt, error, stage);
+    nextReceipt = normalizeSettlementReceipt({
+      ...nextReceipt,
+      status: 'compensation_pending',
+      reward_result: '奖励写入失败，已转入补偿队列',
+      compensation_id: compensation.id,
+    });
+    nextStage = normalizeOrderStage({
+      ...nextStage,
+      delivery_status: 'compensation_pending',
+      compensation_id: compensation.id,
+    });
+    store.compensations = [compensation, ...store.compensations.map(normalizeCompensationRecord)];
+  }
+
+  const stages = order.stages.map(item => item.id === stage.id ? nextStage : item);
+  const nextOrder = syncMultiStageOrder({
+    ...order,
+    stages,
+    updated_at: now,
+  });
+
+  store.receipts = store.receipts.map(entry => {
+    const normalized = normalizeSettlementReceipt(entry);
+    return normalized.id === nextReceipt.id ? nextReceipt : normalized;
+  });
+  updateStoredOrder(store, nextOrder);
+  saveCoopOrderStore(store);
+  return {
+    order: nextOrder,
+    stage: findStageById(nextOrder, stage.id),
+    receipt: nextReceipt,
+    compensation: nextStage.compensation_id ? findCompensationById(store, nextStage.compensation_id) : null,
   };
 }
 
@@ -798,6 +1228,9 @@ async function replayCoopOrderCompensation(compensationId, actor = {}) {
   const receipt = findReceiptById(store, compensation.receipt_id);
   if (!receipt) throw createError('关联结算凭证不存在', 404);
 
+  const specialtyType = compensation.stage_id
+    ? (findStageById(order, compensation.stage_id)?.preferred_order_type || order.order_type)
+    : order.order_type;
   const now = Math.floor(Date.now() / 1000);
   let nextCompensation = normalizeCompensationRecord({
     ...compensation,
@@ -806,7 +1239,7 @@ async function replayCoopOrderCompensation(compensationId, actor = {}) {
   });
 
   try {
-    const rewardOutcome = applyRewardByReceipt(store, order, receipt);
+    const rewardOutcome = applyRewardByReceipt(store, receipt, specialtyType);
     nextCompensation = normalizeCompensationRecord({
       ...nextCompensation,
       status: 'resolved',
@@ -819,12 +1252,34 @@ async function replayCoopOrderCompensation(compensationId, actor = {}) {
       reward_result: rewardOutcome.reward_result,
       updated_at: now,
     });
-    const nextOrder = normalizeOrder({
-      ...order,
-      delivery_status: 'confirmed',
-      settlement_confirmed_at: now,
-      updated_at: now,
-    });
+
+    let nextOrder;
+    let nextStage = null;
+    if (compensation.stage_id) {
+      const stage = findStageById(order, compensation.stage_id);
+      if (!stage) throw createError('关联阶段不存在', 404);
+      nextStage = normalizeOrderStage({
+        ...stage,
+        delivery_status: 'confirmed',
+        confirmed_at: now,
+        compensation_id: '',
+        updated_at: now,
+      });
+      nextOrder = syncMultiStageOrder({
+        ...order,
+        stages: order.stages.map(item => item.id === stage.id ? nextStage : item),
+        updated_at: now,
+      });
+    } else {
+      nextOrder = normalizeOrder({
+        ...order,
+        delivery_status: 'confirmed',
+        settlement_confirmed_at: now,
+        compensation_id: '',
+        updated_at: now,
+      });
+    }
+
     store.compensations = store.compensations.map(entry => {
       const normalized = normalizeCompensationRecord(entry);
       return normalized.id === nextCompensation.id ? nextCompensation : normalized;
@@ -833,15 +1288,13 @@ async function replayCoopOrderCompensation(compensationId, actor = {}) {
       const normalized = normalizeSettlementReceipt(entry);
       return normalized.id === nextReceipt.id ? nextReceipt : normalized;
     });
-    store.orders = store.orders.map(entry => {
-      const normalized = normalizeOrder(entry);
-      return normalized.id === nextOrder.id ? nextOrder : normalized;
-    });
+    updateStoredOrder(store, nextOrder);
     saveCoopOrderStore(store);
     return {
       compensation: nextCompensation,
       receipt: nextReceipt,
       order: nextOrder,
+      stage: nextStage,
     };
   } catch (error) {
     nextCompensation = normalizeCompensationRecord({
@@ -898,9 +1351,13 @@ async function listVisibleCoopOrders(viewerUsername = '') {
 module.exports = {
   createCoopOrder,
   acceptCoopOrder,
+  acceptCoopOrderStage,
   cancelAcceptedCoopOrder,
+  cancelAcceptedCoopOrderStage,
   submitCoopOrderDelivery,
+  submitCoopOrderStageDelivery,
   confirmCoopOrderDelivery,
+  confirmCoopOrderStageDelivery,
   replayCoopOrderCompensation,
   listVisibleCoopOrders,
 };
