@@ -52,8 +52,12 @@
       </div>
 
       <div class="mt-5 flex flex-col gap-2 md:flex-row md:justify-end">
-        <Button class="w-full justify-center md:w-auto" @click="emit('close')">继续晨间</Button>
-        <Button class="w-full justify-center !bg-accent !text-bg md:w-auto" @click="emit('open-record-center')">查看记录中心</Button>
+        <Button class="daily-digest-action-btn daily-digest-action-btn--secondary w-full justify-center md:w-auto" @click="emit('open-record-center')">
+          查看记录中心
+        </Button>
+        <Button class="daily-digest-action-btn daily-digest-action-btn--primary w-full justify-center md:w-auto" @click="emit('close')">
+          继续晨间
+        </Button>
       </div>
     </div>
   </div>
@@ -64,7 +68,7 @@
   import type { DailyDigestEntry } from '@/types'
   import { formatRecordDayTag } from '@/stores/usePlayerRecordCenterStore'
 
-  const props = defineProps<{
+  defineProps<{
     digest: DailyDigestEntry
   }>()
 
@@ -88,6 +92,41 @@
     if (tone === 'success') return 'text-success'
     return 'text-accent'
   }
-
-  const digest = props.digest
 </script>
+
+<style scoped>
+  :deep(.daily-digest-action-btn) {
+    min-height: 42px;
+    padding: 10px 18px;
+    border-width: 1px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  :deep(.daily-digest-action-btn--secondary) {
+    background: rgba(18, 21, 31, 0.92);
+    border-color: rgba(200, 164, 92, 0.32);
+    color: rgb(var(--color-text));
+  }
+
+  :deep(.daily-digest-action-btn--secondary:hover) {
+    background: rgba(32, 37, 52, 0.96);
+    border-color: rgba(200, 164, 92, 0.5);
+  }
+
+  :deep(.daily-digest-action-btn--primary) {
+    background: #c8a45c;
+    border-color: rgba(200, 164, 92, 0.95);
+    color: #1b1b1b;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 245, 214, 0.18),
+      0 0 0 1px rgba(200, 164, 92, 0.14);
+  }
+
+  :deep(.daily-digest-action-btn--primary:hover) {
+    background: rgba(200, 164, 92, 0.92);
+    color: #1b1b1b;
+  }
+</style>

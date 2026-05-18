@@ -34,8 +34,8 @@
               <div class="settings-dialog-card border border-accent/20 rounded-xs mr-1 mb-2">
                 <p class="text-xs text-muted mb-2">时间控制</p>
                 <div class="flex items-center justify-center space-x-2">
-                  <Button :icon="isSettingsPaused ? Play : Pause" :icon-size="12" class="py-1 px-3" @click="toggleSettingsPause">
-                    {{ isSettingsPaused ? '继续' : '暂停' }}
+                  <Button :icon="isManualPaused ? Play : Pause" :icon-size="12" class="py-1 px-3" @click="toggleManualPause">
+                    {{ isManualPaused ? '继续' : '暂停' }}
                   </Button>
                   <Button class="py-1 px-3" @click="cycleSpeed">速度 {{ gameSpeed }}×</Button>
                 </div>
@@ -450,7 +450,7 @@
 
   const activeTab = ref<SettingsTab>('general')
   const { sfxEnabled, bgmEnabled, toggleSfx, toggleBgm } = useAudio()
-  const { isSettingsPaused, gameSpeed, setSettingsPaused, cycleSpeed } = useGameClock()
+  const { isManualPaused, gameSpeed, togglePause, cycleSpeed } = useGameClock()
   const { showFloat } = useGameLog()
   const settingsStore = useSettingsStore()
   const tutorialStore = useTutorialStore()
@@ -490,8 +490,8 @@
     await testConnection()
   }
 
-  const toggleSettingsPause = () => {
-    setSettingsPaused(!isSettingsPaused.value)
+  const toggleManualPause = () => {
+    togglePause()
   }
 
   const setWebdavEnabled = (val: boolean) => {
