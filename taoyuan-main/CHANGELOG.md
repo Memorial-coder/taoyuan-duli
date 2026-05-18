@@ -8,6 +8,9 @@
 - 新增 `docs/online/README.md` 与 `docs/online/00-base-audit.md`，把 `0518联机plan.md` 的激进蓝图正式拆到可执行骨架里，并统一后续联机主线命名为 `庄园 / 邻里 / 委托 / 节会 / 村社`。
 - 新增 `docs/online/01-manor.md` 到 `05-society.md` 五条执行线，先把庄园展示、关系链、协作委托、节会房间和村社治理的落点分开，避免后续所有任务重新抢同一个“联机”大桶。
 - 当前在线底座也已经完成第一版盘点：`server/src/routes/api.js` 的账号 / CSRF / 服务端存档 / 邮箱 / 大厅接口，`server/src/taoyuanSaveRuntime.js` 的原子写与修订号，`server/src/taoyuanHall.js` 的顺序锁与悬赏结算，以及 `src/stores/useSaveStore.ts` 的待同步副本机制，都已标记出可复用边界与待扩展点。
+### 0518 联机命名规范（L02）
+- 新增 `docs/online/06-naming.md`，把在线层命名、服务端 runtime 命名、前端 store 命名和联机事件格式统一成一份规则，后续联机实现不再继续临时起 `multiplayer` 大桶或无语义事件名。
+- `docs/online/README.md` 与 `0518联机plan.md` 也已回指这份规范；后续模块新增时默认沿用 `taoyuanXxxRuntime`、`useXxxStore` 和 `domain.entity.action` 三段式事件名。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。
