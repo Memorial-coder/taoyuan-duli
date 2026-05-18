@@ -11,6 +11,9 @@
 ### 0518 联机命名规范（L02）
 - 新增 `docs/online/06-naming.md`，把在线层命名、服务端 runtime 命名、前端 store 命名和联机事件格式统一成一份规则，后续联机实现不再继续临时起 `multiplayer` 大桶或无语义事件名。
 - `docs/online/README.md` 与 `0518联机plan.md` 也已回指这份规范；后续模块新增时默认沿用 `taoyuanXxxRuntime`、`useXxxStore` 和 `domain.entity.action` 三段式事件名。
+### 0518 联机状态与结算原则（L03）
+- 新增 `docs/online/07-state-and-settlement.md`，正式把 `个人存档 / 联机事件 / 房间状态 / 结算凭证` 四类对象拆开，明确哪些能服务端权威、哪些只保存过程、哪些才允许作为奖励落账依据。
+- 这份规则也补齐了跨玩家奖励的幂等 key 口径、本地与服务端冲突优先级、断线重连、重试与补偿策略；后续委托、节会和村社共建都要复用这一层，不再各写一套“先扣再说”的结算逻辑。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。
