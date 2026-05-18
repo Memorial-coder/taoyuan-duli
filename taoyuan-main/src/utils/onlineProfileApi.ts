@@ -151,6 +151,21 @@ export interface OnlineManorSnapshot {
     created_at: number
     updated_at: number
   }>
+  visit_entries: Array<{
+    id: string
+    target_username: string
+    visitor_username: string
+    visitor_display_name: string
+    purpose: 'explore' | 'friend_visit' | 'gift' | 'quest' | 'other'
+    summary: string
+    feedback: string
+    carried_items: Array<{
+      itemId: string
+      quantity: number
+    }>
+    created_at: number
+    updated_at: number
+  }>
 }
 
 export const fetchOnlineProfile = async (): Promise<OnlineProfileResponse['profile'] | null> => {
@@ -396,5 +411,22 @@ export const pinManorGuestbookEntry = async (entryId: string, pinned: boolean) =
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ pinned })
+  })
+}
+
+export const recordManorVisit = async (payload: {
+  target_username: string
+  purpose: 'explore' | 'friend_visit' | 'gift' | 'quest' | 'other'
+  summary: string
+  feedback: string
+  carried_items?: Array<{
+    itemId: string
+    quantity: number
+  }>
+}) => {
+  return requestSocialAction('/api/taoyuan/online/manor/visit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
   })
 }

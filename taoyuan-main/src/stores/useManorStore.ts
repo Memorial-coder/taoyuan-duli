@@ -4,6 +4,7 @@ import {
   createManorGuestbookEntry,
   fetchOwnManorSnapshot,
   pinManorGuestbookEntry,
+  recordManorVisit,
   replyManorGuestbookEntry,
   type OnlineManorSnapshot
 } from '@/utils/onlineProfileApi'
@@ -15,6 +16,10 @@ export const useManorStore = defineStore('onlineManor', () => {
   const guestbookDraft = ref('')
   const guestbookReplyDraft = ref<Record<string, string>>({})
   const guestbookActionRunning = ref(false)
+  const visitSummaryDraft = ref('')
+  const visitFeedbackDraft = ref('')
+  const visitPurposeDraft = ref<'explore' | 'friend_visit' | 'gift' | 'quest' | 'other'>('explore')
+  const visitActionRunning = ref(false)
 
   const refreshSnapshot = async () => {
     loading.value = true
@@ -86,6 +91,28 @@ export const useManorStore = defineStore('onlineManor', () => {
     }
   }
 
+  const createVisitRecord = async () => {
+    if (!snapshot.value) return
+    visitActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await recordManorVisit({
+        target_username: snapshot.value.username,
+        purpose: visitPurposeDraft.value,
+        summary: visitSummaryDraft.value || '前来参观庄园',
+        feedback: visitFeedbackDraft.value,
+      })
+      visitSummaryDraft.value = ''
+      visitFeedbackDraft.value = ''
+      await refreshSnapshot()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '记录庄园来访失败'
+      throw error
+    } finally {
+      visitActionRunning.value = false
+    }
+  }
+
   return {
     loading,
     snapshot,
@@ -93,9 +120,14 @@ export const useManorStore = defineStore('onlineManor', () => {
     guestbookDraft,
     guestbookReplyDraft,
     guestbookActionRunning,
+    visitSummaryDraft,
+    visitFeedbackDraft,
+    visitPurposeDraft,
+    visitActionRunning,
     refreshSnapshot,
     createGuestbookEntry,
     replyGuestbookEntry,
     togglePinnedGuestbookEntry,
+    createVisitRecord,
   }
 })

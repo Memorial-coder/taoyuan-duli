@@ -732,6 +732,18 @@ router.post('/taoyuan/online/manor/guestbook/:entryId/pin', loginRequired, signR
   }
 });
 
+router.post('/taoyuan/online/manor/visit', loginRequired, signRequired, async (req, res) => {
+  try {
+    const entry = await taoyuanManorRuntime.recordManorVisit(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, entry });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '记录庄园来访失败' });
+  }
+});
+
 router.get('/taoyuan/online/social/relationships', loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanSocialRuntime.listRelationshipOverview(req.session.username);

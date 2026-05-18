@@ -51,6 +51,10 @@
 - `server/src/taoyuanManorRuntime.js` 与 `server/src/routes/api.js` 已补出庄园留言、回复和置顶接口；庄园页开始能留下真正的访客痕迹，而不只是读一个公开快照。
 - `src/utils/onlineProfileApi.ts`、`src/stores/useManorStore.ts` 和 `src/views/game/ManorView.vue` 也同步接上了留言墙前端：现在可以留文本留言、祝福、建议，庄园主人也能直接回复并置顶。
 - 图章 / 签名这一轮暂时还只是类型口径，独立视觉样式和更完整交互会在后续庄园深化任务继续补。
+### 0518 访客记录（L22 第一轮）
+- `server/src/taoyuanManorRuntime.js` 与 `server/src/routes/api.js` 已补出最小来访记录接口：当前会记录来访人、来访时间、来访目的、来访行为、来访反馈，以及是否带走了委托相关物品。
+- `src/utils/onlineProfileApi.ts`、`src/stores/useManorStore.ts` 和 `src/views/game/ManorView.vue` 也同步接上了访客记录前端：现在在庄园页里就能登记一次来访，并让庄园主人回看这些痕迹。
+- 当前“带走委托”仍停留在轻量记录字段，真正和后续协作委托状态流转打通会在 `L30+` 继续补。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

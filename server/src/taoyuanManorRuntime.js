@@ -8,6 +8,7 @@ const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
   : path.join(__dirname, '../data');
 const TAOYUAN_MANOR_GUESTBOOK_FILE = path.join(DATA_DIR, 'taoyuan_manor_guestbook.json');
+const TAOYUAN_MANOR_VISIT_FILE = path.join(DATA_DIR, 'taoyuan_manor_visits.json');
 
 function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
@@ -60,6 +61,10 @@ function ensureGuestbookStore() {
   fs.mkdirSync(path.dirname(TAOYUAN_MANOR_GUESTBOOK_FILE), { recursive: true });
 }
 
+function ensureVisitStore() {
+  fs.mkdirSync(path.dirname(TAOYUAN_MANOR_VISIT_FILE), { recursive: true });
+}
+
 function loadGuestbookStore() {
   ensureGuestbookStore();
   try {
@@ -76,6 +81,26 @@ function loadGuestbookStore() {
 function saveGuestbookStore(store) {
   ensureGuestbookStore();
   fs.writeFileSync(TAOYUAN_MANOR_GUESTBOOK_FILE, JSON.stringify({
+    entries: Array.isArray(store?.entries) ? store.entries : [],
+  }, null, 2), 'utf8');
+}
+
+function loadVisitStore() {
+  ensureVisitStore();
+  try {
+    if (!fs.existsSync(TAOYUAN_MANOR_VISIT_FILE)) return { entries: [] };
+    const raw = JSON.parse(fs.readFileSync(TAOYUAN_MANOR_VISIT_FILE, 'utf8'));
+    return raw && typeof raw === 'object' && Array.isArray(raw.entries)
+      ? raw
+      : { entries: [] };
+  } catch {
+    return { entries: [] };
+  }
+}
+
+function saveVisitStore(store) {
+  ensureVisitStore();
+  fs.writeFileSync(TAOYUAN_MANOR_VISIT_FILE, JSON.stringify({
     entries: Array.isArray(store?.entries) ? store.entries : [],
   }, null, 2), 'utf8');
 }
@@ -116,6 +141,70 @@ function getGuestbookEntriesForTarget(targetUsername) {
       if (!!left.pinned !== !!right.pinned) return left.pinned ? -1 : 1;
       return right.created_at - left.created_at;
     });
+}
+
+function normalizeVisitPurpose(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['explore', 'friend_visit', 'gift', 'quest', 'other'].includes(normalized)) return normalized;
+  return 'other';
+}
+
+function normalizeVisitEntry(entry) {
+  return {
+    id: String(entry?.id || makeId('manor_visit')),
+    target_username: String(entry?.target_username || '').trim(),
+    visitor_username: String(entry?.visitor_username || '').trim(),
+    visitor_display_name: sanitizeText(entry?.visitor_display_name, 30) || String(entry?.visitor_username || '匿名'),
+    purpose: normalizeVisitPurpose(entry?.purpose),
+    summary: sanitizeText(entry?.summary, 160),
+    feedback: sanitizeText(entry?.feedback, 160),
+    carried_items: Array.isArray(entry?.carried_items)
+      ? entry.carried_items
+          .filter(item => item && typeof item === 'object')
+          .map(item => ({
+            itemId: sanitizeText(item.itemId, 40),
+            quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
+          }))
+          .filter(item => item.itemId.length > 0)
+      : [],
+    created_at: Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+    updated_at: Number(entry?.updated_at) || Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+  };
+}
+
+function getVisitsForTarget(targetUsername) {
+  const normalizedTarget = String(targetUsername || '').trim();
+  const store = loadVisitStore();
+  return store.entries
+    .map(normalizeVisitEntry)
+    .filter(entry => entry.target_username === normalizedTarget)
+    .sort((left, right) => right.created_at - left.created_at);
+}
+
+async function recordManorVisit(payload = {}, actor = {}) {
+  const targetUsername = String(payload.target_username || '').trim();
+  if (!targetUsername) throw createError('请先指定庄园主人');
+  const targetUser = await db.getUser(targetUsername);
+  if (!targetUser) throw createError('目标庄园不存在', 404);
+  const summary = sanitizeText(payload.summary, 160);
+  const feedback = sanitizeText(payload.feedback, 160);
+  const carriedItems = Array.isArray(payload.carried_items) ? payload.carried_items : [];
+  const entry = normalizeVisitEntry({
+    id: makeId('manor_visit'),
+    target_username: targetUsername,
+    visitor_username: actor.username,
+    visitor_display_name: actor.displayName || actor.username || '匿名',
+    purpose: payload.purpose,
+    summary: summary || '前来拜访',
+    feedback,
+    carried_items: carriedItems,
+    created_at: Math.floor(Date.now() / 1000),
+    updated_at: Math.floor(Date.now() / 1000),
+  });
+  const store = loadVisitStore();
+  store.entries = [entry, ...store.entries];
+  saveVisitStore(store);
+  return entry;
 }
 
 async function leaveGuestbookEntry(payload = {}, actor = {}) {
@@ -217,6 +306,7 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
     placed_decoration_count: Object.values(decoration?.placed ?? {}).reduce((sum, count) => sum + Math.max(0, Number(count) || 0), 0),
     public_tags: Array.isArray(profile.public_tags) ? profile.public_tags : [],
     guestbook_entries: getGuestbookEntriesForTarget(user.username),
+    visit_entries: getVisitsForTarget(user.username),
   };
 }
 
@@ -234,4 +324,5 @@ module.exports = {
   leaveGuestbookEntry,
   replyGuestbookEntry,
   setGuestbookPinned,
+  recordManorVisit,
 };
