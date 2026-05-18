@@ -2,16 +2,26 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
   acceptFriendRequest,
+  acceptNeighborRequest,
+  applyToNeighborGroup,
   blockPlayer,
+  createNeighborGroup,
   fetchOnlineProfile,
+  fetchNeighborOverview,
   fetchRelationshipOverview,
+  inviteToNeighborGroup,
+  type OnlineNeighborGroupSummary,
+  type OnlineNeighborRequest,
   rejectFriendRequest,
+  rejectNeighborRequest,
   saveOnlineProfile,
   sendFriendRequest,
   type OnlineProfileResponse,
   type OnlineRelationCard,
   type OnlineProfileVisibility
   ,
+  updateNeighborMemberRole,
+  updateNeighborNotice,
   unblockPlayer
 } from '@/utils/onlineProfileApi'
 
@@ -53,6 +63,17 @@ export const useSocialStore = defineStore('onlineSocial', () => {
   const outgoingRequests = ref<OnlineRelationCard[]>([])
   const friends = ref<OnlineRelationCard[]>([])
   const blockedUsers = ref<OnlineRelationCard[]>([])
+  const neighborLoading = ref(false)
+  const neighborActionRunning = ref(false)
+  const neighborGroup = ref<OnlineNeighborGroupSummary | null>(null)
+  const neighborPublicGroups = ref<OnlineNeighborGroupSummary[]>([])
+  const neighborIncomingInvites = ref<OnlineNeighborRequest[]>([])
+  const neighborManagedRequests = ref<OnlineNeighborRequest[]>([])
+  const neighborNameDraft = ref('')
+  const neighborSummaryDraft = ref('')
+  const neighborNoticeDraft = ref('')
+  const neighborCapacityDraft = ref(12)
+  const neighborInviteUsernameDraft = ref('')
 
   const hasProfile = computed(() => !!profile.value)
   const displayTitle = computed(() => profile.value?.public_title || profile.value?.display_name || profile.value?.player_name || '未命名玩家')
@@ -234,6 +255,135 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     }
   }
 
+  const refreshNeighborOverview = async () => {
+    neighborLoading.value = true
+    errorMessage.value = ''
+    try {
+      const data = await fetchNeighborOverview()
+      neighborGroup.value = data?.my_group ?? null
+      neighborPublicGroups.value = data?.public_groups ?? []
+      neighborIncomingInvites.value = data?.incoming_invites ?? []
+      neighborManagedRequests.value = data?.managed_requests ?? []
+      neighborNoticeDraft.value = data?.my_group?.notice ?? ''
+      return data
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '获取邻里信息失败'
+      throw error
+    } finally {
+      neighborLoading.value = false
+    }
+  }
+
+  const submitNeighborGroup = async () => {
+    neighborActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await createNeighborGroup({
+        name: neighborNameDraft.value,
+        summary: neighborSummaryDraft.value,
+        notice: neighborNoticeDraft.value,
+        capacity: neighborCapacityDraft.value
+      })
+      neighborNameDraft.value = ''
+      neighborSummaryDraft.value = ''
+      await refreshNeighborOverview()
+      await refreshProfile()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '创建邻里失败'
+      throw error
+    } finally {
+      neighborActionRunning.value = false
+    }
+  }
+
+  const applyNeighbor = async (groupId: string) => {
+    neighborActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await applyToNeighborGroup(groupId)
+      await refreshNeighborOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '申请加入邻里失败'
+      throw error
+    } finally {
+      neighborActionRunning.value = false
+    }
+  }
+
+  const inviteNeighbor = async () => {
+    const target = neighborInviteUsernameDraft.value.trim()
+    if (!target) return
+    neighborActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await inviteToNeighborGroup(target)
+      neighborInviteUsernameDraft.value = ''
+      await refreshNeighborOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '发送邻里邀请失败'
+      throw error
+    } finally {
+      neighborActionRunning.value = false
+    }
+  }
+
+  const acceptNeighbor = async (requestId: string) => {
+    neighborActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await acceptNeighborRequest(requestId)
+      await refreshNeighborOverview()
+      await refreshProfile()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '处理邻里申请失败'
+      throw error
+    } finally {
+      neighborActionRunning.value = false
+    }
+  }
+
+  const rejectNeighbor = async (requestId: string) => {
+    neighborActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await rejectNeighborRequest(requestId)
+      await refreshNeighborOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '拒绝邻里申请失败'
+      throw error
+    } finally {
+      neighborActionRunning.value = false
+    }
+  }
+
+  const saveNeighborNoticeDraft = async () => {
+    neighborActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await updateNeighborNotice(neighborNoticeDraft.value)
+      await refreshNeighborOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '更新邻里公告失败'
+      throw error
+    } finally {
+      neighborActionRunning.value = false
+    }
+  }
+
+  const changeNeighborRole = async (targetUsername: string, role: 'manager' | 'member') => {
+    neighborActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await updateNeighborMemberRole(targetUsername, role)
+      await refreshNeighborOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '更新成员身份失败'
+      throw error
+    } finally {
+      neighborActionRunning.value = false
+    }
+  }
+
   return {
     loading,
     saving,
@@ -256,6 +406,17 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     outgoingRequests,
     friends,
     blockedUsers,
+    neighborLoading,
+    neighborActionRunning,
+    neighborGroup,
+    neighborPublicGroups,
+    neighborIncomingInvites,
+    neighborManagedRequests,
+    neighborNameDraft,
+    neighborSummaryDraft,
+    neighborNoticeDraft,
+    neighborCapacityDraft,
+    neighborInviteUsernameDraft,
     refreshProfile,
     hydrateFromProfile,
     saveProfile,
@@ -264,6 +425,14 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     acceptRequest,
     rejectRequest,
     blockTarget,
-    unblockTarget
+    unblockTarget,
+    refreshNeighborOverview,
+    submitNeighborGroup,
+    applyNeighbor,
+    inviteNeighbor,
+    acceptNeighbor,
+    rejectNeighbor,
+    saveNeighborNoticeDraft,
+    changeNeighborRole
   }
 })

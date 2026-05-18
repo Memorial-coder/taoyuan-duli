@@ -730,6 +730,78 @@ router.post('/taoyuan/online/social/blocks/unblock', loginRequired, signRequired
   }
 });
 
+router.get('/taoyuan/online/social/neighbors/overview', loginRequired, async (req, res) => {
+  try {
+    const overview = await taoyuanSocialRuntime.listNeighborRequestOverview(req.session.username);
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取邻里信息失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/neighbors', loginRequired, signRequired, async (req, res) => {
+  try {
+    const group = await taoyuanSocialRuntime.createNeighborGroup(req.session.username, req.body || {});
+    res.json({ ok: true, group });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '创建邻里失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/neighbors/:groupId/apply', loginRequired, signRequired, async (req, res) => {
+  try {
+    const request = await taoyuanSocialRuntime.applyToNeighborGroup(req.session.username, req.params.groupId);
+    res.json({ ok: true, request });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '申请加入邻里失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/neighbors/invite', loginRequired, signRequired, async (req, res) => {
+  try {
+    const request = await taoyuanSocialRuntime.inviteToNeighborGroup(req.session.username, req.body || {});
+    res.json({ ok: true, request });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '发送邻里邀请失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/neighbors/requests/:requestId/accept', loginRequired, signRequired, async (req, res) => {
+  try {
+    const request = await taoyuanSocialRuntime.respondNeighborRequest(req.session.username, req.params.requestId, 'accept');
+    res.json({ ok: true, request });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '处理邻里申请失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/neighbors/requests/:requestId/reject', loginRequired, signRequired, async (req, res) => {
+  try {
+    const request = await taoyuanSocialRuntime.respondNeighborRequest(req.session.username, req.params.requestId, 'reject');
+    res.json({ ok: true, request });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '拒绝邻里申请失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/neighbors/notice', loginRequired, signRequired, async (req, res) => {
+  try {
+    const group = await taoyuanSocialRuntime.updateNeighborNotice(req.session.username, req.body || {});
+    res.json({ ok: true, group });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新邻里公告失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/neighbors/members/role', loginRequired, signRequired, async (req, res) => {
+  try {
+    const group = await taoyuanSocialRuntime.updateNeighborMemberRole(req.session.username, req.body || {});
+    res.json({ ok: true, group });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新邻里成员身份失败' });
+  }
+});
+
 router.get('/admin/official-control/runtime-status', userAdminAuth, officialControlHostAuth, (req, res) => {
   res.json({
     ok: true,

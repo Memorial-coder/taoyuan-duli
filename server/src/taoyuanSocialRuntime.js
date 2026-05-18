@@ -60,6 +60,8 @@ function createEmptySocialStore() {
     friend_requests: [],
     friendships: [],
     blocks: [],
+    neighbor_groups: [],
+    neighbor_join_requests: [],
   };
 }
 
@@ -89,6 +91,8 @@ function loadSocialProfileStore() {
           friend_requests: Array.isArray(raw.friend_requests) ? raw.friend_requests : [],
           friendships: Array.isArray(raw.friendships) ? raw.friendships : [],
           blocks: Array.isArray(raw.blocks) ? raw.blocks : [],
+          neighbor_groups: Array.isArray(raw.neighbor_groups) ? raw.neighbor_groups : [],
+          neighbor_join_requests: Array.isArray(raw.neighbor_join_requests) ? raw.neighbor_join_requests : [],
         }
       : createEmptySocialStore();
   } catch {
@@ -103,6 +107,8 @@ function saveSocialProfileStore(store) {
     friend_requests: Array.isArray(store?.friend_requests) ? store.friend_requests : [],
     friendships: Array.isArray(store?.friendships) ? store.friendships : [],
     blocks: Array.isArray(store?.blocks) ? store.blocks : [],
+    neighbor_groups: Array.isArray(store?.neighbor_groups) ? store.neighbor_groups : [],
+    neighbor_join_requests: Array.isArray(store?.neighbor_join_requests) ? store.neighbor_join_requests : [],
   });
 }
 
@@ -256,6 +262,53 @@ function normalizeBlockRelation(entry) {
   };
 }
 
+function normalizeNeighborMember(entry) {
+  return {
+    username: normalizeUsername(entry?.username),
+    role: ['leader', 'manager', 'member'].includes(String(entry?.role)) ? String(entry.role) : 'member',
+    joined_at: Number(entry?.joined_at) || Math.floor(Date.now() / 1000),
+  };
+}
+
+function normalizeNeighborGroup(entry) {
+  const members = Array.isArray(entry?.members) ? entry.members.map(normalizeNeighborMember).filter(member => member.username) : [];
+  return {
+    id: String(entry?.id || makeId('neighbor_group')),
+    name: sanitizeText(entry?.name, 24),
+    summary: sanitizeText(entry?.summary, 120),
+    notice: sanitizeText(entry?.notice, 160),
+    level: Math.max(1, Number(entry?.level) || 1),
+    capacity: Math.max(3, Number(entry?.capacity) || 12),
+    created_by: normalizeUsername(entry?.created_by),
+    created_at: Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+    updated_at: Number(entry?.updated_at) || Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+    members,
+    activity_log: Array.isArray(entry?.activity_log)
+      ? entry.activity_log
+          .filter(log => log && typeof log === 'object')
+          .map(log => ({
+            id: String(log.id || makeId('neighbor_log')),
+            type: sanitizeText(log.type, 24) || 'activity',
+            message: sanitizeText(log.message, 120),
+            created_at: Number(log.created_at) || Math.floor(Date.now() / 1000),
+          }))
+      : [],
+  };
+}
+
+function normalizeNeighborJoinRequest(entry) {
+  return {
+    id: String(entry?.id || makeId('neighbor_join')),
+    group_id: String(entry?.group_id || ''),
+    username: normalizeUsername(entry?.username),
+    invited_by: normalizeUsername(entry?.invited_by),
+    type: entry?.type === 'invite' ? 'invite' : 'apply',
+    status: ['pending', 'accepted', 'rejected'].includes(String(entry?.status)) ? String(entry.status) : 'pending',
+    created_at: Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+    updated_at: Number(entry?.updated_at) || Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+  };
+}
+
 function buildPairKey(left, right) {
   return [normalizeUsername(left), normalizeUsername(right)].sort((a, b) => a.localeCompare(b, 'zh-CN')).join('::');
 }
@@ -290,6 +343,31 @@ function findPendingRequest(store, left, right) {
         (entry.from_username === normalizedRight && entry.to_username === normalizedLeft)
       )
     ) || null;
+}
+
+function findNeighborGroupById(store, groupId) {
+  return store.neighbor_groups
+    .map(normalizeNeighborGroup)
+    .find(entry => entry.id === String(groupId || '').trim()) || null;
+}
+
+function findMemberGroup(store, username) {
+  const normalizedUsername = normalizeUsername(username);
+  return store.neighbor_groups
+    .map(normalizeNeighborGroup)
+    .find(group => group.members.some(member => member.username === normalizedUsername)) || null;
+}
+
+function appendNeighborActivity(group, message, type = 'activity') {
+  const nextLog = {
+    id: makeId('neighbor_log'),
+    type,
+    message: sanitizeText(message, 120),
+    created_at: Math.floor(Date.now() / 1000),
+  };
+  group.activity_log = [nextLog, ...(group.activity_log || [])].slice(0, 20);
+  group.updated_at = Math.floor(Date.now() / 1000);
+  return group;
 }
 
 async function buildProfile(username, viewerUsername = '', options = {}) {
@@ -414,11 +492,28 @@ async function listRelationshipOverview(username) {
       }))
   );
 
+  const neighbor_group = (() => {
+    const joinedGroup = findMemberGroup(store, normalizedUsername);
+    if (!joinedGroup) return null;
+    return {
+      id: joinedGroup.id,
+      name: joinedGroup.name,
+      summary: joinedGroup.summary,
+      notice: joinedGroup.notice,
+      level: joinedGroup.level,
+      capacity: joinedGroup.capacity,
+      member_count: joinedGroup.members.length,
+      role: joinedGroup.members.find(member => member.username === normalizedUsername)?.role ?? 'member',
+      activity_log: joinedGroup.activity_log.slice(0, 6),
+    };
+  })();
+
   return {
     incoming_requests,
     outgoing_requests,
     friends,
     blocked_users,
+    neighbor_group,
   };
 }
 
@@ -559,6 +654,240 @@ async function unblockPlayer(username, targetUsername) {
   return { blocker_username: blocker, blocked_username: blocked };
 }
 
+async function createNeighborGroup(username, payload = {}) {
+  const store = loadSocialProfileStore();
+  const creator = normalizeUsername(username);
+  if (findMemberGroup(store, creator)) throw createError('你已经在一个邻里中了');
+  const name = sanitizeText(payload.name, 24);
+  if (name.length < 2) throw createError('邻里名称至少 2 个字');
+
+  const group = normalizeNeighborGroup({
+    id: makeId('neighbor_group'),
+    name,
+    summary: payload.summary,
+    notice: payload.notice,
+    level: 1,
+    capacity: Math.max(3, Math.min(30, Number(payload.capacity) || 12)),
+    created_by: creator,
+    created_at: Math.floor(Date.now() / 1000),
+    updated_at: Math.floor(Date.now() / 1000),
+    members: [{ username: creator, role: 'leader', joined_at: Math.floor(Date.now() / 1000) }],
+    activity_log: [],
+  });
+  appendNeighborActivity(group, `${creator}创建了邻里「${group.name}」`, 'create');
+  store.neighbor_groups = [...store.neighbor_groups, group];
+  updateStoredProfile(creator, { neighborhood_role: '邻里社长' });
+  saveSocialProfileStore(store);
+  return group;
+}
+
+async function applyToNeighborGroup(username, groupId) {
+  const store = loadSocialProfileStore();
+  const applicant = normalizeUsername(username);
+  const group = findNeighborGroupById(store, groupId);
+  if (!group) throw createError('邻里不存在', 404);
+  if (findMemberGroup(store, applicant)) throw createError('你已经加入其他邻里');
+  if (group.members.some(member => member.username === applicant)) throw createError('你已经是该邻里成员');
+
+  const existing = store.neighbor_join_requests
+    .map(normalizeNeighborJoinRequest)
+    .find(entry => entry.group_id === group.id && entry.username === applicant && entry.status === 'pending');
+  if (existing) throw createError('你已经申请过该邻里');
+
+  const request = normalizeNeighborJoinRequest({
+    id: makeId('neighbor_join'),
+    group_id: group.id,
+    username: applicant,
+    type: 'apply',
+    status: 'pending',
+    created_at: Math.floor(Date.now() / 1000),
+    updated_at: Math.floor(Date.now() / 1000),
+  });
+  store.neighbor_join_requests = [...store.neighbor_join_requests, request];
+  saveSocialProfileStore(store);
+  return request;
+}
+
+async function inviteToNeighborGroup(username, payload = {}) {
+  const store = loadSocialProfileStore();
+  const inviter = normalizeUsername(username);
+  const group = findMemberGroup(store, inviter);
+  if (!group) throw createError('你当前没有邻里');
+  const member = group.members.find(entry => entry.username === inviter);
+  if (!member || !['leader', 'manager'].includes(member.role)) throw createError('只有社长或管事可以邀请成员', 403);
+  if (group.members.length >= group.capacity) throw createError('当前邻里人数已满');
+  const target = normalizeUsername(payload.target_username);
+  if (!target) throw createError('请先填写要邀请的玩家');
+  if (findMemberGroup(store, target)) throw createError('对方已经加入其他邻里');
+
+  const existing = store.neighbor_join_requests
+    .map(normalizeNeighborJoinRequest)
+    .find(entry => entry.group_id === group.id && entry.username === target && entry.status === 'pending');
+  if (existing) throw createError('该邀请或申请已在处理中');
+
+  const request = normalizeNeighborJoinRequest({
+    id: makeId('neighbor_join'),
+    group_id: group.id,
+    username: target,
+    invited_by: inviter,
+    type: 'invite',
+    status: 'pending',
+    created_at: Math.floor(Date.now() / 1000),
+    updated_at: Math.floor(Date.now() / 1000),
+  });
+  store.neighbor_join_requests = [...store.neighbor_join_requests, request];
+  saveSocialProfileStore(store);
+  return request;
+}
+
+async function respondNeighborRequest(username, requestId, decision) {
+  const store = loadSocialProfileStore();
+  const actor = normalizeUsername(username);
+  const request = store.neighbor_join_requests
+    .map(normalizeNeighborJoinRequest)
+    .find(entry => entry.id === String(requestId || '').trim());
+  if (!request || request.status !== 'pending') throw createError('邻里申请不存在或已失效', 404);
+  const group = findNeighborGroupById(store, request.group_id);
+  if (!group) throw createError('邻里不存在', 404);
+
+  const groupMember = group.members.find(entry => entry.username === actor);
+  const canManage = groupMember && ['leader', 'manager'].includes(groupMember.role);
+  const canSelfAcceptInvite = request.type === 'invite' && request.username === actor;
+  if (!canManage && !canSelfAcceptInvite) throw createError('你无权处理该邻里申请', 403);
+
+  request.status = decision === 'accept' ? 'accepted' : 'rejected';
+  request.updated_at = Math.floor(Date.now() / 1000);
+
+  if (decision === 'accept') {
+    if (group.members.length >= group.capacity) throw createError('当前邻里人数已满');
+    if (findMemberGroup(store, request.username)) throw createError('该玩家已经加入其他邻里');
+    group.members = [...group.members, normalizeNeighborMember({ username: request.username, role: 'member', joined_at: Math.floor(Date.now() / 1000) })];
+    group.level = Math.min(5, 1 + Math.floor(group.members.length / 4));
+    appendNeighborActivity(group, `${request.username}加入了邻里「${group.name}」`, 'join');
+    updateStoredProfile(request.username, { neighborhood_role: '邻里成员' });
+  }
+
+  store.neighbor_join_requests = store.neighbor_join_requests.map(entry => {
+    const normalized = normalizeNeighborJoinRequest(entry);
+    return normalized.id === request.id ? request : normalized;
+  });
+  store.neighbor_groups = store.neighbor_groups.map(entry => {
+    const normalized = normalizeNeighborGroup(entry);
+    return normalized.id === group.id ? group : normalized;
+  });
+  saveSocialProfileStore(store);
+  return request;
+}
+
+async function updateNeighborNotice(username, payload = {}) {
+  const store = loadSocialProfileStore();
+  const actor = normalizeUsername(username);
+  const group = findMemberGroup(store, actor);
+  if (!group) throw createError('你当前没有邻里');
+  const member = group.members.find(entry => entry.username === actor);
+  if (!member || !['leader', 'manager'].includes(member.role)) throw createError('只有社长或管事可以修改公告', 403);
+  group.notice = sanitizeText(payload.notice, 160);
+  appendNeighborActivity(group, `${actor}更新了邻里公告`, 'notice');
+  store.neighbor_groups = store.neighbor_groups.map(entry => {
+    const normalized = normalizeNeighborGroup(entry);
+    return normalized.id === group.id ? group : normalized;
+  });
+  saveSocialProfileStore(store);
+  return group;
+}
+
+async function updateNeighborMemberRole(username, payload = {}) {
+  const store = loadSocialProfileStore();
+  const actor = normalizeUsername(username);
+  const target = normalizeUsername(payload.target_username);
+  const nextRole = ['manager', 'member'].includes(String(payload.role)) ? String(payload.role) : null;
+  if (!target || !nextRole) throw createError('成员身份参数不完整');
+  const group = findMemberGroup(store, actor);
+  if (!group) throw createError('你当前没有邻里');
+  const actorMember = group.members.find(entry => entry.username === actor);
+  if (!actorMember || actorMember.role !== 'leader') throw createError('只有社长可以调整成员身份', 403);
+  const targetMember = group.members.find(entry => entry.username === target);
+  if (!targetMember) throw createError('目标成员不存在', 404);
+  if (targetMember.role === 'leader') throw createError('不能修改社长身份');
+  targetMember.role = nextRole;
+  appendNeighborActivity(group, `${target}现在是${nextRole === 'manager' ? '邻里管事' : '邻里成员'}`, 'role');
+  updateStoredProfile(target, { neighborhood_role: nextRole === 'manager' ? '邻里管事' : '邻里成员' });
+  store.neighbor_groups = store.neighbor_groups.map(entry => {
+    const normalized = normalizeNeighborGroup(entry);
+    return normalized.id === group.id ? group : normalized;
+  });
+  saveSocialProfileStore(store);
+  return group;
+}
+
+async function listNeighborRequestOverview(username) {
+  const store = loadSocialProfileStore();
+  const actor = normalizeUsername(username);
+  const group = findMemberGroup(store, actor);
+  const public_groups = store.neighbor_groups
+    .map(normalizeNeighborGroup)
+    .sort((left, right) => {
+      const levelDiff = right.level - left.level;
+      if (levelDiff !== 0) return levelDiff;
+      return right.members.length - left.members.length;
+    })
+    .map(entry => ({
+      id: entry.id,
+      name: entry.name,
+      summary: entry.summary,
+      notice: entry.notice,
+      level: entry.level,
+      capacity: entry.capacity,
+      member_count: entry.members.length,
+      leader_username: entry.created_by,
+      activity_log: entry.activity_log.slice(0, 3),
+      can_apply: !entry.members.some(member => member.username === actor) && !findMemberGroup(store, actor),
+    }));
+
+  const incoming_invites = store.neighbor_join_requests
+    .map(normalizeNeighborJoinRequest)
+    .filter(entry => entry.type === 'invite' && entry.username === actor && entry.status === 'pending')
+    .sort((left, right) => right.created_at - left.created_at)
+    .map(entry => ({
+      ...entry,
+      group_name: findNeighborGroupById(store, entry.group_id)?.name || '未命名邻里',
+    }));
+
+  if (!group) {
+    return {
+      managed_requests: [],
+      my_group: null,
+      incoming_invites,
+      public_groups,
+    };
+  }
+
+  const managed_requests = store.neighbor_join_requests
+    .map(normalizeNeighborJoinRequest)
+    .filter(entry => entry.group_id === group.id && entry.status === 'pending')
+    .sort((left, right) => right.created_at - left.created_at)
+    .map(entry => ({
+      ...entry,
+      group_name: group.name,
+    }));
+
+  return {
+    managed_requests,
+    my_group: {
+      ...group,
+      members: [...group.members].sort((left, right) => {
+        const roleRank = { leader: 0, manager: 1, member: 2 };
+        const leftRank = roleRank[left.role] ?? 3;
+        const rightRank = roleRank[right.role] ?? 3;
+        if (leftRank !== rightRank) return leftRank - rightRank;
+        return left.username.localeCompare(right.username, 'zh-CN');
+      }),
+    },
+    incoming_invites,
+    public_groups,
+  };
+}
+
 module.exports = {
   getOwnProfile,
   getPublicProfile,
@@ -569,4 +898,11 @@ module.exports = {
   rejectFriendRequest,
   blockPlayer,
   unblockPlayer,
+  createNeighborGroup,
+  applyToNeighborGroup,
+  inviteToNeighborGroup,
+  respondNeighborRequest,
+  updateNeighborNotice,
+  updateNeighborMemberRole,
+  listNeighborRequestOverview,
 };

@@ -28,6 +28,10 @@
 - `server/src/taoyuanSocialRuntime.js` 和 `server/src/routes/api.js` 已补出最小好友关系链路：好友申请、接受、拒绝、拉黑、解除拉黑，以及关系总览接口都已可调用。
 - `src/utils/onlineProfileApi.ts`、`src/stores/useSocialStore.ts` 和 `src/views/game/SocialView.vue` 也同步接上了前端骨架：现在同一页内就能发起申请、处理收到的申请、查看发出的申请、查看好友列表和已拉黑玩家。
 - 当前好友列表排序先按最近互动 / 最近活跃摘要做近似；更细的在线 Presence、订阅提醒和实时状态仍留待后续联机运行态继续补强。
+### 0518 邻里系统基础（L12 第一轮）
+- `server/src/taoyuanSocialRuntime.js` 与 `server/src/routes/api.js` 已补出邻里最小模型：邻里创建、入组申请、成员邀请、申请处理、公告更新、成员身份调整，以及邻里总览接口都已接通。
+- `src/utils/onlineProfileApi.ts`、`src/stores/useSocialStore.ts` 和 `src/views/game/SocialView.vue` 也同步长出邻里面板：现在可以创建邻里、查看公开邻里、申请加入、接受邀请、维护公告、查看成员和最近动态。
+- 当前邻里等级先按成员规模做轻量计算，容量提供 `3-12 / 12-30 / 30+` 三档入口；退出、踢人、邻里任务板与更完整的成长系统仍留给后续深化任务。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

@@ -42,6 +42,56 @@ export interface OnlineRelationshipOverviewResponse {
   outgoing_requests: OnlineRelationCard[]
   friends: OnlineRelationCard[]
   blocked_users: OnlineRelationCard[]
+  neighbor_group?: OnlineNeighborGroupSummary | null
+  msg?: string
+}
+
+export interface OnlineNeighborActivityLog {
+  id: string
+  type: string
+  message: string
+  created_at: number
+}
+
+export interface OnlineNeighborMember {
+  username: string
+  role: 'leader' | 'manager' | 'member'
+  joined_at: number
+}
+
+export interface OnlineNeighborGroupSummary {
+  id: string
+  name: string
+  summary: string
+  notice: string
+  level: number
+  capacity: number
+  member_count: number
+  role?: 'leader' | 'manager' | 'member'
+  leader_username?: string
+  members?: OnlineNeighborMember[]
+  activity_log: OnlineNeighborActivityLog[]
+  can_apply?: boolean
+}
+
+export interface OnlineNeighborRequest {
+  id: string
+  group_id: string
+  username: string
+  invited_by?: string
+  type: 'apply' | 'invite'
+  status: 'pending' | 'accepted' | 'rejected'
+  created_at: number
+  updated_at: number
+  group_name?: string
+}
+
+export interface OnlineNeighborOverviewResponse {
+  ok: boolean
+  managed_requests: OnlineNeighborRequest[]
+  my_group: OnlineNeighborGroupSummary | null
+  incoming_invites: OnlineNeighborRequest[]
+  public_groups: OnlineNeighborGroupSummary[]
   msg?: string
 }
 
@@ -150,5 +200,72 @@ export const unblockPlayer = async (targetUsername: string) => {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ target_username: targetUsername })
+  })
+}
+
+export const fetchNeighborOverview = async (): Promise<OnlineNeighborOverviewResponse | null> => {
+  const account = await ensureCurrentAccount()
+  if (!account || account === 'guest') return null
+  const { data } = await fetchProtectedJson<OnlineNeighborOverviewResponse>(() => fetch('/api/taoyuan/online/social/neighbors/overview', {
+    credentials: 'include'
+  }), {
+    fallbackMessage: '获取邻里信息失败',
+    networkErrorMessage: '邻里服务连接失败，请检查网络或稍后重试'
+  })
+  return data ?? null
+}
+
+export const createNeighborGroup = async (payload: {
+  name: string
+  summary: string
+  notice: string
+  capacity: number
+}) => {
+  return requestSocialAction('/api/taoyuan/online/social/neighbors', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
+export const applyToNeighborGroup = async (groupId: string) => {
+  return requestSocialAction(`/api/taoyuan/online/social/neighbors/${encodeURIComponent(groupId)}/apply`, {
+    method: 'POST'
+  })
+}
+
+export const inviteToNeighborGroup = async (targetUsername: string) => {
+  return requestSocialAction('/api/taoyuan/online/social/neighbors/invite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_username: targetUsername })
+  })
+}
+
+export const acceptNeighborRequest = async (requestId: string) => {
+  return requestSocialAction(`/api/taoyuan/online/social/neighbors/requests/${encodeURIComponent(requestId)}/accept`, {
+    method: 'POST'
+  })
+}
+
+export const rejectNeighborRequest = async (requestId: string) => {
+  return requestSocialAction(`/api/taoyuan/online/social/neighbors/requests/${encodeURIComponent(requestId)}/reject`, {
+    method: 'POST'
+  })
+}
+
+export const updateNeighborNotice = async (notice: string) => {
+  return requestSocialAction('/api/taoyuan/online/social/neighbors/notice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notice })
+  })
+}
+
+export const updateNeighborMemberRole = async (targetUsername: string, role: 'manager' | 'member') => {
+  return requestSocialAction('/api/taoyuan/online/social/neighbors/members/role', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_username: targetUsername, role })
   })
 }
