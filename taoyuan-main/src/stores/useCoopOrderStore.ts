@@ -58,6 +58,19 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     overview.value?.compensations || []
   )
 
+  const reputationSummary = computed(() =>
+    overview.value?.reputation_summary || {
+      total: 0,
+      by_order_type: {},
+      completed_count: 0,
+      updated_at: 0,
+      trust_level: { id: 'new', label: '初识互助' },
+      specialty_ranks: [],
+      top_helped_targets: [],
+      top_helpers: [],
+    }
+  )
+
   const refreshOverview = async () => {
     loading.value = true
     errorMessage.value = ''
@@ -233,6 +246,7 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     visibleOrders,
     myReceipts,
     myCompensations,
+    reputationSummary,
     refreshOverview,
     resetDrafts,
     submitOrder,

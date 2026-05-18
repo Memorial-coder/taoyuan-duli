@@ -550,6 +550,8 @@ export interface OnlineCoopOrderEntry {
   }>
   settlement_confirmed_at: number
   compensation_id: string
+  priority_score?: number
+  priority_reasons?: string[]
   created_at: number
   updated_at: number
 }
@@ -571,6 +573,9 @@ export interface OnlineCoopReceiptEntry {
   status: 'pending_owner_confirm' | 'confirmed' | 'compensation_pending'
   reward_result: string
   compensation_id: string
+  help_reputation_delta: number
+  specialty_reputation_delta: number
+  trust_level_label: string
   created_at: number
   confirmed_at: number
   updated_at: number
@@ -602,7 +607,28 @@ export interface OnlineCoopOrderOverviewResponse {
   reputation_summary: {
     total: number
     by_order_type: Record<string, number>
+    completed_count: number
     updated_at: number
+    trust_level: {
+      id: string
+      label: string
+    }
+    specialty_ranks: Array<{
+      order_type: string
+      score: number
+    }>
+    top_helped_targets: Array<{
+      username: string
+      display_name: string
+      help_count: number
+      total_points: number
+    }>
+    top_helpers: Array<{
+      username: string
+      display_name: string
+      help_count: number
+      total_points: number
+    }>
   }
   order_type_options: OnlineCoopOrderType[]
   scope_options: OnlineCoopOrderScope[]

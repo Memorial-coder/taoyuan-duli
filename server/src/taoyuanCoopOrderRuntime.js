@@ -166,7 +166,9 @@ function normalizeSettlementReceipt(entry) {
     id: String(entry?.id || makeId('coop_receipt')),
     order_id: String(entry?.order_id || '').trim(),
     owner_username: String(entry?.owner_username || '').trim(),
+    owner_display_name: sanitizeText(entry?.owner_display_name, 30) || String(entry?.owner_username || ''),
     assignee_username: String(entry?.assignee_username || '').trim(),
+    assignee_display_name: sanitizeText(entry?.assignee_display_name, 30) || String(entry?.assignee_username || ''),
     reward_type: normalizeRewardType(entry?.reward_type),
     reward_value: Math.max(0, Math.floor(Number(entry?.reward_value) || 0)),
     reward_label: sanitizeText(entry?.reward_label, 40),
@@ -178,6 +180,9 @@ function normalizeSettlementReceipt(entry) {
     status: normalizeReceiptStatus(entry?.status),
     reward_result: sanitizeText(entry?.reward_result, 80),
     compensation_id: String(entry?.compensation_id || '').trim(),
+    help_reputation_delta: Math.max(0, Math.floor(Number(entry?.help_reputation_delta) || 0)),
+    specialty_reputation_delta: Math.max(0, Math.floor(Number(entry?.specialty_reputation_delta) || 0)),
+    trust_level_label: sanitizeText(entry?.trust_level_label, 20),
     created_at: normalizeTimestamp(entry?.created_at),
     confirmed_at: Math.max(0, Math.floor(Number(entry?.confirmed_at) || 0)),
     updated_at: normalizeTimestamp(entry?.updated_at),
@@ -213,7 +218,113 @@ function normalizeReputationProfile(entry) {
             .map(([key, value]) => [String(key), Math.max(0, Math.floor(Number(value) || 0))])
         )
       : {},
+    completed_count: Math.max(0, Math.floor(Number(entry?.completed_count) || 0)),
     updated_at: Math.max(0, Math.floor(Number(entry?.updated_at) || 0)),
+  };
+}
+
+function buildTrustLevel(profile) {
+  const total = Math.max(0, Math.floor(Number(profile?.total) || 0));
+  const completedCount = Math.max(0, Math.floor(Number(profile?.completed_count) || 0));
+  if (total >= 24 || completedCount >= 8) return { id: 'backbone', label: '骨干互助' };
+  if (total >= 12 || completedCount >= 4) return { id: 'reliable', label: '稳固信赖' };
+  if (total >= 4 || completedCount >= 2) return { id: 'familiar', label: '可靠协作' };
+  return { id: 'new', label: '初识互助' };
+}
+
+function buildTrustGraphIndex(receipts = []) {
+  const helperToOwner = new Map();
+  const ownerToHelper = new Map();
+
+  for (const entry of receipts) {
+    const receipt = normalizeSettlementReceipt(entry);
+    if (!['confirmed', 'compensation_pending'].includes(receipt.status)) continue;
+    const helpKey = `${receipt.assignee_username}=>${receipt.owner_username}`;
+    const ownerKey = `${receipt.owner_username}=>${receipt.assignee_username}`;
+    const helperCount = helperToOwner.get(helpKey) || {
+      username: receipt.owner_username,
+      display_name: receipt.owner_display_name || receipt.owner_username,
+      help_count: 0,
+      total_points: 0,
+    };
+    helperToOwner.set(helpKey, {
+      ...helperCount,
+      help_count: helperCount.help_count + 1,
+      total_points: helperCount.total_points + Math.max(1, receipt.help_reputation_delta || 0),
+    });
+
+    const ownerCount = ownerToHelper.get(ownerKey) || {
+      username: receipt.assignee_username,
+      display_name: receipt.assignee_display_name || receipt.assignee_username,
+      help_count: 0,
+      total_points: 0,
+    };
+    ownerToHelper.set(ownerKey, {
+      ...ownerCount,
+      help_count: ownerCount.help_count + 1,
+      total_points: ownerCount.total_points + Math.max(1, receipt.help_reputation_delta || 0),
+    });
+  }
+
+  return { helperToOwner, ownerToHelper };
+}
+
+function buildViewerTrustSummary(store, viewerUsername) {
+  const profile = normalizeReputationProfile(store.reputations?.[viewerUsername] || {});
+  const trustLevel = buildTrustLevel(profile);
+  const specialty_ranks = Object.entries(profile.by_order_type)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 5)
+    .map(([order_type, score]) => ({ order_type, score }));
+
+  const trustGraph = buildTrustGraphIndex(store.receipts);
+  const top_helped_targets = Array.from(trustGraph.helperToOwner.entries())
+    .filter(([key]) => key.startsWith(`${viewerUsername}=>`))
+    .map(([, value]) => value)
+    .sort((left, right) => {
+      if (right.help_count !== left.help_count) return right.help_count - left.help_count;
+      return right.total_points - left.total_points;
+    })
+    .slice(0, 5);
+
+  const top_helpers = Array.from(trustGraph.ownerToHelper.entries())
+    .filter(([key]) => key.startsWith(`${viewerUsername}=>`))
+    .map(([, value]) => value)
+    .sort((left, right) => {
+      if (right.help_count !== left.help_count) return right.help_count - left.help_count;
+      return right.total_points - left.total_points;
+    })
+    .slice(0, 5);
+
+  return {
+    total: profile.total,
+    by_order_type: profile.by_order_type,
+    completed_count: profile.completed_count,
+    updated_at: profile.updated_at,
+    trust_level: trustLevel,
+    specialty_ranks,
+    top_helped_targets,
+    top_helpers,
+  };
+}
+
+function buildOrderPriority(order, viewerSummary) {
+  const specialtyScore = Math.max(0, Math.floor(Number(viewerSummary?.by_order_type?.[order.order_type]) || 0));
+  const trustTarget = Array.isArray(viewerSummary?.top_helped_targets)
+    ? viewerSummary.top_helped_targets.find(entry => entry.username === order.owner_username)
+    : null;
+  const helperScore = trustTarget ? Math.max(0, trustTarget.help_count * 3 + trustTarget.total_points) : 0;
+  const priorityScore = specialtyScore * 4 + helperScore;
+  const priorityReasons = [];
+  if (specialtyScore > 0) {
+    priorityReasons.push(`你在 ${order.order_type} 方向已有 ${specialtyScore} 点互助积累`);
+  }
+  if (trustTarget) {
+    priorityReasons.push(`你曾帮助 ${trustTarget.display_name || trustTarget.username} ${trustTarget.help_count} 次`);
+  }
+  return {
+    priority_score: priorityScore,
+    priority_reasons: priorityReasons,
   };
 }
 
@@ -309,10 +420,41 @@ function applyReputationReward(store, receipt, order) {
       ...current.by_order_type,
       [order.order_type]: (current.by_order_type[order.order_type] || 0) + receipt.reward_value,
     },
+    completed_count: current.completed_count,
     updated_at: Math.floor(Date.now() / 1000),
   });
   store.reputations[username] = next;
   return next;
+}
+
+function applyMutualAidReputation(store, order, receipt) {
+  const username = receipt.assignee_username;
+  const current = normalizeReputationProfile(store.reputations?.[username] || {});
+  const deliveredQuantity = Array.isArray(receipt.delivered_items)
+    ? receipt.delivered_items.reduce((sum, item) => sum + Math.max(0, Number(item.quantity) || 0), 0)
+    : 0;
+  const helpReputationDelta = Math.max(
+    1,
+    Math.min(
+      12,
+      Math.ceil(Math.max(1, receipt.reward_value) / 40) + Math.floor(deliveredQuantity / 3)
+    )
+  );
+  const next = normalizeReputationProfile({
+    total: current.total + helpReputationDelta,
+    by_order_type: {
+      ...current.by_order_type,
+      [order.order_type]: (current.by_order_type[order.order_type] || 0) + helpReputationDelta,
+    },
+    completed_count: current.completed_count + 1,
+    updated_at: Math.floor(Date.now() / 1000),
+  });
+  store.reputations[username] = next;
+  return {
+    helpReputationDelta,
+    specialtyReputationDelta: helpReputationDelta,
+    trustLevel: buildTrustLevel(next),
+  };
 }
 
 function buildCompensationReason(error) {
@@ -520,7 +662,9 @@ async function submitCoopOrderDelivery(orderId, payload = {}, actor = {}) {
     id: makeId('coop_receipt'),
     order_id: order.id,
     owner_username: order.owner_username,
+    owner_display_name: order.owner_display_name,
     assignee_username: order.assignee_username,
+    assignee_display_name: order.assignee_display_name,
     reward_type: order.reward_type,
     reward_value: order.reward_value,
     reward_label: order.reward_label,
@@ -530,6 +674,9 @@ async function submitCoopOrderDelivery(orderId, payload = {}, actor = {}) {
     status: 'pending_owner_confirm',
     reward_result: '',
     compensation_id: '',
+    help_reputation_delta: 0,
+    specialty_reputation_delta: 0,
+    trust_level_label: '',
     created_at: now,
     confirmed_at: 0,
     updated_at: now,
@@ -583,6 +730,13 @@ async function confirmCoopOrderDelivery(orderId, actor = {}) {
     ...order,
     settlement_confirmed_at: now,
     updated_at: now,
+  });
+  const reputationOutcome = applyMutualAidReputation(store, order, receipt);
+  nextReceipt = normalizeSettlementReceipt({
+    ...nextReceipt,
+    help_reputation_delta: reputationOutcome.helpReputationDelta,
+    specialty_reputation_delta: reputationOutcome.specialtyReputationDelta,
+    trust_level_label: reputationOutcome.trustLevel.label,
   });
 
   try {
@@ -706,10 +860,17 @@ async function replayCoopOrderCompensation(compensationId, actor = {}) {
 async function listVisibleCoopOrders(viewerUsername = '') {
   const store = loadCoopOrderStore();
   const normalizedViewer = String(viewerUsername || '').trim();
+  const viewerSummary = buildViewerTrustSummary(store, normalizedViewer);
   const orders = markExpiredOrders(store)
     .filter(order => isOrderVisibleToViewer(order, normalizedViewer))
+    .map(order => ({
+      ...order,
+      ...buildOrderPriority(order, viewerSummary),
+    }))
     .sort((left, right) => {
       if (left.status !== right.status) return left.status === 'open' ? -1 : 1;
+      const priorityDiff = Math.max(0, Number(right.priority_score) || 0) - Math.max(0, Number(left.priority_score) || 0);
+      if (priorityDiff !== 0) return priorityDiff;
       return right.created_at - left.created_at;
     });
 
@@ -723,15 +884,11 @@ async function listVisibleCoopOrders(viewerUsername = '') {
     .filter(record => record.owner_username === normalizedViewer || record.assignee_username === normalizedViewer)
     .sort((left, right) => right.created_at - left.created_at);
 
-  const reputation_summary = normalizedViewer
-    ? normalizeReputationProfile(store.reputations?.[normalizedViewer] || {})
-    : normalizeReputationProfile({});
-
   return {
     orders,
     receipts,
     compensations,
-    reputation_summary,
+    reputation_summary: viewerSummary,
     order_type_options: [...ORDER_TYPES],
     scope_options: [...ORDER_SCOPES],
     reward_type_options: [...ORDER_REWARD_TYPES],

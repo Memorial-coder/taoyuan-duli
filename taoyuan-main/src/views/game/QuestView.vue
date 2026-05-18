@@ -373,6 +373,9 @@
               <p class="text-[10px] text-accent mt-1">
                 回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
               </p>
+              <p v-if="order.priority_reasons?.length" class="text-[10px] text-warning mt-1">
+                优先推荐：{{ order.priority_reasons.join('；') }}
+              </p>
               <p v-if="order.assignee_username" class="text-[10px] text-success mt-1">
                 当前接单人：{{ order.assignee_display_name || order.assignee_username }}
               </p>
@@ -424,6 +427,9 @@
               <p class="text-xs text-accent">凭证 {{ receipt.id }}</p>
               <p class="text-[10px] text-muted mt-1">状态：{{ getCoopReceiptStatusLabel(receipt.status) }} · 回报：{{ getCoopRewardTypeLabel(receipt.reward_type) }} {{ receipt.reward_value }}</p>
               <p class="text-[10px] text-muted mt-1">交付说明：{{ receipt.result_note || '未填写额外交付说明。' }}</p>
+              <p v-if="receipt.help_reputation_delta > 0" class="text-[10px] text-accent mt-1">
+                互助声望 +{{ receipt.help_reputation_delta }} · {{ receipt.trust_level_label || '信赖已更新' }}
+              </p>
               <p v-if="receipt.reward_result" class="text-[10px] text-success mt-1">{{ receipt.reward_result }}</p>
             </div>
             <div v-for="compensation in coopOrderStore.myCompensations" :key="compensation.id" class="border border-warning/20 rounded-xs p-2 mb-1.5 bg-warning/5">
@@ -435,6 +441,33 @@
                 <Button class="text-[10px]" :disabled="coopOrderStore.actionRunning" @click="retryCoopCompensationEntry(compensation.id)">
                   重试补偿
                 </Button>
+              </div>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-[10px] text-muted mb-1">互助声望</p>
+            <p class="text-xs text-accent">当前等级：{{ coopOrderStore.reputationSummary.trust_level.label }}</p>
+            <p class="text-[10px] text-muted mt-1">总帮助声望：{{ coopOrderStore.reputationSummary.total }} · 已完成互助：{{ coopOrderStore.reputationSummary.completed_count }} 次</p>
+            <div class="mt-2">
+              <p class="text-[10px] text-muted mb-1">专业方向</p>
+              <div v-if="coopOrderStore.reputationSummary.specialty_ranks.length === 0" class="text-[10px] text-muted">当前还没有专业方向声望。</div>
+              <div v-for="entry in coopOrderStore.reputationSummary.specialty_ranks" :key="entry.order_type" class="text-[10px] text-accent mb-1">
+                {{ getCoopOrderTypeLabel(entry.order_type as OnlineCoopOrderType) }} · {{ entry.score }}
+              </div>
+            </div>
+            <div class="mt-2">
+              <p class="text-[10px] text-muted mb-1">我常帮的人</p>
+              <div v-if="coopOrderStore.reputationSummary.top_helped_targets.length === 0" class="text-[10px] text-muted">当前还没有稳定互助对象。</div>
+              <div v-for="entry in coopOrderStore.reputationSummary.top_helped_targets" :key="entry.username" class="text-[10px] text-accent mb-1">
+                {{ entry.display_name || entry.username }} · {{ entry.help_count }} 次
+              </div>
+            </div>
+            <div class="mt-2">
+              <p class="text-[10px] text-muted mb-1">谁最常帮我</p>
+              <div v-if="coopOrderStore.reputationSummary.top_helpers.length === 0" class="text-[10px] text-muted">当前还没有稳定帮助者。</div>
+              <div v-for="entry in coopOrderStore.reputationSummary.top_helpers" :key="entry.username" class="text-[10px] text-accent mb-1">
+                {{ entry.display_name || entry.username }} · {{ entry.help_count }} 次
               </div>
             </div>
           </div>

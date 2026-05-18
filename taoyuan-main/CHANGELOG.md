@@ -92,6 +92,11 @@
 - `taoyuan-main/src/utils/onlineProfileApi.ts`、`taoyuan-main/src/stores/useCoopOrderStore.ts` 和 `taoyuan-main/src/views/game/QuestView.vue` 也同步接上了交付草稿、结算确认、凭证回看和补偿重试入口。
 - `server/scripts/qa-online-smoke.mjs` 现已覆盖接单、取消接单、交付提交、重复提交保护、发布人确认结算、奖励回写和过期状态回读。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
+### 0518 互助声望（L33 第一轮）
+- `server/src/taoyuanCoopOrderRuntime.js` 已把互助声望并进求助单结算：当前会累积帮助总声望、按求助类别统计专业方向声望，并记录“谁帮过谁 / 帮了多少次”的双向信赖关系。
+- 这套声望统计会直接跟随求助单列表返回，作为后续曝光排序和推荐的基础数据，而不是单独挂一套脱节账本。
+- `taoyuan-main/src/utils/onlineProfileApi.ts`、`taoyuan-main/src/stores/useCoopOrderStore.ts` 和 `taoyuan-main/src/views/game/QuestView.vue` 也已接上声望总览与信赖关系展示，任务页现在能直接回看谁是当前最稳定的互助对象。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

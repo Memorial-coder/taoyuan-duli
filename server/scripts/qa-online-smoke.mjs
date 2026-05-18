@@ -664,6 +664,15 @@ try {
     assert(Number(decrypted?.player?.money) === 380, `coop order reward did not persist to second user save, current money=${decrypted?.player?.money}`)
   })
 
+  await runCheck('GET /api/taoyuan/online/orders reputation summary readback', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
+    assert(response.ok, `coop reputation readback returned ${response.status}`)
+    assert(data?.ok === true && data?.reputation_summary?.total > 0, 'coop reputation total did not increase')
+    assert(data?.reputation_summary?.completed_count >= 1, 'coop reputation completed count did not increase')
+    assert(typeof data?.reputation_summary?.trust_level?.label === 'string' && data.reputation_summary.trust_level.label, 'coop trust level label is missing')
+    assert(data?.reputation_summary?.top_helped_targets?.some(entry => entry?.username === sessionState.username), 'coop trust graph did not include the helped owner')
+  })
+
   await runCheck('POST /api/taoyuan/online/orders expiring write path', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
       method: 'POST',
@@ -745,6 +754,7 @@ try {
     const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
     assert(secondaryOverview.response.ok, `friend-scope coop order overview returned ${secondaryOverview.response.status}`)
     assert(secondaryOverview.data?.orders?.some(entry => entry?.title === friendCoopOrderTitle && entry?.scope === 'friends'), 'friend-scope coop order missing from viewer overview')
+    assert(secondaryOverview.data?.orders?.some(entry => entry?.title === friendCoopOrderTitle && Number(entry?.priority_score) > 0), 'friend-scope coop order did not receive reputation-based priority')
   })
 
   let neighborInviteId = ''
