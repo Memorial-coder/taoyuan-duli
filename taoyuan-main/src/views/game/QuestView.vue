@@ -302,6 +302,28 @@
 
         <div class="space-y-2">
           <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-[10px] text-muted mb-1">我接下的求助单</p>
+            <div v-if="coopOrderStore.myAcceptedOrders.length === 0" class="text-[10px] text-muted">当前还没有自己接下的求助单。</div>
+            <div v-for="order in coopOrderStore.myAcceptedOrders" :key="order.id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <p class="text-xs text-accent">{{ order.title }}</p>
+                  <p class="text-[10px] text-muted mt-1">{{ order.owner_display_name }} 发布 · {{ order.description }}</p>
+                </div>
+                <span class="text-[10px]" :class="order.status === 'open' ? 'text-success' : 'text-muted'">{{ order.status === 'open' ? '已接单' : order.status === 'expired' ? '已过期' : '已关闭' }}</span>
+              </div>
+              <p class="text-[10px] text-muted mt-2">
+                {{ getCoopOrderTypeLabel(order.order_type) }} · 截止 {{ formatCoopDeadline(order.deadline_at) }}
+              </p>
+              <div class="flex justify-end mt-2">
+                <Button class="text-[10px]" :disabled="coopOrderStore.actionRunning || order.status !== 'open'" @click="cancelAcceptedCoopOrderEntry(order.id)">
+                  取消接单
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2">
             <p class="text-[10px] text-muted mb-1">我发布的求助单</p>
             <div v-if="coopOrderStore.myOrders.length === 0" class="text-[10px] text-muted">当前还没有自己发布的求助单。</div>
             <div v-for="order in coopOrderStore.myOrders" :key="order.id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
@@ -317,6 +339,9 @@
               </p>
               <p class="text-[10px] text-accent mt-1">
                 回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
+              </p>
+              <p v-if="order.assignee_username" class="text-[10px] text-success mt-1">
+                当前接单人：{{ order.assignee_display_name || order.assignee_username }}
               </p>
             </div>
           </div>
@@ -339,6 +364,18 @@
               <p class="text-[10px] text-accent mt-1">
                 回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
               </p>
+              <p v-if="order.assignee_username" class="text-[10px] text-success mt-1">
+                当前接单人：{{ order.assignee_display_name || order.assignee_username }}
+              </p>
+              <div class="flex justify-end mt-2">
+                <Button
+                  class="text-[10px]"
+                  :disabled="coopOrderStore.actionRunning || order.status !== 'open' || !!order.assignee_username"
+                  @click="acceptCoopOrderEntry(order.id)"
+                >
+                  {{ order.assignee_username ? '已有人接单' : '接这张单' }}
+                </Button>
+              </div>
             </div>
           </div>
         </div>
@@ -957,6 +994,14 @@
 
   const submitCoopOrder = async () => {
     await coopOrderStore.submitOrder().catch(() => {})
+  }
+
+  const acceptCoopOrderEntry = async (orderId: string) => {
+    await coopOrderStore.acceptOrder(orderId).catch(() => {})
+  }
+
+  const cancelAcceptedCoopOrderEntry = async (orderId: string) => {
+    await coopOrderStore.cancelAcceptedOrder(orderId).catch(() => {})
   }
 
   const focusQuestSection = (focusKey: string, label: string) => {

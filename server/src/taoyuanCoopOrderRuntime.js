@@ -91,6 +91,10 @@ function normalizeOrder(order) {
     reward_value: Math.max(0, Math.floor(Number(order?.reward_value) || 0)),
     reward_label: sanitizeText(order?.reward_label, 40),
     status: ['open', 'closed', 'expired'].includes(String(order?.status)) ? String(order.status) : 'open',
+    assignee_username: String(order?.assignee_username || '').trim(),
+    assignee_display_name: sanitizeText(order?.assignee_display_name, 30) || String(order?.assignee_username || ''),
+    accepted_at: Math.max(0, Math.floor(Number(order?.accepted_at) || 0)),
+    canceled_at: Math.max(0, Math.floor(Number(order?.canceled_at) || 0)),
     created_at: normalizeTimestamp(order?.created_at),
     updated_at: normalizeTimestamp(order?.updated_at),
   };
@@ -120,6 +124,8 @@ function markExpiredOrders(store) {
       return {
         ...order,
         status: 'expired',
+        assignee_username: '',
+        assignee_display_name: '',
         updated_at: now,
       };
     }
@@ -165,6 +171,10 @@ async function createCoopOrder(payload = {}, actor = {}) {
     reward_value: rewardValue,
     reward_label: payload.reward_label,
     status: 'open',
+    assignee_username: '',
+    assignee_display_name: '',
+    accepted_at: 0,
+    canceled_at: 0,
     created_at: now,
     updated_at: now,
   });
@@ -172,6 +182,72 @@ async function createCoopOrder(payload = {}, actor = {}) {
   store.orders = [order, ...store.orders.map(normalizeOrder)];
   saveCoopOrderStore(store);
   return order;
+}
+
+function findOrderById(store, orderId) {
+  return store.orders
+    .map(normalizeOrder)
+    .find(order => order.id === String(orderId || '').trim()) || null;
+}
+
+async function acceptCoopOrder(orderId, actor = {}) {
+  const assigneeUsername = String(actor.username || '').trim();
+  if (!assigneeUsername) throw createError('请先登录后再接单', 401);
+  const assigneeUser = await db.getUser(assigneeUsername);
+  if (!assigneeUser) throw createError('当前玩家不存在', 404);
+
+  const store = loadCoopOrderStore();
+  markExpiredOrders(store);
+  const order = findOrderById(store, orderId);
+  if (!order) throw createError('求助单不存在', 404);
+  if (order.owner_username === assigneeUsername) throw createError('不能接自己发布的求助单');
+  if (!isOrderVisibleToViewer(order, assigneeUsername)) throw createError('当前无权接这张求助单', 403);
+  if (order.status !== 'open') throw createError(order.status === 'expired' ? '求助单已过期' : '求助单当前不可接');
+  if (order.assignee_username) throw createError('这张求助单已经有人接下了');
+
+  const now = Math.floor(Date.now() / 1000);
+  const nextOrder = {
+    ...order,
+    assignee_username: assigneeUsername,
+    assignee_display_name: actor.displayName || assigneeUser.display_name || assigneeUsername,
+    accepted_at: now,
+    updated_at: now,
+  };
+  store.orders = store.orders.map(entry => {
+    const normalized = normalizeOrder(entry);
+    return normalized.id === nextOrder.id ? nextOrder : normalized;
+  });
+  saveCoopOrderStore(store);
+  return nextOrder;
+}
+
+async function cancelAcceptedCoopOrder(orderId, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录后再取消接单', 401);
+
+  const store = loadCoopOrderStore();
+  markExpiredOrders(store);
+  const order = findOrderById(store, orderId);
+  if (!order) throw createError('求助单不存在', 404);
+  if (order.status !== 'open') throw createError(order.status === 'expired' ? '求助单已过期，不能取消接单' : '求助单当前不可取消');
+  if (!order.assignee_username) throw createError('当前还没有人接这张求助单');
+  if (order.assignee_username !== actorUsername) throw createError('只有当前接单人可以取消接单', 403);
+
+  const now = Math.floor(Date.now() / 1000);
+  const nextOrder = {
+    ...order,
+    assignee_username: '',
+    assignee_display_name: '',
+    accepted_at: 0,
+    canceled_at: now,
+    updated_at: now,
+  };
+  store.orders = store.orders.map(entry => {
+    const normalized = normalizeOrder(entry);
+    return normalized.id === nextOrder.id ? nextOrder : normalized;
+  });
+  saveCoopOrderStore(store);
+  return nextOrder;
 }
 
 async function listVisibleCoopOrders(viewerUsername = '') {
@@ -193,5 +269,7 @@ async function listVisibleCoopOrders(viewerUsername = '') {
 
 module.exports = {
   createCoopOrder,
+  acceptCoopOrder,
+  cancelAcceptedCoopOrder,
   listVisibleCoopOrders,
 };

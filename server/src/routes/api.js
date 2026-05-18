@@ -811,6 +811,30 @@ router.post('/taoyuan/online/orders', loginRequired, signRequired, async (req, r
   }
 });
 
+router.post('/taoyuan/online/orders/:orderId/accept', loginRequired, signRequired, async (req, res) => {
+  try {
+    const order = await taoyuanCoopOrderRuntime.acceptCoopOrder(req.params.orderId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, order });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '接单失败' });
+  }
+});
+
+router.post('/taoyuan/online/orders/:orderId/cancel-accept', loginRequired, signRequired, async (req, res) => {
+  try {
+    const order = await taoyuanCoopOrderRuntime.cancelAcceptedCoopOrder(req.params.orderId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, order });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '取消接单失败' });
+  }
+});
+
 router.get('/taoyuan/online/social/relationships', loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanSocialRuntime.listRelationshipOverview(req.session.username);

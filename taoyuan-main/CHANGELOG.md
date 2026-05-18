@@ -81,6 +81,11 @@
 - `taoyuan-main/src/utils/onlineProfileApi.ts`、`taoyuan-main/src/stores/useCoopOrderStore.ts` 和 `taoyuan-main/src/views/game/QuestView.vue` 已接上第一版求助单面板：现在可以直接在任务页发布求助单，并查看我发布的和当前可见的单子。
 - `server/scripts/qa-online-smoke.mjs` 也补进了求助单回归，能实际验证公开 / 好友 / 邻里三种范围的读写链路。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/taoyuanSocialRuntime.js`、`node --check server/src/routes/api.js` 与 `node server/scripts/qa-online-smoke.mjs`。
+### 0518 接单系统（L31 第一轮）
+- `server/src/taoyuanCoopOrderRuntime.js` 与 `/api/taoyuan/online/orders/:orderId/accept`、`/cancel-accept` 已补出最小接单状态流转：当前支持单人接单、接单人主动取消，以及订单到期时自动过期。
+- `taoyuan-main/src/utils/onlineProfileApi.ts`、`taoyuan-main/src/stores/useCoopOrderStore.ts` 和 `taoyuan-main/src/views/game/QuestView.vue` 也同步补上了接单与取消接单入口，并在求助单列表里显示当前接单人。
+- `server/scripts/qa-online-smoke.mjs` 现已覆盖求助单接单、取消接单和短时过期验证，`L31` 的第一轮状态流转已经进入可重复执行的 smoke。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

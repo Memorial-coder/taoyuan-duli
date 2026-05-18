@@ -471,6 +471,11 @@ try {
   const publicCoopOrderTitle = `public coop order ${Date.now()}`
   const friendCoopOrderTitle = `friend coop order ${Date.now()}`
   const neighborCoopOrderTitle = `neighbor coop order ${Date.now()}`
+  const expiringCoopOrderTitle = `expiring coop order ${Date.now()}`
+  let publicCoopOrderId = ''
+  let friendCoopOrderId = ''
+  let neighborCoopOrderId = ''
+  let expiringCoopOrderId = ''
   await runCheck('second session bootstrap', async () => {
     await bootstrapSession(secondarySessionState, 'smk2', 260)
   })
@@ -557,6 +562,8 @@ try {
     })
     assert(response.ok, `public coop order write returned ${response.status}`)
     assert(data?.ok === true && data?.order?.title === publicCoopOrderTitle, 'public coop order payload is incomplete')
+    publicCoopOrderId = String(data?.order?.id || '')
+    assert(publicCoopOrderId, 'public coop order id was not created')
   })
 
   await runCheck('GET /api/taoyuan/online/orders public read path', async () => {
@@ -567,6 +574,58 @@ try {
     const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
     assert(secondaryOverview.response.ok, `secondary coop order overview returned ${secondaryOverview.response.status}`)
     assert(secondaryOverview.data?.orders?.some(entry => entry?.title === publicCoopOrderTitle && entry?.scope === 'public'), 'public coop order missing from secondary overview')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/accept public path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/orders/${encodeURIComponent(publicCoopOrderId)}/accept`, {
+      method: 'POST',
+    })
+    assert(response.ok, `public coop order accept returned ${response.status}`)
+    assert(data?.ok === true && data?.order?.assignee_username === secondarySessionState.username, 'public coop order accept payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/online/orders accepted readback', async () => {
+    const primaryOverview = await fetchAuthedJson('/api/taoyuan/online/orders')
+    assert(primaryOverview.response.ok, `accepted coop order owner readback returned ${primaryOverview.response.status}`)
+    assert(primaryOverview.data?.orders?.some(entry => entry?.id === publicCoopOrderId && entry?.assignee_username === secondarySessionState.username), 'accepted coop order assignee missing from owner overview')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/cancel-accept public path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/orders/${encodeURIComponent(publicCoopOrderId)}/cancel-accept`, {
+      method: 'POST',
+    })
+    assert(response.ok, `public coop order cancel accept returned ${response.status}`)
+    assert(data?.ok === true && !data?.order?.assignee_username, 'public coop order cancel accept payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders expiring write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: expiringCoopOrderTitle,
+        description: 'smoke expiring coop order',
+        order_type: 'npc_request',
+        scope: 'public',
+        deadline_at: Math.floor(Date.now() / 1000) + 5,
+        reward_type: 'money',
+        reward_value: 30,
+        reward_label: '短时赏金',
+      }),
+    })
+    assert(response.ok, `expiring coop order write returned ${response.status}`)
+    assert(data?.ok === true && data?.order?.title === expiringCoopOrderTitle, 'expiring coop order payload is incomplete')
+    expiringCoopOrderId = String(data?.order?.id || '')
+    assert(expiringCoopOrderId, 'expiring coop order id was not created')
+  })
+
+  await runCheck('GET /api/taoyuan/online/orders expired readback', async () => {
+    await wait(6000)
+    const primaryOverview = await fetchAuthedJson('/api/taoyuan/online/orders')
+    assert(primaryOverview.response.ok, `expired coop order readback returned ${primaryOverview.response.status}`)
+    assert(primaryOverview.data?.orders?.some(entry => entry?.id === expiringCoopOrderId && entry?.status === 'expired'), 'expiring coop order did not flip to expired')
   })
 
   let friendRequestId = ''
@@ -612,6 +671,8 @@ try {
     })
     assert(response.ok, `friend coop order write returned ${response.status}`)
     assert(data?.ok === true && data?.order?.scope === 'friends', 'friend coop order payload is incomplete')
+    friendCoopOrderId = String(data?.order?.id || '')
+    assert(friendCoopOrderId, 'friend coop order id was not created')
   })
 
   await runCheck('GET /api/taoyuan/online/orders friends visibility', async () => {
@@ -680,6 +741,8 @@ try {
     })
     assert(response.ok, `neighbor coop order write returned ${response.status}`)
     assert(data?.ok === true && data?.order?.scope === 'neighbors', 'neighbor coop order payload is incomplete')
+    neighborCoopOrderId = String(data?.order?.id || '')
+    assert(neighborCoopOrderId, 'neighbor coop order id was not created')
   })
 
   await runCheck('GET /api/taoyuan/online/orders neighbors visibility', async () => {

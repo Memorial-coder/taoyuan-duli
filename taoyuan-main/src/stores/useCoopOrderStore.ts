@@ -2,6 +2,8 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { ensureCurrentAccount } from '@/utils/accountStorage'
 import {
+  acceptCoopOrder,
+  cancelAcceptedCoopOrder,
   createCoopOrder,
   fetchCoopOrderOverview,
   type OnlineCoopOrderOverviewResponse,
@@ -34,6 +36,10 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
 
   const myOrders = computed(() =>
     (overview.value?.orders || []).filter(entry => entry.owner_username === currentUsername.value)
+  )
+
+  const myAcceptedOrders = computed(() =>
+    (overview.value?.orders || []).filter(entry => entry.assignee_username === currentUsername.value)
   )
 
   const visibleOrders = computed(() =>
@@ -97,6 +103,34 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     }
   }
 
+  const acceptOrder = async (orderId: string) => {
+    actionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await acceptCoopOrder(orderId)
+      await refreshOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '接单失败'
+      throw error
+    } finally {
+      actionRunning.value = false
+    }
+  }
+
+  const cancelAcceptedOrder = async (orderId: string) => {
+    actionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await cancelAcceptedCoopOrder(orderId)
+      await refreshOverview()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '取消接单失败'
+      throw error
+    } finally {
+      actionRunning.value = false
+    }
+  }
+
   return {
     loading,
     actionRunning,
@@ -112,9 +146,12 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     rewardLabelDraft,
     deadlineAtDraft,
     myOrders,
+    myAcceptedOrders,
     visibleOrders,
     refreshOverview,
     resetDrafts,
     submitOrder,
+    acceptOrder,
+    cancelAcceptedOrder,
   }
 })

@@ -537,6 +537,10 @@ export interface OnlineCoopOrderEntry {
   reward_value: number
   reward_label: string
   status: 'open' | 'closed' | 'expired'
+  assignee_username: string
+  assignee_display_name: string
+  accepted_at: number
+  canceled_at: number
   created_at: number
   updated_at: number
 }
@@ -576,6 +580,18 @@ export const createCoopOrder = async (payload: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
+  })
+}
+
+export const acceptCoopOrder = async (orderId: string) => {
+  return requestSocialAction<{ ok: boolean; order?: OnlineCoopOrderEntry }>(`/api/taoyuan/online/orders/${encodeURIComponent(orderId)}/accept`, {
+    method: 'POST'
+  })
+}
+
+export const cancelAcceptedCoopOrder = async (orderId: string) => {
+  return requestSocialAction<{ ok: boolean; order?: OnlineCoopOrderEntry }>(`/api/taoyuan/online/orders/${encodeURIComponent(orderId)}/cancel-accept`, {
+    method: 'POST'
   })
 }
 
