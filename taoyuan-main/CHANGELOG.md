@@ -97,6 +97,12 @@
 - 这套声望统计会直接跟随求助单列表返回，作为后续曝光排序和推荐的基础数据，而不是单独挂一套脱节账本。
 - `taoyuan-main/src/utils/onlineProfileApi.ts`、`taoyuan-main/src/stores/useCoopOrderStore.ts` 和 `taoyuan-main/src/views/game/QuestView.vue` 也已接上声望总览与信赖关系展示，任务页现在能直接回看谁是当前最稳定的互助对象。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
+### 0518 多段任务与接力（L34 第一轮）
+- `server/src/taoyuanCoopOrderRuntime.js` 现已支持 `multi_stage` 求助单：同一张单可拆成多个阶段，并分别记录阶段接单人、阶段交付、阶段结算凭证与阶段补偿状态。
+- `server/src/routes/api.js` 已补出阶段级接单 / 取消 / 交付 / 确认接口；`taoyuan-main/src/utils/onlineProfileApi.ts`、`taoyuan-main/src/stores/useCoopOrderStore.ts` 和 `taoyuan-main/src/views/game/QuestView.vue` 也同步接上了多段单草稿、阶段接力与阶段交付 UI。
+- `server/scripts/qa-online-smoke.mjs` 已补入两阶段接力验证：现在会实际创建一张多段求助单，让两名不同玩家分别接下并完成两个阶段，最后确认整单自动收口。
+- smoke 脚本结束后也会自动删除 `smk*` 测试用户，避免测试账号残留。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/index.js`、`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

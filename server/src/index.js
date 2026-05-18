@@ -13,6 +13,14 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env'), override: t
 require('dotenv').config({ path: path.join(__dirname, '../../.env.offical'), override: true });
 process.env.DB_STORAGE = initialDbStorage;
 
+if (String(process.env.QA_ONLINE_SMOKE_FORCE_LOCAL || '').trim().toLowerCase() === 'true') {
+  process.env.MYSQL_HOST = '';
+  process.env.MYSQL_PORT = '';
+  process.env.MYSQL_USER = '';
+  process.env.MYSQL_PASSWORD = '';
+  process.env.MYSQL_DATABASE = '';
+}
+
 const fs = require('fs');
 const express = require('express');
 const cors = require('cors');

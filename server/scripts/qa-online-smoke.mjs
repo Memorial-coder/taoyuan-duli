@@ -9,6 +9,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const require = createRequire(import.meta.url)
 const { decryptTaoyuanRaw, encryptTaoyuanData } = require('../src/taoyuanSaveRuntime')
+const db = require('../src/db')
 const dotenv = require('dotenv')
 const serverRoot = path.resolve(__dirname, '..')
 const smokeTempDir = path.resolve(serverRoot, '.tmp-online-smoke-run')
@@ -68,6 +69,10 @@ const startServer = () => {
       ...process.env,
       PORT: String(port),
       DB_STORAGE: smokeStorageFile,
+      QA_ONLINE_SMOKE_FORCE_LOCAL: 'true',
+      MYSQL_HOST: '',
+      MYSQL_USER: '',
+      MYSQL_DATABASE: '',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -101,6 +106,7 @@ const fetchJson = async (pathname, init) => {
 const sessionState = createSessionState()
 const secondarySessionState = createSessionState()
 const tertiarySessionState = createSessionState()
+const quaternarySessionState = createSessionState()
 
 const updateCookie = (session, response) => {
   const rawSetCookie = typeof response.headers.getSetCookie === 'function'
@@ -268,6 +274,43 @@ const cleanupSmokeArtifacts = async () => {
   try {
     await rm(smokeTempDir, { recursive: true, force: true })
   } catch {}
+}
+
+const cleanupSmokeUsers = async () => {
+  const usernames = [
+    sessionState.username,
+    secondarySessionState.username,
+    tertiarySessionState.username,
+    quaternarySessionState.username,
+  ].filter(username => /^smk/i.test(String(username || '').trim()))
+
+  const deletedUsernames = []
+  if (!usernames.length) return
+
+  if (configuredBaseURL) {
+    const adminToken = String(process.env.ADMIN_TOKEN || '').trim()
+    if (!adminToken) return
+    for (const username of usernames) {
+      try {
+        await fetch(`${baseURL}/api/admin/users/${encodeURIComponent(username)}`, {
+          method: 'DELETE',
+          headers: {
+            'X-Admin-Token': adminToken,
+          },
+        })
+        deletedUsernames.push(username)
+      } catch {}
+    }
+    return deletedUsernames
+  }
+
+  for (const username of usernames) {
+    try {
+      await db.setUserStatus(username, 'deleted')
+      deletedUsernames.push(username)
+    } catch {}
+  }
+  return deletedUsernames
 }
 
 try {
@@ -471,10 +514,14 @@ try {
   const publicCoopOrderTitle = `public coop order ${Date.now()}`
   const friendCoopOrderTitle = `friend coop order ${Date.now()}`
   const neighborCoopOrderTitle = `neighbor coop order ${Date.now()}`
+  const relayCoopOrderTitle = `relay coop order ${Date.now()}`
   const expiringCoopOrderTitle = `expiring coop order ${Date.now()}`
   let publicCoopOrderId = ''
   let friendCoopOrderId = ''
   let neighborCoopOrderId = ''
+  let relayCoopOrderId = ''
+  let relayStageOneId = ''
+  let relayStageTwoId = ''
   let expiringCoopOrderId = ''
   await runCheck('second session bootstrap', async () => {
     await bootstrapSession(secondarySessionState, 'smk2', 260)
@@ -825,6 +872,136 @@ try {
     const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
     assert(secondaryOverview.response.ok, `neighbor-scope coop order overview returned ${secondaryOverview.response.status}`)
     assert(secondaryOverview.data?.orders?.some(entry => entry?.title === neighborCoopOrderTitle && entry?.scope === 'neighbors'), 'neighbor-scope coop order missing from viewer overview')
+  })
+
+  await runCheck('fourth session bootstrap', async () => {
+    await bootstrapSession(quaternarySessionState, 'smk4', 180)
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders multi-stage write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: relayCoopOrderTitle,
+        description: 'smoke relay coop order',
+        order_type: 'village_build',
+        scope: 'public',
+        deadline_at: coopOrderDeadlineAt,
+        reward_type: 'gift',
+        reward_value: 2,
+        reward_label: '接力礼包',
+        stage_definitions: [
+          {
+            title: '先补齐木材',
+            description: '第一段先去补木材',
+            preferred_order_type: 'material_help',
+            target_item_id: 'wood',
+            target_quantity: 2,
+          },
+          {
+            title: '再补石料',
+            description: '第二段再去补石料',
+            preferred_order_type: 'village_build',
+            target_item_id: 'stone',
+            target_quantity: 3,
+          },
+        ],
+      }),
+    })
+    assert(response.ok, `multi-stage coop order write returned ${response.status}`)
+    assert(data?.ok === true && data?.order?.collaboration_mode === 'multi_stage', 'multi-stage coop order payload is incomplete')
+    assert(Array.isArray(data?.order?.stages) && data.order.stages.length === 2, 'multi-stage coop order did not create 2 stages')
+    relayCoopOrderId = String(data?.order?.id || '')
+    relayStageOneId = String(data?.order?.stages?.[0]?.id || '')
+    relayStageTwoId = String(data?.order?.stages?.[1]?.id || '')
+    assert(relayCoopOrderId && relayStageOneId && relayStageTwoId, 'multi-stage coop order ids are incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/stages/:stageId/accept stage one path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/orders/${encodeURIComponent(relayCoopOrderId)}/stages/${encodeURIComponent(relayStageOneId)}/accept`, {
+      method: 'POST',
+    })
+    assert(response.ok, `multi-stage stage one accept returned ${response.status}`)
+    assert(data?.ok === true && data?.stage?.id === relayStageOneId && data?.stage?.assignee_username === secondarySessionState.username, 'multi-stage stage one accept payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/stages/:stageId/accept stage two path', async () => {
+    const { response, data } = await fetchSessionJson(quaternarySessionState, `/api/taoyuan/online/orders/${encodeURIComponent(relayCoopOrderId)}/stages/${encodeURIComponent(relayStageTwoId)}/accept`, {
+      method: 'POST',
+    })
+    assert(response.ok, `multi-stage stage two accept returned ${response.status}`)
+    assert(data?.ok === true && data?.stage?.id === relayStageTwoId && data?.stage?.assignee_username === quaternarySessionState.username, 'multi-stage stage two accept payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/stages/:stageId/deliver stage one path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/orders/${encodeURIComponent(relayCoopOrderId)}/stages/${encodeURIComponent(relayStageOneId)}/deliver`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        delivered_items: [
+          { item_id: 'wood', quantity: 2 },
+        ],
+        result_note: 'stage one delivered',
+      }),
+    })
+    assert(response.ok, `multi-stage stage one deliver returned ${response.status}`)
+    assert(data?.ok === true && data?.stage?.delivery_status === 'submitted', 'multi-stage stage one deliver payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/stages/:stageId/confirm-delivery stage one path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/orders/${encodeURIComponent(relayCoopOrderId)}/stages/${encodeURIComponent(relayStageOneId)}/confirm-delivery`, {
+      method: 'POST',
+    })
+    assert(response.ok, `multi-stage stage one confirm returned ${response.status}`)
+    assert(data?.ok === true && data?.stage?.delivery_status === 'confirmed', 'multi-stage stage one confirm payload is incomplete')
+    assert(data?.order?.status === 'open', 'multi-stage order should stay open until all stages are confirmed')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/stages/:stageId/deliver stage two path', async () => {
+    const { response, data } = await fetchSessionJson(quaternarySessionState, `/api/taoyuan/online/orders/${encodeURIComponent(relayCoopOrderId)}/stages/${encodeURIComponent(relayStageTwoId)}/deliver`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        delivered_items: [
+          { item_id: 'stone', quantity: 3 },
+        ],
+        result_note: 'stage two delivered',
+      }),
+    })
+    assert(response.ok, `multi-stage stage two deliver returned ${response.status}`)
+    assert(data?.ok === true && data?.stage?.delivery_status === 'submitted', 'multi-stage stage two deliver payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/stages/:stageId/confirm-delivery stage two path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/orders/${encodeURIComponent(relayCoopOrderId)}/stages/${encodeURIComponent(relayStageTwoId)}/confirm-delivery`, {
+      method: 'POST',
+    })
+    assert(response.ok, `multi-stage stage two confirm returned ${response.status}`)
+    assert(data?.ok === true && data?.stage?.delivery_status === 'confirmed', 'multi-stage stage two confirm payload is incomplete')
+    assert(data?.order?.status === 'closed', 'multi-stage order should close after all stages are confirmed')
+  })
+
+  await runCheck('GET /api/taoyuan/online/orders multi-stage readback', async () => {
+    const primaryOverview = await fetchAuthedJson('/api/taoyuan/online/orders')
+    assert(primaryOverview.response.ok, `multi-stage owner overview returned ${primaryOverview.response.status}`)
+    const relayOrder = primaryOverview.data?.orders?.find(entry => entry?.id === relayCoopOrderId)
+    assert(relayOrder && Array.isArray(relayOrder.stages) && relayOrder.stages.length === 2, 'multi-stage order readback is incomplete')
+    assert(relayOrder.stages.every(stage => stage.delivery_status === 'confirmed'), 'multi-stage order did not persist confirmed stage states')
+
+    const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
+    assert(secondaryOverview.response.ok, `multi-stage secondary overview returned ${secondaryOverview.response.status}`)
+    assert(secondaryOverview.data?.reputation_summary?.top_helped_targets?.some(entry => entry?.username === sessionState.username), 'multi-stage trust graph missing stage one helper relation')
+
+    const quaternaryOverview = await fetchSessionJson(quaternarySessionState, '/api/taoyuan/online/orders')
+    assert(quaternaryOverview.response.ok, `multi-stage quaternary overview returned ${quaternaryOverview.response.status}`)
+    assert(quaternaryOverview.data?.reputation_summary?.top_helped_targets?.some(entry => entry?.username === sessionState.username), 'multi-stage trust graph missing stage two helper relation')
   })
 
   await runCheck('POST /api/taoyuan/hall/posts reward help path', async () => {
@@ -1197,6 +1374,10 @@ try {
   process.exitCode = 1
 } finally {
   await stopServer()
+  const deletedUsernames = await cleanupSmokeUsers()
+  if (Array.isArray(deletedUsernames) && deletedUsernames.length > 0) {
+    console.log(`[qa-online-smoke] cleaned test users: ${deletedUsernames.join(', ')}`)
+  }
   await cleanupSmokeArtifacts()
   process.exit(process.exitCode ?? 0)
 }

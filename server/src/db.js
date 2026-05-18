@@ -17,8 +17,9 @@ const CONTENT_REVISION_LOG_FILE = path.join(DATA_DIR, 'admin_content_revisions.j
 const GAMEPLAY_EVENT_LOG_FILE = path.join(DATA_DIR, 'taoyuan_gameplay_event_logs.json');
 const EXCHANGE_RATE = parseInt(process.env.EXCHANGE_RATE || '500000', 10);
 const DEFAULT_USER_QUOTA = parseInt(process.env.DEFAULT_USER_QUOTA || '2000000', 10);
+const QA_ONLINE_SMOKE_FORCE_LOCAL = String(process.env.QA_ONLINE_SMOKE_FORCE_LOCAL || '').trim().toLowerCase() === 'true';
 
-const MYSQL_ENABLED = Boolean(process.env.MYSQL_HOST && process.env.MYSQL_USER && process.env.MYSQL_DATABASE);
+const MYSQL_ENABLED = !QA_ONLINE_SMOKE_FORCE_LOCAL && Boolean(process.env.MYSQL_HOST && process.env.MYSQL_USER && process.env.MYSQL_DATABASE);
 const MYSQL_PORT = parseInt(process.env.MYSQL_PORT || '3306', 10);
 
 let mysqlPool = null;
