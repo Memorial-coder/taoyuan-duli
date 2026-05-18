@@ -72,6 +72,10 @@
 - `src/utils/onlineProfileApi.ts`、`src/stores/useManorStore.ts` 和 `src/views/game/ManorView.vue` 也同步接上了模板保存链路：现在庄园主题周面板可以直接选择模板、查看模板说明，并把模板和主题一起保存。
 - `src/components/game/ManorPreviewCard.vue` 已改成按模板切换信息编排：展示类强调主题与主视觉，经营类强调当前重点与周目标，节庆类强调主题分与官方精选，收藏类强调收藏网络与热门榜，故事类强调留言、导览与来访痕迹。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanManorRuntime.js` 与 `node --check server/src/routes/api.js`。
+### 0518 庄园 L2 回归验收（L27 第一轮）
+- `server/scripts/qa-online-smoke.mjs` 已补进庄园专项回归：当前会实际验证公开庄园页访问、主题模板切换回读、跨账号留言、跨账号来访记录、庄园收藏，以及热门庄园榜回写。
+- 这让庄园链路第一次进入可重复执行的在线 smoke，而不再只靠手动点页面确认 `L20-L26` 是否还活着。
+- 本轮已通过 `node server/scripts/qa-online-smoke.mjs`。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

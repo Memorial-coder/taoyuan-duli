@@ -367,6 +367,42 @@ try {
     assert(data.slots.some(item => item?.slot === 0 && typeof item?.raw === 'string' && item.raw), 'slot 0 was not persisted')
   })
 
+  await runCheck('GET /api/taoyuan/online/manor own snapshot', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/manor')
+    assert(response.ok, `own manor snapshot returned ${response.status}`)
+    assert(data?.ok === true && data?.snapshot?.username === sessionState.username, 'own manor snapshot payload is incomplete')
+    assert(Array.isArray(data?.snapshot?.theme_week?.template_options) && data.snapshot.theme_week.template_options.length >= 5, 'manor template options are incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/online/manor/:username public snapshot', async () => {
+    const { response, data } = await fetchJson(`/api/taoyuan/online/manor/${encodeURIComponent(sessionState.username)}`)
+    assert(response.ok, `public manor snapshot returned ${response.status}`)
+    assert(data?.ok === true && data?.snapshot?.username === sessionState.username, 'public manor snapshot payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/manor/theme-week write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/manor/theme-week', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        label: 'smoke manor festival',
+        season: 'spring',
+        week_tag: 'smoke-spring-w1',
+        template_id: 'festival',
+      }),
+    })
+    assert(response.ok, `manor theme-week write returned ${response.status}`)
+    assert(data?.ok === true && data?.snapshot?.theme_week?.template_id === 'festival', 'manor theme-week write payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/online/manor theme-week readback', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/manor')
+    assert(response.ok, `theme-week manor readback returned ${response.status}`)
+    assert(data?.ok === true && data?.snapshot?.theme_week?.template_id === 'festival', 'theme-week readback did not persist template id')
+  })
+
   let createdPostId = ''
   await runCheck('POST /api/taoyuan/hall/posts write path', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/hall/posts', {
@@ -430,8 +466,72 @@ try {
   const adminToken = String(process.env.ADMIN_TOKEN || '').trim()
   let rewardPostId = ''
   let rewardReplyId = ''
+  let manorGuestbookEntryContent = ''
   await runCheck('second session bootstrap', async () => {
     await bootstrapSession(secondarySessionState, 'smk2', 260)
+  })
+
+  manorGuestbookEntryContent = `smoke guestbook ${Date.now()}`
+  await runCheck('POST /api/taoyuan/online/manor/guestbook write path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/manor/guestbook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: sessionState.username,
+        kind: 'blessing',
+        content: manorGuestbookEntryContent,
+      }),
+    })
+    assert(response.ok, `manor guestbook write returned ${response.status}`)
+    assert(data?.ok === true && data?.entry?.id, 'manor guestbook write payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/manor/visit write path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/manor/visit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: sessionState.username,
+        purpose: 'friend_visit',
+        summary: 'smoke manor visit',
+        feedback: 'smoke manor feedback',
+      }),
+    })
+    assert(response.ok, `manor visit write returned ${response.status}`)
+    assert(data?.ok === true && data?.entry?.id, 'manor visit write payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/online/manor guestbook/visit readback', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/manor')
+    assert(response.ok, `guestbook / visit manor readback returned ${response.status}`)
+    assert(data?.ok === true && data?.snapshot, 'guestbook / visit manor readback payload is incomplete')
+    assert(data.snapshot.guestbook_entries.some(entry => entry.content === manorGuestbookEntryContent), 'guestbook entry was not persisted to manor snapshot')
+    assert(data.snapshot.visit_entries.some(entry => entry.summary === 'smoke manor visit'), 'visit entry was not persisted to manor snapshot')
+  })
+
+  await runCheck('POST /api/taoyuan/online/manor/:username/favorite write path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/manor/${encodeURIComponent(sessionState.username)}/favorite`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        theme: 'smoke manor theme',
+      }),
+    })
+    assert(response.ok, `manor favorite write returned ${response.status}`)
+    assert(data?.ok === true && data?.entry?.id, 'manor favorite write payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/online/manor/favorites/overview read path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/manor/favorites/overview')
+    assert(response.ok, `manor favorite overview returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.hot_manors), 'manor favorite overview payload is incomplete')
+    assert(data.hot_manors.some(entry => entry?.manor_username === sessionState.username), 'manor hot board did not include the favorited manor')
   })
 
   await runCheck('POST /api/taoyuan/hall/posts reward help path', async () => {
