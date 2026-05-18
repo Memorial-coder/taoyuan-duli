@@ -696,6 +696,42 @@ router.get('/taoyuan/online/manor/:username', async (req, res) => {
   }
 });
 
+router.post('/taoyuan/online/manor/guestbook', loginRequired, signRequired, async (req, res) => {
+  try {
+    const entry = await taoyuanManorRuntime.leaveGuestbookEntry(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, entry });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '庄园留言失败' });
+  }
+});
+
+router.post('/taoyuan/online/manor/guestbook/:entryId/reply', loginRequired, signRequired, async (req, res) => {
+  try {
+    const entry = await taoyuanManorRuntime.replyGuestbookEntry(req.params.entryId, req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, entry });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '回复庄园留言失败' });
+  }
+});
+
+router.post('/taoyuan/online/manor/guestbook/:entryId/pin', loginRequired, signRequired, async (req, res) => {
+  try {
+    const entry = await taoyuanManorRuntime.setGuestbookPinned(req.params.entryId, req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, entry });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '置顶庄园留言失败' });
+  }
+});
+
 router.get('/taoyuan/online/social/relationships', loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanSocialRuntime.listRelationshipOverview(req.session.username);

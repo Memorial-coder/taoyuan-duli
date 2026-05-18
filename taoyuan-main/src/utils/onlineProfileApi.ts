@@ -124,6 +124,7 @@ export interface OnlineManorSnapshot {
   username: string
   display_name: string
   visibility: OnlineProfileVisibility
+  viewer_is_owner: boolean
   manor_name: string
   public_title: string
   showcase_theme: string
@@ -136,6 +137,19 @@ export interface OnlineManorSnapshot {
     id: string
     label: string
     source: 'auto' | 'selected'
+  }>
+  guestbook_entries: Array<{
+    id: string
+    target_username: string
+    author_username: string
+    author_display_name: string
+    kind: 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'
+    content: string
+    reply_text: string
+    reply_author_display_name: string
+    pinned: boolean
+    created_at: number
+    updated_at: number
   }>
 }
 
@@ -355,4 +369,32 @@ export const fetchOwnManorSnapshot = async (): Promise<OnlineManorSnapshot | nul
     networkErrorMessage: '庄园服务连接失败，请检查网络或稍后重试'
   })
   return data?.snapshot ?? null
+}
+
+export const createManorGuestbookEntry = async (payload: {
+  target_username: string
+  kind: 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'
+  content: string
+}) => {
+  return requestSocialAction('/api/taoyuan/online/manor/guestbook', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
+export const replyManorGuestbookEntry = async (entryId: string, replyText: string) => {
+  return requestSocialAction(`/api/taoyuan/online/manor/guestbook/${encodeURIComponent(entryId)}/reply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reply_text: replyText })
+  })
+}
+
+export const pinManorGuestbookEntry = async (entryId: string, pinned: boolean) => {
+  return requestSocialAction(`/api/taoyuan/online/manor/guestbook/${encodeURIComponent(entryId)}/pin`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ pinned })
+  })
 }
