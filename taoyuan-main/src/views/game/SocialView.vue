@@ -388,6 +388,51 @@
           </div>
         </template>
       </div>
+
+      <div class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-xs text-accent">关注与订阅</p>
+          <Button class="text-[10px]" :disabled="socialStore.subscriptionsLoading || socialStore.subscriptionsActionRunning" @click="refreshSubscriptions">
+            {{ socialStore.subscriptionsLoading ? '加载中…' : '刷新订阅' }}
+          </Button>
+        </div>
+
+        <div class="grid gap-2 md:grid-cols-2">
+          <div class="border border-accent/10 rounded-xs p-2 space-y-2">
+            <p class="text-[10px] text-muted">快速关注</p>
+            <div class="flex flex-wrap gap-2">
+              <Button class="text-[10px]" :disabled="socialStore.subscriptionsActionRunning" @click="followPreset('style', socialStore.profile.showcase_theme || '本周经营展示', `庄园风格：${socialStore.profile.showcase_theme || '本周经营展示'}`)">
+                关注当前庄园风格
+              </Button>
+              <Button class="text-[10px]" :disabled="socialStore.subscriptionsActionRunning" @click="followPreset('expert', socialStore.profile.primary_route_label || '田庄经营', `玩法高手：${socialStore.profile.primary_route_label || '田庄经营'}`)">
+                订阅主营方向
+              </Button>
+              <Button class="text-[10px]" :disabled="socialStore.subscriptionsActionRunning || !socialStore.neighborGroup" @click="socialStore.neighborGroup && followPreset('neighbor_group', socialStore.neighborGroup.id, `村社 / 邻里：${socialStore.neighborGroup.name}`)">
+                订阅当前邻里
+              </Button>
+              <Button class="text-[10px]" :disabled="socialStore.subscriptionsActionRunning" @click="followPreset('festival', socialStore.profile.showcase_theme || '本周经营展示', `节庆活动：${socialStore.profile.showcase_theme || '本周经营展示'}`)">
+                订阅当前节庆主题
+              </Button>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-[10px] text-muted mb-1">当前订阅</p>
+            <div v-if="socialStore.subscriptions.length === 0" class="text-[10px] text-muted">当前还没有任何关注或订阅。</div>
+            <div v-for="entry in socialStore.subscriptions" :key="entry.id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <div>
+                  <p class="text-xs text-accent">{{ entry.label }}</p>
+                  <p class="text-[10px] text-muted mt-1">{{ subscriptionTypeLabel(entry.target_type) }}</p>
+                </div>
+                <Button class="text-[10px]" :disabled="socialStore.subscriptionsActionRunning" @click="unfollow(entry.id)">
+                  取消
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </template>
   </div>
 </template>
@@ -480,11 +525,31 @@
     return '邻里成员'
   }
 
+  const refreshSubscriptions = async () => {
+    await socialStore.refreshSubscriptions().catch(() => {})
+  }
+
+  const followPreset = async (targetType: 'style' | 'expert' | 'neighbor_group' | 'festival', targetId: string, label: string) => {
+    await socialStore.followPreset(targetType, targetId, label).catch(() => {})
+  }
+
+  const unfollow = async (subscriptionId: string) => {
+    await socialStore.unfollow(subscriptionId).catch(() => {})
+  }
+
+  const subscriptionTypeLabel = (type: 'style' | 'expert' | 'neighbor_group' | 'festival') => {
+    if (type === 'style') return '庄园风格'
+    if (type === 'expert') return '玩法高手'
+    if (type === 'neighbor_group') return '村社 / 邻里'
+    return '节庆活动'
+  }
+
   onMounted(() => {
     if (!socialStore.profile) {
       void refreshProfile()
     }
     void refreshRelationships()
     void refreshNeighbors()
+    void refreshSubscriptions()
   })
 </script>

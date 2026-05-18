@@ -802,6 +802,33 @@ router.post('/taoyuan/online/social/neighbors/members/role', loginRequired, sign
   }
 });
 
+router.get('/taoyuan/online/social/subscriptions', loginRequired, async (req, res) => {
+  try {
+    const overview = await taoyuanSocialRuntime.listSubscriptionOverview(req.session.username);
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取订阅列表失败' });
+  }
+});
+
+router.post('/taoyuan/online/social/subscriptions', loginRequired, signRequired, async (req, res) => {
+  try {
+    const subscription = await taoyuanSocialRuntime.followTarget(req.session.username, req.body || {});
+    res.json({ ok: true, subscription });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '添加订阅失败' });
+  }
+});
+
+router.delete('/taoyuan/online/social/subscriptions/:subscriptionId', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocialRuntime.unfollowTarget(req.session.username, req.params.subscriptionId);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '取消订阅失败' });
+  }
+});
+
 router.get('/admin/official-control/runtime-status', userAdminAuth, officialControlHostAuth, (req, res) => {
   res.json({
     ok: true,

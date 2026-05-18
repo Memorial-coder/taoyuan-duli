@@ -105,6 +105,21 @@ export interface OnlineNeighborOverviewResponse {
   msg?: string
 }
 
+export interface OnlineSubscriptionEntry {
+  id: string
+  subscriber_username: string
+  target_type: 'style' | 'expert' | 'neighbor_group' | 'festival'
+  target_id: string
+  label: string
+  created_at: number
+}
+
+export interface OnlineSubscriptionOverviewResponse {
+  ok: boolean
+  subscriptions: OnlineSubscriptionEntry[]
+  msg?: string
+}
+
 export const fetchOnlineProfile = async (): Promise<OnlineProfileResponse['profile'] | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
@@ -278,5 +293,35 @@ export const updateNeighborMemberRole = async (targetUsername: string, role: 'ma
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ target_username: targetUsername, role })
+  })
+}
+
+export const fetchSubscriptionOverview = async (): Promise<OnlineSubscriptionOverviewResponse | null> => {
+  const account = await ensureCurrentAccount()
+  if (!account || account === 'guest') return null
+  const { data } = await fetchProtectedJson<OnlineSubscriptionOverviewResponse>(() => fetch('/api/taoyuan/online/social/subscriptions', {
+    credentials: 'include'
+  }), {
+    fallbackMessage: '获取订阅列表失败',
+    networkErrorMessage: '订阅服务连接失败，请检查网络或稍后重试'
+  })
+  return data ?? null
+}
+
+export const createSubscription = async (payload: {
+  target_type: 'style' | 'expert' | 'neighbor_group' | 'festival'
+  target_id: string
+  label: string
+}) => {
+  return requestSocialAction('/api/taoyuan/online/social/subscriptions', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
+export const removeSubscription = async (subscriptionId: string) => {
+  return requestSocialAction(`/api/taoyuan/online/social/subscriptions/${encodeURIComponent(subscriptionId)}`, {
+    method: 'DELETE'
   })
 }

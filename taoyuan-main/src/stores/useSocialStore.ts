@@ -5,15 +5,19 @@ import {
   acceptNeighborRequest,
   applyToNeighborGroup,
   blockPlayer,
+  createSubscription,
   createNeighborGroup,
   fetchOnlineProfile,
   fetchNeighborOverview,
   fetchRelationshipOverview,
+  fetchSubscriptionOverview,
   inviteToNeighborGroup,
   type OnlineNeighborGroupSummary,
   type OnlineNeighborRequest,
+  type OnlineSubscriptionEntry,
   rejectFriendRequest,
   rejectNeighborRequest,
+  removeSubscription,
   saveOnlineProfile,
   sendFriendRequest,
   type OnlineProfileResponse,
@@ -85,6 +89,9 @@ export const useSocialStore = defineStore('onlineSocial', () => {
   const neighborNoticeDraft = ref('')
   const neighborCapacityDraft = ref(12)
   const neighborInviteUsernameDraft = ref('')
+  const subscriptionsLoading = ref(false)
+  const subscriptionsActionRunning = ref(false)
+  const subscriptions = ref<OnlineSubscriptionEntry[]>([])
 
   const hasProfile = computed(() => !!profile.value)
   const displayTitle = computed(() => profile.value?.public_title || profile.value?.display_name || profile.value?.player_name || '未命名玩家')
@@ -411,6 +418,49 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     draftSelectedTagIds.value = [...draftSelectedTagIds.value, normalized]
   }
 
+  const refreshSubscriptions = async () => {
+    subscriptionsLoading.value = true
+    errorMessage.value = ''
+    try {
+      const data = await fetchSubscriptionOverview()
+      subscriptions.value = data?.subscriptions ?? []
+      return data
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '获取订阅列表失败'
+      throw error
+    } finally {
+      subscriptionsLoading.value = false
+    }
+  }
+
+  const followPreset = async (targetType: 'style' | 'expert' | 'neighbor_group' | 'festival', targetId: string, label: string) => {
+    subscriptionsActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await createSubscription({ target_type: targetType, target_id: targetId, label })
+      await refreshSubscriptions()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '添加订阅失败'
+      throw error
+    } finally {
+      subscriptionsActionRunning.value = false
+    }
+  }
+
+  const unfollow = async (subscriptionId: string) => {
+    subscriptionsActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await removeSubscription(subscriptionId)
+      await refreshSubscriptions()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '取消订阅失败'
+      throw error
+    } finally {
+      subscriptionsActionRunning.value = false
+    }
+  }
+
   return {
     loading,
     saving,
@@ -445,6 +495,9 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     neighborNoticeDraft,
     neighborCapacityDraft,
     neighborInviteUsernameDraft,
+    subscriptionsLoading,
+    subscriptionsActionRunning,
+    subscriptions,
     refreshProfile,
     hydrateFromProfile,
     saveProfile,
@@ -462,6 +515,9 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     rejectNeighbor,
     saveNeighborNoticeDraft,
     changeNeighborRole,
-    toggleSelectedTag
+    toggleSelectedTag,
+    refreshSubscriptions,
+    followPreset,
+    unfollow
   }
 })

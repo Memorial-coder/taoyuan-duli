@@ -76,6 +76,7 @@ function createEmptySocialStore() {
     blocks: [],
     neighbor_groups: [],
     neighbor_join_requests: [],
+    subscriptions: [],
   };
 }
 
@@ -107,6 +108,7 @@ function loadSocialProfileStore() {
           blocks: Array.isArray(raw.blocks) ? raw.blocks : [],
           neighbor_groups: Array.isArray(raw.neighbor_groups) ? raw.neighbor_groups : [],
           neighbor_join_requests: Array.isArray(raw.neighbor_join_requests) ? raw.neighbor_join_requests : [],
+          subscriptions: Array.isArray(raw.subscriptions) ? raw.subscriptions : [],
         }
       : createEmptySocialStore();
   } catch {
@@ -123,6 +125,7 @@ function saveSocialProfileStore(store) {
     blocks: Array.isArray(store?.blocks) ? store.blocks : [],
     neighbor_groups: Array.isArray(store?.neighbor_groups) ? store.neighbor_groups : [],
     neighbor_join_requests: Array.isArray(store?.neighbor_join_requests) ? store.neighbor_join_requests : [],
+    subscriptions: Array.isArray(store?.subscriptions) ? store.subscriptions : [],
   });
 }
 
@@ -326,6 +329,17 @@ function normalizeNeighborJoinRequest(entry) {
   };
 }
 
+function normalizeSubscription(entry) {
+  return {
+    id: String(entry?.id || makeId('subscription')),
+    subscriber_username: normalizeUsername(entry?.subscriber_username),
+    target_type: ['style', 'expert', 'neighbor_group', 'festival'].includes(String(entry?.target_type)) ? String(entry.target_type) : 'style',
+    target_id: sanitizeText(entry?.target_id, 64),
+    label: sanitizeText(entry?.label, 40),
+    created_at: Number(entry?.created_at) || Math.floor(Date.now() / 1000),
+  };
+}
+
 function buildPairKey(left, right) {
   return [normalizeUsername(left), normalizeUsername(right)].sort((a, b) => a.localeCompare(b, 'zh-CN')).join('::');
 }
@@ -434,6 +448,14 @@ function appendNeighborActivity(group, message, type = 'activity') {
   group.activity_log = [nextLog, ...(group.activity_log || [])].slice(0, 20);
   group.updated_at = Math.floor(Date.now() / 1000);
   return group;
+}
+
+function listSubscriptionsForUser(store, username) {
+  const normalizedUsername = normalizeUsername(username);
+  return store.subscriptions
+    .map(normalizeSubscription)
+    .filter(entry => entry.subscriber_username === normalizedUsername)
+    .sort((left, right) => right.created_at - left.created_at);
 }
 
 async function buildProfile(username, viewerUsername = '', options = {}) {
@@ -960,6 +982,50 @@ async function listNeighborRequestOverview(username) {
   };
 }
 
+async function listSubscriptionOverview(username) {
+  const store = loadSocialProfileStore();
+  const subscriptions = listSubscriptionsForUser(store, username);
+  return { subscriptions };
+}
+
+async function followTarget(username, payload = {}) {
+  const store = loadSocialProfileStore();
+  const subscriber = normalizeUsername(username);
+  const targetType = ['style', 'expert', 'neighbor_group', 'festival'].includes(String(payload.target_type)) ? String(payload.target_type) : null;
+  const targetId = sanitizeText(payload.target_id, 64);
+  const label = sanitizeText(payload.label, 40);
+  if (!targetType || !targetId) throw createError('订阅参数不完整');
+
+  const existing = store.subscriptions
+    .map(normalizeSubscription)
+    .find(entry => entry.subscriber_username === subscriber && entry.target_type === targetType && entry.target_id === targetId);
+  if (existing) throw createError('你已经关注了这条订阅');
+
+  const subscription = normalizeSubscription({
+    id: makeId('subscription'),
+    subscriber_username: subscriber,
+    target_type: targetType,
+    target_id: targetId,
+    label: label || targetId,
+    created_at: Math.floor(Date.now() / 1000),
+  });
+  store.subscriptions = [...store.subscriptions, subscription];
+  saveSocialProfileStore(store);
+  return subscription;
+}
+
+async function unfollowTarget(username, subscriptionId) {
+  const store = loadSocialProfileStore();
+  const subscriber = normalizeUsername(username);
+  const before = store.subscriptions.length;
+  store.subscriptions = store.subscriptions
+    .map(normalizeSubscription)
+    .filter(entry => !(entry.id === String(subscriptionId || '').trim() && entry.subscriber_username === subscriber));
+  if (store.subscriptions.length === before) throw createError('订阅记录不存在', 404);
+  saveSocialProfileStore(store);
+  return { subscription_id: String(subscriptionId || '').trim() };
+}
+
 module.exports = {
   getOwnProfile,
   getPublicProfile,
@@ -977,4 +1043,7 @@ module.exports = {
   updateNeighborNotice,
   updateNeighborMemberRole,
   listNeighborRequestOverview,
+  listSubscriptionOverview,
+  followTarget,
+  unfollowTarget,
 };

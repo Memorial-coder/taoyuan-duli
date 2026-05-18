@@ -36,6 +36,10 @@
 - `server/src/taoyuanSocialRuntime.js` 已开始按现有单人存档自动推导关系标签：种植、钓鱼、育种、收藏、节庆、互助、装饰、探索这几类标签会按技能、收藏、关系、装饰和探索痕迹自动生成。
 - `src/stores/useSocialStore.ts` 和 `src/views/game/SocialView.vue` 也补上了“少量手选标签”入口；当前玩家可以在自动标签之外再固定最多 3 个公开标签。
 - 目前标签已显示在公开名片和好友列表里；庄园公开页展示会等后续 `L20` 正式落地后再接。
+### 0518 关注与订阅（L14 第一轮）
+- `server/src/taoyuanSocialRuntime.js` 与 `server/src/routes/api.js` 已补出最小订阅模型：可以新增、查看、取消订阅，支持庄园风格、玩法高手、村社 / 邻里、节庆活动四类目标。
+- `src/utils/onlineProfileApi.ts`、`src/stores/useSocialStore.ts` 和 `src/views/game/SocialView.vue` 也同步补出前端入口：当前可直接在社交页一键关注 / 订阅，并查看自己的订阅清单。
+- 动态提示当前先停留在订阅列表和快速入口层，真正的推送式更新提醒会等后续动态 / 通知系统继续补完。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。
