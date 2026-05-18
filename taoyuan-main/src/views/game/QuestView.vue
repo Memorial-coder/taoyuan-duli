@@ -201,6 +201,150 @@
       </div>
     </div>
 
+    <div class="border border-accent/20 rounded-xs p-3 mb-3">
+      <div class="flex items-center justify-between gap-2 mb-2">
+        <div>
+          <p class="text-xs text-muted">在线求助单</p>
+          <p class="text-[10px] text-muted mt-1">先把公开 / 好友 / 邻里求助发出去，接单和交付链路会在下一轮继续接。</p>
+        </div>
+        <Button class="text-[10px]" :disabled="coopOrderStore.loading || coopOrderStore.actionRunning" @click="refreshCoopOrders">
+          {{ coopOrderStore.loading ? '加载中…' : '刷新求助单' }}
+        </Button>
+      </div>
+
+      <div v-if="coopOrderStore.errorMessage" class="border border-danger/20 rounded-xs p-2 text-xs text-danger mb-2">
+        {{ coopOrderStore.errorMessage }}
+      </div>
+
+      <div class="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
+        <div class="space-y-2">
+          <div class="grid gap-2 md:grid-cols-2">
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              求助标题
+              <input
+                v-model="coopOrderStore.titleDraft"
+                maxlength="40"
+                class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                placeholder="例如：缺一批冬菜备节"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              求助类别
+              <select v-model="coopOrderStore.orderTypeDraft" class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
+                <option v-for="option in coopOrderTypeOptions" :key="option.id" :value="option.id">
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              可见范围
+              <select v-model="coopOrderStore.scopeDraft" class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
+                <option v-for="option in coopOrderScopeOptions" :key="option.id" :value="option.id">
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              截止时间
+              <input
+                v-model="coopOrderStore.deadlineAtDraft"
+                type="datetime-local"
+                class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              回报类型
+              <select v-model="coopOrderStore.rewardTypeDraft" class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
+                <option v-for="option in coopRewardTypeOptions" :key="option.id" :value="option.id">
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              回报数值
+              <input
+                v-model.number="coopOrderStore.rewardValueDraft"
+                type="number"
+                min="1"
+                class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+              />
+            </label>
+          </div>
+
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            回报说明
+            <input
+              v-model="coopOrderStore.rewardLabelDraft"
+              maxlength="40"
+              class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+              placeholder="例如：铜钱回报 / 人情回礼 / 节庆礼包"
+            />
+          </label>
+
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            求助内容
+            <textarea
+              v-model="coopOrderStore.descriptionDraft"
+              rows="3"
+              maxlength="160"
+              class="bg-bg border border-accent/20 rounded-xs px-2 py-1.5 text-xs text-text outline-none focus:border-accent resize-none"
+              placeholder="写清楚当前缺什么、希望别人怎么帮、为什么这单值得接。"
+            />
+          </label>
+
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[10px] text-muted">当前回报可以先走铜钱 / 声望 / 礼物说明，真正结算凭证和交付会在下一轮继续补。</p>
+            <Button class="text-[10px]" :disabled="coopOrderStore.actionRunning" @click="submitCoopOrder">
+              {{ coopOrderStore.actionRunning ? '发布中…' : '发布求助单' }}
+            </Button>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-[10px] text-muted mb-1">我发布的求助单</p>
+            <div v-if="coopOrderStore.myOrders.length === 0" class="text-[10px] text-muted">当前还没有自己发布的求助单。</div>
+            <div v-for="order in coopOrderStore.myOrders" :key="order.id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <p class="text-xs text-accent">{{ order.title }}</p>
+                  <p class="text-[10px] text-muted mt-1">{{ order.description }}</p>
+                </div>
+                <span class="text-[10px]" :class="order.status === 'open' ? 'text-success' : 'text-muted'">{{ order.status === 'open' ? '进行中' : order.status === 'expired' ? '已过期' : '已关闭' }}</span>
+              </div>
+              <p class="text-[10px] text-muted mt-2">
+                {{ getCoopOrderTypeLabel(order.order_type) }} · {{ getCoopOrderScopeLabel(order.scope) }} · 截止 {{ formatCoopDeadline(order.deadline_at) }}
+              </p>
+              <p class="text-[10px] text-accent mt-1">
+                回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
+              </p>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-[10px] text-muted mb-1">当前可见求助单</p>
+            <div v-if="coopOrderStore.visibleOrders.length === 0" class="text-[10px] text-muted">当前还没有对你可见的求助单。</div>
+            <div v-for="order in coopOrderStore.visibleOrders" :key="order.id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+              <div class="flex items-start justify-between gap-2">
+                <div>
+                  <p class="text-xs text-accent">{{ order.title }}</p>
+                  <p class="text-[10px] text-muted mt-1">{{ order.owner_display_name }} · {{ getCoopOrderScopeLabel(order.scope) }}</p>
+                </div>
+                <span class="text-[10px]" :class="order.status === 'open' ? 'text-success' : 'text-muted'">{{ order.status === 'open' ? '可接' : order.status === 'expired' ? '已过期' : '已关闭' }}</span>
+              </div>
+              <p class="text-[10px] text-muted mt-2">{{ order.description }}</p>
+              <p class="text-[10px] text-muted mt-2">
+                {{ getCoopOrderTypeLabel(order.order_type) }} · 截止 {{ formatCoopDeadline(order.deadline_at) }}
+              </p>
+              <p class="text-[10px] text-accent mt-1">
+                回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- 今日委托 -->
     <div
       class="border border-accent/20 rounded-xs p-3 mb-3"
@@ -717,9 +861,11 @@
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useNpcStore } from '@/stores/useNpcStore'
+  import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
   import { useQuestStore } from '@/stores/useQuestStore'
   import { useVillageProjectStore } from '@/stores/useVillageProjectStore'
   import { useWalletStore } from '@/stores/useWalletStore'
+  import type { OnlineCoopOrderScope, OnlineCoopOrderType, OnlineCoopRewardType } from '@/utils/onlineProfileApi'
   import { REWARD_TICKET_LABELS } from '@/data/rewardTickets'
   import { getSpecialOrderRewardProfile } from '@/data/quests'
   import { getItemById, getStoryQuestById, CHAPTER_TITLES, STORY_QUESTS } from '@/data'
@@ -727,6 +873,7 @@
   import { addLog } from '@/composables/useGameLog'
 
   const questStore = useQuestStore()
+  const coopOrderStore = useCoopOrderStore()
   const inventoryStore = useInventoryStore()
   const goalStore = useGoalStore()
   const isCompactMobile = ref(false)
@@ -760,8 +907,56 @@
     family: '家庭'
   }
 
+  const COOP_ORDER_TYPE_OPTIONS: Array<{ id: OnlineCoopOrderType; label: string }> = [
+    { id: 'material_help', label: '材料求助' },
+    { id: 'festival_supply', label: '节庆备货' },
+    { id: 'museum_support', label: '博物馆补展' },
+    { id: 'fishpond_borrow', label: '鱼塘借种' },
+    { id: 'breeding_cert', label: '育种认证' },
+    { id: 'village_build', label: '村社建设' },
+    { id: 'expedition_supply', label: '远征补给' },
+    { id: 'npc_request', label: 'NPC 特殊请求' },
+    { id: 'emergency_response', label: '临时灾害应对' },
+  ]
+
+  const COOP_ORDER_SCOPE_OPTIONS: Array<{ id: OnlineCoopOrderScope; label: string }> = [
+    { id: 'public', label: '公开' },
+    { id: 'friends', label: '好友' },
+    { id: 'neighbors', label: '邻里' },
+  ]
+
+  const COOP_REWARD_TYPE_OPTIONS: Array<{ id: OnlineCoopRewardType; label: string }> = [
+    { id: 'money', label: '赏金' },
+    { id: 'reputation', label: '声望' },
+    { id: 'gift', label: '礼物' },
+  ]
+
+  const coopOrderTypeOptions = computed(() => COOP_ORDER_TYPE_OPTIONS)
+  const coopOrderScopeOptions = computed(() => COOP_ORDER_SCOPE_OPTIONS)
+  const coopRewardTypeOptions = computed(() => COOP_REWARD_TYPE_OPTIONS)
+
   const getItemName = (id: string): string => {
     return getItemById(id)?.name ?? id
+  }
+
+  const getCoopOrderTypeLabel = (orderType: OnlineCoopOrderType) =>
+    COOP_ORDER_TYPE_OPTIONS.find(option => option.id === orderType)?.label || orderType
+
+  const getCoopOrderScopeLabel = (scope: OnlineCoopOrderScope) =>
+    COOP_ORDER_SCOPE_OPTIONS.find(option => option.id === scope)?.label || scope
+
+  const getCoopRewardTypeLabel = (rewardType: OnlineCoopRewardType) =>
+    COOP_REWARD_TYPE_OPTIONS.find(option => option.id === rewardType)?.label || rewardType
+
+  const formatCoopDeadline = (timestamp: number) =>
+    new Date(timestamp * 1000).toLocaleString('zh-CN', { hour12: false })
+
+  const refreshCoopOrders = async () => {
+    await coopOrderStore.refreshOverview().catch(() => {})
+  }
+
+  const submitCoopOrder = async () => {
+    await coopOrderStore.submitOrder().catch(() => {})
   }
 
   const focusQuestSection = (focusKey: string, label: string) => {
@@ -1246,6 +1441,7 @@
     }
     questStore.initMainQuest()
     goalStore.ensureInitialized()
+    void coopOrderStore.refreshOverview()
   })
 
   onUnmounted(() => {

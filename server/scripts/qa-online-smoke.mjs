@@ -467,6 +467,10 @@ try {
   let rewardPostId = ''
   let rewardReplyId = ''
   let manorGuestbookEntryContent = ''
+  const coopOrderDeadlineAt = Math.floor(Date.now() / 1000) + 2 * 24 * 60 * 60
+  const publicCoopOrderTitle = `public coop order ${Date.now()}`
+  const friendCoopOrderTitle = `friend coop order ${Date.now()}`
+  const neighborCoopOrderTitle = `neighbor coop order ${Date.now()}`
   await runCheck('second session bootstrap', async () => {
     await bootstrapSession(secondarySessionState, 'smk2', 260)
   })
@@ -532,6 +536,156 @@ try {
     assert(response.ok, `manor favorite overview returned ${response.status}`)
     assert(data?.ok === true && Array.isArray(data?.hot_manors), 'manor favorite overview payload is incomplete')
     assert(data.hot_manors.some(entry => entry?.manor_username === sessionState.username), 'manor hot board did not include the favorited manor')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders public write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: publicCoopOrderTitle,
+        description: 'smoke public coop order',
+        order_type: 'material_help',
+        scope: 'public',
+        deadline_at: coopOrderDeadlineAt,
+        reward_type: 'money',
+        reward_value: 120,
+        reward_label: '铜钱回报',
+      }),
+    })
+    assert(response.ok, `public coop order write returned ${response.status}`)
+    assert(data?.ok === true && data?.order?.title === publicCoopOrderTitle, 'public coop order payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/online/orders public read path', async () => {
+    const primaryOverview = await fetchAuthedJson('/api/taoyuan/online/orders')
+    assert(primaryOverview.response.ok, `primary coop order overview returned ${primaryOverview.response.status}`)
+    assert(primaryOverview.data?.orders?.some(entry => entry?.title === publicCoopOrderTitle && entry?.scope === 'public'), 'public coop order missing from primary overview')
+
+    const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
+    assert(secondaryOverview.response.ok, `secondary coop order overview returned ${secondaryOverview.response.status}`)
+    assert(secondaryOverview.data?.orders?.some(entry => entry?.title === publicCoopOrderTitle && entry?.scope === 'public'), 'public coop order missing from secondary overview')
+  })
+
+  let friendRequestId = ''
+  await runCheck('POST /api/taoyuan/online/social/friend-requests order scope setup', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/social/friend-requests', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: secondarySessionState.username,
+      }),
+    })
+    assert(response.ok, `friend request for coop order scope returned ${response.status}`)
+    assert(data?.ok === true && data?.request?.id, 'friend request for coop order scope payload is incomplete')
+    friendRequestId = String(data.request.id)
+  })
+
+  await runCheck('POST /api/taoyuan/online/social/friend-requests/:id/accept order scope setup', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/social/friend-requests/${encodeURIComponent(friendRequestId)}/accept`, {
+      method: 'POST',
+    })
+    assert(response.ok, `friend request accept for coop order scope returned ${response.status}`)
+    assert(data?.ok === true && data?.request?.status === 'accepted', 'friend request accept for coop order scope payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders friends write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: friendCoopOrderTitle,
+        description: 'smoke friend coop order',
+        order_type: 'festival_supply',
+        scope: 'friends',
+        deadline_at: coopOrderDeadlineAt,
+        reward_type: 'reputation',
+        reward_value: 50,
+        reward_label: '互助声望',
+      }),
+    })
+    assert(response.ok, `friend coop order write returned ${response.status}`)
+    assert(data?.ok === true && data?.order?.scope === 'friends', 'friend coop order payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/online/orders friends visibility', async () => {
+    const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
+    assert(secondaryOverview.response.ok, `friend-scope coop order overview returned ${secondaryOverview.response.status}`)
+    assert(secondaryOverview.data?.orders?.some(entry => entry?.title === friendCoopOrderTitle && entry?.scope === 'friends'), 'friend-scope coop order missing from viewer overview')
+  })
+
+  let neighborInviteId = ''
+  await runCheck('POST /api/taoyuan/online/social/neighbors create order scope setup', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/social/neighbors', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: `smoke-neighbor-${Date.now()}`,
+        summary: 'smoke neighbor group',
+        notice: 'smoke notice',
+        capacity: 12,
+      }),
+    })
+    assert(response.ok, `neighbor create for coop order scope returned ${response.status}`)
+    assert(data?.ok === true && data?.group?.id, 'neighbor create for coop order scope payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/social/neighbors/invite order scope setup', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/social/neighbors/invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: secondarySessionState.username,
+      }),
+    })
+    assert(response.ok, `neighbor invite for coop order scope returned ${response.status}`)
+    assert(data?.ok === true && data?.request?.id, 'neighbor invite for coop order scope payload is incomplete')
+    neighborInviteId = String(data.request.id)
+  })
+
+  await runCheck('POST /api/taoyuan/online/social/neighbors/requests/:id/accept order scope setup', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/social/neighbors/requests/${encodeURIComponent(neighborInviteId)}/accept`, {
+      method: 'POST',
+    })
+    assert(response.ok, `neighbor invite accept for coop order scope returned ${response.status}`)
+    assert(data?.ok === true && data?.request?.status === 'accepted', 'neighbor invite accept for coop order scope payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders neighbors write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: neighborCoopOrderTitle,
+        description: 'smoke neighbor coop order',
+        order_type: 'village_build',
+        scope: 'neighbors',
+        deadline_at: coopOrderDeadlineAt,
+        reward_type: 'gift',
+        reward_value: 1,
+        reward_label: '邻里回礼包',
+      }),
+    })
+    assert(response.ok, `neighbor coop order write returned ${response.status}`)
+    assert(data?.ok === true && data?.order?.scope === 'neighbors', 'neighbor coop order payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/online/orders neighbors visibility', async () => {
+    const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
+    assert(secondaryOverview.response.ok, `neighbor-scope coop order overview returned ${secondaryOverview.response.status}`)
+    assert(secondaryOverview.data?.orders?.some(entry => entry?.title === neighborCoopOrderTitle && entry?.scope === 'neighbors'), 'neighbor-scope coop order missing from viewer overview')
   })
 
   await runCheck('POST /api/taoyuan/hall/posts reward help path', async () => {

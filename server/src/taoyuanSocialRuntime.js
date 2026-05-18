@@ -458,6 +458,20 @@ function listSubscriptionsForUser(store, username) {
     .sort((left, right) => right.created_at - left.created_at);
 }
 
+function isFriendWith(username, targetUsername) {
+  if (normalizeUsername(username) === normalizeUsername(targetUsername)) return true;
+  const store = loadSocialProfileStore();
+  return !!findFriendship(store, username, targetUsername);
+}
+
+function isNeighborWith(username, targetUsername) {
+  if (normalizeUsername(username) === normalizeUsername(targetUsername)) return true;
+  const store = loadSocialProfileStore();
+  const leftGroup = findMemberGroup(store, username);
+  const rightGroup = findMemberGroup(store, targetUsername);
+  return !!leftGroup && !!rightGroup && leftGroup.id === rightGroup.id;
+}
+
 async function buildProfile(username, viewerUsername = '', options = {}) {
   const user = await db.getUser(username);
   if (!user) throw createError('玩家不存在', 404);
@@ -1046,4 +1060,6 @@ module.exports = {
   listSubscriptionOverview,
   followTarget,
   unfollowTarget,
+  isFriendWith,
+  isNeighborWith,
 };

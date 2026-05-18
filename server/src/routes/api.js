@@ -13,6 +13,7 @@ const taoyuanMailbox = require('../taoyuanMailbox');
 const taoyuanAiAssistant = require('../taoyuanAiAssistant');
 const taoyuanSocialRuntime = require('../taoyuanSocialRuntime');
 const taoyuanManorRuntime = require('../taoyuanManorRuntime');
+const taoyuanCoopOrderRuntime = require('../taoyuanCoopOrderRuntime');
 const officialControlPlatform = require('../officialControlPlatform');
 const {
   ensureTaoyuanSavesDir,
@@ -786,6 +787,27 @@ router.get('/taoyuan/online/manor/favorites/overview', loginRequired, async (req
     res.json({ ok: true, ...overview });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取庄园收藏失败' });
+  }
+});
+
+router.get('/taoyuan/online/orders', loginRequired, async (req, res) => {
+  try {
+    const overview = await taoyuanCoopOrderRuntime.listVisibleCoopOrders(req.session.username);
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取求助单列表失败' });
+  }
+});
+
+router.post('/taoyuan/online/orders', loginRequired, signRequired, async (req, res) => {
+  try {
+    const order = await taoyuanCoopOrderRuntime.createCoopOrder(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, order });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '发布求助单失败' });
   }
 });
 

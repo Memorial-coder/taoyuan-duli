@@ -510,6 +510,75 @@ export const followManor = async (username: string) => {
   })
 }
 
+export type OnlineCoopOrderType =
+  | 'material_help'
+  | 'festival_supply'
+  | 'museum_support'
+  | 'fishpond_borrow'
+  | 'breeding_cert'
+  | 'village_build'
+  | 'expedition_supply'
+  | 'npc_request'
+  | 'emergency_response'
+
+export type OnlineCoopOrderScope = 'public' | 'neighbors' | 'friends'
+export type OnlineCoopRewardType = 'money' | 'reputation' | 'gift'
+
+export interface OnlineCoopOrderEntry {
+  id: string
+  owner_username: string
+  owner_display_name: string
+  title: string
+  description: string
+  order_type: OnlineCoopOrderType
+  scope: OnlineCoopOrderScope
+  deadline_at: number
+  reward_type: OnlineCoopRewardType
+  reward_value: number
+  reward_label: string
+  status: 'open' | 'closed' | 'expired'
+  created_at: number
+  updated_at: number
+}
+
+export interface OnlineCoopOrderOverviewResponse {
+  ok: boolean
+  orders: OnlineCoopOrderEntry[]
+  order_type_options: OnlineCoopOrderType[]
+  scope_options: OnlineCoopOrderScope[]
+  reward_type_options: OnlineCoopRewardType[]
+  msg?: string
+}
+
+export const fetchCoopOrderOverview = async (): Promise<OnlineCoopOrderOverviewResponse | null> => {
+  const account = await ensureCurrentAccount()
+  if (!account || account === 'guest') return null
+  const { data } = await fetchProtectedJson<OnlineCoopOrderOverviewResponse>(() => fetch('/api/taoyuan/online/orders', {
+    credentials: 'include'
+  }), {
+    fallbackMessage: '获取求助单列表失败',
+    networkErrorMessage: '求助单服务连接失败，请检查网络或稍后重试'
+  })
+  return data ?? null
+}
+
+export const createCoopOrder = async (payload: {
+  title: string
+  description: string
+  order_type: OnlineCoopOrderType
+  scope: OnlineCoopOrderScope
+  deadline_at: number
+  reward_type: OnlineCoopRewardType
+  reward_value: number
+  reward_label: string
+}) => {
+  return requestSocialAction<{ ok: boolean; order?: OnlineCoopOrderEntry }>('/api/taoyuan/online/orders', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
 export interface OnlineFavoriteOverviewResponse {
   ok: boolean
   favorites: Array<{
