@@ -120,6 +120,25 @@ export interface OnlineSubscriptionOverviewResponse {
   msg?: string
 }
 
+export interface OnlineManorSnapshot {
+  username: string
+  display_name: string
+  visibility: OnlineProfileVisibility
+  manor_name: string
+  public_title: string
+  showcase_theme: string
+  season_progress: string
+  current_focus: string
+  weekly_goal: string
+  visual_summary: string
+  placed_decoration_count: number
+  public_tags: Array<{
+    id: string
+    label: string
+    source: 'auto' | 'selected'
+  }>
+}
+
 export const fetchOnlineProfile = async (): Promise<OnlineProfileResponse['profile'] | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
@@ -324,4 +343,16 @@ export const removeSubscription = async (subscriptionId: string) => {
   return requestSocialAction(`/api/taoyuan/online/social/subscriptions/${encodeURIComponent(subscriptionId)}`, {
     method: 'DELETE'
   })
+}
+
+export const fetchOwnManorSnapshot = async (): Promise<OnlineManorSnapshot | null> => {
+  const account = await ensureCurrentAccount()
+  if (!account || account === 'guest') return null
+  const { data } = await fetchProtectedJson<{ ok: boolean; snapshot?: OnlineManorSnapshot }>(() => fetch('/api/taoyuan/online/manor', {
+    credentials: 'include'
+  }), {
+    fallbackMessage: '获取庄园快照失败',
+    networkErrorMessage: '庄园服务连接失败，请检查网络或稍后重试'
+  })
+  return data?.snapshot ?? null
 }

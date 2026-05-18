@@ -43,6 +43,10 @@
 ### 0518 L1 回归验收（L15）
 - `src/views/game/SocialView.vue` 已补出最小“订阅动态”面板；当前在执行关注 / 取消订阅后，会立即在同页看到对应提示，L1 阶段的“有反馈”要求已经成立。
 - 结合前面已经落地的公开名片、好友、邻里、标签和订阅链路，L1 现在可以视作第一轮闭环完成；剩余未做的是更深的 Presence、通知推送和庄园公开页展示，而不是基础链路缺失。
+### 0518 公开庄园快照（L20 第一轮）
+- 新增 `server/src/taoyuanManorRuntime.js`、`src/stores/useManorStore.ts`、`src/components/game/ManorPreviewCard.vue` 和 `src/views/game/ManorView.vue`，把第一版公开庄园快照页正式接进工程。
+- 当前庄园快照会展示庄园名、展示主题、经营标签、当前季节、当前重点与本周目标，并新增 `/game/manor` 路由、导航入口和移动端地图入口。
+- 主视觉这轮先以“主视觉摘要”承接，真实截图 / 快照图资源和更细的半公开权限规则会在后续庄园深化阶段继续补。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

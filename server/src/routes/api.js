@@ -12,6 +12,7 @@ const taoyuanHall = require('../taoyuanHall');
 const taoyuanMailbox = require('../taoyuanMailbox');
 const taoyuanAiAssistant = require('../taoyuanAiAssistant');
 const taoyuanSocialRuntime = require('../taoyuanSocialRuntime');
+const taoyuanManorRuntime = require('../taoyuanManorRuntime');
 const officialControlPlatform = require('../officialControlPlatform');
 const {
   ensureTaoyuanSavesDir,
@@ -673,6 +674,25 @@ router.get('/taoyuan/online/profile/:username', async (req, res) => {
     res.json({ ok: true, profile });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取玩家名片失败' });
+  }
+});
+
+router.get('/taoyuan/online/manor', loginRequired, async (req, res) => {
+  try {
+    const snapshot = await taoyuanManorRuntime.getOwnManorSnapshot(req.session.username);
+    res.json({ ok: true, snapshot });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取庄园快照失败' });
+  }
+});
+
+router.get('/taoyuan/online/manor/:username', async (req, res) => {
+  try {
+    const username = decodeRouteUsername(req.params.username);
+    const snapshot = await taoyuanManorRuntime.getPublicManorSnapshot(username, req.session?.username || '');
+    res.json({ ok: true, snapshot });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取公开庄园失败' });
   }
 });
 
