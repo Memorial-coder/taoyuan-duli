@@ -1148,9 +1148,15 @@ try {
     const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/weekly')
     assert(response.ok, `weekly exchange station read returned ${response.status}`)
     assert(data?.ok === true && data?.station?.week_key, 'weekly exchange station payload is incomplete')
+    assert(Array.isArray(data?.station?.categories) && data.station.categories.some(entry => entry?.id === 'festival' && Number(entry.offer_count) >= 1), 'weekly exchange station did not expose festival category offers')
+    assert(Array.isArray(data?.station?.categories) && data.station.categories.some(entry => entry?.id === 'neighbor' && Number(entry.offer_count) >= 1), 'weekly exchange station did not expose neighbor category offers')
+    assert(data?.station?.festival_theme?.label, 'weekly exchange station did not expose festival theme rotation')
+    assert(data?.station?.neighbor_context?.group_name, 'weekly exchange station did not expose neighbor context for neighbor member')
     const targetOffer = data.station.offers?.find(entry => entry?.id === 'wood_for_stone')
     assert(targetOffer, 'weekly exchange station did not expose the wood_for_stone offer')
     assert(targetOffer?.can_exchange === true, 'weekly exchange station offer should be exchangeable for secondary session')
+    const neighborOffer = data.station.offers?.find(entry => entry?.category === 'neighbor')
+    assert(neighborOffer, 'weekly exchange station did not expose any neighbor-only offer')
   })
 
   await runCheck('POST /api/taoyuan/exchange-station/weekly/:offerId/exchange write path', async () => {

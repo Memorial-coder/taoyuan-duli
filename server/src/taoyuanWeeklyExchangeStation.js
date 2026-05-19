@@ -7,6 +7,7 @@ const {
   saveUserSaveSlots,
   writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime');
+const { getNeighborGroupForUser } = require('./taoyuanSocialRuntime');
 
 const DATA_DIR = process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) : path.join(__dirname, '../data');
 const TAOYUAN_WEEKLY_EXCHANGE_FILE = path.join(DATA_DIR, 'taoyuan_weekly_exchange_station.json');
@@ -16,6 +17,31 @@ const MAX_RECORDS_PER_WEEK = 200;
 const MAX_WEEKS_TO_KEEP = 16;
 
 const FIXED_WEEKLY_OFFER_IDS = ['wintersweet_for_herb', 'wood_for_stone'];
+const OFFER_CATEGORIES = Object.freeze({
+  slow_trade: '慢交易',
+  festival: '节庆主题池',
+  neighbor: '邻里专属池',
+});
+const FESTIVAL_THEME_ROTATIONS = Object.freeze([
+  {
+    id: 'lantern_fair',
+    label: '灯会筹备周',
+    bulletin: '本周节庆主题池偏向灯会与摊位布置物资，适合补齐彩纸、竹材与节庆燃料。',
+    preferred_offer_ids: ['bamboo_for_paper', 'bamboo_for_herb'],
+  },
+  {
+    id: 'harvest_banquet',
+    label: '秋宴备货周',
+    bulletin: '本周节庆主题池偏向宴席与集市备货，适合把柴火和草药换成更容易消化的节庆物资。',
+    preferred_offer_ids: ['firewood_for_money', 'bamboo_for_herb'],
+  },
+  {
+    id: 'winter_hearth',
+    label: '围炉暖集周',
+    bulletin: '本周节庆主题池偏向围炉与冬集补给，适合在节前先准备彩纸、柴火和常备草药。',
+    preferred_offer_ids: ['firewood_for_money', 'bamboo_for_paper'],
+  },
+]);
 
 const WEEKLY_EXCHANGE_OFFERS = Object.freeze([
   {
@@ -28,6 +54,7 @@ const WEEKLY_EXCHANGE_OFFERS = Object.freeze([
     weekly_limit_per_user: 2,
     station_stock: 80,
     tags: ['节气互换', '官方控价'],
+    category: 'slow_trade',
   },
   {
     id: 'wood_for_stone',
@@ -39,6 +66,7 @@ const WEEKLY_EXCHANGE_OFFERS = Object.freeze([
     weekly_limit_per_user: 1,
     station_stock: 60,
     tags: ['村社修缮', '限量换物'],
+    category: 'slow_trade',
   },
   {
     id: 'herb_for_firewood',
@@ -50,6 +78,7 @@ const WEEKLY_EXCHANGE_OFFERS = Object.freeze([
     weekly_limit_per_user: 2,
     station_stock: 72,
     tags: ['日常补给', '指定品类'],
+    category: 'slow_trade',
   },
   {
     id: 'stone_for_paper',
@@ -61,6 +90,7 @@ const WEEKLY_EXCHANGE_OFFERS = Object.freeze([
     weekly_limit_per_user: 1,
     station_stock: 48,
     tags: ['村社治理', '官方控价'],
+    category: 'slow_trade',
   },
   {
     id: 'firewood_for_money',
@@ -72,6 +102,7 @@ const WEEKLY_EXCHANGE_OFFERS = Object.freeze([
     weekly_limit_per_user: 1,
     station_stock: 40,
     tags: ['节庆物资', '官方控价'],
+    category: 'festival',
   },
   {
     id: 'bamboo_for_herb',
@@ -83,6 +114,31 @@ const WEEKLY_EXCHANGE_OFFERS = Object.freeze([
     weekly_limit_per_user: 1,
     station_stock: 36,
     tags: ['节庆物资', '指定品类'],
+    category: 'festival',
+  },
+  {
+    id: 'bamboo_for_paper',
+    name: '竹灯彩纸换',
+    description: '节庆灯会用纸缺口时，可以拿竹材换来几张彩纸。只在节气灯会周开放。',
+    badge: '灯会主题',
+    costs: [{ type: 'item', item_id: 'bamboo', quantity: 3 }],
+    rewards: [{ type: 'item', item_id: 'paper', quantity: 4 }],
+    weekly_limit_per_user: 1,
+    station_stock: 28,
+    tags: ['灯会', '节庆主题池'],
+    category: 'festival',
+  },
+  {
+    id: 'wintersweet_for_firewood',
+    name: '邻里炉火换',
+    description: '邻里互访时把一枝腊梅交到共用物资台，可换回一批邻里共备的柴火。',
+    badge: '邻里专属',
+    costs: [{ type: 'item', item_id: 'wintersweet', quantity: 1 }],
+    rewards: [{ type: 'item', item_id: 'firewood', quantity: 9 }],
+    weekly_limit_per_user: 1,
+    station_stock: 20,
+    tags: ['邻里补给', '邻里专属池'],
+    category: 'neighbor',
   },
 ]);
 
@@ -246,20 +302,64 @@ function getCurrentWeekWindow() {
   };
 }
 
-function getWeeklyOffers(weekKey) {
-  const fixedOffers = WEEKLY_EXCHANGE_OFFERS.filter(offer => FIXED_WEEKLY_OFFER_IDS.includes(offer.id));
-  const rotatingPool = WEEKLY_EXCHANGE_OFFERS.filter(offer => !FIXED_WEEKLY_OFFER_IDS.includes(offer.id));
-  const rng = createSeededRandom(hashSeed(`weekly_exchange:${weekKey}`));
-  const shuffled = [...rotatingPool];
+function getFestivalThemeRotation(weekKey) {
+  const themes = FESTIVAL_THEME_ROTATIONS;
+  if (!Array.isArray(themes) || themes.length === 0) {
+    return {
+      id: 'default_festival',
+      label: '节庆备货周',
+      bulletin: '本周节庆主题池会轮换出节庆筹备常用物资。',
+      preferred_offer_ids: [],
+    };
+  }
+  const index = hashSeed(`weekly_exchange_theme:${weekKey}`) % themes.length;
+  return themes[index];
+}
+
+function shuffleWithSeed(entries, seedPrefix) {
+  const rng = createSeededRandom(hashSeed(seedPrefix));
+  const shuffled = [...entries];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const swapIndex = Math.floor(rng() * (index + 1));
     [shuffled[index], shuffled[swapIndex]] = [shuffled[swapIndex], shuffled[index]];
   }
-  return [...fixedOffers, ...shuffled.slice(0, 2)].map(offer => ({
+  return shuffled;
+}
+
+function pickSeededOffers(entries, count, seedPrefix) {
+  return shuffleWithSeed(entries, seedPrefix).slice(0, Math.max(0, count));
+}
+
+function getWeeklyOffers(weekKey) {
+  const fixedOffers = WEEKLY_EXCHANGE_OFFERS.filter(offer => FIXED_WEEKLY_OFFER_IDS.includes(offer.id));
+  const rotatingSlowPool = WEEKLY_EXCHANGE_OFFERS.filter(
+    offer => offer.category === 'slow_trade' && !FIXED_WEEKLY_OFFER_IDS.includes(offer.id)
+  );
+  const festivalTheme = getFestivalThemeRotation(weekKey);
+  const festivalOfferIds = new Set(festivalTheme.preferred_offer_ids || []);
+  const preferredFestivalPool = WEEKLY_EXCHANGE_OFFERS.filter(
+    offer => offer.category === 'festival' && festivalOfferIds.has(offer.id)
+  );
+  const fallbackFestivalPool = WEEKLY_EXCHANGE_OFFERS.filter(
+    offer => offer.category === 'festival' && !festivalOfferIds.has(offer.id)
+  );
+  const neighborPool = WEEKLY_EXCHANGE_OFFERS.filter(offer => offer.category === 'neighbor');
+  const selectedFestivalOffers = [
+    ...pickSeededOffers(preferredFestivalPool, 2, `weekly_exchange_festival_preferred:${weekKey}`),
+    ...pickSeededOffers(fallbackFestivalPool, 2, `weekly_exchange_festival_fallback:${weekKey}`),
+  ].slice(0, 2);
+
+  return [
+    ...fixedOffers,
+    ...pickSeededOffers(rotatingSlowPool, 1, `weekly_exchange_slow_trade:${weekKey}`),
+    ...selectedFestivalOffers,
+    ...pickSeededOffers(neighborPool, 1, `weekly_exchange_neighbor:${weekKey}`),
+  ].map(offer => ({
     ...offer,
     costs: offer.costs.map(entry => ({ ...entry })),
     rewards: offer.rewards.map(entry => ({ ...entry })),
     tags: [...offer.tags],
+    category: offer.category || 'slow_trade',
   }));
 }
 
@@ -488,6 +588,22 @@ function validateOfferAgainstSave(saveData, offer) {
   return { can_exchange: true, disabled_reason: '' };
 }
 
+function getOfferAvailabilityScope(offer, username) {
+  if (offer.category === 'neighbor') {
+    const neighborGroup = getNeighborGroupForUser(username);
+    return {
+      visible: true,
+      enabled: !!neighborGroup,
+      reason: neighborGroup ? '' : '邻里专属池只对已加入邻里的玩家开放',
+    };
+  }
+  return {
+    visible: true,
+    enabled: true,
+    reason: '',
+  };
+}
+
 function getWeekState(store, weekKey) {
   if (!store.weeks[weekKey]) {
     store.weeks[weekKey] = normalizeWeekState({});
@@ -501,10 +617,14 @@ function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '
   const remainingGlobal = Math.max(0, clampPositiveInt(offer.station_stock, 0) - claimedGlobal);
   let canExchange = true;
   let disabledReason = '';
+  const availability = getOfferAvailabilityScope(offer, username);
 
   if (!saveData) {
     canExchange = false;
     disabledReason = saveMessage || '当前没有可用的服务端存档';
+  } else if (!availability.enabled) {
+    canExchange = false;
+    disabledReason = availability.reason;
   } else if (claimedByUser >= offer.weekly_limit_per_user) {
     canExchange = false;
     disabledReason = '本周该摊位已达到个人兑换上限';
@@ -522,6 +642,8 @@ function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '
     name: offer.name,
     description: offer.description,
     badge: offer.badge,
+    category: offer.category || 'slow_trade',
+    category_label: OFFER_CATEGORIES[offer.category] || OFFER_CATEGORIES.slow_trade,
     costs: offer.costs.map(entry => ({ ...entry })),
     rewards: offer.rewards.map(entry => ({ ...entry })),
     tags: [...offer.tags],
@@ -540,6 +662,8 @@ function listWeeklyExchangeStation(username) {
   const weekWindow = getCurrentWeekWindow();
   const weekState = getWeekState(store, weekWindow.week_key);
   const offers = getWeeklyOffers(weekWindow.week_key);
+  const festivalTheme = getFestivalThemeRotation(weekWindow.week_key);
+  const neighborGroup = getNeighborGroupForUser(username);
 
   let saveData = null;
   let saveMessage = '';
@@ -565,11 +689,28 @@ function listWeeklyExchangeStation(username) {
     week_key: weekWindow.week_key,
     week_label: weekWindow.week_label,
     refresh_hint: weekWindow.refresh_hint,
-    bulletin: '按现实周轮换的官方控价摊位，只做限量换物，不开放自由拍卖与无限挂单。',
+    bulletin: `按现实周轮换的官方控价摊位，只做限量换物，不开放自由拍卖与无限挂单。${festivalTheme.bulletin}`,
     save_available: !!saveData,
     save_message: saveMessage,
+    festival_theme: {
+      id: festivalTheme.id,
+      label: festivalTheme.label,
+      bulletin: festivalTheme.bulletin,
+    },
+    neighbor_context: neighborGroup
+      ? {
+          group_id: neighborGroup.id,
+          group_name: neighborGroup.name,
+          role: neighborGroup.role,
+        }
+      : null,
     offers: offers.map(offer => buildOfferSummary(offer, weekState, username, saveData, saveMessage)),
     my_records: myRecords,
+    categories: [
+      { id: 'slow_trade', label: OFFER_CATEGORIES.slow_trade, offer_count: offers.filter(offer => offer.category === 'slow_trade').length },
+      { id: 'festival', label: OFFER_CATEGORIES.festival, offer_count: offers.filter(offer => offer.category === 'festival').length },
+      { id: 'neighbor', label: OFFER_CATEGORIES.neighbor, offer_count: offers.filter(offer => offer.category === 'neighbor').length },
+    ],
   };
 }
 
@@ -579,6 +720,10 @@ function exchangeWeeklyOffer(username, offerId) {
   const weekState = getWeekState(store, weekWindow.week_key);
   const offer = getWeeklyOffers(weekWindow.week_key).find(entry => entry.id === String(offerId || '').trim());
   if (!offer) throw createError('本周交换站没有这项换物', 404);
+  const availability = getOfferAvailabilityScope(offer, username);
+  if (!availability.enabled) {
+    throw createError(availability.reason || '当前无法兑换这项换物');
+  }
 
   const userUsage = weekState.user_usage[username] && typeof weekState.user_usage[username] === 'object'
     ? weekState.user_usage[username]

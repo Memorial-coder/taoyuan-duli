@@ -18,6 +18,8 @@ export interface WeeklyExchangeOffer {
   name: string
   description: string
   badge: string
+  category: 'slow_trade' | 'festival' | 'neighbor'
+  category_label: string
   costs: WeeklyExchangeBundleEntry[]
   rewards: WeeklyExchangeBundleEntry[]
   tags: string[]
@@ -47,6 +49,21 @@ export interface WeeklyExchangeStationSnapshot {
   week_label: string
   refresh_hint: string
   bulletin: string
+  festival_theme?: {
+    id: string
+    label: string
+    bulletin: string
+  } | null
+  neighbor_context?: {
+    group_id: string
+    group_name: string
+    role: string
+  } | null
+  categories?: Array<{
+    id: 'slow_trade' | 'festival' | 'neighbor'
+    label: string
+    offer_count: number
+  }>
   save_available: boolean
   save_message: string
   offers: WeeklyExchangeOffer[]

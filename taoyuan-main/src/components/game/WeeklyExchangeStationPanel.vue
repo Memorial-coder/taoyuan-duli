@@ -14,55 +14,85 @@
       </button>
     </div>
 
+    <div v-if="station.festival_theme || station.neighbor_context || categories.length > 0" class="grid gap-2 mt-3 md:grid-cols-3">
+      <div v-if="station.festival_theme" class="border border-accent/15 rounded-xs px-2 py-2 bg-accent/5">
+        <p class="text-[10px] text-accent">节庆主题池</p>
+        <p class="text-xs text-text mt-1">{{ station.festival_theme.label }}</p>
+        <p class="text-[10px] text-muted mt-1 leading-4">{{ station.festival_theme.bulletin }}</p>
+      </div>
+      <div v-if="station.neighbor_context" class="border border-success/15 rounded-xs px-2 py-2 bg-success/5">
+        <p class="text-[10px] text-success">邻里专属池</p>
+        <p class="text-xs text-text mt-1">{{ station.neighbor_context.group_name }}</p>
+        <p class="text-[10px] text-muted mt-1 leading-4">当前身份：{{ station.neighbor_context.role }}</p>
+      </div>
+      <div v-if="categories.length > 0" class="border border-warning/15 rounded-xs px-2 py-2 bg-warning/5">
+        <p class="text-[10px] text-warning">分类总览</p>
+        <div class="mt-1 space-y-1">
+          <div v-for="category in categories" :key="category.id" class="flex items-center justify-between gap-2 text-[10px] text-muted">
+            <span>{{ category.label }}</span>
+            <span>{{ category.offer_count }} 项</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div v-if="!station.save_available" class="border border-warning/20 rounded-xs px-2 py-2 mt-3 bg-warning/5">
       <p class="text-[10px] text-warning">服务端存档未就绪</p>
       <p class="text-xs text-muted mt-1">{{ station.save_message || '当前没有可用的服务端存档，暂时不能换物。' }}</p>
     </div>
 
-    <div class="grid gap-2 mt-3">
-      <div
-        v-for="offer in station.offers"
-        :key="offer.id"
-        class="border rounded-xs px-3 py-3"
-        :class="offer.can_exchange ? 'border-accent/15 bg-bg/30' : 'border-warning/20 bg-warning/5 opacity-80'"
-      >
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div class="flex items-center gap-1.5 flex-wrap">
-              <p class="text-sm text-text">{{ offer.name }}</p>
-              <span class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent">{{ offer.badge }}</span>
-              <span
-                v-for="tag in offer.tags.slice(0, 2)"
-                :key="`${offer.id}-${tag}`"
-                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/10 text-muted"
-              >
-                {{ tag }}
-              </span>
-            </div>
-            <p class="text-xs text-muted mt-1 leading-5">{{ offer.description }}</p>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-              <div class="border border-danger/15 rounded-xs px-2 py-2 bg-danger/5">
-                <p class="text-[10px] text-danger mb-1">交出</p>
-                <p class="text-xs text-text">{{ formatBundle(offer.costs) }}</p>
-              </div>
-              <div class="border border-success/15 rounded-xs px-2 py-2 bg-success/5">
-                <p class="text-[10px] text-success mb-1">换回</p>
-                <p class="text-xs text-text">{{ formatBundle(offer.rewards) }}</p>
-              </div>
-            </div>
-            <div class="flex flex-wrap gap-3 mt-2 text-[10px] text-muted">
-              <span>个人已换 {{ offer.claimed_by_user }}/{{ offer.weekly_limit_per_user }}</span>
-              <span>站内余量 {{ offer.remaining_global }}/{{ offer.station_stock }}</span>
-            </div>
-            <p v-if="!offer.can_exchange && offer.disabled_reason" class="text-[10px] text-warning mt-2">{{ offer.disabled_reason }}</p>
-          </div>
-          <button
-            class="btn !px-2 !py-1 text-xs shrink-0"
-            :disabled="running || !offer.can_exchange"
-            @click="$emit('exchange', offer.id)"
+    <div class="grid gap-3 mt-3">
+      <div v-for="section in groupedCategorySections" :key="section.id" class="border border-accent/10 rounded-xs p-2 bg-bg/10">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <p class="text-xs text-accent">{{ section.label }}</p>
+          <span class="text-[10px] text-muted">{{ section.offers.length }} 项</span>
+        </div>
+        <div class="grid gap-2">
+          <div
+            v-for="offer in section.offers"
+            :key="offer.id"
+            class="border rounded-xs px-3 py-3"
+            :class="offer.can_exchange ? 'border-accent/15 bg-bg/30' : 'border-warning/20 bg-warning/5 opacity-80'"
           >
-            {{ running ? '换物中...' : '立即换物' }}
-          </button>
+            <div class="flex items-start justify-between gap-3">
+              <div class="min-w-0">
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  <p class="text-sm text-text">{{ offer.name }}</p>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent">{{ offer.badge }}</span>
+                  <span
+                    v-for="tag in offer.tags.slice(0, 2)"
+                    :key="`${offer.id}-${tag}`"
+                    class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/10 text-muted"
+                  >
+                    {{ tag }}
+                  </span>
+                </div>
+                <p class="text-xs text-muted mt-1 leading-5">{{ offer.description }}</p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
+                  <div class="border border-danger/15 rounded-xs px-2 py-2 bg-danger/5">
+                    <p class="text-[10px] text-danger mb-1">交出</p>
+                    <p class="text-xs text-text">{{ formatBundle(offer.costs) }}</p>
+                  </div>
+                  <div class="border border-success/15 rounded-xs px-2 py-2 bg-success/5">
+                    <p class="text-[10px] text-success mb-1">换回</p>
+                    <p class="text-xs text-text">{{ formatBundle(offer.rewards) }}</p>
+                  </div>
+                </div>
+                <div class="flex flex-wrap gap-3 mt-2 text-[10px] text-muted">
+                  <span>个人已换 {{ offer.claimed_by_user }}/{{ offer.weekly_limit_per_user }}</span>
+                  <span>站内余量 {{ offer.remaining_global }}/{{ offer.station_stock }}</span>
+                </div>
+                <p v-if="!offer.can_exchange && offer.disabled_reason" class="text-[10px] text-warning mt-2">{{ offer.disabled_reason }}</p>
+              </div>
+              <button
+                class="btn !px-2 !py-1 text-xs shrink-0"
+                :disabled="running || !offer.can_exchange"
+                @click="$emit('exchange', offer.id)"
+              >
+                {{ running ? '换物中...' : '立即换物' }}
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -103,6 +133,19 @@ defineEmits<{
 
 const loading = computed(() => props.loading === true)
 const running = computed(() => props.running === true)
+const categories = computed(() => (props.station.categories ?? []).filter(category => Number(category.offer_count || 0) > 0))
+const groupedCategorySections = computed(() => {
+  const offers = Array.isArray(props.station.offers) ? props.station.offers : []
+  const orderedCategories = categories.value.length > 0
+    ? categories.value
+    : Array.from(new Map(offers.map(offer => [offer.category, { id: offer.category, label: offer.category_label, offer_count: 0 }])).values())
+  return orderedCategories
+    .map(category => ({
+      ...category,
+      offers: offers.filter(offer => offer.category === category.id)
+    }))
+    .filter(section => section.offers.length > 0)
+})
 
 const formatBundle = (entries: WeeklyExchangeBundleEntry[]) => {
   if (!Array.isArray(entries) || entries.length === 0) return '无'

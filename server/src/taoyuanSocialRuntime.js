@@ -472,6 +472,24 @@ function isNeighborWith(username, targetUsername) {
   return !!leftGroup && !!rightGroup && leftGroup.id === rightGroup.id;
 }
 
+function getNeighborGroupForUser(username) {
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) return null;
+  const store = loadSocialProfileStore();
+  const group = findMemberGroup(store, normalizedUsername);
+  if (!group) return null;
+  return {
+    id: group.id,
+    name: group.name,
+    summary: group.summary,
+    notice: group.notice,
+    level: group.level,
+    capacity: group.capacity,
+    member_count: Array.isArray(group.members) ? group.members.length : 0,
+    role: group.members.find(member => member.username === normalizedUsername)?.role ?? 'member',
+  };
+}
+
 async function buildProfile(username, viewerUsername = '', options = {}) {
   const user = await db.getUser(username);
   if (!user) throw createError('玩家不存在', 404);
@@ -1063,4 +1081,5 @@ module.exports = {
   unfollowTarget,
   isFriendWith,
   isNeighborWith,
+  getNeighborGroupForUser,
 };
