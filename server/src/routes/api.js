@@ -1914,6 +1914,14 @@ router.get('/taoyuan/mail/list', loginRequired, async (req, res) => {
   }
 });
 
+router.get('/taoyuan/mail/sent', loginRequired, async (req, res) => {
+  try {
+    res.json({ ok: true, ...taoyuanMailbox.listUserSentMails(req.session.username) });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取发件箱失败' });
+  }
+});
+
 router.get('/taoyuan/mail/inbox-status', loginRequired, async (req, res) => {
   try {
     await taoyuanMailbox.processPendingCampaigns();
@@ -1952,6 +1960,19 @@ router.get('/taoyuan/mail/receipts', loginRequired, async (req, res) => {
   }
 });
 
+router.get('/taoyuan/mail/memorial', loginRequired, async (req, res) => {
+  try {
+    const filters = {
+      direction: String(req.query.direction || ''),
+      tag: String(req.query.tag || ''),
+      relation_scope: String(req.query.relation_scope || ''),
+    };
+    res.json({ ok: true, ...taoyuanMailbox.listUserMemorialEntries(req.session.username, filters) });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取纪念册失败' });
+  }
+});
+
 router.get('/taoyuan/mail/:id', loginRequired, async (req, res) => {
   try {
     await taoyuanMailbox.processPendingCampaigns();
@@ -1987,6 +2008,15 @@ router.post('/taoyuan/mail/:id/pin', loginRequired, signRequired, async (req, re
     res.json({ ok: true, mail });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '更新邮件置顶状态失败' });
+  }
+});
+
+router.post('/taoyuan/mail/:id/memorial', loginRequired, signRequired, async (req, res) => {
+  try {
+    const entry = await taoyuanMailbox.saveMailToMemorial(req.session.username, req.params.id);
+    res.json({ ok: true, entry });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '存入纪念册失败' });
   }
 });
 

@@ -93,6 +93,53 @@
         </div>
 
         <div class="detail-card mb-3">
+          <div class="flex items-center justify-between gap-2 mb-2">
+            <p class="text-xs text-accent">纪念册</p>
+            <span class="text-[10px] text-muted">L44 第一轮</span>
+          </div>
+          <div class="flex flex-wrap gap-2 mb-2">
+            <Button class="justify-center shrink-0" :disabled="memorialTab === 'inbox'" @click="memorialTab = 'inbox'">
+              收过的信 {{ memorialInboxEntries.length }}
+            </Button>
+            <Button class="justify-center shrink-0" :disabled="memorialTab === 'outbox'" @click="memorialTab = 'outbox'">
+              送过的信 {{ memorialOutboxEntries.length }}
+            </Button>
+            <Button class="justify-center shrink-0" :disabled="memorialTab === 'saved'" @click="memorialTab = 'saved'">
+              已存纪念信 {{ memorialSavedEntries.length }}
+            </Button>
+          </div>
+          <div class="flex flex-wrap gap-2 mb-2">
+            <Button class="justify-center shrink-0" :disabled="memorialFilter === 'all'" @click="memorialFilter = 'all'">全部</Button>
+            <Button class="justify-center shrink-0" :disabled="memorialFilter === 'season'" @click="memorialFilter = 'season'">节气</Button>
+            <Button class="justify-center shrink-0" :disabled="memorialFilter === 'friend'" @click="memorialFilter = 'friend'">好友</Button>
+            <Button class="justify-center shrink-0" :disabled="memorialFilter === 'neighbor'" @click="memorialFilter = 'neighbor'">村社</Button>
+          </div>
+          <div v-if="visibleMemorialEntries.length === 0" class="text-[10px] text-muted">
+            当前分组里还没有可回看的信件。
+          </div>
+          <div v-for="entry in visibleMemorialEntries" :key="`${memorialTab}-${entry.id}`" class="border border-accent/10 rounded-xs p-2 mb-2">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-xs text-accent truncate">{{ entry.title }}</p>
+                <p class="text-[10px] text-muted mt-1">
+                  {{ entry.counterpartLabel }} · {{ formatTime(entry.sentAt) }}
+                </p>
+              </div>
+              <Button
+                v-if="entry.canSave"
+                class="justify-center shrink-0"
+                :disabled="entry.isSaved"
+                @click="saveMailToMemorial(entry.deliveryId)"
+              >
+                {{ entry.isSaved ? '已存入' : '存入纪念册' }}
+              </Button>
+            </div>
+            <p v-if="entry.preview" class="text-[10px] text-muted mt-1 line-clamp-2">{{ entry.preview }}</p>
+            <p v-if="entry.tags.length > 0" class="text-[10px] text-muted mt-1">标签：{{ entry.tags.join('、') }}</p>
+          </div>
+        </div>
+
+        <div class="detail-card mb-3">
           <div class="flex items-center justify-between mb-2">
             <p class="text-xs text-accent">玩家书信</p>
             <span class="text-[10px] text-muted">L40 / L42</span>
@@ -376,6 +423,14 @@
               {{ activeMail.is_pinned ? '取消置顶' : '置顶这封信' }}
             </Button>
             <Button
+              v-if="activeMail.sender_username"
+              class="justify-center"
+              :disabled="isActiveMailMemorialized"
+              @click="saveMailToMemorial(activeMail.id)"
+            >
+              {{ isActiveMailMemorialized ? '已存入纪念册' : '存进纪念册' }}
+            </Button>
+            <Button
               v-if="activeMail.can_claim"
               class="justify-center"
               :icon="Gift"
@@ -489,6 +544,8 @@
   const mailViewRoot = ref<HTMLElement | null>(null)
   const letterPhotoInputRef = ref<HTMLInputElement | null>(null)
   const isDesktop = ref(typeof window === 'undefined' ? true : window.innerWidth >= 768)
+  const memorialTab = ref<'inbox' | 'outbox' | 'saved'>('inbox')
+  const memorialFilter = ref<'all' | 'season' | 'friend' | 'neighbor'>('all')
   const claimableMailCount = computed(() => mailboxStore.mails.filter(mail => mail.can_claim).length)
   const mailArrivalNoticeText = computed(() => {
     if (!mailboxStore.arrivalDigest.count) return ''
@@ -607,6 +664,75 @@
   const activeMailIndex = computed(() => mailboxStore.mails.findIndex(mail => mail.id === activeMailId.value))
   const hasPrevMail = computed(() => activeMailIndex.value > 0)
   const hasNextMail = computed(() => activeMailIndex.value >= 0 && activeMailIndex.value < mailboxStore.mails.length - 1)
+  const memorialInboxEntries = computed(() =>
+    mailboxStore.mails
+      .filter(mail => !!mail.sender_username)
+      .map(mail => ({
+        id: mail.id,
+        deliveryId: mail.id,
+        title: mail.title,
+        preview: mail.preview,
+        sentAt: mail.sent_at,
+        counterpartLabel: mail.sender_display_name || mail.sender_username || '未知寄件人',
+        tags: mailboxStore.memorialEntries.find(entry => entry.delivery_id === mail.id && entry.direction === 'inbox')?.tags || [],
+        canSave: true,
+        isSaved: mailboxStore.memorialEntries.some(entry => entry.delivery_id === mail.id && entry.direction === 'inbox'),
+      }))
+  )
+  const memorialOutboxEntries = computed(() =>
+    mailboxStore.sentMails.map(mail => ({
+      id: mail.id,
+      deliveryId: mail.id,
+      title: mail.title,
+      preview: mail.preview,
+      sentAt: mail.sent_at,
+      counterpartLabel: mail.recipient_display_name || mail.recipient_username || '未知收件人',
+      tags: mailboxStore.memorialEntries.find(entry => entry.delivery_id === mail.id && entry.direction === 'outbox')?.tags || [],
+      canSave: true,
+      isSaved: mail.has_memorial_entry || mailboxStore.memorialEntries.some(entry => entry.delivery_id === mail.id && entry.direction === 'outbox'),
+    }))
+  )
+  const memorialSavedEntries = computed(() =>
+    mailboxStore.memorialEntries.map(entry => ({
+      id: entry.id,
+      deliveryId: entry.delivery_id,
+      title: entry.title,
+      preview: entry.preview,
+      sentAt: entry.saved_at,
+      counterpartLabel: entry.counterpart_display_name || entry.counterpart_username || '往来对象',
+      tags: entry.tags,
+      canSave: false,
+      isSaved: true,
+    }))
+  )
+  const visibleMemorialEntries = computed(() => {
+    const source = memorialFilter.value !== 'all'
+      ? memorialSavedEntries.value
+      : memorialTab.value === 'outbox'
+      ? memorialOutboxEntries.value
+      : memorialTab.value === 'saved'
+        ? memorialSavedEntries.value
+        : memorialInboxEntries.value
+    if (memorialFilter.value === 'season') {
+      return source.filter(entry => entry.tags.includes('节气'))
+    }
+    if (memorialFilter.value === 'friend') {
+      return source.filter(entry => {
+        const memorialEntry = mailboxStore.memorialEntries.find(saved => saved.delivery_id === entry.deliveryId)
+        return memorialEntry?.relation_scope === 'friend'
+      })
+    }
+    if (memorialFilter.value === 'neighbor') {
+      return source.filter(entry => {
+        const memorialEntry = mailboxStore.memorialEntries.find(saved => saved.delivery_id === entry.deliveryId)
+        return memorialEntry?.relation_scope === 'neighbor'
+      })
+    }
+    return source
+  })
+  const isActiveMailMemorialized = computed(() =>
+    !!activeMail.value && mailboxStore.memorialEntries.some(entry => entry.delivery_id === activeMail.value?.id)
+  )
   const isEventMailReceiptKey = (value: string) => value.startsWith('event_')
   const isActivityWindowMailReceiptKey = (value: string) => value.startsWith('activity_window_')
   const updateViewportMode = () => {
@@ -765,6 +891,8 @@
     try {
       await mailboxStore.refreshList()
       await mailboxStore.refreshReceipts().catch(() => {})
+      await mailboxStore.refreshSentMails().catch(() => {})
+      await mailboxStore.refreshMemorialEntries().catch(() => {})
       syncClaimedActivityRewardMails()
       await ensureSelection()
     } catch (error: any) {
@@ -954,6 +1082,15 @@
     }
   }
 
+  const saveMailToMemorial = async (id: string) => {
+    try {
+      await mailboxStore.saveToMemorial(id)
+      showFloat('这封信已经存进纪念册。', 'success')
+    } catch (error: any) {
+      showFloat(error?.message || '存入纪念册失败', 'danger')
+    }
+  }
+
   const sendPlayerLetter = async () => {
     try {
       const data = await mailboxStore.sendPlayerLetterMail()
@@ -962,6 +1099,7 @@
         activeMailId.value = mail.id
         activeMail.value = mail
       }
+      await mailboxStore.refreshSentMails().catch(() => {})
       showFloat('书信已经寄出，对方会在邮箱里收到。', 'success')
     } catch (error: any) {
       showFloat(error?.message || '寄信失败', 'danger')
@@ -976,6 +1114,7 @@
         activeMailId.value = mail.id
         activeMail.value = mail
       }
+      await mailboxStore.refreshSentMails().catch(() => {})
       showFloat('礼物包裹已经寄出，对方可在邮箱里领取。', 'success')
     } catch (error: any) {
       showFloat(error?.message || '寄送礼物包裹失败', 'danger')
@@ -988,6 +1127,8 @@
     if (typeof window !== 'undefined') window.addEventListener('resize', updateViewportMode)
     await mailboxStore.refreshLetterPresets().catch(() => {})
     await mailboxStore.refreshReceipts().catch(() => {})
+    await mailboxStore.refreshSentMails().catch(() => {})
+    await mailboxStore.refreshMemorialEntries().catch(() => {})
     syncGiftPackageDraftDefaults()
     await refreshMails()
   })

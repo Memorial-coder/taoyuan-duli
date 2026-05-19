@@ -624,6 +624,15 @@ try {
     assert(playerLetter?.sender_username === sessionState.username, 'player-letter sender username is missing')
   })
 
+  await runCheck('GET /api/taoyuan/mail/sent player-letter outbox path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/mail/sent')
+    assert(response.ok, `mail sent returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.mails), 'mail sent payload is incomplete')
+    const sentLetter = data.mails.find(entry => entry?.title === playerLetterTitle)
+    assert(sentLetter, 'player-letter was not visible in sender outbox')
+    assert(sentLetter?.recipient_username === secondarySessionState.username, 'player-letter outbox recipient did not match')
+  })
+
   await runCheck('POST /api/taoyuan/mail/player-gift-package write path', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/mail/player-gift-package', {
       method: 'POST',
@@ -717,6 +726,29 @@ try {
     const receipt = data.receipts.find(entry => entry?.delivery_id === playerGiftPackageMailId)
     assert(receipt, 'claimed player-gift-package did not appear in receipt history')
     assert(receipt?.applied_rewards?.some(entry => entry?.id === 'wood'), 'claimed receipt did not preserve applied reward details')
+  })
+
+  await runCheck('POST /api/taoyuan/mail/:id/memorial inbox path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/mail/${encodeURIComponent(playerGiftPackageMailId)}/memorial`, {
+      method: 'POST',
+    })
+    assert(response.ok, `mail memorial save returned ${response.status}`)
+    assert(data?.ok === true && data?.entry?.delivery_id === playerGiftPackageMailId, 'mail memorial save payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/mail/memorial inbox readback', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/mail/memorial')
+    assert(response.ok, `mail memorial list returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.entries), 'mail memorial list payload is incomplete')
+    const memorialEntry = data.entries.find(entry => entry?.delivery_id === playerGiftPackageMailId)
+    assert(memorialEntry, 'saved gift-package did not appear in memorial list')
+    assert(Array.isArray(memorialEntry?.tags) && memorialEntry.tags.length > 0, 'memorial entry should preserve generated tags')
+  })
+
+  await runCheck('GET /api/taoyuan/mail/memorial seasonal filter readback', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/mail/memorial?tag=%E8%8A%82%E6%B0%94')
+    assert(response.ok, `mail memorial seasonal filter returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.entries), 'mail memorial seasonal filter payload is incomplete')
   })
 
   await runCheck('GET /api/taoyuan/save/:slot player-gift-package recipient persistence', async () => {

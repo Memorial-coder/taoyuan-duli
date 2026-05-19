@@ -8,9 +8,12 @@ import {
   fetchMailboxDetail,
   fetchMailboxInboxStatus,
   fetchMailboxList,
+  fetchMailboxMemorial,
   fetchMailboxReceipts,
   fetchPlayerLetterPresets,
+  fetchSentMailboxList,
   pinMailboxMail,
+  saveMailboxMemorial,
   sendPlayerGiftPackage,
   sendPlayerLetter,
   markMailboxRead
@@ -86,6 +89,35 @@ export interface TaoyuanMailReceipt {
   duplicate_compensation_money: number
   applied_rewards: TaoyuanMailReward[]
   skipped_rewards: Array<{ type: string; id?: string; quantity?: number; reason: string }>
+}
+
+export interface TaoyuanSentMailSummary {
+  id: string
+  title: string
+  template_type: string | null
+  recipient_username: string
+  recipient_display_name?: string
+  preview: string
+  sent_at: number
+  is_pinned: boolean
+  has_rewards: boolean
+  reward_count: number
+  has_memorial_entry: boolean
+}
+
+export interface TaoyuanMemorialEntry {
+  id: string
+  delivery_id: string
+  direction: 'inbox' | 'outbox'
+  counterpart_username: string
+  counterpart_display_name?: string
+  title: string
+  preview: string
+  content: string
+  template_type: string | null
+  tags: string[]
+  relation_scope: 'friend' | 'neighbor' | 'other'
+  saved_at: number
 }
 
 export interface MailArrivalDigest {
@@ -170,9 +202,11 @@ const toSummary = (mail: TaoyuanMailSummary | TaoyuanMailDetail): TaoyuanMailSum
 
 export const useMailboxStore = defineStore('taoyuanMailbox', () => {
   const mails = ref<TaoyuanMailSummary[]>([])
+  const sentMails = ref<TaoyuanSentMailSummary[]>([])
   const unreadCount = ref(0)
   const detailMap = ref<Record<string, TaoyuanMailDetail>>({})
   const receipts = ref<TaoyuanMailReceipt[]>([])
+  const memorialEntries = ref<TaoyuanMemorialEntry[]>([])
   const inboxStatus = ref<MailInboxStatus>({
     unread_count: 0,
     pinned_count: 0,
@@ -239,6 +273,18 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     const data = await fetchMailboxReceipts(limit)
     receipts.value = (data.receipts || []) as TaoyuanMailReceipt[]
     return receipts.value
+  }
+
+  const refreshSentMails = async () => {
+    const data = await fetchSentMailboxList()
+    sentMails.value = (data.mails || []) as TaoyuanSentMailSummary[]
+    return sentMails.value
+  }
+
+  const refreshMemorialEntries = async () => {
+    const data = await fetchMailboxMemorial()
+    memorialEntries.value = (data.entries || []) as TaoyuanMemorialEntry[]
+    return memorialEntries.value
   }
 
   const buildClaimSyncState = (state: MailClaimSyncState): MailClaimSyncState => state
@@ -454,6 +500,13 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     return detail
   }
 
+  const saveToMemorial = async (id: string) => {
+    const data = await saveMailboxMemorial(id)
+    await refreshMemorialEntries().catch(() => {})
+    await refreshSentMails().catch(() => {})
+    return data?.entry as TaoyuanMemorialEntry | undefined
+  }
+
   const sendPlayerLetterMail = async () => {
     const target_username = letterTargetDraft.value.trim()
     const title = letterTitleDraft.value.trim()
@@ -530,9 +583,11 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
 
   return {
     mails,
+    sentMails,
     unreadCount,
     detailMap,
     receipts,
+    memorialEntries,
     inboxStatus,
     arrivalDigest,
     loading,
@@ -553,11 +608,14 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     refreshList,
     refreshLetterPresets,
     refreshReceipts,
+    refreshSentMails,
+    refreshMemorialEntries,
     openMail,
     claimMail,
     claimAll,
     clearClaimed,
     setPinned,
+    saveToMemorial,
     clearArrivalDigest,
     sendPlayerLetterMail,
     sendPlayerGiftPackageMail,

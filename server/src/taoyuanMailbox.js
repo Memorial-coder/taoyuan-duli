@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
+const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
 const {
   createError,
   ensureTaoyuanSavesDir,
@@ -39,6 +40,7 @@ const VALID_TEMPLATE_TYPES = new Set([
 ]);
 const VALID_RECIPIENT_MODES = new Set(['all', 'single', 'batch', 'keyword', 'has_save']);
 const VALID_REWARD_TYPES = new Set(['money', 'item', 'seed', 'weapon', 'ring', 'hat', 'shoe', 'decoration']);
+const SEASONAL_MEMORIAL_TEMPLATE_TYPES = new Set(['season_greeting', 'festival_greeting', 'blessing_card']);
 
 const GUILD_SEASON_MAILBOX_CONFIG = Object.freeze({
   enabled: true,
@@ -109,6 +111,7 @@ function defaultMailboxData() {
     campaigns: [],
     deliveries: [],
     claim_logs: [],
+    memorial_entries: [],
   };
 }
 
@@ -190,6 +193,27 @@ function normalizeClaimLog(log) {
   };
 }
 
+function normalizeMemorialEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  return {
+    id: String(entry.id || makeId('mail_memorial')),
+    username: String(entry.username || ''),
+    delivery_id: String(entry.delivery_id || ''),
+    direction: ['inbox', 'outbox'].includes(String(entry.direction)) ? String(entry.direction) : 'inbox',
+    counterpart_username: sanitizeText(entry.counterpart_username, 60),
+    counterpart_display_name: sanitizeText(entry.counterpart_display_name, 60),
+    title: sanitizeText(entry.title, MAX_TITLE_LENGTH),
+    preview: sanitizeText(entry.preview, 160),
+    content: sanitizeText(entry.content, MAX_CONTENT_LENGTH),
+    template_type: VALID_TEMPLATE_TYPES.has(String(entry.template_type)) ? String(entry.template_type) : null,
+    tags: Array.isArray(entry.tags)
+      ? Array.from(new Set(entry.tags.map(item => sanitizeText(item, 32)).filter(Boolean))).slice(0, 8)
+      : [],
+    relation_scope: ['friend', 'neighbor', 'other'].includes(String(entry.relation_scope)) ? String(entry.relation_scope) : 'other',
+    saved_at: Number(entry.saved_at) || Math.floor(Date.now() / 1000),
+  };
+}
+
 function loadMailboxData() {
   try {
     if (!fs.existsSync(TAOYUAN_MAILBOX_FILE)) return defaultMailboxData();
@@ -198,6 +222,7 @@ function loadMailboxData() {
       campaigns: Array.isArray(raw?.campaigns) ? raw.campaigns.map(normalizeCampaign).filter(Boolean) : [],
       deliveries: Array.isArray(raw?.deliveries) ? raw.deliveries.map(normalizeDelivery).filter(Boolean) : [],
       claim_logs: Array.isArray(raw?.claim_logs) ? raw.claim_logs.map(normalizeClaimLog).filter(Boolean) : [],
+      memorial_entries: Array.isArray(raw?.memorial_entries) ? raw.memorial_entries.map(normalizeMemorialEntry).filter(Boolean) : [],
     };
   } catch {
     return defaultMailboxData();
@@ -213,7 +238,12 @@ function getGuildSeasonMailboxConfig() {
 
 function saveMailboxData(data) {
   ensureDir(TAOYUAN_MAILBOX_FILE);
-  writeJsonFileAtomic(TAOYUAN_MAILBOX_FILE, data);
+  writeJsonFileAtomic(TAOYUAN_MAILBOX_FILE, {
+    campaigns: Array.isArray(data?.campaigns) ? data.campaigns : [],
+    deliveries: Array.isArray(data?.deliveries) ? data.deliveries : [],
+    claim_logs: Array.isArray(data?.claim_logs) ? data.claim_logs : [],
+    memorial_entries: Array.isArray(data?.memorial_entries) ? data.memorial_entries : [],
+  });
 }
 
 async function withMailboxLock(fn) {
@@ -589,6 +619,41 @@ function buildUserMailReceipt(log, delivery) {
   };
 }
 
+async function resolveMemorialRelationScope(username, counterpartUsername) {
+  if (!counterpartUsername) return 'other';
+  if (taoyuanSocialRuntime.isNeighborWith(username, counterpartUsername)) return 'neighbor';
+  if (taoyuanSocialRuntime.isFriendWith(username, counterpartUsername)) return 'friend';
+  return 'other';
+}
+
+function buildMemorialTags(delivery, relationScope) {
+  const tags = [];
+  if (SEASONAL_MEMORIAL_TEMPLATE_TYPES.has(String(delivery?.template_type || ''))) tags.push('节气');
+  if (relationScope === 'friend') tags.push('好友');
+  if (relationScope === 'neighbor') tags.push('村社');
+  if (delivery?.sender_username) tags.push('玩家来信');
+  if (String(delivery?.template_type || '').includes('photo')) tags.push('附图');
+  if (delivery?.has_rewards || (Array.isArray(delivery?.rewards) && delivery.rewards.length > 0)) tags.push('包裹');
+  return Array.from(new Set(tags)).slice(0, 8);
+}
+
+function buildMemorialPreviewEntry(entry) {
+  return {
+    id: entry.id,
+    delivery_id: entry.delivery_id,
+    direction: entry.direction,
+    counterpart_username: entry.counterpart_username,
+    counterpart_display_name: entry.counterpart_display_name,
+    title: entry.title,
+    preview: entry.preview,
+    content: entry.content,
+    template_type: entry.template_type,
+    tags: Array.isArray(entry.tags) ? [...entry.tags] : [],
+    relation_scope: entry.relation_scope,
+    saved_at: entry.saved_at,
+  };
+}
+
 const PLAYER_LETTER_TEMPLATE_PRESETS = Object.freeze([
   {
     id: 'spring_letter',
@@ -897,6 +962,104 @@ function listUserMailReceipts(username, limit = 20) {
       .slice(0, safeLimit)
       .map(item => buildUserMailReceipt(item, deliveryMap.get(item.delivery_id))),
   };
+}
+
+function buildSentMailSummary(delivery) {
+  const hasRewards = Array.isArray(delivery.rewards) && delivery.rewards.length > 0;
+  return {
+    id: delivery.id,
+    title: delivery.title,
+    template_type: delivery.template_type,
+    recipient_username: delivery.username,
+    recipient_display_name: delivery.recipient_display_name,
+    preview: summarizeText(delivery.content, 80),
+    sent_at: delivery.sent_at,
+    is_pinned: !!delivery.pinned_at,
+    has_rewards: hasRewards,
+    reward_count: Array.isArray(delivery.rewards) ? delivery.rewards.length : 0,
+    has_memorial_entry: false,
+  };
+}
+
+function listUserSentMails(username) {
+  const data = loadMailboxData();
+  const memorialDeliveryIds = new Set(
+    data.memorial_entries
+      .map(normalizeMemorialEntry)
+      .filter(entry => entry.username === String(username) && entry.direction === 'outbox')
+      .map(entry => entry.delivery_id)
+  );
+  return {
+    mails: data.deliveries
+      .filter(item => item.sender_username === String(username) && !item.deleted_at)
+      .sort((a, b) => (b.sent_at || 0) - (a.sent_at || 0))
+      .map(item => ({
+        ...buildSentMailSummary(item),
+        has_memorial_entry: memorialDeliveryIds.has(item.id),
+      })),
+  };
+}
+
+function listUserMemorialEntries(username, filters = {}) {
+  const data = loadMailboxData();
+  const direction = ['inbox', 'outbox'].includes(String(filters.direction)) ? String(filters.direction) : '';
+  const tag = sanitizeText(filters.tag, 32);
+  const relationScope = ['friend', 'neighbor', 'other'].includes(String(filters.relation_scope)) ? String(filters.relation_scope) : '';
+  return {
+    entries: data.memorial_entries
+      .map(normalizeMemorialEntry)
+      .filter(entry => entry.username === String(username))
+      .filter(entry => !direction || entry.direction === direction)
+      .filter(entry => !tag || entry.tags.includes(tag))
+      .filter(entry => !relationScope || entry.relation_scope === relationScope)
+      .sort((a, b) => (b.saved_at || 0) - (a.saved_at || 0))
+      .map(buildMemorialPreviewEntry),
+  };
+}
+
+async function saveMailToMemorial(username, deliveryId) {
+  return withMailboxLock(async () => {
+    const data = loadMailboxData();
+    const actor = String(username || '').trim();
+    const delivery = data.deliveries.find(item => item.id === String(deliveryId) && !item.deleted_at);
+    if (!delivery) throw createError('邮件不存在', 404);
+
+    const isInboxOwner = delivery.username === actor;
+    const isOutboxOwner = delivery.sender_username === actor;
+    if (!isInboxOwner && !isOutboxOwner) throw createError('你无权归档这封邮件', 403);
+
+    const direction = isInboxOwner ? 'inbox' : 'outbox';
+    const counterpartUsername = isInboxOwner ? String(delivery.sender_username || '').trim() : String(delivery.username || '').trim();
+    const counterpartDisplayName = isInboxOwner
+      ? sanitizeText(delivery.sender_display_name || counterpartUsername, 60)
+      : sanitizeText(delivery.recipient_display_name || counterpartUsername, 60);
+    const relationScope = await resolveMemorialRelationScope(actor, counterpartUsername);
+    const tags = buildMemorialTags(delivery, relationScope);
+
+    const existing = data.memorial_entries
+      .map(normalizeMemorialEntry)
+      .find(entry => entry.username === actor && entry.delivery_id === delivery.id && entry.direction === direction);
+    if (existing) return buildMemorialPreviewEntry(existing);
+
+    const entry = normalizeMemorialEntry({
+      id: makeId('mail_memorial'),
+      username: actor,
+      delivery_id: delivery.id,
+      direction,
+      counterpart_username: counterpartUsername,
+      counterpart_display_name: counterpartDisplayName,
+      title: delivery.title,
+      preview: summarizeText(delivery.content, 160),
+      content: delivery.content,
+      template_type: delivery.template_type,
+      tags,
+      relation_scope: relationScope,
+      saved_at: Math.floor(Date.now() / 1000),
+    });
+    data.memorial_entries.unshift(entry);
+    saveMailboxData(data);
+    return buildMemorialPreviewEntry(entry);
+  });
 }
 
 function getUserMail(username, deliveryId) {
@@ -1440,10 +1603,13 @@ async function saveSystemCampaignForUser(payload, actor, username) {
 module.exports = {
   processPendingCampaigns,
   listUserMails,
+  listUserSentMails,
   listUserMailReceipts,
+  listUserMemorialEntries,
   getUserMail,
   markUserMailRead,
   setUserMailPinned,
+  saveMailToMemorial,
   claimUserMail,
   claimAllUserMails,
   clearClaimedUserMails,

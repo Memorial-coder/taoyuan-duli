@@ -121,6 +121,11 @@
 - `L43` 这一轮把邮箱继续从“能收信”推到“能管理重要信件”：现在会对新到邮件生成明显的到信提醒，重要邮件支持置顶浮到列表顶部，已领取奖励也能在邮箱内直接回看最近结算凭证。
 - `taoyuan-main/src/stores/useMailboxStore.ts`、`taoyuan-main/src/views/game/MailView.vue` 与 `server/src/taoyuanMailbox.js` 也同步补上了前后端闭环：到信摘要、置顶状态、最近结算凭证列表都走真实接口和持久化字段，不是前端临时假数据。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanMailbox.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
+### 0518 纪念册（L44 第一轮）
+- `server/src/taoyuanMailbox.js`、`server/src/routes/api.js`、`taoyuan-main/src/utils/mailboxApi.ts` 与 `taoyuan-main/src/stores/useMailboxStore.ts` 已补出纪念册第一版数据链路：当前能读取收件箱玩家来信、发件箱往来记录，并把重要信件存进独立纪念册条目。
+- `taoyuan-main/src/views/game/MailView.vue` 已同步接入第一版纪念册面板：现在可以在邮箱里切到收过的信、送过的信和已存纪念信三栏，并从当前邮件或列表里直接执行“存进纪念册”。
+- 当前纪念册筛选已先接入节气 / 好友 / 村社这组入口，但好友与村社更多依赖已归档条目的关系快照，后续仍可继续补更完整的历史筛选与长列表检索。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanMailbox.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
 - `taoyuan-main/src/utils/mailboxApi.ts`、`taoyuan-main/src/stores/useMailboxStore.ts` 与 `taoyuan-main/src/views/game/MailView.vue` 也同步接上了礼物包裹面板：现在可以选择材料包、种子包、鱼苗包、装饰包、纪念品包，并从现有库存 / 装饰拥有量里挑选内容寄出。
 - 邮箱详情页已可直接预览玩家包裹的寄件人、奖励条目与附图；邮件列表也开始把“玩家来信”和“系统公告 / 奖励邮件”区分开显示。
 - `server/scripts/qa-online-smoke.mjs` 已补进礼物包裹验证：当前会断言包裹发送成功、寄件人存档里的木材被真实扣减、收件人邮箱能看到带奖励的包裹，并在领取后把物资写回收件人存档。
