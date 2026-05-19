@@ -1,4 +1,4 @@
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
   createManorGuestbookEntry,
@@ -16,10 +16,36 @@ import {
 
 export const useManorStore = defineStore('onlineManor', () => {
   type ManorTemplateId = 'showcase' | 'operational' | 'festival' | 'collection' | 'story'
+  type ManorGuestbookKind = 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'
+
+  const GUESTBOOK_PLACEHOLDERS: Record<ManorGuestbookKind, string> = {
+    text: '写下一句参观感受，让这座庄园留下可被回看的来访痕迹。',
+    blessing: '写一句节气问候、丰收祝愿，给庄园主留下一点好兆头。',
+    advice: '留下一条经营建议，告诉庄园主哪里还能继续打磨。',
+    stamp: '留一枚短短的来访图章，例如“春汛见证”或“晚风留印”。',
+    signature: '用落款的方式写下你的名字或一句到访签名。',
+  }
+
+  const GUESTBOOK_QUICK_PICKS: Record<ManorGuestbookKind, string[]> = {
+    text: ['这座庄园的节奏很舒服。', '一路看下来，主题很完整。', '今天这条参观路线安排得很好。'],
+    blessing: ['愿你本周丰收顺遂。', '愿这座小院四时有喜。', '愿鱼塘、田地和节庆都顺风顺水。'],
+    advice: ['鱼塘区可以再补一个导览点。', '留言墙和主题路线很适合放在同一组故事里。', '如果把本周目标写得更具体，访客会更容易看懂。'],
+    stamp: ['来访留章 · 春汛见证', '小院同赏 · 晚风有记', '节气问安 · 丰年留印'],
+    signature: ['青篱到此，借一盏晚风。', '山客留名，祝小院常新。', '今日来访，记下这一程丰景。'],
+  }
+
+  const GUESTBOOK_SUBMIT_LABELS: Record<ManorGuestbookKind, string> = {
+    text: '留下留言',
+    blessing: '送上祝福',
+    advice: '留下建议',
+    stamp: '盖下图章',
+    signature: '留下签名',
+  }
 
   const loading = ref(false)
   const snapshot = ref<OnlineManorSnapshot | null>(null)
   const errorMessage = ref('')
+  const guestbookKindDraft = ref<ManorGuestbookKind>('text')
   const guestbookDraft = ref('')
   const guestbookReplyDraft = ref<Record<string, string>>({})
   const guestbookActionRunning = ref(false)
@@ -35,10 +61,21 @@ export const useManorStore = defineStore('onlineManor', () => {
   const themeLabelDraft = ref('')
   const templateIdDraft = ref<ManorTemplateId>('showcase')
   const themeActionRunning = ref(false)
+  const guestbookPlaceholder = computed(() => GUESTBOOK_PLACEHOLDERS[guestbookKindDraft.value])
+  const guestbookQuickPicks = computed(() => GUESTBOOK_QUICK_PICKS[guestbookKindDraft.value])
+  const guestbookSubmitLabel = computed(() => GUESTBOOK_SUBMIT_LABELS[guestbookKindDraft.value])
 
   const syncThemeDrafts = (nextSnapshot: OnlineManorSnapshot | null) => {
     themeLabelDraft.value = nextSnapshot?.theme_week?.active_theme || nextSnapshot?.showcase_theme || ''
     templateIdDraft.value = nextSnapshot?.theme_week?.template_id || 'showcase'
+  }
+
+  const setGuestbookKind = (kind: ManorGuestbookKind) => {
+    guestbookKindDraft.value = kind
+  }
+
+  const applyGuestbookQuickPick = (content: string) => {
+    guestbookDraft.value = content
   }
 
   const refreshSnapshot = async () => {
@@ -56,8 +93,9 @@ export const useManorStore = defineStore('onlineManor', () => {
     }
   }
 
-  const createGuestbookEntry = async (kind: 'text' | 'blessing' | 'advice' | 'stamp' | 'signature' = 'text') => {
+  const createGuestbookEntry = async () => {
     if (!snapshot.value) return
+    const kind = guestbookKindDraft.value
     const content = guestbookDraft.value.trim()
     if (!content) return
     guestbookActionRunning.value = true
@@ -235,9 +273,13 @@ export const useManorStore = defineStore('onlineManor', () => {
     loading,
     snapshot,
     errorMessage,
+    guestbookKindDraft,
     guestbookDraft,
     guestbookReplyDraft,
     guestbookActionRunning,
+    guestbookPlaceholder,
+    guestbookQuickPicks,
+    guestbookSubmitLabel,
     visitSummaryDraft,
     visitFeedbackDraft,
     visitPurposeDraft,
@@ -250,6 +292,8 @@ export const useManorStore = defineStore('onlineManor', () => {
     themeLabelDraft,
     templateIdDraft,
     themeActionRunning,
+    setGuestbookKind,
+    applyGuestbookQuickPick,
     refreshSnapshot,
     createGuestbookEntry,
     replyGuestbookEntry,

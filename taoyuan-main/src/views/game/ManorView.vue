@@ -127,26 +127,78 @@
 
     <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
       <p class="text-xs text-accent">留言墙</p>
-      <div class="grid grid-cols-3 gap-2">
-        <Button class="text-[10px]" :disabled="manorStore.guestbookActionRunning" @click="submitGuestbook('text')">留言</Button>
-        <Button class="text-[10px]" :disabled="manorStore.guestbookActionRunning" @click="submitGuestbook('blessing')">祝福</Button>
-        <Button class="text-[10px]" :disabled="manorStore.guestbookActionRunning" @click="submitGuestbook('advice')">建议</Button>
+      <div class="grid grid-cols-2 gap-2 md:grid-cols-5">
+        <button
+          v-for="option in guestbookKindOptions"
+          :key="option.id"
+          type="button"
+          class="text-left text-[10px] px-2 py-1.5 rounded-xs border transition-colors"
+          :class="manorStore.guestbookKindDraft === option.id ? 'border-accent/40 text-accent bg-accent/5' : 'border-accent/15 text-muted'"
+          @click="manorStore.setGuestbookKind(option.id)"
+        >
+          <span class="block">{{ option.label }}</span>
+        </button>
+      </div>
+      <div class="border border-accent/10 rounded-xs p-2">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[10px] text-muted">当前留言模式</p>
+          <span class="text-[10px] text-accent">{{ currentGuestbookKind.label }}</span>
+        </div>
+        <p class="text-[10px] text-muted mt-1">{{ currentGuestbookKind.helper }}</p>
+        <div class="flex flex-wrap gap-1 mt-2">
+          <button
+            v-for="pick in manorStore.guestbookQuickPicks"
+            :key="pick"
+            type="button"
+            class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted hover:border-accent/30 hover:text-accent"
+            @click="manorStore.applyGuestbookQuickPick(pick)"
+          >
+            {{ pick }}
+          </button>
+        </div>
       </div>
       <textarea
         v-model="manorStore.guestbookDraft"
         rows="3"
         maxlength="160"
         class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1.5 text-xs text-text outline-none focus:border-accent resize-none"
-        placeholder="给这座庄园留下一句可被回看的痕迹。"
+        :placeholder="manorStore.guestbookPlaceholder"
       />
+      <div class="flex items-center justify-between gap-2">
+        <p class="text-[10px] text-muted">当前会以“{{ currentGuestbookKind.label }}”写入这座庄园的互动痕迹。</p>
+        <Button class="text-[10px]" :disabled="manorStore.guestbookActionRunning" @click="submitGuestbook">
+          {{ manorStore.guestbookActionRunning ? '提交中…' : manorStore.guestbookSubmitLabel }}
+        </Button>
+      </div>
 
       <div class="space-y-2">
         <div v-if="manorStore.snapshot.guestbook_entries.length === 0" class="text-[10px] text-muted">当前还没有访客留言。</div>
         <div v-for="entry in manorStore.snapshot.guestbook_entries" :key="entry.id" class="border border-accent/10 rounded-xs p-2">
-          <div class="flex items-center justify-between gap-2">
-            <div>
-              <p class="text-xs text-accent">{{ entry.author_display_name }} · {{ guestbookKindLabel(entry.kind) }}</p>
-              <p class="text-[10px] text-muted mt-1">{{ entry.content }}</p>
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-2 flex-wrap">
+                <p class="text-xs text-accent">{{ entry.author_display_name }}</p>
+                <span class="text-[10px] px-1.5 py-0.5 rounded-xs border" :class="guestbookKindBadgeClass(entry.kind)">
+                  {{ guestbookKindLabel(entry.kind) }}
+                </span>
+                <span v-if="entry.pinned" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent bg-accent/5">
+                  置顶
+                </span>
+              </div>
+              <div class="mt-2">
+                <div
+                  v-if="entry.kind === 'stamp'"
+                  class="inline-flex rounded-xs border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-amber-100"
+                >
+                  {{ entry.content }}
+                </div>
+                <p v-else-if="entry.kind === 'signature'" class="text-xs text-right italic text-fuchsia-100">
+                  —— {{ entry.content }}
+                </p>
+                <p v-else class="text-[10px] text-muted mt-1">
+                  {{ entry.content }}
+                </p>
+              </div>
             </div>
             <Button
               v-if="manorStore.snapshot.viewer_is_owner"
@@ -275,19 +327,27 @@
 </template>
 
 <script setup lang="ts">
-  import { onMounted } from 'vue'
+  import { computed, onMounted } from 'vue'
   import Button from '@/components/game/Button.vue'
   import ManorPreviewCard from '@/components/game/ManorPreviewCard.vue'
   import { useManorStore } from '@/stores/useManorStore'
 
   const manorStore = useManorStore()
+  const guestbookKindOptions = [
+    { id: 'text', label: '留言', helper: '自由写参观感受，适合留下完整的一句话。' },
+    { id: 'blessing', label: '祝福', helper: '更适合节气问候、丰收祝愿和暖一点的回声。' },
+    { id: 'advice', label: '建议', helper: '给主人留一条经营建议，告诉他还能怎么继续打磨。' },
+    { id: 'stamp', label: '图章', helper: '像盖章一样留下短印记，适合节气、主题和来访证明。' },
+    { id: 'signature', label: '签名', helper: '用落款式写法留名，让来访痕迹更像一封短短的署名。' },
+  ] as const
+  const currentGuestbookKind = computed(() => guestbookKindOptions.find(option => option.id === manorStore.guestbookKindDraft) ?? guestbookKindOptions[0])
 
   const refreshSnapshot = async () => {
     await manorStore.refreshSnapshot().catch(() => {})
   }
 
-  const submitGuestbook = async (kind: 'text' | 'blessing' | 'advice' | 'stamp' | 'signature') => {
-    await manorStore.createGuestbookEntry(kind).catch(() => {})
+  const submitGuestbook = async () => {
+    await manorStore.createGuestbookEntry().catch(() => {})
   }
 
   const replyGuestbook = async (entryId: string) => {
@@ -304,6 +364,14 @@
     if (kind === 'stamp') return '图章'
     if (kind === 'signature') return '签名'
     return '留言'
+  }
+
+  const guestbookKindBadgeClass = (kind: 'text' | 'blessing' | 'advice' | 'stamp' | 'signature') => {
+    if (kind === 'blessing') return 'border-emerald-400/30 text-emerald-200 bg-emerald-500/10'
+    if (kind === 'advice') return 'border-sky-400/30 text-sky-200 bg-sky-500/10'
+    if (kind === 'stamp') return 'border-amber-400/40 text-amber-200 bg-amber-500/10'
+    if (kind === 'signature') return 'border-fuchsia-400/30 text-fuchsia-200 bg-fuchsia-500/10'
+    return 'border-accent/20 text-accent bg-accent/5'
   }
 
   const recordVisit = async () => {

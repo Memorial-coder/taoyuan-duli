@@ -93,7 +93,7 @@
       </div>
       <div class="border border-accent/10 rounded-xs p-2">
         <p class="text-[10px] text-muted">留言痕迹</p>
-        <p class="mt-1">{{ snapshot.guestbook_entries[0]?.content || '当前还没有新的故事留言。' }}</p>
+        <p class="mt-1">{{ guestbookSummaryText }}</p>
       </div>
     </div>
 
@@ -134,6 +134,13 @@
     const overview = props.favoriteOverview
     if (!overview || overview.same_theme_favorites.length === 0) return '当前没有同主题收藏列表。'
     return overview.same_theme_favorites.map(group => group.map(entry => entry.display_name).join('、')).join('；')
+  })
+  const guestbookSummaryText = computed(() => {
+    const entry = props.snapshot?.guestbook_entries?.[0]
+    if (!entry) return '当前还没有新的故事留言。'
+    if (entry.kind === 'stamp') return `图章｜${entry.content}`
+    if (entry.kind === 'signature') return `签名｜${entry.content}`
+    return `${entry.author_display_name}：${entry.content}`
   })
   const hotManorText = computed(() => {
     const overview = props.favoriteOverview
