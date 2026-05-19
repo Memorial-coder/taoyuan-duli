@@ -151,6 +151,9 @@
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('weekly-exchange-station', '看每周交换站')">
               看每周交换站
             </button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('neighbor-consignment', '看邻里寄售')">
+              看邻里寄售
+            </button>
           </div>
         </div>
 
@@ -325,6 +328,9 @@
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('weekly-exchange-station', '看每周交换站')">
               看每周交换站
             </button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('neighbor-consignment', '看邻里寄售')">
+              看邻里寄售
+            </button>
           </div>
         </div>
 
@@ -340,6 +346,24 @@
             :running="weeklyExchangeStore.actionRunning"
             @refresh="handleRefreshWeeklyExchangeStation"
             @exchange="handleWeeklyExchange"
+          />
+        </div>
+
+        <div
+          v-if="!shopStore.currentShopId && neighborConsignmentStore.overview"
+          class="mb-3"
+          :class="promptSectionClass('neighbor-consignment')"
+          :data-prompt-focus="buildPromptFocusAttr('neighbor-consignment')"
+        >
+          <NeighborConsignmentPanel
+            :overview="neighborConsignmentStore.overview"
+            :loading="neighborConsignmentStore.loading"
+            :running="neighborConsignmentStore.actionRunning"
+            @refresh="handleRefreshNeighborConsignments"
+            @create="handleCreateNeighborConsignment"
+            @buy="handleBuyNeighborConsignment"
+            @cancel="handleCancelNeighborConsignment"
+            @reclaim="handleReclaimNeighborConsignment"
           />
         </div>
         </template>
@@ -1736,7 +1760,9 @@
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useAchievementStore } from '@/stores/useAchievementStore'
   import { useWeeklyExchangeStore } from '@/stores/useWeeklyExchangeStore'
+  import { useNeighborConsignmentStore } from '@/stores/useNeighborConsignmentStore'
   import WeeklyExchangeStationPanel from '@/components/game/WeeklyExchangeStationPanel.vue'
+  import NeighborConsignmentPanel from '@/components/game/NeighborConsignmentPanel.vue'
 
   const RAIN_TOTEM_PRICE = 300
   const WOOD_PRICE = 50
@@ -1754,13 +1780,14 @@
   const regionMapStore = useRegionMapStore()
   const achievementStore = useAchievementStore()
   const weeklyExchangeStore = useWeeklyExchangeStore()
+  const neighborConsignmentStore = useNeighborConsignmentStore()
   const isCompactMobile = ref(false)
   const shopPreludeExpanded = ref(false)
   const syncCompactViewportMode = () => {
     isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
   }
   const shopPreludeForceOpen = computed(() =>
-    ['economy-overview', 'market-overview', 'recommended-consumption', 'weekly-exchange-station'].some(key => isPromptFocusActive(key))
+    ['economy-overview', 'market-overview', 'recommended-consumption', 'weekly-exchange-station', 'neighbor-consignment'].some(key => isPromptFocusActive(key))
   )
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
   const todayAmbientRareVisitors = computed(() =>
@@ -1804,6 +1831,9 @@
         shopStore.currentShopId = 'wanwupu'
       },
       'weekly-exchange-station': () => {
+        shopStore.currentShopId = null
+      },
+      'neighbor-consignment': () => {
         shopStore.currentShopId = null
       }
     }
@@ -1941,6 +1971,7 @@
   onMounted(() => {
     syncCompactViewportMode()
     void weeklyExchangeStore.refreshStation().catch(() => {})
+    void neighborConsignmentStore.refreshOverview().catch(() => {})
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', syncCompactViewportMode)
     }
@@ -1987,7 +2018,7 @@
     statusLabel: string
     statusToneClass: string
     ctaLabel: string
-    action: 'current-shop' | 'market-overview' | 'recommended-catalog' | 'wanwupu' | 'weekly-exchange-station'
+    action: 'current-shop' | 'market-overview' | 'recommended-catalog' | 'wanwupu' | 'weekly-exchange-station' | 'neighbor-consignment'
     pool?: ShopCatalogOfferDef['pool']
   }
 
@@ -2056,6 +2087,25 @@
       }
     }
 
+    if (neighborConsignmentStore.overview?.open_listings?.length) {
+      const listing = neighborConsignmentStore.overview.open_listings[0]
+      if (listing) {
+        return {
+          title: '先看邻里寄售',
+          summary: '邻里里已经有人挂出固定价物资，先看本邻里内部寄售，再决定要不要继续走商圈其他货架。',
+          detailLines: [
+            `本单物资：${listing.item_id}×${listing.quantity}`,
+            `固定价：${listing.price_money}文`,
+            `范围：${listing.scope_label}`
+          ],
+          statusLabel: '寄售',
+          statusToneClass: 'text-success',
+          ctaLabel: '看邻里寄售',
+          action: 'neighbor-consignment'
+        }
+      }
+    }
+
     if (shopPrimaryCatalogOffer.value) {
       return {
         title: '先看推荐货架',
@@ -2100,6 +2150,10 @@
     }
     if (action.action === 'weekly-exchange-station') {
       focusShopSection('weekly-exchange-station', '看每周交换站')
+      return
+    }
+    if (action.action === 'neighbor-consignment') {
+      focusShopSection('neighbor-consignment', '看邻里寄售')
       return
     }
     mobileTab.value = 'buy'
@@ -2248,6 +2302,73 @@
       }
     } catch (error) {
       addLog(error instanceof Error ? error.message : '每周交换站换物失败')
+    }
+  }
+
+  const handleRefreshNeighborConsignments = async () => {
+    await neighborConsignmentStore.refreshOverview().catch(() => {})
+  }
+
+  const handleCreateNeighborConsignment = async (payload: {
+    item_id: string
+    quantity: number
+    price_money: number
+    scope: 'neighbors' | 'friends'
+    duration_hours?: number
+    expires_at?: number
+  }) => {
+    try {
+      const result = await neighborConsignmentStore.createListing(payload)
+      sfxBuy()
+      showFloat('挂单成功', 'success')
+      addLog(`【邻里寄售】已挂出 ${payload.item_id}×${payload.quantity}，固定价 ${payload.price_money}文。`)
+      if (!result.save_sync_state.current_session_synced) {
+        addLog(`【邻里寄售】${result.save_sync_state.message}`)
+      }
+    } catch (error) {
+      addLog(error instanceof Error ? error.message : '邻里寄售挂单失败')
+    }
+  }
+
+  const handleBuyNeighborConsignment = async (listingId: string) => {
+    try {
+      const result = await neighborConsignmentStore.buyListing(listingId)
+      sfxBuy()
+      showFloat('购买成功', 'success')
+      addLog(`【邻里寄售】已买下 ${result.listing.item_id}×${result.listing.quantity}，支付 ${result.listing.price_money}文。`)
+      if (!result.save_sync_state.current_session_synced) {
+        addLog(`【邻里寄售】${result.save_sync_state.message}`)
+      }
+    } catch (error) {
+      addLog(error instanceof Error ? error.message : '购买邻里寄售失败')
+    }
+  }
+
+  const handleCancelNeighborConsignment = async (listingId: string) => {
+    try {
+      const result = await neighborConsignmentStore.cancelListing(listingId)
+      sfxBuy()
+      showFloat('已取消', 'success')
+      addLog(`【邻里寄售】已取消挂单 ${result.listing.item_id}×${result.listing.quantity}。`)
+      if (!result.save_sync_state.current_session_synced) {
+        addLog(`【邻里寄售】${result.save_sync_state.message}`)
+      }
+    } catch (error) {
+      addLog(error instanceof Error ? error.message : '取消邻里寄售失败')
+    }
+  }
+
+  const handleReclaimNeighborConsignment = async (listingId: string) => {
+    try {
+      const result = await neighborConsignmentStore.reclaimListing(listingId)
+      sfxBuy()
+      showFloat('已回收', 'success')
+      addLog(`【邻里寄售】已回收过期挂单 ${result.listing.item_id}×${result.listing.quantity}。`)
+      if (!result.save_sync_state.current_session_synced) {
+        addLog(`【邻里寄售】${result.save_sync_state.message}`)
+      }
+    } catch (error) {
+      addLog(error instanceof Error ? error.message : '回收邻里寄售失败')
     }
   }
 

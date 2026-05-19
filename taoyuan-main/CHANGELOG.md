@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0519 邻里寄售（L51 第一轮）
+- 新增 `server/src/taoyuanNeighborConsignment.js` 与 `/api/taoyuan/exchange-station/neighbors/consignments`、`/purchase`、`/cancel`、`/reclaim`，把第一版“邻里寄售”正式接进服务端运行态，并把挂单、成交、取消、过期回收记录独立持久化到 `data/taoyuan_neighbor_consignments.json`。
+- 当前寄售采用“邻里内慢交易”口径：只允许已加入邻里的玩家挂出普通品质物资，按固定价出售，并限制为 `本邻里公开 / 仅邻里好友` 两种可见范围，避免直接膨胀成全服自由拍卖市场。
+- 新增 `taoyuan-main/src/utils/neighborConsignmentApi.ts`、`taoyuan-main/src/stores/useNeighborConsignmentStore.ts` 与 `taoyuan-main/src/components/game/NeighborConsignmentPanel.vue`，商店页现已接入第一版邻里寄售面板，可直接查看可买列表、我的挂单、范围说明，并执行挂单、购买、取消和过期回收。
+- `taoyuan-main/src/views/game/ShopView.vue` 已补出邻里寄售入口、面板开关、主行动卡片分流与刷新动作；寄售操作完成后会按当前运行槽位自动回读服务端存档，尽量避免在线操作后界面还停留在旧本地副本。
+- `server/scripts/qa-online-smoke.mjs` 已补进邻里寄售回归，并把联机资金断言改成按真实结算链动态累计；当前会实际验证挂单、购买、取消、过期回收，以及买卖双方与大厅悬赏链路的资金回读。
+
 ### 0519 每周交换站（L50 第一轮）
 - 新增 `server/src/taoyuanWeeklyExchangeStation.js` 与 `/api/taoyuan/exchange-station/weekly`、`/api/taoyuan/exchange-station/weekly/:offerId/exchange`，把第一版“每周交换站”正式接进服务端运行态。
 - 当前实现采用“官方控价慢交易”口径：每周固定保留 `wintersweet_for_herb`、`wood_for_stone` 两条基础换物，再拆出 `慢交易 / 节庆主题池 / 邻里专属池` 三类供给；会按现实周轮换节庆主题，并按邻里成员身份决定专属池可见性。

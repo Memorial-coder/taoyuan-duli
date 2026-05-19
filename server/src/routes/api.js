@@ -15,6 +15,7 @@ const taoyuanSocialRuntime = require('../taoyuanSocialRuntime');
 const taoyuanManorRuntime = require('../taoyuanManorRuntime');
 const taoyuanCoopOrderRuntime = require('../taoyuanCoopOrderRuntime');
 const taoyuanWeeklyExchangeStation = require('../taoyuanWeeklyExchangeStation');
+const taoyuanNeighborConsignment = require('../taoyuanNeighborConsignment');
 const officialControlPlatform = require('../officialControlPlatform');
 const {
   ensureTaoyuanSavesDir,
@@ -1683,6 +1684,59 @@ router.post('/taoyuan/exchange-station/weekly/:offerId/exchange', loginRequired,
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '执行每周换物失败' });
+    }
+  });
+});
+
+router.get('/taoyuan/exchange-station/neighbors/consignments', loginRequired, async (req, res) => {
+  try {
+    const overview = taoyuanNeighborConsignment.listNeighborConsignments(req.session.username);
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取邻里寄售信息失败' });
+  }
+});
+
+router.post('/taoyuan/exchange-station/neighbors/consignments', loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = taoyuanNeighborConsignment.createNeighborConsignment(req.session.username, req.body || {});
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '创建邻里寄售失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/exchange-station/neighbors/consignments/:listingId/purchase', loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = taoyuanNeighborConsignment.buyNeighborConsignment(req.session.username, req.params.listingId);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '购买邻里寄售失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/exchange-station/neighbors/consignments/:listingId/cancel', loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = taoyuanNeighborConsignment.cancelNeighborConsignment(req.session.username, req.params.listingId);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '取消邻里寄售失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/exchange-station/neighbors/consignments/:listingId/reclaim', loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = taoyuanNeighborConsignment.reclaimExpiredNeighborConsignment(req.session.username, req.params.listingId);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '回收过期邻里寄售失败' });
     }
   });
 });

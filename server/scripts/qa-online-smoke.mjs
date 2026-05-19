@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process'
-import { rm } from 'node:fs/promises'
+import { readFile, rm, writeFile } from 'node:fs/promises'
 import net from 'node:net'
 import path from 'node:path'
 import { createRequire } from 'node:module'
@@ -534,8 +534,12 @@ try {
   let relayStageOneId = ''
   let relayStageTwoId = ''
   let expiringCoopOrderId = ''
+  let neighborConsignmentListingId = ''
+  let neighborConsignmentExpiredListingId = ''
   let weeklyExchangeExpectedWoodCount = null
   let weeklyExchangeExpectedStoneCount = null
+  let primaryExpectedMoney = 1200
+  let secondaryExpectedMoney = 260
   await runCheck('second session bootstrap', async () => {
     await bootstrapSession(secondarySessionState, 'smk2', 260)
   })
@@ -878,6 +882,7 @@ try {
     assert(response.ok, `coop order confirm delivery returned ${response.status}`)
     assert(data?.ok === true && data?.order?.delivery_status === 'confirmed', 'coop order confirm delivery payload is incomplete')
     assert(data?.receipt?.status === 'confirmed', 'coop order confirm receipt payload is incomplete')
+    secondaryExpectedMoney += 120
   })
 
   await runCheck('GET /api/taoyuan/save/:slot coop reward persistence', async () => {
@@ -885,7 +890,7 @@ try {
     assert(response.ok, `coop reward save read returned ${response.status}`)
     assert(data?.ok === true && typeof data?.raw === 'string', 'coop reward save read payload is incomplete')
     const decrypted = decryptTaoyuanRaw(data.raw)
-    assert(Number(decrypted?.player?.money) === 380, `coop order reward did not persist to second user save, current money=${decrypted?.player?.money}`)
+    assert(Number(decrypted?.player?.money) === secondaryExpectedMoney, `coop order reward did not persist to second user save, expected money=${secondaryExpectedMoney}, current money=${decrypted?.player?.money}`)
   })
 
   await runCheck('GET /api/taoyuan/online/orders reputation summary readback', async () => {
@@ -1144,6 +1149,127 @@ try {
     assert(Array.isArray(neighborOrder?.priority_reasons) && neighborOrder.priority_reasons.some(reason => String(reason).includes('邻里')), 'neighbor-scope coop order missing neighbor recommendation reason')
   })
 
+  await runCheck('GET /api/taoyuan/exchange-station/neighbors/consignments read path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/neighbors/consignments')
+    assert(response.ok, `neighbor consignment read returned ${response.status}`)
+    assert(data?.ok === true && data?.neighbor_group?.name, 'neighbor consignment overview payload is incomplete')
+    assert(Array.isArray(data?.scope_options) && data.scope_options.some(entry => entry?.id === 'friends'), 'neighbor consignment scope options are incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/exchange-station/neighbors/consignments write path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/neighbors/consignments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        item_id: 'wintersweet',
+        quantity: 1,
+        price_money: 70,
+        scope: 'neighbors',
+        duration_hours: 72,
+      }),
+    })
+    assert(response.ok, `neighbor consignment write returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.listing?.id, 'neighbor consignment write payload is incomplete')
+    assert(data?.listing?.scope === 'neighbors', 'neighbor consignment write did not preserve scope')
+    neighborConsignmentListingId = String(data.listing.id)
+    assert(neighborConsignmentListingId, 'neighbor consignment listing id was not created')
+  })
+
+  await runCheck('POST /api/taoyuan/exchange-station/neighbors/consignments/:listingId/purchase write path', async () => {
+    const preSave = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(preSave.response.ok, `neighbor consignment buyer save read returned ${preSave.response.status}`)
+    assert(preSave.data?.ok === true && typeof preSave.data?.raw === 'string', 'neighbor consignment buyer save payload is incomplete')
+    const preDecrypted = decryptTaoyuanRaw(preSave.data.raw)
+    const preMoney = Math.floor(Number(preDecrypted?.player?.money) || 0)
+    const preWintersweetCount = getInventoryItemQuantity(preDecrypted, 'wintersweet')
+
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/exchange-station/neighbors/consignments/${encodeURIComponent(neighborConsignmentListingId)}/purchase`, {
+      method: 'POST',
+    })
+    assert(response.ok, `neighbor consignment purchase returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.listing?.status === 'sold', 'neighbor consignment purchase payload is incomplete')
+
+    const buyerSave = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(buyerSave.response.ok, `neighbor consignment buyer persistence read returned ${buyerSave.response.status}`)
+    assert(buyerSave.data?.ok === true && typeof buyerSave.data?.raw === 'string', 'neighbor consignment buyer persistence payload is incomplete')
+    const buyerDecrypted = decryptTaoyuanRaw(buyerSave.data.raw)
+    const buyerMoney = Math.floor(Number(buyerDecrypted?.player?.money) || 0)
+    const buyerWintersweetCount = getInventoryItemQuantity(buyerDecrypted, 'wintersweet')
+    primaryExpectedMoney -= 70
+    assert(buyerMoney === preMoney - 70, `neighbor consignment did not deduct buyer money correctly, current money=${buyerMoney}`)
+    assert(buyerMoney === primaryExpectedMoney, `neighbor consignment did not persist buyer money correctly, expected money=${primaryExpectedMoney}, current money=${buyerMoney}`)
+    assert(buyerWintersweetCount === preWintersweetCount + 1, `neighbor consignment did not grant buyer wintersweet correctly, current wintersweet=${buyerWintersweetCount}`)
+
+    const sellerSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(sellerSave.response.ok, `neighbor consignment seller persistence read returned ${sellerSave.response.status}`)
+    assert(sellerSave.data?.ok === true && typeof sellerSave.data?.raw === 'string', 'neighbor consignment seller persistence payload is incomplete')
+    const sellerDecrypted = decryptTaoyuanRaw(sellerSave.data.raw)
+    const sellerMoney = Math.floor(Number(sellerDecrypted?.player?.money) || 0)
+    secondaryExpectedMoney += 70
+    assert(sellerMoney === secondaryExpectedMoney, `neighbor consignment did not credit seller money correctly, expected money=${secondaryExpectedMoney}, current money=${sellerMoney}`)
+  })
+
+  await runCheck('POST /api/taoyuan/exchange-station/neighbors/consignments cancel path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/neighbors/consignments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        item_id: 'wood',
+        quantity: 1,
+        price_money: 40,
+        scope: 'friends',
+        duration_hours: 72,
+      }),
+    })
+    assert(response.ok, `neighbor consignment cancel setup returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    const cancelListingId = String(data?.listing?.id || '')
+    assert(cancelListingId, 'neighbor consignment cancel setup did not create listing id')
+
+    const cancelResponse = await fetchSessionJson(secondarySessionState, `/api/taoyuan/exchange-station/neighbors/consignments/${encodeURIComponent(cancelListingId)}/cancel`, {
+      method: 'POST',
+    })
+    assert(cancelResponse.response.ok, `neighbor consignment cancel returned ${cancelResponse.response.status}`)
+    assert(cancelResponse.data?.ok === true && cancelResponse.data?.listing?.status === 'cancelled', 'neighbor consignment cancel payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/exchange-station/neighbors/consignments reclaim expired path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/neighbors/consignments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        item_id: 'wood',
+        quantity: 1,
+        price_money: 35,
+        scope: 'neighbors',
+        duration_hours: 1,
+      }),
+    })
+    assert(response.ok, `neighbor consignment reclaim setup returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    neighborConsignmentExpiredListingId = String(data?.listing?.id || '')
+    assert(neighborConsignmentExpiredListingId, 'neighbor consignment reclaim setup did not create listing id')
+
+    const consignmentFile = path.join(smokeTempDir, 'taoyuan_neighbor_consignments.json')
+    const consignmentData = JSON.parse(await readFile(consignmentFile, 'utf8'))
+    consignmentData.listings = consignmentData.listings.map(entry =>
+      entry.id === neighborConsignmentExpiredListingId
+        ? { ...entry, expires_at: Math.floor(Date.now() / 1000) - 10 }
+        : entry
+    )
+    await writeFile(consignmentFile, JSON.stringify(consignmentData, null, 2), 'utf8')
+
+    const reclaimResponse = await fetchSessionJson(secondarySessionState, `/api/taoyuan/exchange-station/neighbors/consignments/${encodeURIComponent(neighborConsignmentExpiredListingId)}/reclaim`, {
+      method: 'POST',
+    })
+    assert(reclaimResponse.response.ok, `neighbor consignment reclaim returned ${reclaimResponse.response.status}`)
+    assert(reclaimResponse.data?.ok === true && reclaimResponse.data?.listing?.status === 'reclaimed', 'neighbor consignment reclaim payload is incomplete')
+  })
+
   await runCheck('GET /api/taoyuan/exchange-station/weekly read path', async () => {
     const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/weekly')
     assert(response.ok, `weekly exchange station read returned ${response.status}`)
@@ -1338,6 +1464,7 @@ try {
     })
     assert(response.ok, `reward help post returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.post?.id, 'reward help post payload is incomplete')
+    primaryExpectedMoney -= 100
     rewardPostId = String(data.post.id)
   })
 
@@ -1376,7 +1503,8 @@ try {
     assert(response.ok, `second user save read returned ${response.status}`)
     assert(data?.ok === true && typeof data?.raw === 'string', 'second user save payload is incomplete')
     const decrypted = decryptTaoyuanRaw(data.raw)
-    assert(Number(decrypted?.player?.money) === 480, `best reply payout did not persist to second user save, current money=${decrypted?.player?.money}`)
+    secondaryExpectedMoney += 100
+    assert(Number(decrypted?.player?.money) === secondaryExpectedMoney, `best reply payout did not persist to second user save, expected money=${secondaryExpectedMoney}, current money=${decrypted?.player?.money}`)
   })
 
   let refundablePostId = ''
@@ -1398,6 +1526,7 @@ try {
     })
     assert(response.ok, `refundable help post returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.post?.id, 'refundable help post payload is incomplete')
+    primaryExpectedMoney -= 80
     refundablePostId = String(data.post.id)
   })
 
@@ -1407,6 +1536,7 @@ try {
     })
     assert(response.ok, `hall refund delete returned ${response.status}`)
     assert(data?.ok === true && data?.refunded === true, 'hall refund delete payload is incomplete')
+    primaryExpectedMoney += 80
   })
 
   let rewardMailId = ''
@@ -1470,6 +1600,7 @@ try {
     })
     assert(response.ok, `mail claim returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.result?.money_added === 321, 'mail claim payload is incomplete')
+    primaryExpectedMoney += 321
   })
 
   await runCheck('GET /api/taoyuan/save/:slot reward persistence', async () => {
@@ -1477,7 +1608,7 @@ try {
     assert(response.ok, `save slot read returned ${response.status}`)
     assert(data?.ok === true && typeof data?.raw === 'string', 'save slot read payload is incomplete')
     const decrypted = decryptTaoyuanRaw(data.raw)
-    assert(Number(decrypted?.player?.money) === 1421, `reward payout / refund chain did not persist to primary save slot, current money=${decrypted?.player?.money}`)
+    assert(Number(decrypted?.player?.money) === primaryExpectedMoney, `reward payout / refund chain did not persist to primary save slot, expected money=${primaryExpectedMoney}, current money=${decrypted?.player?.money}`)
   })
 
   let reportId = ''
