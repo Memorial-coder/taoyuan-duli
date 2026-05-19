@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0519 节庆摊位（L52 第一轮）
+- 新增 `server/src/taoyuanFestivalStall.js` 与 `/api/taoyuan/exchange-station/festival-stall`、`/purchase`，把第一版“节庆摊位”正式接进服务端运行态，并把摊位状态独立持久化到联机存档。
+- 当前摊位按现实周轮换节庆主题，开放限定材料、纪念品、节日食物和活动票券四类货物；票券结算会直接写入 `wallet.rewardTickets` 与 `wallet.rewardTicketLifetimeEarned`，不走普通背包物品。
+- 新增 `taoyuan-main/src/utils/festivalStallApi.ts`、`taoyuan-main/src/stores/useFestivalStallStore.ts` 与 `taoyuan-main/src/components/game/FestivalStallPanel.vue`，商店页现已接入第一版节庆摊位面板与购买动作。
+- `taoyuan-main/src/views/game/ShopView.vue` 已补出节庆摊位入口、面板开关、主行动卡片分流与刷新动作；`server/src/routes/api.js` 与 `server/src/taoyuanWeeklyExchangeStation.js` 也已同步接线。
+- `server/scripts/qa-online-smoke.mjs` 已补进节庆摊位回归：当前会实际验证节庆摊位读取、食物购买、票券购买，以及买入后的铜钱扣减和存档回读。
+
 ### 0519 邻里寄售（L51 第一轮）
 - 新增 `server/src/taoyuanNeighborConsignment.js` 与 `/api/taoyuan/exchange-station/neighbors/consignments`、`/purchase`、`/cancel`、`/reclaim`，把第一版“邻里寄售”正式接进服务端运行态，并把挂单、成交、取消、过期回收记录独立持久化到 `data/taoyuan_neighbor_consignments.json`。
 - 当前寄售采用“邻里内慢交易”口径：只允许已加入邻里的玩家挂出普通品质物资，按固定价出售，并限制为 `本邻里公开 / 仅邻里好友` 两种可见范围，避免直接膨胀成全服自由拍卖市场。

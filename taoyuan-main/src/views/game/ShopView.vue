@@ -151,6 +151,9 @@
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('weekly-exchange-station', '看每周交换站')">
               看每周交换站
             </button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('festival-stall', '看节庆摊位')">
+              看节庆摊位
+            </button>
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('neighbor-consignment', '看邻里寄售')">
               看邻里寄售
             </button>
@@ -328,6 +331,9 @@
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('weekly-exchange-station', '看每周交换站')">
               看每周交换站
             </button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('festival-stall', '看节庆摊位')">
+              看节庆摊位
+            </button>
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('neighbor-consignment', '看邻里寄售')">
               看邻里寄售
             </button>
@@ -346,6 +352,21 @@
             :running="weeklyExchangeStore.actionRunning"
             @refresh="handleRefreshWeeklyExchangeStation"
             @exchange="handleWeeklyExchange"
+          />
+        </div>
+
+        <div
+          v-if="!shopStore.currentShopId && festivalStallStore.stall"
+          class="mb-3"
+          :class="promptSectionClass('festival-stall')"
+          :data-prompt-focus="buildPromptFocusAttr('festival-stall')"
+        >
+          <FestivalStallPanel
+            :stall="festivalStallStore.stall"
+            :loading="festivalStallStore.loading"
+            :running="festivalStallStore.actionRunning"
+            @refresh="handleRefreshFestivalStall"
+            @buy="handleBuyFestivalStallOffer"
           />
         </div>
 
@@ -1760,8 +1781,10 @@
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useAchievementStore } from '@/stores/useAchievementStore'
   import { useWeeklyExchangeStore } from '@/stores/useWeeklyExchangeStore'
+  import { useFestivalStallStore } from '@/stores/useFestivalStallStore'
   import { useNeighborConsignmentStore } from '@/stores/useNeighborConsignmentStore'
   import WeeklyExchangeStationPanel from '@/components/game/WeeklyExchangeStationPanel.vue'
+  import FestivalStallPanel from '@/components/game/FestivalStallPanel.vue'
   import NeighborConsignmentPanel from '@/components/game/NeighborConsignmentPanel.vue'
 
   const RAIN_TOTEM_PRICE = 300
@@ -1780,6 +1803,7 @@
   const regionMapStore = useRegionMapStore()
   const achievementStore = useAchievementStore()
   const weeklyExchangeStore = useWeeklyExchangeStore()
+  const festivalStallStore = useFestivalStallStore()
   const neighborConsignmentStore = useNeighborConsignmentStore()
   const isCompactMobile = ref(false)
   const shopPreludeExpanded = ref(false)
@@ -1787,7 +1811,7 @@
     isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
   }
   const shopPreludeForceOpen = computed(() =>
-    ['economy-overview', 'market-overview', 'recommended-consumption', 'weekly-exchange-station', 'neighbor-consignment'].some(key => isPromptFocusActive(key))
+    ['economy-overview', 'market-overview', 'recommended-consumption', 'weekly-exchange-station', 'festival-stall', 'neighbor-consignment'].some(key => isPromptFocusActive(key))
   )
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
   const todayAmbientRareVisitors = computed(() =>
@@ -1831,6 +1855,9 @@
         shopStore.currentShopId = 'wanwupu'
       },
       'weekly-exchange-station': () => {
+        shopStore.currentShopId = null
+      },
+      'festival-stall': () => {
         shopStore.currentShopId = null
       },
       'neighbor-consignment': () => {
@@ -1933,6 +1960,7 @@
   )
   const commerceEcho = computed(() => shopStore.commerceEchoSummary)
   const weeklyExchangeStationSummary = computed(() => weeklyExchangeStore.station)
+  const festivalStallSummary = computed(() => festivalStallStore.stall)
 
   // === 行情系统 ===
 
@@ -1971,6 +1999,7 @@
   onMounted(() => {
     syncCompactViewportMode()
     void weeklyExchangeStore.refreshStation().catch(() => {})
+    void festivalStallStore.refreshStall().catch(() => {})
     void neighborConsignmentStore.refreshOverview().catch(() => {})
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', syncCompactViewportMode)
@@ -2018,7 +2047,7 @@
     statusLabel: string
     statusToneClass: string
     ctaLabel: string
-    action: 'current-shop' | 'market-overview' | 'recommended-catalog' | 'wanwupu' | 'weekly-exchange-station' | 'neighbor-consignment'
+    action: 'current-shop' | 'market-overview' | 'recommended-catalog' | 'wanwupu' | 'weekly-exchange-station' | 'festival-stall' | 'neighbor-consignment'
     pool?: ShopCatalogOfferDef['pool']
   }
 
@@ -2087,6 +2116,25 @@
       }
     }
 
+    if (festivalStallSummary.value?.offers.some(offer => offer.can_exchange)) {
+      const stallOffer = festivalStallSummary.value.offers.find(offer => offer.can_exchange) ?? festivalStallSummary.value.offers[0]
+      if (stallOffer) {
+        return {
+          title: '先看节庆摊位',
+          summary: '本周节庆摊位已经开张，先看临时节庆货，再决定要不要继续逛常规货架。',
+          detailLines: [
+            `本周主题：${festivalStallSummary.value.festival_theme?.label ?? '节庆临时摊位'}`,
+            `摊位货：${stallOffer.name}`,
+            `花费 ${formatExchangeBundle(stallOffer.costs)} · 带回 ${formatExchangeBundle(stallOffer.rewards)}`
+          ],
+          statusLabel: '节庆',
+          statusToneClass: 'text-warning',
+          ctaLabel: '看节庆摊位',
+          action: 'festival-stall'
+        }
+      }
+    }
+
     if (neighborConsignmentStore.overview?.open_listings?.length) {
       const listing = neighborConsignmentStore.overview.open_listings[0]
       if (listing) {
@@ -2150,6 +2198,10 @@
     }
     if (action.action === 'weekly-exchange-station') {
       focusShopSection('weekly-exchange-station', '看每周交换站')
+      return
+    }
+    if (action.action === 'festival-stall') {
+      focusShopSection('festival-stall', '看节庆摊位')
       return
     }
     if (action.action === 'neighbor-consignment') {
@@ -2291,6 +2343,10 @@
     await weeklyExchangeStore.refreshStation().catch(() => {})
   }
 
+  const handleRefreshFestivalStall = async () => {
+    await festivalStallStore.refreshStall().catch(() => {})
+  }
+
   const handleWeeklyExchange = async (offerId: string) => {
     try {
       const result = await weeklyExchangeStore.performExchange(offerId)
@@ -2302,6 +2358,20 @@
       }
     } catch (error) {
       addLog(error instanceof Error ? error.message : '每周交换站换物失败')
+    }
+  }
+
+  const handleBuyFestivalStallOffer = async (offerId: string) => {
+    try {
+      const result = await festivalStallStore.buyOffer(offerId)
+      sfxBuy()
+      showFloat('购买成功', 'success')
+      addLog(`【节庆摊位】已购入「${result.offer.name}」：花费${formatExchangeBundle(result.record.costs)}，带回${formatExchangeBundle(result.record.rewards)}。`)
+      if (!result.save_sync_state.current_session_synced) {
+        addLog(`【节庆摊位】${result.save_sync_state.message}`)
+      }
+    } catch (error) {
+      addLog(error instanceof Error ? error.message : '购买节庆摊位商品失败')
     }
   }
 

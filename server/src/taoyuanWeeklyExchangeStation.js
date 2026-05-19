@@ -809,6 +809,8 @@ function exchangeWeeklyOffer(username, offerId) {
 }
 
 module.exports = {
+  getCurrentWeekWindow,
+  getFestivalThemeRotation,
   listWeeklyExchangeStation,
   exchangeWeeklyOffer,
 };

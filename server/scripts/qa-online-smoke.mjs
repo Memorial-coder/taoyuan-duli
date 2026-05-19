@@ -144,6 +144,7 @@ const fetchAuthedJson = async (pathname, init = {}) => fetchSessionJson(sessionS
 const getInventoryItemQuantity = (decryptedSave, itemId) => (decryptedSave?.inventory?.items || [])
   .filter(entry => entry?.itemId === itemId)
   .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
+const getRewardTicketQuantity = (decryptedSave, ticketType) => Math.max(0, Math.floor(Number(decryptedSave?.wallet?.rewardTickets?.[ticketType]) || 0))
 
 const runCheck = async (label, runner) => {
   await runner()
@@ -536,6 +537,8 @@ try {
   let expiringCoopOrderId = ''
   let neighborConsignmentListingId = ''
   let neighborConsignmentExpiredListingId = ''
+  let festivalStallFoodOfferId = ''
+  let festivalStallTicketOfferId = ''
   let weeklyExchangeExpectedWoodCount = null
   let weeklyExchangeExpectedStoneCount = null
   let primaryExpectedMoney = 1200
@@ -1283,6 +1286,75 @@ try {
     assert(targetOffer?.can_exchange === true, 'weekly exchange station offer should be exchangeable for secondary session')
     const neighborOffer = data.station.offers?.find(entry => entry?.category === 'neighbor')
     assert(neighborOffer, 'weekly exchange station did not expose any neighbor-only offer')
+  })
+
+  await runCheck('GET /api/taoyuan/exchange-station/festival-stall read path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/festival-stall')
+    assert(response.ok, `festival stall read returned ${response.status}`)
+    assert(data?.ok === true && data?.stall?.festival_theme?.label, 'festival stall overview payload is incomplete')
+    assert(Array.isArray(data?.stall?.offers) && data.stall.offers.some(entry => entry?.booth_category === 'materials'), 'festival stall did not expose any material bundle')
+    assert(Array.isArray(data?.stall?.offers) && data.stall.offers.some(entry => entry?.booth_category === 'souvenir'), 'festival stall did not expose any souvenir bundle')
+    const foodOffer = data.stall.offers.find(entry => entry?.booth_category === 'food')
+    const ticketOffer = data.stall.offers.find(entry => entry?.booth_category === 'tickets')
+    assert(foodOffer, 'festival stall did not expose any festival food')
+    assert(ticketOffer, 'festival stall did not expose any ticket bundle')
+    festivalStallFoodOfferId = String(foodOffer?.id || '')
+    festivalStallTicketOfferId = String(ticketOffer?.id || '')
+    assert(festivalStallFoodOfferId, 'festival stall food offer id was not created')
+    assert(festivalStallTicketOfferId, 'festival stall ticket offer id was not created')
+  })
+
+  await runCheck('POST /api/taoyuan/exchange-station/festival-stall/:offerId/purchase food path', async () => {
+    const preSave = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(preSave.response.ok, `festival stall buyer save read returned ${preSave.response.status}`)
+    assert(preSave.data?.ok === true && typeof preSave.data?.raw === 'string', 'festival stall buyer save payload is incomplete')
+    const preDecrypted = decryptTaoyuanRaw(preSave.data.raw)
+    const preMoney = Math.floor(Number(preDecrypted?.player?.money) || 0)
+    const targetFoodId = 'food_qing_tuan'
+    const preFoodCount = getInventoryItemQuantity(preDecrypted, targetFoodId)
+
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/exchange-station/festival-stall/${encodeURIComponent(festivalStallFoodOfferId)}/purchase`, {
+      method: 'POST',
+    })
+    assert(response.ok, `festival stall purchase returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.offer?.id === festivalStallFoodOfferId, 'festival stall food purchase payload is incomplete')
+
+    const buyerSave = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(buyerSave.response.ok, `festival stall buyer persistence read returned ${buyerSave.response.status}`)
+    assert(buyerSave.data?.ok === true && typeof buyerSave.data?.raw === 'string', 'festival stall buyer persistence payload is incomplete')
+    const buyerDecrypted = decryptTaoyuanRaw(buyerSave.data.raw)
+    const buyerMoney = Math.floor(Number(buyerDecrypted?.player?.money) || 0)
+    const buyerFoodCount = getInventoryItemQuantity(buyerDecrypted, targetFoodId)
+    primaryExpectedMoney -= data.offer.price_money
+    assert(buyerMoney === preMoney - data.offer.price_money, `festival stall did not deduct buyer money correctly, current money=${buyerMoney}`)
+    assert(buyerMoney === primaryExpectedMoney, `festival stall did not persist buyer money correctly, expected money=${primaryExpectedMoney}, current money=${buyerMoney}`)
+    assert(buyerFoodCount === preFoodCount + 2, `festival stall did not grant festival food correctly, current food=${buyerFoodCount}`)
+  })
+
+  await runCheck('POST /api/taoyuan/exchange-station/festival-stall/:offerId/purchase ticket path', async () => {
+    const preSave = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(preSave.response.ok, `festival stall ticket pre-save read returned ${preSave.response.status}`)
+    assert(preSave.data?.ok === true && typeof preSave.data?.raw === 'string', 'festival stall ticket pre-save payload is incomplete')
+    const preDecrypted = decryptTaoyuanRaw(preSave.data.raw)
+    const preMoney = Math.floor(Number(preDecrypted?.player?.money) || 0)
+    const preCaravanTicketCount = getRewardTicketQuantity(preDecrypted, 'caravan')
+
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/exchange-station/festival-stall/${encodeURIComponent(festivalStallTicketOfferId)}/purchase`, {
+      method: 'POST',
+    })
+    assert(response.ok, `festival stall ticket purchase returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.offer?.id === festivalStallTicketOfferId, 'festival stall ticket purchase payload is incomplete')
+
+    const buyerSave = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(buyerSave.response.ok, `festival stall ticket persistence read returned ${buyerSave.response.status}`)
+    assert(buyerSave.data?.ok === true && typeof buyerSave.data?.raw === 'string', 'festival stall ticket persistence payload is incomplete')
+    const buyerDecrypted = decryptTaoyuanRaw(buyerSave.data.raw)
+    const buyerMoney = Math.floor(Number(buyerDecrypted?.player?.money) || 0)
+    const buyerCaravanTicketCount = getRewardTicketQuantity(buyerDecrypted, 'caravan')
+    primaryExpectedMoney -= data.offer.price_money
+    assert(buyerMoney === preMoney - data.offer.price_money, `festival stall ticket bundle did not deduct buyer money correctly, current money=${buyerMoney}`)
+    assert(buyerMoney === primaryExpectedMoney, `festival stall ticket bundle did not persist buyer money correctly, expected money=${primaryExpectedMoney}, current money=${buyerMoney}`)
+    assert(buyerCaravanTicketCount === preCaravanTicketCount + 1, `festival stall did not grant wallet ticket correctly, current caravan券=${buyerCaravanTicketCount}`)
   })
 
   await runCheck('POST /api/taoyuan/exchange-station/weekly/:offerId/exchange write path', async () => {

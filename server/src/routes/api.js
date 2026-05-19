@@ -15,6 +15,7 @@ const taoyuanSocialRuntime = require('../taoyuanSocialRuntime');
 const taoyuanManorRuntime = require('../taoyuanManorRuntime');
 const taoyuanCoopOrderRuntime = require('../taoyuanCoopOrderRuntime');
 const taoyuanWeeklyExchangeStation = require('../taoyuanWeeklyExchangeStation');
+const taoyuanFestivalStall = require('../taoyuanFestivalStall');
 const taoyuanNeighborConsignment = require('../taoyuanNeighborConsignment');
 const officialControlPlatform = require('../officialControlPlatform');
 const {
@@ -1684,6 +1685,26 @@ router.post('/taoyuan/exchange-station/weekly/:offerId/exchange', loginRequired,
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '执行每周换物失败' });
+    }
+  });
+});
+
+router.get('/taoyuan/exchange-station/festival-stall', loginRequired, async (req, res) => {
+  try {
+    const stall = taoyuanFestivalStall.listFestivalStall(req.session.username);
+    res.json({ ok: true, stall });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取节庆摊位失败' });
+  }
+});
+
+router.post('/taoyuan/exchange-station/festival-stall/:offerId/purchase', loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = taoyuanFestivalStall.purchaseFestivalStallOffer(req.session.username, req.params.offerId);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '购买节庆摊位商品失败' });
     }
   });
 });
