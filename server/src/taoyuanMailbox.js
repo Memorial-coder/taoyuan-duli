@@ -30,10 +30,15 @@ const VALID_TEMPLATE_TYPES = new Set([
   'festival_greeting',
   'blessing_card',
   'short_note',
-  'photo_letter'
+  'photo_letter',
+  'material_package',
+  'seed_package',
+  'fish_fry_package',
+  'decoration_package',
+  'souvenir_package'
 ]);
 const VALID_RECIPIENT_MODES = new Set(['all', 'single', 'batch', 'keyword', 'has_save']);
-const VALID_REWARD_TYPES = new Set(['money', 'item', 'seed', 'weapon', 'ring', 'hat', 'shoe']);
+const VALID_REWARD_TYPES = new Set(['money', 'item', 'seed', 'weapon', 'ring', 'hat', 'shoe', 'decoration']);
 
 const GUILD_SEASON_MAILBOX_CONFIG = Object.freeze({
   enabled: true,
@@ -663,6 +668,171 @@ async function sendPlayerLetter(payload = {}, actor = {}) {
   });
 }
 
+function normalizePlayerGiftPackageTemplateType(value) {
+  const normalized = String(value || '').trim();
+  return ['material_package', 'seed_package', 'fish_fry_package', 'decoration_package', 'souvenir_package'].includes(normalized)
+    ? normalized
+    : 'material_package';
+}
+
+function removeStackableItemFromSlots(slots, itemId, quantity, quality) {
+  let remaining = Math.max(0, Math.floor(Number(quantity) || 0));
+  for (let index = slots.length - 1; index >= 0 && remaining > 0; index -= 1) {
+    const slot = slots[index];
+    if (!slot || slot.itemId !== itemId) continue;
+    if (quality && normalizeQuality(slot.quality) !== quality) continue;
+    const take = Math.min(remaining, clampPositiveInt(slot.quantity, 0));
+    slot.quantity = clampPositiveInt(slot.quantity, 0) - take;
+    remaining -= take;
+    if (slot.quantity <= 0) {
+      slots.splice(index, 1);
+    }
+  }
+  return remaining <= 0;
+}
+
+function removeStackableItemAnywhere(saveData, itemId, quantity, quality) {
+  ensureInventoryState(saveData);
+  const normalizedItemId = sanitizeText(itemId, 80);
+  const safeQuantity = clampPositiveInt(quantity, 0);
+  if (!normalizedItemId || safeQuantity <= 0) return false;
+  const total = [...saveData.inventory.items, ...saveData.inventory.tempItems]
+    .filter(slot => slot.itemId === normalizedItemId && (!quality || normalizeQuality(slot.quality) === quality))
+    .reduce((sum, slot) => sum + clampPositiveInt(slot.quantity, 0), 0);
+  if (total < safeQuantity) return false;
+
+  let remaining = safeQuantity;
+  const qualityOrder = quality ? [quality] : ['normal', 'fine', 'excellent', 'supreme'];
+  for (const currentQuality of qualityOrder) {
+    if (remaining <= 0) break;
+    const tempCount = saveData.inventory.tempItems
+      .filter(slot => slot.itemId === normalizedItemId && normalizeQuality(slot.quality) === currentQuality)
+      .reduce((sum, slot) => sum + clampPositiveInt(slot.quantity, 0), 0);
+    const takeFromTemp = Math.min(remaining, tempCount);
+    if (takeFromTemp > 0) {
+      removeStackableItemFromSlots(saveData.inventory.tempItems, normalizedItemId, takeFromTemp, currentQuality);
+      remaining -= takeFromTemp;
+    }
+
+    const mainCount = saveData.inventory.items
+      .filter(slot => slot.itemId === normalizedItemId && normalizeQuality(slot.quality) === currentQuality)
+      .reduce((sum, slot) => sum + clampPositiveInt(slot.quantity, 0), 0);
+    const takeFromMain = Math.min(remaining, mainCount);
+    if (takeFromMain > 0) {
+      removeStackableItemFromSlots(saveData.inventory.items, normalizedItemId, takeFromMain, currentQuality);
+      remaining -= takeFromMain;
+    }
+  }
+  return remaining <= 0;
+}
+
+function removeDecorationOwned(saveData, decorationId, quantity) {
+  ensureDecorationState(saveData);
+  const normalizedId = sanitizeText(decorationId, 80);
+  const safeQuantity = clampPositiveInt(quantity, 0);
+  if (!normalizedId || safeQuantity <= 0) return false;
+  const ownedCount = clampPositiveInt(saveData.decoration.owned[normalizedId], 0);
+  if (ownedCount < safeQuantity) return false;
+  const nextCount = ownedCount - safeQuantity;
+  if (nextCount > 0) saveData.decoration.owned[normalizedId] = nextCount;
+  else delete saveData.decoration.owned[normalizedId];
+  if (clampPositiveInt(saveData.decoration.placed[normalizedId], 0) > clampPositiveInt(saveData.decoration.owned[normalizedId], 0)) {
+    saveData.decoration.placed[normalizedId] = clampPositiveInt(saveData.decoration.owned[normalizedId], 0);
+  }
+  return true;
+}
+
+function deductGiftPackageRewards(saveData, rewards = []) {
+  ensureInventoryState(saveData);
+  ensureDecorationState(saveData);
+  for (const reward of rewards) {
+    if (reward.type === 'item' || reward.type === 'seed') {
+      const success = removeStackableItemAnywhere(saveData, reward.id, reward.quantity, normalizeQuality(reward.quality));
+      if (!success) return false;
+      continue;
+    }
+    if (reward.type === 'decoration') {
+      const success = removeDecorationOwned(saveData, reward.id, reward.quantity);
+      if (!success) return false;
+      continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+async function sendPlayerGiftPackage(payload = {}, actor = {}) {
+  return withMailboxLock(async () => {
+    const senderUsername = String(actor?.username || '').trim();
+    if (!senderUsername) throw createError('请先登录后再寄送礼物', 401);
+    const targetUsername = sanitizeText(payload?.target_username, 60);
+    if (!targetUsername) throw createError('请先填写收件人用户名');
+    if (targetUsername === senderUsername) throw createError('不能给自己寄礼物包裹');
+    const targetUsers = await fetchProfilesByUsernames([targetUsername]);
+    const recipient = targetUsers[0];
+    if (!recipient) throw createError('收件账号不存在，请检查用户名是否填写正确');
+
+    const title = sanitizeText(payload?.title, MAX_TITLE_LENGTH);
+    const content = sanitizeText(payload?.content, MAX_CONTENT_LENGTH);
+    if (title.length < 2) throw createError('包裹标题至少需要 2 个字');
+
+    const rewards = Array.isArray(payload?.rewards) ? payload.rewards.map(normalizeReward).filter(Boolean) : [];
+    if (!rewards.length) throw createError('礼物包裹至少要放入一项礼物');
+    if (!rewards.every(reward => ['item', 'seed', 'decoration'].includes(String(reward.type)))) {
+      throw createError('当前礼物包裹只支持寄送物品、种子和装饰物');
+    }
+
+    const senderContext = getActiveSaveContext(senderUsername, null, '当前账号没有可用的桃源乡存档，暂时无法寄送礼物包裹');
+    senderContext.username = senderUsername;
+    const nextSaveData = JSON.parse(JSON.stringify(senderContext.data || {}));
+    if (!deductGiftPackageRewards(nextSaveData, rewards)) {
+      throw createError('寄件物资不足，无法装出这份礼物包裹');
+    }
+
+    const sentAt = Math.floor(Date.now() / 1000);
+    const templateType = normalizePlayerGiftPackageTemplateType(payload?.template_type);
+    const delivery = normalizeDelivery({
+      id: makeId('mail_delivery'),
+      campaign_id: '',
+      username: recipient.username,
+      recipient_display_name: recipient.displayName,
+      sender_username: senderUsername,
+      sender_display_name: sanitizeText(actor?.displayName || senderUsername, 60),
+      title,
+      content,
+      template_type: templateType,
+      rewards,
+      target_slot: null,
+      duplicate_compensation_money: 0,
+      created_at: sentAt,
+      sent_at: sentAt,
+      expires_at: null,
+      read_at: null,
+      claimed_at: null,
+      deleted_at: null,
+      claim_result: null,
+    });
+
+    const data = loadMailboxData();
+    data.deliveries.unshift(delivery);
+    saveMailboxData(data);
+
+    senderContext.data = nextSaveData;
+    if (senderContext.saveContainer && typeof senderContext.saveContainer === 'object') {
+      senderContext.saveContainer.gameplayData = nextSaveData;
+    }
+    try {
+      persistGameplayData(senderContext);
+    } catch (error) {
+      data.deliveries = data.deliveries.filter(item => item.id !== delivery.id);
+      saveMailboxData(data);
+      throw createError(`寄送礼物包裹失败：${sanitizeText(error?.message, 120) || '未知错误'}`);
+    }
+
+    return buildUserMailDetail(delivery);
+  });
+}
+
 function listUserMails(username) {
   const data = loadMailboxData();
   const deliveries = data.deliveries
@@ -706,6 +876,20 @@ function ensureInventoryState(saveData) {
   if (!Number.isInteger(Number(saveData.inventory.capacity))) saveData.inventory.capacity = 24;
   if (!saveData.player || typeof saveData.player !== 'object') saveData.player = {};
   if (!Number.isFinite(Number(saveData.player.money))) saveData.player.money = 0;
+}
+
+function normalizeCountMap(value) {
+  return Object.fromEntries(
+    Object.entries(value ?? {})
+      .map(([id, count]) => [String(id || '').trim(), clampPositiveInt(count, 0)])
+      .filter(([id, count]) => id && count > 0)
+  );
+}
+
+function ensureDecorationState(saveData) {
+  if (!saveData.decoration || typeof saveData.decoration !== 'object') saveData.decoration = {};
+  saveData.decoration.owned = normalizeCountMap(saveData.decoration.owned);
+  saveData.decoration.placed = normalizeCountMap(saveData.decoration.placed);
 }
 
 function cloneInventorySlots(source) {
@@ -865,10 +1049,24 @@ function applyEquipmentReward(saveData, reward, duplicateCompensationMoney, resu
   }
 }
 
+function applyDecorationReward(saveData, reward, result) {
+  ensureDecorationState(saveData);
+  const decorationId = sanitizeText(reward.id, 80);
+  const quantity = clampPositiveInt(reward.quantity, 0);
+  if (!decorationId || quantity <= 0) return;
+  saveData.decoration.owned[decorationId] = clampPositiveInt(saveData.decoration.owned[decorationId], 0) + quantity;
+  result.applied_rewards.push({
+    type: 'decoration',
+    id: decorationId,
+    quantity,
+  });
+}
+
 function applyRewardsToSave(username, delivery) {
   const context = getActiveSaveContext(username, delivery.target_slot, '当前账号没有可用的桃源乡存档，暂时无法领取邮件奖励');
   context.username = username;
   ensureInventoryState(context.data);
+  ensureDecorationState(context.data);
 
   if (!canFitStackableRewards(context.data, delivery.rewards)) {
     throw createError('背包空间不足，请先整理背包后再领取');
@@ -901,6 +1099,11 @@ function applyRewardsToSave(username, delivery) {
         quantity: reward.quantity,
         quality: normalizeQuality(reward.quality),
       });
+      continue;
+    }
+
+    if (reward.type === 'decoration') {
+      applyDecorationReward(context.data, reward, result);
       continue;
     }
 
@@ -1172,6 +1375,7 @@ module.exports = {
   saveAdminCampaign,
   saveSystemCampaignForUser,
   sendPlayerLetter,
+  sendPlayerGiftPackage,
   getPlayerLetterTemplatePresets,
   getGuildSeasonMailboxConfig,
   listAdminCampaigns,

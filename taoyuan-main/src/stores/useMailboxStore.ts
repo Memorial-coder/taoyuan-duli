@@ -8,6 +8,7 @@ import {
   fetchPlayerLetterPresets,
   fetchMailboxDetail,
   fetchMailboxList,
+  sendPlayerGiftPackage,
   sendPlayerLetter,
   markMailboxRead
 } from '@/utils/mailboxApi'
@@ -99,6 +100,13 @@ export interface PlayerLetterTemplatePreset {
   content: string
 }
 
+export interface PlayerGiftPackageRewardDraft {
+  type: 'item' | 'seed' | 'decoration'
+  id: string
+  quantity: number
+  quality?: string
+}
+
 const toSummary = (mail: TaoyuanMailSummary | TaoyuanMailDetail): TaoyuanMailSummary => ({
   id: mail.id,
   campaign_id: mail.campaign_id,
@@ -135,6 +143,13 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
   const letterTemplateTypeDraft = ref<PlayerLetterTemplatePreset['template_type']>('player_letter')
   const letterPhotoUrlDraft = ref('')
   const letterPhotoAltDraft = ref('')
+  const giftPackageTargetDraft = ref('')
+  const giftPackageTitleDraft = ref('')
+  const giftPackageContentDraft = ref('')
+  const giftPackageTemplateTypeDraft = ref<'material_package' | 'seed_package' | 'fish_fry_package' | 'decoration_package' | 'souvenir_package'>('material_package')
+  const giftPackageRewardsDraft = ref<PlayerGiftPackageRewardDraft[]>([
+    { type: 'item', id: '', quantity: 1, quality: 'normal' }
+  ])
 
   const upsertMail = (mail: TaoyuanMailSummary | TaoyuanMailDetail) => {
     const summary = toSummary(mail)
@@ -349,6 +364,51 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     }
   }
 
+  const addGiftPackageRewardDraft = () => {
+    giftPackageRewardsDraft.value = [
+      ...giftPackageRewardsDraft.value,
+      { type: 'item', id: '', quantity: 1, quality: 'normal' }
+    ]
+  }
+
+  const removeGiftPackageRewardDraft = (index: number) => {
+    giftPackageRewardsDraft.value = giftPackageRewardsDraft.value.filter((_, currentIndex) => currentIndex !== index)
+  }
+
+  const sendPlayerGiftPackageMail = async () => {
+    const target_username = giftPackageTargetDraft.value.trim()
+    const title = giftPackageTitleDraft.value.trim()
+    const content = giftPackageContentDraft.value.trim()
+    const rewards = giftPackageRewardsDraft.value
+      .map(reward => ({
+        type: reward.type,
+        id: reward.id.trim(),
+        quantity: Math.max(1, Math.floor(Number(reward.quantity) || 1)),
+        quality: reward.quality?.trim() || undefined,
+      }))
+      .filter(reward => reward.id)
+    if (!target_username) throw new Error('请先填写收件人用户名')
+    if (!title) throw new Error('请先填写包裹标题')
+    if (rewards.length === 0) throw new Error('请先放入至少一项礼物')
+    sendLetterRunning.value = true
+    try {
+      const data = await sendPlayerGiftPackage({
+        target_username,
+        title,
+        content,
+        template_type: giftPackageTemplateTypeDraft.value,
+        rewards,
+      })
+      await refreshList()
+      giftPackageTitleDraft.value = ''
+      giftPackageContentDraft.value = ''
+      giftPackageRewardsDraft.value = [{ type: 'item', id: '', quantity: 1, quality: 'normal' }]
+      return data
+    } finally {
+      sendLetterRunning.value = false
+    }
+  }
+
   return {
     mails,
     unreadCount,
@@ -363,6 +423,11 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     letterTemplateTypeDraft,
     letterPhotoUrlDraft,
     letterPhotoAltDraft,
+    giftPackageTargetDraft,
+    giftPackageTitleDraft,
+    giftPackageContentDraft,
+    giftPackageTemplateTypeDraft,
+    giftPackageRewardsDraft,
     refreshList,
     refreshLetterPresets,
     openMail,
@@ -370,6 +435,9 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     claimAll,
     clearClaimed,
     sendPlayerLetterMail,
+    sendPlayerGiftPackageMail,
+    addGiftPackageRewardDraft,
+    removeGiftPackageRewardDraft,
     upsertMail
   }
 })

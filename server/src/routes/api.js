@@ -1989,6 +1989,18 @@ router.post('/taoyuan/mail/player-letter', loginRequired, signRequired, async (r
   }
 });
 
+router.post('/taoyuan/mail/player-gift-package', loginRequired, signRequired, async (req, res) => {
+  try {
+    const mail = await taoyuanMailbox.sendPlayerGiftPackage(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, mail });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '寄送礼物包裹失败' });
+  }
+});
+
 router.post('/taoyuan/mail/system-campaign', loginRequired, signRequired, async (req, res) => {
   try {
     const campaign = await taoyuanMailbox.saveSystemCampaignForUser(

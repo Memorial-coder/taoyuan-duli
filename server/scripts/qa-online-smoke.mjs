@@ -180,7 +180,11 @@ const bootstrapSession = async (session, labelPrefix, startingMoney) => {
       name: session.username,
     },
     inventory: {
-      items: [],
+      items: [
+        { itemId: 'wood', quantity: 6, quality: 'normal', locked: false },
+        { itemId: 'parsnip_seed', quantity: 4, quality: 'normal', locked: false },
+        { itemId: 'wintersweet', quantity: 2, quality: 'normal', locked: false },
+      ],
       tempItems: [],
       ownedWeapons: [],
       ownedRings: [],
@@ -512,6 +516,8 @@ try {
   let manorGuestbookEntryContent = ''
   const playerLetterTitle = `smoke player letter ${Date.now()}`
   const playerLetterContent = '这是一封来自联机 smoke 的玩家书信，用来验证互寄来信链路。'
+  const playerGiftPackageTitle = `smoke gift package ${Date.now()}`
+  let playerGiftPackageMailId = ''
   const coopOrderDeadlineAt = Math.floor(Date.now() / 1000) + 2 * 24 * 60 * 60
   const publicCoopOrderTitle = `public coop order ${Date.now()}`
   const friendCoopOrderTitle = `friend coop order ${Date.now()}`
@@ -616,6 +622,73 @@ try {
     assert(playerLetter, 'player-letter was not delivered to recipient mailbox list')
     assert(playerLetter?.template_type === 'season_greeting', 'player-letter template type was not preserved')
     assert(playerLetter?.sender_username === sessionState.username, 'player-letter sender username is missing')
+  })
+
+  await runCheck('POST /api/taoyuan/mail/player-gift-package write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/mail/player-gift-package', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: secondarySessionState.username,
+        title: playerGiftPackageTitle,
+        content: '这是一份来自联机 smoke 的礼物包裹。',
+        template_type: 'material_package',
+        rewards: [
+          {
+            type: 'item',
+            id: 'wood',
+            quantity: 2,
+            quality: 'normal',
+          },
+        ],
+      }),
+    })
+    assert(response.ok, `player-gift-package write returned ${response.status}`)
+    assert(data?.ok === true && data?.mail?.title === playerGiftPackageTitle, 'player-gift-package payload is incomplete')
+    playerGiftPackageMailId = String(data?.mail?.id || '')
+    assert(playerGiftPackageMailId, 'player-gift-package mail id was not created')
+  })
+
+  await runCheck('GET /api/taoyuan/save/:slot player-gift-package sender deduction', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(response.ok, `player-gift-package sender save read returned ${response.status}`)
+    assert(data?.ok === true && typeof data?.raw === 'string', 'player-gift-package sender save payload is incomplete')
+    const decrypted = decryptTaoyuanRaw(data.raw)
+    const woodCount = (decrypted?.inventory?.items || [])
+      .filter(entry => entry?.itemId === 'wood')
+      .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
+    assert(woodCount === 4, `player-gift-package did not deduct sender wood correctly, current wood=${woodCount}`)
+  })
+
+  await runCheck('GET /api/taoyuan/mail/list player-gift-package read path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/mail/list')
+    assert(response.ok, `player-gift-package list returned ${response.status}`)
+    const playerGiftPackage = data?.mails?.find(entry => entry?.title === playerGiftPackageTitle)
+    assert(playerGiftPackage, 'player-gift-package was not delivered to recipient mailbox list')
+    assert(playerGiftPackage?.template_type === 'material_package', 'player-gift-package template type was not preserved')
+    assert(playerGiftPackage?.sender_username === sessionState.username, 'player-gift-package sender username is missing')
+    assert(playerGiftPackage?.has_rewards === true, 'player-gift-package should expose rewards to recipient')
+  })
+
+  await runCheck('POST /api/taoyuan/mail/:id player-gift-package claim path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/mail/${encodeURIComponent(playerGiftPackageMailId)}/claim`, {
+      method: 'POST',
+    })
+    assert(response.ok, `player-gift-package claim returned ${response.status}`)
+    assert(data?.ok === true && data?.mail?.claimed_at, 'player-gift-package claim payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/save/:slot player-gift-package recipient persistence', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(response.ok, `player-gift-package recipient save read returned ${response.status}`)
+    assert(data?.ok === true && typeof data?.raw === 'string', 'player-gift-package recipient save payload is incomplete')
+    const decrypted = decryptTaoyuanRaw(data.raw)
+    const woodCount = (decrypted?.inventory?.items || [])
+      .filter(entry => entry?.itemId === 'wood')
+      .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
+    assert(woodCount === 8, `player-gift-package did not grant recipient wood correctly, current wood=${woodCount}`)
   })
 
   await runCheck('POST /api/taoyuan/online/orders public write path', async () => {

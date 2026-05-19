@@ -164,6 +164,102 @@
           </div>
         </div>
 
+        <div class="detail-card mb-3">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-xs text-accent">礼物包裹</p>
+            <span class="text-[10px] text-muted">L41</span>
+          </div>
+          <div class="space-y-2">
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              收件人用户名
+              <input
+                v-model="mailboxStore.giftPackageTargetDraft"
+                maxlength="60"
+                class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                placeholder="输入要寄送礼物包裹的玩家用户名"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              包裹类型
+              <select
+                v-model="mailboxStore.giftPackageTemplateTypeDraft"
+                class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                @change="syncGiftPackageDraftDefaults"
+              >
+                <option v-for="option in GIFT_PACKAGE_TYPE_OPTIONS" :key="option.id" :value="option.id">
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
+            <p class="text-[10px] text-muted">{{ currentGiftPackageTypeOption?.summary }}</p>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              包裹标题
+              <input
+                v-model="mailboxStore.giftPackageTitleDraft"
+                maxlength="60"
+                class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                placeholder="给包裹起一个标题"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              附言
+              <textarea
+                v-model="mailboxStore.giftPackageContentDraft"
+                rows="3"
+                maxlength="5000"
+                class="bg-bg border border-accent/20 rounded-xs px-2 py-1.5 text-xs text-text outline-none focus:border-accent resize-none"
+                placeholder="写一段给对方的话。"
+              />
+            </label>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-[10px] text-muted">包裹内容</p>
+                <Button class="justify-center shrink-0" :disabled="mailboxStore.sendLetterRunning" @click="addGiftRewardRow">
+                  新增一项
+                </Button>
+              </div>
+              <div v-for="(reward, index) in mailboxStore.giftPackageRewardsDraft" :key="`gift-${index}`" class="border border-accent/10 rounded-xs p-2 space-y-2">
+                <div class="grid gap-2 md:grid-cols-3">
+                  <select :value="rewardSelectionValue(reward)" class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent" @change="updateGiftRewardSelection(index, String(($event.target as HTMLSelectElement).value || ''))">
+                    <option value="">选择要寄送的内容</option>
+                    <option v-for="option in availableGiftPackageOptions" :key="option.value" :value="option.value">
+                      {{ option.label }}
+                    </option>
+                  </select>
+                  <input
+                    v-model="reward.id"
+                    maxlength="80"
+                    class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                    placeholder="物品 ID"
+                  />
+                  <input
+                    v-model.number="reward.quantity"
+                    type="number"
+                    min="1"
+                    class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                    placeholder="数量"
+                  />
+                </div>
+                <div class="flex items-center justify-between gap-2">
+                  <input
+                    v-if="reward.type !== 'decoration'"
+                    v-model="reward.quality"
+                    maxlength="20"
+                    class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                    placeholder="品质（可选）"
+                  />
+                  <Button class="justify-center shrink-0" :disabled="mailboxStore.sendLetterRunning || mailboxStore.giftPackageRewardsDraft.length <= 1" @click="removeGiftRewardRow(index)">
+                    删除
+                  </Button>
+                </div>
+              </div>
+            </div>
+            <Button class="w-full justify-center" :icon="Mail" :icon-size="12" :disabled="mailboxStore.sendLetterRunning" @click="sendPlayerGiftPackage">
+              {{ mailboxStore.sendLetterRunning ? '寄送中…' : '寄出礼物包裹' }}
+            </Button>
+          </div>
+        </div>
+
         <div v-if="mailboxStore.mails.length === 0" class="empty-box">
           <Mail :size="30" class="text-accent/20 mb-2" />
           <p class="text-xs text-muted">暂无邮件</p>
@@ -291,9 +387,12 @@
 <script setup lang="ts">
   import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useGameStore, SEASON_NAMES, WEATHER_NAMES } from '@/stores/useGameStore'
+  import { useInventoryStore } from '@/stores/useInventoryStore'
+  import { useDecorationStore } from '@/stores/useDecorationStore'
   import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useGoalStore } from '@/stores/useGoalStore'
   import { useQuestStore } from '@/stores/useQuestStore'
+  import { DECORATIONS } from '@/data/decorations'
   import { NPCS } from '@/data/npcs'
   import { getSeasonEventsForDay, getSeasonalActivitiesForDay } from '@/data/events'
   import { getUpcomingRareVisitors } from '@/data/bookseller'
@@ -312,9 +411,33 @@
   import type { MailClaimSyncState, TaoyuanMailDetail, TaoyuanMailReward, TaoyuanMailSummary } from '@/stores/useMailboxStore'
 
   const gameStore = useGameStore()
+  const inventoryStore = useInventoryStore()
+  const decorationStore = useDecorationStore()
   const mailboxStore = useMailboxStore()
   const goalStore = useGoalStore()
   const questStore = useQuestStore()
+  const decorationNameMap = new Map(DECORATIONS.map(def => [def.id, def.name]))
+  type GiftPackageTemplateType = 'material_package' | 'seed_package' | 'fish_fry_package' | 'decoration_package' | 'souvenir_package'
+  const GIFT_PACKAGE_TYPE_OPTIONS: Array<{ id: GiftPackageTemplateType; label: string; summary: string; defaultTitle: string }> = [
+    { id: 'material_package', label: '材料包', summary: '适合寄送木材、矿料与加工材料。', defaultTitle: '寄来一份材料包' },
+    { id: 'seed_package', label: '种子包', summary: '适合补种、开季备货与周任务接力。', defaultTitle: '寄来一份种子包' },
+    { id: 'fish_fry_package', label: '鱼苗包', summary: '先用鱼类库存承接鱼塘补货与放养。', defaultTitle: '寄来一份鱼苗包' },
+    { id: 'decoration_package', label: '装饰包', summary: '从当前已拥有的装饰物里挑一份寄给对方。', defaultTitle: '寄来一份装饰包' },
+    { id: 'souvenir_package', label: '纪念品包', summary: '适合寄送礼物、古物和偏纪念向的小物件。', defaultTitle: '寄来一份纪念品包' },
+  ]
+  const GIFT_PACKAGE_CATEGORY_FILTERS: Record<GiftPackageTemplateType, string[]> = {
+    material_package: ['material', 'ore', 'gem', 'processed'],
+    seed_package: ['seed'],
+    fish_fry_package: ['fish'],
+    decoration_package: [],
+    souvenir_package: ['gift', 'artifact', 'fossil', 'misc'],
+  }
+  const QUALITY_SHORT_LABELS: Record<string, string> = {
+    normal: '普',
+    fine: '良',
+    excellent: '优',
+    supreme: '绝',
+  }
   const weeklyPlanSnapshot = computed(() => goalStore.weeklyPlanSnapshot)
   const latestWeeklyChronicle = computed(() => goalStore.latestWeeklyChronicleEntry)
   const activeMailId = ref<string | null>(null)
@@ -343,6 +466,42 @@
       .filter(template => template.cadenceSlot === 'preview')
       .map(template => template.title)
     return templateIds.slice(0, 2)
+  })
+  const currentGiftPackageTypeOption = computed(() =>
+    GIFT_PACKAGE_TYPE_OPTIONS.find(option => option.id === mailboxStore.giftPackageTemplateTypeDraft) ?? GIFT_PACKAGE_TYPE_OPTIONS[0]
+  )
+  const availableGiftPackageOptions = computed(() => {
+    if (mailboxStore.giftPackageTemplateTypeDraft === 'decoration_package') {
+      return Object.entries(decorationStore.owned)
+        .filter(([, count]) => Number(count) > 0)
+        .map(([id, count]) => ({
+          value: `decoration::${id}`,
+          type: 'decoration' as const,
+          id,
+          quality: '',
+          quantity: Number(count) || 0,
+          label: `${decorationNameMap.get(id) || id} ×${count}`,
+        }))
+    }
+
+    const categoryFilter = GIFT_PACKAGE_CATEGORY_FILTERS[mailboxStore.giftPackageTemplateTypeDraft]
+    const bucket = new Map<string, { value: string; type: 'item' | 'seed'; id: string; quality: string; quantity: number; label: string }>()
+    for (const slot of [...inventoryStore.items, ...inventoryStore.tempItems]) {
+      const itemDef = getItemById(slot.itemId)
+      if (!itemDef || !categoryFilter.includes(itemDef.category)) continue
+      const key = `${slot.itemId}::${slot.quality}`
+      const current = bucket.get(key)
+      const nextQuantity = (current?.quantity || 0) + slot.quantity
+      bucket.set(key, {
+        value: key,
+        type: itemDef.category === 'seed' ? 'seed' : 'item',
+        id: slot.itemId,
+        quality: slot.quality,
+        quantity: nextQuantity,
+        label: `${itemDef.name}（${QUALITY_SHORT_LABELS[slot.quality] || slot.quality}）×${nextQuantity}`,
+      })
+    }
+    return [...bucket.values()].sort((left, right) => left.label.localeCompare(right.label, 'zh-CN'))
   })
   const formatCalendarDay = (season: keyof typeof SEASON_NAMES, day: number) => `${SEASON_NAMES[season]}${day}日`
   const getNextCalendarPoint = (year: number, season: keyof typeof SEASON_NAMES, day: number) => {
@@ -410,6 +569,18 @@
   }
   const scrollMailViewToTop = () => {
     mailViewRoot.value?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }
+
+  const syncGiftPackageDraftDefaults = () => {
+    const defaultType = mailboxStore.giftPackageTemplateTypeDraft === 'decoration_package'
+      ? 'decoration'
+      : mailboxStore.giftPackageTemplateTypeDraft === 'seed_package'
+        ? 'seed'
+        : 'item'
+    mailboxStore.giftPackageTitleDraft = currentGiftPackageTypeOption.value?.defaultTitle || '寄来一份礼物包裹'
+    mailboxStore.giftPackageRewardsDraft = [
+      { type: defaultType as 'item' | 'seed' | 'decoration', id: '', quantity: 1, quality: defaultType === 'decoration' ? undefined : 'normal' }
+    ]
   }
 
   const syncActivityRewardMailState = (mail: TaoyuanMailSummary | TaoyuanMailDetail | null | undefined) => {
@@ -480,6 +651,11 @@
     if (templateType === 'blessing_card') return '祝福卡'
     if (templateType === 'short_note') return '短讯'
     if (templateType === 'photo_letter') return '合照附信'
+    if (templateType === 'material_package') return '材料包'
+    if (templateType === 'seed_package') return '种子包'
+    if (templateType === 'fish_fry_package') return '鱼苗包'
+    if (templateType === 'decoration_package') return '装饰包'
+    if (templateType === 'souvenir_package') return '纪念品包'
     return templateType
   }
 
@@ -555,6 +731,50 @@
     mailboxStore.letterTemplateTypeDraft = preset.template_type
     mailboxStore.letterTitleDraft = preset.title
     mailboxStore.letterContentDraft = preset.content
+  }
+
+  const updateGiftRewardSelection = (index: number, value: string) => {
+    const reward = mailboxStore.giftPackageRewardsDraft[index]
+    if (!reward) return
+    if (!value) {
+      reward.id = ''
+      reward.quality = reward.type === 'decoration' ? undefined : 'normal'
+      return
+    }
+    if (value.startsWith('decoration::')) {
+      reward.type = 'decoration'
+      reward.id = value.slice('decoration::'.length)
+      reward.quality = undefined
+      return
+    }
+    const [itemId, quality] = value.split('::')
+    const option = availableGiftPackageOptions.value.find(entry => entry.value === value)
+    reward.type = option?.type || (mailboxStore.giftPackageTemplateTypeDraft === 'seed_package' ? 'seed' : 'item')
+    reward.id = itemId || ''
+    reward.quality = quality || 'normal'
+  }
+
+  const rewardSelectionValue = (reward: { type: string; id: string; quality?: string }) => {
+    if (!reward.id) return ''
+    if (reward.type === 'decoration') return `decoration::${reward.id}`
+    return `${reward.id}::${reward.quality || 'normal'}`
+  }
+
+  const addGiftRewardRow = () => {
+    const defaultType = mailboxStore.giftPackageTemplateTypeDraft === 'decoration_package'
+      ? 'decoration'
+      : mailboxStore.giftPackageTemplateTypeDraft === 'seed_package'
+        ? 'seed'
+        : 'item'
+    mailboxStore.addGiftPackageRewardDraft()
+    const next = mailboxStore.giftPackageRewardsDraft[mailboxStore.giftPackageRewardsDraft.length - 1]
+    if (!next) return
+    next.type = defaultType as 'item' | 'seed' | 'decoration'
+    next.quality = defaultType === 'decoration' ? undefined : 'normal'
+  }
+
+  const removeGiftRewardRow = (index: number) => {
+    mailboxStore.removeGiftPackageRewardDraft(index)
   }
 
   const triggerLetterPhotoUpload = () => {
@@ -683,11 +903,26 @@
     }
   }
 
+  const sendPlayerGiftPackage = async () => {
+    try {
+      const data = await mailboxStore.sendPlayerGiftPackageMail()
+      const mail = data?.mail as TaoyuanMailDetail | undefined
+      if (mail?.id) {
+        activeMailId.value = mail.id
+        activeMail.value = mail
+      }
+      showFloat('礼物包裹已经寄出，对方可在邮箱里领取。', 'success')
+    } catch (error: any) {
+      showFloat(error?.message || '寄送礼物包裹失败', 'danger')
+    }
+  }
+
   onMounted(async () => {
     goalStore.ensureInitialized()
     updateViewportMode()
     if (typeof window !== 'undefined') window.addEventListener('resize', updateViewportMode)
     await mailboxStore.refreshLetterPresets().catch(() => {})
+    syncGiftPackageDraftDefaults()
     await refreshMails()
   })
 

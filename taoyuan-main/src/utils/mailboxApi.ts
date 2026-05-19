@@ -98,6 +98,31 @@ export const sendPlayerLetter = async (payload: {
   })
 }
 
+export const sendPlayerGiftPackage = async (payload: {
+  target_username: string
+  title: string
+  content: string
+  template_type: 'material_package' | 'seed_package' | 'fish_fry_package' | 'decoration_package' | 'souvenir_package'
+  rewards: Array<{
+    type: 'item' | 'seed' | 'decoration'
+    id: string
+    quantity: number
+    quality?: string
+  }>
+}) => {
+  return request('/api/taoyuan/mail/player-gift-package', async () => {
+    const csrfToken = await ensureCurrentCsrfToken()
+    return {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken
+      },
+      body: JSON.stringify(payload)
+    }
+  })
+}
+
 export const createSystemMailboxCampaign = async (payload: {
   id: string
   title: string
