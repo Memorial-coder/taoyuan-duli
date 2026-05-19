@@ -157,6 +157,9 @@
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('neighbor-consignment', '看邻里寄售')">
               看邻里寄售
             </button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('market-governance', '看官方调控')">
+              看官方调控
+            </button>
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('exchange-ledger', '看交换记录')">
               看交换记录
             </button>
@@ -340,6 +343,9 @@
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('neighbor-consignment', '看邻里寄售')">
               看邻里寄售
             </button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('market-governance', '看官方调控')">
+              看官方调控
+            </button>
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('exchange-ledger', '看交换记录')">
               看交换记录
             </button>
@@ -391,6 +397,19 @@
             @buy="handleBuyNeighborConsignment"
             @cancel="handleCancelNeighborConsignment"
             @reclaim="handleReclaimNeighborConsignment"
+          />
+        </div>
+
+        <div
+          v-if="!shopStore.currentShopId && marketGovernanceStore.governance"
+          class="mb-3"
+          :class="promptSectionClass('market-governance')"
+          :data-prompt-focus="buildPromptFocusAttr('market-governance')"
+        >
+          <MarketGovernancePanel
+            :governance="marketGovernanceStore.governance"
+            :loading="marketGovernanceStore.loading"
+            @refresh="handleRefreshMarketGovernance"
           />
         </div>
 
@@ -1805,10 +1824,12 @@
   import { useFestivalStallStore } from '@/stores/useFestivalStallStore'
   import { useNeighborConsignmentStore } from '@/stores/useNeighborConsignmentStore'
   import { useExchangeLedgerStore } from '@/stores/useExchangeLedgerStore'
+  import { useMarketGovernanceStore } from '@/stores/useMarketGovernanceStore'
   import WeeklyExchangeStationPanel from '@/components/game/WeeklyExchangeStationPanel.vue'
   import FestivalStallPanel from '@/components/game/FestivalStallPanel.vue'
   import NeighborConsignmentPanel from '@/components/game/NeighborConsignmentPanel.vue'
   import ExchangeLedgerPanel from '@/components/game/ExchangeLedgerPanel.vue'
+  import MarketGovernancePanel from '@/components/game/MarketGovernancePanel.vue'
 
   const RAIN_TOTEM_PRICE = 300
   const WOOD_PRICE = 50
@@ -1829,13 +1850,14 @@
   const festivalStallStore = useFestivalStallStore()
   const neighborConsignmentStore = useNeighborConsignmentStore()
   const exchangeLedgerStore = useExchangeLedgerStore()
+  const marketGovernanceStore = useMarketGovernanceStore()
   const isCompactMobile = ref(false)
   const shopPreludeExpanded = ref(false)
   const syncCompactViewportMode = () => {
     isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
   }
   const shopPreludeForceOpen = computed(() =>
-    ['economy-overview', 'market-overview', 'recommended-consumption', 'weekly-exchange-station', 'festival-stall', 'neighbor-consignment', 'exchange-ledger'].some(key => isPromptFocusActive(key))
+    ['economy-overview', 'market-overview', 'recommended-consumption', 'weekly-exchange-station', 'festival-stall', 'neighbor-consignment', 'market-governance', 'exchange-ledger'].some(key => isPromptFocusActive(key))
   )
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
   const todayAmbientRareVisitors = computed(() =>
@@ -1885,6 +1907,9 @@
         shopStore.currentShopId = null
       },
       'neighbor-consignment': () => {
+        shopStore.currentShopId = null
+      },
+      'market-governance': () => {
         shopStore.currentShopId = null
       },
       'exchange-ledger': () => {
@@ -2028,6 +2053,7 @@
     void weeklyExchangeStore.refreshStation().catch(() => {})
     void festivalStallStore.refreshStall().catch(() => {})
     void neighborConsignmentStore.refreshOverview().catch(() => {})
+    void marketGovernanceStore.refreshGovernance().catch(() => {})
     void exchangeLedgerStore.refreshLedger().catch(() => {})
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', syncCompactViewportMode)
@@ -2075,7 +2101,7 @@
     statusLabel: string
     statusToneClass: string
     ctaLabel: string
-    action: 'current-shop' | 'market-overview' | 'recommended-catalog' | 'wanwupu' | 'weekly-exchange-station' | 'festival-stall' | 'neighbor-consignment'
+    action: 'current-shop' | 'market-overview' | 'recommended-catalog' | 'wanwupu' | 'weekly-exchange-station' | 'festival-stall' | 'neighbor-consignment' | 'market-governance'
     pool?: ShopCatalogOfferDef['pool']
   }
 
@@ -2090,6 +2116,36 @@
     )
   })
   const shopPrimaryActionCard = computed<ShopPrimaryActionCard>(() => {
+    if (marketGovernanceStore.governance?.sanction.blocked) {
+      return {
+        title: '先看官方调控',
+        summary: '当前账号已被集市治理限制，先确认原因和恢复条件，再决定今天还要不要继续处理交易动作。',
+        detailLines: [
+          marketGovernanceStore.governance.sanction.reason,
+          `今日已操作 ${marketGovernanceStore.governance.my_today.total_action_count} 次`
+        ].filter((line): line is string => !!line),
+        statusLabel: '受限',
+        statusToneClass: 'text-danger',
+        ctaLabel: '看官方调控',
+        action: 'market-governance'
+      }
+    }
+
+    if ((marketGovernanceStore.governance?.my_today.next_action_ready_in_seconds ?? 0) > 0) {
+      return {
+        title: '先看官方调控',
+        summary: '当前交易动作还在冷却中，先确认限流和今日额度，再决定下一步是等一会儿还是换别的经营动作。',
+        detailLines: [
+          `下次可操作 ${marketGovernanceStore.governance?.my_today.next_action_ready_in_seconds ?? 0} 秒后`,
+          `今日资金波动 ${marketGovernanceStore.governance?.my_today.total_money_volume ?? 0}/${marketGovernanceStore.governance?.anti_abuse.daily_money_volume_limit ?? 0} 文`
+        ],
+        statusLabel: '限流',
+        statusToneClass: 'text-warning',
+        ctaLabel: '看官方调控',
+        action: 'market-governance'
+      }
+    }
+
     if (shopStore.currentShopId) {
       return {
         title: `回到${currentShopLabel.value}货架`,
@@ -2236,6 +2292,10 @@
       focusShopSection('neighbor-consignment', '看邻里寄售')
       return
     }
+    if (action.action === 'market-governance') {
+      focusShopSection('market-governance', '看官方调控')
+      return
+    }
     mobileTab.value = 'buy'
     if (action.action === 'recommended-catalog' && action.pool) {
       selectCatalogPool(action.pool)
@@ -2375,6 +2435,10 @@
     await festivalStallStore.refreshStall().catch(() => {})
   }
 
+  const handleRefreshMarketGovernance = async () => {
+    await marketGovernanceStore.refreshGovernance().catch(() => {})
+  }
+
   const handleRefreshExchangeLedger = async () => {
     await exchangeLedgerStore.refreshLedger().catch(() => {})
   }
@@ -2382,6 +2446,7 @@
   const handleWeeklyExchange = async (offerId: string) => {
     try {
       const result = await weeklyExchangeStore.performExchange(offerId)
+      await marketGovernanceStore.refreshGovernance().catch(() => {})
       await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
       showFloat(`换物完成`, 'success')
@@ -2397,6 +2462,7 @@
   const handleBuyFestivalStallOffer = async (offerId: string) => {
     try {
       const result = await festivalStallStore.buyOffer(offerId)
+      await marketGovernanceStore.refreshGovernance().catch(() => {})
       await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
       showFloat('购买成功', 'success')
@@ -2423,6 +2489,7 @@
   }) => {
     try {
       const result = await neighborConsignmentStore.createListing(payload)
+      await marketGovernanceStore.refreshGovernance().catch(() => {})
       await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
       showFloat('挂单成功', 'success')
@@ -2438,6 +2505,7 @@
   const handleBuyNeighborConsignment = async (listingId: string) => {
     try {
       const result = await neighborConsignmentStore.buyListing(listingId)
+      await marketGovernanceStore.refreshGovernance().catch(() => {})
       await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
       showFloat('购买成功', 'success')
@@ -2453,6 +2521,7 @@
   const handleCancelNeighborConsignment = async (listingId: string) => {
     try {
       const result = await neighborConsignmentStore.cancelListing(listingId)
+      await marketGovernanceStore.refreshGovernance().catch(() => {})
       await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
       showFloat('已取消', 'success')
@@ -2468,6 +2537,7 @@
   const handleReclaimNeighborConsignment = async (listingId: string) => {
     try {
       const result = await neighborConsignmentStore.reclaimListing(listingId)
+      await marketGovernanceStore.refreshGovernance().catch(() => {})
       await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
       showFloat('已回收', 'success')

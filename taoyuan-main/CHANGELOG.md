@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0519 官方调控（L54 第一轮）
+- 新增 `server/src/taoyuanMarketGovernance.js`，并在 `server/src/config.js` 增补慢交易治理默认项，把每周交换站、节庆摊位和邻里寄售统一收进价格区间、稀有品限制、来源开关、频率限制、资金波动上限、重复挂单上限与黑名单制裁。
+- `server/src/routes/api.js` 已补出 `/api/taoyuan/exchange-station/governance`、`/api/admin/taoyuan/market-governance` 与 `/api/admin/taoyuan/market-governance/sanctions/:username`；`server/src/taoyuanWeeklyExchangeStation.js`、`server/src/taoyuanFestivalStall.js`、`server/src/taoyuanNeighborConsignment.js` 也已同步接入治理校验与记录写回。
+- 新增 `taoyuan-main/src/utils/marketGovernanceApi.ts`、`taoyuan-main/src/stores/useMarketGovernanceStore.ts` 与 `taoyuan-main/src/components/game/MarketGovernancePanel.vue`，商店页现已接入第一版“官方调控”面板，可直接查看开放来源、价格带、稀有品限制、今日操作余量与制裁状态。
+- `taoyuan-main/src/views/game/ShopView.vue` 这一轮也补了治理承接：市场操作后会主动刷新治理快照，邻里寄售失败时会展示更明确的治理原因，移动端“当前推荐动作”在账号被制裁或冷却中时会优先跳到官方调控面板。
+- `server/scripts/qa-online-smoke.mjs` 已补进治理回归：当前会实际验证公共治理读路径、管理员配置读写、黑名单写入、被制裁账号的真实拦截，以及治理配置与制裁状态的回滚复原。
+
 ### 0519 交换记录与声誉（L53 第一轮）
 - 新增 `server/src/taoyuanExchangeLedger.js` 与 `/api/taoyuan/exchange-station/ledger`、`/disputes`，把每周交换站、节庆摊位和邻里寄售统一聚合成一份可回看的交换账本，并补出第一版争议上报。
 - `taoyuan-main/src/utils/exchangeLedgerApi.ts`、`taoyuan-main/src/stores/useExchangeLedgerStore.ts` 与 `taoyuan-main/src/components/game/ExchangeLedgerPanel.vue` 已接入商店页，玩家现在可以直接看到最近交换流水、常往对象、常用来源、品类分布和我的争议记录。

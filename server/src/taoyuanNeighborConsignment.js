@@ -13,6 +13,7 @@ const {
   writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime');
 const { getNeighborGroupForUser, isFriendWith } = require('./taoyuanSocialRuntime');
+const marketGovernance = require('./taoyuanMarketGovernance');
 
 const DATA_DIR = process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) : path.join(__dirname, '../data');
 const TAOYUAN_NEIGHBOR_CONSIGNMENT_FILE = path.join(DATA_DIR, 'taoyuan_neighbor_consignments.json');
@@ -378,6 +379,23 @@ function buildListingSummary(listing, viewerUsername, viewerGroup) {
   const canSee = effectiveStatus === 'open'
     ? canViewerAccessListing(listing, viewerUsername, viewerGroup)
     : sellerSelf;
+  let canBuy = effectiveStatus === 'open' && canViewerAccessListing(listing, viewerUsername, viewerGroup) && !sellerSelf;
+  let governanceReason = '';
+  if (canBuy) {
+    try {
+      marketGovernance.ensureNotSanctioned(viewerUsername, '邻里寄售');
+      marketGovernance.ensureSourceEnabled('neighbor_consignment', { scope: listing.scope });
+      marketGovernance.ensureUserRateLimit(viewerUsername, {
+        source: 'neighbor_consignment',
+        source_label: '邻里寄售',
+        counter_type: 'purchase',
+        money_volume: listing.price_money,
+      });
+    } catch (error) {
+      canBuy = false;
+      governanceReason = error?.message || '当前官方调控暂不允许购买这份寄售';
+    }
+  }
   return {
     id: listing.id,
     group_id: listing.group_id,
@@ -398,9 +416,10 @@ function buildListingSummary(listing, viewerUsername, viewerGroup) {
     reclaimed_at: listing.reclaimed_at || null,
     buyer_username: listing.buyer_username || '',
     visible_to_viewer: canSee,
-    can_buy: effectiveStatus === 'open' && canViewerAccessListing(listing, viewerUsername, viewerGroup) && !sellerSelf,
+    can_buy: canBuy,
     can_cancel: effectiveStatus === 'open' && sellerSelf,
     can_reclaim: effectiveStatus === 'expired' && sellerSelf,
+    governance_reason: governanceReason,
   };
 }
 
@@ -408,6 +427,7 @@ function buildOverview(username) {
   const neighborGroup = getNeighborGroupForUser(username);
   const store = loadConsignmentStore();
   const normalizedUsername = String(username || '').trim();
+  const governanceConfig = marketGovernance.getTradeGovernanceConfig();
   const openListings = store.listings
     .map(normalizeListing)
     .filter(Boolean)
@@ -428,7 +448,7 @@ function buildOverview(username) {
     })
     .slice(0, 12);
   return {
-    bulletin: '邻里寄售只在本邻里内部流转，支持固定价、范围限制、主动取消和到期回收，不会变成全服自由拍卖。',
+    bulletin: '邻里寄售只在本邻里内部流转，支持固定价、范围限制、主动取消和到期回收，不会变成全服自由拍卖。当前还会额外受官方价格区间、稀有品类限制和反刷规则约束。',
     neighbor_group: neighborGroup
       ? {
           id: neighborGroup.id,
@@ -439,7 +459,7 @@ function buildOverview(username) {
       : null,
     scope_options: [
       { id: 'neighbors', label: CONSIGNMENT_SCOPE_LABELS.neighbors },
-      { id: 'friends', label: CONSIGNMENT_SCOPE_LABELS.friends },
+      ...(governanceConfig.neighbor_friends_scope_enabled ? [{ id: 'friends', label: CONSIGNMENT_SCOPE_LABELS.friends }] : []),
     ],
     open_listings: openListings,
     my_listings: myListings,
@@ -453,6 +473,7 @@ function listNeighborConsignments(username) {
 function createNeighborConsignment(username, payload = {}) {
   const neighborGroup = getNeighborGroupForUser(username);
   if (!neighborGroup) throw createError('加入邻里后才能使用邻里寄售', 403);
+  marketGovernance.ensureNotSanctioned(username, '邻里寄售');
 
   const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源服务端存档，暂时无法挂出寄售');
   context.username = username;
@@ -470,6 +491,12 @@ function createNeighborConsignment(username, payload = {}) {
   if (availableNormalQuantity < quantity) {
     throw createError('当前邻里寄售只支持挂出普通品质物资，请先确认服务端存档中的普通品质库存');
   }
+  marketGovernance.ensureSourceEnabled('neighbor_consignment', { scope });
+  marketGovernance.assertPriceWithinBand({
+    source: 'neighbor_consignment',
+    priceMoney,
+  });
+  marketGovernance.ensureRareItemsAllowed([itemId], '邻里寄售');
 
   const store = loadConsignmentStore();
   const currentOpenCount = store.listings
@@ -479,6 +506,13 @@ function createNeighborConsignment(username, payload = {}) {
   if (currentOpenCount >= MAX_OPEN_LISTINGS_PER_USER) {
     throw createError(`每位玩家最多同时挂出 ${MAX_OPEN_LISTINGS_PER_USER} 个邻里寄售`);
   }
+  marketGovernance.ensureDuplicateOpenListingAllowed(username, itemId, store.listings.map(normalizeListing).filter(Boolean));
+  marketGovernance.ensureUserRateLimit(username, {
+    source: 'neighbor_consignment',
+    source_label: '邻里寄售',
+    counter_type: 'listing',
+    open_listing_item_id: itemId,
+  });
 
   if (!removeStackableItemAnywhere(context.data, itemId, quantity, 'normal')) {
     throw createError('服务端存档中的物资不足，无法挂出这份寄售');
@@ -517,6 +551,11 @@ function createNeighborConsignment(username, payload = {}) {
   try {
     persistSlotContext(context);
     saveConsignmentStore(store);
+    marketGovernance.applyGovernanceRecord(username, {
+      source: 'neighbor_consignment',
+      counter_type: 'listing',
+      open_listing_item_id: itemId,
+    });
   } catch (error) {
     restoreSlotEntry(username, context.saves, context.slot, previousSlotEntry);
     throw createError(`邻里寄售挂单失败：${error?.message || '未知错误'}`, 500);
@@ -532,6 +571,7 @@ function createNeighborConsignment(username, payload = {}) {
 function buyNeighborConsignment(username, listingId) {
   const buyerGroup = getNeighborGroupForUser(username);
   if (!buyerGroup) throw createError('加入邻里后才能使用邻里寄售', 403);
+  marketGovernance.ensureNotSanctioned(username, '邻里寄售');
 
   const store = loadConsignmentStore();
   const listing = store.listings
@@ -543,6 +583,13 @@ function buyNeighborConsignment(username, listingId) {
   if (effectiveStatus === 'expired') throw createError('这份寄售已经过期，请等待卖家回收');
   if (effectiveStatus !== 'open') throw createError('这份寄售已经结束');
   if (!canViewerAccessListing(listing, username, buyerGroup)) throw createError('你当前无权查看或购买这份寄售', 403);
+  marketGovernance.ensureSourceEnabled('neighbor_consignment', { scope: listing.scope });
+  marketGovernance.ensureUserRateLimit(username, {
+    source: 'neighbor_consignment',
+    source_label: '邻里寄售',
+    counter_type: 'purchase',
+    money_volume: listing.price_money,
+  });
 
   const buyerContext = getActiveSaveContext(username, null, '当前账号没有可用的桃源服务端存档，暂时无法购买邻里寄售');
   buyerContext.username = username;
@@ -590,6 +637,16 @@ function buyNeighborConsignment(username, listingId) {
     persistSlotContext(buyerContext);
     persistSlotContext(sellerContext);
     saveConsignmentStore(store);
+    marketGovernance.applyGovernanceRecord(username, {
+      source: 'neighbor_consignment',
+      counter_type: 'purchase',
+      money_volume: listing.price_money,
+    });
+    marketGovernance.applyGovernanceRecord(listing.seller_username, {
+      source: 'neighbor_consignment',
+      money_volume: listing.price_money,
+      clear_open_listing_item_id: listing.item_id,
+    });
   } catch (error) {
     restoreSlotEntry(username, buyerContext.saves, buyerContext.slot, previousBuyerSlotEntry);
     restoreSlotEntry(sellerContext.username, sellerContext.saves, sellerContext.slot, previousSellerSlotEntry);
@@ -649,6 +706,10 @@ function cancelNeighborConsignment(username, listingId) {
   try {
     persistSlotContext(sellerContext);
     saveConsignmentStore(store);
+    marketGovernance.applyGovernanceRecord(sellerContext.username, {
+      source: 'neighbor_consignment',
+      clear_open_listing_item_id: listing.item_id,
+    });
   } catch (error) {
     restoreSlotEntry(sellerContext.username, sellerContext.saves, sellerContext.slot, previousSellerSlotEntry);
     throw createError(`取消邻里寄售失败：${error?.message || '未知错误'}`, 500);
@@ -707,6 +768,10 @@ function reclaimExpiredNeighborConsignment(username, listingId) {
   try {
     persistSlotContext(sellerContext);
     saveConsignmentStore(store);
+    marketGovernance.applyGovernanceRecord(sellerContext.username, {
+      source: 'neighbor_consignment',
+      clear_open_listing_item_id: listing.item_id,
+    });
   } catch (error) {
     restoreSlotEntry(sellerContext.username, sellerContext.saves, sellerContext.slot, previousSellerSlotEntry);
     throw createError(`回收过期寄售失败：${error?.message || '未知错误'}`, 500);

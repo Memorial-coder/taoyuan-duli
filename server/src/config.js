@@ -48,6 +48,28 @@ const DEFAULTS = {
   taoyuan_daily_import_limit_money: 0,
   taoyuan_daily_export_limit_money: 0,
 
+  // 桃源乡联机集市治理配置
+  taoyuan_market_weekly_exchange_enabled: true,
+  taoyuan_market_weekly_festival_pool_enabled: true,
+  taoyuan_market_weekly_neighbor_pool_enabled: true,
+  taoyuan_market_festival_stall_enabled: true,
+  taoyuan_market_festival_ticket_sales_enabled: true,
+  taoyuan_market_neighbor_consignment_enabled: true,
+  taoyuan_market_neighbor_friends_scope_enabled: true,
+  taoyuan_market_consignment_price_min_money: 20,
+  taoyuan_market_consignment_price_max_money: 280,
+  taoyuan_market_festival_price_min_money: 80,
+  taoyuan_market_festival_price_max_money: 260,
+  taoyuan_market_official_money_price_min_money: 80,
+  taoyuan_market_official_money_price_max_money: 220,
+  taoyuan_market_daily_trade_action_limit: 10,
+  taoyuan_market_daily_consignment_listing_limit: 4,
+  taoyuan_market_daily_consignment_purchase_limit: 4,
+  taoyuan_market_min_action_interval_seconds: 2,
+  taoyuan_market_daily_money_volume_limit: 1500,
+  taoyuan_market_duplicate_open_listing_limit: 2,
+  taoyuan_market_rare_item_blocklist: 'food_*,*incense*',
+
   // 游戏大厅配置
   gamehall_farm_title: '开心农场',
   gamehall_farm_desc: '种菜、浇花、施肥、收获、卖菜，完整庭院玩法。',

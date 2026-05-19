@@ -11,6 +11,7 @@ const {
   getCurrentWeekWindow,
   getFestivalThemeRotation,
 } = require('./taoyuanWeeklyExchangeStation')
+const marketGovernance = require('./taoyuanMarketGovernance')
 
 const DATA_DIR = process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) : path.join(__dirname, '../data')
 const TAOYUAN_FESTIVAL_STALL_FILE = path.join(DATA_DIR, 'taoyuan_festival_stall.json')
@@ -586,20 +587,40 @@ function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '
   let canExchange = true
   let disabledReason = ''
   const availability = getFestivalAvailability()
+  const boothCategory = Array.isArray(offer.categories) ? offer.categories[0] || 'festival' : 'festival'
 
   if (!availability.open) {
     canExchange = false
     disabledReason = availability.reason
-  } else if (!saveData) {
+  } else {
+    try {
+      marketGovernance.ensureNotSanctioned(username, '节庆摊位')
+      marketGovernance.ensureSourceEnabled('festival_stall', { category: boothCategory })
+      marketGovernance.assertPriceWithinBand({
+        source: 'festival_stall',
+        category: boothCategory,
+        priceMoney: clampPositiveInt(offer.price_money, 0),
+      })
+      marketGovernance.ensureUserRateLimit(username, {
+        source: 'festival_stall',
+        source_label: '节庆摊位',
+        money_volume: clampPositiveInt(offer.price_money, 0),
+      })
+    } catch (error) {
+      canExchange = false
+      disabledReason = error?.message || '当前官方调控暂不允许这项节庆商品'
+    }
+  }
+  if (canExchange && !saveData) {
     canExchange = false
     disabledReason = saveMessage || '当前没有可用的服务端存档'
-  } else if (claimedByUser >= clampPositiveInt(offer.weekly_limit_per_user, 1)) {
+  } else if (canExchange && claimedByUser >= clampPositiveInt(offer.weekly_limit_per_user, 1)) {
     canExchange = false
     disabledReason = '本周该摊位已达到个人购买上限'
-  } else if (offer.station_stock > 0 && remainingGlobal <= 0) {
+  } else if (canExchange && offer.station_stock > 0 && remainingGlobal <= 0) {
     canExchange = false
     disabledReason = '这项节庆商品本周已经售罄'
-  } else {
+  } else if (canExchange) {
     const validation = validateOfferAgainstSave(saveData, offer)
     canExchange = validation.can_exchange
     disabledReason = validation.disabled_reason
@@ -616,7 +637,7 @@ function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '
     costs: offer.costs.map(entry => ({ ...entry })),
     rewards: offer.rewards.map(entry => ({ ...entry })),
     tags: [...offer.tags],
-    booth_category: Array.isArray(offer.categories) ? offer.categories[0] || 'festival' : 'festival',
+    booth_category: boothCategory,
     weekly_limit_per_user: clampPositiveInt(offer.weekly_limit_per_user, 1),
     station_stock: clampPositiveInt(offer.station_stock, 0),
     claimed_by_user: claimedByUser,
@@ -690,6 +711,19 @@ function purchaseFestivalStallOffer(username, offerId) {
   const weekState = getFestivalWeekState(store, weekKey)
   const offer = getFestivalCatalog(availability.themeWeek.id).find(entry => entry.id === String(offerId || '').trim())
   if (!offer) throw createError('节庆摊位没有这项商品', 404)
+  const boothCategory = Array.isArray(offer.categories) ? offer.categories[0] || 'festival' : 'festival'
+  marketGovernance.ensureNotSanctioned(username, '节庆摊位')
+  marketGovernance.ensureSourceEnabled('festival_stall', { category: boothCategory })
+  marketGovernance.assertPriceWithinBand({
+    source: 'festival_stall',
+    category: boothCategory,
+    priceMoney: clampPositiveInt(offer.price_money, 0),
+  })
+  marketGovernance.ensureUserRateLimit(username, {
+    source: 'festival_stall',
+    source_label: '节庆摊位',
+    money_volume: clampPositiveInt(offer.price_money, 0),
+  })
 
   const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源服务端存档，暂时无法购买节庆摊位商品')
   context.username = username
@@ -742,6 +776,10 @@ function purchaseFestivalStallOffer(username, offerId) {
   try {
     persistGameplayData(context)
     saveFestivalStore(store)
+    marketGovernance.applyGovernanceRecord(username, {
+      source: 'festival_stall',
+      money_volume: clampPositiveInt(offer.price_money, 0),
+    })
   } catch (error) {
     if (previousSlotEntry) {
       context.saves.slots[slot] = previousSlotEntry

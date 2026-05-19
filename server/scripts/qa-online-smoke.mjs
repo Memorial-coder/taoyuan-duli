@@ -540,6 +540,7 @@ try {
   let festivalStallFoodOfferId = ''
   let festivalStallTicketOfferId = ''
   let exchangeLedgerReportableEntryId = ''
+  let originalMarketGovernanceConfig = null
   let weeklyExchangeExpectedWoodCount = null
   let weeklyExchangeExpectedStoneCount = null
   let primaryExpectedMoney = 1200
@@ -1216,6 +1217,7 @@ try {
   })
 
   await runCheck('POST /api/taoyuan/exchange-station/neighbors/consignments cancel path', async () => {
+    await wait(2100)
     const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/neighbors/consignments', {
       method: 'POST',
       headers: {
@@ -1241,6 +1243,7 @@ try {
   })
 
   await runCheck('POST /api/taoyuan/exchange-station/neighbors/consignments reclaim expired path', async () => {
+    await wait(2100)
     const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/neighbors/consignments', {
       method: 'POST',
       headers: {
@@ -1426,6 +1429,14 @@ try {
     assert(data?.ok === true && data?.dispute?.id, 'exchange ledger dispute payload is incomplete')
     assert(data?.dispute?.reason_code === 'delivery_mismatch', 'exchange ledger dispute did not preserve reason code')
     assert(Array.isArray(data?.ledger?.my_disputes) && data.ledger.my_disputes.some(entry => entry?.id === data.dispute.id), 'exchange ledger dispute did not refresh my disputes')
+  })
+
+  await runCheck('GET /api/taoyuan/exchange-station/governance read path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/exchange-station/governance')
+    assert(response.ok, `market governance read returned ${response.status}`)
+    assert(data?.ok === true && data?.governance?.price_bands?.consignment?.min_money >= 0, 'market governance payload is incomplete')
+    assert(Array.isArray(data?.governance?.sources) && data.governance.sources.some(entry => entry?.id === 'neighbor_consignment'), 'market governance did not expose source toggles')
+    assert(data?.governance?.anti_abuse?.daily_trade_action_limit >= 1, 'market governance did not expose anti-abuse config')
   })
 
   await runCheck('fourth session bootstrap', async () => {
@@ -1787,6 +1798,103 @@ try {
     if (response.status === 404) return
     assert(response.ok, `official control runtime status returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.status && Array.isArray(data?.readonlyManagedFields), 'official control runtime status payload is incomplete')
+  })
+
+  await runCheck('GET /api/admin/taoyuan/market-governance admin read path', async () => {
+    assert(adminToken, 'ADMIN_TOKEN is required for market governance admin smoke')
+    const { response, data } = await fetchAuthedJson('/api/admin/taoyuan/market-governance', {
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    })
+    assert(response.ok, `market governance admin read returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.overview?.config?.consignment_price_min_money >= 0, 'market governance admin overview payload is incomplete')
+    originalMarketGovernanceConfig = data?.overview?.config || null
+  })
+
+  await runCheck('POST /api/admin/taoyuan/market-governance admin write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/admin/taoyuan/market-governance', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken,
+      },
+      body: JSON.stringify({
+        neighbor_friends_scope_enabled: false,
+        consignment_price_max_money: 90,
+        daily_trade_action_limit: 12,
+      }),
+    })
+    assert(response.ok, `market governance admin write returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.overview?.config?.neighbor_friends_scope_enabled === false, 'market governance admin write did not persist scope toggle')
+    assert(Number(data?.overview?.config?.consignment_price_max_money) === 90, 'market governance admin write did not persist price band update')
+
+    const publicReadback = await fetchAuthedJson('/api/taoyuan/exchange-station/governance')
+    assert(publicReadback.response.ok, `market governance public readback returned ${publicReadback.response.status}`)
+    assert(publicReadback.data?.governance?.sources?.some(entry => entry?.id === 'neighbor_friends_scope' && entry?.enabled === false), 'market governance public readback did not reflect scope toggle')
+    assert(Number(publicReadback.data?.governance?.price_bands?.consignment?.max_money) === 90, 'market governance public readback did not reflect price band update')
+  })
+
+  await runCheck('POST /api/admin/taoyuan/market-governance/sanctions/:username admin write path', async () => {
+    const sanctionWrite = await fetchAuthedJson(`/api/admin/taoyuan/market-governance/sanctions/${encodeURIComponent(secondarySessionState.username)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken,
+      },
+      body: JSON.stringify({
+        blocked: true,
+        reason: 'smoke market sanction',
+      }),
+    })
+    assert(sanctionWrite.response.ok, `market governance sanction write returned ${sanctionWrite.response.status}: ${sanctionWrite.data?.msg || 'unknown error'}`)
+    assert(sanctionWrite.data?.ok === true && sanctionWrite.data?.sanction?.blocked === true, 'market governance sanction payload is incomplete')
+
+    const blockedTrade = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/neighbors/consignments', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        item_id: 'wood',
+        quantity: 1,
+        price_money: 70,
+        scope: 'neighbors',
+      }),
+    })
+    assert(blockedTrade.response.status === 403, `market governance sanction did not block market action, status=${blockedTrade.response.status}`)
+    assert(String(blockedTrade.data?.msg || '').includes('smoke market sanction'), 'market governance sanction did not return sanction reason')
+
+    const sanctionReset = await fetchAuthedJson(`/api/admin/taoyuan/market-governance/sanctions/${encodeURIComponent(secondarySessionState.username)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken,
+      },
+      body: JSON.stringify({
+        blocked: false,
+        reason: '',
+      }),
+    })
+    assert(sanctionReset.response.ok, `market governance sanction reset returned ${sanctionReset.response.status}: ${sanctionReset.data?.msg || 'unknown error'}`)
+    assert(sanctionReset.data?.sanction?.blocked === false, 'market governance sanction reset did not clear block')
+
+    if (originalMarketGovernanceConfig) {
+      const configReset = await fetchAuthedJson('/api/admin/taoyuan/market-governance', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Admin-Token': adminToken,
+        },
+        body: JSON.stringify({
+          ...originalMarketGovernanceConfig,
+          rare_item_blocklist: Array.isArray(originalMarketGovernanceConfig.rare_item_blocklist)
+            ? originalMarketGovernanceConfig.rare_item_blocklist.join(',')
+            : originalMarketGovernanceConfig.rare_item_blocklist,
+        }),
+      })
+      assert(configReset.response.ok, `market governance config reset returned ${configReset.response.status}: ${configReset.data?.msg || 'unknown error'}`)
+    }
   })
 
   await runCheck('third session auth-only bootstrap', async () => {

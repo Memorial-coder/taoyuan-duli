@@ -85,7 +85,9 @@
               <button v-if="listing.can_cancel" class="btn !px-2 !py-1 text-[10px]" :disabled="running" @click="$emit('cancel', listing.id)">取消</button>
               <button v-if="listing.can_reclaim" class="btn !px-2 !py-1 text-[10px]" :disabled="running" @click="$emit('reclaim', listing.id)">回收</button>
             </div>
-            <p v-if="!listing.can_buy && listing.visible_to_viewer" class="text-[10px] text-warning mt-1">当前无法购买这份寄售。</p>
+            <p v-if="!listing.can_buy && listing.visible_to_viewer" class="text-[10px] text-warning mt-1">
+              {{ listing.governance_reason || '当前无法购买这份寄售。' }}
+            </p>
           </div>
         </div>
       </div>

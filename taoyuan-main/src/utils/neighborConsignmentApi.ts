@@ -30,6 +30,7 @@ export interface NeighborConsignmentListing {
   can_buy: boolean
   can_cancel: boolean
   can_reclaim: boolean
+  governance_reason?: string
 }
 
 export interface NeighborConsignmentOverview {

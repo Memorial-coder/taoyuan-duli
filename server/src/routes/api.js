@@ -18,6 +18,7 @@ const taoyuanWeeklyExchangeStation = require('../taoyuanWeeklyExchangeStation');
 const taoyuanFestivalStall = require('../taoyuanFestivalStall');
 const taoyuanNeighborConsignment = require('../taoyuanNeighborConsignment');
 const taoyuanExchangeLedger = require('../taoyuanExchangeLedger');
+const taoyuanMarketGovernance = require('../taoyuanMarketGovernance');
 const officialControlPlatform = require('../officialControlPlatform');
 const {
   ensureTaoyuanSavesDir,
@@ -1781,6 +1782,59 @@ router.post('/taoyuan/exchange-station/ledger/:entryId/disputes', loginRequired,
       res.status(error.status || 500).json({ ok: false, msg: error.message || '提交交换争议失败' });
     }
   });
+});
+
+router.get('/taoyuan/exchange-station/governance', loginRequired, async (req, res) => {
+  try {
+    const governance = taoyuanMarketGovernance.buildPublicMarketGovernanceSnapshot(req.session.username);
+    res.json({ ok: true, governance });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取集市治理状态失败' });
+  }
+});
+
+router.get('/admin/taoyuan/market-governance', userAdminAuth, async (req, res) => {
+  try {
+    res.json({
+      ok: true,
+      overview: taoyuanMarketGovernance.getMarketGovernanceOverview(),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取集市治理配置失败' });
+  }
+});
+
+router.post('/admin/taoyuan/market-governance', userAdminAuth, async (req, res) => {
+  try {
+    const config = taoyuanMarketGovernance.updateMarketGovernanceConfig(req.body || {});
+    await appendAdminAuditLog(req, 'update_taoyuan_market_governance', '', {
+      market_governance: config,
+    });
+    res.json({
+      ok: true,
+      overview: taoyuanMarketGovernance.getMarketGovernanceOverview(),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '保存集市治理配置失败' });
+  }
+});
+
+router.post('/admin/taoyuan/market-governance/sanctions/:username', userAdminAuth, async (req, res) => {
+  try {
+    const username = decodeRouteUsername(req.params.username);
+    const sanction = taoyuanMarketGovernance.updateMarketSanction(username, req.body || {});
+    await appendAdminAuditLog(req, 'update_taoyuan_market_sanction', username, {
+      blocked: sanction.blocked,
+      reason: sanction.reason,
+    });
+    res.json({
+      ok: true,
+      sanction,
+      overview: taoyuanMarketGovernance.getMarketGovernanceOverview(),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新集市制裁失败' });
+  }
 });
 
 router.get('/taoyuan/save/slots', loginRequired, (req, res) => {

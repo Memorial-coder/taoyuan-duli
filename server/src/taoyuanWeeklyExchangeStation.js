@@ -8,6 +8,7 @@ const {
   writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime');
 const { getNeighborGroupForUser } = require('./taoyuanSocialRuntime');
+const marketGovernance = require('./taoyuanMarketGovernance');
 
 const DATA_DIR = process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) : path.join(__dirname, '../data');
 const TAOYUAN_WEEKLY_EXCHANGE_FILE = path.join(DATA_DIR, 'taoyuan_weekly_exchange_station.json');
@@ -618,20 +619,42 @@ function buildOfferSummary(offer, weekState, username, saveData, saveMessage = '
   let canExchange = true;
   let disabledReason = '';
   const availability = getOfferAvailabilityScope(offer, username);
+  const cashPrice = offer.rewards
+    .filter(entry => entry?.type === 'money')
+    .reduce((sum, entry) => sum + clampPositiveInt(entry.amount, 0), 0);
 
   if (!saveData) {
     canExchange = false;
     disabledReason = saveMessage || '当前没有可用的服务端存档';
-  } else if (!availability.enabled) {
+  } else {
+    try {
+      marketGovernance.ensureNotSanctioned(username, '每周交换站');
+      marketGovernance.ensureSourceEnabled('weekly_exchange_station', { category: offer.category });
+      marketGovernance.assertPriceWithinBand({
+        source: 'weekly_exchange_station',
+        category: offer.category,
+        priceMoney: cashPrice,
+      });
+      marketGovernance.ensureUserRateLimit(username, {
+        source: 'weekly_exchange_station',
+        source_label: '每周交换站',
+        money_volume: cashPrice,
+      });
+    } catch (error) {
+      canExchange = false;
+      disabledReason = error?.message || '当前官方调控暂不允许这项换物';
+    }
+  }
+  if (canExchange && !availability.enabled) {
     canExchange = false;
     disabledReason = availability.reason;
-  } else if (claimedByUser >= offer.weekly_limit_per_user) {
+  } else if (canExchange && claimedByUser >= offer.weekly_limit_per_user) {
     canExchange = false;
     disabledReason = '本周该摊位已达到个人兑换上限';
-  } else if (offer.station_stock > 0 && remainingGlobal <= 0) {
+  } else if (canExchange && offer.station_stock > 0 && remainingGlobal <= 0) {
     canExchange = false;
     disabledReason = '这项换物本周已兑完';
-  } else {
+  } else if (canExchange) {
     const validation = validateOfferAgainstSave(saveData, offer);
     canExchange = validation.can_exchange;
     disabledReason = validation.disabled_reason;
@@ -724,6 +747,21 @@ function exchangeWeeklyOffer(username, offerId) {
   if (!availability.enabled) {
     throw createError(availability.reason || '当前无法兑换这项换物');
   }
+  marketGovernance.ensureNotSanctioned(username, '每周交换站');
+  marketGovernance.ensureSourceEnabled('weekly_exchange_station', { category: offer.category });
+  const cashPrice = offer.rewards
+    .filter(entry => entry?.type === 'money')
+    .reduce((sum, entry) => sum + clampPositiveInt(entry.amount, 0), 0);
+  marketGovernance.assertPriceWithinBand({
+    source: 'weekly_exchange_station',
+    category: offer.category,
+    priceMoney: cashPrice,
+  });
+  marketGovernance.ensureUserRateLimit(username, {
+    source: 'weekly_exchange_station',
+    source_label: '每周交换站',
+    money_volume: cashPrice,
+  });
 
   const userUsage = weekState.user_usage[username] && typeof weekState.user_usage[username] === 'object'
     ? weekState.user_usage[username]
@@ -783,6 +821,10 @@ function exchangeWeeklyOffer(username, offerId) {
   persistGameplayData(context);
   try {
     saveExchangeStore(store);
+    marketGovernance.applyGovernanceRecord(username, {
+      source: 'weekly_exchange_station',
+      money_volume: cashPrice,
+    });
   } catch (error) {
     if (previousSlotEntry) {
       context.saves.slots[slot] = previousSlotEntry;
