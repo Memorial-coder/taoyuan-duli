@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0519 村社 L75 回归验收完成
+- `server/scripts/qa-online-smoke.mjs` 已把 `L75` 补成完整阶段验收：当前不只验证村社创建、加入、退出，还会继续验证提案投票与归档结果回读、公共建设从推进到完工的世界反馈保留、成员退出后再次加入，以及社长离社后的社长位移交与组织权益继承。
+- 当前 smoke 已显式断言：`bridge` 公共建设会从 `30 -> 60 -> 90 -> 100` 推进到完工，完工后保留 `world_feedback`、`public_project_complete` 活动日志和最终进度状态；同时也会断言新社长仍能继承 `level / welfare_unlocks / public_warehouse / completed public project`。
+- `0518todo.md` 与 `docs/online/05-society.md` 已同步回写：`L75` 当前可视为第一轮验收完成，村社线下一步切入 `L80` 远征房间。
+
 ### 0519 村社退出与 L75 首轮验收
 - `server/src/taoyuanSocietyRuntime.js` 已补出 `leaveSociety()`：普通成员可直接离社；社长若是唯一成员则会解散整张村社卡片，若村社内仍有其他成员，则会把社长位自动移交给最早加入的剩余成员，并同步清理离社成员的待处理申请 / 邀请记录。
 - `server/src/routes/api.js` 已新增 `/api/taoyuan/online/societies/leave`；`taoyuan-main/src/utils/societyApi.ts`、`src/stores/useSocietyStore.ts` 与 `src/views/game/SocietyView.vue` 也已同步补出退出动作和前端按钮，当前可直接在村社页完成离社。

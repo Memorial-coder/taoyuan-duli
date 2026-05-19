@@ -1747,6 +1747,7 @@ try {
 
   let createdSocietyRequestId = ''
   let createdSocietyProposalId = ''
+  let rejoinedSocietyRequestId = ''
   await runCheck('POST /api/taoyuan/online/societies/:societyId/apply write path', async () => {
     const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/societies/${encodeURIComponent(createdSocietyId)}/apply`, {
       method: 'POST',
@@ -1894,6 +1895,85 @@ try {
     assert(Array.isArray(bridgeProject?.recent_contributions) && bridgeProject.recent_contributions.some(entry => entry?.username === secondarySessionState.username), 'society public project readback did not preserve contribution history')
   })
 
+  await runCheck('POST /api/taoyuan/online/societies/public-projects/:projectId/contribute completion path', async () => {
+    const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(beforeSave.response.ok, `secondary save readback before project completion returned ${beforeSave.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeSave.data?.raw || beforeSave.data?.slot?.raw || beforeSave.data?.save?.raw || '')
+    const preMoney = Math.max(0, Math.floor(Number(beforeDecrypted?.player?.money) || 0))
+    const preWood = getInventoryItemQuantity(beforeDecrypted, 'wood')
+
+    const secondBundle = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-projects/bridge/contribute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        package_id: 'wood_bundle',
+      }),
+    })
+    assert(secondBundle.response.ok, `society public project second contribute returned ${secondBundle.response.status}: ${secondBundle.data?.msg || 'unknown error'}`)
+    assert(Number(secondBundle.data?.project?.progress || 0) === 60, `society public project second contribute did not advance to 60, current=${Number(secondBundle.data?.project?.progress || 0)}`)
+
+    const thirdBundle = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-projects/bridge/contribute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        package_id: 'wood_bundle',
+      }),
+    })
+    assert(thirdBundle.response.ok, `society public project third contribute returned ${thirdBundle.response.status}: ${thirdBundle.data?.msg || 'unknown error'}`)
+    assert(Number(thirdBundle.data?.project?.progress || 0) === 90, `society public project third contribute did not advance to 90, current=${Number(thirdBundle.data?.project?.progress || 0)}`)
+
+    const completionBundle = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-projects/bridge/contribute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        package_id: 'survey_fund',
+      }),
+    })
+    assert(completionBundle.response.ok, `society public project completion contribute returned ${completionBundle.response.status}: ${completionBundle.data?.msg || 'unknown error'}`)
+    assert(completionBundle.data?.ok === true && completionBundle.data?.project?.id === 'bridge', 'society public project completion payload is incomplete')
+    assert(String(completionBundle.data?.project?.status || '') === 'completed', 'society public project completion did not mark bridge as completed')
+    assert(Number(completionBundle.data?.project?.progress || 0) === 100, `society public project completion did not reach 100, current=${Number(completionBundle.data?.project?.progress || 0)}`)
+    assert(
+      typeof completionBundle.data?.project?.world_feedback === 'string' &&
+      completionBundle.data.project.world_feedback.includes('桥头会面'),
+      'society public project completion did not preserve world feedback',
+    )
+
+    const afterSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(afterSave.response.ok, `secondary save readback after project completion returned ${afterSave.response.status}`)
+    const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
+    const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
+    const afterWood = getInventoryItemQuantity(afterDecrypted, 'wood')
+    assert(afterMoney === preMoney - 70, `society public project completion did not deduct money correctly, expected money=${preMoney - 70}, current money=${afterMoney}`)
+    assert(afterWood === preWood - 2, `society public project completion did not deduct wood correctly, expected wood=${preWood - 2}, current wood=${afterWood}`)
+    secondaryExpectedMoney -= 70
+  })
+
+  await runCheck('GET /api/taoyuan/online/societies completed public project world readback', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies')
+    assert(response.ok, `society completed public project readback returned ${response.status}`)
+    assert(data?.ok === true && data?.my_society?.id === createdSocietyId, 'society completed public project readback payload is incomplete')
+    const bridgeProject = data?.my_society?.public_projects?.find(entry => entry?.id === 'bridge')
+    assert(bridgeProject && String(bridgeProject?.status || '') === 'completed', 'society completed public project readback did not preserve completed status')
+    assert(Number(bridgeProject?.progress || 0) === 100, 'society completed public project readback did not preserve final progress')
+    assert(
+      typeof bridgeProject?.world_feedback === 'string' &&
+      bridgeProject.world_feedback.includes('桥头会面'),
+      'society completed public project readback did not preserve world feedback',
+    )
+    assert(
+      Array.isArray(data?.my_society?.activity_log) &&
+      data.my_society.activity_log.some(entry => entry?.type === 'public_project_complete' && String(entry?.message || '').includes('修桥')),
+      'society completed public project readback did not preserve completion activity log',
+    )
+  })
+
   await runCheck('POST /api/taoyuan/online/societies/public-warehouse/deposit write path', async () => {
     const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
     assert(beforeSave.response.ok, `secondary save readback before warehouse deposit returned ${beforeSave.response.status}`)
@@ -1948,6 +2028,58 @@ try {
     assert(ownerReadback.response.ok, `society owner readback after leave returned ${ownerReadback.response.status}`)
     assert(ownerReadback.data?.ok === true && ownerReadback.data?.my_society?.id === createdSocietyId, 'society leave should not dissolve society while owner remains')
     assert(Array.isArray(ownerReadback.data?.my_society?.members) && !ownerReadback.data.my_society.members.some(entry => entry?.username === secondarySessionState.username), 'society leave did not remove secondary member from owner readback')
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/:societyId/apply rejoin path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/societies/${encodeURIComponent(createdSocietyId)}/apply`, {
+      method: 'POST',
+    })
+    assert(response.ok, `society rejoin apply returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.request?.status === 'pending', 'society rejoin apply payload is incomplete')
+    rejoinedSocietyRequestId = String(data?.request?.id || '')
+    assert(rejoinedSocietyRequestId, 'society rejoin apply did not create request id')
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/requests/:requestId/accept rejoin path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/societies/requests/${encodeURIComponent(rejoinedSocietyRequestId)}/accept`, {
+      method: 'POST',
+    })
+    assert(response.ok, `society rejoin accept returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.request?.status === 'accepted', 'society rejoin accept payload is incomplete')
+    assert(Array.isArray(data?.overview?.my_society?.members) && data.overview.my_society.members.some(entry => entry?.username === secondarySessionState.username), 'society rejoin accept did not restore the member')
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/leave president transfer path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies/leave', {
+      method: 'POST',
+    })
+    assert(response.ok, `society president leave returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.left_society_id === createdSocietyId, 'society president leave payload is incomplete')
+
+    const founderReadback = await fetchAuthedJson('/api/taoyuan/online/societies')
+    assert(founderReadback.response.ok, `founder society readback after leave returned ${founderReadback.response.status}`)
+    assert(founderReadback.data?.ok === true && !founderReadback.data?.my_society, 'society president leave did not clear founder society ownership')
+
+    const inheritedReadback = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies')
+    assert(inheritedReadback.response.ok, `inherited society readback returned ${inheritedReadback.response.status}`)
+    assert(inheritedReadback.data?.ok === true && inheritedReadback.data?.my_society?.id === createdSocietyId, 'society president leave did not preserve the society for the remaining member')
+    assert(String(inheritedReadback.data?.my_society?.my_role || '') === 'president', 'society president leave did not transfer the president role')
+    assert(inheritedReadback.data?.my_society?.can_manage_roles === true, 'society president leave did not preserve management rights')
+    const inheritedBridgeProject = inheritedReadback.data?.my_society?.public_projects?.find(entry => entry?.id === 'bridge')
+    assert(inheritedBridgeProject && String(inheritedBridgeProject?.status || '') === 'completed', 'society inherited readback did not preserve completed public project status')
+    assert(
+      typeof inheritedBridgeProject?.world_feedback === 'string' &&
+      inheritedBridgeProject.world_feedback.includes('桥头会面'),
+      'society inherited readback did not preserve completed project world feedback',
+    )
+    assert(Number(inheritedReadback.data?.my_society?.level || 0) >= 1, 'society inherited readback did not preserve society level')
+    assert(Array.isArray(inheritedReadback.data?.my_society?.welfare_unlocks) && inheritedReadback.data.my_society.welfare_unlocks.length >= 1, 'society inherited readback did not preserve welfare unlocks')
+    assert(
+      inheritedReadback.data?.my_society?.public_warehouse &&
+      Array.isArray(inheritedReadback.data.my_society.public_warehouse.logs) &&
+      inheritedReadback.data.my_society.public_warehouse.logs.some(entry => entry?.username === secondarySessionState.username),
+      'society inherited readback did not preserve warehouse logs',
+    )
   })
 
   await runCheck('fourth session bootstrap', async () => {
