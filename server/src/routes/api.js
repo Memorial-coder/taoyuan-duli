@@ -15,6 +15,7 @@ const taoyuanSocialRuntime = require('../taoyuanSocialRuntime');
 const taoyuanManorRuntime = require('../taoyuanManorRuntime');
 const taoyuanCoopOrderRuntime = require('../taoyuanCoopOrderRuntime');
 const taoyuanActivityRoomRuntime = require('../taoyuanActivityRoomRuntime');
+const taoyuanSocietyRuntime = require('../taoyuanSocietyRuntime');
 const taoyuanWeeklyExchangeStation = require('../taoyuanWeeklyExchangeStation');
 const taoyuanFestivalStall = require('../taoyuanFestivalStall');
 const taoyuanNeighborConsignment = require('../taoyuanNeighborConsignment');
@@ -1084,6 +1085,27 @@ router.get('/taoyuan/online/festival/rooms', loginRequired, async (req, res) => 
     res.json({ ok: true, ...overview });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取节会房间失败' });
+  }
+});
+
+router.get('/taoyuan/online/societies', loginRequired, async (req, res) => {
+  try {
+    const overview = await taoyuanSocietyRuntime.listSocietyOverview(req.session.username);
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取村社信息失败' });
+  }
+});
+
+router.post('/taoyuan/online/societies', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocietyRuntime.createSociety(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '创建村社失败' });
   }
 });
 

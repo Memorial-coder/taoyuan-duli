@@ -37,6 +37,7 @@ import {
   FlaskConical,
   Landmark,
   Swords,
+  ShieldCheck,
   Tent,
   Waves,
   Palette
@@ -53,6 +54,7 @@ export type PanelKey =
   | 'social'
   | 'manor'
   | 'festival'
+  | 'society'
   | 'cooking'
   | 'forage'
   | 'upgrade'
@@ -86,6 +88,7 @@ export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: ()
   { key: 'social', label: '邻里', icon: Users },
   { key: 'manor', label: '庄园', icon: Home },
   { key: 'festival', label: '节会', icon: Calendar },
+  { key: 'society', label: '村社', icon: ShieldCheck },
   { key: 'village', label: '桃源村', icon: Users },
   { key: 'shop', label: '商圈', icon: Store },
   { key: 'forage', label: '竹林', icon: TreePine },

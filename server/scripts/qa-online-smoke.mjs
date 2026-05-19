@@ -1695,6 +1695,56 @@ try {
     assert(latestMemorial?.photo_taken === true && typeof latestMemorial?.photo_line === 'string' && latestMemorial.photo_line.length >= 4, 'festival memorial did not preserve photo snapshot text')
   })
 
+  let createdSocietyId = ''
+  let createdSocietyName = ''
+  await runCheck('GET /api/taoyuan/online/societies read path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies')
+    assert(response.ok, `society overview returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.visible_societies) && Array.isArray(data?.theme_options), 'society overview payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies write path', async () => {
+    createdSocietyName = `烟火社${String(Date.now()).slice(-4)}`
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: createdSocietyName,
+        summary: 'smoke society summary',
+        emblem: 'lantern_medallion',
+        theme: 'festival_hosts',
+        visibility: 'semi_public',
+        capacity: 24,
+        join_requirement_id: 'friends_recommended',
+        join_requirement_note: '先看重协作节奏，再谈后续提案。',
+      }),
+    })
+    assert(response.ok, `society create returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.society?.id, 'society create payload is incomplete')
+    assert(String(data?.society?.name || '') === createdSocietyName, 'society create did not preserve society name')
+    assert(String(data?.society?.visibility || '') === 'semi_public', 'society create did not preserve visibility')
+    assert(String(data?.society?.join_requirement_id || '') === 'friends_recommended', 'society create did not preserve join requirement')
+    createdSocietyId = String(data.society.id)
+  })
+
+  await runCheck('GET /api/taoyuan/online/societies own readback', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies')
+    assert(response.ok, `own society readback returned ${response.status}`)
+    assert(data?.ok === true && data?.my_society?.id === createdSocietyId, 'own society readback payload is incomplete')
+    assert(Array.isArray(data?.my_society?.members) && data.my_society.members.some(entry => entry?.username === sessionState.username && entry?.role === 'president'), 'own society readback did not preserve founder role')
+  })
+
+  await runCheck('GET /api/taoyuan/online/societies public visibility', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies')
+    assert(response.ok, `public society readback returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.visible_societies), 'public society readback payload is incomplete')
+    const createdSociety = data.visible_societies.find(entry => entry?.id === createdSocietyId)
+    assert(createdSociety && String(createdSociety?.name || '') === createdSocietyName, 'created society missing from public list')
+    assert(String(createdSociety?.leader_username || '') === sessionState.username, 'created society did not preserve founder username')
+  })
+
   await runCheck('fourth session bootstrap', async () => {
     await bootstrapSession(quaternarySessionState, 'smk4', 180)
   })

@@ -46,6 +46,7 @@ const router = createRouter({
         { path: 'social', name: 'social', component: () => import('@/views/game/SocialView.vue') },
         { path: 'manor', name: 'manor', component: () => import('@/views/game/ManorView.vue') },
         { path: 'festival', name: 'festival', component: () => import('@/views/game/FestivalView.vue') },
+        { path: 'society', name: 'society', component: () => import('@/views/game/SocietyView.vue') },
         { path: 'village-projects', name: 'village-projects', component: () => import('@/views/game/VillageView.vue') },
         { path: 'shop', name: 'shop', component: () => import('@/views/game/ShopView.vue') },
         { path: 'forage', name: 'forage', component: () => import('@/views/game/ForageView.vue') },

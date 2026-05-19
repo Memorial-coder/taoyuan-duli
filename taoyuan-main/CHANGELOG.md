@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0519 村社创建（L70 第一轮）
+- 新增 `server/src/taoyuanSocietyRuntime.js` 与 `/api/taoyuan/online/societies`，把第一版“村社”正式接进在线层；当前已支持创建村社、保存名称、简介、徽记、主题、公开范围、成员容量与入社条件，不再和单机公会系统混用同一条实现线。
+- 新增 `taoyuan-main/src/utils/societyApi.ts`、`src/stores/useSocietyStore.ts` 与 `src/views/game/SocietyView.vue`，游戏内现已长出第一版“村社”面板，可直接查看自己的村社卡片、最近动态、基础成员名单，以及其他公开 / 半公开村社的基础信息。
+- `taoyuan-main/src/router/index.ts`、`src/composables/useNavigation.ts`、`src/data/timeConstants.ts` 与 `src/components/game/MobileMapMenu.vue` 已同步补出村社入口；现在村社已经成为和邻里、庄园、节会并列的游戏内导航面板，而不是继续借“公会”或其他旧入口暂挂。
+- `server/scripts/qa-online-smoke.mjs` 已补进 `L70` 回归：当前会实际验证村社总览读取、创建村社、创建者回读自己的村社，以及其他账号从公开列表回看到这张新建村社卡片。
+
 ### 0519 节会纪念册与 L6 回归（L64 / L65 第一轮）
 - `server/src/taoyuanActivityRoomRuntime.js` 已把节会纪念册正式接进节会奖励真实落档链：房间 `close` 写回铜钱、节会纪念券、限定装饰和节气称号时，会同步沉淀房型、玩法模板、奖励摘要、同场成员、同场好友和合照文案到个人节会纪念册。
 - `taoyuan-main/src/utils/festivalRoomApi.ts`、`src/stores/useFestivalRoomStore.ts` 与 `src/views/game/FestivalView.vue` 也同步补出“最近纪念册”读链和 UI 面板；现在节会页右侧可以直接回看最近参加过哪些节会、拿到哪些奖励、和谁同场，以及这场节会留下的留影文案。

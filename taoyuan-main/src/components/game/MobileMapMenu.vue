@@ -240,6 +240,9 @@
       shop: 'shop',
       '节会': 'festival',
       festival: 'festival',
+      '村社': 'society',
+      society: 'society',
+      '村社组织': 'society',
       '鱼塘': 'fishpond',
       fishpond: 'fishpond',
       '博物馆': 'museum',
@@ -348,7 +351,7 @@
   const mobileMapToolIconSize = computed(() => Number((16 * mobileMapTileScale.value).toFixed(2)))
 
   const farmGroup = computed(() => pick(['farm', 'animal', 'cottage', 'home', 'manor', 'breeding', 'fishpond', 'decoration']))
-  const villageGroup = computed(() => pick(['social', 'festival', 'village', 'shop', 'museum', 'guild']))
+  const villageGroup = computed(() => pick(['social', 'festival', 'society', 'village', 'shop', 'museum', 'guild']))
   const wildGroup = computed(() => pick(['forage', 'fishing', 'mining', 'hanhai', 'region-map']))
   const craftGroup = computed(() => pick(['cooking', 'workshop', 'upgrade']))
   const personalGroup = computed(() => pick(['charinfo', 'inventory', 'skills', 'achievement', 'wallet', 'quest', 'mail', 'glossary']))

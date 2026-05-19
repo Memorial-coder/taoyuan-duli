@@ -141,6 +141,7 @@ export const TAB_TO_LOCATION_GROUP: Record<string, LocationGroup | null> = {
   manor: 'farm',
   social: 'village_area',
   festival: 'village_area',
+  society: 'village_area',
   village: 'village_area',
   shop: 'village_area',
   cooking: 'village_area',
