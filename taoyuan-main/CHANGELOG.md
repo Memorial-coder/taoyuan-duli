@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0519 节会房间底座与场景模板（L60-L61 第一轮）
+- 新增 `server/src/taoyuanActivityRoomRuntime.js` 与 `/api/taoyuan/online/festival/rooms` 一组房间接口，把第一版节会房间底座正式接进服务端运行态；当前已经支持创建、邀请、加入、准备确认、倒计时、断线重连、结算凭证和关闭流程。
+- 新增 `taoyuan-main/src/utils/festivalRoomApi.ts`、`taoyuan-main/src/stores/useFestivalRoomStore.ts` 与 `taoyuan-main/src/views/game/FestivalView.vue`，游戏内现已长出第一版“节会”面板，可直接创建房间、邀请玩家、切换 ready、触发倒计时、模拟断线恢复并查看最近结算凭证。
+- `taoyuan-main/src/router/index.ts`、`src/composables/useNavigation.ts`、`src/components/game/MobileMapMenu.vue` 与 `src/data/timeConstants.ts` 已同步补出节会入口；现在节会已经成为和邻里、庄园、委托并列的游戏内导航面板，不再只能挂在节日弹层之外。
+- 第一版节会房型也已并入房间模板：元日守岁、上元灯会、端午赛舟、七夕同游、中秋赏月和腊八共煮都可以直接作为模板创建，并共享同一套房间状态机与结算流程。
+- `server/scripts/qa-online-smoke.mjs` 已补进节会房间回归：当前会实际验证房间总览、六个模板读取、开房、邀请、加入、双人 ready、倒计时、断线重连、结算和关闭。
+
 ### 0519 官方调控（L54 第一轮）
 - 新增 `server/src/taoyuanMarketGovernance.js`，并在 `server/src/config.js` 增补慢交易治理默认项，把每周交换站、节庆摊位和邻里寄售统一收进价格区间、稀有品限制、来源开关、频率限制、资金波动上限、重复挂单上限与黑名单制裁。
 - `server/src/routes/api.js` 已补出 `/api/taoyuan/exchange-station/governance`、`/api/admin/taoyuan/market-governance` 与 `/api/admin/taoyuan/market-governance/sanctions/:username`；`server/src/taoyuanWeeklyExchangeStation.js`、`server/src/taoyuanFestivalStall.js`、`server/src/taoyuanNeighborConsignment.js` 也已同步接入治理校验与记录写回。

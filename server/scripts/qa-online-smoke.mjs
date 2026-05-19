@@ -1439,6 +1439,155 @@ try {
     assert(data?.governance?.anti_abuse?.daily_trade_action_limit >= 1, 'market governance did not expose anti-abuse config')
   })
 
+  let createdFestivalRoomId = ''
+  await runCheck('GET /api/taoyuan/online/festival/rooms read path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/festival/rooms')
+    assert(response.ok, `festival room overview returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.templates) && data.templates.length > 0, 'festival room overview payload is incomplete')
+    const templateIds = new Set((data?.templates || []).map(item => String(item?.id || '')))
+    for (const requiredId of ['yuanri_vigil', 'lantern_fair', 'dragon_boat', 'qixi_stroll', 'mid_autumn_moonwatch', 'laba_cookpot']) {
+      assert(templateIds.has(requiredId), `festival room overview missing template ${requiredId}`)
+    }
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/festival/rooms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        template_id: 'dragon_boat',
+        title: `smoke 节会房间 ${Date.now()}`,
+      }),
+    })
+    assert(response.ok, `festival room create returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.id, 'festival room create payload is incomplete')
+    createdFestivalRoomId = String(data.room.id)
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/invite write path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/invite`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: secondarySessionState.username,
+      }),
+    })
+    assert(response.ok, `festival room invite returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.invitations?.some(item => item?.target_username === secondarySessionState.username), 'festival room invite payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/join write path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/join`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': secondarySessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `festival room join returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.members?.some(item => item?.username === secondarySessionState.username && item?.status === 'joined'), 'festival room join payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/ready-check write path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/ready-check`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `festival room ready-check returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.state === 'ready_check', 'festival room ready-check payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/ready primary path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/ready`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `festival room primary ready returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.members?.some(item => item?.username === sessionState.username && item?.status === 'ready'), 'festival room primary ready payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/ready secondary path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/ready`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': secondarySessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `festival room secondary ready returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.members?.some(item => item?.username === secondarySessionState.username && item?.status === 'ready'), 'festival room secondary ready payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/start countdown path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/start`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `festival room countdown returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.state === 'countdown', 'festival room countdown payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/disconnect path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/disconnect`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': secondarySessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `festival room disconnect returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.state === 'paused', 'festival room disconnect payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/reconnect path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/reconnect`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': secondarySessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `festival room reconnect returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && ['countdown', 'running'].includes(String(data?.room?.state || '')), 'festival room reconnect payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/online/festival/rooms running readback', async () => {
+    await wait(6500)
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/festival/rooms')
+    assert(response.ok, `festival room readback returned ${response.status}`)
+    assert(data?.ok === true && data?.my_room?.id === createdFestivalRoomId, 'festival room readback payload is incomplete')
+    assert(String(data?.my_room?.state || '') === 'running', `festival room did not reach running state, current=${data?.my_room?.state}`)
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/settle path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/settle`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `festival room settle returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.state === 'settling', 'festival room settle payload is incomplete')
+    assert(Array.isArray(data?.room?.settlement_receipts) && data.room.settlement_receipts.length >= 2, 'festival room settle did not generate per-member receipts')
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/close path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/close`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `festival room close returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.state === 'closed', 'festival room close payload is incomplete')
+  })
+
   await runCheck('fourth session bootstrap', async () => {
     await bootstrapSession(quaternarySessionState, 'smk4', 180)
   })

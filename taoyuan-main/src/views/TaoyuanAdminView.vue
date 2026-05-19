@@ -954,6 +954,7 @@
     const routeLabels: Record<string, string> = {
       farm: '农场',
       village: '村庄',
+      festival: '节会',
       'village-projects': '村庄建设',
       shop: '商店',
       forage: '采集',

@@ -107,6 +107,7 @@
     home: '家园',
     cottage: '小屋与家庭',
     village: '村庄与 NPC',
+    festival: '节会与房间',
     shop: '商店',
     forage: '采集',
     fishing: '钓鱼',
@@ -136,6 +137,7 @@
     mining: ['下矿前要准备什么？', '矿洞的核心收益是什么？', '体力不够时还适合下矿吗？'],
     wallet: ['钱包兑换页面是做什么的？', '为什么提示超过当日限制？', '兑换前我要注意什么？'],
     quest: ['任务卡住了怎么办？', '不知道下一步做什么怎么办？', '主线任务有什么用？'],
+    festival: ['节会房间现在能做什么？', '怎么邀请别人一起参加节会？', '倒计时和断线恢复是怎么走的？'],
   }
 
   const currentRouteName = computed(() => (typeof route.name === 'string' ? route.name : ''))

@@ -14,6 +14,7 @@ const taoyuanAiAssistant = require('../taoyuanAiAssistant');
 const taoyuanSocialRuntime = require('../taoyuanSocialRuntime');
 const taoyuanManorRuntime = require('../taoyuanManorRuntime');
 const taoyuanCoopOrderRuntime = require('../taoyuanCoopOrderRuntime');
+const taoyuanActivityRoomRuntime = require('../taoyuanActivityRoomRuntime');
 const taoyuanWeeklyExchangeStation = require('../taoyuanWeeklyExchangeStation');
 const taoyuanFestivalStall = require('../taoyuanFestivalStall');
 const taoyuanNeighborConsignment = require('../taoyuanNeighborConsignment');
@@ -1074,6 +1075,159 @@ router.delete('/taoyuan/online/social/subscriptions/:subscriptionId', loginRequi
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '取消订阅失败' });
+  }
+});
+
+router.get('/taoyuan/online/festival/rooms', loginRequired, async (req, res) => {
+  try {
+    const overview = await taoyuanActivityRoomRuntime.listFestivalRoomOverview(req.session.username);
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取节会房间失败' });
+  }
+});
+
+router.post('/taoyuan/online/festival/rooms', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.createFestivalRoom(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '创建节会房间失败' });
+  }
+});
+
+router.post('/taoyuan/online/festival/rooms/:roomId/invite', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.inviteFestivalRoomMember(req.params.roomId, req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '发送节会邀请失败' });
+  }
+});
+
+router.post('/taoyuan/online/festival/rooms/:roomId/join', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.joinFestivalRoom(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '加入节会房间失败' });
+  }
+});
+
+router.post('/taoyuan/online/festival/rooms/:roomId/leave', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.leaveFestivalRoom(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '离开节会房间失败' });
+  }
+});
+
+router.post('/taoyuan/online/festival/rooms/:roomId/ready-check', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.startFestivalRoomReadyCheck(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '开启准备确认失败' });
+  }
+});
+
+router.post('/taoyuan/online/festival/rooms/:roomId/ready', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.setFestivalRoomReady(req.params.roomId, true, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '设置准备状态失败' });
+  }
+});
+
+router.post('/taoyuan/online/festival/rooms/:roomId/unready', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.setFestivalRoomReady(req.params.roomId, false, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '取消准备失败' });
+  }
+});
+
+router.post('/taoyuan/online/festival/rooms/:roomId/start', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.startFestivalRoomCountdown(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '开始节会倒计时失败' });
+  }
+});
+
+router.post('/taoyuan/online/festival/rooms/:roomId/disconnect', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.disconnectFestivalRoom(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '节会房间断线保护失败' });
+  }
+});
+
+router.post('/taoyuan/online/festival/rooms/:roomId/reconnect', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.reconnectFestivalRoom(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复节会房间失败' });
+  }
+});
+
+router.post('/taoyuan/online/festival/rooms/:roomId/settle', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.settleFestivalRoom(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '节会房间结算失败' });
+  }
+});
+
+router.post('/taoyuan/online/festival/rooms/:roomId/close', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.closeFestivalRoom(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '关闭节会房间失败' });
   }
 });
 
