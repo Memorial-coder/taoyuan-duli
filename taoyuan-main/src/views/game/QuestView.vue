@@ -486,6 +486,9 @@
               <p v-if="order.priority_reasons?.length" class="text-[10px] text-warning mt-1">
                 优先推荐：{{ order.priority_reasons.join('；') }}
               </p>
+              <p v-if="order.priority_score" class="text-[10px] text-muted mt-1">
+                推荐分：{{ order.priority_score }}
+              </p>
               <p v-if="order.assignee_username" class="text-[10px] text-success mt-1">
                 当前接单人：{{ order.assignee_display_name || order.assignee_username }}
               </p>
@@ -536,6 +539,12 @@
               </p>
               <p class="text-[10px] text-accent mt-1">
                 回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
+              </p>
+              <p v-if="order.priority_reasons?.length" class="text-[10px] text-warning mt-1">
+                推荐理由：{{ order.priority_reasons.join('；') }}
+              </p>
+              <p v-if="order.priority_score" class="text-[10px] text-muted mt-1">
+                推荐分：{{ order.priority_score }}
               </p>
               <div v-if="order.collaboration_mode === 'multi_stage'" class="space-y-2 mt-2">
                 <div v-for="stage in coopOrderStore.getOpenStages(order)" :key="stage.id" class="border border-accent/10 rounded-xs p-2">

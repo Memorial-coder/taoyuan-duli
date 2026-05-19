@@ -1043,6 +1043,7 @@ async function unfollowTarget(username, subscriptionId) {
 module.exports = {
   getOwnProfile,
   getPublicProfile,
+  getStoredProfile,
   updateOwnProfile,
   listRelationshipOverview,
   requestFriendship,

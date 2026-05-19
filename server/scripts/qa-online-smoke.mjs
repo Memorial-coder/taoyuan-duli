@@ -774,6 +774,26 @@ try {
     assert(data?.ok === true && data?.request?.status === 'accepted', 'friend request accept for coop order scope payload is incomplete')
   })
 
+  await runCheck('POST /api/taoyuan/online/profile coop recommendation tag setup', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/profile', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        visibility: 'public',
+        public_intro: 'smoke coop helper',
+        manor_name: '协作试验庄',
+        public_title: '互助试验员',
+        neighborhood_role: '互助成员',
+        showcase_theme: '节庆备货',
+        selected_tag_ids: ['festival', 'mutual_aid'],
+      }),
+    })
+    assert(response.ok, `coop recommendation profile setup returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.profile?.public_tags), 'coop recommendation profile setup payload is incomplete')
+  })
+
   await runCheck('POST /api/taoyuan/online/orders friends write path', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
       method: 'POST',
@@ -800,8 +820,11 @@ try {
   await runCheck('GET /api/taoyuan/online/orders friends visibility', async () => {
     const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
     assert(secondaryOverview.response.ok, `friend-scope coop order overview returned ${secondaryOverview.response.status}`)
-    assert(secondaryOverview.data?.orders?.some(entry => entry?.title === friendCoopOrderTitle && entry?.scope === 'friends'), 'friend-scope coop order missing from viewer overview')
-    assert(secondaryOverview.data?.orders?.some(entry => entry?.title === friendCoopOrderTitle && Number(entry?.priority_score) > 0), 'friend-scope coop order did not receive reputation-based priority')
+    const friendOrder = secondaryOverview.data?.orders?.find(entry => entry?.title === friendCoopOrderTitle && entry?.scope === 'friends')
+    assert(friendOrder, 'friend-scope coop order missing from viewer overview')
+    assert(Number(friendOrder?.priority_score) > 0, 'friend-scope coop order did not receive recommendation priority')
+    assert(Array.isArray(friendOrder?.priority_reasons) && friendOrder.priority_reasons.some(reason => String(reason).includes('好友')), 'friend-scope coop order missing friend recommendation reason')
+    assert(Array.isArray(friendOrder?.priority_reasons) && friendOrder.priority_reasons.some(reason => String(reason).includes('节庆') || String(reason).includes('互助')), 'friend-scope coop order missing tag recommendation reason')
   })
 
   let neighborInviteId = ''
@@ -871,7 +894,9 @@ try {
   await runCheck('GET /api/taoyuan/online/orders neighbors visibility', async () => {
     const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
     assert(secondaryOverview.response.ok, `neighbor-scope coop order overview returned ${secondaryOverview.response.status}`)
-    assert(secondaryOverview.data?.orders?.some(entry => entry?.title === neighborCoopOrderTitle && entry?.scope === 'neighbors'), 'neighbor-scope coop order missing from viewer overview')
+    const neighborOrder = secondaryOverview.data?.orders?.find(entry => entry?.title === neighborCoopOrderTitle && entry?.scope === 'neighbors')
+    assert(neighborOrder, 'neighbor-scope coop order missing from viewer overview')
+    assert(Array.isArray(neighborOrder?.priority_reasons) && neighborOrder.priority_reasons.some(reason => String(reason).includes('邻里')), 'neighbor-scope coop order missing neighbor recommendation reason')
   })
 
   await runCheck('fourth session bootstrap', async () => {

@@ -103,6 +103,13 @@
 - `server/scripts/qa-online-smoke.mjs` 已补入两阶段接力验证：现在会实际创建一张多段求助单，让两名不同玩家分别接下并完成两个阶段，最后确认整单自动收口。
 - smoke 脚本结束后也会自动删除 `smk*` 测试用户，避免测试账号残留。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/index.js`、`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
+### 0518 互助推荐（L35 第一轮）
+- `server/src/taoyuanCoopOrderRuntime.js` 现在会在现有互助声望与信赖关系之外，再结合公开标签、最近活跃近似状态、好友关系和邻里关系给求助单生成推荐分与推荐理由。
+- `taoyuan-main/src/views/game/QuestView.vue` 已把这层推荐结果真正露出来：当前可见求助单会直接显示“推荐理由”和“推荐分”，不再只靠默认排序让玩家自己猜。
+- `server/scripts/qa-online-smoke.mjs` 也补进了推荐验证：二号账号会先写入公开标签，再断言好友单会带好友 / 标签推荐理由，邻里单会带邻里推荐理由。
+### 0518 L3 回归验收（L36 第一轮）
+- 求助单发布、接单、交付、结算凭证、互助声望和推荐理由这条 L3 主链路，当前已经一起进入在线 smoke，不再只靠手动点任务页确认。
+- 本轮已重新通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanSocialRuntime.js`、`node --check server/src/taoyuanCoopOrderRuntime.js` 与 `node server/scripts/qa-online-smoke.mjs`。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

@@ -34,6 +34,17 @@ const DELIVERY_STATUSES = Object.freeze(['none', 'submitted', 'confirmed', 'comp
 const RECEIPT_STATUSES = Object.freeze(['pending_owner_confirm', 'confirmed', 'compensation_pending']);
 const COMPENSATION_STATUSES = Object.freeze(['pending', 'resolved']);
 const COLLABORATION_MODES = Object.freeze(['single', 'multi_stage']);
+const ORDER_TYPE_TO_PROFILE_TAGS = Object.freeze({
+  material_help: ['farming', 'mutual_aid'],
+  festival_supply: ['festival', 'farming', 'collection'],
+  museum_support: ['collection', 'exploration'],
+  fishpond_borrow: ['fishing', 'breeding'],
+  breeding_cert: ['breeding', 'collection'],
+  village_build: ['mutual_aid', 'decoration'],
+  expedition_supply: ['exploration', 'mutual_aid'],
+  npc_request: ['mutual_aid', 'festival'],
+  emergency_response: ['mutual_aid', 'exploration'],
+});
 
 function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
@@ -369,7 +380,20 @@ function buildViewerTrustSummary(store, viewerUsername) {
   };
 }
 
-function buildOrderPriority(order, viewerSummary) {
+function inferTagMatch(orderType, publicTags = []) {
+  const desiredTags = ORDER_TYPE_TO_PROFILE_TAGS[orderType] || [];
+  if (!desiredTags.length || !Array.isArray(publicTags)) return [];
+  const ownedTagMap = new Map(
+    publicTags
+      .map(tag => [String(tag?.id || '').trim(), String(tag?.label || '').trim()])
+      .filter(([id]) => Boolean(id))
+  );
+  return desiredTags
+    .filter(tagId => ownedTagMap.has(tagId))
+    .map(tagId => ownedTagMap.get(tagId) || tagId);
+}
+
+function buildOrderPriority(order, viewerSummary, viewerSocialProfile = null, ownerRecentState = null) {
   const openStages = Array.isArray(order.stages)
     ? order.stages.filter(stage => !stage.assignee_username && stage.delivery_status === 'none')
     : [];
@@ -385,15 +409,39 @@ function buildOrderPriority(order, viewerSummary) {
     ? viewerSummary.top_helped_targets.find(entry => entry.username === order.owner_username)
     : null;
   const helperScore = trustTarget ? Math.max(0, trustTarget.help_count * 3 + trustTarget.total_points) : 0;
-  const priorityScore = specialtyScore * 4 + helperScore + (matchingStage ? 2 : 0);
+  const viewerTags = Array.isArray(viewerSocialProfile?.public_tags) ? viewerSocialProfile.public_tags : [];
+  const tagMatches = candidateTypes.flatMap(type => inferTagMatch(type, viewerTags));
+  const uniqueTagMatches = Array.from(new Set(tagMatches));
+  const tagScore = uniqueTagMatches.length * 5;
+  const viewerUsername = String(viewerSocialProfile?.username || '').trim();
+  const ownerUsername = String(order.owner_username || '').trim();
+  const isFriend = viewerUsername ? taoyuanSocialRuntime.isFriendWith(viewerUsername, ownerUsername) : false;
+  const isNeighbor = viewerUsername ? taoyuanSocialRuntime.isNeighborWith(viewerUsername, ownerUsername) : false;
+  const relationScore = isNeighbor ? 8 : isFriend ? 5 : 0;
+  const ownerLastActiveAt = Math.max(0, Math.floor(Number(ownerRecentState?.last_active_at) || 0));
+  const now = Math.floor(Date.now() / 1000);
+  const recentlyActive = ownerLastActiveAt > 0 && now - ownerLastActiveAt <= 3 * 24 * 60 * 60;
+  const activityScore = recentlyActive ? 3 : 0;
+  const priorityScore = specialtyScore * 4 + helperScore + tagScore + relationScore + activityScore + (matchingStage ? 2 : 0);
   const priorityReasons = [];
   if (matchingStage) {
     priorityReasons.push(`你更适合阶段「${matchingStage.title}」`);
   } else if (specialtyScore > 0) {
     priorityReasons.push(`你在 ${order.order_type} 方向已有 ${specialtyScore} 点互助积累`);
   }
+  if (uniqueTagMatches.length > 0) {
+    priorityReasons.push(`你的公开标签更贴近这类委托：${uniqueTagMatches.join('、')}`);
+  }
   if (trustTarget) {
     priorityReasons.push(`你曾帮助 ${trustTarget.display_name || trustTarget.username} ${trustTarget.help_count} 次`);
+  }
+  if (isNeighbor) {
+    priorityReasons.push('你与发布人同属一个邻里，适合优先承接');
+  } else if (isFriend) {
+    priorityReasons.push('你与发布人已经是好友，协作沟通成本更低');
+  }
+  if (recentlyActive) {
+    priorityReasons.push('发布人最近活跃，接单后更容易及时确认结算');
   }
   return {
     priority_score: priorityScore,
@@ -1314,12 +1362,20 @@ async function listVisibleCoopOrders(viewerUsername = '') {
   const store = loadCoopOrderStore();
   const normalizedViewer = String(viewerUsername || '').trim();
   const viewerSummary = buildViewerTrustSummary(store, normalizedViewer);
+  const viewerSocialProfile = normalizedViewer
+    ? await taoyuanSocialRuntime.getPublicProfile(normalizedViewer, normalizedViewer).catch(() => null)
+    : null;
   const orders = markExpiredOrders(store)
     .filter(order => isOrderVisibleToViewer(order, normalizedViewer))
-    .map(order => ({
-      ...order,
-      ...buildOrderPriority(order, viewerSummary),
-    }))
+    .map(async order => {
+      const ownerRecentState = taoyuanSocialRuntime.getStoredProfile(order.owner_username);
+      return {
+        ...order,
+        ...buildOrderPriority(order, viewerSummary, viewerSocialProfile, ownerRecentState),
+      };
+    });
+  const resolvedOrders = await Promise.all(orders);
+  const sortedOrders = resolvedOrders
     .sort((left, right) => {
       if (left.status !== right.status) return left.status === 'open' ? -1 : 1;
       const priorityDiff = Math.max(0, Number(right.priority_score) || 0) - Math.max(0, Number(left.priority_score) || 0);
@@ -1338,7 +1394,7 @@ async function listVisibleCoopOrders(viewerUsername = '') {
     .sort((left, right) => right.created_at - left.created_at);
 
   return {
-    orders,
+    orders: sortedOrders,
     receipts,
     compensations,
     reputation_summary: viewerSummary,
