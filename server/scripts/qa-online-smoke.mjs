@@ -1854,6 +1854,46 @@ try {
     assert(Array.isArray(data?.my_society?.members) && data.my_society.members.some(entry => entry?.username === secondarySessionState.username && entry?.role === 'member'), 'society role cycle did not return secondary member to member state')
   })
 
+  await runCheck('POST /api/taoyuan/online/societies/public-projects/:projectId/contribute write path', async () => {
+    const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(beforeSave.response.ok, `secondary save readback before public project returned ${beforeSave.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeSave.data?.raw || beforeSave.data?.slot?.raw || beforeSave.data?.save?.raw || '')
+    const preMoney = Math.max(0, Math.floor(Number(beforeDecrypted?.player?.money) || 0))
+    const preWood = getInventoryItemQuantity(beforeDecrypted, 'wood')
+
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-projects/bridge/contribute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        package_id: 'wood_bundle',
+      }),
+    })
+    assert(response.ok, `society public project contribute returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.project?.id === 'bridge', 'society public project contribute payload is incomplete')
+    assert(Number(data?.project?.progress || 0) === 30, `society public project progress did not advance to 30, current=${Number(data?.project?.progress || 0)}`)
+    assert(Array.isArray(data?.project?.recent_contributions) && data.project.recent_contributions.some(entry => entry?.username === secondarySessionState.username && entry?.package_id === 'wood_bundle'), 'society public project contribution record is missing')
+
+    const afterSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(afterSave.response.ok, `secondary save readback after public project returned ${afterSave.response.status}`)
+    const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
+    const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
+    const afterWood = getInventoryItemQuantity(afterDecrypted, 'wood')
+    assert(afterMoney === preMoney - 20, `society public project did not deduct money correctly, expected money=${preMoney - 20}, current money=${afterMoney}`)
+    assert(afterWood === preWood - 1, `society public project did not deduct wood correctly, expected wood=${preWood - 1}, current wood=${afterWood}`)
+    secondaryExpectedMoney -= 20
+  })
+
+  await runCheck('GET /api/taoyuan/online/societies public project readback', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies')
+    assert(response.ok, `society public project readback returned ${response.status}`)
+    assert(data?.ok === true && data?.my_society?.id === createdSocietyId, 'society public project readback payload is incomplete')
+    const bridgeProject = data?.my_society?.public_projects?.find(entry => entry?.id === 'bridge')
+    assert(bridgeProject && Number(bridgeProject?.progress || 0) === 30, 'society public project readback did not preserve bridge progress')
+    assert(Array.isArray(bridgeProject?.recent_contributions) && bridgeProject.recent_contributions.some(entry => entry?.username === secondarySessionState.username), 'society public project readback did not preserve contribution history')
+  })
+
   await runCheck('fourth session bootstrap', async () => {
     await bootstrapSession(quaternarySessionState, 'smk4', 180)
   })

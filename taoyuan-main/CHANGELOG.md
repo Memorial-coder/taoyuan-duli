@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0519 村社公共建设（L73 第一轮）
+- `server/src/taoyuanSocietyRuntime.js` 已在现有在线村社 runtime 上补齐第一轮公共建设模型：当前已接入 `修桥 / 修码头 / 建集市 / 建书院 / 修灯街 / 扩仓库 / 修温泉 / 建祠堂` 八项工程，并把工程进度、固定捐献包、个人贡献、最近捐献、完工反馈和世界反馈沉淀到同一份村社数据结构里，不另拆第二套组织存档。
+- 公共建设捐献当前采用固定包口径：`筹备工钱 / 木料捐献 / 石料捐献 / 图纸文书` 四种捐献包会真实扣减当前账号服务端存档里的铜钱与材料，再推进工程进度并回写成员贡献；这条链已经收成“存档扣减 + 村社进度”同轮落账，而不是仅改前端状态。
+- `server/src/routes/api.js` 已新增 `/api/taoyuan/online/societies/public-projects/:projectId/contribute`，并沿用现有联机串行锁承接公共建设写路，避免工程进度与玩家存档扣减出现半结算或并发穿透。
+- `taoyuan-main/src/utils/societyApi.ts`、`src/stores/useSocietyStore.ts` 与 `src/views/game/SocietyView.vue` 已同步补出公共建设类型、store 动作与 UI：现在可以在村社页直接查看每项工程的进度条、剩余进度、我的贡献次数、可用捐献包和最近捐献记录。
+- `server/scripts/qa-online-smoke.mjs` 已补进 `L73` 回归：当前会实际验证公共建设捐献写路、服务端存档扣减、工程进度推进与公共建设回读，村社共建链第一轮已具备可重复回归能力。
+
 ### 0519 村社职位与提案（L71 / L72 第一轮）
 - `server/src/taoyuanSocietyRuntime.js` 已在独立在线村社 runtime 上补齐成员流转与治理结构：数据继续落在 `taoyuan_societies.json`，并把 `society_join_requests` 与 `proposals` 作为在线村社专属结构沉淀，不复用单机 `GuildView / guild.ts` 逻辑。
 - 当前已支持 `president / steward / buyer / treasurer / scribe / member` 六种职位，以及申请加入、邀请加入、接受 / 拒绝请求、职位调整、公告更新、提案创建、投票、归档与历史回读；权限口径固定为 `president + steward` 管成员流转、`president + steward + scribe` 管公告与提案归档、仅 `president` 可调职位。

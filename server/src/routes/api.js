@@ -1214,6 +1214,20 @@ router.post('/taoyuan/online/societies/proposals/:proposalId/close', loginRequir
   }
 });
 
+router.post('/taoyuan/online/societies/public-projects/:projectId/contribute', loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanSocietyRuntime.contributeSocietyPublicProject(req.params.projectId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '提交公共建设捐献失败' });
+    }
+  });
+});
+
 router.post('/taoyuan/online/festival/rooms', loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.createFestivalRoom(req.body || {}, {

@@ -76,6 +76,56 @@ export interface SocietyProposalSnapshot {
   votes: SocietyProposalVoteSnapshot[]
 }
 
+export interface SocietyCostEntry {
+  type: 'money' | 'item'
+  amount?: number
+  item_id?: string
+  quantity?: number
+  quality?: string
+  label: string
+}
+
+export interface SocietyProjectPackageSnapshot {
+  id: string
+  label: string
+  summary: string
+  progress_gain: number
+  costs: SocietyCostEntry[]
+}
+
+export interface SocietyProjectContributionSnapshot {
+  id: string
+  username: string
+  display_name: string
+  package_id: string
+  package_label: string
+  progress_gain: number
+  costs: SocietyCostEntry[]
+  created_at: number
+}
+
+export interface SocietyPublicProjectSnapshot {
+  id: string
+  label: string
+  summary: string
+  status: 'active' | 'completed'
+  status_label: string
+  progress: number
+  target_progress: number
+  progress_percent: number
+  remaining_progress: number
+  completed_at: number
+  completed_by: string
+  completed_by_display_name: string
+  progress_note: string
+  completion_feedback: string
+  world_feedback: string
+  can_contribute: boolean
+  my_contribution_count: number
+  contribution_packages: SocietyProjectPackageSnapshot[]
+  recent_contributions: SocietyProjectContributionSnapshot[]
+}
+
 export interface SocietySnapshot {
   id: string
   name: string
@@ -110,6 +160,7 @@ export interface SocietySnapshot {
   activity_log: SocietyActivityEntry[]
   active_proposals: SocietyProposalSnapshot[]
   proposal_history: SocietyProposalSnapshot[]
+  public_projects: SocietyPublicProjectSnapshot[]
 }
 
 export interface SocietyOverviewResponse {
@@ -152,6 +203,13 @@ export interface SocietyOverviewResponse {
     label: string
     summary: string
   }>
+  public_project_defs: Array<{
+    id: string
+    label: string
+    summary: string
+    target_progress: number
+  }>
+  public_project_package_options: SocietyProjectPackageSnapshot[]
   msg?: string
 }
 
@@ -314,5 +372,19 @@ export const closeSocietyProposal = async (proposalId: string, resolutionNote: s
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ resolution_note: resolutionNote }),
+  })
+}
+
+export const contributeSocietyPublicProject = async (projectId: string, packageId: string) => {
+  return requestSocietyAction<{
+    ok: boolean
+    project?: SocietyPublicProjectSnapshot
+    society?: SocietySnapshot
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+    player_money?: number
+  }>(`/api/taoyuan/online/societies/public-projects/${encodeURIComponent(projectId)}/contribute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ package_id: packageId }),
   })
 }

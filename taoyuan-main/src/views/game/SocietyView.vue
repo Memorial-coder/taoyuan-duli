@@ -229,6 +229,60 @@
               </div>
             </div>
           </div>
+
+          <div class="border border-accent/20 rounded-xs p-3 bg-bg/10 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">公共建设</p>
+              <span class="text-[10px] text-muted">L73 第一轮</span>
+            </div>
+            <div class="space-y-2">
+              <div
+                v-for="project in societyStore.mySociety.public_projects"
+                :key="project.id"
+                class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
+              >
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="text-xs text-text">{{ project.label }}</p>
+                    <p class="text-[10px] text-muted mt-1">{{ project.status_label }} · {{ project.progress }}/{{ project.target_progress }} · 已贡献 {{ project.my_contribution_count }} 次</p>
+                  </div>
+                  <span class="text-[10px]" :class="project.status === 'completed' ? 'text-success' : 'text-accent'">
+                    {{ project.progress_percent }}%
+                  </span>
+                </div>
+                <div class="w-full h-2 rounded-xs bg-bg/80 overflow-hidden mt-2">
+                  <div class="h-full bg-accent/70 transition-all" :style="{ width: `${project.progress_percent}%` }" />
+                </div>
+                <p class="text-[10px] text-muted mt-2 leading-4">{{ project.summary }}</p>
+                <p class="text-[10px] text-muted mt-1 leading-4">{{ project.progress_note }}</p>
+                <p v-if="project.status === 'completed'" class="text-[10px] text-success mt-1 leading-4">{{ project.world_feedback }}</p>
+
+                <div v-if="project.can_contribute" class="grid gap-2 md:grid-cols-2 mt-3">
+                  <button
+                    v-for="entry in project.contribution_packages"
+                    :key="`${project.id}-${entry.id}`"
+                    type="button"
+                    class="text-left border border-accent/15 rounded-xs px-2 py-2 bg-bg/10 hover:border-accent/35 disabled:opacity-60 disabled:cursor-not-allowed"
+                    :disabled="societyStore.actionRunning"
+                    @click="contributeProject(project.id, entry.id)"
+                  >
+                    <p class="text-[10px] text-accent">{{ entry.label }} · +{{ entry.progress_gain }} 进度</p>
+                    <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+                    <p class="text-[10px] text-muted mt-1">{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
+                  </button>
+                </div>
+
+                <div v-if="project.recent_contributions.length > 0" class="mt-3">
+                  <p class="text-[10px] text-accent mb-1">最近捐献</p>
+                  <div class="space-y-1">
+                    <div v-for="entry in project.recent_contributions" :key="entry.id" class="text-[10px] text-muted leading-4">
+                      {{ entry.display_name }} 提交了 {{ entry.package_label }}（+{{ entry.progress_gain }}） · {{ entry.costs.map(cost => cost.label).join(' + ') }}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div v-else class="space-y-3">
@@ -453,6 +507,10 @@
   const archiveProposal = async (proposalId: string) => {
     await societyStore.archiveProposal(proposalId, proposalResolutionNotes[proposalId] || '').catch(() => {})
     proposalResolutionNotes[proposalId] = ''
+  }
+
+  const contributeProject = async (projectId: string, packageId: string) => {
+    await societyStore.contributeProject(projectId, packageId).catch(() => {})
   }
 
   onMounted(() => {

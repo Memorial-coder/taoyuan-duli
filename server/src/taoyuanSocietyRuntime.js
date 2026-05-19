@@ -1,13 +1,21 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
-const { createError, writeJsonFileAtomic } = require('./taoyuanSaveRuntime');
+const {
+  createError,
+  getActiveSaveContext,
+  persistGameplayData,
+  saveUserSaveSlots,
+  writeJsonFileAtomic,
+} = require('./taoyuanSaveRuntime');
 
 const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
   : path.join(__dirname, '../data');
 
 const TAOYUAN_SOCIETY_FILE = path.join(DATA_DIR, 'taoyuan_societies.json');
+const ITEM_MAX_STACK = 999;
+const TEMP_BAG_CAPACITY = 10;
 
 const SOCIETY_ROLE_LABELS = Object.freeze({
   president: '社长',
@@ -83,6 +91,127 @@ const SOCIETY_PROPOSAL_RESULT_LABELS = Object.freeze({
   pending: '待结论',
 });
 
+const SOCIETY_RESOURCE_LABELS = Object.freeze({
+  wood: '木材',
+  stone: '石料',
+  paper: '纸张',
+});
+
+const SOCIETY_PUBLIC_PROJECT_DEFS = Object.freeze([
+  {
+    id: 'bridge',
+    label: '修桥',
+    summary: '先把溪桥修稳，让成员、访客和运货路线都能安全过河。',
+    target_progress: 100,
+    completion_feedback: '溪桥已经修稳，村社往来不再总被河道绊住脚。',
+    world_feedback: '公共讨论里会更频繁提到桥头会面、过河送货和联机往来更顺。',
+  },
+  {
+    id: 'dock',
+    label: '修码头',
+    summary: '整修旧码头，给后续慢交易、远行补给和访客接待留出落点。',
+    target_progress: 100,
+    completion_feedback: '码头修缮完成，搬运、交接和远行筹备终于有了稳定落脚处。',
+    world_feedback: '活动和物流描述会更多提到船只、栈板、装货与临水往返的场景。',
+  },
+  {
+    id: 'market',
+    label: '建集市',
+    summary: '把分散摊点整理成稳定集市，给村社慢交易和节会摆摊留出中心区域。',
+    target_progress: 100,
+    completion_feedback: '集市已经立起来，村社终于有了对外展示和内部周转的公共舞台。',
+    world_feedback: '村社公告、交易与节会筹备文案会更自然地出现“集市”这层空间反馈。',
+  },
+  {
+    id: 'academy',
+    label: '建书院',
+    summary: '整理文书、账册和讲学空间，让提案、记录与知识传承有一处固定落点。',
+    target_progress: 100,
+    completion_feedback: '书院建成后，村社的公告、记录和议事终于不再像临时拼桌。',
+    world_feedback: '更多治理、学舍和典藏语境会被写进村社共治层的叙述里。',
+  },
+  {
+    id: 'lantern_street',
+    label: '修灯街',
+    summary: '把夜路照亮，给节会巡游、夜间互访和公共展示留出更体面的街面。',
+    target_progress: 100,
+    completion_feedback: '灯街亮起来后，夜间节会和访客动线终于有了明显的公共氛围。',
+    world_feedback: '节会、公告和公开村社描述会更常提到夜灯、街景和巡游路径。',
+  },
+  {
+    id: 'warehouse',
+    label: '扩仓库',
+    summary: '把公共备货空间扩出来，让后续共建、节会和物资周转有稳定缓冲。',
+    target_progress: 100,
+    completion_feedback: '仓库扩建完成后，村社在备货、调度和临时周转上终于没那么捉襟见肘。',
+    world_feedback: '更多共建和筹备反馈会出现“仓位更稳”“备货更从容”的公共感知。',
+  },
+  {
+    id: 'hot_spring',
+    label: '修温泉',
+    summary: '把旧泉重新引流修缮，给高强度联机协作之后留一处真正能歇口气的地方。',
+    target_progress: 100,
+    completion_feedback: '温泉修复后，村社终于不只是忙着干活，也开始拥有真正可回去歇息的公共角落。',
+    world_feedback: '更多生活层和节奏型反馈会提到恢复、休养与温泉一带的放松氛围。',
+  },
+  {
+    id: 'ancestral_hall',
+    label: '建祠堂',
+    summary: '把村社纪念、典礼和长期记忆沉下来，给后续史册与荣誉系统留出承接位。',
+    target_progress: 100,
+    completion_feedback: '祠堂立起来后，村社终于开始像一个会记事、会传承、会纪念彼此的共同体。',
+    world_feedback: '后续历史、纪念和荣誉叙述会更自然地围绕祠堂与典礼空间展开。',
+  },
+]);
+
+const SOCIETY_PUBLIC_PROJECT_DEF_MAP = Object.freeze(
+  Object.fromEntries(SOCIETY_PUBLIC_PROJECT_DEFS.map(entry => [entry.id, entry]))
+);
+
+const SOCIETY_PROJECT_PACKAGE_OPTIONS = Object.freeze([
+  {
+    id: 'survey_fund',
+    label: '筹备工钱',
+    summary: '先垫一笔工钱，让工程队和杂项采买继续往前走。',
+    progress_gain: 10,
+    costs: [{ type: 'money', amount: 30 }],
+  },
+  {
+    id: 'wood_bundle',
+    label: '木料捐献',
+    summary: '交 1 份木材和少量工钱，推进主体搭建与围挡修补。',
+    progress_gain: 30,
+    costs: [
+      { type: 'item', item_id: 'wood', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 20 },
+    ],
+  },
+  {
+    id: 'stone_bundle',
+    label: '石料捐献',
+    summary: '交 2 份石料和少量工钱，推进地基、铺面和稳固部分。',
+    progress_gain: 35,
+    costs: [
+      { type: 'item', item_id: 'stone', quantity: 2, quality: 'normal' },
+      { type: 'money', amount: 20 },
+    ],
+  },
+  {
+    id: 'planning_bundle',
+    label: '图纸文书',
+    summary: '交 1 份纸张和少量工钱，推进图纸、账册和公共规划。',
+    progress_gain: 15,
+    costs: [
+      { type: 'item', item_id: 'paper', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 15 },
+    ],
+  },
+]);
+
+const SOCIETY_PROJECT_PACKAGE_MAP = Object.freeze(
+  Object.fromEntries(SOCIETY_PROJECT_PACKAGE_OPTIONS.map(entry => [entry.id, entry]))
+);
+
 function createEmptySocietyStore() {
   return {
     societies: [],
@@ -157,6 +286,37 @@ function normalizeProposalResultChoice(value) {
   return ['support', 'reject', 'abstain', 'tie', 'pending'].includes(normalized) ? normalized : 'pending';
 }
 
+function clampPositiveInt(value, fallback = 0) {
+  const normalized = Math.floor(Number(value) || 0);
+  return normalized > 0 ? normalized : fallback;
+}
+
+function normalizeQuality(value) {
+  return ['normal', 'fine', 'excellent', 'supreme'].includes(String(value)) ? String(value) : 'normal';
+}
+
+function normalizeBundleEntry(entry) {
+  if (!entry || typeof entry !== 'object') return null;
+  const type = String(entry.type || '').trim();
+  if (type === 'money') {
+    const amount = clampPositiveInt(entry.amount, 0);
+    if (amount <= 0) return null;
+    return { type: 'money', amount };
+  }
+  if (type === 'item') {
+    const itemId = String(entry.item_id || '').trim();
+    const quantity = clampPositiveInt(entry.quantity, 0);
+    if (!itemId || quantity <= 0) return null;
+    return {
+      type: 'item',
+      item_id: itemId,
+      quantity,
+      quality: normalizeQuality(entry.quality),
+    };
+  }
+  return null;
+}
+
 function normalizeActivityEntry(entry) {
   return {
     id: sanitizeText(entry?.id || makeId('society_log'), 80),
@@ -220,6 +380,38 @@ function normalizeSocietyProposal(entry) {
   };
 }
 
+function normalizeSocietyPublicProjectContribution(entry) {
+  return {
+    id: sanitizeText(entry?.id || makeId('society_project_contribution'), 80),
+    username: normalizeUsername(entry?.username),
+    display_name: sanitizeText(entry?.display_name, 40),
+    package_id: sanitizeText(entry?.package_id, 40),
+    package_label: sanitizeText(entry?.package_label, 40),
+    progress_gain: Math.max(0, Math.floor(Number(entry?.progress_gain) || 0)),
+    costs: Array.isArray(entry?.costs) ? entry.costs.map(normalizeBundleEntry).filter(Boolean).slice(0, 8) : [],
+    created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
+  };
+}
+
+function normalizeSocietyPublicProject(entry) {
+  const def = SOCIETY_PUBLIC_PROJECT_DEF_MAP[String(entry?.id || '').trim()] || SOCIETY_PUBLIC_PROJECT_DEFS[0];
+  return {
+    id: def.id,
+    status: entry?.status === 'completed' ? 'completed' : 'active',
+    progress: Math.max(0, Math.floor(Number(entry?.progress) || 0)),
+    target_progress: Math.max(1, Math.floor(Number(entry?.target_progress) || def.target_progress || 100)),
+    completed_at: Math.max(0, Math.floor(Number(entry?.completed_at) || 0)),
+    completed_by: normalizeUsername(entry?.completed_by),
+    completed_by_display_name: sanitizeText(entry?.completed_by_display_name, 40),
+    progress_note: sanitizeText(entry?.progress_note, 120),
+    world_feedback: sanitizeText(entry?.world_feedback, 160) || def.world_feedback,
+    completion_feedback: sanitizeText(entry?.completion_feedback, 160) || def.completion_feedback,
+    contributions: Array.isArray(entry?.contributions)
+      ? entry.contributions.map(normalizeSocietyPublicProjectContribution).filter(item => item.id).slice(0, 60)
+      : [],
+  };
+}
+
 function normalizeSociety(entry) {
   return {
     id: sanitizeText(entry?.id || makeId('society'), 80),
@@ -244,7 +436,245 @@ function normalizeSociety(entry) {
     proposals: Array.isArray(entry?.proposals)
       ? entry.proposals.map(normalizeSocietyProposal).filter(proposal => proposal.title).slice(0, 60)
       : [],
+    public_projects: Array.isArray(entry?.public_projects)
+      ? entry.public_projects.map(normalizeSocietyPublicProject).filter(project => project.id).slice(0, SOCIETY_PUBLIC_PROJECT_DEFS.length)
+      : [],
   };
+}
+
+function createDefaultPublicProjectState(projectId) {
+  const def = SOCIETY_PUBLIC_PROJECT_DEF_MAP[projectId] || SOCIETY_PUBLIC_PROJECT_DEFS[0];
+  return normalizeSocietyPublicProject({
+    id: def.id,
+    status: 'active',
+    progress: 0,
+    target_progress: def.target_progress,
+    completed_at: 0,
+    completed_by: '',
+    completed_by_display_name: '',
+    progress_note: '',
+    world_feedback: def.world_feedback,
+    completion_feedback: def.completion_feedback,
+    contributions: [],
+  });
+}
+
+function ensureSocietyPublicProjects(society) {
+  const existing = new Map((society.public_projects || []).map(project => [normalizeSocietyPublicProject(project).id, normalizeSocietyPublicProject(project)]));
+  society.public_projects = SOCIETY_PUBLIC_PROJECT_DEFS.map(def => existing.get(def.id) || createDefaultPublicProjectState(def.id));
+  return society.public_projects;
+}
+
+function ensureInventoryState(saveData) {
+  if (!saveData.inventory || typeof saveData.inventory !== 'object') saveData.inventory = {};
+  if (!Array.isArray(saveData.inventory.items)) saveData.inventory.items = [];
+  if (!Array.isArray(saveData.inventory.tempItems)) saveData.inventory.tempItems = [];
+  if (!Number.isInteger(Number(saveData.inventory.capacity))) saveData.inventory.capacity = 24;
+  if (!saveData.player || typeof saveData.player !== 'object') saveData.player = {};
+  if (!Number.isFinite(Number(saveData.player.money))) saveData.player.money = 0;
+}
+
+function cloneInventorySlots(source) {
+  return (source || []).map(slot => ({
+    itemId: String(slot.itemId || ''),
+    quality: normalizeQuality(slot.quality),
+    quantity: clampPositiveInt(slot.quantity, 0),
+    locked: !!slot.locked,
+  })).filter(slot => slot.itemId && slot.quantity > 0);
+}
+
+function removeStackableItemFromSlots(slots, itemId, quantity, quality) {
+  let remaining = quantity;
+  for (let index = 0; index < slots.length && remaining > 0; index += 1) {
+    const slot = slots[index];
+    if (!slot || slot.itemId !== itemId || normalizeQuality(slot.quality) !== quality) continue;
+    const slotQuantity = clampPositiveInt(slot.quantity, 0);
+    const take = Math.min(remaining, slotQuantity);
+    if (take <= 0) continue;
+    slot.quantity = slotQuantity - take;
+    remaining -= take;
+    if (slot.quantity <= 0) {
+      slots.splice(index, 1);
+      index -= 1;
+    }
+  }
+  return remaining <= 0;
+}
+
+function countStackableItemAnywhere(saveData, itemId, quality) {
+  ensureInventoryState(saveData);
+  return [...saveData.inventory.items, ...saveData.inventory.tempItems]
+    .filter(slot => slot.itemId === itemId && (!quality || normalizeQuality(slot.quality) === quality))
+    .reduce((sum, slot) => sum + clampPositiveInt(slot.quantity, 0), 0);
+}
+
+function removeStackableItemAnywhere(saveData, itemId, quantity, quality) {
+  ensureInventoryState(saveData);
+  const normalizedItemId = String(itemId || '').trim();
+  const safeQuantity = clampPositiveInt(quantity, 0);
+  if (!normalizedItemId || safeQuantity <= 0) return false;
+  if (countStackableItemAnywhere(saveData, normalizedItemId, quality) < safeQuantity) return false;
+
+  let remaining = safeQuantity;
+  const qualityOrder = quality ? [quality] : ['normal', 'fine', 'excellent', 'supreme'];
+  for (const currentQuality of qualityOrder) {
+    if (remaining <= 0) break;
+    const tempCount = countStackableItemAnywhere({ inventory: { items: [], tempItems: saveData.inventory.tempItems } }, normalizedItemId, currentQuality);
+    const takeFromTemp = Math.min(remaining, tempCount);
+    if (takeFromTemp > 0) {
+      removeStackableItemFromSlots(saveData.inventory.tempItems, normalizedItemId, takeFromTemp, currentQuality);
+      remaining -= takeFromTemp;
+    }
+    const mainCount = countStackableItemAnywhere({ inventory: { items: saveData.inventory.items, tempItems: [] } }, normalizedItemId, currentQuality);
+    const takeFromMain = Math.min(remaining, mainCount);
+    if (takeFromMain > 0) {
+      removeStackableItemFromSlots(saveData.inventory.items, normalizedItemId, takeFromMain, currentQuality);
+      remaining -= takeFromMain;
+    }
+  }
+  return remaining <= 0;
+}
+
+function simulateAddToSlots(mainSlots, mainCapacity, tempSlots, tempCapacity, stackableEntries) {
+  for (const entry of stackableEntries) {
+    let remaining = clampPositiveInt(entry.quantity, 0);
+    if (remaining <= 0) continue;
+    const quality = normalizeQuality(entry.quality);
+
+    for (const slot of mainSlots) {
+      if (remaining <= 0) break;
+      if (slot.itemId !== entry.itemId || normalizeQuality(slot.quality) !== quality || slot.quantity >= ITEM_MAX_STACK) continue;
+      const canAdd = Math.min(remaining, ITEM_MAX_STACK - slot.quantity);
+      slot.quantity += canAdd;
+      remaining -= canAdd;
+    }
+
+    while (remaining > 0 && mainSlots.length < mainCapacity) {
+      const addQuantity = Math.min(remaining, ITEM_MAX_STACK);
+      mainSlots.push({
+        itemId: entry.itemId,
+        quality,
+        quantity: addQuantity,
+        locked: false,
+      });
+      remaining -= addQuantity;
+    }
+
+    for (const slot of tempSlots) {
+      if (remaining <= 0) break;
+      if (slot.itemId !== entry.itemId || normalizeQuality(slot.quality) !== quality || slot.quantity >= ITEM_MAX_STACK) continue;
+      const canAdd = Math.min(remaining, ITEM_MAX_STACK - slot.quantity);
+      slot.quantity += canAdd;
+      remaining -= canAdd;
+    }
+
+    while (remaining > 0 && tempSlots.length < tempCapacity) {
+      const addQuantity = Math.min(remaining, ITEM_MAX_STACK);
+      tempSlots.push({
+        itemId: entry.itemId,
+        quality,
+        quantity: addQuantity,
+        locked: false,
+      });
+      remaining -= addQuantity;
+    }
+
+    if (remaining > 0) return false;
+  }
+  return true;
+}
+
+function canFitRewardItems(saveData, rewards) {
+  ensureInventoryState(saveData);
+  const stackableEntries = rewards
+    .map(normalizeBundleEntry)
+    .filter(entry => entry && entry.type === 'item')
+    .map(entry => ({
+      itemId: entry.item_id,
+      quantity: entry.quantity,
+      quality: entry.quality,
+    }));
+  if (stackableEntries.length === 0) return true;
+  return simulateAddToSlots(
+    cloneInventorySlots(saveData.inventory.items),
+    clampPositiveInt(saveData.inventory.capacity, 24),
+    cloneInventorySlots(saveData.inventory.tempItems),
+    TEMP_BAG_CAPACITY,
+    stackableEntries
+  );
+}
+
+function addStackableItemToInventory(saveData, itemId, quantity, quality = 'normal') {
+  ensureInventoryState(saveData);
+  const items = saveData.inventory.items;
+  const tempItems = saveData.inventory.tempItems;
+  const capacity = clampPositiveInt(saveData.inventory.capacity, 24);
+  let remaining = clampPositiveInt(quantity, 0);
+  const normalizedQuality = normalizeQuality(quality);
+
+  for (const slot of items) {
+    if (remaining <= 0) break;
+    if (slot.itemId === itemId && normalizeQuality(slot.quality) === normalizedQuality && Number(slot.quantity) < ITEM_MAX_STACK) {
+      const canAdd = Math.min(remaining, ITEM_MAX_STACK - Number(slot.quantity));
+      slot.quantity = Number(slot.quantity) + canAdd;
+      remaining -= canAdd;
+    }
+  }
+
+  while (remaining > 0 && items.length < capacity) {
+    const addQuantity = Math.min(remaining, ITEM_MAX_STACK);
+    items.push({ itemId, quantity: addQuantity, quality: normalizedQuality, locked: false });
+    remaining -= addQuantity;
+  }
+
+  for (const slot of tempItems) {
+    if (remaining <= 0) break;
+    if (slot.itemId === itemId && normalizeQuality(slot.quality) === normalizedQuality && Number(slot.quantity) < ITEM_MAX_STACK) {
+      const canAdd = Math.min(remaining, ITEM_MAX_STACK - Number(slot.quantity));
+      slot.quantity = Number(slot.quantity) + canAdd;
+      remaining -= canAdd;
+    }
+  }
+
+  while (remaining > 0 && tempItems.length < TEMP_BAG_CAPACITY) {
+    const addQuantity = Math.min(remaining, ITEM_MAX_STACK);
+    tempItems.push({ itemId, quantity: addQuantity, quality: normalizedQuality, locked: false });
+    remaining -= addQuantity;
+  }
+
+  return remaining <= 0;
+}
+
+function applyCostsToSave(saveData, costs) {
+  ensureInventoryState(saveData);
+  for (const rawCost of costs) {
+    const cost = normalizeBundleEntry(rawCost);
+    if (!cost) continue;
+    if (cost.type === 'money') {
+      const currentMoney = Math.max(0, Math.floor(Number(saveData.player.money) || 0));
+      if (currentMoney < cost.amount) return false;
+      saveData.player.money = currentMoney - cost.amount;
+      continue;
+    }
+    const removed = removeStackableItemAnywhere(saveData, cost.item_id, cost.quantity, cost.quality);
+    if (!removed) return false;
+  }
+  return true;
+}
+
+function applyRewardsToSave(saveData, rewards) {
+  ensureInventoryState(saveData);
+  if (!canFitRewardItems(saveData, rewards)) return false;
+  for (const rawReward of rewards) {
+    const reward = normalizeBundleEntry(rawReward);
+    if (!reward) continue;
+    if (reward.type === 'money') {
+      saveData.player.money = Math.max(0, Math.floor(Number(saveData.player.money) || 0) + reward.amount);
+      continue;
+    }
+    if (!addStackableItemToInventory(saveData, reward.item_id, reward.quantity, reward.quality)) return false;
+  }
+  return true;
 }
 
 function loadSocietyStore() {
@@ -432,6 +862,70 @@ async function buildProposalSnapshot(proposal, viewerUsername, viewerIsMember, v
   };
 }
 
+function buildPublicProjectPackageSnapshot(entry) {
+  return {
+    id: entry.id,
+    label: entry.label,
+    summary: entry.summary,
+    progress_gain: entry.progress_gain,
+    costs: entry.costs.map(normalizeBundleEntry).filter(Boolean).map(cost => ({
+      ...cost,
+      label: cost.type === 'money'
+        ? `${cost.amount} 铜钱`
+        : `${cost.quantity} 份${SOCIETY_RESOURCE_LABELS[cost.item_id] || cost.item_id}`,
+    })),
+  };
+}
+
+async function buildPublicProjectContributionSnapshot(entry) {
+  const normalized = normalizeSocietyPublicProjectContribution(entry);
+  return {
+    id: normalized.id,
+    username: normalized.username,
+    display_name: normalized.display_name || await resolveDisplayName(normalized.username),
+    package_id: normalized.package_id,
+    package_label: normalized.package_label,
+    progress_gain: normalized.progress_gain,
+    costs: normalized.costs.map(cost => ({
+      ...cost,
+      label: cost.type === 'money'
+        ? `${cost.amount} 铜钱`
+        : `${cost.quantity} 份${SOCIETY_RESOURCE_LABELS[cost.item_id] || cost.item_id}`,
+    })),
+    created_at: normalized.created_at,
+  };
+}
+
+async function buildPublicProjectSnapshot(project, viewerUsername, viewerCanContribute) {
+  const normalized = normalizeSocietyPublicProject(project);
+  const def = SOCIETY_PUBLIC_PROJECT_DEF_MAP[normalized.id] || SOCIETY_PUBLIC_PROJECT_DEFS[0];
+  const contributions = (normalized.contributions || [])
+    .map(normalizeSocietyPublicProjectContribution)
+    .sort((left, right) => right.created_at - left.created_at);
+  const myContributionCount = contributions.filter(entry => entry.username === normalizeUsername(viewerUsername)).length;
+  return {
+    id: def.id,
+    label: def.label,
+    summary: def.summary,
+    status: normalized.status,
+    status_label: normalized.status === 'completed' ? '已完工' : '建设中',
+    progress: normalized.progress,
+    target_progress: normalized.target_progress,
+    progress_percent: Math.max(0, Math.min(100, Math.floor((normalized.progress / Math.max(1, normalized.target_progress)) * 100))),
+    remaining_progress: Math.max(0, normalized.target_progress - normalized.progress),
+    completed_at: normalized.completed_at,
+    completed_by: normalized.completed_by,
+    completed_by_display_name: normalized.completed_by_display_name || await resolveDisplayName(normalized.completed_by),
+    progress_note: normalized.progress_note || (normalized.status === 'completed' ? normalized.completion_feedback : `距离完工还差 ${Math.max(0, normalized.target_progress - normalized.progress)} 点进度。`),
+    completion_feedback: normalized.completion_feedback || def.completion_feedback,
+    world_feedback: normalized.world_feedback || def.world_feedback,
+    can_contribute: viewerCanContribute && normalized.status !== 'completed',
+    my_contribution_count: myContributionCount,
+    contribution_packages: SOCIETY_PROJECT_PACKAGE_OPTIONS.map(buildPublicProjectPackageSnapshot),
+    recent_contributions: await Promise.all(contributions.slice(0, 8).map(buildPublicProjectContributionSnapshot)),
+  };
+}
+
 async function buildSocietyJoinRequestSnapshot(request, store) {
   const normalized = normalizeSocietyJoinRequest(request);
   const society = findSocietyById(store, normalized.society_id);
@@ -446,6 +940,7 @@ async function buildSocietyJoinRequestSnapshot(request, store) {
 
 async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSociety = false, store = null) {
   const normalized = normalizeSociety(society);
+  ensureSocietyPublicProjects(normalized);
   const members = await hydrateMembers(normalized.members);
   const leader = members.find(entry => entry.role === 'president') || members[0] || null;
   const viewerMember = members.find(entry => entry.username === normalizeUsername(viewerUsername)) || null;
@@ -511,6 +1006,9 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
     activity_log: normalized.activity_log.map(normalizeActivityEntry),
     active_proposals: await Promise.all(activeProposals.map(entry => buildProposalSnapshot(entry, viewerUsername, !!viewerMember, canCloseProposal))),
     proposal_history: await Promise.all(proposalHistory.map(entry => buildProposalSnapshot(entry, viewerUsername, !!viewerMember, false))),
+    public_projects: await Promise.all(
+      normalized.public_projects.map(entry => buildPublicProjectSnapshot(entry, viewerUsername, !!viewerMember))
+    ),
   };
 }
 
@@ -558,7 +1056,7 @@ async function buildOverview(store, username) {
     : [];
 
   return {
-    bulletin: '村社当前已支持创建、申请、邀请、职位治理、公告更新与提案投票骨架，后续会继续补公共建设、福利与专属节会。',
+    bulletin: '村社当前已支持创建、申请、邀请、职位治理、公告更新、提案投票与第一轮公共建设；后续会继续补福利、专属节会与更深层世界反馈。',
     my_society: mySociety ? await buildSocietySnapshot(mySociety, viewerUsername, true, store) : null,
     visible_societies: await Promise.all(visibleSocieties.map(entry => buildSocietySnapshot(entry, viewerUsername, viewerHasSociety, store))),
     incoming_invites: incomingInvites,
@@ -571,6 +1069,13 @@ async function buildOverview(store, username) {
     join_requirement_options: SOCIETY_JOIN_REQUIREMENT_OPTIONS,
     role_options: Object.entries(SOCIETY_ROLE_LABELS).map(([id, label]) => ({ id, label })),
     proposal_kind_options: SOCIETY_PROPOSAL_KIND_OPTIONS,
+    public_project_defs: SOCIETY_PUBLIC_PROJECT_DEFS.map(entry => ({
+      id: entry.id,
+      label: entry.label,
+      summary: entry.summary,
+      target_progress: entry.target_progress,
+    })),
+    public_project_package_options: SOCIETY_PROJECT_PACKAGE_OPTIONS.map(buildPublicProjectPackageSnapshot),
   };
 }
 
@@ -903,6 +1408,85 @@ async function closeSocietyProposal(proposalId, payload = {}, actor = {}) {
   };
 }
 
+async function contributeSocietyPublicProject(projectId, payload = {}, actor = {}) {
+  const store = loadSocietyStore();
+  const actorUsername = normalizeUsername(actor.username);
+  const actorDisplayName = sanitizeText(actor.displayName, 40) || await resolveDisplayName(actorUsername) || actorUsername;
+  const society = findMemberSociety(store, actorUsername);
+  if (!society) throw createError('你当前没有加入村社');
+  ensureSocietyMemberRole(society, actorUsername, Object.keys(SOCIETY_ROLE_LABELS), '只有成员可以参与公共建设');
+  ensureSocietyPublicProjects(society);
+
+  const normalizedProjectId = sanitizeText(projectId, 40);
+  const project = (society.public_projects || [])
+    .map(normalizeSocietyPublicProject)
+    .find(entry => entry.id === normalizedProjectId);
+  if (!project) throw createError('公共工程不存在', 404);
+  if (project.status === 'completed') throw createError('这项公共工程已经完工了');
+
+  const packageId = sanitizeText(payload.package_id, 40);
+  const contributionPackage = SOCIETY_PROJECT_PACKAGE_MAP[packageId];
+  if (!contributionPackage) throw createError('当前捐献方案不存在');
+
+  const context = getActiveSaveContext(actorUsername, null, '当前账号没有可用的桃源服务端存档，暂时无法参与公共建设');
+  context.username = actorUsername;
+  const projectedData = JSON.parse(JSON.stringify(context.data));
+  ensureInventoryState(projectedData);
+  if (!applyCostsToSave(projectedData, contributionPackage.costs)) {
+    throw createError('当前存档里的铜钱或材料不足，暂时无法提交这份公共建设捐献');
+  }
+  context.data = projectedData;
+  if (context.saveContainer && typeof context.saveContainer === 'object') {
+    context.saveContainer.gameplayData = projectedData;
+    if (context.saveContainer.wrapped && context.saveContainer.root && typeof context.saveContainer.root === 'object') {
+      context.saveContainer.root.data = projectedData;
+    } else if (context.saveContainer.root && typeof context.saveContainer.root === 'object') {
+      context.saveContainer.root = projectedData;
+    }
+  }
+
+  const nextProgress = Math.min(project.target_progress, project.progress + contributionPackage.progress_gain);
+  const contribution = normalizeSocietyPublicProjectContribution({
+    id: makeId('society_project_contribution'),
+    username: actorUsername,
+    display_name: actorDisplayName,
+    package_id: contributionPackage.id,
+    package_label: contributionPackage.label,
+    progress_gain: contributionPackage.progress_gain,
+    costs: contributionPackage.costs,
+    created_at: nowSeconds(),
+  });
+
+  project.progress = nextProgress;
+  project.progress_note = `${actorDisplayName}提交了「${contributionPackage.label}」，工程推进 ${contributionPackage.progress_gain} 点。`;
+  project.contributions = [contribution, ...(project.contributions || []).map(normalizeSocietyPublicProjectContribution)].slice(0, 60);
+  if (nextProgress >= project.target_progress) {
+    project.status = 'completed';
+    project.completed_at = nowSeconds();
+    project.completed_by = actorUsername;
+    project.completed_by_display_name = actorDisplayName;
+    project.progress_note = project.completion_feedback;
+    appendSocietyActivity(society, `${actorDisplayName}带队完成了公共建设「${(SOCIETY_PUBLIC_PROJECT_DEF_MAP[project.id] || {}).label || project.id}」`, 'public_project_complete');
+  } else {
+    appendSocietyActivity(society, `${actorDisplayName}为公共建设「${(SOCIETY_PUBLIC_PROJECT_DEF_MAP[project.id] || {}).label || project.id}」捐献了${contributionPackage.label}`, 'public_project');
+  }
+
+  society.public_projects = (society.public_projects || []).map(entry => {
+    const normalized = normalizeSocietyPublicProject(entry);
+    return normalized.id === project.id ? project : normalized;
+  });
+  updateSocietyInStore(store, society);
+  persistGameplayData(context);
+  saveSocietyStore(store);
+
+  return {
+    project: await buildPublicProjectSnapshot(project, actorUsername, true),
+    society: await buildSocietySnapshot(society, actorUsername, true, store),
+    overview: await buildOverview(store, actorUsername),
+    player_money: Math.max(0, Math.floor(Number(context.data?.player?.money) || 0)),
+  };
+}
+
 module.exports = {
   listSocietyOverview,
   createSociety,
@@ -914,4 +1498,5 @@ module.exports = {
   createSocietyProposal,
   voteSocietyProposal,
   closeSocietyProposal,
+  contributeSocietyPublicProject,
 };

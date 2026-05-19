@@ -4,6 +4,7 @@ import {
   acceptSocietyRequest,
   applyToSociety,
   closeSocietyProposal,
+  contributeSocietyPublicProject,
   createSociety,
   createSocietyProposal,
   fetchSocietyOverview,
@@ -206,6 +207,14 @@ export const useSocietyStore = defineStore('onlineSociety', () => {
     })
   }
 
+  const contributeProject = async (projectId: string, packageId: string) => {
+    return runAction(async () => {
+      const result = await contributeSocietyPublicProject(projectId, packageId)
+      await resolveOverview(result?.overview ?? null)
+      return result
+    })
+  }
+
   return {
     overview,
     loading,
@@ -247,5 +256,6 @@ export const useSocietyStore = defineStore('onlineSociety', () => {
     submitProposal,
     castProposalVote,
     archiveProposal,
+    contributeProject,
   }
 })
