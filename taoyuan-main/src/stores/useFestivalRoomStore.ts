@@ -5,6 +5,7 @@ import {
   createFestivalRoom,
   disconnectFestivalRoom,
   fetchFestivalRoomOverview,
+  type FestivalGameplayTemplate,
   inviteFestivalRoomMember,
   joinFestivalRoom,
   leaveFestivalRoom,
@@ -13,6 +14,7 @@ import {
   settleFestivalRoom,
   startFestivalRoomCountdown,
   startFestivalRoomReadyCheck,
+  submitFestivalRoomGameplayAction,
   type FestivalRoomOverview,
   type FestivalRoomSnapshot,
   type FestivalRoomTemplate,
@@ -25,6 +27,7 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
   const errorMessage = ref('')
   const overview = ref<FestivalRoomOverview | null>(null)
   const selectedTemplateId = ref('dragon_boat')
+  const selectedGameplayTemplateId = ref('squad_coop')
   const draftTitle = ref('')
   const draftInviteUsername = ref('')
   const lastLoadedAt = ref(0)
@@ -34,8 +37,17 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
   const invitedRooms = computed(() => overview.value?.invited_rooms ?? [])
   const recentReceipts = computed(() => overview.value?.recent_receipts ?? [])
   const templates = computed<FestivalRoomTemplate[]>(() => overview.value?.templates ?? [])
+  const gameplayTemplates = computed<FestivalGameplayTemplate[]>(() => overview.value?.gameplay_templates ?? [])
 
   const selectedTemplate = computed(() => templates.value.find(template => template.id === selectedTemplateId.value) ?? templates.value[0] ?? null)
+  const selectedGameplayTemplate = computed(() => gameplayTemplates.value.find(template => template.id === selectedGameplayTemplateId.value) ?? gameplayTemplates.value[0] ?? null)
+  const recommendedGameplayTemplates = computed(() => {
+    const template = selectedTemplate.value
+    if (!template) return gameplayTemplates.value
+    const recommendedIds = new Set(template.recommended_gameplay_template_ids)
+    const recommended = gameplayTemplates.value.filter(item => recommendedIds.has(item.id))
+    return recommended.length > 0 ? recommended : gameplayTemplates.value
+  })
 
   const hydrateOverview = (nextOverview: FestivalRoomOverview | null) => {
     overview.value = nextOverview
@@ -43,6 +55,13 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     const firstTemplate = nextTemplates[0]
     if (firstTemplate && !nextTemplates.some(template => template.id === selectedTemplateId.value)) {
       selectedTemplateId.value = firstTemplate.id
+    }
+    const nextGameplayTemplates = nextOverview?.gameplay_templates ?? []
+    const fallbackGameplayId = nextTemplates.find(template => template.id === selectedTemplateId.value)?.recommended_gameplay_template_ids?.[0]
+      ?? nextGameplayTemplates[0]?.id
+      ?? 'public_progress'
+    if (!nextGameplayTemplates.some(template => template.id === selectedGameplayTemplateId.value)) {
+      selectedGameplayTemplateId.value = fallbackGameplayId
     }
   }
 
@@ -85,6 +104,7 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     runAction(async () => {
       const result = await createFestivalRoom({
         template_id: selectedTemplateId.value,
+        gameplay_template_id: selectedGameplayTemplateId.value,
         title: draftTitle.value.trim() || undefined,
       })
       draftTitle.value = ''
@@ -130,6 +150,9 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
   const reconnectRoomAction = async (roomId: string) =>
     runAction(async () => applyActionResult(await reconnectFestivalRoom(roomId)))
 
+  const submitGameplayAction = async (roomId: string, actionId: string) =>
+    runAction(async () => applyActionResult(await submitFestivalRoomGameplayAction(roomId, actionId)))
+
   const settleRoomAction = async (roomId: string) =>
     runAction(async () => applyActionResult(await settleFestivalRoom(roomId)))
 
@@ -146,8 +169,12 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     invitedRooms,
     recentReceipts,
     templates,
+    gameplayTemplates,
+    recommendedGameplayTemplates,
     selectedTemplateId,
     selectedTemplate,
+    selectedGameplayTemplateId,
+    selectedGameplayTemplate,
     draftTitle,
     draftInviteUsername,
     lastLoadedAt,
@@ -162,6 +189,7 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     startCountdown,
     disconnectRoomAction,
     reconnectRoomAction,
+    submitGameplayAction,
     settleRoomAction,
     closeRoomAction,
   }

@@ -1207,6 +1207,18 @@ router.post('/taoyuan/online/festival/rooms/:roomId/reconnect', loginRequired, s
   }
 });
 
+router.post('/taoyuan/online/festival/rooms/:roomId/action', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.submitFestivalRoomGameplayAction(req.params.roomId, req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '提交节会玩法动作失败' });
+  }
+});
+
 router.post('/taoyuan/online/festival/rooms/:roomId/settle', loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.settleFestivalRoom(req.params.roomId, {

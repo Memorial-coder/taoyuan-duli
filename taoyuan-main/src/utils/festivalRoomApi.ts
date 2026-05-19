@@ -31,6 +31,71 @@ export interface FestivalRoomTemplate {
   summary: string
   default_member_limit: number
   opening_title: string
+  recommended_gameplay_template_ids: string[]
+}
+
+export interface FestivalGameplayActionOption {
+  id: string
+  label: string
+  summary: string
+  unique_per_member: boolean
+}
+
+export interface FestivalGameplayTemplate {
+  id: string
+  label: string
+  kind: string
+  summary: string
+  objective_label: string
+  score_label: string
+  default_target: number
+  recommended_room_template_ids: string[]
+  action_options: FestivalGameplayActionOption[]
+}
+
+export interface FestivalGameplayContributionSnapshot {
+  username: string
+  display_name: string
+  progress_value: number
+  score_value: number
+  action_count: number
+  locked: boolean
+  last_action_id: string
+  last_action_label: string
+  last_action_at: number
+}
+
+export interface FestivalGameplayAvailableAction {
+  id: string
+  label: string
+  summary: string
+  unique_per_member: boolean
+  can_use: boolean
+  disabled_reason: string
+}
+
+export interface FestivalGameplaySnapshot {
+  template_id: string
+  template_label: string
+  template_kind: string
+  template_summary: string
+  objective_label: string
+  progress_value: number
+  progress_target: number
+  progress_percent: number
+  progress_text: string
+  score_label: string
+  score_value: number
+  phase: 'prep' | 'active' | 'completed'
+  phase_label: string
+  last_action_id: string
+  last_action_summary: string
+  last_actor_username: string
+  last_actor_display_name: string
+  is_completed: boolean
+  completed_at: number
+  contributions: FestivalGameplayContributionSnapshot[]
+  available_actions: FestivalGameplayAvailableAction[]
 }
 
 export interface FestivalRoomMemberSnapshot {
@@ -99,6 +164,7 @@ export interface FestivalRoomSnapshot {
   template_id: string
   template_label: string
   template_summary: string
+  gameplay_template_id: string
   host_username: string
   host_display_name: string
   state: FestivalRoomState
@@ -121,6 +187,7 @@ export interface FestivalRoomSnapshot {
   invitations: FestivalRoomInvitationSnapshot[]
   recent_events: FestivalRoomEventSnapshot[]
   settlement_receipts: FestivalRoomReceiptPreview[]
+  gameplay: FestivalGameplaySnapshot
   opening_ceremony: FestivalRoomOpeningCeremony | null
   joined_member_count: number
   ready_member_count: number
@@ -141,6 +208,7 @@ export interface FestivalRoomSnapshot {
 export interface FestivalRoomOverview {
   bulletin: string
   templates: FestivalRoomTemplate[]
+  gameplay_templates: FestivalGameplayTemplate[]
   my_room: FestivalRoomSnapshot | null
   invited_rooms: FestivalRoomSnapshot[]
   visible_rooms: FestivalRoomSnapshot[]
@@ -198,6 +266,7 @@ export const fetchFestivalRoomOverview = async (): Promise<FestivalRoomOverview 
   return data?.templates ? {
     bulletin: data.bulletin,
     templates: data.templates,
+    gameplay_templates: data.gameplay_templates ?? [],
     my_room: data.my_room ?? null,
     invited_rooms: data.invited_rooms ?? [],
     visible_rooms: data.visible_rooms ?? [],
@@ -229,6 +298,7 @@ const buildSignedInit = async (method: 'POST') => {
 
 export const createFestivalRoom = async (payload: {
   template_id: string
+  gameplay_template_id?: string
   title?: string
   member_limit?: number
   countdown_seconds?: number
@@ -281,6 +351,13 @@ export const disconnectFestivalRoom = async (roomId: string): Promise<FestivalRo
 
 export const reconnectFestivalRoom = async (roomId: string): Promise<FestivalRoomActionResponse> => {
   const data = await request<FestivalRoomActionResponse>(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(roomId)}/reconnect`, () => buildSignedInit('POST'))
+  return data as FestivalRoomActionResponse
+}
+
+export const submitFestivalRoomGameplayAction = async (roomId: string, actionId: string): Promise<FestivalRoomActionResponse> => {
+  const data = await request<FestivalRoomActionResponse>(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(roomId)}/action`, () =>
+    buildSignedJsonInit('POST', { action_id: actionId })
+  )
   return data as FestivalRoomActionResponse
 }
 

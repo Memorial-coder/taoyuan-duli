@@ -21,6 +21,7 @@ const EVENT_LIMIT = 40;
 const RECEIPT_LIMIT = 60;
 const DEFAULT_COUNTDOWN_SECONDS = 6;
 const DEFAULT_RECONNECT_WINDOW_SECONDS = 90;
+const GAMEPLAY_PHASES = Object.freeze(['prep', 'active', 'completed']);
 
 const ROOM_TEMPLATE_MAP = Object.freeze({
   yuanri_vigil: {
@@ -30,6 +31,7 @@ const ROOM_TEMPLATE_MAP = Object.freeze({
     default_member_limit: 4,
     opening_title: '守岁开场',
     opening_lines: ['灯火已点，众人入席。', '先确认成员到齐，再一起迎接节会开场。'],
+    recommended_gameplay_template_ids: ['public_progress', 'performance'],
   },
   lantern_fair: {
     id: 'lantern_fair',
@@ -38,6 +40,7 @@ const ROOM_TEMPLATE_MAP = Object.freeze({
     default_member_limit: 4,
     opening_title: '灯会点灯',
     opening_lines: ['彩灯排起，街口开始清场。', '等倒计时结束后，全员会一起进入灯会现场。'],
+    recommended_gameplay_template_ids: ['quiz_buzz', 'assembly'],
   },
   dragon_boat: {
     id: 'dragon_boat',
@@ -46,6 +49,7 @@ const ROOM_TEMPLATE_MAP = Object.freeze({
     default_member_limit: 4,
     opening_title: '赛舟鸣鼓',
     opening_lines: ['鼓点已经就位。', '所有队员锁定后，会统一进入赛舟开场。'],
+    recommended_gameplay_template_ids: ['squad_coop', 'gathering'],
   },
   qixi_stroll: {
     id: 'qixi_stroll',
@@ -54,6 +58,7 @@ const ROOM_TEMPLATE_MAP = Object.freeze({
     default_member_limit: 2,
     opening_title: '同游开场',
     opening_lines: ['桥头已经挂起灯串。', '确认同行人已接入后，再一起进入夜游环节。'],
+    recommended_gameplay_template_ids: ['group_photo', 'performance'],
   },
   mid_autumn_moonwatch: {
     id: 'mid_autumn_moonwatch',
@@ -62,6 +67,7 @@ const ROOM_TEMPLATE_MAP = Object.freeze({
     default_member_limit: 4,
     opening_title: '赏月入场',
     opening_lines: ['赏月席位已摆好。', '房间开始后，全员会统一进入赏月场景。'],
+    recommended_gameplay_template_ids: ['public_progress', 'group_photo'],
   },
   laba_cookpot: {
     id: 'laba_cookpot',
@@ -70,6 +76,107 @@ const ROOM_TEMPLATE_MAP = Object.freeze({
     default_member_limit: 4,
     opening_title: '共煮开灶',
     opening_lines: ['灶火已经点燃。', '待成员锁定后，就能开始统一推进节会流程。'],
+    recommended_gameplay_template_ids: ['assembly', 'gathering'],
+  },
+});
+
+const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
+  public_progress: {
+    id: 'public_progress',
+    label: '公共进度',
+    kind: 'shared_progress',
+    summary: '所有成员共推一条节会目标，适合守岁、赏月和共煮这类共享推进型房间。',
+    objective_label: '公共进度',
+    score_label: '同心值',
+    default_target: 6,
+    recommended_room_template_ids: ['yuanri_vigil', 'mid_autumn_moonwatch', 'laba_cookpot'],
+    action_options: [
+      { id: 'offer_progress', label: '提交一份筹备', summary: '推进公共目标 1 格，并补一点团队同心值。', progress_delta: 1, score_delta: 1 },
+      { id: 'raise_banner', label: '补挂节饰', summary: '一次推进 2 格，适合冲刺收尾。', progress_delta: 2, score_delta: 1 },
+    ],
+  },
+  squad_coop: {
+    id: 'squad_coop',
+    label: '小队协作',
+    kind: 'team_combo',
+    summary: '强调多人分工与节奏配合，适合赛舟、巡游护送和多人接力场景。',
+    objective_label: '协作节点',
+    score_label: '默契值',
+    default_target: 6,
+    recommended_room_template_ids: ['dragon_boat', 'yuanri_vigil', 'laba_cookpot'],
+    action_options: [
+      { id: 'sync_oar', label: '同步动作', summary: '推进 1 个协作节点，并提升 2 点默契值。', progress_delta: 1, score_delta: 2 },
+      { id: 'steady_rudder', label: '补稳节奏', summary: '推进 1 个协作节点，并补 1 点稳态分。', progress_delta: 1, score_delta: 1 },
+    ],
+  },
+  quiz_buzz: {
+    id: 'quiz_buzz',
+    label: '抢答',
+    kind: 'quiz',
+    summary: '用短轮次的抢答推进节会气氛，适合灯谜、问答和节气小知识房间。',
+    objective_label: '答对题目',
+    score_label: '答题分',
+    default_target: 3,
+    recommended_room_template_ids: ['lantern_fair', 'yuanri_vigil'],
+    action_options: [
+      { id: 'buzz_correct', label: '抢答得分', summary: '答对当前题目，推进 1 轮并拿到 2 点答题分。', progress_delta: 1, score_delta: 2 },
+      { id: 'review_hint', label: '整理题签', summary: '不推进轮次，但可以先补 1 点场面分。', progress_delta: 0, score_delta: 1 },
+    ],
+  },
+  assembly: {
+    id: 'assembly',
+    label: '拼装',
+    kind: 'assembly',
+    summary: '把多人贡献收成部件拼装进度，适合花灯、灶台、龙舟和布景搭建。',
+    objective_label: '拼装部件',
+    score_label: '工整度',
+    default_target: 4,
+    recommended_room_template_ids: ['lantern_fair', 'laba_cookpot', 'dragon_boat'],
+    action_options: [
+      { id: 'lock_piece', label: '拼上一块', summary: '推进 1 个拼装部件，并增加 1 点工整度。', progress_delta: 1, score_delta: 1 },
+      { id: 'tighten_frame', label: '加固结构', summary: '推进 2 个部件，但只增加 1 点工整度。', progress_delta: 2, score_delta: 1 },
+    ],
+  },
+  gathering: {
+    id: 'gathering',
+    label: '采集',
+    kind: 'gathering',
+    summary: '让房间在短时间内积累采集回合，适合备料、巡游补给和节前收集。',
+    objective_label: '采集回合',
+    score_label: '丰收值',
+    default_target: 5,
+    recommended_room_template_ids: ['dragon_boat', 'laba_cookpot', 'mid_autumn_moonwatch'],
+    action_options: [
+      { id: 'deliver_bundle', label: '送回一篮', summary: '推进 1 个采集回合，并带回 1 点丰收值。', progress_delta: 1, score_delta: 1 },
+      { id: 'sort_bundle', label: '快速分拣', summary: '推进 1 个采集回合，并额外补 2 点整理分。', progress_delta: 1, score_delta: 2 },
+    ],
+  },
+  performance: {
+    id: 'performance',
+    label: '表演',
+    kind: 'performance',
+    summary: '把成员动作收成一段节奏或演出条，适合守岁、巡游、同游和赏月演出。',
+    objective_label: '表演节拍',
+    score_label: '喝彩值',
+    default_target: 6,
+    recommended_room_template_ids: ['yuanri_vigil', 'qixi_stroll', 'mid_autumn_moonwatch'],
+    action_options: [
+      { id: 'keep_beat', label: '稳住节拍', summary: '推进 1 个表演节拍，并累积 2 点喝彩值。', progress_delta: 1, score_delta: 2 },
+      { id: 'lift_applause', label: '带动气氛', summary: '不推进节拍，但能把喝彩值抬高 1 点。', progress_delta: 0, score_delta: 1 },
+    ],
+  },
+  group_photo: {
+    id: 'group_photo',
+    label: '合照',
+    kind: 'group_photo',
+    summary: '让每位成员各自锁定站位，适合七夕同游、中秋赏月和节会纪念收尾。',
+    objective_label: '锁定站位',
+    score_label: '留影值',
+    default_target: 2,
+    recommended_room_template_ids: ['qixi_stroll', 'mid_autumn_moonwatch', 'lantern_fair'],
+    action_options: [
+      { id: 'lock_pose', label: '锁定站位', summary: '每位成员各自完成一次站位锁定，站齐后即可完成合照模板。', progress_delta: 1, score_delta: 1, unique_per_member: true },
+    ],
   },
 });
 
@@ -166,9 +273,30 @@ function normalizeReceiptState(value) {
   return RECEIPT_STATES.includes(normalized) ? normalized : 'created';
 }
 
+function normalizeGameplayPhase(value) {
+  const normalized = String(value || '').trim();
+  return GAMEPLAY_PHASES.includes(normalized) ? normalized : 'prep';
+}
+
 function getRoomTemplate(templateId) {
   const normalized = sanitizeText(templateId, 40);
   return ROOM_TEMPLATE_MAP[normalized] || ROOM_TEMPLATE_MAP.yuanri_vigil;
+}
+
+function getDefaultGameplayTemplateId(roomTemplateId) {
+  const roomTemplate = getRoomTemplate(roomTemplateId);
+  const recommendedId = Array.isArray(roomTemplate.recommended_gameplay_template_ids)
+    ? roomTemplate.recommended_gameplay_template_ids.find(Boolean)
+    : '';
+  return recommendedId && GAMEPLAY_TEMPLATE_MAP[recommendedId]
+    ? recommendedId
+    : 'public_progress';
+}
+
+function getGameplayTemplate(gameplayTemplateId, roomTemplateId = '') {
+  const normalized = sanitizeText(gameplayTemplateId, 40);
+  if (normalized && GAMEPLAY_TEMPLATE_MAP[normalized]) return GAMEPLAY_TEMPLATE_MAP[normalized];
+  return GAMEPLAY_TEMPLATE_MAP[getDefaultGameplayTemplateId(roomTemplateId)] || GAMEPLAY_TEMPLATE_MAP.public_progress;
 }
 
 function listRoomTemplates() {
@@ -178,6 +306,32 @@ function listRoomTemplates() {
     summary: template.summary,
     default_member_limit: template.default_member_limit,
     opening_title: template.opening_title,
+    recommended_gameplay_template_ids: Array.isArray(template.recommended_gameplay_template_ids)
+      ? [...template.recommended_gameplay_template_ids]
+      : [],
+  }));
+}
+
+function listGameplayTemplates() {
+  return Object.values(GAMEPLAY_TEMPLATE_MAP).map(template => ({
+    id: template.id,
+    label: template.label,
+    kind: template.kind,
+    summary: template.summary,
+    objective_label: template.objective_label,
+    score_label: template.score_label,
+    default_target: template.default_target,
+    recommended_room_template_ids: Array.isArray(template.recommended_room_template_ids)
+      ? [...template.recommended_room_template_ids]
+      : [],
+    action_options: Array.isArray(template.action_options)
+      ? template.action_options.map(action => ({
+          id: action.id,
+          label: action.label,
+          summary: action.summary,
+          unique_per_member: action.unique_per_member === true,
+        }))
+      : [],
   }));
 }
 
@@ -256,11 +410,67 @@ function normalizeRoomReceipt(entry) {
   };
 }
 
+function normalizeGameplayContribution(entry) {
+  return {
+    username: sanitizeText(entry?.username, 40),
+    display_name: sanitizeText(entry?.display_name, 40),
+    progress_value: Math.max(0, Math.floor(Number(entry?.progress_value) || 0)),
+    score_value: Math.max(0, Math.floor(Number(entry?.score_value) || 0)),
+    action_count: Math.max(0, Math.floor(Number(entry?.action_count) || 0)),
+    locked: entry?.locked === true,
+    last_action_id: sanitizeText(entry?.last_action_id, 40),
+    last_action_label: sanitizeText(entry?.last_action_label, 40),
+    last_action_at: Math.max(0, Math.floor(Number(entry?.last_action_at) || 0)),
+  };
+}
+
+function createInitialGameplayState(gameplayTemplateId, roomTemplateId = '') {
+  const template = getGameplayTemplate(gameplayTemplateId, roomTemplateId);
+  return {
+    template_id: template.id,
+    phase: 'prep',
+    progress_value: 0,
+    progress_target: Math.max(1, Math.floor(Number(template.default_target) || 1)),
+    score_value: 0,
+    last_action_id: '',
+    last_action_summary: '',
+    last_actor_username: '',
+    last_actor_display_name: '',
+    completed_at: 0,
+    contributions: [],
+  };
+}
+
+function normalizeGameplayState(entry, gameplayTemplateId, roomTemplateId = '') {
+  const template = getGameplayTemplate(gameplayTemplateId, roomTemplateId);
+  const currentTemplateId = sanitizeText(entry?.template_id, 40);
+  if (!entry || typeof entry !== 'object' || (currentTemplateId && currentTemplateId !== template.id)) {
+    return createInitialGameplayState(template.id, roomTemplateId);
+  }
+  return {
+    template_id: template.id,
+    phase: normalizeGameplayPhase(entry?.phase),
+    progress_value: Math.max(0, Math.floor(Number(entry?.progress_value) || 0)),
+    progress_target: Math.max(1, Math.floor(Number(entry?.progress_target) || template.default_target || 1)),
+    score_value: Math.max(0, Math.floor(Number(entry?.score_value) || 0)),
+    last_action_id: sanitizeText(entry?.last_action_id, 40),
+    last_action_summary: sanitizeText(entry?.last_action_summary, 160),
+    last_actor_username: sanitizeText(entry?.last_actor_username, 40),
+    last_actor_display_name: sanitizeText(entry?.last_actor_display_name, 40),
+    completed_at: Math.max(0, Math.floor(Number(entry?.completed_at) || 0)),
+    contributions: Array.isArray(entry?.contributions)
+      ? entry.contributions.map(normalizeGameplayContribution).filter(item => item.username)
+      : [],
+  };
+}
+
 function normalizeRoom(entry) {
   const template = getRoomTemplate(entry?.template_id);
+  const gameplayTemplate = getGameplayTemplate(entry?.gameplay_template_id, template.id);
   return {
     id: String(entry?.id || makeId('festival_room')),
     template_id: template.id,
+    gameplay_template_id: gameplayTemplate.id,
     title: sanitizeText(entry?.title, 60) || template.label,
     host_username: sanitizeText(entry?.host_username, 40),
     host_display_name: sanitizeText(entry?.host_display_name, 40) || sanitizeText(entry?.host_username, 40),
@@ -283,6 +493,7 @@ function normalizeRoom(entry) {
     members: Array.isArray(entry?.members) ? entry.members.map(normalizeRoomMember).filter(member => member.username) : [],
     invitations: Array.isArray(entry?.invitations) ? entry.invitations.map(normalizeRoomInvitation).filter(invite => invite.target_username) : [],
     events: Array.isArray(entry?.events) ? entry.events.map(normalizeRoomEvent).slice(0, EVENT_LIMIT) : [],
+    gameplay_state: normalizeGameplayState(entry?.gameplay_state, gameplayTemplate.id, template.id),
     settlement_receipt_ids: Array.isArray(entry?.settlement_receipt_ids)
       ? entry.settlement_receipt_ids.map(item => sanitizeText(item, 60)).filter(Boolean).slice(0, RECEIPT_LIMIT)
       : [],
@@ -348,6 +559,35 @@ function updateRoomState(room, nextState, reason = '') {
   touchRoom(room);
 }
 
+function ensureRoomGameplayState(room) {
+  const gameplayTemplate = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  room.gameplay_template_id = gameplayTemplate.id;
+  room.gameplay_state = normalizeGameplayState(room.gameplay_state, room.gameplay_template_id, room.template_id);
+  if (gameplayTemplate.id === 'group_photo') {
+    const targetValue = Math.max(2, Math.min(room.member_limit, getJoinedMembers(room).length || 2));
+    if (room.gameplay_state.progress_target !== targetValue) {
+      room.gameplay_state.progress_target = targetValue;
+      touchRoom(room);
+    }
+  }
+  return room.gameplay_state;
+}
+
+function materializeGameplayPhase(room) {
+  const gameplayState = ensureRoomGameplayState(room);
+  if (gameplayState.completed_at > 0 && gameplayState.phase !== 'completed') {
+    gameplayState.phase = 'completed';
+    touchRoom(room);
+    return true;
+  }
+  if (room.state === 'running' && gameplayState.phase === 'prep') {
+    gameplayState.phase = 'active';
+    touchRoom(room);
+    return true;
+  }
+  return false;
+}
+
 function materializeCountdownState(room) {
   if (room.state !== 'countdown') return false;
   if ((room.countdown_ends_at || 0) > nowSeconds()) return false;
@@ -362,6 +602,7 @@ function materializeCountdownState(room) {
   room.running_started_at = room.countdown_ends_at || nowSeconds();
   room.countdown_ends_at = 0;
   updateRoomState(room, 'running', '');
+  materializeGameplayPhase(room);
   recordRoomEvent(room, 'room.start', {
     username: room.host_username,
     displayName: room.host_display_name,
@@ -442,8 +683,155 @@ function buildOpeningCeremony(room) {
   return null;
 }
 
+function findGameplayContribution(gameplayState, username) {
+  const normalizedUsername = sanitizeText(username, 40);
+  return (gameplayState?.contributions || []).find(item => item.username === normalizedUsername) || null;
+}
+
+function ensureGameplayContribution(gameplayState, member) {
+  let contribution = findGameplayContribution(gameplayState, member.username);
+  if (contribution) {
+    contribution.display_name = member.display_name;
+    return contribution;
+  }
+  contribution = normalizeGameplayContribution({
+    username: member.username,
+    display_name: member.display_name,
+  });
+  gameplayState.contributions = [...(gameplayState.contributions || []), contribution];
+  return contribution;
+}
+
+function buildGameplayProgressText(template, gameplayState) {
+  return `${template.objective_label} ${Math.min(gameplayState.progress_value, gameplayState.progress_target)} / ${gameplayState.progress_target}`;
+}
+
+function canUseGameplayAction(room, gameplayState, viewerMember, actionOption) {
+  if (!viewerMember) return { can_use: false, disabled_reason: '你当前不在这个节会房间里' };
+  if (room.state !== 'running') return { can_use: false, disabled_reason: '只有房间进入进行中后，才能提交玩法动作' };
+  if (viewerMember.status !== 'active') return { can_use: false, disabled_reason: '当前成员状态还不能执行玩法动作' };
+  if (gameplayState.phase === 'completed') return { can_use: false, disabled_reason: '当前玩法模板已经完成' };
+  const contribution = findGameplayContribution(gameplayState, viewerMember.username);
+  if (actionOption.unique_per_member && contribution?.locked) {
+    return { can_use: false, disabled_reason: '这个动作每位成员只能执行一次' };
+  }
+  return { can_use: true, disabled_reason: '' };
+}
+
+function buildGameplaySnapshot(room, viewerUsername) {
+  const template = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  const gameplayState = ensureRoomGameplayState(room);
+  const joinedMembers = getJoinedMembers(room);
+  const viewerMember = getRoomMember(room, viewerUsername);
+  const targetValue = template.id === 'group_photo'
+    ? Math.max(2, Math.min(room.member_limit, joinedMembers.length || 2))
+    : gameplayState.progress_target;
+  if (template.id === 'group_photo' && gameplayState.progress_target !== targetValue) {
+    gameplayState.progress_target = targetValue;
+  }
+  return {
+    template_id: template.id,
+    template_label: template.label,
+    template_kind: template.kind,
+    template_summary: template.summary,
+    objective_label: template.objective_label,
+    progress_value: Math.min(gameplayState.progress_value, gameplayState.progress_target),
+    progress_target: gameplayState.progress_target,
+    progress_percent: Math.min(100, Math.round((Math.min(gameplayState.progress_value, gameplayState.progress_target) / Math.max(1, gameplayState.progress_target)) * 100)),
+    progress_text: buildGameplayProgressText(template, gameplayState),
+    score_label: template.score_label,
+    score_value: gameplayState.score_value,
+    phase: gameplayState.phase,
+    phase_label: gameplayState.phase === 'completed' ? '已完成' : room.state === 'running' ? '进行中' : room.state === 'paused' ? '已暂停' : '待开场',
+    last_action_id: gameplayState.last_action_id,
+    last_action_summary: gameplayState.last_action_summary,
+    last_actor_username: gameplayState.last_actor_username,
+    last_actor_display_name: gameplayState.last_actor_display_name,
+    is_completed: gameplayState.phase === 'completed',
+    completed_at: gameplayState.completed_at,
+    contributions: joinedMembers.map(member => {
+      const contribution = findGameplayContribution(gameplayState, member.username);
+      return {
+        username: member.username,
+        display_name: member.display_name,
+        progress_value: contribution?.progress_value || 0,
+        score_value: contribution?.score_value || 0,
+        action_count: contribution?.action_count || 0,
+        locked: contribution?.locked === true,
+        last_action_id: contribution?.last_action_id || '',
+        last_action_label: contribution?.last_action_label || '',
+        last_action_at: contribution?.last_action_at || 0,
+      };
+    }),
+    available_actions: (template.action_options || []).map(actionOption => {
+      const status = canUseGameplayAction(room, gameplayState, viewerMember, actionOption);
+      return {
+        id: actionOption.id,
+        label: actionOption.label,
+        summary: actionOption.summary,
+        unique_per_member: actionOption.unique_per_member === true,
+        can_use: status.can_use,
+        disabled_reason: status.disabled_reason,
+      };
+    }),
+  };
+}
+
+function finalizeGameplayIfCompleted(room, actor) {
+  const template = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  const gameplayState = ensureRoomGameplayState(room);
+  if (gameplayState.phase === 'completed') return false;
+  if (gameplayState.progress_value < gameplayState.progress_target) return false;
+  gameplayState.phase = 'completed';
+  gameplayState.completed_at = nowSeconds();
+  gameplayState.last_action_summary = `${buildGameplayProgressText(template, gameplayState)}，${template.score_label}${gameplayState.score_value}`;
+  recordRoomEvent(room, 'room.objective.complete', actor, `${template.label} 模板已完成：${gameplayState.last_action_summary}`);
+  touchRoom(room);
+  return true;
+}
+
+function applyGameplayAction(room, actionId, actor) {
+  const template = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  materializeGameplayPhase(room);
+  const gameplayState = ensureRoomGameplayState(room);
+  const member = getRoomMember(room, actor.username);
+  if (!member) throw createError('你当前不在这个节会房间里');
+  const actionOption = (template.action_options || []).find(item => item.id === actionId);
+  if (!actionOption) throw createError('当前玩法模板不支持这个动作');
+  const status = canUseGameplayAction(room, gameplayState, member, actionOption);
+  if (!status.can_use) throw createError(status.disabled_reason || '当前玩法动作不能执行');
+
+  const contribution = ensureGameplayContribution(gameplayState, member);
+  contribution.action_count += 1;
+  contribution.last_action_id = actionOption.id;
+  contribution.last_action_label = actionOption.label;
+  contribution.last_action_at = nowSeconds();
+  contribution.progress_value += Math.max(0, Math.floor(Number(actionOption.progress_delta) || 0));
+  contribution.score_value += Math.max(0, Math.floor(Number(actionOption.score_delta) || 0));
+  if (actionOption.unique_per_member) contribution.locked = true;
+
+  gameplayState.phase = 'active';
+  gameplayState.progress_value = Math.min(gameplayState.progress_target, gameplayState.progress_value + Math.max(0, Math.floor(Number(actionOption.progress_delta) || 0)));
+  gameplayState.score_value += Math.max(0, Math.floor(Number(actionOption.score_delta) || 0));
+  gameplayState.last_action_id = actionOption.id;
+  gameplayState.last_actor_username = sanitizeText(actor.username, 40);
+  gameplayState.last_actor_display_name = sanitizeText(actor.displayName, 40) || sanitizeText(actor.username, 40);
+  gameplayState.last_action_summary = `${gameplayState.last_actor_display_name} 执行了「${actionOption.label}」；${buildGameplayProgressText(template, gameplayState)}，${template.score_label}${gameplayState.score_value}`;
+  touchRoom(room);
+  recordRoomEvent(room, 'room.action', actor, gameplayState.last_action_summary);
+  finalizeGameplayIfCompleted(room, actor);
+}
+
+function buildSettlementSummary(room) {
+  const roomTemplate = getRoomTemplate(room.template_id);
+  const gameplayTemplate = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  const gameplayState = ensureRoomGameplayState(room);
+  return `已为 ${roomTemplate.label} · ${gameplayTemplate.label} 生成第一轮节会结算凭证；当前${buildGameplayProgressText(gameplayTemplate, gameplayState)}，${gameplayTemplate.score_label}${gameplayState.score_value}。具体玩法奖励会在后续场景阶段继续接入。`;
+}
+
 function buildRoomSnapshot(store, room, viewerUsername) {
   materializeCountdownState(room);
+  materializeGameplayPhase(room);
   const template = getRoomTemplate(room.template_id);
   const viewerMember = getRoomMember(room, viewerUsername);
   const viewerInvitation = getRoomInvitation(room, viewerUsername);
@@ -457,6 +845,7 @@ function buildRoomSnapshot(store, room, viewerUsername) {
     template_id: template.id,
     template_label: template.label,
     template_summary: template.summary,
+    gameplay_template_id: room.gameplay_template_id,
     host_username: room.host_username,
     host_display_name: room.host_display_name,
     state: room.state,
@@ -509,6 +898,7 @@ function buildRoomSnapshot(store, room, viewerUsername) {
       summary: receipt.summary,
       created_at: receipt.created_at,
     })),
+    gameplay: buildGameplaySnapshot(room, viewerUsername),
     opening_ceremony: buildOpeningCeremony(room),
     joined_member_count: participatingCount,
     ready_member_count: readyCount,
@@ -538,6 +928,7 @@ function buildOverview(store, viewerUsername) {
   const rooms = (store.rooms || []).map(room => {
     const normalized = normalizeRoom(room);
     if (materializeCountdownState(normalized)) changed = true;
+    if (materializeGameplayPhase(normalized)) changed = true;
     return normalized;
   });
   if (changed) {
@@ -579,8 +970,9 @@ function buildOverview(store, viewerUsername) {
     }));
 
   return {
-    bulletin: '节会房间第一轮已支持开房、邀请、加入、准备、倒计时、开场演出、结算凭证和断线重连；具体小游戏场景会在后续节会阶段继续接入。',
+    bulletin: '节会房间现已支持开房、邀请、加入、准备、倒计时、断线重连和逐成员结算，并补入公共进度、小队协作、抢答、拼装、采集、表演、合照七类玩法模板骨架。',
     templates: listRoomTemplates(),
+    gameplay_templates: listGameplayTemplates(),
     my_room: currentRoom ? buildRoomSnapshot(store, currentRoom, normalizedViewer) : null,
     invited_rooms: invitedRooms,
     visible_rooms: visibleRooms.map(room => buildRoomSnapshot(store, room, normalizedViewer)),
@@ -595,9 +987,11 @@ async function createFestivalRoom(payload = {}, actor = {}) {
   const store = loadStore();
   ensureNoOtherActiveRoom(store, username);
   const template = getRoomTemplate(payload.template_id);
+  const gameplayTemplate = getGameplayTemplate(payload.gameplay_template_id, template.id);
   const room = normalizeRoom({
     id: makeId('festival_room'),
     template_id: template.id,
+    gameplay_template_id: gameplayTemplate.id,
     title: sanitizeText(payload.title, 60) || template.label,
     host_username: username,
     host_display_name: displayName,
@@ -616,10 +1010,11 @@ async function createFestivalRoom(payload = {}, actor = {}) {
       last_seen_at: nowSeconds(),
     }],
     invitations: [],
+    gameplay_state: createInitialGameplayState(gameplayTemplate.id, template.id),
     settlement_receipt_ids: [],
     events: [],
   });
-  recordRoomEvent(room, 'room.create', actor, `创建了 ${template.label} 房间《${room.title}》`);
+  recordRoomEvent(room, 'room.create', actor, `创建了 ${template.label} 房间《${room.title}》，玩法模板为 ${gameplayTemplate.label}`);
   replaceRoom(store, room);
   saveStore(store);
   return {
@@ -917,6 +1312,7 @@ async function settleFestivalRoom(roomId, actor = {}) {
   const store = loadStore();
   const room = ensureRoomExists(store, roomId);
   materializeCountdownState(room);
+  materializeGameplayPhase(room);
   ensureHost(room, username);
   if (!['running', 'paused'].includes(room.state)) {
     throw createError('只有进行中的节会房间才能进入结算');
@@ -926,6 +1322,7 @@ async function settleFestivalRoom(roomId, actor = {}) {
   }
   room.settlement_version = Math.max(1, room.settlement_version + 1);
   const joinedMembers = getJoinedMembers(room);
+  const settlementSummary = buildSettlementSummary(room);
   const nextReceipts = joinedMembers.map(member => normalizeRoomReceipt({
     id: makeId('festival_room_receipt'),
     room_id: room.id,
@@ -942,7 +1339,7 @@ async function settleFestivalRoom(roomId, actor = {}) {
       reward_tickets: 0,
       items: [],
     },
-    summary: `已为 ${getRoomTemplate(room.template_id).label} 房间生成第一轮节会结算凭证；具体玩法奖励会在后续场景阶段继续接入。`,
+    summary: settlementSummary,
     settlement_version: room.settlement_version,
     created_at: nowSeconds(),
     updated_at: nowSeconds(),
@@ -960,6 +1357,28 @@ async function settleFestivalRoom(roomId, actor = {}) {
   room.settled_at = nowSeconds();
   updateRoomState(room, 'settling', '');
   recordRoomEvent(room, 'room.settle', actor, `已为 ${nextReceipts.length} 名成员生成结算凭证`);
+  replaceRoom(store, room);
+  saveStore(store);
+  return {
+    room: buildRoomSnapshot(store, room, username),
+    overview: buildOverview(store, username),
+  };
+}
+
+async function submitFestivalRoomGameplayAction(roomId, payload = {}, actor = {}) {
+  const username = sanitizeText(actor.username, 40);
+  if (!username) throw createError('未登录账号不能提交节会玩法动作', 401);
+  const actionId = sanitizeText(payload.action_id, 40);
+  if (!actionId) throw createError('请先指定要执行的玩法动作');
+  const store = loadStore();
+  const room = ensureRoomExists(store, roomId);
+  materializeCountdownState(room);
+  materializeGameplayPhase(room);
+  ensureViewerCanSeeRoom(room, username);
+  applyGameplayAction(room, actionId, {
+    username,
+    displayName: sanitizeText(actor.displayName, 40) || username,
+  });
   replaceRoom(store, room);
   saveStore(store);
   return {
@@ -1017,6 +1436,7 @@ module.exports = {
   startFestivalRoomCountdown,
   disconnectFestivalRoom,
   reconnectFestivalRoom,
+  submitFestivalRoomGameplayAction,
   settleFestivalRoom,
   closeFestivalRoom,
 };

@@ -1448,6 +1448,10 @@ try {
     for (const requiredId of ['yuanri_vigil', 'lantern_fair', 'dragon_boat', 'qixi_stroll', 'mid_autumn_moonwatch', 'laba_cookpot']) {
       assert(templateIds.has(requiredId), `festival room overview missing template ${requiredId}`)
     }
+    const gameplayTemplateIds = new Set((data?.gameplay_templates || []).map(item => String(item?.id || '')))
+    for (const requiredId of ['public_progress', 'squad_coop', 'quiz_buzz', 'assembly', 'gathering', 'performance', 'group_photo']) {
+      assert(gameplayTemplateIds.has(requiredId), `festival room overview missing gameplay template ${requiredId}`)
+    }
   })
 
   await runCheck('POST /api/taoyuan/online/festival/rooms write path', async () => {
@@ -1458,11 +1462,13 @@ try {
       },
       body: JSON.stringify({
         template_id: 'dragon_boat',
+        gameplay_template_id: 'squad_coop',
         title: `smoke 节会房间 ${Date.now()}`,
       }),
     })
     assert(response.ok, `festival room create returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.room?.id, 'festival room create payload is incomplete')
+    assert(data?.room?.gameplay?.template_id === 'squad_coop', 'festival room create did not persist gameplay template id')
     createdFestivalRoomId = String(data.room.id)
   })
 
@@ -1563,6 +1569,38 @@ try {
     assert(response.ok, `festival room readback returned ${response.status}`)
     assert(data?.ok === true && data?.my_room?.id === createdFestivalRoomId, 'festival room readback payload is incomplete')
     assert(String(data?.my_room?.state || '') === 'running', `festival room did not reach running state, current=${data?.my_room?.state}`)
+    assert(String(data?.my_room?.gameplay?.phase || '') === 'active', `festival room gameplay did not enter active phase, current=${data?.my_room?.gameplay?.phase}`)
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/action primary path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        action_id: 'sync_oar',
+      }),
+    })
+    assert(response.ok, `festival room gameplay action returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.gameplay?.progress_value >= 1, 'festival room gameplay action did not advance progress')
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/action secondary path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': secondarySessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        action_id: 'sync_oar',
+      }),
+    })
+    assert(response.ok, `festival room secondary gameplay action returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && Array.isArray(data?.room?.gameplay?.contributions), 'festival room secondary gameplay action payload is incomplete')
+    assert(data.room.gameplay.contributions.some(item => item?.username === secondarySessionState.username && Number(item?.action_count) >= 1), 'festival room secondary gameplay contribution was not recorded')
   })
 
   await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/settle path', async () => {

@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0519 节会玩法模板（L62 第一轮）
+- `taoyuan-main/src/utils/festivalRoomApi.ts`、`src/stores/useFestivalRoomStore.ts` 与 `src/views/game/FestivalView.vue` 已把“节会房型”和“玩法模板”拆成两个选择维度；现在创建房间时可以分别指定场景模板与玩法模板，不再把赛舟、同游、赏月这些场景名直接当成具体小游戏。
+- 节会页当前已补出七类玩法模板承接：公共进度、小队协作、抢答、拼装、采集、表演、合照都会展示目标说明、推荐场景和可用动作，至少已经能从 UI 上看懂“这间房准备怎么玩”。
+- 运行中的节会房间现在还会显示共享进度、团队分数、最近动作和成员贡献，并允许在房间进入 `running` 后直接提交玩法动作；节会不再只是“开房、ready、倒计时、结算”的空流程壳。
+
 ### 0519 节会房间底座与场景模板（L60-L61 第一轮）
 - 新增 `server/src/taoyuanActivityRoomRuntime.js` 与 `/api/taoyuan/online/festival/rooms` 一组房间接口，把第一版节会房间底座正式接进服务端运行态；当前已经支持创建、邀请、加入、准备确认、倒计时、断线重连、结算凭证和关闭流程。
 - 新增 `taoyuan-main/src/utils/festivalRoomApi.ts`、`taoyuan-main/src/stores/useFestivalRoomStore.ts` 与 `taoyuan-main/src/views/game/FestivalView.vue`，游戏内现已长出第一版“节会”面板，可直接创建房间、邀请玩家、切换 ready、触发倒计时、模拟断线恢复并查看最近结算凭证。

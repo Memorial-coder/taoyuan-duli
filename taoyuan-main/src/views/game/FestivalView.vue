@@ -4,7 +4,7 @@
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
           <p class="text-[10px] tracking-[0.24em] text-accent/70">节会房间</p>
-          <p class="text-sm text-accent mt-1">同场联机底座</p>
+          <p class="text-sm text-accent mt-1">同场联机与玩法模板</p>
           <p class="text-xs text-muted mt-2 leading-5">{{ festivalRoomStore.overview?.bulletin || '先从房间底座把创建、邀请、准备、倒计时和结算流程跑通。' }}</p>
         </div>
         <Button class="shrink-0" :disabled="festivalRoomStore.loading || festivalRoomStore.actionRunning" @click="refreshOverview">
@@ -18,11 +18,11 @@
       <div class="border border-accent/20 rounded-xs p-3 bg-bg/10">
         <div class="flex items-center justify-between gap-2 mb-2">
           <p class="text-sm text-accent">创建节会房间</p>
-          <span class="text-[10px] text-muted">L60 第一轮</span>
+          <span class="text-[10px] text-muted">L60-L62 第一轮</span>
         </div>
         <div class="space-y-2">
           <label class="block">
-            <span class="text-[10px] text-muted">玩法模板</span>
+            <span class="text-[10px] text-muted">节会房型</span>
             <select v-model="festivalRoomStore.selectedTemplateId" class="w-full mt-1 bg-bg border border-accent/20 rounded-xs px-2 py-2 text-xs text-text">
               <option v-for="template in festivalRoomStore.templates" :key="template.id" :value="template.id">
                 {{ template.label }}
@@ -33,6 +33,31 @@
             <p class="text-xs text-accent">{{ festivalRoomStore.selectedTemplate.label }}</p>
             <p class="text-[10px] text-muted mt-1 leading-4">{{ festivalRoomStore.selectedTemplate.summary }}</p>
             <p class="text-[10px] text-muted mt-1">默认人数上限：{{ festivalRoomStore.selectedTemplate.default_member_limit }} 人</p>
+            <p v-if="festivalRoomStore.recommendedGameplayTemplates.length > 0" class="text-[10px] text-muted mt-1">
+              推荐玩法：{{ festivalRoomStore.recommendedGameplayTemplates.map(template => template.label).join(' / ') }}
+            </p>
+          </div>
+          <label class="block">
+            <span class="text-[10px] text-muted">玩法模板</span>
+            <select v-model="festivalRoomStore.selectedGameplayTemplateId" class="w-full mt-1 bg-bg border border-accent/20 rounded-xs px-2 py-2 text-xs text-text">
+              <option v-for="template in festivalRoomStore.gameplayTemplates" :key="template.id" :value="template.id">
+                {{ template.label }}
+              </option>
+            </select>
+          </label>
+          <div v-if="festivalRoomStore.selectedGameplayTemplate" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+            <p class="text-xs text-accent">{{ festivalRoomStore.selectedGameplayTemplate.label }}</p>
+            <p class="text-[10px] text-muted mt-1 leading-4">{{ festivalRoomStore.selectedGameplayTemplate.summary }}</p>
+            <p class="text-[10px] text-muted mt-1">{{ festivalRoomStore.selectedGameplayTemplate.objective_label }} · 目标 {{ festivalRoomStore.selectedGameplayTemplate.default_target }}</p>
+            <div v-if="festivalRoomStore.selectedGameplayTemplate.action_options.length > 0" class="flex flex-wrap gap-1.5 mt-2">
+              <span
+                v-for="action in festivalRoomStore.selectedGameplayTemplate.action_options"
+                :key="action.id"
+                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted"
+              >
+                {{ action.label }}
+              </span>
+            </div>
           </div>
           <label class="block">
             <span class="text-[10px] text-muted">房间标题</span>
@@ -59,7 +84,7 @@
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="text-xs text-accent">{{ festivalRoomStore.myRoom.title }}</p>
-                <p class="text-[10px] text-muted mt-1">{{ festivalRoomStore.myRoom.template_label }} · {{ festivalRoomStore.myRoom.joined_member_count }}/{{ festivalRoomStore.myRoom.member_limit }} 人</p>
+                <p class="text-[10px] text-muted mt-1">{{ festivalRoomStore.myRoom.template_label }} · {{ festivalRoomStore.myRoom.gameplay.template_label }} · {{ festivalRoomStore.myRoom.joined_member_count }}/{{ festivalRoomStore.myRoom.member_limit }} 人</p>
               </div>
               <span class="text-[10px] text-muted">{{ festivalRoomStore.myRoom.state_label }}</span>
             </div>
@@ -67,6 +92,48 @@
             <p v-if="festivalRoomStore.myRoom.opening_ceremony" class="text-[10px] text-success mt-1">
               {{ festivalRoomStore.myRoom.opening_ceremony.subtitle }}
             </p>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">{{ festivalRoomStore.myRoom.gameplay.template_label }}</p>
+                <p class="text-[10px] text-muted mt-1 leading-4">{{ festivalRoomStore.myRoom.gameplay.template_summary }}</p>
+              </div>
+              <span class="text-[10px] text-muted">{{ festivalRoomStore.myRoom.gameplay.phase_label }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-2">{{ festivalRoomStore.myRoom.gameplay.progress_text }} · {{ festivalRoomStore.myRoom.gameplay.score_label }} {{ festivalRoomStore.myRoom.gameplay.score_value }}</p>
+            <p v-if="festivalRoomStore.myRoom.gameplay.last_action_summary" class="text-[10px] text-success mt-1 leading-4">
+              {{ festivalRoomStore.myRoom.gameplay.last_action_summary }}
+            </p>
+            <div v-if="festivalRoomStore.myRoom.gameplay.contributions.length > 0" class="flex flex-wrap gap-1.5 mt-2">
+              <span
+                v-for="contribution in festivalRoomStore.myRoom.gameplay.contributions"
+                :key="`${festivalRoomStore.myRoom.id}-${contribution.username}-gameplay`"
+                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted"
+              >
+                {{ contribution.display_name }} · {{ contribution.action_count }} 次 · {{ contribution.progress_value }} 贡献
+              </span>
+            </div>
+          </div>
+
+          <div v-if="festivalRoomStore.myRoom.gameplay.available_actions.length > 0" class="space-y-2">
+            <p class="text-[10px] text-muted">玩法动作</p>
+            <div class="space-y-2">
+              <div
+                v-for="action in festivalRoomStore.myRoom.gameplay.available_actions"
+                :key="`${festivalRoomStore.myRoom.id}-${action.id}`"
+                class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
+              >
+                <div class="flex items-center gap-2">
+                  <Button :disabled="festivalRoomStore.actionRunning || !action.can_use" @click="playGameplayAction(festivalRoomStore.myRoom.id, action.id)">
+                    {{ action.label }}
+                  </Button>
+                  <p class="text-[10px] text-muted leading-4">{{ action.summary }}</p>
+                </div>
+                <p v-if="!action.can_use && action.disabled_reason" class="text-[10px] text-muted mt-1">{{ action.disabled_reason }}</p>
+              </div>
+            </div>
           </div>
 
           <label class="block">
@@ -124,7 +191,7 @@
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <p class="text-xs text-text">{{ room.title }}</p>
-              <p class="text-[10px] text-muted mt-1">{{ room.template_label }} · 房主 {{ room.host_display_name }}</p>
+              <p class="text-[10px] text-muted mt-1">{{ room.template_label }} · {{ room.gameplay.template_label }} · 房主 {{ room.host_display_name }}</p>
             </div>
             <Button :disabled="festivalRoomStore.actionRunning || !room.can_join" @click="joinRoom(room.id)">
               加入
@@ -143,10 +210,11 @@
             <div class="flex items-start justify-between gap-3">
               <div class="min-w-0">
                 <p class="text-xs text-accent">{{ room.title }}</p>
-                <p class="text-[10px] text-muted mt-1">{{ room.template_label }} · {{ room.state_label }} · {{ room.joined_member_count }}/{{ room.member_limit }} 人</p>
+                <p class="text-[10px] text-muted mt-1">{{ room.template_label }} · {{ room.gameplay.template_label }} · {{ room.state_label }} · {{ room.joined_member_count }}/{{ room.member_limit }} 人</p>
               </div>
               <span class="text-[10px] text-muted">{{ room.ready_member_count }} 已准备</span>
             </div>
+            <p class="text-[10px] text-muted mt-2">{{ room.gameplay.progress_text }} · {{ room.gameplay.score_label }} {{ room.gameplay.score_value }}</p>
             <div v-if="room.members.length > 0" class="flex flex-wrap gap-1.5 mt-2">
               <span
                 v-for="member in room.members"
@@ -234,6 +302,10 @@
 
   const reconnectRoom = async (roomId: string) => {
     await festivalRoomStore.reconnectRoomAction(roomId).catch(() => {})
+  }
+
+  const playGameplayAction = async (roomId: string, actionId: string) => {
+    await festivalRoomStore.submitGameplayAction(roomId, actionId).catch(() => {})
   }
 
   const settleRoom = async (roomId: string) => {
