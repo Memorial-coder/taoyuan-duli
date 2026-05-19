@@ -540,6 +540,8 @@ try {
   let festivalStallFoodOfferId = ''
   let festivalStallTicketOfferId = ''
   let exchangeLedgerReportableEntryId = ''
+  let festivalPrimaryRewardMoney = 0
+  let festivalSecondaryRewardMoney = 0
   let originalMarketGovernanceConfig = null
   let weeklyExchangeExpectedWoodCount = null
   let weeklyExchangeExpectedStoneCount = null
@@ -1603,6 +1605,22 @@ try {
     assert(data.room.gameplay.contributions.some(item => item?.username === secondarySessionState.username && Number(item?.action_count) >= 1), 'festival room secondary gameplay contribution was not recorded')
   })
 
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/action primary bonus path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        action_id: 'steady_rudder',
+      }),
+    })
+    assert(response.ok, `festival room primary bonus action returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    const primaryContribution = data?.room?.gameplay?.contributions?.find(item => item?.username === sessionState.username)
+    assert(Number(primaryContribution?.action_count || 0) >= 2, 'festival room primary bonus action did not keep host contribution ahead')
+  })
+
   await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/settle path', async () => {
     const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/settle`, {
       method: 'POST',
@@ -1613,6 +1631,11 @@ try {
     assert(response.ok, `festival room settle returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.room?.state === 'settling', 'festival room settle payload is incomplete')
     assert(Array.isArray(data?.room?.settlement_receipts) && data.room.settlement_receipts.length >= 2, 'festival room settle did not generate per-member receipts')
+    assert(data.room.settlement_receipts.every(item => Number(item?.reward_payload?.money) >= 40), 'festival room settle did not generate participation rewards')
+    const primaryReceipt = data.room.settlement_receipts.find(item => item?.target_username === sessionState.username)
+    const secondaryReceipt = data.room.settlement_receipts.find(item => item?.target_username === secondarySessionState.username)
+    festivalPrimaryRewardMoney = Math.max(0, Math.floor(Number(primaryReceipt?.reward_payload?.money) || 0))
+    festivalSecondaryRewardMoney = Math.max(0, Math.floor(Number(secondaryReceipt?.reward_payload?.money) || 0))
   })
 
   await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/close path', async () => {
@@ -1624,6 +1647,25 @@ try {
     })
     assert(response.ok, `festival room close returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.room?.state === 'closed', 'festival room close payload is incomplete')
+    assert(Array.isArray(data?.room?.settlement_receipts) && data.room.settlement_receipts.every(item => item?.status === 'persisted'), 'festival room close did not persist all settlement receipts')
+    primaryExpectedMoney += festivalPrimaryRewardMoney
+    secondaryExpectedMoney += festivalSecondaryRewardMoney
+  })
+
+  await runCheck('GET /api/taoyuan/save/:slot festival reward persistence', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(response.ok, `festival reward save readback returned ${response.status}`)
+    assert(data?.ok === true && typeof data?.raw === 'string', 'festival reward save payload is incomplete')
+    const decrypted = decryptTaoyuanRaw(data.raw)
+    assert(Math.max(0, Math.floor(Number(decrypted?.player?.money) || 0)) === primaryExpectedMoney, `festival reward did not persist player money correctly, expected money=${primaryExpectedMoney}, current money=${Math.max(0, Math.floor(Number(decrypted?.player?.money) || 0))}`)
+    assert(Math.max(0, Math.floor(Number(decrypted?.wallet?.rewardTickets?.festival) || 0)) >= 1, 'festival reward did not grant festival memorial tickets')
+    assert(Math.max(0, Math.floor(Number(decrypted?.decoration?.owned?.catalog_lotus_lamp) || 0)) >= 1, 'festival reward did not grant the expected decoration')
+  })
+
+  await runCheck('GET /api/taoyuan/online/profile festival title persistence', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/profile')
+    assert(response.ok, `festival title profile returned ${response.status}`)
+    assert(data?.ok === true && data?.profile?.public_title === '赛舟领桨手', 'festival reward did not update public title')
   })
 
   await runCheck('fourth session bootstrap', async () => {

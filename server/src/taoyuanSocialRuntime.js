@@ -1062,6 +1062,7 @@ module.exports = {
   getOwnProfile,
   getPublicProfile,
   getStoredProfile,
+  updateStoredProfile,
   updateOwnProfile,
   listRelationshipOverview,
   requestFriendship,

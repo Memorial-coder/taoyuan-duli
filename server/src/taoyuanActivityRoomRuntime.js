@@ -1,9 +1,12 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
+const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
 const {
   createError,
+  getActiveSaveContext,
   getActiveSaveSlot,
+  persistGameplayData,
   writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime');
 
@@ -16,12 +19,31 @@ const TAOYUAN_ACTIVITY_ROOM_FILE = path.join(DATA_DIR, 'taoyuan_activity_rooms.j
 const ROOM_STATES = Object.freeze(['created', 'inviting', 'ready_check', 'countdown', 'running', 'paused', 'settling', 'closed', 'aborted']);
 const MEMBER_STATES = Object.freeze(['invited', 'joined', 'ready', 'countdown_locked', 'active', 'disconnected', 'reconnecting', 'finished', 'settled', 'left', 'kicked']);
 const INVITATION_STATES = Object.freeze(['pending', 'accepted', 'rejected']);
-const RECEIPT_STATES = Object.freeze(['created', 'persist_preview']);
+const RECEIPT_STATES = Object.freeze(['created', 'persist_preview', 'pending_persist', 'persisted', 'compensation_pending']);
 const EVENT_LIMIT = 40;
 const RECEIPT_LIMIT = 60;
 const DEFAULT_COUNTDOWN_SECONDS = 6;
 const DEFAULT_RECONNECT_WINDOW_SECONDS = 90;
 const GAMEPLAY_PHASES = Object.freeze(['prep', 'active', 'completed']);
+const FESTIVAL_REWARD_TICKET_TYPE = 'festival';
+
+const FESTIVAL_DECORATION_REWARD_MAP = Object.freeze({
+  yuanri_vigil: { decoration_id: 'catalog_brazier', label: '暖炭火盆' },
+  lantern_fair: { decoration_id: 'catalog_festival_lantern', label: '彩绢灯笼' },
+  dragon_boat: { decoration_id: 'catalog_lotus_lamp', label: '荷灯摆台' },
+  qixi_stroll: { decoration_id: 'catalog_flower_cart', label: '花市巡游车' },
+  mid_autumn_moonwatch: { decoration_id: 'catalog_moon_set', label: '望月案设' },
+  laba_cookpot: { decoration_id: 'catalog_incense_stand', label: '梅雪香座' },
+});
+
+const FESTIVAL_TITLE_REWARD_MAP = Object.freeze({
+  yuanri_vigil: { title_id: 'festival_title_yuanri_vigil', label: '守岁同心人' },
+  lantern_fair: { title_id: 'festival_title_lantern_fair', label: '灯会答魁' },
+  dragon_boat: { title_id: 'festival_title_dragon_boat', label: '赛舟领桨手' },
+  qixi_stroll: { title_id: 'festival_title_qixi_stroll', label: '星桥同游人' },
+  mid_autumn_moonwatch: { title_id: 'festival_title_mid_autumn', label: '望月留影客' },
+  laba_cookpot: { title_id: 'festival_title_laba_cookpot', label: '腊八共灶人' },
+});
 
 const ROOM_TEMPLATE_MAP = Object.freeze({
   yuanri_vigil: {
@@ -403,9 +425,41 @@ function normalizeRoomReceipt(entry) {
             : [],
         }
       : { money: 0, reward_tickets: 0, items: [] },
+    reward_breakdown: entry?.reward_breakdown && typeof entry.reward_breakdown === 'object'
+      ? {
+          participation_money: Math.max(0, Math.floor(Number(entry.reward_breakdown.participation_money) || 0)),
+          cooperation_bonus_money: Math.max(0, Math.floor(Number(entry.reward_breakdown.cooperation_bonus_money) || 0)),
+          ranking_bonus_money: Math.max(0, Math.floor(Number(entry.reward_breakdown.ranking_bonus_money) || 0)),
+          memorial_ticket_quantity: Math.max(0, Math.floor(Number(entry.reward_breakdown.memorial_ticket_quantity) || 0)),
+          decoration_reward: entry.reward_breakdown.decoration_reward && typeof entry.reward_breakdown.decoration_reward === 'object'
+            ? {
+                decoration_id: sanitizeText(entry.reward_breakdown.decoration_reward.decoration_id, 80),
+                label: sanitizeText(entry.reward_breakdown.decoration_reward.label, 40),
+                quantity: Math.max(0, Math.floor(Number(entry.reward_breakdown.decoration_reward.quantity) || 0)),
+              }
+            : { decoration_id: '', label: '', quantity: 0 },
+          title_reward: entry.reward_breakdown.title_reward && typeof entry.reward_breakdown.title_reward === 'object'
+            ? {
+                title_id: sanitizeText(entry.reward_breakdown.title_reward.title_id, 80),
+                label: sanitizeText(entry.reward_breakdown.title_reward.label, 40),
+                granted: entry.reward_breakdown.title_reward.granted === true,
+              }
+            : { title_id: '', label: '', granted: false },
+        }
+      : {
+          participation_money: 0,
+          cooperation_bonus_money: 0,
+          ranking_bonus_money: 0,
+          memorial_ticket_quantity: 0,
+          decoration_reward: { decoration_id: '', label: '', quantity: 0 },
+          title_reward: { title_id: '', label: '', granted: false },
+        },
     summary: sanitizeText(entry?.summary, 160),
+    reward_result: sanitizeText(entry?.reward_result, 160),
+    last_error: sanitizeText(entry?.last_error, 160),
     settlement_version: Math.max(1, Math.floor(Number(entry?.settlement_version) || 1)),
     created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
+    persisted_at: Math.max(0, Math.floor(Number(entry?.persisted_at) || 0)),
     updated_at: Math.max(0, Math.floor(Number(entry?.updated_at) || nowSeconds())),
   };
 }
@@ -826,7 +880,193 @@ function buildSettlementSummary(room) {
   const roomTemplate = getRoomTemplate(room.template_id);
   const gameplayTemplate = getGameplayTemplate(room.gameplay_template_id, room.template_id);
   const gameplayState = ensureRoomGameplayState(room);
-  return `已为 ${roomTemplate.label} · ${gameplayTemplate.label} 生成第一轮节会结算凭证；当前${buildGameplayProgressText(gameplayTemplate, gameplayState)}，${gameplayTemplate.score_label}${gameplayState.score_value}。具体玩法奖励会在后续场景阶段继续接入。`;
+  return `已为 ${roomTemplate.label} · ${gameplayTemplate.label} 生成第一轮节会结算凭证；当前${buildGameplayProgressText(gameplayTemplate, gameplayState)}，${gameplayTemplate.score_label}${gameplayState.score_value}。`;
+}
+
+function getReceiptStatusLabel(status) {
+  if (status === 'persist_preview') return '已生成回写预览';
+  if (status === 'pending_persist') return '待写回个人存档';
+  if (status === 'persisted') return '已写回个人存档';
+  if (status === 'compensation_pending') return '待补偿处理';
+  return '已生成凭证';
+}
+
+function ensureFestivalRewardWallet(saveData) {
+  if (!saveData.wallet || typeof saveData.wallet !== 'object') saveData.wallet = {};
+  if (!saveData.wallet.rewardTickets || typeof saveData.wallet.rewardTickets !== 'object') saveData.wallet.rewardTickets = {};
+  if (!saveData.wallet.rewardTicketLifetimeEarned || typeof saveData.wallet.rewardTicketLifetimeEarned !== 'object') {
+    saveData.wallet.rewardTicketLifetimeEarned = { ...saveData.wallet.rewardTickets };
+  }
+}
+
+function ensureFestivalDecorationState(saveData) {
+  if (!saveData.decoration || typeof saveData.decoration !== 'object') saveData.decoration = {};
+  if (!saveData.decoration.owned || typeof saveData.decoration.owned !== 'object') saveData.decoration.owned = {};
+  if (!saveData.decoration.placed || typeof saveData.decoration.placed !== 'object') saveData.decoration.placed = {};
+}
+
+function ensureFestivalRewardState(saveData) {
+  if (!saveData.onlineFestivalRewards || typeof saveData.onlineFestivalRewards !== 'object') {
+    saveData.onlineFestivalRewards = {};
+  }
+  if (!saveData.onlineFestivalRewards.appliedReceipts || typeof saveData.onlineFestivalRewards.appliedReceipts !== 'object') {
+    saveData.onlineFestivalRewards.appliedReceipts = {};
+  }
+  if (!saveData.onlineFestivalRewards.titles || typeof saveData.onlineFestivalRewards.titles !== 'object') {
+    saveData.onlineFestivalRewards.titles = {};
+  }
+  if (!Array.isArray(saveData.onlineFestivalRewards.memorials)) {
+    saveData.onlineFestivalRewards.memorials = [];
+  }
+  return saveData.onlineFestivalRewards;
+}
+
+function getSortedGameplayContributions(room) {
+  const gameplayState = ensureRoomGameplayState(room);
+  const joinedMembers = getJoinedMembers(room);
+  return joinedMembers
+    .map(member => {
+      const contribution = findGameplayContribution(gameplayState, member.username);
+      return {
+        username: member.username,
+        display_name: member.display_name,
+        progress_value: contribution?.progress_value || 0,
+        score_value: contribution?.score_value || 0,
+        action_count: contribution?.action_count || 0,
+      };
+    })
+    .sort((left, right) => {
+      if (right.progress_value !== left.progress_value) return right.progress_value - left.progress_value;
+      if (right.score_value !== left.score_value) return right.score_value - left.score_value;
+      if (right.action_count !== left.action_count) return right.action_count - left.action_count;
+      return left.username.localeCompare(right.username, 'zh-CN');
+    });
+}
+
+function buildFestivalReceiptReward(room, member, rankingIndex) {
+  const gameplayTemplate = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  const gameplayState = ensureRoomGameplayState(room);
+  const contributions = getSortedGameplayContributions(room);
+  const contribution = contributions.find(entry => entry.username === member.username) || {
+    progress_value: 0,
+    score_value: 0,
+    action_count: 0,
+  };
+  const participationMoney = 40;
+  const cooperationBonusMoney = Math.max(0, Math.min(60, gameplayState.progress_value * 5 + contribution.action_count * 2));
+  const rankingBonusMoney = rankingIndex === 0 ? 36 : rankingIndex === 1 ? 18 : 8;
+  const memorialTicketQuantity = gameplayState.phase === 'completed' ? 2 : 1;
+  const decorationReward = rankingIndex === 0
+    ? {
+        decoration_id: FESTIVAL_DECORATION_REWARD_MAP[room.template_id]?.decoration_id || '',
+        label: FESTIVAL_DECORATION_REWARD_MAP[room.template_id]?.label || '',
+        quantity: FESTIVAL_DECORATION_REWARD_MAP[room.template_id]?.decoration_id ? 1 : 0,
+      }
+    : {
+        decoration_id: '',
+        label: '',
+        quantity: 0,
+      };
+  const titleReward = rankingIndex === 0
+    ? {
+        title_id: FESTIVAL_TITLE_REWARD_MAP[room.template_id]?.title_id || '',
+        label: FESTIVAL_TITLE_REWARD_MAP[room.template_id]?.label || '',
+        granted: Boolean(FESTIVAL_TITLE_REWARD_MAP[room.template_id]?.title_id),
+      }
+    : {
+        title_id: '',
+        label: '',
+        granted: false,
+      };
+  const totalMoney = participationMoney + cooperationBonusMoney + rankingBonusMoney;
+  return {
+    reward_payload: {
+      money: totalMoney,
+      reward_tickets: memorialTicketQuantity,
+      items: [],
+    },
+    reward_breakdown: {
+      participation_money: participationMoney,
+      cooperation_bonus_money: cooperationBonusMoney,
+      ranking_bonus_money: rankingBonusMoney,
+      memorial_ticket_quantity: memorialTicketQuantity,
+      decoration_reward: decorationReward,
+      title_reward: titleReward,
+    },
+    summary: `节会参与 ${participationMoney} 铜钱、协作 ${cooperationBonusMoney} 铜钱、排名 ${rankingBonusMoney} 铜钱；另附 ${memorialTicketQuantity} 张节会纪念券${decorationReward.decoration_id ? `、限定装饰「${decorationReward.label}」` : ''}${titleReward.granted ? ` 与称号「${titleReward.label}」` : ''}。`,
+    contribution,
+    gameplay_template_label: gameplayTemplate.label,
+  };
+}
+
+function applyFestivalReceiptReward(receipt) {
+  const context = getActiveSaveContext(receipt.target_username, receipt.target_slot, '当前账号没有可用的桃源乡存档，暂时无法写入节会奖励');
+  context.username = receipt.target_username;
+  ensureFestivalRewardWallet(context.data);
+  ensureFestivalDecorationState(context.data);
+  const festivalRewardState = ensureFestivalRewardState(context.data);
+  if (festivalRewardState.appliedReceipts[receipt.idempotency_key]) {
+    return {
+      slot: context.slot,
+      revision: context.saves.slots[context.slot]?.revision ?? 0,
+      reward_result: `节会奖励此前已写入槽位 ${Number(context.slot) + 1}`,
+    };
+  }
+
+  const currentMoney = Math.max(0, Math.floor(Number(context.data?.player?.money) || 0));
+  context.data.player.money = currentMoney + Math.max(0, Math.floor(Number(receipt.reward_payload?.money) || 0));
+
+  const ticketQuantity = Math.max(0, Math.floor(Number(receipt.reward_breakdown?.memorial_ticket_quantity) || 0));
+  if (ticketQuantity > 0) {
+    const currentTicket = Math.max(0, Math.floor(Number(context.data.wallet.rewardTickets[FESTIVAL_REWARD_TICKET_TYPE]) || 0));
+    const lifetimeTicket = Math.max(0, Math.floor(Number(context.data.wallet.rewardTicketLifetimeEarned[FESTIVAL_REWARD_TICKET_TYPE]) || 0));
+    context.data.wallet.rewardTickets[FESTIVAL_REWARD_TICKET_TYPE] = currentTicket + ticketQuantity;
+    context.data.wallet.rewardTicketLifetimeEarned[FESTIVAL_REWARD_TICKET_TYPE] = lifetimeTicket + ticketQuantity;
+  }
+
+  const decorationReward = receipt.reward_breakdown?.decoration_reward || {};
+  const decorationId = sanitizeText(decorationReward.decoration_id, 80);
+  const decorationQuantity = Math.max(0, Math.floor(Number(decorationReward.quantity) || 0));
+  if (decorationId && decorationQuantity > 0) {
+    const currentOwned = Math.max(0, Math.floor(Number(context.data.decoration.owned[decorationId]) || 0));
+    context.data.decoration.owned[decorationId] = currentOwned + decorationQuantity;
+  }
+
+  const titleReward = receipt.reward_breakdown?.title_reward || {};
+  const titleLabel = sanitizeText(titleReward.label, 40);
+  if (titleReward.granted === true && titleLabel) {
+    taoyuanSocialRuntime.updateStoredProfile(receipt.target_username, {
+      public_title: titleLabel,
+    });
+    festivalRewardState.titles[titleReward.title_id] = {
+      label: titleLabel,
+      room_id: receipt.room_id,
+      template_id: receipt.template_id,
+      awarded_at: nowSeconds(),
+    };
+  }
+
+  festivalRewardState.memorials = [
+    {
+      memorial_id: `festival_memorial:${receipt.room_id}:${receipt.target_username}:v${receipt.settlement_version}`,
+      label: `${receipt.template_label}纪念`,
+      room_id: receipt.room_id,
+      template_id: receipt.template_id,
+      awarded_at: nowSeconds(),
+    },
+    ...festivalRewardState.memorials.filter(entry => entry?.memorial_id !== `festival_memorial:${receipt.room_id}:${receipt.target_username}:v${receipt.settlement_version}`),
+  ].slice(0, 40);
+  festivalRewardState.appliedReceipts[receipt.idempotency_key] = {
+    receipt_id: receipt.id,
+    persisted_at: nowSeconds(),
+  };
+
+  const revision = persistGameplayData(context);
+  return {
+    slot: context.slot,
+    revision,
+    reward_result: `节会奖励已写入槽位 ${Number(context.slot) + 1}`,
+  };
 }
 
 function buildRoomSnapshot(store, room, viewerUsername) {
@@ -893,7 +1133,7 @@ function buildRoomSnapshot(store, room, viewerUsername) {
       target_display_name: receipt.target_display_name,
       target_slot: receipt.target_slot,
       status: receipt.status,
-      status_label: receipt.status === 'persist_preview' ? '已生成回写预览' : '已生成凭证',
+      status_label: getReceiptStatusLabel(receipt.status),
       reward_payload: receipt.reward_payload,
       summary: receipt.summary,
       created_at: receipt.created_at,
@@ -963,7 +1203,7 @@ function buildOverview(store, viewerUsername) {
       template_label: receipt.template_label,
       target_slot: receipt.target_slot,
       status: receipt.status,
-      status_label: receipt.status === 'persist_preview' ? '已生成回写预览' : '已生成凭证',
+      status_label: getReceiptStatusLabel(receipt.status),
       reward_payload: receipt.reward_payload,
       summary: receipt.summary,
       created_at: receipt.created_at,
@@ -1322,8 +1562,11 @@ async function settleFestivalRoom(roomId, actor = {}) {
   }
   room.settlement_version = Math.max(1, room.settlement_version + 1);
   const joinedMembers = getJoinedMembers(room);
-  const settlementSummary = buildSettlementSummary(room);
-  const nextReceipts = joinedMembers.map(member => normalizeRoomReceipt({
+  const rankedContributions = getSortedGameplayContributions(room);
+  const nextReceipts = joinedMembers.map(member => {
+    const rankingIndex = Math.max(0, rankedContributions.findIndex(entry => entry.username === member.username));
+    const rewardPreview = buildFestivalReceiptReward(room, member, rankingIndex);
+    return normalizeRoomReceipt({
     id: makeId('festival_room_receipt'),
     room_id: room.id,
     room_title: room.title,
@@ -1332,18 +1575,19 @@ async function settleFestivalRoom(roomId, actor = {}) {
     target_username: member.username,
     target_display_name: member.display_name,
     target_slot: getViewerSaveSlot(member.username),
-    status: 'persist_preview',
+    status: 'pending_persist',
     idempotency_key: `festival_room:${room.id}:${room.settlement_version}:${member.username}:slot${getViewerSaveSlot(member.username)}`,
-    reward_payload: {
-      money: 0,
-      reward_tickets: 0,
-      items: [],
-    },
-    summary: settlementSummary,
+    reward_payload: rewardPreview.reward_payload,
+    reward_breakdown: rewardPreview.reward_breakdown,
+    summary: rewardPreview.summary,
+    reward_result: '',
+    last_error: '',
     settlement_version: room.settlement_version,
     created_at: nowSeconds(),
     updated_at: nowSeconds(),
-  }));
+    persisted_at: 0,
+  });
+  });
   store.receipts = [...nextReceipts, ...(store.receipts || []).map(normalizeRoomReceipt)].slice(0, 400);
   room.settlement_receipt_ids = nextReceipts.map(receipt => receipt.id);
   room.members = (room.members || []).map(member => {
@@ -1356,7 +1600,7 @@ async function settleFestivalRoom(roomId, actor = {}) {
   });
   room.settled_at = nowSeconds();
   updateRoomState(room, 'settling', '');
-  recordRoomEvent(room, 'room.settle', actor, `已为 ${nextReceipts.length} 名成员生成结算凭证`);
+  recordRoomEvent(room, 'room.settle', actor, `已为 ${nextReceipts.length} 名成员生成待写回的节会奖励凭证`);
   replaceRoom(store, room);
   saveStore(store);
   return {
@@ -1387,6 +1631,54 @@ async function submitFestivalRoomGameplayAction(roomId, payload = {}, actor = {}
   };
 }
 
+function persistFestivalReceipts(store, room) {
+  const receiptIds = new Set(room.settlement_receipt_ids || []);
+  const nextReceipts = [];
+  let pendingCompensationCount = 0;
+  for (const entry of store.receipts || []) {
+    const receipt = normalizeRoomReceipt(entry);
+    if (!receiptIds.has(receipt.id)) {
+      nextReceipts.push(receipt);
+      continue;
+    }
+    if (receipt.status === 'persisted') {
+      nextReceipts.push(receipt);
+      continue;
+    }
+    try {
+      const rewardOutcome = applyFestivalReceiptReward(receipt);
+      nextReceipts.push(normalizeRoomReceipt({
+        ...receipt,
+        status: 'persisted',
+        reward_result: rewardOutcome.reward_result,
+        persisted_at: nowSeconds(),
+        updated_at: nowSeconds(),
+        last_error: '',
+      }));
+      room.members = (room.members || []).map(member => {
+        const normalized = normalizeRoomMember(member);
+        if (normalized.username !== receipt.target_username) return normalized;
+        normalized.status = 'settled';
+        normalized.active_receipt_id = receipt.id;
+        return normalized;
+      });
+    } catch (error) {
+      pendingCompensationCount += 1;
+      nextReceipts.push(normalizeRoomReceipt({
+        ...receipt,
+        status: 'compensation_pending',
+        reward_result: '奖励写回失败，已进入补偿队列',
+        last_error: sanitizeText(error?.message || '节会奖励写回失败', 160),
+        updated_at: nowSeconds(),
+      }));
+    }
+  }
+  store.receipts = nextReceipts;
+  return {
+    pending_compensation_count: pendingCompensationCount,
+  };
+}
+
 async function closeFestivalRoom(roomId, actor = {}) {
   const username = sanitizeText(actor.username, 40);
   const store = loadStore();
@@ -1397,6 +1689,17 @@ async function closeFestivalRoom(roomId, actor = {}) {
     throw createError('当前房间已经关闭了');
   }
   if (room.state === 'settling') {
+    const persistSummary = persistFestivalReceipts(store, room);
+    if (persistSummary.pending_compensation_count > 0) {
+      updateRoomState(room, 'settling', `仍有 ${persistSummary.pending_compensation_count} 名成员奖励待补偿`);
+      recordRoomEvent(room, 'room.settle', actor, `仍有 ${persistSummary.pending_compensation_count} 名成员奖励待补偿，房间暂不关闭`);
+      replaceRoom(store, room);
+      saveStore(store);
+      return {
+        room: buildRoomSnapshot(store, room, username),
+        overview: buildOverview(store, username),
+      };
+    }
     room.members = (room.members || []).map(member => {
       const normalized = normalizeRoomMember(member);
       if (normalized.status === 'finished') normalized.status = 'settled';

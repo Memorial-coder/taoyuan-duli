@@ -136,7 +136,7 @@ export interface FestivalRoomReceiptPreview {
   target_username: string
   target_display_name: string
   target_slot: number
-  status: 'created' | 'persist_preview'
+  status: 'created' | 'persist_preview' | 'pending_persist' | 'persisted' | 'compensation_pending'
   status_label: string
   reward_payload: {
     money: number
@@ -219,7 +219,7 @@ export interface FestivalRoomOverview {
     template_id: string
     template_label: string
     target_slot: number
-    status: 'created' | 'persist_preview'
+    status: 'created' | 'persist_preview' | 'pending_persist' | 'persisted' | 'compensation_pending'
     status_label: string
     reward_payload: FestivalRoomReceiptPreview['reward_payload']
     summary: string
