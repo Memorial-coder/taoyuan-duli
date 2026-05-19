@@ -946,6 +946,40 @@ try {
     assert(data?.ok === true && data?.request?.status === 'accepted', 'friend request accept for coop order scope payload is incomplete')
   })
 
+  let friendMemorialMailId = ''
+  await runCheck('POST /api/taoyuan/mail/player-letter friend memorial setup', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/mail/player-letter', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: secondarySessionState.username,
+        title: `friend memorial ${Date.now()}`,
+        content: '这是一封用于好友纪念册筛选验证的来信。',
+        template_type: 'player_letter',
+      }),
+    })
+    assert(response.ok, `friend memorial mail write returned ${response.status}`)
+    assert(data?.ok === true && data?.mail?.id, 'friend memorial mail payload is incomplete')
+    friendMemorialMailId = String(data.mail.id)
+  })
+
+  await runCheck('POST /api/taoyuan/mail/:id/memorial friend filter setup', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/mail/${encodeURIComponent(friendMemorialMailId)}/memorial`, {
+      method: 'POST',
+    })
+    assert(response.ok, `friend memorial save returned ${response.status}`)
+    assert(data?.ok === true && data?.entry?.relation_scope === 'friend', 'friend memorial relation scope did not resolve to friend')
+  })
+
+  await runCheck('GET /api/taoyuan/mail/memorial friend filter readback', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/mail/memorial?relation_scope=friend')
+    assert(response.ok, `friend memorial filter returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.entries), 'friend memorial filter payload is incomplete')
+    assert(data.entries.some(entry => entry?.delivery_id === friendMemorialMailId), 'friend memorial filter did not return the friend memorial mail')
+  })
+
   await runCheck('POST /api/taoyuan/online/profile coop recommendation tag setup', async () => {
     const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/profile', {
       method: 'POST',
@@ -1038,6 +1072,40 @@ try {
     })
     assert(response.ok, `neighbor invite accept for coop order scope returned ${response.status}`)
     assert(data?.ok === true && data?.request?.status === 'accepted', 'neighbor invite accept for coop order scope payload is incomplete')
+  })
+
+  let neighborMemorialMailId = ''
+  await runCheck('POST /api/taoyuan/mail/player-letter neighbor memorial setup', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/mail/player-letter', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: secondarySessionState.username,
+        title: `neighbor memorial ${Date.now()}`,
+        content: '这是一封用于村社纪念册筛选验证的来信。',
+        template_type: 'festival_greeting',
+      }),
+    })
+    assert(response.ok, `neighbor memorial mail write returned ${response.status}`)
+    assert(data?.ok === true && data?.mail?.id, 'neighbor memorial mail payload is incomplete')
+    neighborMemorialMailId = String(data.mail.id)
+  })
+
+  await runCheck('POST /api/taoyuan/mail/:id/memorial neighbor filter setup', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/mail/${encodeURIComponent(neighborMemorialMailId)}/memorial`, {
+      method: 'POST',
+    })
+    assert(response.ok, `neighbor memorial save returned ${response.status}`)
+    assert(data?.ok === true && data?.entry?.relation_scope === 'neighbor', 'neighbor memorial relation scope did not resolve to neighbor')
+  })
+
+  await runCheck('GET /api/taoyuan/mail/memorial neighbor filter readback', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/mail/memorial?relation_scope=neighbor')
+    assert(response.ok, `neighbor memorial filter returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.entries), 'neighbor memorial filter payload is incomplete')
+    assert(data.entries.some(entry => entry?.delivery_id === neighborMemorialMailId), 'neighbor memorial filter did not return the neighbor memorial mail')
   })
 
   await runCheck('POST /api/taoyuan/online/orders neighbors write path', async () => {
