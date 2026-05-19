@@ -510,6 +510,8 @@ try {
   let rewardPostId = ''
   let rewardReplyId = ''
   let manorGuestbookEntryContent = ''
+  const playerLetterTitle = `smoke player letter ${Date.now()}`
+  const playerLetterContent = '这是一封来自联机 smoke 的玩家书信，用来验证互寄来信链路。'
   const coopOrderDeadlineAt = Math.floor(Date.now() / 1000) + 2 * 24 * 60 * 60
   const publicCoopOrderTitle = `public coop order ${Date.now()}`
   const friendCoopOrderTitle = `friend coop order ${Date.now()}`
@@ -588,6 +590,32 @@ try {
     assert(response.ok, `manor favorite overview returned ${response.status}`)
     assert(data?.ok === true && Array.isArray(data?.hot_manors), 'manor favorite overview payload is incomplete')
     assert(data.hot_manors.some(entry => entry?.manor_username === sessionState.username), 'manor hot board did not include the favorited manor')
+  })
+
+  await runCheck('POST /api/taoyuan/mail/player-letter write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/mail/player-letter', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: secondarySessionState.username,
+        title: playerLetterTitle,
+        content: playerLetterContent,
+        template_type: 'season_greeting',
+      }),
+    })
+    assert(response.ok, `player-letter write returned ${response.status}`)
+    assert(data?.ok === true && data?.mail?.title === playerLetterTitle, 'player-letter payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/mail/list player-letter read path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/mail/list')
+    assert(response.ok, `player-letter list returned ${response.status}`)
+    const playerLetter = data?.mails?.find(entry => entry?.title === playerLetterTitle)
+    assert(playerLetter, 'player-letter was not delivered to recipient mailbox list')
+    assert(playerLetter?.template_type === 'season_greeting', 'player-letter template type was not preserved')
+    assert(playerLetter?.sender_username === sessionState.username, 'player-letter sender username is missing')
   })
 
   await runCheck('POST /api/taoyuan/online/orders public write path', async () => {

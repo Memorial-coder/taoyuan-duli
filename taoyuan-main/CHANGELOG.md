@@ -110,6 +110,12 @@
 ### 0518 L3 回归验收（L36 第一轮）
 - 求助单发布、接单、交付、结算凭证、互助声望和推荐理由这条 L3 主链路，当前已经一起进入在线 smoke，不再只靠手动点任务页确认。
 - 本轮已重新通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanSocialRuntime.js`、`node --check server/src/taoyuanCoopOrderRuntime.js` 与 `node server/scripts/qa-online-smoke.mjs`。
+### 0518 玩家书信（L40 / L42 第一轮）
+- `server/src/taoyuanMailbox.js` 与 `server/src/routes/api.js` 已补出玩家书信最小链路：支持玩家互寄普通书信、节气信、节庆贺信、祝福卡、短讯和附图信件，并复用现有邮箱投递与已读链路。
+- `taoyuan-main/src/utils/mailboxApi.ts`、`taoyuan-main/src/stores/useMailboxStore.ts` 与 `taoyuan-main/src/views/game/MailView.vue` 已同步接上发信面板：现在可以填写收件人、选择书信类型、套用模板、上传附图并直接寄出。
+- 第一版模板也已经可见可用：春信、夏帖、秋笺、冬书、节气明信片、来访感谢信和师徒赠言都能一键写入草稿。
+- `server/scripts/qa-online-smoke.mjs` 已补进玩家书信验证：当前会断言玩家信件发送成功、收件人邮箱列表能读到来信、模板类型和寄信人字段会被保留。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanMailbox.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
 ### 0518 云控静态文本宽松 HTML（第一批）
 - `src/utils/safeMarkdown.ts` 已拆成严格 Markdown 渲染与宽松富文本渲染两档：`renderSafeMarkdown()` 继续给 AI 实时回答使用；新增宽松入口用于云控静态文本，支持多行 HTML 容器、更多富文本标签，以及受控的 `style` 白名单。
 - 宽松档当前已放开常见富文本标签：`div / span / p / h1~h6 / ul / ol / li / blockquote / code / pre / a / img / table / figure / figcaption / strong / em / b / i / u / s / small / mark / br / hr`，并继续拦截 `script / iframe / object / embed / form / input / textarea / select / button / video / audio` 与任意 `on*` 事件属性。

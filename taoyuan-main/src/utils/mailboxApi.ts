@@ -27,6 +27,8 @@ export const fetchMailboxList = async () => request('/api/taoyuan/mail/list')
 
 export const fetchMailboxDetail = async (id: string) => request(`/api/taoyuan/mail/${encodeURIComponent(id)}`)
 
+export const fetchPlayerLetterPresets = async () => request('/api/taoyuan/mail/player-letter-presets')
+
 export const markMailboxRead = async (id: string) => {
   return request(`/api/taoyuan/mail/${encodeURIComponent(id)}/read`, async () => {
     const csrfToken = await ensureCurrentCsrfToken()
@@ -71,6 +73,27 @@ export const clearClaimedMailboxMail = async () => {
       headers: {
         'X-CSRF-Token': csrfToken
       }
+    }
+  })
+}
+
+export const sendPlayerLetter = async (payload: {
+  target_username: string
+  title: string
+  content: string
+  template_type: 'player_letter' | 'season_greeting' | 'festival_greeting' | 'blessing_card' | 'short_note' | 'photo_letter'
+  photo_url?: string
+  photo_alt?: string
+}) => {
+  return request('/api/taoyuan/mail/player-letter', async () => {
+    const csrfToken = await ensureCurrentCsrfToken()
+    return {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken
+      },
+      body: JSON.stringify(payload)
     }
   })
 }

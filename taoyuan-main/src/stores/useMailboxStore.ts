@@ -5,8 +5,10 @@ import {
   clearClaimedMailboxMail,
   claimAllMailboxMail,
   claimMailboxMail,
+  fetchPlayerLetterPresets,
   fetchMailboxDetail,
   fetchMailboxList,
+  sendPlayerLetter,
   markMailboxRead
 } from '@/utils/mailboxApi'
 
@@ -30,6 +32,8 @@ export interface TaoyuanMailSummary {
   title: string
   preview: string
   template_type: string | null
+  sender_username?: string
+  sender_display_name?: string
   has_rewards: boolean
   reward_count: number
   sent_at: number
@@ -46,8 +50,12 @@ export interface TaoyuanMailSummary {
 
 export interface TaoyuanMailDetail extends TaoyuanMailSummary {
   content: string
+  photo_url?: string
+  photo_alt?: string
   rewards: TaoyuanMailReward[]
   duplicate_compensation_money: number
+  sender_username?: string
+  sender_display_name?: string
   claim_result: {
     save_slot: number | null
     money_added: number
@@ -83,12 +91,22 @@ export interface MailClaimSyncState {
   message: string
 }
 
+export interface PlayerLetterTemplatePreset {
+  id: string
+  template_type: 'player_letter' | 'season_greeting' | 'festival_greeting' | 'blessing_card' | 'short_note' | 'photo_letter'
+  label: string
+  title: string
+  content: string
+}
+
 const toSummary = (mail: TaoyuanMailSummary | TaoyuanMailDetail): TaoyuanMailSummary => ({
   id: mail.id,
   campaign_id: mail.campaign_id,
   title: mail.title,
   preview: mail.preview,
   template_type: mail.template_type,
+  sender_username: mail.sender_username,
+  sender_display_name: mail.sender_display_name,
   has_rewards: mail.has_rewards,
   reward_count: mail.reward_count,
   sent_at: mail.sent_at,
@@ -109,6 +127,14 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
   const detailMap = ref<Record<string, TaoyuanMailDetail>>({})
   const loading = ref(false)
   const lastLoadedAt = ref(0)
+  const sendLetterRunning = ref(false)
+  const letterTemplatePresets = ref<PlayerLetterTemplatePreset[]>([])
+  const letterTargetDraft = ref('')
+  const letterTitleDraft = ref('')
+  const letterContentDraft = ref('')
+  const letterTemplateTypeDraft = ref<PlayerLetterTemplatePreset['template_type']>('player_letter')
+  const letterPhotoUrlDraft = ref('')
+  const letterPhotoAltDraft = ref('')
 
   const upsertMail = (mail: TaoyuanMailSummary | TaoyuanMailDetail) => {
     const summary = toSummary(mail)
@@ -247,6 +273,12 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     }
   }
 
+  const refreshLetterPresets = async () => {
+    const data = await fetchPlayerLetterPresets()
+    letterTemplatePresets.value = (data.presets || []) as PlayerLetterTemplatePreset[]
+    return letterTemplatePresets.value
+  }
+
   const openMail = async (id: string) => {
     let detail = detailMap.value[id]
     if (!detail) {
@@ -288,17 +320,56 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     return data
   }
 
+  const sendPlayerLetterMail = async () => {
+    const target_username = letterTargetDraft.value.trim()
+    const title = letterTitleDraft.value.trim()
+    const content = letterContentDraft.value.trim()
+    if (!target_username) throw new Error('请先填写收件人用户名')
+    if (!title) throw new Error('请先填写信件标题')
+    if (!content) throw new Error('请先填写信件正文')
+    sendLetterRunning.value = true
+    try {
+      const data = await sendPlayerLetter({
+        target_username,
+        title,
+        content,
+        template_type: letterTemplateTypeDraft.value,
+        photo_url: letterPhotoUrlDraft.value.trim() || undefined,
+        photo_alt: letterPhotoAltDraft.value.trim() || undefined,
+      })
+      await refreshList()
+      await refreshLetterPresets()
+      letterTitleDraft.value = ''
+      letterContentDraft.value = ''
+      letterPhotoUrlDraft.value = ''
+      letterPhotoAltDraft.value = ''
+      return data
+    } finally {
+      sendLetterRunning.value = false
+    }
+  }
+
   return {
     mails,
     unreadCount,
     detailMap,
     loading,
     lastLoadedAt,
+    sendLetterRunning,
+    letterTemplatePresets,
+    letterTargetDraft,
+    letterTitleDraft,
+    letterContentDraft,
+    letterTemplateTypeDraft,
+    letterPhotoUrlDraft,
+    letterPhotoAltDraft,
     refreshList,
+    refreshLetterPresets,
     openMail,
     claimMail,
     claimAll,
     clearClaimed,
+    sendPlayerLetterMail,
     upsertMail
   }
 })

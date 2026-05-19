@@ -24,7 +24,13 @@ const VALID_TEMPLATE_TYPES = new Set([
   'activity_notice',
   'activity_midweek',
   'activity_preview',
-  'weekly_recap'
+  'weekly_recap',
+  'player_letter',
+  'season_greeting',
+  'festival_greeting',
+  'blessing_card',
+  'short_note',
+  'photo_letter'
 ]);
 const VALID_RECIPIENT_MODES = new Set(['all', 'single', 'batch', 'keyword', 'has_save']);
 const VALID_REWARD_TYPES = new Set(['money', 'item', 'seed', 'weapon', 'ring', 'hat', 'shoe']);
@@ -119,6 +125,10 @@ function normalizeDelivery(delivery) {
     campaign_id: String(delivery.campaign_id || ''),
     username: String(delivery.username || ''),
     recipient_display_name: sanitizeText(delivery.recipient_display_name || delivery.username || '', 60),
+    sender_username: String(delivery.sender_username || ''),
+    sender_display_name: sanitizeText(delivery.sender_display_name || delivery.sender_username || '', 60),
+    photo_url: sanitizeText(delivery.photo_url || '', 300),
+    photo_alt: sanitizeText(delivery.photo_alt || '', 80),
     title: sanitizeText(delivery.title, MAX_TITLE_LENGTH),
     content: sanitizeText(delivery.content, MAX_CONTENT_LENGTH),
     template_type: VALID_TEMPLATE_TYPES.has(String(delivery.template_type)) ? String(delivery.template_type) : null,
@@ -505,6 +515,10 @@ function buildUserMailSummary(delivery) {
     title: delivery.title,
     preview: summarizeText(delivery.content, 80),
     template_type: delivery.template_type,
+    sender_username: String(delivery.sender_username || ''),
+    sender_display_name: sanitizeText(delivery.sender_display_name || '', 60),
+    photo_url: sanitizeText(delivery.photo_url || '', 300),
+    photo_alt: sanitizeText(delivery.photo_alt || '', 80),
     target_slot: normalizeTargetSlot(delivery.target_slot),
     has_rewards: hasRewards,
     reward_count: delivery.rewards.length,
@@ -528,7 +542,125 @@ function buildUserMailDetail(delivery) {
     rewards: delivery.rewards.map(item => ({ ...item })),
     duplicate_compensation_money: delivery.duplicate_compensation_money,
     claim_result: normalizeClaimResult(delivery.claim_result),
+    sender_username: String(delivery.sender_username || ''),
+    sender_display_name: sanitizeText(delivery.sender_display_name || '', 60),
+    photo_url: sanitizeText(delivery.photo_url || '', 300),
+    photo_alt: sanitizeText(delivery.photo_alt || '', 80),
   };
+}
+
+const PLAYER_LETTER_TEMPLATE_PRESETS = Object.freeze([
+  {
+    id: 'spring_letter',
+    template_type: 'season_greeting',
+    label: '春信',
+    title: '春信已至',
+    content: '见字如晤。\n\n春水初生，田畴渐暖。近来庄上可还安稳？若你正忙着整地播种，愿这封春信替我先把问候送到。\n\n盼你回信，也盼你这一季有好收成。',
+  },
+  {
+    id: 'summer_letter',
+    template_type: 'season_greeting',
+    label: '夏帖',
+    title: '夏帖相问',
+    content: '见字如晤。\n\n盛夏事多，鱼塘、作坊和节庆筹备想来都不轻松。若你这阵子正忙，便把这封信当作一盏晚风，提醒你也记得歇一歇。\n\n得闲时回我一声近况就好。',
+  },
+  {
+    id: 'autumn_letter',
+    template_type: 'season_greeting',
+    label: '秋笺',
+    title: '秋笺问收成',
+    content: '见字如晤。\n\n近来秋意渐深，不知你庄上这一轮收成可还顺手？若有哪样稀奇见闻，也请一并写来，让我隔着纸页也能同你共赏。\n\n愿这一季仓满、心安。',
+  },
+  {
+    id: 'winter_letter',
+    template_type: 'season_greeting',
+    label: '冬书',
+    title: '冬书安问',
+    content: '见字如晤。\n\n冬夜渐长，正适合慢慢写信。近来庄上若有围炉闲话、雪夜灯火，便也写给我听。愿你这一季藏得住辛劳，也留得住暖意。\n\n盼安。',
+  },
+  {
+    id: 'solar_blessing',
+    template_type: 'blessing_card',
+    label: '节气明信片',
+    title: '节气问安',
+    content: '给你寄来一张节气明信片。\n\n愿你顺着这一程时令，把田事、鱼事和心事都安排得恰到好处。等你有空，也写一张回来。',
+  },
+  {
+    id: 'visit_thanks',
+    template_type: 'player_letter',
+    label: '来访感谢信',
+    title: '多谢你来庄上一趟',
+    content: '今日承你来访，庄上因此热闹了许多。\n\n你留下的话、建议和心意，我都已经仔细看过了。特意写这封信谢你，也盼你下回再来。',
+  },
+  {
+    id: 'mentor_note',
+    template_type: 'player_letter',
+    label: '师徒赠言',
+    title: '留一段赠言给你',
+    content: '写下这封信，是想把一些已经走过的弯路和心得先交给你。\n\n往后若你遇到难处，也不必急着一个人扛着。只要你愿意来信，我们总还能一起把事情慢慢理顺。',
+  },
+]);
+
+function getPlayerLetterTemplatePresets() {
+  return PLAYER_LETTER_TEMPLATE_PRESETS.map(item => ({ ...item }));
+}
+
+function normalizePlayerLetterTemplateType(value) {
+  const normalized = String(value || '').trim();
+  return ['player_letter', 'season_greeting', 'festival_greeting', 'blessing_card', 'short_note', 'photo_letter'].includes(normalized)
+    ? normalized
+    : 'player_letter';
+}
+
+async function sendPlayerLetter(payload = {}, actor = {}) {
+  return withMailboxLock(async () => {
+    const senderUsername = String(actor?.username || '').trim();
+    if (!senderUsername) throw createError('请先登录后再发信', 401);
+    const targetUsername = sanitizeText(payload?.target_username, 60);
+    if (!targetUsername) throw createError('请先填写收件人用户名');
+    if (targetUsername === senderUsername) throw createError('不能给自己发信');
+    const targetUsers = await fetchProfilesByUsernames([targetUsername]);
+    const recipient = targetUsers[0];
+    if (!recipient) throw createError('收件账号不存在，请检查用户名是否填写正确');
+
+    const title = sanitizeText(payload?.title, MAX_TITLE_LENGTH);
+    const content = sanitizeText(payload?.content, MAX_CONTENT_LENGTH);
+    const photoUrl = sanitizeText(payload?.photo_url, 300);
+    const photoAlt = sanitizeText(payload?.photo_alt, 80);
+    if (title.length < 2) throw createError('信件标题至少需要 2 个字');
+    if (content.length < 4) throw createError('信件正文至少需要 4 个字');
+
+    const templateType = normalizePlayerLetterTemplateType(payload?.template_type);
+    const sentAt = Math.floor(Date.now() / 1000);
+    const delivery = normalizeDelivery({
+      id: makeId('mail_delivery'),
+      campaign_id: '',
+      username: recipient.username,
+      recipient_display_name: recipient.displayName,
+      sender_username: senderUsername,
+      sender_display_name: sanitizeText(actor?.displayName || senderUsername, 60),
+      photo_url: photoUrl,
+      photo_alt: photoAlt,
+      title,
+      content,
+      template_type: templateType,
+      rewards: [],
+      target_slot: null,
+      duplicate_compensation_money: 0,
+      created_at: sentAt,
+      sent_at: sentAt,
+      expires_at: null,
+      read_at: null,
+      claimed_at: null,
+      deleted_at: null,
+      claim_result: null,
+    });
+
+    const data = loadMailboxData();
+    data.deliveries.unshift(delivery);
+    saveMailboxData(data);
+    return buildUserMailDetail(delivery);
+  });
 }
 
 function listUserMails(username) {
@@ -1039,6 +1171,8 @@ module.exports = {
   clearClaimedUserMails,
   saveAdminCampaign,
   saveSystemCampaignForUser,
+  sendPlayerLetter,
+  getPlayerLetterTemplatePresets,
   getGuildSeasonMailboxConfig,
   listAdminCampaigns,
   getAdminCampaignDetail,

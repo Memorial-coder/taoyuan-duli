@@ -81,6 +81,89 @@
           </Button>
         </div>
 
+        <div class="detail-card mb-3">
+          <div class="flex items-center justify-between mb-2">
+            <p class="text-xs text-accent">玩家书信</p>
+            <span class="text-[10px] text-muted">L40 / L42</span>
+          </div>
+          <div class="space-y-2">
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              收件人用户名
+              <input
+                v-model="mailboxStore.letterTargetDraft"
+                maxlength="60"
+                class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                placeholder="输入要寄信的玩家用户名"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              书信模板
+              <select
+                v-model="mailboxStore.letterTemplateTypeDraft"
+                class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+              >
+                <option value="player_letter">普通书信</option>
+                <option value="season_greeting">节气信</option>
+                <option value="festival_greeting">节庆贺信</option>
+                <option value="blessing_card">祝福卡</option>
+                <option value="short_note">短讯</option>
+                <option value="photo_letter">合照附信</option>
+              </select>
+            </label>
+            <div class="flex flex-wrap gap-1">
+              <button
+                v-for="preset in mailboxStore.letterTemplatePresets"
+                :key="preset.id"
+                type="button"
+                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted hover:border-accent/30 hover:text-accent"
+                @click="applyLetterPreset(preset.id)"
+              >
+                {{ preset.label }}
+              </button>
+            </div>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              书信标题
+              <input
+                v-model="mailboxStore.letterTitleDraft"
+                maxlength="60"
+                class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                placeholder="给这封信起一个标题"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              正文
+              <textarea
+                v-model="mailboxStore.letterContentDraft"
+                rows="5"
+                maxlength="5000"
+                class="bg-bg border border-accent/20 rounded-xs px-2 py-1.5 text-xs text-text outline-none focus:border-accent resize-none"
+                placeholder="写下你想寄给对方的话。"
+              />
+            </label>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-[10px] text-muted">合照附信</p>
+                <Button class="justify-center shrink-0" :icon="Mail" :icon-size="12" :disabled="uploadingLetterPhoto" @click="triggerLetterPhotoUpload">
+                  {{ uploadingLetterPhoto ? '上传中…' : '上传附图' }}
+                </Button>
+              </div>
+              <input ref="letterPhotoInputRef" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" @change="handleLetterPhotoSelected" />
+              <div v-if="mailboxStore.letterPhotoUrlDraft" class="border border-accent/10 rounded-xs p-2 bg-bg/10">
+                <img :src="mailboxStore.letterPhotoUrlDraft" :alt="mailboxStore.letterPhotoAltDraft || '书信附图'" class="letter-photo-preview" />
+                <input
+                  v-model="mailboxStore.letterPhotoAltDraft"
+                  maxlength="80"
+                  class="mt-2 w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                  placeholder="给这张附图写一句说明"
+                />
+              </div>
+            </div>
+            <Button class="w-full justify-center" :icon="Mail" :icon-size="12" :disabled="mailboxStore.sendLetterRunning" @click="sendPlayerLetter">
+              {{ mailboxStore.sendLetterRunning ? '寄送中…' : '寄出这封信' }}
+            </Button>
+          </div>
+        </div>
+
         <div v-if="mailboxStore.mails.length === 0" class="empty-box">
           <Mail :size="30" class="text-accent/20 mb-2" />
           <p class="text-xs text-muted">暂无邮件</p>
@@ -101,12 +184,12 @@
               </p>
               <p class="text-[10px] text-muted line-clamp-2">{{ mail.preview }}</p>
             </div>
-            <span class="status-badge" :class="statusClass(mail.claim_status)">{{ statusLabel(mail.claim_status) }}</span>
+            <span class="status-badge" :class="statusClass(mail.claim_status)">{{ statusLabel(mail.claim_status, !!mail.sender_display_name) }}</span>
           </div>
           <div class="mt-1 flex items-center justify-between text-[10px] text-muted">
             <span>{{ formatTime(mail.sent_at) }}</span>
             <span v-if="mail.has_rewards">奖励 {{ mail.reward_count }}</span>
-            <span v-else>公告</span>
+            <span v-else>{{ mail.sender_display_name ? `来信 · ${mail.sender_display_name}` : '公告' }}</span>
           </div>
         </button>
       </section>
@@ -130,8 +213,9 @@
           <div class="flex items-start justify-between gap-2 mb-3">
             <div class="min-w-0">
               <p class="text-sm text-accent truncate">{{ activeMail.title }}</p>
+              <p v-if="activeMail.sender_display_name" class="text-[10px] text-muted mt-1">寄信人：{{ activeMail.sender_display_name }}</p>
               <div class="flex flex-wrap gap-1 mt-1">
-                <span class="status-badge" :class="statusClass(activeMail.claim_status)">{{ statusLabel(activeMail.claim_status) }}</span>
+                <span class="status-badge" :class="statusClass(activeMail.claim_status)">{{ statusLabel(activeMail.claim_status, !!activeMail.sender_display_name) }}</span>
                 <span class="status-badge" :class="activeMail.unread ? 'badge-muted' : 'badge-read'">
                   {{ activeMail.unread ? '未读' : '已读' }}
                 </span>
@@ -146,6 +230,12 @@
 
           <div class="detail-card mb-3 whitespace-pre-wrap text-xs leading-relaxed">{{ activeMail.content || '暂无正文' }}</div>
 
+          <div v-if="activeMail.photo_url" class="detail-card mb-3">
+            <p class="text-xs text-accent mb-2">附图</p>
+            <img :src="activeMail.photo_url" :alt="activeMail.photo_alt || '书信附图'" class="letter-photo-preview" />
+            <p v-if="activeMail.photo_alt" class="text-[10px] text-muted mt-2">{{ activeMail.photo_alt }}</p>
+          </div>
+
           <div class="detail-card mb-3">
             <div class="flex items-center justify-between mb-2">
               <p class="text-xs text-accent">奖励内容</p>
@@ -158,7 +248,7 @@
                 <span class="text-xs">{{ rewardLabel(reward) }}</span>
               </div>
             </div>
-            <p v-else class="text-xs text-muted">这是一封纯文字公告</p>
+            <p v-else class="text-xs text-muted">{{ activeMail.sender_display_name ? '这封玩家书信不附带奖励。' : '这是一封纯文字公告' }}</p>
           </div>
 
           <div v-if="activeMail.claim_result" class="detail-card mb-3">
@@ -214,6 +304,7 @@
   import { getHatById } from '@/data/hats'
   import { getShoeById } from '@/data/shoes'
   import { showFloat } from '@/composables/useGameLog'
+  import { uploadHallImage } from '@/utils/taoyuanHallApi'
   import { Mail, MailOpen, RefreshCw, Inbox, Trash2, Gift, ChevronLeft, ChevronRight } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
@@ -232,7 +323,9 @@
   const claimCurrentPending = ref(false)
   const claimAllPending = ref(false)
   const clearClaimedPending = ref(false)
+  const uploadingLetterPhoto = ref(false)
   const mailViewRoot = ref<HTMLElement | null>(null)
+  const letterPhotoInputRef = ref<HTMLInputElement | null>(null)
   const isDesktop = ref(typeof window === 'undefined' ? true : window.innerWidth >= 768)
   const claimableMailCount = computed(() => mailboxStore.mails.filter(mail => mail.can_claim).length)
   const isActivityMailTemplate = (templateType?: string | null) =>
@@ -358,10 +451,11 @@
     })
   }
 
-  const statusLabel = (status: string) => {
+  const statusLabel = (status: string, isPlayerMail = false) => {
     if (status === 'claimable') return '可领取'
     if (status === 'claimed') return '已领取'
     if (status === 'expired') return '已过期'
+    if (isPlayerMail) return '来信'
     return '公告'
   }
 
@@ -380,6 +474,12 @@
     if (templateType === 'activity_preview') return '预告'
     if (templateType === 'weekly_recap') return '周纪行'
     if (templateType === 'maintenance_notice') return '维护'
+    if (templateType === 'player_letter') return '书信'
+    if (templateType === 'season_greeting') return '节气信'
+    if (templateType === 'festival_greeting') return '节庆贺信'
+    if (templateType === 'blessing_card') return '祝福卡'
+    if (templateType === 'short_note') return '短讯'
+    if (templateType === 'photo_letter') return '合照附信'
     return templateType
   }
 
@@ -446,6 +546,38 @@
       await ensureSelection()
     } catch (error: any) {
       showFloat(error?.message || '刷新邮箱失败', 'danger')
+    }
+  }
+
+  const applyLetterPreset = (presetId: string) => {
+    const preset = mailboxStore.letterTemplatePresets.find(item => item.id === presetId)
+    if (!preset) return
+    mailboxStore.letterTemplateTypeDraft = preset.template_type
+    mailboxStore.letterTitleDraft = preset.title
+    mailboxStore.letterContentDraft = preset.content
+  }
+
+  const triggerLetterPhotoUpload = () => {
+    letterPhotoInputRef.value?.click()
+  }
+
+  const handleLetterPhotoSelected = async (event: Event) => {
+    const input = event.target as HTMLInputElement | null
+    const file = input?.files?.[0]
+    if (!file) return
+    uploadingLetterPhoto.value = true
+    try {
+      const uploaded = await uploadHallImage(file)
+      mailboxStore.letterPhotoUrlDraft = uploaded.url
+      mailboxStore.letterPhotoAltDraft = uploaded.alt || file.name.replace(/\.[^.]+$/, '')
+      if (mailboxStore.letterTemplateTypeDraft !== 'photo_letter') {
+        mailboxStore.letterTemplateTypeDraft = 'photo_letter'
+      }
+    } catch (error: any) {
+      showFloat(error?.message || '上传附图失败', 'danger')
+    } finally {
+      uploadingLetterPhoto.value = false
+      if (input) input.value = ''
     }
   }
 
@@ -537,10 +669,25 @@
     }
   }
 
+  const sendPlayerLetter = async () => {
+    try {
+      const data = await mailboxStore.sendPlayerLetterMail()
+      const mail = data?.mail as TaoyuanMailDetail | undefined
+      if (mail?.id) {
+        activeMailId.value = mail.id
+        activeMail.value = mail
+      }
+      showFloat('书信已经寄出，对方会在邮箱里收到。', 'success')
+    } catch (error: any) {
+      showFloat(error?.message || '寄信失败', 'danger')
+    }
+  }
+
   onMounted(async () => {
     goalStore.ensureInitialized()
     updateViewportMode()
     if (typeof window !== 'undefined') window.addEventListener('resize', updateViewportMode)
+    await mailboxStore.refreshLetterPresets().catch(() => {})
     await refreshMails()
   })
 
@@ -599,6 +746,14 @@
     padding: 6px 8px;
     border: 1px solid rgba(200, 164, 92, 0.12);
     border-radius: 2px;
+  }
+
+  .letter-photo-preview {
+    width: 100%;
+    max-height: 240px;
+    object-fit: cover;
+    border-radius: 2px;
+    border: 1px solid rgba(200, 164, 92, 0.16);
   }
 
   .status-badge {

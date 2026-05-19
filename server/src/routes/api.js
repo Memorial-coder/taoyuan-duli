@@ -1925,6 +1925,14 @@ router.get('/taoyuan/mail/:id', loginRequired, async (req, res) => {
   }
 });
 
+router.get('/taoyuan/mail/player-letter-presets', loginRequired, async (req, res) => {
+  try {
+    res.json({ ok: true, presets: taoyuanMailbox.getPlayerLetterTemplatePresets() });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取书信模板失败' });
+  }
+});
+
 router.get('/admin/taoyuan/mail/presets/guild-season', adminAuth, (req, res) => {
   try {
     res.json({ ok: true, config: taoyuanMailbox.getGuildSeasonMailboxConfig() });
@@ -1966,6 +1974,18 @@ router.post('/taoyuan/mail/clear-claimed', loginRequired, signRequired, async (r
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '清理已领取邮件失败' });
+  }
+});
+
+router.post('/taoyuan/mail/player-letter', loginRequired, signRequired, async (req, res) => {
+  try {
+    const mail = await taoyuanMailbox.sendPlayerLetter(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, mail });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '发送玩家书信失败' });
   }
 });
 
