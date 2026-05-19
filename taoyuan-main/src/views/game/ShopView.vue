@@ -157,6 +157,9 @@
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('neighbor-consignment', '看邻里寄售')">
               看邻里寄售
             </button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('exchange-ledger', '看交换记录')">
+              看交换记录
+            </button>
           </div>
         </div>
 
@@ -337,6 +340,9 @@
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('neighbor-consignment', '看邻里寄售')">
               看邻里寄售
             </button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('exchange-ledger', '看交换记录')">
+              看交换记录
+            </button>
           </div>
         </div>
 
@@ -385,6 +391,21 @@
             @buy="handleBuyNeighborConsignment"
             @cancel="handleCancelNeighborConsignment"
             @reclaim="handleReclaimNeighborConsignment"
+          />
+        </div>
+
+        <div
+          v-if="!shopStore.currentShopId && exchangeLedgerStore.ledger"
+          class="mb-3"
+          :class="promptSectionClass('exchange-ledger')"
+          :data-prompt-focus="buildPromptFocusAttr('exchange-ledger')"
+        >
+          <ExchangeLedgerPanel
+            :ledger="exchangeLedgerStore.ledger"
+            :loading="exchangeLedgerStore.loading"
+            :running="exchangeLedgerStore.actionRunning"
+            @refresh="handleRefreshExchangeLedger"
+            @report-dispute="handleReportExchangeLedgerDispute"
           />
         </div>
         </template>
@@ -1783,9 +1804,11 @@
   import { useWeeklyExchangeStore } from '@/stores/useWeeklyExchangeStore'
   import { useFestivalStallStore } from '@/stores/useFestivalStallStore'
   import { useNeighborConsignmentStore } from '@/stores/useNeighborConsignmentStore'
+  import { useExchangeLedgerStore } from '@/stores/useExchangeLedgerStore'
   import WeeklyExchangeStationPanel from '@/components/game/WeeklyExchangeStationPanel.vue'
   import FestivalStallPanel from '@/components/game/FestivalStallPanel.vue'
   import NeighborConsignmentPanel from '@/components/game/NeighborConsignmentPanel.vue'
+  import ExchangeLedgerPanel from '@/components/game/ExchangeLedgerPanel.vue'
 
   const RAIN_TOTEM_PRICE = 300
   const WOOD_PRICE = 50
@@ -1805,13 +1828,14 @@
   const weeklyExchangeStore = useWeeklyExchangeStore()
   const festivalStallStore = useFestivalStallStore()
   const neighborConsignmentStore = useNeighborConsignmentStore()
+  const exchangeLedgerStore = useExchangeLedgerStore()
   const isCompactMobile = ref(false)
   const shopPreludeExpanded = ref(false)
   const syncCompactViewportMode = () => {
     isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
   }
   const shopPreludeForceOpen = computed(() =>
-    ['economy-overview', 'market-overview', 'recommended-consumption', 'weekly-exchange-station', 'festival-stall', 'neighbor-consignment'].some(key => isPromptFocusActive(key))
+    ['economy-overview', 'market-overview', 'recommended-consumption', 'weekly-exchange-station', 'festival-stall', 'neighbor-consignment', 'exchange-ledger'].some(key => isPromptFocusActive(key))
   )
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
   const todayAmbientRareVisitors = computed(() =>
@@ -1861,6 +1885,9 @@
         shopStore.currentShopId = null
       },
       'neighbor-consignment': () => {
+        shopStore.currentShopId = null
+      },
+      'exchange-ledger': () => {
         shopStore.currentShopId = null
       }
     }
@@ -2001,6 +2028,7 @@
     void weeklyExchangeStore.refreshStation().catch(() => {})
     void festivalStallStore.refreshStall().catch(() => {})
     void neighborConsignmentStore.refreshOverview().catch(() => {})
+    void exchangeLedgerStore.refreshLedger().catch(() => {})
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', syncCompactViewportMode)
     }
@@ -2347,9 +2375,14 @@
     await festivalStallStore.refreshStall().catch(() => {})
   }
 
+  const handleRefreshExchangeLedger = async () => {
+    await exchangeLedgerStore.refreshLedger().catch(() => {})
+  }
+
   const handleWeeklyExchange = async (offerId: string) => {
     try {
       const result = await weeklyExchangeStore.performExchange(offerId)
+      await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
       showFloat(`换物完成`, 'success')
       addLog(`【每周交换站】完成「${result.offer.name}」：交出${formatExchangeBundle(result.record.costs)}，换回${formatExchangeBundle(result.record.rewards)}。`)
@@ -2364,6 +2397,7 @@
   const handleBuyFestivalStallOffer = async (offerId: string) => {
     try {
       const result = await festivalStallStore.buyOffer(offerId)
+      await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
       showFloat('购买成功', 'success')
       addLog(`【节庆摊位】已购入「${result.offer.name}」：花费${formatExchangeBundle(result.record.costs)}，带回${formatExchangeBundle(result.record.rewards)}。`)
@@ -2389,6 +2423,7 @@
   }) => {
     try {
       const result = await neighborConsignmentStore.createListing(payload)
+      await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
       showFloat('挂单成功', 'success')
       addLog(`【邻里寄售】已挂出 ${payload.item_id}×${payload.quantity}，固定价 ${payload.price_money}文。`)
@@ -2403,6 +2438,7 @@
   const handleBuyNeighborConsignment = async (listingId: string) => {
     try {
       const result = await neighborConsignmentStore.buyListing(listingId)
+      await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
       showFloat('购买成功', 'success')
       addLog(`【邻里寄售】已买下 ${result.listing.item_id}×${result.listing.quantity}，支付 ${result.listing.price_money}文。`)
@@ -2417,6 +2453,7 @@
   const handleCancelNeighborConsignment = async (listingId: string) => {
     try {
       const result = await neighborConsignmentStore.cancelListing(listingId)
+      await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
       showFloat('已取消', 'success')
       addLog(`【邻里寄售】已取消挂单 ${result.listing.item_id}×${result.listing.quantity}。`)
@@ -2431,6 +2468,7 @@
   const handleReclaimNeighborConsignment = async (listingId: string) => {
     try {
       const result = await neighborConsignmentStore.reclaimListing(listingId)
+      await exchangeLedgerStore.refreshLedger().catch(() => {})
       sfxBuy()
       showFloat('已回收', 'success')
       addLog(`【邻里寄售】已回收过期挂单 ${result.listing.item_id}×${result.listing.quantity}。`)
@@ -2439,6 +2477,23 @@
       }
     } catch (error) {
       addLog(error instanceof Error ? error.message : '回收邻里寄售失败')
+    }
+  }
+
+  const handleReportExchangeLedgerDispute = async (payload: {
+    entryId: string
+    reasonCode: string
+    note: string
+  }) => {
+    try {
+      const result = await exchangeLedgerStore.createDispute(payload.entryId, {
+        reason_code: payload.reasonCode,
+        note: payload.note,
+      })
+      showFloat('争议已登记', 'danger')
+      addLog(`【交换账本】已为记录 ${result.dispute.event_label} 登记争议：${result.dispute.reason_label}。`)
+    } catch (error) {
+      addLog(error instanceof Error ? error.message : '提交交换争议失败')
     }
   }
 

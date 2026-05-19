@@ -17,6 +17,7 @@ const taoyuanCoopOrderRuntime = require('../taoyuanCoopOrderRuntime');
 const taoyuanWeeklyExchangeStation = require('../taoyuanWeeklyExchangeStation');
 const taoyuanFestivalStall = require('../taoyuanFestivalStall');
 const taoyuanNeighborConsignment = require('../taoyuanNeighborConsignment');
+const taoyuanExchangeLedger = require('../taoyuanExchangeLedger');
 const officialControlPlatform = require('../officialControlPlatform');
 const {
   ensureTaoyuanSavesDir,
@@ -1758,6 +1759,26 @@ router.post('/taoyuan/exchange-station/neighbors/consignments/:listingId/reclaim
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '回收过期邻里寄售失败' });
+    }
+  });
+});
+
+router.get('/taoyuan/exchange-station/ledger', loginRequired, async (req, res) => {
+  try {
+    const ledger = taoyuanExchangeLedger.listExchangeLedger(req.session.username);
+    res.json({ ok: true, ledger });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取交换账本失败' });
+  }
+});
+
+router.post('/taoyuan/exchange-station/ledger/:entryId/disputes', loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = taoyuanExchangeLedger.reportExchangeDispute(req.session.username, req.params.entryId, req.body || {});
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '提交交换争议失败' });
     }
   });
 });

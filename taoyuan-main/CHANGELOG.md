@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0519 交换记录与声誉（L53 第一轮）
+- 新增 `server/src/taoyuanExchangeLedger.js` 与 `/api/taoyuan/exchange-station/ledger`、`/disputes`，把每周交换站、节庆摊位和邻里寄售统一聚合成一份可回看的交换账本，并补出第一版争议上报。
+- `taoyuan-main/src/utils/exchangeLedgerApi.ts`、`taoyuan-main/src/stores/useExchangeLedgerStore.ts` 与 `taoyuan-main/src/components/game/ExchangeLedgerPanel.vue` 已接入商店页，玩家现在可以直接看到最近交换流水、常往对象、常用来源、品类分布和我的争议记录。
+- 交换流水会把来源、双方、物资、价格、次数、异常状态和可上报标记一起展示；`taoyuan-main/src/views/game/ShopView.vue` 也补出交换账本入口、面板切换、争议上报和动作日志。
+- `server/scripts/qa-online-smoke.mjs` 已补进交换账本回归：现在会验证三条来源都能进入账本、邻里寄售和每周交换的对账字段能保留，并能成功登记一条争议记录。
+
 ### 0519 节庆摊位（L52 第一轮）
 - 新增 `server/src/taoyuanFestivalStall.js` 与 `/api/taoyuan/exchange-station/festival-stall`、`/purchase`，把第一版“节庆摊位”正式接进服务端运行态，并把摊位状态独立持久化到联机存档。
 - 当前摊位按现实周轮换节庆主题，开放限定材料、纪念品、节日食物和活动票券四类货物；票券结算会直接写入 `wallet.rewardTickets` 与 `wallet.rewardTicketLifetimeEarned`，不走普通背包物品。

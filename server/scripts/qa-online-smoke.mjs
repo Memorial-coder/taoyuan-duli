@@ -539,6 +539,7 @@ try {
   let neighborConsignmentExpiredListingId = ''
   let festivalStallFoodOfferId = ''
   let festivalStallTicketOfferId = ''
+  let exchangeLedgerReportableEntryId = ''
   let weeklyExchangeExpectedWoodCount = null
   let weeklyExchangeExpectedStoneCount = null
   let primaryExpectedMoney = 1200
@@ -1386,6 +1387,45 @@ try {
     const stoneCount = getInventoryItemQuantity(decrypted, 'stone')
     assert(woodCount === weeklyExchangeExpectedWoodCount, `weekly exchange did not deduct secondary user wood correctly, expected wood=${weeklyExchangeExpectedWoodCount}, current wood=${woodCount}`)
     assert(stoneCount === weeklyExchangeExpectedStoneCount, `weekly exchange did not grant secondary user stone correctly, expected stone=${weeklyExchangeExpectedStoneCount}, current stone=${stoneCount}`)
+  })
+
+  await runCheck('GET /api/taoyuan/exchange-station/ledger read path', async () => {
+    const primaryLedger = await fetchAuthedJson('/api/taoyuan/exchange-station/ledger')
+    assert(primaryLedger.response.ok, `primary exchange ledger read returned ${primaryLedger.response.status}`)
+    assert(primaryLedger.data?.ok === true && primaryLedger.data?.ledger?.summary?.trust_level?.label, 'primary exchange ledger payload is incomplete')
+    assert(Array.isArray(primaryLedger.data?.ledger?.entries) && primaryLedger.data.ledger.entries.length >= 2, 'primary exchange ledger did not expose expected entry list')
+    assert(primaryLedger.data.ledger.entries.some(entry => entry?.source === 'festival_stall'), 'primary exchange ledger did not include festival stall records')
+    assert(primaryLedger.data.ledger.entries.some(entry => entry?.source === 'neighbor_consignment'), 'primary exchange ledger did not include neighbor consignment records')
+    const neighborBuyEntry = primaryLedger.data.ledger.entries.find(entry => entry?.source === 'neighbor_consignment' && entry?.event_type === 'consignment_sold' && entry?.viewer_role === 'buyer')
+    assert(neighborBuyEntry?.counterparty_username === secondarySessionState.username, 'exchange ledger did not preserve trade counterparty')
+    assert(String(neighborBuyEntry?.price_label || '').includes('70'), 'exchange ledger did not preserve consignment price label')
+    const reportableEntry = primaryLedger.data.ledger.entries.find(entry => entry?.reportable === true)
+    exchangeLedgerReportableEntryId = String(reportableEntry?.id || '')
+    assert(exchangeLedgerReportableEntryId, 'exchange ledger did not expose any reportable entry')
+
+    const secondaryLedger = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/ledger')
+    assert(secondaryLedger.response.ok, `secondary exchange ledger read returned ${secondaryLedger.response.status}`)
+    assert(secondaryLedger.data?.ok === true && secondaryLedger.data?.ledger?.summary?.trust_level?.label, 'secondary exchange ledger payload is incomplete')
+    assert(Array.isArray(secondaryLedger.data?.ledger?.entries) && secondaryLedger.data.ledger.entries.length >= 2, 'secondary exchange ledger did not expose expected entry list')
+    assert(secondaryLedger.data.ledger.entries.some(entry => entry?.source === 'weekly_exchange_station'), 'secondary exchange ledger did not include weekly exchange records')
+    assert(secondaryLedger.data.ledger.entries.some(entry => entry?.source === 'neighbor_consignment'), 'secondary exchange ledger did not include neighbor consignment seller records')
+  })
+
+  await runCheck('POST /api/taoyuan/exchange-station/ledger/:entryId/disputes write path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/exchange-station/ledger/${encodeURIComponent(exchangeLedgerReportableEntryId)}/disputes`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        reason_code: 'delivery_mismatch',
+        note: 'smoke ledger dispute',
+      }),
+    })
+    assert(response.ok, `exchange ledger dispute returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.dispute?.id, 'exchange ledger dispute payload is incomplete')
+    assert(data?.dispute?.reason_code === 'delivery_mismatch', 'exchange ledger dispute did not preserve reason code')
+    assert(Array.isArray(data?.ledger?.my_disputes) && data.ledger.my_disputes.some(entry => entry?.id === data.dispute.id), 'exchange ledger dispute did not refresh my disputes')
   })
 
   await runCheck('fourth session bootstrap', async () => {
