@@ -139,6 +139,101 @@
 
           <div class="border border-accent/20 rounded-xs p-3 bg-bg/10 space-y-3">
             <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">村社等级与福利</p>
+              <span class="text-[10px] text-muted">{{ societyStore.mySociety.level_title }}</span>
+            </div>
+            <div>
+              <p class="text-[10px] text-muted">
+                等级 {{ societyStore.mySociety.level }} · 福利经验 {{ societyStore.mySociety.welfare_xp }}/{{ currentWelfareProgressTotal }}
+                {{ societyStore.mySociety.welfare_xp_to_next_level > 0 ? `· 距下一级 ${societyStore.mySociety.welfare_xp_to_next_level}` : '· 已达当前最高级' }}
+              </p>
+              <div class="w-full h-2 rounded-xs bg-bg/80 overflow-hidden mt-2">
+                <div class="h-full bg-accent/70 transition-all" :style="{ width: `${currentWelfareProgressPercent}%` }" />
+              </div>
+            </div>
+            <div class="grid gap-2 md:grid-cols-2">
+              <div v-for="welfare in societyStore.mySociety.welfare_unlocks" :key="welfare.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <p class="text-xs" :class="welfare.unlocked ? 'text-success' : 'text-muted'">{{ welfare.label }}</p>
+                <p class="text-[10px] text-muted mt-1">{{ welfare.summary }}</p>
+                <p class="text-[10px] text-muted mt-1">解锁等级：{{ welfare.unlock_level }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="border border-accent/20 rounded-xs p-3 bg-bg/10 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">公共仓库</p>
+              <span class="text-[10px] text-muted">共用物资 {{ societyStore.mySociety.public_warehouse.funds }} 铜钱</span>
+            </div>
+            <div class="grid gap-2 md:grid-cols-2">
+              <button
+                v-for="entry in societyStore.mySociety.public_warehouse.deposit_options"
+                :key="entry.id"
+                type="button"
+                class="text-left border border-accent/15 rounded-xs px-2 py-2 bg-bg/10 hover:border-accent/35 disabled:opacity-60 disabled:cursor-not-allowed"
+                :disabled="societyStore.actionRunning"
+                @click="depositWarehouse(entry.id)"
+              >
+                <p class="text-[10px] text-accent">{{ entry.label }}</p>
+                <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+                <p class="text-[10px] text-muted mt-1">{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
+              </button>
+            </div>
+            <div v-if="societyStore.mySociety.public_warehouse.items.length > 0" class="border-t border-accent/10 pt-2">
+              <p class="text-[10px] text-accent mb-1">仓库物资</p>
+              <div class="flex flex-wrap gap-2">
+                <span v-for="entry in societyStore.mySociety.public_warehouse.items" :key="entry.item_id" class="text-[10px] text-muted border border-accent/10 rounded-xs px-2 py-1">{{ entry.label }}</span>
+              </div>
+            </div>
+            <div v-if="societyStore.mySociety.public_warehouse.logs.length > 0" class="border-t border-accent/10 pt-2 space-y-1">
+              <p class="text-[10px] text-accent">最近入仓</p>
+              <div v-for="entry in societyStore.mySociety.public_warehouse.logs.slice(0, 4)" :key="entry.id" class="text-[10px] text-muted leading-4">
+                {{ entry.display_name }} 补入了 {{ entry.deposit_label }} · {{ entry.entries.map(cost => cost.label).join(' + ') }}
+              </div>
+            </div>
+          </div>
+
+          <div class="border border-accent/20 rounded-xs p-3 bg-bg/10 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">专属节会与装饰</p>
+              <span class="text-[10px] text-muted">按主题与等级解锁</span>
+            </div>
+            <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+              <p class="text-xs" :class="societyStore.mySociety.exclusive_festival.unlocked ? 'text-success' : 'text-muted'">
+                {{ societyStore.mySociety.exclusive_festival.label }}
+              </p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ societyStore.mySociety.exclusive_festival.summary }}</p>
+              <p class="text-[10px] text-muted mt-1">解锁等级：{{ societyStore.mySociety.exclusive_festival.unlock_level }}</p>
+              <p class="text-[10px] text-muted mt-1">{{ societyStore.mySociety.exclusive_festival.perk_summary }}</p>
+            </div>
+            <div class="grid gap-2 md:grid-cols-2">
+              <div v-for="entry in societyStore.mySociety.exclusive_decors" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <p class="text-xs" :class="entry.unlocked ? 'text-success' : 'text-muted'">{{ entry.label }}</p>
+                <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+                <p class="text-[10px] text-muted mt-1">解锁等级：{{ entry.unlock_level }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="border border-accent/20 rounded-xs p-3 bg-bg/10 space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">专属任务</p>
+              <span class="text-[10px] text-muted">围绕本社主题与福利推进</span>
+            </div>
+            <div class="space-y-2">
+              <div v-for="entry in societyStore.mySociety.exclusive_tasks" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="text-xs" :class="entry.unlocked ? 'text-accent' : 'text-muted'">{{ entry.label }}</p>
+                  <span class="text-[10px] text-muted">{{ entry.status_label }}</span>
+                </div>
+                <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+                <p class="text-[10px] text-muted mt-1">解锁等级：{{ entry.unlock_level }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="border border-accent/20 rounded-xs p-3 bg-bg/10 space-y-3">
+            <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">村社会议</p>
               <span class="text-[10px] text-muted">{{ societyStore.mySociety.can_create_proposal ? '成员可发起提案' : '当前只读' }}</span>
             </div>
@@ -446,6 +541,20 @@
     societyStore.roleOptions.filter(entry => entry.id !== 'president') as Array<{ id: Exclude<SocietyRole, 'president'>; label: string }>
   )
 
+  const currentWelfareProgressTotal = computed(() => {
+    const society = societyStore.mySociety
+    if (!society) return 1
+    if (society.welfare_xp_to_next_level <= 0) return Math.max(1, society.welfare_xp)
+    return Math.max(1, society.welfare_xp + society.welfare_xp_to_next_level)
+  })
+
+  const currentWelfareProgressPercent = computed(() => {
+    const society = societyStore.mySociety
+    if (!society) return 0
+    if (society.welfare_xp_to_next_level <= 0) return 100
+    return Math.min(100, Math.round((society.welfare_xp / currentWelfareProgressTotal.value) * 100))
+  })
+
   watchEffect(() => {
     for (const member of societyStore.mySociety?.members ?? []) {
       if (member.role !== 'president' && !memberRoleDrafts[member.username]) {
@@ -511,6 +620,10 @@
 
   const contributeProject = async (projectId: string, packageId: string) => {
     await societyStore.contributeProject(projectId, packageId).catch(() => {})
+  }
+
+  const depositWarehouse = async (depositId: string) => {
+    await societyStore.depositWarehouse(depositId).catch(() => {})
   }
 
   onMounted(() => {

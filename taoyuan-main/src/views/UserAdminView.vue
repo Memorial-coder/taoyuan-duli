@@ -92,7 +92,6 @@
                   <option value="all">全部</option>
                   <option value="active">正常</option>
                   <option value="banned">已封禁</option>
-                  <option value="deleted">已删除</option>
                 </select>
               </label>
 
@@ -122,23 +121,43 @@
 
         <div class="space-y-4">
           <div class="game-panel space-y-4">
-            <div class="flex items-center justify-between gap-3">
-              <p class="text-sm text-accent">用户列表</p>
-              <span class="text-xs text-muted">共 {{ totalUsers }} 个用户</span>
-            </div>
-
-            <div v-if="loadingUsers" class="text-xs text-muted">用户列表加载中...</div>
-            <div v-else-if="!users.length" class="text-xs text-muted">当前没有符合条件的用户。</div>
-            <div v-else class="admin-user-table-wrap">
-              <div class="admin-user-table admin-user-table--head">
-                <div>用户</div>
-                <div>注册时间</div>
-                <div>状态</div>
-                <div>额度</div>
-                <div>最近保存</div>
-                <div>存档概览</div>
-                <div>操作</div>
+              <div class="flex items-center justify-between gap-3">
+                <p class="text-sm text-accent">用户列表</p>
+                <div class="flex flex-wrap items-center justify-end gap-2">
+                  <span class="text-xs text-muted">已选 {{ selectedUsernamesCount }} 项</span>
+                  <button
+                    v-if="adminSession.permissions.delete_user"
+                    class="btn btn-danger !px-2 !py-1"
+                    :disabled="submittingStatus || !selectedUsernamesCount"
+                    @click="handleBatchDeleteUsers"
+                  >
+                    批量彻底删除
+                  </button>
+                  <span class="text-xs text-muted">共 {{ totalUsers }} 个用户</span>
+                </div>
               </div>
+
+              <div v-if="loadingUsers" class="text-xs text-muted">用户列表加载中...</div>
+              <div v-else-if="!users.length" class="text-xs text-muted">当前没有符合条件的用户。</div>
+              <div v-else class="admin-user-table-wrap">
+                <div class="admin-user-table admin-user-table--head">
+                  <div class="admin-user-checkbox-cell">
+                    <input
+                      ref="selectAllCheckbox"
+                      type="checkbox"
+                      class="admin-checkbox"
+                      :checked="allUsersSelected"
+                      @change="toggleSelectAllUsers(($event.target as HTMLInputElement).checked)"
+                    />
+                  </div>
+                  <div>用户</div>
+                  <div>注册时间</div>
+                  <div>状态</div>
+                  <div>额度</div>
+                  <div>最近保存</div>
+                  <div>存档概览</div>
+                  <div>操作</div>
+                </div>
 
               <div
                 v-for="user in users"
@@ -146,6 +165,17 @@
                 class="admin-user-table admin-user-table--row"
                 :class="{ 'admin-user-table--active': selectedUsername === user.username }"
               >
+                <div class="admin-user-line admin-user-line--checkbox" data-label="选择">
+                  <label class="admin-user-checkbox-cell">
+                    <input
+                      :checked="isUserSelected(user.username)"
+                      type="checkbox"
+                      class="admin-checkbox"
+                      @change="toggleUserSelection(user.username, ($event.target as HTMLInputElement).checked)"
+                    />
+                  </label>
+                </div>
+
                 <div class="admin-user-line admin-user-line--user" data-label="用户">
                   <button class="admin-user-cell" @click="selectUser(user.username)">
                     <span class="admin-user-cell__top">
@@ -335,7 +365,7 @@
                           <div class="flex flex-wrap gap-2">
                             <button v-if="adminSession.permissions.update_status" class="btn !px-2 !py-1" :disabled="selectedUser.status === 'active' || submittingStatus" @click="handleSetStatus('active')">恢复正常</button>
                             <button v-if="adminSession.permissions.update_status" class="btn !px-2 !py-1 btn-danger" :disabled="selectedUser.status === 'banned' || selectedUser.status === 'deleted' || submittingStatus" @click="handleSetStatus('banned')">封禁用户</button>
-                            <button v-if="adminSession.permissions.delete_user" class="btn !px-2 !py-1 btn-danger" :disabled="selectedUser.status === 'deleted' || submittingStatus" @click="handleDeleteUser">删除用户</button>
+                            <button v-if="adminSession.permissions.delete_user" class="btn !px-2 !py-1 btn-danger" :disabled="selectedUser.status === 'deleted' || submittingStatus" @click="handleDeleteUser">彻底删除</button>
                           </div>
                         </div>
 
@@ -412,7 +442,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref } from 'vue'
+  import { computed, onMounted, ref, watchEffect } from 'vue'
   import { useRouter } from 'vue-router'
   import { Capacitor } from '@capacitor/core'
   import { ArrowLeft, Coins, FolderOutput, KeyRound, Mail, RefreshCw, Search, Trash2, Users, X } from 'lucide-vue-next'
@@ -421,6 +451,7 @@
   import {
     clearAdminSessionToken,
     deleteAdminUser,
+    deleteAdminUsers,
     downloadAdminUserSave,
     fetchAdminAuditLogs,
     fetchAdminUserDetail,
@@ -483,11 +514,22 @@
   const loadingGameplayLogs = ref(false)
   const detailModalOpen = ref(false)
   const selectedGameplaySlot = ref<'all' | number>('all')
+  const selectedUsernames = ref<string[]>([])
+  const selectAllCheckbox = ref<HTMLInputElement | null>(null)
 
   const hasToken = computed(() => adminTokenInput.value.trim().length > 0)
   const totalPages = computed(() => Math.max(1, Math.ceil(totalUsers.value / Math.max(1, filters.value.pageSize))))
   const canManageMail = computed(() => adminSession.value?.role === 'super_admin')
   const usersWithSaveCount = computed(() => users.value.filter(user => user.save_file.exists).length)
+  const selectedUsernamesCount = computed(() => selectedUsernames.value.length)
+  const allUsersSelected = computed(() => users.value.length > 0 && users.value.every(user => selectedUsernames.value.includes(user.username)))
+  const someUsersSelected = computed(() => selectedUsernames.value.some(username => users.value.some(user => user.username === username)))
+
+  watchEffect(() => {
+    if (selectAllCheckbox.value) {
+      selectAllCheckbox.value.indeterminate = someUsersSelected.value && !allUsersSelected.value
+    }
+  })
 
   const formatRecentSaveTime = (timestamp?: number | null) => {
     return timestamp ? formatTime(timestamp) : '未保存'
@@ -590,6 +632,7 @@
     gameplayLogs.value = []
     detailModalOpen.value = false
     selectedGameplaySlot.value = 'all'
+    selectedUsernames.value = []
     resetDetailForms(null)
   }
 
@@ -687,6 +730,7 @@
       if (activeRequestId !== usersRequestId.value) return
       users.value = result.users
       totalUsers.value = result.total
+      selectedUsernames.value = selectedUsernames.value.filter(username => users.value.some(item => item.username === username))
       if (!keepSelection || !selectedUsername.value || !users.value.some(item => item.username === selectedUsername.value)) {
         selectedUsername.value = ''
       }
@@ -768,6 +812,20 @@
   const reloadSelectedUser = async () => {
     if (!selectedUsername.value) return
     await loadUserDetail(selectedUsername.value)
+  }
+
+  const isUserSelected = (username: string) => selectedUsernames.value.includes(username)
+
+  const toggleUserSelection = (username: string, checked: boolean) => {
+    if (checked) {
+      if (!selectedUsernames.value.includes(username)) selectedUsernames.value.push(username)
+      return
+    }
+    selectedUsernames.value = selectedUsernames.value.filter(item => item !== username)
+  }
+
+  const toggleSelectAllUsers = (checked: boolean) => {
+    selectedUsernames.value = checked ? users.value.map(user => user.username) : []
   }
 
   const reloadSelectedUserGameplayLogs = async () => {
@@ -879,6 +937,38 @@
       await refreshAll()
     } catch (error) {
       showFloat(handleAdminRequestError(error, '删除用户失败'), 'danger')
+    } finally {
+      submittingStatus.value = false
+    }
+  }
+
+  const handleBatchDeleteUsers = async () => {
+    if (!selectedUsernames.value.length) return
+    const confirmed = typeof window === 'undefined'
+      ? true
+      : window.confirm(`确认彻底删除已选择的 ${selectedUsernames.value.length} 个用户吗？此操作不可恢复。`)
+    if (!confirmed) return
+    submittingStatus.value = true
+    try {
+      const result = await deleteAdminUsers(selectedUsernames.value)
+      const deletedSet = new Set(result.deleted_usernames)
+      selectedUsernames.value = []
+      users.value = users.value.filter(user => !deletedSet.has(user.username))
+      if (selectedUser.value && deletedSet.has(selectedUser.value.username)) {
+        selectedUser.value = null
+        selectedUsername.value = ''
+        detailModalOpen.value = false
+        gameplayLogs.value = []
+        resetDetailForms(null)
+      }
+      await loadUsers(true)
+      await loadAuditLogs()
+      const message = result.missing_usernames.length
+        ? `已删除 ${result.deleted_usernames.length} 个用户，${result.missing_usernames.length} 个未找到`
+        : `已删除 ${result.deleted_usernames.length} 个用户`
+      showFloat(message, 'success')
+    } catch (error) {
+      showFloat(handleAdminRequestError(error, '批量删除用户失败'), 'danger')
     } finally {
       submittingStatus.value = false
     }
@@ -1053,6 +1143,7 @@
   .admin-user-table {
     display: grid;
     grid-template-columns:
+      48px
       minmax(180px, 1.3fr)
       minmax(144px, 0.95fr)
       minmax(88px, 0.6fr)
@@ -1090,6 +1181,23 @@
 
   .admin-user-line {
     min-width: 0;
+  }
+
+  .admin-user-line--checkbox {
+    display: flex;
+    justify-content: center;
+  }
+
+  .admin-user-checkbox-cell {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .admin-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: rgb(var(--color-accent));
   }
 
   .admin-user-line__value {
@@ -1146,6 +1254,7 @@
   @media (max-width: 1535px) {
     .admin-user-table {
       grid-template-columns:
+        44px
         minmax(170px, 1.2fr)
         minmax(132px, 0.9fr)
         minmax(82px, 0.55fr)
@@ -1194,6 +1303,12 @@
       grid-column: span 2;
     }
 
+    .admin-user-line--checkbox {
+      grid-column: span 2;
+      justify-content: flex-start;
+      padding-bottom: 0;
+    }
+
     .admin-user-line--actions {
       justify-content: flex-start;
     }
@@ -1213,6 +1328,12 @@
     .admin-user-line--user,
     .admin-user-line--actions {
       grid-column: span 1;
+    }
+
+    .admin-user-line--checkbox {
+      justify-content: flex-start;
+      padding: 12px 14px 0;
+      border-bottom: none;
     }
 
     .admin-user-line {

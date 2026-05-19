@@ -1894,6 +1894,45 @@ try {
     assert(Array.isArray(bridgeProject?.recent_contributions) && bridgeProject.recent_contributions.some(entry => entry?.username === secondarySessionState.username), 'society public project readback did not preserve contribution history')
   })
 
+  await runCheck('POST /api/taoyuan/online/societies/public-warehouse/deposit write path', async () => {
+    const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(beforeSave.response.ok, `secondary save readback before warehouse deposit returned ${beforeSave.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeSave.data?.raw || beforeSave.data?.slot?.raw || beforeSave.data?.save?.raw || '')
+    const preMoney = Math.max(0, Math.floor(Number(beforeDecrypted?.player?.money) || 0))
+    const preWood = getInventoryItemQuantity(beforeDecrypted, 'wood')
+
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/deposit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        deposit_id: 'wood_crate',
+      }),
+    })
+    assert(response.ok, `society warehouse deposit returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.warehouse, 'society warehouse deposit payload is incomplete')
+    assert(Array.isArray(data?.warehouse?.items) && data.warehouse.items.some(entry => entry?.item_id === 'wood'), 'society warehouse deposit did not preserve warehouse wood stock')
+
+    const afterSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(afterSave.response.ok, `secondary save readback after warehouse deposit returned ${afterSave.response.status}`)
+    const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
+    const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
+    const afterWood = getInventoryItemQuantity(afterDecrypted, 'wood')
+    assert(afterMoney === preMoney - 5, `society warehouse deposit did not deduct money correctly, expected money=${preMoney - 5}, current money=${afterMoney}`)
+    assert(afterWood === preWood - 1, `society warehouse deposit did not deduct wood correctly, expected wood=${preWood - 1}, current wood=${afterWood}`)
+    secondaryExpectedMoney -= 5
+  })
+
+  await runCheck('GET /api/taoyuan/online/societies welfare readback', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies')
+    assert(response.ok, `society welfare readback returned ${response.status}`)
+    assert(data?.ok === true && data?.my_society?.id === createdSocietyId, 'society welfare readback payload is incomplete')
+    assert(Number(data?.my_society?.level || 0) >= 1, 'society welfare readback did not expose level')
+    assert(Array.isArray(data?.my_society?.welfare_unlocks) && data.my_society.welfare_unlocks.length >= 1, 'society welfare readback did not expose welfare unlocks')
+    assert(data?.my_society?.public_warehouse && Array.isArray(data.my_society.public_warehouse.logs) && data.my_society.public_warehouse.logs.some(entry => entry?.username === secondarySessionState.username), 'society welfare readback did not preserve warehouse logs')
+  })
+
   await runCheck('fourth session bootstrap', async () => {
     await bootstrapSession(quaternarySessionState, 'smk4', 180)
   })

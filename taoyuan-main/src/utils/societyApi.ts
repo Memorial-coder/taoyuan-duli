@@ -126,6 +126,63 @@ export interface SocietyPublicProjectSnapshot {
   recent_contributions: SocietyProjectContributionSnapshot[]
 }
 
+export interface SocietyWelfareUnlockSnapshot {
+  id: string
+  label: string
+  summary: string
+  unlock_level: number
+  unlocked: boolean
+}
+
+export interface SocietyWarehouseItemSnapshot {
+  item_id: string
+  quantity: number
+  label: string
+}
+
+export interface SocietyWarehouseLogSnapshot {
+  id: string
+  username: string
+  display_name: string
+  deposit_id: string
+  deposit_label: string
+  entries: SocietyCostEntry[]
+  created_at: number
+}
+
+export interface SocietyWarehouseDepositOptionSnapshot {
+  id: string
+  label: string
+  summary: string
+  costs: SocietyCostEntry[]
+}
+
+export interface SocietyExclusiveFestivalSnapshot {
+  id: string
+  label: string
+  summary: string
+  perk_summary: string
+  unlock_level: number
+  unlocked: boolean
+}
+
+export interface SocietyExclusiveDecorSnapshot {
+  id: string
+  label: string
+  summary: string
+  unlock_level: number
+  unlocked: boolean
+}
+
+export interface SocietyExclusiveTaskSnapshot {
+  id: string
+  label: string
+  summary: string
+  unlock_level: number
+  unlocked: boolean
+  status_label: string
+}
+
 export interface SocietySnapshot {
   id: string
   name: string
@@ -147,6 +204,11 @@ export interface SocietySnapshot {
   join_requirement_note: string
   created_at: number
   updated_at: number
+  level: number
+  level_title: string
+  welfare_xp: number
+  welfare_total_xp: number
+  welfare_xp_to_next_level: number
   my_role: SocietyRole | ''
   my_role_label: string
   can_apply: boolean
@@ -161,6 +223,16 @@ export interface SocietySnapshot {
   active_proposals: SocietyProposalSnapshot[]
   proposal_history: SocietyProposalSnapshot[]
   public_projects: SocietyPublicProjectSnapshot[]
+  welfare_unlocks: SocietyWelfareUnlockSnapshot[]
+  exclusive_festival: SocietyExclusiveFestivalSnapshot
+  exclusive_decors: SocietyExclusiveDecorSnapshot[]
+  exclusive_tasks: SocietyExclusiveTaskSnapshot[]
+  public_warehouse: {
+    funds: number
+    items: SocietyWarehouseItemSnapshot[]
+    logs: SocietyWarehouseLogSnapshot[]
+    deposit_options: SocietyWarehouseDepositOptionSnapshot[]
+  }
 }
 
 export interface SocietyOverviewResponse {
@@ -386,5 +458,18 @@ export const contributeSocietyPublicProject = async (projectId: string, packageI
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ package_id: packageId }),
+  })
+}
+
+export const depositSocietyWarehouse = async (depositId: string) => {
+  return requestSocietyAction<{
+    ok: boolean
+    warehouse?: SocietySnapshot['public_warehouse']
+    society?: SocietySnapshot
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+  }>('/api/taoyuan/online/societies/public-warehouse/deposit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deposit_id: depositId }),
   })
 }

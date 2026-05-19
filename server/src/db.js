@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
 const mysql = require('mysql2/promise');
+const { deleteUserSaveData } = require('./taoyuanSaveRuntime');
 
 const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
@@ -154,6 +155,16 @@ function setLocalUserMeta(usernameKey, patch = {}) {
   store.users[usernameKey] = next;
   saveUserMetaStore(store);
   return next;
+}
+
+function clearLocalUserMeta(usernameKey) {
+  const store = loadUserMetaStore();
+  if (!store.users || typeof store.users !== 'object' || !Object.prototype.hasOwnProperty.call(store.users, usernameKey)) {
+    return false;
+  }
+  delete store.users[usernameKey];
+  saveUserMetaStore(store);
+  return true;
 }
 
 function loadAdminAuditLogStore() {
@@ -717,12 +728,16 @@ async function listUsersAdmin(options = {}) {
       params.push(`%${keyword}%`, `%${keyword}%`);
     }
 
+    if (status === 'deleted') {
+      where.push('u.deleted_at IS NOT NULL');
+    } else {
+      where.push('u.deleted_at IS NULL');
+    }
+
     if (status === 'active') {
       where.push("u.deleted_at IS NULL AND COALESCE(m.status, 'active') = 'active'");
     } else if (status === 'banned') {
       where.push("u.deleted_at IS NULL AND COALESCE(m.status, 'active') = 'banned'");
-    } else if (status === 'deleted') {
-      where.push('u.deleted_at IS NOT NULL');
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -790,6 +805,8 @@ async function listUsersAdmin(options = {}) {
       if (keyword && !(`${item.username} ${item.display_name}`.toLocaleLowerCase('zh-CN').includes(keyword.toLocaleLowerCase('zh-CN')))) {
         return false;
       }
+      if (status === 'deleted') return item.status === 'deleted';
+      if (item.status === 'deleted') return false;
       if (status !== 'all' && item.status !== status) return false;
       return true;
     })
@@ -932,6 +949,37 @@ async function setUserStatus(username, status) {
   if (record.user.deleted_at) return null;
   setLocalUserMeta(record.usernameKey, { status: nextStatus, banned_at: nextStatus === 'banned' ? now : null });
   return getUserAdmin(username);
+}
+
+async function deleteUserPermanently(username) {
+  const usernameKey = normalizeUsernameKey(username);
+  if (!usernameKey) return null;
+
+  if (MYSQL_ENABLED) {
+    await ensureMysqlReady();
+    const pool = buildMysqlPool();
+    const current = await getMysqlAdminUserByKey(username);
+    if (!current) return null;
+
+    await pool.execute('DELETE FROM user_admin_meta WHERE username_key = ?', [usernameKey]);
+    const [result] = await pool.execute('DELETE FROM users WHERE username_key = ?', [usernameKey]);
+    if (result.affectedRows <= 0) return null;
+
+    deleteUserSaveData(current.username);
+    return current;
+  }
+
+  const record = getLocalAdminUserRecord(username);
+  if (!record.user) return null;
+
+  const nextUsers = record.store.users.filter(item => (item.username_key || normalizeUsernameKey(item.username)) !== record.usernameKey);
+  if (nextUsers.length === record.store.users.length) return null;
+
+  record.store.users = nextUsers;
+  saveStore(record.store);
+  clearLocalUserMeta(record.usernameKey);
+  deleteUserSaveData(record.user.username);
+  return record.user;
 }
 
 async function recordAdminAuditLog(entry = {}) {
@@ -1367,6 +1415,7 @@ module.exports = {
   setUserQuota,
   resetUserPassword,
   setUserStatus,
+  deleteUserPermanently,
   recordAdminAuditLog,
   listAdminAuditLogs,
   recordContentRevision,

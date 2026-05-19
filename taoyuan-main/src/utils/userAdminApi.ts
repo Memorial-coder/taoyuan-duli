@@ -246,6 +246,24 @@ export const deleteAdminUser = async (username: string, tokenOverride?: string):
   return data.user
 }
 
+export const deleteAdminUsers = async (
+  usernames: string[],
+  tokenOverride?: string,
+): Promise<{ deleted_usernames: string[]; missing_usernames: string[] }> => {
+  const data = await adminRequest<{ deleted_usernames?: string[]; missing_usernames?: string[] }>(
+    '/api/admin/users/batch-delete',
+    {
+      method: 'POST',
+      body: JSON.stringify({ usernames }),
+    },
+    tokenOverride,
+  )
+  return {
+    deleted_usernames: Array.isArray(data.deleted_usernames) ? data.deleted_usernames : [],
+    missing_usernames: Array.isArray(data.missing_usernames) ? data.missing_usernames : [],
+  }
+}
+
 export const fetchAdminUserSave = async (username: string, tokenOverride?: string): Promise<UserSaveFileSummary> => {
   const data = await adminRequest<{ save: UserSaveFileSummary }>(`/api/admin/users/${encodeURIComponent(username)}/save`, undefined, tokenOverride)
   if (!data.save) throw new Error('存档信息不存在')

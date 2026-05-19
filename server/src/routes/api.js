@@ -1228,6 +1228,20 @@ router.post('/taoyuan/online/societies/public-projects/:projectId/contribute', l
   });
 });
 
+router.post('/taoyuan/online/societies/public-warehouse/deposit', loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanSocietyRuntime.depositSocietyWarehouse(req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '补入公共仓失败' });
+    }
+  });
+});
+
 router.post('/taoyuan/online/festival/rooms', loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.createFestivalRoom(req.body || {}, {
@@ -1562,7 +1576,7 @@ router.post('/admin/users/:username/status', adminAuth, async (req, res) => {
   try {
     const username = decodeRouteUsername(req.params.username);
     const status = String(req.body?.status || '').trim().toLowerCase();
-    if (!['active', 'banned', 'deleted'].includes(status)) {
+    if (!['active', 'banned'].includes(status)) {
       return res.status(400).json({ ok: false, msg: '无效的用户状态' });
     }
 
@@ -1579,13 +1593,57 @@ router.post('/admin/users/:username/status', adminAuth, async (req, res) => {
 router.delete('/admin/users/:username', adminAuth, async (req, res) => {
   try {
     const username = decodeRouteUsername(req.params.username);
-    const user = await db.setUserStatus(username, 'deleted');
+    const user = await db.deleteUserPermanently(username);
     if (!user) return res.status(404).json({ ok: false, msg: '用户不存在或已删除' });
 
-    await appendAdminAuditLog(req, 'delete_user', username, { status: 'deleted' });
+    await appendAdminAuditLog(req, 'delete_user', user.username, { mode: 'permanent' });
     res.json({ ok: true, user });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '删除用户失败' });
+  }
+});
+
+router.post('/admin/users/batch-delete', adminAuth, async (req, res) => {
+  try {
+    const rawUsers = Array.isArray(req.body?.usernames) ? req.body.usernames : [];
+    const usernames = [];
+    const seen = new Set();
+
+    for (const item of rawUsers) {
+      const username = normalizeUsername(item);
+      const usernameKey = normalizeUsernameKey(username);
+      if (!username || !usernameKey || seen.has(usernameKey)) continue;
+      seen.add(usernameKey);
+      usernames.push(username);
+    }
+
+    if (!usernames.length) {
+      return res.status(400).json({ ok: false, msg: '请至少选择一个用户' });
+    }
+
+    const deleted_usernames = [];
+    const missing_usernames = [];
+
+    for (const username of usernames) {
+      const deleted = await db.deleteUserPermanently(username);
+      if (deleted) deleted_usernames.push(deleted.username);
+      else missing_usernames.push(username);
+    }
+
+    if (!deleted_usernames.length) {
+      return res.status(404).json({ ok: false, msg: '所选用户不存在或已删除', missing_usernames });
+    }
+
+    await appendAdminAuditLog(req, 'delete_user', deleted_usernames.join(','), {
+      mode: 'permanent_batch',
+      count: deleted_usernames.length,
+      usernames: deleted_usernames,
+      missing_usernames,
+    });
+
+    res.json({ ok: true, deleted_usernames, missing_usernames });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '批量删除用户失败' });
   }
 });
 

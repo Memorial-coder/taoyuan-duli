@@ -7,6 +7,7 @@ import {
   contributeSocietyPublicProject,
   createSociety,
   createSocietyProposal,
+  depositSocietyWarehouse,
   fetchSocietyOverview,
   inviteToSociety,
   rejectSocietyRequest,
@@ -215,6 +216,14 @@ export const useSocietyStore = defineStore('onlineSociety', () => {
     })
   }
 
+  const depositWarehouse = async (depositId: string) => {
+    return runAction(async () => {
+      const result = await depositSocietyWarehouse(depositId)
+      await resolveOverview(result?.overview ?? null)
+      return result
+    })
+  }
+
   return {
     overview,
     loading,
@@ -257,5 +266,6 @@ export const useSocietyStore = defineStore('onlineSociety', () => {
     castProposalVote,
     archiveProposal,
     contributeProject,
+    depositWarehouse,
   }
 })

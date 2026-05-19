@@ -79,6 +79,21 @@ function saveUserSaveSlots(username, data) {
   writeJsonFileAtomic(getTaoyuanSavePath(username), data);
 }
 
+function deleteUserSaveData(username) {
+  ensureTaoyuanSavesDir();
+  const safeUsername = String(username || '');
+  const filePath = getTaoyuanSavePath(safeUsername);
+  try {
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  } catch {}
+
+  const activeSlots = loadActiveSlots();
+  if (Object.prototype.hasOwnProperty.call(activeSlots, safeUsername)) {
+    delete activeSlots[safeUsername];
+    saveActiveSlots(activeSlots);
+  }
+}
+
 function loadActiveSlots() {
   try {
     if (!fs.existsSync(TAOYUAN_ACTIVE_SLOT_FILE)) return {};
@@ -265,6 +280,7 @@ module.exports = {
   writeJsonFileAtomic,
   loadUserSaveSlots,
   saveUserSaveSlots,
+  deleteUserSaveData,
   loadActiveSlots,
   saveActiveSlots,
   getActiveSaveSlot,

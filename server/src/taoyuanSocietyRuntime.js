@@ -95,6 +95,156 @@ const SOCIETY_RESOURCE_LABELS = Object.freeze({
   wood: '木材',
   stone: '石料',
   paper: '纸张',
+  herb: '草药',
+  firewood: '柴火',
+  bamboo: '竹材',
+  wintersweet: '腊梅',
+});
+
+const SOCIETY_LEVEL_TITLES = Object.freeze([
+  '初立社',
+  '共建社',
+  '互济社',
+  '兴盛社',
+  '匠作社',
+  '书院社',
+  '祠堂社',
+  '荣誉社',
+]);
+
+const SOCIETY_WELFARE_DEFS = Object.freeze([
+  { id: 'notice_boost', label: '公告栏常驻', summary: '村社公告与提案在成员页里更醒目。', unlock_level: 1 },
+  { id: 'public_warehouse', label: '公共仓库', summary: '开放公共仓库，用于储备共建与节会物资。', unlock_level: 1 },
+  { id: 'festival_priority', label: '专属节会优先', summary: '后续专属节会会优先向高等级村社开放。', unlock_level: 3 },
+  { id: 'decor_slot', label: '专属装饰位', summary: '后续可挂载村社专属装饰和徽记展示位。', unlock_level: 4 },
+  { id: 'task_board', label: '专属任务板', summary: '后续会开放更聚焦村社目标的专属任务。', unlock_level: 5 },
+  { id: 'archive_hall', label: '村社史册', summary: '后续可沉淀村社里程碑与公共记忆。', unlock_level: 6 },
+]);
+
+const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
+  {
+    id: 'wood_crate',
+    label: '木料入仓',
+    summary: '交 1 份木材和少量工钱，补入公共仓。',
+    costs: [
+      { type: 'item', item_id: 'wood', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 5 },
+    ],
+    rewards: [{ type: 'item', item_id: 'wood', quantity: 1, quality: 'normal' }],
+  },
+  {
+    id: 'stone_crate',
+    label: '石料入仓',
+    summary: '交 1 份石料和少量工钱，补入公共仓。',
+    costs: [
+      { type: 'item', item_id: 'stone', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 5 },
+    ],
+    rewards: [{ type: 'item', item_id: 'stone', quantity: 1, quality: 'normal' }],
+  },
+  {
+    id: 'paper_crate',
+    label: '纸张入仓',
+    summary: '交 1 份纸张和少量工钱，补入公共仓。',
+    costs: [
+      { type: 'item', item_id: 'paper', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 5 },
+    ],
+    rewards: [{ type: 'item', item_id: 'paper', quantity: 1, quality: 'normal' }],
+  },
+  {
+    id: 'herb_crate',
+    label: '草药入仓',
+    summary: '交 1 份草药和少量工钱，补入公共仓。',
+    costs: [
+      { type: 'item', item_id: 'herb', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 5 },
+    ],
+    rewards: [{ type: 'item', item_id: 'herb', quantity: 1, quality: 'normal' }],
+  },
+  {
+    id: 'fund_crate',
+    label: '公用经费',
+    summary: '直接补入公共仓经费，不占物资格位。',
+    costs: [{ type: 'money', amount: 20 }],
+    rewards: [{ type: 'money', amount: 20 }],
+  },
+]);
+
+const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_MAP = Object.freeze(
+  Object.fromEntries(SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS.map(entry => [entry.id, entry]))
+);
+
+const SOCIETY_THEME_FESTIVAL_DEFS = Object.freeze({
+  harvest_union: {
+    id: 'harvest_society_fair',
+    label: '丰收社宴',
+    summary: '围绕收成、仓储与互济展开的村社专属节会，适合在秋收与备货阶段召集成员。 ',
+    perk_summary: '更偏向收成展示、备货协作和村社公共仓联动。',
+    unlock_level: 1,
+  },
+  festival_hosts: {
+    id: 'lantern_hosts_night',
+    label: '灯街主办夜',
+    summary: '由节会主办型村社承接的夜间灯会，强调布置、接待和巡游秩序。',
+    perk_summary: '更偏向灯街、公告、值守与节庆组织协作。',
+    unlock_level: 1,
+  },
+  craft_collective: {
+    id: 'craft_trials',
+    label: '百工试艺会',
+    summary: '以工坊与手作展示为主的村社节会，适合串联加工、搭建与公共工程展示。',
+    perk_summary: '更偏向工坊产出、建设展示与集体协作。',
+    unlock_level: 1,
+  },
+  trade_circle: {
+    id: 'market_caravan_day',
+    label: '行商集市日',
+    summary: '以慢交易、摊位轮换和补给接驳为核心的村社节会，适合围绕集市展开。',
+    perk_summary: '更偏向集市、寄售、补给与公共仓调度。',
+    unlock_level: 1,
+  },
+  expedition_camp: {
+    id: 'expedition_oath',
+    label: '远行誓师会',
+    summary: '为远行筹备型村社准备的出发仪式与补给集会，强调人员协同与物资整备。',
+    perk_summary: '更偏向补给、分工、仓位与协作节奏。',
+    unlock_level: 1,
+  },
+  archive_hall: {
+    id: 'archive_memorial',
+    label: '祠堂记事会',
+    summary: '围绕纪念、史册与典礼展开的村社节会，适合把长期贡献沉成公共记忆。',
+    perk_summary: '更偏向史册、祠堂、纪念与展示。',
+    unlock_level: 1,
+  },
+});
+
+const SOCIETY_THEME_DECOR_DEFS = Object.freeze({
+  harvest_union: [
+    { id: 'harvest_banner', label: '谷纹旗幡', summary: '把村社主题定在仓储、丰收与互济的入口旗幡。', unlock_level: 1 },
+    { id: 'granary_screen', label: '谷仓屏风', summary: '适合放在公共仓或议事区的仓储主题屏风。', unlock_level: 3 },
+  ],
+  festival_hosts: [
+    { id: 'lantern_canopy', label: '灯幕门匾', summary: '为节会主办型村社准备的夜灯门匾与迎客灯幕。', unlock_level: 1 },
+    { id: 'procession_arch', label: '巡游拱门', summary: '完成灯街与夜间活动后可承接的节会拱门。', unlock_level: 3 },
+  ],
+  craft_collective: [
+    { id: 'craft_rack', label: '百工置物架', summary: '展示工坊成品和共建样品的公共置物架。', unlock_level: 1 },
+    { id: 'forge_plaque', label: '匠作铭牌', summary: '为工坊与公共工程完成后准备的匠作铭牌。', unlock_level: 3 },
+  ],
+  trade_circle: [
+    { id: 'market_sign', label: '行商招牌', summary: '适合挂在集市与慢交易入口的行商招牌。', unlock_level: 1 },
+    { id: 'ledger_wall', label: '账簿展墙', summary: '把交易流水和供货关系沉成可展示的账簿展墙。', unlock_level: 3 },
+  ],
+  expedition_camp: [
+    { id: 'route_banner', label: '远行路旗', summary: '适合挂在补给点与誓师区的路线旗标。', unlock_level: 1 },
+    { id: 'supply_crate_set', label: '补给木箱组', summary: '为远行整备和多人成行准备的木箱装饰组。', unlock_level: 3 },
+  ],
+  archive_hall: [
+    { id: 'memorial_scroll', label: '史册卷轴', summary: '用来展示村社纪事与公共记忆的卷轴。', unlock_level: 1 },
+    { id: 'ancestral_tablet', label: '祠堂铭牌', summary: '为祠堂与纪念空间准备的长期展示铭牌。', unlock_level: 3 },
+  ],
 });
 
 const SOCIETY_PUBLIC_PROJECT_DEFS = Object.freeze([
@@ -412,6 +562,55 @@ function normalizeSocietyPublicProject(entry) {
   };
 }
 
+function normalizeSocietyWarehouseEntry(entry) {
+  const normalized = normalizeBundleEntry(entry);
+  if (!normalized) return null;
+  if (normalized.type === 'money') {
+    return {
+      type: 'money',
+      amount: normalized.amount,
+      label: `${normalized.amount} 铜钱`,
+    };
+  }
+  return {
+    type: 'item',
+    item_id: normalized.item_id,
+    quantity: normalized.quantity,
+    quality: normalized.quality,
+    label: `${normalized.quantity} 份${SOCIETY_RESOURCE_LABELS[normalized.item_id] || normalized.item_id}`,
+  };
+}
+
+function normalizeSocietyWarehouseLogEntry(entry) {
+  return {
+    id: sanitizeText(entry?.id || makeId('society_warehouse_log'), 80),
+    username: normalizeUsername(entry?.username),
+    display_name: sanitizeText(entry?.display_name, 40),
+    deposit_id: sanitizeText(entry?.deposit_id, 40),
+    deposit_label: sanitizeText(entry?.deposit_label, 40),
+    entries: Array.isArray(entry?.entries)
+      ? entry.entries.map(normalizeSocietyWarehouseEntry).filter(Boolean).slice(0, 8)
+      : [],
+    created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
+  };
+}
+
+function normalizeSocietyWarehouseState(entry) {
+  const rawItems = entry?.items && typeof entry.items === 'object' ? entry.items : {};
+  const normalizedItems = {};
+  for (const [itemId, quantity] of Object.entries(rawItems)) {
+    const safeQuantity = Math.max(0, Math.floor(Number(quantity) || 0));
+    if (safeQuantity > 0) normalizedItems[String(itemId)] = safeQuantity;
+  }
+  return {
+    funds: Math.max(0, Math.floor(Number(entry?.funds) || 0)),
+    items: normalizedItems,
+    logs: Array.isArray(entry?.logs)
+      ? entry.logs.map(normalizeSocietyWarehouseLogEntry).filter(item => item.id).slice(0, 40)
+      : [],
+  };
+}
+
 function normalizeSociety(entry) {
   return {
     id: sanitizeText(entry?.id || makeId('society'), 80),
@@ -427,6 +626,8 @@ function normalizeSociety(entry) {
     created_by: normalizeUsername(entry?.created_by),
     created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
     updated_at: Math.max(0, Math.floor(Number(entry?.updated_at) || Number(entry?.created_at) || nowSeconds())),
+    level: Math.max(1, Math.floor(Number(entry?.level) || 1)),
+    welfare_xp: Math.max(0, Math.floor(Number(entry?.welfare_xp) || 0)),
     members: Array.isArray(entry?.members)
       ? entry.members.map(normalizeSocietyMember).filter(member => member.username)
       : [],
@@ -439,6 +640,7 @@ function normalizeSociety(entry) {
     public_projects: Array.isArray(entry?.public_projects)
       ? entry.public_projects.map(normalizeSocietyPublicProject).filter(project => project.id).slice(0, SOCIETY_PUBLIC_PROJECT_DEFS.length)
       : [],
+    public_warehouse: normalizeSocietyWarehouseState(entry?.public_warehouse),
   };
 }
 
@@ -675,6 +877,165 @@ function applyRewardsToSave(saveData, rewards) {
     if (!addStackableItemToInventory(saveData, reward.item_id, reward.quantity, reward.quality)) return false;
   }
   return true;
+}
+
+function getSocietyLevelThreshold(level) {
+  return 100 + Math.max(0, level - 1) * 60;
+}
+
+function recalculateSocietyWelfareProgress(society) {
+  const completedProjectCount = ensureSocietyPublicProjects(society).filter(entry => normalizeSocietyPublicProject(entry).status === 'completed').length;
+  const contributionCount = ensureSocietyPublicProjects(society).reduce((sum, entry) => sum + (normalizeSocietyPublicProject(entry).contributions || []).length, 0);
+  const warehouseContributionCount = (getNormalizedSocietyWarehouseState(society).logs || []).length;
+  const totalXp = completedProjectCount * 120 + contributionCount * 12 + warehouseContributionCount * 8;
+  let level = 1;
+  let spentXp = 0;
+  while (level < SOCIETY_LEVEL_TITLES.length) {
+    const threshold = getSocietyLevelThreshold(level);
+    if (totalXp < spentXp + threshold) break;
+    spentXp += threshold;
+    level += 1;
+  }
+  society.level = Math.max(1, level);
+  society.welfare_xp = Math.max(0, totalXp - spentXp);
+  return {
+    level: society.level,
+    xp: society.welfare_xp,
+    xp_to_next_level: society.level >= SOCIETY_LEVEL_TITLES.length ? 0 : Math.max(0, getSocietyLevelThreshold(society.level) - society.welfare_xp),
+    total_xp: totalXp,
+  };
+}
+
+function buildWarehouseLogSnapshot(entry) {
+  const normalized = normalizeSocietyWarehouseLogEntry(entry);
+  return {
+    id: normalized.id,
+    username: normalized.username,
+    display_name: normalized.display_name || normalized.username,
+    deposit_id: normalized.deposit_id,
+    deposit_label: normalized.deposit_label,
+    entries: normalized.entries.map(cost => ({
+      ...cost,
+      label: cost.label || (cost.type === 'money'
+        ? `${cost.amount} 铜钱`
+        : `${cost.quantity} 份${SOCIETY_RESOURCE_LABELS[cost.item_id] || cost.item_id}`),
+    })),
+    created_at: normalized.created_at,
+  };
+}
+
+function buildWelfareUnlockSnapshot(level) {
+  return SOCIETY_WELFARE_DEFS.map(entry => ({
+    id: entry.id,
+    label: entry.label,
+    summary: entry.summary,
+    unlock_level: entry.unlock_level,
+    unlocked: level >= entry.unlock_level,
+  }));
+}
+
+function getNormalizedSocietyWarehouseState(society) {
+  return normalizeSocietyWarehouseState(society?.public_warehouse);
+}
+
+function buildExclusiveFestivalSnapshot(themeId, level) {
+  const def = SOCIETY_THEME_FESTIVAL_DEFS[themeId] || SOCIETY_THEME_FESTIVAL_DEFS.harvest_union;
+  return {
+    id: def.id,
+    label: def.label,
+    summary: def.summary.trim(),
+    perk_summary: def.perk_summary,
+    unlock_level: def.unlock_level,
+    unlocked: level >= def.unlock_level,
+  };
+}
+
+function buildExclusiveDecorSnapshots(themeId, level) {
+  const defs = SOCIETY_THEME_DECOR_DEFS[themeId] || SOCIETY_THEME_DECOR_DEFS.harvest_union;
+  return defs.map(entry => ({
+    id: entry.id,
+    label: entry.label,
+    summary: entry.summary,
+    unlock_level: entry.unlock_level,
+    unlocked: level >= entry.unlock_level,
+  }));
+}
+
+function buildExclusiveTaskSnapshots(society) {
+  const themeFestival = SOCIETY_THEME_FESTIVAL_DEFS[society.theme] || SOCIETY_THEME_FESTIVAL_DEFS.harvest_union;
+  const completedProjectCount = ensureSocietyPublicProjects(society).filter(entry => normalizeSocietyPublicProject(entry).status === 'completed').length;
+  return [
+    {
+      id: 'weekly_public_stock',
+      label: '本周补齐公共仓',
+      summary: '继续围绕公共仓补货，让后续共建与节会筹备有稳定缓冲。',
+      unlock_level: 2,
+      unlocked: society.level >= 2,
+      status_label: getNormalizedSocietyWarehouseState(society).logs.length >= 1 ? '进行中' : '待开启',
+    },
+    {
+      id: 'theme_festival_prep',
+      label: `筹备「${themeFestival.label}」`,
+      summary: '围绕当前村社主题预热专属节会，把公告、物资和参与节奏先收起来。',
+      unlock_level: themeFestival.unlock_level,
+      unlocked: society.level >= themeFestival.unlock_level,
+      status_label: completedProjectCount >= 1 ? '已具备前置' : '先完成一项公共建设',
+    },
+    {
+      id: 'community_relief',
+      label: '扶持本周互助产业',
+      summary: '结合当前村社主题与共建进度，优先支持一条更适合本社气质的协作线。',
+      unlock_level: 3,
+      unlocked: society.level >= 3,
+      status_label: society.level >= 3 ? '可规划' : '等级不足',
+    },
+  ];
+}
+
+function depositToPublicWarehouse(society, actorUsername, actorDisplayName, depositId) {
+  const deposit = SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_MAP[depositId];
+  if (!deposit) throw createError('公共仓入仓方案不存在');
+  const context = getActiveSaveContext(actorUsername, null, '当前账号没有可用的桃源服务端存档，暂时无法使用公共仓');
+  context.username = actorUsername;
+  const projectedData = JSON.parse(JSON.stringify(context.data));
+  ensureInventoryState(projectedData);
+  if (!applyCostsToSave(projectedData, deposit.costs)) {
+    throw createError('当前存档里的铜钱或材料不足，暂时无法补入公共仓');
+  }
+  context.data = projectedData;
+  if (context.saveContainer && typeof context.saveContainer === 'object') {
+    context.saveContainer.gameplayData = projectedData;
+    if (context.saveContainer.wrapped && context.saveContainer.root && typeof context.saveContainer.root === 'object') {
+      context.saveContainer.root.data = projectedData;
+    } else if (context.saveContainer.root && typeof context.saveContainer.root === 'object') {
+      context.saveContainer.root = projectedData;
+    }
+  }
+  const warehouse = getNormalizedSocietyWarehouseState(society);
+  const logEntry = normalizeSocietyWarehouseLogEntry({
+    id: makeId('society_warehouse_log'),
+    username: actorUsername,
+    display_name: actorDisplayName,
+    deposit_id: deposit.id,
+    deposit_label: deposit.label,
+    entries: deposit.costs,
+    created_at: nowSeconds(),
+  });
+  warehouse.logs = [logEntry, ...warehouse.logs].slice(0, 40);
+  for (const rawEntry of deposit.rewards) {
+    const entry = normalizeBundleEntry(rawEntry);
+    if (!entry) continue;
+    if (entry.type === 'money') {
+      warehouse.funds += entry.amount;
+      continue;
+    }
+    warehouse.items[entry.item_id] = Math.max(0, Math.floor(Number(warehouse.items[entry.item_id]) || 0)) + entry.quantity;
+  }
+  society.public_warehouse = warehouse;
+  appendSocietyActivity(society, `${actorDisplayName}补入了公共仓「${deposit.label}」`, 'warehouse');
+  updateSocietyInStore({ societies: [society], society_join_requests: [] }, society);
+  persistGameplayData(context);
+  return { deposit, warehouse };
 }
 
 function loadSocietyStore() {
@@ -941,6 +1302,7 @@ async function buildSocietyJoinRequestSnapshot(request, store) {
 async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSociety = false, store = null) {
   const normalized = normalizeSociety(society);
   ensureSocietyPublicProjects(normalized);
+  const welfareState = recalculateSocietyWelfareProgress(normalized);
   const members = await hydrateMembers(normalized.members);
   const leader = members.find(entry => entry.role === 'president') || members[0] || null;
   const viewerMember = members.find(entry => entry.username === normalizeUsername(viewerUsername)) || null;
@@ -987,6 +1349,11 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
     join_requirement_note: normalized.join_requirement_note,
     created_at: normalized.created_at,
     updated_at: normalized.updated_at,
+    level: normalized.level,
+    level_title: SOCIETY_LEVEL_TITLES[Math.max(0, normalized.level - 1)] || SOCIETY_LEVEL_TITLES[SOCIETY_LEVEL_TITLES.length - 1],
+    welfare_xp: welfareState.xp,
+    welfare_total_xp: welfareState.total_xp,
+    welfare_xp_to_next_level: welfareState.xp_to_next_level,
     my_role: viewerRole,
     my_role_label: viewerRole ? SOCIETY_ROLE_LABELS[viewerRole] || viewerRole : '',
     can_apply: canApply,
@@ -1009,6 +1376,25 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
     public_projects: await Promise.all(
       normalized.public_projects.map(entry => buildPublicProjectSnapshot(entry, viewerUsername, !!viewerMember))
     ),
+    welfare_unlocks: buildWelfareUnlockSnapshot(normalized.level),
+    exclusive_festival: buildExclusiveFestivalSnapshot(normalized.theme, normalized.level),
+    exclusive_decors: buildExclusiveDecorSnapshots(normalized.theme, normalized.level),
+    exclusive_tasks: buildExclusiveTaskSnapshots(normalized),
+    public_warehouse: {
+      funds: normalized.public_warehouse.funds,
+      items: Object.entries(normalized.public_warehouse.items).map(([itemId, quantity]) => ({
+        item_id: itemId,
+        quantity: Number(quantity) || 0,
+        label: `${Number(quantity) || 0} 份${SOCIETY_RESOURCE_LABELS[itemId] || itemId}`,
+      })),
+      logs: normalized.public_warehouse.logs.map(buildWarehouseLogSnapshot).filter(Boolean),
+      deposit_options: SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS.map(entry => ({
+        id: entry.id,
+        label: entry.label,
+        summary: entry.summary,
+        costs: entry.costs.map(normalizeSocietyWarehouseEntry).filter(Boolean),
+      })),
+    },
   };
 }
 
@@ -1487,6 +1873,34 @@ async function contributeSocietyPublicProject(projectId, payload = {}, actor = {
   };
 }
 
+async function depositSocietyWarehouse(payload = {}, actor = {}) {
+  const store = loadSocietyStore();
+  const actorUsername = normalizeUsername(actor.username);
+  const actorDisplayName = sanitizeText(actor.displayName, 40) || await resolveDisplayName(actorUsername) || actorUsername;
+  const society = findMemberSociety(store, actorUsername);
+  if (!society) throw createError('你当前没有加入村社');
+  ensureSocietyMemberRole(society, actorUsername, Object.keys(SOCIETY_ROLE_LABELS), '只有成员可以使用公共仓');
+
+  const depositId = sanitizeText(payload.deposit_id, 40);
+  const { warehouse } = depositToPublicWarehouse(society, actorUsername, actorDisplayName, depositId);
+  updateSocietyInStore(store, society);
+  saveSocietyStore(store);
+
+  return {
+    warehouse: {
+      funds: warehouse.funds,
+      items: Object.entries(warehouse.items).map(([itemId, quantity]) => ({
+        item_id: itemId,
+        quantity: Number(quantity) || 0,
+        label: `${Number(quantity) || 0} 份${SOCIETY_RESOURCE_LABELS[itemId] || itemId}`,
+      })),
+      logs: warehouse.logs.map(buildWarehouseLogSnapshot).filter(Boolean),
+    },
+    society: await buildSocietySnapshot(society, actorUsername, true, store),
+    overview: await buildOverview(store, actorUsername),
+  };
+}
+
 module.exports = {
   listSocietyOverview,
   createSociety,
@@ -1499,4 +1913,5 @@ module.exports = {
   voteSocietyProposal,
   closeSocietyProposal,
   contributeSocietyPublicProject,
+  depositSocietyWarehouse,
 };
