@@ -233,19 +233,41 @@
         </div>
       </div>
 
-      <div class="border border-accent/20 rounded-xs p-3 bg-bg/10">
-        <p class="text-sm text-accent mb-2">最近结算凭证</p>
-        <div v-if="festivalRoomStore.recentReceipts.length === 0" class="text-xs text-muted leading-5">节会结算目前先生成凭证预览，用来证明房间生命周期、逐成员凭证和关闭流程已经打通。后续具体小游戏奖励会继续接到这里。</div>
-        <div v-else class="space-y-2">
-          <div v-for="receipt in festivalRoomStore.recentReceipts" :key="receipt.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
-            <div class="flex items-start justify-between gap-2">
-              <div class="min-w-0">
-                <p class="text-xs text-text">{{ receipt.room_title }}</p>
-                <p class="text-[10px] text-muted mt-1">{{ receipt.template_label }} · 槽位 {{ receipt.target_slot + 1 }}</p>
+      <div class="space-y-3">
+        <div class="border border-accent/20 rounded-xs p-3 bg-bg/10">
+          <p class="text-sm text-accent mb-2">最近结算凭证</p>
+          <div v-if="festivalRoomStore.recentReceipts.length === 0" class="text-xs text-muted leading-5">节会结算目前先生成凭证预览，用来证明房间生命周期、逐成员凭证和关闭流程已经打通。后续具体小游戏奖励会继续接到这里。</div>
+          <div v-else class="space-y-2">
+            <div v-for="receipt in festivalRoomStore.recentReceipts" :key="receipt.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs text-text">{{ receipt.room_title }}</p>
+                  <p class="text-[10px] text-muted mt-1">{{ receipt.template_label }} · 槽位 {{ receipt.target_slot + 1 }}</p>
+                </div>
+                <span class="text-[10px] text-accent">{{ receipt.status_label }}</span>
               </div>
-              <span class="text-[10px] text-accent">{{ receipt.status_label }}</span>
+              <p class="text-[10px] text-muted mt-2 leading-4">{{ receipt.summary }}</p>
             </div>
-            <p class="text-[10px] text-muted mt-2 leading-4">{{ receipt.summary }}</p>
+          </div>
+        </div>
+
+        <div class="border border-accent/20 rounded-xs p-3 bg-bg/10">
+          <p class="text-sm text-accent mb-2">最近纪念册</p>
+          <div v-if="festivalRoomStore.recentMemorials.length === 0" class="text-xs text-muted leading-5">节会纪念册会按最近结算顺序留档，记录你参加过哪些节会、拿到哪些奖励、和谁同场，以及这场节会的合影文案。</div>
+          <div v-else class="space-y-2">
+            <div v-for="memorial in festivalRoomStore.recentMemorials" :key="memorial.memorial_id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs text-text">{{ memorial.label }}</p>
+                  <p class="text-[10px] text-muted mt-1">{{ memorial.template_label }} · {{ memorial.gameplay_template_label }}</p>
+                </div>
+                <span class="text-[10px] text-accent">{{ memorial.photo_taken ? '已留档' : '未留影' }}</span>
+              </div>
+              <p class="text-[10px] text-muted mt-2 leading-4">{{ memorial.reward_summary }}</p>
+              <p v-if="memorial.squadmate_display_names.length > 0" class="text-[10px] text-muted mt-1 leading-4">同场成员：{{ memorial.squadmate_display_names.join('、') }}</p>
+              <p v-if="memorial.squadmate_friend_display_names.length > 0" class="text-[10px] text-success mt-1 leading-4">同场好友：{{ memorial.squadmate_friend_display_names.join('、') }}</p>
+              <p v-if="memorial.photo_line" class="text-[10px] text-muted mt-1 leading-4">{{ memorial.photo_line }}</p>
+            </div>
           </div>
         </div>
       </div>

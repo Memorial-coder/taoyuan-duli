@@ -35,6 +35,7 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
   const myRoom = computed<FestivalRoomSnapshot | null>(() => overview.value?.my_room ?? null)
   const visibleRooms = computed(() => overview.value?.visible_rooms ?? [])
   const invitedRooms = computed(() => overview.value?.invited_rooms ?? [])
+  const recentMemorials = computed(() => overview.value?.recent_memorials ?? [])
   const recentReceipts = computed(() => overview.value?.recent_receipts ?? [])
   const templates = computed<FestivalRoomTemplate[]>(() => overview.value?.templates ?? [])
   const gameplayTemplates = computed<FestivalGameplayTemplate[]>(() => overview.value?.gameplay_templates ?? [])
@@ -167,6 +168,7 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     myRoom,
     visibleRooms,
     invitedRooms,
+    recentMemorials,
     recentReceipts,
     templates,
     gameplayTemplates,

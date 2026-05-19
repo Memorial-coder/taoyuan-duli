@@ -86,6 +86,7 @@ const createSessionState = () => ({
   cookie: '',
   csrfToken: '',
   username: '',
+  displayName: '',
 })
 
 const assert = (condition, message) => {
@@ -154,6 +155,7 @@ const runCheck = async (label, runner) => {
 const bootstrapSession = async (session, labelPrefix, startingMoney) => {
   const uniqueSeed = Math.random().toString(36).slice(2, 8)
   session.username = `${labelPrefix}_${uniqueSeed}`
+  session.displayName = `${labelPrefix}${uniqueSeed}`
   const password = `SmokePass_${uniqueSeed}`
   const { response: registerResponse, data: registerData } = await fetchSessionJson(session, '/api/register', {
     method: 'POST',
@@ -163,7 +165,7 @@ const bootstrapSession = async (session, labelPrefix, startingMoney) => {
     body: JSON.stringify({
       username: session.username,
       password,
-      display_name: `${labelPrefix}${uniqueSeed}`,
+      display_name: session.displayName,
     }),
   })
   assert(registerResponse.ok, `register returned ${registerResponse.status}: ${registerData?.msg || 'unknown error'}`)
@@ -225,6 +227,7 @@ const bootstrapSession = async (session, labelPrefix, startingMoney) => {
 const bootstrapAuthOnlySession = async (session, labelPrefix) => {
   const uniqueSeed = Math.random().toString(36).slice(2, 8)
   session.username = `${labelPrefix}_${uniqueSeed}`
+  session.displayName = `${labelPrefix}${uniqueSeed}`
   const password = `SmokePass_${uniqueSeed}`
   const { response: registerResponse, data: registerData } = await fetchSessionJson(session, '/api/register', {
     method: 'POST',
@@ -234,7 +237,7 @@ const bootstrapAuthOnlySession = async (session, labelPrefix) => {
     body: JSON.stringify({
       username: session.username,
       password,
-      display_name: `${labelPrefix}${uniqueSeed}`,
+      display_name: session.displayName,
     }),
   })
   assert(registerResponse.ok, `register returned ${registerResponse.status}: ${registerData?.msg || 'unknown error'}`)
@@ -1652,6 +1655,17 @@ try {
     secondaryExpectedMoney += festivalSecondaryRewardMoney
   })
 
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/close duplicate guard path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/close`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(!response.ok, 'festival room duplicate close should be rejected after room is already closed')
+    assert(typeof data?.msg === 'string' && data.msg.includes('已经关闭'), 'festival room duplicate close did not return the expected guard message')
+  })
+
   await runCheck('GET /api/taoyuan/save/:slot festival reward persistence', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/save/0')
     assert(response.ok, `festival reward save readback returned ${response.status}`)
@@ -1666,6 +1680,19 @@ try {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/online/profile')
     assert(response.ok, `festival title profile returned ${response.status}`)
     assert(data?.ok === true && data?.profile?.public_title === '赛舟领桨手', 'festival reward did not update public title')
+  })
+
+  await runCheck('GET /api/taoyuan/online/festival/rooms memorial readback', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/festival/rooms')
+    assert(response.ok, `festival memorial readback returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.recent_memorials) && data.recent_memorials.length >= 1, 'festival memorial readback payload is incomplete')
+    const latestMemorial = data.recent_memorials[0]
+    assert(String(latestMemorial?.template_id || '') === 'dragon_boat', 'festival memorial did not preserve template id')
+    assert(String(latestMemorial?.gameplay_template_id || '') === 'squad_coop', 'festival memorial did not preserve gameplay template id')
+    const secondaryDisplayName = secondarySessionState.displayName
+    assert(Array.isArray(latestMemorial?.squadmate_display_names) && latestMemorial.squadmate_display_names.includes(secondaryDisplayName), 'festival memorial did not preserve squadmate display names')
+    assert(Array.isArray(latestMemorial?.squadmate_friend_display_names) && latestMemorial.squadmate_friend_display_names.includes(secondaryDisplayName), 'festival memorial did not preserve friend squadmate list')
+    assert(latestMemorial?.photo_taken === true && typeof latestMemorial?.photo_line === 'string' && latestMemorial.photo_line.length >= 4, 'festival memorial did not preserve photo snapshot text')
   })
 
   await runCheck('fourth session bootstrap', async () => {

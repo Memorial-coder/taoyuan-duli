@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0519 节会纪念册与 L6 回归（L64 / L65 第一轮）
+- `server/src/taoyuanActivityRoomRuntime.js` 已把节会纪念册正式接进节会奖励真实落档链：房间 `close` 写回铜钱、节会纪念券、限定装饰和节气称号时，会同步沉淀房型、玩法模板、奖励摘要、同场成员、同场好友和合照文案到个人节会纪念册。
+- `taoyuan-main/src/utils/festivalRoomApi.ts`、`src/stores/useFestivalRoomStore.ts` 与 `src/views/game/FestivalView.vue` 也同步补出“最近纪念册”读链和 UI 面板；现在节会页右侧可以直接回看最近参加过哪些节会、拿到哪些奖励、和谁同场，以及这场节会留下的留影文案。
+- `server/scripts/qa-online-smoke.mjs` 已补进纪念册与 L6 回归验证：当前会实际断言 `recent_memorials` 的房型、玩法模板、同场显示名、好友显示名和合照文案回读，并显式验证房间关闭后二次 `close` 会被拒绝，避免断线恢复或重复提交导致重复发奖。
+
 ### 0519 节会奖励（L63 第一轮）
 - `server/src/taoyuanActivityRoomRuntime.js` 现已把节会结算从“仅预览凭证”推进成真实逐成员奖励链：`settle` 生成待写回凭证，`close` 再把铜钱、节会纪念券、限定装饰与节气称号写回玩家个人存档和公开资料。
 - 节会页里的最近凭证与房间结算状态也跟着升级了：现在房间 receipt 会区分“待写回个人存档”和“已写回个人存档”，不再把结算预览和真实到账混成同一层状态。

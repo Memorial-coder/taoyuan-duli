@@ -891,6 +891,39 @@ function getReceiptStatusLabel(status) {
   return '已生成凭证';
 }
 
+function buildFestivalMemorialOverview(username) {
+  try {
+    const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源乡存档，暂时无法读取节会纪念册');
+    const festivalRewardState = ensureFestivalRewardState(context.data);
+    return (festivalRewardState.memorials || [])
+      .map(normalizeFestivalMemorialEntry)
+      .sort((left, right) => (right.awarded_at || 0) - (left.awarded_at || 0))
+      .slice(0, 8)
+      .map(entry => ({
+        memorial_id: entry.memorial_id,
+        label: entry.label,
+        room_id: entry.room_id,
+        template_id: entry.template_id,
+        template_label: entry.template_label,
+        gameplay_template_id: entry.gameplay_template_id,
+        gameplay_template_label: entry.gameplay_template_label,
+        awarded_at: entry.awarded_at,
+        reward_summary: entry.reward_summary,
+        reward_money: entry.reward_money,
+        reward_ticket_quantity: entry.reward_ticket_quantity,
+        decoration_label: entry.decoration_label,
+        title_label: entry.title_label,
+        squadmate_display_names: [...entry.squadmate_display_names],
+        squadmate_friend_display_names: [...entry.squadmate_friend_display_names],
+        photo_moment_label: entry.photo_moment_label,
+        photo_line: entry.photo_line,
+        photo_taken: entry.photo_taken,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 function ensureFestivalRewardWallet(saveData) {
   if (!saveData.wallet || typeof saveData.wallet !== 'object') saveData.wallet = {};
   if (!saveData.wallet.rewardTickets || typeof saveData.wallet.rewardTickets !== 'object') saveData.wallet.rewardTickets = {};
@@ -919,6 +952,39 @@ function ensureFestivalRewardState(saveData) {
     saveData.onlineFestivalRewards.memorials = [];
   }
   return saveData.onlineFestivalRewards;
+}
+
+function normalizeFestivalMemorialEntry(entry) {
+  return {
+    memorial_id: sanitizeText(entry?.memorial_id, 120),
+    label: sanitizeText(entry?.label, 40),
+    room_id: sanitizeText(entry?.room_id, 40),
+    template_id: sanitizeText(entry?.template_id, 40),
+    template_label: sanitizeText(entry?.template_label, 40),
+    gameplay_template_id: sanitizeText(entry?.gameplay_template_id, 40),
+    gameplay_template_label: sanitizeText(entry?.gameplay_template_label, 40),
+    awarded_at: Math.max(0, Math.floor(Number(entry?.awarded_at) || 0)),
+    reward_summary: sanitizeText(entry?.reward_summary, 160),
+    reward_money: Math.max(0, Math.floor(Number(entry?.reward_money) || 0)),
+    reward_ticket_quantity: Math.max(0, Math.floor(Number(entry?.reward_ticket_quantity) || 0)),
+    decoration_label: sanitizeText(entry?.decoration_label, 40),
+    title_label: sanitizeText(entry?.title_label, 40),
+    squadmate_usernames: Array.isArray(entry?.squadmate_usernames)
+      ? entry.squadmate_usernames.map(item => sanitizeText(item, 40)).filter(Boolean).slice(0, 8)
+      : [],
+    squadmate_display_names: Array.isArray(entry?.squadmate_display_names)
+      ? entry.squadmate_display_names.map(item => sanitizeText(item, 40)).filter(Boolean).slice(0, 8)
+      : [],
+    squadmate_friend_usernames: Array.isArray(entry?.squadmate_friend_usernames)
+      ? entry.squadmate_friend_usernames.map(item => sanitizeText(item, 40)).filter(Boolean).slice(0, 8)
+      : [],
+    squadmate_friend_display_names: Array.isArray(entry?.squadmate_friend_display_names)
+      ? entry.squadmate_friend_display_names.map(item => sanitizeText(item, 40)).filter(Boolean).slice(0, 8)
+      : [],
+    photo_moment_label: sanitizeText(entry?.photo_moment_label, 40),
+    photo_line: sanitizeText(entry?.photo_line, 120),
+    photo_taken: entry?.photo_taken === true,
+  };
 }
 
 function getSortedGameplayContributions(room) {
@@ -999,7 +1065,50 @@ function buildFestivalReceiptReward(room, member, rankingIndex) {
   };
 }
 
-function applyFestivalReceiptReward(receipt) {
+function buildFestivalMemorialEntry(room, receipt) {
+  const template = getRoomTemplate(room.template_id);
+  const gameplayTemplate = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  const squadmates = getJoinedMembers(room)
+    .filter(member => member.username !== receipt.target_username)
+    .map(member => ({
+      username: member.username,
+      display_name: member.display_name,
+      is_friend: taoyuanSocialRuntime.isFriendWith(receipt.target_username, member.username),
+    }));
+  const friendSquadmates = squadmates.filter(member => member.is_friend);
+  const friendDisplayLine = friendSquadmates.length > 0
+    ? `同场好友：${friendSquadmates.map(member => member.display_name).join('、')}`
+    : '本场暂无已登记好友同游';
+  const squadmateDisplayLine = squadmates.length > 0
+    ? squadmates.map(member => member.display_name).join('、')
+    : '独自留档';
+  const titleLabel = sanitizeText(receipt.reward_breakdown?.title_reward?.label, 40);
+  const decorationLabel = sanitizeText(receipt.reward_breakdown?.decoration_reward?.label, 40);
+  return normalizeFestivalMemorialEntry({
+    memorial_id: `festival_memorial:${receipt.room_id}:${receipt.target_username}:v${receipt.settlement_version}`,
+    label: `${template.label}纪念`,
+    room_id: receipt.room_id,
+    template_id: template.id,
+    template_label: template.label,
+    gameplay_template_id: gameplayTemplate.id,
+    gameplay_template_label: gameplayTemplate.label,
+    awarded_at: nowSeconds(),
+    reward_summary: receipt.summary,
+    reward_money: receipt.reward_payload?.money || 0,
+    reward_ticket_quantity: receipt.reward_breakdown?.memorial_ticket_quantity || 0,
+    decoration_label: decorationLabel,
+    title_label: titleLabel,
+    squadmate_usernames: squadmates.map(member => member.username),
+    squadmate_display_names: squadmates.map(member => member.display_name),
+    squadmate_friend_usernames: friendSquadmates.map(member => member.username),
+    squadmate_friend_display_names: friendSquadmates.map(member => member.display_name),
+    photo_moment_label: `${template.label}合影`,
+    photo_line: `${receipt.target_display_name} 与 ${squadmateDisplayLine} 在 ${template.label} 留下了一张${gameplayTemplate.label}留影。${friendDisplayLine}`,
+    photo_taken: true,
+  });
+}
+
+function applyFestivalReceiptReward(receipt, room) {
   const context = getActiveSaveContext(receipt.target_username, receipt.target_slot, '当前账号没有可用的桃源乡存档，暂时无法写入节会奖励');
   context.username = receipt.target_username;
   ensureFestivalRewardWallet(context.data);
@@ -1046,15 +1155,12 @@ function applyFestivalReceiptReward(receipt) {
     };
   }
 
+  const memorialEntry = buildFestivalMemorialEntry(room, receipt);
   festivalRewardState.memorials = [
-    {
-      memorial_id: `festival_memorial:${receipt.room_id}:${receipt.target_username}:v${receipt.settlement_version}`,
-      label: `${receipt.template_label}纪念`,
-      room_id: receipt.room_id,
-      template_id: receipt.template_id,
-      awarded_at: nowSeconds(),
-    },
-    ...festivalRewardState.memorials.filter(entry => entry?.memorial_id !== `festival_memorial:${receipt.room_id}:${receipt.target_username}:v${receipt.settlement_version}`),
+    memorialEntry,
+    ...(festivalRewardState.memorials || [])
+      .map(normalizeFestivalMemorialEntry)
+      .filter(entry => entry.memorial_id !== memorialEntry.memorial_id),
   ].slice(0, 40);
   festivalRewardState.appliedReceipts[receipt.idempotency_key] = {
     receipt_id: receipt.id,
@@ -1208,6 +1314,7 @@ function buildOverview(store, viewerUsername) {
       summary: receipt.summary,
       created_at: receipt.created_at,
     }));
+  const recentMemorials = buildFestivalMemorialOverview(normalizedViewer);
 
   return {
     bulletin: '节会房间现已支持开房、邀请、加入、准备、倒计时、断线重连和逐成员结算，并补入公共进度、小队协作、抢答、拼装、采集、表演、合照七类玩法模板骨架。',
@@ -1217,6 +1324,7 @@ function buildOverview(store, viewerUsername) {
     invited_rooms: invitedRooms,
     visible_rooms: visibleRooms.map(room => buildRoomSnapshot(store, room, normalizedViewer)),
     recent_receipts: recentReceipts,
+    recent_memorials: recentMemorials,
   };
 }
 
@@ -1646,7 +1754,7 @@ function persistFestivalReceipts(store, room) {
       continue;
     }
     try {
-      const rewardOutcome = applyFestivalReceiptReward(receipt);
+      const rewardOutcome = applyFestivalReceiptReward(receipt, room);
       nextReceipts.push(normalizeRoomReceipt({
         ...receipt,
         status: 'persisted',

@@ -158,6 +158,27 @@ export interface FestivalRoomOpeningCeremony {
   countdown_remaining_seconds: number
 }
 
+export interface FestivalMemorialSnapshot {
+  memorial_id: string
+  label: string
+  room_id: string
+  template_id: string
+  template_label: string
+  gameplay_template_id: string
+  gameplay_template_label: string
+  awarded_at: number
+  reward_summary: string
+  reward_money: number
+  reward_ticket_quantity: number
+  decoration_label: string
+  title_label: string
+  squadmate_display_names: string[]
+  squadmate_friend_display_names: string[]
+  photo_moment_label: string
+  photo_line: string
+  photo_taken: boolean
+}
+
 export interface FestivalRoomSnapshot {
   id: string
   title: string
@@ -212,6 +233,7 @@ export interface FestivalRoomOverview {
   my_room: FestivalRoomSnapshot | null
   invited_rooms: FestivalRoomSnapshot[]
   visible_rooms: FestivalRoomSnapshot[]
+  recent_memorials: FestivalMemorialSnapshot[]
   recent_receipts: Array<{
     id: string
     room_id: string
@@ -270,6 +292,7 @@ export const fetchFestivalRoomOverview = async (): Promise<FestivalRoomOverview 
     my_room: data.my_room ?? null,
     invited_rooms: data.invited_rooms ?? [],
     visible_rooms: data.visible_rooms ?? [],
+    recent_memorials: data.recent_memorials ?? [],
     recent_receipts: data.recent_receipts ?? [],
   } : null
 }
