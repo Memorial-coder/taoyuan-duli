@@ -14,6 +14,7 @@ const taoyuanAiAssistant = require('../taoyuanAiAssistant');
 const taoyuanSocialRuntime = require('../taoyuanSocialRuntime');
 const taoyuanManorRuntime = require('../taoyuanManorRuntime');
 const taoyuanCoopOrderRuntime = require('../taoyuanCoopOrderRuntime');
+const taoyuanWeeklyExchangeStation = require('../taoyuanWeeklyExchangeStation');
 const officialControlPlatform = require('../officialControlPlatform');
 const {
   ensureTaoyuanSavesDir,
@@ -1663,6 +1664,26 @@ router.post('/taoyuan/quota/export', loginRequired, signRequired, async (req, re
       today_imported_money: usageAfter.import_money,
       today_exported_money: usageAfter.export_money,
     });
+  });
+});
+
+router.get('/taoyuan/exchange-station/weekly', loginRequired, async (req, res) => {
+  try {
+    const station = taoyuanWeeklyExchangeStation.listWeeklyExchangeStation(req.session.username);
+    res.json({ ok: true, station });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取每周交换站失败' });
+  }
+});
+
+router.post('/taoyuan/exchange-station/weekly/:offerId/exchange', loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = taoyuanWeeklyExchangeStation.exchangeWeeklyOffer(req.session.username, req.params.offerId);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '执行每周换物失败' });
+    }
   });
 });
 

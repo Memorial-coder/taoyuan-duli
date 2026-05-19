@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0519 每周交换站（L50 第一轮）
+- 新增 `server/src/taoyuanWeeklyExchangeStation.js` 与 `/api/taoyuan/exchange-station/weekly`、`/api/taoyuan/exchange-station/weekly/:offerId/exchange`，把第一版“每周交换站”正式接进服务端运行态。
+- 当前实现采用“官方控价慢交易”口径：每周固定保留 `wintersweet_for_herb`、`wood_for_stone` 两条基础换物，再按现实周轮换两条限量站内供给；会真实校验个人周限次、站点库存、存档物资扣减与奖励落账，并把周记录持久化到 `data/taoyuan_weekly_exchange_station.json`。
+- 新增 `taoyuan-main/src/utils/weeklyExchangeApi.ts`、`taoyuan-main/src/stores/useWeeklyExchangeStore.ts` 与 `taoyuan-main/src/components/game/WeeklyExchangeStationPanel.vue`，商店页现已接入第一版交换站面板，可直接查看本周换单、交换说明、库存状态和执行结果。
+- `taoyuan-main/src/views/game/ShopView.vue` 已补出交换站入口、面板开关、刷新与兑换动作，玩家现在可以在现有商店流里直接完成本周换物，不需要另找临时测试入口。
+- `server/scripts/qa-online-smoke.mjs` 已补进交换站读写回归：当前会实际验证周站读取、执行 `wood_for_stone` 兑换，以及回读服务端存档确认木材扣减和石料到账。
+
 ### 0518 联机执行锚点（L00 / L01）
 - 新增 `docs/online/README.md` 与 `docs/online/00-base-audit.md`，把 `0518联机plan.md` 的激进蓝图正式拆到可执行骨架里，并统一后续联机主线命名为 `庄园 / 邻里 / 委托 / 节会 / 村社`。
 - 新增 `docs/online/01-manor.md` 到 `05-society.md` 五条执行线，先把庄园展示、关系链、协作委托、节会房间和村社治理的落点分开，避免后续所有任务重新抢同一个“联机”大桶。

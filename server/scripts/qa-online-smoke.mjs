@@ -141,6 +141,9 @@ const fetchSessionJson = async (session, pathname, init = {}) => {
 }
 
 const fetchAuthedJson = async (pathname, init = {}) => fetchSessionJson(sessionState, pathname, init)
+const getInventoryItemQuantity = (decryptedSave, itemId) => (decryptedSave?.inventory?.items || [])
+  .filter(entry => entry?.itemId === itemId)
+  .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
 
 const runCheck = async (label, runner) => {
   await runner()
@@ -531,6 +534,8 @@ try {
   let relayStageOneId = ''
   let relayStageTwoId = ''
   let expiringCoopOrderId = ''
+  let weeklyExchangeExpectedWoodCount = null
+  let weeklyExchangeExpectedStoneCount = null
   await runCheck('second session bootstrap', async () => {
     await bootstrapSession(secondarySessionState, 'smk2', 260)
   })
@@ -1137,6 +1142,46 @@ try {
     const neighborOrder = secondaryOverview.data?.orders?.find(entry => entry?.title === neighborCoopOrderTitle && entry?.scope === 'neighbors')
     assert(neighborOrder, 'neighbor-scope coop order missing from viewer overview')
     assert(Array.isArray(neighborOrder?.priority_reasons) && neighborOrder.priority_reasons.some(reason => String(reason).includes('邻里')), 'neighbor-scope coop order missing neighbor recommendation reason')
+  })
+
+  await runCheck('GET /api/taoyuan/exchange-station/weekly read path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/weekly')
+    assert(response.ok, `weekly exchange station read returned ${response.status}`)
+    assert(data?.ok === true && data?.station?.week_key, 'weekly exchange station payload is incomplete')
+    const targetOffer = data.station.offers?.find(entry => entry?.id === 'wood_for_stone')
+    assert(targetOffer, 'weekly exchange station did not expose the wood_for_stone offer')
+    assert(targetOffer?.can_exchange === true, 'weekly exchange station offer should be exchangeable for secondary session')
+  })
+
+  await runCheck('POST /api/taoyuan/exchange-station/weekly/:offerId/exchange write path', async () => {
+    const preSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(preSave.response.ok, `weekly exchange pre-save read returned ${preSave.response.status}`)
+    assert(preSave.data?.ok === true && typeof preSave.data?.raw === 'string', 'weekly exchange pre-save payload is incomplete')
+    const preDecrypted = decryptTaoyuanRaw(preSave.data.raw)
+    const preWoodCount = getInventoryItemQuantity(preDecrypted, 'wood')
+    const preStoneCount = getInventoryItemQuantity(preDecrypted, 'stone')
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/exchange-station/weekly/wood_for_stone/exchange', {
+      method: 'POST',
+    })
+    assert(response.ok, `weekly exchange execution returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.offer?.id === 'wood_for_stone', 'weekly exchange execution payload is incomplete')
+    assert(Number(data?.offer?.claimed_by_user) === 1, 'weekly exchange execution did not advance personal claim count')
+    assert(Array.isArray(data?.record?.rewards) && data.record.rewards.some(entry => entry?.item_id === 'stone'), 'weekly exchange execution record did not preserve reward detail')
+    weeklyExchangeExpectedWoodCount = preWoodCount - 4
+    weeklyExchangeExpectedStoneCount = preStoneCount + 10
+  })
+
+  await runCheck('GET /api/taoyuan/save/:slot weekly exchange persistence', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(response.ok, `weekly exchange save read returned ${response.status}`)
+    assert(data?.ok === true && typeof data?.raw === 'string', 'weekly exchange save payload is incomplete')
+    assert(weeklyExchangeExpectedWoodCount !== null, 'weekly exchange expected wood count was not captured')
+    assert(weeklyExchangeExpectedStoneCount !== null, 'weekly exchange expected stone count was not captured')
+    const decrypted = decryptTaoyuanRaw(data.raw)
+    const woodCount = getInventoryItemQuantity(decrypted, 'wood')
+    const stoneCount = getInventoryItemQuantity(decrypted, 'stone')
+    assert(woodCount === weeklyExchangeExpectedWoodCount, `weekly exchange did not deduct secondary user wood correctly, expected wood=${weeklyExchangeExpectedWoodCount}, current wood=${woodCount}`)
+    assert(stoneCount === weeklyExchangeExpectedStoneCount, `weekly exchange did not grant secondary user stone correctly, expected stone=${weeklyExchangeExpectedStoneCount}, current stone=${stoneCount}`)
   })
 
   await runCheck('fourth session bootstrap', async () => {

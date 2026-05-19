@@ -148,6 +148,9 @@
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('recommended-consumption', '看推荐货架')">
               看推荐货架
             </button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('weekly-exchange-station', '看每周交换站')">
+              看每周交换站
+            </button>
           </div>
         </div>
 
@@ -319,7 +322,25 @@
             <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('recommended-consumption', '看推荐货架')">
               看推荐货架
             </button>
+            <button class="btn prompt-action-cta !px-2 !py-1 text-[10px]" @click="focusShopSection('weekly-exchange-station', '看每周交换站')">
+              看每周交换站
+            </button>
           </div>
+        </div>
+
+        <div
+          v-if="!shopStore.currentShopId && weeklyExchangeStore.station"
+          class="mb-3"
+          :class="promptSectionClass('weekly-exchange-station')"
+          :data-prompt-focus="buildPromptFocusAttr('weekly-exchange-station')"
+        >
+          <WeeklyExchangeStationPanel
+            :station="weeklyExchangeStore.station"
+            :loading="weeklyExchangeStore.loading"
+            :running="weeklyExchangeStore.actionRunning"
+            @refresh="handleRefreshWeeklyExchangeStation"
+            @exchange="handleWeeklyExchange"
+          />
         </div>
         </template>
 
@@ -1714,6 +1735,8 @@
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
   import { useAchievementStore } from '@/stores/useAchievementStore'
+  import { useWeeklyExchangeStore } from '@/stores/useWeeklyExchangeStore'
+  import WeeklyExchangeStationPanel from '@/components/game/WeeklyExchangeStationPanel.vue'
 
   const RAIN_TOTEM_PRICE = 300
   const WOOD_PRICE = 50
@@ -1730,13 +1753,14 @@
   const goalStore = useGoalStore()
   const regionMapStore = useRegionMapStore()
   const achievementStore = useAchievementStore()
+  const weeklyExchangeStore = useWeeklyExchangeStore()
   const isCompactMobile = ref(false)
   const shopPreludeExpanded = ref(false)
   const syncCompactViewportMode = () => {
     isCompactMobile.value = typeof window !== 'undefined' ? window.innerWidth < 768 : false
   }
   const shopPreludeForceOpen = computed(() =>
-    ['economy-overview', 'market-overview', 'recommended-consumption'].some(key => isPromptFocusActive(key))
+    ['economy-overview', 'market-overview', 'recommended-consumption', 'weekly-exchange-station'].some(key => isPromptFocusActive(key))
   )
   const currentDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
   const todayAmbientRareVisitors = computed(() =>
@@ -1778,6 +1802,9 @@
       },
       'recommended-consumption': () => {
         shopStore.currentShopId = 'wanwupu'
+      },
+      'weekly-exchange-station': () => {
+        shopStore.currentShopId = null
       }
     }
   })
@@ -1875,6 +1902,7 @@
     shopStore.villageResidentShelfNotes.filter((entry: { unlocked: boolean }) => entry.unlocked)
   )
   const commerceEcho = computed(() => shopStore.commerceEchoSummary)
+  const weeklyExchangeStationSummary = computed(() => weeklyExchangeStore.station)
 
   // === 行情系统 ===
 
@@ -1912,6 +1940,7 @@
 
   onMounted(() => {
     syncCompactViewportMode()
+    void weeklyExchangeStore.refreshStation().catch(() => {})
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', syncCompactViewportMode)
     }
@@ -1958,7 +1987,7 @@
     statusLabel: string
     statusToneClass: string
     ctaLabel: string
-    action: 'current-shop' | 'market-overview' | 'recommended-catalog' | 'wanwupu'
+    action: 'current-shop' | 'market-overview' | 'recommended-catalog' | 'wanwupu' | 'weekly-exchange-station'
     pool?: ShopCatalogOfferDef['pool']
   }
 
@@ -2008,6 +2037,25 @@
       }
     }
 
+    if (weeklyExchangeStationSummary.value?.offers.some(offer => offer.can_exchange)) {
+      const exchangeOffer = weeklyExchangeStationSummary.value.offers.find(offer => offer.can_exchange) ?? weeklyExchangeStationSummary.value.offers[0]
+      if (exchangeOffer) {
+        return {
+          title: '先看每周交换站',
+          summary: '这周商圈里最稳定的慢交易入口就在交换站，先看官方控价摊位，再决定要不要继续买货架。 ',
+          detailLines: [
+            `本周摊位：${exchangeOffer.name}`,
+            `交出 ${formatExchangeBundle(exchangeOffer.costs)}`,
+            `换回 ${formatExchangeBundle(exchangeOffer.rewards)}`
+          ],
+          statusLabel: '换物',
+          statusToneClass: 'text-accent',
+          ctaLabel: '看每周交换站',
+          action: 'weekly-exchange-station'
+        }
+      }
+    }
+
     if (shopPrimaryCatalogOffer.value) {
       return {
         title: '先看推荐货架',
@@ -2048,6 +2096,10 @@
     }
     if (action.action === 'market-overview') {
       focusShopSection('market-overview', '看市场看板')
+      return
+    }
+    if (action.action === 'weekly-exchange-station') {
+      focusShopSection('weekly-exchange-station', '看每周交换站')
       return
     }
     mobileTab.value = 'buy'
@@ -2172,6 +2224,32 @@
   }
 
   const activeServiceContracts = computed(() => shopStore.activeServiceContractSummaries)
+
+  const formatExchangeBundle = (entries: Array<{ type: string; item_id?: string; quantity?: number; amount?: number }>) => {
+    return entries.map(entry => {
+      if (entry.type === 'money') return `${entry.amount ?? 0}文`
+      const def = entry.item_id ? getItemById(entry.item_id) : null
+      return `${def?.name ?? entry.item_id ?? '未知物品'}×${entry.quantity ?? 0}`
+    }).join('、')
+  }
+
+  const handleRefreshWeeklyExchangeStation = async () => {
+    await weeklyExchangeStore.refreshStation().catch(() => {})
+  }
+
+  const handleWeeklyExchange = async (offerId: string) => {
+    try {
+      const result = await weeklyExchangeStore.performExchange(offerId)
+      sfxBuy()
+      showFloat(`换物完成`, 'success')
+      addLog(`【每周交换站】完成「${result.offer.name}」：交出${formatExchangeBundle(result.record.costs)}，换回${formatExchangeBundle(result.record.rewards)}。`)
+      if (!result.save_sync_state.current_session_synced) {
+        addLog(`【每周交换站】${result.save_sync_state.message}`)
+      }
+    } catch (error) {
+      addLog(error instanceof Error ? error.message : '每周交换站换物失败')
+    }
+  }
 
   const handleBuyCatalogOffer = (offerId: string) => {
     const result = shopStore.purchaseCatalogOffer(offerId)
