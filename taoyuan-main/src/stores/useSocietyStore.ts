@@ -10,6 +10,7 @@ import {
   depositSocietyWarehouse,
   fetchSocietyOverview,
   inviteToSociety,
+  leaveSociety,
   rejectSocietyRequest,
   updateSocietyMemberRole,
   updateSocietyNotice,
@@ -178,6 +179,14 @@ export const useSocietyStore = defineStore('onlineSociety', () => {
     })
   }
 
+  const exitSociety = async () => {
+    return runAction(async () => {
+      const result = await leaveSociety()
+      await resolveOverview(result?.overview ?? null)
+      return result
+    })
+  }
+
   const submitProposal = async () => {
     return runAction(async () => {
       const result = await createSocietyProposal({
@@ -262,6 +271,7 @@ export const useSocietyStore = defineStore('onlineSociety', () => {
     rejectRequest,
     changeMemberRole,
     saveNotice,
+    exitSociety,
     submitProposal,
     castProposalVote,
     archiveProposal,

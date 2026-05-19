@@ -405,6 +405,17 @@ export const updateSocietyNotice = async (notice: string) => {
   })
 }
 
+export const leaveSociety = async () => {
+  return requestSocietyAction<{
+    ok: boolean
+    left_society_id?: string
+    dissolved?: boolean
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+  }>('/api/taoyuan/online/societies/leave', {
+    method: 'POST',
+  })
+}
+
 export const createSocietyProposal = async (payload: {
   title: string
   summary: string

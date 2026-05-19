@@ -1933,6 +1933,23 @@ try {
     assert(data?.my_society?.public_warehouse && Array.isArray(data.my_society.public_warehouse.logs) && data.my_society.public_warehouse.logs.some(entry => entry?.username === secondarySessionState.username), 'society welfare readback did not preserve warehouse logs')
   })
 
+  await runCheck('POST /api/taoyuan/online/societies/leave write path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/leave', {
+      method: 'POST',
+    })
+    assert(response.ok, `society leave returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.left_society_id === createdSocietyId, 'society leave payload is incomplete')
+
+    const leaveReadback = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies')
+    assert(leaveReadback.response.ok, `society leave readback returned ${leaveReadback.response.status}`)
+    assert(leaveReadback.data?.ok === true && !leaveReadback.data?.my_society, 'society leave did not remove member society from leaver overview')
+
+    const ownerReadback = await fetchAuthedJson('/api/taoyuan/online/societies')
+    assert(ownerReadback.response.ok, `society owner readback after leave returned ${ownerReadback.response.status}`)
+    assert(ownerReadback.data?.ok === true && ownerReadback.data?.my_society?.id === createdSocietyId, 'society leave should not dissolve society while owner remains')
+    assert(Array.isArray(ownerReadback.data?.my_society?.members) && !ownerReadback.data.my_society.members.some(entry => entry?.username === secondarySessionState.username), 'society leave did not remove secondary member from owner readback')
+  })
+
   await runCheck('fourth session bootstrap', async () => {
     await bootstrapSession(quaternarySessionState, 'smk4', 180)
   })

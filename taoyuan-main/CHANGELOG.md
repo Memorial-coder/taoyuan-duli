@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0519 村社退出与 L75 首轮验收
+- `server/src/taoyuanSocietyRuntime.js` 已补出 `leaveSociety()`：普通成员可直接离社；社长若是唯一成员则会解散整张村社卡片，若村社内仍有其他成员，则会把社长位自动移交给最早加入的剩余成员，并同步清理离社成员的待处理申请 / 邀请记录。
+- `server/src/routes/api.js` 已新增 `/api/taoyuan/online/societies/leave`；`taoyuan-main/src/utils/societyApi.ts`、`src/stores/useSocietyStore.ts` 与 `src/views/game/SocietyView.vue` 也已同步补出退出动作和前端按钮，当前可直接在村社页完成离社。
+- `server/scripts/qa-online-smoke.mjs` 已开始承接 `L75` 验收：当前会实际验证村社创建、申请加入、接受加入、福利回读后再执行退出，并确认离社成员的 `my_society` 已清空、村社成员列表已同步移除该成员。
+
 ### 0519 村社等级与福利（L74 第一轮）
 - `server/src/taoyuanSocietyRuntime.js` 已在现有在线村社 runtime 上补齐第一轮成长骨架：当前新增村社等级、福利经验、福利解锁清单、公共仓状态，以及按 `theme + level` 生成的专属节会 / 装饰 / 任务读链，数据继续收在同一份 `taoyuan_societies.json` 里。
 - 村社等级当前采用自动成长口径：已完成公共建设、公共建设贡献次数和公共仓入仓次数都会换算成福利经验，不额外补一颗手工“升级”按钮，优先保证成长链依然围绕共建和成员协作推进。

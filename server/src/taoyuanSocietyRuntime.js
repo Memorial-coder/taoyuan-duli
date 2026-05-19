@@ -1551,6 +1551,59 @@ async function applyToSociety(username, societyId) {
   };
 }
 
+async function leaveSociety(actor = {}) {
+  const store = loadSocietyStore();
+  const actorUsername = normalizeUsername(actor.username);
+  const actorDisplayName = sanitizeText(actor.displayName, 40) || await resolveDisplayName(actorUsername) || actorUsername;
+  const society = findMemberSociety(store, actorUsername);
+  if (!society) throw createError('你当前没有加入村社');
+
+  const leavingMember = getSocietyMember(society, actorUsername);
+  if (!leavingMember) throw createError('你当前不是这个村社的成员', 404);
+
+  const remainingMembers = (society.members || [])
+    .map(normalizeSocietyMember)
+    .filter(entry => entry.username && entry.username !== actorUsername)
+    .sort((left, right) => left.joined_at - right.joined_at);
+
+  society.members = remainingMembers;
+
+  if (!remainingMembers.length) {
+    store.societies = (store.societies || [])
+      .map(normalizeSociety)
+      .filter(entry => entry.id !== society.id);
+    store.society_join_requests = (store.society_join_requests || [])
+      .map(normalizeSocietyJoinRequest)
+      .filter(entry => entry.society_id !== society.id);
+    saveSocietyStore(store);
+    return {
+      left_society_id: society.id,
+      dissolved: true,
+      overview: await buildOverview(store, actorUsername),
+    };
+  }
+
+  if (leavingMember.role === 'president') {
+    const nextPresident = remainingMembers[0];
+    nextPresident.role = 'president';
+    appendSocietyActivity(society, `${actorDisplayName}离开了村社，${nextPresident.display_name || await resolveDisplayName(nextPresident.username)}接任社长`, 'leave');
+  } else {
+    appendSocietyActivity(society, `${actorDisplayName}离开了村社「${society.name}」`, 'leave');
+  }
+
+  store.society_join_requests = (store.society_join_requests || [])
+    .map(normalizeSocietyJoinRequest)
+    .filter(entry => entry.username !== actorUsername);
+  updateSocietyInStore(store, society);
+  saveSocietyStore(store);
+
+  return {
+    left_society_id: society.id,
+    dissolved: false,
+    overview: await buildOverview(store, actorUsername),
+  };
+}
+
 async function inviteToSociety(payload = {}, actor = {}) {
   const store = loadSocietyStore();
   const inviter = normalizeUsername(actor.username);
@@ -1905,6 +1958,7 @@ module.exports = {
   listSocietyOverview,
   createSociety,
   applyToSociety,
+  leaveSociety,
   inviteToSociety,
   respondSocietyRequest,
   updateSocietyMemberRole,

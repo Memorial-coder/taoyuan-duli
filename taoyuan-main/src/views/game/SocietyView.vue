@@ -23,7 +23,12 @@
                 <p class="text-sm text-accent">{{ societyStore.mySociety.name }}</p>
                 <p class="text-[10px] text-muted mt-1">{{ societyStore.mySociety.theme_label }} · {{ societyStore.mySociety.visibility_label }} · {{ societyStore.mySociety.member_count }}/{{ societyStore.mySociety.capacity }} 人</p>
               </div>
-              <span class="text-[10px] text-accent">{{ societyStore.mySociety.my_role_label || '成员' }}</span>
+              <div class="flex items-center gap-2">
+                <span class="text-[10px] text-accent">{{ societyStore.mySociety.my_role_label || '成员' }}</span>
+                <Button class="!px-2 !py-1" :disabled="societyStore.actionRunning" @click="leaveCurrentSociety">
+                  {{ societyStore.mySociety.my_role === 'president' && societyStore.mySociety.member_count <= 1 ? '退出并解散' : '退出村社' }}
+                </Button>
+              </div>
             </div>
             <p class="text-xs text-muted mt-2 leading-5">{{ societyStore.mySociety.summary || '这个村社还没写简介。' }}</p>
             <div class="grid gap-2 md:grid-cols-3 mt-3">
@@ -603,6 +608,14 @@
 
   const saveNotice = async () => {
     await societyStore.saveNotice().catch(() => {})
+  }
+
+  const leaveCurrentSociety = async () => {
+    const message = societyStore.mySociety?.my_role === 'president' && (societyStore.mySociety?.member_count || 0) <= 1
+      ? '确认退出并解散当前村社吗？此操作会移除整张村社卡片。'
+      : '确认退出当前村社吗？'
+    if (typeof window !== 'undefined' && !window.confirm(message)) return
+    await societyStore.exitSociety().catch(() => {})
   }
 
   const submitProposal = async () => {

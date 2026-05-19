@@ -1178,6 +1178,18 @@ router.post('/taoyuan/online/societies/notice', loginRequired, signRequired, asy
   }
 });
 
+router.post('/taoyuan/online/societies/leave', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocietyRuntime.leaveSociety({
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '退出村社失败' });
+  }
+});
+
 router.post('/taoyuan/online/societies/proposals', loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanSocietyRuntime.createSocietyProposal(req.body || {}, {
