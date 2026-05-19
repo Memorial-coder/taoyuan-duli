@@ -5,9 +5,12 @@ import {
   clearClaimedMailboxMail,
   claimAllMailboxMail,
   claimMailboxMail,
-  fetchPlayerLetterPresets,
   fetchMailboxDetail,
+  fetchMailboxInboxStatus,
   fetchMailboxList,
+  fetchMailboxReceipts,
+  fetchPlayerLetterPresets,
+  pinMailboxMail,
   sendPlayerGiftPackage,
   sendPlayerLetter,
   markMailboxRead
@@ -38,9 +41,11 @@ export interface TaoyuanMailSummary {
   has_rewards: boolean
   reward_count: number
   sent_at: number
+  pinned_at: number | null
   expires_at: number | null
   read_at: number | null
   claimed_at: number | null
+  is_pinned: boolean
   unread: boolean
   can_claim: boolean
   is_claimed: boolean
@@ -64,6 +69,38 @@ export interface TaoyuanMailDetail extends TaoyuanMailSummary {
     applied_rewards: TaoyuanMailReward[]
     skipped_rewards: Array<{ type: string; id?: string; quantity?: number; reason: string }>
   } | null
+}
+
+export interface TaoyuanMailReceipt {
+  id: string
+  delivery_id: string
+  campaign_id: string
+  claimed_at: number
+  mail_title: string
+  template_type: string | null
+  sender_display_name?: string
+  sent_at: number | null
+  has_mail_detail: boolean
+  save_slot: number | null
+  money_added: number
+  duplicate_compensation_money: number
+  applied_rewards: TaoyuanMailReward[]
+  skipped_rewards: Array<{ type: string; id?: string; quantity?: number; reason: string }>
+}
+
+export interface MailArrivalDigest {
+  count: number
+  titles: string[]
+  first_mail_id: string | null
+  arrived_at: number | null
+}
+
+export interface MailInboxStatus {
+  unread_count: number
+  pinned_count: number
+  important_count: number
+  newest_unread: TaoyuanMailSummary | null
+  newest_important: TaoyuanMailSummary | null
 }
 
 export interface MailClaimSyncState {
@@ -118,9 +155,11 @@ const toSummary = (mail: TaoyuanMailSummary | TaoyuanMailDetail): TaoyuanMailSum
   has_rewards: mail.has_rewards,
   reward_count: mail.reward_count,
   sent_at: mail.sent_at,
+  pinned_at: mail.pinned_at,
   expires_at: mail.expires_at,
   read_at: mail.read_at,
   claimed_at: mail.claimed_at,
+  is_pinned: mail.is_pinned,
   unread: mail.unread,
   can_claim: mail.can_claim,
   is_claimed: mail.is_claimed,
@@ -133,6 +172,20 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
   const mails = ref<TaoyuanMailSummary[]>([])
   const unreadCount = ref(0)
   const detailMap = ref<Record<string, TaoyuanMailDetail>>({})
+  const receipts = ref<TaoyuanMailReceipt[]>([])
+  const inboxStatus = ref<MailInboxStatus>({
+    unread_count: 0,
+    pinned_count: 0,
+    important_count: 0,
+    newest_unread: null,
+    newest_important: null
+  })
+  const arrivalDigest = ref<MailArrivalDigest>({
+    count: 0,
+    titles: [],
+    first_mail_id: null,
+    arrived_at: null
+  })
   const loading = ref(false)
   const lastLoadedAt = ref(0)
   const sendLetterRunning = ref(false)
@@ -151,12 +204,41 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     { type: 'item', id: '', quantity: 1, quality: 'normal' }
   ])
 
+  let lastSeenMailIds = new Set<string>()
+
   const upsertMail = (mail: TaoyuanMailSummary | TaoyuanMailDetail) => {
     const summary = toSummary(mail)
     const index = mails.value.findIndex(item => item.id === summary.id)
     if (index >= 0) mails.value[index] = summary
     else mails.value.unshift(summary)
+    mails.value = [...mails.value].sort((left, right) => {
+      const pinDiff = (Number(right.pinned_at) || 0) - (Number(left.pinned_at) || 0)
+      if (pinDiff !== 0) return pinDiff
+      return (Number(right.sent_at) || 0) - (Number(left.sent_at) || 0)
+    })
     unreadCount.value = mails.value.filter(item => item.unread).length
+    inboxStatus.value = {
+      unread_count: unreadCount.value,
+      pinned_count: mails.value.filter(item => item.is_pinned).length,
+      important_count: mails.value.filter(item => item.is_pinned || item.can_claim || !!item.sender_display_name).length,
+      newest_unread: mails.value.find(item => item.unread) ?? null,
+      newest_important: mails.value.find(item => item.is_pinned || item.can_claim || !!item.sender_display_name) ?? null
+    }
+  }
+
+  const clearArrivalDigest = () => {
+    arrivalDigest.value = {
+      count: 0,
+      titles: [],
+      first_mail_id: null,
+      arrived_at: null
+    }
+  }
+
+  const refreshReceipts = async (limit = 20) => {
+    const data = await fetchMailboxReceipts(limit)
+    receipts.value = (data.receipts || []) as TaoyuanMailReceipt[]
+    return receipts.value
   }
 
   const buildClaimSyncState = (state: MailClaimSyncState): MailClaimSyncState => state
@@ -278,10 +360,34 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
   const refreshList = async () => {
     loading.value = true
     try {
+      const previousIds = lastSeenMailIds
       const data = await fetchMailboxList()
-      mails.value = (data.mails || []) as TaoyuanMailSummary[]
+      const nextMails = ((data.mails || []) as TaoyuanMailSummary[]).sort((left, right) => {
+        const pinDiff = (Number(right.pinned_at) || 0) - (Number(left.pinned_at) || 0)
+        if (pinDiff !== 0) return pinDiff
+        return (Number(right.sent_at) || 0) - (Number(left.sent_at) || 0)
+      })
+      mails.value = nextMails
       unreadCount.value = Number(data.unread_count) || 0
       detailMap.value = {}
+      lastSeenMailIds = new Set(nextMails.map(item => item.id))
+      const newMails = nextMails.filter(item => !previousIds.has(item.id))
+      if (newMails.length > 0) {
+        arrivalDigest.value = {
+          count: newMails.length,
+          titles: newMails.slice(0, 3).map(item => item.title),
+          first_mail_id: newMails[0]?.id ?? null,
+          arrived_at: Date.now()
+        }
+      }
+      const inbox = await fetchMailboxInboxStatus()
+      inboxStatus.value = {
+        unread_count: Number(inbox.unread_count) || unreadCount.value,
+        pinned_count: Number(inbox.pinned_count) || 0,
+        important_count: Number(inbox.important_count) || 0,
+        newest_unread: (inbox.newest_unread || null) as TaoyuanMailSummary | null,
+        newest_important: (inbox.newest_important || null) as TaoyuanMailSummary | null
+      }
       lastLoadedAt.value = Date.now()
     } finally {
       loading.value = false
@@ -307,6 +413,9 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
       detailMap.value[id] = detail
       upsertMail(detail)
     }
+    if (arrivalDigest.value.first_mail_id === id) {
+      clearArrivalDigest()
+    }
     return detail
   }
 
@@ -315,6 +424,7 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     const detail = data.mail as TaoyuanMailDetail
     detailMap.value[id] = detail
     upsertMail(detail)
+    await refreshReceipts().catch(() => {})
     const saveSyncState = await syncAfterClaim([data.result?.save_slot])
     return { ...data, save_sync_state: saveSyncState }
   }
@@ -326,6 +436,7 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
       : []
     const saveSyncState = await syncAfterClaim(claimedSaveSlots)
     await refreshList()
+    await refreshReceipts().catch(() => {})
     return { ...data, save_sync_state: saveSyncState }
   }
 
@@ -333,6 +444,14 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     const data = await clearClaimedMailboxMail()
     await refreshList()
     return data
+  }
+
+  const setPinned = async (id: string, pinned: boolean) => {
+    const data = await pinMailboxMail(id, pinned)
+    const detail = data.mail as TaoyuanMailDetail
+    detailMap.value[id] = detail
+    upsertMail(detail)
+    return detail
   }
 
   const sendPlayerLetterMail = async () => {
@@ -413,6 +532,9 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     mails,
     unreadCount,
     detailMap,
+    receipts,
+    inboxStatus,
+    arrivalDigest,
     loading,
     lastLoadedAt,
     sendLetterRunning,
@@ -430,10 +552,13 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     giftPackageRewardsDraft,
     refreshList,
     refreshLetterPresets,
+    refreshReceipts,
     openMail,
     claimMail,
     claimAll,
     clearClaimed,
+    setPinned,
+    clearArrivalDigest,
     sendPlayerLetterMail,
     sendPlayerGiftPackageMail,
     addGiftPackageRewardDraft,

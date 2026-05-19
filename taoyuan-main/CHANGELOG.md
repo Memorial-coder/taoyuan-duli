@@ -118,6 +118,9 @@
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanMailbox.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
 ### 0518 礼物包裹（L41 / L43 / L45 第一轮）
 - `server/src/taoyuanMailbox.js` 与 `server/src/routes/api.js` 已补出玩家礼物包裹链路：当前会把玩家寄送的包裹作为带奖励的邮箱投递，并在发出时真实扣减寄件人存档里的物品或装饰拥有数。
+- `L43` 这一轮把邮箱继续从“能收信”推到“能管理重要信件”：现在会对新到邮件生成明显的到信提醒，重要邮件支持置顶浮到列表顶部，已领取奖励也能在邮箱内直接回看最近结算凭证。
+- `taoyuan-main/src/stores/useMailboxStore.ts`、`taoyuan-main/src/views/game/MailView.vue` 与 `server/src/taoyuanMailbox.js` 也同步补上了前后端闭环：到信摘要、置顶状态、最近结算凭证列表都走真实接口和持久化字段，不是前端临时假数据。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`node --check server/src/taoyuanMailbox.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `node server/scripts/qa-online-smoke.mjs`。
 - `taoyuan-main/src/utils/mailboxApi.ts`、`taoyuan-main/src/stores/useMailboxStore.ts` 与 `taoyuan-main/src/views/game/MailView.vue` 也同步接上了礼物包裹面板：现在可以选择材料包、种子包、鱼苗包、装饰包、纪念品包，并从现有库存 / 装饰拥有量里挑选内容寄出。
 - 邮箱详情页已可直接预览玩家包裹的寄件人、奖励条目与附图；邮件列表也开始把“玩家来信”和“系统公告 / 奖励邮件”区分开显示。
 - `server/scripts/qa-online-smoke.mjs` 已补进礼物包裹验证：当前会断言包裹发送成功、寄件人存档里的木材被真实扣减、收件人邮箱能看到带奖励的包裹，并在领取后把物资写回收件人存档。

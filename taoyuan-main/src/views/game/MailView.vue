@@ -8,6 +8,17 @@
           <Divider label="邮箱" />
           <span class="text-[10px] text-muted">未读 {{ mailboxStore.unreadCount }}</span>
         </div>
+        <div v-if="mailArrivalNoticeText" class="detail-card mb-3 border border-warning/20 bg-warning/5">
+          <div class="flex items-start justify-between gap-2">
+            <div>
+              <p class="text-xs text-accent">邮件抵达提醒</p>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ mailArrivalNoticeText }}</p>
+            </div>
+            <Button class="justify-center shrink-0" :disabled="!mailboxStore.arrivalDigest.first_mail_id" @click="jumpToNewestArrival">
+              去查看
+            </Button>
+          </div>
+        </div>
         <div class="detail-card mb-3">
           <div class="flex items-center justify-between mb-1">
             <p class="text-xs text-accent">周路线 / 邮件摘要</p>
@@ -275,6 +286,7 @@
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <p class="text-xs text-text truncate">
+                <span v-if="mail.is_pinned" class="text-warning">[置顶]</span>
                 <span v-if="mail.unread" class="text-accent">[新]</span>
                 {{ mail.title }}
               </p>
@@ -312,6 +324,7 @@
               <p v-if="activeMail.sender_display_name" class="text-[10px] text-muted mt-1">寄信人：{{ activeMail.sender_display_name }}</p>
               <div class="flex flex-wrap gap-1 mt-1">
                 <span class="status-badge" :class="statusClass(activeMail.claim_status)">{{ statusLabel(activeMail.claim_status, !!activeMail.sender_display_name) }}</span>
+                <span v-if="activeMail.is_pinned" class="status-badge badge-pinned">置顶</span>
                 <span class="status-badge" :class="activeMail.unread ? 'badge-muted' : 'badge-read'">
                   {{ activeMail.unread ? '未读' : '已读' }}
                 </span>
@@ -359,6 +372,9 @@
           </div>
 
           <div class="flex flex-wrap gap-2">
+            <Button class="justify-center" @click="togglePinned(activeMail.id, !activeMail.is_pinned)">
+              {{ activeMail.is_pinned ? '取消置顶' : '置顶这封信' }}
+            </Button>
             <Button
               v-if="activeMail.can_claim"
               class="justify-center"
@@ -372,6 +388,29 @@
             <Button v-else class="justify-center" disabled>
               {{ activeMail.claim_status === 'claimed' ? '已领取' : activeMail.claim_status === 'expired' ? '已过期' : '无奖励' }}
             </Button>
+          </div>
+
+          <div v-if="mailboxStore.receipts.length > 0" class="detail-card mt-3">
+            <div class="flex items-center justify-between gap-2 mb-2">
+              <p class="text-xs text-accent">结算凭证回看</p>
+              <span class="text-[10px] text-muted">最近 {{ mailboxStore.receipts.length }} 条</span>
+            </div>
+            <div class="space-y-2">
+              <div v-for="receipt in mailboxStore.receipts" :key="receipt.id" class="border border-accent/10 rounded-xs p-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="text-xs text-accent truncate">{{ receipt.mail_title }}</p>
+                    <p class="text-[10px] text-muted mt-1">
+                      {{ receipt.sender_display_name ? `来自 ${receipt.sender_display_name}` : '系统结算' }} · {{ receipt.save_slot === null ? '未写入槽位' : `槽位${receipt.save_slot + 1}` }}
+                    </p>
+                  </div>
+                  <span class="text-[10px] text-muted shrink-0">{{ formatTime(receipt.claimed_at) }}</span>
+                </div>
+                <p class="text-[10px] text-muted mt-1">
+                  入账 {{ receipt.money_added }} 文 · 发放 {{ receipt.applied_rewards.length }} 条 · 跳过 {{ receipt.skipped_rewards.length }} 条
+                </p>
+              </div>
+            </div>
           </div>
         </template>
 
@@ -451,6 +490,13 @@
   const letterPhotoInputRef = ref<HTMLInputElement | null>(null)
   const isDesktop = ref(typeof window === 'undefined' ? true : window.innerWidth >= 768)
   const claimableMailCount = computed(() => mailboxStore.mails.filter(mail => mail.can_claim).length)
+  const mailArrivalNoticeText = computed(() => {
+    if (!mailboxStore.arrivalDigest.count) return ''
+    const titles = mailboxStore.arrivalDigest.titles.join('、')
+    return mailboxStore.arrivalDigest.count === 1
+      ? `刚收到 1 封新邮件：${titles}`
+      : `刚收到 ${mailboxStore.arrivalDigest.count} 封新邮件：${titles}`
+  })
   const isActivityMailTemplate = (templateType?: string | null) =>
     ['activity_reward', 'activity_notice', 'activity_midweek', 'activity_preview'].includes(String(templateType || ''))
   const activityMailCount = computed(() => mailboxStore.mails.filter(mail => isActivityMailTemplate(mail.template_type)).length)
@@ -718,6 +764,7 @@
   const refreshMails = async () => {
     try {
       await mailboxStore.refreshList()
+      await mailboxStore.refreshReceipts().catch(() => {})
       syncClaimedActivityRewardMails()
       await ensureSelection()
     } catch (error: any) {
@@ -819,6 +866,12 @@
     }
   }
 
+  const jumpToNewestArrival = async () => {
+    const mailId = mailboxStore.arrivalDigest.first_mail_id
+    if (!mailId) return
+    await selectMail(mailId)
+  }
+
   const backToMailList = () => {
     activeMailId.value = null
     activeMail.value = null
@@ -889,6 +942,18 @@
     }
   }
 
+  const togglePinned = async (id: string, pinned: boolean) => {
+    try {
+      const detail = await mailboxStore.setPinned(id, pinned)
+      if (activeMail.value?.id === id) {
+        activeMail.value = detail
+      }
+      showFloat(pinned ? '已置顶这封邮件' : '已取消置顶', 'success')
+    } catch (error: any) {
+      showFloat(error?.message || '更新置顶状态失败', 'danger')
+    }
+  }
+
   const sendPlayerLetter = async () => {
     try {
       const data = await mailboxStore.sendPlayerLetterMail()
@@ -922,6 +987,7 @@
     updateViewportMode()
     if (typeof window !== 'undefined') window.addEventListener('resize', updateViewportMode)
     await mailboxStore.refreshLetterPresets().catch(() => {})
+    await mailboxStore.refreshReceipts().catch(() => {})
     syncGiftPackageDraftDefaults()
     await refreshMails()
   })
@@ -1036,6 +1102,12 @@
     color: rgb(var(--color-muted));
     border-color: rgba(200, 164, 92, 0.16);
     background: rgba(255, 255, 255, 0.04);
+  }
+
+  .badge-pinned {
+    color: #fcd34d;
+    border-color: rgba(252, 211, 77, 0.28);
+    background: rgba(120, 53, 15, 0.22);
   }
 
   .empty-box {

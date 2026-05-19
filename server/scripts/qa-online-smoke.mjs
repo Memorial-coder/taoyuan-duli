@@ -672,12 +672,51 @@ try {
     assert(playerGiftPackage?.has_rewards === true, 'player-gift-package should expose rewards to recipient')
   })
 
+  await runCheck('GET /api/taoyuan/mail/inbox-status player arrival summary', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/mail/inbox-status')
+    assert(response.ok, `mail inbox-status returned ${response.status}`)
+    assert(data?.ok === true, 'mail inbox-status did not return ok=true')
+    assert(Number(data?.unread_count) >= 1, 'mail inbox-status should report unread mails')
+    assert(data?.newest_unread?.title === playerGiftPackageTitle, 'mail inbox-status did not point to the newest unread mail')
+  })
+
+  await runCheck('POST /api/taoyuan/mail/:id/pin player important mail path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/mail/${encodeURIComponent(playerGiftPackageMailId)}/pin`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        pinned: true,
+      }),
+    })
+    assert(response.ok, `mail pin returned ${response.status}`)
+    assert(data?.ok === true && data?.mail?.is_pinned === true, 'mail pin payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/mail/list pinned order path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/mail/list')
+    assert(response.ok, `pinned mail list returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.mails), 'pinned mail list payload is incomplete')
+    assert(data.mails[0]?.id === playerGiftPackageMailId, 'pinned mail was not floated to the top of the mailbox list')
+    assert(data.mails[0]?.is_pinned === true, 'pinned mail flag was not preserved in mailbox list')
+  })
+
   await runCheck('POST /api/taoyuan/mail/:id player-gift-package claim path', async () => {
     const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/mail/${encodeURIComponent(playerGiftPackageMailId)}/claim`, {
       method: 'POST',
     })
     assert(response.ok, `player-gift-package claim returned ${response.status}`)
     assert(data?.ok === true && data?.mail?.claimed_at, 'player-gift-package claim payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/mail/receipts player-gift-package receipt path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/mail/receipts?limit=10')
+    assert(response.ok, `mail receipts returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.receipts), 'mail receipts payload is incomplete')
+    const receipt = data.receipts.find(entry => entry?.delivery_id === playerGiftPackageMailId)
+    assert(receipt, 'claimed player-gift-package did not appear in receipt history')
+    assert(receipt?.applied_rewards?.some(entry => entry?.id === 'wood'), 'claimed receipt did not preserve applied reward details')
   })
 
   await runCheck('GET /api/taoyuan/save/:slot player-gift-package recipient persistence', async () => {

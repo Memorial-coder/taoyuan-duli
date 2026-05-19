@@ -1914,14 +1914,23 @@ router.get('/taoyuan/mail/list', loginRequired, async (req, res) => {
   }
 });
 
-router.get('/taoyuan/mail/:id', loginRequired, async (req, res) => {
+router.get('/taoyuan/mail/inbox-status', loginRequired, async (req, res) => {
   try {
     await taoyuanMailbox.processPendingCampaigns();
-    const mail = taoyuanMailbox.getUserMail(req.session.username, req.params.id);
-    if (!mail) return res.status(404).json({ ok: false, msg: '邮件不存在' });
-    res.json({ ok: true, mail });
+    const list = taoyuanMailbox.listUserMails(req.session.username);
+    const pinned = list.mails.filter(item => item.is_pinned);
+    const unread = list.mails.filter(item => item.unread);
+    const important = list.mails.filter(item => item.is_pinned || item.can_claim || !!item.sender_display_name);
+    res.json({
+      ok: true,
+      unread_count: list.unread_count,
+      pinned_count: pinned.length,
+      important_count: important.length,
+      newest_unread: unread[0] || null,
+      newest_important: important[0] || null,
+    });
   } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取邮件详情失败' });
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取邮箱提示失败' });
   }
 });
 
@@ -1930,6 +1939,27 @@ router.get('/taoyuan/mail/player-letter-presets', loginRequired, async (req, res
     res.json({ ok: true, presets: taoyuanMailbox.getPlayerLetterTemplatePresets() });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取书信模板失败' });
+  }
+});
+
+router.get('/taoyuan/mail/receipts', loginRequired, async (req, res) => {
+  try {
+    await taoyuanMailbox.processPendingCampaigns();
+    const limit = Number(req.query.limit) || 20;
+    res.json({ ok: true, ...taoyuanMailbox.listUserMailReceipts(req.session.username, limit) });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取结算凭证失败' });
+  }
+});
+
+router.get('/taoyuan/mail/:id', loginRequired, async (req, res) => {
+  try {
+    await taoyuanMailbox.processPendingCampaigns();
+    const mail = taoyuanMailbox.getUserMail(req.session.username, req.params.id);
+    if (!mail) return res.status(404).json({ ok: false, msg: '邮件不存在' });
+    res.json({ ok: true, mail });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取邮件详情失败' });
   }
 });
 
@@ -1947,6 +1977,16 @@ router.post('/taoyuan/mail/:id/read', loginRequired, signRequired, async (req, r
     res.json({ ok: true, mail });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '标记已读失败' });
+  }
+});
+
+router.post('/taoyuan/mail/:id/pin', loginRequired, signRequired, async (req, res) => {
+  try {
+    const pinned = req.body?.pinned !== false;
+    const mail = await taoyuanMailbox.setUserMailPinned(req.session.username, req.params.id, pinned);
+    res.json({ ok: true, mail });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新邮件置顶状态失败' });
   }
 });
 

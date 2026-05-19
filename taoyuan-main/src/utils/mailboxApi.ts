@@ -25,7 +25,11 @@ const request = async (input: string, initFactory?: RequestInit | (() => Promise
 
 export const fetchMailboxList = async () => request('/api/taoyuan/mail/list')
 
+export const fetchMailboxInboxStatus = async () => request('/api/taoyuan/mail/inbox-status')
+
 export const fetchMailboxDetail = async (id: string) => request(`/api/taoyuan/mail/${encodeURIComponent(id)}`)
+
+export const fetchMailboxReceipts = async (limit = 20) => request(`/api/taoyuan/mail/receipts?limit=${encodeURIComponent(String(limit))}`)
 
 export const fetchPlayerLetterPresets = async () => request('/api/taoyuan/mail/player-letter-presets')
 
@@ -73,6 +77,20 @@ export const clearClaimedMailboxMail = async () => {
       headers: {
         'X-CSRF-Token': csrfToken
       }
+    }
+  })
+}
+
+export const pinMailboxMail = async (id: string, pinned: boolean) => {
+  return request(`/api/taoyuan/mail/${encodeURIComponent(id)}/pin`, async () => {
+    const csrfToken = await ensureCurrentCsrfToken()
+    return {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken
+      },
+      body: JSON.stringify({ pinned })
     }
   })
 }

@@ -142,6 +142,7 @@ function normalizeDelivery(delivery) {
     duplicate_compensation_money: clampPositiveInt(delivery.duplicate_compensation_money, 0),
     created_at: Number(delivery.created_at) || Math.floor(Date.now() / 1000),
     sent_at: Number(delivery.sent_at) || Math.floor(Date.now() / 1000),
+    pinned_at: toUnixSeconds(delivery.pinned_at),
     expires_at: toUnixSeconds(delivery.expires_at),
     read_at: toUnixSeconds(delivery.read_at),
     claimed_at: toUnixSeconds(delivery.claimed_at),
@@ -180,6 +181,10 @@ function normalizeClaimLog(log) {
     delivery_id: String(log.delivery_id || ''),
     campaign_id: String(log.campaign_id || ''),
     username: String(log.username || ''),
+    mail_title: sanitizeText(log.mail_title, MAX_TITLE_LENGTH),
+    sender_display_name: sanitizeText(log.sender_display_name || '', 60),
+    template_type: VALID_TEMPLATE_TYPES.has(String(log.template_type)) ? String(log.template_type) : null,
+    sent_at: toUnixSeconds(log.sent_at),
     claimed_at: Number(log.claimed_at) || Math.floor(Date.now() / 1000),
     result: normalizeClaimResult(log.result),
   };
@@ -450,6 +455,7 @@ function createDeliveryFromCampaign(campaign, recipient, now) {
     duplicate_compensation_money: campaign.duplicate_compensation_money,
     created_at: now,
     sent_at: now,
+    pinned_at: null,
     expires_at: campaign.expires_at,
     read_at: null,
     claimed_at: null,
@@ -528,9 +534,11 @@ function buildUserMailSummary(delivery) {
     has_rewards: hasRewards,
     reward_count: delivery.rewards.length,
     sent_at: delivery.sent_at,
+    pinned_at: delivery.pinned_at,
     expires_at: delivery.expires_at,
     read_at: delivery.read_at,
     claimed_at: delivery.claimed_at,
+    is_pinned: !!delivery.pinned_at,
     unread: !delivery.read_at,
     can_claim: canClaim,
     is_claimed: !!delivery.claimed_at,
@@ -551,6 +559,33 @@ function buildUserMailDetail(delivery) {
     sender_display_name: sanitizeText(delivery.sender_display_name || '', 60),
     photo_url: sanitizeText(delivery.photo_url || '', 300),
     photo_alt: sanitizeText(delivery.photo_alt || '', 80),
+  };
+}
+
+function buildUserMailReceipt(log, delivery) {
+  const result = normalizeClaimResult(log?.result) || {
+    save_slot: null,
+    money_added: 0,
+    duplicate_compensation_money: 0,
+    applied_rewards: [],
+    skipped_rewards: [],
+  };
+
+  return {
+    id: String(log?.id || ''),
+    delivery_id: String(log?.delivery_id || ''),
+    campaign_id: String(log?.campaign_id || ''),
+    claimed_at: Number(log?.claimed_at) || Math.floor(Date.now() / 1000),
+    mail_title: sanitizeText(delivery?.title || log?.mail_title || '已归档邮件', MAX_TITLE_LENGTH) || '已归档邮件',
+    template_type: delivery?.template_type || log?.template_type || null,
+    sender_display_name: sanitizeText(delivery?.sender_display_name || log?.sender_display_name || '', 60),
+    sent_at: Number(delivery?.sent_at || log?.sent_at) || null,
+    has_mail_detail: !!delivery && !delivery.deleted_at,
+    save_slot: Number.isInteger(Number(result.save_slot)) ? Number(result.save_slot) : null,
+    money_added: clampPositiveInt(result.money_added, 0),
+    duplicate_compensation_money: clampPositiveInt(result.duplicate_compensation_money, 0),
+    applied_rewards: Array.isArray(result.applied_rewards) ? result.applied_rewards.map(item => ({ ...item })) : [],
+    skipped_rewards: Array.isArray(result.skipped_rewards) ? result.skipped_rewards.map(item => ({ ...item })) : [],
   };
 }
 
@@ -654,6 +689,7 @@ async function sendPlayerLetter(payload = {}, actor = {}) {
       duplicate_compensation_money: 0,
       created_at: sentAt,
       sent_at: sentAt,
+      pinned_at: null,
       expires_at: null,
       read_at: null,
       claimed_at: null,
@@ -806,6 +842,7 @@ async function sendPlayerGiftPackage(payload = {}, actor = {}) {
       duplicate_compensation_money: 0,
       created_at: sentAt,
       sent_at: sentAt,
+      pinned_at: null,
       expires_at: null,
       read_at: null,
       claimed_at: null,
@@ -837,11 +874,28 @@ function listUserMails(username) {
   const data = loadMailboxData();
   const deliveries = data.deliveries
     .filter(item => item.username === String(username) && !item.deleted_at)
-    .sort((a, b) => (b.sent_at || 0) - (a.sent_at || 0));
+    .sort((a, b) => {
+      const pinDiff = (Number(b.pinned_at) || 0) - (Number(a.pinned_at) || 0);
+      if (pinDiff !== 0) return pinDiff;
+      return (b.sent_at || 0) - (a.sent_at || 0);
+    });
   const mails = deliveries.map(buildUserMailSummary);
   return {
     mails,
     unread_count: mails.filter(item => item.unread).length,
+  };
+}
+
+function listUserMailReceipts(username, limit = 20) {
+  const data = loadMailboxData();
+  const safeLimit = Math.max(1, Math.min(100, Math.floor(Number(limit) || 20)));
+  const deliveryMap = new Map(data.deliveries.map(item => [item.id, item]));
+  return {
+    receipts: data.claim_logs
+      .filter(item => item.username === String(username))
+      .sort((a, b) => (b.claimed_at || 0) - (a.claimed_at || 0))
+      .slice(0, safeLimit)
+      .map(item => buildUserMailReceipt(item, deliveryMap.get(item.delivery_id))),
   };
 }
 
@@ -1062,6 +1116,17 @@ function applyDecorationReward(saveData, reward, result) {
   });
 }
 
+async function setUserMailPinned(username, deliveryId, pinned = true) {
+  return withMailboxLock(async () => {
+    const data = loadMailboxData();
+    const delivery = data.deliveries.find(item => item.id === String(deliveryId) && item.username === String(username) && !item.deleted_at);
+    if (!delivery) throw createError('邮件不存在', 404);
+    delivery.pinned_at = pinned ? Math.floor(Date.now() / 1000) : null;
+    saveMailboxData(data);
+    return buildUserMailDetail(delivery);
+  });
+}
+
 function applyRewardsToSave(username, delivery) {
   const context = getActiveSaveContext(username, delivery.target_slot, '当前账号没有可用的桃源乡存档，暂时无法领取邮件奖励');
   context.username = username;
@@ -1135,6 +1200,10 @@ async function claimUserMail(username, deliveryId) {
       delivery_id: delivery.id,
       campaign_id: delivery.campaign_id,
       username: String(username),
+      mail_title: delivery.title,
+      sender_display_name: delivery.sender_display_name,
+      template_type: delivery.template_type,
+      sent_at: delivery.sent_at,
       claimed_at: now,
       result,
     });
@@ -1174,6 +1243,10 @@ async function claimAllUserMails(username) {
           delivery_id: delivery.id,
           campaign_id: delivery.campaign_id,
           username: String(username),
+          mail_title: delivery.title,
+          sender_display_name: delivery.sender_display_name,
+          template_type: delivery.template_type,
+          sent_at: delivery.sent_at,
           claimed_at: now,
           result,
         });
@@ -1367,8 +1440,10 @@ async function saveSystemCampaignForUser(payload, actor, username) {
 module.exports = {
   processPendingCampaigns,
   listUserMails,
+  listUserMailReceipts,
   getUserMail,
   markUserMailRead,
+  setUserMailPinned,
   claimUserMail,
   claimAllUserMails,
   clearClaimedUserMails,
