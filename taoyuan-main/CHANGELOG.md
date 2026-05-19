@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0519 村社职位与提案（L71 / L72 第一轮）
+- `server/src/taoyuanSocietyRuntime.js` 已在独立在线村社 runtime 上补齐成员流转与治理结构：数据继续落在 `taoyuan_societies.json`，并把 `society_join_requests` 与 `proposals` 作为在线村社专属结构沉淀，不复用单机 `GuildView / guild.ts` 逻辑。
+- 当前已支持 `president / steward / buyer / treasurer / scribe / member` 六种职位，以及申请加入、邀请加入、接受 / 拒绝请求、职位调整、公告更新、提案创建、投票、归档与历史回读；权限口径固定为 `president + steward` 管成员流转、`president + steward + scribe` 管公告与提案归档、仅 `president` 可调职位。
+- `server/src/routes/api.js` 已补出村社治理读写接口：当前已接通申请加入、邀请、接受 / 拒绝请求、成员职位调整、公告更新、提案创建、投票与归档等在线路由，村社不再停留在只读卡片层。
+- `taoyuan-main/src/utils/societyApi.ts`、`src/stores/useSocietyStore.ts` 与 `src/views/game/SocietyView.vue` 已同步承接前端类型、store 和 UI：现在可以在同一页查看自己村社、处理申请 / 邀请、编辑公告、调整职位、发起提案、投票、归档和查看历史提案，公开村社列表也已支持申请加入。
+- `server/scripts/qa-online-smoke.mjs` 已补进 `L71-L72` 回归：当前会实际验证村社总览读取、申请加入、接受请求、职位轮转、公告写回、提案创建、投票、归档和历史提案回读，第一轮治理链已具备可重复回归能力。
+
 ### 0519 村社创建（L70 第一轮）
 - 新增 `server/src/taoyuanSocietyRuntime.js` 与 `/api/taoyuan/online/societies`，把第一版“村社”正式接进在线层；当前已支持创建村社、保存名称、简介、徽记、主题、公开范围、成员容量与入社条件，不再和单机公会系统混用同一条实现线。
 - 新增 `taoyuan-main/src/utils/societyApi.ts`、`src/stores/useSocietyStore.ts` 与 `src/views/game/SocietyView.vue`，游戏内现已长出第一版“村社”面板，可直接查看自己的村社卡片、最近动态、基础成员名单，以及其他公开 / 半公开村社的基础信息。

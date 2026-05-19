@@ -3,6 +3,8 @@ import { fetchProtectedJson } from '@/utils/protectedApi'
 
 export type SocietyVisibility = 'public' | 'semi_public' | 'private'
 export type SocietyRole = 'president' | 'steward' | 'buyer' | 'treasurer' | 'scribe' | 'member'
+export type SocietyProposalStatus = 'open' | 'closed'
+export type SocietyProposalChoice = 'support' | 'reject' | 'abstain'
 
 export interface SocietyMemberSnapshot {
   username: string
@@ -19,10 +21,66 @@ export interface SocietyActivityEntry {
   created_at: number
 }
 
+export interface SocietyJoinRequestSnapshot {
+  id: string
+  society_id: string
+  society_name: string
+  username: string
+  display_name: string
+  invited_by: string
+  invited_by_display_name: string
+  type: 'apply' | 'invite'
+  type_label: string
+  status: 'pending' | 'accepted' | 'rejected'
+  created_at: number
+  updated_at: number
+}
+
+export interface SocietyProposalVoteSnapshot {
+  username: string
+  display_name: string
+  choice: SocietyProposalChoice
+  choice_label: string
+  voted_at: number
+}
+
+export interface SocietyProposalSnapshot {
+  id: string
+  title: string
+  summary: string
+  kind: string
+  kind_label: string
+  status: SocietyProposalStatus
+  status_label: string
+  created_by: string
+  created_by_display_name: string
+  created_at: number
+  updated_at: number
+  closed_at: number
+  vote_counts: {
+    support: number
+    reject: number
+    abstain: number
+  }
+  total_vote_count: number
+  my_vote_choice: SocietyProposalChoice | ''
+  can_vote: boolean
+  can_close: boolean
+  result_choice: 'support' | 'reject' | 'abstain' | 'tie' | 'pending'
+  result_label: string
+  resolution_note: string
+  choice_options: Array<{
+    id: SocietyProposalChoice
+    label: string
+  }>
+  votes: SocietyProposalVoteSnapshot[]
+}
+
 export interface SocietySnapshot {
   id: string
   name: string
   summary: string
+  notice: string
   emblem: string
   emblem_label: string
   theme: string
@@ -39,11 +97,19 @@ export interface SocietySnapshot {
   join_requirement_note: string
   created_at: number
   updated_at: number
-  my_role: string
+  my_role: SocietyRole | ''
   my_role_label: string
   can_apply: boolean
+  can_invite: boolean
+  can_review_requests: boolean
+  can_manage_roles: boolean
+  can_manage_notice: boolean
+  can_create_proposal: boolean
+  can_close_proposal: boolean
   members: SocietyMemberSnapshot[]
   activity_log: SocietyActivityEntry[]
+  active_proposals: SocietyProposalSnapshot[]
+  proposal_history: SocietyProposalSnapshot[]
 }
 
 export interface SocietyOverviewResponse {
@@ -51,6 +117,9 @@ export interface SocietyOverviewResponse {
   bulletin: string
   my_society: SocietySnapshot | null
   visible_societies: SocietySnapshot[]
+  incoming_invites: SocietyJoinRequestSnapshot[]
+  my_pending_requests: SocietyJoinRequestSnapshot[]
+  managed_requests: SocietyJoinRequestSnapshot[]
   visibility_options: Array<{
     id: SocietyVisibility
     label: string
@@ -70,6 +139,15 @@ export interface SocietyOverviewResponse {
     label: string
   }>
   join_requirement_options: Array<{
+    id: string
+    label: string
+    summary: string
+  }>
+  role_options: Array<{
+    id: string
+    label: string
+  }>
+  proposal_kind_options: Array<{
     id: string
     label: string
     summary: string
@@ -112,6 +190,7 @@ export const fetchSocietyOverview = async (): Promise<SocietyOverviewResponse | 
 export const createSociety = async (payload: {
   name: string
   summary: string
+  notice?: string
   emblem: string
   theme: string
   visibility: SocietyVisibility
@@ -127,5 +206,113 @@ export const createSociety = async (payload: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
+  })
+}
+
+export const applyToSociety = async (societyId: string) => {
+  return requestSocietyAction<{
+    ok: boolean
+    request?: SocietyJoinRequestSnapshot
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+  }>(`/api/taoyuan/online/societies/${encodeURIComponent(societyId)}/apply`, {
+    method: 'POST',
+  })
+}
+
+export const inviteToSociety = async (targetUsername: string) => {
+  return requestSocietyAction<{
+    ok: boolean
+    request?: SocietyJoinRequestSnapshot
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+  }>('/api/taoyuan/online/societies/invite', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_username: targetUsername }),
+  })
+}
+
+export const acceptSocietyRequest = async (requestId: string) => {
+  return requestSocietyAction<{
+    ok: boolean
+    request?: SocietyJoinRequestSnapshot
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+  }>(`/api/taoyuan/online/societies/requests/${encodeURIComponent(requestId)}/accept`, {
+    method: 'POST',
+  })
+}
+
+export const rejectSocietyRequest = async (requestId: string) => {
+  return requestSocietyAction<{
+    ok: boolean
+    request?: SocietyJoinRequestSnapshot
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+  }>(`/api/taoyuan/online/societies/requests/${encodeURIComponent(requestId)}/reject`, {
+    method: 'POST',
+  })
+}
+
+export const updateSocietyMemberRole = async (targetUsername: string, role: Exclude<SocietyRole, 'president'>) => {
+  return requestSocietyAction<{
+    ok: boolean
+    society?: SocietySnapshot
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+  }>('/api/taoyuan/online/societies/members/role', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_username: targetUsername, role }),
+  })
+}
+
+export const updateSocietyNotice = async (notice: string) => {
+  return requestSocietyAction<{
+    ok: boolean
+    society?: SocietySnapshot
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+  }>('/api/taoyuan/online/societies/notice', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ notice }),
+  })
+}
+
+export const createSocietyProposal = async (payload: {
+  title: string
+  summary: string
+  kind: string
+}) => {
+  return requestSocietyAction<{
+    ok: boolean
+    proposal?: SocietyProposalSnapshot
+    society?: SocietySnapshot
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+  }>('/api/taoyuan/online/societies/proposals', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+}
+
+export const voteSocietyProposal = async (proposalId: string, choice: SocietyProposalChoice) => {
+  return requestSocietyAction<{
+    ok: boolean
+    proposal?: SocietyProposalSnapshot
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+  }>(`/api/taoyuan/online/societies/proposals/${encodeURIComponent(proposalId)}/vote`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ choice }),
+  })
+}
+
+export const closeSocietyProposal = async (proposalId: string, resolutionNote: string) => {
+  return requestSocietyAction<{
+    ok: boolean
+    proposal?: SocietyProposalSnapshot
+    society?: SocietySnapshot
+    overview?: Omit<SocietyOverviewResponse, 'ok'>
+  }>(`/api/taoyuan/online/societies/proposals/${encodeURIComponent(proposalId)}/close`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ resolution_note: resolutionNote }),
   })
 }

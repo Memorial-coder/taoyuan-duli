@@ -1109,6 +1109,111 @@ router.post('/taoyuan/online/societies', loginRequired, signRequired, async (req
   }
 });
 
+router.post('/taoyuan/online/societies/:societyId/apply', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocietyRuntime.applyToSociety(req.session.username, req.params.societyId);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '申请加入村社失败' });
+  }
+});
+
+router.post('/taoyuan/online/societies/invite', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocietyRuntime.inviteToSociety(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '发送村社邀请失败' });
+  }
+});
+
+router.post('/taoyuan/online/societies/requests/:requestId/accept', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocietyRuntime.respondSocietyRequest(req.params.requestId, 'accept', {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '处理村社申请失败' });
+  }
+});
+
+router.post('/taoyuan/online/societies/requests/:requestId/reject', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocietyRuntime.respondSocietyRequest(req.params.requestId, 'reject', {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '拒绝村社申请失败' });
+  }
+});
+
+router.post('/taoyuan/online/societies/members/role', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocietyRuntime.updateSocietyMemberRole(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新村社职位失败' });
+  }
+});
+
+router.post('/taoyuan/online/societies/notice', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocietyRuntime.updateSocietyNotice(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新村社公告失败' });
+  }
+});
+
+router.post('/taoyuan/online/societies/proposals', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocietyRuntime.createSocietyProposal(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '创建村社提案失败' });
+  }
+});
+
+router.post('/taoyuan/online/societies/proposals/:proposalId/vote', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocietyRuntime.voteSocietyProposal(req.params.proposalId, req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '提交村社投票失败' });
+  }
+});
+
+router.post('/taoyuan/online/societies/proposals/:proposalId/close', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocietyRuntime.closeSocietyProposal(req.params.proposalId, req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '归档村社提案失败' });
+  }
+});
+
 router.post('/taoyuan/online/festival/rooms', loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.createFestivalRoom(req.body || {}, {

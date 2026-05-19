@@ -1745,6 +1745,115 @@ try {
     assert(String(createdSociety?.leader_username || '') === sessionState.username, 'created society did not preserve founder username')
   })
 
+  let createdSocietyRequestId = ''
+  let createdSocietyProposalId = ''
+  await runCheck('POST /api/taoyuan/online/societies/:societyId/apply write path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/societies/${encodeURIComponent(createdSocietyId)}/apply`, {
+      method: 'POST',
+    })
+    assert(response.ok, `society apply returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.request?.status === 'pending', 'society apply payload is incomplete')
+    createdSocietyRequestId = String(data?.request?.id || '')
+    assert(createdSocietyRequestId, 'society apply did not create request id')
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/requests/:requestId/accept write path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/societies/requests/${encodeURIComponent(createdSocietyRequestId)}/accept`, {
+      method: 'POST',
+    })
+    assert(response.ok, `society request accept returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.request?.status === 'accepted', 'society request accept payload is incomplete')
+    assert(Array.isArray(data?.overview?.my_society?.members) && data.overview.my_society.members.some(entry => entry?.username === secondarySessionState.username), 'society request accept did not add the new member')
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/members/role cycle path', async () => {
+    for (const role of ['steward', 'buyer', 'treasurer', 'scribe', 'member']) {
+      const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies/members/role', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          target_username: secondarySessionState.username,
+          role,
+        }),
+      })
+      assert(response.ok, `society role update ${role} returned ${response.status}: ${data?.msg || 'unknown error'}`)
+      const targetMember = data?.overview?.my_society?.members?.find(entry => entry?.username === secondarySessionState.username)
+      assert(String(targetMember?.role || '') === role, `society role update did not preserve ${role}`)
+    }
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/notice write path', async () => {
+    const noticeText = `smoke society notice ${Date.now()}`
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies/notice', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        notice: noticeText,
+      }),
+    })
+    assert(response.ok, `society notice update returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(String(data?.overview?.my_society?.notice || '') === noticeText, 'society notice update did not preserve the new notice')
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/proposals write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies/proposals', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: `smoke society proposal ${Date.now()}`,
+        summary: '先验证村社提案、投票与归档链路。',
+        kind: 'festival',
+      }),
+    })
+    assert(response.ok, `society proposal create returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.proposal?.status === 'open', 'society proposal create payload is incomplete')
+    createdSocietyProposalId = String(data?.proposal?.id || '')
+    assert(createdSocietyProposalId, 'society proposal create did not return proposal id')
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/proposals/:proposalId/vote write path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/societies/proposals/${encodeURIComponent(createdSocietyProposalId)}/vote`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        choice: 'support',
+      }),
+    })
+    assert(response.ok, `society proposal vote returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.proposal?.my_vote_choice === 'support', 'society proposal vote payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/proposals/:proposalId/close write path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/societies/proposals/${encodeURIComponent(createdSocietyProposalId)}/close`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        resolution_note: '按多数票先执行本周节会排班。',
+      }),
+    })
+    assert(response.ok, `society proposal close returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.proposal?.status === 'closed', 'society proposal close payload is incomplete')
+    assert(String(data?.proposal?.result_choice || '') === 'support', 'society proposal close did not preserve final result')
+  })
+
+  await runCheck('GET /api/taoyuan/online/societies proposal history readback', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies')
+    assert(response.ok, `society proposal history returned ${response.status}`)
+    assert(data?.ok === true && data?.my_society?.id === createdSocietyId, 'society proposal history payload is incomplete')
+    assert(Array.isArray(data?.my_society?.proposal_history) && data.my_society.proposal_history.some(entry => entry?.id === createdSocietyProposalId && entry?.result_choice === 'support'), 'society proposal history did not preserve closed proposal result')
+    assert(Array.isArray(data?.my_society?.members) && data.my_society.members.some(entry => entry?.username === secondarySessionState.username && entry?.role === 'member'), 'society role cycle did not return secondary member to member state')
+  })
+
   await runCheck('fourth session bootstrap', async () => {
     await bootstrapSession(quaternarySessionState, 'smk4', 180)
   })
