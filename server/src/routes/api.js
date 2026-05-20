@@ -17,6 +17,7 @@ const taoyuanCoopOrderRuntime = require('../taoyuanCoopOrderRuntime');
 const taoyuanActivityRoomRuntime = require('../taoyuanActivityRoomRuntime');
 const taoyuanSocietyRuntime = require('../taoyuanSocietyRuntime');
 const taoyuanWorldEventRuntime = require('../taoyuanWorldEventRuntime');
+const taoyuanOnlineAudit = require('../taoyuanOnlineAudit');
 const taoyuanWeeklyExchangeStation = require('../taoyuanWeeklyExchangeStation');
 const taoyuanFestivalStall = require('../taoyuanFestivalStall');
 const taoyuanNeighborConsignment = require('../taoyuanNeighborConsignment');
@@ -40,8 +41,209 @@ const DATA_DIR = process.env.DB_STORAGE
 const TAOYUAN_EXCHANGE_LIMITS_FILE = path.join(DATA_DIR, 'taoyuan_exchange_limits.json');
 const PUBLIC_AI_ASK_WINDOW_MS = 60 * 1000;
 const PUBLIC_AI_ASK_MAX_REQUESTS = 8;
+const ONLINE_ACTION_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const publicAiAskBuckets = new Map();
+const onlineActionRateLimitBuckets = new Map();
 const OFFICIAL_CONTROL_SECOND_AUTH_SESSION_KEY = 'official_control_verified';
+const ONLINE_RATE_LIMIT_RULES = Object.freeze([
+  {
+    matcher: /^\/api\/taoyuan\/online\/festival\/rooms\/[^/]+\/action$/i,
+    routeKey: 'festival_room_action',
+    scope: 'room_action',
+    maxRequests: 120,
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/expedition\/rooms\/[^/]+\/action$/i,
+    routeKey: 'expedition_room_action',
+    scope: 'room_action',
+    maxRequests: 120,
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/(?:festival|expedition)\/rooms(?:\/|$)/i,
+    routeKey: 'activity_room_write',
+    scope: 'activity_room',
+    maxRequests: 180,
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/orders(?:\/|$)/i,
+    routeKey: 'coop_order_write',
+    scope: 'orders',
+    maxRequests: 18,
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/world-events\/[^/]+\/contribute$/i,
+    routeKey: 'world_event_contribute',
+    scope: 'world_event',
+    maxRequests: 18,
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/societies(?:\/|$)/i,
+    routeKey: 'society_write',
+    scope: 'society',
+    maxRequests: 20,
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/social\/(?:friend-requests|blocks|neighbors|subscriptions)(?:\/|$)/i,
+    routeKey: 'social_write',
+    scope: 'social',
+    maxRequests: 24,
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/manor\/(?:guestbook|visit|guide|theme-week|[^/]+\/favorite|[^/]+\/follow)(?:\/|$)/i,
+    routeKey: 'manor_social_write',
+    scope: 'manor',
+    maxRequests: 20,
+  },
+  {
+    matcher: /^\/api\/taoyuan\/exchange-station\/(?:weekly\/[^/]+\/exchange|festival-stall\/[^/]+\/purchase|neighbors\/consignments(?:\/[^/]+\/(?:purchase|cancel|reclaim))?|ledger\/[^/]+\/disputes)$/i,
+    routeKey: 'exchange_write',
+    scope: 'exchange',
+    maxRequests: 18,
+  },
+  {
+    matcher: /^\/api\/taoyuan\/mail\/(?:[^/]+\/claim|claim-all|player-letter|player-gift-package|system-campaign|[^/]+\/memorial|[^/]+\/pin|clear-claimed)$/i,
+    routeKey: 'mail_write',
+    scope: 'mail',
+    maxRequests: 24,
+  },
+  {
+    matcher: /^\/api\/taoyuan\/hall\/(?:upload-image|posts(?:\/|$))/i,
+    routeKey: 'hall_write',
+    scope: 'hall',
+    maxRequests: 24,
+  },
+]);
+const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
+  {
+    matcher: /^\/api\/taoyuan\/online\/orders\/([^/]+)\/confirm-delivery$/i,
+    action: 'order_confirm_delivery',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/orders\/([^/]+)\/deliver$/i,
+    action: 'order_deliver',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/orders\/([^/]+)\/accept$/i,
+    action: 'order_accept',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/orders$/i,
+    action: 'order_publish',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/world-events\/([^/]+)\/contribute$/i,
+    action: 'world_event_contribute',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/societies\/public-projects\/([^/]+)\/contribute$/i,
+    action: 'society_project_contribute',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/societies\/public-warehouse\/deposit$/i,
+    action: 'society_public_warehouse_deposit',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/societies\/proposals$/i,
+    action: 'society_proposal_create',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/societies\/proposals\/([^/]+)\/vote$/i,
+    action: 'society_proposal_vote',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/societies\/proposals\/([^/]+)\/close$/i,
+    action: 'society_proposal_close',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/festival\/rooms$/i,
+    action: 'festival_room_create',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/festival\/rooms\/([^/]+)\/(?:invite|join|leave|ready-check|ready|unready|start|disconnect|reconnect|action|settle|close)$/i,
+    action: 'festival_room_write',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/expedition\/rooms$/i,
+    action: 'expedition_room_create',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/expedition\/rooms\/([^/]+)\/(?:invite|join|leave|ready-check|ready|unready|start|disconnect|reconnect|action|settle|close)$/i,
+    action: 'expedition_room_write',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/exchange-station\/weekly\/([^/]+)\/exchange$/i,
+    action: 'weekly_exchange',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/exchange-station\/festival-stall\/([^/]+)\/purchase$/i,
+    action: 'festival_stall_purchase',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/exchange-station\/neighbors\/consignments$/i,
+    action: 'neighbor_consignment_create',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/exchange-station\/neighbors\/consignments\/([^/]+)\/(?:purchase|cancel|reclaim)$/i,
+    action: 'neighbor_consignment_write',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/exchange-station\/ledger\/([^/]+)\/disputes$/i,
+    action: 'exchange_ledger_dispute',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/mail\/player-letter$/i,
+    action: 'player_letter_send',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/mail\/player-gift-package$/i,
+    action: 'player_gift_package_send',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/mail\/([^/]+)\/claim$/i,
+    action: 'mail_claim',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/mail\/claim-all$/i,
+    action: 'mail_claim_all',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/mail\/([^/]+)\/memorial$/i,
+    action: 'mail_memorial_save',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/hall\/posts$/i,
+    action: 'hall_post_create',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/hall\/posts\/([^/]+)\/replies$/i,
+    action: 'hall_reply_create',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/hall\/posts\/([^/]+)\/best-reply$/i,
+    action: 'hall_best_reply',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/hall\/posts\/([^/]+)\/report$/i,
+    action: 'hall_post_report',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/hall\/posts\/([^/]+)\/solve$/i,
+    action: 'hall_post_solve',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/hall\/posts\/([^/]+)\/(?:like|dislike)$/i,
+    action: 'hall_post_reaction',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/hall\/posts\/([^/]+)\/replies\/([^/]+)\/like$/i,
+    action: 'hall_reply_like',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/hall\/posts\/([^/]+)$/i,
+    method: 'DELETE',
+    action: 'hall_post_delete',
+  },
+]);
 
 function createRouteError(message, status = 400) {
   const error = new Error(message);
@@ -298,6 +500,202 @@ function parseJsonTextSafe(value, fallback = {}) {
     return fallback;
   }
 }
+
+function sanitizeAuditValue(value, maxLength = 120) {
+  return String(value || '').trim().slice(0, maxLength);
+}
+
+function getRequestPathname(req) {
+  return String(req.originalUrl || req.url || '').split('?', 1)[0] || '/';
+}
+
+function resolveOnlineRateLimitRule(req) {
+  const method = String(req.method || 'GET').toUpperCase();
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return null;
+  const pathname = getRequestPathname(req);
+  return ONLINE_RATE_LIMIT_RULES.find(rule => rule.matcher.test(pathname)) || null;
+}
+
+function getOnlineRateLimitBucketKey(rule, req) {
+  const username = sanitizeAuditValue(req.session?.username, 40).toLocaleLowerCase('zh-CN');
+  const ip = sanitizeAuditValue(req.ip || req.headers['x-forwarded-for'] || 'unknown', 120);
+  return `${rule.routeKey}:${username || ip}`;
+}
+
+function consumeOnlineActionRateLimit(rule, req) {
+  const key = getOnlineRateLimitBucketKey(rule, req);
+  const now = Date.now();
+  const bucket = onlineActionRateLimitBuckets.get(key) || [];
+  const recent = bucket.filter(timestamp => now - timestamp < ONLINE_ACTION_RATE_LIMIT_WINDOW_MS);
+  if (recent.length >= rule.maxRequests) {
+    onlineActionRateLimitBuckets.set(key, recent);
+    return {
+      ok: false,
+      rule,
+      retryAfterMs: Math.max(1, ONLINE_ACTION_RATE_LIMIT_WINDOW_MS - (now - recent[0])),
+      remaining: 0,
+    };
+  }
+  recent.push(now);
+  onlineActionRateLimitBuckets.set(key, recent);
+  return {
+    ok: true,
+    rule,
+    retryAfterMs: 0,
+    remaining: Math.max(0, rule.maxRequests - recent.length),
+  };
+}
+
+function resolveOnlineAuditRule(req) {
+  const method = String(req.method || 'GET').toUpperCase();
+  if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) return null;
+  const pathname = getRequestPathname(req);
+  return ONLINE_AUDIT_ROUTE_RULES.find(rule => {
+    if (rule.method && String(rule.method).toUpperCase() !== method) return false;
+    return rule.matcher.test(pathname);
+  }) || null;
+}
+
+function getOnlineAuditRequestId(req) {
+  const existing = sanitizeAuditValue(req.headers['x-request-id'], 80);
+  if (existing) return existing;
+  if (!req._taoyuanOnlineAuditRequestId) {
+    req._taoyuanOnlineAuditRequestId = `req_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+  return req._taoyuanOnlineAuditRequestId;
+}
+
+function buildOnlineAuditDetail(req) {
+  const body = req.body && typeof req.body === 'object' && !Array.isArray(req.body)
+    ? req.body
+    : {};
+  const targetUsername = sanitizeAuditValue(
+    body.target_username
+      || body.username
+      || body.owner_username
+      || body.recipient_username
+      || body.invited_username
+      || '',
+    40,
+  );
+  return {
+    target_username: targetUsername,
+    room_id: sanitizeAuditValue(req.params?.roomId || body.room_id || body.activity_room_id || '', 80),
+    order_id: sanitizeAuditValue(req.params?.orderId || body.order_id || '', 80),
+    stage_id: sanitizeAuditValue(req.params?.stageId || body.stageId || body.stage_id || '', 80),
+    society_id: sanitizeAuditValue(req.params?.societyId || body.society_id || body.group_id || '', 80),
+    proposal_id: sanitizeAuditValue(req.params?.proposalId || body.proposal_id || '', 80),
+    project_id: sanitizeAuditValue(req.params?.projectId || body.project_id || '', 80),
+    event_id: sanitizeAuditValue(req.params?.eventId || body.event_id || '', 80),
+    listing_id: sanitizeAuditValue(req.params?.listingId || body.listing_id || '', 80),
+    offer_id: sanitizeAuditValue(req.params?.offerId || body.offer_id || '', 80),
+    mail_id: sanitizeAuditValue(req.params?.id || body.mail_id || '', 80),
+    post_id: sanitizeAuditValue(req.params?.id || body.post_id || '', 80),
+    reply_id: sanitizeAuditValue(req.params?.replyId || body.reply_id || '', 80),
+  };
+}
+
+function onlineActionRateLimit(req, res, next) {
+  const rule = resolveOnlineRateLimitRule(req);
+  if (!rule) {
+    next();
+    return;
+  }
+  const quota = consumeOnlineActionRateLimit(rule, req);
+  if (quota.ok) {
+    req.onlineRateLimitRule = rule;
+    next();
+    return;
+  }
+
+  const retryAfterSeconds = Math.max(1, Math.ceil(quota.retryAfterMs / 1000));
+  res.set('Retry-After', String(retryAfterSeconds));
+  void taoyuanOnlineAudit.recordOnlineAudit({
+    username: req.session?.username,
+    display_name: req.session?.display_name,
+    action: `rate_limit:${rule.routeKey}`,
+    route_key: rule.routeKey,
+    scope: rule.scope,
+    method: req.method,
+    path: getRequestPathname(req),
+    request_id: getOnlineAuditRequestId(req),
+    outcome: 'rate_limited',
+    status_code: 429,
+    detail: {
+      ...buildOnlineAuditDetail(req),
+      limit_window_ms: ONLINE_ACTION_RATE_LIMIT_WINDOW_MS,
+      max_requests: rule.maxRequests,
+      retry_after_ms: quota.retryAfterMs,
+    },
+  }).catch(() => {});
+  res.status(429).json({
+    ok: false,
+    msg: '操作过于频繁，请稍后再试',
+    code: 'ONLINE_RATE_LIMITED',
+    retry_after_ms: quota.retryAfterMs,
+    route_key: rule.routeKey,
+  });
+}
+
+function onlineAuditMiddleware(req, res, next) {
+  const rule = resolveOnlineAuditRule(req);
+  if (!rule) {
+    next();
+    return;
+  }
+
+  const startedAt = Date.now();
+  const requestId = getOnlineAuditRequestId(req);
+  const pathname = getRequestPathname(req);
+  const detail = buildOnlineAuditDetail(req);
+  let recorded = false;
+
+  const finalizeAudit = outcome => {
+    if (recorded) return;
+    recorded = true;
+    const targetUsername = sanitizeAuditValue(
+      res.locals?.onlineAuditTargetUsername
+        || detail.target_username
+        || res.locals?.target_username
+        || '',
+      40,
+    );
+    void taoyuanOnlineAudit.recordOnlineAudit({
+      username: req.session?.username,
+      display_name: req.session?.display_name,
+      target_username: targetUsername,
+      action: rule.action,
+      route_key: req.onlineRateLimitRule?.routeKey || rule.action,
+      scope: req.onlineRateLimitRule?.scope || 'online_write',
+      method: req.method,
+      path: pathname,
+      request_id: requestId,
+      outcome,
+      status_code: res.statusCode,
+      detail: {
+        ...detail,
+        target_username: targetUsername,
+        duration_ms: Math.max(0, Date.now() - startedAt),
+      },
+    }).catch(() => {});
+  };
+
+  res.on('finish', () => {
+    const outcome = res.statusCode >= 500
+      ? 'server_error'
+      : res.statusCode >= 400
+        ? 'rejected'
+        : 'completed';
+    finalizeAudit(outcome);
+  });
+  res.on('close', () => {
+    if (!res.writableEnded) finalizeAudit('aborted');
+  });
+  next();
+}
+
+router.use(onlineActionRateLimit);
+router.use(onlineAuditMiddleware);
 
 async function appendAdminAuditLog(req, action, targetUsername, detail) {
   return db.recordAdminAuditLog({
@@ -1933,6 +2331,24 @@ router.get('/admin/audit-logs', adminAuth, async (req, res) => {
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取操作日志失败' });
+  }
+});
+
+router.get('/admin/taoyuan/online-audit', adminAuth, async (req, res) => {
+  try {
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.page_size, 20);
+    const result = await taoyuanOnlineAudit.listOnlineAudits({
+      page,
+      pageSize,
+      username: req.query.username,
+      routeKey: req.query.route_key,
+      action: req.query.action,
+      outcome: req.query.outcome,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取在线审计日志失败' });
   }
 });
 

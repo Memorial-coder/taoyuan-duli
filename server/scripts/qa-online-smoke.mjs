@@ -111,6 +111,7 @@ const quaternarySessionState = createSessionState()
 const l81MemberAState = createSessionState()
 const l81MemberBState = createSessionState()
 const l81MemberCState = createSessionState()
+const adminToken = String(process.env.ADMIN_TOKEN || '').trim()
 
 const updateCookie = (session, response) => {
   const rawSetCookie = typeof response.headers.getSetCookie === 'function'
@@ -3688,6 +3689,62 @@ try {
     assert(data?.ok === true && typeof data?.raw === 'string', 'save slot read payload is incomplete')
     const decrypted = decryptTaoyuanRaw(data.raw)
     assert(Number(decrypted?.player?.money) === primaryExpectedMoney, `reward payout / refund chain did not persist to primary save slot, expected money=${primaryExpectedMoney}, current money=${decrypted?.player?.money}`)
+  })
+
+  await runCheck('POST /api/taoyuan/online/manor/visit rate limit path', async () => {
+    let limited = null
+    for (let index = 0; index < 21; index += 1) {
+      const result = await fetchAuthedJson('/api/taoyuan/online/manor/visit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          target_username: secondarySessionState.username,
+          purpose: 'smoke_rate_limit',
+          behavior: 'loop_visit',
+          feedback: `rate-limit-${index}`,
+        }),
+      })
+      if (result.response.status === 429) {
+        limited = result
+        break
+      }
+      assert(result.response.ok, `manor visit rate limit warmup returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    }
+    assert(limited, 'online manor visit rate limit did not trigger within the expected request window')
+    assert(limited.data?.ok === false && limited.data?.code === 'ONLINE_RATE_LIMITED', 'online manor visit rate limit payload is incomplete')
+    assert(Number(limited.data?.retry_after_ms) > 0, 'online manor visit rate limit should expose retry_after_ms')
+  })
+
+  await runCheck('GET /api/admin/taoyuan/online-audit admin read path', async () => {
+    assert(adminToken, 'ADMIN_TOKEN is required for online audit admin smoke')
+    const { response, data } = await fetchAuthedJson('/api/admin/taoyuan/online-audit?page=1&page_size=100', {
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    })
+    assert(response.ok, `online audit admin read returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && Array.isArray(data?.logs), 'online audit admin payload is incomplete')
+    const requiredActions = ['order_publish', 'player_gift_package_send', 'neighbor_consignment_create', 'hall_post_create']
+    for (const action of requiredActions) {
+      const actionReadback = await fetchAuthedJson(`/api/admin/taoyuan/online-audit?page=1&page_size=20&action=${encodeURIComponent(action)}`, {
+        headers: {
+          'X-Admin-Token': adminToken,
+        },
+      })
+      assert(actionReadback.response.ok, `online audit filtered read for ${action} returned ${actionReadback.response.status}: ${actionReadback.data?.msg || 'unknown error'}`)
+      assert(actionReadback.data?.ok === true && Array.isArray(actionReadback.data?.logs), `online audit filtered payload for ${action} is incomplete`)
+      assert(actionReadback.data.logs.some(entry => entry?.action === action), `online audit logs did not capture ${action}`)
+    }
+    const rateLimitReadback = await fetchAuthedJson('/api/admin/taoyuan/online-audit?page=1&page_size=20&outcome=rate_limited&route_key=manor_social_write', {
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    })
+    assert(rateLimitReadback.response.ok, `online audit rate limit read returned ${rateLimitReadback.response.status}: ${rateLimitReadback.data?.msg || 'unknown error'}`)
+    assert(rateLimitReadback.data?.ok === true && Array.isArray(rateLimitReadback.data?.logs), 'online audit rate limit payload is incomplete')
+    assert(rateLimitReadback.data.logs.some(entry => entry?.outcome === 'rate_limited' && entry?.route_key === 'manor_social_write'), 'online audit logs did not capture the online rate limit hit')
   })
 
   let reportId = ''
