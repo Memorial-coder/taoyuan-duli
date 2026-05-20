@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 协作采集（L82 第一轮）
+- `server/scripts/qa-online-smoke.mjs` 已补进 `L82` 协作采集专项回归：当前会实际创建 `gathering_line` 房型，验证建房、邀请、加入、ready、倒计时、运行态动作、结算和关闭链路。
+- 本轮专项 smoke 已明确校验 `expedition_gathering` 玩法模板挂载、4 人房型成员上限，以及 `组队采集 / 共享进度 / 稀有材料` 三种动作在共享进度、成员贡献和最近事件里的真实落点。
+- 协作采集结算现在也具备可重复回档证据：房间会稳定回写 `wood / herb / marsh_spore_sample` 等采集线奖励，不再只有远征默认材料掉落。
+
 ### 0520 协作矿洞（L81 第一轮）
 - `server/scripts/qa-online-smoke.mjs` 已补进 `L81` 协作矿洞专项回归：当前会分别创建 `cavern_duo / cavern_trio / cavern_quartet` 三种矿洞房型，实际验证建房、邀请、加入、ready、倒计时、运行态动作、结算和关闭链路。
 - 这轮专项 smoke 不是只做模板存在性断言：当前会明确校验双人 / 三人 / 四人成员上限、`expedition_cavern` 玩法模板挂载，以及 `分工采集 / 白路标记 / 处理危机` 三种动作在共享进度、成员贡献和最近事件里的真实落点。

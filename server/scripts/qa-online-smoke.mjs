@@ -2272,6 +2272,177 @@ try {
     })
   })
 
+  const runL82GatheringScenario = async () => {
+    const templateId = 'gathering_line'
+    const expectedMemberLimit = 4
+    const participants = [l81MemberAState, l81MemberBState, l81MemberCState]
+    const beforeHostSave = await l81ReadSave(sessionState, 'L82 host before')
+    const beforeLeadSave = await l81ReadSave(participants[0], 'L82 lead before')
+    const hostExpectedItems = [
+      { itemId: 'wood', quantity: 2 },
+      { itemId: 'herb', quantity: 2 },
+      { itemId: 'marsh_spore_sample', quantity: 1 },
+    ]
+    const memberExpectedItems = [
+      { itemId: 'wood', quantity: 2 },
+      { itemId: 'herb', quantity: 2 },
+    ]
+    const beforeHostCounts = l81CaptureRewardCounts(beforeHostSave, hostExpectedItems)
+    const beforeLeadCounts = l81CaptureRewardCounts(beforeLeadSave, memberExpectedItems)
+
+    const { response: createResponse, data: createData } = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        template_id: templateId,
+        gameplay_template_id: 'expedition_gathering',
+        countdown_seconds: 1,
+        title: `L82 协作采集 ${Date.now()}`,
+      }),
+    })
+    assert(createResponse.ok, `L82 create returned ${createResponse.status}: ${createData?.msg || 'unknown error'}`)
+    assert(createData?.ok === true && createData?.room?.id, 'L82 create payload is incomplete')
+    assert(String(createData?.room?.template_id || '') === templateId, 'L82 create did not preserve template id')
+    assert(Number(createData?.room?.member_limit || 0) === expectedMemberLimit, `L82 create did not preserve member limit ${expectedMemberLimit}`)
+    assert(String(createData?.room?.gameplay?.template_id || '') === 'expedition_gathering', 'L82 create did not preserve expedition_gathering gameplay template')
+    const roomId = String(createData.room.id)
+
+    for (const participant of participants) {
+      const inviteResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/invite`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': sessionState.csrfToken,
+        },
+        body: JSON.stringify({
+          target_username: participant.username,
+        }),
+      })
+      assert(inviteResponse.response.ok, `L82 invite ${participant.username} returned ${inviteResponse.response.status}: ${inviteResponse.data?.msg || 'unknown error'}`)
+      assert(inviteResponse.data?.ok === true, `L82 invite ${participant.username} payload is incomplete`)
+    }
+
+    for (const participant of participants) {
+      const joinResponse = await fetchSessionJson(participant, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/join`, {
+        method: 'POST',
+      })
+      assert(joinResponse.response.ok, `L82 join ${participant.username} returned ${joinResponse.response.status}: ${joinResponse.data?.msg || 'unknown error'}`)
+      assert(joinResponse.data?.ok === true && joinResponse.data?.room?.members?.some(entry => entry?.username === participant.username && entry?.status === 'joined'), `L82 join ${participant.username} payload is incomplete`)
+    }
+
+    const readyCheckResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/ready-check`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(readyCheckResponse.response.ok, `L82 ready-check returned ${readyCheckResponse.response.status}: ${readyCheckResponse.data?.msg || 'unknown error'}`)
+    assert(String(readyCheckResponse.data?.room?.state || '') === 'ready_check', 'L82 room did not enter ready_check')
+
+    const hostReadyResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/ready`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(hostReadyResponse.response.ok, `L82 host ready returned ${hostReadyResponse.response.status}: ${hostReadyResponse.data?.msg || 'unknown error'}`)
+
+    for (const participant of participants) {
+      const readyResponse = await fetchSessionJson(participant, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/ready`, {
+        method: 'POST',
+      })
+      assert(readyResponse.response.ok, `L82 ready ${participant.username} returned ${readyResponse.response.status}: ${readyResponse.data?.msg || 'unknown error'}`)
+      assert(readyResponse.data?.ok === true && readyResponse.data?.room?.members?.some(entry => entry?.username === participant.username && entry?.status === 'ready'), `L82 ready ${participant.username} payload is incomplete`)
+    }
+
+    const startResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/start`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(startResponse.response.ok, `L82 countdown returned ${startResponse.response.status}: ${startResponse.data?.msg || 'unknown error'}`)
+    assert(String(startResponse.data?.room?.state || '') === 'countdown', 'L82 room did not enter countdown')
+
+    await wait(2200)
+    const runningReadback = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms')
+    assert(runningReadback.response.ok, `L82 running readback returned ${runningReadback.response.status}`)
+    assert(runningReadback.data?.ok === true && runningReadback.data?.my_room?.id === roomId, 'L82 running readback payload is incomplete')
+    assert(String(runningReadback.data?.my_room?.state || '') === 'running', `L82 room did not reach running state, current=${runningReadback.data?.my_room?.state}`)
+    assert(String(runningReadback.data?.my_room?.template_id || '') === templateId, 'L82 running readback lost template id')
+    assert(Number(runningReadback.data?.my_room?.member_limit || 0) === expectedMemberLimit, 'L82 running readback lost member limit')
+    assert(Number(runningReadback.data?.my_room?.joined_member_count || 0) === expectedMemberLimit, 'L82 running readback did not preserve joined member count')
+    assert(String(runningReadback.data?.my_room?.gameplay?.template_id || '') === 'expedition_gathering', 'L82 running readback lost expedition_gathering gameplay template')
+    const availableActionIds = new Set((runningReadback.data?.my_room?.gameplay?.available_actions || []).map(entry => String(entry?.id || '')))
+    for (const actionId of ['line_gather', 'sync_bundle', 'rare_find']) {
+      assert(availableActionIds.has(actionId), `L82 available actions missing ${actionId}`)
+    }
+
+    let actionRoom = await l81SubmitAction(sessionState, roomId, 'line_gather', 'L82 host line_gather')
+    actionRoom = await l81SubmitAction(participants[0], roomId, 'sync_bundle', 'L82 lead sync_bundle')
+    actionRoom = await l81SubmitAction(participants[1], roomId, 'rare_find', 'L82 support rare_find')
+    actionRoom = await l81SubmitAction(participants[2], roomId, 'line_gather', 'L82 fourth line_gather')
+    actionRoom = await l81SubmitAction(sessionState, roomId, 'sync_bundle', 'L82 host sync_bundle')
+    actionRoom = await l81SubmitAction(sessionState, roomId, 'rare_find', 'L82 host rare_find')
+
+    const hostContribution = actionRoom?.gameplay?.contributions?.find(entry => entry?.username === sessionState.username)
+    assert(Number(hostContribution?.action_count || 0) >= 3, 'L82 host contribution did not stay ahead')
+    const recentEventSummaries = Array.isArray(actionRoom?.recent_events) ? actionRoom.recent_events.map(entry => String(entry?.summary || '')) : []
+    assert(recentEventSummaries.some(summary => summary.includes('组队采集')), 'L82 room events did not preserve line_gather summary')
+    assert(recentEventSummaries.some(summary => summary.includes('共享进度')), 'L82 room events did not preserve sync_bundle summary')
+    assert(recentEventSummaries.some(summary => summary.includes('稀有材料')), 'L82 room events did not preserve rare_find summary')
+
+    const settleResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/settle`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(settleResponse.response.ok, `L82 settle returned ${settleResponse.response.status}: ${settleResponse.data?.msg || 'unknown error'}`)
+    assert(String(settleResponse.data?.room?.state || '') === 'settling', 'L82 room did not enter settling')
+    assert(Array.isArray(settleResponse.data?.room?.settlement_receipts) && settleResponse.data.room.settlement_receipts.length === expectedMemberLimit, 'L82 settle did not create 4 receipts')
+    assert(settleResponse.data.room.settlement_receipts.every(receipt => l81GetReceiptItemQuantity(receipt, 'wood') >= 2), 'L82 settle did not preserve wood reward')
+    assert(settleResponse.data.room.settlement_receipts.every(receipt => l81GetReceiptItemQuantity(receipt, 'herb') >= 2), 'L82 settle did not preserve herb reward')
+    assert(settleResponse.data.room.settlement_receipts.some(receipt => l81GetReceiptItemQuantity(receipt, 'marsh_spore_sample') >= 1), 'L82 settle did not preserve marsh_spore_sample reward')
+
+    const receiptByUsername = new Map(settleResponse.data.room.settlement_receipts.map(receipt => [String(receipt?.target_username || ''), receipt]))
+    for (const participant of [sessionState, ...participants]) {
+      const receipt = receiptByUsername.get(participant.username)
+      assert(receipt, `L82 settle did not keep receipt for ${participant.username}`)
+      l81AddExpectedMoney(participant, Math.max(0, Math.floor(Number(receipt?.reward_payload?.money) || 0)))
+    }
+
+    const closeResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/close`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(closeResponse.response.ok, `L82 close returned ${closeResponse.response.status}: ${closeResponse.data?.msg || 'unknown error'}`)
+    assert(String(closeResponse.data?.room?.state || '') === 'closed', 'L82 room did not close cleanly')
+    assert(Array.isArray(closeResponse.data?.room?.settlement_receipts) && closeResponse.data.room.settlement_receipts.every(receipt => receipt?.status === 'persisted'), 'L82 close did not persist all receipts')
+
+    const afterHostSave = await l81ReadSave(sessionState, 'L82 host after')
+    assert(Math.floor(Number(afterHostSave?.player?.money) || 0) === l81GetExpectedMoney(sessionState), `L82 host money did not persist correctly, expected money=${l81GetExpectedMoney(sessionState)}, current money=${Math.floor(Number(afterHostSave?.player?.money) || 0)}`)
+    l81AssertRewardGrowth(afterHostSave, beforeHostCounts, hostExpectedItems, 'L82 host reward')
+
+    const afterLeadSave = await l81ReadSave(participants[0], 'L82 lead after')
+    assert(Math.floor(Number(afterLeadSave?.player?.money) || 0) === l81GetExpectedMoney(participants[0]), `L82 lead member money did not persist correctly, expected money=${l81GetExpectedMoney(participants[0])}, current money=${Math.floor(Number(afterLeadSave?.player?.money) || 0)}`)
+    l81AssertRewardGrowth(afterLeadSave, beforeLeadCounts, memberExpectedItems, 'L82 lead member reward')
+
+    for (const participant of participants.slice(1)) {
+      const afterSave = await l81ReadSave(participant, 'L82 member after')
+      assert(Math.floor(Number(afterSave?.player?.money) || 0) === l81GetExpectedMoney(participant), `L82 member ${participant.username} money did not persist correctly, expected money=${l81GetExpectedMoney(participant)}, current money=${Math.floor(Number(afterSave?.player?.money) || 0)}`)
+    }
+  }
+
+  await runCheck('L82 gathering_line专项回归', async () => {
+    await runL82GatheringScenario()
+  })
+
   let createdSocietyId = ''
   let createdSocietyName = ''
   await runCheck('GET /api/taoyuan/online/societies read path', async () => {
