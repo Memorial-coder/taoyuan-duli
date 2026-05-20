@@ -2604,6 +2604,37 @@ async function closeExpeditionRoom(roomId, actor = {}) {
   return result;
 }
 
+function listAdminActivityRooms(domain = '') {
+  const normalizedDomain = domain ? normalizeActivityDomain(domain) : '';
+  const store = loadStore();
+  const rooms = (store.rooms || [])
+    .map(normalizeRoom)
+    .filter(room => !normalizedDomain || room.activity_domain === normalizedDomain)
+    .sort((left, right) => (right.updated_at || 0) - (left.updated_at || 0));
+  return {
+    rooms,
+    receipts: (store.receipts || [])
+      .map(normalizeRoomReceipt)
+      .filter(receipt => !normalizedDomain || receipt.activity_domain === normalizedDomain)
+      .sort((left, right) => (right.updated_at || 0) - (left.updated_at || 0)),
+  };
+}
+
+async function retryAdminActivityRoomSettlement(roomId) {
+  const store = loadStore();
+  const room = ensureRoomExists(store, roomId);
+  if (room.state !== 'settling') {
+    throw createError('只有结算中的活动房间可以重放结算');
+  }
+  const actor = {
+    username: room.host_username,
+    displayName: room.host_display_name || room.host_username,
+  };
+  return room.activity_domain === 'expedition'
+    ? closeExpeditionRoom(roomId, actor)
+    : closeFestivalRoom(roomId, actor);
+}
+
 module.exports = {
   listFestivalRoomOverview,
   createFestivalRoom,
@@ -2631,4 +2662,6 @@ module.exports = {
   submitExpeditionRoomGameplayAction,
   settleExpeditionRoom,
   closeExpeditionRoom,
+  listAdminActivityRooms,
+  retryAdminActivityRoomSettlement,
 };

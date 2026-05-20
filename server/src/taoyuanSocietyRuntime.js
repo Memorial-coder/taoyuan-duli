@@ -2378,6 +2378,13 @@ function getSocietySummaryForUser(username) {
   };
 }
 
+function listAdminSocieties() {
+  const store = loadSocietyStore();
+  return (store.societies || [])
+    .map(entry => normalizeSociety(entry))
+    .sort((left, right) => right.updated_at - left.updated_at);
+}
+
 module.exports = {
   listSocietyOverview,
   createSociety,
@@ -2393,4 +2400,5 @@ module.exports = {
   contributeSocietyPublicProject,
   depositSocietyWarehouse,
   getSocietySummaryForUser,
+  listAdminSocieties,
 };

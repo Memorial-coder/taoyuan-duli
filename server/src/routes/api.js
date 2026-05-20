@@ -18,6 +18,7 @@ const taoyuanActivityRoomRuntime = require('../taoyuanActivityRoomRuntime');
 const taoyuanSocietyRuntime = require('../taoyuanSocietyRuntime');
 const taoyuanWorldEventRuntime = require('../taoyuanWorldEventRuntime');
 const taoyuanOnlineAudit = require('../taoyuanOnlineAudit');
+const taoyuanImageModeration = require('../taoyuanImageModeration');
 const taoyuanWeeklyExchangeStation = require('../taoyuanWeeklyExchangeStation');
 const taoyuanFestivalStall = require('../taoyuanFestivalStall');
 const taoyuanNeighborConsignment = require('../taoyuanNeighborConsignment');
@@ -707,6 +708,81 @@ async function appendAdminAuditLog(req, action, targetUsername, detail) {
   });
 }
 
+function readJsonListSafe(filePath, field, fallback = []) {
+  try {
+    if (!fs.existsSync(filePath)) return fallback;
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    if (!field) {
+      return Array.isArray(raw) ? raw : fallback;
+    }
+    return Array.isArray(raw?.[field]) ? raw[field] : fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+async function buildAdminOnlineOverviewPayload() {
+  const activity = taoyuanActivityRoomRuntime.listAdminActivityRooms();
+  const coopOverview = await taoyuanCoopOrderRuntime.listAdminCoopOrders();
+  const societies = taoyuanSocietyRuntime.listAdminSocieties();
+  const hallReports = taoyuanHall.listReports();
+  const hallPosts = taoyuanHall.listAdminPosts();
+  const imageReports = taoyuanImageModeration.listImageReports();
+  const imageBlacklist = taoyuanImageModeration.listImageBlacklist();
+  const onlineAudits = readJsonListSafe(path.join(DATA_DIR, 'taoyuan_online_audits.json'), 'logs', []);
+  const recentPlayerResult = await db.listUsersAdmin({ page: 1, pageSize: 12, status: 'all' });
+
+  const activeRooms = activity.rooms.filter(room => !['closed', 'aborted'].includes(room.state));
+  const pendingRoomReceipts = activity.receipts.filter(receipt => receipt.status === 'compensation_pending');
+  const pendingCoopCompensations = coopOverview.compensations.filter(entry => entry.status === 'pending');
+  const pendingHallReports = hallReports.filter(entry => entry.status === 'pending');
+  const pendingImageModerationReports = imageReports.filter(entry => entry.status === 'pending');
+
+  return {
+    summary: {
+      active_room_count: activeRooms.length,
+      pending_activity_receipt_count: pendingRoomReceipts.length,
+      pending_coop_compensation_count: pendingCoopCompensations.length,
+      visible_society_count: societies.length,
+      pending_hall_report_count: pendingHallReports.length,
+      pending_image_report_count: pendingImageModerationReports.length,
+      image_blacklist_count: imageBlacklist.length,
+      online_audit_count: onlineAudits.length,
+    },
+    recent_players: recentPlayerResult.users.map(entry => ({
+      username: entry.username,
+      display_name: entry.display_name,
+      created_at: entry.created_at,
+      status: entry.status,
+      save_file: getSaveFileSummary(entry.username),
+    })),
+    coop: {
+      orders: coopOverview.orders.slice(0, 40),
+      receipts: coopOverview.receipts.slice(0, 40),
+      compensations: pendingCoopCompensations.slice(0, 40),
+    },
+    activities: {
+      rooms: activeRooms.slice(0, 40),
+      pending_receipts: pendingRoomReceipts.slice(0, 60),
+    },
+    societies: societies.slice(0, 30),
+    manor: {
+      hot_manors: await taoyuanManorRuntime.listHotManorBoard(10),
+    },
+    hall: {
+      reports: hallReports.slice(0, 40),
+      image_reports: pendingImageModerationReports.slice(0, 40),
+      recent_posts: hallPosts.slice(0, 30),
+      image_blacklist: imageBlacklist,
+    },
+    audit: {
+      online_logs: onlineAudits
+        .sort((left, right) => (Number(right?.created_at) || 0) - (Number(left?.created_at) || 0))
+        .slice(0, 80),
+    },
+  };
+}
+
 async function appendContentRevisionLog(req, action, payload, options = {}) {
   return db.recordContentRevision({
     content_key: options.contentKey || 'homepage_about',
@@ -1044,6 +1120,101 @@ router.get('/admin/me', userAdminAuth, (req, res) => {
     role_label: req.admin.role_label,
     permissions: buildAdminPermissions(req.admin.role),
   });
+});
+
+router.get('/admin/taoyuan/overview', userAdminAuth, async (req, res) => {
+  try {
+    res.json({ ok: true, overview: await buildAdminOnlineOverviewPayload() });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取联机总览失败' });
+  }
+});
+
+router.get('/admin/taoyuan/players', userAdminAuth, async (req, res) => {
+  try {
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.page_size, 20);
+    const result = await db.listUsersAdmin({
+      keyword: req.query.keyword,
+      status: req.query.status,
+      page,
+      pageSize,
+    });
+    res.json({ ok: true, ...result, users: result.users.map(user => ({ ...user, save_file: getSaveFileSummary(user.username) })) });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取玩家列表失败' });
+  }
+});
+
+router.get('/admin/taoyuan/societies', userAdminAuth, (req, res) => {
+  try {
+    res.json({ ok: true, societies: taoyuanSocietyRuntime.listAdminSocieties() });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取村社列表失败' });
+  }
+});
+
+router.get('/admin/taoyuan/manors', userAdminAuth, async (req, res) => {
+  try {
+    const limit = Math.min(60, parsePositiveInt(req.query.limit, 20));
+    res.json({
+      ok: true,
+      hot_manors: await taoyuanManorRuntime.listHotManorBoard(limit),
+      favorites: await taoyuanManorRuntime.listFavoriteOverview(req.session.username),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取庄园列表失败' });
+  }
+});
+
+router.get('/admin/taoyuan/orders', userAdminAuth, async (req, res) => {
+  try {
+    res.json({ ok: true, overview: await taoyuanCoopOrderRuntime.listAdminCoopOrders() });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取委托列表失败' });
+  }
+});
+
+router.get('/admin/taoyuan/festival', userAdminAuth, async (req, res) => {
+  try {
+    const domain = String(req.query.domain || '').trim();
+    const rooms = taoyuanActivityRoomRuntime.listAdminActivityRooms(domain);
+    res.json({ ok: true, rooms });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取节会列表失败' });
+  }
+});
+
+router.get('/admin/taoyuan/hall/overview', userAdminAuth, (req, res) => {
+  try {
+    res.json({
+      ok: true,
+      posts: taoyuanHall.listAdminPosts(),
+      reports: taoyuanHall.listReports(),
+      image_reports: taoyuanImageModeration.listImageReports(),
+      blacklist: taoyuanImageModeration.listImageBlacklist(),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取交流大厅概览失败' });
+  }
+});
+
+router.get('/admin/taoyuan/audit-logs', userAdminAuth, async (req, res) => {
+  try {
+    const page = parsePositiveInt(req.query.page, 1);
+    const pageSize = parsePositiveInt(req.query.page_size, 80);
+    const result = await taoyuanOnlineAudit.listOnlineAudits({
+      page,
+      pageSize,
+      username: req.query.username,
+      routeKey: req.query.route_key,
+      action: req.query.action,
+      outcome: req.query.outcome,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取在线审计日志失败' });
+  }
 });
 
 router.get('/admin/official-control/platform-status', userAdminAuth, officialControlHostAuth, (req, res) => {
@@ -2478,6 +2649,8 @@ router.post('/admin/content/upload-image', userAdminAuth, async (req, res) => {
       dataUrl: req.body?.data_url,
       filename: req.body?.filename,
       author: req.admin?.operator_name || '',
+      authorDisplayName: req.admin?.operator_name || '',
+      usage: 'admin_content',
     });
     await appendAdminAuditLog(req, 'upload_content_image', '', {
       file_url: uploaded.url,
@@ -3307,6 +3480,9 @@ router.post('/taoyuan/hall/upload-image', loginRequired, signRequired, async (re
     const uploaded = await taoyuanHall.saveUploadedImage({
       dataUrl: req.body?.data_url,
       filename: req.body?.filename,
+      author: req.session.username,
+      authorDisplayName: req.session.display_name || req.session.username,
+      usage: req.body?.usage || 'hall_post',
     });
     res.json({ ok: true, ...uploaded });
   } catch (error) {
@@ -3406,6 +3582,28 @@ router.post('/taoyuan/hall/posts/:id/replies/:replyId/report', loginRequired, si
   }
 });
 
+router.post('/taoyuan/hall/posts/:id/blocks/:blockId/report-image', loginRequired, signRequired, async (req, res) => {
+  try {
+    const post = taoyuanHall.getPost(req.params.id, req.session.username || '');
+    if (!post) return res.status(404).json({ ok: false, msg: '帖子不存在' });
+    const block = Array.isArray(post.blocks)
+      ? post.blocks.find(entry => entry?.id === String(req.params.blockId) && entry?.type === 'image')
+      : null;
+    if (!block) return res.status(404).json({ ok: false, msg: '图片不存在' });
+    const report = await taoyuanImageModeration.createImageReport({
+      image_url: block.url,
+      post_id: post.id,
+      block_id: block.id,
+      reason: req.body?.reason,
+      reporter: req.session.username,
+      reporter_display_name: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, report });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '举报图片失败' });
+  }
+});
+
 router.post('/taoyuan/hall/posts/:id/solve', loginRequired, signRequired, async (req, res) => {
   try {
     const post = await taoyuanHall.setSolved({ postId: req.params.id, actor: req.session.username, solved: req.body?.solved !== false });
@@ -3468,12 +3666,83 @@ router.get('/admin/taoyuan/hall/reports', adminAuth, (req, res) => {
   }
 });
 
+router.get('/admin/taoyuan/hall/image-reports', adminAuth, (req, res) => {
+  try {
+    res.json({
+      ok: true,
+      reports: taoyuanImageModeration.listImageReports(),
+      assets: taoyuanImageModeration.listImageAssets(),
+      blacklist: taoyuanImageModeration.listImageBlacklist(),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取图片举报列表失败' });
+  }
+});
+
+router.post('/admin/taoyuan/hall/image-assets/hide', adminAuth, async (req, res) => {
+  try {
+    const asset = await taoyuanImageModeration.setImageAssetVisibility({
+      imageUrl: req.body?.image_url,
+      hidden: req.body?.hidden !== false,
+      reason: req.body?.reason,
+    });
+    res.json({ ok: true, asset });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新图片可见性失败' });
+  }
+});
+
 router.post('/admin/taoyuan/hall/reports/:id/status', adminAuth, async (req, res) => {
   try {
     const report = await taoyuanHall.setReportStatus({ reportId: req.params.id, status: req.body?.status });
     res.json({ ok: true, report });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '更新举报状态失败' });
+  }
+});
+
+router.post('/admin/taoyuan/hall/image-reports/:id/status', adminAuth, async (req, res) => {
+  try {
+    const report = await taoyuanImageModeration.setImageReportStatus({ reportId: req.params.id, status: req.body?.status });
+    res.json({ ok: true, report });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新图片举报状态失败' });
+  }
+});
+
+router.post('/admin/taoyuan/hall/image-reports/:id/hide', adminAuth, async (req, res) => {
+  try {
+    const result = await taoyuanImageModeration.hideImageFromReport(req.params.id, req.body?.reason);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '隐藏图片失败' });
+  }
+});
+
+router.post('/admin/taoyuan/image-blacklist/:username', adminAuth, async (req, res) => {
+  try {
+    const username = decodeRouteUsername(req.params.username);
+    const blocked = req.body?.blocked !== false;
+    const user = await db.getUserAdmin(username);
+    if (!user) return res.status(404).json({ ok: false, msg: '用户不存在' });
+    const entry = await taoyuanImageModeration.setImageBlacklist(username, blocked, {
+      display_name: user.display_name || user.username,
+      reason: req.body?.reason,
+      created_by: req.admin?.operator_name || '',
+    });
+    if (blocked) {
+      await db.setUserStatus(username, 'banned');
+      await appendAdminAuditLog(req, 'ban_user_for_image', username, {
+        reason: req.body?.reason || '',
+      });
+    } else {
+      await appendAdminAuditLog(req, 'remove_image_blacklist', username, {
+        reason: req.body?.reason || '',
+      });
+    }
+    res.json({ ok: true, entry, blacklist: taoyuanImageModeration.listImageBlacklist() });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '更新图片黑名单失败' });
   }
 });
 
@@ -3510,6 +3779,74 @@ router.post('/admin/taoyuan/hall/posts/:id/feature', adminAuth, async (req, res)
     res.json({ ok: true, post });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '加精帖子失败' });
+  }
+});
+
+router.post('/admin/taoyuan/orders/compensations/:compensationId/retry', userAdminAuth, async (req, res) => {
+  try {
+    const result = await taoyuanCoopOrderRuntime.replayCoopOrderCompensation(req.params.compensationId, {
+      username: req.admin?.operator_name || req.admin?.role || 'admin',
+      displayName: req.admin?.operator_name || req.admin?.role_label || '管理员',
+      role: req.admin?.role || 'admin',
+    });
+    await appendAdminAuditLog(req, 'retry_coop_compensation', result.order?.owner_username || '', {
+      compensation_id: req.params.compensationId,
+      order_id: result.order?.id || '',
+      stage_id: result.stage?.id || '',
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '重试补偿失败' });
+  }
+});
+
+router.post('/admin/taoyuan/orders/:orderId/rollback', userAdminAuth, async (req, res) => {
+  try {
+    const order = taoyuanCoopOrderRuntime.rollbackCoopOrder(req.params.orderId, {
+      username: req.admin?.operator_name || req.admin?.role || 'admin',
+      displayName: req.admin?.operator_name || req.admin?.role_label || '管理员',
+      role: req.admin?.role || 'admin',
+    });
+    await appendAdminAuditLog(req, 'rollback_coop_order', order.owner_username, {
+      order_id: order.id,
+      status: order.status,
+      canceled_at: order.canceled_at,
+    });
+    res.json({ ok: true, order });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '回滚委托失败' });
+  }
+});
+
+router.post('/admin/taoyuan/users/:username/unban', adminAuth, async (req, res) => {
+  try {
+    const username = decodeRouteUsername(req.params.username);
+    const user = await db.setUserStatus(username, 'active');
+    if (!user) return res.status(404).json({ ok: false, msg: '用户不存在' });
+    await appendAdminAuditLog(req, 'unban_user', username, { status: 'active' });
+    res.json({
+      ok: true,
+      user: {
+        ...user,
+        save_file: getSaveFileSummary(user.username),
+      },
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '误封恢复失败' });
+  }
+});
+
+router.post('/admin/taoyuan/festival/rooms/:roomId/retry-close', userAdminAuth, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.retryAdminActivityRoomSettlement(req.params.roomId);
+    await appendAdminAuditLog(req, 'retry_activity_room_close', '', {
+      room_id: req.params.roomId,
+      activity_domain: result?.room?.activity_domain || '',
+      state: result?.room?.state || '',
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '重放活动结算失败' });
   }
 });
 

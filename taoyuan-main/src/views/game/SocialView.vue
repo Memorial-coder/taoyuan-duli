@@ -30,6 +30,12 @@
           </span>
         </div>
 
+        <div v-if="socialStore.profile.avatar_image_url" class="border border-accent/10 rounded-xs p-2 bg-bg/10">
+          <p class="text-[10px] text-muted mb-2">公开头像</p>
+          <img :src="socialStore.profile.avatar_image_url" :alt="socialStore.profile.avatar_image_alt || '名片头像'" class="mx-auto max-h-32 rounded-xs border border-accent/15 object-cover" />
+          <p v-if="socialStore.profile.avatar_image_alt" class="text-[10px] text-muted mt-2 text-center">{{ socialStore.profile.avatar_image_alt }}</p>
+        </div>
+
         <div class="grid grid-cols-2 gap-2 text-xs">
           <div class="border border-accent/10 rounded-xs p-2">
             <p class="text-[10px] text-muted">庄园名</p>
@@ -227,6 +233,24 @@
             展示主题
             <input v-model="socialStore.draftShowcaseTheme" maxlength="24" class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent" />
           </label>
+        </div>
+        <div class="border border-accent/10 rounded-xs p-2 bg-bg/10 space-y-2">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[10px] text-muted">公开头像</p>
+            <Button class="text-[10px]" :disabled="uploadingAvatar" @click="triggerAvatarUpload">
+              {{ uploadingAvatar ? '上传中…' : '上传头像' }}
+            </Button>
+          </div>
+          <input ref="avatarInputRef" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" @change="handleAvatarSelected" />
+          <div v-if="socialStore.draftAvatarImageUrl" class="space-y-2">
+            <img :src="socialStore.draftAvatarImageUrl" :alt="socialStore.draftAvatarImageAlt || '名片头像'" class="mx-auto max-h-32 rounded-xs border border-accent/15 object-cover" />
+            <input
+              v-model="socialStore.draftAvatarImageAlt"
+              maxlength="120"
+              class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+              placeholder="头像说明"
+            />
+          </div>
         </div>
         <label class="flex flex-col gap-1 text-[10px] text-muted">
           公开状态
@@ -572,11 +596,15 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted } from 'vue'
+  import { computed, onMounted, ref } from 'vue'
   import Button from '@/components/game/Button.vue'
   import { useSocialStore } from '@/stores/useSocialStore'
+  import { showFloat } from '@/composables/useGameLog'
+  import { uploadHallImage } from '@/utils/taoyuanHallApi'
 
   const socialStore = useSocialStore()
+  const uploadingAvatar = ref(false)
+  const avatarInputRef = ref<HTMLInputElement | null>(null)
 
   const visibilityLabel = computed(() => {
     if (!socialStore.profile) return '未公开'
@@ -622,6 +650,27 @@
 
   const saveProfile = async () => {
     await socialStore.saveProfile().catch(() => {})
+  }
+
+  const triggerAvatarUpload = () => {
+    avatarInputRef.value?.click()
+  }
+
+  const handleAvatarSelected = async (event: Event) => {
+    const input = event.target as HTMLInputElement | null
+    const file = input?.files?.[0]
+    if (!file) return
+    uploadingAvatar.value = true
+    try {
+      const uploaded = await uploadHallImage(file, 'profile_avatar')
+      socialStore.draftAvatarImageUrl = uploaded.url
+      socialStore.draftAvatarImageAlt = uploaded.alt || file.name.replace(/\.[^.]+$/, '')
+    } catch (error: any) {
+      showFloat(error?.message || '上传头像失败', 'danger')
+    } finally {
+      uploadingAvatar.value = false
+      if (input) input.value = ''
+    }
   }
 
   const toggleTag = (tagId: string) => {

@@ -82,6 +82,7 @@ const startServer = () => {
 }
 
 const checks = []
+const tinyPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0WQAAAAASUVORK5CYII='
 const createSessionState = () => ({
   cookie: '',
   csrfToken: '',
@@ -114,6 +115,8 @@ const sessionState = createSessionState()
 const secondarySessionState = createSessionState()
 const tertiarySessionState = createSessionState()
 const quaternarySessionState = createSessionState()
+const governanceSessionState = createSessionState()
+const imageBlacklistSessionState = createSessionState()
 const l81MemberAState = createSessionState()
 const l81MemberBState = createSessionState()
 const l81MemberCState = createSessionState()
@@ -152,6 +155,15 @@ const fetchSessionJson = async (session, pathname, init = {}) => {
 }
 
 const fetchAuthedJson = async (pathname, init = {}) => fetchSessionJson(sessionState, pathname, init)
+const fetchAdminJson = async (pathname, init = {}) => {
+  assert(adminToken, `ADMIN_TOKEN is required for ${pathname}`)
+  const headers = new Headers(init.headers || {})
+  headers.set('X-Admin-Token', adminToken)
+  return fetchAuthedJson(pathname, {
+    ...init,
+    headers,
+  })
+}
 const getInventoryItemQuantity = (decryptedSave, itemId) => (decryptedSave?.inventory?.items || [])
   .filter(entry => entry?.itemId === itemId)
   .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
@@ -160,9 +172,56 @@ const getRewardItemQuantity = (decryptedSave, itemId) => ([...(Array.isArray(dec
   .filter(entry => entry?.itemId === itemId)
   .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
 
+const buildSeedSavePayload = (username, startingMoney) => encryptTaoyuanData({
+  player: {
+    money: startingMoney,
+    name: username,
+  },
+  inventory: {
+    items: [
+      { itemId: 'wood', quantity: 6, quality: 'normal', locked: false },
+      { itemId: 'parsnip_seed', quantity: 4, quality: 'normal', locked: false },
+      { itemId: 'wintersweet', quantity: 2, quality: 'normal', locked: false },
+    ],
+    tempItems: [],
+    ownedWeapons: [],
+    ownedRings: [],
+    ownedHats: [],
+    ownedShoes: [],
+    capacity: 24,
+  },
+})
+
 const runCheck = async (label, runner) => {
   await runner()
   checks.push(label)
+}
+
+const seedSessionSave = async (session, startingMoney) => {
+  assert(session.username, 'session username is required before provisioning a save')
+  const rawSavePayload = buildSeedSavePayload(session.username, startingMoney)
+  const { response: saveResponse, data: saveData } = await fetchSessionJson(session, '/api/taoyuan/save/0', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      raw: rawSavePayload,
+      revision: 1,
+    }),
+  })
+  assert(saveResponse.ok, `save write returned ${saveResponse.status}`)
+  assert(saveData?.ok === true && saveData?.slot === 0, 'save write payload is incomplete')
+
+  const { response: activeSlotResponse, data: activeSlotData } = await fetchSessionJson(session, '/api/taoyuan/save/active-slot', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ slot: 0 }),
+  })
+  assert(activeSlotResponse.ok, `active-slot write returned ${activeSlotResponse.status}`)
+  assert(activeSlotData?.ok === true && activeSlotData?.slot === 0, 'active-slot payload is incomplete')
 }
 
 const bootstrapSession = async (session, labelPrefix, startingMoney) => {
@@ -192,49 +251,7 @@ const bootstrapSession = async (session, labelPrefix, startingMoney) => {
   assert(meData?.user?.username === session.username, 'session username does not match registered user')
   assert(typeof meData?.csrf_token === 'string' && meData.csrf_token, '/api/me did not return csrf_token')
   session.csrfToken = meData.csrf_token
-
-  const rawSavePayload = encryptTaoyuanData({
-    player: {
-      money: startingMoney,
-      name: session.username,
-    },
-    inventory: {
-      items: [
-        { itemId: 'wood', quantity: 6, quality: 'normal', locked: false },
-        { itemId: 'parsnip_seed', quantity: 4, quality: 'normal', locked: false },
-        { itemId: 'wintersweet', quantity: 2, quality: 'normal', locked: false },
-      ],
-      tempItems: [],
-      ownedWeapons: [],
-      ownedRings: [],
-      ownedHats: [],
-      ownedShoes: [],
-      capacity: 24,
-    },
-  })
-
-  const { response: saveResponse, data: saveData } = await fetchSessionJson(session, '/api/taoyuan/save/0', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      raw: rawSavePayload,
-      revision: 1,
-    }),
-  })
-  assert(saveResponse.ok, `save write returned ${saveResponse.status}`)
-  assert(saveData?.ok === true && saveData?.slot === 0, 'save write payload is incomplete')
-
-  const { response: activeSlotResponse, data: activeSlotData } = await fetchSessionJson(session, '/api/taoyuan/save/active-slot', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ slot: 0 }),
-  })
-  assert(activeSlotResponse.ok, `active-slot write returned ${activeSlotResponse.status}`)
-  assert(activeSlotData?.ok === true && activeSlotData?.slot === 0, 'active-slot payload is incomplete')
+  await seedSessionSave(session, startingMoney)
 }
 
 const bootstrapAuthOnlySession = async (session, labelPrefix) => {
@@ -306,6 +323,8 @@ const cleanupSmokeUsers = async () => {
     secondarySessionState.username,
     tertiarySessionState.username,
     quaternarySessionState.username,
+    governanceSessionState.username,
+    imageBlacklistSessionState.username,
     l81MemberAState.username,
     l81MemberBState.username,
     l81MemberCState.username,
@@ -503,7 +522,9 @@ try {
     assert(data?.ok === true && data?.snapshot?.theme_week?.template_id === 'festival', 'theme-week readback did not persist template id')
   })
 
+  const adminToken = String(process.env.ADMIN_TOKEN || '').trim()
   let createdPostId = ''
+  let hallImagePostId = ''
   await runCheck('POST /api/taoyuan/hall/posts write path', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/hall/posts', {
       method: 'POST',
@@ -528,6 +549,130 @@ try {
     const { response, data } = await fetchAuthedJson(`/api/taoyuan/hall/posts/${encodeURIComponent(createdPostId)}`)
     assert(response.ok, `hall post detail returned ${response.status}`)
     assert(data?.ok === true && data?.post?.id === createdPostId, 'hall post detail payload is incomplete')
+  })
+
+  let hallImageUrl = ''
+  let hallImageBlockId = ''
+  await runCheck('POST /api/taoyuan/hall/upload-image image path', async () => {
+    const { response, data } = await fetchSessionJson(sessionState, '/api/taoyuan/hall/upload-image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        data_url: tinyPngDataUrl,
+        filename: 'smoke-hall.png',
+        usage: 'hall_post',
+      }),
+    })
+    assert(response.ok, `hall upload image returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && typeof data?.url === 'string' && data.url, 'hall upload image payload is incomplete')
+    hallImageUrl = String(data.url)
+  })
+
+  await runCheck('POST /api/taoyuan/hall/posts image report path', async () => {
+    const imagePost = await fetchAuthedJson('/api/taoyuan/hall/posts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: `smoke hall image post ${Date.now()}`,
+        blocks: [
+          { id: 'smoke_image_text', type: 'text', text: 'smoke image content' },
+          { id: 'smoke_image_block', type: 'image', url: hallImageUrl, alt: 'smoke image' },
+        ],
+        type: 'discussion',
+      }),
+    })
+    assert(imagePost.response.ok, `hall image post create returned ${imagePost.response.status}: ${imagePost.data?.msg || 'unknown error'}`)
+    assert(imagePost.data?.ok === true && imagePost.data?.post?.id, 'hall image post payload is incomplete')
+    hallImagePostId = String(imagePost.data.post.id)
+    const imageDetail = await fetchAuthedJson(`/api/taoyuan/hall/posts/${encodeURIComponent(hallImagePostId)}`)
+    assert(imageDetail.response.ok, `hall image post detail returned ${imageDetail.response.status}`)
+    const imageBlock = Array.isArray(imageDetail.data?.post?.blocks)
+      ? imageDetail.data.post.blocks.find(entry => entry?.type === 'image')
+      : null
+    assert(imageBlock && imageBlock.url === hallImageUrl, 'hall image post did not preserve image block')
+    hallImageBlockId = String(imageBlock?.id || '')
+  })
+
+  await runCheck('POST /api/taoyuan/hall/posts/:id/blocks/:blockId/report-image path', async () => {
+    const { response, data } = await fetchSessionJson(sessionState, `/api/taoyuan/hall/posts/${encodeURIComponent(hallImagePostId)}/blocks/${encodeURIComponent(hallImageBlockId || 'smoke_image_block')}/report-image`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        reason: 'smoke image report reason',
+      }),
+    })
+    assert(response.ok, `hall image report returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.report?.id, 'hall image report payload is incomplete')
+  })
+
+  let hallImageReportId = ''
+  await runCheck('GET /api/admin/taoyuan/hall/image-reports admin read path', async () => {
+    assert(adminToken, 'ADMIN_TOKEN is required for hall image admin smoke')
+    const { response, data } = await fetchAuthedJson('/api/admin/taoyuan/hall/image-reports', {
+      headers: {
+        'X-Admin-Token': adminToken,
+      },
+    })
+    assert(response.ok, `hall image admin reports returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && Array.isArray(data?.reports) && Array.isArray(data?.assets) && Array.isArray(data?.blacklist), 'hall image admin payload is incomplete')
+    assert(data.assets.some(entry => entry?.url === hallImageUrl), 'hall image upload was not captured in admin assets')
+    const reportedImage = data.reports.find(entry => entry?.image_url === hallImageUrl)
+    assert(reportedImage?.id, 'hall image report did not reach admin reports')
+    hallImageReportId = String(reportedImage.id)
+  })
+
+  await runCheck('POST /api/admin/taoyuan/hall/image-reports/:id/hide admin write path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/admin/taoyuan/hall/image-reports/${encodeURIComponent(hallImageReportId)}/hide`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken,
+      },
+      body: JSON.stringify({
+        reason: 'smoke hide image report',
+      }),
+    })
+    assert(response.ok, `hall image hide returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.asset?.status === 'hidden', 'hall image hide payload is incomplete')
+  })
+
+  await runCheck('POST /api/admin/taoyuan/image-blacklist/:username admin write path', async () => {
+    await bootstrapAuthOnlySession(imageBlacklistSessionState, 'smk3img')
+    const { response, data } = await fetchAuthedJson(`/api/admin/taoyuan/image-blacklist/${encodeURIComponent(imageBlacklistSessionState.username)}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': adminToken,
+      },
+      body: JSON.stringify({
+        blocked: true,
+        reason: 'smoke image blacklist',
+      }),
+    })
+    assert(response.ok, `hall image blacklist returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && Array.isArray(data?.blacklist), 'hall image blacklist payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/hall/upload-image blacklisted path', async () => {
+    const { response, data } = await fetchSessionJson(imageBlacklistSessionState, '/api/taoyuan/hall/upload-image', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        data_url: tinyPngDataUrl,
+        filename: 'smoke-hall-blacklisted.png',
+        usage: 'hall_post',
+      }),
+    })
+    assert(response.status === 403, `blacklisted hall upload should return 403, received ${response.status}`)
+    assert(data?.ok === false, 'blacklisted hall upload should be rejected')
   })
 
   let createdReplyId = ''
@@ -563,7 +708,6 @@ try {
     assert(data?.ok === true && data?.campaign?.id, 'system campaign payload is incomplete')
   })
 
-  const adminToken = String(process.env.ADMIN_TOKEN || '').trim()
   let rewardPostId = ''
   let rewardReplyId = ''
   let manorGuestbookEntryContent = ''
@@ -4036,6 +4180,361 @@ try {
 
   await runCheck('third session auth-only bootstrap', async () => {
     await bootstrapAuthOnlySession(tertiarySessionState, 'smk3')
+  })
+
+  await runCheck('governance session auth-only bootstrap', async () => {
+    await bootstrapAuthOnlySession(governanceSessionState, 'smk5')
+  })
+
+  let adminRollbackOrderId = ''
+  let adminPendingCompensationOrderId = ''
+  let adminPendingCompensationId = ''
+  let adminPendingActivityRoomId = ''
+  let governanceSeedMoney = 180
+  let governanceExpectedMoney = governanceSeedMoney
+  let governanceActivityRewardMoney = 0
+  await runCheck('POST /api/taoyuan/online/orders admin rollback setup', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: `admin rollback order ${Date.now()}`,
+        description: 'smoke admin rollback order',
+        order_type: 'material_help',
+        scope: 'public',
+        deadline_at: coopOrderDeadlineAt,
+        reward_type: 'money',
+        reward_value: 45,
+        reward_label: '回滚赏金',
+      }),
+    })
+    assert(response.ok, `admin rollback setup returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.order?.id, 'admin rollback setup payload is incomplete')
+    adminRollbackOrderId = String(data.order.id)
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders no-save compensation setup', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: `admin compensation order ${Date.now()}`,
+        description: 'smoke admin compensation order',
+        order_type: 'festival_supply',
+        scope: 'public',
+        deadline_at: coopOrderDeadlineAt,
+        reward_type: 'money',
+        reward_value: 88,
+        reward_label: '补偿赏金',
+      }),
+    })
+    assert(response.ok, `admin compensation setup returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.order?.id, 'admin compensation setup payload is incomplete')
+    adminPendingCompensationOrderId = String(data.order.id)
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/accept no-save compensation setup', async () => {
+    const { response, data } = await fetchSessionJson(governanceSessionState, `/api/taoyuan/online/orders/${encodeURIComponent(adminPendingCompensationOrderId)}/accept`, {
+      method: 'POST',
+    })
+    assert(response.ok, `no-save compensation accept returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.order?.assignee_username === governanceSessionState.username, 'no-save compensation accept payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/deliver no-save compensation setup', async () => {
+    const { response, data } = await fetchSessionJson(governanceSessionState, `/api/taoyuan/online/orders/${encodeURIComponent(adminPendingCompensationOrderId)}/deliver`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        delivery_note: 'smoke compensation delivery',
+        delivered_items: [
+          {
+            item_id: 'wintersweet',
+            quantity: 1,
+          },
+        ],
+      }),
+    })
+    assert(response.ok, `no-save compensation deliver returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.order?.delivery_status === 'submitted', 'no-save compensation deliver payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/confirm-delivery compensation pending path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/orders/${encodeURIComponent(adminPendingCompensationOrderId)}/confirm-delivery`, {
+      method: 'POST',
+    })
+    assert(response.ok, `compensation pending confirm returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.receipt?.status === 'compensation_pending', 'compensation pending confirm did not keep receipt pending')
+    assert(data?.order?.delivery_status === 'compensation_pending', 'compensation pending confirm did not keep order pending')
+    adminPendingCompensationId = String(data?.compensation?.id || '')
+    assert(adminPendingCompensationId, 'compensation pending confirm did not create compensation id')
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms no-save retry-close setup', async () => {
+    const createResponse = await fetchAuthedJson('/api/taoyuan/online/festival/rooms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        template_id: 'lantern_fair',
+        gameplay_template_id: 'gathering',
+        countdown_seconds: 1,
+        title: `admin retry close room ${Date.now()}`,
+      }),
+    })
+    assert(createResponse.response.ok, `admin retry-close room create returned ${createResponse.response.status}: ${createResponse.data?.msg || 'unknown error'}`)
+    assert(createResponse.data?.ok === true && createResponse.data?.room?.id, 'admin retry-close room create payload is incomplete')
+    adminPendingActivityRoomId = String(createResponse.data.room.id)
+
+    const inviteResponse = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(adminPendingActivityRoomId)}/invite`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: governanceSessionState.username,
+      }),
+    })
+    assert(inviteResponse.response.ok, `admin retry-close room invite returned ${inviteResponse.response.status}: ${inviteResponse.data?.msg || 'unknown error'}`)
+
+    const joinResponse = await fetchSessionJson(governanceSessionState, `/api/taoyuan/online/festival/rooms/${encodeURIComponent(adminPendingActivityRoomId)}/join`, {
+      method: 'POST',
+    })
+    assert(joinResponse.response.ok, `admin retry-close room join returned ${joinResponse.response.status}: ${joinResponse.data?.msg || 'unknown error'}`)
+
+    const readyCheckResponse = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(adminPendingActivityRoomId)}/ready-check`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(readyCheckResponse.response.ok, `admin retry-close room ready-check returned ${readyCheckResponse.response.status}: ${readyCheckResponse.data?.msg || 'unknown error'}`)
+
+    const hostReadyResponse = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(adminPendingActivityRoomId)}/ready`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(hostReadyResponse.response.ok, `admin retry-close room host ready returned ${hostReadyResponse.response.status}: ${hostReadyResponse.data?.msg || 'unknown error'}`)
+
+    const memberReadyResponse = await fetchSessionJson(governanceSessionState, `/api/taoyuan/online/festival/rooms/${encodeURIComponent(adminPendingActivityRoomId)}/ready`, {
+      method: 'POST',
+    })
+    assert(memberReadyResponse.response.ok, `admin retry-close room member ready returned ${memberReadyResponse.response.status}: ${memberReadyResponse.data?.msg || 'unknown error'}`)
+
+    const startResponse = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(adminPendingActivityRoomId)}/start`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(startResponse.response.ok, `admin retry-close room start returned ${startResponse.response.status}: ${startResponse.data?.msg || 'unknown error'}`)
+
+    await wait(2200)
+    const runningReadback = await fetchAuthedJson('/api/taoyuan/online/festival/rooms')
+    assert(runningReadback.response.ok, `admin retry-close running readback returned ${runningReadback.response.status}`)
+    assert(String(runningReadback.data?.my_room?.state || '') === 'running', 'admin retry-close room did not reach running')
+
+    const hostActionResponse = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(adminPendingActivityRoomId)}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        action_id: 'deliver_bundle',
+      }),
+    })
+    assert(hostActionResponse.response.ok, `admin retry-close host action returned ${hostActionResponse.response.status}: ${hostActionResponse.data?.msg || 'unknown error'}`)
+
+    const memberActionResponse = await fetchSessionJson(governanceSessionState, `/api/taoyuan/online/festival/rooms/${encodeURIComponent(adminPendingActivityRoomId)}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action_id: 'sort_bundle',
+      }),
+    })
+    assert(memberActionResponse.response.ok, `admin retry-close member action returned ${memberActionResponse.response.status}: ${memberActionResponse.data?.msg || 'unknown error'}`)
+
+    const settleResponse = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(adminPendingActivityRoomId)}/settle`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(settleResponse.response.ok, `admin retry-close room settle returned ${settleResponse.response.status}: ${settleResponse.data?.msg || 'unknown error'}`)
+    assert(String(settleResponse.data?.room?.state || '') === 'settling', 'admin retry-close room did not enter settling')
+
+    const closeResponse = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(adminPendingActivityRoomId)}/close`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(closeResponse.response.ok, `admin retry-close room initial close returned ${closeResponse.response.status}: ${closeResponse.data?.msg || 'unknown error'}`)
+    assert(String(closeResponse.data?.room?.state || '') === 'settling', 'admin retry-close room should stay settling before remediation')
+    const governanceReceipt = closeResponse.data?.room?.settlement_receipts?.find(entry => entry?.target_username === governanceSessionState.username)
+    assert(governanceReceipt?.status === 'compensation_pending', 'admin retry-close room did not leave the no-save member pending')
+    governanceActivityRewardMoney = Math.max(0, Math.floor(Number(governanceReceipt?.reward_payload?.money) || 0))
+  })
+
+  await runCheck('POST /api/admin/users/:username/status ban setup', async () => {
+    const { response, data } = await fetchAdminJson(`/api/admin/users/${encodeURIComponent(quaternarySessionState.username)}/status`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        status: 'banned',
+      }),
+    })
+    assert(response.ok, `ban setup returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.user?.status === 'banned', 'ban setup payload is incomplete')
+  })
+
+  await runCheck('GET /api/admin/taoyuan/overview governance read path', async () => {
+    const { response, data } = await fetchAdminJson('/api/admin/taoyuan/overview')
+    assert(response.ok, `admin overview returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.overview?.summary, 'admin overview payload is incomplete')
+    assert(Number(data.overview.summary.pending_coop_compensation_count) >= 1, 'admin overview did not expose pending coop compensations')
+    assert(Number(data.overview.summary.pending_activity_receipt_count) >= 1, 'admin overview did not expose pending activity receipts')
+    assert(data.overview.coop.compensations.some(entry => entry?.id === adminPendingCompensationId), 'admin overview did not expose the pending compensation record')
+    assert(data.overview.activities.rooms.some(entry => entry?.id === adminPendingActivityRoomId && entry?.state === 'settling'), 'admin overview did not expose the settling activity room')
+    assert(data.overview.recent_players.some(entry => entry?.username === quaternarySessionState.username && entry?.status === 'banned'), 'admin overview did not surface the banned player state')
+    assert(data.overview.societies.some(entry => entry?.id === createdSocietyId), 'admin overview did not surface the created society')
+  })
+
+  await runCheck('GET /api/admin/taoyuan/players governance read path', async () => {
+    const { response, data } = await fetchAdminJson('/api/admin/taoyuan/players?page=1&page_size=20&status=banned')
+    assert(response.ok, `admin players returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && Array.isArray(data?.users), 'admin players payload is incomplete')
+    assert(data.users.some(entry => entry?.username === quaternarySessionState.username && entry?.status === 'banned'), 'admin players did not expose the banned user')
+  })
+
+  await runCheck('GET /api/admin/taoyuan/societies governance read path', async () => {
+    const { response, data } = await fetchAdminJson('/api/admin/taoyuan/societies')
+    assert(response.ok, `admin societies returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && Array.isArray(data?.societies), 'admin societies payload is incomplete')
+    assert(data.societies.some(entry => entry?.id === createdSocietyId), 'admin societies did not expose the created society')
+  })
+
+  await runCheck('GET /api/admin/taoyuan/manors governance read path', async () => {
+    const { response, data } = await fetchAdminJson('/api/admin/taoyuan/manors?limit=10')
+    assert(response.ok, `admin manors returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && Array.isArray(data?.hot_manors), 'admin manors payload is incomplete')
+    assert(Array.isArray(data?.favorites?.favorites), 'admin manors favorites payload is incomplete')
+    assert(data.hot_manors.some(entry => entry?.manor_username === sessionState.username), 'admin manors did not surface the favorited hot manor')
+  })
+
+  await runCheck('GET /api/admin/taoyuan/orders governance read path', async () => {
+    const { response, data } = await fetchAdminJson('/api/admin/taoyuan/orders')
+    assert(response.ok, `admin orders returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.overview && Array.isArray(data.overview.orders) && Array.isArray(data.overview.compensations), 'admin orders payload is incomplete')
+    assert(data.overview.orders.some(entry => entry?.id === adminRollbackOrderId), 'admin orders did not expose the rollback candidate')
+    assert(data.overview.compensations.some(entry => entry?.id === adminPendingCompensationId && entry?.status === 'pending'), 'admin orders did not expose the pending compensation')
+  })
+
+  await runCheck('GET /api/admin/taoyuan/festival governance read path', async () => {
+    const { response, data } = await fetchAdminJson('/api/admin/taoyuan/festival?domain=festival')
+    assert(response.ok, `admin festival returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.rooms && Array.isArray(data.rooms.rooms) && Array.isArray(data.rooms.receipts), 'admin festival payload is incomplete')
+    assert(data.rooms.rooms.some(entry => entry?.id === adminPendingActivityRoomId && entry?.state === 'settling'), 'admin festival did not expose the settling room')
+    assert(data.rooms.receipts.some(entry => entry?.target_username === governanceSessionState.username && entry?.status === 'compensation_pending'), 'admin festival did not expose the pending receipt')
+  })
+
+  await runCheck('GET /api/admin/taoyuan/hall/overview governance read path', async () => {
+    const { response, data } = await fetchAdminJson('/api/admin/taoyuan/hall/overview')
+    assert(response.ok, `admin hall overview returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && Array.isArray(data?.posts) && Array.isArray(data?.reports) && Array.isArray(data?.image_reports) && Array.isArray(data?.blacklist), 'admin hall overview payload is incomplete')
+    assert(data.reports.some(entry => entry?.id === reportId), 'admin hall overview did not expose the hall report')
+  })
+
+  await runCheck('GET /api/admin/taoyuan/audit-logs governance read path', async () => {
+    const { response, data } = await fetchAdminJson('/api/admin/taoyuan/audit-logs?page=1&page_size=40&action=order_publish')
+    assert(response.ok, `admin taoyuan audit logs returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && Array.isArray(data?.logs), 'admin taoyuan audit logs payload is incomplete')
+    assert(data.logs.some(entry => entry?.action === 'order_publish'), 'admin taoyuan audit logs did not expose online order publish audits')
+  })
+
+  await runCheck('POST /api/admin/taoyuan/orders/:orderId/rollback admin path', async () => {
+    const { response, data } = await fetchAdminJson(`/api/admin/taoyuan/orders/${encodeURIComponent(adminRollbackOrderId)}/rollback`, {
+      method: 'POST',
+    })
+    assert(response.ok, `admin rollback returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.order?.id === adminRollbackOrderId, 'admin rollback payload is incomplete')
+    assert(String(data?.order?.status || '') === 'closed', 'admin rollback did not close the order')
+  })
+
+  await runCheck('POST /api/taoyuan/save/0 governance save provision path', async () => {
+    await seedSessionSave(governanceSessionState, governanceSeedMoney)
+  })
+
+  await runCheck('POST /api/admin/taoyuan/orders/compensations/:id/retry admin path', async () => {
+    const { response, data } = await fetchAdminJson(`/api/admin/taoyuan/orders/compensations/${encodeURIComponent(adminPendingCompensationId)}/retry`, {
+      method: 'POST',
+    })
+    assert(response.ok, `admin compensation retry returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.compensation?.status === 'resolved', 'admin compensation retry did not resolve the compensation')
+    assert(String(data?.receipt?.status || '') === 'confirmed', 'admin compensation retry did not confirm the receipt')
+    assert(String(data?.order?.delivery_status || '') === 'confirmed', 'admin compensation retry did not confirm the order')
+    governanceExpectedMoney += 88
+  })
+
+  await runCheck('POST /api/admin/taoyuan/festival/rooms/:roomId/retry-close admin path', async () => {
+    const { response, data } = await fetchAdminJson(`/api/admin/taoyuan/festival/rooms/${encodeURIComponent(adminPendingActivityRoomId)}/retry-close`, {
+      method: 'POST',
+    })
+    assert(response.ok, `admin retry-close returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.id === adminPendingActivityRoomId, 'admin retry-close payload is incomplete')
+    assert(String(data?.room?.state || '') === 'closed', 'admin retry-close did not close the room')
+    assert(Array.isArray(data?.room?.settlement_receipts) && data.room.settlement_receipts.every(entry => entry?.status === 'persisted'), 'admin retry-close did not persist all receipts')
+    governanceExpectedMoney += governanceActivityRewardMoney
+  })
+
+  await runCheck('GET /api/taoyuan/save/0 governance remediation persistence', async () => {
+    const { response, data } = await fetchSessionJson(governanceSessionState, '/api/taoyuan/save/0')
+    assert(response.ok, `governance save read returned ${response.status}`)
+    assert(data?.ok === true && typeof data?.raw === 'string', 'governance save payload is incomplete')
+    const decrypted = decryptTaoyuanRaw(data.raw)
+    assert(Number(decrypted?.player?.money) === governanceExpectedMoney, `governance remediation did not persist rewards correctly, expected money=${governanceExpectedMoney}, current money=${decrypted?.player?.money}`)
+  })
+
+  await runCheck('POST /api/admin/taoyuan/users/:username/unban admin path', async () => {
+    const { response, data } = await fetchAdminJson(`/api/admin/taoyuan/users/${encodeURIComponent(quaternarySessionState.username)}/unban`, {
+      method: 'POST',
+    })
+    assert(response.ok, `admin unban returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.user?.username === quaternarySessionState.username, 'admin unban payload is incomplete')
+    assert(String(data?.user?.status || '') === 'active', 'admin unban did not restore the account to active')
+  })
+
+  await runCheck('GET /api/admin/audit-logs governance admin log read path', async () => {
+    const { response, data } = await fetchAdminJson('/api/admin/audit-logs?page=1&page_size=80')
+    assert(response.ok, `admin audit logs returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && Array.isArray(data?.logs), 'admin audit logs payload is incomplete')
+    assert(data.logs.some(entry => entry?.action === 'rollback_coop_order' && entry?.detail?.order_id === adminRollbackOrderId), 'admin audit logs did not capture rollback_coop_order')
+    assert(data.logs.some(entry => entry?.action === 'retry_coop_compensation' && entry?.detail?.compensation_id === adminPendingCompensationId), 'admin audit logs did not capture retry_coop_compensation')
+    assert(data.logs.some(entry => entry?.action === 'retry_activity_room_close' && entry?.detail?.room_id === adminPendingActivityRoomId), 'admin audit logs did not capture retry_activity_room_close')
+    assert(data.logs.some(entry => entry?.action === 'unban_user' && entry?.target_username === quaternarySessionState.username), 'admin audit logs did not capture unban_user')
+  })
+
+  await runCheck('GET /api/admin/taoyuan/overview governance remediation readback', async () => {
+    const { response, data } = await fetchAdminJson('/api/admin/taoyuan/overview')
+    assert(response.ok, `admin overview remediation readback returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.overview?.summary, 'admin overview remediation payload is incomplete')
+    assert(!data.overview.coop.compensations.some(entry => entry?.id === adminPendingCompensationId && entry?.status === 'pending'), 'admin overview remediation still shows the resolved compensation as pending')
+    assert(!data.overview.activities.rooms.some(entry => entry?.id === adminPendingActivityRoomId && entry?.state === 'settling'), 'admin overview remediation still shows the repaired room as settling')
+    assert(data.overview.recent_players.some(entry => entry?.username === quaternarySessionState.username && entry?.status === 'active'), 'admin overview remediation did not refresh the unbanned account state')
   })
 
   let noSaveRewardPostId = ''

@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 const taoyuanExchangeLedger = require('./taoyuanExchangeLedger');
+const taoyuanImageModeration = require('./taoyuanImageModeration');
 const { moderateText } = require('./taoyuanTextModeration');
 const {
   createError,
@@ -61,6 +62,8 @@ const DEFAULT_PROFILE = Object.freeze({
   public_title: '',
   neighborhood_role: '',
   showcase_theme: '',
+  avatar_image_url: '',
+  avatar_image_alt: '',
   selected_tag_ids: [],
   public_since: 0,
   updated_at: 0,
@@ -853,6 +856,10 @@ function normalizeUsername(value) {
 }
 
 function normalizeStoredProfile(profile) {
+  const avatarImageUrl = sanitizeText(profile?.avatar_image_url, 500);
+  const avatarImageState = avatarImageUrl
+    ? taoyuanImageModeration.getUploadedImagePublicState(avatarImageUrl)
+    : { visible: true };
   return {
     visibility: normalizeVisibility(profile?.visibility),
     public_intro: sanitizeText(profile?.public_intro, 120),
@@ -860,6 +867,8 @@ function normalizeStoredProfile(profile) {
     public_title: sanitizeText(profile?.public_title, 24),
     neighborhood_role: sanitizeText(profile?.neighborhood_role, 24),
     showcase_theme: sanitizeText(profile?.showcase_theme, 24),
+    avatar_image_url: avatarImageState.visible ? avatarImageUrl : '',
+    avatar_image_alt: sanitizeText(profile?.avatar_image_alt, 120) || '名片头像',
     selected_tag_ids: Array.isArray(profile?.selected_tag_ids)
       ? Array.from(new Set(profile.selected_tag_ids.map(entry => String(entry).trim()).filter(entry => PROFILE_TAG_LABELS[entry]))).slice(0, 3)
       : [],
@@ -1459,6 +1468,8 @@ async function buildProfile(username, viewerUsername = '', options = {}) {
     neighborhood_role: storedProfile.neighborhood_role || '未加入邻里',
     showcase_theme: buildThemeLabel(goal, game, storedProfile),
     public_intro: storedProfile.public_intro,
+    avatar_image_url: storedProfile.avatar_image_url,
+    avatar_image_alt: storedProfile.avatar_image_alt,
     visibility: storedProfile.visibility,
     active_quest_count: activeQuestCount,
     public_tags: publicTags,
@@ -1525,6 +1536,11 @@ async function updateOwnProfile(username, payload = {}) {
     maxLength: 24,
     storageMaxLength: 24,
   });
+  const avatarImageUrl = sanitizeText(payload.avatar_image_url, 500);
+  if (avatarImageUrl) {
+    taoyuanImageModeration.ensureUsableUploadedImageUrl(avatarImageUrl, ['profile_avatar']);
+  }
+  const avatarImageAlt = sanitizeText(payload.avatar_image_alt, 120) || '名片头像';
   updateStoredProfile(username, {
     visibility: payload.visibility,
     public_intro: publicIntro,
@@ -1532,6 +1548,8 @@ async function updateOwnProfile(username, payload = {}) {
     public_title: publicTitle,
     neighborhood_role: neighborhoodRole,
     showcase_theme: showcaseTheme,
+    avatar_image_url: avatarImageUrl,
+    avatar_image_alt: avatarImageUrl ? avatarImageAlt : '',
     selected_tag_ids: payload.selected_tag_ids,
   });
   return buildProfile(username, username);

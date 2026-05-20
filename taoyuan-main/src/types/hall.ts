@@ -43,6 +43,8 @@ export interface HallImageBlock {
   alt: string
   width?: number | null
   height?: number | null
+  is_hidden?: boolean
+  hidden_reason?: string | null
 }
 
 export type HallContentBlock = HallTextBlock | HallImageBlock
@@ -115,6 +117,51 @@ export interface HallAdminReport {
   status: 'pending' | 'dismissed' | 'resolved'
   created_at: number
   resolved_at?: number | null
+}
+
+export interface HallImageAsset {
+  id: string
+  url: string
+  stored_name: string
+  filename: string
+  alt: string
+  mime: string
+  size_bytes: number
+  sha256: string
+  usage: 'hall_post' | 'mail_photo' | 'profile_avatar' | 'manor_cover' | 'admin_content'
+  uploader_username: string
+  uploader_display_name: string
+  status: 'active' | 'hidden'
+  hidden_reason: string
+  report_count: number
+  created_at: number
+  updated_at: number
+}
+
+export interface HallImageAdminReport {
+  id: string
+  image_url: string
+  stored_name: string
+  post_id: string
+  block_id: string
+  reason: string
+  reporter: string
+  reporter_display_name: string
+  target_username: string
+  target_display_name: string
+  usage: 'hall_post' | 'mail_photo' | 'profile_avatar' | 'manor_cover' | 'admin_content'
+  status: 'pending' | 'dismissed' | 'resolved'
+  created_at: number
+  resolved_at?: number | null
+}
+
+export interface HallImageBlacklistEntry {
+  username: string
+  display_name: string
+  reason?: string | null
+  created_by?: string
+  created_at: number
+  updated_at?: number
 }
 
 export interface HallBannedUser {

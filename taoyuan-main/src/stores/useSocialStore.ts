@@ -42,6 +42,8 @@ export interface PublicProfile {
   neighborhood_role: string
   showcase_theme: string
   public_intro: string
+  avatar_image_url: string
+  avatar_image_alt: string
   visibility: OnlineProfileVisibility
   active_quest_count: number
   public_tags: Array<{
@@ -139,6 +141,8 @@ export const useSocialStore = defineStore('onlineSocial', () => {
   const draftPublicTitle = ref('')
   const draftNeighborhoodRole = ref('')
   const draftShowcaseTheme = ref('')
+  const draftAvatarImageUrl = ref('')
+  const draftAvatarImageAlt = ref('')
   const draftSelectedTagIds = ref<string[]>([])
   const friendUsernameDraft = ref('')
   const relationshipLoading = ref(false)
@@ -178,7 +182,9 @@ export const useSocialStore = defineStore('onlineSocial', () => {
       draftManorName.value !== profile.value.manor_name ||
       draftPublicTitle.value !== profile.value.public_title ||
       draftNeighborhoodRole.value !== profile.value.neighborhood_role ||
-      draftShowcaseTheme.value !== profile.value.showcase_theme
+      draftShowcaseTheme.value !== profile.value.showcase_theme ||
+      draftAvatarImageUrl.value !== profile.value.avatar_image_url ||
+      draftAvatarImageAlt.value !== profile.value.avatar_image_alt
     )
   })
 
@@ -200,6 +206,8 @@ export const useSocialStore = defineStore('onlineSocial', () => {
       neighborhood_role: raw.neighborhood_role,
       showcase_theme: raw.showcase_theme,
       public_intro: raw.public_intro,
+      avatar_image_url: raw.avatar_image_url,
+      avatar_image_alt: raw.avatar_image_alt,
       visibility: raw.visibility,
       active_quest_count: raw.active_quest_count,
       public_tags: raw.public_tags,
@@ -216,6 +224,8 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     draftPublicTitle.value = raw.public_title
     draftNeighborhoodRole.value = raw.neighborhood_role
     draftShowcaseTheme.value = raw.showcase_theme
+    draftAvatarImageUrl.value = raw.avatar_image_url
+    draftAvatarImageAlt.value = raw.avatar_image_alt
     draftSelectedTagIds.value = [...raw.selected_tag_ids]
   }
 
@@ -248,6 +258,8 @@ export const useSocialStore = defineStore('onlineSocial', () => {
         public_title: draftPublicTitle.value,
         neighborhood_role: draftNeighborhoodRole.value,
         showcase_theme: draftShowcaseTheme.value,
+        avatar_image_url: draftAvatarImageUrl.value,
+        avatar_image_alt: draftAvatarImageAlt.value,
         selected_tag_ids: draftSelectedTagIds.value
       })
       hydrateFromProfile(raw ?? undefined)
@@ -568,6 +580,8 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     draftPublicTitle,
     draftNeighborhoodRole,
     draftShowcaseTheme,
+    draftAvatarImageUrl,
+    draftAvatarImageAlt,
     draftSelectedTagIds,
     friendUsernameDraft,
     hasProfile,

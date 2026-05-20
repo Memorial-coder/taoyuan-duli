@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
+const taoyuanImageModeration = require('./taoyuanImageModeration');
 const { moderateText } = require('./taoyuanTextModeration');
 const { createError, getActiveSaveContext } = require('./taoyuanSaveRuntime');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
@@ -337,11 +338,17 @@ function normalizeFollowEntry(entry) {
 }
 
 function normalizeThemeEntry(entry) {
+  const coverImageUrl = sanitizeText(entry?.cover_image_url, 500);
+  const coverImageState = coverImageUrl
+    ? taoyuanImageModeration.getUploadedImagePublicState(coverImageUrl)
+    : { visible: true };
   return {
     label: sanitizeText(entry?.label, 30),
     season: ['spring', 'summer', 'autumn', 'winter'].includes(String(entry?.season)) ? String(entry.season) : '',
     week_tag: sanitizeText(entry?.week_tag, 40),
     template_id: MANOR_TEMPLATE_PRESETS.some(item => item.id === entry?.template_id) ? String(entry.template_id) : 'showcase',
+    cover_image_url: coverImageState.visible ? coverImageUrl : '',
+    cover_image_alt: sanitizeText(entry?.cover_image_alt, 120) || '庄园主图',
     updated_at: Number(entry?.updated_at) || 0,
   };
 }
@@ -483,6 +490,8 @@ function buildThemeWeekState(username, gameplay = {}, showcaseTheme = '', public
     official_pick: officialPick,
     seasonal_options: [...seasonalOptions],
     template_id: savedTheme.template_id || 'showcase',
+    cover_image_url: savedTheme.cover_image_url || '',
+    cover_image_alt: savedTheme.cover_image_alt || '',
     template_options: MANOR_TEMPLATE_PRESETS.map(item => ({ ...item })),
   };
 }
@@ -635,6 +644,10 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
     visibility: profile.visibility,
     viewer_is_owner: viewer === user.username,
     manor_name: profile.manor_name,
+    avatar_image_url: profile.avatar_image_url || '',
+    avatar_image_alt: profile.avatar_image_alt || '',
+    cover_image_url: themeWeek.cover_image_url || '',
+    cover_image_alt: themeWeek.cover_image_alt || '',
     public_title: profile.public_title,
     showcase_theme: profile.showcase_theme,
     season_progress: buildSeasonLabel(game),
@@ -677,6 +690,10 @@ async function updateManorGuide(username, payload = {}) {
 }
 
 async function updateManorThemeWeek(username, payload = {}) {
+  const coverImageUrl = sanitizeText(payload.cover_image_url, 500);
+  if (coverImageUrl) {
+    taoyuanImageModeration.ensureUsableUploadedImageUrl(coverImageUrl, ['manor_cover']);
+  }
   updateThemeConfig(username, {
     label: moderateText(payload.label, {
       label: '庄园主题周标题',
@@ -688,6 +705,8 @@ async function updateManorThemeWeek(username, payload = {}) {
     season: payload.season,
     week_tag: payload.week_tag,
     template_id: payload.template_id,
+    cover_image_url: coverImageUrl,
+    cover_image_alt: coverImageUrl ? (sanitizeText(payload.cover_image_alt, 120) || '庄园主图') : '',
   });
   return buildManorSnapshot(username, username);
 }

@@ -219,6 +219,108 @@
             </div>
           </div>
         </div>
+
+        <Divider :label="`图片举报（${pendingImageReportsCount} 待处理）`" />
+        <div v-if="!adminImageReports.length" class="text-xs text-muted">当前没有图片举报记录。</div>
+        <div v-else class="space-y-2 max-h-[28vh] overflow-y-auto pr-1">
+          <div v-for="report in adminImageReports" :key="report.id" class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
+            <div class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+              <span>上传者：{{ report.target_display_name || report.target_username }}</span>
+              <span>举报人：{{ report.reporter_display_name }}</span>
+              <span>用途：{{ report.usage }}</span>
+              <span>时间：{{ formatTime(report.created_at) }}</span>
+              <span :class="report.status === 'pending' ? 'text-warning' : 'text-muted'">状态：{{ reportStatusLabel(report.status) }}</span>
+            </div>
+            <div class="text-sm leading-6 mb-3">{{ report.reason }}</div>
+            <div class="flex flex-wrap gap-2">
+              <button v-if="report.post_id" class="btn !px-2 !py-1" @click="openPost(report.post_id)">
+                <span>查看帖子</span>
+              </button>
+              <button
+                class="btn !px-2 !py-1"
+                @click="hideImageFromReport(report)"
+                :disabled="processingReportId === report.id || report.status !== 'pending'"
+              >
+                <span>{{ processingReportId === report.id ? '处理中...' : '隐藏图片' }}</span>
+              </button>
+              <button
+                class="btn btn-danger !px-2 !py-1"
+                @click="banImageUploader(report)"
+                :disabled="processingReportId === report.id || report.status !== 'pending'"
+              >
+                <span>{{ processingReportId === report.id ? '处理中...' : '封禁上传者' }}</span>
+              </button>
+              <button
+                class="btn !px-2 !py-1"
+                @click="updateImageReportStatus(report.id, 'resolved')"
+                :disabled="processingReportId === report.id || report.status !== 'pending'"
+              >
+                <span>标记已处理</span>
+              </button>
+              <button
+                class="btn !px-2 !py-1"
+                @click="updateImageReportStatus(report.id, 'dismissed')"
+                :disabled="processingReportId === report.id || report.status !== 'pending'"
+              >
+                <span>忽略</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <Divider label="最近上传图片" />
+        <div v-if="!adminImageAssets.length" class="text-xs text-muted">当前没有可管理的图片资产。</div>
+        <div v-else class="space-y-2 max-h-[24vh] overflow-y-auto pr-1">
+          <div v-for="asset in adminImageAssets" :key="asset.id" class="rounded-xs border border-accent/15 bg-bg/15 px-3 py-3">
+            <div class="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted">
+              <span>上传者：{{ asset.uploader_display_name || asset.uploader_username }}</span>
+              <span>用途：{{ asset.usage }}</span>
+              <span>状态：{{ asset.status === 'hidden' ? '已隐藏' : '可见' }}</span>
+              <span>时间：{{ formatTime(asset.created_at) }}</span>
+            </div>
+            <div class="mb-2 flex items-center gap-3">
+              <img v-if="asset.url && asset.status !== 'hidden'" :src="asset.url" :alt="asset.alt || '上传图片'" class="h-16 w-16 rounded-xs border border-accent/15 object-cover bg-bg/20" />
+              <div class="min-w-0 text-xs">
+                <p class="break-all text-text">{{ asset.filename || asset.stored_name }}</p>
+                <p class="mt-1 text-muted">{{ asset.alt || '未填写说明' }}</p>
+                <p v-if="asset.hidden_reason" class="mt-1 text-danger">{{ asset.hidden_reason }}</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button
+                class="btn !px-2 !py-1"
+                @click="hideImageAsset(asset)"
+                :disabled="processingReportId === asset.id || asset.status === 'hidden'"
+              >
+                <span>{{ processingReportId === asset.id ? '处理中...' : '直接隐藏' }}</span>
+              </button>
+              <button
+                v-if="asset.status !== 'hidden'"
+                class="btn btn-danger !px-2 !py-1"
+                @click="banImageAssetUploader(asset)"
+                :disabled="processingReportId === asset.id"
+              >
+                <span>封禁上传者</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <Divider label="图片黑名单" />
+        <div v-if="!imageBlacklist.length" class="text-xs text-muted">当前没有图片上传黑名单。</div>
+        <div v-else class="space-y-2 max-h-[20vh] overflow-y-auto pr-1">
+          <div v-for="entry in imageBlacklist" :key="entry.username" class="rounded-xs border border-danger/15 bg-bg/15 px-3 py-3">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <p class="text-xs text-danger">{{ entry.display_name || entry.username }}</p>
+                <p class="text-[10px] text-muted mt-1">{{ entry.reason || '管理员已限制该账号上传图片。' }}</p>
+              </div>
+              <button class="btn !px-2 !py-1" @click="setHallImageBlacklist(entry.username, false).then(loadAdminReports)" :disabled="processingReportId === entry.username">
+                解除限制
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="grid grid-cols-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">
@@ -383,13 +485,23 @@
                     {{ block.text }}
                   </div>
                   <div v-else class="space-y-2">
-                    <img
-                      :src="block.url"
-                      :alt="block.alt || '帖子图片'"
-                      class="hall-image"
-                      @click="openImage(block.url)"
-                    />
-                    <p v-if="block.alt" class="text-[11px] text-muted">{{ block.alt }}</p>
+                    <div v-if="block.is_hidden || !block.url" class="rounded-xs border border-danger/20 bg-danger/5 px-3 py-3 text-[11px] text-danger">
+                      {{ block.hidden_reason || '这张图片已被管理员隐藏。' }}
+                    </div>
+                    <template v-else>
+                      <img
+                        :src="block.url"
+                        :alt="block.alt || '帖子图片'"
+                        class="hall-image"
+                        @click="openImage(block.url)"
+                      />
+                      <p v-if="block.alt" class="text-[11px] text-muted">{{ block.alt }}</p>
+                      <div v-if="viewer.loggedIn && !selectedPost.viewer_is_author" class="flex justify-end">
+                        <button class="btn !px-2 !py-1" @click="reportImage(block.id)">
+                          <span>举报图片</span>
+                        </button>
+                      </div>
+                    </template>
                   </div>
                 </template>
               </div>
@@ -682,15 +794,21 @@
     createHallReply,
     deleteHallReplyByAdmin,
     deleteHallPost,
+    fetchHallAdminImageReports,
     fetchHallPostDetail,
     fetchHallAdminReports,
     fetchHallPosts,
     fetchHallViewer,
     hideHallPostByAdmin,
+    hideHallImageByAdmin,
+    setHallImageAssetVisibility,
     reportHallPost,
+    reportHallImage,
     reportHallReply,
     selectHallBestReply,
+    setHallImageBlacklist,
     solveHallPost,
+    updateHallAdminImageReportStatus,
     updateHallAdminReportStatus,
     uploadHallImage,
     likeHallPost,
@@ -699,7 +817,20 @@
     pinHallPost,
     featureHallPost,
   } from '@/utils/taoyuanHallApi'
-  import type { HallAdminReport, HallCategory, HallContentBlock, HallMineFilter, HallPostDetail, HallPostSummary, HallPostType, HallSort, HallViewer } from '@/types'
+  import type {
+    HallAdminReport,
+    HallCategory,
+    HallContentBlock,
+    HallImageAdminReport,
+    HallImageAsset,
+    HallImageBlacklistEntry,
+    HallMineFilter,
+    HallPostDetail,
+    HallPostSummary,
+    HallPostType,
+    HallSort,
+    HallViewer,
+  } from '@/types'
   import { useGoalStore } from '@/stores/useGoalStore'
 
   const router = useRouter()
@@ -728,6 +859,9 @@
   const showAdminReports = ref(false)
   const processingReportId = ref<string | null>(null)
   const adminReports = ref<HallAdminReport[]>([])
+  const adminImageReports = ref<HallImageAdminReport[]>([])
+  const adminImageAssets = ref<HallImageAsset[]>([])
+  const imageBlacklist = ref<HallImageBlacklistEntry[]>([])
 
   const category = ref<HallCategory>('all')
   const sortBy = ref<HallSort>('latest')
@@ -810,6 +944,7 @@
     })
   })
   const pendingReportsCount = computed(() => adminReports.value.filter(item => item.status === 'pending').length)
+  const pendingImageReportsCount = computed(() => adminImageReports.value.filter(item => item.status === 'pending').length)
 
   const mineOptions: Array<{ value: HallMineFilter; label: string }> = [
     { value: 'all', label: '全部帖子' },
@@ -1099,6 +1234,10 @@
     loadingAdminReports.value = true
     try {
       adminReports.value = await fetchHallAdminReports()
+      const imageData = await fetchHallAdminImageReports()
+      adminImageReports.value = imageData.reports
+      adminImageAssets.value = imageData.assets
+      imageBlacklist.value = imageData.blacklist
     } catch (error) {
       showFloat(error instanceof Error ? error.message : '获取举报列表失败', 'danger')
     } finally {
@@ -1235,6 +1374,94 @@
     }
   }
 
+  const reportImage = async (blockId: string) => {
+    if (!selectedPost.value) return
+    if (!(await ensureLoggedInForInteraction())) return
+    const reason = window.prompt('请输入图片举报原因（至少 2 个字）')?.trim() || ''
+    if (!reason) return
+    try {
+      await reportHallImage(selectedPost.value.id, blockId, reason)
+      showFloat('图片举报已提交', 'success')
+    } catch (error) {
+      showFloat(error instanceof Error ? error.message : '举报图片失败', 'danger')
+    }
+  }
+
+  const updateImageReportStatus = async (reportId: string, status: 'dismissed' | 'resolved') => {
+    processingReportId.value = reportId
+    try {
+      await updateHallAdminImageReportStatus(reportId, status)
+      await loadAdminReports()
+      showFloat(status === 'resolved' ? '图片举报已标记为已处理' : '图片举报已忽略', 'success')
+    } catch (error) {
+      showFloat(error instanceof Error ? error.message : '更新图片举报状态失败', 'danger')
+    } finally {
+      processingReportId.value = null
+    }
+  }
+
+  const hideImageFromReport = async (report: HallImageAdminReport) => {
+    processingReportId.value = report.id
+    try {
+      await hideHallImageByAdmin(report.id, report.reason)
+      await loadAdminReports()
+      if (selectedPost.value?.id === report.post_id) {
+        await openPost(report.post_id)
+      }
+      showFloat('图片已隐藏并处理举报', 'success')
+    } catch (error) {
+      showFloat(error instanceof Error ? error.message : '隐藏图片失败', 'danger')
+    } finally {
+      processingReportId.value = null
+    }
+  }
+
+  const hideImageAsset = async (asset: HallImageAsset) => {
+    processingReportId.value = asset.id
+    try {
+      await setHallImageAssetVisibility(asset.url, true, `管理员手动隐藏：${asset.usage}`)
+      await loadAdminReports()
+      if (selectedPost.value?.blocks.some(block => block.type === 'image' && block.url === asset.url)) {
+        await openPost(selectedPost.value.id)
+      }
+      showFloat('图片资产已隐藏', 'success')
+    } catch (error) {
+      showFloat(error instanceof Error ? error.message : '隐藏图片资产失败', 'danger')
+    } finally {
+      processingReportId.value = null
+    }
+  }
+
+  const banImageAssetUploader = async (asset: HallImageAsset) => {
+    if (!asset.uploader_username) return
+    processingReportId.value = asset.id
+    try {
+      await setHallImageBlacklist(asset.uploader_username, true, `图片资产违规：${asset.usage}`)
+      await setHallImageAssetVisibility(asset.url, true, `图片资产违规：${asset.usage}`)
+      await loadAdminReports()
+      showFloat('已封禁该图片上传者并隐藏图片资产', 'success')
+    } catch (error) {
+      showFloat(error instanceof Error ? error.message : '封禁图片资产上传者失败', 'danger')
+    } finally {
+      processingReportId.value = null
+    }
+  }
+
+  const banImageUploader = async (report: HallImageAdminReport) => {
+    if (!report.target_username) return
+    processingReportId.value = report.id
+    try {
+      await setHallImageBlacklist(report.target_username, true, report.reason || '图片违规处理')
+      await hideHallImageByAdmin(report.id, report.reason || '图片违规处理')
+      await loadAdminReports()
+      showFloat('已封禁该图片上传者并隐藏图片', 'success')
+    } catch (error) {
+      showFloat(error instanceof Error ? error.message : '封禁图片上传者失败', 'danger')
+    } finally {
+      processingReportId.value = null
+    }
+  }
+
   const pickBestReply = async (replyId: string) => {
     if (!selectedPost.value) return
     pickingBestReplyId.value = replyId
@@ -1306,14 +1533,14 @@
     input.value = ''
     if (!file) return
     if (!(await ensureLoggedInForInteraction())) return
-    if (file.size > 5 * 1024 * 1024) {
-      showFloat('单张图片不能超过 5MB', 'danger')
+    if (file.size > 4 * 1024 * 1024) {
+      showFloat('大厅插图不能超过 4MB', 'danger')
       return
     }
 
     uploadingImage.value = true
     try {
-      const uploaded = await uploadHallImage(file)
+      const uploaded = await uploadHallImage(file, 'hall_post')
       const insertAt = pendingInsertIndex.value !== null ? pendingInsertIndex.value + 1 : composerBlocks.value.length
       composerBlocks.value.splice(insertAt, 0, {
         id: createTempId(),

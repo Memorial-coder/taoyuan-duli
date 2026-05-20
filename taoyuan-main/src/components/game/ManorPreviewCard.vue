@@ -1,9 +1,20 @@
 <template>
   <div v-if="snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
+    <div v-if="snapshot.cover_image_url" class="overflow-hidden rounded-xs border border-accent/10 bg-bg/10">
+      <img :src="snapshot.cover_image_url" :alt="snapshot.cover_image_alt || '庄园主图'" class="h-40 w-full object-cover" />
+    </div>
     <div class="flex items-start justify-between gap-2">
-      <div>
+      <div class="flex items-start gap-2 min-w-0">
+        <img
+          v-if="snapshot.avatar_image_url"
+          :src="snapshot.avatar_image_url"
+          :alt="snapshot.avatar_image_alt || '名片头像'"
+          class="h-12 w-12 shrink-0 rounded-xs border border-accent/15 object-cover"
+        />
+        <div class="min-w-0">
         <p class="text-sm text-accent">{{ snapshot.manor_name }}</p>
         <p class="text-[10px] text-muted mt-1">{{ snapshot.public_title }} · {{ snapshot.display_name }}</p>
+        </div>
       </div>
       <div class="text-right">
         <p class="text-[10px] text-muted">{{ snapshot.season_progress }}</p>

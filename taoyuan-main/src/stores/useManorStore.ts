@@ -60,6 +60,8 @@ export const useManorStore = defineStore('onlineManor', () => {
   const favoriteOverview = ref<Awaited<ReturnType<typeof fetchFavoriteOverview>>>(null)
   const themeLabelDraft = ref('')
   const templateIdDraft = ref<ManorTemplateId>('showcase')
+  const coverImageUrlDraft = ref('')
+  const coverImageAltDraft = ref('')
   const themeActionRunning = ref(false)
   const guestbookPlaceholder = computed(() => GUESTBOOK_PLACEHOLDERS[guestbookKindDraft.value])
   const guestbookQuickPicks = computed(() => GUESTBOOK_QUICK_PICKS[guestbookKindDraft.value])
@@ -68,6 +70,8 @@ export const useManorStore = defineStore('onlineManor', () => {
   const syncThemeDrafts = (nextSnapshot: OnlineManorSnapshot | null) => {
     themeLabelDraft.value = nextSnapshot?.theme_week?.active_theme || nextSnapshot?.showcase_theme || ''
     templateIdDraft.value = nextSnapshot?.theme_week?.template_id || 'showcase'
+    coverImageUrlDraft.value = nextSnapshot?.theme_week?.cover_image_url || ''
+    coverImageAltDraft.value = nextSnapshot?.theme_week?.cover_image_alt || ''
   }
 
   const setGuestbookKind = (kind: ManorGuestbookKind) => {
@@ -220,6 +224,8 @@ export const useManorStore = defineStore('onlineManor', () => {
         season: snapshot.value.theme_week?.season || 'spring',
         week_tag: snapshot.value.theme_week?.week_tag || '',
         template_id: templateIdDraft.value,
+        cover_image_url: coverImageUrlDraft.value,
+        cover_image_alt: coverImageAltDraft.value,
       })
       snapshot.value = result?.snapshot ?? snapshot.value
       syncThemeDrafts(snapshot.value)
@@ -291,6 +297,8 @@ export const useManorStore = defineStore('onlineManor', () => {
     favoriteOverview,
     themeLabelDraft,
     templateIdDraft,
+    coverImageUrlDraft,
+    coverImageAltDraft,
     themeActionRunning,
     setGuestbookKind,
     applyGuestbookQuickPick,

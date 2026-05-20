@@ -36,6 +36,9 @@
             <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'logs' }" @click="switchAdminTab('logs')">
               <span>日志中心</span>
             </button>
+            <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'online' }" @click="switchAdminTab('online')">
+              <span>联机治理</span>
+            </button>
             <button class="btn" :class="{ '!bg-accent !text-bg': activeAdminTab === 'ai' }" @click="switchAdminTab('ai')">
               <span>AI 助手</span>
             </button>
@@ -547,6 +550,10 @@
         :can-view-audit="canManageMail"
       />
 
+      <div v-if="hasToken && activeAdminTab === 'online' && hasAdminAccess" class="game-panel">
+        <AdminOnlineGovernancePanel :can-load="hasAdminAccess" />
+      </div>
+
       <div v-if="hasToken && activeAdminTab === 'ai' && hasAdminAccess" class="game-panel">
         <AiAssistantAdminPanel />
       </div>
@@ -641,6 +648,7 @@
   import AdminHomepageAboutPanel from '@/components/game/AdminHomepageAboutPanel.vue'
   import AdminAndroidReleasePanel from '@/components/game/AdminAndroidReleasePanel.vue'
   import AdminLogCenterPanel from '@/components/game/AdminLogCenterPanel.vue'
+  import AdminOnlineGovernancePanel from '@/components/game/AdminOnlineGovernancePanel.vue'
   import AiAssistantAdminPanel from '@/components/game/AiAssistantAdminPanel.vue'
   import OfficialControlAdminPanel from '@/components/game/OfficialControlAdminPanel.vue'
   import { showFloat } from '@/composables/useGameLog'
@@ -823,7 +831,7 @@
   const composer = ref<ComposerState>(createComposer())
   const adminSession = ref<AdminSessionInfo | null>(null)
   const isAuthorized = ref(false)
-  const activeAdminTab = ref<'mail' | 'content' | 'android' | 'logs' | 'ai' | 'cloud' | 'debug'>('mail')
+  const activeAdminTab = ref<'mail' | 'content' | 'android' | 'logs' | 'online' | 'ai' | 'cloud' | 'debug'>('mail')
   const officialControlPlatformStatus = ref<OfficialControlPlatformStatus | null>(null)
 
   const loadingCampaigns = ref(false)
@@ -899,7 +907,7 @@
     void router.push('/')
   }
 
-  const switchAdminTab = (tab: 'mail' | 'content' | 'android' | 'logs' | 'ai' | 'cloud' | 'debug') => {
+  const switchAdminTab = (tab: 'mail' | 'content' | 'android' | 'logs' | 'online' | 'ai' | 'cloud' | 'debug') => {
     activeAdminTab.value = tab
     const nextQuery = { ...route.query }
     if (tab === 'mail') {
@@ -912,7 +920,7 @@
 
   const syncAdminTabFromRoute = () => {
     const routeTab = route.query.tab
-    if (routeTab === 'content' || routeTab === 'android' || routeTab === 'logs' || routeTab === 'ai' || routeTab === 'cloud' || routeTab === 'debug' || routeTab === 'mail') {
+    if (routeTab === 'content' || routeTab === 'android' || routeTab === 'logs' || routeTab === 'online' || routeTab === 'ai' || routeTab === 'cloud' || routeTab === 'debug' || routeTab === 'mail') {
       activeAdminTab.value = routeTab
       return
     }

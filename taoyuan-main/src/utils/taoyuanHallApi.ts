@@ -1,5 +1,19 @@
 import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
-import type { HallAdminReport, HallCategory, HallContentBlock, HallMineFilter, HallPostDetail, HallPostListResult, HallPostType, HallReportResult, HallSort, HallViewer } from '@/types'
+import type {
+  HallAdminReport,
+  HallCategory,
+  HallContentBlock,
+  HallImageAdminReport,
+  HallImageAsset,
+  HallImageBlacklistEntry,
+  HallMineFilter,
+  HallPostDetail,
+  HallPostListResult,
+  HallPostType,
+  HallReportResult,
+  HallSort,
+  HallViewer,
+} from '@/types'
 import { fetchProtectedJson, parseJsonSafe } from '@/utils/protectedApi'
 
 const ensureInteractionContext = async () => {
@@ -146,7 +160,10 @@ const readFileAsDataUrl = (file: File): Promise<string> => {
   })
 }
 
-export const uploadHallImage = async (file: File): Promise<{ url: string; alt: string }> => {
+export const uploadHallImage = async (
+  file: File,
+  usage: 'hall_post' | 'mail_photo' | 'profile_avatar' | 'manor_cover' = 'hall_post',
+): Promise<{ url: string; alt: string }> => {
   const dataUrl = await readFileAsDataUrl(file)
   const { data } = await fetchProtectedJson(async () => {
     const csrfToken = await ensureInteractionContext()
@@ -160,6 +177,7 @@ export const uploadHallImage = async (file: File): Promise<{ url: string; alt: s
       body: JSON.stringify({
         data_url: dataUrl,
         filename: file.name,
+        usage,
       }),
     })
   }, {
@@ -241,6 +259,28 @@ export const reportHallReply = async (postId: string, replyId: string, reason: s
   return data.report
 }
 
+export const reportHallImage = async (postId: string, blockId: string, reason: string): Promise<HallReportResult> => {
+  const { data } = await fetchProtectedJson(async () => {
+    const csrfToken = await ensureInteractionContext()
+    return fetch(`/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/blocks/${encodeURIComponent(blockId)}/report-image`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': csrfToken,
+      },
+      body: JSON.stringify({ reason }),
+    })
+  }, {
+    fallbackMessage: '举报图片失败',
+    networkErrorMessage: '交流大厅连接失败，请稍后重试'
+  })
+  if (!data?.report) {
+    throw new Error('举报图片失败')
+  }
+  return data.report
+}
+
 const getAdminToken = () => {
   if (typeof window === 'undefined') return ''
   return window.localStorage.getItem('admin_token') || ''
@@ -283,6 +323,118 @@ export const updateHallAdminReportStatus = async (reportId: string, status: 'dis
     throw new Error(data?.msg || '更新举报状态失败')
   }
   return data.report
+}
+
+export const fetchHallAdminImageReports = async (): Promise<{
+  reports: HallImageAdminReport[]
+  assets: HallImageAsset[]
+  blacklist: HallImageBlacklistEntry[]
+}> => {
+  const token = ensureAdminToken()
+  const res = await fetch('/api/admin/taoyuan/hall/image-reports', {
+    credentials: 'include',
+    headers: {
+      'X-Admin-Token': token,
+    },
+  })
+  const data = await parseJsonSafe(res)
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.msg || '获取图片举报列表失败')
+  }
+  return {
+    reports: Array.isArray(data.reports) ? data.reports : [],
+    assets: Array.isArray(data.assets) ? data.assets : [],
+    blacklist: Array.isArray(data.blacklist) ? data.blacklist : [],
+  }
+}
+
+export const updateHallAdminImageReportStatus = async (reportId: string, status: 'dismissed' | 'resolved'): Promise<HallImageAdminReport> => {
+  const token = ensureAdminToken()
+  const res = await fetch(`/api/admin/taoyuan/hall/image-reports/${encodeURIComponent(reportId)}/status`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Token': token,
+    },
+    body: JSON.stringify({ status }),
+  })
+  const data = await parseJsonSafe(res)
+  if (!res.ok || !data?.ok || !data?.report) {
+    throw new Error(data?.msg || '更新图片举报状态失败')
+  }
+  return data.report
+}
+
+export const hideHallImageByAdmin = async (reportId: string, reason: string): Promise<{ report: HallImageAdminReport; asset: HallImageAsset }> => {
+  const token = ensureAdminToken()
+  const res = await fetch(`/api/admin/taoyuan/hall/image-reports/${encodeURIComponent(reportId)}/hide`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Token': token,
+    },
+    body: JSON.stringify({ reason }),
+  })
+  const data = await parseJsonSafe(res)
+  if (!res.ok || !data?.ok || !data?.report || !data?.asset) {
+    throw new Error(data?.msg || '隐藏图片失败')
+  }
+  return {
+    report: data.report,
+    asset: data.asset,
+  }
+}
+
+export const setHallImageAssetVisibility = async (
+  imageUrl: string,
+  hidden: boolean,
+  reason = '',
+): Promise<HallImageAsset> => {
+  const token = ensureAdminToken()
+  const res = await fetch('/api/admin/taoyuan/hall/image-assets/hide', {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Token': token,
+    },
+    body: JSON.stringify({
+      image_url: imageUrl,
+      hidden,
+      reason,
+    }),
+  })
+  const data = await parseJsonSafe(res)
+  if (!res.ok || !data?.ok || !data?.asset) {
+    throw new Error(data?.msg || '更新图片可见性失败')
+  }
+  return data.asset
+}
+
+export const setHallImageBlacklist = async (
+  username: string,
+  blocked: boolean,
+  reason = '',
+): Promise<{ blacklist: HallImageBlacklistEntry[] }> => {
+  const token = ensureAdminToken()
+  const res = await fetch(`/api/admin/taoyuan/image-blacklist/${encodeURIComponent(username)}`, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Admin-Token': token,
+    },
+    body: JSON.stringify({ blocked, reason }),
+  })
+  const data = await parseJsonSafe(res)
+  if (!res.ok || !data?.ok) {
+    throw new Error(data?.msg || '更新图片黑名单失败')
+  }
+  return {
+    blacklist: Array.isArray(data.blacklist) ? data.blacklist : [],
+  }
 }
 
 export const hideHallPostByAdmin = async (postId: string, hidden: boolean, reason: string): Promise<{ id: string; hidden: boolean }> => {

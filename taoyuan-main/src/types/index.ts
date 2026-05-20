@@ -31,6 +31,7 @@ export * from './tutorial'
 export * from './promptNavigation'
 export * from './region'
 export * from './recordCenter'
+export * from './adminOnline'
 export type {
   BudgetChannelId,
   WeeklyBudgetChannelId,

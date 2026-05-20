@@ -8,6 +8,7 @@ const {
   persistGameplayData,
   writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime')
+const taoyuanImageModeration = require('./taoyuanImageModeration')
 
 const TAOYUAN_HALL_FILE = path.join(
   process.env.DB_STORAGE ? path.dirname(process.env.DB_STORAGE) : path.join(__dirname, '../data'),
@@ -30,6 +31,7 @@ const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 const DEFAULT_PAGE_SIZE = 20
 const MAX_PAGE_SIZE = 50
 const MAX_REPORT_REASON_LENGTH = 200
+const MAX_BLOCK_IMAGE_COUNT = 6
 
 let _taoyuanHallLockTail = Promise.resolve()
 
@@ -224,8 +226,13 @@ function sanitizeText(value, maxLength) {
 
 function sanitizeBlocksForStorage(blocks, legacyContent = '') {
   const normalized = normalizeBlocks(blocks, legacyContent)
+  const imageBlocks = normalized.filter(block => block?.type === 'image')
+  if (imageBlocks.length > MAX_BLOCK_IMAGE_COUNT) {
+    throw createError(`单条内容最多只能插入 ${MAX_BLOCK_IMAGE_COUNT} 张图片`)
+  }
   const sanitized = normalized.map(block => {
     if (block.type === 'image') {
+      taoyuanImageModeration.ensureUsableUploadedImageUrl(block.url, ['hall_post', 'admin_content'])
       return {
         id: String(block.id || makeId('hall_block')),
         type: 'image',
@@ -308,10 +315,29 @@ function buildSummary(post, viewerUsername = '') {
 
 function buildDetail(post, viewerUsername = '') {
   const summary = buildSummary(post, viewerUsername)
+  const blocks = (post.blocks || []).map(block => {
+    if (!block || block.type !== 'image') {
+      return block
+    }
+    const imageState = taoyuanImageModeration.getUploadedImagePublicState(block.url)
+    if (imageState.visible) {
+      return {
+        ...block,
+        is_hidden: false,
+        hidden_reason: '',
+      }
+    }
+    return {
+      ...block,
+      url: '',
+      is_hidden: true,
+      hidden_reason: imageState.hidden_reason || '这张图片已被管理员隐藏。',
+    }
+  })
   return {
     ...summary,
     content: post.content,
-    blocks: post.blocks || [],
+    blocks,
     replies: (post.replies || []).map(reply => ({
       ...reply,
       is_mine: !!viewerUsername && viewerUsername === reply.author,
@@ -551,6 +577,13 @@ function listReports() {
   return (data.reports || []).slice().sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
 }
 
+function listAdminPosts() {
+  const data = loadHallData()
+  return (data.posts || [])
+    .map(item => normalizePost(item))
+    .sort((left, right) => (right.last_activity_at || 0) - (left.last_activity_at || 0))
+}
+
 async function setReportStatus({ reportId, status }) {
   return withHallLock(async () => {
     const data = loadHallData()
@@ -685,7 +718,7 @@ async function selectBestReply({ postId, replyId, actor }) {
   })
 }
 
-async function saveUploadedImage({ dataUrl, filename = '', author = '' }) {
+async function saveUploadedImage({ dataUrl, filename = '', author = '', authorDisplayName = '', usage = 'hall_post' }) {
   const match = String(dataUrl || '').match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/)
   if (!match) throw createError('图片数据格式无效')
 
@@ -694,9 +727,13 @@ async function saveUploadedImage({ dataUrl, filename = '', author = '' }) {
   const ext = IMAGE_MIME_EXT[mime]
   if (!ext) throw createError('仅支持 JPG、PNG、WEBP、GIF 图片')
 
+  taoyuanImageModeration.assertImageUploadAllowed(author)
+  const uploadRule = taoyuanImageModeration.getUploadRule(usage)
   const buffer = Buffer.from(base64, 'base64')
   if (!buffer.length) throw createError('图片内容为空')
-  if (buffer.length > MAX_IMAGE_SIZE) throw createError('单张图片不能超过 5MB')
+  if (buffer.length > Math.min(MAX_IMAGE_SIZE, uploadRule.max_bytes)) {
+    throw createError(`${uploadRule.label}不能超过 ${Math.floor(uploadRule.max_bytes / 1024 / 1024)}MB`)
+  }
 
   ensureUploadsDir()
   const fileBase = sanitizeFilenameBase(filename) || sanitizeFilenameBase(author) || 'hall_image'
@@ -704,9 +741,24 @@ async function saveUploadedImage({ dataUrl, filename = '', author = '' }) {
   const savePath = path.join(HALL_UPLOADS_DIR, savedName)
   fs.writeFileSync(savePath, buffer)
 
-  return {
-    url: `/api/taoyuan/hall/uploads/${savedName}`,
+  const url = `/api/taoyuan/hall/uploads/${savedName}`
+  await taoyuanImageModeration.registerUploadedImage({
+    url,
+    stored_name: savedName,
+    filename,
     alt: fileBase,
+    mime,
+    size_bytes: buffer.length,
+    usage,
+    uploader_username: author,
+    uploader_display_name: authorDisplayName,
+  })
+
+  return {
+    url,
+    alt: fileBase,
+    usage: taoyuanImageModeration.getUploadRule(usage).id,
+    max_bytes: taoyuanImageModeration.getUploadRule(usage).max_bytes,
   }
 }
 
@@ -786,6 +838,7 @@ module.exports = {
   updateActiveSaveMoney,
   listPosts,
   getPost,
+  listAdminPosts,
   createPost,
   addReply,
   createReport,

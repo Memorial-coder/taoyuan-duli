@@ -18,6 +18,8 @@ export interface OnlineProfileResponse {
     neighborhood_role: string
     showcase_theme: string
     public_intro: string
+    avatar_image_url: string
+    avatar_image_alt: string
     visibility: OnlineProfileVisibility
     active_quest_count: number
     public_tags: Array<{
@@ -195,6 +197,10 @@ export interface OnlineManorSnapshot {
   visibility: OnlineProfileVisibility
   viewer_is_owner: boolean
   manor_name: string
+  avatar_image_url: string
+  avatar_image_alt: string
+  cover_image_url: string
+  cover_image_alt: string
   public_title: string
   showcase_theme: string
   season_progress: string
@@ -260,6 +266,8 @@ export interface OnlineManorSnapshot {
     official_pick: { label: string; reason: string } | null
     seasonal_options: string[]
     template_id: 'showcase' | 'operational' | 'festival' | 'collection' | 'story'
+    cover_image_url: string
+    cover_image_alt: string
     template_options: Array<{
       id: 'showcase' | 'operational' | 'festival' | 'collection' | 'story'
       label: string
@@ -287,6 +295,8 @@ export const saveOnlineProfile = async (payload: {
   public_title: string
   neighborhood_role: string
   showcase_theme: string
+  avatar_image_url?: string
+  avatar_image_alt?: string
   selected_tag_ids: string[]
 }): Promise<OnlineProfileResponse['profile'] | null> => {
   const account = await ensureCurrentAccount()
@@ -557,6 +567,8 @@ export const saveManorThemeWeek = async (payload: {
   season: string
   week_tag: string
   template_id: 'showcase' | 'operational' | 'festival' | 'collection' | 'story'
+  cover_image_url?: string
+  cover_image_alt?: string
 }) => {
   return requestSocialAction<{ ok: boolean; snapshot?: OnlineManorSnapshot }>('/api/taoyuan/online/manor/theme-week', {
     method: 'POST',

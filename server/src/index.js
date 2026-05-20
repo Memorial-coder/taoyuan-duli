@@ -23,12 +23,14 @@ if (String(process.env.QA_ONLINE_SMOKE_FORCE_LOCAL || '').trim().toLowerCase() =
 
 const fs = require('fs');
 const express = require('express');
+const compression = require('compression');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const session = require('express-session');
 const db = require('./db');
 const taoyuanHall = require('./taoyuanHall');
+const taoyuanImageModeration = require('./taoyuanImageModeration');
 const officialManagedConfig = require('./officialManagedConfig');
 
 const DATA_DIR = path.dirname(process.env.DB_STORAGE);
@@ -259,6 +261,7 @@ app.use(cors({
   credentials: true,
 }));
 app.use(morgan('combined'));
+app.use(compression({ threshold: 1024 }));
 app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: true, limit: '12mb' }));
 app.use('/taoyuan/hall/uploads', express.static(taoyuanHall.HALL_UPLOADS_DIR, {
@@ -266,6 +269,11 @@ app.use('/taoyuan/hall/uploads', express.static(taoyuanHall.HALL_UPLOADS_DIR, {
   lastModified: false,
   maxAge: '7d',
   fallthrough: false,
+  setHeaders(res, filePath) {
+    if (!taoyuanImageModeration.isUploadedImageVisibleByStoredName(path.basename(filePath))) {
+      res.statusCode = 404;
+    }
+  },
 }));
 app.use(session({
   name: 'taoyuan.sid',
@@ -291,18 +299,23 @@ const distPath = path.join(__dirname, '../../taoyuan-main/docs');
 if (fs.existsSync(distPath)) {
   const indexHtmlPath = path.join(distPath, 'index.html');
   app.use('/assets', express.static(path.join(distPath, 'assets'), {
-    maxAge: 0,
-    etag: false,
-    lastModified: false,
+    maxAge: '365d',
+    immutable: true,
     setHeaders(res) {
-      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
-      res.setHeader('Pragma', 'no-cache');
-      res.setHeader('Expires', '0');
+      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     }
   }));
-  app.use(express.static(distPath, { index: false, etag: false, lastModified: false }));
+  app.use(express.static(distPath, {
+    index: false,
+    maxAge: 0,
+    setHeaders(res, filePath) {
+      if (path.basename(filePath) === 'taoyuan-entry.css') {
+        res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
+      }
+    },
+  }));
   app.get('*', (req, res) => {
-    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
     res.sendFile(indexHtmlPath);
   });
   console.log(`✅ 桃源乡独立版前端已挂载: ${distPath}`);

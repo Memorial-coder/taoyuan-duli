@@ -54,6 +54,24 @@
 
     <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
       <p class="text-xs text-accent">庄园主题周</p>
+      <div class="border border-accent/10 rounded-xs p-2 bg-bg/10 space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <p class="text-[10px] text-muted">庄园主图</p>
+          <Button class="text-[10px]" :disabled="uploadingCover" @click="triggerCoverUpload">
+            {{ uploadingCover ? '上传中…' : '上传主图' }}
+          </Button>
+        </div>
+        <input ref="coverInputRef" type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" @change="handleCoverSelected" />
+        <div v-if="manorStore.coverImageUrlDraft" class="space-y-2">
+          <img :src="manorStore.coverImageUrlDraft" :alt="manorStore.coverImageAltDraft || '庄园主图'" class="max-h-40 w-full rounded-xs border border-accent/15 object-cover" />
+          <input
+            v-model="manorStore.coverImageAltDraft"
+            maxlength="120"
+            class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+            placeholder="主图说明"
+          />
+        </div>
+      </div>
       <div class="grid gap-2 md:grid-cols-2">
         <div class="border border-accent/10 rounded-xs p-2">
           <p class="text-[10px] text-muted mb-1">展示模板</p>
@@ -327,12 +345,16 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted } from 'vue'
+  import { computed, onMounted, ref } from 'vue'
   import Button from '@/components/game/Button.vue'
   import ManorPreviewCard from '@/components/game/ManorPreviewCard.vue'
   import { useManorStore } from '@/stores/useManorStore'
+  import { showFloat } from '@/composables/useGameLog'
+  import { uploadHallImage } from '@/utils/taoyuanHallApi'
 
   const manorStore = useManorStore()
+  const uploadingCover = ref(false)
+  const coverInputRef = ref<HTMLInputElement | null>(null)
   const guestbookKindOptions = [
     { id: 'text', label: '留言', helper: '自由写参观感受，适合留下完整的一句话。' },
     { id: 'blessing', label: '祝福', helper: '更适合节气问候、丰收祝愿和暖一点的回声。' },
@@ -400,6 +422,27 @@
 
   const saveThemeWeek = async () => {
     await manorStore.saveThemeWeekSnapshot().catch(() => {})
+  }
+
+  const triggerCoverUpload = () => {
+    coverInputRef.value?.click()
+  }
+
+  const handleCoverSelected = async (event: Event) => {
+    const input = event.target as HTMLInputElement | null
+    const file = input?.files?.[0]
+    if (!file) return
+    uploadingCover.value = true
+    try {
+      const uploaded = await uploadHallImage(file, 'manor_cover')
+      manorStore.coverImageUrlDraft = uploaded.url
+      manorStore.coverImageAltDraft = uploaded.alt || file.name.replace(/\.[^.]+$/, '')
+    } catch (error: any) {
+      showFloat(error?.message || '上传庄园主图失败', 'danger')
+    } finally {
+      uploadingCover.value = false
+      if (input) input.value = ''
+    }
   }
 
   onMounted(() => {

@@ -529,6 +529,41 @@ function updateStoredOrder(store, nextOrder) {
   });
 }
 
+function rollbackCoopOrder(orderId, actor = {}) {
+  const actorUsername = String(actor.username || '').trim();
+  if (!actorUsername) throw createError('请先登录后再回滚委托', 401);
+
+  const store = loadCoopOrderStore();
+  const order = findOrderById(store, orderId);
+  if (!order) throw createError('关联求助单不存在', 404);
+  const isAdminActor = ['admin', 'super_admin'].includes(String(actor.role || '').trim());
+  if (!isAdminActor && order.owner_username !== actorUsername) throw createError('只有发布人可以回滚委托', 403);
+  if (order.status !== 'open') throw createError('当前委托已进入交付流程，不能回滚');
+  if (order.assignee_username || order.delivery_status !== 'none') {
+    throw createError('只有未接单、未交付的委托才允许回滚');
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const nextOrder = normalizeOrder({
+    ...order,
+    status: 'closed',
+    assignee_username: '',
+    assignee_display_name: '',
+    accepted_at: 0,
+    canceled_at: now,
+    active_receipt_id: '',
+    delivery_status: 'none',
+    delivery_note: '',
+    delivered_items: [],
+    compensation_id: '',
+    updated_at: now,
+  });
+
+  updateStoredOrder(store, nextOrder);
+  saveCoopOrderStore(store);
+  return nextOrder;
+}
+
 function markExpiredOrders(store) {
   const now = Math.floor(Date.now() / 1000);
   let changed = false;
@@ -1296,7 +1331,8 @@ async function replayCoopOrderCompensation(compensationId, actor = {}) {
   if (!compensation) throw createError('补偿记录不存在', 404);
   const order = findOrderById(store, compensation.order_id);
   if (!order) throw createError('关联求助单不存在', 404);
-  if (order.owner_username !== actorUsername) throw createError('只有发布人可以重试补偿', 403);
+  const isAdminActor = ['admin', 'super_admin'].includes(String(actor.role || '').trim());
+  if (!isAdminActor && order.owner_username !== actorUsername) throw createError('只有发布人可以重试补偿', 403);
   if (compensation.status !== 'pending') throw createError('这条补偿记录已经处理完成');
   const receipt = findReceiptById(store, compensation.receipt_id);
   if (!receipt) throw createError('关联结算凭证不存在', 404);
@@ -1383,6 +1419,19 @@ async function replayCoopOrderCompensation(compensationId, actor = {}) {
   }
 }
 
+async function listAdminCoopOrders() {
+  const store = loadCoopOrderStore();
+  return {
+    orders: store.orders.map(normalizeOrder).sort((left, right) => right.updated_at - left.updated_at),
+    receipts: store.receipts.map(normalizeSettlementReceipt).sort((left, right) => right.updated_at - left.updated_at),
+    compensations: store.compensations.map(normalizeCompensationRecord).sort((left, right) => right.updated_at - left.updated_at),
+    reputation_summary: null,
+    order_type_options: [...ORDER_TYPES],
+    scope_options: [...ORDER_SCOPES],
+    reward_type_options: [...ORDER_REWARD_TYPES],
+  };
+}
+
 async function listVisibleCoopOrders(viewerUsername = '') {
   const store = loadCoopOrderStore();
   const normalizedViewer = String(viewerUsername || '').trim();
@@ -1435,10 +1484,12 @@ module.exports = {
   acceptCoopOrderStage,
   cancelAcceptedCoopOrder,
   cancelAcceptedCoopOrderStage,
+  rollbackCoopOrder,
   submitCoopOrderDelivery,
   submitCoopOrderStageDelivery,
   confirmCoopOrderDelivery,
   confirmCoopOrderStageDelivery,
   replayCoopOrderCompensation,
+  listAdminCoopOrders,
   listVisibleCoopOrders,
 };
