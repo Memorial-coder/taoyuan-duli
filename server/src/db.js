@@ -6,6 +6,7 @@ const path = require('path');
 const bcrypt = require('bcryptjs');
 const mysql = require('mysql2/promise');
 const { deleteUserSaveData } = require('./taoyuanSaveRuntime');
+const { moderateText } = require('./taoyuanTextModeration');
 
 const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
@@ -528,9 +529,24 @@ async function registerUser(username, password, displayName) {
   if (usernameError) return { ok: false, msg: usernameError };
   if (pwd.length < 6) return { ok: false, msg: '密码至少 6 位' };
 
+  const finalUsername = moderateText(normalized, {
+    label: '用户名',
+    field: 'username',
+    scene: 'register',
+    minLength: 2,
+    maxLength: 20,
+    storageMaxLength: 20,
+  });
   const passwordHash = await bcrypt.hash(pwd, 10);
   const createdAt = Math.floor(Date.now() / 1000);
-  const finalDisplayName = sanitizeDisplayName(displayName, normalized);
+  const finalDisplayName = moderateText(sanitizeDisplayName(displayName, finalUsername), {
+    label: '玩家昵称',
+    field: 'display_name',
+    scene: 'register',
+    minLength: 1,
+    maxLength: 30,
+    storageMaxLength: 30,
+  });
 
   if (MYSQL_ENABLED) {
     await ensureMysqlReady();
@@ -543,13 +559,13 @@ async function registerUser(username, password, displayName) {
 
     await pool.execute(
       'INSERT INTO users (username, username_key, display_name, password_hash, quota, created_at, deleted_at) VALUES (?, ?, ?, ?, ?, ?, NULL)',
-      [normalized, usernameKey, finalDisplayName, passwordHash, DEFAULT_USER_QUOTA, createdAt]
+      [finalUsername, usernameKey, finalDisplayName, passwordHash, DEFAULT_USER_QUOTA, createdAt]
     );
 
     return {
       ok: true,
       user: {
-        username: normalized,
+        username: finalUsername,
         display_name: finalDisplayName,
         quota: DEFAULT_USER_QUOTA,
         dollars: parseFloat((DEFAULT_USER_QUOTA / EXCHANGE_RATE).toFixed(4)),
@@ -563,7 +579,7 @@ async function registerUser(username, password, displayName) {
   }
 
   const nextUser = {
-    username: normalized,
+    username: finalUsername,
     username_key: usernameKey,
     display_name: finalDisplayName,
     password_hash: passwordHash,

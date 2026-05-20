@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
+const { moderateText } = require('./taoyuanTextModeration');
 const {
   createError,
   ensureTaoyuanSavesDir,
@@ -728,8 +729,20 @@ async function sendPlayerLetter(payload = {}, actor = {}) {
     const recipient = targetUsers[0];
     if (!recipient) throw createError('收件账号不存在，请检查用户名是否填写正确');
 
-    const title = sanitizeText(payload?.title, MAX_TITLE_LENGTH);
-    const content = sanitizeText(payload?.content, MAX_CONTENT_LENGTH);
+    const title = moderateText(payload?.title, {
+      label: '信件标题',
+      field: 'title',
+      scene: 'player_letter',
+      maxLength: MAX_TITLE_LENGTH,
+      storageMaxLength: MAX_TITLE_LENGTH,
+    });
+    const content = moderateText(payload?.content, {
+      label: '信件正文',
+      field: 'content',
+      scene: 'player_letter',
+      maxLength: MAX_CONTENT_LENGTH,
+      storageMaxLength: MAX_CONTENT_LENGTH,
+    });
     const photoUrl = sanitizeText(payload?.photo_url, 300);
     const photoAlt = sanitizeText(payload?.photo_alt, 80);
     if (title.length < 2) throw createError('信件标题至少需要 2 个字');
@@ -873,8 +886,20 @@ async function sendPlayerGiftPackage(payload = {}, actor = {}) {
     const recipient = targetUsers[0];
     if (!recipient) throw createError('收件账号不存在，请检查用户名是否填写正确');
 
-    const title = sanitizeText(payload?.title, MAX_TITLE_LENGTH);
-    const content = sanitizeText(payload?.content, MAX_CONTENT_LENGTH);
+    const title = moderateText(payload?.title, {
+      label: '包裹标题',
+      field: 'title',
+      scene: 'player_gift_package',
+      maxLength: MAX_TITLE_LENGTH,
+      storageMaxLength: MAX_TITLE_LENGTH,
+    });
+    const content = moderateText(payload?.content, {
+      label: '包裹附言',
+      field: 'content',
+      scene: 'player_gift_package',
+      maxLength: MAX_CONTENT_LENGTH,
+      storageMaxLength: MAX_CONTENT_LENGTH,
+    });
     if (title.length < 2) throw createError('包裹标题至少需要 2 个字');
 
     const rewards = Array.isArray(payload?.rewards) ? payload.rewards.map(normalizeReward).filter(Boolean) : [];

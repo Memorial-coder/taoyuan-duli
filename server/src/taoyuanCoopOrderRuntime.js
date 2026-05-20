@@ -8,6 +8,7 @@ const {
   writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
+const { moderateText } = require('./taoyuanTextModeration');
 
 const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
@@ -683,8 +684,20 @@ async function createCoopOrder(payload = {}, actor = {}) {
   const ownerUser = await db.getUser(ownerUsername);
   if (!ownerUser) throw createError('当前玩家不存在', 404);
 
-  const title = sanitizeText(payload.title, 40);
-  const description = sanitizeText(payload.description, 160);
+  const title = moderateText(payload.title, {
+    label: '求助单标题',
+    field: 'title',
+    scene: 'coop_order',
+    maxLength: 40,
+    storageMaxLength: 40,
+  });
+  const description = moderateText(payload.description, {
+    label: '求助内容',
+    field: 'description',
+    scene: 'coop_order',
+    maxLength: 160,
+    storageMaxLength: 160,
+  });
   if (title.length < 2) throw createError('求助单标题至少需要 2 个字');
   if (description.length < 4) throw createError('求助内容至少需要 4 个字');
 
@@ -698,8 +711,20 @@ async function createCoopOrder(payload = {}, actor = {}) {
   const rawStageDefinitions = Array.isArray(payload.stage_definitions)
     ? payload.stage_definitions
         .map(entry => ({
-          title: sanitizeText(entry?.title, 40),
-          description: sanitizeText(entry?.description, 120),
+          title: moderateText(entry?.title, {
+            label: '阶段标题',
+            field: 'stage_title',
+            scene: 'coop_order_stage',
+            maxLength: 40,
+            storageMaxLength: 40,
+          }),
+          description: moderateText(entry?.description, {
+            label: '阶段说明',
+            field: 'stage_description',
+            scene: 'coop_order_stage',
+            maxLength: 120,
+            storageMaxLength: 120,
+          }),
           preferred_order_type: normalizeOrderType(entry?.preferred_order_type || payload.order_type),
           target_item_id: sanitizeText(entry?.target_item_id, 40),
           target_quantity: Math.max(1, Math.floor(Number(entry?.target_quantity) || 1)),

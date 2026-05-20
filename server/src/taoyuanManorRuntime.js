@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
+const { moderateText } = require('./taoyuanTextModeration');
 const { createError, getActiveSaveContext } = require('./taoyuanSaveRuntime');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
 
@@ -517,7 +518,15 @@ async function leaveGuestbookEntry(payload = {}, actor = {}) {
   if (!targetUsername) throw createError('请先指定庄园主人');
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标庄园不存在', 404);
-  const content = sanitizeText(payload.content, 160);
+  const content = moderateText(payload.content, {
+    label: '庄园留言',
+    field: 'content',
+    scene: 'manor_guestbook',
+    minLength: 1,
+    maxLength: 160,
+    storageMaxLength: 160,
+    maxLineBreaks: 3,
+  });
   if (content.length < 1) throw createError('留言内容不能为空');
 
   const store = loadGuestbookStore();
@@ -546,7 +555,15 @@ async function replyGuestbookEntry(entryId, payload = {}, actor = {}) {
     .find(item => item.id === String(entryId || '').trim());
   if (!entry) throw createError('留言不存在', 404);
   if (entry.target_username !== actor.username) throw createError('只有庄园主人可以回复留言', 403);
-  const replyText = sanitizeText(payload.reply_text, 160);
+  const replyText = moderateText(payload.reply_text, {
+    label: '留言回复',
+    field: 'reply_text',
+    scene: 'manor_guestbook_reply',
+    minLength: 1,
+    maxLength: 160,
+    storageMaxLength: 160,
+    maxLineBreaks: 3,
+  });
   if (replyText.length < 1) throw createError('回复内容不能为空');
 
   entry.reply_text = replyText;
@@ -661,7 +678,13 @@ async function updateManorGuide(username, payload = {}) {
 
 async function updateManorThemeWeek(username, payload = {}) {
   updateThemeConfig(username, {
-    label: payload.label,
+    label: moderateText(payload.label, {
+      label: '庄园主题周标题',
+      field: 'label',
+      scene: 'manor_theme_week',
+      maxLength: 30,
+      storageMaxLength: 30,
+    }),
     season: payload.season,
     week_tag: payload.week_tag,
     template_id: payload.template_id,

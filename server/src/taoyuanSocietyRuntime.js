@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
+const { moderateText } = require('./taoyuanTextModeration');
 const {
   createError,
   getActiveSaveContext,
@@ -2107,7 +2108,13 @@ async function updateSocietyNotice(payload = {}, actor = {}) {
   const society = findMemberSociety(store, actorUsername);
   if (!society) throw createError('你当前没有加入村社');
   ensureSocietyMemberRole(society, actorUsername, SOCIETY_NOTICE_EDITOR_ROLES, '只有社长、管事或记录人可以更新公告');
-  society.notice = sanitizeText(payload.notice, 160);
+  society.notice = moderateText(payload.notice, {
+    label: '村社公告',
+    field: 'notice',
+    scene: 'society_notice',
+    maxLength: 160,
+    storageMaxLength: 160,
+  });
   appendSocietyActivity(society, `${actorDisplayName}更新了村社公告`, 'notice');
   updateSocietyInStore(store, society);
   saveSocietyStore(store);
@@ -2125,13 +2132,26 @@ async function createSocietyProposal(payload = {}, actor = {}) {
   if (!society) throw createError('你当前没有加入村社');
   ensureSocietyMemberRole(society, actorUsername, Object.keys(SOCIETY_ROLE_LABELS), '只有成员可以发起提案');
 
-  const title = sanitizeText(payload.title, 40);
+  const title = moderateText(payload.title, {
+    label: '提案标题',
+    field: 'title',
+    scene: 'society_proposal',
+    maxLength: 40,
+    storageMaxLength: 40,
+  });
+  const summary = moderateText(payload.summary, {
+    label: '提案摘要',
+    field: 'summary',
+    scene: 'society_proposal',
+    maxLength: 120,
+    storageMaxLength: 120,
+  });
   if (title.length < 2) throw createError('提案标题至少 2 个字');
 
   const proposal = normalizeSocietyProposal({
     id: makeId('society_proposal'),
     title,
-    summary: payload.summary,
+    summary,
     kind: payload.kind,
     status: 'open',
     created_by: actorUsername,

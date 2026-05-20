@@ -93,6 +93,12 @@ const assert = (condition, message) => {
   if (!condition) throw new Error(message)
 }
 
+const assertRejectedResponse = (response, data, label, expectedStatus = 400) => {
+  assert(response.status === expectedStatus, `${label} should return ${expectedStatus}, received ${response.status}`)
+  assert(data?.ok === false, `${label} should return ok=false`)
+  assert(typeof data?.msg === 'string' && data.msg, `${label} should expose a rejection message`)
+}
+
 const fetchJson = async (pathname, init) => {
   const response = await fetch(`${baseURL}${pathname}`, init)
   let data = null
@@ -399,6 +405,36 @@ try {
     assert(data?.ok === false, 'unauth hall post create should return ok=false')
   })
 
+  await runCheck('POST /api/register moderation reject path', async () => {
+    const bannedUsername = `台独${Math.random().toString(36).slice(2, 4)}`
+    const bannedDisplayUsername = `smkban${Math.random().toString(36).slice(2, 8)}`
+    const rejectedUsername = await fetchJson('/api/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: bannedUsername,
+        password: 'SmokePass_register',
+        display_name: '正常昵称',
+      }),
+    })
+    assertRejectedResponse(rejectedUsername.response, rejectedUsername.data, 'register moderation username')
+
+    const rejectedDisplayName = await fetchJson('/api/register', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        username: bannedDisplayUsername,
+        password: 'SmokePass_display',
+        display_name: '傻逼昵称',
+      }),
+    })
+    assertRejectedResponse(rejectedDisplayName.response, rejectedDisplayName.data, 'register moderation display_name')
+  })
+
   await runCheck('register + session bootstrap', async () => {
     await bootstrapSession(sessionState, 'smk', 1200)
   })
@@ -531,11 +567,21 @@ try {
   let rewardPostId = ''
   let rewardReplyId = ''
   let manorGuestbookEntryContent = ''
+  let societyNoticeText = ''
   const playerLetterTitle = `smoke player letter ${Date.now()}`
   const playerLetterContent = '这是一封来自联机 smoke 的玩家书信，用来验证互寄来信链路。'
   const playerGiftPackageTitle = `smoke gift package ${Date.now()}`
   let playerGiftPackageMailId = ''
   const coopOrderDeadlineAt = Math.floor(Date.now() / 1000) + 2 * 24 * 60 * 60
+  const coopProfileSetupPayload = {
+    visibility: 'public',
+    public_intro: 'smoke coop helper',
+    manor_name: '协作试验庄',
+    public_title: '互助试验员',
+    neighborhood_role: '互助成员',
+    showcase_theme: '节庆备货',
+    selected_tag_ids: ['festival', 'mutual_aid'],
+  }
   const publicCoopOrderTitle = `public coop order ${Date.now()}`
   const friendCoopOrderTitle = `friend coop order ${Date.now()}`
   const neighborCoopOrderTitle = `neighbor coop order ${Date.now()}`
@@ -579,6 +625,21 @@ try {
     })
     assert(response.ok, `manor guestbook write returned ${response.status}`)
     assert(data?.ok === true && data?.entry?.id, 'manor guestbook write payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/manor/guestbook moderation reject path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/manor/guestbook', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: sessionState.username,
+        kind: 'suggestion',
+        content: '这里写着台独口号',
+      }),
+    })
+    assertRejectedResponse(response, data, 'manor guestbook moderation')
   })
 
   await runCheck('POST /api/taoyuan/online/manor/visit write path', async () => {
@@ -660,6 +721,22 @@ try {
     const sentLetter = data.mails.find(entry => entry?.title === playerLetterTitle)
     assert(sentLetter, 'player-letter was not visible in sender outbox')
     assert(sentLetter?.recipient_username === secondarySessionState.username, 'player-letter outbox recipient did not match')
+  })
+
+  await runCheck('POST /api/taoyuan/mail/player-letter moderation reject path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/mail/player-letter', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: secondarySessionState.username,
+        title: '台独信件',
+        content: '这封信里带有台独内容，应当被审核拦截。',
+        template_type: 'season_greeting',
+      }),
+    })
+    assertRejectedResponse(response, data, 'player-letter moderation')
   })
 
   await runCheck('POST /api/taoyuan/mail/player-gift-package write path', async () => {
@@ -812,6 +889,26 @@ try {
     assert(data?.ok === true && data?.order?.title === publicCoopOrderTitle, 'public coop order payload is incomplete')
     publicCoopOrderId = String(data?.order?.id || '')
     assert(publicCoopOrderId, 'public coop order id was not created')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders moderation reject path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: '台独求助单',
+        description: '这是一条应该被文本审核拦住的求助内容。',
+        order_type: 'material_help',
+        scope: 'public',
+        deadline_at: coopOrderDeadlineAt,
+        reward_type: 'money',
+        reward_value: 120,
+        reward_label: '铜钱回报',
+      }),
+    })
+    assertRejectedResponse(response, data, 'coop order moderation')
   })
 
   await runCheck('GET /api/taoyuan/online/orders public read path', async () => {
@@ -1016,18 +1113,28 @@ try {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({
-        visibility: 'public',
-        public_intro: 'smoke coop helper',
-        manor_name: '协作试验庄',
-        public_title: '互助试验员',
-        neighborhood_role: '互助成员',
-        showcase_theme: '节庆备货',
-        selected_tag_ids: ['festival', 'mutual_aid'],
-      }),
+      body: JSON.stringify(coopProfileSetupPayload),
     })
     assert(response.ok, `coop recommendation profile setup returned ${response.status}`)
     assert(data?.ok === true && Array.isArray(data?.profile?.public_tags), 'coop recommendation profile setup payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/profile moderation reject path', async () => {
+    const rejectedUpdate = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/profile', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        ...coopProfileSetupPayload,
+        manor_name: '台独庄园',
+      }),
+    })
+    assertRejectedResponse(rejectedUpdate.response, rejectedUpdate.data, 'online profile moderation')
+
+    const readback = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/profile')
+    assert(readback.response.ok, `profile moderation readback returned ${readback.response.status}`)
+    assert(String(readback.data?.profile?.manor_name || '') === coopProfileSetupPayload.manor_name, 'profile moderation reject should keep the previous manor name')
   })
 
   await runCheck('POST /api/taoyuan/online/orders friends write path', async () => {
@@ -3016,18 +3123,35 @@ try {
   })
 
   await runCheck('POST /api/taoyuan/online/societies/notice write path', async () => {
-    const noticeText = `smoke society notice ${Date.now()}`
+    societyNoticeText = `smoke society notice ${Date.now()}`
     const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies/notice', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        notice: noticeText,
+        notice: societyNoticeText,
       }),
     })
     assert(response.ok, `society notice update returned ${response.status}: ${data?.msg || 'unknown error'}`)
-    assert(String(data?.overview?.my_society?.notice || '') === noticeText, 'society notice update did not preserve the new notice')
+    assert(String(data?.overview?.my_society?.notice || '') === societyNoticeText, 'society notice update did not preserve the new notice')
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/notice moderation reject path', async () => {
+    const rejectedNotice = await fetchAuthedJson('/api/taoyuan/online/societies/notice', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        notice: '台独村社公告',
+      }),
+    })
+    assertRejectedResponse(rejectedNotice.response, rejectedNotice.data, 'society notice moderation')
+
+    const readback = await fetchAuthedJson('/api/taoyuan/online/societies')
+    assert(readback.response.ok, `society notice moderation readback returned ${readback.response.status}`)
+    assert(String(readback.data?.my_society?.notice || '') === societyNoticeText, 'society notice moderation reject should keep the previous notice')
   })
 
   await runCheck('POST /api/taoyuan/online/societies/proposals write path', async () => {

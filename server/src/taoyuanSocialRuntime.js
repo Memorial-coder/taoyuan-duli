@@ -2,6 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 const taoyuanExchangeLedger = require('./taoyuanExchangeLedger');
+const { moderateText } = require('./taoyuanTextModeration');
 const {
   createError,
   getActiveSaveContext,
@@ -1488,13 +1489,49 @@ async function getPublicProfile(username, viewerUsername = '') {
 }
 
 async function updateOwnProfile(username, payload = {}) {
+  const publicIntro = moderateText(payload.public_intro, {
+    label: '公开介绍',
+    field: 'public_intro',
+    scene: 'online_profile',
+    maxLength: 120,
+    storageMaxLength: 120,
+    maxLineBreaks: 3,
+  });
+  const manorName = moderateText(payload.manor_name, {
+    label: '庄园名',
+    field: 'manor_name',
+    scene: 'online_profile',
+    maxLength: 40,
+    storageMaxLength: 40,
+  });
+  const publicTitle = moderateText(payload.public_title, {
+    label: '公开称号',
+    field: 'public_title',
+    scene: 'online_profile',
+    maxLength: 24,
+    storageMaxLength: 24,
+  });
+  const neighborhoodRole = moderateText(payload.neighborhood_role, {
+    label: '邻里身份',
+    field: 'neighborhood_role',
+    scene: 'online_profile',
+    maxLength: 24,
+    storageMaxLength: 24,
+  });
+  const showcaseTheme = moderateText(payload.showcase_theme, {
+    label: '展示主题',
+    field: 'showcase_theme',
+    scene: 'online_profile',
+    maxLength: 24,
+    storageMaxLength: 24,
+  });
   updateStoredProfile(username, {
     visibility: payload.visibility,
-    public_intro: payload.public_intro,
-    manor_name: payload.manor_name,
-    public_title: payload.public_title,
-    neighborhood_role: payload.neighborhood_role,
-    showcase_theme: payload.showcase_theme,
+    public_intro: publicIntro,
+    manor_name: manorName,
+    public_title: publicTitle,
+    neighborhood_role: neighborhoodRole,
+    showcase_theme: showcaseTheme,
     selected_tag_ids: payload.selected_tag_ids,
   });
   return buildProfile(username, username);
