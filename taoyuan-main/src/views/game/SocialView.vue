@@ -114,6 +114,98 @@
             </div>
           </div>
         </div>
+
+        <div class="border border-accent/10 rounded-xs p-2 text-xs">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[10px] text-muted">荣誉系统</p>
+            <span class="text-[10px] text-muted">
+              已解锁 {{ unlockedHonorCount }}/{{ socialStore.profile.award_showcase.honors.length }}
+            </span>
+          </div>
+          <div class="space-y-2 mt-2">
+            <div
+              v-for="entry in socialStore.profile.award_showcase.honors"
+              :key="entry.id"
+              class="border rounded-xs px-2 py-2"
+              :class="entry.unlocked ? 'border-accent/20 bg-accent/5' : 'border-accent/10 bg-bg/10'"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs" :class="entry.unlocked ? 'text-accent' : 'text-muted'">{{ entry.label }}</p>
+                <span class="text-[10px]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
+                  {{ entry.unlocked ? formatChronicleDate(entry.recorded_at) : '未达成' }}
+                </span>
+              </div>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.unlocked ? entry.detail || entry.summary : entry.summary }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="border border-accent/10 rounded-xs p-2 text-xs">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[10px] text-muted">纪念品与称号</p>
+            <span class="text-[10px] text-muted">
+              纪念 {{ unlockedCommemorativeCount }}/{{ socialStore.profile.award_showcase.commemoratives.length }} · 称号 {{ unlockedTitleCount }}/{{ socialStore.profile.award_showcase.titles.length }}
+            </span>
+          </div>
+          <div class="space-y-2 mt-2">
+            <div
+              v-for="entry in socialStore.profile.award_showcase.commemoratives"
+              :key="entry.id"
+              class="border rounded-xs px-2 py-2"
+              :class="entry.unlocked ? 'border-accent/20 bg-accent/5' : 'border-accent/10 bg-bg/10'"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs" :class="entry.unlocked ? 'text-accent' : 'text-muted'">{{ entry.label }}</p>
+                <span class="text-[10px]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
+                  {{ entry.unlocked ? formatChronicleDate(entry.recorded_at) : '未收录' }}
+                </span>
+              </div>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.unlocked ? entry.detail || entry.summary : entry.summary }}</p>
+            </div>
+            <div
+              v-for="entry in socialStore.profile.award_showcase.titles"
+              :key="entry.id"
+              class="border rounded-xs px-2 py-2"
+              :class="entry.unlocked ? 'border-success/20 bg-success/5' : 'border-accent/10 bg-bg/10'"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs" :class="entry.unlocked ? 'text-success' : 'text-muted'">
+                  {{ entry.label }}
+                  <span v-if="entry.active" class="text-[10px] text-accent ml-1">当前展示</span>
+                </p>
+                <span class="text-[10px]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
+                  {{ entry.unlocked ? formatChronicleDate(entry.recorded_at) : '未收录' }}
+                </span>
+              </div>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.unlocked ? entry.detail || entry.summary : entry.summary }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="border border-accent/10 rounded-xs p-2 text-xs">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[10px] text-muted">可展示成就卡</p>
+            <span class="text-[10px] text-muted">
+              已点亮 {{ unlockedAchievementCardCount }}/{{ socialStore.profile.award_showcase.achievement_cards.length }}
+            </span>
+          </div>
+          <div class="space-y-2 mt-2">
+            <div
+              v-for="entry in socialStore.profile.award_showcase.achievement_cards.filter(item => item.unlocked).slice(0, 6)"
+              :key="entry.id"
+              class="border border-accent/20 rounded-xs px-2 py-2 bg-accent/5"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs text-accent">{{ entry.label }}</p>
+                <span class="text-[10px] text-success">{{ formatChronicleDate(entry.recorded_at) }}</span>
+              </div>
+              <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.detail || entry.summary }}</p>
+            </div>
+            <div v-if="unlockedAchievementCardCount === 0" class="text-[10px] text-muted">
+              当前还没有可展示的联机成就卡。
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
@@ -495,6 +587,22 @@
 
   const unlockedChronicleCount = computed(() =>
     (socialStore.profile?.player_chronicle?.milestones || []).filter(entry => entry.unlocked).length
+  )
+
+  const unlockedHonorCount = computed(() =>
+    (socialStore.profile?.award_showcase?.honors || []).filter(entry => entry.unlocked).length
+  )
+
+  const unlockedCommemorativeCount = computed(() =>
+    (socialStore.profile?.award_showcase?.commemoratives || []).filter(entry => entry.unlocked).length
+  )
+
+  const unlockedTitleCount = computed(() =>
+    (socialStore.profile?.award_showcase?.titles || []).filter(entry => entry.unlocked).length
+  )
+
+  const unlockedAchievementCardCount = computed(() =>
+    (socialStore.profile?.award_showcase?.achievement_cards || []).filter(entry => entry.unlocked).length
   )
 
   const formatChronicleDate = (timestamp: number) => {

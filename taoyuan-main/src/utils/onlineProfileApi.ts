@@ -43,6 +43,62 @@ export interface OnlineProfileResponse {
       }>
       updated_at: number
     } | null
+    award_showcase: {
+      honors: Array<{
+        id: string
+        label: string
+        summary: string
+        category: string
+        unlocked: boolean
+        recorded_at: number
+        detail: string
+        source_type: string
+        source_id: string
+        active: boolean
+      }>
+      commemoratives: Array<{
+        id: string
+        label: string
+        summary: string
+        category: string
+        unlocked: boolean
+        recorded_at: number
+        detail: string
+        source_type: string
+        source_id: string
+        active: boolean
+      }>
+      titles: Array<{
+        id: string
+        label: string
+        summary: string
+        category: string
+        unlocked: boolean
+        recorded_at: number
+        detail: string
+        source_type: string
+        source_id: string
+        active: boolean
+      }>
+      achievement_cards: Array<{
+        id: string
+        label: string
+        summary: string
+        category: string
+        unlocked: boolean
+        recorded_at: number
+        detail: string
+        source_type: string
+        source_id: string
+        active: boolean
+      }>
+      summary: {
+        honor_count: number
+        commemorative_count: number
+        title_count: number
+        achievement_count: number
+      }
+    }
     updated_at: number
     last_active_at: number
   }

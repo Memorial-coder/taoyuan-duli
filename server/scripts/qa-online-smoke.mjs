@@ -3275,6 +3275,25 @@ try {
     if (milestoneMap.first_hot_manor?.unlocked === true) {
       assert(Number(milestoneMap.first_hot_manor.recorded_at || 0) > 0, 'primary player chronicle hot manor milestone is missing timestamp')
     }
+    const awardShowcase = data?.profile?.award_showcase
+    assert(awardShowcase && Array.isArray(awardShowcase.honors) && awardShowcase.honors.length >= 8, 'primary online profile did not expose award showcase honors')
+    assert(Array.isArray(awardShowcase.commemoratives) && awardShowcase.commemoratives.length >= 3, 'primary online profile did not expose commemoratives')
+    assert(Array.isArray(awardShowcase.titles) && awardShowcase.titles.length >= 2, 'primary online profile did not expose title showcase')
+    assert(Array.isArray(awardShowcase.achievement_cards) && awardShowcase.achievement_cards.length >= 8, 'primary online profile did not expose achievement cards')
+    const honorMap = Object.fromEntries((awardShowcase.honors || []).map(entry => [String(entry?.id || ''), entry]))
+    for (const requiredHonorId of ['festival_active', 'construction_contributor', 'market_coordinator', 'world_witness']) {
+      assert(honorMap[requiredHonorId]?.unlocked === true, `primary award showcase did not unlock ${requiredHonorId}`)
+      assert(String(honorMap[requiredHonorId]?.detail || '').length > 0, `primary award showcase did not persist detail for ${requiredHonorId}`)
+    }
+    const commemorativeMap = Object.fromEntries((awardShowcase.commemoratives || []).map(entry => [String(entry?.id || ''), entry]))
+    assert(commemorativeMap.festival_memento?.unlocked === true, 'primary award showcase did not unlock festival commemorative')
+    assert(commemorativeMap.society_badge?.unlocked === true, 'primary award showcase did not unlock society badge')
+    assert(commemorativeMap.world_chronicle?.unlocked === true, 'primary award showcase did not unlock world chronicle')
+    const titleMap = Object.fromEntries((awardShowcase.titles || []).map(entry => [String(entry?.id || ''), entry]))
+    assert(titleMap.current_public_title?.unlocked === true && titleMap.current_public_title?.active === true, 'primary award showcase did not expose current public title')
+    assert(titleMap.world_title?.unlocked === true, 'primary award showcase did not unlock world title')
+    assert((awardShowcase.summary?.honor_count || 0) >= 4, 'primary award showcase summary did not count unlocked honors')
+    assert((awardShowcase.summary?.achievement_count || 0) >= 5, 'primary award showcase summary did not count unlocked achievement cards')
   })
 
   await runCheck('GET /api/taoyuan/online/profile player chronicle secondary readback', async () => {
@@ -3293,6 +3312,18 @@ try {
       assert(Number(milestoneMap[requiredId]?.recorded_at || 0) > 0, `secondary player chronicle did not persist timestamp for ${requiredId}`)
       assert(String(milestoneMap[requiredId]?.detail || '').length > 0, `secondary player chronicle did not persist detail for ${requiredId}`)
     }
+    const awardShowcase = data?.profile?.award_showcase
+    assert(awardShowcase && Array.isArray(awardShowcase.honors) && awardShowcase.honors.length >= 8, 'secondary online profile did not expose award showcase honors')
+    const honorMap = Object.fromEntries((awardShowcase.honors || []).map(entry => [String(entry?.id || ''), entry]))
+    for (const requiredHonorId of ['mutual_aid', 'festival_active', 'construction_contributor']) {
+      assert(honorMap[requiredHonorId]?.unlocked === true, `secondary award showcase did not unlock ${requiredHonorId}`)
+    }
+    const commemorativeMap = Object.fromEntries((awardShowcase.commemoratives || []).map(entry => [String(entry?.id || ''), entry]))
+    assert(commemorativeMap.festival_memento?.unlocked === true, 'secondary award showcase did not unlock festival commemorative')
+    assert(commemorativeMap.society_badge?.unlocked === true, 'secondary award showcase did not unlock society badge')
+    const titleMap = Object.fromEntries((awardShowcase.titles || []).map(entry => [String(entry?.id || ''), entry]))
+    assert(titleMap.current_public_title?.unlocked === true, 'secondary award showcase did not expose current public title')
+    assert(Array.isArray(awardShowcase.achievement_cards) && awardShowcase.achievement_cards.some(entry => entry?.id === 'first_coop_order_completed' && entry?.unlocked === true), 'secondary award showcase did not expose unlocked achievement card')
   })
 
   await runCheck('POST /api/taoyuan/online/societies/leave write path', async () => {

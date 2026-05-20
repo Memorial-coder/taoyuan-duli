@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
+const taoyuanExchangeLedger = require('./taoyuanExchangeLedger');
 const {
   createError,
   getActiveSaveContext,
@@ -18,6 +19,9 @@ const TAOYUAN_MANOR_VISIT_FILE = path.join(DATA_DIR, 'taoyuan_manor_visits.json'
 const TAOYUAN_MANOR_FAVORITES_FILE = path.join(DATA_DIR, 'taoyuan_manor_favorites.json');
 const TAOYUAN_COOP_ORDER_FILE = path.join(DATA_DIR, 'taoyuan_coop_orders.json');
 const TAOYUAN_SOCIETY_FILE = path.join(DATA_DIR, 'taoyuan_societies.json');
+const TAOYUAN_HALL_FILE = path.join(DATA_DIR, 'taoyuan_hall.json');
+const TAOYUAN_MAILBOX_FILE = path.join(DATA_DIR, 'taoyuan_mailbox.json');
+const TAOYUAN_ACTIVITY_ROOM_FILE = path.join(DATA_DIR, 'taoyuan_activity_rooms.json');
 
 const SEASON_LABELS = Object.freeze({
   spring: '春',
@@ -137,6 +141,99 @@ const PLAYER_CHRONICLE_DEFS = Object.freeze([
 const PLAYER_CHRONICLE_DEF_MAP = Object.freeze(
   Object.fromEntries(PLAYER_CHRONICLE_DEFS.map(entry => [entry.id, entry]))
 );
+
+const AWARD_HONOR_DEFS = Object.freeze([
+  {
+    id: 'mutual_aid',
+    label: '热心互助者',
+    summary: '在协作委托与好友往来里留下了稳定的互助痕迹。',
+    source_type: 'coop_order',
+  },
+  {
+    id: 'manor_designer',
+    label: '庄园设计师',
+    summary: '把庄园经营成了有辨识度的展示空间。',
+    source_type: 'manor',
+  },
+  {
+    id: 'festival_active',
+    label: '节会活跃者',
+    summary: '持续参加节会并留下了纪念痕迹。',
+    source_type: 'festival',
+  },
+  {
+    id: 'construction_contributor',
+    label: '建设贡献者',
+    summary: '为村社公共建设和公共仓留下了贡献。',
+    source_type: 'society',
+  },
+  {
+    id: 'expedition_collaborator',
+    label: '远征协作者',
+    summary: '在多人远征里留下了协作与结算记录。',
+    source_type: 'expedition',
+  },
+  {
+    id: 'market_coordinator',
+    label: '集市协调者',
+    summary: '在慢交易和交换账本里保持了活跃往来。',
+    source_type: 'market',
+  },
+  {
+    id: 'rumor_collector',
+    label: '传闻收集者',
+    summary: '在交流大厅与信件纪念中持续收集见闻。',
+    source_type: 'hall_mail',
+  },
+  {
+    id: 'world_witness',
+    label: '世界见证者',
+    summary: '见证并参与了世界事件与公共纪年。',
+    source_type: 'world_event',
+  },
+]);
+
+const AWARD_MEMORIAL_DEFS = Object.freeze([
+  {
+    id: 'festival_memento',
+    label: '节庆纪念品',
+    summary: '来自节会纪念册与节会结算的留痕。',
+    category: 'festival',
+  },
+  {
+    id: 'society_badge',
+    label: '村社徽章',
+    summary: '来自村社加入、共建和职位流转的组织留痕。',
+    category: 'society',
+  },
+  {
+    id: 'world_chronicle',
+    label: '世界纪年章',
+    summary: '来自世界事件与公共纪年的见证留痕。',
+    category: 'world',
+  },
+]);
+
+const AWARD_TITLE_DEFS = Object.freeze([
+  {
+    id: 'current_public_title',
+    label: '限定称号',
+    summary: '当前对外展示的公开称号。',
+    category: 'current',
+  },
+  {
+    id: 'festival_title',
+    label: '节会称号',
+    summary: '来自节会奖励的限定称号。',
+    category: 'festival',
+  },
+  {
+    id: 'world_title',
+    label: '纪年称号',
+    summary: '来自世界事件奖励的纪年称号。',
+    category: 'world',
+  },
+]);
 
 function createEmptySocialStore() {
   return {
@@ -313,6 +410,29 @@ function readCoopOrderReceipts() {
   return Array.isArray(raw.receipts) ? raw.receipts : [];
 }
 
+function readHallStore() {
+  const raw = readJsonStore(TAOYUAN_HALL_FILE, { posts: [], reports: [] });
+  return {
+    posts: Array.isArray(raw.posts) ? raw.posts : [],
+    reports: Array.isArray(raw.reports) ? raw.reports : [],
+  };
+}
+
+function readMailboxStore() {
+  const raw = readJsonStore(TAOYUAN_MAILBOX_FILE, { campaigns: [], deliveries: [], memorial_entries: [] });
+  return {
+    deliveries: Array.isArray(raw.deliveries) ? raw.deliveries : [],
+    memorial_entries: Array.isArray(raw.memorial_entries) ? raw.memorial_entries : [],
+  };
+}
+
+function readActivityRoomStore() {
+  const raw = readJsonStore(TAOYUAN_ACTIVITY_ROOM_FILE, { rooms: [], receipts: [] });
+  return {
+    receipts: Array.isArray(raw.receipts) ? raw.receipts : [],
+  };
+}
+
 function readSocietyStore() {
   const raw = readJsonStore(TAOYUAN_SOCIETY_FILE, { societies: [], society_join_requests: [] });
   return {
@@ -352,6 +472,371 @@ function persistPlayerChronicleCandidate(store, username, milestoneId, candidate
   entry.updated_at = Math.floor(Date.now() / 1000);
   store.players[normalizeUsername(username)] = entry;
   return true;
+}
+
+function buildAwardCard(payload = {}) {
+  return {
+    id: sanitizeText(payload.id, 80),
+    label: sanitizeText(payload.label, 40),
+    summary: sanitizeText(payload.summary, 160),
+    category: sanitizeText(payload.category, 24),
+    unlocked: payload.unlocked === true,
+    recorded_at: Math.max(0, Math.floor(Number(payload.recorded_at) || 0)),
+    detail: sanitizeText(payload.detail, 160),
+    source_type: sanitizeText(payload.source_type, 40),
+    source_id: sanitizeText(payload.source_id, 80),
+    active: payload.active === true,
+  };
+}
+
+function readFestivalMemorialCandidates(username) {
+  try {
+    const context = getActiveSaveContext(username, null, '当前玩家没有可用存档');
+    const memorials = Array.isArray(context?.data?.onlineFestivalRewards?.memorials)
+      ? context.data.onlineFestivalRewards.memorials
+      : [];
+    return memorials
+      .filter(entry => entry && typeof entry === 'object')
+      .map(entry => normalizeFestivalMemorialCandidate(entry))
+      .filter(entry => entry.memorial_id);
+  } catch {
+    return [];
+  }
+}
+
+function normalizeFestivalMemorialCandidate(entry) {
+  return {
+    memorial_id: sanitizeText(entry?.memorial_id, 120),
+    template_id: sanitizeText(entry?.template_id, 40),
+    template_label: sanitizeText(entry?.template_label, 40),
+    gameplay_template_id: sanitizeText(entry?.gameplay_template_id, 40),
+    gameplay_template_label: sanitizeText(entry?.gameplay_template_label, 40),
+    awarded_at: Math.max(0, Math.floor(Number(entry?.awarded_at) || 0)),
+    reward_summary: sanitizeText(entry?.reward_summary, 160),
+    reward_money: Math.max(0, Math.floor(Number(entry?.reward_money) || 0)),
+    reward_ticket_quantity: Math.max(0, Math.floor(Number(entry?.reward_ticket_quantity) || 0)),
+    decoration_label: sanitizeText(entry?.decoration_label, 40),
+    title_label: sanitizeText(entry?.title_label, 40),
+    squadmate_display_names: Array.isArray(entry?.squadmate_display_names)
+      ? entry.squadmate_display_names.map(item => sanitizeText(item, 40)).filter(Boolean).slice(0, 8)
+      : [],
+    squadmate_friend_display_names: Array.isArray(entry?.squadmate_friend_display_names)
+      ? entry.squadmate_friend_display_names.map(item => sanitizeText(item, 40)).filter(Boolean).slice(0, 8)
+      : [],
+    photo_line: sanitizeText(entry?.photo_line, 120),
+    photo_taken: entry?.photo_taken === true,
+  };
+}
+
+function buildPlayerAwardShowcase(username, storedProfile = DEFAULT_PROFILE, saveContext = null, playerChronicle = null) {
+  const normalizedUsername = normalizeUsername(username);
+  const coopReceipts = readCoopOrderReceipts();
+  const favoriteEntries = readFavoriteEntries();
+  const societyStore = readSocietyStore();
+  const hallStore = readHallStore();
+  const mailboxStore = readMailboxStore();
+  const activityRoomStore = readActivityRoomStore();
+  const exchangeLedger = taoyuanExchangeLedger.listExchangeLedger(normalizedUsername);
+  const festivalMemorials = readFestivalMemorialCandidates(normalizedUsername);
+  const worldState = saveContext?.data?.onlineWorldEvents || {};
+  const worldRecords = Array.isArray(worldState.contributionRecords) ? worldState.contributionRecords : [];
+  const worldBadges = Object.entries(worldState.seasonalBadges || {})
+    .map(([eventId, entry]) => ({
+      event_id: sanitizeText(eventId, 40),
+      label: sanitizeText(entry?.label, 40),
+      cycle_key: sanitizeText(entry?.cycle_key, 40),
+      rank: Math.max(0, Math.floor(Number(entry?.rank) || 0)),
+      awarded_at: Math.max(0, Math.floor(Number(entry?.awarded_at) || 0)),
+    }))
+    .filter(entry => entry.label)
+    .sort((left, right) => right.awarded_at - left.awarded_at);
+  const playerChronicleMap = playerChronicle?.milestones
+    ? Object.fromEntries(playerChronicle.milestones.map(entry => [String(entry.id || ''), entry]))
+    : {};
+
+  const coopCompletedCount = coopReceipts
+    .filter(entry => normalizeUsername(entry?.assignee_username) === normalizedUsername && ['confirmed', 'compensation_pending'].includes(String(entry?.status || '')))
+    .length;
+  const favoriteCount = favoriteEntries.filter(entry => normalizeUsername(entry?.manor_username) === normalizedUsername).length;
+  const placedDecorationCount = Object.values(saveContext?.data?.decoration?.placed || {}).reduce((sum, count) => sum + Math.max(0, Number(count) || 0), 0);
+  const festivalCount = festivalMemorials.length;
+  const societyContributionCount = societyStore.societies
+    .flatMap(society => Array.isArray(society?.public_projects) ? society.public_projects : [])
+    .flatMap(project => Array.isArray(project?.contributions) ? project.contributions : [])
+    .filter(contribution => normalizeUsername(contribution?.username) === normalizedUsername)
+    .length;
+  const societyRoleCount = societyStore.societies
+    .flatMap(society => Array.isArray(society?.role_history) ? society.role_history : [])
+    .filter(entry => normalizeUsername(entry?.username) === normalizedUsername)
+    .length;
+  const expeditionReceiptCount = activityRoomStore.receipts
+    .filter(entry => String(entry?.activity_domain || '') === 'expedition' && normalizeUsername(entry?.target_username) === normalizedUsername && ['persisted', 'persist_preview', 'pending_persist'].includes(String(entry?.status || '')))
+    .length;
+  const exchangeEntryCount = Array.isArray(exchangeLedger?.entries) ? exchangeLedger.entries.length : 0;
+  const hallPostCount = hallStore.posts.filter(post => normalizeUsername(post?.author) === normalizedUsername).length;
+  const hallReplyCount = hallStore.posts.reduce((sum, post) => sum + (Array.isArray(post?.replies) ? post.replies.filter(reply => normalizeUsername(reply?.author) === normalizedUsername).length : 0), 0);
+  const memorialEntryCount = mailboxStore.memorial_entries.filter(entry => normalizeUsername(entry?.username) === normalizedUsername).length;
+  const worldContributionPoints = Math.max(0, Math.floor(Number(worldState.totalContribution) || 0));
+  const worldBadgeCount = worldBadges.length;
+
+  const honorCards = AWARD_HONOR_DEFS.map(def => {
+    const firstRecordedAt = (() => {
+      if (def.id === 'mutual_aid') {
+        const receipt = coopReceipts
+          .filter(entry => normalizeUsername(entry?.assignee_username) === normalizedUsername && ['confirmed', 'compensation_pending'].includes(String(entry?.status || '')))
+          .sort((left, right) => (left.confirmed_at || left.created_at || 0) - (right.confirmed_at || right.created_at || 0))[0];
+        return Number(receipt?.confirmed_at || receipt?.created_at || 0);
+      }
+      if (def.id === 'manor_designer') {
+        const favorite = favoriteEntries
+          .filter(entry => normalizeUsername(entry?.manor_username) === normalizedUsername)
+          .sort((left, right) => Number(left.created_at || 0) - Number(right.created_at || 0))[0];
+        return Number(favorite?.created_at || storedProfile.public_since || 0);
+      }
+      if (def.id === 'festival_active') {
+        return Number(festivalMemorials[0]?.awarded_at || 0);
+      }
+      if (def.id === 'construction_contributor') {
+        const contribution = societyStore.societies
+          .flatMap(society => Array.isArray(society?.public_projects) ? society.public_projects : [])
+          .flatMap(project => Array.isArray(project?.contributions) ? project.contributions.map(contribution => ({
+            project,
+            contribution,
+            society_name: sanitizeText((societyStore.societies.find(society => Array.isArray(society?.public_projects) && society.public_projects.includes(project)) || {})?.name, 40),
+          })) : [])
+          .filter(entry => normalizeUsername(entry.contribution?.username) === normalizedUsername)
+          .sort((left, right) => Number(left.contribution?.created_at || 0) - Number(right.contribution?.created_at || 0))[0];
+        return Number(contribution?.contribution?.created_at || 0);
+      }
+      if (def.id === 'expedition_collaborator') {
+        const receipt = activityRoomStore.receipts
+          .filter(entry => String(entry?.activity_domain || '') === 'expedition' && normalizeUsername(entry?.target_username) === normalizedUsername)
+          .sort((left, right) => Number(left.created_at || 0) - Number(right.created_at || 0))[0];
+        return Number(receipt?.created_at || 0);
+      }
+      if (def.id === 'market_coordinator') {
+        return Number(exchangeLedger?.entries?.[0]?.created_at || 0);
+      }
+      if (def.id === 'rumor_collector') {
+        const firstMail = mailboxStore.memorial_entries
+          .filter(entry => normalizeUsername(entry?.username) === normalizedUsername)
+          .sort((left, right) => Number(left.saved_at || 0) - Number(right.saved_at || 0))[0];
+        const firstPost = hallStore.posts
+          .filter(post => normalizeUsername(post?.author) === normalizedUsername)
+          .sort((left, right) => Number(left.created_at || 0) - Number(right.created_at || 0))[0];
+        return Number(firstMail?.saved_at || firstPost?.created_at || 0);
+      }
+      if (def.id === 'world_witness') {
+        const record = worldRecords
+          .filter(entry => Number(entry?.completed_at) > 0 || Number(entry?.created_at) > 0)
+          .sort((left, right) => Number(left.completed_at || left.created_at || 0) - Number(right.completed_at || right.created_at || 0))[0];
+        return Number(record?.completed_at || record?.created_at || 0);
+      }
+      return 0;
+    })();
+    const unlocked = (() => {
+      if (def.id === 'mutual_aid') return coopCompletedCount >= 1;
+      if (def.id === 'manor_designer') return favoriteCount >= 1 || placedDecorationCount >= 3 || !!storedProfile.showcase_theme;
+      if (def.id === 'festival_active') return festivalCount >= 1;
+      if (def.id === 'construction_contributor') return societyContributionCount >= 1 || societyRoleCount >= 1;
+      if (def.id === 'expedition_collaborator') return expeditionReceiptCount >= 1;
+      if (def.id === 'market_coordinator') return exchangeEntryCount >= 1;
+      if (def.id === 'rumor_collector') return hallPostCount + hallReplyCount + memorialEntryCount >= 1;
+      if (def.id === 'world_witness') return worldContributionPoints > 0 || worldBadgeCount >= 1;
+      return false;
+    })();
+    const detail = (() => {
+      if (def.id === 'mutual_aid') return `协作委托 ${coopCompletedCount} 条，好友互助痕迹 ${countFriendships(loadSocialProfileStore(), normalizedUsername)} 条。`;
+      if (def.id === 'manor_designer') return `热门收藏 ${favoriteCount} 次，公开主题 ${storedProfile.showcase_theme || '待定'}。`;
+      if (def.id === 'festival_active') return `节会纪念册 ${festivalCount} 条。`;
+      if (def.id === 'construction_contributor') return `公共建设贡献 ${societyContributionCount} 条，社内职位流转 ${societyRoleCount} 条。`;
+      if (def.id === 'expedition_collaborator') return `远征房间结算 ${expeditionReceiptCount} 次。`;
+      if (def.id === 'market_coordinator') return `慢交易账本记录 ${exchangeEntryCount} 条。`;
+      if (def.id === 'rumor_collector') return `大厅发帖/回复 ${hallPostCount + hallReplyCount} 条，纪念册 ${memorialEntryCount} 条。`;
+      if (def.id === 'world_witness') return `世界贡献 ${worldContributionPoints} 点，世界徽记 ${worldBadgeCount} 枚。`;
+      return def.summary;
+    })();
+    return buildAwardCard({
+      id: def.id,
+      label: def.label,
+      summary: def.summary,
+      category: 'honor',
+      unlocked,
+      recorded_at: firstRecordedAt,
+      detail,
+      source_type: def.source_type,
+      source_id: normalizedUsername,
+    });
+  });
+
+  const commemorativeCards = [
+    festivalMemorials[0]
+      ? buildAwardCard({
+          id: 'festival_memento',
+          label: '节庆纪念品',
+          summary: AWARD_MEMORIAL_DEFS[0].summary,
+          category: 'festival',
+          unlocked: true,
+          recorded_at: Number(festivalMemorials[0].awarded_at || 0),
+          detail: `${festivalMemorials[0].template_label || festivalMemorials[0].template_id || '节会'} · ${festivalMemorials[0].gameplay_template_label || '玩法'}。`,
+          source_type: 'festival_memorial',
+          source_id: festivalMemorials[0].memorial_id,
+        })
+      : buildAwardCard({
+          id: 'festival_memento',
+          label: '节庆纪念品',
+          summary: AWARD_MEMORIAL_DEFS[0].summary,
+          category: 'festival',
+          unlocked: false,
+          detail: '还没有节会纪念册可回看。',
+          source_type: 'festival_memorial',
+          source_id: normalizedUsername,
+        }),
+    (societyContributionCount > 0 || societyRoleCount > 0)
+      ? buildAwardCard({
+          id: 'society_badge',
+          label: '村社徽章',
+          summary: AWARD_MEMORIAL_DEFS[1].summary,
+          category: 'society',
+          unlocked: true,
+          recorded_at: (() => {
+            const firstContribution = societyStore.societies
+              .flatMap(society => Array.isArray(society?.public_projects) ? society.public_projects : [])
+              .flatMap(project => Array.isArray(project?.contributions) ? project.contributions.map(contribution => contribution) : [])
+              .filter(contribution => normalizeUsername(contribution?.username) === normalizedUsername)
+              .sort((left, right) => Number(left.created_at || 0) - Number(right.created_at || 0))[0];
+            return Number(firstContribution?.created_at || playerChronicleMap.first_society_join?.recorded_at || 0);
+          })(),
+          detail: playerChronicleMap.first_public_project_contribution?.unlocked
+            ? playerChronicleMap.first_public_project_contribution.detail || playerChronicleMap.first_public_project_contribution.summary
+            : '村社里已经留下了共建或职位流转的痕迹。',
+          source_type: 'society',
+          source_id: normalizedUsername,
+        })
+      : buildAwardCard({
+          id: 'society_badge',
+          label: '村社徽章',
+          summary: AWARD_MEMORIAL_DEFS[1].summary,
+          category: 'society',
+          unlocked: false,
+          detail: '还没有足够的村社参与记录。',
+          source_type: 'society',
+          source_id: normalizedUsername,
+        }),
+    (worldContributionPoints > 0 || worldBadgeCount > 0)
+      ? buildAwardCard({
+          id: 'world_chronicle',
+          label: '世界纪年章',
+          summary: AWARD_MEMORIAL_DEFS[2].summary,
+          category: 'world',
+          unlocked: true,
+          recorded_at: Number(worldBadges[0]?.awarded_at || worldRecords[0]?.completed_at || worldRecords[0]?.created_at || 0),
+          detail: worldBadges[0]
+            ? `${sanitizeText(worldBadges[0].label, 40)} · 第${sanitizeText(worldBadges[0].rank, 8)}名。`
+            : `世界贡献 ${worldContributionPoints} 点。`,
+          source_type: 'world_event',
+          source_id: normalizedUsername,
+        })
+      : buildAwardCard({
+          id: 'world_chronicle',
+          label: '世界纪年章',
+          summary: AWARD_MEMORIAL_DEFS[2].summary,
+          category: 'world',
+          unlocked: false,
+          detail: '还没有世界事件纪年可回看。',
+          source_type: 'world_event',
+          source_id: normalizedUsername,
+        }),
+  ];
+
+  const titleCards = [];
+  const activeTitle = sanitizeText(storedProfile.public_title, 24) || inferPublicTitle(saveContext?.data?.skill || {});
+  titleCards.push(buildAwardCard({
+    id: 'current_public_title',
+    label: '限定称号',
+    summary: AWARD_TITLE_DEFS[0].summary,
+    category: 'current',
+    unlocked: true,
+    active: true,
+    recorded_at: Number(storedProfile.updated_at || 0) || Number(storedProfile.public_since || 0),
+    detail: activeTitle,
+    source_type: 'profile',
+    source_id: normalizedUsername,
+  }));
+  const festivalTitleEntries = Object.entries(saveContext?.data?.onlineFestivalRewards?.titles || {})
+    .map(([titleId, entry]) => ({
+      title_id: sanitizeText(titleId, 80),
+      label: sanitizeText(entry?.label, 40),
+      awarded_at: Math.max(0, Math.floor(Number(entry?.awarded_at) || 0)),
+      room_id: sanitizeText(entry?.room_id, 40),
+      template_id: sanitizeText(entry?.template_id, 40),
+    }))
+    .filter(entry => entry.label);
+  if (festivalTitleEntries.length > 0) {
+    const latestFestivalTitle = festivalTitleEntries.sort((left, right) => right.awarded_at - left.awarded_at)[0];
+    titleCards.push(buildAwardCard({
+      id: 'festival_title',
+      label: AWARD_TITLE_DEFS[1].label,
+      summary: AWARD_TITLE_DEFS[1].summary,
+      category: 'festival',
+      unlocked: true,
+      recorded_at: latestFestivalTitle.awarded_at,
+      detail: latestFestivalTitle.label,
+      source_type: 'festival_reward',
+      source_id: latestFestivalTitle.title_id,
+    }));
+  }
+  if (worldBadges.length > 0) {
+    const latestWorldBadge = [...worldBadges].sort((left, right) => right.awarded_at - left.awarded_at)[0];
+    titleCards.push(buildAwardCard({
+      id: 'world_title',
+      label: AWARD_TITLE_DEFS[2].label,
+      summary: AWARD_TITLE_DEFS[2].summary,
+      category: 'world',
+      unlocked: true,
+      recorded_at: latestWorldBadge.awarded_at,
+      detail: latestWorldBadge.label,
+      source_type: 'world_badge',
+      source_id: latestWorldBadge.event_id,
+    }));
+  } else {
+    titleCards.push(buildAwardCard({
+      id: 'world_title',
+      label: AWARD_TITLE_DEFS[2].label,
+      summary: AWARD_TITLE_DEFS[2].summary,
+      category: 'world',
+      unlocked: false,
+      detail: '还没有世界纪年称号。',
+      source_type: 'world_badge',
+      source_id: normalizedUsername,
+    }));
+  }
+
+  const achievementCards = (playerChronicle?.milestones || []).map(entry => buildAwardCard({
+    id: entry.id,
+    label: entry.label,
+    summary: entry.summary,
+    category: 'achievement',
+    unlocked: entry.unlocked === true,
+    recorded_at: entry.recorded_at,
+    detail: entry.unlocked ? entry.detail || entry.summary : entry.summary,
+    source_type: entry.source_type,
+    source_id: entry.source_id,
+    active: entry.unlocked === true,
+  }));
+
+  return {
+    honors: honorCards,
+    commemoratives: commemorativeCards,
+    titles: titleCards,
+    achievement_cards: achievementCards,
+    summary: {
+      honor_count: honorCards.filter(entry => entry.unlocked).length,
+      commemorative_count: commemorativeCards.filter(entry => entry.unlocked).length,
+      title_count: titleCards.filter(entry => entry.unlocked).length,
+      achievement_count: achievementCards.filter(entry => entry.unlocked).length,
+    },
+  };
 }
 
 function makeId(prefix) {
@@ -945,6 +1430,20 @@ async function buildProfile(username, viewerUsername = '', options = {}) {
   const activeQuestCount = Array.isArray(quest.activeQuests) ? quest.activeQuests.length : 0;
   const publicTags = buildPublicTags(store, username, gameplay, storedProfile);
   const playerChronicle = options.includeChronicle === false ? null : syncPlayerChronicle(username, storedProfile);
+  const awardShowcase = options.includeAwards === false
+    ? {
+        honors: [],
+        commemoratives: [],
+        titles: [],
+        achievement_cards: [],
+        summary: {
+          honor_count: 0,
+          commemorative_count: 0,
+          title_count: 0,
+          achievement_count: 0,
+        },
+      }
+    : buildPlayerAwardShowcase(username, storedProfile, saveContext, playerChronicle);
 
   return {
     username: user.username,
@@ -965,13 +1464,18 @@ async function buildProfile(username, viewerUsername = '', options = {}) {
     selected_tag_ids: [...storedProfile.selected_tag_ids],
     available_tag_options: PROFILE_TAG_OPTIONS.map(entry => ({ ...entry })),
     player_chronicle: playerChronicle,
+    award_showcase: awardShowcase,
     updated_at: storedProfile.updated_at,
     last_active_at: storedProfile.last_active_at,
   };
 }
 
 async function buildRelationCard(username, viewerUsername = '') {
-  return buildProfile(username, viewerUsername, { ignoreVisibility: true, includeChronicle: false });
+  return buildProfile(username, viewerUsername, {
+    ignoreVisibility: true,
+    includeChronicle: false,
+    includeAwards: false,
+  });
 }
 
 async function getOwnProfile(username) {
