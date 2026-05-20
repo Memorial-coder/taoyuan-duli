@@ -31,6 +31,9 @@ const {
   loadUserSaveSlots,
   saveUserSaveSlots,
   nextSlotRevision,
+  ensureSaveIdentitiesForSlots,
+  prepareSlotEntryForSave,
+  removeSaveSlotIdentity,
 } = require('../taoyuanSaveRuntime');
 
 const router = express.Router();
@@ -254,7 +257,8 @@ function createRouteError(message, status = 400) {
 
 function loadTaoyuanUserSaves(username) {
   try {
-    return loadUserSaveSlots(username);
+    const data = loadUserSaveSlots(username);
+    return ensureSaveIdentitiesForSlots(username, data).saves;
   } catch {
     throw createRouteError('服务端存档文件已损坏，请先修复后再操作', 500);
   }
@@ -3281,7 +3285,8 @@ router.post('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
   const nextRevision = requestedRevision !== null
     ? Math.max(requestedRevision, currentRevision)
     : nextSlotRevision(currentRevision);
-  data.slots[slot] = { raw, revision: nextRevision };
+  const preparedEntry = prepareSlotEntryForSave(req.session.username, slot, raw, nextRevision);
+  data.slots[slot] = { raw: preparedEntry.raw, revision: nextRevision };
   saveTaoyuanUserSaves(req.session.username, data);
   taoyuanHall.setActiveSaveSlot(req.session.username, slot);
   res.json({ ok: true, stale: false, slot, current_revision: nextRevision });
@@ -3299,6 +3304,7 @@ router.delete('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => 
   const data = loadTaoyuanUserSaves(req.session.username);
   data.slots[slot] = null;
   saveTaoyuanUserSaves(req.session.username, data);
+  removeSaveSlotIdentity(req.session.username, slot);
   taoyuanHall.clearActiveSaveSlotIfMatches(req.session.username, slot);
   res.json({ ok: true, slot });
   } catch (error) {

@@ -8,8 +8,11 @@ const DATA_DIR = process.env.DB_STORAGE
 
 const TAOYUAN_SAVES_DIR = path.join(DATA_DIR, 'taoyuan_saves');
 const TAOYUAN_ACTIVE_SLOT_FILE = path.join(DATA_DIR, 'taoyuan_active_slots.json');
+const TAOYUAN_SAVE_IDENTITIES_FILE = path.join(DATA_DIR, 'taoyuan_save_identities.json');
 const SAVE_ENCRYPTION_KEY = 'taoyuanxiang_2024_secret';
 const CURRENT_SAVE_VERSION = 4;
+const SAVE_ID_MIN = 100000000;
+const SAVE_ID_MAX_EXCLUSIVE = 1000000000;
 
 function createError(message, status = 400) {
   const error = new Error(message);
@@ -92,6 +95,196 @@ function deleteUserSaveData(username) {
     delete activeSlots[safeUsername];
     saveActiveSlots(activeSlots);
   }
+  removeSaveIdentitiesForUser(safeUsername);
+}
+
+function normalizeSaveSlot(slot) {
+  if (slot === null || slot === undefined || slot === '') return null;
+  const normalized = Number(slot);
+  return Number.isInteger(normalized) && normalized >= 0 && normalized <= 2 ? normalized : null;
+}
+
+function normalizeIdentityText(value, maxLength = 40) {
+  return String(value || '').normalize('NFKC').trim().slice(0, maxLength);
+}
+
+function nowSeconds() {
+  return Math.floor(Date.now() / 1000);
+}
+
+function normalizeSaveId(value) {
+  const saveId = Number(value);
+  return Number.isInteger(saveId) && saveId >= SAVE_ID_MIN && saveId < SAVE_ID_MAX_EXCLUSIVE ? saveId : 0;
+}
+
+function buildSaveIdentityKey(username, slot) {
+  const accountUsername = normalizeIdentityText(username, 80);
+  const saveSlot = normalizeSaveSlot(slot);
+  if (!accountUsername || saveSlot === null) return '';
+  return JSON.stringify([accountUsername, saveSlot]);
+}
+
+function createEmptySaveIdentityStore() {
+  return { identities: {} };
+}
+
+function normalizeSaveIdentityRecord(entry, fallbackUsername = '', fallbackSlot = null) {
+  const saveId = normalizeSaveId(entry?.save_id);
+  const accountUsername = normalizeIdentityText(entry?.account_username || fallbackUsername, 80);
+  const saveSlot = normalizeSaveSlot(entry?.save_slot ?? fallbackSlot);
+  if (!saveId || !accountUsername || saveSlot === null) return null;
+  const createdAt = Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds()));
+  const updatedAt = Math.max(createdAt, Math.floor(Number(entry?.updated_at) || createdAt));
+  return {
+    save_id: saveId,
+    account_username: accountUsername,
+    save_slot: saveSlot,
+    nickname_snapshot: normalizeIdentityText(entry?.nickname_snapshot || accountUsername, 40),
+    created_at: createdAt,
+    updated_at: updatedAt,
+  };
+}
+
+function normalizeEmbeddedSaveIdentity(entry) {
+  return normalizeSaveIdentityRecord({
+    save_id: entry?.save_id ?? entry?.saveId,
+    account_username: entry?.account_username ?? entry?.accountUsername,
+    save_slot: entry?.save_slot ?? entry?.saveSlot,
+    nickname_snapshot: entry?.nickname_snapshot ?? entry?.nicknameSnapshot,
+    created_at: entry?.created_at ?? entry?.createdAt,
+    updated_at: entry?.updated_at ?? entry?.updatedAt,
+  });
+}
+
+function loadSaveIdentityStore() {
+  try {
+    if (!fs.existsSync(TAOYUAN_SAVE_IDENTITIES_FILE)) return createEmptySaveIdentityStore();
+    const raw = JSON.parse(fs.readFileSync(TAOYUAN_SAVE_IDENTITIES_FILE, 'utf8'));
+    const identities = {};
+    for (const [key, value] of Object.entries(raw?.identities || {})) {
+      const parsedKey = (() => {
+        try {
+          const tuple = JSON.parse(key);
+          return Array.isArray(tuple) ? tuple : [];
+        } catch {
+          return [];
+        }
+      })();
+      const record = normalizeSaveIdentityRecord(value, parsedKey[0], parsedKey[1]);
+      if (record) identities[buildSaveIdentityKey(record.account_username, record.save_slot)] = record;
+    }
+    return { identities };
+  } catch {
+    return createEmptySaveIdentityStore();
+  }
+}
+
+function saveSaveIdentityStore(store) {
+  writeJsonFileAtomic(TAOYUAN_SAVE_IDENTITIES_FILE, {
+    identities: store?.identities && typeof store.identities === 'object' ? store.identities : {},
+  });
+}
+
+function collectIssuedSaveIds(store, exceptKey = '') {
+  const issued = new Set();
+  for (const [key, value] of Object.entries(store?.identities || {})) {
+    if (key === exceptKey) continue;
+    const saveId = normalizeSaveId(value?.save_id);
+    if (saveId) issued.add(saveId);
+  }
+  return issued;
+}
+
+function allocateSaveId(store, key) {
+  const issued = collectIssuedSaveIds(store, key);
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const candidate = crypto.randomInt(SAVE_ID_MIN, SAVE_ID_MAX_EXCLUSIVE);
+    if (!issued.has(candidate)) return candidate;
+  }
+  for (let candidate = SAVE_ID_MIN; candidate < SAVE_ID_MAX_EXCLUSIVE; candidate += 1) {
+    if (!issued.has(candidate)) return candidate;
+  }
+  throw createError('可用存档数字 ID 已耗尽', 500);
+}
+
+function getSaveNicknameSnapshot(container, username) {
+  const player = container?.gameplayData?.player || {};
+  return normalizeIdentityText(player.playerName || player.name || player.displayName || username, 40) || '未命名玩家';
+}
+
+function ensureSaveIdentityRecord(username, slot, nicknameSnapshot = '') {
+  const accountUsername = normalizeIdentityText(username, 80);
+  const saveSlot = normalizeSaveSlot(slot);
+  if (!accountUsername || saveSlot === null) return null;
+
+  const key = buildSaveIdentityKey(accountUsername, saveSlot);
+  const store = loadSaveIdentityStore();
+  const current = normalizeSaveIdentityRecord(store.identities[key], accountUsername, saveSlot);
+  const issuedByOthers = collectIssuedSaveIds(store, key);
+  const snapshot = normalizeIdentityText(nicknameSnapshot || accountUsername, 40);
+  const now = nowSeconds();
+  let changed = false;
+  let record = current;
+
+  if (!record || issuedByOthers.has(record.save_id)) {
+    record = {
+      save_id: allocateSaveId(store, key),
+      account_username: accountUsername,
+      save_slot: saveSlot,
+      nickname_snapshot: snapshot,
+      created_at: now,
+      updated_at: now,
+    };
+    changed = true;
+  }
+
+  if (record.nickname_snapshot !== snapshot) {
+    record = { ...record, nickname_snapshot: snapshot, updated_at: now };
+    changed = true;
+  }
+  if (record.account_username !== accountUsername || record.save_slot !== saveSlot) {
+    record = { ...record, account_username: accountUsername, save_slot: saveSlot, updated_at: now };
+    changed = true;
+  }
+
+  if (changed) {
+    store.identities[key] = record;
+    saveSaveIdentityStore(store);
+  }
+  return record;
+}
+
+function getSaveSlotIdentity(username, slot) {
+  const key = buildSaveIdentityKey(username, slot);
+  if (!key) return null;
+  const store = loadSaveIdentityStore();
+  return normalizeSaveIdentityRecord(store.identities[key]);
+}
+
+function removeSaveSlotIdentity(username, slot) {
+  const key = buildSaveIdentityKey(username, slot);
+  if (!key) return false;
+  const store = loadSaveIdentityStore();
+  if (!Object.prototype.hasOwnProperty.call(store.identities, key)) return false;
+  delete store.identities[key];
+  saveSaveIdentityStore(store);
+  return true;
+}
+
+function removeSaveIdentitiesForUser(username) {
+  const accountUsername = normalizeIdentityText(username, 80);
+  if (!accountUsername) return false;
+  const store = loadSaveIdentityStore();
+  let changed = false;
+  for (const [key, value] of Object.entries(store.identities || {})) {
+    const record = normalizeSaveIdentityRecord(value);
+    if (record?.account_username === accountUsername) {
+      delete store.identities[key];
+      changed = true;
+    }
+  }
+  if (changed) saveSaveIdentityStore(store);
+  return changed;
 }
 
 function loadActiveSlots() {
@@ -183,10 +376,13 @@ function buildSaveMeta(metaLike = {}, savedAtFallback) {
     ? metaLike.savedAt
     : (savedAtFallback || new Date().toISOString());
   const saveVersion = Number(metaLike?.saveVersion);
-  return {
+  const meta = {
     saveVersion: Number.isFinite(saveVersion) ? saveVersion : CURRENT_SAVE_VERSION,
     savedAt,
   };
+  const onlineIdentity = normalizeEmbeddedSaveIdentity(metaLike?.onlineIdentity || metaLike?.saveIdentity);
+  if (onlineIdentity) meta.onlineIdentity = onlineIdentity;
+  return meta;
 }
 
 function normalizeGameplaySaveContainer(rawData) {
@@ -226,6 +422,99 @@ function serializeGameplaySaveContainer(container) {
   return container?.gameplayData || container?.root || null;
 }
 
+function applySaveIdentityToContainer(container, identity) {
+  const normalized = normalizeSaveIdentityRecord(identity);
+  if (!container || !normalized) return false;
+
+  if (container.wrapped) {
+    const nextMeta = buildSaveMeta(container.root?.meta || {}, container.root?.savedAt);
+    const current = normalizeEmbeddedSaveIdentity(nextMeta.onlineIdentity);
+    const changed = !current || current.save_id !== normalized.save_id || current.account_username !== normalized.account_username || current.save_slot !== normalized.save_slot || current.nickname_snapshot !== normalized.nickname_snapshot;
+    container.root.meta = {
+      ...nextMeta,
+      onlineIdentity: normalized,
+    };
+    return changed;
+  }
+
+  if (!container.gameplayData || typeof container.gameplayData !== 'object') return false;
+  const current = normalizeEmbeddedSaveIdentity(container.gameplayData.onlineIdentity);
+  const changed = !current || current.save_id !== normalized.save_id || current.account_username !== normalized.account_username || current.save_slot !== normalized.save_slot || current.nickname_snapshot !== normalized.nickname_snapshot;
+  container.gameplayData.onlineIdentity = normalized;
+  return changed;
+}
+
+function ensureSaveIdentityForSlot(username, slot, entry) {
+  const normalizedSlot = normalizeSaveSlot(slot);
+  if (normalizedSlot === null || !entry?.raw) {
+    return { entry, identity: null, changed: false };
+  }
+
+  const decrypted = decryptTaoyuanRaw(entry.raw);
+  const saveContainer = normalizeGameplaySaveContainer(decrypted);
+  if (!saveContainer?.gameplayData?.player) {
+    return { entry, identity: null, changed: false };
+  }
+
+  const identity = ensureSaveIdentityRecord(username, normalizedSlot, getSaveNicknameSnapshot(saveContainer, username));
+  const changed = applySaveIdentityToContainer(saveContainer, identity);
+  if (!changed) return { entry, identity, changed: false };
+
+  return {
+    entry: {
+      raw: encryptTaoyuanData(serializeGameplaySaveContainer(saveContainer)),
+      revision: nextSlotRevision(entry.revision ?? 0),
+    },
+    identity,
+    changed: true,
+  };
+}
+
+function ensureSaveIdentitiesForSlots(username, saves) {
+  const next = {
+    slots: {
+      0: normalizeSlotEntry(saves?.slots?.[0]),
+      1: normalizeSlotEntry(saves?.slots?.[1]),
+      2: normalizeSlotEntry(saves?.slots?.[2]),
+    },
+  };
+  let changed = false;
+  for (const slot of [0, 1, 2]) {
+    const result = ensureSaveIdentityForSlot(username, slot, next.slots[slot]);
+    if (result.changed) {
+      next.slots[slot] = result.entry;
+      changed = true;
+    }
+  }
+  if (changed) saveUserSaveSlots(username, next);
+  return { saves: next, changed };
+}
+
+function prepareSlotEntryForSave(username, slot, raw, revision = 0) {
+  const normalizedSlot = normalizeSaveSlot(slot);
+  if (normalizedSlot === null) throw createError('无效的存档槽位');
+
+  const decrypted = decryptTaoyuanRaw(raw);
+  const saveContainer = normalizeGameplaySaveContainer(decrypted);
+  if (!saveContainer?.gameplayData?.player) {
+    return {
+      raw,
+      revision,
+      identity: null,
+      changed: false,
+    };
+  }
+
+  const identity = ensureSaveIdentityRecord(username, normalizedSlot, getSaveNicknameSnapshot(saveContainer, username));
+  const changed = applySaveIdentityToContainer(saveContainer, identity);
+  return {
+    raw: changed ? encryptTaoyuanData(serializeGameplaySaveContainer(saveContainer)) : raw,
+    revision,
+    identity,
+    changed,
+  };
+}
+
 function getActiveSaveContext(username, preferredSlot = null, missingMessage = '当前账号没有可用的桃源乡存档') {
   const saves = loadUserSaveSlots(username);
   let slot = Number.isInteger(Number(preferredSlot)) ? Number(preferredSlot) : null;
@@ -255,11 +544,22 @@ function getActiveSaveContext(username, preferredSlot = null, missingMessage = '
   if (!data?.player) {
     throw createError('桃源乡存档解析失败，无法继续当前在线操作');
   }
-  return { slot, saves, data, saveContainer };
+  const identity = ensureSaveIdentityRecord(username, slot, getSaveNicknameSnapshot(saveContainer, username));
+  if (applySaveIdentityToContainer(saveContainer, identity)) {
+    const currentRevision = saves.slots[slot]?.revision ?? 0;
+    saves.slots[slot] = {
+      raw: encryptTaoyuanData(serializeGameplaySaveContainer(saveContainer)),
+      revision: nextSlotRevision(currentRevision),
+    };
+    saveUserSaveSlots(username, saves);
+  }
+  return { slot, saves, data, saveContainer, identity };
 }
 
 function persistGameplayData(context) {
   const currentRevision = context.saves.slots[context.slot]?.revision ?? 0;
+  const identity = ensureSaveIdentityRecord(context.username, context.slot, getSaveNicknameSnapshot(context.saveContainer, context.username));
+  applySaveIdentityToContainer(context.saveContainer, identity);
   context.saves.slots[context.slot] = {
     raw: encryptTaoyuanData(serializeGameplaySaveContainer(context.saveContainer)),
     revision: nextSlotRevision(currentRevision),
@@ -272,6 +572,7 @@ module.exports = {
   CURRENT_SAVE_VERSION,
   TAOYUAN_SAVES_DIR,
   TAOYUAN_ACTIVE_SLOT_FILE,
+  TAOYUAN_SAVE_IDENTITIES_FILE,
   createError,
   ensureTaoyuanSavesDir,
   getTaoyuanSavePath,
@@ -292,6 +593,11 @@ module.exports = {
   buildSaveMeta,
   normalizeGameplaySaveContainer,
   serializeGameplaySaveContainer,
+  ensureSaveIdentityForSlot,
+  ensureSaveIdentitiesForSlots,
+  prepareSlotEntryForSave,
+  getSaveSlotIdentity,
+  removeSaveSlotIdentity,
   getActiveSaveContext,
   persistGameplayData,
 };

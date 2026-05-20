@@ -173,6 +173,7 @@ const getRewardTicketQuantity = (decryptedSave, ticketType) => Math.max(0, Math.
 const getRewardItemQuantity = (decryptedSave, itemId) => ([...(Array.isArray(decryptedSave?.items) ? decryptedSave.items : []), ...(Array.isArray(decryptedSave?.tempItems) ? decryptedSave.tempItems : [])])
   .filter(entry => entry?.itemId === itemId)
   .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
+const getEmbeddedSaveIdentity = decryptedSave => decryptedSave?.meta?.onlineIdentity || decryptedSave?.onlineIdentity || null
 
 const buildSeedSavePayload = (username, startingMoney) => encryptTaoyuanData({
   player: {
@@ -510,6 +511,64 @@ try {
     assert(response.ok, `save slots returned ${response.status}`)
     assert(data?.ok === true && Array.isArray(data?.slots), 'save slots payload is incomplete')
     assert(data.slots.some(item => item?.slot === 0 && typeof item?.raw === 'string' && item.raw), 'slot 0 was not persisted')
+  })
+
+  let primarySaveIdentity = null
+  await runCheck('GET /api/taoyuan/save/:slot save identity backfill', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(response.ok, `save identity readback returned ${response.status}`)
+    const decrypted = decryptTaoyuanRaw(data?.raw || '')
+    const identity = getEmbeddedSaveIdentity(decrypted)
+    assert(identity && Number.isInteger(Number(identity.save_id)), 'save identity was not embedded into save payload')
+    assert(Number(identity.save_id) >= 100000000 && Number(identity.save_id) < 1000000000, 'save identity is not a fixed public numeric id')
+    assert(identity.account_username === sessionState.username, 'save identity account username mismatch')
+    assert(identity.save_slot === 0, 'save identity slot mismatch')
+    primarySaveIdentity = identity
+  })
+
+  await runCheck('POST /api/taoyuan/save/:slot save identity immutable on overwrite', async () => {
+    assert(primarySaveIdentity?.save_id, 'save identity backfill did not complete before immutability check')
+    const beforeRead = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(beforeRead.response.ok, `save identity pre-overwrite readback returned ${beforeRead.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeRead.data?.raw || '')
+    assert(beforeDecrypted && typeof beforeDecrypted === 'object', 'save identity pre-overwrite payload could not be decrypted')
+    const tamperedSaveId = primarySaveIdentity.save_id === 999999999 ? 999999998 : 999999999
+    if (beforeDecrypted.meta && typeof beforeDecrypted.meta === 'object') {
+      beforeDecrypted.meta.onlineIdentity = {
+        ...primarySaveIdentity,
+        save_id: tamperedSaveId,
+        account_username: `${sessionState.username}_tampered`,
+        save_slot: 2,
+      }
+    } else {
+      beforeDecrypted.onlineIdentity = {
+        ...primarySaveIdentity,
+        save_id: tamperedSaveId,
+        account_username: `${sessionState.username}_tampered`,
+        save_slot: 2,
+      }
+    }
+    const tamperedRaw = encryptTaoyuanData(beforeDecrypted)
+    const { response: saveResponse, data: saveData } = await fetchAuthedJson('/api/taoyuan/save/0', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        raw: tamperedRaw,
+        revision: 2,
+      }),
+    })
+    assert(saveResponse.ok, `save identity overwrite returned ${saveResponse.status}: ${saveData?.msg || 'unknown error'}`)
+    assert(saveData?.ok === true && saveData?.stale === false, 'save identity overwrite payload is incomplete')
+
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(response.ok, `save identity overwrite readback returned ${response.status}`)
+    const decrypted = decryptTaoyuanRaw(data?.raw || '')
+    const identity = getEmbeddedSaveIdentity(decrypted)
+    assert(identity?.save_id === primarySaveIdentity.save_id, 'save identity changed after client overwrite')
+    assert(identity?.account_username === sessionState.username, 'save identity account changed after client overwrite')
+    assert(identity?.save_slot === 0, 'save identity slot changed after client overwrite')
   })
 
   await runCheck('GET /api/taoyuan/online/manor own snapshot', async () => {
