@@ -1175,15 +1175,41 @@ function resolveActiveSaveContext(username, preferredSlot = null) {
   }
 }
 
+function normalizeSocialSaveId(value) {
+  const saveId = Number(value);
+  return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0;
+}
+
+function normalizeSocialSaveSlot(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const saveSlot = Number(value);
+  return Number.isInteger(saveSlot) && saveSlot >= 0 && saveSlot <= 2 ? saveSlot : null;
+}
+
+function normalizeSaveFriendSide(username, identity = {}) {
+  return {
+    username: normalizeUsername(identity?.account_username || username),
+    save_id: normalizeSocialSaveId(identity?.save_id),
+    save_slot: normalizeSocialSaveSlot(identity?.save_slot),
+  };
+}
+
+function sortSaveFriendSides(left, right) {
+  if (left.save_id && right.save_id && left.save_id !== right.save_id) {
+    return left.save_id < right.save_id ? [left, right] : [right, left];
+  }
+  return left.username.localeCompare(right.username, 'zh-CN') <= 0 ? [left, right] : [right, left];
+}
+
 function normalizeFriendRequest(request) {
   return {
     id: String(request?.id || makeId('friend_req')),
     from_username: normalizeUsername(request?.from_username),
     to_username: normalizeUsername(request?.to_username),
-    from_save_id: Number.isInteger(Number(request?.from_save_id)) ? Number(request.from_save_id) : 0,
-    to_save_id: Number.isInteger(Number(request?.to_save_id)) ? Number(request.to_save_id) : 0,
-    from_save_slot: Number.isInteger(Number(request?.from_save_slot)) ? Number(request.from_save_slot) : null,
-    to_save_slot: Number.isInteger(Number(request?.to_save_slot)) ? Number(request.to_save_slot) : null,
+    from_save_id: normalizeSocialSaveId(request?.from_save_id),
+    to_save_id: normalizeSocialSaveId(request?.to_save_id),
+    from_save_slot: normalizeSocialSaveSlot(request?.from_save_slot),
+    to_save_slot: normalizeSocialSaveSlot(request?.to_save_slot),
     status: ['pending', 'accepted', 'rejected'].includes(String(request?.status)) ? String(request.status) : 'pending',
     created_at: Number(request?.created_at) || Math.floor(Date.now() / 1000),
     updated_at: Number(request?.updated_at) || Number(request?.created_at) || Math.floor(Date.now() / 1000),
@@ -1191,13 +1217,23 @@ function normalizeFriendRequest(request) {
 }
 
 function normalizeFriendship(friendship) {
-  const left = normalizeUsername(friendship?.username_a);
-  const right = normalizeUsername(friendship?.username_b);
-  const [username_a, username_b] = [left, right].sort((a, b) => a.localeCompare(b, 'zh-CN'));
+  const left = normalizeSaveFriendSide(friendship?.username_a, {
+    save_id: friendship?.save_id_a,
+    save_slot: friendship?.save_slot_a,
+  });
+  const right = normalizeSaveFriendSide(friendship?.username_b, {
+    save_id: friendship?.save_id_b,
+    save_slot: friendship?.save_slot_b,
+  });
+  const [sideA, sideB] = sortSaveFriendSides(left, right);
   return {
     id: String(friendship?.id || makeId('friendship')),
-    username_a,
-    username_b,
+    username_a: sideA.username,
+    username_b: sideB.username,
+    save_id_a: sideA.save_id,
+    save_id_b: sideB.save_id,
+    save_slot_a: sideA.save_slot,
+    save_slot_b: sideB.save_slot,
     created_at: Number(friendship?.created_at) || Math.floor(Date.now() / 1000),
     updated_at: Number(friendship?.updated_at) || Number(friendship?.created_at) || Math.floor(Date.now() / 1000),
     last_interaction_at: Number(friendship?.last_interaction_at) || Number(friendship?.updated_at) || Number(friendship?.created_at) || Math.floor(Date.now() / 1000),
@@ -1276,6 +1312,36 @@ function buildPairKey(left, right) {
   return [normalizeUsername(left), normalizeUsername(right)].sort((a, b) => a.localeCompare(b, 'zh-CN')).join('::');
 }
 
+function buildSavePairKey(leftSaveId, rightSaveId) {
+  const left = normalizeSocialSaveId(leftSaveId);
+  const right = normalizeSocialSaveId(rightSaveId);
+  if (!left || !right) return '';
+  return [left, right].sort((a, b) => a - b).join('::');
+}
+
+function getFriendshipSide(friendship, side) {
+  const normalized = normalizeFriendship(friendship);
+  return side === 'b'
+    ? normalizeSaveFriendSide(normalized.username_b, {
+        save_id: normalized.save_id_b,
+        save_slot: normalized.save_slot_b,
+      })
+    : normalizeSaveFriendSide(normalized.username_a, {
+        save_id: normalized.save_id_a,
+        save_slot: normalized.save_slot_a,
+      });
+}
+
+function buildFriendshipSavePairKey(friendship) {
+  const normalized = normalizeFriendship(friendship);
+  return buildSavePairKey(normalized.save_id_a, normalized.save_id_b);
+}
+
+function buildFriendRequestSavePairKey(request) {
+  const normalized = normalizeFriendRequest(request);
+  return buildSavePairKey(normalized.from_save_id, normalized.to_save_id);
+}
+
 function isBlocked(store, left, right) {
   const normalizedLeft = normalizeUsername(left);
   const normalizedRight = normalizeUsername(right);
@@ -1287,23 +1353,33 @@ function isBlocked(store, left, right) {
     );
 }
 
-function findFriendship(store, left, right) {
+function findFriendship(store, left, right, leftIdentity = null, rightIdentity = null) {
   const pairKey = buildPairKey(left, right);
+  const savePairKey = buildSavePairKey(leftIdentity?.save_id, rightIdentity?.save_id);
   return store.friendships
     .map(normalizeFriendship)
-    .find(entry => buildPairKey(entry.username_a, entry.username_b) === pairKey) || null;
+    .find(entry => {
+      const entrySavePairKey = buildFriendshipSavePairKey(entry);
+      if (savePairKey && entrySavePairKey) return entrySavePairKey === savePairKey;
+      return buildPairKey(entry.username_a, entry.username_b) === pairKey;
+    }) || null;
 }
 
-function findPendingRequest(store, left, right) {
+function findPendingRequest(store, left, right, leftIdentity = null, rightIdentity = null) {
   const normalizedLeft = normalizeUsername(left);
   const normalizedRight = normalizeUsername(right);
+  const savePairKey = buildSavePairKey(leftIdentity?.save_id, rightIdentity?.save_id);
   return store.friend_requests
     .map(normalizeFriendRequest)
     .find(entry =>
       entry.status === 'pending' &&
       (
-        (entry.from_username === normalizedLeft && entry.to_username === normalizedRight) ||
-        (entry.from_username === normalizedRight && entry.to_username === normalizedLeft)
+        savePairKey && buildFriendRequestSavePairKey(entry)
+          ? buildFriendRequestSavePairKey(entry) === savePairKey
+          : (
+              (entry.from_username === normalizedLeft && entry.to_username === normalizedRight) ||
+              (entry.from_username === normalizedRight && entry.to_username === normalizedLeft)
+            )
       )
     ) || null;
 }
@@ -1487,11 +1563,12 @@ async function buildProfile(username, viewerUsername = '', options = {}) {
   };
 }
 
-async function buildRelationCard(username, viewerUsername = '') {
+async function buildRelationCard(username, viewerUsername = '', options = {}) {
   return buildProfile(username, viewerUsername, {
     ignoreVisibility: true,
     includeChronicle: false,
     includeAwards: false,
+    preferredSlot: options.preferredSlot ?? null,
   });
 }
 
@@ -1612,43 +1689,84 @@ async function updateOwnProfile(username, payload = {}) {
 async function listRelationshipOverview(username) {
   const store = loadSocialProfileStore();
   const normalizedUsername = normalizeUsername(username);
+  const ownIdentity = resolveActiveSaveContext(normalizedUsername)?.identity || null;
 
   const incoming_requests = await Promise.all(
     store.friend_requests
       .map(normalizeFriendRequest)
-      .filter(entry => entry.status === 'pending' && entry.to_username === normalizedUsername)
+      .filter(entry => {
+        if (entry.status !== 'pending' || entry.to_username !== normalizedUsername) return false;
+        return !entry.to_save_id || !ownIdentity?.save_id || entry.to_save_id === ownIdentity.save_id;
+      })
       .sort((left, right) => right.created_at - left.created_at)
       .map(async entry => ({
         request_id: entry.id,
+        from_username: entry.from_username,
+        to_username: entry.to_username,
+        from_save_id: entry.from_save_id,
+        to_save_id: entry.to_save_id,
+        from_save_slot: entry.from_save_slot,
+        to_save_slot: entry.to_save_slot,
         created_at: entry.created_at,
-        profile: await buildRelationCard(entry.from_username, normalizedUsername),
+        profile: await buildRelationCard(entry.from_username, normalizedUsername, {
+          preferredSlot: entry.from_save_slot,
+        }),
       }))
   );
 
   const outgoing_requests = await Promise.all(
     store.friend_requests
       .map(normalizeFriendRequest)
-      .filter(entry => entry.status === 'pending' && entry.from_username === normalizedUsername)
+      .filter(entry => {
+        if (entry.status !== 'pending' || entry.from_username !== normalizedUsername) return false;
+        return !entry.from_save_id || !ownIdentity?.save_id || entry.from_save_id === ownIdentity.save_id;
+      })
       .sort((left, right) => right.created_at - left.created_at)
       .map(async entry => ({
         request_id: entry.id,
+        from_username: entry.from_username,
+        to_username: entry.to_username,
+        from_save_id: entry.from_save_id,
+        to_save_id: entry.to_save_id,
+        from_save_slot: entry.from_save_slot,
+        to_save_slot: entry.to_save_slot,
         created_at: entry.created_at,
-        profile: await buildRelationCard(entry.to_username, normalizedUsername),
+        profile: await buildRelationCard(entry.to_username, normalizedUsername, {
+          preferredSlot: entry.to_save_slot,
+        }),
       }))
   );
 
   const friends = await Promise.all(
     store.friendships
       .map(normalizeFriendship)
-      .filter(entry => entry.username_a === normalizedUsername || entry.username_b === normalizedUsername)
+      .filter(entry => {
+        if (ownIdentity?.save_id && (entry.save_id_a || entry.save_id_b)) {
+          return entry.save_id_a === ownIdentity.save_id || entry.save_id_b === ownIdentity.save_id;
+        }
+        return entry.username_a === normalizedUsername || entry.username_b === normalizedUsername;
+      })
       .sort((left, right) => right.last_interaction_at - left.last_interaction_at)
       .map(async entry => {
-        const otherUsername = entry.username_a === normalizedUsername ? entry.username_b : entry.username_a;
+        const sideA = getFriendshipSide(entry, 'a');
+        const sideB = getFriendshipSide(entry, 'b');
+        const ownSide = ownIdentity?.save_id && sideB.save_id === ownIdentity.save_id
+          ? sideB
+          : sideA.username === normalizedUsername
+            ? sideA
+            : sideB;
+        const friendSide = ownSide === sideA ? sideB : sideA;
         return {
           friendship_id: entry.id,
+          own_save_id: ownSide.save_id,
+          own_save_slot: ownSide.save_slot,
+          friend_save_id: friendSide.save_id,
+          friend_save_slot: friendSide.save_slot,
           friends_since: entry.created_at,
           last_interaction_at: entry.last_interaction_at,
-          profile: await buildRelationCard(otherUsername, normalizedUsername),
+          profile: await buildRelationCard(friendSide.username, normalizedUsername, {
+            preferredSlot: friendSide.save_slot,
+          }),
         };
       })
   );
@@ -1710,8 +1828,8 @@ async function requestFriendship(username, targetPayload) {
   const targetUser = await db.getUser(target);
   if (!targetUser) throw createError('目标玩家不存在', 404);
   if (isBlocked(store, requester, target)) throw createError('你与该玩家当前存在拉黑关系，无法发送申请');
-  if (findFriendship(store, requester, target)) throw createError('你们已经是好友了');
-  if (findPendingRequest(store, requester, target)) throw createError('这条好友申请已经在处理中');
+  if (findFriendship(store, requester, target, requesterIdentity, targetIdentity)) throw createError('你们已经是好友了');
+  if (findPendingRequest(store, requester, target, requesterIdentity, targetIdentity)) throw createError('这条好友申请已经在处理中');
 
   const request = normalizeFriendRequest({
     id: makeId('friend_req'),
@@ -1747,19 +1865,37 @@ async function acceptFriendRequest(username, requestId) {
   const now = Math.floor(Date.now() / 1000);
   request.status = 'accepted';
   request.updated_at = now;
-  const existingFriendship = findFriendship(store, request.from_username, request.to_username);
+  const fromIdentity = normalizeSaveFriendSide(request.from_username, {
+    save_id: request.from_save_id,
+    save_slot: request.from_save_slot,
+  });
+  const toIdentity = normalizeSaveFriendSide(request.to_username, {
+    save_id: request.to_save_id,
+    save_slot: request.to_save_slot,
+  });
+  const existingFriendship = findFriendship(store, request.from_username, request.to_username, fromIdentity, toIdentity);
+  const nextFriendship = normalizeFriendship({
+    id: existingFriendship?.id || makeId('friendship'),
+    username_a: request.from_username,
+    username_b: request.to_username,
+    save_id_a: request.from_save_id,
+    save_slot_a: request.from_save_slot,
+    save_id_b: request.to_save_id,
+    save_slot_b: request.to_save_slot,
+    created_at: existingFriendship?.created_at || now,
+    updated_at: now,
+    last_interaction_at: now,
+  });
   if (!existingFriendship) {
     store.friendships = [
       ...store.friendships,
-      normalizeFriendship({
-        id: makeId('friendship'),
-        username_a: request.from_username,
-        username_b: request.to_username,
-        created_at: now,
-        updated_at: now,
-        last_interaction_at: now,
-      }),
+      nextFriendship,
     ];
+  } else {
+    store.friendships = store.friendships.map(entry => {
+      const normalized = normalizeFriendship(entry);
+      return normalized.id === existingFriendship.id ? nextFriendship : normalized;
+    });
   }
   store.friend_requests = store.friend_requests.map(entry => {
     const normalized = normalizeFriendRequest(entry);

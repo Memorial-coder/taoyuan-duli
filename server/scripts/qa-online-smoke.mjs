@@ -1289,11 +1289,12 @@ try {
   })
 
   let friendRequestId = ''
+  let secondarySaveIdentity = null
   await runCheck('POST /api/taoyuan/online/social/friend-requests order scope setup', async () => {
     const secondarySave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
     assert(secondarySave.response.ok, `secondary save identity read returned ${secondarySave.response.status}`)
-    const secondaryIdentity = getEmbeddedSaveIdentity(decryptTaoyuanRaw(secondarySave.data?.raw || ''))
-    assert(secondaryIdentity?.save_id, 'secondary save identity missing before friend request setup')
+    secondarySaveIdentity = getEmbeddedSaveIdentity(decryptTaoyuanRaw(secondarySave.data?.raw || ''))
+    assert(secondarySaveIdentity?.save_id, 'secondary save identity missing before friend request setup')
 
     const { response, data } = await fetchAuthedJson('/api/taoyuan/online/social/friend-requests', {
       method: 'POST',
@@ -1301,15 +1302,33 @@ try {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        target_save_id: secondaryIdentity.save_id,
+        target_save_id: secondarySaveIdentity.save_id,
       }),
     })
     assert(response.ok, `friend request for coop order scope returned ${response.status}`)
     assert(data?.ok === true && data?.request?.id, 'friend request for coop order scope payload is incomplete')
     assert(data.request.to_username === secondarySessionState.username, 'friend request by save id targeted the wrong user')
-    assert(data.request.to_save_id === secondaryIdentity.save_id, 'friend request did not persist target save id')
+    assert(data.request.to_save_id === secondarySaveIdentity.save_id, 'friend request did not persist target save id')
     assert(data.request.from_save_id === primarySaveIdentity.save_id, 'friend request did not persist requester save id')
     friendRequestId = String(data.request.id)
+  })
+
+  await runCheck('GET /api/taoyuan/online/social/relationships friend request save id overview', async () => {
+    assert(primarySaveIdentity?.save_id && secondarySaveIdentity?.save_id, 'save identities are required before relationship request overview check')
+
+    const primaryOverview = await fetchAuthedJson('/api/taoyuan/online/social/relationships')
+    assert(primaryOverview.response.ok, `primary relationship overview returned ${primaryOverview.response.status}`)
+    const outgoingRequest = primaryOverview.data?.outgoing_requests?.find(entry => entry?.request_id === friendRequestId)
+    assert(outgoingRequest?.from_save_id === primarySaveIdentity.save_id, 'outgoing request overview missing requester save id')
+    assert(outgoingRequest?.to_save_id === secondarySaveIdentity.save_id, 'outgoing request overview missing target save id')
+    assert(outgoingRequest?.to_save_slot === secondarySaveIdentity.save_slot, 'outgoing request overview missing target save slot')
+
+    const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/social/relationships')
+    assert(secondaryOverview.response.ok, `secondary relationship overview returned ${secondaryOverview.response.status}`)
+    const incomingRequest = secondaryOverview.data?.incoming_requests?.find(entry => entry?.request_id === friendRequestId)
+    assert(incomingRequest?.from_save_id === primarySaveIdentity.save_id, 'incoming request overview missing requester save id')
+    assert(incomingRequest?.to_save_id === secondarySaveIdentity.save_id, 'incoming request overview missing target save id')
+    assert(incomingRequest?.from_save_slot === primarySaveIdentity.save_slot, 'incoming request overview missing requester save slot')
   })
 
   await runCheck('POST /api/taoyuan/online/social/friend-requests/:id/accept order scope setup', async () => {
@@ -1318,6 +1337,26 @@ try {
     })
     assert(response.ok, `friend request accept for coop order scope returned ${response.status}`)
     assert(data?.ok === true && data?.request?.status === 'accepted', 'friend request accept for coop order scope payload is incomplete')
+    assert(data.request.from_save_id === primarySaveIdentity.save_id, 'accepted request lost requester save id')
+    assert(data.request.to_save_id === secondarySaveIdentity.save_id, 'accepted request lost target save id')
+  })
+
+  await runCheck('GET /api/taoyuan/online/social/relationships friend list save id readback', async () => {
+    assert(primarySaveIdentity?.save_id && secondarySaveIdentity?.save_id, 'save identities are required before friend list overview check')
+
+    const primaryOverview = await fetchAuthedJson('/api/taoyuan/online/social/relationships')
+    assert(primaryOverview.response.ok, `primary friend relationship overview returned ${primaryOverview.response.status}`)
+    const primaryFriend = primaryOverview.data?.friends?.find(entry => entry?.profile?.username === secondarySessionState.username)
+    assert(primaryFriend?.own_save_id === primarySaveIdentity.save_id, 'primary friend list missing own save id')
+    assert(primaryFriend?.friend_save_id === secondarySaveIdentity.save_id, 'primary friend list missing friend save id')
+    assert(primaryFriend?.friend_save_slot === secondarySaveIdentity.save_slot, 'primary friend list missing friend save slot')
+
+    const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/social/relationships')
+    assert(secondaryOverview.response.ok, `secondary friend relationship overview returned ${secondaryOverview.response.status}`)
+    const secondaryFriend = secondaryOverview.data?.friends?.find(entry => entry?.profile?.username === sessionState.username)
+    assert(secondaryFriend?.own_save_id === secondarySaveIdentity.save_id, 'secondary friend list missing own save id')
+    assert(secondaryFriend?.friend_save_id === primarySaveIdentity.save_id, 'secondary friend list missing friend save id')
+    assert(secondaryFriend?.friend_save_slot === primarySaveIdentity.save_slot, 'secondary friend list missing friend save slot')
   })
 
   let friendMemorialMailId = ''
