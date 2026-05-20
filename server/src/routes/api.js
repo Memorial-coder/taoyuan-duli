@@ -16,6 +16,7 @@ const taoyuanManorRuntime = require('../taoyuanManorRuntime');
 const taoyuanCoopOrderRuntime = require('../taoyuanCoopOrderRuntime');
 const taoyuanActivityRoomRuntime = require('../taoyuanActivityRoomRuntime');
 const taoyuanSocietyRuntime = require('../taoyuanSocietyRuntime');
+const taoyuanWorldEventRuntime = require('../taoyuanWorldEventRuntime');
 const taoyuanWeeklyExchangeStation = require('../taoyuanWeeklyExchangeStation');
 const taoyuanFestivalStall = require('../taoyuanFestivalStall');
 const taoyuanNeighborConsignment = require('../taoyuanNeighborConsignment');
@@ -1097,6 +1098,15 @@ router.get('/taoyuan/online/expedition/rooms', loginRequired, async (req, res) =
   }
 });
 
+router.get('/taoyuan/online/world-events', loginRequired, async (req, res) => {
+  try {
+    const overview = await taoyuanWorldEventRuntime.listWorldEventOverview(req.session.username);
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取四季大事件失败' });
+  }
+});
+
 router.get('/taoyuan/online/societies', loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanSocietyRuntime.listSocietyOverview(req.session.username);
@@ -1259,6 +1269,20 @@ router.post('/taoyuan/online/societies/public-warehouse/deposit', loginRequired,
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '补入公共仓失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/world-events/:eventId/contribute', loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanWorldEventRuntime.contributeWorldEvent(req.params.eventId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '提交四季大事件贡献失败' });
     }
   });
 });

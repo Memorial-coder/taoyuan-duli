@@ -1454,6 +1454,9 @@ try {
   })
 
   let createdFestivalRoomId = ''
+  let createdWorldEventId = ''
+  let worldEventPrimaryRewardMoney = 0
+  let worldEventSecondaryRewardMoney = 0
   await runCheck('GET /api/taoyuan/online/festival/rooms read path', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/online/festival/rooms')
     assert(response.ok, `festival room overview returned ${response.status}`)
@@ -1702,6 +1705,104 @@ try {
     assert(Array.isArray(latestMemorial?.squadmate_display_names) && latestMemorial.squadmate_display_names.includes(secondaryDisplayName), 'festival memorial did not preserve squadmate display names')
     assert(Array.isArray(latestMemorial?.squadmate_friend_display_names) && latestMemorial.squadmate_friend_display_names.includes(secondaryDisplayName), 'festival memorial did not preserve friend squadmate list')
     assert(latestMemorial?.photo_taken === true && typeof latestMemorial?.photo_line === 'string' && latestMemorial.photo_line.length >= 4, 'festival memorial did not preserve photo snapshot text')
+  })
+
+  await runCheck('GET /api/taoyuan/online/world-events read path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/world-events')
+    assert(response.ok, `world events overview returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.events) && data.events.length === 4, 'world events overview payload is incomplete')
+    const eventIds = new Set((data?.events || []).map(item => String(item?.id || '')))
+    for (const requiredId of ['spring_plowing', 'summer_flood', 'autumn_harvest', 'winter_store']) {
+      assert(eventIds.has(requiredId), `world events overview missing event ${requiredId}`)
+    }
+    assert(data?.current_event && data.current_event.is_current_season === true, 'world events overview did not expose the current season event')
+    assert(Array.isArray(data?.current_event?.contribution_actions) && data.current_event.contribution_actions.some(item => item?.can_use === true), 'world events current event did not expose usable actions')
+    createdWorldEventId = String(data.current_event.id)
+  })
+
+  await runCheck('POST /api/taoyuan/online/world-events/:eventId/contribute primary path', async () => {
+    const overview = await fetchAuthedJson('/api/taoyuan/online/world-events')
+    assert(overview.response.ok, `world event action overview returned ${overview.response.status}`)
+    const action = (overview.data?.current_event?.contribution_actions || []).find(item => Number(item?.progress_delta || 0) >= 3)
+      || overview.data?.current_event?.contribution_actions?.[0]
+    assert(action?.id, 'world event primary contribute did not expose a usable action')
+
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/world-events/${encodeURIComponent(createdWorldEventId)}/contribute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        action_id: action.id,
+      }),
+    })
+    assert(response.ok, `world event primary contribute returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.event?.id === createdWorldEventId, 'world event primary contribute payload is incomplete')
+    assert(String(data?.event?.state || '') === 'active', `world event should still be active after first contribution, current=${data?.event?.state}`)
+    assert(Number(data?.event?.my_contribution?.progress_value || 0) >= Number(action?.progress_delta || 0), 'world event primary contribute did not preserve personal progress')
+    primaryExpectedMoney -= Number(action?.cost_money || 0)
+  })
+
+  await runCheck('POST /api/taoyuan/online/world-events/:eventId/contribute completion path', async () => {
+    const overview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/world-events')
+    assert(overview.response.ok, `secondary world events overview returned ${overview.response.status}`)
+    const action = (overview.data?.current_event?.contribution_actions || []).find(item => Number(item?.progress_delta || 0) >= 3)
+      || overview.data?.current_event?.contribution_actions?.[0]
+    assert(action?.id, 'world event completion path did not expose a usable action')
+
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/world-events/${encodeURIComponent(createdWorldEventId)}/contribute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': secondarySessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        action_id: action.id,
+      }),
+    })
+    assert(response.ok, `world event completion contribute returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.event?.id === createdWorldEventId, 'world event completion payload is incomplete')
+    assert(String(data?.event?.state || '') === 'completed', 'world event did not reach completed state')
+    assert(Array.isArray(data?.event?.settlement_receipts) && data.event.settlement_receipts.length >= 2, 'world event completion did not generate per-member receipts')
+    assert(data.event.settlement_receipts.every(item => String(item?.status || '') === 'persisted'), 'world event completion did not persist all receipts')
+    const primaryReceipt = data.event.settlement_receipts.find(item => item?.target_username === sessionState.username)
+    const secondaryReceipt = data.event.settlement_receipts.find(item => item?.target_username === secondarySessionState.username)
+    worldEventPrimaryRewardMoney = Math.max(0, Math.floor(Number(primaryReceipt?.reward_payload?.money) || 0))
+    worldEventSecondaryRewardMoney = Math.max(0, Math.floor(Number(secondaryReceipt?.reward_payload?.money) || 0))
+    secondaryExpectedMoney -= Number(action?.cost_money || 0)
+    primaryExpectedMoney += worldEventPrimaryRewardMoney
+    secondaryExpectedMoney += worldEventSecondaryRewardMoney
+  })
+
+  await runCheck('GET /api/taoyuan/online/world-events completed readback', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/world-events')
+    assert(response.ok, `world event readback returned ${response.status}`)
+    assert(data?.ok === true && data?.current_event?.id === createdWorldEventId, 'world event readback payload is incomplete')
+    assert(String(data?.current_event?.state || '') === 'completed', `world event did not stay completed, current=${data?.current_event?.state}`)
+    assert(Array.isArray(data?.recent_annals) && data.recent_annals.some(item => item?.event_id === createdWorldEventId), 'world event readback did not preserve annal entry')
+    assert(Array.isArray(data?.my_records) && data.my_records.some(item => item?.event_id === createdWorldEventId), 'world event readback did not preserve player record')
+    assert(Array.isArray(data?.seasonal_badges) && data.seasonal_badges.some(item => item?.event_id === createdWorldEventId), 'world event readback did not preserve player badge')
+
+    const secondaryReadback = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/world-events')
+    assert(secondaryReadback.response.ok, `secondary world event readback returned ${secondaryReadback.response.status}`)
+    assert(Array.isArray(secondaryReadback.data?.my_records) && secondaryReadback.data.my_records.some(item => item?.event_id === createdWorldEventId), 'secondary world event readback did not preserve player record')
+  })
+
+  await runCheck('GET /api/taoyuan/save/:slot world event reward persistence', async () => {
+    const primarySave = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(primarySave.response.ok, `world event primary save readback returned ${primarySave.response.status}`)
+    assert(primarySave.data?.ok === true && typeof primarySave.data?.raw === 'string', 'world event primary save payload is incomplete')
+    const primaryDecrypted = decryptTaoyuanRaw(primarySave.data.raw)
+    assert(Math.max(0, Math.floor(Number(primaryDecrypted?.player?.money) || 0)) === primaryExpectedMoney, `world event reward did not persist primary money correctly, expected money=${primaryExpectedMoney}, current money=${Math.max(0, Math.floor(Number(primaryDecrypted?.player?.money) || 0))}`)
+    assert(Array.isArray(primaryDecrypted?.onlineWorldEvents?.contributionRecords) && primaryDecrypted.onlineWorldEvents.contributionRecords.some(item => item?.event_id === createdWorldEventId), 'world event reward did not persist primary contribution record')
+
+    const secondarySave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(secondarySave.response.ok, `world event secondary save readback returned ${secondarySave.response.status}`)
+    assert(secondarySave.data?.ok === true && typeof secondarySave.data?.raw === 'string', 'world event secondary save payload is incomplete')
+    const secondaryDecrypted = decryptTaoyuanRaw(secondarySave.data.raw)
+    assert(Math.max(0, Math.floor(Number(secondaryDecrypted?.player?.money) || 0)) === secondaryExpectedMoney, `world event reward did not persist secondary money correctly, expected money=${secondaryExpectedMoney}, current money=${Math.max(0, Math.floor(Number(secondaryDecrypted?.player?.money) || 0))}`)
+    assert(Array.isArray(secondaryDecrypted?.onlineWorldEvents?.contributionRecords) && secondaryDecrypted.onlineWorldEvents.contributionRecords.some(item => item?.event_id === createdWorldEventId), 'world event reward did not persist secondary contribution record')
   })
 
   let createdExpeditionRoomId = ''

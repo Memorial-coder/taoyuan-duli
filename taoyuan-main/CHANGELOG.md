@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 四季大事件（L90 第一轮）
+- `taoyuan-main/src/views/game/FestivalView.vue` 现在已经接入四季大事件面板：当前季事件、贡献进度、贡献动作、贡献榜、最近史册和个人世界贡献记录都会直接展示，不再需要从节会页跳到别的孤立入口。
+- 新增 `taoyuan-main/src/utils/worldEventApi.ts` 与 `src/stores/useWorldEventStore.ts`，把世界事件总览、贡献提交和个人史册读取都收进独立前端链路。
+
 ### 0520 海域共探（L84 第一轮）
 - `server/scripts/qa-online-smoke.mjs` 已补进 `L84` 海域共探专项回归：当前会实际创建 `sea_probe` 房型，验证建房、邀请、加入、ready、倒计时、运行态动作、结算和关闭链路。
 - 本轮专项 smoke 已明确校验 `expedition_sea` 玩法模板挂载、4 人房型成员上限，以及 `航线分工 / 应对海况 / 海货结算` 三种动作在共享进度、成员贡献和最近事件里的真实落点。

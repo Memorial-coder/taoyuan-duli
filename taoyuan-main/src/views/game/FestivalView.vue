@@ -1,5 +1,137 @@
 <template>
   <div class="space-y-3">
+    <div class="border border-success/20 rounded-xs p-3 bg-success/5">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-[10px] tracking-[0.24em] text-success/70">四季大事件</p>
+          <p class="text-sm text-success mt-1">世界进度与季节共同目标</p>
+          <p class="text-xs text-muted mt-2 leading-5">{{ worldEventStore.overview?.bulletin || '先把当前季节事件独立跑在世界事件层里，再逐步往更完整的全服事件与世界纪年扩。' }}</p>
+        </div>
+        <div class="text-right shrink-0">
+          <p class="text-[10px] text-muted">当前季节</p>
+          <p class="text-xs text-success mt-1">{{ worldEventStore.overview?.current_season_label || '未载入' }}</p>
+        </div>
+      </div>
+      <p v-if="worldEventStore.errorMessage" class="text-xs text-danger mt-3">{{ worldEventStore.errorMessage }}</p>
+    </div>
+
+    <div class="grid gap-3 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
+      <div class="border border-success/20 rounded-xs p-3 bg-bg/10">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <p class="text-sm text-success">当前季节大事件</p>
+          <span class="text-[10px] text-muted">{{ worldEventStore.currentEvent?.state_label || '未开放' }}</span>
+        </div>
+        <div v-if="worldEventStore.currentEvent" class="space-y-3">
+          <div class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-xs text-success">{{ worldEventStore.currentEvent.label }}</p>
+                <p class="text-[10px] text-muted mt-1">{{ worldEventStore.currentEvent.scope_label }} · {{ worldEventStore.currentEvent.season_label }}</p>
+              </div>
+              <span class="text-[10px] text-muted">{{ worldEventStore.currentEvent.progress_text }}</span>
+            </div>
+            <p class="text-[10px] text-muted mt-2 leading-4">{{ worldEventStore.currentEvent.summary }}</p>
+            <div class="mt-2 h-2 rounded-xs bg-bg overflow-hidden border border-success/10">
+              <div
+                class="h-full bg-success/70 transition-all"
+                :style="{ width: `${worldEventStore.currentEvent.progress_percent}%` }"
+              />
+            </div>
+            <p class="text-[10px] text-muted mt-2">
+              {{ worldEventStore.currentEvent.objective_label }} · {{ worldEventStore.currentEvent.progress_text }} · 完成基础回礼 {{ worldEventStore.currentEvent.reward_money_hint }} 铜钱起
+            </p>
+            <p v-if="worldEventStore.currentEvent.locked_reason" class="text-[10px] text-warning mt-1 leading-4">{{ worldEventStore.currentEvent.locked_reason }}</p>
+            <p v-else-if="worldEventStore.currentEvent.completion_text" class="text-[10px] text-success mt-1 leading-4">{{ worldEventStore.currentEvent.completion_text }}</p>
+          </div>
+
+          <div v-if="worldEventStore.currentEvent.contribution_actions.length > 0" class="space-y-2">
+            <p class="text-[10px] text-muted">可提交贡献</p>
+            <div class="space-y-2">
+              <div
+                v-for="action in worldEventStore.currentEvent.contribution_actions"
+                :key="`${worldEventStore.currentEvent.id}-${action.id}`"
+                class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10"
+              >
+                <div class="flex items-center gap-2">
+                  <Button
+                    :disabled="worldEventStore.actionRunning || !action.can_use"
+                    @click="contributeWorldEventAction(worldEventStore.currentEvent.id, action.id)"
+                  >
+                    {{ action.label }}
+                  </Button>
+                  <p class="text-[10px] text-muted leading-4">{{ action.summary }}</p>
+                </div>
+                <p class="text-[10px] text-muted mt-1">工钱 {{ action.cost_money }} 铜钱 · 推进 {{ action.progress_delta }} 点</p>
+                <p v-if="!action.can_use && action.disabled_reason" class="text-[10px] text-muted mt-1">{{ action.disabled_reason }}</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid gap-3 md:grid-cols-2">
+            <div class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
+              <p class="text-xs text-success">当前贡献榜</p>
+              <div v-if="worldEventStore.currentEvent.contributors.length === 0" class="text-[10px] text-muted mt-2">当前还没有人提交季节贡献。</div>
+              <div v-else class="space-y-1.5 mt-2">
+                <p v-for="contributor in worldEventStore.currentEvent.contributors" :key="`${worldEventStore.currentEvent.id}-${contributor.username}`" class="text-[10px] text-muted leading-4">
+                  {{ contributor.rank }}. {{ contributor.display_name }} · {{ contributor.progress_value }} 点 · {{ contributor.action_count }} 次
+                </p>
+              </div>
+            </div>
+
+            <div class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
+              <p class="text-xs text-success">我的季节记录</p>
+              <div v-if="!worldEventStore.currentEvent.my_contribution" class="text-[10px] text-muted mt-2">你本季还没有提交贡献。</div>
+              <div v-else class="space-y-1.5 mt-2">
+                <p class="text-[10px] text-muted">当前排名：第 {{ worldEventStore.currentEvent.my_contribution.rank }} 名</p>
+                <p class="text-[10px] text-muted">累计贡献：{{ worldEventStore.currentEvent.my_contribution.progress_value }} 点</p>
+                <p class="text-[10px] text-muted">提交次数：{{ worldEventStore.currentEvent.my_contribution.action_count }} 次</p>
+                <p v-if="worldEventStore.currentEvent.my_contribution.last_action_label" class="text-[10px] text-muted">最近动作：{{ worldEventStore.currentEvent.my_contribution.last_action_label }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <p v-else class="text-xs text-muted leading-5">当前季节大事件还没有载入成功，可以刷新页面后再试。</p>
+      </div>
+
+      <div class="space-y-3">
+        <div class="border border-success/20 rounded-xs p-3 bg-bg/10">
+          <p class="text-sm text-success mb-2">最近史册</p>
+          <div v-if="worldEventStore.recentAnnals.length === 0" class="text-xs text-muted leading-5">当前还没有完成并归档的四季大事件。等到某一季全服目标被推满后，这里会留下第一条世界纪年摘要。</div>
+          <div v-else class="space-y-2">
+            <div v-for="annal in worldEventStore.recentAnnals" :key="annal.id" class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs text-text">{{ annal.event_label }}</p>
+                  <p class="text-[10px] text-muted mt-1">{{ annal.season_label }} · {{ annal.cycle_key }}</p>
+                </div>
+                <span class="text-[10px] text-success">{{ annal.contributor_count }} 人</span>
+              </div>
+              <p class="text-[10px] text-muted mt-2 leading-4">{{ annal.summary }}</p>
+              <p v-if="annal.top_contributor_display_name" class="text-[10px] text-muted mt-1 leading-4">领头贡献：{{ annal.top_contributor_display_name }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="border border-success/20 rounded-xs p-3 bg-bg/10">
+          <p class="text-sm text-success mb-2">我的世界贡献</p>
+          <p class="text-[10px] text-muted">累计贡献：{{ worldEventStore.overview?.total_contribution_points || 0 }} 点</p>
+          <div v-if="worldEventStore.myRecords.length === 0" class="text-xs text-muted leading-5 mt-2">当前账号还没有完成过四季大事件结算，完成后这里会保留你的季节结算与奖励摘要。</div>
+          <div v-else class="space-y-2 mt-2">
+            <div v-for="record in worldEventStore.myRecords.slice(0, 4)" :key="record.record_id" class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs text-text">{{ record.event_label }}</p>
+                  <p class="text-[10px] text-muted mt-1">{{ record.season_label }} · 第 {{ record.rank }} 名</p>
+                </div>
+                <span class="text-[10px] text-success">+{{ record.reward_money }} 铜钱</span>
+              </div>
+              <p class="text-[10px] text-muted mt-2 leading-4">{{ record.reward_summary }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="border border-accent/20 rounded-xs p-3 bg-bg/20">
       <div class="flex items-start justify-between gap-3">
         <div class="min-w-0">
@@ -279,15 +411,22 @@
   import { onMounted } from 'vue'
   import Button from '@/components/game/Button.vue'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
+  import { useWorldEventStore } from '@/stores/useWorldEventStore'
 
   const festivalRoomStore = useFestivalRoomStore()
+  const worldEventStore = useWorldEventStore()
 
   const refreshOverview = async () => {
     await festivalRoomStore.refreshOverview().catch(() => {})
+    await worldEventStore.refreshOverview().catch(() => {})
   }
 
   const createRoom = async () => {
     await festivalRoomStore.createRoom().catch(() => {})
+  }
+
+  const contributeWorldEventAction = async (eventId: string, actionId: string) => {
+    await worldEventStore.contribute(eventId, actionId).catch(() => {})
   }
 
   const inviteMember = async (roomId: string) => {
