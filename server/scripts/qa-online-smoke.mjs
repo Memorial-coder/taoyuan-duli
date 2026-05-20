@@ -1290,17 +1290,25 @@ try {
 
   let friendRequestId = ''
   await runCheck('POST /api/taoyuan/online/social/friend-requests order scope setup', async () => {
+    const secondarySave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(secondarySave.response.ok, `secondary save identity read returned ${secondarySave.response.status}`)
+    const secondaryIdentity = getEmbeddedSaveIdentity(decryptTaoyuanRaw(secondarySave.data?.raw || ''))
+    assert(secondaryIdentity?.save_id, 'secondary save identity missing before friend request setup')
+
     const { response, data } = await fetchAuthedJson('/api/taoyuan/online/social/friend-requests', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        target_username: secondarySessionState.username,
+        target_save_id: secondaryIdentity.save_id,
       }),
     })
     assert(response.ok, `friend request for coop order scope returned ${response.status}`)
     assert(data?.ok === true && data?.request?.id, 'friend request for coop order scope payload is incomplete')
+    assert(data.request.to_username === secondarySessionState.username, 'friend request by save id targeted the wrong user')
+    assert(data.request.to_save_id === secondaryIdentity.save_id, 'friend request did not persist target save id')
+    assert(data.request.from_save_id === primarySaveIdentity.save_id, 'friend request did not persist requester save id')
     friendRequestId = String(data.request.id)
   })
 

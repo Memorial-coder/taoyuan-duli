@@ -1180,6 +1180,10 @@ function normalizeFriendRequest(request) {
     id: String(request?.id || makeId('friend_req')),
     from_username: normalizeUsername(request?.from_username),
     to_username: normalizeUsername(request?.to_username),
+    from_save_id: Number.isInteger(Number(request?.from_save_id)) ? Number(request.from_save_id) : 0,
+    to_save_id: Number.isInteger(Number(request?.to_save_id)) ? Number(request.to_save_id) : 0,
+    from_save_slot: Number.isInteger(Number(request?.from_save_slot)) ? Number(request.from_save_slot) : null,
+    to_save_slot: Number.isInteger(Number(request?.to_save_slot)) ? Number(request.to_save_slot) : null,
     status: ['pending', 'accepted', 'rejected'].includes(String(request?.status)) ? String(request.status) : 'pending',
     created_at: Number(request?.created_at) || Math.floor(Date.now() / 1000),
     updated_at: Number(request?.updated_at) || Number(request?.created_at) || Math.floor(Date.now() / 1000),
@@ -1519,6 +1523,36 @@ async function searchPlayerBySaveId(viewerUsername, rawSaveId) {
   };
 }
 
+function resolveOwnSaveIdentity(username) {
+  const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源乡存档，暂时无法发送好友申请');
+  if (!context?.identity?.save_id) throw createError('当前存档缺少数字 ID，请重新打开服务端存档后再试');
+  return context.identity;
+}
+
+function resolveFriendRequestTarget(payload) {
+  if (payload && typeof payload === 'object') {
+    const targetSaveId = Number(payload.target_save_id ?? payload.save_id);
+    if (Number.isInteger(targetSaveId)) {
+      const identity = findSaveIdentityById(targetSaveId);
+      if (!identity) throw createError('目标存档 ID 不存在', 404);
+      return {
+        username: identity.account_username,
+        identity,
+      };
+    }
+
+    return {
+      username: normalizeUsername(payload.target_username),
+      identity: null,
+    };
+  }
+
+  return {
+    username: normalizeUsername(payload),
+    identity: null,
+  };
+}
+
 async function updateOwnProfile(username, payload = {}) {
   const publicIntro = moderateText(payload.public_intro, {
     label: '公开介绍',
@@ -1656,13 +1690,23 @@ async function listRelationshipOverview(username) {
   };
 }
 
-async function requestFriendship(username, targetUsername) {
+async function requestFriendship(username, targetPayload) {
   const store = loadSocialProfileStore();
   const requester = normalizeUsername(username);
-  const target = normalizeUsername(targetUsername);
+  const requesterIdentity = resolveOwnSaveIdentity(requester);
+  const targetResult = resolveFriendRequestTarget(targetPayload);
+  const target = normalizeUsername(targetResult.username);
+  const targetIdentity = targetResult.identity;
 
-  if (!target) throw createError('请先填写好友用户名');
-  if (requester === target) throw createError('不能给自己发送好友申请');
+  if (!target) throw createError('请先填写好友用户名或存档 ID');
+  if (
+    requesterIdentity.save_id &&
+    targetIdentity?.save_id &&
+    requesterIdentity.save_id === targetIdentity.save_id
+  ) {
+    throw createError('不能给当前存档发送好友申请');
+  }
+  if (requester === target && !targetIdentity) throw createError('不能给自己发送好友申请');
   const targetUser = await db.getUser(target);
   if (!targetUser) throw createError('目标玩家不存在', 404);
   if (isBlocked(store, requester, target)) throw createError('你与该玩家当前存在拉黑关系，无法发送申请');
@@ -1673,6 +1717,10 @@ async function requestFriendship(username, targetUsername) {
     id: makeId('friend_req'),
     from_username: requester,
     to_username: target,
+    from_save_id: requesterIdentity.save_id,
+    from_save_slot: requesterIdentity.save_slot,
+    to_save_id: targetIdentity?.save_id || 0,
+    to_save_slot: targetIdentity?.save_slot ?? null,
     status: 'pending',
     created_at: Math.floor(Date.now() / 1000),
     updated_at: Math.floor(Date.now() / 1000),
