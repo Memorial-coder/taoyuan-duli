@@ -571,6 +571,16 @@ try {
     assert(identity?.save_slot === 0, 'save identity slot changed after client overwrite')
   })
 
+  await runCheck('GET /api/taoyuan/online/social/player-search save id path', async () => {
+    assert(primarySaveIdentity?.save_id, 'save identity backfill did not complete before search check')
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/social/player-search?save_id=${encodeURIComponent(primarySaveIdentity.save_id)}`)
+    assert(response.ok, `save id player search returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.save_identity?.save_id === primarySaveIdentity.save_id, 'save id player search identity payload is incomplete')
+    assert(data?.save_identity?.save_slot === 0, 'save id player search returned wrong slot')
+    assert(data?.profile?.username === sessionState.username, 'save id player search returned wrong profile')
+    assert(!data?.profile?.inventory && !data?.profile?.wallet, 'save id player search leaked gameplay payload')
+  })
+
   await runCheck('GET /api/taoyuan/online/manor own snapshot', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/online/manor')
     assert(response.ok, `own manor snapshot returned ${response.status}`)

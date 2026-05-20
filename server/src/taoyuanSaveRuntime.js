@@ -261,6 +261,17 @@ function getSaveSlotIdentity(username, slot) {
   return normalizeSaveIdentityRecord(store.identities[key]);
 }
 
+function findSaveIdentityById(saveId) {
+  const normalizedSaveId = normalizeSaveId(saveId);
+  if (!normalizedSaveId) return null;
+  const store = loadSaveIdentityStore();
+  for (const value of Object.values(store.identities || {})) {
+    const record = normalizeSaveIdentityRecord(value);
+    if (record?.save_id === normalizedSaveId) return record;
+  }
+  return null;
+}
+
 function removeSaveSlotIdentity(username, slot) {
   const key = buildSaveIdentityKey(username, slot);
   if (!key) return false;
@@ -597,6 +608,7 @@ module.exports = {
   ensureSaveIdentitiesForSlots,
   prepareSlotEntryForSave,
   getSaveSlotIdentity,
+  findSaveIdentityById,
   removeSaveSlotIdentity,
   getActiveSaveContext,
   persistGameplayData,

@@ -7,6 +7,8 @@
 - `0520todo.md / A0` 这一轮先把服务端存档身份底座落到真实读写链路：`server/src/taoyuanSaveRuntime.js` 新增按账号 + 槽位维护的 `SaveIdentity` 注册表，服务端存档读回与保存时会自动注入 9 位数字 `onlineIdentity.save_id`，并且覆盖客户端篡改的 ID，只允许昵称快照随存档内容更新。
 - 旧服务端存档现在第一次经 `/api/taoyuan/save/slots` 或 `/api/taoyuan/save/:slot` 读回时会自动补发数字 ID 并回写到加密存档；删除服务端槽位时也会清理对应身份记录，避免空槽后续误复用旧身份。
 - `server/scripts/qa-online-smoke.mjs` 已补进 A0 回归：当前会实际验证旧档读回补发 `onlineIdentity`，以及客户端尝试用不同 `save_id / account_username / save_slot` 覆盖时，服务端仍保留原固定数字 ID。
+- `0520todo.md / A2` 这一轮补出按存档数字 ID 搜索玩家的服务端最小链路：新增 `/api/taoyuan/online/social/player-search?save_id=...`，会从 `SaveIdentity` 注册表定位到对应账号与槽位，再按该槽位构建公开名片，搜索结果不下发背包、钱包等存档内容。
+- 在线 smoke 同步加入 `GET /api/taoyuan/online/social/player-search save id path`，确认新搜索接口能读回正确 `save_id / save_slot / profile.username`，并断言不会泄露 gameplay payload。
 
 - `L130-L134` 这一轮把联机发布控制收成了第一轮可回归闭环：`server/src/config.js` 现已补齐联机总开关、`stable / canary` 通道、测试白名单、好友 / 庄园 / 求助单 / 节会四类能力开关、五大模块开关、内测庄园 / 村社 / 节会样板，以及五段发布说明字段；`/api/public-config` 也开始稳定下发 `taoyuan_online_release` 摘要，不再只有后台私有配置。
 - `server/src/routes/api.js` 这一轮已把联机发布配置真正接进服务端治理链：新增 `/api/admin/taoyuan/online-release-config` 读写接口、联机发布配置归一化、灰度白名单与模块级 guard，并把庄园、求助单、好友链路和节会房间路由接到统一 `createOnlineReleaseGuard()`，默认仍保持 `stable + 全开`，不主动影响现有玩家。

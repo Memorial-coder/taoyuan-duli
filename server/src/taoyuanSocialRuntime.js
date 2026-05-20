@@ -6,6 +6,7 @@ const taoyuanImageModeration = require('./taoyuanImageModeration');
 const { moderateText } = require('./taoyuanTextModeration');
 const {
   createError,
+  findSaveIdentityById,
   getActiveSaveContext,
   writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime');
@@ -1166,9 +1167,9 @@ function syncPlayerChronicle(username, storedProfile = DEFAULT_PROFILE) {
   };
 }
 
-function resolveActiveSaveContext(username) {
+function resolveActiveSaveContext(username, preferredSlot = null) {
   try {
-    return getActiveSaveContext(username, null, '该玩家当前没有可公开的个人存档');
+    return getActiveSaveContext(username, preferredSlot, '该玩家当前没有可公开的个人存档');
   } catch {
     return null;
   }
@@ -1422,7 +1423,7 @@ async function buildProfile(username, viewerUsername = '', options = {}) {
   if (!user) throw createError('玩家不存在', 404);
 
   const store = loadSocialProfileStore();
-  const saveContext = resolveActiveSaveContext(username);
+  const saveContext = resolveActiveSaveContext(username, options.preferredSlot ?? null);
   const gameplay = saveContext?.data || {};
   const storedProfile = normalizeStoredProfile(store.profiles?.[String(username || '').trim()] || DEFAULT_PROFILE);
   const isOwner = viewerUsername && viewerUsername === username;
@@ -1497,6 +1498,25 @@ async function getOwnProfile(username) {
 
 async function getPublicProfile(username, viewerUsername = '') {
   return buildProfile(username, viewerUsername);
+}
+
+async function searchPlayerBySaveId(viewerUsername, rawSaveId) {
+  const saveId = Number(rawSaveId);
+  if (!Number.isInteger(saveId)) throw createError('请填写 9 位数字存档 ID');
+
+  const identity = findSaveIdentityById(saveId);
+  if (!identity) throw createError('没有找到对应的存档玩家', 404);
+
+  const profile = await buildProfile(identity.account_username, normalizeUsername(viewerUsername), {
+    preferredSlot: identity.save_slot,
+    includeChronicle: false,
+    includeAwards: false,
+  });
+
+  return {
+    save_identity: identity,
+    profile,
+  };
 }
 
 async function updateOwnProfile(username, payload = {}) {
@@ -2054,6 +2074,7 @@ async function unfollowTarget(username, subscriptionId) {
 module.exports = {
   getOwnProfile,
   getPublicProfile,
+  searchPlayerBySaveId,
   getStoredProfile,
   updateStoredProfile,
   updateOwnProfile,

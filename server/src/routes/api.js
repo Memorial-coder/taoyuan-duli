@@ -1710,6 +1710,15 @@ router.get('/taoyuan/online/social/relationships', createOnlineReleaseGuard('soc
   }
 });
 
+router.get('/taoyuan/online/social/player-search', createOnlineReleaseGuard('social'), loginRequired, async (req, res) => {
+  try {
+    const result = await taoyuanSocialRuntime.searchPlayerBySaveId(req.session.username, req.query?.save_id);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '搜索玩家失败' });
+  }
+});
+
 router.post('/taoyuan/online/social/friend-requests', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const request = await taoyuanSocialRuntime.requestFriendship(req.session.username, req.body?.target_username);
