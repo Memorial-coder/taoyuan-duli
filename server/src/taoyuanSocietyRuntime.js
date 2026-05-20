@@ -1954,6 +1954,25 @@ async function depositSocietyWarehouse(payload = {}, actor = {}) {
   };
 }
 
+function getSocietySummaryForUser(username) {
+  const actorUsername = normalizeUsername(username);
+  if (!actorUsername) return null;
+  const store = loadSocietyStore();
+  const society = findMemberSociety(store, actorUsername);
+  if (!society) return null;
+  const member = getSocietyMember(society, actorUsername);
+  return {
+    id: society.id,
+    name: society.name,
+    summary: society.summary,
+    theme_id: society.theme_id,
+    visibility: society.visibility,
+    level: clampPositiveInt(society.level, 1),
+    member_count: Array.isArray(society.members) ? society.members.length : 0,
+    role: member?.role || 'member',
+  };
+}
+
 module.exports = {
   listSocietyOverview,
   createSociety,
@@ -1968,4 +1987,5 @@ module.exports = {
   closeSocietyProposal,
   contributeSocietyPublicProject,
   depositSocietyWarehouse,
+  getSocietySummaryForUser,
 };

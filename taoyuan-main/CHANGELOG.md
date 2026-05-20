@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 世界事件（L91 第一轮）
+- `taoyuan-main/src/utils/worldEventApi.ts` 与 `src/stores/useWorldEventStore.ts` 已和作用域世界事件最终返回结构对齐：当前前端除了继续读取 `L90` 当前季事件外，也会稳定承接 `world_events / current_world_events / definition_id / scope_key / scope_value` 等字段，不再把作用域世界事件压扁成单一季节事件视图。
+- `taoyuan-main/src/views/game/FestivalView.vue` 这轮补出了 `L91` 作用域世界事件面板：现在会直接展示全部作用域事件、当前可推进数量、作用域范围、锁定原因和贡献动作，玩家不用离开节会页就能看懂自己当前能参与哪几条世界事件。
+
 ### 0520 四季大事件（L90 第一轮）
 - `taoyuan-main/src/views/game/FestivalView.vue` 现在已经接入四季大事件面板：当前季事件、贡献进度、贡献动作、贡献榜、最近史册和个人世界贡献记录都会直接展示，不再需要从节会页跳到别的孤立入口。
 - 新增 `taoyuan-main/src/utils/worldEventApi.ts` 与 `src/stores/useWorldEventStore.ts`，把世界事件总览、贡献提交和个人史册读取都收进独立前端链路。

@@ -16,6 +16,8 @@ export const useWorldEventStore = defineStore('worldEvent', () => {
 
   const currentEvent = computed<WorldEventSnapshot | null>(() => overview.value?.current_event ?? null)
   const events = computed(() => overview.value?.events ?? [])
+  const worldEvents = computed(() => overview.value?.world_events ?? [])
+  const currentWorldEvents = computed(() => overview.value?.current_world_events ?? [])
   const recentAnnals = computed(() => overview.value?.recent_annals ?? [])
   const myRecords = computed(() => overview.value?.my_records ?? [])
   const seasonalBadges = computed(() => overview.value?.seasonal_badges ?? [])
@@ -64,6 +66,8 @@ export const useWorldEventStore = defineStore('worldEvent', () => {
     overview,
     currentEvent,
     events,
+    worldEvents,
+    currentWorldEvents,
     recentAnnals,
     myRecords,
     seasonalBadges,

@@ -42,11 +42,14 @@ export interface WorldEventReceiptSnapshot {
 
 export interface WorldEventSnapshot {
   id: string
+  definition_id: string
   label: string
   season: string
   season_label: string
   scope: string
   scope_label: string
+  scope_value: string
+  scope_key: string
   state: string
   state_label: string
   summary: string
@@ -94,6 +97,8 @@ export interface WorldEventOverview {
   current_cycle_key: string
   current_event: WorldEventSnapshot | null
   events: WorldEventSnapshot[]
+  world_events: WorldEventSnapshot[]
+  current_world_events: WorldEventSnapshot[]
   recent_annals: Array<{
     id: string
     event_id: string
@@ -174,6 +179,8 @@ export const fetchWorldEventOverview = async (): Promise<WorldEventOverview | nu
     current_cycle_key: data.current_cycle_key,
     current_event: data.current_event ?? null,
     events: data.events ?? [],
+    world_events: data.world_events ?? [],
+    current_world_events: data.current_world_events ?? [],
     recent_annals: data.recent_annals ?? [],
     total_contribution_points: data.total_contribution_points ?? 0,
     my_records: data.my_records ?? [],

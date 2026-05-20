@@ -95,6 +95,41 @@
 
       <div class="space-y-3">
         <div class="border border-success/20 rounded-xs p-3 bg-bg/10">
+          <p class="text-sm text-success mb-2">L91 世界事件</p>
+          <p v-if="worldEventStore.worldEvents.length > 0" class="text-[10px] text-muted mb-2">
+            当前可推进 {{ worldEventStore.currentWorldEvents.length }} 条，已载入 {{ worldEventStore.worldEvents.length }} 条作用域事件。
+          </p>
+          <div v-if="worldEventStore.worldEvents.length === 0" class="text-xs text-muted leading-5">当前还没有载入其它世界事件。</div>
+          <div v-else class="space-y-2">
+            <div v-for="event in worldEventStore.worldEvents" :key="event.id" class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs text-text">{{ event.label }}</p>
+                  <p class="text-[10px] text-muted mt-1">{{ event.scope_label }} · {{ event.state_label }}</p>
+                </div>
+                <span class="text-[10px] text-success">{{ event.progress_text }}</span>
+              </div>
+              <p class="text-[10px] text-muted mt-2 leading-4">{{ event.summary }}</p>
+              <p class="text-[10px] text-muted mt-1">范围：{{ event.scope_value || event.scope_label }}</p>
+              <div class="mt-2 h-1.5 rounded-xs bg-bg overflow-hidden border border-success/10">
+                <div class="h-full bg-success/70 transition-all" :style="{ width: `${event.progress_percent}%` }" />
+              </div>
+              <div class="flex flex-wrap gap-1.5 mt-2">
+                <Button
+                  v-for="action in event.contribution_actions"
+                  :key="`${event.id}-${action.id}`"
+                  :disabled="worldEventStore.actionRunning || !action.can_use"
+                  @click="contributeWorldEventAction(event.id, action.id)"
+                >
+                  {{ action.label }}
+                </Button>
+              </div>
+              <p v-if="event.locked_reason" class="text-[10px] text-muted mt-2 leading-4">{{ event.locked_reason }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="border border-success/20 rounded-xs p-3 bg-bg/10">
           <p class="text-sm text-success mb-2">最近史册</p>
           <div v-if="worldEventStore.recentAnnals.length === 0" class="text-xs text-muted leading-5">当前还没有完成并归档的四季大事件。等到某一季全服目标被推满后，这里会留下第一条世界纪年摘要。</div>
           <div v-else class="space-y-2">

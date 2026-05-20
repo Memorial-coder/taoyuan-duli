@@ -1717,6 +1717,11 @@ try {
     }
     assert(data?.current_event && data.current_event.is_current_season === true, 'world events overview did not expose the current season event')
     assert(Array.isArray(data?.current_event?.contribution_actions) && data.current_event.contribution_actions.some(item => item?.can_use === true), 'world events current event did not expose usable actions')
+    assert(Array.isArray(data?.world_events) && data.world_events.length >= 6, 'world events overview did not expose L91 scoped events')
+    const worldEventDefinitions = new Set((data?.world_events || []).map(item => String(item?.definition_id || '')))
+    for (const requiredId of ['global_confluence', 'division_drive', 'neighbor_unity', 'society_convention', 'limited_window', 'random_anomaly']) {
+      assert(worldEventDefinitions.has(requiredId), `world events overview missing scoped event ${requiredId}`)
+    }
     createdWorldEventId = String(data.current_event.id)
   })
 
@@ -1787,6 +1792,9 @@ try {
     const secondaryReadback = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/world-events')
     assert(secondaryReadback.response.ok, `secondary world event readback returned ${secondaryReadback.response.status}`)
     assert(Array.isArray(secondaryReadback.data?.my_records) && secondaryReadback.data.my_records.some(item => item?.event_id === createdWorldEventId), 'secondary world event readback did not preserve player record')
+    const scopedDefinitions = new Set((data?.world_events || []).map(item => String(item?.definition_id || '')))
+    assert(scopedDefinitions.has('global_confluence'), 'world event readback lost global scoped event')
+    assert(scopedDefinitions.has('division_drive'), 'world event readback lost division scoped event')
   })
 
   await runCheck('GET /api/taoyuan/save/:slot world event reward persistence', async () => {
@@ -1803,6 +1811,35 @@ try {
     const secondaryDecrypted = decryptTaoyuanRaw(secondarySave.data.raw)
     assert(Math.max(0, Math.floor(Number(secondaryDecrypted?.player?.money) || 0)) === secondaryExpectedMoney, `world event reward did not persist secondary money correctly, expected money=${secondaryExpectedMoney}, current money=${Math.max(0, Math.floor(Number(secondaryDecrypted?.player?.money) || 0))}`)
     assert(Array.isArray(secondaryDecrypted?.onlineWorldEvents?.contributionRecords) && secondaryDecrypted.onlineWorldEvents.contributionRecords.some(item => item?.event_id === createdWorldEventId), 'world event reward did not persist secondary contribution record')
+  })
+
+  await runCheck('POST /api/taoyuan/online/world-events scoped global path', async () => {
+    const overview = await fetchAuthedJson('/api/taoyuan/online/world-events')
+    assert(overview.response.ok, `scoped global overview returned ${overview.response.status}`)
+    const globalEvent = (overview.data?.world_events || []).find(item => item?.definition_id === 'global_confluence')
+    assert(globalEvent?.id, 'scoped global event missing id')
+    const action = globalEvent?.contribution_actions?.find(item => Number(item?.progress_delta || 0) === 1) || globalEvent?.contribution_actions?.[0]
+    assert(action?.id, 'scoped global event missing action')
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/world-events/${encodeURIComponent(globalEvent.id)}/contribute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        action_id: action.id,
+      }),
+    })
+    assert(response.ok, `scoped global contribute returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && String(data?.event?.definition_id || '') === 'global_confluence', 'scoped global contribute payload is incomplete')
+    primaryExpectedMoney -= Number(action?.cost_money || 0)
+  })
+
+  await runCheck('GET /api/taoyuan/online/world-events locked society readback', async () => {
+    const overview = await fetchAuthedJson('/api/taoyuan/online/world-events')
+    assert(overview.response.ok, `locked society overview returned ${overview.response.status}`)
+    const lockedSocietyEvent = (overview.data?.world_events || []).find(item => item?.definition_id === 'society_convention')
+    assert(String(lockedSocietyEvent?.state || '') === 'locked', 'society scoped event should be locked before the player joins a society')
   })
 
   let createdExpeditionRoomId = ''
