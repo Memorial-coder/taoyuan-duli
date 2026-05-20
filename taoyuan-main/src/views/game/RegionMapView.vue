@@ -88,6 +88,12 @@
               </button>
             </div>
             <p class="text-[10px] text-muted mt-2 leading-4">{{ currentApproachDescription }}</p>
+            <button
+              class="mt-3 border border-accent/20 rounded-xs px-3 py-2 text-xs text-accent hover:bg-accent/5"
+              @click="goToExpeditionRoom"
+            >
+              前往联机远征房间
+            </button>
           </div>
           <div>
             <p class="text-[10px] text-muted mb-2">撤退规则</p>
@@ -2066,6 +2072,7 @@
 
 <script setup lang="ts">
   import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
+  import { useRouter } from 'vue-router'
   import { Map } from 'lucide-vue-next'
   import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
   import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
@@ -2127,6 +2134,7 @@
   const stagePanelAnchor = ref<HTMLElement | null>(null)
   const latestAftermathAnchor = ref<HTMLElement | null>(null)
   const resourceLedgerAnchor = ref<HTMLElement | null>(null)
+  const router = useRouter()
   type SettlementDialogAction = { key: PanelKey; label: string }
   type StatusChip = { statusLabel: string; statusToneClass: string }
   type SettlementDialogActionCard = SettlementDialogAction & { summary: string; reason: string } & StatusChip
@@ -4489,6 +4497,9 @@
 
   const handleNavigate = (panelKey: PanelKey) => {
     navigateToPanel(panelKey)
+  }
+  const goToExpeditionRoom = () => {
+    void router.push({ name: 'expedition' })
   }
   const handleJourneyActionNavigate = (entryId: string, panelKey: PanelKey) => {
     markJourneyActionProcessed(entryId, panelKey)

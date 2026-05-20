@@ -1695,6 +1695,252 @@ try {
     assert(latestMemorial?.photo_taken === true && typeof latestMemorial?.photo_line === 'string' && latestMemorial.photo_line.length >= 4, 'festival memorial did not preserve photo snapshot text')
   })
 
+  let createdExpeditionRoomId = ''
+  let expeditionPrimaryRewardMoney = 0
+  let expeditionSecondaryRewardMoney = 0
+  await runCheck('GET /api/taoyuan/online/expedition/rooms read path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms')
+    assert(response.ok, `expedition room overview returned ${response.status}`)
+    assert(data?.ok === true && Array.isArray(data?.templates) && data.templates.length > 0, 'expedition room overview payload is incomplete')
+    const templateIds = new Set((data?.templates || []).map(item => String(item?.id || '')))
+    for (const requiredId of ['expedition_outpost', 'cavern_duo', 'cavern_trio', 'cavern_quartet', 'gathering_line', 'escort_convoy', 'sea_probe']) {
+      assert(templateIds.has(requiredId), `expedition room overview missing template ${requiredId}`)
+    }
+    const gameplayTemplateIds = new Set((data?.gameplay_templates || []).map(item => String(item?.id || '')))
+    for (const requiredId of ['expedition_roles', 'expedition_supply', 'expedition_cavern', 'expedition_gathering', 'expedition_escort', 'expedition_sea']) {
+      assert(gameplayTemplateIds.has(requiredId), `expedition room overview missing gameplay template ${requiredId}`)
+    }
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        template_id: 'expedition_outpost',
+        gameplay_template_id: 'expedition_roles',
+        title: `smoke 远征房间 ${Date.now()}`,
+      }),
+    })
+    assert(response.ok, `expedition room create returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.id, 'expedition room create payload is incomplete')
+    assert(data?.room?.activity_domain === 'expedition', 'expedition room create did not persist activity domain')
+    assert(data?.room?.gameplay?.template_id === 'expedition_roles', 'expedition room create did not persist gameplay template id')
+    createdExpeditionRoomId = String(data.room.id)
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/invite write path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/invite`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: secondarySessionState.username,
+      }),
+    })
+    assert(response.ok, `expedition room invite returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.invitations?.some(item => item?.target_username === secondarySessionState.username), 'expedition room invite payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/join write path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/join`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': secondarySessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `expedition room join returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.members?.some(item => item?.username === secondarySessionState.username && item?.status === 'joined'), 'expedition room join payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/ready-check write path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/ready-check`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `expedition room ready-check returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.state === 'ready_check', 'expedition room ready-check payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/ready primary path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/ready`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `expedition room primary ready returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.members?.some(item => item?.username === sessionState.username && item?.status === 'ready'), 'expedition room primary ready payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/ready secondary path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/ready`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': secondarySessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `expedition room secondary ready returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.members?.some(item => item?.username === secondarySessionState.username && item?.status === 'ready'), 'expedition room secondary ready payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/start countdown path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/start`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `expedition room countdown returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.state === 'countdown', 'expedition room countdown payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/disconnect path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/disconnect`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': secondarySessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `expedition room disconnect returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.state === 'paused', 'expedition room disconnect payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/reconnect path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/reconnect`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': secondarySessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `expedition room reconnect returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && ['countdown', 'running'].includes(String(data?.room?.state || '')), 'expedition room reconnect payload is incomplete')
+  })
+
+  await runCheck('GET /api/taoyuan/online/expedition/rooms running readback', async () => {
+    await wait(6500)
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms')
+    assert(response.ok, `expedition room readback returned ${response.status}`)
+    assert(data?.ok === true && data?.my_room?.id === createdExpeditionRoomId, 'expedition room readback payload is incomplete')
+    assert(String(data?.my_room?.state || '') === 'running', `expedition room did not reach running state, current=${data?.my_room?.state}`)
+    assert(String(data?.my_room?.gameplay?.phase || '') === 'active', `expedition room gameplay did not enter active phase, current=${data?.my_room?.gameplay?.phase}`)
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/action primary path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        action_id: 'assign_scout',
+      }),
+    })
+    assert(response.ok, `expedition room gameplay action returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.gameplay?.progress_value >= 1, 'expedition room gameplay action did not advance progress')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/action secondary path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': secondarySessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        action_id: 'mark_route',
+      }),
+    })
+    assert(response.ok, `expedition room secondary gameplay action returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && Array.isArray(data?.room?.gameplay?.contributions), 'expedition room secondary gameplay action payload is incomplete')
+    assert(data.room.gameplay.contributions.some(item => item?.username === secondarySessionState.username && Number(item?.action_count) >= 1), 'expedition room secondary gameplay contribution was not recorded')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/action primary bonus path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        action_id: 'confirm_withdrawal',
+      }),
+    })
+    assert(response.ok, `expedition room primary bonus action returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    const primaryContribution = data?.room?.gameplay?.contributions?.find(item => item?.username === sessionState.username)
+    assert(Number(primaryContribution?.action_count || 0) >= 2, 'expedition room primary bonus action did not keep host contribution ahead')
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/settle path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/settle`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `expedition room settle returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.state === 'settling', 'expedition room settle payload is incomplete')
+    assert(Array.isArray(data?.room?.settlement_receipts) && data.room.settlement_receipts.length >= 2, 'expedition room settle did not generate per-member receipts')
+    assert(data.room.settlement_receipts.every(item => Number(item?.reward_payload?.money) >= 52), 'expedition room settle did not generate expedition money rewards')
+    assert(data.room.settlement_receipts.every(item => Array.isArray(item?.reward_payload?.items) && item.reward_payload.items.length >= 1), 'expedition room settle did not generate expedition item rewards')
+    const primaryReceipt = data.room.settlement_receipts.find(item => item?.target_username === sessionState.username)
+    const secondaryReceipt = data.room.settlement_receipts.find(item => item?.target_username === secondarySessionState.username)
+    expeditionPrimaryRewardMoney = Math.max(0, Math.floor(Number(primaryReceipt?.reward_payload?.money) || 0))
+    expeditionSecondaryRewardMoney = Math.max(0, Math.floor(Number(secondaryReceipt?.reward_payload?.money) || 0))
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/close path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/close`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(response.ok, `expedition room close returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.state === 'closed', 'expedition room close payload is incomplete')
+    assert(Array.isArray(data?.room?.settlement_receipts) && data.room.settlement_receipts.every(item => item?.status === 'persisted'), 'expedition room close did not persist all settlement receipts')
+    primaryExpectedMoney += expeditionPrimaryRewardMoney
+    secondaryExpectedMoney += expeditionSecondaryRewardMoney
+  })
+
+  await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/close duplicate guard path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(createdExpeditionRoomId)}/close`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(!response.ok, 'expedition room duplicate close should be rejected after room is already closed')
+    assert(typeof data?.msg === 'string' && data.msg.includes('已经关闭'), 'expedition room duplicate close did not return the expected guard message')
+  })
+
+  await runCheck('GET /api/taoyuan/save/:slot expedition reward persistence', async () => {
+    const primarySave = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(primarySave.response.ok, `expedition reward primary save readback returned ${primarySave.response.status}`)
+    assert(primarySave.data?.ok === true && typeof primarySave.data?.raw === 'string', 'expedition reward primary save payload is incomplete')
+    const primaryDecrypted = decryptTaoyuanRaw(primarySave.data.raw)
+    assert(Math.max(0, Math.floor(Number(primaryDecrypted?.player?.money) || 0)) === primaryExpectedMoney, `expedition reward did not persist primary player money correctly, expected money=${primaryExpectedMoney}, current money=${Math.max(0, Math.floor(Number(primaryDecrypted?.player?.money) || 0))}`)
+    const primaryItems = Array.isArray(primaryDecrypted?.items) ? primaryDecrypted.items : []
+    assert(primaryItems.some(item => String(item?.itemId || '') === 'wood' && Number(item?.quantity || 0) >= 2), 'expedition reward did not persist primary expedition wood reward')
+    assert(primaryItems.some(item => String(item?.itemId || '') === 'paper' && Number(item?.quantity || 0) >= 1), 'expedition reward did not persist primary expedition paper reward')
+
+    const secondarySave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(secondarySave.response.ok, `expedition reward secondary save readback returned ${secondarySave.response.status}`)
+    assert(secondarySave.data?.ok === true && typeof secondarySave.data?.raw === 'string', 'expedition reward secondary save payload is incomplete')
+    const secondaryDecrypted = decryptTaoyuanRaw(secondarySave.data.raw)
+    assert(Math.max(0, Math.floor(Number(secondaryDecrypted?.player?.money) || 0)) === secondaryExpectedMoney, `expedition reward did not persist secondary player money correctly, expected money=${secondaryExpectedMoney}, current money=${Math.max(0, Math.floor(Number(secondaryDecrypted?.player?.money) || 0))}`)
+    const secondaryItems = Array.isArray(secondaryDecrypted?.items) ? secondaryDecrypted.items : []
+    assert(secondaryItems.some(item => String(item?.itemId || '') === 'wood' && Number(item?.quantity || 0) >= 2), 'expedition reward did not persist secondary expedition wood reward')
+    assert(secondaryItems.some(item => String(item?.itemId || '') === 'paper' && Number(item?.quantity || 0) >= 1), 'expedition reward did not persist secondary expedition paper reward')
+  })
+
   let createdSocietyId = ''
   let createdSocietyName = ''
   await runCheck('GET /api/taoyuan/online/societies read path', async () => {

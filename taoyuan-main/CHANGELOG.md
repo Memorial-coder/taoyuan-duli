@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0520 远征房间（L80 第一轮）
+- `server/src/taoyuanActivityRoomRuntime.js` 与 `server/src/routes/api.js` 已把第一版远征房间正式接进在线层：现在已有 `/api/taoyuan/online/expedition/rooms` 的总览、建房、邀请、加入、ready-check、ready / unready、倒计时、断线 / 重连、玩法动作、结算和关闭接口。
+- 远征房间继续保守复用统一活动房间底座，不另起第二套 runtime；当前会沿用统一房间状态机、逐成员结算凭证和关闭时落账口径，把多人远征先做成和节会一致的可回归房间链。
+- 当前远征结算已支持真实回档：每位成员的 receipt 会把铜钱与远征材料写回个人服务端存档，并带有重复关闭保护，避免同一场远征在重试或断线恢复后重复发奖。
+- 新增 `taoyuan-main/src/utils/expeditionRoomApi.ts`、`src/stores/useExpeditionRoomStore.ts` 与 `src/views/game/ExpeditionRoomView.vue`，并在 `src/router/index.ts`、`src/views/game/RegionMapView.vue` 接入入口；现在可以从游戏内直接进入远征页，查看模板、创建房间、邀请队友、执行动作和回看最近 receipt。
+- `server/scripts/qa-online-smoke.mjs` 已补进远征房间专项 smoke：当前会实际验证模板目录、建房、邀请、加入、双人 ready、倒计时、断线、重连、玩法动作、撤离结算、关闭、重复关闭保护，以及 `wood / paper` 等远征材料和铜钱的真实回档。
+
 ### 0519 村社 L75 回归验收完成
 - `server/scripts/qa-online-smoke.mjs` 已把 `L75` 补成完整阶段验收：当前不只验证村社创建、加入、退出，还会继续验证提案投票与归档结果回读、公共建设从推进到完工的世界反馈保留、成员退出后再次加入，以及社长离社后的社长位移交与组织权益继承。
 - 当前 smoke 已显式断言：`bridge` 公共建设会从 `30 -> 60 -> 90 -> 100` 推进到完工，完工后保留 `world_feedback`、`public_project_complete` 活动日志和最终进度状态；同时也会断言新社长仍能继承 `level / welfare_unlocks / public_warehouse / completed public project`。

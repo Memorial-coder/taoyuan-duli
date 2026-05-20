@@ -1088,6 +1088,15 @@ router.get('/taoyuan/online/festival/rooms', loginRequired, async (req, res) => 
   }
 });
 
+router.get('/taoyuan/online/expedition/rooms', loginRequired, async (req, res) => {
+  try {
+    const overview = await taoyuanActivityRoomRuntime.listExpeditionRoomOverview(req.session.username);
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取远征房间失败' });
+  }
+});
+
 router.get('/taoyuan/online/societies', loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanSocietyRuntime.listSocietyOverview(req.session.username);
@@ -1407,6 +1416,162 @@ router.post('/taoyuan/online/festival/rooms/:roomId/close', loginRequired, signR
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '关闭节会房间失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.createExpeditionRoom(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '创建远征房间失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms/:roomId/invite', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.inviteExpeditionRoomMember(req.params.roomId, req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '发送远征邀请失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms/:roomId/join', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.joinExpeditionRoom(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '加入远征房间失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms/:roomId/leave', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.leaveExpeditionRoom(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '离开远征房间失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms/:roomId/ready-check', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.startExpeditionRoomReadyCheck(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '开启远征准备确认失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms/:roomId/ready', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.setExpeditionRoomReady(req.params.roomId, true, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '设置远征准备状态失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms/:roomId/unready', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.setExpeditionRoomReady(req.params.roomId, false, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '取消远征准备失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms/:roomId/start', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.startExpeditionRoomCountdown(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '开始远征倒计时失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms/:roomId/disconnect', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.disconnectExpeditionRoom(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '远征房间断线保护失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms/:roomId/reconnect', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.reconnectExpeditionRoom(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复远征房间失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms/:roomId/action', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.submitExpeditionRoomGameplayAction(req.params.roomId, req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '提交远征玩法动作失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms/:roomId/settle', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.settleExpeditionRoom(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '远征房间结算失败' });
+  }
+});
+
+router.post('/taoyuan/online/expedition/rooms/:roomId/close', loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanActivityRoomRuntime.closeExpeditionRoom(req.params.roomId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '关闭远征房间失败' });
   }
 });
 

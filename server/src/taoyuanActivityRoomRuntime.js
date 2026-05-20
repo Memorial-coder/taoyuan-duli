@@ -25,6 +25,8 @@ const RECEIPT_LIMIT = 60;
 const DEFAULT_COUNTDOWN_SECONDS = 6;
 const DEFAULT_RECONNECT_WINDOW_SECONDS = 90;
 const GAMEPLAY_PHASES = Object.freeze(['prep', 'active', 'completed']);
+const ACTIVITY_DOMAINS = Object.freeze(['festival', 'expedition']);
+const DEFAULT_ACTIVITY_DOMAIN = 'festival';
 const FESTIVAL_REWARD_TICKET_TYPE = 'festival';
 
 const FESTIVAL_DECORATION_REWARD_MAP = Object.freeze({
@@ -44,6 +46,62 @@ const FESTIVAL_TITLE_REWARD_MAP = Object.freeze({
   mid_autumn_moonwatch: { title_id: 'festival_title_mid_autumn', label: '望月留影客' },
   laba_cookpot: { title_id: 'festival_title_laba_cookpot', label: '腊八共灶人' },
 });
+
+const ACTIVITY_DOMAIN_LABELS = Object.freeze({
+  festival: 'Festival',
+  expedition: 'Expedition',
+});
+
+const ACTIVITY_ROOM_BULLETINS = Object.freeze({
+  festival: 'Festival rooms support create, invite, join, ready, countdown, reconnect, and per-member settlement.',
+  expedition: 'Expedition rooms support squad setup, role split, supply relay, withdrawal handling, reconnect, and per-member settlement.',
+});
+
+const ACTIVITY_ROOM_ID_PREFIX = Object.freeze({
+  festival: 'festival_room',
+  expedition: 'expedition_room',
+});
+
+const ACTIVITY_RECEIPT_ID_PREFIX = Object.freeze({
+  festival: 'festival_room_receipt',
+  expedition: 'expedition_room_receipt',
+});
+
+const EXPEDITION_REWARD_ITEM_MAP = Object.freeze({
+  expedition_outpost: {
+    base_items: [{ item_id: 'wood', quantity: 2 }, { item_id: 'paper', quantity: 1 }],
+    bonus_items: [{ item_id: 'ancient_waybill', quantity: 1 }],
+  },
+  cavern_duo: {
+    base_items: [{ item_id: 'stone', quantity: 2 }],
+    bonus_items: [{ item_id: 'ancient_waybill', quantity: 1 }],
+  },
+  cavern_trio: {
+    base_items: [{ item_id: 'stone', quantity: 2 }, { item_id: 'paper', quantity: 1 }],
+    bonus_items: [{ item_id: 'archive_rubbing', quantity: 1 }],
+  },
+  cavern_quartet: {
+    base_items: [{ item_id: 'stone', quantity: 3 }],
+    bonus_items: [{ item_id: 'ley_crystal_shard', quantity: 1 }],
+  },
+  gathering_line: {
+    base_items: [{ item_id: 'wood', quantity: 2 }, { item_id: 'herb', quantity: 2 }],
+    bonus_items: [{ item_id: 'marsh_spore_sample', quantity: 1 }],
+  },
+  escort_convoy: {
+    base_items: [{ item_id: 'paper', quantity: 2 }, { item_id: 'wood', quantity: 1 }],
+    bonus_items: [{ item_id: 'ancient_waybill', quantity: 1 }],
+  },
+  sea_probe: {
+    base_items: [{ item_id: 'luminous_algae', quantity: 1 }],
+    bonus_items: [{ item_id: 'wind_etched_core', quantity: 1 }],
+  },
+});
+
+const REWARD_INVENTORY_MAIN_CAPACITY = 24;
+const REWARD_INVENTORY_TEMP_CAPACITY = 10;
+const REWARD_INVENTORY_MAX_STACK = 999;
+const REWARD_INVENTORY_QUALITIES = Object.freeze(['normal', 'fine', 'excellent', 'supreme']);
 
 const ROOM_TEMPLATE_MAP = Object.freeze({
   yuanri_vigil: {
@@ -99,6 +157,76 @@ const ROOM_TEMPLATE_MAP = Object.freeze({
     opening_title: '共煮开灶',
     opening_lines: ['灶火已经点燃。', '待成员锁定后，就能开始统一推进节会流程。'],
     recommended_gameplay_template_ids: ['assembly', 'gathering'],
+  },
+  expedition_outpost: {
+    domain: 'expedition',
+    id: 'expedition_outpost',
+    label: '远征筹备站',
+    summary: '用于承接 L80 远征房间的最小闭环，先把组队、分工、补给和撤离做成可验证的活动房间。',
+    default_member_limit: 4,
+    opening_title: '列队出发',
+    opening_lines: ['先把成员与补给锁定，再统一进入远征运行阶段。', '这一版优先跑通房间底座，不把单人远征逻辑直接硬塞进多人同步。'],
+    recommended_gameplay_template_ids: ['expedition_roles', 'expedition_supply'],
+  },
+  cavern_duo: {
+    domain: 'expedition',
+    id: 'cavern_duo',
+    label: '双人矿洞',
+    summary: '对应 L81 的双人矿洞模板，先支持分工采集、路线标记和危机处理。',
+    default_member_limit: 2,
+    opening_title: '双人入洞',
+    opening_lines: ['一人探路，一人记录，先把双人协作结构跑通。', '矿洞事件先按房间动作回合承接，不直接复用单人矿洞模拟。'],
+    recommended_gameplay_template_ids: ['expedition_cavern'],
+  },
+  cavern_trio: {
+    domain: 'expedition',
+    id: 'cavern_trio',
+    label: '三人矿洞',
+    summary: '对应 L81 的三人矿洞模板，先支持三人分工和共享节点推进。',
+    default_member_limit: 3,
+    opening_title: '三人合围',
+    opening_lines: ['前队、侧队和记录位可以通过玩法动作先锁定。', '这轮先保守落地共享进度，再决定是否深接单人矿洞逻辑。'],
+    recommended_gameplay_template_ids: ['expedition_cavern'],
+  },
+  cavern_quartet: {
+    domain: 'expedition',
+    id: 'cavern_quartet',
+    label: '四人矿洞',
+    summary: '对应 L81 四人矿洞和 L83 护送协作之间的过渡模板。',
+    default_member_limit: 4,
+    opening_title: '四人扩张',
+    opening_lines: ['四名成员先确认各自负责的入口、采集或危机处理位。', '玩法先用统一动作模板承接，降低回归风险。'],
+    recommended_gameplay_template_ids: ['expedition_cavern', 'expedition_escort'],
+  },
+  gathering_line: {
+    domain: 'expedition',
+    id: 'gathering_line',
+    label: '协作采集线',
+    summary: '对应 L82 第一轮组队采集线，先接共享进度、采集结算和稀有材料协作事件。',
+    default_member_limit: 4,
+    opening_title: '采集组队',
+    opening_lines: ['前队推进，后队整理，把共享采集回合先稳定下来。', '稀有材料事件先通过玩法动作触发，不直接改动单人采集逻辑。'],
+    recommended_gameplay_template_ids: ['expedition_gathering', 'expedition_supply'],
+  },
+  escort_convoy: {
+    domain: 'expedition',
+    id: 'escort_convoy',
+    label: '护送抵运',
+    summary: '对应 L83 护送任务、货物完整度、途中事件与护送评分的最小闭环。',
+    default_member_limit: 4,
+    opening_title: '整理车队',
+    opening_lines: ['先确认谁护送、谁稳货、谁应对途中突发。', '货物完整度先挂在共享得分里，确保结算链路先可用。'],
+    recommended_gameplay_template_ids: ['expedition_escort'],
+  },
+  sea_probe: {
+    domain: 'expedition',
+    id: 'sea_probe',
+    label: '海域共探',
+    summary: '对应 L84 海域共探的第一轮房间模板，先接航线分工、海况变化和海货结算。',
+    default_member_limit: 4,
+    opening_title: '抛缆出海',
+    opening_lines: ['先把航线和海况应对的队内分工定好。', '海域玩法先复用活动房间底座，避免直接拆单人航海逻辑。'],
+    recommended_gameplay_template_ids: ['expedition_sea', 'expedition_escort'],
   },
 });
 
@@ -200,6 +328,102 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
       { id: 'lock_pose', label: '锁定站位', summary: '每位成员各自完成一次站位锁定，站齐后即可完成合照模板。', progress_delta: 1, score_delta: 1, unique_per_member: true },
     ],
   },
+  expedition_roles: {
+    domain: 'expedition',
+    id: 'expedition_roles',
+    label: '分工探路',
+    kind: 'role_assignment',
+    summary: '先把 L80 里的组队、分工、路线标记和撤离节点挂到同一套运行模板上。',
+    objective_label: '分工节点',
+    score_label: '协同值',
+    default_target: 6,
+    recommended_room_template_ids: ['expedition_outpost', 'cavern_duo', 'cavern_trio', 'cavern_quartet'],
+    action_options: [
+      { id: 'assign_scout', label: '前出探路', summary: '先把前队位置和风险面定下来，推进 1 格分工并增加 2 点协同值。', progress_delta: 1, score_delta: 2 },
+      { id: 'mark_route', label: '路线标记', summary: '在同场信号上确认返程路线，推进 1 格结构和 1 点协同值。', progress_delta: 1, score_delta: 1 },
+      { id: 'confirm_withdrawal', label: '锁定撤离点', summary: '先把撤离节点和后退路线固定，为后续收尾结算留下 1 格安全节点。', progress_delta: 1, score_delta: 1, unique_per_member: true },
+    ],
+  },
+  expedition_supply: {
+    domain: 'expedition',
+    id: 'expedition_supply',
+    label: '补给接力',
+    kind: 'supply_chain',
+    summary: '把 L80 的补给和 L82 的组队采集连成同一条行前整理链，先保证物资与收纳回包的基础闭环。',
+    objective_label: '补给批次',
+    score_label: '补给度',
+    default_target: 5,
+    recommended_room_template_ids: ['expedition_outpost', 'gathering_line'],
+    action_options: [
+      { id: 'deliver_rations', label: '补给到达', summary: '把房间物资推到同一个站点，推进 1 格批次和 1 点补给值。', progress_delta: 1, score_delta: 1 },
+      { id: 'sort_pack', label: '整理负载', summary: '统一一次重量和包裹，推进 1 格批次和 2 点补给值。', progress_delta: 1, score_delta: 2 },
+      { id: 'seal_findings', label: '封存收获', summary: '把同场收获整合回包，既是补给动作也是结算前的收稳步骤。', progress_delta: 1, score_delta: 1 },
+    ],
+  },
+  expedition_cavern: {
+    domain: 'expedition',
+    id: 'expedition_cavern',
+    label: '协作矿洞',
+    kind: 'cavern',
+    summary: '对应 L81 的双人、三人、四人矿洞模板，先做到分工采集、路线标记和危机处理的共享回合。',
+    objective_label: '矿洞节点',
+    score_label: '采集值',
+    default_target: 6,
+    recommended_room_template_ids: ['cavern_duo', 'cavern_trio', 'cavern_quartet'],
+    action_options: [
+      { id: 'split_mine', label: '分工采集', summary: '用房间动作接入矿点分工，推进 1 个矿洞节点并增加 2 点采集值。', progress_delta: 1, score_delta: 2 },
+      { id: 'chalk_route', label: '白路标记', summary: '在路口留下可回看的记号，推进 1 格标记节点和 1 点采集值。', progress_delta: 1, score_delta: 1 },
+      { id: 'stabilize_collapse', label: '处理危机', summary: '把矿洞卡坍、缝隙或突发坠落先用标准动作接住，推进 1 格并增加 2 点安全分。', progress_delta: 1, score_delta: 2 },
+    ],
+  },
+  expedition_gathering: {
+    domain: 'expedition',
+    id: 'expedition_gathering',
+    label: '协作采集',
+    kind: 'gathering',
+    summary: '对应 L82 的组队采集线，先在同一房间里接通共享进度、采集结算和稀有材料协作事件。',
+    objective_label: '采集回合',
+    score_label: '丰收值',
+    default_target: 6,
+    recommended_room_template_ids: ['gathering_line'],
+    action_options: [
+      { id: 'line_gather', label: '组队采集', summary: '把整条采集线同步推进 1 格，并积累 1 点丰收值。', progress_delta: 1, score_delta: 1 },
+      { id: 'sync_bundle', label: '共享进度', summary: '把采集记录和包裹同步到房间快照，推进 1 格并拉高 2 点丰收值。', progress_delta: 1, score_delta: 2 },
+      { id: 'rare_find', label: '稀有材料', summary: '把稀有样本的协作事件变成标准回合，推进 1 格并增加 2 点结算值。', progress_delta: 1, score_delta: 2 },
+    ],
+  },
+  expedition_escort: {
+    domain: 'expedition',
+    id: 'expedition_escort',
+    label: '护送抵运',
+    kind: 'escort',
+    summary: '对应 L83 的护送任务，先把货物完整度、途中事件和护送评分统一挂在共享运行态里。',
+    objective_label: '护送里程',
+    score_label: '完整度',
+    default_target: 5,
+    recommended_room_template_ids: ['escort_convoy', 'cavern_quartet', 'sea_probe'],
+    action_options: [
+      { id: 'escort_step', label: '护送推进', summary: '车队同步前压 1 段护送里程，并记录 1 点货物完整度。', progress_delta: 1, score_delta: 1 },
+      { id: 'stabilize_cargo', label: '稳固货物', summary: '把货物完整度留在看得见的房间共享分上，推进 1 格并增加 2 点完整度。', progress_delta: 1, score_delta: 2 },
+      { id: 'answer_incident', label: '途中事件', summary: '先用标准动作接住队伍遇到的小危机，变成可结算的 1 格节点。', progress_delta: 1, score_delta: 1 },
+    ],
+  },
+  expedition_sea: {
+    domain: 'expedition',
+    id: 'expedition_sea',
+    label: '海域共探',
+    kind: 'sea',
+    summary: '对应 L84 的海域协作远征，先把航线分工、海况变化和海货结算压进房间共享运行态里。',
+    objective_label: '海探段落',
+    score_label: '海货值',
+    default_target: 6,
+    recommended_room_template_ids: ['sea_probe'],
+    action_options: [
+      { id: 'chart_course', label: '航线分工', summary: '先把航线和前后队位同步定好，推进 1 段海探节点。', progress_delta: 1, score_delta: 1 },
+      { id: 'watch_weather', label: '应对海况', summary: '把海况、风向和回海点变成可回看的同步动作，推进 1 格并增加 2 点安全值。', progress_delta: 1, score_delta: 2 },
+      { id: 'haul_sea_goods', label: '海货结算', summary: '把同场海货收束成可回写的后续收益，推进 1 格并增加 2 点海货值。', progress_delta: 1, score_delta: 2 },
+    ],
+  },
 });
 
 const ROOM_STATUS_LABELS = Object.freeze({
@@ -234,6 +458,15 @@ function nowSeconds() {
 
 function sanitizeText(value, maxLength = 80) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
+}
+
+function normalizeActivityDomain(value) {
+  const normalized = sanitizeText(value, 24).toLowerCase();
+  return ACTIVITY_DOMAINS.includes(normalized) ? normalized : DEFAULT_ACTIVITY_DOMAIN;
+}
+
+function getTemplateDomain(template) {
+  return normalizeActivityDomain(template?.domain || DEFAULT_ACTIVITY_DOMAIN);
 }
 
 function makeId(prefix) {
@@ -305,14 +538,35 @@ function getRoomTemplate(templateId) {
   return ROOM_TEMPLATE_MAP[normalized] || ROOM_TEMPLATE_MAP.yuanri_vigil;
 }
 
+function getRoomTemplateByDomain(domain, templateId = '') {
+  const normalizedDomain = normalizeActivityDomain(domain);
+  const requested = sanitizeText(templateId, 40);
+  if (requested && ROOM_TEMPLATE_MAP[requested] && getTemplateDomain(ROOM_TEMPLATE_MAP[requested]) === normalizedDomain) {
+    return ROOM_TEMPLATE_MAP[requested];
+  }
+  const fallback = Object.values(ROOM_TEMPLATE_MAP).find(template => getTemplateDomain(template) === normalizedDomain);
+  return fallback || ROOM_TEMPLATE_MAP.yuanri_vigil;
+}
+
 function getDefaultGameplayTemplateId(roomTemplateId) {
-  const roomTemplate = getRoomTemplate(roomTemplateId);
+  const requestedTemplate = ROOM_TEMPLATE_MAP[sanitizeText(roomTemplateId, 40)];
+  const domain = getTemplateDomain(requestedTemplate);
+  return getDefaultGameplayTemplateIdByDomain(domain, roomTemplateId);
+}
+
+function getGameplayTemplateDomain(template) {
+  return normalizeActivityDomain(template?.domain || getTemplateDomain(getRoomTemplateByDomain(DEFAULT_ACTIVITY_DOMAIN)));
+}
+
+function getDefaultGameplayTemplateIdByDomain(domain, roomTemplateId) {
+  const roomTemplate = getRoomTemplateByDomain(domain, roomTemplateId);
+  const normalizedDomain = getTemplateDomain(roomTemplate);
   const recommendedId = Array.isArray(roomTemplate.recommended_gameplay_template_ids)
-    ? roomTemplate.recommended_gameplay_template_ids.find(Boolean)
+    ? roomTemplate.recommended_gameplay_template_ids.find(candidate => GAMEPLAY_TEMPLATE_MAP[candidate] && normalizeActivityDomain(GAMEPLAY_TEMPLATE_MAP[candidate].domain || DEFAULT_ACTIVITY_DOMAIN) === normalizedDomain)
     : '';
-  return recommendedId && GAMEPLAY_TEMPLATE_MAP[recommendedId]
-    ? recommendedId
-    : 'public_progress';
+  if (recommendedId) return recommendedId;
+  const fallback = Object.values(GAMEPLAY_TEMPLATE_MAP).find(template => normalizeActivityDomain(template.domain || DEFAULT_ACTIVITY_DOMAIN) === normalizedDomain);
+  return fallback?.id || 'public_progress';
 }
 
 function getGameplayTemplate(gameplayTemplateId, roomTemplateId = '') {
@@ -321,8 +575,22 @@ function getGameplayTemplate(gameplayTemplateId, roomTemplateId = '') {
   return GAMEPLAY_TEMPLATE_MAP[getDefaultGameplayTemplateId(roomTemplateId)] || GAMEPLAY_TEMPLATE_MAP.public_progress;
 }
 
-function listRoomTemplates() {
-  return Object.values(ROOM_TEMPLATE_MAP).map(template => ({
+function getGameplayTemplateByDomain(domain, gameplayTemplateId, roomTemplateId = '') {
+  const normalizedDomain = normalizeActivityDomain(domain);
+  const normalized = sanitizeText(gameplayTemplateId, 40);
+  if (normalized && GAMEPLAY_TEMPLATE_MAP[normalized] && normalizeActivityDomain(GAMEPLAY_TEMPLATE_MAP[normalized].domain || DEFAULT_ACTIVITY_DOMAIN) === normalizedDomain) {
+    return GAMEPLAY_TEMPLATE_MAP[normalized];
+  }
+  const fallbackId = getDefaultGameplayTemplateIdByDomain(normalizedDomain, roomTemplateId);
+  return GAMEPLAY_TEMPLATE_MAP[fallbackId] || GAMEPLAY_TEMPLATE_MAP.public_progress;
+}
+
+function listRoomTemplates(domain = DEFAULT_ACTIVITY_DOMAIN) {
+  const normalizedDomain = normalizeActivityDomain(domain);
+  return Object.values(ROOM_TEMPLATE_MAP)
+    .filter(template => getTemplateDomain(template) === normalizedDomain)
+    .map(template => ({
+    activity_domain: getTemplateDomain(template),
     id: template.id,
     label: template.label,
     summary: template.summary,
@@ -331,11 +599,15 @@ function listRoomTemplates() {
     recommended_gameplay_template_ids: Array.isArray(template.recommended_gameplay_template_ids)
       ? [...template.recommended_gameplay_template_ids]
       : [],
-  }));
+    }));
 }
 
-function listGameplayTemplates() {
-  return Object.values(GAMEPLAY_TEMPLATE_MAP).map(template => ({
+function listGameplayTemplates(domain = DEFAULT_ACTIVITY_DOMAIN) {
+  const normalizedDomain = normalizeActivityDomain(domain);
+  return Object.values(GAMEPLAY_TEMPLATE_MAP)
+    .filter(template => normalizeActivityDomain(template.domain || DEFAULT_ACTIVITY_DOMAIN) === normalizedDomain)
+    .map(template => ({
+    activity_domain: normalizeActivityDomain(template.domain || DEFAULT_ACTIVITY_DOMAIN),
     id: template.id,
     label: template.label,
     kind: template.kind,
@@ -354,7 +626,7 @@ function listGameplayTemplates() {
           unique_per_member: action.unique_per_member === true,
         }))
       : [],
-  }));
+    }));
 }
 
 function normalizeRoomEvent(entry) {
@@ -402,8 +674,10 @@ function normalizeRoomMember(entry) {
 }
 
 function normalizeRoomReceipt(entry) {
+  const activityDomain = normalizeActivityDomain(entry?.activity_domain || entry?.domain || getTemplateDomain(ROOM_TEMPLATE_MAP[sanitizeText(entry?.template_id, 40)]));
   return {
-    id: String(entry?.id || makeId('festival_room_receipt')),
+    id: String(entry?.id || makeId(ACTIVITY_RECEIPT_ID_PREFIX[activityDomain] || ACTIVITY_RECEIPT_ID_PREFIX.festival)),
+    activity_domain: activityDomain,
     room_id: sanitizeText(entry?.room_id, 40),
     room_title: sanitizeText(entry?.room_title, 60),
     template_id: sanitizeText(entry?.template_id, 40),
@@ -479,7 +753,8 @@ function normalizeGameplayContribution(entry) {
 }
 
 function createInitialGameplayState(gameplayTemplateId, roomTemplateId = '') {
-  const template = getGameplayTemplate(gameplayTemplateId, roomTemplateId);
+  const roomTemplate = getRoomTemplate(roomTemplateId);
+  const template = getGameplayTemplateByDomain(getTemplateDomain(roomTemplate), gameplayTemplateId, roomTemplateId);
   return {
     template_id: template.id,
     phase: 'prep',
@@ -495,8 +770,8 @@ function createInitialGameplayState(gameplayTemplateId, roomTemplateId = '') {
   };
 }
 
-function normalizeGameplayState(entry, gameplayTemplateId, roomTemplateId = '') {
-  const template = getGameplayTemplate(gameplayTemplateId, roomTemplateId);
+function normalizeGameplayState(entry, gameplayTemplateId, roomTemplateId = '', activityDomain = DEFAULT_ACTIVITY_DOMAIN) {
+  const template = getGameplayTemplateByDomain(activityDomain, gameplayTemplateId, roomTemplateId);
   const currentTemplateId = sanitizeText(entry?.template_id, 40);
   if (!entry || typeof entry !== 'object' || (currentTemplateId && currentTemplateId !== template.id)) {
     return createInitialGameplayState(template.id, roomTemplateId);
@@ -519,10 +794,13 @@ function normalizeGameplayState(entry, gameplayTemplateId, roomTemplateId = '') 
 }
 
 function normalizeRoom(entry) {
-  const template = getRoomTemplate(entry?.template_id);
-  const gameplayTemplate = getGameplayTemplate(entry?.gameplay_template_id, template.id);
+  const requestedTemplate = ROOM_TEMPLATE_MAP[sanitizeText(entry?.template_id, 40)];
+  const activityDomain = normalizeActivityDomain(entry?.activity_domain || entry?.domain || getTemplateDomain(requestedTemplate));
+  const template = getRoomTemplateByDomain(activityDomain, entry?.template_id);
+  const gameplayTemplate = getGameplayTemplateByDomain(activityDomain, entry?.gameplay_template_id, template.id);
   return {
-    id: String(entry?.id || makeId('festival_room')),
+    id: String(entry?.id || makeId(ACTIVITY_ROOM_ID_PREFIX[activityDomain] || ACTIVITY_ROOM_ID_PREFIX.festival)),
+    activity_domain: activityDomain,
     template_id: template.id,
     gameplay_template_id: gameplayTemplate.id,
     title: sanitizeText(entry?.title, 60) || template.label,
@@ -547,7 +825,7 @@ function normalizeRoom(entry) {
     members: Array.isArray(entry?.members) ? entry.members.map(normalizeRoomMember).filter(member => member.username) : [],
     invitations: Array.isArray(entry?.invitations) ? entry.invitations.map(normalizeRoomInvitation).filter(invite => invite.target_username) : [],
     events: Array.isArray(entry?.events) ? entry.events.map(normalizeRoomEvent).slice(0, EVENT_LIMIT) : [],
-    gameplay_state: normalizeGameplayState(entry?.gameplay_state, gameplayTemplate.id, template.id),
+    gameplay_state: normalizeGameplayState(entry?.gameplay_state, gameplayTemplate.id, template.id, activityDomain),
     settlement_receipt_ids: Array.isArray(entry?.settlement_receipt_ids)
       ? entry.settlement_receipt_ids.map(item => sanitizeText(item, 60)).filter(Boolean).slice(0, RECEIPT_LIMIT)
       : [],
@@ -614,9 +892,9 @@ function updateRoomState(room, nextState, reason = '') {
 }
 
 function ensureRoomGameplayState(room) {
-  const gameplayTemplate = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  const gameplayTemplate = getGameplayTemplateByDomain(room.activity_domain, room.gameplay_template_id, room.template_id);
   room.gameplay_template_id = gameplayTemplate.id;
-  room.gameplay_state = normalizeGameplayState(room.gameplay_state, room.gameplay_template_id, room.template_id);
+  room.gameplay_state = normalizeGameplayState(room.gameplay_state, room.gameplay_template_id, room.template_id, room.activity_domain);
   if (gameplayTemplate.id === 'group_photo') {
     const targetValue = Math.max(2, Math.min(room.member_limit, getJoinedMembers(room).length || 2));
     if (room.gameplay_state.progress_target !== targetValue) {
@@ -715,7 +993,7 @@ function canStartCountdown(room) {
 }
 
 function buildOpeningCeremony(room) {
-  const template = getRoomTemplate(room.template_id);
+  const template = getRoomTemplateByDomain(room.activity_domain, room.template_id);
   if (room.state === 'countdown') {
     return {
       stage: 'countdown',
@@ -773,7 +1051,7 @@ function canUseGameplayAction(room, gameplayState, viewerMember, actionOption) {
 }
 
 function buildGameplaySnapshot(room, viewerUsername) {
-  const template = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  const template = getGameplayTemplateByDomain(room.activity_domain, room.gameplay_template_id, room.template_id);
   const gameplayState = ensureRoomGameplayState(room);
   const joinedMembers = getJoinedMembers(room);
   const viewerMember = getRoomMember(room, viewerUsername);
@@ -832,7 +1110,7 @@ function buildGameplaySnapshot(room, viewerUsername) {
 }
 
 function finalizeGameplayIfCompleted(room, actor) {
-  const template = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  const template = getGameplayTemplateByDomain(room.activity_domain, room.gameplay_template_id, room.template_id);
   const gameplayState = ensureRoomGameplayState(room);
   if (gameplayState.phase === 'completed') return false;
   if (gameplayState.progress_value < gameplayState.progress_target) return false;
@@ -845,7 +1123,7 @@ function finalizeGameplayIfCompleted(room, actor) {
 }
 
 function applyGameplayAction(room, actionId, actor) {
-  const template = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  const template = getGameplayTemplateByDomain(room.activity_domain, room.gameplay_template_id, room.template_id);
   materializeGameplayPhase(room);
   const gameplayState = ensureRoomGameplayState(room);
   const member = getRoomMember(room, actor.username);
@@ -877,8 +1155,8 @@ function applyGameplayAction(room, actionId, actor) {
 }
 
 function buildSettlementSummary(room) {
-  const roomTemplate = getRoomTemplate(room.template_id);
-  const gameplayTemplate = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  const roomTemplate = getRoomTemplateByDomain(room.activity_domain, room.template_id);
+  const gameplayTemplate = getGameplayTemplateByDomain(room.activity_domain, room.gameplay_template_id, room.template_id);
   const gameplayState = ensureRoomGameplayState(room);
   return `已为 ${roomTemplate.label} · ${gameplayTemplate.label} 生成第一轮节会结算凭证；当前${buildGameplayProgressText(gameplayTemplate, gameplayState)}，${gameplayTemplate.score_label}${gameplayState.score_value}。`;
 }
@@ -889,6 +1167,66 @@ function getReceiptStatusLabel(status) {
   if (status === 'persisted') return '已写回个人存档';
   if (status === 'compensation_pending') return '待补偿处理';
   return '已生成凭证';
+}
+
+function ensureRewardInventorySlotList(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map(entry => ({
+      itemId: sanitizeText(entry?.itemId || entry?.item_id, 60),
+      quality: REWARD_INVENTORY_QUALITIES.includes(sanitizeText(entry?.quality, 20)) ? sanitizeText(entry?.quality, 20) : 'normal',
+      quantity: Math.max(1, Math.floor(Number(entry?.quantity) || 1)),
+    }))
+    .filter(entry => entry.itemId);
+}
+
+function addInventoryRewardItems(mainSlots, mainCapacity, tempSlots, tempCapacity, rewardItems) {
+  const normalizedRewardItems = Array.isArray(rewardItems)
+    ? rewardItems.map(item => ({
+        itemId: sanitizeText(item?.item_id || item?.itemId, 60),
+        quality: REWARD_INVENTORY_QUALITIES.includes(sanitizeText(item?.quality, 20)) ? sanitizeText(item?.quality, 20) : 'normal',
+        quantity: Math.max(0, Math.floor(Number(item?.quantity) || 0)),
+      })).filter(item => item.itemId && item.quantity > 0)
+    : [];
+
+  const placeIntoSlots = (slots, slotCapacity, itemId, quality, quantity) => {
+    let remaining = quantity;
+    for (const slot of slots) {
+      if (remaining <= 0) break;
+      if (slot.itemId === itemId && slot.quality === quality && slot.quantity < REWARD_INVENTORY_MAX_STACK) {
+        const canAdd = Math.min(remaining, REWARD_INVENTORY_MAX_STACK - slot.quantity);
+        slot.quantity += canAdd;
+        remaining -= canAdd;
+      }
+    }
+    while (remaining > 0 && slots.length < slotCapacity) {
+      const batch = Math.min(remaining, REWARD_INVENTORY_MAX_STACK);
+      slots.push({ itemId, quality, quantity: batch });
+      remaining -= batch;
+    }
+    return remaining;
+  };
+
+  const overflowItems = [];
+  for (const item of normalizedRewardItems) {
+    let remaining = placeIntoSlots(mainSlots, mainCapacity, item.itemId, item.quality, item.quantity);
+    if (remaining > 0) {
+      remaining = placeIntoSlots(tempSlots, tempCapacity, item.itemId, item.quality, remaining);
+    }
+    if (remaining > 0) {
+      overflowItems.push({
+        item_id: item.itemId,
+        quality: item.quality,
+        quantity: remaining,
+      });
+    }
+  }
+
+  return {
+    mainSlots,
+    tempSlots,
+    overflowItems,
+  };
 }
 
 function buildFestivalMemorialOverview(username) {
@@ -1010,7 +1348,7 @@ function getSortedGameplayContributions(room) {
 }
 
 function buildFestivalReceiptReward(room, member, rankingIndex) {
-  const gameplayTemplate = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  const gameplayTemplate = getGameplayTemplateByDomain(room.activity_domain, room.gameplay_template_id, room.template_id);
   const gameplayState = ensureRoomGameplayState(room);
   const contributions = getSortedGameplayContributions(room);
   const contribution = contributions.find(entry => entry.username === member.username) || {
@@ -1018,6 +1356,41 @@ function buildFestivalReceiptReward(room, member, rankingIndex) {
     score_value: 0,
     action_count: 0,
   };
+
+  if (room.activity_domain === 'expedition') {
+    const participationMoney = 52;
+    const cooperationBonusMoney = Math.max(0, Math.min(80, gameplayState.progress_value * 6 + contribution.action_count * 3));
+    const rankingBonusMoney = rankingIndex === 0 ? 28 : rankingIndex === 1 ? 16 : 8;
+    const templateReward = EXPEDITION_REWARD_ITEM_MAP[room.template_id] || EXPEDITION_REWARD_ITEM_MAP.expedition_outpost;
+    const baseItems = Array.isArray(templateReward?.base_items) ? templateReward.base_items : [];
+    const bonusItems = rankingIndex <= 1 && Array.isArray(templateReward?.bonus_items) ? templateReward.bonus_items : [];
+    const mergedItems = [...baseItems, ...bonusItems].map(item => ({
+      item_id: sanitizeText(item.item_id, 40),
+      quantity: Math.max(1, Math.floor(Number(item.quantity) || 1)),
+    })).filter(item => item.item_id);
+    const itemSummary = mergedItems.length > 0
+      ? mergedItems.map(item => `${item.item_id}x${item.quantity}`).join(', ')
+      : 'none';
+    return {
+      reward_payload: {
+        money: participationMoney + cooperationBonusMoney + rankingBonusMoney,
+        reward_tickets: 0,
+        items: mergedItems,
+      },
+      reward_breakdown: {
+        participation_money: participationMoney,
+        cooperation_bonus_money: cooperationBonusMoney,
+        ranking_bonus_money: rankingBonusMoney,
+        memorial_ticket_quantity: 0,
+        decoration_reward: { decoration_id: '', label: '', quantity: 0 },
+        title_reward: { title_id: '', label: '', granted: false },
+      },
+      summary: `Expedition reward: money ${participationMoney + cooperationBonusMoney + rankingBonusMoney}, items ${itemSummary}.`,
+      contribution,
+      gameplay_template_label: gameplayTemplate.label,
+    };
+  }
+
   const participationMoney = 40;
   const cooperationBonusMoney = Math.max(0, Math.min(60, gameplayState.progress_value * 5 + contribution.action_count * 2));
   const rankingBonusMoney = rankingIndex === 0 ? 36 : rankingIndex === 1 ? 18 : 8;
@@ -1066,8 +1439,8 @@ function buildFestivalReceiptReward(room, member, rankingIndex) {
 }
 
 function buildFestivalMemorialEntry(room, receipt) {
-  const template = getRoomTemplate(room.template_id);
-  const gameplayTemplate = getGameplayTemplate(room.gameplay_template_id, room.template_id);
+  const template = getRoomTemplateByDomain(room.activity_domain, room.template_id);
+  const gameplayTemplate = getGameplayTemplateByDomain(room.activity_domain, room.gameplay_template_id, room.template_id);
   const squadmates = getJoinedMembers(room)
     .filter(member => member.username !== receipt.target_username)
     .map(member => ({
@@ -1178,7 +1551,7 @@ function applyFestivalReceiptReward(receipt, room) {
 function buildRoomSnapshot(store, room, viewerUsername) {
   materializeCountdownState(room);
   materializeGameplayPhase(room);
-  const template = getRoomTemplate(room.template_id);
+  const template = getRoomTemplateByDomain(room.activity_domain, room.template_id);
   const viewerMember = getRoomMember(room, viewerUsername);
   const viewerInvitation = getRoomInvitation(room, viewerUsername);
   const joinedMembers = getJoinedMembers(room);
@@ -1187,6 +1560,7 @@ function buildRoomSnapshot(store, room, viewerUsername) {
   const settlementReceipts = getReceiptListForRoom(store, room);
   return {
     id: room.id,
+    activity_domain: room.activity_domain,
     title: room.title,
     template_id: template.id,
     template_label: template.label,
@@ -1268,8 +1642,9 @@ function buildRoomSnapshot(store, room, viewerUsername) {
   };
 }
 
-function buildOverview(store, viewerUsername) {
+function buildOverview(store, viewerUsername, domain = DEFAULT_ACTIVITY_DOMAIN) {
   const normalizedViewer = sanitizeText(viewerUsername, 40);
+  const normalizedDomain = normalizeActivityDomain(domain);
   let changed = false;
   const rooms = (store.rooms || []).map(room => {
     const normalized = normalizeRoom(room);
@@ -1283,6 +1658,7 @@ function buildOverview(store, viewerUsername) {
   }
 
   const visibleRooms = rooms
+    .filter(room => room.activity_domain === normalizedDomain)
     .filter(room => room.host_username === normalizedViewer || getRoomMember(room, normalizedViewer) || getRoomInvitation(room, normalizedViewer))
     .sort((left, right) => (right.updated_at || 0) - (left.updated_at || 0));
 
@@ -1298,6 +1674,7 @@ function buildOverview(store, viewerUsername) {
 
   const recentReceipts = (store.receipts || [])
     .map(normalizeRoomReceipt)
+    .filter(receipt => receipt.activity_domain === normalizedDomain)
     .filter(receipt => receipt.target_username === normalizedViewer)
     .sort((left, right) => (right.created_at || 0) - (left.created_at || 0))
     .slice(0, 8)
@@ -1314,12 +1691,12 @@ function buildOverview(store, viewerUsername) {
       summary: receipt.summary,
       created_at: receipt.created_at,
     }));
-  const recentMemorials = buildFestivalMemorialOverview(normalizedViewer);
+  const recentMemorials = normalizedDomain === 'festival' ? buildFestivalMemorialOverview(normalizedViewer) : [];
 
   return {
     bulletin: '节会房间现已支持开房、邀请、加入、准备、倒计时、断线重连和逐成员结算，并补入公共进度、小队协作、抢答、拼装、采集、表演、合照七类玩法模板骨架。',
-    templates: listRoomTemplates(),
-    gameplay_templates: listGameplayTemplates(),
+    templates: listRoomTemplates(normalizedDomain),
+    gameplay_templates: listGameplayTemplates(normalizedDomain),
     my_room: currentRoom ? buildRoomSnapshot(store, currentRoom, normalizedViewer) : null,
     invited_rooms: invitedRooms,
     visible_rooms: visibleRooms.map(room => buildRoomSnapshot(store, room, normalizedViewer)),
@@ -1367,7 +1744,7 @@ async function createFestivalRoom(payload = {}, actor = {}) {
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
-    overview: buildOverview(store, username),
+    overview: buildOverview(store, username, room.activity_domain),
   };
 }
 
@@ -1427,7 +1804,7 @@ async function inviteFestivalRoomMember(roomId, payload = {}, actor = {}) {
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
-    overview: buildOverview(store, username),
+    overview: buildOverview(store, username, room.activity_domain),
   };
 }
 
@@ -1476,7 +1853,7 @@ async function joinFestivalRoom(roomId, actor = {}) {
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
-    overview: buildOverview(store, username),
+    overview: buildOverview(store, username, room.activity_domain),
   };
 }
 
@@ -1510,7 +1887,7 @@ async function leaveFestivalRoom(roomId, actor = {}) {
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
-    overview: buildOverview(store, username),
+    overview: buildOverview(store, username, room.activity_domain),
   };
 }
 
@@ -1536,7 +1913,7 @@ async function startFestivalRoomReadyCheck(roomId, actor = {}) {
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
-    overview: buildOverview(store, username),
+    overview: buildOverview(store, username, room.activity_domain),
   };
 }
 
@@ -1562,7 +1939,7 @@ async function setFestivalRoomReady(roomId, ready, actor = {}) {
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
-    overview: buildOverview(store, username),
+    overview: buildOverview(store, username, room.activity_domain),
   };
 }
 
@@ -1592,7 +1969,7 @@ async function startFestivalRoomCountdown(roomId, actor = {}) {
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
-    overview: buildOverview(store, username),
+    overview: buildOverview(store, username, room.activity_domain),
   };
 }
 
@@ -1619,7 +1996,7 @@ async function disconnectFestivalRoom(roomId, actor = {}) {
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
-    overview: buildOverview(store, username),
+    overview: buildOverview(store, username, room.activity_domain),
   };
 }
 
@@ -1651,7 +2028,7 @@ async function reconnectFestivalRoom(roomId, actor = {}) {
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
-    overview: buildOverview(store, username),
+    overview: buildOverview(store, username, room.activity_domain),
   };
 }
 
@@ -1713,7 +2090,7 @@ async function settleFestivalRoom(roomId, actor = {}) {
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
-    overview: buildOverview(store, username),
+    overview: buildOverview(store, username, room.activity_domain),
   };
 }
 
@@ -1735,7 +2112,7 @@ async function submitFestivalRoomGameplayAction(roomId, payload = {}, actor = {}
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
-    overview: buildOverview(store, username),
+    overview: buildOverview(store, username, room.activity_domain),
   };
 }
 
@@ -1805,7 +2182,7 @@ async function closeFestivalRoom(roomId, actor = {}) {
       saveStore(store);
       return {
         room: buildRoomSnapshot(store, room, username),
-        overview: buildOverview(store, username),
+        overview: buildOverview(store, username, room.activity_domain),
       };
     }
     room.members = (room.members || []).map(member => {
@@ -1825,15 +2202,406 @@ async function closeFestivalRoom(roomId, actor = {}) {
   saveStore(store);
   return {
     room: buildRoomSnapshot(store, room, username),
-    overview: buildOverview(store, username),
+    overview: buildOverview(store, username, room.activity_domain),
   };
 }
 
-async function listFestivalRoomOverview(username) {
+async function listFestivalRoomOverview(username, domain = DEFAULT_ACTIVITY_DOMAIN) {
   const normalizedUsername = sanitizeText(username, 40);
   if (!normalizedUsername) throw createError('请先登录后再查看节会房间', 401);
   const store = loadStore();
-  return buildOverview(store, normalizedUsername);
+  return buildOverview(store, normalizedUsername, domain);
+}
+
+function buildActivityBulletin(domain) {
+  const normalizedDomain = normalizeActivityDomain(domain);
+  return ACTIVITY_ROOM_BULLETINS[normalizedDomain] || ACTIVITY_ROOM_BULLETINS.festival;
+}
+
+function buildActivityOverview(store, viewerUsername, domain = DEFAULT_ACTIVITY_DOMAIN) {
+  const overview = buildOverview(store, viewerUsername, domain);
+  return {
+    ...overview,
+    bulletin: buildActivityBulletin(domain),
+  };
+}
+
+function applyActivityReceiptReward(receipt, room) {
+  const context = getActiveSaveContext(receipt.target_username, receipt.target_slot, '当前账号没有可用的桃源乡存档，暂时无法写入活动奖励');
+  context.username = receipt.target_username;
+  ensureFestivalRewardWallet(context.data);
+  ensureFestivalDecorationState(context.data);
+  const festivalRewardState = ensureFestivalRewardState(context.data);
+  if (festivalRewardState.appliedReceipts[receipt.idempotency_key]) {
+    return {
+      slot: context.slot,
+      revision: context.saves.slots[context.slot]?.revision ?? 0,
+      reward_result: `${ACTIVITY_DOMAIN_LABELS[room.activity_domain] || ACTIVITY_DOMAIN_LABELS.festival} reward already persisted to slot ${Number(context.slot) + 1}`,
+    };
+  }
+
+  const currentMoney = Math.max(0, Math.floor(Number(context.data?.player?.money) || 0));
+  context.data.player.money = currentMoney + Math.max(0, Math.floor(Number(receipt.reward_payload?.money) || 0));
+
+  if (room.activity_domain === 'festival') {
+    const ticketQuantity = Math.max(0, Math.floor(Number(receipt.reward_breakdown?.memorial_ticket_quantity) || 0));
+    if (ticketQuantity > 0) {
+      const currentTicket = Math.max(0, Math.floor(Number(context.data.wallet.rewardTickets[FESTIVAL_REWARD_TICKET_TYPE]) || 0));
+      const lifetimeTicket = Math.max(0, Math.floor(Number(context.data.wallet.rewardTicketLifetimeEarned[FESTIVAL_REWARD_TICKET_TYPE]) || 0));
+      context.data.wallet.rewardTickets[FESTIVAL_REWARD_TICKET_TYPE] = currentTicket + ticketQuantity;
+      context.data.wallet.rewardTicketLifetimeEarned[FESTIVAL_REWARD_TICKET_TYPE] = lifetimeTicket + ticketQuantity;
+    }
+
+    const decorationReward = receipt.reward_breakdown?.decoration_reward || {};
+    const decorationId = sanitizeText(decorationReward.decoration_id, 80);
+    const decorationQuantity = Math.max(0, Math.floor(Number(decorationReward.quantity) || 0));
+    if (decorationId && decorationQuantity > 0) {
+      const currentOwned = Math.max(0, Math.floor(Number(context.data.decoration.owned[decorationId]) || 0));
+      context.data.decoration.owned[decorationId] = currentOwned + decorationQuantity;
+    }
+
+    const titleReward = receipt.reward_breakdown?.title_reward || {};
+    const titleLabel = sanitizeText(titleReward.label, 40);
+    if (titleReward.granted === true && titleLabel) {
+      taoyuanSocialRuntime.updateStoredProfile(receipt.target_username, {
+        public_title: titleLabel,
+      });
+      festivalRewardState.titles[titleReward.title_id] = {
+        label: titleLabel,
+        room_id: receipt.room_id,
+        template_id: receipt.template_id,
+        awarded_at: nowSeconds(),
+      };
+    }
+
+    const memorialEntry = buildFestivalMemorialEntry(room, receipt);
+    festivalRewardState.memorials = [
+      memorialEntry,
+      ...(festivalRewardState.memorials || [])
+        .map(normalizeFestivalMemorialEntry)
+        .filter(entry => entry.memorial_id !== memorialEntry.memorial_id),
+    ].slice(0, 40);
+  } else {
+    context.data.items = ensureRewardInventorySlotList(context.data.items);
+    context.data.tempItems = ensureRewardInventorySlotList(context.data.tempItems);
+    const inventoryCapacity = Math.max(1, Math.floor(Number(context.data.capacity) || REWARD_INVENTORY_MAIN_CAPACITY));
+    const inventoryResult = addInventoryRewardItems(
+      context.data.items,
+      inventoryCapacity,
+      context.data.tempItems,
+      REWARD_INVENTORY_TEMP_CAPACITY,
+      receipt.reward_payload?.items || []
+    );
+    context.data.items = inventoryResult.mainSlots;
+    context.data.tempItems = inventoryResult.tempSlots;
+  }
+
+  festivalRewardState.appliedReceipts[receipt.idempotency_key] = {
+    receipt_id: receipt.id,
+    persisted_at: nowSeconds(),
+  };
+
+  const revision = persistGameplayData(context);
+  return {
+    slot: context.slot,
+    revision,
+    reward_result: `${ACTIVITY_DOMAIN_LABELS[room.activity_domain] || ACTIVITY_DOMAIN_LABELS.festival} reward persisted to slot ${Number(context.slot) + 1}`,
+  };
+}
+
+function persistActivityReceipts(store, room) {
+  const receiptIds = new Set(room.settlement_receipt_ids || []);
+  const nextReceipts = [];
+  let pendingCompensationCount = 0;
+  for (const entry of store.receipts || []) {
+    const receipt = normalizeRoomReceipt(entry);
+    if (!receiptIds.has(receipt.id)) {
+      nextReceipts.push(receipt);
+      continue;
+    }
+    if (receipt.status === 'persisted') {
+      nextReceipts.push(receipt);
+      continue;
+    }
+    try {
+      const rewardOutcome = applyActivityReceiptReward(receipt, room);
+      nextReceipts.push(normalizeRoomReceipt({
+        ...receipt,
+        status: 'persisted',
+        reward_result: rewardOutcome.reward_result,
+        persisted_at: nowSeconds(),
+        updated_at: nowSeconds(),
+        last_error: '',
+      }));
+      room.members = (room.members || []).map(member => {
+        const normalized = normalizeRoomMember(member);
+        if (normalized.username !== receipt.target_username) return normalized;
+        normalized.status = 'settled';
+        normalized.active_receipt_id = receipt.id;
+        return normalized;
+      });
+    } catch (error) {
+      pendingCompensationCount += 1;
+      nextReceipts.push(normalizeRoomReceipt({
+        ...receipt,
+        status: 'compensation_pending',
+        reward_result: '奖励写回失败，已进入补偿队列',
+        last_error: sanitizeText(error?.message || '活动奖励写回失败', 160),
+        updated_at: nowSeconds(),
+      }));
+    }
+  }
+  store.receipts = nextReceipts;
+  return {
+    pending_compensation_count: pendingCompensationCount,
+  };
+}
+
+async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}, actor = {}) {
+  const normalizedDomain = normalizeActivityDomain(domain);
+  const username = sanitizeText(actor.username, 40);
+  const displayName = sanitizeText(actor.displayName, 40) || username;
+  if (!username) throw createError('未登录账号不能创建活动房间', 401);
+  const store = loadStore();
+  ensureNoOtherActiveRoom(store, username);
+  const template = getRoomTemplateByDomain(normalizedDomain, payload.template_id);
+  const gameplayTemplate = getGameplayTemplateByDomain(normalizedDomain, payload.gameplay_template_id, template.id);
+  const room = normalizeRoom({
+    id: makeId(ACTIVITY_ROOM_ID_PREFIX[normalizedDomain] || ACTIVITY_ROOM_ID_PREFIX.festival),
+    activity_domain: normalizedDomain,
+    template_id: template.id,
+    gameplay_template_id: gameplayTemplate.id,
+    title: sanitizeText(payload.title, 60) || template.label,
+    host_username: username,
+    host_display_name: displayName,
+    member_limit: payload.member_limit || template.default_member_limit,
+    countdown_seconds: payload.countdown_seconds || DEFAULT_COUNTDOWN_SECONDS,
+    reconnect_window_seconds: DEFAULT_RECONNECT_WINDOW_SECONDS,
+    state: 'created',
+    created_at: nowSeconds(),
+    updated_at: nowSeconds(),
+    members: [{
+      username,
+      display_name: displayName,
+      role: 'host',
+      status: 'joined',
+      joined_at: nowSeconds(),
+      last_seen_at: nowSeconds(),
+    }],
+    invitations: [],
+    gameplay_state: createInitialGameplayState(gameplayTemplate.id, template.id),
+    settlement_receipt_ids: [],
+    events: [],
+  });
+  recordRoomEvent(room, 'room.create', actor, `创建了 ${template.label} 房间《${room.title}》，玩法模板为 ${gameplayTemplate.label}`);
+  replaceRoom(store, room);
+  saveStore(store);
+  return {
+    room: buildRoomSnapshot(store, room, username),
+    overview: buildActivityOverview(store, username, normalizedDomain),
+  };
+}
+
+async function settleActivityRoom(roomId, actor = {}) {
+  const username = sanitizeText(actor.username, 40);
+  const store = loadStore();
+  const room = ensureRoomExists(store, roomId);
+  materializeCountdownState(room);
+  materializeGameplayPhase(room);
+  ensureHost(room, username);
+  if (!['running', 'paused'].includes(room.state)) {
+    throw createError('只有进行中的活动房间才能进入结算');
+  }
+  if ((room.settlement_receipt_ids || []).length > 0) {
+    throw createError('当前房间已经生成过结算凭证了');
+  }
+  room.settlement_version = Math.max(1, room.settlement_version + 1);
+  const joinedMembers = getJoinedMembers(room);
+  const rankedContributions = getSortedGameplayContributions(room);
+  const nextReceipts = joinedMembers.map(member => {
+    const rankingIndex = Math.max(0, rankedContributions.findIndex(entry => entry.username === member.username));
+    const rewardPreview = buildFestivalReceiptReward(room, member, rankingIndex);
+    return normalizeRoomReceipt({
+      id: makeId(ACTIVITY_RECEIPT_ID_PREFIX[room.activity_domain] || ACTIVITY_RECEIPT_ID_PREFIX.festival),
+      activity_domain: room.activity_domain,
+      room_id: room.id,
+      room_title: room.title,
+      template_id: room.template_id,
+      template_label: getRoomTemplateByDomain(room.activity_domain, room.template_id).label,
+      target_username: member.username,
+      target_display_name: member.display_name,
+      target_slot: getViewerSaveSlot(member.username),
+      status: 'pending_persist',
+      idempotency_key: `${room.activity_domain}_room:${room.id}:${room.settlement_version}:${member.username}:slot${getViewerSaveSlot(member.username)}`,
+      reward_payload: rewardPreview.reward_payload,
+      reward_breakdown: rewardPreview.reward_breakdown,
+      summary: rewardPreview.summary,
+      reward_result: '',
+      last_error: '',
+      settlement_version: room.settlement_version,
+      created_at: nowSeconds(),
+      updated_at: nowSeconds(),
+      persisted_at: 0,
+    });
+  });
+  store.receipts = [...nextReceipts, ...(store.receipts || []).map(normalizeRoomReceipt)].slice(0, 400);
+  room.settlement_receipt_ids = nextReceipts.map(receipt => receipt.id);
+  room.members = (room.members || []).map(member => {
+    const normalized = normalizeRoomMember(member);
+    if (isMemberParticipating(normalized)) {
+      normalized.status = 'finished';
+      normalized.active_receipt_id = nextReceipts.find(receipt => receipt.target_username === normalized.username)?.id || '';
+    }
+    return normalized;
+  });
+  room.settled_at = nowSeconds();
+  updateRoomState(room, 'settling', '');
+  recordRoomEvent(room, 'room.settle', actor, `已为 ${nextReceipts.length} 名成员生成待写回的活动奖励凭证`);
+  replaceRoom(store, room);
+  saveStore(store);
+  return {
+    room: buildRoomSnapshot(store, room, username),
+    overview: buildActivityOverview(store, username, room.activity_domain),
+  };
+}
+
+async function closeActivityRoom(roomId, actor = {}) {
+  const username = sanitizeText(actor.username, 40);
+  const store = loadStore();
+  const room = ensureRoomExists(store, roomId);
+  materializeCountdownState(room);
+  ensureHost(room, username);
+  if (room.state === 'closed') {
+    throw createError('当前房间已经关闭');
+  }
+  if (room.state === 'settling') {
+    const persistSummary = persistActivityReceipts(store, room);
+    if (persistSummary.pending_compensation_count > 0) {
+      updateRoomState(room, 'settling', `仍有 ${persistSummary.pending_compensation_count} 名成员奖励待补偿`);
+      recordRoomEvent(room, 'room.settle', actor, `仍有 ${persistSummary.pending_compensation_count} 名成员奖励待补偿，房间暂不关闭`);
+      replaceRoom(store, room);
+      saveStore(store);
+      return {
+        room: buildRoomSnapshot(store, room, username),
+        overview: buildActivityOverview(store, username, room.activity_domain),
+      };
+    }
+    room.members = (room.members || []).map(member => {
+      const normalized = normalizeRoomMember(member);
+      if (normalized.status === 'finished') normalized.status = 'settled';
+      return normalized;
+    });
+    room.closed_at = nowSeconds();
+    updateRoomState(room, 'closed', '');
+    recordRoomEvent(room, 'room.close', actor, '房间结算已完成，正式关闭');
+  } else {
+    room.aborted_at = nowSeconds();
+    updateRoomState(room, 'aborted', '房主主动取消了当前活动房间');
+    recordRoomEvent(room, 'room.abort', actor, '房主取消了当前活动房间');
+  }
+  replaceRoom(store, room);
+  saveStore(store);
+  return {
+    room: buildRoomSnapshot(store, room, username),
+    overview: buildActivityOverview(store, username, room.activity_domain),
+  };
+}
+
+async function listActivityRoomOverview(username, domain = DEFAULT_ACTIVITY_DOMAIN) {
+  const normalizedUsername = sanitizeText(username, 40);
+  if (!normalizedUsername) throw createError('请先登录后再查看活动房间', 401);
+  const store = loadStore();
+  return buildActivityOverview(store, normalizedUsername, domain);
+}
+
+async function listFestivalRoomOverview(username, domain = DEFAULT_ACTIVITY_DOMAIN) {
+  return listActivityRoomOverview(username, domain);
+}
+
+async function createFestivalRoom(payload = {}, actor = {}) {
+  return createActivityRoom('festival', payload, actor);
+}
+
+async function settleFestivalRoom(roomId, actor = {}) {
+  return settleActivityRoom(roomId, actor);
+}
+
+async function closeFestivalRoom(roomId, actor = {}) {
+  return closeActivityRoom(roomId, actor);
+}
+
+async function listExpeditionRoomOverview(username) {
+  return listActivityRoomOverview(username, 'expedition');
+}
+
+async function createExpeditionRoom(payload = {}, actor = {}) {
+  return createActivityRoom('expedition', payload, actor);
+}
+
+async function inviteExpeditionRoomMember(roomId, payload = {}, actor = {}) {
+  const result = await inviteFestivalRoomMember(roomId, payload, actor);
+  result.overview = await listExpeditionRoomOverview(actor.username);
+  return result;
+}
+
+async function joinExpeditionRoom(roomId, actor = {}) {
+  const result = await joinFestivalRoom(roomId, actor);
+  result.overview = await listExpeditionRoomOverview(actor.username);
+  return result;
+}
+
+async function leaveExpeditionRoom(roomId, actor = {}) {
+  const result = await leaveFestivalRoom(roomId, actor);
+  result.overview = await listExpeditionRoomOverview(actor.username);
+  return result;
+}
+
+async function startExpeditionRoomReadyCheck(roomId, actor = {}) {
+  const result = await startFestivalRoomReadyCheck(roomId, actor);
+  result.overview = await listExpeditionRoomOverview(actor.username);
+  return result;
+}
+
+async function setExpeditionRoomReady(roomId, ready, actor = {}) {
+  const result = await setFestivalRoomReady(roomId, ready, actor);
+  result.overview = await listExpeditionRoomOverview(actor.username);
+  return result;
+}
+
+async function startExpeditionRoomCountdown(roomId, actor = {}) {
+  const result = await startFestivalRoomCountdown(roomId, actor);
+  result.overview = await listExpeditionRoomOverview(actor.username);
+  return result;
+}
+
+async function disconnectExpeditionRoom(roomId, actor = {}) {
+  const result = await disconnectFestivalRoom(roomId, actor);
+  result.overview = await listExpeditionRoomOverview(actor.username);
+  return result;
+}
+
+async function reconnectExpeditionRoom(roomId, actor = {}) {
+  const result = await reconnectFestivalRoom(roomId, actor);
+  result.overview = await listExpeditionRoomOverview(actor.username);
+  return result;
+}
+
+async function submitExpeditionRoomGameplayAction(roomId, payload = {}, actor = {}) {
+  const result = await submitFestivalRoomGameplayAction(roomId, payload, actor);
+  result.overview = await listExpeditionRoomOverview(actor.username);
+  return result;
+}
+
+async function settleExpeditionRoom(roomId, actor = {}) {
+  const result = await settleActivityRoom(roomId, actor);
+  result.overview = await listExpeditionRoomOverview(actor.username);
+  return result;
+}
+
+async function closeExpeditionRoom(roomId, actor = {}) {
+  const result = await closeActivityRoom(roomId, actor);
+  result.overview = await listExpeditionRoomOverview(actor.username);
+  return result;
 }
 
 module.exports = {
@@ -1850,4 +2618,17 @@ module.exports = {
   submitFestivalRoomGameplayAction,
   settleFestivalRoom,
   closeFestivalRoom,
+  listExpeditionRoomOverview,
+  createExpeditionRoom,
+  inviteExpeditionRoomMember,
+  joinExpeditionRoom,
+  leaveExpeditionRoom,
+  startExpeditionRoomReadyCheck,
+  setExpeditionRoomReady,
+  startExpeditionRoomCountdown,
+  disconnectExpeditionRoom,
+  reconnectExpeditionRoom,
+  submitExpeditionRoomGameplayAction,
+  settleExpeditionRoom,
+  closeExpeditionRoom,
 };

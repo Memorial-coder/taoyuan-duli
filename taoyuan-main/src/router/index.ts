@@ -2,7 +2,8 @@
  * 本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186
  */
 import { createRouter, createWebHashHistory } from 'vue-router'
-import { ensureLateGameDebugAccess, LATE_GAME_DEBUG_AUTH_QUERY_KEY } from '@/utils/lateGameDebugAccess'
+
+const LATE_GAME_DEBUG_AUTH_QUERY_KEY = 'late_game_debug_auth'
 
 const router = createRouter({
   history: createWebHashHistory(),
@@ -46,6 +47,7 @@ const router = createRouter({
         { path: 'social', name: 'social', component: () => import('@/views/game/SocialView.vue') },
         { path: 'manor', name: 'manor', component: () => import('@/views/game/ManorView.vue') },
         { path: 'festival', name: 'festival', component: () => import('@/views/game/FestivalView.vue') },
+        { path: 'expedition', name: 'expedition', component: () => import('@/views/game/ExpeditionRoomView.vue') },
         { path: 'society', name: 'society', component: () => import('@/views/game/SocietyView.vue') },
         { path: 'village-projects', name: 'village-projects', component: () => import('@/views/game/VillageView.vue') },
         { path: 'shop', name: 'shop', component: () => import('@/views/game/ShopView.vue') },
@@ -79,6 +81,7 @@ router.beforeEach(async to => {
   if (to.meta?.requiresSuperAdmin !== true) return true
 
   try {
+    const { ensureLateGameDebugAccess } = await import('@/utils/lateGameDebugAccess')
     await ensureLateGameDebugAccess()
     return true
   } catch {
