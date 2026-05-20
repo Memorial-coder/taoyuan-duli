@@ -99,6 +99,35 @@ export interface WorldEventOverview {
   events: WorldEventSnapshot[]
   world_events: WorldEventSnapshot[]
   current_world_events: WorldEventSnapshot[]
+  public_goal: {
+    label: string
+    summary: string
+    progress_value: number
+    target_progress: number
+    progress_percent: number
+    progress_text: string
+    phase_reward_label: string
+    milestones: Array<{
+      id: string
+      label: string
+      summary: string
+      reward_label: string
+      threshold: number
+      reached: boolean
+      progress_text: string
+      percent: number
+    }>
+    division_awards: Array<{
+      rank: number
+      event_id: string
+      division_label: string
+      progress_value: number
+      progress_text: string
+      badge_label: string
+      completed: boolean
+      top_contributor_display_name: string
+    }>
+  }
   recent_annals: Array<{
     id: string
     event_id: string
@@ -111,6 +140,38 @@ export interface WorldEventOverview {
     contributor_count: number
     top_contributor_username: string
     top_contributor_display_name: string
+  }>
+  recent_chronicles: Array<{
+    cycle_key: string
+    year: number
+    created_at: number
+    total_completed_events: number
+    total_contribution_points: number
+    public_goal_progress: number
+    public_goal_target: number
+    annual_society_champion: {
+      society_id: string
+      society_name: string
+      contribution_score: number
+      completed: boolean
+    } | null
+    famous_manors: Array<{
+      manor_username: string
+      display_name: string
+      showcase_theme: string
+      favorite_count: number
+      theme: string
+      visual_summary: string
+      today_visit_summary: string
+    }>
+    annal_summaries: string[]
+    first_completed_divisions: Record<string, {
+      event_id: string
+      event_label: string
+      top_contributor_username: string
+      top_contributor_display_name: string
+      completed_at: number
+    }>
   }>
   total_contribution_points: number
   my_records: Array<{
@@ -181,7 +242,9 @@ export const fetchWorldEventOverview = async (): Promise<WorldEventOverview | nu
     events: data.events ?? [],
     world_events: data.world_events ?? [],
     current_world_events: data.current_world_events ?? [],
+    public_goal: data.public_goal,
     recent_annals: data.recent_annals ?? [],
+    recent_chronicles: data.recent_chronicles ?? [],
     total_contribution_points: data.total_contribution_points ?? 0,
     my_records: data.my_records ?? [],
     seasonal_badges: data.seasonal_badges ?? [],

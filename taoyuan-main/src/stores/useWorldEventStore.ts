@@ -18,7 +18,9 @@ export const useWorldEventStore = defineStore('worldEvent', () => {
   const events = computed(() => overview.value?.events ?? [])
   const worldEvents = computed(() => overview.value?.world_events ?? [])
   const currentWorldEvents = computed(() => overview.value?.current_world_events ?? [])
+  const publicGoal = computed(() => overview.value?.public_goal ?? null)
   const recentAnnals = computed(() => overview.value?.recent_annals ?? [])
+  const recentChronicles = computed(() => overview.value?.recent_chronicles ?? [])
   const myRecords = computed(() => overview.value?.my_records ?? [])
   const seasonalBadges = computed(() => overview.value?.seasonal_badges ?? [])
 
@@ -68,7 +70,9 @@ export const useWorldEventStore = defineStore('worldEvent', () => {
     events,
     worldEvents,
     currentWorldEvents,
+    publicGoal,
     recentAnnals,
+    recentChronicles,
     myRecords,
     seasonalBadges,
     lastLoadedAt,

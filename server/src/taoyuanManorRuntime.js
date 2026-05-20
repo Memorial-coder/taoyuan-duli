@@ -747,6 +747,30 @@ async function listFavoriteOverview(username) {
   };
 }
 
+async function listHotManorBoard(limit = 5) {
+  const safeLimit = Math.max(1, Math.min(10, Math.floor(Number(limit) || 5)));
+  const board = buildHotManorBoard().slice(0, safeLimit);
+  const snapshots = await Promise.all(
+    board.map(async entry => {
+      try {
+        const snapshot = await buildManorSnapshot(entry.manor_username, '');
+        return {
+          manor_username: entry.manor_username,
+          display_name: snapshot.display_name,
+          showcase_theme: snapshot.showcase_theme,
+          favorite_count: entry.favorite_count,
+          theme: entry.theme || snapshot.showcase_theme,
+          visual_summary: snapshot.visual_summary,
+          today_visit_summary: snapshot.today_visit_summary,
+        };
+      } catch {
+        return null;
+      }
+    })
+  );
+  return snapshots.filter(Boolean);
+}
+
 module.exports = {
   getOwnManorSnapshot,
   getPublicManorSnapshot,
@@ -759,4 +783,5 @@ module.exports = {
   favoriteManor,
   followManor,
   listFavoriteOverview,
+  listHotManorBoard,
 };

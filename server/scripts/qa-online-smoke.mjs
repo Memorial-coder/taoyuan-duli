@@ -1718,6 +1718,9 @@ try {
     assert(data?.current_event && data.current_event.is_current_season === true, 'world events overview did not expose the current season event')
     assert(Array.isArray(data?.current_event?.contribution_actions) && data.current_event.contribution_actions.some(item => item?.can_use === true), 'world events current event did not expose usable actions')
     assert(Array.isArray(data?.world_events) && data.world_events.length >= 6, 'world events overview did not expose L91 scoped events')
+    assert(data?.public_goal && typeof data.public_goal.progress_text === 'string', 'world events overview did not expose L92 public goal')
+    assert(Array.isArray(data?.public_goal?.milestones) && data.public_goal.milestones.length >= 3, 'world events overview did not expose L92 milestone list')
+    assert(Array.isArray(data?.recent_chronicles) && data.recent_chronicles.length >= 1, 'world events overview did not expose L93 chronicles')
     const worldEventDefinitions = new Set((data?.world_events || []).map(item => String(item?.definition_id || '')))
     for (const requiredId of ['global_confluence', 'division_drive', 'neighbor_unity', 'society_convention', 'limited_window', 'random_anomaly']) {
       assert(worldEventDefinitions.has(requiredId), `world events overview missing scoped event ${requiredId}`)
@@ -1788,6 +1791,8 @@ try {
     assert(Array.isArray(data?.recent_annals) && data.recent_annals.some(item => item?.event_id === createdWorldEventId), 'world event readback did not preserve annal entry')
     assert(Array.isArray(data?.my_records) && data.my_records.some(item => item?.event_id === createdWorldEventId), 'world event readback did not preserve player record')
     assert(Array.isArray(data?.seasonal_badges) && data.seasonal_badges.some(item => item?.event_id === createdWorldEventId), 'world event readback did not preserve player badge')
+    assert(Array.isArray(data?.public_goal?.division_awards), 'world event readback did not preserve L92 division awards')
+    assert(Array.isArray(data?.recent_chronicles) && data.recent_chronicles.some(item => Array.isArray(item?.annal_summaries) && item.annal_summaries.length >= 1), 'world event readback did not preserve L93 annal summary')
 
     const secondaryReadback = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/world-events')
     assert(secondaryReadback.response.ok, `secondary world event readback returned ${secondaryReadback.response.status}`)

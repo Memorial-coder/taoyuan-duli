@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 世界公共目标与世界纪年（L92-L93 第一轮）
+- `taoyuan-main/src/utils/worldEventApi.ts`、`src/stores/useWorldEventStore.ts` 与 `src/views/game/FestivalView.vue` 这轮已经补齐 `L92/L93` 的前端承接：现在会直接读取 `public_goal` 和 `recent_chronicles`，并在节会页展示公共进度、阶段奖励、里程碑、分区奖章与世界纪年摘要。
+- 这轮世界纪年不再只停在“最近史册”层：玩家现在可以直接看到每轮纪年的公共进度、年度冠军村社、著名庄园和分区首个完成者摘要，先把可回看的世界历史面板跑通。
+
 ### 0520 世界事件（L91 第一轮）
 - `taoyuan-main/src/utils/worldEventApi.ts` 与 `src/stores/useWorldEventStore.ts` 已和作用域世界事件最终返回结构对齐：当前前端除了继续读取 `L90` 当前季事件外，也会稳定承接 `world_events / current_world_events / definition_id / scope_key / scope_value` 等字段，不再把作用域世界事件压扁成单一季节事件视图。
 - `taoyuan-main/src/views/game/FestivalView.vue` 这轮补出了 `L91` 作用域世界事件面板：现在会直接展示全部作用域事件、当前可推进数量、作用域范围、锁定原因和贡献动作，玩家不用离开节会页就能看懂自己当前能参与哪几条世界事件。

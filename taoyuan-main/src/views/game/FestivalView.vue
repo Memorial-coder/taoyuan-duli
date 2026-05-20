@@ -94,6 +94,46 @@
       </div>
 
       <div class="space-y-3">
+        <div v-if="worldEventStore.publicGoal" class="border border-success/20 rounded-xs p-3 bg-bg/10">
+          <p class="text-sm text-success mb-2">L92 公共目标</p>
+          <p class="text-[10px] text-muted leading-5">{{ worldEventStore.publicGoal.summary }}</p>
+          <div class="mt-2 flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="text-xs text-text">{{ worldEventStore.publicGoal.label }}</p>
+              <p class="text-[10px] text-muted mt-1">{{ worldEventStore.publicGoal.progress_text }}</p>
+            </div>
+            <span class="text-[10px] text-success">{{ worldEventStore.publicGoal.phase_reward_label }}</span>
+          </div>
+          <div class="mt-2 h-1.5 rounded-xs bg-bg overflow-hidden border border-success/10">
+            <div class="h-full bg-success/70 transition-all" :style="{ width: `${worldEventStore.publicGoal.progress_percent}%` }" />
+          </div>
+          <div v-if="worldEventStore.publicGoal.milestones.length > 0" class="space-y-2 mt-3">
+            <p class="text-[10px] text-muted">阶段里程碑</p>
+            <div class="space-y-2">
+              <div v-for="milestone in worldEventStore.publicGoal.milestones" :key="milestone.id" class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-text">{{ milestone.label }}</p>
+                  <span class="text-[10px]" :class="milestone.reached ? 'text-success' : 'text-muted'">{{ milestone.progress_text }}</span>
+                </div>
+                <p class="text-[10px] text-muted mt-1 leading-4">{{ milestone.summary }}</p>
+                <p class="text-[10px] text-muted mt-1">阶段奖励：{{ milestone.reward_label }}</p>
+              </div>
+            </div>
+          </div>
+          <div v-if="worldEventStore.publicGoal.division_awards.length > 0" class="space-y-2 mt-3">
+            <p class="text-[10px] text-muted">分区奖章</p>
+            <div class="space-y-2">
+              <div v-for="award in worldEventStore.publicGoal.division_awards" :key="award.event_id" class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-text">第 {{ award.rank }} 位 · {{ award.division_label }}</p>
+                  <span class="text-[10px] text-success">{{ award.progress_text }}</span>
+                </div>
+                <p class="text-[10px] text-muted mt-1">{{ award.badge_label }} · 领头贡献 {{ award.top_contributor_display_name || '待产生' }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="border border-success/20 rounded-xs p-3 bg-bg/10">
           <p class="text-sm text-success mb-2">L91 世界事件</p>
           <p v-if="worldEventStore.worldEvents.length > 0" class="text-[10px] text-muted mb-2">
@@ -143,6 +183,34 @@
               </div>
               <p class="text-[10px] text-muted mt-2 leading-4">{{ annal.summary }}</p>
               <p v-if="annal.top_contributor_display_name" class="text-[10px] text-muted mt-1 leading-4">领头贡献：{{ annal.top_contributor_display_name }}</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="border border-success/20 rounded-xs p-3 bg-bg/10">
+          <p class="text-sm text-success mb-2">L93 世界纪年</p>
+          <div v-if="worldEventStore.recentChronicles.length === 0" class="text-xs text-muted leading-5">当前还没有生成世界纪年摘要，随着公共目标与作用域事件持续推进，这里会开始沉淀年度村社、著名庄园与分区首个完成者。</div>
+          <div v-else class="space-y-2">
+            <div v-for="chronicle in worldEventStore.recentChronicles" :key="chronicle.cycle_key" class="border border-success/10 rounded-xs px-2 py-2 bg-bg/10">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs text-text">{{ chronicle.year }} 年 · {{ chronicle.cycle_key }}</p>
+                  <p class="text-[10px] text-muted mt-1">公共进度 {{ chronicle.public_goal_progress }} / {{ chronicle.public_goal_target }} · 已完成事件 {{ chronicle.total_completed_events }}</p>
+                </div>
+                <span class="text-[10px] text-success">{{ chronicle.total_contribution_points }} 点</span>
+              </div>
+              <p v-if="chronicle.annual_society_champion" class="text-[10px] text-muted mt-2 leading-4">
+                年度冠军村社：{{ chronicle.annual_society_champion.society_name }} · 贡献 {{ chronicle.annual_society_champion.contribution_score }}
+              </p>
+              <p v-if="chronicle.annal_summaries.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+                世界史册：{{ chronicle.annal_summaries[0] }}
+              </p>
+              <p v-if="hasDivisionFirstCompletions(chronicle)" class="text-[10px] text-muted mt-1 leading-4">
+                分区首个完成者：{{ formatChronicleDivisionFirsts(chronicle) }}
+              </p>
+              <p v-if="chronicle.famous_manors.length > 0" class="text-[10px] text-muted mt-1 leading-4">
+                著名庄园：{{ formatChronicleFamousManors(chronicle) }}
+              </p>
             </div>
           </div>
         </div>
@@ -447,9 +515,26 @@
   import Button from '@/components/game/Button.vue'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
+  import type { WorldEventOverview } from '@/utils/worldEventApi'
 
   const festivalRoomStore = useFestivalRoomStore()
   const worldEventStore = useWorldEventStore()
+
+  type ChronicleSnapshot = WorldEventOverview['recent_chronicles'][number]
+
+  const hasDivisionFirstCompletions = (chronicle: ChronicleSnapshot) =>
+    Object.keys(chronicle.first_completed_divisions || {}).length > 0
+
+  const formatChronicleDivisionFirsts = (chronicle: ChronicleSnapshot) =>
+    Object.entries(chronicle.first_completed_divisions || {})
+      .slice(0, 2)
+      .map(([divisionLabel, entry]) => `${divisionLabel} - ${entry.top_contributor_display_name || '待记录'}`)
+      .join(' / ')
+
+  const formatChronicleFamousManors = (chronicle: ChronicleSnapshot) =>
+    chronicle.famous_manors
+      .map(manor => `${manor.display_name}（${manor.favorite_count} 收藏）`)
+      .join('、')
 
   const refreshOverview = async () => {
     await festivalRoomStore.refreshOverview().catch(() => {})

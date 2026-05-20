@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
 const taoyuanSocietyRuntime = require('./taoyuanSocietyRuntime');
+const taoyuanManorRuntime = require('./taoyuanManorRuntime');
 const {
   createError,
   getActiveSaveContext,
@@ -58,6 +59,12 @@ const WORLD_SCOPE_ACTIONS = Object.freeze([
     cost_money: 60,
     progress_delta: 3,
   },
+]);
+
+const WORLD_PUBLIC_MILESTONES = Object.freeze([
+  { id: 'shared_spark', threshold: 8, label: '联机同频', summary: '世界公共目标第一次被稳定推起来。', reward_label: '世界纪年记号' },
+  { id: 'regional_stride', threshold: 16, label: '分区成势', summary: '分区与全服事件都开始留下稳定推进痕迹。', reward_label: '分区奖章预热' },
+  { id: 'living_world', threshold: 28, label: '同世成卷', summary: '世界开始同时沉淀全服、分区、邻里与村社层的联机记忆。', reward_label: '纪年纪念品预热' },
 ]);
 
 const SEASONAL_EVENT_DEFS = Object.freeze({
@@ -484,6 +491,7 @@ function createEmptyStore() {
     scope_events: [],
     receipts: [],
     annals: [],
+    chronicles: [],
     updated_at: 0,
   };
 }
@@ -618,6 +626,54 @@ function normalizeAnnal(raw = {}) {
   };
 }
 
+function normalizeChronicle(raw = {}) {
+  return {
+    cycle_key: sanitizeText(raw.cycle_key, 40),
+    year: clampPositiveInt(raw.year, 0),
+    created_at: clampPositiveInt(raw.created_at, 0),
+    total_completed_events: clampPositiveInt(raw.total_completed_events, 0),
+    total_contribution_points: clampPositiveInt(raw.total_contribution_points, 0),
+    public_goal_progress: clampPositiveInt(raw.public_goal_progress, 0),
+    public_goal_target: clampPositiveInt(raw.public_goal_target, 0),
+    annual_society_champion: raw.annual_society_champion && typeof raw.annual_society_champion === 'object'
+      ? {
+          society_id: sanitizeText(raw.annual_society_champion.society_id, 80),
+          society_name: sanitizeText(raw.annual_society_champion.society_name, 60),
+          contribution_score: clampPositiveInt(raw.annual_society_champion.contribution_score, 0),
+          completed: raw.annual_society_champion.completed === true,
+        }
+      : null,
+    famous_manors: Array.isArray(raw.famous_manors)
+      ? raw.famous_manors.map(entry => ({
+          manor_username: sanitizeText(entry?.manor_username, 40),
+          display_name: sanitizeText(entry?.display_name, 60),
+          showcase_theme: sanitizeText(entry?.showcase_theme, 40),
+          favorite_count: clampPositiveInt(entry?.favorite_count, 0),
+          theme: sanitizeText(entry?.theme, 40),
+          visual_summary: sanitizeText(entry?.visual_summary, 120),
+          today_visit_summary: sanitizeText(entry?.today_visit_summary, 120),
+        })).filter(entry => entry.manor_username)
+      : [],
+    annal_summaries: Array.isArray(raw.annal_summaries)
+      ? raw.annal_summaries.map(entry => sanitizeText(entry, 160)).filter(Boolean).slice(0, 8)
+      : [],
+    first_completed_divisions: raw.first_completed_divisions && typeof raw.first_completed_divisions === 'object'
+      ? Object.fromEntries(
+          Object.entries(raw.first_completed_divisions).map(([key, value]) => [
+            sanitizeText(key, 40),
+            {
+              event_id: sanitizeText(value?.event_id, 40),
+              event_label: sanitizeText(value?.event_label, 60),
+              top_contributor_username: sanitizeText(value?.top_contributor_username, 40),
+              top_contributor_display_name: sanitizeText(value?.top_contributor_display_name, 60),
+              completed_at: clampPositiveInt(value?.completed_at, 0),
+            },
+          ])
+        )
+      : {},
+  };
+}
+
 function createEventInstance(eventId, cycleYear) {
   const definition = SEASONAL_EVENT_DEFS[eventId];
   return {
@@ -740,6 +796,7 @@ function ensureWorldEventStore(store) {
   const seasonContext = getCurrentSeasonContext();
   if (!store || typeof store !== 'object') store = createEmptyStore();
   if (!Array.isArray(store.annals)) store.annals = [];
+  if (!Array.isArray(store.chronicles)) store.chronicles = [];
   if (!Array.isArray(store.receipts)) store.receipts = [];
 
   const shouldRebuildSeasonal =
@@ -779,6 +836,7 @@ function ensureWorldEventStore(store) {
 
   store.receipts = (store.receipts || []).map(normalizeReceipt).slice(0, 240);
   store.annals = (store.annals || []).map(normalizeAnnal).slice(0, 80);
+  store.chronicles = (store.chronicles || []).map(normalizeChronicle).slice(0, 20);
   store.current_year = seasonContext.year;
   store.current_season = seasonContext.season;
   store.current_cycle_key = seasonContext.cycle_key;
@@ -1163,6 +1221,135 @@ function buildEventSnapshot(store, event, viewerUsername) {
   };
 }
 
+function buildScopeMilestoneSnapshot(currentProgress, targetProgress) {
+  return WORLD_PUBLIC_MILESTONES.map(entry => ({
+    id: entry.id,
+    label: entry.label,
+    summary: entry.summary,
+    reward_label: entry.reward_label,
+    threshold: entry.threshold,
+    reached: currentProgress >= entry.threshold,
+    progress_text: `${Math.min(currentProgress, entry.threshold)} / ${entry.threshold}`,
+    percent: Math.min(100, Math.round((Math.min(currentProgress, entry.threshold) / Math.max(1, entry.threshold)) * 100)),
+  })).filter(entry => entry.threshold <= targetProgress);
+}
+
+function buildDivisionAwardSnapshots(scopeEvents) {
+  return scopeEvents
+    .filter(event => sanitizeText(event.definition_id || event.id, 40) === 'division_drive')
+    .map(event => {
+      const definition = getEventDefinition(event.definition_id || event.id);
+      const contributors = getSortedContributors(event);
+      return {
+        event_id: event.id,
+        division_label: event.scope_value || event.scope_label,
+        progress_value: Math.min(event.progress, definition.target_progress),
+        progress_text: `${Math.min(event.progress, definition.target_progress)} / ${definition.target_progress}`,
+        badge_label: `${event.scope_value || event.scope_label}奖章`,
+        completed: event.state === 'completed' || event.completed_at > 0,
+        top_contributor_display_name: contributors[0]?.display_name || '',
+      };
+    })
+    .sort((left, right) => {
+      if (right.progress_value !== left.progress_value) return right.progress_value - left.progress_value;
+      return String(left.division_label || '').localeCompare(String(right.division_label || ''), 'zh-CN');
+    })
+    .map((event, index) => ({
+      ...event,
+      rank: index + 1,
+    }));
+}
+
+function buildPublicGoalOverview(eventSnapshots, scopeEvents) {
+  const activeScopeEvents = scopeEvents.filter(event => event.completed_at > 0 || event.progress > 0 || event.state !== 'locked');
+  const seasonalProgress = eventSnapshots.reduce((sum, event) => sum + Math.min(event.progress_value, event.target_progress), 0);
+  const scopedProgress = activeScopeEvents.reduce((sum, event) => {
+    const definition = getEventDefinition(event.definition_id || event.id);
+    return sum + Math.min(event.progress, definition.target_progress);
+  }, 0);
+  const progressValue = seasonalProgress + scopedProgress;
+  const progressTarget = eventSnapshots.reduce((sum, event) => sum + event.target_progress, 0)
+    + activeScopeEvents.reduce((sum, event) => sum + getEventDefinition(event.definition_id || event.id).target_progress, 0);
+  return {
+    label: '联机世界公共进度',
+    summary: '把季节大事件与作用域世界事件汇总成一条可回看的公共目标线，先让世界进度、里程碑和纪年入口稳定可见。',
+    progress_value: progressValue,
+    target_progress: progressTarget,
+    progress_percent: Math.min(100, Math.round((progressValue / Math.max(1, progressTarget)) * 100)),
+    progress_text: `${progressValue} / ${progressTarget}`,
+    phase_reward_label: progressValue >= 16 ? '已进入分区奖章阶段' : '当前先结算世界纪年与作用域奖励',
+    milestones: buildScopeMilestoneSnapshot(progressValue, progressTarget),
+    division_awards: buildDivisionAwardSnapshots(activeScopeEvents).slice(0, 4),
+  };
+}
+
+async function buildWorldChronicleSnapshot(store, overview, scopedSnapshots) {
+  const year = clampPositiveInt(store.current_year, 0);
+  const cycleKey = sanitizeText(store.current_cycle_key, 40);
+  const existing = (store.chronicles || []).map(normalizeChronicle).find(entry => entry.cycle_key === cycleKey);
+  const publicGoal = overview.public_goal;
+  const allScopeEvents = (store.scope_events || []).map(normalizeScopeEvent);
+  const societyChampionEvent = [...allScopeEvents]
+    .filter(event => sanitizeText(event.definition_id || event.id, 40) === 'society_convention' && (event.completed_at > 0 || event.progress > 0))
+    .sort((left, right) => {
+      if (right.progress !== left.progress) return right.progress - left.progress;
+      if (left.completed_at !== right.completed_at) return left.completed_at - right.completed_at;
+      return left.scope_label.localeCompare(right.scope_label, 'zh-CN');
+    })[0] || null;
+
+  const hotManors = await taoyuanManorRuntime.listHotManorBoard(3).catch(() => []);
+  const firstCompletedDivisions = Object.fromEntries(
+    allScopeEvents
+      .filter(event => sanitizeText(event.definition_id || event.id, 40) === 'division_drive' && event.completed_at > 0)
+      .sort((left, right) => left.completed_at - right.completed_at)
+      .map(event => {
+        const contributors = getSortedContributors(event);
+        return [
+          sanitizeText(event.scope_value || event.scope_label, 40),
+        {
+          event_id: event.id,
+          event_label: event.label,
+          top_contributor_username: contributors[0]?.username || '',
+          top_contributor_display_name: contributors[0]?.display_name || '',
+          completed_at: event.completed_at,
+        },
+      ];
+      })
+  );
+
+  const nextChronicle = normalizeChronicle({
+    cycle_key: cycleKey,
+    year,
+    created_at: existing?.created_at || nowSeconds(),
+    total_completed_events: [
+      ...(store.seasonal_events || []).map(normalizeEvent),
+      ...allScopeEvents,
+    ].filter(event => event.completed_at > 0).length,
+    total_contribution_points: publicGoal.progress_value,
+    public_goal_progress: publicGoal.progress_value,
+    public_goal_target: publicGoal.target_progress,
+    annual_society_champion: societyChampionEvent
+      ? {
+          society_id: sanitizeText(societyChampionEvent.scope_key, 80),
+          society_name: sanitizeText(societyChampionEvent.scope_value || societyChampionEvent.scope_label, 60),
+          contribution_score: getSortedContributors(societyChampionEvent).reduce((sum, entry) => sum + clampPositiveInt(entry.progress_value, 0), 0),
+          completed: societyChampionEvent.completed_at > 0,
+        }
+      : null,
+    famous_manors: hotManors,
+    annal_summaries: (overview.recent_annals || []).map(entry => `${entry.event_label}：${entry.summary}`).slice(0, 6),
+    first_completed_divisions: existing?.first_completed_divisions && Object.keys(existing.first_completed_divisions).length > 0
+      ? { ...existing.first_completed_divisions, ...firstCompletedDivisions }
+      : firstCompletedDivisions,
+  });
+
+  store.chronicles = [
+    nextChronicle,
+    ...(store.chronicles || []).map(normalizeChronicle).filter(entry => entry.cycle_key !== nextChronicle.cycle_key),
+  ].slice(0, 20);
+  return nextChronicle;
+}
+
 function loadViewerWorldEventRecords(username) {
   const normalizedUsername = sanitizeText(username, 40);
   if (!normalizedUsername) {
@@ -1208,15 +1395,17 @@ function loadViewerWorldEventRecords(username) {
   }
 }
 
-function buildOverview(store, viewerUsername) {
+async function buildOverview(store, viewerUsername) {
   ensureWorldEventStore(store);
   const viewerRecords = loadViewerWorldEventRecords(viewerUsername);
   const scopedEvents = ensureScopedEventsForViewer(store, viewerUsername);
   const eventSnapshots = (store.seasonal_events || []).map(normalizeEvent).map(event => buildEventSnapshot(store, event, viewerUsername));
   const scopedSnapshots = scopedEvents.map(event => buildEventSnapshot(store, event, viewerUsername));
+  const allScopeEvents = (store.scope_events || []).map(normalizeScopeEvent);
   const currentEvent = eventSnapshots.find(event => event.is_current_season) || null;
   const currentScopedEvents = scopedSnapshots.filter(event => event.can_contribute);
-  return {
+  const publicGoal = buildPublicGoalOverview(eventSnapshots, allScopeEvents);
+  const baseOverview = {
     bulletin: '四季大事件与世界事件当前统一运行在 world-event runtime：季节大事件继续负责年度主线，L91 再补全全服、分区、邻里、村社、限时与异象事件。',
     current_season: sanitizeText(store.current_season, 20),
     current_season_label: SEASON_LABELS[store.current_season] || store.current_season,
@@ -1229,6 +1418,16 @@ function buildOverview(store, viewerUsername) {
     total_contribution_points: viewerRecords.total_contribution_points,
     my_records: viewerRecords.my_records,
     seasonal_badges: viewerRecords.seasonal_badges,
+    public_goal: publicGoal,
+    recent_chronicles: [],
+  };
+  const chronicle = await buildWorldChronicleSnapshot(store, baseOverview, scopedSnapshots);
+  return {
+    ...baseOverview,
+    recent_chronicles: [
+      chronicle,
+      ...(store.chronicles || []).map(normalizeChronicle).filter(entry => entry.cycle_key !== chronicle.cycle_key),
+    ].slice(0, 4),
   };
 }
 
@@ -1246,7 +1445,7 @@ async function listWorldEventOverview(username) {
   const normalizedUsername = sanitizeText(username, 40);
   if (!normalizedUsername) throw createError('请先登录后再查看四季大事件', 401);
   const store = loadStore();
-  const overview = buildOverview(store, normalizedUsername);
+  const overview = await buildOverview(store, normalizedUsername);
   saveStore(store);
   return overview;
 }
@@ -1293,11 +1492,12 @@ async function contributeWorldEvent(eventId, payload = {}, actor = {}) {
   finalizeEventIfNeeded(store, event);
   if (event.scope) replaceScopeEvent(store, event);
   else replaceEvent(store, event);
+  const overview = await buildOverview(store, username);
   saveStore(store);
 
   return {
     event: buildEventSnapshot(store, event, username),
-    overview: buildOverview(store, username),
+    overview,
   };
 }
 
