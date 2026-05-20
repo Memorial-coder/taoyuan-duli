@@ -3,6 +3,24 @@ import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 import legacy from '@vitejs/plugin-legacy'
 
+const createManualChunkName = (id: string) => {
+  const normalizedId = id.replace(/\\/g, '/')
+
+  if (
+    normalizedId.includes('/node_modules/vue/')
+    || normalizedId.includes('/node_modules/vue-router/')
+    || normalizedId.includes('/node_modules/pinia/')
+  ) {
+    return 'vendor-core'
+  }
+
+  if (normalizedId.includes('/node_modules/@capacitor/')) {
+    return 'vendor-capacitor'
+  }
+
+  return undefined
+}
+
 /** Dev-only：WebDAV 反向代理，绕过浏览器 CORS */
 const webdavProxy = (): Plugin => ({
   name: 'webdav-proxy',
@@ -66,7 +84,14 @@ export default defineConfig({
   },
   build: {
     outDir: 'docs',
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          return createManualChunkName(id)
+        }
+      }
+    }
   },
   esbuild: {
     drop: ['console', 'debugger'],

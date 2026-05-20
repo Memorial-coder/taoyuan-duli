@@ -1,0 +1,10 @@
+{
+  "id": "breeding_specialist",
+  "label": "育种专项档",
+  "tags": ["late-game", "breeding", "quest", "theme-week"],
+  "loader": "built-in",
+  "notes": [
+    "通过开发态样例存档加载器直接注入",
+    "重点验证育种图鉴、高代种子与育种主题周"
+  ]
+}

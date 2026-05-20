@@ -2,15 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* zpix 像素字体（支持中英文） */
-@font-face {
-  font-family: 'zpix';
-  src: url('@/assets/fonts/zpix.woff2') format('woff2');
-  font-weight: normal;
-  font-style: normal;
-  font-display: swap;
-}
-
 :root {
   /* 主题色（RGB 数值，配合 Tailwind 透明度修饰符） */
   --color-bg: 26 26 26;

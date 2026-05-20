@@ -10,7 +10,7 @@ body {
   justify-content: center;
   height: 100vh;
   color: #8b949e;
-  font-family: system-ui, -apple-system, sans-serif;
+  font-family: 'zpix', monospace;
 }
 
 #app:empty::after {

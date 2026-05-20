@@ -8,14 +8,22 @@ import App from './App.vue'
 import './app.css'
 import { initCurrentAccount } from '@/utils/accountStorage'
 import { installApiFetchBridge } from '@/utils/apiClient'
-import { CONSOLE_CREDIT_UPDATED_EVENT, fetchAiAssistantConfig } from '@/utils/taoyuanAiApi'
 
 const defaultProjectCreditMessage =
   '本项目由Memorial开发，开源地址：https://github.com/Memorial-coder/taoyuan-duli，如果你觉得这个项目对你有帮助，也欢迎前往仓库点个 Star 支持一下，玩家交流群1094297186'
 const projectCreditUrlPattern = /(https?:\/\/[^\s，。,！？；;'"）】]+)/u
+const CONSOLE_CREDIT_UPDATED_EVENT = 'taoyuan-console-credit-updated'
 
 let projectCreditMessage = defaultProjectCreditMessage
 let lastLoggedRouteKey = ''
+
+const markBootstrapStage = (name: string) => {
+  if (typeof performance === 'undefined' || typeof performance.mark !== 'function') {
+    return
+  }
+
+  performance.mark(name)
+}
 
 const getProjectConsoleLogger = () => {
   if (typeof globalThis === 'undefined') {
@@ -53,8 +61,10 @@ const getProjectCreditLogArgs = (message: string) => {
 
 const loadProjectCreditMessage = async () => {
   try {
-    const config = await fetchAiAssistantConfig()
-    const nextMessage = String(config.consoleCreditMessage || '').trim()
+    const response = await fetch('/api/taoyuan/ai/config', { credentials: 'include' })
+    const data = await response.json().catch(() => null)
+    const config = data?.ok ? data?.config : null
+    const nextMessage = String(config?.consoleCreditMessage || config?.console_credit_message || '').trim()
     if (nextMessage) {
       projectCreditMessage = nextMessage
     }
@@ -101,8 +111,8 @@ router.afterEach((to) => {
 })
 
 const bootstrap = async () => {
+  markBootstrapStage('bootstrap-start')
   installApiFetchBridge()
-  await Promise.all([initCurrentAccount(), loadProjectCreditMessage()])
 
   const app = createApp(App)
   const pinia = createPinia()
@@ -120,7 +130,17 @@ const bootstrap = async () => {
 
   app.use(pinia)
   app.use(router)
+  markBootstrapStage('before-app-mount')
   app.mount('#app')
+  markBootstrapStage('after-app-mount')
+
+  void initCurrentAccount().finally(() => {
+    markBootstrapStage('account-context-ready')
+  })
+
+  void loadProjectCreditMessage().finally(() => {
+    markBootstrapStage('credit-config-ready')
+  })
 
   void router.isReady().then(() => {
     logProjectCredit(router.currentRoute.value.fullPath || '/')
