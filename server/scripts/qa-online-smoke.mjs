@@ -3242,6 +3242,19 @@ try {
     assert(data?.my_society?.public_warehouse && Array.isArray(data.my_society.public_warehouse.logs) && data.my_society.public_warehouse.logs.some(entry => entry?.username === secondarySessionState.username), 'society welfare readback did not preserve warehouse logs')
   })
 
+  await runCheck('GET /api/taoyuan/online/societies chronicle readback', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies')
+    assert(response.ok, `society chronicle readback returned ${response.status}`)
+    const chronicle = data?.my_society?.chronicle
+    assert(chronicle && Number(chronicle.founded_at || 0) > 0, 'society chronicle did not expose founded_at')
+    assert(Array.isArray(chronicle?.role_history) && chronicle.role_history.length >= 2, 'society chronicle did not expose role history')
+    assert(Array.isArray(chronicle?.public_projects) && chronicle.public_projects.some(entry => entry?.id === 'bridge' && Number(entry?.contribution_count || 0) >= 1), 'society chronicle did not expose public project history')
+    assert(Array.isArray(chronicle?.festival_participations) && chronicle.festival_participations.length >= 1, 'society chronicle did not expose festival participation history')
+    assert(Array.isArray(chronicle?.top_contributors) && chronicle.top_contributors.some(entry => entry?.username === secondarySessionState.username), 'society chronicle did not expose contribution ranking')
+    assert(Array.isArray(chronicle?.timeline) && chronicle.timeline.length >= 3, 'society chronicle did not expose event timeline')
+    assert(String(chronicle?.annual_summary || '').length > 0, 'society chronicle did not expose annual summary')
+  })
+
   await runCheck('GET /api/taoyuan/online/profile player chronicle primary readback', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/online/profile')
     assert(response.ok, `primary online profile chronicle readback returned ${response.status}`)

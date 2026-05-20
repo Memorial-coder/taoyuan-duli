@@ -16,6 +16,9 @@ const DATA_DIR = process.env.DB_STORAGE
 const TAOYUAN_SOCIETY_FILE = path.join(DATA_DIR, 'taoyuan_societies.json');
 const ITEM_MAX_STACK = 999;
 const TEMP_BAG_CAPACITY = 10;
+const SOCIETY_ROLE_HISTORY_LIMIT = 160;
+const SOCIETY_CHRONICLE_FESTIVAL_LIMIT = 10;
+const SOCIETY_CHRONICLE_TIMELINE_LIMIT = 16;
 
 const SOCIETY_ROLE_LABELS = Object.freeze({
   president: '社长',
@@ -611,6 +614,18 @@ function normalizeSocietyWarehouseState(entry) {
   };
 }
 
+function normalizeSocietyRoleHistoryEntry(entry) {
+  return {
+    id: sanitizeText(entry?.id || makeId('society_role_history'), 80),
+    username: normalizeUsername(entry?.username),
+    display_name: sanitizeText(entry?.display_name, 40),
+    role: normalizeSocietyRole(entry?.role),
+    role_label: SOCIETY_ROLE_LABELS[normalizeSocietyRole(entry?.role)] || normalizeSocietyRole(entry?.role),
+    created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
+    source: sanitizeText(entry?.source, 40) || 'manual',
+  };
+}
+
 function normalizeSociety(entry) {
   return {
     id: sanitizeText(entry?.id || makeId('society'), 80),
@@ -639,6 +654,9 @@ function normalizeSociety(entry) {
       : [],
     public_projects: Array.isArray(entry?.public_projects)
       ? entry.public_projects.map(normalizeSocietyPublicProject).filter(project => project.id).slice(0, SOCIETY_PUBLIC_PROJECT_DEFS.length)
+      : [],
+    role_history: Array.isArray(entry?.role_history)
+      ? entry.role_history.map(normalizeSocietyRoleHistoryEntry).filter(item => item.username).slice(0, SOCIETY_ROLE_HISTORY_LIMIT)
       : [],
     public_warehouse: normalizeSocietyWarehouseState(entry?.public_warehouse),
   };
@@ -1107,6 +1125,344 @@ function appendSocietyActivity(society, message, type = 'activity') {
   society.updated_at = nowSeconds();
 }
 
+function appendSocietyRoleHistory(society, payload = {}) {
+  const normalized = normalizeSocietyRoleHistoryEntry(payload);
+  if (!normalized.username) return;
+  society.role_history = [
+    normalized,
+    ...((society.role_history || []).map(normalizeSocietyRoleHistoryEntry).filter(entry => entry.id !== normalized.id)),
+  ].slice(0, SOCIETY_ROLE_HISTORY_LIMIT);
+  society.updated_at = nowSeconds();
+}
+
+function buildSocietyMemberIndex(society) {
+  return new Map((society.members || []).map(entry => {
+    const normalized = normalizeSocietyMember(entry);
+    return [normalized.username, normalized];
+  }));
+}
+
+function buildFestivalMemorialOverview(username) {
+  try {
+    const context = getActiveSaveContext(username, null, '当前账号没有可用存档');
+    const memorials = Array.isArray(context?.data?.onlineFestivalRewards?.memorials)
+      ? context.data.onlineFestivalRewards.memorials
+      : [];
+    return memorials
+      .filter(entry => entry && typeof entry === 'object')
+      .map(entry => ({
+        memorial_id: sanitizeText(entry.memorial_id, 120),
+        template_id: sanitizeText(entry.template_id, 40),
+        template_label: sanitizeText(entry.template_label, 40),
+        gameplay_template_id: sanitizeText(entry.gameplay_template_id, 40),
+        gameplay_template_label: sanitizeText(entry.gameplay_template_label, 40),
+        awarded_at: Math.max(0, Math.floor(Number(entry.awarded_at) || 0)),
+        squadmate_usernames: Array.isArray(entry.squadmate_usernames)
+          ? entry.squadmate_usernames.map(item => sanitizeText(item, 40)).filter(Boolean)
+          : [],
+        squadmate_display_names: Array.isArray(entry.squadmate_display_names)
+          ? entry.squadmate_display_names.map(item => sanitizeText(item, 40)).filter(Boolean)
+          : [],
+      }))
+      .filter(entry => entry.memorial_id)
+      .sort((left, right) => right.awarded_at - left.awarded_at);
+  } catch {
+    return [];
+  }
+}
+
+function buildSocietyFestivalChronicle(society) {
+  const memberIndex = buildSocietyMemberIndex(society);
+  const candidateDisplayNames = new Map();
+  for (const member of memberIndex.values()) {
+    candidateDisplayNames.set(member.username, member.display_name || member.username);
+  }
+  for (const historyEntry of (society.role_history || []).map(normalizeSocietyRoleHistoryEntry)) {
+    if (!historyEntry.username) continue;
+    if (!candidateDisplayNames.has(historyEntry.username)) {
+      candidateDisplayNames.set(historyEntry.username, historyEntry.display_name || historyEntry.username);
+    }
+  }
+  const candidateUsernames = new Set(candidateDisplayNames.keys());
+  const aggregated = new Map();
+  for (const [username, displayName] of candidateDisplayNames.entries()) {
+    const memorials = buildFestivalMemorialOverview(username);
+    for (const memorial of memorials) {
+      const squadmateUsernames = new Set(memorial.squadmate_usernames || []);
+      const sameSocietyCount = [...candidateUsernames].filter(entry => entry === username || squadmateUsernames.has(entry)).length;
+      if (sameSocietyCount <= 0) continue;
+      const key = memorial.memorial_id || `${memorial.template_id}:${memorial.awarded_at}`;
+      const current = aggregated.get(key) || {
+        memorial_id: memorial.memorial_id,
+        template_id: memorial.template_id,
+        template_label: memorial.template_label,
+        gameplay_template_id: memorial.gameplay_template_id,
+        gameplay_template_label: memorial.gameplay_template_label,
+        awarded_at: memorial.awarded_at,
+        participant_usernames: new Set(),
+        participant_display_names: new Set(),
+      };
+      current.participant_usernames.add(username);
+      current.participant_display_names.add(displayName || username);
+      for (const squadmateUsername of memorial.squadmate_usernames || []) {
+        if (!candidateUsernames.has(squadmateUsername)) continue;
+        current.participant_usernames.add(squadmateUsername);
+        current.participant_display_names.add(candidateDisplayNames.get(squadmateUsername) || squadmateUsername);
+      }
+      aggregated.set(key, current);
+    }
+  }
+  return Array.from(aggregated.values())
+    .sort((left, right) => right.awarded_at - left.awarded_at)
+    .slice(0, SOCIETY_CHRONICLE_FESTIVAL_LIMIT)
+    .map(entry => ({
+      memorial_id: entry.memorial_id,
+      template_id: entry.template_id,
+      template_label: entry.template_label,
+      gameplay_template_id: entry.gameplay_template_id,
+      gameplay_template_label: entry.gameplay_template_label,
+      awarded_at: entry.awarded_at,
+      participant_count: entry.participant_usernames.size,
+      participant_display_names: Array.from(entry.participant_display_names).slice(0, 6),
+    }));
+}
+
+function buildSocietyTopContributors(society) {
+  const contributionBoard = new Map();
+  for (const project of (society.public_projects || []).map(normalizeSocietyPublicProject)) {
+    for (const contribution of (project.contributions || []).map(normalizeSocietyPublicProjectContribution)) {
+      if (!contribution.username) continue;
+      const current = contributionBoard.get(contribution.username) || {
+        username: contribution.username,
+        display_name: contribution.display_name || contribution.username,
+        project_count: 0,
+        contribution_count: 0,
+        total_progress_gain: 0,
+        last_contributed_at: 0,
+      };
+      current.contribution_count += 1;
+      current.total_progress_gain += contribution.progress_gain;
+      current.last_contributed_at = Math.max(current.last_contributed_at, contribution.created_at);
+      contributionBoard.set(contribution.username, current);
+    }
+  }
+  for (const logEntry of (society.public_warehouse?.logs || []).map(normalizeSocietyWarehouseLogEntry)) {
+    if (!logEntry.username) continue;
+    const current = contributionBoard.get(logEntry.username) || {
+      username: logEntry.username,
+      display_name: logEntry.display_name || logEntry.username,
+      project_count: 0,
+      contribution_count: 0,
+      total_progress_gain: 0,
+      last_contributed_at: 0,
+    };
+    current.contribution_count += 1;
+    current.total_progress_gain += 5;
+    current.last_contributed_at = Math.max(current.last_contributed_at, logEntry.created_at);
+    contributionBoard.set(logEntry.username, current);
+  }
+  const projectWinners = new Set();
+  for (const project of (society.public_projects || []).map(normalizeSocietyPublicProject)) {
+    const projectCounts = new Map();
+    for (const contribution of (project.contributions || []).map(normalizeSocietyPublicProjectContribution)) {
+      if (!contribution.username) continue;
+      projectCounts.set(contribution.username, (projectCounts.get(contribution.username) || 0) + contribution.progress_gain);
+    }
+    const topEntry = Array.from(projectCounts.entries()).sort((left, right) => right[1] - left[1])[0];
+    if (topEntry?.[0]) projectWinners.add(topEntry[0]);
+  }
+  for (const username of projectWinners) {
+    const current = contributionBoard.get(username);
+    if (current) current.project_count += 1;
+  }
+  return Array.from(contributionBoard.values())
+    .sort((left, right) => {
+      if (right.total_progress_gain !== left.total_progress_gain) return right.total_progress_gain - left.total_progress_gain;
+      if (right.contribution_count !== left.contribution_count) return right.contribution_count - left.contribution_count;
+      return right.last_contributed_at - left.last_contributed_at;
+    })
+    .slice(0, 5);
+}
+
+function buildSocietyAnnualSummary(society, festivalChronicle, topContributors) {
+  const completedProjects = (society.public_projects || [])
+    .map(normalizeSocietyPublicProject)
+    .filter(entry => entry.status === 'completed');
+  const totalContributionCount = (society.public_projects || [])
+    .map(normalizeSocietyPublicProject)
+    .reduce((sum, entry) => sum + (entry.contributions || []).length, 0);
+  const latestFestival = festivalChronicle[0];
+  const leadContributor = topContributors[0];
+  if (completedProjects.length === 0 && totalContributionCount === 0 && !latestFestival) {
+    return '这一年里村社刚刚起步，更多历史还在逐步沉淀。';
+  }
+  const summaryParts = [];
+  if (completedProjects.length > 0) {
+    summaryParts.push(`已完成 ${completedProjects.length} 项公共建设`);
+  }
+  if (totalContributionCount > 0) {
+    summaryParts.push(`累计留下 ${totalContributionCount} 条共建贡献记录`);
+  }
+  if (latestFestival) {
+    summaryParts.push(`最近一次同场节会是「${latestFestival.template_label}」`);
+  }
+  if (leadContributor) {
+    summaryParts.push(`当前主要贡献成员是 ${leadContributor.display_name}`);
+  }
+  return `这一年里${society.name} ${summaryParts.join('，')}。`;
+}
+
+function buildSocietyChronicleTimeline(society, festivalChronicle) {
+  const events = [];
+  events.push({
+    id: `society_create:${society.id}`,
+    type: 'create',
+    label: '村社成立',
+    summary: `${society.name} 正式成立。`,
+    created_at: society.created_at,
+  });
+  for (const member of (society.role_history || []).map(normalizeSocietyRoleHistoryEntry)) {
+    events.push({
+      id: `role:${member.id}`,
+      type: 'role',
+      label: `职位记录 · ${member.role_label}`,
+      summary: `${member.display_name || member.username} 曾担任${member.role_label}。`,
+      created_at: member.created_at,
+    });
+  }
+  for (const project of (society.public_projects || []).map(normalizeSocietyPublicProject)) {
+    if ((project.contributions || []).length > 0) {
+      const projectLabel = (SOCIETY_PUBLIC_PROJECT_DEF_MAP[project.id] || {}).label || project.id;
+      events.push({
+        id: `project_start:${project.id}`,
+        type: 'project',
+        label: `公共建设 · ${projectLabel}`,
+        summary: `公共建设「${projectLabel}」开始留下共建记录。`,
+        created_at: [...project.contributions].map(normalizeSocietyPublicProjectContribution).sort((left, right) => left.created_at - right.created_at)[0]?.created_at || 0,
+      });
+    }
+    if (project.status === 'completed' && project.completed_at > 0) {
+      const projectLabel = (SOCIETY_PUBLIC_PROJECT_DEF_MAP[project.id] || {}).label || project.id;
+      events.push({
+        id: `project_complete:${project.id}`,
+        type: 'project_complete',
+        label: `工程完工 · ${projectLabel}`,
+        summary: project.completion_feedback || `公共建设「${projectLabel}」已经完工。`,
+        created_at: project.completed_at,
+      });
+    }
+  }
+  for (const activity of (society.activity_log || []).map(normalizeActivityEntry)) {
+    events.push({
+      id: `activity:${activity.id}`,
+      type: activity.type,
+      label: `社内动态 · ${activity.type}`,
+      summary: activity.message,
+      created_at: activity.created_at,
+    });
+  }
+  for (const festival of festivalChronicle) {
+    events.push({
+      id: `festival:${festival.memorial_id}`,
+      type: 'festival',
+      label: `节会参与 · ${festival.template_label}`,
+      summary: `${festival.participant_display_names.join('、')} 参与了 ${festival.template_label}。`,
+      created_at: festival.awarded_at,
+    });
+  }
+  return events
+    .filter(entry => entry.created_at > 0)
+    .sort((left, right) => right.created_at - left.created_at)
+    .slice(0, SOCIETY_CHRONICLE_TIMELINE_LIMIT);
+}
+
+function formatChronicleDateLabel(timestamp) {
+  const normalized = Math.max(0, Math.floor(Number(timestamp) || 0));
+  if (!normalized) return '';
+  const date = new Date(normalized * 1000);
+  if (Number.isNaN(date.getTime())) return '';
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${date.getFullYear()}-${month}-${day}`;
+}
+
+function buildSocietyChronicleSnapshot(society) {
+  const normalized = normalizeSociety(society);
+  ensureSocietyPublicProjects(normalized);
+  const roleHistory = (normalized.role_history || []).length > 0
+    ? (normalized.role_history || []).map(normalizeSocietyRoleHistoryEntry)
+    : (normalized.members || []).map(member => {
+        const normalizedMember = normalizeSocietyMember(member);
+        return normalizeSocietyRoleHistoryEntry({
+          id: `society_role_history_seed:${normalized.id}:${normalizedMember.username}:${normalizedMember.role}`,
+          username: normalizedMember.username,
+          display_name: normalizedMember.display_name,
+          role: normalizedMember.role,
+          created_at: normalizedMember.role === 'president' ? normalized.created_at : normalizedMember.joined_at,
+          source: normalizedMember.role === 'president' ? 'founding_seed' : 'member_seed',
+        });
+      });
+  const festivalChronicle = buildSocietyFestivalChronicle(normalized);
+  const topContributors = buildSocietyTopContributors(normalized);
+  const timeline = buildSocietyChronicleTimeline({
+    ...normalized,
+    role_history: roleHistory,
+  }, festivalChronicle);
+  const annualSummary = buildSocietyAnnualSummary(normalized, festivalChronicle, topContributors);
+  return {
+    founded_at: normalized.created_at,
+    founded_date_label: formatChronicleDateLabel(normalized.created_at),
+    role_history: roleHistory
+      .sort((left, right) => right.created_at - left.created_at)
+      .map(entry => ({
+        id: entry.id,
+        username: entry.username,
+        display_name: entry.display_name,
+        role: entry.role,
+        role_label: entry.role_label,
+        created_at: entry.created_at,
+        source: entry.source,
+      })),
+    public_projects: normalized.public_projects.map(entry => {
+      const def = SOCIETY_PUBLIC_PROJECT_DEF_MAP[entry.id] || SOCIETY_PUBLIC_PROJECT_DEFS[0];
+      return {
+        id: def.id,
+        label: def.label,
+        status: entry.status,
+        status_label: entry.status === 'completed' ? '已完工' : '建设中',
+        progress: entry.progress,
+        target_progress: entry.target_progress,
+        completed_at: entry.completed_at,
+        completed_by_display_name: entry.completed_by_display_name || '',
+        contribution_count: (entry.contributions || []).length,
+      };
+    }),
+    festival_participations: festivalChronicle.map(entry => ({
+      memorial_id: entry.memorial_id,
+      template_label: entry.template_label,
+      gameplay_template_label: entry.gameplay_template_label,
+      awarded_at: entry.awarded_at,
+      participant_display_names: entry.participant_display_names,
+      participant_count: entry.participant_count,
+    })),
+    top_contributors: topContributors.map(entry => ({
+      username: entry.username,
+      display_name: entry.display_name,
+      project_count: entry.project_count,
+      contribution_count: entry.contribution_count,
+      total_progress_gain: entry.total_progress_gain,
+    })),
+    timeline: timeline.map(entry => ({
+      id: entry.id,
+      type: entry.type,
+      label: entry.label,
+      summary: entry.summary,
+      created_at: entry.created_at,
+    })),
+    annual_summary: annualSummary,
+  };
+}
+
 function updateSocietyInStore(store, society) {
   store.societies = (store.societies || []).map(entry => {
     const normalized = normalizeSociety(entry);
@@ -1380,6 +1736,7 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
     exclusive_festival: buildExclusiveFestivalSnapshot(normalized.theme, normalized.level),
     exclusive_decors: buildExclusiveDecorSnapshots(normalized.theme, normalized.level),
     exclusive_tasks: buildExclusiveTaskSnapshots(normalized),
+    chronicle: buildSocietyChronicleSnapshot(normalized),
     public_warehouse: {
       funds: normalized.public_warehouse.funds,
       items: Object.entries(normalized.public_warehouse.items).map(([itemId, quantity]) => ({
@@ -1513,6 +1870,13 @@ async function createSociety(payload = {}, actor = {}) {
   });
 
   appendSocietyActivity(society, `${displayName}创建了村社「${society.name}」`, 'create');
+  appendSocietyRoleHistory(society, {
+    username,
+    display_name: displayName,
+    role: 'president',
+    created_at: society.created_at,
+    source: 'founding_president',
+  });
   store.societies = [...(store.societies || []), society];
   saveSocietyStore(store);
 
@@ -1587,6 +1951,13 @@ async function leaveSociety(actor = {}) {
     const nextPresident = remainingMembers[0];
     nextPresident.role = 'president';
     appendSocietyActivity(society, `${actorDisplayName}离开了村社，${nextPresident.display_name || await resolveDisplayName(nextPresident.username)}接任社长`, 'leave');
+    appendSocietyRoleHistory(society, {
+      username: nextPresident.username,
+      display_name: nextPresident.display_name || await resolveDisplayName(nextPresident.username),
+      role: 'president',
+      created_at: nowSeconds(),
+      source: 'president_transfer',
+    });
   } else {
     appendSocietyActivity(society, `${actorDisplayName}离开了村社「${society.name}」`, 'leave');
   }
@@ -1674,6 +2045,13 @@ async function respondSocietyRequest(requestId, decision, actor = {}) {
       }),
     ];
     appendSocietyActivity(society, `${targetDisplayName}加入了村社「${society.name}」`, 'join');
+    appendSocietyRoleHistory(society, {
+      username: request.username,
+      display_name: targetDisplayName,
+      role: 'member',
+      created_at: nowSeconds(),
+      source: request.type === 'invite' ? 'invited_member' : 'applied_member',
+    });
     updateSocietyInStore(store, society);
   }
 
@@ -1707,6 +2085,13 @@ async function updateSocietyMemberRole(payload = {}, actor = {}) {
   targetMember.role = nextRole;
   const targetDisplayName = targetMember.display_name || await resolveDisplayName(targetUsername);
   appendSocietyActivity(society, `${targetDisplayName}现在担任${SOCIETY_ROLE_LABELS[nextRole]}`, 'role');
+  appendSocietyRoleHistory(society, {
+    username: targetUsername,
+    display_name: targetDisplayName,
+    role: nextRole,
+    created_at: nowSeconds(),
+    source: 'role_assignment',
+  });
   updateSocietyInStore(store, society);
   saveSocietyStore(store);
   return {

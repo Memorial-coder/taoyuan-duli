@@ -183,6 +183,64 @@ export interface SocietyExclusiveTaskSnapshot {
   status_label: string
 }
 
+export interface SocietyChronicleRoleHistoryEntry {
+  id: string
+  username: string
+  display_name: string
+  role: SocietyRole | string
+  role_label: string
+  created_at: number
+  source: string
+}
+
+export interface SocietyChronicleProjectEntry {
+  id: string
+  label: string
+  status: 'active' | 'completed'
+  status_label: string
+  progress: number
+  target_progress: number
+  completed_at: number
+  completed_by_display_name: string
+  contribution_count: number
+}
+
+export interface SocietyChronicleFestivalEntry {
+  memorial_id: string
+  template_label: string
+  gameplay_template_label: string
+  awarded_at: number
+  participant_display_names: string[]
+  participant_count: number
+}
+
+export interface SocietyChronicleContributorEntry {
+  username: string
+  display_name: string
+  project_count: number
+  contribution_count: number
+  total_progress_gain: number
+}
+
+export interface SocietyChronicleTimelineEntry {
+  id: string
+  type: string
+  label: string
+  summary: string
+  created_at: number
+}
+
+export interface SocietyChronicleSnapshot {
+  founded_at: number
+  founded_date_label: string
+  role_history: SocietyChronicleRoleHistoryEntry[]
+  public_projects: SocietyChronicleProjectEntry[]
+  festival_participations: SocietyChronicleFestivalEntry[]
+  top_contributors: SocietyChronicleContributorEntry[]
+  timeline: SocietyChronicleTimelineEntry[]
+  annual_summary: string
+}
+
 export interface SocietySnapshot {
   id: string
   name: string
@@ -227,6 +285,7 @@ export interface SocietySnapshot {
   exclusive_festival: SocietyExclusiveFestivalSnapshot
   exclusive_decors: SocietyExclusiveDecorSnapshot[]
   exclusive_tasks: SocietyExclusiveTaskSnapshot[]
+  chronicle: SocietyChronicleSnapshot
   public_warehouse: {
     funds: number
     items: SocietyWarehouseItemSnapshot[]

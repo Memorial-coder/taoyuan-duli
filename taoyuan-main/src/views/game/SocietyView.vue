@@ -239,6 +239,109 @@
 
           <div class="border border-accent/20 rounded-xs p-3 bg-bg/10 space-y-3">
             <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">村社史册</p>
+              <span class="text-[10px] text-muted">L101 第一轮</span>
+            </div>
+            <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+              <p class="text-[10px] text-muted">成立日期</p>
+              <p class="text-xs text-accent mt-1">{{ societyStore.mySociety.chronicle.founded_date_label || '待记录' }}</p>
+              <p class="text-[10px] text-muted mt-2 leading-4">{{ societyStore.mySociety.chronicle.annual_summary }}</p>
+            </div>
+
+            <div v-if="societyStore.mySociety.chronicle.role_history.length > 0" class="space-y-2">
+              <p class="text-xs text-accent">历任职位</p>
+              <div class="space-y-2">
+                <div
+                  v-for="entry in societyStore.mySociety.chronicle.role_history.slice(0, 6)"
+                  :key="entry.id"
+                  class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-xs text-text">{{ entry.display_name }}</p>
+                    <span class="text-[10px] text-muted">{{ formatChronicleDate(entry.created_at) }}</span>
+                  </div>
+                  <p class="text-[10px] text-muted mt-1">{{ entry.role_label }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="space-y-2">
+              <p class="text-xs text-accent">公共建设列表</p>
+              <div class="space-y-2">
+                <div
+                  v-for="entry in societyStore.mySociety.chronicle.public_projects"
+                  :key="entry.id"
+                  class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-xs text-text">{{ entry.label }}</p>
+                    <span class="text-[10px]" :class="entry.status === 'completed' ? 'text-success' : 'text-muted'">{{ entry.status_label }}</span>
+                  </div>
+                  <p class="text-[10px] text-muted mt-1">
+                    {{ entry.progress }}/{{ entry.target_progress }} · 共 {{ entry.contribution_count }} 条贡献
+                    <template v-if="entry.completed_at && entry.completed_by_display_name">
+                      · {{ entry.completed_by_display_name }} 完工
+                    </template>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="societyStore.mySociety.chronicle.festival_participations.length > 0" class="space-y-2">
+              <p class="text-xs text-accent">节会参与列表</p>
+              <div class="space-y-2">
+                <div
+                  v-for="entry in societyStore.mySociety.chronicle.festival_participations"
+                  :key="entry.memorial_id"
+                  class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-xs text-text">{{ entry.template_label }}</p>
+                    <span class="text-[10px] text-muted">{{ formatChronicleDate(entry.awarded_at) }}</span>
+                  </div>
+                  <p class="text-[10px] text-muted mt-1">{{ entry.gameplay_template_label }} · {{ entry.participant_count }} 名社员参与</p>
+                  <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.participant_display_names.join('、') }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="societyStore.mySociety.chronicle.top_contributors.length > 0" class="space-y-2">
+              <p class="text-xs text-accent">主要贡献成员</p>
+              <div class="space-y-2">
+                <div
+                  v-for="entry in societyStore.mySociety.chronicle.top_contributors"
+                  :key="entry.username"
+                  class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-xs text-text">{{ entry.display_name }}</p>
+                    <span class="text-[10px] text-accent">+{{ entry.total_progress_gain }} 进度</span>
+                  </div>
+                  <p class="text-[10px] text-muted mt-1">主导 {{ entry.project_count }} 项工程 · 留下 {{ entry.contribution_count }} 条贡献</p>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="societyStore.mySociety.chronicle.timeline.length > 0" class="space-y-2">
+              <p class="text-xs text-accent">关键事件时间线</p>
+              <div class="space-y-2">
+                <div
+                  v-for="entry in societyStore.mySociety.chronicle.timeline"
+                  :key="entry.id"
+                  class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-xs text-text">{{ entry.label }}</p>
+                    <span class="text-[10px] text-muted">{{ formatChronicleDate(entry.created_at) }}</span>
+                  </div>
+                  <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="border border-accent/20 rounded-xs p-3 bg-bg/10 space-y-3">
+            <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">村社会议</p>
               <span class="text-[10px] text-muted">{{ societyStore.mySociety.can_create_proposal ? '成员可发起提案' : '当前只读' }}</span>
             </div>
@@ -559,6 +662,18 @@
     if (society.welfare_xp_to_next_level <= 0) return 100
     return Math.min(100, Math.round((society.welfare_xp / currentWelfareProgressTotal.value) * 100))
   })
+
+  const formatChronicleDate = (timestamp: number) => {
+    if (!timestamp) return '待记录'
+    return new Date(timestamp * 1000).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  }
 
   watchEffect(() => {
     for (const member of societyStore.mySociety?.members ?? []) {
