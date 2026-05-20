@@ -108,6 +108,9 @@ const sessionState = createSessionState()
 const secondarySessionState = createSessionState()
 const tertiarySessionState = createSessionState()
 const quaternarySessionState = createSessionState()
+const l81MemberAState = createSessionState()
+const l81MemberBState = createSessionState()
+const l81MemberCState = createSessionState()
 
 const updateCookie = (session, response) => {
   const rawSetCookie = typeof response.headers.getSetCookie === 'function'
@@ -146,6 +149,9 @@ const getInventoryItemQuantity = (decryptedSave, itemId) => (decryptedSave?.inve
   .filter(entry => entry?.itemId === itemId)
   .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
 const getRewardTicketQuantity = (decryptedSave, ticketType) => Math.max(0, Math.floor(Number(decryptedSave?.wallet?.rewardTickets?.[ticketType]) || 0))
+const getRewardItemQuantity = (decryptedSave, itemId) => ([...(Array.isArray(decryptedSave?.items) ? decryptedSave.items : []), ...(Array.isArray(decryptedSave?.tempItems) ? decryptedSave.tempItems : [])])
+  .filter(entry => entry?.itemId === itemId)
+  .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
 
 const runCheck = async (label, runner) => {
   await runner()
@@ -293,6 +299,9 @@ const cleanupSmokeUsers = async () => {
     secondarySessionState.username,
     tertiarySessionState.username,
     quaternarySessionState.username,
+    l81MemberAState.username,
+    l81MemberBState.username,
+    l81MemberCState.username,
   ].filter(username => /^smk/i.test(String(username || '').trim()))
 
   const deletedUsernames = []
@@ -1939,6 +1948,328 @@ try {
     const secondaryItems = Array.isArray(secondaryDecrypted?.items) ? secondaryDecrypted.items : []
     assert(secondaryItems.some(item => String(item?.itemId || '') === 'wood' && Number(item?.quantity || 0) >= 2), 'expedition reward did not persist secondary expedition wood reward')
     assert(secondaryItems.some(item => String(item?.itemId || '') === 'paper' && Number(item?.quantity || 0) >= 1), 'expedition reward did not persist secondary expedition paper reward')
+  })
+
+  let l81MemberAExpectedMoney = 320
+  let l81MemberBExpectedMoney = 340
+  let l81MemberCExpectedMoney = 360
+  await runCheck('L81 helper session bootstrap', async () => {
+    await bootstrapSession(l81MemberAState, 'smk81a', l81MemberAExpectedMoney)
+    await bootstrapSession(l81MemberBState, 'smk81b', l81MemberBExpectedMoney)
+    await bootstrapSession(l81MemberCState, 'smk81c', l81MemberCExpectedMoney)
+  })
+
+  const l81ReadSave = async (session, label) => {
+    const result = session === sessionState
+      ? await fetchAuthedJson('/api/taoyuan/save/0')
+      : await fetchSessionJson(session, '/api/taoyuan/save/0')
+    assert(result.response.ok, `${label} save read returned ${result.response.status}`)
+    assert(result.data?.ok === true && typeof result.data?.raw === 'string', `${label} save payload is incomplete`)
+    return decryptTaoyuanRaw(result.data.raw)
+  }
+
+  const l81GetExpectedMoney = session => {
+    if (session === sessionState) return primaryExpectedMoney
+    if (session === l81MemberAState) return l81MemberAExpectedMoney
+    if (session === l81MemberBState) return l81MemberBExpectedMoney
+    if (session === l81MemberCState) return l81MemberCExpectedMoney
+    throw new Error(`unexpected L81 session ${session?.username || 'unknown'}`)
+  }
+
+  const l81AddExpectedMoney = (session, delta) => {
+    if (session === sessionState) {
+      primaryExpectedMoney += delta
+      return
+    }
+    if (session === l81MemberAState) {
+      l81MemberAExpectedMoney += delta
+      return
+    }
+    if (session === l81MemberBState) {
+      l81MemberBExpectedMoney += delta
+      return
+    }
+    if (session === l81MemberCState) {
+      l81MemberCExpectedMoney += delta
+      return
+    }
+    throw new Error(`unexpected L81 session ${session?.username || 'unknown'}`)
+  }
+
+  const l81GetReceiptItemQuantity = (receipt, itemId) => (Array.isArray(receipt?.reward_payload?.items) ? receipt.reward_payload.items : [])
+    .filter(entry => entry?.item_id === itemId)
+    .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
+
+  const l81CaptureRewardCounts = (decryptedSave, items) => Object.fromEntries(
+    items.map(item => [item.itemId, getRewardItemQuantity(decryptedSave, item.itemId)])
+  )
+
+  const l81AssertRewardGrowth = (afterSave, beforeCounts, items, label) => {
+    for (const item of items) {
+      const currentQuantity = getRewardItemQuantity(afterSave, item.itemId)
+      const previousQuantity = Number(beforeCounts[item.itemId] || 0)
+      assert(
+        currentQuantity >= previousQuantity + item.quantity,
+        `${label} did not persist ${item.itemId} correctly, expected at least ${previousQuantity + item.quantity}, current=${currentQuantity}`
+      )
+    }
+  }
+
+  const l81SubmitAction = async (session, roomId, actionId, label) => {
+    const { response, data } = await fetchSessionJson(session, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        action_id: actionId,
+      }),
+    })
+    assert(response.ok, `${label} returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.room?.id === roomId, `${label} payload is incomplete`)
+    return data.room
+  }
+
+  const runL81CavernScenario = async ({
+    label,
+    templateId,
+    expectedMemberLimit,
+    participants,
+    baseRewardItems,
+    hostExpectedItems,
+    leadParticipantExpectedItems,
+    bonusRewardItemId,
+  }) => {
+    const beforeHostSave = await l81ReadSave(sessionState, `${label} host before`)
+    const beforeLeadSave = participants[0] ? await l81ReadSave(participants[0], `${label} lead before`) : null
+    const beforeHostCounts = l81CaptureRewardCounts(beforeHostSave, hostExpectedItems)
+    const beforeLeadCounts = beforeLeadSave ? l81CaptureRewardCounts(beforeLeadSave, leadParticipantExpectedItems) : {}
+
+    const { response: createResponse, data: createData } = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        template_id: templateId,
+        gameplay_template_id: 'expedition_cavern',
+        countdown_seconds: 1,
+        title: `${label} ${Date.now()}`,
+      }),
+    })
+    assert(createResponse.ok, `${label} create returned ${createResponse.status}: ${createData?.msg || 'unknown error'}`)
+    assert(createData?.ok === true && createData?.room?.id, `${label} create payload is incomplete`)
+    assert(String(createData?.room?.template_id || '') === templateId, `${label} create did not preserve template id`)
+    assert(Number(createData?.room?.member_limit || 0) === expectedMemberLimit, `${label} create did not preserve member limit ${expectedMemberLimit}`)
+    assert(String(createData?.room?.gameplay?.template_id || '') === 'expedition_cavern', `${label} create did not preserve expedition_cavern gameplay template`)
+    const roomId = String(createData.room.id)
+
+    for (const participant of participants) {
+      const inviteResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/invite`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': sessionState.csrfToken,
+        },
+        body: JSON.stringify({
+          target_username: participant.username,
+        }),
+      })
+      assert(inviteResponse.response.ok, `${label} invite ${participant.username} returned ${inviteResponse.response.status}: ${inviteResponse.data?.msg || 'unknown error'}`)
+      assert(inviteResponse.data?.ok === true, `${label} invite ${participant.username} payload is incomplete`)
+    }
+
+    for (const participant of participants) {
+      const joinResponse = await fetchSessionJson(participant, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/join`, {
+        method: 'POST',
+      })
+      assert(joinResponse.response.ok, `${label} join ${participant.username} returned ${joinResponse.response.status}: ${joinResponse.data?.msg || 'unknown error'}`)
+      assert(joinResponse.data?.ok === true && joinResponse.data?.room?.members?.some(entry => entry?.username === participant.username && entry?.status === 'joined'), `${label} join ${participant.username} payload is incomplete`)
+    }
+
+    const readyCheckResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/ready-check`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(readyCheckResponse.response.ok, `${label} ready-check returned ${readyCheckResponse.response.status}: ${readyCheckResponse.data?.msg || 'unknown error'}`)
+    assert(String(readyCheckResponse.data?.room?.state || '') === 'ready_check', `${label} room did not enter ready_check`)
+
+    const hostReadyResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/ready`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(hostReadyResponse.response.ok, `${label} host ready returned ${hostReadyResponse.response.status}: ${hostReadyResponse.data?.msg || 'unknown error'}`)
+
+    for (const participant of participants) {
+      const readyResponse = await fetchSessionJson(participant, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/ready`, {
+        method: 'POST',
+      })
+      assert(readyResponse.response.ok, `${label} ready ${participant.username} returned ${readyResponse.response.status}: ${readyResponse.data?.msg || 'unknown error'}`)
+      assert(readyResponse.data?.ok === true && readyResponse.data?.room?.members?.some(entry => entry?.username === participant.username && entry?.status === 'ready'), `${label} ready ${participant.username} payload is incomplete`)
+    }
+
+    const startResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/start`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(startResponse.response.ok, `${label} countdown returned ${startResponse.response.status}: ${startResponse.data?.msg || 'unknown error'}`)
+    assert(String(startResponse.data?.room?.state || '') === 'countdown', `${label} room did not enter countdown`)
+
+    await wait(2200)
+    const runningReadback = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms')
+    assert(runningReadback.response.ok, `${label} running readback returned ${runningReadback.response.status}`)
+    assert(runningReadback.data?.ok === true && runningReadback.data?.my_room?.id === roomId, `${label} running readback payload is incomplete`)
+    assert(String(runningReadback.data?.my_room?.state || '') === 'running', `${label} room did not reach running state, current=${runningReadback.data?.my_room?.state}`)
+    assert(String(runningReadback.data?.my_room?.template_id || '') === templateId, `${label} running readback lost template id`)
+    assert(Number(runningReadback.data?.my_room?.member_limit || 0) === expectedMemberLimit, `${label} running readback lost member limit`)
+    assert(Number(runningReadback.data?.my_room?.joined_member_count || 0) === expectedMemberLimit, `${label} running readback did not preserve joined member count`)
+    assert(String(runningReadback.data?.my_room?.gameplay?.template_id || '') === 'expedition_cavern', `${label} running readback lost expedition_cavern gameplay template`)
+    const availableActionIds = new Set((runningReadback.data?.my_room?.gameplay?.available_actions || []).map(entry => String(entry?.id || '')))
+    for (const actionId of ['split_mine', 'chalk_route', 'stabilize_collapse']) {
+      assert(availableActionIds.has(actionId), `${label} available actions missing ${actionId}`)
+    }
+
+    let actionRoom = await l81SubmitAction(sessionState, roomId, 'split_mine', `${label} host split_mine`)
+    actionRoom = await l81SubmitAction(participants[0], roomId, 'chalk_route', `${label} lead chalk_route`)
+    if (participants[1]) {
+      actionRoom = await l81SubmitAction(participants[1], roomId, 'stabilize_collapse', `${label} support stabilize_collapse`)
+    } else {
+      actionRoom = await l81SubmitAction(sessionState, roomId, 'stabilize_collapse', `${label} host stabilize_collapse`)
+    }
+    if (participants[2]) {
+      actionRoom = await l81SubmitAction(participants[2], roomId, 'split_mine', `${label} fourth split_mine`)
+    }
+    actionRoom = await l81SubmitAction(sessionState, roomId, 'chalk_route', `${label} host chalk_route`)
+    actionRoom = await l81SubmitAction(sessionState, roomId, 'split_mine', `${label} host final split_mine`)
+
+    const hostContribution = actionRoom?.gameplay?.contributions?.find(entry => entry?.username === sessionState.username)
+    assert(Number(hostContribution?.action_count || 0) >= 3, `${label} host contribution did not stay ahead`)
+    const recentEventSummaries = Array.isArray(actionRoom?.recent_events) ? actionRoom.recent_events.map(entry => String(entry?.summary || '')) : []
+    assert(recentEventSummaries.some(summary => summary.includes('分工采集')), `${label} room events did not preserve split_mine summary`)
+    assert(recentEventSummaries.some(summary => summary.includes('白路标记')), `${label} room events did not preserve chalk_route summary`)
+    assert(recentEventSummaries.some(summary => summary.includes('处理危机')), `${label} room events did not preserve stabilize_collapse summary`)
+
+    const settleResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/settle`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(settleResponse.response.ok, `${label} settle returned ${settleResponse.response.status}: ${settleResponse.data?.msg || 'unknown error'}`)
+    assert(String(settleResponse.data?.room?.state || '') === 'settling', `${label} room did not enter settling`)
+    assert(Array.isArray(settleResponse.data?.room?.settlement_receipts) && settleResponse.data.room.settlement_receipts.length === expectedMemberLimit, `${label} settle did not create ${expectedMemberLimit} receipts`)
+    for (const rewardItem of baseRewardItems) {
+      assert(
+        settleResponse.data.room.settlement_receipts.every(receipt => l81GetReceiptItemQuantity(receipt, rewardItem.itemId) >= rewardItem.quantity),
+        `${label} settle did not preserve template base reward ${rewardItem.itemId}`
+      )
+    }
+    assert(
+      settleResponse.data.room.settlement_receipts.some(receipt => l81GetReceiptItemQuantity(receipt, bonusRewardItemId) >= 1),
+      `${label} settle did not preserve template bonus reward ${bonusRewardItemId}`
+    )
+
+    const receiptByUsername = new Map(settleResponse.data.room.settlement_receipts.map(receipt => [String(receipt?.target_username || ''), receipt]))
+    for (const participant of [sessionState, ...participants]) {
+      const receipt = receiptByUsername.get(participant.username)
+      assert(receipt, `${label} settle did not keep receipt for ${participant.username}`)
+      l81AddExpectedMoney(participant, Math.max(0, Math.floor(Number(receipt?.reward_payload?.money) || 0)))
+    }
+
+    const closeResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/close`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(closeResponse.response.ok, `${label} close returned ${closeResponse.response.status}: ${closeResponse.data?.msg || 'unknown error'}`)
+    assert(String(closeResponse.data?.room?.state || '') === 'closed', `${label} room did not close cleanly`)
+    assert(Array.isArray(closeResponse.data?.room?.settlement_receipts) && closeResponse.data.room.settlement_receipts.every(receipt => receipt?.status === 'persisted'), `${label} close did not persist all receipts`)
+
+    const afterHostSave = await l81ReadSave(sessionState, `${label} host after`)
+    assert(Math.floor(Number(afterHostSave?.player?.money) || 0) === l81GetExpectedMoney(sessionState), `${label} host money did not persist correctly, expected money=${l81GetExpectedMoney(sessionState)}, current money=${Math.floor(Number(afterHostSave?.player?.money) || 0)}`)
+    l81AssertRewardGrowth(afterHostSave, beforeHostCounts, hostExpectedItems, `${label} host reward`)
+
+    if (participants[0]) {
+      const afterLeadSave = await l81ReadSave(participants[0], `${label} lead after`)
+      assert(Math.floor(Number(afterLeadSave?.player?.money) || 0) === l81GetExpectedMoney(participants[0]), `${label} lead member money did not persist correctly, expected money=${l81GetExpectedMoney(participants[0])}, current money=${Math.floor(Number(afterLeadSave?.player?.money) || 0)}`)
+      l81AssertRewardGrowth(afterLeadSave, beforeLeadCounts, leadParticipantExpectedItems, `${label} lead member reward`)
+    }
+
+    for (const participant of participants.slice(1)) {
+      const afterSave = await l81ReadSave(participant, `${label} member after`)
+      assert(Math.floor(Number(afterSave?.player?.money) || 0) === l81GetExpectedMoney(participant), `${label} member ${participant.username} money did not persist correctly, expected money=${l81GetExpectedMoney(participant)}, current money=${Math.floor(Number(afterSave?.player?.money) || 0)}`)
+    }
+  }
+
+  await runCheck('L81 cavern_duo专项回归', async () => {
+    await runL81CavernScenario({
+      label: 'L81 双人矿洞',
+      templateId: 'cavern_duo',
+      expectedMemberLimit: 2,
+      participants: [l81MemberAState],
+      baseRewardItems: [
+        { itemId: 'stone', quantity: 2 },
+      ],
+      hostExpectedItems: [
+        { itemId: 'stone', quantity: 2 },
+        { itemId: 'ancient_waybill', quantity: 1 },
+      ],
+      leadParticipantExpectedItems: [
+        { itemId: 'stone', quantity: 2 },
+      ],
+      bonusRewardItemId: 'ancient_waybill',
+    })
+  })
+
+  await runCheck('L81 cavern_trio专项回归', async () => {
+    await runL81CavernScenario({
+      label: 'L81 三人矿洞',
+      templateId: 'cavern_trio',
+      expectedMemberLimit: 3,
+      participants: [l81MemberAState, l81MemberBState],
+      baseRewardItems: [
+        { itemId: 'stone', quantity: 2 },
+        { itemId: 'paper', quantity: 1 },
+      ],
+      hostExpectedItems: [
+        { itemId: 'stone', quantity: 2 },
+        { itemId: 'paper', quantity: 1 },
+        { itemId: 'archive_rubbing', quantity: 1 },
+      ],
+      leadParticipantExpectedItems: [
+        { itemId: 'stone', quantity: 2 },
+        { itemId: 'paper', quantity: 1 },
+      ],
+      bonusRewardItemId: 'archive_rubbing',
+    })
+  })
+
+  await runCheck('L81 cavern_quartet专项回归', async () => {
+    await runL81CavernScenario({
+      label: 'L81 四人矿洞',
+      templateId: 'cavern_quartet',
+      expectedMemberLimit: 4,
+      participants: [l81MemberAState, l81MemberBState, l81MemberCState],
+      baseRewardItems: [
+        { itemId: 'stone', quantity: 3 },
+      ],
+      hostExpectedItems: [
+        { itemId: 'stone', quantity: 3 },
+        { itemId: 'ley_crystal_shard', quantity: 1 },
+      ],
+      leadParticipantExpectedItems: [
+        { itemId: 'stone', quantity: 3 },
+      ],
+      bonusRewardItemId: 'ley_crystal_shard',
+    })
   })
 
   let createdSocietyId = ''

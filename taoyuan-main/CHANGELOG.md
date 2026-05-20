@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 协作矿洞（L81 第一轮）
+- `server/scripts/qa-online-smoke.mjs` 已补进 `L81` 协作矿洞专项回归：当前会分别创建 `cavern_duo / cavern_trio / cavern_quartet` 三种矿洞房型，实际验证建房、邀请、加入、ready、倒计时、运行态动作、结算和关闭链路。
+- 这轮专项 smoke 不是只做模板存在性断言：当前会明确校验双人 / 三人 / 四人成员上限、`expedition_cavern` 玩法模板挂载，以及 `分工采集 / 白路标记 / 处理危机` 三种动作在共享进度、成员贡献和最近事件里的真实落点。
+- 矿洞模板差异化奖励也已经补进回档验证：双人、三人、四人矿洞会分别回档 `stone / paper / ancient_waybill / archive_rubbing / ley_crystal_shard` 等差异化奖励，不再只有统一远征默认掉落。
+
 ### 0520 远征房间（L80 第一轮）
 - `server/src/taoyuanActivityRoomRuntime.js` 与 `server/src/routes/api.js` 已把第一版远征房间正式接进在线层：现在已有 `/api/taoyuan/online/expedition/rooms` 的总览、建房、邀请、加入、ready-check、ready / unready、倒计时、断线 / 重连、玩法动作、结算和关闭接口。
 - 远征房间继续保守复用统一活动房间底座，不另起第二套 runtime；当前会沿用统一房间状态机、逐成员结算凭证和关闭时落账口径，把多人远征先做成和节会一致的可回归房间链。
