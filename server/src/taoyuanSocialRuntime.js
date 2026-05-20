@@ -12,6 +12,12 @@ const DATA_DIR = process.env.DB_STORAGE
   : path.join(__dirname, '../data');
 
 const TAOYUAN_SOCIAL_PROFILE_FILE = path.join(DATA_DIR, 'taoyuan_social_profiles.json');
+const TAOYUAN_PLAYER_CHRONICLE_FILE = path.join(DATA_DIR, 'taoyuan_player_chronicles.json');
+const TAOYUAN_MANOR_GUESTBOOK_FILE = path.join(DATA_DIR, 'taoyuan_manor_guestbook.json');
+const TAOYUAN_MANOR_VISIT_FILE = path.join(DATA_DIR, 'taoyuan_manor_visits.json');
+const TAOYUAN_MANOR_FAVORITES_FILE = path.join(DATA_DIR, 'taoyuan_manor_favorites.json');
+const TAOYUAN_COOP_ORDER_FILE = path.join(DATA_DIR, 'taoyuan_coop_orders.json');
+const TAOYUAN_SOCIETY_FILE = path.join(DATA_DIR, 'taoyuan_societies.json');
 
 const SEASON_LABELS = Object.freeze({
   spring: '春',
@@ -51,6 +57,7 @@ const DEFAULT_PROFILE = Object.freeze({
   neighborhood_role: '',
   showcase_theme: '',
   selected_tag_ids: [],
+  public_since: 0,
   updated_at: 0,
   last_active_at: 0,
 });
@@ -67,6 +74,69 @@ const PROFILE_TAG_OPTIONS = Object.freeze([
 ]);
 
 const PROFILE_TAG_LABELS = Object.freeze(Object.fromEntries(PROFILE_TAG_OPTIONS.map(entry => [entry.id, entry.label])));
+
+const GUESTBOOK_KIND_LABELS = Object.freeze({
+  text: '文本留言',
+  blessing: '祝福留言',
+  advice: '建议留言',
+  stamp: '图章留言',
+  signature: '签名留言',
+});
+
+const VISIT_PURPOSE_LABELS = Object.freeze({
+  explore: '参观',
+  friend_visit: '好友来访',
+  gift: '带礼来访',
+  quest: '委托相关来访',
+  other: '普通来访',
+});
+
+const PLAYER_CHRONICLE_DEFS = Object.freeze([
+  {
+    id: 'first_public_manor',
+    label: '第一次公开庄园',
+    summary: '第一次让自己的庄园真正对外留下可回看的公开痕迹。',
+  },
+  {
+    id: 'first_visit_received',
+    label: '第一次被访问',
+    summary: '第一次有访客真的走进自己的庄园并留下来访记录。',
+  },
+  {
+    id: 'first_guestbook_received',
+    label: '第一次收到访客留言',
+    summary: '第一次在庄园留言墙里收到来自别人的真实留言。',
+  },
+  {
+    id: 'first_coop_order_completed',
+    label: '第一次完成协作委托',
+    summary: '第一次把联机委托真正交付、确认并沉成结算凭证。',
+  },
+  {
+    id: 'first_festival_participation',
+    label: '第一次参加节会',
+    summary: '第一次把同场节会经历写进自己的联机纪念册。',
+  },
+  {
+    id: 'first_society_join',
+    label: '第一次加入村社',
+    summary: '第一次从邻里互助走到真正加入一个可治理的村社组织。',
+  },
+  {
+    id: 'first_public_project_contribution',
+    label: '第一次参与公共建设',
+    summary: '第一次为村社公共建设真正提交物资、工钱或图纸。',
+  },
+  {
+    id: 'first_hot_manor',
+    label: '第一次被推荐为热门庄园',
+    summary: '第一次让庄园进入当前可回看的热门庄园榜单。',
+  },
+]);
+
+const PLAYER_CHRONICLE_DEF_MAP = Object.freeze(
+  Object.fromEntries(PLAYER_CHRONICLE_DEFS.map(entry => [entry.id, entry]))
+);
 
 function createEmptySocialStore() {
   return {
@@ -89,6 +159,18 @@ function normalizeVisibility(value) {
   if (normalized === 'private') return 'private';
   if (normalized === 'friends_only') return 'friends_only';
   return 'public';
+}
+
+function normalizeGuestbookKind(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['text', 'blessing', 'advice', 'stamp', 'signature'].includes(normalized)) return normalized;
+  return 'text';
+}
+
+function normalizeVisitPurpose(value) {
+  const normalized = String(value || '').trim().toLowerCase();
+  if (['explore', 'friend_visit', 'gift', 'quest', 'other'].includes(normalized)) return normalized;
+  return 'other';
 }
 
 function ensureSocialProfileStore() {
@@ -129,8 +211,155 @@ function saveSocialProfileStore(store) {
   });
 }
 
+function readJsonStore(filePath, fallbackValue) {
+  try {
+    if (!fs.existsSync(filePath)) return fallbackValue;
+    const raw = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+    return raw && typeof raw === 'object' ? raw : fallbackValue;
+  } catch {
+    return fallbackValue;
+  }
+}
+
+function createEmptyPlayerChronicleStore() {
+  return {
+    players: {},
+  };
+}
+
+function ensurePlayerChronicleStore() {
+  fs.mkdirSync(path.dirname(TAOYUAN_PLAYER_CHRONICLE_FILE), { recursive: true });
+}
+
+function normalizeChronicleMilestone(entry) {
+  return {
+    id: sanitizeText(entry?.id, 60),
+    recorded_at: Math.max(0, Math.floor(Number(entry?.recorded_at) || 0)),
+    detail: sanitizeText(entry?.detail, 160),
+    source_type: sanitizeText(entry?.source_type, 40),
+    source_id: sanitizeText(entry?.source_id, 80),
+  };
+}
+
+function normalizePlayerChronicleEntry(entry) {
+  const milestoneEntries = entry?.milestones && typeof entry.milestones === 'object' ? entry.milestones : {};
+  return {
+    milestones: Object.fromEntries(
+      Object.entries(milestoneEntries)
+        .map(([key, value]) => [sanitizeText(key, 60), normalizeChronicleMilestone(value)])
+        .filter(([, value]) => value.id)
+    ),
+    updated_at: Math.max(0, Math.floor(Number(entry?.updated_at) || 0)),
+  };
+}
+
+function loadPlayerChronicleStore() {
+  ensurePlayerChronicleStore();
+  const raw = readJsonStore(TAOYUAN_PLAYER_CHRONICLE_FILE, createEmptyPlayerChronicleStore());
+  return {
+    players: raw.players && typeof raw.players === 'object' ? raw.players : {},
+  };
+}
+
+function savePlayerChronicleStore(store) {
+  ensurePlayerChronicleStore();
+  writeJsonFileAtomic(TAOYUAN_PLAYER_CHRONICLE_FILE, {
+    players: store?.players && typeof store.players === 'object' ? store.players : {},
+  });
+}
+
+function ensurePlayerChronicleEntry(store, username) {
+  const key = normalizeUsername(username);
+  const current = normalizePlayerChronicleEntry(store.players?.[key] || {});
+  if (!store.players || typeof store.players !== 'object') store.players = {};
+  store.players[key] = current;
+  return current;
+}
+
+function buildChronicleCandidate(recordedAt, detail, sourceType, sourceId = '') {
+  const normalizedRecordedAt = Math.max(0, Math.floor(Number(recordedAt) || 0));
+  if (normalizedRecordedAt <= 0) return null;
+  return {
+    recorded_at: normalizedRecordedAt,
+    detail: sanitizeText(detail, 160),
+    source_type: sanitizeText(sourceType, 40),
+    source_id: sanitizeText(sourceId, 80),
+  };
+}
+
+function pickEarliestCandidate(candidates = []) {
+  return candidates
+    .filter(entry => entry && entry.recorded_at > 0)
+    .sort((left, right) => left.recorded_at - right.recorded_at)[0] || null;
+}
+
+function readGuestbookEntries() {
+  const raw = readJsonStore(TAOYUAN_MANOR_GUESTBOOK_FILE, { entries: [] });
+  return Array.isArray(raw.entries) ? raw.entries : [];
+}
+
+function readVisitEntries() {
+  const raw = readJsonStore(TAOYUAN_MANOR_VISIT_FILE, { entries: [] });
+  return Array.isArray(raw.entries) ? raw.entries : [];
+}
+
+function readFavoriteEntries() {
+  const raw = readJsonStore(TAOYUAN_MANOR_FAVORITES_FILE, { favorites: [] });
+  return Array.isArray(raw.favorites) ? raw.favorites : [];
+}
+
+function readCoopOrderReceipts() {
+  const raw = readJsonStore(TAOYUAN_COOP_ORDER_FILE, { receipts: [] });
+  return Array.isArray(raw.receipts) ? raw.receipts : [];
+}
+
+function readSocietyStore() {
+  const raw = readJsonStore(TAOYUAN_SOCIETY_FILE, { societies: [], society_join_requests: [] });
+  return {
+    societies: Array.isArray(raw.societies) ? raw.societies : [],
+    society_join_requests: Array.isArray(raw.society_join_requests) ? raw.society_join_requests : [],
+  };
+}
+
+function buildPlayerChronicleMilestoneSnapshots(entry) {
+  return PLAYER_CHRONICLE_DEFS.map(def => {
+    const milestone = normalizeChronicleMilestone(entry?.milestones?.[def.id] || {});
+    return {
+      id: def.id,
+      label: def.label,
+      summary: def.summary,
+      unlocked: milestone.recorded_at > 0,
+      recorded_at: milestone.recorded_at,
+      detail: milestone.detail,
+      source_type: milestone.source_type,
+      source_id: milestone.source_id,
+    };
+  });
+}
+
+function persistPlayerChronicleCandidate(store, username, milestoneId, candidate) {
+  if (!candidate || !PLAYER_CHRONICLE_DEF_MAP[milestoneId]) return false;
+  const entry = ensurePlayerChronicleEntry(store, username);
+  const current = normalizeChronicleMilestone(entry.milestones?.[milestoneId] || {});
+  if (current.recorded_at > 0 && current.recorded_at <= candidate.recorded_at) return false;
+  entry.milestones[milestoneId] = normalizeChronicleMilestone({
+    id: milestoneId,
+    recorded_at: candidate.recorded_at,
+    detail: candidate.detail,
+    source_type: candidate.source_type,
+    source_id: candidate.source_id,
+  });
+  entry.updated_at = Math.floor(Date.now() / 1000);
+  store.players[normalizeUsername(username)] = entry;
+  return true;
+}
+
 function makeId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function nowSeconds() {
+  return Math.floor(Date.now() / 1000);
 }
 
 function normalizeUsername(value) {
@@ -148,6 +377,7 @@ function normalizeStoredProfile(profile) {
     selected_tag_ids: Array.isArray(profile?.selected_tag_ids)
       ? Array.from(new Set(profile.selected_tag_ids.map(entry => String(entry).trim()).filter(entry => PROFILE_TAG_LABELS[entry]))).slice(0, 3)
       : [],
+    public_since: Math.max(0, Math.floor(Number(profile?.public_since) || 0)),
     updated_at: Number(profile?.updated_at) || 0,
     last_active_at: Number(profile?.last_active_at) || 0,
   };
@@ -163,9 +393,15 @@ function updateStoredProfile(username, patch = {}) {
   const store = loadSocialProfileStore();
   const key = String(username || '').trim();
   const current = normalizeStoredProfile(store.profiles?.[key] || DEFAULT_PROFILE);
+  const normalizedVisibility = normalizeVisibility(patch?.visibility ?? current.visibility);
+  const nextPublicSince = normalizedVisibility === 'public'
+    ? (current.public_since > 0 ? current.public_since : Math.floor(Date.now() / 1000))
+    : current.public_since;
   const next = normalizeStoredProfile({
     ...current,
     ...patch,
+    visibility: normalizedVisibility,
+    public_since: nextPublicSince,
     updated_at: Math.floor(Date.now() / 1000),
     last_active_at: Math.floor(Date.now() / 1000),
   });
@@ -237,6 +473,202 @@ function buildRecentActivityText(saveContext, activeQuestCount) {
   const hour = String(date.getHours()).padStart(2, '0');
   const minute = String(date.getMinutes()).padStart(2, '0');
   return `最近同步于 ${month}-${day} ${hour}:${minute}`;
+}
+
+function formatShortDateTime(timestamp) {
+  const normalized = Math.max(0, Math.floor(Number(timestamp) || 0));
+  if (normalized <= 0) return '';
+  const date = new Date(normalized * 1000);
+  if (Number.isNaN(date.getTime())) return '';
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  const hour = String(date.getHours()).padStart(2, '0');
+  const minute = String(date.getMinutes()).padStart(2, '0');
+  return `${month}-${day} ${hour}:${minute}`;
+}
+
+function derivePlayerChronicleCandidates(username, storedProfile = DEFAULT_PROFILE) {
+  const normalizedUsername = normalizeUsername(username);
+  const guestbookEntries = readGuestbookEntries();
+  const visitEntries = readVisitEntries();
+  const favoriteEntries = readFavoriteEntries();
+  const coopReceipts = readCoopOrderReceipts();
+  const societyStore = readSocietyStore();
+
+  const firstPublicManor = storedProfile.public_since > 0
+    ? buildChronicleCandidate(
+        storedProfile.public_since,
+        `在 ${formatShortDateTime(storedProfile.public_since)} 首次把庄园公开出来。`,
+        'profile',
+        normalizedUsername
+      )
+    : null;
+
+  const firstVisitReceived = pickEarliestCandidate(
+    visitEntries
+      .filter(entry => normalizeUsername(entry?.target_username) === normalizedUsername)
+      .map(entry => buildChronicleCandidate(
+        entry?.created_at,
+        `${sanitizeText(entry?.visitor_display_name, 40) || normalizeUsername(entry?.visitor_username) || '访客'}第一次来访，目的为${VISIT_PURPOSE_LABELS[normalizeVisitPurpose(entry?.purpose)] || '普通来访'}。`,
+        'manor_visit',
+        String(entry?.id || '')
+      ))
+  );
+
+  const firstGuestbookReceived = pickEarliestCandidate(
+    guestbookEntries
+      .filter(entry => normalizeUsername(entry?.target_username) === normalizedUsername)
+      .map(entry => {
+        const kind = normalizeGuestbookKind(entry?.kind);
+        const authorDisplayName = sanitizeText(entry?.author_display_name, 40) || normalizeUsername(entry?.author_username) || '访客';
+        return buildChronicleCandidate(
+          entry?.created_at,
+          `${authorDisplayName}留下了第一条${GUESTBOOK_KIND_LABELS[kind] || '访客留言'}。`,
+          'guestbook',
+          String(entry?.id || '')
+        );
+      })
+  );
+
+  const firstCoopOrderCompleted = pickEarliestCandidate(
+    coopReceipts
+      .filter(entry => normalizeUsername(entry?.assignee_username) === normalizedUsername && ['confirmed', 'compensation_pending'].includes(String(entry?.status || '')))
+      .map(entry => {
+        const orderTitle = sanitizeText(entry?.stage_title || entry?.reward_label || '协作委托', 60);
+        return buildChronicleCandidate(
+          entry?.confirmed_at || entry?.updated_at || entry?.created_at,
+          `完成了第一条协作委托结算：${orderTitle}。`,
+          'coop_receipt',
+          String(entry?.id || '')
+        );
+      })
+  );
+
+  const firstFestivalParticipation = pickEarliestCandidate(
+    (() => {
+      try {
+        const context = getActiveSaveContext(normalizedUsername, null, '当前玩家没有可用存档');
+        const memorials = Array.isArray(context?.data?.onlineFestivalRewards?.memorials)
+          ? context.data.onlineFestivalRewards.memorials
+          : [];
+        return memorials.map(entry => buildChronicleCandidate(
+          entry?.awarded_at,
+          `参加了第一场节会：${sanitizeText(entry?.template_label, 40) || '节会活动'}。`,
+          'festival_memorial',
+          String(entry?.memorial_id || '')
+        ));
+      } catch {
+        return [];
+      }
+    })()
+  );
+
+  const firstSocietyJoin = pickEarliestCandidate(
+    [
+      ...societyStore.societies
+        .flatMap(society => Array.isArray(society?.members) ? society.members.map(member => ({
+          society_name: sanitizeText(society?.name, 40),
+          joined_at: member?.joined_at,
+          source_type: 'society_member',
+          source_id: sanitizeText(society?.id, 80) || sanitizeText(society?.name, 40),
+          username: normalizeUsername(member?.username),
+        })) : []),
+      ...societyStore.society_join_requests
+        .filter(entry => normalizeUsername(entry?.username) === normalizedUsername && String(entry?.status || '') === 'accepted')
+        .map(entry => {
+          const society = societyStore.societies.find(item => sanitizeText(item?.id, 80) === sanitizeText(entry?.society_id, 80));
+          return {
+            society_name: sanitizeText(society?.name, 40),
+            joined_at: entry?.updated_at || entry?.created_at,
+            source_type: 'society_join_request',
+            source_id: sanitizeText(entry?.id, 80),
+            username: normalizeUsername(entry?.username),
+          };
+        }),
+    ]
+      .filter(entry => entry.username === normalizedUsername)
+      .map(entry => buildChronicleCandidate(
+        entry.joined_at,
+        `加入了村社「${entry.society_name || '未命名村社'}」。`,
+        entry.source_type,
+        entry.source_id
+      ))
+  );
+
+  const firstPublicProjectContribution = pickEarliestCandidate(
+    societyStore.societies
+      .flatMap(society => Array.isArray(society?.public_projects) ? society.public_projects.map(project => ({
+        society_name: sanitizeText(society?.name, 40),
+        project_label: sanitizeText(project?.label, 40) || sanitizeText(project?.id, 40),
+        contributions: Array.isArray(project?.contributions) ? project.contributions : [],
+      })) : [])
+      .flatMap(entry => entry.contributions.map(contribution => ({
+        ...entry,
+        contribution,
+      })))
+      .filter(entry => normalizeUsername(entry.contribution?.username) === normalizedUsername)
+      .map(entry => buildChronicleCandidate(
+        entry.contribution?.created_at,
+        `为「${entry.society_name || '村社'}」的公共建设「${entry.project_label || '公共工程'}」提交了第一笔贡献。`,
+        'society_public_project',
+        String(entry.contribution?.id || '')
+      ))
+  );
+
+  const hotBoardUsernames = Array.from(
+    favoriteEntries.reduce((acc, entry) => {
+      const manorUsername = normalizeUsername(entry?.manor_username);
+      if (!manorUsername) return acc;
+      const current = acc.get(manorUsername) || 0;
+      acc.set(manorUsername, current + 1);
+      return acc;
+    }, new Map())
+      .entries()
+  )
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 10)
+    .map(([manorUsername]) => manorUsername);
+  const favoriteTimestamps = favoriteEntries
+    .filter(entry => normalizeUsername(entry?.manor_username) === normalizedUsername)
+    .map(entry => Math.max(0, Math.floor(Number(entry?.created_at) || 0)))
+    .filter(entry => entry > 0)
+    .sort((left, right) => left - right);
+  const firstHotManor = hotBoardUsernames.includes(normalizedUsername)
+    ? buildChronicleCandidate(
+        favoriteTimestamps[0] || storedProfile.public_since || nowSeconds(),
+        '庄园第一次进入可回看的热门榜单。',
+        'manor_hot_board',
+        normalizedUsername
+      )
+    : null;
+
+  return {
+    first_public_manor: firstPublicManor,
+    first_visit_received: firstVisitReceived,
+    first_guestbook_received: firstGuestbookReceived,
+    first_coop_order_completed: firstCoopOrderCompleted,
+    first_festival_participation: firstFestivalParticipation,
+    first_society_join: firstSocietyJoin,
+    first_public_project_contribution: firstPublicProjectContribution,
+    first_hot_manor: firstHotManor,
+  };
+}
+
+function syncPlayerChronicle(username, storedProfile = DEFAULT_PROFILE) {
+  const store = loadPlayerChronicleStore();
+  const candidates = derivePlayerChronicleCandidates(username, storedProfile);
+  let changed = false;
+  for (const [milestoneId, candidate] of Object.entries(candidates)) {
+    if (persistPlayerChronicleCandidate(store, username, milestoneId, candidate)) {
+      changed = true;
+    }
+  }
+  const entry = ensurePlayerChronicleEntry(store, username);
+  if (changed) savePlayerChronicleStore(store);
+  return {
+    milestones: buildPlayerChronicleMilestoneSnapshots(entry),
+    updated_at: entry.updated_at,
+  };
 }
 
 function resolveActiveSaveContext(username) {
@@ -512,6 +944,7 @@ async function buildProfile(username, viewerUsername = '', options = {}) {
   const skill = gameplay.skill || {};
   const activeQuestCount = Array.isArray(quest.activeQuests) ? quest.activeQuests.length : 0;
   const publicTags = buildPublicTags(store, username, gameplay, storedProfile);
+  const playerChronicle = options.includeChronicle === false ? null : syncPlayerChronicle(username, storedProfile);
 
   return {
     username: user.username,
@@ -531,13 +964,14 @@ async function buildProfile(username, viewerUsername = '', options = {}) {
     public_tags: publicTags,
     selected_tag_ids: [...storedProfile.selected_tag_ids],
     available_tag_options: PROFILE_TAG_OPTIONS.map(entry => ({ ...entry })),
+    player_chronicle: playerChronicle,
     updated_at: storedProfile.updated_at,
     last_active_at: storedProfile.last_active_at,
   };
 }
 
 async function buildRelationCard(username, viewerUsername = '') {
-  return buildProfile(username, viewerUsername, { ignoreVisibility: true });
+  return buildProfile(username, viewerUsername, { ignoreVisibility: true, includeChronicle: false });
 }
 
 async function getOwnProfile(username) {

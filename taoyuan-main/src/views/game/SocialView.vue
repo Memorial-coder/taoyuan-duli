@@ -84,6 +84,36 @@
             <span v-if="socialStore.profile.public_tags.length === 0" class="text-[10px] text-muted">当前还没有公开标签。</span>
           </div>
         </div>
+
+        <div class="border border-accent/10 rounded-xs p-2 text-xs">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-[10px] text-muted">玩家史册</p>
+            <span class="text-[10px] text-muted">
+              已点亮 {{ unlockedChronicleCount }}/{{ socialStore.profile.player_chronicle?.milestones.length || 0 }}
+            </span>
+          </div>
+          <div v-if="!socialStore.profile.player_chronicle || socialStore.profile.player_chronicle.milestones.length === 0" class="text-[10px] text-muted mt-2">
+            当前还没有可回看的联机史册记录。
+          </div>
+          <div v-else class="space-y-2 mt-2">
+            <div
+              v-for="entry in socialStore.profile.player_chronicle.milestones"
+              :key="entry.id"
+              class="border rounded-xs px-2 py-2"
+              :class="entry.unlocked ? 'border-accent/20 bg-accent/5' : 'border-accent/10 bg-bg/10'"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs" :class="entry.unlocked ? 'text-accent' : 'text-muted'">{{ entry.label }}</p>
+                <span class="text-[10px]" :class="entry.unlocked ? 'text-success' : 'text-muted'">
+                  {{ entry.unlocked ? formatChronicleDate(entry.recorded_at) : '未达成' }}
+                </span>
+              </div>
+              <p class="text-[10px] text-muted mt-1 leading-4">
+                {{ entry.unlocked ? entry.detail || entry.summary : entry.summary }}
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
@@ -462,6 +492,21 @@
     if (socialStore.profile.visibility === 'friends_only') return '仅好友'
     return '私密'
   })
+
+  const unlockedChronicleCount = computed(() =>
+    (socialStore.profile?.player_chronicle?.milestones || []).filter(entry => entry.unlocked).length
+  )
+
+  const formatChronicleDate = (timestamp: number) => {
+    if (!timestamp) return ''
+    return new Date(timestamp * 1000).toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  }
 
   const refreshProfile = async () => {
     await socialStore.refreshProfile().catch(() => {})

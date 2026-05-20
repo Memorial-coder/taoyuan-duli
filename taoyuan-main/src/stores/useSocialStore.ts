@@ -54,6 +54,19 @@ export interface PublicProfile {
     id: string
     label: string
   }>
+  player_chronicle: {
+    milestones: Array<{
+      id: string
+      label: string
+      summary: string
+      unlocked: boolean
+      recorded_at: number
+      detail: string
+      source_type: string
+      source_id: string
+    }>
+    updated_at: number
+  } | null
   updated_at: number
   last_active_at: number
 }
@@ -136,6 +149,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
       public_tags: raw.public_tags,
       selected_tag_ids: raw.selected_tag_ids,
       available_tag_options: raw.available_tag_options,
+      player_chronicle: raw.player_chronicle ?? null,
       updated_at: raw.updated_at,
       last_active_at: raw.last_active_at
     }

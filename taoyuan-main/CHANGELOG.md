@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 玩家史册（L100 第一轮）
+- `taoyuan-main/src/utils/onlineProfileApi.ts`、`src/stores/useSocialStore.ts` 与 `src/views/game/SocialView.vue` 这轮已经补齐 `L100` 的前端承接：公开名片现在会直接读取 `player_chronicle`，把玩家的联机“第一次”展示成可回看的史册面板。
+- 当前史册会直接展示第一次公开庄园、第一次被访问、第一次收到访客留言、第一次完成协作委托、第一次参加节会、第一次加入村社、第一次参与公共建设，以及第一次进入热门庄园榜；前端不再只展示静态名片信息。
+
 ### 0520 世界公共目标与世界纪年（L92-L93 第一轮）
 - `taoyuan-main/src/utils/worldEventApi.ts`、`src/stores/useWorldEventStore.ts` 与 `src/views/game/FestivalView.vue` 这轮已经补齐 `L92/L93` 的前端承接：现在会直接读取 `public_goal` 和 `recent_chronicles`，并在节会页展示公共进度、阶段奖励、里程碑、分区奖章与世界纪年摘要。
 - 这轮世界纪年不再只停在“最近史册”层：玩家现在可以直接看到每轮纪年的公共进度、年度冠军村社、著名庄园和分区首个完成者摘要，先把可回看的世界历史面板跑通。

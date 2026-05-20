@@ -3242,6 +3242,46 @@ try {
     assert(data?.my_society?.public_warehouse && Array.isArray(data.my_society.public_warehouse.logs) && data.my_society.public_warehouse.logs.some(entry => entry?.username === secondarySessionState.username), 'society welfare readback did not preserve warehouse logs')
   })
 
+  await runCheck('GET /api/taoyuan/online/profile player chronicle primary readback', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/profile')
+    assert(response.ok, `primary online profile chronicle readback returned ${response.status}`)
+    const milestones = data?.profile?.player_chronicle?.milestones
+    assert(Array.isArray(milestones) && milestones.length >= 8, 'primary online profile did not expose player chronicle milestones')
+    const milestoneMap = Object.fromEntries((milestones || []).map(entry => [String(entry?.id || ''), entry]))
+    for (const requiredId of [
+      'first_public_manor',
+      'first_visit_received',
+      'first_guestbook_received',
+      'first_festival_participation',
+      'first_society_join',
+    ]) {
+      assert(milestoneMap[requiredId]?.unlocked === true, `primary player chronicle did not unlock ${requiredId}`)
+      assert(Number(milestoneMap[requiredId]?.recorded_at || 0) > 0, `primary player chronicle did not persist timestamp for ${requiredId}`)
+      assert(String(milestoneMap[requiredId]?.detail || '').length > 0, `primary player chronicle did not persist detail for ${requiredId}`)
+    }
+    if (milestoneMap.first_hot_manor?.unlocked === true) {
+      assert(Number(milestoneMap.first_hot_manor.recorded_at || 0) > 0, 'primary player chronicle hot manor milestone is missing timestamp')
+    }
+  })
+
+  await runCheck('GET /api/taoyuan/online/profile player chronicle secondary readback', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/profile')
+    assert(response.ok, `secondary online profile chronicle readback returned ${response.status}`)
+    const milestones = data?.profile?.player_chronicle?.milestones
+    assert(Array.isArray(milestones) && milestones.length >= 8, 'secondary online profile did not expose player chronicle milestones')
+    const milestoneMap = Object.fromEntries((milestones || []).map(entry => [String(entry?.id || ''), entry]))
+    for (const requiredId of [
+      'first_coop_order_completed',
+      'first_festival_participation',
+      'first_society_join',
+      'first_public_project_contribution',
+    ]) {
+      assert(milestoneMap[requiredId]?.unlocked === true, `secondary player chronicle did not unlock ${requiredId}`)
+      assert(Number(milestoneMap[requiredId]?.recorded_at || 0) > 0, `secondary player chronicle did not persist timestamp for ${requiredId}`)
+      assert(String(milestoneMap[requiredId]?.detail || '').length > 0, `secondary player chronicle did not persist detail for ${requiredId}`)
+    }
+  })
+
   await runCheck('POST /api/taoyuan/online/societies/leave write path', async () => {
     const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/leave', {
       method: 'POST',
