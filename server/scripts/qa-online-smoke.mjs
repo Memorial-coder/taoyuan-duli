@@ -2443,6 +2443,176 @@ try {
     await runL82GatheringScenario()
   })
 
+  const runL83EscortScenario = async () => {
+    const templateId = 'escort_convoy'
+    const expectedMemberLimit = 4
+    const participants = [l81MemberAState, l81MemberBState, l81MemberCState]
+    const beforeHostSave = await l81ReadSave(sessionState, 'L83 host before')
+    const beforeLeadSave = await l81ReadSave(participants[0], 'L83 lead before')
+    const hostExpectedItems = [
+      { itemId: 'paper', quantity: 2 },
+      { itemId: 'wood', quantity: 1 },
+      { itemId: 'ancient_waybill', quantity: 1 },
+    ]
+    const memberExpectedItems = [
+      { itemId: 'paper', quantity: 2 },
+      { itemId: 'wood', quantity: 1 },
+    ]
+    const beforeHostCounts = l81CaptureRewardCounts(beforeHostSave, hostExpectedItems)
+    const beforeLeadCounts = l81CaptureRewardCounts(beforeLeadSave, memberExpectedItems)
+
+    const { response: createResponse, data: createData } = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        template_id: templateId,
+        gameplay_template_id: 'expedition_escort',
+        countdown_seconds: 1,
+        title: `L83 护送押运 ${Date.now()}`,
+      }),
+    })
+    assert(createResponse.ok, `L83 create returned ${createResponse.status}: ${createData?.msg || 'unknown error'}`)
+    assert(createData?.ok === true && createData?.room?.id, 'L83 create payload is incomplete')
+    assert(String(createData?.room?.template_id || '') === templateId, 'L83 create did not preserve template id')
+    assert(Number(createData?.room?.member_limit || 0) === expectedMemberLimit, `L83 create did not preserve member limit ${expectedMemberLimit}`)
+    assert(String(createData?.room?.gameplay?.template_id || '') === 'expedition_escort', 'L83 create did not preserve expedition_escort gameplay template')
+    const roomId = String(createData.room.id)
+
+    for (const participant of participants) {
+      const inviteResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/invite`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRF-Token': sessionState.csrfToken,
+        },
+        body: JSON.stringify({
+          target_username: participant.username,
+        }),
+      })
+      assert(inviteResponse.response.ok, `L83 invite ${participant.username} returned ${inviteResponse.response.status}: ${inviteResponse.data?.msg || 'unknown error'}`)
+      assert(inviteResponse.data?.ok === true, `L83 invite ${participant.username} payload is incomplete`)
+    }
+
+    for (const participant of participants) {
+      const joinResponse = await fetchSessionJson(participant, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/join`, {
+        method: 'POST',
+      })
+      assert(joinResponse.response.ok, `L83 join ${participant.username} returned ${joinResponse.response.status}: ${joinResponse.data?.msg || 'unknown error'}`)
+      assert(joinResponse.data?.ok === true && joinResponse.data?.room?.members?.some(entry => entry?.username === participant.username && entry?.status === 'joined'), `L83 join ${participant.username} payload is incomplete`)
+    }
+
+    const readyCheckResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/ready-check`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(readyCheckResponse.response.ok, `L83 ready-check returned ${readyCheckResponse.response.status}: ${readyCheckResponse.data?.msg || 'unknown error'}`)
+    assert(String(readyCheckResponse.data?.room?.state || '') === 'ready_check', 'L83 room did not enter ready_check')
+
+    const hostReadyResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/ready`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(hostReadyResponse.response.ok, `L83 host ready returned ${hostReadyResponse.response.status}: ${hostReadyResponse.data?.msg || 'unknown error'}`)
+
+    for (const participant of participants) {
+      const readyResponse = await fetchSessionJson(participant, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/ready`, {
+        method: 'POST',
+      })
+      assert(readyResponse.response.ok, `L83 ready ${participant.username} returned ${readyResponse.response.status}: ${readyResponse.data?.msg || 'unknown error'}`)
+      assert(readyResponse.data?.ok === true && readyResponse.data?.room?.members?.some(entry => entry?.username === participant.username && entry?.status === 'ready'), `L83 ready ${participant.username} payload is incomplete`)
+    }
+
+    const startResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/start`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(startResponse.response.ok, `L83 countdown returned ${startResponse.response.status}: ${startResponse.data?.msg || 'unknown error'}`)
+    assert(String(startResponse.data?.room?.state || '') === 'countdown', 'L83 room did not enter countdown')
+
+    await wait(2200)
+    const runningReadback = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms')
+    assert(runningReadback.response.ok, `L83 running readback returned ${runningReadback.response.status}`)
+    assert(runningReadback.data?.ok === true && runningReadback.data?.my_room?.id === roomId, 'L83 running readback payload is incomplete')
+    assert(String(runningReadback.data?.my_room?.state || '') === 'running', `L83 room did not reach running state, current=${runningReadback.data?.my_room?.state}`)
+    assert(String(runningReadback.data?.my_room?.template_id || '') === templateId, 'L83 running readback lost template id')
+    assert(Number(runningReadback.data?.my_room?.member_limit || 0) === expectedMemberLimit, 'L83 running readback lost member limit')
+    assert(Number(runningReadback.data?.my_room?.joined_member_count || 0) === expectedMemberLimit, 'L83 running readback did not preserve joined member count')
+    assert(String(runningReadback.data?.my_room?.gameplay?.template_id || '') === 'expedition_escort', 'L83 running readback lost expedition_escort gameplay template')
+    const availableActionIds = new Set((runningReadback.data?.my_room?.gameplay?.available_actions || []).map(entry => String(entry?.id || '')))
+    for (const actionId of ['escort_step', 'stabilize_cargo', 'answer_incident']) {
+      assert(availableActionIds.has(actionId), `L83 available actions missing ${actionId}`)
+    }
+
+    let actionRoom = await l81SubmitAction(sessionState, roomId, 'escort_step', 'L83 host escort_step')
+    actionRoom = await l81SubmitAction(participants[0], roomId, 'stabilize_cargo', 'L83 lead stabilize_cargo')
+    actionRoom = await l81SubmitAction(participants[1], roomId, 'answer_incident', 'L83 support answer_incident')
+    actionRoom = await l81SubmitAction(participants[2], roomId, 'escort_step', 'L83 fourth escort_step')
+    actionRoom = await l81SubmitAction(sessionState, roomId, 'stabilize_cargo', 'L83 host stabilize_cargo')
+
+    const hostContribution = actionRoom?.gameplay?.contributions?.find(entry => entry?.username === sessionState.username)
+    assert(Number(hostContribution?.action_count || 0) >= 2, 'L83 host contribution did not stay ahead')
+    const recentEventSummaries = Array.isArray(actionRoom?.recent_events) ? actionRoom.recent_events.map(entry => String(entry?.summary || '')) : []
+    assert(recentEventSummaries.some(summary => summary.includes('护送推进')), 'L83 room events did not preserve escort_step summary')
+    assert(recentEventSummaries.some(summary => summary.includes('稳固货物')), 'L83 room events did not preserve stabilize_cargo summary')
+    assert(recentEventSummaries.some(summary => summary.includes('途中事件')), 'L83 room events did not preserve answer_incident summary')
+
+    const settleResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/settle`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(settleResponse.response.ok, `L83 settle returned ${settleResponse.response.status}: ${settleResponse.data?.msg || 'unknown error'}`)
+    assert(String(settleResponse.data?.room?.state || '') === 'settling', 'L83 room did not enter settling')
+    assert(Array.isArray(settleResponse.data?.room?.settlement_receipts) && settleResponse.data.room.settlement_receipts.length === expectedMemberLimit, 'L83 settle did not create 4 receipts')
+    assert(settleResponse.data.room.settlement_receipts.every(receipt => l81GetReceiptItemQuantity(receipt, 'paper') >= 2), 'L83 settle did not preserve paper reward')
+    assert(settleResponse.data.room.settlement_receipts.every(receipt => l81GetReceiptItemQuantity(receipt, 'wood') >= 1), 'L83 settle did not preserve wood reward')
+    assert(settleResponse.data.room.settlement_receipts.some(receipt => l81GetReceiptItemQuantity(receipt, 'ancient_waybill') >= 1), 'L83 settle did not preserve ancient_waybill reward')
+
+    const receiptByUsername = new Map(settleResponse.data.room.settlement_receipts.map(receipt => [String(receipt?.target_username || ''), receipt]))
+    for (const participant of [sessionState, ...participants]) {
+      const receipt = receiptByUsername.get(participant.username)
+      assert(receipt, `L83 settle did not keep receipt for ${participant.username}`)
+      l81AddExpectedMoney(participant, Math.max(0, Math.floor(Number(receipt?.reward_payload?.money) || 0)))
+    }
+
+    const closeResponse = await fetchAuthedJson(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/close`, {
+      method: 'POST',
+      headers: {
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+    })
+    assert(closeResponse.response.ok, `L83 close returned ${closeResponse.response.status}: ${closeResponse.data?.msg || 'unknown error'}`)
+    assert(String(closeResponse.data?.room?.state || '') === 'closed', 'L83 room did not close cleanly')
+    assert(Array.isArray(closeResponse.data?.room?.settlement_receipts) && closeResponse.data.room.settlement_receipts.every(receipt => receipt?.status === 'persisted'), 'L83 close did not persist all receipts')
+
+    const afterHostSave = await l81ReadSave(sessionState, 'L83 host after')
+    assert(Math.floor(Number(afterHostSave?.player?.money) || 0) === l81GetExpectedMoney(sessionState), `L83 host money did not persist correctly, expected money=${l81GetExpectedMoney(sessionState)}, current money=${Math.floor(Number(afterHostSave?.player?.money) || 0)}`)
+    l81AssertRewardGrowth(afterHostSave, beforeHostCounts, hostExpectedItems, 'L83 host reward')
+
+    const afterLeadSave = await l81ReadSave(participants[0], 'L83 lead after')
+    assert(Math.floor(Number(afterLeadSave?.player?.money) || 0) === l81GetExpectedMoney(participants[0]), `L83 lead member money did not persist correctly, expected money=${l81GetExpectedMoney(participants[0])}, current money=${Math.floor(Number(afterLeadSave?.player?.money) || 0)}`)
+    l81AssertRewardGrowth(afterLeadSave, beforeLeadCounts, memberExpectedItems, 'L83 lead member reward')
+
+    for (const participant of participants.slice(1)) {
+      const afterSave = await l81ReadSave(participant, 'L83 member after')
+      assert(Math.floor(Number(afterSave?.player?.money) || 0) === l81GetExpectedMoney(participant), `L83 member ${participant.username} money did not persist correctly, expected money=${l81GetExpectedMoney(participant)}, current money=${Math.floor(Number(afterSave?.player?.money) || 0)}`)
+    }
+  }
+
+  await runCheck('L83 escort_convoy专项回归', async () => {
+    await runL83EscortScenario()
+  })
+
   let createdSocietyId = ''
   let createdSocietyName = ''
   await runCheck('GET /api/taoyuan/online/societies read path', async () => {
