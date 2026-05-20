@@ -86,6 +86,24 @@
           </div>
         </div>
 
+        <div class="map-area mb-3">
+          <p class="map-area-title">联机主导航</p>
+          <p class="map-area-caption">把邻里、庄园、委托、节会和村社放到同一层，联机入口不再散落。</p>
+          <div class="map-area-grid">
+            <button
+              v-for="t in onlineGroup"
+              :key="`online-${t.key}`"
+              class="map-loc map-loc-online"
+              :class="{ 'map-loc-active': props.current === t.key }"
+              :data-testid="`mobile-map-online-loc-${t.key}`"
+              @click="go(t.key)"
+            >
+              <component :is="t.getIcon ? t.getIcon() : t.icon" :size="mobileMapLocIconSize" />
+              <span>{{ onlineLabelMap[t.key] || t.label }}</span>
+            </button>
+          </div>
+        </div>
+
         <!-- 田庄 -->
         <div class="map-area">
           <p class="map-area-title">田庄</p>
@@ -349,12 +367,16 @@
   const mobileMapTileScaleCss = computed(() => mobileMapTileScale.value.toFixed(3))
   const mobileMapLocIconSize = computed(() => Number((18 * mobileMapTileScale.value).toFixed(2)))
   const mobileMapToolIconSize = computed(() => Number((16 * mobileMapTileScale.value).toFixed(2)))
+  const onlineLabelMap: Partial<Record<PanelKey, string>> = {
+    quest: '委托'
+  }
 
-  const farmGroup = computed(() => pick(['farm', 'animal', 'cottage', 'home', 'manor', 'breeding', 'fishpond', 'decoration']))
-  const villageGroup = computed(() => pick(['social', 'festival', 'society', 'village', 'shop', 'museum', 'guild']))
+  const farmGroup = computed(() => pick(['farm', 'animal', 'cottage', 'home', 'breeding', 'fishpond', 'decoration']))
+  const onlineGroup = computed(() => pick(['social', 'manor', 'quest', 'festival', 'society']))
+  const villageGroup = computed(() => pick(['village', 'shop', 'museum', 'guild']))
   const wildGroup = computed(() => pick(['forage', 'fishing', 'mining', 'hanhai', 'region-map']))
   const craftGroup = computed(() => pick(['cooking', 'workshop', 'upgrade']))
-  const personalGroup = computed(() => pick(['charinfo', 'inventory', 'skills', 'achievement', 'wallet', 'quest', 'mail', 'glossary']))
+  const personalGroup = computed(() => pick(['charinfo', 'inventory', 'skills', 'achievement', 'wallet', 'mail', 'glossary']))
 
   const go = (key: PanelKey) => {
     navigateToPanel(key)
@@ -391,6 +413,15 @@
     color: var(--color-muted);
     margin-bottom: calc(6px * var(--mobile-map-tile-scale, 1));
     letter-spacing: 0.1em;
+    text-align: center;
+  }
+
+  .map-area-caption {
+    margin-top: calc(-2px * var(--mobile-map-tile-scale, 1));
+    margin-bottom: calc(6px * var(--mobile-map-tile-scale, 1));
+    font-size: calc(10px * var(--mobile-map-tile-scale, 1));
+    line-height: 1.5;
+    color: rgba(255, 248, 226, 0.68);
     text-align: center;
   }
 
@@ -431,6 +462,12 @@
   .map-loc-active {
     background: var(--color-accent);
     border-color: var(--color-accent);
+  }
+
+  .map-loc-online {
+    min-width: calc(64px * var(--mobile-map-tile-scale, 1));
+    background: rgba(200, 164, 92, 0.08);
+    border-color: rgba(200, 164, 92, 0.28);
   }
 
   .map-path {

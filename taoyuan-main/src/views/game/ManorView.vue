@@ -337,6 +337,16 @@
       </div>
     </div>
 
+    <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <p class="text-xs text-accent">求助单入口</p>
+          <p class="text-[10px] text-muted mt-1 leading-5">想把访客来意、缺货需求或临时补货转成真正的联机协作，可以直接去委托面板发布或接单。</p>
+        </div>
+        <Button class="text-[10px] shrink-0" @click="openQuestBoard">前往委托</Button>
+      </div>
+    </div>
+
     <div class="game-panel border border-accent/10 rounded-xs p-3 text-[10px] text-muted space-y-1">
       <p>当前庄园公开页已经串起快照、留言、来访、导览、收藏、主题周与展示模板，公开庄园开始更像一个可持续经营的线上门面。</p>
       <p>模板切换会跟随主题周一起保存，并直接驱动上方预览卡切换为展示类、经营类、节庆类、收藏类或故事类布局。</p>
@@ -346,12 +356,14 @@
 
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
+  import { useRouter } from 'vue-router'
   import Button from '@/components/game/Button.vue'
   import ManorPreviewCard from '@/components/game/ManorPreviewCard.vue'
   import { useManorStore } from '@/stores/useManorStore'
   import { showFloat } from '@/composables/useGameLog'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
 
+  const router = useRouter()
   const manorStore = useManorStore()
   const uploadingCover = ref(false)
   const coverInputRef = ref<HTMLInputElement | null>(null)
@@ -418,6 +430,10 @@
 
   const followManor = async () => {
     await manorStore.followCurrentManor().catch(() => {})
+  }
+
+  const openQuestBoard = () => {
+    void router.push('/game/quest')
   }
 
   const saveThemeWeek = async () => {

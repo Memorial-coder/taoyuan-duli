@@ -149,6 +149,42 @@
             {{ menuConfig.aboutButtonText }}
           </Button>
         </div>
+        <div class="border-t border-accent/15 pt-3 space-y-2">
+          <div class="flex flex-wrap items-start justify-between gap-2">
+            <div class="space-y-1">
+              <p class="text-xs text-accent">联机世界</p>
+              <p class="text-[11px] text-muted leading-5">
+                带着已有旅程直接进入邻里、庄园、节会、村社与委托。
+                <template v-if="!currentUser">未登录时，在线内容会受限。</template>
+              </p>
+            </div>
+            <span class="game-chip">
+              {{ preferredOnlineSlot ? `优先带入存档 ${preferredOnlineSlot.slot + 1}` : '需先开始旅程' }}
+            </span>
+          </div>
+          <div class="grid gap-2 md:grid-cols-2">
+            <button
+              v-for="entry in onlineMenuEntries"
+              :key="entry.id"
+              type="button"
+              class="main-menu-online-entry text-left"
+              :class="{ 'md:col-span-2': entry.featured }"
+              :data-testid="`main-menu-online-entry-${entry.id}`"
+              @click="openOnlinePanelFromMenu(entry)"
+            >
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="main-menu-online-entry-title">
+                    <component :is="entry.icon" :size="14" class="inline mr-1.5" />
+                    {{ entry.title }}
+                  </p>
+                  <p class="main-menu-online-entry-summary">{{ entry.summary }}</p>
+                </div>
+                <span class="main-menu-online-entry-chip">直达</span>
+              </div>
+            </button>
+          </div>
+        </div>
         </section>
 
         <section v-if="isDesktopMenu" class="game-panel main-menu-section main-menu-continue-section space-y-3">
@@ -401,13 +437,14 @@
 </template>
 
 <script setup lang="ts">
-  import { Play, ArrowLeft, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus } from 'lucide-vue-next'
+  import { Play, ArrowLeft, ShieldCheck, X, CornerUpLeft, Info, BookOpen, MessagesSquare, KeyRound, LogIn, LogOut, UserPlus, Users, Home, CalendarDays } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
   import MainMenuContinueList from '@/components/game/MainMenuContinueList.vue'
   import { renderRichContent } from '@/utils/safeMarkdown'
-  import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+  import { ref, computed, onMounted, onUnmounted, watch, type Component } from 'vue'
   import { useRouter } from 'vue-router'
+  import type { PanelKey } from '@/composables/useNavigation'
   import { useGameStore } from '@/stores/useGameStore'
   import { useSaveStore } from '@/stores/useSaveStore'
   import { useFarmStore } from '@/stores/useFarmStore'
@@ -464,6 +501,8 @@
   const publicConfigReadonlyFields = ref<OfficialManagedConfigKey[]>([])
   const publicConfigReturnUrlFallback = ref(false)
   const publicConfigFetchFallback = ref(false)
+  const pendingPostLoadRoute = ref<string | null>(null)
+  const pendingPostLoadNotice = ref<string | null>(null)
   const resolveSafeReturnButtonUrl = (rawValue: unknown): { url: string; fallback: boolean } => {
     const raw = String(rawValue || '').trim()
     if (!raw) return { url: '/', fallback: false }
@@ -496,8 +535,79 @@
       ? '适合当前设备持续游玩，导入导出备份更直接。'
       : '适合登录账号后跨设备读取，并配合大厅、邮箱等在线功能。'
   )
+  const parseSavedAtTimestamp = (savedAt?: string) => {
+    const timestamp = Date.parse(savedAt || '')
+    return Number.isFinite(timestamp) ? timestamp : 0
+  }
+  const preferredOnlineSlot = computed(() =>
+    [...existingSlots.value]
+      .sort((left, right) => parseSavedAtTimestamp(right.savedAt) - parseSavedAtTimestamp(left.savedAt) || left.slot - right.slot)[0] ?? null
+  )
+  type MainMenuOnlineEntry = {
+    id: string
+    panel: PanelKey
+    route: string
+    title: string
+    summary: string
+    notice: string
+    icon: Component
+    featured?: boolean
+  }
+  const onlineMenuEntries = computed<MainMenuOnlineEntry[]>(() => [
+    {
+      id: 'friend-visits',
+      panel: 'manor',
+      route: '/game/manor',
+      title: '好友来访',
+      summary: '直接查看访客记录、留言墙和最近来访回声。',
+      notice: '已带你进入庄园页，可继续查看来访记录与留言墙。',
+      icon: Users
+    },
+    {
+      id: 'neighbor-activity',
+      panel: 'social',
+      route: '/game/social',
+      title: '邻里动态',
+      summary: '查看邻里成员、公告、动态和待处理邀请。',
+      notice: '已带你进入邻里面板，可继续查看成员、公告与动态。',
+      icon: MessagesSquare
+    },
+    {
+      id: 'today-festival',
+      panel: 'festival',
+      route: '/game/festival',
+      title: '今日节会',
+      summary: '查看当前节会、房间列表、邀请和活动奖励。',
+      notice: '已带你进入节会面板，可继续查看房间、邀请与纪念册。',
+      icon: CalendarDays
+    },
+    {
+      id: 'society-bulletin',
+      panel: 'society',
+      route: '/game/society',
+      title: '村社公告',
+      summary: '直接查看村社公告、提案投票与公共建设进度。',
+      notice: '已带你进入村社面板，可继续查看公告、会议与公共建设。',
+      icon: ShieldCheck
+    },
+    {
+      id: 'hot-manors',
+      panel: 'manor',
+      route: '/game/manor',
+      title: '热门庄园',
+      summary: '直接查看热门庄园榜、同主题收藏与公开展示。',
+      notice: '已带你进入庄园页，可继续查看热门庄园榜与收藏列表。',
+      icon: Home,
+      featured: true
+    }
+  ])
 
   const selectedFarmDef = computed(() => FARM_MAP_DEFS.find(f => f.type === selectedMap.value))
+
+  const clearPendingPostLoadState = () => {
+    pendingPostLoadRoute.value = null
+    pendingPostLoadNotice.value = null
+  }
 
   const handleSelectFarm = (type: FarmMapType) => {
     selectedMap.value = type
@@ -640,6 +750,7 @@
   }
 
   const handleBackToMenu = () => {
+    clearPendingPostLoadState()
     showCharCreate.value = false
     showFarmSelect.value = false
     selectedMap.value = 'standard'
@@ -654,6 +765,16 @@
     if (gameStore.currentLocationGroup === 'hanhai') return '/game/hanhai'
     if (gameStore.currentLocationGroup === 'frontier') return '/game/region-map'
     return '/game/farm'
+  }
+
+  const navigateAfterLoad = () => {
+    const targetRoute = pendingPostLoadRoute.value || resolveLoadedGameRoute()
+    const notice = pendingPostLoadNotice.value
+    clearPendingPostLoadState()
+    if (notice) {
+      addLog(notice)
+    }
+    void router.push(targetRoute)
   }
 
   const warnGuestSaveUnavailable = () => {
@@ -673,6 +794,7 @@
   }
 
   const handleNewGame = async () => {
+    clearPendingPostLoadState()
     // 分配空闲存档槽位
     const slot = await saveStore.assignNewSlot()
     if (slot < 0) {
@@ -738,15 +860,23 @@
     void router.push('/game')
   }
 
-  const handleLoadGame = async (slot: number) => {
+  const loadGameFromSlot = async (slot: number, options: { route?: string; notice?: string } = {}) => {
+    pendingPostLoadRoute.value = options.route ?? null
+    pendingPostLoadNotice.value = options.notice ?? null
     if (await saveStore.loadFromSlot(slot)) {
       if (playerStore.needsIdentitySetup) {
         // 旧存档没有性别/名字数据，先让玩家设置
         showIdentitySetup.value = true
       } else {
-        void router.push(resolveLoadedGameRoute())
+        navigateAfterLoad()
       }
+      return
     }
+    clearPendingPostLoadState()
+  }
+
+  const handleLoadGame = async (slot: number) => {
+    await loadGameFromSlot(slot)
   }
 
   /** 旧存档身份设置完成 */
@@ -756,7 +886,21 @@
     if (!(await saveStore.autoSave())) {
       showFloat('角色信息已更新，但当前存档写回失败，请尽快手动保存。', 'danger')
     }
-    void router.push(resolveLoadedGameRoute())
+    navigateAfterLoad()
+  }
+
+  const openOnlinePanelFromMenu = async (entry: MainMenuOnlineEntry) => {
+    const targetSlot = preferredOnlineSlot.value
+    if (!targetSlot) {
+      const message = '当前还没有可带入联机世界的旅程，请先开始新的旅程。'
+      showFloat(message, 'danger')
+      addLog(message)
+      return
+    }
+    await loadGameFromSlot(targetSlot.slot, {
+      route: entry.route,
+      notice: entry.notice
+    })
   }
 
   const handleDeleteSlot = (slot: number) => {
@@ -946,6 +1090,46 @@
     padding: 6px 8px;
     text-align: left;
     vertical-align: top;
+  }
+
+  .main-menu-online-entry {
+    border: 1px solid rgba(200, 164, 92, 0.16);
+    border-radius: 2px;
+    padding: 10px 12px;
+    background: rgba(18, 26, 18, 0.22);
+    transition:
+      border-color 0.15s,
+      background-color 0.15s,
+      transform 0.15s;
+  }
+
+  .main-menu-online-entry:hover {
+    border-color: rgba(200, 164, 92, 0.42);
+    background: rgba(200, 164, 92, 0.08);
+    transform: translateY(-1px);
+  }
+
+  .main-menu-online-entry-title {
+    color: rgb(var(--color-accent));
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .main-menu-online-entry-summary {
+    margin-top: 6px;
+    color: rgb(var(--color-muted));
+    font-size: 10px;
+    line-height: 1.6;
+  }
+
+  .main-menu-online-entry-chip {
+    flex-shrink: 0;
+    border: 1px solid rgba(200, 164, 92, 0.16);
+    border-radius: 2px;
+    padding: 2px 6px;
+    color: rgb(var(--color-accent));
+    background: rgba(200, 164, 92, 0.06);
+    font-size: 10px;
   }
 
   @media (min-width: 1280px) {

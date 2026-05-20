@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 联机入口重排与 L12 收口（L120-L127 第一轮）
+- `taoyuan-main/src/views/MainMenu.vue` 这一轮把主菜单重排成真正可直达联机世界的入口层：当前已新增“联机世界”区块，会优先带入最近存档，并直接跳转到好友来访、邻里动态、今日节会、村社公告和热门庄园；若旧存档缺角色身份，则会在补录后继续回到用户刚才点的目标面板。
+- `taoyuan-main/src/components/game/MobileMapMenu.vue` 已补出独立“联机主导航”，把 `邻里 / 庄园 / 委托 / 节会 / 村社` 五大联机主线统一放到同一层，同时把原本散在田庄 / 村落 / 随身里的重复入口移开，保证入口层级更清楚。
+- `taoyuan-main/src/views/game/ManorView.vue`、`src/views/game/SocialView.vue` 与 `src/views/game/QuestView.vue` 也同步补出 L12 显式区块：庄园页新增委托直达入口，邻里页把任务 / 进度 / 排行提成独立卡片，委托页标题统一回到联机语义；节会页和村社页沿用现有房间、奖励、公告、会议、投票、公共建设与史册面板，完成 L125-L126 第一轮收口。
+
 ### 0520 联机治理后台（L113-L115 第一轮）
 - `taoyuan-main/src/views/TaoyuanAdminView.vue` 与新增的 `src/components/game/AdminOnlineGovernancePanel.vue` 这一轮已经补齐 `L113-L115` 的前端承接：管理员侧现在有独立“联机治理”分页，可直接查看待补偿委托、可安全回滚委托、仍在结算中的活动房间、最近封禁账号、待处理举报和联机审计摘要。
 - 新增 `taoyuan-main/src/utils/adminOnlineApi.ts`、`src/types/adminOnline.ts` 与 `src/types/index.ts`，把后台联机总览、玩家、村社、庄园、委托、节会、举报、审计，以及补偿重放 / 委托回滚 / 结算重放 / 误封恢复动作收进统一前端 API。

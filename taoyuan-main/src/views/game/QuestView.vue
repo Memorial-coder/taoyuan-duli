@@ -3,7 +3,7 @@
     <!-- 标题 -->
     <div class="flex items-center space-x-1.5 text-sm text-accent mb-3">
       <ClipboardList :size="14" />
-      <span>任务</span>
+      <span>委托</span>
     </div>
 
     <div v-if="isCompactMobile" class="border border-accent/15 rounded-xs px-3 py-2 mb-3 bg-bg/10">

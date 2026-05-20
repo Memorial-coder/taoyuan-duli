@@ -380,6 +380,37 @@
           </Button>
         </div>
 
+        <div class="grid gap-2 md:grid-cols-3">
+          <div class="border border-accent/10 rounded-xs p-2">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-[10px] text-muted">邻里任务</p>
+              <Button class="text-[10px]" @click="goQuestBoard">去看委托</Button>
+            </div>
+            <p class="text-xs text-accent mt-2">{{ neighborTaskCard.title }}</p>
+            <p class="text-[10px] text-muted mt-1 leading-4">{{ neighborTaskCard.summary }}</p>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-[10px] text-muted">邻里进度</p>
+            <p class="text-xs text-accent mt-2">{{ neighborProgressCard.title }}</p>
+            <p class="text-[10px] text-muted mt-1 leading-4">{{ neighborProgressCard.summary }}</p>
+          </div>
+
+          <div class="border border-accent/10 rounded-xs p-2">
+            <p class="text-[10px] text-muted mb-1">邻里排行</p>
+            <div v-if="neighborLeaderboard.length === 0" class="text-[10px] text-muted leading-4">当前还没有可比较的公开邻里。</div>
+            <div v-else class="space-y-1.5">
+              <div v-for="(group, index) in neighborLeaderboard" :key="group.id" class="border border-accent/10 rounded-xs px-2 py-1.5">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-[10px] text-accent">{{ index + 1 }}. {{ group.name }}</p>
+                  <span class="text-[10px] text-muted">Lv.{{ group.level }}</span>
+                </div>
+                <p class="text-[10px] text-muted mt-1">{{ group.member_count }}/{{ group.capacity }} 人</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <template v-if="socialStore.neighborGroup">
           <div class="border border-accent/10 rounded-xs p-2">
             <div class="flex items-center justify-between gap-2">
@@ -597,11 +628,13 @@
 
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
+  import { useRouter } from 'vue-router'
   import Button from '@/components/game/Button.vue'
   import { useSocialStore } from '@/stores/useSocialStore'
   import { showFloat } from '@/composables/useGameLog'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
 
+  const router = useRouter()
   const socialStore = useSocialStore()
   const uploadingAvatar = ref(false)
   const avatarInputRef = ref<HTMLInputElement | null>(null)
@@ -632,6 +665,56 @@
   const unlockedAchievementCardCount = computed(() =>
     (socialStore.profile?.award_showcase?.achievement_cards || []).filter(entry => entry.unlocked).length
   )
+  const neighborLeaderboard = computed(() =>
+    [...socialStore.neighborPublicGroups]
+      .sort((left, right) => right.level - left.level || right.member_count - left.member_count || left.name.localeCompare(right.name, 'zh-CN'))
+      .slice(0, 3)
+  )
+  const neighborTaskCard = computed(() => {
+    if (!socialStore.neighborGroup) {
+      return {
+        title: '先加入一个邻里',
+        summary: '先从公开邻里里挑一个申请加入，之后再去委托面板接互助单。'
+      }
+    }
+    if (!socialStore.neighborGroup.notice?.trim()) {
+      return {
+        title: '补一条本周公告',
+        summary: '先把本周在忙什么写清楚，成员和访客更容易跟上节奏。'
+      }
+    }
+    const openSlots = Math.max(socialStore.neighborGroup.capacity - socialStore.neighborGroup.member_count, 0)
+    if (openSlots > 0) {
+      return {
+        title: '继续招募邻里成员',
+        summary: `当前还有 ${openSlots} 个空位，可以继续邀请好友或处理入组申请。`
+      }
+    }
+    if ((socialStore.neighborGroup.activity_log || []).length === 0) {
+      return {
+        title: '让邻里先动起来',
+        summary: '先处理一条申请、邀请或委托协作，给邻里留下第一条动态。'
+      }
+    }
+    return {
+      title: '把互助单接到邻里里',
+      summary: '邻里骨架已经跑通，接下来更适合去委托面板组织公开 / 邻里协作单。'
+    }
+  })
+  const neighborProgressCard = computed(() => {
+    if (!socialStore.neighborGroup) {
+      return {
+        title: `当前公开邻里 ${socialStore.neighborPublicGroups.length} 个`,
+        summary: '先从公开邻里列表里挑一个等级、人数和主题更合适的去申请加入。'
+      }
+    }
+    const openSlots = Math.max(socialStore.neighborGroup.capacity - socialStore.neighborGroup.member_count, 0)
+    const activityCount = socialStore.neighborGroup.activity_log?.length || 0
+    return {
+      title: `Lv.${socialStore.neighborGroup.level} · ${socialStore.neighborGroup.member_count}/${socialStore.neighborGroup.capacity} 人`,
+      summary: `当前还剩 ${openSlots} 个空位，最近累计留下 ${activityCount} 条邻里动态。`
+    }
+  })
 
   const formatChronicleDate = (timestamp: number) => {
     if (!timestamp) return ''
@@ -703,6 +786,10 @@
 
   const refreshNeighbors = async () => {
     await socialStore.refreshNeighborOverview().catch(() => {})
+  }
+
+  const goQuestBoard = () => {
+    void router.push('/game/quest')
   }
 
   const createNeighbor = async () => {
