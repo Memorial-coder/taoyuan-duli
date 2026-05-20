@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0520 联机发布控制与扩展骨架（L130-L154 第一轮）
+- `taoyuan-main/src/utils/adminOnlineApi.ts`、`src/types/onlineRelease.ts` 与 `src/types/index.ts` 这一轮把联机发布配置正式接进前端：admin 侧现在已经能读取和保存联机总开关、`stable / canary` 通道、测试白名单、模块开关、内测样板字段与五段发布说明。
+- `taoyuan-main/src/components/game/AdminOnlineGovernancePanel.vue` 当前已补出“联机发布控制”区块：管理员可以直接在同一页切换联机测试环境、维护白名单、按好友 / 庄园 / 求助单 / 节会四条能力做小范围发布，并查看发布闸门、默认公告模板与事故预案。
+- 这轮也补上了 `L14-L15` 的前端治理骨架：新增 `taoyuan-main/src/data/onlineExpansion.ts`，治理页现在会直接展示新庄园主题、新节庆、新房间玩法、新村社工程、新委托类型和新纪念品六类接入模板，以及玩法 / 经济 / 视觉三组扩展位、当前已落地联机主线、待补项、风险、阶段检查点和最终验收口径。
+- 这批发布与扩展 UI 仍按保守策略落地：默认保持 `stable + 全开`，不会主动改变现有玩家体验；后台更多是在现有联机系统之上提供灰度、回退和版本整理能力，而不是另起一套新运营入口。
+- 本轮验证已通过 `npm --prefix taoyuan-main run type-check` 与 `npm --prefix taoyuan-main run build`。
+
 ### 0520 联机入口重排与 L12 收口（L120-L127 第一轮）
 - `taoyuan-main/src/views/MainMenu.vue` 这一轮把主菜单重排成真正可直达联机世界的入口层：当前已新增“联机世界”区块，会优先带入最近存档，并直接跳转到好友来访、邻里动态、今日节会、村社公告和热门庄园；若旧存档缺角色身份，则会在补录后继续回到用户刚才点的目标面板。
 - `taoyuan-main/src/components/game/MobileMapMenu.vue` 已补出独立“联机主导航”，把 `邻里 / 庄园 / 委托 / 节会 / 村社` 五大联机主线统一放到同一层，同时把原本散在田庄 / 村落 / 随身里的重复入口移开，保证入口层级更清楚。

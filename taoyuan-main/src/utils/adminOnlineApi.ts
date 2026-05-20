@@ -1,4 +1,4 @@
-import type { AdminOnlineOverviewPayload } from '@/types'
+import type { AdminOnlineOverviewPayload, OnlineReleaseConfig } from '@/types'
 import { parseJsonSafe } from '@/utils/protectedApi'
 import { getStoredAdminToken } from '@/utils/taoyuanMailboxAdminApi'
 
@@ -91,4 +91,17 @@ export const unbanAdminOnlineUser = async (username: string) => {
   return adminRequest<{ user: Record<string, any> }>(`/api/admin/taoyuan/users/${encodeURIComponent(username)}/unban`, {
     method: 'POST',
   })
+}
+
+export const fetchAdminOnlineReleaseConfig = async (): Promise<OnlineReleaseConfig> => {
+  const data = await adminRequest<{ config: OnlineReleaseConfig }>('/api/admin/taoyuan/online-release-config')
+  return data.config
+}
+
+export const saveAdminOnlineReleaseConfig = async (payload: OnlineReleaseConfig): Promise<OnlineReleaseConfig> => {
+  const data = await adminRequest<{ config: OnlineReleaseConfig }>('/api/admin/taoyuan/online-release-config', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+  return data.config
 }

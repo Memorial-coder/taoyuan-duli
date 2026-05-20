@@ -70,6 +70,28 @@ const DEFAULTS = {
   taoyuan_market_duplicate_open_listing_limit: 2,
   taoyuan_market_rare_item_blocklist: 'food_*,*incense*',
 
+  // 桃源乡联机发布控制
+  taoyuan_online_release_enabled: true,
+  taoyuan_online_gray_channel: 'stable',
+  taoyuan_online_friend_features_enabled: true,
+  taoyuan_online_manor_visit_enabled: true,
+  taoyuan_online_coop_order_enabled: true,
+  taoyuan_online_festival_room_enabled: true,
+  taoyuan_online_module_switch_social: true,
+  taoyuan_online_module_switch_manor: true,
+  taoyuan_online_module_switch_order: true,
+  taoyuan_online_module_switch_festival: true,
+  taoyuan_online_module_switch_society: true,
+  taoyuan_online_test_whitelist: '',
+  taoyuan_online_beta_manor_template: '桃源联机内测样板庄园',
+  taoyuan_online_beta_society_template: '桃源联机测试村社',
+  taoyuan_online_beta_festival_template: '桃源联机测试节会',
+  taoyuan_online_release_notes: '',
+  taoyuan_online_release_visible_changes: '',
+  taoyuan_online_release_player_notice: '',
+  taoyuan_online_release_known_issues: '',
+  taoyuan_online_release_rollback_plan: '',
+
   // 游戏大厅配置
   gamehall_farm_title: '开心农场',
   gamehall_farm_desc: '种菜、浇花、施肥、收获、卖菜，完整庭院玩法。',

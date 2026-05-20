@@ -31,6 +31,7 @@
 - `07-state-and-settlement.md`：状态边界、幂等规则、冲突优先级与补偿策略。
 - `08-room-state-machine.md`：实时房间统一状态机、成员状态与结算关闭流程。
 - `09-audit-and-compensation.md`：审计入口、补偿对象和管理端可读流水。
+- `10-release-and-expansion.md`：联机发布、灰度、扩展模板与版本整理。
 - `01-manor.md`：庄园线，承接“可见联机”与来访痕迹。
 - `02-neighbor.md`：邻里线，承接名片、好友、邻里与关系标签。
 - `03-orders.md`：委托线，承接求助、送礼、书信和慢交易。
@@ -54,3 +55,4 @@
 - 状态边界和发奖规则统一遵循 `07-state-and-settlement.md`，不允许后续任务重发明。
 - 实时房间统一遵循 `08-room-state-machine.md`，不再为每个活动重做生命周期。
 - 审计、补偿和后台查询统一遵循 `09-audit-and-compensation.md`，不允许出现不可追溯的跨玩家变更。
+- 发布、灰度、扩展模板与版本整理统一遵循 `10-release-and-expansion.md`，不允许后续扩线绕开现有治理骨架。

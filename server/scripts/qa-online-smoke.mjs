@@ -82,6 +82,7 @@ const startServer = () => {
 }
 
 const checks = []
+const cloneJson = value => JSON.parse(JSON.stringify(value))
 const tinyPngDataUrl = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO7Z0WQAAAAASUVORK5CYII='
 const createSessionState = () => ({
   cookie: '',
@@ -121,6 +122,7 @@ const l81MemberAState = createSessionState()
 const l81MemberBState = createSessionState()
 const l81MemberCState = createSessionState()
 const adminToken = String(process.env.ADMIN_TOKEN || '').trim()
+let originalOnlineReleaseConfig = null
 
 const updateCookie = (session, response) => {
   const rawSetCookie = typeof response.headers.getSetCookie === 'function'
@@ -377,6 +379,30 @@ try {
     assert(data?.ok === true, 'public-config payload did not return ok=true')
     assert(data?.officialManagedStatus && typeof data.officialManagedStatus === 'object', 'public-config missing officialManagedStatus')
     assert(Array.isArray(data?.readonlyManagedFields), 'public-config missing readonlyManagedFields array')
+    assert(data?.taoyuan_online_release && typeof data.taoyuan_online_release === 'object', 'public-config missing taoyuan_online_release payload')
+    assert(typeof data.taoyuan_online_release.enabled === 'boolean', 'public-config missing online release enabled flag')
+    assert(typeof data.taoyuan_online_release.gray_channel === 'string', 'public-config missing online release gray channel')
+  })
+
+  await runCheck('GET /api/admin/taoyuan/online-release-config read path', async () => {
+    const { response, data } = await fetchAdminJson('/api/admin/taoyuan/online-release-config')
+    assert(response.ok, `online release config read returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.config, 'online release config payload is incomplete')
+    originalOnlineReleaseConfig = cloneJson(data.config)
+  })
+
+  await runCheck('POST /api/admin/taoyuan/online-release-config write path', async () => {
+    assert(originalOnlineReleaseConfig, 'online release config snapshot missing before write test')
+    const { response, data } = await fetchAdminJson('/api/admin/taoyuan/online-release-config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(originalOnlineReleaseConfig),
+    })
+    assert(response.ok, `online release config write returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.config, 'online release config write payload is incomplete')
+    assert(String(data.config.grayChannel || '') === String(originalOnlineReleaseConfig.grayChannel || ''), 'online release config write did not preserve gray channel')
   })
 
   await runCheck('GET /api/taoyuan/ai/config', async () => {
@@ -4535,6 +4561,37 @@ try {
     assert(!data.overview.coop.compensations.some(entry => entry?.id === adminPendingCompensationId && entry?.status === 'pending'), 'admin overview remediation still shows the resolved compensation as pending')
     assert(!data.overview.activities.rooms.some(entry => entry?.id === adminPendingActivityRoomId && entry?.state === 'settling'), 'admin overview remediation still shows the repaired room as settling')
     assert(data.overview.recent_players.some(entry => entry?.username === quaternarySessionState.username && entry?.status === 'active'), 'admin overview remediation did not refresh the unbanned account state')
+  })
+
+  await runCheck('POST /api/admin/taoyuan/online-release-config module gate path', async () => {
+    assert(originalOnlineReleaseConfig, 'online release config snapshot missing before module gate test')
+    const disabledFestivalConfig = cloneJson(originalOnlineReleaseConfig)
+    disabledFestivalConfig.moduleSwitches.festival = false
+    disabledFestivalConfig.featureFlags.festivalRoomEnabled = false
+
+    const disableResponse = await fetchAdminJson('/api/admin/taoyuan/online-release-config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(disabledFestivalConfig),
+    })
+    assert(disableResponse.response.ok, `online release disable write returned ${disableResponse.response.status}: ${disableResponse.data?.msg || 'unknown error'}`)
+    assert(disableResponse.data?.ok === true && disableResponse.data?.config?.moduleSwitches?.festival === false, 'festival module switch did not persist as disabled')
+
+    const blockedResponse = await fetchAuthedJson('/api/taoyuan/online/festival/rooms')
+    assert(blockedResponse.response.status === 503, `festival module gate should return 503, received ${blockedResponse.response.status}`)
+    assert(blockedResponse.data?.ok === false && typeof blockedResponse.data?.code === 'string', 'festival module gate payload is incomplete')
+
+    const restoreResponse = await fetchAdminJson('/api/admin/taoyuan/online-release-config', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(originalOnlineReleaseConfig),
+    })
+    assert(restoreResponse.response.ok, `online release restore returned ${restoreResponse.response.status}: ${restoreResponse.data?.msg || 'unknown error'}`)
+    assert(restoreResponse.data?.ok === true && restoreResponse.data?.config?.moduleSwitches?.festival === originalOnlineReleaseConfig.moduleSwitches.festival, 'online release restore did not recover original festival switch')
   })
 
   let noSaveRewardPostId = ''

@@ -32,6 +32,7 @@ export * from './promptNavigation'
 export * from './region'
 export * from './recordCenter'
 export * from './adminOnline'
+export * from './onlineRelease'
 export type {
   BudgetChannelId,
   WeeklyBudgetChannelId,

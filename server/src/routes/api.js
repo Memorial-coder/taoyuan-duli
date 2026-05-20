@@ -963,6 +963,198 @@ function publishAndroidAppReleaseConfig(content) {
   return getAndroidAppReleaseConfig();
 }
 
+function sanitizeOnlineReleaseText(value, maxLength = 2000) {
+  return String(value ?? '')
+    .replace(/\r\n/g, '\n')
+    .trim()
+    .slice(0, maxLength);
+}
+
+function parseOnlineReleaseWhitelist(value) {
+  return Array.from(new Set(
+    String(value ?? '')
+      .split(/\r?\n|,/)
+      .map(item => String(item || '').trim().toLowerCase())
+      .filter(Boolean)
+  )).slice(0, 80);
+}
+
+function normalizeOnlineReleaseChannel(value) {
+  return String(value || '').trim().toLowerCase() === 'canary' ? 'canary' : 'stable';
+}
+
+function normalizeOnlineReleaseConfig(raw = {}) {
+  const next = raw && typeof raw === 'object' ? raw : {};
+  const nextFeatureFlags = next.featureFlags && typeof next.featureFlags === 'object' ? next.featureFlags : {};
+  const nextModuleSwitches = next.moduleSwitches && typeof next.moduleSwitches === 'object' ? next.moduleSwitches : {};
+  const nextBetaTemplates = next.betaTemplates && typeof next.betaTemplates === 'object' ? next.betaTemplates : {};
+  const nextReleaseNotes = next.releaseNotes && typeof next.releaseNotes === 'object' ? next.releaseNotes : {};
+  const whitelistUsernames = parseOnlineReleaseWhitelist(next.testWhitelist ?? next.test_whitelist ?? next.whitelist ?? '');
+  return {
+    enabled: next.enabled !== false,
+    grayChannel: normalizeOnlineReleaseChannel(next.grayChannel ?? next.gray_channel ?? next.channel),
+    featureFlags: {
+      socialFriendsEnabled: nextFeatureFlags.socialFriendsEnabled !== false && next.socialFriendsEnabled !== false && next.social_friends_enabled !== false,
+      manorVisitEnabled: nextFeatureFlags.manorVisitEnabled !== false && next.manorVisitEnabled !== false && next.manor_visit_enabled !== false,
+      coopOrderEnabled: nextFeatureFlags.coopOrderEnabled !== false && next.coopOrderEnabled !== false && next.coop_order_enabled !== false,
+      festivalRoomEnabled: nextFeatureFlags.festivalRoomEnabled !== false && next.festivalRoomEnabled !== false && next.festival_room_enabled !== false,
+    },
+    moduleSwitches: {
+      social: nextModuleSwitches.social !== false && next.socialEnabled !== false && next.social_enabled !== false,
+      manor: nextModuleSwitches.manor !== false && next.manorEnabled !== false && next.manor_enabled !== false,
+      order: nextModuleSwitches.order !== false && next.orderEnabled !== false && next.order_enabled !== false,
+      festival: nextModuleSwitches.festival !== false && next.festivalEnabled !== false && next.festival_enabled !== false,
+      society: nextModuleSwitches.society !== false && next.societyEnabled !== false && next.society_enabled !== false,
+    },
+    testWhitelist: whitelistUsernames.join('\n'),
+    whitelistUsernames,
+    betaTemplates: {
+      manor: sanitizeOnlineReleaseText(nextBetaTemplates.manor ?? next.betaManorTemplate ?? next.beta_manor_template ?? '', 160),
+      society: sanitizeOnlineReleaseText(nextBetaTemplates.society ?? next.betaSocietyTemplate ?? next.beta_society_template ?? '', 160),
+      festival: sanitizeOnlineReleaseText(nextBetaTemplates.festival ?? next.betaFestivalTemplate ?? next.beta_festival_template ?? '', 160),
+    },
+    releaseNotes: {
+      features: sanitizeOnlineReleaseText(nextReleaseNotes.features ?? next.releaseNotes ?? next.release_notes ?? '', 2400),
+      visibleChanges: sanitizeOnlineReleaseText(nextReleaseNotes.visibleChanges ?? next.releaseVisibleChanges ?? next.release_visible_changes ?? '', 2400),
+      playerNotice: sanitizeOnlineReleaseText(nextReleaseNotes.playerNotice ?? next.releasePlayerNotice ?? next.release_player_notice ?? '', 2400),
+      knownIssues: sanitizeOnlineReleaseText(nextReleaseNotes.knownIssues ?? next.releaseKnownIssues ?? next.release_known_issues ?? '', 2400),
+      rollbackPlan: sanitizeOnlineReleaseText(nextReleaseNotes.rollbackPlan ?? next.releaseRollbackPlan ?? next.release_rollback_plan ?? '', 2400),
+    },
+  };
+}
+
+function getOnlineReleaseConfig() {
+  const current = cfg.all();
+  return normalizeOnlineReleaseConfig({
+    enabled: current.taoyuan_online_release_enabled,
+    grayChannel: current.taoyuan_online_gray_channel,
+    socialFriendsEnabled: current.taoyuan_online_friend_features_enabled,
+    manorVisitEnabled: current.taoyuan_online_manor_visit_enabled,
+    coopOrderEnabled: current.taoyuan_online_coop_order_enabled,
+    festivalRoomEnabled: current.taoyuan_online_festival_room_enabled,
+    socialEnabled: current.taoyuan_online_module_switch_social,
+    manorEnabled: current.taoyuan_online_module_switch_manor,
+    orderEnabled: current.taoyuan_online_module_switch_order,
+    festivalEnabled: current.taoyuan_online_module_switch_festival,
+    societyEnabled: current.taoyuan_online_module_switch_society,
+    testWhitelist: current.taoyuan_online_test_whitelist,
+    betaManorTemplate: current.taoyuan_online_beta_manor_template,
+    betaSocietyTemplate: current.taoyuan_online_beta_society_template,
+    betaFestivalTemplate: current.taoyuan_online_beta_festival_template,
+    releaseNotes: current.taoyuan_online_release_notes,
+    releaseVisibleChanges: current.taoyuan_online_release_visible_changes,
+    releasePlayerNotice: current.taoyuan_online_release_player_notice,
+    releaseKnownIssues: current.taoyuan_online_release_known_issues,
+    releaseRollbackPlan: current.taoyuan_online_release_rollback_plan,
+  });
+}
+
+function publishOnlineReleaseConfig(content) {
+  const normalized = normalizeOnlineReleaseConfig(content);
+  const updates = {
+    taoyuan_online_release_enabled: normalized.enabled,
+    taoyuan_online_gray_channel: normalized.grayChannel,
+    taoyuan_online_friend_features_enabled: normalized.featureFlags.socialFriendsEnabled,
+    taoyuan_online_manor_visit_enabled: normalized.featureFlags.manorVisitEnabled,
+    taoyuan_online_coop_order_enabled: normalized.featureFlags.coopOrderEnabled,
+    taoyuan_online_festival_room_enabled: normalized.featureFlags.festivalRoomEnabled,
+    taoyuan_online_module_switch_social: normalized.moduleSwitches.social,
+    taoyuan_online_module_switch_manor: normalized.moduleSwitches.manor,
+    taoyuan_online_module_switch_order: normalized.moduleSwitches.order,
+    taoyuan_online_module_switch_festival: normalized.moduleSwitches.festival,
+    taoyuan_online_module_switch_society: normalized.moduleSwitches.society,
+    taoyuan_online_test_whitelist: normalized.testWhitelist,
+    taoyuan_online_beta_manor_template: normalized.betaTemplates.manor,
+    taoyuan_online_beta_society_template: normalized.betaTemplates.society,
+    taoyuan_online_beta_festival_template: normalized.betaTemplates.festival,
+    taoyuan_online_release_notes: normalized.releaseNotes.features,
+    taoyuan_online_release_visible_changes: normalized.releaseNotes.visibleChanges,
+    taoyuan_online_release_player_notice: normalized.releaseNotes.playerNotice,
+    taoyuan_online_release_known_issues: normalized.releaseNotes.knownIssues,
+    taoyuan_online_release_rollback_plan: normalized.releaseNotes.rollbackPlan,
+  };
+  if (typeof cfg.setWithMeta === 'function') {
+    cfg.setWithMeta(updates);
+  } else {
+    cfg.set(updates);
+  }
+  return getOnlineReleaseConfig();
+}
+
+function buildOnlineReleaseAccess(moduleKey, username) {
+  const normalizedModuleKey = String(moduleKey || '').trim().toLowerCase();
+  const config = getOnlineReleaseConfig();
+  const normalizedUsername = String(username || '').trim().toLowerCase();
+  if (!config.enabled) {
+    return { ok: true, config };
+  }
+
+  const switchMap = {
+    social: config.moduleSwitches.social,
+    manor: config.moduleSwitches.manor,
+    order: config.moduleSwitches.order,
+    festival: config.moduleSwitches.festival,
+    society: config.moduleSwitches.society,
+  };
+  if (switchMap[normalizedModuleKey] === false) {
+    return {
+      ok: false,
+      status: 503,
+      code: 'ONLINE_MODULE_DISABLED',
+      msg: '该联机模块当前已暂停开放，请稍后再试。',
+      config,
+    };
+  }
+
+  const featureFlagMap = {
+    social: config.featureFlags.socialFriendsEnabled,
+    manor: config.featureFlags.manorVisitEnabled,
+    order: config.featureFlags.coopOrderEnabled,
+    festival: config.featureFlags.festivalRoomEnabled,
+  };
+  if (featureFlagMap[normalizedModuleKey] === false) {
+    return {
+      ok: false,
+      status: 503,
+      code: 'ONLINE_FEATURE_NOT_RELEASED',
+      msg: '该联机能力当前未开放，请等待后续灰度或正式发布。',
+      config,
+    };
+  }
+
+  if (config.grayChannel === 'canary' && config.whitelistUsernames.length > 0 && !config.whitelistUsernames.includes(normalizedUsername)) {
+    return {
+      ok: false,
+      status: 403,
+      code: 'ONLINE_CANARY_ONLY',
+      msg: '该联机能力当前处于灰度开放阶段，仅对白名单测试账号开放。',
+      config,
+    };
+  }
+
+  return { ok: true, config };
+}
+
+function createOnlineReleaseGuard(moduleKey) {
+  return (req, res, next) => {
+    const result = buildOnlineReleaseAccess(moduleKey, req.session?.username);
+    if (result.ok) {
+      res.locals.onlineReleaseConfig = result.config;
+      next();
+      return;
+    }
+    res.status(result.status || 403).json({
+      ok: false,
+      code: result.code || 'ONLINE_RELEASE_BLOCKED',
+      msg: result.msg || '当前联机能力暂不可用',
+      release: {
+        channel: result.config?.grayChannel || 'stable',
+        whitelist_count: result.config?.whitelistUsernames?.length || 0,
+      },
+    });
+  };
+}
+
 function getTaoyuanTodayUsage(username) {
   const all = taoyuanExchangeLimitsLoad();
   const today = todayBJ();
@@ -1006,6 +1198,7 @@ function getPublicConfigPayload(req) {
   const c = cfg.all();
   const homepageAbout = getHomepageAboutContent();
   const androidApp = getAndroidAppReleaseConfig();
+  const onlineRelease = getOnlineReleaseConfig();
   const rawReturnButtonUrl = String(c.taoyuan_return_button_url || '').trim();
   const safeReturnButtonUrl = sanitizeTaoyuanReturnButtonUrl(rawReturnButtonUrl);
   const username = req.session && req.session.username;
@@ -1032,6 +1225,14 @@ function getPublicConfigPayload(req) {
     officialManagedStatus: cfg.getManagedStatus(),
     readonlyManagedFields: [...OFFICIAL_MANAGED_HOMEPAGE_ABOUT_FIELDS],
     android_app: androidApp,
+    taoyuan_online_release: {
+      enabled: onlineRelease.enabled,
+      gray_channel: onlineRelease.grayChannel,
+      module_switches: onlineRelease.moduleSwitches,
+      feature_flags: onlineRelease.featureFlags,
+      has_test_whitelist: onlineRelease.whitelistUsernames.length > 0,
+      release_notes: onlineRelease.releaseNotes,
+    },
   };
 }
 
@@ -1255,7 +1456,7 @@ router.get('/taoyuan/online/profile/:username', async (req, res) => {
   }
 });
 
-router.get('/taoyuan/online/manor', loginRequired, async (req, res) => {
+router.get('/taoyuan/online/manor', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
   try {
     const snapshot = await taoyuanManorRuntime.getOwnManorSnapshot(req.session.username);
     res.json({ ok: true, snapshot });
@@ -1264,7 +1465,7 @@ router.get('/taoyuan/online/manor', loginRequired, async (req, res) => {
   }
 });
 
-router.get('/taoyuan/online/manor/:username', async (req, res) => {
+router.get('/taoyuan/online/manor/:username', createOnlineReleaseGuard('manor'), async (req, res) => {
   try {
     const username = decodeRouteUsername(req.params.username);
     const snapshot = await taoyuanManorRuntime.getPublicManorSnapshot(username, req.session?.username || '');
@@ -1274,7 +1475,7 @@ router.get('/taoyuan/online/manor/:username', async (req, res) => {
   }
 });
 
-router.post('/taoyuan/online/manor/guestbook', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/manor/guestbook', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
     const entry = await taoyuanManorRuntime.leaveGuestbookEntry(req.body || {}, {
       username: req.session.username,
@@ -1286,7 +1487,7 @@ router.post('/taoyuan/online/manor/guestbook', loginRequired, signRequired, asyn
   }
 });
 
-router.post('/taoyuan/online/manor/guestbook/:entryId/reply', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/manor/guestbook/:entryId/reply', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
     const entry = await taoyuanManorRuntime.replyGuestbookEntry(req.params.entryId, req.body || {}, {
       username: req.session.username,
@@ -1298,7 +1499,7 @@ router.post('/taoyuan/online/manor/guestbook/:entryId/reply', loginRequired, sig
   }
 });
 
-router.post('/taoyuan/online/manor/guestbook/:entryId/pin', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/manor/guestbook/:entryId/pin', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
     const entry = await taoyuanManorRuntime.setGuestbookPinned(req.params.entryId, req.body || {}, {
       username: req.session.username,
@@ -1310,7 +1511,7 @@ router.post('/taoyuan/online/manor/guestbook/:entryId/pin', loginRequired, signR
   }
 });
 
-router.post('/taoyuan/online/manor/visit', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/manor/visit', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
     const entry = await taoyuanManorRuntime.recordManorVisit(req.body || {}, {
       username: req.session.username,
@@ -1322,7 +1523,7 @@ router.post('/taoyuan/online/manor/visit', loginRequired, signRequired, async (r
   }
 });
 
-router.post('/taoyuan/online/manor/guide', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/manor/guide', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
     const snapshot = await taoyuanManorRuntime.updateManorGuide(req.session.username, req.body || {});
     res.json({ ok: true, snapshot });
@@ -1331,7 +1532,7 @@ router.post('/taoyuan/online/manor/guide', loginRequired, signRequired, async (r
   }
 });
 
-router.post('/taoyuan/online/manor/theme-week', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/manor/theme-week', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
     const snapshot = await taoyuanManorRuntime.updateManorThemeWeek(req.session.username, req.body || {});
     res.json({ ok: true, snapshot });
@@ -1340,7 +1541,7 @@ router.post('/taoyuan/online/manor/theme-week', loginRequired, signRequired, asy
   }
 });
 
-router.post('/taoyuan/online/manor/:username/favorite', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/manor/:username/favorite', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
     const entry = await taoyuanManorRuntime.favoriteManor(req.session.username, decodeRouteUsername(req.params.username), req.body || {});
     res.json({ ok: true, entry });
@@ -1349,7 +1550,7 @@ router.post('/taoyuan/online/manor/:username/favorite', loginRequired, signRequi
   }
 });
 
-router.post('/taoyuan/online/manor/:username/follow', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/manor/:username/follow', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
     const entry = await taoyuanManorRuntime.followManor(req.session.username, decodeRouteUsername(req.params.username));
     res.json({ ok: true, entry });
@@ -1358,7 +1559,7 @@ router.post('/taoyuan/online/manor/:username/follow', loginRequired, signRequire
   }
 });
 
-router.get('/taoyuan/online/manor/favorites/overview', loginRequired, async (req, res) => {
+router.get('/taoyuan/online/manor/favorites/overview', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanManorRuntime.listFavoriteOverview(req.session.username);
     res.json({ ok: true, ...overview });
@@ -1367,7 +1568,7 @@ router.get('/taoyuan/online/manor/favorites/overview', loginRequired, async (req
   }
 });
 
-router.get('/taoyuan/online/orders', loginRequired, async (req, res) => {
+router.get('/taoyuan/online/orders', createOnlineReleaseGuard('order'), loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanCoopOrderRuntime.listVisibleCoopOrders(req.session.username);
     res.json({ ok: true, ...overview });
@@ -1376,7 +1577,7 @@ router.get('/taoyuan/online/orders', loginRequired, async (req, res) => {
   }
 });
 
-router.post('/taoyuan/online/orders', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/orders', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
     const order = await taoyuanCoopOrderRuntime.createCoopOrder(req.body || {}, {
       username: req.session.username,
@@ -1388,7 +1589,7 @@ router.post('/taoyuan/online/orders', loginRequired, signRequired, async (req, r
   }
 });
 
-router.post('/taoyuan/online/orders/:orderId/accept', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/orders/:orderId/accept', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
     const order = await taoyuanCoopOrderRuntime.acceptCoopOrder(req.params.orderId, {
       username: req.session.username,
@@ -1400,7 +1601,7 @@ router.post('/taoyuan/online/orders/:orderId/accept', loginRequired, signRequire
   }
 });
 
-router.post('/taoyuan/online/orders/:orderId/cancel-accept', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/orders/:orderId/cancel-accept', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
     const order = await taoyuanCoopOrderRuntime.cancelAcceptedCoopOrder(req.params.orderId, {
       username: req.session.username,
@@ -1412,7 +1613,7 @@ router.post('/taoyuan/online/orders/:orderId/cancel-accept', loginRequired, sign
   }
 });
 
-router.post('/taoyuan/online/orders/:orderId/stages/:stageId/accept', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/orders/:orderId/stages/:stageId/accept', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanCoopOrderRuntime.acceptCoopOrderStage(req.params.orderId, req.params.stageId, {
       username: req.session.username,
@@ -1424,7 +1625,7 @@ router.post('/taoyuan/online/orders/:orderId/stages/:stageId/accept', loginRequi
   }
 });
 
-router.post('/taoyuan/online/orders/:orderId/stages/:stageId/cancel-accept', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/orders/:orderId/stages/:stageId/cancel-accept', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanCoopOrderRuntime.cancelAcceptedCoopOrderStage(req.params.orderId, req.params.stageId, {
       username: req.session.username,
@@ -1436,7 +1637,7 @@ router.post('/taoyuan/online/orders/:orderId/stages/:stageId/cancel-accept', log
   }
 });
 
-router.post('/taoyuan/online/orders/:orderId/deliver', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/orders/:orderId/deliver', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanCoopOrderRuntime.submitCoopOrderDelivery(req.params.orderId, req.body || {}, {
       username: req.session.username,
@@ -1448,7 +1649,7 @@ router.post('/taoyuan/online/orders/:orderId/deliver', loginRequired, signRequir
   }
 });
 
-router.post('/taoyuan/online/orders/:orderId/stages/:stageId/deliver', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/orders/:orderId/stages/:stageId/deliver', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanCoopOrderRuntime.submitCoopOrderStageDelivery(req.params.orderId, req.params.stageId, req.body || {}, {
       username: req.session.username,
@@ -1460,7 +1661,7 @@ router.post('/taoyuan/online/orders/:orderId/stages/:stageId/deliver', loginRequ
   }
 });
 
-router.post('/taoyuan/online/orders/:orderId/confirm-delivery', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/orders/:orderId/confirm-delivery', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanCoopOrderRuntime.confirmCoopOrderDelivery(req.params.orderId, {
       username: req.session.username,
@@ -1472,7 +1673,7 @@ router.post('/taoyuan/online/orders/:orderId/confirm-delivery', loginRequired, s
   }
 });
 
-router.post('/taoyuan/online/orders/:orderId/stages/:stageId/confirm-delivery', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/orders/:orderId/stages/:stageId/confirm-delivery', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanCoopOrderRuntime.confirmCoopOrderStageDelivery(req.params.orderId, req.params.stageId, {
       username: req.session.username,
@@ -1484,7 +1685,7 @@ router.post('/taoyuan/online/orders/:orderId/stages/:stageId/confirm-delivery', 
   }
 });
 
-router.post('/taoyuan/online/orders/compensations/:compensationId/retry', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/orders/compensations/:compensationId/retry', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanCoopOrderRuntime.replayCoopOrderCompensation(req.params.compensationId, {
       username: req.session.username,
@@ -1496,7 +1697,7 @@ router.post('/taoyuan/online/orders/compensations/:compensationId/retry', loginR
   }
 });
 
-router.get('/taoyuan/online/social/relationships', loginRequired, async (req, res) => {
+router.get('/taoyuan/online/social/relationships', createOnlineReleaseGuard('social'), loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanSocialRuntime.listRelationshipOverview(req.session.username);
     res.json({ ok: true, ...overview });
@@ -1505,7 +1706,7 @@ router.get('/taoyuan/online/social/relationships', loginRequired, async (req, re
   }
 });
 
-router.post('/taoyuan/online/social/friend-requests', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/friend-requests', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const request = await taoyuanSocialRuntime.requestFriendship(req.session.username, req.body?.target_username);
     res.json({ ok: true, request });
@@ -1514,7 +1715,7 @@ router.post('/taoyuan/online/social/friend-requests', loginRequired, signRequire
   }
 });
 
-router.post('/taoyuan/online/social/friend-requests/:requestId/accept', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/friend-requests/:requestId/accept', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const request = await taoyuanSocialRuntime.acceptFriendRequest(req.session.username, req.params.requestId);
     res.json({ ok: true, request });
@@ -1523,7 +1724,7 @@ router.post('/taoyuan/online/social/friend-requests/:requestId/accept', loginReq
   }
 });
 
-router.post('/taoyuan/online/social/friend-requests/:requestId/reject', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/friend-requests/:requestId/reject', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const request = await taoyuanSocialRuntime.rejectFriendRequest(req.session.username, req.params.requestId);
     res.json({ ok: true, request });
@@ -1649,7 +1850,7 @@ router.delete('/taoyuan/online/social/subscriptions/:subscriptionId', loginRequi
   }
 });
 
-router.get('/taoyuan/online/festival/rooms', loginRequired, async (req, res) => {
+router.get('/taoyuan/online/festival/rooms', createOnlineReleaseGuard('festival'), loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanActivityRoomRuntime.listFestivalRoomOverview(req.session.username);
     res.json({ ok: true, ...overview });
@@ -1856,7 +2057,7 @@ router.post('/taoyuan/online/world-events/:eventId/contribute', loginRequired, s
   });
 });
 
-router.post('/taoyuan/online/festival/rooms', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.createFestivalRoom(req.body || {}, {
       username: req.session.username,
@@ -1868,7 +2069,7 @@ router.post('/taoyuan/online/festival/rooms', loginRequired, signRequired, async
   }
 });
 
-router.post('/taoyuan/online/festival/rooms/:roomId/invite', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms/:roomId/invite', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.inviteFestivalRoomMember(req.params.roomId, req.body || {}, {
       username: req.session.username,
@@ -1880,7 +2081,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/invite', loginRequired, sign
   }
 });
 
-router.post('/taoyuan/online/festival/rooms/:roomId/join', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms/:roomId/join', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.joinFestivalRoom(req.params.roomId, {
       username: req.session.username,
@@ -1892,7 +2093,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/join', loginRequired, signRe
   }
 });
 
-router.post('/taoyuan/online/festival/rooms/:roomId/leave', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms/:roomId/leave', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.leaveFestivalRoom(req.params.roomId, {
       username: req.session.username,
@@ -1904,7 +2105,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/leave', loginRequired, signR
   }
 });
 
-router.post('/taoyuan/online/festival/rooms/:roomId/ready-check', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms/:roomId/ready-check', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.startFestivalRoomReadyCheck(req.params.roomId, {
       username: req.session.username,
@@ -1916,7 +2117,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/ready-check', loginRequired,
   }
 });
 
-router.post('/taoyuan/online/festival/rooms/:roomId/ready', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms/:roomId/ready', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.setFestivalRoomReady(req.params.roomId, true, {
       username: req.session.username,
@@ -1928,7 +2129,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/ready', loginRequired, signR
   }
 });
 
-router.post('/taoyuan/online/festival/rooms/:roomId/unready', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms/:roomId/unready', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.setFestivalRoomReady(req.params.roomId, false, {
       username: req.session.username,
@@ -1940,7 +2141,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/unready', loginRequired, sig
   }
 });
 
-router.post('/taoyuan/online/festival/rooms/:roomId/start', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms/:roomId/start', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.startFestivalRoomCountdown(req.params.roomId, {
       username: req.session.username,
@@ -1952,7 +2153,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/start', loginRequired, signR
   }
 });
 
-router.post('/taoyuan/online/festival/rooms/:roomId/disconnect', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms/:roomId/disconnect', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.disconnectFestivalRoom(req.params.roomId, {
       username: req.session.username,
@@ -1964,7 +2165,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/disconnect', loginRequired, 
   }
 });
 
-router.post('/taoyuan/online/festival/rooms/:roomId/reconnect', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms/:roomId/reconnect', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.reconnectFestivalRoom(req.params.roomId, {
       username: req.session.username,
@@ -1976,7 +2177,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/reconnect', loginRequired, s
   }
 });
 
-router.post('/taoyuan/online/festival/rooms/:roomId/action', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms/:roomId/action', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.submitFestivalRoomGameplayAction(req.params.roomId, req.body || {}, {
       username: req.session.username,
@@ -1988,7 +2189,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/action', loginRequired, sign
   }
 });
 
-router.post('/taoyuan/online/festival/rooms/:roomId/settle', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms/:roomId/settle', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.settleFestivalRoom(req.params.roomId, {
       username: req.session.username,
@@ -2000,7 +2201,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/settle', loginRequired, sign
   }
 });
 
-router.post('/taoyuan/online/festival/rooms/:roomId/close', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/festival/rooms/:roomId/close', createOnlineReleaseGuard('festival'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.closeFestivalRoom(req.params.roomId, {
       username: req.session.username,
@@ -2628,6 +2829,36 @@ router.post('/admin/taoyuan/android/release-config', userAdminAuth, async (req, 
     res.json({ ok: true, config });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '\u4fdd\u5b58\u5b89\u5353\u53d1\u5e03\u914d\u7f6e\u5931\u8d25' });
+  }
+});
+
+router.get('/admin/taoyuan/online-release-config', adminAuth, async (req, res) => {
+  try {
+    res.json({
+      ok: true,
+      config: getOnlineReleaseConfig(),
+    });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取联机发布配置失败' });
+  }
+});
+
+router.post('/admin/taoyuan/online-release-config', adminAuth, async (req, res) => {
+  try {
+    const config = publishOnlineReleaseConfig(req.body || {});
+    await appendAdminAuditLog(req, 'update_online_release_config', '', {
+      enabled: config.enabled,
+      gray_channel: config.grayChannel,
+      whitelist_count: config.whitelistUsernames.length,
+      social_enabled: config.moduleSwitches.social,
+      manor_enabled: config.moduleSwitches.manor,
+      order_enabled: config.moduleSwitches.order,
+      festival_enabled: config.moduleSwitches.festival,
+      society_enabled: config.moduleSwitches.society,
+    });
+    res.json({ ok: true, config });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '保存联机发布配置失败' });
   }
 });
 
