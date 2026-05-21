@@ -563,6 +563,36 @@ async function main() {
       assert(claimed?.claim_status === 'claimed', 'reward mail was not marked claimed in backend list')
     })
 
+    await runCheck('mail notification refreshes inbox without manual reload', async () => {
+      const sender = await bootstrapSession()
+      const realtimeMailTitle = `实时通知来信 ${createSmokeSeed()}`
+      const realtimeMailItem = page.locator('.mail-item').filter({ hasText: realtimeMailTitle }).first()
+      await expect(page.getByTestId('game-layout')).toBeVisible()
+      await expect(page.getByText('邮箱')).toBeVisible()
+      await expect(page.getByText(realtimeMailTitle)).toHaveCount(0)
+      const realtimeFrameOffset = realtimeFrames.length
+
+      const result = await fetchSessionJson(sender, '/api/taoyuan/mail/player-letter', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target_username: owner.username,
+          title: realtimeMailTitle,
+          content: '这是一封用于验证实时通知刷新邮箱列表的来信。',
+          template_type: 'short_note',
+        }),
+      })
+      assert(result.response.ok, `player letter send returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+      assert(result.data?.mail?.title === realtimeMailTitle, 'player letter response title mismatch')
+
+      await expect.poll(() => realtimeFrames.slice(realtimeFrameOffset).some(frame =>
+        frame.includes('"type":"notification.created"')
+          && frame.includes('"category":"mail"')
+          && frame.includes(realtimeMailTitle)
+      ), { timeout: 10000 }).toBeTruthy()
+      await expect(realtimeMailItem).toBeVisible({ timeout: 10000 })
+    })
+
     await runCheck('hall post and reply work under logged in browser session', async () => {
       const replyText = `联机回归回复 ${seed}`
       await page.goto(`${frontendBaseURL}/#/hall`)

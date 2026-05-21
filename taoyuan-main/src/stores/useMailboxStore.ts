@@ -403,8 +403,9 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     })
   }
 
-  const refreshList = async () => {
-    loading.value = true
+  const refreshList = async (options: { silent?: boolean } = {}) => {
+    const silent = options.silent === true
+    if (!silent) loading.value = true
     try {
       const previousIds = lastSeenMailIds
       const data = await fetchMailboxList()
@@ -436,7 +437,7 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
       }
       lastLoadedAt.value = Date.now()
     } finally {
-      loading.value = false
+      if (!silent) loading.value = false
     }
   }
 

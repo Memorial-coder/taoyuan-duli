@@ -335,6 +335,38 @@ function buildActivityRoomRealtimePayload(domain, action, result, actor = {}, ex
   };
 }
 
+function buildMailNotificationPayload(action, mail = {}) {
+  return {
+    category: 'mail',
+    action,
+    refresh_required: true,
+    mail: {
+      id: String(mail?.id || ''),
+      title: normalizeUsername(mail?.title || ''),
+      template_type: mail?.template_type || null,
+      sender_username: normalizeUsernameKey(mail?.sender_username),
+      sender_display_name: normalizeUsername(mail?.sender_display_name || mail?.sender_username),
+      sent_at: Number(mail?.sent_at) || null,
+      has_rewards: !!mail?.has_rewards,
+      reward_count: Math.max(0, Number(mail?.reward_count) || 0),
+    },
+  };
+}
+
+function emitMailNotificationCreatedEvent(targetUsername, action, mail = {}) {
+  const recipient = normalizeUsernameKey(targetUsername);
+  if (!recipient) return 0;
+  try {
+    return taoyuanRealtimeRuntime.emitUserEvent(
+      recipient,
+      'notification.created',
+      buildMailNotificationPayload(action, mail)
+    );
+  } catch {
+    return 0;
+  }
+}
+
 function emitActivityRoomRealtimeEvent(domain, action, result, actor = {}, extraUsernames = [], extraPayload = {}) {
   const room = result?.room;
   if (!room) return 0;
@@ -3771,6 +3803,7 @@ router.post('/taoyuan/mail/player-letter', loginRequired, signRequired, async (r
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitMailNotificationCreatedEvent(req.body?.target_username, 'player_letter', mail);
     res.json({ ok: true, mail });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '发送玩家书信失败' });
@@ -3783,6 +3816,7 @@ router.post('/taoyuan/mail/player-gift-package', loginRequired, signRequired, as
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitMailNotificationCreatedEvent(req.body?.target_username, 'player_gift_package', mail);
     res.json({ ok: true, mail });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '寄送礼物包裹失败' });

@@ -23,6 +23,7 @@ const OFFLINE_NOTIFICATION_EVENT_TYPES = new Set([
   'friend.removed',
   'activity.room.invited',
   'activity.room.updated',
+  'notification.created',
 ]);
 const activeConnections = new Map();
 let heartbeatTimer = null;

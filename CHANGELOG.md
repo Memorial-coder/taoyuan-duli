@@ -4,6 +4,10 @@
 
 ## 2026-05-20（开发中）
 
+- `0520todo.md / A5` 这一轮把玩家来信 / 礼物包裹纳入实时通知补发：`/api/taoyuan/mail/player-letter` 与 `/api/taoyuan/mail/player-gift-package` 在 HTTP 权威写入成功后，会向收件人投递 `notification.created`，payload 只带邮件摘要、`category: "mail"` 与 `refresh_required`，不把邮件详情或奖励结算交给 WebSocket。
+- `notification.created` 已加入服务端离线补发队列；目标玩家离线时会随 `queued_event_id / replayed / queued_at` 补发，前端收到后继续走通用 `notification.ack` 清理队列。`useRealtimeStore.ts` 只在 `category === "mail"` 时防抖调用 `useMailboxStore().refreshList({ silent: true })`，邮箱列表读 HTTP 权威接口，不直接套用实时 payload。
+- `qa:realtime-smoke` 新增在线来信通知与离线来信补发 / ACK / 不重复补发断言；`qa:online-regression-live-smoke` 新增真实浏览器场景：收件人停在邮箱页，另一个账号发来信后，不点击“刷新邮件”也能靠 realtime 刷出新邮件。
+- 本轮验证已通过 `node --check server/src/taoyuanRealtimeRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke`、`npm --prefix taoyuan-main run qa:online-regression-live-smoke` 与 `git diff --check`；构建仍只有既有大 chunk 警告。
 - `0520todo.md / B0-B1` 这一轮先在 `taoyuan-main/src/app.css` 补 `online-action-btn--compact / online-action-buttons--compact` 紧凑修饰符（32px 高、10px 字体），并把 `RegionMapView.vue` 好友驿站"存档 ID 搜索"行的 `<input>` 迁移到 `online-input`、搜索按钮迁移到 `online-action-btn online-action-btn--primary online-action-btn--icon`，与新统一类的 42px 高度对齐。
 - 本轮只迁移最高频的搜索入口，保留 wrapper `flex gap-2` 与 `flex-1 min-w-0`，移动端紧凑横向布局未受影响；好友驿站内 32px 紧凑操作按钮（接受 / 拒绝 / 删除 / 拉黑 / 庄园 / 写信 / 送礼 / 邀请进房 / 节会 / 村社 / 协作 / 解除拉黑等）和搜索结果上的申请 / 拉黑按钮暂不迁移，待下一轮基于 `online-action-btn--compact` 批量收口。
 - 新增 `qa:online-regression-live-smoke` 浏览器回归脚本：真实后端 + Vite + Chromium 下会载入服务端存档、建立 realtime WebSocket、执行一次服务端快速保存、领取后台奖励邮件并确认服务端存档金钱入账，再发布大厅帖子和回复，覆盖云存档 / 邮箱 / 大厅这些 A7 旧入口不被这轮 UI 与 realtime 变更破坏。

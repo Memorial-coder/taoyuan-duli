@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0520 邮箱实时通知补发（A5 玩家来信 / 礼物包裹）
+- 服务端在玩家来信和礼物包裹写入成功后投递 `notification.created`，收件人在线时直接通过 WebSocket 收到，离线时写入 `taoyuan_realtime_notifications.json`，下次 `realtime.ready` 后补发并等待 `notification.ack` 清理。
+- 邮箱通知 payload 只包含邮件摘要、`category: "mail"` 与 `refresh_required`；前端收到后只防抖调用 `useMailboxStore().refreshList({ silent: true })` 重读权威邮箱接口，不直接把 WebSocket payload 写进邮件、奖励或存档状态。
+- `qa:realtime-smoke` 新增在线来信通知、离线来信补发、ACK 清理和重连不重复补发断言；`qa:online-regression-live-smoke` 新增真实浏览器断言：收件人停在邮箱页时，另一账号发来信后无需点击“刷新邮件”即可看到新邮件。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke`、`npm --prefix taoyuan-main run qa:online-regression-live-smoke` 与 `git diff --check`；构建仍只有既有大 chunk 警告。
+
 ### 0520 联机表单统一类首批落地（B0 补 compact 修饰符 + B1 RegionMapView 搜索行）
 - `taoyuan-main/src/app.css` 在 `online-action-btn` 体系上追加 `online-action-btn--compact` 与 `online-action-buttons--compact` 紧凑修饰符（32px 高、10px 字体、紧凑 padding 与 6px 间距），用于好友驿站这类信息密集面板里的小操作按钮，不会破坏原有的紧凑展示节奏。
 - `RegionMapView.vue` 把好友驿站"存档 ID 搜索"行迁到新的统一类：`<input>` 改用 `online-input flex-1 min-w-0`，搜索按钮改用 `online-action-btn online-action-btn--primary online-action-btn--icon shrink-0`，保留 wrapper 的 `flex gap-2`，移动端紧凑横向展示与既有 `data-testid="region-social-search-submit"` smoke 锚点保持不变。

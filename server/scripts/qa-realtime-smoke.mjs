@@ -382,6 +382,8 @@ let ownerSocket = null
 let friendSocket = null
 let offlineReplaySocket = null
 let offlineReplayReconnectSocket = null
+let offlineMailReplaySocket = null
+let offlineMailReplayReconnectSocket = null
 
 try {
   serverProcess = startServer()
@@ -455,6 +457,30 @@ try {
     )
   })
 
+  await runCheck('mail notification event is delivered through websocket', async () => {
+    const mailTitle = `实时来信通知 ${createSmokeSeed()}`
+    const offset = friendSocket.messages.length
+    const result = await fetchSessionJson(owner, '/api/taoyuan/mail/player-letter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_username: friend.username,
+        title: mailTitle,
+        content: '这是一封实时通知烟测来信。',
+        template_type: 'short_note',
+      }),
+    })
+    assert(result.response.ok, `player letter returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    await expectMessageAfter(friendSocket, offset, 'notification.created', payload =>
+      payload.category === 'mail'
+        && payload.action === 'player_letter'
+        && payload.refresh_required === true
+        && payload.mail?.id === result.data?.mail?.id
+        && payload.mail?.title === mailTitle
+        && payload.mail?.sender_username === owner.username
+    )
+  })
+
   await runCheck('offline friend request event is replayed and acknowledged after reconnect', async () => {
     const offlineTarget = await bootstrapSession('smkrt_c')
     const result = await fetchSessionJson(owner, '/api/taoyuan/online/social/friend-requests', {
@@ -501,6 +527,59 @@ try {
     )
     offlineReplayReconnectSocket.close()
     offlineReplayReconnectSocket = null
+  })
+
+  await runCheck('offline mail notification event is replayed and acknowledged after reconnect', async () => {
+    const offlineTarget = await bootstrapSession('smkrt_d')
+    const mailTitle = `离线来信通知 ${createSmokeSeed()}`
+    const result = await fetchSessionJson(owner, '/api/taoyuan/mail/player-letter', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_username: offlineTarget.username,
+        title: mailTitle,
+        content: '这是一封离线补发烟测来信。',
+        template_type: 'short_note',
+      }),
+    })
+    assert(result.response.ok, `offline player letter returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+
+    offlineMailReplaySocket = await openRealtimeSocket(offlineTarget)
+    const ready = await expectMessage(offlineMailReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) >= 1
+    )
+    assert(Number(ready.payload?.pending_notification_count) >= 1, 'offline mail replay ready did not report pending notifications')
+    const queuedMessage = await expectMessage(offlineMailReplaySocket, 'notification.created', payload =>
+      payload.category === 'mail'
+        && payload.action === 'player_letter'
+        && payload.mail?.id === result.data?.mail?.id
+        && payload.mail?.title === mailTitle
+    )
+    const queuedEventId = String(queuedMessage.queued_event_id || '')
+    assert(queuedEventId, 'replayed mail notification missing queued_event_id')
+    assert(queuedMessage.replayed === true, 'replayed mail notification missing replayed marker')
+
+    const ackOffset = offlineMailReplaySocket.messages.length
+    offlineMailReplaySocket.send('notification.ack', { id: queuedEventId })
+    await expectMessageAfter(offlineMailReplaySocket, ackOffset, 'notification.ack', payload =>
+      Array.isArray(payload.acked_ids)
+        && payload.acked_ids.includes(queuedEventId)
+        && Number(payload.pending_count) === 0
+    )
+
+    offlineMailReplaySocket.close()
+    offlineMailReplaySocket = null
+    await wait(200)
+
+    offlineMailReplayReconnectSocket = await openRealtimeSocket(offlineTarget)
+    await expectMessage(offlineMailReplayReconnectSocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) === 0
+    )
+    await expectNoMessageAfter(offlineMailReplayReconnectSocket, 0, 'notification.created', payload =>
+      payload.mail?.id === result.data?.mail?.id
+    )
+    offlineMailReplayReconnectSocket.close()
+    offlineMailReplayReconnectSocket = null
   })
 
   let expeditionRoomId = ''
@@ -580,6 +659,8 @@ try {
   friendSocket?.close()
   offlineReplaySocket?.close()
   offlineReplayReconnectSocket?.close()
+  offlineMailReplaySocket?.close()
+  offlineMailReplayReconnectSocket?.close()
   await stopChild(serverProcess)
   try {
     await rm(smokeTempDir, { recursive: true, force: true })
