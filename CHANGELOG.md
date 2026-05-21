@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / B1` 这一轮收口 `FestivalView.vue` 的节会房间创建和邀请表单：节会房型、玩法模板、房间标题、创建按钮，以及邀请玩家输入行都迁到统一 `online-*` 表单 / 按钮类。
+- 节会邀请行现在和远征房间一样使用 `online-action-row`，窄屏会自动换行；本轮只换 UI class，不改节会房间创建、邀请、ready、玩法动作、结算或关闭逻辑。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 - `0520todo.md / B1` 这一轮收口 `ExpeditionRoomView.vue` 的远征房间创建和邀请表单：远征模板、玩法模板、房间标题、创建按钮，以及邀请玩家输入行都迁到统一 `online-*` 表单 / 按钮类。
 - 邀请玩家行现在使用 `online-action-row`，窄屏会按统一规则自动换行；本轮只换 UI class，不改远征房间创建、邀请、ready、结算或关闭逻辑。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。

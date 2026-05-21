@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 节会房间表单统一（B1 FestivalView）
+- `FestivalView.vue` 的节会房间创建区已迁到统一联机表单类：节会房型、玩法模板和房间标题分别使用 `online-select / online-input`，创建按钮使用 `online-action-btn`。
+- 邀请玩家行改用 `online-action-row + online-input + online-action-btn`，和远征房间保持同一套响应式规格；本轮只换 UI class，不改节会房间创建、邀请、ready、玩法动作、结算或关闭业务逻辑。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 ### 0520 远征房间表单统一（B1 ExpeditionRoomView）
 - `ExpeditionRoomView.vue` 的远征房间创建区已迁到统一联机表单类：远征模板、玩法模板和房间标题分别使用 `online-select / online-input`，创建按钮使用 `online-action-btn`。
 - 邀请玩家行改用 `online-action-row + online-input + online-action-btn`，窄屏会按统一规则自动换行；本轮只换 UI class，不改创建、邀请、ready、结算或关闭业务逻辑。
