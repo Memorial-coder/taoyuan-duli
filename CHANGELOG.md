@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / A5` 这一轮补上服务端存档身份回写闭环：`POST /api/taoyuan/save/:slot` 现在会返回注入 `onlineIdentity` 后的权威 raw，前端服务端同步成功后会从该 raw 刷新当前运行时 `currentOnlineIdentity`。
+- 这让本地档 / 导入档切到服务端可写槽位保存后，无需重新读档也能拿到服务端补发的固定数字 ID；服务端仍是 ID 分配与防篡改权威，客户端只消费保存响应，不自行生成公开 ID。
+- `qa:online-smoke` 已补断言，验证服务端保存响应包含嵌入的存档身份；本轮已通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix server run qa:online-smoke` 与 `npm --prefix taoyuan-main run build`。
+
 - `0520todo.md / A5` 这一轮补齐村社公告实时通知：`POST /api/taoyuan/online/societies/notice` 成功后，服务端会向同村社其他成员投递 `notification.created`，使用 `category: "society"`、`action: "notice_updated"` 和 `refresh_required: true`。
 - 村社通知继续保持 delivery-only：成员、职位权限与公告写入仍由 `taoyuanSocietyRuntime` 和 HTTP 路由权威处理，WebSocket 只做摘要投递与前端静默重读，不参与最终结算。
 - `useRealtimeStore.ts` 新增 `society` 通知分支，收到后静默刷新村社概览；`useSocietyStore` 也补了 `silent` 刷新模式，避免 realtime 回读时抖动页面状态。

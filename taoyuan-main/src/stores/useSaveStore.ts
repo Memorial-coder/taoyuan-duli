@@ -653,6 +653,7 @@ export const useSaveStore = defineStore('save', () => {
     1: 0,
     2: 0
   })
+  const lastAuthoritativeServerRawBySlot = ref<Partial<Record<number, string>>>({})
 
   const refreshPendingServerState = () => {
     pendingServerSlots.value = getPendingServerSlotNumbers()
@@ -678,6 +679,7 @@ export const useSaveStore = defineStore('save', () => {
     runtimeSessionMode.value = null
     currentOnlineIdentity.value = null
     lastIssuedServerRevisionBySlot.value = { 0: 0, 1: 0, 2: 0 }
+    lastAuthoritativeServerRawBySlot.value = {}
     serverSlotsFetchState.value = storageMode.value === 'server' ? 'unknown' : 'available'
     refreshPendingServerState()
   }
@@ -735,6 +737,21 @@ export const useSaveStore = defineStore('save', () => {
   }
 
   const hasPendingServerSave = (slot: number): boolean => !!getPendingServerRaw(slot)
+
+  const extractOnlineIdentityFromRaw = (raw: string | null | undefined): OnlineSaveIdentity | null => {
+    if (!raw) return null
+    const parsed = parseSaveData(raw)
+    const normalized = parsed ? normalizeSaveEnvelope(parsed) : null
+    return normalizeOnlineSaveIdentity(normalized?.meta.onlineIdentity ?? normalized?.data?.onlineIdentity)
+  }
+
+  const refreshRuntimeOnlineIdentityFromRaw = (slot: number, mode: SaveMode, raw: string | null | undefined) => {
+    if (runtimeSessionSlot.value !== slot || runtimeSessionMode.value !== mode) return false
+    const identity = extractOnlineIdentityFromRaw(raw)
+    if (!identity) return false
+    currentOnlineIdentity.value = identity
+    return true
+  }
 
   const setRuntimeSession = (slot: number, mode: SaveMode | null) => {
     runtimeSessionSlot.value = slot
@@ -1368,6 +1385,13 @@ export const useSaveStore = defineStore('save', () => {
           failedSlots.push(slot)
           continue
         }
+        if (saveResult.raw) {
+          lastAuthoritativeServerRawBySlot.value = {
+            ...lastAuthoritativeServerRawBySlot.value,
+            [slot]: saveResult.raw
+          }
+          refreshRuntimeOnlineIdentityFromRaw(slot, 'server', saveResult.raw)
+        }
         if (clearPendingServerSaveIfUnchanged(slot, entry)) {
           syncedSlots.push(slot)
         }
@@ -1505,6 +1529,9 @@ export const useSaveStore = defineStore('save', () => {
       if (!ok) return false
       applyActiveSlotSelection(slot, targetMode)
       setRuntimeSession(slot, targetMode)
+      if (targetMode === 'server') {
+        refreshRuntimeOnlineIdentityFromRaw(slot, 'server', lastAuthoritativeServerRawBySlot.value[slot])
+      }
       if (targetMode !== 'server') {
         setLastSaveState('saved', '', '')
       }

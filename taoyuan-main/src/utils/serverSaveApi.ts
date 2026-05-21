@@ -43,6 +43,7 @@ export const fetchServerSlotRaw = async (slot: number): Promise<string | null> =
 export interface SaveServerSlotRawResult {
   stale: boolean
   currentRevision: number
+  raw: string | null
 }
 
 export const saveServerSlotRaw = async (slot: number, raw: string, revision: number): Promise<SaveServerSlotRawResult> => {
@@ -66,7 +67,8 @@ export const saveServerSlotRaw = async (slot: number, raw: string, revision: num
   })
   return {
     stale: data?.stale === true,
-    currentRevision: Number.isFinite(Number(data?.current_revision)) ? Number(data?.current_revision) : revision
+    currentRevision: Number.isFinite(Number(data?.current_revision)) ? Number(data?.current_revision) : revision,
+    raw: typeof data?.raw === 'string' && data.raw ? data.raw : null
   }
 }
 

@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 服务端存档身份回写闭环（A5 旧档兼容）
+- 服务端存档保存接口现在会在成功写入后返回注入 `onlineIdentity` 的权威 raw，前端同步服务端存档成功后会记录该 raw，并在当前运行会话对应该服务端槽位时刷新 `currentOnlineIdentity`。
+- 本地档 / 导入档切到服务端可写槽位保存后，可以直接拿到服务端补发的固定数字 ID，不必手动重新读档；ID 分配、防篡改和元数据写回仍由服务端权威处理。
+- `qa:online-smoke` 已验证保存响应里包含嵌入的存档身份，且客户端篡改 ID 后服务端仍保留原固定 ID；本轮通过 type-check、build 和 online smoke。
+
 ### 0520 村社公告实时通知补发（A5 村社）
 - 服务端在村社公告写入成功后新增 `notification.created` 投递，payload 使用 `category: "society"`、`action: "notice_updated"`、`refresh_required` 和村社公告摘要，收件人为同村社除操作者外的成员。
 - 前端 realtime store 收到 `society` 通知后会防抖调用 `useSocietyStore().refreshOverview({ silent: true })`，继续只重读 HTTP 权威概览，不直接套用 WebSocket payload。

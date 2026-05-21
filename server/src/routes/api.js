@@ -3706,7 +3706,7 @@ router.post('/taoyuan/save/:slot', loginRequired, signRequired, (req, res) => {
   data.slots[slot] = { raw: preparedEntry.raw, revision: nextRevision };
   saveTaoyuanUserSaves(req.session.username, data);
   taoyuanHall.setActiveSaveSlot(req.session.username, slot);
-  res.json({ ok: true, stale: false, slot, current_revision: nextRevision });
+  res.json({ ok: true, stale: false, slot, current_revision: nextRevision, raw: preparedEntry.raw });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '保存服务端存档失败' });
   }

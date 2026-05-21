@@ -225,6 +225,12 @@ const seedSessionSave = async (session, startingMoney) => {
   })
   assert(saveResponse.ok, `save write returned ${saveResponse.status}`)
   assert(saveData?.ok === true && saveData?.slot === 0, 'save write payload is incomplete')
+  assert(typeof saveData?.raw === 'string' && saveData.raw, 'save write payload did not return authoritative raw save')
+  const writebackSave = decryptTaoyuanRaw(saveData.raw)
+  const writebackIdentity = getEmbeddedSaveIdentity(writebackSave)
+  assert(writebackIdentity?.save_id, 'save write response did not include embedded save identity')
+  assert(writebackIdentity.account_username === session.username, 'save write response identity account mismatch')
+  assert(writebackIdentity.save_slot === 0, 'save write response identity slot mismatch')
 
   const { response: activeSlotResponse, data: activeSlotData } = await fetchSessionJson(session, '/api/taoyuan/save/active-slot', {
     method: 'POST',
