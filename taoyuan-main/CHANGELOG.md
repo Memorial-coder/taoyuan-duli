@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 村社表单统一（B1 SocietyView）
+- `SocietyView.vue` 的村社邀请输入行已改用 `online-action-row + online-input + online-action-btn`，和远征 / 节会邀请入口保持同一套响应式规格。
+- 村社会议创建区已迁到统一联机表单类：提案标题、提案类型和提案摘要分别使用 `online-input / online-select / online-textarea`；发起提案、归档备注和归档提案按钮也改用统一按钮 / 输入类。
+- 本轮只替换 UI class，不改村社邀请、申请处理、提案发起、投票或归档业务逻辑；已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 ### 0520 节会房间表单统一（B1 FestivalView）
 - `FestivalView.vue` 的节会房间创建区已迁到统一联机表单类：节会房型、玩法模板和房间标题分别使用 `online-select / online-input`，创建按钮使用 `online-action-btn`。
 - 邀请玩家行改用 `online-action-row + online-input + online-action-btn`，和远征房间保持同一套响应式规格；本轮只换 UI class，不改节会房间创建、邀请、ready、玩法动作、结算或关闭业务逻辑。

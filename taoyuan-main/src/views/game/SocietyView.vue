@@ -71,13 +71,13 @@
           <div v-if="societyStore.mySociety.can_invite || societyStore.managedRequests.length > 0 || societyStore.incomingInvites.length > 0" class="border border-accent/20 rounded-xs p-3 bg-bg/10 space-y-3">
             <div v-if="societyStore.mySociety.can_invite">
               <p class="text-sm text-accent mb-2">邀请或处理入社</p>
-              <div class="flex gap-2">
+              <div class="online-action-row">
                 <input
                   v-model="societyStore.draftInviteUsername"
-                  class="flex-1 bg-bg border border-accent/20 rounded-xs px-2 py-2 text-xs text-text"
+                  class="online-input flex-1"
                   placeholder="输入玩家用户名"
                 />
-                <Button :disabled="societyStore.actionRunning" @click="inviteMember">
+                <Button class="online-action-btn online-action-btn--primary" :disabled="societyStore.actionRunning" @click="inviteMember">
                   邀请
                 </Button>
               </div>
@@ -346,14 +346,14 @@
               <span class="text-[10px] text-muted">{{ societyStore.mySociety.can_create_proposal ? '成员可发起提案' : '当前只读' }}</span>
             </div>
 
-            <div v-if="societyStore.mySociety.can_create_proposal" class="space-y-2">
+            <div v-if="societyStore.mySociety.can_create_proposal" class="space-y-3">
               <input
                 v-model="societyStore.draftProposalTitle"
                 maxlength="40"
-                class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-2 text-xs text-text"
+                class="online-input w-full"
                 placeholder="提案标题，例如：本周节会联机排班"
               />
-              <select v-model="societyStore.draftProposalKind" class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-2 text-xs text-text">
+              <select v-model="societyStore.draftProposalKind" class="online-select w-full">
                 <option v-for="entry in societyStore.proposalKindOptions" :key="entry.id" :value="entry.id">
                   {{ entry.label }}
                 </option>
@@ -362,11 +362,11 @@
                 v-model="societyStore.draftProposalSummary"
                 rows="3"
                 maxlength="160"
-                class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-2 text-xs text-text resize-none"
+                class="online-textarea w-full resize-none"
                 placeholder="写清楚本次提案的背景、目标和希望大家表决的方向。"
               />
               <div class="flex justify-end">
-                <Button :disabled="societyStore.actionRunning" @click="submitProposal">
+                <Button class="online-action-btn online-action-btn--primary" :disabled="societyStore.actionRunning" @click="submitProposal">
                   发起提案
                 </Button>
               </div>
@@ -401,11 +401,11 @@
                     <input
                       v-model="proposalResolutionNotes[proposal.id]"
                       maxlength="120"
-                      class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-2 text-[10px] text-text"
+                      class="online-input w-full"
                       placeholder="归档备注，例如：按多数票执行，本周先试运行。"
                     />
                     <div class="flex justify-end">
-                      <Button :disabled="societyStore.actionRunning" @click="archiveProposal(proposal.id)">
+                      <Button class="online-action-btn online-action-btn--primary" :disabled="societyStore.actionRunning" @click="archiveProposal(proposal.id)">
                         归档提案
                       </Button>
                     </div>
