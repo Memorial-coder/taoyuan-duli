@@ -352,6 +352,63 @@
             </div>
           </div>
 
+          <div v-if="festivalRoomStore.myFestivalState" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10 space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">{{ festivalRoomStore.myFestivalState.round_text }}</p>
+                <p class="text-[10px] text-muted mt-1 leading-4">{{ festivalRoomStore.myFestivalState.current_event.summary }}</p>
+              </div>
+              <span class="text-[10px] text-muted">压力 {{ festivalRoomStore.myFestivalState.pressure_text }}</span>
+            </div>
+            <div class="grid gap-2 md:grid-cols-2">
+              <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <p class="text-[10px] text-muted">当前事件</p>
+                <p class="text-xs text-text mt-1">{{ festivalRoomStore.myFestivalState.current_event.label }}</p>
+                <p class="text-[10px] text-muted mt-1 leading-4">{{ festivalRoomStore.myFestivalState.current_event.pressure_hint }}</p>
+                <p class="text-[10px] text-muted mt-1 leading-4">{{ festivalRoomStore.myFestivalState.current_event.resource_hint }}</p>
+              </div>
+              <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <p class="text-[10px] text-muted">我的职责</p>
+                <template v-if="festivalRoomStore.myFestivalState.my_role">
+                  <p class="text-xs text-text mt-1">{{ festivalRoomStore.myFestivalState.my_role.role_label }}</p>
+                  <p class="text-[10px] text-muted mt-1 leading-4">{{ festivalRoomStore.myFestivalState.my_role.role_summary }}</p>
+                </template>
+                <p v-else class="text-[10px] text-muted mt-1">加入房间后会显示本局职责。</p>
+              </div>
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+              <span
+                v-for="resource in festivalRoomStore.myFestivalState.team_resources"
+                :key="`${festivalRoomStore.myRoom.id}-${resource.id}`"
+                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted"
+              >
+                {{ resource.text }}
+              </span>
+            </div>
+            <div v-if="festivalRoomStore.myFestivalState.role_assignments.length > 0" class="flex flex-wrap gap-1.5">
+              <span
+                v-for="role in festivalRoomStore.myFestivalState.role_assignments"
+                :key="`${festivalRoomStore.myRoom.id}-${role.username}-festival-role`"
+                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted"
+              >
+                {{ role.display_name }} · {{ role.role_label }}
+              </span>
+            </div>
+            <p v-if="festivalRoomStore.myFestivalState.recent_feedback" class="text-[10px] text-success leading-4">
+              {{ festivalRoomStore.myFestivalState.recent_feedback }}
+            </p>
+            <div v-if="festivalRoomStore.myFestivalState.round_log.length > 0" class="space-y-1">
+              <p class="text-[10px] text-muted">回合记录</p>
+              <p
+                v-for="entry in festivalRoomStore.myFestivalState.round_log.slice(0, 4)"
+                :key="entry.id"
+                class="text-[10px] text-muted leading-4"
+              >
+                - {{ entry.summary }}
+              </p>
+            </div>
+          </div>
+
           <div v-if="festivalRoomStore.myRoom.gameplay.available_actions.length > 0" class="space-y-2">
             <p class="text-[10px] text-muted">玩法动作</p>
             <div class="space-y-2">
@@ -366,6 +423,21 @@
                   </Button>
                   <p class="text-[10px] text-muted leading-4">{{ action.summary }}</p>
                 </div>
+                <div class="flex flex-wrap gap-1.5 mt-2">
+                  <span v-if="action.required_role_label" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted">
+                    {{ action.required_role_label }}
+                  </span>
+                  <span v-if="action.once_per_round" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted">
+                    每回合一次
+                  </span>
+                  <span v-if="action.pressure_delta_text" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted">
+                    {{ action.pressure_delta_text }}
+                  </span>
+                  <span v-if="action.resource_delta_text" class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/15 text-muted">
+                    {{ action.resource_delta_text }}
+                  </span>
+                </div>
+                <p v-if="action.round_effect" class="text-[10px] text-muted mt-2 leading-4">{{ action.round_effect }}</p>
                 <p v-if="!action.can_use && action.disabled_reason" class="text-[10px] text-muted mt-1">{{ action.disabled_reason }}</p>
               </div>
             </div>

@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / C4-C5` 这一轮把节会房间接进服务端回合事件系统：守岁、灯会、赛舟、七夕、中秋和腊八模板现在会按房型生成当前事件、场面压力、队伍资源、职责分工、回合动作和回合日志。
+- 节会动作已带上 `required_role / once_per_round / pressure_delta / resource_delta / combo_tags / round_effect`，动作会由服务端 runtime 更新共享回合状态；职责在节会里先作为协作提示，不阻断旧的结算和管理端补偿场景。
+- `FestivalView.vue` 新增节会事件卡、我的职责、队伍资源、回合记录和动作效果展示；本轮验证通过 `node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`git diff --check` 与 `npm --prefix server run qa:online-smoke`。
+
 - `0520todo.md / C0-C3` 这一轮先把 `expedition_cavern` 做成联机小游戏样板间：后端快照新增回合号、当前事件、风险、队伍资源、角色分工、回合日志和最近反馈。
 - 矿洞动作已带上 `required_role / once_per_round / risk_delta / resource_delta / combo_tags / round_effect`，并会根据当前事件触发组合收益；其它远征和节会模板仍保持旧的共享进度动作逻辑。
 - `ExpeditionRoomView.vue` 在矿洞样板间下新增事件卡、队伍资源板、职责提示、动作效果和回合日志；本轮验证通过 `node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`git diff --check` 与 `npm --prefix server run qa:online-smoke`。

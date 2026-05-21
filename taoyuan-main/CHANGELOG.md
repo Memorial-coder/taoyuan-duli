@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 节会回合事件迁移（C4-C5）
+- `FestivalView.vue` 现在能展示节会房间的当前事件、场面压力、队伍资源、我的职责、队伍分工、最近反馈和回合日志；动作卡同步展示职责提示、每回合约束、压力 / 资源变化和回合效果。
+- `useFestivalRoomStore.ts` 与 `festivalRoomApi.ts` 已补齐 `festival_state` 类型和消费入口，前端直接承接服务端下发的节会回合快照，不在页面里推导结算状态。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`git diff --check` 与 `npm --prefix server run qa:online-smoke`。
+
 ### 0520 协作矿洞样板间（C0-C3）
 - `ExpeditionRoomView.vue` 现在只在 `expedition_cavern` 下切到事件卡、队伍资源、职责分工、动作效果和回合日志，其它远征模板仍保留原按钮列表。
 - `useExpeditionRoomStore.ts` 与 `expeditionRoomApi.ts` 已补齐矿洞回合快照类型，能承接 `round_number / current_event / risk / team_resources / role_assignments / round_log`。

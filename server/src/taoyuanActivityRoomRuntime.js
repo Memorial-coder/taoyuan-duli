@@ -103,6 +103,11 @@ const EXPEDITION_CAVERN_INITIAL_RISK = 3;
 const EXPEDITION_CAVERN_ROUND_LOG_LIMIT = 24;
 const EXPEDITION_CAVERN_ROUND_ACTION_TARGET = 2;
 
+const FESTIVAL_ROUND_PRESSURE_MAX = 10;
+const FESTIVAL_INITIAL_PRESSURE = 2;
+const FESTIVAL_ROUND_LOG_LIMIT = 24;
+const FESTIVAL_ROUND_ACTION_TARGET = 2;
+
 const EXPEDITION_CAVERN_RESOURCE_DEFS = Object.freeze([
   { id: 'supplies', label: '补给', initial_value: 5, max_value: 8 },
   { id: 'lanterns', label: '灯火', initial_value: 3, max_value: 5 },
@@ -115,6 +120,20 @@ const EXPEDITION_CAVERN_ROLE_DEFS = Object.freeze([
   { id: 'scout', label: '探路', summary: '负责读路、判脉和标记，优先压低未知风险。' },
   { id: 'support', label: '支护', summary: '负责绳索、支架和坍塌处理，维持队伍安全余量。' },
   { id: 'miner', label: '采集', summary: '负责矿点采样和分工采集，拉高本局采集值。' },
+]);
+
+const FESTIVAL_RESOURCE_DEFS = Object.freeze([
+  { id: 'cheer', label: '喝彩', initial_value: 2, max_value: 8 },
+  { id: 'order', label: '秩序', initial_value: 4, max_value: 8 },
+  { id: 'supplies', label: '物资', initial_value: 4, max_value: 8 },
+  { id: 'memory', label: '留影', initial_value: 0, max_value: 6 },
+]);
+
+const FESTIVAL_ROLE_DEFS = Object.freeze([
+  { id: 'caller', label: '领场', summary: '负责把本回合节奏讲清楚，可以兜底处理其它职责动作。' },
+  { id: 'rhythm', label: '合拍', summary: '负责同步动作、鼓点和队伍节奏，让多人选择落在同一拍上。' },
+  { id: 'craft', label: '筹备', summary: '负责材料、布景和临场布置，把节会进度稳稳推进。' },
+  { id: 'scribe', label: '记录', summary: '负责题签、留影和收尾记录，让本局高光能被回看。' },
 ]);
 
 const EXPEDITION_CAVERN_ROUND_EVENTS = Object.freeze([
@@ -185,6 +204,131 @@ const EXPEDITION_CAVERN_ROUND_EVENTS = Object.freeze([
     },
   },
 ]);
+
+const FESTIVAL_ROUND_EVENTS_BY_TEMPLATE = Object.freeze({
+  yuanri_vigil: [
+    {
+      id: 'vigil_flame',
+      label: '守岁灯火',
+      summary: '长桌灯火忽明忽暗，队伍要决定先稳住秩序还是把节饰挂上去。',
+      pressure_hint: '抢推进会抬高场面压力，领场和筹备动作更容易把局面收稳。',
+      resource_hint: '秩序越高，后续守岁回合越不容易乱。',
+      combo_tags: ['ceremony', 'setup'],
+      combo_bonus: { score_delta: 1, pressure_delta: -1, resource_delta: { order: 1 }, summary: '开场布置命中节奏，守岁席位稳了下来。' },
+    },
+    {
+      id: 'guest_arrival',
+      label: '宾客入席',
+      summary: '几位迟到的乡民挤进席间，需要有人接住问候，也要有人继续推进筹备。',
+      pressure_hint: '忽视人群会让场面压力上升。',
+      resource_hint: '喝彩和秩序可以把临场小插曲变成热闹场面。',
+      combo_tags: ['crowd', 'order'],
+      combo_bonus: { score_delta: 1, pressure_delta: -1, resource_delta: { cheer: 1 }, summary: '人群被顺利带入节奏，反而多了一阵喝彩。' },
+    },
+  ],
+  lantern_fair: [
+    {
+      id: 'riddle_wave',
+      label: '灯谜连发',
+      summary: '灯谜摊前忽然聚起一圈人，抢答和整理题签需要有人分头处理。',
+      pressure_hint: '连续抢答会让场面更热，也更容易乱。',
+      resource_hint: '秩序能让灯谜节奏不被打断。',
+      combo_tags: ['quiz', 'hint'],
+      combo_bonus: { score_delta: 1, pressure_delta: -1, resource_delta: { order: 1 }, summary: '题签整理得当，下一轮抢答更顺。' },
+    },
+    {
+      id: 'lantern_tangle',
+      label: '花灯缠线',
+      summary: '一排花灯被风吹乱，拼装和加固动作会直接影响灯会观感。',
+      pressure_hint: '强行加速会消耗物资，也可能让压力上升。',
+      resource_hint: '物资和秩序决定这一轮能不能漂亮收尾。',
+      combo_tags: ['craft', 'setup'],
+      combo_bonus: { score_delta: 1, resource_delta: { memory: 1 }, summary: '花灯重新排齐，留下了一处好看的留影点。' },
+    },
+  ],
+  dragon_boat: [
+    {
+      id: 'drum_shift',
+      label: '鼓点换拍',
+      summary: '鼓手突然切换节奏，桨手要同步动作，领场也要稳住船头判断。',
+      pressure_hint: '同步越快越能冲刺，但压力也会被鼓点推高。',
+      resource_hint: '喝彩能推高赛舟气势，秩序能避免乱桨。',
+      combo_tags: ['rhythm', 'sprint'],
+      combo_bonus: { score_delta: 2, resource_delta: { cheer: 1 }, summary: '全船正好踩中换拍，岸边喝彩声压了上来。' },
+    },
+    {
+      id: 'cross_current',
+      label: '横流水口',
+      summary: '船身经过一段横流，稳舵和同步动作会互相影响本轮推进。',
+      pressure_hint: '没人稳节奏时，连续冲刺会让场面压力更高。',
+      resource_hint: '秩序能保护下一轮冲刺窗口。',
+      combo_tags: ['order', 'rhythm'],
+      combo_bonus: { score_delta: 1, pressure_delta: -1, resource_delta: { order: 1 }, summary: '稳舵接住横流，下一拍更容易同步。' },
+    },
+  ],
+  qixi_stroll: [
+    {
+      id: 'bridge_queue',
+      label: '桥头排队',
+      summary: '桥头人流突然变密，同游队伍要先决定是整理队形还是抓住留影窗口。',
+      pressure_hint: '抢留影会带来高光，也可能让人流压力上升。',
+      resource_hint: '留影值代表本局可回看的纪念瞬间。',
+      combo_tags: ['order', 'memory'],
+      combo_bonus: { score_delta: 1, pressure_delta: -1, resource_delta: { memory: 1 }, summary: '队形没有散，刚好留下一张桥头合影。' },
+    },
+  ],
+  mid_autumn_moonwatch: [
+    {
+      id: 'cloud_pass',
+      label: '浮云遮月',
+      summary: '月光被云层遮住，队伍要判断先稳住赏月席，还是趁云开时完成留影。',
+      pressure_hint: '错过窗口会让压力上升，记录动作能把高光留下来。',
+      resource_hint: '留影和喝彩会影响这一局的纪念感。',
+      combo_tags: ['memory', 'performance'],
+      combo_bonus: { score_delta: 1, resource_delta: { memory: 1, cheer: 1 }, summary: '云开的一刻被完整记录，席间响起喝彩。' },
+    },
+    {
+      id: 'poem_turn',
+      label: '轮诗接句',
+      summary: '赏月席开始轮诗接句，表演节拍和公共筹备要配合起来。',
+      pressure_hint: '连续带气氛会热闹，但需要有人把节奏压稳。',
+      resource_hint: '秩序和喝彩一起决定接句是否顺畅。',
+      combo_tags: ['ceremony', 'performance'],
+      combo_bonus: { score_delta: 1, pressure_delta: -1, summary: '接句顺着月色落下，席间节奏稳定。' },
+    },
+  ],
+  laba_cookpot: [
+    {
+      id: 'fire_control',
+      label: '灶火起伏',
+      summary: '锅边火势忽大忽小，筹备和分拣动作会决定这锅粥能不能顺利出香。',
+      pressure_hint: '只顾推进会消耗物资，先稳火能降低压力。',
+      resource_hint: '物资越足，后续出锅越稳。',
+      combo_tags: ['supply', 'craft'],
+      combo_bonus: { score_delta: 1, resource_delta: { supplies: 1 }, summary: '火候接住了，锅边又腾出一份可用物资。' },
+    },
+    {
+      id: 'serving_wave',
+      label: '分粥高峰',
+      summary: '乡民开始排队领粥，队伍需要把物资、秩序和喝彩一起照看住。',
+      pressure_hint: '人群越热，压力越高，整理动作能把队伍重新拉齐。',
+      resource_hint: '秩序决定这一轮是否会被队伍挤乱。',
+      combo_tags: ['order', 'crowd'],
+      combo_bonus: { score_delta: 1, pressure_delta: -1, resource_delta: { cheer: 1 }, summary: '分粥队伍排顺了，热闹没有变成混乱。' },
+    },
+  ],
+  default: [
+    {
+      id: 'festival_opening',
+      label: '节会开场',
+      summary: '房间进入节会现场，队伍需要先确认分工，再决定本回合推进方式。',
+      pressure_hint: '开场选择会影响后续节奏。',
+      resource_hint: '喝彩、秩序、物资和留影会共同影响这局体感。',
+      combo_tags: ['setup', 'ceremony'],
+      combo_bonus: { score_delta: 1, pressure_delta: -1, resource_delta: { order: 1 }, summary: '开场分工清楚，队伍行动更稳。' },
+    },
+  ],
+});
 
 const REWARD_INVENTORY_MAIN_CAPACITY = 24;
 const REWARD_INVENTORY_TEMP_CAPACITY = 10;
@@ -329,8 +473,32 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
     default_target: 6,
     recommended_room_template_ids: ['yuanri_vigil', 'mid_autumn_moonwatch', 'laba_cookpot'],
     action_options: [
-      { id: 'offer_progress', label: '提交一份筹备', summary: '推进公共目标 1 格，并补一点团队同心值。', progress_delta: 1, score_delta: 1 },
-      { id: 'raise_banner', label: '补挂节饰', summary: '一次推进 2 格，适合冲刺收尾。', progress_delta: 2, score_delta: 1 },
+      {
+        id: 'offer_progress',
+        label: '提交一份筹备',
+        summary: '推进公共目标 1 格，并补一点团队同心值。',
+        progress_delta: 1,
+        score_delta: 1,
+        required_role: 'craft',
+        once_per_round: true,
+        pressure_delta: -1,
+        resource_delta: { supplies: -1, order: 1 },
+        combo_tags: ['setup', 'ceremony', 'craft'],
+        round_effect: '把本回合的物资投入转成稳定进度，适合先把节会局面压稳。',
+      },
+      {
+        id: 'raise_banner',
+        label: '补挂节饰',
+        summary: '一次推进 2 格，适合冲刺收尾。',
+        progress_delta: 2,
+        score_delta: 1,
+        required_role: 'caller',
+        once_per_round: true,
+        pressure_delta: 1,
+        resource_delta: { cheer: 1, supplies: -1 },
+        combo_tags: ['ceremony', 'crowd'],
+        round_effect: '用领场动作把场面拉热，推进更快，但会抬高一点临场压力。',
+      },
     ],
   },
   squad_coop: {
@@ -343,8 +511,32 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
     default_target: 6,
     recommended_room_template_ids: ['dragon_boat', 'yuanri_vigil', 'laba_cookpot'],
     action_options: [
-      { id: 'sync_oar', label: '同步动作', summary: '推进 1 个协作节点，并提升 2 点默契值。', progress_delta: 1, score_delta: 2 },
-      { id: 'steady_rudder', label: '补稳节奏', summary: '推进 1 个协作节点，并补 1 点稳态分。', progress_delta: 1, score_delta: 1 },
+      {
+        id: 'sync_oar',
+        label: '同步动作',
+        summary: '推进 1 个协作节点，并提升 2 点默契值。',
+        progress_delta: 1,
+        score_delta: 2,
+        required_role: 'rhythm',
+        once_per_round: true,
+        pressure_delta: 1,
+        resource_delta: { cheer: 1, order: -1 },
+        combo_tags: ['rhythm', 'sprint'],
+        round_effect: '把多人动作锁到同一拍，能拉高默契和喝彩，但需要队友后续稳住秩序。',
+      },
+      {
+        id: 'steady_rudder',
+        label: '补稳节奏',
+        summary: '推进 1 个协作节点，并补 1 点稳态分。',
+        progress_delta: 1,
+        score_delta: 1,
+        required_role: 'caller',
+        once_per_round: true,
+        pressure_delta: -1,
+        resource_delta: { order: 1 },
+        combo_tags: ['order', 'rhythm'],
+        round_effect: '把上一轮的热度收回队伍节奏，降低压力并保护下一次冲刺窗口。',
+      },
     ],
   },
   quiz_buzz: {
@@ -357,8 +549,32 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
     default_target: 3,
     recommended_room_template_ids: ['lantern_fair', 'yuanri_vigil'],
     action_options: [
-      { id: 'buzz_correct', label: '抢答得分', summary: '答对当前题目，推进 1 轮并拿到 2 点答题分。', progress_delta: 1, score_delta: 2 },
-      { id: 'review_hint', label: '整理题签', summary: '不推进轮次，但可以先补 1 点场面分。', progress_delta: 0, score_delta: 1 },
+      {
+        id: 'buzz_correct',
+        label: '抢答得分',
+        summary: '答对当前题目，推进 1 轮并拿到 2 点答题分。',
+        progress_delta: 1,
+        score_delta: 2,
+        required_role: 'caller',
+        once_per_round: true,
+        pressure_delta: 1,
+        resource_delta: { cheer: 1, order: -1 },
+        combo_tags: ['quiz', 'crowd'],
+        round_effect: '抢下本轮高光并带动观众，适合需要快速推进时使用。',
+      },
+      {
+        id: 'review_hint',
+        label: '整理题签',
+        summary: '不推进轮次，但可以先补 1 点场面分。',
+        progress_delta: 0,
+        score_delta: 1,
+        required_role: 'scribe',
+        once_per_round: true,
+        pressure_delta: -1,
+        resource_delta: { order: 1 },
+        combo_tags: ['hint', 'order'],
+        round_effect: '把题签和提示整理清楚，让队友下一次抢答更稳。',
+      },
     ],
   },
   assembly: {
@@ -371,8 +587,32 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
     default_target: 4,
     recommended_room_template_ids: ['lantern_fair', 'laba_cookpot', 'dragon_boat'],
     action_options: [
-      { id: 'lock_piece', label: '拼上一块', summary: '推进 1 个拼装部件，并增加 1 点工整度。', progress_delta: 1, score_delta: 1 },
-      { id: 'tighten_frame', label: '加固结构', summary: '推进 2 个部件，但只增加 1 点工整度。', progress_delta: 2, score_delta: 1 },
+      {
+        id: 'lock_piece',
+        label: '拼上一块',
+        summary: '推进 1 个拼装部件，并增加 1 点工整度。',
+        progress_delta: 1,
+        score_delta: 1,
+        required_role: 'craft',
+        once_per_round: true,
+        pressure_delta: 0,
+        resource_delta: { supplies: -1, memory: 1 },
+        combo_tags: ['craft', 'setup'],
+        round_effect: '把材料落到可见部件上，稳定推进并留下可回看的布景节点。',
+      },
+      {
+        id: 'tighten_frame',
+        label: '加固结构',
+        summary: '推进 2 个部件，但只增加 1 点工整度。',
+        progress_delta: 2,
+        score_delta: 1,
+        required_role: 'caller',
+        once_per_round: true,
+        pressure_delta: -1,
+        resource_delta: { order: 1, supplies: -1 },
+        combo_tags: ['craft', 'order'],
+        round_effect: '牺牲一点物资换来结构稳定，适合队伍准备冲刺前使用。',
+      },
     ],
   },
   gathering: {
@@ -385,8 +625,32 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
     default_target: 5,
     recommended_room_template_ids: ['dragon_boat', 'laba_cookpot', 'mid_autumn_moonwatch'],
     action_options: [
-      { id: 'deliver_bundle', label: '送回一篮', summary: '推进 1 个采集回合，并带回 1 点丰收值。', progress_delta: 1, score_delta: 1 },
-      { id: 'sort_bundle', label: '快速分拣', summary: '推进 1 个采集回合，并额外补 2 点整理分。', progress_delta: 1, score_delta: 2 },
+      {
+        id: 'deliver_bundle',
+        label: '送回一篮',
+        summary: '推进 1 个采集回合，并带回 1 点丰收值。',
+        progress_delta: 1,
+        score_delta: 1,
+        required_role: 'craft',
+        once_per_round: true,
+        pressure_delta: 0,
+        resource_delta: { supplies: 1 },
+        combo_tags: ['supply', 'craft'],
+        round_effect: '把本回合需要的材料送回现场，给后续动作补足物资余量。',
+      },
+      {
+        id: 'sort_bundle',
+        label: '快速分拣',
+        summary: '推进 1 个采集回合，并额外补 2 点整理分。',
+        progress_delta: 1,
+        score_delta: 2,
+        required_role: 'scribe',
+        once_per_round: true,
+        pressure_delta: -1,
+        resource_delta: { order: 1 },
+        combo_tags: ['order', 'supply'],
+        round_effect: '把采集物资分清用途，降低队友下一步选择成本。',
+      },
     ],
   },
   performance: {
@@ -399,8 +663,32 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
     default_target: 6,
     recommended_room_template_ids: ['yuanri_vigil', 'qixi_stroll', 'mid_autumn_moonwatch'],
     action_options: [
-      { id: 'keep_beat', label: '稳住节拍', summary: '推进 1 个表演节拍，并累积 2 点喝彩值。', progress_delta: 1, score_delta: 2 },
-      { id: 'lift_applause', label: '带动气氛', summary: '不推进节拍，但能把喝彩值抬高 1 点。', progress_delta: 0, score_delta: 1 },
+      {
+        id: 'keep_beat',
+        label: '稳住节拍',
+        summary: '推进 1 个表演节拍，并累积 2 点喝彩值。',
+        progress_delta: 1,
+        score_delta: 2,
+        required_role: 'rhythm',
+        once_per_round: true,
+        pressure_delta: 0,
+        resource_delta: { cheer: 1 },
+        combo_tags: ['performance', 'rhythm'],
+        round_effect: '把本回合演出落在稳定节拍上，让喝彩转成可持续推进。',
+      },
+      {
+        id: 'lift_applause',
+        label: '带动气氛',
+        summary: '不推进节拍，但能把喝彩值抬高 1 点。',
+        progress_delta: 0,
+        score_delta: 1,
+        required_role: 'caller',
+        once_per_round: true,
+        pressure_delta: 1,
+        resource_delta: { cheer: 2, order: -1 },
+        combo_tags: ['performance', 'crowd'],
+        round_effect: '把观众情绪抬起来，能制造高光，但需要队友把场面接稳。',
+      },
     ],
   },
   group_photo: {
@@ -413,7 +701,19 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
     default_target: 2,
     recommended_room_template_ids: ['qixi_stroll', 'mid_autumn_moonwatch', 'lantern_fair'],
     action_options: [
-      { id: 'lock_pose', label: '锁定站位', summary: '每位成员各自完成一次站位锁定，站齐后即可完成合照模板。', progress_delta: 1, score_delta: 1, unique_per_member: true },
+      {
+        id: 'lock_pose',
+        label: '锁定站位',
+        summary: '每位成员各自完成一次站位锁定，站齐后即可完成合照模板。',
+        progress_delta: 1,
+        score_delta: 1,
+        unique_per_member: true,
+        required_role: 'scribe',
+        pressure_delta: -1,
+        resource_delta: { memory: 2 },
+        combo_tags: ['memory', 'order'],
+        round_effect: '把个人站位锁进合照记录，队友后续动作会看到这次留影余量。',
+      },
     ],
   },
   expedition_roles: {
@@ -755,8 +1055,11 @@ function listGameplayTemplates(domain = DEFAULT_ACTIVITY_DOMAIN) {
           unique_per_member: action.unique_per_member === true,
           required_role: sanitizeText(action.required_role, 24),
           once_per_round: action.once_per_round === true,
+          pressure_delta: Math.floor(Number(action.pressure_delta) || 0),
           risk_delta: Math.floor(Number(action.risk_delta) || 0),
-          resource_delta: normalizeExpeditionCavernResourceDelta(action.resource_delta),
+          resource_delta: normalizedDomain === 'festival'
+            ? normalizeFestivalResourceDelta(action.resource_delta)
+            : normalizeExpeditionCavernResourceDelta(action.resource_delta),
           combo_tags: Array.isArray(action.combo_tags) ? action.combo_tags.map(item => sanitizeText(item, 24)).filter(Boolean).slice(0, 8) : [],
           round_effect: sanitizeText(action.round_effect, 160),
         }))
@@ -1100,6 +1403,215 @@ function buildExpeditionCavernEventSnapshot(event) {
   };
 }
 
+function getFestivalEventsForRoomTemplate(roomTemplateId) {
+  const normalizedTemplateId = sanitizeText(roomTemplateId, 40);
+  const events = FESTIVAL_ROUND_EVENTS_BY_TEMPLATE[normalizedTemplateId] || FESTIVAL_ROUND_EVENTS_BY_TEMPLATE.default;
+  return Array.isArray(events) && events.length > 0 ? events : FESTIVAL_ROUND_EVENTS_BY_TEMPLATE.default;
+}
+
+function getFestivalEventByRound(roomTemplateId, roundNumber) {
+  const events = getFestivalEventsForRoomTemplate(roomTemplateId);
+  const normalizedRound = Math.max(1, Math.floor(Number(roundNumber) || 1));
+  const eventIndex = (normalizedRound - 1) % events.length;
+  return events[eventIndex] || events[0];
+}
+
+function normalizeFestivalResources(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  return FESTIVAL_RESOURCE_DEFS.reduce((resources, definition) => {
+    resources[definition.id] = clampNumber(source[definition.id], 0, definition.max_value);
+    return resources;
+  }, {});
+}
+
+function createInitialFestivalResources() {
+  return FESTIVAL_RESOURCE_DEFS.reduce((resources, definition) => {
+    resources[definition.id] = definition.initial_value;
+    return resources;
+  }, {});
+}
+
+function normalizeFestivalResourceDelta(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  return FESTIVAL_RESOURCE_DEFS.reduce((delta, definition) => {
+    const nextValue = Math.floor(Number(source[definition.id]) || 0);
+    if (nextValue !== 0) delta[definition.id] = nextValue;
+    return delta;
+  }, {});
+}
+
+function normalizeFestivalRoundLogEntry(entry) {
+  return {
+    id: String(entry?.id || makeId('festival_round_log')),
+    round_number: Math.max(1, Math.floor(Number(entry?.round_number) || 1)),
+    event_id: sanitizeText(entry?.event_id, 40),
+    actor_username: sanitizeText(entry?.actor_username, 40),
+    actor_display_name: sanitizeText(entry?.actor_display_name, 40),
+    action_id: sanitizeText(entry?.action_id, 40),
+    action_label: sanitizeText(entry?.action_label, 40),
+    role_id: sanitizeText(entry?.role_id, 24),
+    role_label: sanitizeText(entry?.role_label, 24),
+    summary: sanitizeText(entry?.summary, 180),
+    progress_delta: Math.max(0, Math.floor(Number(entry?.progress_delta) || 0)),
+    score_delta: Math.max(0, Math.floor(Number(entry?.score_delta) || 0)),
+    pressure_delta: Math.floor(Number(entry?.pressure_delta) || 0),
+    resource_delta: normalizeFestivalResourceDelta(entry?.resource_delta),
+    created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
+  };
+}
+
+function createInitialFestivalState(roomTemplateId = '') {
+  const initialRound = 1;
+  const event = getFestivalEventByRound(roomTemplateId, initialRound);
+  return {
+    round_number: initialRound,
+    current_event_id: event.id,
+    pressure_value: FESTIVAL_INITIAL_PRESSURE,
+    pressure_max: FESTIVAL_ROUND_PRESSURE_MAX,
+    team_resources: createInitialFestivalResources(),
+    role_assignments: [],
+    round_actions: [],
+    round_log: [],
+    recent_feedback: `第 ${initialRound} 回合进入「${event.label}」：${event.summary}`,
+  };
+}
+
+function normalizeFestivalRoleAssignment(entry) {
+  const roleId = sanitizeText(entry?.role_id, 24);
+  const roleDefinition = FESTIVAL_ROLE_DEFS.find(item => item.id === roleId) || FESTIVAL_ROLE_DEFS[0];
+  return {
+    username: sanitizeText(entry?.username, 40),
+    display_name: sanitizeText(entry?.display_name, 40),
+    role_id: roleDefinition.id,
+    role_label: roleDefinition.label,
+    role_summary: roleDefinition.summary,
+  };
+}
+
+function normalizeFestivalRoundAction(entry) {
+  return {
+    round_number: Math.max(1, Math.floor(Number(entry?.round_number) || 1)),
+    action_id: sanitizeText(entry?.action_id, 40),
+    actor_username: sanitizeText(entry?.actor_username, 40),
+    created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
+  };
+}
+
+function normalizeFestivalState(value, roomTemplateId = '') {
+  const initial = createInitialFestivalState(roomTemplateId);
+  const source = value && typeof value === 'object' ? value : {};
+  const roundNumber = Math.max(1, Math.floor(Number(source.round_number) || initial.round_number));
+  const event = getFestivalEventsForRoomTemplate(roomTemplateId).find(item => item.id === sanitizeText(source.current_event_id, 40))
+    || getFestivalEventByRound(roomTemplateId, roundNumber);
+  return {
+    round_number: roundNumber,
+    current_event_id: event.id,
+    pressure_value: clampNumber(source.pressure_value ?? initial.pressure_value, 0, FESTIVAL_ROUND_PRESSURE_MAX),
+    pressure_max: FESTIVAL_ROUND_PRESSURE_MAX,
+    team_resources: normalizeFestivalResources(source.team_resources ?? initial.team_resources),
+    role_assignments: Array.isArray(source.role_assignments)
+      ? source.role_assignments.map(normalizeFestivalRoleAssignment).filter(item => item.username)
+      : [],
+    round_actions: Array.isArray(source.round_actions)
+      ? source.round_actions.map(normalizeFestivalRoundAction).filter(item => item.actor_username && item.action_id)
+      : [],
+    round_log: Array.isArray(source.round_log)
+      ? source.round_log.map(normalizeFestivalRoundLogEntry).slice(0, FESTIVAL_ROUND_LOG_LIMIT)
+      : [],
+    recent_feedback: sanitizeText(source.recent_feedback || initial.recent_feedback, 180),
+  };
+}
+
+function getFestivalRoleForMember(room, member) {
+  const joinedMembers = getJoinedMembers(room);
+  const memberIndex = Math.max(0, joinedMembers.findIndex(item => item.username === member.username));
+  const roleDefinition = FESTIVAL_ROLE_DEFS[memberIndex % FESTIVAL_ROLE_DEFS.length] || FESTIVAL_ROLE_DEFS[0];
+  return {
+    username: member.username,
+    display_name: member.display_name,
+    role_id: roleDefinition.id,
+    role_label: roleDefinition.label,
+    role_summary: roleDefinition.summary,
+  };
+}
+
+function syncFestivalRoleAssignments(room, festivalState) {
+  const joinedMembers = getJoinedMembers(room);
+  festivalState.role_assignments = joinedMembers.map(member => getFestivalRoleForMember(room, member));
+  return festivalState.role_assignments;
+}
+
+function getFestivalRoleLabel(roleId) {
+  const role = FESTIVAL_ROLE_DEFS.find(item => item.id === sanitizeText(roleId, 24));
+  return role?.label || '';
+}
+
+function getFestivalActionRoleStatus(room, member, actionOption) {
+  const requiredRole = sanitizeText(actionOption?.required_role, 24);
+  if (!requiredRole || !member) return { can_use: true, disabled_reason: '' };
+  return { can_use: true, disabled_reason: '' };
+}
+
+function getFestivalRoundActionStatus(gameplayState, member, actionOption) {
+  const festivalState = normalizeFestivalState(gameplayState?.festival_state);
+  if (!actionOption?.once_per_round || !member) return { can_use: true, disabled_reason: '' };
+  const alreadyUsed = (festivalState.round_actions || []).some(entry =>
+    entry.round_number === festivalState.round_number &&
+    entry.actor_username === member.username &&
+    entry.action_id === actionOption.id
+  );
+  if (!alreadyUsed) return { can_use: true, disabled_reason: '' };
+  return {
+    can_use: false,
+    disabled_reason: '这个动作每位成员每回合只能执行一次',
+  };
+}
+
+function applyFestivalResourceDelta(festivalState, resourceDelta) {
+  const delta = normalizeFestivalResourceDelta(resourceDelta);
+  const nextResources = normalizeFestivalResources(festivalState.team_resources);
+  for (const definition of FESTIVAL_RESOURCE_DEFS) {
+    const nextValue = (nextResources[definition.id] || 0) + (delta[definition.id] || 0);
+    nextResources[definition.id] = clampNumber(nextValue, 0, definition.max_value);
+  }
+  festivalState.team_resources = nextResources;
+  return delta;
+}
+
+function summarizeFestivalResourceDelta(resourceDelta) {
+  const delta = normalizeFestivalResourceDelta(resourceDelta);
+  return FESTIVAL_RESOURCE_DEFS
+    .filter(definition => delta[definition.id])
+    .map(definition => `${definition.label}${formatSignedDelta(delta[definition.id])}`)
+    .join('，');
+}
+
+function mergeFestivalResourceDelta(baseDelta, extraDelta) {
+  const base = normalizeFestivalResourceDelta(baseDelta);
+  const extra = normalizeFestivalResourceDelta(extraDelta);
+  return FESTIVAL_RESOURCE_DEFS.reduce((merged, definition) => {
+    const nextValue = (base[definition.id] || 0) + (extra[definition.id] || 0);
+    if (nextValue !== 0) merged[definition.id] = nextValue;
+    return merged;
+  }, {});
+}
+
+function getFestivalCurrentEvent(room, festivalState) {
+  return getFestivalEventsForRoomTemplate(room?.template_id).find(item => item.id === sanitizeText(festivalState?.current_event_id, 40))
+    || getFestivalEventByRound(room?.template_id, festivalState?.round_number);
+}
+
+function buildFestivalEventSnapshot(event) {
+  return {
+    id: event.id,
+    label: event.label,
+    summary: event.summary,
+    pressure_hint: event.pressure_hint,
+    resource_hint: event.resource_hint,
+    combo_tags: Array.isArray(event.combo_tags) ? [...event.combo_tags] : [],
+  };
+}
+
 function createInitialGameplayState(gameplayTemplateId, roomTemplateId = '') {
   const roomTemplate = getRoomTemplate(roomTemplateId);
   const template = getGameplayTemplateByDomain(getTemplateDomain(roomTemplate), gameplayTemplateId, roomTemplateId);
@@ -1116,6 +1628,9 @@ function createInitialGameplayState(gameplayTemplateId, roomTemplateId = '') {
     completed_at: 0,
     contributions: [],
   };
+  if (getTemplateDomain(roomTemplate) === 'festival') {
+    state.festival_state = createInitialFestivalState(roomTemplate.id);
+  }
   if (template.id === 'expedition_cavern') {
     state.cavern_state = createInitialExpeditionCavernState();
   }
@@ -1143,6 +1658,9 @@ function normalizeGameplayState(entry, gameplayTemplateId, roomTemplateId = '', 
       ? entry.contributions.map(normalizeGameplayContribution).filter(item => item.username)
       : [],
   };
+  if (activityDomain === 'festival') {
+    state.festival_state = normalizeFestivalState(entry?.festival_state, roomTemplateId);
+  }
   if (template.id === 'expedition_cavern') {
     state.cavern_state = normalizeExpeditionCavernState(entry?.cavern_state);
   }
@@ -1257,6 +1775,10 @@ function ensureRoomGameplayState(room) {
       room.gameplay_state.progress_target = targetValue;
       touchRoom(room);
     }
+  }
+  if (room.activity_domain === 'festival') {
+    room.gameplay_state.festival_state = normalizeFestivalState(room.gameplay_state.festival_state, room.template_id);
+    syncFestivalRoleAssignments(room, room.gameplay_state.festival_state);
   }
   if (gameplayTemplate.id === 'expedition_cavern') {
     room.gameplay_state.cavern_state = normalizeExpeditionCavernState(room.gameplay_state.cavern_state);
@@ -1403,9 +1925,19 @@ function buildExpeditionCavernRoundText(cavernState) {
   return `第 ${Math.max(1, cavernState?.round_number || 1)} 回合 · ${event.label}`;
 }
 
+function buildFestivalRoundText(room, festivalState) {
+  const event = getFestivalCurrentEvent(room, festivalState);
+  return `第 ${Math.max(1, festivalState?.round_number || 1)} 回合 · ${event.label}`;
+}
+
 function buildExpeditionCavernResourceSummary(cavernState) {
   const resources = normalizeExpeditionCavernResources(cavernState?.team_resources);
   return EXPEDITION_CAVERN_RESOURCE_DEFS.map(definition => `${definition.label}${resources[definition.id] || 0}`).join(' / ');
+}
+
+function buildFestivalResourceSummary(festivalState) {
+  const resources = normalizeFestivalResources(festivalState?.team_resources);
+  return FESTIVAL_RESOURCE_DEFS.map(definition => `${definition.label}${resources[definition.id] || 0}`).join(' / ');
 }
 
 function buildExpeditionCavernTeamRoles(room, cavernState) {
@@ -1456,6 +1988,54 @@ function buildExpeditionCavernRoundLog(room, cavernState) {
     });
 }
 
+function buildFestivalTeamRoles(room, festivalState) {
+  const joinedMembers = getJoinedMembers(room);
+  const assignments = Array.isArray(festivalState?.role_assignments) && festivalState.role_assignments.length > 0
+    ? festivalState.role_assignments
+    : joinedMembers.map(member => getFestivalRoleForMember(room, member));
+  return joinedMembers.map(member => {
+    const assignment = assignments.find(item => item.username === member.username) || getFestivalRoleForMember(room, member);
+    return {
+      username: member.username,
+      display_name: member.display_name,
+      role_id: assignment.role_id,
+      role_label: assignment.role_label,
+      role_summary: assignment.role_summary,
+    };
+  });
+}
+
+function buildFestivalRoundLog(room, festivalState) {
+  const joinedMembers = getJoinedMembers(room);
+  const roleAssignments = buildFestivalTeamRoles(room, festivalState);
+  const roleByUsername = new Map(roleAssignments.map(item => [item.username, item]));
+  const memberByUsername = new Map(joinedMembers.map(member => [member.username, member]));
+  return (festivalState?.round_log || [])
+    .slice(0, FESTIVAL_ROUND_LOG_LIMIT)
+    .map(entry => {
+      const member = memberByUsername.get(entry.actor_username);
+      const role = roleByUsername.get(entry.actor_username);
+      return {
+        id: entry.id,
+        round_number: entry.round_number,
+        event_id: entry.event_id,
+        actor_username: entry.actor_username,
+        actor_display_name: entry.actor_display_name || member?.display_name || entry.actor_username,
+        action_id: entry.action_id,
+        action_label: entry.action_label,
+        role_id: entry.role_id || role?.role_id || '',
+        role_label: entry.role_label || role?.role_label || '',
+        summary: entry.summary,
+        progress_delta: entry.progress_delta,
+        score_delta: entry.score_delta,
+        pressure_delta: entry.pressure_delta,
+        resource_delta: entry.resource_delta,
+        resource_delta_text: summarizeFestivalResourceDelta(entry.resource_delta),
+        created_at: entry.created_at,
+      };
+    });
+}
+
 function createExpeditionCavernRoundSummary(room, cavernState, actor, actionOption, contribution, resourceDelta, riskDelta, extraSummary = '') {
   const event = getExpeditionCavernCurrentEvent(cavernState);
   const resourceText = summarizeExpeditionCavernResourceDelta(resourceDelta);
@@ -1473,6 +2053,27 @@ function createExpeditionCavernRoundSummary(room, cavernState, actor, actionOpti
   if (resourceText) parts.push(`资源 ${resourceText}`);
   if (extraSummary) parts.push(extraSummary);
   if (contribution?.locked) parts.push('本角色已锁定');
+  return parts.join('，');
+}
+
+function createFestivalRoundSummary(room, festivalState, actor, actionOption, contribution, resourceDelta, pressureDelta, extraSummary = '') {
+  const event = getFestivalCurrentEvent(room, festivalState);
+  const resourceText = summarizeFestivalResourceDelta(resourceDelta);
+  const pressureText = pressureDelta ? `场面压力${formatSignedDelta(pressureDelta)}` : '场面压力持平';
+  const progressText = `${room.gameplay_state.progress_value}/${room.gameplay_state.progress_target}`;
+  const scoreText = `${room.gameplay_state.score_value}`;
+  const template = getGameplayTemplateByDomain(room.activity_domain, room.gameplay_template_id, room.template_id);
+  const parts = [
+    `${actor.displayName || actor.username} 执行「${actionOption.label}」`,
+    `回合 ${Math.max(1, festivalState.round_number)}`,
+    `事件「${event.label}」`,
+    `进度 ${progressText}`,
+    `${template.score_label}${scoreText}`,
+    pressureText,
+  ];
+  if (resourceText) parts.push(`资源 ${resourceText}`);
+  if (extraSummary) parts.push(extraSummary);
+  if (contribution?.locked) parts.push('本成员动作已锁定');
   return parts.join('，');
 }
 
@@ -1510,6 +2111,44 @@ function advanceExpeditionCavernRound(room, cavernState, actor) {
       created_at: nowSeconds(),
     }),
     ...(cavernState.round_log || []).slice(0, EXPEDITION_CAVERN_ROUND_LOG_LIMIT - 1),
+  ];
+  touchRoom(room);
+}
+
+function advanceFestivalRound(room, festivalState, actor) {
+  const nextRound = Math.max(1, festivalState.round_number + 1);
+  festivalState.round_number = nextRound;
+  const event = getFestivalEventByRound(room.template_id, nextRound);
+  festivalState.current_event_id = event.id;
+  const currentResources = normalizeFestivalResources(festivalState.team_resources);
+  const nextResources = {};
+  for (const definition of FESTIVAL_RESOURCE_DEFS) {
+    const restored = currentResources[definition.id] + (definition.id === 'order' ? 1 : 0);
+    nextResources[definition.id] = clampNumber(restored, 0, definition.max_value);
+  }
+  festivalState.team_resources = nextResources;
+  festivalState.pressure_value = clampNumber(festivalState.pressure_value + 1, 0, FESTIVAL_ROUND_PRESSURE_MAX);
+  festivalState.round_actions = [];
+  syncFestivalRoleAssignments(room, festivalState);
+  festivalState.recent_feedback = `第 ${nextRound} 回合进入「${event.label}」：${event.summary}`;
+  festivalState.round_log = [
+    normalizeFestivalRoundLogEntry({
+      round_number: nextRound,
+      event_id: event.id,
+      actor_username: actor?.username,
+      actor_display_name: actor?.displayName || actor?.username,
+      action_id: 'round_advance',
+      action_label: '回合推进',
+      role_id: '',
+      role_label: '',
+      summary: festivalState.recent_feedback,
+      progress_delta: 0,
+      score_delta: 0,
+      pressure_delta: 1,
+      resource_delta: { order: 1 },
+      created_at: nowSeconds(),
+    }),
+    ...(festivalState.round_log || []).slice(0, FESTIVAL_ROUND_LOG_LIMIT - 1),
   ];
   touchRoom(room);
 }
@@ -1587,6 +2226,79 @@ function applyExpeditionCavernRoundEffects(room, cavernState, actor, actionOptio
   return roundLogEntry;
 }
 
+function applyFestivalRoundEffects(room, festivalState, actor, actionOption, contribution) {
+  const event = getFestivalCurrentEvent(room, festivalState);
+  const basePressureDelta = Math.floor(Number(actionOption.pressure_delta) || 0);
+  const baseResourceDelta = normalizeFestivalResourceDelta(actionOption.resource_delta);
+  const eventResourceDelta = {};
+  let extraScoreDelta = 0;
+  let extraPressureDelta = 0;
+  let extraSummary = '';
+  const actionTags = new Set(Array.isArray(actionOption.combo_tags) ? actionOption.combo_tags : []);
+
+  if (event.combo_bonus && Array.isArray(event.combo_tags)) {
+    const matched = event.combo_tags.some(tag => actionTags.has(tag));
+    if (matched) {
+      extraScoreDelta += Math.max(0, Math.floor(Number(event.combo_bonus.score_delta) || 0));
+      extraPressureDelta += Math.floor(Number(event.combo_bonus.pressure_delta) || 0);
+      Object.assign(eventResourceDelta, normalizeFestivalResourceDelta(event.combo_bonus.resource_delta));
+      extraSummary = sanitizeText(event.combo_bonus.summary, 120);
+    }
+  }
+
+  if (basePressureDelta !== 0) {
+    festivalState.pressure_value = clampNumber(festivalState.pressure_value + basePressureDelta, 0, festivalState.pressure_max);
+  }
+  if (extraPressureDelta !== 0) {
+    festivalState.pressure_value = clampNumber(festivalState.pressure_value + extraPressureDelta, 0, festivalState.pressure_max);
+  }
+
+  const mergedResourceDelta = mergeFestivalResourceDelta(baseResourceDelta, eventResourceDelta);
+  applyFestivalResourceDelta(festivalState, mergedResourceDelta);
+
+  if (festivalState.pressure_value >= festivalState.pressure_max - 1) {
+    festivalState.team_resources.order = clampNumber(festivalState.team_resources.order - 1, 0, 8);
+  }
+  if (extraScoreDelta > 0) {
+    room.gameplay_state.score_value += extraScoreDelta;
+    contribution.score_value += extraScoreDelta;
+  }
+
+  const roundLogEntry = normalizeFestivalRoundLogEntry({
+    round_number: festivalState.round_number,
+    event_id: event.id,
+    actor_username: actor.username,
+    actor_display_name: actor.displayName,
+    action_id: actionOption.id,
+    action_label: actionOption.label,
+    role_id: contribution?.role_id || '',
+    role_label: contribution?.role_label || '',
+    summary: createFestivalRoundSummary(room, festivalState, actor, actionOption, contribution, mergedResourceDelta, basePressureDelta + extraPressureDelta, extraSummary),
+    progress_delta: Math.max(0, Math.floor(Number(actionOption.progress_delta) || 0)),
+    score_delta: Math.max(0, Math.floor(Number(actionOption.score_delta) || 0)) + extraScoreDelta,
+    pressure_delta: basePressureDelta + extraPressureDelta,
+    resource_delta: mergedResourceDelta,
+    created_at: nowSeconds(),
+  });
+  festivalState.round_log = [roundLogEntry, ...(festivalState.round_log || [])].slice(0, FESTIVAL_ROUND_LOG_LIMIT);
+  festivalState.round_actions = [
+    ...(festivalState.round_actions || []),
+    {
+      round_number: festivalState.round_number,
+      action_id: actionOption.id,
+      actor_username: actor.username,
+      created_at: nowSeconds(),
+    },
+  ].slice(-12);
+  festivalState.recent_feedback = roundLogEntry.summary;
+  if (festivalState.round_actions.filter(entry => entry.round_number === festivalState.round_number).length >= FESTIVAL_ROUND_ACTION_TARGET) {
+    advanceFestivalRound(room, festivalState, actor);
+  } else {
+    touchRoom(room);
+  }
+  return roundLogEntry;
+}
+
 function buildExpeditionCavernSnapshot(room, viewerMember, gameplayState) {
   const cavernState = normalizeExpeditionCavernState(gameplayState?.cavern_state);
   syncExpeditionCavernRoleAssignments(room, cavernState);
@@ -1620,6 +2332,42 @@ function buildExpeditionCavernSnapshot(room, viewerMember, gameplayState) {
     recent_feedback: cavernState.recent_feedback,
   };
 }
+
+function buildFestivalSnapshot(room, viewerMember, gameplayState) {
+  const festivalState = normalizeFestivalState(gameplayState?.festival_state, room.template_id);
+  syncFestivalRoleAssignments(room, festivalState);
+  const event = getFestivalCurrentEvent(room, festivalState);
+  const roleAssignments = buildFestivalTeamRoles(room, festivalState);
+  const viewerAssignment = viewerMember ? roleAssignments.find(item => item.username === viewerMember.username) || null : null;
+  const roundLog = buildFestivalRoundLog(room, festivalState);
+  return {
+    round_number: festivalState.round_number,
+    round_text: buildFestivalRoundText(room, festivalState),
+    current_event: buildFestivalEventSnapshot(event),
+    pressure_value: festivalState.pressure_value,
+    pressure_max: festivalState.pressure_max,
+    pressure_text: `${festivalState.pressure_value} / ${festivalState.pressure_max}`,
+    team_resources: FESTIVAL_RESOURCE_DEFS.map(definition => ({
+      id: definition.id,
+      label: definition.label,
+      value: festivalState.team_resources[definition.id] || 0,
+      max_value: definition.max_value,
+      text: `${definition.label} ${festivalState.team_resources[definition.id] || 0} / ${definition.max_value}`,
+    })),
+    role_assignments: roleAssignments,
+    my_role: viewerAssignment,
+    round_actions: festivalState.round_actions.slice(-12).map(entry => ({
+      round_number: entry.round_number,
+      action_id: entry.action_id,
+      actor_username: entry.actor_username,
+      created_at: entry.created_at,
+    })),
+    round_log: roundLog,
+    recent_feedback: festivalState.recent_feedback,
+    resource_summary: buildFestivalResourceSummary(festivalState),
+  };
+}
+
 function canUseGameplayAction(room, gameplayState, viewerMember, actionOption) {
   if (!viewerMember) return { can_use: false, disabled_reason: '你当前不在这个节会房间里' };
   if (room.state !== 'running') return { can_use: false, disabled_reason: '只有房间进入进行中后，才能提交玩法动作' };
@@ -1633,6 +2381,12 @@ function canUseGameplayAction(room, gameplayState, viewerMember, actionOption) {
     const roleStatus = getExpeditionCavernActionRoleStatus(room, viewerMember, actionOption);
     if (!roleStatus.can_use) return roleStatus;
     const roundStatus = getExpeditionCavernRoundActionStatus(gameplayState, viewerMember, actionOption);
+    if (!roundStatus.can_use) return roundStatus;
+  }
+  if (room.activity_domain === 'festival') {
+    const roleStatus = getFestivalActionRoleStatus(room, viewerMember, actionOption);
+    if (!roleStatus.can_use) return roleStatus;
+    const roundStatus = getFestivalRoundActionStatus(gameplayState, viewerMember, actionOption);
     if (!roundStatus.can_use) return roundStatus;
   }
   return { can_use: true, disabled_reason: '' };
@@ -1686,20 +2440,28 @@ function buildGameplaySnapshot(room, viewerUsername) {
     cavern_state: template.id === 'expedition_cavern'
       ? buildExpeditionCavernSnapshot(room, viewerMember, gameplayState)
       : null,
+    festival_state: room.activity_domain === 'festival'
+      ? buildFestivalSnapshot(room, viewerMember, gameplayState)
+      : null,
     available_actions: (template.action_options || []).map(actionOption => {
       const status = canUseGameplayAction(room, gameplayState, viewerMember, actionOption);
+      const isFestivalRoom = room.activity_domain === 'festival';
+      const pressureDelta = Math.floor(Number(actionOption.pressure_delta) || 0);
+      const riskDelta = Math.floor(Number(actionOption.risk_delta) || 0);
       return {
         id: actionOption.id,
         label: actionOption.label,
         summary: actionOption.summary,
         unique_per_member: actionOption.unique_per_member === true,
         required_role: sanitizeText(actionOption.required_role, 24),
-        required_role_label: getExpeditionCavernRoleLabel(actionOption.required_role),
+        required_role_label: isFestivalRoom ? getFestivalRoleLabel(actionOption.required_role) : getExpeditionCavernRoleLabel(actionOption.required_role),
         once_per_round: actionOption.once_per_round === true,
-        risk_delta: Math.floor(Number(actionOption.risk_delta) || 0),
-        risk_delta_text: actionOption.risk_delta ? `风险${formatSignedDelta(actionOption.risk_delta)}` : '',
-        resource_delta: normalizeExpeditionCavernResourceDelta(actionOption.resource_delta),
-        resource_delta_text: summarizeExpeditionCavernResourceDelta(actionOption.resource_delta),
+        pressure_delta: pressureDelta,
+        pressure_delta_text: pressureDelta ? `场面压力${formatSignedDelta(pressureDelta)}` : '',
+        risk_delta: riskDelta,
+        risk_delta_text: riskDelta ? `风险${formatSignedDelta(riskDelta)}` : '',
+        resource_delta: isFestivalRoom ? normalizeFestivalResourceDelta(actionOption.resource_delta) : normalizeExpeditionCavernResourceDelta(actionOption.resource_delta),
+        resource_delta_text: isFestivalRoom ? summarizeFestivalResourceDelta(actionOption.resource_delta) : summarizeExpeditionCavernResourceDelta(actionOption.resource_delta),
         combo_tags: Array.isArray(actionOption.combo_tags) ? actionOption.combo_tags.map(item => sanitizeText(item, 24)).filter(Boolean).slice(0, 8) : [],
         round_effect: sanitizeText(actionOption.round_effect, 160),
         can_use: status.can_use,
@@ -1757,6 +2519,17 @@ function applyGameplayAction(room, actionId, actor) {
     contribution.role_id = roleAssignment.role_id;
     contribution.role_label = roleAssignment.role_label;
     const roundLogEntry = applyExpeditionCavernRoundEffects(room, gameplayState.cavern_state, {
+      username: gameplayState.last_actor_username,
+      displayName: gameplayState.last_actor_display_name,
+    }, actionOption, contribution);
+    gameplayState.last_action_summary = roundLogEntry.summary;
+  } else if (room.activity_domain === 'festival') {
+    gameplayState.festival_state = normalizeFestivalState(gameplayState.festival_state, room.template_id);
+    syncFestivalRoleAssignments(room, gameplayState.festival_state);
+    const roleAssignment = getFestivalRoleForMember(room, member);
+    contribution.role_id = roleAssignment.role_id;
+    contribution.role_label = roleAssignment.role_label;
+    const roundLogEntry = applyFestivalRoundEffects(room, gameplayState.festival_state, {
       username: gameplayState.last_actor_username,
       displayName: gameplayState.last_actor_display_name,
     }, actionOption, contribution);

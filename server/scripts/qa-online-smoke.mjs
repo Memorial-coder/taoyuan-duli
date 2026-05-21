@@ -2002,6 +2002,16 @@ try {
     assert(data?.ok === true && data?.my_room?.id === createdFestivalRoomId, 'festival room readback payload is incomplete')
     assert(String(data?.my_room?.state || '') === 'running', `festival room did not reach running state, current=${data?.my_room?.state}`)
     assert(String(data?.my_room?.gameplay?.phase || '') === 'active', `festival room gameplay did not enter active phase, current=${data?.my_room?.gameplay?.phase}`)
+    const festivalState = data?.my_room?.gameplay?.festival_state
+    assert(Number(festivalState?.round_number || 0) === 1, 'festival room round state did not start at round 1')
+    assert(String(festivalState?.current_event?.id || '') !== '', 'festival room round state missing current event')
+    assert(Array.isArray(festivalState?.team_resources) && festivalState.team_resources.length > 0, 'festival room round state missing team resources')
+    assert(Array.isArray(festivalState?.role_assignments) && festivalState.role_assignments.length >= 2, 'festival room round state missing role assignments')
+    const syncOarAction = (data?.my_room?.gameplay?.available_actions || []).find(entry => String(entry?.id || '') === 'sync_oar')
+    assert(syncOarAction?.required_role === 'rhythm', 'festival room action did not expose required_role')
+    assert(syncOarAction?.once_per_round === true, 'festival room action did not expose once_per_round')
+    assert(String(syncOarAction?.pressure_delta_text || '').includes('场面压力'), 'festival room action did not expose pressure delta text')
+    assert(String(syncOarAction?.round_effect || '').length > 0, 'festival room action did not expose round effect')
   })
 
   await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/action primary path', async () => {
@@ -2033,6 +2043,11 @@ try {
     assert(response.ok, `festival room secondary gameplay action returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && Array.isArray(data?.room?.gameplay?.contributions), 'festival room secondary gameplay action payload is incomplete')
     assert(data.room.gameplay.contributions.some(item => item?.username === secondarySessionState.username && Number(item?.action_count) >= 1), 'festival room secondary gameplay contribution was not recorded')
+    const festivalState = data?.room?.gameplay?.festival_state
+    assert(Number(festivalState?.round_number || 0) >= 2, 'festival room round state did not advance after two member actions')
+    assert(String(festivalState?.current_event?.label || '') !== '', 'festival room round state lost current event')
+    assert(Array.isArray(festivalState?.round_log) && festivalState.round_log.length >= 2, 'festival room round state missing round log')
+    assert(String(festivalState?.recent_feedback || '').includes('回合'), 'festival room round state missing recent feedback')
   })
 
   await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/action primary bonus path', async () => {
@@ -2049,6 +2064,28 @@ try {
     assert(response.ok, `festival room primary bonus action returned ${response.status}: ${data?.msg || 'unknown error'}`)
     const primaryContribution = data?.room?.gameplay?.contributions?.find(item => item?.username === sessionState.username)
     assert(Number(primaryContribution?.action_count || 0) >= 2, 'festival room primary bonus action did not keep host contribution ahead')
+    const festivalState = data?.room?.gameplay?.festival_state
+    assert(Array.isArray(festivalState?.team_resources) && festivalState.team_resources.some(item => String(item?.id || '') === 'order'), 'festival room round state lost team resources after bonus action')
+    assert(Array.isArray(festivalState?.role_assignments) && festivalState.role_assignments.some(item => String(item?.role_id || '') === 'caller'), 'festival room round state lost caller role after bonus action')
+  })
+
+  await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/action primary round-two closeout path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(createdFestivalRoomId)}/action`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-Token': sessionState.csrfToken,
+      },
+      body: JSON.stringify({
+        action_id: 'sync_oar',
+      }),
+    })
+    assert(response.ok, `festival room primary round-two closeout action returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    const primaryContribution = data?.room?.gameplay?.contributions?.find(item => item?.username === sessionState.username)
+    assert(Number(primaryContribution?.action_count || 0) >= 3, 'festival room primary round-two closeout action did not update contribution')
+    const festivalState = data?.room?.gameplay?.festival_state
+    assert(Number(festivalState?.round_number || 0) >= 3, 'festival room round state did not reach the third round after cross-player choices')
+    assert(Array.isArray(festivalState?.round_log) && festivalState.round_log.some(item => String(item?.action_id || '') === 'round_advance'), 'festival room round log did not record round advance')
   })
 
   await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/settle path', async () => {

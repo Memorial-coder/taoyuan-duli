@@ -33,6 +33,7 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
   const lastLoadedAt = ref(0)
 
   const myRoom = computed<FestivalRoomSnapshot | null>(() => overview.value?.my_room ?? null)
+  const myFestivalState = computed(() => myRoom.value?.gameplay?.festival_state ?? null)
   const visibleRooms = computed(() => overview.value?.visible_rooms ?? [])
   const invitedRooms = computed(() => overview.value?.invited_rooms ?? [])
   const recentMemorials = computed(() => overview.value?.recent_memorials ?? [])
@@ -168,6 +169,7 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     errorMessage,
     overview,
     myRoom,
+    myFestivalState,
     visibleRooms,
     invitedRooms,
     recentMemorials,

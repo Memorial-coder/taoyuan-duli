@@ -39,6 +39,13 @@ export interface FestivalGameplayActionOption {
   label: string
   summary: string
   unique_per_member: boolean
+  required_role?: string
+  once_per_round?: boolean
+  pressure_delta?: number
+  risk_delta?: number
+  resource_delta?: Record<string, number>
+  combo_tags?: string[]
+  round_effect?: string
 }
 
 export interface FestivalGameplayTemplate {
@@ -70,8 +77,86 @@ export interface FestivalGameplayAvailableAction {
   label: string
   summary: string
   unique_per_member: boolean
+  required_role: string
+  required_role_label: string
+  once_per_round: boolean
+  pressure_delta: number
+  pressure_delta_text: string
+  risk_delta: number
+  risk_delta_text: string
+  resource_delta: Record<string, number>
+  resource_delta_text: string
+  combo_tags: string[]
+  round_effect: string
   can_use: boolean
   disabled_reason: string
+}
+
+export interface FestivalCurrentEvent {
+  id: string
+  label: string
+  summary: string
+  pressure_hint: string
+  resource_hint: string
+  combo_tags: string[]
+}
+
+export interface FestivalResourceSnapshot {
+  id: string
+  label: string
+  value: number
+  max_value: number
+  text: string
+}
+
+export interface FestivalRoleSnapshot {
+  username: string
+  display_name: string
+  role_id: string
+  role_label: string
+  role_summary: string
+}
+
+export interface FestivalRoundActionSnapshot {
+  round_number: number
+  action_id: string
+  actor_username: string
+  created_at: number
+}
+
+export interface FestivalRoundLogSnapshot {
+  id: string
+  round_number: number
+  event_id: string
+  actor_username: string
+  actor_display_name: string
+  action_id: string
+  action_label: string
+  role_id: string
+  role_label: string
+  summary: string
+  progress_delta: number
+  score_delta: number
+  pressure_delta: number
+  resource_delta: Record<string, number>
+  resource_delta_text: string
+  created_at: number
+}
+
+export interface FestivalRoundStateSnapshot {
+  round_number: number
+  round_text: string
+  current_event: FestivalCurrentEvent
+  pressure_value: number
+  pressure_max: number
+  pressure_text: string
+  team_resources: FestivalResourceSnapshot[]
+  role_assignments: FestivalRoleSnapshot[]
+  my_role: FestivalRoleSnapshot | null
+  round_actions: FestivalRoundActionSnapshot[]
+  round_log: FestivalRoundLogSnapshot[]
+  recent_feedback: string
+  resource_summary: string
 }
 
 export interface FestivalGameplaySnapshot {
@@ -95,6 +180,7 @@ export interface FestivalGameplaySnapshot {
   is_completed: boolean
   completed_at: number
   contributions: FestivalGameplayContributionSnapshot[]
+  festival_state: FestivalRoundStateSnapshot | null
   available_actions: FestivalGameplayAvailableAction[]
 }
 
