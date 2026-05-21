@@ -18,12 +18,12 @@
 - `RegionMapView.vue` 新增“好友驿站”面板：地图页现在可以直接查看当前存档 ID、复制 ID、按数字 ID 搜索玩家、发送好友申请、处理收到的申请、查看好友列表 / 最近互动 / 拉黑列表，并执行删除好友、拉黑和解除拉黑。
 - `onlineProfileApi.ts` 与 `useSocialStore.ts` 已补齐地图页需要的客户端链路：新增 `player-search` 查询 helper、删除好友 helper、存档 ID 搜索结果状态，以及按存档 ID 申请、拉黑、解除拉黑和删除好友动作。
 - `useSaveStore.ts` 现在会保留服务端存档读回时注入的 `onlineIdentity`，地图页会优先用它展示“我的存档 ID”，并在关系概览里存在 `own_save_id` 时做回退展示。
-- 当前好友条目已提供庄园、写信、协作跳转、删除和拉黑入口；送礼、邀请进房和目标玩家定向上下文还未接入，后续继续沿 A3 / A6 收口。
+- 当前好友条目已提供庄园、写信、送礼、邀请进房、协作跳转、删除和拉黑入口；庄园 / 邮箱 / 礼物包裹 / 远征房间 / 协作单会承接目标玩家 `username / save_id` 上下文，先预填目标，不自动提交动作。
 - 本轮验证已通过 `npm --prefix taoyuan-main run type-check` 与 `npm --prefix taoyuan-main run build`。
 
 ### 0520 地图页好友面板移动端验证
 - 地图页好友驿站的申请处理、好友互动和解除拉黑按钮已补齐移动端触控高度，避免 360px 宽度下按钮虽然可见但点击区域偏扁。
-- `scripts/qa-mobile-ui-smoke.mjs` 新增好友驿站移动端场景：使用 mock 登录态与好友关系数据，在 390x844 和 360x780 下覆盖存档 ID 搜索、申请入口、好友条目、最近互动、拉黑列表、按钮触控尺寸和页面横向溢出断言。
+- `scripts/qa-mobile-ui-smoke.mjs` 新增好友驿站移动端场景：使用 mock 登录态与好友关系数据，在 390x844 和 360x780 下覆盖存档 ID 搜索、申请入口、好友条目、送礼 / 邀请进房入口、最近互动、拉黑列表、按钮触控尺寸和页面横向溢出断言。
 - 本轮真实 Chromium 验证已通过 `npm run qa:mobile-ui-smoke`，并生成 `docs/ui-smoke-2026-04-26/22-region-social-friend-panel-mobile-390x844.png` 与 `23-region-social-friend-panel-mobile-360x780.png`；summary 中 `consoleErrors / pageErrors / requestFailures` 均为空。
 
 ### 0520 联机发布控制与扩展骨架（L130-L154 第一轮）

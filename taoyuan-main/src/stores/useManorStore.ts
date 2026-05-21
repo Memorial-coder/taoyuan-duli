@@ -3,7 +3,7 @@ import { defineStore } from 'pinia'
 import {
   createManorGuestbookEntry,
   favoriteManor,
-  fetchOwnManorSnapshot,
+  fetchManorSnapshot,
   fetchFavoriteOverview,
   followManor,
   pinManorGuestbookEntry,
@@ -44,6 +44,7 @@ export const useManorStore = defineStore('onlineManor', () => {
 
   const loading = ref(false)
   const snapshot = ref<OnlineManorSnapshot | null>(null)
+  const activeTargetUsername = ref('')
   const errorMessage = ref('')
   const guestbookKindDraft = ref<ManorGuestbookKind>('text')
   const guestbookDraft = ref('')
@@ -82,11 +83,15 @@ export const useManorStore = defineStore('onlineManor', () => {
     guestbookDraft.value = content
   }
 
-  const refreshSnapshot = async () => {
+  const refreshSnapshot = async (targetUsername?: string) => {
+    const normalizedTarget = typeof targetUsername === 'string'
+      ? targetUsername.trim()
+      : activeTargetUsername.value
+    activeTargetUsername.value = normalizedTarget
     loading.value = true
     errorMessage.value = ''
     try {
-      snapshot.value = await fetchOwnManorSnapshot()
+      snapshot.value = await fetchManorSnapshot(normalizedTarget)
       syncThemeDrafts(snapshot.value)
       return snapshot.value
     } catch (error) {
@@ -278,6 +283,7 @@ export const useManorStore = defineStore('onlineManor', () => {
   return {
     loading,
     snapshot,
+    activeTargetUsername,
     errorMessage,
     guestbookKindDraft,
     guestbookDraft,

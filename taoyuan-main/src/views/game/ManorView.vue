@@ -2,8 +2,8 @@
   <div class="space-y-3">
     <div class="flex items-center justify-between gap-2">
       <div>
-        <p class="text-sm text-accent">公开庄园</p>
-        <p class="text-[10px] text-muted mt-1">把庄园公开展示成一个可以被别人理解的在线地点。</p>
+        <p class="text-sm text-accent">{{ manorStore.snapshot && !manorStore.snapshot.viewer_is_owner ? `${manorStore.snapshot.display_name}的公开庄园` : '公开庄园' }}</p>
+        <p class="text-[10px] text-muted mt-1">{{ routeTargetUsername ? '从好友驿站打开，当前正在查看目标玩家的庄园快照。' : '把庄园公开展示成一个可以被别人理解的在线地点。' }}</p>
       </div>
       <Button class="text-[10px]" :disabled="manorStore.loading" @click="refreshSnapshot">
         {{ manorStore.loading ? '加载中…' : '刷新庄园快照' }}
@@ -18,7 +18,7 @@
 
     <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
       <p class="text-xs text-accent">收藏与关注</p>
-      <div class="flex gap-2">
+      <div v-if="!manorStore.snapshot.viewer_is_owner" class="flex gap-2">
         <Button class="text-[10px]" :disabled="manorStore.favoriteActionRunning || manorStore.snapshot.is_favorited_by_viewer" @click="favoriteManor">
           {{ manorStore.snapshot.is_favorited_by_viewer ? '已收藏' : '收藏庄园' }}
         </Button>
@@ -26,6 +26,7 @@
           {{ manorStore.snapshot.is_followed_by_viewer ? '已关注更新' : '关注庄园更新' }}
         </Button>
       </div>
+      <p v-else class="text-[10px] text-muted">这是你自己的庄园，收藏和关注列表会展示其他玩家与热门庄园。</p>
       <div v-if="manorStore.favoriteOverview" class="grid gap-2 md:grid-cols-2">
         <div class="border border-accent/10 rounded-xs p-2">
           <p class="text-[10px] text-muted mb-1">同主题收藏</p>
@@ -54,7 +55,7 @@
 
     <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
       <p class="text-xs text-accent">庄园主题周</p>
-      <div class="border border-accent/10 rounded-xs p-2 bg-bg/10 space-y-2">
+      <div v-if="manorStore.snapshot.viewer_is_owner" class="border border-accent/10 rounded-xs p-2 bg-bg/10 space-y-2">
         <div class="flex items-center justify-between gap-2">
           <p class="text-[10px] text-muted">庄园主图</p>
           <Button class="text-[10px]" :disabled="uploadingCover" @click="triggerCoverUpload">
@@ -72,7 +73,7 @@
           />
         </div>
       </div>
-      <div class="grid gap-2 md:grid-cols-2">
+      <div v-if="manorStore.snapshot.viewer_is_owner" class="grid gap-2 md:grid-cols-2">
         <div class="border border-accent/10 rounded-xs p-2">
           <p class="text-[10px] text-muted mb-1">展示模板</p>
           <select
@@ -130,7 +131,7 @@
           <span v-if="manorStore.snapshot.theme_week.recommendations.length === 0" class="text-[10px] text-muted">当前没有额外推荐。</span>
         </div>
       </div>
-      <div class="flex gap-2">
+      <div v-if="manorStore.snapshot.viewer_is_owner" class="flex gap-2">
         <input
           v-model="manorStore.themeLabelDraft"
           maxlength="30"
@@ -294,7 +295,7 @@
     <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
       <p class="text-xs text-accent">庄园导览</p>
       <div class="grid gap-2 md:grid-cols-2">
-        <div class="border border-accent/10 rounded-xs p-2">
+        <div v-if="manorStore.snapshot.viewer_is_owner" class="border border-accent/10 rounded-xs p-2">
           <p class="text-[10px] text-muted mb-1">推荐参观点</p>
           <input
             v-model="manorStore.guidePointTitleDraft"
@@ -355,14 +356,15 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref } from 'vue'
-  import { useRouter } from 'vue-router'
+  import { computed, onMounted, ref, watch } from 'vue'
+  import { useRoute, useRouter } from 'vue-router'
   import Button from '@/components/game/Button.vue'
   import ManorPreviewCard from '@/components/game/ManorPreviewCard.vue'
   import { useManorStore } from '@/stores/useManorStore'
   import { showFloat } from '@/composables/useGameLog'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
 
+  const route = useRoute()
   const router = useRouter()
   const manorStore = useManorStore()
   const uploadingCover = ref(false)
@@ -375,9 +377,14 @@
     { id: 'signature', label: '签名', helper: '用落款式写法留名，让来访痕迹更像一封短短的署名。' },
   ] as const
   const currentGuestbookKind = computed(() => guestbookKindOptions.find(option => option.id === manorStore.guestbookKindDraft) ?? guestbookKindOptions[0])
+  const getRouteQueryText = (value: unknown) => {
+    const raw = Array.isArray(value) ? value[0] : value
+    return typeof raw === 'string' ? raw.trim() : ''
+  }
+  const routeTargetUsername = computed(() => getRouteQueryText(route.query.target_username))
 
   const refreshSnapshot = async () => {
-    await manorStore.refreshSnapshot().catch(() => {})
+    await manorStore.refreshSnapshot(routeTargetUsername.value).catch(() => {})
   }
 
   const submitGuestbook = async () => {
@@ -433,7 +440,10 @@
   }
 
   const openQuestBoard = () => {
-    void router.push('/game/quest')
+    const targetUsername = manorStore.snapshot?.viewer_is_owner ? '' : manorStore.snapshot?.username || routeTargetUsername.value
+    void router.push(targetUsername
+      ? { name: 'quest', query: { scope: 'friends', target_username: targetUsername } }
+      : { name: 'quest' })
   }
 
   const saveThemeWeek = async () => {
@@ -462,9 +472,14 @@
   }
 
   onMounted(() => {
-    if (!manorStore.snapshot) {
-      void refreshSnapshot()
-    }
+    void refreshSnapshot()
     void manorStore.refreshFavoriteOverview()
   })
+
+  watch(
+    () => route.query.target_username,
+    () => {
+      void refreshSnapshot()
+    }
+  )
 </script>

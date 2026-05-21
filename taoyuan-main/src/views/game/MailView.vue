@@ -480,6 +480,7 @@
 
 <script setup lang="ts">
   import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+  import { useRoute } from 'vue-router'
   import { useGameStore, SEASON_NAMES, WEATHER_NAMES } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { useDecorationStore } from '@/stores/useDecorationStore'
@@ -505,6 +506,7 @@
   import type { MailClaimSyncState, TaoyuanMailDetail, TaoyuanMailReward, TaoyuanMailSummary } from '@/stores/useMailboxStore'
 
   const gameStore = useGameStore()
+  const route = useRoute()
   const inventoryStore = useInventoryStore()
   const decorationStore = useDecorationStore()
   const mailboxStore = useMailboxStore()
@@ -741,6 +743,28 @@
   }
   const scrollMailViewToTop = () => {
     mailViewRoot.value?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+  }
+  const getRouteQueryText = (value: unknown) => {
+    const raw = Array.isArray(value) ? value[0] : value
+    return typeof raw === 'string' ? raw.trim() : ''
+  }
+  const applyMailRouteDraft = () => {
+    const targetUsername = getRouteQueryText(route.query.target_username)
+    if (!targetUsername) return
+    const compose = getRouteQueryText(route.query.compose)
+    activeMailId.value = null
+    activeMail.value = null
+    if (compose === 'gift') {
+      mailboxStore.giftPackageTargetDraft = targetUsername
+      if (!mailboxStore.giftPackageTitleDraft.trim()) {
+        mailboxStore.giftPackageTitleDraft = `给${targetUsername}的一份礼物包裹`
+      }
+      return
+    }
+    mailboxStore.letterTargetDraft = targetUsername
+    if (!mailboxStore.letterTitleDraft.trim()) {
+      mailboxStore.letterTitleDraft = `写给${targetUsername}的一封信`
+    }
   }
 
   const syncGiftPackageDraftDefaults = () => {
@@ -1130,6 +1154,7 @@
     await mailboxStore.refreshSentMails().catch(() => {})
     await mailboxStore.refreshMemorialEntries().catch(() => {})
     syncGiftPackageDraftDefaults()
+    applyMailRouteDraft()
     await refreshMails()
   })
 
@@ -1142,6 +1167,13 @@
     async (value, oldValue) => {
       if (!value || value === oldValue) return
       await ensureSelection()
+    }
+  )
+
+  watch(
+    () => [route.query.target_username, route.query.compose],
+    () => {
+      applyMailRouteDraft()
     }
   )
 

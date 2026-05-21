@@ -493,6 +493,8 @@ async function prepareRegionSocialFriendPanel(page) {
   await expect(panel.getByText('灰名单旅人').first()).toBeVisible()
   await expect(panel.getByRole('button', { name: '庄园' }).first()).toBeVisible()
   await expect(panel.getByRole('button', { name: '写信' }).first()).toBeVisible()
+  await expect(panel.getByRole('button', { name: '送礼' }).first()).toBeVisible()
+  await expect(panel.getByRole('button', { name: '邀请进房' }).first()).toBeVisible()
   await expect(panel.getByRole('button', { name: '协作' }).first()).toBeVisible()
   await expect(panel.getByRole('button', { name: '删除' }).first()).toBeVisible()
   await expect(panel.getByRole('button', { name: '拉黑' }).first()).toBeVisible()
@@ -736,7 +738,7 @@ async function main() {
       notes: [
         '使用 region_map_showcase 样例档生成 390x844 / 360x780 / 430x932 三档移动端截图。',
         '首屏判定以当前页主操作卡或当前场景主面板进入视口为准。',
-        '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、最近互动、拉黑列表和移动端横向溢出断言。'
+        '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、送礼 / 邀请进房互动入口、最近互动、拉黑列表和移动端横向溢出断言。'
       ]
     }
     await writeFile(summaryPath, JSON.stringify(summary, null, 2), 'utf8')

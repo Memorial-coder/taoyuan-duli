@@ -268,12 +268,26 @@
                   </div>
                   <p class="text-[10px] text-muted mt-2 leading-4">{{ entry.profile.recent_activity || entry.profile.primary_route_label }}</p>
                   <div class="flex flex-wrap gap-2 mt-2">
-                    <button class="min-h-[32px] border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleNavigate('manor')">庄园</button>
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleNavigate('mail')">
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" @click="openFriendManor(entry)">
+                      <Map :size="11" />
+                      庄园
+                    </button>
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" @click="openFriendMail(entry, 'letter')">
                       <Mail :size="11" />
                       写信
                     </button>
-                    <button class="min-h-[32px] border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleNavigate('quest')">协作</button>
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" @click="openFriendMail(entry, 'gift')">
+                      <Gift :size="11" />
+                      送礼
+                    </button>
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" @click="openFriendExpeditionInvite(entry)">
+                      <UserPlus :size="11" />
+                      邀请进房
+                    </button>
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" @click="openFriendCoop(entry)">
+                      <Users :size="11" />
+                      协作
+                    </button>
                     <button class="min-h-[32px] border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.friendship_id" @click="removeMapFriend(entry)">删除</button>
                     <button class="min-h-[32px] border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.friend_save_id" @click="blockMapRelation(entry)">拉黑</button>
                   </div>
@@ -2269,7 +2283,7 @@
 <script setup lang="ts">
   import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
   import { useRouter } from 'vue-router'
-  import { Ban, Copy, Mail, Map, RefreshCw, Search, UserPlus, Users } from 'lucide-vue-next'
+  import { Ban, Copy, Gift, Mail, Map, RefreshCw, Search, UserPlus, Users } from 'lucide-vue-next'
   import JourneySettlementReveal from '@/components/game/regionMap/JourneySettlementReveal.vue'
   import RegionExpeditionStagePanel from '@/components/game/regionMap/RegionExpeditionStagePanel.vue'
   import { getRareVisitorsForDay } from '@/data/bookseller'
@@ -3366,6 +3380,41 @@
     if (kind === 'outgoing') return `目标 ID ${entry.to_save_id || '未绑定'}`
     if (kind === 'blocked') return `拉黑 ID ${entry.blocked_save_id || '未绑定'}`
     return `好友 ID ${entry.friend_save_id || '未绑定'}`
+  }
+
+  const getFriendTargetUsername = (entry: OnlineRelationCard) => entry.profile.username?.trim() || ''
+  const buildFriendTargetQuery = (entry: OnlineRelationCard) => {
+    const targetUsername = getFriendTargetUsername(entry)
+    if (!targetUsername) return null
+    return {
+      target_username: targetUsername,
+      target_save_id: entry.friend_save_id ? String(entry.friend_save_id) : undefined,
+      source: 'map_friend_panel'
+    }
+  }
+
+  const openFriendManor = (entry: OnlineRelationCard) => {
+    const query = buildFriendTargetQuery(entry)
+    if (!query) return
+    void router.push({ name: 'manor', query })
+  }
+
+  const openFriendMail = (entry: OnlineRelationCard, compose: 'letter' | 'gift') => {
+    const query = buildFriendTargetQuery(entry)
+    if (!query) return
+    void router.push({ name: 'mail', query: { ...query, compose } })
+  }
+
+  const openFriendExpeditionInvite = (entry: OnlineRelationCard) => {
+    const query = buildFriendTargetQuery(entry)
+    if (!query) return
+    void router.push({ name: 'expedition', query: { ...query, invite: '1' } })
+  }
+
+  const openFriendCoop = (entry: OnlineRelationCard) => {
+    const query = buildFriendTargetQuery(entry)
+    if (!query) return
+    void router.push({ name: 'quest', query: { ...query, scope: 'friends' } })
   }
 
   const refreshMapSocialPanel = async () => {

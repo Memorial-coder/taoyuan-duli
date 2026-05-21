@@ -1146,7 +1146,8 @@
 </template>
 
 <script setup lang="ts">
-  import { ref, computed, onMounted, onUnmounted } from 'vue'
+  import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+  import { useRoute } from 'vue-router'
   import { ClipboardList, Calendar, Clock, Plus, CheckCircle, CircleCheck, Circle, Star, BookOpen, X } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import { runPromptAction, usePromptFocusPanel } from '@/composables/usePromptNavigation'
@@ -1167,6 +1168,7 @@
   import { getCropById } from '@/data/crops'
   import { addLog } from '@/composables/useGameLog'
 
+  const route = useRoute()
   const questStore = useQuestStore()
   const coopOrderStore = useCoopOrderStore()
   const inventoryStore = useInventoryStore()
@@ -1225,6 +1227,31 @@
     { id: 'reputation', label: '声望' },
     { id: 'gift', label: '礼物' },
   ]
+
+  const getRouteQueryText = (value: unknown) => {
+    const raw = Array.isArray(value) ? value[0] : value
+    return typeof raw === 'string' ? raw.trim() : ''
+  }
+  const isCoopOrderScope = (value: string): value is OnlineCoopOrderScope =>
+    COOP_ORDER_SCOPE_OPTIONS.some(option => option.id === value)
+  const applyCoopRouteDraft = () => {
+    const scope = getRouteQueryText(route.query.scope)
+    if (isCoopOrderScope(scope)) {
+      coopOrderStore.scopeDraft = scope
+    }
+    const targetUsername = getRouteQueryText(route.query.target_username)
+    if (!targetUsername) return
+    const targetSaveId = getRouteQueryText(route.query.target_save_id)
+    coopOrderStore.scopeDraft = 'friends'
+    if (!coopOrderStore.titleDraft.trim()) {
+      coopOrderStore.titleDraft = `与${targetUsername}协作`
+    }
+    if (!coopOrderStore.descriptionDraft.trim()) {
+      coopOrderStore.descriptionDraft = targetSaveId
+        ? `面向好友 ${targetUsername}（存档 ID ${targetSaveId}）发起一张协作求助单。`
+        : `面向好友 ${targetUsername} 发起一张协作求助单。`
+    }
+  }
 
   const coopOrderTypeOptions = computed(() => COOP_ORDER_TYPE_OPTIONS)
   const coopOrderScopeOptions = computed(() => COOP_ORDER_SCOPE_OPTIONS)
@@ -1783,6 +1810,7 @@
     if (typeof window !== 'undefined') {
       window.addEventListener('resize', syncCompactViewportMode)
     }
+    applyCoopRouteDraft()
     questStore.initMainQuest()
     goalStore.ensureInitialized()
     void coopOrderStore.refreshOverview()
@@ -1793,4 +1821,11 @@
       window.removeEventListener('resize', syncCompactViewportMode)
     }
   })
+
+  watch(
+    () => [route.query.target_username, route.query.target_save_id, route.query.scope],
+    () => {
+      applyCoopRouteDraft()
+    }
+  )
 </script>

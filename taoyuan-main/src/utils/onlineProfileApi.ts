@@ -554,6 +554,18 @@ export const fetchOwnManorSnapshot = async (): Promise<OnlineManorSnapshot | nul
   return data?.snapshot ?? null
 }
 
+export const fetchManorSnapshot = async (targetUsername = ''): Promise<OnlineManorSnapshot | null> => {
+  const normalizedTarget = targetUsername.trim()
+  if (!normalizedTarget) return fetchOwnManorSnapshot()
+  const { data } = await fetchProtectedJson<{ ok: boolean; snapshot?: OnlineManorSnapshot }>(() => fetch(`/api/taoyuan/online/manor/${encodeURIComponent(normalizedTarget)}`, {
+    credentials: 'include'
+  }), {
+    fallbackMessage: '获取玩家庄园失败',
+    networkErrorMessage: '庄园服务连接失败，请检查网络或稍后重试'
+  })
+  return data?.snapshot ?? null
+}
+
 export const createManorGuestbookEntry = async (payload: {
   target_username: string
   kind: 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'

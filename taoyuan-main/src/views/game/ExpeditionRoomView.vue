@@ -218,11 +218,24 @@
 </template>
 
 <script setup lang="ts">
-  import { onMounted } from 'vue'
+  import { onMounted, watch } from 'vue'
+  import { useRoute } from 'vue-router'
   import Button from '@/components/game/Button.vue'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
 
+  const route = useRoute()
   const expeditionRoomStore = useExpeditionRoomStore()
+
+  const getRouteQueryText = (value: unknown) => {
+    const raw = Array.isArray(value) ? value[0] : value
+    return typeof raw === 'string' ? raw.trim() : ''
+  }
+
+  const applyInviteRouteDraft = () => {
+    const targetUsername = getRouteQueryText(route.query.target_username)
+    if (!targetUsername) return
+    expeditionRoomStore.draftInviteUsername = targetUsername
+  }
 
   const refreshOverview = async () => {
     await expeditionRoomStore.refreshOverview().catch(() => {})
@@ -281,6 +294,14 @@
   }
 
   onMounted(() => {
+    applyInviteRouteDraft()
     void refreshOverview()
   })
+
+  watch(
+    () => route.query.target_username,
+    () => {
+      applyInviteRouteDraft()
+    }
+  )
 </script>
