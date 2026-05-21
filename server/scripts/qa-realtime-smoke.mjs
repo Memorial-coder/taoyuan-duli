@@ -400,6 +400,8 @@ let offlineMailReplaySocket = null
 let offlineMailReplayReconnectSocket = null
 let offlineHallReplaySocket = null
 let offlineHallReplayReconnectSocket = null
+let offlineManorReplaySocket = null
+let offlineManorReplayReconnectSocket = null
 let offlineSocietyReplaySocket = null
 let offlineSocietyReplayReconnectSocket = null
 let offlineCoopOrderReplaySocket = null
@@ -671,6 +673,56 @@ try {
     )
   })
 
+  await runCheck('manor guestbook notification event is delivered through websocket', async () => {
+    const guestbookText = `Realtime manor guestbook ${createSmokeSeed()}`
+    const friendOffset = friendSocket.messages.length
+    const guestbookResult = await fetchSessionJson(owner, '/api/taoyuan/online/manor/guestbook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_username: friend.username,
+        kind: 'blessing',
+        content: guestbookText,
+      }),
+    })
+    assert(guestbookResult.response.ok, `manor guestbook returned ${guestbookResult.response.status}: ${guestbookResult.data?.msg || 'unknown error'}`)
+    const entryId = String(guestbookResult.data?.entry?.id || '')
+    assert(entryId, 'manor guestbook entry id missing')
+    const guestbookNotification = await expectMessageAfter(friendSocket, friendOffset, 'notification.created', payload =>
+      payload.category === 'manor'
+        && payload.action === 'guestbook_created'
+        && payload.refresh_required === true
+        && payload.manor?.owner_username === friend.username
+        && payload.guestbook?.id === entryId
+        && payload.guestbook?.kind === 'blessing'
+        && payload.guestbook?.author_username === owner.username
+        && payload.actor_username === owner.username
+    )
+    assert(guestbookNotification.payload?.guestbook?.content === undefined, 'manor guestbook notification should not expose content')
+    assert(guestbookNotification.payload?.guestbook?.reply_text === undefined, 'manor guestbook notification should not expose reply text')
+
+    const replyText = `Realtime manor reply ${createSmokeSeed()}`
+    const ownerOffset = ownerSocket.messages.length
+    const replyResult = await fetchSessionJson(friend, `/api/taoyuan/online/manor/guestbook/${encodeURIComponent(entryId)}/reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ reply_text: replyText }),
+    })
+    assert(replyResult.response.ok, `manor guestbook reply returned ${replyResult.response.status}: ${replyResult.data?.msg || 'unknown error'}`)
+    const replyNotification = await expectMessageAfter(ownerSocket, ownerOffset, 'notification.created', payload =>
+      payload.category === 'manor'
+        && payload.action === 'guestbook_replied'
+        && payload.refresh_required === true
+        && payload.manor?.owner_username === friend.username
+        && payload.guestbook?.id === entryId
+        && payload.guestbook?.has_reply === true
+        && payload.guestbook?.author_username === owner.username
+        && payload.actor_username === friend.username
+    )
+    assert(replyNotification.payload?.guestbook?.content === undefined, 'manor reply notification should not expose content')
+    assert(replyNotification.payload?.guestbook?.reply_text === undefined, 'manor reply notification should not expose reply text')
+  })
+
   await runCheck('coop order accept notification event is delivered through websocket', async () => {
     const orderTitle = `RT coop order ${createSmokeSeed()}`
     const createResult = await fetchSessionJson(owner, '/api/taoyuan/online/orders', {
@@ -850,6 +902,67 @@ try {
     )
     offlineCoopOrderReplayReconnectSocket.close()
     offlineCoopOrderReplayReconnectSocket = null
+  })
+
+  await runCheck('offline manor guestbook notification event is replayed and acknowledged after reconnect', async () => {
+    const offlineTarget = await bootstrapSession('smkrt_k')
+    const guestbookText = `Offline manor guestbook ${createSmokeSeed()}`
+    const guestbookResult = await fetchSessionJson(owner, '/api/taoyuan/online/manor/guestbook', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        target_username: offlineTarget.username,
+        kind: 'stamp',
+        content: guestbookText,
+      }),
+    })
+    assert(guestbookResult.response.ok, `offline manor guestbook returned ${guestbookResult.response.status}: ${guestbookResult.data?.msg || 'unknown error'}`)
+    const entryId = String(guestbookResult.data?.entry?.id || '')
+    assert(entryId, 'offline manor guestbook entry id missing')
+
+    offlineManorReplaySocket = await openRealtimeSocket(offlineTarget)
+    const ready = await expectMessage(offlineManorReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) >= 1
+    )
+    assert(Number(ready.payload?.pending_notification_count) >= 1, 'offline manor replay ready did not report pending notifications')
+    const queuedMessage = await expectMessage(offlineManorReplaySocket, 'notification.created', payload =>
+      payload.category === 'manor'
+        && payload.action === 'guestbook_created'
+        && payload.manor?.owner_username === offlineTarget.username
+        && payload.guestbook?.id === entryId
+        && payload.guestbook?.kind === 'stamp'
+        && payload.guestbook?.author_username === owner.username
+        && payload.actor_username === owner.username
+    )
+    const queuedEventId = String(queuedMessage.queued_event_id || '')
+    assert(queuedEventId, 'replayed manor notification missing queued_event_id')
+    assert(queuedMessage.replayed === true, 'replayed manor notification missing replayed marker')
+    assert(queuedMessage.payload?.guestbook?.content === undefined, 'replayed manor notification should not expose content')
+    assert(queuedMessage.payload?.guestbook?.reply_text === undefined, 'replayed manor notification should not expose reply text')
+
+    const ackOffset = offlineManorReplaySocket.messages.length
+    offlineManorReplaySocket.send('notification.ack', { id: queuedEventId })
+    await expectMessageAfter(offlineManorReplaySocket, ackOffset, 'notification.ack', payload =>
+      Array.isArray(payload.acked_ids)
+        && payload.acked_ids.includes(queuedEventId)
+        && Number(payload.pending_count) === 0
+    )
+
+    offlineManorReplaySocket.close()
+    offlineManorReplaySocket = null
+    await wait(200)
+
+    offlineManorReplayReconnectSocket = await openRealtimeSocket(offlineTarget)
+    await expectMessage(offlineManorReplayReconnectSocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) === 0
+    )
+    await expectNoMessageAfter(offlineManorReplayReconnectSocket, 0, 'notification.created', payload =>
+      payload.category === 'manor'
+        && payload.action === 'guestbook_created'
+        && payload.guestbook?.id === entryId
+    )
+    offlineManorReplayReconnectSocket.close()
+    offlineManorReplayReconnectSocket = null
   })
 
   await runCheck('offline friend request event is replayed and acknowledged after reconnect', async () => {
@@ -1294,6 +1407,8 @@ try {
   offlineMailReplayReconnectSocket?.close()
   offlineHallReplaySocket?.close()
   offlineHallReplayReconnectSocket?.close()
+  offlineManorReplaySocket?.close()
+  offlineManorReplayReconnectSocket?.close()
   offlineSocietyReplaySocket?.close()
   offlineSocietyReplayReconnectSocket?.close()
   offlineCoopOrderReplaySocket?.close()

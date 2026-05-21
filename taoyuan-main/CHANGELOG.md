@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 庄园留言 realtime 通知补发（A4-A6）
+- 服务端现在会在庄园留言与庄园主人回复成功后投递 `notification.created`，使用 `category: "manor"`、`guestbook_created / guestbook_replied` 动作和只读摘要。
+- `useRealtimeStore` 收到庄园通知后只在当前已有庄园快照时防抖调用 `useManorStore().refreshActiveSnapshot({ silent: true })`，继续以 HTTP 权威快照为准，不直接套用 WebSocket payload。
+- 通知摘要不携带留言正文或回复正文；`qa:realtime-smoke` 已覆盖在线留言 / 回复通知，以及离线庄园主人重连补发 / ACK / 不重复补发。本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
+
 ### 0520 协作单 realtime 通知补发（A4-A6）
 - `useRealtimeStore` 现在会把 `notification.created` 里的 `category: "coop_order"` 送去静默重读协作单概览，和好友 / 邮箱 / 村社 / 房间事件共用同一套 realtime 退避刷新管道。
 - `useCoopOrderStore` 补了 `refreshOverview({ silent: true })`，实时回读不会再抖动 loading / error，页面只会在权威列表变更后静默同步。

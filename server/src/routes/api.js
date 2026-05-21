@@ -598,6 +598,62 @@ function emitSocietyNoticeNotificationCreatedEvent(society = {}, actor = {}) {
   }
 }
 
+function collectManorGuestbookNotificationRecipients(action, entry = {}, actor = {}) {
+  const actorKey = normalizeUsernameKey(actor.username);
+  const recipients = new Set();
+  const addRecipient = username => {
+    const normalized = normalizeUsernameKey(username);
+    if (normalized && normalized !== actorKey) recipients.add(normalized);
+  };
+
+  if (action === 'guestbook_created') {
+    addRecipient(entry?.target_username);
+  } else if (action === 'guestbook_replied') {
+    addRecipient(entry?.author_username);
+  }
+  return [...recipients];
+}
+
+function buildManorGuestbookNotificationPayload(action, entry = {}, actor = {}) {
+  return {
+    category: 'manor',
+    action,
+    refresh_required: true,
+    actor_username: normalizeUsernameKey(actor.username),
+    actor_display_name: normalizeUsername(actor.displayName || actor.display_name || actor.username),
+    manor: {
+      owner_username: normalizeUsernameKey(entry?.target_username),
+    },
+    guestbook: {
+      id: String(entry?.id || ''),
+      kind: entry?.kind || 'text',
+      target_username: normalizeUsernameKey(entry?.target_username),
+      author_username: normalizeUsernameKey(entry?.author_username),
+      author_display_name: normalizeUsername(entry?.author_display_name || entry?.author_username),
+      has_reply: !!entry?.reply_text,
+      reply_author_display_name: normalizeUsername(entry?.reply_author_display_name || ''),
+      pinned: entry?.pinned === true,
+      created_at: Number(entry?.created_at) || null,
+      updated_at: Number(entry?.updated_at) || null,
+    },
+  };
+}
+
+function emitManorGuestbookNotificationCreatedEvent(action, entry = {}, actor = {}) {
+  if (!entry?.id) return 0;
+  const recipients = collectManorGuestbookNotificationRecipients(action, entry, actor);
+  if (!recipients.length) return 0;
+  try {
+    return taoyuanRealtimeRuntime.emitUsersEvent(
+      recipients,
+      'notification.created',
+      buildManorGuestbookNotificationPayload(action, entry, actor)
+    );
+  } catch {
+    return 0;
+  }
+}
+
 function buildCoopOrderNotificationOrderSummary(order = {}) {
   return {
     id: String(order?.id || ''),
@@ -1988,10 +2044,12 @@ router.get('/taoyuan/online/manor/:username', createOnlineReleaseGuard('manor'),
 
 router.post('/taoyuan/online/manor/guestbook', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
-    const entry = await taoyuanManorRuntime.leaveGuestbookEntry(req.body || {}, {
+    const actor = {
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
-    });
+    };
+    const entry = await taoyuanManorRuntime.leaveGuestbookEntry(req.body || {}, actor);
+    emitManorGuestbookNotificationCreatedEvent('guestbook_created', entry, actor);
     res.json({ ok: true, entry });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '庄园留言失败' });
@@ -2000,10 +2058,12 @@ router.post('/taoyuan/online/manor/guestbook', createOnlineReleaseGuard('manor')
 
 router.post('/taoyuan/online/manor/guestbook/:entryId/reply', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
-    const entry = await taoyuanManorRuntime.replyGuestbookEntry(req.params.entryId, req.body || {}, {
+    const actor = {
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
-    });
+    };
+    const entry = await taoyuanManorRuntime.replyGuestbookEntry(req.params.entryId, req.body || {}, actor);
+    emitManorGuestbookNotificationCreatedEvent('guestbook_replied', entry, actor);
     res.json({ ok: true, entry });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '回复庄园留言失败' });

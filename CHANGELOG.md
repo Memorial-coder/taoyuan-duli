@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / A4-A6` 这一轮把庄园留言墙接进 realtime 通知底座：访客留言成功后通知庄园主人，庄园主人回复后通知留言作者，均使用 `notification.created` + `category: "manor"` 投递。
+- 庄园通知 payload 只包含庄园主人、留言 ID、留言类型、作者、是否已回复、置顶状态和时间戳等摘要，不携带留言正文或回复正文；前端收到后只在当前已有庄园快照时静默重读权威庄园接口。
+- `qa:realtime-smoke` 已覆盖庄园留言 / 回复在线通知，以及离线庄园主人重连补发 / ACK / 不重复补发；本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
+
 - `0520todo.md / A4-A6` 这一轮把协作单参与态变化接进 realtime 通知底座：接单、取消接单、阶段接单 / 取消、提交交付、确认交付和补偿重试成功后，服务端会向发布人 / 接单人等相关参与者投递 `notification.created`，payload 使用 `category: "coop_order"`、动作名与只读摘要，不携带交付物明细。
 - 前端 `useRealtimeStore` 收到 `coop_order` 后只防抖调用 `useCoopOrderStore().refreshOverview({ silent: true })` 重读 `/api/taoyuan/online/orders` 权威概览，不直接套用 WebSocket payload；`useCoopOrderStore` 补了 silent 刷新模式，避免实时回读抖动 loading / error。
 - `qa:realtime-smoke` 已覆盖在线协作单接单通知，以及离线发布人重连补发 / ACK / 不重复补发；本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。

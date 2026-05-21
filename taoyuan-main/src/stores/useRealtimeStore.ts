@@ -5,6 +5,7 @@ import { buildApiUrl } from '@/utils/apiClient'
 import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
 import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
 import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
+import { useManorStore } from '@/stores/useManorStore'
 import { useMailboxStore } from '@/stores/useMailboxStore'
 import { useSocialStore } from '@/stores/useSocialStore'
 import { useSocietyStore } from '@/stores/useSocietyStore'
@@ -61,6 +62,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
   let relationshipRefreshTimer: number | null = null
   let festivalRoomRefreshTimer: number | null = null
   let expeditionRoomRefreshTimer: number | null = null
+  let manorRefreshTimer: number | null = null
   let mailboxRefreshTimer: number | null = null
   let societyRefreshTimer: number | null = null
   let coopOrderRefreshTimer: number | null = null
@@ -137,6 +139,29 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
       mailboxRefreshTimer = null
       void useMailboxStore().refreshList({ silent: true }).catch(error => {
         lastError.value = error instanceof Error ? error.message : '实时邮箱刷新失败'
+      })
+    }, 300)
+  }
+
+  const queueManorRefresh = (payload: Record<string, unknown> | undefined) => {
+    const manorStore = useManorStore()
+    const activeSnapshotUsername = typeof manorStore.snapshot?.username === 'string'
+      ? manorStore.snapshot.username.trim().toLocaleLowerCase('zh-CN')
+      : ''
+    const activeTargetUsername = typeof manorStore.activeTargetUsername === 'string'
+      ? manorStore.activeTargetUsername.trim().toLocaleLowerCase('zh-CN')
+      : ''
+    const rawManor = payload?.manor && typeof payload.manor === 'object' ? payload.manor as Record<string, unknown> : null
+    const ownerUsername = typeof rawManor?.owner_username === 'string'
+      ? rawManor.owner_username.trim().toLocaleLowerCase('zh-CN')
+      : ''
+    if (!activeSnapshotUsername && !activeTargetUsername) return
+    if (ownerUsername && activeSnapshotUsername && ownerUsername !== activeSnapshotUsername) return
+    if (manorRefreshTimer !== null) return
+    manorRefreshTimer = window.setTimeout(() => {
+      manorRefreshTimer = null
+      void useManorStore().refreshActiveSnapshot({ silent: true }).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时庄园刷新失败'
       })
     }, 300)
   }
@@ -256,6 +281,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
       const category = typeof envelope.payload?.category === 'string' ? envelope.payload.category : ''
       if (category === 'mail') queueMailboxRefresh()
       if (category === 'hall') dispatchHallNotification(envelope.payload)
+      if (category === 'manor') queueManorRefresh(envelope.payload)
       if (category === 'society') queueSocietyRefresh()
       if (category === 'coop_order') queueCoopOrderRefresh()
     }
@@ -350,6 +376,10 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     if (expeditionRoomRefreshTimer !== null) {
       window.clearTimeout(expeditionRoomRefreshTimer)
       expeditionRoomRefreshTimer = null
+    }
+    if (manorRefreshTimer !== null) {
+      window.clearTimeout(manorRefreshTimer)
+      manorRefreshTimer = null
     }
     if (mailboxRefreshTimer !== null) {
       window.clearTimeout(mailboxRefreshTimer)

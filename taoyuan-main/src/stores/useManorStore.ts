@@ -83,23 +83,32 @@ export const useManorStore = defineStore('onlineManor', () => {
     guestbookDraft.value = content
   }
 
-  const refreshSnapshot = async (targetUsername?: string) => {
+  const refreshSnapshot = async (targetUsername?: string, options: { silent?: boolean } = {}) => {
     const normalizedTarget = typeof targetUsername === 'string'
       ? targetUsername.trim()
       : activeTargetUsername.value
     activeTargetUsername.value = normalizedTarget
-    loading.value = true
-    errorMessage.value = ''
+    if (!options.silent) {
+      loading.value = true
+      errorMessage.value = ''
+    }
     try {
       snapshot.value = await fetchManorSnapshot(normalizedTarget)
       syncThemeDrafts(snapshot.value)
       return snapshot.value
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '获取庄园快照失败'
+      if (!options.silent) {
+        errorMessage.value = error instanceof Error ? error.message : '获取庄园快照失败'
+      }
       throw error
     } finally {
-      loading.value = false
+      if (!options.silent) loading.value = false
     }
+  }
+
+  const refreshActiveSnapshot = async (options: { silent?: boolean } = {}) => {
+    if (!activeTargetUsername.value && !snapshot.value) return null
+    return refreshSnapshot(activeTargetUsername.value, options)
   }
 
   const createGuestbookEntry = async () => {
@@ -309,6 +318,7 @@ export const useManorStore = defineStore('onlineManor', () => {
     setGuestbookKind,
     applyGuestbookQuickPick,
     refreshSnapshot,
+    refreshActiveSnapshot,
     createGuestbookEntry,
     replyGuestbookEntry,
     togglePinnedGuestbookEntry,
