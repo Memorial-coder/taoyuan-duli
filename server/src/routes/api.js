@@ -1755,18 +1755,18 @@ router.delete('/taoyuan/online/social/friends/:friendshipId', createOnlineReleas
   }
 });
 
-router.post('/taoyuan/online/social/blocks', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/blocks', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
-    const relation = await taoyuanSocialRuntime.blockPlayer(req.session.username, req.body?.target_username);
+    const relation = await taoyuanSocialRuntime.blockPlayer(req.session.username, req.body || {});
     res.json({ ok: true, relation });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '拉黑玩家失败' });
   }
 });
 
-router.post('/taoyuan/online/social/blocks/unblock', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/blocks/unblock', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
-    const relation = await taoyuanSocialRuntime.unblockPlayer(req.session.username, req.body?.target_username);
+    const relation = await taoyuanSocialRuntime.unblockPlayer(req.session.username, req.body || {});
     res.json({ ok: true, relation });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '解除拉黑失败' });

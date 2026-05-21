@@ -114,6 +114,18 @@ export interface OnlineRelationCard {
   created_at: number
   last_interaction_at?: number
   friends_since?: number
+  from_save_id?: number
+  to_save_id?: number
+  from_save_slot?: number | null
+  to_save_slot?: number | null
+  own_save_id?: number
+  own_save_slot?: number | null
+  friend_save_id?: number
+  friend_save_slot?: number | null
+  blocker_save_id?: number
+  blocker_save_slot?: number | null
+  blocked_save_id?: number
+  blocked_save_slot?: number | null
   profile: NonNullable<OnlineProfileResponse['profile']>
 }
 
@@ -339,6 +351,18 @@ const requestSocialAction = async <T = any>(path: string, init: RequestInit): Pr
   return data
 }
 
+type SocialTargetPayload = string | {
+  target_username?: string
+  target_save_id?: number
+}
+
+const buildSocialTargetBody = (target: SocialTargetPayload) => {
+  if (typeof target === 'string') {
+    return { target_username: target }
+  }
+  return target
+}
+
 export const fetchRelationshipOverview = async (): Promise<OnlineRelationshipOverviewResponse | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
@@ -351,11 +375,11 @@ export const fetchRelationshipOverview = async (): Promise<OnlineRelationshipOve
   return data ?? null
 }
 
-export const sendFriendRequest = async (targetUsername: string) => {
+export const sendFriendRequest = async (target: SocialTargetPayload) => {
   return requestSocialAction('/api/taoyuan/online/social/friend-requests', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ target_username: targetUsername })
+    body: JSON.stringify(buildSocialTargetBody(target))
   })
 }
 
@@ -371,19 +395,19 @@ export const rejectFriendRequest = async (requestId: string) => {
   })
 }
 
-export const blockPlayer = async (targetUsername: string) => {
+export const blockPlayer = async (target: SocialTargetPayload) => {
   return requestSocialAction('/api/taoyuan/online/social/blocks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ target_username: targetUsername })
+    body: JSON.stringify(buildSocialTargetBody(target))
   })
 }
 
-export const unblockPlayer = async (targetUsername: string) => {
+export const unblockPlayer = async (target: SocialTargetPayload) => {
   return requestSocialAction('/api/taoyuan/online/social/blocks/unblock', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ target_username: targetUsername })
+    body: JSON.stringify(buildSocialTargetBody(target))
   })
 }
 

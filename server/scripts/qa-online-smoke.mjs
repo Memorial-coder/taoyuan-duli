@@ -116,6 +116,7 @@ const sessionState = createSessionState()
 const secondarySessionState = createSessionState()
 const tertiarySessionState = createSessionState()
 const quaternarySessionState = createSessionState()
+const blockRelationSessionState = createSessionState()
 const governanceSessionState = createSessionState()
 const imageBlacklistSessionState = createSessionState()
 const l81MemberAState = createSessionState()
@@ -335,6 +336,7 @@ const cleanupSmokeUsers = async () => {
     secondarySessionState.username,
     tertiarySessionState.username,
     quaternarySessionState.username,
+    blockRelationSessionState.username,
     governanceSessionState.username,
     imageBlacklistSessionState.username,
     l81MemberAState.username,
@@ -1300,6 +1302,7 @@ try {
   let friendRequestId = ''
   let friendshipId = ''
   let secondarySaveIdentity = null
+  let blockRelationSaveIdentity = null
   await runCheck('POST /api/taoyuan/online/social/friend-requests order scope setup', async () => {
     const secondarySave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
     assert(secondarySave.response.ok, `secondary save identity read returned ${secondarySave.response.status}`)
@@ -2134,6 +2137,91 @@ try {
     const secondaryOrders = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
     assert(secondaryOrders.response.ok, `secondary orders after delete returned ${secondaryOrders.response.status}`)
     assert(!secondaryOrders.data?.orders?.some(entry => entry?.title === friendCoopOrderTitle && entry?.scope === 'friends'), 'friend-scope order stayed visible after deleting friendship')
+  })
+
+  await runCheck('block relation session bootstrap', async () => {
+    await bootstrapSession(blockRelationSessionState, 'smkblock', 180)
+    const blockRelationSave = await fetchSessionJson(blockRelationSessionState, '/api/taoyuan/save/0')
+    assert(blockRelationSave.response.ok, `block relation save identity read returned ${blockRelationSave.response.status}`)
+    blockRelationSaveIdentity = getEmbeddedSaveIdentity(decryptTaoyuanRaw(blockRelationSave.data?.raw || ''))
+    assert(blockRelationSaveIdentity?.save_id, 'block relation save identity missing before block setup')
+  })
+
+  let blockId = ''
+  await runCheck('POST /api/taoyuan/online/social/blocks save id path', async () => {
+    assert(primarySaveIdentity?.save_id && blockRelationSaveIdentity?.save_id, 'save identities are required before block check')
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/social/blocks', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_save_id: blockRelationSaveIdentity.save_id,
+      }),
+    })
+    assert(response.ok, `block by save id returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.relation?.block_id, 'block by save id payload is incomplete')
+    assert(data.relation.blocker_save_id === primarySaveIdentity.save_id, 'block relation missing blocker save id')
+    assert(data.relation.blocked_save_id === blockRelationSaveIdentity.save_id, 'block relation missing blocked save id')
+    blockId = String(data.relation.block_id || '')
+
+    const overview = await fetchAuthedJson('/api/taoyuan/online/social/relationships')
+    assert(overview.response.ok, `relationship overview after block returned ${overview.response.status}`)
+    const blockedUser = overview.data?.blocked_users?.find(entry => entry?.block_id === blockId)
+    assert(blockedUser?.own_save_id === primarySaveIdentity.save_id, 'blocked overview missing own save id')
+    assert(blockedUser?.blocked_save_id === blockRelationSaveIdentity.save_id, 'blocked overview missing target save id')
+    assert(blockedUser?.blocked_save_slot === blockRelationSaveIdentity.save_slot, 'blocked overview missing target save slot')
+  })
+
+  await runCheck('POST /api/taoyuan/online/social/friend-requests blocked save id reject path', async () => {
+    assert(blockRelationSaveIdentity?.save_id, 'block relation save identity missing before blocked friend request check')
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/social/friend-requests', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_save_id: blockRelationSaveIdentity.save_id,
+      }),
+    })
+    assert(!response.ok, 'friend request should fail while save-level block exists')
+    assert(data?.ok === false && typeof data?.msg === 'string' && data.msg.includes('拉黑'), 'blocked friend request did not expose block failure')
+  })
+
+  await runCheck('POST /api/taoyuan/online/social/blocks/unblock save id path', async () => {
+    assert(blockRelationSaveIdentity?.save_id && blockId, 'block relation is required before unblock check')
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/social/blocks/unblock', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_save_id: blockRelationSaveIdentity.save_id,
+      }),
+    })
+    assert(response.ok, `unblock by save id returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.relation?.block_id === blockId, 'unblock by save id payload is incomplete')
+    assert(data.relation.blocker_save_id === primarySaveIdentity.save_id, 'unblock relation missing blocker save id')
+    assert(data.relation.blocked_save_id === blockRelationSaveIdentity.save_id, 'unblock relation missing blocked save id')
+
+    const overview = await fetchAuthedJson('/api/taoyuan/online/social/relationships')
+    assert(overview.response.ok, `relationship overview after unblock returned ${overview.response.status}`)
+    assert(!overview.data?.blocked_users?.some(entry => entry?.block_id === blockId), 'unblocked relation still appears in blocked list')
+  })
+
+  await runCheck('POST /api/taoyuan/online/social/friend-requests after unblock path', async () => {
+    assert(blockRelationSaveIdentity?.save_id, 'block relation save identity missing before post-unblock friend request check')
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/social/friend-requests', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_save_id: blockRelationSaveIdentity.save_id,
+      }),
+    })
+    assert(response.ok, `friend request after unblock returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.request?.to_save_id === blockRelationSaveIdentity.save_id, 'friend request after unblock did not preserve target save id')
   })
 
   await runCheck('GET /api/taoyuan/online/world-events read path', async () => {
