@@ -15,6 +15,9 @@
 - `0520todo.md / A4-A5` 这一轮把前端活动房间实时消费接上：`useRealtimeStore.ts` 现在会消费 `activity.room.invited / activity.room.updated`，按事件 `domain` 对节会 / 远征房间概览做防抖静默刷新，继续只读取 HTTP 权威接口，不把 WebSocket payload 当作结算结果。
 - 节会与远征房间 store 新增 silent refresh 模式，实时刷新时不会打断页面 loading / 错误状态；远征邀请列表也补入稳定 `data-testid`，供浏览器烟测确认邀请卡片自动出现。
 - `qa:region-friend-panel-live-smoke` 已扩展活动房间实时回归：真实后端 + Vite + Chromium 下会由另一个临时账号创建远征房间并邀请当前浏览器账号，断言收到 `activity.room.invited` 帧后页面无需手动刷新即可显示对应邀请；本轮复核通过 `type-check`、`build`、该浏览器 smoke 与 `git diff --check`。
+- `0520todo.md / A5` 这一轮补出实时通知离线补发队列：好友事件和活动房间事件如果投递时目标玩家不在线，会持久写入 `taoyuan_realtime_notifications.json`，下次 WebSocket ready 后原事件类型补发，并带 `queued_event_id / replayed / queued_at` 元数据。
+- 前端 realtime store 现在会对带 `queued_event_id` 的补发帧发送 `notification.ack`，服务端收到 ACK 后清理对应队列项；这条链路只重放投递事件，不执行好友或房间结算，继续保持 WebSocket delivery-only。
+- `qa:realtime-smoke` 已新增离线好友申请补发回归：隔离后端下会在目标账号未连接时发起好友申请，随后连接目标账号验证 pending 数、补发帧和 ACK 清理，再次连接确认不会重复补发；本轮同时复跑 `type-check`、`build`、`qa:region-friend-panel-live-smoke` 与 `qa:online-smoke`。
 
 - `0520todo.md / A0` 这一轮先把服务端存档身份底座落到真实读写链路：`server/src/taoyuanSaveRuntime.js` 新增按账号 + 槽位维护的 `SaveIdentity` 注册表，服务端存档读回与保存时会自动注入 9 位数字 `onlineIdentity.save_id`，并且覆盖客户端篡改的 ID，只允许昵称快照随存档内容更新。
 - 旧服务端存档现在第一次经 `/api/taoyuan/save/slots` 或 `/api/taoyuan/save/:slot` 读回时会自动补发数字 ID 并回写到加密存档；删除服务端槽位时也会清理对应身份记录，避免空槽后续误复用旧身份。

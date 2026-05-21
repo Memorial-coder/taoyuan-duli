@@ -332,6 +332,17 @@ const expectMessageAfter = async (client, offset, type, predicate = () => true, 
   throw new Error(`Timed out waiting for realtime message ${type} after offset ${offset}`)
 }
 
+const expectNoMessageAfter = async (client, offset, type, predicate = () => true, timeoutMs = 800) => {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    const found = client.messages
+      .slice(offset)
+      .find(message => message?.type === type && predicate(message.payload || {}))
+    if (found) throw new Error(`Unexpected realtime message ${type} after offset ${offset}`)
+    await wait(100)
+  }
+}
+
 const expectUnauthedRealtimeRejected = async () => {
   await new Promise((resolve, reject) => {
     const socket = net.createConnection({ host, port })
@@ -369,6 +380,8 @@ const runCheck = async (label, runner) => {
 let serverProcess = null
 let ownerSocket = null
 let friendSocket = null
+let offlineReplaySocket = null
+let offlineReplayReconnectSocket = null
 
 try {
   serverProcess = startServer()
@@ -440,6 +453,54 @@ try {
         && payload.request?.from_username === owner.username
         && payload.request?.to_username === friend.username
     )
+  })
+
+  await runCheck('offline friend request event is replayed and acknowledged after reconnect', async () => {
+    const offlineTarget = await bootstrapSession('smkrt_c')
+    const result = await fetchSessionJson(owner, '/api/taoyuan/online/social/friend-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_save_id: offlineTarget.identity.save_id }),
+    })
+    assert(result.response.ok, `offline friend request returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    const offlineRequestId = String(result.data?.request?.id || '')
+    assert(offlineRequestId, 'offline friend request id missing')
+
+    offlineReplaySocket = await openRealtimeSocket(offlineTarget)
+    const ready = await expectMessage(offlineReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) >= 1
+    )
+    assert(Number(ready.payload?.pending_notification_count) >= 1, 'offline replay ready did not report pending notifications')
+    const queuedMessage = await expectMessage(offlineReplaySocket, 'friend.request.created', payload =>
+      payload.request?.id === offlineRequestId
+        && payload.request?.from_username === owner.username
+        && payload.request?.to_save_id === offlineTarget.identity.save_id
+    )
+    const queuedEventId = String(queuedMessage.queued_event_id || '')
+    assert(queuedEventId, 'replayed friend request missing queued_event_id')
+    assert(queuedMessage.replayed === true, 'replayed friend request missing replayed marker')
+
+    const ackOffset = offlineReplaySocket.messages.length
+    offlineReplaySocket.send('notification.ack', { id: queuedEventId })
+    await expectMessageAfter(offlineReplaySocket, ackOffset, 'notification.ack', payload =>
+      Array.isArray(payload.acked_ids)
+        && payload.acked_ids.includes(queuedEventId)
+        && Number(payload.pending_count) === 0
+    )
+
+    offlineReplaySocket.close()
+    offlineReplaySocket = null
+    await wait(200)
+
+    offlineReplayReconnectSocket = await openRealtimeSocket(offlineTarget)
+    await expectMessage(offlineReplayReconnectSocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) === 0
+    )
+    await expectNoMessageAfter(offlineReplayReconnectSocket, 0, 'friend.request.created', payload =>
+      payload.request?.id === offlineRequestId
+    )
+    offlineReplayReconnectSocket.close()
+    offlineReplayReconnectSocket = null
   })
 
   let expeditionRoomId = ''
@@ -517,6 +578,8 @@ try {
 } finally {
   ownerSocket?.close()
   friendSocket?.close()
+  offlineReplaySocket?.close()
+  offlineReplayReconnectSocket?.close()
   await stopChild(serverProcess)
   try {
     await rm(smokeTempDir, { recursive: true, force: true })

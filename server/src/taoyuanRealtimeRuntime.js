@@ -1,18 +1,175 @@
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const { URL } = require('url');
 const db = require('./db');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
-const { getActiveSaveContext } = require('./taoyuanSaveRuntime');
+const { getActiveSaveContext, writeJsonFileAtomic } = require('./taoyuanSaveRuntime');
 
 const WEBSOCKET_GUID = '258EAFA5-E914-47DA-95CA-C5AB0DC85B11';
 const DEFAULT_REALTIME_PATH = '/api/taoyuan/online/realtime';
 const HEARTBEAT_INTERVAL_MS = 25_000;
 const MAX_CLIENT_FRAME_BYTES = 128 * 1024;
+const DATA_DIR = process.env.DB_STORAGE
+  ? path.dirname(process.env.DB_STORAGE)
+  : path.join(__dirname, '../data');
+const REALTIME_NOTIFICATION_FILE = path.join(DATA_DIR, 'taoyuan_realtime_notifications.json');
+const MAX_QUEUED_EVENTS_PER_USER = 100;
+const MAX_QUEUED_EVENT_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const OFFLINE_NOTIFICATION_EVENT_TYPES = new Set([
+  'friend.request.created',
+  'friend.request.accepted',
+  'friend.request.rejected',
+  'friend.removed',
+  'activity.room.invited',
+  'activity.room.updated',
+]);
 const activeConnections = new Map();
 let heartbeatTimer = null;
 
 function normalizeUsername(value) {
   return String(value || '').trim().toLowerCase();
+}
+
+function ensureDataDir() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function createStoreCorruptionError(filePath) {
+  const error = new Error(`${path.basename(filePath)} 已损坏，拒绝继续写入实时通知队列`);
+  error.status = 500;
+  error.code = 'STORE_CORRUPTED';
+  return error;
+}
+
+function readNotificationStore() {
+  ensureDataDir();
+  if (!fs.existsSync(REALTIME_NOTIFICATION_FILE)) return { notifications: [] };
+  try {
+    const raw = JSON.parse(fs.readFileSync(REALTIME_NOTIFICATION_FILE, 'utf8'));
+    if (!Array.isArray(raw?.notifications)) throw createStoreCorruptionError(REALTIME_NOTIFICATION_FILE);
+    return { notifications: raw.notifications };
+  } catch (error) {
+    if (error?.code === 'STORE_CORRUPTED') throw error;
+    throw createStoreCorruptionError(REALTIME_NOTIFICATION_FILE);
+  }
+}
+
+function clonePayload(payload = {}) {
+  try {
+    return JSON.parse(JSON.stringify(payload && typeof payload === 'object' ? payload : {}));
+  } catch {
+    return {};
+  }
+}
+
+function normalizeQueuedNotification(entry = {}) {
+  const username = normalizeUsername(entry.username);
+  const type = String(entry.type || '').trim();
+  if (!username || !type) return null;
+  const createdAt = Number(entry.created_at) || Date.now();
+  return {
+    id: String(entry.id || `rtq_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`),
+    username,
+    type,
+    payload: clonePayload(entry.payload),
+    created_at: createdAt,
+    last_delivered_at: Number(entry.last_delivered_at) || 0,
+    delivery_attempts: Math.max(0, Number(entry.delivery_attempts) || 0),
+  };
+}
+
+function pruneNotificationStore(store = {}) {
+  const cutoff = Date.now() - MAX_QUEUED_EVENT_AGE_MS;
+  const normalized = (Array.isArray(store.notifications) ? store.notifications : [])
+    .map(normalizeQueuedNotification)
+    .filter(entry => entry && entry.created_at >= cutoff)
+    .sort((a, b) => b.created_at - a.created_at);
+  const perUserCounts = new Map();
+  const limited = [];
+  for (const entry of normalized) {
+    const count = perUserCounts.get(entry.username) || 0;
+    if (count >= MAX_QUEUED_EVENTS_PER_USER) continue;
+    perUserCounts.set(entry.username, count + 1);
+    limited.push(entry);
+  }
+  return { notifications: limited.sort((a, b) => a.created_at - b.created_at) };
+}
+
+function saveNotificationStore(store) {
+  writeJsonFileAtomic(REALTIME_NOTIFICATION_FILE, pruneNotificationStore(store));
+}
+
+function queueOfflineNotification(username, type, payload = {}) {
+  const target = normalizeUsername(username);
+  if (!target || !OFFLINE_NOTIFICATION_EVENT_TYPES.has(type)) return null;
+  try {
+    const store = pruneNotificationStore(readNotificationStore());
+    const notification = normalizeQueuedNotification({
+      id: `rtq_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`,
+      username: target,
+      type,
+      payload,
+      created_at: Date.now(),
+    });
+    if (!notification) return null;
+    store.notifications.push(notification);
+    saveNotificationStore(store);
+    return notification;
+  } catch {
+    return null;
+  }
+}
+
+function listQueuedNotifications(username) {
+  const target = normalizeUsername(username);
+  if (!target) return [];
+  try {
+    const store = pruneNotificationStore(readNotificationStore());
+    saveNotificationStore(store);
+    return store.notifications.filter(entry => entry.username === target);
+  } catch {
+    return [];
+  }
+}
+
+function markQueuedNotificationsDelivered(username, ids = []) {
+  const target = normalizeUsername(username);
+  const idSet = new Set((ids || []).map(id => String(id || '')).filter(Boolean));
+  if (!target || idSet.size === 0) return;
+  try {
+    const store = pruneNotificationStore(readNotificationStore());
+    let changed = false;
+    for (const entry of store.notifications) {
+      if (entry.username !== target || !idSet.has(entry.id)) continue;
+      entry.last_delivered_at = Date.now();
+      entry.delivery_attempts += 1;
+      changed = true;
+    }
+    if (changed) saveNotificationStore(store);
+  } catch {}
+}
+
+function ackQueuedNotifications(username, ids = []) {
+  const target = normalizeUsername(username);
+  const idSet = new Set((ids || []).map(id => String(id || '')).filter(Boolean));
+  if (!target || idSet.size === 0) return { acked_ids: [], pending_count: listQueuedNotifications(target).length };
+  try {
+    const store = pruneNotificationStore(readNotificationStore());
+    const ackedIds = [];
+    store.notifications = store.notifications.filter(entry => {
+      if (entry.username === target && idSet.has(entry.id)) {
+        ackedIds.push(entry.id);
+        return false;
+      }
+      return true;
+    });
+    saveNotificationStore(store);
+    const pendingCount = store.notifications.filter(entry => entry.username === target).length;
+    return { acked_ids: ackedIds, pending_count: pendingCount };
+  } catch {
+    return { acked_ids: [], pending_count: 0 };
+  }
 }
 
 function parseCookieHeader(headerValue = '') {
@@ -150,12 +307,22 @@ function sendRawFrame(connection, payload, opcode = 1) {
   }
 }
 
-function sendEvent(connection, type, payload = {}) {
+function sendEvent(connection, type, payload = {}, meta = {}) {
   return sendRawFrame(connection, JSON.stringify({
     type,
     payload,
     sent_at: Date.now(),
+    ...meta,
   }));
+}
+
+function sendQueuedNotification(connection, notification) {
+  return sendEvent(connection, notification.type, notification.payload, {
+    queued_event_id: notification.id,
+    queued_at: notification.created_at,
+    replayed: true,
+    delivery_attempts: notification.delivery_attempts + 1,
+  });
 }
 
 function closeConnection(connection) {
@@ -234,10 +401,13 @@ async function broadcastPresence(type, connection) {
 }
 
 function emitUserEvent(username, type, payload = {}) {
+  const target = normalizeUsername(username);
+  if (!target) return 0;
   let sent = 0;
-  for (const connection of listUserConnections(username)) {
+  for (const connection of listUserConnections(target)) {
     if (sendEvent(connection, type, payload)) sent += 1;
   }
+  if (sent === 0) queueOfflineNotification(target, type, payload);
   return sent;
 }
 
@@ -306,6 +476,12 @@ function handleClientFrame(connection, frame) {
         .filter(entry => !entry.closed)
         .map(entry => buildPresencePayload(entry)),
     });
+  } else if (message?.type === 'notification.ack') {
+    const payload = message.payload && typeof message.payload === 'object' ? message.payload : {};
+    const ids = Array.isArray(payload.ids)
+      ? payload.ids
+      : [payload.id || payload.notification_id || payload.queued_event_id];
+    sendEvent(connection, 'notification.ack', ackQueuedNotifications(connection.username, ids));
   }
 }
 
@@ -386,13 +562,20 @@ function attachRealtimeServer(server, options = {}) {
       };
       const wasOnline = hasActiveConnectionForKey(connectionKey(connection));
       registerConnection(connection);
+      const queuedNotifications = listQueuedNotifications(connection.username);
       sendEvent(connection, 'realtime.ready', {
         connection_id: connection.id,
         username: connection.username,
         display_name: connection.displayName,
         save_id: connection.saveId,
         save_slot: connection.saveSlot,
+        pending_notification_count: queuedNotifications.length,
       });
+      const deliveredQueuedIds = [];
+      for (const notification of queuedNotifications) {
+        if (sendQueuedNotification(connection, notification)) deliveredQueuedIds.push(notification.id);
+      }
+      markQueuedNotificationsDelivered(connection.username, deliveredQueuedIds);
       if (!wasOnline) {
         await broadcastPresence('presence.online', connection);
       }

@@ -25,6 +25,12 @@
 - 远征邀请列表补入稳定 `data-testid`，`qa:region-friend-panel-live-smoke` 新增真实后端 + Vite + Chromium 场景：另一个账号创建远征房间并邀请当前浏览器账号后，页面会在收到 `activity.room.invited` 帧后自动显示邀请卡片，无需手动刷新。
 - 本轮验证已通过 `node --check scripts/qa-region-friend-panel-live-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:region-friend-panel-live-smoke` 与 `git diff --check`。
 
+### 0520 实时通知离线补发（A5 第一轮）
+- 服务端 realtime runtime 新增 `taoyuan_realtime_notifications.json` 离线队列：好友申请 / 接受 / 拒绝 / 删除，以及节会 / 远征房间邀请和状态变化在目标玩家离线时会排队保存，下次连接后用原事件类型补发。
+- 补发帧会带 `queued_event_id / replayed / queued_at` 元数据；`useRealtimeStore.ts` 收到后仍按普通好友或房间事件刷新权威接口，并额外发送 `notification.ack`，由服务端确认后清理队列，避免下次连接重复补发。
+- 这轮没有让 WebSocket 承担结算：好友关系、房间成员、权限、奖励和补偿仍由 HTTP 写路与运行时权威处理，离线队列只增强投递可靠性。
+- 本轮验证已通过 `node --check server/src/taoyuanRealtimeRuntime.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix server run qa:realtime-smoke`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:region-friend-panel-live-smoke`、`npm --prefix server run qa:online-smoke` 与 `git diff --check`。
+
 ### 0520 存档身份底座（A0 服务端部分）
 - 服务端存档读写链路已开始补发并锁定存档级数字身份：旧服务端存档经 `/api/taoyuan/save/slots` 或 `/api/taoyuan/save/:slot` 读取时，会被写入固定 9 位 `onlineIdentity.save_id`，后续保存不能由客户端篡改这个 ID。
 - 服务端已新增按存档数字 ID 搜索玩家的最小接口：`/api/taoyuan/online/social/player-search?save_id=...` 会返回对应槽位的公开名片，不下发背包、钱包等存档内容。

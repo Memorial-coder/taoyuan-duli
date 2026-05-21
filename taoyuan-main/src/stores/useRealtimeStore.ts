@@ -12,6 +12,9 @@ interface RealtimeEnvelope {
   type: string
   payload?: Record<string, unknown>
   sent_at?: number
+  queued_event_id?: string
+  queued_at?: number
+  replayed?: boolean
 }
 
 interface PresenceEntry {
@@ -206,6 +209,12 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     }
   }
 
+  const acknowledgeQueuedEnvelope = (envelope: RealtimeEnvelope) => {
+    const queuedEventId = typeof envelope.queued_event_id === 'string' ? envelope.queued_event_id.trim() : ''
+    if (!queuedEventId) return
+    send('notification.ack', { id: queuedEventId })
+  }
+
   const scheduleReconnect = () => {
     if (manuallyStopped || reconnectTimer !== null) return
     status.value = 'reconnecting'
@@ -248,7 +257,9 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     nextSocket.onmessage = event => {
       if (typeof event.data !== 'string') return
       try {
-        handleEnvelope(JSON.parse(event.data) as RealtimeEnvelope)
+        const envelope = JSON.parse(event.data) as RealtimeEnvelope
+        handleEnvelope(envelope)
+        acknowledgeQueuedEnvelope(envelope)
       } catch {
         lastError.value = '实时消息解析失败'
       }
