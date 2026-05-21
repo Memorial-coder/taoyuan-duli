@@ -14,6 +14,11 @@
 - `GameLayout.vue` 已在游戏生命周期内启动 / 停止 realtime store；好友事件只触发 `useSocialStore.refreshRelationships({ silent: true })` 读取服务端权威关系概览，不直接改好友状态或结算结果。
 - Vite 开发与预览代理已补 `ws: true`，`qa:region-friend-panel-live-smoke` 也新增 realtime 验证：真实后端 + Vite + Chromium 下会确认页面打开 WebSocket，并验证另一个账号发起好友申请后，好友驿站无需手动刷新即可显示新申请。
 
+### 0520 房间实时事件投递（A4 服务端补齐）
+- 服务端节会 / 远征房间写路已补上 `activity.room.invited` 与 `activity.room.updated`：建房、邀请、加入、离开、准备、倒计时、断线、重连、玩法动作、结算和关闭都会在 HTTP 权威写入成功后通知相关在线成员。
+- 房间实时事件 payload 会带 `refresh_required: true`，用于提示客户端刷新节会 / 远征权威接口；WebSocket 仍不负责房间结算、成员权限或奖励落账。
+- 后端 `qa:realtime-smoke` 已覆盖远征房间建房、邀请和加入三段实时推送，并复跑 `qa:online-smoke` 确认现有节会 / 远征完整链路仍可回归通过；前端房间 store 静默消费这些事件留到下一轮。
+
 ### 0520 存档身份底座（A0 服务端部分）
 - 服务端存档读写链路已开始补发并锁定存档级数字身份：旧服务端存档经 `/api/taoyuan/save/slots` 或 `/api/taoyuan/save/:slot` 读取时，会被写入固定 9 位 `onlineIdentity.save_id`，后续保存不能由客户端篡改这个 ID。
 - 服务端已新增按存档数字 ID 搜索玩家的最小接口：`/api/taoyuan/online/social/player-search?save_id=...` 会返回对应槽位的公开名片，不下发背包、钱包等存档内容。

@@ -10,6 +10,8 @@
 - `0520todo.md / A4-A5` 这一轮把前端最小实时消费层接上：新增 `useRealtimeStore.ts`，游戏布局进入后会按当前登录会话建立原生 WebSocket、发送轻量 ping、断线后退避重连，并在 `realtime.ready` 后拉取 presence snapshot 与静默刷新好友关系。
 - 好友驿站现在可以被实时事件推动刷新：收到 `friend.request.created / accepted / rejected / removed` 后，前端只重新读取服务端权威关系概览，不直接改好友状态或结算结果；Vite 开发 / 预览代理也补了 `ws: true`，保证本地浏览器烟测能走同一条 `/api/taoyuan/online/realtime`。
 - `qa:region-friend-panel-live-smoke` 已扩展 realtime 断言：真实后端 + Vite + Chromium 环境下会确认游戏布局打开 WebSocket，并由另一个临时账号发起好友申请，验证页面不点击刷新也能看到新申请。
+- `0520todo.md / A4` 这一轮补齐活动房间实时投递：节会 / 远征房间在建房、邀请、加入、离开、准备、倒计时、断线、重连、动作、结算和关闭这些 HTTP 权威写路成功后，会向相关成员推送 `activity.room.invited` 或 `activity.room.updated`；事件 payload 带 `refresh_required`，明确只提示客户端刷新服务端权威状态，不让 WebSocket 参与跨玩家结算。
+- `qa:realtime-smoke` 已新增远征房间实时回归：隔离后端下会创建房间、邀请好友并让好友加入，分别断言房主和被邀请者能收到建房、邀请和加入状态变化事件；同时复跑 `qa:online-smoke` 确认节会 / 远征原有结算、治理和发布开关链路没有被实时投递破坏。
 
 - `0520todo.md / A0` 这一轮先把服务端存档身份底座落到真实读写链路：`server/src/taoyuanSaveRuntime.js` 新增按账号 + 槽位维护的 `SaveIdentity` 注册表，服务端存档读回与保存时会自动注入 9 位数字 `onlineIdentity.save_id`，并且覆盖客户端篡改的 ID，只允许昵称快照随存档内容更新。
 - 旧服务端存档现在第一次经 `/api/taoyuan/save/slots` 或 `/api/taoyuan/save/:slot` 读回时会自动补发数字 ID 并回写到加密存档；删除服务端槽位时也会清理对应身份记录，避免空槽后续误复用旧身份。

@@ -286,6 +286,92 @@ function normalizeUsernameKey(username) {
   return normalizeUsername(username).toLocaleLowerCase('zh-CN');
 }
 
+function getSessionActor(req) {
+  return {
+    username: req.session.username,
+    displayName: req.session.display_name || req.session.username,
+  };
+}
+
+function collectActivityRoomRealtimeRecipients(room, extraUsernames = []) {
+  const recipients = new Set();
+  const addUsername = username => {
+    const normalized = normalizeUsernameKey(username);
+    if (normalized) recipients.add(normalized);
+  };
+
+  addUsername(room?.host_username);
+  for (const member of room?.members || []) {
+    addUsername(member?.username);
+  }
+  for (const invitation of room?.invitations || []) {
+    addUsername(invitation?.target_username);
+  }
+  for (const username of extraUsernames || []) {
+    addUsername(username);
+  }
+  return [...recipients];
+}
+
+function findActivityRoomInvitation(room, targetUsername = '') {
+  const normalizedTarget = normalizeUsernameKey(targetUsername);
+  return (room?.invitations || []).find(invitation => {
+    if (!normalizedTarget) return invitation?.status === 'pending';
+    return normalizeUsernameKey(invitation?.target_username) === normalizedTarget;
+  }) || null;
+}
+
+function buildActivityRoomRealtimePayload(domain, action, result, actor = {}, extra = {}) {
+  const room = result?.room || null;
+  return {
+    domain,
+    action,
+    actor_username: normalizeUsernameKey(actor.username),
+    actor_display_name: normalizeUsername(actor.displayName || actor.display_name || actor.username),
+    room_id: room?.id || '',
+    refresh_required: true,
+    room,
+    ...extra,
+  };
+}
+
+function emitActivityRoomRealtimeEvent(domain, action, result, actor = {}, extraUsernames = [], extraPayload = {}) {
+  const room = result?.room;
+  if (!room) return 0;
+  try {
+    return taoyuanRealtimeRuntime.emitUsersEvent(
+      collectActivityRoomRealtimeRecipients(room, extraUsernames),
+      'activity.room.updated',
+      buildActivityRoomRealtimePayload(domain, action, result, actor, extraPayload)
+    );
+  } catch {
+    return 0;
+  }
+}
+
+function emitActivityRoomInviteRealtimeEvent(domain, result, actor = {}, targetUsername = '') {
+  const room = result?.room;
+  if (!room) return { invited: 0, updated: 0 };
+  const invitation = findActivityRoomInvitation(room, targetUsername);
+  const resolvedTarget = normalizeUsernameKey(invitation?.target_username || targetUsername);
+  const payloadExtra = {
+    target_username: resolvedTarget,
+    invitation,
+  };
+  let invited = 0;
+  try {
+    invited = taoyuanRealtimeRuntime.emitUsersEvent(
+      [actor.username, resolvedTarget],
+      'activity.room.invited',
+      buildActivityRoomRealtimePayload(domain, 'invite', result, actor, payloadExtra)
+    );
+  } catch {
+    invited = 0;
+  }
+  const updated = emitActivityRoomRealtimeEvent(domain, 'invite', result, actor, [resolvedTarget], payloadExtra);
+  return { invited, updated };
+}
+
 function getAdminContext(req) {
   const token = String(req.headers['x-admin-token'] || '').trim();
   const adminToken = String(process.env.ADMIN_TOKEN || '').trim();
@@ -2106,6 +2192,7 @@ router.post('/taoyuan/online/festival/rooms', createOnlineReleaseGuard('festival
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('festival', 'create', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '创建节会房间失败' });
@@ -2118,6 +2205,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/invite', createOnlineRelease
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomInviteRealtimeEvent('festival', result, getSessionActor(req), req.body?.target_username);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '发送节会邀请失败' });
@@ -2130,6 +2218,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/join', createOnlineReleaseGu
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('festival', 'join', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '加入节会房间失败' });
@@ -2142,6 +2231,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/leave', createOnlineReleaseG
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('festival', 'leave', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '离开节会房间失败' });
@@ -2154,6 +2244,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/ready-check', createOnlineRe
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('festival', 'ready-check', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '开启准备确认失败' });
@@ -2166,6 +2257,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/ready', createOnlineReleaseG
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('festival', 'ready', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '设置准备状态失败' });
@@ -2178,6 +2270,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/unready', createOnlineReleas
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('festival', 'unready', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '取消准备失败' });
@@ -2190,6 +2283,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/start', createOnlineReleaseG
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('festival', 'start', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '开始节会倒计时失败' });
@@ -2202,6 +2296,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/disconnect', createOnlineRel
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('festival', 'disconnect', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '节会房间断线保护失败' });
@@ -2214,6 +2309,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/reconnect', createOnlineRele
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('festival', 'reconnect', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复节会房间失败' });
@@ -2225,6 +2321,9 @@ router.post('/taoyuan/online/festival/rooms/:roomId/action', createOnlineRelease
     const result = await taoyuanActivityRoomRuntime.submitFestivalRoomGameplayAction(req.params.roomId, req.body || {}, {
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
+    });
+    emitActivityRoomRealtimeEvent('festival', 'action', result, getSessionActor(req), [], {
+      action_id: String(req.body?.action_id || ''),
     });
     res.json({ ok: true, ...result });
   } catch (error) {
@@ -2238,6 +2337,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/settle', createOnlineRelease
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('festival', 'settle', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '节会房间结算失败' });
@@ -2250,6 +2350,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/close', createOnlineReleaseG
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('festival', 'close', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '关闭节会房间失败' });
@@ -2262,6 +2363,7 @@ router.post('/taoyuan/online/expedition/rooms', loginRequired, signRequired, asy
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('expedition', 'create', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '创建远征房间失败' });
@@ -2274,6 +2376,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/invite', loginRequired, si
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomInviteRealtimeEvent('expedition', result, getSessionActor(req), req.body?.target_username);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '发送远征邀请失败' });
@@ -2286,6 +2389,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/join', loginRequired, sign
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('expedition', 'join', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '加入远征房间失败' });
@@ -2298,6 +2402,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/leave', loginRequired, sig
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('expedition', 'leave', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '离开远征房间失败' });
@@ -2310,6 +2415,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/ready-check', loginRequire
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('expedition', 'ready-check', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '开启远征准备确认失败' });
@@ -2322,6 +2428,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/ready', loginRequired, sig
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('expedition', 'ready', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '设置远征准备状态失败' });
@@ -2334,6 +2441,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/unready', loginRequired, s
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('expedition', 'unready', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '取消远征准备失败' });
@@ -2346,6 +2454,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/start', loginRequired, sig
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('expedition', 'start', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '开始远征倒计时失败' });
@@ -2358,6 +2467,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/disconnect', loginRequired
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('expedition', 'disconnect', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '远征房间断线保护失败' });
@@ -2370,6 +2480,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/reconnect', loginRequired,
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('expedition', 'reconnect', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复远征房间失败' });
@@ -2381,6 +2492,9 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/action', loginRequired, si
     const result = await taoyuanActivityRoomRuntime.submitExpeditionRoomGameplayAction(req.params.roomId, req.body || {}, {
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
+    });
+    emitActivityRoomRealtimeEvent('expedition', 'action', result, getSessionActor(req), [], {
+      action_id: String(req.body?.action_id || ''),
     });
     res.json({ ok: true, ...result });
   } catch (error) {
@@ -2394,6 +2508,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/settle', loginRequired, si
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('expedition', 'settle', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '远征房间结算失败' });
@@ -2406,6 +2521,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/close', loginRequired, sig
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
+    emitActivityRoomRealtimeEvent('expedition', 'close', result, getSessionActor(req));
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '关闭远征房间失败' });

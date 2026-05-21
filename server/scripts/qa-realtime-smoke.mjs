@@ -442,6 +442,62 @@ try {
     )
   })
 
+  let expeditionRoomId = ''
+  await runCheck('activity room create event is delivered through websocket', async () => {
+    const offset = ownerSocket.messages.length
+    const result = await fetchSessionJson(owner, '/api/taoyuan/online/expedition/rooms', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: '实时远征烟测',
+        template_id: 'expedition_outpost',
+        gameplay_template_id: 'expedition_roles',
+      }),
+    })
+    assert(result.response.ok, `expedition room create returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    expeditionRoomId = String(result.data?.room?.id || '')
+    assert(expeditionRoomId, 'expedition room id missing')
+    await expectMessageAfter(ownerSocket, offset, 'activity.room.updated', payload =>
+      payload.domain === 'expedition'
+        && payload.action === 'create'
+        && payload.room?.id === expeditionRoomId
+        && payload.room?.host_username === owner.username
+    )
+  })
+
+  await runCheck('activity room invitation event is delivered through websocket', async () => {
+    const offset = friendSocket.messages.length
+    const result = await fetchSessionJson(owner, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(expeditionRoomId)}/invite`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_username: friend.username }),
+    })
+    assert(result.response.ok, `expedition room invite returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    await expectMessageAfter(friendSocket, offset, 'activity.room.invited', payload =>
+      payload.domain === 'expedition'
+        && payload.action === 'invite'
+        && payload.target_username === friend.username
+        && payload.invitation?.target_username === friend.username
+        && payload.room?.id === expeditionRoomId
+    )
+  })
+
+  await runCheck('activity room update event is delivered after member join', async () => {
+    const offset = ownerSocket.messages.length
+    const result = await fetchSessionJson(friend, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(expeditionRoomId)}/join`, {
+      method: 'POST',
+    })
+    assert(result.response.ok, `expedition room join returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    await expectMessageAfter(ownerSocket, offset, 'activity.room.updated', payload =>
+      payload.domain === 'expedition'
+        && payload.action === 'join'
+        && payload.actor_username === friend.username
+        && payload.room?.id === expeditionRoomId
+        && Array.isArray(payload.room?.members)
+        && payload.room.members.some(member => member.username === friend.username && member.status === 'joined')
+    )
+  })
+
   await runCheck('presence offline is delivered after disconnect', async () => {
     friendSocket.close()
     await expectMessage(ownerSocket, 'presence.offline', payload =>
