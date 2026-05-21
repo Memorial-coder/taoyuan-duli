@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 好友驿站紧凑按钮统一（B1 RegionMapView）
+- `RegionMapView.vue` 这一轮把好友驿站里剩余的 32px 紧凑按钮统一收口到 `online-action-btn--compact`：刷新、复制 ID、搜索结果申请 / 拉黑、收到申请接受 / 拒绝、好友条目里的庄园 / 写信 / 送礼 / 邀请进房 / 节会 / 村社 / 协作，以及删除 / 拉黑 / 解除拉黑都改用同一套按钮类。
+- 危险动作继续叠加 `online-action-btn--danger`，原有禁用条件、`data-testid` 和点击事件保持不变；这一轮只替换样式层，不改好友关系和跳转业务逻辑。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 ### 0520 导入档身份回写浏览器回归（A5/A7 旧档兼容）
 - `qa:online-regression-live-smoke` 新增导入档身份回写场景：真实浏览器通过主菜单导入一个不含 `onlineIdentity` 的旧/云导入档到服务端空槽，随后读取服务端 raw，确认服务端已写回公开存档 ID 和正确槽位。
 - 同一场景会继续调用 `player-search` 按新 ID 搜索玩家，确认搜索结果指向导入槽且不泄露 gameplay payload；载入导入槽后还会打开行旅图好友驿站，断言界面展示的存档 ID 与服务端补发 ID 一致。

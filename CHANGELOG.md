@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / B1` 这一轮把 `RegionMapView.vue` 好友驿站里剩余的 32px 紧凑按钮统一收口到 `online-action-btn--compact`：刷新、复制 ID、搜索结果申请 / 拉黑、收到申请接受 / 拒绝、好友条目里的庄园 / 写信 / 送礼 / 邀请进房 / 节会 / 村社 / 协作，以及删除 / 拉黑 / 解除拉黑都改用同一套按钮类。
+- 危险动作继续叠加 `online-action-btn--danger`，原有禁用条件、`data-testid` 和点击事件保持不变；这一轮只替换样式层，不改好友关系和跳转业务逻辑。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 - `0520todo.md / A5-A7` 这一轮把导入档身份回写加入真实浏览器回归：`qa:online-regression-live-smoke` 现在会通过主菜单把不含 `onlineIdentity` 的导入档写入服务端空槽，验证服务端 raw 已写回公开存档 ID。
 - 这条回归还会用 `player-search` 按新 ID 搜索对应槽位，并在载入导入槽后进入行旅图好友驿站，确认浏览器界面显示的存档 ID 与服务端补发 ID 一致。
 - 回归脚本同时过滤页面关闭阶段的 `gameplay/logs/batch` abort 噪声，避免测试在功能通过后因日志上报被取消而假红；本轮已通过 `node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs` 与 `npm --prefix taoyuan-main run qa:online-regression-live-smoke`。

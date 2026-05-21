@@ -129,7 +129,7 @@
           </div>
           <div class="flex flex-wrap gap-2">
             <button
-              class="inline-flex min-h-[34px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50"
+              class="online-action-btn online-action-btn--compact"
               :disabled="socialStore.relationshipLoading"
               title="刷新好友关系"
               @click="refreshMapSocialPanel"
@@ -138,7 +138,7 @@
               {{ socialStore.relationshipLoading ? '刷新中' : '刷新' }}
             </button>
             <button
-              class="inline-flex min-h-[34px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50"
+              class="online-action-btn online-action-btn--compact"
               :disabled="!ownActiveSaveId"
               title="复制当前存档 ID"
               @click="copyOwnSaveId"
@@ -203,7 +203,7 @@
                 <p class="text-[10px] text-muted mt-2 leading-4">{{ searchedPlayer.profile.recent_activity || '暂无近期动态' }}</p>
                 <div class="flex flex-wrap gap-2 mt-2">
                   <button
-                    class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50"
+                    class="online-action-btn online-action-btn--compact"
                     :disabled="!canActOnSearchedPlayer || socialStore.relationshipActionRunning"
                     data-testid="region-social-search-request"
                     title="发送好友申请"
@@ -213,7 +213,7 @@
                     申请
                   </button>
                   <button
-                    class="inline-flex min-h-[32px] items-center gap-1 border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50"
+                    class="online-action-btn online-action-btn--compact online-action-btn--danger"
                     :disabled="!canActOnSearchedPlayer || socialStore.relationshipActionRunning"
                     data-testid="region-social-search-block"
                     title="拉黑该存档"
@@ -240,8 +240,8 @@
                   <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
                   <p class="text-[10px] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'incoming') }}</p>
                   <div class="flex flex-wrap gap-2 mt-2">
-                    <button class="min-h-[32px] border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.request_id" :data-testid="`region-social-incoming-accept-${entry.request_id || 'missing'}`" @click="acceptMapRequest(entry.request_id!)">接受</button>
-                    <button class="min-h-[32px] border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-muted hover:bg-accent/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.request_id" :data-testid="`region-social-incoming-reject-${entry.request_id || 'missing'}`" @click="rejectMapRequest(entry.request_id!)">拒绝</button>
+                    <button class="online-action-btn online-action-btn--compact" :disabled="socialStore.relationshipActionRunning || !entry.request_id" :data-testid="`region-social-incoming-accept-${entry.request_id || 'missing'}`" @click="acceptMapRequest(entry.request_id!)">接受</button>
+                    <button class="online-action-btn online-action-btn--compact" :disabled="socialStore.relationshipActionRunning || !entry.request_id" :data-testid="`region-social-incoming-reject-${entry.request_id || 'missing'}`" @click="rejectMapRequest(entry.request_id!)">拒绝</button>
                   </div>
                 </div>
               </div>
@@ -276,36 +276,36 @@
                   </div>
                   <p class="text-[10px] text-muted mt-2 leading-4">{{ entry.profile.recent_activity || entry.profile.primary_route_label }}</p>
                   <div class="flex flex-wrap gap-2 mt-2">
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-manor-${entry.friendship_id || 'missing'}`" @click="openFriendManor(entry)">
+                    <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-manor-${entry.friendship_id || 'missing'}`" @click="openFriendManor(entry)">
                       <Map :size="11" />
                       庄园
                     </button>
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-mail-${entry.friendship_id || 'missing'}`" @click="openFriendMail(entry, 'letter')">
+                    <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-mail-${entry.friendship_id || 'missing'}`" @click="openFriendMail(entry, 'letter')">
                       <Mail :size="11" />
                       写信
                     </button>
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-gift-${entry.friendship_id || 'missing'}`" @click="openFriendMail(entry, 'gift')">
+                    <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-gift-${entry.friendship_id || 'missing'}`" @click="openFriendMail(entry, 'gift')">
                       <Gift :size="11" />
                       送礼
                     </button>
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-invite-${entry.friendship_id || 'missing'}`" @click="openFriendExpeditionInvite(entry)">
+                    <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-invite-${entry.friendship_id || 'missing'}`" @click="openFriendExpeditionInvite(entry)">
                       <UserPlus :size="11" />
                       邀请进房
                     </button>
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-festival-${entry.friendship_id || 'missing'}`" @click="openFriendFestivalInvite(entry)">
+                    <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-festival-${entry.friendship_id || 'missing'}`" @click="openFriendFestivalInvite(entry)">
                       <UserPlus :size="11" />
                       节会
                     </button>
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-society-${entry.friendship_id || 'missing'}`" @click="openFriendSocietyInvite(entry)">
+                    <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-society-${entry.friendship_id || 'missing'}`" @click="openFriendSocietyInvite(entry)">
                       <Users :size="11" />
                       村社
                     </button>
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-coop-${entry.friendship_id || 'missing'}`" @click="openFriendCoop(entry)">
+                    <button class="online-action-btn online-action-btn--compact" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-coop-${entry.friendship_id || 'missing'}`" @click="openFriendCoop(entry)">
                       <Users :size="11" />
                       协作
                     </button>
-                    <button class="min-h-[32px] border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.friendship_id" :data-testid="`region-social-friend-remove-${entry.friendship_id || 'missing'}`" @click="removeMapFriend(entry)">删除</button>
-                    <button class="min-h-[32px] border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.friend_save_id" :data-testid="`region-social-friend-block-${entry.friendship_id || 'missing'}`" @click="blockMapRelation(entry)">拉黑</button>
+                    <button class="online-action-btn online-action-btn--compact online-action-btn--danger" :disabled="socialStore.relationshipActionRunning || !entry.friendship_id" :data-testid="`region-social-friend-remove-${entry.friendship_id || 'missing'}`" @click="removeMapFriend(entry)">删除</button>
+                    <button class="online-action-btn online-action-btn--compact online-action-btn--danger" :disabled="socialStore.relationshipActionRunning || !entry.friend_save_id" :data-testid="`region-social-friend-block-${entry.friendship_id || 'missing'}`" @click="blockMapRelation(entry)">拉黑</button>
                   </div>
                 </div>
               </div>
@@ -330,7 +330,7 @@
                       <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
                       <p class="text-[10px] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'blocked') }}</p>
                     </div>
-                    <button class="min-h-[32px] border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50 shrink-0" :disabled="socialStore.relationshipActionRunning" :data-testid="`region-social-blocked-unblock-${entry.block_id || 'missing'}`" @click="unblockMapRelation(entry)">解除</button>
+                    <button class="online-action-btn online-action-btn--compact shrink-0" :disabled="socialStore.relationshipActionRunning" :data-testid="`region-social-blocked-unblock-${entry.block_id || 'missing'}`" @click="unblockMapRelation(entry)">解除</button>
                   </div>
                 </div>
               </div>
