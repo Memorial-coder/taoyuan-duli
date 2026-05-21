@@ -22,6 +22,7 @@ if (String(process.env.QA_ONLINE_SMOKE_FORCE_LOCAL || '').trim().toLowerCase() =
 }
 
 const fs = require('fs');
+const http = require('http');
 const express = require('express');
 const compression = require('compression');
 const cors = require('cors');
@@ -32,6 +33,7 @@ const db = require('./db');
 const taoyuanHall = require('./taoyuanHall');
 const taoyuanImageModeration = require('./taoyuanImageModeration');
 const officialManagedConfig = require('./officialManagedConfig');
+const taoyuanRealtimeRuntime = require('./taoyuanRealtimeRuntime');
 
 const DATA_DIR = path.dirname(process.env.DB_STORAGE);
 const DEFAULTS_DIR = path.join(__dirname, '../../data-defaults');
@@ -71,6 +73,7 @@ if (fs.existsSync(DEFAULTS_DIR)) {
 const apiRoutes = require('./routes/api');
 
 const app = express();
+const server = http.createServer(app);
 const PORT = parseInt(process.env.PORT || '4013', 10);
 const COOKIE_SECURE = String(process.env.COOKIE_SECURE || '').trim().toLowerCase() === 'true';
 const COOKIE_SAME_SITE = String(process.env.COOKIE_SAME_SITE || '').trim().toLowerCase();
@@ -328,6 +331,12 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({ ok: false, msg: err.message || '服务器内部错误' });
 });
 
+taoyuanRealtimeRuntime.attachRealtimeServer(server, {
+  sessionStore,
+  sessionSecret: process.env.SECRET_KEY || '',
+  cookieName: 'taoyuan.sid',
+});
+
 async function startServer() {
   try {
     validateCriticalEnv();
@@ -344,7 +353,7 @@ async function startServer() {
     process.exit(1);
   }
 
-  app.listen(PORT, () => {
+  server.listen(PORT, () => {
     console.log(`🏮 桃源乡独立版启动于 http://127.0.0.1:${PORT}`);
   });
 }

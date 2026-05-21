@@ -12,6 +12,7 @@ const taoyuanHall = require('../taoyuanHall');
 const taoyuanMailbox = require('../taoyuanMailbox');
 const taoyuanAiAssistant = require('../taoyuanAiAssistant');
 const taoyuanSocialRuntime = require('../taoyuanSocialRuntime');
+const taoyuanRealtimeRuntime = require('../taoyuanRealtimeRuntime');
 const taoyuanManorRuntime = require('../taoyuanManorRuntime');
 const taoyuanCoopOrderRuntime = require('../taoyuanCoopOrderRuntime');
 const taoyuanActivityRoomRuntime = require('../taoyuanActivityRoomRuntime');
@@ -1722,6 +1723,11 @@ router.get('/taoyuan/online/social/player-search', createOnlineReleaseGuard('soc
 router.post('/taoyuan/online/social/friend-requests', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const request = await taoyuanSocialRuntime.requestFriendship(req.session.username, req.body || {});
+    taoyuanRealtimeRuntime.emitUsersEvent(
+      [request.from_username, request.to_username],
+      'friend.request.created',
+      { request }
+    );
     res.json({ ok: true, request });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '发送好友申请失败' });
@@ -1731,6 +1737,11 @@ router.post('/taoyuan/online/social/friend-requests', createOnlineReleaseGuard('
 router.post('/taoyuan/online/social/friend-requests/:requestId/accept', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const request = await taoyuanSocialRuntime.acceptFriendRequest(req.session.username, req.params.requestId);
+    taoyuanRealtimeRuntime.emitUsersEvent(
+      [request.from_username, request.to_username],
+      'friend.request.accepted',
+      { request }
+    );
     res.json({ ok: true, request });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '接受好友申请失败' });
@@ -1740,6 +1751,11 @@ router.post('/taoyuan/online/social/friend-requests/:requestId/accept', createOn
 router.post('/taoyuan/online/social/friend-requests/:requestId/reject', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const request = await taoyuanSocialRuntime.rejectFriendRequest(req.session.username, req.params.requestId);
+    taoyuanRealtimeRuntime.emitUsersEvent(
+      [request.from_username, request.to_username],
+      'friend.request.rejected',
+      { request }
+    );
     res.json({ ok: true, request });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '拒绝好友申请失败' });
@@ -1749,6 +1765,11 @@ router.post('/taoyuan/online/social/friend-requests/:requestId/reject', createOn
 router.delete('/taoyuan/online/social/friends/:friendshipId', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const relation = await taoyuanSocialRuntime.removeFriendship(req.session.username, req.params.friendshipId);
+    taoyuanRealtimeRuntime.emitUsersEvent(
+      [relation.own_username, relation.friend_username],
+      'friend.removed',
+      { relation }
+    );
     res.json({ ok: true, relation });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '删除好友失败' });

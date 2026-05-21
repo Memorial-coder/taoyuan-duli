@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 原生实时通讯底座（A4 服务端第一轮）
+- 服务端已新增原生 WebSocket 入口 `/api/taoyuan/online/realtime`，复用现有登录会话与活动存档身份建立实时连接；当前不引入 `socket.io`，也不让 WebSocket 承担结算写入。
+- 实时通道当前会推送连接就绪、在线 / 离线 presence、心跳 / pong，以及好友申请创建、接受、拒绝、删除事件；好友关系本体仍由服务端 HTTP 接口权威写入，WebSocket 只负责通知在线双方刷新。
+- 新增后端 `qa:realtime-smoke`，会用隔离数据和原始 WebSocket 握手验证未登录拒绝、登录 ready、presence online/offline、好友申请推送和接受推送。前端实时 store、邀请和房间状态变化仍在后续 A4/A5 中继续接入。
+
 ### 0520 存档身份底座（A0 服务端部分）
 - 服务端存档读写链路已开始补发并锁定存档级数字身份：旧服务端存档经 `/api/taoyuan/save/slots` 或 `/api/taoyuan/save/:slot` 读取时，会被写入固定 9 位 `onlineIdentity.save_id`，后续保存不能由客户端篡改这个 ID。
 - 服务端已新增按存档数字 ID 搜索玩家的最小接口：`/api/taoyuan/online/social/player-search?save_id=...` 会返回对应槽位的公开名片，不下发背包、钱包等存档内容。

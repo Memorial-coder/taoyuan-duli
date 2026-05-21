@@ -7,7 +7,8 @@
   "scripts": {
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
-    "qa:online-smoke": "node scripts/qa-online-smoke.mjs"
+    "qa:online-smoke": "node scripts/qa-online-smoke.mjs",
+    "qa:realtime-smoke": "node scripts/qa-realtime-smoke.mjs"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

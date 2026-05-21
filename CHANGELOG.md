@@ -4,6 +4,10 @@
 
 ## 2026-05-20（开发中）
 
+- `0520todo.md / A4` 这一轮按原生 WebSocket 方案补出服务端实时通讯底座：`/api/taoyuan/online/realtime` 现在会复用签名 `taoyuan.sid` 与文件会话存储完成鉴权，建立连接后下发 `realtime.ready`，并由服务端内存连接表维护当前账号 / 活动存档的在线状态。
+- 实时通道当前只做事件投递，不参与跨玩家结算：客户端可发送 `ping` 与 `presence.snapshot` 这类轻消息，好友申请、接受、拒绝和删除仍然全部走 HTTP 服务端权威写路，写入成功后再向双方推送 `friend.request.*` 或 `friend.removed`。
+- 新增 `server/scripts/qa-realtime-smoke.mjs` 与 `qa:realtime-smoke`：烟测会启动隔离后端、注册两名临时玩家、写入服务端存档、用原始 TCP WebSocket 握手验证未登录拒绝、已登录 ready、在线 / 离线 presence、好友申请推送和接受推送，覆盖这一轮 A4 服务端闭环。
+
 - `0520todo.md / A0` 这一轮先把服务端存档身份底座落到真实读写链路：`server/src/taoyuanSaveRuntime.js` 新增按账号 + 槽位维护的 `SaveIdentity` 注册表，服务端存档读回与保存时会自动注入 9 位数字 `onlineIdentity.save_id`，并且覆盖客户端篡改的 ID，只允许昵称快照随存档内容更新。
 - 旧服务端存档现在第一次经 `/api/taoyuan/save/slots` 或 `/api/taoyuan/save/:slot` 读回时会自动补发数字 ID 并回写到加密存档；删除服务端槽位时也会清理对应身份记录，避免空槽后续误复用旧身份。
 - `server/scripts/qa-online-smoke.mjs` 已补进 A0 回归：当前会实际验证旧档读回补发 `onlineIdentity`，以及客户端尝试用不同 `save_id / account_username / save_slot` 覆盖时，服务端仍保留原固定数字 ID。
