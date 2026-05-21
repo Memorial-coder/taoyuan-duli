@@ -262,6 +262,226 @@ button {
   min-height: 28px;
 }
 
+/* 联机表单统一容器：纵向堆叠标题、输入与提示 */
+.online-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.online-field--inline {
+  flex-direction: row;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.online-field-label {
+  font-size: 0.625rem;
+  line-height: 1.4;
+  color: var(--color-muted);
+  letter-spacing: 0.02em;
+}
+
+.online-field-hint {
+  font-size: 0.625rem;
+  line-height: 1.5;
+  color: var(--color-muted);
+}
+
+.online-field-error {
+  font-size: 0.625rem;
+  line-height: 1.5;
+  color: var(--color-danger);
+}
+
+/* 基础输入控件：高频联机入口统一 42px 高、12px 字号、桌面端最小 240px */
+.online-input,
+.online-select,
+.online-textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  background-color: rgb(var(--color-bg));
+  color: rgb(var(--color-text));
+  border: 1px solid rgba(200, 164, 92, 0.2);
+  border-radius: 2px;
+  padding: 8px 12px;
+  font-size: 0.75rem;
+  font-family: var(--font-game);
+  line-height: 1.4;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.online-input,
+.online-select {
+  min-height: 42px;
+}
+
+.online-textarea {
+  min-height: 96px;
+  resize: vertical;
+}
+
+.online-input:focus,
+.online-select:focus,
+.online-textarea:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 1px rgba(200, 164, 92, 0.35);
+}
+
+.online-input:disabled,
+.online-select:disabled,
+.online-textarea:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.online-input::placeholder,
+.online-textarea::placeholder {
+  color: rgba(107, 114, 128, 0.7);
+}
+
+@media (min-width: 768px) {
+  .online-input,
+  .online-select,
+  .online-textarea {
+    min-width: 240px;
+  }
+}
+
+/* 操作行：输入 + 按钮，桌面横向、移动端自动换行 */
+.online-action-row {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.online-action-row > .online-input,
+.online-action-row > .online-select {
+  flex: 1 1 240px;
+  min-width: 0;
+}
+
+.online-action-row > .online-textarea {
+  flex: 1 1 100%;
+  min-width: 0;
+}
+
+/* 操作按钮组：跟随输入高度 42px，移动端可换行铺满 */
+.online-action-buttons {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.online-action-buttons > .online-action-btn {
+  min-height: 42px;
+}
+
+.online-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 42px;
+  padding: 8px 14px;
+  border: 1px solid rgba(200, 164, 92, 0.3);
+  border-radius: 2px;
+  background-color: rgb(var(--color-panel));
+  color: rgb(var(--color-text));
+  font-size: 0.75rem;
+  font-family: var(--font-game);
+  line-height: 1.4;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.online-action-btn:hover:not(:disabled) {
+  background-color: var(--color-accent);
+  color: rgb(var(--color-bg));
+}
+
+.online-action-btn:active:not(:disabled) {
+  opacity: 0.85;
+}
+
+.online-action-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.online-action-btn--primary {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+.online-action-btn--danger {
+  border-color: rgba(195, 64, 67, 0.4);
+  color: var(--color-danger);
+}
+
+.online-action-btn--danger:hover:not(:disabled) {
+  background-color: var(--color-danger);
+  color: rgb(var(--color-bg));
+}
+
+.online-action-btn--icon {
+  width: 42px;
+  min-width: 42px;
+  padding: 0;
+}
+
+/* 紧凑修饰符：好友驿站等密集面板里的小按钮使用 32px 高、10px 字体 */
+.online-action-btn--compact {
+  min-height: 32px;
+  padding: 4px 10px;
+  font-size: 0.625rem;
+  line-height: 1.4;
+  gap: 4px;
+}
+
+.online-action-buttons--compact > .online-action-btn {
+  min-height: 32px;
+}
+
+.online-action-buttons--compact {
+  gap: 6px;
+}
+
+@media (max-width: 639px) {
+  .online-action-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .online-action-row > .online-input,
+  .online-action-row > .online-select,
+  .online-action-row > .online-textarea {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .online-action-buttons {
+    width: 100%;
+  }
+
+  .online-action-buttons > .online-action-btn {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}
+
 @media (min-width: 768px) {
   .game-panel {
     padding: var(--spacing-4);

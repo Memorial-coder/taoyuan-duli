@@ -4,6 +4,17 @@
 
 ## [未发布]
 
+### 0520 联机表单统一类首批落地（B0 补 compact 修饰符 + B1 RegionMapView 搜索行）
+- `taoyuan-main/src/app.css` 在 `online-action-btn` 体系上追加 `online-action-btn--compact` 与 `online-action-buttons--compact` 紧凑修饰符（32px 高、10px 字体、紧凑 padding 与 6px 间距），用于好友驿站这类信息密集面板里的小操作按钮，不会破坏原有的紧凑展示节奏。
+- `RegionMapView.vue` 把好友驿站"存档 ID 搜索"行迁到新的统一类：`<input>` 改用 `online-input flex-1 min-w-0`，搜索按钮改用 `online-action-btn online-action-btn--primary online-action-btn--icon shrink-0`，保留 wrapper 的 `flex gap-2`，移动端紧凑横向展示与既有 `data-testid="region-social-search-submit"` smoke 锚点保持不变。
+- 本轮只迁移高频搜索入口，好友驿站内 32px 紧凑按钮（接受 / 拒绝 / 删除 / 拉黑 / 庄园 / 写信 / 送礼 / 邀请进房 / 节会 / 村社 / 协作 / 解除拉黑等）和搜索结果上的申请 / 拉黑按钮暂不迁移；下一轮会基于 `online-action-btn--compact` 在地图好友面板内批量收口。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs` 与 `npm --prefix taoyuan-main run qa:online-regression-live-smoke`；`qa:online-regression-live-smoke` 会同时覆盖邮箱奖励、服务端存档回写和大厅发帖 / 回复，给这轮样式迁移补了一层旧入口回归证据。
+
+### 0520 联机表单统一样式口径（B0）
+- `taoyuan-main/src/app.css` 新增 `online-field / online-field--inline / online-field-label / online-field-hint / online-field-error / online-input / online-select / online-textarea / online-action-row / online-action-buttons / online-action-btn / online-action-btn--primary / online-action-btn--danger / online-action-btn--icon` 等联机表单基础类，沿用现有 `--color-accent / --color-bg / --color-panel / --color-text / --color-muted / --color-danger / --font-game` 设计 token。
+- 高频输入控件统一锁定 42px 最小高度并与 `.online-action-btn` 对齐；`.online-textarea` 默认 96px 起、允许垂直 resize；≥768px 桌面端最小宽度 240px，≤639px 移动端 `.online-action-row` 自动改为纵向并让按钮 100% 铺满，避免输入框 / 按钮互抢宽度或被三列结构压扁。
+- 本轮仅追加样式 token、不替换任何联机页面 DOM 结构与业务逻辑；`qa:online-regression-live-smoke` 已验证邮箱、大厅和服务端存档流程不受这轮 UI 样式新增影响，后续 B1 起会继续把更多高频入口迁移到这套 `online-*` 类。
+
 ### 0520 原生实时通讯底座（A4 服务端第一轮）
 - 服务端已新增原生 WebSocket 入口 `/api/taoyuan/online/realtime`，复用现有登录会话与活动存档身份建立实时连接；当前不引入 `socket.io`，也不让 WebSocket 承担结算写入。
 - 实时通道当前会推送连接就绪、在线 / 离线 presence、心跳 / pong，以及好友申请创建、接受、拒绝、删除事件；好友关系本体仍由服务端 HTTP 接口权威写入，WebSocket 只负责通知在线双方刷新。

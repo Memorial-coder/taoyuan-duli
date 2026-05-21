@@ -4,6 +4,13 @@
 
 ## 2026-05-20（开发中）
 
+- `0520todo.md / B0-B1` 这一轮先在 `taoyuan-main/src/app.css` 补 `online-action-btn--compact / online-action-buttons--compact` 紧凑修饰符（32px 高、10px 字体），并把 `RegionMapView.vue` 好友驿站"存档 ID 搜索"行的 `<input>` 迁移到 `online-input`、搜索按钮迁移到 `online-action-btn online-action-btn--primary online-action-btn--icon`，与新统一类的 42px 高度对齐。
+- 本轮只迁移最高频的搜索入口，保留 wrapper `flex gap-2` 与 `flex-1 min-w-0`，移动端紧凑横向布局未受影响；好友驿站内 32px 紧凑操作按钮（接受 / 拒绝 / 删除 / 拉黑 / 庄园 / 写信 / 送礼 / 邀请进房 / 节会 / 村社 / 协作 / 解除拉黑等）和搜索结果上的申请 / 拉黑按钮暂不迁移，待下一轮基于 `online-action-btn--compact` 批量收口。
+- 新增 `qa:online-regression-live-smoke` 浏览器回归脚本：真实后端 + Vite + Chromium 下会载入服务端存档、建立 realtime WebSocket、执行一次服务端快速保存、领取后台奖励邮件并确认服务端存档金钱入账，再发布大厅帖子和回复，覆盖云存档 / 邮箱 / 大厅这些 A7 旧入口不被这轮 UI 与 realtime 变更破坏。
+- 本轮验证已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs` 与 `npm --prefix taoyuan-main run qa:online-regression-live-smoke`；构建仍只有既有大 chunk 警告。
+- `0520todo.md / B0` 这一轮先把联机表单的统一样式口径落到 `taoyuan-main/src/app.css`：新增 `online-field / online-field-label / online-field-hint / online-field-error / online-input / online-select / online-textarea / online-action-row / online-action-buttons / online-action-btn` 等基础类，沿用现有 `--color-accent / --color-bg / --color-panel / --color-text / --color-muted / --color-danger / --font-game` 设计 token，不引入新 UI 库或新主题色。
+- 高频输入框统一锁定 42px 最小高度并与 `.online-action-btn` 对齐，`.online-textarea` 默认 96px、允许垂直 resize；≥768px 桌面端 `.online-input / .online-select / .online-textarea` 至少 240px 宽，避免被三列联机面板压扁；≤639px 移动端 `.online-action-row` 自动改为纵向、`.online-action-buttons` 内按钮 100% 铺满，保留键盘 / 触控可达性。
+- 本轮仅追加样式 token，不替换任何联机页面现有结构与业务逻辑；样式与首个搜索入口已随 `type-check`、`build` 和真实在线回归 smoke 一起验证，后续 B1 会继续逐步迁移更多高频入口。
 - `0520todo.md / A4` 这一轮按原生 WebSocket 方案补出服务端实时通讯底座：`/api/taoyuan/online/realtime` 现在会复用签名 `taoyuan.sid` 与文件会话存储完成鉴权，建立连接后下发 `realtime.ready`，并由服务端内存连接表维护当前账号 / 活动存档的在线状态。
 - 实时通道当前只做事件投递，不参与跨玩家结算：客户端可发送 `ping` 与 `presence.snapshot` 这类轻消息，好友申请、接受、拒绝和删除仍然全部走 HTTP 服务端权威写路，写入成功后再向双方推送 `friend.request.*` 或 `friend.removed`。
 - 新增 `server/scripts/qa-realtime-smoke.mjs` 与 `qa:realtime-smoke`：烟测会启动隔离后端、注册两名临时玩家、写入服务端存档、用原始 TCP WebSocket 握手验证未登录拒绝、已登录 ready、在线 / 离线 presence、好友申请推送和接受推送，覆盖这一轮 A4 服务端闭环。

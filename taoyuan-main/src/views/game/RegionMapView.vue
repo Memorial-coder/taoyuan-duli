@@ -175,14 +175,14 @@
               <div class="flex gap-2">
                 <input
                   v-model="socialStore.friendSaveIdDraft"
-                  class="min-h-[42px] min-w-0 flex-1 bg-bg border border-accent/20 rounded-xs px-3 py-2 text-xs text-text outline-none focus:border-accent"
+                  class="online-input flex-1 min-w-0"
                   inputmode="numeric"
                   maxlength="12"
                   placeholder="9 位数字 ID"
                   @keyup.enter="searchMapPlayerBySaveId"
                 />
                 <button
-                  class="inline-flex min-h-[42px] w-11 shrink-0 items-center justify-center border border-accent/20 rounded-xs text-accent hover:bg-accent/5 disabled:opacity-50"
+                  class="online-action-btn online-action-btn--primary online-action-btn--icon shrink-0"
                   :disabled="socialStore.playerSearchLoading"
                   data-testid="region-social-search-submit"
                   title="搜索存档 ID"
