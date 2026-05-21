@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 导入档身份回写浏览器回归（A5/A7 旧档兼容）
+- `qa:online-regression-live-smoke` 新增导入档身份回写场景：真实浏览器通过主菜单导入一个不含 `onlineIdentity` 的旧/云导入档到服务端空槽，随后读取服务端 raw，确认服务端已写回公开存档 ID 和正确槽位。
+- 同一场景会继续调用 `player-search` 按新 ID 搜索玩家，确认搜索结果指向导入槽且不泄露 gameplay payload；载入导入槽后还会打开行旅图好友驿站，断言界面展示的存档 ID 与服务端补发 ID 一致。
+- 脚本现在会忽略页面关闭阶段 `gameplay/logs/batch` 的 abort 噪声，避免日志上报取消导致 smoke 假红；本轮已通过 `node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs` 与 `npm --prefix taoyuan-main run qa:online-regression-live-smoke`。
+
 ### 0520 存档身份同步提示（A5 旧档兼容）
 - 主菜单持久化模式卡片现在会提示本地 / 导入档与服务端公开存档 ID 的关系：本地模式不会生成公开数字 ID，切到服务端持久化并保存或导入后，才会由服务端写入可用于好友搜索的固定 ID。
 - 存档管理器新增“联机存档身份”提示，会在服务端模式下展示当前服务端存档 ID 和槽位；导入成功提示也会区分本地导入、服务端导入和离线排队补传，说明公开 ID 何时写回。

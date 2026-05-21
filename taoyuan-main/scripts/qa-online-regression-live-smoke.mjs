@@ -35,6 +35,8 @@ let realtimeSocketCount = 0
 let mailTitle = ''
 let hallTitle = ''
 let hallRealtimeReplyText = ''
+let importedSavePlayerName = ''
+let importedSaveIdentity = null
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message)
@@ -136,7 +138,7 @@ const fetchSessionJson = async (session, pathname, init = {}) => {
   return { response, data }
 }
 
-const buildSeedSavePayload = () => {
+const buildSeedSavePayload = ({ playerName = '烟测', money = 1200, day = 2, regionMapUnlocked = false } = {}) => {
   const plots = Array.from({ length: 16 }, (_, id) => ({
     id,
     state: 'wasteland',
@@ -163,7 +165,7 @@ const buildSeedSavePayload = () => {
       game: {
         year: 1,
         season: 'spring',
-        day: 2,
+        day,
         hour: 6,
         weather: 'sunny',
         tomorrowWeather: 'sunny',
@@ -175,9 +177,9 @@ const buildSeedSavePayload = () => {
         creekCatch: [],
       },
       player: {
-        playerName: '烟测',
+        playerName,
         gender: 'male',
-        money: 1200,
+        money,
         stamina: 120,
         maxStamina: 120,
       },
@@ -225,6 +227,16 @@ const buildSeedSavePayload = () => {
         scarecrows: 0,
         giantCropCounter: 0,
       },
+      regionMap: regionMapUnlocked
+        ? {
+            unlockStates: {
+              ancient_road: {
+                unlocked: true,
+                unlockedDayTag: '1-spring-1',
+              },
+            },
+          }
+        : undefined,
     },
   }
 }
@@ -235,11 +247,11 @@ const getSaveData = decryptedSave => decryptedSave?.data && typeof decryptedSave
   ? decryptedSave.data
   : decryptedSave
 
-const readServerSave = async session => {
-  const result = await fetchSessionJson(session, '/api/taoyuan/save/0')
-  assert(result.response.ok, `save read returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+const readServerSave = async (session, slot = 0) => {
+  const result = await fetchSessionJson(session, `/api/taoyuan/save/${slot}`)
+  assert(result.response.ok, `save ${slot} read returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
   const decrypted = decryptTaoyuanRaw(result.data?.raw || '')
-  assert(decrypted, 'server save could not be decrypted')
+  assert(decrypted, `server save ${slot} could not be decrypted`)
   return {
     raw: result.data.raw,
     decrypted,
@@ -346,6 +358,13 @@ const readHallPostDetail = async postId => {
   const data = await response.json().catch(() => null)
   assert(response.ok, `hall post detail returned ${response.status}: ${data?.msg || 'unknown error'}`)
   return data
+}
+
+const searchPlayerBySaveId = async (session, saveId) => {
+  const result = await fetchSessionJson(session, `/api/taoyuan/online/social/player-search?save_id=${encodeURIComponent(saveId)}`)
+  assert(result.response.ok, `save id player search returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.ok === true, 'save id player search payload is incomplete')
+  return result.data
 }
 
 const createHallReply = async (session, postId, content) => {
@@ -499,6 +518,7 @@ async function main() {
       const url = request.url()
       const failure = request.failure()?.errorText ?? 'unknown failure'
       if (url.includes('/api/taoyuan/online/realtime') && /closed|aborted|net::ERR_ABORTED/i.test(failure)) return
+      if (url.includes('/api/taoyuan/logs/gameplay/batch') && /closed|aborted|net::ERR_ABORTED/i.test(failure)) return
       requestFailures.push(`${request.method()} ${url} :: ${failure}`)
     })
     page.on('websocket', websocket => {
@@ -525,6 +545,55 @@ async function main() {
       await expect(page.getByText(owner.displayName)).toBeVisible()
       await page.getByRole('button', { name: '服务端持久化' }).click()
       await expect(page.getByRole('button', { name: /存档 1 .*烟测/ })).toBeVisible({ timeout: 10000 })
+    })
+
+    await runCheck('imported cloud save receives searchable server save identity', async () => {
+      importedSavePlayerName = `导入烟测${seed}`
+      const importPayload = buildSeedSavePayload({
+        playerName: importedSavePlayerName,
+        money: 1600,
+        day: 5,
+        regionMapUnlocked: true,
+      })
+      assert(!getEmbeddedSaveIdentity(importPayload), 'import fixture unexpectedly contains online identity')
+
+      const importPath = path.resolve(tempDir, 'imported-cloud-save.tyx')
+      await writeFile(importPath, encryptTaoyuanData(importPayload), 'utf8')
+
+      const fileChooserPromise = page.waitForEvent('filechooser')
+      await page.getByRole('button', { name: '导入存档' }).click()
+      const fileChooser = await fileChooserPromise
+      await fileChooser.setFiles(importPath)
+
+      const importedSlotButton = page.getByRole('button', { name: new RegExp(`存档 2 .*${importedSavePlayerName}`) })
+      await expect(importedSlotButton).toBeVisible({ timeout: 10000 })
+
+      const importedReadback = await readServerSave(owner, 1)
+      const identity = getEmbeddedSaveIdentity(importedReadback.decrypted)
+      assert(identity?.save_id, 'imported server save identity was not written back')
+      assert(identity.account_username === owner.username, 'imported server save identity account mismatch')
+      assert(identity.save_slot === 1, 'imported server save identity slot mismatch')
+      importedSaveIdentity = identity
+
+      const searchResult = await searchPlayerBySaveId(owner, identity.save_id)
+      assert(searchResult.save_identity?.save_id === identity.save_id, 'imported save id search returned wrong identity')
+      assert(searchResult.save_identity?.save_slot === 1, 'imported save id search returned wrong slot')
+      assert(searchResult.profile?.username === owner.username, 'imported save id search returned wrong profile')
+      assert(!searchResult.profile?.inventory && !searchResult.profile?.wallet, 'imported save id search leaked gameplay payload')
+
+      await importedSlotButton.click()
+      await expect(page.getByTestId('game-layout')).toBeVisible()
+      await page.getByTestId('mobile-hub-button').click()
+      await expect(page.getByTestId('mobile-map-menu')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('mobile-map-loc-region-map').click()
+      await expect(page.getByTestId('game-layout')).toBeVisible()
+      await expect.poll(() => page.evaluate(() => window.location.hash), { timeout: 10000 }).toContain('/game/region-map')
+      await expect(page.getByTestId('region-social-friend-panel')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByTestId('region-social-friend-panel').getByText(String(identity.save_id))).toBeVisible()
+
+      await page.goto(frontendBaseURL)
+      await expect(page.getByTestId('main-menu')).toBeVisible()
+      await page.getByRole('button', { name: '服务端持久化' }).click()
     })
 
     await runCheck('server save loads into game layout with realtime socket', async () => {
@@ -650,6 +719,9 @@ async function main() {
       owner: {
         username: owner.username,
         save_id: owner.identity.save_id,
+        imported_save_id: importedSaveIdentity?.save_id ?? null,
+        imported_save_slot: importedSaveIdentity?.save_slot ?? null,
+        imported_save_player_name: importedSavePlayerName,
       },
       checks,
       screenshot: screenshotPath,

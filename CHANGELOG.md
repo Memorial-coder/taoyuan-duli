@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / A5-A7` 这一轮把导入档身份回写加入真实浏览器回归：`qa:online-regression-live-smoke` 现在会通过主菜单把不含 `onlineIdentity` 的导入档写入服务端空槽，验证服务端 raw 已写回公开存档 ID。
+- 这条回归还会用 `player-search` 按新 ID 搜索对应槽位，并在载入导入槽后进入行旅图好友驿站，确认浏览器界面显示的存档 ID 与服务端补发 ID 一致。
+- 回归脚本同时过滤页面关闭阶段的 `gameplay/logs/batch` abort 噪声，避免测试在功能通过后因日志上报被取消而假红；本轮已通过 `node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs` 与 `npm --prefix taoyuan-main run qa:online-regression-live-smoke`。
+
 - `0520todo.md / A5` 这一轮补上旧档兼容的前端提示：主菜单持久化模式卡片和存档管理器现在会说明本地 / 导入档在切到服务端保存后才会获得公开存档 ID，也会在已有服务端身份时直接展示当前 ID。
 - 导入成功提示会按当前存储模式区分本地导入、服务端导入和离线排队补传，避免玩家误以为纯本地档已经能被好友搜索；公开数字 ID 仍只由服务端保存 / 导入写回。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check` 与 `npm --prefix taoyuan-main run build`；构建仍只有既有大 chunk 警告。
