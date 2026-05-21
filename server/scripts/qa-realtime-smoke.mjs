@@ -402,6 +402,7 @@ let offlineHallReplaySocket = null
 let offlineHallReplayReconnectSocket = null
 let offlineManorReplaySocket = null
 let offlineManorReplayReconnectSocket = null
+let societyMembershipRejectSocket = null
 let offlineSocietyReplaySocket = null
 let offlineSocietyReplayReconnectSocket = null
 let offlineCoopOrderReplaySocket = null
@@ -643,17 +644,44 @@ try {
     societyId = String(createResult.data?.society?.id || '')
     assert(societyId, 'society id missing')
 
+    const ownerApplyOffset = ownerSocket.messages.length
     const applyResult = await fetchSessionJson(friend, `/api/taoyuan/online/societies/${encodeURIComponent(societyId)}/apply`, {
       method: 'POST',
     })
     assert(applyResult.response.ok, `society apply returned ${applyResult.response.status}: ${applyResult.data?.msg || 'unknown error'}`)
     const requestId = String(applyResult.data?.request?.id || '')
     assert(requestId, 'society apply request id missing')
+    const applyNotification = await expectMessageAfter(ownerSocket, ownerApplyOffset, 'notification.created', payload =>
+      payload.category === 'society'
+        && payload.action === 'member_applied'
+        && payload.refresh_required === true
+        && payload.society?.id === societyId
+        && payload.request?.id === requestId
+        && payload.request?.type === 'apply'
+        && payload.request?.status === 'pending'
+        && payload.request?.username === friend.username
+        && payload.actor_username === friend.username
+    )
+    assert(applyNotification.payload?.overview === undefined, 'society membership notification should not expose overview')
+    assert(applyNotification.payload?.members === undefined, 'society membership notification should not expose members')
 
+    const friendAcceptOffset = friendSocket.messages.length
     const acceptResult = await fetchSessionJson(owner, `/api/taoyuan/online/societies/requests/${encodeURIComponent(requestId)}/accept`, {
       method: 'POST',
     })
     assert(acceptResult.response.ok, `society accept returned ${acceptResult.response.status}: ${acceptResult.data?.msg || 'unknown error'}`)
+    const acceptNotification = await expectMessageAfter(friendSocket, friendAcceptOffset, 'notification.created', payload =>
+      payload.category === 'society'
+        && payload.action === 'membership_accepted'
+        && payload.refresh_required === true
+        && payload.society?.id === societyId
+        && payload.request?.id === requestId
+        && payload.request?.type === 'apply'
+        && payload.request?.status === 'accepted'
+        && payload.request?.username === friend.username
+        && payload.actor_username === owner.username
+    )
+    assert(acceptNotification.payload?.overview === undefined, 'society membership accept notification should not expose overview')
 
     const noticeText = `Realtime society notice ${createSmokeSeed()}`
     const offset = friendSocket.messages.length
@@ -671,6 +699,41 @@ try {
         && payload.society?.notice === noticeText
         && payload.actor_username === owner.username
     )
+  })
+
+  await runCheck('society membership reject notification event is delivered through websocket', async () => {
+    const rejectedTarget = await bootstrapSession('smkrt_i')
+    societyMembershipRejectSocket = await openRealtimeSocket(rejectedTarget)
+    await expectMessage(societyMembershipRejectSocket, 'realtime.ready', payload =>
+      payload.username === rejectedTarget.username
+    )
+
+    const applyResult = await fetchSessionJson(rejectedTarget, `/api/taoyuan/online/societies/${encodeURIComponent(societyId)}/apply`, {
+      method: 'POST',
+    })
+    assert(applyResult.response.ok, `society reject target apply returned ${applyResult.response.status}: ${applyResult.data?.msg || 'unknown error'}`)
+    const requestId = String(applyResult.data?.request?.id || '')
+    assert(requestId, 'society reject target request id missing')
+
+    const rejectOffset = societyMembershipRejectSocket.messages.length
+    const rejectResult = await fetchSessionJson(owner, `/api/taoyuan/online/societies/requests/${encodeURIComponent(requestId)}/reject`, {
+      method: 'POST',
+    })
+    assert(rejectResult.response.ok, `society reject returned ${rejectResult.response.status}: ${rejectResult.data?.msg || 'unknown error'}`)
+    const rejectNotification = await expectMessageAfter(societyMembershipRejectSocket, rejectOffset, 'notification.created', payload =>
+      payload.category === 'society'
+        && payload.action === 'membership_rejected'
+        && payload.refresh_required === true
+        && payload.society?.id === societyId
+        && payload.request?.id === requestId
+        && payload.request?.type === 'apply'
+        && payload.request?.status === 'rejected'
+        && payload.request?.username === rejectedTarget.username
+        && payload.actor_username === owner.username
+    )
+    assert(rejectNotification.payload?.overview === undefined, 'society membership reject notification should not expose overview')
+    societyMembershipRejectSocket.close()
+    societyMembershipRejectSocket = null
   })
 
   await runCheck('manor guestbook notification event is delivered through websocket', async () => {
@@ -798,6 +861,19 @@ try {
       payload.username === offlineTarget.username && Number(payload.pending_notification_count) >= 1
     )
     assert(Number(ready.payload?.pending_notification_count) >= 1, 'offline society notice replay ready did not report pending notifications')
+    const membershipQueuedMessage = await expectMessage(offlineSocietyReplaySocket, 'notification.created', payload =>
+      payload.category === 'society'
+        && payload.action === 'membership_accepted'
+        && payload.society?.id === societyId
+        && payload.request?.id === requestId
+        && payload.request?.status === 'accepted'
+        && payload.request?.username === offlineTarget.username
+        && payload.actor_username === owner.username
+    )
+    const membershipQueuedEventId = String(membershipQueuedMessage.queued_event_id || '')
+    assert(membershipQueuedEventId, 'replayed society membership notification missing queued_event_id')
+    assert(membershipQueuedMessage.replayed === true, 'replayed society membership notification missing replayed marker')
+
     const queuedMessage = await expectMessage(offlineSocietyReplaySocket, 'notification.created', payload =>
       payload.category === 'society'
         && payload.action === 'notice_updated'
@@ -810,9 +886,10 @@ try {
     assert(queuedMessage.replayed === true, 'replayed society notice notification missing replayed marker')
 
     const ackOffset = offlineSocietyReplaySocket.messages.length
-    offlineSocietyReplaySocket.send('notification.ack', { id: queuedEventId })
+    offlineSocietyReplaySocket.send('notification.ack', { ids: [membershipQueuedEventId, queuedEventId] })
     await expectMessageAfter(offlineSocietyReplaySocket, ackOffset, 'notification.ack', payload =>
       Array.isArray(payload.acked_ids)
+        && payload.acked_ids.includes(membershipQueuedEventId)
         && payload.acked_ids.includes(queuedEventId)
         && Number(payload.pending_count) === 0
     )
@@ -827,9 +904,66 @@ try {
     )
     await expectNoMessageAfter(offlineSocietyReplayReconnectSocket, 0, 'notification.created', payload =>
       payload.category === 'society'
-        && payload.action === 'notice_updated'
+        && (payload.action === 'membership_accepted' || payload.action === 'notice_updated')
         && payload.society?.id === societyId
-        && payload.society?.notice === noticeText
+        && (payload.request?.id === requestId || payload.society?.notice === noticeText)
+    )
+    offlineSocietyReplayReconnectSocket.close()
+    offlineSocietyReplayReconnectSocket = null
+  })
+
+  await runCheck('offline society invite notification event is replayed and acknowledged after reconnect', async () => {
+    const offlineInviteTarget = await bootstrapSession('smkrt_j')
+    const inviteResult = await fetchSessionJson(owner, '/api/taoyuan/online/societies/invite', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_username: offlineInviteTarget.username }),
+    })
+    assert(inviteResult.response.ok, `offline society invite returned ${inviteResult.response.status}: ${inviteResult.data?.msg || 'unknown error'}`)
+    const requestId = String(inviteResult.data?.request?.id || '')
+    assert(requestId, 'offline society invite request id missing')
+
+    offlineSocietyReplaySocket = await openRealtimeSocket(offlineInviteTarget)
+    const ready = await expectMessage(offlineSocietyReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineInviteTarget.username && Number(payload.pending_notification_count) >= 1
+    )
+    assert(Number(ready.payload?.pending_notification_count) >= 1, 'offline society invite replay ready did not report pending notifications')
+    const queuedMessage = await expectMessage(offlineSocietyReplaySocket, 'notification.created', payload =>
+      payload.category === 'society'
+        && payload.action === 'member_invited'
+        && payload.society?.id === societyId
+        && payload.request?.id === requestId
+        && payload.request?.type === 'invite'
+        && payload.request?.status === 'pending'
+        && payload.request?.username === offlineInviteTarget.username
+        && payload.request?.invited_by === owner.username
+        && payload.actor_username === owner.username
+    )
+    const queuedEventId = String(queuedMessage.queued_event_id || '')
+    assert(queuedEventId, 'replayed society invite notification missing queued_event_id')
+    assert(queuedMessage.replayed === true, 'replayed society invite notification missing replayed marker')
+
+    const ackOffset = offlineSocietyReplaySocket.messages.length
+    offlineSocietyReplaySocket.send('notification.ack', { id: queuedEventId })
+    await expectMessageAfter(offlineSocietyReplaySocket, ackOffset, 'notification.ack', payload =>
+      Array.isArray(payload.acked_ids)
+        && payload.acked_ids.includes(queuedEventId)
+        && Number(payload.pending_count) === 0
+    )
+
+    offlineSocietyReplaySocket.close()
+    offlineSocietyReplaySocket = null
+    await wait(200)
+
+    offlineSocietyReplayReconnectSocket = await openRealtimeSocket(offlineInviteTarget)
+    await expectMessage(offlineSocietyReplayReconnectSocket, 'realtime.ready', payload =>
+      payload.username === offlineInviteTarget.username && Number(payload.pending_notification_count) === 0
+    )
+    await expectNoMessageAfter(offlineSocietyReplayReconnectSocket, 0, 'notification.created', payload =>
+      payload.category === 'society'
+        && payload.action === 'member_invited'
+        && payload.society?.id === societyId
+        && payload.request?.id === requestId
     )
     offlineSocietyReplayReconnectSocket.close()
     offlineSocietyReplayReconnectSocket = null
@@ -1409,6 +1543,7 @@ try {
   offlineHallReplayReconnectSocket?.close()
   offlineManorReplaySocket?.close()
   offlineManorReplayReconnectSocket?.close()
+  societyMembershipRejectSocket?.close()
   offlineSocietyReplaySocket?.close()
   offlineSocietyReplayReconnectSocket?.close()
   offlineCoopOrderReplaySocket?.close()

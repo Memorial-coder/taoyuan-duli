@@ -7,11 +7,15 @@ if (!process.env.DB_STORAGE) {
   process.env.DB_STORAGE = path.join(__dirname, '../../data/.storage.json');
 }
 const initialDbStorage = process.env.DB_STORAGE;
+const initialPort = process.env.PORT;
 
 require('dotenv').config({ path: path.join(__dirname, '../.env') });
 require('dotenv').config({ path: path.join(__dirname, '../../.env'), override: true });
 require('dotenv').config({ path: path.join(__dirname, '../../.env.offical'), override: true });
 process.env.DB_STORAGE = initialDbStorage;
+if (initialPort) {
+  process.env.PORT = initialPort;
+}
 
 if (String(process.env.QA_ONLINE_SMOKE_FORCE_LOCAL || '').trim().toLowerCase() === 'true') {
   process.env.MYSQL_HOST = '';

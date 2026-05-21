@@ -598,6 +598,98 @@ function emitSocietyNoticeNotificationCreatedEvent(society = {}, actor = {}) {
   }
 }
 
+const SOCIETY_NOTIFICATION_MANAGER_ROLES = new Set(['president', 'steward']);
+
+function findSocietyMembershipNotificationSociety(result = {}) {
+  const request = result?.request && typeof result.request === 'object' ? result.request : {};
+  const overview = result?.overview && typeof result.overview === 'object' ? result.overview : {};
+  const candidates = [
+    overview?.my_society,
+    ...(Array.isArray(overview?.visible_societies) ? overview.visible_societies : []),
+  ].filter(entry => entry && typeof entry === 'object');
+  return candidates.find(entry => String(entry?.id || '') === String(request?.society_id || '')) || candidates[0] || null;
+}
+
+function addSocietyMembershipManagerRecipients(recipients, society = {}, options = {}) {
+  const actorKey = normalizeUsernameKey(options.actorUsername);
+  const includeActor = options.includeActor === true;
+  for (const member of Array.isArray(society?.members) ? society.members : []) {
+    if (!SOCIETY_NOTIFICATION_MANAGER_ROLES.has(String(member?.role || ''))) continue;
+    const normalized = normalizeUsernameKey(member?.username);
+    if (!normalized || (!includeActor && normalized === actorKey)) continue;
+    recipients.add(normalized);
+  }
+}
+
+function collectSocietyMembershipNotificationRecipients(action, result = {}, actor = {}) {
+  const request = result?.request && typeof result.request === 'object' ? result.request : {};
+  if (!request?.id) return [];
+  const recipients = new Set();
+  const actorKey = normalizeUsernameKey(actor.username);
+  const society = findSocietyMembershipNotificationSociety(result);
+  const addRecipient = (username, options = {}) => {
+    const normalized = normalizeUsernameKey(username);
+    if (!normalized || (options.includeActor !== true && normalized === actorKey)) return;
+    recipients.add(normalized);
+  };
+
+  if (action === 'member_applied') {
+    addSocietyMembershipManagerRecipients(recipients, society, { actorUsername: actor.username });
+  } else if (action === 'member_invited') {
+    addRecipient(request.username);
+    addRecipient(request.invited_by);
+    addSocietyMembershipManagerRecipients(recipients, society, { actorUsername: actor.username });
+  } else if (action === 'membership_accepted' || action === 'membership_rejected') {
+    addRecipient(request.username, { includeActor: true });
+    addRecipient(request.invited_by);
+    addSocietyMembershipManagerRecipients(recipients, society, { actorUsername: actor.username, includeActor: true });
+  }
+
+  return [...recipients];
+}
+
+function buildSocietyMembershipNotificationPayload(action, result = {}, actor = {}) {
+  const request = result?.request && typeof result.request === 'object' ? result.request : {};
+  const society = findSocietyMembershipNotificationSociety(result);
+  return {
+    category: 'society',
+    action,
+    refresh_required: true,
+    actor_username: normalizeUsernameKey(actor.username),
+    actor_display_name: normalizeUsername(actor.displayName || actor.display_name || actor.username),
+    society: {
+      id: String(request?.society_id || society?.id || ''),
+      name: trimNotificationText(request?.society_name || society?.name || '', 60),
+    },
+    request: {
+      id: String(request?.id || ''),
+      type: request?.type || '',
+      status: request?.status || '',
+      username: normalizeUsernameKey(request?.username),
+      display_name: normalizeUsername(request?.display_name || request?.username),
+      invited_by: normalizeUsernameKey(request?.invited_by),
+      invited_by_display_name: normalizeUsername(request?.invited_by_display_name || request?.invited_by),
+      created_at: Number(request?.created_at) || null,
+      updated_at: Number(request?.updated_at) || null,
+    },
+  };
+}
+
+function emitSocietyMembershipNotificationCreatedEvent(action, result = {}, actor = {}) {
+  if (!result?.request?.id) return 0;
+  const recipients = collectSocietyMembershipNotificationRecipients(action, result, actor);
+  if (!recipients.length) return 0;
+  try {
+    return taoyuanRealtimeRuntime.emitUsersEvent(
+      recipients,
+      'notification.created',
+      buildSocietyMembershipNotificationPayload(action, result, actor)
+    );
+  } catch {
+    return 0;
+  }
+}
+
 function collectManorGuestbookNotificationRecipients(action, entry = {}, actor = {}) {
   const actorKey = normalizeUsernameKey(actor.username);
   const recipients = new Set();
@@ -2500,7 +2592,9 @@ router.post('/taoyuan/online/societies', loginRequired, signRequired, async (req
 
 router.post('/taoyuan/online/societies/:societyId/apply', loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanSocietyRuntime.applyToSociety(req.session.username, req.params.societyId);
+    const actor = getSessionActor(req);
+    const result = await taoyuanSocietyRuntime.applyToSociety(actor.username, req.params.societyId);
+    emitSocietyMembershipNotificationCreatedEvent('member_applied', result, actor);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '申请加入村社失败' });
@@ -2509,10 +2603,9 @@ router.post('/taoyuan/online/societies/:societyId/apply', loginRequired, signReq
 
 router.post('/taoyuan/online/societies/invite', loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanSocietyRuntime.inviteToSociety(req.body || {}, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const result = await taoyuanSocietyRuntime.inviteToSociety(req.body || {}, actor);
+    emitSocietyMembershipNotificationCreatedEvent('member_invited', result, actor);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '发送村社邀请失败' });
@@ -2521,10 +2614,9 @@ router.post('/taoyuan/online/societies/invite', loginRequired, signRequired, asy
 
 router.post('/taoyuan/online/societies/requests/:requestId/accept', loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanSocietyRuntime.respondSocietyRequest(req.params.requestId, 'accept', {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const result = await taoyuanSocietyRuntime.respondSocietyRequest(req.params.requestId, 'accept', actor);
+    emitSocietyMembershipNotificationCreatedEvent('membership_accepted', result, actor);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '处理村社申请失败' });
@@ -2533,10 +2625,9 @@ router.post('/taoyuan/online/societies/requests/:requestId/accept', loginRequire
 
 router.post('/taoyuan/online/societies/requests/:requestId/reject', loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanSocietyRuntime.respondSocietyRequest(req.params.requestId, 'reject', {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const result = await taoyuanSocietyRuntime.respondSocietyRequest(req.params.requestId, 'reject', actor);
+    emitSocietyMembershipNotificationCreatedEvent('membership_rejected', result, actor);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '拒绝村社申请失败' });

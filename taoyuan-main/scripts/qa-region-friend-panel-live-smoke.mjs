@@ -406,7 +406,7 @@ const openSamplePage = async page => {
     return api ? await api.load(targetId) : false
   }, sampleId)
   assert(loaded, `Unable to load sample save ${sampleId}`)
-  await page.goto(`${frontendBaseURL}/#/game/region-map`)
+  await page.goto(`${frontendBaseURL}/#/game/friend-station`)
   await expect(page.getByTestId('game-layout')).toBeVisible()
 }
 
@@ -558,7 +558,7 @@ async function main() {
       await expect(invitedRoomCard).toBeVisible({ timeout: 10000 })
       await expect(invitedRoomCard.getByText(roomTitle)).toBeVisible()
 
-      await page.goto(`${frontendBaseURL}/#/game/region-map`)
+      await page.goto(`${frontendBaseURL}/#/game/friend-station`)
       await waitForRelationshipIdle(page)
     })
 
@@ -571,43 +571,43 @@ async function main() {
     await runCheck('friend interaction buttons navigate with target context', async () => {
       await page.getByTestId(`region-social-friend-manor-${navigateFriendshipId}`).click()
       await expect(page).toHaveURL(new RegExp(`target_username=${encodeURIComponent(navigateFriend.username)}`))
-      await page.goto(`${frontendBaseURL}/#/game/region-map`)
+      await page.goto(`${frontendBaseURL}/#/game/friend-station`)
       await waitForRelationshipIdle(page)
 
       await page.getByTestId(`region-social-friend-mail-${navigateFriendshipId}`).click()
       await expect(page).toHaveURL(/compose=letter/)
       await expect(page).toHaveURL(new RegExp(`target_save_id=${navigateFriend.identity.save_id}`))
-      await page.goto(`${frontendBaseURL}/#/game/region-map`)
+      await page.goto(`${frontendBaseURL}/#/game/friend-station`)
       await waitForRelationshipIdle(page)
 
       await page.getByTestId(`region-social-friend-gift-${navigateFriendshipId}`).click()
       await expect(page).toHaveURL(/compose=gift/)
-      await page.goto(`${frontendBaseURL}/#/game/region-map`)
+      await page.goto(`${frontendBaseURL}/#/game/friend-station`)
       await waitForRelationshipIdle(page)
 
       await page.getByTestId(`region-social-friend-invite-${navigateFriendshipId}`).click()
       await expect(page).toHaveURL(/invite=1/)
       await expect(page).toHaveURL(new RegExp(`target_username=${encodeURIComponent(navigateFriend.username)}`))
-      await page.goto(`${frontendBaseURL}/#/game/region-map`)
+      await page.goto(`${frontendBaseURL}/#/game/friend-station`)
       await waitForRelationshipIdle(page)
 
       await page.getByTestId(`region-social-friend-festival-${navigateFriendshipId}`).click()
       await expect(page).toHaveURL(/invite=1/)
       await expect(page).toHaveURL(new RegExp(`target_username=${encodeURIComponent(navigateFriend.username)}`))
       await expect(page.getByPlaceholder('输入用户名')).toHaveValue(navigateFriend.username)
-      await page.goto(`${frontendBaseURL}/#/game/region-map`)
+      await page.goto(`${frontendBaseURL}/#/game/friend-station`)
       await waitForRelationshipIdle(page)
 
       await page.getByTestId(`region-social-friend-society-${navigateFriendshipId}`).click()
       await expect(page).toHaveURL(/invite=1/)
       await expect(page).toHaveURL(new RegExp(`target_username=${encodeURIComponent(navigateFriend.username)}`))
       await expect(page.getByPlaceholder('输入玩家用户名')).toHaveValue(navigateFriend.username)
-      await page.goto(`${frontendBaseURL}/#/game/region-map`)
+      await page.goto(`${frontendBaseURL}/#/game/friend-station`)
       await waitForRelationshipIdle(page)
 
       await page.getByTestId(`region-social-friend-coop-${navigateFriendshipId}`).click()
       await expect(page).toHaveURL(/scope=friends/)
-      await page.goto(`${frontendBaseURL}/#/game/region-map`)
+      await page.goto(`${frontendBaseURL}/#/game/friend-station`)
       await waitForRelationshipIdle(page)
     })
 

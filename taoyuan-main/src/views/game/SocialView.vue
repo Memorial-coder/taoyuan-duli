@@ -295,12 +295,12 @@
       <div class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-accent">好友驿站</p>
-          <Button class="text-[10px]" @click="goRegionFriendPanel">
-            前往行旅图
+          <Button class="text-[10px]" @click="goFriendStation">
+            前往好友驿站
           </Button>
         </div>
         <p class="text-[10px] text-muted leading-5">
-          加好友、处理申请、删除、拉黑和好友互动已经统一迁到行旅图的好友驿站；这里继续保留公开名片、邻里和订阅内容。
+          加好友、处理申请、删除、拉黑和好友互动已经统一迁到联机主导航里的好友驿站；这里继续保留公开名片、邻里和订阅内容。
         </p>
       </div>
 
@@ -700,8 +700,8 @@
     void router.push('/game/quest')
   }
 
-  const goRegionFriendPanel = () => {
-    void router.push('/game/region-map')
+  const goFriendStation = () => {
+    void router.push('/game/friend-station')
   }
 
   const createNeighbor = async () => {

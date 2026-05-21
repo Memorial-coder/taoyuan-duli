@@ -585,9 +585,9 @@ async function main() {
       await expect(page.getByTestId('game-layout')).toBeVisible()
       await page.getByTestId('mobile-hub-button').click()
       await expect(page.getByTestId('mobile-map-menu')).toBeVisible({ timeout: 10000 })
-      await page.getByTestId('mobile-map-loc-region-map').click()
+      await page.getByTestId('mobile-map-online-loc-friend-station').click()
       await expect(page.getByTestId('game-layout')).toBeVisible()
-      await expect.poll(() => page.evaluate(() => window.location.hash), { timeout: 10000 }).toContain('/game/region-map')
+      await expect.poll(() => page.evaluate(() => window.location.hash), { timeout: 10000 }).toContain('/game/friend-station')
       await expect(page.getByTestId('region-social-friend-panel')).toBeVisible({ timeout: 10000 })
       await expect(page.getByTestId('region-social-friend-panel').getByText(String(identity.save_id))).toBeVisible()
 

@@ -480,6 +480,7 @@ async function driveSettlementToAftermath(page) {
 }
 
 async function prepareRegionSocialFriendPanel(page) {
+  await page.goto(`${baseURL}/#/game/friend-station`)
   const panel = page.getByTestId('region-social-friend-panel')
   await expect(panel).toBeVisible()
   await expect(panel.getByText('好友驿站')).toBeVisible()
@@ -708,7 +709,7 @@ async function main() {
       await captureScenario({
         browser,
         label: '22-region-social-friend-panel-mobile-390x844',
-        hash: '/#/game/region-map',
+        hash: '/#/game/friend-station',
         viewport: { width: 390, height: 844 },
         primarySelector: '[data-testid="region-social-friend-panel"]',
         mockSocial: true,
@@ -717,7 +718,7 @@ async function main() {
       await captureScenario({
         browser,
         label: '23-region-social-friend-panel-mobile-360x780',
-        hash: '/#/game/region-map',
+        hash: '/#/game/friend-station',
         viewport: { width: 360, height: 780 },
         primarySelector: '[data-testid="region-social-friend-panel"]',
         mockSocial: true,

@@ -52,6 +52,7 @@ export type PanelKey =
   | 'mining'
   | 'village'
   | 'social'
+  | 'friend-station'
   | 'manor'
   | 'festival'
   | 'society'
@@ -86,6 +87,7 @@ export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: ()
   { key: 'fishpond', label: '鱼塘', icon: Waves },
   { key: 'decoration', label: '装饰', icon: Palette },
   { key: 'social', label: '邻里', icon: Users },
+  { key: 'friend-station', label: '好友', icon: Users },
   { key: 'manor', label: '庄园', icon: Home },
   { key: 'festival', label: '节会', icon: Calendar },
   { key: 'society', label: '村社', icon: ShieldCheck },

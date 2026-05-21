@@ -2,6 +2,14 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / A4-A6` 这一轮把村社申请、邀请和审核结果接进 realtime 通知底座：申请加入、邀请加入、接受申请和拒绝申请成功后都会投递 `notification.created`，使用 `category: "society"` 与只读 membership 摘要。
+- 村社 membership 通知不携带村社 overview / members 等完整数据，只包含村社、申请单、操作人和刷新要求；离线玩家重连后会补发并可 ACK 清理，避免重复补发。
+- `server/src/index.js` 现在会保留显式传入的 `PORT`，避免 `qa:realtime-smoke` 换端口时被 `.env` 覆盖回 4013；本轮验证通过 `node --check server/src/index.js` 与 `$env:TAOYUAN_REALTIME_SMOKE_PORT='4713'; node server/scripts/qa-realtime-smoke.mjs`。
+
+- `0520todo.md / A3` 这一轮纠正好友驿站入口层级：好友主操作已从 `RegionMapView.vue` 抽出为独立 `FriendStationView.vue`，行旅图不再承载好友面板。
+- 移动端“联机主导航”新增好友入口，`SocialView.vue` 的迁移卡也改为直达好友驿站；原 `region-social-*` smoke 锚点保留在新页面，降低回归脚本迁移成本。
+- `qa:mobile-ui-smoke`、`qa:online-regression-live-smoke` 与 `qa:region-friend-panel-live-smoke` 已改为通过 `/game/friend-station` 或联机主导航好友入口验证好友驿站。
+
 - `0520todo.md / A4-A6` 这一轮把庄园留言墙接进 realtime 通知底座：访客留言成功后通知庄园主人，庄园主人回复后通知留言作者，均使用 `notification.created` + `category: "manor"` 投递。
 - 庄园通知 payload 只包含庄园主人、留言 ID、留言类型、作者、是否已回复、置顶状态和时间戳等摘要，不携带留言正文或回复正文；前端收到后只在当前已有庄园快照时静默重读权威庄园接口。
 - `qa:realtime-smoke` 已覆盖庄园留言 / 回复在线通知，以及离线庄园主人重连补发 / ACK / 不重复补发；本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。

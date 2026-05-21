@@ -88,7 +88,7 @@
 
         <div class="map-area mb-3">
           <p class="map-area-title">联机主导航</p>
-          <p class="map-area-caption">把邻里、庄园、委托、节会和村社放到同一层，联机入口不再散落。</p>
+          <p class="map-area-caption">把好友、邻里、庄园、委托、节会和村社放到同一层，联机入口不再散落。</p>
           <div class="map-area-grid">
             <button
               v-for="t in onlineGroup"
@@ -256,6 +256,11 @@
       '商店': 'shop',
       '商圈': 'shop',
       shop: 'shop',
+      '好友': 'friend-station',
+      '好友驿站': 'friend-station',
+      friend: 'friend-station',
+      friendstation: 'friend-station',
+      'friend-station': 'friend-station',
       '节会': 'festival',
       festival: 'festival',
       '村社': 'society',
@@ -368,11 +373,12 @@
   const mobileMapLocIconSize = computed(() => Number((18 * mobileMapTileScale.value).toFixed(2)))
   const mobileMapToolIconSize = computed(() => Number((16 * mobileMapTileScale.value).toFixed(2)))
   const onlineLabelMap: Partial<Record<PanelKey, string>> = {
-    quest: '委托'
+    quest: '委托',
+    'friend-station': '好友'
   }
 
   const farmGroup = computed(() => pick(['farm', 'animal', 'cottage', 'home', 'breeding', 'fishpond', 'decoration']))
-  const onlineGroup = computed(() => pick(['social', 'manor', 'quest', 'festival', 'society']))
+  const onlineGroup = computed(() => pick(['friend-station', 'social', 'manor', 'quest', 'festival', 'society']))
   const villageGroup = computed(() => pick(['village', 'shop', 'museum', 'guild']))
   const wildGroup = computed(() => pick(['forage', 'fishing', 'mining', 'hanhai', 'region-map']))
   const craftGroup = computed(() => pick(['cooking', 'workshop', 'upgrade']))

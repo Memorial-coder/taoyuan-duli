@@ -4,6 +4,16 @@
 
 ## [未发布]
 
+### 0520 村社申请 realtime 通知补发（A4-A6）
+- 村社申请、邀请、接受申请和拒绝申请成功后会投递 `notification.created`，使用 `category: "society"` 与 `member_applied / member_invited / membership_accepted / membership_rejected` 动作。
+- 通知 payload 只保留村社、申请单、操作人和 `refresh_required` 摘要，不携带村社完整 overview / members；离线目标重连后会补发并可 ACK 清理。
+- `qa:realtime-smoke` 已覆盖在线申请 / 接受 / 拒绝通知，以及离线村社申请通过、离线邀请的补发 / ACK / 不重复补发；服务端启动会保留显式 `PORT`，支持换端口 smoke 验证。本轮验证通过 `node --check server/src/index.js` 与 `$env:TAOYUAN_REALTIME_SMOKE_PORT='4713'; node server/scripts/qa-realtime-smoke.mjs`。
+
+### 0520 好友驿站迁出行旅图并接入联机主导航
+- `FriendStationView.vue` 新增为独立好友驿站页面，原本挂在 `RegionMapView.vue` 里的好友面板已迁出，行旅图不再承载好友主操作。
+- `MobileMapMenu.vue` 的“联机主导航”新增好友入口，`SocialView.vue` 的迁移入口也改为直达 `/game/friend-station`。
+- `qa:mobile-ui-smoke`、`qa:online-regression-live-smoke` 与 `qa:region-friend-panel-live-smoke` 已改为验证新的好友驿站入口层级；原 `region-social-*` 锚点继续保留，避免无谓的大改测试脚本。
+
 ### 0520 庄园留言 realtime 通知补发（A4-A6）
 - 服务端现在会在庄园留言与庄园主人回复成功后投递 `notification.created`，使用 `category: "manor"`、`guestbook_created / guestbook_replied` 动作和只读摘要。
 - `useRealtimeStore` 收到庄园通知后只在当前已有庄园快照时防抖调用 `useManorStore().refreshActiveSnapshot({ silent: true })`，继续以 HTTP 权威快照为准，不直接套用 WebSocket payload。
