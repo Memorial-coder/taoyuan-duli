@@ -21,6 +21,11 @@
 - 当前好友条目已提供庄园、写信、协作跳转、删除和拉黑入口；送礼、邀请进房和目标玩家定向上下文还未接入，后续继续沿 A3 / A6 收口。
 - 本轮验证已通过 `npm --prefix taoyuan-main run type-check` 与 `npm --prefix taoyuan-main run build`。
 
+### 0520 地图页好友面板移动端验证
+- 地图页好友驿站的申请处理、好友互动和解除拉黑按钮已补齐移动端触控高度，避免 360px 宽度下按钮虽然可见但点击区域偏扁。
+- `scripts/qa-mobile-ui-smoke.mjs` 新增好友驿站移动端场景：使用 mock 登录态与好友关系数据，在 390x844 和 360x780 下覆盖存档 ID 搜索、申请入口、好友条目、最近互动、拉黑列表、按钮触控尺寸和页面横向溢出断言。
+- 本轮真实 Chromium 验证已通过 `npm run qa:mobile-ui-smoke`，并生成 `docs/ui-smoke-2026-04-26/22-region-social-friend-panel-mobile-390x844.png` 与 `23-region-social-friend-panel-mobile-360x780.png`；summary 中 `consoleErrors / pageErrors / requestFailures` 均为空。
+
 ### 0520 联机发布控制与扩展骨架（L130-L154 第一轮）
 - `taoyuan-main/src/utils/adminOnlineApi.ts`、`src/types/onlineRelease.ts` 与 `src/types/index.ts` 这一轮把联机发布配置正式接进前端：admin 侧现在已经能读取和保存联机总开关、`stable / canary` 通道、测试白名单、模块开关、内测样板字段与五段发布说明。
 - `taoyuan-main/src/components/game/AdminOnlineGovernancePanel.vue` 当前已补出“联机发布控制”区块：管理员可以直接在同一页切换联机测试环境、维护白名单、按好友 / 庄园 / 求助单 / 节会四条能力做小范围发布，并查看发布闸门、默认公告模板与事故预案。

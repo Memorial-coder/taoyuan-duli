@@ -21,6 +21,7 @@
 - `0520todo.md / A3` 这一轮把好友主操作接进地图页：`RegionMapView.vue` 新增“好友驿站”面板，包含我的存档 ID / 复制、按 ID 搜索玩家、发送申请、处理收到申请、好友列表、最近互动、删除好友、拉黑和解除拉黑入口。
 - 前端社交 API 与 store 也同步补齐：`onlineProfileApi.ts` 新增按存档 ID 搜索玩家和删除好友 helper，`useSocialStore.ts` 新增搜索结果、存档 ID 申请、存档 ID 拉黑 / 解除拉黑、删除好友动作；`useSaveStore.ts` 会在读档时保留服务端注入的 `onlineIdentity`，供地图页展示当前存档 ID。
 - 地图页好友驿站当前先提供庄园、写信和协作跳转；送礼、邀请进房以及目标玩家定向上下文仍留在后续 A3 / A6 继续补。前端验证已通过 `npm --prefix taoyuan-main run type-check` 与 `npm --prefix taoyuan-main run build`。
+- 地图页好友驿站这轮补上移动端真实截图冒烟：好友申请处理、好友互动和解除拉黑按钮已补齐触控高度，`qa:mobile-ui-smoke` 新增 390x844 / 360x780 好友面板场景，覆盖存档 ID 搜索、申请入口、好友条目、最近互动、拉黑列表、按钮尺寸和无横向溢出；真实 Chromium 验证已通过并生成 `docs/ui-smoke-2026-04-26/22-region-social-friend-panel-mobile-390x844.png` 与 `23-region-social-friend-panel-mobile-360x780.png`。
 
 - `L130-L134` 这一轮把联机发布控制收成了第一轮可回归闭环：`server/src/config.js` 现已补齐联机总开关、`stable / canary` 通道、测试白名单、好友 / 庄园 / 求助单 / 节会四类能力开关、五大模块开关、内测庄园 / 村社 / 节会样板，以及五段发布说明字段；`/api/public-config` 也开始稳定下发 `taoyuan_online_release` 摘要，不再只有后台私有配置。
 - `server/src/routes/api.js` 这一轮已把联机发布配置真正接进服务端治理链：新增 `/api/admin/taoyuan/online-release-config` 读写接口、联机发布配置归一化、灰度白名单与模块级 guard，并把庄园、求助单、好友链路和节会房间路由接到统一 `createOnlineReleaseGuard()`，默认仍保持 `stable + 全开`，不主动影响现有玩家。

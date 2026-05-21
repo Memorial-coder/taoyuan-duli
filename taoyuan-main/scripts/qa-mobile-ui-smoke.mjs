@@ -24,6 +24,150 @@ const requestFailures = []
 const screenshots = []
 const pageChecks = []
 
+const buildMockProfile = ({
+  username,
+  displayName,
+  recentActivity = '最近在行旅图整理远征补给',
+  primaryRouteLabel = '古驿荒道巡行'
+}) => ({
+  username,
+  display_name: displayName,
+  player_name: displayName,
+  honorific: '旅人',
+  manor_name: `${displayName}的庄园`,
+  season_progress: '秋 2 年',
+  primary_route_label: primaryRouteLabel,
+  recent_activity: recentActivity,
+  public_title: '远征协作者',
+  neighborhood_role: '邻里成员',
+  showcase_theme: '秋日行旅',
+  public_intro: '用于移动端好友驿站 smoke 的公开名片。',
+  avatar_image_url: '',
+  avatar_image_alt: '',
+  visibility: 'public',
+  active_quest_count: 2,
+  public_tags: [],
+  selected_tag_ids: [],
+  available_tag_options: [],
+  player_chronicle: null,
+  award_showcase: {
+    honors: [],
+    commemoratives: [],
+    titles: [],
+    achievement_cards: [],
+    summary: {
+      honor_count: 0,
+      commemorative_count: 0,
+      title_count: 0,
+      achievement_count: 0
+    }
+  },
+  updated_at: 1_769_011_200_000,
+  last_active_at: 1_769_011_200_000
+})
+
+const mockSocialProfiles = {
+  willow: buildMockProfile({
+    username: 'willow',
+    displayName: '柳桥织娘',
+    recentActivity: '刚把古驿荒道的补给单整理完',
+    primaryRouteLabel: '古驿荒道协作'
+  }),
+  reed: buildMockProfile({
+    username: 'reed',
+    displayName: '芦湾药师',
+    recentActivity: '正在蜃潮泽地记录异草样本',
+    primaryRouteLabel: '蜃潮泽地采样'
+  }),
+  cloud: buildMockProfile({
+    username: 'cloud',
+    displayName: '云岭巡手',
+    recentActivity: '发来一条高地巡行申请',
+    primaryRouteLabel: '云岚高地巡路'
+  }),
+  river: buildMockProfile({
+    username: 'river',
+    displayName: '溪口木匠',
+    recentActivity: '等待协作确认',
+    primaryRouteLabel: '村社木料协作'
+  }),
+  blocked: buildMockProfile({
+    username: 'blocked',
+    displayName: '灰名单旅人',
+    recentActivity: '已被当前存档拉黑',
+    primaryRouteLabel: '暂不互动'
+  }),
+  searched: buildMockProfile({
+    username: 'orchard',
+    displayName: '远山果匠',
+    recentActivity: '今日开放果林庄园参观',
+    primaryRouteLabel: '庄园来访'
+  })
+}
+
+const mockRelationshipOverview = {
+  ok: true,
+  incoming_requests: [
+    {
+      request_id: 'request-cloud',
+      created_at: 1_769_011_200_000,
+      from_save_id: 345678901,
+      to_save_id: 123456789,
+      from_save_slot: 0,
+      to_save_slot: 1,
+      profile: mockSocialProfiles.cloud
+    }
+  ],
+  outgoing_requests: [
+    {
+      request_id: 'request-river',
+      created_at: 1_769_007_600_000,
+      from_save_id: 123456789,
+      to_save_id: 456789012,
+      from_save_slot: 1,
+      to_save_slot: 0,
+      profile: mockSocialProfiles.river
+    }
+  ],
+  friends: [
+    {
+      friendship_id: 'friend-willow',
+      created_at: 1_768_838_400_000,
+      friends_since: 1_768_838_400_000,
+      last_interaction_at: 1_769_011_200_000,
+      own_save_id: 123456789,
+      own_save_slot: 1,
+      friend_save_id: 234567890,
+      friend_save_slot: 0,
+      profile: mockSocialProfiles.willow
+    },
+    {
+      friendship_id: 'friend-reed',
+      created_at: 1_768_752_000_000,
+      friends_since: 1_768_752_000_000,
+      last_interaction_at: 1_768_924_800_000,
+      own_save_id: 123456789,
+      own_save_slot: 1,
+      friend_save_id: 234567891,
+      friend_save_slot: 2,
+      profile: mockSocialProfiles.reed
+    }
+  ],
+  blocked_users: [
+    {
+      block_id: 'block-grey',
+      created_at: 1_768_665_600_000,
+      own_save_id: 123456789,
+      own_save_slot: 1,
+      blocker_save_id: 123456789,
+      blocker_save_slot: 1,
+      blocked_save_id: 567890123,
+      blocked_save_slot: 0,
+      profile: mockSocialProfiles.blocked
+    }
+  ]
+}
+
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 async function isServerReachable(url) {
@@ -65,7 +209,8 @@ function startDevServer() {
   return child
 }
 
-async function createPage(browser, viewport) {
+async function createPage(browser, viewport, options = {}) {
+  const mockSocial = Boolean(options.mockSocial)
   const context = await browser.newContext({
     viewport,
     locale: 'zh-CN',
@@ -77,7 +222,16 @@ async function createPage(browser, viewport) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ ok: false, user: null })
+      body: JSON.stringify(mockSocial
+        ? {
+            ok: true,
+            user: {
+              username: 'mobile_smoke_owner',
+              display_name: '移动端烟测号'
+            },
+            csrf_token: 'mobile-smoke-csrf'
+          }
+        : { ok: false, user: null })
     })
   })
 
@@ -104,6 +258,60 @@ async function createPage(browser, viewport) {
       body: JSON.stringify({ ok: true })
     })
   })
+
+  await page.route('**/api/taoyuan/mail/list', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, mails: [], unread_count: 0 })
+    })
+  })
+
+  await page.route('**/api/taoyuan/mail/inbox-status', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        unread_count: 0,
+        pinned_count: 0,
+        important_count: 0,
+        newest_unread: null,
+        newest_important: null
+      })
+    })
+  })
+
+  if (mockSocial) {
+    await page.route('**/api/taoyuan/online/social/relationships', async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(mockRelationshipOverview)
+      })
+    })
+
+    await page.route(/\/api\/taoyuan\/online\/social\/player-search(?:\?|$)/, async route => {
+      const requestUrl = new URL(route.request().url())
+      const saveId = Number(requestUrl.searchParams.get('save_id') ?? 0)
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          ok: true,
+          save_identity: {
+            save_id: saveId || 987654321,
+            account_username: 'orchard',
+            save_slot: 2,
+            nickname_snapshot: '远山果匠',
+            created_at: 1_768_579_200_000,
+            updated_at: 1_769_011_200_000
+          },
+          profile: mockSocialProfiles.searched
+        })
+      })
+    })
+  }
 
   page.on('console', message => {
     if (message.type() === 'error') {
@@ -156,9 +364,10 @@ async function captureScenario({
   hash,
   viewport,
   primarySelector,
+  mockSocial = false,
   prepare
 }) {
-  const { context, page } = await createPage(browser, viewport)
+  const { context, page } = await createPage(browser, viewport, { mockSocial })
   try {
     await openSamplePage(page, hash)
     if (prepare) {
@@ -268,6 +477,51 @@ async function driveSettlementToAftermath(page) {
   }
 
   await expect(page.getByTestId('journey-settlement-stage-aftermath')).toBeVisible()
+}
+
+async function prepareRegionSocialFriendPanel(page) {
+  const panel = page.getByTestId('region-social-friend-panel')
+  await expect(panel).toBeVisible()
+  await expect(panel.getByText('好友驿站')).toBeVisible()
+  await expect(panel.getByText('存档身份：')).toBeVisible()
+  await expect(panel.getByText('123456789')).toBeVisible()
+  await expect(panel.getByText('好友列表')).toBeVisible()
+  await expect(panel.getByText('最近互动')).toBeVisible()
+  await expect(panel.getByText('已拉黑').first()).toBeVisible()
+  await expect(panel.getByText('柳桥织娘').first()).toBeVisible()
+  await expect(panel.getByText('云岭巡手').first()).toBeVisible()
+  await expect(panel.getByText('灰名单旅人').first()).toBeVisible()
+  await expect(panel.getByRole('button', { name: '庄园' }).first()).toBeVisible()
+  await expect(panel.getByRole('button', { name: '写信' }).first()).toBeVisible()
+  await expect(panel.getByRole('button', { name: '协作' }).first()).toBeVisible()
+  await expect(panel.getByRole('button', { name: '删除' }).first()).toBeVisible()
+  await expect(panel.getByRole('button', { name: '拉黑' }).first()).toBeVisible()
+
+  await panel.getByPlaceholder('9 位数字 ID').fill('987654321')
+  await panel.getByTitle('搜索存档 ID').click()
+  await expect(panel.getByText('远山果匠')).toBeVisible()
+  await expect(panel.getByRole('button', { name: '申请' })).toBeVisible()
+
+  const metrics = await panel.evaluate(element => {
+    const rect = element.getBoundingClientRect()
+    const interactiveControls = Array.from(element.querySelectorAll('button, input'))
+    const clippedControls = interactiveControls.filter(control => {
+      const box = control.getBoundingClientRect()
+      return box.left < -1 || box.right > window.innerWidth + 1 || box.width < 30 || box.height < 30
+    }).map(control => control.textContent?.trim() || control.getAttribute('title') || control.getAttribute('placeholder') || control.tagName)
+    return {
+      panelLeft: rect.left,
+      panelRight: rect.right,
+      viewportWidth: window.innerWidth,
+      docOverflow: document.documentElement.scrollWidth - window.innerWidth,
+      clippedControls
+    }
+  })
+
+  expect(metrics.panelLeft).toBeGreaterThanOrEqual(-1)
+  expect(metrics.panelRight).toBeLessThanOrEqual(metrics.viewportWidth + 1)
+  expect(metrics.docOverflow).toBeLessThanOrEqual(4)
+  expect(metrics.clippedControls).toEqual([])
 }
 
 async function main() {
@@ -449,6 +703,24 @@ async function main() {
         viewport: { width: 430, height: 932 },
         primarySelector: '[data-testid="fishpond-primary-action-card"]'
       })
+      await captureScenario({
+        browser,
+        label: '22-region-social-friend-panel-mobile-390x844',
+        hash: '/#/game/region-map',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="region-social-friend-panel"]',
+        mockSocial: true,
+        prepare: prepareRegionSocialFriendPanel
+      })
+      await captureScenario({
+        browser,
+        label: '23-region-social-friend-panel-mobile-360x780',
+        hash: '/#/game/region-map',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="region-social-friend-panel"]',
+        mockSocial: true,
+        prepare: prepareRegionSocialFriendPanel
+      })
     } finally {
       await browser.close()
     }
@@ -463,7 +735,8 @@ async function main() {
       requestFailures: [...new Set(requestFailures)],
       notes: [
         '使用 region_map_showcase 样例档生成 390x844 / 360x780 / 430x932 三档移动端截图。',
-        '首屏判定以当前页主操作卡或当前场景主面板进入视口为准。'
+        '首屏判定以当前页主操作卡或当前场景主面板进入视口为准。',
+        '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、最近互动、拉黑列表和移动端横向溢出断言。'
       ]
     }
     await writeFile(summaryPath, JSON.stringify(summary, null, 2), 'utf8')

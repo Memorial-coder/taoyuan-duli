@@ -232,8 +232,8 @@
                   <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
                   <p class="text-[10px] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'incoming') }}</p>
                   <div class="flex flex-wrap gap-2 mt-2">
-                    <button class="border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.request_id" @click="acceptMapRequest(entry.request_id!)">接受</button>
-                    <button class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-muted hover:bg-accent/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.request_id" @click="rejectMapRequest(entry.request_id!)">拒绝</button>
+                    <button class="min-h-[32px] border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.request_id" @click="acceptMapRequest(entry.request_id!)">接受</button>
+                    <button class="min-h-[32px] border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-muted hover:bg-accent/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.request_id" @click="rejectMapRequest(entry.request_id!)">拒绝</button>
                   </div>
                 </div>
               </div>
@@ -268,14 +268,14 @@
                   </div>
                   <p class="text-[10px] text-muted mt-2 leading-4">{{ entry.profile.recent_activity || entry.profile.primary_route_label }}</p>
                   <div class="flex flex-wrap gap-2 mt-2">
-                    <button class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleNavigate('manor')">庄园</button>
-                    <button class="inline-flex items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleNavigate('mail')">
+                    <button class="min-h-[32px] border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleNavigate('manor')">庄园</button>
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleNavigate('mail')">
                       <Mail :size="11" />
                       写信
                     </button>
-                    <button class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleNavigate('quest')">协作</button>
-                    <button class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.friendship_id" @click="removeMapFriend(entry)">删除</button>
-                    <button class="border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.friend_save_id" @click="blockMapRelation(entry)">拉黑</button>
+                    <button class="min-h-[32px] border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5" @click="handleNavigate('quest')">协作</button>
+                    <button class="min-h-[32px] border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.friendship_id" @click="removeMapFriend(entry)">删除</button>
+                    <button class="min-h-[32px] border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.friend_save_id" @click="blockMapRelation(entry)">拉黑</button>
                   </div>
                 </div>
               </div>
@@ -300,7 +300,7 @@
                       <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
                       <p class="text-[10px] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'blocked') }}</p>
                     </div>
-                    <button class="border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50 shrink-0" :disabled="socialStore.relationshipActionRunning" @click="unblockMapRelation(entry)">解除</button>
+                    <button class="min-h-[32px] border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50 shrink-0" :disabled="socialStore.relationshipActionRunning" @click="unblockMapRelation(entry)">解除</button>
                   </div>
                 </div>
               </div>
