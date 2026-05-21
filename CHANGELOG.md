@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / B2` 这一轮收口 `ManorView.vue` 的庄园主题名保存操作行：主题名输入框和保存按钮已迁到统一 `online-action-row + online-input + online-action-btn`。
+- 这一行现在和其他联机表单一样会在窄屏自动换行；本轮只改 UI class，不改庄园主题周、导览或来访记录逻辑。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 - `0520todo.md / B2` 这一轮收口 `QuestView.vue` 的在线求助单创建区：标题、类别、可见范围、协作模式、截止时间、回报类型、回报数值、回报说明和多段接力阶段草稿输入都迁到统一 `online-*` 表单类。
 - 求助内容与阶段说明 textarea 已改用 `online-textarea`，发布 / 新增阶段 / 删除阶段按钮也换成统一按钮类；本轮只改创建草稿 UI，不改求助单发布、接单、交付、确认或补偿逻辑。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。

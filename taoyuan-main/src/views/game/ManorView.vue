@@ -131,14 +131,14 @@
           <span v-if="manorStore.snapshot.theme_week.recommendations.length === 0" class="text-[10px] text-muted">当前没有额外推荐。</span>
         </div>
       </div>
-      <div v-if="manorStore.snapshot.viewer_is_owner" class="flex gap-2">
+      <div v-if="manorStore.snapshot.viewer_is_owner" class="online-action-row">
         <input
           v-model="manorStore.themeLabelDraft"
           maxlength="30"
-          class="flex-1 bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+          class="online-input flex-1"
           placeholder="保存当前主题名"
         />
-        <Button class="text-[10px]" :disabled="manorStore.themeActionRunning" @click="saveThemeWeek">
+        <Button class="online-action-btn online-action-btn--primary" :disabled="manorStore.themeActionRunning" @click="saveThemeWeek">
           {{ manorStore.themeActionRunning ? '保存中…' : '保存主题' }}
         </Button>
       </div>
