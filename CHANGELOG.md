@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / C0-C3` 这一轮先把 `expedition_cavern` 做成联机小游戏样板间：后端快照新增回合号、当前事件、风险、队伍资源、角色分工、回合日志和最近反馈。
+- 矿洞动作已带上 `required_role / once_per_round / risk_delta / resource_delta / combo_tags / round_effect`，并会根据当前事件触发组合收益；其它远征和节会模板仍保持旧的共享进度动作逻辑。
+- `ExpeditionRoomView.vue` 在矿洞样板间下新增事件卡、队伍资源板、职责提示、动作效果和回合日志；本轮验证通过 `node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`git diff --check` 与 `npm --prefix server run qa:online-smoke`。
+
 - `0520todo.md / B3` 这一轮收口 `AdminOnlineGovernancePanel.vue` 的联机发布配置表单：beta template 输入区从中宽 `md:3列` 改成 `md:2列 / xl:3列`，避免管理端中等屏宽硬挤三列。
 - 管理端白名单 textarea、beta template 输入框和 release notes textarea 已迁到 `online-textarea / online-input`；发布说明的 5 个 textarea 默认高度从 3 行提升到 5 行，和玩家端统一表单高度保持同级。
 - 本轮只改管理端发布配置 UI class 和布局，不改联机发布配置保存、灰度开关、模块开关或事故预案逻辑；已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。

@@ -40,6 +40,12 @@ export interface ExpeditionGameplayActionOption {
   label: string
   summary: string
   unique_per_member: boolean
+  required_role?: string
+  once_per_round?: boolean
+  risk_delta?: number
+  resource_delta?: Record<string, number>
+  combo_tags?: string[]
+  round_effect?: string
 }
 
 export interface ExpeditionGameplayTemplate {
@@ -72,8 +78,83 @@ export interface ExpeditionGameplayAvailableAction {
   label: string
   summary: string
   unique_per_member: boolean
+  required_role: string
+  required_role_label: string
+  once_per_round: boolean
+  risk_delta: number
+  risk_delta_text: string
+  resource_delta: Record<string, number>
+  resource_delta_text: string
+  combo_tags: string[]
+  round_effect: string
   can_use: boolean
   disabled_reason: string
+}
+
+export interface ExpeditionCavernCurrentEvent {
+  id: string
+  label: string
+  summary: string
+  risk_hint: string
+  resource_hint: string
+  combo_tags: string[]
+}
+
+export interface ExpeditionCavernResourceSnapshot {
+  id: string
+  label: string
+  value: number
+  max_value: number
+  text: string
+}
+
+export interface ExpeditionCavernRoleSnapshot {
+  username: string
+  display_name: string
+  role_id: string
+  role_label: string
+  role_summary: string
+}
+
+export interface ExpeditionCavernRoundActionSnapshot {
+  round_number: number
+  action_id: string
+  actor_username: string
+  created_at: number
+}
+
+export interface ExpeditionCavernRoundLogSnapshot {
+  id: string
+  round_number: number
+  event_id: string
+  actor_username: string
+  actor_display_name: string
+  action_id: string
+  action_label: string
+  role_id: string
+  role_label: string
+  summary: string
+  progress_delta: number
+  score_delta: number
+  risk_delta: number
+  resource_delta: Record<string, number>
+  resource_delta_text: string
+  created_at: number
+}
+
+export interface ExpeditionCavernStateSnapshot {
+  round_number: number
+  round_text: string
+  current_event: ExpeditionCavernCurrentEvent
+  risk_value: number
+  risk_max: number
+  risk_text: string
+  team_resources: ExpeditionCavernResourceSnapshot[]
+  role_assignments: ExpeditionCavernRoleSnapshot[]
+  my_role: ExpeditionCavernRoleSnapshot | null
+  round_actions: ExpeditionCavernRoundActionSnapshot[]
+  round_log: ExpeditionCavernRoundLogSnapshot[]
+  recent_feedback: string
 }
 
 export interface ExpeditionGameplaySnapshot {
@@ -97,6 +178,7 @@ export interface ExpeditionGameplaySnapshot {
   is_completed: boolean
   completed_at: number
   contributions: ExpeditionGameplayContributionSnapshot[]
+  cavern_state: ExpeditionCavernStateSnapshot | null
   available_actions: ExpeditionGameplayAvailableAction[]
 }
 

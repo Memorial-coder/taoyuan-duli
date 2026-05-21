@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 协作矿洞样板间（C0-C3）
+- `ExpeditionRoomView.vue` 现在只在 `expedition_cavern` 下切到事件卡、队伍资源、职责分工、动作效果和回合日志，其它远征模板仍保留原按钮列表。
+- `useExpeditionRoomStore.ts` 与 `expeditionRoomApi.ts` 已补齐矿洞回合快照类型，能承接 `round_number / current_event / risk / team_resources / role_assignments / round_log`。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`git diff --check` 与 `npm --prefix server run qa:online-smoke`；烟测里尾部的敏感词拦截日志是脚本预期场景，不影响通过。
+
 ### 0520 管理端联机配置表单统一（B3）
 - `AdminOnlineGovernancePanel.vue` 的 beta template 输入区从中宽 `md:grid-cols-3` 改为 `md:grid-cols-2 xl:grid-cols-3`，避免管理端在中等屏宽下把三个模板输入框硬挤成三列。
 - 管理端白名单 textarea、beta template 输入框和 release notes textarea 已迁到 `online-textarea / online-input`，复用玩家端统一 42px 输入高度、textarea 默认高度和焦点样式。

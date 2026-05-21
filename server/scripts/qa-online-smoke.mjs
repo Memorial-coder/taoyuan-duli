@@ -2801,6 +2801,16 @@ try {
     for (const actionId of ['split_mine', 'chalk_route', 'stabilize_collapse']) {
       assert(availableActionIds.has(actionId), `${label} available actions missing ${actionId}`)
     }
+    const cavernState = runningReadback.data?.my_room?.gameplay?.cavern_state
+    assert(Number(cavernState?.round_number || 0) === 1, `${label} cavern state did not start at round 1`)
+    assert(String(cavernState?.current_event?.id || '') !== '', `${label} cavern state missing current event`)
+    assert(Array.isArray(cavernState?.team_resources) && cavernState.team_resources.length > 0, `${label} cavern state missing team resources`)
+    assert(Array.isArray(cavernState?.role_assignments) && cavernState.role_assignments.length === expectedMemberLimit, `${label} cavern state missing role assignments`)
+    assert(String(cavernState?.recent_feedback || '').includes('回合'), `${label} cavern state missing round feedback`)
+    const splitMineAction = (runningReadback.data?.my_room?.gameplay?.available_actions || []).find(entry => String(entry?.id || '') === 'split_mine')
+    assert(String(splitMineAction?.required_role_label || '') !== '', `${label} split_mine action missing required role label`)
+    assert(String(splitMineAction?.resource_delta_text || '') !== '', `${label} split_mine action missing resource delta text`)
+    assert(String(splitMineAction?.round_effect || '') !== '', `${label} split_mine action missing round effect`)
 
     let actionRoom = await l81SubmitAction(sessionState, roomId, 'split_mine', `${label} host split_mine`)
     actionRoom = await l81SubmitAction(participants[0], roomId, 'chalk_route', `${label} lead chalk_route`)
@@ -2817,6 +2827,12 @@ try {
 
     const hostContribution = actionRoom?.gameplay?.contributions?.find(entry => entry?.username === sessionState.username)
     assert(Number(hostContribution?.action_count || 0) >= 3, `${label} host contribution did not stay ahead`)
+    const cavernRoundState = actionRoom?.gameplay?.cavern_state
+    assert(Number(cavernRoundState?.round_number || 0) >= 3, `${label} cavern state did not advance across rounds`)
+    assert(String(cavernRoundState?.current_event?.label || '') !== '', `${label} cavern state lost current event after actions`)
+    assert(Array.isArray(cavernRoundState?.round_log) && cavernRoundState.round_log.length > 0, `${label} cavern state missing round log`)
+    assert(Array.isArray(cavernRoundState?.role_assignments) && cavernRoundState.role_assignments.length === expectedMemberLimit, `${label} cavern state lost role assignments after actions`)
+    assert(String(cavernRoundState?.recent_feedback || '').includes('回合'), `${label} cavern state missing latest feedback`)
     const recentEventSummaries = Array.isArray(actionRoom?.recent_events) ? actionRoom.recent_events.map(entry => String(entry?.summary || '')) : []
     assert(recentEventSummaries.some(summary => summary.includes('分工采集')), `${label} room events did not preserve split_mine summary`)
     assert(recentEventSummaries.some(summary => summary.includes('白路标记')), `${label} room events did not preserve chalk_route summary`)

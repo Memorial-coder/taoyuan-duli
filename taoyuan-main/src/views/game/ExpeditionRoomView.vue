@@ -95,6 +95,49 @@
             </p>
           </div>
 
+          <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state" class="space-y-2">
+            <div class="border border-accent/15 rounded-xs px-2 py-2 bg-bg/10">
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs text-accent">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.round_text }}</p>
+                  <p class="text-[10px] text-text mt-1 leading-4">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.summary }}</p>
+                </div>
+                <span class="shrink-0 text-[10px] text-warning">风险 {{ expeditionRoomStore.myRoom.gameplay.cavern_state.risk_text }}</span>
+              </div>
+              <div class="grid gap-2 sm:grid-cols-2 mt-2">
+                <p class="text-[10px] text-muted leading-4">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.risk_hint }}</p>
+                <p class="text-[10px] text-muted leading-4">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.resource_hint }}</p>
+              </div>
+              <p v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback" class="text-[10px] text-success mt-2 leading-4">
+                {{ expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback }}
+              </p>
+            </div>
+
+            <div class="grid gap-2 sm:grid-cols-2">
+              <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <p class="text-[10px] text-muted mb-2">队伍资源</p>
+                <div class="grid grid-cols-2 gap-2">
+                  <div v-for="resource in expeditionRoomStore.myRoom.gameplay.cavern_state.team_resources" :key="resource.id" class="border border-accent/10 rounded-xs px-2 py-1">
+                    <p class="text-[10px] text-accent">{{ resource.label }}</p>
+                    <p class="text-xs text-text mt-1">{{ resource.value }} / {{ resource.max_value }}</p>
+                  </div>
+                </div>
+              </div>
+              <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+                <p class="text-[10px] text-muted mb-2">职责分工</p>
+                <div class="space-y-1">
+                  <div v-for="role in expeditionRoomStore.myRoom.gameplay.cavern_state.role_assignments" :key="role.username" class="flex items-start justify-between gap-2">
+                    <span class="min-w-0 text-[10px] text-text truncate">{{ role.display_name }}</span>
+                    <span class="shrink-0 text-[10px] text-accent">{{ role.role_label }}</span>
+                  </div>
+                </div>
+                <p v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.my_role" class="text-[10px] text-muted mt-2 leading-4">
+                  我的职责：{{ expeditionRoomStore.myRoom.gameplay.cavern_state.my_role.role_label }}，{{ expeditionRoomStore.myRoom.gameplay.cavern_state.my_role.role_summary }}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <label class="block">
             <span class="text-[10px] text-muted">邀请玩家</span>
             <div class="online-action-row mt-1">
@@ -116,13 +159,34 @@
               :key="`${expeditionRoomStore.myRoom.id}-${action.id}`"
               class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10"
             >
-              <div class="flex items-center gap-2">
-                <Button :disabled="expeditionRoomStore.actionRunning || !action.can_use" @click="playGameplayAction(expeditionRoomStore.myRoom.id, action.id)">
+              <div class="flex items-start gap-2">
+                <Button class="online-action-btn online-action-btn--primary shrink-0" :disabled="expeditionRoomStore.actionRunning || !action.can_use" @click="playGameplayAction(expeditionRoomStore.myRoom.id, action.id)">
                   {{ action.label }}
                 </Button>
-                <p class="text-[10px] text-muted leading-4">{{ action.summary }}</p>
+                <div class="min-w-0">
+                  <p class="text-[10px] text-muted leading-4">{{ action.summary }}</p>
+                  <p v-if="action.round_effect" class="text-[10px] text-accent mt-1 leading-4">{{ action.round_effect }}</p>
+                  <p v-if="action.required_role_label || action.risk_delta_text || action.resource_delta_text" class="text-[10px] text-muted mt-1 leading-4">
+                    <span v-if="action.required_role_label">职责 {{ action.required_role_label }}</span>
+                    <span v-if="action.risk_delta_text"> / {{ action.risk_delta_text }}</span>
+                    <span v-if="action.resource_delta_text"> / {{ action.resource_delta_text }}</span>
+                  </p>
+                </div>
               </div>
               <p v-if="!action.can_use && action.disabled_reason" class="text-[10px] text-muted mt-1">{{ action.disabled_reason }}</p>
+            </div>
+          </div>
+
+          <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state?.round_log.length" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
+            <p class="text-[10px] text-muted mb-2">回合日志</p>
+            <div class="space-y-2">
+              <div v-for="entry in expeditionRoomStore.myRoom.gameplay.cavern_state.round_log.slice(0, 5)" :key="entry.id" class="border border-accent/10 rounded-xs px-2 py-1">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="min-w-0 text-[10px] text-accent">第 {{ entry.round_number }} 回合 · {{ entry.action_label }}</p>
+                  <span v-if="entry.role_label" class="shrink-0 text-[10px] text-muted">{{ entry.role_label }}</span>
+                </div>
+                <p class="text-[10px] text-muted mt-1 leading-4">{{ entry.summary }}</p>
+              </div>
             </div>
           </div>
 

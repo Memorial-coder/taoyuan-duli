@@ -98,6 +98,94 @@ const EXPEDITION_REWARD_ITEM_MAP = Object.freeze({
   },
 });
 
+const EXPEDITION_CAVERN_RISK_MAX = 12;
+const EXPEDITION_CAVERN_INITIAL_RISK = 3;
+const EXPEDITION_CAVERN_ROUND_LOG_LIMIT = 24;
+const EXPEDITION_CAVERN_ROUND_ACTION_TARGET = 2;
+
+const EXPEDITION_CAVERN_RESOURCE_DEFS = Object.freeze([
+  { id: 'supplies', label: '补给', initial_value: 5, max_value: 8 },
+  { id: 'lanterns', label: '灯火', initial_value: 3, max_value: 5 },
+  { id: 'rope', label: '绳索', initial_value: 2, max_value: 4 },
+  { id: 'markers', label: '路标', initial_value: 0, max_value: 6 },
+]);
+
+const EXPEDITION_CAVERN_ROLE_DEFS = Object.freeze([
+  { id: 'lead', label: '领队', summary: '统筹矿点推进，可以兜底处理采集、标记和危机动作。' },
+  { id: 'scout', label: '探路', summary: '负责读路、判脉和标记，优先压低未知风险。' },
+  { id: 'support', label: '支护', summary: '负责绳索、支架和坍塌处理，维持队伍安全余量。' },
+  { id: 'miner', label: '采集', summary: '负责矿点采样和分工采集，拉高本局采集值。' },
+]);
+
+const EXPEDITION_CAVERN_ROUND_EVENTS = Object.freeze([
+  {
+    id: 'fork_echo',
+    label: '回声岔路',
+    summary: '前方出现三条回音相近的岔路，队伍需要先确认哪条路能安全返回。',
+    risk_hint: '路线误判会抬高后续风险，探路或标记动作更容易命中。',
+    resource_hint: '路标越多，后续撤离越稳。',
+    combo_tags: ['survey', 'route'],
+    combo_bonus: {
+      score_delta: 1,
+      risk_delta: -1,
+      resource_delta: { markers: 1 },
+      summary: '路线判断命中，额外留下 1 个路标并压低风险。',
+    },
+  },
+  {
+    id: 'loose_ceiling',
+    label: '松顶回落',
+    summary: '头顶碎石开始松动，支护位需要判断是先稳住顶板还是继续采样。',
+    risk_hint: '忽视支护会让风险更快堆高。',
+    resource_hint: '绳索和补给会被消耗，但可以换来安全窗口。',
+    combo_tags: ['support', 'collapse'],
+    combo_bonus: {
+      score_delta: 1,
+      risk_delta: -2,
+      summary: '支护正中塌落点，风险额外下降。',
+    },
+  },
+  {
+    id: 'dark_lode',
+    label: '暗脉显影',
+    summary: '灯火扫过岩壁时露出一条暗色矿脉，采集动作能带来更高收益。',
+    risk_hint: '贪采会带来噪音和震动，采集后最好有人收稳局面。',
+    resource_hint: '补给会被消耗，路标可以避免绕路。',
+    combo_tags: ['mine', 'ore'],
+    combo_bonus: {
+      score_delta: 2,
+      resource_delta: { supplies: 1 },
+      summary: '暗脉采样完整，队伍回收了 1 份可用补给。',
+    },
+  },
+  {
+    id: 'flooded_rut',
+    label: '积水旧轨',
+    summary: '旧矿轨被积水截断，继续深入前要决定绕路、搭绳还是强行推进。',
+    risk_hint: '强推会更危险，路线和支护组合收益更高。',
+    resource_hint: '绳索回收得当可以支撑下一轮危机。',
+    combo_tags: ['route', 'support'],
+    combo_bonus: {
+      risk_delta: -1,
+      resource_delta: { rope: 1 },
+      summary: '绳路绕开积水，回收 1 段可复用绳索。',
+    },
+  },
+  {
+    id: 'thin_air',
+    label: '闷风薄氧',
+    summary: '深处空气变闷，队伍需要分清是通风口还是封闭死路。',
+    risk_hint: '提前探路和支护都能降低突发风险。',
+    resource_hint: '灯火越低，后续判断会越吃力。',
+    combo_tags: ['survey', 'support'],
+    combo_bonus: {
+      risk_delta: -1,
+      score_delta: 1,
+      summary: '提前判断出通风方向，队伍行动更稳。',
+    },
+  },
+]);
+
 const REWARD_INVENTORY_MAIN_CAPACITY = 24;
 const REWARD_INVENTORY_TEMP_CAPACITY = 10;
 const REWARD_INVENTORY_MAX_STACK = 999;
@@ -371,9 +459,45 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
     default_target: 6,
     recommended_room_template_ids: ['cavern_duo', 'cavern_trio', 'cavern_quartet'],
     action_options: [
-      { id: 'split_mine', label: '分工采集', summary: '用房间动作接入矿点分工，推进 1 个矿洞节点并增加 2 点采集值。', progress_delta: 1, score_delta: 2 },
-      { id: 'chalk_route', label: '白路标记', summary: '在路口留下可回看的记号，推进 1 格标记节点和 1 点采集值。', progress_delta: 1, score_delta: 1 },
-      { id: 'stabilize_collapse', label: '处理危机', summary: '把矿洞卡坍、缝隙或突发坠落先用标准动作接住，推进 1 格并增加 2 点安全分。', progress_delta: 1, score_delta: 2 },
+      {
+        id: 'split_mine',
+        label: '分工采集',
+        summary: '采集位切入矿脉，推进节点和采集值，但会消耗补给并抬高一点风险。',
+        progress_delta: 1,
+        score_delta: 2,
+        required_role: 'miner',
+        once_per_round: true,
+        risk_delta: 1,
+        resource_delta: { supplies: -1 },
+        combo_tags: ['mine', 'ore'],
+        round_effect: '推进矿点并制造震动，最好由标记或支护动作收稳。',
+      },
+      {
+        id: 'chalk_route',
+        label: '白路标记',
+        summary: '探路位在岔口留下可回看的记号，推进路线并降低后续迷失风险。',
+        progress_delta: 1,
+        score_delta: 1,
+        required_role: 'scout',
+        once_per_round: true,
+        risk_delta: -1,
+        resource_delta: { lanterns: -1, markers: 1 },
+        combo_tags: ['survey', 'route'],
+        round_effect: '把当前路线写进队伍共享记录，让后续动作更容易触发组合收益。',
+      },
+      {
+        id: 'stabilize_collapse',
+        label: '处理危机',
+        summary: '支护位处理卡坍、缝隙或坠落风险，消耗绳索换取安全窗口。',
+        progress_delta: 1,
+        score_delta: 2,
+        required_role: 'support',
+        once_per_round: true,
+        risk_delta: -2,
+        resource_delta: { rope: -1 },
+        combo_tags: ['support', 'collapse'],
+        round_effect: '压住当前风险，并为采集位创造继续深入的空间。',
+      },
     ],
   },
   expedition_gathering: {
@@ -458,6 +582,11 @@ function nowSeconds() {
 
 function sanitizeText(value, maxLength = 80) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
+}
+
+function clampNumber(value, minValue, maxValue) {
+  const numeric = Math.floor(Number(value) || 0);
+  return Math.min(maxValue, Math.max(minValue, numeric));
 }
 
 function normalizeActivityDomain(value) {
@@ -624,6 +753,12 @@ function listGameplayTemplates(domain = DEFAULT_ACTIVITY_DOMAIN) {
           label: action.label,
           summary: action.summary,
           unique_per_member: action.unique_per_member === true,
+          required_role: sanitizeText(action.required_role, 24),
+          once_per_round: action.once_per_round === true,
+          risk_delta: Math.floor(Number(action.risk_delta) || 0),
+          resource_delta: normalizeExpeditionCavernResourceDelta(action.resource_delta),
+          combo_tags: Array.isArray(action.combo_tags) ? action.combo_tags.map(item => sanitizeText(item, 24)).filter(Boolean).slice(0, 8) : [],
+          round_effect: sanitizeText(action.round_effect, 160),
         }))
       : [],
     }));
@@ -752,10 +887,223 @@ function normalizeGameplayContribution(entry) {
   };
 }
 
+function getExpeditionCavernEventByRound(roundNumber) {
+  const normalizedRound = Math.max(1, Math.floor(Number(roundNumber) || 1));
+  const eventIndex = (normalizedRound - 1) % EXPEDITION_CAVERN_ROUND_EVENTS.length;
+  return EXPEDITION_CAVERN_ROUND_EVENTS[eventIndex] || EXPEDITION_CAVERN_ROUND_EVENTS[0];
+}
+
+function normalizeExpeditionCavernResources(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  return EXPEDITION_CAVERN_RESOURCE_DEFS.reduce((resources, definition) => {
+    resources[definition.id] = clampNumber(source[definition.id], 0, definition.max_value);
+    return resources;
+  }, {});
+}
+
+function createInitialExpeditionCavernResources() {
+  return EXPEDITION_CAVERN_RESOURCE_DEFS.reduce((resources, definition) => {
+    resources[definition.id] = definition.initial_value;
+    return resources;
+  }, {});
+}
+
+function normalizeExpeditionCavernRoundLogEntry(entry) {
+  return {
+    id: String(entry?.id || makeId('cavern_round_log')),
+    round_number: Math.max(1, Math.floor(Number(entry?.round_number) || 1)),
+    event_id: sanitizeText(entry?.event_id, 40),
+    actor_username: sanitizeText(entry?.actor_username, 40),
+    actor_display_name: sanitizeText(entry?.actor_display_name, 40),
+    action_id: sanitizeText(entry?.action_id, 40),
+    action_label: sanitizeText(entry?.action_label, 40),
+    role_id: sanitizeText(entry?.role_id, 24),
+    role_label: sanitizeText(entry?.role_label, 24),
+    summary: sanitizeText(entry?.summary, 180),
+    progress_delta: Math.max(0, Math.floor(Number(entry?.progress_delta) || 0)),
+    score_delta: Math.max(0, Math.floor(Number(entry?.score_delta) || 0)),
+    risk_delta: Math.floor(Number(entry?.risk_delta) || 0),
+    resource_delta: normalizeExpeditionCavernResourceDelta(entry?.resource_delta),
+    created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
+  };
+}
+
+function normalizeExpeditionCavernResourceDelta(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  return EXPEDITION_CAVERN_RESOURCE_DEFS.reduce((delta, definition) => {
+    const nextValue = Math.floor(Number(source[definition.id]) || 0);
+    if (nextValue !== 0) delta[definition.id] = nextValue;
+    return delta;
+  }, {});
+}
+
+function createInitialExpeditionCavernState() {
+  const initialRound = 1;
+  const event = getExpeditionCavernEventByRound(initialRound);
+  return {
+    round_number: initialRound,
+    current_event_id: event.id,
+    risk_value: EXPEDITION_CAVERN_INITIAL_RISK,
+    risk_max: EXPEDITION_CAVERN_RISK_MAX,
+    team_resources: createInitialExpeditionCavernResources(),
+    role_assignments: [],
+    round_actions: [],
+    round_log: [],
+    recent_feedback: `第 ${initialRound} 回合遇到「${event.label}」：${event.summary}`,
+  };
+}
+
+function normalizeExpeditionCavernRoleAssignment(entry) {
+  const roleId = sanitizeText(entry?.role_id, 24);
+  const roleDefinition = EXPEDITION_CAVERN_ROLE_DEFS.find(item => item.id === roleId) || EXPEDITION_CAVERN_ROLE_DEFS[0];
+  return {
+    username: sanitizeText(entry?.username, 40),
+    display_name: sanitizeText(entry?.display_name, 40),
+    role_id: roleDefinition.id,
+    role_label: roleDefinition.label,
+    role_summary: roleDefinition.summary,
+  };
+}
+
+function normalizeExpeditionCavernRoundAction(entry) {
+  return {
+    round_number: Math.max(1, Math.floor(Number(entry?.round_number) || 1)),
+    action_id: sanitizeText(entry?.action_id, 40),
+    actor_username: sanitizeText(entry?.actor_username, 40),
+    created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
+  };
+}
+
+function normalizeExpeditionCavernState(value) {
+  const initial = createInitialExpeditionCavernState();
+  const source = value && typeof value === 'object' ? value : {};
+  const roundNumber = Math.max(1, Math.floor(Number(source.round_number) || initial.round_number));
+  const event = EXPEDITION_CAVERN_ROUND_EVENTS.find(item => item.id === sanitizeText(source.current_event_id, 40))
+    || getExpeditionCavernEventByRound(roundNumber);
+  return {
+    round_number: roundNumber,
+    current_event_id: event.id,
+    risk_value: clampNumber(source.risk_value ?? initial.risk_value, 0, EXPEDITION_CAVERN_RISK_MAX),
+    risk_max: EXPEDITION_CAVERN_RISK_MAX,
+    team_resources: normalizeExpeditionCavernResources(source.team_resources ?? initial.team_resources),
+    role_assignments: Array.isArray(source.role_assignments)
+      ? source.role_assignments.map(normalizeExpeditionCavernRoleAssignment).filter(item => item.username)
+      : [],
+    round_actions: Array.isArray(source.round_actions)
+      ? source.round_actions.map(normalizeExpeditionCavernRoundAction).filter(item => item.actor_username && item.action_id)
+      : [],
+    round_log: Array.isArray(source.round_log)
+      ? source.round_log.map(normalizeExpeditionCavernRoundLogEntry).slice(0, EXPEDITION_CAVERN_ROUND_LOG_LIMIT)
+      : [],
+    recent_feedback: sanitizeText(source.recent_feedback || initial.recent_feedback, 180),
+  };
+}
+
+function getExpeditionCavernRoleForMember(room, member) {
+  const joinedMembers = getJoinedMembers(room);
+  const memberIndex = Math.max(0, joinedMembers.findIndex(item => item.username === member.username));
+  const roleDefinition = EXPEDITION_CAVERN_ROLE_DEFS[memberIndex % EXPEDITION_CAVERN_ROLE_DEFS.length] || EXPEDITION_CAVERN_ROLE_DEFS[0];
+  return {
+    username: member.username,
+    display_name: member.display_name,
+    role_id: roleDefinition.id,
+    role_label: roleDefinition.label,
+    role_summary: roleDefinition.summary,
+  };
+}
+
+function syncExpeditionCavernRoleAssignments(room, cavernState) {
+  const joinedMembers = getJoinedMembers(room);
+  cavernState.role_assignments = joinedMembers.map(member => getExpeditionCavernRoleForMember(room, member));
+  return cavernState.role_assignments;
+}
+
+function getExpeditionCavernRoleLabel(roleId) {
+  const role = EXPEDITION_CAVERN_ROLE_DEFS.find(item => item.id === sanitizeText(roleId, 24));
+  return role?.label || '';
+}
+
+function getExpeditionCavernActionRoleStatus(room, member, actionOption) {
+  const requiredRole = sanitizeText(actionOption?.required_role, 24);
+  if (!requiredRole || !member) return { can_use: true, disabled_reason: '' };
+  const assignment = getExpeditionCavernRoleForMember(room, member);
+  if (assignment.role_id === requiredRole || assignment.role_id === 'lead') return { can_use: true, disabled_reason: '' };
+  return {
+    can_use: false,
+    disabled_reason: `当前动作建议由${getExpeditionCavernRoleLabel(requiredRole) || '对应职责'}执行；领队可以兜底。`,
+  };
+}
+
+function getExpeditionCavernRoundActionStatus(gameplayState, member, actionOption) {
+  const cavernState = normalizeExpeditionCavernState(gameplayState?.cavern_state);
+  if (!actionOption?.once_per_round || !member) return { can_use: true, disabled_reason: '' };
+  const alreadyUsed = (cavernState.round_actions || []).some(entry =>
+    entry.round_number === cavernState.round_number &&
+    entry.actor_username === member.username &&
+    entry.action_id === actionOption.id
+  );
+  if (!alreadyUsed) return { can_use: true, disabled_reason: '' };
+  return {
+    can_use: false,
+    disabled_reason: '这个动作每位成员每回合只能执行一次',
+  };
+}
+
+function applyExpeditionCavernResourceDelta(cavernState, resourceDelta) {
+  const delta = normalizeExpeditionCavernResourceDelta(resourceDelta);
+  const nextResources = normalizeExpeditionCavernResources(cavernState.team_resources);
+  for (const definition of EXPEDITION_CAVERN_RESOURCE_DEFS) {
+    const nextValue = (nextResources[definition.id] || 0) + (delta[definition.id] || 0);
+    nextResources[definition.id] = clampNumber(nextValue, 0, definition.max_value);
+  }
+  cavernState.team_resources = nextResources;
+  return delta;
+}
+
+function formatSignedDelta(value) {
+  const numeric = Math.floor(Number(value) || 0);
+  if (numeric > 0) return `+${numeric}`;
+  return String(numeric);
+}
+
+function summarizeExpeditionCavernResourceDelta(resourceDelta) {
+  const delta = normalizeExpeditionCavernResourceDelta(resourceDelta);
+  return EXPEDITION_CAVERN_RESOURCE_DEFS
+    .filter(definition => delta[definition.id])
+    .map(definition => `${definition.label}${formatSignedDelta(delta[definition.id])}`)
+    .join('，');
+}
+
+function mergeExpeditionCavernResourceDelta(baseDelta, extraDelta) {
+  const base = normalizeExpeditionCavernResourceDelta(baseDelta);
+  const extra = normalizeExpeditionCavernResourceDelta(extraDelta);
+  return EXPEDITION_CAVERN_RESOURCE_DEFS.reduce((merged, definition) => {
+    const nextValue = (base[definition.id] || 0) + (extra[definition.id] || 0);
+    if (nextValue !== 0) merged[definition.id] = nextValue;
+    return merged;
+  }, {});
+}
+
+function getExpeditionCavernCurrentEvent(cavernState) {
+  return EXPEDITION_CAVERN_ROUND_EVENTS.find(item => item.id === sanitizeText(cavernState?.current_event_id, 40))
+    || getExpeditionCavernEventByRound(cavernState?.round_number);
+}
+
+function buildExpeditionCavernEventSnapshot(event) {
+  return {
+    id: event.id,
+    label: event.label,
+    summary: event.summary,
+    risk_hint: event.risk_hint,
+    resource_hint: event.resource_hint,
+    combo_tags: Array.isArray(event.combo_tags) ? [...event.combo_tags] : [],
+  };
+}
+
 function createInitialGameplayState(gameplayTemplateId, roomTemplateId = '') {
   const roomTemplate = getRoomTemplate(roomTemplateId);
   const template = getGameplayTemplateByDomain(getTemplateDomain(roomTemplate), gameplayTemplateId, roomTemplateId);
-  return {
+  const state = {
     template_id: template.id,
     phase: 'prep',
     progress_value: 0,
@@ -768,6 +1116,10 @@ function createInitialGameplayState(gameplayTemplateId, roomTemplateId = '') {
     completed_at: 0,
     contributions: [],
   };
+  if (template.id === 'expedition_cavern') {
+    state.cavern_state = createInitialExpeditionCavernState();
+  }
+  return state;
 }
 
 function normalizeGameplayState(entry, gameplayTemplateId, roomTemplateId = '', activityDomain = DEFAULT_ACTIVITY_DOMAIN) {
@@ -776,7 +1128,7 @@ function normalizeGameplayState(entry, gameplayTemplateId, roomTemplateId = '', 
   if (!entry || typeof entry !== 'object' || (currentTemplateId && currentTemplateId !== template.id)) {
     return createInitialGameplayState(template.id, roomTemplateId);
   }
-  return {
+  const state = {
     template_id: template.id,
     phase: normalizeGameplayPhase(entry?.phase),
     progress_value: Math.max(0, Math.floor(Number(entry?.progress_value) || 0)),
@@ -791,6 +1143,10 @@ function normalizeGameplayState(entry, gameplayTemplateId, roomTemplateId = '', 
       ? entry.contributions.map(normalizeGameplayContribution).filter(item => item.username)
       : [],
   };
+  if (template.id === 'expedition_cavern') {
+    state.cavern_state = normalizeExpeditionCavernState(entry?.cavern_state);
+  }
+  return state;
 }
 
 function normalizeRoom(entry) {
@@ -901,6 +1257,10 @@ function ensureRoomGameplayState(room) {
       room.gameplay_state.progress_target = targetValue;
       touchRoom(room);
     }
+  }
+  if (gameplayTemplate.id === 'expedition_cavern') {
+    room.gameplay_state.cavern_state = normalizeExpeditionCavernState(room.gameplay_state.cavern_state);
+    syncExpeditionCavernRoleAssignments(room, room.gameplay_state.cavern_state);
   }
   return room.gameplay_state;
 }
@@ -1038,6 +1398,228 @@ function buildGameplayProgressText(template, gameplayState) {
   return `${template.objective_label} ${Math.min(gameplayState.progress_value, gameplayState.progress_target)} / ${gameplayState.progress_target}`;
 }
 
+function buildExpeditionCavernRoundText(cavernState) {
+  const event = getExpeditionCavernCurrentEvent(cavernState);
+  return `第 ${Math.max(1, cavernState?.round_number || 1)} 回合 · ${event.label}`;
+}
+
+function buildExpeditionCavernResourceSummary(cavernState) {
+  const resources = normalizeExpeditionCavernResources(cavernState?.team_resources);
+  return EXPEDITION_CAVERN_RESOURCE_DEFS.map(definition => `${definition.label}${resources[definition.id] || 0}`).join(' / ');
+}
+
+function buildExpeditionCavernTeamRoles(room, cavernState) {
+  const joinedMembers = getJoinedMembers(room);
+  const assignments = Array.isArray(cavernState?.role_assignments) && cavernState.role_assignments.length > 0
+    ? cavernState.role_assignments
+    : joinedMembers.map(member => getExpeditionCavernRoleForMember(room, member));
+  return joinedMembers.map(member => {
+    const assignment = assignments.find(item => item.username === member.username) || getExpeditionCavernRoleForMember(room, member);
+    return {
+      username: member.username,
+      display_name: member.display_name,
+      role_id: assignment.role_id,
+      role_label: assignment.role_label,
+      role_summary: assignment.role_summary,
+    };
+  });
+}
+
+function buildExpeditionCavernRoundLog(room, cavernState) {
+  const joinedMembers = getJoinedMembers(room);
+  const roleAssignments = buildExpeditionCavernTeamRoles(room, cavernState);
+  const roleByUsername = new Map(roleAssignments.map(item => [item.username, item]));
+  const memberByUsername = new Map(joinedMembers.map(member => [member.username, member]));
+  return (cavernState?.round_log || [])
+    .slice(0, EXPEDITION_CAVERN_ROUND_LOG_LIMIT)
+    .map(entry => {
+      const member = memberByUsername.get(entry.actor_username);
+      const role = roleByUsername.get(entry.actor_username);
+      return {
+        id: entry.id,
+        round_number: entry.round_number,
+        event_id: entry.event_id,
+        actor_username: entry.actor_username,
+        actor_display_name: entry.actor_display_name || member?.display_name || entry.actor_username,
+        action_id: entry.action_id,
+        action_label: entry.action_label,
+        role_id: entry.role_id || role?.role_id || '',
+        role_label: entry.role_label || role?.role_label || '',
+        summary: entry.summary,
+        progress_delta: entry.progress_delta,
+        score_delta: entry.score_delta,
+        risk_delta: entry.risk_delta,
+        resource_delta: entry.resource_delta,
+        resource_delta_text: summarizeExpeditionCavernResourceDelta(entry.resource_delta),
+        created_at: entry.created_at,
+      };
+    });
+}
+
+function createExpeditionCavernRoundSummary(room, cavernState, actor, actionOption, contribution, resourceDelta, riskDelta, extraSummary = '') {
+  const event = getExpeditionCavernCurrentEvent(cavernState);
+  const resourceText = summarizeExpeditionCavernResourceDelta(resourceDelta);
+  const riskText = riskDelta ? `风险${formatSignedDelta(riskDelta)}` : '风险持平';
+  const progressText = `${room.gameplay_state.progress_value}/${room.gameplay_state.progress_target}`;
+  const scoreText = `${room.gameplay_state.score_value}`;
+  const parts = [
+    `${actor.displayName || actor.username} 执行「${actionOption.label}」`,
+    `回合 ${Math.max(1, cavernState.round_number)}`,
+    `事件「${event.label}」`,
+    `进度 ${progressText}`,
+    `采集值 ${scoreText}`,
+    riskText,
+  ];
+  if (resourceText) parts.push(`资源 ${resourceText}`);
+  if (extraSummary) parts.push(extraSummary);
+  if (contribution?.locked) parts.push('本角色已锁定');
+  return parts.join('，');
+}
+
+function advanceExpeditionCavernRound(room, cavernState, actor) {
+  const nextRound = Math.max(1, cavernState.round_number + 1);
+  cavernState.round_number = nextRound;
+  const event = getExpeditionCavernEventByRound(nextRound);
+  cavernState.current_event_id = event.id;
+  const currentResources = normalizeExpeditionCavernResources(cavernState.team_resources);
+  const nextResources = {};
+  for (const definition of EXPEDITION_CAVERN_RESOURCE_DEFS) {
+    const restored = currentResources[definition.id] + (definition.id === 'lanterns' ? 1 : 0);
+    nextResources[definition.id] = clampNumber(restored, 0, definition.max_value);
+  }
+  cavernState.team_resources = nextResources;
+  cavernState.risk_value = clampNumber(cavernState.risk_value + 1, 0, EXPEDITION_CAVERN_RISK_MAX);
+  cavernState.round_actions = [];
+  syncExpeditionCavernRoleAssignments(room, cavernState);
+  cavernState.recent_feedback = `第 ${nextRound} 回合进入「${event.label}」：${event.summary}`;
+  cavernState.round_log = [
+    normalizeExpeditionCavernRoundLogEntry({
+      round_number: nextRound,
+      event_id: event.id,
+      actor_username: actor?.username,
+      actor_display_name: actor?.displayName || actor?.username,
+      action_id: 'round_advance',
+      action_label: '回合推进',
+      role_id: '',
+      role_label: '',
+      summary: cavernState.recent_feedback,
+      progress_delta: 0,
+      score_delta: 0,
+      risk_delta: 1,
+      resource_delta: {},
+      created_at: nowSeconds(),
+    }),
+    ...(cavernState.round_log || []).slice(0, EXPEDITION_CAVERN_ROUND_LOG_LIMIT - 1),
+  ];
+  touchRoom(room);
+}
+
+function applyExpeditionCavernRoundEffects(room, cavernState, actor, actionOption, contribution) {
+  const event = getExpeditionCavernCurrentEvent(cavernState);
+  const baseRiskDelta = Math.floor(Number(actionOption.risk_delta) || 0);
+  const baseResourceDelta = normalizeExpeditionCavernResourceDelta(actionOption.resource_delta);
+  const eventResourceDelta = {};
+  let extraScoreDelta = 0;
+  let extraRiskDelta = 0;
+  let extraSummary = '';
+  const actionTags = new Set(Array.isArray(actionOption.combo_tags) ? actionOption.combo_tags : []);
+
+  if (event.combo_bonus && Array.isArray(event.combo_tags)) {
+    const matched = event.combo_tags.some(tag => actionTags.has(tag));
+    if (matched) {
+      extraScoreDelta += Math.max(0, Math.floor(Number(event.combo_bonus.score_delta) || 0));
+      extraRiskDelta += Math.floor(Number(event.combo_bonus.risk_delta) || 0);
+      Object.assign(eventResourceDelta, normalizeExpeditionCavernResourceDelta(event.combo_bonus.resource_delta));
+      extraSummary = sanitizeText(event.combo_bonus.summary, 120);
+    }
+  }
+
+  if (baseRiskDelta !== 0) {
+    cavernState.risk_value = clampNumber(cavernState.risk_value + baseRiskDelta, 0, cavernState.risk_max);
+  }
+  if (extraRiskDelta !== 0) {
+    cavernState.risk_value = clampNumber(cavernState.risk_value + extraRiskDelta, 0, cavernState.risk_max);
+  }
+
+  const mergedResourceDelta = mergeExpeditionCavernResourceDelta(baseResourceDelta, eventResourceDelta);
+  applyExpeditionCavernResourceDelta(cavernState, mergedResourceDelta);
+
+  if (cavernState.risk_value >= cavernState.risk_max - 1) {
+    cavernState.team_resources.supplies = clampNumber(cavernState.team_resources.supplies - 1, 0, 8);
+  }
+  if (extraScoreDelta > 0) {
+    room.gameplay_state.score_value += extraScoreDelta;
+    contribution.score_value += extraScoreDelta;
+  }
+
+  const roundLogEntry = normalizeExpeditionCavernRoundLogEntry({
+    round_number: cavernState.round_number,
+    event_id: event.id,
+    actor_username: actor.username,
+    actor_display_name: actor.displayName,
+    action_id: actionOption.id,
+    action_label: actionOption.label,
+    role_id: contribution?.role_id || '',
+    role_label: contribution?.role_label || '',
+    summary: createExpeditionCavernRoundSummary(room, cavernState, actor, actionOption, contribution, mergedResourceDelta, baseRiskDelta + extraRiskDelta, extraSummary),
+    progress_delta: Math.max(0, Math.floor(Number(actionOption.progress_delta) || 0)),
+    score_delta: Math.max(0, Math.floor(Number(actionOption.score_delta) || 0)) + extraScoreDelta,
+    risk_delta: baseRiskDelta + extraRiskDelta,
+    resource_delta: mergedResourceDelta,
+    created_at: nowSeconds(),
+  });
+  cavernState.round_log = [roundLogEntry, ...(cavernState.round_log || [])].slice(0, EXPEDITION_CAVERN_ROUND_LOG_LIMIT);
+  cavernState.round_actions = [
+    ...(cavernState.round_actions || []),
+    {
+      round_number: cavernState.round_number,
+      action_id: actionOption.id,
+      actor_username: actor.username,
+      created_at: nowSeconds(),
+    },
+  ].slice(-12);
+  cavernState.recent_feedback = roundLogEntry.summary;
+  if (cavernState.round_actions.filter(entry => entry.round_number === cavernState.round_number).length >= EXPEDITION_CAVERN_ROUND_ACTION_TARGET) {
+    advanceExpeditionCavernRound(room, cavernState, actor);
+  } else {
+    touchRoom(room);
+  }
+  return roundLogEntry;
+}
+
+function buildExpeditionCavernSnapshot(room, viewerMember, gameplayState) {
+  const cavernState = normalizeExpeditionCavernState(gameplayState?.cavern_state);
+  syncExpeditionCavernRoleAssignments(room, cavernState);
+  const event = getExpeditionCavernCurrentEvent(cavernState);
+  const roleAssignments = buildExpeditionCavernTeamRoles(room, cavernState);
+  const viewerAssignment = viewerMember ? roleAssignments.find(item => item.username === viewerMember.username) || null : null;
+  const roundLog = buildExpeditionCavernRoundLog(room, cavernState);
+  return {
+    round_number: cavernState.round_number,
+    round_text: buildExpeditionCavernRoundText(cavernState),
+    current_event: buildExpeditionCavernEventSnapshot(event),
+    risk_value: cavernState.risk_value,
+    risk_max: cavernState.risk_max,
+    risk_text: `${cavernState.risk_value} / ${cavernState.risk_max}`,
+    team_resources: EXPEDITION_CAVERN_RESOURCE_DEFS.map(definition => ({
+      id: definition.id,
+      label: definition.label,
+      value: cavernState.team_resources[definition.id] || 0,
+      max_value: definition.max_value,
+      text: `${definition.label} ${cavernState.team_resources[definition.id] || 0} / ${definition.max_value}`,
+    })),
+    role_assignments: roleAssignments,
+    my_role: viewerAssignment,
+    round_actions: cavernState.round_actions.slice(-12).map(entry => ({
+      round_number: entry.round_number,
+      action_id: entry.action_id,
+      actor_username: entry.actor_username,
+      created_at: entry.created_at,
+    })),
+    round_log: roundLog,
+    recent_feedback: cavernState.recent_feedback,
+  };
+}
 function canUseGameplayAction(room, gameplayState, viewerMember, actionOption) {
   if (!viewerMember) return { can_use: false, disabled_reason: '你当前不在这个节会房间里' };
   if (room.state !== 'running') return { can_use: false, disabled_reason: '只有房间进入进行中后，才能提交玩法动作' };
@@ -1046,6 +1628,12 @@ function canUseGameplayAction(room, gameplayState, viewerMember, actionOption) {
   const contribution = findGameplayContribution(gameplayState, viewerMember.username);
   if (actionOption.unique_per_member && contribution?.locked) {
     return { can_use: false, disabled_reason: '这个动作每位成员只能执行一次' };
+  }
+  if (gameplayState.template_id === 'expedition_cavern') {
+    const roleStatus = getExpeditionCavernActionRoleStatus(room, viewerMember, actionOption);
+    if (!roleStatus.can_use) return roleStatus;
+    const roundStatus = getExpeditionCavernRoundActionStatus(gameplayState, viewerMember, actionOption);
+    if (!roundStatus.can_use) return roundStatus;
   }
   return { can_use: true, disabled_reason: '' };
 }
@@ -1095,6 +1683,9 @@ function buildGameplaySnapshot(room, viewerUsername) {
         last_action_at: contribution?.last_action_at || 0,
       };
     }),
+    cavern_state: template.id === 'expedition_cavern'
+      ? buildExpeditionCavernSnapshot(room, viewerMember, gameplayState)
+      : null,
     available_actions: (template.action_options || []).map(actionOption => {
       const status = canUseGameplayAction(room, gameplayState, viewerMember, actionOption);
       return {
@@ -1102,6 +1693,15 @@ function buildGameplaySnapshot(room, viewerUsername) {
         label: actionOption.label,
         summary: actionOption.summary,
         unique_per_member: actionOption.unique_per_member === true,
+        required_role: sanitizeText(actionOption.required_role, 24),
+        required_role_label: getExpeditionCavernRoleLabel(actionOption.required_role),
+        once_per_round: actionOption.once_per_round === true,
+        risk_delta: Math.floor(Number(actionOption.risk_delta) || 0),
+        risk_delta_text: actionOption.risk_delta ? `风险${formatSignedDelta(actionOption.risk_delta)}` : '',
+        resource_delta: normalizeExpeditionCavernResourceDelta(actionOption.resource_delta),
+        resource_delta_text: summarizeExpeditionCavernResourceDelta(actionOption.resource_delta),
+        combo_tags: Array.isArray(actionOption.combo_tags) ? actionOption.combo_tags.map(item => sanitizeText(item, 24)).filter(Boolean).slice(0, 8) : [],
+        round_effect: sanitizeText(actionOption.round_effect, 160),
         can_use: status.can_use,
         disabled_reason: status.disabled_reason,
       };
@@ -1138,17 +1738,32 @@ function applyGameplayAction(room, actionId, actor) {
   contribution.last_action_id = actionOption.id;
   contribution.last_action_label = actionOption.label;
   contribution.last_action_at = nowSeconds();
-  contribution.progress_value += Math.max(0, Math.floor(Number(actionOption.progress_delta) || 0));
-  contribution.score_value += Math.max(0, Math.floor(Number(actionOption.score_delta) || 0));
+  const progressDelta = Math.max(0, Math.floor(Number(actionOption.progress_delta) || 0));
+  const scoreDelta = Math.max(0, Math.floor(Number(actionOption.score_delta) || 0));
+  contribution.progress_value += progressDelta;
+  contribution.score_value += scoreDelta;
   if (actionOption.unique_per_member) contribution.locked = true;
 
   gameplayState.phase = 'active';
-  gameplayState.progress_value = Math.min(gameplayState.progress_target, gameplayState.progress_value + Math.max(0, Math.floor(Number(actionOption.progress_delta) || 0)));
-  gameplayState.score_value += Math.max(0, Math.floor(Number(actionOption.score_delta) || 0));
+  gameplayState.progress_value = Math.min(gameplayState.progress_target, gameplayState.progress_value + progressDelta);
+  gameplayState.score_value += scoreDelta;
   gameplayState.last_action_id = actionOption.id;
   gameplayState.last_actor_username = sanitizeText(actor.username, 40);
   gameplayState.last_actor_display_name = sanitizeText(actor.displayName, 40) || sanitizeText(actor.username, 40);
-  gameplayState.last_action_summary = `${gameplayState.last_actor_display_name} 执行了「${actionOption.label}」；${buildGameplayProgressText(template, gameplayState)}，${template.score_label}${gameplayState.score_value}`;
+  if (template.id === 'expedition_cavern') {
+    gameplayState.cavern_state = normalizeExpeditionCavernState(gameplayState.cavern_state);
+    syncExpeditionCavernRoleAssignments(room, gameplayState.cavern_state);
+    const roleAssignment = getExpeditionCavernRoleForMember(room, member);
+    contribution.role_id = roleAssignment.role_id;
+    contribution.role_label = roleAssignment.role_label;
+    const roundLogEntry = applyExpeditionCavernRoundEffects(room, gameplayState.cavern_state, {
+      username: gameplayState.last_actor_username,
+      displayName: gameplayState.last_actor_display_name,
+    }, actionOption, contribution);
+    gameplayState.last_action_summary = roundLogEntry.summary;
+  } else {
+    gameplayState.last_action_summary = `${gameplayState.last_actor_display_name} 执行了「${actionOption.label}」；${buildGameplayProgressText(template, gameplayState)}，${template.score_label}${gameplayState.score_value}`;
+  }
   touchRoom(room);
   recordRoomEvent(room, 'room.action', actor, gameplayState.last_action_summary);
   finalizeGameplayIfCompleted(room, actor);
