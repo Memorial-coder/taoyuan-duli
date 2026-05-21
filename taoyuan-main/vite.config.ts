@@ -67,7 +67,8 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:4013',
-        changeOrigin: true
+        changeOrigin: true,
+        ws: true
       }
     }
   },
@@ -78,7 +79,8 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: 'http://127.0.0.1:4013',
-        changeOrigin: true
+        changeOrigin: true,
+        ws: true
       }
     }
   },

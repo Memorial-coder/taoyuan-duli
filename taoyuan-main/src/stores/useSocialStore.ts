@@ -279,9 +279,9 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     }
   }
 
-  const refreshRelationships = async () => {
+  const refreshRelationships = async (options: { silent?: boolean } = {}) => {
     relationshipLoading.value = true
-    errorMessage.value = ''
+    if (!options.silent) errorMessage.value = ''
     try {
       const data = await fetchRelationshipOverview()
       incomingRequests.value = data?.incoming_requests ?? []
@@ -290,7 +290,7 @@ export const useSocialStore = defineStore('onlineSocial', () => {
       blockedUsers.value = data?.blocked_users ?? []
       return data
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '获取好友关系失败'
+      if (!options.silent) errorMessage.value = error instanceof Error ? error.message : '获取好友关系失败'
       throw error
     } finally {
       relationshipLoading.value = false

@@ -437,6 +437,7 @@
   import { useMailboxStore } from '@/stores/useMailboxStore'
   import { useWarehouseStore } from '@/stores/useWarehouseStore'
   import { useSaveStore } from '@/stores/useSaveStore'
+  import { useRealtimeStore } from '@/stores/useRealtimeStore'
   import { useFarmStore } from '@/stores/useFarmStore'
   import { useDialogs } from '@/composables/useDialogs'
   import type { MorningChoiceEvent } from '@/data/farmEvents'
@@ -490,6 +491,7 @@
   const farmStore = useFarmStore()
   const mailboxStore = useMailboxStore()
   const saveStore = useSaveStore()
+  const realtimeStore = useRealtimeStore()
   const { switchToSeasonalBgm } = useAudio()
   const contentViewport = ref<HTMLDivElement | null>(null)
   const sceneContentAnchor = ref<HTMLDivElement | null>(null)
@@ -641,6 +643,7 @@
 
   onMounted(() => {
     startClock()
+    void realtimeStore.start()
     void saveStore.syncPendingServerSaves()
     void mailboxStore.refreshList().catch(() => {})
     mailRefreshTimer.value = window.setInterval(() => {
@@ -655,6 +658,7 @@
   })
   onUnmounted(() => {
     stopClock()
+    realtimeStore.stop()
     if (backgroundAutoSaveTimer.value !== null) {
       window.clearInterval(backgroundAutoSaveTimer.value)
       backgroundAutoSaveTimer.value = null

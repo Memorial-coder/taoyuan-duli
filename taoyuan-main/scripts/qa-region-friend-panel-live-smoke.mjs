@@ -28,6 +28,8 @@ const checks = []
 const consoleErrors = []
 const pageErrors = []
 const requestFailures = []
+const realtimeFrames = []
+let realtimeSocketCount = 0
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message)
@@ -385,12 +387,38 @@ async function main() {
     page.on('requestfailed', request => {
       requestFailures.push(`${request.method()} ${request.url()} :: ${request.failure()?.errorText ?? 'unknown failure'}`)
     })
+    page.on('websocket', websocket => {
+      if (!websocket.url().includes('/api/taoyuan/online/realtime')) return
+      realtimeSocketCount += 1
+      websocket.on('framereceived', frame => {
+        if (typeof frame === 'string') {
+          realtimeFrames.push(frame)
+          return
+        }
+        if (Buffer.isBuffer(frame)) {
+          realtimeFrames.push(frame.toString('utf8'))
+          return
+        }
+        const payload = frame && typeof frame === 'object' && 'payload' in frame ? frame.payload : frame
+        realtimeFrames.push(Buffer.isBuffer(payload) ? payload.toString('utf8') : String(payload))
+      })
+    })
     page.on('dialog', dialog => dialog.accept())
 
     await openSamplePage(page)
     await waitForRelationshipIdle(page)
     const panel = page.getByTestId('region-social-friend-panel')
     await expect(panel.getByText(String(owner.identity.save_id))).toBeVisible()
+
+    await runCheck('game layout opens realtime websocket', async () => {
+      await expect.poll(() => realtimeSocketCount > 0, { timeout: 10000 }).toBeTruthy()
+    })
+
+    await runCheck('friend request websocket event refreshes browser panel', async () => {
+      const realtimePushTarget = await bootstrapSession('mfp', '实时推送', 240)
+      const pushedRequest = await requestFriend(realtimePushTarget, owner.identity.save_id)
+      await expect(panel.getByTestId(`region-social-incoming-${pushedRequest.id}`)).toBeVisible({ timeout: 10000 })
+    })
 
     await runCheck('friend interaction buttons navigate with target context', async () => {
       await page.getByTestId(`region-social-friend-manor-${navigateFriendshipId}`).click()
@@ -510,6 +538,8 @@ async function main() {
       consoleErrors: [...new Set(consoleErrors)],
       pageErrors: [...new Set(pageErrors)],
       requestFailures: [...new Set(requestFailures)],
+      realtimeSocketCount,
+      realtimeFrames: realtimeFrames.length,
     }, null, 2), 'utf8')
 
     assert(consoleErrors.length === 0, `console errors detected: ${consoleErrors.join('\n')}`)
