@@ -292,6 +292,14 @@
                       <UserPlus :size="11" />
                       邀请进房
                     </button>
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-festival-${entry.friendship_id || 'missing'}`" @click="openFriendFestivalInvite(entry)">
+                      <UserPlus :size="11" />
+                      节会
+                    </button>
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-society-${entry.friendship_id || 'missing'}`" @click="openFriendSocietyInvite(entry)">
+                      <Users :size="11" />
+                      村社
+                    </button>
                     <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-coop-${entry.friendship_id || 'missing'}`" @click="openFriendCoop(entry)">
                       <Users :size="11" />
                       协作
@@ -3417,6 +3425,18 @@
     const query = buildFriendTargetQuery(entry)
     if (!query) return
     void router.push({ name: 'expedition', query: { ...query, invite: '1' } })
+  }
+
+  const openFriendFestivalInvite = (entry: OnlineRelationCard) => {
+    const query = buildFriendTargetQuery(entry)
+    if (!query) return
+    void router.push({ name: 'festival', query: { ...query, invite: '1' } })
+  }
+
+  const openFriendSocietyInvite = (entry: OnlineRelationCard) => {
+    const query = buildFriendTargetQuery(entry)
+    if (!query) return
+    void router.push({ name: 'society', query: { ...query, invite: '1' } })
   }
 
   const openFriendCoop = (entry: OnlineRelationCard) => {

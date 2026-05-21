@@ -31,6 +31,12 @@
 - 这轮没有让 WebSocket 承担结算：好友关系、房间成员、权限、奖励和补偿仍由 HTTP 写路与运行时权威处理，离线队列只增强投递可靠性。
 - 本轮验证已通过 `node --check server/src/taoyuanRealtimeRuntime.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix server run qa:realtime-smoke`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:region-friend-panel-live-smoke`、`npm --prefix server run qa:online-smoke` 与 `git diff --check`。
 
+### 0520 好友节会村社入口预填（A6 部分）
+- 地图页好友卡片新增“节会”和“村社”邀请入口，复用现有好友目标上下文，把 `target_username / target_save_id / invite=1` 带到对应联机页面。
+- `FestivalView.vue` 与 `SocietyView.vue` 现在会读取路由里的 `target_username` 并预填邀请输入框，只辅助玩家填好目标，不自动发送邀请或改变房间 / 村社权限。
+- `qa:region-friend-panel-live-smoke` 已新增节会房间和村社准备步骤，并在真实后端 + Vite + Chromium 下点击远征 / 节会 / 村社三类好友入口，验证 URL 与邀请输入框预填。
+- 本轮验证已通过 `node --check taoyuan-main/scripts/qa-region-friend-panel-live-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:region-friend-panel-live-smoke` 与 `git diff --check`。
+
 ### 0520 存档身份底座（A0 服务端部分）
 - 服务端存档读写链路已开始补发并锁定存档级数字身份：旧服务端存档经 `/api/taoyuan/save/slots` 或 `/api/taoyuan/save/:slot` 读取时，会被写入固定 9 位 `onlineIdentity.save_id`，后续保存不能由客户端篡改这个 ID。
 - 服务端已新增按存档数字 ID 搜索玩家的最小接口：`/api/taoyuan/online/social/player-search?save_id=...` 会返回对应槽位的公开名片，不下发背包、钱包等存档内容。

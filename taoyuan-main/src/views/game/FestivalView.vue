@@ -511,12 +511,14 @@
 </template>
 
 <script setup lang="ts">
-  import { onMounted } from 'vue'
+  import { onMounted, watch } from 'vue'
+  import { useRoute } from 'vue-router'
   import Button from '@/components/game/Button.vue'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
   import type { WorldEventOverview } from '@/utils/worldEventApi'
 
+  const route = useRoute()
   const festivalRoomStore = useFestivalRoomStore()
   const worldEventStore = useWorldEventStore()
 
@@ -539,6 +541,17 @@
   const refreshOverview = async () => {
     await festivalRoomStore.refreshOverview().catch(() => {})
     await worldEventStore.refreshOverview().catch(() => {})
+  }
+
+  const getRouteQueryText = (value: unknown) => {
+    const raw = Array.isArray(value) ? value[0] : value
+    return typeof raw === 'string' ? raw.trim() : ''
+  }
+
+  const applyInviteRouteDraft = () => {
+    const targetUsername = getRouteQueryText(route.query.target_username)
+    if (!targetUsername) return
+    festivalRoomStore.draftInviteUsername = targetUsername
   }
 
   const createRoom = async () => {
@@ -598,6 +611,14 @@
   }
 
   onMounted(() => {
+    applyInviteRouteDraft()
     void refreshOverview()
   })
+
+  watch(
+    () => route.query.target_username,
+    () => {
+      applyInviteRouteDraft()
+    }
+  )
 </script>

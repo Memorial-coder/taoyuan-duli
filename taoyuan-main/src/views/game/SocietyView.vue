@@ -633,12 +633,14 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, reactive, watchEffect } from 'vue'
+  import { computed, onMounted, reactive, watch, watchEffect } from 'vue'
+  import { useRoute } from 'vue-router'
   import Button from '@/components/game/Button.vue'
   import { useSocietyStore } from '@/stores/useSocietyStore'
   import type { SocietyProposalChoice, SocietyRole } from '@/utils/societyApi'
   import { ensureCurrentAccount } from '@/utils/accountStorage'
 
+  const route = useRoute()
   const societyStore = useSocietyStore()
   const memberRoleDrafts = reactive<Record<string, Exclude<SocietyRole, 'president'>>>({})
   const proposalResolutionNotes = reactive<Record<string, string>>({})
@@ -693,6 +695,17 @@
 
   const refreshOverview = async () => {
     await societyStore.refreshOverview().catch(() => {})
+  }
+
+  const getRouteQueryText = (value: unknown) => {
+    const raw = Array.isArray(value) ? value[0] : value
+    return typeof raw === 'string' ? raw.trim() : ''
+  }
+
+  const applyInviteRouteDraft = () => {
+    const targetUsername = getRouteQueryText(route.query.target_username)
+    if (!targetUsername) return
+    societyStore.draftInviteUsername = targetUsername
   }
 
   const createSociety = async () => {
@@ -755,7 +768,15 @@
   }
 
   onMounted(() => {
+    applyInviteRouteDraft()
     void loadCurrentAccount()
     void refreshOverview()
   })
+
+  watch(
+    () => route.query.target_username,
+    () => {
+      applyInviteRouteDraft()
+    }
+  )
 </script>

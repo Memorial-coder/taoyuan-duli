@@ -245,6 +245,42 @@ const inviteExpeditionRoomMember = async (session, roomId, targetUsername) => {
   return result.data.room
 }
 
+const createFestivalRoom = async (session, title) => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/festival/rooms', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      template_id: 'dragon_boat',
+      gameplay_template_id: 'squad_coop',
+    }),
+  })
+  assert(result.response.ok, `create festival room returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.room?.id, 'create festival room did not return room id')
+  return result.data.room
+}
+
+const createSocietyForSession = async (session, name) => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/societies', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      name,
+      summary: '真实浏览器烟测村社入口预填。',
+      notice: '邀请入口烟测',
+      emblem: 'plum_seal',
+      theme: 'harvest_union',
+      visibility: 'public',
+      capacity: 12,
+      join_requirement_id: 'open',
+      join_requirement_note: '',
+    }),
+  })
+  assert(result.response.ok, `create society returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.society?.id, 'create society did not return society id')
+  return result.data.society
+}
+
 const blockSave = async (session, targetSaveId) => {
   const result = await fetchSessionJson(session, '/api/taoyuan/online/social/blocks', {
     method: 'POST',
@@ -383,6 +419,8 @@ async function main() {
     const deleteFriendshipId = await createFriendship(owner, deleteFriend)
     const blockFriendshipId = await createFriendship(owner, blockFriend)
     const unblockRelation = await blockSave(owner, unblockTarget.identity.save_id)
+    await createFestivalRoom(owner, `好友节会入口 ${owner.username.slice(-4)}`)
+    await createSocietyForSession(owner, `好友村社入口 ${owner.username.slice(-4)}`)
 
     try {
       browser = await chromium.launch()
@@ -485,6 +523,21 @@ async function main() {
 
       await page.getByTestId(`region-social-friend-invite-${navigateFriendshipId}`).click()
       await expect(page).toHaveURL(/invite=1/)
+      await expect(page).toHaveURL(new RegExp(`target_username=${encodeURIComponent(navigateFriend.username)}`))
+      await page.goto(`${frontendBaseURL}/#/game/region-map`)
+      await waitForRelationshipIdle(page)
+
+      await page.getByTestId(`region-social-friend-festival-${navigateFriendshipId}`).click()
+      await expect(page).toHaveURL(/invite=1/)
+      await expect(page).toHaveURL(new RegExp(`target_username=${encodeURIComponent(navigateFriend.username)}`))
+      await expect(page.getByPlaceholder('输入用户名')).toHaveValue(navigateFriend.username)
+      await page.goto(`${frontendBaseURL}/#/game/region-map`)
+      await waitForRelationshipIdle(page)
+
+      await page.getByTestId(`region-social-friend-society-${navigateFriendshipId}`).click()
+      await expect(page).toHaveURL(/invite=1/)
+      await expect(page).toHaveURL(new RegExp(`target_username=${encodeURIComponent(navigateFriend.username)}`))
+      await expect(page.getByPlaceholder('输入玩家用户名')).toHaveValue(navigateFriend.username)
       await page.goto(`${frontendBaseURL}/#/game/region-map`)
       await waitForRelationshipIdle(page)
 
