@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 在线求助单表单统一（B2 QuestView）
+- `QuestView.vue` 的在线求助单创建区已迁到统一联机表单类：标题、类别、可见范围、协作模式、截止时间、回报类型、回报数值、回报说明和多段接力阶段草稿输入分别使用 `online-input / online-select`。
+- 求助内容和阶段说明 textarea 已改用 `online-textarea`；发布求助单、新增阶段和删除阶段按钮也改用统一按钮类，移动端会沿用统一高度和换行口径。
+- 本轮只替换创建草稿区 UI class，不改求助单发布、接单、交付、确认或补偿业务逻辑；已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 ### 0520 村社表单统一（B1 SocietyView）
 - `SocietyView.vue` 的村社邀请输入行已改用 `online-action-row + online-input + online-action-btn`，和远征 / 节会邀请入口保持同一套响应式规格。
 - 村社会议创建区已迁到统一联机表单类：提案标题、提案类型和提案摘要分别使用 `online-input / online-select / online-textarea`；发起提案、归档备注和归档提案按钮也改用统一按钮 / 输入类。

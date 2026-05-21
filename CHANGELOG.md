@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / B2` 这一轮收口 `QuestView.vue` 的在线求助单创建区：标题、类别、可见范围、协作模式、截止时间、回报类型、回报数值、回报说明和多段接力阶段草稿输入都迁到统一 `online-*` 表单类。
+- 求助内容与阶段说明 textarea 已改用 `online-textarea`，发布 / 新增阶段 / 删除阶段按钮也换成统一按钮类；本轮只改创建草稿 UI，不改求助单发布、接单、交付、确认或补偿逻辑。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 - `0520todo.md / B1` 这一轮收口 `SocietyView.vue` 的村社邀请与会议表单：邀请玩家输入行、提案标题、提案类型、提案摘要、发起按钮、归档备注和归档按钮都迁到统一 `online-*` 表单 / 按钮类。
 - 村社邀请行现在使用 `online-action-row`，窄屏会按统一规则换行；本轮只换 UI class，不改村社邀请、申请处理、提案发起、投票或归档逻辑。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
