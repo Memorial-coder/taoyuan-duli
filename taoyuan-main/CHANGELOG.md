@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 管理端联机配置表单统一（B3）
+- `AdminOnlineGovernancePanel.vue` 的 beta template 输入区从中宽 `md:grid-cols-3` 改为 `md:grid-cols-2 xl:grid-cols-3`，避免管理端在中等屏宽下把三个模板输入框硬挤成三列。
+- 管理端白名单 textarea、beta template 输入框和 release notes textarea 已迁到 `online-textarea / online-input`，复用玩家端统一 42px 输入高度、textarea 默认高度和焦点样式。
+- 发布说明的 5 个 release notes textarea 默认从 3 行提升到 5 行；本轮只替换管理端发布配置 UI class 和布局，不改保存、灰度开关、模块开关或事故预案逻辑；已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 ### 0520 庄园主题保存行统一（B2 ManorView）
 - `ManorView.vue` 的庄园主题名保存操作行已改用 `online-action-row + online-input + online-action-btn`，和其他联机输入行保持同一套响应式规格。
 - 这一行现在在窄屏会自动换行，输入框与按钮高度也和统一联机表单类对齐；本轮只替换 UI class，不改庄园主题周、导览或来访记录业务逻辑。

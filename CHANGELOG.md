@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / B3` 这一轮收口 `AdminOnlineGovernancePanel.vue` 的联机发布配置表单：beta template 输入区从中宽 `md:3列` 改成 `md:2列 / xl:3列`，避免管理端中等屏宽硬挤三列。
+- 管理端白名单 textarea、beta template 输入框和 release notes textarea 已迁到 `online-textarea / online-input`；发布说明的 5 个 textarea 默认高度从 3 行提升到 5 行，和玩家端统一表单高度保持同级。
+- 本轮只改管理端发布配置 UI class 和布局，不改联机发布配置保存、灰度开关、模块开关或事故预案逻辑；已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 - `0520todo.md / B2` 这一轮收口 `ManorView.vue` 的庄园主题名保存操作行：主题名输入框和保存按钮已迁到统一 `online-action-row + online-input + online-action-btn`。
 - 这一行现在和其他联机表单一样会在窄屏自动换行；本轮只改 UI class，不改庄园主题周、导览或来访记录逻辑。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。

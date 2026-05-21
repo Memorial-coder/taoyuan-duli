@@ -65,7 +65,7 @@
               <textarea
                 v-model="releaseConfigDraft.testWhitelist"
                 rows="5"
-                class="w-full rounded-xs border border-accent/20 bg-bg/20 px-2 py-2 text-xs text-text"
+                class="online-textarea w-full"
                 placeholder="一行一个用户名，或使用逗号分隔"
               />
             </div>
@@ -84,18 +84,18 @@
             </div>
           </div>
 
-          <div class="grid gap-3 md:grid-cols-3">
+          <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             <label class="admin-record-card space-y-2 text-xs text-muted">
               <span class="text-accent">内测庄园样板</span>
-              <input v-model="releaseConfigDraft.betaTemplates.manor" type="text" class="w-full rounded-xs border border-accent/20 bg-bg/20 px-2 py-2 text-xs text-text" />
+              <input v-model="releaseConfigDraft.betaTemplates.manor" type="text" class="online-input w-full" />
             </label>
             <label class="admin-record-card space-y-2 text-xs text-muted">
               <span class="text-accent">测试村社样板</span>
-              <input v-model="releaseConfigDraft.betaTemplates.society" type="text" class="w-full rounded-xs border border-accent/20 bg-bg/20 px-2 py-2 text-xs text-text" />
+              <input v-model="releaseConfigDraft.betaTemplates.society" type="text" class="online-input w-full" />
             </label>
             <label class="admin-record-card space-y-2 text-xs text-muted">
               <span class="text-accent">测试节会样板</span>
-              <input v-model="releaseConfigDraft.betaTemplates.festival" type="text" class="w-full rounded-xs border border-accent/20 bg-bg/20 px-2 py-2 text-xs text-text" />
+              <input v-model="releaseConfigDraft.betaTemplates.festival" type="text" class="online-input w-full" />
             </label>
           </div>
         </div>
@@ -113,23 +113,23 @@
             <p class="text-sm text-accent">发布说明</p>
             <label class="space-y-1 block">
               <span>新功能说明</span>
-              <textarea v-model="releaseConfigDraft.releaseNotes.features" rows="3" class="w-full rounded-xs border border-accent/20 bg-bg/20 px-2 py-2 text-xs text-text" />
+              <textarea v-model="releaseConfigDraft.releaseNotes.features" rows="5" class="online-textarea w-full" />
             </label>
             <label class="space-y-1 block">
               <span>可见变化说明</span>
-              <textarea v-model="releaseConfigDraft.releaseNotes.visibleChanges" rows="3" class="w-full rounded-xs border border-accent/20 bg-bg/20 px-2 py-2 text-xs text-text" />
+              <textarea v-model="releaseConfigDraft.releaseNotes.visibleChanges" rows="5" class="online-textarea w-full" />
             </label>
             <label class="space-y-1 block">
               <span>玩家注意事项</span>
-              <textarea v-model="releaseConfigDraft.releaseNotes.playerNotice" rows="3" class="w-full rounded-xs border border-accent/20 bg-bg/20 px-2 py-2 text-xs text-text" />
+              <textarea v-model="releaseConfigDraft.releaseNotes.playerNotice" rows="5" class="online-textarea w-full" />
             </label>
             <label class="space-y-1 block">
               <span>已知问题说明</span>
-              <textarea v-model="releaseConfigDraft.releaseNotes.knownIssues" rows="3" class="w-full rounded-xs border border-accent/20 bg-bg/20 px-2 py-2 text-xs text-text" />
+              <textarea v-model="releaseConfigDraft.releaseNotes.knownIssues" rows="5" class="online-textarea w-full" />
             </label>
             <label class="space-y-1 block">
               <span>回退策略说明</span>
-              <textarea v-model="releaseConfigDraft.releaseNotes.rollbackPlan" rows="3" class="w-full rounded-xs border border-accent/20 bg-bg/20 px-2 py-2 text-xs text-text" />
+              <textarea v-model="releaseConfigDraft.releaseNotes.rollbackPlan" rows="5" class="online-textarea w-full" />
             </label>
           </div>
 
