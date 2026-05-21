@@ -87,11 +87,21 @@ export interface LoadFromSlotOptions {
 interface SaveMeta {
   saveVersion: number
   savedAt: string
+  onlineIdentity?: OnlineSaveIdentity | null
 }
 
 interface SaveEnvelope {
   meta: SaveMeta
   data: Record<string, any>
+}
+
+export interface OnlineSaveIdentity {
+  save_id: number
+  account_username: string
+  save_slot: number | null
+  nickname_snapshot?: string
+  created_at?: number
+  updated_at?: number
 }
 
 const getSaveKeyPrefix = (): string => buildScopedStorageKey(LEGACY_SAVE_KEY_PREFIX)
@@ -228,9 +238,25 @@ interface PendingServerSaveEntry {
 
 type PendingServerSaveMap = Partial<Record<number, PendingServerSaveEntry>>
 
-const buildSaveMeta = (savedAt?: string, saveVersion: number = SAVE_VERSION): SaveMeta => ({
+const normalizeOnlineSaveIdentity = (entry: any): OnlineSaveIdentity | null => {
+  const saveId = Number(entry?.save_id ?? entry?.saveId)
+  const saveSlot = Number(entry?.save_slot ?? entry?.saveSlot)
+  const accountUsername = String(entry?.account_username ?? entry?.accountUsername ?? '').trim()
+  if (!Number.isInteger(saveId) || !accountUsername) return null
+  return {
+    save_id: saveId,
+    account_username: accountUsername,
+    save_slot: Number.isInteger(saveSlot) ? saveSlot : null,
+    nickname_snapshot: typeof entry?.nickname_snapshot === 'string' ? entry.nickname_snapshot : entry?.nicknameSnapshot,
+    created_at: Number.isFinite(Number(entry?.created_at ?? entry?.createdAt)) ? Number(entry?.created_at ?? entry?.createdAt) : undefined,
+    updated_at: Number.isFinite(Number(entry?.updated_at ?? entry?.updatedAt)) ? Number(entry?.updated_at ?? entry?.updatedAt) : undefined
+  }
+}
+
+const buildSaveMeta = (savedAt?: string, saveVersion: number = SAVE_VERSION, onlineIdentity?: OnlineSaveIdentity | null): SaveMeta => ({
   saveVersion,
-  savedAt: savedAt ?? new Date().toISOString()
+  savedAt: savedAt ?? new Date().toISOString(),
+  ...(onlineIdentity ? { onlineIdentity } : {})
 })
 
 const migrateSavePayload = (payload: Record<string, any>, _saveVersion: number): Record<string, any> => {
@@ -587,16 +613,17 @@ const normalizeSaveEnvelope = (raw: Record<string, any>): SaveEnvelope | null =>
   const hasEnvelopeData = raw.data && typeof raw.data === 'object'
   const saveVersion = Number(metaLike?.saveVersion ?? raw.saveVersion ?? (hasEnvelopeData ? SAVE_VERSION : 1))
   const savedAt = String(metaLike?.savedAt ?? raw.savedAt ?? raw.data?.savedAt ?? new Date().toISOString())
+  const onlineIdentity = normalizeOnlineSaveIdentity(metaLike?.onlineIdentity ?? metaLike?.saveIdentity ?? raw.onlineIdentity ?? raw.saveIdentity ?? raw.data?.onlineIdentity ?? raw.data?.saveIdentity)
 
   if (hasEnvelopeData) {
     return {
-      meta: buildSaveMeta(savedAt, Number.isFinite(saveVersion) ? saveVersion : SAVE_VERSION),
+      meta: buildSaveMeta(savedAt, Number.isFinite(saveVersion) ? saveVersion : SAVE_VERSION, onlineIdentity),
       data: migrateSavePayload(raw.data as Record<string, any>, saveVersion)
     }
   }
 
   return {
-    meta: buildSaveMeta(savedAt, Number.isFinite(saveVersion) ? saveVersion : 1),
+    meta: buildSaveMeta(savedAt, Number.isFinite(saveVersion) ? saveVersion : 1, onlineIdentity),
     data: migrateSavePayload(raw, saveVersion)
   }
 }
@@ -607,6 +634,7 @@ export const useSaveStore = defineStore('save', () => {
   const activeSlotMode = ref<SaveMode | null>(null)
   const runtimeSessionSlot = ref(-1)
   const runtimeSessionMode = ref<SaveMode | null>(null)
+  const currentOnlineIdentity = ref<OnlineSaveIdentity | null>(null)
   const activeSlotsByMode = ref<Record<SaveMode, number>>({
     local: -1,
     server: -1
@@ -648,6 +676,7 @@ export const useSaveStore = defineStore('save', () => {
     activeSlotMode.value = null
     runtimeSessionSlot.value = -1
     runtimeSessionMode.value = null
+    currentOnlineIdentity.value = null
     lastIssuedServerRevisionBySlot.value = { 0: 0, 1: 0, 2: 0 }
     serverSlotsFetchState.value = storageMode.value === 'server' ? 'unknown' : 'available'
     refreshPendingServerState()
@@ -1012,7 +1041,7 @@ export const useSaveStore = defineStore('save', () => {
 
     const savedAt = new Date().toISOString()
     return {
-      meta: buildSaveMeta(savedAt, SAVE_VERSION),
+      meta: buildSaveMeta(savedAt, SAVE_VERSION, currentOnlineIdentity.value),
       data: payload,
       savedAt
     }
@@ -1060,6 +1089,7 @@ export const useSaveStore = defineStore('save', () => {
     if (!payload.game || !payload.player || !payload.inventory || !payload.farm) {
       return false
     }
+    const nextOnlineIdentity = normalizeOnlineSaveIdentity(normalized.meta.onlineIdentity ?? payload.onlineIdentity)
 
     const backup = {
       game: gameStore.serialize(),
@@ -1094,6 +1124,7 @@ export const useSaveStore = defineStore('save', () => {
       regionMap: regionMapStore.serialize(),
       frontierChronicle: frontierChronicleStore.serialize(),
       playerRecordCenter: playerRecordCenterStore.serialize(),
+      currentOnlineIdentity: currentOnlineIdentity.value,
       activeSlot: activeSlot.value,
       activeSlotMode: activeSlotMode.value,
       runtimeSessionSlot: runtimeSessionSlot.value,
@@ -1197,6 +1228,7 @@ export const useSaveStore = defineStore('save', () => {
       regionMapStore.deserialize(snapshot.regionMap)
       frontierChronicleStore.deserialize(snapshot.frontierChronicle)
       playerRecordCenterStore.deserialize(snapshot.playerRecordCenter)
+      currentOnlineIdentity.value = snapshot.currentOnlineIdentity ?? null
       goalStore.deserialize(snapshot.goal)
       npcStore.rehydrateRelationshipPerks({ grantInventoryRewards: false, emitMessages: false })
       playerStore.normalizeDerivedState()
@@ -1248,6 +1280,7 @@ export const useSaveStore = defineStore('save', () => {
       npcStore.rehydrateRelationshipPerks({ grantInventoryRewards: true, emitMessages: false })
       playerStore.normalizeDerivedState()
 
+      currentOnlineIdentity.value = nextOnlineIdentity
       activeSlot.value = slot
       activeSlotMode.value = slot >= 0 ? mode : null
       activeSlotsByMode.value[mode] = slot
@@ -1664,6 +1697,7 @@ export const useSaveStore = defineStore('save', () => {
     pendingServerSlots,
     lastServerSyncMessage,
     lastSaveResultStatus,
+    currentOnlineIdentity,
     qaGovernanceBaselineAudit,
     qaGovernanceOverview,
     qaGovernanceCrossSystemOverview,

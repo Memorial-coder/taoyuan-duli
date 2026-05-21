@@ -129,6 +129,22 @@ export interface OnlineRelationCard {
   profile: NonNullable<OnlineProfileResponse['profile']>
 }
 
+export interface OnlineSaveIdentity {
+  save_id: number
+  account_username: string
+  save_slot: number | null
+  nickname_snapshot?: string
+  created_at?: number
+  updated_at?: number
+}
+
+export interface OnlinePlayerSearchResponse {
+  ok: boolean
+  save_identity?: OnlineSaveIdentity
+  profile?: NonNullable<OnlineProfileResponse['profile']>
+  msg?: string
+}
+
 export interface OnlineRelationshipOverviewResponse {
   ok: boolean
   incoming_requests: OnlineRelationCard[]
@@ -375,6 +391,18 @@ export const fetchRelationshipOverview = async (): Promise<OnlineRelationshipOve
   return data ?? null
 }
 
+export const searchPlayerBySaveId = async (saveId: number): Promise<OnlinePlayerSearchResponse | null> => {
+  const account = await ensureCurrentAccount()
+  if (!account || account === 'guest') return null
+  const { data } = await fetchProtectedJson<OnlinePlayerSearchResponse>(() => fetch(`/api/taoyuan/online/social/player-search?save_id=${encodeURIComponent(String(saveId))}`, {
+    credentials: 'include'
+  }), {
+    fallbackMessage: '搜索存档玩家失败',
+    networkErrorMessage: '桃源社交搜索连接失败，请检查网络或稍后重试'
+  })
+  return data ?? null
+}
+
 export const sendFriendRequest = async (target: SocialTargetPayload) => {
   return requestSocialAction('/api/taoyuan/online/social/friend-requests', {
     method: 'POST',
@@ -392,6 +420,12 @@ export const acceptFriendRequest = async (requestId: string) => {
 export const rejectFriendRequest = async (requestId: string) => {
   return requestSocialAction(`/api/taoyuan/online/social/friend-requests/${encodeURIComponent(requestId)}/reject`, {
     method: 'POST'
+  })
+}
+
+export const removeFriend = async (friendshipId: string) => {
+  return requestSocialAction(`/api/taoyuan/online/social/friends/${encodeURIComponent(friendshipId)}`, {
+    method: 'DELETE'
   })
 }
 

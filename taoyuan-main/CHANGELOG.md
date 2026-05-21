@@ -14,6 +14,13 @@
 - 这一轮暂不改变前端界面与单机主循环；本地档、云存档、导入档的展示和好友搜索入口还未接入，后续会继续沿 `0520todo.md` 的 A0 / A2 / A3 推进。
 - 后端 smoke 已补入存档身份补发、不可篡改、按数字 ID 搜索、按存档 ID 发起好友申请、接受后好友列表回显双方存档 ID、删除好友后好友范围委托不可见，以及按存档 ID 拉黑 / 解除拉黑的断言，并通过 `npm --prefix server run qa:online-smoke`。
 
+### 0520 地图页好友面板（A3 第一轮）
+- `RegionMapView.vue` 新增“好友驿站”面板：地图页现在可以直接查看当前存档 ID、复制 ID、按数字 ID 搜索玩家、发送好友申请、处理收到的申请、查看好友列表 / 最近互动 / 拉黑列表，并执行删除好友、拉黑和解除拉黑。
+- `onlineProfileApi.ts` 与 `useSocialStore.ts` 已补齐地图页需要的客户端链路：新增 `player-search` 查询 helper、删除好友 helper、存档 ID 搜索结果状态，以及按存档 ID 申请、拉黑、解除拉黑和删除好友动作。
+- `useSaveStore.ts` 现在会保留服务端存档读回时注入的 `onlineIdentity`，地图页会优先用它展示“我的存档 ID”，并在关系概览里存在 `own_save_id` 时做回退展示。
+- 当前好友条目已提供庄园、写信、协作跳转、删除和拉黑入口；送礼、邀请进房和目标玩家定向上下文还未接入，后续继续沿 A3 / A6 收口。
+- 本轮验证已通过 `npm --prefix taoyuan-main run type-check` 与 `npm --prefix taoyuan-main run build`。
+
 ### 0520 联机发布控制与扩展骨架（L130-L154 第一轮）
 - `taoyuan-main/src/utils/adminOnlineApi.ts`、`src/types/onlineRelease.ts` 与 `src/types/index.ts` 这一轮把联机发布配置正式接进前端：admin 侧现在已经能读取和保存联机总开关、`stable / canary` 通道、测试白名单、模块开关、内测样板字段与五段发布说明。
 - `taoyuan-main/src/components/game/AdminOnlineGovernancePanel.vue` 当前已补出“联机发布控制”区块：管理员可以直接在同一页切换联机测试环境、维护白名单、按好友 / 庄园 / 求助单 / 节会四条能力做小范围发布，并查看发布闸门、默认公告模板与事故预案。

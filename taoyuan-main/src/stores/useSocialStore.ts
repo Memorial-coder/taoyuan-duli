@@ -14,12 +14,15 @@ import {
   inviteToNeighborGroup,
   type OnlineNeighborGroupSummary,
   type OnlineNeighborRequest,
+  type OnlinePlayerSearchResponse,
   type OnlineSubscriptionEntry,
   rejectFriendRequest,
   rejectNeighborRequest,
+  removeFriend,
   removeSubscription,
   saveOnlineProfile,
   sendFriendRequest,
+  searchPlayerBySaveId,
   type OnlineProfileResponse,
   type OnlineRelationCard,
   type OnlineProfileVisibility
@@ -145,6 +148,9 @@ export const useSocialStore = defineStore('onlineSocial', () => {
   const draftAvatarImageAlt = ref('')
   const draftSelectedTagIds = ref<string[]>([])
   const friendUsernameDraft = ref('')
+  const friendSaveIdDraft = ref('')
+  const playerSearchResult = ref<OnlinePlayerSearchResponse | null>(null)
+  const playerSearchLoading = ref(false)
   const relationshipLoading = ref(false)
   const relationshipActionRunning = ref(false)
   const incomingRequests = ref<OnlineRelationCard[]>([])
@@ -291,6 +297,30 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     }
   }
 
+  const parseSaveIdDraft = (raw: string): number => {
+    const normalized = String(raw || '').replace(/\D/g, '')
+    const saveId = Number(normalized)
+    return Number.isInteger(saveId) ? saveId : 0
+  }
+
+  const searchPlayerBySaveIdDraft = async () => {
+    const saveId = parseSaveIdDraft(friendSaveIdDraft.value)
+    if (!saveId) return null
+    playerSearchLoading.value = true
+    errorMessage.value = ''
+    playerSearchResult.value = null
+    try {
+      const data = await searchPlayerBySaveId(saveId)
+      playerSearchResult.value = data
+      return data
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '搜索存档玩家失败'
+      throw error
+    } finally {
+      playerSearchLoading.value = false
+    }
+  }
+
   const submitFriendRequest = async () => {
     const target = friendUsernameDraft.value.trim()
     if (!target) return
@@ -299,6 +329,21 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     try {
       await sendFriendRequest(target)
       friendUsernameDraft.value = ''
+      await refreshRelationships()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '发送好友申请失败'
+      throw error
+    } finally {
+      relationshipActionRunning.value = false
+    }
+  }
+
+  const submitFriendRequestBySaveId = async (saveId: number) => {
+    if (!Number.isInteger(saveId)) return
+    relationshipActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await sendFriendRequest({ target_save_id: saveId })
       await refreshRelationships()
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '发送好友申请失败'
@@ -336,6 +381,20 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     }
   }
 
+  const removeFriendship = async (friendshipId: string) => {
+    relationshipActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await removeFriend(friendshipId)
+      await refreshRelationships()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '删除好友失败'
+      throw error
+    } finally {
+      relationshipActionRunning.value = false
+    }
+  }
+
   const blockTarget = async () => {
     const target = friendUsernameDraft.value.trim()
     if (!target) return
@@ -353,11 +412,41 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     }
   }
 
+  const blockTargetBySaveId = async (saveId: number) => {
+    if (!Number.isInteger(saveId)) return
+    relationshipActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await blockPlayer({ target_save_id: saveId })
+      await refreshRelationships()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '拉黑玩家失败'
+      throw error
+    } finally {
+      relationshipActionRunning.value = false
+    }
+  }
+
   const unblockTarget = async (targetUsername: string) => {
     relationshipActionRunning.value = true
     errorMessage.value = ''
     try {
       await unblockPlayer(targetUsername)
+      await refreshRelationships()
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '解除拉黑失败'
+      throw error
+    } finally {
+      relationshipActionRunning.value = false
+    }
+  }
+
+  const unblockTargetBySaveId = async (saveId: number) => {
+    if (!Number.isInteger(saveId)) return
+    relationshipActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      await unblockPlayer({ target_save_id: saveId })
       await refreshRelationships()
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '解除拉黑失败'
@@ -584,6 +673,9 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     draftAvatarImageAlt,
     draftSelectedTagIds,
     friendUsernameDraft,
+    friendSaveIdDraft,
+    playerSearchResult,
+    playerSearchLoading,
     hasProfile,
     displayTitle,
     hasDirtyDraft,
@@ -612,11 +704,16 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     hydrateFromProfile,
     saveProfile,
     refreshRelationships,
+    searchPlayerBySaveIdDraft,
     submitFriendRequest,
+    submitFriendRequestBySaveId,
     acceptRequest,
     rejectRequest,
+    removeFriendship,
     blockTarget,
+    blockTargetBySaveId,
     unblockTarget,
+    unblockTargetBySaveId,
     refreshNeighborOverview,
     submitNeighborGroup,
     applyNeighbor,

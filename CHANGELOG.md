@@ -18,6 +18,9 @@
 - 在线 smoke 已补入删除好友回归：在好友范围委托、好友纪念册与节会好友队友名单验证之后，删除同一条 `friendship_id`，再确认双方好友列表不再出现该关系，且对方不再能看到这条好友范围委托。
 - 拉黑 / 解除拉黑也开始承接存档级身份：`/api/taoyuan/online/social/blocks` 与 `/api/taoyuan/online/social/blocks/unblock` 现在支持 `target_save_id`，会记录 `blocker_save_id / blocked_save_id / save_slot`，关系列表也会按当前活动存档过滤并回显拉黑对象的存档身份。
 - 在线 smoke 已补入拉黑回归：新增独立存档身份测试账号，按 `target_save_id` 拉黑后确认关系列表回显 `blocked_save_id`，好友申请会被拉黑关系拦截；解除拉黑后再确认拉黑列表移除并可重新发起存档级好友申请。
+- `0520todo.md / A3` 这一轮把好友主操作接进地图页：`RegionMapView.vue` 新增“好友驿站”面板，包含我的存档 ID / 复制、按 ID 搜索玩家、发送申请、处理收到申请、好友列表、最近互动、删除好友、拉黑和解除拉黑入口。
+- 前端社交 API 与 store 也同步补齐：`onlineProfileApi.ts` 新增按存档 ID 搜索玩家和删除好友 helper，`useSocialStore.ts` 新增搜索结果、存档 ID 申请、存档 ID 拉黑 / 解除拉黑、删除好友动作；`useSaveStore.ts` 会在读档时保留服务端注入的 `onlineIdentity`，供地图页展示当前存档 ID。
+- 地图页好友驿站当前先提供庄园、写信和协作跳转；送礼、邀请进房以及目标玩家定向上下文仍留在后续 A3 / A6 继续补。前端验证已通过 `npm --prefix taoyuan-main run type-check` 与 `npm --prefix taoyuan-main run build`。
 
 - `L130-L134` 这一轮把联机发布控制收成了第一轮可回归闭环：`server/src/config.js` 现已补齐联机总开关、`stable / canary` 通道、测试白名单、好友 / 庄园 / 求助单 / 节会四类能力开关、五大模块开关、内测庄园 / 村社 / 节会样板，以及五段发布说明字段；`/api/public-config` 也开始稳定下发 `taoyuan_online_release` 摘要，不再只有后台私有配置。
 - `server/src/routes/api.js` 这一轮已把联机发布配置真正接进服务端治理链：新增 `/api/admin/taoyuan/online-release-config` 读写接口、联机发布配置归一化、灰度白名单与模块级 guard，并把庄园、求助单、好友链路和节会房间路由接到统一 `createOnlineReleaseGuard()`，默认仍保持 `stable + 全开`，不主动影响现有玩家。
