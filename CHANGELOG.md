@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / A0-A1` 这一轮继续收口好友关系的存档级语义：前端社交 store 已移除 username-first 的好友申请和拉黑主入口，好友驿站主操作只通过 `target_save_id` 发起申请、拉黑与解除拉黑。
+- `onlineProfileApi` 的好友申请 / 拉黑 payload 已收窄为对象结构，不再把裸字符串自动转成 `target_username`；旧数据缺少 `blocked_save_id` 时仍保留用户名解除拉黑兜底，避免破坏历史拉黑列表。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check` 与 `npm --prefix taoyuan-main run build`；后续继续让庄园、邮箱、节会、村社和协作等互动下游更明确消费存档 ID。
+
 - `0520todo.md / A4-A6` 这一轮把村社申请、邀请和审核结果接进 realtime 通知底座：申请加入、邀请加入、接受申请和拒绝申请成功后都会投递 `notification.created`，使用 `category: "society"` 与只读 membership 摘要。
 - 村社 membership 通知不携带村社 overview / members 等完整数据，只包含村社、申请单、操作人和刷新要求；离线玩家重连后会补发并可 ACK 清理，避免重复补发。
 - `server/src/index.js` 现在会保留显式传入的 `PORT`，避免 `qa:realtime-smoke` 换端口时被 `.env` 覆盖回 4013；本轮验证通过 `node --check server/src/index.js` 与 `$env:TAOYUAN_REALTIME_SMOKE_PORT='4713'; node server/scripts/qa-realtime-smoke.mjs`。

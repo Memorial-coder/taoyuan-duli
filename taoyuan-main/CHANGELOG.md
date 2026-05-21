@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 好友关系前端入口按存档 ID 收口（A0-A1）
+- `useSocialStore` 已移除 username-first 的好友申请和拉黑主操作，好友驿站现在只通过搜索得到的 `target_save_id` 发起申请、拉黑与解除拉黑。
+- `onlineProfileApi` 的社交目标 payload 改为对象结构，不再接受裸字符串自动转成 `target_username`；旧拉黑记录缺少 `blocked_save_id` 时仍可走用户名解除拉黑兜底。
+- 本轮通过 `npm --prefix taoyuan-main run type-check` 与 `npm --prefix taoyuan-main run build` 验证，后续继续把庄园、邮箱、节会、村社、协作等互动下游的 username 兼容上下文逐步迁到存档 ID。
+
 ### 0520 村社申请 realtime 通知补发（A4-A6）
 - 村社申请、邀请、接受申请和拒绝申请成功后会投递 `notification.created`，使用 `category: "society"` 与 `member_applied / member_invited / membership_accepted / membership_rejected` 动作。
 - 通知 payload 只保留村社、申请单、操作人和 `refresh_required` 摘要，不携带村社完整 overview / members；离线目标重连后会补发并可 ACK 清理。

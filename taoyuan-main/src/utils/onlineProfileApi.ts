@@ -367,15 +367,12 @@ const requestSocialAction = async <T = any>(path: string, init: RequestInit): Pr
   return data
 }
 
-type SocialTargetPayload = string | {
+type SocialTargetPayload = {
   target_username?: string
   target_save_id?: number
 }
 
 const buildSocialTargetBody = (target: SocialTargetPayload) => {
-  if (typeof target === 'string') {
-    return { target_username: target }
-  }
   return target
 }
 
