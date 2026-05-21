@@ -184,6 +184,7 @@
                 <button
                   class="inline-flex min-h-[42px] w-11 shrink-0 items-center justify-center border border-accent/20 rounded-xs text-accent hover:bg-accent/5 disabled:opacity-50"
                   :disabled="socialStore.playerSearchLoading"
+                  data-testid="region-social-search-submit"
                   title="搜索存档 ID"
                   @click="searchMapPlayerBySaveId"
                 >
@@ -204,6 +205,7 @@
                   <button
                     class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50"
                     :disabled="!canActOnSearchedPlayer || socialStore.relationshipActionRunning"
+                    data-testid="region-social-search-request"
                     title="发送好友申请"
                     @click="sendMapFriendRequest(searchedSaveId)"
                   >
@@ -213,6 +215,7 @@
                   <button
                     class="inline-flex min-h-[32px] items-center gap-1 border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50"
                     :disabled="!canActOnSearchedPlayer || socialStore.relationshipActionRunning"
+                    data-testid="region-social-search-block"
                     title="拉黑该存档"
                     @click="blockMapSaveId(searchedSaveId)"
                   >
@@ -228,12 +231,17 @@
               <div class="border border-accent/10 rounded-xs p-2">
                 <p class="text-[10px] text-muted mb-1">收到的申请</p>
                 <p v-if="socialStore.incomingRequests.length === 0" class="text-[10px] text-muted leading-4">当前没有新的好友申请。</p>
-                <div v-for="entry in socialStore.incomingRequests.slice(0, 3)" :key="entry.request_id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+                <div
+                  v-for="entry in socialStore.incomingRequests.slice(0, 3)"
+                  :key="entry.request_id"
+                  class="border border-accent/10 rounded-xs p-2 mb-1.5"
+                  :data-testid="`region-social-incoming-${entry.request_id || 'missing'}`"
+                >
                   <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
                   <p class="text-[10px] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'incoming') }}</p>
                   <div class="flex flex-wrap gap-2 mt-2">
-                    <button class="min-h-[32px] border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.request_id" @click="acceptMapRequest(entry.request_id!)">接受</button>
-                    <button class="min-h-[32px] border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-muted hover:bg-accent/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.request_id" @click="rejectMapRequest(entry.request_id!)">拒绝</button>
+                    <button class="min-h-[32px] border border-success/20 rounded-xs px-2 py-1 text-[10px] text-success hover:bg-success/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.request_id" :data-testid="`region-social-incoming-accept-${entry.request_id || 'missing'}`" @click="acceptMapRequest(entry.request_id!)">接受</button>
+                    <button class="min-h-[32px] border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-muted hover:bg-accent/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.request_id" :data-testid="`region-social-incoming-reject-${entry.request_id || 'missing'}`" @click="rejectMapRequest(entry.request_id!)">拒绝</button>
                   </div>
                 </div>
               </div>
@@ -241,7 +249,7 @@
               <div class="border border-accent/10 rounded-xs p-2">
                 <p class="text-[10px] text-muted mb-1">发出的申请</p>
                 <p v-if="socialStore.outgoingRequests.length === 0" class="text-[10px] text-muted leading-4">当前没有待处理的外发申请。</p>
-                <div v-for="entry in socialStore.outgoingRequests.slice(0, 3)" :key="entry.request_id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+                <div v-for="entry in socialStore.outgoingRequests.slice(0, 3)" :key="entry.request_id" class="border border-accent/10 rounded-xs p-2 mb-1.5" :data-testid="`region-social-outgoing-${entry.request_id || 'missing'}`">
                   <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
                   <p class="text-[10px] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'outgoing') }}</p>
                   <p class="text-[10px] text-muted mt-1">{{ formatSocialTime(entry.created_at, '待处理') }}</p>
@@ -258,7 +266,7 @@
               </div>
               <p v-if="socialStore.friends.length === 0" class="text-[10px] text-muted mt-2 leading-4">当前还没有好友。</p>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                <div v-for="entry in socialStore.friends.slice(0, 4)" :key="entry.friendship_id" class="border border-accent/10 rounded-xs p-2 min-w-0 bg-bg/60">
+                <div v-for="entry in socialStore.friends.slice(0, 4)" :key="entry.friendship_id" class="border border-accent/10 rounded-xs p-2 min-w-0 bg-bg/60" :data-testid="`region-social-friend-${entry.friendship_id || 'missing'}`">
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
                       <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
@@ -268,28 +276,28 @@
                   </div>
                   <p class="text-[10px] text-muted mt-2 leading-4">{{ entry.profile.recent_activity || entry.profile.primary_route_label }}</p>
                   <div class="flex flex-wrap gap-2 mt-2">
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" @click="openFriendManor(entry)">
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-manor-${entry.friendship_id || 'missing'}`" @click="openFriendManor(entry)">
                       <Map :size="11" />
                       庄园
                     </button>
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" @click="openFriendMail(entry, 'letter')">
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-mail-${entry.friendship_id || 'missing'}`" @click="openFriendMail(entry, 'letter')">
                       <Mail :size="11" />
                       写信
                     </button>
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" @click="openFriendMail(entry, 'gift')">
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-gift-${entry.friendship_id || 'missing'}`" @click="openFriendMail(entry, 'gift')">
                       <Gift :size="11" />
                       送礼
                     </button>
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" @click="openFriendExpeditionInvite(entry)">
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-invite-${entry.friendship_id || 'missing'}`" @click="openFriendExpeditionInvite(entry)">
                       <UserPlus :size="11" />
                       邀请进房
                     </button>
-                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" @click="openFriendCoop(entry)">
+                    <button class="inline-flex min-h-[32px] items-center gap-1 border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50" :disabled="!getFriendTargetUsername(entry)" :data-testid="`region-social-friend-coop-${entry.friendship_id || 'missing'}`" @click="openFriendCoop(entry)">
                       <Users :size="11" />
                       协作
                     </button>
-                    <button class="min-h-[32px] border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.friendship_id" @click="removeMapFriend(entry)">删除</button>
-                    <button class="min-h-[32px] border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.friend_save_id" @click="blockMapRelation(entry)">拉黑</button>
+                    <button class="min-h-[32px] border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.friendship_id" :data-testid="`region-social-friend-remove-${entry.friendship_id || 'missing'}`" @click="removeMapFriend(entry)">删除</button>
+                    <button class="min-h-[32px] border border-danger/20 rounded-xs px-2 py-1 text-[10px] text-danger hover:bg-danger/5 disabled:opacity-50" :disabled="socialStore.relationshipActionRunning || !entry.friend_save_id" :data-testid="`region-social-friend-block-${entry.friendship_id || 'missing'}`" @click="blockMapRelation(entry)">拉黑</button>
                   </div>
                 </div>
               </div>
@@ -308,13 +316,13 @@
               <div class="border border-accent/10 rounded-xs p-2">
                 <p class="text-[10px] text-muted mb-1">已拉黑</p>
                 <p v-if="socialStore.blockedUsers.length === 0" class="text-[10px] text-muted leading-4">当前没有拉黑玩家。</p>
-                <div v-for="entry in socialStore.blockedUsers.slice(0, 4)" :key="entry.block_id" class="border border-accent/10 rounded-xs p-2 mb-1.5">
+                <div v-for="entry in socialStore.blockedUsers.slice(0, 4)" :key="entry.block_id" class="border border-accent/10 rounded-xs p-2 mb-1.5" :data-testid="`region-social-blocked-${entry.block_id || 'missing'}`">
                   <div class="flex items-center justify-between gap-2">
                     <div class="min-w-0">
                       <p class="text-xs text-accent truncate">{{ entry.profile.display_name }}</p>
                       <p class="text-[10px] text-muted mt-1 break-all">{{ getRelationSaveIdLine(entry, 'blocked') }}</p>
                     </div>
-                    <button class="min-h-[32px] border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50 shrink-0" :disabled="socialStore.relationshipActionRunning" @click="unblockMapRelation(entry)">解除</button>
+                    <button class="min-h-[32px] border border-accent/20 rounded-xs px-2 py-1 text-[10px] text-accent hover:bg-accent/5 disabled:opacity-50 shrink-0" :disabled="socialStore.relationshipActionRunning" :data-testid="`region-social-blocked-unblock-${entry.block_id || 'missing'}`" @click="unblockMapRelation(entry)">解除</button>
                   </div>
                 </div>
               </div>

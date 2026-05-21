@@ -17,6 +17,7 @@
     "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:headed": "node scripts/run-e2e.mjs --headed",
     "qa:mobile-ui-smoke": "node scripts/qa-mobile-ui-smoke.mjs",
+    "qa:region-friend-panel-live-smoke": "node scripts/qa-region-friend-panel-live-smoke.mjs",
     "qa:late-game-samples": "node scripts/qa-late-game-samples.mjs",
     "qa:late-game": "npm run qa:late-game-samples && npm run type-check && npm run lint",
     "check": "npm run type-check && npm run lint",
