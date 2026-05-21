@@ -4,6 +4,10 @@
 
 ## 2026-05-20（开发中）
 
+- `0520todo.md / A5` 这一轮把大厅回复纳入 `notification.created`：`POST /api/taoyuan/hall/posts/:id/replies` 在 HTTP 权威写入成功后，会向帖子作者和被引用回复作者投递 `category: "hall" / action: "post_reply"`，排除操作者并去重；payload 只带帖子和回复摘要，不让 WebSocket 参与回复写入或奖励结算。
+- 大厅回复通知继续复用服务端离线补发队列；目标玩家离线时会随 `queued_event_id / replayed / queued_at` 补发，前端收到后 ACK 清理。`HallView.vue` 现在会在顶层 `/hall` 路由自行启动 realtime store，收到大厅通知后只静默重读帖子列表和当前详情。
+- `qa:realtime-smoke` 新增在线大厅回复通知与离线大厅回复补发 / ACK / 不重复补发断言；`qa:online-regression-live-smoke` 新增真实浏览器场景：玩家停在大厅帖子详情页时，另一个账号回复后无需手动刷新即可看到新回复。
+- 本轮验证已通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke`、`npm --prefix taoyuan-main run qa:online-regression-live-smoke` 与 `git diff --check`；构建仍只有既有大 chunk 警告。
 - `0520todo.md / A5` 这一轮把玩家来信 / 礼物包裹纳入实时通知补发：`/api/taoyuan/mail/player-letter` 与 `/api/taoyuan/mail/player-gift-package` 在 HTTP 权威写入成功后，会向收件人投递 `notification.created`，payload 只带邮件摘要、`category: "mail"` 与 `refresh_required`，不把邮件详情或奖励结算交给 WebSocket。
 - `notification.created` 已加入服务端离线补发队列；目标玩家离线时会随 `queued_event_id / replayed / queued_at` 补发，前端收到后继续走通用 `notification.ack` 清理队列。`useRealtimeStore.ts` 只在 `category === "mail"` 时防抖调用 `useMailboxStore().refreshList({ silent: true })`，邮箱列表读 HTTP 权威接口，不直接套用实时 payload。
 - `qa:realtime-smoke` 新增在线来信通知与离线来信补发 / ACK / 不重复补发断言；`qa:online-regression-live-smoke` 新增真实浏览器场景：收件人停在邮箱页，另一个账号发来信后，不点击“刷新邮件”也能靠 realtime 刷出新邮件。

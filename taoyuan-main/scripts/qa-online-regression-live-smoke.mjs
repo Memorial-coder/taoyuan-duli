@@ -34,6 +34,7 @@ const realtimeFrames = []
 let realtimeSocketCount = 0
 let mailTitle = ''
 let hallTitle = ''
+let hallRealtimeReplyText = ''
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message)
@@ -347,6 +348,16 @@ const readHallPostDetail = async postId => {
   return data
 }
 
+const createHallReply = async (session, postId, content) => {
+  const result = await fetchSessionJson(session, `/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/replies`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  })
+  assert(result.response.ok, `hall realtime reply returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  return result.data
+}
+
 const getMailListItem = page => page.locator('.mail-item').filter({ hasText: mailTitle }).first()
 
 const forwardApiRequests = async context => {
@@ -595,6 +606,7 @@ async function main() {
 
     await runCheck('hall post and reply work under logged in browser session', async () => {
       const replyText = `联机回归回复 ${seed}`
+      hallRealtimeReplyText = `大厅实时刷新回复 ${createSmokeSeed()}`
       await page.goto(`${frontendBaseURL}/#/hall`)
       await expect(page.getByRole('heading', { name: '交流大厅' })).toBeVisible()
       await expect(page.getByText(owner.displayName)).toBeVisible()
@@ -613,6 +625,19 @@ async function main() {
       assert(post?.id, 'hall post was not found from backend search')
       const detail = await readHallPostDetail(post.id)
       assert(detail.post?.replies?.some(reply => reply.content === replyText), 'hall reply was not found from backend detail')
+
+      const realtimeFrameOffset = realtimeFrames.length
+      const replier = await bootstrapSession()
+      const realtimeReply = await createHallReply(replier, post.id, hallRealtimeReplyText)
+      const createdReply = realtimeReply.post?.replies?.at(-1)
+      assert(createdReply?.content === hallRealtimeReplyText, 'hall realtime reply response mismatch')
+      await expect.poll(() => realtimeFrames.slice(realtimeFrameOffset).some(frame =>
+        frame.includes('"type":"notification.created"')
+          && frame.includes('"category":"hall"')
+          && frame.includes('"action":"post_reply"')
+          && frame.includes(post.id)
+      ), { timeout: 10000 }).toBeTruthy()
+      await expect(page.getByText(hallRealtimeReplyText)).toBeVisible({ timeout: 10000 })
     })
 
     const screenshotPath = path.resolve(outputDir, '25-online-regression-live-1280x900.png')
@@ -635,6 +660,7 @@ async function main() {
       realtimeFrames: realtimeFrames.length,
       mailTitle,
       hallTitle,
+      hallRealtimeReplyText,
     }, null, 2), 'utf8')
 
     assert(consoleErrors.length === 0, `console errors detected: ${consoleErrors.join('\n')}`)

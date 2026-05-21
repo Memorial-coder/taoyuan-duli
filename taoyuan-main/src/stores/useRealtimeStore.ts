@@ -36,6 +36,7 @@ const ACTIVITY_ROOM_EVENT_TYPES = new Set([
   'activity.room.invited',
   'activity.room.updated'
 ])
+export const TAOYUAN_HALL_NOTIFICATION_EVENT = 'taoyuan:hall-notification'
 const RECONNECT_BASE_DELAY_MS = 1500
 const RECONNECT_MAX_DELAY_MS = 30000
 const CLIENT_PING_INTERVAL_MS = 20000
@@ -136,6 +137,13 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     }, 300)
   }
 
+  const dispatchHallNotification = (payload: Record<string, unknown> | undefined) => {
+    if (typeof window === 'undefined') return
+    window.dispatchEvent(new CustomEvent(TAOYUAN_HALL_NOTIFICATION_EVENT, {
+      detail: payload ?? {}
+    }))
+  }
+
   const queueActivityRoomRefresh = (payload: Record<string, unknown> | undefined) => {
     const domain = typeof payload?.domain === 'string' ? payload.domain : ''
     if (domain === 'festival') {
@@ -223,6 +231,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     if (envelope.type === 'notification.created') {
       const category = typeof envelope.payload?.category === 'string' ? envelope.payload.category : ''
       if (category === 'mail') queueMailboxRefresh()
+      if (category === 'hall') dispatchHallNotification(envelope.payload)
     }
   }
 

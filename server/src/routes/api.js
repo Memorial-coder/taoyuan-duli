@@ -353,6 +353,65 @@ function buildMailNotificationPayload(action, mail = {}) {
   };
 }
 
+function trimNotificationText(value, maxLength = 120) {
+  const text = normalizeUsername(value).replace(/\s+/g, ' ');
+  if (!text) return '';
+  return text.length > maxLength ? `${text.slice(0, maxLength)}...` : text;
+}
+
+function getLatestHallReply(post = {}) {
+  const replies = Array.isArray(post?.replies) ? post.replies : [];
+  return replies.length > 0 ? replies[replies.length - 1] : null;
+}
+
+function findHallReply(post = {}, replyId = '') {
+  const targetId = String(replyId || '');
+  if (!targetId) return null;
+  return (Array.isArray(post?.replies) ? post.replies : []).find(reply => String(reply?.id || '') === targetId) || null;
+}
+
+function collectHallReplyNotificationRecipients(post = {}, reply = {}, actor = {}) {
+  const actorKey = normalizeUsernameKey(actor.username || reply?.author);
+  const recipients = new Set();
+  const addRecipient = username => {
+    const normalized = normalizeUsernameKey(username);
+    if (normalized && normalized !== actorKey) recipients.add(normalized);
+  };
+
+  addRecipient(post?.author);
+  const quotedReply = findHallReply(post, reply?.reply_to_id);
+  if (quotedReply) addRecipient(quotedReply.author);
+  return [...recipients];
+}
+
+function buildHallReplyNotificationPayload(action, post = {}, reply = {}, actor = {}) {
+  return {
+    category: 'hall',
+    action,
+    refresh_required: true,
+    actor_username: normalizeUsernameKey(actor.username || reply?.author),
+    actor_display_name: normalizeUsername(actor.displayName || actor.display_name || reply?.author_display_name || reply?.author),
+    post: {
+      id: String(post?.id || ''),
+      title: trimNotificationText(post?.title || '', 80),
+      type: post?.type || 'discussion',
+      author_username: normalizeUsernameKey(post?.author),
+      author_display_name: normalizeUsername(post?.author_display_name || post?.author),
+      reply_count: Math.max(0, Number(post?.reply_count) || (Array.isArray(post?.replies) ? post.replies.length : 0)),
+      last_activity_at: Number(post?.last_activity_at || post?.updated_at || post?.created_at) || null,
+    },
+    reply: {
+      id: String(reply?.id || ''),
+      author_username: normalizeUsernameKey(reply?.author),
+      author_display_name: normalizeUsername(reply?.author_display_name || reply?.author),
+      created_at: Number(reply?.created_at) || null,
+      excerpt: trimNotificationText(reply?.content || '', 120),
+      reply_to_id: reply?.reply_to_id || null,
+      reply_to_author_display_name: reply?.reply_to_author_display_name || null,
+    },
+  };
+}
+
 function emitMailNotificationCreatedEvent(targetUsername, action, mail = {}) {
   const recipient = normalizeUsernameKey(targetUsername);
   if (!recipient) return 0;
@@ -361,6 +420,21 @@ function emitMailNotificationCreatedEvent(targetUsername, action, mail = {}) {
       recipient,
       'notification.created',
       buildMailNotificationPayload(action, mail)
+    );
+  } catch {
+    return 0;
+  }
+}
+
+function emitHallReplyNotificationCreatedEvent(post = {}, reply = {}, actor = {}) {
+  if (!post?.id || !reply?.id) return 0;
+  const recipients = collectHallReplyNotificationRecipients(post, reply, actor);
+  if (!recipients.length) return 0;
+  try {
+    return taoyuanRealtimeRuntime.emitUsersEvent(
+      recipients,
+      'notification.created',
+      buildHallReplyNotificationPayload('post_reply', post, reply, actor)
     );
   } catch {
     return 0;
@@ -3971,6 +4045,7 @@ router.post('/taoyuan/hall/posts/:id/replies', loginRequired, signRequired, asyn
       author: req.session.username,
       authorDisplayName: req.session.display_name || req.session.username,
     });
+    emitHallReplyNotificationCreatedEvent(post, getLatestHallReply(post), getSessionActor(req));
     res.json({ ok: true, post });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '回复失败' });

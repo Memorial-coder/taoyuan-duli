@@ -384,6 +384,8 @@ let offlineReplaySocket = null
 let offlineReplayReconnectSocket = null
 let offlineMailReplaySocket = null
 let offlineMailReplayReconnectSocket = null
+let offlineHallReplaySocket = null
+let offlineHallReplayReconnectSocket = null
 
 try {
   serverProcess = startServer()
@@ -478,6 +480,42 @@ try {
         && payload.mail?.id === result.data?.mail?.id
         && payload.mail?.title === mailTitle
         && payload.mail?.sender_username === owner.username
+    )
+  })
+
+  await runCheck('hall reply notification event is delivered through websocket', async () => {
+    const postTitle = `hall realtime post ${createSmokeSeed()}`
+    const createResult = await fetchSessionJson(owner, '/api/taoyuan/hall/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: postTitle,
+        content: 'This hall post waits for a realtime reply notification.',
+        type: 'discussion',
+      }),
+    })
+    assert(createResult.response.ok, `hall post create returned ${createResult.response.status}: ${createResult.data?.msg || 'unknown error'}`)
+    const postId = String(createResult.data?.post?.id || '')
+    assert(postId, 'hall post id missing')
+
+    const offset = ownerSocket.messages.length
+    const replyResult = await fetchSessionJson(friend, `/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/replies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'This reply should notify the post author.' }),
+    })
+    assert(replyResult.response.ok, `hall reply create returned ${replyResult.response.status}: ${replyResult.data?.msg || 'unknown error'}`)
+    const reply = replyResult.data?.post?.replies?.at(-1)
+    assert(reply?.id, 'hall reply id missing')
+    await expectMessageAfter(ownerSocket, offset, 'notification.created', payload =>
+      payload.category === 'hall'
+        && payload.action === 'post_reply'
+        && payload.refresh_required === true
+        && payload.post?.id === postId
+        && payload.post?.title === postTitle
+        && payload.reply?.id === reply.id
+        && payload.reply?.author_username === friend.username
+        && payload.actor_username === friend.username
     )
   })
 
@@ -582,6 +620,73 @@ try {
     offlineMailReplayReconnectSocket = null
   })
 
+  await runCheck('offline hall reply notification event is replayed and acknowledged after reconnect', async () => {
+    const offlineTarget = await bootstrapSession('smkrt_e')
+    const postTitle = `offline hall reply ${createSmokeSeed()}`
+    const createResult = await fetchSessionJson(offlineTarget, '/api/taoyuan/hall/posts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: postTitle,
+        content: 'This offline hall post waits for a queued reply notification.',
+        type: 'discussion',
+      }),
+    })
+    assert(createResult.response.ok, `offline hall post create returned ${createResult.response.status}: ${createResult.data?.msg || 'unknown error'}`)
+    const postId = String(createResult.data?.post?.id || '')
+    assert(postId, 'offline hall post id missing')
+
+    const replyResult = await fetchSessionJson(owner, `/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/replies`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'This queued reply should notify the offline post author.' }),
+    })
+    assert(replyResult.response.ok, `offline hall reply create returned ${replyResult.response.status}: ${replyResult.data?.msg || 'unknown error'}`)
+    const reply = replyResult.data?.post?.replies?.at(-1)
+    assert(reply?.id, 'offline hall reply id missing')
+
+    offlineHallReplaySocket = await openRealtimeSocket(offlineTarget)
+    const ready = await expectMessage(offlineHallReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) >= 1
+    )
+    assert(Number(ready.payload?.pending_notification_count) >= 1, 'offline hall replay ready did not report pending notifications')
+    const queuedMessage = await expectMessage(offlineHallReplaySocket, 'notification.created', payload =>
+      payload.category === 'hall'
+        && payload.action === 'post_reply'
+        && payload.post?.id === postId
+        && payload.post?.title === postTitle
+        && payload.reply?.id === reply.id
+        && payload.reply?.author_username === owner.username
+    )
+    const queuedEventId = String(queuedMessage.queued_event_id || '')
+    assert(queuedEventId, 'replayed hall notification missing queued_event_id')
+    assert(queuedMessage.replayed === true, 'replayed hall notification missing replayed marker')
+
+    const ackOffset = offlineHallReplaySocket.messages.length
+    offlineHallReplaySocket.send('notification.ack', { id: queuedEventId })
+    await expectMessageAfter(offlineHallReplaySocket, ackOffset, 'notification.ack', payload =>
+      Array.isArray(payload.acked_ids)
+        && payload.acked_ids.includes(queuedEventId)
+        && Number(payload.pending_count) === 0
+    )
+
+    offlineHallReplaySocket.close()
+    offlineHallReplaySocket = null
+    await wait(200)
+
+    offlineHallReplayReconnectSocket = await openRealtimeSocket(offlineTarget)
+    await expectMessage(offlineHallReplayReconnectSocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) === 0
+    )
+    await expectNoMessageAfter(offlineHallReplayReconnectSocket, 0, 'notification.created', payload =>
+      payload.category === 'hall'
+        && payload.post?.id === postId
+        && payload.reply?.id === reply.id
+    )
+    offlineHallReplayReconnectSocket.close()
+    offlineHallReplayReconnectSocket = null
+  })
+
   let expeditionRoomId = ''
   await runCheck('activity room create event is delivered through websocket', async () => {
     const offset = ownerSocket.messages.length
@@ -661,6 +766,8 @@ try {
   offlineReplayReconnectSocket?.close()
   offlineMailReplaySocket?.close()
   offlineMailReplayReconnectSocket?.close()
+  offlineHallReplaySocket?.close()
+  offlineHallReplayReconnectSocket?.close()
   await stopChild(serverProcess)
   try {
     await rm(smokeTempDir, { recursive: true, force: true })

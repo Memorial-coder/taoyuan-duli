@@ -783,7 +783,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, reactive, ref, watch, onMounted } from 'vue'
+  import { computed, reactive, ref, watch, onMounted, onUnmounted } from 'vue'
   import { useRoute, useRouter } from 'vue-router'
   import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, CheckCircle2, MessagesSquare, RefreshCw, Search, Send, SquarePen, Trash2, Upload, X } from 'lucide-vue-next'
   import Divider from '@/components/game/Divider.vue'
@@ -832,10 +832,19 @@
     HallViewer,
   } from '@/types'
   import { useGoalStore } from '@/stores/useGoalStore'
+  import { TAOYUAN_HALL_NOTIFICATION_EVENT, useRealtimeStore } from '@/stores/useRealtimeStore'
+
+  interface HallRealtimeNotificationDetail {
+    refresh_required?: boolean
+    post?: {
+      id?: string
+    }
+  }
 
   const router = useRouter()
   const route = useRoute()
   const goalStore = useGoalStore()
+  const realtimeStore = useRealtimeStore()
 
   const viewer = ref<HallViewer>({ loggedIn: false, username: null, displayName: null })
   const viewerStatus = ref<'interactive' | 'readonly' | 'unavailable'>('readonly')
@@ -862,6 +871,8 @@
   const adminImageReports = ref<HallImageAdminReport[]>([])
   const adminImageAssets = ref<HallImageAsset[]>([])
   const imageBlacklist = ref<HallImageBlacklistEntry[]>([])
+  const pendingRealtimeHallPostIds = new Set<string>()
+  let hallRealtimeRefreshTimer: number | null = null
 
   const category = ref<HallCategory>('all')
   const sortBy = ref<HallSort>('latest')
@@ -1116,12 +1127,13 @@
     }
   }
 
-  const loadPosts = async () => {
+  const loadPosts = async (options: { silent?: boolean } = {}) => {
     if (mineFilter.value !== 'all' && !viewer.value.loggedIn) {
       mineFilter.value = 'all'
       return
     }
-    loadingPosts.value = true
+    const silent = options.silent === true
+    if (!silent) loadingPosts.value = true
     try {
       const result = await fetchHallPosts({
         category: category.value,
@@ -1137,18 +1149,21 @@
       hasMorePosts.value = result.has_more
       currentPage.value = result.page
     } catch (error) {
-      showFloat(error instanceof Error ? error.message : '获取帖子列表失败', 'danger')
-      posts.value = []
-      totalPosts.value = 0
-      hasMorePosts.value = false
+      if (!silent) {
+        showFloat(error instanceof Error ? error.message : '获取帖子列表失败', 'danger')
+        posts.value = []
+        totalPosts.value = 0
+        hasMorePosts.value = false
+      }
     } finally {
-      loadingPosts.value = false
+      if (!silent) loadingPosts.value = false
     }
   }
 
-  const loadDetail = async (postId: string) => {
+  const loadDetail = async (postId: string, options: { silent?: boolean } = {}) => {
     const activeRequestId = ++detailRequestId.value
-    loadingDetail.value = true
+    const silent = options.silent === true
+    if (!silent) loadingDetail.value = true
     try {
       const detail = await fetchHallPostDetail(postId)
       if (activeRequestId !== detailRequestId.value || selectedPostId.value !== postId) return
@@ -1156,8 +1171,10 @@
       selectedPostId.value = postId
     } catch (error) {
       if (activeRequestId !== detailRequestId.value || selectedPostId.value !== postId) return
-      selectedPost.value = null
-      showFloat(error instanceof Error ? error.message : '获取帖子详情失败', 'danger')
+      if (!silent) {
+        selectedPost.value = null
+        showFloat(error instanceof Error ? error.message : '获取帖子详情失败', 'danger')
+      }
     } finally {
       if (activeRequestId === detailRequestId.value) {
         loadingDetail.value = false
@@ -1683,6 +1700,32 @@
     toolbarMenu.value = null
   }
 
+  const flushHallRealtimeRefresh = async () => {
+    const notifiedPostIds = new Set(pendingRealtimeHallPostIds)
+    pendingRealtimeHallPostIds.clear()
+    await loadPosts({ silent: true })
+    const currentPostId = selectedPostId.value
+    if (currentPostId && (notifiedPostIds.size === 0 || notifiedPostIds.has(currentPostId))) {
+      await loadDetail(currentPostId, { silent: true })
+    }
+  }
+
+  const queueHallRealtimeRefresh = () => {
+    if (typeof window === 'undefined' || hallRealtimeRefreshTimer !== null) return
+    hallRealtimeRefreshTimer = window.setTimeout(() => {
+      hallRealtimeRefreshTimer = null
+      void flushHallRealtimeRefresh()
+    }, 300)
+  }
+
+  const handleHallRealtimeNotification = (event: Event) => {
+    const detail = (event as CustomEvent<HallRealtimeNotificationDetail>).detail
+    if (detail?.refresh_required === false) return
+    const postId = typeof detail?.post?.id === 'string' ? detail.post.id : ''
+    if (postId) pendingRealtimeHallPostIds.add(postId)
+    queueHallRealtimeRefresh()
+  }
+
   watch([category, sortBy, mineFilter], () => {
     currentPage.value = 1
     void loadPosts()
@@ -1784,13 +1827,29 @@
   }
 
   onMounted(async () => {
+    if (typeof window !== 'undefined') {
+      window.addEventListener(TAOYUAN_HALL_NOTIFICATION_EVENT, handleHallRealtimeNotification)
+    }
     goalStore.ensureInitialized()
+    void realtimeStore.start()
     resetComposer()
     await loadViewer()
     await loadPosts()
     if (typeof route.query.post === 'string') {
       await loadDetail(route.query.post)
     }
+  })
+
+  onUnmounted(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener(TAOYUAN_HALL_NOTIFICATION_EVENT, handleHallRealtimeNotification)
+      if (hallRealtimeRefreshTimer !== null) {
+        window.clearTimeout(hallRealtimeRefreshTimer)
+        hallRealtimeRefreshTimer = null
+      }
+    }
+    realtimeStore.stop()
+    pendingRealtimeHallPostIds.clear()
   })
 </script>
 

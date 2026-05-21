@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0520 大厅回复实时通知补发（A5 大厅）
+- 服务端在大厅回复写入成功后投递 `notification.created`，通知帖子作者和被引用回复作者；payload 使用 `category: "hall"`、`action: "post_reply"`、`refresh_required` 与帖子 / 回复摘要，不把回复写入、悬赏或其他结算交给 WebSocket。
+- 大厅通知复用离线补发队列：离线玩家下次 `realtime.ready` 后会收到带 `queued_event_id` 的补发帧，前端仍通过通用 `notification.ack` 清理；`HallView.vue` 会在顶层 `/hall` 路由自行启动 realtime，并在收到大厅通知后静默刷新帖子列表和当前详情。
+- `qa:realtime-smoke` 新增在线大厅回复通知、离线大厅回复补发、ACK 清理和重连不重复补发断言；`qa:online-regression-live-smoke` 新增真实浏览器断言：停在大厅帖子详情页时，另一个账号回复后无需手动刷新即可看到新回复。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke`、`npm --prefix taoyuan-main run qa:online-regression-live-smoke` 与 `git diff --check`；构建仍只有既有大 chunk 警告。
+
 ### 0520 邮箱实时通知补发（A5 玩家来信 / 礼物包裹）
 - 服务端在玩家来信和礼物包裹写入成功后投递 `notification.created`，收件人在线时直接通过 WebSocket 收到，离线时写入 `taoyuan_realtime_notifications.json`，下次 `realtime.ready` 后补发并等待 `notification.ack` 清理。
 - 邮箱通知 payload 只包含邮件摘要、`category: "mail"` 与 `refresh_required`；前端收到后只防抖调用 `useMailboxStore().refreshList({ silent: true })` 重读权威邮箱接口，不直接把 WebSocket payload 写进邮件、奖励或存档状态。
