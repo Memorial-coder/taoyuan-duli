@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / B1` 这一轮收口 `ExpeditionRoomView.vue` 的远征房间创建和邀请表单：远征模板、玩法模板、房间标题、创建按钮，以及邀请玩家输入行都迁到统一 `online-*` 表单 / 按钮类。
+- 邀请玩家行现在使用 `online-action-row`，窄屏会按统一规则自动换行；本轮只换 UI class，不改远征房间创建、邀请、ready、结算或关闭逻辑。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 - `0520todo.md / B1-B2` 这一轮收口 `SocialView.vue` 的公开名片与邻里高频表单：名片设置里的庄园名、公开称号、邻里身份、展示主题、头像说明、公开状态和公开介绍已迁到 `online-input / online-select / online-textarea`。
 - 邻里邀请行改用 `online-action-row + online-input`，窄屏会按统一规则换行；创建邻里的名称、简介、初始公告、容量选择和邀请 / 创建按钮也改用统一联机表单与按钮类。
 - 本轮不改邻里申请、成员、订阅和公开名片业务逻辑；已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。

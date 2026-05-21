@@ -22,10 +22,10 @@
           <p class="text-sm text-accent">创建远征房间</p>
           <span class="text-[10px] text-muted">L80 第一轮</span>
         </div>
-        <div class="space-y-2">
+        <div class="space-y-3">
           <label class="block">
             <span class="text-[10px] text-muted">远征模板</span>
-            <select v-model="expeditionRoomStore.selectedTemplateId" class="w-full mt-1 bg-bg border border-accent/20 rounded-xs px-2 py-2 text-xs text-text">
+            <select v-model="expeditionRoomStore.selectedTemplateId" class="online-select mt-1">
               <option v-for="template in expeditionRoomStore.templates" :key="template.id" :value="template.id">
                 {{ template.label }}
               </option>
@@ -38,7 +38,7 @@
           </div>
           <label class="block">
             <span class="text-[10px] text-muted">玩法模板</span>
-            <select v-model="expeditionRoomStore.selectedGameplayTemplateId" class="w-full mt-1 bg-bg border border-accent/20 rounded-xs px-2 py-2 text-xs text-text">
+            <select v-model="expeditionRoomStore.selectedGameplayTemplateId" class="online-select mt-1">
               <option v-for="template in expeditionRoomStore.gameplayTemplates" :key="template.id" :value="template.id">
                 {{ template.label }}
               </option>
@@ -54,11 +54,11 @@
             <input
               v-model="expeditionRoomStore.draftTitle"
               maxlength="30"
-              class="w-full mt-1 bg-bg border border-accent/20 rounded-xs px-2 py-2 text-xs text-text"
+              class="online-input mt-1"
               placeholder="例如：高地补给接力"
             />
           </label>
-          <Button class="w-full justify-center" :disabled="expeditionRoomStore.actionRunning" @click="createRoom">
+          <Button class="online-action-btn online-action-btn--primary w-full" :disabled="expeditionRoomStore.actionRunning" @click="createRoom">
             创建远征房间
           </Button>
         </div>
@@ -97,13 +97,13 @@
 
           <label class="block">
             <span class="text-[10px] text-muted">邀请玩家</span>
-            <div class="flex gap-2 mt-1">
+            <div class="online-action-row mt-1">
               <input
                 v-model="expeditionRoomStore.draftInviteUsername"
-                class="flex-1 bg-bg border border-accent/20 rounded-xs px-2 py-2 text-xs text-text"
+                class="online-input flex-1"
                 placeholder="输入用户名"
               />
-              <Button :disabled="expeditionRoomStore.actionRunning" @click="inviteMember(expeditionRoomStore.myRoom.id)">
+              <Button class="online-action-btn online-action-btn--primary" :disabled="expeditionRoomStore.actionRunning" @click="inviteMember(expeditionRoomStore.myRoom.id)">
                 邀请
               </Button>
             </div>

@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 远征房间表单统一（B1 ExpeditionRoomView）
+- `ExpeditionRoomView.vue` 的远征房间创建区已迁到统一联机表单类：远征模板、玩法模板和房间标题分别使用 `online-select / online-input`，创建按钮使用 `online-action-btn`。
+- 邀请玩家行改用 `online-action-row + online-input + online-action-btn`，窄屏会按统一规则自动换行；本轮只换 UI class，不改创建、邀请、ready、结算或关闭业务逻辑。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 ### 0520 公开名片与邻里表单统一（B1-B2 SocialView）
 - `SocialView.vue` 的公开名片设置已改用统一联机表单类：庄园名、公开称号、邻里身份、展示主题、头像说明、公开状态和公开介绍分别迁到 `online-input / online-select / online-textarea`。
 - 邻里邀请行改用 `online-action-row + online-input`，窄屏会按统一规则换行；创建邻里的名称、简介、初始公告、容量选择和邀请 / 创建按钮也改用统一联机表单与按钮类。
