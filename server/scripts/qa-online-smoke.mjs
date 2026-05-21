@@ -200,6 +200,15 @@ const runCheck = async (label, runner) => {
   checks.push(label)
 }
 
+const unsafeSmokeUsernameFragments = ['vx']
+const createSmokeSeed = () => {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
+    const seed = Math.random().toString(36).slice(2, 8)
+    if (!unsafeSmokeUsernameFragments.some(fragment => seed.includes(fragment))) return seed
+  }
+  return Date.now().toString(36).slice(-6).replace(/vx/g, 'vw')
+}
+
 const seedSessionSave = async (session, startingMoney) => {
   assert(session.username, 'session username is required before provisioning a save')
   const rawSavePayload = buildSeedSavePayload(session.username, startingMoney)
@@ -228,7 +237,7 @@ const seedSessionSave = async (session, startingMoney) => {
 }
 
 const bootstrapSession = async (session, labelPrefix, startingMoney) => {
-  const uniqueSeed = Math.random().toString(36).slice(2, 8)
+  const uniqueSeed = createSmokeSeed()
   session.username = `${labelPrefix}_${uniqueSeed}`
   session.displayName = `${labelPrefix}${uniqueSeed}`
   const password = `SmokePass_${uniqueSeed}`
@@ -258,7 +267,7 @@ const bootstrapSession = async (session, labelPrefix, startingMoney) => {
 }
 
 const bootstrapAuthOnlySession = async (session, labelPrefix) => {
-  const uniqueSeed = Math.random().toString(36).slice(2, 8)
+  const uniqueSeed = createSmokeSeed()
   session.username = `${labelPrefix}_${uniqueSeed}`
   session.displayName = `${labelPrefix}${uniqueSeed}`
   const password = `SmokePass_${uniqueSeed}`
@@ -453,7 +462,7 @@ try {
 
   await runCheck('POST /api/register moderation reject path', async () => {
     const bannedUsername = `台独${Math.random().toString(36).slice(2, 4)}`
-    const bannedDisplayUsername = `smkban${Math.random().toString(36).slice(2, 8)}`
+    const bannedDisplayUsername = `smkban${createSmokeSeed()}`
     const rejectedUsername = await fetchJson('/api/register', {
       method: 'POST',
       headers: {
@@ -1289,6 +1298,7 @@ try {
   })
 
   let friendRequestId = ''
+  let friendshipId = ''
   let secondarySaveIdentity = null
   await runCheck('POST /api/taoyuan/online/social/friend-requests order scope setup', async () => {
     const secondarySave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
@@ -1350,6 +1360,8 @@ try {
     assert(primaryFriend?.own_save_id === primarySaveIdentity.save_id, 'primary friend list missing own save id')
     assert(primaryFriend?.friend_save_id === secondarySaveIdentity.save_id, 'primary friend list missing friend save id')
     assert(primaryFriend?.friend_save_slot === secondarySaveIdentity.save_slot, 'primary friend list missing friend save slot')
+    friendshipId = String(primaryFriend.friendship_id || '')
+    assert(friendshipId, 'primary friend list missing friendship id')
 
     const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/social/relationships')
     assert(secondaryOverview.response.ok, `secondary friend relationship overview returned ${secondaryOverview.response.status}`)
@@ -2099,6 +2111,29 @@ try {
     assert(Array.isArray(latestMemorial?.squadmate_display_names) && latestMemorial.squadmate_display_names.includes(secondaryDisplayName), 'festival memorial did not preserve squadmate display names')
     assert(Array.isArray(latestMemorial?.squadmate_friend_display_names) && latestMemorial.squadmate_friend_display_names.includes(secondaryDisplayName), 'festival memorial did not preserve friend squadmate list')
     assert(latestMemorial?.photo_taken === true && typeof latestMemorial?.photo_line === 'string' && latestMemorial.photo_line.length >= 4, 'festival memorial did not preserve photo snapshot text')
+  })
+
+  await runCheck('DELETE /api/taoyuan/online/social/friends/:friendshipId save id path', async () => {
+    assert(friendshipId, 'friendship id is required before delete friend check')
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/social/friends/${encodeURIComponent(friendshipId)}`, {
+      method: 'DELETE',
+    })
+    assert(response.ok, `delete friend returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.relation?.friendship_id === friendshipId, 'delete friend payload is incomplete')
+    assert(data.relation.own_save_id === primarySaveIdentity.save_id, 'delete friend payload missing own save id')
+    assert(data.relation.friend_save_id === secondarySaveIdentity.save_id, 'delete friend payload missing friend save id')
+
+    const primaryOverview = await fetchAuthedJson('/api/taoyuan/online/social/relationships')
+    assert(primaryOverview.response.ok, `primary relationship overview after delete returned ${primaryOverview.response.status}`)
+    assert(!primaryOverview.data?.friends?.some(entry => entry?.friendship_id === friendshipId), 'deleted friendship still appears in primary friend list')
+
+    const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/social/relationships')
+    assert(secondaryOverview.response.ok, `secondary relationship overview after delete returned ${secondaryOverview.response.status}`)
+    assert(!secondaryOverview.data?.friends?.some(entry => entry?.friendship_id === friendshipId), 'deleted friendship still appears in secondary friend list')
+
+    const secondaryOrders = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
+    assert(secondaryOrders.response.ok, `secondary orders after delete returned ${secondaryOrders.response.status}`)
+    assert(!secondaryOrders.data?.orders?.some(entry => entry?.title === friendCoopOrderTitle && entry?.scope === 'friends'), 'friend-scope order stayed visible after deleting friendship')
   })
 
   await runCheck('GET /api/taoyuan/online/world-events read path', async () => {

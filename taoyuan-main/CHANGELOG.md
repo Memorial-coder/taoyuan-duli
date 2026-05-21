@@ -9,8 +9,9 @@
 - 服务端已新增按存档数字 ID 搜索玩家的最小接口：`/api/taoyuan/online/social/player-search?save_id=...` 会返回对应槽位的公开名片，不下发背包、钱包等存档内容。
 - 好友申请服务端接口已支持 `target_save_id`，并会把双方存档 ID 与槽位写入申请记录；旧的 `target_username` 调用仍保留兼容。
 - 接受好友申请后，服务端好友关系本体已开始写入双方存档 ID 与槽位；`/api/taoyuan/online/social/relationships` 也会在申请列表和好友列表里返回对应的存档身份字段，供后续地图页好友面板直接消费。
+- 服务端已新增删除好友接口 `DELETE /api/taoyuan/online/social/friends/:friendshipId`，会按当前账号 / 活动存档校验权限；删除后好友列表和好友范围委托可见性会随关系移除更新。
 - 这一轮暂不改变前端界面与单机主循环；本地档、云存档、导入档的展示和好友搜索入口还未接入，后续会继续沿 `0520todo.md` 的 A0 / A2 / A3 推进。
-- 后端 smoke 已补入存档身份补发、不可篡改、按数字 ID 搜索、按存档 ID 发起好友申请，以及接受后好友列表回显双方存档 ID 的断言，并通过 `npm --prefix server run qa:online-smoke`。
+- 后端 smoke 已补入存档身份补发、不可篡改、按数字 ID 搜索、按存档 ID 发起好友申请、接受后好友列表回显双方存档 ID，以及删除好友后好友范围委托不可见的断言，并通过 `npm --prefix server run qa:online-smoke`。
 
 ### 0520 联机发布控制与扩展骨架（L130-L154 第一轮）
 - `taoyuan-main/src/utils/adminOnlineApi.ts`、`src/types/onlineRelease.ts` 与 `src/types/index.ts` 这一轮把联机发布配置正式接进前端：admin 侧现在已经能读取和保存联机总开关、`stable / canary` 通道、测试白名单、模块开关、内测样板字段与五段发布说明。

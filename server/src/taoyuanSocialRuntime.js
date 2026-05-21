@@ -1384,6 +1384,16 @@ function findPendingRequest(store, left, right, leftIdentity = null, rightIdenti
     ) || null;
 }
 
+function friendshipBelongsToUser(friendship, username, identity = null) {
+  const normalized = normalizeFriendship(friendship);
+  const normalizedUsername = normalizeUsername(username);
+  const saveId = normalizeSocialSaveId(identity?.save_id);
+  if (saveId && (normalized.save_id_a || normalized.save_id_b)) {
+    return normalized.save_id_a === saveId || normalized.save_id_b === saveId;
+  }
+  return normalized.username_a === normalizedUsername || normalized.username_b === normalizedUsername;
+}
+
 function countFriendships(store, username) {
   const normalizedUsername = normalizeUsername(username);
   return store.friendships
@@ -1740,12 +1750,7 @@ async function listRelationshipOverview(username) {
   const friends = await Promise.all(
     store.friendships
       .map(normalizeFriendship)
-      .filter(entry => {
-        if (ownIdentity?.save_id && (entry.save_id_a || entry.save_id_b)) {
-          return entry.save_id_a === ownIdentity.save_id || entry.save_id_b === ownIdentity.save_id;
-        }
-        return entry.username_a === normalizedUsername || entry.username_b === normalizedUsername;
-      })
+      .filter(entry => friendshipBelongsToUser(entry, normalizedUsername, ownIdentity))
       .sort((left, right) => right.last_interaction_at - left.last_interaction_at)
       .map(async entry => {
         const sideA = getFriendshipSide(entry, 'a');
@@ -1924,6 +1929,51 @@ async function rejectFriendRequest(username, requestId) {
   });
   saveSocialProfileStore(store);
   return request;
+}
+
+async function removeFriendship(username, friendshipId) {
+  const store = loadSocialProfileStore();
+  const actor = normalizeUsername(username);
+  const actorIdentity = resolveActiveSaveContext(actor)?.identity || null;
+  const targetId = String(friendshipId || '').trim();
+  if (!targetId) throw createError('请先选择要删除的好友关系');
+
+  const friendship = store.friendships
+    .map(normalizeFriendship)
+    .find(entry => entry.id === targetId);
+  if (!friendship) throw createError('好友关系不存在', 404);
+  if ((friendship.save_id_a || friendship.save_id_b) && !actorIdentity?.save_id) {
+    throw createError('当前账号没有可用存档，无法删除存档级好友关系');
+  }
+  if (!friendshipBelongsToUser(friendship, actor, actorIdentity)) {
+    throw createError('你无权删除这条好友关系', 403);
+  }
+
+  store.friendships = store.friendships
+    .map(normalizeFriendship)
+    .filter(entry => entry.id !== friendship.id);
+  saveSocialProfileStore(store);
+
+  const sideA = getFriendshipSide(friendship, 'a');
+  const sideB = getFriendshipSide(friendship, 'b');
+  const ownSide = actorIdentity?.save_id && sideA.save_id === actorIdentity.save_id
+    ? sideA
+    : actorIdentity?.save_id && sideB.save_id === actorIdentity.save_id
+      ? sideB
+      : sideA.username === actor
+        ? sideA
+        : sideB;
+  const friendSide = ownSide === sideA ? sideB : sideA;
+  return {
+    friendship_id: friendship.id,
+    own_username: ownSide.username,
+    own_save_id: ownSide.save_id,
+    own_save_slot: ownSide.save_slot,
+    friend_username: friendSide.username,
+    friend_save_id: friendSide.save_id,
+    friend_save_slot: friendSide.save_slot,
+    removed_at: Math.floor(Date.now() / 1000),
+  };
 }
 
 async function blockPlayer(username, targetUsername) {
@@ -2266,6 +2316,7 @@ module.exports = {
   requestFriendship,
   acceptFriendRequest,
   rejectFriendRequest,
+  removeFriendship,
   blockPlayer,
   unblockPlayer,
   createNeighborGroup,

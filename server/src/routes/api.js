@@ -87,7 +87,7 @@ const ONLINE_RATE_LIMIT_RULES = Object.freeze([
     maxRequests: 20,
   },
   {
-    matcher: /^\/api\/taoyuan\/online\/social\/(?:friend-requests|blocks|neighbors|subscriptions)(?:\/|$)/i,
+    matcher: /^\/api\/taoyuan\/online\/social\/(?:friend-requests|friends|blocks|neighbors|subscriptions)(?:\/|$)/i,
     routeKey: 'social_write',
     scope: 'social',
     maxRequests: 24,
@@ -1743,6 +1743,15 @@ router.post('/taoyuan/online/social/friend-requests/:requestId/reject', createOn
     res.json({ ok: true, request });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '拒绝好友申请失败' });
+  }
+});
+
+router.delete('/taoyuan/online/social/friends/:friendshipId', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const relation = await taoyuanSocialRuntime.removeFriendship(req.session.username, req.params.friendshipId);
+    res.json({ ok: true, relation });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '删除好友失败' });
   }
 });
 

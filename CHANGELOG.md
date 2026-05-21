@@ -14,6 +14,8 @@
 - `0520todo.md / A1-A2` 这一轮继续把好友图谱往存档级推进：接受好友申请时，`friendships` 现在会写入双方 `save_id / save_slot`，旧的 username 关系仍可被识别并在接受新申请时逐步补成存档级关系，避免立刻切断邮箱、委托等旧消费链路。
 - `/api/taoyuan/online/social/relationships` 现在会在申请列表与好友列表里回显 `from_save_id / to_save_id / own_save_id / friend_save_id` 等身份字段，并优先按当前活动存档过滤存档级申请与好友，同时继续兼容旧 username 关系。
 - 在线 smoke 新增关系总览回归：申请发出后会检查双方 overview 里的申请存档 ID，接受后会检查双方好友列表里的 `own_save_id / friend_save_id / friend_save_slot`，确认好友列表已能稳定承接存档级身份。
+- 删除好友也接入了服务端最小闭环：新增 `DELETE /api/taoyuan/online/social/friends/:friendshipId`，会校验当前玩家是否拥有该 username / 存档级关系，存档级关系必须有当前活动存档才能删除；删除后好友列表和好友范围委托可见性会立即随关系变化。
+- 在线 smoke 已补入删除好友回归：在好友范围委托、好友纪念册与节会好友队友名单验证之后，删除同一条 `friendship_id`，再确认双方好友列表不再出现该关系，且对方不再能看到这条好友范围委托。
 
 - `L130-L134` 这一轮把联机发布控制收成了第一轮可回归闭环：`server/src/config.js` 现已补齐联机总开关、`stable / canary` 通道、测试白名单、好友 / 庄园 / 求助单 / 节会四类能力开关、五大模块开关、内测庄园 / 村社 / 节会样板，以及五段发布说明字段；`/api/public-config` 也开始稳定下发 `taoyuan_online_release` 摘要，不再只有后台私有配置。
 - `server/src/routes/api.js` 这一轮已把联机发布配置真正接进服务端治理链：新增 `/api/admin/taoyuan/online-release-config` 读写接口、联机发布配置归一化、灰度白名单与模块级 guard，并把庄园、求助单、好友链路和节会房间路由接到统一 `createOnlineReleaseGuard()`，默认仍保持 `stable + 全开`，不主动影响现有玩家。
