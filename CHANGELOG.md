@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / B1-B2` 这一轮收口 `SocialView.vue` 的公开名片与邻里高频表单：名片设置里的庄园名、公开称号、邻里身份、展示主题、头像说明、公开状态和公开介绍已迁到 `online-input / online-select / online-textarea`。
+- 邻里邀请行改用 `online-action-row + online-input`，窄屏会按统一规则换行；创建邻里的名称、简介、初始公告、容量选择和邀请 / 创建按钮也改用统一联机表单与按钮类。
+- 本轮不改邻里申请、成员、订阅和公开名片业务逻辑；已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 - `0520todo.md / B1` 这一轮把 `RegionMapView.vue` 好友驿站里剩余的 32px 紧凑按钮统一收口到 `online-action-btn--compact`：刷新、复制 ID、搜索结果申请 / 拉黑、收到申请接受 / 拒绝、好友条目里的庄园 / 写信 / 送礼 / 邀请进房 / 节会 / 村社 / 协作，以及删除 / 拉黑 / 解除拉黑都改用同一套按钮类。
 - 危险动作继续叠加 `online-action-btn--danger`，原有禁用条件、`data-testid` 和点击事件保持不变；这一轮只替换样式层，不改好友关系和跳转业务逻辑。
 - 本轮已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。

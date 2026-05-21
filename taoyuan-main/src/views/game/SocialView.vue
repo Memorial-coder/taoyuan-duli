@@ -216,22 +216,22 @@
 
       <div class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
         <p class="text-xs text-accent">名片设置</p>
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
           <label class="flex flex-col gap-1 text-[10px] text-muted">
             庄园名
-            <input v-model="socialStore.draftManorName" maxlength="40" class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent" />
+            <input v-model="socialStore.draftManorName" maxlength="40" class="online-input" />
           </label>
           <label class="flex flex-col gap-1 text-[10px] text-muted">
             公开称号
-            <input v-model="socialStore.draftPublicTitle" maxlength="24" class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent" />
+            <input v-model="socialStore.draftPublicTitle" maxlength="24" class="online-input" />
           </label>
           <label class="flex flex-col gap-1 text-[10px] text-muted">
             邻里身份
-            <input v-model="socialStore.draftNeighborhoodRole" maxlength="24" class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent" />
+            <input v-model="socialStore.draftNeighborhoodRole" maxlength="24" class="online-input" />
           </label>
           <label class="flex flex-col gap-1 text-[10px] text-muted">
             展示主题
-            <input v-model="socialStore.draftShowcaseTheme" maxlength="24" class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent" />
+            <input v-model="socialStore.draftShowcaseTheme" maxlength="24" class="online-input" />
           </label>
         </div>
         <div class="border border-accent/10 rounded-xs p-2 bg-bg/10 space-y-2">
@@ -247,14 +247,14 @@
             <input
               v-model="socialStore.draftAvatarImageAlt"
               maxlength="120"
-              class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+              class="online-input w-full"
               placeholder="头像说明"
             />
           </div>
         </div>
         <label class="flex flex-col gap-1 text-[10px] text-muted">
           公开状态
-          <select v-model="socialStore.draftVisibility" class="bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
+          <select v-model="socialStore.draftVisibility" class="online-select">
             <option value="public">公开</option>
             <option value="friends_only">仅好友（当前视作未公开）</option>
             <option value="private">私密</option>
@@ -266,7 +266,7 @@
             v-model="socialStore.draftIntro"
             rows="3"
             maxlength="120"
-            class="bg-bg border border-accent/20 rounded-xs px-2 py-1.5 text-xs text-text outline-none focus:border-accent resize-none"
+            class="online-textarea resize-none"
             placeholder="例如：这周主打鱼塘与博物馆补展，欢迎来看看。"
           />
         </label>
@@ -417,13 +417,13 @@
 
           <div class="border border-accent/10 rounded-xs p-2">
             <p class="text-[10px] text-muted mb-1">邀请成员</p>
-            <div class="flex gap-2">
+            <div class="online-action-row">
               <input
                 v-model="socialStore.neighborInviteUsernameDraft"
-                class="flex-1 bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+                class="online-input flex-1"
                 placeholder="输入玩家用户名"
               />
-              <Button class="text-[10px]" :disabled="socialStore.neighborActionRunning" @click="inviteNeighbor">
+              <Button class="online-action-btn online-action-btn--primary" :disabled="socialStore.neighborActionRunning" @click="inviteNeighbor">
                 发送邀请
               </Button>
             </div>
@@ -436,29 +436,29 @@
             <input
               v-model="socialStore.neighborNameDraft"
               maxlength="24"
-              class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+              class="online-input w-full"
               placeholder="邻里名称"
             />
             <input
               v-model="socialStore.neighborSummaryDraft"
               maxlength="120"
-              class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent"
+              class="online-input w-full"
               placeholder="一句简介，告诉别人你们这群人想过怎样的日子。"
             />
             <textarea
               v-model="socialStore.neighborNoticeDraft"
               rows="2"
               maxlength="160"
-              class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1.5 text-xs text-text outline-none focus:border-accent resize-none"
+              class="online-textarea w-full resize-none"
               placeholder="初始公告"
             />
-            <select v-model="socialStore.neighborCapacityDraft" class="w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
+            <select v-model="socialStore.neighborCapacityDraft" class="online-select w-full">
               <option :value="12">小型邻里（3-12）</option>
               <option :value="30">中型邻里（12-30）</option>
               <option :value="60">大型邻里（30+）</option>
             </select>
             <div class="flex justify-end">
-              <Button class="text-[10px]" :disabled="socialStore.neighborActionRunning" @click="createNeighbor">
+              <Button class="online-action-btn online-action-btn--primary" :disabled="socialStore.neighborActionRunning" @click="createNeighbor">
                 创建邻里
               </Button>
             </div>
