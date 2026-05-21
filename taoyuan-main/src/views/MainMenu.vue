@@ -73,6 +73,7 @@
               <p class="text-[10px] text-accent">当前模式</p>
               <p class="text-xs mt-1">{{ storageModeText }}</p>
               <p class="text-[10px] text-muted mt-1 leading-5">{{ storageModeDesc }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-5">{{ storageIdentityHint }}</p>
             </div>
           </template>
           <template v-else>
@@ -92,6 +93,7 @@
               <p class="text-[10px] text-accent">当前模式</p>
               <p class="text-xs mt-1">{{ storageModeText }}</p>
               <p class="text-[10px] text-muted mt-1 leading-5">{{ storageModeDesc }}</p>
+              <p class="text-[10px] text-muted mt-1 leading-5">{{ storageIdentityHint }}</p>
             </div>
             <div class="border-t border-accent/15 pt-3">
               <MainMenuContinueList
@@ -535,6 +537,15 @@
       ? '适合当前设备持续游玩，导入导出备份更直接。'
       : '适合登录账号后跨设备读取，并配合大厅、邮箱等在线功能。'
   )
+  const storageIdentityHint = computed(() => {
+    if (saveStore.storageMode === 'server') {
+      const identity = saveStore.currentOnlineIdentity
+      return identity?.save_id
+        ? `当前运行存档 ID：${identity.save_id}，好友搜索会使用这个固定 ID。`
+        : '服务端存档会在保存或载入时写入公开数字 ID；本地/导入档同步上来后即可参与好友搜索。'
+    }
+    return '本地存档不会生成公开数字 ID；如需好友搜索和邀请，请切换服务端持久化并保存或导入。'
+  })
   const parseSavedAtTimestamp = (savedAt?: string) => {
     const timestamp = Date.parse(savedAt || '')
     return Number.isFinite(timestamp) ? timestamp : 0
@@ -933,6 +944,15 @@
     fileInputRef.value?.click()
   }
 
+  const buildImportSuccessMessage = (slot: number) => {
+    if (saveStore.storageMode === 'server') {
+      return saveStore.lastSaveResultStatus === 'queued'
+        ? `已导入到存档 ${slot + 1}，服务恢复后会补传并写入公开存档 ID。`
+        : `已导入到服务端存档 ${slot + 1}，公开存档 ID 已随服务端保存写回。`
+    }
+    return `已导入到本地存档 ${slot + 1}；切到服务端保存后会生成公开存档 ID。`
+  }
+
   const handleImportFile = (e: Event) => {
     const input = e.target as HTMLInputElement
     const file = input.files?.[0]
@@ -954,7 +974,7 @@
         void (async () => {
           if (await saveStore.importSave(emptySlot.slot, content)) {
             await refreshSlots()
-            showFloat(`已导入到存档 ${emptySlot.slot + 1}。`, 'success')
+            showFloat(buildImportSuccessMessage(emptySlot.slot), 'success')
           } else {
             showFloat('存档文件无效或已损坏。', 'danger')
           }

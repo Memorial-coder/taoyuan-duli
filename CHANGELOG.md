@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / A5` 这一轮补上旧档兼容的前端提示：主菜单持久化模式卡片和存档管理器现在会说明本地 / 导入档在切到服务端保存后才会获得公开存档 ID，也会在已有服务端身份时直接展示当前 ID。
+- 导入成功提示会按当前存储模式区分本地导入、服务端导入和离线排队补传，避免玩家误以为纯本地档已经能被好友搜索；公开数字 ID 仍只由服务端保存 / 导入写回。
+- 本轮已通过 `npm --prefix taoyuan-main run type-check` 与 `npm --prefix taoyuan-main run build`；构建仍只有既有大 chunk 警告。
+
 - `0520todo.md / A5` 这一轮补上服务端存档身份回写闭环：`POST /api/taoyuan/save/:slot` 现在会返回注入 `onlineIdentity` 后的权威 raw，前端服务端同步成功后会从该 raw 刷新当前运行时 `currentOnlineIdentity`。
 - 这让本地档 / 导入档切到服务端可写槽位保存后，无需重新读档也能拿到服务端补发的固定数字 ID；服务端仍是 ID 分配与防篡改权威，客户端只消费保存响应，不自行生成公开 ID。
 - `qa:online-smoke` 已补断言，验证服务端保存响应包含嵌入的存档身份；本轮已通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix server run qa:online-smoke` 与 `npm --prefix taoyuan-main run build`。

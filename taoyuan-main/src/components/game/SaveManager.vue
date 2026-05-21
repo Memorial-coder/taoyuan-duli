@@ -34,6 +34,10 @@
       >
         当前账号有 {{ saveStore.pendingServerSlots.length }} 个待同步服务端存档，服务恢复后会自动补传。
       </div>
+      <div class="mb-3 rounded-xs border border-accent/15 bg-accent/5 px-3 py-2 text-left text-[10px] leading-5">
+        <p class="text-accent">联机存档身份</p>
+        <p class="mt-1 text-muted">{{ saveIdentityHint }}</p>
+      </div>
       <div
         v-if="slotReadBlocked"
         class="mb-3 rounded-xs border border-danger/30 bg-danger/10 px-3 py-2 text-left text-[10px] leading-5 text-danger"
@@ -202,6 +206,28 @@
   const downloading = ref(false)
   const savingCurrent = ref(false)
   const slotReadBlocked = computed(() => slots.value.some(slot => slot.readBlocked))
+  const saveIdentityHint = computed(() => {
+    const identity = saveStore.currentOnlineIdentity
+    if (saveStore.storageMode === 'server') {
+      if (identity?.save_id) {
+        const slotLabel = identity.save_slot !== null && identity.save_slot !== undefined
+          ? ` · 槽位 ${Number(identity.save_slot) + 1}`
+          : ''
+        return `当前服务端存档 ID：${identity.save_id}${slotLabel}。好友搜索和邀请会使用这个固定 ID。`
+      }
+      return '保存、导入或载入服务端存档后，服务端会自动写入固定数字 ID，供好友搜索和邀请使用。'
+    }
+    return '本地存储不会生成公开数字 ID；需要好友搜索或邀请时，请切换到服务端持久化并保存当前进度。'
+  })
+
+  const buildImportSuccessMessage = (slot: number) => {
+    if (saveStore.storageMode === 'server') {
+      return saveStore.lastSaveResultStatus === 'queued'
+        ? `已导入到存档 ${slot + 1}，服务恢复后会补传并写入公开存档 ID。`
+        : `已导入到服务端存档 ${slot + 1}，公开存档 ID 已随服务端保存写回。`
+    }
+    return `已导入到本地存档 ${slot + 1}；切到服务端保存后会生成公开存档 ID。`
+  }
 
   const refreshSlots = async () => {
     slots.value = await saveStore.getSlots()
@@ -294,7 +320,7 @@
           if (await saveStore.importSave(emptySlot.slot, content)) {
             await refreshSlots()
             emit('change')
-            showFloat(`已导入到存档 ${emptySlot.slot + 1}。`, 'success')
+            showFloat(buildImportSuccessMessage(emptySlot.slot), 'success')
           } else {
             showFloat('存档文件无效或已损坏。', 'danger')
           }
