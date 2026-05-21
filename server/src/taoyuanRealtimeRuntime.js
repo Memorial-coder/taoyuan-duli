@@ -375,6 +375,69 @@ function buildPresencePayload(connection) {
   };
 }
 
+function buildAdminConnectionPayload(connection, now = Date.now()) {
+  const connectedAt = Number(connection.connectedAt) || now;
+  const lastSeenAt = Number(connection.lastSeenAt) || connectedAt;
+  return {
+    ...buildPresencePayload(connection),
+    connected_at: connectedAt,
+    last_seen_at: lastSeenAt,
+    online_for_ms: Math.max(0, now - connectedAt),
+  };
+}
+
+function incrementRecordCount(record, key) {
+  const normalized = String(key || '').trim() || 'unknown';
+  record[normalized] = (Number(record[normalized]) || 0) + 1;
+}
+
+function buildQueuedNotificationAdminSnapshot() {
+  const queueFileExists = fs.existsSync(REALTIME_NOTIFICATION_FILE);
+  try {
+    const rawStore = readNotificationStore();
+    const rawCount = Array.isArray(rawStore.notifications) ? rawStore.notifications.length : 0;
+    const store = pruneNotificationStore(rawStore);
+    const queuedByUser = new Map();
+    const queuedTypeCounts = {};
+    for (const notification of store.notifications) {
+      incrementRecordCount(queuedTypeCounts, notification.type);
+      const current = queuedByUser.get(notification.username) || {
+        username: notification.username,
+        pending_count: 0,
+        latest_created_at: 0,
+        latest_type: '',
+        type_counts: {},
+      };
+      current.pending_count += 1;
+      incrementRecordCount(current.type_counts, notification.type);
+      if (notification.created_at >= current.latest_created_at) {
+        current.latest_created_at = notification.created_at;
+        current.latest_type = notification.type;
+      }
+      queuedByUser.set(notification.username, current);
+    }
+    return {
+      queue_status: queueFileExists ? 'ok' : 'missing',
+      queue_file_exists: queueFileExists,
+      queued_notification_count: store.notifications.length,
+      queued_by_user: [...queuedByUser.values()]
+        .sort((left, right) => right.pending_count - left.pending_count || right.latest_created_at - left.latest_created_at),
+      queued_type_counts: queuedTypeCounts,
+      pruned_notification_count: Math.max(0, rawCount - store.notifications.length),
+    };
+  } catch (error) {
+    return {
+      queue_status: 'error',
+      queue_file_exists: queueFileExists,
+      queue_error_code: error?.code || 'UNKNOWN',
+      queued_notification_count: 0,
+      queued_by_user: [],
+      queued_type_counts: {},
+      pruned_notification_count: 0,
+    };
+  }
+}
+
 function listUserConnections(username) {
   const target = normalizeUsername(username);
   return [...activeConnections.values()]
@@ -454,6 +517,7 @@ function parseFrame(buffer) {
 }
 
 function handleClientFrame(connection, frame) {
+  connection.lastSeenAt = Date.now();
   if (frame.opcode === 8) {
     closeConnection(connection);
     return;
@@ -558,6 +622,7 @@ function attachRealtimeServer(server, options = {}) {
         saveId: auth.saveId,
         saveSlot: auth.saveSlot,
         connectedAt: Date.now(),
+        lastSeenAt: Date.now(),
         frameBuffer: Buffer.alloc(0),
         closed: false,
       };
@@ -615,9 +680,39 @@ function getRealtimeState() {
   };
 }
 
+function getRealtimeAdminState() {
+  const now = Date.now();
+  const connections = [...activeConnections.values()]
+    .filter(connection => !connection.closed)
+    .map(connection => buildAdminConnectionPayload(connection, now))
+    .sort((left, right) => right.connected_at - left.connected_at);
+  const onlineUsers = new Set(connections.map(connection => connection.username).filter(Boolean));
+  const onlineSaves = new Set(connections.map(connection => `${connection.username}:${connection.save_id || 'account'}`));
+  const queue = buildQueuedNotificationAdminSnapshot();
+  return {
+    generated_at: now,
+    connection_count: connections.length,
+    online_user_count: onlineUsers.size,
+    online_save_count: onlineSaves.size,
+    connections,
+    queued_notification_count: queue.queued_notification_count,
+    queued_by_user: queue.queued_by_user,
+    queued_type_counts: queue.queued_type_counts,
+    queue_status: queue.queue_status,
+    queue_file_exists: queue.queue_file_exists,
+    queue_error_code: queue.queue_error_code,
+    pruned_notification_count: queue.pruned_notification_count,
+    queue_limits: {
+      max_queued_events_per_user: MAX_QUEUED_EVENTS_PER_USER,
+      max_queued_event_age_ms: MAX_QUEUED_EVENT_AGE_MS,
+    },
+  };
+}
+
 module.exports = {
   attachRealtimeServer,
   emitUserEvent,
   emitUsersEvent,
+  getRealtimeAdminState,
   getRealtimeState,
 };

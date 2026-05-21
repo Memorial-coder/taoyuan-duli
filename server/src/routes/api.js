@@ -1685,6 +1685,14 @@ router.get('/admin/taoyuan/overview', userAdminAuth, async (req, res) => {
   }
 });
 
+router.get('/admin/taoyuan/realtime', userAdminAuth, (req, res) => {
+  try {
+    res.json({ ok: true, realtime: taoyuanRealtimeRuntime.getRealtimeAdminState() });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取实时状态概览失败' });
+  }
+});
+
 router.get('/admin/taoyuan/players', userAdminAuth, async (req, res) => {
   try {
     const page = parsePositiveInt(req.query.page, 1);

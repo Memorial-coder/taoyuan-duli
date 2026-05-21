@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 实时状态管理端观测（A1）
+- 后台现在可通过 `/api/admin/taoyuan/realtime` 读取实时状态安全摘要，包含 WebSocket 连接数、在线账号 / 存档数、连接身份、连接时长与最近客户端活动时间。
+- 离线实时通知队列增加只读观测字段：待补发总数、按玩家聚合的 pending 数、最近入队时间、事件类型分布、队列状态和队列上限；接口不会返回通知正文 payload，也不会触发 ACK、补发或结算。
+- `qa:online-smoke` 已补管理端 realtime 读路径断言；本轮已通过 `node --check server/src/taoyuanRealtimeRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`git diff --check` 与 `npm --prefix server run qa:online-smoke`。
+
 ### 0520 节会回合事件迁移（C4-C5）
 - `FestivalView.vue` 现在能展示节会房间的当前事件、场面压力、队伍资源、我的职责、队伍分工、最近反馈和回合日志；动作卡同步展示职责提示、每回合约束、压力 / 资源变化和回合效果。
 - `useFestivalRoomStore.ts` 与 `festivalRoomApi.ts` 已补齐 `festival_state` 类型和消费入口，前端直接承接服务端下发的节会回合快照，不在页面里推导结算状态。

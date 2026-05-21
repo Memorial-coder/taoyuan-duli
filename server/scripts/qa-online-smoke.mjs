@@ -4738,6 +4738,29 @@ try {
     assert(data.overview.societies.some(entry => entry?.id === createdSocietyId), 'admin overview did not surface the created society')
   })
 
+  await runCheck('GET /api/admin/taoyuan/realtime governance read path', async () => {
+    const { response, data } = await fetchAdminJson('/api/admin/taoyuan/realtime')
+    assert(response.ok, `admin realtime returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    const realtime = data?.realtime
+    assert(data?.ok === true && realtime, 'admin realtime payload is incomplete')
+    assert(Number.isFinite(Number(realtime.connection_count)), 'admin realtime did not expose connection count')
+    assert(Number.isFinite(Number(realtime.online_user_count)), 'admin realtime did not expose online user count')
+    assert(Number.isFinite(Number(realtime.online_save_count)), 'admin realtime did not expose online save count')
+    assert(Array.isArray(realtime.connections), 'admin realtime did not expose connections')
+    assert(Number.isFinite(Number(realtime.queued_notification_count)), 'admin realtime did not expose queued notification count')
+    assert(Array.isArray(realtime.queued_by_user), 'admin realtime did not expose queued notification summary')
+    assert(realtime.queued_type_counts && typeof realtime.queued_type_counts === 'object' && !Array.isArray(realtime.queued_type_counts), 'admin realtime did not expose queued type counts')
+    assert(['ok', 'missing', 'error'].includes(realtime.queue_status), 'admin realtime queue status is invalid')
+    assert(Number(realtime.queue_limits?.max_queued_events_per_user) >= 1, 'admin realtime did not expose queue limits')
+    for (const entry of realtime.queued_by_user) {
+      assert(typeof entry?.username === 'string' && entry.username, 'admin realtime queued user summary is missing username')
+      assert(Number(entry?.pending_count) >= 1, 'admin realtime queued user summary is missing pending count')
+      assert(Number(entry?.latest_created_at) >= 0, 'admin realtime queued user summary is missing latest time')
+      assert(entry?.type_counts && typeof entry.type_counts === 'object' && !Array.isArray(entry.type_counts), 'admin realtime queued user summary is missing type counts')
+      assert(entry.payload === undefined, 'admin realtime queued user summary leaked notification payload')
+    }
+  })
+
   await runCheck('GET /api/admin/taoyuan/players governance read path', async () => {
     const { response, data } = await fetchAdminJson('/api/admin/taoyuan/players?page=1&page_size=20&status=banned')
     assert(response.ok, `admin players returned ${response.status}: ${data?.msg || 'unknown error'}`)
