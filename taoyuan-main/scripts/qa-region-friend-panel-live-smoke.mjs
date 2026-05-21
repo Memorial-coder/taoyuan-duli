@@ -30,6 +30,7 @@ const pageErrors = []
 const requestFailures = []
 const realtimeFrames = []
 let realtimeSocketCount = 0
+let realtimeSocketClosedCount = 0
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message)
@@ -361,6 +362,41 @@ const setSessionCookie = async (context, session) => {
   }])
 }
 
+const installRealtimeSocketTracker = async context => {
+  await context.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket
+    const realtimeSockets = []
+
+    function TrackedWebSocket(url, protocols) {
+      const socket = protocols === undefined
+        ? new NativeWebSocket(url)
+        : new NativeWebSocket(url, protocols)
+      if (String(url).includes('/api/taoyuan/online/realtime')) {
+        realtimeSockets.push(socket)
+      }
+      return socket
+    }
+
+    TrackedWebSocket.prototype = NativeWebSocket.prototype
+    Object.setPrototypeOf(TrackedWebSocket, NativeWebSocket)
+    window.WebSocket = TrackedWebSocket
+    window.__TAOYUAN_REALTIME_TEST__ = {
+      closeLatest() {
+        const socket = realtimeSockets
+          .slice()
+          .reverse()
+          .find(entry => entry && entry.readyState <= NativeWebSocket.OPEN)
+        if (!socket) return false
+        socket.close(4000, 'qa reconnect smoke')
+        return true
+      },
+      count() {
+        return realtimeSockets.length
+      },
+    }
+  })
+}
+
 const openSamplePage = async page => {
   await page.goto(frontendBaseURL)
   await expect(page.getByRole('heading', { name: '桃源乡' })).toBeVisible()
@@ -437,6 +473,7 @@ async function main() {
       locale: 'zh-CN',
       reducedMotion: 'reduce',
     })
+    await installRealtimeSocketTracker(context)
     await forwardApiRequests(context)
     await setSessionCookie(context, owner)
 
@@ -453,6 +490,9 @@ async function main() {
     page.on('websocket', websocket => {
       if (!websocket.url().includes('/api/taoyuan/online/realtime')) return
       realtimeSocketCount += 1
+      websocket.on('close', () => {
+        realtimeSocketClosedCount += 1
+      })
       websocket.on('framereceived', frame => {
         if (typeof frame === 'string') {
           realtimeFrames.push(frame)
@@ -475,6 +515,30 @@ async function main() {
 
     await runCheck('game layout opens realtime websocket', async () => {
       await expect.poll(() => realtimeSocketCount > 0, { timeout: 10000 }).toBeTruthy()
+    })
+
+    await runCheck('websocket reconnect restores browser friend notifications', async () => {
+      const reconnectPushTarget = await bootstrapSession('mfw', '重连推送', 240)
+      const socketCountBeforeClose = realtimeSocketCount
+      const closedCountBeforeClose = realtimeSocketClosedCount
+      const frameCountBeforeClose = realtimeFrames.length
+      const closedTrackedSocket = await page.evaluate(() =>
+        Boolean(window.__TAOYUAN_REALTIME_TEST__?.closeLatest?.())
+      )
+      assert(closedTrackedSocket, 'unable to close tracked realtime websocket')
+
+      await expect.poll(() => realtimeSocketClosedCount > closedCountBeforeClose, { timeout: 5000 }).toBeTruthy()
+      const pushedRequest = await requestFriend(reconnectPushTarget, owner.identity.save_id)
+      await expect.poll(() => realtimeSocketCount > socketCountBeforeClose, { timeout: 10000 }).toBeTruthy()
+      await expect.poll(
+        () => realtimeFrames.slice(frameCountBeforeClose).some(frame => frame.includes('realtime.ready')),
+        { timeout: 10000 },
+      ).toBeTruthy()
+      await expect.poll(
+        () => realtimeFrames.slice(frameCountBeforeClose).some(frame => frame.includes('presence.snapshot')),
+        { timeout: 10000 },
+      ).toBeTruthy()
+      await expect(panel.getByTestId(`region-social-incoming-${pushedRequest.id}`)).toBeVisible({ timeout: 10000 })
     })
 
     await runCheck('activity room websocket event refreshes expedition page', async () => {
@@ -638,6 +702,7 @@ async function main() {
       pageErrors: [...new Set(pageErrors)],
       requestFailures: [...new Set(requestFailures)],
       realtimeSocketCount,
+      realtimeSocketClosedCount,
       realtimeFrames: realtimeFrames.length,
     }, null, 2), 'utf8')
 

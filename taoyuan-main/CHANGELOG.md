@@ -37,6 +37,11 @@
 - `qa:region-friend-panel-live-smoke` 已新增节会房间和村社准备步骤，并在真实后端 + Vite + Chromium 下点击远征 / 节会 / 村社三类好友入口，验证 URL 与邀请输入框预填。
 - 本轮验证已通过 `node --check taoyuan-main/scripts/qa-region-friend-panel-live-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:region-friend-panel-live-smoke` 与 `git diff --check`。
 
+### 0520 浏览器断线重连回归（A5/A7 补齐）
+- `qa:region-friend-panel-live-smoke` 现在会包裹浏览器原生 WebSocket，进入游戏页后主动关闭当前 `/api/taoyuan/online/realtime` 连接，验证前端 realtime store 会自动建立新连接。
+- 重连断言会检查新的 `realtime.ready` 和 `presence.snapshot` 帧，确认在线状态快照能恢复；同时会在断线窗口内发起好友申请，并确认好友驿站在重连后自动显示该申请。
+- 本轮验证已通过 `node --check taoyuan-main/scripts/qa-region-friend-panel-live-smoke.mjs`、`npm --prefix taoyuan-main run qa:region-friend-panel-live-smoke` 与 `git diff --check`。
+
 ### 0520 存档身份底座（A0 服务端部分）
 - 服务端存档读写链路已开始补发并锁定存档级数字身份：旧服务端存档经 `/api/taoyuan/save/slots` 或 `/api/taoyuan/save/:slot` 读取时，会被写入固定 9 位 `onlineIdentity.save_id`，后续保存不能由客户端篡改这个 ID。
 - 服务端已新增按存档数字 ID 搜索玩家的最小接口：`/api/taoyuan/online/social/player-search?save_id=...` 会返回对应槽位的公开名片，不下发背包、钱包等存档内容。

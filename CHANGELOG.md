@@ -21,6 +21,7 @@
 - `0520todo.md / A6` 这一轮继续补齐地图页好友入口嵌入：好友卡片新增节会与村社邀请按钮，会沿用同一套好友 `username / save_id` 目标上下文跳转到对应页面，并带上 `invite=1` 标记。
 - 节会与村社页面现在会读取路由里的 `target_username` 并预填邀请输入框，只替玩家填好目标，不自动提交邀请；庄园、邮箱、远征和协作单的既有好友上下文入口保持不变。
 - `qa:region-friend-panel-live-smoke` 已扩展真实后端浏览器回归：烟测会先为当前账号创建节会房间和村社，再从地图好友卡点击节会 / 村社入口，断言 URL 带目标好友上下文且邀请输入框已预填目标用户名；本轮复核通过 `node --check`、`type-check`、`build`、该浏览器 smoke 与 `git diff --check`。
+- `0520todo.md / A5-A7` 这一轮把浏览器级断线重连回归补上：`qa:region-friend-panel-live-smoke` 会在真实游戏页主动关闭当前 realtime WebSocket，等待前端自动重连后断言新的 `realtime.ready`、`presence.snapshot` 帧，并验证断线窗口内产生的好友申请会刷新到好友驿站。
 
 - `0520todo.md / A0` 这一轮先把服务端存档身份底座落到真实读写链路：`server/src/taoyuanSaveRuntime.js` 新增按账号 + 槽位维护的 `SaveIdentity` 注册表，服务端存档读回与保存时会自动注入 9 位数字 `onlineIdentity.save_id`，并且覆盖客户端篡改的 ID，只允许昵称快照随存档内容更新。
 - 旧服务端存档现在第一次经 `/api/taoyuan/save/slots` 或 `/api/taoyuan/save/:slot` 读回时会自动补发数字 ID 并回写到加密存档；删除服务端槽位时也会清理对应身份记录，避免空槽后续误复用旧身份。
