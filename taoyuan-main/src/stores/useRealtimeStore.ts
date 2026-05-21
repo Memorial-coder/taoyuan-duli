@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { forceRefreshCurrentAccountContext } from '@/utils/accountStorage'
 import { buildApiUrl } from '@/utils/apiClient'
+import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
 import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
 import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
 import { useMailboxStore } from '@/stores/useMailboxStore'
@@ -62,6 +63,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
   let expeditionRoomRefreshTimer: number | null = null
   let mailboxRefreshTimer: number | null = null
   let societyRefreshTimer: number | null = null
+  let coopOrderRefreshTimer: number | null = null
   let manuallyStopped = true
 
   const isConnected = computed(() => status.value === 'connected')
@@ -145,6 +147,16 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
       societyRefreshTimer = null
       void useSocietyStore().refreshOverview({ silent: true }).catch(error => {
         lastError.value = error instanceof Error ? error.message : '实时村社刷新失败'
+      })
+    }, 300)
+  }
+
+  const queueCoopOrderRefresh = () => {
+    if (coopOrderRefreshTimer !== null) return
+    coopOrderRefreshTimer = window.setTimeout(() => {
+      coopOrderRefreshTimer = null
+      void useCoopOrderStore().refreshOverview({ silent: true }).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时求助单刷新失败'
       })
     }, 300)
   }
@@ -245,6 +257,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
       if (category === 'mail') queueMailboxRefresh()
       if (category === 'hall') dispatchHallNotification(envelope.payload)
       if (category === 'society') queueSocietyRefresh()
+      if (category === 'coop_order') queueCoopOrderRefresh()
     }
   }
 
@@ -345,6 +358,10 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     if (societyRefreshTimer !== null) {
       window.clearTimeout(societyRefreshTimer)
       societyRefreshTimer = null
+    }
+    if (coopOrderRefreshTimer !== null) {
+      window.clearTimeout(coopOrderRefreshTimer)
+      coopOrderRefreshTimer = null
     }
     if (socket) {
       const currentSocket = socket

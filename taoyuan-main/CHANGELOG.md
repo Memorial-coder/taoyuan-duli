@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 协作单 realtime 通知补发（A4-A6）
+- `useRealtimeStore` 现在会把 `notification.created` 里的 `category: "coop_order"` 送去静默重读协作单概览，和好友 / 邮箱 / 村社 / 房间事件共用同一套 realtime 退避刷新管道。
+- `useCoopOrderStore` 补了 `refreshOverview({ silent: true })`，实时回读不会再抖动 loading / error，页面只会在权威列表变更后静默同步。
+- `qa:realtime-smoke` 已覆盖在线协作单接单通知，以及离线发布人重连补发 / ACK / 不重复补发；本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
+
 ### 0520 实时状态管理端观测（A1）
 - 后台现在可通过 `/api/admin/taoyuan/realtime` 读取实时状态安全摘要，包含 WebSocket 连接数、在线账号 / 存档数、连接身份、连接时长与最近客户端活动时间。
 - 离线实时通知队列增加只读观测字段：待补发总数、按玩家聚合的 pending 数、最近入队时间、事件类型分布、队列状态和队列上限；接口不会返回通知正文 payload，也不会触发 ACK、补发或结算。

@@ -598,6 +598,155 @@ function emitSocietyNoticeNotificationCreatedEvent(society = {}, actor = {}) {
   }
 }
 
+function buildCoopOrderNotificationOrderSummary(order = {}) {
+  return {
+    id: String(order?.id || ''),
+    title: trimNotificationText(order?.title || '', 80),
+    order_type: order?.order_type || null,
+    collaboration_mode: order?.collaboration_mode || 'single',
+    scope: order?.scope || 'public',
+    status: order?.status || 'open',
+    delivery_status: order?.delivery_status || 'none',
+    owner_username: normalizeUsernameKey(order?.owner_username),
+    owner_display_name: normalizeUsername(order?.owner_display_name || order?.owner_username),
+    assignee_username: normalizeUsernameKey(order?.assignee_username),
+    assignee_display_name: normalizeUsername(order?.assignee_display_name || order?.assignee_username),
+    deadline_at: Number(order?.deadline_at) || null,
+    reward_type: order?.reward_type || null,
+    reward_value: Math.max(0, Number(order?.reward_value) || 0),
+    reward_label: trimNotificationText(order?.reward_label || '', 40),
+    accepted_at: Number(order?.accepted_at) || null,
+    canceled_at: Number(order?.canceled_at) || null,
+    settlement_confirmed_at: Number(order?.settlement_confirmed_at) || null,
+    active_receipt_id: String(order?.active_receipt_id || ''),
+    compensation_id: String(order?.compensation_id || ''),
+    updated_at: Number(order?.updated_at) || null,
+    stage_count: Array.isArray(order?.stages) ? order.stages.length : 0,
+  };
+}
+
+function buildCoopOrderNotificationStageSummary(stage = {}) {
+  return {
+    id: String(stage?.id || ''),
+    title: trimNotificationText(stage?.title || '', 80),
+    sequence: Math.max(0, Number(stage?.sequence) || 0),
+    preferred_order_type: stage?.preferred_order_type || null,
+    target_item_id: stage?.target_item_id || null,
+    target_quantity: Math.max(0, Number(stage?.target_quantity) || 0),
+    reward_value: Math.max(0, Number(stage?.reward_value) || 0),
+    reward_label: trimNotificationText(stage?.reward_label || '', 40),
+    assignee_username: normalizeUsernameKey(stage?.assignee_username),
+    assignee_display_name: normalizeUsername(stage?.assignee_display_name || stage?.assignee_username),
+    accepted_at: Number(stage?.accepted_at) || null,
+    canceled_at: Number(stage?.canceled_at) || null,
+    delivery_status: stage?.delivery_status || 'none',
+    active_receipt_id: String(stage?.active_receipt_id || ''),
+    confirmed_at: Number(stage?.confirmed_at) || null,
+    updated_at: Number(stage?.updated_at) || null,
+  };
+}
+
+function buildCoopOrderNotificationReceiptSummary(receipt = {}) {
+  return {
+    id: String(receipt?.id || ''),
+    order_id: String(receipt?.order_id || ''),
+    stage_id: String(receipt?.stage_id || ''),
+    stage_title: trimNotificationText(receipt?.stage_title || '', 80),
+    owner_username: normalizeUsernameKey(receipt?.owner_username),
+    owner_display_name: normalizeUsername(receipt?.owner_display_name || receipt?.owner_username),
+    assignee_username: normalizeUsernameKey(receipt?.assignee_username),
+    assignee_display_name: normalizeUsername(receipt?.assignee_display_name || receipt?.assignee_username),
+    reward_type: receipt?.reward_type || null,
+    reward_value: Math.max(0, Number(receipt?.reward_value) || 0),
+    reward_label: trimNotificationText(receipt?.reward_label || '', 40),
+    status: receipt?.status || 'pending_owner_confirm',
+    compensation_id: String(receipt?.compensation_id || ''),
+    delivered_total_quantity: Math.max(0, Number(receipt?.delivered_total_quantity) || 0),
+    overfulfilled_quantity: Math.max(0, Number(receipt?.overfulfilled_quantity) || 0),
+    created_at: Number(receipt?.created_at) || null,
+    confirmed_at: Number(receipt?.confirmed_at) || null,
+    updated_at: Number(receipt?.updated_at) || null,
+  };
+}
+
+function buildCoopOrderNotificationCompensationSummary(compensation = {}) {
+  return {
+    id: String(compensation?.id || ''),
+    order_id: String(compensation?.order_id || ''),
+    receipt_id: String(compensation?.receipt_id || ''),
+    stage_id: String(compensation?.stage_id || ''),
+    status: compensation?.status || 'pending',
+    attempt_count: Math.max(0, Number(compensation?.attempt_count) || 0),
+    resolved_at: Number(compensation?.resolved_at) || null,
+    updated_at: Number(compensation?.updated_at) || null,
+  };
+}
+
+function collectCoopOrderNotificationRecipients(result = {}, actor = {}) {
+  const order = result?.order && typeof result.order === 'object' ? result.order : result;
+  const stage = result?.stage && typeof result.stage === 'object' ? result.stage : null;
+  const receipt = result?.receipt && typeof result.receipt === 'object' ? result.receipt : null;
+  const compensation = result?.compensation && typeof result.compensation === 'object' ? result.compensation : null;
+  const recipients = new Set();
+  const addRecipient = username => {
+    const normalized = normalizeUsernameKey(username);
+    if (normalized) recipients.add(normalized);
+  };
+
+  addRecipient(actor?.username);
+  addRecipient(order?.owner_username);
+  addRecipient(order?.assignee_username);
+  addRecipient(stage?.assignee_username);
+  addRecipient(receipt?.owner_username);
+  addRecipient(receipt?.assignee_username);
+  addRecipient(compensation?.owner_username);
+  addRecipient(compensation?.assignee_username);
+  return [...recipients];
+}
+
+function buildCoopOrderNotificationPayload(action, result = {}, actor = {}) {
+  const order = result?.order && typeof result.order === 'object' ? result.order : result;
+  const stage = result?.stage && typeof result.stage === 'object' ? result.stage : null;
+  const receipt = result?.receipt && typeof result.receipt === 'object' ? result.receipt : null;
+  const compensation = result?.compensation && typeof result.compensation === 'object' ? result.compensation : null;
+  return {
+    category: 'coop_order',
+    action,
+    refresh_required: true,
+    actor_username: normalizeUsernameKey(
+      actor.username || order?.owner_username || order?.assignee_username || stage?.assignee_username || receipt?.assignee_username
+    ),
+    actor_display_name: normalizeUsername(
+      actor.displayName ||
+        actor.display_name ||
+        actor.username ||
+        order?.owner_display_name ||
+        order?.assignee_display_name ||
+        stage?.assignee_display_name ||
+        receipt?.assignee_display_name
+    ),
+    order: buildCoopOrderNotificationOrderSummary(order),
+    ...(stage ? { stage: buildCoopOrderNotificationStageSummary(stage) } : {}),
+    ...(receipt ? { receipt: buildCoopOrderNotificationReceiptSummary(receipt) } : {}),
+    ...(compensation ? { compensation: buildCoopOrderNotificationCompensationSummary(compensation) } : {}),
+  };
+}
+
+function emitCoopOrderNotificationCreatedEvent(action, result = {}, actor = {}) {
+  if (result?.duplicate_protected === true) return 0;
+  const recipients = collectCoopOrderNotificationRecipients(result, actor);
+  if (!recipients.length) return 0;
+  try {
+    return taoyuanRealtimeRuntime.emitUsersEvent(
+      recipients,
+      'notification.created',
+      buildCoopOrderNotificationPayload(action, result, actor)
+    );
+  } catch {
+    return 0;
+  }
+}
+
 function emitActivityRoomRealtimeEvent(domain, action, result, actor = {}, extraUsernames = [], extraPayload = {}) {
   const room = result?.room;
   if (!room) return 0;
@@ -1953,10 +2102,9 @@ router.post('/taoyuan/online/orders', createOnlineReleaseGuard('order'), loginRe
 
 router.post('/taoyuan/online/orders/:orderId/accept', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
-    const order = await taoyuanCoopOrderRuntime.acceptCoopOrder(req.params.orderId, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const order = await taoyuanCoopOrderRuntime.acceptCoopOrder(req.params.orderId, actor);
+    emitCoopOrderNotificationCreatedEvent('order_accepted', { order }, actor);
     res.json({ ok: true, order });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '接单失败' });
@@ -1965,10 +2113,9 @@ router.post('/taoyuan/online/orders/:orderId/accept', createOnlineReleaseGuard('
 
 router.post('/taoyuan/online/orders/:orderId/cancel-accept', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
-    const order = await taoyuanCoopOrderRuntime.cancelAcceptedCoopOrder(req.params.orderId, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const order = await taoyuanCoopOrderRuntime.cancelAcceptedCoopOrder(req.params.orderId, actor);
+    emitCoopOrderNotificationCreatedEvent('order_accept_canceled', { order }, actor);
     res.json({ ok: true, order });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '取消接单失败' });
@@ -1977,10 +2124,9 @@ router.post('/taoyuan/online/orders/:orderId/cancel-accept', createOnlineRelease
 
 router.post('/taoyuan/online/orders/:orderId/stages/:stageId/accept', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanCoopOrderRuntime.acceptCoopOrderStage(req.params.orderId, req.params.stageId, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const result = await taoyuanCoopOrderRuntime.acceptCoopOrderStage(req.params.orderId, req.params.stageId, actor);
+    emitCoopOrderNotificationCreatedEvent('stage_accepted', result, actor);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '阶段接单失败' });
@@ -1989,10 +2135,9 @@ router.post('/taoyuan/online/orders/:orderId/stages/:stageId/accept', createOnli
 
 router.post('/taoyuan/online/orders/:orderId/stages/:stageId/cancel-accept', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanCoopOrderRuntime.cancelAcceptedCoopOrderStage(req.params.orderId, req.params.stageId, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const result = await taoyuanCoopOrderRuntime.cancelAcceptedCoopOrderStage(req.params.orderId, req.params.stageId, actor);
+    emitCoopOrderNotificationCreatedEvent('stage_accept_canceled', result, actor);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '取消阶段接单失败' });
@@ -2001,10 +2146,9 @@ router.post('/taoyuan/online/orders/:orderId/stages/:stageId/cancel-accept', cre
 
 router.post('/taoyuan/online/orders/:orderId/deliver', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanCoopOrderRuntime.submitCoopOrderDelivery(req.params.orderId, req.body || {}, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const result = await taoyuanCoopOrderRuntime.submitCoopOrderDelivery(req.params.orderId, req.body || {}, actor);
+    emitCoopOrderNotificationCreatedEvent('order_delivered', result, actor);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '提交交付失败' });
@@ -2013,10 +2157,9 @@ router.post('/taoyuan/online/orders/:orderId/deliver', createOnlineReleaseGuard(
 
 router.post('/taoyuan/online/orders/:orderId/stages/:stageId/deliver', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanCoopOrderRuntime.submitCoopOrderStageDelivery(req.params.orderId, req.params.stageId, req.body || {}, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const result = await taoyuanCoopOrderRuntime.submitCoopOrderStageDelivery(req.params.orderId, req.params.stageId, req.body || {}, actor);
+    emitCoopOrderNotificationCreatedEvent('stage_delivered', result, actor);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '提交阶段交付失败' });
@@ -2025,10 +2168,9 @@ router.post('/taoyuan/online/orders/:orderId/stages/:stageId/deliver', createOnl
 
 router.post('/taoyuan/online/orders/:orderId/confirm-delivery', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanCoopOrderRuntime.confirmCoopOrderDelivery(req.params.orderId, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const result = await taoyuanCoopOrderRuntime.confirmCoopOrderDelivery(req.params.orderId, actor);
+    emitCoopOrderNotificationCreatedEvent('order_delivery_confirmed', result, actor);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '确认交付失败' });
@@ -2037,10 +2179,9 @@ router.post('/taoyuan/online/orders/:orderId/confirm-delivery', createOnlineRele
 
 router.post('/taoyuan/online/orders/:orderId/stages/:stageId/confirm-delivery', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanCoopOrderRuntime.confirmCoopOrderStageDelivery(req.params.orderId, req.params.stageId, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const result = await taoyuanCoopOrderRuntime.confirmCoopOrderStageDelivery(req.params.orderId, req.params.stageId, actor);
+    emitCoopOrderNotificationCreatedEvent('stage_delivery_confirmed', result, actor);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '确认阶段交付失败' });
@@ -2049,10 +2190,9 @@ router.post('/taoyuan/online/orders/:orderId/stages/:stageId/confirm-delivery', 
 
 router.post('/taoyuan/online/orders/compensations/:compensationId/retry', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanCoopOrderRuntime.replayCoopOrderCompensation(req.params.compensationId, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const result = await taoyuanCoopOrderRuntime.replayCoopOrderCompensation(req.params.compensationId, actor);
+    emitCoopOrderNotificationCreatedEvent('compensation_retry', result, actor);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '补偿重试失败' });

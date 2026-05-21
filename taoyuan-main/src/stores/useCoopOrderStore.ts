@@ -90,19 +90,23 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     }
   )
 
-  const refreshOverview = async () => {
-    loading.value = true
-    errorMessage.value = ''
+  const refreshOverview = async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      loading.value = true
+      errorMessage.value = ''
+    }
     try {
       const account = await ensureCurrentAccount()
       currentUsername.value = account && account !== 'guest' ? account : ''
       overview.value = await fetchCoopOrderOverview()
       return overview.value
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '获取求助单列表失败'
+      if (!options.silent) {
+        errorMessage.value = error instanceof Error ? error.message : '获取求助单列表失败'
+      }
       throw error
     } finally {
-      loading.value = false
+      if (!options.silent) loading.value = false
     }
   }
 

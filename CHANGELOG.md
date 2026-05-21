@@ -2,6 +2,10 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / A4-A6` 这一轮把协作单参与态变化接进 realtime 通知底座：接单、取消接单、阶段接单 / 取消、提交交付、确认交付和补偿重试成功后，服务端会向发布人 / 接单人等相关参与者投递 `notification.created`，payload 使用 `category: "coop_order"`、动作名与只读摘要，不携带交付物明细。
+- 前端 `useRealtimeStore` 收到 `coop_order` 后只防抖调用 `useCoopOrderStore().refreshOverview({ silent: true })` 重读 `/api/taoyuan/online/orders` 权威概览，不直接套用 WebSocket payload；`useCoopOrderStore` 补了 silent 刷新模式，避免实时回读抖动 loading / error。
+- `qa:realtime-smoke` 已覆盖在线协作单接单通知，以及离线发布人重连补发 / ACK / 不重复补发；本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
+
 - `0520todo.md / A1` 这一轮补上实时状态的管理端观测闭环：新增 `/api/admin/taoyuan/realtime`，管理端可只读查看当前 WebSocket 连接数、在线账号 / 存档数、连接身份摘要、连接时长和最近客户端活动时间。
 - 离线实时通知队列现在也有管理端安全摘要，返回待补发总数、按玩家聚合的 pending 数、最近入队时间、事件类型分布、队列状态和队列上限；接口不返回通知 payload 正文，也不会触发 ACK、补发或结算。
 - `qa:online-smoke` 已补管理端 realtime 读路径断言，覆盖连接统计、补发队列摘要、类型计数、队列状态和 payload 不泄露边界；本轮验证通过 `node --check server/src/taoyuanRealtimeRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`git diff --check` 与 `npm --prefix server run qa:online-smoke`。
