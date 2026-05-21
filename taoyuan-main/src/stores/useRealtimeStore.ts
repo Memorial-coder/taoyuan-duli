@@ -6,6 +6,7 @@ import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
 import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
 import { useMailboxStore } from '@/stores/useMailboxStore'
 import { useSocialStore } from '@/stores/useSocialStore'
+import { useSocietyStore } from '@/stores/useSocietyStore'
 
 type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed'
 
@@ -60,6 +61,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
   let festivalRoomRefreshTimer: number | null = null
   let expeditionRoomRefreshTimer: number | null = null
   let mailboxRefreshTimer: number | null = null
+  let societyRefreshTimer: number | null = null
   let manuallyStopped = true
 
   const isConnected = computed(() => status.value === 'connected')
@@ -133,6 +135,16 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
       mailboxRefreshTimer = null
       void useMailboxStore().refreshList({ silent: true }).catch(error => {
         lastError.value = error instanceof Error ? error.message : '实时邮箱刷新失败'
+      })
+    }, 300)
+  }
+
+  const queueSocietyRefresh = () => {
+    if (societyRefreshTimer !== null) return
+    societyRefreshTimer = window.setTimeout(() => {
+      societyRefreshTimer = null
+      void useSocietyStore().refreshOverview({ silent: true }).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时村社刷新失败'
       })
     }, 300)
   }
@@ -232,6 +244,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
       const category = typeof envelope.payload?.category === 'string' ? envelope.payload.category : ''
       if (category === 'mail') queueMailboxRefresh()
       if (category === 'hall') dispatchHallNotification(envelope.payload)
+      if (category === 'society') queueSocietyRefresh()
     }
   }
 
@@ -328,6 +341,10 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     if (mailboxRefreshTimer !== null) {
       window.clearTimeout(mailboxRefreshTimer)
       mailboxRefreshTimer = null
+    }
+    if (societyRefreshTimer !== null) {
+      window.clearTimeout(societyRefreshTimer)
+      societyRefreshTimer = null
     }
     if (socket) {
       const currentSocket = socket

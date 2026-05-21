@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 村社公告实时通知补发（A5 村社）
+- 服务端在村社公告写入成功后新增 `notification.created` 投递，payload 使用 `category: "society"`、`action: "notice_updated"`、`refresh_required` 和村社公告摘要，收件人为同村社除操作者外的成员。
+- 前端 realtime store 收到 `society` 通知后会防抖调用 `useSocietyStore().refreshOverview({ silent: true })`，继续只重读 HTTP 权威概览，不直接套用 WebSocket payload。
+- 村社 store 新增 silent refresh，实时回读不会切换 loading 或清空现有错误/页面状态；`qa:realtime-smoke` 已覆盖在线通知、离线补发、ACK 清理和重连不重复。
+
 ### 0520 大厅官方公告实时通知补发（A5 系统公告）
 - 管理员发布大厅官方公告帖后，服务端现在会投递 `notification.created`：payload 使用 `category: "hall"`、`action: "official_announcement"`、`refresh_required` 和帖子摘要，前端复用现有大厅实时监听静默刷新权威帖子列表 / 当前详情。
 - 触发范围覆盖 `is_official` 官方帖，以及 `event_announcement / showcase_wrapup` 官方模板帖；WebSocket 不参与官方权限校验、发帖落库、回复或奖励结算，只负责通知投递和离线补发。

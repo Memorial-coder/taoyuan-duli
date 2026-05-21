@@ -558,6 +558,46 @@ async function emitHallOfficialAnnouncementNotificationCreatedEvent(post = {}, a
   }
 }
 
+function collectSocietyNoticeNotificationRecipients(society = {}, actor = {}) {
+  const actorKey = normalizeUsernameKey(actor.username);
+  return [...new Set(
+    (Array.isArray(society?.members) ? society.members : [])
+      .map(member => normalizeUsernameKey(member?.username))
+      .filter(username => username && username !== actorKey)
+  )];
+}
+
+function buildSocietyNoticeNotificationPayload(society = {}, actor = {}) {
+  return {
+    category: 'society',
+    action: 'notice_updated',
+    refresh_required: true,
+    actor_username: normalizeUsernameKey(actor.username),
+    actor_display_name: normalizeUsername(actor.displayName || actor.display_name || actor.username),
+    society: {
+      id: String(society?.id || ''),
+      name: trimNotificationText(society?.name || '', 60),
+      notice: trimNotificationText(society?.notice || '', 160),
+      updated_at: Number(society?.updated_at) || null,
+    },
+  };
+}
+
+function emitSocietyNoticeNotificationCreatedEvent(society = {}, actor = {}) {
+  if (!society?.id) return 0;
+  const recipients = collectSocietyNoticeNotificationRecipients(society, actor);
+  if (!recipients.length) return 0;
+  try {
+    return taoyuanRealtimeRuntime.emitUsersEvent(
+      recipients,
+      'notification.created',
+      buildSocietyNoticeNotificationPayload(society, actor)
+    );
+  } catch {
+    return 0;
+  }
+}
+
 function emitActivityRoomRealtimeEvent(domain, action, result, actor = {}, extraUsernames = [], extraPayload = {}) {
   const room = result?.room;
   if (!room) return 0;
@@ -2309,10 +2349,9 @@ router.post('/taoyuan/online/societies/members/role', loginRequired, signRequire
 
 router.post('/taoyuan/online/societies/notice', loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanSocietyRuntime.updateSocietyNotice(req.body || {}, {
-      username: req.session.username,
-      displayName: req.session.display_name || req.session.username,
-    });
+    const actor = getSessionActor(req);
+    const result = await taoyuanSocietyRuntime.updateSocietyNotice(req.body || {}, actor);
+    emitSocietyNoticeNotificationCreatedEvent(result?.society, actor);
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '更新村社公告失败' });

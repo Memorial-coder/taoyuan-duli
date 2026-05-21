@@ -2,6 +2,11 @@
 
 最后整理：2026-05-21
 
+- `0520todo.md / A5` 这一轮补齐村社公告实时通知：`POST /api/taoyuan/online/societies/notice` 成功后，服务端会向同村社其他成员投递 `notification.created`，使用 `category: "society"`、`action: "notice_updated"` 和 `refresh_required: true`。
+- 村社通知继续保持 delivery-only：成员、职位权限与公告写入仍由 `taoyuanSocietyRuntime` 和 HTTP 路由权威处理，WebSocket 只做摘要投递与前端静默重读，不参与最终结算。
+- `useRealtimeStore.ts` 新增 `society` 通知分支，收到后静默刷新村社概览；`useSocietyStore` 也补了 `silent` 刷新模式，避免 realtime 回读时抖动页面状态。
+- `qa:realtime-smoke` 新增在线/离线村社公告通知回归，已验证 ACK 清理和重连不重复补发。本轮已通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check` 与 `npm --prefix server run qa:realtime-smoke`。
+
 ## 2026-05-20（开发中）
 
 - `0520todo.md / A5` 这一轮把大厅官方公告帖纳入实时通知补发：管理员发布 `is_official` 帖，或使用 `event_announcement / showcase_wrapup` 官方模板发帖成功后，服务端会向现有账号投递 `notification.created`，使用 `category: "hall"` 与 `action: "official_announcement"`。

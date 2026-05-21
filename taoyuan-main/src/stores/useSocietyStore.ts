@@ -78,19 +78,23 @@ export const useSocietyStore = defineStore('onlineSociety', () => {
     return overview.value
   }
 
-  const refreshOverview = async () => {
-    loading.value = true
-    errorMessage.value = ''
+  const refreshOverview = async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      loading.value = true
+      errorMessage.value = ''
+    }
     try {
       const data = await fetchSocietyOverview()
       hydrateOverview(data)
       return overview.value
     } catch (error) {
-      overview.value = null
-      errorMessage.value = error instanceof Error ? error.message : '获取村社信息失败'
+      if (!options.silent) {
+        overview.value = null
+        errorMessage.value = error instanceof Error ? error.message : '获取村社信息失败'
+      }
       throw error
     } finally {
-      loading.value = false
+      if (!options.silent) loading.value = false
     }
   }
 
