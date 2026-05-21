@@ -514,7 +514,7 @@ async function dispatchCampaignIntoData(data, campaign) {
   campaign.updated_at = now;
   campaign.sent_count = deliveries.length;
   campaign.recipient_count_preview = deliveries.length;
-  return deliveries.length;
+  return deliveries;
 }
 
 async function processPendingCampaignsInternal(data) {
@@ -522,22 +522,38 @@ async function processPendingCampaignsInternal(data) {
     .filter(item => item.status === 'scheduled' && item.scheduled_at && item.scheduled_at <= Math.floor(Date.now() / 1000))
     .sort((a, b) => (a.scheduled_at || 0) - (b.scheduled_at || 0));
 
-  if (!dueCampaigns.length) return false;
-
-  let changed = false;
-  for (const campaign of dueCampaigns) {
-    await dispatchCampaignIntoData(data, campaign);
-    changed = true;
+  if (!dueCampaigns.length) {
+    return {
+      changed: false,
+      campaigns: [],
+      deliveries: [],
+    };
   }
-  return changed;
+
+  const result = {
+    changed: false,
+    campaigns: [],
+    deliveries: [],
+  };
+  for (const campaign of dueCampaigns) {
+    const deliveries = await dispatchCampaignIntoData(data, campaign);
+    result.changed = true;
+    result.campaigns.push(buildCampaignSummary(campaign, data.deliveries));
+    result.deliveries.push(...deliveries.map(delivery => ({
+      ...buildUserMailDetail(delivery),
+      username: delivery.username,
+      recipient_display_name: delivery.recipient_display_name,
+    })));
+  }
+  return result;
 }
 
 async function processPendingCampaigns() {
   return withMailboxLock(async () => {
     const data = loadMailboxData();
-    const changed = await processPendingCampaignsInternal(data);
-    if (changed) saveMailboxData(data);
-    return changed;
+    const result = await processPendingCampaignsInternal(data);
+    if (result.changed) saveMailboxData(data);
+    return result;
   });
 }
 
@@ -1367,10 +1383,12 @@ function applyRewardsToSave(username, delivery) {
   return result;
 }
 
-async function claimUserMail(username, deliveryId) {
+async function claimUserMail(username, deliveryId, options = {}) {
   return withMailboxLock(async () => {
     const data = loadMailboxData();
-    await processPendingCampaignsInternal(data);
+    if (options.skipPendingCampaigns !== true) {
+      await processPendingCampaignsInternal(data);
+    }
 
     const delivery = data.deliveries.find(item => item.id === String(deliveryId) && item.username === String(username) && !item.deleted_at);
     if (!delivery) throw createError('邮件不存在', 404);
@@ -1403,10 +1421,12 @@ async function claimUserMail(username, deliveryId) {
   });
 }
 
-async function claimAllUserMails(username) {
+async function claimAllUserMails(username, options = {}) {
   return withMailboxLock(async () => {
     const data = loadMailboxData();
-    await processPendingCampaignsInternal(data);
+    if (options.skipPendingCampaigns !== true) {
+      await processPendingCampaignsInternal(data);
+    }
     const pending = data.deliveries
       .filter(item => item.username === String(username) && !item.deleted_at && item.rewards.length > 0 && !item.claimed_at)
       .sort((a, b) => (a.sent_at || 0) - (b.sent_at || 0));
@@ -1524,10 +1544,12 @@ function getAdminCampaignDetail(campaignId) {
   };
 }
 
-async function saveAdminCampaign(payload, actor, action) {
+async function saveAdminCampaign(payload, actor, action, options = {}) {
   return withMailboxLock(async () => {
     const data = loadMailboxData();
-    await processPendingCampaignsInternal(data);
+    if (options.skipPendingCampaigns !== true) {
+      await processPendingCampaignsInternal(data);
+    }
 
     const normalizedPayload = normalizeCampaignPayload(payload, action);
     const recipientProfiles = await resolveRecipients(normalizedPayload.recipient_rule);
@@ -1593,7 +1615,7 @@ async function saveAdminCampaign(payload, actor, action) {
   });
 }
 
-async function saveSystemCampaignForUser(payload, actor, username) {
+async function saveSystemCampaignForUser(payload, actor, username, options = {}) {
   const safeUsername = String(username || '').trim();
   if (!safeUsername) {
     throw createError('缺少有效收件人');
@@ -1621,7 +1643,8 @@ async function saveSystemCampaignForUser(payload, actor, username) {
       rewards: []
     },
     actor,
-    'send'
+    'send',
+    options
   );
 }
 

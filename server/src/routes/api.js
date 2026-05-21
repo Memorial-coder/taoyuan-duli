@@ -467,6 +467,25 @@ function emitMailCampaignNotificationCreatedEvents(campaign, action, options = {
   }
 }
 
+function emitPendingMailCampaignNotificationCreatedEvents(result = {}) {
+  const deliveries = Array.isArray(result?.deliveries) ? result.deliveries : [];
+  const seenDeliveryIds = new Set();
+  let emitted = 0;
+  for (const delivery of deliveries) {
+    const deliveryId = String(delivery?.id || '');
+    if (!deliveryId || seenDeliveryIds.has(deliveryId)) continue;
+    seenDeliveryIds.add(deliveryId);
+    emitted += emitMailNotificationCreatedEvent(delivery?.username, 'scheduled_campaign', delivery);
+  }
+  return emitted;
+}
+
+async function processPendingMailCampaignsAndEmitNotifications() {
+  const result = await taoyuanMailbox.processPendingCampaigns();
+  emitPendingMailCampaignNotificationCreatedEvents(result);
+  return result;
+}
+
 function emitHallReplyNotificationCreatedEvent(post = {}, reply = {}, actor = {}) {
   if (!post?.id || !reply?.id) return 0;
   const recipients = collectHallReplyNotificationRecipients(post, reply, actor);
@@ -3772,7 +3791,7 @@ router.post('/admin/taoyuan/ai/knowledge/:id/publish', adminAuth, (req, res) => 
 
 router.get('/taoyuan/mail/list', loginRequired, async (req, res) => {
   try {
-    await taoyuanMailbox.processPendingCampaigns();
+    await processPendingMailCampaignsAndEmitNotifications();
     res.json({ ok: true, ...taoyuanMailbox.listUserMails(req.session.username) });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取邮箱列表失败' });
@@ -3789,7 +3808,7 @@ router.get('/taoyuan/mail/sent', loginRequired, async (req, res) => {
 
 router.get('/taoyuan/mail/inbox-status', loginRequired, async (req, res) => {
   try {
-    await taoyuanMailbox.processPendingCampaigns();
+    await processPendingMailCampaignsAndEmitNotifications();
     const list = taoyuanMailbox.listUserMails(req.session.username);
     const pinned = list.mails.filter(item => item.is_pinned);
     const unread = list.mails.filter(item => item.unread);
@@ -3817,7 +3836,7 @@ router.get('/taoyuan/mail/player-letter-presets', loginRequired, async (req, res
 
 router.get('/taoyuan/mail/receipts', loginRequired, async (req, res) => {
   try {
-    await taoyuanMailbox.processPendingCampaigns();
+    await processPendingMailCampaignsAndEmitNotifications();
     const limit = Number(req.query.limit) || 20;
     res.json({ ok: true, ...taoyuanMailbox.listUserMailReceipts(req.session.username, limit) });
   } catch (error) {
@@ -3840,7 +3859,7 @@ router.get('/taoyuan/mail/memorial', loginRequired, async (req, res) => {
 
 router.get('/taoyuan/mail/:id', loginRequired, async (req, res) => {
   try {
-    await taoyuanMailbox.processPendingCampaigns();
+    await processPendingMailCampaignsAndEmitNotifications();
     const mail = taoyuanMailbox.getUserMail(req.session.username, req.params.id);
     if (!mail) return res.status(404).json({ ok: false, msg: '邮件不存在' });
     res.json({ ok: true, mail });
@@ -3887,7 +3906,8 @@ router.post('/taoyuan/mail/:id/memorial', loginRequired, signRequired, async (re
 
 router.post('/taoyuan/mail/:id/claim', loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanMailbox.claimUserMail(req.session.username, req.params.id);
+    await processPendingMailCampaignsAndEmitNotifications();
+    const result = await taoyuanMailbox.claimUserMail(req.session.username, req.params.id, { skipPendingCampaigns: true });
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '领取邮件奖励失败' });
@@ -3896,7 +3916,8 @@ router.post('/taoyuan/mail/:id/claim', loginRequired, signRequired, async (req, 
 
 router.post('/taoyuan/mail/claim-all', loginRequired, signRequired, async (req, res) => {
   try {
-    const result = await taoyuanMailbox.claimAllUserMails(req.session.username);
+    await processPendingMailCampaignsAndEmitNotifications();
+    const result = await taoyuanMailbox.claimAllUserMails(req.session.username, { skipPendingCampaigns: true });
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '一键领取失败' });
@@ -3940,6 +3961,7 @@ router.post('/taoyuan/mail/player-gift-package', loginRequired, signRequired, as
 
 router.post('/taoyuan/mail/system-campaign', loginRequired, signRequired, async (req, res) => {
   try {
+    await processPendingMailCampaignsAndEmitNotifications();
     const previousDeliveryIds = collectMailCampaignDeliveryIds(req.body?.id);
     const campaign = await taoyuanMailbox.saveSystemCampaignForUser(
       req.body,
@@ -3948,6 +3970,7 @@ router.post('/taoyuan/mail/system-campaign', loginRequired, signRequired, async 
         displayName: req.session.display_name || req.session.username,
       },
       req.session.username,
+      { skipPendingCampaigns: true },
     );
     emitMailCampaignNotificationCreatedEvents(campaign, 'system_campaign', {
       previousDeliveryIds,
@@ -3961,7 +3984,7 @@ router.post('/taoyuan/mail/system-campaign', loginRequired, signRequired, async 
 
 router.get('/admin/taoyuan/mail/campaigns', adminAuth, async (req, res) => {
   try {
-    await taoyuanMailbox.processPendingCampaigns();
+    await processPendingMailCampaignsAndEmitNotifications();
     res.json({ ok: true, campaigns: taoyuanMailbox.listAdminCampaigns() });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取邮件记录失败' });
@@ -3970,7 +3993,7 @@ router.get('/admin/taoyuan/mail/campaigns', adminAuth, async (req, res) => {
 
 router.get('/admin/taoyuan/mail/campaigns/:id', adminAuth, async (req, res) => {
   try {
-    await taoyuanMailbox.processPendingCampaigns();
+    await processPendingMailCampaignsAndEmitNotifications();
     const detail = taoyuanMailbox.getAdminCampaignDetail(req.params.id);
     if (!detail) return res.status(404).json({ ok: false, msg: '邮件记录不存在' });
     res.json({ ok: true, ...detail });
@@ -3981,6 +4004,7 @@ router.get('/admin/taoyuan/mail/campaigns/:id', adminAuth, async (req, res) => {
 
 router.post('/admin/taoyuan/mail/campaigns', adminAuth, async (req, res) => {
   try {
+    await processPendingMailCampaignsAndEmitNotifications();
     const action = ['draft', 'schedule', 'send'].includes(String(req.body?.action)) ? String(req.body.action) : 'draft';
     const previousDeliveryIds = action === 'send'
       ? collectMailCampaignDeliveryIds(req.body?.id)
@@ -3989,6 +4013,7 @@ router.post('/admin/taoyuan/mail/campaigns', adminAuth, async (req, res) => {
       req.body,
       { username: req.admin?.operator_name || 'admin', displayName: req.admin?.role_label || '管理员' },
       action,
+      { skipPendingCampaigns: true },
     );
     if (action === 'send') {
       emitMailCampaignNotificationCreatedEvents(campaign, 'admin_campaign', { previousDeliveryIds });

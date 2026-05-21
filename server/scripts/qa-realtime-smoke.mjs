@@ -744,6 +744,77 @@ try {
     offlineMailReplayReconnectSocket = null
   })
 
+  await runCheck('offline scheduled campaign mail notification event is replayed and acknowledged after reconnect', async () => {
+    const offlineTarget = await bootstrapSession('smkrt_g')
+    const mailTitle = `定时后台邮件 ${createSmokeSeed()}`
+    const scheduledAt = Math.floor(Date.now() / 1000) + 3
+    const scheduleResult = await fetchAdminJson('/api/admin/taoyuan/mail/campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'schedule',
+        title: mailTitle,
+        content: '这是一封定时补发烟测后台邮件。',
+        template_type: 'activity_notice',
+        scheduled_at: scheduledAt,
+        recipient_rule: {
+          mode: 'single',
+          username: offlineTarget.username,
+        },
+      }),
+    })
+    assert(scheduleResult.response.ok, `scheduled campaign mail returned ${scheduleResult.response.status}: ${scheduleResult.data?.msg || 'unknown error'}`)
+    const campaignId = String(scheduleResult.data?.campaign?.id || '')
+    assert(campaignId, 'scheduled campaign id missing')
+    assert(scheduleResult.data?.campaign?.status === 'scheduled', 'scheduled campaign should stay scheduled before due time')
+    assert(Number(scheduleResult.data?.campaign?.delivery_count) === 0, 'scheduled campaign should not deliver immediately')
+
+    await wait(3600)
+    const triggerResult = await fetchAdminJson('/api/admin/taoyuan/mail/campaigns')
+    assert(triggerResult.response.ok, `scheduled campaign trigger returned ${triggerResult.response.status}: ${triggerResult.data?.msg || 'unknown error'}`)
+    const sentCampaign = (triggerResult.data?.campaigns || []).find(item => item.id === campaignId)
+    assert(sentCampaign?.status === 'sent', 'scheduled campaign should be sent after due trigger')
+    assert(Number(sentCampaign?.delivery_count) === 1, 'scheduled campaign should create one delivery after due trigger')
+
+    offlineMailReplaySocket = await openRealtimeSocket(offlineTarget)
+    const ready = await expectMessage(offlineMailReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) >= 1
+    )
+    assert(Number(ready.payload?.pending_notification_count) >= 1, 'offline scheduled campaign mail replay ready did not report pending notifications')
+    const queuedMessage = await expectMessage(offlineMailReplaySocket, 'notification.created', payload =>
+      payload.category === 'mail'
+        && payload.action === 'scheduled_campaign'
+        && payload.mail?.title === mailTitle
+    )
+    const queuedEventId = String(queuedMessage.queued_event_id || '')
+    assert(queuedEventId, 'replayed scheduled campaign mail notification missing queued_event_id')
+    assert(queuedMessage.replayed === true, 'replayed scheduled campaign mail notification missing replayed marker')
+
+    const ackOffset = offlineMailReplaySocket.messages.length
+    offlineMailReplaySocket.send('notification.ack', { id: queuedEventId })
+    await expectMessageAfter(offlineMailReplaySocket, ackOffset, 'notification.ack', payload =>
+      Array.isArray(payload.acked_ids)
+        && payload.acked_ids.includes(queuedEventId)
+        && Number(payload.pending_count) === 0
+    )
+
+    offlineMailReplaySocket.close()
+    offlineMailReplaySocket = null
+    await wait(200)
+
+    offlineMailReplayReconnectSocket = await openRealtimeSocket(offlineTarget)
+    await expectMessage(offlineMailReplayReconnectSocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) === 0
+    )
+    await expectNoMessageAfter(offlineMailReplayReconnectSocket, 0, 'notification.created', payload =>
+      payload.category === 'mail'
+        && payload.action === 'scheduled_campaign'
+        && payload.mail?.title === mailTitle
+    )
+    offlineMailReplayReconnectSocket.close()
+    offlineMailReplayReconnectSocket = null
+  })
+
   await runCheck('offline hall reply notification event is replayed and acknowledged after reconnect', async () => {
     const offlineTarget = await bootstrapSession('smkrt_e')
     const postTitle = `offline hall reply ${createSmokeSeed()}`

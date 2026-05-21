@@ -4,9 +4,13 @@
 
 ## 2026-05-20（开发中）
 
+- `0520todo.md / A5` 这一轮把定时 campaign 到期发送也纳入邮箱实时通知：`processPendingCampaigns()` 现在会返回本次新增 delivery 摘要，邮箱列表 / 详情 / 领取 / 后台邮件列表等触发到期处理的路由会投递 `notification.created`，使用 `category: "mail"` 与 `action: "scheduled_campaign"`。
+- 这条链路仍保持 delivery-only：定时 campaign 的收件人解析、落库、状态切换和奖励领取逻辑继续由 `taoyuanMailbox` 权威处理，WebSocket 只在保存后投递新增邮件摘要；路由层先统一处理 pending campaign，再让领取 / 后台保存逻辑跳过内部重复处理，避免“内部触发但没通知”的分叉。
+- `qa:realtime-smoke` 新增离线定时后台邮件补发回归：创建未来 3 秒的定时 campaign，到期后由后台列表触发发送，验证收件人离线时会补发 `scheduled_campaign`、ACK 后清理且重连不重复。
+- 本轮验证已通过 `node --check server/src/taoyuanMailbox.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs` 与 `npm --prefix server run qa:realtime-smoke`。
 - `0520todo.md / A5` 这一轮继续补齐邮箱通知面：自助系统邮件 `POST /api/taoyuan/mail/system-campaign` 与后台即时发送 `POST /api/admin/taoyuan/mail/campaigns?action=send` 在邮件投递落库成功后，会按实际新增的 delivery 向收件人投递 `notification.created`，分别使用 `action: "system_campaign"` 与 `action: "admin_campaign"`。
 - 系统 / 后台邮件通知继续复用邮箱 `category: "mail"` 与 `refresh_required` 摘要 payload，前端无需新增分支，仍只触发邮箱权威接口静默刷新；路由层会先记录保存前已有 delivery id，再只对本次新增邮件投递通知，避免自助系统邮件同 id 幂等返回时重复推送。
-- `qa:realtime-smoke` 新增在线系统邮件通知、在线后台即时邮件通知，以及离线后台即时邮件补发 / ACK / 不重复补发断言；本轮仍未改定时 campaign 调度契约，定时发送到期后的实时通知留给后续处理。
+- `qa:realtime-smoke` 新增在线系统邮件通知、在线后台即时邮件通知，以及离线后台即时邮件补发 / ACK / 不重复补发断言；定时 campaign 到期发送的实时通知已在后续轮次补齐。
 - 本轮验证已通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs` 与 `npm --prefix server run qa:realtime-smoke`。
 - `0520todo.md / A5` 这一轮把大厅回复纳入 `notification.created`：`POST /api/taoyuan/hall/posts/:id/replies` 在 HTTP 权威写入成功后，会向帖子作者和被引用回复作者投递 `category: "hall" / action: "post_reply"`，排除操作者并去重；payload 只带帖子和回复摘要，不让 WebSocket 参与回复写入或奖励结算。
 - 大厅回复通知继续复用服务端离线补发队列；目标玩家离线时会随 `queued_event_id / replayed / queued_at` 补发，前端收到后 ACK 清理。`HallView.vue` 现在会在顶层 `/hall` 路由自行启动 realtime store，收到大厅通知后只静默重读帖子列表和当前详情。

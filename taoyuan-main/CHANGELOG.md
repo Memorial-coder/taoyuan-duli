@@ -4,10 +4,15 @@
 
 ## [未发布]
 
+### 0520 定时邮件实时通知补发（A5 邮箱扩展）
+- 定时 campaign 到期发送现在也会进入邮箱实时通知链：后台或玩家邮箱接口触发到期处理后，服务端会按本次新增 delivery 投递 `notification.created`，payload 继续使用 `category: "mail"` 与邮件摘要。
+- 定时邮件通知使用 `action: "scheduled_campaign"`；WebSocket 只提示前端静默刷新邮箱权威接口，不参与收件人解析、邮件落库、奖励领取或跨玩家结算。
+- `qa:realtime-smoke` 新增离线定时后台邮件回归，覆盖到期触发、补发帧、ACK 清理和重连不重复补发。
+
 ### 0520 系统 / 后台邮件实时通知补发（A5 邮箱扩展）
 - 服务端已把自助系统邮件和后台即时发送邮件接入 `notification.created`：邮件落库成功后，会向实际新增的收件 delivery 投递 `category: "mail"`、`refresh_required` 与邮件摘要，前端继续复用邮箱静默刷新，不直接应用 WebSocket payload。
 - 自助系统邮件使用 `action: "system_campaign"`，后台即时邮件使用 `action: "admin_campaign"`；同一个系统邮件 id 幂等返回时不会重复推送旧 delivery。
-- `qa:realtime-smoke` 新增在线系统邮件、在线后台即时邮件，以及离线后台即时邮件补发 / ACK / 重连不重复补发断言。定时 campaign 到期发送的通知仍留给后续调度契约改造。
+- `qa:realtime-smoke` 新增在线系统邮件、在线后台即时邮件，以及离线后台即时邮件补发 / ACK / 重连不重复补发断言；定时 campaign 到期发送的通知已在后续轮次补齐。
 
 ### 0520 大厅回复实时通知补发（A5 大厅）
 - 服务端在大厅回复写入成功后投递 `notification.created`，通知帖子作者和被引用回复作者；payload 使用 `category: "hall"`、`action: "post_reply"`、`refresh_required` 与帖子 / 回复摘要，不把回复写入、悬赏或其他结算交给 WebSocket。
