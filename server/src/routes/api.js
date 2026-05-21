@@ -50,6 +50,7 @@ const ONLINE_ACTION_RATE_LIMIT_WINDOW_MS = 60 * 1000;
 const publicAiAskBuckets = new Map();
 const onlineActionRateLimitBuckets = new Map();
 const OFFICIAL_CONTROL_SECOND_AUTH_SESSION_KEY = 'official_control_verified';
+const HALL_ANNOUNCEMENT_TEMPLATE_TYPES = new Set(['event_announcement', 'showcase_wrapup']);
 const ONLINE_RATE_LIMIT_RULES = Object.freeze([
   {
     matcher: /^\/api\/taoyuan\/online\/festival\/rooms\/[^/]+\/action$/i,
@@ -412,6 +413,47 @@ function buildHallReplyNotificationPayload(action, post = {}, reply = {}, actor 
   };
 }
 
+function isHallOfficialAnnouncementPost(post = {}) {
+  const templateType = String(post?.official_template_type || '').trim();
+  return post?.is_official === true || HALL_ANNOUNCEMENT_TEMPLATE_TYPES.has(templateType);
+}
+
+async function collectHallOfficialAnnouncementNotificationRecipients() {
+  try {
+    const users = await db.listUsers();
+    return [...new Set(
+      (Array.isArray(users) ? users : [])
+        .map(user => normalizeUsernameKey(user?.username))
+        .filter(Boolean)
+    )];
+  } catch {
+    return [];
+  }
+}
+
+function buildHallOfficialAnnouncementNotificationPayload(post = {}, actor = {}) {
+  return {
+    category: 'hall',
+    action: 'official_announcement',
+    refresh_required: true,
+    actor_username: normalizeUsernameKey(actor.username || post?.author),
+    actor_display_name: normalizeUsername(actor.displayName || actor.display_name || post?.author_display_name || post?.author),
+    post: {
+      id: String(post?.id || ''),
+      title: trimNotificationText(post?.title || '', 80),
+      type: post?.type || 'discussion',
+      is_official: post?.is_official === true,
+      official_template_type: post?.official_template_type || null,
+      activity_source_id: post?.activity_source_id || null,
+      activity_source_label: post?.activity_source_label || null,
+      author_username: normalizeUsernameKey(post?.author),
+      author_display_name: normalizeUsername(post?.author_display_name || post?.author),
+      created_at: Number(post?.created_at) || null,
+      last_activity_at: Number(post?.last_activity_at || post?.updated_at || post?.created_at) || null,
+    },
+  };
+}
+
 function emitMailNotificationCreatedEvent(targetUsername, action, mail = {}) {
   const recipient = normalizeUsernameKey(targetUsername);
   if (!recipient) return 0;
@@ -495,6 +537,21 @@ function emitHallReplyNotificationCreatedEvent(post = {}, reply = {}, actor = {}
       recipients,
       'notification.created',
       buildHallReplyNotificationPayload('post_reply', post, reply, actor)
+    );
+  } catch {
+    return 0;
+  }
+}
+
+async function emitHallOfficialAnnouncementNotificationCreatedEvent(post = {}, actor = {}) {
+  if (!post?.id || !isHallOfficialAnnouncementPost(post)) return 0;
+  const recipients = await collectHallOfficialAnnouncementNotificationRecipients();
+  if (!recipients.length) return 0;
+  try {
+    return taoyuanRealtimeRuntime.emitUsersEvent(
+      recipients,
+      'notification.created',
+      buildHallOfficialAnnouncementNotificationPayload(post, actor)
     );
   } catch {
     return 0;
@@ -4107,6 +4164,7 @@ router.post('/taoyuan/hall/posts', loginRequired, signRequired, async (req, res)
       author: req.session.username,
       authorDisplayName: req.session.display_name || req.session.username,
     });
+    await emitHallOfficialAnnouncementNotificationCreatedEvent(post, getSessionActor(req));
     res.json({ ok: true, post });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '发帖失败' });

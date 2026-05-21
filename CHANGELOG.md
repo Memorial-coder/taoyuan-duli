@@ -4,6 +4,10 @@
 
 ## 2026-05-20（开发中）
 
+- `0520todo.md / A5` 这一轮把大厅官方公告帖纳入实时通知补发：管理员发布 `is_official` 帖，或使用 `event_announcement / showcase_wrapup` 官方模板发帖成功后，服务端会向现有账号投递 `notification.created`，使用 `category: "hall"` 与 `action: "official_announcement"`。
+- 大厅官方公告通知继续保持 delivery-only：发帖、官方权限校验、帖子落库和后续展示仍由 `taoyuanHall` 与 HTTP 路由权威处理，WebSocket 只投递帖子摘要、`refresh_required` 和大厅分类，前端复用现有大厅实时监听静默重读帖子列表 / 当前详情。
+- `qa:realtime-smoke` 新增在线大厅官方公告通知，以及离线大厅官方公告补发 / ACK / 重连不重复补发断言。
+- 本轮验证已通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix server run qa:realtime-smoke` 与 `npm --prefix server run qa:online-smoke`。
 - `0520todo.md / A5` 这一轮把定时 campaign 到期发送也纳入邮箱实时通知：`processPendingCampaigns()` 现在会返回本次新增 delivery 摘要，邮箱列表 / 详情 / 领取 / 后台邮件列表等触发到期处理的路由会投递 `notification.created`，使用 `category: "mail"` 与 `action: "scheduled_campaign"`。
 - 这条链路仍保持 delivery-only：定时 campaign 的收件人解析、落库、状态切换和奖励领取逻辑继续由 `taoyuanMailbox` 权威处理，WebSocket 只在保存后投递新增邮件摘要；路由层先统一处理 pending campaign，再让领取 / 后台保存逻辑跳过内部重复处理，避免“内部触发但没通知”的分叉。
 - `qa:realtime-smoke` 新增离线定时后台邮件补发回归：创建未来 3 秒的定时 campaign，到期后由后台列表触发发送，验证收件人离线时会补发 `scheduled_campaign`、ACK 后清理且重连不重复。

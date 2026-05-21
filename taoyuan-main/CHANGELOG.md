@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0520 大厅官方公告实时通知补发（A5 系统公告）
+- 管理员发布大厅官方公告帖后，服务端现在会投递 `notification.created`：payload 使用 `category: "hall"`、`action: "official_announcement"`、`refresh_required` 和帖子摘要，前端复用现有大厅实时监听静默刷新权威帖子列表 / 当前详情。
+- 触发范围覆盖 `is_official` 官方帖，以及 `event_announcement / showcase_wrapup` 官方模板帖；WebSocket 不参与官方权限校验、发帖落库、回复或奖励结算，只负责通知投递和离线补发。
+- `qa:realtime-smoke` 新增在线大厅官方公告通知、离线大厅官方公告补发、ACK 清理和重连不重复补发断言。
+- 本轮已通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix server run qa:realtime-smoke` 与 `npm --prefix server run qa:online-smoke`。
+
 ### 0520 定时邮件实时通知补发（A5 邮箱扩展）
 - 定时 campaign 到期发送现在也会进入邮箱实时通知链：后台或玩家邮箱接口触发到期处理后，服务端会按本次新增 delivery 投递 `notification.created`，payload 继续使用 `category: "mail"` 与邮件摘要。
 - 定时邮件通知使用 `action: "scheduled_campaign"`；WebSocket 只提示前端静默刷新邮箱权威接口，不参与收件人解析、邮件落库、奖励领取或跨玩家结算。

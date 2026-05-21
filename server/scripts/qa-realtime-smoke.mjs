@@ -584,6 +584,38 @@ try {
     )
   })
 
+  await runCheck('hall official announcement notification event is delivered through websocket', async () => {
+    const postTitle = `官方公告实时 ${createSmokeSeed()}`
+    const offset = friendSocket.messages.length
+    const result = await fetchSessionJson(owner, '/api/taoyuan/hall/posts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': smokeAdminToken,
+      },
+      body: JSON.stringify({
+        title: postTitle,
+        content: 'This official announcement should notify hall readers.',
+        type: 'discussion',
+        is_official: true,
+        official_template_type: 'event_announcement',
+      }),
+    })
+    assert(result.response.ok, `hall official announcement returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    const postId = String(result.data?.post?.id || '')
+    assert(postId, 'hall official announcement post id missing')
+    await expectMessageAfter(friendSocket, offset, 'notification.created', payload =>
+      payload.category === 'hall'
+        && payload.action === 'official_announcement'
+        && payload.refresh_required === true
+        && payload.post?.id === postId
+        && payload.post?.title === postTitle
+        && payload.post?.is_official === true
+        && payload.post?.official_template_type === 'event_announcement'
+        && payload.actor_username === owner.username
+    )
+  })
+
   await runCheck('offline friend request event is replayed and acknowledged after reconnect', async () => {
     const offlineTarget = await bootstrapSession('smkrt_c')
     const result = await fetchSessionJson(owner, '/api/taoyuan/online/social/friend-requests', {
@@ -877,6 +909,69 @@ try {
       payload.category === 'hall'
         && payload.post?.id === postId
         && payload.reply?.id === reply.id
+    )
+    offlineHallReplayReconnectSocket.close()
+    offlineHallReplayReconnectSocket = null
+  })
+
+  await runCheck('offline hall official announcement notification event is replayed and acknowledged after reconnect', async () => {
+    const offlineTarget = await bootstrapSession('smkrt_h')
+    const postTitle = `离线官方公告 ${createSmokeSeed()}`
+    const result = await fetchSessionJson(owner, '/api/taoyuan/hall/posts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Admin-Token': smokeAdminToken,
+      },
+      body: JSON.stringify({
+        title: postTitle,
+        content: 'This queued official announcement should notify the offline hall reader.',
+        type: 'discussion',
+        is_official: true,
+        official_template_type: 'event_announcement',
+      }),
+    })
+    assert(result.response.ok, `offline hall official announcement returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    const postId = String(result.data?.post?.id || '')
+    assert(postId, 'offline hall official announcement post id missing')
+
+    offlineHallReplaySocket = await openRealtimeSocket(offlineTarget)
+    const ready = await expectMessage(offlineHallReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) >= 1
+    )
+    assert(Number(ready.payload?.pending_notification_count) >= 1, 'offline hall announcement replay ready did not report pending notifications')
+    const queuedMessage = await expectMessage(offlineHallReplaySocket, 'notification.created', payload =>
+      payload.category === 'hall'
+        && payload.action === 'official_announcement'
+        && payload.post?.id === postId
+        && payload.post?.title === postTitle
+        && payload.post?.is_official === true
+        && payload.post?.official_template_type === 'event_announcement'
+    )
+    const queuedEventId = String(queuedMessage.queued_event_id || '')
+    assert(queuedEventId, 'replayed hall official announcement notification missing queued_event_id')
+    assert(queuedMessage.replayed === true, 'replayed hall official announcement notification missing replayed marker')
+
+    const ackOffset = offlineHallReplaySocket.messages.length
+    offlineHallReplaySocket.send('notification.ack', { id: queuedEventId })
+    await expectMessageAfter(offlineHallReplaySocket, ackOffset, 'notification.ack', payload =>
+      Array.isArray(payload.acked_ids)
+        && payload.acked_ids.includes(queuedEventId)
+        && Number(payload.pending_count) === 0
+    )
+
+    offlineHallReplaySocket.close()
+    offlineHallReplaySocket = null
+    await wait(200)
+
+    offlineHallReplayReconnectSocket = await openRealtimeSocket(offlineTarget)
+    await expectMessage(offlineHallReplayReconnectSocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) === 0
+    )
+    await expectNoMessageAfter(offlineHallReplayReconnectSocket, 0, 'notification.created', payload =>
+      payload.category === 'hall'
+        && payload.action === 'official_announcement'
+        && payload.post?.id === postId
     )
     offlineHallReplayReconnectSocket.close()
     offlineHallReplayReconnectSocket = null
