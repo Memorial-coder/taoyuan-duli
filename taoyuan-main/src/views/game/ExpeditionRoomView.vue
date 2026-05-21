@@ -160,10 +160,15 @@
       </div>
     </div>
 
-    <div v-if="expeditionRoomStore.invitedRooms.length > 0" class="border border-warning/20 rounded-xs p-3 bg-warning/5">
+    <div v-if="expeditionRoomStore.invitedRooms.length > 0" data-testid="expedition-invited-rooms" class="border border-warning/20 rounded-xs p-3 bg-warning/5">
       <p class="text-sm text-warning mb-2">待处理邀请</p>
       <div class="space-y-2">
-        <div v-for="room in expeditionRoomStore.invitedRooms" :key="room.id" class="border border-warning/15 rounded-xs px-2 py-2 bg-bg/10">
+        <div
+          v-for="room in expeditionRoomStore.invitedRooms"
+          :key="room.id"
+          :data-testid="`expedition-invited-room-${room.id}`"
+          class="border border-warning/15 rounded-xs px-2 py-2 bg-bg/10"
+        >
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
               <p class="text-xs text-text">{{ room.title }}</p>

@@ -19,6 +19,12 @@
 - 房间实时事件 payload 会带 `refresh_required: true`，用于提示客户端刷新节会 / 远征权威接口；WebSocket 仍不负责房间结算、成员权限或奖励落账。
 - 后端 `qa:realtime-smoke` 已覆盖远征房间建房、邀请和加入三段实时推送，并复跑 `qa:online-smoke` 确认现有节会 / 远征完整链路仍可回归通过；前端房间 store 静默消费这些事件留到下一轮。
 
+### 0520 前端房间实时刷新（A4/A5 补齐）
+- `useRealtimeStore.ts` 已消费 `activity.room.invited` 与 `activity.room.updated`：收到房间事件后会按 payload `domain` 防抖刷新节会或远征房间概览，仍然只读取 HTTP 权威接口，不直接套用 WebSocket payload 改结算态。
+- `useFestivalRoomStore.ts` 与 `useExpeditionRoomStore.ts` 新增 silent refresh 选项，实时刷新时不会切换页面 loading，也不会把后台刷新错误覆盖到玩家正在看的表单错误提示。
+- 远征邀请列表补入稳定 `data-testid`，`qa:region-friend-panel-live-smoke` 新增真实后端 + Vite + Chromium 场景：另一个账号创建远征房间并邀请当前浏览器账号后，页面会在收到 `activity.room.invited` 帧后自动显示邀请卡片，无需手动刷新。
+- 本轮验证已通过 `node --check scripts/qa-region-friend-panel-live-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:region-friend-panel-live-smoke` 与 `git diff --check`。
+
 ### 0520 存档身份底座（A0 服务端部分）
 - 服务端存档读写链路已开始补发并锁定存档级数字身份：旧服务端存档经 `/api/taoyuan/save/slots` 或 `/api/taoyuan/save/:slot` 读取时，会被写入固定 9 位 `onlineIdentity.save_id`，后续保存不能由客户端篡改这个 ID。
 - 服务端已新增按存档数字 ID 搜索玩家的最小接口：`/api/taoyuan/online/social/player-search?save_id=...` 会返回对应槽位的公开名片，不下发背包、钱包等存档内容。

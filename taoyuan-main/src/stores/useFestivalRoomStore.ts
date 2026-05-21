@@ -66,19 +66,21 @@ export const useFestivalRoomStore = defineStore('festivalRoom', () => {
     }
   }
 
-  const refreshOverview = async () => {
-    loading.value = true
-    errorMessage.value = ''
+  const refreshOverview = async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      loading.value = true
+      errorMessage.value = ''
+    }
     try {
       const nextOverview = await fetchFestivalRoomOverview()
       hydrateOverview(nextOverview)
       lastLoadedAt.value = Date.now()
       return nextOverview
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '获取节会房间失败'
+      if (!options.silent) errorMessage.value = error instanceof Error ? error.message : '获取节会房间失败'
       throw error
     } finally {
-      loading.value = false
+      if (!options.silent) loading.value = false
     }
   }
 

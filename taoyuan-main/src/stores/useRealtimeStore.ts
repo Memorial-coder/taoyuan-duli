@@ -2,6 +2,8 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import { forceRefreshCurrentAccountContext } from '@/utils/accountStorage'
 import { buildApiUrl } from '@/utils/apiClient'
+import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
+import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
 import { useSocialStore } from '@/stores/useSocialStore'
 
 type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed'
@@ -26,6 +28,10 @@ const FRIEND_EVENT_TYPES = new Set([
   'friend.request.rejected',
   'friend.removed'
 ])
+const ACTIVITY_ROOM_EVENT_TYPES = new Set([
+  'activity.room.invited',
+  'activity.room.updated'
+])
 const RECONNECT_BASE_DELAY_MS = 1500
 const RECONNECT_MAX_DELAY_MS = 30000
 const CLIENT_PING_INTERVAL_MS = 20000
@@ -46,6 +52,8 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
   let reconnectTimer: number | null = null
   let pingTimer: number | null = null
   let relationshipRefreshTimer: number | null = null
+  let festivalRoomRefreshTimer: number | null = null
+  let expeditionRoomRefreshTimer: number | null = null
   let manuallyStopped = true
 
   const isConnected = computed(() => status.value === 'connected')
@@ -91,6 +99,38 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
         lastError.value = error instanceof Error ? error.message : '实时好友关系刷新失败'
       })
     }, 300)
+  }
+
+  const queueFestivalRoomRefresh = () => {
+    if (festivalRoomRefreshTimer !== null) return
+    festivalRoomRefreshTimer = window.setTimeout(() => {
+      festivalRoomRefreshTimer = null
+      void useFestivalRoomStore().refreshOverview({ silent: true }).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时节会房间刷新失败'
+      })
+    }, 300)
+  }
+
+  const queueExpeditionRoomRefresh = () => {
+    if (expeditionRoomRefreshTimer !== null) return
+    expeditionRoomRefreshTimer = window.setTimeout(() => {
+      expeditionRoomRefreshTimer = null
+      void useExpeditionRoomStore().refreshOverview({ silent: true }).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时远征房间刷新失败'
+      })
+    }, 300)
+  }
+
+  const queueActivityRoomRefresh = (payload: Record<string, unknown> | undefined) => {
+    const domain = typeof payload?.domain === 'string' ? payload.domain : ''
+    if (domain === 'festival') {
+      queueFestivalRoomRefresh()
+    } else if (domain === 'expedition') {
+      queueExpeditionRoomRefresh()
+    } else {
+      queueFestivalRoomRefresh()
+      queueExpeditionRoomRefresh()
+    }
   }
 
   const upsertPresence = (entry: PresenceEntry) => {
@@ -159,6 +199,10 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     }
     if (FRIEND_EVENT_TYPES.has(envelope.type)) {
       queueRelationshipRefresh()
+      return
+    }
+    if (ACTIVITY_ROOM_EVENT_TYPES.has(envelope.type)) {
+      queueActivityRoomRefresh(envelope.payload)
     }
   }
 
@@ -235,6 +279,14 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     if (relationshipRefreshTimer !== null) {
       window.clearTimeout(relationshipRefreshTimer)
       relationshipRefreshTimer = null
+    }
+    if (festivalRoomRefreshTimer !== null) {
+      window.clearTimeout(festivalRoomRefreshTimer)
+      festivalRoomRefreshTimer = null
+    }
+    if (expeditionRoomRefreshTimer !== null) {
+      window.clearTimeout(expeditionRoomRefreshTimer)
+      expeditionRoomRefreshTimer = null
     }
     if (socket) {
       const currentSocket = socket

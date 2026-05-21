@@ -12,6 +12,9 @@
 - `qa:region-friend-panel-live-smoke` 已扩展 realtime 断言：真实后端 + Vite + Chromium 环境下会确认游戏布局打开 WebSocket，并由另一个临时账号发起好友申请，验证页面不点击刷新也能看到新申请。
 - `0520todo.md / A4` 这一轮补齐活动房间实时投递：节会 / 远征房间在建房、邀请、加入、离开、准备、倒计时、断线、重连、动作、结算和关闭这些 HTTP 权威写路成功后，会向相关成员推送 `activity.room.invited` 或 `activity.room.updated`；事件 payload 带 `refresh_required`，明确只提示客户端刷新服务端权威状态，不让 WebSocket 参与跨玩家结算。
 - `qa:realtime-smoke` 已新增远征房间实时回归：隔离后端下会创建房间、邀请好友并让好友加入，分别断言房主和被邀请者能收到建房、邀请和加入状态变化事件；同时复跑 `qa:online-smoke` 确认节会 / 远征原有结算、治理和发布开关链路没有被实时投递破坏。
+- `0520todo.md / A4-A5` 这一轮把前端活动房间实时消费接上：`useRealtimeStore.ts` 现在会消费 `activity.room.invited / activity.room.updated`，按事件 `domain` 对节会 / 远征房间概览做防抖静默刷新，继续只读取 HTTP 权威接口，不把 WebSocket payload 当作结算结果。
+- 节会与远征房间 store 新增 silent refresh 模式，实时刷新时不会打断页面 loading / 错误状态；远征邀请列表也补入稳定 `data-testid`，供浏览器烟测确认邀请卡片自动出现。
+- `qa:region-friend-panel-live-smoke` 已扩展活动房间实时回归：真实后端 + Vite + Chromium 下会由另一个临时账号创建远征房间并邀请当前浏览器账号，断言收到 `activity.room.invited` 帧后页面无需手动刷新即可显示对应邀请；本轮复核通过 `type-check`、`build`、该浏览器 smoke 与 `git diff --check`。
 
 - `0520todo.md / A0` 这一轮先把服务端存档身份底座落到真实读写链路：`server/src/taoyuanSaveRuntime.js` 新增按账号 + 槽位维护的 `SaveIdentity` 注册表，服务端存档读回与保存时会自动注入 9 位数字 `onlineIdentity.save_id`，并且覆盖客户端篡改的 ID，只允许昵称快照随存档内容更新。
 - 旧服务端存档现在第一次经 `/api/taoyuan/save/slots` 或 `/api/taoyuan/save/:slot` 读回时会自动补发数字 ID 并回写到加密存档；删除服务端槽位时也会清理对应身份记录，避免空槽后续误复用旧身份。

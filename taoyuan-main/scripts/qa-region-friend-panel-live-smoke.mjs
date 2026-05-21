@@ -220,6 +220,31 @@ const acceptFriend = async (session, requestId) => {
   return result.data.request
 }
 
+const createExpeditionRoom = async (session, title) => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/expedition/rooms', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      title,
+      template_id: 'expedition_outpost',
+      gameplay_template_id: 'expedition_roles',
+    }),
+  })
+  assert(result.response.ok, `create expedition room returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.room?.id, 'create expedition room did not return room id')
+  return result.data.room
+}
+
+const inviteExpeditionRoomMember = async (session, roomId, targetUsername) => {
+  const result = await fetchSessionJson(session, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/invite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ target_username: targetUsername }),
+  })
+  assert(result.response.ok, `invite expedition room returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  return result.data.room
+}
+
 const blockSave = async (session, targetSaveId) => {
   const result = await fetchSessionJson(session, '/api/taoyuan/online/social/blocks', {
     method: 'POST',
@@ -412,6 +437,27 @@ async function main() {
 
     await runCheck('game layout opens realtime websocket', async () => {
       await expect.poll(() => realtimeSocketCount > 0, { timeout: 10000 }).toBeTruthy()
+    })
+
+    await runCheck('activity room websocket event refreshes expedition page', async () => {
+      await page.goto(`${frontendBaseURL}/#/game/expedition`)
+      await expect(page.getByText('联机远征房间')).toBeVisible()
+      await expect(page.getByText('当前没有进行中的远征房间。可以先创建自己的房间，或者从下方邀请列表加入队伍。')).toBeVisible()
+
+      const roomHost = await bootstrapSession('mfp_room', '远征推送', 240)
+      const roomTitle = `实时远征邀请 ${roomHost.username.slice(-4)}`
+      const room = await createExpeditionRoom(roomHost, roomTitle)
+      await inviteExpeditionRoomMember(roomHost, room.id, owner.username)
+
+      await expect.poll(() =>
+        realtimeFrames.some(frame => frame.includes('activity.room.invited') && frame.includes(room.id)),
+      { timeout: 10000 }).toBeTruthy()
+      const invitedRoomCard = page.getByTestId(`expedition-invited-room-${room.id}`)
+      await expect(invitedRoomCard).toBeVisible({ timeout: 10000 })
+      await expect(invitedRoomCard.getByText(roomTitle)).toBeVisible()
+
+      await page.goto(`${frontendBaseURL}/#/game/region-map`)
+      await waitForRelationshipIdle(page)
     })
 
     await runCheck('friend request websocket event refreshes browser panel', async () => {
