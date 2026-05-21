@@ -48,6 +48,7 @@ const findAvailablePort = async (targetHost, startPort, attempts = 20) => {
 
 const port = await findAvailablePort(host, preferredPort)
 const baseURL = `http://${host}:${port}`
+const smokeAdminToken = 'realtime-smoke-super-admin'
 
 const waitForReachable = async (url, timeoutMs = 120_000) => {
   const startedAt = Date.now()
@@ -72,6 +73,8 @@ const startServer = () => {
       MYSQL_HOST: '',
       MYSQL_USER: '',
       MYSQL_DATABASE: '',
+      ADMIN_TOKEN: 'realtime-smoke-admin',
+      SUPER_ADMIN_TOKEN: smokeAdminToken,
     },
     stdio: ['ignore', 'pipe', 'pipe'],
   })
@@ -125,6 +128,17 @@ const fetchSessionJson = async (session, pathname, init = {}) => {
   if (session.csrfToken) headers.set('X-CSRF-Token', session.csrfToken)
   const response = await fetch(`${baseURL}${pathname}`, { ...init, headers })
   updateCookie(session, response)
+  let data = null
+  try {
+    data = await response.json()
+  } catch {}
+  return { response, data }
+}
+
+const fetchAdminJson = async (pathname, init = {}) => {
+  const headers = new Headers(init.headers || {})
+  headers.set('X-Admin-Token', smokeAdminToken)
+  const response = await fetch(`${baseURL}${pathname}`, { ...init, headers })
   let data = null
   try {
     data = await response.json()
@@ -483,6 +497,57 @@ try {
     )
   })
 
+  await runCheck('system campaign mail notification event is delivered through websocket', async () => {
+    const mailTitle = `实时系统邮件 ${createSmokeSeed()}`
+    const offset = ownerSocket.messages.length
+    const result = await fetchSessionJson(owner, '/api/taoyuan/mail/system-campaign', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: mailTitle,
+        content: '这是一封实时通知烟测系统邮件。',
+        template_type: 'maintenance_notice',
+      }),
+    })
+    assert(result.response.ok, `system campaign mail returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    assert(Number(result.data?.campaign?.delivery_count) === 1, 'system campaign delivery count should be 1')
+    const notification = await expectMessageAfter(ownerSocket, offset, 'notification.created', payload =>
+      payload.category === 'mail'
+        && payload.action === 'system_campaign'
+        && payload.refresh_required === true
+        && payload.mail?.title === mailTitle
+    )
+    assert(String(notification.payload?.mail?.id || ''), 'system campaign notification missing mail id')
+  })
+
+  await runCheck('admin campaign mail notification event is delivered through websocket', async () => {
+    const mailTitle = `实时后台邮件 ${createSmokeSeed()}`
+    const offset = friendSocket.messages.length
+    const result = await fetchAdminJson('/api/admin/taoyuan/mail/campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'send',
+        title: mailTitle,
+        content: '这是一封实时通知烟测后台邮件。',
+        template_type: 'activity_notice',
+        recipient_rule: {
+          mode: 'single',
+          username: friend.username,
+        },
+      }),
+    })
+    assert(result.response.ok, `admin campaign mail returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    assert(Number(result.data?.campaign?.delivery_count) === 1, 'admin campaign delivery count should be 1')
+    const notification = await expectMessageAfter(friendSocket, offset, 'notification.created', payload =>
+      payload.category === 'mail'
+        && payload.action === 'admin_campaign'
+        && payload.refresh_required === true
+        && payload.mail?.title === mailTitle
+    )
+    assert(String(notification.payload?.mail?.id || ''), 'admin campaign notification missing mail id')
+  })
+
   await runCheck('hall reply notification event is delivered through websocket', async () => {
     const postTitle = `hall realtime post ${createSmokeSeed()}`
     const createResult = await fetchSessionJson(owner, '/api/taoyuan/hall/posts', {
@@ -615,6 +680,65 @@ try {
     )
     await expectNoMessageAfter(offlineMailReplayReconnectSocket, 0, 'notification.created', payload =>
       payload.mail?.id === result.data?.mail?.id
+    )
+    offlineMailReplayReconnectSocket.close()
+    offlineMailReplayReconnectSocket = null
+  })
+
+  await runCheck('offline admin campaign mail notification event is replayed and acknowledged after reconnect', async () => {
+    const offlineTarget = await bootstrapSession('smkrt_f')
+    const mailTitle = `离线后台邮件 ${createSmokeSeed()}`
+    const result = await fetchAdminJson('/api/admin/taoyuan/mail/campaigns', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'send',
+        title: mailTitle,
+        content: '这是一封离线补发烟测后台邮件。',
+        template_type: 'activity_notice',
+        recipient_rule: {
+          mode: 'single',
+          username: offlineTarget.username,
+        },
+      }),
+    })
+    assert(result.response.ok, `offline admin campaign mail returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    assert(Number(result.data?.campaign?.delivery_count) === 1, 'offline admin campaign delivery count should be 1')
+
+    offlineMailReplaySocket = await openRealtimeSocket(offlineTarget)
+    const ready = await expectMessage(offlineMailReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) >= 1
+    )
+    assert(Number(ready.payload?.pending_notification_count) >= 1, 'offline admin campaign mail replay ready did not report pending notifications')
+    const queuedMessage = await expectMessage(offlineMailReplaySocket, 'notification.created', payload =>
+      payload.category === 'mail'
+        && payload.action === 'admin_campaign'
+        && payload.mail?.title === mailTitle
+    )
+    const queuedEventId = String(queuedMessage.queued_event_id || '')
+    assert(queuedEventId, 'replayed admin campaign mail notification missing queued_event_id')
+    assert(queuedMessage.replayed === true, 'replayed admin campaign mail notification missing replayed marker')
+
+    const ackOffset = offlineMailReplaySocket.messages.length
+    offlineMailReplaySocket.send('notification.ack', { id: queuedEventId })
+    await expectMessageAfter(offlineMailReplaySocket, ackOffset, 'notification.ack', payload =>
+      Array.isArray(payload.acked_ids)
+        && payload.acked_ids.includes(queuedEventId)
+        && Number(payload.pending_count) === 0
+    )
+
+    offlineMailReplaySocket.close()
+    offlineMailReplaySocket = null
+    await wait(200)
+
+    offlineMailReplayReconnectSocket = await openRealtimeSocket(offlineTarget)
+    await expectMessage(offlineMailReplayReconnectSocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) === 0
+    )
+    await expectNoMessageAfter(offlineMailReplayReconnectSocket, 0, 'notification.created', payload =>
+      payload.category === 'mail'
+        && payload.action === 'admin_campaign'
+        && payload.mail?.title === mailTitle
     )
     offlineMailReplayReconnectSocket.close()
     offlineMailReplayReconnectSocket = null

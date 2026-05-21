@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 系统 / 后台邮件实时通知补发（A5 邮箱扩展）
+- 服务端已把自助系统邮件和后台即时发送邮件接入 `notification.created`：邮件落库成功后，会向实际新增的收件 delivery 投递 `category: "mail"`、`refresh_required` 与邮件摘要，前端继续复用邮箱静默刷新，不直接应用 WebSocket payload。
+- 自助系统邮件使用 `action: "system_campaign"`，后台即时邮件使用 `action: "admin_campaign"`；同一个系统邮件 id 幂等返回时不会重复推送旧 delivery。
+- `qa:realtime-smoke` 新增在线系统邮件、在线后台即时邮件，以及离线后台即时邮件补发 / ACK / 重连不重复补发断言。定时 campaign 到期发送的通知仍留给后续调度契约改造。
+
 ### 0520 大厅回复实时通知补发（A5 大厅）
 - 服务端在大厅回复写入成功后投递 `notification.created`，通知帖子作者和被引用回复作者；payload 使用 `category: "hall"`、`action: "post_reply"`、`refresh_required` 与帖子 / 回复摘要，不把回复写入、悬赏或其他结算交给 WebSocket。
 - 大厅通知复用离线补发队列：离线玩家下次 `realtime.ready` 后会收到带 `queued_event_id` 的补发帧，前端仍通过通用 `notification.ack` 清理；`HallView.vue` 会在顶层 `/hall` 路由自行启动 realtime，并在收到大厅通知后静默刷新帖子列表和当前详情。

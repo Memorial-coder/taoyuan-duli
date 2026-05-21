@@ -426,6 +426,47 @@ function emitMailNotificationCreatedEvent(targetUsername, action, mail = {}) {
   }
 }
 
+function collectMailCampaignDeliveryIds(campaignId) {
+  const safeCampaignId = String(campaignId || '').trim();
+  if (!safeCampaignId) return new Set();
+  try {
+    const detail = taoyuanMailbox.getAdminCampaignDetail(safeCampaignId);
+    if (!detail || !Array.isArray(detail.deliveries)) return new Set();
+    return new Set(detail.deliveries.map(delivery => String(delivery?.id || '')).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
+function emitMailCampaignNotificationCreatedEvents(campaign, action, options = {}) {
+  const campaignId = String(campaign?.id || '').trim();
+  if (!campaignId) return 0;
+  try {
+    const detail = taoyuanMailbox.getAdminCampaignDetail(campaignId);
+    if (!detail || !Array.isArray(detail.deliveries)) return 0;
+
+    const previousDeliveryIds = options.previousDeliveryIds instanceof Set
+      ? options.previousDeliveryIds
+      : new Set();
+    const onlyUsername = normalizeUsernameKey(options.onlyUsername);
+    const seenDeliveryIds = new Set();
+    let emitted = 0;
+
+    for (const delivery of detail.deliveries) {
+      const deliveryId = String(delivery?.id || '');
+      if (!deliveryId || previousDeliveryIds.has(deliveryId) || seenDeliveryIds.has(deliveryId)) continue;
+      seenDeliveryIds.add(deliveryId);
+
+      const recipient = normalizeUsernameKey(delivery?.username);
+      if (!recipient || (onlyUsername && recipient !== onlyUsername)) continue;
+      emitted += emitMailNotificationCreatedEvent(recipient, action, delivery);
+    }
+    return emitted;
+  } catch {
+    return 0;
+  }
+}
+
 function emitHallReplyNotificationCreatedEvent(post = {}, reply = {}, actor = {}) {
   if (!post?.id || !reply?.id) return 0;
   const recipients = collectHallReplyNotificationRecipients(post, reply, actor);
@@ -3899,6 +3940,7 @@ router.post('/taoyuan/mail/player-gift-package', loginRequired, signRequired, as
 
 router.post('/taoyuan/mail/system-campaign', loginRequired, signRequired, async (req, res) => {
   try {
+    const previousDeliveryIds = collectMailCampaignDeliveryIds(req.body?.id);
     const campaign = await taoyuanMailbox.saveSystemCampaignForUser(
       req.body,
       {
@@ -3907,6 +3949,10 @@ router.post('/taoyuan/mail/system-campaign', loginRequired, signRequired, async 
       },
       req.session.username,
     );
+    emitMailCampaignNotificationCreatedEvents(campaign, 'system_campaign', {
+      previousDeliveryIds,
+      onlyUsername: req.session.username,
+    });
     res.json({ ok: true, campaign });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '创建系统邮件失败' });
@@ -3936,11 +3982,17 @@ router.get('/admin/taoyuan/mail/campaigns/:id', adminAuth, async (req, res) => {
 router.post('/admin/taoyuan/mail/campaigns', adminAuth, async (req, res) => {
   try {
     const action = ['draft', 'schedule', 'send'].includes(String(req.body?.action)) ? String(req.body.action) : 'draft';
+    const previousDeliveryIds = action === 'send'
+      ? collectMailCampaignDeliveryIds(req.body?.id)
+      : new Set();
     const campaign = await taoyuanMailbox.saveAdminCampaign(
       req.body,
       { username: req.admin?.operator_name || 'admin', displayName: req.admin?.role_label || '管理员' },
       action,
     );
+    if (action === 'send') {
+      emitMailCampaignNotificationCreatedEvents(campaign, 'admin_campaign', { previousDeliveryIds });
+    }
     res.json({ ok: true, campaign });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '保存邮件失败' });
