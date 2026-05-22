@@ -10,18 +10,22 @@ export const useMarketGovernanceStore = defineStore('marketGovernance', () => {
 
   const sources = computed(() => governance.value?.sources ?? [])
 
-  const refreshGovernance = async () => {
-    loading.value = true
-    errorMessage.value = ''
+  const refreshGovernance = async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      loading.value = true
+      errorMessage.value = ''
+    }
     try {
       governance.value = await fetchMarketGovernance()
       lastLoadedAt.value = Date.now()
       return governance.value
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '获取集市调控失败'
+      if (!options.silent) {
+        errorMessage.value = error instanceof Error ? error.message : '获取集市调控失败'
+      }
       throw error
     } finally {
-      loading.value = false
+      if (!options.silent) loading.value = false
     }
   }
 

@@ -2,6 +2,10 @@
 
 最后整理：2026-05-22
 
+- `0520todo.md / A4-A6-A7` 这一轮把邻里寄售接进 realtime 在线摘要通知：邻里挂单创建、购买、取消和过期回收成功后，服务端会向同邻里的当前在线成员投递 `category: "exchange"` 的 `neighbor_consignment_updated` 摘要。
+- 前端收到寄售通知后只防抖静默重读 `/api/taoyuan/exchange-station/neighbors/consignments`、`/ledger` 与 `/governance` 权威接口，不直接套用挂单、成交或资金结果；通知摘要也不携带物资明细、价格明细或 overview。
+- 本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check` 与 `npm --prefix server run qa:realtime-smoke`。
+
 - `0520todo.md / A4-A6-A7` 这一轮把村社公共建设与公共仓共享进度接入 realtime 在线摘要通知：公共建设捐献成功后会投递 `public_project_contributed`，公共仓补货成功后会投递 `warehouse_deposited`，收件人限定为同社当前在线成员与操作人。
 - 前端继续复用现有 `category: "society"` 静默刷新路径，只重读 `/api/taoyuan/online/societies` 权威概览；通知摘要不携带 overview、成员列表、公共建设贡献明细或公共仓日志明细，也暂不进入离线补发队列，避免高频共建动作刷满 queue。
 - 本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。

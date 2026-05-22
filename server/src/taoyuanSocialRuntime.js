@@ -1562,6 +1562,21 @@ function getNeighborGroupForUser(username) {
   };
 }
 
+function listNeighborGroupMemberUsernames(groupId) {
+  const normalizedGroupId = String(groupId || '').trim();
+  if (!normalizedGroupId) return [];
+  const store = loadSocialProfileStore();
+  const group = (store.neighbor_groups || [])
+    .map(normalizeNeighborGroup)
+    .find(entry => entry.id === normalizedGroupId);
+  if (!group) return [];
+  return [...new Set(
+    (group.members || [])
+      .map(member => normalizeUsername(member?.username))
+      .filter(Boolean)
+  )];
+}
+
 async function buildProfile(username, viewerUsername = '', options = {}) {
   const user = await db.getUser(username);
   if (!user) throw createError('玩家不存在', 404);
@@ -2464,4 +2479,5 @@ module.exports = {
   isSaveFriendWith,
   isNeighborWith,
   getNeighborGroupForUser,
+  listNeighborGroupMemberUsernames,
 };

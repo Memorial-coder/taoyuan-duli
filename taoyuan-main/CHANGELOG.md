@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 邻里寄售 realtime 在线刷新（A4-A6-A7）
+- 服务端现在会在邻里寄售挂单创建、购买、取消和过期回收成功后投递 `notification.created`，使用 `category: "exchange"` 与 `neighbor_consignment_updated` 动作，通知同邻里的当前在线成员。
+- `useRealtimeStore` 收到寄售通知后会静默刷新 `useNeighborConsignmentStore().refreshOverview({ silent: true })`、`useExchangeLedgerStore().refreshLedger({ silent: true })` 与 `useMarketGovernanceStore().refreshGovernance({ silent: true })`，继续只读 HTTP 权威接口，不直接套用 WebSocket payload。
+- 三个 store 都补了 `silent` 刷新模式，实时回读不会抖动 loading / error；通知摘要只包含挂单状态、邻里范围和相关账号摘要，不携带完整 overview、物资明细或价格明细。`qa:realtime-smoke` 已覆盖在线挂单通知与在线成交通知。
+
 ### 0520 村社公共建设与公共仓 realtime 在线刷新（A4-A6-A7）
 - 服务端现在会在村社公共建设捐献成功后投递 `notification.created`，使用 `category: "society"` 与 `public_project_contributed` 动作；公共仓补货成功后会投递 `warehouse_deposited` 动作，通知同社当前在线成员与操作人。
 - 前端继续复用既有 `society` realtime 刷新路径，收到通知后只静默刷新 `useSocietyStore().refreshOverview({ silent: true })`，不直接套用 WebSocket payload。

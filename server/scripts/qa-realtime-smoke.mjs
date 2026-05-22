@@ -622,6 +622,78 @@ try {
     assert(notification.queued_event_id === undefined, 'online world event notification should not be queued')
   })
 
+  await runCheck('neighbor consignment notification event is delivered through websocket', async () => {
+    const groupResult = await fetchSessionJson(owner, '/api/taoyuan/online/social/neighbors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: `RT 邻里 ${createSmokeSeed()}`,
+        summary: 'Realtime smoke neighbor group.',
+        visibility: 'public',
+      }),
+    })
+    assert(groupResult.response.ok, `neighbor group create returned ${groupResult.response.status}: ${groupResult.data?.msg || 'unknown error'}`)
+    const groupId = String(groupResult.data?.group?.id || '')
+    assert(groupId, 'neighbor group id missing')
+
+    const applyResult = await fetchSessionJson(friend, `/api/taoyuan/online/social/neighbors/${encodeURIComponent(groupId)}/apply`, {
+      method: 'POST',
+    })
+    assert(applyResult.response.ok, `neighbor apply returned ${applyResult.response.status}: ${applyResult.data?.msg || 'unknown error'}`)
+    const requestId = String(applyResult.data?.request?.id || '')
+    assert(requestId, 'neighbor apply request id missing')
+
+    const acceptResult = await fetchSessionJson(owner, `/api/taoyuan/online/social/neighbors/requests/${encodeURIComponent(requestId)}/accept`, {
+      method: 'POST',
+    })
+    assert(acceptResult.response.ok, `neighbor accept returned ${acceptResult.response.status}: ${acceptResult.data?.msg || 'unknown error'}`)
+
+    const createOffset = ownerSocket.messages.length
+    const createResult = await fetchSessionJson(friend, '/api/taoyuan/exchange-station/neighbors/consignments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        item_id: 'wood',
+        quantity: 1,
+        price_money: 70,
+        scope: 'neighbors',
+      }),
+    })
+    assert(createResult.response.ok, `neighbor consignment create returned ${createResult.response.status}: ${createResult.data?.msg || 'unknown error'}`)
+    const listingId = String(createResult.data?.listing?.id || '')
+    assert(listingId, 'neighbor consignment listing id missing')
+    const createdNotification = await expectMessageAfter(ownerSocket, createOffset, 'notification.created', payload =>
+      payload.category === 'exchange'
+        && payload.action === 'neighbor_consignment_updated'
+        && payload.refresh_required === true
+        && payload.exchange?.source === 'neighbor_consignment'
+        && payload.exchange?.listing_id === listingId
+        && payload.exchange?.listing_status === 'open'
+        && payload.exchange?.seller_username === friend.username
+        && payload.actor_username === friend.username
+    )
+    assert(createdNotification.payload?.overview === undefined, 'neighbor consignment notification should not expose overview')
+    assert(createdNotification.payload?.exchange?.item_id === undefined, 'neighbor consignment notification should not expose item detail')
+    assert(createdNotification.queued_event_id === undefined, 'neighbor consignment online notification should not be queued')
+
+    const soldOffset = friendSocket.messages.length
+    const soldResult = await fetchSessionJson(owner, `/api/taoyuan/exchange-station/neighbors/consignments/${encodeURIComponent(listingId)}/purchase`, {
+      method: 'POST',
+    })
+    assert(soldResult.response.ok, `neighbor consignment purchase returned ${soldResult.response.status}: ${soldResult.data?.msg || 'unknown error'}`)
+    const soldNotification = await expectMessageAfter(friendSocket, soldOffset, 'notification.created', payload =>
+      payload.category === 'exchange'
+        && payload.action === 'neighbor_consignment_updated'
+        && payload.refresh_required === true
+        && payload.exchange?.source === 'neighbor_consignment'
+        && payload.exchange?.listing_id === listingId
+        && payload.exchange?.listing_status === 'sold'
+        && payload.exchange?.buyer_username === owner.username
+        && payload.actor_username === owner.username
+    )
+    assert(soldNotification.payload?.exchange?.price_money === undefined, 'neighbor consignment sold notification should not expose price detail')
+  })
+
   await runCheck('hall reply notification event is delivered through websocket', async () => {
     const postTitle = `hall realtime post ${createSmokeSeed()}`
     const createResult = await fetchSessionJson(owner, '/api/taoyuan/hall/posts', {

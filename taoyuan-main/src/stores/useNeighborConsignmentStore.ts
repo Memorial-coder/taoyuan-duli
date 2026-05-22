@@ -162,18 +162,22 @@ export const useNeighborConsignmentStore = defineStore('neighborConsignment', ()
     })
   }
 
-  const refreshOverview = async () => {
-    loading.value = true
-    errorMessage.value = ''
+  const refreshOverview = async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      loading.value = true
+      errorMessage.value = ''
+    }
     try {
       overview.value = await fetchNeighborConsignmentOverview()
       lastLoadedAt.value = Date.now()
       return overview.value
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '获取邻里寄售失败'
+      if (!options.silent) {
+        errorMessage.value = error instanceof Error ? error.message : '获取邻里寄售失败'
+      }
       throw error
     } finally {
-      loading.value = false
+      if (!options.silent) loading.value = false
     }
   }
 

@@ -423,6 +423,58 @@ function emitWorldEventNotificationCreatedEvent(action, result = {}, actor = {})
   }
 }
 
+function collectOnlineNeighborConsignmentNotificationRecipients(result = {}) {
+  const listing = result?.listing && typeof result.listing === 'object' ? result.listing : {};
+  const groupId = String(listing?.group_id || '').trim();
+  if (!groupId) return [];
+  const groupRecipients = new Set(taoyuanSocialRuntime.listNeighborGroupMemberUsernames(groupId));
+  const onlineRecipients = new Set();
+  try {
+    const state = taoyuanRealtimeRuntime.getRealtimeState();
+    for (const connection of Array.isArray(state?.connections) ? state.connections : []) {
+      const username = normalizeUsernameKey(connection?.username);
+      if (username && groupRecipients.has(username)) onlineRecipients.add(username);
+    }
+  } catch {}
+  return [...onlineRecipients];
+}
+
+function buildNeighborConsignmentNotificationPayload(action, result = {}, actor = {}) {
+  const listing = result?.listing && typeof result.listing === 'object' ? result.listing : {};
+  return {
+    category: 'exchange',
+    action,
+    refresh_required: true,
+    actor_username: normalizeUsernameKey(actor.username),
+    actor_display_name: normalizeUsername(actor.displayName || actor.display_name || actor.username),
+    exchange: {
+      source: 'neighbor_consignment',
+      listing_id: String(listing?.id || ''),
+      listing_status: listing?.status || '',
+      group_id: String(listing?.group_id || ''),
+      group_name: trimNotificationText(listing?.group_name || '', 60),
+      seller_username: normalizeUsernameKey(listing?.seller_username),
+      buyer_username: normalizeUsernameKey(listing?.buyer_username),
+      updated_at: Number(listing?.updated_at) || null,
+    },
+  };
+}
+
+function emitNeighborConsignmentNotificationCreatedEvent(action, result = {}, actor = {}) {
+  if (!result?.listing?.id) return 0;
+  const recipients = collectOnlineNeighborConsignmentNotificationRecipients(result);
+  if (!recipients.length) return 0;
+  try {
+    return taoyuanRealtimeRuntime.emitUsersEvent(
+      recipients,
+      'notification.created',
+      buildNeighborConsignmentNotificationPayload(action, result, actor)
+    );
+  } catch {
+    return 0;
+  }
+}
+
 function trimNotificationText(value, maxLength = 120) {
   const text = normalizeUsername(value).replace(/\s+/g, ' ');
   if (!text) return '';
@@ -4021,7 +4073,9 @@ router.get('/taoyuan/exchange-station/neighbors/consignments', loginRequired, as
 router.post('/taoyuan/exchange-station/neighbors/consignments', loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = taoyuanNeighborConsignment.createNeighborConsignment(req.session.username, req.body || {});
+      const actor = getSessionActor(req);
+      const result = taoyuanNeighborConsignment.createNeighborConsignment(actor.username, req.body || {});
+      emitNeighborConsignmentNotificationCreatedEvent('neighbor_consignment_updated', result, actor);
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '创建邻里寄售失败' });
@@ -4032,7 +4086,9 @@ router.post('/taoyuan/exchange-station/neighbors/consignments', loginRequired, s
 router.post('/taoyuan/exchange-station/neighbors/consignments/:listingId/purchase', loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = taoyuanNeighborConsignment.buyNeighborConsignment(req.session.username, req.params.listingId);
+      const actor = getSessionActor(req);
+      const result = taoyuanNeighborConsignment.buyNeighborConsignment(actor.username, req.params.listingId);
+      emitNeighborConsignmentNotificationCreatedEvent('neighbor_consignment_updated', result, actor);
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '购买邻里寄售失败' });
@@ -4043,7 +4099,9 @@ router.post('/taoyuan/exchange-station/neighbors/consignments/:listingId/purchas
 router.post('/taoyuan/exchange-station/neighbors/consignments/:listingId/cancel', loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = taoyuanNeighborConsignment.cancelNeighborConsignment(req.session.username, req.params.listingId);
+      const actor = getSessionActor(req);
+      const result = taoyuanNeighborConsignment.cancelNeighborConsignment(actor.username, req.params.listingId);
+      emitNeighborConsignmentNotificationCreatedEvent('neighbor_consignment_updated', result, actor);
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '取消邻里寄售失败' });
@@ -4054,7 +4112,9 @@ router.post('/taoyuan/exchange-station/neighbors/consignments/:listingId/cancel'
 router.post('/taoyuan/exchange-station/neighbors/consignments/:listingId/reclaim', loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = taoyuanNeighborConsignment.reclaimExpiredNeighborConsignment(req.session.username, req.params.listingId);
+      const actor = getSessionActor(req);
+      const result = taoyuanNeighborConsignment.reclaimExpiredNeighborConsignment(actor.username, req.params.listingId);
+      emitNeighborConsignmentNotificationCreatedEvent('neighbor_consignment_updated', result, actor);
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '回收过期邻里寄售失败' });

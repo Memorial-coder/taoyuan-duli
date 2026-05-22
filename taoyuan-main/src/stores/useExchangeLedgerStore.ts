@@ -20,18 +20,22 @@ export const useExchangeLedgerStore = defineStore('exchangeLedger', () => {
   const summary = computed(() => ledger.value?.summary ?? null)
   const reasonOptions = computed(() => ledger.value?.reason_options ?? [])
 
-  const refreshLedger = async () => {
-    loading.value = true
-    errorMessage.value = ''
+  const refreshLedger = async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      loading.value = true
+      errorMessage.value = ''
+    }
     try {
       ledger.value = await fetchExchangeLedger()
       lastLoadedAt.value = Date.now()
       return ledger.value
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '获取交换记录失败'
+      if (!options.silent) {
+        errorMessage.value = error instanceof Error ? error.message : '获取交换记录失败'
+      }
       throw error
     } finally {
-      loading.value = false
+      if (!options.silent) loading.value = false
     }
   }
 

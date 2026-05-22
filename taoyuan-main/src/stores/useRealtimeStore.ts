@@ -7,8 +7,11 @@ import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
 import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
 import { useManorStore } from '@/stores/useManorStore'
 import { useMailboxStore } from '@/stores/useMailboxStore'
+import { useMarketGovernanceStore } from '@/stores/useMarketGovernanceStore'
+import { useNeighborConsignmentStore } from '@/stores/useNeighborConsignmentStore'
 import { useSocialStore } from '@/stores/useSocialStore'
 import { useSocietyStore } from '@/stores/useSocietyStore'
+import { useExchangeLedgerStore } from '@/stores/useExchangeLedgerStore'
 import { useWorldEventStore } from '@/stores/useWorldEventStore'
 
 type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed'
@@ -68,6 +71,9 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
   let societyRefreshTimer: number | null = null
   let coopOrderRefreshTimer: number | null = null
   let worldEventRefreshTimer: number | null = null
+  let neighborConsignmentRefreshTimer: number | null = null
+  let exchangeLedgerRefreshTimer: number | null = null
+  let marketGovernanceRefreshTimer: number | null = null
   let manuallyStopped = true
 
   const isConnected = computed(() => status.value === 'connected')
@@ -198,6 +204,36 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     }, 300)
   }
 
+  const queueNeighborConsignmentRefresh = () => {
+    if (neighborConsignmentRefreshTimer !== null) return
+    neighborConsignmentRefreshTimer = window.setTimeout(() => {
+      neighborConsignmentRefreshTimer = null
+      void useNeighborConsignmentStore().refreshOverview({ silent: true }).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时邻里寄售刷新失败'
+      })
+    }, 300)
+  }
+
+  const queueExchangeLedgerRefresh = () => {
+    if (exchangeLedgerRefreshTimer !== null) return
+    exchangeLedgerRefreshTimer = window.setTimeout(() => {
+      exchangeLedgerRefreshTimer = null
+      void useExchangeLedgerStore().refreshLedger({ silent: true }).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时交换账本刷新失败'
+      })
+    }, 300)
+  }
+
+  const queueMarketGovernanceRefresh = () => {
+    if (marketGovernanceRefreshTimer !== null) return
+    marketGovernanceRefreshTimer = window.setTimeout(() => {
+      marketGovernanceRefreshTimer = null
+      void useMarketGovernanceStore().refreshGovernance({ silent: true }).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时集市调控刷新失败'
+      })
+    }, 300)
+  }
+
   const dispatchHallNotification = (payload: Record<string, unknown> | undefined) => {
     if (typeof window === 'undefined') return
     window.dispatchEvent(new CustomEvent(TAOYUAN_HALL_NOTIFICATION_EVENT, {
@@ -297,6 +333,14 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
       if (category === 'society') queueSocietyRefresh()
       if (category === 'coop_order') queueCoopOrderRefresh()
       if (category === 'world_event') queueWorldEventRefresh()
+      if (category === 'exchange') {
+        queueExchangeLedgerRefresh()
+        queueMarketGovernanceRefresh()
+        const source = typeof envelope.payload?.exchange === 'object' && envelope.payload.exchange
+          ? (envelope.payload.exchange as Record<string, unknown>).source
+          : ''
+        if (source === 'neighbor_consignment') queueNeighborConsignmentRefresh()
+      }
     }
   }
 
@@ -409,6 +453,18 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     if (worldEventRefreshTimer !== null) {
       window.clearTimeout(worldEventRefreshTimer)
       worldEventRefreshTimer = null
+    }
+    if (neighborConsignmentRefreshTimer !== null) {
+      window.clearTimeout(neighborConsignmentRefreshTimer)
+      neighborConsignmentRefreshTimer = null
+    }
+    if (exchangeLedgerRefreshTimer !== null) {
+      window.clearTimeout(exchangeLedgerRefreshTimer)
+      exchangeLedgerRefreshTimer = null
+    }
+    if (marketGovernanceRefreshTimer !== null) {
+      window.clearTimeout(marketGovernanceRefreshTimer)
+      marketGovernanceRefreshTimer = null
     }
     if (socket) {
       const currentSocket = socket
