@@ -24,19 +24,23 @@ export const useWorldEventStore = defineStore('worldEvent', () => {
   const myRecords = computed(() => overview.value?.my_records ?? [])
   const seasonalBadges = computed(() => overview.value?.seasonal_badges ?? [])
 
-  const refreshOverview = async () => {
-    loading.value = true
-    errorMessage.value = ''
+  const refreshOverview = async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      loading.value = true
+      errorMessage.value = ''
+    }
     try {
       const nextOverview = await fetchWorldEventOverview()
       overview.value = nextOverview
       lastLoadedAt.value = Date.now()
       return nextOverview
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '获取四季大事件失败'
+      if (!options.silent) {
+        errorMessage.value = error instanceof Error ? error.message : '获取四季大事件失败'
+      }
       throw error
     } finally {
-      loading.value = false
+      if (!options.silent) loading.value = false
     }
   }
 

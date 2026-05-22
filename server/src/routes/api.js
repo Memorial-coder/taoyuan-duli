@@ -356,6 +356,73 @@ function buildMailNotificationPayload(action, mail = {}) {
   };
 }
 
+function collectOnlineWorldEventNotificationRecipients(actor = {}) {
+  const actorKey = normalizeUsernameKey(actor.username);
+  const recipients = new Set();
+  try {
+    const state = taoyuanRealtimeRuntime.getRealtimeState();
+    for (const connection of Array.isArray(state?.connections) ? state.connections : []) {
+      const username = normalizeUsernameKey(connection?.username);
+      if (username) recipients.add(username);
+    }
+  } catch {}
+  if (actorKey) recipients.add(actorKey);
+  return [...recipients];
+}
+
+function buildWorldEventNotificationPayload(action, result = {}, actor = {}) {
+  const event = result?.event && typeof result.event === 'object' ? result.event : {};
+  const myContribution = event?.my_contribution && typeof event.my_contribution === 'object'
+    ? event.my_contribution
+    : null;
+  return {
+    category: 'world_event',
+    action,
+    refresh_required: true,
+    actor_username: normalizeUsernameKey(actor.username),
+    actor_display_name: normalizeUsername(actor.displayName || actor.display_name || actor.username),
+    event: {
+      id: String(event?.id || ''),
+      definition_id: String(event?.definition_id || ''),
+      label: trimNotificationText(event?.label || '', 80),
+      season: event?.season || '',
+      season_label: trimNotificationText(event?.season_label || '', 20),
+      scope: event?.scope || 'global',
+      scope_label: trimNotificationText(event?.scope_label || '', 60),
+      scope_value: trimNotificationText(event?.scope_value || '', 60),
+      state: event?.state || '',
+      state_label: trimNotificationText(event?.state_label || '', 20),
+      progress_value: Math.max(0, Number(event?.progress_value) || 0),
+      target_progress: Math.max(0, Number(event?.target_progress) || 0),
+      progress_text: trimNotificationText(event?.progress_text || '', 40),
+      completed_at: Number(event?.completed_at) || null,
+      updated_at: Number(event?.updated_at) || null,
+    },
+    contribution: {
+      progress_value: Math.max(0, Number(myContribution?.progress_value) || 0),
+      action_count: Math.max(0, Number(myContribution?.action_count) || 0),
+      last_action_label: trimNotificationText(myContribution?.last_action_label || '', 60),
+      last_action_at: Number(myContribution?.last_action_at) || null,
+      rank: Math.max(0, Number(myContribution?.rank) || 0),
+    },
+  };
+}
+
+function emitWorldEventNotificationCreatedEvent(action, result = {}, actor = {}) {
+  if (!result?.event?.id) return 0;
+  const recipients = collectOnlineWorldEventNotificationRecipients(actor);
+  if (!recipients.length) return 0;
+  try {
+    return taoyuanRealtimeRuntime.emitUsersEvent(
+      recipients,
+      'notification.created',
+      buildWorldEventNotificationPayload(action, result, actor)
+    );
+  } catch {
+    return 0;
+  }
+}
+
 function trimNotificationText(value, maxLength = 120) {
   const text = normalizeUsername(value).replace(/\s+/g, ' ');
   if (!text) return '';
@@ -2764,10 +2831,12 @@ router.post('/taoyuan/online/societies/public-warehouse/deposit', loginRequired,
 router.post('/taoyuan/online/world-events/:eventId/contribute', loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
+      const actor = getSessionActor(req);
       const result = await taoyuanWorldEventRuntime.contributeWorldEvent(req.params.eventId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
+        username: actor.username,
+        displayName: actor.displayName,
       });
+      emitWorldEventNotificationCreatedEvent('contribution_created', result, actor);
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '提交四季大事件贡献失败' });

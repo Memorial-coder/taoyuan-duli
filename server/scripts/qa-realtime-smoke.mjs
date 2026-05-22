@@ -592,6 +592,36 @@ try {
     assert(String(notification.payload?.mail?.id || ''), 'admin campaign notification missing mail id')
   })
 
+  await runCheck('world event contribution notification event is delivered through websocket', async () => {
+    const overviewResult = await fetchSessionJson(owner, '/api/taoyuan/online/world-events')
+    assert(overviewResult.response.ok, `world event overview returned ${overviewResult.response.status}: ${overviewResult.data?.msg || 'unknown error'}`)
+    const event = overviewResult.data?.current_event || overviewResult.data?.current_world_events?.[0]
+    const action = event?.contribution_actions?.find(item => item?.can_use)
+    assert(event?.id, 'world event id missing')
+    assert(action?.id, 'world event action id missing')
+
+    const offset = friendSocket.messages.length
+    const result = await fetchSessionJson(owner, `/api/taoyuan/online/world-events/${encodeURIComponent(event.id)}/contribute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_id: action.id }),
+    })
+    assert(result.response.ok, `world event contribute returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    const notification = await expectMessageAfter(friendSocket, offset, 'notification.created', payload =>
+      payload.category === 'world_event'
+        && payload.action === 'contribution_created'
+        && payload.refresh_required === true
+        && payload.event?.id === result.data?.event?.id
+        && payload.event?.label === result.data?.event?.label
+        && Number(payload.event?.progress_value) === Number(result.data?.event?.progress_value)
+        && payload.actor_username === owner.username
+    )
+    assert(notification.payload?.overview === undefined, 'world event notification should not expose overview')
+    assert(notification.payload?.event?.contributors === undefined, 'world event notification should not expose contributors')
+    assert(notification.payload?.event?.recent_logs === undefined, 'world event notification should not expose logs')
+    assert(notification.queued_event_id === undefined, 'online world event notification should not be queued')
+  })
+
   await runCheck('hall reply notification event is delivered through websocket', async () => {
     const postTitle = `hall realtime post ${createSmokeSeed()}`
     const createResult = await fetchSessionJson(owner, '/api/taoyuan/hall/posts', {

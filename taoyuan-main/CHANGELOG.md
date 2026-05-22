@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 四季大事件贡献 realtime 在线刷新（A4-A6-A7）
+- 服务端现在会在四季大事件贡献成功后投递 `notification.created`，使用 `category: "world_event"` 和 `contribution_created` 动作通知当前在线连接。
+- `useRealtimeStore` 收到四季大事件通知后会静默刷新 `useWorldEventStore().refreshOverview({ silent: true })`，页面继续以 HTTP 权威概览为准，不直接套用 WebSocket payload。
+- 通知摘要只包含事件 ID、标题、作用域、进度和贡献摘要，不携带完整 overview、贡献者列表或日志；为避免全服事件刷满离线队列，本轮仅投递当前在线连接。`qa:realtime-smoke` 已覆盖在线贡献通知。
+
 ### 0520 公开名片展示固定存档 ID（A0-A1）
 - `SocialView.vue` 的公开名片预览新增只读“当前存档 ID”区块，会显示当前运行存档 ID 与槽位。
 - 页面文案明确昵称和公开名片可改，存档 ID 由服务端生成并保持固定，用于好友搜索、邀请和协作校验；本轮不改名片保存、邻里或订阅逻辑。

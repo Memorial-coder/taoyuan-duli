@@ -9,6 +9,7 @@ import { useManorStore } from '@/stores/useManorStore'
 import { useMailboxStore } from '@/stores/useMailboxStore'
 import { useSocialStore } from '@/stores/useSocialStore'
 import { useSocietyStore } from '@/stores/useSocietyStore'
+import { useWorldEventStore } from '@/stores/useWorldEventStore'
 
 type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed'
 
@@ -66,6 +67,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
   let mailboxRefreshTimer: number | null = null
   let societyRefreshTimer: number | null = null
   let coopOrderRefreshTimer: number | null = null
+  let worldEventRefreshTimer: number | null = null
   let manuallyStopped = true
 
   const isConnected = computed(() => status.value === 'connected')
@@ -186,6 +188,16 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     }, 300)
   }
 
+  const queueWorldEventRefresh = () => {
+    if (worldEventRefreshTimer !== null) return
+    worldEventRefreshTimer = window.setTimeout(() => {
+      worldEventRefreshTimer = null
+      void useWorldEventStore().refreshOverview({ silent: true }).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时四季大事件刷新失败'
+      })
+    }, 300)
+  }
+
   const dispatchHallNotification = (payload: Record<string, unknown> | undefined) => {
     if (typeof window === 'undefined') return
     window.dispatchEvent(new CustomEvent(TAOYUAN_HALL_NOTIFICATION_EVENT, {
@@ -284,6 +296,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
       if (category === 'manor') queueManorRefresh(envelope.payload)
       if (category === 'society') queueSocietyRefresh()
       if (category === 'coop_order') queueCoopOrderRefresh()
+      if (category === 'world_event') queueWorldEventRefresh()
     }
   }
 
@@ -392,6 +405,10 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     if (coopOrderRefreshTimer !== null) {
       window.clearTimeout(coopOrderRefreshTimer)
       coopOrderRefreshTimer = null
+    }
+    if (worldEventRefreshTimer !== null) {
+      window.clearTimeout(worldEventRefreshTimer)
+      worldEventRefreshTimer = null
     }
     if (socket) {
       const currentSocket = socket

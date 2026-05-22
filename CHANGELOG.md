@@ -2,6 +2,10 @@
 
 最后整理：2026-05-22
 
+- `0520todo.md / A4-A6-A7` 这一轮把四季大事件贡献接入 realtime 在线轻通知：贡献写路成功后，服务端会向当前在线连接投递 `category: "world_event"` 的 `contribution_created` 摘要。
+- 前端收到四季大事件通知后只防抖静默重读 `/api/taoyuan/online/world-events` 权威概览，不直接套用 payload；通知摘要不携带 overview、贡献者列表或日志明细，也不会把全服事件刷进离线队列。
+- 本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
+
 - `0520todo.md / A0-A1` 这一轮把公开名片页也接上当前运行存档 ID：`SocialView.vue` 会显示只读存档 ID 与槽位，并明确提示昵称 / 名片可改、ID 由服务端生成且固定。
 - 本轮只补身份展示语义，不改公开名片保存、邻里、订阅或好友主操作；验证通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
 
