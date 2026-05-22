@@ -1527,6 +1527,15 @@ function isFriendWith(username, targetUsername) {
   return !!findFriendship(store, username, targetUsername);
 }
 
+function isSaveFriendWith(saveId, targetSaveId) {
+  const normalizedSaveId = normalizeSocialSaveId(saveId);
+  const normalizedTargetSaveId = normalizeSocialSaveId(targetSaveId);
+  if (!normalizedSaveId || !normalizedTargetSaveId) return false;
+  if (normalizedSaveId === normalizedTargetSaveId) return true;
+  const store = loadSocialProfileStore();
+  return !!findFriendship(store, '', '', { save_id: normalizedSaveId }, { save_id: normalizedTargetSaveId });
+}
+
 function isNeighborWith(username, targetUsername) {
   if (normalizeUsername(username) === normalizeUsername(targetUsername)) return true;
   const store = loadSocialProfileStore();
@@ -2452,6 +2461,7 @@ module.exports = {
   followTarget,
   unfollowTarget,
   isFriendWith,
+  isSaveFriendWith,
   isNeighborWith,
   getNeighborGroupForUser,
 };

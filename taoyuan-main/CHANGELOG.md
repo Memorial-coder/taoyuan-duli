@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 协作单定向发布按存档 ID 写入（A0-A1-A6-A7）
+- 好友驿站跳到协作单时携带的 `target_save_id` 现在会被 `QuestView.vue` 写入协作单草稿，页面会展示定向好友提示，发布求助单时随 payload 一起提交。
+- `useCoopOrderStore` 与 `onlineProfileApi` 已支持协作单 `target_save_id`；服务端会通过 `SaveIdentity` 解析目标存档，校验当前活动存档与目标存档是好友后，再写入定向协作单字段。
+- 定向协作单仍以 HTTP 服务端写路为权威，前端只提交意图；`qa:online-smoke` 已覆盖 `target_save_id` 发布、强制 friends scope、目标字段回显、目标存档可见 / 接单和非好友目标拒绝。本轮验证通过服务端 node check、前端 `type-check` / `build`、`qa:online-smoke` 与 `git diff --check`。
+
 ### 0520 庄园好友互动按存档 ID 写入（A0-A1-A5-A6-A7）
 - `ManorView.vue` 现在会读取好友驿站传入的 `target_save_id`，通过 `/api/taoyuan/online/manor?target_save_id=...` 获取目标公开庄园快照，并在协作跳转时继续带上目标存档 ID。
 - `onlineProfileApi` 与 `useManorStore` 已支持庄园目标对象，留言墙和访问记录提交会携带 `target_save_id`，服务端通过 `SaveIdentity` 解析到庄园主人账号后复用现有庄园数据结构。

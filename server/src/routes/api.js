@@ -755,6 +755,12 @@ function buildCoopOrderNotificationOrderSummary(order = {}) {
     order_type: order?.order_type || null,
     collaboration_mode: order?.collaboration_mode || 'single',
     scope: order?.scope || 'public',
+    target_save_id: Number(order?.target_save_id) || 0,
+    target_save_slot: order?.target_save_slot === null || order?.target_save_slot === undefined
+      ? null
+      : Math.max(0, Number(order?.target_save_slot) || 0),
+    target_username: normalizeUsernameKey(order?.target_username),
+    target_display_name: normalizeUsername(order?.target_display_name || order?.target_username),
     status: order?.status || 'open',
     delivery_status: order?.delivery_status || 'none',
     owner_username: normalizeUsernameKey(order?.owner_username),

@@ -56,6 +56,8 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
   const rewardLabelDraft = ref('铜钱回报')
   const deadlineAtDraft = ref(buildDefaultDeadlineInput())
   const collaborationModeDraft = ref<'single' | 'multi_stage'>('single')
+  const targetSaveIdDraft = ref(0)
+  const targetDisplayNameDraft = ref('')
   const stageDrafts = ref<StageDraft[]>([])
   const deliveryDrafts = ref<Record<string, DeliveryDraft>>({})
 
@@ -120,6 +122,8 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     rewardLabelDraft.value = '铜钱回报'
     deadlineAtDraft.value = buildDefaultDeadlineInput()
     collaborationModeDraft.value = 'single'
+    targetSaveIdDraft.value = 0
+    targetDisplayNameDraft.value = ''
     stageDrafts.value = []
   }
 
@@ -146,6 +150,7 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
         description: descriptionDraft.value.trim(),
         order_type: orderTypeDraft.value,
         scope: scopeDraft.value,
+        target_save_id: targetSaveIdDraft.value || undefined,
         deadline_at: Math.floor(parsedDate.getTime() / 1000),
         reward_type: rewardTypeDraft.value,
         reward_value: Math.max(1, Math.floor(Number(rewardValueDraft.value) || 0)),
@@ -340,6 +345,8 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     rewardLabelDraft,
     deadlineAtDraft,
     collaborationModeDraft,
+    targetSaveIdDraft,
+    targetDisplayNameDraft,
     stageDrafts,
     deliveryDrafts,
     myOrders,

@@ -3,6 +3,7 @@ const path = require('path');
 const db = require('./db');
 const {
   createError,
+  findSaveIdentityById,
   getActiveSaveContext,
   persistGameplayData,
   writeJsonFileAtomic,
@@ -141,6 +142,32 @@ function normalizeCollaborationMode(value) {
   return COLLABORATION_MODES.includes(normalized) ? normalized : 'single';
 }
 
+function normalizeSaveId(value) {
+  const saveId = Number(value);
+  return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0;
+}
+
+function resolveActiveSaveIdentity(username) {
+  try {
+    const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源乡存档');
+    return context?.identity || null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveCoopTargetSave(payload = {}, ownerUsername = '') {
+  const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
+  const hasTargetSaveId = rawTargetSaveId !== undefined && rawTargetSaveId !== null && `${rawTargetSaveId}`.trim() !== '';
+  if (!hasTargetSaveId) return null;
+  const targetSaveId = normalizeSaveId(rawTargetSaveId);
+  if (!targetSaveId) throw createError('存档 ID 格式不正确', 400);
+  const identity = findSaveIdentityById(targetSaveId);
+  if (!identity?.account_username) throw createError('目标存档 ID 不存在', 404);
+  if (identity.account_username === ownerUsername) throw createError('不能把协作目标设为当前存档');
+  return identity;
+}
+
 function normalizeDeliveredItem(entry) {
   return {
     item_id: sanitizeText(entry?.item_id, 40),
@@ -201,6 +228,12 @@ function normalizeOrder(order) {
     order_type: normalizeOrderType(order?.order_type),
     collaboration_mode: resolvedMode,
     scope: normalizeOrderScope(order?.scope),
+    target_save_id: normalizeSaveId(order?.target_save_id),
+    target_save_slot: order?.target_save_slot === null || order?.target_save_slot === undefined || order?.target_save_slot === ''
+      ? null
+      : Math.max(0, Math.min(2, Math.floor(Number(order?.target_save_slot) || 0))),
+    target_username: String(order?.target_username || '').trim(),
+    target_display_name: sanitizeText(order?.target_display_name, 40) || String(order?.target_username || '').trim(),
     deadline_at: Math.max(0, Math.floor(Number(order?.deadline_at) || 0)),
     reward_type: normalizeRewardType(order?.reward_type),
     reward_value: Math.max(0, Math.floor(Number(order?.reward_value) || 0)),
@@ -454,6 +487,10 @@ function isOrderVisibleToViewer(order, viewerUsername) {
   const viewer = String(viewerUsername || '').trim();
   if (!viewer) return order.scope === 'public';
   if (viewer === order.owner_username) return true;
+  if (order.target_save_id) {
+    const viewerIdentity = resolveActiveSaveIdentity(viewer);
+    return normalizeSaveId(viewerIdentity?.save_id) === order.target_save_id;
+  }
   if (order.scope === 'public') return true;
   if (order.scope === 'friends') {
     return taoyuanSocialRuntime.isFriendWith(viewer, order.owner_username);
@@ -742,6 +779,14 @@ async function createCoopOrder(payload = {}, actor = {}) {
 
   const rewardValue = Math.max(0, Math.floor(Number(payload.reward_value) || 0));
   if (rewardValue <= 0) throw createError('回报数值至少为 1');
+  const targetIdentity = resolveCoopTargetSave(payload, ownerUsername);
+  const ownerIdentity = targetIdentity ? resolveActiveSaveIdentity(ownerUsername) : null;
+  if (targetIdentity) {
+    if (!ownerIdentity?.save_id) throw createError('当前账号没有可用存档，无法发布定向协作单');
+    if (!taoyuanSocialRuntime.isSaveFriendWith(ownerIdentity.save_id, targetIdentity.save_id)) {
+      throw createError('只能向当前存档的好友发布定向协作单', 403);
+    }
+  }
 
   const rawStageDefinitions = Array.isArray(payload.stage_definitions)
     ? payload.stage_definitions
@@ -810,7 +855,11 @@ async function createCoopOrder(payload = {}, actor = {}) {
     description,
     order_type: payload.order_type,
     collaboration_mode: collaborationMode,
-    scope: payload.scope,
+    scope: targetIdentity ? 'friends' : payload.scope,
+    target_save_id: targetIdentity?.save_id || 0,
+    target_save_slot: targetIdentity?.save_slot ?? null,
+    target_username: targetIdentity?.account_username || '',
+    target_display_name: targetIdentity?.nickname_snapshot || targetIdentity?.account_username || '',
     deadline_at: deadlineAt,
     reward_type: payload.reward_type,
     reward_value: rewardValue,

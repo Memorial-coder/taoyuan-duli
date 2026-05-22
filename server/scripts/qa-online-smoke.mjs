@@ -847,11 +847,13 @@ try {
   }
   const publicCoopOrderTitle = `public coop order ${Date.now()}`
   const friendCoopOrderTitle = `friend coop order ${Date.now()}`
+  const targetedFriendCoopOrderTitle = `targeted friend coop order ${Date.now()}`
   const neighborCoopOrderTitle = `neighbor coop order ${Date.now()}`
   const relayCoopOrderTitle = `relay coop order ${Date.now()}`
   const expiringCoopOrderTitle = `expiring coop order ${Date.now()}`
   let publicCoopOrderId = ''
   let friendCoopOrderId = ''
+  let targetedFriendCoopOrderId = ''
   let neighborCoopOrderId = ''
   let relayCoopOrderId = ''
   let relayStageOneId = ''
@@ -1487,6 +1489,33 @@ try {
     assert(friendCoopOrderId, 'friend coop order id was not created')
   })
 
+  await runCheck('POST /api/taoyuan/online/orders target save id friends write path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: targetedFriendCoopOrderTitle,
+        description: 'smoke targeted friend coop order',
+        order_type: 'festival_supply',
+        scope: 'public',
+        target_save_id: secondarySaveIdentity.save_id,
+        deadline_at: coopOrderDeadlineAt,
+        reward_type: 'reputation',
+        reward_value: 55,
+        reward_label: '定向互助声望',
+      }),
+    })
+    assert(response.ok, `targeted friend coop order write returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.order?.scope === 'friends', 'targeted friend coop order should be forced to friends scope')
+    assert(data?.order?.target_save_id === secondarySaveIdentity.save_id, 'targeted friend coop order did not persist target save id')
+    assert(data?.order?.target_save_slot === secondarySaveIdentity.save_slot, 'targeted friend coop order did not persist target save slot')
+    assert(data?.order?.target_username === secondarySessionState.username, 'targeted friend coop order did not resolve target username')
+    targetedFriendCoopOrderId = String(data?.order?.id || '')
+    assert(targetedFriendCoopOrderId, 'targeted friend coop order id was not created')
+  })
+
   await runCheck('GET /api/taoyuan/online/orders friends visibility', async () => {
     const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
     assert(secondaryOverview.response.ok, `friend-scope coop order overview returned ${secondaryOverview.response.status}`)
@@ -1495,6 +1524,18 @@ try {
     assert(Number(friendOrder?.priority_score) > 0, 'friend-scope coop order did not receive recommendation priority')
     assert(Array.isArray(friendOrder?.priority_reasons) && friendOrder.priority_reasons.some(reason => String(reason).includes('好友')), 'friend-scope coop order missing friend recommendation reason')
     assert(Array.isArray(friendOrder?.priority_reasons) && friendOrder.priority_reasons.some(reason => String(reason).includes('节庆') || String(reason).includes('互助')), 'friend-scope coop order missing tag recommendation reason')
+    const targetedFriendOrder = secondaryOverview.data?.orders?.find(entry => entry?.id === targetedFriendCoopOrderId)
+    assert(targetedFriendOrder?.target_save_id === secondarySaveIdentity.save_id, 'targeted friend coop order missing from target save overview')
+    assert(targetedFriendOrder?.target_username === secondarySessionState.username, 'targeted friend coop order target username missing from overview')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders/:id/accept target save id friends path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/orders/${encodeURIComponent(targetedFriendCoopOrderId)}/accept`, {
+      method: 'POST',
+    })
+    assert(response.ok, `targeted friend coop order accept returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.order?.assignee_username === secondarySessionState.username, 'targeted friend coop order accept payload is incomplete')
+    assert(data.order.target_save_id === secondarySaveIdentity.save_id, 'targeted friend coop order accept payload lost target save id')
   })
 
   let neighborInviteId = ''
@@ -2208,6 +2249,29 @@ try {
     assert(blockRelationSave.response.ok, `block relation save identity read returned ${blockRelationSave.response.status}`)
     blockRelationSaveIdentity = getEmbeddedSaveIdentity(decryptTaoyuanRaw(blockRelationSave.data?.raw || ''))
     assert(blockRelationSaveIdentity?.save_id, 'block relation save identity missing before block setup')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders target save id non-friend reject path', async () => {
+    assert(blockRelationSaveIdentity?.save_id, 'block relation save identity missing before targeted coop non-friend check')
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: `targeted reject ${Date.now()}`,
+        description: 'smoke non friend targeted coop order',
+        order_type: 'festival_supply',
+        scope: 'friends',
+        target_save_id: blockRelationSaveIdentity.save_id,
+        deadline_at: coopOrderDeadlineAt,
+        reward_type: 'reputation',
+        reward_value: 20,
+        reward_label: '定向互助声望',
+      }),
+    })
+    assert(response.status === 403, `targeted coop non-friend should return 403, received ${response.status}`)
+    assert(data?.ok === false && typeof data?.msg === 'string' && data.msg.includes('好友'), 'targeted coop non-friend reject did not expose friend failure')
   })
 
   let blockId = ''

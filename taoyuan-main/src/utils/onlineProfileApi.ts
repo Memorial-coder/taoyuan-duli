@@ -738,6 +738,10 @@ export interface OnlineCoopOrderEntry {
   order_type: OnlineCoopOrderType
   collaboration_mode?: 'single' | 'multi_stage'
   scope: OnlineCoopOrderScope
+  target_save_id?: number
+  target_save_slot?: number | null
+  target_username?: string
+  target_display_name?: string
   deadline_at: number
   reward_type: OnlineCoopRewardType
   reward_value: number
@@ -865,6 +869,7 @@ export const createCoopOrder = async (payload: {
   description: string
   order_type: OnlineCoopOrderType
   scope: OnlineCoopOrderScope
+  target_save_id?: number
   deadline_at: number
   reward_type: OnlineCoopRewardType
   reward_value: number

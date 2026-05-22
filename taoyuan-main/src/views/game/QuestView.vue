@@ -219,6 +219,18 @@
       <div class="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <div class="space-y-2">
           <div class="grid gap-2 md:grid-cols-2">
+            <div
+              v-if="coopOrderStore.targetSaveIdDraft"
+              class="md:col-span-2 border border-accent/15 rounded-xs px-3 py-2 bg-accent/5 text-[10px] text-muted"
+              data-testid="coop-target-save-id-banner"
+            >
+              <p class="text-xs text-accent">定向好友协作</p>
+              <p class="mt-1">
+                这张求助单会发给
+                {{ coopOrderStore.targetDisplayNameDraft || '目标好友' }}
+                <span class="text-accent">（存档 ID {{ coopOrderStore.targetSaveIdDraft }}）</span>，服务端会按存档级好友关系校验。
+              </p>
+            </div>
             <label class="flex flex-col gap-1 text-[10px] text-muted">
               求助标题
               <input
@@ -1232,6 +1244,10 @@
     const raw = Array.isArray(value) ? value[0] : value
     return typeof raw === 'string' ? raw.trim() : ''
   }
+  const parseRouteSaveId = (value: string) => {
+    const saveId = Number(value)
+    return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0
+  }
   const isCoopOrderScope = (value: string): value is OnlineCoopOrderScope =>
     COOP_ORDER_SCOPE_OPTIONS.some(option => option.id === value)
   const applyCoopRouteDraft = () => {
@@ -1240,15 +1256,20 @@
       coopOrderStore.scopeDraft = scope
     }
     const targetUsername = getRouteQueryText(route.query.target_username)
-    if (!targetUsername) return
     const targetSaveId = getRouteQueryText(route.query.target_save_id)
-    coopOrderStore.scopeDraft = 'friends'
+    const parsedTargetSaveId = parseRouteSaveId(targetSaveId)
+    coopOrderStore.targetSaveIdDraft = parsedTargetSaveId
+    coopOrderStore.targetDisplayNameDraft = targetUsername
+    if (!targetUsername && !parsedTargetSaveId) return
+    if (parsedTargetSaveId) {
+      coopOrderStore.scopeDraft = 'friends'
+    }
     if (!coopOrderStore.titleDraft.trim()) {
-      coopOrderStore.titleDraft = `与${targetUsername}协作`
+      coopOrderStore.titleDraft = targetUsername ? `与${targetUsername}协作` : `与存档 ${parsedTargetSaveId} 协作`
     }
     if (!coopOrderStore.descriptionDraft.trim()) {
-      coopOrderStore.descriptionDraft = targetSaveId
-        ? `面向好友 ${targetUsername}（存档 ID ${targetSaveId}）发起一张协作求助单。`
+      coopOrderStore.descriptionDraft = parsedTargetSaveId
+        ? `面向好友 ${targetUsername || `存档 ${parsedTargetSaveId}`}（存档 ID ${targetSaveId}）发起一张协作求助单。`
         : `面向好友 ${targetUsername} 发起一张协作求助单。`
     }
   }

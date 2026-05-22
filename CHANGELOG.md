@@ -2,6 +2,11 @@
 
 最后整理：2026-05-22
 
+- `0520todo.md / A0-A1-A6-A7` 这一轮把协作单定向发布接进存档 ID：好友驿站跳到协作单时带入的 `target_save_id` 会被创建页保存、展示，并在发布求助单时随 payload 提交。
+- 服务端协作单创建会通过 `SaveIdentity` 解析目标存档，校验当前活动存档与目标存档确为好友后，写入 `target_save_id / target_save_slot / target_username` 等定向字段；目标存档玩家的概览可看到该定向求助单。
+- `qa:online-smoke` 已新增定向协作单回归：传入 `target_save_id` 时服务端会强制 friends scope、写回目标存档字段，让目标存档玩家在协作概览中看到并接下该求助单，同时拒绝非好友存档 ID 的定向发布。
+- 本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/taoyuanSocialRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke` 与 `git diff --check`。
+
 - `0520todo.md / A0-A1-A5-A6-A7` 这一轮把庄园目标页接进存档 ID：好友驿站带入庄园的 `target_save_id` 会用于读取目标公开庄园快照，并在留言 / 访问记录提交时继续传给服务端。
 - 服务端 `GET /api/taoyuan/online/manor?target_save_id=...`、庄园留言和访问写路会通过 `SaveIdentity` 解析目标账号，再复用现有 username 庄园数据结构；庄园 realtime 通知也已验证只携带目标存档 ID 时可以投递和离线补发。
 - 本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/src/taoyuanManorRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
