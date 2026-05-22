@@ -759,6 +759,103 @@ function emitSocietyMembershipNotificationCreatedEvent(action, result = {}, acto
   }
 }
 
+function collectSocietySharedProgressNotificationRecipients(result = {}, actor = {}) {
+  const recipients = new Set(collectSocietyNoticeNotificationRecipients(result?.society, actor));
+  const actorKey = normalizeUsernameKey(actor.username);
+  if (actorKey) recipients.add(actorKey);
+  return [...recipients];
+}
+
+function buildSocietyProjectNotificationPayload(action, result = {}, actor = {}) {
+  const society = result?.society && typeof result.society === 'object' ? result.society : {};
+  const project = result?.project && typeof result.project === 'object' ? result.project : {};
+  const recentContribution = Array.isArray(project?.recent_contributions)
+    ? project.recent_contributions.find(entry => normalizeUsernameKey(entry?.username) === normalizeUsernameKey(actor.username))
+      || project.recent_contributions[0]
+    : null;
+  return {
+    category: 'society',
+    action,
+    refresh_required: true,
+    actor_username: normalizeUsernameKey(actor.username),
+    actor_display_name: normalizeUsername(actor.displayName || actor.display_name || actor.username),
+    society: {
+      id: String(society?.id || ''),
+      name: trimNotificationText(society?.name || '', 60),
+    },
+    project: {
+      id: String(project?.id || ''),
+      label: trimNotificationText(project?.label || '', 60),
+      status: project?.status || 'active',
+      status_label: trimNotificationText(project?.status_label || '', 20),
+      progress: Math.max(0, Number(project?.progress) || 0),
+      target_progress: Math.max(0, Number(project?.target_progress) || 0),
+      progress_percent: Math.max(0, Number(project?.progress_percent) || 0),
+      completed_at: Number(project?.completed_at) || null,
+    },
+    contribution: recentContribution
+      ? {
+          id: String(recentContribution?.id || ''),
+          package_id: String(recentContribution?.package_id || ''),
+          package_label: trimNotificationText(recentContribution?.package_label || '', 60),
+          progress_gain: Math.max(0, Number(recentContribution?.progress_gain) || 0),
+          username: normalizeUsernameKey(recentContribution?.username),
+          display_name: normalizeUsername(recentContribution?.display_name || recentContribution?.username),
+          created_at: Number(recentContribution?.created_at) || null,
+        }
+      : null,
+  };
+}
+
+function buildSocietyWarehouseNotificationPayload(action, result = {}, actor = {}) {
+  const society = result?.society && typeof result.society === 'object' ? result.society : {};
+  const warehouse = result?.warehouse && typeof result.warehouse === 'object' ? result.warehouse : {};
+  const latestLog = Array.isArray(warehouse?.logs) ? warehouse.logs[0] : null;
+  return {
+    category: 'society',
+    action,
+    refresh_required: true,
+    actor_username: normalizeUsernameKey(actor.username),
+    actor_display_name: normalizeUsername(actor.displayName || actor.display_name || actor.username),
+    society: {
+      id: String(society?.id || ''),
+      name: trimNotificationText(society?.name || '', 60),
+    },
+    warehouse: {
+      funds: Math.max(0, Number(warehouse?.funds) || 0),
+      item_count: Array.isArray(warehouse?.items) ? warehouse.items.length : 0,
+      latest_log: latestLog
+        ? {
+            id: String(latestLog?.id || ''),
+            deposit_id: String(latestLog?.deposit_id || ''),
+            deposit_label: trimNotificationText(latestLog?.deposit_label || '', 60),
+            username: normalizeUsernameKey(latestLog?.username),
+            display_name: normalizeUsername(latestLog?.display_name || latestLog?.username),
+            created_at: Number(latestLog?.created_at) || null,
+          }
+        : null,
+    },
+  };
+}
+
+function emitSocietySharedProgressNotificationCreatedEvent(action, result = {}, actor = {}) {
+  if (!result?.society?.id) return 0;
+  const recipients = collectSocietySharedProgressNotificationRecipients(result, actor);
+  if (!recipients.length) return 0;
+  const payload = action === 'warehouse_deposited'
+    ? buildSocietyWarehouseNotificationPayload(action, result, actor)
+    : buildSocietyProjectNotificationPayload(action, result, actor);
+  try {
+    return taoyuanRealtimeRuntime.emitUsersEvent(
+      recipients,
+      'notification.created',
+      payload
+    );
+  } catch {
+    return 0;
+  }
+}
+
 function collectManorGuestbookNotificationRecipients(action, entry = {}, actor = {}) {
   const actorKey = normalizeUsernameKey(actor.username);
   const recipients = new Set();
@@ -2803,10 +2900,9 @@ router.post('/taoyuan/online/societies/proposals/:proposalId/close', loginRequir
 router.post('/taoyuan/online/societies/public-projects/:projectId/contribute', loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanSocietyRuntime.contributeSocietyPublicProject(req.params.projectId, req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const actor = getSessionActor(req);
+      const result = await taoyuanSocietyRuntime.contributeSocietyPublicProject(req.params.projectId, req.body || {}, actor);
+      emitSocietySharedProgressNotificationCreatedEvent('public_project_contributed', result, actor);
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '提交公共建设捐献失败' });
@@ -2817,10 +2913,9 @@ router.post('/taoyuan/online/societies/public-projects/:projectId/contribute', l
 router.post('/taoyuan/online/societies/public-warehouse/deposit', loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
-      const result = await taoyuanSocietyRuntime.depositSocietyWarehouse(req.body || {}, {
-        username: req.session.username,
-        displayName: req.session.display_name || req.session.username,
-      });
+      const actor = getSessionActor(req);
+      const result = await taoyuanSocietyRuntime.depositSocietyWarehouse(req.body || {}, actor);
+      emitSocietySharedProgressNotificationCreatedEvent('warehouse_deposited', result, actor);
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '补入公共仓失败' });

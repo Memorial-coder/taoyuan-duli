@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 村社公共建设与公共仓 realtime 在线刷新（A4-A6-A7）
+- 服务端现在会在村社公共建设捐献成功后投递 `notification.created`，使用 `category: "society"` 与 `public_project_contributed` 动作；公共仓补货成功后会投递 `warehouse_deposited` 动作，通知同社当前在线成员与操作人。
+- 前端继续复用既有 `society` realtime 刷新路径，收到通知后只静默刷新 `useSocietyStore().refreshOverview({ silent: true })`，不直接套用 WebSocket payload。
+- 通知摘要只包含村社、公共建设 / 公共仓和最近一次动作摘要，不携带完整 overview、成员列表、公共建设贡献列表或公共仓日志；`qa:realtime-smoke` 已覆盖在线捐献通知与在线补仓通知。
+
 ### 0520 四季大事件贡献 realtime 在线刷新（A4-A6-A7）
 - 服务端现在会在四季大事件贡献成功后投递 `notification.created`，使用 `category: "world_event"` 和 `contribution_created` 动作通知当前在线连接。
 - `useRealtimeStore` 收到四季大事件通知后会静默刷新 `useWorldEventStore().refreshOverview({ silent: true })`，页面继续以 HTTP 权威概览为准，不直接套用 WebSocket payload。

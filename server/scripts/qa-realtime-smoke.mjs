@@ -766,6 +766,56 @@ try {
         && payload.society?.notice === noticeText
         && payload.actor_username === owner.username
     )
+
+    const overviewResult = await fetchSessionJson(owner, '/api/taoyuan/online/societies')
+    assert(overviewResult.response.ok, `society overview returned ${overviewResult.response.status}: ${overviewResult.data?.msg || 'unknown error'}`)
+    const project = overviewResult.data?.my_society?.public_projects?.find(item => item?.can_contribute)
+    const contributionPackage = project?.contribution_packages?.find(item => item?.id === 'survey_fund') || project?.contribution_packages?.[0]
+    assert(project?.id, 'society public project id missing')
+    assert(contributionPackage?.id, 'society public project package id missing')
+
+    const projectOffset = friendSocket.messages.length
+    const projectResult = await fetchSessionJson(owner, `/api/taoyuan/online/societies/public-projects/${encodeURIComponent(project.id)}/contribute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ package_id: contributionPackage.id }),
+    })
+    assert(projectResult.response.ok, `society project contribute returned ${projectResult.response.status}: ${projectResult.data?.msg || 'unknown error'}`)
+    const projectNotification = await expectMessageAfter(friendSocket, projectOffset, 'notification.created', payload =>
+      payload.category === 'society'
+        && payload.action === 'public_project_contributed'
+        && payload.refresh_required === true
+        && payload.society?.id === societyId
+        && payload.project?.id === projectResult.data?.project?.id
+        && payload.project?.progress === projectResult.data?.project?.progress
+        && payload.contribution?.package_id === contributionPackage.id
+        && payload.actor_username === owner.username
+    )
+    assert(projectNotification.payload?.overview === undefined, 'society project notification should not expose overview')
+    assert(projectNotification.payload?.project?.recent_contributions === undefined, 'society project notification should not expose contribution list')
+    assert(projectNotification.payload?.members === undefined, 'society project notification should not expose members')
+
+    const depositOption = overviewResult.data?.my_society?.public_warehouse?.deposit_options?.find(item => item?.id === 'wood_crate')
+      || overviewResult.data?.my_society?.public_warehouse?.deposit_options?.[0]
+    assert(depositOption?.id, 'society warehouse deposit id missing')
+    const warehouseOffset = friendSocket.messages.length
+    const warehouseResult = await fetchSessionJson(owner, '/api/taoyuan/online/societies/public-warehouse/deposit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deposit_id: depositOption.id }),
+    })
+    assert(warehouseResult.response.ok, `society warehouse deposit returned ${warehouseResult.response.status}: ${warehouseResult.data?.msg || 'unknown error'}`)
+    const warehouseNotification = await expectMessageAfter(friendSocket, warehouseOffset, 'notification.created', payload =>
+      payload.category === 'society'
+        && payload.action === 'warehouse_deposited'
+        && payload.refresh_required === true
+        && payload.society?.id === societyId
+        && payload.warehouse?.latest_log?.deposit_id === depositOption.id
+        && payload.actor_username === owner.username
+    )
+    assert(warehouseNotification.payload?.overview === undefined, 'society warehouse notification should not expose overview')
+    assert(warehouseNotification.payload?.warehouse?.logs === undefined, 'society warehouse notification should not expose warehouse logs')
+    assert(warehouseNotification.payload?.members === undefined, 'society warehouse notification should not expose members')
   })
 
   await runCheck('society membership reject notification event is delivered through websocket', async () => {

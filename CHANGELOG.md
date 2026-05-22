@@ -2,6 +2,10 @@
 
 最后整理：2026-05-22
 
+- `0520todo.md / A4-A6-A7` 这一轮把村社公共建设与公共仓共享进度接入 realtime 在线摘要通知：公共建设捐献成功后会投递 `public_project_contributed`，公共仓补货成功后会投递 `warehouse_deposited`，收件人限定为同社当前在线成员与操作人。
+- 前端继续复用现有 `category: "society"` 静默刷新路径，只重读 `/api/taoyuan/online/societies` 权威概览；通知摘要不携带 overview、成员列表、公共建设贡献明细或公共仓日志明细，也暂不进入离线补发队列，避免高频共建动作刷满 queue。
+- 本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
+
 - `0520todo.md / A4-A6-A7` 这一轮把四季大事件贡献接入 realtime 在线轻通知：贡献写路成功后，服务端会向当前在线连接投递 `category: "world_event"` 的 `contribution_created` 摘要。
 - 前端收到四季大事件通知后只防抖静默重读 `/api/taoyuan/online/world-events` 权威概览，不直接套用 payload；通知摘要不携带 overview、贡献者列表或日志明细，也不会把全服事件刷进离线队列。
 - 本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
