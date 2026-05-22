@@ -664,6 +664,18 @@ try {
     })
     assert(acceptResult.response.ok, `neighbor accept returned ${acceptResult.response.status}: ${acceptResult.data?.msg || 'unknown error'}`)
 
+    const offlineNeighbor = await bootstrapSession('smkrt_nc')
+    const offlineApplyResult = await fetchSessionJson(offlineNeighbor, `/api/taoyuan/online/social/neighbors/${encodeURIComponent(groupId)}/apply`, {
+      method: 'POST',
+    })
+    assert(offlineApplyResult.response.ok, `offline neighbor apply returned ${offlineApplyResult.response.status}: ${offlineApplyResult.data?.msg || 'unknown error'}`)
+    const offlineRequestId = String(offlineApplyResult.data?.request?.id || '')
+    assert(offlineRequestId, 'offline neighbor apply request id missing')
+    const offlineAcceptResult = await fetchSessionJson(owner, `/api/taoyuan/online/social/neighbors/requests/${encodeURIComponent(offlineRequestId)}/accept`, {
+      method: 'POST',
+    })
+    assert(offlineAcceptResult.response.ok, `offline neighbor accept returned ${offlineAcceptResult.response.status}: ${offlineAcceptResult.data?.msg || 'unknown error'}`)
+
     const createOffset = ownerSocket.messages.length
     const createResult = await fetchSessionJson(friend, '/api/taoyuan/exchange-station/neighbors/consignments', {
       method: 'POST',
@@ -691,6 +703,29 @@ try {
     assert(createdNotification.payload?.overview === undefined, 'neighbor consignment notification should not expose overview')
     assert(createdNotification.payload?.exchange?.item_id === undefined, 'neighbor consignment notification should not expose item detail')
     assert(createdNotification.queued_event_id === undefined, 'neighbor consignment online notification should not be queued')
+
+    let offlineReplaySocket = await openRealtimeSocket(offlineNeighbor)
+    const replayedNotification = await expectMessage(offlineReplaySocket, 'notification.created', payload =>
+      payload.category === 'exchange'
+        && payload.action === 'neighbor_consignment_updated'
+        && payload.refresh_required === true
+        && payload.exchange?.source === 'neighbor_consignment'
+        && payload.exchange?.listing_id === listingId
+        && payload.exchange?.listing_status === 'open'
+        && payload.actor_username === friend.username
+    )
+    assert(replayedNotification.queued_event_id, 'offline neighbor consignment notification should be queued')
+    assert(replayedNotification.payload?.exchange?.item_id === undefined, 'offline neighbor consignment notification should not expose item detail')
+    offlineReplaySocket.send('notification.ack', { id: replayedNotification.queued_event_id })
+    await expectMessage(offlineReplaySocket, 'notification.ack', payload =>
+      Array.isArray(payload.acked_ids) && payload.acked_ids.includes(replayedNotification.queued_event_id)
+    )
+    offlineReplaySocket.close()
+    offlineReplaySocket = await openRealtimeSocket(offlineNeighbor)
+    await expectNoMessageAfter(offlineReplaySocket, 0, 'notification.created', payload =>
+      payload.category === 'exchange' && payload.exchange?.listing_id === listingId
+    )
+    offlineReplaySocket.close()
 
     const soldOffset = friendSocket.messages.length
     const soldResult = await fetchSessionJson(owner, `/api/taoyuan/exchange-station/neighbors/consignments/${encodeURIComponent(listingId)}/purchase`, {

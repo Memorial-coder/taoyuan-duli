@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 邻里寄售离线补发（A5-A7）
+- 邻里寄售挂单变化现在会投递给同邻里成员：在线成员即时收到，离线成员进入 realtime 补发队列，ready 后补发并由客户端 ACK 清理。
+- 通知仍只包含挂单 ID / 状态、邻里范围和相关账号摘要，不携带物资明细、价格明细或完整 overview；`qa:realtime-smoke` 覆盖离线补发、ACK 和重连不重复。
+
 ### 0520 活动房间订阅快照（A1-A4-A7）
 - 活动房间 realtime 广播前会维护 `taoyuan_realtime_room_subscriptions.json` 只读快照，记录房间 domain、room_id、房主、订阅用户名、成员数、待处理邀请数、房间状态和最近动作。
 - 管理端 `/api/admin/taoyuan/realtime` 新增 `recent_room_subscriptions`、domain / 状态聚合和记录上限；该快照不携带完整 room payload，也不参与房间结算。

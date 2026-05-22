@@ -423,20 +423,14 @@ function emitWorldEventNotificationCreatedEvent(action, result = {}, actor = {})
   }
 }
 
-function collectOnlineNeighborConsignmentNotificationRecipients(result = {}) {
+function collectNeighborConsignmentNotificationRecipients(result = {}) {
   const listing = result?.listing && typeof result.listing === 'object' ? result.listing : {};
   const groupId = String(listing?.group_id || '').trim();
   if (!groupId) return [];
-  const groupRecipients = new Set(taoyuanSocialRuntime.listNeighborGroupMemberUsernames(groupId));
-  const onlineRecipients = new Set();
-  try {
-    const state = taoyuanRealtimeRuntime.getRealtimeState();
-    for (const connection of Array.isArray(state?.connections) ? state.connections : []) {
-      const username = normalizeUsernameKey(connection?.username);
-      if (username && groupRecipients.has(username)) onlineRecipients.add(username);
-    }
-  } catch {}
-  return [...onlineRecipients];
+  return [...new Set(taoyuanSocialRuntime
+    .listNeighborGroupMemberUsernames(groupId)
+    .map(normalizeUsernameKey)
+    .filter(Boolean))];
 }
 
 function buildNeighborConsignmentNotificationPayload(action, result = {}, actor = {}) {
@@ -462,7 +456,7 @@ function buildNeighborConsignmentNotificationPayload(action, result = {}, actor 
 
 function emitNeighborConsignmentNotificationCreatedEvent(action, result = {}, actor = {}) {
   if (!result?.listing?.id) return 0;
-  const recipients = collectOnlineNeighborConsignmentNotificationRecipients(result);
+  const recipients = collectNeighborConsignmentNotificationRecipients(result);
   if (!recipients.length) return 0;
   try {
     return taoyuanRealtimeRuntime.emitUsersEvent(

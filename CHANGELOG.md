@@ -2,6 +2,10 @@
 
 最后整理：2026-05-22
 
+- `0520todo.md / A5-A7` 这一轮把邻里寄售通知从“仅在线成员”扩展为同邻里成员统一投递：在线成员即时收到摘要，离线成员进入既有 realtime 补发队列，ready 后补发并等待 ACK 清理。
+- 邻里寄售补发仍只携带 `category: "exchange"`、挂单 ID / 状态、邻里范围和相关账号摘要，不包含物资明细、价格明细或 overview；队列继续受每用户上限与过期裁剪保护。
+- 本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs` 与 `npm --prefix server run qa:realtime-smoke`，覆盖离线邻里成员收到 queued 挂单通知、ACK 后重连不重复。
+
 - `0520todo.md / A1-A4-A7` 这一轮把活动房间 realtime 订阅范围补成持久只读快照：房间 create / invite / join / leave / ready / action / settle / close 等事件广播前，会记录 domain、room_id、房主、订阅用户名、成员数、待处理邀请数、房间状态和最近动作。
 - `/api/admin/taoyuan/realtime` 现在会返回 `recent_room_subscriptions`、按 domain / 状态聚合的房间订阅摘要和记录上限；快照不携带完整 room payload，不参与房间结算，只用于后台观测与断线排查。
 - 本轮验证通过 `node --check server/src/taoyuanRealtimeRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs` 与 `npm --prefix server run qa:realtime-smoke`。
