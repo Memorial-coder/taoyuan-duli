@@ -34,7 +34,9 @@ const {
   nextSlotRevision,
   ensureSaveIdentitiesForSlots,
   prepareSlotEntryForSave,
+  findSaveIdentityById,
   removeSaveSlotIdentity,
+  createError,
 } = require('../taoyuanSaveRuntime');
 
 const router = express.Router();
@@ -1092,6 +1094,17 @@ function decodeRouteUsername(raw) {
   }
 }
 
+function resolveAccountUsernameBySaveId(rawSaveId, missingMessage = '目标存档 ID 不存在') {
+  const hasSaveId = rawSaveId !== undefined && rawSaveId !== null && `${rawSaveId}`.trim() !== '';
+  if (!hasSaveId) return '';
+  const saveId = Number(rawSaveId);
+  if (!Number.isInteger(saveId)) throw createError('存档 ID 格式不正确', 400);
+  const identity = findSaveIdentityById(saveId);
+  const username = String(identity?.account_username || '').trim();
+  if (!username) throw createError(missingMessage, 404);
+  return username;
+}
+
 function getSaveFileSummary(username) {
   const safeUsername = String(username || '');
   const filePath = getTaoyuanSavePath(safeUsername);
@@ -2118,7 +2131,10 @@ router.get('/taoyuan/online/profile/:username', async (req, res) => {
 
 router.get('/taoyuan/online/manor', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
   try {
-    const snapshot = await taoyuanManorRuntime.getOwnManorSnapshot(req.session.username);
+    const targetUsername = resolveAccountUsernameBySaveId(req.query?.target_save_id ?? req.query?.save_id);
+    const snapshot = targetUsername
+      ? await taoyuanManorRuntime.getPublicManorSnapshot(targetUsername, req.session.username)
+      : await taoyuanManorRuntime.getOwnManorSnapshot(req.session.username);
     res.json({ ok: true, snapshot });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取庄园快照失败' });

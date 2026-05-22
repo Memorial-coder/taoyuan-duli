@@ -2,6 +2,10 @@
 
 最后整理：2026-05-22
 
+- `0520todo.md / A0-A1-A5-A6-A7` 这一轮把庄园目标页接进存档 ID：好友驿站带入庄园的 `target_save_id` 会用于读取目标公开庄园快照，并在留言 / 访问记录提交时继续传给服务端。
+- 服务端 `GET /api/taoyuan/online/manor?target_save_id=...`、庄园留言和访问写路会通过 `SaveIdentity` 解析目标账号，再复用现有 username 庄园数据结构；庄园 realtime 通知也已验证只携带目标存档 ID 时可以投递和离线补发。
+- 本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/src/taoyuanManorRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
+
 - `0520todo.md / A0-A1-A5-A6` 这一轮把邮箱好友互动写路接进存档 ID：好友驿站带入邮箱的 `target_save_id` 会被写信 / 送礼页面保存到草稿，提交玩家来信或礼物包裹时随 payload 发给服务端。
 - 服务端邮箱写入会优先用 `SaveIdentity` 解析 `target_save_id`，再复用现有 username 投递结构；玩家来信 / 礼物包裹返回 `recipient_username`，realtime 通知也用解析后的收件账号投递。
 - 本轮验证通过 `node --check server/src/taoyuanMailbox.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。

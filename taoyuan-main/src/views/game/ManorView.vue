@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between gap-2">
       <div>
         <p class="text-sm text-accent">{{ manorStore.snapshot && !manorStore.snapshot.viewer_is_owner ? `${manorStore.snapshot.display_name}的公开庄园` : '公开庄园' }}</p>
-        <p class="text-[10px] text-muted mt-1">{{ routeTargetUsername ? '从好友驿站打开，当前正在查看目标玩家的庄园快照。' : '把庄园公开展示成一个可以被别人理解的在线地点。' }}</p>
+        <p class="text-[10px] text-muted mt-1">{{ routeTargetHelperText }}</p>
       </div>
       <Button class="text-[10px]" :disabled="manorStore.loading" @click="refreshSnapshot">
         {{ manorStore.loading ? '加载中…' : '刷新庄园快照' }}
@@ -382,9 +382,20 @@
     return typeof raw === 'string' ? raw.trim() : ''
   }
   const routeTargetUsername = computed(() => getRouteQueryText(route.query.target_username))
+  const routeTargetSaveId = computed(() => getRouteQueryText(route.query.target_save_id))
+  const routeTargetContextLabel = computed(() => routeTargetUsername.value || (routeTargetSaveId.value ? `ID ${routeTargetSaveId.value}` : ''))
+  const routeTargetHelperText = computed(() => {
+    if (!routeTargetContextLabel.value) return '把庄园公开展示成一个可以被别人理解的在线地点。'
+    return routeTargetSaveId.value
+      ? `从好友驿站打开，当前正在查看目标玩家的庄园快照（ID ${routeTargetSaveId.value}）。`
+      : '从好友驿站打开，当前正在查看目标玩家的庄园快照。'
+  })
 
   const refreshSnapshot = async () => {
-    await manorStore.refreshSnapshot(routeTargetUsername.value).catch(() => {})
+    await manorStore.refreshSnapshot({
+      target_username: routeTargetUsername.value,
+      target_save_id: routeTargetSaveId.value || undefined,
+    }).catch(() => {})
   }
 
   const submitGuestbook = async () => {
@@ -441,8 +452,15 @@
 
   const openQuestBoard = () => {
     const targetUsername = manorStore.snapshot?.viewer_is_owner ? '' : manorStore.snapshot?.username || routeTargetUsername.value
-    void router.push(targetUsername
-      ? { name: 'quest', query: { scope: 'friends', target_username: targetUsername } }
+    const targetSaveId = manorStore.snapshot?.viewer_is_owner ? '' : routeTargetSaveId.value
+    const query: Record<string, string> = {}
+    if (targetUsername || targetSaveId) {
+      query.scope = 'friends'
+      if (targetUsername) query.target_username = targetUsername
+      if (targetSaveId) query.target_save_id = targetSaveId
+    }
+    void router.push(Object.keys(query).length > 0
+      ? { name: 'quest', query }
       : { name: 'quest' })
   }
 
@@ -477,7 +495,7 @@
   })
 
   watch(
-    () => route.query.target_username,
+    () => [route.query.target_username, route.query.target_save_id],
     () => {
       void refreshSnapshot()
     }

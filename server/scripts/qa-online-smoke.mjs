@@ -611,6 +611,13 @@ try {
     assert(data?.ok === true && data?.snapshot?.username === sessionState.username, 'public manor snapshot payload is incomplete')
   })
 
+  await runCheck('GET /api/taoyuan/online/manor target save id snapshot', async () => {
+    assert(primarySaveIdentity?.save_id, 'save identity backfill did not complete before manor save id target check')
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/manor?target_save_id=${encodeURIComponent(primarySaveIdentity.save_id)}`)
+    assert(response.ok, `target save id manor snapshot returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.snapshot?.username === sessionState.username, 'target save id manor snapshot payload is incomplete')
+  })
+
   await runCheck('POST /api/taoyuan/online/manor/theme-week write path', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/online/manor/theme-week', {
       method: 'POST',
@@ -875,20 +882,22 @@ try {
   })
 
   manorGuestbookEntryContent = `smoke guestbook ${Date.now()}`
-  await runCheck('POST /api/taoyuan/online/manor/guestbook write path', async () => {
+  await runCheck('POST /api/taoyuan/online/manor/guestbook target save id write path', async () => {
+    assert(primarySaveIdentity?.save_id, 'primary save identity missing before manor guestbook save id target check')
     const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/manor/guestbook', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        target_username: sessionState.username,
+        target_save_id: primarySaveIdentity.save_id,
         kind: 'blessing',
         content: manorGuestbookEntryContent,
       }),
     })
     assert(response.ok, `manor guestbook write returned ${response.status}`)
     assert(data?.ok === true && data?.entry?.id, 'manor guestbook write payload is incomplete')
+    assert(data.entry.target_username === sessionState.username, 'manor guestbook save id target did not resolve to account username')
   })
 
   await runCheck('POST /api/taoyuan/online/manor/guestbook moderation reject path', async () => {
@@ -906,14 +915,15 @@ try {
     assertRejectedResponse(response, data, 'manor guestbook moderation')
   })
 
-  await runCheck('POST /api/taoyuan/online/manor/visit write path', async () => {
+  await runCheck('POST /api/taoyuan/online/manor/visit target save id write path', async () => {
+    assert(primarySaveIdentity?.save_id, 'primary save identity missing before manor visit save id target check')
     const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/manor/visit', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        target_username: sessionState.username,
+        target_save_id: primarySaveIdentity.save_id,
         purpose: 'friend_visit',
         summary: 'smoke manor visit',
         feedback: 'smoke manor feedback',
@@ -921,6 +931,7 @@ try {
     })
     assert(response.ok, `manor visit write returned ${response.status}`)
     assert(data?.ok === true && data?.entry?.id, 'manor visit write payload is incomplete')
+    assert(data.entry.target_username === sessionState.username, 'manor visit save id target did not resolve to account username')
   })
 
   await runCheck('GET /api/taoyuan/online/manor guestbook/visit readback', async () => {

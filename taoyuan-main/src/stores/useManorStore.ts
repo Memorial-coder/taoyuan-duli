@@ -11,6 +11,7 @@ import {
   replyManorGuestbookEntry,
   saveManorGuide,
   saveManorThemeWeek,
+  type OnlineManorTarget,
   type OnlineManorSnapshot
 } from '@/utils/onlineProfileApi'
 
@@ -45,6 +46,7 @@ export const useManorStore = defineStore('onlineManor', () => {
   const loading = ref(false)
   const snapshot = ref<OnlineManorSnapshot | null>(null)
   const activeTargetUsername = ref('')
+  const activeTargetSaveId = ref<number | null>(null)
   const errorMessage = ref('')
   const guestbookKindDraft = ref<ManorGuestbookKind>('text')
   const guestbookDraft = ref('')
@@ -83,17 +85,49 @@ export const useManorStore = defineStore('onlineManor', () => {
     guestbookDraft.value = content
   }
 
-  const refreshSnapshot = async (targetUsername?: string, options: { silent?: boolean } = {}) => {
-    const normalizedTarget = typeof targetUsername === 'string'
-      ? targetUsername.trim()
-      : activeTargetUsername.value
-    activeTargetUsername.value = normalizedTarget
+  const normalizeTargetSaveId = (value: unknown) => {
+    const raw = value === undefined || value === null ? '' : String(value).trim()
+    if (!raw) return null
+    const saveId = Number(raw)
+    if (!Number.isInteger(saveId)) throw new Error('存档 ID 格式不正确')
+    return saveId
+  }
+
+  const normalizeSnapshotTarget = (target?: OnlineManorTarget) => {
+    if (target === undefined) {
+      return {
+        target_username: activeTargetUsername.value,
+        target_save_id: activeTargetSaveId.value,
+      }
+    }
+    if (typeof target === 'string') {
+      return {
+        target_username: target.trim(),
+        target_save_id: null,
+      }
+    }
+    return {
+      target_username: String(target?.target_username || '').trim(),
+      target_save_id: normalizeTargetSaveId(target?.target_save_id),
+    }
+  }
+
+  const refreshSnapshot = async (target?: OnlineManorTarget, options: { silent?: boolean } = {}) => {
+    const normalizedTarget = normalizeSnapshotTarget(target)
+    activeTargetUsername.value = normalizedTarget.target_username
+    activeTargetSaveId.value = normalizedTarget.target_save_id
     if (!options.silent) {
       loading.value = true
       errorMessage.value = ''
     }
     try {
-      snapshot.value = await fetchManorSnapshot(normalizedTarget)
+      snapshot.value = await fetchManorSnapshot({
+        target_username: activeTargetUsername.value,
+        target_save_id: activeTargetSaveId.value ?? undefined,
+      })
+      if (snapshot.value?.username && activeTargetSaveId.value) {
+        activeTargetUsername.value = snapshot.value.username
+      }
       syncThemeDrafts(snapshot.value)
       return snapshot.value
     } catch (error) {
@@ -107,8 +141,8 @@ export const useManorStore = defineStore('onlineManor', () => {
   }
 
   const refreshActiveSnapshot = async (options: { silent?: boolean } = {}) => {
-    if (!activeTargetUsername.value && !snapshot.value) return null
-    return refreshSnapshot(activeTargetUsername.value, options)
+    if (!activeTargetUsername.value && !activeTargetSaveId.value && !snapshot.value) return null
+    return refreshSnapshot(undefined, options)
   }
 
   const createGuestbookEntry = async () => {
@@ -121,6 +155,7 @@ export const useManorStore = defineStore('onlineManor', () => {
     try {
       await createManorGuestbookEntry({
         target_username: snapshot.value.username,
+        target_save_id: activeTargetSaveId.value ?? undefined,
         kind,
         content,
       })
@@ -175,6 +210,7 @@ export const useManorStore = defineStore('onlineManor', () => {
     try {
       await recordManorVisit({
         target_username: snapshot.value.username,
+        target_save_id: activeTargetSaveId.value ?? undefined,
         purpose: visitPurposeDraft.value,
         summary: visitSummaryDraft.value || '前来参观庄园',
         feedback: visitFeedbackDraft.value,
@@ -293,6 +329,7 @@ export const useManorStore = defineStore('onlineManor', () => {
     loading,
     snapshot,
     activeTargetUsername,
+    activeTargetSaveId,
     errorMessage,
     guestbookKindDraft,
     guestbookDraft,

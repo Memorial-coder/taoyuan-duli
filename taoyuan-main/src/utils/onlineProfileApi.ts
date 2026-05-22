@@ -304,6 +304,11 @@ export interface OnlineManorSnapshot {
   }
 }
 
+export type OnlineManorTarget = string | {
+  target_username?: string
+  target_save_id?: number | string
+}
+
 export const fetchOnlineProfile = async (): Promise<OnlineProfileResponse['profile'] | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
@@ -551,10 +556,34 @@ export const fetchOwnManorSnapshot = async (): Promise<OnlineManorSnapshot | nul
   return data?.snapshot ?? null
 }
 
-export const fetchManorSnapshot = async (targetUsername = ''): Promise<OnlineManorSnapshot | null> => {
-  const normalizedTarget = targetUsername.trim()
-  if (!normalizedTarget) return fetchOwnManorSnapshot()
-  const { data } = await fetchProtectedJson<{ ok: boolean; snapshot?: OnlineManorSnapshot }>(() => fetch(`/api/taoyuan/online/manor/${encodeURIComponent(normalizedTarget)}`, {
+const normalizeManorTarget = (target: OnlineManorTarget) => {
+  if (typeof target === 'string') {
+    return {
+      targetUsername: target.trim(),
+      targetSaveId: ''
+    }
+  }
+  return {
+    targetUsername: String(target?.target_username || '').trim(),
+    targetSaveId: target?.target_save_id === undefined || target?.target_save_id === null
+      ? ''
+      : String(target.target_save_id).trim()
+  }
+}
+
+export const fetchManorSnapshot = async (target: OnlineManorTarget = ''): Promise<OnlineManorSnapshot | null> => {
+  const { targetUsername, targetSaveId } = normalizeManorTarget(target)
+  if (targetSaveId) {
+    const { data } = await fetchProtectedJson<{ ok: boolean; snapshot?: OnlineManorSnapshot }>(() => fetch(`/api/taoyuan/online/manor?target_save_id=${encodeURIComponent(targetSaveId)}`, {
+      credentials: 'include'
+    }), {
+      fallbackMessage: '获取玩家庄园失败',
+      networkErrorMessage: '庄园服务连接失败，请检查网络或稍后重试'
+    })
+    return data?.snapshot ?? null
+  }
+  if (!targetUsername) return fetchOwnManorSnapshot()
+  const { data } = await fetchProtectedJson<{ ok: boolean; snapshot?: OnlineManorSnapshot }>(() => fetch(`/api/taoyuan/online/manor/${encodeURIComponent(targetUsername)}`, {
     credentials: 'include'
   }), {
     fallbackMessage: '获取玩家庄园失败',
@@ -565,6 +594,7 @@ export const fetchManorSnapshot = async (targetUsername = ''): Promise<OnlineMan
 
 export const createManorGuestbookEntry = async (payload: {
   target_username: string
+  target_save_id?: number
   kind: 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'
   content: string
 }) => {
@@ -593,6 +623,7 @@ export const pinManorGuestbookEntry = async (entryId: string, pinned: boolean) =
 
 export const recordManorVisit = async (payload: {
   target_username: string
+  target_save_id?: number
   purpose: 'explore' | 'friend_visit' | 'gift' | 'quest' | 'other'
   summary: string
   feedback: string

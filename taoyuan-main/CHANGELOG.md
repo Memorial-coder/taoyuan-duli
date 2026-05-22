@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 庄园好友互动按存档 ID 写入（A0-A1-A5-A6-A7）
+- `ManorView.vue` 现在会读取好友驿站传入的 `target_save_id`，通过 `/api/taoyuan/online/manor?target_save_id=...` 获取目标公开庄园快照，并在协作跳转时继续带上目标存档 ID。
+- `onlineProfileApi` 与 `useManorStore` 已支持庄园目标对象，留言墙和访问记录提交会携带 `target_save_id`，服务端通过 `SaveIdentity` 解析到庄园主人账号后复用现有庄园数据结构。
+- `qa:online-smoke` 已覆盖庄园快照、留言和访问记录按目标存档 ID 写入；`qa:realtime-smoke` 已覆盖只携带 `target_save_id` 的庄园留言在线通知与离线补发。本轮验证通过前端 `type-check` / `build`、服务端 node check、`qa:online-smoke`、`qa:realtime-smoke` 与 `git diff --check`。
+
 ### 0520 邮箱好友互动按存档 ID 写入（A0-A1-A5-A6）
 - 好友驿站跳到写信 / 送礼时携带的 `target_save_id` 现在会被 `MailView.vue` 写入邮箱 store 草稿，提交玩家来信或礼物包裹时随 payload 一起发送。
 - `mailboxApi` 和 `useMailboxStore` 已支持 `target_save_id`；服务端邮箱写入会先通过 `SaveIdentity` 解析目标存档账号，再沿用现有 username 收件箱结构，并在返回体里暴露 `recipient_username`。

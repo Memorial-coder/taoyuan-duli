@@ -3,7 +3,7 @@ const path = require('path');
 const db = require('./db');
 const taoyuanImageModeration = require('./taoyuanImageModeration');
 const { moderateText } = require('./taoyuanTextModeration');
-const { createError, getActiveSaveContext } = require('./taoyuanSaveRuntime');
+const { createError, findSaveIdentityById, getActiveSaveContext } = require('./taoyuanSaveRuntime');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
 
 const DATA_DIR = process.env.DB_STORAGE
@@ -17,6 +17,22 @@ const TAOYUAN_MANOR_THEME_FILE = path.join(DATA_DIR, 'taoyuan_manor_theme_weeks.
 
 function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
+}
+
+function resolveManorTargetUsername(payload = {}, emptyMessage = '请先指定庄园主人') {
+  const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
+  const hasTargetSaveId = rawTargetSaveId !== undefined && rawTargetSaveId !== null && `${rawTargetSaveId}`.trim() !== '';
+  const targetUsername = hasTargetSaveId
+    ? (() => {
+      const targetSaveId = Number(rawTargetSaveId);
+      if (!Number.isInteger(targetSaveId)) throw createError('存档 ID 格式不正确', 400);
+      const identity = findSaveIdentityById(targetSaveId);
+      if (!identity?.account_username) throw createError('目标存档 ID 不存在', 404);
+      return sanitizeText(identity.account_username, 60);
+    })()
+    : sanitizeText(payload?.target_username, 60);
+  if (!targetUsername) throw createError(emptyMessage);
+  return targetUsername;
 }
 
 const SEASON_LABELS = Object.freeze({
@@ -497,8 +513,7 @@ function buildThemeWeekState(username, gameplay = {}, showcaseTheme = '', public
 }
 
 async function recordManorVisit(payload = {}, actor = {}) {
-  const targetUsername = String(payload.target_username || '').trim();
-  if (!targetUsername) throw createError('请先指定庄园主人');
+  const targetUsername = resolveManorTargetUsername(payload);
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标庄园不存在', 404);
   const summary = sanitizeText(payload.summary, 160);
@@ -523,8 +538,7 @@ async function recordManorVisit(payload = {}, actor = {}) {
 }
 
 async function leaveGuestbookEntry(payload = {}, actor = {}) {
-  const targetUsername = String(payload.target_username || '').trim();
-  if (!targetUsername) throw createError('请先指定庄园主人');
+  const targetUsername = resolveManorTargetUsername(payload);
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标庄园不存在', 404);
   const content = moderateText(payload.content, {

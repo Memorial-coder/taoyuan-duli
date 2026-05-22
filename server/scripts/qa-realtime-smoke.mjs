@@ -743,7 +743,7 @@ try {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        target_username: friend.username,
+        target_save_id: friend.identity.save_id,
         kind: 'blessing',
         content: guestbookText,
       }),
@@ -1045,7 +1045,7 @@ try {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        target_username: offlineTarget.username,
+        target_save_id: offlineTarget.identity.save_id,
         kind: 'stamp',
         content: guestbookText,
       }),
