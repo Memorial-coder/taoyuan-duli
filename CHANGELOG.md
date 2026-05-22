@@ -2,6 +2,10 @@
 
 最后整理：2026-05-22
 
+- `0520todo.md / A1-A4-A7` 这一轮把活动房间 realtime 订阅范围补成持久只读快照：房间 create / invite / join / leave / ready / action / settle / close 等事件广播前，会记录 domain、room_id、房主、订阅用户名、成员数、待处理邀请数、房间状态和最近动作。
+- `/api/admin/taoyuan/realtime` 现在会返回 `recent_room_subscriptions`、按 domain / 状态聚合的房间订阅摘要和记录上限；快照不携带完整 room payload，不参与房间结算，只用于后台观测与断线排查。
+- 本轮验证通过 `node --check server/src/taoyuanRealtimeRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs` 与 `npm --prefix server run qa:realtime-smoke`。
+
 - `0520todo.md / A1-A7` 这一轮把 realtime 在线状态补成轻量持久快照：WebSocket 连接、客户端消息和断开时会更新 `taoyuan_realtime_presence.json`，记录账号、存档 ID、槽位、在线 / 离线状态、连接时间、最近活跃时间和最近离线时间。
 - `/api/admin/taoyuan/realtime` 现在会返回 `recent_presence`、`presence_status_counts`、presence 文件状态与记录上限，仍不暴露通知 payload 或玩法结算数据；在线状态本身继续由内存连接表权威判断，持久快照仅用于后台观测与重启后最近状态参考。
 - 本轮验证通过 `node --check server/src/taoyuanRealtimeRuntime.js`、`node --check server/scripts/qa-realtime-smoke.mjs` 与 `npm --prefix server run qa:realtime-smoke`。

@@ -15,9 +15,11 @@ const DATA_DIR = process.env.DB_STORAGE
   : path.join(__dirname, '../data');
 const REALTIME_NOTIFICATION_FILE = path.join(DATA_DIR, 'taoyuan_realtime_notifications.json');
 const REALTIME_PRESENCE_FILE = path.join(DATA_DIR, 'taoyuan_realtime_presence.json');
+const REALTIME_ROOM_SUBSCRIPTIONS_FILE = path.join(DATA_DIR, 'taoyuan_realtime_room_subscriptions.json');
 const MAX_QUEUED_EVENTS_PER_USER = 100;
 const MAX_QUEUED_EVENT_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 const MAX_PRESENCE_RECORDS = 500;
+const MAX_ROOM_SUBSCRIPTION_RECORDS = 500;
 const OFFLINE_NOTIFICATION_EVENT_TYPES = new Set([
   'friend.request.created',
   'friend.request.accepted',
@@ -182,6 +184,91 @@ function updatePresenceRecord(connection, status) {
     }));
     savePresenceStore({ records });
   } catch {}
+}
+
+function normalizeRoomSubscriptionRecord(entry = {}) {
+  const domain = String(entry.domain || '').trim();
+  const roomId = String(entry.room_id || '').trim();
+  if (!domain || !roomId) return null;
+  const subscribers = [...new Set((Array.isArray(entry.subscribers) ? entry.subscribers : [])
+    .map(normalizeUsername)
+    .filter(Boolean))];
+  return {
+    key: String(entry.key || `${domain}:${roomId}`),
+    domain,
+    room_id: roomId,
+    room_state: String(entry.room_state || ''),
+    host_username: normalizeUsername(entry.host_username),
+    subscribers,
+    subscriber_count: subscribers.length,
+    member_count: Math.max(0, Number(entry.member_count) || 0),
+    pending_invitation_count: Math.max(0, Number(entry.pending_invitation_count) || 0),
+    last_action: String(entry.last_action || ''),
+    updated_at: Number(entry.updated_at) || Date.now(),
+  };
+}
+
+function readRoomSubscriptionStore() {
+  ensureDataDir();
+  if (!fs.existsSync(REALTIME_ROOM_SUBSCRIPTIONS_FILE)) return { subscriptions: [] };
+  try {
+    const raw = JSON.parse(fs.readFileSync(REALTIME_ROOM_SUBSCRIPTIONS_FILE, 'utf8'));
+    if (!Array.isArray(raw?.subscriptions)) throw createStoreCorruptionError(REALTIME_ROOM_SUBSCRIPTIONS_FILE);
+    return { subscriptions: raw.subscriptions };
+  } catch (error) {
+    if (error?.code === 'STORE_CORRUPTED') throw error;
+    throw createStoreCorruptionError(REALTIME_ROOM_SUBSCRIPTIONS_FILE);
+  }
+}
+
+function pruneRoomSubscriptionStore(store = {}) {
+  const byKey = new Map();
+  for (const entry of Array.isArray(store.subscriptions) ? store.subscriptions : []) {
+    const record = normalizeRoomSubscriptionRecord(entry);
+    if (!record) continue;
+    const previous = byKey.get(record.key);
+    if (!previous || record.updated_at >= previous.updated_at) byKey.set(record.key, record);
+  }
+  const subscriptions = [...byKey.values()]
+    .sort((left, right) => right.updated_at - left.updated_at)
+    .slice(0, MAX_ROOM_SUBSCRIPTION_RECORDS);
+  return { subscriptions };
+}
+
+function saveRoomSubscriptionStore(store) {
+  writeJsonFileAtomic(REALTIME_ROOM_SUBSCRIPTIONS_FILE, pruneRoomSubscriptionStore(store));
+}
+
+function recordActivityRoomSubscription(domain, action, room = {}, recipients = []) {
+  const normalizedDomain = String(domain || '').trim();
+  const roomId = String(room?.id || '').trim();
+  if (!normalizedDomain || !roomId) return null;
+  try {
+    const store = pruneRoomSubscriptionStore(readRoomSubscriptionStore());
+    const key = `${normalizedDomain}:${roomId}`;
+    const subscriptions = store.subscriptions.filter(entry => entry.key !== key);
+    const subscribers = [...new Set((recipients || []).map(normalizeUsername).filter(Boolean))];
+    const record = normalizeRoomSubscriptionRecord({
+      key,
+      domain: normalizedDomain,
+      room_id: roomId,
+      room_state: room?.state || '',
+      host_username: room?.host_username,
+      subscribers,
+      member_count: Array.isArray(room?.members) ? room.members.length : 0,
+      pending_invitation_count: Array.isArray(room?.invitations)
+        ? room.invitations.filter(invitation => invitation?.status === 'pending').length
+        : 0,
+      last_action: action,
+      updated_at: Date.now(),
+    });
+    if (!record) return null;
+    subscriptions.push(record);
+    saveRoomSubscriptionStore({ subscriptions });
+    return record;
+  } catch {
+    return null;
+  }
 }
 
 function queueOfflineNotification(username, type, payload = {}) {
@@ -561,6 +648,47 @@ function buildPresenceAdminSnapshot() {
   }
 }
 
+function buildRoomSubscriptionAdminSnapshot() {
+  const subscriptionFileExists = fs.existsSync(REALTIME_ROOM_SUBSCRIPTIONS_FILE);
+  try {
+    const rawStore = readRoomSubscriptionStore();
+    const rawCount = Array.isArray(rawStore.subscriptions) ? rawStore.subscriptions.length : 0;
+    const store = pruneRoomSubscriptionStore(rawStore);
+    const domainCounts = {};
+    const stateCounts = {};
+    for (const subscription of store.subscriptions) {
+      incrementRecordCount(domainCounts, subscription.domain);
+      incrementRecordCount(stateCounts, subscription.room_state || 'unknown');
+    }
+    return {
+      room_subscription_status: subscriptionFileExists ? 'ok' : 'missing',
+      room_subscription_file_exists: subscriptionFileExists,
+      room_subscription_count: store.subscriptions.length,
+      recent_room_subscriptions: store.subscriptions,
+      room_subscription_domain_counts: domainCounts,
+      room_subscription_state_counts: stateCounts,
+      pruned_room_subscription_count: Math.max(0, rawCount - store.subscriptions.length),
+      room_subscription_limits: {
+        max_room_subscription_records: MAX_ROOM_SUBSCRIPTION_RECORDS,
+      },
+    };
+  } catch (error) {
+    return {
+      room_subscription_status: 'error',
+      room_subscription_file_exists: subscriptionFileExists,
+      room_subscription_error_code: error?.code || 'UNKNOWN',
+      room_subscription_count: 0,
+      recent_room_subscriptions: [],
+      room_subscription_domain_counts: {},
+      room_subscription_state_counts: {},
+      pruned_room_subscription_count: 0,
+      room_subscription_limits: {
+        max_room_subscription_records: MAX_ROOM_SUBSCRIPTION_RECORDS,
+      },
+    };
+  }
+}
+
 function listUserConnections(username) {
   const target = normalizeUsername(username);
   return [...activeConnections.values()]
@@ -814,6 +942,7 @@ function getRealtimeAdminState() {
   const onlineSaves = new Set(connections.map(connection => `${connection.username}:${connection.save_id || 'account'}`));
   const queue = buildQueuedNotificationAdminSnapshot();
   const presence = buildPresenceAdminSnapshot();
+  const roomSubscriptions = buildRoomSubscriptionAdminSnapshot();
   return {
     generated_at: now,
     connection_count: connections.length,
@@ -839,6 +968,15 @@ function getRealtimeAdminState() {
     presence_status_counts: presence.presence_status_counts,
     pruned_presence_record_count: presence.pruned_presence_record_count,
     presence_limits: presence.presence_limits,
+    room_subscription_status: roomSubscriptions.room_subscription_status,
+    room_subscription_file_exists: roomSubscriptions.room_subscription_file_exists,
+    room_subscription_error_code: roomSubscriptions.room_subscription_error_code,
+    room_subscription_count: roomSubscriptions.room_subscription_count,
+    recent_room_subscriptions: roomSubscriptions.recent_room_subscriptions,
+    room_subscription_domain_counts: roomSubscriptions.room_subscription_domain_counts,
+    room_subscription_state_counts: roomSubscriptions.room_subscription_state_counts,
+    pruned_room_subscription_count: roomSubscriptions.pruned_room_subscription_count,
+    room_subscription_limits: roomSubscriptions.room_subscription_limits,
   };
 }
 
@@ -848,4 +986,5 @@ module.exports = {
   emitUsersEvent,
   getRealtimeAdminState,
   getRealtimeState,
+  recordActivityRoomSubscription,
 };

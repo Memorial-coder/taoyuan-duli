@@ -1816,6 +1816,22 @@ try {
     )
   })
 
+  await runCheck('admin realtime exposes persisted activity room subscription snapshot', async () => {
+    const result = await fetchAdminJson('/api/admin/taoyuan/realtime')
+    assert(result.response.ok, `admin realtime room subscription returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    const realtime = result.data?.realtime
+    assert(realtime?.room_subscription_status === 'ok', 'admin realtime room subscription status should be ok after room events')
+    assert(realtime?.room_subscription_file_exists === true, 'admin realtime room subscription file should exist after room events')
+    assert(Number(realtime?.room_subscription_limits?.max_room_subscription_records) >= 1, 'admin realtime room subscription limits are missing')
+    assert(Array.isArray(realtime?.recent_room_subscriptions), 'admin realtime recent room subscriptions should be an array')
+    const subscription = realtime.recent_room_subscriptions.find(entry => entry?.domain === 'expedition' && entry?.room_id === expeditionRoomId)
+    assert(subscription?.last_action === 'join', 'admin realtime room subscription did not persist latest room action')
+    assert(subscription?.subscribers?.includes(owner.username), 'admin realtime room subscription missing owner subscriber')
+    assert(subscription?.subscribers?.includes(friend.username), 'admin realtime room subscription missing friend subscriber')
+    assert(Number(subscription?.member_count) >= 2, 'admin realtime room subscription member count missing')
+    assert(subscription.room === undefined && subscription.payload === undefined, 'admin realtime room subscription should not expose full room payload')
+  })
+
   await runCheck('presence offline is delivered after disconnect', async () => {
     friendSocket.close()
     await expectMessage(ownerSocket, 'presence.offline', payload =>

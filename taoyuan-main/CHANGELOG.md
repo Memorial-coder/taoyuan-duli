@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 活动房间订阅快照（A1-A4-A7）
+- 活动房间 realtime 广播前会维护 `taoyuan_realtime_room_subscriptions.json` 只读快照，记录房间 domain、room_id、房主、订阅用户名、成员数、待处理邀请数、房间状态和最近动作。
+- 管理端 `/api/admin/taoyuan/realtime` 新增 `recent_room_subscriptions`、domain / 状态聚合和记录上限；该快照不携带完整 room payload，也不参与房间结算。
+
 ### 0520 RealtimeState 持久观测（A1-A7）
 - WebSocket 连接、客户端消息和断开时会维护 `taoyuan_realtime_presence.json` 轻量 presence 快照，记录账号、存档 ID、槽位、在线 / 离线状态、连接时间、最近活跃时间和最近离线时间。
 - 管理端 `/api/admin/taoyuan/realtime` 新增 `recent_presence`、`presence_status_counts`、presence 文件状态和记录上限；该快照只用于观测，不承载通知 payload 或结算结果。

@@ -1123,9 +1123,13 @@ function emitCoopOrderNotificationCreatedEvent(action, result = {}, actor = {}) 
 function emitActivityRoomRealtimeEvent(domain, action, result, actor = {}, extraUsernames = [], extraPayload = {}) {
   const room = result?.room;
   if (!room) return 0;
+  const recipients = collectActivityRoomRealtimeRecipients(room, extraUsernames);
+  try {
+    taoyuanRealtimeRuntime.recordActivityRoomSubscription(domain, action, room, recipients);
+  } catch {}
   try {
     return taoyuanRealtimeRuntime.emitUsersEvent(
-      collectActivityRoomRealtimeRecipients(room, extraUsernames),
+      recipients,
       'activity.room.updated',
       buildActivityRoomRealtimePayload(domain, action, result, actor, extraPayload)
     );
@@ -1144,6 +1148,14 @@ function emitActivityRoomInviteRealtimeEvent(domain, result, actor = {}, targetU
     target_username: resolvedTarget,
     invitation,
   };
+  try {
+    taoyuanRealtimeRuntime.recordActivityRoomSubscription(
+      domain,
+      'invite',
+      room,
+      collectActivityRoomRealtimeRecipients(room, [resolvedTarget])
+    );
+  } catch {}
   let invited = 0;
   try {
     invited = taoyuanRealtimeRuntime.emitUsersEvent(
