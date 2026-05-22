@@ -1075,6 +1075,101 @@ try {
     offlineCoopOrderReplayReconnectSocket = null
   })
 
+  await runCheck('offline targeted coop order create notification event is replayed and acknowledged after reconnect', async () => {
+    const offlineTarget = await bootstrapSession('smkrt_k')
+    offlineCoopOrderReplaySocket = await openRealtimeSocket(offlineTarget)
+    await expectMessage(offlineCoopOrderReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username
+    )
+
+    const requestOffset = offlineCoopOrderReplaySocket.messages.length
+    const friendResult = await fetchSessionJson(owner, '/api/taoyuan/online/social/friend-requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target_save_id: offlineTarget.identity.save_id }),
+    })
+    assert(friendResult.response.ok, `offline target friend request returned ${friendResult.response.status}: ${friendResult.data?.msg || 'unknown error'}`)
+    const offlineTargetRequestId = String(friendResult.data?.request?.id || '')
+    assert(offlineTargetRequestId, 'offline target friend request id missing')
+    await expectMessageAfter(offlineCoopOrderReplaySocket, requestOffset, 'friend.request.created', payload =>
+      payload.request?.id === offlineTargetRequestId
+        && payload.request?.to_save_id === offlineTarget.identity.save_id
+    )
+
+    const acceptResult = await fetchSessionJson(offlineTarget, `/api/taoyuan/online/social/friend-requests/${encodeURIComponent(offlineTargetRequestId)}/accept`, {
+      method: 'POST',
+    })
+    assert(acceptResult.response.ok, `offline target friend accept returned ${acceptResult.response.status}: ${acceptResult.data?.msg || 'unknown error'}`)
+
+    offlineCoopOrderReplaySocket.close()
+    offlineCoopOrderReplaySocket = null
+    await wait(200)
+
+    const orderTitle = `Offline targeted coop ${createSmokeSeed()}`
+    const createResult = await fetchSessionJson(owner, '/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: orderTitle,
+        description: 'Queued targeted coop order creation notification.',
+        order_type: 'festival_supply',
+        scope: 'public',
+        target_save_id: offlineTarget.identity.save_id,
+        deadline_at: Math.floor(Date.now() / 1000) + 86_400,
+        reward_type: 'reputation',
+        reward_value: 70,
+        reward_label: 'Queued targeted reward',
+        stage_definitions: [],
+      }),
+    })
+    assert(createResult.response.ok, `offline targeted coop order create returned ${createResult.response.status}: ${createResult.data?.msg || 'unknown error'}`)
+    const orderId = String(createResult.data?.order?.id || '')
+    assert(orderId, 'offline targeted coop order id missing')
+
+    offlineCoopOrderReplaySocket = await openRealtimeSocket(offlineTarget)
+    const ready = await expectMessage(offlineCoopOrderReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) >= 1
+    )
+    assert(Number(ready.payload?.pending_notification_count) >= 1, 'offline targeted coop replay ready did not report pending notifications')
+    const queuedMessage = await expectMessage(offlineCoopOrderReplaySocket, 'notification.created', payload =>
+      payload.category === 'coop_order'
+        && payload.action === 'order_created'
+        && payload.order?.id === orderId
+        && payload.order?.title === orderTitle
+        && payload.order?.target_save_id === offlineTarget.identity.save_id
+        && payload.order?.target_username === offlineTarget.username
+        && payload.actor_username === owner.username
+    )
+    const queuedEventId = String(queuedMessage.queued_event_id || '')
+    assert(queuedEventId, 'replayed targeted coop order notification missing queued_event_id')
+    assert(queuedMessage.replayed === true, 'replayed targeted coop order notification missing replayed marker')
+    assert(queuedMessage.payload?.order?.description === undefined, 'replayed targeted coop notification should not expose full description')
+
+    const ackOffset = offlineCoopOrderReplaySocket.messages.length
+    offlineCoopOrderReplaySocket.send('notification.ack', { id: queuedEventId })
+    await expectMessageAfter(offlineCoopOrderReplaySocket, ackOffset, 'notification.ack', payload =>
+      Array.isArray(payload.acked_ids)
+        && payload.acked_ids.includes(queuedEventId)
+        && Number(payload.pending_count) === 0
+    )
+
+    offlineCoopOrderReplaySocket.close()
+    offlineCoopOrderReplaySocket = null
+    await wait(200)
+
+    offlineCoopOrderReplayReconnectSocket = await openRealtimeSocket(offlineTarget)
+    await expectMessage(offlineCoopOrderReplayReconnectSocket, 'realtime.ready', payload =>
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) === 0
+    )
+    await expectNoMessageAfter(offlineCoopOrderReplayReconnectSocket, 0, 'notification.created', payload =>
+      payload.category === 'coop_order'
+        && payload.action === 'order_created'
+        && payload.order?.id === orderId
+    )
+    offlineCoopOrderReplayReconnectSocket.close()
+    offlineCoopOrderReplayReconnectSocket = null
+  })
+
   await runCheck('offline manor guestbook notification event is replayed and acknowledged after reconnect', async () => {
     const offlineTarget = await bootstrapSession('smkrt_k')
     const guestbookText = `Offline manor guestbook ${createSmokeSeed()}`

@@ -4,7 +4,7 @@
 
 - `0520todo.md / A5-A6-A7` 这一轮把定向协作单创建接入 realtime 通知：服务端发布带 `target_save_id` 的协作单后，会把 `order_created` 摘要投递给解析出的目标存档账号。
 - 协作单通知收件人现在包含 `target_username`，通知摘要会带 `target_save_id / target_save_slot / target_username`，但不泄露求助正文、交付条目等详细内容。
-- `qa:realtime-smoke` 已新增在线目标好友收到定向协作单创建通知的回归；本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
+- `qa:realtime-smoke` 已新增在线目标好友收到定向协作单创建通知，以及离线目标好友 ready 补发、ACK 清理和重连不重复补发的回归；本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
 
 - `0520todo.md / A0-A1-A6-A7` 这一轮把协作单定向发布接进存档 ID：好友驿站跳到协作单时带入的 `target_save_id` 会被创建页保存、展示，并在发布求助单时随 payload 提交。
 - 服务端协作单创建会通过 `SaveIdentity` 解析目标存档，校验当前活动存档与目标存档确为好友后，写入 `target_save_id / target_save_slot / target_username` 等定向字段；目标存档玩家的概览可看到该定向求助单。
