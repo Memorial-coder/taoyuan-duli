@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 定向协作单创建通知（A5-A6-A7）
+- 服务端现在会在带 `target_save_id` 的协作单发布成功后，向目标存档账号投递 `order_created` realtime 摘要通知。
+- 通知摘要包含目标存档字段，方便前端静默刷新协作列表；正文和交付明细仍不会放进通知 payload。`qa:realtime-smoke` 已覆盖在线目标好友收到该通知。
+
 ### 0520 协作单定向发布按存档 ID 写入（A0-A1-A6-A7）
 - 好友驿站跳到协作单时携带的 `target_save_id` 现在会被 `QuestView.vue` 写入协作单草稿，页面会展示定向好友提示，发布求助单时随 payload 一起提交。
 - `useCoopOrderStore` 与 `onlineProfileApi` 已支持协作单 `target_save_id`；服务端会通过 `SaveIdentity` 解析目标存档，校验当前活动存档与目标存档是好友后，再写入定向协作单字段。

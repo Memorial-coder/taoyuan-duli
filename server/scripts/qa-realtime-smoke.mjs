@@ -480,6 +480,43 @@ try {
     )
   })
 
+  await runCheck('targeted coop order create notification event is delivered through websocket', async () => {
+    const orderTitle = `RT targeted coop ${createSmokeSeed()}`
+    const offset = friendSocket.messages.length
+    const result = await fetchSessionJson(owner, '/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: orderTitle,
+        description: 'Realtime smoke targeted coop order.',
+        order_type: 'festival_supply',
+        scope: 'public',
+        target_save_id: friend.identity.save_id,
+        deadline_at: Math.floor(Date.now() / 1000) + 86_400,
+        reward_type: 'reputation',
+        reward_value: 60,
+        reward_label: 'Targeted reward',
+        stage_definitions: [],
+      }),
+    })
+    assert(result.response.ok, `targeted coop order create returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    const orderId = String(result.data?.order?.id || '')
+    assert(orderId, 'targeted coop order id missing')
+    const notification = await expectMessageAfter(friendSocket, offset, 'notification.created', payload =>
+      payload.category === 'coop_order'
+        && payload.action === 'order_created'
+        && payload.refresh_required === true
+        && payload.order?.id === orderId
+        && payload.order?.title === orderTitle
+        && payload.order?.target_save_id === friend.identity.save_id
+        && payload.order?.target_username === friend.username
+        && payload.order?.owner_username === owner.username
+        && payload.actor_username === owner.username
+    )
+    assert(notification.payload?.order?.description === undefined, 'targeted coop notification should not expose full description')
+    assert(notification.payload?.order?.delivered_items === undefined, 'targeted coop notification should not expose delivered items')
+  })
+
   await runCheck('mail notification event is delivered through websocket', async () => {
     const mailTitle = `实时来信通知 ${createSmokeSeed()}`
     const offset = friendSocket.messages.length

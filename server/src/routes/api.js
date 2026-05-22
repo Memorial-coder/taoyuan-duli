@@ -851,6 +851,7 @@ function collectCoopOrderNotificationRecipients(result = {}, actor = {}) {
 
   addRecipient(actor?.username);
   addRecipient(order?.owner_username);
+  addRecipient(order?.target_username);
   addRecipient(order?.assignee_username);
   addRecipient(stage?.assignee_username);
   addRecipient(receipt?.owner_username);
@@ -2265,10 +2266,14 @@ router.get('/taoyuan/online/orders', createOnlineReleaseGuard('order'), loginReq
 
 router.post('/taoyuan/online/orders', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
   try {
-    const order = await taoyuanCoopOrderRuntime.createCoopOrder(req.body || {}, {
+    const actor = {
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
-    });
+    };
+    const order = await taoyuanCoopOrderRuntime.createCoopOrder(req.body || {}, actor);
+    if (order?.target_username) {
+      emitCoopOrderNotificationCreatedEvent('order_created', { order }, actor);
+    }
     res.json({ ok: true, order });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '发布求助单失败' });
