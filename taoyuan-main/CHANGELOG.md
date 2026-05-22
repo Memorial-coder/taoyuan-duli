@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 旧档打开回归验证（A7）
+- `qa:online-smoke` 新增旧 wrapped 服务端存档读取回归：无 `onlineIdentity` 的旧槽位通过读取接口打开后会自动补发固定存档 ID，并保留玩家数据、背包、旧自定义字段和 meta。
+- smoke 脚本父进程与被测服务端共用临时 `DB_STORAGE`，可真实覆盖旧服务端 raw 的读取回写、槽位列表可见性和旧槽位切换路径。
+
 ### 0520 邻里寄售 realtime 在线刷新（A4-A6-A7）
 - 服务端现在会在邻里寄售挂单创建、购买、取消和过期回收成功后投递 `notification.created`，使用 `category: "exchange"` 与 `neighbor_consignment_updated` 动作，通知同邻里的当前在线成员。
 - `useRealtimeStore` 收到寄售通知后会静默刷新 `useNeighborConsignmentStore().refreshOverview({ silent: true })`、`useExchangeLedgerStore().refreshLedger({ silent: true })` 与 `useMarketGovernanceStore().refreshGovernance({ silent: true })`，继续只读 HTTP 权威接口，不直接套用 WebSocket payload。

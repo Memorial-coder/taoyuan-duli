@@ -2,6 +2,10 @@
 
 最后整理：2026-05-22
 
+- `0520todo.md / A7` 这一轮给 `qa:online-smoke` 补了旧 wrapped 服务端存档读取回归：脚本会直接在 smoke 临时存储里放入无 `onlineIdentity` 的旧槽位，再通过 `/api/taoyuan/save/1` 打开并验证自动补发 ID、原玩家数据、背包、旧自定义字段和 meta 不丢失。
+- smoke 父进程与被测服务端现在共用同一个临时 `DB_STORAGE`，可真实验证旧服务端 raw 的读取回写；用例还覆盖 `/api/taoyuan/save/slots` 可见性和旧槽位设为当前槽后再恢复。
+- 本轮验证通过 `node --check server/scripts/qa-online-smoke.mjs` 与 `npm --prefix server run qa:online-smoke`。
+
 - `0520todo.md / A4-A6-A7` 这一轮把邻里寄售接进 realtime 在线摘要通知：邻里挂单创建、购买、取消和过期回收成功后，服务端会向同邻里的当前在线成员投递 `category: "exchange"` 的 `neighbor_consignment_updated` 摘要。
 - 前端收到寄售通知后只防抖静默重读 `/api/taoyuan/exchange-station/neighbors/consignments`、`/ledger` 与 `/governance` 权威接口，不直接套用挂单、成交或资金结果；通知摘要也不携带物资明细、价格明细或 overview。
 - 本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check` 与 `npm --prefix server run qa:realtime-smoke`。

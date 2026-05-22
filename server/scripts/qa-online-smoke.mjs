@@ -8,8 +8,6 @@ import { fileURLToPath } from 'node:url'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const require = createRequire(import.meta.url)
-const { decryptTaoyuanRaw, encryptTaoyuanData } = require('../src/taoyuanSaveRuntime')
-const db = require('../src/db')
 const dotenv = require('dotenv')
 const serverRoot = path.resolve(__dirname, '..')
 const smokeTempDir = path.resolve(serverRoot, '.tmp-online-smoke-run')
@@ -21,6 +19,15 @@ const configuredBaseURL = process.env.TAOYUAN_ONLINE_SMOKE_BASE_URL?.trim() || '
 dotenv.config({ path: path.join(serverRoot, '.env') })
 dotenv.config({ path: path.join(serverRoot, '..', '.env'), override: true })
 dotenv.config({ path: path.join(serverRoot, '..', '.env.offical'), override: true })
+if (!configuredBaseURL) {
+  process.env.DB_STORAGE = smokeStorageFile
+  process.env.QA_ONLINE_SMOKE_FORCE_LOCAL = 'true'
+  process.env.MYSQL_HOST = ''
+  process.env.MYSQL_USER = ''
+  process.env.MYSQL_DATABASE = ''
+}
+const { decryptTaoyuanRaw, encryptTaoyuanData, loadUserSaveSlots, saveUserSaveSlots } = require('../src/taoyuanSaveRuntime')
+const db = require('../src/db')
 
 const canListenOnPort = (targetHost, port) =>
   new Promise(resolve => {
@@ -586,6 +593,85 @@ try {
     assert(identity?.save_id === primarySaveIdentity.save_id, 'save identity changed after client overwrite')
     assert(identity?.account_username === sessionState.username, 'save identity account changed after client overwrite')
     assert(identity?.save_slot === 0, 'save identity slot changed after client overwrite')
+  })
+
+  await runCheck('GET /api/taoyuan/save/:slot opens legacy wrapped save without data loss', async () => {
+    const legacyWrappedSave = {
+      meta: {
+        saveVersion: 1,
+        savedAt: '2026-05-20T00:00:00.000Z',
+      },
+      savedAt: '2026-05-20T00:00:00.000Z',
+      data: {
+        player: {
+          name: `${sessionState.username}旧档`,
+          money: 3456,
+        },
+        inventory: {
+          items: [
+            { itemId: 'wood', quantity: 3, quality: 'normal', locked: false },
+            { itemId: 'stone', quantity: 5, quality: 'normal', locked: true },
+          ],
+          tempItems: [],
+          capacity: 18,
+        },
+        legacy_marker: {
+          source: 'qa_legacy_open',
+          nested: {
+            keep: true,
+          },
+        },
+      },
+    }
+    const legacyRaw = encryptTaoyuanData(legacyWrappedSave)
+    const existingSaves = loadUserSaveSlots(sessionState.username)
+    existingSaves.slots[1] = {
+      raw: legacyRaw,
+      revision: 7,
+    }
+    saveUserSaveSlots(sessionState.username, existingSaves)
+
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/save/1')
+    assert(response.ok, `legacy save read returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.slot === 1 && typeof data?.raw === 'string', 'legacy save read payload is incomplete')
+    const decrypted = decryptTaoyuanRaw(data.raw)
+    const identity = getEmbeddedSaveIdentity(decrypted)
+    assert(identity?.save_id, 'legacy save read did not backfill save identity')
+    assert(identity.account_username === sessionState.username, 'legacy save identity account mismatch')
+    assert(identity.save_slot === 1, 'legacy save identity slot mismatch')
+    assert(decrypted?.data?.player?.money === 3456, 'legacy save player money was not preserved')
+    assert(decrypted?.data?.inventory?.items?.some(item => item?.itemId === 'stone' && item?.quantity === 5 && item?.locked === true), 'legacy save inventory item was not preserved')
+    assert(decrypted?.data?.legacy_marker?.nested?.keep === true, 'legacy save custom payload was not preserved')
+    assert(decrypted?.meta?.saveVersion === 1, 'legacy save meta saveVersion was not preserved')
+    assert(data.raw !== legacyRaw, 'legacy save read should persist backfilled identity')
+
+    const slotsRead = await fetchAuthedJson('/api/taoyuan/save/slots')
+    assert(slotsRead.response.ok, `legacy save slots read returned ${slotsRead.response.status}: ${slotsRead.data?.msg || 'unknown error'}`)
+    const slotOne = slotsRead.data?.slots?.find(item => item?.slot === 1)
+    assert(typeof slotOne?.raw === 'string' && slotOne.raw, 'legacy save slot did not remain visible in slots list')
+    const slotOneDecrypted = decryptTaoyuanRaw(slotOne.raw)
+    assert(slotOneDecrypted?.data?.legacy_marker?.source === 'qa_legacy_open', 'legacy save slots list lost original payload')
+    assert(getEmbeddedSaveIdentity(slotOneDecrypted)?.save_id === identity.save_id, 'legacy save slots list identity mismatch')
+
+    const activeSlot = await fetchAuthedJson('/api/taoyuan/save/active-slot', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ slot: 1 }),
+    })
+    assert(activeSlot.response.ok, `legacy save active-slot returned ${activeSlot.response.status}: ${activeSlot.data?.msg || 'unknown error'}`)
+    assert(activeSlot.data?.ok === true && activeSlot.data?.slot === 1, 'legacy save active-slot payload is incomplete')
+
+    const restoreActiveSlot = await fetchAuthedJson('/api/taoyuan/save/active-slot', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ slot: 0 }),
+    })
+    assert(restoreActiveSlot.response.ok, `legacy save active-slot restore returned ${restoreActiveSlot.response.status}: ${restoreActiveSlot.data?.msg || 'unknown error'}`)
+    assert(restoreActiveSlot.data?.ok === true && restoreActiveSlot.data?.slot === 0, 'legacy save active-slot restore payload is incomplete')
   })
 
   await runCheck('GET /api/taoyuan/online/social/player-search save id path', async () => {
