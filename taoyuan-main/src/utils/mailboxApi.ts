@@ -113,6 +113,7 @@ export const saveMailboxMemorial = async (id: string) => {
 
 export const sendPlayerLetter = async (payload: {
   target_username: string
+  target_save_id?: number
   title: string
   content: string
   template_type: 'player_letter' | 'season_greeting' | 'festival_greeting' | 'blessing_card' | 'short_note' | 'photo_letter'
@@ -134,6 +135,7 @@ export const sendPlayerLetter = async (payload: {
 
 export const sendPlayerGiftPackage = async (payload: {
   target_username: string
+  target_save_id?: number
   title: string
   content: string
   template_type: 'material_package' | 'seed_package' | 'fish_fry_package' | 'decoration_package' | 'souvenir_package'

@@ -225,12 +225,14 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
   const sendLetterRunning = ref(false)
   const letterTemplatePresets = ref<PlayerLetterTemplatePreset[]>([])
   const letterTargetDraft = ref('')
+  const letterTargetSaveIdDraft = ref('')
   const letterTitleDraft = ref('')
   const letterContentDraft = ref('')
   const letterTemplateTypeDraft = ref<PlayerLetterTemplatePreset['template_type']>('player_letter')
   const letterPhotoUrlDraft = ref('')
   const letterPhotoAltDraft = ref('')
   const giftPackageTargetDraft = ref('')
+  const giftPackageTargetSaveIdDraft = ref('')
   const giftPackageTitleDraft = ref('')
   const giftPackageContentDraft = ref('')
   const giftPackageTemplateTypeDraft = ref<'material_package' | 'seed_package' | 'fish_fry_package' | 'decoration_package' | 'souvenir_package'>('material_package')
@@ -510,15 +512,19 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
 
   const sendPlayerLetterMail = async () => {
     const target_username = letterTargetDraft.value.trim()
+    const targetSaveIdDraft = letterTargetSaveIdDraft.value.trim()
+    const target_save_id = Number(targetSaveIdDraft)
     const title = letterTitleDraft.value.trim()
     const content = letterContentDraft.value.trim()
-    if (!target_username) throw new Error('请先填写收件人用户名')
+    if (!target_username && !targetSaveIdDraft) throw new Error('请先填写收件人用户名或存档 ID')
+    if (targetSaveIdDraft && !Number.isInteger(target_save_id)) throw new Error('存档 ID 格式不正确')
     if (!title) throw new Error('请先填写信件标题')
     if (!content) throw new Error('请先填写信件正文')
     sendLetterRunning.value = true
     try {
       const data = await sendPlayerLetter({
         target_username,
+        target_save_id: targetSaveIdDraft ? target_save_id : undefined,
         title,
         content,
         template_type: letterTemplateTypeDraft.value,
@@ -550,6 +556,8 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
 
   const sendPlayerGiftPackageMail = async () => {
     const target_username = giftPackageTargetDraft.value.trim()
+    const targetSaveIdDraft = giftPackageTargetSaveIdDraft.value.trim()
+    const target_save_id = Number(targetSaveIdDraft)
     const title = giftPackageTitleDraft.value.trim()
     const content = giftPackageContentDraft.value.trim()
     const rewards = giftPackageRewardsDraft.value
@@ -560,13 +568,15 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
         quality: reward.quality?.trim() || undefined,
       }))
       .filter(reward => reward.id)
-    if (!target_username) throw new Error('请先填写收件人用户名')
+    if (!target_username && !targetSaveIdDraft) throw new Error('请先填写收件人用户名或存档 ID')
+    if (targetSaveIdDraft && !Number.isInteger(target_save_id)) throw new Error('存档 ID 格式不正确')
     if (!title) throw new Error('请先填写包裹标题')
     if (rewards.length === 0) throw new Error('请先放入至少一项礼物')
     sendLetterRunning.value = true
     try {
       const data = await sendPlayerGiftPackage({
         target_username,
+        target_save_id: targetSaveIdDraft ? target_save_id : undefined,
         title,
         content,
         template_type: giftPackageTemplateTypeDraft.value,
@@ -596,12 +606,14 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     sendLetterRunning,
     letterTemplatePresets,
     letterTargetDraft,
+    letterTargetSaveIdDraft,
     letterTitleDraft,
     letterContentDraft,
     letterTemplateTypeDraft,
     letterPhotoUrlDraft,
     letterPhotoAltDraft,
     giftPackageTargetDraft,
+    giftPackageTargetSaveIdDraft,
     giftPackageTitleDraft,
     giftPackageContentDraft,
     giftPackageTemplateTypeDraft,

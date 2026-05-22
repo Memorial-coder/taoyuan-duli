@@ -487,7 +487,7 @@ try {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        target_username: friend.username,
+        target_save_id: friend.identity.save_id,
         title: mailTitle,
         content: '这是一封实时通知烟测来信。',
         template_type: 'short_note',
@@ -1154,7 +1154,7 @@ try {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        target_username: offlineTarget.username,
+        target_save_id: offlineTarget.identity.save_id,
         title: mailTitle,
         content: '这是一封离线补发烟测来信。',
         template_type: 'short_note',

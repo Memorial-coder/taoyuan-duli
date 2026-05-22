@@ -4335,7 +4335,7 @@ router.post('/taoyuan/mail/player-letter', loginRequired, signRequired, async (r
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
-    emitMailNotificationCreatedEvent(req.body?.target_username, 'player_letter', mail);
+    emitMailNotificationCreatedEvent(mail?.recipient_username || req.body?.target_username, 'player_letter', mail);
     res.json({ ok: true, mail });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '发送玩家书信失败' });
@@ -4348,7 +4348,7 @@ router.post('/taoyuan/mail/player-gift-package', loginRequired, signRequired, as
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
-    emitMailNotificationCreatedEvent(req.body?.target_username, 'player_gift_package', mail);
+    emitMailNotificationCreatedEvent(mail?.recipient_username || req.body?.target_username, 'player_gift_package', mail);
     res.json({ ok: true, mail });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '寄送礼物包裹失败' });

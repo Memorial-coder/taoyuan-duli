@@ -862,8 +862,16 @@ try {
   let weeklyExchangeExpectedStoneCount = null
   let primaryExpectedMoney = 1200
   let secondaryExpectedMoney = 260
+  let secondarySaveIdentity = null
   await runCheck('second session bootstrap', async () => {
     await bootstrapSession(secondarySessionState, 'smk2', 260)
+  })
+
+  await runCheck('GET /api/taoyuan/save/:slot secondary save identity for mail target', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(response.ok, `secondary save identity for mail returned ${response.status}`)
+    secondarySaveIdentity = getEmbeddedSaveIdentity(decryptTaoyuanRaw(data?.raw || ''))
+    assert(secondarySaveIdentity?.save_id, 'secondary save identity missing before mail save id target check')
   })
 
   manorGuestbookEntryContent = `smoke guestbook ${Date.now()}`
@@ -951,7 +959,7 @@ try {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        target_username: secondarySessionState.username,
+        target_save_id: secondarySaveIdentity.save_id,
         title: playerLetterTitle,
         content: playerLetterContent,
         template_type: 'season_greeting',
@@ -959,6 +967,7 @@ try {
     })
     assert(response.ok, `player-letter write returned ${response.status}`)
     assert(data?.ok === true && data?.mail?.title === playerLetterTitle, 'player-letter payload is incomplete')
+    assert(data.mail.recipient_username === secondarySessionState.username, 'player-letter save id target resolved wrong recipient')
   })
 
   await runCheck('GET /api/taoyuan/mail/list player-letter read path', async () => {
@@ -1002,7 +1011,7 @@ try {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        target_username: secondarySessionState.username,
+        target_save_id: secondarySaveIdentity.save_id,
         title: playerGiftPackageTitle,
         content: '这是一份来自联机 smoke 的礼物包裹。',
         template_type: 'material_package',
@@ -1018,6 +1027,7 @@ try {
     })
     assert(response.ok, `player-gift-package write returned ${response.status}`)
     assert(data?.ok === true && data?.mail?.title === playerGiftPackageTitle, 'player-gift-package payload is incomplete')
+    assert(data.mail.recipient_username === secondarySessionState.username, 'player-gift-package save id target resolved wrong recipient')
     playerGiftPackageMailId = String(data?.mail?.id || '')
     assert(playerGiftPackageMailId, 'player-gift-package mail id was not created')
   })
@@ -1307,7 +1317,6 @@ try {
 
   let friendRequestId = ''
   let friendshipId = ''
-  let secondarySaveIdentity = null
   let blockRelationSaveIdentity = null
   await runCheck('POST /api/taoyuan/online/social/friend-requests order scope setup', async () => {
     const secondarySave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
@@ -1388,7 +1397,7 @@ try {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        target_username: secondarySessionState.username,
+        target_save_id: secondarySaveIdentity.save_id,
         title: `friend memorial ${Date.now()}`,
         content: '这是一封用于好友纪念册筛选验证的来信。',
         template_type: 'player_letter',
@@ -1526,7 +1535,7 @@ try {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        target_username: secondarySessionState.username,
+        target_save_id: secondarySaveIdentity.save_id,
         title: `neighbor memorial ${Date.now()}`,
         content: '这是一封用于村社纪念册筛选验证的来信。',
         template_type: 'festival_greeting',

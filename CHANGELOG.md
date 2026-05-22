@@ -2,6 +2,10 @@
 
 最后整理：2026-05-22
 
+- `0520todo.md / A0-A1-A5-A6` 这一轮把邮箱好友互动写路接进存档 ID：好友驿站带入邮箱的 `target_save_id` 会被写信 / 送礼页面保存到草稿，提交玩家来信或礼物包裹时随 payload 发给服务端。
+- 服务端邮箱写入会优先用 `SaveIdentity` 解析 `target_save_id`，再复用现有 username 投递结构；玩家来信 / 礼物包裹返回 `recipient_username`，realtime 通知也用解析后的收件账号投递。
+- 本轮验证通过 `node --check server/src/taoyuanMailbox.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
+
 - `0520todo.md / A0-A1-A6` 这一轮继续把好友互动下游从 username 兼容上下文收口到存档 ID：好友驿站带入远征 / 节会 / 村社的路由参数后，页面草稿会保留 `target_save_id`，提交邀请时优先发送存档 ID。
 - 服务端远征 / 节会房间邀请与村社邀请新增 `target_save_id` 解析路径，会用 `SaveIdentity` 找到对应账号后复用现有房间 / 村社 username 成员结构；空字符串不会被误判成 `0` 号存档，非法 ID 会明确报错。
 - `qa:online-smoke` 与 `qa:realtime-smoke` 已改为用好友目标存档 ID 覆盖远征 / 节会 / 村社邀请写路和 WebSocket 投递；本轮还通过前端 `type-check` / `build` 与服务端 node check。

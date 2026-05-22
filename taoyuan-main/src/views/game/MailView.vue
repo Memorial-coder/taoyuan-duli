@@ -750,20 +750,23 @@
   }
   const applyMailRouteDraft = () => {
     const targetUsername = getRouteQueryText(route.query.target_username)
-    if (!targetUsername) return
+    const targetSaveId = getRouteQueryText(route.query.target_save_id)
+    if (!targetUsername && !targetSaveId) return
     const compose = getRouteQueryText(route.query.compose)
     activeMailId.value = null
     activeMail.value = null
     if (compose === 'gift') {
       mailboxStore.giftPackageTargetDraft = targetUsername
+      mailboxStore.giftPackageTargetSaveIdDraft = targetSaveId
       if (!mailboxStore.giftPackageTitleDraft.trim()) {
-        mailboxStore.giftPackageTitleDraft = `给${targetUsername}的一份礼物包裹`
+        mailboxStore.giftPackageTitleDraft = `给${targetUsername || `ID ${targetSaveId}`}的一份礼物包裹`
       }
       return
     }
     mailboxStore.letterTargetDraft = targetUsername
+    mailboxStore.letterTargetSaveIdDraft = targetSaveId
     if (!mailboxStore.letterTitleDraft.trim()) {
-      mailboxStore.letterTitleDraft = `写给${targetUsername}的一封信`
+      mailboxStore.letterTitleDraft = `写给${targetUsername || `ID ${targetSaveId}`}的一封信`
     }
   }
 
@@ -1171,7 +1174,7 @@
   )
 
   watch(
-    () => [route.query.target_username, route.query.compose],
+    () => [route.query.target_username, route.query.target_save_id, route.query.compose],
     () => {
       applyMailRouteDraft()
     }

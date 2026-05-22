@@ -6,6 +6,7 @@ const { moderateText } = require('./taoyuanTextModeration');
 const {
   createError,
   ensureTaoyuanSavesDir,
+  findSaveIdentityById,
   getActiveSaveContext,
   persistGameplayData,
   TAOYUAN_SAVES_DIR,
@@ -317,6 +318,25 @@ async function fetchProfilesByUsernames(usernames) {
     .filter(Boolean);
 }
 
+async function resolveMailRecipientBySaveIdOrUsername(payload = {}, emptyMessage = '请先填写收件人用户名') {
+  const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
+  const hasTargetSaveId = rawTargetSaveId !== undefined && rawTargetSaveId !== null && `${rawTargetSaveId}`.trim() !== '';
+  const targetUsername = hasTargetSaveId
+    ? (() => {
+      const targetSaveId = Number(rawTargetSaveId);
+      if (!Number.isInteger(targetSaveId)) throw createError('存档 ID 格式不正确', 400);
+      const identity = findSaveIdentityById(targetSaveId);
+      if (!identity) throw createError('目标存档 ID 不存在', 404);
+      return sanitizeText(identity.account_username, 60);
+    })()
+    : sanitizeText(payload?.target_username, 60);
+  if (!targetUsername) throw createError(emptyMessage);
+  const targetUsers = await fetchProfilesByUsernames([targetUsername]);
+  const recipient = targetUsers[0];
+  if (!recipient) throw createError('收件账号不存在，请检查用户名是否填写正确');
+  return recipient;
+}
+
 function listSavedUsernames() {
   ensureTaoyuanSavesDir();
   return fs.readdirSync(TAOYUAN_SAVES_DIR)
@@ -598,6 +618,8 @@ function buildUserMailSummary(delivery) {
 function buildUserMailDetail(delivery) {
   return {
     ...buildUserMailSummary(delivery),
+    recipient_username: String(delivery.username || ''),
+    recipient_display_name: sanitizeText(delivery.recipient_display_name || delivery.username || '', 60),
     content: delivery.content,
     rewards: delivery.rewards.map(item => ({ ...item })),
     duplicate_compensation_money: delivery.duplicate_compensation_money,
@@ -738,12 +760,8 @@ async function sendPlayerLetter(payload = {}, actor = {}) {
   return withMailboxLock(async () => {
     const senderUsername = String(actor?.username || '').trim();
     if (!senderUsername) throw createError('请先登录后再发信', 401);
-    const targetUsername = sanitizeText(payload?.target_username, 60);
-    if (!targetUsername) throw createError('请先填写收件人用户名');
-    if (targetUsername === senderUsername) throw createError('不能给自己发信');
-    const targetUsers = await fetchProfilesByUsernames([targetUsername]);
-    const recipient = targetUsers[0];
-    if (!recipient) throw createError('收件账号不存在，请检查用户名是否填写正确');
+    const recipient = await resolveMailRecipientBySaveIdOrUsername(payload, '请先填写收件人用户名或存档 ID');
+    if (recipient.username === senderUsername) throw createError('不能给自己发信');
 
     const title = moderateText(payload?.title, {
       label: '信件标题',
@@ -895,12 +913,8 @@ async function sendPlayerGiftPackage(payload = {}, actor = {}) {
   return withMailboxLock(async () => {
     const senderUsername = String(actor?.username || '').trim();
     if (!senderUsername) throw createError('请先登录后再寄送礼物', 401);
-    const targetUsername = sanitizeText(payload?.target_username, 60);
-    if (!targetUsername) throw createError('请先填写收件人用户名');
-    if (targetUsername === senderUsername) throw createError('不能给自己寄礼物包裹');
-    const targetUsers = await fetchProfilesByUsernames([targetUsername]);
-    const recipient = targetUsers[0];
-    if (!recipient) throw createError('收件账号不存在，请检查用户名是否填写正确');
+    const recipient = await resolveMailRecipientBySaveIdOrUsername(payload, '请先填写收件人用户名或存档 ID');
+    if (recipient.username === senderUsername) throw createError('不能给自己寄礼物包裹');
 
     const title = moderateText(payload?.title, {
       label: '包裹标题',
