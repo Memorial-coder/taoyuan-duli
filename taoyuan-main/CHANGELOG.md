@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 RealtimeState 持久观测（A1-A7）
+- WebSocket 连接、客户端消息和断开时会维护 `taoyuan_realtime_presence.json` 轻量 presence 快照，记录账号、存档 ID、槽位、在线 / 离线状态、连接时间、最近活跃时间和最近离线时间。
+- 管理端 `/api/admin/taoyuan/realtime` 新增 `recent_presence`、`presence_status_counts`、presence 文件状态和记录上限；该快照只用于观测，不承载通知 payload 或结算结果。
+
 ### 0520 旧档打开回归验证（A7）
 - `qa:online-smoke` 新增旧 wrapped 服务端存档读取回归：无 `onlineIdentity` 的旧槽位通过读取接口打开后会自动补发固定存档 ID，并保留玩家数据、背包、旧自定义字段和 meta。
 - smoke 脚本父进程与被测服务端共用临时 `DB_STORAGE`，可真实覆盖旧服务端 raw 的读取回写、槽位列表可见性和旧槽位切换路径。

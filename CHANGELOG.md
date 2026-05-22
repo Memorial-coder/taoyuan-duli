@@ -2,6 +2,10 @@
 
 最后整理：2026-05-22
 
+- `0520todo.md / A1-A7` 这一轮把 realtime 在线状态补成轻量持久快照：WebSocket 连接、客户端消息和断开时会更新 `taoyuan_realtime_presence.json`，记录账号、存档 ID、槽位、在线 / 离线状态、连接时间、最近活跃时间和最近离线时间。
+- `/api/admin/taoyuan/realtime` 现在会返回 `recent_presence`、`presence_status_counts`、presence 文件状态与记录上限，仍不暴露通知 payload 或玩法结算数据；在线状态本身继续由内存连接表权威判断，持久快照仅用于后台观测与重启后最近状态参考。
+- 本轮验证通过 `node --check server/src/taoyuanRealtimeRuntime.js`、`node --check server/scripts/qa-realtime-smoke.mjs` 与 `npm --prefix server run qa:realtime-smoke`。
+
 - `0520todo.md / A7` 这一轮给 `qa:online-smoke` 补了旧 wrapped 服务端存档读取回归：脚本会直接在 smoke 临时存储里放入无 `onlineIdentity` 的旧槽位，再通过 `/api/taoyuan/save/1` 打开并验证自动补发 ID、原玩家数据、背包、旧自定义字段和 meta 不丢失。
 - smoke 父进程与被测服务端现在共用同一个临时 `DB_STORAGE`，可真实验证旧服务端 raw 的读取回写；用例还覆盖 `/api/taoyuan/save/slots` 可见性和旧槽位设为当前槽后再恢复。
 - 本轮验证通过 `node --check server/scripts/qa-online-smoke.mjs` 与 `npm --prefix server run qa:online-smoke`。

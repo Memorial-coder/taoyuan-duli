@@ -14,8 +14,10 @@ const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
   : path.join(__dirname, '../data');
 const REALTIME_NOTIFICATION_FILE = path.join(DATA_DIR, 'taoyuan_realtime_notifications.json');
+const REALTIME_PRESENCE_FILE = path.join(DATA_DIR, 'taoyuan_realtime_presence.json');
 const MAX_QUEUED_EVENTS_PER_USER = 100;
 const MAX_QUEUED_EVENT_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_PRESENCE_RECORDS = 500;
 const OFFLINE_NOTIFICATION_EVENT_TYPES = new Set([
   'friend.request.created',
   'friend.request.accepted',
@@ -37,7 +39,7 @@ function ensureDataDir() {
 }
 
 function createStoreCorruptionError(filePath) {
-  const error = new Error(`${path.basename(filePath)} 已损坏，拒绝继续写入实时通知队列`);
+  const error = new Error(`${path.basename(filePath)} 已损坏，拒绝继续写入实时状态`);
   error.status = 500;
   error.code = 'STORE_CORRUPTED';
   return error;
@@ -99,6 +101,87 @@ function pruneNotificationStore(store = {}) {
 
 function saveNotificationStore(store) {
   writeJsonFileAtomic(REALTIME_NOTIFICATION_FILE, pruneNotificationStore(store));
+}
+
+function presenceRecordKey(username, saveId) {
+  return `${normalizeUsername(username)}:${saveId || 'account'}`;
+}
+
+function normalizePresenceRecord(entry = {}) {
+  const username = normalizeUsername(entry.username);
+  if (!username) return null;
+  const saveId = entry.save_id === null || entry.save_id === undefined || entry.save_id === ''
+    ? null
+    : String(entry.save_id);
+  const status = entry.status === 'online' ? 'online' : 'offline';
+  return {
+    key: String(entry.key || presenceRecordKey(username, saveId)),
+    username,
+    display_name: String(entry.display_name || entry.displayName || username).slice(0, 80),
+    save_id: saveId,
+    save_slot: Number.isInteger(Number(entry.save_slot)) ? Number(entry.save_slot) : null,
+    status,
+    connection_id: String(entry.connection_id || ''),
+    connected_at: Number(entry.connected_at) || 0,
+    last_seen_at: Number(entry.last_seen_at) || Number(entry.connected_at) || 0,
+    last_offline_at: Number(entry.last_offline_at) || 0,
+  };
+}
+
+function readPresenceStore() {
+  ensureDataDir();
+  if (!fs.existsSync(REALTIME_PRESENCE_FILE)) return { records: [] };
+  try {
+    const raw = JSON.parse(fs.readFileSync(REALTIME_PRESENCE_FILE, 'utf8'));
+    if (!Array.isArray(raw?.records)) throw createStoreCorruptionError(REALTIME_PRESENCE_FILE);
+    return { records: raw.records };
+  } catch (error) {
+    if (error?.code === 'STORE_CORRUPTED') throw error;
+    throw createStoreCorruptionError(REALTIME_PRESENCE_FILE);
+  }
+}
+
+function prunePresenceStore(store = {}) {
+  const byKey = new Map();
+  for (const entry of Array.isArray(store.records) ? store.records : []) {
+    const record = normalizePresenceRecord(entry);
+    if (!record) continue;
+    const previous = byKey.get(record.key);
+    if (!previous || record.last_seen_at >= previous.last_seen_at) byKey.set(record.key, record);
+  }
+  const records = [...byKey.values()]
+    .sort((left, right) => right.last_seen_at - left.last_seen_at)
+    .slice(0, MAX_PRESENCE_RECORDS);
+  return { records };
+}
+
+function savePresenceStore(store) {
+  writeJsonFileAtomic(REALTIME_PRESENCE_FILE, prunePresenceStore(store));
+}
+
+function updatePresenceRecord(connection, status) {
+  if (!connection?.username) return;
+  try {
+    const now = Date.now();
+    const store = prunePresenceStore(readPresenceStore());
+    const key = presenceRecordKey(connection.username, connection.saveId);
+    const records = store.records.filter(entry => entry.key !== key);
+    const previous = store.records.find(entry => entry.key === key) || {};
+    records.push(normalizePresenceRecord({
+      ...previous,
+      key,
+      username: connection.username,
+      display_name: connection.displayName,
+      save_id: connection.saveId,
+      save_slot: connection.saveSlot,
+      status,
+      connection_id: connection.id,
+      connected_at: Number(connection.connectedAt) || now,
+      last_seen_at: Number(connection.lastSeenAt) || now,
+      last_offline_at: status === 'offline' ? now : Number(previous.last_offline_at) || 0,
+    }));
+    savePresenceStore({ records });
+  } catch {}
 }
 
 function queueOfflineNotification(username, type, payload = {}) {
@@ -344,13 +427,16 @@ function connectionKey(connection) {
 
 function registerConnection(connection) {
   activeConnections.set(connection.id, connection);
+  updatePresenceRecord(connection, 'online');
   ensureHeartbeat();
 }
 
 function removeConnection(connection) {
   if (!connection || !activeConnections.has(connection.id)) return false;
   activeConnections.delete(connection.id);
+  connection.lastSeenAt = Date.now();
   connection.closed = true;
+  updatePresenceRecord(connection, 'offline');
   if (activeConnections.size === 0 && heartbeatTimer) {
     clearInterval(heartbeatTimer);
     heartbeatTimer = null;
@@ -438,6 +524,43 @@ function buildQueuedNotificationAdminSnapshot() {
   }
 }
 
+function buildPresenceAdminSnapshot() {
+  const presenceFileExists = fs.existsSync(REALTIME_PRESENCE_FILE);
+  try {
+    const rawStore = readPresenceStore();
+    const rawCount = Array.isArray(rawStore.records) ? rawStore.records.length : 0;
+    const store = prunePresenceStore(rawStore);
+    const statusCounts = {};
+    for (const record of store.records) {
+      incrementRecordCount(statusCounts, record.status);
+    }
+    return {
+      presence_status: presenceFileExists ? 'ok' : 'missing',
+      presence_file_exists: presenceFileExists,
+      presence_record_count: store.records.length,
+      recent_presence: store.records,
+      presence_status_counts: statusCounts,
+      pruned_presence_record_count: Math.max(0, rawCount - store.records.length),
+      presence_limits: {
+        max_presence_records: MAX_PRESENCE_RECORDS,
+      },
+    };
+  } catch (error) {
+    return {
+      presence_status: 'error',
+      presence_file_exists: presenceFileExists,
+      presence_error_code: error?.code || 'UNKNOWN',
+      presence_record_count: 0,
+      recent_presence: [],
+      presence_status_counts: {},
+      pruned_presence_record_count: 0,
+      presence_limits: {
+        max_presence_records: MAX_PRESENCE_RECORDS,
+      },
+    };
+  }
+}
+
 function listUserConnections(username) {
   const target = normalizeUsername(username);
   return [...activeConnections.values()]
@@ -518,6 +641,7 @@ function parseFrame(buffer) {
 
 function handleClientFrame(connection, frame) {
   connection.lastSeenAt = Date.now();
+  updatePresenceRecord(connection, 'online');
   if (frame.opcode === 8) {
     closeConnection(connection);
     return;
@@ -689,6 +813,7 @@ function getRealtimeAdminState() {
   const onlineUsers = new Set(connections.map(connection => connection.username).filter(Boolean));
   const onlineSaves = new Set(connections.map(connection => `${connection.username}:${connection.save_id || 'account'}`));
   const queue = buildQueuedNotificationAdminSnapshot();
+  const presence = buildPresenceAdminSnapshot();
   return {
     generated_at: now,
     connection_count: connections.length,
@@ -706,6 +831,14 @@ function getRealtimeAdminState() {
       max_queued_events_per_user: MAX_QUEUED_EVENTS_PER_USER,
       max_queued_event_age_ms: MAX_QUEUED_EVENT_AGE_MS,
     },
+    presence_status: presence.presence_status,
+    presence_file_exists: presence.presence_file_exists,
+    presence_error_code: presence.presence_error_code,
+    presence_record_count: presence.presence_record_count,
+    recent_presence: presence.recent_presence,
+    presence_status_counts: presence.presence_status_counts,
+    pruned_presence_record_count: presence.pruned_presence_record_count,
+    presence_limits: presence.presence_limits,
   };
 }
 

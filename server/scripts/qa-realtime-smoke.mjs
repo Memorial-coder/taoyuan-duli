@@ -451,6 +451,22 @@ try {
     )
   })
 
+  await runCheck('admin realtime exposes persisted presence snapshot while online', async () => {
+    const result = await fetchAdminJson('/api/admin/taoyuan/realtime')
+    assert(result.response.ok, `admin realtime returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    const realtime = result.data?.realtime
+    assert(realtime?.presence_status === 'ok', 'admin realtime presence status should be ok after websocket connection')
+    assert(realtime?.presence_file_exists === true, 'admin realtime presence file should exist after websocket connection')
+    assert(Number(realtime?.presence_record_count) >= 2, 'admin realtime presence record count should include connected users')
+    assert(Number(realtime?.presence_limits?.max_presence_records) >= 1, 'admin realtime presence limits are missing')
+    assert(Array.isArray(realtime?.recent_presence), 'admin realtime recent presence should be an array')
+    const ownerPresence = realtime.recent_presence.find(entry => entry?.username === owner.username && entry?.save_id === String(owner.identity.save_id))
+    const friendPresence = realtime.recent_presence.find(entry => entry?.username === friend.username && entry?.save_id === String(friend.identity.save_id))
+    assert(ownerPresence?.status === 'online', 'admin realtime did not persist owner online presence')
+    assert(friendPresence?.status === 'online', 'admin realtime did not persist friend online presence')
+    assert(ownerPresence.payload === undefined && friendPresence.payload === undefined, 'admin realtime presence snapshot should not expose notification payload')
+  })
+
   let requestId = ''
   await runCheck('friend request event is delivered through websocket', async () => {
     const result = await fetchSessionJson(owner, '/api/taoyuan/online/social/friend-requests', {
@@ -1805,6 +1821,16 @@ try {
     await expectMessage(ownerSocket, 'presence.offline', payload =>
       payload.username === friend.username && payload.save_id === friend.identity.save_id
     )
+  })
+
+  await runCheck('admin realtime persists offline presence after disconnect', async () => {
+    const result = await fetchAdminJson('/api/admin/taoyuan/realtime')
+    assert(result.response.ok, `admin realtime after disconnect returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    const realtime = result.data?.realtime
+    const friendPresence = realtime?.recent_presence?.find(entry => entry?.username === friend.username && entry?.save_id === String(friend.identity.save_id))
+    assert(friendPresence?.status === 'offline', 'admin realtime did not persist friend offline presence')
+    assert(Number(friendPresence?.last_offline_at) >= Number(friendPresence?.connected_at), 'admin realtime offline presence is missing last_offline_at')
+    assert(Number(realtime?.presence_status_counts?.offline) >= 1, 'admin realtime offline status count missing')
   })
 
   console.log('[qa-realtime-smoke] OK')
