@@ -1911,7 +1911,7 @@ try {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        target_username: secondarySessionState.username,
+        target_save_id: secondarySaveIdentity.save_id,
       }),
     })
     assert(response.ok, `festival room invite returned ${response.status}: ${data?.msg || 'unknown error'}`)
@@ -2450,7 +2450,7 @@ try {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        target_username: secondarySessionState.username,
+        target_save_id: secondarySaveIdentity.save_id,
       }),
     })
     assert(response.ok, `expedition room invite returned ${response.status}: ${data?.msg || 'unknown error'}`)

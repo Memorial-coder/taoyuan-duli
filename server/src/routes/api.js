@@ -912,8 +912,9 @@ function emitActivityRoomRealtimeEvent(domain, action, result, actor = {}, extra
 function emitActivityRoomInviteRealtimeEvent(domain, result, actor = {}, targetUsername = '') {
   const room = result?.room;
   if (!room) return { invited: 0, updated: 0 };
-  const invitation = findActivityRoomInvitation(room, targetUsername);
+  const invitation = findActivityRoomInvitation(room, targetUsername) || (room.invitations || [])[0] || null;
   const resolvedTarget = normalizeUsernameKey(invitation?.target_username || targetUsername);
+  if (!resolvedTarget) return { invited: 0, updated: 0 };
   const payloadExtra = {
     target_username: resolvedTarget,
     invitation,

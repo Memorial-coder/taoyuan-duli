@@ -416,9 +416,9 @@ export const createFestivalRoom = async (payload: {
   return data as FestivalRoomActionResponse
 }
 
-export const inviteFestivalRoomMember = async (roomId: string, targetUsername: string): Promise<FestivalRoomActionResponse> => {
+export const inviteFestivalRoomMember = async (roomId: string, target: { target_username?: string; target_save_id?: number }): Promise<FestivalRoomActionResponse> => {
   const data = await request<FestivalRoomActionResponse>(`/api/taoyuan/online/festival/rooms/${encodeURIComponent(roomId)}/invite`, () =>
-    buildSignedJsonInit('POST', { target_username: targetUsername })
+    buildSignedJsonInit('POST', target)
   )
   return data as FestivalRoomActionResponse
 }

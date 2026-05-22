@@ -4,6 +4,7 @@ const db = require('./db');
 const { moderateText } = require('./taoyuanTextModeration');
 const {
   createError,
+  findSaveIdentityById,
   getActiveSaveContext,
   persistGameplayData,
   saveUserSaveSlots,
@@ -1527,6 +1528,27 @@ async function ensureTargetUserExists(username) {
   return user;
 }
 
+function resolveTargetBySaveIdOrUsername(payload = {}, emptyMessage = '请先填写要邀请的玩家') {
+  const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
+  const hasTargetSaveId = rawTargetSaveId !== undefined && rawTargetSaveId !== null && `${rawTargetSaveId}`.trim() !== '';
+  if (hasTargetSaveId) {
+    const targetSaveId = Number(rawTargetSaveId);
+    if (!Number.isInteger(targetSaveId)) throw createError('存档 ID 格式不正确', 400);
+    const identity = findSaveIdentityById(targetSaveId);
+    if (!identity) throw createError('目标存档 ID 不存在', 404);
+    return {
+      username: normalizeUsername(identity.account_username),
+      identity,
+    };
+  }
+  const username = normalizeUsername(payload?.target_username);
+  if (!username) throw createError(emptyMessage);
+  return {
+    username,
+    identity: null,
+  };
+}
+
 async function hydrateMembers(members = []) {
   return Promise.all((members || []).map(async entry => {
     const normalized = normalizeSocietyMember(entry);
@@ -1985,8 +2007,7 @@ async function inviteToSociety(payload = {}, actor = {}) {
   ensureSocietyMemberRole(society, inviter, SOCIETY_MANAGER_ROLES, '只有社长或管事可以邀请成员');
   if ((society.members || []).length >= society.capacity) throw createError('当前村社人数已满');
 
-  const targetUsername = normalizeUsername(payload.target_username);
-  if (!targetUsername) throw createError('请先填写要邀请的玩家');
+  const { username: targetUsername } = resolveTargetBySaveIdOrUsername(payload, '请先填写要邀请的玩家或存档 ID');
   if (targetUsername === inviter) throw createError('不能邀请自己');
   await ensureTargetUserExists(targetUsername);
   if (findMemberSociety(store, targetUsername)) throw createError('对方已经加入其他村社');

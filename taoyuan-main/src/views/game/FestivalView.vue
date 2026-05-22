@@ -622,8 +622,9 @@
 
   const applyInviteRouteDraft = () => {
     const targetUsername = getRouteQueryText(route.query.target_username)
-    if (!targetUsername) return
-    festivalRoomStore.draftInviteUsername = targetUsername
+    const targetSaveId = getRouteQueryText(route.query.target_save_id)
+    if (targetUsername) festivalRoomStore.draftInviteUsername = targetUsername
+    if (targetSaveId) festivalRoomStore.draftInviteSaveId = targetSaveId
   }
 
   const createRoom = async () => {
@@ -688,7 +689,7 @@
   })
 
   watch(
-    () => route.query.target_username,
+    () => [route.query.target_username, route.query.target_save_id],
     () => {
       applyInviteRouteDraft()
     }

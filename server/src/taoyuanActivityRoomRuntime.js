@@ -4,6 +4,7 @@ const db = require('./db');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
 const {
   createError,
+  findSaveIdentityById,
   getActiveSaveContext,
   getActiveSaveSlot,
   persistGameplayData,
@@ -28,6 +29,27 @@ const GAMEPLAY_PHASES = Object.freeze(['prep', 'active', 'completed']);
 const ACTIVITY_DOMAINS = Object.freeze(['festival', 'expedition']);
 const DEFAULT_ACTIVITY_DOMAIN = 'festival';
 const FESTIVAL_REWARD_TICKET_TYPE = 'festival';
+
+function resolveTargetBySaveIdOrUsername(payload = {}, emptyMessage = '请输入要邀请的玩家用户名') {
+  const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
+  const hasTargetSaveId = rawTargetSaveId !== undefined && rawTargetSaveId !== null && `${rawTargetSaveId}`.trim() !== '';
+  if (hasTargetSaveId) {
+    const targetSaveId = Number(rawTargetSaveId);
+    if (!Number.isInteger(targetSaveId)) throw createError('存档 ID 格式不正确', 400);
+    const identity = findSaveIdentityById(targetSaveId);
+    if (!identity) throw createError('目标存档 ID 不存在', 404);
+    return {
+      username: sanitizeText(identity.account_username, 40),
+      identity,
+    };
+  }
+  const username = sanitizeText(payload?.target_username, 40);
+  if (!username) throw createError(emptyMessage);
+  return {
+    username,
+    identity: null,
+  };
+}
 
 const FESTIVAL_DECORATION_REWARD_MAP = Object.freeze({
   yuanri_vigil: { decoration_id: 'catalog_brazier', label: '暖炭火盆' },
@@ -3139,8 +3161,7 @@ async function createFestivalRoom(payload = {}, actor = {}) {
 async function inviteFestivalRoomMember(roomId, payload = {}, actor = {}) {
   const username = sanitizeText(actor.username, 40);
   const displayName = sanitizeText(actor.displayName, 40) || username;
-  const targetUsername = sanitizeText(payload.target_username, 40);
-  if (!targetUsername) throw createError('请输入要邀请的玩家用户名');
+  const { username: targetUsername } = resolveTargetBySaveIdOrUsername(payload, '请输入要邀请的玩家用户名或存档 ID');
   if (targetUsername === username) throw createError('不能邀请自己加入节会房间');
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标玩家不存在或已失效');

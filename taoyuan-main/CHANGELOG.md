@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 好友互动邀请下游按存档 ID 传递（A0-A1-A6）
+- 好友驿站进入远征 / 节会 / 村社时带入的 `target_save_id` 现在会被对应页面读取并存入邀请草稿，提交邀请时优先发送存档 ID，username 只保留为兼容预填。
+- `expeditionRoomApi / festivalRoomApi / societyApi` 的邀请 payload 已改为对象结构，可携带 `target_save_id`；服务端会通过 `SaveIdentity` 解析目标账号后复用现有房间 / 村社成员结构。
+- `qa:online-smoke` 与 `qa:realtime-smoke` 已覆盖按目标存档 ID 发起远征 / 节会 / 村社邀请以及 realtime 投递；本轮验证通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、服务端 node check、`npm --prefix server run qa:online-smoke` 与 `npm --prefix server run qa:realtime-smoke`。
+
 ### 0520 好友关系前端入口按存档 ID 收口（A0-A1）
 - `useSocialStore` 已移除 username-first 的好友申请和拉黑主操作，好友驿站现在只通过搜索得到的 `target_save_id` 发起申请、拉黑与解除拉黑。
 - `onlineProfileApi` 的社交目标 payload 改为对象结构，不再接受裸字符串自动转成 `target_username`；旧拉黑记录缺少 `blocked_save_id` 时仍可走用户名解除拉黑兜底。

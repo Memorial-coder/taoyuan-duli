@@ -393,9 +393,9 @@ export const createExpeditionRoom = async (payload: {
 }): Promise<ExpeditionRoomActionResponse> =>
   request<ExpeditionRoomActionResponse>('/api/taoyuan/online/expedition/rooms', () => buildSignedJsonInit('POST', payload)) as Promise<ExpeditionRoomActionResponse>
 
-export const inviteExpeditionRoomMember = async (roomId: string, targetUsername: string): Promise<ExpeditionRoomActionResponse> =>
+export const inviteExpeditionRoomMember = async (roomId: string, target: { target_username?: string; target_save_id?: number }): Promise<ExpeditionRoomActionResponse> =>
   request<ExpeditionRoomActionResponse>(`/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/invite`, () =>
-    buildSignedJsonInit('POST', { target_username: targetUsername })
+    buildSignedJsonInit('POST', target)
   ) as Promise<ExpeditionRoomActionResponse>
 
 export const joinExpeditionRoom = async (roomId: string): Promise<ExpeditionRoomActionResponse> =>

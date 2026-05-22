@@ -408,7 +408,7 @@ export const applyToSociety = async (societyId: string) => {
   })
 }
 
-export const inviteToSociety = async (targetUsername: string) => {
+export const inviteToSociety = async (target: { target_username?: string; target_save_id?: number }) => {
   return requestSocietyAction<{
     ok: boolean
     request?: SocietyJoinRequestSnapshot
@@ -416,7 +416,7 @@ export const inviteToSociety = async (targetUsername: string) => {
   }>('/api/taoyuan/online/societies/invite', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ target_username: targetUsername }),
+    body: JSON.stringify(target),
   })
 }
 

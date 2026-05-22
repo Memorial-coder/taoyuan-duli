@@ -302,8 +302,9 @@
 
   const applyInviteRouteDraft = () => {
     const targetUsername = getRouteQueryText(route.query.target_username)
-    if (!targetUsername) return
-    expeditionRoomStore.draftInviteUsername = targetUsername
+    const targetSaveId = getRouteQueryText(route.query.target_save_id)
+    if (targetUsername) expeditionRoomStore.draftInviteUsername = targetUsername
+    if (targetSaveId) expeditionRoomStore.draftInviteSaveId = targetSaveId
   }
 
   const refreshOverview = async () => {
@@ -368,7 +369,7 @@
   })
 
   watch(
-    () => route.query.target_username,
+    () => [route.query.target_username, route.query.target_save_id],
     () => {
       applyInviteRouteDraft()
     }

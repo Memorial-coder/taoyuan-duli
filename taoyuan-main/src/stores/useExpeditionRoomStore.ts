@@ -30,6 +30,7 @@ export const useExpeditionRoomStore = defineStore('expeditionRoom', () => {
   const selectedGameplayTemplateId = ref('expedition_roles')
   const draftTitle = ref('')
   const draftInviteUsername = ref('')
+  const draftInviteSaveId = ref('')
   const lastLoadedAt = ref(0)
 
   const myRoom = computed<ExpeditionRoomSnapshot | null>(() => overview.value?.my_room ?? null)
@@ -116,9 +117,16 @@ export const useExpeditionRoomStore = defineStore('expeditionRoom', () => {
   const inviteMember = async (roomId: string) =>
     runAction(async () => {
       const target = draftInviteUsername.value.trim()
-      if (!target) throw new Error('请先填写要邀请的玩家用户名')
-      const result = await inviteExpeditionRoomMember(roomId, target)
+      const targetSaveIdDraft = draftInviteSaveId.value.trim()
+      const targetSaveId = Number(targetSaveIdDraft)
+      const hasTargetSaveId = !!targetSaveIdDraft && Number.isInteger(targetSaveId)
+      if (!target && !hasTargetSaveId) throw new Error('请先填写要邀请的玩家用户名或存档 ID')
+      const result = await inviteExpeditionRoomMember(roomId, {
+        target_username: target || undefined,
+        target_save_id: hasTargetSaveId ? targetSaveId : undefined,
+      })
       draftInviteUsername.value = ''
+      draftInviteSaveId.value = ''
       return applyActionResult(result)
     })
 
@@ -173,6 +181,7 @@ export const useExpeditionRoomStore = defineStore('expeditionRoom', () => {
     selectedGameplayTemplate,
     draftTitle,
     draftInviteUsername,
+    draftInviteSaveId,
     lastLoadedAt,
     refreshOverview,
     createRoom,

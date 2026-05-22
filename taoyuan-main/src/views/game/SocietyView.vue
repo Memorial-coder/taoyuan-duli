@@ -704,8 +704,9 @@
 
   const applyInviteRouteDraft = () => {
     const targetUsername = getRouteQueryText(route.query.target_username)
-    if (!targetUsername) return
-    societyStore.draftInviteUsername = targetUsername
+    const targetSaveId = getRouteQueryText(route.query.target_save_id)
+    if (targetUsername) societyStore.draftInviteUsername = targetUsername
+    if (targetSaveId) societyStore.draftInviteSaveId = targetSaveId
   }
 
   const createSociety = async () => {
@@ -774,7 +775,7 @@
   })
 
   watch(
-    () => route.query.target_username,
+    () => [route.query.target_username, route.query.target_save_id],
     () => {
       applyInviteRouteDraft()
     }

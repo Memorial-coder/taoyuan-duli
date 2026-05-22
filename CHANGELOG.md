@@ -1,6 +1,10 @@
 # 桃源乡独立版更新日志
 
-最后整理：2026-05-21
+最后整理：2026-05-22
+
+- `0520todo.md / A0-A1-A6` 这一轮继续把好友互动下游从 username 兼容上下文收口到存档 ID：好友驿站带入远征 / 节会 / 村社的路由参数后，页面草稿会保留 `target_save_id`，提交邀请时优先发送存档 ID。
+- 服务端远征 / 节会房间邀请与村社邀请新增 `target_save_id` 解析路径，会用 `SaveIdentity` 找到对应账号后复用现有房间 / 村社 username 成员结构；空字符串不会被误判成 `0` 号存档，非法 ID 会明确报错。
+- `qa:online-smoke` 与 `qa:realtime-smoke` 已改为用好友目标存档 ID 覆盖远征 / 节会 / 村社邀请写路和 WebSocket 投递；本轮还通过前端 `type-check` / `build` 与服务端 node check。
 
 - `0520todo.md / A0-A1` 这一轮继续收口好友关系的存档级语义：前端社交 store 已移除 username-first 的好友申请和拉黑主入口，好友驿站主操作只通过 `target_save_id` 发起申请、拉黑与解除拉黑。
 - `onlineProfileApi` 的好友申请 / 拉黑 payload 已收窄为对象结构，不再把裸字符串自动转成 `target_username`；旧数据缺少 `blocked_save_id` 时仍保留用户名解除拉黑兜底，避免破坏历史拉黑列表。

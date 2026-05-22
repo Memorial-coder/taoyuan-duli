@@ -917,7 +917,7 @@ try {
     const inviteResult = await fetchSessionJson(owner, '/api/taoyuan/online/societies/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_username: offlineInviteTarget.username }),
+      body: JSON.stringify({ target_save_id: offlineInviteTarget.identity.save_id }),
     })
     assert(inviteResult.response.ok, `offline society invite returned ${inviteResult.response.status}: ${inviteResult.data?.msg || 'unknown error'}`)
     const requestId = String(inviteResult.data?.request?.id || '')
@@ -1488,7 +1488,7 @@ try {
     const result = await fetchSessionJson(owner, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(expeditionRoomId)}/invite`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ target_username: friend.username }),
+      body: JSON.stringify({ target_save_id: friend.identity.save_id }),
     })
     assert(result.response.ok, `expedition room invite returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
     await expectMessageAfter(friendSocket, offset, 'activity.room.invited', payload =>

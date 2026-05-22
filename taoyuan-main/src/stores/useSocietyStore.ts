@@ -39,6 +39,7 @@ export const useSocietyStore = defineStore('onlineSociety', () => {
   const draftJoinRequirementNote = ref('')
 
   const draftInviteUsername = ref('')
+  const draftInviteSaveId = ref('')
   const draftProposalTitle = ref('')
   const draftProposalSummary = ref('')
   const draftProposalKind = ref('')
@@ -142,10 +143,17 @@ export const useSocietyStore = defineStore('onlineSociety', () => {
 
   const inviteMember = async () => {
     const target = draftInviteUsername.value.trim()
-    if (!target) return null
+    const targetSaveIdDraft = draftInviteSaveId.value.trim()
+    const targetSaveId = Number(targetSaveIdDraft)
+    const hasTargetSaveId = !!targetSaveIdDraft && Number.isInteger(targetSaveId)
+    if (!target && !hasTargetSaveId) return null
     return runAction(async () => {
-      const result = await inviteToSociety(target)
+      const result = await inviteToSociety({
+        target_username: target || undefined,
+        target_save_id: hasTargetSaveId ? targetSaveId : undefined,
+      })
       draftInviteUsername.value = ''
+      draftInviteSaveId.value = ''
       await resolveOverview(result?.overview ?? null)
       return result
     })
@@ -252,6 +260,7 @@ export const useSocietyStore = defineStore('onlineSociety', () => {
     draftJoinRequirementId,
     draftJoinRequirementNote,
     draftInviteUsername,
+    draftInviteSaveId,
     draftProposalTitle,
     draftProposalSummary,
     draftProposalKind,
