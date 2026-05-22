@@ -2,6 +2,9 @@
 
 最后整理：2026-05-22
 
+- `0520todo.md / A0-A1` 这一轮把公开名片页也接上当前运行存档 ID：`SocialView.vue` 会显示只读存档 ID 与槽位，并明确提示昵称 / 名片可改、ID 由服务端生成且固定。
+- 本轮只补身份展示语义，不改公开名片保存、邻里、订阅或好友主操作；验证通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `git diff --check`。
+
 - `0520todo.md / A5-A6-A7` 这一轮把定向协作单创建接入 realtime 通知：服务端发布带 `target_save_id` 的协作单后，会把 `order_created` 摘要投递给解析出的目标存档账号。
 - 协作单通知收件人现在包含 `target_username`，通知摘要会带 `target_save_id / target_save_slot / target_username`，但不泄露求助正文、交付条目等详细内容。
 - `qa:realtime-smoke` 已新增在线目标好友收到定向协作单创建通知，以及离线目标好友 ready 补发、ACK 清理和重连不重复补发的回归；本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。

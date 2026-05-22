@@ -37,6 +37,13 @@
         </div>
 
         <div class="grid grid-cols-2 gap-2 text-xs">
+          <div class="border border-accent/10 rounded-xs p-2 col-span-2">
+            <p class="text-[10px] text-muted">当前存档 ID</p>
+            <p class="text-accent mt-1 break-all">{{ currentSaveIdentityLabel }}</p>
+            <p class="text-[10px] text-muted mt-1">
+              昵称和公开名片可随时调整；存档 ID 由服务端生成并保持固定，用于好友搜索、邀请和协作校验。
+            </p>
+          </div>
           <div class="border border-accent/10 rounded-xs p-2">
             <p class="text-[10px] text-muted">庄园名</p>
             <p class="text-accent mt-1">{{ socialStore.profile.manor_name }}</p>
@@ -563,11 +570,13 @@
   import { useRouter } from 'vue-router'
   import Button from '@/components/game/Button.vue'
   import { useSocialStore } from '@/stores/useSocialStore'
+  import { useSaveStore } from '@/stores/useSaveStore'
   import { showFloat } from '@/composables/useGameLog'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
 
   const router = useRouter()
   const socialStore = useSocialStore()
+  const saveStore = useSaveStore()
   const uploadingAvatar = ref(false)
   const avatarInputRef = ref<HTMLInputElement | null>(null)
 
@@ -597,6 +606,14 @@
   const unlockedAchievementCardCount = computed(() =>
     (socialStore.profile?.award_showcase?.achievement_cards || []).filter(entry => entry.unlocked).length
   )
+  const currentSaveIdentityLabel = computed(() => {
+    const identity = saveStore.currentOnlineIdentity
+    if (!identity?.save_id) return '尚未绑定服务端存档 ID'
+    const slotLabel = identity.save_slot === null || identity.save_slot === undefined
+      ? ''
+      : ` · 槽位 ${Number(identity.save_slot) + 1}`
+    return `${identity.save_id}${slotLabel}`
+  })
   const neighborLeaderboard = computed(() =>
     [...socialStore.neighborPublicGroups]
       .sort((left, right) => right.level - left.level || right.member_count - left.member_count || left.name.localeCompare(right.name, 'zh-CN'))
