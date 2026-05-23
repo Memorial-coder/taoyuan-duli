@@ -18,6 +18,7 @@ import {
   Heart,
   Building,
   Users,
+  Wifi,
   Store,
   Calendar,
   TreePine,
@@ -51,6 +52,7 @@ export type PanelKey =
   | 'fishing'
   | 'mining'
   | 'village'
+  | 'online'
   | 'social'
   | 'friend-station'
   | 'manor'
@@ -86,6 +88,7 @@ export const TABS: { key: PanelKey; label: string; icon: Component; getIcon?: ()
   { key: 'breeding', label: '育种', icon: FlaskConical },
   { key: 'fishpond', label: '鱼塘', icon: Waves },
   { key: 'decoration', label: '装饰', icon: Palette },
+  { key: 'online', label: '联机', icon: Wifi },
   { key: 'social', label: '邻里', icon: Users },
   { key: 'friend-station', label: '好友', icon: Users },
   { key: 'manor', label: '庄园', icon: Home },

@@ -150,6 +150,7 @@ export const TAB_TO_LOCATION_GROUP: Record<string, LocationGroup | null> = {
   breeding: 'farm',
   fishpond: 'farm',
   decoration: 'farm',
+  online: null,
   upgrade: 'village_area',
   forage: 'nature',
   fishing: 'nature',
