@@ -62,6 +62,32 @@ const assertCavernVisualNodes = (room, expectedRevision = 0) => {
   assert.ok(nodeActionIds.every(actionId => actionIds.has(actionId)), 'visual node actions should exist in gameplay actions')
 }
 
+const assertLanternFairVisualObjects = (room, expectedRevision = 0, options = {}) => {
+  const visualState = room?.visual_state
+  const objects = visualState?.objects || []
+  const actionIds = new Set((room?.gameplay?.available_actions || []).map(action => action.id))
+  assert.equal(visualState?.board_type, 'scene', 'lantern fair visual_state should use scene board')
+  assert.equal(visualState?.revision, expectedRevision, 'lantern fair visual_state revision mismatch')
+  assert.equal(objects.length, 6, 'lantern fair should expose 6 scene objects')
+  assert.deepEqual(objects.map(object => object.id), [
+    'lantern_main_lantern',
+    'lantern_riddle_rack',
+    'lantern_color_rope',
+    'lantern_festival_stall',
+    'lantern_crowd',
+    'lantern_photo_spot',
+  ], 'lantern fair objects should keep a stable scene layout')
+  assert.ok(objects.find(object => object.id === 'lantern_main_lantern')?.requires_cooperation, 'main lantern should require cooperation')
+  assert.ok(objects.find(object => object.id === 'lantern_main_lantern')?.available_action_ids.includes('lock_piece'), 'main lantern should map assembly action')
+  assert.ok(objects.find(object => object.id === 'lantern_color_rope')?.available_action_ids.includes('tighten_frame'), 'color rope should map frame action')
+  if (options.expectInitialStates !== false) {
+    assert.ok(objects.find(object => object.id === 'lantern_photo_spot')?.state === 'blocked', 'photo spot should start blocked before memory is earned')
+    assert.ok(new Set(objects.map(object => object.state)).size >= 4, 'lantern fair scene should expose at least 4 object states')
+  }
+  const objectActionIds = objects.flatMap(object => object.available_action_ids || [])
+  assert.ok(objectActionIds.every(actionId => actionIds.has(actionId)), 'visual object actions should exist in gameplay actions')
+}
+
 await rm(tempDir, { recursive: true, force: true })
 await mkdir(tempDir, { recursive: true })
 
@@ -70,7 +96,7 @@ const festival = await runtime.createFestivalRoom({
   gameplay_template_id: 'assembly',
   title: 'visual festival smoke',
 }, actor('visual_host_festival'))
-assertVisualStateShape(festival.room.visual_state, 'scene', 'festival:lantern_fair:assembly')
+assertLanternFairVisualObjects(festival.room, 0)
 
 const expedition = await runtime.createExpeditionRoom({
   template_id: 'cavern_duo',
@@ -86,6 +112,31 @@ const dragonBoat = await runtime.createFestivalRoom({
 }, actor('visual_host_dragon'))
 assertVisualStateShape(dragonBoat.room.visual_state, 'track', 'festival:dragon_boat:squad_coop')
 
+const roomStoreFile = path.join(tempDir, 'taoyuan_activity_rooms.json')
+const festivalActionStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+festivalActionStore.rooms = festivalActionStore.rooms.map(room => {
+  if (room.id !== festival.room.id) return room
+  return {
+    ...room,
+    state: 'running',
+    running_started_at: 12340,
+    members: room.members.map(member => ({ ...member, status: 'active' })),
+  }
+})
+await writeFile(roomStoreFile, JSON.stringify(festivalActionStore, null, 2), 'utf8')
+
+const lanternActionResult = await runtime.submitFestivalRoomGameplayAction(festival.room.id, {
+  action_id: 'lock_piece',
+}, actor('visual_host_festival'))
+assert.equal(lanternActionResult.room.gameplay.last_action_id, 'lock_piece', 'lantern fair gameplay should record object action')
+assert.equal(lanternActionResult.room.visual_state.revision, 1, 'lantern fair visual revision should advance after object action')
+assert.equal(lanternActionResult.room.visual_state.recent_feedback, lanternActionResult.room.gameplay.festival_state.recent_feedback, 'lantern fair visual feedback should mirror gameplay feedback')
+assert.equal(lanternActionResult.room.visual_state.highlights[0]?.visual_id, 'lantern_main_lantern', 'lantern fair action should append visual highlight')
+const mainLantern = lanternActionResult.room.visual_state.objects.find(object => object.id === 'lantern_main_lantern')
+assert.equal(mainLantern?.state, 'busy', 'main lantern should become busy after assembly action')
+assert.equal(mainLantern?.progress_value, 1, 'main lantern progress should advance after assembly action')
+assert.equal(mainLantern?.handled_by, 'visual_host_festival', 'main lantern should mark the acting player')
+
 const overview = await runtime.listExpeditionRoomOverview('visual_host_expedition')
 assertCavernVisualNodes(overview.my_room, 0)
 
@@ -96,7 +147,6 @@ const actionExpedition = await runtime.createExpeditionRoom({
 }, actor('visual_action_host'))
 assertCavernVisualNodes(actionExpedition.room, 0)
 
-const roomStoreFile = path.join(tempDir, 'taoyuan_activity_rooms.json')
 const actionStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 actionStore.rooms = actionStore.rooms.map(room => {
   if (room.id !== actionExpedition.room.id) return room
@@ -157,7 +207,7 @@ stored.rooms = stored.rooms.map(room => {
 await writeFile(roomStoreFile, JSON.stringify(stored, null, 2), 'utf8')
 
 const legacyOverview = await runtime.listFestivalRoomOverview('visual_host_festival')
-assertVisualStateShape(legacyOverview.my_room?.visual_state, 'scene', 'festival:lantern_fair:assembly')
+assertLanternFairVisualObjects(legacyOverview.my_room, 0, { expectInitialStates: false })
 
 const legacyExpeditionOverview = await runtime.listExpeditionRoomOverview('visual_host_expedition')
 assertCavernVisualNodes(legacyExpeditionOverview.my_room, 0)
@@ -252,7 +302,7 @@ assert.deepEqual(nodes[1].resource_reward_preview, { ore: 2, rubbing: 1 }, 'node
 
 const objectStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 objectStore.rooms = objectStore.rooms.map(room => {
-  if (room.id !== festival.room.id) return room
+  if (room.id !== dragonBoat.room.id) return room
   return {
     ...room,
     visual_state: {
@@ -314,7 +364,7 @@ objectStore.rooms = objectStore.rooms.map(room => {
 })
 await writeFile(roomStoreFile, JSON.stringify(objectStore, null, 2), 'utf8')
 
-const objectOverview = await runtime.listFestivalRoomOverview('visual_host_festival')
+const objectOverview = await runtime.listFestivalRoomOverview('visual_host_dragon')
 const objects = objectOverview.my_room?.visual_state?.objects || []
 assert.equal(objects.length, 3, 'visual_state objects should keep valid objects and filter invalid entries')
 assert.deepEqual(objects.map(item => item.id), ['object_main_lantern', 'object_riddle_rack', 'object_crowd'])

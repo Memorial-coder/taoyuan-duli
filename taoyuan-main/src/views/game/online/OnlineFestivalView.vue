@@ -385,6 +385,25 @@
                   </div>
                 </div>
 
+                <VisualSceneBoard
+                  v-if="showFestivalSceneBoard"
+                  :objects="festivalSceneObjects"
+                  :selected-object-id="selectedFestivalSceneObjectId"
+                  :recent-feedback="festivalSceneFeedback"
+                  :action-running="festivalRoomStore.actionRunning"
+                  :action-labels="festivalSceneActionLabels"
+                  @select-object="selectFestivalVisualObject"
+                  @trigger-action="triggerFestivalVisualAction"
+                />
+                <div v-if="festivalSceneHighlights.length > 0" class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-xs text-accent">本局高光</p>
+                  <div class="mt-2 max-h-24 space-y-1 overflow-y-auto pr-1">
+                    <p v-for="highlight in festivalSceneHighlights" :key="highlight.id" class="text-[10px] leading-4 text-muted">
+                      {{ highlight.label }} · {{ highlight.summary }}
+                    </p>
+                  </div>
+                </div>
+
                 <div v-if="festivalRoomStore.myRoom.gameplay.available_actions.length > 0" class="space-y-2">
                   <p class="text-[10px] text-muted">玩法动作</p>
                   <div class="grid gap-2 md:grid-cols-2">
@@ -549,6 +568,10 @@
                 <span class="text-[10px] text-muted">房型与玩法</span>
               </div>
               <div class="mt-3 space-y-3">
+                <Button class="online-action-btn online-action-btn--compact w-fit" :disabled="festivalRoomStore.actionRunning" @click="selectLanternFairDraft">
+                  <Lamp :size="13" aria-hidden="true" />
+                  灯会共建
+                </Button>
                 <label class="block">
                   <span class="text-[10px] text-muted">节会房型</span>
                   <select v-model="festivalRoomStore.selectedTemplateId" class="online-select mt-1" data-testid="online-festival-room-template-select">
@@ -1144,12 +1167,14 @@
 <script setup lang="ts">
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
-  import { CalendarDays } from 'lucide-vue-next'
+  import { CalendarDays, Lamp } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
+  import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
+  import type { OnlineVisualObject } from '@/types/onlineVisual'
   import type { WorldEventOverview } from '@/utils/worldEventApi'
 
   type FestivalTabKey = 'world' | 'festival-room' | 'expedition-room' | 'memorials'
@@ -1168,6 +1193,7 @@
   const festivalRoomStore = useFestivalRoomStore()
   const expeditionRoomStore = useExpeditionRoomStore()
   type ChronicleSnapshot = WorldEventOverview['recent_chronicles'][number]
+  type FestivalVisualActionPayload = { objectId: string; actionId: string }
 
   const hasDivisionFirstCompletions = (chronicle: ChronicleSnapshot) =>
     Object.keys(chronicle.first_completed_divisions || {}).length > 0
@@ -1195,6 +1221,7 @@
   }
 
   const activeTab = ref<FestivalTabKey>(normalizeTab(route.query.tab))
+  const selectedFestivalVisualObjectId = ref('')
   const setActiveTab = (tab: string) => {
     activeTab.value = tab as FestivalTabKey
   }
@@ -1243,6 +1270,32 @@
       summary: receipt.summary,
     })),
   ].slice(0, 8))
+  const festivalGameplayActionMap = computed(() =>
+    new Map((festivalRoomStore.myRoom?.gameplay.available_actions ?? []).map(action => [action.id, action]))
+  )
+  const festivalSceneObjects = computed<OnlineVisualObject[]>(() => {
+    const visualState = festivalRoomStore.myRoom?.visual_state
+    if (visualState?.board_type !== 'scene') return []
+    const actionMap = festivalGameplayActionMap.value
+    return (visualState.objects ?? []).map(object => ({
+      ...object,
+      available_action_ids: object.available_action_ids.filter(actionId => actionMap.get(actionId)?.can_use),
+    }))
+  })
+  const showFestivalSceneBoard = computed(() => festivalSceneObjects.value.length > 0)
+  const selectedFestivalSceneObjectId = computed(() =>
+    selectedFestivalVisualObjectId.value || festivalRoomStore.myRoom?.visual_state.selected_visual_id || ''
+  )
+  const festivalSceneFeedback = computed(() =>
+    festivalRoomStore.myRoom?.visual_state.recent_feedback || festivalRoomStore.myFestivalState?.recent_feedback || ''
+  )
+  const festivalSceneHighlights = computed(() => {
+    const visualState = festivalRoomStore.myRoom?.visual_state
+    return visualState?.board_type === 'scene' ? visualState.highlights.slice(0, 4) : []
+  })
+  const festivalSceneActionLabels = computed<Record<string, string>>(() =>
+    Object.fromEntries(Array.from(festivalGameplayActionMap.value.values()).map(action => [action.id, action.label]))
+  )
 
   const getRouteQueryText = (value: unknown) => {
     const raw = Array.isArray(value) ? value[0] : value
@@ -1274,6 +1327,11 @@
   const createRoom = async () => {
     await festivalRoomStore.createRoom().catch(() => {})
   }
+  const selectLanternFairDraft = () => {
+    festivalRoomStore.selectedTemplateId = 'lantern_fair'
+    festivalRoomStore.selectedGameplayTemplateId = 'assembly'
+    if (!festivalRoomStore.draftTitle.trim()) festivalRoomStore.draftTitle = '上元灯会共建'
+  }
   const inviteMember = async (roomId: string) => {
     await festivalRoomStore.inviteMember(roomId).catch(() => {})
   }
@@ -1303,6 +1361,15 @@
   }
   const playGameplayAction = async (roomId: string, actionId: string) => {
     await festivalRoomStore.submitGameplayAction(roomId, actionId).catch(() => {})
+  }
+  const selectFestivalVisualObject = (objectId: string) => {
+    selectedFestivalVisualObjectId.value = objectId
+  }
+  const triggerFestivalVisualAction = async (payload: FestivalVisualActionPayload) => {
+    selectedFestivalVisualObjectId.value = payload.objectId
+    const roomId = festivalRoomStore.myRoom?.id
+    if (!roomId) return
+    await playGameplayAction(roomId, payload.actionId)
   }
   const settleRoom = async (roomId: string) => {
     await festivalRoomStore.settleRoomAction(roomId).catch(() => {})
@@ -1354,6 +1421,12 @@
     () => route.query.tab,
     tab => {
       activeTab.value = normalizeTab(tab)
+    }
+  )
+  watch(
+    () => festivalRoomStore.myRoom?.id,
+    () => {
+      selectedFestivalVisualObjectId.value = ''
     }
   )
   watch(

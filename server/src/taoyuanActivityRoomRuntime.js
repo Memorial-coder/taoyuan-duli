@@ -168,6 +168,91 @@ const EXPEDITION_CAVERN_ACTION_NODE_MAP = Object.freeze({
   stabilize_collapse: EXPEDITION_CAVERN_VISUAL_NODE_IDS.support,
 });
 
+const LANTERN_FAIR_VISUAL_OBJECT_IDS = Object.freeze({
+  mainLantern: 'lantern_main_lantern',
+  riddleRack: 'lantern_riddle_rack',
+  colorRope: 'lantern_color_rope',
+  festivalStall: 'lantern_festival_stall',
+  crowd: 'lantern_crowd',
+  photoSpot: 'lantern_photo_spot',
+});
+
+const LANTERN_FAIR_ACTION_OBJECT_MAP = Object.freeze({
+  buzz_correct: LANTERN_FAIR_VISUAL_OBJECT_IDS.riddleRack,
+  review_hint: LANTERN_FAIR_VISUAL_OBJECT_IDS.riddleRack,
+  lock_piece: LANTERN_FAIR_VISUAL_OBJECT_IDS.mainLantern,
+  tighten_frame: LANTERN_FAIR_VISUAL_OBJECT_IDS.colorRope,
+  offer_progress: LANTERN_FAIR_VISUAL_OBJECT_IDS.festivalStall,
+  raise_banner: LANTERN_FAIR_VISUAL_OBJECT_IDS.colorRope,
+  sync_oar: LANTERN_FAIR_VISUAL_OBJECT_IDS.crowd,
+  steady_rudder: LANTERN_FAIR_VISUAL_OBJECT_IDS.crowd,
+  keep_beat: LANTERN_FAIR_VISUAL_OBJECT_IDS.crowd,
+  lift_applause: LANTERN_FAIR_VISUAL_OBJECT_IDS.crowd,
+  deliver_bundle: LANTERN_FAIR_VISUAL_OBJECT_IDS.festivalStall,
+  sort_bundle: LANTERN_FAIR_VISUAL_OBJECT_IDS.festivalStall,
+  lock_pose: LANTERN_FAIR_VISUAL_OBJECT_IDS.photoSpot,
+});
+
+const LANTERN_FAIR_EVENT_OBJECT_MAP = Object.freeze({
+  riddle_wave: LANTERN_FAIR_VISUAL_OBJECT_IDS.riddleRack,
+  lantern_tangle: LANTERN_FAIR_VISUAL_OBJECT_IDS.colorRope,
+});
+
+const LANTERN_FAIR_VISUAL_OBJECT_DEFS = Object.freeze([
+  {
+    id: LANTERN_FAIR_VISUAL_OBJECT_IDS.mainLantern,
+    label: '主灯',
+    kind: 'lantern_main',
+    x: 50,
+    y: 18,
+    progress_target: 4,
+    requires_cooperation: true,
+    cooperation_required_count: 2,
+  },
+  {
+    id: LANTERN_FAIR_VISUAL_OBJECT_IDS.riddleRack,
+    label: '灯谜架',
+    kind: 'riddle_rack',
+    x: 24,
+    y: 44,
+    progress_target: 3,
+  },
+  {
+    id: LANTERN_FAIR_VISUAL_OBJECT_IDS.colorRope,
+    label: '彩绳灯线',
+    kind: 'lantern_rope',
+    x: 67,
+    y: 36,
+    progress_target: 3,
+    requires_cooperation: true,
+    cooperation_required_count: 2,
+  },
+  {
+    id: LANTERN_FAIR_VISUAL_OBJECT_IDS.festivalStall,
+    label: '节会摊位',
+    kind: 'stall',
+    x: 30,
+    y: 72,
+    progress_target: 3,
+  },
+  {
+    id: LANTERN_FAIR_VISUAL_OBJECT_IDS.crowd,
+    label: '人群秩序',
+    kind: 'crowd',
+    x: 77,
+    y: 64,
+    progress_target: 0,
+  },
+  {
+    id: LANTERN_FAIR_VISUAL_OBJECT_IDS.photoSpot,
+    label: '留影点',
+    kind: 'photo_spot',
+    x: 53,
+    y: 84,
+    progress_target: 2,
+  },
+]);
+
 const FESTIVAL_RESOURCE_DEFS = Object.freeze([
   { id: 'cheer', label: '喝彩', initial_value: 2, max_value: 8 },
   { id: 'order', label: '秩序', initial_value: 4, max_value: 8 },
@@ -2032,6 +2117,138 @@ function syncExpeditionCavernVisualState(room, cavernState, options = {}) {
   return room.visual_state;
 }
 
+function getLanternFairCurrentVisualObjectId(room, festivalState) {
+  const event = getFestivalCurrentEvent(room, festivalState);
+  return LANTERN_FAIR_EVENT_OBJECT_MAP[event?.id] || LANTERN_FAIR_VISUAL_OBJECT_IDS.mainLantern;
+}
+
+function buildLanternFairVisualActionMap(room) {
+  const template = getGameplayTemplateByDomain(room?.activity_domain, room?.gameplay_template_id, room?.template_id);
+  const actionIds = new Set((template.action_options || []).map(action => sanitizeText(action.id, 60)).filter(Boolean));
+  return Object.entries(LANTERN_FAIR_ACTION_OBJECT_MAP).reduce((actionMap, [actionId, objectId]) => {
+    if (!actionIds.has(actionId)) return actionMap;
+    if (!actionMap.has(objectId)) actionMap.set(objectId, []);
+    actionMap.get(objectId).push(actionId);
+    return actionMap;
+  }, new Map());
+}
+
+function resolveLanternFairVisualObjectState(definition, context) {
+  const {
+    actionIds,
+    eventObjectId,
+    festivalState,
+    isCompleted,
+    isTarget,
+    progressTarget,
+    progressValue,
+    resources,
+  } = context;
+  if (isCompleted || (progressTarget > 0 && progressValue >= progressTarget)) return 'complete';
+  if (definition.id === LANTERN_FAIR_VISUAL_OBJECT_IDS.crowd && festivalState.pressure_value >= festivalState.pressure_max - 1) return 'overheated';
+  if (definition.id === LANTERN_FAIR_VISUAL_OBJECT_IDS.festivalStall && (resources.supplies || 0) <= 0) return 'blocked';
+  if (definition.id === LANTERN_FAIR_VISUAL_OBJECT_IDS.photoSpot && (resources.memory || 0) <= 0 && actionIds.length === 0) return 'blocked';
+  if (isTarget || progressValue > 0 || definition.id === eventObjectId) return 'busy';
+  if (actionIds.length > 0) return 'needs_action';
+  return 'idle';
+}
+
+function buildLanternFairVisualObjects(room, festivalState, existingObjects = [], options = {}) {
+  const normalizedFestivalState = normalizeFestivalState(festivalState, room?.template_id);
+  const existingById = new Map((existingObjects || []).map(normalizeOnlineVisualObject).filter(Boolean).map(object => [object.id, object]));
+  const actionMap = buildLanternFairVisualActionMap(room);
+  const targetObjectId = sanitizeText(options.targetObjectId, 80);
+  const handledBy = sanitizeText(options.handledBy || options.claimedBy, 40);
+  const handledAt = Math.max(0, Math.floor(Number(options.handledAt) || 0));
+  const progressDelta = Math.max(0, Math.floor(Number(options.progressDelta) || 0));
+  const eventObjectId = getLanternFairCurrentVisualObjectId(room, normalizedFestivalState);
+  const resources = normalizeFestivalResources(normalizedFestivalState.team_resources);
+  const isCompleted = room?.gameplay_state?.phase === 'completed';
+
+  return LANTERN_FAIR_VISUAL_OBJECT_DEFS.map(definition => {
+    const existing = existingById.get(definition.id);
+    const actionIds = actionMap.get(definition.id) || [];
+    const progressTarget = Math.max(0, Math.floor(Number(definition.progress_target) || 0));
+    const baseProgress = progressTarget > 0
+      ? clampNumber(existing?.progress_value, 0, progressTarget)
+      : Math.max(0, Math.floor(Number(existing?.progress_value) || 0));
+    const isTarget = definition.id === targetObjectId;
+    const shouldAdvanceProgress = isTarget && (handledBy || progressDelta > 0 || options.advanceProgress === true);
+    const nextProgress = progressTarget > 0 && shouldAdvanceProgress
+      ? clampNumber(baseProgress + Math.max(1, progressDelta), 0, progressTarget)
+      : baseProgress;
+    const cooperationCurrentCount = definition.requires_cooperation
+      ? Math.min(
+        Math.max(0, Math.floor(Number(definition.cooperation_required_count) || 0)),
+        Math.max(existing?.cooperation_current_count || 0, isTarget && handledBy ? 1 : 0)
+      )
+      : 0;
+
+    return normalizeOnlineVisualObject({
+      id: definition.id,
+      label: definition.label,
+      kind: definition.kind,
+      x: definition.x,
+      y: definition.y,
+      state: resolveLanternFairVisualObjectState(definition, {
+        actionIds,
+        eventObjectId,
+        festivalState: normalizedFestivalState,
+        isCompleted,
+        isTarget,
+        progressTarget,
+        progressValue: nextProgress,
+        resources,
+      }),
+      available_action_ids: actionIds,
+      progress_value: nextProgress,
+      progress_target: progressTarget,
+      handled_by: isTarget && handledBy ? handledBy : existing?.handled_by,
+      handled_at: isTarget && handledAt ? handledAt : existing?.handled_at,
+      requires_cooperation: definition.requires_cooperation === true,
+      cooperation_required_count: definition.cooperation_required_count || 0,
+      cooperation_current_count: cooperationCurrentCount,
+    });
+  });
+}
+
+function syncLanternFairVisualState(room, festivalState, options = {}) {
+  if (room?.activity_domain !== 'festival' || room?.template_id !== 'lantern_fair') return null;
+  const visualState = normalizeOnlineVisualState(room.visual_state, room);
+  const targetObjectId = sanitizeText(options.selectedVisualId || options.targetObjectId, 80)
+    || visualState.selected_visual_id
+    || getLanternFairCurrentVisualObjectId(room, festivalState);
+  const objects = buildLanternFairVisualObjects(room, festivalState, visualState.objects, {
+    ...options,
+    targetObjectId,
+  });
+  const recentFeedback = sanitizeText(options.recentFeedback || festivalState?.recent_feedback || visualState.recent_feedback, 180);
+  const highlights = options.appendHighlight && targetObjectId && recentFeedback
+    ? [
+      normalizeOnlineVisualHighlight({
+        id: makeId('lantern_highlight'),
+        visual_id: targetObjectId,
+        type: 'success',
+        label: sanitizeText(options.highlightLabel, 40) || '灯会行动',
+        summary: recentFeedback,
+        created_at: nowSeconds(),
+      }),
+      ...(visualState.highlights || []),
+    ].slice(0, 16)
+    : visualState.highlights;
+  room.visual_state = normalizeOnlineVisualState({
+    ...visualState,
+    board_type: 'scene',
+    board_id: visualState.board_id || buildDefaultVisualBoardId(room),
+    revision: visualState.revision + (options.incrementRevision ? 1 : 0),
+    selected_visual_id: targetObjectId,
+    objects,
+    highlights,
+    recent_feedback: recentFeedback,
+  }, room);
+  return room.visual_state;
+}
+
 function getFestivalEventsForRoomTemplate(roomTemplateId) {
   const normalizedTemplateId = sanitizeText(roomTemplateId, 40);
   const events = FESTIVAL_ROUND_EVENTS_BY_TEMPLATE[normalizedTemplateId] || FESTIVAL_ROUND_EVENTS_BY_TEMPLATE.default;
@@ -2431,6 +2648,7 @@ function ensureRoomGameplayState(room) {
   if (room.activity_domain === 'festival') {
     room.gameplay_state.festival_state = normalizeFestivalState(room.gameplay_state.festival_state, room.template_id);
     syncFestivalRoleAssignments(room, room.gameplay_state.festival_state);
+    syncLanternFairVisualState(room, room.gameplay_state.festival_state);
   }
   if (gameplayTemplate.id === 'expedition_cavern') {
     room.gameplay_state.cavern_state = normalizeExpeditionCavernState(room.gameplay_state.cavern_state);
@@ -2914,6 +3132,11 @@ function advanceFestivalRound(room, festivalState, actor) {
     }),
     ...(festivalState.round_log || []).slice(0, FESTIVAL_ROUND_LOG_LIMIT - 1),
   ];
+  syncLanternFairVisualState(room, festivalState, {
+    incrementRevision: true,
+    selectedVisualId: getLanternFairCurrentVisualObjectId(room, festivalState),
+    recentFeedback: festivalState.recent_feedback,
+  });
   touchRoom(room);
 }
 
@@ -3061,6 +3284,16 @@ function applyFestivalRoundEffects(room, festivalState, actor, actionOption, con
     },
   ].slice(-12);
   festivalState.recent_feedback = roundLogEntry.summary;
+  syncLanternFairVisualState(room, festivalState, {
+    incrementRevision: true,
+    selectedVisualId: LANTERN_FAIR_ACTION_OBJECT_MAP[actionOption.id] || getLanternFairCurrentVisualObjectId(room, festivalState),
+    handledBy: actor.username,
+    handledAt: roundLogEntry.created_at,
+    progressDelta: Math.max(0, Math.floor(Number(actionOption.progress_delta) || 0)),
+    recentFeedback: roundLogEntry.summary,
+    appendHighlight: true,
+    highlightLabel: actionOption.label,
+  });
   if (festivalState.round_actions.filter(entry => entry.round_number === festivalState.round_number).length >= FESTIVAL_ROUND_ACTION_TARGET) {
     advanceFestivalRound(room, festivalState, actor);
   } else {
@@ -3718,6 +3951,8 @@ function buildRoomSnapshot(store, room, viewerUsername) {
   const participatingCount = joinedMembers.length;
   const readyCount = joinedMembers.filter(member => member.status === 'ready').length;
   const settlementReceipts = getReceiptListForRoom(store, room);
+  const gameplaySnapshot = buildGameplaySnapshot(room, viewerUsername);
+  const visualState = normalizeOnlineVisualState(room.visual_state, room);
   return {
     id: room.id,
     activity_domain: room.activity_domain,
@@ -3781,8 +4016,8 @@ function buildRoomSnapshot(store, room, viewerUsername) {
       route_replay: receipt.route_replay,
       created_at: receipt.created_at,
     })),
-    visual_state: normalizeOnlineVisualState(room.visual_state, room),
-    gameplay: buildGameplaySnapshot(room, viewerUsername),
+    visual_state: visualState,
+    gameplay: gameplaySnapshot,
     opening_ceremony: buildOpeningCeremony(room),
     joined_member_count: participatingCount,
     ready_member_count: readyCount,
@@ -4573,6 +4808,12 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
     settlement_receipt_ids: [],
     events: [],
   });
+  if (room.activity_domain === 'festival') {
+    syncLanternFairVisualState(room, room.gameplay_state.festival_state);
+  }
+  if (gameplayTemplate.id === 'expedition_cavern') {
+    syncExpeditionCavernVisualState(room, room.gameplay_state.cavern_state);
+  }
   recordRoomEvent(room, 'room.create', actor, `创建了 ${template.label} 房间《${room.title}》，玩法模板为 ${gameplayTemplate.label}`);
   replaceRoom(store, room);
   saveStore(store);

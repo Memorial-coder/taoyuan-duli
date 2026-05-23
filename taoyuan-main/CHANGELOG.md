@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0523 灯会共建样板
+- `lantern_fair` 节会房间接入真实 `visual_state.objects`，主灯、灯谜架、彩绳灯线、节会摊位、人群秩序和留影点会随房间行动更新状态、进度、处理人、协作人数、最近反馈、高光和视觉版本。
+- 在线节会房间复用 `VisualSceneBoard` 展示灯会现场热区、物件详情、动作入口、进度和移动端物件列表，并新增“灯会共建”快捷入口；客户端仍只提交行动意图，结算和状态推进由服务端权威处理。
+- 本轮验证：`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-activity-room-visual-state.mjs`、`npm --prefix server run qa:activity-room-visual-state`、`npm --prefix server run qa:online-smoke`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0523 联机视觉状态协议底座
 - 服务端活动房间 snapshot 新增 `visual_state`，统一承载 `board_type / board_id / revision / selected_visual_id / highlights / recent_feedback`，新建节会与远征房间会写入默认视觉状态。
 - 旧节会 / 远征房间缺少 `visual_state` 时会按活动域和模板回退为空视觉状态，避免旧房间打开失败。
