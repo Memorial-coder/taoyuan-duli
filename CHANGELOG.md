@@ -2,6 +2,9 @@
 
 最后整理：2026-05-23
 
+- `0522拆分todo.md / 阶段 H1` 这一轮把好友驿站内部跳转改成直达新在线子页：访问庄园进 `/game/online/manor`，节会 / 远征邀请进在线节会对应标签，村社邀请进在线村社成员页，协作委托进在线委托发布页。
+- 好友上下文继续透传 `target_username / target_save_id / source`，在线委托现在会读取 `tab=publish` 并在路由目标变化时重套 `scope / target` 草稿；邮箱写信和送礼仍保留原 `mail` 路由上下文监听。
+
 - `0522拆分todo.md / 阶段 H0` 这一轮把旧联机入口迁到在线中心：`/game/social`、`/game/manor`、`/game/festival`、`/game/society` 和 `/game/expedition` 保留原 route name，但会带 query / hash 重定向到对应在线子页，远征旧入口会落到在线节会的远征标签。
 - 在线庄园、在线邻里和在线村社移除了“返回旧长页”的过渡按钮与文案，任务页继续保留单人任务板并提供在线委托入口；本轮不改服务端接口、结算、补偿或审计规则。
 

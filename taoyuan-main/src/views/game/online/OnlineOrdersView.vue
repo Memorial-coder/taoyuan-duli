@@ -675,7 +675,7 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref } from 'vue'
+  import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
   import { ArrowLeft, ExternalLink, Handshake, RefreshCw } from 'lucide-vue-next'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
@@ -686,7 +686,6 @@
 
   const route = useRoute()
   const coopOrderStore = useCoopOrderStore()
-  const activeTab = ref<OrdersTabKey>('available')
   const lastRefreshAttemptAt = ref(0)
   const tabs: OrdersTabMeta[] = [
     { key: 'publish', label: '发布', summary: '发布求助单、设置范围、奖励和多段接力草稿。' },
@@ -696,6 +695,12 @@
     { key: 'receipts', label: '凭证与补偿', summary: '查看结算凭证、补偿状态和异常原因。' },
   ]
   const defaultTab = tabs[1]!
+  const normalizeTab = (value: unknown): OrdersTabKey => {
+    const raw = Array.isArray(value) ? value[0] : value
+    if (raw === 'publish' || raw === 'available' || raw === 'mine' || raw === 'accepted' || raw === 'receipts') return raw
+    return 'available'
+  }
+  const activeTab = ref<OrdersTabKey>(normalizeTab(route.query.tab))
 
   const COOP_ORDER_TYPE_OPTIONS: Array<{ id: OnlineCoopOrderType; label: string }> = [
     { id: 'material_help', label: '材料求助' },
@@ -886,4 +891,18 @@
     applyCoopRouteDraft()
     void refreshOrders()
   })
+
+  watch(
+    () => route.query.tab,
+    tab => {
+      activeTab.value = normalizeTab(tab)
+    }
+  )
+
+  watch(
+    () => [route.query.scope, route.query.target_username, route.query.target_save_id],
+    () => {
+      applyCoopRouteDraft()
+    }
+  )
 </script>

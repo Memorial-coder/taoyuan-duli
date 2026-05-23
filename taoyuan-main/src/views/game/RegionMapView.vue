@@ -4499,7 +4499,7 @@
     navigateToPanel(panelKey)
   }
   const goToExpeditionRoom = () => {
-    void router.push({ name: 'expedition' })
+    void router.push({ name: 'online-festival', query: { tab: 'expedition' } })
   }
   const handleJourneyActionNavigate = (entryId: string, panelKey: PanelKey) => {
     markJourneyActionProcessed(entryId, panelKey)

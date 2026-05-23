@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0522 内部跳转上下文迁移（阶段 H1）
+- 好友驿站的庄园、节会邀请、远征邀请、村社邀请和协作委托入口改为直达 `online-manor / online-festival / online-society / online-orders`，不再先推旧长页 route name。
+- 目标玩家上下文继续带 `target_username / target_save_id / source`；节会与远征会带 `tab=festival / expedition`，村社会带 `tab=members`，协作委托会带 `scope=friends&tab=publish`。
+- 在线委托页新增 `tab` 读取与 route query watcher，好友入口跳转后会直接显示发布页并保留目标草稿；邮箱写信 / 送礼仍由 `MailView.vue` 监听目标参数。
+
 ### 0522 旧联机入口兼容迁移（阶段 H0）
 - 旧 `social / manor / festival / society / expedition` 路由保留原 route name，并重定向到在线中心对应子页；query 与 hash 会继续透传，`expedition` 会落到在线节会的远征房间标签。
 - 在线庄园、在线邻里和在线村社移除返回旧长页的过渡按钮与旧迁移文案，避免玩家从新页绕回旧入口再跳转。

@@ -301,7 +301,7 @@
   const openFriendManor = (entry: OnlineRelationCard) => {
     const query = buildFriendTargetQuery(entry)
     if (!query) return
-    void router.push({ name: 'manor', query })
+    void router.push({ name: 'online-manor', query })
   }
 
   const openFriendMail = (entry: OnlineRelationCard, compose: 'letter' | 'gift') => {
@@ -313,25 +313,25 @@
   const openFriendExpeditionInvite = (entry: OnlineRelationCard) => {
     const query = buildFriendTargetQuery(entry)
     if (!query) return
-    void router.push({ name: 'expedition', query: { ...query, invite: '1' } })
+    void router.push({ name: 'online-festival', query: { ...query, invite: '1', tab: 'expedition' } })
   }
 
   const openFriendFestivalInvite = (entry: OnlineRelationCard) => {
     const query = buildFriendTargetQuery(entry)
     if (!query) return
-    void router.push({ name: 'festival', query: { ...query, invite: '1' } })
+    void router.push({ name: 'online-festival', query: { ...query, invite: '1', tab: 'festival' } })
   }
 
   const openFriendSocietyInvite = (entry: OnlineRelationCard) => {
     const query = buildFriendTargetQuery(entry)
     if (!query) return
-    void router.push({ name: 'society', query: { ...query, invite: '1' } })
+    void router.push({ name: 'online-society', query: { ...query, invite: '1', tab: 'members' } })
   }
 
   const openFriendCoop = (entry: OnlineRelationCard) => {
     const query = buildFriendTargetQuery(entry)
     if (!query) return
-    void router.push({ name: 'quest', query: { ...query, scope: 'friends' } })
+    void router.push({ name: 'online-orders', query: { ...query, scope: 'friends', tab: 'publish' } })
   }
 
   const refreshFriendStation = async () => {
