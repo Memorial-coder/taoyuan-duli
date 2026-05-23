@@ -2,6 +2,9 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A1-A5` 这一轮补了一条 realtime 反注入回归：客户端伪造 `notification.created` 和 `activity.room.updated` 不会被服务器当成权威投递事件广播。
+- `0520todo.md / A5` 里的“事件只负责投递，不负责最终结算”已按现有事件集收口，前端继续只静默重读权威接口，结算仍走 HTTP。
+
 - `0520todo.md / A5-A7` 这一轮补齐村社公共建设与公共仓共享进度的离线补发验收：离线成员会在 WebSocket ready 后收到 `public_project_contributed / warehouse_deposited` 摘要。
 - `qa:realtime-smoke` 现在会 ACK 这两类补发并重连确认不重复，同时校验通知仍不暴露 overview、成员列表、贡献列表或公共仓日志。
 

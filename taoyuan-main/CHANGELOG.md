@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 Realtime 事件只投递边界（A1-A5）
+- `qa:realtime-smoke` 新增客户端伪造事件回归，确认浏览器侧发送的 `notification.created` / `activity.room.updated` 不会被服务端广播成权威投递或房间状态事件。
+- `0520todo.md` 中 A5“事件只负责投递，不负责最终结算”已按当前事件集收口；前端仍只静默重读权威 HTTP 接口。
+
 ### 0520 村社共享进度离线补发烟测（A5-A7）
 - `qa:realtime-smoke` 补齐村社公共建设与公共仓共享进度的离线补发断言：离线成员 ready 后会收到 `public_project_contributed / warehouse_deposited` 摘要，并通过 ACK 清理。
 - 重连会确认两类补发不重复；通知继续只做投递，不携带 overview、成员列表、贡献列表或公共仓日志，前端仍静默重读权威村社概览。

@@ -444,6 +444,32 @@ try {
     await expectMessageAfter(ownerSocket, offset, 'realtime.pong')
   })
 
+  await runCheck('realtime websocket ignores client-forged delivery events', async () => {
+    const offset = ownerSocket.messages.length
+    ownerSocket.send('notification.created', {
+      category: 'mail',
+      action: 'client_forged_delivery',
+      refresh_required: true,
+      mail: { id: 'forged_mail_from_client' },
+    })
+    ownerSocket.send('activity.room.updated', {
+      domain: 'expedition',
+      action: 'client_forged_settlement',
+      refresh_required: true,
+      room: { id: 'forged_room_from_client', state: 'settled' },
+    })
+    await expectNoMessageAfter(ownerSocket, offset, 'notification.created', payload =>
+      payload.category === 'mail'
+        && payload.action === 'client_forged_delivery'
+        && payload.mail?.id === 'forged_mail_from_client'
+    )
+    await expectNoMessageAfter(ownerSocket, offset, 'activity.room.updated', payload =>
+      payload.domain === 'expedition'
+        && payload.action === 'client_forged_settlement'
+        && payload.room?.id === 'forged_room_from_client'
+    )
+  })
+
   friendSocket = await openRealtimeSocket(friend)
   await runCheck('presence online is delivered to connected user', async () => {
     await expectMessage(friendSocket, 'presence.online', payload =>
