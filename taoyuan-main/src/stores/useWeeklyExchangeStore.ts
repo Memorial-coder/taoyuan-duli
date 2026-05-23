@@ -159,18 +159,24 @@ export const useWeeklyExchangeStore = defineStore('weeklyExchangeStation', () =>
     })
   }
 
-  const refreshStation = async () => {
-    loading.value = true
-    errorMessage.value = ''
+  const refreshStation = async (options: { silent?: boolean } = {}) => {
+    if (!options.silent) {
+      loading.value = true
+      errorMessage.value = ''
+    }
     try {
       station.value = await fetchWeeklyExchangeStation()
       lastLoadedAt.value = Date.now()
       return station.value
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '获取每周交换站失败'
+      if (!options.silent) {
+        errorMessage.value = error instanceof Error ? error.message : '获取每周交换站失败'
+      }
       throw error
     } finally {
-      loading.value = false
+      if (!options.silent) {
+        loading.value = false
+      }
     }
   }
 

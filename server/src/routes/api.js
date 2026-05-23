@@ -491,6 +491,60 @@ function emitNeighborConsignmentNotificationCreatedEvent(action, result = {}, ac
   }
 }
 
+function collectOnlineExchangeNotificationRecipients(actor = {}) {
+  const recipients = new Set();
+  try {
+    const state = taoyuanRealtimeRuntime.getRealtimeState();
+    for (const connection of Array.isArray(state?.connections) ? state.connections : []) {
+      const username = normalizeUsernameKey(connection?.username);
+      if (username) recipients.add(username);
+    }
+  } catch {}
+  const actorKey = normalizeUsernameKey(actor.username);
+  if (actorKey) recipients.add(actorKey);
+  return [...recipients];
+}
+
+function buildExchangeStationNotificationPayload(source, action, result = {}, actor = {}) {
+  const offer = result?.offer && typeof result.offer === 'object' ? result.offer : {};
+  return {
+    category: 'exchange',
+    action,
+    refresh_required: true,
+    actor_username: normalizeUsernameKey(actor.username),
+    actor_display_name: normalizeUsername(actor.displayName || actor.display_name || actor.username),
+    exchange: {
+      source,
+      offer_id: String(offer?.id || ''),
+      offer_name: trimNotificationText(offer?.name || '', 60),
+      offer_status: offer?.can_exchange === false ? 'disabled' : 'available',
+      category: String(offer?.category || ''),
+      booth_category: String(offer?.booth_category || ''),
+      week_key: String(result?.week_key || ''),
+      week_label: trimNotificationText(result?.week_label || '', 60),
+      claimed_global: Math.max(0, Number(offer?.claimed_global) || 0),
+      remaining_global: Math.max(0, Number(offer?.remaining_global) || 0),
+      updated_at: Number(result?.record?.created_at) || Math.floor(Date.now() / 1000),
+    },
+  };
+}
+
+function emitExchangeStationNotificationCreatedEvent(source, action, result = {}, actor = {}) {
+  if (!result?.offer?.id) return 0;
+  const recipients = collectOnlineExchangeNotificationRecipients(actor);
+  if (!recipients.length) return 0;
+  try {
+    if (typeof taoyuanRealtimeRuntime.emitOnlineUsersEvent === 'function') {
+      return taoyuanRealtimeRuntime.emitOnlineUsersEvent(
+        recipients,
+        'notification.created',
+        buildExchangeStationNotificationPayload(source, action, result, actor)
+      );
+    }
+  } catch {}
+  return 0;
+}
+
 function buildNeighborGroupNotificationSummary(group = {}, request = {}) {
   const groupId = String(group?.id || request?.group_id || '').trim();
   return {
@@ -4183,7 +4237,9 @@ router.get('/taoyuan/exchange-station/weekly', loginRequired, async (req, res) =
 router.post('/taoyuan/exchange-station/weekly/:offerId/exchange', loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
+      const actor = getSessionActor(req);
       const result = taoyuanWeeklyExchangeStation.exchangeWeeklyOffer(req.session.username, req.params.offerId);
+      emitExchangeStationNotificationCreatedEvent('weekly_exchange_station', 'weekly_exchange_updated', result, actor);
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '执行每周换物失败' });
@@ -4203,7 +4259,9 @@ router.get('/taoyuan/exchange-station/festival-stall', loginRequired, async (req
 router.post('/taoyuan/exchange-station/festival-stall/:offerId/purchase', loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {
+      const actor = getSessionActor(req);
       const result = taoyuanFestivalStall.purchaseFestivalStallOffer(req.session.username, req.params.offerId);
+      emitExchangeStationNotificationCreatedEvent('festival_stall', 'festival_stall_updated', result, actor);
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '购买节庆摊位商品失败' });

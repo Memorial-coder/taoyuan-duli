@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 每周交换站与节庆摊位 realtime 刷新（A4-A6-A7）
+- 每周交换站换物和节庆摊位购买成功后，现在会投递 `category: "exchange"` 的在线轻通知，source 分别为 `weekly_exchange_station` 与 `festival_stall`。
+- `useRealtimeStore` 收到对应 source 后只静默刷新每周交换站 / 节庆摊位、交换账本和官方调控概览；通知不携带成本、奖励或完整交易记录，也不会进入离线补发队列。
+- `qa:realtime-smoke` 覆盖两条在线通知，并校验不暴露 costs / rewards / record 且不带 `queued_event_id`。
+
 ### 0520 邻里 membership 离线补发烟测（A5-A7）
 - `qa:realtime-smoke` 补齐邻里邀请和邻里拒绝结果的离线补发断言：目标玩家未连接时，通知会进入 realtime 补发队列，并在下次 ready 后带 `queued_event_id / replayed` 补发。
 - 烟测会分别 ACK 邀请与拒绝结果通知，再重连确认 pending 归零且不会重复补发；这轮只扩展 delivery-only 验证，不改变前端静默刷新或邻里结算逻辑。

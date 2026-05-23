@@ -640,6 +640,62 @@ try {
     assert(notification.queued_event_id === undefined, 'online world event notification should not be queued')
   })
 
+  await runCheck('weekly exchange notification event is delivered through websocket', async () => {
+    const stationResult = await fetchSessionJson(owner, '/api/taoyuan/exchange-station/weekly')
+    assert(stationResult.response.ok, `weekly exchange station returned ${stationResult.response.status}: ${stationResult.data?.msg || 'unknown error'}`)
+    const offer = stationResult.data?.station?.offers?.find(item => item?.id === 'wood_for_stone')
+    assert(offer?.can_exchange === true, 'weekly exchange smoke offer should be exchangeable')
+
+    const offset = friendSocket.messages.length
+    const result = await fetchSessionJson(owner, '/api/taoyuan/exchange-station/weekly/wood_for_stone/exchange', {
+      method: 'POST',
+    })
+    assert(result.response.ok, `weekly exchange returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    const notification = await expectMessageAfter(friendSocket, offset, 'notification.created', payload =>
+      payload.category === 'exchange'
+        && payload.action === 'weekly_exchange_updated'
+        && payload.refresh_required === true
+        && payload.exchange?.source === 'weekly_exchange_station'
+        && payload.exchange?.offer_id === 'wood_for_stone'
+        && payload.exchange?.offer_name === result.data?.offer?.name
+        && Number(payload.exchange?.claimed_global) === Number(result.data?.offer?.claimed_global)
+        && payload.actor_username === owner.username
+    )
+    assert(notification.queued_event_id === undefined, 'online weekly exchange notification should not be queued')
+    assert(notification.payload?.exchange?.costs === undefined, 'weekly exchange notification should not expose costs')
+    assert(notification.payload?.exchange?.rewards === undefined, 'weekly exchange notification should not expose rewards')
+    assert(notification.payload?.record === undefined, 'weekly exchange notification should not expose record')
+  })
+
+  await runCheck('festival stall notification event is delivered through websocket', async () => {
+    const stallResult = await fetchSessionJson(owner, '/api/taoyuan/exchange-station/festival-stall')
+    assert(stallResult.response.ok, `festival stall returned ${stallResult.response.status}: ${stallResult.data?.msg || 'unknown error'}`)
+    const offer = stallResult.data?.stall?.offers?.find(item => item?.can_exchange)
+    const offerId = String(offer?.id || '')
+    assert(offerId, 'festival stall smoke offer should be exchangeable')
+
+    const offset = friendSocket.messages.length
+    const result = await fetchSessionJson(owner, `/api/taoyuan/exchange-station/festival-stall/${encodeURIComponent(offerId)}/purchase`, {
+      method: 'POST',
+    })
+    assert(result.response.ok, `festival stall purchase returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    const notification = await expectMessageAfter(friendSocket, offset, 'notification.created', payload =>
+      payload.category === 'exchange'
+        && payload.action === 'festival_stall_updated'
+        && payload.refresh_required === true
+        && payload.exchange?.source === 'festival_stall'
+        && payload.exchange?.offer_id === offerId
+        && payload.exchange?.offer_name === result.data?.offer?.name
+        && payload.exchange?.booth_category === result.data?.offer?.booth_category
+        && Number(payload.exchange?.claimed_global) === Number(result.data?.offer?.claimed_global)
+        && payload.actor_username === owner.username
+    )
+    assert(notification.queued_event_id === undefined, 'online festival stall notification should not be queued')
+    assert(notification.payload?.exchange?.costs === undefined, 'festival stall notification should not expose costs')
+    assert(notification.payload?.exchange?.rewards === undefined, 'festival stall notification should not expose rewards')
+    assert(notification.payload?.record === undefined, 'festival stall notification should not expose record')
+  })
+
   await runCheck('neighbor consignment notification event is delivered through websocket', async () => {
     const groupResult = await fetchSessionJson(owner, '/api/taoyuan/online/social/neighbors', {
       method: 'POST',

@@ -5,6 +5,7 @@ import { buildApiUrl } from '@/utils/apiClient'
 import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
 import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
 import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
+import { useFestivalStallStore } from '@/stores/useFestivalStallStore'
 import { useManorStore } from '@/stores/useManorStore'
 import { useMailboxStore } from '@/stores/useMailboxStore'
 import { useMarketGovernanceStore } from '@/stores/useMarketGovernanceStore'
@@ -12,6 +13,7 @@ import { useNeighborConsignmentStore } from '@/stores/useNeighborConsignmentStor
 import { useSocialStore } from '@/stores/useSocialStore'
 import { useSocietyStore } from '@/stores/useSocietyStore'
 import { useExchangeLedgerStore } from '@/stores/useExchangeLedgerStore'
+import { useWeeklyExchangeStore } from '@/stores/useWeeklyExchangeStore'
 import { useWorldEventStore } from '@/stores/useWorldEventStore'
 
 type RealtimeStatus = 'idle' | 'connecting' | 'connected' | 'reconnecting' | 'closed'
@@ -72,6 +74,8 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
   let societyRefreshTimer: number | null = null
   let coopOrderRefreshTimer: number | null = null
   let worldEventRefreshTimer: number | null = null
+  let weeklyExchangeRefreshTimer: number | null = null
+  let festivalStallRefreshTimer: number | null = null
   let neighborConsignmentRefreshTimer: number | null = null
   let exchangeLedgerRefreshTimer: number | null = null
   let marketGovernanceRefreshTimer: number | null = null
@@ -229,6 +233,26 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     }, 300)
   }
 
+  const queueWeeklyExchangeRefresh = () => {
+    if (weeklyExchangeRefreshTimer !== null) return
+    weeklyExchangeRefreshTimer = window.setTimeout(() => {
+      weeklyExchangeRefreshTimer = null
+      void useWeeklyExchangeStore().refreshStation({ silent: true }).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时每周交换站刷新失败'
+      })
+    }, 300)
+  }
+
+  const queueFestivalStallRefresh = () => {
+    if (festivalStallRefreshTimer !== null) return
+    festivalStallRefreshTimer = window.setTimeout(() => {
+      festivalStallRefreshTimer = null
+      void useFestivalStallStore().refreshStall({ silent: true }).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时节庆摊位刷新失败'
+      })
+    }, 300)
+  }
+
   const queueExchangeLedgerRefresh = () => {
     if (exchangeLedgerRefreshTimer !== null) return
     exchangeLedgerRefreshTimer = window.setTimeout(() => {
@@ -356,6 +380,8 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
           ? (envelope.payload.exchange as Record<string, unknown>).source
           : ''
         if (source === 'neighbor_consignment') queueNeighborConsignmentRefresh()
+        if (source === 'weekly_exchange_station') queueWeeklyExchangeRefresh()
+        if (source === 'festival_stall') queueFestivalStallRefresh()
       }
     }
   }
@@ -473,6 +499,14 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     if (worldEventRefreshTimer !== null) {
       window.clearTimeout(worldEventRefreshTimer)
       worldEventRefreshTimer = null
+    }
+    if (weeklyExchangeRefreshTimer !== null) {
+      window.clearTimeout(weeklyExchangeRefreshTimer)
+      weeklyExchangeRefreshTimer = null
+    }
+    if (festivalStallRefreshTimer !== null) {
+      window.clearTimeout(festivalStallRefreshTimer)
+      festivalStallRefreshTimer = null
     }
     if (neighborConsignmentRefreshTimer !== null) {
       window.clearTimeout(neighborConsignmentRefreshTimer)

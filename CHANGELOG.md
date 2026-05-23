@@ -2,6 +2,10 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A4-A6-A7` 这一轮把每周交换站与节庆摊位接入 realtime 在线轻通知：换物 / 购买成功后，服务端会向当前在线连接投递 `category: "exchange"` 的交易摘要。
+- 前端收到 `weekly_exchange_station` 或 `festival_stall` source 后只静默重读对应摊位、交换账本与官方调控概览；通知不携带成本、奖励或完整交易记录，也不进入离线补发队列。
+- `qa:realtime-smoke` 新增每周交换站与节庆摊位在线通知断言，确认摘要不暴露成本 / 奖励 / record，且在线通知不带 `queued_event_id`。
+
 - `0520todo.md / A5-A7` 这一轮扩展 `qa:realtime-smoke` 的邻里 membership 离线补发覆盖：离线目标收到邻里邀请、离线申请人收到拒绝结果时，都会在下次 WebSocket ready 后补发并带 `queued_event_id / replayed`。
 - 烟测会 ACK 两类补发通知并重连确认 pending 归零、不重复补发，继续校验通知摘要只作为投递证据，不触发成员结算。
 - 本轮验证通过 `node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。

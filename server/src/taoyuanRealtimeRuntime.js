@@ -731,6 +731,17 @@ function emitUsersEvent(usernames, type, payload = {}) {
   return normalized.reduce((sum, username) => sum + emitUserEvent(username, type, payload), 0);
 }
 
+function emitOnlineUsersEvent(usernames, type, payload = {}) {
+  const normalized = [...new Set((usernames || []).map(normalizeUsername).filter(Boolean))];
+  let sent = 0;
+  for (const username of normalized) {
+    for (const connection of listUserConnections(username)) {
+      if (sendEvent(connection, type, payload)) sent += 1;
+    }
+  }
+  return sent;
+}
+
 function parseFrame(buffer) {
   if (!Buffer.isBuffer(buffer) || buffer.length < 2) return null;
   const firstByte = buffer[0];
@@ -982,6 +993,7 @@ function getRealtimeAdminState() {
 
 module.exports = {
   attachRealtimeServer,
+  emitOnlineUsersEvent,
   emitUserEvent,
   emitUsersEvent,
   getRealtimeAdminState,
