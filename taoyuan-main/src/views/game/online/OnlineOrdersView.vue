@@ -69,19 +69,171 @@
           <div v-if="targetDraftSummary" class="border border-accent/15 bg-accent/5 px-3 py-2 text-xs text-muted">
             {{ targetDraftSummary }}
           </div>
-          <div class="grid gap-2 text-xs md:grid-cols-2">
-            <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">默认范围</p>
-              <p class="mt-1 text-accent">{{ getCoopOrderScopeLabel(coopOrderStore.scopeDraft) }}</p>
+
+          <div class="grid gap-2 md:grid-cols-2">
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              求助标题
+              <input
+                v-model="coopOrderStore.titleDraft"
+                maxlength="40"
+                class="online-input"
+                placeholder="例如：缺一批冬菜备节"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              求助类别
+              <select v-model="coopOrderStore.orderTypeDraft" class="online-select">
+                <option v-for="option in COOP_ORDER_TYPE_OPTIONS" :key="option.id" :value="option.id">
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              可见范围
+              <select v-model="coopOrderStore.scopeDraft" class="online-select">
+                <option v-for="option in COOP_ORDER_SCOPE_OPTIONS" :key="option.id" :value="option.id">
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              协作模式
+              <select v-model="coopOrderStore.collaborationModeDraft" class="online-select">
+                <option value="single">单阶段委托</option>
+                <option value="multi_stage">多段接力单</option>
+              </select>
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              截止时间
+              <input
+                v-model="coopOrderStore.deadlineAtDraft"
+                type="datetime-local"
+                class="online-input"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              回报类型
+              <select v-model="coopOrderStore.rewardTypeDraft" class="online-select">
+                <option v-for="option in COOP_REWARD_TYPE_OPTIONS" :key="option.id" :value="option.id">
+                  {{ option.label }}
+                </option>
+              </select>
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              回报数值
+              <input
+                v-model.number="coopOrderStore.rewardValueDraft"
+                type="number"
+                min="1"
+                class="online-input"
+              />
+            </label>
+            <label class="flex flex-col gap-1 text-[10px] text-muted">
+              回报说明
+              <input
+                v-model="coopOrderStore.rewardLabelDraft"
+                maxlength="40"
+                class="online-input"
+                placeholder="例如：铜钱回报 / 人情回礼 / 节庆礼包"
+              />
+            </label>
+          </div>
+
+          <label class="flex flex-col gap-1 text-[10px] text-muted">
+            求助内容
+            <textarea
+              v-model="coopOrderStore.descriptionDraft"
+              rows="3"
+              maxlength="160"
+              class="online-textarea resize-none"
+              placeholder="写清楚当前缺什么、希望别人怎么帮、为什么这单值得接。"
+            />
+          </label>
+
+          <div v-if="coopOrderStore.collaborationModeDraft === 'multi_stage'" class="space-y-2 border border-accent/10 bg-black/10 p-2">
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">接力阶段</p>
+                <p class="mt-1 text-[10px] text-muted">至少补齐 2 个子目标，服务端会按阶段记录接单与交付状态。</p>
+              </div>
+              <button
+                class="online-action-btn online-action-btn--compact shrink-0"
+                type="button"
+                :disabled="coopOrderStore.actionRunning"
+                @click="coopOrderStore.addStageDraft()"
+              >
+                新增阶段
+              </button>
             </div>
-            <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">默认模式</p>
-              <p class="mt-1 text-accent">{{ coopOrderStore.collaborationModeDraft === 'multi_stage' ? '多段接力' : '单段委托' }}</p>
+
+            <div v-if="coopOrderStore.stageDrafts.length === 0" class="border border-accent/10 bg-bg/40 px-3 py-2 text-[10px] text-muted">
+              当前还没有阶段，请至少补 2 个子目标。
+            </div>
+            <div
+              v-for="(stage, index) in coopOrderStore.stageDrafts"
+              :key="stage.id"
+              class="space-y-2 border border-accent/10 bg-bg/40 p-2"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs text-accent">阶段 {{ index + 1 }}</p>
+                <button
+                  class="online-action-btn online-action-btn--danger online-action-btn--compact"
+                  type="button"
+                  :disabled="coopOrderStore.actionRunning"
+                  @click="coopOrderStore.removeStageDraft(stage.id)"
+                >
+                  删除
+                </button>
+              </div>
+              <div class="grid gap-2 md:grid-cols-2">
+                <input
+                  v-model="stage.title"
+                  maxlength="40"
+                  class="online-input"
+                  placeholder="阶段标题，例如：先补齐冬菜"
+                />
+                <select v-model="stage.preferredOrderType" class="online-select">
+                  <option v-for="option in COOP_ORDER_TYPE_OPTIONS" :key="option.id" :value="option.id">
+                    {{ option.label }}
+                  </option>
+                </select>
+                <input
+                  v-model="stage.targetItemId"
+                  maxlength="40"
+                  class="online-input"
+                  placeholder="目标资源 ID，例如 wheat"
+                />
+                <input
+                  v-model.number="stage.targetQuantity"
+                  type="number"
+                  min="1"
+                  class="online-input"
+                  placeholder="数量"
+                />
+              </div>
+              <textarea
+                v-model="stage.description"
+                rows="2"
+                maxlength="120"
+                class="online-textarea w-full resize-none"
+                placeholder="告诉接力的人这一段具体要做什么。"
+              />
             </div>
           </div>
-          <p class="text-xs leading-5 text-muted">
-            发布表单将保留标题、描述、类型、范围、奖励、截止时间与多段阶段草稿。
-          </p>
+
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-[10px] leading-4 text-muted">
+              单阶段会整单结算；多段接力单会把总回报按阶段拆分，并允许不同人各自完成擅长的一段。
+            </p>
+            <button
+              class="online-action-btn online-action-btn--primary shrink-0"
+              type="button"
+              :disabled="coopOrderStore.actionRunning"
+              @click="submitOrderDraft"
+            >
+              {{ coopOrderStore.actionRunning ? '发布中' : '发布求助单' }}
+            </button>
+          </div>
         </div>
         <div class="game-panel-muted p-3">
           <p class="text-sm text-accent">互助声望</p>
@@ -365,6 +517,10 @@
   const refreshOrders = async () => {
     await coopOrderStore.refreshOverview().catch(() => {})
     lastRefreshAttemptAt.value = Date.now()
+  }
+
+  const submitOrderDraft = async () => {
+    await coopOrderStore.submitOrder().catch(() => {})
   }
 
   onMounted(() => {
