@@ -231,7 +231,7 @@
           <div v-if="availableOrderCards.length === 0" class="mt-3 text-xs text-muted">
             当前没有可见在线求助单。
           </div>
-          <div v-else class="mt-3 max-h-[32rem] space-y-2 overflow-y-auto pr-1">
+          <OnlineScrollArea v-else class="mt-3" max-height="32rem">
             <div v-for="order in availableOrderCards" :key="order.id" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
@@ -300,7 +300,7 @@
                 </button>
               </div>
             </div>
-          </div>
+          </OnlineScrollArea>
         </div>
 
         <div class="game-panel-muted p-3">
@@ -330,7 +330,7 @@
         <div v-if="coopOrderStore.myOrders.length === 0" class="mt-3 text-xs text-muted">
           当前还没有自己发布的求助单。
         </div>
-        <div v-else class="mt-3 max-h-[32rem] space-y-2 overflow-y-auto pr-1">
+        <OnlineScrollArea v-else class="mt-3" max-height="32rem">
           <div v-for="order in coopOrderStore.myOrders" :key="order.id" class="border border-accent/10 bg-black/10 p-2">
             <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div class="min-w-0">
@@ -393,7 +393,7 @@
               </button>
             </div>
           </div>
-        </div>
+        </OnlineScrollArea>
       </div>
 
       <div v-else-if="activeTab === 'accepted'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
@@ -405,7 +405,7 @@
           <div v-if="coopOrderStore.myAcceptedOrders.length === 0" class="mt-3 text-xs text-muted">
             当前还没有自己接下的求助单。
           </div>
-          <div v-else class="mt-3 max-h-[32rem] space-y-2 overflow-y-auto pr-1">
+          <OnlineScrollArea v-else class="mt-3" max-height="32rem">
             <div v-for="order in coopOrderStore.myAcceptedOrders" :key="order.id" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
@@ -527,7 +527,7 @@
                 </div>
               </template>
             </div>
-          </div>
+          </OnlineScrollArea>
         </div>
 
         <div class="game-panel-muted p-3">
@@ -558,7 +558,7 @@
           <div v-if="coopOrderStore.myReceipts.length === 0" class="mt-3 text-xs text-muted">
             当前没有结算凭证。
           </div>
-          <div v-else class="mt-3 max-h-[36rem] space-y-2 overflow-y-auto pr-1">
+          <OnlineScrollArea v-else class="mt-3" max-height="36rem">
             <div v-for="receipt in coopOrderStore.myReceipts" :key="receipt.id" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
@@ -594,7 +594,7 @@
                 创建 {{ formatCoopTime(receipt.created_at) }} · 更新 {{ formatCoopTime(receipt.updated_at) }}
               </p>
             </div>
-          </div>
+          </OnlineScrollArea>
         </div>
 
         <div class="game-panel-muted p-3">
@@ -605,7 +605,7 @@
           <div v-if="coopOrderStore.myCompensations.length === 0" class="mt-3 text-xs text-muted">
             当前没有待处理补偿。
           </div>
-          <div v-else class="mt-3 max-h-[36rem] space-y-2 overflow-y-auto pr-1">
+          <OnlineScrollArea v-else class="mt-3" max-height="36rem">
             <div v-for="compensation in coopOrderStore.myCompensations" :key="compensation.id" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
@@ -639,7 +639,7 @@
                 </button>
               </div>
             </div>
-          </div>
+          </OnlineScrollArea>
         </div>
       </div>
     </section>
@@ -651,6 +651,7 @@
   import { useRoute } from 'vue-router'
   import { ExternalLink, Handshake } from 'lucide-vue-next'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
+  import OnlineScrollArea from '@/components/game/online/OnlineScrollArea.vue'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
   import type { OnlineCoopOrderEntry, OnlineCoopOrderScope, OnlineCoopOrderType, OnlineCoopRewardType } from '@/utils/onlineProfileApi'
 
