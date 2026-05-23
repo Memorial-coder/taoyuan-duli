@@ -833,9 +833,9 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
     default_target: 6,
     recommended_room_template_ids: ['gathering_line'],
     action_options: [
-      { id: 'line_gather', label: '组队采集', summary: '把整条采集线同步推进 1 格，并积累 1 点丰收值。', progress_delta: 1, score_delta: 1 },
-      { id: 'sync_bundle', label: '共享进度', summary: '把采集记录和包裹同步到房间快照，推进 1 格并拉高 2 点丰收值。', progress_delta: 1, score_delta: 2 },
-      { id: 'rare_find', label: '稀有材料', summary: '把稀有样本的协作事件变成标准回合，推进 1 格并增加 2 点结算值。', progress_delta: 1, score_delta: 2 },
+      { id: 'line_gather', label: '组队采集', summary: '把整条采集线同步推进 1 格，并积累 1 点丰收值。', progress_delta: 1, score_delta: 1, required_role: 'miner', combo_tags: ['gathering', 'supply'], round_effect: '采集位把队伍推进压成可结算节点，适合先把材料线跑起来。' },
+      { id: 'sync_bundle', label: '共享进度', summary: '把采集记录和包裹同步到房间快照，推进 1 格并拉高 2 点丰收值。', progress_delta: 1, score_delta: 2, required_role: 'scout', combo_tags: ['route', 'order'], round_effect: '探路位把本轮路线和包裹状态同步，降低队友后续判断成本。' },
+      { id: 'rare_find', label: '稀有材料', summary: '把稀有样本的协作事件变成标准回合，推进 1 格并增加 2 点结算值。', progress_delta: 1, score_delta: 2, required_role: 'support', combo_tags: ['rare', 'support'], round_effect: '支护位把稀有发现先收稳，避免高价值样本在协作中掉链。' },
     ],
   },
   expedition_escort: {
@@ -849,9 +849,9 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
     default_target: 5,
     recommended_room_template_ids: ['escort_convoy', 'cavern_quartet', 'sea_probe'],
     action_options: [
-      { id: 'escort_step', label: '护送推进', summary: '车队同步前压 1 段护送里程，并记录 1 点货物完整度。', progress_delta: 1, score_delta: 1 },
-      { id: 'stabilize_cargo', label: '稳固货物', summary: '把货物完整度留在看得见的房间共享分上，推进 1 格并增加 2 点完整度。', progress_delta: 1, score_delta: 2 },
-      { id: 'answer_incident', label: '途中事件', summary: '先用标准动作接住队伍遇到的小危机，变成可结算的 1 格节点。', progress_delta: 1, score_delta: 1 },
+      { id: 'escort_step', label: '护送推进', summary: '车队同步前压 1 段护送里程，并记录 1 点货物完整度。', progress_delta: 1, score_delta: 1, required_role: 'miner', combo_tags: ['escort', 'route'], round_effect: '执行位把车队真正往前推，给后续稳货和应急留下空间。' },
+      { id: 'stabilize_cargo', label: '稳固货物', summary: '把货物完整度留在看得见的房间共享分上，推进 1 格并增加 2 点完整度。', progress_delta: 1, score_delta: 2, required_role: 'support', combo_tags: ['cargo', 'support'], round_effect: '支护位把货物固定住，让护送推进不只涨里程，也保住评分。' },
+      { id: 'answer_incident', label: '途中事件', summary: '先用标准动作接住队伍遇到的小危机，变成可结算的 1 格节点。', progress_delta: 1, score_delta: 1, required_role: 'scout', combo_tags: ['incident', 'survey'], round_effect: '探路位先读出途中小危机，把突发事件压成队伍可以处理的节点。' },
     ],
   },
   expedition_sea: {
@@ -865,9 +865,9 @@ const GAMEPLAY_TEMPLATE_MAP = Object.freeze({
     default_target: 6,
     recommended_room_template_ids: ['sea_probe'],
     action_options: [
-      { id: 'chart_course', label: '航线分工', summary: '先把航线和前后队位同步定好，推进 1 段海探节点。', progress_delta: 1, score_delta: 1 },
-      { id: 'watch_weather', label: '应对海况', summary: '把海况、风向和回海点变成可回看的同步动作，推进 1 格并增加 2 点安全值。', progress_delta: 1, score_delta: 2 },
-      { id: 'haul_sea_goods', label: '海货结算', summary: '把同场海货收束成可回写的后续收益，推进 1 格并增加 2 点海货值。', progress_delta: 1, score_delta: 2 },
+      { id: 'chart_course', label: '航线分工', summary: '先把航线和前后队位同步定好，推进 1 段海探节点。', progress_delta: 1, score_delta: 1, required_role: 'scout', combo_tags: ['sea', 'route'], round_effect: '探路位把航线和回海点讲清楚，队伍后续选择会更稳。' },
+      { id: 'watch_weather', label: '应对海况', summary: '把海况、风向和回海点变成可回看的同步动作，推进 1 格并增加 2 点安全值。', progress_delta: 1, score_delta: 2, required_role: 'support', combo_tags: ['weather', 'support'], round_effect: '支护位把海况风险收进队伍记录，避免海探只剩单纯加分。' },
+      { id: 'haul_sea_goods', label: '海货结算', summary: '把同场海货收束成可回写的后续收益，推进 1 格并增加 2 点海货值。', progress_delta: 1, score_delta: 2, required_role: 'miner', combo_tags: ['sea_goods', 'gathering'], round_effect: '采集位把海货从发现变成可回写收益，给本局收尾留下明确贡献。' },
     ],
   },
 });
@@ -2430,9 +2430,11 @@ function canUseGameplayAction(room, gameplayState, viewerMember, actionOption) {
   if (actionOption.unique_per_member && contribution?.locked) {
     return { can_use: false, disabled_reason: '这个动作每位成员只能执行一次' };
   }
-  if (gameplayState.template_id === 'expedition_cavern') {
+  if (room.activity_domain === 'expedition' && actionOption.required_role) {
     const roleStatus = getExpeditionCavernActionRoleStatus(room, viewerMember, actionOption);
     if (!roleStatus.can_use) return roleStatus;
+  }
+  if (gameplayState.template_id === 'expedition_cavern') {
     const roundStatus = getExpeditionCavernRoundActionStatus(gameplayState, viewerMember, actionOption);
     if (!roundStatus.can_use) return roundStatus;
   }

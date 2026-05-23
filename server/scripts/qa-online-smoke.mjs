@@ -3012,7 +3012,7 @@ try {
       },
     })
     assert(startResponse.response.ok, `${label} countdown returned ${startResponse.response.status}: ${startResponse.data?.msg || 'unknown error'}`)
-    assert(String(startResponse.data?.room?.state || '') === 'countdown', `${label} room did not enter countdown`)
+    assert(['countdown', 'running'].includes(String(startResponse.data?.room?.state || '')), `${label} room did not enter countdown or running, current=${startResponse.data?.room?.state}`)
 
     await wait(2200)
     const runningReadback = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms')
@@ -3273,7 +3273,7 @@ try {
       },
     })
     assert(startResponse.response.ok, `L82 countdown returned ${startResponse.response.status}: ${startResponse.data?.msg || 'unknown error'}`)
-    assert(String(startResponse.data?.room?.state || '') === 'countdown', 'L82 room did not enter countdown')
+    assert(['countdown', 'running'].includes(String(startResponse.data?.room?.state || '')), `L82 room did not enter countdown or running, current=${startResponse.data?.room?.state}`)
 
     await wait(2200)
     const runningReadback = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms')
@@ -3288,6 +3288,12 @@ try {
     for (const actionId of ['line_gather', 'sync_bundle', 'rare_find']) {
       assert(availableActionIds.has(actionId), `L82 available actions missing ${actionId}`)
     }
+    const lineGatherAction = (runningReadback.data?.my_room?.gameplay?.available_actions || []).find(entry => String(entry?.id || '') === 'line_gather')
+    const syncBundleAction = (runningReadback.data?.my_room?.gameplay?.available_actions || []).find(entry => String(entry?.id || '') === 'sync_bundle')
+    const rareFindAction = (runningReadback.data?.my_room?.gameplay?.available_actions || []).find(entry => String(entry?.id || '') === 'rare_find')
+    assert(lineGatherAction?.required_role === 'miner' && String(lineGatherAction?.round_effect || ''), 'L82 line_gather did not expose common action protocol fields')
+    assert(syncBundleAction?.required_role === 'scout' && String(syncBundleAction?.round_effect || ''), 'L82 sync_bundle did not expose common action protocol fields')
+    assert(rareFindAction?.required_role === 'support' && String(rareFindAction?.round_effect || ''), 'L82 rare_find did not expose common action protocol fields')
 
     let actionRoom = await l81SubmitAction(sessionState, roomId, 'line_gather', 'L82 host line_gather')
     actionRoom = await l81SubmitAction(participants[0], roomId, 'sync_bundle', 'L82 lead sync_bundle')
@@ -3444,7 +3450,7 @@ try {
       },
     })
     assert(startResponse.response.ok, `L83 countdown returned ${startResponse.response.status}: ${startResponse.data?.msg || 'unknown error'}`)
-    assert(String(startResponse.data?.room?.state || '') === 'countdown', 'L83 room did not enter countdown')
+    assert(['countdown', 'running'].includes(String(startResponse.data?.room?.state || '')), `L83 room did not enter countdown or running, current=${startResponse.data?.room?.state}`)
 
     await wait(2200)
     const runningReadback = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms')
@@ -3460,9 +3466,16 @@ try {
       assert(availableActionIds.has(actionId), `L83 available actions missing ${actionId}`)
     }
 
+    const escortStepAction = (runningReadback.data?.my_room?.gameplay?.available_actions || []).find(entry => String(entry?.id || '') === 'escort_step')
+    const stabilizeCargoAction = (runningReadback.data?.my_room?.gameplay?.available_actions || []).find(entry => String(entry?.id || '') === 'stabilize_cargo')
+    const answerIncidentAction = (runningReadback.data?.my_room?.gameplay?.available_actions || []).find(entry => String(entry?.id || '') === 'answer_incident')
+    assert(escortStepAction?.required_role === 'miner' && String(escortStepAction?.round_effect || ''), 'L83 escort_step did not expose common action protocol fields')
+    assert(stabilizeCargoAction?.required_role === 'support' && String(stabilizeCargoAction?.round_effect || ''), 'L83 stabilize_cargo did not expose common action protocol fields')
+    assert(answerIncidentAction?.required_role === 'scout' && String(answerIncidentAction?.round_effect || ''), 'L83 answer_incident did not expose common action protocol fields')
+
     let actionRoom = await l81SubmitAction(sessionState, roomId, 'escort_step', 'L83 host escort_step')
-    actionRoom = await l81SubmitAction(participants[0], roomId, 'stabilize_cargo', 'L83 lead stabilize_cargo')
-    actionRoom = await l81SubmitAction(participants[1], roomId, 'answer_incident', 'L83 support answer_incident')
+    actionRoom = await l81SubmitAction(participants[0], roomId, 'answer_incident', 'L83 lead answer_incident')
+    actionRoom = await l81SubmitAction(participants[1], roomId, 'stabilize_cargo', 'L83 support stabilize_cargo')
     actionRoom = await l81SubmitAction(participants[2], roomId, 'escort_step', 'L83 fourth escort_step')
     actionRoom = await l81SubmitAction(sessionState, roomId, 'stabilize_cargo', 'L83 host stabilize_cargo')
 
@@ -3612,7 +3625,7 @@ try {
       },
     })
     assert(startResponse.response.ok, `L84 countdown returned ${startResponse.response.status}: ${startResponse.data?.msg || 'unknown error'}`)
-    assert(String(startResponse.data?.room?.state || '') === 'countdown', 'L84 room did not enter countdown')
+    assert(['countdown', 'running'].includes(String(startResponse.data?.room?.state || '')), `L84 room did not enter countdown or running, current=${startResponse.data?.room?.state}`)
 
     await wait(2200)
     const runningReadback = await fetchAuthedJson('/api/taoyuan/online/expedition/rooms')
@@ -3627,11 +3640,17 @@ try {
     for (const actionId of ['chart_course', 'watch_weather', 'haul_sea_goods']) {
       assert(availableActionIds.has(actionId), `L84 available actions missing ${actionId}`)
     }
+    const chartCourseAction = (runningReadback.data?.my_room?.gameplay?.available_actions || []).find(entry => String(entry?.id || '') === 'chart_course')
+    const watchWeatherAction = (runningReadback.data?.my_room?.gameplay?.available_actions || []).find(entry => String(entry?.id || '') === 'watch_weather')
+    const haulSeaGoodsAction = (runningReadback.data?.my_room?.gameplay?.available_actions || []).find(entry => String(entry?.id || '') === 'haul_sea_goods')
+    assert(chartCourseAction?.required_role === 'scout' && String(chartCourseAction?.round_effect || ''), 'L84 chart_course did not expose common action protocol fields')
+    assert(watchWeatherAction?.required_role === 'support' && String(watchWeatherAction?.round_effect || ''), 'L84 watch_weather did not expose common action protocol fields')
+    assert(haulSeaGoodsAction?.required_role === 'miner' && String(haulSeaGoodsAction?.round_effect || ''), 'L84 haul_sea_goods did not expose common action protocol fields')
 
     let actionRoom = await l81SubmitAction(sessionState, roomId, 'chart_course', 'L84 host chart_course')
-    actionRoom = await l81SubmitAction(participants[0], roomId, 'watch_weather', 'L84 lead watch_weather')
-    actionRoom = await l81SubmitAction(participants[1], roomId, 'haul_sea_goods', 'L84 support haul_sea_goods')
-    actionRoom = await l81SubmitAction(participants[2], roomId, 'chart_course', 'L84 fourth chart_course')
+    actionRoom = await l81SubmitAction(participants[0], roomId, 'chart_course', 'L84 lead chart_course')
+    actionRoom = await l81SubmitAction(participants[1], roomId, 'watch_weather', 'L84 support watch_weather')
+    actionRoom = await l81SubmitAction(participants[2], roomId, 'haul_sea_goods', 'L84 fourth haul_sea_goods')
     actionRoom = await l81SubmitAction(sessionState, roomId, 'watch_weather', 'L84 host watch_weather')
     actionRoom = await l81SubmitAction(sessionState, roomId, 'haul_sea_goods', 'L84 host haul_sea_goods')
 

@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0520 联机动作协议扩展（Phase 4）
+- L82 组队采集、L83 护送抵运、L84 海探模板已迁入共通动作协议，动作快照会带出 `required_role / combo_tags / round_effect`，便于前端复用事件面板语义。
+- 服务端远征动作职责检查扩展到所有带 `required_role` 的远征动作，角色权限不再只服务矿洞样板。
+- `qa:online-smoke` 新增 L82/L83/L84 共通字段断言，并复跑运行、结算和关闭链路。
+- 1 秒倒计时专项回归现在接受 `start` 响应已经进入 `running`，避免倒计时被物化后产生环境相关误报。
+
 ### 0520 客户端意图边界收口（A1）
 - WebSocket 客户端消息入口已按现有实现收口为 `ping / presence.snapshot / notification.ack`，前端 realtime store 也只发送这些轻消息。
 - 好友、房间、邮箱、庄园、村社、邻里和协作单等联机写路仍由服务端 HTTP 权威结算；实时事件只驱动静默刷新，客户端伪造 `notification.created / activity.room.updated` 已由 `qa:realtime-smoke` 覆盖。

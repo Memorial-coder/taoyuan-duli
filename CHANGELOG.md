@@ -2,6 +2,10 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / Phase 4` 这一轮把更多远征模板接入共通动作协议：L82 组队采集、L83 护送抵运、L84 海探的动作现在会暴露 `required_role / combo_tags / round_effect` 等字段。
+- 服务端远征动作权限会按动作职责检查，而不只限于矿洞样板；`qa:online-smoke` 已覆盖 L82/L83/L84 动作字段、角色执行顺序、运行、结算与关闭链路。
+- `qa:online-smoke` 的 1 秒倒计时专项回归现在接受 `start` 响应已经物化到 `running` 的情况，避免慢环境下把合法倒计时推进误判成失败。
+
 - `0520todo.md / A1` 这一轮收口“客户端只提交意图，不直接写最终结果”：服务端 WebSocket 消息入口只接受 `ping / presence.snapshot / notification.ack`，前端 realtime store 也只发送这三类轻消息。
 - 好友、房间、邮箱、庄园、村社、邻里和协作单等联机写路仍由 HTTP 服务端权威结算；实时事件只推动前端静默重读权威接口，客户端伪造 `notification.created / activity.room.updated` 已有 `qa:realtime-smoke` 覆盖。
 
