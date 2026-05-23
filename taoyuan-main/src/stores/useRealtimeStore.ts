@@ -68,6 +68,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
   let expeditionRoomRefreshTimer: number | null = null
   let manorRefreshTimer: number | null = null
   let mailboxRefreshTimer: number | null = null
+  let neighborRefreshTimer: number | null = null
   let societyRefreshTimer: number | null = null
   let coopOrderRefreshTimer: number | null = null
   let worldEventRefreshTimer: number | null = null
@@ -147,6 +148,20 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
       mailboxRefreshTimer = null
       void useMailboxStore().refreshList({ silent: true }).catch(error => {
         lastError.value = error instanceof Error ? error.message : '实时邮箱刷新失败'
+      })
+    }, 300)
+  }
+
+  const queueNeighborRefresh = () => {
+    if (neighborRefreshTimer !== null) return
+    neighborRefreshTimer = window.setTimeout(() => {
+      neighborRefreshTimer = null
+      const socialStore = useSocialStore()
+      void Promise.all([
+        socialStore.refreshNeighborOverview({ silent: true }),
+        socialStore.refreshProfile({ silent: true })
+      ]).catch(error => {
+        lastError.value = error instanceof Error ? error.message : '实时邻里刷新失败'
       })
     }, 300)
   }
@@ -330,6 +345,7 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
       if (category === 'mail') queueMailboxRefresh()
       if (category === 'hall') dispatchHallNotification(envelope.payload)
       if (category === 'manor') queueManorRefresh(envelope.payload)
+      if (category === 'neighbor') queueNeighborRefresh()
       if (category === 'society') queueSocietyRefresh()
       if (category === 'coop_order') queueCoopOrderRefresh()
       if (category === 'world_event') queueWorldEventRefresh()
@@ -441,6 +457,10 @@ export const useRealtimeStore = defineStore('taoyuanRealtime', () => {
     if (mailboxRefreshTimer !== null) {
       window.clearTimeout(mailboxRefreshTimer)
       mailboxRefreshTimer = null
+    }
+    if (neighborRefreshTimer !== null) {
+      window.clearTimeout(neighborRefreshTimer)
+      neighborRefreshTimer = null
     }
     if (societyRefreshTimer !== null) {
       window.clearTimeout(societyRefreshTimer)

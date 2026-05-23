@@ -234,20 +234,25 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     draftSelectedTagIds.value = [...raw.selected_tag_ids]
   }
 
-  const refreshProfile = async () => {
-    loading.value = true
-    errorMessage.value = ''
+  const refreshProfile = async (options: { silent?: boolean } = {}) => {
+    const silent = options.silent === true
+    if (!silent) {
+      loading.value = true
+      errorMessage.value = ''
+    }
     try {
       const raw = await fetchOnlineProfile()
       hydrateFromProfile(raw ?? undefined)
       lastLoadedAt.value = Date.now()
       return profile.value
     } catch (error) {
-      profile.value = null
-      errorMessage.value = error instanceof Error ? error.message : '获取公开档案失败'
+      if (!silent) {
+        profile.value = null
+        errorMessage.value = error instanceof Error ? error.message : '获取公开档案失败'
+      }
       throw error
     } finally {
-      loading.value = false
+      if (!silent) loading.value = false
     }
   }
 
@@ -421,9 +426,12 @@ export const useSocialStore = defineStore('onlineSocial', () => {
     }
   }
 
-  const refreshNeighborOverview = async () => {
-    neighborLoading.value = true
-    errorMessage.value = ''
+  const refreshNeighborOverview = async (options: { silent?: boolean } = {}) => {
+    const silent = options.silent === true
+    if (!silent) {
+      neighborLoading.value = true
+      errorMessage.value = ''
+    }
     try {
       const data = await fetchNeighborOverview()
       neighborGroup.value = data?.my_group ?? null
@@ -433,10 +441,10 @@ export const useSocialStore = defineStore('onlineSocial', () => {
       neighborNoticeDraft.value = data?.my_group?.notice ?? ''
       return data
     } catch (error) {
-      errorMessage.value = error instanceof Error ? error.message : '获取邻里信息失败'
+      if (!silent) errorMessage.value = error instanceof Error ? error.message : '获取邻里信息失败'
       throw error
     } finally {
-      neighborLoading.value = false
+      if (!silent) neighborLoading.value = false
     }
   }
 

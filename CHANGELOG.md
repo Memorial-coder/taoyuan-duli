@@ -2,6 +2,10 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A4-A6-A7` 这一轮把邻里申请 / 邀请 / 审核 / 公告 / 成员身份变更接入 realtime：服务端在写路成功后投递 `category: "neighbor"` 的摘要通知，前端收到后只静默重读邻里概览和公开名片。
+- 邻里通知摘要只携带群组、申请和角色变更的轻量字段，不携带完整 overview 或成员明细；离线邻里成员会进入既有补发队列，ACK 后重连不重复。
+- 本轮验证覆盖 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 与 `npm --prefix server run qa:realtime-smoke`。
+
 - `0520todo.md / A0-A1-A7` 这一轮把村社旧 username-only 兼容收窄为安全兜底：当前账号已经存在多份服务端存档身份时，缺少 `save_id` 的旧村社成员 / 申请记录不会被任意活动存档直接认领。
 - 村社成员与待处理申请匹配会先看明确 `save_id`；旧数据只在没有多存档歧义或唯一可映射时按 username 兼容，避免历史记录跨存档串用。
 - 本轮验证通过 `node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix server run qa:online-smoke` 与 `npm --prefix server run qa:realtime-smoke`。

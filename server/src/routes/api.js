@@ -491,6 +491,99 @@ function emitNeighborConsignmentNotificationCreatedEvent(action, result = {}, ac
   }
 }
 
+function buildNeighborGroupNotificationSummary(group = {}, request = {}) {
+  const groupId = String(group?.id || request?.group_id || '').trim();
+  return {
+    id: groupId,
+    name: trimNotificationText(group?.name || request?.group_name || '', 60),
+    level: Math.max(0, Number(group?.level) || 0),
+    member_count: Array.isArray(group?.members) ? group.members.length : Math.max(0, Number(group?.member_count) || 0),
+    updated_at: Number(group?.updated_at) || null,
+  };
+}
+
+function buildNeighborRequestNotificationSummary(request = {}) {
+  if (!request?.id) return null;
+  return {
+    id: String(request?.id || ''),
+    group_id: String(request?.group_id || ''),
+    type: request?.type || '',
+    status: request?.status || '',
+    username: normalizeUsernameKey(request?.username),
+    invited_by: normalizeUsernameKey(request?.invited_by),
+    created_at: Number(request?.created_at) || null,
+    updated_at: Number(request?.updated_at) || null,
+  };
+}
+
+function collectNeighborNotificationRecipients(action, result = {}) {
+  const request = result?.request && typeof result.request === 'object' ? result.request : {};
+  const group = result?.group && typeof result.group === 'object' ? result.group : {};
+  const groupId = String(group?.id || request?.group_id || '').trim();
+  const recipients = new Set();
+  const addRecipient = username => {
+    const normalized = normalizeUsernameKey(username);
+    if (normalized) recipients.add(normalized);
+  };
+
+  if (groupId) {
+    try {
+      for (const username of taoyuanSocialRuntime.listNeighborGroupMemberUsernames(groupId)) {
+        addRecipient(username);
+      }
+    } catch {}
+  }
+
+  if (action === 'member_invited' || action === 'membership_accepted' || action === 'membership_rejected') {
+    addRecipient(request?.username);
+    addRecipient(request?.invited_by);
+  } else if (action === 'member_role_updated') {
+    addRecipient(result?.role_change?.target_username);
+  }
+
+  return [...recipients];
+}
+
+function buildNeighborNotificationPayload(action, result = {}, actor = {}) {
+  const request = result?.request && typeof result.request === 'object' ? result.request : {};
+  const group = result?.group && typeof result.group === 'object' ? result.group : {};
+  const roleChange = result?.role_change && typeof result.role_change === 'object' ? result.role_change : null;
+  return {
+    category: 'neighbor',
+    action,
+    refresh_required: true,
+    actor_username: normalizeUsernameKey(actor.username),
+    actor_display_name: normalizeUsername(actor.displayName || actor.display_name || actor.username),
+    group: buildNeighborGroupNotificationSummary(group, request),
+    ...(request?.id ? { request: buildNeighborRequestNotificationSummary(request) } : {}),
+    ...(roleChange
+      ? {
+          role_change: {
+            target_username: normalizeUsernameKey(roleChange.target_username),
+            role: roleChange.role === 'manager' ? 'manager' : 'member',
+          },
+        }
+      : {}),
+  };
+}
+
+function emitNeighborNotificationCreatedEvent(action, result = {}, actor = {}) {
+  const request = result?.request && typeof result.request === 'object' ? result.request : {};
+  const group = result?.group && typeof result.group === 'object' ? result.group : {};
+  if (!request?.id && !group?.id) return 0;
+  const recipients = collectNeighborNotificationRecipients(action, result);
+  if (!recipients.length) return 0;
+  try {
+    return taoyuanRealtimeRuntime.emitUsersEvent(
+      recipients,
+      'notification.created',
+      buildNeighborNotificationPayload(action, result, actor)
+    );
+  } catch {
+    return 0;
+  }
+}
+
 function trimNotificationText(value, maxLength = 120) {
   const text = normalizeUsername(value).replace(/\s+/g, ' ');
   if (!text) return '';
@@ -2746,7 +2839,9 @@ router.post('/taoyuan/online/social/neighbors', loginRequired, signRequired, asy
 
 router.post('/taoyuan/online/social/neighbors/:groupId/apply', loginRequired, signRequired, async (req, res) => {
   try {
+    const actor = getSessionActor(req);
     const request = await taoyuanSocialRuntime.applyToNeighborGroup(req.session.username, req.params.groupId);
+    emitNeighborNotificationCreatedEvent('member_applied', { request }, actor);
     res.json({ ok: true, request });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '申请加入邻里失败' });
@@ -2755,7 +2850,9 @@ router.post('/taoyuan/online/social/neighbors/:groupId/apply', loginRequired, si
 
 router.post('/taoyuan/online/social/neighbors/invite', loginRequired, signRequired, async (req, res) => {
   try {
+    const actor = getSessionActor(req);
     const request = await taoyuanSocialRuntime.inviteToNeighborGroup(req.session.username, req.body || {});
+    emitNeighborNotificationCreatedEvent('member_invited', { request }, actor);
     res.json({ ok: true, request });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '发送邻里邀请失败' });
@@ -2764,7 +2861,9 @@ router.post('/taoyuan/online/social/neighbors/invite', loginRequired, signRequir
 
 router.post('/taoyuan/online/social/neighbors/requests/:requestId/accept', loginRequired, signRequired, async (req, res) => {
   try {
+    const actor = getSessionActor(req);
     const request = await taoyuanSocialRuntime.respondNeighborRequest(req.session.username, req.params.requestId, 'accept');
+    emitNeighborNotificationCreatedEvent('membership_accepted', { request }, actor);
     res.json({ ok: true, request });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '处理邻里申请失败' });
@@ -2773,7 +2872,9 @@ router.post('/taoyuan/online/social/neighbors/requests/:requestId/accept', login
 
 router.post('/taoyuan/online/social/neighbors/requests/:requestId/reject', loginRequired, signRequired, async (req, res) => {
   try {
+    const actor = getSessionActor(req);
     const request = await taoyuanSocialRuntime.respondNeighborRequest(req.session.username, req.params.requestId, 'reject');
+    emitNeighborNotificationCreatedEvent('membership_rejected', { request }, actor);
     res.json({ ok: true, request });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '拒绝邻里申请失败' });
@@ -2782,7 +2883,9 @@ router.post('/taoyuan/online/social/neighbors/requests/:requestId/reject', login
 
 router.post('/taoyuan/online/social/neighbors/notice', loginRequired, signRequired, async (req, res) => {
   try {
+    const actor = getSessionActor(req);
     const group = await taoyuanSocialRuntime.updateNeighborNotice(req.session.username, req.body || {});
+    emitNeighborNotificationCreatedEvent('notice_updated', { group }, actor);
     res.json({ ok: true, group });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '更新邻里公告失败' });
@@ -2791,7 +2894,15 @@ router.post('/taoyuan/online/social/neighbors/notice', loginRequired, signRequir
 
 router.post('/taoyuan/online/social/neighbors/members/role', loginRequired, signRequired, async (req, res) => {
   try {
+    const actor = getSessionActor(req);
     const group = await taoyuanSocialRuntime.updateNeighborMemberRole(req.session.username, req.body || {});
+    emitNeighborNotificationCreatedEvent('member_role_updated', {
+      group,
+      role_change: {
+        target_username: req.body?.target_username,
+        role: req.body?.role,
+      },
+    }, actor);
     res.json({ ok: true, group });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '更新邻里成员身份失败' });

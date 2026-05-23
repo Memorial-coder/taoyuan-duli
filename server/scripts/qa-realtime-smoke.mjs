@@ -654,25 +654,54 @@ try {
     const groupId = String(groupResult.data?.group?.id || '')
     assert(groupId, 'neighbor group id missing')
 
+    const applyOffset = ownerSocket.messages.length
     const applyResult = await fetchSessionJson(friend, `/api/taoyuan/online/social/neighbors/${encodeURIComponent(groupId)}/apply`, {
       method: 'POST',
     })
     assert(applyResult.response.ok, `neighbor apply returned ${applyResult.response.status}: ${applyResult.data?.msg || 'unknown error'}`)
     const requestId = String(applyResult.data?.request?.id || '')
     assert(requestId, 'neighbor apply request id missing')
+    const applyNotification = await expectMessageAfter(ownerSocket, applyOffset, 'notification.created', payload =>
+      payload.category === 'neighbor'
+        && payload.action === 'member_applied'
+        && payload.refresh_required === true
+        && payload.group?.id === groupId
+        && payload.request?.id === requestId
+        && payload.request?.type === 'apply'
+        && payload.actor_username === friend.username
+    )
+    assert(applyNotification.payload?.overview === undefined, 'neighbor apply notification should not expose overview')
+    assert(applyNotification.payload?.members === undefined, 'neighbor apply notification should not expose members')
 
+    const acceptOffset = friendSocket.messages.length
     const acceptResult = await fetchSessionJson(owner, `/api/taoyuan/online/social/neighbors/requests/${encodeURIComponent(requestId)}/accept`, {
       method: 'POST',
     })
     assert(acceptResult.response.ok, `neighbor accept returned ${acceptResult.response.status}: ${acceptResult.data?.msg || 'unknown error'}`)
+    await expectMessageAfter(friendSocket, acceptOffset, 'notification.created', payload =>
+      payload.category === 'neighbor'
+        && payload.action === 'membership_accepted'
+        && payload.refresh_required === true
+        && payload.group?.id === groupId
+        && payload.request?.id === requestId
+        && payload.request?.status === 'accepted'
+        && payload.actor_username === owner.username
+    )
 
     const offlineNeighbor = await bootstrapSession('smkrt_nc')
+    const offlineApplyOffset = ownerSocket.messages.length
     const offlineApplyResult = await fetchSessionJson(offlineNeighbor, `/api/taoyuan/online/social/neighbors/${encodeURIComponent(groupId)}/apply`, {
       method: 'POST',
     })
     assert(offlineApplyResult.response.ok, `offline neighbor apply returned ${offlineApplyResult.response.status}: ${offlineApplyResult.data?.msg || 'unknown error'}`)
     const offlineRequestId = String(offlineApplyResult.data?.request?.id || '')
     assert(offlineRequestId, 'offline neighbor apply request id missing')
+    await expectMessageAfter(ownerSocket, offlineApplyOffset, 'notification.created', payload =>
+      payload.category === 'neighbor'
+        && payload.action === 'member_applied'
+        && payload.request?.id === offlineRequestId
+        && payload.actor_username === offlineNeighbor.username
+    )
     const offlineAcceptResult = await fetchSessionJson(owner, `/api/taoyuan/online/social/neighbors/requests/${encodeURIComponent(offlineRequestId)}/accept`, {
       method: 'POST',
     })
@@ -707,6 +736,20 @@ try {
     assert(createdNotification.queued_event_id === undefined, 'neighbor consignment online notification should not be queued')
 
     let offlineReplaySocket = await openRealtimeSocket(offlineNeighbor)
+    const offlineReady = await expectMessage(offlineReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineNeighbor.username && Number(payload.pending_notification_count) >= 2
+    )
+    assert(Number(offlineReady.payload?.pending_notification_count) >= 2, 'offline neighbor replay ready did not report pending notifications')
+    const queuedNeighborMessage = await expectMessage(offlineReplaySocket, 'notification.created', payload =>
+      payload.category === 'neighbor'
+        && payload.action === 'membership_accepted'
+        && payload.group?.id === groupId
+        && payload.request?.id === offlineRequestId
+        && payload.request?.status === 'accepted'
+    )
+    const queuedNeighborEventId = String(queuedNeighborMessage.queued_event_id || '')
+    assert(queuedNeighborEventId, 'replayed neighbor membership notification missing queued_event_id')
+    assert(queuedNeighborMessage.replayed === true, 'replayed neighbor membership notification missing replayed marker')
     const replayedNotification = await expectMessage(offlineReplaySocket, 'notification.created', payload =>
       payload.category === 'exchange'
         && payload.action === 'neighbor_consignment_updated'
@@ -718,16 +761,26 @@ try {
     )
     assert(replayedNotification.queued_event_id, 'offline neighbor consignment notification should be queued')
     assert(replayedNotification.payload?.exchange?.item_id === undefined, 'offline neighbor consignment notification should not expose item detail')
-    offlineReplaySocket.send('notification.ack', { id: replayedNotification.queued_event_id })
+    offlineReplaySocket.send('notification.ack', { ids: [queuedNeighborEventId, replayedNotification.queued_event_id] })
     await expectMessage(offlineReplaySocket, 'notification.ack', payload =>
-      Array.isArray(payload.acked_ids) && payload.acked_ids.includes(replayedNotification.queued_event_id)
+      Array.isArray(payload.acked_ids)
+        && payload.acked_ids.includes(queuedNeighborEventId)
+        && payload.acked_ids.includes(replayedNotification.queued_event_id)
     )
     offlineReplaySocket.close()
+    await wait(200)
     offlineReplaySocket = await openRealtimeSocket(offlineNeighbor)
+    await expectMessage(offlineReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineNeighbor.username && Number(payload.pending_notification_count) === 0
+    )
     await expectNoMessageAfter(offlineReplaySocket, 0, 'notification.created', payload =>
-      payload.category === 'exchange' && payload.exchange?.listing_id === listingId
+      (payload.category === 'exchange' && payload.exchange?.listing_id === listingId)
+        || (payload.category === 'neighbor'
+          && payload.action === 'membership_accepted'
+          && payload.request?.id === offlineRequestId)
     )
     offlineReplaySocket.close()
+    await wait(200)
 
     const soldOffset = friendSocket.messages.length
     const soldResult = await fetchSessionJson(owner, `/api/taoyuan/exchange-station/neighbors/consignments/${encodeURIComponent(listingId)}/purchase`, {
