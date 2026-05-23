@@ -483,6 +483,40 @@ const submitFestivalRoomGameplayAction = async (session, roomId, actionId) =>
 const closeFestivalRoom = async (session, roomId) =>
   postFestivalRoomAction(session, roomId, 'close')
 
+const readExpeditionRoomOverview = async session => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/expedition/rooms')
+  assert(result.response.ok, `expedition room overview returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.ok === true, 'expedition room overview payload is incomplete')
+  assert(Array.isArray(result.data.visible_rooms), 'expedition room overview did not return visible rooms array')
+  return result.data
+}
+
+const postExpeditionRoomAction = async (session, roomId, action, payload = null) => {
+  const init = payload
+    ? {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    : { method: 'POST' }
+  const result = await fetchSessionJson(session, `/api/taoyuan/online/expedition/rooms/${encodeURIComponent(roomId)}/${action}`, init)
+  assert(result.response.ok, `expedition room ${action} returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.room?.id === roomId, `expedition room ${action} payload target mismatch`)
+  return result.data
+}
+
+const joinExpeditionRoom = async (session, roomId) =>
+  postExpeditionRoomAction(session, roomId, 'join')
+
+const readyExpeditionRoom = async (session, roomId) =>
+  postExpeditionRoomAction(session, roomId, 'ready')
+
+const submitExpeditionRoomGameplayAction = async (session, roomId, actionId) =>
+  postExpeditionRoomAction(session, roomId, 'action', { action_id: actionId })
+
+const closeExpeditionRoom = async (session, roomId) =>
+  postExpeditionRoomAction(session, roomId, 'close')
+
 const readManorSnapshot = async (session, targetUsername = '') => {
   const pathSuffix = targetUsername
     ? `/${encodeURIComponent(targetUsername)}`
@@ -1316,6 +1350,147 @@ async function main() {
             && entry.status === 'persisted'
         ),
         'festival room guest persisted receipt was not visible in guest recent receipt overview',
+      )
+    })
+
+    await runCheck('online expedition core actions persist through split tabs', async () => {
+      const teammate = await bootstrapSession()
+      const expeditionSeed = createSmokeSeed()
+      const roomTitle = `远征拆页烟测${expeditionSeed}`
+
+      await page.goto(`${frontendBaseURL}/#/game/online/festival?tab=expedition`)
+      await expect(page.getByTestId('online-festival-page')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByTestId('online-expedition-room-title-input')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-expedition-room-template-select').selectOption('cavern_duo')
+      await page.getByTestId('online-expedition-room-gameplay-select').selectOption('expedition_cavern')
+      await page.getByTestId('online-expedition-room-title-input').fill(roomTitle)
+      await page.getByTestId('online-expedition-room-create-submit').click()
+
+      let roomId = ''
+      await expect.poll(async () => {
+        const overview = await readExpeditionRoomOverview(owner)
+        const room = overview.my_room
+        roomId = room?.id || ''
+        return Boolean(
+          roomId
+            && room.title === roomTitle
+            && room.template_id === 'cavern_duo'
+            && room.gameplay_template_id === 'expedition_cavern'
+            && room.host_username === owner.username
+            && room.members?.some(member => member.username === owner.username && member.status === 'joined')
+        )
+      }, { timeout: 10000 }).toBeTruthy()
+      await expect(page.getByTestId('online-expedition-room-my-room').filter({ hasText: roomTitle })).toBeVisible({ timeout: 10000 })
+
+      await page.getByTestId('online-expedition-room-invite-username-input').fill(teammate.username)
+      await page.getByTestId('online-expedition-room-invite-submit').click()
+      await expect.poll(async () => {
+        const overview = await readExpeditionRoomOverview(owner)
+        return overview.my_room?.invitations?.some(invite =>
+          invite.target_username === teammate.username && invite.status === 'pending'
+        )
+      }, { timeout: 10000 }).toBeTruthy()
+
+      const teammateInviteOverview = await readExpeditionRoomOverview(teammate)
+      assert(
+        teammateInviteOverview.invited_rooms?.some(room => room.id === roomId && room.host_username === owner.username),
+        'expedition room invitation was not visible to invited teammate',
+      )
+
+      const joined = await joinExpeditionRoom(teammate, roomId)
+      assert(
+        joined.room?.members?.some(member => member.username === teammate.username && member.status === 'joined'),
+        'expedition room join did not mark teammate as joined',
+      )
+      await page.getByTestId('online-module-refresh-button').click()
+      await expect(page.getByTestId('online-expedition-room-ready-check-submit')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-expedition-room-ready-check-submit').click()
+
+      await expect.poll(async () => {
+        const overview = await readExpeditionRoomOverview(owner)
+        return overview.my_room?.state
+      }, { timeout: 10000 }).toBe('ready_check')
+
+      await expect(page.getByTestId('online-expedition-room-ready-submit')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-expedition-room-ready-submit').click()
+      await readyExpeditionRoom(teammate, roomId)
+      await expect.poll(async () => {
+        const overview = await readExpeditionRoomOverview(owner)
+        return overview.my_room?.members?.filter(member => member.status === 'ready').length
+      }, { timeout: 10000 }).toBe(2)
+
+      await page.getByTestId('online-module-refresh-button').click()
+      await expect(page.getByTestId('online-expedition-room-start-submit')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-expedition-room-start-submit').click()
+      await wait(7000)
+      await expect.poll(async () => {
+        const overview = await readExpeditionRoomOverview(owner)
+        return overview.my_room?.state
+      }, { timeout: 15000 }).toBe('running')
+
+      const runningOwnerOverview = await readExpeditionRoomOverview(owner)
+      const ownerGameplayAction = runningOwnerOverview.my_room?.gameplay?.available_actions?.find(action => action.can_use)
+      const runningTeammateOverview = ownerGameplayAction ? null : await readExpeditionRoomOverview(teammate)
+      const teammateGameplayAction = runningTeammateOverview?.my_room?.gameplay?.available_actions?.find(action => action.can_use)
+      const gameplayActor = ownerGameplayAction ? owner : teammate
+      const gameplayAction = ownerGameplayAction || teammateGameplayAction
+      assert(gameplayAction?.id, 'expedition room running state did not expose a usable gameplay action')
+      const gameplayResult = await submitExpeditionRoomGameplayAction(gameplayActor, roomId, gameplayAction.id)
+      assert(
+        gameplayResult.room?.gameplay?.last_action_id === gameplayAction.id,
+        'expedition room gameplay action did not persist last action',
+      )
+      assert(
+        gameplayResult.room?.gameplay?.cavern_state?.round_log?.some(entry => entry.action_id === gameplayAction.id),
+        'expedition cavern round log did not record gameplay action',
+      )
+
+      await page.getByTestId('online-module-refresh-button').click()
+      await expect(page.getByTestId('online-expedition-room-settle-submit')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-expedition-room-settle-submit').click()
+
+      let receiptRewards = []
+      await expect.poll(async () => {
+        const overview = await readExpeditionRoomOverview(owner)
+        receiptRewards = overview.my_room?.settlement_receipts || []
+        return overview.my_room?.state === 'settling'
+          && receiptRewards.length === 2
+          && receiptRewards.every(receipt => receipt.status === 'pending_persist')
+      }, { timeout: 10000 }).toBeTruthy()
+
+      const beforeCloseOwnerMoney = getSaveMoney(await readServerSave(owner))
+      const beforeCloseTeammateMoney = getSaveMoney(await readServerSave(teammate))
+      const ownerReward = receiptRewards.find(receipt => receipt.target_username === owner.username)?.reward_payload?.money ?? 0
+      const teammateReward = receiptRewards.find(receipt => receipt.target_username === teammate.username)?.reward_payload?.money ?? 0
+      assert(ownerReward > 0 && teammateReward > 0, 'expedition room settlement rewards were not generated for both members')
+
+      const closed = await closeExpeditionRoom(owner, roomId)
+      assert(closed.room?.state === 'closed', 'expedition room close did not move room to closed state')
+      assert(
+        closed.room?.settlement_receipts?.length === 2
+          && closed.room.settlement_receipts.every(receipt => receipt.status === 'persisted'),
+        'expedition room close did not persist all settlement receipts',
+      )
+
+      const afterCloseOwnerMoney = getSaveMoney(await readServerSave(owner))
+      const afterCloseTeammateMoney = getSaveMoney(await readServerSave(teammate))
+      assert(afterCloseOwnerMoney === beforeCloseOwnerMoney + ownerReward, 'expedition room owner reward was not written to server save')
+      assert(afterCloseTeammateMoney === beforeCloseTeammateMoney + teammateReward, 'expedition room teammate reward was not written to server save')
+      const afterCloseOwnerOverview = await readExpeditionRoomOverview(owner)
+      const afterCloseTeammateOverview = await readExpeditionRoomOverview(teammate)
+      assert(
+        afterCloseOwnerOverview.recent_receipts?.some(entry =>
+          entry.id === receiptRewards.find(receipt => receipt.target_username === owner.username)?.id
+            && entry.status === 'persisted'
+        ),
+        'expedition room owner persisted receipt was not visible in owner recent receipt overview',
+      )
+      assert(
+        afterCloseTeammateOverview.recent_receipts?.some(entry =>
+          entry.id === receiptRewards.find(receipt => receipt.target_username === teammate.username)?.id
+            && entry.status === 'persisted'
+        ),
+        'expedition room teammate persisted receipt was not visible in teammate recent receipt overview',
       )
     })
 

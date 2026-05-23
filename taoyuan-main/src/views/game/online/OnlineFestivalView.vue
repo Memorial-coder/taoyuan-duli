@@ -692,12 +692,12 @@
 
         <div class="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <div class="space-y-3">
-            <div class="game-panel-muted p-3">
+            <div class="game-panel-muted p-3" data-testid="online-expedition-room-status-panel">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">我的远征状态</p>
                 <span class="text-[10px] text-muted">{{ expeditionRoomStore.myRoom ? expeditionRoomStore.myRoom.state_label : '空闲中' }}</span>
               </div>
-              <div v-if="expeditionRoomStore.myRoom" class="mt-3 space-y-3">
+              <div v-if="expeditionRoomStore.myRoom" class="mt-3 space-y-3" data-testid="online-expedition-room-my-room">
                 <div class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
@@ -820,6 +820,7 @@
                       <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
                         <Button
                           class="online-action-btn online-action-btn--compact shrink-0"
+                          :data-testid="`online-expedition-room-gameplay-action-${action.id}`"
                           :disabled="expeditionRoomStore.actionRunning || !action.can_use"
                           @click="playExpeditionGameplayAction(expeditionRoomStore.myRoom.id, action.id)"
                         >
@@ -866,25 +867,49 @@
                     <input
                       v-model="expeditionRoomStore.draftInviteUsername"
                       class="online-input flex-1"
+                      data-testid="online-expedition-room-invite-username-input"
                       placeholder="输入用户名"
                     />
-                    <Button class="online-action-btn online-action-btn--primary" :disabled="expeditionRoomStore.actionRunning" @click="inviteExpeditionMember(expeditionRoomStore.myRoom.id)">
+                    <Button
+                      class="online-action-btn online-action-btn--primary"
+                      data-testid="online-expedition-room-invite-submit"
+                      :disabled="expeditionRoomStore.actionRunning"
+                      @click="inviteExpeditionMember(expeditionRoomStore.myRoom.id)"
+                    >
                       邀请
                     </Button>
                   </div>
                 </label>
 
                 <div class="grid gap-2 sm:grid-cols-2">
-                  <Button v-if="expeditionRoomStore.myRoom.can_host_ready_check" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="startExpeditionReadyCheck(expeditionRoomStore.myRoom.id)">
+                  <Button
+                    v-if="expeditionRoomStore.myRoom.can_host_ready_check"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    data-testid="online-expedition-room-ready-check-submit"
+                    :disabled="expeditionRoomStore.actionRunning"
+                    @click="startExpeditionReadyCheck(expeditionRoomStore.myRoom.id)"
+                  >
                     开始 ready
                   </Button>
-                  <Button v-if="expeditionRoomStore.myRoom.can_ready" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="readyExpeditionRoom(expeditionRoomStore.myRoom.id)">
+                  <Button
+                    v-if="expeditionRoomStore.myRoom.can_ready"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    data-testid="online-expedition-room-ready-submit"
+                    :disabled="expeditionRoomStore.actionRunning"
+                    @click="readyExpeditionRoom(expeditionRoomStore.myRoom.id)"
+                  >
                     我已准备
                   </Button>
                   <Button v-if="expeditionRoomStore.myRoom.can_unready" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="unreadyExpeditionRoom(expeditionRoomStore.myRoom.id)">
                     取消准备
                   </Button>
-                  <Button v-if="expeditionRoomStore.myRoom.can_host_start_countdown" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="startExpeditionCountdown(expeditionRoomStore.myRoom.id)">
+                  <Button
+                    v-if="expeditionRoomStore.myRoom.can_host_start_countdown"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    data-testid="online-expedition-room-start-submit"
+                    :disabled="expeditionRoomStore.actionRunning"
+                    @click="startExpeditionCountdown(expeditionRoomStore.myRoom.id)"
+                  >
                     开始倒计时
                   </Button>
                   <Button v-if="expeditionRoomStore.myRoom.can_disconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="disconnectExpeditionRoom(expeditionRoomStore.myRoom.id)">
@@ -893,10 +918,22 @@
                   <Button v-if="expeditionRoomStore.myRoom.can_reconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="reconnectExpeditionRoom(expeditionRoomStore.myRoom.id)">
                     恢复连接
                   </Button>
-                  <Button v-if="expeditionRoomStore.myRoom.can_host_settle" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="settleExpeditionRoom(expeditionRoomStore.myRoom.id)">
+                  <Button
+                    v-if="expeditionRoomStore.myRoom.can_host_settle"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    data-testid="online-expedition-room-settle-submit"
+                    :disabled="expeditionRoomStore.actionRunning"
+                    @click="settleExpeditionRoom(expeditionRoomStore.myRoom.id)"
+                  >
                     撤离并结算
                   </Button>
-                  <Button v-if="expeditionRoomStore.myRoom.can_host_close" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="closeExpeditionRoom(expeditionRoomStore.myRoom.id)">
+                  <Button
+                    v-if="expeditionRoomStore.myRoom.can_host_close"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    data-testid="online-expedition-room-close-submit"
+                    :disabled="expeditionRoomStore.actionRunning"
+                    @click="closeExpeditionRoom(expeditionRoomStore.myRoom.id)"
+                  >
                     {{ expeditionRoomStore.myRoom.state === 'settling' ? '正式关闭' : '取消房间' }}
                   </Button>
                   <Button v-if="expeditionRoomStore.myRoom.can_leave" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="leaveExpeditionRoom(expeditionRoomStore.myRoom.id)">
@@ -938,7 +975,7 @@
               <div class="mt-3 space-y-3">
                 <label class="block">
                   <span class="text-[10px] text-muted">远征模板</span>
-                  <select v-model="expeditionRoomStore.selectedTemplateId" class="online-select mt-1">
+                  <select v-model="expeditionRoomStore.selectedTemplateId" class="online-select mt-1" data-testid="online-expedition-room-template-select">
                     <option v-for="template in expeditionRoomStore.templates" :key="template.id" :value="template.id">
                       {{ template.label }}
                     </option>
@@ -954,7 +991,7 @@
                 </div>
                 <label class="block">
                   <span class="text-[10px] text-muted">玩法模板</span>
-                  <select v-model="expeditionRoomStore.selectedGameplayTemplateId" class="online-select mt-1">
+                  <select v-model="expeditionRoomStore.selectedGameplayTemplateId" class="online-select mt-1" data-testid="online-expedition-room-gameplay-select">
                     <option v-for="template in expeditionRoomStore.gameplayTemplates" :key="template.id" :value="template.id">
                       {{ template.label }}
                     </option>
@@ -982,11 +1019,13 @@
                     v-model="expeditionRoomStore.draftTitle"
                     maxlength="30"
                     class="online-input mt-1"
+                    data-testid="online-expedition-room-title-input"
                     placeholder="例如：高地补给接力"
                   />
                 </label>
                 <Button
                   class="online-action-btn online-action-btn--primary w-full justify-center"
+                  data-testid="online-expedition-room-create-submit"
                   :disabled="expeditionRoomStore.actionRunning || !expeditionRoomStore.selectedTemplate || !expeditionRoomStore.selectedGameplayTemplate"
                   @click="createExpeditionRoom"
                 >

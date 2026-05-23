@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0522 在线远征核心操作验收（阶段 J2 / 远征）
+- 在线节会的远征房间标签补齐自动化验收锚点，覆盖远征创建表单、邀请输入、ready / start / settle / close 控件和远征玩法动作按钮。
+- `scripts/qa-online-regression-live-smoke.mjs` 新增远征核心操作烟测，主人通过 UI 创建双人矿洞远征并完成邀请、开准备、ready、开倒计时和结算；队友通过服务端 API 加入并 ready，服务端 overview 会读回房间状态和成员状态。
+- 回合动作验证走真实洞窟路径：房间运行后提交可用远征玩法动作，确认 `last_action_id` 与洞窟 `round_log` 写入；结算生成双方 `pending_persist` 凭证，关闭房间后验证双方 recent receipts 为 `persisted` 且铜钱奖励写回双方服务端存档。
+- 验证已通过 `node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-regression-live-smoke`、`npm --prefix taoyuan-main run build` 和 `git diff --check`。
+
 ### 0522 在线节会核心操作验收（阶段 J2 / 节会）
 - 在线节会拆页补齐自动化验收锚点，覆盖世界事件贡献按钮、节会房间创建表单、邀请输入、ready / start / settle / close 控件和玩法动作按钮。
 - `scripts/qa-online-regression-live-smoke.mjs` 新增节会核心操作烟测，主人通过 UI 完成世界事件贡献、创建节会房间、邀请访客、开准备、ready、开倒计时和结算；访客通过服务端 API 加入并 ready，服务端 overview 会读回房间状态和成员状态。
