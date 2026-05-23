@@ -64,47 +64,219 @@
         </RouterLink>
       </div>
 
-      <div v-if="activeTab === 'overview'" class="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
-        <div class="game-panel-muted p-3">
-          <div class="flex items-center justify-between gap-2">
-            <p class="text-sm text-accent">我的村社</p>
-            <span class="text-[10px] text-muted">{{ currentSociety?.my_role_label || '未加入' }}</span>
-          </div>
-          <div v-if="currentSociety" class="mt-3 space-y-3">
-            <div class="border border-accent/10 bg-black/10 p-2">
-              <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                <div class="min-w-0">
-                  <p class="truncate text-xs text-accent">{{ currentSociety.name }}</p>
-                  <p class="mt-1 text-[10px] text-muted">
-                    {{ currentSociety.theme_label }} · {{ currentSociety.visibility_label }} · {{ currentSociety.member_count }}/{{ currentSociety.capacity }} 人
-                  </p>
+      <div v-if="activeTab === 'overview'" class="grid gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
+        <div class="space-y-3">
+          <div class="game-panel-muted p-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">我的村社</p>
+              <span class="text-[10px] text-muted">{{ currentSociety?.my_role_label || '未加入' }}</span>
+            </div>
+            <div v-if="currentSociety" class="mt-3 space-y-3">
+              <div class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-accent">{{ currentSociety.name }}</p>
+                    <p class="mt-1 text-[10px] text-muted">
+                      {{ currentSociety.theme_label }} · {{ currentSociety.visibility_label }} · {{ currentSociety.member_count }}/{{ currentSociety.capacity }} 人
+                    </p>
+                  </div>
+                  <span class="w-fit shrink-0 text-[10px] text-accent">{{ currentSociety.emblem_label }}</span>
                 </div>
-                <span class="w-fit shrink-0 text-[10px] text-accent">{{ currentSociety.emblem_label }}</span>
+                <p class="mt-2 text-[10px] leading-4 text-muted">{{ currentSociety.summary || '这个村社还没写简介。' }}</p>
               </div>
-              <p class="mt-2 text-[10px] leading-4 text-muted">{{ currentSociety.summary || '这个村社还没写简介。' }}</p>
+
+              <div class="grid gap-2 md:grid-cols-2">
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-[10px] text-muted">我的身份</p>
+                  <p class="mt-1 text-xs text-accent">{{ currentSociety.my_role_label || '成员' }}</p>
+                  <p class="mt-1 text-[10px] text-muted">社长：{{ currentSociety.leader_display_name }}</p>
+                </div>
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-[10px] text-muted">入社条件</p>
+                  <p class="mt-1 text-xs text-accent">{{ currentSociety.join_requirement_label }}</p>
+                  <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">{{ currentSociety.join_requirement_note || currentSociety.join_requirement_summary }}</p>
+                </div>
+              </div>
+
+              <div class="grid gap-2 md:grid-cols-3">
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-[10px] text-muted">福利等级</p>
+                  <p class="mt-1 text-xs text-accent">{{ currentSociety.level_title }}</p>
+                  <p class="mt-1 text-[10px] text-muted">等级 {{ currentSociety.level }}</p>
+                </div>
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-[10px] text-muted">公共建设</p>
+                  <p class="mt-1 text-xs text-accent">{{ currentSociety.public_projects.length }} 项</p>
+                  <p class="mt-1 text-[10px] text-muted">{{ activeProjectCount }} 项推进中</p>
+                </div>
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-[10px] text-muted">提案</p>
+                  <p class="mt-1 text-xs text-accent">{{ currentSociety.active_proposals.length }} 条</p>
+                  <p class="mt-1 text-[10px] text-muted">归档 {{ currentSociety.proposal_history.length }} 条</p>
+                </div>
+              </div>
             </div>
-            <div class="grid gap-2 md:grid-cols-3">
-              <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">公告</p>
-                <p class="mt-1 line-clamp-3 text-[10px] leading-4 text-text">{{ currentSociety.notice || '暂无公告' }}</p>
-              </div>
-              <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">福利等级</p>
-                <p class="mt-1 text-xs text-accent">{{ currentSociety.level_title }}</p>
-                <p class="mt-1 text-[10px] text-muted">等级 {{ currentSociety.level }}</p>
-              </div>
-              <div class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-[10px] text-muted">公共建设</p>
-                <p class="mt-1 text-xs text-accent">{{ currentSociety.public_projects.length }} 项</p>
-                <p class="mt-1 text-[10px] text-muted">{{ activeProjectCount }} 项推进中</p>
+            <div v-else class="mt-3 space-y-3">
+              <p class="text-xs leading-5 text-muted">当前还没有加入村社。可以先创建自己的村社，也可以从右侧公开村社申请加入。</p>
+              <div class="grid gap-2 md:grid-cols-3">
+                <button class="online-action-btn online-action-btn--primary w-fit" type="button" @click="focusCreateSociety">
+                  创建村社
+                </button>
+                <span class="text-[10px] leading-5 text-muted md:col-span-2">
+                  申请、邀请和创建都会走现有村社接口；失败时保留当前草稿和已加载列表。
+                </span>
               </div>
             </div>
           </div>
-          <div v-else class="mt-3 space-y-3">
-            <p class="text-xs leading-5 text-muted">当前还没有加入村社。可以创建自己的村社，或从公开村社里申请加入。</p>
-            <RouterLink class="online-action-btn online-action-btn--primary w-fit" :to="{ name: 'society' }">
-              创建或申请
-            </RouterLink>
+
+          <div v-if="currentSociety" class="game-panel-muted p-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">村社公告</p>
+              <span class="text-[10px] text-muted">{{ currentSociety.can_manage_notice ? '可编辑' : '只读' }}</span>
+            </div>
+            <template v-if="currentSociety.can_manage_notice">
+              <textarea
+                v-model="societyStore.draftNotice"
+                rows="3"
+                maxlength="160"
+                class="online-textarea mt-3 w-full"
+                placeholder="写一句让成员知道本周在忙什么。"
+              />
+              <div class="mt-2 flex justify-end">
+                <button
+                  class="online-action-btn online-action-btn--compact"
+                  type="button"
+                  :disabled="societyStore.actionRunning"
+                  @click="saveNotice"
+                >
+                  保存公告
+                </button>
+              </div>
+            </template>
+            <p v-else class="mt-3 text-xs leading-5 text-muted">{{ currentSociety.notice || '当前还没有村社公告。' }}</p>
+          </div>
+
+          <div v-if="!currentSociety" ref="createPanelRef" class="game-panel-muted p-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">创建村社</p>
+              <span class="text-[10px] text-muted">组织底座</span>
+            </div>
+            <div class="mt-3 space-y-2">
+              <label class="block">
+                <span class="text-[10px] text-muted">村社名称</span>
+                <input
+                  v-model="societyStore.draftName"
+                  maxlength="24"
+                  class="online-input mt-1 w-full"
+                  placeholder="例如：清溪灯社"
+                />
+              </label>
+              <label class="block">
+                <span class="text-[10px] text-muted">一句简介</span>
+                <textarea
+                  v-model="societyStore.draftSummary"
+                  rows="3"
+                  maxlength="120"
+                  class="online-textarea mt-1 w-full"
+                  placeholder="写清楚这个村社想组织怎样的生活、节会和协作方式。"
+                />
+              </label>
+              <label class="block">
+                <span class="text-[10px] text-muted">初始公告</span>
+                <textarea
+                  v-model="societyStore.draftNotice"
+                  rows="2"
+                  maxlength="160"
+                  class="online-textarea mt-1 w-full"
+                  placeholder="例如：本周先招募稳定成员，再排第一轮节会值守。"
+                />
+              </label>
+              <div class="grid gap-2 md:grid-cols-2">
+                <label class="block">
+                  <span class="text-[10px] text-muted">村社徽记</span>
+                  <select v-model="societyStore.draftEmblem" class="online-select mt-1 w-full">
+                    <option v-for="entry in societyStore.emblemOptions" :key="entry.id" :value="entry.id">
+                      {{ entry.label }}
+                    </option>
+                  </select>
+                </label>
+                <label class="block">
+                  <span class="text-[10px] text-muted">村社主题</span>
+                  <select v-model="societyStore.draftTheme" class="online-select mt-1 w-full">
+                    <option v-for="entry in societyStore.themeOptions" :key="entry.id" :value="entry.id">
+                      {{ entry.label }}
+                    </option>
+                  </select>
+                </label>
+              </div>
+              <div class="grid gap-2 md:grid-cols-2">
+                <label class="block">
+                  <span class="text-[10px] text-muted">公开范围</span>
+                  <select v-model="societyStore.draftVisibility" class="online-select mt-1 w-full">
+                    <option v-for="entry in societyStore.visibilityOptions" :key="entry.id" :value="entry.id">
+                      {{ entry.label }}
+                    </option>
+                  </select>
+                </label>
+                <label class="block">
+                  <span class="text-[10px] text-muted">成员容量</span>
+                  <select v-model="societyStore.draftCapacity" class="online-select mt-1 w-full">
+                    <option v-for="entry in societyStore.capacityOptions" :key="entry.value" :value="entry.value">
+                      {{ entry.label }}
+                    </option>
+                  </select>
+                </label>
+              </div>
+              <label class="block">
+                <span class="text-[10px] text-muted">入社条件</span>
+                <select v-model="societyStore.draftJoinRequirementId" class="online-select mt-1 w-full">
+                  <option v-for="entry in societyStore.joinRequirementOptions" :key="entry.id" :value="entry.id">
+                    {{ entry.label }}
+                  </option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="text-[10px] text-muted">补充说明</span>
+                <input
+                  v-model="societyStore.draftJoinRequirementNote"
+                  maxlength="80"
+                  class="online-input mt-1 w-full"
+                  placeholder="例如：希望先有公开名片和稳定经营节奏。"
+                />
+              </label>
+              <button
+                class="online-action-btn online-action-btn--primary w-full justify-center"
+                type="button"
+                :disabled="!canSubmitSociety"
+                @click="createSociety"
+              >
+                {{ societyStore.actionRunning ? '创建中' : '创建村社' }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="!currentSociety && hasJoinRelations" class="game-panel-muted p-3">
+            <p class="text-sm text-accent">我与村社的待处理关系</p>
+            <div class="mt-3 space-y-2">
+              <div v-for="request in societyStore.incomingInvites" :key="request.id" class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-xs text-text">{{ request.society_name }}</p>
+                <p class="mt-1 text-[10px] text-muted">邀请人：{{ request.invited_by_display_name || request.invited_by }}</p>
+                <p v-if="request.target_save_id" class="mt-1 text-[10px] text-muted">受邀存档 ID：{{ request.target_save_id }}</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <button class="online-action-btn online-action-btn--compact" type="button" :disabled="societyStore.actionRunning" @click="acceptRequest(request.id)">
+                    接受
+                  </button>
+                  <button class="online-action-btn online-action-btn--compact" type="button" :disabled="societyStore.actionRunning" @click="rejectRequest(request.id)">
+                    拒绝
+                  </button>
+                </div>
+              </div>
+              <div v-for="request in societyStore.myPendingRequests" :key="request.id" class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-xs text-text">已申请：{{ request.society_name }}</p>
+                <p class="mt-1 text-[10px] text-muted">等待村社管理者处理。</p>
+                <p v-if="request.target_save_id" class="mt-1 text-[10px] text-muted">申请存档 ID：{{ request.target_save_id }}</p>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -119,15 +291,32 @@
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-text">{{ society.name }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ society.theme_label }} · {{ society.member_count }}/{{ society.capacity }} 人</p>
+                  <p class="mt-1 text-[10px] text-muted">{{ society.theme_label }} · {{ society.visibility_label }} · {{ society.member_count }}/{{ society.capacity }} 人</p>
                 </div>
-                <span class="shrink-0 text-[10px]" :class="society.can_apply ? 'text-accent' : 'text-muted'">
-                  {{ society.can_apply ? '可申请' : society.visibility_label }}
+                <span class="shrink-0 text-[10px]" :class="getSocietyJoinState(society).tone">
+                  {{ getSocietyJoinState(society).label }}
                 </span>
               </div>
               <p class="mt-2 line-clamp-2 text-[10px] leading-4 text-muted">{{ society.summary || '这个村社还没写简介。' }}</p>
+              <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">公告：{{ society.notice || '暂无公告' }}</p>
+              <p class="mt-1 text-[10px] text-muted">入社条件：{{ society.join_requirement_label }}</p>
+              <p v-if="society.join_requirement_note" class="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">{{ society.join_requirement_note }}</p>
+              <p class="mt-1 text-[10px] text-muted">发起人：{{ society.leader_display_name }}</p>
+              <div v-if="society.can_apply && !currentSociety && !pendingRequestBySocietyId.has(society.id)" class="mt-2 flex justify-end">
+                <button
+                  class="online-action-btn online-action-btn--compact"
+                  type="button"
+                  :disabled="societyStore.actionRunning"
+                  @click="applySociety(society.id)"
+                >
+                  申请加入
+                </button>
+              </div>
             </div>
           </div>
+          <RouterLink v-if="societyStore.visibleSocieties.length > visibleSocietyPreview.length" class="mt-3 inline-flex text-[10px] text-accent" :to="{ name: 'society' }">
+            查看更多公开村社
+          </RouterLink>
         </div>
       </div>
 
@@ -332,6 +521,7 @@
   import { useRoute } from 'vue-router'
   import { ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from 'lucide-vue-next'
   import { useSocietyStore } from '@/stores/useSocietyStore'
+  import type { SocietySnapshot } from '@/utils/societyApi'
 
   type SocietyTabKey = 'overview' | 'members' | 'storage' | 'projects' | 'proposals' | 'chronicles'
   type SocietyTabMeta = { key: SocietyTabKey; label: string; summary: string }
@@ -354,11 +544,16 @@
   }
 
   const activeTab = ref<SocietyTabKey>(normalizeTab(route.query.tab))
+  const createPanelRef = ref<HTMLElement | null>(null)
   const currentSociety = computed(() => societyStore.mySociety)
   const visibleSocietyPreview = computed(() => societyStore.visibleSocieties.slice(0, 5))
   const memberCount = computed(() => currentSociety.value?.members.length ?? 0)
   const activeProjectCount = computed(() => currentSociety.value?.public_projects.filter(project => project.status !== 'completed').length ?? 0)
   const activeTabMeta = computed(() => tabs.find(tab => tab.key === activeTab.value) ?? tabs[0]!)
+  const pendingRequestBySocietyId = computed(() => new Map(societyStore.myPendingRequests.map(request => [request.society_id, request])))
+  const incomingInviteBySocietyId = computed(() => new Map(societyStore.incomingInvites.map(request => [request.society_id, request])))
+  const hasJoinRelations = computed(() => societyStore.incomingInvites.length > 0 || societyStore.myPendingRequests.length > 0)
+  const canSubmitSociety = computed(() => societyStore.draftName.trim().length > 0 && !societyStore.actionRunning)
   const moduleSummary = computed(() => {
     const society = currentSociety.value
     if (!society) return `当前未加入村社；公开村社 ${societyStore.visibleSocieties.length} 个，待处理邀请 ${societyStore.incomingInvites.length} 条。`
@@ -376,6 +571,39 @@
 
   const refreshSocietyModule = async () => {
     await societyStore.refreshOverview().catch(() => {})
+  }
+
+  const focusCreateSociety = () => {
+    createPanelRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }
+
+  const getSocietyJoinState = (society: SocietySnapshot) => {
+    if (currentSociety.value?.id === society.id) return { label: '已加入', tone: 'text-success' }
+    if (pendingRequestBySocietyId.value.has(society.id)) return { label: '已申请', tone: 'text-muted' }
+    if (incomingInviteBySocietyId.value.has(society.id)) return { label: '待接受', tone: 'text-accent' }
+    if (society.can_apply) return { label: '可申请', tone: 'text-accent' }
+    return { label: society.visibility_label, tone: 'text-muted' }
+  }
+
+  const createSociety = async () => {
+    if (!canSubmitSociety.value) return
+    await societyStore.submitSociety().catch(() => {})
+  }
+
+  const applySociety = async (societyId: string) => {
+    await societyStore.applySociety(societyId).catch(() => {})
+  }
+
+  const acceptRequest = async (requestId: string) => {
+    await societyStore.acceptRequest(requestId).catch(() => {})
+  }
+
+  const rejectRequest = async (requestId: string) => {
+    await societyStore.rejectRequest(requestId).catch(() => {})
+  }
+
+  const saveNotice = async () => {
+    await societyStore.saveNotice().catch(() => {})
   }
 
   watch(
