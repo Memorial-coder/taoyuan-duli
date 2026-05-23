@@ -19,6 +19,10 @@
 - 邻里与订阅路由已统一挂入 `createOnlineReleaseGuard('social')`，避免社交模块暂停或灰度期间仍可绕过入口直接写入。
 - 新增 `server/scripts/qa-online-release-guard.mjs` 与 `npm --prefix server run qa:online-release-guard`，固定远征 / 邻里 / 订阅路由的发布守卫覆盖。
 
+### 0523 大厅隐藏图片访问保护
+- `/taoyuan/hall/uploads` 与 `/api/taoyuan/hall/uploads` 静态挂载都会先执行上传图片可见性守卫，后台隐藏后的图片不会再从 API 前缀绕过检查。
+- 新增 `server/scripts/qa-hall-upload-visibility-guard.mjs` 与 `npm --prefix server run qa:hall-upload-visibility-guard`，固定两个静态挂载都必须先经过 `isUploadedImageVisibleByStoredName()`。
+
 ### 0522 在线村社核心操作验收（阶段 J2 / 村社）
 - 在线村社拆页补齐自动化验收锚点，覆盖创建村社表单、申请处理、成员职位调整、仓库入仓、公共建设贡献和提案创建 / 投票按钮。
 - `scripts/qa-online-regression-live-smoke.mjs` 新增村社核心操作烟测，社长通过 UI 创建村社、接受申请、调整成员职位、入仓、贡献公共建设并发起 / 投票提案；申请人通过服务端 API 申请加入，服务端 overview 会读回成员与村社状态。

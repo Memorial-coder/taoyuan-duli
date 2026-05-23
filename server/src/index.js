@@ -255,6 +255,17 @@ const resolvedCookieSameSite = ['lax', 'strict', 'none'].includes(COOKIE_SAME_SI
   ? COOKIE_SAME_SITE
   : (COOKIE_SECURE ? 'none' : 'lax');
 
+function createHallUploadVisibilityGuard() {
+  return (req, res, next) => {
+    const storedName = path.basename(String(req.path || req.url || ''));
+    if (!storedName || !taoyuanImageModeration.isUploadedImageVisibleByStoredName(storedName)) {
+      res.status(404).send('Not found');
+      return;
+    }
+    next();
+  };
+}
+
 app.set('trust proxy', true);
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
 app.use(cors({
@@ -271,7 +282,7 @@ app.use(morgan('combined'));
 app.use(compression({ threshold: 1024 }));
 app.use(express.json({ limit: '12mb' }));
 app.use(express.urlencoded({ extended: true, limit: '12mb' }));
-app.use('/taoyuan/hall/uploads', express.static(taoyuanHall.HALL_UPLOADS_DIR, {
+app.use('/taoyuan/hall/uploads', createHallUploadVisibilityGuard(), express.static(taoyuanHall.HALL_UPLOADS_DIR, {
   etag: false,
   lastModified: false,
   maxAge: '7d',

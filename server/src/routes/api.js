@@ -1920,7 +1920,18 @@ function publishHomepageAboutContent(content) {
   return getHomepageAboutContent();
 }
 
-router.use('/taoyuan/hall/uploads', express.static(taoyuanHall.HALL_UPLOADS_DIR, {
+function createHallUploadVisibilityGuard() {
+  return (req, res, next) => {
+    const storedName = path.basename(String(req.path || req.url || ''));
+    if (!storedName || !taoyuanImageModeration.isUploadedImageVisibleByStoredName(storedName)) {
+      res.status(404).send('Not found');
+      return;
+    }
+    next();
+  };
+}
+
+router.use('/taoyuan/hall/uploads', createHallUploadVisibilityGuard(), express.static(taoyuanHall.HALL_UPLOADS_DIR, {
   etag: false,
   lastModified: false,
   maxAge: '7d',
