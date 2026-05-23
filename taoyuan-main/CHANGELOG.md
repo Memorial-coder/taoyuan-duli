@@ -23,6 +23,10 @@
 - `/taoyuan/hall/uploads` 与 `/api/taoyuan/hall/uploads` 静态挂载都会先执行上传图片可见性守卫，后台隐藏后的图片不会再从 API 前缀绕过检查。
 - 新增 `server/scripts/qa-hall-upload-visibility-guard.mjs` 与 `npm --prefix server run qa:hall-upload-visibility-guard`，固定两个静态挂载都必须先经过 `isUploadedImageVisibleByStoredName()`。
 
+### 0523 账号上下文刷新保护
+- `forceRefreshCurrentAccountContext()` 现在只有在 `/api/me` 明确返回 401 时才清空当前账号上下文；网络异常、非 JSON、网关错误或服务端临时失败会保留当前账号 key 与 CSRF。
+- 新增 `scripts/qa-account-context-guard.mjs` 与 `npm --prefix taoyuan-main run qa:account-context-guard`，固定 `/api/me` 瞬时失败不能再走 guest 清理路径。
+
 ### 0522 在线村社核心操作验收（阶段 J2 / 村社）
 - 在线村社拆页补齐自动化验收锚点，覆盖创建村社表单、申请处理、成员职位调整、仓库入仓、公共建设贡献和提案创建 / 投票按钮。
 - `scripts/qa-online-regression-live-smoke.mjs` 新增村社核心操作烟测，社长通过 UI 创建村社、接受申请、调整成员职位、入仓、贡献公共建设并发起 / 投票提案；申请人通过服务端 API 申请加入，服务端 overview 会读回成员与村社状态。

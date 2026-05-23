@@ -20,6 +20,7 @@
     "qa:online-ui-structure": "node scripts/qa-online-ui-structure.mjs",
     "qa:region-friend-panel-live-smoke": "node scripts/qa-region-friend-panel-live-smoke.mjs",
     "qa:online-regression-live-smoke": "node scripts/qa-online-regression-live-smoke.mjs",
+    "qa:account-context-guard": "node scripts/qa-account-context-guard.mjs",
     "qa:late-game-samples": "node scripts/qa-late-game-samples.mjs",
     "qa:late-game": "npm run qa:late-game-samples && npm run type-check && npm run lint",
     "check": "npm run type-check && npm run lint",

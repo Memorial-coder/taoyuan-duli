@@ -116,12 +116,17 @@ export const forceRefreshCurrentAccountContext = async (): Promise<CurrentAccoun
     try {
       const res = await fetch('/api/me', { credentials: 'include' })
       const data = await res.json().catch(() => null)
-      currentAccountKey = sanitizeAccountKey(data?.ok ? data?.user?.username : null)
-      currentCsrfToken = data?.ok && typeof data?.csrf_token === 'string' ? data.csrf_token : ''
-      persistCurrentAccountKey()
+      if (res.status === 401) {
+        return clearCurrentAccountContext()
+      }
+      if (res.ok && data?.ok) {
+        currentAccountKey = sanitizeAccountKey(data?.user?.username)
+        currentCsrfToken = typeof data?.csrf_token === 'string' ? data.csrf_token : ''
+        persistCurrentAccountKey()
+      }
       return buildCurrentAccountContext()
     } catch {
-      return clearCurrentAccountContext()
+      return buildCurrentAccountContext()
     }
   })()
 
