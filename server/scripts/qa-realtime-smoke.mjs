@@ -1423,11 +1423,35 @@ try {
     })
     assert(noticeResult.response.ok, `offline society notice returned ${noticeResult.response.status}: ${noticeResult.data?.msg || 'unknown error'}`)
 
+    const overviewResult = await fetchSessionJson(owner, '/api/taoyuan/online/societies')
+    assert(overviewResult.response.ok, `offline society overview returned ${overviewResult.response.status}: ${overviewResult.data?.msg || 'unknown error'}`)
+    const project = overviewResult.data?.my_society?.public_projects?.find(item => item?.can_contribute)
+    const contributionPackage = project?.contribution_packages?.find(item => item?.id === 'survey_fund') || project?.contribution_packages?.[0]
+    assert(project?.id, 'offline society public project id missing')
+    assert(contributionPackage?.id, 'offline society public project package id missing')
+
+    const projectResult = await fetchSessionJson(owner, `/api/taoyuan/online/societies/public-projects/${encodeURIComponent(project.id)}/contribute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ package_id: contributionPackage.id }),
+    })
+    assert(projectResult.response.ok, `offline society project contribute returned ${projectResult.response.status}: ${projectResult.data?.msg || 'unknown error'}`)
+
+    const depositOption = overviewResult.data?.my_society?.public_warehouse?.deposit_options?.find(item => item?.id === 'wood_crate')
+      || overviewResult.data?.my_society?.public_warehouse?.deposit_options?.[0]
+    assert(depositOption?.id, 'offline society warehouse deposit id missing')
+    const warehouseResult = await fetchSessionJson(owner, '/api/taoyuan/online/societies/public-warehouse/deposit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ deposit_id: depositOption.id }),
+    })
+    assert(warehouseResult.response.ok, `offline society warehouse deposit returned ${warehouseResult.response.status}: ${warehouseResult.data?.msg || 'unknown error'}`)
+
     offlineSocietyReplaySocket = await openRealtimeSocket(offlineTarget)
     const ready = await expectMessage(offlineSocietyReplaySocket, 'realtime.ready', payload =>
-      payload.username === offlineTarget.username && Number(payload.pending_notification_count) >= 1
+      payload.username === offlineTarget.username && Number(payload.pending_notification_count) >= 4
     )
-    assert(Number(ready.payload?.pending_notification_count) >= 1, 'offline society notice replay ready did not report pending notifications')
+    assert(Number(ready.payload?.pending_notification_count) >= 4, 'offline society shared progress replay ready did not report pending notifications')
     const membershipQueuedMessage = await expectMessage(offlineSocietyReplaySocket, 'notification.created', payload =>
       payload.category === 'society'
         && payload.action === 'membership_accepted'
@@ -1454,12 +1478,43 @@ try {
     assert(queuedEventId, 'replayed society notice notification missing queued_event_id')
     assert(queuedMessage.replayed === true, 'replayed society notice notification missing replayed marker')
 
+    const projectQueuedMessage = await expectMessage(offlineSocietyReplaySocket, 'notification.created', payload =>
+      payload.category === 'society'
+        && payload.action === 'public_project_contributed'
+        && payload.society?.id === societyId
+        && payload.project?.id === projectResult.data?.project?.id
+        && payload.contribution?.package_id === contributionPackage.id
+        && payload.actor_username === owner.username
+    )
+    const projectQueuedEventId = String(projectQueuedMessage.queued_event_id || '')
+    assert(projectQueuedEventId, 'replayed society public project notification missing queued_event_id')
+    assert(projectQueuedMessage.replayed === true, 'replayed society public project notification missing replayed marker')
+    assert(projectQueuedMessage.payload?.overview === undefined, 'replayed society project notification should not expose overview')
+    assert(projectQueuedMessage.payload?.project?.recent_contributions === undefined, 'replayed society project notification should not expose contribution list')
+    assert(projectQueuedMessage.payload?.members === undefined, 'replayed society project notification should not expose members')
+
+    const warehouseQueuedMessage = await expectMessage(offlineSocietyReplaySocket, 'notification.created', payload =>
+      payload.category === 'society'
+        && payload.action === 'warehouse_deposited'
+        && payload.society?.id === societyId
+        && payload.warehouse?.latest_log?.deposit_id === depositOption.id
+        && payload.actor_username === owner.username
+    )
+    const warehouseQueuedEventId = String(warehouseQueuedMessage.queued_event_id || '')
+    assert(warehouseQueuedEventId, 'replayed society warehouse notification missing queued_event_id')
+    assert(warehouseQueuedMessage.replayed === true, 'replayed society warehouse notification missing replayed marker')
+    assert(warehouseQueuedMessage.payload?.overview === undefined, 'replayed society warehouse notification should not expose overview')
+    assert(warehouseQueuedMessage.payload?.warehouse?.logs === undefined, 'replayed society warehouse notification should not expose warehouse logs')
+    assert(warehouseQueuedMessage.payload?.members === undefined, 'replayed society warehouse notification should not expose members')
+
     const ackOffset = offlineSocietyReplaySocket.messages.length
-    offlineSocietyReplaySocket.send('notification.ack', { ids: [membershipQueuedEventId, queuedEventId] })
+    offlineSocietyReplaySocket.send('notification.ack', { ids: [membershipQueuedEventId, queuedEventId, projectQueuedEventId, warehouseQueuedEventId] })
     await expectMessageAfter(offlineSocietyReplaySocket, ackOffset, 'notification.ack', payload =>
       Array.isArray(payload.acked_ids)
         && payload.acked_ids.includes(membershipQueuedEventId)
         && payload.acked_ids.includes(queuedEventId)
+        && payload.acked_ids.includes(projectQueuedEventId)
+        && payload.acked_ids.includes(warehouseQueuedEventId)
         && Number(payload.pending_count) === 0
     )
 
@@ -1473,9 +1528,14 @@ try {
     )
     await expectNoMessageAfter(offlineSocietyReplayReconnectSocket, 0, 'notification.created', payload =>
       payload.category === 'society'
-        && (payload.action === 'membership_accepted' || payload.action === 'notice_updated')
+        && ['membership_accepted', 'notice_updated', 'public_project_contributed', 'warehouse_deposited'].includes(payload.action)
         && payload.society?.id === societyId
-        && (payload.request?.id === requestId || payload.society?.notice === noticeText)
+        && (
+          payload.request?.id === requestId
+          || payload.society?.notice === noticeText
+          || payload.project?.id === projectResult.data?.project?.id
+          || payload.warehouse?.latest_log?.deposit_id === depositOption.id
+        )
     )
     offlineSocietyReplayReconnectSocket.close()
     offlineSocietyReplayReconnectSocket = null

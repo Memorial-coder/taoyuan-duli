@@ -2,6 +2,9 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A5-A7` 这一轮补齐村社公共建设与公共仓共享进度的离线补发验收：离线成员会在 WebSocket ready 后收到 `public_project_contributed / warehouse_deposited` 摘要。
+- `qa:realtime-smoke` 现在会 ACK 这两类补发并重连确认不重复，同时校验通知仍不暴露 overview、成员列表、贡献列表或公共仓日志。
+
 - `0520todo.md / A4` 这一轮收口邮箱入口旧轮询：`GameLayout.vue` 不再每 60 秒常驻刷新邮箱列表，改为进入游戏时刷新一次、页面回到前台时静默刷新一次。
 - 邮箱新增仍由 realtime `notification.created` 驱动静默重读，前台恢复刷新只作为断线 / 浏览器后台节流后的轻量补偿，不改邮件领取、已读或奖励结算逻辑。
 
