@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 村社旧 username 兜底安全收口（A0-A1-A7）
+- 村社成员和待处理申请现在会先按明确 `save_id` 匹配；缺少存档 ID 的旧 username-only 记录只在没有多存档歧义或唯一可映射时继续兼容。
+- `qa:online-smoke` 新增 legacy fixture，验证同账号已有 slot 0 / slot 1 两份存档时，slot 1 不会认领旧 username-only 村社成员记录；`qa:realtime-smoke` 已复跑通过。
+
 ### 0520 活动存档读取与村社身份隔离（A0-A1-A7）
 - 服务端 `getActiveSaveContext()` 现在会正确区分“未指定 preferred slot”和 slot 0，不再把 `null` 误判为 slot 0。
 - 村社概览、成员归属和待处理申请去重会按当前活动存档 ID 隔离；同一账号切到另一份服务端存档时，不会继承原存档的村社身份。

@@ -6,6 +6,7 @@ const {
   createError,
   findSaveIdentityById,
   getActiveSaveContext,
+  getSaveSlotIdentity,
   persistGameplayData,
   saveUserSaveSlots,
   writeJsonFileAtomic,
@@ -1113,20 +1114,48 @@ function resolveSocietyMemberIdentity(username, preferredIdentity = null) {
   return resolveActiveSocietySaveIdentity(username);
 }
 
+function listSocietySaveIdentitiesForUser(username) {
+  const normalizedUsername = normalizeUsername(username);
+  if (!normalizedUsername) return [];
+  const identities = [];
+  const seenSaveIds = new Set();
+  for (const slot of [0, 1, 2]) {
+    const identity = getSaveSlotIdentity(normalizedUsername, slot);
+    const saveId = normalizeSocietySaveId(identity?.save_id);
+    if (!saveId || seenSaveIds.has(saveId)) continue;
+    seenSaveIds.add(saveId);
+    identities.push(identity);
+  }
+  return identities;
+}
+
+function canUseLegacySocietyUsernameFallback(username, identity = null) {
+  const resolvedSaveId = normalizeSocietySaveId(identity?.save_id);
+  if (!resolvedSaveId) return true;
+  const identities = listSocietySaveIdentitiesForUser(username);
+  if (!identities.length) return true;
+  if (identities.length !== 1) return false;
+  return normalizeSocietySaveId(identities[0]?.save_id) === resolvedSaveId;
+}
+
 function societyMemberMatchesIdentity(entry, username, identity = null) {
   const normalizedUsername = normalizeUsername(username);
+  if (normalizeUsername(entry?.username) !== normalizedUsername) return false;
   const resolvedSaveId = normalizeSocietySaveId(identity?.save_id);
   const entrySaveId = normalizeSocietySaveId(entry?.save_id);
   if (resolvedSaveId && entrySaveId) return entrySaveId === resolvedSaveId;
-  return normalizeUsername(entry?.username) === normalizedUsername;
+  if (resolvedSaveId) return canUseLegacySocietyUsernameFallback(normalizedUsername, identity);
+  return true;
 }
 
 function societyJoinRequestMatchesIdentity(entry, username, identity = null) {
   const normalizedUsername = normalizeUsername(username);
+  if (normalizeUsername(entry?.username) !== normalizedUsername) return false;
   const resolvedSaveId = normalizeSocietySaveId(identity?.save_id);
   const requestSaveId = normalizeSocietySaveId(entry?.target_save_id);
   if (resolvedSaveId && requestSaveId) return requestSaveId === resolvedSaveId;
-  return normalizeUsername(entry?.username) === normalizedUsername;
+  if (resolvedSaveId) return canUseLegacySocietyUsernameFallback(normalizedUsername, identity);
+  return true;
 }
 
 function findMemberSociety(store, username, identity = null) {

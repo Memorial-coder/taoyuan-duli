@@ -2,6 +2,10 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A0-A1-A7` 这一轮把村社旧 username-only 兼容收窄为安全兜底：当前账号已经存在多份服务端存档身份时，缺少 `save_id` 的旧村社成员 / 申请记录不会被任意活动存档直接认领。
+- 村社成员与待处理申请匹配会先看明确 `save_id`；旧数据只在没有多存档歧义或唯一可映射时按 username 兼容，避免历史记录跨存档串用。
+- 本轮验证通过 `node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix server run qa:online-smoke` 与 `npm --prefix server run qa:realtime-smoke`。
+
 - `0520todo.md / A0-A1-A7` 这一轮修复服务端活动存档读取：`getActiveSaveContext()` 不再把未指定的 `preferredSlot = null` 误当成 slot 0，会真实读取 `active-slot`。
 - 村社成员归属和待处理申请去重现在能按当前活动存档 ID 隔离；同一账号切到另一个服务端存档时，不会继承原存档的村社成员身份。
 - 本轮验证通过 `node --check server/src/taoyuanSaveRuntime.js`、`node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix server run qa:online-smoke` 与 `npm --prefix server run qa:realtime-smoke`。

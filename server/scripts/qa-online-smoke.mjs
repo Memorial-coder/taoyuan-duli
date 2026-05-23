@@ -12,6 +12,7 @@ const dotenv = require('dotenv')
 const serverRoot = path.resolve(__dirname, '..')
 const smokeTempDir = path.resolve(serverRoot, '.tmp-online-smoke-run')
 const smokeStorageFile = path.resolve(smokeTempDir, '.storage.json')
+const smokeSocietyStoreFile = path.resolve(smokeTempDir, 'taoyuan_societies.json')
 const host = '127.0.0.1'
 const preferredPort = Number(process.env.TAOYUAN_ONLINE_SMOKE_PORT || 4013)
 const configuredBaseURL = process.env.TAOYUAN_ONLINE_SMOKE_BASE_URL?.trim() || ''
@@ -3792,6 +3793,41 @@ try {
       body: JSON.stringify({ slot: 1 }),
     })
     assert(switchToAlternate.response.ok, `switch secondary to alternate save returned ${switchToAlternate.response.status}`)
+
+    const legacySocietyStore = JSON.parse(await readFile(smokeSocietyStoreFile, 'utf8'))
+    legacySocietyStore.societies = [
+      ...(Array.isArray(legacySocietyStore.societies) ? legacySocietyStore.societies : []),
+      {
+        id: `legacy_society_${Date.now()}`,
+        name: '旧档兼容社',
+        summary: 'legacy username-only society member smoke fixture',
+        notice: '',
+        emblem: 'plum_seal',
+        theme: 'harvest_union',
+        visibility: 'semi_public',
+        capacity: 12,
+        join_requirement_id: 'open',
+        join_requirement_note: '',
+        created_by: secondarySessionState.username,
+        created_at: Math.floor(Date.now() / 1000),
+        updated_at: Math.floor(Date.now() / 1000),
+        level: 1,
+        welfare_xp: 0,
+        members: [
+          {
+            username: secondarySessionState.username,
+            display_name: secondarySessionState.displayName,
+            role: 'member',
+            joined_at: Math.floor(Date.now() / 1000),
+          },
+        ],
+        activity_log: [],
+        proposals: [],
+        public_projects: [],
+        role_history: [],
+      },
+    ]
+    await writeFile(smokeSocietyStoreFile, JSON.stringify(legacySocietyStore, null, 2), 'utf8')
 
     const alternateOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies')
     assert(alternateOverview.response.ok, `alternate save society overview returned ${alternateOverview.response.status}`)
