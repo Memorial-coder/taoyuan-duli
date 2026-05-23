@@ -898,6 +898,101 @@ try {
       )
       assert(roleNotification.payload?.group?.members === undefined, 'neighbor role notification should not expose members')
       assert(roleNotification.payload?.request === undefined, 'neighbor role notification should not expose request')
+
+      const offlineInviteTarget = await bootstrapSession('smkrt_oi')
+      const offlineInviteResult = await fetchSessionJson(owner, '/api/taoyuan/online/social/neighbors/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_username: offlineInviteTarget.username }),
+      })
+      assert(offlineInviteResult.response.ok, `offline neighbor invite returned ${offlineInviteResult.response.status}: ${offlineInviteResult.data?.msg || 'unknown error'}`)
+      const offlineInviteRequestId = String(offlineInviteResult.data?.request?.id || '')
+      assert(offlineInviteRequestId, 'offline neighbor invite request id missing')
+      let offlineInviteReplaySocket = await openRealtimeSocket(offlineInviteTarget)
+      const offlineInviteReady = await expectMessage(offlineInviteReplaySocket, 'realtime.ready', payload =>
+        payload.username === offlineInviteTarget.username && Number(payload.pending_notification_count) >= 1
+      )
+      assert(Number(offlineInviteReady.payload?.pending_notification_count) >= 1, 'offline neighbor invite replay ready did not report pending notifications')
+      const offlineInviteQueuedMessage = await expectMessage(offlineInviteReplaySocket, 'notification.created', payload =>
+        payload.category === 'neighbor'
+          && payload.action === 'member_invited'
+          && payload.group?.id === groupId
+          && payload.request?.id === offlineInviteRequestId
+          && payload.request?.type === 'invite'
+          && payload.request?.status === 'pending'
+          && payload.request?.username === offlineInviteTarget.username
+          && payload.request?.invited_by === owner.username
+          && payload.actor_username === owner.username
+      )
+      const offlineInviteQueuedEventId = String(offlineInviteQueuedMessage.queued_event_id || '')
+      assert(offlineInviteQueuedEventId, 'offline neighbor invite notification missing queued_event_id')
+      assert(offlineInviteQueuedMessage.replayed === true, 'offline neighbor invite notification missing replayed marker')
+      const offlineInviteAckOffset = offlineInviteReplaySocket.messages.length
+      offlineInviteReplaySocket.send('notification.ack', { id: offlineInviteQueuedEventId })
+      await expectMessageAfter(offlineInviteReplaySocket, offlineInviteAckOffset, 'notification.ack', payload =>
+        Array.isArray(payload.acked_ids) && payload.acked_ids.includes(offlineInviteQueuedEventId)
+      )
+      offlineInviteReplaySocket.close()
+      await wait(200)
+      offlineInviteReplaySocket = await openRealtimeSocket(offlineInviteTarget)
+      await expectMessage(offlineInviteReplaySocket, 'realtime.ready', payload =>
+        payload.username === offlineInviteTarget.username && Number(payload.pending_notification_count) === 0
+      )
+      await expectNoMessageAfter(offlineInviteReplaySocket, 0, 'notification.created', payload =>
+        payload.category === 'neighbor'
+          && payload.action === 'member_invited'
+          && payload.request?.id === offlineInviteRequestId
+      )
+      offlineInviteReplaySocket.close()
+      await wait(200)
+
+      const offlineRejectTarget = await bootstrapSession('smkrt_or')
+      const offlineRejectApplyResult = await fetchSessionJson(offlineRejectTarget, `/api/taoyuan/online/social/neighbors/${encodeURIComponent(groupId)}/apply`, {
+        method: 'POST',
+      })
+      assert(offlineRejectApplyResult.response.ok, `offline neighbor reject apply returned ${offlineRejectApplyResult.response.status}: ${offlineRejectApplyResult.data?.msg || 'unknown error'}`)
+      const offlineRejectRequestId = String(offlineRejectApplyResult.data?.request?.id || '')
+      assert(offlineRejectRequestId, 'offline neighbor reject apply request id missing')
+      const offlineRejectResult = await fetchSessionJson(owner, `/api/taoyuan/online/social/neighbors/requests/${encodeURIComponent(offlineRejectRequestId)}/reject`, {
+        method: 'POST',
+      })
+      assert(offlineRejectResult.response.ok, `offline neighbor reject returned ${offlineRejectResult.response.status}: ${offlineRejectResult.data?.msg || 'unknown error'}`)
+      let offlineRejectReplaySocket = await openRealtimeSocket(offlineRejectTarget)
+      const offlineRejectReady = await expectMessage(offlineRejectReplaySocket, 'realtime.ready', payload =>
+        payload.username === offlineRejectTarget.username && Number(payload.pending_notification_count) >= 1
+      )
+      assert(Number(offlineRejectReady.payload?.pending_notification_count) >= 1, 'offline neighbor reject replay ready did not report pending notifications')
+      const offlineRejectQueuedMessage = await expectMessage(offlineRejectReplaySocket, 'notification.created', payload =>
+        payload.category === 'neighbor'
+          && payload.action === 'membership_rejected'
+          && payload.group?.id === groupId
+          && payload.request?.id === offlineRejectRequestId
+          && payload.request?.type === 'apply'
+          && payload.request?.status === 'rejected'
+          && payload.request?.username === offlineRejectTarget.username
+          && payload.actor_username === owner.username
+      )
+      const offlineRejectQueuedEventId = String(offlineRejectQueuedMessage.queued_event_id || '')
+      assert(offlineRejectQueuedEventId, 'offline neighbor reject notification missing queued_event_id')
+      assert(offlineRejectQueuedMessage.replayed === true, 'offline neighbor reject notification missing replayed marker')
+      const offlineRejectAckOffset = offlineRejectReplaySocket.messages.length
+      offlineRejectReplaySocket.send('notification.ack', { id: offlineRejectQueuedEventId })
+      await expectMessageAfter(offlineRejectReplaySocket, offlineRejectAckOffset, 'notification.ack', payload =>
+        Array.isArray(payload.acked_ids) && payload.acked_ids.includes(offlineRejectQueuedEventId)
+      )
+      offlineRejectReplaySocket.close()
+      await wait(200)
+      offlineRejectReplaySocket = await openRealtimeSocket(offlineRejectTarget)
+      await expectMessage(offlineRejectReplaySocket, 'realtime.ready', payload =>
+        payload.username === offlineRejectTarget.username && Number(payload.pending_notification_count) === 0
+      )
+      await expectNoMessageAfter(offlineRejectReplaySocket, 0, 'notification.created', payload =>
+        payload.category === 'neighbor'
+          && payload.action === 'membership_rejected'
+          && payload.request?.id === offlineRejectRequestId
+      )
+      offlineRejectReplaySocket.close()
+      await wait(200)
     } finally {
       inviteSocket.close()
       rejectSocket.close()

@@ -2,6 +2,10 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A5-A7` 这一轮扩展 `qa:realtime-smoke` 的邻里 membership 离线补发覆盖：离线目标收到邻里邀请、离线申请人收到拒绝结果时，都会在下次 WebSocket ready 后补发并带 `queued_event_id / replayed`。
+- 烟测会 ACK 两类补发通知并重连确认 pending 归零、不重复补发，继续校验通知摘要只作为投递证据，不触发成员结算。
+- 本轮验证通过 `node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix server run qa:realtime-smoke` 与 `git diff --check`。
+
 - `0520todo.md / A4-A6-A7` 这一轮把邻里申请 / 邀请 / 审核 / 公告 / 成员身份变更接入 realtime：服务端在写路成功后投递 `category: "neighbor"` 的摘要通知，前端收到后只静默重读邻里概览和公开名片。
 - 邻里通知摘要只携带群组、申请和角色变更的轻量字段，不携带完整 overview 或成员明细；离线邻里成员会进入既有补发队列，ACK 后重连不重复。
 - `qa:realtime-smoke` 继续补齐邻里邀请、拒绝、公告更新和成员身份调整的在线投递断言，并校验这些摘要不暴露成员列表或完整邻里概览。
