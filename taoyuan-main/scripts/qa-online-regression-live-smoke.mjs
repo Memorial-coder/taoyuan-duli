@@ -44,6 +44,12 @@ const assert = (condition, message) => {
 
 const createSmokeSeed = () => Date.now().toString(36).slice(-5) + Math.random().toString(36).slice(2, 5)
 
+const buildFutureDatetimeLocal = (daysFromNow = 3) => {
+  const date = new Date(Date.now() + daysFromNow * 24 * 60 * 60 * 1000)
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60 * 1000)
+  return localDate.toISOString().slice(0, 16)
+}
+
 const waitForReachable = async (url, timeoutMs = 120_000) => {
   const startedAt = Date.now()
   while (Date.now() - startedAt < timeoutMs) {
@@ -286,7 +292,7 @@ const seedSessionSave = async session => {
   session.identity = identity
 }
 
-const bootstrapSession = async () => {
+const bootstrapSession = async ({ seedSave = true } = {}) => {
   const session = createSessionState()
   const seed = createSmokeSeed()
   session.username = `orm_${seed}`.toLowerCase()
@@ -309,7 +315,7 @@ const bootstrapSession = async () => {
   const meResult = await fetchSessionJson(session, '/api/me')
   assert(meResult.response.ok, `/api/me for ${session.username} returned ${meResult.response.status}`)
   session.csrfToken = meResult.data?.csrf_token || session.csrfToken
-  await seedSessionSave(session)
+  if (seedSave) await seedSessionSave(session)
   return session
 }
 
@@ -395,6 +401,33 @@ const applyToNeighborGroup = async (session, groupId) => {
   assert(result.response.ok, `neighbor apply returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
   assert(result.data?.request?.id, 'neighbor apply payload is missing request id')
   return result.data.request
+}
+
+const readCoopOrderOverview = async session => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/orders')
+  assert(result.response.ok, `coop order overview returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.ok === true, 'coop order overview payload is incomplete')
+  return result.data
+}
+
+const acceptCoopOrder = async (session, orderId) => {
+  const result = await fetchSessionJson(session, `/api/taoyuan/online/orders/${encodeURIComponent(orderId)}/accept`, {
+    method: 'POST',
+  })
+  assert(result.response.ok, `coop order accept returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.order?.id === orderId, 'coop order accept payload target mismatch')
+  return result.data.order
+}
+
+const submitCoopOrderDelivery = async (session, orderId, payload) => {
+  const result = await fetchSessionJson(session, `/api/taoyuan/online/orders/${encodeURIComponent(orderId)}/deliver`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  assert(result.response.ok, `coop order delivery returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.receipt?.order_id === orderId, 'coop order delivery payload receipt target mismatch')
+  return result.data
 }
 
 const readManorSnapshot = async (session, targetUsername = '') => {
@@ -967,6 +1000,113 @@ async function main() {
       )
       const relationships = await readRelationshipOverview(owner)
       assert(Array.isArray(relationships.friends), 'relationship overview did not return friends array')
+    })
+
+    await runCheck('online orders core actions persist through split tabs', async () => {
+      const helper = await bootstrapSession({ seedSave: false })
+      const orderSeed = createSmokeSeed()
+      const orderTitle = `委托拆页烟测${orderSeed}`
+      const orderDescription = `在线委托拆页发布与结算闭环 ${orderSeed}`
+      const rewardValue = 23
+      const rewardLabel = `烟测铜钱${orderSeed}`
+      const deliveryNote = `委托拆页交付说明 ${orderSeed}`
+      const deliveredItemId = `wood_${orderSeed}`
+
+      await page.goto(`${frontendBaseURL}/#/game/online/orders?tab=publish`)
+      await expect(page.getByTestId('online-orders-page')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByTestId('online-orders-publish-title-input')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-orders-publish-title-input').fill(orderTitle)
+      await page.getByTestId('online-orders-publish-type-select').selectOption('material_help')
+      await page.getByTestId('online-orders-publish-scope-select').selectOption('public')
+      await page.getByTestId('online-orders-publish-mode-select').selectOption('single')
+      await page.getByTestId('online-orders-publish-deadline-input').fill(buildFutureDatetimeLocal(4))
+      await page.getByTestId('online-orders-publish-reward-type-select').selectOption('money')
+      await page.getByTestId('online-orders-publish-reward-value-input').fill(String(rewardValue))
+      await page.getByTestId('online-orders-publish-reward-label-input').fill(rewardLabel)
+      await page.getByTestId('online-orders-publish-description-input').fill(orderDescription)
+      await page.getByTestId('online-orders-publish-submit').click()
+
+      let orderId = ''
+      await expect.poll(async () => {
+        const overview = await readCoopOrderOverview(owner)
+        const order = overview.orders?.find(entry =>
+          entry.owner_username === owner.username && entry.title === orderTitle
+        )
+        orderId = order?.id || ''
+        return Boolean(orderId && order.status === 'open' && order.delivery_status === 'none')
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await page.getByTestId('online-module-tab-mine').click()
+      await expect(page.getByTestId('online-orders-mine-entry').filter({ hasText: orderTitle })).toBeVisible({ timeout: 10000 })
+
+      const acceptedOrder = await acceptCoopOrder(helper, orderId)
+      assert(acceptedOrder.assignee_username === helper.username, 'coop order accept did not assign helper')
+      await expect.poll(async () => {
+        const overview = await readCoopOrderOverview(owner)
+        const order = overview.orders?.find(entry => entry.id === orderId)
+        return order?.assignee_username === helper.username && order.delivery_status === 'none'
+      }, { timeout: 10000 }).toBeTruthy()
+
+      const delivered = await submitCoopOrderDelivery(helper, orderId, {
+        delivered_items: [{ item_id: deliveredItemId, quantity: 3 }],
+        result_note: deliveryNote,
+      })
+      const receiptId = delivered.receipt?.id || ''
+      assert(receiptId, 'coop order delivery did not create receipt')
+      await expect.poll(async () => {
+        const overview = await readCoopOrderOverview(owner)
+        const order = overview.orders?.find(entry => entry.id === orderId)
+        const receipt = overview.receipts?.find(entry => entry.id === receiptId)
+        return order?.delivery_status === 'submitted'
+          && order.active_receipt_id === receiptId
+          && receipt?.status === 'pending_owner_confirm'
+          && receipt.result_note === deliveryNote
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await page.goto(`${frontendBaseURL}/#/game/online/orders?tab=mine`)
+      await expect(page.getByTestId('online-orders-page')).toBeVisible({ timeout: 10000 })
+      const mineEntry = page.getByTestId('online-orders-mine-entry').filter({ hasText: orderTitle }).first()
+      await expect(mineEntry.getByTestId('online-orders-confirm-submit')).toBeVisible({ timeout: 10000 })
+      await mineEntry.getByTestId('online-orders-confirm-submit').click()
+
+      let compensationId = ''
+      await expect.poll(async () => {
+        const overview = await readCoopOrderOverview(owner)
+        const order = overview.orders?.find(entry => entry.id === orderId)
+        const receipt = overview.receipts?.find(entry => entry.id === receiptId)
+        const compensation = overview.compensations?.find(entry =>
+          entry.order_id === orderId && entry.receipt_id === receiptId
+        )
+        compensationId = compensation?.id || ''
+        return order?.delivery_status === 'compensation_pending'
+          && receipt?.status === 'compensation_pending'
+          && receipt.compensation_id === compensationId
+          && compensation?.status === 'pending'
+          && compensation.attempt_count === 1
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await seedSessionSave(helper)
+      const beforeRetrySave = await readServerSave(helper)
+      const beforeRetryMoney = getSaveMoney(beforeRetrySave)
+
+      await page.getByTestId('online-module-tab-receipts').click()
+      const compensationEntry = page.getByTestId('online-orders-compensation-entry').filter({ hasText: compensationId }).first()
+      await expect(compensationEntry.getByTestId('online-orders-compensation-retry-submit')).toBeVisible({ timeout: 10000 })
+      await compensationEntry.getByTestId('online-orders-compensation-retry-submit').click()
+
+      await expect.poll(async () => {
+        const overview = await readCoopOrderOverview(owner)
+        const order = overview.orders?.find(entry => entry.id === orderId)
+        const receipt = overview.receipts?.find(entry => entry.id === receiptId)
+        const compensation = overview.compensations?.find(entry => entry.id === compensationId)
+        const helperSave = await readServerSave(helper)
+        return order?.delivery_status === 'confirmed'
+          && receipt?.status === 'confirmed'
+          && compensation?.status === 'resolved'
+          && compensation.attempt_count === 2
+          && getSaveMoney(helperSave) === beforeRetryMoney + rewardValue
+      }, { timeout: 10000 }).toBeTruthy()
+      await expect(page.getByTestId('online-orders-compensation-entry').filter({ hasText: compensationId }).getByText('已解决')).toBeVisible({ timeout: 10000 })
     })
 
     await runCheck('cloud save quick save preserves decryptable server slot', async () => {

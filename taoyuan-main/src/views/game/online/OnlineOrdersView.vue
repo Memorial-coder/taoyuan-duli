@@ -47,6 +47,7 @@
               求助标题
               <input
                 v-model="coopOrderStore.titleDraft"
+                data-testid="online-orders-publish-title-input"
                 maxlength="40"
                 class="online-input"
                 placeholder="例如：缺一批冬菜备节"
@@ -54,7 +55,7 @@
             </label>
             <label class="flex flex-col gap-1 text-[10px] text-muted">
               求助类别
-              <select v-model="coopOrderStore.orderTypeDraft" class="online-select">
+              <select v-model="coopOrderStore.orderTypeDraft" data-testid="online-orders-publish-type-select" class="online-select">
                 <option v-for="option in COOP_ORDER_TYPE_OPTIONS" :key="option.id" :value="option.id">
                   {{ option.label }}
                 </option>
@@ -62,7 +63,7 @@
             </label>
             <label class="flex flex-col gap-1 text-[10px] text-muted">
               可见范围
-              <select v-model="coopOrderStore.scopeDraft" class="online-select">
+              <select v-model="coopOrderStore.scopeDraft" data-testid="online-orders-publish-scope-select" class="online-select">
                 <option v-for="option in COOP_ORDER_SCOPE_OPTIONS" :key="option.id" :value="option.id">
                   {{ option.label }}
                 </option>
@@ -70,7 +71,7 @@
             </label>
             <label class="flex flex-col gap-1 text-[10px] text-muted">
               协作模式
-              <select v-model="coopOrderStore.collaborationModeDraft" class="online-select">
+              <select v-model="coopOrderStore.collaborationModeDraft" data-testid="online-orders-publish-mode-select" class="online-select">
                 <option value="single">单阶段委托</option>
                 <option value="multi_stage">多段接力单</option>
               </select>
@@ -79,13 +80,14 @@
               截止时间
               <input
                 v-model="coopOrderStore.deadlineAtDraft"
+                data-testid="online-orders-publish-deadline-input"
                 type="datetime-local"
                 class="online-input"
               />
             </label>
             <label class="flex flex-col gap-1 text-[10px] text-muted">
               回报类型
-              <select v-model="coopOrderStore.rewardTypeDraft" class="online-select">
+              <select v-model="coopOrderStore.rewardTypeDraft" data-testid="online-orders-publish-reward-type-select" class="online-select">
                 <option v-for="option in COOP_REWARD_TYPE_OPTIONS" :key="option.id" :value="option.id">
                   {{ option.label }}
                 </option>
@@ -95,6 +97,7 @@
               回报数值
               <input
                 v-model.number="coopOrderStore.rewardValueDraft"
+                data-testid="online-orders-publish-reward-value-input"
                 type="number"
                 min="1"
                 class="online-input"
@@ -104,6 +107,7 @@
               回报说明
               <input
                 v-model="coopOrderStore.rewardLabelDraft"
+                data-testid="online-orders-publish-reward-label-input"
                 maxlength="40"
                 class="online-input"
                 placeholder="例如：铜钱回报 / 人情回礼 / 节庆礼包"
@@ -115,6 +119,7 @@
             求助内容
             <textarea
               v-model="coopOrderStore.descriptionDraft"
+              data-testid="online-orders-publish-description-input"
               rows="3"
               maxlength="160"
               class="online-textarea resize-none"
@@ -198,6 +203,7 @@
               单阶段会整单结算；多段接力单会把总回报按阶段拆分，并允许不同人各自完成擅长的一段。
             </p>
             <button
+              data-testid="online-orders-publish-submit"
               class="online-action-btn online-action-btn--primary shrink-0"
               type="button"
               :disabled="coopOrderStore.actionRunning"
@@ -231,8 +237,8 @@
           <div v-if="availableOrderCards.length === 0" class="mt-3 text-xs text-muted">
             当前没有可见在线求助单。
           </div>
-          <OnlineScrollArea v-else class="mt-3" max-height="32rem">
-            <div v-for="order in availableOrderCards" :key="order.id" class="border border-accent/10 bg-black/10 p-2">
+          <OnlineScrollArea v-else class="mt-3" max-height="32rem" data-testid="online-orders-available-list">
+            <div v-for="order in availableOrderCards" :key="order.id" data-testid="online-orders-available-entry" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-accent">{{ order.title }}</p>
@@ -291,6 +297,7 @@
 
               <div v-else class="mt-2 flex justify-end">
                 <button
+                  data-testid="online-orders-accept-submit"
                   class="online-action-btn online-action-btn--compact"
                   type="button"
                   :disabled="coopOrderStore.actionRunning || !canAcceptSingleOrder(order)"
@@ -330,8 +337,8 @@
         <div v-if="coopOrderStore.myOrders.length === 0" class="mt-3 text-xs text-muted">
           当前还没有自己发布的求助单。
         </div>
-        <OnlineScrollArea v-else class="mt-3" max-height="32rem">
-          <div v-for="order in coopOrderStore.myOrders" :key="order.id" class="border border-accent/10 bg-black/10 p-2">
+        <OnlineScrollArea v-else class="mt-3" max-height="32rem" data-testid="online-orders-mine-list">
+          <div v-for="order in coopOrderStore.myOrders" :key="order.id" data-testid="online-orders-mine-entry" class="border border-accent/10 bg-black/10 p-2">
             <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
               <div class="min-w-0">
                 <p class="truncate text-xs text-accent">{{ order.title }}</p>
@@ -384,6 +391,7 @@
 
             <div v-else-if="order.delivery_status === 'submitted'" class="mt-2 flex justify-end">
               <button
+                data-testid="online-orders-confirm-submit"
                 class="online-action-btn online-action-btn--compact"
                 type="button"
                 :disabled="coopOrderStore.actionRunning"
@@ -405,8 +413,8 @@
           <div v-if="coopOrderStore.myAcceptedOrders.length === 0" class="mt-3 text-xs text-muted">
             当前还没有自己接下的求助单。
           </div>
-          <OnlineScrollArea v-else class="mt-3" max-height="32rem">
-            <div v-for="order in coopOrderStore.myAcceptedOrders" :key="order.id" class="border border-accent/10 bg-black/10 p-2">
+          <OnlineScrollArea v-else class="mt-3" max-height="32rem" data-testid="online-orders-accepted-list">
+            <div v-for="order in coopOrderStore.myAcceptedOrders" :key="order.id" data-testid="online-orders-accepted-entry" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-accent">{{ order.title }}</p>
@@ -487,11 +495,13 @@
                 <div v-if="order.delivery_status === 'none'" class="mt-2 grid gap-2 md:grid-cols-[minmax(0,1fr)_100px]">
                   <input
                     v-model="coopOrderStore.ensureDeliveryDraft(order.id).itemId"
+                    data-testid="online-orders-delivery-item-input"
                     class="online-input"
                     placeholder="资源 ID，例如 wheat"
                   />
                   <input
                     v-model.number="coopOrderStore.ensureDeliveryDraft(order.id).quantity"
+                    data-testid="online-orders-delivery-quantity-input"
                     type="number"
                     min="1"
                     class="online-input"
@@ -501,6 +511,7 @@
                 <textarea
                   v-if="order.delivery_status === 'none'"
                   v-model="coopOrderStore.ensureDeliveryDraft(order.id).note"
+                  data-testid="online-orders-delivery-note-input"
                   rows="2"
                   maxlength="160"
                   class="online-textarea mt-2 w-full resize-none"
@@ -509,6 +520,7 @@
                 <div class="mt-2 flex flex-wrap justify-end gap-2">
                   <button
                     v-if="order.delivery_status === 'none'"
+                    data-testid="online-orders-delivery-submit"
                     class="online-action-btn online-action-btn--compact"
                     type="button"
                     :disabled="coopOrderStore.actionRunning"
@@ -558,8 +570,8 @@
           <div v-if="coopOrderStore.myReceipts.length === 0" class="mt-3 text-xs text-muted">
             当前没有结算凭证。
           </div>
-          <OnlineScrollArea v-else class="mt-3" max-height="36rem">
-            <div v-for="receipt in coopOrderStore.myReceipts" :key="receipt.id" class="border border-accent/10 bg-black/10 p-2">
+          <OnlineScrollArea v-else class="mt-3" max-height="36rem" data-testid="online-orders-receipt-list">
+            <div v-for="receipt in coopOrderStore.myReceipts" :key="receipt.id" data-testid="online-orders-receipt-entry" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-accent">{{ receipt.stage_title || `委托 ${receipt.order_id}` }}</p>
@@ -605,8 +617,8 @@
           <div v-if="coopOrderStore.myCompensations.length === 0" class="mt-3 text-xs text-muted">
             当前没有待处理补偿。
           </div>
-          <OnlineScrollArea v-else class="mt-3" max-height="36rem">
-            <div v-for="compensation in coopOrderStore.myCompensations" :key="compensation.id" class="border border-accent/10 bg-black/10 p-2">
+          <OnlineScrollArea v-else class="mt-3" max-height="36rem" data-testid="online-orders-compensation-list">
+            <div v-for="compensation in coopOrderStore.myCompensations" :key="compensation.id" data-testid="online-orders-compensation-entry" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-accent">{{ compensation.reason || `委托 ${compensation.order_id}` }}</p>
@@ -630,6 +642,7 @@
               </p>
               <div v-if="compensation.status === 'pending'" class="mt-2 flex justify-end">
                 <button
+                  data-testid="online-orders-compensation-retry-submit"
                   class="online-action-btn online-action-btn--compact"
                   type="button"
                   :disabled="coopOrderStore.actionRunning"

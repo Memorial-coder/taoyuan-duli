@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0522 在线委托核心操作验收（阶段 J2 / 委托）
+- 在线委托拆页补齐自动化验收锚点，覆盖发布表单、可接列表、我的发布、我的接单、结算凭证和补偿重试入口。
+- `scripts/qa-online-regression-live-smoke.mjs` 新增委托核心操作烟测，发布人通过 UI 发布公开求助单并确认交付，接单人通过服务端 API 接单和提交交付，服务端 overview 会读回 orders / receipts 状态。
+- 补偿重试走真实异常路径：接单人先无服务端存档导致确认结算进入 `compensation_pending`，随后补种存档并在在线委托 UI 点击“重试补偿”，验证补偿变为 `resolved` 且铜钱奖励写回接单人存档。
+- 验证已通过 `node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 和 `npm --prefix taoyuan-main run qa:online-regression-live-smoke`。
+
 ### 0522 在线邻里核心操作验收（阶段 J2 / 邻里）
 - 在线邻里拆页补齐自动化验收锚点，覆盖名片保存表单、好友驿站入口、邻里创建表单、公开邻里列表、申请列表和成员邀请控件。
 - `OnlineNeighborView.vue` 的社长 / 管事权限会从 `neighborGroup.role` 或成员列表中的当前用户名兜底推导，避免服务端 overview 未带顶层 role 时把邻里邀请和治理入口误隐藏。
