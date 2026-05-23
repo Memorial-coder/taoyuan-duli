@@ -258,17 +258,160 @@
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'guestbook'" class="game-panel-muted space-y-2 p-3">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-xs text-muted">留言将在 C3 迁成独立输入与列表区；当前先显示最近摘要。</p>
-          <span class="text-[10px] text-accent">{{ guestbookEntries.length }} 条</span>
+      <div v-else-if="activeTab === 'guestbook'" class="space-y-3">
+        <div v-if="snapshot" class="game-panel-muted grid gap-3 p-3 lg:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
+          <div class="space-y-3">
+            <div class="border border-accent/10 bg-black/10 p-3">
+              <div class="flex items-center gap-2 text-accent">
+                <MessageSquare :size="13" />
+                <p class="text-xs">留言类型</p>
+              </div>
+              <div class="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5 lg:grid-cols-2">
+                <button
+                  v-for="option in guestbookKindOptions"
+                  :key="option.id"
+                  type="button"
+                  class="border px-3 py-2 text-left text-[10px] transition-colors"
+                  :class="manorStore.guestbookKindDraft === option.id ? 'border-accent/40 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
+                  @click="manorStore.setGuestbookKind(option.id)"
+                >
+                  <span class="block text-xs">{{ option.label }}</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="border border-accent/10 bg-black/10 p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-[10px] text-muted">当前留言模式</p>
+                <span class="text-[10px] text-accent">{{ currentGuestbookKind.label }}</span>
+              </div>
+              <p class="mt-1 text-[10px] leading-5 text-muted">{{ currentGuestbookKind.helper }}</p>
+              <div class="mt-3 flex flex-wrap gap-1">
+                <button
+                  v-for="pick in manorStore.guestbookQuickPicks"
+                  :key="pick"
+                  type="button"
+                  class="border border-accent/15 px-2 py-1 text-[10px] text-muted transition-colors hover:border-accent/30 hover:text-accent"
+                  @click="manorStore.applyGuestbookQuickPick(pick)"
+                >
+                  {{ pick }}
+                </button>
+              </div>
+            </div>
+
+            <div class="border border-accent/10 bg-black/10 p-3">
+              <textarea
+                v-model="manorStore.guestbookDraft"
+                rows="4"
+                maxlength="160"
+                class="online-textarea w-full"
+                :placeholder="manorStore.guestbookPlaceholder"
+              />
+              <div class="mt-2 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <p class="text-[10px] leading-5 text-muted">
+                  将以“{{ currentGuestbookKind.label }}”写入这座庄园的互动痕迹。{{ guestbookDraftLength }}/160
+                </p>
+                <button
+                  class="online-action-btn online-action-btn--compact online-action-btn--primary shrink-0"
+                  type="button"
+                  :disabled="!canSubmitGuestbook"
+                  @click="submitGuestbook"
+                >
+                  <Send :size="12" />
+                  {{ manorStore.guestbookActionRunning ? '提交中' : manorStore.guestbookSubmitLabel }}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 bg-black/10 p-3">
+            <div class="flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">留言列表</p>
+                <p class="mt-1 text-[10px] leading-5 text-muted">留言在独立滚动区域内展示，回复和置顶只对庄园主人开放。</p>
+              </div>
+              <span class="shrink-0 text-[10px] text-accent">{{ guestbookEntries.length }} 条</span>
+            </div>
+
+            <div v-if="manorStore.loading && guestbookEntries.length === 0" class="mt-3 border border-accent/10 bg-bg/30 p-3 text-xs text-muted">
+              正在加载留言墙。
+            </div>
+            <div v-else-if="manorStore.errorMessage && guestbookEntries.length === 0" class="mt-3 border border-red-300/20 bg-red-500/10 p-3 text-xs text-red-100">
+              {{ manorStore.errorMessage }}
+            </div>
+            <div v-else-if="guestbookEntries.length === 0" class="mt-3 border border-accent/10 bg-bg/30 p-3 text-xs text-muted">
+              当前还没有访客留言。
+            </div>
+
+            <div v-else class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
+              <div v-for="entry in guestbookEntries" :key="entry.id" class="border border-accent/10 bg-bg/30 p-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0 flex-1">
+                    <div class="flex flex-wrap items-center gap-2">
+                      <p class="text-xs text-accent">{{ entry.author_display_name }}</p>
+                      <span class="border px-2 py-0.5 text-[10px]" :class="guestbookKindBadgeClass(entry.kind)">
+                        {{ guestbookKindLabel(entry.kind) }}
+                      </span>
+                      <span v-if="entry.pinned" class="border border-accent/20 bg-accent/10 px-2 py-0.5 text-[10px] text-accent">
+                        置顶
+                      </span>
+                      <span class="text-[10px] text-muted">{{ formatGuestbookTime(entry.created_at) }}</span>
+                    </div>
+                    <div class="mt-2">
+                      <div
+                        v-if="entry.kind === 'stamp'"
+                        class="inline-flex border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-amber-100"
+                      >
+                        {{ entry.content }}
+                      </div>
+                      <p v-else-if="entry.kind === 'signature'" class="text-right text-xs italic text-fuchsia-100">
+                        —— {{ entry.content }}
+                      </p>
+                      <p v-else class="text-[10px] leading-5 text-muted">
+                        {{ entry.content }}
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    v-if="isOwner"
+                    class="online-action-btn online-action-btn--compact shrink-0"
+                    type="button"
+                    :disabled="manorStore.guestbookActionRunning"
+                    @click="togglePinned(entry.id, !entry.pinned)"
+                  >
+                    <Pin :size="12" />
+                    {{ entry.pinned ? '取消' : '置顶' }}
+                  </button>
+                </div>
+
+                <div v-if="entry.reply_text" class="mt-3 border border-accent/10 bg-black/10 px-3 py-2">
+                  <p class="text-[10px] text-muted">{{ entry.reply_author_display_name || '庄园主人' }} 回复：</p>
+                  <p class="mt-1 text-[10px] leading-5">{{ entry.reply_text }}</p>
+                </div>
+                <div v-else-if="isOwner" class="online-action-row mt-3">
+                  <input
+                    v-model="manorStore.guestbookReplyDraft[entry.id]"
+                    maxlength="160"
+                    class="online-input"
+                    placeholder="回复这条留言"
+                  />
+                  <button
+                    class="online-action-btn online-action-btn--compact"
+                    type="button"
+                    :disabled="manorStore.guestbookActionRunning || !manorStore.guestbookReplyDraft[entry.id]?.trim()"
+                    @click="replyGuestbook(entry.id)"
+                  >
+                    <Reply :size="12" />
+                    回复
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
-        <div v-if="guestbookEntries.length === 0" class="border border-accent/10 bg-black/10 p-3 text-xs text-muted">
-          当前还没有留言。
-        </div>
-        <div v-for="entry in guestbookEntries.slice(0, 3)" :key="entry.id" class="border border-accent/10 bg-black/10 p-3">
-          <p class="text-xs text-accent">{{ entry.author_display_name }}</p>
-          <p class="mt-1 text-[10px] leading-5 text-muted">{{ entry.content }}</p>
+
+        <div v-else class="game-panel-muted p-3 text-xs leading-5 text-muted">
+          先刷新庄园快照，留言页会显示留言输入、快捷留言和独立留言列表。
         </div>
       </div>
 
@@ -318,7 +461,20 @@
 <script setup lang="ts">
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
-  import { ArrowLeft, ExternalLink, Home, Image as ImageIcon, RefreshCw, Save, Sparkles, Upload } from 'lucide-vue-next'
+  import {
+    ArrowLeft,
+    ExternalLink,
+    Home,
+    Image as ImageIcon,
+    MessageSquare,
+    Pin,
+    RefreshCw,
+    Reply,
+    Save,
+    Send,
+    Sparkles,
+    Upload,
+  } from 'lucide-vue-next'
   import ManorPreviewCard from '@/components/game/ManorPreviewCard.vue'
   import { showFloat } from '@/composables/useGameLog'
   import { useManorStore } from '@/stores/useManorStore'
@@ -326,6 +482,7 @@
 
   type ManorTabKey = 'overview' | 'theme' | 'guestbook' | 'visits' | 'guide' | 'favorites'
   type ManorTabMeta = { key: ManorTabKey; label: string; summary: string }
+  type GuestbookKind = 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'
 
   const route = useRoute()
   const manorStore = useManorStore()
@@ -333,6 +490,13 @@
   const lastRefreshAttemptAt = ref(0)
   const uploadingCover = ref(false)
   const coverInputRef = ref<HTMLInputElement | null>(null)
+  const guestbookKindOptions: Array<{ id: GuestbookKind; label: string; helper: string }> = [
+    { id: 'text', label: '留言', helper: '自由写参观感受，适合留下完整的一句话。' },
+    { id: 'blessing', label: '祝福', helper: '更适合节气问候、丰收祝愿和暖一点的回声。' },
+    { id: 'advice', label: '建议', helper: '给主人留一条经营建议，告诉他还能怎么继续打磨。' },
+    { id: 'stamp', label: '图章', helper: '像盖章一样留下短印记，适合节气、主题和来访证明。' },
+    { id: 'signature', label: '签名', helper: '用落款式写法留名，让来访痕迹更像一封短短的署名。' },
+  ]
   const tabs: ManorTabMeta[] = [
     { key: 'overview', label: '概览', summary: '先看庄园快照、主题与互动数量，不展开长表单。' },
     { key: 'theme', label: '主题', summary: '集中承接主题、模板、主图与官方精选。' },
@@ -369,6 +533,9 @@
   const officialPickLabel = computed(() => themeWeek.value?.official_pick?.label || '暂无官方精选')
   const officialPickReason = computed(() => themeWeek.value?.official_pick?.reason || '当前主题分尚未达到精选门槛。')
   const guestbookEntries = computed(() => snapshot.value?.guestbook_entries ?? [])
+  const currentGuestbookKind = computed(() => guestbookKindOptions.find(option => option.id === manorStore.guestbookKindDraft) ?? guestbookKindOptions[0]!)
+  const guestbookDraftLength = computed(() => manorStore.guestbookDraft.trim().length)
+  const canSubmitGuestbook = computed(() => guestbookDraftLength.value > 0 && !manorStore.guestbookActionRunning)
   const visitEntries = computed(() => snapshot.value?.visit_entries ?? [])
   const guidePoints = computed(() => snapshot.value?.guide_points ?? [])
   const activeTabMeta = computed<ManorTabMeta>(() => tabs.find(tab => tab.key === activeTab.value) ?? defaultTab)
@@ -466,6 +633,45 @@
       uploadingCover.value = false
       if (input) input.value = ''
     }
+  }
+
+  const submitGuestbook = async () => {
+    await manorStore.createGuestbookEntry().catch(() => {})
+  }
+
+  const replyGuestbook = async (entryId: string) => {
+    await manorStore.replyGuestbookEntry(entryId).catch(() => {})
+  }
+
+  const togglePinned = async (entryId: string, pinned: boolean) => {
+    await manorStore.togglePinnedGuestbookEntry(entryId, pinned).catch(() => {})
+  }
+
+  const guestbookKindLabel = (kind: string) => {
+    if (kind === 'blessing') return '祝福'
+    if (kind === 'advice') return '建议'
+    if (kind === 'stamp') return '图章'
+    if (kind === 'signature') return '签名'
+    return '留言'
+  }
+
+  const guestbookKindBadgeClass = (kind: string) => {
+    if (kind === 'blessing') return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+    if (kind === 'advice') return 'border-sky-400/30 bg-sky-500/10 text-sky-200'
+    if (kind === 'stamp') return 'border-amber-400/40 bg-amber-500/10 text-amber-200'
+    if (kind === 'signature') return 'border-fuchsia-400/30 bg-fuchsia-500/10 text-fuchsia-200'
+    return 'border-accent/20 bg-accent/10 text-accent'
+  }
+
+  const formatGuestbookTime = (createdAt: number) => {
+    if (!createdAt) return ''
+    return new Date(createdAt * 1000).toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
   }
 
   onMounted(() => {
