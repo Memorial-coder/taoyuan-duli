@@ -31,6 +31,7 @@ const DEFAULT_ACTIVITY_DOMAIN = 'festival';
 const FESTIVAL_REWARD_TICKET_TYPE = 'festival';
 const ONLINE_VISUAL_BOARD_TYPES = Object.freeze(['map', 'scene', 'track', 'async']);
 const ONLINE_VISUAL_HIGHLIGHT_TYPES = Object.freeze(['info', 'success', 'warning', 'danger', 'reward']);
+const ONLINE_VISUAL_NODE_STATES = Object.freeze(['hidden', 'locked', 'available', 'active', 'resolved', 'danger', 'reward', 'exit']);
 
 function resolveTargetBySaveIdOrUsername(payload = {}, emptyMessage = '请输入要邀请的玩家用户名') {
   const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
@@ -1238,6 +1239,43 @@ function normalizeOnlineVisualHighlight(entry) {
   };
 }
 
+function normalizeVisualResourcePreview(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  return Object.entries(source).reduce((preview, [key, rawValue]) => {
+    const id = sanitizeText(key, 40);
+    const amount = Math.max(0, Math.floor(Number(rawValue) || 0));
+    if (id && amount > 0) preview[id] = amount;
+    return preview;
+  }, {});
+}
+
+function normalizeOnlineVisualNode(entry) {
+  const id = sanitizeText(entry?.id, 80);
+  if (!id) return null;
+  const state = String(entry?.state || '').trim();
+  return {
+    id,
+    label: sanitizeText(entry?.label, 40),
+    kind: sanitizeText(entry?.kind, 40),
+    x: clampNumber(entry?.x, 0, 100),
+    y: clampNumber(entry?.y, 0, 100),
+    state: ONLINE_VISUAL_NODE_STATES.includes(state) ? state : 'hidden',
+    connected_node_ids: Array.isArray(entry?.connected_node_ids)
+      ? entry.connected_node_ids.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 12)
+      : [],
+    event_id: sanitizeText(entry?.event_id, 60),
+    available_action_ids: Array.isArray(entry?.available_action_ids)
+      ? entry.available_action_ids.map(item => sanitizeText(item, 60)).filter(Boolean).slice(0, 12)
+      : [],
+    owner_username: sanitizeText(entry?.owner_username, 40),
+    claimed_by: sanitizeText(entry?.claimed_by, 40),
+    risk_preview: sanitizeText(entry?.risk_preview, 120),
+    reward_preview: sanitizeText(entry?.reward_preview, 120),
+    resource_cost_preview: normalizeVisualResourcePreview(entry?.resource_cost_preview),
+    resource_reward_preview: normalizeVisualResourcePreview(entry?.resource_reward_preview),
+  };
+}
+
 function resolveDefaultVisualBoardType(room) {
   const gameplayTemplateId = sanitizeText(room?.gameplay_template_id, 40);
   const roomTemplateId = sanitizeText(room?.template_id, 40);
@@ -1264,6 +1302,9 @@ function normalizeOnlineVisualState(value, room) {
     board_id: sanitizeText(source.board_id, 80) || buildDefaultVisualBoardId(room),
     revision: Math.max(0, Math.floor(Number(source.revision) || 0)),
     selected_visual_id: sanitizeText(source.selected_visual_id, 80),
+    nodes: Array.isArray(source.nodes)
+      ? source.nodes.map(normalizeOnlineVisualNode).filter(Boolean).slice(0, 48)
+      : [],
     highlights: Array.isArray(source.highlights)
       ? source.highlights.map(normalizeOnlineVisualHighlight).slice(0, 16)
       : [],
