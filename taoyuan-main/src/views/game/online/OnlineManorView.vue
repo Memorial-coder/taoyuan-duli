@@ -415,30 +415,174 @@
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'visits'" class="game-panel-muted space-y-2 p-3">
-        <div class="flex items-center justify-between gap-2">
-          <p class="text-xs text-muted">来访会在 C4 迁成独立记录区；当前先显示最近摘要。</p>
-          <span class="text-[10px] text-accent">{{ visitEntries.length }} 次</span>
+      <div v-else-if="activeTab === 'visits'" class="space-y-3">
+        <div v-if="snapshot" class="game-panel-muted grid gap-3 p-3 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+          <div class="border border-accent/10 bg-black/10 p-3">
+            <div class="flex items-center gap-2 text-accent">
+              <MapPin :size="13" />
+              <p class="text-xs">记录这次来访</p>
+            </div>
+            <div class="mt-3 grid gap-2">
+              <select v-model="manorStore.visitPurposeDraft" class="online-select w-full">
+                <option v-for="option in visitPurposeOptions" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <input
+                v-model="manorStore.visitSummaryDraft"
+                maxlength="160"
+                class="online-input w-full"
+                placeholder="这次来访做了什么"
+              />
+              <input
+                v-model="manorStore.visitFeedbackDraft"
+                maxlength="160"
+                class="online-input w-full"
+                placeholder="给庄园主的反馈"
+              />
+            </div>
+            <div class="mt-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <p class="text-[10px] leading-5 text-muted">
+                行为 {{ visitSummaryLength }}/160 · 反馈 {{ visitFeedbackLength }}/160
+              </p>
+              <button
+                class="online-action-btn online-action-btn--compact online-action-btn--primary shrink-0"
+                type="button"
+                :disabled="!canRecordVisit"
+                @click="recordVisit"
+              >
+                <Send :size="12" />
+                {{ manorStore.visitActionRunning ? '记录中' : '记录来访' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 bg-black/10 p-3">
+            <div class="flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">来访记录</p>
+                <p class="mt-1 text-[10px] leading-5 text-muted">{{ snapshot.today_visit_summary || '今日暂无来访摘要' }}</p>
+              </div>
+              <span class="shrink-0 text-[10px] text-accent">{{ visitEntries.length }} 次</span>
+            </div>
+
+            <div v-if="manorStore.loading && visitEntries.length === 0" class="mt-3 border border-accent/10 bg-bg/30 p-3 text-xs text-muted">
+              正在加载来访记录。
+            </div>
+            <div v-else-if="manorStore.errorMessage && visitEntries.length === 0" class="mt-3 border border-red-300/20 bg-red-500/10 p-3 text-xs text-red-100">
+              {{ manorStore.errorMessage }}
+            </div>
+            <div v-else-if="visitEntries.length === 0" class="mt-3 border border-accent/10 bg-bg/30 p-3 text-xs text-muted">
+              当前还没有来访记录。
+            </div>
+
+            <div v-else class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
+              <div v-for="entry in visitEntries" :key="entry.id" class="border border-accent/10 bg-bg/30 p-3">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <p class="text-xs text-accent">{{ entry.visitor_display_name }} · {{ visitPurposeLabel(entry.purpose) }}</p>
+                  <span class="text-[10px] text-muted">{{ formatVisitTime(entry.created_at) }}</span>
+                </div>
+                <p class="mt-2 text-[10px] leading-5 text-muted">来访行为：{{ entry.summary || '前来参观庄园' }}</p>
+                <p v-if="entry.feedback" class="mt-1 text-[10px] leading-5 text-muted">来访反馈：{{ entry.feedback }}</p>
+                <p v-if="entry.carried_items.length > 0" class="mt-1 text-[10px] leading-5 text-muted">
+                  带走委托：{{ entry.carried_items.map(item => `${item.itemId} x${item.quantity}`).join('、') }}
+                </p>
+              </div>
+            </div>
+          </div>
         </div>
-        <div v-if="visitEntries.length === 0" class="border border-accent/10 bg-black/10 p-3 text-xs text-muted">
-          当前还没有来访记录。
-        </div>
-        <div v-for="entry in visitEntries.slice(0, 3)" :key="entry.id" class="border border-accent/10 bg-black/10 p-3">
-          <p class="text-xs text-accent">{{ entry.visitor_display_name }}</p>
-          <p class="mt-1 text-[10px] leading-5 text-muted">{{ entry.summary || '前来参观庄园' }}</p>
+
+        <div v-else class="game-panel-muted p-3 text-xs leading-5 text-muted">
+          先刷新庄园快照，来访页会显示来访目的、记录输入和历史列表。
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'guide'" class="game-panel-muted space-y-2 p-3">
-        <p class="text-xs leading-5 text-muted">
-          导览点会在 C4 迁入独立维护区；当前先展示已设参观点，不展开新增表单。
-        </p>
-        <div v-if="guidePoints.length === 0" class="border border-accent/10 bg-black/10 p-3 text-xs text-muted">
-          当前还没有导览点。
+      <div v-else-if="activeTab === 'guide'" class="space-y-3">
+        <div v-if="snapshot" class="game-panel-muted grid gap-3 p-3 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+          <div class="space-y-3">
+            <div v-if="isOwner" class="border border-accent/10 bg-black/10 p-3">
+              <div class="flex items-center gap-2 text-accent">
+                <Plus :size="13" />
+                <p class="text-xs">新增导览点</p>
+              </div>
+              <div class="mt-3 grid gap-2">
+                <input
+                  v-model="manorStore.guidePointTitleDraft"
+                  maxlength="30"
+                  class="online-input w-full"
+                  placeholder="参观点标题"
+                />
+                <input
+                  v-model="manorStore.guidePointSummaryDraft"
+                  maxlength="120"
+                  class="online-input w-full"
+                  placeholder="告诉访客为什么值得看"
+                />
+              </div>
+              <div class="mt-3 flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                <p class="text-[10px] leading-5 text-muted">
+                  标题 {{ guideTitleLength }}/30 · 说明 {{ guideSummaryLength }}/120
+                </p>
+                <button
+                  class="online-action-btn online-action-btn--compact online-action-btn--primary shrink-0"
+                  type="button"
+                  :disabled="!canSaveGuide"
+                  @click="saveGuide"
+                >
+                  <Plus :size="12" />
+                  {{ manorStore.guideActionRunning ? '保存中' : '加入导览点' }}
+                </button>
+              </div>
+            </div>
+
+            <div v-else class="border border-accent/10 bg-black/10 p-3">
+              <p class="text-xs text-accent">访客导览</p>
+              <p class="mt-1 text-[10px] leading-5 text-muted">访客可以查看庄园主人公开的路线和参观点，不显示导览维护表单。</p>
+            </div>
+
+            <div class="border border-accent/10 bg-black/10 p-3">
+              <div class="flex items-center gap-2 text-accent">
+                <Route :size="13" />
+                <p class="text-xs">路线摘要</p>
+              </div>
+              <p class="mt-2 text-xs text-accent">{{ currentGuideRoute?.title || '还没设置主题路线' }}</p>
+              <p class="mt-1 text-[10px] leading-5 text-muted">
+                {{ currentGuideRoute?.summary || '保存第一个参观点后，会自动整理出一条基础参观路线。' }}
+              </p>
+              <p class="mt-2 text-[10px] leading-5 text-muted">今日来访：{{ snapshot.today_visit_summary || '暂无来访' }}</p>
+            </div>
+          </div>
+
+          <div class="border border-accent/10 bg-black/10 p-3">
+            <div class="flex items-center justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">已设参观点</p>
+                <p class="mt-1 text-[10px] leading-5 text-muted">导览点在独立列表里维护，不再夹在庄园长页中间。</p>
+              </div>
+              <span class="shrink-0 text-[10px] text-accent">{{ guidePoints.length }} 个</span>
+            </div>
+
+            <div v-if="manorStore.loading && guidePoints.length === 0" class="mt-3 border border-accent/10 bg-bg/30 p-3 text-xs text-muted">
+              正在加载导览点。
+            </div>
+            <div v-else-if="manorStore.errorMessage && guidePoints.length === 0" class="mt-3 border border-red-300/20 bg-red-500/10 p-3 text-xs text-red-100">
+              {{ manorStore.errorMessage }}
+            </div>
+            <div v-else-if="guidePoints.length === 0" class="mt-3 border border-accent/10 bg-bg/30 p-3 text-xs text-muted">
+              当前还没有导览点。
+            </div>
+
+            <div v-else class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
+              <div v-for="point in guidePoints" :key="point.id" class="border border-accent/10 bg-bg/30 p-3">
+                <p class="text-xs text-accent">{{ point.order }}. {{ point.title }}</p>
+                <p class="mt-1 text-[10px] leading-5 text-muted">{{ point.summary }}</p>
+              </div>
+            </div>
+          </div>
         </div>
-        <div v-for="point in guidePoints" :key="point.id" class="border border-accent/10 bg-black/10 p-3">
-          <p class="text-xs text-accent">{{ point.order }}. {{ point.title }}</p>
-          <p class="mt-1 text-[10px] leading-5 text-muted">{{ point.summary }}</p>
+
+        <div v-else class="game-panel-muted p-3 text-xs leading-5 text-muted">
+          先刷新庄园快照，导览页会显示路线摘要、导览点新增和已设参观点。
         </div>
       </div>
 
@@ -466,10 +610,13 @@
     ExternalLink,
     Home,
     Image as ImageIcon,
+    MapPin,
     MessageSquare,
     Pin,
+    Plus,
     RefreshCw,
     Reply,
+    Route,
     Save,
     Send,
     Sparkles,
@@ -483,6 +630,7 @@
   type ManorTabKey = 'overview' | 'theme' | 'guestbook' | 'visits' | 'guide' | 'favorites'
   type ManorTabMeta = { key: ManorTabKey; label: string; summary: string }
   type GuestbookKind = 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'
+  type VisitPurpose = 'explore' | 'friend_visit' | 'gift' | 'quest' | 'other'
 
   const route = useRoute()
   const manorStore = useManorStore()
@@ -496,6 +644,13 @@
     { id: 'advice', label: '建议', helper: '给主人留一条经营建议，告诉他还能怎么继续打磨。' },
     { id: 'stamp', label: '图章', helper: '像盖章一样留下短印记，适合节气、主题和来访证明。' },
     { id: 'signature', label: '签名', helper: '用落款式写法留名，让来访痕迹更像一封短短的署名。' },
+  ]
+  const visitPurposeOptions: Array<{ value: VisitPurpose; label: string }> = [
+    { value: 'explore', label: '参观取景' },
+    { value: 'friend_visit', label: '好友回访' },
+    { value: 'gift', label: '带礼探访' },
+    { value: 'quest', label: '顺手带走需求' },
+    { value: 'other', label: '其他来意' },
   ]
   const tabs: ManorTabMeta[] = [
     { key: 'overview', label: '概览', summary: '先看庄园快照、主题与互动数量，不展开长表单。' },
@@ -537,7 +692,14 @@
   const guestbookDraftLength = computed(() => manorStore.guestbookDraft.trim().length)
   const canSubmitGuestbook = computed(() => guestbookDraftLength.value > 0 && !manorStore.guestbookActionRunning)
   const visitEntries = computed(() => snapshot.value?.visit_entries ?? [])
+  const visitSummaryLength = computed(() => manorStore.visitSummaryDraft.length)
+  const visitFeedbackLength = computed(() => manorStore.visitFeedbackDraft.length)
+  const canRecordVisit = computed(() => !manorStore.visitActionRunning)
   const guidePoints = computed(() => snapshot.value?.guide_points ?? [])
+  const currentGuideRoute = computed(() => snapshot.value?.guide_routes?.[0] ?? null)
+  const guideTitleLength = computed(() => manorStore.guidePointTitleDraft.length)
+  const guideSummaryLength = computed(() => manorStore.guidePointSummaryDraft.length)
+  const canSaveGuide = computed(() => manorStore.guidePointTitleDraft.trim().length > 0 && !manorStore.guideActionRunning)
   const activeTabMeta = computed<ManorTabMeta>(() => tabs.find(tab => tab.key === activeTab.value) ?? defaultTab)
 
   const identityLabel = computed(() => {
@@ -672,6 +834,29 @@
       minute: '2-digit',
       hour12: false,
     })
+  }
+
+  const recordVisit = async () => {
+    await manorStore.createVisitRecord().catch(() => {})
+  }
+
+  const visitPurposeLabel = (purpose: string) => {
+    return visitPurposeOptions.find(option => option.value === purpose)?.label || '其他来意'
+  }
+
+  const formatVisitTime = (createdAt: number) => {
+    if (!createdAt) return ''
+    return new Date(createdAt * 1000).toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  }
+
+  const saveGuide = async () => {
+    await manorStore.saveGuideSnapshot().catch(() => {})
   }
 
   onMounted(() => {
