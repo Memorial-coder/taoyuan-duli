@@ -110,12 +110,14 @@
   import { initCurrentAccount } from '@/utils/accountStorage'
   import { clearStoredAdminToken } from '@/utils/taoyuanMailboxAdminApi'
   import { useSaveStore } from '@/stores/useSaveStore'
+  import { useMailboxStore } from '@/stores/useMailboxStore'
 
   const router = useRouter()
   const route = useRoute()
   const { startBgm } = useAudio()
   const pkg = _pkg as typeof _pkg & { title: string }
   const saveStore = useSaveStore()
+  const mailboxStore = useMailboxStore()
 
   const authMode = ref<'login' | 'register'>('login')
   const authSubmitting = ref(false)
@@ -193,6 +195,7 @@
 
       await initCurrentAccount()
       saveStore.reloadAccountScopedState()
+      mailboxStore.resetForAccountChange()
       if (saveStore.storageMode === 'server') {
         await saveStore.syncPendingServerSaves()
       }
@@ -218,6 +221,7 @@
     clearStoredAdminToken()
     await initCurrentAccount()
     saveStore.reloadAccountScopedState()
+    mailboxStore.resetForAccountChange()
     await loadCurrentUser()
     if (currentUser.value) {
       showFloat('退出登录未完成，请稍后重试。', 'danger')

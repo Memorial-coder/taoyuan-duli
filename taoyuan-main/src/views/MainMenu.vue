@@ -454,6 +454,7 @@
   import { usePlayerStore } from '@/stores/usePlayerStore'
   import { useQuestStore } from '@/stores/useQuestStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
+  import { useMailboxStore } from '@/stores/useMailboxStore'
   import { FARM_MAP_DEFS } from '@/data/farmMaps'
   import _pkg from '../../package.json'
   import { useAudio } from '@/composables/useAudio'
@@ -477,6 +478,7 @@
   const playerStore = usePlayerStore()
   const questStore = useQuestStore()
   const inventoryStore = useInventoryStore()
+  const mailboxStore = useMailboxStore()
 
   const slots = ref<Awaited<ReturnType<typeof saveStore.getSlots>>>([])
   const showCharCreate = ref(false)
@@ -717,6 +719,7 @@
     }
     await initCurrentAccount()
     saveStore.reloadAccountScopedState()
+    mailboxStore.resetForAccountChange()
     await loadCurrentUser()
     if (saveStore.storageMode === 'server') {
       await saveStore.syncPendingServerSaves()
@@ -998,6 +1001,7 @@
     void (async () => {
       await initCurrentAccount()
       saveStore.reloadAccountScopedState()
+      mailboxStore.resetForAccountChange()
       if (saveStore.storageMode === 'server') {
         await saveStore.syncPendingServerSaves()
       }

@@ -1,6 +1,7 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
 import { useSaveStore } from '@/stores/useSaveStore'
+import { isProtectedApiError } from '@/utils/protectedApi'
 import {
   clearClaimedMailboxMail,
   claimAllMailboxMail,
@@ -184,6 +185,25 @@ export interface PlayerGiftPackageRewardDraft {
   quality?: string
 }
 
+const createEmptyInboxStatus = (): MailInboxStatus => ({
+  unread_count: 0,
+  pinned_count: 0,
+  important_count: 0,
+  newest_unread: null,
+  newest_important: null
+})
+
+const createEmptyArrivalDigest = (): MailArrivalDigest => ({
+  count: 0,
+  titles: [],
+  first_mail_id: null,
+  arrived_at: null
+})
+
+const createDefaultGiftPackageRewards = (): PlayerGiftPackageRewardDraft[] => [
+  { type: 'item', id: '', quantity: 1, quality: 'normal' }
+]
+
 const toSummary = (mail: TaoyuanMailSummary | TaoyuanMailDetail): TaoyuanMailSummary => ({
   id: mail.id,
   campaign_id: mail.campaign_id,
@@ -221,19 +241,8 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
   const detailMap = ref<Record<string, TaoyuanMailDetail>>({})
   const receipts = ref<TaoyuanMailReceipt[]>([])
   const memorialEntries = ref<TaoyuanMemorialEntry[]>([])
-  const inboxStatus = ref<MailInboxStatus>({
-    unread_count: 0,
-    pinned_count: 0,
-    important_count: 0,
-    newest_unread: null,
-    newest_important: null
-  })
-  const arrivalDigest = ref<MailArrivalDigest>({
-    count: 0,
-    titles: [],
-    first_mail_id: null,
-    arrived_at: null
-  })
+  const inboxStatus = ref<MailInboxStatus>(createEmptyInboxStatus())
+  const arrivalDigest = ref<MailArrivalDigest>(createEmptyArrivalDigest())
   const loading = ref(false)
   const lastLoadedAt = ref(0)
   const sendLetterRunning = ref(false)
@@ -250,11 +259,38 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
   const giftPackageTitleDraft = ref('')
   const giftPackageContentDraft = ref('')
   const giftPackageTemplateTypeDraft = ref<'material_package' | 'seed_package' | 'fish_fry_package' | 'decoration_package' | 'souvenir_package'>('material_package')
-  const giftPackageRewardsDraft = ref<PlayerGiftPackageRewardDraft[]>([
-    { type: 'item', id: '', quantity: 1, quality: 'normal' }
-  ])
+  const giftPackageRewardsDraft = ref<PlayerGiftPackageRewardDraft[]>(createDefaultGiftPackageRewards())
 
   let lastSeenMailIds = new Set<string>()
+
+  const resetForAccountChange = () => {
+    mails.value = []
+    sentMails.value = []
+    unreadCount.value = 0
+    detailMap.value = {}
+    receipts.value = []
+    memorialEntries.value = []
+    inboxStatus.value = createEmptyInboxStatus()
+    arrivalDigest.value = createEmptyArrivalDigest()
+    loading.value = false
+    lastLoadedAt.value = 0
+    sendLetterRunning.value = false
+    letterTemplatePresets.value = []
+    letterTargetDraft.value = ''
+    letterTargetSaveIdDraft.value = ''
+    letterTitleDraft.value = ''
+    letterContentDraft.value = ''
+    letterTemplateTypeDraft.value = 'player_letter'
+    letterPhotoUrlDraft.value = ''
+    letterPhotoAltDraft.value = ''
+    giftPackageTargetDraft.value = ''
+    giftPackageTargetSaveIdDraft.value = ''
+    giftPackageTitleDraft.value = ''
+    giftPackageContentDraft.value = ''
+    giftPackageTemplateTypeDraft.value = 'material_package'
+    giftPackageRewardsDraft.value = createDefaultGiftPackageRewards()
+    lastSeenMailIds = new Set<string>()
+  }
 
   const upsertMail = (mail: TaoyuanMailSummary | TaoyuanMailDetail) => {
     const summary = toSummary(mail)
@@ -277,12 +313,7 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
   }
 
   const clearArrivalDigest = () => {
-    arrivalDigest.value = {
-      count: 0,
-      titles: [],
-      first_mail_id: null,
-      arrived_at: null
-    }
+    arrivalDigest.value = createEmptyArrivalDigest()
   }
 
   const refreshReceipts = async (limit = 20) => {
@@ -452,6 +483,14 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
         newest_important: (inbox.newest_important || null) as TaoyuanMailSummary | null
       }
       lastLoadedAt.value = Date.now()
+    } catch (error) {
+      if (
+        (isProtectedApiError(error) && error.status === 401) ||
+        (error instanceof Error && error.message.includes('请先登录'))
+      ) {
+        resetForAccountChange()
+      }
+      throw error
     } finally {
       if (!silent) loading.value = false
     }
@@ -599,7 +638,7 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
       await refreshList()
       giftPackageTitleDraft.value = ''
       giftPackageContentDraft.value = ''
-      giftPackageRewardsDraft.value = [{ type: 'item', id: '', quantity: 1, quality: 'normal' }]
+      giftPackageRewardsDraft.value = createDefaultGiftPackageRewards()
       return data
     } finally {
       sendLetterRunning.value = false
@@ -644,6 +683,7 @@ export const useMailboxStore = defineStore('taoyuanMailbox', () => {
     setPinned,
     saveToMemorial,
     clearArrivalDigest,
+    resetForAccountChange,
     sendPlayerLetterMail,
     sendPlayerGiftPackageMail,
     addGiftPackageRewardDraft,

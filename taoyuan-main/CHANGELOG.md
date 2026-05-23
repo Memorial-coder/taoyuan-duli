@@ -27,6 +27,11 @@
 - `forceRefreshCurrentAccountContext()` 现在只有在 `/api/me` 明确返回 401 时才清空当前账号上下文；网络异常、非 JSON、网关错误或服务端临时失败会保留当前账号 key 与 CSRF。
 - 新增 `scripts/qa-account-context-guard.mjs` 与 `npm --prefix taoyuan-main run qa:account-context-guard`，固定 `/api/me` 瞬时失败不能再走 guest 清理路径。
 
+### 0523 邮箱账号切换清理
+- `useMailboxStore` 新增 `resetForAccountChange()`，统一清理邮件列表、未读数、详情缓存、收发件记录、纪念记录、抵达提示和写信 / 礼包草稿。
+- 登录成功、退出登录和主菜单账号作用域重载后会主动调用邮箱清理，避免移动端角标或邮箱页继续展示上一账号数据。
+- `refreshList()` 遇到确认未登录状态会清空邮箱可见状态；新增 `scripts/qa-mailbox-account-reset.mjs` 与 `npm --prefix taoyuan-main run qa:mailbox-account-reset` 固定该保护。
+
 ### 0522 在线村社核心操作验收（阶段 J2 / 村社）
 - 在线村社拆页补齐自动化验收锚点，覆盖创建村社表单、申请处理、成员职位调整、仓库入仓、公共建设贡献和提案创建 / 投票按钮。
 - `scripts/qa-online-regression-live-smoke.mjs` 新增村社核心操作烟测，社长通过 UI 创建村社、接受申请、调整成员职位、入仓、贡献公共建设并发起 / 投票提案；申请人通过服务端 API 申请加入，服务端 overview 会读回成员与村社状态。
