@@ -32,6 +32,7 @@ const assertVisualStateShape = (visualState, expectedBoardType, expectedBoardIdP
   assert.equal(visualState.selected_visual_id, '', 'new compatible visual_state should not select a visual id')
   assert.deepEqual(visualState.nodes, [], 'new compatible visual_state nodes should be empty')
   assert.deepEqual(visualState.objects, [], 'new compatible visual_state objects should be empty')
+  assert.deepEqual(visualState.tracks, [], 'new compatible visual_state tracks should be empty')
   assert.deepEqual(visualState.highlights, [], 'new compatible visual_state highlights should be empty')
   assert.equal(visualState.recent_feedback, '', 'new compatible visual_state recent_feedback should be empty')
 }
@@ -52,6 +53,13 @@ const expedition = await runtime.createExpeditionRoom({
   title: 'visual expedition smoke',
 }, actor('visual_host_expedition'))
 assertVisualStateShape(expedition.room.visual_state, 'map', 'expedition:cavern_duo:expedition_cavern')
+
+const dragonBoat = await runtime.createFestivalRoom({
+  template_id: 'dragon_boat',
+  gameplay_template_id: 'squad_coop',
+  title: 'visual dragon boat smoke',
+}, actor('visual_host_dragon'))
+assertVisualStateShape(dragonBoat.room.visual_state, 'track', 'festival:dragon_boat:squad_coop')
 
 const overview = await runtime.listExpeditionRoomOverview('visual_host_expedition')
 assertVisualStateShape(overview.my_room?.visual_state, 'map', 'expedition:cavern_duo:expedition_cavern')
@@ -236,6 +244,135 @@ assert.equal(objects[0].cooperation_current_count, 1, 'object cooperation curren
 assert.equal(objects[1].progress_value, 4, 'object progress should clamp to target')
 assert.equal(objects[2].x, 100, 'object x should clamp values above board range')
 assert.equal(objects[2].y, 0, 'object y should clamp values below board range')
+
+const trackStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+trackStore.rooms = trackStore.rooms.map(room => {
+  if (room.id !== dragonBoat.room.id) return room
+  return {
+    ...room,
+    visual_state: {
+      board_type: 'track',
+      board_id: 'festival:dragon_boat:squad_coop',
+      revision: 5,
+      selected_visual_id: 'cell_finish',
+      nodes: [],
+      objects: [],
+      tracks: [
+        {
+          id: 'track_dragon_boat_river',
+          label: '龙舟河道',
+          kind: 'dragon_boat',
+          length: 6,
+          current_round: 2,
+          cells: [
+            {
+              id: 'cell_start',
+              label: '起点水面',
+              index: -1,
+              kind: 'normal',
+              occupant_team_ids: ['team_red'],
+              event_id: 'dragon_boat_start',
+              effect_ids: ['advance'],
+              available_action_ids: ['paddle'],
+            },
+            {
+              id: 'cell_cross_current',
+              label: '横流',
+              index: 2,
+              kind: 'risk',
+              occupant_team_ids: ['team_blue'],
+              event_id: 'dragon_boat_cross_current',
+              effect_ids: ['blocked', 'retreat'],
+              available_action_ids: ['steady_rudder'],
+              risk_preview: '横流会让船只后退。',
+            },
+            {
+              id: 'cell_sprint',
+              label: '冲刺水道',
+              index: 4,
+              kind: 'boost',
+              occupant_team_ids: [],
+              effect_ids: ['boost', 'protect', 'unknown_effect'],
+              available_action_ids: ['sprint'],
+              reward_preview: '命中鼓点可额外推进。',
+            },
+            {
+              id: 'cell_finish',
+              label: '终点',
+              index: 99,
+              kind: 'finish',
+              occupant_team_ids: ['team_gold'],
+              event_id: 'dragon_boat_finish',
+              effect_ids: ['advance'],
+            },
+            {
+              label: '缺少 ID 的坏格子会被过滤',
+              index: 3,
+              kind: 'turn',
+            },
+          ],
+          teams: [
+            {
+              team_id: 'team_red',
+              label: '红船',
+              marker: 'dragon_red',
+              position_index: 0,
+              state: 'advancing',
+              last_action_id: 'paddle',
+            },
+            {
+              team_id: 'team_blue',
+              label: '蓝船',
+              marker: 'dragon_blue',
+              position_index: 2,
+              state: 'blocked',
+              last_action_id: 'steady_rudder',
+            },
+            {
+              team_id: 'team_gold',
+              label: '金船',
+              marker: 'dragon_gold',
+              position_index: 99,
+              state: 'finished',
+              last_action_id: 'sprint',
+            },
+            {
+              label: '缺少 team_id 的坏队伍会被过滤',
+              position_index: 1,
+            },
+          ],
+        },
+        {
+          label: '缺少 ID 的坏轨道会被过滤',
+        },
+      ],
+      highlights: [],
+      recent_feedback: '红船正在加速。',
+    },
+  }
+})
+await writeFile(roomStoreFile, JSON.stringify(trackStore, null, 2), 'utf8')
+
+const trackOverview = await runtime.listFestivalRoomOverview('visual_host_dragon')
+const tracks = trackOverview.my_room?.visual_state?.tracks || []
+assert.equal(tracks.length, 1, 'visual_state tracks should keep valid tracks and filter invalid entries')
+assert.equal(tracks[0].id, 'track_dragon_boat_river', 'track id should round-trip')
+assert.equal(tracks[0].length, 6, 'track length should round-trip')
+assert.equal(tracks[0].current_round, 2, 'track current round should round-trip')
+assert.equal(tracks[0].cells.length, 4, 'track cells should keep valid cells and filter invalid entries')
+assert.deepEqual(tracks[0].cells.map(cell => cell.id), ['cell_start', 'cell_cross_current', 'cell_sprint', 'cell_finish'])
+assert.equal(tracks[0].cells[0].index, 0, 'track cell index should clamp below zero')
+assert.equal(tracks[0].cells[1].kind, 'risk', 'track cell kind should preserve allowed kind')
+assert.deepEqual(tracks[0].cells[1].occupant_team_ids, ['team_blue'], 'track cell occupants should round-trip')
+assert.deepEqual(tracks[0].cells[1].effect_ids, ['blocked', 'retreat'], 'track cell effects should round-trip')
+assert.deepEqual(tracks[0].cells[2].effect_ids, ['boost', 'protect'], 'track cell effects should filter unknown values')
+assert.deepEqual(tracks[0].cells[2].available_action_ids, ['sprint'], 'track cell action ids should round-trip')
+assert.equal(tracks[0].cells[2].reward_preview, '命中鼓点可额外推进。', 'track cell reward preview should round-trip')
+assert.equal(tracks[0].teams.length, 3, 'track teams should keep valid teams and filter invalid entries')
+assert.deepEqual(tracks[0].teams.map(team => team.team_id), ['team_red', 'team_blue', 'team_gold'])
+assert.equal(tracks[0].teams[0].state, 'advancing', 'track team state should preserve advancing')
+assert.equal(tracks[0].teams[1].state, 'blocked', 'track team state should preserve blocked')
+assert.equal(tracks[0].teams[2].state, 'finished', 'track team state should preserve finished')
 
 await rm(tempDir, { recursive: true, force: true })
 console.log('[qa-activity-room-visual-state] passed')

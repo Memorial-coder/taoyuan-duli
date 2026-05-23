@@ -33,6 +33,9 @@ const ONLINE_VISUAL_BOARD_TYPES = Object.freeze(['map', 'scene', 'track', 'async
 const ONLINE_VISUAL_HIGHLIGHT_TYPES = Object.freeze(['info', 'success', 'warning', 'danger', 'reward']);
 const ONLINE_VISUAL_NODE_STATES = Object.freeze(['hidden', 'locked', 'available', 'active', 'resolved', 'danger', 'reward', 'exit']);
 const ONLINE_VISUAL_OBJECT_STATES = Object.freeze(['idle', 'needs_action', 'busy', 'complete', 'overheated', 'blocked']);
+const ONLINE_VISUAL_TRACK_CELL_KINDS = Object.freeze(['normal', 'boost', 'risk', 'turn', 'finish']);
+const ONLINE_VISUAL_TRACK_TEAM_STATES = Object.freeze(['idle', 'advancing', 'retreating', 'boosted', 'blocked', 'protected', 'finished']);
+const ONLINE_VISUAL_TRACK_EFFECTS = Object.freeze(['advance', 'retreat', 'boost', 'blocked', 'protect']);
 
 function resolveTargetBySaveIdOrUsername(payload = {}, emptyMessage = '请输入要邀请的玩家用户名') {
   const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
@@ -1304,6 +1307,65 @@ function normalizeOnlineVisualObject(entry) {
   };
 }
 
+function normalizeOnlineVisualTrackCell(entry) {
+  const id = sanitizeText(entry?.id, 80);
+  if (!id) return null;
+  const kind = String(entry?.kind || '').trim();
+  return {
+    id,
+    label: sanitizeText(entry?.label, 40),
+    index: Math.max(0, Math.floor(Number(entry?.index) || 0)),
+    kind: ONLINE_VISUAL_TRACK_CELL_KINDS.includes(kind) ? kind : 'normal',
+    occupant_team_ids: Array.isArray(entry?.occupant_team_ids)
+      ? entry.occupant_team_ids.map(item => sanitizeText(item, 60)).filter(Boolean).slice(0, 8)
+      : [],
+    event_id: sanitizeText(entry?.event_id, 60),
+    effect_ids: Array.isArray(entry?.effect_ids)
+      ? entry.effect_ids
+        .map(item => String(item || '').trim())
+        .filter(item => ONLINE_VISUAL_TRACK_EFFECTS.includes(item))
+        .slice(0, 8)
+      : [],
+    available_action_ids: Array.isArray(entry?.available_action_ids)
+      ? entry.available_action_ids.map(item => sanitizeText(item, 60)).filter(Boolean).slice(0, 12)
+      : [],
+    risk_preview: sanitizeText(entry?.risk_preview, 120),
+    reward_preview: sanitizeText(entry?.reward_preview, 120),
+  };
+}
+
+function normalizeOnlineVisualTrackTeam(entry) {
+  const teamId = sanitizeText(entry?.team_id, 60);
+  if (!teamId) return null;
+  const state = String(entry?.state || '').trim();
+  return {
+    team_id: teamId,
+    label: sanitizeText(entry?.label, 40),
+    marker: sanitizeText(entry?.marker, 40),
+    position_index: Math.max(0, Math.floor(Number(entry?.position_index) || 0)),
+    state: ONLINE_VISUAL_TRACK_TEAM_STATES.includes(state) ? state : 'idle',
+    last_action_id: sanitizeText(entry?.last_action_id, 60),
+  };
+}
+
+function normalizeOnlineVisualTrack(entry) {
+  const id = sanitizeText(entry?.id, 80);
+  if (!id) return null;
+  return {
+    id,
+    label: sanitizeText(entry?.label, 40),
+    kind: sanitizeText(entry?.kind, 40),
+    length: Math.max(0, Math.floor(Number(entry?.length) || 0)),
+    current_round: Math.max(0, Math.floor(Number(entry?.current_round) || 0)),
+    cells: Array.isArray(entry?.cells)
+      ? entry.cells.map(normalizeOnlineVisualTrackCell).filter(Boolean).slice(0, 96)
+      : [],
+    teams: Array.isArray(entry?.teams)
+      ? entry.teams.map(normalizeOnlineVisualTrackTeam).filter(Boolean).slice(0, 12)
+      : [],
+  };
+}
+
 function resolveDefaultVisualBoardType(room) {
   const gameplayTemplateId = sanitizeText(room?.gameplay_template_id, 40);
   const roomTemplateId = sanitizeText(room?.template_id, 40);
@@ -1335,6 +1397,9 @@ function normalizeOnlineVisualState(value, room) {
       : [],
     objects: Array.isArray(source.objects)
       ? source.objects.map(normalizeOnlineVisualObject).filter(Boolean).slice(0, 64)
+      : [],
+    tracks: Array.isArray(source.tracks)
+      ? source.tracks.map(normalizeOnlineVisualTrack).filter(Boolean).slice(0, 8)
       : [],
     highlights: Array.isArray(source.highlights)
       ? source.highlights.map(normalizeOnlineVisualHighlight).slice(0, 16)

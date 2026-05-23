@@ -6,6 +6,12 @@ export type OnlineVisualNodeState = 'hidden' | 'locked' | 'available' | 'active'
 
 export type OnlineVisualObjectState = 'idle' | 'needs_action' | 'busy' | 'complete' | 'overheated' | 'blocked'
 
+export type OnlineVisualTrackCellKind = 'normal' | 'boost' | 'risk' | 'turn' | 'finish'
+
+export type OnlineVisualTrackTeamState = 'idle' | 'advancing' | 'retreating' | 'boosted' | 'blocked' | 'protected' | 'finished'
+
+export type OnlineVisualTrackEffect = 'advance' | 'retreat' | 'boost' | 'blocked' | 'protect'
+
 export interface OnlineVisualHighlight {
   id: string
   visual_id: string
@@ -50,6 +56,38 @@ export interface OnlineVisualObject {
   cooperation_current_count: number
 }
 
+export interface OnlineVisualTrackCell {
+  id: string
+  label: string
+  index: number
+  kind: OnlineVisualTrackCellKind
+  occupant_team_ids: string[]
+  event_id: string
+  effect_ids: OnlineVisualTrackEffect[]
+  available_action_ids: string[]
+  risk_preview: string
+  reward_preview: string
+}
+
+export interface OnlineVisualTrackTeam {
+  team_id: string
+  label: string
+  marker: string
+  position_index: number
+  state: OnlineVisualTrackTeamState
+  last_action_id: string
+}
+
+export interface OnlineVisualTrack {
+  id: string
+  label: string
+  kind: string
+  length: number
+  current_round: number
+  cells: OnlineVisualTrackCell[]
+  teams: OnlineVisualTrackTeam[]
+}
+
 export interface OnlineVisualState {
   board_type: OnlineVisualBoardType
   board_id: string
@@ -57,6 +95,7 @@ export interface OnlineVisualState {
   selected_visual_id: string
   nodes: OnlineVisualNode[]
   objects: OnlineVisualObject[]
+  tracks: OnlineVisualTrack[]
   highlights: OnlineVisualHighlight[]
   recent_feedback: string
 }
