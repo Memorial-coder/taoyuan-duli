@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0522 在线庄园核心操作验收（阶段 J2 / 庄园）
+- 在线庄园拆页补齐访客收藏 / 关注入口，以及庄园主的回复、置顶、导览保存和主题周保存路径；留言、来访和收藏概览继续留在庄园模块内。
+- `scripts/qa-online-regression-live-smoke.mjs` 新增庄园核心操作烟测，使用访客与庄园主两套会话分别验证留言、来访、收藏 / 关注、回复、置顶、主题保存与导览写入，并从服务端快照读回。
+- 验证已通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:online-regression-live-smoke`、`node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs` 和 `git diff --check`。
+
 ### 0522 移动端在线中心验收（阶段 J3）
 - 在线中心顶部新增五个紧凑快捷入口，让 390x844 / 360x780 首屏能直接识别庄园、邻里、委托、节会、村社五大分流。
 - `scripts/qa-mobile-ui-smoke.mjs` 新增在线中心与在线委托移动端场景，覆盖五张入口卡、快捷入口、二级导航、发布表单字段和主要按钮的视口内布局。

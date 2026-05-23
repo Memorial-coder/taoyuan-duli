@@ -92,6 +92,7 @@
               </div>
               <input
                 v-model="manorStore.coverImageAltDraft"
+                data-testid="online-manor-cover-alt-input"
                 maxlength="120"
                 class="online-input mt-2 w-full"
                 placeholder="主图说明"
@@ -103,11 +104,13 @@
               <p class="mt-1 text-[10px] leading-5 text-muted">主题名、模板和主图会作为同一次主题周快照保存。</p>
               <input
                 v-model="manorStore.themeLabelDraft"
+                data-testid="online-manor-theme-label-input"
                 maxlength="30"
                 class="online-input mt-3 w-full"
                 placeholder="保存当前主题名"
               />
               <button
+                data-testid="online-manor-theme-save-button"
                 class="online-action-btn online-action-btn--compact online-action-btn--primary mt-2 w-full justify-center"
                 type="button"
                 :disabled="manorStore.themeActionRunning"
@@ -164,6 +167,7 @@
               <select
                 v-if="isOwner && templateOptions.length > 0"
                 v-model="manorStore.templateIdDraft"
+                data-testid="online-manor-template-select"
                 class="online-select shrink-0 md:w-48"
               >
                 <option v-for="option in templateOptions" :key="option.id" :value="option.id">
@@ -269,6 +273,7 @@
             <div class="border border-accent/10 bg-black/10 p-3">
               <textarea
                 v-model="manorStore.guestbookDraft"
+                data-testid="online-manor-guestbook-input"
                 rows="4"
                 maxlength="160"
                 class="online-textarea w-full"
@@ -279,6 +284,7 @@
                   将以“{{ currentGuestbookKind.label }}”写入这座庄园的互动痕迹。{{ guestbookDraftLength }}/160
                 </p>
                 <button
+                  data-testid="online-manor-guestbook-submit"
                   class="online-action-btn online-action-btn--compact online-action-btn--primary shrink-0"
                   type="button"
                   :disabled="!canSubmitGuestbook"
@@ -310,8 +316,8 @@
               当前还没有访客留言。
             </div>
 
-            <div v-else class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
-              <div v-for="entry in guestbookEntries" :key="entry.id" class="border border-accent/10 bg-bg/30 p-3">
+            <div v-else data-testid="online-manor-guestbook-list" class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
+              <div v-for="entry in guestbookEntries" :key="entry.id" data-testid="online-manor-guestbook-entry" class="border border-accent/10 bg-bg/30 p-3">
                 <div class="flex items-start justify-between gap-2">
                   <div class="min-w-0 flex-1">
                     <div class="flex flex-wrap items-center gap-2">
@@ -341,6 +347,7 @@
                   </div>
                   <button
                     v-if="isOwner"
+                    data-testid="online-manor-guestbook-pin"
                     class="online-action-btn online-action-btn--compact shrink-0"
                     type="button"
                     :disabled="manorStore.guestbookActionRunning"
@@ -358,11 +365,13 @@
                 <div v-else-if="isOwner" class="online-action-row mt-3">
                   <input
                     v-model="manorStore.guestbookReplyDraft[entry.id]"
+                    data-testid="online-manor-guestbook-reply-input"
                     maxlength="160"
                     class="online-input"
                     placeholder="回复这条留言"
                   />
                   <button
+                    data-testid="online-manor-guestbook-reply-submit"
                     class="online-action-btn online-action-btn--compact"
                     type="button"
                     :disabled="manorStore.guestbookActionRunning || !manorStore.guestbookReplyDraft[entry.id]?.trim()"
@@ -390,19 +399,21 @@
               <p class="text-xs">记录这次来访</p>
             </div>
             <div class="mt-3 grid gap-2">
-              <select v-model="manorStore.visitPurposeDraft" class="online-select w-full">
+              <select v-model="manorStore.visitPurposeDraft" data-testid="online-manor-visit-purpose-select" class="online-select w-full">
                 <option v-for="option in visitPurposeOptions" :key="option.value" :value="option.value">
                   {{ option.label }}
                 </option>
               </select>
               <input
                 v-model="manorStore.visitSummaryDraft"
+                data-testid="online-manor-visit-summary-input"
                 maxlength="160"
                 class="online-input w-full"
                 placeholder="这次来访做了什么"
               />
               <input
                 v-model="manorStore.visitFeedbackDraft"
+                data-testid="online-manor-visit-feedback-input"
                 maxlength="160"
                 class="online-input w-full"
                 placeholder="给庄园主的反馈"
@@ -413,6 +424,7 @@
                 行为 {{ visitSummaryLength }}/160 · 反馈 {{ visitFeedbackLength }}/160
               </p>
               <button
+                data-testid="online-manor-visit-submit"
                 class="online-action-btn online-action-btn--compact online-action-btn--primary shrink-0"
                 type="button"
                 :disabled="!canRecordVisit"
@@ -443,8 +455,8 @@
               当前还没有来访记录。
             </div>
 
-            <div v-else class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
-              <div v-for="entry in visitEntries" :key="entry.id" class="border border-accent/10 bg-bg/30 p-3">
+            <div v-else data-testid="online-manor-visit-list" class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
+              <div v-for="entry in visitEntries" :key="entry.id" data-testid="online-manor-visit-entry" class="border border-accent/10 bg-bg/30 p-3">
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <p class="text-xs text-accent">{{ entry.visitor_display_name }} · {{ visitPurposeLabel(entry.purpose) }}</p>
                   <span class="text-[10px] text-muted">{{ formatVisitTime(entry.created_at) }}</span>
@@ -475,12 +487,14 @@
               <div class="mt-3 grid gap-2">
                 <input
                   v-model="manorStore.guidePointTitleDraft"
+                  data-testid="online-manor-guide-title-input"
                   maxlength="30"
                   class="online-input w-full"
                   placeholder="参观点标题"
                 />
                 <input
                   v-model="manorStore.guidePointSummaryDraft"
+                  data-testid="online-manor-guide-summary-input"
                   maxlength="120"
                   class="online-input w-full"
                   placeholder="告诉访客为什么值得看"
@@ -491,6 +505,7 @@
                   标题 {{ guideTitleLength }}/30 · 说明 {{ guideSummaryLength }}/120
                 </p>
                 <button
+                  data-testid="online-manor-guide-submit"
                   class="online-action-btn online-action-btn--compact online-action-btn--primary shrink-0"
                   type="button"
                   :disabled="!canSaveGuide"
@@ -539,8 +554,8 @@
               当前还没有导览点。
             </div>
 
-            <div v-else class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
-              <div v-for="point in guidePoints" :key="point.id" class="border border-accent/10 bg-bg/30 p-3">
+            <div v-else data-testid="online-manor-guide-list" class="mt-3 max-h-[30rem] space-y-2 overflow-y-auto pr-1">
+              <div v-for="point in guidePoints" :key="point.id" data-testid="online-manor-guide-point" class="border border-accent/10 bg-bg/30 p-3">
                 <p class="text-xs text-accent">{{ point.order }}. {{ point.title }}</p>
                 <p class="mt-1 text-[10px] leading-5 text-muted">{{ point.summary }}</p>
               </div>
@@ -555,9 +570,48 @@
 
       <div v-else class="game-panel-muted grid gap-2 p-3 md:grid-cols-2">
         <div class="border border-accent/10 bg-black/10 p-3">
-          <p class="text-[10px] text-muted">我的收藏</p>
-          <p class="mt-1 text-sm text-accent">{{ manorStore.favoriteOverview?.favorites.length ?? 0 }} 项</p>
-          <p class="mt-2 text-[10px] leading-5 text-muted">收藏列表会留在庄园模块内，不放回在线中心首页。</p>
+          <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div class="min-w-0">
+              <p class="text-[10px] text-muted">{{ isOwner ? '我的收藏' : '收藏与关注' }}</p>
+              <p class="mt-1 text-sm text-accent">{{ favoriteOverviewLabel }}</p>
+              <p class="mt-2 text-[10px] leading-5 text-muted">
+                {{ isOwner ? '这是你自己的庄园，收藏和关注列表会展示其他玩家与热门庄园。' : '访客模式可以把当前庄园加入收藏或关注更新，刷新后概览会同步状态。' }}
+              </p>
+            </div>
+            <div v-if="!isOwner" class="flex shrink-0 flex-col gap-2">
+              <button
+                data-testid="online-manor-favorite-button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                type="button"
+                :disabled="manorStore.favoriteActionRunning || snapshot?.is_favorited_by_viewer"
+                @click="favoriteManor"
+              >
+                <Sparkles :size="12" />
+                {{ snapshot?.is_favorited_by_viewer ? '已收藏' : '收藏庄园' }}
+              </button>
+              <button
+                data-testid="online-manor-follow-button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                type="button"
+                :disabled="manorStore.favoriteActionRunning || snapshot?.is_followed_by_viewer"
+                @click="followManor"
+              >
+                <Pin :size="12" />
+                {{ snapshot?.is_followed_by_viewer ? '已关注' : '关注庄园' }}
+              </button>
+            </div>
+          </div>
+          <div v-if="manorStore.favoriteOverview?.favorites.length" data-testid="online-manor-favorite-list" class="mt-3 space-y-2">
+            <div
+              v-for="entry in manorStore.favoriteOverview.favorites"
+              :key="entry.id"
+              data-testid="online-manor-favorite-entry"
+              class="border border-accent/10 bg-bg/30 p-2"
+            >
+              <p class="text-xs text-accent">{{ entry.snapshot.display_name || entry.manor_username }}</p>
+              <p class="mt-1 text-[10px] leading-5 text-muted">主题：{{ entry.theme || entry.snapshot.showcase_theme || '未设置主题' }}</p>
+            </div>
+          </div>
         </div>
         <div class="border border-accent/10 bg-black/10 p-3">
           <p class="text-[10px] text-muted">热门庄园</p>
@@ -708,6 +762,10 @@
     const followLabel = snapshot.value.is_followed_by_viewer ? '已关注' : '未关注'
     return `${favoriteLabel} · ${followLabel}`
   })
+  const favoriteOverviewLabel = computed(() => {
+    if (!snapshot.value || isOwner.value) return `${manorStore.favoriteOverview?.favorites.length ?? 0} 项`
+    return favoriteSummaryText.value
+  })
 
   const overviewStats = computed(() => [
     { label: '当前主题', value: currentTheme.value },
@@ -816,6 +874,14 @@
 
   const saveGuide = async () => {
     await manorStore.saveGuideSnapshot().catch(() => {})
+  }
+
+  const favoriteManor = async () => {
+    await manorStore.favoriteCurrentManor().catch(() => {})
+  }
+
+  const followManor = async () => {
+    await manorStore.followCurrentManor().catch(() => {})
   }
 
   onMounted(() => {

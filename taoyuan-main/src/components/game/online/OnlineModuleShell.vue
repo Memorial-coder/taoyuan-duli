@@ -11,6 +11,7 @@
       </div>
       <div class="flex shrink-0 flex-wrap gap-2">
         <button
+          data-testid="online-module-refresh-button"
           class="online-action-btn online-action-btn--compact"
           type="button"
           :disabled="refreshDisabled || refreshRunning"
@@ -40,6 +41,7 @@
       <button
         v-for="tab in tabs"
         :key="tab.key"
+        :data-testid="`online-module-tab-${tab.key}`"
         type="button"
         class="shrink-0 border px-3 py-2 text-xs transition-colors"
         :class="activeTab === tab.key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"

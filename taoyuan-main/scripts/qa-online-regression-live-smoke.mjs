@@ -367,6 +367,65 @@ const searchPlayerBySaveId = async (session, saveId) => {
   return result.data
 }
 
+const readManorSnapshot = async (session, targetUsername = '') => {
+  const pathSuffix = targetUsername
+    ? `/${encodeURIComponent(targetUsername)}`
+    : ''
+  const result = await fetchSessionJson(session, `/api/taoyuan/online/manor${pathSuffix}`)
+  assert(result.response.ok, `manor snapshot returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.snapshot, 'manor snapshot payload is missing snapshot')
+  return result.data.snapshot
+}
+
+const readFavoriteOverview = async session => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/manor/favorites/overview')
+  assert(result.response.ok, `manor favorite overview returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.ok === true, 'manor favorite overview payload is incomplete')
+  return result.data
+}
+
+const createManorGuestbookEntry = async (session, payload) => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/manor/guestbook', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  assert(result.response.ok, `manor guestbook create returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.entry?.id, 'manor guestbook create payload is missing entry id')
+  return result.data.entry
+}
+
+const recordManorVisit = async (session, payload) => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/manor/visit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  assert(result.response.ok, `manor visit create returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.entry?.id, 'manor visit create payload is missing entry id')
+  return result.data.entry
+}
+
+const favoriteManor = async (session, username, theme) => {
+  const result = await fetchSessionJson(session, `/api/taoyuan/online/manor/${encodeURIComponent(username)}/favorite`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ theme }),
+  })
+  assert(result.response.ok, `manor favorite returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.entry?.manor_username === username, 'manor favorite payload target mismatch')
+  return result.data.entry
+}
+
+const followManor = async (session, username) => {
+  const result = await fetchSessionJson(session, `/api/taoyuan/online/manor/${encodeURIComponent(username)}/follow`, {
+    method: 'POST',
+  })
+  assert(result.response.ok, `manor follow returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.entry?.manor_username === username, 'manor follow payload target mismatch')
+  return result.data.entry
+}
+
 const createHallReply = async (session, postId, content) => {
   const result = await fetchSessionJson(session, `/api/taoyuan/hall/posts/${encodeURIComponent(postId)}/replies`, {
     method: 'POST',
@@ -509,7 +568,13 @@ async function main() {
     await seedBrowserAccountContext(page, owner)
 
     page.on('console', message => {
-      if (message.type() === 'error') consoleErrors.push(message.text())
+      if (message.type() === 'error') {
+        const location = message.location()
+        const locationLabel = location?.url
+          ? ` @ ${location.url}:${location.lineNumber}:${location.columnNumber}`
+          : ''
+        consoleErrors.push(`${message.text()}${locationLabel}`)
+      }
     })
     page.on('pageerror', error => {
       pageErrors.push(error.message)
@@ -667,6 +732,106 @@ async function main() {
           assert(hash.includes(route.extraQuery), `${route.legacy} did not preserve extra query ${route.extraQuery}: ${hash}`)
         }
       }
+    })
+
+    await runCheck('online manor core actions persist through split tabs', async () => {
+      const visitor = await bootstrapSession()
+      const manorSeed = createSmokeSeed()
+      const themeLabel = `庄园烟测主题${manorSeed}`
+      const guestbookText = `庄园拆页留言 ${manorSeed}`
+      const replyText = `庄园拆页回复 ${manorSeed}`
+      const visitSummary = `拆页烟测参观 ${manorSeed}`
+      const visitFeedback = `拆页烟测反馈 ${manorSeed}`
+      const guideTitle = `烟测导览点${manorSeed}`
+      const guideSummary = `拆页后导览说明 ${manorSeed}`
+
+      await page.goto(`${frontendBaseURL}/#/game/online/manor`)
+      await expect(page.getByTestId('online-manor-page')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByTestId('online-module-refresh-button')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-module-refresh-button').click()
+      await expect.poll(async () => {
+        const snapshot = await readManorSnapshot(owner)
+        return snapshot.viewer_is_owner === true && snapshot.username === owner.username
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await page.getByTestId('online-module-tab-theme').click()
+      await expect(page.getByTestId('online-manor-theme-label-input')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-manor-theme-label-input').fill(themeLabel)
+      await page.getByTestId('online-manor-template-select').selectOption('story')
+      await page.getByTestId('online-manor-theme-save-button').click()
+      await expect.poll(async () => {
+        const snapshot = await readManorSnapshot(owner)
+        return snapshot.theme_week?.active_theme === themeLabel && snapshot.theme_week?.template_id === 'story'
+      }, { timeout: 10000 }).toBeTruthy()
+      await expect(page.getByText(themeLabel).first()).toBeVisible({ timeout: 10000 })
+
+      await createManorGuestbookEntry(visitor, {
+        target_username: owner.username,
+        kind: 'text',
+        content: guestbookText,
+      })
+      await expect.poll(async () => {
+        const snapshot = await readManorSnapshot(owner)
+        return snapshot.guestbook_entries?.some(entry =>
+          entry.content === guestbookText && entry.author_username === visitor.username
+        )
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await recordManorVisit(visitor, {
+        target_username: owner.username,
+        purpose: 'friend_visit',
+        summary: visitSummary,
+        feedback: visitFeedback,
+      })
+      await expect.poll(async () => {
+        const snapshot = await readManorSnapshot(owner)
+        return snapshot.visit_entries?.some(entry =>
+          entry.summary === visitSummary
+            && entry.feedback === visitFeedback
+            && entry.visitor_username === visitor.username
+        )
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await favoriteManor(visitor, owner.username, themeLabel)
+      await followManor(visitor, owner.username)
+      await expect.poll(async () => {
+        const snapshot = await readManorSnapshot(visitor, owner.username)
+        const overview = await readFavoriteOverview(visitor)
+        return snapshot.is_favorited_by_viewer === true
+          && snapshot.is_followed_by_viewer === true
+          && overview.favorites?.some(entry => entry.manor_username === owner.username)
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await page.goto(`${frontendBaseURL}/#/game/online/manor`)
+      await expect(page.getByTestId('online-manor-page')).toBeVisible({ timeout: 10000 })
+
+      await page.getByTestId('online-module-tab-guestbook').click()
+      await expect(page.getByTestId('online-manor-guestbook-list').getByText(guestbookText)).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-manor-guestbook-reply-input').first().fill(replyText)
+      await page.getByTestId('online-manor-guestbook-reply-submit').first().click()
+      await expect(page.getByTestId('online-manor-guestbook-list').getByText(replyText)).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-manor-guestbook-pin').first().click()
+      await expect(page.getByText('取消')).toBeVisible({ timeout: 10000 })
+      await expect.poll(async () => {
+        const snapshot = await readManorSnapshot(owner)
+        return snapshot.guestbook_entries?.some(entry =>
+          entry.content === guestbookText && entry.reply_text === replyText && entry.pinned === true
+        )
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await page.getByTestId('online-module-tab-visits').click()
+      await expect(page.getByTestId('online-manor-visit-list').getByText(visitSummary)).toBeVisible({ timeout: 10000 })
+
+      await page.getByTestId('online-module-tab-guide').click()
+      await expect(page.getByTestId('online-manor-guide-title-input')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-manor-guide-title-input').fill(guideTitle)
+      await page.getByTestId('online-manor-guide-summary-input').fill(guideSummary)
+      await page.getByTestId('online-manor-guide-submit').click()
+      await expect(page.getByTestId('online-manor-guide-list').getByText(guideTitle)).toBeVisible({ timeout: 10000 })
+      await expect.poll(async () => {
+        const snapshot = await readManorSnapshot(owner)
+        return snapshot.guide_points?.some(point => point.title === guideTitle && point.summary === guideSummary)
+      }, { timeout: 10000 }).toBeTruthy()
     })
 
     await runCheck('cloud save quick save preserves decryptable server slot', async () => {
