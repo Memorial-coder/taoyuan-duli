@@ -2,6 +2,9 @@
 
 最后整理：2026-05-23
 
+- `0522拆分todo.md / 阶段 J0-J1-J4` 这一轮扩展在线 live smoke：从移动地图进入在线中心、在线中心进入五个拆分模块并返回、直接访问五个子入口，以及旧 `social / manor / festival / society / expedition` 入口带上下文落到新结构。
+- 验证已通过 `type-check`、`build`、`qa:online-ui-structure`、`qa:online-regression-live-smoke` 和 `git diff --check`；原有云存档、邮箱、大厅与 realtime 业务 smoke 保留在同一脚本中，没有把业务回归退化成纯页面跳转。
+
 - `0522拆分todo.md / 阶段 I2` 这一轮补上 `qa:online-ui-structure` 静态 smoke，固定在线拆页后的输入控件复用、长列表滚动边界、默认标签和历史 / 史册 / 纪念类内容归属。
 - 静态检查当前覆盖 68 个表单控件与 59 处滚动边界；同时修正庄园模板选择误用 `online-input` 的问题，并把村社史册页从最终兜底分支改成显式 `chronicles` 标签。
 

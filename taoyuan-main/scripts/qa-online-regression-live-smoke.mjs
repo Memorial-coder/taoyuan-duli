@@ -585,7 +585,8 @@ async function main() {
       await expect(page.getByTestId('game-layout')).toBeVisible()
       await page.getByTestId('mobile-hub-button').click()
       await expect(page.getByTestId('mobile-map-menu')).toBeVisible({ timeout: 10000 })
-      await page.getByTestId('mobile-map-online-loc-friend-station').click()
+      await expect(page.getByTestId('mobile-map-online-loc-online')).toBeVisible()
+      await page.getByTestId('mobile-map-online-shortcut-friend-station').click()
       await expect(page.getByTestId('game-layout')).toBeVisible()
       await expect.poll(() => page.evaluate(() => window.location.hash), { timeout: 10000 }).toContain('/game/friend-station')
       await expect(page.getByTestId('region-social-friend-panel')).toBeVisible({ timeout: 10000 })
@@ -603,6 +604,69 @@ async function main() {
       await expect(page.getByTestId('status-bar').getByText('烟测')).toBeVisible()
       await expect.poll(() => realtimeSocketCount > 0, { timeout: 10000 }).toBeTruthy()
       await expect.poll(() => realtimeFrames.some(frame => frame.includes('realtime.ready')), { timeout: 10000 }).toBeTruthy()
+    })
+
+    await runCheck('online center opens every split module and returns back', async () => {
+      const splitModules = [
+        { key: 'manor', pageTestId: 'online-manor-page', hash: '/game/online/manor' },
+        { key: 'neighbor', pageTestId: 'online-neighbor-page', hash: '/game/online/neighbor' },
+        { key: 'orders', pageTestId: 'online-orders-page', hash: '/game/online/orders' },
+        { key: 'festival', pageTestId: 'online-festival-page', hash: '/game/online/festival' },
+        { key: 'society', pageTestId: 'online-society-page', hash: '/game/online/society' },
+      ]
+
+      await page.goto(`${frontendBaseURL}/#/game/online`)
+      await expect(page.getByTestId('online-center')).toBeVisible({ timeout: 10000 })
+
+      await page.getByTestId('mobile-hub-button').click()
+      await expect(page.getByTestId('mobile-map-menu')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('mobile-map-online-loc-online').click()
+      await expect(page.getByTestId('online-center')).toBeVisible({ timeout: 10000 })
+
+      for (const module of splitModules) {
+        await page.getByTestId(`online-module-${module.key}-link`).click()
+        await expect(page.getByTestId(module.pageTestId)).toBeVisible({ timeout: 10000 })
+        await expect.poll(() => page.evaluate(() => window.location.hash), { timeout: 10000 }).toContain(module.hash)
+        await page.getByRole('link', { name: '在线中心' }).click()
+        await expect(page.getByTestId('online-center')).toBeVisible({ timeout: 10000 })
+      }
+    })
+
+    await runCheck('direct split module routes load after refresh-style navigation', async () => {
+      const splitModules = [
+        { path: 'manor', pageTestId: 'online-manor-page' },
+        { path: 'neighbor', pageTestId: 'online-neighbor-page' },
+        { path: 'orders', pageTestId: 'online-orders-page' },
+        { path: 'festival', pageTestId: 'online-festival-page' },
+        { path: 'society', pageTestId: 'online-society-page' },
+      ]
+
+      for (const module of splitModules) {
+        await page.goto(`${frontendBaseURL}/#/game/online/${module.path}`)
+        await expect(page.getByTestId(module.pageTestId)).toBeVisible({ timeout: 10000 })
+        await expect.poll(() => page.evaluate(() => window.location.hash), { timeout: 10000 }).toContain(`/game/online/${module.path}`)
+      }
+    })
+
+    await runCheck('legacy online routes redirect to split module pages with context', async () => {
+      const legacyRoutes = [
+        { legacy: 'social', pageTestId: 'online-neighbor-page', hash: '/game/online/neighbor' },
+        { legacy: 'manor', pageTestId: 'online-manor-page', hash: '/game/online/manor' },
+        { legacy: 'festival', pageTestId: 'online-festival-page', hash: '/game/online/festival' },
+        { legacy: 'society', pageTestId: 'online-society-page', hash: '/game/online/society' },
+        { legacy: 'expedition', pageTestId: 'online-festival-page', hash: '/game/online/festival', extraQuery: 'tab=expedition' },
+      ]
+
+      for (const route of legacyRoutes) {
+        await page.goto(`${frontendBaseURL}/#/game/${route.legacy}?source=legacy-smoke`)
+        await expect(page.getByTestId(route.pageTestId)).toBeVisible({ timeout: 10000 })
+        const hash = await page.evaluate(() => window.location.hash)
+        assert(hash.includes(route.hash), `${route.legacy} did not redirect to ${route.hash}: ${hash}`)
+        assert(hash.includes('source=legacy-smoke'), `${route.legacy} did not preserve query context: ${hash}`)
+        if (route.extraQuery) {
+          assert(hash.includes(route.extraQuery), `${route.legacy} did not preserve extra query ${route.extraQuery}: ${hash}`)
+        }
+      }
     })
 
     await runCheck('cloud save quick save preserves decryptable server slot', async () => {

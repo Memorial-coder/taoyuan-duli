@@ -20,7 +20,11 @@
         </div>
       </dl>
     </div>
-    <RouterLink class="online-action-btn online-action-btn--compact mt-3 w-full" :to="to">
+    <RouterLink
+      class="online-action-btn online-action-btn--compact mt-3 w-full"
+      :data-testid="`online-module-${moduleKey}-link`"
+      :to="to"
+    >
       <ArrowRight :size="12" />
       {{ actionLabel }}
     </RouterLink>

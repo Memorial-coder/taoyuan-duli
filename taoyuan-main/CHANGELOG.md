@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0522 在线入口回归验证（阶段 J0-J1-J4）
+- `scripts/qa-online-regression-live-smoke.mjs` 新增在线中心入口拆分回归，覆盖移动地图进入在线中心、在线中心进入五个拆分模块并返回、直接访问五个子入口。
+- 旧 `social / manor / festival / society / expedition` 入口已纳入 live smoke，确认会带 query 上下文重定向到新在线结构，远征旧入口会落到在线节会的远征标签。
+- 本轮保留原有云存档、邮箱、大厅与 realtime 业务 smoke；验证通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix taoyuan-main run qa:online-ui-structure` 和 `npm --prefix taoyuan-main run qa:online-regression-live-smoke`。
+
 ### 0522 在线列表与表单结构检查（阶段 I2）
 - 新增 `scripts/qa-online-ui-structure.mjs` 与 `qa:online-ui-structure` 脚本，静态检查在线拆页结构，确认表单控件继续复用 `online-input / online-select / online-textarea`，主要长列表仍有滚动边界。
 - 检查还会固定五个在线子页的默认标签、表单标签归属，以及邻里展示档案、节会纪念、村社史册等历史类内容不抢默认主路径。
