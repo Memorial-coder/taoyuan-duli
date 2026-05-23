@@ -32,6 +32,7 @@ const FESTIVAL_REWARD_TICKET_TYPE = 'festival';
 const ONLINE_VISUAL_BOARD_TYPES = Object.freeze(['map', 'scene', 'track', 'async']);
 const ONLINE_VISUAL_HIGHLIGHT_TYPES = Object.freeze(['info', 'success', 'warning', 'danger', 'reward']);
 const ONLINE_VISUAL_NODE_STATES = Object.freeze(['hidden', 'locked', 'available', 'active', 'resolved', 'danger', 'reward', 'exit']);
+const ONLINE_VISUAL_OBJECT_STATES = Object.freeze(['idle', 'needs_action', 'busy', 'complete', 'overheated', 'blocked']);
 
 function resolveTargetBySaveIdOrUsername(payload = {}, emptyMessage = '请输入要邀请的玩家用户名') {
   const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
@@ -1276,6 +1277,33 @@ function normalizeOnlineVisualNode(entry) {
   };
 }
 
+function normalizeOnlineVisualObject(entry) {
+  const id = sanitizeText(entry?.id, 80);
+  if (!id) return null;
+  const state = String(entry?.state || '').trim();
+  const progressTarget = Math.max(0, Math.floor(Number(entry?.progress_target) || 0));
+  return {
+    id,
+    label: sanitizeText(entry?.label, 40),
+    kind: sanitizeText(entry?.kind, 40),
+    x: clampNumber(entry?.x, 0, 100),
+    y: clampNumber(entry?.y, 0, 100),
+    state: ONLINE_VISUAL_OBJECT_STATES.includes(state) ? state : 'idle',
+    available_action_ids: Array.isArray(entry?.available_action_ids)
+      ? entry.available_action_ids.map(item => sanitizeText(item, 60)).filter(Boolean).slice(0, 12)
+      : [],
+    progress_value: progressTarget > 0
+      ? clampNumber(entry?.progress_value, 0, progressTarget)
+      : Math.max(0, Math.floor(Number(entry?.progress_value) || 0)),
+    progress_target: progressTarget,
+    handled_by: sanitizeText(entry?.handled_by, 40),
+    handled_at: Math.max(0, Math.floor(Number(entry?.handled_at) || 0)),
+    requires_cooperation: entry?.requires_cooperation === true,
+    cooperation_required_count: Math.max(0, Math.floor(Number(entry?.cooperation_required_count) || 0)),
+    cooperation_current_count: Math.max(0, Math.floor(Number(entry?.cooperation_current_count) || 0)),
+  };
+}
+
 function resolveDefaultVisualBoardType(room) {
   const gameplayTemplateId = sanitizeText(room?.gameplay_template_id, 40);
   const roomTemplateId = sanitizeText(room?.template_id, 40);
@@ -1304,6 +1332,9 @@ function normalizeOnlineVisualState(value, room) {
     selected_visual_id: sanitizeText(source.selected_visual_id, 80),
     nodes: Array.isArray(source.nodes)
       ? source.nodes.map(normalizeOnlineVisualNode).filter(Boolean).slice(0, 48)
+      : [],
+    objects: Array.isArray(source.objects)
+      ? source.objects.map(normalizeOnlineVisualObject).filter(Boolean).slice(0, 64)
       : [],
     highlights: Array.isArray(source.highlights)
       ? source.highlights.map(normalizeOnlineVisualHighlight).slice(0, 16)

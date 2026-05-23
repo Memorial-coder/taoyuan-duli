@@ -31,6 +31,7 @@ const assertVisualStateShape = (visualState, expectedBoardType, expectedBoardIdP
   assert.equal(visualState.revision, 0, 'new compatible visual_state revision should start at 0')
   assert.equal(visualState.selected_visual_id, '', 'new compatible visual_state should not select a visual id')
   assert.deepEqual(visualState.nodes, [], 'new compatible visual_state nodes should be empty')
+  assert.deepEqual(visualState.objects, [], 'new compatible visual_state objects should be empty')
   assert.deepEqual(visualState.highlights, [], 'new compatible visual_state highlights should be empty')
   assert.equal(visualState.recent_feedback, '', 'new compatible visual_state recent_feedback should be empty')
 }
@@ -154,6 +155,87 @@ assert.equal(nodes[1].risk_preview, '采集会提高塌方风险。', 'node risk
 assert.equal(nodes[1].reward_preview, '可能获得矿石和拓片。', 'node reward preview should round-trip')
 assert.deepEqual(nodes[1].resource_cost_preview, { torch: 1 }, 'node resource cost preview should round-trip')
 assert.deepEqual(nodes[1].resource_reward_preview, { ore: 2, rubbing: 1 }, 'node resource reward preview should round-trip')
+
+const objectStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+objectStore.rooms = objectStore.rooms.map(room => {
+  if (room.id !== festival.room.id) return room
+  return {
+    ...room,
+    visual_state: {
+      board_type: 'scene',
+      board_id: 'festival:lantern_fair:assembly',
+      revision: 4,
+      selected_visual_id: 'object_main_lantern',
+      nodes: [],
+      objects: [
+        {
+          id: 'object_main_lantern',
+          label: '主灯',
+          kind: 'lantern',
+          x: 48,
+          y: 18,
+          state: 'needs_action',
+          available_action_ids: ['hang_lantern', 'repair_cord'],
+          progress_value: 3,
+          progress_target: 6,
+          handled_by: 'visual_host_festival',
+          handled_at: 12345,
+          requires_cooperation: true,
+          cooperation_required_count: 2,
+          cooperation_current_count: 1,
+        },
+        {
+          id: 'object_riddle_rack',
+          label: '灯谜架',
+          kind: 'riddle_rack',
+          x: 22,
+          y: 50,
+          state: 'busy',
+          available_action_ids: ['write_riddle'],
+          progress_value: 10,
+          progress_target: 4,
+          handled_by: 'visual_friend',
+          handled_at: 12346,
+        },
+        {
+          id: 'object_crowd',
+          label: '人群',
+          kind: 'crowd',
+          x: 110,
+          y: -5,
+          state: 'overheated',
+          available_action_ids: ['keep_order'],
+          progress_value: 0,
+          progress_target: 0,
+        },
+        {
+          label: '缺少 ID 的坏物件会被过滤',
+          kind: 'stall',
+        },
+      ],
+      highlights: [],
+      recent_feedback: '主灯等待协作点亮。',
+    },
+  }
+})
+await writeFile(roomStoreFile, JSON.stringify(objectStore, null, 2), 'utf8')
+
+const objectOverview = await runtime.listFestivalRoomOverview('visual_host_festival')
+const objects = objectOverview.my_room?.visual_state?.objects || []
+assert.equal(objects.length, 3, 'visual_state objects should keep valid objects and filter invalid entries')
+assert.deepEqual(objects.map(item => item.id), ['object_main_lantern', 'object_riddle_rack', 'object_crowd'])
+assert.equal(objects[0].state, 'needs_action', 'object state should preserve allowed states')
+assert.deepEqual(objects[0].available_action_ids, ['hang_lantern', 'repair_cord'], 'object action ids should round-trip')
+assert.equal(objects[0].progress_value, 3, 'object progress should round-trip')
+assert.equal(objects[0].progress_target, 6, 'object progress target should round-trip')
+assert.equal(objects[0].handled_by, 'visual_host_festival', 'object handler should round-trip')
+assert.equal(objects[0].handled_at, 12345, 'object handled_at should round-trip')
+assert.equal(objects[0].requires_cooperation, true, 'object cooperation flag should round-trip')
+assert.equal(objects[0].cooperation_required_count, 2, 'object cooperation required count should round-trip')
+assert.equal(objects[0].cooperation_current_count, 1, 'object cooperation current count should round-trip')
+assert.equal(objects[1].progress_value, 4, 'object progress should clamp to target')
+assert.equal(objects[2].x, 100, 'object x should clamp values above board range')
+assert.equal(objects[2].y, 0, 'object y should clamp values below board range')
 
 await rm(tempDir, { recursive: true, force: true })
 console.log('[qa-activity-room-visual-state] passed')

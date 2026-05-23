@@ -8,7 +8,8 @@
 - 服务端活动房间 snapshot 新增 `visual_state`，统一承载 `board_type / board_id / revision / selected_visual_id / highlights / recent_feedback`，新建节会与远征房间会写入默认视觉状态。
 - 旧节会 / 远征房间缺少 `visual_state` 时会按活动域和模板回退为空视觉状态，避免旧房间打开失败。
 - `visual_state.nodes` 已支持地图节点 ID、坐标、状态、连线、事件 ID、可行动作、处理人、风险 / 奖励 / 资源预览，为协作矿洞节点图提供数据协议。
-- 前端节会 / 远征 API 类型同步 `OnlineVisualState` 与 `OnlineVisualNode`；新增 `server/scripts/qa-activity-room-visual-state.mjs` 与 `npm --prefix server run qa:activity-room-visual-state` 固定兼容链路。
+- `visual_state.objects` 已支持场景物件 ID、坐标、类型、状态、可行动作、进度、处理人、处理时间和协作人数，为灯会共建、好友庄园照料与腊八共灶提供数据协议。
+- 前端节会 / 远征 API 类型同步 `OnlineVisualState`、`OnlineVisualNode` 与 `OnlineVisualObject`；新增 `server/scripts/qa-activity-room-visual-state.mjs` 与 `npm --prefix server run qa:activity-room-visual-state` 固定兼容链路。
 - 本轮验证：`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-activity-room-visual-state.mjs`、`npm --prefix server run qa:activity-room-visual-state`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
 
 ### 0523 玩法 bug 审查修复
