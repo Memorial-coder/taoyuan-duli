@@ -309,11 +309,13 @@ export interface OnlineManorSnapshot {
     mutual_follow: boolean
     can_visit: boolean
     can_care: boolean
+    can_steal: boolean
   }
   visual_state: OnlineVisualState
   care_state: {
     day_tag: string
     action_labels: Record<string, string>
+    scene_action_labels: Record<string, string>
     action_effects: Record<string, {
       owner_benefit: string
       visitor_reward: string
@@ -328,6 +330,26 @@ export interface OnlineManorSnapshot {
     manor_remaining_care_count: number
     can_care: boolean
     care_denied_reason: string
+  }
+  steal_state: {
+    day_tag: string
+    action_labels: Record<string, string>
+    action_effects: Record<string, {
+      owner_compensation: string
+      visitor_reward: string
+    }>
+    limits: {
+      visitor_daily_limit: number
+      manor_daily_limit: number
+      object_daily_limit: number
+    }
+    visitor_daily_count: number
+    manor_daily_count: number
+    remaining_steal_count: number
+    manor_remaining_steal_count: number
+    can_steal: boolean
+    steal_denied_reason: string
+    whitelist_summary: string
   }
   care_entries: Array<{
     id: string
@@ -344,6 +366,30 @@ export interface OnlineManorSnapshot {
     idempotency_key: string
     owner_benefit: string
     visitor_reward: string
+    summary: string
+    created_at: number
+  }>
+  steal_entries: Array<{
+    id: string
+    target_username: string
+    target_save_id: number
+    target_save_slot: number | null
+    visitor_username: string
+    visitor_display_name: string
+    action_id: string
+    action_label: string
+    object_id: string
+    object_label: string
+    target_id: string
+    target_label: string
+    item_id: string
+    item_label: string
+    quantity: number
+    day_tag: string
+    idempotency_key: string
+    owner_compensation: string
+    visitor_reward: string
+    note: string
     summary: string
     created_at: number
   }>
@@ -758,6 +804,22 @@ export const submitManorCare = async (payload: {
   idempotency_key?: string
 }) => {
   return requestSocialAction<{ ok: boolean; entry?: OnlineManorSnapshot['care_entries'][number]; snapshot?: OnlineManorSnapshot; idempotent?: boolean }>('/api/taoyuan/online/manor/care', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
+export const submitManorSteal = async (payload: {
+  target_username: string
+  target_save_id?: number
+  object_id: string
+  action_id: string
+  target_id?: string
+  note?: string
+  idempotency_key?: string
+}) => {
+  return requestSocialAction<{ ok: boolean; entry?: OnlineManorSnapshot['steal_entries'][number]; snapshot?: OnlineManorSnapshot; idempotent?: boolean }>('/api/taoyuan/online/manor/steal', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)

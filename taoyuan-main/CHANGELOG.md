@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0523 有限制偷菜
+- 公开庄园快照新增 `steal_state` 与 `steal_entries`，偷菜权限沿用公开、好友、互关、关闭四档；庄园页会在同一个 `VisualSceneBoard` 里显示轻采入口，并展示白名单说明与最近轻采日志。
+- 服务端新增 `POST /api/taoyuan/online/manor/steal`，只允许普通成熟作物、普通果实和边角产物进入白名单，排除任务物、稀有物、唯一物、绑定物和活动核心物；轻采只生成小额奖励凭证和主人补偿记录，不扣主人关键资源。
+- 偷菜操作按 `庄园 + 访客 + 日期 + 目标` 幂等，限制访客每日 2 次、庄园每日 6 次、单物件每日 1 次，并记录留言、主人补偿、访客奖励和审计日志。
+- 本轮验证：`node --check server/src/taoyuanManorRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-manor-steal.mjs`、`npm --prefix server run qa:manor-steal`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0523 好友庄园照料
 - 公开庄园快照新增照料场景 `visual_state.objects`，固定展示田地、果树、畜棚、鱼塘、蜂箱和花圃；对象状态会根据作物缺水、虫害、杂草、动物未喂食 / 生病、鱼塘水质和当日照料进度变化。
 - 庄园页复用 `VisualSceneBoard` 展示照料热区、物件进度、可执行动作、最近反馈和最近照料日志；主人可保存访问、照料和偷菜权限，偷菜动作仍留给后续 7.3 单独接入。

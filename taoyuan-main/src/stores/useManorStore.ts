@@ -13,6 +13,7 @@ import {
   saveManorGuide,
   saveManorThemeWeek,
   submitManorCare,
+  submitManorSteal,
   type OnlineManorTarget,
   type OnlineManorSnapshot,
   type OnlineManorAccessMode
@@ -70,6 +71,7 @@ export const useManorStore = defineStore('onlineManor', () => {
   const coverImageAltDraft = ref('')
   const themeActionRunning = ref(false)
   const careActionRunning = ref(false)
+  const stealActionRunning = ref(false)
   const accessPolicyActionRunning = ref(false)
   const accessVisitModeDraft = ref<OnlineManorAccessMode>('public')
   const accessCareModeDraft = ref<OnlineManorAccessMode>('friends')
@@ -372,6 +374,29 @@ export const useManorStore = defineStore('onlineManor', () => {
     }
   }
 
+  const submitStealAction = async (objectId: string, actionId: string) => {
+    if (!snapshot.value) return
+    stealActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      const result = await submitManorSteal({
+        target_username: snapshot.value.username,
+        target_save_id: activeTargetSaveId.value ?? undefined,
+        object_id: objectId,
+        action_id: actionId,
+      })
+      snapshot.value = result?.snapshot ?? snapshot.value
+      syncThemeDrafts(snapshot.value)
+      syncAccessPolicyDrafts(snapshot.value)
+      selectedCareObjectId.value = objectId
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '庄园偷菜失败'
+      throw error
+    } finally {
+      stealActionRunning.value = false
+    }
+  }
+
   const saveAccessPolicySnapshot = async () => {
     if (!snapshot.value) return
     accessPolicyActionRunning.value = true
@@ -421,6 +446,7 @@ export const useManorStore = defineStore('onlineManor', () => {
     coverImageAltDraft,
     themeActionRunning,
     careActionRunning,
+    stealActionRunning,
     accessPolicyActionRunning,
     accessVisitModeDraft,
     accessCareModeDraft,
@@ -441,6 +467,7 @@ export const useManorStore = defineStore('onlineManor', () => {
     followCurrentManor,
     selectCareObject,
     submitCareAction,
+    submitStealAction,
     saveAccessPolicySnapshot,
   }
 })

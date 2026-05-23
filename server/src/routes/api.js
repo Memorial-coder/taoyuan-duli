@@ -97,7 +97,7 @@ const ONLINE_RATE_LIMIT_RULES = Object.freeze([
     maxRequests: 24,
   },
   {
-    matcher: /^\/api\/taoyuan\/online\/manor\/(?:guestbook|visit|guide|theme-week|access-policy|care|[^/]+\/favorite|[^/]+\/follow)(?:\/|$)/i,
+    matcher: /^\/api\/taoyuan\/online\/manor\/(?:guestbook|visit|guide|theme-week|access-policy|care|steal|[^/]+\/favorite|[^/]+\/follow)(?:\/|$)/i,
     routeKey: 'manor_social_write',
     scope: 'manor',
     maxRequests: 20,
@@ -2674,6 +2674,19 @@ router.post('/taoyuan/online/manor/care', createOnlineReleaseGuard('manor'), log
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '庄园照料失败' });
+  }
+});
+
+router.post('/taoyuan/online/manor/steal', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const actor = {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    };
+    const result = await taoyuanManorRuntime.submitManorStealAction(req.body || {}, actor);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '庄园偷菜失败' });
   }
 });
 

@@ -22,12 +22,18 @@
           <p class="text-xs text-accent">庄园互助照料</p>
           <p class="mt-1 text-[10px] text-muted">
             今日 {{ manorStore.snapshot.care_state.manor_daily_count }}/{{ manorStore.snapshot.care_state.limits.manor_daily_limit }} ·
-            剩余 {{ manorStore.snapshot.care_state.remaining_care_count }}
+            照料剩余 {{ manorStore.snapshot.care_state.remaining_care_count }} ·
+            偷菜 {{ manorStore.snapshot.steal_state.manor_daily_count }}/{{ manorStore.snapshot.steal_state.limits.manor_daily_limit }}
           </p>
         </div>
-        <span class="w-fit shrink-0 text-[10px] text-muted">
-          {{ manorStore.snapshot.care_state.can_care ? '可照料' : manorStore.snapshot.care_state.care_denied_reason }}
-        </span>
+        <div class="flex flex-col items-start gap-1 text-[10px] text-muted md:items-end">
+          <span class="w-fit shrink-0">
+            {{ manorStore.snapshot.care_state.can_care ? '可照料' : manorStore.snapshot.care_state.care_denied_reason }}
+          </span>
+          <span class="w-fit shrink-0">
+            {{ manorStore.snapshot.steal_state.can_steal ? `可轻采 ${manorStore.snapshot.steal_state.remaining_steal_count} 次` : manorStore.snapshot.steal_state.steal_denied_reason }}
+          </span>
+        </div>
       </div>
 
       <div v-if="manorStore.snapshot.viewer_is_owner" class="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
@@ -67,17 +73,30 @@
         :objects="manorCareObjects"
         :selected-object-id="manorStore.selectedCareObjectId || manorStore.snapshot.visual_state.selected_visual_id"
         :recent-feedback="manorStore.snapshot.visual_state.recent_feedback"
-        :action-running="manorStore.careActionRunning"
-        :action-labels="manorStore.snapshot.care_state.action_labels"
+        :action-running="manorStore.careActionRunning || manorStore.stealActionRunning"
+        :action-labels="manorStore.snapshot.care_state.scene_action_labels"
         @select-object="manorStore.selectCareObject"
-        @trigger-action="submitCareAction"
+        @trigger-action="submitManorSceneAction"
       />
+
+      <p v-if="manorStore.snapshot.steal_state.whitelist_summary" class="text-[10px] leading-4 text-muted">
+        {{ manorStore.snapshot.steal_state.whitelist_summary }}
+      </p>
 
       <div v-if="manorStore.snapshot.care_entries.length > 0" class="border border-accent/10 rounded-xs p-2">
         <p class="text-[10px] text-muted mb-1">最近照料</p>
         <div class="max-h-28 space-y-1 overflow-y-auto pr-1">
           <p v-for="entry in manorStore.snapshot.care_entries.slice(0, 6)" :key="entry.id" class="text-[10px] leading-4 text-muted">
             {{ entry.visitor_display_name }} · {{ entry.object_label }} · {{ entry.action_label }} · {{ entry.owner_benefit }}
+          </p>
+        </div>
+      </div>
+
+      <div v-if="manorStore.snapshot.steal_entries.length > 0" class="border border-accent/10 rounded-xs p-2">
+        <p class="text-[10px] text-muted mb-1">最近轻采</p>
+        <div class="max-h-28 space-y-1 overflow-y-auto pr-1">
+          <p v-for="entry in manorStore.snapshot.steal_entries.slice(0, 6)" :key="entry.id" class="text-[10px] leading-4 text-muted">
+            {{ entry.visitor_display_name }} · {{ entry.object_label }} · {{ entry.target_label }} · {{ entry.owner_compensation }}
           </p>
         </div>
       </div>
@@ -542,7 +561,11 @@
     await manorStore.saveThemeWeekSnapshot().catch(() => {})
   }
 
-  const submitCareAction = async (payload: ManorCareActionPayload) => {
+  const submitManorSceneAction = async (payload: ManorCareActionPayload) => {
+    if (payload.actionId.startsWith('steal_')) {
+      await manorStore.submitStealAction(payload.objectId, payload.actionId).catch(() => {})
+      return
+    }
     await manorStore.submitCareAction(payload.objectId, payload.actionId).catch(() => {})
   }
 

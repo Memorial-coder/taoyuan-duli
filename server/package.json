@@ -11,6 +11,7 @@
     "qa:online-release-guard": "node scripts/qa-online-release-guard.mjs",
     "qa:activity-room-visual-state": "node scripts/qa-activity-room-visual-state.mjs",
     "qa:manor-care": "node scripts/qa-manor-care.mjs",
+    "qa:manor-steal": "node scripts/qa-manor-steal.mjs",
     "qa:hall-upload-visibility-guard": "node scripts/qa-hall-upload-visibility-guard.mjs",
     "qa:save-corruption-guard": "node scripts/qa-save-corruption-guard.mjs",
     "qa:realtime-smoke": "node scripts/qa-realtime-smoke.mjs"

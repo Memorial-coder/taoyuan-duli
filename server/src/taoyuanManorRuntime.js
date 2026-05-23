@@ -238,6 +238,7 @@ function createEmptyCareStore() {
   return {
     policies: {},
     entries: [],
+    steals: [],
   };
 }
 
@@ -250,6 +251,7 @@ function loadCareStore() {
       ? {
           policies: raw.policies && typeof raw.policies === 'object' ? raw.policies : {},
           entries: Array.isArray(raw.entries) ? raw.entries : [],
+          steals: Array.isArray(raw.steals) ? raw.steals : [],
         }
       : createEmptyCareStore();
   } catch {
@@ -262,6 +264,7 @@ function saveCareStore(store) {
   writeJsonFileAtomic(TAOYUAN_MANOR_CARE_FILE, {
     policies: store?.policies && typeof store.policies === 'object' ? store.policies : {},
     entries: Array.isArray(store?.entries) ? store.entries : [],
+    steals: Array.isArray(store?.steals) ? store.steals : [],
   });
 }
 
@@ -304,6 +307,9 @@ const MANOR_ACCESS_MODE_LABELS = Object.freeze({
 const MANOR_CARE_DAILY_VISITOR_LIMIT = 4;
 const MANOR_CARE_DAILY_MANOR_LIMIT = 12;
 const MANOR_CARE_RECENT_LOG_LIMIT = 24;
+const MANOR_STEAL_DAILY_VISITOR_LIMIT = 2;
+const MANOR_STEAL_DAILY_MANOR_LIMIT = 6;
+const MANOR_STEAL_RECENT_LOG_LIMIT = 24;
 
 const MANOR_CARE_VISUAL_OBJECT_IDS = Object.freeze({
   field: 'manor_field',
@@ -391,6 +397,37 @@ const MANOR_CARE_ACTION_DEFS = Object.freeze([
 
 const MANOR_CARE_ACTION_BY_ID = Object.freeze(
   Object.fromEntries(MANOR_CARE_ACTION_DEFS.map(action => [action.id, action]))
+);
+
+const MANOR_STEAL_ACTION_DEFS = Object.freeze([
+  {
+    id: 'steal_plot_sample',
+    label: '摘一点普通作物',
+    object_id: MANOR_CARE_VISUAL_OBJECT_IDS.field,
+    target_metric: 'stealable_plot_count',
+    owner_compensation: '主人获得友情点 +1 与次日产量保护记录',
+    visitor_reward: '普通作物小样 +1',
+  },
+  {
+    id: 'steal_fruit_sample',
+    label: '顺手采一把普通果实',
+    object_id: MANOR_CARE_VISUAL_OBJECT_IDS.fruitGrove,
+    target_metric: 'stealable_fruit_count',
+    owner_compensation: '主人获得幸运种子线索与果树保护记录',
+    visitor_reward: '普通果实小篮 +1',
+  },
+  {
+    id: 'steal_edge_bundle',
+    label: '捡一份边角产物',
+    object_id: MANOR_CARE_VISUAL_OBJECT_IDS.flowerBed,
+    target_metric: 'stealable_edge_count',
+    owner_compensation: '主人获得留言奖励与整洁保护记录',
+    visitor_reward: '边角材料包 +1',
+  },
+]);
+
+const MANOR_STEAL_ACTION_BY_ID = Object.freeze(
+  Object.fromEntries(MANOR_STEAL_ACTION_DEFS.map(action => [action.id, action]))
 );
 
 const MANOR_CARE_VISUAL_OBJECT_DEFS = Object.freeze([
@@ -648,6 +685,33 @@ function normalizeManorCareEntry(entry) {
   };
 }
 
+function normalizeManorStealEntry(entry) {
+  return {
+    id: String(entry?.id || makeId('manor_steal')),
+    target_username: String(entry?.target_username || '').trim(),
+    target_save_id: normalizeManorSaveId(entry?.target_save_id ?? entry?.targetSaveId),
+    target_save_slot: normalizeManorSaveSlot(entry?.target_save_slot ?? entry?.targetSaveSlot),
+    visitor_username: String(entry?.visitor_username || '').trim(),
+    visitor_display_name: sanitizeText(entry?.visitor_display_name, 30) || String(entry?.visitor_username || '匿名'),
+    action_id: sanitizeText(entry?.action_id, 60),
+    action_label: sanitizeText(entry?.action_label, 40),
+    object_id: sanitizeText(entry?.object_id, 80),
+    object_label: sanitizeText(entry?.object_label, 40),
+    target_id: sanitizeText(entry?.target_id, 100),
+    target_label: sanitizeText(entry?.target_label, 60),
+    item_id: sanitizeText(entry?.item_id, 80),
+    item_label: sanitizeText(entry?.item_label, 60),
+    quantity: Math.max(0, Math.floor(Number(entry?.quantity) || 0)),
+    day_tag: sanitizeText(entry?.day_tag, 20),
+    idempotency_key: sanitizeText(entry?.idempotency_key, 160),
+    owner_compensation: sanitizeText(entry?.owner_compensation, 140),
+    visitor_reward: sanitizeText(entry?.visitor_reward, 80),
+    note: sanitizeText(entry?.note, 80),
+    summary: sanitizeText(entry?.summary, 200),
+    created_at: Number(entry?.created_at) || nowSeconds(),
+  };
+}
+
 function normalizeOnlineVisualObject(entry) {
   const progressTarget = Math.max(0, Math.floor(Number(entry?.progress_target) || 0));
   return {
@@ -835,8 +899,30 @@ function getCareEntriesForTarget(targetUsername) {
     .sort((left, right) => right.created_at - left.created_at);
 }
 
+function getStealEntriesForTarget(targetUsername) {
+  const normalizedTarget = String(targetUsername || '').trim();
+  const store = loadCareStore();
+  return store.steals
+    .map(normalizeManorStealEntry)
+    .filter(entry => entry.target_username === normalizedTarget)
+    .sort((left, right) => right.created_at - left.created_at);
+}
+
 function countCareEntries(entries, predicate) {
   return entries.reduce((sum, entry) => sum + (predicate(entry) ? 1 : 0), 0);
+}
+
+function isSafeStealableItemId(itemId) {
+  const normalized = String(itemId || '').trim().toLowerCase();
+  if (!normalized) return false;
+  if (/(rare|legend|unique|quest|task|event|festival|bound|epic|myth|artifact|极品|任务|唯一|绑定|活动|稀有)/i.test(normalized)) {
+    return false;
+  }
+  return true;
+}
+
+function buildStealTargetLabel(itemId, fallback = '普通产物') {
+  return sanitizeText(itemId, 40) || fallback;
 }
 
 function buildManorCareMetrics(gameplay = {}) {
@@ -865,6 +951,13 @@ function buildManorCareMetrics(gameplay = {}) {
     ...pets.filter(entry => entry?.wasPetted !== true),
   ].length;
   const matureFruitCount = fruitTrees.filter(tree => tree?.mature === true && tree?.todayFruit === true).length;
+  const stealablePlots = croppedPlots
+    .filter(plot => String(plot?.state || '') === 'harvestable')
+    .filter(plot => isSafeStealableItemId(plot?.cropId))
+    .filter(plot => plot?.questItem !== true && plot?.bound !== true && plot?.unique !== true && plot?.quality !== 'legendary');
+  const stealableFruitTrees = fruitTrees
+    .filter(tree => tree?.mature === true && tree?.todayFruit === true)
+    .filter(tree => isSafeStealableItemId(tree?.type || tree?.fruitId || tree?.itemId || 'fruit'));
   const pondWaterQuality = clampNumber(pond.waterQuality ?? pond.water_quality ?? 100, 0, 100);
 
   return {
@@ -886,6 +979,34 @@ function buildManorCareMetrics(gameplay = {}) {
     pond_care_count: pondFish.length > 0 || pondWaterQuality < 80 ? 1 : 0,
     beehive_care_count: Math.max(1, Math.min(3, Math.floor(placedDecorationCount / 3) || 1)),
     flower_care_count: Math.max(1, Math.min(3, placedDecorationCount || croppedPlots.length || 1)),
+    stealable_plot_count: stealablePlots.length,
+    stealable_fruit_count: stealableFruitTrees.length,
+    stealable_edge_count: placedDecorationCount > 0 || croppedPlots.length > 0 ? 1 : 0,
+    steal_targets: {
+      plot: stealablePlots.slice(0, 8).map(plot => ({
+        id: `plot:${sanitizeText(String(plot.id ?? plot.plotId ?? plot.cropId), 60)}`,
+        label: buildStealTargetLabel(plot.cropId, '普通作物'),
+        item_id: sanitizeText(plot.cropId, 80),
+        object_id: MANOR_CARE_VISUAL_OBJECT_IDS.field,
+      })),
+      fruit: stealableFruitTrees.slice(0, 8).map(tree => {
+        const itemId = tree.fruitId || tree.itemId || tree.type || 'fruit';
+        return {
+          id: `fruit:${sanitizeText(String(tree.id ?? itemId), 60)}`,
+          label: buildStealTargetLabel(itemId, '普通果实'),
+          item_id: sanitizeText(itemId, 80),
+          object_id: MANOR_CARE_VISUAL_OBJECT_IDS.fruitGrove,
+        };
+      }),
+      edge: [
+        {
+          id: 'edge:manor_bundle',
+          label: '庄园边角产物',
+          item_id: 'manor_edge_bundle',
+          object_id: MANOR_CARE_VISUAL_OBJECT_IDS.flowerBed,
+        },
+      ],
+    },
   };
 }
 
@@ -925,24 +1046,37 @@ function buildManorCareActionIds(objectId, metrics, context) {
     .map(action => action.id);
 }
 
-function buildManorCareVisualObjects(gameplay, careEntries, context) {
+function buildManorStealActionIds(objectId, metrics, context) {
+  if (!context.canSteal || context.remainingStealCount <= 0 || context.manorRemainingStealCount <= 0) return [];
+  if ((context.stealObjectCounts.get(objectId) || 0) >= 1) return [];
+  return MANOR_STEAL_ACTION_DEFS
+    .filter(action => action.object_id === objectId)
+    .filter(action => Math.max(0, Number(metrics[action.target_metric]) || 0) > 0)
+    .map(action => action.id);
+}
+
+function buildManorCareVisualObjects(gameplay, careEntries, stealEntries, context) {
   const metrics = buildManorCareMetrics(gameplay);
   return MANOR_CARE_VISUAL_OBJECT_DEFS.map(definition => {
     const progressTarget = Math.max(0, Math.floor(Number(definition.progress_target) || 0));
     const progressValue = Math.min(progressTarget, context.objectCounts.get(definition.id) || 0);
-    const recentEntry = careEntries.find(entry => entry.object_id === definition.id);
+    const recentCareEntry = careEntries.find(entry => entry.object_id === definition.id);
+    const recentStealEntry = stealEntries.find(entry => entry.object_id === definition.id);
+    const stealActionIds = buildManorStealActionIds(definition.id, metrics, context);
+    const careActionIds = buildManorCareActionIds(definition.id, metrics, context);
+    const baseState = getManorCareObjectState(definition, metrics, progressValue, progressTarget);
     return normalizeOnlineVisualObject({
       id: definition.id,
       label: definition.label,
       kind: definition.kind,
       x: definition.x,
       y: definition.y,
-      state: getManorCareObjectState(definition, metrics, progressValue, progressTarget),
-      available_action_ids: buildManorCareActionIds(definition.id, metrics, context),
+      state: stealActionIds.length > 0 && baseState === 'idle' ? 'needs_action' : baseState,
+      available_action_ids: [...careActionIds, ...stealActionIds],
       progress_value: progressValue,
       progress_target: progressTarget,
-      handled_by: recentEntry?.visitor_username || '',
-      handled_at: recentEntry?.created_at || 0,
+      handled_by: recentCareEntry?.visitor_username || recentStealEntry?.visitor_username || '',
+      handled_at: recentCareEntry?.created_at || recentStealEntry?.created_at || 0,
       requires_cooperation: false,
       cooperation_required_count: 0,
       cooperation_current_count: 0,
@@ -950,18 +1084,27 @@ function buildManorCareVisualObjects(gameplay, careEntries, context) {
   });
 }
 
-function buildManorCareSnapshot(username, viewerUsername, gameplay, relationContext, accessPolicy, careEntries) {
+function buildManorCareSnapshot(username, viewerUsername, gameplay, relationContext, accessPolicy, careEntries, stealEntries) {
   const dayTag = getLocalDayTag();
   const todayEntries = careEntries.filter(entry => entry.day_tag === dayTag);
   const viewerEntries = todayEntries.filter(entry => entry.visitor_username === viewerUsername);
+  const todayStealEntries = stealEntries.filter(entry => entry.day_tag === dayTag);
+  const viewerStealEntries = todayStealEntries.filter(entry => entry.visitor_username === viewerUsername);
   const objectCounts = new Map();
   for (const entry of todayEntries) {
     objectCounts.set(entry.object_id, (objectCounts.get(entry.object_id) || 0) + 1);
   }
+  const stealObjectCounts = new Map();
+  for (const entry of todayStealEntries) {
+    stealObjectCounts.set(entry.object_id, (stealObjectCounts.get(entry.object_id) || 0) + 1);
+  }
   const objectLimitById = new Map(MANOR_CARE_VISUAL_OBJECT_DEFS.map(definition => [definition.id, Math.max(1, definition.progress_target || 1)]));
   const canCareByPolicy = canAccessByMode(accessPolicy.care_mode, relationContext);
+  const canStealByPolicy = canAccessByMode(accessPolicy.steal_mode, relationContext);
   const remainingCareCount = Math.max(0, MANOR_CARE_DAILY_VISITOR_LIMIT - viewerEntries.length);
   const manorRemainingCareCount = Math.max(0, MANOR_CARE_DAILY_MANOR_LIMIT - todayEntries.length);
+  const remainingStealCount = Math.max(0, MANOR_STEAL_DAILY_VISITOR_LIMIT - viewerStealEntries.length);
+  const manorRemainingStealCount = Math.max(0, MANOR_STEAL_DAILY_MANOR_LIMIT - todayStealEntries.length);
   const canCare = Boolean(
     viewerUsername
     && !relationContext.viewer_is_owner
@@ -969,23 +1112,43 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
     && remainingCareCount > 0
     && manorRemainingCareCount > 0
   );
+  const canSteal = Boolean(
+    viewerUsername
+    && !relationContext.viewer_is_owner
+    && canStealByPolicy
+    && remainingStealCount > 0
+    && manorRemainingStealCount > 0
+  );
   const context = {
     canCare,
     remainingCareCount,
+    canSteal,
+    remainingStealCount,
+    manorRemainingStealCount,
     objectCounts,
+    stealObjectCounts,
     objectLimitById,
   };
-  const objects = buildManorCareVisualObjects(gameplay, careEntries, context);
-  const recentEntry = careEntries[0] || null;
+  const objects = buildManorCareVisualObjects(gameplay, careEntries, stealEntries, context);
+  const recentEntry = [careEntries[0], stealEntries[0]]
+    .filter(Boolean)
+    .sort((left, right) => right.created_at - left.created_at)[0] || null;
   const recentFeedback = recentEntry
     ? recentEntry.summary
-    : canCare
-      ? '好友可以帮忙处理今日庄园照料。'
+    : canCare || canSteal
+      ? '好友可以处理今日庄园互动。'
       : buildAccessDenyMessage(accessPolicy.care_mode, '照料这座庄园');
+  const stealDeniedReason = canSteal
+    ? ''
+    : remainingStealCount <= 0
+      ? '今天在这座庄园的偷菜次数已用完'
+      : manorRemainingStealCount <= 0
+        ? '这座庄园今天已经被轻采得足够多了'
+        : buildAccessDenyMessage(accessPolicy.steal_mode, '偷菜');
   return {
     visual_state: normalizeManorCareVisualState({
       board_id: `manor:${username}:care`,
-      revision: careEntries.length,
+      revision: careEntries.length + stealEntries.length,
       selected_visual_id: objects.find(object => object.available_action_ids.length > 0)?.id || objects[0]?.id || '',
       objects,
       recent_feedback: recentFeedback,
@@ -993,6 +1156,7 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
     care_state: {
       day_tag: dayTag,
       action_labels: Object.fromEntries(MANOR_CARE_ACTION_DEFS.map(action => [action.id, action.label])),
+      scene_action_labels: Object.fromEntries([...MANOR_CARE_ACTION_DEFS, ...MANOR_STEAL_ACTION_DEFS].map(action => [action.id, action.label])),
       action_effects: Object.fromEntries(MANOR_CARE_ACTION_DEFS.map(action => [action.id, {
         owner_benefit: action.owner_benefit,
         visitor_reward: action.visitor_reward,
@@ -1013,6 +1177,26 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
           : manorRemainingCareCount <= 0
             ? '这座庄园今天已经被照料得足够多了'
             : buildAccessDenyMessage(accessPolicy.care_mode, '照料这座庄园'),
+    },
+    steal_state: {
+      day_tag: dayTag,
+      action_labels: Object.fromEntries(MANOR_STEAL_ACTION_DEFS.map(action => [action.id, action.label])),
+      action_effects: Object.fromEntries(MANOR_STEAL_ACTION_DEFS.map(action => [action.id, {
+        owner_compensation: action.owner_compensation,
+        visitor_reward: action.visitor_reward,
+      }])),
+      limits: {
+        visitor_daily_limit: MANOR_STEAL_DAILY_VISITOR_LIMIT,
+        manor_daily_limit: MANOR_STEAL_DAILY_MANOR_LIMIT,
+        object_daily_limit: 1,
+      },
+      visitor_daily_count: viewerStealEntries.length,
+      manor_daily_count: todayStealEntries.length,
+      remaining_steal_count: remainingStealCount,
+      manor_remaining_steal_count: manorRemainingStealCount,
+      can_steal: canSteal,
+      steal_denied_reason: stealDeniedReason,
+      whitelist_summary: '仅普通成熟作物、普通果实和边角产物可轻采；任务物、稀有物、唯一物、绑定物和活动核心物被排除。',
     },
   };
 }
@@ -1229,6 +1413,7 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
   const decoration = gameplay.decoration || {};
   const visitEntries = getVisitsForTarget(user.username);
   const careEntries = getCareEntriesForTarget(user.username);
+  const stealEntries = getStealEntriesForTarget(user.username);
   const guideConfig = getGuideConfig(user.username);
   const favoriteStore = loadFavoriteStore();
   const ownerFavorites = favoriteStore.favorites
@@ -1244,7 +1429,7 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
     .filter(entry => entry.manor_username === user.username)
     .length;
   const themeWeek = buildThemeWeekState(user.username, gameplay, profile.showcase_theme, publicTags, favoriteCount, placedDecorationCount);
-  const careSnapshot = buildManorCareSnapshot(user.username, viewer, gameplay, relationContext, accessPolicy, careEntries);
+  const careSnapshot = buildManorCareSnapshot(user.username, viewer, gameplay, relationContext, accessPolicy, careEntries, stealEntries);
 
   return {
     username: user.username,
@@ -1277,10 +1462,13 @@ async function buildManorSnapshot(username, viewerUsername = '', options = {}) {
       ...relationContext,
       can_visit: true,
       can_care: careSnapshot.care_state.can_care,
+      can_steal: careSnapshot.steal_state.can_steal,
     },
     visual_state: careSnapshot.visual_state,
     care_state: careSnapshot.care_state,
     care_entries: careEntries.slice(0, MANOR_CARE_RECENT_LOG_LIMIT),
+    steal_state: careSnapshot.steal_state,
+    steal_entries: stealEntries.slice(0, MANOR_STEAL_RECENT_LOG_LIMIT),
   };
 }
 
@@ -1355,6 +1543,31 @@ function buildManorCareIdempotencyKey(targetUsername, visitorUsername, dayTag, o
     sanitizeText(objectId, 80),
     sanitizeText(actionId, 60),
   ].join(':');
+}
+
+function buildManorStealIdempotencyKey(targetUsername, visitorUsername, dayTag, targetId, rawKey = '') {
+  const explicitKey = sanitizeText(rawKey, 160);
+  if (explicitKey) return explicitKey;
+  return [
+    'steal',
+    sanitizeText(targetUsername, 60),
+    sanitizeText(visitorUsername, 60),
+    sanitizeText(dayTag, 20),
+    sanitizeText(targetId, 100),
+  ].join(':');
+}
+
+function pickManorStealTarget(metrics, actionDef, requestedTargetId = '') {
+  const bucket = actionDef.id === 'steal_plot_sample'
+    ? metrics.steal_targets?.plot
+    : actionDef.id === 'steal_fruit_sample'
+      ? metrics.steal_targets?.fruit
+      : metrics.steal_targets?.edge;
+  const targets = Array.isArray(bucket) ? bucket : [];
+  if (targets.length === 0) return null;
+  const normalizedTargetId = sanitizeText(requestedTargetId, 100);
+  if (normalizedTargetId) return targets.find(target => target.id === normalizedTargetId) || null;
+  return targets[0];
 }
 
 async function submitManorCareAction(payload = {}, actor = {}) {
@@ -1444,6 +1657,119 @@ async function submitManorCareAction(payload = {}, actor = {}) {
     created_at: nowSeconds(),
   });
   store.entries = [entry, ...entries].slice(0, 1000);
+  saveCareStore(store);
+  return {
+    entry,
+    snapshot: await buildManorSnapshot(targetUsername, visitorUsername),
+    idempotent: false,
+  };
+}
+
+async function submitManorStealAction(payload = {}, actor = {}) {
+  const visitorUsername = String(actor.username || '').trim();
+  if (!visitorUsername) throw createError('请先登录');
+  const { username: targetUsername, identity: targetIdentity } = resolveManorTarget(payload);
+  const targetUser = await db.getUser(targetUsername);
+  if (!targetUser) throw createError('目标庄园不存在', 404);
+  if (targetUsername === visitorUsername) throw createError('不能偷自己的庄园', 400);
+
+  const actionId = sanitizeText(payload.action_id, 60);
+  const actionDef = MANOR_STEAL_ACTION_BY_ID[actionId];
+  if (!actionDef) throw createError('未知的庄园偷菜动作', 400);
+  const requestedObjectId = sanitizeText(payload.object_id, 80);
+  if (requestedObjectId && requestedObjectId !== actionDef.object_id) {
+    throw createError('偷菜动作与目标物件不匹配', 400);
+  }
+
+  const profile = await taoyuanSocialRuntime.getPublicProfile(targetUsername, targetUsername);
+  const relationContext = buildManorRelationContext(targetUsername, visitorUsername);
+  const accessPolicy = getManorAccessPolicy(targetUsername, profile);
+  if (!canAccessByMode(accessPolicy.visit_mode, relationContext)) {
+    throw createError(buildAccessDenyMessage(accessPolicy.visit_mode, '访问这座庄园'), 403);
+  }
+  if (!canAccessByMode(accessPolicy.steal_mode, relationContext)) {
+    throw createError(buildAccessDenyMessage(accessPolicy.steal_mode, '偷菜'), 403);
+  }
+
+  const saveContext = (() => {
+    try {
+      return getActiveSaveContext(targetUsername, targetIdentity?.save_slot ?? null, '该玩家当前没有可偷菜的庄园存档');
+    } catch {
+      return null;
+    }
+  })();
+  const metrics = buildManorCareMetrics(saveContext?.data || {});
+  if (Math.max(0, Number(metrics[actionDef.target_metric]) || 0) <= 0) {
+    throw createError('当前没有可轻采的安全目标', 409);
+  }
+  const stealTarget = pickManorStealTarget(metrics, actionDef, payload.target_id);
+  if (!stealTarget || !isSafeStealableItemId(stealTarget.item_id)) {
+    throw createError('目标不在可偷白名单内', 409);
+  }
+
+  const dayTag = getLocalDayTag();
+  const idempotencyKey = buildManorStealIdempotencyKey(targetUsername, visitorUsername, dayTag, stealTarget.id, payload.idempotency_key);
+  const store = loadCareStore();
+  const steals = (store.steals || []).map(normalizeManorStealEntry);
+  const existing = steals.find(entry => entry.idempotency_key === idempotencyKey);
+  if (existing) {
+    return {
+      entry: existing,
+      snapshot: await buildManorSnapshot(targetUsername, visitorUsername),
+      idempotent: true,
+    };
+  }
+
+  const todaySteals = steals.filter(entry => entry.target_username === targetUsername && entry.day_tag === dayTag);
+  const visitorDailyCount = countCareEntries(todaySteals, entry => entry.visitor_username === visitorUsername);
+  if (visitorDailyCount >= MANOR_STEAL_DAILY_VISITOR_LIMIT) {
+    throw createError('今天在这座庄园的偷菜次数已用完', 429);
+  }
+  if (todaySteals.length >= MANOR_STEAL_DAILY_MANOR_LIMIT) {
+    throw createError('这座庄园今天已经被轻采得足够多了', 429);
+  }
+  const objectDailyCount = countCareEntries(todaySteals, entry => entry.object_id === actionDef.object_id);
+  if (objectDailyCount >= 1) {
+    throw createError('这个庄园物件今天已经被轻采过了', 409);
+  }
+
+  const note = payload.note
+    ? moderateText(payload.note, {
+        label: '偷菜留言',
+        field: 'note',
+        scene: 'manor_steal',
+        maxLength: 80,
+        storageMaxLength: 80,
+        maxLineBreaks: 1,
+      })
+    : '';
+  const objectDef = MANOR_CARE_VISUAL_OBJECT_DEFS.find(definition => definition.id === actionDef.object_id);
+  const objectLabel = objectDef?.label || actionDef.object_id;
+  const entry = normalizeManorStealEntry({
+    id: makeId('manor_steal'),
+    target_username: targetUsername,
+    target_save_id: targetIdentity?.save_id || 0,
+    target_save_slot: targetIdentity?.save_slot ?? null,
+    visitor_username: visitorUsername,
+    visitor_display_name: actor.displayName || visitorUsername,
+    action_id: actionDef.id,
+    action_label: actionDef.label,
+    object_id: actionDef.object_id,
+    object_label: objectLabel,
+    target_id: stealTarget.id,
+    target_label: stealTarget.label,
+    item_id: stealTarget.item_id,
+    item_label: stealTarget.label,
+    quantity: 1,
+    day_tag: dayTag,
+    idempotency_key: idempotencyKey,
+    owner_compensation: actionDef.owner_compensation,
+    visitor_reward: actionDef.visitor_reward,
+    note,
+    summary: `${actor.displayName || visitorUsername} 在${objectLabel}轻采「${stealTarget.label}」：${actionDef.owner_compensation}。`,
+    created_at: nowSeconds(),
+  });
+  store.steals = [entry, ...steals].slice(0, 1000);
   saveCareStore(store);
   return {
     entry,
@@ -1565,6 +1891,7 @@ module.exports = {
   updateManorThemeWeek,
   updateManorAccessPolicy,
   submitManorCareAction,
+  submitManorStealAction,
   favoriteManor,
   followManor,
   listFavoriteOverview,
