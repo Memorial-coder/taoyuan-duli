@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0522 移动地图在线入口（阶段 A2）
+- 手机地图的“联机主导航”现在以“联机”在线中心作为主入口，好友驿站保留为轻量快捷入口；庄园、邻里、委托、节会、村社不再在移动地图里平铺成一排主入口。
+- 单人告示板入口从联机组挪回村落组，邮箱继续留在常用工具，不并入在线中心。
+- 验证通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`；`qa:mobile-ui-smoke` 在当前环境因 Playwright Chromium `spawn EPERM` 自动跳过。
+
 ### 0522 在线中心入口（阶段 A0-A1）
 - 新增游戏内 `online` 导航面板，使用“联机”标签与 Wi-Fi 图标，`TAB_TO_LOCATION_GROUP.online = null`，进入在线中心不会产生移动耗时，也不会触发店铺营业时间限制。
 - 新增 `/game/online` 在线中心首页和庄园、邻里、委托、节会、村社五个子入口路由，五个子入口当前提供轻量模块壳与返回在线中心按钮，为后续拆页迁移预留稳定落点。

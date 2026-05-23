@@ -88,18 +88,31 @@
 
         <div class="map-area mb-3">
           <p class="map-area-title">联机主导航</p>
-          <p class="map-area-caption">把好友、邻里、庄园、委托、节会和村社放到同一层，联机入口不再散落。</p>
-          <div class="map-area-grid">
+          <p class="map-area-caption">先进入在线中心，再选择庄园、邻里、委托、节会或村社；好友驿站保留快捷入口。</p>
+          <div class="map-area-grid map-area-grid-online">
             <button
-              v-for="t in onlineGroup"
-              :key="`online-${t.key}`"
-              class="map-loc map-loc-online"
-              :class="{ 'map-loc-active': props.current === t.key }"
+              v-for="t in onlineCenterGroup"
+              :key="`online-center-${t.key}`"
+              class="map-loc map-loc-online map-loc-online-center"
+              :class="{ 'map-loc-active': isActivePanel(t.key) }"
               :data-testid="`mobile-map-online-loc-${t.key}`"
               @click="go(t.key)"
             >
               <component :is="t.getIcon ? t.getIcon() : t.icon" :size="mobileMapLocIconSize" />
-              <span>{{ onlineLabelMap[t.key] || t.label }}</span>
+              <span>{{ t.label }}</span>
+            </button>
+          </div>
+          <div class="quick-link-row quick-link-row-online">
+            <button
+              v-for="t in onlineShortcutGroup"
+              :key="`online-shortcut-${t.key}`"
+              class="quick-link-chip"
+              :class="{ 'quick-link-chip-active': isActivePanel(t.key) }"
+              :data-testid="`mobile-map-online-shortcut-${t.key}`"
+              @click="go(t.key)"
+            >
+              <span class="quick-link-chip-title">{{ t.label }}</span>
+              <span class="quick-link-chip-tag">快捷</span>
             </button>
           </div>
         </div>
@@ -256,6 +269,10 @@
       '商店': 'shop',
       '商圈': 'shop',
       shop: 'shop',
+      '联机': 'online',
+      '在线': 'online',
+      '在线中心': 'online',
+      online: 'online',
       '好友': 'friend-station',
       '好友驿站': 'friend-station',
       friend: 'friend-station',
@@ -372,17 +389,19 @@
   const mobileMapTileScaleCss = computed(() => mobileMapTileScale.value.toFixed(3))
   const mobileMapLocIconSize = computed(() => Number((18 * mobileMapTileScale.value).toFixed(2)))
   const mobileMapToolIconSize = computed(() => Number((16 * mobileMapTileScale.value).toFixed(2)))
-  const onlineLabelMap: Partial<Record<PanelKey, string>> = {
-    quest: '委托',
-    'friend-station': '好友'
-  }
 
   const farmGroup = computed(() => pick(['farm', 'animal', 'cottage', 'home', 'breeding', 'fishpond', 'decoration']))
-  const onlineGroup = computed(() => pick(['friend-station', 'social', 'manor', 'quest', 'festival', 'society']))
-  const villageGroup = computed(() => pick(['village', 'shop', 'museum', 'guild']))
+  const onlineCenterGroup = computed(() => pick(['online']))
+  const onlineShortcutGroup = computed(() => pick(['friend-station']))
+  const villageGroup = computed(() => pick(['village', 'shop', 'quest', 'museum', 'guild']))
   const wildGroup = computed(() => pick(['forage', 'fishing', 'mining', 'hanhai', 'region-map']))
   const craftGroup = computed(() => pick(['cooking', 'workshop', 'upgrade']))
   const personalGroup = computed(() => pick(['charinfo', 'inventory', 'skills', 'achievement', 'wallet', 'mail', 'glossary']))
+
+  const isActivePanel = (key: PanelKey) => {
+    if (key === 'online') return props.current === 'online' || props.current.startsWith('online-')
+    return props.current === key
+  }
 
   const go = (key: PanelKey) => {
     navigateToPanel(key)
@@ -438,6 +457,10 @@
     margin: calc(6px * var(--mobile-map-tile-scale, 1));
   }
 
+  .map-area-grid-online {
+    margin-bottom: calc(4px * var(--mobile-map-tile-scale, 1));
+  }
+
   .map-loc {
     display: flex;
     flex-direction: column;
@@ -474,6 +497,11 @@
     min-width: calc(64px * var(--mobile-map-tile-scale, 1));
     background: rgba(200, 164, 92, 0.08);
     border-color: rgba(200, 164, 92, 0.28);
+  }
+
+  .map-loc-online-center {
+    width: min(100%, calc(168px * var(--mobile-map-tile-scale, 1)));
+    min-height: calc(58px * var(--mobile-map-tile-scale, 1));
   }
 
   .map-path {
@@ -552,6 +580,11 @@
     margin-top: calc(8px * var(--mobile-map-tile-scale, 1));
   }
 
+  .quick-link-row-online {
+    justify-content: center;
+    margin-top: calc(4px * var(--mobile-map-tile-scale, 1));
+  }
+
   .quick-link-chip {
     display: flex;
     align-items: center;
@@ -570,7 +603,8 @@
   }
 
   .quick-link-chip:hover,
-  .quick-link-chip:active {
+  .quick-link-chip:active,
+  .quick-link-chip-active {
     background: rgba(200, 164, 92, 0.12);
     border-color: rgba(200, 164, 92, 0.4);
     color: rgb(var(--color-text));
