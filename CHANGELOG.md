@@ -2,6 +2,9 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A4` 这一轮收口邮箱入口旧轮询：`GameLayout.vue` 不再每 60 秒常驻刷新邮箱列表，改为进入游戏时刷新一次、页面回到前台时静默刷新一次。
+- 邮箱新增仍由 realtime `notification.created` 驱动静默重读，前台恢复刷新只作为断线 / 浏览器后台节流后的轻量补偿，不改邮件领取、已读或奖励结算逻辑。
+
 - `0520todo.md / A4-A6-A7` 这一轮把每周交换站与节庆摊位接入 realtime 在线轻通知：换物 / 购买成功后，服务端会向当前在线连接投递 `category: "exchange"` 的交易摘要。
 - 前端收到 `weekly_exchange_station` 或 `festival_stall` source 后只静默重读对应摊位、交换账本与官方调控概览；通知不携带成本、奖励或完整交易记录，也不进入离线补发队列。
 - `qa:realtime-smoke` 新增每周交换站与节庆摊位在线通知断言，确认摘要不暴露成本 / 奖励 / record，且在线通知不带 `queued_event_id`。

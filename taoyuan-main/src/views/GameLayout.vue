@@ -626,7 +626,11 @@
   const backgroundAutoSaveTimer = ref<number | null>(null)
   const backgroundAutoSaveInFlight = ref(false)
   const pendingSaveSyncTimer = ref<number | null>(null)
-  const mailRefreshTimer = ref<number | null>(null)
+  let mailboxVisibilityHandler: (() => void) | null = null
+
+  const refreshMailboxOnResume = () => {
+    void mailboxStore.refreshList({ silent: true }).catch(() => {})
+  }
 
   const runBackgroundAutoSave = async () => {
     if (backgroundAutoSaveInFlight.value) return
@@ -646,9 +650,11 @@
     void realtimeStore.start()
     void saveStore.syncPendingServerSaves()
     void mailboxStore.refreshList().catch(() => {})
-    mailRefreshTimer.value = window.setInterval(() => {
-      void mailboxStore.refreshList().catch(() => {})
-    }, 60000)
+    mailboxVisibilityHandler = () => {
+      if (document.visibilityState !== 'visible') return
+      refreshMailboxOnResume()
+    }
+    document.addEventListener('visibilitychange', mailboxVisibilityHandler)
     pendingSaveSyncTimer.value = window.setInterval(() => {
       void saveStore.syncPendingServerSaves()
     }, 15000)
@@ -663,9 +669,9 @@
       window.clearInterval(backgroundAutoSaveTimer.value)
       backgroundAutoSaveTimer.value = null
     }
-    if (mailRefreshTimer.value !== null) {
-      window.clearInterval(mailRefreshTimer.value)
-      mailRefreshTimer.value = null
+    if (mailboxVisibilityHandler !== null) {
+      document.removeEventListener('visibilitychange', mailboxVisibilityHandler)
+      mailboxVisibilityHandler = null
     }
     if (pendingSaveSyncTimer.value !== null) {
       window.clearInterval(pendingSaveSyncTimer.value)
