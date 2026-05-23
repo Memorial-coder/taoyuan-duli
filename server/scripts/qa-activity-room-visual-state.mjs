@@ -132,6 +132,22 @@ const currentEventId = advancedResult.room.gameplay.cavern_state.current_event.i
 const currentEventNodes = advancedResult.room.visual_state.nodes.filter(node => node.event_id === currentEventId)
 assert.ok(currentEventNodes.length > 0, 'round transition should remap visual nodes to the current cavern event')
 
+const settledResult = await runtime.settleExpeditionRoom(actionExpedition.room.id, actor('visual_action_host'))
+const receiptReplay = settledResult.overview.recent_receipts.find(receipt => receipt.room_id === actionExpedition.room.id)?.route_replay
+assert.equal(receiptReplay?.kind, 'expedition_cavern', 'cavern settlement receipt should expose route replay')
+assert.equal(receiptReplay.title, '矿洞探索记录', 'cavern route replay should use readable title')
+assert.deepEqual(receiptReplay.route_nodes.map(node => node.id), [
+  'cavern_entrance',
+  'cavern_ore_vein',
+  'cavern_route_marker',
+  'cavern_exit',
+], 'cavern route replay should preserve explored route order')
+assert.ok(receiptReplay.highlight_nodes.length > 0, 'cavern route replay should keep highlight nodes')
+assert.ok(receiptReplay.risk_peak.value >= 3, 'cavern route replay should record risk peak')
+assert.ok(receiptReplay.member_contributions.some(item => item.username === 'visual_action_host'), 'cavern route replay should include member contribution')
+const settledSnapshotReceipt = settledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_action_host')
+assert.equal(settledSnapshotReceipt?.route_replay?.kind, 'expedition_cavern', 'room snapshot settlement receipt should include route replay')
+
 const stored = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 stored.rooms = stored.rooms.map(room => {
   const nextRoom = { ...room }

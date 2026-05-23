@@ -1170,6 +1170,94 @@ function normalizeRoomMember(entry) {
   };
 }
 
+function normalizeReceiptRouteReplayNode(entry) {
+  const id = sanitizeText(entry?.id, 80);
+  if (!id) return null;
+  return {
+    id,
+    label: sanitizeText(entry?.label, 40),
+    kind: sanitizeText(entry?.kind, 40),
+    state: sanitizeText(entry?.state, 24),
+    order: Math.max(0, Math.floor(Number(entry?.order) || 0)),
+  };
+}
+
+function normalizeReceiptRouteReplayHighlight(entry) {
+  const nodeId = sanitizeText(entry?.node_id || entry?.visual_id, 80);
+  if (!nodeId) return null;
+  return {
+    node_id: nodeId,
+    label: sanitizeText(entry?.label, 40),
+    summary: sanitizeText(entry?.summary, 120),
+    type: sanitizeText(entry?.type, 24) || 'info',
+  };
+}
+
+function normalizeReceiptRouteReplayContribution(entry) {
+  const username = sanitizeText(entry?.username, 40);
+  if (!username) return null;
+  return {
+    username,
+    display_name: sanitizeText(entry?.display_name, 40) || username,
+    role_label: sanitizeText(entry?.role_label, 24),
+    progress_value: Math.max(0, Math.floor(Number(entry?.progress_value) || 0)),
+    score_value: Math.max(0, Math.floor(Number(entry?.score_value) || 0)),
+    action_count: Math.max(0, Math.floor(Number(entry?.action_count) || 0)),
+    summary: sanitizeText(entry?.summary, 120),
+  };
+}
+
+function normalizeReceiptRouteReplay(value) {
+  const source = value && typeof value === 'object' ? value : {};
+  const kind = sanitizeText(source.kind, 40);
+  if (!kind) {
+    return {
+      kind: '',
+      title: '',
+      summary: '',
+      route_nodes: [],
+      highlight_nodes: [],
+      risk_peak: {
+        value: 0,
+        round_number: 0,
+        action_label: '',
+        actor_display_name: '',
+        summary: '',
+      },
+      member_contributions: [],
+    };
+  }
+  return {
+    kind,
+    title: sanitizeText(source.title, 60),
+    summary: sanitizeText(source.summary, 180),
+    route_nodes: Array.isArray(source.route_nodes)
+      ? source.route_nodes.map(normalizeReceiptRouteReplayNode).filter(Boolean).slice(0, 24)
+      : [],
+    highlight_nodes: Array.isArray(source.highlight_nodes)
+      ? source.highlight_nodes.map(normalizeReceiptRouteReplayHighlight).filter(Boolean).slice(0, 12)
+      : [],
+    risk_peak: source.risk_peak && typeof source.risk_peak === 'object'
+      ? {
+          value: Math.max(0, Math.floor(Number(source.risk_peak.value) || 0)),
+          round_number: Math.max(0, Math.floor(Number(source.risk_peak.round_number) || 0)),
+          action_label: sanitizeText(source.risk_peak.action_label, 40),
+          actor_display_name: sanitizeText(source.risk_peak.actor_display_name, 40),
+          summary: sanitizeText(source.risk_peak.summary, 140),
+        }
+      : {
+          value: 0,
+          round_number: 0,
+          action_label: '',
+          actor_display_name: '',
+          summary: '',
+        },
+    member_contributions: Array.isArray(source.member_contributions)
+      ? source.member_contributions.map(normalizeReceiptRouteReplayContribution).filter(Boolean).slice(0, 8)
+      : [],
+  };
+}
+
 function normalizeRoomReceipt(entry) {
   const activityDomain = normalizeActivityDomain(entry?.activity_domain || entry?.domain || getTemplateDomain(ROOM_TEMPLATE_MAP[sanitizeText(entry?.template_id, 40)]));
   return {
@@ -1226,6 +1314,7 @@ function normalizeRoomReceipt(entry) {
           title_reward: { title_id: '', label: '', granted: false },
         },
     summary: sanitizeText(entry?.summary, 160),
+    route_replay: normalizeReceiptRouteReplay(entry?.route_replay),
     reward_result: sanitizeText(entry?.reward_result, 160),
     last_error: sanitizeText(entry?.last_error, 160),
     settlement_version: Math.max(1, Math.floor(Number(entry?.settlement_version) || 1)),
@@ -2552,6 +2641,112 @@ function buildExpeditionCavernRoundLog(room, cavernState) {
     });
 }
 
+function getExpeditionCavernRouteNodeForAction(actionId, cavernState) {
+  const normalizedActionId = sanitizeText(actionId, 40);
+  if (EXPEDITION_CAVERN_ACTION_NODE_MAP[normalizedActionId]) {
+    return EXPEDITION_CAVERN_ACTION_NODE_MAP[normalizedActionId];
+  }
+  if (normalizedActionId === 'round_advance') {
+    return getExpeditionCavernCurrentVisualNodeId(cavernState);
+  }
+  return '';
+}
+
+function buildExpeditionCavernRouteReplay(room) {
+  if (room?.gameplay_template_id !== 'expedition_cavern') return normalizeReceiptRouteReplay(null);
+  const gameplayState = ensureRoomGameplayState(room);
+  const cavernState = normalizeExpeditionCavernState(gameplayState.cavern_state);
+  syncExpeditionCavernRoleAssignments(room, cavernState);
+  const visualState = normalizeOnlineVisualState(room.visual_state, room);
+  const nodes = visualState.nodes.length > 0
+    ? visualState.nodes
+    : buildExpeditionCavernVisualNodes(cavernState);
+  const nodeById = new Map(nodes.map(node => [node.id, node]));
+  const orderedLog = buildExpeditionCavernRoundLog(room, cavernState)
+    .filter(entry => entry.action_id && entry.action_id !== 'round_advance')
+    .reverse();
+  const seenRouteNodeIds = new Set();
+  const routeNodes = [];
+  const appendRouteNode = (nodeId) => {
+    const normalizedNodeId = sanitizeText(nodeId, 80);
+    if (!normalizedNodeId || seenRouteNodeIds.has(normalizedNodeId)) return;
+    const node = nodeById.get(normalizedNodeId);
+    if (!node) return;
+    seenRouteNodeIds.add(normalizedNodeId);
+    routeNodes.push({
+      id: node.id,
+      label: node.label,
+      kind: node.kind,
+      state: node.state,
+      order: routeNodes.length + 1,
+    });
+  };
+  appendRouteNode(EXPEDITION_CAVERN_VISUAL_NODE_IDS.entrance);
+  for (const entry of orderedLog) {
+    appendRouteNode(getExpeditionCavernRouteNodeForAction(entry.action_id, cavernState));
+  }
+  appendRouteNode(EXPEDITION_CAVERN_VISUAL_NODE_IDS.exit);
+
+  const highlightNodes = orderedLog
+    .filter(entry => entry.score_delta > 0 || entry.risk_delta < 0 || entry.resource_delta_text)
+    .slice(-4)
+    .map(entry => {
+      const nodeId = getExpeditionCavernRouteNodeForAction(entry.action_id, cavernState);
+      const node = nodeById.get(nodeId);
+      return normalizeReceiptRouteReplayHighlight({
+        node_id: nodeId,
+        label: node?.label || entry.action_label,
+        summary: entry.summary,
+        type: entry.score_delta > 0 ? 'reward' : entry.risk_delta < 0 ? 'success' : 'info',
+      });
+    })
+    .filter(Boolean);
+
+  let runningRisk = EXPEDITION_CAVERN_INITIAL_RISK;
+  let riskPeak = {
+    value: runningRisk,
+    round_number: 1,
+    action_label: '',
+    actor_display_name: '',
+    summary: '入洞时的基础风险。',
+  };
+  for (const entry of orderedLog) {
+    runningRisk = clampNumber(runningRisk + entry.risk_delta, 0, EXPEDITION_CAVERN_RISK_MAX);
+    if (runningRisk >= riskPeak.value) {
+      riskPeak = {
+        value: runningRisk,
+        round_number: entry.round_number,
+        action_label: entry.action_label,
+        actor_display_name: entry.actor_display_name,
+        summary: entry.summary,
+      };
+    }
+  }
+
+  const roleByUsername = new Map(buildExpeditionCavernTeamRoles(room, cavernState).map(role => [role.username, role]));
+  const memberContributions = getSortedGameplayContributions(room).map(entry => {
+    const role = roleByUsername.get(entry.username);
+    return normalizeReceiptRouteReplayContribution({
+      ...entry,
+      role_label: role?.role_label || '',
+      summary: `${entry.display_name} 推进 ${entry.progress_value}，采集值 ${entry.score_value}，行动 ${entry.action_count} 次。`,
+    });
+  }).filter(Boolean);
+
+  const summary = routeNodes.length > 0
+    ? `路线 ${routeNodes.map(node => node.label).join(' -> ')}；风险峰值 ${riskPeak.value}/${EXPEDITION_CAVERN_RISK_MAX}。`
+    : `矿洞探索记录已生成；风险峰值 ${riskPeak.value}/${EXPEDITION_CAVERN_RISK_MAX}。`;
+  return normalizeReceiptRouteReplay({
+    kind: 'expedition_cavern',
+    title: '矿洞探索记录',
+    summary,
+    route_nodes: routeNodes,
+    highlight_nodes: highlightNodes,
+    risk_peak: riskPeak,
+    member_contributions: memberContributions,
+  });
+}
+
 function buildFestivalTeamRoles(room, festivalState) {
   const joinedMembers = getJoinedMembers(room);
   const assignments = Array.isArray(festivalState?.role_assignments) && festivalState.role_assignments.length > 0
@@ -3583,6 +3778,7 @@ function buildRoomSnapshot(store, room, viewerUsername) {
       status_label: getReceiptStatusLabel(receipt.status),
       reward_payload: receipt.reward_payload,
       summary: receipt.summary,
+      route_replay: receipt.route_replay,
       created_at: receipt.created_at,
     })),
     visual_state: normalizeOnlineVisualState(room.visual_state, room),
@@ -3657,6 +3853,7 @@ function buildOverview(store, viewerUsername, domain = DEFAULT_ACTIVITY_DOMAIN) 
       status_label: getReceiptStatusLabel(receipt.status),
       reward_payload: receipt.reward_payload,
       summary: receipt.summary,
+      route_replay: receipt.route_replay,
       created_at: receipt.created_at,
     }));
   const recentMemorials = normalizedDomain === 'festival' ? buildFestivalMemorialOverview(normalizedViewer) : [];
@@ -4401,6 +4598,9 @@ async function settleActivityRoom(roomId, actor = {}) {
   room.settlement_version = Math.max(1, room.settlement_version + 1);
   const joinedMembers = getJoinedMembers(room);
   const rankedContributions = getSortedGameplayContributions(room);
+  const routeReplay = room.gameplay_template_id === 'expedition_cavern'
+    ? buildExpeditionCavernRouteReplay(room)
+    : normalizeReceiptRouteReplay(null);
   const nextReceipts = joinedMembers.map(member => {
     const rankingIndex = Math.max(0, rankedContributions.findIndex(entry => entry.username === member.username));
     const rewardPreview = buildFestivalReceiptReward(room, member, rankingIndex);
@@ -4419,6 +4619,7 @@ async function settleActivityRoom(roomId, actor = {}) {
       reward_payload: rewardPreview.reward_payload,
       reward_breakdown: rewardPreview.reward_breakdown,
       summary: rewardPreview.summary,
+      route_replay: routeReplay,
       reward_result: '',
       last_error: '',
       settlement_version: room.settlement_version,

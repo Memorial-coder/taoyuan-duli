@@ -235,7 +235,49 @@ export interface ExpeditionRoomReceiptPreview {
     }>
   }
   summary: string
+  route_replay: ExpeditionRoomRouteReplay
   created_at: number
+}
+
+export interface ExpeditionRoomRouteReplayNode {
+  id: string
+  label: string
+  kind: string
+  state: string
+  order: number
+}
+
+export interface ExpeditionRoomRouteReplayHighlight {
+  node_id: string
+  label: string
+  summary: string
+  type: string
+}
+
+export interface ExpeditionRoomRouteReplayContribution {
+  username: string
+  display_name: string
+  role_label: string
+  progress_value: number
+  score_value: number
+  action_count: number
+  summary: string
+}
+
+export interface ExpeditionRoomRouteReplay {
+  kind: string
+  title: string
+  summary: string
+  route_nodes: ExpeditionRoomRouteReplayNode[]
+  highlight_nodes: ExpeditionRoomRouteReplayHighlight[]
+  risk_peak: {
+    value: number
+    round_number: number
+    action_label: string
+    actor_display_name: string
+    summary: string
+  }
+  member_contributions: ExpeditionRoomRouteReplayContribution[]
 }
 
 export interface ExpeditionRoomOpeningCeremony {
@@ -314,6 +356,7 @@ export interface ExpeditionRoomOverview {
     status_label: string
     reward_payload: ExpeditionRoomReceiptPreview['reward_payload']
     summary: string
+    route_replay: ExpeditionRoomRouteReplay
     created_at: number
   }>
 }

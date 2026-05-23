@@ -290,6 +290,30 @@
               <span class="text-[10px] text-accent">{{ receipt.status_label }}</span>
             </div>
             <p class="text-[10px] text-muted mt-2 leading-4">{{ receipt.summary }}</p>
+            <div v-if="receipt.route_replay?.kind" class="mt-2 border border-accent/10 bg-bg/20 px-2 py-2">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-[10px] text-accent">{{ receipt.route_replay.title }}</p>
+                <span class="text-[10px] text-warning">风险峰值 {{ receipt.route_replay.risk_peak.value }}</span>
+              </div>
+              <p class="mt-1 text-[10px] text-text leading-4">
+                {{ receipt.route_replay.route_nodes.map(node => node.label).join(' -> ') }}
+              </p>
+              <p class="mt-1 text-[10px] text-muted leading-4">{{ receipt.route_replay.summary }}</p>
+              <div v-if="receipt.route_replay.highlight_nodes.length > 0" class="mt-2 space-y-1">
+                <p v-for="highlight in receipt.route_replay.highlight_nodes.slice(0, 2)" :key="`${receipt.id}-${highlight.node_id}-${highlight.label}`" class="text-[10px] text-muted leading-4">
+                  {{ highlight.label }}：{{ highlight.summary }}
+                </p>
+              </div>
+              <div v-if="receipt.route_replay.member_contributions.length > 0" class="mt-2 flex flex-wrap gap-1">
+                <span
+                  v-for="contribution in receipt.route_replay.member_contributions.slice(0, 4)"
+                  :key="`${receipt.id}-${contribution.username}`"
+                  class="border border-accent/10 px-1.5 py-0.5 text-[10px] text-muted"
+                >
+                  {{ contribution.display_name }} {{ contribution.role_label || '队员' }} · {{ contribution.action_count }} 次
+                </span>
+              </div>
+            </div>
           </div>
         </div>
       </div>
