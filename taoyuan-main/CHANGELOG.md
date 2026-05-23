@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0522 在线模块壳组件（阶段 I0）
+- 新增 `src/components/game/online/OnlineModuleShell.vue`，统一在线模块页的标题、摘要、刷新按钮、返回在线中心、统计摘要和二级导航结构。
+- 在线庄园、在线邻里、在线委托、在线节会和在线村社均接入同一个模块壳；各模块主体内容继续保留原有分区，不额外包多层卡片。
+- 本轮只收口前端布局骨架，不改联机 store 写操作、服务端接口、结算、补偿、治理权限或审计规则。
+
 ### 0522 内部跳转上下文迁移（阶段 H1）
 - 好友驿站的庄园、节会邀请、远征邀请、村社邀请和协作委托入口改为直达 `online-manor / online-festival / online-society / online-orders`，不再先推旧长页 route name。
 - 目标玩家上下文继续带 `target_username / target_save_id / source`；节会与远征会带 `tab=festival / expedition`，村社会带 `tab=members`，协作委托会带 `scope=friends&tab=publish`。

@@ -1,58 +1,29 @@
 <template>
   <div class="space-y-3" data-testid="online-festival-page">
-    <section class="game-panel space-y-3">
-      <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 text-accent">
-            <CalendarDays :size="16" />
-            <h2 class="game-section-title">在线节会</h2>
+    <OnlineModuleShell
+      title="在线节会"
+      :summary="moduleSummary"
+      :meta="refreshStateLabel"
+      refresh-label="刷新节会"
+      :refresh-running="refreshing"
+      :refresh-disabled="refreshing"
+      :stats="summaryStats"
+      :tabs="tabs"
+      :active-tab="activeTab"
+      @refresh="refreshFestivalModule"
+      @update:active-tab="setActiveTab"
+    >
+      <template #icon>
+        <CalendarDays :size="16" />
+      </template>
+      <template #errors>
+        <div v-if="errorMessages.length > 0" class="grid gap-2">
+          <div v-for="message in errorMessages" :key="message" class="border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs text-red-100">
+            {{ message }}
           </div>
-          <p class="mt-1 text-xs leading-5 text-muted">{{ moduleSummary }}</p>
-          <p class="mt-1 text-[10px] leading-4 text-muted">{{ refreshStateLabel }}</p>
         </div>
-        <div class="flex shrink-0 flex-wrap gap-2">
-          <button
-            class="online-action-btn online-action-btn--compact"
-            type="button"
-            :disabled="refreshing"
-            @click="refreshFestivalModule"
-          >
-            <RefreshCw :size="12" :class="{ 'animate-spin': refreshing }" />
-            {{ refreshing ? '刷新中' : '刷新节会' }}
-          </button>
-          <RouterLink class="online-action-btn online-action-btn--compact" :to="{ name: 'online' }">
-            <ArrowLeft :size="12" />
-            在线中心
-          </RouterLink>
-        </div>
-      </div>
-
-      <div v-if="errorMessages.length > 0" class="grid gap-2">
-        <div v-for="message in errorMessages" :key="message" class="border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-          {{ message }}
-        </div>
-      </div>
-
-      <div class="grid gap-2 text-xs md:grid-cols-4">
-        <div v-for="stat in summaryStats" :key="stat.label" class="game-panel-muted px-2 py-2">
-          <p class="truncate text-[10px] text-muted">{{ stat.label }}</p>
-          <p class="mt-1 truncate text-xs text-accent">{{ stat.value }}</p>
-        </div>
-      </div>
-
-      <div class="flex gap-2 overflow-x-auto pb-1">
-        <button
-          v-for="tab in tabs"
-          :key="tab.key"
-          type="button"
-          class="shrink-0 border px-3 py-2 text-xs transition-colors"
-          :class="activeTab === tab.key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
-          @click="activeTab = tab.key"
-        >
-          {{ tab.label }}
-        </button>
-      </div>
-    </section>
+      </template>
+    </OnlineModuleShell>
 
     <section class="space-y-3">
       <div class="game-panel-muted flex flex-col gap-2 p-3 md:flex-row md:items-start md:justify-between">
@@ -1094,8 +1065,9 @@
 <script setup lang="ts">
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
-  import { ArrowLeft, CalendarDays, RefreshCw } from 'lucide-vue-next'
+  import { CalendarDays } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
+  import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
@@ -1144,6 +1116,9 @@
   }
 
   const activeTab = ref<FestivalTabKey>(normalizeTab(route.query.tab))
+  const setActiveTab = (tab: string) => {
+    activeTab.value = tab as FestivalTabKey
+  }
   const lastRefreshAttemptAt = ref(0)
   const refreshing = computed(() => worldEventStore.loading || festivalRoomStore.loading || expeditionRoomStore.loading)
   const activeTabMeta = computed(() => tabs.find(tab => tab.key === activeTab.value) ?? tabs[0]!)

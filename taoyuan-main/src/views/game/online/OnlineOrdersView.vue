@@ -1,56 +1,28 @@
 <template>
   <div class="space-y-3" data-testid="online-orders-page">
-    <section class="game-panel space-y-3">
-      <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 text-accent">
-            <Handshake :size="16" />
-            <h2 class="game-section-title">在线委托</h2>
-          </div>
-          <p class="mt-1 text-xs leading-5 text-muted">{{ moduleSummary }}</p>
-          <p class="mt-1 text-[10px] leading-4 text-muted">{{ refreshStateLabel }}</p>
+    <OnlineModuleShell
+      title="在线委托"
+      :summary="moduleSummary"
+      :meta="refreshStateLabel"
+      refresh-label="刷新委托"
+      :refresh-running="coopOrderStore.loading"
+      :refresh-disabled="coopOrderStore.loading"
+      :stats="summaryStats"
+      stats-grid-class="grid gap-2 text-xs md:grid-cols-5"
+      :tabs="tabs"
+      :active-tab="activeTab"
+      @refresh="refreshOrders"
+      @update:active-tab="setActiveTab"
+    >
+      <template #icon>
+        <Handshake :size="16" />
+      </template>
+      <template #errors>
+        <div v-if="coopOrderStore.errorMessage" class="border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs text-red-100">
+          {{ coopOrderStore.errorMessage }}
         </div>
-        <div class="flex shrink-0 flex-wrap gap-2">
-          <button
-            class="online-action-btn online-action-btn--compact"
-            type="button"
-            :disabled="coopOrderStore.loading"
-            @click="refreshOrders"
-          >
-            <RefreshCw :size="12" :class="{ 'animate-spin': coopOrderStore.loading }" />
-            {{ coopOrderStore.loading ? '刷新中' : '刷新委托' }}
-          </button>
-          <RouterLink class="online-action-btn online-action-btn--compact" :to="{ name: 'online' }">
-            <ArrowLeft :size="12" />
-            在线中心
-          </RouterLink>
-        </div>
-      </div>
-
-      <div v-if="coopOrderStore.errorMessage" class="border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-        {{ coopOrderStore.errorMessage }}
-      </div>
-
-      <div class="grid gap-2 text-xs md:grid-cols-5">
-        <div v-for="stat in summaryStats" :key="stat.label" class="game-panel-muted px-2 py-2">
-          <p class="truncate text-[10px] text-muted">{{ stat.label }}</p>
-          <p class="mt-1 truncate text-xs text-accent">{{ stat.value }}</p>
-        </div>
-      </div>
-
-      <div class="flex gap-2 overflow-x-auto pb-1">
-        <button
-          v-for="tab in tabs"
-          :key="tab.key"
-          type="button"
-          class="shrink-0 border px-3 py-2 text-xs transition-colors"
-          :class="activeTab === tab.key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
-          @click="activeTab = tab.key"
-        >
-          {{ tab.label }}
-        </button>
-      </div>
-    </section>
+      </template>
+    </OnlineModuleShell>
 
     <section class="space-y-3">
       <div class="game-panel-muted flex flex-col gap-2 p-3 md:flex-row md:items-start md:justify-between">
@@ -677,7 +649,8 @@
 <script setup lang="ts">
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
-  import { ArrowLeft, ExternalLink, Handshake, RefreshCw } from 'lucide-vue-next'
+  import { ExternalLink, Handshake } from 'lucide-vue-next'
+  import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
   import type { OnlineCoopOrderEntry, OnlineCoopOrderScope, OnlineCoopOrderType, OnlineCoopRewardType } from '@/utils/onlineProfileApi'
 
@@ -701,6 +674,9 @@
     return 'available'
   }
   const activeTab = ref<OrdersTabKey>(normalizeTab(route.query.tab))
+  const setActiveTab = (tab: string) => {
+    activeTab.value = tab as OrdersTabKey
+  }
 
   const COOP_ORDER_TYPE_OPTIONS: Array<{ id: OnlineCoopOrderType; label: string }> = [
     { id: 'material_help', label: '材料求助' },

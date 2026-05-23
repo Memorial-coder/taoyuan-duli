@@ -1,56 +1,27 @@
 <template>
   <div class="space-y-3" data-testid="online-manor-page">
-    <section class="game-panel space-y-3">
-      <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 text-accent">
-            <Home :size="16" />
-            <h2 class="game-section-title">在线庄园</h2>
-          </div>
-          <p class="mt-1 text-xs leading-5 text-muted">{{ identityLabel }}</p>
-          <p class="mt-1 text-[10px] leading-4 text-muted">{{ routeTargetHelperText }} · {{ refreshStateLabel }}</p>
+    <OnlineModuleShell
+      title="在线庄园"
+      :summary="identityLabel"
+      :meta="`${routeTargetHelperText} · ${refreshStateLabel}`"
+      refresh-label="刷新庄园"
+      :refresh-running="manorStore.loading"
+      :refresh-disabled="manorStore.loading"
+      :stats="identityStats"
+      :tabs="tabs"
+      :active-tab="activeTab"
+      @refresh="refreshSnapshot"
+      @update:active-tab="setActiveTab"
+    >
+      <template #icon>
+        <Home :size="16" />
+      </template>
+      <template #errors>
+        <div v-if="manorStore.errorMessage" class="border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs text-red-100">
+          {{ manorStore.errorMessage }}
         </div>
-        <div class="flex shrink-0 flex-wrap gap-2">
-          <button
-            class="online-action-btn online-action-btn--compact"
-            type="button"
-            :disabled="manorStore.loading"
-            @click="refreshSnapshot"
-          >
-            <RefreshCw :size="12" :class="{ 'animate-spin': manorStore.loading }" />
-            {{ manorStore.loading ? '刷新中' : '刷新庄园' }}
-          </button>
-          <RouterLink class="online-action-btn online-action-btn--compact" :to="{ name: 'online' }">
-            <ArrowLeft :size="12" />
-            在线中心
-          </RouterLink>
-        </div>
-      </div>
-
-      <div v-if="manorStore.errorMessage" class="border border-red-300/20 bg-red-500/10 px-3 py-2 text-xs text-red-100">
-        {{ manorStore.errorMessage }}
-      </div>
-
-      <div class="grid gap-2 text-xs md:grid-cols-4">
-        <div v-for="stat in identityStats" :key="stat.label" class="game-panel-muted px-2 py-2">
-          <p class="truncate text-[10px] text-muted">{{ stat.label }}</p>
-          <p class="mt-1 truncate text-xs text-accent">{{ stat.value }}</p>
-        </div>
-      </div>
-
-      <div class="flex gap-2 overflow-x-auto pb-1">
-        <button
-          v-for="tab in tabs"
-          :key="tab.key"
-          type="button"
-          class="shrink-0 border px-3 py-2 text-xs transition-colors"
-          :class="activeTab === tab.key ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/15 text-muted hover:border-accent/30 hover:text-accent'"
-          @click="activeTab = tab.key"
-        >
-          {{ tab.label }}
-        </button>
-      </div>
-    </section>
+      </template>
+    </OnlineModuleShell>
 
     <section class="space-y-3">
       <div class="game-panel-muted flex flex-col gap-2 p-3 md:flex-row md:items-start md:justify-between">
@@ -602,14 +573,12 @@
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
   import {
-    ArrowLeft,
     Home,
     Image as ImageIcon,
     MapPin,
     MessageSquare,
     Pin,
     Plus,
-    RefreshCw,
     Reply,
     Route,
     Save,
@@ -618,6 +587,7 @@
     Upload,
   } from 'lucide-vue-next'
   import ManorPreviewCard from '@/components/game/ManorPreviewCard.vue'
+  import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import { showFloat } from '@/composables/useGameLog'
   import { useManorStore } from '@/stores/useManorStore'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
@@ -696,6 +666,9 @@
   const guideSummaryLength = computed(() => manorStore.guidePointSummaryDraft.length)
   const canSaveGuide = computed(() => manorStore.guidePointTitleDraft.trim().length > 0 && !manorStore.guideActionRunning)
   const activeTabMeta = computed<ManorTabMeta>(() => tabs.find(tab => tab.key === activeTab.value) ?? defaultTab)
+  const setActiveTab = (tab: string) => {
+    activeTab.value = tab as ManorTabKey
+  }
 
   const identityLabel = computed(() => {
     if (!snapshot.value) return routeTargetContextLabel.value ? `正在访问 ${routeTargetContextLabel.value} 的庄园` : '我的在线庄园'
