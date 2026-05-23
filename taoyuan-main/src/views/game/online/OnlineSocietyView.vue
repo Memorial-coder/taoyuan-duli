@@ -320,21 +320,37 @@
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'members'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div v-else-if="activeTab === 'members'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
-            <p class="text-sm text-accent">成员列表</p>
+            <p class="text-sm text-accent">成员与职位</p>
             <span class="text-[10px] text-muted">{{ memberCount }} 人</span>
           </div>
-          <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后会在这里看到成员和职位摘要。</div>
+          <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后会在这里看到成员、职位和治理入口。</div>
           <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
             <div v-for="member in currentSociety.members" :key="`${currentSociety.id}-${member.username}`" class="border border-accent/10 bg-black/10 p-2">
-              <div class="flex items-start justify-between gap-2">
+              <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-text">{{ member.display_name }}</p>
                   <p class="mt-1 text-[10px] text-muted">{{ member.username }} · {{ member.role_label }}</p>
+                  <p v-if="member.save_id" class="mt-1 text-[10px] text-muted">存档 ID：{{ member.save_id }}</p>
                 </div>
-                <span v-if="member.save_id" class="shrink-0 text-[10px] text-muted">存档 {{ member.save_id }}</span>
+                <div v-if="currentSociety.can_manage_roles && member.role !== 'president'" class="flex w-full shrink-0 flex-wrap items-center gap-2 md:w-auto">
+                  <select v-model="memberRoleDrafts[member.username]" class="online-select min-w-32 flex-1 md:flex-none">
+                    <option v-for="entry in assignableRoleOptions" :key="entry.id" :value="entry.id">
+                      {{ entry.label }}
+                    </option>
+                  </select>
+                  <button
+                    class="online-action-btn online-action-btn--compact"
+                    type="button"
+                    :disabled="societyStore.actionRunning || memberRoleDrafts[member.username] === member.role"
+                    @click="changeMemberRole(member.username)"
+                  >
+                    调整
+                  </button>
+                </div>
+                <span v-else class="w-fit shrink-0 text-[10px] text-muted">{{ member.role === 'president' ? '社长职位不可在此调整' : '只读' }}</span>
               </div>
             </div>
           </div>
@@ -358,10 +374,62 @@
               </div>
             </div>
           </div>
+
+          <div v-if="currentSociety?.can_invite" class="game-panel-muted p-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">邀请玩家</p>
+              <span class="text-[10px] text-muted">可用用户名或存档 ID</span>
+            </div>
+            <div class="mt-3 space-y-2">
+              <input
+                v-model="societyStore.draftInviteUsername"
+                class="online-input w-full"
+                placeholder="输入玩家用户名"
+              />
+              <input
+                v-model="societyStore.draftInviteSaveId"
+                class="online-input w-full"
+                inputmode="numeric"
+                placeholder="或输入目标存档 ID"
+              />
+              <button
+                class="online-action-btn online-action-btn--primary w-full justify-center"
+                type="button"
+                :disabled="societyStore.actionRunning || !canInviteMember"
+                @click="inviteMember"
+              >
+                {{ societyStore.actionRunning ? '邀请中' : '发送邀请' }}
+              </button>
+            </div>
+          </div>
+
+          <div v-if="currentSociety?.can_review_requests" class="game-panel-muted p-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">申请处理</p>
+              <span class="text-[10px] text-muted">{{ societyStore.managedRequests.length }} 条</span>
+            </div>
+            <div v-if="societyStore.managedRequests.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有待处理的入社申请或邀请。</div>
+            <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              <div v-for="request in societyStore.managedRequests" :key="request.id" class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-xs text-text">{{ request.display_name }} · {{ request.type_label }}</p>
+                <p class="mt-1 text-[10px] text-muted">{{ request.society_name }}</p>
+                <p v-if="request.target_save_id" class="mt-1 text-[10px] text-muted">存档 ID：{{ request.target_save_id }}</p>
+                <div class="mt-2 flex flex-wrap gap-2">
+                  <button class="online-action-btn online-action-btn--compact" type="button" :disabled="societyStore.actionRunning" @click="acceptRequest(request.id)">
+                    接受
+                  </button>
+                  <button class="online-action-btn online-action-btn--compact" type="button" :disabled="societyStore.actionRunning" @click="rejectRequest(request.id)">
+                    拒绝
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div class="game-panel-muted p-3">
             <p class="text-sm text-accent">权限边界</p>
             <p class="mt-2 text-xs leading-5 text-muted">
-              {{ currentSociety?.can_manage_roles ? '当前身份可调整成员职位。' : '当前身份只显示可读成员摘要。' }}
+              {{ memberPermissionSummary }}
             </p>
           </div>
         </div>
@@ -517,17 +585,18 @@
 </template>
 
 <script setup lang="ts">
-  import { computed, onMounted, ref, watch } from 'vue'
+  import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
   import { useRoute } from 'vue-router'
   import { ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from 'lucide-vue-next'
   import { useSocietyStore } from '@/stores/useSocietyStore'
-  import type { SocietySnapshot } from '@/utils/societyApi'
+  import type { SocietyRole, SocietySnapshot } from '@/utils/societyApi'
 
   type SocietyTabKey = 'overview' | 'members' | 'storage' | 'projects' | 'proposals' | 'chronicles'
   type SocietyTabMeta = { key: SocietyTabKey; label: string; summary: string }
 
   const route = useRoute()
   const societyStore = useSocietyStore()
+  const memberRoleDrafts = reactive<Record<string, Exclude<SocietyRole, 'president'>>>({})
   const tabs: SocietyTabMeta[] = [
     { key: 'overview', label: '总览', summary: '查看我的村社、公告摘要和公开村社入口。' },
     { key: 'members', label: '成员', summary: '查看成员、职位和待处理申请邀请摘要。' },
@@ -554,6 +623,20 @@
   const incomingInviteBySocietyId = computed(() => new Map(societyStore.incomingInvites.map(request => [request.society_id, request])))
   const hasJoinRelations = computed(() => societyStore.incomingInvites.length > 0 || societyStore.myPendingRequests.length > 0)
   const canSubmitSociety = computed(() => societyStore.draftName.trim().length > 0 && !societyStore.actionRunning)
+  const canInviteMember = computed(() => !!societyStore.draftInviteUsername.trim() || !!societyStore.draftInviteSaveId.trim())
+  const assignableRoleOptions = computed(() =>
+    societyStore.roleOptions.filter(entry => entry.id !== 'president') as Array<{ id: Exclude<SocietyRole, 'president'>; label: string }>
+  )
+  const memberPermissionSummary = computed(() => {
+    const society = currentSociety.value
+    if (!society) return '加入村社后才会显示成员治理权限。'
+    const permissions = [
+      society.can_invite ? '邀请成员' : '',
+      society.can_review_requests ? '处理申请' : '',
+      society.can_manage_roles ? '调整职位' : '',
+    ].filter(Boolean)
+    return permissions.length > 0 ? `当前身份可${permissions.join('、')}。` : '当前身份只显示成员和职位，不显示治理控件。'
+  })
   const moduleSummary = computed(() => {
     const society = currentSociety.value
     if (!society) return `当前未加入村社；公开村社 ${societyStore.visibleSocieties.length} 个，待处理邀请 ${societyStore.incomingInvites.length} 条。`
@@ -571,6 +654,18 @@
 
   const refreshSocietyModule = async () => {
     await societyStore.refreshOverview().catch(() => {})
+  }
+
+  const getRouteQueryText = (value: unknown) => {
+    const raw = Array.isArray(value) ? value[0] : value
+    return typeof raw === 'string' ? raw.trim() : ''
+  }
+
+  const applyInviteRouteDraft = () => {
+    const targetUsername = getRouteQueryText(route.query.target_username)
+    const targetSaveId = getRouteQueryText(route.query.target_save_id)
+    if (targetUsername) societyStore.draftInviteUsername = targetUsername
+    if (targetSaveId) societyStore.draftInviteSaveId = targetSaveId
   }
 
   const focusCreateSociety = () => {
@@ -594,6 +689,11 @@
     await societyStore.applySociety(societyId).catch(() => {})
   }
 
+  const inviteMember = async () => {
+    if (!canInviteMember.value) return
+    await societyStore.inviteMember().catch(() => {})
+  }
+
   const acceptRequest = async (requestId: string) => {
     await societyStore.acceptRequest(requestId).catch(() => {})
   }
@@ -602,9 +702,23 @@
     await societyStore.rejectRequest(requestId).catch(() => {})
   }
 
+  const changeMemberRole = async (targetUsername: string) => {
+    const role = memberRoleDrafts[targetUsername]
+    if (!role) return
+    await societyStore.changeMemberRole(targetUsername, role).catch(() => {})
+  }
+
   const saveNotice = async () => {
     await societyStore.saveNotice().catch(() => {})
   }
+
+  watchEffect(() => {
+    for (const member of currentSociety.value?.members ?? []) {
+      if (member.role !== 'president' && !memberRoleDrafts[member.username]) {
+        memberRoleDrafts[member.username] = member.role as Exclude<SocietyRole, 'president'>
+      }
+    }
+  })
 
   watch(
     () => route.query.tab,
@@ -613,7 +727,15 @@
     }
   )
 
+  watch(
+    () => [route.query.target_username, route.query.target_save_id],
+    () => {
+      applyInviteRouteDraft()
+    }
+  )
+
   onMounted(() => {
+    applyInviteRouteDraft()
     void refreshSocietyModule()
   })
 </script>
