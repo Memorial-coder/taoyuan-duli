@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0522 在线村社核心操作验收（阶段 J2 / 村社）
+- 在线村社拆页补齐自动化验收锚点，覆盖创建村社表单、申请处理、成员职位调整、仓库入仓、公共建设贡献和提案创建 / 投票按钮。
+- `scripts/qa-online-regression-live-smoke.mjs` 新增村社核心操作烟测，社长通过 UI 创建村社、接受申请、调整成员职位、入仓、贡献公共建设并发起 / 投票提案；申请人通过服务端 API 申请加入，服务端 overview 会读回成员与村社状态。
+- 仓库和公共建设验证会读取真实服务端存档，确认铜钱与木材消耗写回；提案投票会从村社 overview 读回 `my_vote_choice=support` 和赞成票数。
+- 验证已通过 `node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs`、`npm --prefix taoyuan-main run type-check` 和 `npm --prefix taoyuan-main run qa:online-regression-live-smoke`。
+
 ### 0522 在线远征核心操作验收（阶段 J2 / 远征）
 - 在线节会的远征房间标签补齐自动化验收锚点，覆盖远征创建表单、邀请输入、ready / start / settle / close 控件和远征玩法动作按钮。
 - `scripts/qa-online-regression-live-smoke.mjs` 新增远征核心操作烟测，主人通过 UI 创建双人矿洞远征并完成邀请、开准备、ready、开倒计时和结算；队友通过服务端 API 加入并 ready，服务端 overview 会读回房间状态和成员状态。

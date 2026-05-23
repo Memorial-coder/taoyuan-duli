@@ -253,6 +253,12 @@ const getSaveData = decryptedSave => decryptedSave?.data && typeof decryptedSave
   ? decryptedSave.data
   : decryptedSave
 
+const getInventoryItemQuantity = (saveData, itemId) => {
+  const data = saveData?.data ? saveData.data : saveData
+  const item = data?.inventory?.items?.find(entry => entry?.itemId === itemId)
+  return Math.max(0, Number(item?.quantity || 0))
+}
+
 const readServerSave = async (session, slot = 0) => {
   const result = await fetchSessionJson(session, `/api/taoyuan/save/${slot}`)
   assert(result.response.ok, `save ${slot} read returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
@@ -516,6 +522,22 @@ const submitExpeditionRoomGameplayAction = async (session, roomId, actionId) =>
 
 const closeExpeditionRoom = async (session, roomId) =>
   postExpeditionRoomAction(session, roomId, 'close')
+
+const readSocietyOverview = async session => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/societies')
+  assert(result.response.ok, `society overview returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.ok === true && Array.isArray(result.data.visible_societies), 'society overview payload is incomplete')
+  return result.data
+}
+
+const applyToSociety = async (session, societyId) => {
+  const result = await fetchSessionJson(session, `/api/taoyuan/online/societies/${encodeURIComponent(societyId)}/apply`, {
+    method: 'POST',
+  })
+  assert(result.response.ok, `society apply returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.request?.id, 'society apply payload is missing request id')
+  return result.data.request
+}
 
 const readManorSnapshot = async (session, targetUsername = '') => {
   const pathSuffix = targetUsername
@@ -1492,6 +1514,122 @@ async function main() {
         ),
         'expedition room teammate persisted receipt was not visible in teammate recent receipt overview',
       )
+    })
+
+    await runCheck('online society core actions persist through split tabs', async () => {
+      const applicant = await bootstrapSession()
+      const societySeed = createSmokeSeed()
+      const societyName = `村社拆页烟测${societySeed}`
+      const societySummary = `在线村社拆页创建摘要 ${societySeed}`
+      const societyNotice = `在线村社拆页初始公告 ${societySeed}`
+      const joinNote = `拆页 smoke 入社条件 ${societySeed}`
+      const proposalTitle = `村社提案烟测${societySeed}`
+      const proposalSummary = `验证村社拆页提案投票 ${societySeed}`
+
+      await page.goto(`${frontendBaseURL}/#/game/online/society`)
+      await expect(page.getByTestId('online-society-page')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByTestId('online-society-create-name-input')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-society-create-name-input').fill(societyName)
+      await page.getByTestId('online-society-create-summary-input').fill(societySummary)
+      await page.getByTestId('online-society-create-notice-input').fill(societyNotice)
+      await page.getByTestId('online-society-create-emblem-select').selectOption('lantern_medallion')
+      await page.getByTestId('online-society-create-theme-select').selectOption('festival_hosts')
+      await page.getByTestId('online-society-create-visibility-select').selectOption('semi_public')
+      await page.getByTestId('online-society-create-capacity-select').selectOption('24')
+      await page.getByTestId('online-society-create-join-requirement-select').selectOption('friends_recommended')
+      await page.getByTestId('online-society-create-join-note-input').fill(joinNote)
+      await page.getByTestId('online-society-create-submit').click()
+
+      let societyId = ''
+      await expect.poll(async () => {
+        const overview = await readSocietyOverview(owner)
+        societyId = overview.my_society?.id || ''
+        return Boolean(
+          societyId
+            && overview.my_society?.name === societyName
+            && overview.my_society?.summary === societySummary
+            && overview.my_society?.notice === societyNotice
+            && overview.my_society?.visibility === 'semi_public'
+            && overview.my_society?.join_requirement_id === 'friends_recommended'
+            && overview.my_society?.members?.some(member => member.username === owner.username && member.role === 'president')
+        )
+      }, { timeout: 10000 }).toBeTruthy()
+
+      const joinRequest = await applyToSociety(applicant, societyId)
+      assert(joinRequest.username === applicant.username && joinRequest.status === 'pending', 'society apply request target mismatch')
+
+      await page.getByTestId('online-module-tab-members').click()
+      await page.getByTestId('online-module-refresh-button').click()
+      await expect(page.getByTestId(`online-society-managed-request-accept-${joinRequest.id}`)).toBeVisible({ timeout: 10000 })
+      await page.getByTestId(`online-society-managed-request-accept-${joinRequest.id}`).click()
+      await expect.poll(async () => {
+        const ownerOverview = await readSocietyOverview(owner)
+        const applicantOverview = await readSocietyOverview(applicant)
+        return ownerOverview.my_society?.members?.some(member => member.username === applicant.username && member.role === 'member')
+          && applicantOverview.my_society?.id === societyId
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await page.getByTestId(`online-society-member-role-select-${applicant.username}`).selectOption('steward')
+      await page.getByTestId(`online-society-member-role-submit-${applicant.username}`).click()
+      await expect.poll(async () => {
+        const overview = await readSocietyOverview(owner)
+        return overview.my_society?.members?.find(member => member.username === applicant.username)?.role
+      }, { timeout: 10000 }).toBe('steward')
+
+      await page.getByTestId('online-module-tab-storage').click()
+      const beforeDepositSave = await readServerSave(owner)
+      const beforeDepositMoney = getSaveMoney(beforeDepositSave)
+      const beforeDepositWood = getInventoryItemQuantity(beforeDepositSave.data, 'wood')
+      await expect(page.getByTestId('online-society-warehouse-deposit-wood_crate')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-society-warehouse-deposit-wood_crate').click()
+      await expect.poll(async () => {
+        const overview = await readSocietyOverview(owner)
+        return overview.my_society?.public_warehouse?.logs?.some(entry =>
+          entry.username === owner.username && entry.deposit_id === 'wood_crate'
+        )
+      }, { timeout: 10000 }).toBeTruthy()
+      const afterDepositSave = await readServerSave(owner)
+      assert(getSaveMoney(afterDepositSave) === beforeDepositMoney - 5, 'society warehouse deposit did not deduct owner money')
+      assert(getInventoryItemQuantity(afterDepositSave.data, 'wood') === beforeDepositWood - 1, 'society warehouse deposit did not deduct owner wood')
+
+      await page.getByTestId('online-module-tab-projects').click()
+      const beforeProjectSave = await readServerSave(owner)
+      const beforeProjectMoney = getSaveMoney(beforeProjectSave)
+      const beforeProjectWood = getInventoryItemQuantity(beforeProjectSave.data, 'wood')
+      await expect(page.getByTestId('online-society-project-contribute-bridge-wood_bundle')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-society-project-contribute-bridge-wood_bundle').click()
+      await expect.poll(async () => {
+        const overview = await readSocietyOverview(owner)
+        const bridge = overview.my_society?.public_projects?.find(project => project.id === 'bridge')
+        return bridge?.progress === 30
+          && bridge.recent_contributions?.some(entry => entry.username === owner.username && entry.package_id === 'wood_bundle')
+      }, { timeout: 10000 }).toBeTruthy()
+      const afterProjectSave = await readServerSave(owner)
+      assert(getSaveMoney(afterProjectSave) === beforeProjectMoney - 20, 'society public project did not deduct owner money')
+      assert(getInventoryItemQuantity(afterProjectSave.data, 'wood') === beforeProjectWood - 1, 'society public project did not deduct owner wood')
+
+      await page.getByTestId('online-module-tab-proposals').click()
+      await expect(page.getByTestId('online-society-proposal-title-input')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-society-proposal-title-input').fill(proposalTitle)
+      await page.getByTestId('online-society-proposal-kind-select').selectOption('festival')
+      await page.getByTestId('online-society-proposal-summary-input').fill(proposalSummary)
+      await page.getByTestId('online-society-proposal-submit').click()
+
+      let proposalId = ''
+      await expect.poll(async () => {
+        const overview = await readSocietyOverview(owner)
+        const proposal = overview.my_society?.active_proposals?.find(entry => entry.title === proposalTitle)
+        proposalId = proposal?.id || ''
+        return Boolean(proposalId && proposal?.summary === proposalSummary && proposal?.status === 'open')
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await expect(page.getByTestId(`online-society-proposal-vote-${proposalId}-support`)).toBeVisible({ timeout: 10000 })
+      await page.getByTestId(`online-society-proposal-vote-${proposalId}-support`).click()
+      await expect.poll(async () => {
+        const overview = await readSocietyOverview(owner)
+        const proposal = overview.my_society?.active_proposals?.find(entry => entry.id === proposalId)
+        return proposal?.my_vote_choice === 'support' && proposal.vote_counts?.support >= 1
+      }, { timeout: 10000 }).toBeTruthy()
     })
 
     await runCheck('cloud save quick save preserves decryptable server slot', async () => {

@@ -136,6 +136,7 @@
                   v-model="societyStore.draftName"
                   maxlength="24"
                   class="online-input mt-1 w-full"
+                  data-testid="online-society-create-name-input"
                   placeholder="例如：清溪灯社"
                 />
               </label>
@@ -146,6 +147,7 @@
                   rows="3"
                   maxlength="120"
                   class="online-textarea mt-1 w-full"
+                  data-testid="online-society-create-summary-input"
                   placeholder="写清楚这个村社想组织怎样的生活、节会和协作方式。"
                 />
               </label>
@@ -156,13 +158,14 @@
                   rows="2"
                   maxlength="160"
                   class="online-textarea mt-1 w-full"
+                  data-testid="online-society-create-notice-input"
                   placeholder="例如：本周先招募稳定成员，再排第一轮节会值守。"
                 />
               </label>
               <div class="grid gap-2 md:grid-cols-2">
                 <label class="block">
                   <span class="text-[10px] text-muted">村社徽记</span>
-                  <select v-model="societyStore.draftEmblem" class="online-select mt-1 w-full">
+                  <select v-model="societyStore.draftEmblem" class="online-select mt-1 w-full" data-testid="online-society-create-emblem-select">
                     <option v-for="entry in societyStore.emblemOptions" :key="entry.id" :value="entry.id">
                       {{ entry.label }}
                     </option>
@@ -170,7 +173,7 @@
                 </label>
                 <label class="block">
                   <span class="text-[10px] text-muted">村社主题</span>
-                  <select v-model="societyStore.draftTheme" class="online-select mt-1 w-full">
+                  <select v-model="societyStore.draftTheme" class="online-select mt-1 w-full" data-testid="online-society-create-theme-select">
                     <option v-for="entry in societyStore.themeOptions" :key="entry.id" :value="entry.id">
                       {{ entry.label }}
                     </option>
@@ -180,7 +183,7 @@
               <div class="grid gap-2 md:grid-cols-2">
                 <label class="block">
                   <span class="text-[10px] text-muted">公开范围</span>
-                  <select v-model="societyStore.draftVisibility" class="online-select mt-1 w-full">
+                  <select v-model="societyStore.draftVisibility" class="online-select mt-1 w-full" data-testid="online-society-create-visibility-select">
                     <option v-for="entry in societyStore.visibilityOptions" :key="entry.id" :value="entry.id">
                       {{ entry.label }}
                     </option>
@@ -188,7 +191,7 @@
                 </label>
                 <label class="block">
                   <span class="text-[10px] text-muted">成员容量</span>
-                  <select v-model="societyStore.draftCapacity" class="online-select mt-1 w-full">
+                  <select v-model="societyStore.draftCapacity" class="online-select mt-1 w-full" data-testid="online-society-create-capacity-select">
                     <option v-for="entry in societyStore.capacityOptions" :key="entry.value" :value="entry.value">
                       {{ entry.label }}
                     </option>
@@ -197,7 +200,7 @@
               </div>
               <label class="block">
                 <span class="text-[10px] text-muted">入社条件</span>
-                <select v-model="societyStore.draftJoinRequirementId" class="online-select mt-1 w-full">
+                <select v-model="societyStore.draftJoinRequirementId" class="online-select mt-1 w-full" data-testid="online-society-create-join-requirement-select">
                   <option v-for="entry in societyStore.joinRequirementOptions" :key="entry.id" :value="entry.id">
                     {{ entry.label }}
                   </option>
@@ -209,11 +212,13 @@
                   v-model="societyStore.draftJoinRequirementNote"
                   maxlength="80"
                   class="online-input mt-1 w-full"
+                  data-testid="online-society-create-join-note-input"
                   placeholder="例如：希望先有公开名片和稳定经营节奏。"
                 />
               </label>
               <button
                 class="online-action-btn online-action-btn--primary w-full justify-center"
+                data-testid="online-society-create-submit"
                 type="button"
                 :disabled="!canSubmitSociety"
                 @click="createSociety"
@@ -293,7 +298,7 @@
           </div>
           <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后会在这里看到成员、职位和治理入口。</div>
           <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
-            <div v-for="member in currentSociety.members" :key="`${currentSociety.id}-${member.username}`" class="border border-accent/10 bg-black/10 p-2">
+            <div v-for="member in currentSociety.members" :key="`${currentSociety.id}-${member.username}`" class="border border-accent/10 bg-black/10 p-2" data-testid="online-society-member-entry">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-text">{{ member.display_name }}</p>
@@ -301,13 +306,14 @@
                   <p v-if="member.save_id" class="mt-1 text-[10px] text-muted">存档 ID：{{ member.save_id }}</p>
                 </div>
                 <div v-if="currentSociety.can_manage_roles && member.role !== 'president'" class="flex w-full shrink-0 flex-wrap items-center gap-2 md:w-auto">
-                  <select v-model="memberRoleDrafts[member.username]" class="online-select min-w-32 flex-1 md:flex-none">
+                  <select v-model="memberRoleDrafts[member.username]" class="online-select min-w-32 flex-1 md:flex-none" :data-testid="`online-society-member-role-select-${member.username}`">
                     <option v-for="entry in assignableRoleOptions" :key="entry.id" :value="entry.id">
                       {{ entry.label }}
                     </option>
                   </select>
                   <button
                     class="online-action-btn online-action-btn--compact"
+                    :data-testid="`online-society-member-role-submit-${member.username}`"
                     type="button"
                     :disabled="societyStore.actionRunning || memberRoleDrafts[member.username] === member.role"
                     @click="changeMemberRole(member.username)"
@@ -375,15 +381,15 @@
             </div>
             <div v-if="societyStore.managedRequests.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有待处理的入社申请或邀请。</div>
             <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
-              <div v-for="request in societyStore.managedRequests" :key="request.id" class="border border-accent/10 bg-black/10 p-2">
+              <div v-for="request in societyStore.managedRequests" :key="request.id" class="border border-accent/10 bg-black/10 p-2" data-testid="online-society-managed-request-entry">
                 <p class="text-xs text-text">{{ request.display_name }} · {{ request.type_label }}</p>
                 <p class="mt-1 text-[10px] text-muted">{{ request.society_name }}</p>
                 <p v-if="request.target_save_id" class="mt-1 text-[10px] text-muted">存档 ID：{{ request.target_save_id }}</p>
                 <div class="mt-2 flex flex-wrap gap-2">
-                  <button class="online-action-btn online-action-btn--compact" type="button" :disabled="societyStore.actionRunning" @click="acceptRequest(request.id)">
+                  <button class="online-action-btn online-action-btn--compact" :data-testid="`online-society-managed-request-accept-${request.id}`" type="button" :disabled="societyStore.actionRunning" @click="acceptRequest(request.id)">
                     接受
                   </button>
-                  <button class="online-action-btn online-action-btn--compact" type="button" :disabled="societyStore.actionRunning" @click="rejectRequest(request.id)">
+                  <button class="online-action-btn online-action-btn--compact" :data-testid="`online-society-managed-request-reject-${request.id}`" type="button" :disabled="societyStore.actionRunning" @click="rejectRequest(request.id)">
                     拒绝
                   </button>
                 </div>
@@ -430,6 +436,7 @@
                   :key="entry.id"
                   type="button"
                   class="border border-accent/15 bg-black/10 px-2 py-2 text-left transition-colors hover:border-accent/35 disabled:cursor-not-allowed disabled:opacity-60"
+                  :data-testid="`online-society-warehouse-deposit-${entry.id}`"
                   :disabled="societyStore.actionRunning"
                   @click="depositWarehouse(entry.id)"
                 >
@@ -529,6 +536,7 @@
                 :key="`${project.id}-${entry.id}`"
                 type="button"
                 class="border border-accent/15 bg-black/10 px-2 py-2 text-left transition-colors hover:border-accent/35 disabled:cursor-not-allowed disabled:opacity-60"
+                :data-testid="`online-society-project-contribute-${project.id}-${entry.id}`"
                 :disabled="societyStore.actionRunning"
                 @click="contributeProject(project.id, entry.id)"
               >
@@ -576,6 +584,7 @@
                   v-for="choice in proposal.choice_options"
                   :key="`${proposal.id}-${choice.id}`"
                   class="online-action-btn online-action-btn--compact"
+                  :data-testid="`online-society-proposal-vote-${proposal.id}-${choice.id}`"
                   type="button"
                   :disabled="societyStore.actionRunning"
                   @click="castVote(proposal.id, choice.id)"
@@ -619,9 +628,10 @@
                 v-model="societyStore.draftProposalTitle"
                 maxlength="40"
                 class="online-input w-full"
+                data-testid="online-society-proposal-title-input"
                 placeholder="提案标题，例如：本周节会联机排班"
               />
-              <select v-model="societyStore.draftProposalKind" class="online-select w-full">
+              <select v-model="societyStore.draftProposalKind" class="online-select w-full" data-testid="online-society-proposal-kind-select">
                 <option v-for="entry in societyStore.proposalKindOptions" :key="entry.id" :value="entry.id">
                   {{ entry.label }}
                 </option>
@@ -631,10 +641,12 @@
                 rows="3"
                 maxlength="160"
                 class="online-textarea w-full"
+                data-testid="online-society-proposal-summary-input"
                 placeholder="写清楚本次提案的背景、目标和希望大家表决的方向。"
               />
               <button
                 class="online-action-btn online-action-btn--primary w-full justify-center"
+                data-testid="online-society-proposal-submit"
                 type="button"
                 :disabled="societyStore.actionRunning || !canSubmitProposal"
                 @click="submitProposal"
