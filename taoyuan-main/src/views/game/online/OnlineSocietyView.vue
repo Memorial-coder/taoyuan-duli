@@ -444,18 +444,55 @@
           <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后会显示公共仓库和福利等级。</div>
           <div v-else class="mt-3 space-y-3">
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-xs text-accent">公共仓库</p>
-              <p class="mt-1 text-[10px] text-muted">共用物资 {{ currentSociety.public_warehouse.funds }} 铜钱</p>
+              <p class="text-xs text-accent">福利等级</p>
+              <p class="mt-1 text-[10px] text-muted">
+                等级 {{ currentSociety.level }} · 福利经验 {{ currentSociety.welfare_xp }}/{{ currentWelfareProgressTotal }}
+                {{ currentSociety.welfare_xp_to_next_level > 0 ? `· 距下一级 ${currentSociety.welfare_xp_to_next_level}` : '· 已达当前最高级' }}
+              </p>
+              <div class="mt-2 h-2 overflow-hidden border border-accent/10 bg-bg">
+                <div class="h-full bg-accent/70 transition-all" :style="{ width: `${currentWelfareProgressPercent}%` }" />
+              </div>
+            </div>
+
+            <div class="border border-accent/10 bg-black/10 p-2">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs text-accent">公共仓库</p>
+                <span class="text-[10px] text-muted">共用物资 {{ currentSociety.public_warehouse.funds }} 铜钱</span>
+              </div>
+              <div v-if="currentSociety.public_warehouse.deposit_options.length > 0" class="mt-3 grid gap-2 md:grid-cols-2">
+                <button
+                  v-for="entry in currentSociety.public_warehouse.deposit_options"
+                  :key="entry.id"
+                  type="button"
+                  class="border border-accent/15 bg-black/10 px-2 py-2 text-left transition-colors hover:border-accent/35 disabled:cursor-not-allowed disabled:opacity-60"
+                  :disabled="societyStore.actionRunning"
+                  @click="depositWarehouse(entry.id)"
+                >
+                  <p class="text-[10px] text-accent">{{ entry.label }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
+                  <p class="mt-1 text-[10px] text-muted">{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
+                </button>
+              </div>
               <div v-if="currentSociety.public_warehouse.items.length > 0" class="mt-2 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto pr-1">
                 <span v-for="entry in currentSociety.public_warehouse.items" :key="entry.item_id" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
                   {{ entry.label }}
                 </span>
               </div>
+              <div v-if="currentSociety.public_warehouse.logs.length > 0" class="mt-3 border-t border-accent/10 pt-2">
+                <p class="text-[10px] text-accent">最近入仓</p>
+                <div class="mt-1 max-h-28 space-y-1 overflow-y-auto pr-1">
+                  <div v-for="entry in currentSociety.public_warehouse.logs.slice(0, 6)" :key="entry.id" class="text-[10px] leading-4 text-muted">
+                    {{ entry.display_name }} 补入了 {{ entry.deposit_label }} · {{ entry.entries.map(cost => cost.label).join(' + ') }}
+                  </div>
+                </div>
+              </div>
             </div>
+
             <div class="grid gap-2 md:grid-cols-2">
               <div v-for="welfare in currentSociety.welfare_unlocks" :key="welfare.id" class="border border-accent/10 bg-black/10 p-2">
                 <p class="text-xs" :class="welfare.unlocked ? 'text-success' : 'text-muted'">{{ welfare.label }}</p>
                 <p class="mt-1 text-[10px] leading-4 text-muted">{{ welfare.summary }}</p>
+                <p class="mt-1 text-[10px] text-muted">解锁等级：{{ welfare.unlock_level }}</p>
               </div>
             </div>
           </div>
@@ -470,11 +507,27 @@
                 {{ currentSociety.exclusive_festival.label }}
               </p>
               <p class="mt-1 text-[10px] leading-4 text-muted">{{ currentSociety.exclusive_festival.summary }}</p>
+              <p class="mt-1 text-[10px] text-muted">解锁等级：{{ currentSociety.exclusive_festival.unlock_level }}</p>
+              <p class="mt-1 text-[10px] leading-4 text-muted">{{ currentSociety.exclusive_festival.perk_summary }}</p>
             </div>
             <div class="max-h-64 space-y-2 overflow-y-auto pr-1">
               <div v-for="entry in currentSociety.exclusive_decors" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
                 <p class="text-xs" :class="entry.unlocked ? 'text-success' : 'text-muted'">{{ entry.label }}</p>
                 <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
+                <p class="mt-1 text-[10px] text-muted">解锁等级：{{ entry.unlock_level }}</p>
+              </div>
+            </div>
+            <div class="border-t border-accent/10 pt-3">
+              <p class="text-sm text-accent">专属任务</p>
+              <div class="mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
+                <div v-for="entry in currentSociety.exclusive_tasks" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
+                  <div class="flex items-start justify-between gap-2">
+                    <p class="text-xs" :class="entry.unlocked ? 'text-accent' : 'text-muted'">{{ entry.label }}</p>
+                    <span class="text-[10px] text-muted">{{ entry.status_label }}</span>
+                  </div>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
+                  <p class="mt-1 text-[10px] text-muted">解锁等级：{{ entry.unlock_level }}</p>
+                </div>
               </div>
             </div>
           </div>
@@ -492,7 +545,9 @@
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="truncate text-xs text-text">{{ project.label }}</p>
-                <p class="mt-1 text-[10px] text-muted">{{ project.status_label }} · {{ project.progress }}/{{ project.target_progress }}</p>
+                <p class="mt-1 text-[10px] text-muted">
+                  {{ project.status_label }} · {{ project.progress }}/{{ project.target_progress }} · 已贡献 {{ project.my_contribution_count }} 次
+                </p>
               </div>
               <span class="shrink-0 text-[10px]" :class="project.status === 'completed' ? 'text-success' : 'text-accent'">{{ project.progress_percent }}%</span>
             </div>
@@ -500,11 +555,37 @@
               <div class="h-full bg-accent/70 transition-all" :style="{ width: `${project.progress_percent}%` }" />
             </div>
             <p class="mt-2 text-[10px] leading-4 text-muted">{{ project.summary }}</p>
+            <p v-if="project.progress_note" class="mt-1 text-[10px] leading-4 text-muted">{{ project.progress_note }}</p>
+            <p v-if="project.status === 'completed'" class="mt-1 text-[10px] leading-4 text-success">{{ project.world_feedback || project.completion_feedback }}</p>
+
+            <div v-if="project.can_contribute" class="mt-3 grid gap-2 md:grid-cols-2">
+              <button
+                v-for="entry in project.contribution_packages"
+                :key="`${project.id}-${entry.id}`"
+                type="button"
+                class="border border-accent/15 bg-black/10 px-2 py-2 text-left transition-colors hover:border-accent/35 disabled:cursor-not-allowed disabled:opacity-60"
+                :disabled="societyStore.actionRunning"
+                @click="contributeProject(project.id, entry.id)"
+              >
+                <p class="text-[10px] text-accent">{{ entry.label }} · +{{ entry.progress_gain }} 进度</p>
+                <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
+                <p class="mt-1 text-[10px] text-muted">{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
+              </button>
+            </div>
+
+            <div v-if="project.recent_contributions.length > 0" class="mt-3 border-t border-accent/10 pt-2">
+              <p class="text-[10px] text-accent">最近捐献</p>
+              <div class="mt-1 space-y-1">
+                <div v-for="entry in project.recent_contributions" :key="entry.id" class="text-[10px] leading-4 text-muted">
+                  {{ entry.display_name }} 提交了 {{ entry.package_label }}（+{{ entry.progress_gain }}） · {{ entry.costs.map(cost => cost.label).join(' + ') }}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'proposals'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div v-else-if="activeTab === 'proposals'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">活跃提案</p>
@@ -522,17 +603,104 @@
                 <span class="shrink-0 text-[10px] text-accent">{{ proposal.total_vote_count }} 票</span>
               </div>
               <p class="mt-2 text-[10px] leading-4 text-muted">{{ proposal.summary }}</p>
+              <p class="mt-2 text-[10px] text-muted">
+                赞成 {{ proposal.vote_counts.support }} / 反对 {{ proposal.vote_counts.reject }} / 暂缓 {{ proposal.vote_counts.abstain }}
+              </p>
+              <div v-if="proposal.can_vote" class="mt-2 flex flex-wrap gap-2">
+                <button
+                  v-for="choice in proposal.choice_options"
+                  :key="`${proposal.id}-${choice.id}`"
+                  class="online-action-btn online-action-btn--compact"
+                  type="button"
+                  :disabled="societyStore.actionRunning"
+                  @click="castVote(proposal.id, choice.id)"
+                >
+                  {{ choice.label }}
+                </button>
+              </div>
+              <p v-if="proposal.my_vote_choice" class="mt-2 text-[10px] text-success">我的当前票：{{ getProposalVoteLabel(proposal) }}</p>
+              <div v-if="proposal.can_close" class="mt-2 space-y-2">
+                <input
+                  v-model="proposalResolutionNotes[proposal.id]"
+                  maxlength="120"
+                  class="online-input w-full"
+                  placeholder="归档备注，例如：按多数票执行，本周先试运行。"
+                />
+                <div class="flex justify-end">
+                  <button
+                    class="online-action-btn online-action-btn--compact"
+                    type="button"
+                    :disabled="societyStore.actionRunning"
+                    @click="archiveProposal(proposal.id)"
+                  >
+                    归档提案
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
 
-        <div class="game-panel-muted p-3">
-          <p class="text-sm text-accent">提案归档</p>
-          <p class="mt-2 text-xs leading-5 text-muted">已归档 {{ currentSociety?.proposal_history.length || 0 }} 条。</p>
+        <div class="space-y-3">
+          <div class="game-panel-muted p-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">发起提案</p>
+              <span class="text-[10px] text-muted">{{ currentSociety?.can_create_proposal ? '可发起' : '只读' }}</span>
+            </div>
+            <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后可以查看是否具备发起提案权限。</div>
+            <div v-else-if="!currentSociety.can_create_proposal" class="mt-3 text-xs leading-5 text-muted">当前身份没有发起提案权限。</div>
+            <div v-else class="mt-3 space-y-2">
+              <input
+                v-model="societyStore.draftProposalTitle"
+                maxlength="40"
+                class="online-input w-full"
+                placeholder="提案标题，例如：本周节会联机排班"
+              />
+              <select v-model="societyStore.draftProposalKind" class="online-select w-full">
+                <option v-for="entry in societyStore.proposalKindOptions" :key="entry.id" :value="entry.id">
+                  {{ entry.label }}
+                </option>
+              </select>
+              <textarea
+                v-model="societyStore.draftProposalSummary"
+                rows="3"
+                maxlength="160"
+                class="online-textarea w-full"
+                placeholder="写清楚本次提案的背景、目标和希望大家表决的方向。"
+              />
+              <button
+                class="online-action-btn online-action-btn--primary w-full justify-center"
+                type="button"
+                :disabled="societyStore.actionRunning || !canSubmitProposal"
+                @click="submitProposal"
+              >
+                {{ societyStore.actionRunning ? '提交中' : '发起提案' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">提案归档</p>
+            <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后会显示历史提案。</div>
+            <div v-else-if="currentSociety.proposal_history.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有已归档的村社提案。</div>
+            <div v-else class="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
+              <div v-for="proposal in currentSociety.proposal_history" :key="proposal.id" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ proposal.title }}</p>
+                    <p class="mt-1 text-[10px] text-muted">{{ proposal.kind_label }} · {{ proposal.result_label }}</p>
+                  </div>
+                  <span class="shrink-0 text-[10px] text-muted">{{ proposal.total_vote_count }} 票</span>
+                </div>
+                <p class="mt-2 text-[10px] leading-4 text-muted">{{ proposal.summary }}</p>
+                <p v-if="proposal.resolution_note" class="mt-1 text-[10px] leading-4 text-muted">归档备注：{{ proposal.resolution_note }}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">村社史册</p>
@@ -546,21 +714,66 @@
             </div>
             <div class="grid gap-2 md:grid-cols-2">
               <div class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">成立日期</p>
+                <p class="mt-1 text-xs text-accent">{{ currentSociety.chronicle.founded_date_label || '待记录' }}</p>
+              </div>
+              <div class="border border-accent/10 bg-black/10 p-2">
                 <p class="text-[10px] text-muted">历任职位</p>
                 <p class="mt-1 text-xs text-accent">{{ currentSociety.chronicle.role_history.length }} 条</p>
+              </div>
+              <div class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">公共建设</p>
+                <p class="mt-1 text-xs text-accent">{{ currentSociety.chronicle.public_projects.length }} 项</p>
               </div>
               <div class="border border-accent/10 bg-black/10 p-2">
                 <p class="text-[10px] text-muted">节会参与</p>
                 <p class="mt-1 text-xs text-accent">{{ currentSociety.chronicle.festival_participations.length }} 条</p>
               </div>
             </div>
+            <div v-if="currentSociety.chronicle.role_history.length > 0" class="max-h-56 space-y-2 overflow-y-auto pr-1">
+              <p class="text-xs text-accent">历任职位</p>
+              <div v-for="entry in currentSociety.chronicle.role_history" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="truncate text-xs text-text">{{ entry.display_name }}</p>
+                  <span class="shrink-0 text-[10px] text-muted">{{ formatChronicleDate(entry.created_at) }}</span>
+                </div>
+                <p class="mt-1 text-[10px] text-muted">{{ entry.role_label }}</p>
+              </div>
+            </div>
             <div class="max-h-64 space-y-2 overflow-y-auto pr-1">
+              <p class="text-xs text-accent">公共建设列表</p>
               <div v-for="entry in currentSociety.chronicle.public_projects" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
                 <div class="flex items-center justify-between gap-2">
                   <p class="truncate text-xs text-text">{{ entry.label }}</p>
                   <span class="shrink-0 text-[10px]" :class="entry.status === 'completed' ? 'text-success' : 'text-muted'">{{ entry.status_label }}</span>
                 </div>
-                <p class="mt-1 text-[10px] text-muted">{{ entry.progress }}/{{ entry.target_progress }} · 共 {{ entry.contribution_count }} 条贡献</p>
+                <p class="mt-1 text-[10px] text-muted">
+                  {{ entry.progress }}/{{ entry.target_progress }} · 共 {{ entry.contribution_count }} 条贡献
+                  <template v-if="entry.completed_at && entry.completed_by_display_name">
+                    · {{ entry.completed_by_display_name }} 完工
+                  </template>
+                </p>
+              </div>
+            </div>
+            <div v-if="currentSociety.chronicle.festival_participations.length > 0" class="max-h-64 space-y-2 overflow-y-auto pr-1">
+              <p class="text-xs text-accent">节会参与列表</p>
+              <div v-for="entry in currentSociety.chronicle.festival_participations" :key="entry.memorial_id" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="truncate text-xs text-text">{{ entry.template_label }}</p>
+                  <span class="shrink-0 text-[10px] text-muted">{{ formatChronicleDate(entry.awarded_at) }}</span>
+                </div>
+                <p class="mt-1 text-[10px] text-muted">{{ entry.gameplay_template_label }} · {{ entry.participant_count }} 名社员参与</p>
+                <p class="mt-1 line-clamp-2 text-[10px] leading-4 text-muted">{{ entry.participant_display_names.join('、') }}</p>
+              </div>
+            </div>
+            <div v-if="currentSociety.chronicle.timeline.length > 0" class="max-h-72 space-y-2 overflow-y-auto pr-1">
+              <p class="text-xs text-accent">关键事件时间线</p>
+              <div v-for="entry in currentSociety.chronicle.timeline" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="truncate text-xs text-text">{{ entry.label }}</p>
+                  <span class="shrink-0 text-[10px] text-muted">{{ formatChronicleDate(entry.created_at) }}</span>
+                </div>
+                <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
               </div>
             </div>
           </div>
@@ -589,7 +802,7 @@
   import { useRoute } from 'vue-router'
   import { ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from 'lucide-vue-next'
   import { useSocietyStore } from '@/stores/useSocietyStore'
-  import type { SocietyRole, SocietySnapshot } from '@/utils/societyApi'
+  import type { SocietyProposalChoice, SocietyProposalSnapshot, SocietyRole, SocietySnapshot } from '@/utils/societyApi'
 
   type SocietyTabKey = 'overview' | 'members' | 'storage' | 'projects' | 'proposals' | 'chronicles'
   type SocietyTabMeta = { key: SocietyTabKey; label: string; summary: string }
@@ -597,6 +810,7 @@
   const route = useRoute()
   const societyStore = useSocietyStore()
   const memberRoleDrafts = reactive<Record<string, Exclude<SocietyRole, 'president'>>>({})
+  const proposalResolutionNotes = reactive<Record<string, string>>({})
   const tabs: SocietyTabMeta[] = [
     { key: 'overview', label: '总览', summary: '查看我的村社、公告摘要和公开村社入口。' },
     { key: 'members', label: '成员', summary: '查看成员、职位和待处理申请邀请摘要。' },
@@ -624,9 +838,22 @@
   const hasJoinRelations = computed(() => societyStore.incomingInvites.length > 0 || societyStore.myPendingRequests.length > 0)
   const canSubmitSociety = computed(() => societyStore.draftName.trim().length > 0 && !societyStore.actionRunning)
   const canInviteMember = computed(() => !!societyStore.draftInviteUsername.trim() || !!societyStore.draftInviteSaveId.trim())
+  const canSubmitProposal = computed(() => societyStore.draftProposalTitle.trim().length > 0 && societyStore.draftProposalSummary.trim().length > 0)
   const assignableRoleOptions = computed(() =>
     societyStore.roleOptions.filter(entry => entry.id !== 'president') as Array<{ id: Exclude<SocietyRole, 'president'>; label: string }>
   )
+  const currentWelfareProgressTotal = computed(() => {
+    const society = currentSociety.value
+    if (!society) return 1
+    if (society.welfare_xp_to_next_level <= 0) return Math.max(1, society.welfare_xp)
+    return Math.max(1, society.welfare_xp + society.welfare_xp_to_next_level)
+  })
+  const currentWelfareProgressPercent = computed(() => {
+    const society = currentSociety.value
+    if (!society) return 0
+    if (society.welfare_xp_to_next_level <= 0) return 100
+    return Math.min(100, Math.round((society.welfare_xp / currentWelfareProgressTotal.value) * 100))
+  })
   const memberPermissionSummary = computed(() => {
     const society = currentSociety.value
     if (!society) return '加入村社后才会显示成员治理权限。'
@@ -680,6 +907,22 @@
     return { label: society.visibility_label, tone: 'text-muted' }
   }
 
+  const formatChronicleDate = (timestamp: number) => {
+    if (!timestamp) return '待记录'
+    return new Date(timestamp * 1000).toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  }
+
+  const getProposalVoteLabel = (proposal: SocietyProposalSnapshot) => {
+    return proposal.choice_options.find(entry => entry.id === proposal.my_vote_choice)?.label || proposal.my_vote_choice || '未投票'
+  }
+
   const createSociety = async () => {
     if (!canSubmitSociety.value) return
     await societyStore.submitSociety().catch(() => {})
@@ -712,11 +955,36 @@
     await societyStore.saveNotice().catch(() => {})
   }
 
+  const submitProposal = async () => {
+    if (!canSubmitProposal.value) return
+    await societyStore.submitProposal().catch(() => {})
+  }
+
+  const castVote = async (proposalId: string, choice: SocietyProposalChoice) => {
+    await societyStore.castProposalVote(proposalId, choice).catch(() => {})
+  }
+
+  const archiveProposal = async (proposalId: string) => {
+    await societyStore.archiveProposal(proposalId, proposalResolutionNotes[proposalId] || '').catch(() => {})
+    proposalResolutionNotes[proposalId] = ''
+  }
+
+  const contributeProject = async (projectId: string, packageId: string) => {
+    await societyStore.contributeProject(projectId, packageId).catch(() => {})
+  }
+
+  const depositWarehouse = async (depositId: string) => {
+    await societyStore.depositWarehouse(depositId).catch(() => {})
+  }
+
   watchEffect(() => {
     for (const member of currentSociety.value?.members ?? []) {
       if (member.role !== 'president' && !memberRoleDrafts[member.username]) {
         memberRoleDrafts[member.username] = member.role as Exclude<SocietyRole, 'president'>
       }
+    }
+    for (const proposal of currentSociety.value?.active_proposals ?? []) {
+      if (proposalResolutionNotes[proposal.id] === undefined) proposalResolutionNotes[proposal.id] = ''
     }
   })
 
