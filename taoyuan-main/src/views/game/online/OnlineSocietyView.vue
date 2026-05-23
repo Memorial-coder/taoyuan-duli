@@ -665,7 +665,7 @@
         </div>
       </div>
 
-      <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div v-else-if="activeTab === 'chronicles'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">村社史册</p>

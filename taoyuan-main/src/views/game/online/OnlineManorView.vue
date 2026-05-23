@@ -164,7 +164,7 @@
               <select
                 v-if="isOwner && templateOptions.length > 0"
                 v-model="manorStore.templateIdDraft"
-                class="online-input shrink-0 md:w-48"
+                class="online-select shrink-0 md:w-48"
               >
                 <option v-for="option in templateOptions" :key="option.id" :value="option.id">
                   {{ option.label }}

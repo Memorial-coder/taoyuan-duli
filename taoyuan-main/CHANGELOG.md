@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0522 在线列表与表单结构检查（阶段 I2）
+- 新增 `scripts/qa-online-ui-structure.mjs` 与 `qa:online-ui-structure` 脚本，静态检查在线拆页结构，确认表单控件继续复用 `online-input / online-select / online-textarea`，主要长列表仍有滚动边界。
+- 检查还会固定五个在线子页的默认标签、表单标签归属，以及邻里展示档案、节会纪念、村社史册等历史类内容不抢默认主路径。
+- 修正在线庄园主题页模板选择控件误用 `online-input` 的问题；在线村社史册页改成显式 `activeTab === 'chronicles'`，便于后续静态 smoke 审计。
+
 ### 0522 在线列表滚动容器（阶段 I2 部分）
 - 新增 `src/components/game/online/OnlineScrollArea.vue`，为在线模块长列表提供统一的 `overflow-y-auto` 滚动外壳和稳定最大高度。
 - 在线委托页的可接委托、我的发布、我的接单、结算凭证和补偿重试列表已接入该容器，主要操作按钮不再跟随长列表把页面撑得过长。
