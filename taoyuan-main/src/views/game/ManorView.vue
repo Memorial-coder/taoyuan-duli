@@ -17,6 +17,73 @@
     <ManorPreviewCard :snapshot="manorStore.snapshot" :favorite-overview="manorStore.favoriteOverview" />
 
     <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
+      <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div class="min-w-0">
+          <p class="text-xs text-accent">庄园互助照料</p>
+          <p class="mt-1 text-[10px] text-muted">
+            今日 {{ manorStore.snapshot.care_state.manor_daily_count }}/{{ manorStore.snapshot.care_state.limits.manor_daily_limit }} ·
+            剩余 {{ manorStore.snapshot.care_state.remaining_care_count }}
+          </p>
+        </div>
+        <span class="w-fit shrink-0 text-[10px] text-muted">
+          {{ manorStore.snapshot.care_state.can_care ? '可照料' : manorStore.snapshot.care_state.care_denied_reason }}
+        </span>
+      </div>
+
+      <div v-if="manorStore.snapshot.viewer_is_owner" class="grid gap-2 md:grid-cols-[1fr_1fr_1fr_auto]">
+        <label class="block">
+          <span class="text-[10px] text-muted">访问权限</span>
+          <select v-model="manorStore.accessVisitModeDraft" class="mt-1 w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
+            <option v-for="option in manorStore.snapshot.access_policy.options" :key="`visit-${option.id}`" :value="option.id">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <label class="block">
+          <span class="text-[10px] text-muted">照料权限</span>
+          <select v-model="manorStore.accessCareModeDraft" class="mt-1 w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
+            <option v-for="option in manorStore.snapshot.access_policy.options" :key="`care-${option.id}`" :value="option.id">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <label class="block">
+          <span class="text-[10px] text-muted">偷菜权限</span>
+          <select v-model="manorStore.accessStealModeDraft" class="mt-1 w-full bg-bg border border-accent/20 rounded-xs px-2 py-1 text-xs text-text outline-none focus:border-accent">
+            <option v-for="option in manorStore.snapshot.access_policy.options" :key="`steal-${option.id}`" :value="option.id">
+              {{ option.label }}
+            </option>
+          </select>
+        </label>
+        <div class="flex items-end">
+          <Button class="online-action-btn online-action-btn--compact" :disabled="manorStore.accessPolicyActionRunning" @click="saveAccessPolicy">
+            {{ manorStore.accessPolicyActionRunning ? '保存中…' : '保存权限' }}
+          </Button>
+        </div>
+      </div>
+
+      <VisualSceneBoard
+        v-if="manorCareObjects.length > 0"
+        :objects="manorCareObjects"
+        :selected-object-id="manorStore.selectedCareObjectId || manorStore.snapshot.visual_state.selected_visual_id"
+        :recent-feedback="manorStore.snapshot.visual_state.recent_feedback"
+        :action-running="manorStore.careActionRunning"
+        :action-labels="manorStore.snapshot.care_state.action_labels"
+        @select-object="manorStore.selectCareObject"
+        @trigger-action="submitCareAction"
+      />
+
+      <div v-if="manorStore.snapshot.care_entries.length > 0" class="border border-accent/10 rounded-xs p-2">
+        <p class="text-[10px] text-muted mb-1">最近照料</p>
+        <div class="max-h-28 space-y-1 overflow-y-auto pr-1">
+          <p v-for="entry in manorStore.snapshot.care_entries.slice(0, 6)" :key="entry.id" class="text-[10px] leading-4 text-muted">
+            {{ entry.visitor_display_name }} · {{ entry.object_label }} · {{ entry.action_label }} · {{ entry.owner_benefit }}
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="manorStore.snapshot" class="game-panel border border-accent/10 rounded-xs p-3 space-y-2">
       <p class="text-xs text-accent">收藏与关注</p>
       <div v-if="!manorStore.snapshot.viewer_is_owner" class="flex gap-2">
         <Button class="text-[10px]" :disabled="manorStore.favoriteActionRunning || manorStore.snapshot.is_favorited_by_viewer" @click="favoriteManor">
@@ -360,9 +427,11 @@
   import { useRoute, useRouter } from 'vue-router'
   import Button from '@/components/game/Button.vue'
   import ManorPreviewCard from '@/components/game/ManorPreviewCard.vue'
+  import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
   import { useManorStore } from '@/stores/useManorStore'
   import { showFloat } from '@/composables/useGameLog'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
+  import type { OnlineVisualObject } from '@/types/onlineVisual'
 
   const route = useRoute()
   const router = useRouter()
@@ -389,6 +458,11 @@
     return routeTargetSaveId.value
       ? `从好友驿站打开，当前正在查看目标玩家的庄园快照（ID ${routeTargetSaveId.value}）。`
       : '从好友驿站打开，当前正在查看目标玩家的庄园快照。'
+  })
+  type ManorCareActionPayload = { objectId: string; actionId: string }
+  const manorCareObjects = computed<OnlineVisualObject[]>(() => {
+    const visualState = manorStore.snapshot?.visual_state
+    return visualState?.board_type === 'scene' ? visualState.objects : []
   })
 
   const refreshSnapshot = async () => {
@@ -466,6 +540,14 @@
 
   const saveThemeWeek = async () => {
     await manorStore.saveThemeWeekSnapshot().catch(() => {})
+  }
+
+  const submitCareAction = async (payload: ManorCareActionPayload) => {
+    await manorStore.submitCareAction(payload.objectId, payload.actionId).catch(() => {})
+  }
+
+  const saveAccessPolicy = async () => {
+    await manorStore.saveAccessPolicySnapshot().catch(() => {})
   }
 
   const triggerCoverUpload = () => {

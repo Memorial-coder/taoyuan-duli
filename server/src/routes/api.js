@@ -97,7 +97,7 @@ const ONLINE_RATE_LIMIT_RULES = Object.freeze([
     maxRequests: 24,
   },
   {
-    matcher: /^\/api\/taoyuan\/online\/manor\/(?:guestbook|visit|guide|theme-week|[^/]+\/favorite|[^/]+\/follow)(?:\/|$)/i,
+    matcher: /^\/api\/taoyuan\/online\/manor\/(?:guestbook|visit|guide|theme-week|access-policy|care|[^/]+\/favorite|[^/]+\/follow)(?:\/|$)/i,
     routeKey: 'manor_social_write',
     scope: 'manor',
     maxRequests: 20,
@@ -2652,6 +2652,28 @@ router.post('/taoyuan/online/manor/theme-week', createOnlineReleaseGuard('manor'
     res.json({ ok: true, snapshot });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '保存庄园主题周失败' });
+  }
+});
+
+router.post('/taoyuan/online/manor/access-policy', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanManorRuntime.updateManorAccessPolicy(req.session.username, req.body || {});
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '保存庄园访问权限失败' });
+  }
+});
+
+router.post('/taoyuan/online/manor/care', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const actor = {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    };
+    const result = await taoyuanManorRuntime.submitManorCareAction(req.body || {}, actor);
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '庄园照料失败' });
   }
 });
 

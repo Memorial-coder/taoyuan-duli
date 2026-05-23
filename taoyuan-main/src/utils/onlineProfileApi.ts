@@ -1,7 +1,9 @@
 import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
 import { fetchProtectedJson } from '@/utils/protectedApi'
+import type { OnlineVisualState } from '@/types/onlineVisual'
 
 export type OnlineProfileVisibility = 'public' | 'friends_only' | 'private'
+export type OnlineManorAccessMode = 'public' | 'friends' | 'mutual' | 'closed'
 
 export interface OnlineProfileResponse {
   ok: boolean
@@ -288,6 +290,63 @@ export interface OnlineManorSnapshot {
   today_visit_summary: string
   is_favorited_by_viewer: boolean
   is_followed_by_viewer: boolean
+  access_policy: {
+    visit_mode: OnlineManorAccessMode
+    care_mode: OnlineManorAccessMode
+    steal_mode: OnlineManorAccessMode
+    updated_at: number
+    options: Array<{
+      id: OnlineManorAccessMode
+      label: string
+    }>
+  }
+  relation_context: {
+    viewer_is_owner: boolean
+    viewer_is_friend: boolean
+    viewer_is_mutual: boolean
+    viewer_follows_owner: boolean
+    owner_follows_viewer: boolean
+    mutual_follow: boolean
+    can_visit: boolean
+    can_care: boolean
+  }
+  visual_state: OnlineVisualState
+  care_state: {
+    day_tag: string
+    action_labels: Record<string, string>
+    action_effects: Record<string, {
+      owner_benefit: string
+      visitor_reward: string
+    }>
+    limits: {
+      visitor_daily_limit: number
+      manor_daily_limit: number
+    }
+    visitor_daily_count: number
+    manor_daily_count: number
+    remaining_care_count: number
+    manor_remaining_care_count: number
+    can_care: boolean
+    care_denied_reason: string
+  }
+  care_entries: Array<{
+    id: string
+    target_username: string
+    target_save_id: number
+    target_save_slot: number | null
+    visitor_username: string
+    visitor_display_name: string
+    action_id: string
+    action_label: string
+    object_id: string
+    object_label: string
+    day_tag: string
+    idempotency_key: string
+    owner_benefit: string
+    visitor_reward: string
+    summary: string
+    created_at: number
+  }>
   theme_week: {
     season: string
     week_tag: string
@@ -673,6 +732,32 @@ export const saveManorThemeWeek = async (payload: {
   cover_image_alt?: string
 }) => {
   return requestSocialAction<{ ok: boolean; snapshot?: OnlineManorSnapshot }>('/api/taoyuan/online/manor/theme-week', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
+export const saveManorAccessPolicy = async (payload: {
+  visit_mode: OnlineManorAccessMode
+  care_mode: OnlineManorAccessMode
+  steal_mode: OnlineManorAccessMode
+}) => {
+  return requestSocialAction<{ ok: boolean; policy?: OnlineManorSnapshot['access_policy']; snapshot?: OnlineManorSnapshot }>('/api/taoyuan/online/manor/access-policy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  })
+}
+
+export const submitManorCare = async (payload: {
+  target_username: string
+  target_save_id?: number
+  object_id: string
+  action_id: string
+  idempotency_key?: string
+}) => {
+  return requestSocialAction<{ ok: boolean; entry?: OnlineManorSnapshot['care_entries'][number]; snapshot?: OnlineManorSnapshot; idempotent?: boolean }>('/api/taoyuan/online/manor/care', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)

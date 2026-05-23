@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0523 好友庄园照料
+- 公开庄园快照新增照料场景 `visual_state.objects`，固定展示田地、果树、畜棚、鱼塘、蜂箱和花圃；对象状态会根据作物缺水、虫害、杂草、动物未喂食 / 生病、鱼塘水质和当日照料进度变化。
+- 庄园页复用 `VisualSceneBoard` 展示照料热区、物件进度、可执行动作、最近反馈和最近照料日志；主人可保存访问、照料和偷菜权限，偷菜动作仍留给后续 7.3 单独接入。
+- 服务端新增 `POST /api/taoyuan/online/manor/care` 与 `POST /api/taoyuan/online/manor/access-policy`，照料动作受公开 / 好友 / 互关 / 关闭权限、访客每日 4 次、庄园每日 12 次、单物件进度和幂等键保护。
+- 本轮验证：`node --check server/src/taoyuanManorRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-manor-care.mjs`、`npm --prefix server run qa:manor-care`、`npm --prefix server run qa:online-smoke`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0523 灯会共建样板
 - `lantern_fair` 节会房间接入真实 `visual_state.objects`，主灯、灯谜架、彩绳灯线、节会摊位、人群秩序和留影点会随房间行动更新状态、进度、处理人、协作人数、最近反馈、高光和视觉版本。
 - 在线节会房间复用 `VisualSceneBoard` 展示灯会现场热区、物件详情、动作入口、进度和移动端物件列表，并新增“灯会共建”快捷入口；客户端仍只提交行动意图，结算和状态推进由服务端权威处理。

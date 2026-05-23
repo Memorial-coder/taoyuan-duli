@@ -21,6 +21,7 @@ taoyuan-main/dist-electron/
 
 # Local runtime data
 /data/
+server/.tmp-*/
 production/session-logs/
 production/session-state/active.md
 docs/consistency-failures.md

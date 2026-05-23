@@ -9,10 +9,13 @@ import {
   pinManorGuestbookEntry,
   recordManorVisit,
   replyManorGuestbookEntry,
+  saveManorAccessPolicy,
   saveManorGuide,
   saveManorThemeWeek,
+  submitManorCare,
   type OnlineManorTarget,
-  type OnlineManorSnapshot
+  type OnlineManorSnapshot,
+  type OnlineManorAccessMode
 } from '@/utils/onlineProfileApi'
 
 export const useManorStore = defineStore('onlineManor', () => {
@@ -66,6 +69,12 @@ export const useManorStore = defineStore('onlineManor', () => {
   const coverImageUrlDraft = ref('')
   const coverImageAltDraft = ref('')
   const themeActionRunning = ref(false)
+  const careActionRunning = ref(false)
+  const accessPolicyActionRunning = ref(false)
+  const accessVisitModeDraft = ref<OnlineManorAccessMode>('public')
+  const accessCareModeDraft = ref<OnlineManorAccessMode>('friends')
+  const accessStealModeDraft = ref<OnlineManorAccessMode>('closed')
+  const selectedCareObjectId = ref('')
   const guestbookPlaceholder = computed(() => GUESTBOOK_PLACEHOLDERS[guestbookKindDraft.value])
   const guestbookQuickPicks = computed(() => GUESTBOOK_QUICK_PICKS[guestbookKindDraft.value])
   const guestbookSubmitLabel = computed(() => GUESTBOOK_SUBMIT_LABELS[guestbookKindDraft.value])
@@ -75,6 +84,12 @@ export const useManorStore = defineStore('onlineManor', () => {
     templateIdDraft.value = nextSnapshot?.theme_week?.template_id || 'showcase'
     coverImageUrlDraft.value = nextSnapshot?.theme_week?.cover_image_url || ''
     coverImageAltDraft.value = nextSnapshot?.theme_week?.cover_image_alt || ''
+  }
+
+  const syncAccessPolicyDrafts = (nextSnapshot: OnlineManorSnapshot | null) => {
+    accessVisitModeDraft.value = nextSnapshot?.access_policy?.visit_mode || 'public'
+    accessCareModeDraft.value = nextSnapshot?.access_policy?.care_mode || 'friends'
+    accessStealModeDraft.value = nextSnapshot?.access_policy?.steal_mode || 'closed'
   }
 
   const setGuestbookKind = (kind: ManorGuestbookKind) => {
@@ -129,6 +144,10 @@ export const useManorStore = defineStore('onlineManor', () => {
         activeTargetUsername.value = snapshot.value.username
       }
       syncThemeDrafts(snapshot.value)
+      syncAccessPolicyDrafts(snapshot.value)
+      if (selectedCareObjectId.value && !snapshot.value?.visual_state.objects.some(object => object.id === selectedCareObjectId.value)) {
+        selectedCareObjectId.value = ''
+      }
       return snapshot.value
     } catch (error) {
       if (!options.silent) {
@@ -279,6 +298,7 @@ export const useManorStore = defineStore('onlineManor', () => {
       })
       snapshot.value = result?.snapshot ?? snapshot.value
       syncThemeDrafts(snapshot.value)
+      syncAccessPolicyDrafts(snapshot.value)
       await refreshFavoriteOverview()
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '保存主题周失败'
@@ -325,6 +345,54 @@ export const useManorStore = defineStore('onlineManor', () => {
     }
   }
 
+  const selectCareObject = (objectId: string) => {
+    selectedCareObjectId.value = objectId
+  }
+
+  const submitCareAction = async (objectId: string, actionId: string) => {
+    if (!snapshot.value) return
+    careActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      const result = await submitManorCare({
+        target_username: snapshot.value.username,
+        target_save_id: activeTargetSaveId.value ?? undefined,
+        object_id: objectId,
+        action_id: actionId,
+      })
+      snapshot.value = result?.snapshot ?? snapshot.value
+      syncThemeDrafts(snapshot.value)
+      syncAccessPolicyDrafts(snapshot.value)
+      selectedCareObjectId.value = objectId
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '庄园照料失败'
+      throw error
+    } finally {
+      careActionRunning.value = false
+    }
+  }
+
+  const saveAccessPolicySnapshot = async () => {
+    if (!snapshot.value) return
+    accessPolicyActionRunning.value = true
+    errorMessage.value = ''
+    try {
+      const result = await saveManorAccessPolicy({
+        visit_mode: accessVisitModeDraft.value,
+        care_mode: accessCareModeDraft.value,
+        steal_mode: accessStealModeDraft.value,
+      })
+      snapshot.value = result?.snapshot ?? snapshot.value
+      syncThemeDrafts(snapshot.value)
+      syncAccessPolicyDrafts(snapshot.value)
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '保存庄园访问权限失败'
+      throw error
+    } finally {
+      accessPolicyActionRunning.value = false
+    }
+  }
+
   return {
     loading,
     snapshot,
@@ -352,6 +420,12 @@ export const useManorStore = defineStore('onlineManor', () => {
     coverImageUrlDraft,
     coverImageAltDraft,
     themeActionRunning,
+    careActionRunning,
+    accessPolicyActionRunning,
+    accessVisitModeDraft,
+    accessCareModeDraft,
+    accessStealModeDraft,
+    selectedCareObjectId,
     setGuestbookKind,
     applyGuestbookQuickPick,
     refreshSnapshot,
@@ -365,5 +439,8 @@ export const useManorStore = defineStore('onlineManor', () => {
     refreshFavoriteOverview,
     favoriteCurrentManor,
     followCurrentManor,
+    selectCareObject,
+    submitCareAction,
+    saveAccessPolicySnapshot,
   }
 })
