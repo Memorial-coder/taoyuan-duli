@@ -430,6 +430,59 @@ const submitCoopOrderDelivery = async (session, orderId, payload) => {
   return result.data
 }
 
+const readWorldEventOverview = async session => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/world-events')
+  assert(result.response.ok, `world event overview returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.ok === true, 'world event overview payload is incomplete')
+  assert(Array.isArray(result.data.events), 'world event overview did not return events array')
+  return result.data
+}
+
+const contributeWorldEventAction = async (session, eventId, actionId) => {
+  const result = await fetchSessionJson(session, `/api/taoyuan/online/world-events/${encodeURIComponent(eventId)}/contribute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action_id: actionId }),
+  })
+  assert(result.response.ok, `world event contribute returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.event?.id === eventId, 'world event contribute payload target mismatch')
+  return result.data
+}
+
+const readFestivalRoomOverview = async session => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/festival/rooms')
+  assert(result.response.ok, `festival room overview returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.ok === true, 'festival room overview payload is incomplete')
+  assert(Array.isArray(result.data.visible_rooms), 'festival room overview did not return visible rooms array')
+  return result.data
+}
+
+const postFestivalRoomAction = async (session, roomId, action, payload = null) => {
+  const init = payload
+    ? {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      }
+    : { method: 'POST' }
+  const result = await fetchSessionJson(session, `/api/taoyuan/online/festival/rooms/${encodeURIComponent(roomId)}/${action}`, init)
+  assert(result.response.ok, `festival room ${action} returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.room?.id === roomId, `festival room ${action} payload target mismatch`)
+  return result.data
+}
+
+const joinFestivalRoom = async (session, roomId) =>
+  postFestivalRoomAction(session, roomId, 'join')
+
+const readyFestivalRoom = async (session, roomId) =>
+  postFestivalRoomAction(session, roomId, 'ready')
+
+const submitFestivalRoomGameplayAction = async (session, roomId, actionId) =>
+  postFestivalRoomAction(session, roomId, 'action', { action_id: actionId })
+
+const closeFestivalRoom = async (session, roomId) =>
+  postFestivalRoomAction(session, roomId, 'close')
+
 const readManorSnapshot = async (session, targetUsername = '') => {
   const pathSuffix = targetUsername
     ? `/${encodeURIComponent(targetUsername)}`
@@ -1107,6 +1160,163 @@ async function main() {
           && getSaveMoney(helperSave) === beforeRetryMoney + rewardValue
       }, { timeout: 10000 }).toBeTruthy()
       await expect(page.getByTestId('online-orders-compensation-entry').filter({ hasText: compensationId }).getByText('已解决')).toBeVisible({ timeout: 10000 })
+    })
+
+    await runCheck('online festival core actions persist through split tabs', async () => {
+      const guest = await bootstrapSession()
+      const festivalSeed = createSmokeSeed()
+      const roomTitle = `节会拆页烟测${festivalSeed}`
+
+      const beforeWorld = await readWorldEventOverview(owner)
+      const currentEvent = beforeWorld.current_event
+      assert(currentEvent?.id, 'world event overview did not return current event')
+      const contributionAction = currentEvent.contribution_actions?.find(action => action.can_use)
+      assert(contributionAction?.id, 'world event current event has no usable contribution action')
+      const beforeContributionValue = currentEvent.my_contribution?.progress_value || 0
+      const beforeContributionMoney = getSaveMoney(await readServerSave(owner))
+
+      await page.goto(`${frontendBaseURL}/#/game/online/festival`)
+      await expect(page.getByTestId('online-festival-page')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByTestId(`online-festival-world-contribute-${contributionAction.id}`)).toBeVisible({ timeout: 10000 })
+      await page.getByTestId(`online-festival-world-contribute-${contributionAction.id}`).click()
+
+      await expect.poll(async () => {
+        const overview = await readWorldEventOverview(owner)
+        const event = overview.events?.find(entry => entry.id === currentEvent.id)
+          || overview.world_events?.find(entry => entry.id === currentEvent.id)
+        return event?.my_contribution?.progress_value || 0
+      }, { timeout: 10000 }).toBe(beforeContributionValue + contributionAction.progress_delta)
+      const afterContributionSave = await readServerSave(owner)
+      assert(
+        getSaveMoney(afterContributionSave) === beforeContributionMoney - contributionAction.cost_money,
+        'world event contribution did not persist expected money cost to server save',
+      )
+
+      await page.getByTestId('online-module-tab-festival-room').click()
+      await expect(page.getByTestId('online-festival-room-title-input')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-festival-room-title-input').fill(roomTitle)
+      await page.getByTestId('online-festival-room-create-submit').click()
+
+      let roomId = ''
+      await expect.poll(async () => {
+        const overview = await readFestivalRoomOverview(owner)
+        const room = overview.my_room
+        roomId = room?.id || ''
+        return Boolean(
+          roomId
+            && room.title === roomTitle
+            && room.host_username === owner.username
+            && room.members?.some(member => member.username === owner.username && member.status === 'joined')
+        )
+      }, { timeout: 10000 }).toBeTruthy()
+      await expect(page.getByTestId('online-festival-room-my-room').filter({ hasText: roomTitle })).toBeVisible({ timeout: 10000 })
+
+      await page.getByTestId('online-festival-room-invite-username-input').fill(guest.username)
+      await page.getByTestId('online-festival-room-invite-submit').click()
+      await expect.poll(async () => {
+        const overview = await readFestivalRoomOverview(owner)
+        return overview.my_room?.invitations?.some(invite =>
+          invite.target_username === guest.username && invite.status === 'pending'
+        )
+      }, { timeout: 10000 }).toBeTruthy()
+
+      const guestInviteOverview = await readFestivalRoomOverview(guest)
+      assert(
+        guestInviteOverview.invited_rooms?.some(room => room.id === roomId && room.host_username === owner.username),
+        'festival room invitation was not visible to invited guest',
+      )
+
+      const joined = await joinFestivalRoom(guest, roomId)
+      assert(
+        joined.room?.members?.some(member => member.username === guest.username && member.status === 'joined'),
+        'festival room join did not mark guest as joined',
+      )
+      await page.getByTestId('online-module-refresh-button').click()
+      await expect(page.getByTestId('online-festival-room-ready-check-submit')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-festival-room-ready-check-submit').click()
+
+      await expect.poll(async () => {
+        const overview = await readFestivalRoomOverview(owner)
+        return overview.my_room?.state
+      }, { timeout: 10000 }).toBe('ready_check')
+
+      await expect(page.getByTestId('online-festival-room-ready-submit')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-festival-room-ready-submit').click()
+      await readyFestivalRoom(guest, roomId)
+      await expect.poll(async () => {
+        const overview = await readFestivalRoomOverview(owner)
+        return overview.my_room?.members?.filter(member => member.status === 'ready').length
+      }, { timeout: 10000 }).toBe(2)
+
+      await page.getByTestId('online-module-refresh-button').click()
+      await expect(page.getByTestId('online-festival-room-start-submit')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-festival-room-start-submit').click()
+      await wait(7000)
+      await expect.poll(async () => {
+        const overview = await readFestivalRoomOverview(owner)
+        return overview.my_room?.state
+      }, { timeout: 15000 }).toBe('running')
+
+      const runningOwnerOverview = await readFestivalRoomOverview(owner)
+      const ownerGameplayAction = runningOwnerOverview.my_room?.gameplay?.available_actions?.find(action => action.can_use)
+      const runningGuestOverview = ownerGameplayAction ? null : await readFestivalRoomOverview(guest)
+      const guestGameplayAction = runningGuestOverview?.my_room?.gameplay?.available_actions?.find(action => action.can_use)
+      const gameplayActor = ownerGameplayAction ? owner : guest
+      const gameplayAction = ownerGameplayAction || guestGameplayAction
+      assert(gameplayAction?.id, 'festival room running state did not expose a usable gameplay action')
+      const gameplayResult = await submitFestivalRoomGameplayAction(gameplayActor, roomId, gameplayAction.id)
+      assert(
+        gameplayResult.room?.gameplay?.last_action_id === gameplayAction.id,
+        'festival room gameplay action did not persist last action',
+      )
+
+      await page.getByTestId('online-module-refresh-button').click()
+      await expect(page.getByTestId('online-festival-room-settle-submit')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-festival-room-settle-submit').click()
+
+      let receiptRewards = []
+      await expect.poll(async () => {
+        const overview = await readFestivalRoomOverview(owner)
+        receiptRewards = overview.my_room?.settlement_receipts || []
+        return overview.my_room?.state === 'settling'
+          && receiptRewards.length === 2
+          && receiptRewards.every(receipt => receipt.status === 'pending_persist')
+      }, { timeout: 10000 }).toBeTruthy()
+
+      const beforeCloseOwnerMoney = getSaveMoney(await readServerSave(owner))
+      const beforeCloseGuestMoney = getSaveMoney(await readServerSave(guest))
+      const ownerReward = receiptRewards.find(receipt => receipt.target_username === owner.username)?.reward_payload?.money ?? 0
+      const guestReward = receiptRewards.find(receipt => receipt.target_username === guest.username)?.reward_payload?.money ?? 0
+      assert(ownerReward > 0 && guestReward > 0, 'festival room settlement rewards were not generated for both members')
+
+      const closed = await closeFestivalRoom(owner, roomId)
+      assert(closed.room?.state === 'closed', 'festival room close did not move room to closed state')
+      assert(
+        closed.room?.settlement_receipts?.length === 2
+          && closed.room.settlement_receipts.every(receipt => receipt.status === 'persisted'),
+        'festival room close did not persist all settlement receipts',
+      )
+
+      const afterCloseOwnerMoney = getSaveMoney(await readServerSave(owner))
+      const afterCloseGuestMoney = getSaveMoney(await readServerSave(guest))
+      assert(afterCloseOwnerMoney === beforeCloseOwnerMoney + ownerReward, 'festival room owner reward was not written to server save')
+      assert(afterCloseGuestMoney === beforeCloseGuestMoney + guestReward, 'festival room guest reward was not written to server save')
+      const afterCloseOwnerOverview = await readFestivalRoomOverview(owner)
+      const afterCloseGuestOverview = await readFestivalRoomOverview(guest)
+      assert(
+        afterCloseOwnerOverview.recent_receipts?.some(entry =>
+          entry.id === receiptRewards.find(receipt => receipt.target_username === owner.username)?.id
+            && entry.status === 'persisted'
+        ),
+        'festival room owner persisted receipt was not visible in owner recent receipt overview',
+      )
+      assert(
+        afterCloseGuestOverview.recent_receipts?.some(entry =>
+          entry.id === receiptRewards.find(receipt => receipt.target_username === guest.username)?.id
+            && entry.status === 'persisted'
+        ),
+        'festival room guest persisted receipt was not visible in guest recent receipt overview',
+      )
     })
 
     await runCheck('cloud save quick save preserves decryptable server slot', async () => {

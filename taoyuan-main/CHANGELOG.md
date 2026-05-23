@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0522 在线节会核心操作验收（阶段 J2 / 节会）
+- 在线节会拆页补齐自动化验收锚点，覆盖世界事件贡献按钮、节会房间创建表单、邀请输入、ready / start / settle / close 控件和玩法动作按钮。
+- `scripts/qa-online-regression-live-smoke.mjs` 新增节会核心操作烟测，主人通过 UI 完成世界事件贡献、创建节会房间、邀请访客、开准备、ready、开倒计时和结算；访客通过服务端 API 加入并 ready，服务端 overview 会读回房间状态和成员状态。
+- 结算验证走真实双人写回路径：房间运行后提交玩法动作，结算生成双方 `pending_persist` 凭证，关闭房间后验证主人 / 访客各自 recent receipts 为 `persisted`，并确认铜钱奖励分别写回双方服务端存档。
+- 验证已通过 `node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-regression-live-smoke`、`npm --prefix taoyuan-main run build` 和 `git diff --check`。
+
 ### 0522 在线委托核心操作验收（阶段 J2 / 委托）
 - 在线委托拆页补齐自动化验收锚点，覆盖发布表单、可接列表、我的发布、我的接单、结算凭证和补偿重试入口。
 - `scripts/qa-online-regression-live-smoke.mjs` 新增委托核心操作烟测，发布人通过 UI 发布公开求助单并确认交付，接单人通过服务端 API 接单和提交交付，服务端 overview 会读回 orders / receipts 状态。

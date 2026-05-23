@@ -75,6 +75,7 @@
                     <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
                       <Button
                         class="online-action-btn online-action-btn--compact shrink-0"
+                        :data-testid="`online-festival-world-contribute-${action.id}`"
                         :disabled="worldEventStore.actionRunning || !action.can_use"
                         @click="contributeWorldEventAction(worldEventStore.currentEvent.id, action.id)"
                       >
@@ -275,12 +276,12 @@
 
         <div class="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
           <div class="space-y-3">
-            <div class="game-panel-muted p-3">
+            <div class="game-panel-muted p-3" data-testid="online-festival-room-status-panel">
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">我的节会状态</p>
                 <span class="text-[10px] text-muted">{{ festivalRoomStore.myRoom ? festivalRoomStore.myRoom.state_label : '空闲中' }}</span>
               </div>
-              <div v-if="festivalRoomStore.myRoom" class="mt-3 space-y-3">
+              <div v-if="festivalRoomStore.myRoom" class="mt-3 space-y-3" data-testid="online-festival-room-my-room">
                 <div class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
@@ -395,6 +396,7 @@
                       <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
                         <Button
                           class="online-action-btn online-action-btn--compact shrink-0"
+                          :data-testid="`online-festival-room-gameplay-action-${action.id}`"
                           :disabled="festivalRoomStore.actionRunning || !action.can_use"
                           @click="playGameplayAction(festivalRoomStore.myRoom.id, action.id)"
                         >
@@ -441,25 +443,49 @@
                     <input
                       v-model="festivalRoomStore.draftInviteUsername"
                       class="online-input flex-1"
+                      data-testid="online-festival-room-invite-username-input"
                       placeholder="输入用户名"
                     />
-                    <Button class="online-action-btn online-action-btn--primary" :disabled="festivalRoomStore.actionRunning" @click="inviteMember(festivalRoomStore.myRoom.id)">
+                    <Button
+                      class="online-action-btn online-action-btn--primary"
+                      data-testid="online-festival-room-invite-submit"
+                      :disabled="festivalRoomStore.actionRunning"
+                      @click="inviteMember(festivalRoomStore.myRoom.id)"
+                    >
                       邀请
                     </Button>
                   </div>
                 </label>
 
                 <div class="grid gap-2 sm:grid-cols-2">
-                  <Button v-if="festivalRoomStore.myRoom.can_host_ready_check" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="startReadyCheck(festivalRoomStore.myRoom.id)">
+                  <Button
+                    v-if="festivalRoomStore.myRoom.can_host_ready_check"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    data-testid="online-festival-room-ready-check-submit"
+                    :disabled="festivalRoomStore.actionRunning"
+                    @click="startReadyCheck(festivalRoomStore.myRoom.id)"
+                  >
                     开准备
                   </Button>
-                  <Button v-if="festivalRoomStore.myRoom.can_ready" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="readyRoom(festivalRoomStore.myRoom.id)">
+                  <Button
+                    v-if="festivalRoomStore.myRoom.can_ready"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    data-testid="online-festival-room-ready-submit"
+                    :disabled="festivalRoomStore.actionRunning"
+                    @click="readyRoom(festivalRoomStore.myRoom.id)"
+                  >
                     我已准备
                   </Button>
                   <Button v-if="festivalRoomStore.myRoom.can_unready" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="unreadyRoom(festivalRoomStore.myRoom.id)">
                     取消准备
                   </Button>
-                  <Button v-if="festivalRoomStore.myRoom.can_host_start_countdown" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="startCountdown(festivalRoomStore.myRoom.id)">
+                  <Button
+                    v-if="festivalRoomStore.myRoom.can_host_start_countdown"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    data-testid="online-festival-room-start-submit"
+                    :disabled="festivalRoomStore.actionRunning"
+                    @click="startCountdown(festivalRoomStore.myRoom.id)"
+                  >
                     开倒计时
                   </Button>
                   <Button v-if="festivalRoomStore.myRoom.can_disconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="disconnectRoom(festivalRoomStore.myRoom.id)">
@@ -468,10 +494,22 @@
                   <Button v-if="festivalRoomStore.myRoom.can_reconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="reconnectRoom(festivalRoomStore.myRoom.id)">
                     恢复连接
                   </Button>
-                  <Button v-if="festivalRoomStore.myRoom.can_host_settle" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="settleRoom(festivalRoomStore.myRoom.id)">
+                  <Button
+                    v-if="festivalRoomStore.myRoom.can_host_settle"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    data-testid="online-festival-room-settle-submit"
+                    :disabled="festivalRoomStore.actionRunning"
+                    @click="settleRoom(festivalRoomStore.myRoom.id)"
+                  >
                     进入结算
                   </Button>
-                  <Button v-if="festivalRoomStore.myRoom.can_host_close" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="closeRoom(festivalRoomStore.myRoom.id)">
+                  <Button
+                    v-if="festivalRoomStore.myRoom.can_host_close"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    data-testid="online-festival-room-close-submit"
+                    :disabled="festivalRoomStore.actionRunning"
+                    @click="closeRoom(festivalRoomStore.myRoom.id)"
+                  >
                     {{ festivalRoomStore.myRoom.state === 'settling' ? '正式关闭' : '取消房间' }}
                   </Button>
                   <Button v-if="festivalRoomStore.myRoom.can_leave" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="leaveRoom(festivalRoomStore.myRoom.id)">
@@ -513,7 +551,7 @@
               <div class="mt-3 space-y-3">
                 <label class="block">
                   <span class="text-[10px] text-muted">节会房型</span>
-                  <select v-model="festivalRoomStore.selectedTemplateId" class="online-select mt-1">
+                  <select v-model="festivalRoomStore.selectedTemplateId" class="online-select mt-1" data-testid="online-festival-room-template-select">
                     <option v-for="template in festivalRoomStore.templates" :key="template.id" :value="template.id">
                       {{ template.label }}
                     </option>
@@ -529,7 +567,7 @@
                 </div>
                 <label class="block">
                   <span class="text-[10px] text-muted">玩法模板</span>
-                  <select v-model="festivalRoomStore.selectedGameplayTemplateId" class="online-select mt-1">
+                  <select v-model="festivalRoomStore.selectedGameplayTemplateId" class="online-select mt-1" data-testid="online-festival-room-gameplay-select">
                     <option v-for="template in festivalRoomStore.gameplayTemplates" :key="template.id" :value="template.id">
                       {{ template.label }}
                     </option>
@@ -557,11 +595,13 @@
                     v-model="festivalRoomStore.draftTitle"
                     maxlength="30"
                     class="online-input mt-1"
+                    data-testid="online-festival-room-title-input"
                     placeholder="例如：端午夜练舟"
                   />
                 </label>
                 <Button
                   class="online-action-btn online-action-btn--primary w-full justify-center"
+                  data-testid="online-festival-room-create-submit"
                   :disabled="festivalRoomStore.actionRunning || !festivalRoomStore.selectedTemplate || !festivalRoomStore.selectedGameplayTemplate"
                   @click="createRoom"
                 >
