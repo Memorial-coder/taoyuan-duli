@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0522 在线邻里核心操作验收（阶段 J2 / 邻里）
+- 在线邻里拆页补齐自动化验收锚点，覆盖名片保存表单、好友驿站入口、邻里创建表单、公开邻里列表、申请列表和成员邀请控件。
+- `OnlineNeighborView.vue` 的社长 / 管事权限会从 `neighborGroup.role` 或成员列表中的当前用户名兜底推导，避免服务端 overview 未带顶层 role 时把邻里邀请和治理入口误隐藏。
+- `scripts/qa-online-regression-live-smoke.mjs` 新增邻里核心操作烟测，使用社长、申请人和被邀请人三套会话验证名片保存、好友入口跳转、邻里创建、申请写入、邀请写入与被邀请人可见性，并从服务端 overview 读回。
+- 验证已通过 `node --check taoyuan-main/scripts/qa-online-regression-live-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 和 `npm --prefix taoyuan-main run qa:online-regression-live-smoke`。
+
 ### 0522 在线庄园核心操作验收（阶段 J2 / 庄园）
 - 在线庄园拆页补齐访客收藏 / 关注入口，以及庄园主的回复、置顶、导览保存和主题周保存路径；留言、来访和收藏概览继续留在庄园模块内。
 - `scripts/qa-online-regression-live-smoke.mjs` 新增庄园核心操作烟测，使用访客与庄园主两套会话分别验证留言、来访、收藏 / 关注、回复、置顶、主题保存与导览写入，并从服务端快照读回。

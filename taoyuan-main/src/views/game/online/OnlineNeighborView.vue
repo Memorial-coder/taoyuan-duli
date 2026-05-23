@@ -123,6 +123,7 @@
               <div class="flex items-center justify-between gap-2">
                 <p class="text-sm text-accent">名片设置</p>
                 <button
+                  data-testid="online-neighbor-profile-save"
                   class="online-action-btn online-action-btn--compact"
                   type="button"
                   :disabled="!socialStore.hasDirtyDraft || socialStore.saving"
@@ -136,19 +137,19 @@
               <div class="grid gap-2 md:grid-cols-2">
                 <label class="flex flex-col gap-1 text-[10px] text-muted">
                   庄园名
-                  <input v-model="socialStore.draftManorName" maxlength="40" class="online-input" />
+                  <input v-model="socialStore.draftManorName" data-testid="online-neighbor-profile-manor-input" maxlength="40" class="online-input" />
                 </label>
                 <label class="flex flex-col gap-1 text-[10px] text-muted">
                   公开称号
-                  <input v-model="socialStore.draftPublicTitle" maxlength="24" class="online-input" />
+                  <input v-model="socialStore.draftPublicTitle" data-testid="online-neighbor-profile-title-input" maxlength="24" class="online-input" />
                 </label>
                 <label class="flex flex-col gap-1 text-[10px] text-muted">
                   邻里身份
-                  <input v-model="socialStore.draftNeighborhoodRole" maxlength="24" class="online-input" />
+                  <input v-model="socialStore.draftNeighborhoodRole" data-testid="online-neighbor-profile-role-input" maxlength="24" class="online-input" />
                 </label>
                 <label class="flex flex-col gap-1 text-[10px] text-muted">
                   展示主题
-                  <input v-model="socialStore.draftShowcaseTheme" maxlength="24" class="online-input" />
+                  <input v-model="socialStore.draftShowcaseTheme" data-testid="online-neighbor-profile-theme-input" maxlength="24" class="online-input" />
                 </label>
               </div>
 
@@ -189,7 +190,7 @@
 
               <label class="flex flex-col gap-1 text-[10px] text-muted">
                 公开状态
-                <select v-model="socialStore.draftVisibility" class="online-select">
+                <select v-model="socialStore.draftVisibility" data-testid="online-neighbor-profile-visibility-select" class="online-select">
                   <option value="public">公开</option>
                   <option value="friends_only">仅好友（当前视作未公开）</option>
                   <option value="private">私密</option>
@@ -200,6 +201,7 @@
                 一句公开介绍
                 <textarea
                   v-model="socialStore.draftIntro"
+                  data-testid="online-neighbor-profile-intro-input"
                   rows="3"
                   maxlength="120"
                   class="online-textarea resize-none"
@@ -487,7 +489,7 @@
                 <div class="grid gap-2 text-xs md:grid-cols-3">
                   <div class="border border-accent/10 bg-black/10 p-2">
                     <p class="text-[10px] text-muted">我的身份</p>
-                    <p class="mt-1 text-accent">{{ neighborRoleLabel(socialStore.neighborGroup.role) }}</p>
+                    <p class="mt-1 text-accent">{{ neighborRoleLabel(ownNeighborRole) }}</p>
                   </div>
                   <div class="border border-accent/10 bg-black/10 p-2">
                     <p class="text-[10px] text-muted">成员</p>
@@ -580,30 +582,34 @@
                 <p class="text-sm text-accent">创建邻里</p>
                 <input
                   v-model="socialStore.neighborNameDraft"
+                  data-testid="online-neighbor-create-name-input"
                   maxlength="24"
                   class="online-input w-full"
                   placeholder="邻里名称"
                 />
                 <input
                   v-model="socialStore.neighborSummaryDraft"
+                  data-testid="online-neighbor-create-summary-input"
                   maxlength="120"
                   class="online-input w-full"
                   placeholder="一句简介，告诉别人你们这群人想过怎样的日子。"
                 />
                 <textarea
                   v-model="socialStore.neighborNoticeDraft"
+                  data-testid="online-neighbor-create-notice-input"
                   rows="2"
                   maxlength="160"
                   class="online-textarea w-full resize-none"
                   placeholder="初始公告"
                 />
-                <select v-model="socialStore.neighborCapacityDraft" class="online-select w-full">
+                <select v-model="socialStore.neighborCapacityDraft" data-testid="online-neighbor-create-capacity-select" class="online-select w-full">
                   <option :value="12">小型邻里（3-12）</option>
                   <option :value="30">中型邻里（12-30）</option>
                   <option :value="60">大型邻里（30+）</option>
                 </select>
                 <div class="flex justify-end">
                   <button
+                    data-testid="online-neighbor-create-submit"
                     class="online-action-btn online-action-btn--compact"
                     type="button"
                     :disabled="socialStore.neighborActionRunning || !socialStore.neighborNameDraft.trim()"
@@ -625,8 +631,8 @@
               <div v-if="socialStore.neighborPublicGroups.length === 0" class="mt-2 text-xs text-muted">
                 当前还没有公开邻里。
               </div>
-              <div v-else class="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
-                <div v-for="group in socialStore.neighborPublicGroups" :key="group.id" class="border border-accent/10 bg-black/10 p-2">
+              <div v-else data-testid="online-neighbor-public-group-list" class="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
+                <div v-for="group in socialStore.neighborPublicGroups" :key="group.id" data-testid="online-neighbor-public-group-entry" class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
                       <p class="truncate text-xs text-accent">{{ group.name }}</p>
@@ -637,6 +643,7 @@
                   <p class="mt-2 text-[10px] leading-4 text-muted">公告：{{ group.notice || '暂无公告' }}</p>
                   <div v-if="!socialStore.neighborGroup && group.can_apply" class="mt-2 flex justify-end">
                     <button
+                      data-testid="online-neighbor-apply-button"
                       class="online-action-btn online-action-btn--compact"
                       type="button"
                       :disabled="socialStore.neighborActionRunning"
@@ -654,10 +661,12 @@
               <div class="online-action-row">
                 <input
                   v-model="socialStore.neighborInviteUsernameDraft"
+                  data-testid="online-neighbor-invite-username-input"
                   class="online-input min-w-0 flex-1"
                   placeholder="输入玩家用户名"
                 />
                 <button
+                  data-testid="online-neighbor-invite-submit"
                   class="online-action-btn online-action-btn--compact"
                   type="button"
                   :disabled="socialStore.neighborActionRunning || !socialStore.neighborInviteUsernameDraft.trim()"
@@ -673,8 +682,8 @@
               <div v-if="neighborPendingRequests.length === 0" class="mt-2 text-xs text-muted">
                 当前没有新的邻里申请或邀请。
               </div>
-              <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
-                <div v-for="entry in neighborPendingRequests" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
+              <div v-else data-testid="online-neighbor-request-list" class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+                <div v-for="entry in neighborPendingRequests" :key="entry.id" data-testid="online-neighbor-request-entry" class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex items-start justify-between gap-2">
                     <div class="min-w-0">
                       <p class="text-xs text-accent">
@@ -835,11 +844,15 @@
     if (!socialStore.neighborGroup) return '可以从公开邻里里申请加入，也可以在邻里标签里创建自己的邻里组织。'
     return socialStore.neighborGroup.summary || socialStore.neighborGroup.notice || '这个邻里还没写简介。'
   })
-  const canManageNeighbor = computed(() => {
-    const role = socialStore.neighborGroup?.role
-    return role === 'leader' || role === 'manager'
+  const ownNeighborRole = computed(() => {
+    const ownUsername = socialStore.profile?.username || ''
+    return socialStore.neighborGroup?.role
+      ?? socialStore.neighborGroup?.members?.find(member => member.username === ownUsername)?.role
   })
-  const canChangeNeighborRoles = computed(() => socialStore.neighborGroup?.role === 'leader')
+  const canManageNeighbor = computed(() => {
+    return ownNeighborRole.value === 'leader' || ownNeighborRole.value === 'manager'
+  })
+  const canChangeNeighborRoles = computed(() => ownNeighborRole.value === 'leader')
   const neighborMembers = computed(() => socialStore.neighborGroup?.members || [])
   const neighborActivityLog = computed(() => socialStore.neighborGroup?.activity_log || [])
   const neighborPendingRequests = computed(() => [

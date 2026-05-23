@@ -367,6 +367,36 @@ const searchPlayerBySaveId = async (session, saveId) => {
   return result.data
 }
 
+const readOnlineProfile = async session => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/profile')
+  assert(result.response.ok, `online profile returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.profile, 'online profile payload is missing profile')
+  return result.data.profile
+}
+
+const readRelationshipOverview = async session => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/social/relationships')
+  assert(result.response.ok, `relationship overview returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.ok === true, 'relationship overview payload is incomplete')
+  return result.data
+}
+
+const readNeighborOverview = async session => {
+  const result = await fetchSessionJson(session, '/api/taoyuan/online/social/neighbors/overview')
+  assert(result.response.ok, `neighbor overview returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.ok === true, 'neighbor overview payload is incomplete')
+  return result.data
+}
+
+const applyToNeighborGroup = async (session, groupId) => {
+  const result = await fetchSessionJson(session, `/api/taoyuan/online/social/neighbors/${encodeURIComponent(groupId)}/apply`, {
+    method: 'POST',
+  })
+  assert(result.response.ok, `neighbor apply returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+  assert(result.data?.request?.id, 'neighbor apply payload is missing request id')
+  return result.data.request
+}
+
 const readManorSnapshot = async (session, targetUsername = '') => {
   const pathSuffix = targetUsername
     ? `/${encodeURIComponent(targetUsername)}`
@@ -832,6 +862,111 @@ async function main() {
         const snapshot = await readManorSnapshot(owner)
         return snapshot.guide_points?.some(point => point.title === guideTitle && point.summary === guideSummary)
       }, { timeout: 10000 }).toBeTruthy()
+    })
+
+    await runCheck('online neighbor core actions persist through split tabs', async () => {
+      const applicant = await bootstrapSession()
+      const invitee = await bootstrapSession()
+      const neighborSeed = createSmokeSeed()
+      const manorName = `邻里烟测庄园${neighborSeed}`
+      const publicTitle = `邻里烟测称号${neighborSeed}`
+      const roleLabel = `邻里烟测身份${neighborSeed}`
+      const showcaseTheme = `邻里主题${neighborSeed}`
+      const intro = `邻里拆页名片介绍 ${neighborSeed}`
+      const groupName = `烟测邻里${neighborSeed}`
+      const groupSummary = `邻里拆页创建摘要 ${neighborSeed}`
+      const groupNotice = `邻里拆页初始公告 ${neighborSeed}`
+
+      await page.goto(`${frontendBaseURL}/#/game/online/neighbor`)
+      await expect(page.getByTestId('online-neighbor-page')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByTestId('online-module-refresh-button')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-module-refresh-button').click()
+      await expect.poll(async () => {
+        const profile = await readOnlineProfile(owner)
+        return profile.username === owner.username
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await page.getByTestId('online-neighbor-profile-manor-input').fill(manorName)
+      await page.getByTestId('online-neighbor-profile-title-input').fill(publicTitle)
+      await page.getByTestId('online-neighbor-profile-role-input').fill(roleLabel)
+      await page.getByTestId('online-neighbor-profile-theme-input').fill(showcaseTheme)
+      await page.getByTestId('online-neighbor-profile-visibility-select').selectOption('public')
+      await page.getByTestId('online-neighbor-profile-intro-input').fill(intro)
+      await page.getByTestId('online-neighbor-profile-save').click()
+      await expect.poll(async () => {
+        const profile = await readOnlineProfile(owner)
+        return profile.manor_name === manorName
+          && profile.public_title === publicTitle
+          && profile.neighborhood_role === roleLabel
+          && profile.showcase_theme === showcaseTheme
+          && profile.public_intro === intro
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await page.getByTestId('online-module-tab-friends').click()
+      await expect(page.getByTestId('online-neighbor-friend-station-link')).toBeVisible({ timeout: 10000 })
+      await expect(page.getByTestId('online-neighbor-friend-station-link')).toHaveAttribute('href', /friend-station/)
+      await page.getByTestId('online-neighbor-friend-station-link').click()
+      await expect(page.getByTestId('region-social-friend-panel')).toBeVisible({ timeout: 10000 })
+      await expect.poll(() => page.evaluate(() => window.location.hash), { timeout: 10000 }).toContain('/game/friend-station')
+
+      await page.goto(`${frontendBaseURL}/#/game/online/neighbor`)
+      await expect(page.getByTestId('online-neighbor-page')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-module-tab-neighbor').click()
+      await expect(page.getByTestId('online-neighbor-create-name-input')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-neighbor-create-name-input').fill(groupName)
+      await page.getByTestId('online-neighbor-create-summary-input').fill(groupSummary)
+      await page.getByTestId('online-neighbor-create-notice-input').fill(groupNotice)
+      await page.getByTestId('online-neighbor-create-capacity-select').selectOption('12')
+      await page.getByTestId('online-neighbor-create-submit').click()
+      await expect(page.getByText(groupName).first()).toBeVisible({ timeout: 10000 })
+      await expect.poll(async () => {
+        const overview = await readNeighborOverview(owner)
+        const leaderRole = overview.my_group?.members?.find(member => member.username === owner.username)?.role
+        return overview.my_group?.name === groupName
+          && overview.my_group?.summary === groupSummary
+          && overview.my_group?.notice === groupNotice
+          && leaderRole === 'leader'
+      }, { timeout: 10000 }).toBeTruthy()
+
+      const ownerNeighborOverview = await readNeighborOverview(owner)
+      const groupId = ownerNeighborOverview.my_group?.id
+      assert(groupId, 'created neighbor group id missing')
+
+      const applyRequest = await applyToNeighborGroup(applicant, groupId)
+      assert(applyRequest.group_id === groupId && applyRequest.username === applicant.username, 'neighbor apply request target mismatch')
+      await expect.poll(async () => {
+        const overview = await readNeighborOverview(owner)
+        return overview.managed_requests?.some(request =>
+          request.id === applyRequest.id
+            && request.type === 'apply'
+            && request.username === applicant.username
+            && request.status === 'pending'
+        )
+      }, { timeout: 10000 }).toBeTruthy()
+
+      await page.goto(`${frontendBaseURL}/#/game/online/neighbor`)
+      await expect(page.getByTestId('online-neighbor-page')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-module-tab-neighbor').click()
+      await expect(page.getByTestId('online-neighbor-invite-username-input')).toBeVisible({ timeout: 10000 })
+      await page.getByTestId('online-neighbor-invite-username-input').fill(invitee.username)
+      await page.getByTestId('online-neighbor-invite-submit').click()
+      await expect.poll(async () => {
+        const overview = await readNeighborOverview(owner)
+        return overview.managed_requests?.some(request =>
+          request.type === 'invite'
+            && request.username === invitee.username
+            && request.invited_by === owner.username
+            && request.status === 'pending'
+        )
+      }, { timeout: 10000 }).toBeTruthy()
+
+      const inviteeOverview = await readNeighborOverview(invitee)
+      assert(
+        inviteeOverview.incoming_invites?.some(request => request.group_id === groupId && request.group_name === groupName),
+        'neighbor invite was not visible to invitee',
+      )
+      const relationships = await readRelationshipOverview(owner)
+      assert(Array.isArray(relationships.friends), 'relationship overview did not return friends array')
     })
 
     await runCheck('cloud save quick save preserves decryptable server slot', async () => {
