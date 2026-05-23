@@ -2075,12 +2075,14 @@ function normalizeOnlineReleaseConfig(raw = {}) {
       manorVisitEnabled: nextFeatureFlags.manorVisitEnabled !== false && next.manorVisitEnabled !== false && next.manor_visit_enabled !== false,
       coopOrderEnabled: nextFeatureFlags.coopOrderEnabled !== false && next.coopOrderEnabled !== false && next.coop_order_enabled !== false,
       festivalRoomEnabled: nextFeatureFlags.festivalRoomEnabled !== false && next.festivalRoomEnabled !== false && next.festival_room_enabled !== false,
+      expeditionRoomEnabled: nextFeatureFlags.expeditionRoomEnabled !== false && next.expeditionRoomEnabled !== false && next.expedition_room_enabled !== false,
     },
     moduleSwitches: {
       social: nextModuleSwitches.social !== false && next.socialEnabled !== false && next.social_enabled !== false,
       manor: nextModuleSwitches.manor !== false && next.manorEnabled !== false && next.manor_enabled !== false,
       order: nextModuleSwitches.order !== false && next.orderEnabled !== false && next.order_enabled !== false,
       festival: nextModuleSwitches.festival !== false && next.festivalEnabled !== false && next.festival_enabled !== false,
+      expedition: nextModuleSwitches.expedition !== false && next.expeditionEnabled !== false && next.expedition_enabled !== false,
       society: nextModuleSwitches.society !== false && next.societyEnabled !== false && next.society_enabled !== false,
     },
     testWhitelist: whitelistUsernames.join('\n'),
@@ -2089,6 +2091,7 @@ function normalizeOnlineReleaseConfig(raw = {}) {
       manor: sanitizeOnlineReleaseText(nextBetaTemplates.manor ?? next.betaManorTemplate ?? next.beta_manor_template ?? '', 160),
       society: sanitizeOnlineReleaseText(nextBetaTemplates.society ?? next.betaSocietyTemplate ?? next.beta_society_template ?? '', 160),
       festival: sanitizeOnlineReleaseText(nextBetaTemplates.festival ?? next.betaFestivalTemplate ?? next.beta_festival_template ?? '', 160),
+      expedition: sanitizeOnlineReleaseText(nextBetaTemplates.expedition ?? next.betaExpeditionTemplate ?? next.beta_expedition_template ?? '', 160),
     },
     releaseNotes: {
       features: sanitizeOnlineReleaseText(nextReleaseNotes.features ?? next.releaseNotes ?? next.release_notes ?? '', 2400),
@@ -2109,15 +2112,18 @@ function getOnlineReleaseConfig() {
     manorVisitEnabled: current.taoyuan_online_manor_visit_enabled,
     coopOrderEnabled: current.taoyuan_online_coop_order_enabled,
     festivalRoomEnabled: current.taoyuan_online_festival_room_enabled,
+    expeditionRoomEnabled: current.taoyuan_online_expedition_room_enabled,
     socialEnabled: current.taoyuan_online_module_switch_social,
     manorEnabled: current.taoyuan_online_module_switch_manor,
     orderEnabled: current.taoyuan_online_module_switch_order,
     festivalEnabled: current.taoyuan_online_module_switch_festival,
+    expeditionEnabled: current.taoyuan_online_module_switch_expedition,
     societyEnabled: current.taoyuan_online_module_switch_society,
     testWhitelist: current.taoyuan_online_test_whitelist,
     betaManorTemplate: current.taoyuan_online_beta_manor_template,
     betaSocietyTemplate: current.taoyuan_online_beta_society_template,
     betaFestivalTemplate: current.taoyuan_online_beta_festival_template,
+    betaExpeditionTemplate: current.taoyuan_online_beta_expedition_template,
     releaseNotes: current.taoyuan_online_release_notes,
     releaseVisibleChanges: current.taoyuan_online_release_visible_changes,
     releasePlayerNotice: current.taoyuan_online_release_player_notice,
@@ -2135,15 +2141,18 @@ function publishOnlineReleaseConfig(content) {
     taoyuan_online_manor_visit_enabled: normalized.featureFlags.manorVisitEnabled,
     taoyuan_online_coop_order_enabled: normalized.featureFlags.coopOrderEnabled,
     taoyuan_online_festival_room_enabled: normalized.featureFlags.festivalRoomEnabled,
+    taoyuan_online_expedition_room_enabled: normalized.featureFlags.expeditionRoomEnabled,
     taoyuan_online_module_switch_social: normalized.moduleSwitches.social,
     taoyuan_online_module_switch_manor: normalized.moduleSwitches.manor,
     taoyuan_online_module_switch_order: normalized.moduleSwitches.order,
     taoyuan_online_module_switch_festival: normalized.moduleSwitches.festival,
+    taoyuan_online_module_switch_expedition: normalized.moduleSwitches.expedition,
     taoyuan_online_module_switch_society: normalized.moduleSwitches.society,
     taoyuan_online_test_whitelist: normalized.testWhitelist,
     taoyuan_online_beta_manor_template: normalized.betaTemplates.manor,
     taoyuan_online_beta_society_template: normalized.betaTemplates.society,
     taoyuan_online_beta_festival_template: normalized.betaTemplates.festival,
+    taoyuan_online_beta_expedition_template: normalized.betaTemplates.expedition,
     taoyuan_online_release_notes: normalized.releaseNotes.features,
     taoyuan_online_release_visible_changes: normalized.releaseNotes.visibleChanges,
     taoyuan_online_release_player_notice: normalized.releaseNotes.playerNotice,
@@ -2171,6 +2180,7 @@ function buildOnlineReleaseAccess(moduleKey, username) {
     manor: config.moduleSwitches.manor,
     order: config.moduleSwitches.order,
     festival: config.moduleSwitches.festival,
+    expedition: config.moduleSwitches.expedition,
     society: config.moduleSwitches.society,
   };
   if (switchMap[normalizedModuleKey] === false) {
@@ -2188,6 +2198,7 @@ function buildOnlineReleaseAccess(moduleKey, username) {
     manor: config.featureFlags.manorVisitEnabled,
     order: config.featureFlags.coopOrderEnabled,
     festival: config.featureFlags.festivalRoomEnabled,
+    expedition: config.featureFlags.expeditionRoomEnabled,
   };
   if (featureFlagMap[normalizedModuleKey] === false) {
     return {
@@ -2876,7 +2887,7 @@ router.post('/taoyuan/online/social/blocks/unblock', createOnlineReleaseGuard('s
   }
 });
 
-router.get('/taoyuan/online/social/neighbors/overview', loginRequired, async (req, res) => {
+router.get('/taoyuan/online/social/neighbors/overview', createOnlineReleaseGuard('social'), loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanSocialRuntime.listNeighborRequestOverview(req.session.username);
     res.json({ ok: true, ...overview });
@@ -2885,7 +2896,7 @@ router.get('/taoyuan/online/social/neighbors/overview', loginRequired, async (re
   }
 });
 
-router.post('/taoyuan/online/social/neighbors', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/neighbors', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const group = await taoyuanSocialRuntime.createNeighborGroup(req.session.username, req.body || {});
     res.json({ ok: true, group });
@@ -2894,7 +2905,7 @@ router.post('/taoyuan/online/social/neighbors', loginRequired, signRequired, asy
   }
 });
 
-router.post('/taoyuan/online/social/neighbors/:groupId/apply', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/neighbors/:groupId/apply', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const actor = getSessionActor(req);
     const request = await taoyuanSocialRuntime.applyToNeighborGroup(req.session.username, req.params.groupId);
@@ -2905,7 +2916,7 @@ router.post('/taoyuan/online/social/neighbors/:groupId/apply', loginRequired, si
   }
 });
 
-router.post('/taoyuan/online/social/neighbors/invite', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/neighbors/invite', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const actor = getSessionActor(req);
     const request = await taoyuanSocialRuntime.inviteToNeighborGroup(req.session.username, req.body || {});
@@ -2916,7 +2927,7 @@ router.post('/taoyuan/online/social/neighbors/invite', loginRequired, signRequir
   }
 });
 
-router.post('/taoyuan/online/social/neighbors/requests/:requestId/accept', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/neighbors/requests/:requestId/accept', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const actor = getSessionActor(req);
     const request = await taoyuanSocialRuntime.respondNeighborRequest(req.session.username, req.params.requestId, 'accept');
@@ -2927,7 +2938,7 @@ router.post('/taoyuan/online/social/neighbors/requests/:requestId/accept', login
   }
 });
 
-router.post('/taoyuan/online/social/neighbors/requests/:requestId/reject', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/neighbors/requests/:requestId/reject', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const actor = getSessionActor(req);
     const request = await taoyuanSocialRuntime.respondNeighborRequest(req.session.username, req.params.requestId, 'reject');
@@ -2938,7 +2949,7 @@ router.post('/taoyuan/online/social/neighbors/requests/:requestId/reject', login
   }
 });
 
-router.post('/taoyuan/online/social/neighbors/notice', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/neighbors/notice', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const actor = getSessionActor(req);
     const group = await taoyuanSocialRuntime.updateNeighborNotice(req.session.username, req.body || {});
@@ -2949,7 +2960,7 @@ router.post('/taoyuan/online/social/neighbors/notice', loginRequired, signRequir
   }
 });
 
-router.post('/taoyuan/online/social/neighbors/members/role', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/neighbors/members/role', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const actor = getSessionActor(req);
     const group = await taoyuanSocialRuntime.updateNeighborMemberRole(req.session.username, req.body || {});
@@ -2966,7 +2977,7 @@ router.post('/taoyuan/online/social/neighbors/members/role', loginRequired, sign
   }
 });
 
-router.get('/taoyuan/online/social/subscriptions', loginRequired, async (req, res) => {
+router.get('/taoyuan/online/social/subscriptions', createOnlineReleaseGuard('social'), loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanSocialRuntime.listSubscriptionOverview(req.session.username);
     res.json({ ok: true, ...overview });
@@ -2975,7 +2986,7 @@ router.get('/taoyuan/online/social/subscriptions', loginRequired, async (req, re
   }
 });
 
-router.post('/taoyuan/online/social/subscriptions', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/social/subscriptions', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const subscription = await taoyuanSocialRuntime.followTarget(req.session.username, req.body || {});
     res.json({ ok: true, subscription });
@@ -2984,7 +2995,7 @@ router.post('/taoyuan/online/social/subscriptions', loginRequired, signRequired,
   }
 });
 
-router.delete('/taoyuan/online/social/subscriptions/:subscriptionId', loginRequired, signRequired, async (req, res) => {
+router.delete('/taoyuan/online/social/subscriptions/:subscriptionId', createOnlineReleaseGuard('social'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanSocialRuntime.unfollowTarget(req.session.username, req.params.subscriptionId);
     res.json({ ok: true, ...result });
@@ -3002,7 +3013,7 @@ router.get('/taoyuan/online/festival/rooms', createOnlineReleaseGuard('festival'
   }
 });
 
-router.get('/taoyuan/online/expedition/rooms', loginRequired, async (req, res) => {
+router.get('/taoyuan/online/expedition/rooms', createOnlineReleaseGuard('expedition'), loginRequired, async (req, res) => {
   try {
     const overview = await taoyuanActivityRoomRuntime.listExpeditionRoomOverview(req.session.username);
     res.json({ ok: true, ...overview });
@@ -3369,7 +3380,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/close', createOnlineReleaseG
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.createExpeditionRoom(req.body || {}, {
       username: req.session.username,
@@ -3382,7 +3393,7 @@ router.post('/taoyuan/online/expedition/rooms', loginRequired, signRequired, asy
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms/:roomId/invite', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms/:roomId/invite', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.inviteExpeditionRoomMember(req.params.roomId, req.body || {}, {
       username: req.session.username,
@@ -3395,7 +3406,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/invite', loginRequired, si
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms/:roomId/join', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms/:roomId/join', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.joinExpeditionRoom(req.params.roomId, {
       username: req.session.username,
@@ -3408,7 +3419,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/join', loginRequired, sign
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms/:roomId/leave', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms/:roomId/leave', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.leaveExpeditionRoom(req.params.roomId, {
       username: req.session.username,
@@ -3421,7 +3432,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/leave', loginRequired, sig
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms/:roomId/ready-check', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms/:roomId/ready-check', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.startExpeditionRoomReadyCheck(req.params.roomId, {
       username: req.session.username,
@@ -3434,7 +3445,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/ready-check', loginRequire
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms/:roomId/ready', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms/:roomId/ready', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.setExpeditionRoomReady(req.params.roomId, true, {
       username: req.session.username,
@@ -3447,7 +3458,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/ready', loginRequired, sig
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms/:roomId/unready', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms/:roomId/unready', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.setExpeditionRoomReady(req.params.roomId, false, {
       username: req.session.username,
@@ -3460,7 +3471,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/unready', loginRequired, s
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms/:roomId/start', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms/:roomId/start', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.startExpeditionRoomCountdown(req.params.roomId, {
       username: req.session.username,
@@ -3473,7 +3484,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/start', loginRequired, sig
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms/:roomId/disconnect', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms/:roomId/disconnect', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.disconnectExpeditionRoom(req.params.roomId, {
       username: req.session.username,
@@ -3486,7 +3497,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/disconnect', loginRequired
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms/:roomId/reconnect', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms/:roomId/reconnect', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.reconnectExpeditionRoom(req.params.roomId, {
       username: req.session.username,
@@ -3499,7 +3510,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/reconnect', loginRequired,
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms/:roomId/action', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms/:roomId/action', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.submitExpeditionRoomGameplayAction(req.params.roomId, req.body || {}, {
       username: req.session.username,
@@ -3514,7 +3525,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/action', loginRequired, si
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms/:roomId/settle', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms/:roomId/settle', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.settleExpeditionRoom(req.params.roomId, {
       username: req.session.username,
@@ -3527,7 +3538,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/settle', loginRequired, si
   }
 });
 
-router.post('/taoyuan/online/expedition/rooms/:roomId/close', loginRequired, signRequired, async (req, res) => {
+router.post('/taoyuan/online/expedition/rooms/:roomId/close', createOnlineReleaseGuard('expedition'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanActivityRoomRuntime.closeExpeditionRoom(req.params.roomId, {
       username: req.session.username,
@@ -4025,6 +4036,7 @@ router.post('/admin/taoyuan/online-release-config', adminAuth, async (req, res) 
       manor_enabled: config.moduleSwitches.manor,
       order_enabled: config.moduleSwitches.order,
       festival_enabled: config.moduleSwitches.festival,
+      expedition_enabled: config.moduleSwitches.expedition,
       society_enabled: config.moduleSwitches.society,
     });
     res.json({ ok: true, config });

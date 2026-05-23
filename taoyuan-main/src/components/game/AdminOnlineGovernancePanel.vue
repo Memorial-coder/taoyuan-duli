@@ -84,7 +84,7 @@
             </div>
           </div>
 
-          <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <label class="admin-record-card space-y-2 text-xs text-muted">
               <span class="text-accent">内测庄园样板</span>
               <input v-model="releaseConfigDraft.betaTemplates.manor" type="text" class="online-input w-full" />
@@ -96,6 +96,10 @@
             <label class="admin-record-card space-y-2 text-xs text-muted">
               <span class="text-accent">测试节会样板</span>
               <input v-model="releaseConfigDraft.betaTemplates.festival" type="text" class="online-input w-full" />
+            </label>
+            <label class="admin-record-card space-y-2 text-xs text-muted">
+              <span class="text-accent">测试远征样板</span>
+              <input v-model="releaseConfigDraft.betaTemplates.expedition" type="text" class="online-input w-full" />
             </label>
           </div>
         </div>
@@ -418,12 +422,14 @@ const createDefaultReleaseConfig = (): OnlineReleaseConfig => ({
     manorVisitEnabled: true,
     coopOrderEnabled: true,
     festivalRoomEnabled: true,
+    expeditionRoomEnabled: true,
   },
   moduleSwitches: {
     social: true,
     manor: true,
     order: true,
     festival: true,
+    expedition: true,
     society: true,
   },
   testWhitelist: '',
@@ -432,6 +438,7 @@ const createDefaultReleaseConfig = (): OnlineReleaseConfig => ({
     manor: '桃源联机内测样板庄园',
     society: '桃源联机测试村社',
     festival: '桃源联机测试节会',
+    expedition: '桃源联机测试远征',
   },
   releaseNotes: {
     features: '',
@@ -509,6 +516,12 @@ const releaseModuleCards = computed(() => {
       enabled: draft.moduleSwitches.festival && draft.featureFlags.festivalRoomEnabled,
       summary: '对应房间创建、邀请、准备、断线恢复、结算和关闭链路。'
     },
+    {
+      key: 'expedition' as const,
+      label: '远征房间',
+      enabled: draft.moduleSwitches.expedition && draft.featureFlags.expeditionRoomEnabled,
+      summary: '对应远征房间创建、邀请、准备、玩法动作、结算和关闭链路。'
+    },
   ]
 })
 const incidentPlaybooks = computed(() => [
@@ -578,7 +591,7 @@ const normalizeWhitelistDraft = (draft: OnlineReleaseConfig) => {
     : []
 }
 
-const toggleReleaseModule = (moduleKey: 'social' | 'manor' | 'order' | 'festival') => {
+const toggleReleaseModule = (moduleKey: 'social' | 'manor' | 'order' | 'festival' | 'expedition') => {
   if (!releaseConfigDraft.value) return
   if (moduleKey === 'social') {
     releaseConfigDraft.value.moduleSwitches.social = !releaseConfigDraft.value.moduleSwitches.social
@@ -593,6 +606,11 @@ const toggleReleaseModule = (moduleKey: 'social' | 'manor' | 'order' | 'festival
   if (moduleKey === 'order') {
     releaseConfigDraft.value.moduleSwitches.order = !releaseConfigDraft.value.moduleSwitches.order
     releaseConfigDraft.value.featureFlags.coopOrderEnabled = releaseConfigDraft.value.moduleSwitches.order
+    return
+  }
+  if (moduleKey === 'expedition') {
+    releaseConfigDraft.value.moduleSwitches.expedition = !releaseConfigDraft.value.moduleSwitches.expedition
+    releaseConfigDraft.value.featureFlags.expeditionRoomEnabled = releaseConfigDraft.value.moduleSwitches.expedition
     return
   }
   releaseConfigDraft.value.moduleSwitches.festival = !releaseConfigDraft.value.moduleSwitches.festival

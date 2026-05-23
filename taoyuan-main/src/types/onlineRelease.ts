@@ -11,6 +11,7 @@ export interface OnlineReleaseFeatureFlags {
   manorVisitEnabled: boolean
   coopOrderEnabled: boolean
   festivalRoomEnabled: boolean
+  expeditionRoomEnabled: boolean
 }
 
 export interface OnlineReleaseModuleSwitches {
@@ -18,6 +19,7 @@ export interface OnlineReleaseModuleSwitches {
   manor: boolean
   order: boolean
   festival: boolean
+  expedition: boolean
   society: boolean
 }
 
@@ -32,6 +34,7 @@ export interface OnlineReleaseConfig {
     manor: string
     society: string
     festival: string
+    expedition: string
   }
   releaseNotes: OnlineReleaseNotes
 }

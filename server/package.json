@@ -8,6 +8,7 @@
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "qa:online-smoke": "node scripts/qa-online-smoke.mjs",
+    "qa:online-release-guard": "node scripts/qa-online-release-guard.mjs",
     "qa:save-corruption-guard": "node scripts/qa-save-corruption-guard.mjs",
     "qa:realtime-smoke": "node scripts/qa-realtime-smoke.mjs"
   },

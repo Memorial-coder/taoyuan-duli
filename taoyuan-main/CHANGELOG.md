@@ -14,6 +14,11 @@
 - 新增 `server/scripts/qa-save-corruption-guard.mjs` 与 `npm --prefix server run qa:save-corruption-guard`，覆盖坏档读取报错、写入拦截和原文件不被覆盖。
 - 本轮验证：`node --check server/src/taoyuanSaveRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-save-corruption-guard.mjs`、`npm --prefix server run qa:save-corruption-guard`。
 
+### 0523 联机发布守卫补齐
+- 远征房间路由已全部挂入 `createOnlineReleaseGuard('expedition')`，并新增独立 `expedition` 模块开关、远征房间功能开关和灰度模板配置。
+- 邻里与订阅路由已统一挂入 `createOnlineReleaseGuard('social')`，避免社交模块暂停或灰度期间仍可绕过入口直接写入。
+- 新增 `server/scripts/qa-online-release-guard.mjs` 与 `npm --prefix server run qa:online-release-guard`，固定远征 / 邻里 / 订阅路由的发布守卫覆盖。
+
 ### 0522 在线村社核心操作验收（阶段 J2 / 村社）
 - 在线村社拆页补齐自动化验收锚点，覆盖创建村社表单、申请处理、成员职位调整、仓库入仓、公共建设贡献和提案创建 / 投票按钮。
 - `scripts/qa-online-regression-live-smoke.mjs` 新增村社核心操作烟测，社长通过 UI 创建村社、接受申请、调整成员职位、入仓、贡献公共建设并发起 / 投票提案；申请人通过服务端 API 申请加入，服务端 overview 会读回成员与村社状态。
