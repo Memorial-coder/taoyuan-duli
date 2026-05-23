@@ -10,7 +10,8 @@
 - `visual_state.nodes` 已支持地图节点 ID、坐标、状态、连线、事件 ID、可行动作、处理人、风险 / 奖励 / 资源预览，为协作矿洞节点图提供数据协议。
 - `visual_state.objects` 已支持场景物件 ID、坐标、类型、状态、可行动作、进度、处理人、处理时间和协作人数，为灯会共建、好友庄园照料与腊八共灶提供数据协议。
 - `visual_state.tracks` 已支持轨道 ID、格子、队伍位置、格子类型、环境事件、可行动作、风险 / 奖励预览和前进 / 后退 / 加速 / 受阻 / 保护效果，为龙舟赛道与商队护送提供数据协议。
-- 前端节会 / 远征 API 类型同步 `OnlineVisualState`、`OnlineVisualNode`、`OnlineVisualObject` 与 `OnlineVisualTrack`；新增 `server/scripts/qa-activity-room-visual-state.mjs` 与 `npm --prefix server run qa:activity-room-visual-state` 固定兼容链路。
+- `visual_state.async_projects` 已支持异步公共工程、阶段、阶段物件、贡献入口、里程碑、跨天 / 跨周进度、贡献榜、历史回看和完成后庆典触发信息，为村社修桥与节庆筹备提供数据协议。
+- 前端节会 / 远征 API 类型同步 `OnlineVisualState`、`OnlineVisualNode`、`OnlineVisualObject`、`OnlineVisualTrack` 与 `OnlineVisualAsyncProject`；新增 `server/scripts/qa-activity-room-visual-state.mjs` 与 `npm --prefix server run qa:activity-room-visual-state` 固定兼容链路。
 - 本轮验证：`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-activity-room-visual-state.mjs`、`npm --prefix server run qa:activity-room-visual-state`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
 
 ### 0523 玩法 bug 审查修复

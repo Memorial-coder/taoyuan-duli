@@ -12,6 +12,10 @@ export type OnlineVisualTrackTeamState = 'idle' | 'advancing' | 'retreating' | '
 
 export type OnlineVisualTrackEffect = 'advance' | 'retreat' | 'boost' | 'blocked' | 'protect'
 
+export type OnlineVisualAsyncStageState = 'locked' | 'pending' | 'active' | 'complete'
+
+export type OnlineVisualAsyncHistoryType = 'contribution' | 'milestone' | 'stage_complete' | 'celebration'
+
 export interface OnlineVisualHighlight {
   id: string
   visual_id: string
@@ -88,6 +92,69 @@ export interface OnlineVisualTrack {
   teams: OnlineVisualTrackTeam[]
 }
 
+export interface OnlineVisualAsyncContributionOption {
+  id: string
+  label: string
+  kind: string
+  available_action_id: string
+  daily_limit: number
+  weekly_limit: number
+  resource_cost_preview: Record<string, number>
+  progress_delta: number
+  reward_preview: string
+}
+
+export interface OnlineVisualAsyncMilestone {
+  id: string
+  label: string
+  progress_required: number
+  reached: boolean
+  reward_preview: string
+}
+
+export interface OnlineVisualAsyncStage {
+  id: string
+  label: string
+  state: OnlineVisualAsyncStageState
+  progress_value: number
+  progress_target: number
+  object_ids: string[]
+  contribution_options: OnlineVisualAsyncContributionOption[]
+  milestones: OnlineVisualAsyncMilestone[]
+}
+
+export interface OnlineVisualAsyncContributor {
+  username: string
+  display_name: string
+  contribution_value: number
+  rank: number
+}
+
+export interface OnlineVisualAsyncHistoryEntry {
+  id: string
+  type: OnlineVisualAsyncHistoryType
+  actor_username: string
+  actor_display_name: string
+  summary: string
+  created_at: number
+}
+
+export interface OnlineVisualAsyncProject {
+  id: string
+  label: string
+  kind: string
+  day_tag: string
+  week_tag: string
+  starts_at: number
+  ends_at: number
+  current_stage_id: string
+  stages: OnlineVisualAsyncStage[]
+  contributors: OnlineVisualAsyncContributor[]
+  history: OnlineVisualAsyncHistoryEntry[]
+  completion_room_template_id: string
+  completion_event_id: string
+}
+
 export interface OnlineVisualState {
   board_type: OnlineVisualBoardType
   board_id: string
@@ -96,6 +163,7 @@ export interface OnlineVisualState {
   nodes: OnlineVisualNode[]
   objects: OnlineVisualObject[]
   tracks: OnlineVisualTrack[]
+  async_projects: OnlineVisualAsyncProject[]
   highlights: OnlineVisualHighlight[]
   recent_feedback: string
 }

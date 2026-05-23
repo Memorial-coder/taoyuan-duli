@@ -33,6 +33,7 @@ const assertVisualStateShape = (visualState, expectedBoardType, expectedBoardIdP
   assert.deepEqual(visualState.nodes, [], 'new compatible visual_state nodes should be empty')
   assert.deepEqual(visualState.objects, [], 'new compatible visual_state objects should be empty')
   assert.deepEqual(visualState.tracks, [], 'new compatible visual_state tracks should be empty')
+  assert.deepEqual(visualState.async_projects, [], 'new compatible visual_state async projects should be empty')
   assert.deepEqual(visualState.highlights, [], 'new compatible visual_state highlights should be empty')
   assert.equal(visualState.recent_feedback, '', 'new compatible visual_state recent_feedback should be empty')
 }
@@ -373,6 +374,186 @@ assert.deepEqual(tracks[0].teams.map(team => team.team_id), ['team_red', 'team_b
 assert.equal(tracks[0].teams[0].state, 'advancing', 'track team state should preserve advancing')
 assert.equal(tracks[0].teams[1].state, 'blocked', 'track team state should preserve blocked')
 assert.equal(tracks[0].teams[2].state, 'finished', 'track team state should preserve finished')
+
+const asyncStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+asyncStore.rooms = asyncStore.rooms.map(room => {
+  if (room.id !== festival.room.id) return room
+  return {
+    ...room,
+    visual_state: {
+      board_type: 'async',
+      board_id: 'community:bridge:weekly',
+      revision: 6,
+      selected_visual_id: 'stage_bridge_deck',
+      nodes: [],
+      objects: [
+        {
+          id: 'object_bridge_frame',
+          label: '桥架',
+          kind: 'bridge_frame',
+          x: 50,
+          y: 44,
+          state: 'busy',
+          progress_value: 4,
+          progress_target: 8,
+        },
+      ],
+      tracks: [],
+      async_projects: [
+        {
+          id: 'project_village_bridge',
+          label: '村社修桥',
+          kind: 'bridge_repair',
+          day_tag: 'year1-spring-12',
+          week_tag: 'year1-spring-w2',
+          starts_at: 1000,
+          ends_at: 2000,
+          current_stage_id: 'stage_bridge_deck',
+          stages: [
+            {
+              id: 'stage_scaffold',
+              label: '搭脚手架',
+              state: 'complete',
+              progress_value: 5,
+              progress_target: 5,
+              object_ids: ['object_bridge_frame'],
+              contribution_options: [
+                {
+                  id: 'option_wood',
+                  label: '捐木材',
+                  kind: 'resource',
+                  available_action_id: 'contribute_wood',
+                  daily_limit: 3,
+                  weekly_limit: 12,
+                  resource_cost_preview: { wood: 5 },
+                  progress_delta: 1,
+                  reward_preview: '贡献榜增加 1 点。',
+                },
+              ],
+              milestones: [
+                {
+                  id: 'milestone_scaffold_done',
+                  label: '脚手架完工',
+                  progress_required: 5,
+                  reached: true,
+                  reward_preview: '开放桥面阶段。',
+                },
+              ],
+            },
+            {
+              id: 'stage_bridge_deck',
+              label: '铺桥面',
+              state: 'active',
+              progress_value: 9,
+              progress_target: 6,
+              object_ids: ['object_bridge_frame'],
+              contribution_options: [
+                {
+                  id: 'option_stone',
+                  label: '捐石料',
+                  kind: 'resource',
+                  available_action_id: 'contribute_stone',
+                  daily_limit: 2,
+                  weekly_limit: 8,
+                  resource_cost_preview: { stone: 4 },
+                  progress_delta: 2,
+                  reward_preview: '桥面进度增加。',
+                },
+                {
+                  label: '缺少 ID 的坏贡献入口会被过滤',
+                },
+              ],
+              milestones: [
+                {
+                  id: 'milestone_half_deck',
+                  label: '桥面过半',
+                  progress_required: 3,
+                  reached: true,
+                  reward_preview: '村民开始通行试走。',
+                },
+              ],
+            },
+            {
+              label: '缺少 ID 的坏阶段会被过滤',
+            },
+          ],
+          contributors: [
+            {
+              username: 'visual_host_festival',
+              display_name: '修桥甲',
+              contribution_value: 12,
+              rank: 1,
+            },
+            {
+              username: 'visual_friend',
+              display_name: '修桥乙',
+              contribution_value: 8,
+              rank: 2,
+            },
+            {
+              display_name: '缺少用户名的坏贡献者会被过滤',
+            },
+          ],
+          history: [
+            {
+              id: 'history_wood',
+              type: 'contribution',
+              actor_username: 'visual_host_festival',
+              actor_display_name: '修桥甲',
+              summary: '捐了 5 份木材。',
+              created_at: 1100,
+            },
+            {
+              id: 'history_stage',
+              type: 'stage_complete',
+              actor_username: '',
+              actor_display_name: '',
+              summary: '脚手架阶段完成。',
+              created_at: 1500,
+            },
+            {
+              id: 'history_bad_type',
+              type: 'unknown',
+              summary: '未知类型会回退为贡献记录。',
+              created_at: 1600,
+            },
+            {
+              summary: '缺少 ID 的坏历史会被过滤',
+            },
+          ],
+          completion_room_template_id: 'lantern_fair',
+          completion_event_id: 'bridge_opening_ceremony',
+        },
+        {
+          label: '缺少 ID 的坏工程会被过滤',
+        },
+      ],
+      highlights: [],
+      recent_feedback: '桥面阶段正在推进。',
+    },
+  }
+})
+await writeFile(roomStoreFile, JSON.stringify(asyncStore, null, 2), 'utf8')
+
+const asyncOverview = await runtime.listFestivalRoomOverview('visual_host_festival')
+const asyncProjects = asyncOverview.my_room?.visual_state?.async_projects || []
+assert.equal(asyncProjects.length, 1, 'visual_state async projects should keep valid projects and filter invalid entries')
+assert.equal(asyncProjects[0].id, 'project_village_bridge', 'async project id should round-trip')
+assert.equal(asyncProjects[0].current_stage_id, 'stage_bridge_deck', 'async project current stage should round-trip')
+assert.equal(asyncProjects[0].day_tag, 'year1-spring-12', 'async project day tag should round-trip')
+assert.equal(asyncProjects[0].week_tag, 'year1-spring-w2', 'async project week tag should round-trip')
+assert.equal(asyncProjects[0].stages.length, 2, 'async stages should keep valid stages and filter invalid entries')
+assert.equal(asyncProjects[0].stages[1].progress_value, 6, 'async stage progress should clamp to target')
+assert.deepEqual(asyncProjects[0].stages[1].object_ids, ['object_bridge_frame'], 'async stage object ids should round-trip')
+assert.equal(asyncProjects[0].stages[1].contribution_options.length, 1, 'async contribution options should filter invalid entries')
+assert.deepEqual(asyncProjects[0].stages[1].contribution_options[0].resource_cost_preview, { stone: 4 }, 'async contribution resource cost should round-trip')
+assert.equal(asyncProjects[0].stages[1].contribution_options[0].progress_delta, 2, 'async contribution progress delta should round-trip')
+assert.equal(asyncProjects[0].stages[1].milestones[0].reached, true, 'async milestones should round-trip reached flag')
+assert.deepEqual(asyncProjects[0].contributors.map(item => item.username), ['visual_host_festival', 'visual_friend'])
+assert.equal(asyncProjects[0].history.length, 3, 'async history should keep valid entries and filter invalid entries')
+assert.equal(asyncProjects[0].history[2].type, 'contribution', 'async history should fallback unknown types')
+assert.equal(asyncProjects[0].completion_room_template_id, 'lantern_fair', 'async completion room template should round-trip')
+assert.equal(asyncProjects[0].completion_event_id, 'bridge_opening_ceremony', 'async completion event should round-trip')
 
 await rm(tempDir, { recursive: true, force: true })
 console.log('[qa-activity-room-visual-state] passed')

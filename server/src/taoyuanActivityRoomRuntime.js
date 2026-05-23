@@ -36,6 +36,8 @@ const ONLINE_VISUAL_OBJECT_STATES = Object.freeze(['idle', 'needs_action', 'busy
 const ONLINE_VISUAL_TRACK_CELL_KINDS = Object.freeze(['normal', 'boost', 'risk', 'turn', 'finish']);
 const ONLINE_VISUAL_TRACK_TEAM_STATES = Object.freeze(['idle', 'advancing', 'retreating', 'boosted', 'blocked', 'protected', 'finished']);
 const ONLINE_VISUAL_TRACK_EFFECTS = Object.freeze(['advance', 'retreat', 'boost', 'blocked', 'protect']);
+const ONLINE_VISUAL_ASYNC_STAGE_STATES = Object.freeze(['locked', 'pending', 'active', 'complete']);
+const ONLINE_VISUAL_ASYNC_HISTORY_TYPES = Object.freeze(['contribution', 'milestone', 'stage_complete', 'celebration']);
 
 function resolveTargetBySaveIdOrUsername(payload = {}, emptyMessage = '请输入要邀请的玩家用户名') {
   const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
@@ -1366,6 +1368,110 @@ function normalizeOnlineVisualTrack(entry) {
   };
 }
 
+function normalizeOnlineVisualAsyncContributionOption(entry) {
+  const id = sanitizeText(entry?.id, 80);
+  if (!id) return null;
+  return {
+    id,
+    label: sanitizeText(entry?.label, 40),
+    kind: sanitizeText(entry?.kind, 40),
+    available_action_id: sanitizeText(entry?.available_action_id, 60),
+    daily_limit: Math.max(0, Math.floor(Number(entry?.daily_limit) || 0)),
+    weekly_limit: Math.max(0, Math.floor(Number(entry?.weekly_limit) || 0)),
+    resource_cost_preview: normalizeVisualResourcePreview(entry?.resource_cost_preview),
+    progress_delta: Math.max(0, Math.floor(Number(entry?.progress_delta) || 0)),
+    reward_preview: sanitizeText(entry?.reward_preview, 120),
+  };
+}
+
+function normalizeOnlineVisualAsyncMilestone(entry) {
+  const id = sanitizeText(entry?.id, 80);
+  if (!id) return null;
+  return {
+    id,
+    label: sanitizeText(entry?.label, 40),
+    progress_required: Math.max(0, Math.floor(Number(entry?.progress_required) || 0)),
+    reached: entry?.reached === true,
+    reward_preview: sanitizeText(entry?.reward_preview, 120),
+  };
+}
+
+function normalizeOnlineVisualAsyncStage(entry) {
+  const id = sanitizeText(entry?.id, 80);
+  if (!id) return null;
+  const state = String(entry?.state || '').trim();
+  const progressTarget = Math.max(0, Math.floor(Number(entry?.progress_target) || 0));
+  return {
+    id,
+    label: sanitizeText(entry?.label, 40),
+    state: ONLINE_VISUAL_ASYNC_STAGE_STATES.includes(state) ? state : 'pending',
+    progress_value: progressTarget > 0
+      ? clampNumber(entry?.progress_value, 0, progressTarget)
+      : Math.max(0, Math.floor(Number(entry?.progress_value) || 0)),
+    progress_target: progressTarget,
+    object_ids: Array.isArray(entry?.object_ids)
+      ? entry.object_ids.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 16)
+      : [],
+    contribution_options: Array.isArray(entry?.contribution_options)
+      ? entry.contribution_options.map(normalizeOnlineVisualAsyncContributionOption).filter(Boolean).slice(0, 12)
+      : [],
+    milestones: Array.isArray(entry?.milestones)
+      ? entry.milestones.map(normalizeOnlineVisualAsyncMilestone).filter(Boolean).slice(0, 12)
+      : [],
+  };
+}
+
+function normalizeOnlineVisualAsyncContributor(entry) {
+  const username = sanitizeText(entry?.username, 40);
+  if (!username) return null;
+  return {
+    username,
+    display_name: sanitizeText(entry?.display_name, 40),
+    contribution_value: Math.max(0, Math.floor(Number(entry?.contribution_value) || 0)),
+    rank: Math.max(0, Math.floor(Number(entry?.rank) || 0)),
+  };
+}
+
+function normalizeOnlineVisualAsyncHistoryEntry(entry) {
+  const id = sanitizeText(entry?.id, 80);
+  if (!id) return null;
+  const type = String(entry?.type || '').trim();
+  return {
+    id,
+    type: ONLINE_VISUAL_ASYNC_HISTORY_TYPES.includes(type) ? type : 'contribution',
+    actor_username: sanitizeText(entry?.actor_username, 40),
+    actor_display_name: sanitizeText(entry?.actor_display_name, 40),
+    summary: sanitizeText(entry?.summary, 140),
+    created_at: Math.max(0, Math.floor(Number(entry?.created_at) || 0)),
+  };
+}
+
+function normalizeOnlineVisualAsyncProject(entry) {
+  const id = sanitizeText(entry?.id, 80);
+  if (!id) return null;
+  return {
+    id,
+    label: sanitizeText(entry?.label, 40),
+    kind: sanitizeText(entry?.kind, 40),
+    day_tag: sanitizeText(entry?.day_tag, 20),
+    week_tag: sanitizeText(entry?.week_tag, 20),
+    starts_at: Math.max(0, Math.floor(Number(entry?.starts_at) || 0)),
+    ends_at: Math.max(0, Math.floor(Number(entry?.ends_at) || 0)),
+    current_stage_id: sanitizeText(entry?.current_stage_id, 80),
+    stages: Array.isArray(entry?.stages)
+      ? entry.stages.map(normalizeOnlineVisualAsyncStage).filter(Boolean).slice(0, 24)
+      : [],
+    contributors: Array.isArray(entry?.contributors)
+      ? entry.contributors.map(normalizeOnlineVisualAsyncContributor).filter(Boolean).slice(0, 24)
+      : [],
+    history: Array.isArray(entry?.history)
+      ? entry.history.map(normalizeOnlineVisualAsyncHistoryEntry).filter(Boolean).slice(0, 40)
+      : [],
+    completion_room_template_id: sanitizeText(entry?.completion_room_template_id, 60),
+    completion_event_id: sanitizeText(entry?.completion_event_id, 60),
+  };
+}
+
 function resolveDefaultVisualBoardType(room) {
   const gameplayTemplateId = sanitizeText(room?.gameplay_template_id, 40);
   const roomTemplateId = sanitizeText(room?.template_id, 40);
@@ -1400,6 +1506,9 @@ function normalizeOnlineVisualState(value, room) {
       : [],
     tracks: Array.isArray(source.tracks)
       ? source.tracks.map(normalizeOnlineVisualTrack).filter(Boolean).slice(0, 8)
+      : [],
+    async_projects: Array.isArray(source.async_projects)
+      ? source.async_projects.map(normalizeOnlineVisualAsyncProject).filter(Boolean).slice(0, 8)
       : [],
     highlights: Array.isArray(source.highlights)
       ? source.highlights.map(normalizeOnlineVisualHighlight).slice(0, 16)
