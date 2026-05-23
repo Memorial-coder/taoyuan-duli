@@ -19,20 +19,36 @@ function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
 }
 
-function resolveManorTargetUsername(payload = {}, emptyMessage = '请先指定庄园主人') {
+function normalizeManorSaveId(value) {
+  const saveId = Number(value);
+  return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0;
+}
+
+function normalizeManorSaveSlot(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const slot = Number(value);
+  return Number.isInteger(slot) && slot >= 0 && slot <= 2 ? slot : null;
+}
+
+function resolveManorTarget(payload = {}, emptyMessage = '请先指定庄园主人') {
   const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
   const hasTargetSaveId = rawTargetSaveId !== undefined && rawTargetSaveId !== null && `${rawTargetSaveId}`.trim() !== '';
-  const targetUsername = hasTargetSaveId
-    ? (() => {
-      const targetSaveId = Number(rawTargetSaveId);
-      if (!Number.isInteger(targetSaveId)) throw createError('存档 ID 格式不正确', 400);
-      const identity = findSaveIdentityById(targetSaveId);
-      if (!identity?.account_username) throw createError('目标存档 ID 不存在', 404);
-      return sanitizeText(identity.account_username, 60);
-    })()
-    : sanitizeText(payload?.target_username, 60);
+  if (hasTargetSaveId) {
+    const targetSaveId = Number(rawTargetSaveId);
+    if (!Number.isInteger(targetSaveId)) throw createError('存档 ID 格式不正确', 400);
+    const identity = findSaveIdentityById(targetSaveId);
+    if (!identity?.account_username) throw createError('目标存档 ID 不存在', 404);
+    return {
+      username: sanitizeText(identity.account_username, 60),
+      identity,
+    };
+  }
+  const targetUsername = sanitizeText(payload?.target_username, 60);
   if (!targetUsername) throw createError(emptyMessage);
-  return targetUsername;
+  return {
+    username: targetUsername,
+    identity: null,
+  };
 }
 
 const SEASON_LABELS = Object.freeze({
@@ -255,6 +271,8 @@ function normalizeGuestbookEntry(entry) {
   return {
     id: String(entry?.id || makeId('manor_guestbook')),
     target_username: String(entry?.target_username || '').trim(),
+    target_save_id: normalizeManorSaveId(entry?.target_save_id ?? entry?.targetSaveId),
+    target_save_slot: normalizeManorSaveSlot(entry?.target_save_slot ?? entry?.targetSaveSlot),
     author_username: String(entry?.author_username || '').trim(),
     author_display_name: sanitizeText(entry?.author_display_name, 30) || String(entry?.author_username || '匿名'),
     kind: normalizeGuestbookKind(entry?.kind),
@@ -289,6 +307,8 @@ function normalizeVisitEntry(entry) {
   return {
     id: String(entry?.id || makeId('manor_visit')),
     target_username: String(entry?.target_username || '').trim(),
+    target_save_id: normalizeManorSaveId(entry?.target_save_id ?? entry?.targetSaveId),
+    target_save_slot: normalizeManorSaveSlot(entry?.target_save_slot ?? entry?.targetSaveSlot),
     visitor_username: String(entry?.visitor_username || '').trim(),
     visitor_display_name: sanitizeText(entry?.visitor_display_name, 30) || String(entry?.visitor_username || '匿名'),
     purpose: normalizeVisitPurpose(entry?.purpose),
@@ -513,7 +533,7 @@ function buildThemeWeekState(username, gameplay = {}, showcaseTheme = '', public
 }
 
 async function recordManorVisit(payload = {}, actor = {}) {
-  const targetUsername = resolveManorTargetUsername(payload);
+  const { username: targetUsername, identity: targetIdentity } = resolveManorTarget(payload);
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标庄园不存在', 404);
   const summary = sanitizeText(payload.summary, 160);
@@ -522,6 +542,8 @@ async function recordManorVisit(payload = {}, actor = {}) {
   const entry = normalizeVisitEntry({
     id: makeId('manor_visit'),
     target_username: targetUsername,
+    target_save_id: targetIdentity?.save_id || 0,
+    target_save_slot: targetIdentity?.save_slot ?? null,
     visitor_username: actor.username,
     visitor_display_name: actor.displayName || actor.username || '匿名',
     purpose: payload.purpose,
@@ -538,7 +560,7 @@ async function recordManorVisit(payload = {}, actor = {}) {
 }
 
 async function leaveGuestbookEntry(payload = {}, actor = {}) {
-  const targetUsername = resolveManorTargetUsername(payload);
+  const { username: targetUsername, identity: targetIdentity } = resolveManorTarget(payload);
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标庄园不存在', 404);
   const content = moderateText(payload.content, {
@@ -556,6 +578,8 @@ async function leaveGuestbookEntry(payload = {}, actor = {}) {
   const entry = normalizeGuestbookEntry({
     id: makeId('manor_guestbook'),
     target_username: targetUsername,
+    target_save_id: targetIdentity?.save_id || 0,
+    target_save_slot: targetIdentity?.save_slot ?? null,
     author_username: actor.username,
     author_display_name: actor.displayName || actor.username || '匿名',
     kind: payload.kind,

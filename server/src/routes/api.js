@@ -294,6 +294,12 @@ function normalizeActivitySaveId(value) {
   return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0;
 }
 
+function normalizeActivitySaveSlot(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const slot = Number(value);
+  return Number.isInteger(slot) && slot >= 0 && slot <= 2 ? slot : null;
+}
+
 function getSessionActor(req) {
   return {
     username: req.session.username,
@@ -939,11 +945,15 @@ function buildManorGuestbookNotificationPayload(action, entry = {}, actor = {}) 
     actor_display_name: normalizeUsername(actor.displayName || actor.display_name || actor.username),
     manor: {
       owner_username: normalizeUsernameKey(entry?.target_username),
+      owner_save_id: normalizeActivitySaveId(entry?.target_save_id ?? entry?.targetSaveId),
+      owner_save_slot: normalizeActivitySaveSlot(entry?.target_save_slot ?? entry?.targetSaveSlot),
     },
     guestbook: {
       id: String(entry?.id || ''),
       kind: entry?.kind || 'text',
       target_username: normalizeUsernameKey(entry?.target_username),
+      target_save_id: normalizeActivitySaveId(entry?.target_save_id ?? entry?.targetSaveId),
+      target_save_slot: normalizeActivitySaveSlot(entry?.target_save_slot ?? entry?.targetSaveSlot),
       author_username: normalizeUsernameKey(entry?.author_username),
       author_display_name: normalizeUsername(entry?.author_display_name || entry?.author_username),
       has_reply: !!entry?.reply_text,

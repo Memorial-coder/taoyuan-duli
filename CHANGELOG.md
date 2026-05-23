@@ -1,6 +1,10 @@
 # 桃源乡独立版更新日志
 
-最后整理：2026-05-22
+最后整理：2026-05-23
+
+- `0520todo.md / A1-A5` 这一轮继续把庄园留言 / 访问收口到存档级：留言和来访记录会保存 `target_save_id / target_save_slot`，留言通知也会回传庄园主人目标存档字段。
+- 现有 username 兼容路径保留，庄园快照、留言板、来访记录与 realtime 通知都仍能按旧账号名工作。
+- 本轮验证通过 `node --check server/src/taoyuanManorRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke` 与 `npm --prefix server run qa:online-smoke`。
 
 - `0520todo.md / A1-A4` 这一轮把活动房间邀请从 username-only 持久结构继续收口到存档级：邀请记录和 realtime payload 会保存 / 回传 `target_save_id / target_save_slot`，加入房间时会校验当前活动存档必须匹配受邀存档。
 - 前端远征 / 节会房间邀请类型已补目标存档字段；现有 username 兼容路径保留，旧邀请仍可按账号名识别。

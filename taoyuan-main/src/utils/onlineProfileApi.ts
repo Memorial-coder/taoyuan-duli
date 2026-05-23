@@ -244,6 +244,8 @@ export interface OnlineManorSnapshot {
   guestbook_entries: Array<{
     id: string
     target_username: string
+    target_save_id: number
+    target_save_slot: number | null
     author_username: string
     author_display_name: string
     kind: 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'
@@ -257,6 +259,8 @@ export interface OnlineManorSnapshot {
   visit_entries: Array<{
     id: string
     target_username: string
+    target_save_id: number
+    target_save_slot: number | null
     visitor_username: string
     visitor_display_name: string
     purpose: 'explore' | 'friend_visit' | 'gift' | 'quest' | 'other'

@@ -996,8 +996,11 @@ try {
         && payload.action === 'guestbook_created'
         && payload.refresh_required === true
         && payload.manor?.owner_username === friend.username
+        && payload.manor?.owner_save_id === friend.identity.save_id
         && payload.guestbook?.id === entryId
         && payload.guestbook?.kind === 'blessing'
+        && payload.guestbook?.target_save_id === friend.identity.save_id
+        && payload.guestbook?.target_save_slot === friend.identity.save_slot
         && payload.guestbook?.author_username === owner.username
         && payload.actor_username === owner.username
     )

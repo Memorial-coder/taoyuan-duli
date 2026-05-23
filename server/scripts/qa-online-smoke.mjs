@@ -986,6 +986,8 @@ try {
     assert(response.ok, `manor guestbook write returned ${response.status}`)
     assert(data?.ok === true && data?.entry?.id, 'manor guestbook write payload is incomplete')
     assert(data.entry.target_username === sessionState.username, 'manor guestbook save id target did not resolve to account username')
+    assert(data.entry.target_save_id === primarySaveIdentity.save_id, 'manor guestbook did not persist target save id')
+    assert(data.entry.target_save_slot === primarySaveIdentity.save_slot, 'manor guestbook did not persist target save slot')
   })
 
   await runCheck('POST /api/taoyuan/online/manor/guestbook moderation reject path', async () => {
@@ -1020,6 +1022,8 @@ try {
     assert(response.ok, `manor visit write returned ${response.status}`)
     assert(data?.ok === true && data?.entry?.id, 'manor visit write payload is incomplete')
     assert(data.entry.target_username === sessionState.username, 'manor visit save id target did not resolve to account username')
+    assert(data.entry.target_save_id === primarySaveIdentity.save_id, 'manor visit did not persist target save id')
+    assert(data.entry.target_save_slot === primarySaveIdentity.save_slot, 'manor visit did not persist target save slot')
   })
 
   await runCheck('GET /api/taoyuan/online/manor guestbook/visit readback', async () => {

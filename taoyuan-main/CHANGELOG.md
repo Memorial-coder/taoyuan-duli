@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 庄园留言 / 访问存档级收口（A1-A5）
+- 庄园留言和来访记录现在会保存 `target_save_id / target_save_slot`，并继续兼容旧 username 写路。
+- 留言通知也会携带庄园主人目标存档字段，便于 realtime / 审计端区分同账号多存档。
+- 验证通过 `type-check`、`build`、`qa:realtime-smoke` 与 `qa:online-smoke`。
+
 ### 0520 活动房间邀请存档级收口（A1-A4）
 - 远征 / 节会房间邀请快照类型新增 `target_save_id / target_save_slot`，与服务端邀请记录和 WebSocket 房间邀请事件保持一致。
 - 服务端会在受邀玩家加入房间时校验当前活动存档与受邀存档一致，继续保留旧 username 邀请兼容路径。
