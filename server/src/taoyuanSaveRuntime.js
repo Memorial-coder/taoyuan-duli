@@ -315,14 +315,14 @@ function saveActiveSlots(data) {
 
 function getActiveSaveSlot(username) {
   const slot = loadActiveSlots()[String(username)];
-  return Number.isInteger(Number(slot)) ? Number(slot) : null;
+  return normalizeSaveSlot(slot);
 }
 
 function setActiveSaveSlot(username, slot) {
-  const normalizedSlot = Number.isInteger(Number(slot)) ? Number(slot) : null;
+  const normalizedSlot = normalizeSaveSlot(slot);
   const data = loadActiveSlots();
   if (!username) return;
-  if (normalizedSlot === null || normalizedSlot < 0 || normalizedSlot > 2) {
+  if (normalizedSlot === null) {
     delete data[String(username)];
   } else {
     data[String(username)] = normalizedSlot;
@@ -528,7 +528,7 @@ function prepareSlotEntryForSave(username, slot, raw, revision = 0) {
 
 function getActiveSaveContext(username, preferredSlot = null, missingMessage = '当前账号没有可用的桃源乡存档') {
   const saves = loadUserSaveSlots(username);
-  let slot = Number.isInteger(Number(preferredSlot)) ? Number(preferredSlot) : null;
+  let slot = normalizeSaveSlot(preferredSlot);
 
   if (slot !== null) {
     const preferredRaw = saves.slots[slot]?.raw;

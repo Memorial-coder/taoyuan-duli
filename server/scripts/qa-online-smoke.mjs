@@ -3766,6 +3766,52 @@ try {
     assert(Array.isArray(data?.overview?.my_society?.members) && data.overview.my_society.members.some(entry => entry?.username === secondarySessionState.username), 'society request accept did not add the new member')
   })
 
+  await runCheck('GET /api/taoyuan/online/societies active save isolation', async () => {
+    const alternateRawSavePayload = buildSeedSavePayload(secondarySessionState.username, 260)
+    const alternateSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/1', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        raw: alternateRawSavePayload,
+        revision: 1,
+      }),
+    })
+    assert(alternateSave.response.ok, `secondary alternate save write returned ${alternateSave.response.status}`)
+    assert(alternateSave.data?.ok === true && alternateSave.data?.slot === 1, 'secondary alternate save write payload is incomplete')
+    const alternateIdentity = getEmbeddedSaveIdentity(decryptTaoyuanRaw(alternateSave.data?.raw || ''))
+    assert(alternateIdentity?.save_id, 'secondary alternate save identity missing')
+    assert(alternateIdentity.save_id !== secondarySaveIdentity.save_id, 'secondary alternate save should receive an independent save id')
+
+    const switchToAlternate = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/active-slot', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ slot: 1 }),
+    })
+    assert(switchToAlternate.response.ok, `switch secondary to alternate save returned ${switchToAlternate.response.status}`)
+
+    const alternateOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies')
+    assert(alternateOverview.response.ok, `alternate save society overview returned ${alternateOverview.response.status}`)
+    assert(alternateOverview.data?.ok === true && !alternateOverview.data?.my_society, 'alternate save should not inherit society membership from another save')
+
+    const switchBack = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/active-slot', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ slot: 0 }),
+    })
+    assert(switchBack.response.ok, `switch secondary back to primary save returned ${switchBack.response.status}`)
+
+    const primaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies')
+    assert(primaryOverview.response.ok, `primary save society overview returned ${primaryOverview.response.status}`)
+    assert(primaryOverview.data?.ok === true && primaryOverview.data?.my_society?.id === createdSocietyId, 'primary save should keep its society membership after active slot restore')
+    assert(Array.isArray(primaryOverview.data?.my_society?.members) && primaryOverview.data.my_society.members.some(entry => entry?.username === secondarySessionState.username && entry?.save_id === secondarySaveIdentity.save_id), 'primary save society overview lost member save identity after active slot restore')
+  })
+
   await runCheck('POST /api/taoyuan/online/societies/members/role cycle path', async () => {
     for (const role of ['steward', 'buyer', 'treasurer', 'scribe', 'member']) {
       const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies/members/role', {

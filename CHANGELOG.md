@@ -2,6 +2,10 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A0-A1-A7` 这一轮修复服务端活动存档读取：`getActiveSaveContext()` 不再把未指定的 `preferredSlot = null` 误当成 slot 0，会真实读取 `active-slot`。
+- 村社成员归属和待处理申请去重现在能按当前活动存档 ID 隔离；同一账号切到另一个服务端存档时，不会继承原存档的村社成员身份。
+- 本轮验证通过 `node --check server/src/taoyuanSaveRuntime.js`、`node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix server run qa:online-smoke` 与 `npm --prefix server run qa:realtime-smoke`。
+
 - `0520todo.md / A1` 这一轮补齐村社职位履历的存档身份：职位调整会记录目标成员 `save_id / save_slot`，社长离任转移会记录继任者存档身份。
 - `qa:online-smoke` 已新增村社 chronicle 读回断言，覆盖 `role_assignment` 与 `president_transfer` 两类履历都不会退回 username-only。
 - 本轮验证通过 `node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `npm --prefix server run qa:online-smoke`。

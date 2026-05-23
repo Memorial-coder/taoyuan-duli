@@ -1108,27 +1108,50 @@ function findSocietyById(store, societyId) {
     .find(entry => entry.id === normalizedId) || null;
 }
 
-function findMemberSociety(store, username) {
-  const normalizedUsername = normalizeUsername(username);
-  return (store.societies || [])
-    .map(normalizeSociety)
-    .find(entry => entry.members.some(member => member.username === normalizedUsername)) || null;
+function resolveSocietyMemberIdentity(username, preferredIdentity = null) {
+  if (preferredIdentity && normalizeSocietySaveId(preferredIdentity.save_id)) return preferredIdentity;
+  return resolveActiveSocietySaveIdentity(username);
 }
 
-function findPendingSocietyRequest(store, societyId, username) {
+function societyMemberMatchesIdentity(entry, username, identity = null) {
+  const normalizedUsername = normalizeUsername(username);
+  const resolvedSaveId = normalizeSocietySaveId(identity?.save_id);
+  const entrySaveId = normalizeSocietySaveId(entry?.save_id);
+  if (resolvedSaveId && entrySaveId) return entrySaveId === resolvedSaveId;
+  return normalizeUsername(entry?.username) === normalizedUsername;
+}
+
+function societyJoinRequestMatchesIdentity(entry, username, identity = null) {
+  const normalizedUsername = normalizeUsername(username);
+  const resolvedSaveId = normalizeSocietySaveId(identity?.save_id);
+  const requestSaveId = normalizeSocietySaveId(entry?.target_save_id);
+  if (resolvedSaveId && requestSaveId) return requestSaveId === resolvedSaveId;
+  return normalizeUsername(entry?.username) === normalizedUsername;
+}
+
+function findMemberSociety(store, username, identity = null) {
+  const normalizedUsername = normalizeUsername(username);
+  const resolvedIdentity = resolveSocietyMemberIdentity(normalizedUsername, identity);
+  return (store.societies || [])
+    .map(normalizeSociety)
+    .find(entry => entry.members.some(member => societyMemberMatchesIdentity(member, normalizedUsername, resolvedIdentity))) || null;
+}
+
+function findPendingSocietyRequest(store, societyId, username, identity = null) {
   const normalizedSocietyId = sanitizeText(societyId, 80);
   const normalizedUsername = normalizeUsername(username);
+  const resolvedIdentity = resolveSocietyMemberIdentity(normalizedUsername, identity);
   return (store.society_join_requests || [])
     .map(normalizeSocietyJoinRequest)
     .find(entry =>
       entry.society_id === normalizedSocietyId &&
-      entry.username === normalizedUsername &&
+      societyJoinRequestMatchesIdentity(entry, normalizedUsername, resolvedIdentity) &&
       entry.status === 'pending'
     ) || null;
 }
 
-function hasPendingSocietyRequest(store, societyId, username) {
-  return !!findPendingSocietyRequest(store, societyId, username);
+function hasPendingSocietyRequest(store, societyId, username, identity = null) {
+  return !!findPendingSocietyRequest(store, societyId, username, identity);
 }
 
 function appendSocietyActivity(society, message, type = 'activity') {
@@ -1491,9 +1514,10 @@ function updateSocietyInStore(store, society) {
   });
 }
 
-function getSocietyMember(society, username) {
+function getSocietyMember(society, username, identity = null) {
   const normalizedUsername = normalizeUsername(username);
-  return (society.members || []).find(entry => entry.username === normalizedUsername) || null;
+  const resolvedIdentity = resolveSocietyMemberIdentity(normalizedUsername, identity);
+  return (society.members || []).find(entry => societyMemberMatchesIdentity(entry, normalizedUsername, resolvedIdentity)) || null;
 }
 
 function ensureSocietyMemberRole(society, username, allowedRoles, failureMessage, status = 403) {
@@ -1727,7 +1751,8 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
   const welfareState = recalculateSocietyWelfareProgress(normalized);
   const members = await hydrateMembers(normalized.members);
   const leader = members.find(entry => entry.role === 'president') || members[0] || null;
-  const viewerMember = members.find(entry => entry.username === normalizeUsername(viewerUsername)) || null;
+  const viewerIdentity = resolveSocietyMemberIdentity(viewerUsername);
+  const viewerMember = members.find(entry => societyMemberMatchesIdentity(entry, viewerUsername, viewerIdentity)) || null;
   const viewerRole = viewerMember?.role || '';
   const visibilityEntry = SOCIETY_VISIBILITY_OPTIONS.find(entry => entry.id === normalized.visibility) || SOCIETY_VISIBILITY_OPTIONS[0];
   const themeEntry = SOCIETY_THEME_OPTIONS.find(entry => entry.id === normalized.theme) || SOCIETY_THEME_OPTIONS[0];
@@ -1739,7 +1764,7 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
     !viewerHasSociety &&
     normalized.visibility !== 'private' &&
     normalized.join_requirement_id !== 'invite_only' &&
-    !(store && hasPendingSocietyRequest(store, normalized.id, viewerUsername));
+    !(store && hasPendingSocietyRequest(store, normalized.id, viewerUsername, viewerIdentity));
   const activeProposals = normalized.proposals
     .map(normalizeSocietyProposal)
     .filter(entry => entry.status === 'open')
@@ -1826,9 +1851,9 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
 async function buildOverview(store, username) {
   const viewerUsername = normalizeUsername(username);
   const viewerIdentity = resolveActiveSocietySaveIdentity(viewerUsername);
-  const mySociety = findMemberSociety(store, viewerUsername);
+  const mySociety = findMemberSociety(store, viewerUsername, viewerIdentity);
   const viewerHasSociety = !!mySociety;
-  const myRole = mySociety ? getSocietyMember(mySociety, viewerUsername)?.role || '' : '';
+  const myRole = mySociety ? getSocietyMember(mySociety, viewerUsername, viewerIdentity)?.role || '' : '';
   const canReviewRequests = SOCIETY_MANAGER_ROLES.includes(myRole);
 
   const visibleSocieties = (store.societies || [])
@@ -1906,7 +1931,7 @@ async function createSociety(payload = {}, actor = {}) {
   if (!username) throw createError('未登录账号不能创建村社', 401);
   const founderIdentity = resolveActiveSocietySaveIdentity(username);
   const store = loadSocietyStore();
-  if (findMemberSociety(store, username)) throw createError('你已经加入一个村社了');
+  if (findMemberSociety(store, username, founderIdentity)) throw createError('你已经加入一个村社了');
 
   const name = sanitizeText(payload.name, 24);
   if (name.length < 2) throw createError('村社名称至少 2 个字');
@@ -1965,14 +1990,14 @@ async function createSociety(payload = {}, actor = {}) {
 async function applyToSociety(username, societyId) {
   const store = loadSocietyStore();
   const applicant = normalizeUsername(username);
+  const applicantIdentity = resolveActiveSocietySaveIdentity(applicant);
   const society = findSocietyById(store, societyId);
   if (!society) throw createError('村社不存在', 404);
-  if (findMemberSociety(store, applicant)) throw createError('你已经加入其他村社了');
+  if (findMemberSociety(store, applicant, applicantIdentity)) throw createError('你已经加入其他村社了');
   if (society.visibility === 'private') throw createError('当前村社暂不开放公开申请', 403);
   if (society.join_requirement_id === 'invite_only') throw createError('当前村社仅接受邀请加入', 403);
-  if (getSocietyMember(society, applicant)) throw createError('你已经是这个村社的成员了');
-  if (hasPendingSocietyRequest(store, society.id, applicant)) throw createError('你已经提交过申请或收到邀请了');
-  const applicantIdentity = resolveActiveSocietySaveIdentity(applicant);
+  if (getSocietyMember(society, applicant, applicantIdentity)) throw createError('你已经是这个村社的成员了');
+  if (hasPendingSocietyRequest(store, society.id, applicant, applicantIdentity)) throw createError('你已经提交过申请或收到邀请了');
 
   const request = normalizeSocietyJoinRequest({
     id: makeId('society_join'),
@@ -2003,10 +2028,16 @@ async function leaveSociety(actor = {}) {
 
   const leavingMember = getSocietyMember(society, actorUsername);
   if (!leavingMember) throw createError('你当前不是这个村社的成员', 404);
+  const leavingSaveId = normalizeSocietySaveId(leavingMember.save_id);
 
   const remainingMembers = (society.members || [])
     .map(normalizeSocietyMember)
-    .filter(entry => entry.username && entry.username !== actorUsername)
+    .filter(entry => {
+      if (!entry.username) return false;
+      const entrySaveId = normalizeSocietySaveId(entry.save_id);
+      if (leavingSaveId && entrySaveId) return entrySaveId !== leavingSaveId;
+      return entry.username !== actorUsername;
+    })
     .sort((left, right) => left.joined_at - right.joined_at);
 
   society.members = remainingMembers;
@@ -2045,7 +2076,12 @@ async function leaveSociety(actor = {}) {
 
   store.society_join_requests = (store.society_join_requests || [])
     .map(normalizeSocietyJoinRequest)
-    .filter(entry => entry.username !== actorUsername);
+    .filter(entry => {
+      if (entry.username !== actorUsername) return true;
+      const entrySaveId = normalizeSocietySaveId(entry.target_save_id);
+      if (leavingSaveId && entrySaveId) return entrySaveId !== leavingSaveId;
+      return false;
+    });
   updateSocietyInStore(store, society);
   saveSocietyStore(store);
 
@@ -2068,9 +2104,9 @@ async function inviteToSociety(payload = {}, actor = {}) {
   const { username: targetUsername, identity: requestedTargetIdentity } = resolveTargetBySaveIdOrUsername(payload, '请先填写要邀请的玩家或存档 ID');
   if (targetUsername === inviter) throw createError('不能邀请自己');
   await ensureTargetUserExists(targetUsername);
-  if (findMemberSociety(store, targetUsername)) throw createError('对方已经加入其他村社');
-  if (hasPendingSocietyRequest(store, society.id, targetUsername)) throw createError('该玩家已有待处理的申请或邀请');
   const targetIdentity = requestedTargetIdentity || resolveActiveSocietySaveIdentity(targetUsername);
+  if (findMemberSociety(store, targetUsername, targetIdentity)) throw createError('对方已经加入其他村社');
+  if (hasPendingSocietyRequest(store, society.id, targetUsername, targetIdentity)) throw createError('该玩家已有待处理的申请或邀请');
 
   const request = normalizeSocietyJoinRequest({
     id: makeId('society_join'),
@@ -2117,7 +2153,10 @@ async function respondSocietyRequest(requestId, decision, actor = {}) {
 
   if (normalizedDecision === 'accept') {
     if ((society.members || []).length >= society.capacity) throw createError('当前村社人数已满');
-    if (findMemberSociety(store, request.username)) throw createError('该玩家已经加入其他村社');
+    const requestIdentity = normalizeSocietySaveId(request.target_save_id)
+      ? { save_id: request.target_save_id, save_slot: request.target_save_slot }
+      : null;
+    if (findMemberSociety(store, request.username, requestIdentity)) throw createError('该玩家已经加入其他村社');
     const targetDisplayName = request.display_name || await resolveDisplayName(request.username);
     society.members = [
       ...(society.members || []),

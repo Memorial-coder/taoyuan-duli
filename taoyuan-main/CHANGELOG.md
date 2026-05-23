@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 活动存档读取与村社身份隔离（A0-A1-A7）
+- 服务端 `getActiveSaveContext()` 现在会正确区分“未指定 preferred slot”和 slot 0，不再把 `null` 误判为 slot 0。
+- 村社概览、成员归属和待处理申请去重会按当前活动存档 ID 隔离；同一账号切到另一份服务端存档时，不会继承原存档的村社身份。
+- `qa:online-smoke` 新增 active save isolation 回归，并已验证 slot 1 不继承 slot 0 村社成员身份、切回 slot 0 后原身份恢复；`qa:realtime-smoke` 也已复跑通过。
+
 ### 0520 村社职位履历存档身份补齐（A1）
 - 村社职位调整履历现在会记录目标成员 `save_id / save_slot`，社长离任后的继任履历也会记录继任者存档身份。
 - `qa:online-smoke` 新增 chronicle 读回断言，覆盖 `role_assignment` 与 `president_transfer` 不再退回 username-only。
