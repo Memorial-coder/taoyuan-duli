@@ -798,6 +798,111 @@ try {
         && payload.actor_username === owner.username
     )
     assert(soldNotification.payload?.exchange?.price_money === undefined, 'neighbor consignment sold notification should not expose price detail')
+
+    const inviteTarget = await bootstrapSession('smkrt_ni')
+    const inviteSocket = await openRealtimeSocket(inviteTarget)
+    const rejectTarget = await bootstrapSession('smkrt_nr')
+    const rejectSocket = await openRealtimeSocket(rejectTarget)
+    try {
+      const inviteOffset = inviteSocket.messages.length
+      const inviteResult = await fetchSessionJson(owner, '/api/taoyuan/online/social/neighbors/invite', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_username: inviteTarget.username }),
+      })
+      assert(inviteResult.response.ok, `neighbor invite returned ${inviteResult.response.status}: ${inviteResult.data?.msg || 'unknown error'}`)
+      const inviteRequestId = String(inviteResult.data?.request?.id || '')
+      assert(inviteRequestId, 'neighbor invite request id missing')
+      const inviteNotification = await expectMessageAfter(inviteSocket, inviteOffset, 'notification.created', payload =>
+        payload.category === 'neighbor'
+          && payload.action === 'member_invited'
+          && payload.refresh_required === true
+          && payload.group?.id === groupId
+          && payload.request?.id === inviteRequestId
+          && payload.request?.type === 'invite'
+          && payload.request?.status === 'pending'
+          && payload.request?.username === inviteTarget.username
+          && payload.request?.invited_by === owner.username
+          && payload.actor_username === owner.username
+      )
+      assert(inviteNotification.payload?.group?.members === undefined, 'neighbor invite notification should not expose members')
+
+      const rejectApplyOffset = ownerSocket.messages.length
+      const rejectApplyResult = await fetchSessionJson(rejectTarget, `/api/taoyuan/online/social/neighbors/${encodeURIComponent(groupId)}/apply`, {
+        method: 'POST',
+      })
+      assert(rejectApplyResult.response.ok, `neighbor reject apply returned ${rejectApplyResult.response.status}: ${rejectApplyResult.data?.msg || 'unknown error'}`)
+      const rejectRequestId = String(rejectApplyResult.data?.request?.id || '')
+      assert(rejectRequestId, 'neighbor reject apply request id missing')
+      await expectMessageAfter(ownerSocket, rejectApplyOffset, 'notification.created', payload =>
+        payload.category === 'neighbor'
+          && payload.action === 'member_applied'
+          && payload.request?.id === rejectRequestId
+          && payload.actor_username === rejectTarget.username
+      )
+      const rejectOffset = rejectSocket.messages.length
+      const rejectResult = await fetchSessionJson(owner, `/api/taoyuan/online/social/neighbors/requests/${encodeURIComponent(rejectRequestId)}/reject`, {
+        method: 'POST',
+      })
+      assert(rejectResult.response.ok, `neighbor reject returned ${rejectResult.response.status}: ${rejectResult.data?.msg || 'unknown error'}`)
+      const rejectedNotification = await expectMessageAfter(rejectSocket, rejectOffset, 'notification.created', payload =>
+        payload.category === 'neighbor'
+          && payload.action === 'membership_rejected'
+          && payload.refresh_required === true
+          && payload.group?.id === groupId
+          && payload.request?.id === rejectRequestId
+          && payload.request?.type === 'apply'
+          && payload.request?.status === 'rejected'
+          && payload.request?.username === rejectTarget.username
+          && payload.actor_username === owner.username
+      )
+      assert(rejectedNotification.payload?.group?.members === undefined, 'neighbor reject notification should not expose members')
+
+      const noticeOffset = friendSocket.messages.length
+      const noticeText = `RT 邻里公告 ${createSmokeSeed()}`
+      const noticeResult = await fetchSessionJson(owner, '/api/taoyuan/online/social/neighbors/notice', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ notice: noticeText }),
+      })
+      assert(noticeResult.response.ok, `neighbor notice update returned ${noticeResult.response.status}: ${noticeResult.data?.msg || 'unknown error'}`)
+      const noticeNotification = await expectMessageAfter(friendSocket, noticeOffset, 'notification.created', payload =>
+        payload.category === 'neighbor'
+          && payload.action === 'notice_updated'
+          && payload.refresh_required === true
+          && payload.group?.id === groupId
+          && payload.group?.member_count === 3
+          && payload.actor_username === owner.username
+      )
+      assert(noticeNotification.payload?.request === undefined, 'neighbor notice notification should not expose request')
+      assert(noticeNotification.payload?.group?.members === undefined, 'neighbor notice notification should not expose members')
+
+      const roleOffset = friendSocket.messages.length
+      const roleResult = await fetchSessionJson(owner, '/api/taoyuan/online/social/neighbors/members/role', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          target_username: friend.username,
+          role: 'manager',
+        }),
+      })
+      assert(roleResult.response.ok, `neighbor role update returned ${roleResult.response.status}: ${roleResult.data?.msg || 'unknown error'}`)
+      const roleNotification = await expectMessageAfter(friendSocket, roleOffset, 'notification.created', payload =>
+        payload.category === 'neighbor'
+          && payload.action === 'member_role_updated'
+          && payload.refresh_required === true
+          && payload.group?.id === groupId
+          && payload.role_change?.target_username === friend.username
+          && payload.role_change?.role === 'manager'
+          && payload.actor_username === owner.username
+      )
+      assert(roleNotification.payload?.group?.members === undefined, 'neighbor role notification should not expose members')
+      assert(roleNotification.payload?.request === undefined, 'neighbor role notification should not expose request')
+    } finally {
+      inviteSocket.close()
+      rejectSocket.close()
+      await wait(200)
+    }
   })
 
   await runCheck('hall reply notification event is delivered through websocket', async () => {

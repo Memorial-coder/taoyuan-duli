@@ -8,6 +8,7 @@
 - 邻里申请、邀请、接受 / 拒绝、公告更新和成员身份调整现在会投递 `notification.created`，使用 `category: "neighbor"` 通知相关邻里成员。
 - `useRealtimeStore` 收到邻里通知后只静默刷新 `useSocialStore().refreshNeighborOverview({ silent: true })` 与 `refreshProfile({ silent: true })`，继续以 HTTP 权威概览为准，不直接套用 WebSocket payload。
 - 通知摘要不携带完整 overview 或成员列表；`qa:realtime-smoke` 覆盖在线申请 / 接受通知，以及离线成员补发、ACK 和重连不重复。
+- `qa:realtime-smoke` 追加邀请、拒绝、公告更新和成员身份调整的在线断言，确认前端消费仍是静默重读，不依赖通知 payload 直接落最终状态。
 
 ### 0520 村社旧 username 兜底安全收口（A0-A1-A7）
 - 村社成员和待处理申请现在会先按明确 `save_id` 匹配；缺少存档 ID 的旧 username-only 记录只在没有多存档歧义或唯一可映射时继续兼容。
