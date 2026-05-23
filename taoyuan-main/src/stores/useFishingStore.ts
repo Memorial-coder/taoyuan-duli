@@ -49,6 +49,11 @@ const CRAB_POT_LOOT: { itemId: string; weight: number; locationOverride?: Fishin
 /** 钓鱼垃圾池 */
 const FISHING_JUNK = ['trash', 'driftwood', 'broken_cd', 'soggy_newspaper']
 
+const normalizeProbability = (value: number): number => {
+  if (!Number.isFinite(value)) return 0
+  return Math.min(1, Math.max(0, value))
+}
+
 /** 宝箱奖品池 */
 const TREASURE_POOL: { itemId: string | null; weight: number; minQty: number; maxQty: number; money?: number }[] = [
   { itemId: 'copper_ore', weight: 30, minQty: 1, maxQty: 3 },
@@ -271,7 +276,7 @@ export const useFishingStore = defineStore('fishing', () => {
 
     // 垃圾判定：基础12%概率钓到垃圾，钓鱼等级每级-1%，使用鱼饵减半
     const junkBase = 0.12 - skillStore.fishingLevel * 0.01
-    const junkChance = Math.max(0, (baitDef ? junkBase * 0.5 : junkBase) + environmentWindow.value.fishing.junkChanceDelta)
+    const junkChance = normalizeProbability((baitDef ? junkBase * 0.5 : junkBase) + environmentWindow.value.fishing.junkChanceDelta)
     if (Math.random() < junkChance) {
       activeTackleDef.value = tackleDef ?? null
       if (equippedTackle.value && tackleDef) {
