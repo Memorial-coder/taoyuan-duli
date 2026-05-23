@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0523 联机视觉状态协议底座
+- 服务端活动房间 snapshot 新增 `visual_state`，统一承载 `board_type / board_id / revision / selected_visual_id / highlights / recent_feedback`，新建节会与远征房间会写入默认视觉状态。
+- 旧节会 / 远征房间缺少 `visual_state` 时会按活动域和模板回退为空视觉状态，避免旧房间打开失败。
+- 前端节会 / 远征 API 类型同步 `OnlineVisualState`；新增 `server/scripts/qa-activity-room-visual-state.mjs` 与 `npm --prefix server run qa:activity-room-visual-state` 固定兼容链路。
+- 本轮验证：`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-activity-room-visual-state.mjs`、`npm --prefix server run qa:activity-room-visual-state`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0523 玩法 bug 审查修复
 - `src/stores/useFishingStore.ts` 已把钓鱼垃圾率统一夹到 `0..1`，坏运、环境窗口、鱼饵和等级修正叠加后不会再把垃圾判定推到 100% 以上。
 - 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。

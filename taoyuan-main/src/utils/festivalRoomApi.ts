@@ -1,5 +1,6 @@
 import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
 import { fetchProtectedJson } from '@/utils/protectedApi'
+import type { OnlineVisualState } from '@/types/onlineVisual'
 
 export type FestivalRoomState =
   | 'created'
@@ -296,6 +297,7 @@ export interface FestivalRoomSnapshot {
   invitations: FestivalRoomInvitationSnapshot[]
   recent_events: FestivalRoomEventSnapshot[]
   settlement_receipts: FestivalRoomReceiptPreview[]
+  visual_state: OnlineVisualState
   gameplay: FestivalGameplaySnapshot
   opening_ceremony: FestivalRoomOpeningCeremony | null
   joined_member_count: number

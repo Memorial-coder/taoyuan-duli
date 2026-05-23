@@ -1,5 +1,6 @@
 import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
 import { fetchProtectedJson } from '@/utils/protectedApi'
+import type { OnlineVisualState } from '@/types/onlineVisual'
 
 export type ExpeditionRoomState =
   | 'created'
@@ -275,6 +276,7 @@ export interface ExpeditionRoomSnapshot {
   invitations: ExpeditionRoomInvitationSnapshot[]
   recent_events: ExpeditionRoomEventSnapshot[]
   settlement_receipts: ExpeditionRoomReceiptPreview[]
+  visual_state: OnlineVisualState
   gameplay: ExpeditionGameplaySnapshot
   opening_ceremony: ExpeditionRoomOpeningCeremony | null
   joined_member_count: number

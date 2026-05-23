@@ -9,6 +9,7 @@
     "dev": "node --watch src/index.js",
     "qa:online-smoke": "node scripts/qa-online-smoke.mjs",
     "qa:online-release-guard": "node scripts/qa-online-release-guard.mjs",
+    "qa:activity-room-visual-state": "node scripts/qa-activity-room-visual-state.mjs",
     "qa:hall-upload-visibility-guard": "node scripts/qa-hall-upload-visibility-guard.mjs",
     "qa:save-corruption-guard": "node scripts/qa-save-corruption-guard.mjs",
     "qa:realtime-smoke": "node scripts/qa-realtime-smoke.mjs"

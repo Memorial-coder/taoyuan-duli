@@ -29,6 +29,8 @@ const GAMEPLAY_PHASES = Object.freeze(['prep', 'active', 'completed']);
 const ACTIVITY_DOMAINS = Object.freeze(['festival', 'expedition']);
 const DEFAULT_ACTIVITY_DOMAIN = 'festival';
 const FESTIVAL_REWARD_TICKET_TYPE = 'festival';
+const ONLINE_VISUAL_BOARD_TYPES = Object.freeze(['map', 'scene', 'track', 'async']);
+const ONLINE_VISUAL_HIGHLIGHT_TYPES = Object.freeze(['info', 'success', 'warning', 'danger', 'reward']);
 
 function resolveTargetBySaveIdOrUsername(payload = {}, emptyMessage = '请输入要邀请的玩家用户名') {
   const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
@@ -1225,6 +1227,50 @@ function normalizeGameplayContribution(entry) {
   };
 }
 
+function normalizeOnlineVisualHighlight(entry) {
+  return {
+    id: String(entry?.id || makeId('visual_highlight')),
+    visual_id: sanitizeText(entry?.visual_id, 60),
+    type: ONLINE_VISUAL_HIGHLIGHT_TYPES.includes(String(entry?.type || '').trim()) ? String(entry.type).trim() : 'info',
+    label: sanitizeText(entry?.label, 40),
+    summary: sanitizeText(entry?.summary, 160),
+    created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
+  };
+}
+
+function resolveDefaultVisualBoardType(room) {
+  const gameplayTemplateId = sanitizeText(room?.gameplay_template_id, 40);
+  const roomTemplateId = sanitizeText(room?.template_id, 40);
+  if (gameplayTemplateId === 'expedition_cavern') return 'map';
+  if (roomTemplateId === 'dragon_boat') return 'track';
+  return normalizeActivityDomain(room?.activity_domain) === 'expedition' ? 'map' : 'scene';
+}
+
+function buildDefaultVisualBoardId(room) {
+  const domain = normalizeActivityDomain(room?.activity_domain);
+  const templateId = sanitizeText(room?.template_id, 40) || 'default';
+  const gameplayTemplateId = sanitizeText(room?.gameplay_template_id, 40) || 'default';
+  return `${domain}:${templateId}:${gameplayTemplateId}`;
+}
+
+function normalizeOnlineVisualState(value, room) {
+  const source = value && typeof value === 'object' ? value : {};
+  const boardType = String(source.board_type || '').trim();
+  const normalizedBoardType = ONLINE_VISUAL_BOARD_TYPES.includes(boardType)
+    ? boardType
+    : resolveDefaultVisualBoardType(room);
+  return {
+    board_type: normalizedBoardType,
+    board_id: sanitizeText(source.board_id, 80) || buildDefaultVisualBoardId(room),
+    revision: Math.max(0, Math.floor(Number(source.revision) || 0)),
+    selected_visual_id: sanitizeText(source.selected_visual_id, 80),
+    highlights: Array.isArray(source.highlights)
+      ? source.highlights.map(normalizeOnlineVisualHighlight).slice(0, 16)
+      : [],
+    recent_feedback: sanitizeText(source.recent_feedback, 180),
+  };
+}
+
 function getExpeditionCavernEventByRound(roundNumber) {
   const normalizedRound = Math.max(1, Math.floor(Number(roundNumber) || 1));
   const eventIndex = (normalizedRound - 1) % EXPEDITION_CAVERN_ROUND_EVENTS.length;
@@ -1735,6 +1781,11 @@ function normalizeRoom(entry) {
     invitations: Array.isArray(entry?.invitations) ? entry.invitations.map(normalizeRoomInvitation).filter(invite => invite.target_username) : [],
     events: Array.isArray(entry?.events) ? entry.events.map(normalizeRoomEvent).slice(0, EVENT_LIMIT) : [],
     gameplay_state: normalizeGameplayState(entry?.gameplay_state, gameplayTemplate.id, template.id, activityDomain),
+    visual_state: normalizeOnlineVisualState(entry?.visual_state, {
+      activity_domain: activityDomain,
+      template_id: template.id,
+      gameplay_template_id: gameplayTemplate.id,
+    }),
     settlement_receipt_ids: Array.isArray(entry?.settlement_receipt_ids)
       ? entry.settlement_receipt_ids.map(item => sanitizeText(item, 60)).filter(Boolean).slice(0, RECEIPT_LIMIT)
       : [],
@@ -3063,6 +3114,7 @@ function buildRoomSnapshot(store, room, viewerUsername) {
       summary: receipt.summary,
       created_at: receipt.created_at,
     })),
+    visual_state: normalizeOnlineVisualState(room.visual_state, room),
     gameplay: buildGameplaySnapshot(room, viewerUsername),
     opening_ceremony: buildOpeningCeremony(room),
     joined_member_count: participatingCount,
@@ -3181,6 +3233,11 @@ async function createFestivalRoom(payload = {}, actor = {}) {
     }],
     invitations: [],
     gameplay_state: createInitialGameplayState(gameplayTemplate.id, template.id),
+    visual_state: normalizeOnlineVisualState(null, {
+      activity_domain: normalizedDomain,
+      template_id: template.id,
+      gameplay_template_id: gameplayTemplate.id,
+    }),
     settlement_receipt_ids: [],
     events: [],
   });

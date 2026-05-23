@@ -33,6 +33,7 @@ export * from './region'
 export * from './recordCenter'
 export * from './adminOnline'
 export * from './onlineRelease'
+export * from './onlineVisual'
 export type {
   BudgetChannelId,
   WeeklyBudgetChannelId,
