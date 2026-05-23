@@ -450,34 +450,294 @@
         </RouterLink>
       </div>
 
-      <div v-else-if="activeTab === 'neighbor'" class="game-panel-muted grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_260px]">
-        <div class="space-y-3">
-          <div class="border border-accent/10 bg-black/10 p-3">
-            <p class="text-xs text-accent">{{ neighborGroupTitle }}</p>
-            <p class="mt-1 text-[10px] leading-5 text-muted">{{ neighborGroupSummary }}</p>
+      <div v-else-if="activeTab === 'neighbor'" class="space-y-3" data-testid="online-neighbor-group-page">
+        <div class="game-panel-muted space-y-3 p-3">
+          <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div class="min-w-0">
+              <p class="text-sm text-accent">{{ neighborGroupTitle }}</p>
+              <p class="mt-1 text-xs leading-5 text-muted">{{ neighborGroupSummary }}</p>
+            </div>
+            <button
+              class="online-action-btn online-action-btn--compact shrink-0"
+              type="button"
+              :disabled="socialStore.neighborLoading"
+              @click="refreshNeighborSummary"
+            >
+              <RefreshCw :size="12" :class="{ 'animate-spin': socialStore.neighborLoading }" />
+              {{ socialStore.neighborLoading ? '刷新中' : '刷新邻里' }}
+            </button>
           </div>
+
           <div class="grid gap-2 text-xs md:grid-cols-3">
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">公开邻里</p>
-              <p class="mt-1 text-accent">{{ socialStore.neighborPublicGroups.length }} 个</p>
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-[10px] text-muted">邻里任务</p>
+                <RouterLink class="online-action-btn online-action-btn--compact" :to="{ name: 'quest', query: { scope: 'neighbor' } }">
+                  去看委托
+                </RouterLink>
+              </div>
+              <p class="mt-2 text-xs text-accent">{{ neighborTaskCard.title }}</p>
+              <p class="mt-1 text-[10px] leading-4 text-muted">{{ neighborTaskCard.summary }}</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">收到邀请</p>
-              <p class="mt-1 text-accent">{{ socialStore.neighborIncomingInvites.length }} 条</p>
+              <p class="text-[10px] text-muted">邻里进度</p>
+              <p class="mt-2 text-xs text-accent">{{ neighborProgressCard.title }}</p>
+              <p class="mt-1 text-[10px] leading-4 text-muted">{{ neighborProgressCard.summary }}</p>
             </div>
             <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">待处理申请</p>
-              <p class="mt-1 text-accent">{{ socialStore.neighborManagedRequests.length }} 条</p>
+              <p class="text-[10px] text-muted">邻里排行</p>
+              <div v-if="neighborLeaderboard.length === 0" class="mt-2 text-[10px] leading-4 text-muted">
+                当前还没有可比较的公开邻里。
+              </div>
+              <div v-else class="mt-2 space-y-1.5">
+                <div v-for="(group, index) in neighborLeaderboard" :key="group.id" class="border border-accent/10 px-2 py-1.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="truncate text-[10px] text-accent">{{ index + 1 }}. {{ group.name }}</p>
+                    <span class="shrink-0 text-[10px] text-muted">Lv.{{ group.level }}</span>
+                  </div>
+                  <p class="mt-1 text-[10px] text-muted">{{ group.member_count }}/{{ group.capacity }} 人</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-        <div class="space-y-2">
-          <div v-for="group in publicGroupPreview" :key="group.id" class="border border-accent/10 bg-black/10 p-2">
-            <p class="text-xs text-accent">{{ group.name }}</p>
-            <p class="mt-1 text-[10px] text-muted">Lv.{{ group.level }} · {{ group.member_count }}/{{ group.capacity }} 人</p>
+
+        <div class="grid gap-3 xl:grid-cols-[minmax(0,1.08fr)_minmax(300px,0.92fr)]">
+          <div class="space-y-3">
+            <template v-if="socialStore.neighborGroup">
+              <div class="game-panel-muted space-y-3 p-3">
+                <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div class="min-w-0">
+                    <p class="text-sm text-accent">{{ socialStore.neighborGroup.name }}</p>
+                    <p class="mt-1 text-xs leading-5 text-muted">
+                      {{ socialStore.neighborGroup.summary || '这个邻里还没写简介。' }}
+                    </p>
+                  </div>
+                  <span class="w-fit shrink-0 border border-accent/20 px-2 py-1 text-[10px] text-muted">
+                    Lv.{{ socialStore.neighborGroup.level }} · {{ socialStore.neighborGroup.member_count }}/{{ socialStore.neighborGroup.capacity }}
+                  </span>
+                </div>
+                <div class="grid gap-2 text-xs md:grid-cols-3">
+                  <div class="border border-accent/10 bg-black/10 p-2">
+                    <p class="text-[10px] text-muted">我的身份</p>
+                    <p class="mt-1 text-accent">{{ neighborRoleLabel(socialStore.neighborGroup.role) }}</p>
+                  </div>
+                  <div class="border border-accent/10 bg-black/10 p-2">
+                    <p class="text-[10px] text-muted">成员</p>
+                    <p class="mt-1 text-accent">{{ socialStore.neighborGroup.member_count }} 人</p>
+                  </div>
+                  <div class="border border-accent/10 bg-black/10 p-2">
+                    <p class="text-[10px] text-muted">待处理</p>
+                    <p class="mt-1 text-accent">{{ socialStore.neighborManagedRequests.length }} 条</p>
+                  </div>
+                </div>
+
+                <div v-if="canManageNeighbor" class="space-y-2">
+                  <label class="flex flex-col gap-1 text-[10px] text-muted">
+                    邻里公告
+                    <textarea
+                      v-model="socialStore.neighborNoticeDraft"
+                      rows="2"
+                      maxlength="160"
+                      class="online-textarea resize-none"
+                      placeholder="写一句让成员一眼知道本周在忙什么。"
+                    />
+                  </label>
+                  <div class="flex justify-end">
+                    <button
+                      class="online-action-btn online-action-btn--compact"
+                      type="button"
+                      :disabled="socialStore.neighborActionRunning"
+                      @click="saveNeighborNotice"
+                    >
+                      保存公告
+                    </button>
+                  </div>
+                </div>
+                <div v-else class="border border-accent/10 bg-black/10 p-2 text-xs">
+                  <p class="text-[10px] text-muted">邻里公告</p>
+                  <p class="mt-1 leading-5">{{ socialStore.neighborGroup.notice || '暂无公告' }}</p>
+                </div>
+              </div>
+
+              <div class="game-panel-muted p-3">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-sm text-accent">成员</p>
+                  <span class="text-[10px] text-muted">{{ neighborMembers.length }} 人</span>
+                </div>
+                <div v-if="neighborMembers.length === 0" class="mt-2 text-xs text-muted">
+                  当前还没有成员信息。
+                </div>
+                <div v-else class="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
+                  <div v-for="member in neighborMembers" :key="member.username" class="border border-accent/10 bg-black/10 p-2">
+                    <div class="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                      <div class="min-w-0">
+                        <p class="truncate text-xs text-accent">{{ member.username }}</p>
+                        <p class="mt-1 text-[10px] text-muted">{{ formatChronicleDate(member.joined_at) || '加入时间未记录' }}</p>
+                      </div>
+                      <div class="flex flex-wrap items-center gap-2">
+                        <span class="text-[10px] text-muted">{{ neighborRoleLabel(member.role) }}</span>
+                        <button
+                          v-if="canChangeNeighborRoles && member.role !== 'leader'"
+                          class="online-action-btn online-action-btn--compact"
+                          type="button"
+                          :disabled="socialStore.neighborActionRunning"
+                          @click="setNeighborRole(member.username, member.role === 'manager' ? 'member' : 'manager')"
+                        >
+                          {{ member.role === 'manager' ? '改普通成员' : '升为管事' }}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="game-panel-muted p-3">
+                <p class="text-sm text-accent">邻里动态</p>
+                <div v-if="neighborActivityLog.length === 0" class="mt-2 text-xs text-muted">
+                  当前还没有新的邻里动态。
+                </div>
+                <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+                  <div v-for="entry in neighborActivityLog" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
+                    <div class="flex items-center justify-between gap-2">
+                      <p class="text-xs">{{ entry.message }}</p>
+                      <span class="shrink-0 text-[10px] text-muted">{{ formatChronicleDate(entry.created_at) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </template>
+
+            <template v-else>
+              <div class="game-panel-muted space-y-2 p-3">
+                <p class="text-sm text-accent">创建邻里</p>
+                <input
+                  v-model="socialStore.neighborNameDraft"
+                  maxlength="24"
+                  class="online-input w-full"
+                  placeholder="邻里名称"
+                />
+                <input
+                  v-model="socialStore.neighborSummaryDraft"
+                  maxlength="120"
+                  class="online-input w-full"
+                  placeholder="一句简介，告诉别人你们这群人想过怎样的日子。"
+                />
+                <textarea
+                  v-model="socialStore.neighborNoticeDraft"
+                  rows="2"
+                  maxlength="160"
+                  class="online-textarea w-full resize-none"
+                  placeholder="初始公告"
+                />
+                <select v-model="socialStore.neighborCapacityDraft" class="online-select w-full">
+                  <option :value="12">小型邻里（3-12）</option>
+                  <option :value="30">中型邻里（12-30）</option>
+                  <option :value="60">大型邻里（30+）</option>
+                </select>
+                <div class="flex justify-end">
+                  <button
+                    class="online-action-btn online-action-btn--compact"
+                    type="button"
+                    :disabled="socialStore.neighborActionRunning || !socialStore.neighborNameDraft.trim()"
+                    @click="createNeighbor"
+                  >
+                    创建邻里
+                  </button>
+                </div>
+              </div>
+            </template>
           </div>
-          <div v-if="publicGroupPreview.length === 0" class="border border-accent/10 bg-black/10 p-3 text-xs text-muted">
-            当前没有公开邻里摘要。
+
+          <div class="space-y-3">
+            <div class="game-panel-muted p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm text-accent">公开邻里</p>
+                <span class="text-[10px] text-muted">{{ socialStore.neighborPublicGroups.length }} 个</span>
+              </div>
+              <div v-if="socialStore.neighborPublicGroups.length === 0" class="mt-2 text-xs text-muted">
+                当前还没有公开邻里。
+              </div>
+              <div v-else class="mt-3 max-h-96 space-y-2 overflow-y-auto pr-1">
+                <div v-for="group in socialStore.neighborPublicGroups" :key="group.id" class="border border-accent/10 bg-black/10 p-2">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs text-accent">{{ group.name }}</p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ group.summary || '这个邻里还没写简介。' }}</p>
+                    </div>
+                    <span class="shrink-0 text-[10px] text-muted">Lv.{{ group.level }} · {{ group.member_count }}/{{ group.capacity }}</span>
+                  </div>
+                  <p class="mt-2 text-[10px] leading-4 text-muted">公告：{{ group.notice || '暂无公告' }}</p>
+                  <div v-if="!socialStore.neighborGroup && group.can_apply" class="mt-2 flex justify-end">
+                    <button
+                      class="online-action-btn online-action-btn--compact"
+                      type="button"
+                      :disabled="socialStore.neighborActionRunning"
+                      @click="applyNeighbor(group.id)"
+                    >
+                      申请加入
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div v-if="socialStore.neighborGroup && canManageNeighbor" class="game-panel-muted space-y-2 p-3">
+              <p class="text-sm text-accent">邀请成员</p>
+              <div class="online-action-row">
+                <input
+                  v-model="socialStore.neighborInviteUsernameDraft"
+                  class="online-input min-w-0 flex-1"
+                  placeholder="输入玩家用户名"
+                />
+                <button
+                  class="online-action-btn online-action-btn--compact"
+                  type="button"
+                  :disabled="socialStore.neighborActionRunning || !socialStore.neighborInviteUsernameDraft.trim()"
+                  @click="inviteNeighbor"
+                >
+                  发送邀请
+                </button>
+              </div>
+            </div>
+
+            <div class="game-panel-muted p-3">
+              <p class="text-sm text-accent">申请与邀请</p>
+              <div v-if="neighborPendingRequests.length === 0" class="mt-2 text-xs text-muted">
+                当前没有新的邻里申请或邀请。
+              </div>
+              <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+                <div v-for="entry in neighborPendingRequests" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
+                  <div class="flex items-start justify-between gap-2">
+                    <div class="min-w-0">
+                      <p class="text-xs text-accent">
+                        <template v-if="entry.type === 'apply'">{{ entry.username }} 申请加入</template>
+                        <template v-else>收到邻里邀请：{{ entry.group_name || entry.group_id }}</template>
+                      </p>
+                      <p class="mt-1 text-[10px] text-muted">{{ formatChronicleDate(entry.created_at) }}</p>
+                    </div>
+                    <div class="flex shrink-0 gap-2">
+                      <button
+                        class="online-action-btn online-action-btn--compact"
+                        type="button"
+                        :disabled="socialStore.neighborActionRunning || (entry.type === 'apply' && !canManageNeighbor)"
+                        @click="acceptNeighbor(entry.id)"
+                      >
+                        接受
+                      </button>
+                      <button
+                        class="online-action-btn online-action-btn--compact"
+                        type="button"
+                        :disabled="socialStore.neighborActionRunning || (entry.type === 'apply' && !canManageNeighbor)"
+                        @click="rejectNeighbor(entry.id)"
+                      >
+                        拒绝
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -604,7 +864,69 @@
     if (!socialStore.neighborGroup) return '可以从公开邻里里申请加入，也可以在完整邻里页创建自己的邻里组织。'
     return socialStore.neighborGroup.summary || socialStore.neighborGroup.notice || '这个邻里还没写简介。'
   })
-  const publicGroupPreview = computed(() => socialStore.neighborPublicGroups.slice(0, 3))
+  const canManageNeighbor = computed(() => {
+    const role = socialStore.neighborGroup?.role
+    return role === 'leader' || role === 'manager'
+  })
+  const canChangeNeighborRoles = computed(() => socialStore.neighborGroup?.role === 'leader')
+  const neighborMembers = computed(() => socialStore.neighborGroup?.members || [])
+  const neighborActivityLog = computed(() => socialStore.neighborGroup?.activity_log || [])
+  const neighborPendingRequests = computed(() => [
+    ...(canManageNeighbor.value ? socialStore.neighborManagedRequests : []),
+    ...socialStore.neighborIncomingInvites,
+  ])
+  const neighborLeaderboard = computed(() =>
+    [...socialStore.neighborPublicGroups]
+      .sort((left, right) => right.level - left.level || right.member_count - left.member_count || left.name.localeCompare(right.name, 'zh-CN'))
+      .slice(0, 3)
+  )
+  const neighborTaskCard = computed(() => {
+    if (!socialStore.neighborGroup) {
+      return {
+        title: '先加入一个邻里',
+        summary: '先从公开邻里里挑一个申请加入，之后再去委托面板接互助单。',
+      }
+    }
+    if (!socialStore.neighborGroup.notice?.trim()) {
+      return {
+        title: '补一条本周公告',
+        summary: canManageNeighbor.value
+          ? '先把本周在忙什么写清楚，成员和访客更容易跟上节奏。'
+          : '当前邻里还没有公告，可以提醒管事补上本周方向。',
+      }
+    }
+    const openSlots = Math.max(socialStore.neighborGroup.capacity - socialStore.neighborGroup.member_count, 0)
+    if (openSlots > 0) {
+      return {
+        title: '继续招募邻里成员',
+        summary: `当前还有 ${openSlots} 个空位，可以继续邀请好友或处理入组申请。`,
+      }
+    }
+    if ((socialStore.neighborGroup.activity_log || []).length === 0) {
+      return {
+        title: '让邻里先动起来',
+        summary: '先处理一条申请、邀请或委托协作，给邻里留下第一条动态。',
+      }
+    }
+    return {
+      title: '把互助单接到邻里里',
+      summary: '邻里骨架已经跑通，接下来更适合去委托面板组织公开 / 邻里协作单。',
+    }
+  })
+  const neighborProgressCard = computed(() => {
+    if (!socialStore.neighborGroup) {
+      return {
+        title: `当前公开邻里 ${socialStore.neighborPublicGroups.length} 个`,
+        summary: '先从公开邻里列表里挑一个等级、人数和主题更合适的去申请加入。',
+      }
+    }
+    const openSlots = Math.max(socialStore.neighborGroup.capacity - socialStore.neighborGroup.member_count, 0)
+    const activityCount = socialStore.neighborGroup.activity_log?.length || 0
+    return {
+      title: `Lv.${socialStore.neighborGroup.level} · ${socialStore.neighborGroup.member_count}/${socialStore.neighborGroup.capacity} 人`,
+      summary: `当前还剩 ${openSlots} 个空位，最近累计留下 ${activityCount} 条邻里动态。`,
+    }
+  })
   const subscriptionPreview = computed(() => socialStore.subscriptions.slice(0, 3))
 
   const formatChronicleDate = (timestamp: number) => {
@@ -657,6 +979,53 @@
   const refreshFriendSummary = async () => {
     await socialStore.refreshRelationships().catch(() => {})
     lastRefreshAttemptAt.value = Date.now()
+  }
+
+  const runNeighborAction = async (action: () => Promise<unknown>, fallbackMessage: string) => {
+    try {
+      await action()
+      lastRefreshAttemptAt.value = Date.now()
+    } catch (error: any) {
+      showFloat(error?.message || fallbackMessage, 'danger')
+    }
+  }
+
+  const refreshNeighborSummary = async () => {
+    await runNeighborAction(() => socialStore.refreshNeighborOverview(), '刷新邻里失败')
+  }
+
+  const createNeighbor = async () => {
+    await runNeighborAction(() => socialStore.submitNeighborGroup(), '创建邻里失败')
+  }
+
+  const applyNeighbor = async (groupId: string) => {
+    await runNeighborAction(() => socialStore.applyNeighbor(groupId), '申请加入邻里失败')
+  }
+
+  const inviteNeighbor = async () => {
+    await runNeighborAction(() => socialStore.inviteNeighbor(), '发送邻里邀请失败')
+  }
+
+  const acceptNeighbor = async (requestId: string) => {
+    await runNeighborAction(() => socialStore.acceptNeighbor(requestId), '接受邻里请求失败')
+  }
+
+  const rejectNeighbor = async (requestId: string) => {
+    await runNeighborAction(() => socialStore.rejectNeighbor(requestId), '拒绝邻里请求失败')
+  }
+
+  const saveNeighborNotice = async () => {
+    await runNeighborAction(() => socialStore.saveNeighborNoticeDraft(), '保存邻里公告失败')
+  }
+
+  const setNeighborRole = async (targetUsername: string, role: 'manager' | 'member') => {
+    await runNeighborAction(() => socialStore.changeNeighborRole(targetUsername, role), '调整邻里身份失败')
+  }
+
+  const neighborRoleLabel = (role?: 'leader' | 'manager' | 'member') => {
+    if (role === 'leader') return '邻里社长'
+    if (role === 'manager') return '邻里管事'
+    return '邻里成员'
   }
 
   const refreshNeighborShell = async () => {
