@@ -577,7 +577,7 @@
         </div>
       </div>
 
-      <div v-else class="grid gap-3 lg:grid-cols-2">
+      <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">结算凭证</p>
@@ -586,11 +586,40 @@
           <div v-if="coopOrderStore.myReceipts.length === 0" class="mt-3 text-xs text-muted">
             当前没有结算凭证。
           </div>
-          <div v-else class="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
+          <div v-else class="mt-3 max-h-[36rem] space-y-2 overflow-y-auto pr-1">
             <div v-for="receipt in coopOrderStore.myReceipts" :key="receipt.id" class="border border-accent/10 bg-black/10 p-2">
-              <p class="truncate text-xs text-accent">{{ receipt.stage_title || receipt.order_id }}</p>
+              <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div class="min-w-0">
+                  <p class="truncate text-xs text-accent">{{ receipt.stage_title || `委托 ${receipt.order_id}` }}</p>
+                  <p class="mt-1 text-[10px] text-muted">凭证 {{ receipt.id }}</p>
+                </div>
+                <span class="w-fit shrink-0 text-[10px]" :class="receipt.status === 'confirmed' ? 'text-success' : receipt.status === 'compensation_pending' ? 'text-warning' : 'text-muted'">
+                  {{ getCoopReceiptStatusLabel(receipt.status) }}
+                </span>
+              </div>
+              <p class="mt-2 text-[10px] text-muted">
+                发布人：{{ receipt.owner_display_name || receipt.owner_username }} · 接单人：{{ receipt.assignee_display_name || receipt.assignee_username }}
+              </p>
+              <p class="mt-1 text-[10px] text-accent">
+                回报：{{ getCoopRewardTypeLabel(receipt.reward_type) }} {{ receipt.reward_value }} {{ receipt.reward_label ? `· ${receipt.reward_label}` : '' }}
+              </p>
               <p class="mt-1 text-[10px] text-muted">
-                {{ getCoopReceiptStatusLabel(receipt.status) }} · {{ getCoopRewardTypeLabel(receipt.reward_type) }} {{ receipt.reward_value }}
+                交付资源：{{ formatDeliveredItems(receipt.delivered_items) }}
+              </p>
+              <p class="mt-1 text-[10px] text-muted">
+                交付说明：{{ receipt.result_note || '未填写额外交付说明。' }}
+              </p>
+              <p v-if="receipt.help_reputation_delta > 0 || receipt.specialty_reputation_delta > 0" class="mt-1 text-[10px] text-success">
+                互助声望 +{{ receipt.help_reputation_delta }} · 专业 +{{ receipt.specialty_reputation_delta }} · {{ receipt.trust_level_label || '信赖已更新' }}
+              </p>
+              <p v-if="receipt.reward_result" class="mt-1 text-[10px] text-success">
+                {{ receipt.reward_result }}
+              </p>
+              <p v-if="receipt.compensation_id" class="mt-1 text-[10px] text-warning">
+                关联补偿：{{ receipt.compensation_id }}
+              </p>
+              <p class="mt-2 text-[10px] text-muted">
+                创建 {{ formatCoopTime(receipt.created_at) }} · 更新 {{ formatCoopTime(receipt.updated_at) }}
               </p>
             </div>
           </div>
@@ -604,17 +633,39 @@
           <div v-if="coopOrderStore.myCompensations.length === 0" class="mt-3 text-xs text-muted">
             当前没有待处理补偿。
           </div>
-          <div v-else class="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
+          <div v-else class="mt-3 max-h-[36rem] space-y-2 overflow-y-auto pr-1">
             <div v-for="compensation in coopOrderStore.myCompensations" :key="compensation.id" class="border border-accent/10 bg-black/10 p-2">
-              <div class="flex items-center justify-between gap-2">
-                <p class="truncate text-xs text-accent">{{ compensation.reason || compensation.order_id }}</p>
+              <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div class="min-w-0">
+                  <p class="truncate text-xs text-accent">{{ compensation.reason || `委托 ${compensation.order_id}` }}</p>
+                  <p class="mt-1 text-[10px] text-muted">补偿 {{ compensation.id }} · 凭证 {{ compensation.receipt_id }}</p>
+                </div>
                 <span class="shrink-0 text-[10px]" :class="compensation.status === 'pending' ? 'text-warning' : 'text-success'">
-                  {{ compensation.status === 'pending' ? '待重试' : '已解决' }}
+                  {{ getCompensationStatusLabel(compensation.status) }}
                 </span>
               </div>
-              <p v-if="compensation.last_error" class="mt-1 text-[10px] leading-4 text-danger">
-                {{ compensation.last_error }}
+              <p class="mt-2 text-[10px] text-accent">
+                回报：{{ getCoopRewardTypeLabel(compensation.reward_type) }} {{ compensation.reward_value }} {{ compensation.reward_label ? `· ${compensation.reward_label}` : '' }}
               </p>
+              <p class="mt-1 text-[10px] text-muted">
+                原因：{{ compensation.reason || '未记录补偿原因。' }}
+              </p>
+              <p v-if="compensation.last_error" class="mt-1 border border-danger/20 bg-danger/5 px-2 py-1 text-[10px] leading-4 text-danger">
+                最近失败：{{ compensation.last_error }}
+              </p>
+              <p class="mt-2 text-[10px] text-muted">
+                已尝试 {{ compensation.attempt_count }} 次 · 更新 {{ formatCoopTime(compensation.updated_at) }}
+              </p>
+              <div v-if="compensation.status === 'pending'" class="mt-2 flex justify-end">
+                <button
+                  class="online-action-btn online-action-btn--compact"
+                  type="button"
+                  :disabled="coopOrderStore.actionRunning"
+                  @click="retryCompensationEntry(compensation.id)"
+                >
+                  重试补偿
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -755,6 +806,12 @@
     if (status === 'confirmed') return '已确认'
     return '补偿处理中'
   }
+  const getCompensationStatusLabel = (status: 'pending' | 'resolved') =>
+    status === 'pending' ? '待重试' : '已解决'
+  const formatDeliveredItems = (items: Array<{ item_id: string; quantity: number }>) => {
+    if (items.length === 0) return '未登记资源'
+    return items.map(item => `${item.item_id} ×${item.quantity}`).join('、')
+  }
   const formatCoopTime = (timestamp: number) => {
     if (!timestamp) return '未设置'
     return new Date(timestamp * 1000).toLocaleString('zh-CN', { hour12: false })
@@ -820,6 +877,9 @@
   }
   const confirmStageDeliveryEntry = async (orderId: string, stageId: string) => {
     await coopOrderStore.confirmDelivery(orderId, stageId).catch(() => {})
+  }
+  const retryCompensationEntry = async (compensationId: string) => {
+    await coopOrderStore.retryCompensation(compensationId).catch(() => {})
   }
 
   onMounted(() => {
