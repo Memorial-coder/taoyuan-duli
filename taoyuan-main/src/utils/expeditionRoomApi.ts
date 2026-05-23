@@ -201,6 +201,8 @@ export interface ExpeditionRoomInvitationSnapshot {
   id: string
   target_username: string
   target_display_name: string
+  target_save_id: number
+  target_save_slot: number | null
   status: 'pending' | 'accepted' | 'rejected'
   created_at: number
   responded_at: number

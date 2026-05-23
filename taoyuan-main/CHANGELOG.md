@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 活动房间邀请存档级收口（A1-A4）
+- 远征 / 节会房间邀请快照类型新增 `target_save_id / target_save_slot`，与服务端邀请记录和 WebSocket 房间邀请事件保持一致。
+- 服务端会在受邀玩家加入房间时校验当前活动存档与受邀存档一致，继续保留旧 username 邀请兼容路径。
+- 验证通过 `type-check`、`build`、`qa:realtime-smoke` 与 `qa:online-smoke`。
+
 ### 0520 SaveIdentity 语义收口（A0-A1）
 - 公开数字 ID 只由服务端存档槽生成并持久化，纯本地未同步档不预生成公开 ID；本地档、导入档或云存档写入服务端后才补发并回写固定 ID。
 - `0520联机WebSocket.md` 与 `0520todo.md` 已同步该规则，并按现有 smoke 证据收口固定 ID、ID 不可改和 `SaveIdentity` 子项。

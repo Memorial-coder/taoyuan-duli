@@ -906,6 +906,17 @@ function sanitizeText(value, maxLength = 80) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
 }
 
+function normalizeActivitySaveId(value) {
+  const saveId = Number(value);
+  return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0;
+}
+
+function normalizeActivitySaveSlot(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const slot = Number(value);
+  return Number.isInteger(slot) && slot >= 0 && slot <= 2 ? slot : null;
+}
+
 function clampNumber(value, minValue, maxValue) {
   const numeric = Math.floor(Number(value) || 0);
   return Math.min(maxValue, Math.max(minValue, numeric));
@@ -1108,6 +1119,8 @@ function normalizeRoomInvitation(entry) {
     inviter_display_name: sanitizeText(entry?.inviter_display_name, 40),
     target_username: sanitizeText(entry?.target_username, 40),
     target_display_name: sanitizeText(entry?.target_display_name, 40),
+    target_save_id: normalizeActivitySaveId(entry?.target_save_id ?? entry?.targetSaveId),
+    target_save_slot: normalizeActivitySaveSlot(entry?.target_save_slot ?? entry?.targetSaveSlot),
     status: normalizeInvitationState(entry?.status),
     created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
     updated_at: Math.max(0, Math.floor(Number(entry?.updated_at) || nowSeconds())),
@@ -1754,6 +1767,24 @@ function getRoomMember(room, username) {
 function getRoomInvitation(room, username) {
   const normalizedUsername = sanitizeText(username, 40);
   return (room.invitations || []).find(invite => invite.target_username === normalizedUsername && invite.status === 'pending') || null;
+}
+
+function getActiveRoomSaveIdentity(username) {
+  try {
+    const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源乡存档');
+    return context?.identity || null;
+  } catch {
+    return null;
+  }
+}
+
+function ensureInvitationMatchesActiveSave(invitation, username) {
+  const targetSaveId = normalizeActivitySaveId(invitation?.target_save_id);
+  if (!targetSaveId) return;
+  const identity = getActiveRoomSaveIdentity(username);
+  if (!identity || normalizeActivitySaveId(identity.save_id) !== targetSaveId) {
+    throw createError('当前活动存档与房间邀请不匹配，请先切换到受邀存档再加入', 403);
+  }
 }
 
 function isMemberParticipating(member) {
@@ -3012,6 +3043,8 @@ function buildRoomSnapshot(store, room, viewerUsername) {
       id: invite.id,
       target_username: invite.target_username,
       target_display_name: invite.target_display_name,
+      target_save_id: invite.target_save_id,
+      target_save_slot: invite.target_save_slot,
       status: invite.status,
       created_at: invite.created_at,
       responded_at: invite.responded_at,
@@ -3161,7 +3194,7 @@ async function createFestivalRoom(payload = {}, actor = {}) {
 async function inviteFestivalRoomMember(roomId, payload = {}, actor = {}) {
   const username = sanitizeText(actor.username, 40);
   const displayName = sanitizeText(actor.displayName, 40) || username;
-  const { username: targetUsername } = resolveTargetBySaveIdOrUsername(payload, '请输入要邀请的玩家用户名或存档 ID');
+  const { username: targetUsername, identity: targetIdentity } = resolveTargetBySaveIdOrUsername(payload, '请输入要邀请的玩家用户名或存档 ID');
   if (targetUsername === username) throw createError('不能邀请自己加入节会房间');
   const targetUser = await db.getUser(targetUsername);
   if (!targetUser) throw createError('目标玩家不存在或已失效');
@@ -3186,10 +3219,17 @@ async function inviteFestivalRoomMember(roomId, payload = {}, actor = {}) {
     inviter_display_name: displayName,
     target_username: targetUser.username,
     target_display_name: targetUser.display_name || targetUser.username,
+    target_save_id: targetIdentity?.save_id || 0,
+    target_save_slot: targetIdentity?.save_slot ?? null,
     status: 'pending',
     created_at: nowSeconds(),
     updated_at: nowSeconds(),
-  }), ...(room.invitations || []).filter(invite => !(invite.target_username === targetUser.username && invite.status === 'pending')).map(normalizeRoomInvitation)];
+  }), ...(room.invitations || [])
+    .map(normalizeRoomInvitation)
+    .filter(invite => !(invite.status === 'pending' && (
+      invite.target_username === targetUser.username ||
+      (targetIdentity?.save_id && invite.target_save_id === targetIdentity.save_id)
+    )))];
   const existingMember = getRoomMember(room, targetUser.username);
   if (existingMember) {
     existingMember.status = 'invited';
@@ -3229,6 +3269,7 @@ async function joinFestivalRoom(roomId, actor = {}) {
   if (!invitation && room.host_username !== username) {
     throw createError('当前房间仅支持受邀成员加入', 403);
   }
+  if (invitation) ensureInvitationMatchesActiveSave(invitation, username);
   if (getJoinedMembers(room).length >= room.member_limit && !getRoomMember(room, username)) {
     throw createError('当前节会房间已满，稍后再试');
   }

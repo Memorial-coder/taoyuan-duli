@@ -1830,7 +1830,10 @@ try {
       payload.domain === 'expedition'
         && payload.action === 'invite'
         && payload.target_username === friend.username
+        && payload.target_save_id === friend.identity.save_id
         && payload.invitation?.target_username === friend.username
+        && payload.invitation?.target_save_id === friend.identity.save_id
+        && payload.invitation?.target_save_slot === friend.identity.save_slot
         && payload.room?.id === expeditionRoomId
     )
   })

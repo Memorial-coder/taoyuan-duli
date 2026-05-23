@@ -2062,7 +2062,9 @@ try {
       }),
     })
     assert(response.ok, `festival room invite returned ${response.status}: ${data?.msg || 'unknown error'}`)
-    assert(data?.ok === true && data?.room?.invitations?.some(item => item?.target_username === secondarySessionState.username), 'festival room invite payload is incomplete')
+    const invitation = data?.room?.invitations?.find(item => item?.target_username === secondarySessionState.username)
+    assert(data?.ok === true && invitation?.target_save_id === secondarySaveIdentity.save_id, 'festival room invite did not persist target save id')
+    assert(invitation?.target_save_slot === secondarySaveIdentity.save_slot, 'festival room invite did not persist target save slot')
   })
 
   await runCheck('POST /api/taoyuan/online/festival/rooms/:roomId/join write path', async () => {
@@ -2624,7 +2626,9 @@ try {
       }),
     })
     assert(response.ok, `expedition room invite returned ${response.status}: ${data?.msg || 'unknown error'}`)
-    assert(data?.ok === true && data?.room?.invitations?.some(item => item?.target_username === secondarySessionState.username), 'expedition room invite payload is incomplete')
+    const invitation = data?.room?.invitations?.find(item => item?.target_username === secondarySessionState.username)
+    assert(data?.ok === true && invitation?.target_save_id === secondarySaveIdentity.save_id, 'expedition room invite did not persist target save id')
+    assert(invitation?.target_save_slot === secondarySaveIdentity.save_slot, 'expedition room invite did not persist target save slot')
   })
 
   await runCheck('POST /api/taoyuan/online/expedition/rooms/:roomId/join write path', async () => {

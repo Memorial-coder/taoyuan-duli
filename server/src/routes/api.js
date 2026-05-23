@@ -289,6 +289,11 @@ function normalizeUsernameKey(username) {
   return normalizeUsername(username).toLocaleLowerCase('zh-CN');
 }
 
+function normalizeActivitySaveId(value) {
+  const saveId = Number(value);
+  return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0;
+}
+
 function getSessionActor(req) {
   return {
     username: req.session.username,
@@ -316,9 +321,16 @@ function collectActivityRoomRealtimeRecipients(room, extraUsernames = []) {
   return [...recipients];
 }
 
-function findActivityRoomInvitation(room, targetUsername = '') {
+function findActivityRoomInvitation(room, target = '') {
+  const targetUsername = target && typeof target === 'object'
+    ? (target.target_username ?? target.username ?? '')
+    : target;
+  const targetSaveId = target && typeof target === 'object'
+    ? normalizeActivitySaveId(target.target_save_id ?? target.save_id)
+    : 0;
   const normalizedTarget = normalizeUsernameKey(targetUsername);
   return (room?.invitations || []).find(invitation => {
+    if (targetSaveId && Number(invitation?.target_save_id) === targetSaveId) return true;
     if (!normalizedTarget) return invitation?.status === 'pending';
     return normalizeUsernameKey(invitation?.target_username) === normalizedTarget;
   }) || null;
@@ -1132,14 +1144,19 @@ function emitActivityRoomRealtimeEvent(domain, action, result, actor = {}, extra
   }
 }
 
-function emitActivityRoomInviteRealtimeEvent(domain, result, actor = {}, targetUsername = '') {
+function emitActivityRoomInviteRealtimeEvent(domain, result, actor = {}, target = {}) {
   const room = result?.room;
   if (!room) return { invited: 0, updated: 0 };
-  const invitation = findActivityRoomInvitation(room, targetUsername) || (room.invitations || [])[0] || null;
+  const invitation = findActivityRoomInvitation(room, target) || (room.invitations || [])[0] || null;
+  const targetUsername = target && typeof target === 'object'
+    ? (target.target_username ?? target.username ?? '')
+    : target;
   const resolvedTarget = normalizeUsernameKey(invitation?.target_username || targetUsername);
   if (!resolvedTarget) return { invited: 0, updated: 0 };
   const payloadExtra = {
     target_username: resolvedTarget,
+    target_save_id: invitation?.target_save_id || 0,
+    target_save_slot: invitation?.target_save_slot ?? null,
     invitation,
   };
   try {
@@ -3016,7 +3033,7 @@ router.post('/taoyuan/online/festival/rooms/:roomId/invite', createOnlineRelease
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
-    emitActivityRoomInviteRealtimeEvent('festival', result, getSessionActor(req), req.body?.target_username);
+    emitActivityRoomInviteRealtimeEvent('festival', result, getSessionActor(req), req.body || {});
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '发送节会邀请失败' });
@@ -3187,7 +3204,7 @@ router.post('/taoyuan/online/expedition/rooms/:roomId/invite', loginRequired, si
       username: req.session.username,
       displayName: req.session.display_name || req.session.username,
     });
-    emitActivityRoomInviteRealtimeEvent('expedition', result, getSessionActor(req), req.body?.target_username);
+    emitActivityRoomInviteRealtimeEvent('expedition', result, getSessionActor(req), req.body || {});
     res.json({ ok: true, ...result });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '发送远征邀请失败' });
