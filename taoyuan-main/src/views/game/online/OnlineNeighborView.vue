@@ -398,9 +398,30 @@
         </template>
       </div>
 
-      <div v-else-if="activeTab === 'friends'" class="game-panel-muted grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_240px]">
+      <div
+        v-else-if="activeTab === 'friends'"
+        class="game-panel-muted grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_240px]"
+        data-testid="online-neighbor-friends-entry"
+      >
         <div class="space-y-3">
-          <div class="grid gap-2 text-xs md:grid-cols-3">
+          <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div class="min-w-0">
+              <p class="text-sm text-accent">好友驿站</p>
+              <p class="mt-1 text-xs leading-5 text-muted">
+                好友搜索、申请、黑名单和目标玩家互动由独立驿站承接。
+              </p>
+            </div>
+            <button
+              class="online-action-btn online-action-btn--compact shrink-0"
+              type="button"
+              :disabled="socialStore.relationshipLoading"
+              @click="refreshFriendSummary"
+            >
+              <RefreshCw :size="12" :class="{ 'animate-spin': socialStore.relationshipLoading }" />
+              {{ socialStore.relationshipLoading ? '刷新中' : '刷新好友' }}
+            </button>
+          </div>
+          <div class="grid gap-2 text-xs sm:grid-cols-2 xl:grid-cols-4">
             <div class="border border-accent/10 bg-black/10 p-2">
               <p class="text-[10px] text-muted">好友</p>
               <p class="mt-1 text-accent">{{ socialStore.friends.length }} 位</p>
@@ -413,12 +434,17 @@
               <p class="text-[10px] text-muted">发出申请</p>
               <p class="mt-1 text-accent">{{ socialStore.outgoingRequests.length }} 条</p>
             </div>
+            <div class="border border-accent/10 bg-black/10 p-2">
+              <p class="text-[10px] text-muted">已拉黑</p>
+              <p class="mt-1 text-accent">{{ socialStore.blockedUsers.length }} 位</p>
+            </div>
           </div>
-          <p class="text-xs leading-5 text-muted">
-            好友搜索、申请处理、访问庄园、写信、送礼和房间邀请使用独立好友驿站承接。
-          </p>
         </div>
-        <RouterLink class="online-action-btn online-action-btn--compact h-fit justify-center" :to="{ name: 'friend-station' }">
+        <RouterLink
+          class="online-action-btn online-action-btn--compact h-fit justify-center"
+          :to="{ name: 'friend-station', query: { source: 'online_neighbor' } }"
+          data-testid="online-neighbor-friend-station-link"
+        >
           <ExternalLink :size="12" />
           好友驿站
         </RouterLink>
@@ -626,6 +652,11 @@
 
   const toggleTag = (tagId: string) => {
     socialStore.toggleSelectedTag(tagId)
+  }
+
+  const refreshFriendSummary = async () => {
+    await socialStore.refreshRelationships().catch(() => {})
+    lastRefreshAttemptAt.value = Date.now()
   }
 
   const refreshNeighborShell = async () => {
