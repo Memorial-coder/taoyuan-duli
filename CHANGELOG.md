@@ -2,6 +2,10 @@
 
 最后整理：2026-05-22
 
+- `0520todo.md / A0-A1` 这一轮收口 SaveIdentity 产品语义：公开数字 ID 只由服务端存档槽生成并持久化，纯本地未同步档不预生成公开 ID；本地档、导入档或云存档写入服务端后才补发并回写固定 ID。
+- `0520联机WebSocket.md` 已同步该规则；`0520todo.md` 中“每个存档固定数字 ID”“昵称可改、ID 不可改”和 `SaveIdentity` 已按现有 `qa:online-smoke` / `qa:online-regression-live-smoke` 证据收口。
+- 本轮为文档与任务队列语义收口，验证通过 `git diff --check`。
+
 - `0520todo.md / A5-A7` 这一轮把邻里寄售通知从“仅在线成员”扩展为同邻里成员统一投递：在线成员即时收到摘要，离线成员进入既有 realtime 补发队列，ready 后补发并等待 ACK 清理。
 - 邻里寄售补发仍只携带 `category: "exchange"`、挂单 ID / 状态、邻里范围和相关账号摘要，不包含物资明细、价格明细或 overview；队列继续受每用户上限与过期裁剪保护。
 - 本轮验证通过 `node --check server/src/routes/api.js`、`node --check server/scripts/qa-realtime-smoke.mjs` 与 `npm --prefix server run qa:realtime-smoke`，覆盖离线邻里成员收到 queued 挂单通知、ACK 后重连不重复。
