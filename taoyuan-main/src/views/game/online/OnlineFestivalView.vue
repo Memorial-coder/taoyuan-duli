@@ -60,14 +60,6 @@
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
           <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabMeta.summary }}</p>
         </div>
-        <RouterLink
-          v-if="activeTab === 'expedition-room'"
-          class="online-action-btn online-action-btn--compact shrink-0"
-          :to="legacyRouteForActiveTab"
-        >
-          <ExternalLink :size="12" />
-          {{ legacyRouteLabel }}
-        </RouterLink>
       </div>
 
       <div v-if="activeTab === 'world'" class="space-y-3">
@@ -674,36 +666,386 @@
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'expedition-room'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div v-else-if="activeTab === 'expedition-room'" class="space-y-3">
         <div class="game-panel-muted p-3">
-          <div class="flex items-center justify-between gap-2">
-            <p class="text-sm text-accent">远征房间状态</p>
-            <span class="text-[10px] text-muted">{{ expeditionRoomStore.myRoom?.state_label || '空闲中' }}</span>
+          <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div class="min-w-0">
+              <p class="text-sm text-accent">远征房间</p>
+              <p class="mt-1 text-xs leading-5 text-muted">
+                {{ expeditionRoomStore.overview?.bulletin || '这一页承接远征房间、协作矿洞、组队采集、护送抵运和海域共探的最小闭环。' }}
+              </p>
+            </div>
+            <span class="shrink-0 text-[10px] text-muted">{{ expeditionRoomStore.loading ? '正在刷新' : '已载入远征摘要' }}</span>
           </div>
-          <div v-if="expeditionRoomStore.myRoom" class="mt-3 border border-accent/10 bg-black/10 p-2">
-            <p class="truncate text-xs text-accent">{{ expeditionRoomStore.myRoom.title }}</p>
-            <p class="mt-1 text-[10px] leading-4 text-muted">
-              {{ expeditionRoomStore.myRoom.template_label }} · {{ expeditionRoomStore.myRoom.joined_member_count }}/{{ expeditionRoomStore.myRoom.member_limit }} 人
-            </p>
-            <p class="mt-1 text-[10px] text-muted">{{ expeditionRoomStore.myRoom.gameplay.template_label }} · {{ expeditionRoomStore.myRoom.gameplay.progress_text }}</p>
+        </div>
+
+        <div class="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <div class="space-y-3">
+            <div class="game-panel-muted p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm text-accent">我的远征状态</p>
+                <span class="text-[10px] text-muted">{{ expeditionRoomStore.myRoom ? expeditionRoomStore.myRoom.state_label : '空闲中' }}</span>
+              </div>
+              <div v-if="expeditionRoomStore.myRoom" class="mt-3 space-y-3">
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs text-accent">{{ expeditionRoomStore.myRoom.title }}</p>
+                      <p class="mt-1 text-[10px] text-muted">
+                        {{ expeditionRoomStore.myRoom.template_label }} · {{ expeditionRoomStore.myRoom.gameplay.template_label }} · {{ expeditionRoomStore.myRoom.joined_member_count }}/{{ expeditionRoomStore.myRoom.member_limit }} 人
+                      </p>
+                    </div>
+                    <span class="w-fit shrink-0 text-[10px] text-muted">{{ expeditionRoomStore.myRoom.state_label }}</span>
+                  </div>
+                  <p v-if="expeditionRoomStore.myRoom.state_reason" class="mt-1 text-[10px] leading-4 text-warning">{{ expeditionRoomStore.myRoom.state_reason }}</p>
+                  <p v-if="expeditionRoomStore.myRoom.opening_ceremony" class="mt-1 text-[10px] leading-4 text-success">
+                    {{ expeditionRoomStore.myRoom.opening_ceremony.subtitle }}
+                  </p>
+                </div>
+
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs text-accent">{{ expeditionRoomStore.myRoom.gameplay.template_label }}</p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.template_summary }}</p>
+                    </div>
+                    <span class="w-fit shrink-0 text-[10px] text-muted">{{ expeditionRoomStore.myRoom.gameplay.phase_label }}</span>
+                  </div>
+                  <p class="mt-2 text-[10px] text-muted">
+                    {{ expeditionRoomStore.myRoom.gameplay.progress_text }} · {{ expeditionRoomStore.myRoom.gameplay.score_label }} {{ expeditionRoomStore.myRoom.gameplay.score_value }}
+                  </p>
+                  <div class="mt-2 h-1.5 overflow-hidden border border-accent/10 bg-bg">
+                    <div class="h-full bg-accent/70 transition-all" :style="{ width: `${expeditionRoomStore.myRoom.gameplay.progress_percent}%` }" />
+                  </div>
+                  <p v-if="expeditionRoomStore.myRoom.gameplay.last_action_summary" class="mt-2 text-[10px] leading-4 text-success">
+                    {{ expeditionRoomStore.myRoom.gameplay.last_action_summary }}
+                  </p>
+                  <div v-if="expeditionRoomStore.myRoom.gameplay.contributions.length > 0" class="mt-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1">
+                    <span
+                      v-for="contribution in expeditionRoomStore.myRoom.gameplay.contributions"
+                      :key="`${expeditionRoomStore.myRoom.id}-${contribution.username}-expedition-gameplay`"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                    >
+                      {{ contribution.display_name }} · {{ contribution.action_count }} 次 · {{ contribution.progress_value }} 贡献
+                    </span>
+                  </div>
+                </div>
+
+                <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state" class="space-y-3">
+                  <div class="border border-accent/10 bg-black/10 p-2">
+                    <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                      <div class="min-w-0">
+                        <p class="truncate text-xs text-accent">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.round_text }}</p>
+                        <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.summary }}</p>
+                      </div>
+                      <span class="w-fit shrink-0 text-[10px] text-warning">风险 {{ expeditionRoomStore.myRoom.gameplay.cavern_state.risk_text }}</span>
+                    </div>
+                    <div class="mt-2 grid gap-2 md:grid-cols-2">
+                      <div class="border border-accent/10 bg-black/10 p-2">
+                        <p class="text-[10px] text-muted">事件卡</p>
+                        <p class="mt-1 text-xs text-text">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.label }}</p>
+                        <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.risk_hint }}</p>
+                        <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.current_event.resource_hint }}</p>
+                      </div>
+                      <div class="border border-accent/10 bg-black/10 p-2">
+                        <p class="text-[10px] text-muted">我的职责</p>
+                        <template v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.my_role">
+                          <p class="mt-1 text-xs text-text">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.my_role.role_label }}</p>
+                          <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.myRoom.gameplay.cavern_state.my_role.role_summary }}</p>
+                        </template>
+                        <p v-else class="mt-1 text-[10px] text-muted">加入房间后会显示本局职责。</p>
+                      </div>
+                    </div>
+                    <p v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback" class="mt-2 text-[10px] leading-4 text-success">
+                      {{ expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback }}
+                    </p>
+                  </div>
+
+                  <div class="grid gap-2 md:grid-cols-2">
+                    <div class="border border-accent/10 bg-black/10 p-2">
+                      <p class="text-xs text-accent">队伍资源</p>
+                      <div class="mt-2 grid max-h-36 grid-cols-2 gap-2 overflow-y-auto pr-1">
+                        <div v-for="resource in expeditionRoomStore.myRoom.gameplay.cavern_state.team_resources" :key="resource.id" class="border border-accent/10 bg-black/10 p-2">
+                          <p class="text-[10px] text-accent">{{ resource.label }}</p>
+                          <p class="mt-1 text-xs text-text">{{ resource.value }} / {{ resource.max_value }}</p>
+                          <p class="mt-1 text-[10px] text-muted">{{ resource.text }}</p>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="border border-accent/10 bg-black/10 p-2">
+                      <p class="text-xs text-accent">职责分工</p>
+                      <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.role_assignments.length === 0" class="mt-2 text-[10px] text-muted">当前还没有完成队伍分工。</div>
+                      <div v-else class="mt-2 max-h-36 space-y-1.5 overflow-y-auto pr-1">
+                        <div v-for="role in expeditionRoomStore.myRoom.gameplay.cavern_state.role_assignments" :key="`${expeditionRoomStore.myRoom.id}-${role.username}-role`" class="flex items-start justify-between gap-2">
+                          <span class="min-w-0 truncate text-[10px] text-text">{{ role.display_name }}</span>
+                          <span class="shrink-0 text-[10px] text-accent">{{ role.role_label }}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.round_log.length > 0" class="border border-accent/10 bg-black/10 p-2">
+                    <p class="text-xs text-accent">回合日志</p>
+                    <div class="mt-2 max-h-52 space-y-2 overflow-y-auto pr-1">
+                      <div v-for="entry in expeditionRoomStore.myRoom.gameplay.cavern_state.round_log.slice(0, 8)" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
+                        <div class="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
+                          <p class="min-w-0 truncate text-[10px] text-accent">第 {{ entry.round_number }} 回合 · {{ entry.action_label }}</p>
+                          <span v-if="entry.role_label" class="shrink-0 text-[10px] text-muted">{{ entry.role_label }}</span>
+                        </div>
+                        <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="expeditionRoomStore.myRoom.gameplay.available_actions.length > 0" class="space-y-2">
+                  <p class="text-[10px] text-muted">玩法动作</p>
+                  <div class="grid gap-2 md:grid-cols-2">
+                    <div
+                      v-for="action in expeditionRoomStore.myRoom.gameplay.available_actions"
+                      :key="`${expeditionRoomStore.myRoom.id}-${action.id}`"
+                      class="border border-accent/10 bg-black/10 p-2"
+                    >
+                      <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
+                        <Button
+                          class="online-action-btn online-action-btn--compact shrink-0"
+                          :disabled="expeditionRoomStore.actionRunning || !action.can_use"
+                          @click="playExpeditionGameplayAction(expeditionRoomStore.myRoom.id, action.id)"
+                        >
+                          {{ action.label }}
+                        </Button>
+                        <p class="text-[10px] leading-4 text-muted">{{ action.summary }}</p>
+                      </div>
+                      <div class="mt-2 flex flex-wrap gap-1.5">
+                        <span v-if="action.required_role_label" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                          {{ action.required_role_label }}
+                        </span>
+                        <span v-if="action.once_per_round" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                          每回合一次
+                        </span>
+                        <span v-if="action.risk_delta_text" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                          {{ action.risk_delta_text }}
+                        </span>
+                        <span v-if="action.resource_delta_text" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                          {{ action.resource_delta_text }}
+                        </span>
+                      </div>
+                      <p v-if="action.round_effect" class="mt-2 text-[10px] leading-4 text-muted">{{ action.round_effect }}</p>
+                      <p v-if="!action.can_use && action.disabled_reason" class="mt-1 text-[10px] text-muted">{{ action.disabled_reason }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="expeditionRoomStore.myRoom.settlement_receipts.length > 0" class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-xs text-accent">本房结算凭证</p>
+                  <div class="mt-2 max-h-36 space-y-1.5 overflow-y-auto pr-1">
+                    <p
+                      v-for="receipt in expeditionRoomStore.myRoom.settlement_receipts"
+                      :key="receipt.id"
+                      class="text-[10px] leading-4 text-muted"
+                    >
+                      {{ receipt.target_display_name }} · {{ receipt.status_label }} · {{ receipt.summary }}
+                    </p>
+                  </div>
+                </div>
+
+                <label class="block">
+                  <span class="text-[10px] text-muted">邀请玩家</span>
+                  <div class="online-action-row mt-1">
+                    <input
+                      v-model="expeditionRoomStore.draftInviteUsername"
+                      class="online-input flex-1"
+                      placeholder="输入用户名"
+                    />
+                    <Button class="online-action-btn online-action-btn--primary" :disabled="expeditionRoomStore.actionRunning" @click="inviteExpeditionMember(expeditionRoomStore.myRoom.id)">
+                      邀请
+                    </Button>
+                  </div>
+                </label>
+
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <Button v-if="expeditionRoomStore.myRoom.can_host_ready_check" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="startExpeditionReadyCheck(expeditionRoomStore.myRoom.id)">
+                    开始 ready
+                  </Button>
+                  <Button v-if="expeditionRoomStore.myRoom.can_ready" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="readyExpeditionRoom(expeditionRoomStore.myRoom.id)">
+                    我已准备
+                  </Button>
+                  <Button v-if="expeditionRoomStore.myRoom.can_unready" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="unreadyExpeditionRoom(expeditionRoomStore.myRoom.id)">
+                    取消准备
+                  </Button>
+                  <Button v-if="expeditionRoomStore.myRoom.can_host_start_countdown" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="startExpeditionCountdown(expeditionRoomStore.myRoom.id)">
+                    开始倒计时
+                  </Button>
+                  <Button v-if="expeditionRoomStore.myRoom.can_disconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="disconnectExpeditionRoom(expeditionRoomStore.myRoom.id)">
+                    模拟断线
+                  </Button>
+                  <Button v-if="expeditionRoomStore.myRoom.can_reconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="reconnectExpeditionRoom(expeditionRoomStore.myRoom.id)">
+                    恢复连接
+                  </Button>
+                  <Button v-if="expeditionRoomStore.myRoom.can_host_settle" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="settleExpeditionRoom(expeditionRoomStore.myRoom.id)">
+                    撤离并结算
+                  </Button>
+                  <Button v-if="expeditionRoomStore.myRoom.can_host_close" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="closeExpeditionRoom(expeditionRoomStore.myRoom.id)">
+                    {{ expeditionRoomStore.myRoom.state === 'settling' ? '正式关闭' : '取消房间' }}
+                  </Button>
+                  <Button v-if="expeditionRoomStore.myRoom.can_leave" class="online-action-btn online-action-btn--compact justify-center" :disabled="expeditionRoomStore.actionRunning" @click="leaveExpeditionRoom(expeditionRoomStore.myRoom.id)">
+                    离开房间
+                  </Button>
+                </div>
+              </div>
+              <p v-else class="mt-3 text-xs leading-5 text-muted">当前没有进行中的远征房间。可以先处理邀请，或创建自己的远征房间。</p>
+            </div>
+
+            <div class="game-panel-muted p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm text-accent">待处理邀请</p>
+                <span class="text-[10px] text-muted">{{ expeditionRoomStore.invitedRooms.length }} 条</span>
+              </div>
+              <div v-if="expeditionRoomStore.invitedRooms.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有待处理的远征邀请。</div>
+              <div v-else class="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
+                <div v-for="room in expeditionRoomStore.invitedRooms" :key="room.id" class="border border-warning/15 bg-warning/5 p-2">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs text-text">{{ room.title }}</p>
+                      <p class="mt-1 text-[10px] text-muted">{{ room.template_label }} · {{ room.gameplay.template_label }} · 房主 {{ room.host_display_name }}</p>
+                    </div>
+                    <Button class="online-action-btn online-action-btn--compact shrink-0" :disabled="expeditionRoomStore.actionRunning || !room.can_join" @click="joinExpeditionRoom(room.id)">
+                      加入
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <p v-else class="mt-3 text-xs leading-5 text-muted">当前没有自己的远征房间。远征创建、邀请、倒计时、断线恢复、回合动作和结算先由旧远征页承接。</p>
+
+          <div class="space-y-3">
+            <div class="game-panel-muted p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm text-accent">创建远征房间</p>
+                <span class="text-[10px] text-muted">远征与玩法</span>
+              </div>
+              <div class="mt-3 space-y-3">
+                <label class="block">
+                  <span class="text-[10px] text-muted">远征模板</span>
+                  <select v-model="expeditionRoomStore.selectedTemplateId" class="online-select mt-1">
+                    <option v-for="template in expeditionRoomStore.templates" :key="template.id" :value="template.id">
+                      {{ template.label }}
+                    </option>
+                  </select>
+                </label>
+                <div v-if="expeditionRoomStore.selectedTemplate" class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-xs text-accent">{{ expeditionRoomStore.selectedTemplate.label }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.selectedTemplate.summary }}</p>
+                  <p class="mt-1 text-[10px] text-muted">默认人数上限：{{ expeditionRoomStore.selectedTemplate.default_member_limit }} 人</p>
+                  <p v-if="expeditionRoomStore.recommendedGameplayTemplates.length > 0" class="mt-1 text-[10px] text-muted">
+                    推荐玩法：{{ expeditionRoomStore.recommendedGameplayTemplates.map(template => template.label).join(' / ') }}
+                  </p>
+                </div>
+                <label class="block">
+                  <span class="text-[10px] text-muted">玩法模板</span>
+                  <select v-model="expeditionRoomStore.selectedGameplayTemplateId" class="online-select mt-1">
+                    <option v-for="template in expeditionRoomStore.gameplayTemplates" :key="template.id" :value="template.id">
+                      {{ template.label }}
+                    </option>
+                  </select>
+                </label>
+                <div v-if="expeditionRoomStore.selectedGameplayTemplate" class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-xs text-accent">{{ expeditionRoomStore.selectedGameplayTemplate.label }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ expeditionRoomStore.selectedGameplayTemplate.summary }}</p>
+                  <p class="mt-1 text-[10px] text-muted">
+                    {{ expeditionRoomStore.selectedGameplayTemplate.objective_label }} · 目标 {{ expeditionRoomStore.selectedGameplayTemplate.default_target }}
+                  </p>
+                  <div v-if="expeditionRoomStore.selectedGameplayTemplate.action_options.length > 0" class="mt-2 flex flex-wrap gap-1.5">
+                    <span
+                      v-for="action in expeditionRoomStore.selectedGameplayTemplate.action_options"
+                      :key="action.id"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                    >
+                      {{ action.label }}
+                    </span>
+                  </div>
+                </div>
+                <label class="block">
+                  <span class="text-[10px] text-muted">房间标题</span>
+                  <input
+                    v-model="expeditionRoomStore.draftTitle"
+                    maxlength="30"
+                    class="online-input mt-1"
+                    placeholder="例如：高地补给接力"
+                  />
+                </label>
+                <Button
+                  class="online-action-btn online-action-btn--primary w-full justify-center"
+                  :disabled="expeditionRoomStore.actionRunning || !expeditionRoomStore.selectedTemplate || !expeditionRoomStore.selectedGameplayTemplate"
+                  @click="createExpeditionRoom"
+                >
+                  创建远征房间
+                </Button>
+              </div>
+            </div>
+
+            <div class="game-panel-muted p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm text-accent">可见房间</p>
+                <span class="text-[10px] text-muted">{{ expeditionRoomStore.visibleRooms.length }} 间</span>
+              </div>
+              <div v-if="expeditionRoomStore.visibleRooms.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有你能查看的远征房间。</div>
+              <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+                <div v-for="room in expeditionRoomStore.visibleRooms" :key="room.id" class="border border-accent/10 bg-black/10 p-2">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs text-accent">{{ room.title }}</p>
+                      <p class="mt-1 text-[10px] text-muted">
+                        {{ room.template_label }} · {{ room.gameplay.template_label }} · {{ room.state_label }} · {{ room.joined_member_count }}/{{ room.member_limit }} 人
+                      </p>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-2">
+                      <span class="text-[10px] text-muted">{{ room.ready_member_count }} 已准备</span>
+                      <Button v-if="room.can_join" class="online-action-btn online-action-btn--compact" :disabled="expeditionRoomStore.actionRunning" @click="joinExpeditionRoom(room.id)">
+                        加入
+                      </Button>
+                    </div>
+                  </div>
+                  <p class="mt-2 text-[10px] text-muted">{{ room.gameplay.progress_text }} · {{ room.gameplay.score_label }} {{ room.gameplay.score_value }}</p>
+                  <div class="mt-2 h-1.5 overflow-hidden border border-accent/10 bg-bg">
+                    <div class="h-full bg-accent/70 transition-all" :style="{ width: `${room.gameplay.progress_percent}%` }" />
+                  </div>
+                  <div v-if="room.members.length > 0" class="mt-2 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto pr-1">
+                    <span
+                      v-for="member in room.members"
+                      :key="`${room.id}-${member.username}`"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                    >
+                      {{ member.display_name }} · {{ member.status_label }}
+                    </span>
+                  </div>
+                  <div v-if="room.recent_events.length > 0" class="mt-2 max-h-24 space-y-1 overflow-y-auto pr-1">
+                    <p v-for="event in room.recent_events.slice(0, 4)" :key="event.id" class="text-[10px] leading-4 text-muted">
+                      - {{ event.summary }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="game-panel-muted p-3">
-          <p class="text-sm text-accent">远征摘要</p>
-          <div class="mt-3 grid gap-2 text-xs">
-            <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">邀请</p>
-              <p class="mt-1 text-accent">{{ expeditionRoomStore.invitedRooms.length }} 条</p>
-            </div>
-            <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">可见房间</p>
-              <p class="mt-1 text-accent">{{ expeditionRoomStore.visibleRooms.length }} 间</p>
-            </div>
-            <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">结算凭证</p>
-              <p class="mt-1 text-accent">{{ expeditionRoomStore.recentReceipts.length }} 条</p>
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm text-accent">最近结算凭证</p>
+            <span class="text-[10px] text-muted">{{ expeditionRoomStore.recentReceipts.length }} 条</span>
+          </div>
+          <div v-if="expeditionRoomStore.recentReceipts.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有远征房间结算凭证。</div>
+          <div v-else class="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
+            <div v-for="receipt in expeditionRoomStore.recentReceipts" :key="receipt.id" class="border border-accent/10 bg-black/10 p-2">
+              <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div class="min-w-0">
+                  <p class="truncate text-xs text-text">{{ receipt.room_title }}</p>
+                  <p class="mt-1 text-[10px] text-muted">{{ receipt.template_label }} · 槽位 {{ receipt.target_slot + 1 }}</p>
+                </div>
+                <span class="w-fit shrink-0 text-[10px] text-accent">{{ receipt.status_label }}</span>
+              </div>
+              <p class="mt-2 text-[10px] leading-4 text-muted">{{ receipt.summary }}</p>
             </div>
           </div>
         </div>
@@ -752,7 +1094,7 @@
 <script setup lang="ts">
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
-  import { ArrowLeft, CalendarDays, ExternalLink, RefreshCw } from 'lucide-vue-next'
+  import { ArrowLeft, CalendarDays, RefreshCw } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
@@ -788,8 +1130,8 @@
 
   const tabs: FestivalTabMeta[] = [
     { key: 'world', label: '世界事件', summary: '查看当前季节大事件、公共目标和世界纪年入口。' },
-    { key: 'festival-room', label: '节会房间', summary: '查看我的节会房间、邀请、可见房间和结算摘要。' },
-    { key: 'expedition-room', label: '远征房间', summary: '从节会模块进入远征房间，保留组队、ready、断线恢复和结算旧入口。' },
+    { key: 'festival-room', label: '节会房间', summary: '创建节会房间，处理邀请、ready、玩法动作和结算凭证。' },
+    { key: 'expedition-room', label: '远征房间', summary: '创建远征队伍，处理分工、资源、回合动作、断线恢复和结算。' },
     { key: 'memorials', label: '纪念记录', summary: '集中查看节会纪念、结算凭证和后续纪年记录入口。' },
   ]
 
@@ -829,10 +1171,6 @@
     { label: '远征房间', value: expeditionRoomStore.myRoom?.state_label || `${expeditionRoomStore.visibleRooms.length} 可见` },
     { label: '纪念与凭证', value: `${festivalRoomStore.recentMemorials.length + festivalRoomStore.recentReceipts.length + expeditionRoomStore.recentReceipts.length} 条` },
   ])
-  const legacyRouteForActiveTab = computed(() =>
-    activeTab.value === 'expedition-room' ? { name: 'expedition' } : { name: 'festival' }
-  )
-  const legacyRouteLabel = computed(() => activeTab.value === 'expedition-room' ? '打开远征旧页' : '打开节会旧页')
   const recentReceiptCards = computed<ReceiptCard[]>(() => [
     ...festivalRoomStore.recentReceipts.map(receipt => ({
       id: `festival-${receipt.id}`,
@@ -859,8 +1197,14 @@
   const applyInviteRouteDraft = () => {
     const targetUsername = getRouteQueryText(route.query.target_username)
     const targetSaveId = getRouteQueryText(route.query.target_save_id)
-    if (targetUsername) festivalRoomStore.draftInviteUsername = targetUsername
-    if (targetSaveId) festivalRoomStore.draftInviteSaveId = targetSaveId
+    if (targetUsername) {
+      festivalRoomStore.draftInviteUsername = targetUsername
+      expeditionRoomStore.draftInviteUsername = targetUsername
+    }
+    if (targetSaveId) {
+      festivalRoomStore.draftInviteSaveId = targetSaveId
+      expeditionRoomStore.draftInviteSaveId = targetSaveId
+    }
   }
   const refreshFestivalModule = async () => {
     await Promise.all([
@@ -911,6 +1255,45 @@
   }
   const closeRoom = async (roomId: string) => {
     await festivalRoomStore.closeRoomAction(roomId).catch(() => {})
+  }
+  const createExpeditionRoom = async () => {
+    await expeditionRoomStore.createRoom().catch(() => {})
+  }
+  const inviteExpeditionMember = async (roomId: string) => {
+    await expeditionRoomStore.inviteMember(roomId).catch(() => {})
+  }
+  const joinExpeditionRoom = async (roomId: string) => {
+    await expeditionRoomStore.joinRoom(roomId).catch(() => {})
+  }
+  const leaveExpeditionRoom = async (roomId: string) => {
+    await expeditionRoomStore.leaveRoomAction(roomId).catch(() => {})
+  }
+  const startExpeditionReadyCheck = async (roomId: string) => {
+    await expeditionRoomStore.startReadyCheck(roomId).catch(() => {})
+  }
+  const readyExpeditionRoom = async (roomId: string) => {
+    await expeditionRoomStore.readyRoomAction(roomId).catch(() => {})
+  }
+  const unreadyExpeditionRoom = async (roomId: string) => {
+    await expeditionRoomStore.unreadyRoomAction(roomId).catch(() => {})
+  }
+  const startExpeditionCountdown = async (roomId: string) => {
+    await expeditionRoomStore.startCountdown(roomId).catch(() => {})
+  }
+  const disconnectExpeditionRoom = async (roomId: string) => {
+    await expeditionRoomStore.disconnectRoomAction(roomId).catch(() => {})
+  }
+  const reconnectExpeditionRoom = async (roomId: string) => {
+    await expeditionRoomStore.reconnectRoomAction(roomId).catch(() => {})
+  }
+  const playExpeditionGameplayAction = async (roomId: string, actionId: string) => {
+    await expeditionRoomStore.submitGameplayAction(roomId, actionId).catch(() => {})
+  }
+  const settleExpeditionRoom = async (roomId: string) => {
+    await expeditionRoomStore.settleRoomAction(roomId).catch(() => {})
+  }
+  const closeExpeditionRoom = async (roomId: string) => {
+    await expeditionRoomStore.closeRoomAction(roomId).catch(() => {})
   }
 
   watch(
