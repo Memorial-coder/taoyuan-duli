@@ -58,10 +58,6 @@
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
           <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabMeta.summary }}</p>
         </div>
-        <RouterLink class="online-action-btn online-action-btn--compact shrink-0" :to="{ name: 'social' }">
-          <ExternalLink :size="12" />
-          完整邻里页
-        </RouterLink>
       </div>
 
       <div v-if="activeTab === 'profile'" class="space-y-3">
@@ -861,7 +857,7 @@
   )
   const neighborGroupTitle = computed(() => socialStore.neighborGroup?.name || '尚未加入邻里')
   const neighborGroupSummary = computed(() => {
-    if (!socialStore.neighborGroup) return '可以从公开邻里里申请加入，也可以在完整邻里页创建自己的邻里组织。'
+    if (!socialStore.neighborGroup) return '可以从公开邻里里申请加入，也可以在邻里标签里创建自己的邻里组织。'
     return socialStore.neighborGroup.summary || socialStore.neighborGroup.notice || '这个邻里还没写简介。'
   })
   const canManageNeighbor = computed(() => {

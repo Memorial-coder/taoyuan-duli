@@ -58,10 +58,6 @@
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
           <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabMeta.summary }}</p>
         </div>
-        <RouterLink class="online-action-btn online-action-btn--compact shrink-0" :to="legacyManorTarget">
-          <ExternalLink :size="12" />
-          完整庄园页
-        </RouterLink>
       </div>
 
       <div v-if="activeTab === 'overview'" class="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
@@ -607,7 +603,6 @@
   import { useRoute } from 'vue-router'
   import {
     ArrowLeft,
-    ExternalLink,
     Home,
     Image as ImageIcon,
     MapPin,
@@ -749,18 +744,9 @@
   ])
 
   const overviewCopy = computed(() => {
-    if (!snapshot.value) return '先刷新庄园快照，概览页只承接摘要，完整表单会按主题、留言、来访、导览分拆。'
-    if (snapshot.value.viewer_is_owner) return '这是自己的庄园概览；管理操作会逐步拆到各标签页，当前仍可从完整庄园页过渡处理。'
+    if (!snapshot.value) return '先刷新庄园快照，概览页只承接摘要，主题、留言、来访、导览会在各自标签里处理。'
+    if (snapshot.value.viewer_is_owner) return '这是自己的庄园概览；管理操作已经按主题、留言、来访、导览和收藏拆到各标签页。'
     return '这是访客视角的庄园概览；页面只展示可访问内容，不暴露庄园主编辑控件。'
-  })
-
-  const legacyManorTarget = computed(() => {
-    const query: Record<string, string> = {}
-    if (routeTargetUsername.value) query.target_username = routeTargetUsername.value
-    if (routeTargetSaveId.value) query.target_save_id = routeTargetSaveId.value
-    return Object.keys(query).length > 0
-      ? { name: 'manor', query }
-      : { name: 'manor' }
   })
 
   const refreshSnapshot = async () => {

@@ -58,10 +58,6 @@
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
           <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabMeta.summary }}</p>
         </div>
-        <RouterLink class="online-action-btn online-action-btn--compact shrink-0" :to="{ name: 'society' }">
-          <ExternalLink :size="12" />
-          打开村社旧页
-        </RouterLink>
       </div>
 
       <div v-if="activeTab === 'overview'" class="grid gap-3 lg:grid-cols-[minmax(0,1.08fr)_minmax(0,0.92fr)]">
@@ -314,9 +310,6 @@
               </div>
             </div>
           </div>
-          <RouterLink v-if="societyStore.visibleSocieties.length > visibleSocietyPreview.length" class="mt-3 inline-flex text-[10px] text-accent" :to="{ name: 'society' }">
-            查看更多公开村社
-          </RouterLink>
         </div>
       </div>
 
@@ -800,7 +793,7 @@
 <script setup lang="ts">
   import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
   import { useRoute } from 'vue-router'
-  import { ArrowLeft, ExternalLink, RefreshCw, ShieldCheck } from 'lucide-vue-next'
+  import { ArrowLeft, RefreshCw, ShieldCheck } from 'lucide-vue-next'
   import { useSocietyStore } from '@/stores/useSocietyStore'
   import type { SocietyProposalChoice, SocietyProposalSnapshot, SocietyRole, SocietySnapshot } from '@/utils/societyApi'
 
@@ -829,7 +822,7 @@
   const activeTab = ref<SocietyTabKey>(normalizeTab(route.query.tab))
   const createPanelRef = ref<HTMLElement | null>(null)
   const currentSociety = computed(() => societyStore.mySociety)
-  const visibleSocietyPreview = computed(() => societyStore.visibleSocieties.slice(0, 5))
+  const visibleSocietyPreview = computed(() => societyStore.visibleSocieties)
   const memberCount = computed(() => currentSociety.value?.members.length ?? 0)
   const activeProjectCount = computed(() => currentSociety.value?.public_projects.filter(project => project.status !== 'completed').length ?? 0)
   const activeTabMeta = computed(() => tabs.find(tab => tab.key === activeTab.value) ?? tabs[0]!)
