@@ -1,0 +1,378 @@
+<template>
+  <section class="visual-map-board" data-testid="visual-map-board">
+    <div class="visual-map-board__canvas" role="group" aria-label="可视化地图">
+      <svg class="visual-map-board__links" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+        <line
+          v-for="link in visibleLinks"
+          :key="link.id"
+          :x1="link.from.x"
+          :y1="link.from.y"
+          :x2="link.to.x"
+          :y2="link.to.y"
+          class="visual-map-board__link"
+          :class="`visual-map-board__link--${link.tone}`"
+        />
+      </svg>
+
+      <button
+        v-for="node in visibleNodes"
+        :key="node.id"
+        type="button"
+        class="visual-map-board__node"
+        :class="[
+          `visual-map-board__node--${node.state}`,
+          { 'visual-map-board__node--selected': node.id === activeNodeId },
+        ]"
+        :style="{ left: `${node.x}%`, top: `${node.y}%` }"
+        :title="nodeTooltip(node)"
+        @click="selectNode(node.id)"
+      >
+        <component :is="nodeIcon(node)" :size="15" aria-hidden="true" />
+        <span class="visual-map-board__node-label">{{ node.label || node.kind || node.id }}</span>
+      </button>
+    </div>
+
+    <div class="visual-map-board__side">
+      <div v-if="selectedNode" class="visual-map-board__detail" data-testid="visual-map-node-detail">
+        <div class="visual-map-board__detail-head">
+          <div class="min-w-0">
+            <p class="visual-map-board__title">{{ selectedNode.label || selectedNode.id }}</p>
+            <p class="visual-map-board__meta">{{ stateLabel(selectedNode.state) }} · {{ selectedNode.kind || 'node' }}</p>
+          </div>
+          <span v-if="selectedNode.claimed_by || selectedNode.owner_username" class="visual-map-board__claim">
+            {{ selectedNode.claimed_by || selectedNode.owner_username }}
+          </span>
+        </div>
+
+        <div class="visual-map-board__preview-grid">
+          <p v-if="selectedNode.risk_preview" class="visual-map-board__preview visual-map-board__preview--risk">
+            {{ selectedNode.risk_preview }}
+          </p>
+          <p v-if="selectedNode.reward_preview" class="visual-map-board__preview visual-map-board__preview--reward">
+            {{ selectedNode.reward_preview }}
+          </p>
+        </div>
+
+        <div v-if="resourcePreviewText(selectedNode.resource_cost_preview)" class="visual-map-board__resource">
+          消耗：{{ resourcePreviewText(selectedNode.resource_cost_preview) }}
+        </div>
+        <div v-if="resourcePreviewText(selectedNode.resource_reward_preview)" class="visual-map-board__resource">
+          产出：{{ resourcePreviewText(selectedNode.resource_reward_preview) }}
+        </div>
+
+        <div v-if="selectedNode.available_action_ids.length > 0" class="visual-map-board__actions">
+          <button
+            v-for="actionId in selectedNode.available_action_ids"
+            :key="`${selectedNode.id}-${actionId}`"
+            type="button"
+            class="visual-map-board__action"
+            :disabled="actionRunning"
+            :title="actionId"
+            @click="$emit('trigger-action', { nodeId: selectedNode.id, actionId })"
+          >
+            <Play :size="13" aria-hidden="true" />
+            <span>{{ actionLabel(actionId) }}</span>
+          </button>
+        </div>
+      </div>
+
+      <div v-else class="visual-map-board__empty">
+        <MapPin :size="16" aria-hidden="true" />
+        <span>选择一个节点</span>
+      </div>
+
+      <p v-if="recentFeedback" class="visual-map-board__feedback">{{ recentFeedback }}</p>
+    </div>
+  </section>
+</template>
+
+<script setup lang="ts">
+  import { computed } from 'vue'
+  import { AlertTriangle, Circle, DoorOpen, Gift, MapPin, Pickaxe, Play, Shield } from 'lucide-vue-next'
+  import type { Component } from 'vue'
+  import type { OnlineVisualNode } from '@/types/onlineVisual'
+
+  const props = withDefaults(defineProps<{
+    nodes: OnlineVisualNode[]
+    selectedNodeId?: string
+    recentFeedback?: string
+    actionRunning?: boolean
+    actionLabels?: Record<string, string>
+  }>(), {
+    selectedNodeId: '',
+    recentFeedback: '',
+    actionRunning: false,
+    actionLabels: () => ({}),
+  })
+
+  const emit = defineEmits<{
+    (event: 'select-node', nodeId: string): void
+    (event: 'trigger-action', payload: { nodeId: string, actionId: string }): void
+  }>()
+
+  const visibleNodes = computed(() => props.nodes.filter(node => node.state !== 'hidden'))
+  const nodeById = computed(() => new Map(visibleNodes.value.map(node => [node.id, node])))
+  const activeNodeId = computed(() => {
+    if (props.selectedNodeId && nodeById.value.has(props.selectedNodeId)) return props.selectedNodeId
+    return visibleNodes.value[0]?.id || ''
+  })
+  const selectedNode = computed(() => nodeById.value.get(activeNodeId.value) || null)
+
+  const visibleLinks = computed(() => {
+    const seen = new Set<string>()
+    return visibleNodes.value.flatMap(from => from.connected_node_ids.map(targetId => {
+      const to = nodeById.value.get(targetId)
+      if (!to) return null
+      const id = [from.id, to.id].sort().join('__')
+      if (seen.has(id)) return null
+      seen.add(id)
+      return {
+        id,
+        from,
+        to,
+        tone: from.state === 'locked' || to.state === 'locked' ? 'muted' : 'active',
+      }
+    }).filter(Boolean) as Array<{ id: string, from: OnlineVisualNode, to: OnlineVisualNode, tone: 'active' | 'muted' }>)
+  })
+
+  const selectNode = (nodeId: string) => {
+    emit('select-node', nodeId)
+  }
+
+  const stateLabel = (state: OnlineVisualNode['state']) => ({
+    hidden: '未知',
+    locked: '锁定',
+    available: '可行动',
+    active: '处理中',
+    resolved: '已处理',
+    danger: '危险',
+    reward: '奖励',
+    exit: '撤离',
+  }[state] || state)
+
+  const nodeIcon = (node: OnlineVisualNode): Component => {
+    if (node.state === 'danger') return AlertTriangle
+    if (node.state === 'reward') return Gift
+    if (node.state === 'exit') return DoorOpen
+    if (node.kind.includes('ore') || node.kind.includes('mine')) return Pickaxe
+    if (node.state === 'resolved') return Shield
+    return Circle
+  }
+
+  const nodeTooltip = (node: OnlineVisualNode) => {
+    const label = node.label || node.id
+    const status = stateLabel(node.state)
+    return node.risk_preview ? `${label} · ${status} · ${node.risk_preview}` : `${label} · ${status}`
+  }
+
+  const actionLabel = (actionId: string) => props.actionLabels[actionId] || actionId.split('_').join(' ')
+
+  const resourcePreviewText = (preview: Record<string, number>) => Object.entries(preview || {})
+    .filter(([, amount]) => amount > 0)
+    .map(([id, amount]) => `${id} x${amount}`)
+    .join('、')
+</script>
+
+<style scoped>
+  .visual-map-board {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) minmax(14rem, 0.8fr);
+    gap: 0.75rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 16%, transparent);
+    background: rgb(var(--color-bg) / 0.16);
+    padding: 0.75rem;
+  }
+
+  .visual-map-board__canvas {
+    position: relative;
+    min-height: 18rem;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
+    background:
+      linear-gradient(90deg, color-mix(in srgb, var(--color-accent) 7%, transparent) 1px, transparent 1px),
+      linear-gradient(0deg, color-mix(in srgb, var(--color-accent) 6%, transparent) 1px, transparent 1px),
+      rgb(0 0 0 / 0.12);
+    background-size: 2.5rem 2.5rem;
+  }
+
+  .visual-map-board__links {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .visual-map-board__link {
+    stroke-width: 0.65;
+    vector-effect: non-scaling-stroke;
+  }
+
+  .visual-map-board__link--active {
+    stroke: color-mix(in srgb, var(--color-accent) 58%, transparent);
+  }
+
+  .visual-map-board__link--muted {
+    stroke: color-mix(in srgb, var(--color-muted) 28%, transparent);
+    stroke-dasharray: 3 3;
+  }
+
+  .visual-map-board__node {
+    position: absolute;
+    z-index: 1;
+    display: inline-flex;
+    max-width: 7.5rem;
+    min-width: 2.25rem;
+    min-height: 2.25rem;
+    translate: -50% -50%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 34%, transparent);
+    background: rgb(var(--color-bg) / 0.9);
+    color: rgb(var(--color-text));
+    padding: 0.35rem 0.45rem;
+    font-size: 0.68rem;
+    line-height: 1;
+    text-align: center;
+    box-shadow: 0 0.4rem 1.2rem rgb(0 0 0 / 0.2);
+    transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+  }
+
+  .visual-map-board__node:hover,
+  .visual-map-board__node:focus-visible {
+    border-color: color-mix(in srgb, var(--color-accent) 80%, transparent);
+    transform: translateY(-1px);
+    outline: none;
+  }
+
+  .visual-map-board__node--selected {
+    border-color: var(--color-accent);
+    background: color-mix(in srgb, var(--color-accent) 18%, transparent);
+  }
+
+  .visual-map-board__node--locked {
+    color: var(--color-muted);
+    border-color: color-mix(in srgb, var(--color-muted) 22%, transparent);
+  }
+
+  .visual-map-board__node--danger {
+    border-color: color-mix(in srgb, #d4976a 75%, transparent);
+    color: #d4976a;
+  }
+
+  .visual-map-board__node--reward,
+  .visual-map-board__node--exit {
+    border-color: color-mix(in srgb, var(--color-success) 72%, transparent);
+    color: var(--color-success);
+  }
+
+  .visual-map-board__node-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .visual-map-board__side {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .visual-map-board__detail,
+  .visual-map-board__empty,
+  .visual-map-board__feedback {
+    border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
+    background: rgb(0 0 0 / 0.1);
+    padding: 0.625rem;
+  }
+
+  .visual-map-board__detail-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+
+  .visual-map-board__title {
+    overflow: hidden;
+    color: var(--color-accent);
+    font-size: 0.82rem;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .visual-map-board__meta,
+  .visual-map-board__claim,
+  .visual-map-board__resource,
+  .visual-map-board__feedback {
+    color: var(--color-muted);
+    font-size: 0.68rem;
+    line-height: 1.45;
+  }
+
+  .visual-map-board__claim {
+    flex-shrink: 0;
+    color: var(--color-accent);
+  }
+
+  .visual-map-board__preview-grid,
+  .visual-map-board__actions {
+    display: grid;
+    gap: 0.5rem;
+    margin-top: 0.625rem;
+  }
+
+  .visual-map-board__preview {
+    font-size: 0.68rem;
+    line-height: 1.5;
+  }
+
+  .visual-map-board__preview--risk {
+    color: #d4976a;
+  }
+
+  .visual-map-board__preview--reward {
+    color: var(--color-success);
+  }
+
+  .visual-map-board__action {
+    display: inline-flex;
+    min-height: 2rem;
+    align-items: center;
+    justify-content: center;
+    gap: 0.3rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 28%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    color: rgb(var(--color-text));
+    padding: 0.35rem 0.55rem;
+    font-size: 0.7rem;
+    line-height: 1.1;
+  }
+
+  .visual-map-board__action:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+  }
+
+  .visual-map-board__empty {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    color: var(--color-muted);
+    font-size: 0.75rem;
+  }
+
+  @media (max-width: 760px) {
+    .visual-map-board {
+      grid-template-columns: 1fr;
+    }
+
+    .visual-map-board__canvas {
+      min-height: 16rem;
+      overflow-x: auto;
+    }
+  }
+</style>

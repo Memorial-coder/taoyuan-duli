@@ -95,6 +95,17 @@
             </p>
           </div>
 
+          <VisualMapBoard
+            v-if="expeditionVisualMapNodes.length > 0"
+            :nodes="expeditionVisualMapNodes"
+            :selected-node-id="selectedExpeditionVisualNodeId"
+            :recent-feedback="expeditionRoomStore.myRoom.visual_state.recent_feedback || expeditionRoomStore.myRoom.gameplay.cavern_state?.recent_feedback || ''"
+            :action-running="expeditionRoomStore.actionRunning"
+            :action-labels="expeditionVisualActionLabels"
+            @select-node="selectedExpeditionVisualNodeId = $event"
+            @trigger-action="playGameplayAction(expeditionRoomStore.myRoom.id, $event.actionId)"
+          />
+
           <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state" class="space-y-2">
             <div class="border border-accent/15 rounded-xs px-2 py-2 bg-bg/10">
               <div class="flex items-start justify-between gap-2">
@@ -287,13 +298,16 @@
 </template>
 
 <script setup lang="ts">
-  import { onMounted, watch } from 'vue'
+  import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
   import Button from '@/components/game/Button.vue'
+  import VisualMapBoard from '@/components/game/online/VisualMapBoard.vue'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
+  import type { OnlineVisualNode } from '@/types/onlineVisual'
 
   const route = useRoute()
   const expeditionRoomStore = useExpeditionRoomStore()
+  const selectedExpeditionVisualNodeId = ref('')
 
   const getRouteQueryText = (value: unknown) => {
     const raw = Array.isArray(value) ? value[0] : value
@@ -310,6 +324,129 @@
   const refreshOverview = async () => {
     await expeditionRoomStore.refreshOverview().catch(() => {})
   }
+
+  const createMockCavernNodes = (): OnlineVisualNode[] => {
+    const room = expeditionRoomStore.myRoom
+    if (!room || room.gameplay_template_id !== 'expedition_cavern') return []
+    const actions = room.gameplay.available_actions.map(action => action.id)
+    return [
+      {
+        id: 'mock_cavern_entrance',
+        label: '洞口',
+        kind: 'entrance',
+        x: 10,
+        y: 52,
+        state: 'resolved',
+        connected_node_ids: ['mock_cavern_crossroad'],
+        event_id: 'cavern_entrance',
+        available_action_ids: [],
+        owner_username: '',
+        claimed_by: '',
+        risk_preview: '撤离路线已确认。',
+        reward_preview: '保留当前探索成果。',
+        resource_cost_preview: {},
+        resource_reward_preview: {},
+      },
+      {
+        id: 'mock_cavern_crossroad',
+        label: '岔路',
+        kind: 'crossroad',
+        x: 28,
+        y: 42,
+        state: 'active',
+        connected_node_ids: ['mock_cavern_entrance', 'mock_cavern_ore', 'mock_cavern_support'],
+        event_id: room.gameplay.cavern_state?.current_event.id || 'cavern_current_event',
+        available_action_ids: actions.slice(0, 2),
+        owner_username: '',
+        claimed_by: '',
+        risk_preview: room.gameplay.cavern_state?.current_event.risk_hint || '继续推进会改变风险。',
+        reward_preview: room.gameplay.cavern_state?.current_event.resource_hint || '队伍资源会随行动变化。',
+        resource_cost_preview: {},
+        resource_reward_preview: {},
+      },
+      {
+        id: 'mock_cavern_ore',
+        label: '矿脉',
+        kind: 'ore_vein',
+        x: 52,
+        y: 30,
+        state: actions.length > 0 ? 'available' : 'locked',
+        connected_node_ids: ['mock_cavern_crossroad', 'mock_cavern_cache'],
+        event_id: 'cavern_glimmering_vein',
+        available_action_ids: actions.slice(0, 3),
+        owner_username: '',
+        claimed_by: '',
+        risk_preview: '采集会提高塌方和迷路风险。',
+        reward_preview: '可能带回矿石、拓片或队伍补给。',
+        resource_cost_preview: { torch: 1 },
+        resource_reward_preview: { ore: 2 },
+      },
+      {
+        id: 'mock_cavern_support',
+        label: '塌方点',
+        kind: 'support',
+        x: 48,
+        y: 62,
+        state: 'danger',
+        connected_node_ids: ['mock_cavern_crossroad', 'mock_cavern_exit'],
+        event_id: 'cavern_loose_rocks',
+        available_action_ids: actions.slice(0, 2),
+        owner_username: '',
+        claimed_by: '',
+        risk_preview: '支护失败会推高全队风险。',
+        reward_preview: '处理后可打开安全通路。',
+        resource_cost_preview: { rope: 1 },
+        resource_reward_preview: { marker: 1 },
+      },
+      {
+        id: 'mock_cavern_cache',
+        label: '暗室',
+        kind: 'cache',
+        x: 74,
+        y: 34,
+        state: 'reward',
+        connected_node_ids: ['mock_cavern_ore', 'mock_cavern_exit'],
+        event_id: 'cavern_hidden_cache',
+        available_action_ids: actions.slice(0, 1),
+        owner_username: '',
+        claimed_by: '',
+        risk_preview: '打开前最好确认撤离路线。',
+        reward_preview: '可能获得额外纪念物。',
+        resource_cost_preview: {},
+        resource_reward_preview: { memory: 1 },
+      },
+      {
+        id: 'mock_cavern_exit',
+        label: '撤离点',
+        kind: 'exit',
+        x: 88,
+        y: 54,
+        state: 'exit',
+        connected_node_ids: ['mock_cavern_support', 'mock_cavern_cache'],
+        event_id: 'cavern_exit',
+        available_action_ids: actions.slice(-1),
+        owner_username: '',
+        claimed_by: '',
+        risk_preview: '可提前收尾。',
+        reward_preview: '保住已采集收益并进入结算。',
+        resource_cost_preview: {},
+        resource_reward_preview: {},
+      },
+    ]
+  }
+
+  const expeditionVisualMapNodes = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room || room.visual_state.board_type !== 'map') return []
+    if (room.visual_state.nodes.length > 0) return room.visual_state.nodes
+    return createMockCavernNodes()
+  })
+
+  const expeditionVisualActionLabels = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return {}
+    return Object.fromEntries(room.gameplay.available_actions.map(action => [action.id, action.label]))
+  })
 
   const createRoom = async () => {
     await expeditionRoomStore.createRoom().catch(() => {})
@@ -374,4 +511,15 @@
       applyInviteRouteDraft()
     }
   )
+
+  watch(expeditionVisualMapNodes, nodes => {
+    if (nodes.length === 0) {
+      selectedExpeditionVisualNodeId.value = ''
+      return
+    }
+    const firstNode = nodes[0]
+    if (firstNode && !nodes.some(node => node.id === selectedExpeditionVisualNodeId.value)) {
+      selectedExpeditionVisualNodeId.value = firstNode.id
+    }
+  }, { immediate: true })
 </script>
