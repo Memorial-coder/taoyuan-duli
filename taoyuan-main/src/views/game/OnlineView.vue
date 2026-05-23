@@ -34,36 +34,18 @@
     </section>
 
     <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
-      <article
+      <OnlineModuleCard
         v-for="module in modules"
         :key="module.routeName"
-        class="game-panel-muted flex min-h-[168px] min-w-0 flex-col justify-between p-3"
-      >
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 text-accent">
-            <component :is="module.icon" :size="15" />
-            <h3 class="text-sm leading-5">{{ module.title }}</h3>
-          </div>
-          <p class="mt-2 text-xs leading-5 text-muted">{{ module.summary }}</p>
-          <p class="mt-2 text-[10px] leading-4" :class="module.error ? 'text-red-200' : 'text-muted'">
-            {{ module.error || module.status }}
-          </p>
-          <dl class="mt-3 grid grid-cols-2 gap-2">
-            <div
-              v-for="stat in module.stats"
-              :key="`${module.key}-${stat.label}`"
-              class="min-w-0 border border-accent/10 bg-black/10 p-2"
-            >
-              <dt class="truncate text-[10px] leading-4 text-muted">{{ stat.label }}</dt>
-              <dd class="mt-1 truncate text-xs leading-4 text-accent">{{ stat.value }}</dd>
-            </div>
-          </dl>
-        </div>
-        <RouterLink class="online-action-btn online-action-btn--compact mt-3 w-full" :to="{ name: module.routeName }">
-          <ArrowRight :size="12" />
-          进入
-        </RouterLink>
-      </article>
+        :module-key="module.key"
+        :title="module.title"
+        :summary="module.summary"
+        :status="module.status"
+        :stats="module.stats"
+        :to="{ name: module.routeName }"
+        :icon="module.icon"
+        :error="module.error"
+      />
     </section>
   </div>
 </template>
@@ -71,7 +53,6 @@
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
   import {
-    ArrowRight,
     CalendarDays,
     Handshake,
     Home,
@@ -88,6 +69,7 @@
   import { useManorStore } from '@/stores/useManorStore'
   import { useSocialStore } from '@/stores/useSocialStore'
   import { useSocietyStore } from '@/stores/useSocietyStore'
+  import OnlineModuleCard from '@/components/game/online/OnlineModuleCard.vue'
 
   type ModuleKey = 'manor' | 'neighbor' | 'orders' | 'festival' | 'society'
   type ModuleStat = { label: string; value: string | number }
