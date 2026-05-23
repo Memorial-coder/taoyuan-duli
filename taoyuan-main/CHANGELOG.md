@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0520 邮箱投递存档级收口（A1-A6）
+- 玩家来信 / 礼物包裹投递记录现在会保存 `target_save_id / target_save_slot`，收件箱、发件箱和实时邮件通知摘要都会回显这些字段。
+- 旧 username 收件路径继续兼容，邮件领取和礼物包裹结算仍走服务端权威存档写回。
+- 验证通过 `type-check`、`build`、`qa:realtime-smoke` 与 `qa:online-smoke`。
+
 ### 0520 庄园留言 / 访问存档级收口（A1-A5）
 - 庄园留言和来访记录现在会保存 `target_save_id / target_save_slot`，并继续兼容旧 username 写路。
 - 留言通知也会携带庄园主人目标存档字段，便于 realtime / 审计端区分同账号多存档。

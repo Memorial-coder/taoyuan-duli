@@ -128,6 +128,17 @@ function normalizeClaimResult(result) {
   };
 }
 
+function normalizeMailSaveId(value) {
+  const saveId = Number(value);
+  return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0;
+}
+
+function normalizeMailSaveSlot(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const saveSlot = Number(value);
+  return Number.isInteger(saveSlot) && saveSlot >= 0 && saveSlot <= 2 ? saveSlot : null;
+}
+
 function normalizeDelivery(delivery) {
   if (!delivery || typeof delivery !== 'object') return null;
   return {
@@ -135,6 +146,8 @@ function normalizeDelivery(delivery) {
     campaign_id: String(delivery.campaign_id || ''),
     username: String(delivery.username || ''),
     recipient_display_name: sanitizeText(delivery.recipient_display_name || delivery.username || '', 60),
+    target_save_id: normalizeMailSaveId(delivery.target_save_id ?? delivery.targetSaveId),
+    target_save_slot: normalizeMailSaveSlot(delivery.target_save_slot ?? delivery.targetSaveSlot),
     sender_username: String(delivery.sender_username || ''),
     sender_display_name: sanitizeText(delivery.sender_display_name || delivery.sender_username || '', 60),
     photo_url: sanitizeText(delivery.photo_url || '', 300),
@@ -321,12 +334,14 @@ async function fetchProfilesByUsernames(usernames) {
 async function resolveMailRecipientBySaveIdOrUsername(payload = {}, emptyMessage = '请先填写收件人用户名') {
   const rawTargetSaveId = payload?.target_save_id ?? payload?.save_id;
   const hasTargetSaveId = rawTargetSaveId !== undefined && rawTargetSaveId !== null && `${rawTargetSaveId}`.trim() !== '';
+  let targetIdentity = null;
   const targetUsername = hasTargetSaveId
     ? (() => {
       const targetSaveId = Number(rawTargetSaveId);
       if (!Number.isInteger(targetSaveId)) throw createError('存档 ID 格式不正确', 400);
       const identity = findSaveIdentityById(targetSaveId);
       if (!identity) throw createError('目标存档 ID 不存在', 404);
+      targetIdentity = identity;
       return sanitizeText(identity.account_username, 60);
     })()
     : sanitizeText(payload?.target_username, 60);
@@ -334,7 +349,10 @@ async function resolveMailRecipientBySaveIdOrUsername(payload = {}, emptyMessage
   const targetUsers = await fetchProfilesByUsernames([targetUsername]);
   const recipient = targetUsers[0];
   if (!recipient) throw createError('收件账号不存在，请检查用户名是否填写正确');
-  return recipient;
+  return {
+    ...recipient,
+    identity: targetIdentity,
+  };
 }
 
 function listSavedUsernames() {
@@ -598,6 +616,8 @@ function buildUserMailSummary(delivery) {
     photo_url: sanitizeText(delivery.photo_url || '', 300),
     photo_alt: sanitizeText(delivery.photo_alt || '', 80),
     target_slot: normalizeTargetSlot(delivery.target_slot),
+    target_save_id: normalizeMailSaveId(delivery.target_save_id),
+    target_save_slot: normalizeMailSaveSlot(delivery.target_save_slot),
     has_rewards: hasRewards,
     reward_count: delivery.rewards.length,
     sent_at: delivery.sent_at,
@@ -620,6 +640,8 @@ function buildUserMailDetail(delivery) {
     ...buildUserMailSummary(delivery),
     recipient_username: String(delivery.username || ''),
     recipient_display_name: sanitizeText(delivery.recipient_display_name || delivery.username || '', 60),
+    target_save_id: normalizeMailSaveId(delivery.target_save_id),
+    target_save_slot: normalizeMailSaveSlot(delivery.target_save_slot),
     content: delivery.content,
     rewards: delivery.rewards.map(item => ({ ...item })),
     duplicate_compensation_money: delivery.duplicate_compensation_money,
@@ -789,6 +811,8 @@ async function sendPlayerLetter(payload = {}, actor = {}) {
       campaign_id: '',
       username: recipient.username,
       recipient_display_name: recipient.displayName,
+      target_save_id: recipient.identity?.save_id || 0,
+      target_save_slot: recipient.identity?.save_slot ?? null,
       sender_username: senderUsername,
       sender_display_name: sanitizeText(actor?.displayName || senderUsername, 60),
       photo_url: photoUrl,
@@ -952,6 +976,8 @@ async function sendPlayerGiftPackage(payload = {}, actor = {}) {
       campaign_id: '',
       username: recipient.username,
       recipient_display_name: recipient.displayName,
+      target_save_id: recipient.identity?.save_id || 0,
+      target_save_slot: recipient.identity?.save_slot ?? null,
       sender_username: senderUsername,
       sender_display_name: sanitizeText(actor?.displayName || senderUsername, 60),
       title,
@@ -1027,6 +1053,8 @@ function buildSentMailSummary(delivery) {
     template_type: delivery.template_type,
     recipient_username: delivery.username,
     recipient_display_name: delivery.recipient_display_name,
+    target_save_id: normalizeMailSaveId(delivery.target_save_id),
+    target_save_slot: normalizeMailSaveSlot(delivery.target_save_slot),
     preview: summarizeText(delivery.content, 80),
     sent_at: delivery.sent_at,
     is_pinned: !!delivery.pinned_at,

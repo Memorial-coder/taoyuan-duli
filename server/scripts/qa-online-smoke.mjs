@@ -1071,6 +1071,8 @@ try {
     assert(response.ok, `player-letter write returned ${response.status}`)
     assert(data?.ok === true && data?.mail?.title === playerLetterTitle, 'player-letter payload is incomplete')
     assert(data.mail.recipient_username === secondarySessionState.username, 'player-letter save id target resolved wrong recipient')
+    assert(data.mail.target_save_id === secondarySaveIdentity.save_id, 'player-letter did not persist target save id')
+    assert(data.mail.target_save_slot === secondarySaveIdentity.save_slot, 'player-letter did not persist target save slot')
   })
 
   await runCheck('GET /api/taoyuan/mail/list player-letter read path', async () => {
@@ -1080,6 +1082,8 @@ try {
     assert(playerLetter, 'player-letter was not delivered to recipient mailbox list')
     assert(playerLetter?.template_type === 'season_greeting', 'player-letter template type was not preserved')
     assert(playerLetter?.sender_username === sessionState.username, 'player-letter sender username is missing')
+    assert(playerLetter?.target_save_id === secondarySaveIdentity.save_id, 'player-letter list did not expose target save id')
+    assert(playerLetter?.target_save_slot === secondarySaveIdentity.save_slot, 'player-letter list did not expose target save slot')
   })
 
   await runCheck('GET /api/taoyuan/mail/sent player-letter outbox path', async () => {
@@ -1089,6 +1093,8 @@ try {
     const sentLetter = data.mails.find(entry => entry?.title === playerLetterTitle)
     assert(sentLetter, 'player-letter was not visible in sender outbox')
     assert(sentLetter?.recipient_username === secondarySessionState.username, 'player-letter outbox recipient did not match')
+    assert(sentLetter?.target_save_id === secondarySaveIdentity.save_id, 'player-letter outbox did not expose target save id')
+    assert(sentLetter?.target_save_slot === secondarySaveIdentity.save_slot, 'player-letter outbox did not expose target save slot')
   })
 
   await runCheck('POST /api/taoyuan/mail/player-letter moderation reject path', async () => {
@@ -1131,6 +1137,8 @@ try {
     assert(response.ok, `player-gift-package write returned ${response.status}`)
     assert(data?.ok === true && data?.mail?.title === playerGiftPackageTitle, 'player-gift-package payload is incomplete')
     assert(data.mail.recipient_username === secondarySessionState.username, 'player-gift-package save id target resolved wrong recipient')
+    assert(data.mail.target_save_id === secondarySaveIdentity.save_id, 'player-gift-package did not persist target save id')
+    assert(data.mail.target_save_slot === secondarySaveIdentity.save_slot, 'player-gift-package did not persist target save slot')
     playerGiftPackageMailId = String(data?.mail?.id || '')
     assert(playerGiftPackageMailId, 'player-gift-package mail id was not created')
   })
@@ -1154,6 +1162,8 @@ try {
     assert(playerGiftPackage?.template_type === 'material_package', 'player-gift-package template type was not preserved')
     assert(playerGiftPackage?.sender_username === sessionState.username, 'player-gift-package sender username is missing')
     assert(playerGiftPackage?.has_rewards === true, 'player-gift-package should expose rewards to recipient')
+    assert(playerGiftPackage?.target_save_id === secondarySaveIdentity.save_id, 'player-gift-package list did not expose target save id')
+    assert(playerGiftPackage?.target_save_slot === secondarySaveIdentity.save_slot, 'player-gift-package list did not expose target save slot')
   })
 
   await runCheck('GET /api/taoyuan/mail/inbox-status player arrival summary', async () => {

@@ -2,6 +2,10 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A1-A6` 这一轮继续把邮箱玩家来信 / 礼物包裹投递收口到存档级：投递记录、收件箱 / 发件箱返回和 realtime 邮件通知都会带 `target_save_id / target_save_slot`。
+- 旧 username 收件路径继续保留；只有从好友入口或请求中带入目标存档 ID 时，邮箱投递才落目标存档字段，不改变既有领取结算。
+- 本轮验证通过 `node --check server/src/taoyuanMailbox.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke` 与 `npm --prefix server run qa:online-smoke`。
+
 - `0520todo.md / A1-A5` 这一轮继续把庄园留言 / 访问收口到存档级：留言和来访记录会保存 `target_save_id / target_save_slot`，留言通知也会回传庄园主人目标存档字段。
 - 现有 username 兼容路径保留，庄园快照、留言板、来访记录与 realtime 通知都仍能按旧账号名工作。
 - 本轮验证通过 `node --check server/src/taoyuanManorRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke` 与 `npm --prefix server run qa:online-smoke`。

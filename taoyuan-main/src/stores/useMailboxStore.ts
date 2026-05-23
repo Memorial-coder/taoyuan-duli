@@ -41,6 +41,10 @@ export interface TaoyuanMailSummary {
   template_type: string | null
   sender_username?: string
   sender_display_name?: string
+  recipient_username?: string
+  recipient_display_name?: string
+  target_save_id: number
+  target_save_slot: number | null
   has_rewards: boolean
   reward_count: number
   sent_at: number
@@ -65,6 +69,8 @@ export interface TaoyuanMailDetail extends TaoyuanMailSummary {
   duplicate_compensation_money: number
   sender_username?: string
   sender_display_name?: string
+  recipient_username: string
+  recipient_display_name?: string
   claim_result: {
     save_slot: number | null
     money_added: number
@@ -97,6 +103,8 @@ export interface TaoyuanSentMailSummary {
   template_type: string | null
   recipient_username: string
   recipient_display_name?: string
+  target_save_id: number
+  target_save_slot: number | null
   preview: string
   sent_at: number
   is_pinned: boolean
@@ -184,6 +192,12 @@ const toSummary = (mail: TaoyuanMailSummary | TaoyuanMailDetail): TaoyuanMailSum
   template_type: mail.template_type,
   sender_username: mail.sender_username,
   sender_display_name: mail.sender_display_name,
+  recipient_username: mail.recipient_username,
+  recipient_display_name: mail.recipient_display_name,
+  target_save_id: Number(mail.target_save_id) || 0,
+  target_save_slot: mail.target_save_slot === null || mail.target_save_slot === undefined
+    ? null
+    : Number(mail.target_save_slot),
   has_rewards: mail.has_rewards,
   reward_count: mail.reward_count,
   sent_at: mail.sent_at,

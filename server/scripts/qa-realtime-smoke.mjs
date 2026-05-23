@@ -554,6 +554,8 @@ try {
         && payload.mail?.id === result.data?.mail?.id
         && payload.mail?.title === mailTitle
         && payload.mail?.sender_username === owner.username
+        && payload.mail?.target_save_id === friend.identity.save_id
+        && payload.mail?.target_save_slot === friend.identity.save_slot
     )
   })
 
@@ -1510,6 +1512,8 @@ try {
         && payload.action === 'player_letter'
         && payload.mail?.id === result.data?.mail?.id
         && payload.mail?.title === mailTitle
+        && payload.mail?.target_save_id === offlineTarget.identity.save_id
+        && payload.mail?.target_save_slot === offlineTarget.identity.save_slot
     )
     const queuedEventId = String(queuedMessage.queued_event_id || '')
     assert(queuedEventId, 'replayed mail notification missing queued_event_id')
