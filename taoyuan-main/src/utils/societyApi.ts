@@ -9,6 +9,8 @@ export type SocietyProposalChoice = 'support' | 'reject' | 'abstain'
 export interface SocietyMemberSnapshot {
   username: string
   display_name: string
+  save_id: number
+  save_slot: number | null
   role: SocietyRole | string
   role_label: string
   joined_at: number
@@ -27,6 +29,8 @@ export interface SocietyJoinRequestSnapshot {
   society_name: string
   username: string
   display_name: string
+  target_save_id: number
+  target_save_slot: number | null
   invited_by: string
   invited_by_display_name: string
   type: 'apply' | 'invite'
@@ -187,6 +191,8 @@ export interface SocietyChronicleRoleHistoryEntry {
   id: string
   username: string
   display_name: string
+  save_id: number
+  save_slot: number | null
   role: SocietyRole | string
   role_label: string
   created_at: number

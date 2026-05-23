@@ -843,6 +843,8 @@ try {
     assert(applyResult.response.ok, `society apply returned ${applyResult.response.status}: ${applyResult.data?.msg || 'unknown error'}`)
     const requestId = String(applyResult.data?.request?.id || '')
     assert(requestId, 'society apply request id missing')
+    assert(applyResult.data?.request?.target_save_id === friend.identity.save_id, 'society apply response missing target save id')
+    assert(applyResult.data?.request?.target_save_slot === friend.identity.save_slot, 'society apply response missing target save slot')
     const applyNotification = await expectMessageAfter(ownerSocket, ownerApplyOffset, 'notification.created', payload =>
       payload.category === 'society'
         && payload.action === 'member_applied'
@@ -852,6 +854,8 @@ try {
         && payload.request?.type === 'apply'
         && payload.request?.status === 'pending'
         && payload.request?.username === friend.username
+        && payload.request?.target_save_id === friend.identity.save_id
+        && payload.request?.target_save_slot === friend.identity.save_slot
         && payload.actor_username === friend.username
     )
     assert(applyNotification.payload?.overview === undefined, 'society membership notification should not expose overview')
@@ -862,6 +866,8 @@ try {
       method: 'POST',
     })
     assert(acceptResult.response.ok, `society accept returned ${acceptResult.response.status}: ${acceptResult.data?.msg || 'unknown error'}`)
+    assert(acceptResult.data?.request?.target_save_id === friend.identity.save_id, 'society accept response missing target save id')
+    assert(acceptResult.data?.request?.target_save_slot === friend.identity.save_slot, 'society accept response missing target save slot')
     const acceptNotification = await expectMessageAfter(friendSocket, friendAcceptOffset, 'notification.created', payload =>
       payload.category === 'society'
         && payload.action === 'membership_accepted'
@@ -871,6 +877,8 @@ try {
         && payload.request?.type === 'apply'
         && payload.request?.status === 'accepted'
         && payload.request?.username === friend.username
+        && payload.request?.target_save_id === friend.identity.save_id
+        && payload.request?.target_save_slot === friend.identity.save_slot
         && payload.actor_username === owner.username
     )
     assert(acceptNotification.payload?.overview === undefined, 'society membership accept notification should not expose overview')
@@ -956,6 +964,7 @@ try {
     assert(applyResult.response.ok, `society reject target apply returned ${applyResult.response.status}: ${applyResult.data?.msg || 'unknown error'}`)
     const requestId = String(applyResult.data?.request?.id || '')
     assert(requestId, 'society reject target request id missing')
+    assert(applyResult.data?.request?.target_save_id === rejectedTarget.identity.save_id, 'society reject apply response missing target save id')
 
     const rejectOffset = societyMembershipRejectSocket.messages.length
     const rejectResult = await fetchSessionJson(owner, `/api/taoyuan/online/societies/requests/${encodeURIComponent(requestId)}/reject`, {
@@ -971,6 +980,8 @@ try {
         && payload.request?.type === 'apply'
         && payload.request?.status === 'rejected'
         && payload.request?.username === rejectedTarget.username
+        && payload.request?.target_save_id === rejectedTarget.identity.save_id
+        && payload.request?.target_save_slot === rejectedTarget.identity.save_slot
         && payload.actor_username === owner.username
     )
     assert(rejectNotification.payload?.overview === undefined, 'society membership reject notification should not expose overview')
@@ -1087,11 +1098,13 @@ try {
     assert(applyResult.response.ok, `offline society apply returned ${applyResult.response.status}: ${applyResult.data?.msg || 'unknown error'}`)
     const requestId = String(applyResult.data?.request?.id || '')
     assert(requestId, 'offline society apply request id missing')
+    assert(applyResult.data?.request?.target_save_id === offlineTarget.identity.save_id, 'offline society apply response missing target save id')
 
     const acceptResult = await fetchSessionJson(owner, `/api/taoyuan/online/societies/requests/${encodeURIComponent(requestId)}/accept`, {
       method: 'POST',
     })
     assert(acceptResult.response.ok, `offline society accept returned ${acceptResult.response.status}: ${acceptResult.data?.msg || 'unknown error'}`)
+    assert(acceptResult.data?.request?.target_save_id === offlineTarget.identity.save_id, 'offline society accept response missing target save id')
 
     const noticeText = `Offline society notice ${createSmokeSeed()}`
     const noticeResult = await fetchSessionJson(owner, '/api/taoyuan/online/societies/notice', {
@@ -1113,6 +1126,8 @@ try {
         && payload.request?.id === requestId
         && payload.request?.status === 'accepted'
         && payload.request?.username === offlineTarget.username
+        && payload.request?.target_save_id === offlineTarget.identity.save_id
+        && payload.request?.target_save_slot === offlineTarget.identity.save_slot
         && payload.actor_username === owner.username
     )
     const membershipQueuedEventId = String(membershipQueuedMessage.queued_event_id || '')
@@ -1167,6 +1182,8 @@ try {
     assert(inviteResult.response.ok, `offline society invite returned ${inviteResult.response.status}: ${inviteResult.data?.msg || 'unknown error'}`)
     const requestId = String(inviteResult.data?.request?.id || '')
     assert(requestId, 'offline society invite request id missing')
+    assert(inviteResult.data?.request?.target_save_id === offlineInviteTarget.identity.save_id, 'offline society invite response missing target save id')
+    assert(inviteResult.data?.request?.target_save_slot === offlineInviteTarget.identity.save_slot, 'offline society invite response missing target save slot')
 
     offlineSocietyReplaySocket = await openRealtimeSocket(offlineInviteTarget)
     const ready = await expectMessage(offlineSocietyReplaySocket, 'realtime.ready', payload =>
@@ -1181,6 +1198,8 @@ try {
         && payload.request?.type === 'invite'
         && payload.request?.status === 'pending'
         && payload.request?.username === offlineInviteTarget.username
+        && payload.request?.target_save_id === offlineInviteTarget.identity.save_id
+        && payload.request?.target_save_slot === offlineInviteTarget.identity.save_slot
         && payload.request?.invited_by === owner.username
         && payload.actor_username === owner.username
     )

@@ -2,6 +2,10 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A1-A6` 这一轮把村社申请 / 邀请投递结构收口到存档级：申请单、邀请单、成员快照和角色履历都会保存并回显目标存档 ID / 槽位。
+- 村社概览会按当前活动存档过滤收到的邀请 / 待处理申请；玩家自我接受邀请时会校验当前活动存档必须匹配受邀存档，旧 `target_save_id = 0` 数据继续按 username 兼容。
+- 本轮验证通过 `node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke` 与 `npm --prefix server run qa:realtime-smoke`。
+
 - `0520todo.md / A1-A6` 这一轮继续把邮箱玩家来信 / 礼物包裹投递收口到存档级：投递记录、收件箱 / 发件箱返回和 realtime 邮件通知都会带 `target_save_id / target_save_slot`。
 - 旧 username 收件路径继续保留；只有从好友入口或请求中带入目标存档 ID 时，邮箱投递才落目标存档字段，不改变既有领取结算。
 - 本轮验证通过 `node --check server/src/taoyuanMailbox.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:realtime-smoke` 与 `npm --prefix server run qa:online-smoke`。

@@ -3739,6 +3739,7 @@ try {
   })
 
   let createdSocietyRequestId = ''
+  let createdSocietyInviteRequestId = ''
   let createdSocietyProposalId = ''
   let rejoinedSocietyRequestId = ''
   await runCheck('POST /api/taoyuan/online/societies/:societyId/apply write path', async () => {
@@ -3747,6 +3748,8 @@ try {
     })
     assert(response.ok, `society apply returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.request?.status === 'pending', 'society apply payload is incomplete')
+    assert(data?.request?.target_save_id === secondarySaveIdentity.save_id, 'society apply did not persist target save id')
+    assert(data?.request?.target_save_slot === secondarySaveIdentity.save_slot, 'society apply did not persist target save slot')
     createdSocietyRequestId = String(data?.request?.id || '')
     assert(createdSocietyRequestId, 'society apply did not create request id')
   })
@@ -3757,6 +3760,9 @@ try {
     })
     assert(response.ok, `society request accept returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.request?.status === 'accepted', 'society request accept payload is incomplete')
+    assert(data?.request?.target_save_id === secondarySaveIdentity.save_id, 'society request accept did not preserve target save id')
+    assert(data?.request?.target_save_slot === secondarySaveIdentity.save_slot, 'society request accept did not preserve target save slot')
+    assert(Array.isArray(data?.overview?.my_society?.members) && data.overview.my_society.members.some(entry => entry?.username === secondarySessionState.username && entry?.save_id === secondarySaveIdentity.save_id), 'society request accept did not preserve member save id')
     assert(Array.isArray(data?.overview?.my_society?.members) && data.overview.my_society.members.some(entry => entry?.username === secondarySessionState.username), 'society request accept did not add the new member')
   })
 
@@ -4124,12 +4130,52 @@ try {
     assert(Array.isArray(ownerReadback.data?.my_society?.members) && !ownerReadback.data.my_society.members.some(entry => entry?.username === secondarySessionState.username), 'society leave did not remove secondary member from owner readback')
   })
 
+  await runCheck('POST /api/taoyuan/online/societies/invite save id write path', async () => {
+    assert(secondarySaveIdentity?.save_id, 'secondary save identity missing before society invite save id check')
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies/invite', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_save_id: secondarySaveIdentity.save_id,
+      }),
+    })
+    assert(response.ok, `society invite returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.request?.status === 'pending', 'society invite payload is incomplete')
+    assert(data?.request?.target_save_id === secondarySaveIdentity.save_id, 'society invite did not persist target save id')
+    assert(data?.request?.target_save_slot === secondarySaveIdentity.save_slot, 'society invite did not persist target save slot')
+    createdSocietyInviteRequestId = String(data?.request?.id || '')
+    assert(createdSocietyInviteRequestId, 'society invite did not create request id')
+  })
+
+  await runCheck('GET /api/taoyuan/online/societies invite readback', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies')
+    assert(response.ok, `society invite readback returned ${response.status}`)
+    assert(data?.ok === true, 'society invite readback payload is incomplete')
+    const invite = data?.incoming_invites?.find(entry => entry?.id === createdSocietyInviteRequestId)
+    assert(invite?.target_save_id === secondarySaveIdentity.save_id, 'society invite readback missing target save id')
+    assert(invite?.target_save_slot === secondarySaveIdentity.save_slot, 'society invite readback missing target save slot')
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/requests/:requestId/reject invite path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/societies/requests/${encodeURIComponent(createdSocietyInviteRequestId)}/reject`, {
+      method: 'POST',
+    })
+    assert(response.ok, `society invite reject returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.request?.status === 'rejected', 'society invite reject payload is incomplete')
+    assert(data?.request?.target_save_id === secondarySaveIdentity.save_id, 'society invite reject did not preserve target save id')
+    assert(data?.request?.target_save_slot === secondarySaveIdentity.save_slot, 'society invite reject did not preserve target save slot')
+  })
+
   await runCheck('POST /api/taoyuan/online/societies/:societyId/apply rejoin path', async () => {
     const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/societies/${encodeURIComponent(createdSocietyId)}/apply`, {
       method: 'POST',
     })
     assert(response.ok, `society rejoin apply returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.request?.status === 'pending', 'society rejoin apply payload is incomplete')
+    assert(data?.request?.target_save_id === secondarySaveIdentity.save_id, 'society rejoin apply did not persist target save id')
+    assert(data?.request?.target_save_slot === secondarySaveIdentity.save_slot, 'society rejoin apply did not persist target save slot')
     rejoinedSocietyRequestId = String(data?.request?.id || '')
     assert(rejoinedSocietyRequestId, 'society rejoin apply did not create request id')
   })
@@ -4140,7 +4186,9 @@ try {
     })
     assert(response.ok, `society rejoin accept returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.request?.status === 'accepted', 'society rejoin accept payload is incomplete')
-    assert(Array.isArray(data?.overview?.my_society?.members) && data.overview.my_society.members.some(entry => entry?.username === secondarySessionState.username), 'society rejoin accept did not restore the member')
+    assert(data?.request?.target_save_id === secondarySaveIdentity.save_id, 'society rejoin accept did not preserve target save id')
+    assert(data?.request?.target_save_slot === secondarySaveIdentity.save_slot, 'society rejoin accept did not preserve target save slot')
+    assert(Array.isArray(data?.overview?.my_society?.members) && data.overview.my_society.members.some(entry => entry?.username === secondarySessionState.username && entry?.save_id === secondarySaveIdentity.save_id), 'society rejoin accept did not restore the member')
   })
 
   await runCheck('POST /api/taoyuan/online/societies/leave president transfer path', async () => {

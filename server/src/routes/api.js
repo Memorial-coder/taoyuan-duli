@@ -804,6 +804,8 @@ function buildSocietyMembershipNotificationPayload(action, result = {}, actor = 
       status: request?.status || '',
       username: normalizeUsernameKey(request?.username),
       display_name: normalizeUsername(request?.display_name || request?.username),
+      target_save_id: normalizeActivitySaveId(request?.target_save_id ?? request?.targetSaveId),
+      target_save_slot: normalizeActivitySaveSlot(request?.target_save_slot ?? request?.targetSaveSlot),
       invited_by: normalizeUsernameKey(request?.invited_by),
       invited_by_display_name: normalizeUsername(request?.invited_by_display_name || request?.invited_by),
       created_at: Number(request?.created_at) || null,

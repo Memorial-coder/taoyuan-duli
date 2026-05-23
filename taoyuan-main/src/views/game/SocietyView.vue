@@ -89,6 +89,7 @@
                 <div v-for="request in societyStore.managedRequests" :key="request.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
                   <p class="text-xs text-text">{{ request.display_name }} · {{ request.type_label }}</p>
                   <p class="text-[10px] text-muted mt-1">{{ request.society_name }}</p>
+                  <p v-if="request.target_save_id" class="text-[10px] text-muted mt-1">存档 ID：{{ request.target_save_id }}</p>
                   <div class="flex gap-2 mt-2">
                     <Button :disabled="societyStore.actionRunning" @click="acceptRequest(request.id)">接受</Button>
                     <Button :disabled="societyStore.actionRunning" @click="rejectRequest(request.id)">拒绝</Button>
@@ -103,6 +104,7 @@
                 <div v-for="request in societyStore.incomingInvites" :key="request.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
                   <p class="text-xs text-text">{{ request.society_name }}</p>
                   <p class="text-[10px] text-muted mt-1">邀请人：{{ request.invited_by_display_name || request.invited_by }}</p>
+                  <p v-if="request.target_save_id" class="text-[10px] text-muted mt-1">受邀存档 ID：{{ request.target_save_id }}</p>
                   <div class="flex gap-2 mt-2">
                     <Button :disabled="societyStore.actionRunning" @click="acceptRequest(request.id)">接受</Button>
                     <Button :disabled="societyStore.actionRunning" @click="rejectRequest(request.id)">拒绝</Button>
@@ -123,6 +125,7 @@
                   <div class="min-w-0">
                     <p class="text-xs text-text">{{ member.display_name }}</p>
                     <p class="text-[10px] text-muted mt-1">{{ member.username }} · {{ member.role_label }}</p>
+                    <p v-if="member.save_id" class="text-[10px] text-muted mt-1">存档 ID：{{ member.save_id }}</p>
                   </div>
                   <div v-if="societyStore.mySociety.can_manage_roles && member.role !== 'president'" class="flex items-center gap-2">
                     <select
@@ -589,6 +592,7 @@
               <div v-for="request in societyStore.incomingInvites" :key="request.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
                 <p class="text-xs text-text">{{ request.society_name }}</p>
                 <p class="text-[10px] text-muted mt-1">邀请人：{{ request.invited_by_display_name || request.invited_by }}</p>
+                <p v-if="request.target_save_id" class="text-[10px] text-muted mt-1">受邀存档 ID：{{ request.target_save_id }}</p>
                 <div class="flex gap-2 mt-2">
                   <Button :disabled="societyStore.actionRunning" @click="acceptRequest(request.id)">接受</Button>
                   <Button :disabled="societyStore.actionRunning" @click="rejectRequest(request.id)">拒绝</Button>
@@ -597,6 +601,7 @@
               <div v-for="request in societyStore.myPendingRequests" :key="request.id" class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
                 <p class="text-xs text-text">已申请：{{ request.society_name }}</p>
                 <p class="text-[10px] text-muted mt-1">等待村社管理者处理。</p>
+                <p v-if="request.target_save_id" class="text-[10px] text-muted mt-1">申请存档 ID：{{ request.target_save_id }}</p>
               </div>
             </div>
           </div>

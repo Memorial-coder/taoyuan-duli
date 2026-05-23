@@ -382,6 +382,17 @@ function normalizeUsername(value) {
   return String(value || '').normalize('NFKC').trim();
 }
 
+function normalizeSocietySaveId(value) {
+  const saveId = Number(value);
+  return Number.isInteger(saveId) && saveId >= 100000000 && saveId < 1000000000 ? saveId : 0;
+}
+
+function normalizeSocietySaveSlot(value) {
+  if (value === null || value === undefined || value === '') return null;
+  const slot = Number(value);
+  return Number.isInteger(slot) && slot >= 0 && slot <= 2 ? slot : null;
+}
+
 function nowSeconds() {
   return Math.floor(Date.now() / 1000);
 }
@@ -485,6 +496,8 @@ function normalizeSocietyMember(entry) {
   return {
     username: normalizeUsername(entry?.username),
     display_name: sanitizeText(entry?.display_name, 40),
+    save_id: normalizeSocietySaveId(entry?.save_id ?? entry?.saveId ?? entry?.target_save_id ?? entry?.targetSaveId),
+    save_slot: normalizeSocietySaveSlot(entry?.save_slot ?? entry?.saveSlot ?? entry?.target_save_slot ?? entry?.targetSaveSlot),
     role: normalizeSocietyRole(entry?.role),
     joined_at: Math.max(0, Math.floor(Number(entry?.joined_at) || nowSeconds())),
   };
@@ -496,6 +509,8 @@ function normalizeSocietyJoinRequest(entry) {
     society_id: sanitizeText(entry?.society_id, 80),
     username: normalizeUsername(entry?.username),
     display_name: sanitizeText(entry?.display_name, 40),
+    target_save_id: normalizeSocietySaveId(entry?.target_save_id ?? entry?.targetSaveId ?? entry?.save_id ?? entry?.saveId),
+    target_save_slot: normalizeSocietySaveSlot(entry?.target_save_slot ?? entry?.targetSaveSlot ?? entry?.save_slot ?? entry?.saveSlot),
     invited_by: normalizeUsername(entry?.invited_by),
     invited_by_display_name: sanitizeText(entry?.invited_by_display_name, 40),
     type: entry?.type === 'invite' ? 'invite' : 'apply',
@@ -621,6 +636,8 @@ function normalizeSocietyRoleHistoryEntry(entry) {
     id: sanitizeText(entry?.id || makeId('society_role_history'), 80),
     username: normalizeUsername(entry?.username),
     display_name: sanitizeText(entry?.display_name, 40),
+    save_id: normalizeSocietySaveId(entry?.save_id ?? entry?.saveId ?? entry?.target_save_id ?? entry?.targetSaveId),
+    save_slot: normalizeSocietySaveSlot(entry?.save_slot ?? entry?.saveSlot ?? entry?.target_save_slot ?? entry?.targetSaveSlot),
     role: normalizeSocietyRole(entry?.role),
     role_label: SOCIETY_ROLE_LABELS[normalizeSocietyRole(entry?.role)] || normalizeSocietyRole(entry?.role),
     created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
@@ -1420,6 +1437,8 @@ function buildSocietyChronicleSnapshot(society) {
         id: entry.id,
         username: entry.username,
         display_name: entry.display_name,
+        save_id: entry.save_id,
+        save_slot: entry.save_slot,
         role: entry.role,
         role_label: entry.role_label,
         created_at: entry.created_at,
@@ -1547,6 +1566,30 @@ function resolveTargetBySaveIdOrUsername(payload = {}, emptyMessage = '请先填
     username,
     identity: null,
   };
+}
+
+function resolveActiveSocietySaveIdentity(username) {
+  try {
+    const context = getActiveSaveContext(username, null, '当前账号没有可用的桃源乡存档');
+    return context?.identity || null;
+  } catch {
+    return null;
+  }
+}
+
+function societyRequestMatchesSaveIdentity(request, identity) {
+  const targetSaveId = normalizeSocietySaveId(request?.target_save_id);
+  if (!targetSaveId) return true;
+  return normalizeSocietySaveId(identity?.save_id) === targetSaveId;
+}
+
+function ensureSocietyRequestMatchesActiveSave(request, username) {
+  const targetSaveId = normalizeSocietySaveId(request?.target_save_id);
+  if (!targetSaveId) return;
+  const identity = resolveActiveSocietySaveIdentity(username);
+  if (!identity || normalizeSocietySaveId(identity.save_id) !== targetSaveId) {
+    throw createError('当前活动存档与村社邀请不匹配，请先切换到受邀存档再处理', 403);
+  }
 }
 
 async function hydrateMembers(members = []) {
@@ -1745,6 +1788,8 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
     members: members.map(entry => ({
       username: entry.username,
       display_name: entry.display_name,
+      save_id: entry.save_id,
+      save_slot: entry.save_slot,
       role: entry.role,
       role_label: SOCIETY_ROLE_LABELS[entry.role] || entry.role,
       joined_at: entry.joined_at,
@@ -1780,6 +1825,7 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
 
 async function buildOverview(store, username) {
   const viewerUsername = normalizeUsername(username);
+  const viewerIdentity = resolveActiveSocietySaveIdentity(viewerUsername);
   const mySociety = findMemberSociety(store, viewerUsername);
   const viewerHasSociety = !!mySociety;
   const myRole = mySociety ? getSocietyMember(mySociety, viewerUsername)?.role || '' : '';
@@ -1799,6 +1845,7 @@ async function buildOverview(store, username) {
     (store.society_join_requests || [])
       .map(normalizeSocietyJoinRequest)
       .filter(entry => entry.type === 'invite' && entry.username === viewerUsername && entry.status === 'pending')
+      .filter(entry => societyRequestMatchesSaveIdentity(entry, viewerIdentity))
       .sort((left, right) => right.created_at - left.created_at)
       .map(entry => buildSocietyJoinRequestSnapshot(entry, store))
   );
@@ -1807,6 +1854,7 @@ async function buildOverview(store, username) {
     (store.society_join_requests || [])
       .map(normalizeSocietyJoinRequest)
       .filter(entry => entry.type === 'apply' && entry.username === viewerUsername && entry.status === 'pending')
+      .filter(entry => societyRequestMatchesSaveIdentity(entry, viewerIdentity))
       .sort((left, right) => right.created_at - left.created_at)
       .map(entry => buildSocietyJoinRequestSnapshot(entry, store))
   );
@@ -1856,6 +1904,7 @@ async function createSociety(payload = {}, actor = {}) {
   const username = normalizeUsername(actor.username);
   const displayName = sanitizeText(actor.displayName, 40) || await resolveDisplayName(username) || username;
   if (!username) throw createError('未登录账号不能创建村社', 401);
+  const founderIdentity = resolveActiveSocietySaveIdentity(username);
   const store = loadSocietyStore();
   if (findMemberSociety(store, username)) throw createError('你已经加入一个村社了');
 
@@ -1884,6 +1933,8 @@ async function createSociety(payload = {}, actor = {}) {
       {
         username,
         display_name: displayName,
+        save_id: founderIdentity?.save_id || 0,
+        save_slot: founderIdentity?.save_slot ?? null,
         role: 'president',
         joined_at: nowSeconds(),
       },
@@ -1896,6 +1947,8 @@ async function createSociety(payload = {}, actor = {}) {
   appendSocietyRoleHistory(society, {
     username,
     display_name: displayName,
+    save_id: founderIdentity?.save_id || 0,
+    save_slot: founderIdentity?.save_slot ?? null,
     role: 'president',
     created_at: society.created_at,
     source: 'founding_president',
@@ -1919,12 +1972,15 @@ async function applyToSociety(username, societyId) {
   if (society.join_requirement_id === 'invite_only') throw createError('当前村社仅接受邀请加入', 403);
   if (getSocietyMember(society, applicant)) throw createError('你已经是这个村社的成员了');
   if (hasPendingSocietyRequest(store, society.id, applicant)) throw createError('你已经提交过申请或收到邀请了');
+  const applicantIdentity = resolveActiveSocietySaveIdentity(applicant);
 
   const request = normalizeSocietyJoinRequest({
     id: makeId('society_join'),
     society_id: society.id,
     username: applicant,
     display_name: await resolveDisplayName(applicant),
+    target_save_id: applicantIdentity?.save_id || 0,
+    target_save_slot: applicantIdentity?.save_slot ?? null,
     type: 'apply',
     status: 'pending',
     created_at: nowSeconds(),
@@ -2007,17 +2063,20 @@ async function inviteToSociety(payload = {}, actor = {}) {
   ensureSocietyMemberRole(society, inviter, SOCIETY_MANAGER_ROLES, '只有社长或管事可以邀请成员');
   if ((society.members || []).length >= society.capacity) throw createError('当前村社人数已满');
 
-  const { username: targetUsername } = resolveTargetBySaveIdOrUsername(payload, '请先填写要邀请的玩家或存档 ID');
+  const { username: targetUsername, identity: requestedTargetIdentity } = resolveTargetBySaveIdOrUsername(payload, '请先填写要邀请的玩家或存档 ID');
   if (targetUsername === inviter) throw createError('不能邀请自己');
   await ensureTargetUserExists(targetUsername);
   if (findMemberSociety(store, targetUsername)) throw createError('对方已经加入其他村社');
   if (hasPendingSocietyRequest(store, society.id, targetUsername)) throw createError('该玩家已有待处理的申请或邀请');
+  const targetIdentity = requestedTargetIdentity || resolveActiveSocietySaveIdentity(targetUsername);
 
   const request = normalizeSocietyJoinRequest({
     id: makeId('society_join'),
     society_id: society.id,
     username: targetUsername,
     display_name: await resolveDisplayName(targetUsername),
+    target_save_id: targetIdentity?.save_id || 0,
+    target_save_slot: targetIdentity?.save_slot ?? null,
     invited_by: inviter,
     invited_by_display_name: inviterDisplayName,
     type: 'invite',
@@ -2049,6 +2108,7 @@ async function respondSocietyRequest(requestId, decision, actor = {}) {
   const canManage = actorMember && SOCIETY_MANAGER_ROLES.includes(actorMember.role);
   const canSelfRespondInvite = request.type === 'invite' && request.username === actorUsername;
   if (!canManage && !canSelfRespondInvite) throw createError('你无权处理这条村社申请', 403);
+  if (canSelfRespondInvite) ensureSocietyRequestMatchesActiveSave(request, actorUsername);
 
   request.status = normalizedDecision === 'accept' ? 'accepted' : 'rejected';
   request.updated_at = nowSeconds();
@@ -2062,6 +2122,8 @@ async function respondSocietyRequest(requestId, decision, actor = {}) {
       normalizeSocietyMember({
         username: request.username,
         display_name: targetDisplayName,
+        save_id: request.target_save_id,
+        save_slot: request.target_save_slot,
         role: 'member',
         joined_at: nowSeconds(),
       }),
@@ -2070,6 +2132,8 @@ async function respondSocietyRequest(requestId, decision, actor = {}) {
     appendSocietyRoleHistory(society, {
       username: request.username,
       display_name: targetDisplayName,
+      save_id: request.target_save_id,
+      save_slot: request.target_save_slot,
       role: 'member',
       created_at: nowSeconds(),
       source: request.type === 'invite' ? 'invited_member' : 'applied_member',

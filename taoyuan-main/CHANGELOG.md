@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0520 村社申请 / 邀请存档级收口（A1-A6）
+- 村社申请单、邀请单、成员快照和角色履历现在都会保存并回显 `target_save_id / target_save_slot`，不再只停留在 username-first 的旧投递结构。
+- 村社概览会按当前活动存档过滤收到的邀请与待处理申请；玩家自我接受邀请时也会校验当前活动存档必须匹配受邀存档。
+- 旧 `target_save_id = 0` 的历史数据继续按 username 兼容处理，不强制迁移。
+- 验证通过 `node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke` 与 `npm --prefix server run qa:realtime-smoke`。
+
 ### 0520 邮箱投递存档级收口（A1-A6）
 - 玩家来信 / 礼物包裹投递记录现在会保存 `target_save_id / target_save_slot`，收件箱、发件箱和实时邮件通知摘要都会回显这些字段。
 - 旧 username 收件路径继续兼容，邮件领取和礼物包裹结算仍走服务端权威存档写回。
