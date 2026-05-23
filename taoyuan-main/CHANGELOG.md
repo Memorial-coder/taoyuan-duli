@@ -4,6 +4,14 @@
 
 ## [未发布]
 
+### 0520 客户端意图边界收口（A1）
+- WebSocket 客户端消息入口已按现有实现收口为 `ping / presence.snapshot / notification.ack`，前端 realtime store 也只发送这些轻消息。
+- 好友、房间、邮箱、庄园、村社、邻里和协作单等联机写路仍由服务端 HTTP 权威结算；实时事件只驱动静默刷新，客户端伪造 `notification.created / activity.room.updated` 已由 `qa:realtime-smoke` 覆盖。
+
+### 0520 WebSocket 职责收口（A4）
+- WebSocket 已承担在线状态、好友申请推送、邀请和房间状态变化；前端收到事件后只静默重读权威接口。
+- `qa:realtime-smoke` 已覆盖 presence、好友申请、活动房间创建 / 邀请 / 加入 / 更新，以及客户端伪造投递事件拦截。
+
 ### 0520 联机旧轮询审计（A4）
 - 静态扫过 `EventSource / text/event-stream / setInterval / polling / 轮询`，当前没有联机数据常驻轮询残留。
 - 剩余定时器只服务小游戏倒计时 / 动画、全局游戏时钟、自动存档、realtime ping、服务端配置刷新和 heartbeat；手动刷新仍是玩家主动重读权威接口。

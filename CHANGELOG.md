@@ -2,6 +2,12 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A1` 这一轮收口“客户端只提交意图，不直接写最终结果”：服务端 WebSocket 消息入口只接受 `ping / presence.snapshot / notification.ack`，前端 realtime store 也只发送这三类轻消息。
+- 好友、房间、邮箱、庄园、村社、邻里和协作单等联机写路仍由 HTTP 服务端权威结算；实时事件只推动前端静默重读权威接口，客户端伪造 `notification.created / activity.room.updated` 已有 `qa:realtime-smoke` 覆盖。
+
+- `0520todo.md / A4` 这一轮收口 WebSocket 的实时职责边界：在线状态、好友申请推送、邀请和房间状态变化都由 realtime 事件投递，前端只静默重读权威接口。
+- `qa:realtime-smoke` 已覆盖 presence、好友申请、活动房间创建 / 邀请 / 加入 / 更新，以及客户端伪造投递事件拦截。
+
 - `0520todo.md / A4` 这一轮完成联机旧轮询审计：代码中没有 `EventSource`、`text/event-stream` 或联机数据常驻轮询残留。
 - 现有定时器只用于节会小游戏倒计时 / 动画、全局游戏时钟、自动存档、realtime ping、服务端配置刷新和 heartbeat；手动刷新按钮保留为玩家主动重读权威接口。
 
