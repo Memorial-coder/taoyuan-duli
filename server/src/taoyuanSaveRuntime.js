@@ -14,9 +14,10 @@ const CURRENT_SAVE_VERSION = 4;
 const SAVE_ID_MIN = 100000000;
 const SAVE_ID_MAX_EXCLUSIVE = 1000000000;
 
-function createError(message, status = 400) {
+function createError(message, status = 400, code = '') {
   const error = new Error(message);
   error.status = status;
+  if (code) error.code = code;
   return error;
 }
 
@@ -45,6 +46,22 @@ function createEmptySlots() {
   return { 0: null, 1: null, 2: null };
 }
 
+function createCorruptedSaveStoreError(filePath) {
+  return createError(
+    `桃源乡服务端存档文件已损坏，已阻止读取或覆盖：${path.basename(filePath)}`,
+    500,
+    'TAOYUAN_SAVE_STORE_CORRUPTED'
+  );
+}
+
+function readJsonFileStrict(filePath) {
+  try {
+    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
+  } catch {
+    throw createCorruptedSaveStoreError(filePath);
+  }
+}
+
 function writeJsonFileAtomic(filePath, data) {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
   const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
@@ -63,23 +80,21 @@ function loadUserSaveSlots(username) {
   ensureTaoyuanSavesDir();
   const file = getTaoyuanSavePath(username);
   if (!fs.existsSync(file)) return { slots: createEmptySlots() };
-  try {
-    const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return {
-      slots: {
-        0: normalizeSlotEntry(raw?.slots?.[0]),
-        1: normalizeSlotEntry(raw?.slots?.[1]),
-        2: normalizeSlotEntry(raw?.slots?.[2]),
-      },
-    };
-  } catch {
-    return { slots: createEmptySlots() };
-  }
+  const raw = readJsonFileStrict(file);
+  return {
+    slots: {
+      0: normalizeSlotEntry(raw?.slots?.[0]),
+      1: normalizeSlotEntry(raw?.slots?.[1]),
+      2: normalizeSlotEntry(raw?.slots?.[2]),
+    },
+  };
 }
 
 function saveUserSaveSlots(username, data) {
   ensureTaoyuanSavesDir();
-  writeJsonFileAtomic(getTaoyuanSavePath(username), data);
+  const file = getTaoyuanSavePath(username);
+  if (fs.existsSync(file)) readJsonFileStrict(file);
+  writeJsonFileAtomic(file, data);
 }
 
 function deleteUserSaveData(username) {
