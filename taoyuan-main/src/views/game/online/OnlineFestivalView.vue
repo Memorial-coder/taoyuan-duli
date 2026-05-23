@@ -61,7 +61,7 @@
           <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabMeta.summary }}</p>
         </div>
         <RouterLink
-          v-if="activeTab !== 'world' && activeTab !== 'memorials'"
+          v-if="activeTab === 'expedition-room'"
           class="online-action-btn online-action-btn--compact shrink-0"
           :to="legacyRouteForActiveTab"
         >
@@ -299,36 +299,376 @@
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'festival-room'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
+      <div v-else-if="activeTab === 'festival-room'" class="space-y-3">
         <div class="game-panel-muted p-3">
-          <div class="flex items-center justify-between gap-2">
-            <p class="text-sm text-accent">节会房间状态</p>
-            <span class="text-[10px] text-muted">{{ festivalRoomStore.myRoom?.state_label || '空闲中' }}</span>
+          <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div class="min-w-0">
+              <p class="text-sm text-accent">节会房间</p>
+              <p class="mt-1 text-xs leading-5 text-muted">{{ festivalRoomStore.overview?.bulletin || '先从房间底座把创建、邀请、准备、倒计时和结算流程跑通。' }}</p>
+            </div>
+            <span class="shrink-0 text-[10px] text-muted">{{ festivalRoomStore.loading ? '正在刷新' : '已载入房间摘要' }}</span>
           </div>
-          <div v-if="festivalRoomStore.myRoom" class="mt-3 border border-accent/10 bg-black/10 p-2">
-            <p class="truncate text-xs text-accent">{{ festivalRoomStore.myRoom.title }}</p>
-            <p class="mt-1 text-[10px] leading-4 text-muted">
-              {{ festivalRoomStore.myRoom.template_label }} · {{ festivalRoomStore.myRoom.joined_member_count }}/{{ festivalRoomStore.myRoom.member_limit }} 人
-            </p>
-            <p class="mt-1 text-[10px] text-muted">{{ festivalRoomStore.myRoom.gameplay.template_label }} · {{ festivalRoomStore.myRoom.gameplay.progress_text }}</p>
+        </div>
+
+        <div class="grid gap-3 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+          <div class="space-y-3">
+            <div class="game-panel-muted p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm text-accent">我的节会状态</p>
+                <span class="text-[10px] text-muted">{{ festivalRoomStore.myRoom ? festivalRoomStore.myRoom.state_label : '空闲中' }}</span>
+              </div>
+              <div v-if="festivalRoomStore.myRoom" class="mt-3 space-y-3">
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs text-accent">{{ festivalRoomStore.myRoom.title }}</p>
+                      <p class="mt-1 text-[10px] text-muted">
+                        {{ festivalRoomStore.myRoom.template_label }} · {{ festivalRoomStore.myRoom.gameplay.template_label }} · {{ festivalRoomStore.myRoom.joined_member_count }}/{{ festivalRoomStore.myRoom.member_limit }} 人
+                      </p>
+                    </div>
+                    <span class="w-fit shrink-0 text-[10px] text-muted">{{ festivalRoomStore.myRoom.state_label }}</span>
+                  </div>
+                  <p v-if="festivalRoomStore.myRoom.state_reason" class="mt-1 text-[10px] leading-4 text-warning">{{ festivalRoomStore.myRoom.state_reason }}</p>
+                  <p v-if="festivalRoomStore.myRoom.opening_ceremony" class="mt-1 text-[10px] leading-4 text-success">
+                    {{ festivalRoomStore.myRoom.opening_ceremony.subtitle }}
+                  </p>
+                </div>
+
+                <div class="border border-accent/10 bg-black/10 p-2">
+                  <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs text-accent">{{ festivalRoomStore.myRoom.gameplay.template_label }}</p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.myRoom.gameplay.template_summary }}</p>
+                    </div>
+                    <span class="w-fit shrink-0 text-[10px] text-muted">{{ festivalRoomStore.myRoom.gameplay.phase_label }}</span>
+                  </div>
+                  <p class="mt-2 text-[10px] text-muted">
+                    {{ festivalRoomStore.myRoom.gameplay.progress_text }} · {{ festivalRoomStore.myRoom.gameplay.score_label }} {{ festivalRoomStore.myRoom.gameplay.score_value }}
+                  </p>
+                  <div class="mt-2 h-1.5 overflow-hidden border border-accent/10 bg-bg">
+                    <div class="h-full bg-accent/70 transition-all" :style="{ width: `${festivalRoomStore.myRoom.gameplay.progress_percent}%` }" />
+                  </div>
+                  <p v-if="festivalRoomStore.myRoom.gameplay.last_action_summary" class="mt-2 text-[10px] leading-4 text-success">
+                    {{ festivalRoomStore.myRoom.gameplay.last_action_summary }}
+                  </p>
+                  <div v-if="festivalRoomStore.myRoom.gameplay.contributions.length > 0" class="mt-2 flex max-h-28 flex-wrap gap-1.5 overflow-y-auto pr-1">
+                    <span
+                      v-for="contribution in festivalRoomStore.myRoom.gameplay.contributions"
+                      :key="`${festivalRoomStore.myRoom.id}-${contribution.username}-gameplay`"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                    >
+                      {{ contribution.display_name }} · {{ contribution.action_count }} 次 · {{ contribution.progress_value }} 贡献
+                    </span>
+                  </div>
+                </div>
+
+                <div v-if="festivalRoomStore.myFestivalState" class="space-y-3 border border-accent/10 bg-black/10 p-2">
+                  <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs text-accent">{{ festivalRoomStore.myFestivalState.round_text }}</p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.myFestivalState.current_event.summary }}</p>
+                    </div>
+                    <span class="w-fit shrink-0 text-[10px] text-muted">压力 {{ festivalRoomStore.myFestivalState.pressure_text }}</span>
+                  </div>
+                  <div class="grid gap-2 md:grid-cols-2">
+                    <div class="border border-accent/10 bg-black/10 p-2">
+                      <p class="text-[10px] text-muted">当前事件</p>
+                      <p class="mt-1 text-xs text-text">{{ festivalRoomStore.myFestivalState.current_event.label }}</p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.myFestivalState.current_event.pressure_hint }}</p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.myFestivalState.current_event.resource_hint }}</p>
+                    </div>
+                    <div class="border border-accent/10 bg-black/10 p-2">
+                      <p class="text-[10px] text-muted">我的职责</p>
+                      <template v-if="festivalRoomStore.myFestivalState.my_role">
+                        <p class="mt-1 text-xs text-text">{{ festivalRoomStore.myFestivalState.my_role.role_label }}</p>
+                        <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.myFestivalState.my_role.role_summary }}</p>
+                      </template>
+                      <p v-else class="mt-1 text-[10px] text-muted">加入房间后会显示本局职责。</p>
+                    </div>
+                  </div>
+                  <div class="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto pr-1">
+                    <span
+                      v-for="resource in festivalRoomStore.myFestivalState.team_resources"
+                      :key="`${festivalRoomStore.myRoom.id}-${resource.id}`"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                    >
+                      {{ resource.text }}
+                    </span>
+                  </div>
+                  <div v-if="festivalRoomStore.myFestivalState.role_assignments.length > 0" class="flex max-h-20 flex-wrap gap-1.5 overflow-y-auto pr-1">
+                    <span
+                      v-for="role in festivalRoomStore.myFestivalState.role_assignments"
+                      :key="`${festivalRoomStore.myRoom.id}-${role.username}-festival-role`"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                    >
+                      {{ role.display_name }} · {{ role.role_label }}
+                    </span>
+                  </div>
+                  <p v-if="festivalRoomStore.myFestivalState.recent_feedback" class="text-[10px] leading-4 text-success">
+                    {{ festivalRoomStore.myFestivalState.recent_feedback }}
+                  </p>
+                  <div v-if="festivalRoomStore.myFestivalState.round_log.length > 0" class="space-y-1">
+                    <p class="text-[10px] text-muted">回合记录</p>
+                    <div class="max-h-28 space-y-1 overflow-y-auto pr-1">
+                      <p
+                        v-for="entry in festivalRoomStore.myFestivalState.round_log.slice(0, 6)"
+                        :key="entry.id"
+                        class="text-[10px] leading-4 text-muted"
+                      >
+                        - {{ entry.summary }}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="festivalRoomStore.myRoom.gameplay.available_actions.length > 0" class="space-y-2">
+                  <p class="text-[10px] text-muted">玩法动作</p>
+                  <div class="grid gap-2 md:grid-cols-2">
+                    <div
+                      v-for="action in festivalRoomStore.myRoom.gameplay.available_actions"
+                      :key="`${festivalRoomStore.myRoom.id}-${action.id}`"
+                      class="border border-accent/10 bg-black/10 p-2"
+                    >
+                      <div class="flex flex-col gap-2 sm:flex-row sm:items-start">
+                        <Button
+                          class="online-action-btn online-action-btn--compact shrink-0"
+                          :disabled="festivalRoomStore.actionRunning || !action.can_use"
+                          @click="playGameplayAction(festivalRoomStore.myRoom.id, action.id)"
+                        >
+                          {{ action.label }}
+                        </Button>
+                        <p class="text-[10px] leading-4 text-muted">{{ action.summary }}</p>
+                      </div>
+                      <div class="mt-2 flex flex-wrap gap-1.5">
+                        <span v-if="action.required_role_label" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                          {{ action.required_role_label }}
+                        </span>
+                        <span v-if="action.once_per_round" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                          每回合一次
+                        </span>
+                        <span v-if="action.pressure_delta_text" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                          {{ action.pressure_delta_text }}
+                        </span>
+                        <span v-if="action.resource_delta_text" class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted">
+                          {{ action.resource_delta_text }}
+                        </span>
+                      </div>
+                      <p v-if="action.round_effect" class="mt-2 text-[10px] leading-4 text-muted">{{ action.round_effect }}</p>
+                      <p v-if="!action.can_use && action.disabled_reason" class="mt-1 text-[10px] text-muted">{{ action.disabled_reason }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="festivalRoomStore.myRoom.settlement_receipts.length > 0" class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-xs text-accent">本房结算凭证</p>
+                  <div class="mt-2 max-h-36 space-y-1.5 overflow-y-auto pr-1">
+                    <p
+                      v-for="receipt in festivalRoomStore.myRoom.settlement_receipts"
+                      :key="receipt.id"
+                      class="text-[10px] leading-4 text-muted"
+                    >
+                      {{ receipt.target_display_name }} · {{ receipt.status_label }} · {{ receipt.summary }}
+                    </p>
+                  </div>
+                </div>
+
+                <label class="block">
+                  <span class="text-[10px] text-muted">邀请玩家</span>
+                  <div class="online-action-row mt-1">
+                    <input
+                      v-model="festivalRoomStore.draftInviteUsername"
+                      class="online-input flex-1"
+                      placeholder="输入用户名"
+                    />
+                    <Button class="online-action-btn online-action-btn--primary" :disabled="festivalRoomStore.actionRunning" @click="inviteMember(festivalRoomStore.myRoom.id)">
+                      邀请
+                    </Button>
+                  </div>
+                </label>
+
+                <div class="grid gap-2 sm:grid-cols-2">
+                  <Button v-if="festivalRoomStore.myRoom.can_host_ready_check" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="startReadyCheck(festivalRoomStore.myRoom.id)">
+                    开准备
+                  </Button>
+                  <Button v-if="festivalRoomStore.myRoom.can_ready" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="readyRoom(festivalRoomStore.myRoom.id)">
+                    我已准备
+                  </Button>
+                  <Button v-if="festivalRoomStore.myRoom.can_unready" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="unreadyRoom(festivalRoomStore.myRoom.id)">
+                    取消准备
+                  </Button>
+                  <Button v-if="festivalRoomStore.myRoom.can_host_start_countdown" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="startCountdown(festivalRoomStore.myRoom.id)">
+                    开倒计时
+                  </Button>
+                  <Button v-if="festivalRoomStore.myRoom.can_disconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="disconnectRoom(festivalRoomStore.myRoom.id)">
+                    模拟断线
+                  </Button>
+                  <Button v-if="festivalRoomStore.myRoom.can_reconnect" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="reconnectRoom(festivalRoomStore.myRoom.id)">
+                    恢复连接
+                  </Button>
+                  <Button v-if="festivalRoomStore.myRoom.can_host_settle" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="settleRoom(festivalRoomStore.myRoom.id)">
+                    进入结算
+                  </Button>
+                  <Button v-if="festivalRoomStore.myRoom.can_host_close" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="closeRoom(festivalRoomStore.myRoom.id)">
+                    {{ festivalRoomStore.myRoom.state === 'settling' ? '正式关闭' : '取消房间' }}
+                  </Button>
+                  <Button v-if="festivalRoomStore.myRoom.can_leave" class="online-action-btn online-action-btn--compact justify-center" :disabled="festivalRoomStore.actionRunning" @click="leaveRoom(festivalRoomStore.myRoom.id)">
+                    离开房间
+                  </Button>
+                </div>
+              </div>
+              <p v-else class="mt-3 text-xs leading-5 text-muted">当前没有进行中的节会房间。可以先处理邀请，或创建自己的节会房间。</p>
+            </div>
+
+            <div class="game-panel-muted p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm text-accent">待处理邀请</p>
+                <span class="text-[10px] text-muted">{{ festivalRoomStore.invitedRooms.length }} 条</span>
+              </div>
+              <div v-if="festivalRoomStore.invitedRooms.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有待处理的节会邀请。</div>
+              <div v-else class="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
+                <div v-for="room in festivalRoomStore.invitedRooms" :key="room.id" class="border border-warning/15 bg-warning/5 p-2">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs text-text">{{ room.title }}</p>
+                      <p class="mt-1 text-[10px] text-muted">{{ room.template_label }} · {{ room.gameplay.template_label }} · 房主 {{ room.host_display_name }}</p>
+                    </div>
+                    <Button class="online-action-btn online-action-btn--compact shrink-0" :disabled="festivalRoomStore.actionRunning || !room.can_join" @click="joinRoom(room.id)">
+                      加入
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <p v-else class="mt-3 text-xs leading-5 text-muted">当前没有自己的节会房间。创建、邀请、ready 和结算操作先保留在旧节会页，后续 F2 再完整迁入。</p>
+
+          <div class="space-y-3">
+            <div class="game-panel-muted p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm text-accent">创建节会房间</p>
+                <span class="text-[10px] text-muted">房型与玩法</span>
+              </div>
+              <div class="mt-3 space-y-3">
+                <label class="block">
+                  <span class="text-[10px] text-muted">节会房型</span>
+                  <select v-model="festivalRoomStore.selectedTemplateId" class="online-select mt-1">
+                    <option v-for="template in festivalRoomStore.templates" :key="template.id" :value="template.id">
+                      {{ template.label }}
+                    </option>
+                  </select>
+                </label>
+                <div v-if="festivalRoomStore.selectedTemplate" class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-xs text-accent">{{ festivalRoomStore.selectedTemplate.label }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.selectedTemplate.summary }}</p>
+                  <p class="mt-1 text-[10px] text-muted">默认人数上限：{{ festivalRoomStore.selectedTemplate.default_member_limit }} 人</p>
+                  <p v-if="festivalRoomStore.recommendedGameplayTemplates.length > 0" class="mt-1 text-[10px] text-muted">
+                    推荐玩法：{{ festivalRoomStore.recommendedGameplayTemplates.map(template => template.label).join(' / ') }}
+                  </p>
+                </div>
+                <label class="block">
+                  <span class="text-[10px] text-muted">玩法模板</span>
+                  <select v-model="festivalRoomStore.selectedGameplayTemplateId" class="online-select mt-1">
+                    <option v-for="template in festivalRoomStore.gameplayTemplates" :key="template.id" :value="template.id">
+                      {{ template.label }}
+                    </option>
+                  </select>
+                </label>
+                <div v-if="festivalRoomStore.selectedGameplayTemplate" class="border border-accent/10 bg-black/10 p-2">
+                  <p class="text-xs text-accent">{{ festivalRoomStore.selectedGameplayTemplate.label }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.selectedGameplayTemplate.summary }}</p>
+                  <p class="mt-1 text-[10px] text-muted">
+                    {{ festivalRoomStore.selectedGameplayTemplate.objective_label }} · 目标 {{ festivalRoomStore.selectedGameplayTemplate.default_target }}
+                  </p>
+                  <div v-if="festivalRoomStore.selectedGameplayTemplate.action_options.length > 0" class="mt-2 flex flex-wrap gap-1.5">
+                    <span
+                      v-for="action in festivalRoomStore.selectedGameplayTemplate.action_options"
+                      :key="action.id"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                    >
+                      {{ action.label }}
+                    </span>
+                  </div>
+                </div>
+                <label class="block">
+                  <span class="text-[10px] text-muted">房间标题</span>
+                  <input
+                    v-model="festivalRoomStore.draftTitle"
+                    maxlength="30"
+                    class="online-input mt-1"
+                    placeholder="例如：端午夜练舟"
+                  />
+                </label>
+                <Button
+                  class="online-action-btn online-action-btn--primary w-full justify-center"
+                  :disabled="festivalRoomStore.actionRunning || !festivalRoomStore.selectedTemplate || !festivalRoomStore.selectedGameplayTemplate"
+                  @click="createRoom"
+                >
+                  创建房间
+                </Button>
+              </div>
+            </div>
+
+            <div class="game-panel-muted p-3">
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-sm text-accent">可见房间</p>
+                <span class="text-[10px] text-muted">{{ festivalRoomStore.visibleRooms.length }} 间</span>
+              </div>
+              <div v-if="festivalRoomStore.visibleRooms.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有你能查看的节会房间。</div>
+              <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+                <div v-for="room in festivalRoomStore.visibleRooms" :key="room.id" class="border border-accent/10 bg-black/10 p-2">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div class="min-w-0">
+                      <p class="truncate text-xs text-accent">{{ room.title }}</p>
+                      <p class="mt-1 text-[10px] text-muted">
+                        {{ room.template_label }} · {{ room.gameplay.template_label }} · {{ room.state_label }} · {{ room.joined_member_count }}/{{ room.member_limit }} 人
+                      </p>
+                    </div>
+                    <div class="flex shrink-0 items-center gap-2">
+                      <span class="text-[10px] text-muted">{{ room.ready_member_count }} 已准备</span>
+                      <Button v-if="room.can_join" class="online-action-btn online-action-btn--compact" :disabled="festivalRoomStore.actionRunning" @click="joinRoom(room.id)">
+                        加入
+                      </Button>
+                    </div>
+                  </div>
+                  <p class="mt-2 text-[10px] text-muted">{{ room.gameplay.progress_text }} · {{ room.gameplay.score_label }} {{ room.gameplay.score_value }}</p>
+                  <div class="mt-2 h-1.5 overflow-hidden border border-accent/10 bg-bg">
+                    <div class="h-full bg-accent/70 transition-all" :style="{ width: `${room.gameplay.progress_percent}%` }" />
+                  </div>
+                  <div v-if="room.members.length > 0" class="mt-2 flex max-h-24 flex-wrap gap-1.5 overflow-y-auto pr-1">
+                    <span
+                      v-for="member in room.members"
+                      :key="`${room.id}-${member.username}`"
+                      class="border border-accent/15 px-1.5 py-0.5 text-[10px] text-muted"
+                    >
+                      {{ member.display_name }} · {{ member.status_label }}
+                    </span>
+                  </div>
+                  <div v-if="room.recent_events.length > 0" class="mt-2 max-h-24 space-y-1 overflow-y-auto pr-1">
+                    <p v-for="event in room.recent_events.slice(0, 4)" :key="event.id" class="text-[10px] leading-4 text-muted">
+                      - {{ event.summary }}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="game-panel-muted p-3">
-          <p class="text-sm text-accent">房间摘要</p>
-          <div class="mt-3 grid gap-2 text-xs">
-            <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">邀请</p>
-              <p class="mt-1 text-accent">{{ festivalRoomStore.invitedRooms.length }} 条</p>
-            </div>
-            <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">可见房间</p>
-              <p class="mt-1 text-accent">{{ festivalRoomStore.visibleRooms.length }} 间</p>
-            </div>
-            <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">结算凭证</p>
-              <p class="mt-1 text-accent">{{ festivalRoomStore.recentReceipts.length }} 条</p>
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm text-accent">最近结算凭证</p>
+            <span class="text-[10px] text-muted">{{ festivalRoomStore.recentReceipts.length }} 条</span>
+          </div>
+          <div v-if="festivalRoomStore.recentReceipts.length === 0" class="mt-3 text-xs leading-5 text-muted">当前还没有节会房间结算凭证。</div>
+          <div v-else class="mt-3 max-h-64 space-y-2 overflow-y-auto pr-1">
+            <div v-for="receipt in festivalRoomStore.recentReceipts" :key="receipt.id" class="border border-accent/10 bg-black/10 p-2">
+              <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                <div class="min-w-0">
+                  <p class="truncate text-xs text-text">{{ receipt.room_title }}</p>
+                  <p class="mt-1 text-[10px] text-muted">{{ receipt.template_label }} · 槽位 {{ receipt.target_slot + 1 }}</p>
+                </div>
+                <span class="w-fit shrink-0 text-[10px] text-accent">{{ receipt.status_label }}</span>
+              </div>
+              <p class="mt-2 text-[10px] leading-4 text-muted">{{ receipt.summary }}</p>
             </div>
           </div>
         </div>
@@ -512,6 +852,16 @@
     })),
   ].slice(0, 8))
 
+  const getRouteQueryText = (value: unknown) => {
+    const raw = Array.isArray(value) ? value[0] : value
+    return typeof raw === 'string' ? raw.trim() : ''
+  }
+  const applyInviteRouteDraft = () => {
+    const targetUsername = getRouteQueryText(route.query.target_username)
+    const targetSaveId = getRouteQueryText(route.query.target_save_id)
+    if (targetUsername) festivalRoomStore.draftInviteUsername = targetUsername
+    if (targetSaveId) festivalRoomStore.draftInviteSaveId = targetSaveId
+  }
   const refreshFestivalModule = async () => {
     await Promise.all([
       worldEventStore.refreshOverview().catch(() => {}),
@@ -523,6 +873,45 @@
   const contributeWorldEventAction = async (eventId: string, actionId: string) => {
     await worldEventStore.contribute(eventId, actionId).catch(() => {})
   }
+  const createRoom = async () => {
+    await festivalRoomStore.createRoom().catch(() => {})
+  }
+  const inviteMember = async (roomId: string) => {
+    await festivalRoomStore.inviteMember(roomId).catch(() => {})
+  }
+  const joinRoom = async (roomId: string) => {
+    await festivalRoomStore.joinRoom(roomId).catch(() => {})
+  }
+  const leaveRoom = async (roomId: string) => {
+    await festivalRoomStore.leaveRoomAction(roomId).catch(() => {})
+  }
+  const startReadyCheck = async (roomId: string) => {
+    await festivalRoomStore.startReadyCheck(roomId).catch(() => {})
+  }
+  const readyRoom = async (roomId: string) => {
+    await festivalRoomStore.readyRoomAction(roomId).catch(() => {})
+  }
+  const unreadyRoom = async (roomId: string) => {
+    await festivalRoomStore.unreadyRoomAction(roomId).catch(() => {})
+  }
+  const startCountdown = async (roomId: string) => {
+    await festivalRoomStore.startCountdown(roomId).catch(() => {})
+  }
+  const disconnectRoom = async (roomId: string) => {
+    await festivalRoomStore.disconnectRoomAction(roomId).catch(() => {})
+  }
+  const reconnectRoom = async (roomId: string) => {
+    await festivalRoomStore.reconnectRoomAction(roomId).catch(() => {})
+  }
+  const playGameplayAction = async (roomId: string, actionId: string) => {
+    await festivalRoomStore.submitGameplayAction(roomId, actionId).catch(() => {})
+  }
+  const settleRoom = async (roomId: string) => {
+    await festivalRoomStore.settleRoomAction(roomId).catch(() => {})
+  }
+  const closeRoom = async (roomId: string) => {
+    await festivalRoomStore.closeRoomAction(roomId).catch(() => {})
+  }
 
   watch(
     () => route.query.tab,
@@ -530,8 +919,15 @@
       activeTab.value = normalizeTab(tab)
     }
   )
+  watch(
+    () => [route.query.target_username, route.query.target_save_id],
+    () => {
+      applyInviteRouteDraft()
+    }
+  )
 
   onMounted(() => {
+    applyInviteRouteDraft()
     void refreshFestivalModule()
   })
 </script>
