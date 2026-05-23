@@ -4035,6 +4035,15 @@ try {
     const chronicle = data?.my_society?.chronicle
     assert(chronicle && Number(chronicle.founded_at || 0) > 0, 'society chronicle did not expose founded_at')
     assert(Array.isArray(chronicle?.role_history) && chronicle.role_history.length >= 2, 'society chronicle did not expose role history')
+    assert(
+      chronicle.role_history.some(entry =>
+        entry?.username === secondarySessionState.username &&
+        entry?.source === 'role_assignment' &&
+        entry?.save_id === secondarySaveIdentity.save_id &&
+        entry?.save_slot === secondarySaveIdentity.save_slot
+      ),
+      'society role assignment history did not preserve member save identity',
+    )
     assert(Array.isArray(chronicle?.public_projects) && chronicle.public_projects.some(entry => entry?.id === 'bridge' && Number(entry?.contribution_count || 0) >= 1), 'society chronicle did not expose public project history')
     assert(Array.isArray(chronicle?.festival_participations) && chronicle.festival_participations.length >= 1, 'society chronicle did not expose festival participation history')
     assert(Array.isArray(chronicle?.top_contributors) && chronicle.top_contributors.some(entry => entry?.username === secondarySessionState.username), 'society chronicle did not expose contribution ranking')
@@ -4207,6 +4216,16 @@ try {
     assert(inheritedReadback.data?.ok === true && inheritedReadback.data?.my_society?.id === createdSocietyId, 'society president leave did not preserve the society for the remaining member')
     assert(String(inheritedReadback.data?.my_society?.my_role || '') === 'president', 'society president leave did not transfer the president role')
     assert(inheritedReadback.data?.my_society?.can_manage_roles === true, 'society president leave did not preserve management rights')
+    assert(
+      Array.isArray(inheritedReadback.data?.my_society?.chronicle?.role_history) &&
+      inheritedReadback.data.my_society.chronicle.role_history.some(entry =>
+        entry?.username === secondarySessionState.username &&
+        entry?.source === 'president_transfer' &&
+        entry?.save_id === secondarySaveIdentity.save_id &&
+        entry?.save_slot === secondarySaveIdentity.save_slot
+      ),
+      'society president transfer history did not preserve successor save identity',
+    )
     const inheritedBridgeProject = inheritedReadback.data?.my_society?.public_projects?.find(entry => entry?.id === 'bridge')
     assert(inheritedBridgeProject && String(inheritedBridgeProject?.status || '') === 'completed', 'society inherited readback did not preserve completed public project status')
     assert(

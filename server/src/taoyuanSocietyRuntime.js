@@ -2033,6 +2033,8 @@ async function leaveSociety(actor = {}) {
     appendSocietyRoleHistory(society, {
       username: nextPresident.username,
       display_name: nextPresident.display_name || await resolveDisplayName(nextPresident.username),
+      save_id: nextPresident.save_id,
+      save_slot: nextPresident.save_slot,
       role: 'president',
       created_at: nowSeconds(),
       source: 'president_transfer',
@@ -2174,6 +2176,8 @@ async function updateSocietyMemberRole(payload = {}, actor = {}) {
   appendSocietyRoleHistory(society, {
     username: targetUsername,
     display_name: targetDisplayName,
+    save_id: targetMember.save_id,
+    save_slot: targetMember.save_slot,
     role: nextRole,
     created_at: nowSeconds(),
     source: 'role_assignment',

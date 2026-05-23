@@ -2,6 +2,10 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A1` 这一轮补齐村社职位履历的存档身份：职位调整会记录目标成员 `save_id / save_slot`，社长离任转移会记录继任者存档身份。
+- `qa:online-smoke` 已新增村社 chronicle 读回断言，覆盖 `role_assignment` 与 `president_transfer` 两类履历都不会退回 username-only。
+- 本轮验证通过 `node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs` 与 `npm --prefix server run qa:online-smoke`。
+
 - `0520todo.md / A1-A6` 这一轮把村社申请 / 邀请投递结构收口到存档级：申请单、邀请单、成员快照和角色履历都会保存并回显目标存档 ID / 槽位。
 - 村社概览会按当前活动存档过滤收到的邀请 / 待处理申请；玩家自我接受邀请时会校验当前活动存档必须匹配受邀存档，旧 `target_save_id = 0` 数据继续按 username 兼容。
 - 本轮验证通过 `node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`node --check server/scripts/qa-realtime-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke` 与 `npm --prefix server run qa:realtime-smoke`。
