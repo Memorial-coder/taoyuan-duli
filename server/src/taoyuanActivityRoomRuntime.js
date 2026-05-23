@@ -153,6 +153,21 @@ const EXPEDITION_CAVERN_ROLE_DEFS = Object.freeze([
   { id: 'miner', label: '采集', summary: '负责矿点采样和分工采集，拉高本局采集值。' },
 ]);
 
+const EXPEDITION_CAVERN_VISUAL_NODE_IDS = Object.freeze({
+  entrance: 'cavern_entrance',
+  crossroad: 'cavern_crossroad',
+  ore: 'cavern_ore_vein',
+  support: 'cavern_collapse_support',
+  marker: 'cavern_route_marker',
+  exit: 'cavern_exit',
+});
+
+const EXPEDITION_CAVERN_ACTION_NODE_MAP = Object.freeze({
+  split_mine: EXPEDITION_CAVERN_VISUAL_NODE_IDS.ore,
+  chalk_route: EXPEDITION_CAVERN_VISUAL_NODE_IDS.marker,
+  stabilize_collapse: EXPEDITION_CAVERN_VISUAL_NODE_IDS.support,
+});
+
 const FESTIVAL_RESOURCE_DEFS = Object.freeze([
   { id: 'cheer', label: '喝彩', initial_value: 2, max_value: 8 },
   { id: 'order', label: '秩序', initial_value: 4, max_value: 8 },
@@ -1730,6 +1745,204 @@ function buildExpeditionCavernEventSnapshot(event) {
   };
 }
 
+function getExpeditionCavernActionOption(actionId) {
+  const template = GAMEPLAY_TEMPLATE_MAP.expedition_cavern;
+  return (template.action_options || []).find(item => item.id === sanitizeText(actionId, 40)) || null;
+}
+
+function splitExpeditionCavernResourcePreview(resourceDelta) {
+  const delta = normalizeExpeditionCavernResourceDelta(resourceDelta);
+  return EXPEDITION_CAVERN_RESOURCE_DEFS.reduce((preview, definition) => {
+    const value = Math.floor(Number(delta[definition.id]) || 0);
+    if (value < 0) preview.cost[definition.id] = Math.abs(value);
+    if (value > 0) preview.reward[definition.id] = value;
+    return preview;
+  }, { cost: {}, reward: {} });
+}
+
+function hasExpeditionCavernActionResolved(cavernState, actionId) {
+  const normalizedActionId = sanitizeText(actionId, 40);
+  return (cavernState.round_log || []).some(entry => entry.action_id === normalizedActionId);
+}
+
+function getExpeditionCavernCurrentVisualNodeId(cavernState) {
+  const event = getExpeditionCavernCurrentEvent(cavernState);
+  const tags = new Set(Array.isArray(event.combo_tags) ? event.combo_tags : []);
+  if (tags.has('mine') || tags.has('ore')) return EXPEDITION_CAVERN_VISUAL_NODE_IDS.ore;
+  if (tags.has('support') || tags.has('collapse')) return EXPEDITION_CAVERN_VISUAL_NODE_IDS.support;
+  if (tags.has('survey') || tags.has('route')) return EXPEDITION_CAVERN_VISUAL_NODE_IDS.crossroad;
+  return EXPEDITION_CAVERN_VISUAL_NODE_IDS.crossroad;
+}
+
+function buildExpeditionCavernVisualActionPreview(actionId) {
+  const action = getExpeditionCavernActionOption(actionId);
+  if (!action) return { available_action_ids: [], resource_cost_preview: {}, resource_reward_preview: {}, risk_preview: '', reward_preview: '' };
+  const resourcePreview = splitExpeditionCavernResourcePreview(action.resource_delta);
+  const riskDelta = Math.floor(Number(action.risk_delta) || 0);
+  return {
+    available_action_ids: [action.id],
+    resource_cost_preview: resourcePreview.cost,
+    resource_reward_preview: resourcePreview.reward,
+    risk_preview: riskDelta ? `风险${formatSignedDelta(riskDelta)}。${action.round_effect || action.summary}` : action.round_effect || action.summary,
+    reward_preview: `${action.progress_delta || 0} 点节点进度，${action.score_delta || 0} 点采集值。`,
+  };
+}
+
+function buildExpeditionCavernVisualNodes(cavernState, existingNodes = []) {
+  const normalizedCavernState = normalizeExpeditionCavernState(cavernState);
+  const existingById = new Map((Array.isArray(existingNodes) ? existingNodes : [])
+    .map(normalizeOnlineVisualNode)
+    .filter(Boolean)
+    .map(node => [node.id, node]));
+  const event = getExpeditionCavernCurrentEvent(normalizedCavernState);
+  const currentNodeId = getExpeditionCavernCurrentVisualNodeId(normalizedCavernState);
+  const splitPreview = buildExpeditionCavernVisualActionPreview('split_mine');
+  const routePreview = buildExpeditionCavernVisualActionPreview('chalk_route');
+  const supportPreview = buildExpeditionCavernVisualActionPreview('stabilize_collapse');
+  const mineResolved = hasExpeditionCavernActionResolved(normalizedCavernState, 'split_mine');
+  const routeResolved = hasExpeditionCavernActionResolved(normalizedCavernState, 'chalk_route');
+  const supportResolved = hasExpeditionCavernActionResolved(normalizedCavernState, 'stabilize_collapse');
+  const activeRoundActions = new Set((normalizedCavernState.round_actions || [])
+    .filter(entry => entry.round_number === normalizedCavernState.round_number)
+    .map(entry => entry.action_id));
+
+  const makeNode = (node) => normalizeOnlineVisualNode({
+    ...existingById.get(node.id),
+    ...node,
+    state: node.id === currentNodeId && !['resolved', 'reward', 'exit'].includes(node.state) ? 'active' : node.state,
+  });
+
+  return [
+    makeNode({
+      id: EXPEDITION_CAVERN_VISUAL_NODE_IDS.entrance,
+      label: '洞口',
+      kind: 'entrance',
+      x: 10,
+      y: 52,
+      state: 'resolved',
+      connected_node_ids: [EXPEDITION_CAVERN_VISUAL_NODE_IDS.crossroad],
+      event_id: 'cavern_entrance',
+      available_action_ids: [],
+      risk_preview: '撤离路线已确认。',
+      reward_preview: '保留当前探索成果。',
+      resource_cost_preview: {},
+      resource_reward_preview: {},
+    }),
+    makeNode({
+      id: EXPEDITION_CAVERN_VISUAL_NODE_IDS.crossroad,
+      label: '回声岔路',
+      kind: 'crossroad',
+      x: 28,
+      y: 42,
+      state: routeResolved ? 'resolved' : 'available',
+      connected_node_ids: [
+        EXPEDITION_CAVERN_VISUAL_NODE_IDS.entrance,
+        EXPEDITION_CAVERN_VISUAL_NODE_IDS.ore,
+        EXPEDITION_CAVERN_VISUAL_NODE_IDS.support,
+        EXPEDITION_CAVERN_VISUAL_NODE_IDS.marker,
+      ],
+      event_id: event.id,
+      available_action_ids: routePreview.available_action_ids,
+      risk_preview: event.risk_hint,
+      reward_preview: event.resource_hint,
+      resource_cost_preview: routePreview.resource_cost_preview,
+      resource_reward_preview: routePreview.resource_reward_preview,
+    }),
+    makeNode({
+      id: EXPEDITION_CAVERN_VISUAL_NODE_IDS.ore,
+      label: '暗色矿脉',
+      kind: 'ore_vein',
+      x: 52,
+      y: 30,
+      state: mineResolved ? 'reward' : activeRoundActions.has('split_mine') ? 'active' : 'available',
+      connected_node_ids: [EXPEDITION_CAVERN_VISUAL_NODE_IDS.crossroad, EXPEDITION_CAVERN_VISUAL_NODE_IDS.exit],
+      event_id: event.id,
+      available_action_ids: splitPreview.available_action_ids,
+      risk_preview: splitPreview.risk_preview,
+      reward_preview: splitPreview.reward_preview,
+      resource_cost_preview: splitPreview.resource_cost_preview,
+      resource_reward_preview: splitPreview.resource_reward_preview,
+    }),
+    makeNode({
+      id: EXPEDITION_CAVERN_VISUAL_NODE_IDS.support,
+      label: '松顶塌方',
+      kind: 'collapse',
+      x: 48,
+      y: 62,
+      state: supportResolved ? 'resolved' : normalizedCavernState.risk_value >= EXPEDITION_CAVERN_INITIAL_RISK ? 'danger' : 'available',
+      connected_node_ids: [EXPEDITION_CAVERN_VISUAL_NODE_IDS.crossroad, EXPEDITION_CAVERN_VISUAL_NODE_IDS.exit],
+      event_id: event.id,
+      available_action_ids: supportPreview.available_action_ids,
+      risk_preview: supportPreview.risk_preview,
+      reward_preview: supportPreview.reward_preview,
+      resource_cost_preview: supportPreview.resource_cost_preview,
+      resource_reward_preview: supportPreview.resource_reward_preview,
+    }),
+    makeNode({
+      id: EXPEDITION_CAVERN_VISUAL_NODE_IDS.marker,
+      label: '白路标记',
+      kind: 'route_marker',
+      x: 70,
+      y: 44,
+      state: routeResolved ? 'reward' : 'available',
+      connected_node_ids: [
+        EXPEDITION_CAVERN_VISUAL_NODE_IDS.crossroad,
+        EXPEDITION_CAVERN_VISUAL_NODE_IDS.exit,
+      ],
+      event_id: event.id,
+      available_action_ids: routePreview.available_action_ids,
+      risk_preview: routePreview.risk_preview,
+      reward_preview: routePreview.reward_preview,
+      resource_cost_preview: routePreview.resource_cost_preview,
+      resource_reward_preview: routePreview.resource_reward_preview,
+    }),
+    makeNode({
+      id: EXPEDITION_CAVERN_VISUAL_NODE_IDS.exit,
+      label: '撤离点',
+      kind: 'exit',
+      x: 90,
+      y: 54,
+      state: 'exit',
+      connected_node_ids: [
+        EXPEDITION_CAVERN_VISUAL_NODE_IDS.ore,
+        EXPEDITION_CAVERN_VISUAL_NODE_IDS.support,
+        EXPEDITION_CAVERN_VISUAL_NODE_IDS.marker,
+      ],
+      event_id: 'cavern_exit',
+      available_action_ids: [],
+      risk_preview: '保留当前探索成果并进入结算。',
+      reward_preview: '路线回看将在后续结算任务中承接。',
+      resource_cost_preview: {},
+      resource_reward_preview: {},
+    }),
+  ].filter(Boolean);
+}
+
+function syncExpeditionCavernVisualState(room, cavernState, options = {}) {
+  if (room?.gameplay_template_id !== 'expedition_cavern') return null;
+  const visualState = normalizeOnlineVisualState(room.visual_state, room);
+  const previousNodes = visualState.nodes || [];
+  let nodes = buildExpeditionCavernVisualNodes(cavernState, previousNodes);
+  const recentFeedback = sanitizeText(options.recentFeedback || cavernState?.recent_feedback || visualState.recent_feedback, 180);
+  const selectedVisualId = sanitizeText(options.selectedVisualId, 80) || visualState.selected_visual_id || getExpeditionCavernCurrentVisualNodeId(cavernState);
+  const claimedBy = sanitizeText(options.claimedBy, 40);
+  if (claimedBy && selectedVisualId) {
+    nodes = nodes.map(node => node.id === selectedVisualId
+      ? normalizeOnlineVisualNode({ ...node, owner_username: claimedBy, claimed_by: claimedBy })
+      : node);
+  }
+  room.visual_state = normalizeOnlineVisualState({
+    ...visualState,
+    board_type: 'map',
+    board_id: visualState.board_id || buildDefaultVisualBoardId(room),
+    revision: visualState.revision + (options.incrementRevision ? 1 : 0),
+    selected_visual_id: selectedVisualId,
+    nodes,
+    recent_feedback: recentFeedback,
+  }, room);
+  return room.visual_state;
+}
+
 function getFestivalEventsForRoomTemplate(roomTemplateId) {
   const normalizedTemplateId = sanitizeText(roomTemplateId, 40);
   const events = FESTIVAL_ROUND_EVENTS_BY_TEMPLATE[normalizedTemplateId] || FESTIVAL_ROUND_EVENTS_BY_TEMPLATE.default;
@@ -2133,6 +2346,7 @@ function ensureRoomGameplayState(room) {
   if (gameplayTemplate.id === 'expedition_cavern') {
     room.gameplay_state.cavern_state = normalizeExpeditionCavernState(room.gameplay_state.cavern_state);
     syncExpeditionCavernRoleAssignments(room, room.gameplay_state.cavern_state);
+    syncExpeditionCavernVisualState(room, room.gameplay_state.cavern_state);
   }
   return room.gameplay_state;
 }
@@ -2462,6 +2676,11 @@ function advanceExpeditionCavernRound(room, cavernState, actor) {
     }),
     ...(cavernState.round_log || []).slice(0, EXPEDITION_CAVERN_ROUND_LOG_LIMIT - 1),
   ];
+  syncExpeditionCavernVisualState(room, cavernState, {
+    incrementRevision: true,
+    selectedVisualId: getExpeditionCavernCurrentVisualNodeId(cavernState),
+    recentFeedback: cavernState.recent_feedback,
+  });
   touchRoom(room);
 }
 
@@ -2568,6 +2787,12 @@ function applyExpeditionCavernRoundEffects(room, cavernState, actor, actionOptio
     },
   ].slice(-12);
   cavernState.recent_feedback = roundLogEntry.summary;
+  syncExpeditionCavernVisualState(room, cavernState, {
+    incrementRevision: true,
+    selectedVisualId: EXPEDITION_CAVERN_ACTION_NODE_MAP[actionOption.id] || getExpeditionCavernCurrentVisualNodeId(cavernState),
+    claimedBy: actor.username,
+    recentFeedback: roundLogEntry.summary,
+  });
   if (cavernState.round_actions.filter(entry => entry.round_number === cavernState.round_number).length >= EXPEDITION_CAVERN_ROUND_ACTION_TARGET) {
     advanceExpeditionCavernRound(room, cavernState, actor);
   } else {
@@ -3487,6 +3712,9 @@ async function createFestivalRoom(payload = {}, actor = {}) {
     settlement_receipt_ids: [],
     events: [],
   });
+  if (gameplayTemplate.id === 'expedition_cavern') {
+    syncExpeditionCavernVisualState(room, room.gameplay_state.cavern_state);
+  }
   recordRoomEvent(room, 'room.create', actor, `创建了 ${template.label} 房间《${room.title}》，玩法模板为 ${gameplayTemplate.label}`);
   replaceRoom(store, room);
   saveStore(store);

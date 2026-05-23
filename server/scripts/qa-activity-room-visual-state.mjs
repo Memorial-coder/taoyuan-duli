@@ -38,6 +38,30 @@ const assertVisualStateShape = (visualState, expectedBoardType, expectedBoardIdP
   assert.equal(visualState.recent_feedback, '', 'new compatible visual_state recent_feedback should be empty')
 }
 
+const assertCavernVisualNodes = (room, expectedRevision = 0) => {
+  const visualState = room?.visual_state
+  const nodes = visualState?.nodes || []
+  const actionIds = new Set((room?.gameplay?.available_actions || []).map(action => action.id))
+  assert.equal(visualState?.board_type, 'map', 'cavern visual_state should use map board')
+  assert.equal(visualState?.revision, expectedRevision, 'cavern visual_state revision mismatch')
+  assert.equal(nodes.length, 6, 'cavern visual_state should expose 6 map nodes')
+  assert.deepEqual(nodes.map(node => node.id), [
+    'cavern_entrance',
+    'cavern_crossroad',
+    'cavern_ore_vein',
+    'cavern_collapse_support',
+    'cavern_route_marker',
+    'cavern_exit',
+  ], 'cavern visual nodes should keep a stable route')
+  assert.ok(nodes.every(node => Array.isArray(node.connected_node_ids)), 'cavern nodes should expose route links')
+  assert.ok(nodes.find(node => node.id === 'cavern_crossroad')?.available_action_ids.includes('chalk_route'), 'crossroad should map chalk route action')
+  assert.ok(nodes.find(node => node.id === 'cavern_ore_vein')?.available_action_ids.includes('split_mine'), 'ore node should map mine action')
+  assert.ok(nodes.find(node => node.id === 'cavern_collapse_support')?.available_action_ids.includes('stabilize_collapse'), 'collapse node should map support action')
+  assert.equal(nodes.find(node => node.id === 'cavern_exit')?.state, 'exit', 'exit node should be marked as exit')
+  const nodeActionIds = nodes.flatMap(node => node.available_action_ids || [])
+  assert.ok(nodeActionIds.every(actionId => actionIds.has(actionId)), 'visual node actions should exist in gameplay actions')
+}
+
 await rm(tempDir, { recursive: true, force: true })
 await mkdir(tempDir, { recursive: true })
 
@@ -53,7 +77,7 @@ const expedition = await runtime.createExpeditionRoom({
   gameplay_template_id: 'expedition_cavern',
   title: 'visual expedition smoke',
 }, actor('visual_host_expedition'))
-assertVisualStateShape(expedition.room.visual_state, 'map', 'expedition:cavern_duo:expedition_cavern')
+assertCavernVisualNodes(expedition.room, 0)
 
 const dragonBoat = await runtime.createFestivalRoom({
   template_id: 'dragon_boat',
@@ -63,9 +87,51 @@ const dragonBoat = await runtime.createFestivalRoom({
 assertVisualStateShape(dragonBoat.room.visual_state, 'track', 'festival:dragon_boat:squad_coop')
 
 const overview = await runtime.listExpeditionRoomOverview('visual_host_expedition')
-assertVisualStateShape(overview.my_room?.visual_state, 'map', 'expedition:cavern_duo:expedition_cavern')
+assertCavernVisualNodes(overview.my_room, 0)
+
+const actionExpedition = await runtime.createExpeditionRoom({
+  template_id: 'cavern_duo',
+  gameplay_template_id: 'expedition_cavern',
+  title: 'visual expedition action smoke',
+}, actor('visual_action_host'))
+assertCavernVisualNodes(actionExpedition.room, 0)
 
 const roomStoreFile = path.join(tempDir, 'taoyuan_activity_rooms.json')
+const actionStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+actionStore.rooms = actionStore.rooms.map(room => {
+  if (room.id !== actionExpedition.room.id) return room
+  return {
+    ...room,
+    state: 'running',
+    running_started_at: 12345,
+    members: room.members.map(member => ({ ...member, status: 'active' })),
+  }
+})
+await writeFile(roomStoreFile, JSON.stringify(actionStore, null, 2), 'utf8')
+
+const minedResult = await runtime.submitExpeditionRoomGameplayAction(actionExpedition.room.id, {
+  action_id: 'split_mine',
+}, actor('visual_action_host'))
+assert.equal(minedResult.room.gameplay.last_action_id, 'split_mine', 'cavern gameplay should record last action')
+assert.ok(minedResult.room.gameplay.last_action_summary, 'cavern gameplay should summarize node action')
+assert.equal(minedResult.room.gameplay.cavern_state.round_log[0].action_id, 'split_mine', 'cavern round log should record node action')
+assert.equal(minedResult.room.visual_state.revision, 1, 'cavern visual revision should advance after node action')
+assert.equal(minedResult.room.visual_state.recent_feedback, minedResult.room.gameplay.cavern_state.recent_feedback, 'cavern visual feedback should mirror gameplay feedback')
+const minedNode = minedResult.room.visual_state.nodes.find(node => node.id === 'cavern_ore_vein')
+assert.equal(minedNode?.state, 'reward', 'mine action should change ore node state')
+assert.equal(minedNode?.claimed_by, 'visual_action_host', 'mine action should mark the acting player on the node')
+
+const advancedResult = await runtime.submitExpeditionRoomGameplayAction(actionExpedition.room.id, {
+  action_id: 'chalk_route',
+}, actor('visual_action_host'))
+assert.equal(advancedResult.room.gameplay.cavern_state.round_number, 2, 'two cavern actions should advance the round')
+assert.equal(advancedResult.room.gameplay.cavern_state.round_log[0].action_id, 'round_advance', 'round advance should be logged')
+assert.ok(advancedResult.room.visual_state.revision >= 2, 'cavern visual revision should keep advancing after round transition')
+assert.equal(advancedResult.room.visual_state.recent_feedback, advancedResult.room.gameplay.cavern_state.recent_feedback, 'round transition should sync visual feedback')
+const currentEventId = advancedResult.room.gameplay.cavern_state.current_event.id
+const currentEventNodes = advancedResult.room.visual_state.nodes.filter(node => node.event_id === currentEventId)
+assert.ok(currentEventNodes.length > 0, 'round transition should remap visual nodes to the current cavern event')
+
 const stored = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 stored.rooms = stored.rooms.map(room => {
   const nextRoom = { ...room }
@@ -77,14 +143,17 @@ await writeFile(roomStoreFile, JSON.stringify(stored, null, 2), 'utf8')
 const legacyOverview = await runtime.listFestivalRoomOverview('visual_host_festival')
 assertVisualStateShape(legacyOverview.my_room?.visual_state, 'scene', 'festival:lantern_fair:assembly')
 
+const legacyExpeditionOverview = await runtime.listExpeditionRoomOverview('visual_host_expedition')
+assertCavernVisualNodes(legacyExpeditionOverview.my_room, 0)
+
 const nodeStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 nodeStore.rooms = nodeStore.rooms.map(room => {
-  if (room.id !== expedition.room.id) return room
+  if (room.id !== festival.room.id) return room
   return {
     ...room,
     visual_state: {
       board_type: 'map',
-      board_id: 'expedition:cavern_duo:expedition_cavern',
+      board_id: 'festival:lantern_fair:visual_node_fixture',
       revision: 3,
       selected_visual_id: 'node_mine_vein',
       nodes: [
@@ -148,7 +217,7 @@ nodeStore.rooms = nodeStore.rooms.map(room => {
 })
 await writeFile(roomStoreFile, JSON.stringify(nodeStore, null, 2), 'utf8')
 
-const nodeOverview = await runtime.listExpeditionRoomOverview('visual_host_expedition')
+const nodeOverview = await runtime.listFestivalRoomOverview('visual_host_festival')
 const nodes = nodeOverview.my_room?.visual_state?.nodes || []
 assert.equal(nodes.length, 3, 'visual_state nodes should keep valid nodes and filter invalid entries')
 assert.deepEqual(nodes.map(node => node.id), ['node_entrance', 'node_mine_vein', 'node_exit'])

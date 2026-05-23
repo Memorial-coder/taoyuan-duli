@@ -12,6 +12,7 @@
 - `visual_state.tracks` 已支持轨道 ID、格子、队伍位置、格子类型、环境事件、可行动作、风险 / 奖励预览和前进 / 后退 / 加速 / 受阻 / 保护效果，为龙舟赛道与商队护送提供数据协议。
 - `visual_state.async_projects` 已支持异步公共工程、阶段、阶段物件、贡献入口、里程碑、跨天 / 跨周进度、贡献榜、历史回看和完成后庆典触发信息，为村社修桥与节庆筹备提供数据协议。
 - 新增 `VisualMapBoard` 可视化地图板，远征矿洞房间可显示节点、连线、危险 / 奖励 / 撤离图标、节点详情和节点动作区；服务端节点为空时会用 6 节点 mock 洞窟路线兜底，旧玩法动作按钮保留为降级入口。
+- 协作矿洞节点图已接入服务端真实状态：`expedition_cavern` 会生成洞口、岔路、矿脉、塌方、路标、撤离点 6 个节点，采矿 / 标记 / 支护行动会更新节点状态、处理人、反馈和视觉版本；旧房间缺节点时会自动补齐。
 - 前端节会 / 远征 API 类型同步 `OnlineVisualState`、`OnlineVisualNode`、`OnlineVisualObject`、`OnlineVisualTrack` 与 `OnlineVisualAsyncProject`；新增 `server/scripts/qa-activity-room-visual-state.mjs` 与 `npm --prefix server run qa:activity-room-visual-state` 固定兼容链路。
 - 本轮验证：`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-activity-room-visual-state.mjs`、`npm --prefix server run qa:activity-room-visual-state`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
 
