@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0522 移动端在线中心验收（阶段 J3）
+- 在线中心顶部新增五个紧凑快捷入口，让 390x844 / 360x780 首屏能直接识别庄园、邻里、委托、节会、村社五大分流。
+- `scripts/qa-mobile-ui-smoke.mjs` 新增在线中心与在线委托移动端场景，覆盖五张入口卡、快捷入口、二级导航、发布表单字段和主要按钮的视口内布局。
+- 验证通过 `npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build` 和 `npm --prefix taoyuan-main run qa:mobile-ui-smoke`；截图与 summary 已写入 `docs/ui-smoke-2026-04-26/`。
+
 ### 0522 在线入口回归验证（阶段 J0-J1-J4）
 - `scripts/qa-online-regression-live-smoke.mjs` 新增在线中心入口拆分回归，覆盖移动地图进入在线中心、在线中心进入五个拆分模块并返回、直接访问五个子入口。
 - 旧 `social / manor / festival / society / expedition` 入口已纳入 live smoke，确认会带 query 上下文重定向到新在线结构，远征旧入口会落到在线节会的远征标签。

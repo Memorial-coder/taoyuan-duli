@@ -31,6 +31,19 @@
           </RouterLink>
         </div>
       </div>
+
+      <nav class="grid grid-cols-5 gap-1" aria-label="在线模块快捷入口">
+        <RouterLink
+          v-for="module in modules"
+          :key="`${module.key}-quick`"
+          class="flex min-w-0 flex-col items-center gap-1 border border-accent/15 bg-black/10 px-1 py-2 text-[10px] leading-4 text-muted transition-colors hover:border-accent/35 hover:text-accent"
+          :data-testid="`online-module-${module.key}-quick-link`"
+          :to="{ name: module.routeName }"
+        >
+          <component :is="module.icon" :size="13" />
+          <span class="truncate">{{ module.title }}</span>
+        </RouterLink>
+      </nav>
     </section>
 
     <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">

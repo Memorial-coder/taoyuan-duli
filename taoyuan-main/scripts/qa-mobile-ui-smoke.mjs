@@ -168,6 +168,8 @@ const mockRelationshipOverview = {
   ]
 }
 
+const onlineCenterModuleKeys = ['manor', 'neighbor', 'orders', 'festival', 'society']
+
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms))
 
 async function isServerReachable(url) {
@@ -527,6 +529,89 @@ async function prepareRegionSocialFriendPanel(page) {
   expect(metrics.clippedControls).toEqual([])
 }
 
+async function prepareOnlineCenterMobile(page) {
+  await expect(page.getByTestId('online-center')).toBeVisible()
+  await expect(page.getByRole('heading', { name: '在线中心' })).toBeVisible()
+  await expect(page.getByRole('button', { name: '刷新摘要' })).toBeVisible()
+  await expect(page.getByRole('link', { name: '交流大厅' })).toBeVisible()
+
+  for (const moduleKey of onlineCenterModuleKeys) {
+    await expect(page.getByTestId(`online-module-${moduleKey}-quick-link`)).toBeVisible()
+    await expect(page.getByTestId(`online-module-${moduleKey}-link`)).toBeVisible()
+  }
+
+  const layoutIssues = await page.evaluate(() => {
+    const viewportHeight = window.innerHeight
+    const firstCardLink = document.querySelector('[data-testid="online-module-manor-link"]')
+    const firstCardTop = firstCardLink?.closest('article')?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY
+    const clippedModules = Array.from(document.querySelectorAll('[data-testid^="online-module-"]'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          testId: element.getAttribute('data-testid') || '',
+          left: rect.left,
+          right: rect.right,
+          top: rect.top,
+          bottom: rect.bottom,
+          width: rect.width,
+        }
+      })
+      .filter(entry => entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1)
+      .map(entry => entry.testId)
+    const quickLinksBelowFirstCard = Array.from(document.querySelectorAll('[data-testid$="-quick-link"]'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          testId: element.getAttribute('data-testid') || '',
+          top: rect.top,
+          bottom: rect.bottom,
+        }
+      })
+      .filter(entry => entry.top > firstCardTop || entry.bottom > viewportHeight)
+      .map(entry => entry.testId)
+    return { clippedModules, quickLinksBelowFirstCard }
+  })
+
+  expect(layoutIssues.clippedModules).toEqual([])
+  expect(layoutIssues.quickLinksBelowFirstCard).toEqual([])
+}
+
+async function prepareOnlineOrdersMobile(page) {
+  await expect(page.getByTestId('online-orders-page')).toBeVisible()
+  await expect(page.getByRole('button', { name: /^发布$/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^可接$/ })).toBeVisible()
+  await expect(page.getByRole('button', { name: /^凭证与补偿$/ })).toBeVisible()
+
+  await page.getByRole('button', { name: /^凭证与补偿$/ }).click()
+  await expect(page.getByText('当前没有结算凭证。')).toBeVisible()
+  await expect(page.getByRole('button', { name: /^发布$/ })).toBeVisible()
+  await page.getByRole('button', { name: /^发布$/ }).click()
+  await expect(page.getByPlaceholder('例如：缺一批冬菜备节')).toBeVisible()
+  await expect(page.getByPlaceholder('写清楚当前缺什么、希望别人怎么帮、为什么这单值得接。')).toBeVisible()
+
+  const clippedControls = await page.evaluate(() => {
+    const root = document.querySelector('[data-testid="online-orders-page"]')
+    if (!root) return ['online-orders-page']
+    return Array.from(root.querySelectorAll('button, input, select, textarea'))
+      .map(element => {
+        const rect = element.getBoundingClientRect()
+        return {
+          label: element.textContent?.trim() || element.getAttribute('placeholder') || element.getAttribute('aria-label') || element.tagName,
+          left: rect.left,
+          right: rect.right,
+          width: rect.width,
+          inHorizontalScroller: Boolean(element.closest('.overflow-x-auto')),
+        }
+      })
+      .filter(entry => !entry.inHorizontalScroller && (
+        entry.left < -1 || entry.right > window.innerWidth + 1 || entry.width > window.innerWidth + 1
+      ))
+      .map(entry => entry.label)
+  })
+
+  expect(clippedControls).toEqual([])
+}
+
 async function main() {
   try {
     const probeBrowser = await chromium.launch()
@@ -724,6 +809,38 @@ async function main() {
         mockSocial: true,
         prepare: prepareRegionSocialFriendPanel
       })
+      await captureScenario({
+        browser,
+        label: '24-online-center-mobile-390x844',
+        hash: '/#/game/online',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-center"]',
+        prepare: prepareOnlineCenterMobile
+      })
+      await captureScenario({
+        browser,
+        label: '25-online-orders-mobile-390x844',
+        hash: '/#/game/online/orders',
+        viewport: { width: 390, height: 844 },
+        primarySelector: '[data-testid="online-orders-page"]',
+        prepare: prepareOnlineOrdersMobile
+      })
+      await captureScenario({
+        browser,
+        label: '26-online-center-mobile-360x780',
+        hash: '/#/game/online',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-center"]',
+        prepare: prepareOnlineCenterMobile
+      })
+      await captureScenario({
+        browser,
+        label: '27-online-orders-mobile-360x780',
+        hash: '/#/game/online/orders',
+        viewport: { width: 360, height: 780 },
+        primarySelector: '[data-testid="online-orders-page"]',
+        prepare: prepareOnlineOrdersMobile
+      })
     } finally {
       await browser.close()
     }
@@ -739,7 +856,8 @@ async function main() {
       notes: [
         '使用 region_map_showcase 样例档生成 390x844 / 360x780 / 430x932 三档移动端截图。',
         '首屏判定以当前页主操作卡或当前场景主面板进入视口为准。',
-        '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、送礼 / 邀请进房互动入口、最近互动、拉黑列表和移动端横向溢出断言。'
+        '好友驿站场景使用 mock 登录态与好友关系数据，覆盖存档 ID 搜索、申请入口、好友条目、送礼 / 邀请进房互动入口、最近互动、拉黑列表和移动端横向溢出断言。',
+        '在线中心与在线委托场景覆盖 390x844 与 360x780 视口下的模块卡可见性、二级导航切换、表单字段和主要按钮布局。'
       ]
     }
     await writeFile(summaryPath, JSON.stringify(summary, null, 2), 'utf8')

@@ -2,6 +2,9 @@
 
 最后整理：2026-05-23
 
+- `0522拆分todo.md / 阶段 J3` 这一轮补齐移动端在线中心专项验收：在线中心顶部新增五个紧凑快捷入口，让 390x844 / 360x780 首屏能直接识别庄园、邻里、委托、节会、村社五条分流。
+- `qa:mobile-ui-smoke` 新增在线中心与在线委托移动端场景，覆盖模块入口可见性、二级导航切换、发布表单字段和主要按钮不被裁切；截图与 summary 已落在 `docs/ui-smoke-2026-04-26/`。
+
 - `0522拆分todo.md / 阶段 J0-J1-J4` 这一轮扩展在线 live smoke：从移动地图进入在线中心、在线中心进入五个拆分模块并返回、直接访问五个子入口，以及旧 `social / manor / festival / society / expedition` 入口带上下文落到新结构。
 - 验证已通过 `type-check`、`build`、`qa:online-ui-structure`、`qa:online-regression-live-smoke` 和 `git diff --check`；原有云存档、邮箱、大厅与 realtime 业务 smoke 保留在同一脚本中，没有把业务回归退化成纯页面跳转。
 
