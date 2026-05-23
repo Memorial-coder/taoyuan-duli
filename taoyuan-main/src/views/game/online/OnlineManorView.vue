@@ -52,8 +52,8 @@
       </div>
     </section>
 
-    <section class="game-panel-muted space-y-3 p-3">
-      <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+    <section class="space-y-3">
+      <div class="game-panel-muted flex flex-col gap-2 p-3 md:flex-row md:items-start md:justify-between">
         <div class="min-w-0">
           <p class="text-sm text-accent">{{ activeTabMeta.label }}</p>
           <p class="mt-1 text-xs leading-5 text-muted">{{ activeTabMeta.summary }}</p>
@@ -65,7 +65,15 @@
       </div>
 
       <div v-if="activeTab === 'overview'" class="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
-        <div class="space-y-2">
+        <div class="space-y-3">
+          <ManorPreviewCard
+            v-if="snapshot"
+            :snapshot="snapshot"
+            :favorite-overview="manorStore.favoriteOverview"
+          />
+          <div v-else class="game-panel-muted p-3 text-xs leading-5 text-muted">
+            先刷新庄园快照，概览页会把庄园预览卡、主题、来访和收藏关注摘要集中到第一屏。
+          </div>
           <div class="grid grid-cols-2 gap-2 md:grid-cols-4">
             <div v-for="stat in overviewStats" :key="stat.label" class="border border-accent/10 bg-black/10 p-2">
               <p class="truncate text-[10px] text-muted">{{ stat.label }}</p>
@@ -83,7 +91,7 @@
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'theme'" class="grid gap-2 md:grid-cols-2">
+      <div v-else-if="activeTab === 'theme'" class="game-panel-muted grid gap-2 p-3 md:grid-cols-2">
         <div class="border border-accent/10 bg-black/10 p-3">
           <p class="text-[10px] text-muted">当前主题</p>
           <p class="mt-1 text-sm text-accent">{{ currentTheme }}</p>
@@ -98,7 +106,7 @@
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'guestbook'" class="space-y-2">
+      <div v-else-if="activeTab === 'guestbook'" class="game-panel-muted space-y-2 p-3">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-muted">留言将在 C3 迁成独立输入与列表区；当前先显示最近摘要。</p>
           <span class="text-[10px] text-accent">{{ guestbookEntries.length }} 条</span>
@@ -112,7 +120,7 @@
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'visits'" class="space-y-2">
+      <div v-else-if="activeTab === 'visits'" class="game-panel-muted space-y-2 p-3">
         <div class="flex items-center justify-between gap-2">
           <p class="text-xs text-muted">来访会在 C4 迁成独立记录区；当前先显示最近摘要。</p>
           <span class="text-[10px] text-accent">{{ visitEntries.length }} 次</span>
@@ -126,7 +134,7 @@
         </div>
       </div>
 
-      <div v-else-if="activeTab === 'guide'" class="space-y-2">
+      <div v-else-if="activeTab === 'guide'" class="game-panel-muted space-y-2 p-3">
         <p class="text-xs leading-5 text-muted">
           导览点会在 C4 迁入独立维护区；当前先展示已设参观点，不展开新增表单。
         </p>
@@ -139,7 +147,7 @@
         </div>
       </div>
 
-      <div v-else class="grid gap-2 md:grid-cols-2">
+      <div v-else class="game-panel-muted grid gap-2 p-3 md:grid-cols-2">
         <div class="border border-accent/10 bg-black/10 p-3">
           <p class="text-[10px] text-muted">我的收藏</p>
           <p class="mt-1 text-sm text-accent">{{ manorStore.favoriteOverview?.favorites.length ?? 0 }} 项</p>
@@ -159,6 +167,7 @@
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
   import { ArrowLeft, ExternalLink, Home, RefreshCw } from 'lucide-vue-next'
+  import ManorPreviewCard from '@/components/game/ManorPreviewCard.vue'
   import { useManorStore } from '@/stores/useManorStore'
 
   type ManorTabKey = 'overview' | 'theme' | 'guestbook' | 'visits' | 'guide' | 'favorites'
@@ -224,11 +233,20 @@
     { label: '来访', value: `${visitEntries.value.length} 次` },
   ])
 
+  const favoriteSummaryText = computed(() => {
+    const favoriteCount = manorStore.favoriteOverview?.favorites.length ?? 0
+    if (!snapshot.value) return `收藏 ${favoriteCount} 项`
+    if (snapshot.value.viewer_is_owner) return `我的收藏 ${favoriteCount} 项`
+    const favoriteLabel = snapshot.value.is_favorited_by_viewer ? '已收藏' : '未收藏'
+    const followLabel = snapshot.value.is_followed_by_viewer ? '已关注' : '未关注'
+    return `${favoriteLabel} · ${followLabel}`
+  })
+
   const overviewStats = computed(() => [
-    { label: '庄园快照', value: snapshot.value ? '已同步' : '未同步' },
+    { label: '当前主题', value: currentTheme.value },
+    { label: '来访摘要', value: snapshot.value?.today_visit_summary || '暂无来访' },
+    { label: '收藏关注', value: favoriteSummaryText.value },
     { label: '导览点', value: `${guidePoints.value.length} 个` },
-    { label: '收藏', value: `${manorStore.favoriteOverview?.favorites.length ?? 0} 项` },
-    { label: '热门庄园', value: `${manorStore.favoriteOverview?.hot_manors.length ?? 0} 座` },
   ])
 
   const overviewCopy = computed(() => {
