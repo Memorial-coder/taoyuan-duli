@@ -179,6 +179,12 @@ export const useSocialStore = defineStore('onlineSocial', () => {
 
   const hasProfile = computed(() => !!profile.value)
   const displayTitle = computed(() => profile.value?.public_title || profile.value?.display_name || profile.value?.player_name || '未命名玩家')
+  const selectedTagsChanged = computed(() => {
+    if (!profile.value) return false
+    const draftIds = [...draftSelectedTagIds.value].sort()
+    const profileIds = [...profile.value.selected_tag_ids].sort()
+    return draftIds.length !== profileIds.length || draftIds.some((id, index) => id !== profileIds[index])
+  })
   const hasDirtyDraft = computed(() => {
     if (!profile.value) return false
     return (
@@ -189,7 +195,8 @@ export const useSocialStore = defineStore('onlineSocial', () => {
       draftNeighborhoodRole.value !== profile.value.neighborhood_role ||
       draftShowcaseTheme.value !== profile.value.showcase_theme ||
       draftAvatarImageUrl.value !== profile.value.avatar_image_url ||
-      draftAvatarImageAlt.value !== profile.value.avatar_image_alt
+      draftAvatarImageAlt.value !== profile.value.avatar_image_alt ||
+      selectedTagsChanged.value
     )
   })
 
