@@ -405,6 +405,7 @@ let offlineManorReplayReconnectSocket = null
 let societyMembershipRejectSocket = null
 let offlineSocietyReplaySocket = null
 let offlineSocietyReplayReconnectSocket = null
+let offlineWorldEventReplaySocket = null
 let offlineCoopOrderReplaySocket = null
 let offlineCoopOrderReplayReconnectSocket = null
 
@@ -664,6 +665,44 @@ try {
     assert(notification.payload?.event?.contributors === undefined, 'world event notification should not expose contributors')
     assert(notification.payload?.event?.recent_logs === undefined, 'world event notification should not expose logs')
     assert(notification.queued_event_id === undefined, 'online world event notification should not be queued')
+  })
+
+  await runCheck('offline world event contribution does not queue for disconnected actor', async () => {
+    const offlineActor = await bootstrapSession('smkrt_k')
+    const overviewResult = await fetchSessionJson(offlineActor, '/api/taoyuan/online/world-events')
+    assert(overviewResult.response.ok, `offline world event overview returned ${overviewResult.response.status}: ${overviewResult.data?.msg || 'unknown error'}`)
+    const event = overviewResult.data?.current_event || overviewResult.data?.current_world_events?.[0]
+    const action = event?.contribution_actions?.find(item => item?.can_use)
+    assert(event?.id, 'offline world event id missing')
+    assert(action?.id, 'offline world event action id missing')
+
+    const offset = ownerSocket.messages.length
+    const result = await fetchSessionJson(offlineActor, `/api/taoyuan/online/world-events/${encodeURIComponent(event.id)}/contribute`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action_id: action.id }),
+    })
+    assert(result.response.ok, `offline world event contribute returned ${result.response.status}: ${result.data?.msg || 'unknown error'}`)
+    await expectMessageAfter(ownerSocket, offset, 'notification.created', payload =>
+      payload.category === 'world_event'
+        && payload.action === 'contribution_created'
+        && payload.refresh_required === true
+        && payload.event?.id === result.data?.event?.id
+        && payload.actor_username === offlineActor.username
+    )
+
+    offlineWorldEventReplaySocket = await openRealtimeSocket(offlineActor)
+    await expectMessage(offlineWorldEventReplaySocket, 'realtime.ready', payload =>
+      payload.username === offlineActor.username && Number(payload.pending_notification_count) === 0
+    )
+    await expectNoMessageAfter(offlineWorldEventReplaySocket, 0, 'notification.created', payload =>
+      payload.category === 'world_event'
+        && payload.action === 'contribution_created'
+        && payload.event?.id === result.data?.event?.id
+        && payload.actor_username === offlineActor.username
+    )
+    offlineWorldEventReplaySocket.close()
+    offlineWorldEventReplaySocket = null
   })
 
   await runCheck('weekly exchange notification event is delivered through websocket', async () => {
@@ -2331,6 +2370,7 @@ try {
   societyMembershipRejectSocket?.close()
   offlineSocietyReplaySocket?.close()
   offlineSocietyReplayReconnectSocket?.close()
+  offlineWorldEventReplaySocket?.close()
   offlineCoopOrderReplaySocket?.close()
   offlineCoopOrderReplayReconnectSocket?.close()
   await stopChild(serverProcess)

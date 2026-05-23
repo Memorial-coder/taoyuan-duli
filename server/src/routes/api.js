@@ -435,11 +435,14 @@ function emitWorldEventNotificationCreatedEvent(action, result = {}, actor = {})
   const recipients = collectOnlineWorldEventNotificationRecipients(actor);
   if (!recipients.length) return 0;
   try {
-    return taoyuanRealtimeRuntime.emitUsersEvent(
-      recipients,
-      'notification.created',
-      buildWorldEventNotificationPayload(action, result, actor)
-    );
+    if (typeof taoyuanRealtimeRuntime.emitOnlineUsersEvent === 'function') {
+      return taoyuanRealtimeRuntime.emitOnlineUsersEvent(
+        recipients,
+        'notification.created',
+        buildWorldEventNotificationPayload(action, result, actor)
+      );
+    }
+    return 0;
   } catch {
     return 0;
   }

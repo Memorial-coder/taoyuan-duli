@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 高频全服通知在线-only 边界（A5-A7）
+- 四季大事件贡献通知改为纯在线投递，断线贡献者不会因为全服进度变化被写入 realtime 离线补发队列。
+- `qa:realtime-smoke` 覆盖断线 actor 贡献后重连 `pending_notification_count = 0`，同时确认在线观察者仍能收到世界事件刷新摘要。
+
 ### 0520 Realtime 事件只投递边界（A1-A5）
 - `qa:realtime-smoke` 新增客户端伪造事件回归，确认浏览器侧发送的 `notification.created` / `activity.room.updated` 不会被服务端广播成权威投递或房间状态事件。
 - `0520todo.md` 中 A5“事件只负责投递，不负责最终结算”已按当前事件集收口；前端仍只静默重读权威 HTTP 接口。

@@ -2,6 +2,9 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A5-A7` 这一轮把四季大事件贡献通知明确收口为在线-only：服务端改用 `emitOnlineUsersEvent` 投递，不再给断线贡献者写入离线补发队列。
+- `qa:realtime-smoke` 新增断线 actor 贡献四季大事件的回归，验证在线观察者能收到摘要，但断线 actor 重连后 `pending_notification_count = 0` 且不补发 world_event。
+
 - `0520todo.md / A1-A5` 这一轮补了一条 realtime 反注入回归：客户端伪造 `notification.created` 和 `activity.room.updated` 不会被服务器当成权威投递事件广播。
 - `0520todo.md / A5` 里的“事件只负责投递，不负责最终结算”已按现有事件集收口，前端继续只静默重读权威接口，结算仍走 HTTP。
 
