@@ -2,6 +2,9 @@
 
 最后整理：2026-05-23
 
+- `0520todo.md / A4` 这一轮完成联机旧轮询审计：代码中没有 `EventSource`、`text/event-stream` 或联机数据常驻轮询残留。
+- 现有定时器只用于节会小游戏倒计时 / 动画、全局游戏时钟、自动存档、realtime ping、服务端配置刷新和 heartbeat；手动刷新按钮保留为玩家主动重读权威接口。
+
 - `0520todo.md / A5-A7` 这一轮把四季大事件贡献通知明确收口为在线-only：服务端改用 `emitOnlineUsersEvent` 投递，不再给断线贡献者写入离线补发队列。
 - `qa:realtime-smoke` 新增断线 actor 贡献四季大事件的回归，验证在线观察者能收到摘要，但断线 actor 重连后 `pending_notification_count = 0` 且不补发 world_event。
 

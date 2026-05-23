@@ -4,6 +4,10 @@
 
 ## [未发布]
 
+### 0520 联机旧轮询审计（A4）
+- 静态扫过 `EventSource / text/event-stream / setInterval / polling / 轮询`，当前没有联机数据常驻轮询残留。
+- 剩余定时器只服务小游戏倒计时 / 动画、全局游戏时钟、自动存档、realtime ping、服务端配置刷新和 heartbeat；手动刷新仍是玩家主动重读权威接口。
+
 ### 0520 高频全服通知在线-only 边界（A5-A7）
 - 四季大事件贡献通知改为纯在线投递，断线贡献者不会因为全服进度变化被写入 realtime 离线补发队列。
 - `qa:realtime-smoke` 覆盖断线 actor 贡献后重连 `pending_notification_count = 0`，同时确认在线观察者仍能收到世界事件刷新摘要。
