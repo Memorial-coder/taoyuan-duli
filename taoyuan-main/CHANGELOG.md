@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 共同基金真实购买到账
+- `fund/spend` 服务端小额支出新增首批共同基金自动购买到账：`auto_pay=true` 且目标为白菜 / 萝卜 / 水稻种子白名单时，会从共同基金扣款并把种子送入操作者个人背包。
+- 基金 ledger 会记录目标物品、数量、单价、目标存档、槽位和背包落点；重复 `idempotency_key` 不会重复扣款或重复加物，个人铜币不被触碰。
+- 第一版只接服务端小闭环，不接完整商店目录、前端购买动作、饲料自动购买、中大额确认、补偿重放和返还执行。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0524 公共订单收入入共同基金
 - 订单确认交付服务端新增共同基金结算路径：传入 `reward_route=shared_fund` 和 `cohabitation_contract_id` 后，铜钱奖励会写入结拜 / 合伙庄园共同基金 `order_income` 流水。
 - 订单凭证会记录共同基金结算路由、契约 ID 和基金 ledger ID；该路径不写接单人个人铜币，重复入账 helper 会按幂等键和目标引用拦截。

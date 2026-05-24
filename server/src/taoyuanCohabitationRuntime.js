@@ -86,6 +86,29 @@ const SMALL_FUND_SPEND_PURPOSES = Object.freeze({
     auto_pay_eligible: false,
   },
 });
+const SHARED_FUND_AUTO_PURCHASE_CATALOG = Object.freeze({
+  'shop:seed_cabbage': {
+    item_id: 'seed_cabbage',
+    label: '白菜种子',
+    unit_price: 10,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_radish': {
+    item_id: 'seed_radish',
+    label: '萝卜种子',
+    unit_price: 15,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+  'shop:seed_rice': {
+    item_id: 'seed_rice',
+    label: '稻米种子',
+    unit_price: 20,
+    allowed_purposes: ['seed_budget'],
+    category: 'seed',
+  },
+});
 
 const RELATION_TYPE_DEFS = Object.freeze({
   lover_cohabitation: {
@@ -824,6 +847,24 @@ function normalizeFundLedgerEntry(entry = {}) {
     spend_category: sanitizeText(entry?.spend_category || entry?.category, 80),
     spend_purpose_label: sanitizeText(entry?.spend_purpose_label || entry?.purpose_label, 80),
     balance_after: Math.max(0, Math.floor(Number(entry?.balance_after) || 0)),
+    target_item_id: normalizeWarehouseItemId(entry?.target_item_id ?? entry?.targetItemId),
+    target_quantity: Math.max(0, Math.floor(Number(entry?.target_quantity ?? entry?.targetQuantity) || 0)),
+    target_unit_price: Math.max(0, Math.floor(Number(entry?.target_unit_price ?? entry?.targetUnitPrice) || 0)),
+    target_owner_id: sanitizeText(entry?.target_owner_id, 100),
+    target_owner_username: normalizeUsername(entry?.target_owner_username),
+    target_owner_display_name: sanitizeText(entry?.target_owner_display_name || entry?.target_owner_username, 60),
+    target_owner_key: normalizeUsernameKey(entry?.target_owner_key || entry?.target_owner_username),
+    target_save_id: normalizeSaveId(entry?.target_save_id),
+    target_save_slot: normalizeSaveSlot(entry?.target_save_slot),
+    target_save_revision: Math.max(0, Math.floor(Number(entry?.target_save_revision) || 0)),
+    target_inventory: sanitizeText(entry?.target_inventory, 40),
+    target_slots: Array.isArray(entry?.target_slots)
+      ? entry.target_slots.map(slot => ({
+          bag: sanitizeText(slot?.bag, 24) || 'inventory.items',
+          index: Math.max(0, Math.floor(Number(slot?.index) || 0)),
+          quantity: normalizePositiveInt(slot?.quantity, 0),
+        })).filter(slot => slot.quantity > 0).slice(0, 12)
+      : [],
     auto_pay: entry?.auto_pay === true,
     confirmation_required: entry?.confirmation_required === true,
     confirmation_status: sanitizeText(entry?.confirmation_status, 40) || (entry?.confirmation_required === true ? 'pending' : 'not_required'),
@@ -3739,6 +3780,26 @@ function normalizeFundSpendPayload(payload = {}) {
     auto_pay: autoPay,
     target_ref: sanitizeText(payload.target_ref || payload.target_id || payload.order_id || payload.shop_item_id, 120),
     memo: sanitizeText(payload.memo, 160),
+    save_slot: normalizeSaveSlot(payload.save_slot),
+  };
+}
+
+function resolveSharedFundAutoPurchase(spend) {
+  if (spend.auto_pay !== true) return null;
+  const targetRef = sanitizeText(spend.target_ref, 120);
+  const catalogItem = SHARED_FUND_AUTO_PURCHASE_CATALOG[targetRef];
+  if (!catalogItem) throw createError('共同基金自动购买第一版只支持服务端白名单种子 / 饲料目标', 403);
+  if (!catalogItem.allowed_purposes.includes(spend.purpose)) throw createError('该共同基金购买目标不匹配当前支出用途', 403);
+  const quantity = Math.floor(spend.amount / catalogItem.unit_price);
+  if (quantity <= 0 || quantity * catalogItem.unit_price !== spend.amount) {
+    throw createError('共同基金自动购买金额必须等于服务端单价乘以整数数量', 400);
+  }
+  return {
+    ...catalogItem,
+    target_ref: targetRef,
+    quantity,
+    total_amount: spend.amount,
+    quality: 'normal',
   };
 }
 
@@ -5009,6 +5070,19 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
     entry.idempotency_key && entry.idempotency_key === spend.idempotency_key && entry.action === 'spend'
   );
   if (previousEntry) {
+    const previousPurchaseResult = previousEntry.target_item_id ? {
+      item_id: previousEntry.target_item_id,
+      quantity: previousEntry.target_quantity,
+      quality: 'normal',
+      unit_price: previousEntry.target_unit_price,
+      total_amount: previousEntry.amount,
+      target_owner_id: previousEntry.target_owner_id,
+      target_save_id: previousEntry.target_save_id,
+      target_save_slot: previousEntry.target_save_slot,
+      target_save_revision: previousEntry.target_save_revision,
+      target_slots: previousEntry.target_slots,
+      personal_money_merged: false,
+    } : null;
     return {
       contract: toPublicContract(contract),
       fund: buildSharedFundSnapshot(contract, actorUsername),
@@ -5020,11 +5094,54 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
         personal_money_merged: false,
         confirmation_required: previousEntry.confirmation_required === true,
       },
+      purchase: previousPurchaseResult,
     };
   }
 
   const beforeBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
   if (beforeBalance < spend.amount) throw createError('共同基金余额不足，暂时无法完成本次支出');
+  const purchase = resolveSharedFundAutoPurchase(spend);
+  let purchaseResult = null;
+  let targetSaveId = 0;
+  let targetSaveSlot = null;
+  let targetSaveRevision = 0;
+  let targetOwnerId = '';
+  if (purchase) {
+    const context = getActiveSaveContext(
+      actorUsername,
+      normalizeSaveSlot(spend.save_slot),
+      '当前账号没有可用的桃源乡服务端存档，暂时无法接收共同基金购买物品'
+    );
+    context.username = actorUsername;
+    const projectedData = JSON.parse(JSON.stringify(context.data));
+    const beforeMoney = getPlayerMoney(projectedData);
+    const addResult = addWithdrawnWarehouseItemToInventory(projectedData, purchase.item_id, purchase.quantity, purchase.quality);
+    if (!addResult.ok) throw createError('个人背包和临时背包空间不足，已中止本次共同基金购买到账');
+    const afterMoney = getPlayerMoney(projectedData);
+    if (afterMoney !== beforeMoney) throw createError('共同基金购买到账不应改动个人铜币，已中止本次操作', 500);
+    assignGameplayDataToContext(context, projectedData);
+    targetSaveRevision = persistGameplayData(context);
+    targetSaveId = normalizeSaveId(context.identity?.save_id);
+    targetSaveSlot = normalizeSaveSlot(context.slot);
+    targetOwnerId = targetSaveId ? `save:${targetSaveId}` : `account:${member.username_key}`;
+    if (targetSaveId) member.save_id = targetSaveId;
+    if (targetSaveSlot !== null) member.save_slot = targetSaveSlot;
+    purchaseResult = {
+      item_id: purchase.item_id,
+      label: purchase.label,
+      quantity: purchase.quantity,
+      quality: purchase.quality,
+      unit_price: purchase.unit_price,
+      total_amount: purchase.total_amount,
+      target_owner_id: targetOwnerId,
+      target_save_id: targetSaveId,
+      target_save_slot: targetSaveSlot,
+      target_save_revision: targetSaveRevision,
+      target_slots: addResult.target_slots,
+      total_quantity: countDepositableMainInventoryItem(projectedData, purchase.item_id, purchase.quality),
+      personal_money_merged: false,
+    };
+  }
   const afterBalance = beforeBalance - spend.amount;
   const ledgerEntry = normalizeFundLedgerEntry({
     id: makeId('shared_fund_ledger'),
@@ -5038,6 +5155,18 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
     spend_purpose_label: spend.purpose_label,
     spend_category: spend.spend_category,
     target_ref: spend.target_ref,
+    target_item_id: purchase?.item_id || '',
+    target_quantity: purchase?.quantity || 0,
+    target_unit_price: purchase?.unit_price || 0,
+    target_owner_id: targetOwnerId,
+    target_owner_username: purchase ? member.username : '',
+    target_owner_display_name: purchase ? (member.display_name || member.username) : '',
+    target_owner_key: purchase ? member.username_key : '',
+    target_save_id: targetSaveId,
+    target_save_slot: targetSaveSlot,
+    target_save_revision: targetSaveRevision,
+    target_inventory: purchase ? 'inventory.items' : '',
+    target_slots: purchaseResult?.target_slots || [],
     source_owner_id: `shared_fund:${contract.id}`,
     source_owner_username: '',
     source_owner_display_name: '共同基金',
@@ -5048,7 +5177,9 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
     confirmation_status: 'not_required',
     idempotency_key: spend.idempotency_key,
     reversible: true,
-    compensation_hint: '共同基金小额支出已扣减余额；若误操作，需要按 ledger 人工补偿或后续返还流程回滚。',
+    compensation_hint: purchase
+      ? '共同基金购买已扣减余额并写入成员个人背包；若误操作，需要按基金 ledger 与目标背包落点人工补偿或后续回滚。'
+      : '共同基金小额支出已扣减余额；若误操作，需要按 ledger 人工补偿或后续返还流程回滚。',
     status: 'committed',
   });
   contract.shared_fund.balance = afterBalance;
@@ -5066,6 +5197,13 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
     auto_pay: ledgerEntry.auto_pay,
     confirmation_required: false,
     personal_money_merged: false,
+    purchase_delivered: Boolean(purchaseResult),
+    target_item_id: purchase?.item_id || '',
+    target_quantity: purchase?.quantity || 0,
+    target_owner_id: targetOwnerId,
+    target_save_id: targetSaveId,
+    target_save_slot: targetSaveSlot,
+    target_slots: purchaseResult?.target_slots || [],
     reversible: ledgerEntry.reversible,
   }, spend.idempotency_key);
   saveContractStore(store);
@@ -5082,6 +5220,7 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
       personal_money_merged: false,
       confirmation_required: false,
     },
+    purchase: purchaseResult,
   };
 }
 
