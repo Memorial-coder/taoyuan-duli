@@ -93,8 +93,11 @@ export interface SocietyCostEntry {
 export interface SocietyProjectPackageSnapshot {
   id: string
   label: string
+  kind: string
   summary: string
   progress_gain: number
+  daily_limit: number
+  weekly_limit: number
   costs: SocietyCostEntry[]
 }
 

@@ -3992,11 +3992,25 @@ try {
     assert(data?.ok === true && data?.project?.id === 'bridge', 'society public project contribute payload is incomplete')
     assert(Number(data?.project?.progress || 0) === 30, `society public project progress did not advance to 30, current=${Number(data?.project?.progress || 0)}`)
     assert(Array.isArray(data?.project?.recent_contributions) && data.project.recent_contributions.some(entry => entry?.username === secondarySessionState.username && entry?.package_id === 'wood_bundle'), 'society public project contribution record is missing')
+    const laborPackage = data?.project?.contribution_packages?.find(entry => entry?.id === 'labor_shift')
+    assert(
+      laborPackage?.kind === 'labor' &&
+      Number(laborPackage?.daily_limit || 0) === 1 &&
+      Number(laborPackage?.weekly_limit || 0) === 3 &&
+      Array.isArray(laborPackage?.costs) &&
+      laborPackage.costs.length === 0,
+      'society bridge did not expose limited labor contribution package',
+    )
     const bridgeVisualProject = data?.overview?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'bridge')
     assert(data?.overview?.my_society?.visual_state?.board_type === 'async', 'society public project did not expose async visual board')
     assert(bridgeVisualProject, 'society public project did not expose bridge async project')
     assert(bridgeVisualProject.stages?.some(entry => entry?.id === 'bridge_scaffold' && entry?.state === 'complete'), 'bridge async project did not complete scaffold stage after first contribution')
     assert(bridgeVisualProject.stages?.some(entry => entry?.id === 'bridge_deck' && entry?.state === 'active' && Array.isArray(entry?.contribution_options) && entry.contribution_options.length > 0), 'bridge async project did not expose active contribution options')
+    const bridgeContributionOptions = (bridgeVisualProject.stages || []).flatMap(entry => Array.isArray(entry?.contribution_options) ? entry.contribution_options : [])
+    assert(
+      bridgeContributionOptions.some(entry => entry?.id === 'labor_shift' && entry?.kind === 'labor' && Number(entry?.daily_limit || 0) === 1),
+      'bridge async project did not expose labor contribution option',
+    )
     assert(bridgeVisualProject.contributors?.some(entry => entry?.username === secondarySessionState.username && Number(entry?.contribution_value || 0) >= 30), 'bridge async project did not expose contribution ranking')
 
     const afterSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
@@ -4035,11 +4049,30 @@ try {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        package_id: 'wood_bundle',
+        package_id: 'labor_shift',
       }),
     })
     assert(secondBundle.response.ok, `society public project second contribute returned ${secondBundle.response.status}: ${secondBundle.data?.msg || 'unknown error'}`)
-    assert(Number(secondBundle.data?.project?.progress || 0) === 60, `society public project second contribute did not advance to 60, current=${Number(secondBundle.data?.project?.progress || 0)}`)
+    assert(Number(secondBundle.data?.project?.progress || 0) === 45, `society public project labor contribute did not advance to 45, current=${Number(secondBundle.data?.project?.progress || 0)}`)
+    assert(
+      Array.isArray(secondBundle.data?.project?.recent_contributions) &&
+      secondBundle.data.project.recent_contributions.some(entry => entry?.username === secondarySessionState.username && entry?.package_id === 'labor_shift'),
+      'society public project labor contribution record is missing',
+    )
+
+    const duplicateLaborBundle = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-projects/bridge/contribute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        package_id: 'labor_shift',
+      }),
+    })
+    assert(
+      !duplicateLaborBundle.response.ok && String(duplicateLaborBundle.data?.msg || '').includes('24 小时'),
+      'society public project labor contribution limit did not reject duplicate daily action',
+    )
 
     const thirdBundle = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-projects/bridge/contribute', {
       method: 'POST',
@@ -4051,7 +4084,7 @@ try {
       }),
     })
     assert(thirdBundle.response.ok, `society public project third contribute returned ${thirdBundle.response.status}: ${thirdBundle.data?.msg || 'unknown error'}`)
-    assert(Number(thirdBundle.data?.project?.progress || 0) === 90, `society public project third contribute did not advance to 90, current=${Number(thirdBundle.data?.project?.progress || 0)}`)
+    assert(Number(thirdBundle.data?.project?.progress || 0) === 75, `society public project third contribute did not advance to 75, current=${Number(thirdBundle.data?.project?.progress || 0)}`)
 
     const completionBundle = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-projects/bridge/contribute', {
       method: 'POST',
@@ -4059,7 +4092,7 @@ try {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        package_id: 'survey_fund',
+        package_id: 'wood_bundle',
       }),
     })
     assert(completionBundle.response.ok, `society public project completion contribute returned ${completionBundle.response.status}: ${completionBundle.data?.msg || 'unknown error'}`)
@@ -4088,9 +4121,9 @@ try {
     const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
     const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
     const afterWood = getInventoryItemQuantity(afterDecrypted, 'wood')
-    assert(afterMoney === preMoney - 70, `society public project completion did not deduct money correctly, expected money=${preMoney - 70}, current money=${afterMoney}`)
+    assert(afterMoney === preMoney - 40, `society public project completion did not deduct money correctly, expected money=${preMoney - 40}, current money=${afterMoney}`)
     assert(afterWood === preWood - 2, `society public project completion did not deduct wood correctly, expected wood=${preWood - 2}, current wood=${afterWood}`)
-    secondaryExpectedMoney -= 70
+    secondaryExpectedMoney -= 40
   })
 
   await runCheck('GET /api/taoyuan/online/societies completed public project world readback', async () => {

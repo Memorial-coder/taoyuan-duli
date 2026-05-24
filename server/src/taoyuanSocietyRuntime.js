@@ -384,6 +384,16 @@ const SOCIETY_PROJECT_PACKAGE_OPTIONS = Object.freeze([
       { type: 'money', amount: 15 },
     ],
   },
+  {
+    id: 'labor_shift',
+    label: '施工行动',
+    summary: '不交大宗材料，由成员亲自半日架梁、夯土和巡查；每日限一次，进度写入贡献榜。',
+    kind: 'labor',
+    progress_gain: 15,
+    daily_limit: 1,
+    weekly_limit: 3,
+    costs: [],
+  },
 ]);
 
 const SOCIETY_FESTIVAL_PROJECT_PACKAGE_OPTIONS = Object.freeze([
@@ -1825,12 +1835,16 @@ async function buildProposalSnapshot(proposal, viewerUsername, viewerIsMember, v
 }
 
 function buildPublicProjectPackageSnapshot(entry) {
+  const costs = Array.isArray(entry.costs) ? entry.costs : [];
   return {
     id: entry.id,
     label: entry.label,
+    kind: getSocietyProjectPackageKind(entry),
     summary: entry.summary,
     progress_gain: entry.progress_gain,
-    costs: entry.costs.map(normalizeBundleEntry).filter(Boolean).map(cost => ({
+    daily_limit: getSocietyProjectPackageLimit(entry, 'daily_limit'),
+    weekly_limit: getSocietyProjectPackageLimit(entry, 'weekly_limit'),
+    costs: costs.map(normalizeBundleEntry).filter(Boolean).map(cost => ({
       ...cost,
       label: cost.type === 'money'
         ? `${cost.amount} 铜钱`
@@ -1846,6 +1860,48 @@ function getSocietyProjectPackageOptions(projectId) {
 function getSocietyProjectPackage(projectId, packageId) {
   const normalizedPackageId = sanitizeText(packageId, 40);
   return getSocietyProjectPackageOptions(projectId).find(entry => entry.id === normalizedPackageId) || null;
+}
+
+function getSocietyProjectPackageKind(entry) {
+  const explicitKind = sanitizeText(entry?.kind, 40);
+  if (explicitKind) return explicitKind;
+  return Array.isArray(entry?.costs) && entry.costs.some(cost => cost?.type === 'item') ? 'material' : 'fund';
+}
+
+function getSocietyProjectPackageLimit(entry, key) {
+  return Math.max(0, Math.floor(Number(entry?.[key]) || 0));
+}
+
+function countSocietyProjectPackageContributions(project, packageId, username, sinceSeconds) {
+  const normalizedPackageId = sanitizeText(packageId, 40);
+  const normalizedUsername = normalizeUsername(username);
+  const cutoff = Math.max(0, Math.floor(Number(sinceSeconds) || 0));
+  return (project?.contributions || [])
+    .map(normalizeSocietyPublicProjectContribution)
+    .filter(entry =>
+      entry.package_id === normalizedPackageId &&
+      entry.username === normalizedUsername &&
+      entry.created_at >= cutoff
+    )
+    .length;
+}
+
+function ensureSocietyProjectPackageLimits(project, contributionPackage, actorUsername) {
+  const now = nowSeconds();
+  const dailyLimit = getSocietyProjectPackageLimit(contributionPackage, 'daily_limit');
+  if (dailyLimit > 0) {
+    const recentDailyCount = countSocietyProjectPackageContributions(project, contributionPackage.id, actorUsername, now - 86400);
+    if (recentDailyCount >= dailyLimit) {
+      throw createError(`24 小时内已经提交过「${contributionPackage.label}」，请换一种贡献或稍后再来`);
+    }
+  }
+  const weeklyLimit = getSocietyProjectPackageLimit(contributionPackage, 'weekly_limit');
+  if (weeklyLimit > 0) {
+    const recentWeeklyCount = countSocietyProjectPackageContributions(project, contributionPackage.id, actorUsername, now - 86400 * 7);
+    if (recentWeeklyCount >= weeklyLimit) {
+      throw createError(`7 天内「${contributionPackage.label}」次数已达上限，请换一种贡献`);
+    }
+  }
 }
 
 async function buildPublicProjectContributionSnapshot(entry) {
@@ -1881,19 +1937,25 @@ function buildSocietyVisualResourceCostPreview(costs = []) {
 
 function buildSocietyVisualContributionOptions(project) {
   if (project.status === 'completed') return [];
-  return getSocietyProjectPackageOptions(project.id).map(entry => ({
-    id: entry.id,
-    label: entry.label,
-    kind: entry.costs.some(cost => cost.type === 'item') ? 'material' : 'fund',
-    available_action_id: entry.id,
-    daily_limit: 0,
-    weekly_limit: 0,
-    resource_cost_preview: buildSocietyVisualResourceCostPreview(entry.costs),
-    progress_delta: Math.max(0, Math.floor(Number(entry.progress_gain) || 0)),
-    reward_preview: project.id === 'festival_square'
-      ? `推进 ${Math.max(0, Math.floor(Number(entry.progress_gain) || 0))} 点，并点亮节庆广场对应布置。`
-      : `推进 ${Math.max(0, Math.floor(Number(entry.progress_gain) || 0))} 点并写入村社贡献记录。`,
-  }));
+  return getSocietyProjectPackageOptions(project.id).map(entry => {
+    const kind = getSocietyProjectPackageKind(entry);
+    const progressDelta = Math.max(0, Math.floor(Number(entry.progress_gain) || 0));
+    return {
+      id: entry.id,
+      label: entry.label,
+      kind,
+      available_action_id: entry.id,
+      daily_limit: getSocietyProjectPackageLimit(entry, 'daily_limit'),
+      weekly_limit: getSocietyProjectPackageLimit(entry, 'weekly_limit'),
+      resource_cost_preview: buildSocietyVisualResourceCostPreview(entry.costs),
+      progress_delta: progressDelta,
+      reward_preview: kind === 'labor'
+        ? `发起施工行动，推进 ${progressDelta} 点，并按次数限制写入村社贡献记录。`
+        : project.id === 'festival_square'
+          ? `推进 ${progressDelta} 点，并点亮节庆广场对应布置。`
+          : `推进 ${progressDelta} 点并写入村社贡献记录。`,
+    };
+  });
 }
 
 function getSocietyAsyncStageDefs(projectId) {
@@ -2809,6 +2871,7 @@ async function contributeSocietyPublicProject(projectId, payload = {}, actor = {
   const packageId = sanitizeText(payload.package_id, 40);
   const contributionPackage = getSocietyProjectPackage(project.id, packageId);
   if (!contributionPackage) throw createError('当前捐献方案不存在');
+  ensureSocietyProjectPackageLimits(project, contributionPackage, actorUsername);
 
   const context = getActiveSaveContext(actorUsername, null, '当前账号没有可用的桃源服务端存档，暂时无法参与公共建设');
   context.username = actorUsername;

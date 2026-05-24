@@ -564,7 +564,10 @@
               >
                 <p class="text-[10px] text-accent">{{ entry.label }} · +{{ entry.progress_gain }} 进度</p>
                 <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
-                <p class="mt-1 text-[10px] text-muted">{{ entry.costs.map(cost => cost.label).join(' + ') }}</p>
+                <p class="mt-1 text-[10px] text-muted">
+                  {{ packageCostText(entry) }}
+                  <span v-if="packageLimitText(entry)"> · {{ packageLimitText(entry) }}</span>
+                </p>
               </button>
             </div>
 
@@ -572,7 +575,7 @@
               <p class="text-[10px] text-accent">最近捐献</p>
               <div class="mt-1 space-y-1">
                 <div v-for="entry in project.recent_contributions" :key="entry.id" class="text-[10px] leading-4 text-muted">
-                  {{ entry.display_name }} 提交了 {{ entry.package_label }}（+{{ entry.progress_gain }}） · {{ entry.costs.map(cost => cost.label).join(' + ') }}
+                  {{ entry.display_name }} 提交了 {{ entry.package_label }}（+{{ entry.progress_gain }}） · {{ costListText(entry.costs) }}
                 </div>
               </div>
             </div>
@@ -810,6 +813,7 @@
   import type { OnlineVisualAsyncProject } from '@/types/onlineVisual'
   import type {
     SocietyProjectCompletionRewardSnapshot,
+    SocietyProjectPackageSnapshot,
     SocietyProposalChoice,
     SocietyProposalSnapshot,
     SocietyRole,
@@ -876,6 +880,16 @@
   })
   const activeCompletionRewardText = (rewards: SocietyProjectCompletionRewardSnapshot[] = []) =>
     rewards.filter(entry => entry.active).map(entry => entry.label).filter(Boolean).join(' / ')
+  const costListText = (costs: Array<{ label: string }> = []) =>
+    costs.length > 0 ? costs.map(cost => cost.label).filter(Boolean).join(' + ') : '无需材料'
+  const packageCostText = (entry: SocietyProjectPackageSnapshot) =>
+    costListText(entry.costs)
+  const packageLimitText = (entry: SocietyProjectPackageSnapshot) => {
+    const limits: string[] = []
+    if (entry.daily_limit > 0) limits.push(`24小时 ${entry.daily_limit} 次`)
+    if (entry.weekly_limit > 0) limits.push(`7天 ${entry.weekly_limit} 次`)
+    return limits.join(' / ')
+  }
   const activeTabMeta = computed(() => tabs.find(tab => tab.key === activeTab.value) ?? tabs[0]!)
   const pendingRequestBySocietyId = computed(() => new Map(societyStore.myPendingRequests.map(request => [request.society_id, request])))
   const incomingInviteBySocietyId = computed(() => new Map(societyStore.incomingInvites.map(request => [request.society_id, request])))
