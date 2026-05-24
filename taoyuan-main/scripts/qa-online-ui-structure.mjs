@@ -10,6 +10,7 @@ const viewRoot = path.join(repoRoot, 'src', 'views', 'game')
 const viewFiles = [
   'OnlineView.vue',
   path.join('online', 'OnlineManorView.vue'),
+  path.join('online', 'OnlineCohabitationView.vue'),
   path.join('online', 'OnlineNeighborView.vue'),
   path.join('online', 'OnlineOrdersView.vue'),
   path.join('online', 'OnlineFestivalView.vue'),
@@ -71,11 +72,18 @@ for (const [relativePath, source] of files.entries()) {
 }
 
 expectContains('OnlineView.vue', '<OnlineModuleCard', '在线中心首页应继续使用模块卡组件')
+expectContains('OnlineView.vue', "routeName: 'online-cohabitation'", '在线中心首页应提供共同庄园入口')
 
 expectContains('online/OnlineManorView.vue', '<OnlineModuleShell', '庄园子页应继续使用在线模块壳')
 expectContains('online/OnlineManorView.vue', "activeTab = ref<ManorTabKey>('overview')", '庄园默认页应保持概览')
 expectContains('online/OnlineManorView.vue', "activeTab === 'theme'", '庄园主题表单应留在主题标签')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineManorView.vue', /overflow-y-auto/g, 3, '庄园长列表应保留滚动边界')
+
+expectContains('online/OnlineCohabitationView.vue', '<OnlineModuleShell', '共同庄园子页应继续使用在线模块壳')
+expectContains('online/OnlineCohabitationView.vue', "activeTab = ref<CohabitationTabKey>('overview')", '共同庄园默认页应保持总览')
+expectContains('online/OnlineCohabitationView.vue', "activeTab === 'map'", '共同庄园应提供共同农田地图标签')
+expectContains('online/OnlineCohabitationView.vue', '个人铜币不合并', '共同庄园入口应显示个人铜币不合并边界')
+checkedScrollBoundaries += expectCountAtLeast('online/OnlineCohabitationView.vue', /overflow-y-auto/g, 8, '共同庄园长列表应保留滚动边界')
 
 expectContains('online/OnlineNeighborView.vue', '<OnlineModuleShell', '邻里子页应继续使用在线模块壳')
 expectContains('online/OnlineNeighborView.vue', "activeTab = ref<NeighborTabKey>('profile')", '邻里默认页应保持名片')

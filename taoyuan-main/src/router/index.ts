@@ -46,6 +46,7 @@ const router = createRouter({
         { path: 'village', name: 'village', component: () => import('@/views/game/NpcView.vue') },
         { path: 'online', name: 'online', component: () => import('@/views/game/OnlineView.vue') },
         { path: 'online/manor', name: 'online-manor', component: () => import('@/views/game/online/OnlineManorView.vue') },
+        { path: 'online/cohabitation', name: 'online-cohabitation', component: () => import('@/views/game/online/OnlineCohabitationView.vue') },
         { path: 'online/neighbor', name: 'online-neighbor', component: () => import('@/views/game/online/OnlineNeighborView.vue') },
         { path: 'online/orders', name: 'online-orders', component: () => import('@/views/game/online/OnlineOrdersView.vue') },
         { path: 'online/festival', name: 'online-festival', component: () => import('@/views/game/online/OnlineFestivalView.vue') },

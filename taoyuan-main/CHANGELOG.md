@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 共同庄园前端入口
+- 在线中心新增“共同庄园”模块卡和 `/game/online/cohabitation` 子页，可从已有契约切换到共同庄园只读视图。
+- 新页面会读取共同农田拼接图、共同仓库、共同基金、权限安全阀和离线经营状态，并显示个人铜币不合并、来源归属可追溯和高风险写操作暂缓边界。
+- 新增 `cohabitationApi` 与 `useCohabitationStore`，只消费既有同居契约服务端接口；本轮不开放契约创建 / 接受、仓库放入、基金注资、权限写回或分居执行。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 家族关系公开设置只读预备面板
 - 新增 `GET /taoyuan/online/cohabitation/contracts/:contractId/family-visibility`，已激活结拜 / 合伙庄园成员可读取家族关系公开设置预备面板。
 - 面板会输出默认可见范围、可公开数据类别、成员同意要求、公开档案 / 好友 / 村社 / 节会房间绑定关闭状态和隐私护栏。

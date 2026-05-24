@@ -32,7 +32,7 @@
         </div>
       </div>
 
-      <nav class="grid grid-cols-5 gap-1" aria-label="在线模块快捷入口">
+      <nav class="grid grid-cols-3 gap-1 md:grid-cols-6" aria-label="在线模块快捷入口">
         <RouterLink
           v-for="module in modules"
           :key="`${module.key}-quick`"
@@ -46,7 +46,7 @@
       </nav>
     </section>
 
-    <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
+    <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-6">
       <OnlineModuleCard
         v-for="module in modules"
         :key="module.routeName"
@@ -67,6 +67,7 @@
   import { computed, onMounted, ref } from 'vue'
   import {
     CalendarDays,
+    HeartHandshake,
     Handshake,
     Home,
     MessageCircle,
@@ -77,6 +78,7 @@
   } from 'lucide-vue-next'
   import type { Component } from 'vue'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
+  import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
   import { useManorStore } from '@/stores/useManorStore'
@@ -84,7 +86,7 @@
   import { useSocietyStore } from '@/stores/useSocietyStore'
   import OnlineModuleCard from '@/components/game/online/OnlineModuleCard.vue'
 
-  type ModuleKey = 'manor' | 'neighbor' | 'orders' | 'festival' | 'society'
+  type ModuleKey = 'manor' | 'cohabitation' | 'neighbor' | 'orders' | 'festival' | 'society'
   type ModuleStat = { label: string; value: string | number }
   type ModuleCard = {
     key: ModuleKey
@@ -98,6 +100,7 @@
   }
 
   const manorStore = useManorStore()
+  const cohabitationStore = useCohabitationStore()
   const socialStore = useSocialStore()
   const coopOrderStore = useCoopOrderStore()
   const festivalRoomStore = useFestivalRoomStore()
@@ -135,6 +138,7 @@
         manorStore.refreshSnapshot('', { silent: true }),
         manorStore.refreshFavoriteOverview(),
       ]), '庄园摘要刷新失败'),
+      runSummaryTask('cohabitation', () => cohabitationStore.refreshOverview({ silent: true }), '共同庄园摘要刷新失败'),
       runSummaryTask('neighbor', async () => Promise.all([
         socialStore.refreshProfile({ silent: true }),
         socialStore.refreshRelationships({ silent: true }),
@@ -181,6 +185,23 @@
       routeName: 'online-manor',
       icon: Home,
       error: moduleErrors.value.manor || ''
+    },
+    {
+      key: 'cohabitation',
+      title: '共同庄园',
+      summary: '同居契约、共同地图、仓库、基金、权限。',
+      status: cohabitationStore.summary.total > 0
+        ? `${cohabitationStore.summary.active} 份已生效 · ${cohabitationStore.summary.pending} 份待接受`
+        : '尚未建立共同庄园契约。',
+      stats: [
+        { label: '契约', value: countLabel(cohabitationStore.summary.total, '份') },
+        { label: '已生效', value: countLabel(cohabitationStore.summary.active, '份') },
+        { label: '共同基金', value: cohabitationStore.fund?.balance ?? cohabitationStore.selectedContract?.shared_fund?.balance ?? 0 },
+        { label: '仓库', value: countLabel(cohabitationStore.warehouse?.summary.item_count ?? cohabitationStore.selectedContract?.shared_warehouse?.items?.length) },
+      ],
+      routeName: 'online-cohabitation',
+      icon: HeartHandshake,
+      error: moduleErrors.value.cohabitation || ''
     },
     {
       key: 'neighbor',
