@@ -1382,6 +1382,35 @@ function normalizeReceiptRouteReplayContribution(entry) {
   };
 }
 
+function normalizeReceiptRouteReplayRaceResult(entry) {
+  const source = entry && typeof entry === 'object' ? entry : {};
+  return {
+    mode: sanitizeText(source.mode, 24),
+    rank: Math.max(0, Math.floor(Number(source.rank) || 0)),
+    rank_label: sanitizeText(source.rank_label, 40),
+    team_count: Math.max(0, Math.floor(Number(source.team_count) || 0)),
+    title_label: sanitizeText(source.title_label, 40),
+    popularity_bonus: Math.max(0, Math.floor(Number(source.popularity_bonus) || 0)),
+    popularity_label: sanitizeText(source.popularity_label, 60),
+    reached_finish: source.reached_finish === true,
+  };
+}
+
+function normalizeReceiptRouteReplayRaceRanking(entry) {
+  const teamId = sanitizeText(entry?.team_id, 80);
+  if (!teamId) return null;
+  return {
+    team_id: teamId,
+    label: sanitizeText(entry?.label, 40) || teamId,
+    rank: Math.max(0, Math.floor(Number(entry?.rank) || 0)),
+    rank_label: sanitizeText(entry?.rank_label, 40),
+    position_index: Math.max(0, Math.floor(Number(entry?.position_index) || 0)),
+    score_value: Math.max(0, Math.floor(Number(entry?.score_value) || 0)),
+    finished: entry?.finished === true,
+    summary: sanitizeText(entry?.summary, 120),
+  };
+}
+
 function normalizeReceiptRouteReplay(value) {
   const source = value && typeof value === 'object' ? value : {};
   const kind = sanitizeText(source.kind, 40);
@@ -1400,6 +1429,8 @@ function normalizeReceiptRouteReplay(value) {
         summary: '',
       },
       member_contributions: [],
+      race_result: normalizeReceiptRouteReplayRaceResult(null),
+      race_rankings: [],
     };
   }
   return {
@@ -1429,6 +1460,10 @@ function normalizeReceiptRouteReplay(value) {
         },
     member_contributions: Array.isArray(source.member_contributions)
       ? source.member_contributions.map(normalizeReceiptRouteReplayContribution).filter(Boolean).slice(0, 8)
+      : [],
+    race_result: normalizeReceiptRouteReplayRaceResult(source.race_result),
+    race_rankings: Array.isArray(source.race_rankings)
+      ? source.race_rankings.map(normalizeReceiptRouteReplayRaceRanking).filter(Boolean).slice(0, 8)
       : [],
   };
 }
@@ -3301,7 +3336,49 @@ function buildDragonBoatRouteReplay(room) {
 
   const finishCell = routeNodes.find(node => node.kind === 'finish');
   const reachedFinish = Boolean(finishCell && positionIndex + 1 >= finishCell.order);
-  const summary = `赛道推进 ${Math.min(positionIndex + 1, track.length || routeNodes.length)}/${track.length || routeNodes.length} 格，${reachedFinish ? '已经冲过终点' : '尚未冲线'}；默契值 ${gameplayState.score_value}，压力峰值 ${pressurePeak.value}/${FESTIVAL_ROUND_PRESSURE_MAX}。`;
+  const trackLength = Math.max(1, Math.floor(Number(track.length) || routeNodes.length || 1));
+  const rankedTeams = [...(track.teams || [])]
+    .filter(entry => sanitizeText(entry?.team_id, 80))
+    .sort((left, right) => {
+      const leftFinished = left.state === 'finished' || left.position_index >= trackLength - 1 ? 1 : 0;
+      const rightFinished = right.state === 'finished' || right.position_index >= trackLength - 1 ? 1 : 0;
+      if (rightFinished !== leftFinished) return rightFinished - leftFinished;
+      if (right.position_index !== left.position_index) return right.position_index - left.position_index;
+      const rightBoosted = right.state === 'boosted' || right.state === 'advancing' ? 1 : 0;
+      const leftBoosted = left.state === 'boosted' || left.state === 'advancing' ? 1 : 0;
+      return rightBoosted - leftBoosted;
+    });
+  const raceRankings = rankedTeams.map((entry, index) => {
+    const finished = entry.state === 'finished' || entry.position_index >= trackLength - 1;
+    const rank = index + 1;
+    const rankLabel = rankedTeams.length > 1 ? `第 ${rank} / ${rankedTeams.length} 名` : '合作队';
+    return normalizeReceiptRouteReplayRaceRanking({
+      team_id: entry.team_id,
+      label: entry.label,
+      rank,
+      rank_label: rankLabel,
+      position_index: entry.position_index,
+      score_value: gameplayState.score_value,
+      finished,
+      summary: `${entry.label || entry.team_id} 推进到第 ${Math.min(entry.position_index + 1, trackLength)} / ${trackLength} 格，${finished ? '已冲线' : '仍在赛道中'}。`,
+    });
+  }).filter(Boolean);
+  const roomTeamRace = raceRankings.find(entry => entry.team_id === team?.team_id) || raceRankings[0] || null;
+  const raceMode = raceRankings.length > 1 ? 'race' : 'cooperation';
+  const rankLabel = raceMode === 'race'
+    ? (roomTeamRace?.rank_label || '未记录名次')
+    : (reachedFinish ? '合作完赛' : '合作演练');
+  const popularityBonus = clampNumber(
+    Math.floor(Math.max(0, gameplayState.score_value) / 2)
+      + (reachedFinish ? 2 : 0)
+      + Math.max(0, raceRankings.length - 1)
+      - Math.floor(pressurePeak.value / 5),
+    0,
+    12
+  );
+  const popularityLabel = popularityBonus > 0 ? `节会人气 +${popularityBonus}` : '节会人气持平';
+  const titleLabel = FESTIVAL_TITLE_REWARD_MAP[room.template_id]?.label || '';
+  const summary = `赛道推进 ${Math.min(positionIndex + 1, trackLength)}/${trackLength} 格，${reachedFinish ? '已经冲过终点' : '尚未冲线'}；默契值 ${gameplayState.score_value}，压力峰值 ${pressurePeak.value}/${FESTIVAL_ROUND_PRESSURE_MAX}；${rankLabel}，${popularityLabel}${titleLabel ? `，称号「${titleLabel}」` : ''}。`;
   return normalizeReceiptRouteReplay({
     kind: 'dragon_boat',
     title: '端午赛舟成绩单',
@@ -3310,6 +3387,17 @@ function buildDragonBoatRouteReplay(room) {
     highlight_nodes: highlightNodes,
     risk_peak: pressurePeak,
     member_contributions: memberContributions,
+    race_result: {
+      mode: raceMode,
+      rank: roomTeamRace?.rank || 1,
+      rank_label: rankLabel,
+      team_count: raceRankings.length || 1,
+      title_label: titleLabel,
+      popularity_bonus: popularityBonus,
+      popularity_label: popularityLabel,
+      reached_finish: reachedFinish,
+    },
+    race_rankings: raceRankings,
   });
 }
 

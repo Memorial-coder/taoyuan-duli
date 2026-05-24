@@ -245,6 +245,28 @@ export interface FestivalRoomRouteReplayContribution {
   summary: string
 }
 
+export interface FestivalRoomRouteReplayRaceResult {
+  mode: string
+  rank: number
+  rank_label: string
+  team_count: number
+  title_label: string
+  popularity_bonus: number
+  popularity_label: string
+  reached_finish: boolean
+}
+
+export interface FestivalRoomRouteReplayRaceRanking {
+  team_id: string
+  label: string
+  rank: number
+  rank_label: string
+  position_index: number
+  score_value: number
+  finished: boolean
+  summary: string
+}
+
 export interface FestivalRoomRouteReplay {
   kind: string
   title: string
@@ -259,6 +281,8 @@ export interface FestivalRoomRouteReplay {
     summary: string
   }
   member_contributions: FestivalRoomRouteReplayContribution[]
+  race_result: FestivalRoomRouteReplayRaceResult
+  race_rankings: FestivalRoomRouteReplayRaceRanking[]
 }
 
 export interface FestivalRoomReceiptPreview {

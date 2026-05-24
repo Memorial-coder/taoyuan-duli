@@ -264,6 +264,28 @@ export interface ExpeditionRoomRouteReplayContribution {
   summary: string
 }
 
+export interface ExpeditionRoomRouteReplayRaceResult {
+  mode: string
+  rank: number
+  rank_label: string
+  team_count: number
+  title_label: string
+  popularity_bonus: number
+  popularity_label: string
+  reached_finish: boolean
+}
+
+export interface ExpeditionRoomRouteReplayRaceRanking {
+  team_id: string
+  label: string
+  rank: number
+  rank_label: string
+  position_index: number
+  score_value: number
+  finished: boolean
+  summary: string
+}
+
 export interface ExpeditionRoomRouteReplay {
   kind: string
   title: string
@@ -278,6 +300,8 @@ export interface ExpeditionRoomRouteReplay {
     summary: string
   }
   member_contributions: ExpeditionRoomRouteReplayContribution[]
+  race_result: ExpeditionRoomRouteReplayRaceResult
+  race_rankings: ExpeditionRoomRouteReplayRaceRanking[]
 }
 
 export interface ExpeditionRoomOpeningCeremony {

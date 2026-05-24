@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0524 端午赛舟名次与人气回看
+- 端午赛舟 `route_replay` 新增 `race_result / race_rankings`，成绩单会记录合作 / 竞速模式、名次标签、队伍数、冲线状态、称号标签和节会人气加成。
+- 在线节会页会在本房凭证、最近凭证和纪念记录聚合凭证中展示龙舟名次、人气与称号；这些字段只作为只读回看，不进入奖励 payload，也不改变结算幂等键。
+- 本轮验证：`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-activity-room-visual-state.mjs`、`npm --prefix server run qa:activity-room-visual-state`、`npm --prefix server run qa:online-smoke`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 协作矿洞节点图收口
 - `VisualMapBoard` 新增队伍当前位置标记，直接读取服务端 `visual_state.selected_visual_id`，并在选中详情和移动端列表中标注“队伍所在”。
 - 地图节点新增移动端列表降级和行动反馈短动效；反馈使用 `visual_state.revision + recent_feedback` 触发，便于队友行动后看见变化。

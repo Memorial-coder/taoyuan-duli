@@ -468,6 +468,7 @@
                         <p class="text-accent">{{ receipt.route_replay.title }}</p>
                         <p>{{ receipt.route_replay.summary }}</p>
                         <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
+                        <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
                         <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
                       </div>
                     </div>
@@ -723,6 +724,7 @@
                 <p class="text-accent">{{ receipt.route_replay.title }}</p>
                 <p>{{ receipt.route_replay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
+                <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
               </div>
             </div>
@@ -1153,6 +1155,7 @@
                 <p class="text-accent">{{ receipt.route_replay.title }}</p>
                 <p>{{ receipt.route_replay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
+                <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
               </div>
             </div>
@@ -1196,6 +1199,7 @@
                 <p class="text-accent">{{ receipt.routeReplay.title }}</p>
                 <p>{{ receipt.routeReplay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.routeReplay)">路线：{{ routeReplayRouteText(receipt.routeReplay) }}</p>
+                <p v-if="routeReplayRaceText(receipt.routeReplay)">{{ routeReplayRaceText(receipt.routeReplay) }}</p>
                 <p v-if="routeReplayPeakText(receipt.routeReplay)">{{ routeReplayPeakLabel(receipt.routeReplay) }}：{{ routeReplayPeakText(receipt.routeReplay) }}</p>
               </div>
             </div>
@@ -1327,6 +1331,12 @@
   const routeReplayRouteText = (replay?: ActivityRouteReplay | null) => {
     if (!hasRouteReplay(replay)) return ''
     return (replay?.route_nodes ?? []).map(node => node.label).filter(Boolean).join(' -> ')
+  }
+  const routeReplayRaceText = (replay?: ActivityRouteReplay | null) => {
+    if (!hasRouteReplay(replay) || replay?.kind !== 'dragon_boat' || !replay.race_result?.rank_label) return ''
+    const title = replay.race_result.title_label ? `称号：${replay.race_result.title_label}` : ''
+    const popularity = replay.race_result.popularity_label || (replay.race_result.popularity_bonus > 0 ? `节会人气 +${replay.race_result.popularity_bonus}` : '')
+    return [replay.race_result.rank_label, popularity, title].filter(Boolean).join(' · ')
   }
   const routeReplayPeakLabel = (replay?: ActivityRouteReplay | null) =>
     replay?.kind === 'dragon_boat' ? '压力峰值' : '风险峰值'

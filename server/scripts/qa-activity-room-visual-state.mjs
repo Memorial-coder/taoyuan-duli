@@ -234,6 +234,11 @@ assert.deepEqual(dragonReceiptReplay.route_nodes.map(node => node.id), [
 assert.ok(dragonReceiptReplay.highlight_nodes.length > 0, 'dragon boat replay should keep action highlights')
 assert.ok(dragonReceiptReplay.risk_peak.value >= 2, 'dragon boat replay should record pressure peak')
 assert.ok(dragonReceiptReplay.member_contributions.some(item => item.username === 'visual_host_dragon'), 'dragon boat replay should include member contribution')
+assert.equal(dragonReceiptReplay.race_result.mode, 'cooperation', 'single dragon boat team should settle as cooperative race mode')
+assert.equal(dragonReceiptReplay.race_result.rank, 1, 'dragon boat replay should record a rank')
+assert.equal(dragonReceiptReplay.race_result.title_label, '赛舟领桨手', 'dragon boat replay should record title target')
+assert.ok(dragonReceiptReplay.race_result.popularity_bonus > 0, 'dragon boat replay should generate festival popularity bonus')
+assert.equal(dragonReceiptReplay.race_rankings.length, 1, 'dragon boat replay should include team ranking rows')
 const dragonSettledSnapshotReceipt = dragonSettledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_host_dragon')
 assert.equal(dragonSettledSnapshotReceipt?.route_replay?.kind, 'dragon_boat', 'room snapshot dragon boat receipt should include route replay')
 
