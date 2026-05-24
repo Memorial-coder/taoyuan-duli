@@ -394,6 +394,12 @@ await assert.rejects(
 )
 
 await assert.rejects(
+  () => runtime.getCohabitationFamilyBuildings(created.contract.id, actor(extra)),
+  error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
+  'non-members should not read a family building panel'
+)
+
+await assert.rejects(
   () => runtime.getCohabitationFamilyFestivalSeats(created.contract.id, actor(extra)),
   error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
   'non-members should not read a family festival seat panel'
@@ -574,6 +580,11 @@ await assert.rejects(
   'pending contracts should not expose family reputation panel'
 )
 await assert.rejects(
+  () => runtime.getCohabitationFamilyBuildings(pendingContract.contract.id, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not expose family building panel'
+)
+await assert.rejects(
   () => runtime.getCohabitationFamilyFestivalSeats(pendingContract.contract.id, actor(owner)),
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not expose family festival seat panel'
@@ -721,6 +732,12 @@ assert.equal(loverFamilyReputation.family_reputation_panel.write_enabled, false,
 assert.equal(loverFamilyReputation.family_reputation_panel.summary.current_points, 0, 'disabled family reputation panel should not expose points')
 assert.match(loverFamilyReputation.family_reputation_panel.summary.disabled_reason, /结拜庄园和合伙庄园/, 'disabled reputation panel should explain family manor requirement')
 
+const loverFamilyBuildings = await runtime.getCohabitationFamilyBuildings(created.contract.id, actor(owner))
+assert.equal(loverFamilyBuildings.family_buildings_panel.family_buildings_enabled, false, 'romance contracts should return a disabled family building panel')
+assert.equal(loverFamilyBuildings.family_buildings_panel.write_enabled, false, 'disabled family building panel should not expose writes')
+assert.equal(loverFamilyBuildings.family_buildings_panel.summary.preview_building_count, 0, 'disabled family building panel should not expose building drafts')
+assert.match(loverFamilyBuildings.family_buildings_panel.summary.disabled_reason, /结拜庄园和合伙庄园/, 'disabled building panel should explain family manor requirement')
+
 const loverFamilyFestivalSeats = await runtime.getCohabitationFamilyFestivalSeats(created.contract.id, actor(owner))
 assert.equal(loverFamilyFestivalSeats.family_festival_seats_panel.festival_seats_enabled, false, 'romance contracts should return a disabled family festival seat panel')
 assert.equal(loverFamilyFestivalSeats.family_festival_seats_panel.write_enabled, false, 'disabled family festival seat panel should not expose writes')
@@ -821,6 +838,44 @@ assert.equal(repeatedFamilyReputationRead.contract.audit_log.length, familyReput
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyReputation, 'family reputation panel should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyReputation, 'family reputation panel should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyReputation, 'family reputation panel should not rewrite extra save')
+
+const ownerRawBeforeFamilyBuildings = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeFamilyBuildings = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const extraRawBeforeFamilyBuildings = saveRuntime.loadUserSaveSlots(extra).slots[0].raw
+const familyBuildingsRead = await runtime.getCohabitationFamilyBuildings(familyContract.contract.id, actor(owner))
+const familyBuildingsPanel = familyBuildingsRead.family_buildings_panel
+assert.equal(familyBuildingsPanel.family_buildings_enabled, true, 'family manor should expose building panel')
+assert.equal(familyBuildingsPanel.readonly, true, 'family building panel should be read-only in first pass')
+assert.equal(familyBuildingsPanel.write_enabled, false, 'family building panel should not enable writes')
+assert.equal(familyBuildingsPanel.build_enabled, false, 'family building panel should not build yet')
+assert.equal(familyBuildingsPanel.demolish_enabled, false, 'family building panel should not demolish yet')
+assert.equal(familyBuildingsPanel.summary.preview_building_count, 4, 'family building panel should expose four building drafts')
+assert.equal(familyBuildingsPanel.summary.shared_fund_spend_enabled, false, 'family building panel should not spend shared fund')
+assert.equal(familyBuildingsPanel.summary.material_consume_enabled, false, 'family building panel should not consume warehouse materials')
+assert.equal(familyBuildingsPanel.summary.demolition_enabled, false, 'family building panel should not enable demolition')
+assert.equal(familyBuildingsPanel.actor.manor_role, 'family_head', 'family building actor should expose family head role')
+assert.equal(familyBuildingsPanel.actor.building_permissions.can_manage_building_rules_preview, true, 'family head should preview building rule management')
+assert.equal(familyBuildingsPanel.members.find(member => member.username === partner)?.manor_role, 'storage_keeper', 'family building members should reflect updated storage keeper role')
+assert.equal(familyBuildingsPanel.members.find(member => member.username === partner)?.building_permissions.can_prepare_materials_preview, true, 'storage keeper should preview material preparation')
+assert.equal(familyBuildingsPanel.candidate_buildings.find(building => building.id === 'shared_granary')?.role_ready, true, 'shared granary should be role-ready with storage keeper and farm steward')
+assert.ok(familyBuildingsPanel.candidate_buildings.find(building => building.id === 'family_hall')?.missing_roles.includes('workshop_keeper'), 'family hall should report missing workshop keeper')
+assert.equal(familyBuildingsPanel.candidate_buildings.find(building => building.id === 'shared_granary')?.material_consume_enabled, false, 'building draft should not consume materials')
+assert.equal(familyBuildingsPanel.candidate_buildings.find(building => building.id === 'shared_granary')?.shared_fund_spend_enabled, false, 'building draft should not spend shared fund')
+assert.equal(familyBuildingsPanel.visual_state_preview.board_type, 'scene', 'family building preview should use scene visual state')
+assert.ok(familyBuildingsPanel.visual_state_preview.scene_objects.some(object => object.id === 'family_building_blueprint_table'), 'family building preview should expose blueprint table')
+assert.equal(familyBuildingsPanel.visual_state_preview.scene_objects.find(object => object.id === 'family_building_granary_ghost')?.state, 'ready_for_blueprint', 'family building preview should mark granary as role-ready')
+assert.equal(familyBuildingsPanel.governance.building_write_requires_idempotency, true, 'future building writes should require idempotency')
+assert.equal(familyBuildingsPanel.governance.demolition_requires_both_confirmation, true, 'future building demolition should require confirmation')
+assert.equal(familyBuildingsPanel.asset_boundaries.shared_fund_consume_enabled, false, 'family buildings should not consume shared fund in first pass')
+assert.ok(familyBuildingsPanel.deferred_operations.includes('spend_shared_fund_for_building'), 'family building panel should defer shared fund spending')
+assert.ok(familyBuildingsPanel.deferred_operations.includes('family_building_compensation_replay'), 'family building panel should defer compensation replay')
+const repeatedFamilyBuildingsRead = await runtime.getCohabitationFamilyBuildings(familyContract.contract.id, actor(owner))
+assert.equal(repeatedFamilyBuildingsRead.family_buildings_panel.visual_state_preview.board_id, familyBuildingsPanel.visual_state_preview.board_id, 'family building preview board id should stay stable across reads')
+assert.equal(repeatedFamilyBuildingsRead.family_buildings_panel.revision, familyBuildingsPanel.revision, 'family building preview revision should stay stable across reads')
+assert.equal(repeatedFamilyBuildingsRead.contract.audit_log.length, familyBuildingsRead.contract.audit_log.length, 'family building reads should not append audit entries')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyBuildings, 'family building panel should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyBuildings, 'family building panel should not rewrite partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyBuildings, 'family building panel should not rewrite extra save')
 
 const ownerRawBeforeFamilyFestivalSeats = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawBeforeFamilyFestivalSeats = saveRuntime.loadUserSaveSlots(partner).slots[0].raw

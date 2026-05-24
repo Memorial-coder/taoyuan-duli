@@ -169,6 +169,65 @@ const FAMILY_REPUTATION_LEVELS = Object.freeze([
   { id: 'renowned', label: '桃源名门', min_points: 120, next_points: null },
 ]);
 
+const FAMILY_BUILDING_PROJECT_DEFS = Object.freeze([
+  {
+    id: 'family_hall',
+    label: '家族议事厅',
+    category: 'governance',
+    visual_kind: 'hall',
+    required_roles: ['family_head', 'workshop_keeper'],
+    material_plan: [
+      { item_id: 'wood', label: '木材', quantity: 40 },
+      { item_id: 'stone', label: '石料', quantity: 30 },
+    ],
+    shared_fund_cost: 360,
+    stage_count: 3,
+    summary: '作为家族职位、订单、声望和分居会议的总入口预览。',
+  },
+  {
+    id: 'shared_granary',
+    label: '共仓粮廪',
+    category: 'storage',
+    visual_kind: 'granary',
+    required_roles: ['storage_keeper', 'farm_steward'],
+    material_plan: [
+      { item_id: 'wood', label: '木材', quantity: 28 },
+      { item_id: 'rice', label: '稻米', quantity: 12 },
+    ],
+    shared_fund_cost: 220,
+    stage_count: 2,
+    summary: '用于预览共同仓库扩容、灾备和分居返还清单，不开放真实取出。',
+  },
+  {
+    id: 'workshop_yard',
+    label: '家族工坊院',
+    category: 'crafting',
+    visual_kind: 'workshop',
+    required_roles: ['workshop_keeper', 'treasurer'],
+    material_plan: [
+      { item_id: 'wood', label: '木材', quantity: 32 },
+      { item_id: 'copper_ore', label: '铜矿石', quantity: 8 },
+    ],
+    shared_fund_cost: 300,
+    stage_count: 3,
+    summary: '为后续加工、料理、炼丹和家族订单接力提供建筑预览。',
+  },
+  {
+    id: 'festival_courtyard',
+    label: '节会前庭',
+    category: 'festival',
+    visual_kind: 'courtyard',
+    required_roles: ['family_head', 'storage_keeper', 'animal_keeper'],
+    material_plan: [
+      { item_id: 'wood', label: '木材', quantity: 24 },
+      { item_id: 'lantern', label: '灯笼', quantity: 6 },
+    ],
+    shared_fund_cost: 260,
+    stage_count: 2,
+    summary: '承接家族节会席位、灯会留影和公共祝福，不直接创建节会房间。',
+  },
+]);
+
 const FAMILY_FESTIVAL_SEAT_ROLE_DEFS = Object.freeze({
   family_head: { id: 'host_caller', label: '主事席', festival_role: 'caller', summary: '负责开场、确认席位和高风险节会决策预览。' },
   storage_keeper: { id: 'supply_keeper', label: '供给席', festival_role: 'support', summary: '负责节会物资、共同仓库供给和补偿清单预览。' },
@@ -1605,6 +1664,19 @@ function buildFamilyReputationSourceBreakdown(contract = {}, enabled = isFamilyR
       },
     },
     {
+      id: 'family_buildings',
+      label: '家族建筑',
+      enabled: false,
+      preview_points: 0,
+      evidence_count: 0,
+      audit_required: true,
+      write_enabled: false,
+      deferred_operation: 'family_building_reputation',
+      evidence: {
+        reason: '家族建筑尚未接入真实建造与审计，不能产生声望。',
+      },
+    },
+    {
       id: 'family_festival_seats',
       label: '家族节会席位',
       enabled: false,
@@ -1684,11 +1756,259 @@ function buildFamilyReputationSnapshot(contract, actorUsername = '') {
       'award_family_reputation',
       'family_reputation_ledger',
       'family_order_reputation',
+      'family_building_reputation',
       'family_festival_seat_reputation',
       'family_reputation_weekly_cap',
       'family_reputation_compensation_replay',
       'family_reputation_leaderboard',
       'family_reputation_rewards',
+    ],
+  };
+}
+
+function getWarehousePreviewQuantity(warehouse = {}, itemId = '') {
+  const normalizedItemId = normalizeWarehouseItemId(itemId);
+  if (!normalizedItemId) return 0;
+  return (warehouse.items || [])
+    .filter(item => item.item_id === normalizedItemId)
+    .reduce((sum, item) => sum + Math.max(0, Math.floor(Number(item.quantity) || 0)), 0);
+}
+
+function buildFamilyBuildingMemberSnapshot(contract, member, enabled = isFamilyRoleContractType(contract.type)) {
+  const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const roleDef = enabled ? getFamilyManorRoleDef(manorRole) : null;
+  const permissions = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  const canPlanConstruction = ['family_head', 'workshop_keeper'].includes(manorRole)
+    || permissions.construction.move_common_furniture === true
+    || permissions.construction.buy_furniture === true;
+  const canPrepareMaterials = permissions.storage.deposit === true
+    || permissions.storage.withdraw_common === true
+    || permissions.farm.harvest === true
+    || permissions.animal.collect_product === true;
+  return {
+    username: member.username,
+    username_key: member.username_key,
+    display_name: member.display_name,
+    role: member.role,
+    status: member.status,
+    manor_role: manorRole,
+    manor_role_label: roleDef?.label || '',
+    permission_focus: roleDef ? [...roleDef.permission_focus] : [],
+    building_permissions: {
+      can_view_family_buildings: enabled && member.status === 'accepted',
+      can_plan_building_preview: enabled && member.status === 'accepted' && canPlanConstruction,
+      can_prepare_materials_preview: enabled && canPrepareMaterials,
+      can_review_budget_preview: enabled && ['family_head', 'treasurer'].includes(manorRole),
+      can_manage_building_rules_preview: enabled && manorRole === 'family_head',
+      build_enabled: false,
+      demolish_enabled: false,
+      shared_fund_spend_enabled: false,
+      warehouse_material_consume_enabled: false,
+    },
+  };
+}
+
+function buildFamilyBuildingCandidates(contract, enabled) {
+  const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const fund = normalizeSharedFund(contract.shared_fund);
+  const acceptedRoles = new Set((contract.members || [])
+    .filter(member => member.status === 'accepted')
+    .map(member => normalizeFamilyManorRole(member.manor_role, contract.type, member.role))
+    .filter(Boolean));
+  return FAMILY_BUILDING_PROJECT_DEFS.map(definition => {
+    const missingRoles = definition.required_roles.filter(role => !acceptedRoles.has(role));
+    const materialPlan = definition.material_plan.map(item => {
+      const availableQuantity = getWarehousePreviewQuantity(warehouse, item.item_id);
+      return {
+        item_id: item.item_id,
+        label: item.label,
+        required_quantity: item.quantity,
+        available_quantity: availableQuantity,
+        enough: availableQuantity >= item.quantity,
+        consume_enabled: false,
+      };
+    });
+    return {
+      id: definition.id,
+      label: definition.label,
+      category: definition.category,
+      visual_kind: definition.visual_kind,
+      summary: definition.summary,
+      available: enabled,
+      role_ready: enabled && missingRoles.length === 0,
+      missing_roles: missingRoles,
+      required_roles: [...definition.required_roles],
+      material_plan: materialPlan,
+      shared_fund_cost: definition.shared_fund_cost,
+      shared_fund_balance_preview: fund.balance,
+      fund_ready_preview: fund.balance >= definition.shared_fund_cost,
+      stage_count: definition.stage_count,
+      planning_state: enabled
+        ? (missingRoles.length > 0 ? 'needs_role' : 'ready_for_blueprint')
+        : 'disabled',
+      build_enabled: false,
+      demolish_enabled: false,
+      material_consume_enabled: false,
+      shared_fund_spend_enabled: false,
+      disabled_reason: enabled ? '' : '当前契约不是结拜庄园或合伙庄园。',
+    };
+  });
+}
+
+function buildFamilyBuildingScenePreview(contract, buildings, members, enabled, revision) {
+  const acceptedMembers = members.filter(member => member.status === 'accepted');
+  const granary = buildings.find(building => building.id === 'shared_granary');
+  const workshop = buildings.find(building => building.id === 'workshop_yard');
+  return {
+    board_type: 'scene',
+    board_id: `family_buildings:${contract.id}`,
+    revision,
+    selected_visual_id: 'family_building_blueprint_table',
+    recent_feedback: enabled
+      ? '家族建筑第一版仅展示建筑蓝图、材料缺口和治理要求；真实建造、拆除和共同资产消耗暂缓。'
+      : '当前契约不是结拜庄园或合伙庄园，家族建筑未启用。',
+    scene: enabled ? {
+      id: 'family_building_yard',
+      label: '家族庄园建筑规划',
+      kind: 'building_planning',
+      member_capacity: Math.max(4, acceptedMembers.length),
+      object_count: 5,
+    } : null,
+    scene_objects: enabled ? [
+      {
+        id: 'family_building_gate',
+        label: '庄园门牌',
+        kind: 'gate',
+        state: acceptedMembers.length >= 2 ? 'preview_ready' : 'locked',
+        x: 50,
+        y: 14,
+        linked_building_ids: ['family_hall'],
+        available_action_ids: [],
+      },
+      {
+        id: 'family_building_blueprint_table',
+        label: '建筑蓝图桌',
+        kind: 'blueprint',
+        state: members.some(member => member.manor_role === 'family_head' || member.manor_role === 'workshop_keeper') ? 'staffed' : 'needs_role',
+        x: 34,
+        y: 42,
+        linked_role_ids: ['family_head', 'workshop_keeper'],
+        available_action_ids: [],
+      },
+      {
+        id: 'family_building_granary_ghost',
+        label: '粮廪预留地',
+        kind: 'granary',
+        state: granary?.role_ready ? 'ready_for_blueprint' : 'needs_role',
+        x: 24,
+        y: 72,
+        linked_building_ids: ['shared_granary'],
+        available_action_ids: [],
+      },
+      {
+        id: 'family_building_workshop_ghost',
+        label: '工坊预留地',
+        kind: 'workshop',
+        state: workshop?.role_ready ? 'ready_for_blueprint' : 'needs_role',
+        x: 70,
+        y: 66,
+        linked_building_ids: ['workshop_yard'],
+        available_action_ids: [],
+      },
+      {
+        id: 'family_building_demolition_notice',
+        label: '拆除确认牌',
+        kind: 'safety_notice',
+        state: 'locked',
+        x: 76,
+        y: 28,
+        required_confirmations: ['demolish_requires_both', 'origin_asset_return_preview'],
+        available_action_ids: [],
+      },
+    ] : [],
+  };
+}
+
+function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
+  const enabled = isFamilyRoleContractType(contract.type);
+  const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
+  const actorMember = getContractMember(contract, actorUsername);
+  const revision = Math.max(Number(contract.updated_at) || 0, Number(contract.activated_at) || 0, Number(contract.created_at) || 0);
+  const members = enabled
+    ? (contract.members || []).map(member => buildFamilyBuildingMemberSnapshot(contract, member, enabled))
+    : [];
+  const buildings = buildFamilyBuildingCandidates(contract, enabled);
+  const actorBuildingMember = actorMember ? buildFamilyBuildingMemberSnapshot(contract, actorMember, enabled) : null;
+  return {
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    type: contract.type,
+    type_label: contract.type_label,
+    status: contract.status,
+    readonly: true,
+    write_enabled: false,
+    writes_enabled: false,
+    family_buildings_enabled: enabled,
+    build_enabled: false,
+    demolish_enabled: false,
+    generated_at: nowSeconds(),
+    revision,
+    summary: {
+      member_count: (contract.members || []).filter(member => member.status === 'accepted').length,
+      max_members: typeDef.max_members,
+      preview_building_count: enabled ? buildings.length : 0,
+      role_ready_building_count: enabled ? buildings.filter(building => building.role_ready).length : 0,
+      material_consume_enabled: false,
+      shared_fund_spend_enabled: false,
+      warehouse_withdraw_enabled: false,
+      demolition_enabled: false,
+      construction_ledger_enabled: false,
+      reputation_award_enabled: false,
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+      disabled_reason: enabled ? '' : '家族建筑第一版仅面向结拜庄园和合伙庄园。',
+    },
+    actor: actorBuildingMember,
+    members,
+    candidate_buildings: buildings,
+    visual_state_preview: buildFamilyBuildingScenePreview(contract, buildings, members, enabled, revision),
+    governance: {
+      server_authoritative: true,
+      building_write_requires_idempotency: true,
+      building_write_requires_audit: true,
+      shared_fund_spend_requires_permission: true,
+      shared_fund_spend_requires_confirmation: true,
+      warehouse_material_consume_requires_origin_trace: true,
+      demolition_requires_preview: true,
+      demolition_requires_both_confirmation: true,
+      compensation_required_for_asset_writes: true,
+      rollback_required_for_building_writes: true,
+      current_policy: '第一版只读展示家族建筑蓝图、职位缺口、材料缺口和治理要求，不建造、不拆除、不消费共同基金或共同仓库。',
+    },
+    asset_boundaries: {
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+      shared_fund_consume_enabled: false,
+      shared_warehouse_consume_enabled: false,
+      origin_assets_required_for_return: true,
+      separation_preview_must_include_buildings: true,
+    },
+    recommended_flow: [
+      '先由家主读取建筑预览，确认议事厅、粮廪、工坊和节会前庭的职位缺口。',
+      '真实建造开放前，必须先把共同仓库材料消耗、共同基金支出和建筑来源写入同一条可补偿 ledger。',
+      '拆除或迁移建筑必须先生成分居 / 返还预览，并要求双方或家族规则确认。',
+      '任一建造、拆除或材料扣减失败时，必须能按建筑 ledger 回滚或进入补偿重放。',
+    ],
+    deferred_operations: [
+      'plan_family_building',
+      'reserve_family_building_site',
+      'consume_shared_building_materials',
+      'spend_shared_fund_for_building',
+      'write_family_building_ledger',
+      'demolish_family_building',
+      'family_building_reputation',
+      'family_building_compensation_replay',
+      'family_building_rollback',
     ],
   };
 }
@@ -2766,6 +3086,24 @@ async function getCohabitationFamilyReputation(contractId, actor = {}) {
   };
 }
 
+async function getCohabitationFamilyBuildings(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看家族建筑预备面板');
+  for (const member of contract.members || []) {
+    member.manor_role = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+    contract.permissions[member.username_key] = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  }
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  return {
+    contract: toPublicContract(contract),
+    family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+  };
+}
+
 async function getCohabitationFamilyFestivalSeats(contractId, actor = {}) {
   const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -3367,6 +3705,7 @@ module.exports = {
   getCohabitationFamilyRoles,
   getCohabitationFamilyOrders,
   getCohabitationFamilyReputation,
+  getCohabitationFamilyBuildings,
   getCohabitationFamilyFestivalSeats,
   getCohabitationOfflineStatus,
   depositCohabitationWarehouseItem,
