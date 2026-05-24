@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 端午赛舟成绩回看
+- 端午赛舟结算现在会生成 `dragon_boat` 路线回看成绩单，保留 8 格河道顺序、冲线状态、默契值、行动高光、压力峰值和成员贡献。
+- `route_replay` 仍是结算凭证上的只读回看字段，不进入 `reward_payload`，不改变奖励落账幂等键；矿洞继续使用原有探索路线回看，其他房间保持空回看兼容。
+- 在线节会页会在本房结算凭证、最近节会凭证和纪念记录聚合凭证中显示成绩单，并把龙舟的“压力峰值”和矿洞的“风险峰值”分开标注。
+- 本轮验证：`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-activity-room-visual-state.mjs`、`npm --prefix server run qa:activity-room-visual-state`、`npm --prefix server run qa:online-smoke`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 端午赛舟轨道推进
 - 端午赛舟房间现在会从服务端返回真实 8 格龙舟河道，覆盖起点、鼓点窗口、横流水口、入弯、平水直道、冲刺水道、回浪夹道和终点线。
 - `sync_oar / steady_rudder` 等房间行动会推进船位、刷新队伍状态、选中格、最近反馈、高光和 `visual_state.revision`；回合推进后轨道会继续从服务端权威玩法状态恢复。

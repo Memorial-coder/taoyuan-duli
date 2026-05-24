@@ -458,13 +458,19 @@
                 <div v-if="festivalRoomStore.myRoom.settlement_receipts.length > 0" class="border border-accent/10 bg-black/10 p-2">
                   <p class="text-xs text-accent">本房结算凭证</p>
                   <div class="mt-2 max-h-36 space-y-1.5 overflow-y-auto pr-1">
-                    <p
+                    <div
                       v-for="receipt in festivalRoomStore.myRoom.settlement_receipts"
                       :key="receipt.id"
                       class="text-[10px] leading-4 text-muted"
                     >
-                      {{ receipt.target_display_name }} · {{ receipt.status_label }} · {{ receipt.summary }}
-                    </p>
+                      <p>{{ receipt.target_display_name }} · {{ receipt.status_label }} · {{ receipt.summary }}</p>
+                      <div v-if="hasRouteReplay(receipt.route_replay)" class="mt-1 space-y-1 border-l border-accent/20 pl-2">
+                        <p class="text-accent">{{ receipt.route_replay.title }}</p>
+                        <p>{{ receipt.route_replay.summary }}</p>
+                        <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
+                        <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -713,6 +719,12 @@
                 <span class="w-fit shrink-0 text-[10px] text-accent">{{ receipt.status_label }}</span>
               </div>
               <p class="mt-2 text-[10px] leading-4 text-muted">{{ receipt.summary }}</p>
+              <div v-if="hasRouteReplay(receipt.route_replay)" class="mt-2 space-y-1 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
+                <p class="text-accent">{{ receipt.route_replay.title }}</p>
+                <p>{{ receipt.route_replay.summary }}</p>
+                <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
+                <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -1137,6 +1149,12 @@
                 <span class="w-fit shrink-0 text-[10px] text-accent">{{ receipt.status_label }}</span>
               </div>
               <p class="mt-2 text-[10px] leading-4 text-muted">{{ receipt.summary }}</p>
+              <div v-if="hasRouteReplay(receipt.route_replay)" class="mt-2 space-y-1 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
+                <p class="text-accent">{{ receipt.route_replay.title }}</p>
+                <p>{{ receipt.route_replay.summary }}</p>
+                <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
+                <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -1174,6 +1192,12 @@
                 <span class="w-fit shrink-0 text-[10px] text-muted">{{ receipt.statusLabel }}</span>
               </div>
               <p class="mt-2 text-[10px] leading-4 text-muted">{{ receipt.summary }}</p>
+              <div v-if="hasRouteReplay(receipt.routeReplay)" class="mt-2 space-y-1 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
+                <p class="text-accent">{{ receipt.routeReplay.title }}</p>
+                <p>{{ receipt.routeReplay.summary }}</p>
+                <p v-if="routeReplayRouteText(receipt.routeReplay)">路线：{{ routeReplayRouteText(receipt.routeReplay) }}</p>
+                <p v-if="routeReplayPeakText(receipt.routeReplay)">{{ routeReplayPeakLabel(receipt.routeReplay) }}：{{ routeReplayPeakText(receipt.routeReplay) }}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -1194,10 +1218,13 @@
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
   import type { OnlineVisualObject, OnlineVisualTrack } from '@/types/onlineVisual'
+  import type { ExpeditionRoomRouteReplay } from '@/utils/expeditionRoomApi'
+  import type { FestivalRoomRouteReplay } from '@/utils/festivalRoomApi'
   import type { WorldEventOverview } from '@/utils/worldEventApi'
 
   type FestivalTabKey = 'world' | 'festival-room' | 'expedition-room' | 'memorials'
   type FestivalTabMeta = { key: FestivalTabKey; label: string; summary: string }
+  type ActivityRouteReplay = FestivalRoomRouteReplay | ExpeditionRoomRouteReplay
   type ReceiptCard = {
     id: string
     roomTitle: string
@@ -1205,6 +1232,7 @@
     domainLabel: string
     statusLabel: string
     summary: string
+    routeReplay: ActivityRouteReplay
   }
 
   const route = useRoute()
@@ -1283,6 +1311,7 @@
       domainLabel: '节会',
       statusLabel: receipt.status_label,
       summary: receipt.summary,
+      routeReplay: receipt.route_replay,
     })),
     ...expeditionRoomStore.recentReceipts.map(receipt => ({
       id: `expedition-${receipt.id}`,
@@ -1291,8 +1320,22 @@
       domainLabel: '远征',
       statusLabel: receipt.status_label,
       summary: receipt.summary,
+      routeReplay: receipt.route_replay,
     })),
   ].slice(0, 8))
+  const hasRouteReplay = (replay?: ActivityRouteReplay | null) => Boolean(replay?.kind)
+  const routeReplayRouteText = (replay?: ActivityRouteReplay | null) => {
+    if (!hasRouteReplay(replay)) return ''
+    return (replay?.route_nodes ?? []).map(node => node.label).filter(Boolean).join(' -> ')
+  }
+  const routeReplayPeakLabel = (replay?: ActivityRouteReplay | null) =>
+    replay?.kind === 'dragon_boat' ? '压力峰值' : '风险峰值'
+  const routeReplayPeakText = (replay?: ActivityRouteReplay | null) => {
+    if (!hasRouteReplay(replay) || !replay?.risk_peak?.summary) return ''
+    const actor = replay.risk_peak.actor_display_name ? `${replay.risk_peak.actor_display_name} · ` : ''
+    const action = replay.risk_peak.action_label ? `${replay.risk_peak.action_label} · ` : ''
+    return `第 ${replay.risk_peak.round_number} 回合 · ${actor}${action}${replay.risk_peak.summary}`
+  }
   const festivalGameplayActionMap = computed(() =>
     new Map((festivalRoomStore.myRoom?.gameplay.available_actions ?? []).map(action => [action.id, action]))
   )

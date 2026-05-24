@@ -3225,6 +3225,94 @@ function buildFestivalRoundLog(room, festivalState) {
     });
 }
 
+function buildDragonBoatRouteReplay(room) {
+  if (!isDragonBoatRoom(room)) return normalizeReceiptRouteReplay(null);
+  const gameplayState = ensureRoomGameplayState(room);
+  const festivalState = normalizeFestivalState(gameplayState.festival_state, room.template_id);
+  syncFestivalRoleAssignments(room, festivalState);
+  syncDragonBoatVisualState(room, festivalState);
+  const visualState = normalizeOnlineVisualState(room.visual_state, room);
+  const track = visualState.tracks.find(entry => entry.id === DRAGON_BOAT_VISUAL_TRACK_ID)
+    || buildDragonBoatVisualTrack(room, festivalState, visualState.tracks);
+  const team = (track.teams || []).find(entry => entry.team_id === DRAGON_BOAT_VISUAL_TEAM_ID) || track.teams?.[0] || null;
+  const positionIndex = Math.max(0, Math.floor(Number(team?.position_index) || 0));
+  const routeNodes = (track.cells || [])
+    .slice()
+    .sort((left, right) => left.index - right.index)
+    .map(cell => normalizeReceiptRouteReplayNode({
+      id: cell.id,
+      label: cell.label,
+      kind: cell.kind,
+      state: cell.index < positionIndex
+        ? 'resolved'
+        : cell.index === positionIndex
+          ? (cell.kind === 'finish' ? 'finish' : 'active')
+          : 'available',
+      order: cell.index + 1,
+    }))
+    .filter(Boolean);
+
+  const orderedLog = buildFestivalRoundLog(room, festivalState)
+    .filter(entry => entry.action_id && entry.action_id !== 'round_advance')
+    .reverse();
+  const highlightNodes = (visualState.highlights || [])
+    .slice(0, 4)
+    .map(highlight => {
+      const cell = (track.cells || []).find(entry => entry.id === highlight.visual_id);
+      return normalizeReceiptRouteReplayHighlight({
+        node_id: highlight.visual_id,
+        label: cell?.label || highlight.label,
+        summary: highlight.summary,
+        type: highlight.type || 'success',
+      });
+    })
+    .filter(Boolean);
+
+  let runningPressure = FESTIVAL_INITIAL_PRESSURE;
+  let pressurePeak = {
+    value: runningPressure,
+    round_number: 1,
+    action_label: '',
+    actor_display_name: '',
+    summary: '开船时的基础压力。',
+  };
+  for (const entry of orderedLog) {
+    runningPressure = clampNumber(runningPressure + entry.pressure_delta, 0, FESTIVAL_ROUND_PRESSURE_MAX);
+    if (runningPressure >= pressurePeak.value) {
+      pressurePeak = {
+        value: runningPressure,
+        round_number: entry.round_number,
+        action_label: entry.action_label,
+        actor_display_name: entry.actor_display_name,
+        summary: entry.summary,
+      };
+    }
+  }
+
+  const roleByUsername = new Map(buildFestivalTeamRoles(room, festivalState).map(role => [role.username, role]));
+  const memberContributions = getSortedGameplayContributions(room).map(entry => {
+    const role = roleByUsername.get(entry.username);
+    return normalizeReceiptRouteReplayContribution({
+      ...entry,
+      role_label: role?.role_label || '',
+      summary: `${entry.display_name} 推进 ${entry.progress_value}，默契值 ${entry.score_value}，行动 ${entry.action_count} 次。`,
+    });
+  }).filter(Boolean);
+
+  const finishCell = routeNodes.find(node => node.kind === 'finish');
+  const reachedFinish = Boolean(finishCell && positionIndex + 1 >= finishCell.order);
+  const summary = `赛道推进 ${Math.min(positionIndex + 1, track.length || routeNodes.length)}/${track.length || routeNodes.length} 格，${reachedFinish ? '已经冲过终点' : '尚未冲线'}；默契值 ${gameplayState.score_value}，压力峰值 ${pressurePeak.value}/${FESTIVAL_ROUND_PRESSURE_MAX}。`;
+  return normalizeReceiptRouteReplay({
+    kind: 'dragon_boat',
+    title: '端午赛舟成绩单',
+    summary,
+    route_nodes: routeNodes,
+    highlight_nodes: highlightNodes,
+    risk_peak: pressurePeak,
+    member_contributions: memberContributions,
+  });
+}
+
 function createExpeditionCavernRoundSummary(room, cavernState, actor, actionOption, contribution, resourceDelta, riskDelta, extraSummary = '') {
   const event = getExpeditionCavernCurrentEvent(cavernState);
   const resourceText = summarizeExpeditionCavernResourceDelta(resourceDelta);
@@ -5065,6 +5153,8 @@ async function settleActivityRoom(roomId, actor = {}) {
   const rankedContributions = getSortedGameplayContributions(room);
   const routeReplay = room.gameplay_template_id === 'expedition_cavern'
     ? buildExpeditionCavernRouteReplay(room)
+    : isDragonBoatRoom(room)
+      ? buildDragonBoatRouteReplay(room)
     : normalizeReceiptRouteReplay(null);
   const nextReceipts = joinedMembers.map(member => {
     const rankingIndex = Math.max(0, rankedContributions.findIndex(entry => entry.username === member.username));

@@ -220,6 +220,47 @@ export interface FestivalRoomEventSnapshot {
   created_at: number
 }
 
+export interface FestivalRoomRouteReplayNode {
+  id: string
+  label: string
+  kind: string
+  state: string
+  order: number
+}
+
+export interface FestivalRoomRouteReplayHighlight {
+  node_id: string
+  label: string
+  summary: string
+  type: string
+}
+
+export interface FestivalRoomRouteReplayContribution {
+  username: string
+  display_name: string
+  role_label: string
+  progress_value: number
+  score_value: number
+  action_count: number
+  summary: string
+}
+
+export interface FestivalRoomRouteReplay {
+  kind: string
+  title: string
+  summary: string
+  route_nodes: FestivalRoomRouteReplayNode[]
+  highlight_nodes: FestivalRoomRouteReplayHighlight[]
+  risk_peak: {
+    value: number
+    round_number: number
+    action_label: string
+    actor_display_name: string
+    summary: string
+  }
+  member_contributions: FestivalRoomRouteReplayContribution[]
+}
+
 export interface FestivalRoomReceiptPreview {
   id: string
   target_username: string
@@ -236,6 +277,7 @@ export interface FestivalRoomReceiptPreview {
     }>
   }
   summary: string
+  route_replay: FestivalRoomRouteReplay
   created_at: number
 }
 
@@ -335,6 +377,7 @@ export interface FestivalRoomOverview {
     status_label: string
     reward_payload: FestivalRoomReceiptPreview['reward_payload']
     summary: string
+    route_replay: FestivalRoomRouteReplay
     created_at: number
   }>
 }

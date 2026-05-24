@@ -216,6 +216,27 @@ assertDragonBoatVisualTrack(dragonAdvancedResult.room, null, {
   expectSelectedOccupied: true,
 })
 
+const dragonSettledResult = await runtime.settleFestivalRoom(dragonBoat.room.id, actor('visual_host_dragon'))
+const dragonReceiptReplay = dragonSettledResult.overview.recent_receipts.find(receipt => receipt.room_id === dragonBoat.room.id)?.route_replay
+assert.equal(dragonReceiptReplay?.kind, 'dragon_boat', 'dragon boat settlement receipt should expose route replay')
+assert.equal(dragonReceiptReplay.title, '端午赛舟成绩单', 'dragon boat route replay should use readable title')
+assert.equal(dragonReceiptReplay.route_nodes.length, 8, 'dragon boat replay should preserve the whole river track')
+assert.deepEqual(dragonReceiptReplay.route_nodes.map(node => node.id), [
+  'dragon_boat_start',
+  'dragon_boat_drum_window',
+  'dragon_boat_cross_current',
+  'dragon_boat_first_turn',
+  'dragon_boat_calm_lane',
+  'dragon_boat_sprint_lane',
+  'dragon_boat_return_wave',
+  'dragon_boat_finish',
+], 'dragon boat replay should keep stable river order')
+assert.ok(dragonReceiptReplay.highlight_nodes.length > 0, 'dragon boat replay should keep action highlights')
+assert.ok(dragonReceiptReplay.risk_peak.value >= 2, 'dragon boat replay should record pressure peak')
+assert.ok(dragonReceiptReplay.member_contributions.some(item => item.username === 'visual_host_dragon'), 'dragon boat replay should include member contribution')
+const dragonSettledSnapshotReceipt = dragonSettledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_host_dragon')
+assert.equal(dragonSettledSnapshotReceipt?.route_replay?.kind, 'dragon_boat', 'room snapshot dragon boat receipt should include route replay')
+
 const overview = await runtime.listExpeditionRoomOverview('visual_host_expedition')
 assertCavernVisualNodes(overview.my_room, 0)
 
