@@ -337,7 +337,8 @@ const initialFundResult = await runtime.getCohabitationFund(created.contract.id,
 assert.equal(initialFundResult.fund.balance, 0, 'fresh shared fund should have zero balance')
 assert.equal(initialFundResult.fund.summary.personal_money_merged, false, 'shared fund must not merge personal money')
 assert.equal(initialFundResult.fund.summary.contribution_enabled, true, 'active members should be able to contribute to fund')
-assert.equal(initialFundResult.fund.summary.spend_enabled, false, 'fund spending should stay disabled in the first pass')
+assert.equal(initialFundResult.fund.summary.spend_enabled, true, 'fund small spending should follow actor permission')
+assert.ok(initialFundResult.fund.summary.allowed_small_spend_purposes.some(purpose => purpose.id === 'seed_budget'), 'fund snapshot should expose small seed budget spend purpose')
 assert.equal(initialFundResult.fund.summary.idempotency_required, true, 'fund contribution should require idempotency key')
 
 const ownerFundBefore = readGameplayData(owner)?.player?.money
@@ -381,6 +382,38 @@ assert.equal(partnerFundContribution.fund.balance, 200, 'partner contribution sh
 assert.equal(partnerFundContribution.personal_money.remaining_money, 920, 'partner personal money should be deducted once')
 assert.equal(readGameplayData(partner)?.player?.money, 920, 'partner save should persist deducted money')
 
+const ownerMoneyBeforeFundSpend = readGameplayData(owner)?.player?.money
+const fundSpendResult = await runtime.spendCohabitationFund(created.contract.id, {
+  amount: 30,
+  purpose: 'seed_budget',
+  target_ref: 'shop:turnip_seed',
+  memo: 'qa shared seed budget',
+  idempotency_key: 'qa-fund-spend-seed-budget',
+}, actor(owner))
+assert.equal(fundSpendResult.idempotent, false, 'first fund spend should not be idempotent')
+assert.equal(fundSpendResult.fund.balance, 170, 'fund spend should reduce shared fund balance')
+assert.equal(fundSpendResult.shared_fund.balance_before, 200, 'fund spend should report previous balance')
+assert.equal(fundSpendResult.shared_fund.balance_after, 170, 'fund spend should report new balance')
+assert.equal(fundSpendResult.shared_fund.personal_money_merged, false, 'fund spend should not merge personal money')
+assert.equal(fundSpendResult.ledger_entry.action, 'spend', 'fund ledger should record spend action')
+assert.equal(fundSpendResult.ledger_entry.amount, 30, 'fund spend ledger should keep spend amount')
+assert.equal(fundSpendResult.ledger_entry.purpose, 'seed_budget', 'fund spend ledger should keep purpose')
+assert.equal(fundSpendResult.ledger_entry.spend_purpose_label, '小额种子预算', 'fund spend ledger should keep purpose label')
+assert.equal(fundSpendResult.ledger_entry.target_ref, 'shop:turnip_seed', 'fund spend ledger should keep target reference')
+assert.equal(fundSpendResult.ledger_entry.confirmation_required, false, 'small fund spend should not require large-spend confirmation')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeFundSpend, 'fund spend should not touch owner personal money')
+assert.ok(fundSpendResult.contract.audit_log.find(entry => entry.action === 'fund_spent'), 'fund spend should be audited')
+
+const duplicateFundSpend = await runtime.spendCohabitationFund(created.contract.id, {
+  amount: 30,
+  purpose: 'seed_budget',
+  target_ref: 'shop:turnip_seed',
+  idempotency_key: 'qa-fund-spend-seed-budget',
+}, actor(owner))
+assert.equal(duplicateFundSpend.idempotent, true, 'same fund spend idempotency key should be idempotent')
+assert.equal(duplicateFundSpend.fund.balance, 170, 'idempotent fund spend should not duplicate balance changes')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeFundSpend, 'idempotent fund spend should still not touch personal money')
+
 const ownerMoneyBeforeFailedFund = readGameplayData(owner)?.player?.money
 await assert.rejects(
   () => runtime.contributeCohabitationFund(created.contract.id, {
@@ -391,7 +424,7 @@ await assert.rejects(
   'fund contribution should reject insufficient personal money'
 )
 assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeFailedFund, 'failed fund contribution should not deduct money')
-assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, 200, 'failed fund contribution should not change balance')
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, 170, 'failed fund contribution should not change balance')
 
 await assert.rejects(
   () => runtime.contributeCohabitationFund(created.contract.id, {
@@ -478,6 +511,16 @@ await assert.rejects(
 )
 
 await assert.rejects(
+  () => runtime.spendCohabitationFund(created.contract.id, {
+    amount: 1,
+    purpose: 'seed_budget',
+    idempotency_key: 'qa-non-member-fund-spend',
+  }, actor(extra)),
+  error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
+  'non-members should not spend from a cohabitation fund'
+)
+
+await assert.rejects(
   () => runtime.depositCohabitationWarehouseItem(created.contract.id, {
     item_id: 'rice',
     quantity: 99,
@@ -543,6 +586,7 @@ const permissionUpdate = await runtime.updateCohabitationPermissions(created.con
       withdraw_rare: true,
     },
     fund: {
+      spend_small: false,
       spend_large: true,
     },
     confirmations: {
@@ -557,6 +601,7 @@ const updatedPartnerPermissions = permissionUpdate.permissions_panel.members.fin
 assert.equal(updatedPartnerPermissions.storage.deposit, false, 'permissions update should disable partner warehouse deposit')
 assert.equal(updatedPartnerPermissions.storage.withdraw_common, false, 'permissions update should disable partner common warehouse withdrawal')
 assert.equal(updatedPartnerPermissions.storage.withdraw_rare, true, 'permissions update should allow explicit storage permission flags')
+assert.equal(updatedPartnerPermissions.fund.spend_small, false, 'permissions update should disable partner small fund spending')
 assert.equal(updatedPartnerPermissions.fund.spend_large, true, 'permissions update should allow explicit fund permission flags')
 assert.equal(updatedPartnerPermissions.confirmations.large_fund_spend_requires_both, true, 'permissions safety rail should keep large fund confirmation enabled')
 assert.ok(permissionUpdate.changed_fields.some(field => field.group === 'storage' && field.key === 'deposit' && field.after === false), 'permissions update should report changed storage deposit field')
@@ -571,6 +616,7 @@ const duplicatePermissionUpdate = await runtime.updateCohabitationPermissions(cr
       withdraw_rare: true,
     },
     fund: {
+      spend_small: false,
       spend_large: true,
     },
   },
@@ -582,6 +628,7 @@ const partnerPermissionsRead = await runtime.getCohabitationPermissions(created.
 assert.equal(partnerPermissionsRead.permissions_panel.editable_by_actor, false, 'partner should read permissions without edit capability')
 assert.equal(partnerPermissionsRead.permissions_panel.members.find(member => member.username === partner)?.permissions.storage.deposit, false, 'partner should see updated own permissions')
 assert.equal(partnerPermissionsRead.permissions_panel.members.find(member => member.username === partner)?.permissions.storage.withdraw_common, false, 'partner should see updated withdrawal permission')
+assert.equal(partnerPermissionsRead.permissions_panel.members.find(member => member.username === partner)?.permissions.fund.spend_small, false, 'partner should see updated small fund spend permission')
 
 const offlineStatus = await runtime.getCohabitationOfflineStatus(created.contract.id, actor(owner))
 assert.equal(offlineStatus.offline_status.summary.server_authoritative, true, 'offline status should be server authoritative')
@@ -594,11 +641,13 @@ assert.ok(offlineStatus.offline_status.members.find(member => member.username ==
 assert.ok(offlineStatus.offline_status.recent_shared_log.some(entry => entry.action === 'permissions_updated'), 'offline status should expose recent shared log')
 assert.equal(offlineStatus.offline_status.actor_capabilities.deposit_warehouse, true, 'owner should still be able to deposit while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.withdraw_warehouse_common, true, 'owner should be able to withdraw ordinary warehouse items while partner is not required online')
+assert.equal(offlineStatus.offline_status.actor_capabilities.spend_fund_small, true, 'owner should be able to spend small shared fund budgets while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.manage_permissions, true, 'owner should retain permission management capability')
 
 const partnerOfflineStatus = await runtime.getCohabitationOfflineStatus(created.contract.id, actor(partner))
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.deposit_warehouse, false, 'offline status should reflect updated partner warehouse permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.withdraw_warehouse_common, false, 'offline status should reflect updated partner warehouse withdrawal permission')
+assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.spend_fund_small, false, 'offline status should reflect updated partner fund spend permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.manage_permissions, false, 'partner should not manage permissions in offline status')
 
 await assert.rejects(
@@ -631,6 +680,18 @@ await assert.rejects(
   'updated storage permission should block partner warehouse withdrawal'
 )
 assert.equal(getInventoryItemQuantity(partner, 'rice'), 0, 'permission-denied warehouse withdrawal should not add partner inventory')
+
+await assert.rejects(
+  () => runtime.spendCohabitationFund(created.contract.id, {
+    amount: 1,
+    purpose: 'feed_budget',
+    idempotency_key: 'qa-partner-fund-spend-denied-by-permission',
+  }, actor(partner)),
+  error => error?.status === 403 && String(error.message || '').includes('共同基金小额支出'),
+  'updated fund permission should block partner small shared fund spending'
+)
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, 170, 'permission-denied fund spend should not change shared balance')
+assert.equal(readGameplayData(partner)?.player?.money, 920, 'permission-denied fund spend should not touch partner money')
 
 const pendingContract = await runtime.createCohabitationContract({
   type: 'seasonal_cofarm',
@@ -724,6 +785,15 @@ await assert.rejects(
   }, actor(owner)),
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not accept fund contributions'
+)
+await assert.rejects(
+  () => runtime.spendCohabitationFund(pendingContract.contract.id, {
+    amount: 1,
+    purpose: 'seed_budget',
+    idempotency_key: 'qa-pending-fund-spend',
+  }, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not accept fund spending'
 )
 await assert.rejects(
   () => runtime.updateCohabitationPermissions(pendingContract.contract.id, {
@@ -1210,12 +1280,12 @@ assert.equal(previewResult.preview.asset_return.plot_return_summary.total_plots,
 assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === owner && item.plot_count === 16), 'separation preview should include owner plot return group')
 assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === partner && item.plot_count === 16), 'separation preview should include partner plot return group')
 assert.ok(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'rice' && item.quantity === 1), 'separation preview should include remaining warehouse item source summary after withdrawal')
-assert.equal(previewResult.preview.asset_return.fund_balance, 200, 'separation preview should include current fund balance')
+assert.equal(previewResult.preview.asset_return.fund_balance, 170, 'separation preview should include current fund balance after small spending')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.amount === 120), 'separation preview should include owner fund contribution source summary')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.amount === 80), 'separation preview should include partner fund contribution source summary')
-assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.suggested_refund_amount === 120), 'separation preview should suggest owner fund refund by contribution share')
-assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.suggested_refund_amount === 80), 'separation preview should suggest partner fund refund by contribution share')
-assert.equal(previewResult.preview.asset_return.fund_suggested_refund_total, 200, 'separation preview should balance suggested fund refunds')
+assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.suggested_refund_amount === 102), 'separation preview should suggest owner fund refund by contribution share after spending')
+assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.suggested_refund_amount === 68), 'separation preview should suggest partner fund refund by contribution share after spending')
+assert.equal(previewResult.preview.asset_return.fund_suggested_refund_total, 170, 'separation preview should balance suggested fund refunds after spending')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'plots_return_by_origin'), 'separation preview should include plot return compensation plan')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'warehouse_manual_return'), 'separation preview should include warehouse manual return plan')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'fund_proportional_refund'), 'separation preview should include fund proportional refund plan')

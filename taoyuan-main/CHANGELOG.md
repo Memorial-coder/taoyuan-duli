@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0524 共同基金小额支出
+- 新增 `POST /taoyuan/online/cohabitation/contracts/:contractId/fund/spend`，已激活同居 / 家族庄园成员可按 `fund.spend_small` 权限支出小额白名单用途。
+- 第一版仅支持种子预算、饲料预算、工具修缮和订单跑腿费；种子 / 饲料 `auto_pay` 还会受 `fund.auto_buy_seeds_feed` 权限约束。
+- 支出会写共同基金 `spend` 流水、余额前后、目标引用、审计和补偿提示；重复 `idempotency_key` 不会重复扣基金，个人铜币不被合并或扣减。
+- 中额 / 大额消费确认、真实商店购买与物品到账、共同收入自动入基金、返还执行和前端写操作仍保持关闭。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0524 共同仓库普通取出
 - 新增 `POST /taoyuan/online/cohabitation/contracts/:contractId/warehouse/withdraw`，已激活同居 / 家族庄园成员可按 `storage.withdraw_common` 权限取出普通非保护物。
 - 取出会写共同仓库 `withdraw` 流水、来源 ledger、目标个人背包落点、审计和补偿提示；重复 `idempotency_key` 不会重复减少共同库存或重复加个人背包。

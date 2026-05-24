@@ -26,6 +26,7 @@ const MEMBER_STATUSES = new Set(['accepted', 'pending', 'declined', 'left']);
 const FUND_LEDGER_LIMIT = 160;
 const FUND_ORIGIN_LIMIT = 160;
 const FUND_MAX_CONTRIBUTION_AMOUNT = 999999;
+const FUND_MAX_SMALL_SPEND_AMOUNT = 200;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_MAX_DEPOSIT_QUANTITY = 99;
@@ -36,6 +37,32 @@ const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const PERMISSION_GROUPS = Object.freeze(['farm', 'animal', 'storage', 'construction', 'fund', 'family', 'confirmations']);
 const SEPARATION_PREVIEW_VERSION = 1;
 const FAMILY_MANOR_TYPES = new Set(['oath_manor', 'business_partner']);
+const SMALL_FUND_SPEND_PURPOSES = Object.freeze({
+  seed_budget: {
+    label: '小额种子预算',
+    category: 'seed_feed',
+    max_amount: 120,
+    auto_pay_eligible: true,
+  },
+  feed_budget: {
+    label: '小额饲料预算',
+    category: 'seed_feed',
+    max_amount: 120,
+    auto_pay_eligible: true,
+  },
+  tool_repair: {
+    label: '小额工具修缮',
+    category: 'maintenance',
+    max_amount: 150,
+    auto_pay_eligible: false,
+  },
+  order_postage: {
+    label: '小额订单跑腿费',
+    category: 'order_support',
+    max_amount: 160,
+    auto_pay_eligible: false,
+  },
+});
 
 const RELATION_TYPE_DEFS = Object.freeze({
   lover_cohabitation: {
@@ -251,7 +278,7 @@ const FAMILY_RELATION_CAPABILITY_DEFS = Object.freeze([
     label: '家族共同基金',
     kind: 'shared_asset',
     state: 'partial_write',
-    summary: '当前仅开放自愿注资和来源 ledger；消费、预算确认、返还执行仍暂缓。',
+    summary: '当前开放自愿注资、小额白名单支出和来源 / 支出 ledger；中大额预算确认、自动收入、返还执行仍暂缓。',
   },
   {
     id: 'family_orders',
@@ -769,6 +796,13 @@ function normalizeFundLedgerEntry(entry = {}) {
     source_save_id: normalizeSaveId(entry?.source_save_id),
     source_save_slot: normalizeSaveSlot(entry?.source_save_slot),
     source_save_revision: Math.max(0, Math.floor(Number(entry?.source_save_revision) || 0)),
+    target_ref: sanitizeText(entry?.target_ref || entry?.target, 120),
+    spend_category: sanitizeText(entry?.spend_category || entry?.category, 80),
+    spend_purpose_label: sanitizeText(entry?.spend_purpose_label || entry?.purpose_label, 80),
+    balance_after: Math.max(0, Math.floor(Number(entry?.balance_after) || 0)),
+    auto_pay: entry?.auto_pay === true,
+    confirmation_required: entry?.confirmation_required === true,
+    confirmation_status: sanitizeText(entry?.confirmation_status, 40) || (entry?.confirmation_required === true ? 'pending' : 'not_required'),
     idempotency_key: sanitizeText(entry?.idempotency_key, 120),
     reversible: entry?.reversible !== false,
     compensation_hint: sanitizeText(entry?.compensation_hint, 180),
@@ -2880,6 +2914,8 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       withdraw_warehouse_common: actorPermissions.storage.withdraw_common === true,
       read_fund: true,
       contribute_fund: true,
+      spend_fund_small: actorPermissions.fund.spend_small === true,
+      auto_pay_seeds_feed: actorPermissions.fund.auto_buy_seeds_feed === true,
       read_permissions: true,
       manage_permissions: canManageCohabitationPermissions(actorMember),
       create_separation_preview: true,
@@ -3041,6 +3077,13 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
   const fund = normalizeSharedFund(contract.shared_fund);
   const actorKey = normalizeUsernameKey(actorUsername);
   const actorPermissions = normalizePermissionSet(contract.permissions?.[actorKey], contract.type);
+  const allowedSmallSpendPurposes = Object.entries(SMALL_FUND_SPEND_PURPOSES).map(([id, def]) => ({
+    id,
+    label: def.label,
+    category: def.category,
+    max_amount: Math.min(FUND_MAX_SMALL_SPEND_AMOUNT, def.max_amount),
+    auto_pay_eligible: def.auto_pay_eligible === true,
+  }));
   return {
     contract_id: contract.id,
     shared_manor_id: contract.shared_manor_id,
@@ -3052,10 +3095,15 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       ledger_count: fund.ledger.length,
       personal_money_merged: false,
       contribution_enabled: contract.status === 'active',
-      spend_enabled: false,
+      spend_enabled: contract.status === 'active' && actorPermissions.fund.spend_small === true,
+      small_spend_enabled: contract.status === 'active' && actorPermissions.fund.spend_small === true,
+      medium_spend_enabled: false,
+      large_spend_enabled: false,
       idempotency_required: true,
       large_spend_requires_both: actorPermissions.confirmations.large_fund_spend_requires_both === true,
-      compensation_policy: '第一版只支持成员自愿注资并记录来源流水；误操作可先按 ledger 与 origin_assets 手工追溯，自动返还和消费确认待后续接入。',
+      small_spend_max_amount: FUND_MAX_SMALL_SPEND_AMOUNT,
+      allowed_small_spend_purposes: allowedSmallSpendPurposes,
+      compensation_policy: '第一版支持成员自愿注资和小额白名单支出，全部记录 ledger 与审计；误操作需按支出流水人工补偿，自动返还和大额确认待后续接入。',
     },
     permissions: {
       can_spend_small: actorPermissions.fund.spend_small === true,
@@ -3254,6 +3302,30 @@ function normalizeFundContributionPayload(payload = {}) {
     purpose: sanitizeText(payload.purpose, 80) || 'shared_fund',
     memo: sanitizeText(payload.memo, 160),
     save_slot: normalizeSaveSlot(payload.save_slot),
+  };
+}
+
+function normalizeFundSpendPayload(payload = {}) {
+  const amount = Math.floor(Number(payload.amount) || 0);
+  const purpose = sanitizeText(payload.purpose || payload.spend_purpose || payload.budget_type, 80) || 'seed_budget';
+  const purposeDef = SMALL_FUND_SPEND_PURPOSES[purpose];
+  if (!purposeDef) throw createError('共同基金第一版只允许小额种子、饲料、工具修缮或订单跑腿用途', 403);
+  if (amount <= 0) throw createError('共同基金支出金额必须大于 0');
+  const maxAmount = Math.min(FUND_MAX_SMALL_SPEND_AMOUNT, purposeDef.max_amount);
+  if (amount > maxAmount) throw createError(`该共同基金小额用途单次支出不能超过 ${maxAmount}`);
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('共同基金支出需要 idempotency_key，以防断线或重试时重复扣款');
+  const autoPay = payload.auto_pay === true || payload.auto === true;
+  if (autoPay && purposeDef.auto_pay_eligible !== true) throw createError('该共同基金用途暂不支持自动支付', 403);
+  return {
+    amount,
+    idempotency_key: idempotencyKey,
+    purpose,
+    purpose_label: purposeDef.label,
+    spend_category: purposeDef.category,
+    auto_pay: autoPay,
+    target_ref: sanitizeText(payload.target_ref || payload.target_id || payload.order_id || payload.shop_item_id, 120),
+    memo: sanitizeText(payload.memo, 160),
   };
 }
 
@@ -4344,6 +4416,100 @@ async function contributeCohabitationFund(contractId, payload = {}, actor = {}) 
   };
 }
 
+async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const spend = normalizeFundSpendPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '使用共同基金');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  if (actorPermissions.fund.spend_small !== true) throw createError('你没有使用共同基金小额支出的权限', 403);
+  if (spend.auto_pay === true && actorPermissions.fund.auto_buy_seeds_feed !== true) {
+    throw createError('你没有使用共同基金自动购买种子或饲料的权限', 403);
+  }
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  const previousEntry = contract.shared_fund.ledger.find(entry =>
+    entry.idempotency_key && entry.idempotency_key === spend.idempotency_key && entry.action === 'spend'
+  );
+  if (previousEntry) {
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      ledger_entry: previousEntry,
+      idempotent: true,
+      shared_fund: {
+        deducted_amount: previousEntry.amount,
+        balance_after: previousEntry.balance_after,
+        personal_money_merged: false,
+        confirmation_required: previousEntry.confirmation_required === true,
+      },
+    };
+  }
+
+  const beforeBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
+  if (beforeBalance < spend.amount) throw createError('共同基金余额不足，暂时无法完成本次支出');
+  const afterBalance = beforeBalance - spend.amount;
+  const ledgerEntry = normalizeFundLedgerEntry({
+    id: makeId('shared_fund_ledger'),
+    action: 'spend',
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    amount: spend.amount,
+    at: nowSeconds(),
+    memo: spend.memo,
+    purpose: spend.purpose,
+    spend_purpose_label: spend.purpose_label,
+    spend_category: spend.spend_category,
+    target_ref: spend.target_ref,
+    source_owner_id: `shared_fund:${contract.id}`,
+    source_owner_username: '',
+    source_owner_display_name: '共同基金',
+    source_owner_key: 'shared_fund',
+    balance_after: afterBalance,
+    auto_pay: spend.auto_pay,
+    confirmation_required: false,
+    confirmation_status: 'not_required',
+    idempotency_key: spend.idempotency_key,
+    reversible: true,
+    compensation_hint: '共同基金小额支出已扣减余额；若误操作，需要按 ledger 人工补偿或后续返还流程回滚。',
+    status: 'committed',
+  });
+  contract.shared_fund.balance = afterBalance;
+  contract.shared_fund.ledger = [ledgerEntry, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  appendAudit(contract, 'fund_spent', actor, {
+    ledger_id: ledgerEntry.id,
+    amount: ledgerEntry.amount,
+    purpose: ledgerEntry.purpose,
+    purpose_label: ledgerEntry.spend_purpose_label,
+    spend_category: ledgerEntry.spend_category,
+    target_ref: ledgerEntry.target_ref,
+    balance_before: beforeBalance,
+    balance_after: afterBalance,
+    auto_pay: ledgerEntry.auto_pay,
+    confirmation_required: false,
+    personal_money_merged: false,
+    reversible: ledgerEntry.reversible,
+  }, spend.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    ledger_entry: ledgerEntry,
+    idempotent: false,
+    shared_fund: {
+      balance_before: beforeBalance,
+      balance_after: afterBalance,
+      deducted_amount: spend.amount,
+      personal_money_merged: false,
+      confirmation_required: false,
+    },
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -4595,6 +4761,7 @@ module.exports = {
   depositCohabitationWarehouseItem,
   withdrawCohabitationWarehouseItem,
   contributeCohabitationFund,
+  spendCohabitationFund,
   updateCohabitationPermissions,
   updateCohabitationFamilyRole,
   createCohabitationContract,
