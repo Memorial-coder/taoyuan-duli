@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 家族多人土地拼接只读摘要
+- `shared-map` 服务端快照补强多人布局摘要，结拜 / 合伙庄园会输出成员区域顺序、区域数量、横向拼接轴、来源追踪、职位标签和暂缓写操作。
+- 三人结拜与四人合伙共同农田会按成员区域横向拼接，继续只读 `farm.plots`，不写回个人存档、不合并个人铜币，也不开放共同种植 / 浇水 / 收获。
+- 本轮只接服务端快照和 QA：前端共同庄园大地图、持久共同庄园地图、真实田区写操作和退出拆回执行仍留后续任务。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0524 家族庄园职位服务端第一版
 - 结拜 / 合伙庄园新增服务端职位面板，支持家主、管仓、农务、牧养、工坊、账房六类职位；契约发起者默认家主，其他成员默认农务。
 - 新增 `GET /roles` 与幂等 `POST /roles` 契约接口，家主可调整非家主成员职位，职位变更会重算权限模板并写入 `family_role_updated` 审计。

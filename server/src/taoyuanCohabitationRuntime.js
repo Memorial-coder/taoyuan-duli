@@ -839,16 +839,24 @@ function buildSharedFarmPlots(contract, farmSnapshots) {
   let columnOffset = 0;
   let maxRows = 0;
 
-  for (const farmSnapshot of farmSnapshots) {
+  farmSnapshots.forEach((farmSnapshot, regionIndex) => {
     const member = farmSnapshot.member;
     const width = farmSnapshot.available ? farmSnapshot.farm_size : 0;
     const height = farmSnapshot.available ? farmSnapshot.farm_size : 0;
     const originOwnerId = farmSnapshot.save_id
       ? `save:${farmSnapshot.save_id}`
       : `account:${member.username_key}`;
+    const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+    const roleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(manorRole) : null;
+    const permissionMode = getPlotPermissionMode(contract, member.username_key);
     const region = {
+      region_index: regionIndex,
       member_username: member.username,
+      member_username_key: member.username_key,
       member_display_name: member.display_name,
+      member_role: member.role,
+      manor_role: manorRole,
+      manor_role_label: roleDef?.label || '',
       origin_owner_id: originOwnerId,
       origin_save_id: farmSnapshot.save_id,
       x: columnOffset,
@@ -857,10 +865,12 @@ function buildSharedFarmPlots(contract, farmSnapshots) {
       height,
       available: farmSnapshot.available,
       unavailable_reason: farmSnapshot.unavailable_reason,
+      source_area: 'field',
+      field_plot_count: Array.isArray(farmSnapshot.plots) ? farmSnapshot.plots.length : 0,
+      permission_mode: permissionMode,
     };
     regions.push(region);
     if (farmSnapshot.available) {
-      const permissionMode = getPlotPermissionMode(contract, member.username_key);
       farmSnapshot.plots.forEach((plot, index) => {
         const sourcePlotId = normalizePlotId(plot?.id ?? plot?.plotId ?? plot?.plot_id, index);
         const localColumn = sourcePlotId % farmSnapshot.farm_size;
@@ -874,8 +884,12 @@ function buildSharedFarmPlots(contract, farmSnapshots) {
           origin_owner_username: member.username,
           origin_owner_display_name: member.display_name,
           origin_owner_key: member.username_key,
+          origin_owner_manor_role: manorRole,
+          origin_owner_manor_role_label: roleDef?.label || '',
           current_steward_username: member.username,
           current_steward_display_name: member.display_name,
+          current_steward_manor_role: manorRole,
+          current_steward_manor_role_label: roleDef?.label || '',
           permission_mode: permissionMode,
           x: columnOffset + localColumn,
           y: localRow,
@@ -890,13 +904,67 @@ function buildSharedFarmPlots(contract, farmSnapshots) {
     }
     columnOffset += width;
     maxRows = Math.max(maxRows, height);
-  }
+  });
 
   return {
     plots,
     regions,
     columns: columnOffset,
     rows: maxRows,
+    arrangement: 'side_by_side',
+    strategy: 'member_region_x_axis',
+    stitch_axis: 'x',
+  };
+}
+
+function buildSharedMapLayoutSummary(contract = {}, farmSnapshots = [], layout = {}) {
+  const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
+  const regions = Array.isArray(layout.regions) ? layout.regions : [];
+  return {
+    type: contract.type,
+    type_label: contract.type_label,
+    max_members: typeDef.max_members,
+    member_count: (contract.members || []).length,
+    accepted_member_count: (contract.members || []).filter(member => member.status === 'accepted').length,
+    available_member_count: farmSnapshots.filter(snapshot => snapshot.available).length,
+    region_count: regions.length,
+    available_region_count: regions.filter(region => region.available).length,
+    unavailable_region_count: regions.filter(region => region.available !== true).length,
+    supports_multi_member: typeDef.max_members > 2,
+    family_manor_layout: isFamilyRoleContractType(contract.type),
+    romance_contracts_dual_only: typeDef.romance_only === true,
+    arrangement: layout.arrangement || 'side_by_side',
+    strategy: layout.strategy || 'member_region_x_axis',
+    stitch_axis: layout.stitch_axis || 'x',
+    personal_money_merged: false,
+    writes_enabled: false,
+    origin_trace_enabled: true,
+    split_policy: 'return_plots_by_origin_owner_id',
+    region_order: regions.map(region => ({
+      region_index: region.region_index,
+      member_username: region.member_username,
+      member_username_key: region.member_username_key,
+      member_display_name: region.member_display_name,
+      member_role: region.member_role,
+      manor_role: region.manor_role,
+      manor_role_label: region.manor_role_label,
+      origin_owner_id: region.origin_owner_id,
+      origin_save_id: region.origin_save_id,
+      x: region.x,
+      y: region.y,
+      width: region.width,
+      height: region.height,
+      available: region.available,
+      field_plot_count: region.field_plot_count,
+      permission_mode: region.permission_mode,
+    })),
+    deferred_writes: [
+      'plant',
+      'water',
+      'harvest',
+      'shared_warehouse_auto_deposit',
+      'persistent_shared_manor_map',
+    ],
   };
 }
 
@@ -1695,13 +1763,20 @@ async function getCohabitationSharedMap(contractId, actor = {}) {
       columns: layout.columns,
       rows: layout.rows,
       regions: layout.regions,
-      arrangement: 'side_by_side',
+      arrangement: layout.arrangement,
+      strategy: layout.strategy,
+      stitch_axis: layout.stitch_axis,
+      summary: buildSharedMapLayoutSummary(contract, farmSnapshots, layout),
     },
     members: farmSnapshots.map(snapshot => ({
       username: snapshot.member.username,
       username_key: snapshot.member.username_key,
       display_name: snapshot.member.display_name,
       role: snapshot.member.role,
+      manor_role: normalizeFamilyManorRole(snapshot.member.manor_role, contract.type, snapshot.member.role),
+      manor_role_label: isFamilyRoleContractType(contract.type)
+        ? getFamilyManorRoleDef(normalizeFamilyManorRole(snapshot.member.manor_role, contract.type, snapshot.member.role)).label
+        : '',
       status: snapshot.member.status,
       available: snapshot.available,
       unavailable_reason: snapshot.unavailable_reason,
@@ -1722,10 +1797,23 @@ async function getCohabitationSharedMap(contractId, actor = {}) {
       harvestable_plots: stateCounts.harvestable,
       waterable_plots: stateCounts.waterable,
       origin_owner_count: new Set(layout.plots.map(plot => plot.origin_owner_id)).size,
+      layout_region_count: layout.regions.length,
+      multi_member_layout: isFamilyRoleContractType(contract.type) && contract.members.length > 2,
+      max_members: (RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation).max_members,
+      arrangement: layout.arrangement,
+      stitch_axis: layout.stitch_axis,
       personal_money_merged: false,
+      origin_trace_enabled: true,
       shared_fund_balance: contract.shared_fund.balance,
       included_sources: ['farm.plots'],
       deferred_sources: ['farm.greenhousePlots', 'farm.fruitTrees', 'animal', 'warehouse', 'decoration'],
+      deferred_writes: [
+        'plant',
+        'water',
+        'harvest',
+        'shared_warehouse_auto_deposit',
+        'persistent_shared_manor_map',
+      ],
     },
   };
 

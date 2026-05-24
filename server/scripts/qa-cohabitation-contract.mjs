@@ -28,6 +28,7 @@ const saveRuntime = require('../src/taoyuanSaveRuntime')
 const owner = 'cohabit_owner_0524'
 const partner = 'cohabit_partner_0524'
 const extra = 'cohabit_extra_0524'
+const fourth = 'cohabit_fourth_0524'
 
 const actor = username => ({
   username,
@@ -156,14 +157,18 @@ const getInventoryItemQuantity = (username, itemId, quality = 'normal') => {
 await db.registerUser(owner, 'SmokePass_0524', '同居主人')
 await db.registerUser(partner, 'SmokePass_0524', '同居伙伴')
 await db.registerUser(extra, 'SmokePass_0524', '同居额外成员')
+await db.registerUser(fourth, 'SmokePass_0524', '同居第四成员')
 seedSave(owner)
 seedSave(partner)
 seedSave(extra)
+seedSave(fourth)
 
 const partnerRequest = await socialRuntime.requestFriendship(owner, { target_username: partner })
 await socialRuntime.acceptFriendRequest(partner, partnerRequest.id)
 const extraRequest = await socialRuntime.requestFriendship(owner, { target_username: extra })
 await socialRuntime.acceptFriendRequest(extra, extraRequest.id)
+const fourthRequest = await socialRuntime.requestFriendship(owner, { target_username: fourth })
+await socialRuntime.acceptFriendRequest(fourth, fourthRequest.id)
 
 const overview = await runtime.listCohabitationContracts(owner)
 assert.ok(overview.relation_options.find(option => option.id === 'lover_cohabitation'), 'relation options should expose lover contract type')
@@ -670,6 +675,56 @@ const duplicateFamilyRoleUpdate = await runtime.updateCohabitationFamilyRole(fam
 }, actor(owner))
 assert.equal(duplicateFamilyRoleUpdate.idempotent, true, 'same family role idempotency key should be idempotent')
 assert.equal(duplicateFamilyRoleUpdate.audit_entry.id, familyRoleUpdate.audit_entry.id, 'idempotent family role update should return original audit entry')
+
+const ownerRawBeforeFamilyMap = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeFamilyMap = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const extraRawBeforeFamilyMap = saveRuntime.loadUserSaveSlots(extra).slots[0].raw
+const familySharedMapResult = await runtime.getCohabitationSharedMap(familyContract.contract.id, actor(extra))
+const familySharedMap = familySharedMapResult.shared_map
+assert.equal(familySharedMap.readonly, true, 'family shared map should stay read-only')
+assert.equal(familySharedMap.writes_enabled, false, 'family shared map should not expose write operations')
+assert.equal(familySharedMap.summary.member_count, 3, 'three-member family manor should expose all members in map summary')
+assert.equal(familySharedMap.summary.multi_member_layout, true, 'family shared map should mark multi-member layout')
+assert.equal(familySharedMap.summary.max_members, 4, 'family shared map should expose family max member cap')
+assert.equal(familySharedMap.summary.total_plots, 48, 'three 4x4 farms should be stitched into one family map')
+assert.equal(familySharedMap.summary.origin_owner_count, 3, 'family shared map should preserve three origin owners')
+assert.equal(familySharedMap.summary.origin_trace_enabled, true, 'family shared map should declare origin traceability')
+assert.equal(familySharedMap.summary.personal_money_merged, false, 'family shared map must not merge personal money')
+assert.equal(familySharedMap.layout.columns, 12, 'three family farms should be placed side by side')
+assert.equal(familySharedMap.layout.rows, 4, 'family shared map should keep member farm height')
+assert.equal(familySharedMap.layout.regions.length, 3, 'family shared map should expose one region per member')
+assert.equal(familySharedMap.layout.summary.family_manor_layout, true, 'layout summary should mark family manor layout')
+assert.equal(familySharedMap.layout.summary.region_count, 3, 'layout summary should count family regions')
+assert.equal(familySharedMap.layout.summary.stitch_axis, 'x', 'layout summary should expose horizontal stitch axis')
+assert.deepEqual(familySharedMap.layout.summary.region_order.map(region => region.member_username), [owner, partner, extra], 'family region order should follow contract members')
+assert.equal(familySharedMap.layout.regions.find(region => region.member_username === partner)?.manor_role, 'storage_keeper', 'family map regions should expose updated member role')
+assert.equal(familySharedMap.members.find(member => member.username === partner)?.manor_role_label, '管仓', 'family map members should expose role labels')
+assert.ok(familySharedMap.plots.some(plot => plot.origin_owner_username === extra && plot.origin_owner_id), 'family map plots should keep extra member origin owner id')
+assert.ok(familySharedMap.summary.deferred_writes.includes('persistent_shared_manor_map'), 'family shared map should defer persistent map writes')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyMap, 'family shared map should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyMap, 'family shared map should not rewrite partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyMap, 'family shared map should not rewrite extra member save')
+
+const fourMemberFamilyContract = await runtime.createCohabitationContract({
+  type: 'business_partner',
+  target_usernames: [partner, extra, fourth],
+  idempotency_key: 'qa-business-family-four-member-map',
+}, actor(owner))
+await runtime.acceptCohabitationContract(fourMemberFamilyContract.contract.id, actor(partner))
+await runtime.acceptCohabitationContract(fourMemberFamilyContract.contract.id, actor(extra))
+const activeFourMemberFamily = await runtime.acceptCohabitationContract(fourMemberFamilyContract.contract.id, actor(fourth))
+assert.equal(activeFourMemberFamily.contract.status, 'active', 'four-member business manor should activate after all members accept')
+const fourRawBeforeFamilyMap = saveRuntime.loadUserSaveSlots(fourth).slots[0].raw
+const fourMemberSharedMapResult = await runtime.getCohabitationSharedMap(fourMemberFamilyContract.contract.id, actor(fourth))
+const fourMemberSharedMap = fourMemberSharedMapResult.shared_map
+assert.equal(fourMemberSharedMap.summary.member_count, 4, 'four-member family map should expose all members')
+assert.equal(fourMemberSharedMap.summary.total_plots, 64, 'four 4x4 farms should be stitched into one map')
+assert.equal(fourMemberSharedMap.summary.origin_owner_count, 4, 'four-member map should preserve all origin owners')
+assert.equal(fourMemberSharedMap.layout.columns, 16, 'four family farms should stitch horizontally')
+assert.equal(fourMemberSharedMap.layout.regions.length, 4, 'four-member map should expose four regions')
+assert.equal(fourMemberSharedMap.layout.summary.max_members, 4, 'layout summary should expose four-member cap')
+assert.equal(fourMemberSharedMap.layout.summary.region_order[fourMemberSharedMap.layout.summary.region_order.length - 1]?.member_username, fourth, 'fourth member should receive the final region')
+assert.equal(saveRuntime.loadUserSaveSlots(fourth).slots[0].raw, fourRawBeforeFamilyMap, 'four-member shared map should not rewrite fourth member save')
 
 const ownerRawBeforePreview = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawBeforePreview = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
