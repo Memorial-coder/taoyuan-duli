@@ -6,6 +6,7 @@
 - 接入公共订单铜钱收入入共同基金服务端闭环：订单确认交付可选择 `reward_route=shared_fund` 并指定家族 / 合伙庄园契约，铜钱奖励会写入共同基金 `order_income` ledger、订单凭证、审计和幂等目标引用，不再写入接单人个人铜币。
 - 接入共同基金真实购买到账服务端小闭环：`fund/spend auto_pay=true` 命中首批种子白名单时会扣共同基金并把种子送入操作者个人背包，流水记录目标物品、数量、目标存档和背包落点，重复幂等不会重复扣款或加物。
 - 扩展共同基金自动购买到账白名单：`shop:fish_feed` 可按 `feed_budget` 使用共同基金购买鱼饲料并送入个人背包，个人铜币保持独立，重复幂等不重复扣款。
+- 扩展共同基金药铺动物饲料自动购买到账：`shop:premium_feed / shop:nourishing_feed / shop:vitality_feed` 可按 `feed_budget` 扣共同基金后送入个人背包，QA 覆盖到账、幂等和个人铜币边界。
 - 前端节会 / 远征 API 类型已同步 `OnlineVisualState`，新增 `qa:activity-room-visual-state` 验证新房间返回视觉状态、旧房间兼容补默认状态。
 - 扩展 `visual_state.nodes` 地图节点协议：节点已支持坐标、状态、连线、事件 ID、可行动作、队友处理中标记，以及风险、奖励和资源预览。
 - 扩展 `visual_state.objects` 场景物件协议：物件已支持坐标、类型、状态、可行动作、进度、处理人、处理时间和协作人数，为灯会共建与好友庄园照料提供数据底座。

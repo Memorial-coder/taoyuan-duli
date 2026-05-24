@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0524 共同基金药铺动物饲料自动购买
+- 共同基金自动购买到账白名单新增 `shop:premium_feed`、`shop:nourishing_feed`、`shop:vitality_feed`，可按 `feed_budget` 扣共同基金后送入操作者个人背包。
+- `feed_budget` 小额单次上限提升到 300，以覆盖活力饲料；种子、工具修缮和订单跑腿仍受各自用途上限约束。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0524 共同基金鱼饲料自动购买
 - 共同基金自动购买到账白名单新增 `shop:fish_feed`：`fund/spend` 使用 `purpose=feed_budget`、`auto_pay=true` 且金额匹配鱼饲料单价时，会扣共同基金并把鱼饲料送入操作者个人背包。
 - 重复 `idempotency_key` 不会重复扣基金或重复加饲料，个人铜币保持独立；ledger / 审计会继续记录目标物品、数量、目标存档和背包落点。

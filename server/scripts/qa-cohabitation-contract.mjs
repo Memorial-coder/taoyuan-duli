@@ -480,6 +480,51 @@ assert.equal(duplicateFundFeedPurchase.fund.balance, 120, 'idempotent fund feed 
 assert.equal(getInventoryItemQuantity(owner, 'fish_feed'), ownerFishFeedBeforeFundPurchase + 1, 'idempotent fund feed purchase should not add feed twice')
 assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeFeedPurchase, 'idempotent fund feed purchase should still not touch personal money')
 
+const feedTopUpResult = await runtime.contributeCohabitationFund(created.contract.id, {
+  amount: 750,
+  purpose: 'feed_budget',
+  memo: 'qa shared animal feed top up',
+  idempotency_key: 'qa-fund-contribution-animal-feed-top-up',
+}, actor(owner))
+assert.equal(feedTopUpResult.idempotent, false, 'animal feed top up should not be idempotent first time')
+assert.equal(feedTopUpResult.fund.balance, 870, 'animal feed top up should restore enough shared fund balance for feed catalog')
+
+const animalFeedCatalogCases = [
+  { targetRef: 'shop:premium_feed', itemId: 'premium_feed', amount: 200, balanceAfter: 670 },
+  { targetRef: 'shop:nourishing_feed', itemId: 'nourishing_feed', amount: 250, balanceAfter: 420 },
+  { targetRef: 'shop:vitality_feed', itemId: 'vitality_feed', amount: 300, balanceAfter: 120 },
+]
+for (const feedCase of animalFeedCatalogCases) {
+  const beforeQuantity = getInventoryItemQuantity(owner, feedCase.itemId)
+  const beforeMoney = readGameplayData(owner)?.player?.money
+  const feedResult = await runtime.spendCohabitationFund(created.contract.id, {
+    amount: feedCase.amount,
+    purpose: 'feed_budget',
+    target_ref: feedCase.targetRef,
+    auto_pay: true,
+    memo: `qa shared animal feed auto purchase ${feedCase.itemId}`,
+    idempotency_key: `qa-fund-purchase-${feedCase.itemId}`,
+  }, actor(owner))
+  assert.equal(feedResult.idempotent, false, `${feedCase.itemId} purchase should not be idempotent first time`)
+  assert.equal(feedResult.fund.balance, feedCase.balanceAfter, `${feedCase.itemId} purchase should reduce shared fund balance`)
+  assert.equal(feedResult.ledger_entry.target_item_id, feedCase.itemId, `${feedCase.itemId} ledger should keep delivered item id`)
+  assert.equal(feedResult.ledger_entry.target_quantity, 1, `${feedCase.itemId} ledger should keep delivered quantity`)
+  assert.equal(feedResult.purchase.item_id, feedCase.itemId, `${feedCase.itemId} purchase should report delivered item`)
+  assert.equal(getInventoryItemQuantity(owner, feedCase.itemId), beforeQuantity + 1, `${feedCase.itemId} purchase should add feed once`)
+  assert.equal(readGameplayData(owner)?.player?.money, beforeMoney, `${feedCase.itemId} purchase should not touch owner personal money`)
+
+  const duplicateFeedResult = await runtime.spendCohabitationFund(created.contract.id, {
+    amount: feedCase.amount,
+    purpose: 'feed_budget',
+    target_ref: feedCase.targetRef,
+    auto_pay: true,
+    idempotency_key: `qa-fund-purchase-${feedCase.itemId}`,
+  }, actor(owner))
+  assert.equal(duplicateFeedResult.idempotent, true, `${feedCase.itemId} duplicate purchase should be idempotent`)
+  assert.equal(duplicateFeedResult.fund.balance, feedCase.balanceAfter, `${feedCase.itemId} duplicate purchase should not deduct balance twice`)
+  assert.equal(getInventoryItemQuantity(owner, feedCase.itemId), beforeQuantity + 1, `${feedCase.itemId} duplicate purchase should not add feed twice`)
+}
+
 const ownerMoneyBeforeFailedFund = readGameplayData(owner)?.player?.money
 await assert.rejects(
   () => runtime.contributeCohabitationFund(created.contract.id, {
@@ -1542,10 +1587,10 @@ assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => 
 assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === partner && item.plot_count === 16), 'separation preview should include partner plot return group')
 assert.equal(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'rice'), false, 'separation preview should not return sold warehouse rice')
 assert.equal(previewResult.preview.asset_return.fund_balance, 155, 'separation preview should include current fund balance after warehouse sale income')
-assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.amount === 120), 'separation preview should include owner fund contribution source summary')
+assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.amount === 870), 'separation preview should include owner fund contribution source summary')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.amount === 80), 'separation preview should include partner fund contribution source summary')
-assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.suggested_refund_amount === 93), 'separation preview should suggest owner fund refund by contribution share after warehouse sale')
-assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.suggested_refund_amount === 62), 'separation preview should suggest partner fund refund by contribution share after warehouse sale')
+assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.suggested_refund_amount === 141), 'separation preview should suggest owner fund refund by contribution share after warehouse sale')
+assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.suggested_refund_amount === 14), 'separation preview should suggest partner fund refund by contribution share after warehouse sale')
 assert.equal(previewResult.preview.asset_return.fund_suggested_refund_total, 155, 'separation preview should balance suggested fund refunds after warehouse sale')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'plots_return_by_origin'), 'separation preview should include plot return compensation plan')
 assert.equal(previewResult.preview.compensation_plan.some(item => item.id === 'warehouse_manual_return'), false, 'separation preview should not include warehouse return plan when sold stock is empty')

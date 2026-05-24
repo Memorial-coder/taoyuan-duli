@@ -27,7 +27,7 @@ const MEMBER_STATUSES = new Set(['accepted', 'pending', 'declined', 'left']);
 const FUND_LEDGER_LIMIT = 160;
 const FUND_ORIGIN_LIMIT = 160;
 const FUND_MAX_CONTRIBUTION_AMOUNT = 999999;
-const FUND_MAX_SMALL_SPEND_AMOUNT = 200;
+const FUND_MAX_SMALL_SPEND_AMOUNT = 300;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_MAX_DEPOSIT_QUANTITY = 99;
@@ -70,7 +70,7 @@ const SMALL_FUND_SPEND_PURPOSES = Object.freeze({
   feed_budget: {
     label: '小额饲料预算',
     category: 'seed_feed',
-    max_amount: 120,
+    max_amount: 300,
     auto_pay_eligible: true,
   },
   tool_repair: {
@@ -112,6 +112,27 @@ const SHARED_FUND_AUTO_PURCHASE_CATALOG = Object.freeze({
     item_id: 'fish_feed',
     label: '鱼饲料',
     unit_price: 30,
+    allowed_purposes: ['feed_budget'],
+    category: 'feed',
+  },
+  'shop:premium_feed': {
+    item_id: 'premium_feed',
+    label: '精饲料',
+    unit_price: 200,
+    allowed_purposes: ['feed_budget'],
+    category: 'feed',
+  },
+  'shop:nourishing_feed': {
+    item_id: 'nourishing_feed',
+    label: '滋补饲料',
+    unit_price: 250,
+    allowed_purposes: ['feed_budget'],
+    category: 'feed',
+  },
+  'shop:vitality_feed': {
+    item_id: 'vitality_feed',
+    label: '活力饲料',
+    unit_price: 300,
     allowed_purposes: ['feed_budget'],
     category: 'feed',
   },
