@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 家族共同仓库只读摘要
+- `warehouse` 服务端快照补强家族职位视角，结拜 / 合伙庄园会输出成员职位、管仓权限预览、来源玩家汇总、取出 / 卖出暂缓和分居返还策略。
+- 家族成员放入共同仓库时，`shared_warehouse.ledger` 与 `origin_assets.warehouse_items` 会记录操作者和来源玩家的职位标签，继续只扣操作者个人背包，不合并个人铜币。
+- 本轮只接服务端快照和 QA：不新增取出 / 卖出接口，不开放共同经营产出自动入仓，也不新增前端共同仓库面板。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix server run qa:online-smoke`。
+
 ### 0524 家族多人土地拼接只读摘要
 - `shared-map` 服务端快照补强多人布局摘要，结拜 / 合伙庄园会输出成员区域顺序、区域数量、横向拼接轴、来源追踪、职位标签和暂缓写操作。
 - 三人结拜与四人合伙共同农田会按成员区域横向拼接，继续只读 `farm.plots`，不写回个人存档、不合并个人铜币，也不开放共同种植 / 浇水 / 收获。

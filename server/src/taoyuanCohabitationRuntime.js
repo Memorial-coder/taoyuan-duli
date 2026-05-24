@@ -604,10 +604,14 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
     quantity,
     actor_username: actorUsername,
     actor_display_name: sanitizeText(entry.actor_display_name || actorUsername, 60),
+    actor_manor_role: sanitizeText(entry.actor_manor_role, 40),
+    actor_manor_role_label: sanitizeText(entry.actor_manor_role_label, 40),
     source_owner_id: sanitizeText(entry.source_owner_id, 100),
     source_owner_username: sourceOwnerUsername,
     source_owner_display_name: sanitizeText(entry.source_owner_display_name || sourceOwnerUsername, 60),
     source_owner_key: normalizeUsernameKey(entry.source_owner_key || sourceOwnerUsername),
+    source_owner_manor_role: sanitizeText(entry.source_owner_manor_role, 40),
+    source_owner_manor_role_label: sanitizeText(entry.source_owner_manor_role_label, 40),
     source_save_id: normalizeSaveId(entry.source_save_id),
     source_save_slot: normalizeSaveSlot(entry.source_save_slot),
     source_save_revision: Math.max(0, Math.floor(Number(entry.source_save_revision) || 0)),
@@ -1288,7 +1292,9 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
 function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
   const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   const actorKey = normalizeUsernameKey(actorUsername);
-  const actorPermissions = normalizePermissionSet(contract.permissions?.[actorKey], contract.type);
+  const actorMember = getContractMember(contract, actorUsername);
+  const actorPermissions = enforcePermissionSafetyRails(contract.permissions?.[actorKey], contract.type);
+  const familyWarehouse = buildFamilyWarehouseSummary(contract, warehouse, actorMember);
   const totalQuantity = warehouse.items.reduce((sum, item) => sum + item.quantity, 0);
   return {
     contract_id: contract.id,
@@ -1304,6 +1310,9 @@ function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
       deposit_enabled: contract.status === 'active' && actorPermissions.storage.deposit === true,
       withdraw_enabled: false,
       sell_enabled: false,
+      family_manor_warehouse: familyWarehouse.enabled,
+      role_based_storage_permissions: familyWarehouse.role_based_storage_permissions,
+      source_owner_count: familyWarehouse.source_owner_summary.length,
       idempotency_required: true,
       protected_qualities: ['fine', 'excellent', 'supreme'],
       protected_operations: ['withdraw_common', 'withdraw_high_quality', 'withdraw_rare', 'sell_items'],
@@ -1316,7 +1325,109 @@ function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
       can_withdraw_rare: actorPermissions.storage.withdraw_rare === true,
       can_sell_items: actorPermissions.storage.sell_items === true,
     },
+    family_warehouse: familyWarehouse,
   };
+}
+
+function buildFamilyWarehouseSummary(contract = {}, warehouse = {}, actorMember = null) {
+  const enabled = isFamilyRoleContractType(contract.type);
+  const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
+  const actorRole = normalizeFamilyManorRole(actorMember?.manor_role, contract.type, actorMember?.role);
+  const actorRoleDef = enabled ? getFamilyManorRoleDef(actorRole) : null;
+  const members = enabled
+    ? (contract.members || []).map(member => {
+        const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+        const roleDef = getFamilyManorRoleDef(manorRole);
+        const permissions = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+        return {
+          username: member.username,
+          username_key: member.username_key,
+          display_name: member.display_name,
+          role: member.role,
+          status: member.status,
+          manor_role: manorRole,
+          manor_role_label: roleDef.label,
+          permission_focus: [...roleDef.permission_focus],
+          storage_permissions: {
+            can_deposit: permissions.storage.deposit === true,
+            can_withdraw_common_preview: permissions.storage.withdraw_common === true,
+            can_withdraw_high_quality_preview: permissions.storage.withdraw_high_quality === true,
+            can_withdraw_rare_preview: permissions.storage.withdraw_rare === true,
+            can_sell_items_preview: permissions.storage.sell_items === true,
+            withdraw_enabled: false,
+            sell_enabled: false,
+          },
+        };
+      })
+    : [];
+  return {
+    enabled,
+    role_based_storage_permissions: enabled,
+    max_members: typeDef.max_members,
+    member_count: (contract.members || []).length,
+    actor: enabled && actorMember ? {
+      username: actorMember.username,
+      username_key: actorMember.username_key,
+      display_name: actorMember.display_name,
+      role: actorMember.role,
+      manor_role: actorRole,
+      manor_role_label: actorRoleDef?.label || '',
+    } : null,
+    members,
+    source_owner_summary: buildWarehouseSourceOwnerSummary(warehouse),
+    governance: {
+      personal_inventory_merged: false,
+      personal_money_merged: false,
+      deposit_uses_personal_inventory: true,
+      deposit_requires_idempotency_key: true,
+      withdraw_flow_enabled: false,
+      sell_flow_enabled: false,
+      high_value_withdraw_requires_both: true,
+      rare_withdraw_requires_both: true,
+      ledger_required_for_asset_return: true,
+      separation_return_policy: 'return_warehouse_items_by_ledger_origin_owner',
+      compensation_policy: '家族共同仓库第一版只开放可追溯放入；取出、卖出、冻结和自动返还均暂缓，争议先按 ledger 与 origin_assets 人工补偿。',
+    },
+    deferred_operations: [
+      'withdraw_common',
+      'withdraw_high_quality',
+      'withdraw_rare',
+      'sell_items',
+      'shared_harvest_auto_deposit',
+      'warehouse_freeze_and_revert',
+    ],
+  };
+}
+
+function buildWarehouseSourceOwnerSummary(warehouse = {}) {
+  const groups = new Map();
+  const ledger = Array.isArray(warehouse.ledger) ? warehouse.ledger : [];
+  for (const entry of ledger) {
+    if (entry.status !== 'committed') continue;
+    const key = entry.source_owner_id || entry.source_owner_key || entry.source_owner_username;
+    if (!key) continue;
+    const current = groups.get(key) || {
+      origin_owner_id: entry.source_owner_id,
+      origin_owner_username: entry.source_owner_username,
+      origin_owner_key: entry.source_owner_key,
+      origin_owner_manor_role: entry.source_owner_manor_role,
+      origin_owner_manor_role_label: entry.source_owner_manor_role_label,
+      total_quantity: 0,
+      ledger_count: 0,
+      item_ids: [],
+      manual_return_required: true,
+    };
+    const delta = entry.action === 'deposit' || entry.action === 'compensate'
+      ? entry.quantity
+      : -entry.quantity;
+    current.total_quantity = Math.max(0, current.total_quantity + delta);
+    current.ledger_count += 1;
+    if (entry.item_id && !current.item_ids.includes(entry.item_id)) current.item_ids.push(entry.item_id);
+    groups.set(key, current);
+  }
+  return [...groups.values()]
+    .filter(entry => entry.total_quantity > 0)
+    .slice(0, 80);
 }
 
 function buildSharedFundSnapshot(contract, actorUsername = '') {
@@ -1463,6 +1574,8 @@ function buildWarehouseOriginAsset(entry) {
     origin_owner_id: entry.source_owner_id,
     origin_owner_username: entry.source_owner_username,
     origin_owner_key: entry.source_owner_key,
+    origin_owner_manor_role: entry.source_owner_manor_role,
+    origin_owner_manor_role_label: entry.source_owner_manor_role_label,
     source_save_id: entry.source_save_id,
     source_save_slot: entry.source_save_slot,
     source_inventory: entry.source_inventory,
@@ -1935,6 +2048,8 @@ async function depositCohabitationWarehouseItem(contractId, payload = {}, actor 
   const sourceOwnerId = sourceSaveId ? `save:${sourceSaveId}` : `account:${member.username_key}`;
   if (sourceSaveId) member.save_id = sourceSaveId;
   if (sourceSaveSlot !== null) member.save_slot = sourceSaveSlot;
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
 
   const ledgerEntry = normalizeWarehouseLedgerEntry({
     id: makeId('shared_warehouse_ledger'),
@@ -1944,10 +2059,14 @@ async function depositCohabitationWarehouseItem(contractId, payload = {}, actor 
     quality: deposit.quality,
     actor_username: actorUsername,
     actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
     source_owner_id: sourceOwnerId,
     source_owner_username: member.username,
     source_owner_display_name: member.display_name || member.username,
     source_owner_key: member.username_key,
+    source_owner_manor_role: actorManorRole,
+    source_owner_manor_role_label: actorManorRoleDef?.label || '',
     source_save_id: sourceSaveId,
     source_save_slot: sourceSaveSlot,
     source_save_revision: saveRevision,
