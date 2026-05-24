@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
+  contributeCohabitationFund,
   fetchCohabitationFund,
   fetchCohabitationOfflineStatus,
   fetchCohabitationOverview,
@@ -131,6 +132,34 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     await refreshOverview().catch(() => {})
   }
 
+  const contributeSharedFund = async (payload: {
+    amount: number
+    purpose?: string
+    memo?: string
+    idempotency_key: string
+  }) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await contributeCohabitationFund(activeContractId.value, payload)
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '共同基金注资失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const spendSharedFund = async (payload: {
     amount: number
     purpose: string
@@ -182,6 +211,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     refreshSelectedDetails,
     selectContract,
     refreshAll,
+    contributeSharedFund,
     spendSharedFund,
   }
 })

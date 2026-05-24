@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0524 共同基金前端注资入口
+- 共同庄园基金页新增个人注资金额输入与提交按钮，调用 `fund/contribute` 将个人铜币注入共同基金。
+- 前端提交带 CSRF 与 `idempotency_key`；成功后刷新共同基金、流水和契约摘要，并显示个人剩余铜币。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 共同基金前端购买入口
 - 共同庄园基金页新增最小自动购买入口，第一版开放白菜种子 x2 与鱼饲料 x1 两个白名单按钮。
 - 前端 API / store 已接 `fund/spend` 写接口，提交时带 CSRF 与 `idempotency_key`；成功后刷新共同基金、流水和契约摘要，余额或权限不足时按钮禁用。

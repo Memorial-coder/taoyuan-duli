@@ -8,6 +8,7 @@
 - 扩展共同基金自动购买到账白名单：`shop:fish_feed` 可按 `feed_budget` 使用共同基金购买鱼饲料并送入个人背包，个人铜币保持独立，重复幂等不重复扣款。
 - 扩展共同基金药铺动物饲料自动购买到账：`shop:premium_feed / shop:nourishing_feed / shop:vitality_feed` 可按 `feed_budget` 扣共同基金后送入个人背包，QA 覆盖到账、幂等和个人铜币边界。
 - 共同庄园前端基金面板新增最小购买入口：可用共同基金自动购买白菜种子 x2 与鱼饲料 x1，前端会带 CSRF 和幂等键调用 `fund/spend`，成功后刷新余额与流水。
+- 共同庄园前端基金面板新增个人注资入口：可输入金额调用 `fund/contribute`，前端带 CSRF 与幂等键，成功后刷新共同基金、流水和契约摘要并显示个人剩余铜币。
 - 前端节会 / 远征 API 类型已同步 `OnlineVisualState`，新增 `qa:activity-room-visual-state` 验证新房间返回视觉状态、旧房间兼容补默认状态。
 - 扩展 `visual_state.nodes` 地图节点协议：节点已支持坐标、状态、连线、事件 ID、可行动作、队友处理中标记，以及风险、奖励和资源预览。
 - 扩展 `visual_state.objects` 场景物件协议：物件已支持坐标、类型、状态、可行动作、进度、处理人、处理时间和协作人数，为灯会共建与好友庄园照料提供数据底座。

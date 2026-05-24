@@ -276,6 +276,28 @@
             <p class="border border-accent/10 bg-black/10 p-2 text-muted">大额确认：{{ cohabitationStore.fund?.summary.large_spend_requires_both ? '需要' : '未启用' }}</p>
           </div>
           <div class="mt-3 border border-accent/10 bg-black/10 p-2">
+            <p class="text-xs text-accent">个人注资</p>
+            <div class="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+              <input
+                v-model.number="fundContributionAmount"
+                type="number"
+                min="1"
+                step="1"
+                class="online-input text-xs"
+                data-testid="online-cohabitation-fund-contribution-input"
+              >
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="!canUseFundContribution || cohabitationStore.actionLoading"
+                data-testid="online-cohabitation-fund-contribution-submit"
+                @click="contributeToSharedFund"
+              >
+                注入共同基金
+              </button>
+            </div>
+          </div>
+          <div class="mt-3 border border-accent/10 bg-black/10 p-2">
             <div class="flex items-center justify-between gap-2">
               <p class="text-xs text-accent">自动购买</p>
               <span class="text-[10px] text-muted">白名单</span>
@@ -459,6 +481,7 @@
   const lastRefreshAttemptAt = ref(0)
   const fundActionMessage = ref('')
   const fundActionOk = ref(false)
+  const fundContributionAmount = ref(50)
 
   const tabs: CohabitationTabMeta[] = [
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
@@ -519,6 +542,12 @@
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
   const actorCapabilityEntries = computed(() => Object.entries(cohabitationStore.offlineStatus?.actor_capabilities ?? {})
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
+  const normalizedFundContributionAmount = computed(() => Math.max(0, Math.floor(Number(fundContributionAmount.value) || 0)))
+  const canUseFundContribution = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.fund?.summary.contribution_enabled === true &&
+    normalizedFundContributionAmount.value > 0
+  )
   const fundPurchaseOptions = [
     {
       label: '白菜种子 x2',
@@ -558,6 +587,31 @@
     cohabitationStore.fund?.summary.spend_enabled === true &&
     cohabitationStore.fund?.permissions.can_auto_buy_seeds_feed === true &&
     (cohabitationStore.fund?.balance ?? 0) >= option.amount
+
+  const contributeToSharedFund = async () => {
+    fundActionMessage.value = ''
+    fundActionOk.value = false
+    const amount = normalizedFundContributionAmount.value
+    if (amount <= 0) {
+      fundActionMessage.value = '注资金额需要大于 0'
+      return
+    }
+    try {
+      const result = await cohabitationStore.contributeSharedFund({
+        amount,
+        purpose: 'front_fund_top_up',
+        memo: '共同庄园前端个人注资',
+        idempotency_key: `ui-fund-contribute-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      fundActionOk.value = true
+      const remaining = result?.personal_money?.remaining_money
+      fundActionMessage.value = typeof remaining === 'number'
+        ? `已注资 ${amount} 文，个人剩余 ${remaining} 文`
+        : `已注资 ${amount} 文`
+    } catch (error) {
+      fundActionMessage.value = error instanceof Error ? error.message : '共同基金注资失败'
+    }
+  }
 
   const buyWithSharedFund = async (option: typeof fundPurchaseOptions[number]) => {
     fundActionMessage.value = ''

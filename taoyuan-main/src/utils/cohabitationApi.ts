@@ -346,6 +346,24 @@ export interface CohabitationFundSpendPayload {
   idempotency_key: string
 }
 
+export interface CohabitationFundContributionPayload {
+  amount: number
+  purpose?: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFundContributionResponse extends CohabitationDetailResponse {
+  fund?: CohabitationFundSnapshot
+  ledger_entry?: CohabitationFundLedgerEntry
+  personal_money?: {
+    before_money?: number
+    remaining_money?: number
+    deducted_amount?: number
+    personal_money_merged: boolean
+  }
+}
+
 export interface CohabitationFundSpendResponse extends CohabitationDetailResponse {
   fund?: CohabitationFundSnapshot
   ledger_entry?: CohabitationFundLedgerEntry
@@ -417,6 +435,14 @@ export const fetchCohabitationFund = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     fund?: CohabitationFundSnapshot
   }>(contractPath(contractId, '/fund'), '获取共同基金失败')
+}
+
+export const contributeCohabitationFund = async (contractId: string, payload: CohabitationFundContributionPayload) => {
+  return postCohabitationJson<CohabitationFundContributionResponse>(
+    contractPath(contractId, '/fund/contribute'),
+    payload as unknown as Record<string, unknown>,
+    '共同基金注资失败'
+  )
 }
 
 export const spendCohabitationFund = async (contractId: string, payload: CohabitationFundSpendPayload) => {
