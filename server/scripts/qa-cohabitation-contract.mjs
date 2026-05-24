@@ -439,6 +439,73 @@ const partnerWarehouseRead = await runtime.getCohabitationWarehouse(created.cont
 assert.equal(partnerWarehouseRead.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 1, 'partner should read shared warehouse stock after withdrawal')
 
 await assert.rejects(
+  () => runtime.sellCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'rice',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-warehouse-rice-sell-denied',
+  }, actor(owner)),
+  error => error?.status === 403 && String(error.message || '').includes('卖出共同仓库'),
+  'warehouse sale should reject members without sell permission'
+)
+
+const ownerSellPermissionUpdate = await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: {
+    storage: {
+      sell_items: true,
+    },
+  },
+  note: 'qa enable owner warehouse sale',
+  idempotency_key: 'qa-permission-update-owner-sell',
+}, actor(owner))
+assert.equal(ownerSellPermissionUpdate.idempotent, false, 'first owner sell permission update should not be idempotent')
+assert.equal(ownerSellPermissionUpdate.permissions_panel.members.find(member => member.username === owner)?.permissions.storage.sell_items, true, 'owner sell permission should be enabled explicitly')
+assert.ok(ownerSellPermissionUpdate.changed_fields.some(field => field.group === 'storage' && field.key === 'sell_items' && field.after === true), 'owner sell permission update should report sell_items change')
+
+const ownerWarehouseBeforeSell = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+assert.equal(ownerWarehouseBeforeSell.warehouse.summary.sell_enabled, true, 'warehouse snapshot should expose sell capability after permission update')
+assert.equal(ownerWarehouseBeforeSell.warehouse.permissions.can_sell_items, true, 'warehouse permissions should expose sell flag after permission update')
+const ownerMoneyBeforeWarehouseSale = readGameplayData(owner)?.player?.money
+const ownerRiceBeforeWarehouseSale = getInventoryItemQuantity(owner, 'rice')
+const warehouseSaleResult = await runtime.sellCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'rice',
+  quantity: 1,
+  quality: 'normal',
+  memo: 'qa sell remaining rice into shared fund',
+  idempotency_key: 'qa-warehouse-rice-sell',
+}, actor(owner))
+assert.equal(warehouseSaleResult.idempotent, false, 'first warehouse sale should not be idempotent')
+assert.equal(warehouseSaleResult.warehouse.summary.total_quantity, 0, 'warehouse sale should reduce shared stock')
+assert.equal(warehouseSaleResult.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 0, 'sold rice should no longer remain in shared stock')
+assert.equal(warehouseSaleResult.ledger_entry.action, 'sell', 'warehouse ledger should record sell action')
+assert.equal(warehouseSaleResult.ledger_entry.unit_price, 35, 'warehouse sale should use server-side rice price')
+assert.equal(warehouseSaleResult.ledger_entry.total_amount, 35, 'warehouse sale ledger should keep sale amount')
+assert.ok(warehouseSaleResult.ledger_entry.source_ledger_ids.includes(depositResult.ledger_entry.id), 'warehouse sale ledger should reference source deposit ledger')
+assert.equal(warehouseSaleResult.fund.balance, 205, 'warehouse sale should credit shared fund balance')
+assert.equal(warehouseSaleResult.fund_ledger_entry.action, 'warehouse_sale_income', 'fund ledger should record warehouse sale income')
+assert.equal(warehouseSaleResult.fund_ledger_entry.amount, 35, 'fund sale ledger should keep credited amount')
+assert.equal(warehouseSaleResult.fund_ledger_entry.balance_after, 205, 'fund sale ledger should expose balance after credit')
+assert.equal(warehouseSaleResult.sale.balance_before, 170, 'warehouse sale should expose previous fund balance')
+assert.equal(warehouseSaleResult.sale.balance_after, 205, 'warehouse sale should expose credited fund balance')
+assert.equal(warehouseSaleResult.sale.personal_money_merged, false, 'warehouse sale should not merge personal money')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeWarehouseSale, 'warehouse sale should not touch owner personal money')
+assert.equal(getInventoryItemQuantity(owner, 'rice'), ownerRiceBeforeWarehouseSale, 'warehouse sale should not touch owner personal inventory')
+assert.ok(warehouseSaleResult.contract.origin_assets.warehouse_items.some(item => item.ledger_id === warehouseSaleResult.ledger_entry.id && item.action === 'sell'), 'origin assets should reference sale ledger')
+assert.ok(warehouseSaleResult.contract.audit_log.find(entry => entry.action === 'warehouse_sold'), 'warehouse sale should be audited')
+
+const duplicateWarehouseSale = await runtime.sellCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'rice',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-warehouse-rice-sell',
+}, actor(owner))
+assert.equal(duplicateWarehouseSale.idempotent, true, 'same warehouse sale idempotency key should be idempotent')
+assert.equal(duplicateWarehouseSale.fund.balance, 205, 'idempotent warehouse sale should not credit fund twice')
+assert.equal(duplicateWarehouseSale.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 0, 'idempotent warehouse sale should not restore or duplicate stock')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeWarehouseSale, 'idempotent warehouse sale should still not touch personal money')
+
+await assert.rejects(
   () => runtime.getCohabitationSharedMap(created.contract.id, actor(extra)),
   error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
   'non-members should not read a shared farm map'
@@ -503,6 +570,17 @@ await assert.rejects(
 )
 
 await assert.rejects(
+  () => runtime.sellCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'rice',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-non-member-sell',
+  }, actor(extra)),
+  error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
+  'non-members should not sell from a cohabitation warehouse'
+)
+
+await assert.rejects(
   () => runtime.contributeCohabitationFund(created.contract.id, {
     amount: 1,
     idempotency_key: 'qa-non-member-fund-contribution',
@@ -545,6 +623,17 @@ await assert.rejects(
 )
 
 await assert.rejects(
+  () => runtime.sellCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'ancient_waybill',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-protected-waybill-sell',
+  }, actor(owner)),
+  error => error?.status === 403 && String(error.message || '').includes('暂不允许'),
+  'warehouse sale should reject protected or rare-looking items'
+)
+
+await assert.rejects(
   () => runtime.depositCohabitationWarehouseItem(created.contract.id, {
     item_id: 'lotus',
     quantity: 1,
@@ -567,6 +656,17 @@ await assert.rejects(
 )
 
 await assert.rejects(
+  () => runtime.sellCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'lotus',
+    quantity: 1,
+    quality: 'fine',
+    idempotency_key: 'qa-high-quality-lotus-sell',
+  }, actor(owner)),
+  error => error?.status === 403 && String(error.message || '').includes('普通品质'),
+  'warehouse sale should reject high quality items in the first pass'
+)
+
+await assert.rejects(
   () => runtime.withdrawCohabitationWarehouseItem(created.contract.id, {
     item_id: 'rice',
     quantity: 99,
@@ -577,6 +677,18 @@ await assert.rejects(
   'warehouse withdrawal should reject insufficient shared stock without changing personal inventory'
 )
 assert.equal(getInventoryItemQuantity(owner, 'rice'), 5, 'failed warehouse withdrawal should not add inventory')
+
+await assert.rejects(
+  () => runtime.sellCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'rice',
+    quantity: 99,
+    quality: 'normal',
+    idempotency_key: 'qa-sell-insufficient-rice',
+  }, actor(owner)),
+  error => error?.status === 400 && String(error.message || '').includes('数量不足'),
+  'warehouse sale should reject insufficient shared stock without changing fund balance'
+)
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, 205, 'failed warehouse sale should not credit shared fund')
 
 const permissionUpdate = await runtime.updateCohabitationPermissions(created.contract.id, {
   target_username: partner,
@@ -691,7 +803,7 @@ await assert.rejects(
   error => error?.status === 403 && String(error.message || '').includes('共同基金小额支出'),
   'updated fund permission should block partner small shared fund spending'
 )
-assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, 170, 'permission-denied fund spend should not change shared balance')
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, 205, 'permission-denied fund spend should not change shared balance after warehouse sale')
 assert.equal(readGameplayData(partner)?.player?.money, 920, 'permission-denied fund spend should not touch partner money')
 
 const pendingContract = await runtime.createCohabitationContract({
@@ -1323,15 +1435,15 @@ assert.match(previewResult.preview.asset_return.personal_money_policy, /个人�
 assert.equal(previewResult.preview.asset_return.plot_return_summary.total_plots, 32, 'separation preview should include shared farm plot summary')
 assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === owner && item.plot_count === 16), 'separation preview should include owner plot return group')
 assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === partner && item.plot_count === 16), 'separation preview should include partner plot return group')
-assert.ok(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'rice' && item.quantity === 1), 'separation preview should include remaining warehouse item source summary after withdrawal')
-assert.equal(previewResult.preview.asset_return.fund_balance, 170, 'separation preview should include current fund balance after small spending')
+assert.equal(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'rice'), false, 'separation preview should not return sold warehouse rice')
+assert.equal(previewResult.preview.asset_return.fund_balance, 205, 'separation preview should include current fund balance after warehouse sale income')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.amount === 120), 'separation preview should include owner fund contribution source summary')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.amount === 80), 'separation preview should include partner fund contribution source summary')
-assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.suggested_refund_amount === 102), 'separation preview should suggest owner fund refund by contribution share after spending')
-assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.suggested_refund_amount === 68), 'separation preview should suggest partner fund refund by contribution share after spending')
-assert.equal(previewResult.preview.asset_return.fund_suggested_refund_total, 170, 'separation preview should balance suggested fund refunds after spending')
+assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.suggested_refund_amount === 123), 'separation preview should suggest owner fund refund by contribution share after warehouse sale')
+assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.suggested_refund_amount === 82), 'separation preview should suggest partner fund refund by contribution share after warehouse sale')
+assert.equal(previewResult.preview.asset_return.fund_suggested_refund_total, 205, 'separation preview should balance suggested fund refunds after warehouse sale')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'plots_return_by_origin'), 'separation preview should include plot return compensation plan')
-assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'warehouse_manual_return'), 'separation preview should include warehouse manual return plan')
+assert.equal(previewResult.preview.compensation_plan.some(item => item.id === 'warehouse_manual_return'), false, 'separation preview should not include warehouse return plan when sold stock is empty')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'fund_proportional_refund'), 'separation preview should include fund proportional refund plan')
 assert.ok(previewResult.preview.safety_checks.find(item => item.id === 'preview_only')?.passed, 'separation preview should declare preview-only safety check')
 assert.ok(previewResult.preview.safety_checks.find(item => item.id === 'fund_preview_balanced')?.passed, 'separation preview should balance fund safety check')

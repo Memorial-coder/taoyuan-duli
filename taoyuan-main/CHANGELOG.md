@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 共同仓库普通卖出
+- 新增 `POST /taoyuan/online/cohabitation/contracts/:contractId/warehouse/sell`，已激活同居 / 家族庄园成员可按 `storage.sell_items` 权限卖出共同仓库普通物品。
+- 第一版只允许普通品质、非保护、服务端白名单定价物品；卖出会扣共同仓库 `sell` 流水，并把收入写入共同基金 `warehouse_sale_income` 流水，记录余额前后、来源 ledger、审计和补偿提示。
+- 重复 `idempotency_key` 不会重复扣仓或重复入基金；个人铜币和个人背包不被改动。高品质 / 稀有卖出、冻结回滚、前端写操作和动态市场价格联动仍保持关闭。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix server run qa:online-smoke`。
+
 ### 0524 家族订单共同基金收入预览
 - `family-orders` 服务端快照新增公共订单铜钱凭证只读预览，会为结拜 / 合伙庄园成员已确认订单生成未来共同基金 `order_income` 候选、拟幂等键、目标引用和假想余额。
 - 收入候选新增 draft-only `credit_plan`，提前输出拟 `order_income` ledger、余额前后、交换锁 / 重载 / 去重目标检查、审计事件和补偿重放要求，作为真实入账前置治理结构。

@@ -1593,11 +1593,118 @@ try {
     assert(data?.fund?.balance === 25, 'cohabitation fund spend duplicate should not deduct balance twice')
   })
 
+  await runCheck('POST /api/taoyuan/online/cohabitation/contracts/:contractId/permissions enable warehouse sale path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/cohabitation/contracts/${encodeURIComponent(cohabitationContractId)}/permissions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        target_username: sessionState.username,
+        permissions: {
+          storage: {
+            sell_items: true,
+          },
+        },
+        idempotency_key: `smoke-cohabitation-sell-permission-${cohabitationContractId}`,
+      }),
+    })
+    assert(response.ok, `cohabitation permission enable sell returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.permissions_panel?.members?.find(entry => entry?.username === sessionState.username)?.permissions?.storage?.sell_items === true, 'cohabitation permissions did not enable warehouse sale')
+  })
+
+  await runCheck('POST /api/taoyuan/online/cohabitation/contracts/:contractId/warehouse/deposit path', async () => {
+    const beforeSave = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(beforeSave.response.ok, `cohabitation warehouse deposit before save read returned ${beforeSave.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeSave.data?.raw || beforeSave.data?.slot?.raw || beforeSave.data?.save?.raw || '')
+    const preMoney = Math.max(0, Math.floor(Number(beforeDecrypted?.player?.money) || 0))
+    const preWood = getInventoryItemQuantity(beforeDecrypted, 'wood')
+
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/cohabitation/contracts/${encodeURIComponent(cohabitationContractId)}/warehouse/deposit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        item_id: 'wood',
+        quantity: 1,
+        quality: 'normal',
+        idempotency_key: `smoke-warehouse-deposit-${cohabitationContractId}`,
+      }),
+    })
+    assert(response.ok, `cohabitation warehouse deposit returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.warehouse?.summary?.total_quantity === 1, 'cohabitation warehouse deposit payload is incomplete')
+    assert(data?.ledger_entry?.action === 'deposit', 'cohabitation warehouse deposit did not write deposit ledger')
+
+    const afterSave = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(afterSave.response.ok, `cohabitation warehouse deposit after save read returned ${afterSave.response.status}`)
+    const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
+    const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
+    const afterWood = getInventoryItemQuantity(afterDecrypted, 'wood')
+    assert(afterMoney === preMoney, 'cohabitation warehouse deposit should not touch personal money')
+    assert(afterWood === preWood - 1, `cohabitation warehouse deposit did not deduct wood correctly, expected wood=${preWood - 1}, current wood=${afterWood}`)
+  })
+
+  await runCheck('POST /api/taoyuan/online/cohabitation/contracts/:contractId/warehouse/sell path', async () => {
+    const beforeSave = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(beforeSave.response.ok, `cohabitation warehouse sell before save read returned ${beforeSave.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeSave.data?.raw || beforeSave.data?.slot?.raw || beforeSave.data?.save?.raw || '')
+    const preMoney = Math.max(0, Math.floor(Number(beforeDecrypted?.player?.money) || 0))
+    const preWood = getInventoryItemQuantity(beforeDecrypted, 'wood')
+
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/cohabitation/contracts/${encodeURIComponent(cohabitationContractId)}/warehouse/sell`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        item_id: 'wood',
+        quantity: 1,
+        quality: 'normal',
+        idempotency_key: `smoke-warehouse-sell-${cohabitationContractId}`,
+      }),
+    })
+    assert(response.ok, `cohabitation warehouse sell returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.fund?.balance === 40, 'cohabitation warehouse sell did not credit shared fund')
+    assert(data?.ledger_entry?.action === 'sell', 'cohabitation warehouse sell did not write warehouse sell ledger')
+    assert(data?.fund_ledger_entry?.action === 'warehouse_sale_income', 'cohabitation warehouse sell did not write fund income ledger')
+    assert(data?.sale?.total_amount === 15, 'cohabitation warehouse sell did not use server-side wood price')
+    assert(data?.sale?.balance_before === 25 && data?.sale?.balance_after === 40, 'cohabitation warehouse sell did not expose balance transition')
+    assert(data?.sale?.personal_money_merged === false, 'cohabitation warehouse sell should not merge personal money')
+
+    const afterSave = await fetchAuthedJson('/api/taoyuan/save/0')
+    assert(afterSave.response.ok, `cohabitation warehouse sell after save read returned ${afterSave.response.status}`)
+    const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
+    const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
+    const afterWood = getInventoryItemQuantity(afterDecrypted, 'wood')
+    assert(afterMoney === preMoney, 'cohabitation warehouse sell should not touch personal money')
+    assert(afterWood === preWood, 'cohabitation warehouse sell should not touch personal inventory')
+  })
+
+  await runCheck('POST /api/taoyuan/online/cohabitation/contracts/:contractId/warehouse/sell idempotent path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/cohabitation/contracts/${encodeURIComponent(cohabitationContractId)}/warehouse/sell`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        item_id: 'wood',
+        quantity: 1,
+        quality: 'normal',
+        idempotency_key: `smoke-warehouse-sell-${cohabitationContractId}`,
+      }),
+    })
+    assert(response.ok, `cohabitation warehouse sell idempotent returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.idempotent === true, 'cohabitation warehouse sell duplicate should be idempotent')
+    assert(data?.fund?.balance === 40, 'cohabitation warehouse sell duplicate should not credit balance twice')
+  })
+
   await runCheck('GET /api/taoyuan/online/cohabitation/contracts/:contractId/fund readback', async () => {
     const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/cohabitation/contracts/${encodeURIComponent(cohabitationContractId)}/fund`)
     assert(response.ok, `cohabitation fund readback returned ${response.status}: ${data?.msg || 'unknown error'}`)
-    assert(data?.ok === true && data?.fund?.balance === 25, 'cohabitation fund readback payload is incomplete')
+    assert(data?.ok === true && data?.fund?.balance === 40, 'cohabitation fund readback payload is incomplete')
     assert(data.fund.ledger?.some(entry => entry?.action === 'spend' && entry?.purpose === 'seed_budget'), 'cohabitation fund readback did not include spend ledger')
+    assert(data.fund.ledger?.some(entry => entry?.action === 'warehouse_sale_income' && entry?.amount === 15), 'cohabitation fund readback did not include warehouse sale income ledger')
     assert(data.fund.summary?.spend_enabled === true, 'cohabitation fund readback should expose actor spend capability')
   })
 
@@ -5148,7 +5255,7 @@ try {
     })
     assert(response.ok, `online audit admin read returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && Array.isArray(data?.logs), 'online audit admin payload is incomplete')
-    const requiredActions = ['order_publish', 'player_gift_package_send', 'neighbor_consignment_create', 'hall_post_create', 'cohabitation_fund_spend']
+    const requiredActions = ['order_publish', 'player_gift_package_send', 'neighbor_consignment_create', 'hall_post_create', 'cohabitation_fund_spend', 'cohabitation_warehouse_sell']
     for (const action of requiredActions) {
       const actionReadback = await fetchAuthedJson(`/api/admin/taoyuan/online-audit?page=1&page_size=20&action=${encodeURIComponent(action)}`, {
         headers: {
