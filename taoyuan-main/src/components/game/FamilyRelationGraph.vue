@@ -1,0 +1,561 @@
+<template>
+  <section class="border border-accent/20 rounded-xs p-2 mb-3 bg-bg/10">
+    <div class="flex items-start justify-between gap-2 mb-2">
+      <div>
+        <p class="text-xs text-accent">家族关系图谱</p>
+        <p class="text-[10px] text-muted mt-0.5">单机关系网回看：家庭、宠物、长住来客和村中固定关系都保留在本地存档。</p>
+      </div>
+      <span class="text-[10px] text-muted whitespace-nowrap">节点 {{ graphNodes.length }} · 关系 {{ graphLinks.length }}</span>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(220px,0.65fr)] gap-2">
+      <div class="border border-accent/10 rounded-xs p-2 bg-accent/5 overflow-x-auto">
+        <svg class="min-w-[520px] w-full h-[360px]" viewBox="0 0 100 76" role="img" aria-label="家族关系图">
+          <line
+            v-for="link in graphLinks"
+            :key="`${link.from}-${link.to}-${link.label}`"
+            :x1="nodeById.get(link.from)?.x ?? 50"
+            :y1="nodeById.get(link.from)?.y ?? 38"
+            :x2="nodeById.get(link.to)?.x ?? 50"
+            :y2="nodeById.get(link.to)?.y ?? 38"
+            :class="link.className"
+            stroke-width="0.45"
+            stroke-linecap="round"
+          />
+          <text
+            v-for="link in graphLinks"
+            :key="`label-${link.from}-${link.to}-${link.label}`"
+            :x="((nodeById.get(link.from)?.x ?? 50) + (nodeById.get(link.to)?.x ?? 50)) / 2"
+            :y="((nodeById.get(link.from)?.y ?? 38) + (nodeById.get(link.to)?.y ?? 38)) / 2 - 0.9"
+            text-anchor="middle"
+            class="fill-muted text-[2.1px] pointer-events-none"
+          >
+            {{ link.label }}
+          </text>
+          <g
+            v-for="node in graphNodes"
+            :key="node.id"
+            class="cursor-pointer outline-none"
+            tabindex="0"
+            role="button"
+            :aria-label="`${node.name}，${node.relationLabel}`"
+            @click="selectNode(node.id)"
+            @keydown.enter.prevent="selectNode(node.id)"
+            @keydown.space.prevent="selectNode(node.id)"
+          >
+            <circle
+              :cx="node.x"
+              :cy="node.y"
+              :r="selectedNodeId === node.id ? 4.8 : 4.1"
+              :class="node.circleClass"
+              stroke-width="0.55"
+            />
+            <text
+              :x="node.x"
+              :y="node.y + 0.55"
+              text-anchor="middle"
+              dominant-baseline="middle"
+              class="fill-bg text-[3px] font-bold pointer-events-none"
+            >
+              {{ node.shortLabel }}
+            </text>
+            <text
+              :x="node.x"
+              :y="node.y + 7.2"
+              text-anchor="middle"
+              class="fill-current text-[2.6px] pointer-events-none"
+              :class="node.textClass"
+            >
+              {{ node.name }}
+            </text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="border border-accent/10 rounded-xs p-2 bg-bg/10 min-h-[220px]">
+        <template v-if="selectedNode">
+          <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <p class="text-xs text-accent truncate">{{ selectedNode.name }}</p>
+              <p class="text-[10px] text-muted mt-0.5">{{ selectedNode.relationLabel }} · {{ selectedNode.groupLabel }}</p>
+            </div>
+            <Button
+              v-if="selectedNode.selectableNpcId"
+              class="shrink-0 justify-center !px-2 !py-1"
+              @click="$emit('selectNpc', selectedNode.selectableNpcId)"
+            >
+              查看人物
+            </Button>
+          </div>
+          <div class="grid grid-cols-2 gap-1 mt-2 text-[10px]">
+            <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+              <span class="text-muted/60">关系值</span>
+              <p class="text-accent mt-0.5">{{ selectedNode.metricLabel }}</p>
+            </div>
+            <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+              <span class="text-muted/60">状态</span>
+              <p class="text-muted mt-0.5">{{ selectedNode.statusLabel }}</p>
+            </div>
+          </div>
+          <div v-if="selectedNode.detailLines.length > 0" class="mt-2 space-y-1">
+            <p
+              v-for="line in selectedNode.detailLines"
+              :key="`${selectedNode.id}-${line}`"
+              class="text-[10px] text-muted leading-4"
+            >
+              {{ line }}
+            </p>
+          </div>
+          <div v-if="selectedNode.tags.length > 0" class="flex flex-wrap gap-1 mt-2">
+            <span
+              v-for="tag in selectedNode.tags"
+              :key="`${selectedNode.id}-${tag}`"
+              class="text-[10px] border border-accent/15 text-accent rounded-xs px-1 py-0.5"
+            >
+              {{ tag }}
+            </span>
+          </div>
+        </template>
+      </div>
+    </div>
+  </section>
+</template>
+
+<script setup lang="ts">
+  import { computed, ref, watch } from 'vue'
+  import Button from '@/components/game/Button.vue'
+  import { NPCS, getHeartEventById, getItemById } from '@/data'
+  import { getHiddenNpcById } from '@/data/hiddenNpcs'
+  import { useAnimalStore } from '@/stores/useAnimalStore'
+  import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
+  import { useNpcStore } from '@/stores/useNpcStore'
+  import { usePlayerStore } from '@/stores/usePlayerStore'
+  import type { RandomNpcRelationshipTag } from '@/types'
+
+  defineEmits<{
+    (event: 'selectNpc', npcId: string): void
+  }>()
+
+  type RelationNodeGroup = 'self' | 'family' | 'pet' | 'visitor' | 'acquaintance' | 'resident' | 'villager' | 'spirit'
+
+  interface RelationNode {
+    id: string
+    name: string
+    shortLabel: string
+    group: RelationNodeGroup
+    groupLabel: string
+    relationLabel: string
+    metricLabel: string
+    statusLabel: string
+    detailLines: string[]
+    tags: string[]
+    x: number
+    y: number
+    circleClass: string
+    textClass: string
+    selectableNpcId?: string
+  }
+
+  interface RelationLink {
+    from: string
+    to: string
+    label: string
+    className: string
+  }
+
+  const npcStore = useNpcStore()
+  const animalStore = useAnimalStore()
+  const hiddenNpcStore = useHiddenNpcStore()
+  const playerStore = usePlayerStore()
+  const selectedNodeId = ref('player')
+  const randomNpcBoard = computed(() => npcStore.getRandomNpcBoard())
+
+  const tagLabels: Record<RandomNpcRelationshipTag, string> = {
+    passing: '萍水相逢',
+    acquaintance: '熟人',
+    friend: '朋友',
+    ambiguous: '暧昧',
+    old_contact: '旧识',
+    rival: '竞争者'
+  }
+
+  const routeLabels = {
+    friendship: '邻里常驻',
+    business: '商学暂住',
+    caregiving: '照料驻村',
+    craft: '手艺驻村'
+  } as const
+
+  const petTypeLabels = {
+    cat: '猫',
+    dog: '狗'
+  } as const
+
+  const childStageLabels = {
+    baby: '婴儿',
+    toddler: '幼儿',
+    child: '孩童',
+    teen: '少年'
+  } as const
+
+  const relationLinkClass = (kind: string) => {
+    if (kind === 'spouse') return 'stroke-danger/80'
+    if (kind === 'zhiji') return 'stroke-accent/80'
+    if (kind === 'rival') return 'stroke-danger/60'
+    if (kind === 'ambiguous') return 'stroke-warning/80'
+    if (kind === 'family') return 'stroke-success/80'
+    if (kind === 'acquaintance') return 'stroke-success/60'
+    if (kind === 'visitor') return 'stroke-accent/50'
+    if (kind === 'resident') return 'stroke-warning/70'
+    if (kind === 'spirit') return 'stroke-water/70'
+    return 'stroke-muted/35'
+  }
+
+  const nodeClassByGroup = (group: RelationNodeGroup, active = false) => {
+    const selectedRing = active ? ' stroke-bg' : ''
+    if (group === 'self') return `fill-accent stroke-accent${selectedRing}`
+    if (group === 'family') return `fill-danger stroke-danger${selectedRing}`
+    if (group === 'pet') return `fill-success stroke-success${selectedRing}`
+    if (group === 'resident') return `fill-warning stroke-warning${selectedRing}`
+    if (group === 'acquaintance') return `fill-success stroke-success${selectedRing}`
+    if (group === 'visitor') return `fill-accent stroke-accent${selectedRing}`
+    if (group === 'spirit') return `fill-water stroke-water${selectedRing}`
+    return `fill-muted stroke-muted${selectedRing}`
+  }
+
+  const textClassByGroup = (group: RelationNodeGroup) => {
+    if (group === 'self') return 'text-accent'
+    if (group === 'family') return 'text-danger'
+    if (group === 'pet') return 'text-success'
+    if (group === 'resident') return 'text-warning'
+    if (group === 'acquaintance') return 'text-success'
+    if (group === 'visitor') return 'text-accent'
+    if (group === 'spirit') return 'text-water'
+    return 'text-muted'
+  }
+
+  const layoutRing = <T,>(entries: T[], radiusX: number, radiusY: number, startAngle = -90) =>
+    entries.map((entry, index) => {
+      const angle = ((startAngle + (360 / Math.max(1, entries.length)) * index) * Math.PI) / 180
+      return {
+        entry,
+        x: 50 + Math.cos(angle) * radiusX,
+        y: 38 + Math.sin(angle) * radiusY
+      }
+    })
+
+  const describeFixedNpcRelation = (npcId: string) => {
+    const state = npcStore.getNpcState(npcId)
+    if (!state) return '村邻'
+    if (state.married) return '配偶'
+    if (state.zhiji) return '知己'
+    if (state.dating) return '恋人'
+    return npcStore.getRelationshipStageText(npcId)
+  }
+
+  const formatItemNames = (itemIds: string[]) =>
+    itemIds.map(itemId => getItemById(itemId)?.name ?? itemId).slice(0, 3).join('、') || '尚未记录'
+
+  const makeFamilyWishDetailLines = () => {
+    const overview = npcStore.getFamilyWishOverview()
+    const activeWish = overview.defs.find(def => def.id === overview.state.activeWishId) ?? null
+    return [
+      activeWish
+        ? `家庭心愿：${activeWish.title}（${overview.state.progress}/${Math.max(1, overview.state.targetValue)}）。`
+        : '家庭心愿：当前没有进行中的心愿。',
+      overview.state.completedWishIds.length > 0
+        ? `已完成心愿：${overview.state.completedWishIds.length} 个。`
+        : ''
+    ].filter(Boolean)
+  }
+
+  const makeFixedNpcDetailLines = (npcId: string) => {
+    const state = npcStore.getNpcState(npcId)
+    const triggered = (state?.triggeredHeartEvents ?? [])
+      .map(id => getHeartEventById(id)?.title ?? id)
+      .slice(-2)
+    const clues = npcStore.getRelationshipCluesForNpc(npcId).slice(0, 2).map(clue => clue.text)
+    return [
+      state ? `最近对话：${state.talkedToday ? '今日已交谈' : '今日未交谈'}；送礼：${state.giftedToday ? '今日已送礼' : '今日未送礼'}。` : '',
+      triggered.length > 0 ? `关系事件：${triggered.join('、')}` : '',
+      clues.length > 0 ? `送礼偏好：${clues.join('；')}` : '',
+      state && state.completedFamilyWishIds.length > 0 ? `家庭心愿：已共同完成 ${state.completedFamilyWishIds.length} 个。` : ''
+    ].filter(Boolean)
+  }
+
+  const graphNodes = computed<RelationNode[]>(() => {
+    const nodes: RelationNode[] = [
+      {
+        id: 'player',
+        name: playerStore.playerName || '我',
+        shortLabel: '我',
+        group: 'self',
+        groupLabel: '核心',
+        relationLabel: '玩家',
+        metricLabel: `${playerStore.money} 文`,
+        statusLabel: '单机存档中心',
+        detailLines: [
+          '所有关系节点只读汇总当前本地存档，不公开到联机侧。',
+          ...makeFamilyWishDetailLines()
+        ],
+        tags: ['中心节点', playerStore.honorific],
+        x: 50,
+        y: 38,
+        circleClass: nodeClassByGroup('self', selectedNodeId.value === 'player'),
+        textClass: textClassByGroup('self')
+      }
+    ]
+
+    const spouse = npcStore.getSpouse()
+    const zhiji = npcStore.getZhiji()
+    const closeNpcIds = new Set<string>()
+    if (spouse) closeNpcIds.add(spouse.npcId)
+    if (zhiji) closeNpcIds.add(zhiji.npcId)
+    npcStore.npcStates
+      .filter(state => state.dating)
+      .forEach(state => closeNpcIds.add(state.npcId))
+
+    const closeFamilyEntries = [
+      ...[...closeNpcIds].map(npcId => ({ kind: 'npc' as const, npcId })),
+      ...npcStore.children.map(child => ({ kind: 'child' as const, child })),
+      ...animalStore.pets.map(companion => ({ kind: 'pet' as const, companion }))
+    ]
+
+    layoutRing(closeFamilyEntries, 22, 16, -110).forEach(({ entry, x, y }) => {
+      if (entry.kind === 'npc') {
+        const def = NPCS.find(npc => npc.id === entry.npcId)
+        const state = npcStore.getNpcState(entry.npcId)
+        if (!def || !state) return
+        const relation = describeFixedNpcRelation(entry.npcId)
+        nodes.push({
+          id: `fixed:${entry.npcId}`,
+          name: def.name,
+          shortLabel: relation.slice(0, 1),
+          group: 'family',
+          groupLabel: '亲密关系',
+          relationLabel: relation,
+          metricLabel: `${state.friendship} 好感`,
+          statusLabel: state.married ? '已进入家庭线' : state.zhiji ? '知己协作中' : '恋爱推进中',
+          detailLines: makeFixedNpcDetailLines(entry.npcId),
+          tags: [def.role, def.personality],
+          x,
+          y,
+          circleClass: nodeClassByGroup('family', selectedNodeId.value === `fixed:${entry.npcId}`),
+          textClass: textClassByGroup('family'),
+          selectableNpcId: entry.npcId
+        })
+      } else if (entry.kind === 'child') {
+        nodes.push({
+          id: `child:${entry.child.id}`,
+          name: entry.child.name,
+          shortLabel: '子',
+          group: 'family',
+          groupLabel: '家庭成员',
+          relationLabel: '孩子',
+          metricLabel: `${entry.child.friendship} 亲密`,
+          statusLabel: childStageLabels[entry.child.stage],
+          detailLines: [`成长方向：${entry.child.trainingState.focus ?? '未定'}；课程 ${entry.child.trainingState.lessonsThisWeek}/周。`],
+          tags: [entry.child.origin === 'adoption' ? '领养' : '出生', entry.child.birthQuality],
+          x,
+          y,
+          circleClass: nodeClassByGroup('family', selectedNodeId.value === `child:${entry.child.id}`),
+          textClass: textClassByGroup('family')
+        })
+      } else {
+        nodes.push({
+          id: `pet:${entry.companion.id}`,
+          name: entry.companion.name,
+          shortLabel: '宠',
+          group: 'pet',
+          groupLabel: '宠物',
+          relationLabel: petTypeLabels[entry.companion.type],
+          metricLabel: `${entry.companion.friendship} 好感`,
+          statusLabel: entry.companion.specialFedToday ? '今日已特别喂食' : '今日可照料',
+          detailLines: [
+            entry.companion.specialFeedType
+              ? `最近口味：${entry.companion.specialFeedType}，连续 ${entry.companion.specialFeedStreak} 次。`
+              : '尚无特别喂食记录。'
+          ],
+          tags: [entry.companion.wasPetted ? '今日已抚摸' : '可抚摸'],
+          x,
+          y,
+          circleClass: nodeClassByGroup('pet', selectedNodeId.value === `pet:${entry.companion.id}`),
+          textClass: textClassByGroup('pet')
+        })
+      }
+    })
+
+    const longStaySourceIds = new Set(randomNpcBoard.value.longStayResidents.map(entry => entry.sourceVisitorId))
+    const acquaintanceIds = new Set(randomNpcBoard.value.acquaintances.map(entry => entry.visitorId))
+
+    layoutRing(
+      randomNpcBoard.value.activeVisitors.filter(entry => !longStaySourceIds.has(entry.id) && !acquaintanceIds.has(entry.id)),
+      28,
+      20,
+      32
+    ).forEach(({ entry, x, y }) => {
+      nodes.push({
+        id: `visitor:${entry.id}`,
+        name: entry.name,
+        shortLabel: '访',
+        group: 'visitor',
+        groupLabel: '本周来访',
+        relationLabel: tagLabels[entry.relationshipTag],
+        metricLabel: `${entry.affinity} 好感`,
+        statusLabel: entry.talkedToday ? '今日已聊过' : '今日可对话',
+        detailLines: [
+          `来历：${entry.origin}`,
+          `烦恼：${entry.currentTrouble}`,
+          `偏好：${formatItemNames(entry.preferences.loved)}。`
+        ],
+        tags: [entry.occupation, entry.plotHook, entry.familySeed],
+        x,
+        y,
+        circleClass: nodeClassByGroup('visitor', selectedNodeId.value === `visitor:${entry.id}`),
+        textClass: textClassByGroup('visitor')
+      })
+    })
+
+    layoutRing(
+      randomNpcBoard.value.acquaintances.filter(entry => !longStaySourceIds.has(entry.visitorId)),
+      37,
+      25,
+      18
+    ).forEach(({ entry, x, y }) => {
+      nodes.push({
+        id: `acquaintance:${entry.visitorId}`,
+        name: entry.name,
+        shortLabel: '熟',
+        group: 'acquaintance',
+        groupLabel: '随机 NPC 熟人',
+        relationLabel: tagLabels[entry.relationshipTag],
+        metricLabel: `${entry.affinity} 好感`,
+        statusLabel: `已聊 ${entry.conversationCount} 次`,
+        detailLines: [
+          `初见：${entry.firstMetDayTag || entry.firstMetWeekId}；最近：${entry.lastSeenDayTag || '未记录'}。`,
+          `家庭线索：${entry.familySeed}`,
+          `偏好：${formatItemNames(entry.preferences.loved.length > 0 ? entry.preferences.loved : entry.preferences.liked)}。`,
+          `最近事件：${entry.keyEvents.slice(-1)[0] ?? '暂无关键事件。'}`
+        ],
+        tags: [entry.occupation, entry.plotHook, entry.smallOrder.title],
+        x,
+        y,
+        circleClass: nodeClassByGroup('acquaintance', selectedNodeId.value === `acquaintance:${entry.visitorId}`),
+        textClass: textClassByGroup('acquaintance')
+      })
+    })
+
+    layoutRing(randomNpcBoard.value.longStayResidents, 34, 24, -35).forEach(({ entry, x, y }) => {
+      nodes.push({
+        id: `resident:${entry.residentId}`,
+        name: entry.name,
+        shortLabel: '住',
+        group: 'resident',
+        groupLabel: '长住随机 NPC',
+        relationLabel: tagLabels[entry.relationshipTag],
+        metricLabel: `${entry.affinity} 好感`,
+        statusLabel: `阶段 ${entry.relationshipEventStage}/3`,
+        detailLines: [
+          `驻村理由：${entry.residenceReason}`,
+          `最近事件：${entry.keyEvents.slice(-1)[0] ?? '暂无关键事件。'}`,
+          `路线：${routeLabels[entry.route]}；小订单：${entry.smallOrder.title}。`,
+          `偏好：${formatItemNames(entry.preferences.loved.length > 0 ? entry.preferences.loved : entry.preferences.liked)}。`
+        ],
+        tags: [entry.occupation, entry.plotHook, entry.route],
+        x,
+        y,
+        circleClass: nodeClassByGroup('resident', selectedNodeId.value === `resident:${entry.residentId}`),
+        textClass: textClassByGroup('resident')
+      })
+    })
+
+    const villagerEntries = NPCS.filter(npc => !closeNpcIds.has(npc.id)).map(npc => ({
+      npc,
+      state: npcStore.getNpcState(npc.id)
+    }))
+    layoutRing(villagerEntries, 44, 32, -92).forEach(({ entry, x, y }) => {
+      if (!entry.state) return
+      nodes.push({
+        id: `fixed:${entry.npc.id}`,
+        name: entry.npc.name,
+        shortLabel: '邻',
+        group: 'villager',
+        groupLabel: '固定 NPC',
+        relationLabel: describeFixedNpcRelation(entry.npc.id),
+        metricLabel: `${entry.state.friendship} 好感`,
+        statusLabel: npcStore.getRelationshipStageDescription(entry.npc.id),
+        detailLines: makeFixedNpcDetailLines(entry.npc.id),
+        tags: [entry.npc.role, entry.npc.personality],
+        x,
+        y,
+        circleClass: nodeClassByGroup('villager', selectedNodeId.value === `fixed:${entry.npc.id}`),
+        textClass: textClassByGroup('villager'),
+        selectableNpcId: entry.npc.id
+      })
+    })
+
+    const spiritEntries = hiddenNpcStore.hiddenNpcStates.filter(state => state.bonded || state.courting)
+    layoutRing(spiritEntries, 13, 30, 90).forEach(({ entry, x, y }) => {
+      const def = getHiddenNpcById(entry.npcId)
+      if (!def) return
+      nodes.push({
+        id: `spirit:${entry.npcId}`,
+        name: def.name,
+        shortLabel: '灵',
+        group: 'spirit',
+        groupLabel: '仙灵',
+        relationLabel: entry.bonded ? '结缘' : '求缘',
+        metricLabel: `${entry.affinity} 缘分`,
+        statusLabel: `灵契 ${entry.bondTier}`,
+        detailLines: [
+          entry.triggeredHeartEvents.length > 0 ? `结缘记忆：${entry.triggeredHeartEvents.slice(-2).join('、')}` : '尚无已归档结缘记忆。',
+          `偏好供奉：${def.resonantOfferings.map(itemId => getItemById(itemId)?.name ?? itemId).slice(0, 3).join('、')}`
+        ],
+        tags: [def.title, def.personality],
+        x,
+        y,
+        circleClass: nodeClassByGroup('spirit', selectedNodeId.value === `spirit:${entry.npcId}`),
+        textClass: textClassByGroup('spirit')
+      })
+    })
+
+    return nodes
+  })
+
+  const nodeById = computed(() => new Map(graphNodes.value.map(node => [node.id, node])))
+
+  const graphLinks = computed<RelationLink[]>(() =>
+    graphNodes.value
+      .filter(node => node.id !== 'player')
+      .map(node => ({
+        from: 'player',
+        to: node.id,
+        label: node.relationLabel,
+        className: relationLinkClass(
+          node.relationLabel === '配偶'
+            ? 'spouse'
+            : node.relationLabel === '知己'
+              ? 'zhiji'
+              : node.relationLabel === '竞争者'
+                ? 'rival'
+                : node.relationLabel === '暧昧'
+                  ? 'ambiguous'
+              : node.group === 'family' || node.group === 'pet'
+                ? 'family'
+                : node.group
+        )
+      }))
+  )
+
+  const selectedNode = computed(() => nodeById.value.get(selectedNodeId.value) ?? graphNodes.value[0] ?? null)
+
+  const selectNode = (nodeId: string) => {
+    selectedNodeId.value = nodeId
+  }
+
+  watch(graphNodes, nodes => {
+    if (!nodes.some(node => node.id === selectedNodeId.value)) {
+      selectedNodeId.value = 'player'
+    }
+  })
+</script>

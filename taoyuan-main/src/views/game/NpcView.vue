@@ -27,6 +27,7 @@
       <p v-if="tutorialHint" class="tutorial-hint mb-2">{{ tutorialHint }}</p>
       <GuidanceDigestPanel surface-id="npc" title="陪伴关系引导" />
       <QaGovernancePanel page-id="npc" title="陪伴治理总览" />
+      <FamilyRelationGraph @select-npc="handleSelectNpc" />
 
       <div class="border border-accent/20 rounded-xs p-2 mb-3 bg-accent/5">
         <div class="flex items-center justify-between gap-2">
@@ -1207,6 +1208,7 @@
   import Button from '@/components/game/Button.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
+  import FamilyRelationGraph from '@/components/game/FamilyRelationGraph.vue'
   import HiddenNpcModal from '@/components/game/HiddenNpcModal.vue'
   import DiscoveryScene from '@/components/game/DiscoveryScene.vue'
   import type { DiscoveryStep } from '@/types/hiddenNpc'
