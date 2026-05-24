@@ -1535,6 +1535,90 @@ function buildFamilyOrderMemberSnapshot(contract, member, enabled = isFamilyRole
   };
 }
 
+function buildSharedFundOrderIncomeCreditPlan(contract, receipt, member, options = {}) {
+  const fund = normalizeSharedFund(contract.shared_fund);
+  const balanceBefore = Math.max(0, Math.floor(Number(options.balance_before) || fund.balance));
+  const amount = Math.max(0, Math.floor(Number(receipt.reward_value || receipt.amount) || 0));
+  const manorRole = normalizeFamilyManorRole(member?.manor_role, contract.type, member?.role);
+  const proposedIdempotencyKey = sanitizeText(
+    options.idempotency_key || `fund-order-income:${contract.id}:${receipt.receipt_id}`,
+    120
+  );
+  const targetRef = sanitizeText(receipt.target_ref, 120)
+    || sanitizeText(`coop_order:${receipt.order_id}:receipt:${receipt.receipt_id}`, 120);
+  const alreadyRecorded = options.already_recorded === true;
+  const personalRewardAlreadyPaid = options.personal_reward_already_paid !== false;
+  const canCredit = options.credit_enabled === true && !alreadyRecorded && !personalRewardAlreadyPaid;
+  const blockedReason = alreadyRecorded
+    ? '该公共订单收入已经存在共同基金 ledger 或目标引用，本次只返回幂等草案。'
+    : personalRewardAlreadyPaid
+      ? '该公共订单凭证已按现有规则写入接单人个人存档；真实入共同基金前需在确认交付时选择共同基金结算，或建立冲正 / 补偿流程，避免双发。'
+      : '真实写入入口尚未开放；需要订单确认链路显式传入共同基金结算选择并持有交换锁。';
+  return {
+    helper_version: 1,
+    mode: 'draft_only',
+    can_credit: canCredit,
+    write_enabled: false,
+    blocked_reason: canCredit ? '' : blockedReason,
+    source: {
+      receipt_id: receipt.receipt_id,
+      order_id: receipt.order_id,
+      stage_id: receipt.stage_id,
+      target_ref: targetRef,
+      reward_route: 'shared_fund',
+      personal_reward_already_paid: personalRewardAlreadyPaid,
+      assignee_username: receipt.assignee_username,
+      assignee_member_role: manorRole,
+      assignee_member_role_label: getFamilyManorRoleDef(manorRole).label,
+    },
+    ledger_draft: {
+      action: 'order_income',
+      amount,
+      purpose: 'family_order_income',
+      target_ref: targetRef,
+      source_owner_id: `coop_order:${receipt.order_id}`,
+      source_owner_username: receipt.assignee_username,
+      source_owner_display_name: receipt.assignee_display_name,
+      source_owner_key: member?.username_key || normalizeUsernameKey(receipt.assignee_username),
+      source_receipt_id: receipt.receipt_id,
+      source_order_id: receipt.order_id,
+      source_stage_id: receipt.stage_id,
+      idempotency_key: proposedIdempotencyKey,
+      balance_before: balanceBefore,
+      balance_after: alreadyRecorded ? fund.balance : balanceBefore + amount,
+      status: canCredit ? 'ready_for_locked_write' : 'draft_blocked',
+      reversible: true,
+      compensation_hint: '真实订单收入入共同基金后，若基金写入、订单确认或存档落账任一失败，必须按该 idempotency_key 重放或进入补偿队列。',
+    },
+    lock_requirements: {
+      requires_exchange_lock: true,
+      requires_contract_reload_before_commit: true,
+      requires_receipt_status_confirmed: true,
+      requires_order_reward_route_shared_fund: true,
+      requires_personal_reward_not_paid: true,
+      requires_duplicate_target_ref_check: true,
+      requires_idempotency_key: true,
+    },
+    audit_draft: {
+      action: 'fund_order_income_credited',
+      actor_username: receipt.owner_username || '',
+      amount,
+      target_ref: targetRef,
+      idempotency_key: proposedIdempotencyKey,
+      contract_id: contract.id,
+      receipt_id: receipt.receipt_id,
+      order_id: receipt.order_id,
+      stage_id: receipt.stage_id,
+    },
+    compensation_plan: {
+      requires_replay_queue: true,
+      rollback_supported_by_ledger: true,
+      duplicate_personal_reward_guard: true,
+      manual_review_required_if_personal_reward_paid: personalRewardAlreadyPaid,
+    },
+  };
+}
+
 function buildFamilyOrderIncomePreview(contract, enabled = isFamilyRoleContractType(contract.type)) {
   const acceptedMembers = (contract.members || []).filter(member => member.status === 'accepted');
   const fund = normalizeSharedFund(contract.shared_fund);
@@ -1580,7 +1664,13 @@ function buildFamilyOrderIncomePreview(contract, enabled = isFamilyRoleContractT
       const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
       const proposedIdempotencyKey = sanitizeText(`fund-order-income:${contract.id}:${receipt.receipt_id}`, 120);
       const alreadyRecorded = existingIdempotencyKeys.has(proposedIdempotencyKey) || existingOrderTargets.has(receipt.target_ref);
-      if (!alreadyRecorded) runningPreviewBalance += receipt.reward_value;
+      const creditPlan = buildSharedFundOrderIncomeCreditPlan(contract, receipt, member, {
+        balance_before: runningPreviewBalance,
+        idempotency_key: proposedIdempotencyKey,
+        already_recorded: alreadyRecorded,
+        personal_reward_already_paid: true,
+      });
+      if (!alreadyRecorded) runningPreviewBalance = creditPlan.ledger_draft.balance_after;
       return {
         receipt_id: receipt.receipt_id,
         order_id: receipt.order_id,
@@ -1606,10 +1696,11 @@ function buildFamilyOrderIncomePreview(contract, enabled = isFamilyRoleContractT
         credit_enabled: false,
         personal_reward_already_paid: true,
         requires_reward_reroute_before_confirm: true,
+        credit_plan: creditPlan,
         audit_required: true,
         compensation_required: true,
         rollback_required: true,
-        write_blocked_reason: '该公共订单凭证已按现有规则写入接单人个人存档；真实入共同基金前需在确认交付时选择共同基金结算，或建立冲正 / 补偿流程，避免双发。',
+        write_blocked_reason: creditPlan.blocked_reason,
       };
     })
     .filter(Boolean);
@@ -1627,6 +1718,19 @@ function buildFamilyOrderIncomePreview(contract, enabled = isFamilyRoleContractT
     preview_balance_after_candidates: runningPreviewBalance,
     latest_receipt_at: candidates.reduce((max, candidate) => Math.max(max, candidate.confirmed_at || 0), 0),
     candidates,
+    credit_helper: {
+      version: 1,
+      mode: 'draft_only',
+      credit_enabled: false,
+      writes_enabled: false,
+      ledger_action: 'order_income',
+      requires_exchange_lock: true,
+      requires_order_confirmation_choice: true,
+      requires_personal_reward_not_paid: true,
+      requires_duplicate_target_ref_check: true,
+      audit_action: 'fund_order_income_credited',
+      compensation_replay_required: true,
+    },
     policy: {
       personal_money_merged: false,
       current_orders_still_pay_personal_save: true,

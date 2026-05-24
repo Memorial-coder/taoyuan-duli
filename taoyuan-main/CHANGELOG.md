@@ -6,6 +6,7 @@
 
 ### 0524 家族订单共同基金收入预览
 - `family-orders` 服务端快照新增公共订单铜钱凭证只读预览，会为结拜 / 合伙庄园成员已确认订单生成未来共同基金 `order_income` 候选、拟幂等键、目标引用和假想余额。
+- 收入候选新增 draft-only `credit_plan`，提前输出拟 `order_income` ledger、余额前后、交换锁 / 重载 / 去重目标检查、审计事件和补偿重放要求，作为真实入账前置治理结构。
 - 本轮不改订单确认奖励链路：公共订单奖励仍写入接单人个人存档，不改共同基金余额、不写审计、不开放真实订单收入入账。
 - 本轮验证：`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
 
