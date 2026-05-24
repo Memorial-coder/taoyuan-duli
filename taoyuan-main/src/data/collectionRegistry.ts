@@ -1,5 +1,6 @@
 import type { ItemCategory, ItemDef } from '@/types'
 import type { PanelKey } from '@/composables/useNavigation'
+import { formatCropUseSummary, getCropUseProfile } from './cropUseProfiles'
 
 export interface CollectionPanelLink {
   panel: PanelKey
@@ -146,6 +147,10 @@ export const getDefaultCollectionUsageByCategory = (category: ItemCategory, item
 }
 
 export const getCollectionUsageText = (item: ItemDef): string => {
+  if (item.category === 'crop') {
+    const profile = getCropUseProfile(item.id)
+    if (profile) return formatCropUseSummary(profile)
+  }
   return ITEM_USAGE_OVERRIDES[item.id] ?? getDefaultCollectionUsageByCategory(item.category, item.id)
 }
 

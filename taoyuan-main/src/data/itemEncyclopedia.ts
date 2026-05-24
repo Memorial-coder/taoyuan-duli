@@ -6,6 +6,7 @@ import { FRUIT_TREE_DEFS } from './fruitTrees'
 import { getItemById, getItemSource } from './items'
 import { PROCESSING_RECIPES, PROCESSING_MACHINES, SPRINKLERS, FERTILIZERS, BAITS, TACKLES, BOMBS } from './processing'
 import { getCollectionUsageText, getUndiscoveredCollectionHint } from './collectionRegistry'
+import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, getCropUseProfile, getCropUseTagLabels } from './cropUseProfiles'
 
 export interface ItemEncyclopediaDetail {
   label: string
@@ -95,6 +96,14 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
       if (crop.regrowth && crop.regrowthDays) pushDetail(details, '多次收获', `是（间隔${crop.regrowthDays}天）`)
       if (crop.maxHarvests) pushDetail(details, '最多收获', `${crop.maxHarvests}次`)
       if (crop.giantCropEligible) pushDetail(details, '巨型作物', '可形成巨型作物')
+      const profile = getCropUseProfile(item.id)
+      if (profile) {
+        pushDetail(details, '用途标签', getCropUseTagLabels(profile).join('、'))
+        pushDetail(details, '风味', profile.flavor.join('、'))
+        pushDetail(details, '药性', CROP_USE_NATURE_LABELS[profile.nature])
+        pushDetail(details, '消耗定位', CROP_USE_RARITY_LABELS[profile.rarityUse])
+        pushDetail(details, '推荐用途', profile.recommendedUses.join('、'))
+      }
     }
   } else if (item.category === 'seed') {
     const crop = getCropBySeedId(item.id)

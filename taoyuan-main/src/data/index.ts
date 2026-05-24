@@ -1,4 +1,5 @@
 export * from './crops'
+export * from './cropUseProfiles'
 export * from './items'
 export * from './fish'
 export * from './npcs'

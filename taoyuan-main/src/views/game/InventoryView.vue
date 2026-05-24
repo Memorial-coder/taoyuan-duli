@@ -534,6 +534,34 @@
             </div>
           </div>
 
+          <div v-if="activeCropUseProfile" class="border border-accent/10 rounded-xs p-2 mb-2">
+            <p class="text-xs text-muted mb-1">作物用途</p>
+            <div class="flex flex-wrap gap-1 mb-1">
+              <span
+                v-for="label in activeCropUseTagLabels"
+                :key="label"
+                class="text-[10px] px-1.5 py-0.5 rounded-xs border border-accent/20 text-accent"
+              >
+                {{ label }}
+              </span>
+            </div>
+            <div class="grid grid-cols-1 gap-y-0.5">
+              <div class="flex items-start justify-between gap-2">
+                <span class="text-xs text-muted shrink-0">风味</span>
+                <span class="text-xs text-right">{{ activeCropUseProfile.flavor.join('、') }}</span>
+              </div>
+              <div class="flex items-start justify-between gap-2">
+                <span class="text-xs text-muted shrink-0">药性</span>
+                <span class="text-xs text-right">{{ CROP_USE_NATURE_LABELS[activeCropUseProfile.nature] }}</span>
+              </div>
+              <div class="flex items-start justify-between gap-2">
+                <span class="text-xs text-muted shrink-0">消耗定位</span>
+                <span class="text-xs text-right">{{ CROP_USE_RARITY_LABELS[activeCropUseProfile.rarityUse] }}</span>
+              </div>
+            </div>
+            <p class="text-xs text-text leading-relaxed mt-1">{{ activeCropUseProfile.recommendedUses.join('、') }}</p>
+          </div>
+
           <div class="flex flex-col space-y-1.5">
             <Button
               class="w-full justify-center"
@@ -784,6 +812,7 @@
   import { useSettingsStore } from '@/stores/useSettingsStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { getItemById, getItemSource } from '@/data'
+  import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, getCropUseProfile, getCropUseTagLabels } from '@/data/cropUseProfiles'
   import { getRecipeById } from '@/data/recipes'
   import { getWeaponById, getWeaponDisplayName, getWeaponSellPrice, getEnchantmentById, WEAPON_TYPE_NAMES } from '@/data/weapons'
   import { getRingById } from '@/data/rings'
@@ -1250,6 +1279,16 @@
   const activeItemDef = computed(() => {
     if (!activeItem.value) return null
     return getItemById(activeItem.value.itemId) ?? null
+  })
+
+  const activeCropUseProfile = computed(() => {
+    if (activeItemDef.value?.category !== 'crop') return null
+    return getCropUseProfile(activeItemDef.value.id) ?? null
+  })
+
+  const activeCropUseTagLabels = computed(() => {
+    if (!activeCropUseProfile.value) return []
+    return getCropUseTagLabels(activeCropUseProfile.value)
   })
 
   /** 烹饪品的buff描述 */
