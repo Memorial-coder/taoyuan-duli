@@ -10,6 +10,7 @@ import {
   fetchCohabitationWarehouse,
   sellCohabitationWarehouseItem,
   spendCohabitationFund,
+  withdrawCohabitationWarehouseItem,
   type CohabitationFundSnapshot,
   type CohabitationOfflineStatus,
   type CohabitationOverviewResponse,
@@ -221,6 +222,34 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const withdrawSharedWarehouseItem = async (payload: {
+    item_id: string
+    quantity: number
+    quality?: string
+    idempotency_key: string
+  }) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await withdrawCohabitationWarehouseItem(activeContractId.value, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '取出共同仓库物品失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   return {
     overview,
     activeContractId,
@@ -245,5 +274,6 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     contributeSharedFund,
     spendSharedFund,
     sellSharedWarehouseItem,
+    withdrawSharedWarehouseItem,
   }
 })

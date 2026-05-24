@@ -239,15 +239,26 @@
               </div>
               <div class="mt-2 flex items-center justify-between gap-2">
                 <span class="text-[10px] text-muted">卖价 {{ warehouseSellUnitPrice(item.item_id) || '未配置' }} 文</span>
-                <button
-                  type="button"
-                  class="online-action-btn online-action-btn--compact"
-                  :disabled="!canSellWarehouseItem(item) || cohabitationStore.actionLoading"
-                  :data-testid="`online-cohabitation-warehouse-sell-${item.item_id}`"
-                  @click="sellWarehouseItem(item)"
-                >
-                  卖出 1 个
-                </button>
+                <div class="flex shrink-0 gap-2">
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact"
+                    :disabled="!canWithdrawWarehouseItem(item) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-warehouse-withdraw-${item.item_id}`"
+                    @click="withdrawWarehouseItem(item)"
+                  >
+                    取出 1 个
+                  </button>
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact"
+                    :disabled="!canSellWarehouseItem(item) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-warehouse-sell-${item.item_id}`"
+                    @click="sellWarehouseItem(item)"
+                  >
+                    卖出 1 个
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -504,7 +515,7 @@
   const tabs: CohabitationTabMeta[] = [
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
     { key: 'map', label: '地图', summary: '只读展示成员农田横向拼接、来源归属和暂缓写操作。' },
-    { key: 'warehouse', label: '仓库', summary: '查看共同仓库物品与来源流水，普通物品可按权限卖入共同基金。' },
+    { key: 'warehouse', label: '仓库', summary: '查看共同仓库物品与来源流水，普通物品可按权限取出或卖入共同基金。' },
     { key: 'fund', label: '基金', summary: '查看共同基金余额和注资流水，个人铜币保持独立。' },
     { key: 'permissions', label: '权限', summary: '查看成员权限分组和强制安全阀，不在这里扩大高风险操作。' },
     { key: 'offline', label: '离线', summary: '查看成员最近活跃、共同日志和无需全员在线的能力边界。' },
@@ -653,6 +664,13 @@
     (item.quality || 'normal') === 'normal' &&
     warehouseSellUnitPrice(item.item_id) > 0
 
+  const canWithdrawWarehouseItem = (item: CohabitationWarehouseItem) =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.warehouse?.summary.withdraw_enabled === true &&
+    cohabitationStore.warehouse?.permissions.can_withdraw_common === true &&
+    (item.quantity ?? 0) > 0 &&
+    (item.quality || 'normal') === 'normal'
+
   const sellWarehouseItem = async (item: CohabitationWarehouseItem) => {
     warehouseActionMessage.value = ''
     warehouseActionOk.value = false
@@ -672,6 +690,26 @@
         : `已卖出 ${item.label || item.item_id} x1，入账 ${amount} 文`
     } catch (error) {
       warehouseActionMessage.value = error instanceof Error ? error.message : '卖出共同仓库物品失败'
+    }
+  }
+
+  const withdrawWarehouseItem = async (item: CohabitationWarehouseItem) => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    try {
+      const result = await cohabitationStore.withdrawSharedWarehouseItem({
+        item_id: item.item_id,
+        quantity: 1,
+        quality: item.quality || 'normal',
+        idempotency_key: `ui-warehouse-withdraw-${item.item_id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      warehouseActionOk.value = true
+      const total = result?.personal_inventory?.total_quantity
+      warehouseActionMessage.value = typeof total === 'number'
+        ? `已取出 ${item.label || item.item_id} x1，个人背包现有 ${total} 个`
+        : `已取出 ${item.label || item.item_id} x1`
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '取出共同仓库物品失败'
     }
   }
 

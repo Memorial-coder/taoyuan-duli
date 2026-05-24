@@ -468,6 +468,14 @@ export const sellCohabitationWarehouseItem = async (contractId: string, payload:
   )
 }
 
+export const withdrawCohabitationWarehouseItem = async (contractId: string, payload: CohabitationWarehouseItemPayload) => {
+  return postCohabitationJson<CohabitationWarehouseItemResponse>(
+    contractPath(contractId, '/warehouse/withdraw'),
+    payload as unknown as Record<string, unknown>,
+    '取出共同仓库物品失败'
+  )
+}
+
 export const fetchCohabitationFund = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     fund?: CohabitationFundSnapshot
