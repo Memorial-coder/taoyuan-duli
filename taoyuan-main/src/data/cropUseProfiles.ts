@@ -68,12 +68,12 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'sesame',
-    tags: ['oil', 'flour', 'food', 'alchemy', 'festival'],
+    tags: ['oil', 'flour', 'food', 'alchemy', 'pet_feed', 'festival'],
     flavor: ['浓香', '坚果香'],
     nature: 'warm',
     rarityUse: 'stable',
-    recommendedUses: ['芝麻油', '芝麻粉', '糕点辅料', '辛火丹辅料', '节会供品'],
-    summary: '小作物走加工增值，适合榨油、制粉、糕点和温补炼丹。'
+    recommendedUses: ['芝麻油', '芝麻粉', '糕点辅料', '辛火丹辅料', '田犬辛香餐', '节会供品'],
+    summary: '小作物走加工增值，适合榨油、制粉、糕点、温补炼丹和宠物辛香反馈。'
   },
   {
     cropId: 'lotus_seed',
@@ -86,12 +86,12 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'osmanthus',
-    tags: ['food', 'alchemy', 'gift', 'festival', 'medicine'],
+    tags: ['food', 'alchemy', 'pet_feed', 'gift', 'festival', 'medicine'],
     flavor: ['花香', '清甜'],
     nature: 'fragrant',
     rarityUse: 'seasonal',
-    recommendedUses: ['桂露', '桂花香囊', '凝神丹', '灯谜奖励兑换', '节会茶点'],
-    summary: '芳香型节令作物，适合节会、赠礼、凝神炼丹和花香料理。'
+    recommendedUses: ['桂露', '桂花香囊', '凝神丹', '宠物芳香点心', '灯谜奖励兑换', '节会茶点'],
+    summary: '芳香型节令作物，适合节会、赠礼、凝神炼丹、宠物芳香反馈和花香料理。'
   },
   {
     cropId: 'sweet_potato',

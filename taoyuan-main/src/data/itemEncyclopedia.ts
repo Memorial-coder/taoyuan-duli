@@ -8,6 +8,7 @@ import { PROCESSING_RECIPES, PROCESSING_MACHINES, SPRINKLERS, FERTILIZERS, BAITS
 import { RECIPES } from './recipes'
 import { getCollectionUsageText, getUndiscoveredCollectionHint } from './collectionRegistry'
 import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, getCropUseProfile, getCropUseTagLabels } from './cropUseProfiles'
+import { getPetSpecialFeedByItemId, getPetSpecialFeedTasteLabel } from './petFeeds'
 
 export interface ItemEncyclopediaDetail {
   label: string
@@ -104,6 +105,12 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
         pushDetail(details, '药性', CROP_USE_NATURE_LABELS[profile.nature])
         pushDetail(details, '消耗定位', CROP_USE_RARITY_LABELS[profile.rarityUse])
         pushDetail(details, '推荐用途', profile.recommendedUses.join('、'))
+      }
+      const petFeed = getPetSpecialFeedByItemId(item.id)
+      if (petFeed) {
+        pushDetail(details, '宠物口味', getPetSpecialFeedTasteLabel(petFeed.taste))
+        pushDetail(details, '宠物偏好', petFeed.preferredPetTypes.map(type => (type === 'dog' ? '田犬' : '猫')).join('、'))
+        pushDetail(details, '宠物反馈', petFeed.description)
       }
     }
   } else if (item.category === 'seed') {

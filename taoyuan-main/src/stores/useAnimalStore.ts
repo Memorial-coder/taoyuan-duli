@@ -1,15 +1,32 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { AnimalBuildingType, AnimalType, Animal, Quality, PetState, PetType, IncubationState, PetCompanionEvent, PetCareSlotSummary } from '@/types'
+import type {
+  AnimalBuildingType,
+  AnimalType,
+  Animal,
+  Quality,
+  PetState,
+  PetType,
+  PetSpecialFeedType,
+  IncubationState,
+  PetCompanionEvent,
+  PetCareSlotSummary
+} from '@/types'
 import {
   ANIMAL_BUILDINGS,
   ANIMAL_DEFS,
   HAY_ITEM_ID,
+  getAvailablePetSpecialFeeds,
   getBuildingUpgrade,
   INCUBATION_MAP,
+  getPetSpecialFeedById,
+  getPetSpecialFeedByItemId,
+  getPetSpecialFeedFeedback,
+  getPetSpecialFeedTasteLabel,
   PREMIUM_FEED_ID,
   NOURISHING_FEED_ID,
   VITALITY_FEED_ID,
+  isPetSpecialFeedPreferred,
   getTodayEvent
 } from '@/data'
 import { usePlayerStore } from './usePlayerStore'
@@ -97,6 +114,7 @@ export const useAnimalStore = defineStore('animal', () => {
       requirement: '农舍 3 级或完成 8 项村庄建设'
     }
   ])
+  const petSpecialFeedOptions = computed(() => getAvailablePetSpecialFeeds(itemId => getCombinedItemCount(itemId)))
 
   const coopAnimals = computed(() =>
     animals.value.filter(a => {
@@ -463,7 +481,13 @@ export const useAnimalStore = defineStore('animal', () => {
       type,
       name: trimmed,
       friendship: 0,
-      wasPetted: false
+      wasPetted: false,
+      specialFedToday: false,
+      specialFeedItemId: null,
+      specialFeedType: null,
+      specialFeedDayTag: null,
+      specialFeedStreak: 0,
+      rareFindCooldownDays: 0
     }
     pets.value.push(companion)
     usePlayerStore().markLifestyleUnlock(`pet_adopted_${companion.id}`, getCurrentDayTag())
@@ -479,6 +503,46 @@ export const useAnimalStore = defineStore('animal', () => {
     companion.friendship = Math.min(1000, companion.friendship + 5)
     recordPetMilestones(companion, previousFriendship)
     return true
+  }
+
+  const clearStalePetSpecialFeed = (companion: PetState, dayTag: string) => {
+    if (!companion.specialFedToday || companion.specialFeedDayTag === dayTag) return
+    companion.specialFedToday = false
+    companion.specialFeedItemId = null
+    companion.specialFeedType = null
+    companion.specialFeedDayTag = null
+  }
+
+  const feedPetSpecial = (petId: string, feedId: string): { success: boolean; message: string } => {
+    const companion = pets.value.find(entry => entry.id === petId)
+    if (!companion) return { success: false, message: '没有找到这只宠物。' }
+
+    const dayTag = getCurrentDayTag()
+    clearStalePetSpecialFeed(companion, dayTag)
+    if (companion.specialFedToday) {
+      return { success: false, message: `${companion.name}今天已经吃过特别食物了。` }
+    }
+
+    const feed = getPetSpecialFeedById(feedId)
+    if (!feed) return { success: false, message: '这份食物暂时不能喂给宠物。' }
+    if (getCombinedItemCount(feed.itemId) <= 0 || !removeCombinedItem(feed.itemId, 1)) {
+      return { success: false, message: `${feed.shortLabel}不足，无法准备${feed.label}。` }
+    }
+
+    const previousFriendship = companion.friendship
+    const preferred = isPetSpecialFeedPreferred(feed, companion.type)
+    const friendshipGain = feed.friendshipGain + (preferred ? feed.preferredBonus : 0)
+    companion.friendship = Math.min(1000, companion.friendship + friendshipGain)
+    companion.specialFedToday = true
+    companion.specialFeedItemId = feed.itemId
+    companion.specialFeedType = feed.taste
+    companion.specialFeedDayTag = dayTag
+    companion.specialFeedStreak = Math.min(7, companion.specialFeedStreak + 1)
+    recordPetMilestones(companion, previousFriendship)
+
+    const tasteLabel = getPetSpecialFeedTasteLabel(feed.taste)
+    const preferenceText = preferred ? '正合口味' : '也愿意尝尝'
+    return { success: true, message: `给${companion.name}喂了${feed.label}（${tasteLabel}，${preferenceText}），好感+${friendshipGain}。` }
   }
 
   /** 每日宠物更新 */
@@ -506,12 +570,46 @@ export const useAnimalStore = defineStore('animal', () => {
 
     for (const companion of pets.value) {
       const previousFriendship = companion.friendship
+      if (companion.rareFindCooldownDays > 0) {
+        companion.rareFindCooldownDays = Math.max(0, companion.rareFindCooldownDays - 1)
+      }
       if (!companion.wasPetted) {
         companion.friendship = Math.max(0, companion.friendship - 2)
       }
       companion.wasPetted = false
       recordPetMilestones(companion, previousFriendship)
 
+      const specialFeed = companion.specialFedToday && companion.specialFeedItemId ? getPetSpecialFeedByItemId(companion.specialFeedItemId) : null
+      if (specialFeed) {
+        events.push({
+          petId: companion.id,
+          petName: companion.name,
+          type: 'special_feed',
+          message: getPetSpecialFeedFeedback(specialFeed, companion.type)
+        })
+
+        const preferred = isPetSpecialFeedPreferred(specialFeed, companion.type)
+        const rareFindChance = Math.min(0.08, specialFeed.rareFindChance + (preferred ? 0.015 : 0))
+        if (companion.friendship >= 450 && companion.rareFindCooldownDays <= 0 && specialFeed.rareFindPool.length > 0 && Math.random() < rareFindChance) {
+          const itemId = specialFeed.rareFindPool[Math.floor(Math.random() * specialFeed.rareFindPool.length)]!
+          inventoryStore.addItem(itemId, 1)
+          companion.rareFindCooldownDays = specialFeed.rareFindCooldownDays
+          events.push({
+            petId: companion.id,
+            petName: companion.name,
+            type: 'rare_find',
+            itemId,
+            message:
+              companion.type === 'dog'
+                ? `${companion.name}顺着昨夜的${getPetSpecialFeedTasteLabel(specialFeed.taste)}气味巡了一圈，只带回一份小发现，接下来几天会先歇一歇。`
+                : `${companion.name}循着昨夜的${getPetSpecialFeedTasteLabel(specialFeed.taste)}余味找到了小物，短时间内不会连续外出寻宝。`
+          })
+        }
+      } else {
+        companion.specialFeedStreak = 0
+      }
+
+      let emittedFollowup = false
       if (companion.friendship >= 850 && Math.random() < 0.12) {
         const pool = findPools[companion.type]
         const itemId = pool[Math.floor(Math.random() * pool.length)]!
@@ -526,10 +624,10 @@ export const useAnimalStore = defineStore('animal', () => {
               ? `田犬报喜，${companion.name}从院外衔回了${itemId}。`
               : `灵宠衔物，${companion.name}悄悄把一份小收获放到了门边。`
         })
-        continue
+        emittedFollowup = true
       }
 
-      if (todayEvent && companion.friendship >= 500 && Math.random() < 0.18) {
+      if (!emittedFollowup && todayEvent && companion.friendship >= 500 && Math.random() < 0.18) {
         events.push({
           petId: companion.id,
           petName: companion.name,
@@ -539,10 +637,10 @@ export const useAnimalStore = defineStore('animal', () => {
               ? `${companion.name}在院门前格外兴奋，像是在催你早点去「${todayEvent.name}」看看。`
               : `${companion.name}绕着你的衣摆转了两圈，像是也知道今天是「${todayEvent.name}」。`
         })
-        continue
+        emittedFollowup = true
       }
 
-      if (companion.friendship >= 600 && Math.random() < 0.14) {
+      if (!emittedFollowup && companion.friendship >= 600 && Math.random() < 0.14) {
         const rumorPool = companion.type === 'dog' ? dogRumors : catRumors
         events.push({
           petId: companion.id,
@@ -554,6 +652,11 @@ export const useAnimalStore = defineStore('animal', () => {
               : `猫叼线索：${companion.name}${rumorPool[Math.floor(Math.random() * rumorPool.length)]!}`
         })
       }
+
+      companion.specialFedToday = false
+      companion.specialFeedItemId = null
+      companion.specialFeedType = null
+      companion.specialFeedDayTag = null
     }
 
     return { events }
@@ -946,13 +1049,22 @@ export const useAnimalStore = defineStore('animal', () => {
 
   const normalizePetSave = (savedPet: any): PetState | null => {
     if (!savedPet || (savedPet.type !== 'cat' && savedPet.type !== 'dog')) return null
+    const specialFeedType = ['sweet', 'filling', 'fragrant', 'spicy', 'herbal'].includes(savedPet.specialFeedType)
+      ? (savedPet.specialFeedType as PetSpecialFeedType)
+      : null
 
     return {
       id: typeof savedPet.id === 'string' && savedPet.id.trim() ? savedPet.id : `${savedPet.type}_${Date.now()}`,
       type: savedPet.type as PetType,
       name: typeof savedPet.name === 'string' && savedPet.name.trim() ? savedPet.name : savedPet.type === 'dog' ? '小狗' : '小猫',
       friendship: Number.isFinite(savedPet.friendship) ? savedPet.friendship : 0,
-      wasPetted: Boolean(savedPet.wasPetted)
+      wasPetted: Boolean(savedPet.wasPetted),
+      specialFedToday: Boolean(savedPet.specialFedToday),
+      specialFeedItemId: typeof savedPet.specialFeedItemId === 'string' ? savedPet.specialFeedItemId : null,
+      specialFeedType,
+      specialFeedDayTag: typeof savedPet.specialFeedDayTag === 'string' ? savedPet.specialFeedDayTag : null,
+      specialFeedStreak: Number.isFinite(savedPet.specialFeedStreak) ? Math.max(0, Math.min(7, savedPet.specialFeedStreak)) : 0,
+      rareFindCooldownDays: Number.isFinite(savedPet.rareFindCooldownDays) ? Math.max(0, savedPet.rareFindCooldownDays) : 0
     }
   }
 
@@ -1000,6 +1112,7 @@ export const useAnimalStore = defineStore('animal', () => {
     petCapacity,
     petCareSlots,
     petRouteProgress,
+    petSpecialFeedOptions,
     canAdoptAdditionalPet,
     grazedToday,
     coopBuilt,
@@ -1026,6 +1139,7 @@ export const useAnimalStore = defineStore('animal', () => {
     dailyBarnIncubatorUpdate,
     adoptPet,
     petThePet,
+    feedPetSpecial,
     dailyPetUpdate,
     grazeAnimals,
     dailyUpdate,

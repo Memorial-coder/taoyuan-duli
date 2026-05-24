@@ -98,6 +98,7 @@ export type FarmhouseLevel = 0 | 1 | 2 | 3
 export type CaveChoice = 'none' | 'mushroom' | 'fruit_bat'
 
 export type PetType = 'cat' | 'dog'
+export type PetSpecialFeedType = 'sweet' | 'filling' | 'fragrant' | 'spicy' | 'herbal'
 
 export interface PetState {
   id: string
@@ -105,12 +106,18 @@ export interface PetState {
   name: string
   friendship: number
   wasPetted: boolean
+  specialFedToday: boolean
+  specialFeedItemId: string | null
+  specialFeedType: PetSpecialFeedType | null
+  specialFeedDayTag: string | null
+  specialFeedStreak: number
+  rareFindCooldownDays: number
 }
 
 export interface PetCompanionEvent {
   petId: string
   petName: string
-  type: 'gift' | 'rumor' | 'festival'
+  type: 'gift' | 'rumor' | 'festival' | 'special_feed' | 'rare_find'
   message: string
   itemId?: string
 }

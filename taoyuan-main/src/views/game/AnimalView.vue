@@ -107,6 +107,24 @@
               <span class="text-[10px] text-muted">{{ companion.friendship }}/1000</span>
             </div>
             <p class="text-[10px] text-muted mt-1 leading-4">{{ getPetCompanionHint(companion) }}</p>
+            <div class="mt-2 border-t border-accent/10 pt-2">
+              <div class="flex items-center justify-between gap-2 mb-1">
+                <span class="text-[10px] text-muted">{{ getPetFeedStatusText(companion) }}</span>
+                <span class="text-[10px] text-accent/80 shrink-0">{{ getPetPreferenceText(companion) }}</span>
+              </div>
+              <div v-if="petSpecialFeedOptions.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-1">
+                <Button
+                  v-for="feed in petSpecialFeedOptions"
+                  :key="`${companion.id}-${feed.id}`"
+                  class="justify-center py-0 px-1 text-[10px]"
+                  :disabled="isPetSpecialFedToday(companion)"
+                  @click="handleFeedPetSpecial(companion.id, feed.id)"
+                >
+                  {{ feed.shortLabel }}×{{ feed.count }}
+                </Button>
+              </div>
+              <p v-else class="text-[10px] text-muted/70 leading-4">暂无可喂的宠物食材</p>
+            </div>
           </div>
         </div>
       </template>
@@ -660,9 +678,18 @@
   import { useGameStore } from '@/stores/useGameStore'
   import { useInventoryStore } from '@/stores/useInventoryStore'
   import { usePlayerStore } from '@/stores/usePlayerStore'
-  import { ANIMAL_BUILDINGS, ANIMAL_DEFS, HAY_ITEM_ID, getItemById, getBuildingUpgrade, INCUBATION_MAP, FEED_DEFS } from '@/data'
+  import {
+    ANIMAL_BUILDINGS,
+    ANIMAL_DEFS,
+    HAY_ITEM_ID,
+    getItemById,
+    getBuildingUpgrade,
+    INCUBATION_MAP,
+    FEED_DEFS,
+    getPetSpecialFeedTasteLabel
+  } from '@/data'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
-  import type { AnimalBuildingType, AnimalType, AnimalDef, PetCareSlotSummary } from '@/types'
+  import type { AnimalBuildingType, AnimalType, AnimalDef, PetCareSlotSummary, PetState } from '@/types'
   import { addLog } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
   import { useTutorialStore } from '@/stores/useTutorialStore'
@@ -774,6 +801,8 @@
   /** 未喂食动物数量 */
   const unfedCount = computed(() => animalStore.animals.filter(a => !a.wasFed).length)
   const petRoster = computed(() => animalStore.pets)
+  const petSpecialFeedOptions = computed(() => animalStore.petSpecialFeedOptions)
+  const currentPetDayTag = computed(() => `${gameStore.year}-${gameStore.season}-${gameStore.day}`)
   const expandedPetCareSlotId = ref<PetCareSlotSummary['id'] | null>(null)
 
   /** 兽药库存数量 */
@@ -875,6 +904,22 @@
     if (companion.friendship >= 850) return '猫叼线索：高好感时更常衔物，也会替你记住纸条和传闻。'
     if (companion.friendship >= 600) return '猫叼线索：偶尔会把你没留意的细节留在窗边或桌角。'
     return '多陪陪它，猫会慢慢开始把你当作真正的家人。'
+  }
+
+  const isPetSpecialFedToday = (companion: PetState): boolean => {
+    return companion.specialFedToday && companion.specialFeedDayTag === currentPetDayTag.value
+  }
+
+  const getPetFeedStatusText = (companion: PetState): string => {
+    if (!isPetSpecialFedToday(companion)) return '今日未加餐'
+    const itemName = companion.specialFeedItemId ? getItemName(companion.specialFeedItemId) : '特别食物'
+    const taste = companion.specialFeedType ? getPetSpecialFeedTasteLabel(companion.specialFeedType) : '特别'
+    return `今日：${itemName} · ${taste}`
+  }
+
+  const getPetPreferenceText = (companion: PetState): string => {
+    if (companion.type === 'dog') return '偏好：饱腹 / 辛香'
+    return '偏好：清甜 / 芳香'
   }
 
   type PetCareGuideAction = {
@@ -1073,6 +1118,16 @@
       if (tr.passedOut) handleEndDay()
     } else {
       addLog('今天已经抚摸过了。')
+    }
+  }
+
+  const handleFeedPetSpecial = (petId: string, feedId: string) => {
+    const result = animalStore.feedPetSpecial(petId, feedId)
+    addLog(result.message)
+    if (result.success) {
+      const tr = gameStore.advanceTime(ACTION_TIME_COSTS.petAnimal)
+      if (tr.message) addLog(tr.message)
+      if (tr.passedOut) handleEndDay()
     }
   }
 
