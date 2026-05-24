@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 家族声望只读前端读回
+- 共同庄园新增“声望”页签，前端 API / store 读取 `/family-reputation` 只读预备面板。
+- 页面展示声望预览分、等级进度、来源证据、成员贡献统计、治理边界，以及声望落账、周封顶、补偿重放、排行和奖励等暂缓能力。
+- 本轮只做读回，不持久化家族声望、不开放排行榜、不发放个人奖励。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 家族订单只读前端读回
 - 共同庄园新增“订单”页签，前端 API / store 读取 `/family-orders` 只读预备面板。
 - 页面展示家族订单阶段路线、阶段推荐职位、成员订单权限预览、公共订单收入入共同基金候选数 / 金额，以及发布、接单、交付、结算、补偿重放等暂缓写操作。

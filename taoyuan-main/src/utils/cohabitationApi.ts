@@ -423,6 +423,68 @@ export interface CohabitationFamilyOrdersPanel {
   deferred_operations: string[]
 }
 
+export interface CohabitationFamilyReputationPanel {
+  contract_id: string
+  shared_manor_id: string
+  type: string
+  type_label: string
+  status: string
+  readonly: boolean
+  write_enabled: boolean
+  writes_enabled: boolean
+  reputation_enabled: boolean
+  generated_at: number
+  revision: number
+  summary: {
+    current_points: number
+    level: {
+      id: string
+      label: string
+      min_points: number
+      next_points: number | null
+      progress_to_next: number
+    }
+    source_count: number
+    member_count: number
+    max_members: number
+    reputation_award_enabled: boolean
+    leaderboard_enabled: boolean
+    personal_reward_enabled: boolean
+    personal_money_merged: boolean
+    personal_inventory_merged: boolean
+    disabled_reason: string
+  }
+  actor: (Pick<CohabitationMember, 'username' | 'username_key' | 'display_name' | 'role'> & {
+    manor_role: string
+    manor_role_label: string
+    can_view_reputation: boolean
+    can_manage_reputation_rules_preview: boolean
+    can_claim_reputation_reward: boolean
+  }) | null
+  members: Array<CohabitationMember & {
+    manor_role_label: string
+    warehouse_deposit_count: number
+    warehouse_deposit_quantity: number
+    fund_contribution_count: number
+    fund_contribution_amount: number
+    governance_action_count: number
+    preview_points: number
+  }>
+  source_breakdown: Array<{
+    id: string
+    label: string
+    enabled: boolean
+    preview_points: number
+    evidence_count: number
+    audit_required: boolean
+    write_enabled: boolean
+    deferred_operation?: string
+    evidence: Record<string, unknown>
+  }>
+  governance: Record<string, unknown>
+  deferred_operations: string[]
+}
+
 export interface CohabitationOfflineStatus {
   contract_id: string
   shared_manor_id: string
@@ -699,6 +761,12 @@ export const fetchCohabitationFamilyOrders = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     family_orders_panel?: CohabitationFamilyOrdersPanel
   }>(contractPath(contractId, '/family-orders'), '获取家族订单预备面板失败')
+}
+
+export const fetchCohabitationFamilyReputation = async (contractId: string) => {
+  return fetchCohabitationJson<CohabitationDetailResponse & {
+    family_reputation_panel?: CohabitationFamilyReputationPanel
+  }>(contractPath(contractId, '/family-reputation'), '获取家族声望预备面板失败')
 }
 
 export const updateCohabitationFamilyRole = async (contractId: string, payload: CohabitationFamilyRoleUpdatePayload) => {

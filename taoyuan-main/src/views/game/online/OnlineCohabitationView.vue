@@ -595,6 +595,99 @@
         </div>
       </div>
 
+      <div v-else-if="activeTab === 'reputation'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div class="game-panel-muted p-3">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 text-accent">
+              <Trophy :size="13" />
+              <p class="text-sm">家族声望预览</p>
+            </div>
+            <span class="text-[10px] text-muted">{{ familyReputationPanel?.reputation_enabled ? '已启用预览' : '未启用' }}</span>
+          </div>
+          <div v-if="!familyReputationPanel" class="mt-3 text-xs leading-5 text-muted">当前没有家族声望预备面板数据。</div>
+          <div v-else>
+            <div class="mt-3 grid gap-2 md:grid-cols-4">
+              <div v-for="item in familyReputationSummaryCards" :key="item.label" class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
+              </div>
+            </div>
+            <p v-if="familyReputationPanel.summary.disabled_reason" class="mt-3 text-[10px] leading-4 text-muted">
+              {{ familyReputationPanel.summary.disabled_reason }}
+            </p>
+            <div class="mt-3 border border-accent/10 bg-black/10 p-3">
+              <div class="flex items-center justify-between gap-2 text-xs">
+                <span class="text-text">{{ familyReputationPanel.summary.level.label }}</span>
+                <span class="text-muted">{{ familyReputationProgressPercent }}%</span>
+              </div>
+              <div class="mt-2 h-2 overflow-hidden bg-bg/60">
+                <div class="h-full bg-accent/70" :style="{ width: `${familyReputationProgressPercent}%` }"></div>
+              </div>
+            </div>
+            <div class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+              <div v-for="source in familyReputationSources" :key="source.id" class="border border-accent/10 bg-black/10 p-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ source.label }}</p>
+                    <p class="mt-1 text-[10px] text-muted">{{ source.evidence_count }} 条证据 · {{ source.audit_required ? '需审计' : '无审计要求' }}</p>
+                  </div>
+                  <span class="shrink-0 text-xs text-accent">{{ source.preview_points }} 分</span>
+                </div>
+                <p v-if="source.deferred_operation" class="mt-2 text-[10px] leading-4 text-muted">
+                  暂缓：{{ deferredOperationLabel(source.deferred_operation) }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">成员贡献预览</p>
+            <div v-if="familyReputationMembers.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无成员贡献预览。</div>
+            <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              <div v-for="member in familyReputationMembers" :key="member.username" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
+                    <p class="mt-1 text-[10px] text-muted">{{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
+                  </div>
+                  <span class="shrink-0 text-xs text-accent">{{ member.preview_points }} 分</span>
+                </div>
+                <p class="mt-2 text-[10px] leading-4 text-muted">
+                  仓库 {{ member.warehouse_deposit_count }} 次 / 基金 {{ member.fund_contribution_count }} 次 / 治理 {{ member.governance_action_count }} 次
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">治理边界</p>
+            <div class="mt-3 space-y-2">
+              <div
+                v-for="item in familyReputationGovernanceCards"
+                :key="item.label"
+                class="flex items-center justify-between gap-2 border border-accent/10 bg-black/10 p-2 text-xs"
+              >
+                <span class="text-muted">{{ item.label }}</span>
+                <span class="text-accent">{{ item.value }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">暂缓能力</p>
+            <div v-if="familyReputationDeferredOperations.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无暂缓项。</div>
+            <div v-else class="mt-3 flex flex-wrap gap-2">
+              <span
+                v-for="item in familyReputationDeferredOperations"
+                :key="item"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+              >
+                {{ deferredOperationLabel(item) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
@@ -694,6 +787,7 @@
     Map,
     Package,
     ShieldCheck,
+    Trophy,
     Wallet,
     XCircle,
   } from 'lucide-vue-next'
@@ -708,7 +802,7 @@
     CohabitationWarehouseItem,
   } from '@/utils/cohabitationApi'
 
-  type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'offline'
+  type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'reputation' | 'offline'
   type CohabitationTabMeta = { key: CohabitationTabKey; label: string; summary: string }
 
   const cohabitationStore = useCohabitationStore()
@@ -733,6 +827,7 @@
     { key: 'fund', label: '基金', summary: '查看共同基金余额和注资流水，个人铜币保持独立。' },
     { key: 'permissions', label: '权限', summary: '查看成员权限分组和强制安全阀，不在这里扩大高风险操作。' },
     { key: 'orders', label: '订单', summary: '只读查看家族订单预备路线、成员阶段权限和共同资产结算边界。' },
+    { key: 'reputation', label: '声望', summary: '只读查看家族声望预览分、来源证据和未来奖励治理边界。' },
     { key: 'offline', label: '离线', summary: '查看成员最近活跃、共同日志和无需全员在线的能力边界。' },
   ]
 
@@ -802,6 +897,31 @@
       { label: '写入共同仓库', value: settlement.reward_to_shared_warehouse_enabled === true ? '开放' : '暂缓' },
       { label: '幂等凭证', value: settlement.idempotency_required === true ? '必须' : '未声明' },
       { label: '补偿 / 回滚', value: settlement.compensation_required === true || settlement.rollback_required === true ? '必须' : '未声明' },
+    ]
+  })
+  const familyReputationPanel = computed(() => cohabitationStore.familyReputationPanel)
+  const familyReputationMembers = computed(() => familyReputationPanel.value?.members ?? [])
+  const familyReputationSources = computed(() => familyReputationPanel.value?.source_breakdown ?? [])
+  const familyReputationDeferredOperations = computed(() => familyReputationPanel.value?.deferred_operations ?? [])
+  const familyReputationProgressPercent = computed(() => Math.round(
+    Math.max(0, Math.min(1, familyReputationPanel.value?.summary.level.progress_to_next ?? 0)) * 100
+  ))
+  const familyReputationSummaryCards = computed(() => {
+    const summary = familyReputationPanel.value?.summary
+    return [
+      { label: '预览分', value: summary?.current_points ?? 0 },
+      { label: '等级', value: summary?.level.label ?? '暂无' },
+      { label: '来源', value: summary?.source_count ?? 0 },
+      { label: '成员', value: `${summary?.member_count ?? 0}/${summary?.max_members ?? 0}` },
+    ]
+  })
+  const familyReputationGovernanceCards = computed(() => {
+    const governance = familyReputationPanel.value?.governance ?? {}
+    return [
+      { label: '服务端权威', value: governance.server_authoritative === true ? '必须' : '未声明' },
+      { label: '未来幂等', value: governance.idempotency_required_for_future_writes === true ? '必须' : '未声明' },
+      { label: '奖励补偿', value: governance.compensation_required_for_future_rewards === true ? '必须' : '未声明' },
+      { label: '周封顶', value: governance.weekly_cap_required === true ? '必须' : '未声明' },
     ]
   })
   const offlineMembers = computed(() => cohabitationStore.offlineStatus?.members ?? [])
@@ -1198,6 +1318,15 @@
       family_reputation: '家族声望',
       family_order_rollback: '家族订单回滚',
       family_order_compensation_replay: '订单补偿重放',
+      award_family_reputation: '发放家族声望',
+      family_reputation_ledger: '声望流水',
+      family_order_reputation: '订单声望',
+      family_building_reputation: '建筑声望',
+      family_festival_seat_reputation: '节会席位声望',
+      family_reputation_weekly_cap: '声望周封顶',
+      family_reputation_compensation_replay: '声望补偿重放',
+      family_reputation_leaderboard: '声望排行',
+      family_reputation_rewards: '声望奖励',
     }
     return labels[value] || value
   }
