@@ -287,6 +287,13 @@
     if (objectId.includes('festival_photo')) return '留影'
     if (objectId.includes('festival_snack')) return '小食'
     if (objectId.includes('festival_opening')) return '开幕'
+    if (objectId.includes('order_confirmed')) return '确认'
+    if (objectId.includes('order_submitted')) return '交付'
+    if (objectId.includes('order_carrier')) return '接力'
+    if (objectId.includes('order_waiting')) return '待接'
+    if (objectId.includes('order_item_')) return '资源'
+    if (objectId.includes('order_task_')) return '任务'
+    if (objectId.includes('order_stage_')) return '节点'
     if (objectId.includes('pile')) return '木桩'
     if (objectId.includes('scaffold')) return '脚手'
     if (objectId.includes('deck')) return '桥面'
@@ -307,6 +314,7 @@
   const projectKindLabel = (kind: string) => {
     if (kind === 'village_bridge') return '村社修桥'
     if (kind === 'festival_square') return '节庆筹备'
+    if (kind === 'order_relay') return '公共订单接力'
     if (kind === 'society_project') return '公共工程'
     return kind || '公共工程'
   }

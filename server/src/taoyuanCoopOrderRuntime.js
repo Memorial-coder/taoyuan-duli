@@ -483,6 +483,176 @@ function buildOrderPriority(order, viewerSummary, viewerSocialProfile = null, ow
   };
 }
 
+function buildOrderRelayVisualState(order) {
+  const normalized = normalizeOrder(order);
+  if (normalized.collaboration_mode !== 'multi_stage' || normalized.stages.length === 0) return null;
+
+  const now = Math.floor(Date.now() / 1000);
+  const activeStage = normalized.stages.find(stage => ['none', 'submitted'].includes(stage.delivery_status))
+    || normalized.stages.find(stage => stage.delivery_status !== 'confirmed')
+    || normalized.stages[normalized.stages.length - 1];
+  const contributors = normalized.stages
+    .filter(stage => stage.assignee_username)
+    .reduce((result, stage) => {
+      const username = stage.assignee_username;
+      const existing = result.get(username) || {
+        username,
+        display_name: stage.assignee_display_name || username,
+        contribution_value: 0,
+      };
+      existing.contribution_value += stage.delivery_status === 'confirmed' ? 2 : 1;
+      result.set(username, existing);
+      return result;
+    }, new Map());
+  const rankedContributors = Array.from(contributors.values())
+    .sort((left, right) => right.contribution_value - left.contribution_value || left.display_name.localeCompare(right.display_name, 'zh-Hans-CN'))
+    .map((entry, index) => ({ ...entry, rank: index + 1 }));
+
+  const stages = normalized.stages.map(stage => {
+    const isConfirmed = stage.delivery_status === 'confirmed';
+    const isSubmitted = stage.delivery_status === 'submitted';
+    const isAccepted = Boolean(stage.assignee_username);
+    const state = isConfirmed ? 'complete' : stage.id === activeStage?.id ? 'active' : isAccepted || isSubmitted ? 'active' : 'pending';
+    const progressValue = isConfirmed ? 100 : isSubmitted ? 70 : isAccepted ? 35 : 0;
+    const objectIds = [
+      `order_stage_${stage.sequence}`,
+      stage.target_item_id ? `order_item_${stage.target_item_id}` : `order_task_${stage.sequence}`,
+      isConfirmed ? 'order_confirmed' : isSubmitted ? 'order_submitted' : isAccepted ? 'order_carrier' : 'order_waiting',
+    ];
+    return {
+      id: stage.id,
+      label: stage.title || `第 ${stage.sequence} 段`,
+      state,
+      progress_value: progressValue,
+      progress_target: 100,
+      object_ids: objectIds,
+      contribution_options: [],
+      milestones: [
+        {
+          id: `${stage.id}:accepted`,
+          label: '接单',
+          progress_required: 35,
+          reached: isAccepted,
+          reward_preview: stage.assignee_display_name ? `${stage.assignee_display_name}已接这一段` : '等待成员接力',
+        },
+        {
+          id: `${stage.id}:submitted`,
+          label: '交付',
+          progress_required: 70,
+          reached: isSubmitted || isConfirmed,
+          reward_preview: stage.delivery_note || '等待交付说明和资源记录',
+        },
+        {
+          id: `${stage.id}:confirmed`,
+          label: '确认',
+          progress_required: 100,
+          reached: isConfirmed,
+          reward_preview: isConfirmed ? '发布人已确认并生成结算凭证' : '等待发布人确认',
+        },
+      ],
+    };
+  });
+
+  const history = normalized.stages
+    .flatMap(stage => {
+      const entries = [];
+      if (stage.assignee_username) {
+        entries.push({
+          id: `${stage.id}:accepted`,
+          type: 'contribution',
+          actor_username: stage.assignee_username,
+          actor_display_name: stage.assignee_display_name || stage.assignee_username,
+          summary: `${stage.assignee_display_name || stage.assignee_username}接下「${stage.title}」`,
+          created_at: stage.accepted_at || stage.updated_at || normalized.updated_at,
+        });
+      }
+      if (stage.delivery_status === 'submitted' || stage.delivery_status === 'confirmed' || stage.delivery_status === 'compensation_pending') {
+        entries.push({
+          id: `${stage.id}:submitted`,
+          type: 'milestone',
+          actor_username: stage.assignee_username,
+          actor_display_name: stage.assignee_display_name || stage.assignee_username,
+          summary: `${stage.assignee_display_name || stage.assignee_username}提交了「${stage.title}」`,
+          created_at: stage.updated_at || normalized.updated_at,
+        });
+      }
+      if (stage.delivery_status === 'confirmed') {
+        entries.push({
+          id: `${stage.id}:confirmed`,
+          type: 'stage_complete',
+          actor_username: normalized.owner_username,
+          actor_display_name: normalized.owner_display_name || normalized.owner_username,
+          summary: `${normalized.owner_display_name || normalized.owner_username}确认了「${stage.title}」`,
+          created_at: stage.confirmed_at || stage.updated_at || normalized.updated_at,
+        });
+      }
+      return entries;
+    })
+    .sort((left, right) => right.created_at - left.created_at)
+    .slice(0, 12);
+
+  const confirmedCount = normalized.stages.filter(stage => stage.delivery_status === 'confirmed').length;
+  const submittedCount = normalized.stages.filter(stage => stage.delivery_status === 'submitted').length;
+  const acceptedCount = normalized.stages.filter(stage => stage.assignee_username).length;
+  const recentFeedback = normalized.status === 'closed'
+    ? `公共订单接力「${normalized.title}」已完成 ${confirmedCount}/${normalized.stages.length} 段。`
+    : submittedCount > 0
+      ? `公共订单接力有 ${submittedCount} 段等待发布人确认。`
+      : acceptedCount > 0
+        ? `公共订单接力已有 ${acceptedCount} 段被接下。`
+        : '公共订单接力正在等待成员接单。';
+
+  return {
+    board_type: 'async',
+    board_id: `coop_order:${normalized.id}:relay`,
+    revision: Math.max(1, normalized.updated_at || normalized.created_at || now),
+    selected_visual_id: activeStage?.id || '',
+    nodes: [],
+    objects: [],
+    tracks: [],
+    async_projects: [
+      {
+        id: `coop_order_relay:${normalized.id}`,
+        label: normalized.title || '公共订单接力',
+        kind: 'order_relay',
+        day_tag: new Date((normalized.created_at || now) * 1000).toISOString().slice(0, 10),
+        week_tag: `deadline:${normalized.deadline_at || 0}`,
+        starts_at: normalized.created_at || now,
+        ends_at: normalized.deadline_at || 0,
+        current_stage_id: activeStage?.id || stages[0]?.id || '',
+        stages,
+        contributors: rankedContributors,
+        history,
+        completion_room_template_id: '',
+        completion_event_id: normalized.status === 'closed' ? `coop_order_relay_completed:${normalized.id}` : '',
+      },
+    ],
+    highlights: stages
+      .filter(stage => stage.state === 'complete')
+      .slice(-3)
+      .map(stage => ({
+        id: `${stage.id}:highlight`,
+        visual_id: stage.id,
+        type: 'success',
+        label: `${stage.label}已完成`,
+        summary: '接力阶段已由发布人确认。',
+        created_at: normalized.updated_at || now,
+      })),
+    recent_feedback: recentFeedback,
+  };
+}
+
+function buildOrderSnapshot(order, extra = {}) {
+  const normalized = normalizeOrder(order);
+  const preserved = {
+    ...(Number.isFinite(Number(order?.priority_score)) ? { priority_score: Math.max(0, Math.floor(Number(order.priority_score) || 0)) } : {}),
+    ...(Array.isArray(order?.priority_reasons) ? { priority_reasons: order.priority_reasons.map(reason => sanitizeText(reason, 120)).filter(Boolean) } : {}),
+    ...extra,
+  };
+  const relayVisualState = buildOrderRelayVisualState(normalized);
+  return relayVisualState ? { ...normalized, ...preserved, visual_state: relayVisualState } : { ...normalized, ...preserved };
+}
+
 function isOrderVisibleToViewer(order, viewerUsername) {
   const viewer = String(viewerUsername || '').trim();
   if (!viewer) return order.scope === 'public';
@@ -1504,7 +1674,8 @@ async function listVisibleCoopOrders(viewerUsername = '') {
       const priorityDiff = Math.max(0, Number(right.priority_score) || 0) - Math.max(0, Number(left.priority_score) || 0);
       if (priorityDiff !== 0) return priorityDiff;
       return right.created_at - left.created_at;
-    });
+    })
+    .map(order => buildOrderSnapshot(order));
 
   const receipts = store.receipts
     .map(normalizeSettlementReceipt)

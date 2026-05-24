@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 公共订单接力路线视图
+- 在线委托多段接力单现在会从服务端返回 `visual_state.async_projects`，把每个阶段映射为接单、交付、确认三段里程碑，并保留贡献者排行、历史回看、高光和最近反馈。
+- 在线委托页在“可接”“我的发布”“我的接单”卡片中复用 `AsyncCommunityBoard` 展示接力路线，原阶段接单、提交交付、发布人确认按钮继续作为权威操作入口。
+- 多段接力仍复用现有委托结算、补偿、声望和幂等凭证链路；本轮不新增公共订单收入池或比例分账，避免扩大资产结算风险。
+- 本轮验证：`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke`。
+
 ### 0524 节庆筹备异步广场视图
 - 在线村社公共建设新增 `festival_square` 节庆筹备工程，服务端会输出备料、搭场、彩排、开幕四阶段，并把空场、备料、戏台、灯门、题签、节目、人气和留影点映射到 `visual_state.async_projects`。
 - 节庆筹备贡献包改为灯笼布置、食材备办、布景搭设、题签整理、节目彩排，继续复用 `public-projects/:projectId/contribute` 权威扣款 / 扣材料、贡献榜和历史记录；不同贡献会额外点亮对应广场物件。

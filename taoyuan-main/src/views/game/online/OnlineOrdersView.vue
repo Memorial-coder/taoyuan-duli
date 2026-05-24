@@ -256,6 +256,14 @@
               <p class="mt-1 text-[10px] text-accent">
                 回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
               </p>
+              <AsyncCommunityBoard
+                v-if="order.visual_state?.async_projects?.length"
+                class="mt-2"
+                :projects="order.visual_state.async_projects"
+                :recent-feedback="order.visual_state.recent_feedback"
+                :action-running="coopOrderStore.actionRunning"
+                @trigger-contribution="triggerOrderRelayAction(order, $event.optionId)"
+              />
               <p v-if="order.priority_reasons?.length" class="mt-1 text-[10px] text-warning">
                 推荐理由：{{ order.priority_reasons.join('；') }}
               </p>
@@ -354,6 +362,14 @@
             <p class="mt-1 text-[10px] text-accent">
               回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
             </p>
+            <AsyncCommunityBoard
+              v-if="order.visual_state?.async_projects?.length"
+              class="mt-2"
+              :projects="order.visual_state.async_projects"
+              :recent-feedback="order.visual_state.recent_feedback"
+              :action-running="coopOrderStore.actionRunning"
+              @trigger-contribution="triggerOrderRelayAction(order, $event.optionId)"
+            />
             <p v-if="order.assignee_username" class="mt-1 text-[10px] text-success">
               当前接单人：{{ order.assignee_display_name || order.assignee_username }}
             </p>
@@ -427,6 +443,14 @@
               <p class="mt-2 text-[10px] text-muted">
                 {{ getCoopOrderTypeLabel(order.order_type) }} · 截止 {{ formatCoopTime(order.deadline_at) }}
               </p>
+              <AsyncCommunityBoard
+                v-if="order.visual_state?.async_projects?.length"
+                class="mt-2"
+                :projects="order.visual_state.async_projects"
+                :recent-feedback="order.visual_state.recent_feedback"
+                :action-running="coopOrderStore.actionRunning"
+                @trigger-contribution="triggerOrderRelayAction(order, $event.optionId)"
+              />
 
               <div v-if="order.collaboration_mode === 'multi_stage'" class="mt-2 space-y-2">
                 <div
@@ -663,6 +687,7 @@
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
   import { ExternalLink, Handshake } from 'lucide-vue-next'
+  import AsyncCommunityBoard from '@/components/game/online/AsyncCommunityBoard.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineScrollArea from '@/components/game/online/OnlineScrollArea.vue'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
@@ -872,6 +897,25 @@
   }
   const confirmStageDeliveryEntry = async (orderId: string, stageId: string) => {
     await coopOrderStore.confirmDelivery(orderId, stageId).catch(() => {})
+  }
+  const triggerOrderRelayAction = async (order: OnlineCoopOrderEntry, optionId: string) => {
+    const [action, stageId] = optionId.split(':')
+    if (!stageId) return
+    if (action === 'accept_stage') {
+      await acceptStageEntry(order.id, stageId)
+      return
+    }
+    if (action === 'confirm_stage') {
+      await confirmStageDeliveryEntry(order.id, stageId)
+      return
+    }
+    if (action === 'deliver_stage') {
+      const draft = coopOrderStore.ensureDeliveryDraft(order.id, stageId)
+      if (!draft.note.trim()) {
+        draft.note = '从接力路线提交交付说明'
+      }
+      await submitStageDeliveryEntry(order.id, stageId)
+    }
   }
   const retryCompensationEntry = async (compensationId: string) => {
     await coopOrderStore.retryCompensation(compensationId).catch(() => {})

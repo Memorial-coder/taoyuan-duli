@@ -4523,6 +4523,14 @@ try {
     const relayOrder = primaryOverview.data?.orders?.find(entry => entry?.id === relayCoopOrderId)
     assert(relayOrder && Array.isArray(relayOrder.stages) && relayOrder.stages.length === 2, 'multi-stage order readback is incomplete')
     assert(relayOrder.stages.every(stage => stage.delivery_status === 'confirmed'), 'multi-stage order did not persist confirmed stage states')
+    assert(relayOrder?.visual_state?.board_type === 'async', 'multi-stage order did not expose async relay visual state')
+    const relayVisualProject = relayOrder.visual_state.async_projects?.[0]
+    assert(relayVisualProject?.kind === 'order_relay', 'multi-stage order visual project kind mismatch')
+    assert(Array.isArray(relayVisualProject?.stages) && relayVisualProject.stages.length === 2, 'multi-stage order visual project did not mirror stages')
+    assert(relayVisualProject.stages.every(stage => stage.state === 'complete'), 'multi-stage order visual stages should be complete after confirmation')
+    assert(Array.isArray(relayVisualProject.contributors) && relayVisualProject.contributors.length === 2, 'multi-stage order visual contributors missing helpers')
+    assert(Array.isArray(relayVisualProject.history) && relayVisualProject.history.some(entry => entry?.type === 'stage_complete'), 'multi-stage order visual history missing completion entries')
+    assert(relayOrder.visual_state.recent_feedback.includes('已完成'), 'multi-stage order visual feedback did not summarize completion')
 
     const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
     assert(secondaryOverview.response.ok, `multi-stage secondary overview returned ${secondaryOverview.response.status}`)

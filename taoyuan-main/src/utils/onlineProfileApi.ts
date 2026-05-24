@@ -914,6 +914,7 @@ export interface OnlineCoopOrderEntry {
   priority_score?: number
   priority_reasons?: string[]
   stages?: OnlineCoopOrderStageEntry[]
+  visual_state?: import('@/types/onlineVisual').OnlineVisualState
   created_at: number
   updated_at: number
 }
