@@ -182,6 +182,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_permissions_update',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/roles$/i,
+    action: 'cohabitation_family_role_update',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/societies\/proposals$/i,
     action: 'society_proposal_create',
   },
@@ -2806,6 +2810,18 @@ router.get('/taoyuan/online/cohabitation/contracts/:contractId/permissions', cre
   }
 });
 
+router.get('/taoyuan/online/cohabitation/contracts/:contractId/roles', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCohabitationRuntime.getCohabitationFamilyRoles(req.params.contractId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取家族庄园职位失败' });
+  }
+});
+
 router.get('/taoyuan/online/cohabitation/contracts/:contractId/offline-status', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
   try {
     const result = await taoyuanCohabitationRuntime.getCohabitationOfflineStatus(req.params.contractId, {
@@ -2868,6 +2884,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/permissions', cr
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '调整同居权限失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/roles', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.updateCohabitationFamilyRole(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '调整家族庄园职位失败' });
     }
   });
 });

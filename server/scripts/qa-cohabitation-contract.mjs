@@ -167,6 +167,7 @@ await socialRuntime.acceptFriendRequest(extra, extraRequest.id)
 
 const overview = await runtime.listCohabitationContracts(owner)
 assert.ok(overview.relation_options.find(option => option.id === 'lover_cohabitation'), 'relation options should expose lover contract type')
+assert.equal(overview.relation_options.find(option => option.id === 'oath_manor')?.family_role_management, true, 'oath manor should expose family role management capability')
 assert.equal(overview.summary.total, 0, 'fresh store should have no contracts')
 
 const created = await runtime.createCohabitationContract({
@@ -535,6 +536,11 @@ await assert.rejects(
   'pending contracts should not expose permissions panel'
 )
 await assert.rejects(
+  () => runtime.getCohabitationFamilyRoles(pendingContract.contract.id, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not expose family role panel'
+)
+await assert.rejects(
   () => runtime.getCohabitationOfflineStatus(pendingContract.contract.id, actor(owner)),
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not expose offline operation status'
@@ -569,6 +575,15 @@ await assert.rejects(
   'pending contracts should not accept permission updates'
 )
 await assert.rejects(
+  () => runtime.updateCohabitationFamilyRole(pendingContract.contract.id, {
+    target_username: extra,
+    manor_role: 'storage_keeper',
+    idempotency_key: 'qa-pending-family-role-update',
+  }, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not accept family role updates'
+)
+await assert.rejects(
   () => runtime.createSeparationPreview(pendingContract.contract.id, {
     reason: 'pending preview should be rejected',
     idempotency_key: 'qa-pending-separation-preview',
@@ -576,6 +591,85 @@ await assert.rejects(
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not create separation previews'
 )
+
+const familyContract = await runtime.createCohabitationContract({
+  type: 'oath_manor',
+  target_usernames: [partner, extra],
+  idempotency_key: 'qa-oath-manor-family-roles',
+}, actor(owner))
+assert.equal(familyContract.contract.members.length, 3, 'oath manor should support three members in first pass')
+assert.equal(familyContract.contract.members.find(member => member.username === owner)?.manor_role, 'family_head', 'oath manor creator should default to family head')
+assert.equal(familyContract.contract.members.find(member => member.username === partner)?.manor_role, 'farm_steward', 'oath manor invitees should default to farm steward')
+assert.equal(familyContract.contract.permissions[partner].farm.harvest, true, 'default farm steward should receive farm harvest permission')
+assert.equal(familyContract.contract.permissions[partner].fund.spend_small, false, 'default farm steward should not receive fund spending permission')
+
+await runtime.acceptCohabitationContract(familyContract.contract.id, actor(partner))
+const activeFamilyContract = await runtime.acceptCohabitationContract(familyContract.contract.id, actor(extra))
+assert.equal(activeFamilyContract.contract.status, 'active', 'family manor should activate after all members accept')
+
+const familyRoleRead = await runtime.getCohabitationFamilyRoles(familyContract.contract.id, actor(owner))
+assert.equal(familyRoleRead.role_panel.role_management_enabled, true, 'family manor should enable role management')
+assert.equal(familyRoleRead.role_panel.editable_by_actor, true, 'family head should edit family roles')
+assert.equal(familyRoleRead.role_panel.role_options.length, 6, 'family role panel should expose six role options')
+assert.equal(familyRoleRead.role_panel.constraints.family_head_locked_to_owner, true, 'family head should stay locked to owner in first pass')
+assert.ok(familyRoleRead.role_panel.members.find(member => member.username === owner)?.can_manage_roles, 'owner family head should manage roles')
+
+const partnerFamilyRoleRead = await runtime.getCohabitationFamilyRoles(familyContract.contract.id, actor(partner))
+assert.equal(partnerFamilyRoleRead.role_panel.editable_by_actor, false, 'non-head family member should read roles without edit capability')
+
+await assert.rejects(
+  () => runtime.updateCohabitationFamilyRole(created.contract.id, {
+    target_username: partner,
+    manor_role: 'storage_keeper',
+    idempotency_key: 'qa-lover-family-role-rejected',
+  }, actor(owner)),
+  error => error?.status === 400 && String(error.message || '').includes('结拜庄园或合伙庄园'),
+  'romance cohabitation should not accept family role updates'
+)
+
+await assert.rejects(
+  () => runtime.updateCohabitationFamilyRole(familyContract.contract.id, {
+    target_username: partner,
+    manor_role: 'storage_keeper',
+    idempotency_key: 'qa-partner-family-role-denied',
+  }, actor(partner)),
+  error => error?.status === 403 && String(error.message || '').includes('家主'),
+  'non-head family member should not update family roles'
+)
+
+await assert.rejects(
+  () => runtime.updateCohabitationFamilyRole(familyContract.contract.id, {
+    target_username: owner,
+    manor_role: 'treasurer',
+    idempotency_key: 'qa-owner-head-remove-denied',
+  }, actor(owner)),
+  error => error?.status === 403 && String(error.message || '').includes('不能移除'),
+  'family role update should not remove owner family head in first pass'
+)
+
+const familyRoleUpdate = await runtime.updateCohabitationFamilyRole(familyContract.contract.id, {
+  target_username: partner,
+  manor_role: 'storage_keeper',
+  note: 'qa set partner as storage keeper',
+  idempotency_key: 'qa-family-role-storage-keeper',
+}, actor(owner))
+assert.equal(familyRoleUpdate.idempotent, false, 'first family role update should not be idempotent')
+const updatedFamilyPartner = familyRoleUpdate.role_panel.members.find(member => member.username === partner)
+assert.equal(updatedFamilyPartner?.manor_role, 'storage_keeper', 'family role update should change member role')
+assert.equal(updatedFamilyPartner?.manor_role_label, '管仓', 'family role panel should expose Chinese role label')
+assert.equal(updatedFamilyPartner?.permissions.storage.withdraw_common, true, 'storage keeper should get common withdrawal permission preview')
+assert.equal(updatedFamilyPartner?.permissions.farm.harvest, false, 'storage keeper should not retain farm steward harvest permission')
+assert.equal(updatedFamilyPartner?.permissions.fund.spend_small, false, 'storage keeper should not get treasurer fund permission')
+assert.ok(familyRoleUpdate.changed_fields.some(field => field.group === 'farm' && field.key === 'harvest' && field.after === false), 'family role update should report permission changes')
+assert.ok(familyRoleUpdate.contract.audit_log.find(entry => entry.action === 'family_role_updated'), 'family role update should be audited')
+
+const duplicateFamilyRoleUpdate = await runtime.updateCohabitationFamilyRole(familyContract.contract.id, {
+  target_username: partner,
+  manor_role: 'storage_keeper',
+  idempotency_key: 'qa-family-role-storage-keeper',
+}, actor(owner))
+assert.equal(duplicateFamilyRoleUpdate.idempotent, true, 'same family role idempotency key should be idempotent')
+assert.equal(duplicateFamilyRoleUpdate.audit_entry.id, familyRoleUpdate.audit_entry.id, 'idempotent family role update should return original audit entry')
 
 const ownerRawBeforePreview = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawBeforePreview = saveRuntime.loadUserSaveSlots(partner).slots[0].raw

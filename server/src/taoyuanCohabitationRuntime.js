@@ -32,6 +32,7 @@ const WAREHOUSE_MAX_DEPOSIT_QUANTITY = 99;
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const PERMISSION_GROUPS = Object.freeze(['farm', 'animal', 'storage', 'construction', 'fund', 'family', 'confirmations']);
 const SEPARATION_PREVIEW_VERSION = 1;
+const FAMILY_MANOR_TYPES = new Set(['oath_manor', 'business_partner']);
 
 const RELATION_TYPE_DEFS = Object.freeze({
   lover_cohabitation: {
@@ -87,6 +88,46 @@ const RELATION_TYPE_DEFS = Object.freeze({
     max_members: 2,
     permission_template: 'temporary',
     romance_only: false,
+  },
+});
+
+const FAMILY_MANOR_ROLE_DEFS = Object.freeze({
+  family_head: {
+    id: 'family_head',
+    label: '家主',
+    description: '管理家族庄园职位与高风险确认，第一版仅保留给契约发起者。',
+    management: true,
+    permission_focus: ['permissions', 'fund', 'construction'],
+  },
+  storage_keeper: {
+    id: 'storage_keeper',
+    label: '管仓',
+    description: '负责共同仓库普通物品放入与普通取用预览，高价值物仍需确认。',
+    permission_focus: ['storage'],
+  },
+  farm_steward: {
+    id: 'farm_steward',
+    label: '农务',
+    description: '负责田区浇水、除虫、种植和收获等农务操作。',
+    permission_focus: ['farm'],
+  },
+  animal_keeper: {
+    id: 'animal_keeper',
+    label: '牧养',
+    description: '负责动物喂食、抚摸和普通产物收取。',
+    permission_focus: ['animal'],
+  },
+  workshop_keeper: {
+    id: 'workshop_keeper',
+    label: '工坊',
+    description: '负责普通家具移动、工坊建材与加工相关协作。',
+    permission_focus: ['construction'],
+  },
+  treasurer: {
+    id: 'treasurer',
+    label: '账房',
+    description: '负责小额 / 中额共同基金预算预览，大额仍需双方确认。',
+    permission_focus: ['fund'],
   },
 });
 
@@ -211,6 +252,116 @@ function createDefaultPermissionSet(type) {
   };
 }
 
+function isFamilyRoleContractType(type) {
+  return FAMILY_MANOR_TYPES.has(normalizeRelationType(type));
+}
+
+function normalizeFamilyManorRole(value, type, memberRole = 'partner') {
+  if (!isFamilyRoleContractType(type)) return '';
+  const role = sanitizeText(value, 40);
+  if (FAMILY_MANOR_ROLE_DEFS[role]) return role;
+  return memberRole === 'owner' ? 'family_head' : 'farm_steward';
+}
+
+function getFamilyManorRoleDef(roleId) {
+  return FAMILY_MANOR_ROLE_DEFS[roleId] || FAMILY_MANOR_ROLE_DEFS.farm_steward;
+}
+
+function createEmptyPermissionSet(template) {
+  return {
+    template,
+    farm: {
+      water: false,
+      cure_pests: false,
+      plant: false,
+      harvest: false,
+      remove_crop: false,
+      use_premium_fertilizer: false,
+    },
+    animal: {
+      feed: false,
+      pet: false,
+      collect_product: false,
+      buy_animal: false,
+      sell_animal: false,
+    },
+    storage: {
+      deposit: true,
+      withdraw_common: false,
+      withdraw_high_quality: false,
+      withdraw_rare: false,
+      sell_items: false,
+    },
+    construction: {
+      move_common_furniture: false,
+      move_memorial_furniture: false,
+      buy_furniture: false,
+      demolish_building: false,
+      expand_manor: false,
+    },
+    fund: {
+      spend_small: false,
+      spend_medium: false,
+      spend_large: false,
+      auto_buy_seeds_feed: false,
+    },
+    family: {
+      child_daily_care: false,
+      family_wish_submit: false,
+      major_family_choice: false,
+    },
+    confirmations: {
+      rare_withdraw_requires_both: true,
+      large_fund_spend_requires_both: true,
+      demolish_requires_both: true,
+      separation_requires_preview: true,
+    },
+  };
+}
+
+function createPermissionSetForFamilyRole(type, roleId) {
+  const normalizedRole = normalizeFamilyManorRole(roleId, type);
+  const permissionSet = createEmptyPermissionSet(`family_role:${normalizedRole}`);
+  if (normalizedRole === 'family_head') {
+    permissionSet.farm.water = true;
+    permissionSet.farm.cure_pests = true;
+    permissionSet.farm.plant = true;
+    permissionSet.farm.harvest = true;
+    permissionSet.animal.feed = true;
+    permissionSet.animal.pet = true;
+    permissionSet.animal.collect_product = true;
+    permissionSet.storage.withdraw_common = true;
+    permissionSet.storage.withdraw_high_quality = true;
+    permissionSet.construction.move_common_furniture = true;
+    permissionSet.construction.move_memorial_furniture = true;
+    permissionSet.construction.buy_furniture = true;
+    permissionSet.fund.spend_small = true;
+    permissionSet.fund.spend_medium = true;
+    permissionSet.fund.auto_buy_seeds_feed = true;
+    return enforcePermissionSafetyRails(permissionSet, type);
+  }
+  if (normalizedRole === 'storage_keeper') {
+    permissionSet.storage.withdraw_common = true;
+  } else if (normalizedRole === 'farm_steward') {
+    permissionSet.farm.water = true;
+    permissionSet.farm.cure_pests = true;
+    permissionSet.farm.plant = true;
+    permissionSet.farm.harvest = true;
+  } else if (normalizedRole === 'animal_keeper') {
+    permissionSet.animal.feed = true;
+    permissionSet.animal.pet = true;
+    permissionSet.animal.collect_product = true;
+  } else if (normalizedRole === 'workshop_keeper') {
+    permissionSet.construction.move_common_furniture = true;
+    permissionSet.construction.buy_furniture = true;
+  } else if (normalizedRole === 'treasurer') {
+    permissionSet.fund.spend_small = true;
+    permissionSet.fund.spend_medium = true;
+    permissionSet.fund.auto_buy_seeds_feed = true;
+  }
+  return enforcePermissionSafetyRails(permissionSet, type);
+}
+
 function normalizePermissionSet(value, type) {
   const defaults = createDefaultPermissionSet(type);
   if (!value || typeof value !== 'object' || Array.isArray(value)) return defaults;
@@ -314,6 +465,7 @@ function normalizeMember(entry = {}) {
     username_key: normalizeUsernameKey(username),
     display_name: sanitizeText(entry.display_name || username, 60),
     role: sanitizeText(entry.role, 30) || 'partner',
+    manor_role: sanitizeText(entry.manor_role || entry.family_role || entry.manorRole, 40),
     status,
     save_id: normalizeSaveId(entry.save_id),
     save_slot: normalizeSaveSlot(entry.save_slot),
@@ -787,6 +939,7 @@ function normalizeContract(entry = {}) {
   for (const member of members) {
     if (seen.has(member.username_key)) continue;
     seen.add(member.username_key);
+    member.manor_role = normalizeFamilyManorRole(member.manor_role, type, member.role);
     uniqueMembers.push(member);
   }
   const permissions = {};
@@ -891,6 +1044,75 @@ function canManageCohabitationPermissions(member = {}) {
   return member.status === 'accepted' && member.role === 'owner';
 }
 
+function canManageFamilyRoles(member = {}, contract = {}) {
+  return isFamilyRoleContractType(contract.type)
+    && member.status === 'accepted'
+    && member.role === 'owner'
+    && normalizeFamilyManorRole(member.manor_role, contract.type, member.role) === 'family_head';
+}
+
+function buildFamilyRoleOptions() {
+  return Object.values(FAMILY_MANOR_ROLE_DEFS).map(def => ({
+    id: def.id,
+    label: def.label,
+    description: def.description,
+    management: def.management === true,
+    permission_focus: [...def.permission_focus],
+  }));
+}
+
+function buildFamilyRoleSnapshot(contract, actorUsername = '') {
+  const actorMember = getContractMember(contract, actorUsername);
+  const enabled = isFamilyRoleContractType(contract.type);
+  const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
+  return {
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    type: contract.type,
+    type_label: contract.type_label,
+    status: contract.status,
+    role_management_enabled: enabled,
+    editable_by_actor: enabled && canManageFamilyRoles(actorMember, contract),
+    idempotency_required: true,
+    max_members: typeDef.max_members,
+    member_count: (contract.members || []).length,
+    role_options: enabled ? buildFamilyRoleOptions() : [],
+    constraints: {
+      romance_contracts_dual_only: true,
+      family_manor_max_members: typeDef.max_members,
+      family_head_locked_to_owner: true,
+      high_risk_confirmations_locked: true,
+      personal_money_merged: false,
+    },
+    members: (contract.members || []).map(member => {
+      const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+      const roleDef = enabled ? getFamilyManorRoleDef(manorRole) : null;
+      return {
+        username: member.username,
+        username_key: member.username_key,
+        display_name: member.display_name,
+        role: member.role,
+        manor_role: manorRole,
+        manor_role_label: roleDef?.label || '',
+        status: member.status,
+        can_manage_roles: enabled && canManageFamilyRoles(member, contract),
+        permissions: enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type),
+        permission_focus: roleDef ? [...roleDef.permission_focus] : [],
+      };
+    }),
+    recent_role_audits: (contract.audit_log || [])
+      .filter(entry => entry.action === 'family_role_updated')
+      .slice(0, 10),
+    deferred_operations: [
+      'family_orders',
+      'family_reputation',
+      'family_buildings',
+      'family_relation_graph',
+      'family_festival_seats',
+    ],
+  };
+}
+
 function buildPermissionSnapshot(contract, actorUsername = '') {
   const actorMember = getContractMember(contract, actorUsername);
   return {
@@ -915,6 +1137,7 @@ function buildPermissionSnapshot(contract, actorUsername = '') {
       username_key: member.username_key,
       display_name: member.display_name,
       role: member.role,
+      manor_role: normalizeFamilyManorRole(member.manor_role, contract.type, member.role),
       status: member.status,
       can_manage_permissions: canManageCohabitationPermissions(member),
       permissions: enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type),
@@ -1400,6 +1623,7 @@ function buildRelationOptions() {
     max_members: def.max_members,
     permission_template: def.permission_template,
     romance_only: def.romance_only,
+    family_role_management: isFamilyRoleContractType(def.id),
   }));
 }
 
@@ -1549,6 +1773,22 @@ async function getCohabitationPermissions(contractId, actor = {}) {
   return {
     contract: toPublicContract(contract),
     permissions_panel: buildPermissionSnapshot(contract, actorUsername),
+  };
+}
+
+async function getCohabitationFamilyRoles(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看家族庄园职位');
+  for (const member of contract.members || []) {
+    member.manor_role = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+    contract.permissions[member.username_key] = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  }
+  return {
+    contract: toPublicContract(contract),
+    role_panel: buildFamilyRoleSnapshot(contract, actorUsername),
   };
 }
 
@@ -1721,6 +1961,72 @@ async function updateCohabitationPermissions(contractId, payload = {}, actor = {
   };
 }
 
+async function updateCohabitationFamilyRole(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('家族庄园职位变更需要 idempotency_key，以防断线或重试时重复写入审计');
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const actorMember = assertActiveContractForActor(contract, actorUsername, '调整家族庄园职位');
+  if (!isFamilyRoleContractType(contract.type)) throw createError('只有结拜庄园或合伙庄园支持家族职位第一版', 400);
+  for (const member of contract.members || []) {
+    member.manor_role = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  }
+  if (!canManageFamilyRoles(actorMember, contract)) throw createError('只有家主可以调整家族庄园职位第一版', 403);
+
+  const previousAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'family_role_updated' && entry.idempotency_key === idempotencyKey
+  );
+  if (previousAudit) {
+    return {
+      contract: toPublicContract(contract),
+      role_panel: buildFamilyRoleSnapshot(contract, actorUsername),
+      idempotent: true,
+      audit_entry: previousAudit,
+    };
+  }
+
+  const targetUsername = normalizeUsername(payload.target_username || payload.username);
+  if (!targetUsername) throw createError('请指定要调整职位的成员');
+  const targetMember = getContractMember(contract, targetUsername);
+  if (!targetMember) throw createError('要调整职位的成员不在这份契约中', 404);
+  if (targetMember.status !== 'accepted') throw createError('只能调整已接受契约成员的职位', 409);
+  const requestedRole = sanitizeText(payload.manor_role || payload.family_role || payload.role_id, 40);
+  if (!FAMILY_MANOR_ROLE_DEFS[requestedRole]) throw createError('请提交有效的家族庄园职位');
+  if (requestedRole === 'family_head' && targetMember.role !== 'owner') throw createError('家主职位第一版只能保留给契约发起者', 403);
+  if (targetMember.role === 'owner' && requestedRole !== 'family_head') throw createError('第一版不能移除契约发起者的家主职位', 403);
+
+  const beforeRole = normalizeFamilyManorRole(targetMember.manor_role, contract.type, targetMember.role);
+  if (beforeRole === requestedRole) throw createError('家族庄园职位没有变化');
+  const beforePermissions = enforcePermissionSafetyRails(contract.permissions?.[targetMember.username_key], contract.type);
+  const nextPermissions = createPermissionSetForFamilyRole(contract.type, requestedRole);
+  const permissionChanges = diffPermissionSets(beforePermissions, nextPermissions, contract.type);
+  targetMember.manor_role = requestedRole;
+  contract.permissions[targetMember.username_key] = nextPermissions;
+  appendAudit(contract, 'family_role_updated', actor, {
+    target_username: targetMember.username,
+    target_display_name: targetMember.display_name,
+    before_role: beforeRole,
+    after_role: requestedRole,
+    before_role_label: getFamilyManorRoleDef(beforeRole).label,
+    after_role_label: getFamilyManorRoleDef(requestedRole).label,
+    changed_fields: permissionChanges,
+    changed_field_count: permissionChanges.length,
+    confirmations_locked: true,
+    note: sanitizeText(payload.note || payload.memo, 160),
+  }, idempotencyKey);
+  saveContractStore(store);
+  const auditEntry = contract.audit_log.find(entry => entry.idempotency_key === idempotencyKey && entry.action === 'family_role_updated');
+  return {
+    contract: toPublicContract(contract),
+    role_panel: buildFamilyRoleSnapshot(contract, actorUsername),
+    changed_fields: permissionChanges,
+    idempotent: false,
+    audit_entry: auditEntry,
+  };
+}
+
 async function contributeCohabitationFund(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -1844,6 +2150,9 @@ async function createCohabitationContract(payload = {}, actor = {}) {
     invitedMembers.push(await resolveMemberFromUsername(targetUsername, 'partner', 'pending', createdAt));
   }
   const members = [creator, ...invitedMembers];
+  for (const member of members) {
+    member.manor_role = normalizeFamilyManorRole(member.manor_role, type, member.role);
+  }
   const store = loadContractStore();
   if (idempotencyKey) {
     const previous = store.contracts.find(contract =>
@@ -1858,7 +2167,9 @@ async function createCohabitationContract(payload = {}, actor = {}) {
 
   const permissions = {};
   for (const member of members) {
-    permissions[member.username_key] = createDefaultPermissionSet(type);
+    permissions[member.username_key] = isFamilyRoleContractType(type)
+      ? createPermissionSetForFamilyRole(type, member.manor_role)
+      : createDefaultPermissionSet(type);
   }
   const contract = normalizeContract({
     id: makeId('cohabitation_contract'),
@@ -2057,10 +2368,12 @@ module.exports = {
   getCohabitationWarehouse,
   getCohabitationFund,
   getCohabitationPermissions,
+  getCohabitationFamilyRoles,
   getCohabitationOfflineStatus,
   depositCohabitationWarehouseItem,
   contributeCohabitationFund,
   updateCohabitationPermissions,
+  updateCohabitationFamilyRole,
   createCohabitationContract,
   acceptCohabitationContract,
   createSeparationPreview,

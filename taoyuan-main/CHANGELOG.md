@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 家族庄园职位服务端第一版
+- 结拜 / 合伙庄园新增服务端职位面板，支持家主、管仓、农务、牧养、工坊、账房六类职位；契约发起者默认家主，其他成员默认农务。
+- 新增 `GET /roles` 与幂等 `POST /roles` 契约接口，家主可调整非家主成员职位，职位变更会重算权限模板并写入 `family_role_updated` 审计。
+- 本轮只接服务端能力和 QA：不新增前端职位面板，不开放家族订单、声望、建筑、节会席位，也不放开恋爱 / 婚姻同居的双人边界。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix server run qa:online-smoke`。
+
 ### 0524 同居分居演算预览
 - `separation-preview` 服务端预览草案升级为 `version=1` 返还清单，读回来源田区、共同仓库流水、共同基金注资比例 / 建议返还、冷静期、双方确认状态、补偿计划和安全检查。
 - 该能力仍是预览层：不执行个人存档写回、不转移背包或铜币、不关闭契约，真实确认返还和前端确认面板继续留在后续任务。
