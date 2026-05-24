@@ -109,6 +109,14 @@ export interface SocietyProjectContributionSnapshot {
   created_at: number
 }
 
+export interface SocietyProjectCompletionRewardSnapshot {
+  id: string
+  kind: string
+  label: string
+  summary: string
+  active: boolean
+}
+
 export interface SocietyPublicProjectSnapshot {
   id: string
   label: string
@@ -125,6 +133,7 @@ export interface SocietyPublicProjectSnapshot {
   progress_note: string
   completion_feedback: string
   world_feedback: string
+  completion_rewards: SocietyProjectCompletionRewardSnapshot[]
   can_contribute: boolean
   my_contribution_count: number
   contribution_packages: SocietyProjectPackageSnapshot[]
@@ -210,6 +219,7 @@ export interface SocietyChronicleProjectEntry {
   completed_at: number
   completed_by_display_name: string
   contribution_count: number
+  completion_rewards: SocietyProjectCompletionRewardSnapshot[]
 }
 
 export interface SocietyChronicleFestivalEntry {

@@ -261,6 +261,20 @@ const SOCIETY_PUBLIC_PROJECT_DEFS = Object.freeze([
     target_progress: 100,
     completion_feedback: '溪桥已经修稳，村社往来不再总被河道绊住脚。',
     world_feedback: '公共讨论里会更频繁提到桥头会面、过河送货和联机往来更顺。',
+    completion_rewards: [
+      {
+        id: 'bridge_crossing_bonus',
+        kind: 'travel_bonus',
+        label: '溪桥通行增益',
+        summary: '村社成员、访客和运货路线会在公共建设回看里获得“过河往来更顺”的通行提示。',
+      },
+      {
+        id: 'bridge_memorial',
+        kind: 'memorial',
+        label: '桥头纪念碑',
+        summary: '修桥完工会在公共工程、异步现场和村社史册中保留桥头落成纪念。',
+      },
+    ],
   },
   {
     id: 'festival_square',
@@ -641,6 +655,37 @@ function normalizeSocietyPublicProjectContribution(entry) {
     costs: Array.isArray(entry?.costs) ? entry.costs.map(normalizeBundleEntry).filter(Boolean).slice(0, 8) : [],
     created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
   };
+}
+
+function normalizeSocietyProjectCompletionReward(entry, active = false) {
+  const id = sanitizeText(entry?.id, 80);
+  if (!id) return null;
+  return {
+    id,
+    kind: sanitizeText(entry?.kind, 40) || 'reward',
+    label: sanitizeText(entry?.label, 40) || id,
+    summary: sanitizeText(entry?.summary, 160),
+    active: active === true,
+  };
+}
+
+function buildSocietyProjectCompletionRewards(project) {
+  const normalized = normalizeSocietyPublicProject(project);
+  const def = SOCIETY_PUBLIC_PROJECT_DEF_MAP[normalized.id] || {};
+  const active = normalized.status === 'completed';
+  return Array.isArray(def.completion_rewards)
+    ? def.completion_rewards
+        .map(entry => normalizeSocietyProjectCompletionReward(entry, active))
+        .filter(Boolean)
+        .slice(0, 6)
+    : [];
+}
+
+function buildSocietyProjectCompletionRewardText(project) {
+  return buildSocietyProjectCompletionRewards(project)
+    .map(entry => entry.label)
+    .filter(Boolean)
+    .join('、');
 }
 
 function normalizeSocietyPublicProject(entry) {
@@ -1577,6 +1622,7 @@ function buildSocietyChronicleSnapshot(society) {
       })),
     public_projects: normalized.public_projects.map(entry => {
       const def = SOCIETY_PUBLIC_PROJECT_DEF_MAP[entry.id] || SOCIETY_PUBLIC_PROJECT_DEFS[0];
+      const completionRewards = buildSocietyProjectCompletionRewards(entry);
       return {
         id: def.id,
         label: def.label,
@@ -1587,6 +1633,7 @@ function buildSocietyChronicleSnapshot(society) {
         completed_at: entry.completed_at,
         completed_by_display_name: entry.completed_by_display_name || '',
         contribution_count: (entry.contributions || []).length,
+        completion_rewards: completionRewards,
       };
     }),
     festival_participations: festivalChronicle.map(entry => ({
@@ -1893,6 +1940,7 @@ function buildSocietyFestivalContributionObjectIds(project, stageId) {
 
 function buildSocietyVisualAsyncStages(project) {
   const stages = getSocietyAsyncStageDefs(project.id);
+  const completionRewardText = buildSocietyProjectCompletionRewardText(project);
   return stages.map(stage => {
     const span = Math.max(1, stage.threshold - stage.previous_threshold);
     const stageProgress = Math.max(0, Math.min(span, project.progress - stage.previous_threshold));
@@ -1915,7 +1963,9 @@ function buildSocietyVisualAsyncStages(project) {
         label: item.label,
         progress_required: item.threshold,
         reached: project.status === 'completed' || project.progress >= item.threshold,
-        reward_preview: item.threshold >= project.target_progress ? project.completion_feedback : `推进到 ${item.threshold}/${project.target_progress}`,
+        reward_preview: item.threshold >= project.target_progress
+          ? [project.completion_feedback, completionRewardText ? `完工效果：${completionRewardText}` : ''].filter(Boolean).join(' ')
+          : `推进到 ${item.threshold}/${project.target_progress}`,
       })),
     };
   });
@@ -1944,6 +1994,7 @@ function buildSocietyVisualAsyncContributors(project) {
 }
 
 function buildSocietyVisualAsyncHistory(project) {
+  const completionRewardText = buildSocietyProjectCompletionRewardText(project);
   const contributions = (project.contributions || [])
     .map(normalizeSocietyPublicProjectContribution)
     .sort((left, right) => right.created_at - left.created_at)
@@ -1963,7 +2014,7 @@ function buildSocietyVisualAsyncHistory(project) {
       type: 'stage_complete',
       actor_username: project.completed_by,
       actor_display_name: project.completed_by_display_name || project.completed_by,
-      summary: project.completion_feedback,
+      summary: [project.completion_feedback, completionRewardText ? `落成效果：${completionRewardText}` : ''].filter(Boolean).join(' '),
       created_at: project.completed_at || nowSeconds(),
     },
     ...contributions,
@@ -2006,12 +2057,13 @@ function buildSocietyVisualHighlights(projects) {
       .sort((left, right) => right.created_at - left.created_at)[0];
     const highlights = [];
     if (project.status === 'completed') {
+      const completionRewardText = buildSocietyProjectCompletionRewardText(project);
       highlights.push({
         id: `society_project_highlight:${project.id}:complete:${project.completed_at || 0}`,
         visual_id: project.id,
         type: 'success',
         label: `${(SOCIETY_PUBLIC_PROJECT_DEF_MAP[project.id] || {}).label || project.id}完工`,
-        summary: project.completion_feedback,
+        summary: [project.completion_feedback, completionRewardText ? `完工效果：${completionRewardText}` : ''].filter(Boolean).join(' '),
         created_at: project.completed_at || 0,
       });
     } else if (recentContribution) {
@@ -2082,6 +2134,7 @@ async function buildPublicProjectSnapshot(project, viewerUsername, viewerCanCont
     progress_note: normalized.progress_note || (normalized.status === 'completed' ? normalized.completion_feedback : `距离完工还差 ${Math.max(0, normalized.target_progress - normalized.progress)} 点进度。`),
     completion_feedback: normalized.completion_feedback || def.completion_feedback,
     world_feedback: normalized.world_feedback || def.world_feedback,
+    completion_rewards: buildSocietyProjectCompletionRewards(normalized),
     can_contribute: viewerCanContribute && normalized.status !== 'completed',
     my_contribution_count: myContributionCount,
     contribution_packages: getSocietyProjectPackageOptions(normalized.id).map(buildPublicProjectPackageSnapshot),
@@ -2794,7 +2847,8 @@ async function contributeSocietyPublicProject(projectId, payload = {}, actor = {
     project.completed_at = nowSeconds();
     project.completed_by = actorUsername;
     project.completed_by_display_name = actorDisplayName;
-    project.progress_note = project.completion_feedback;
+    const completionRewardText = buildSocietyProjectCompletionRewardText(project);
+    project.progress_note = [project.completion_feedback, completionRewardText ? `完工效果：${completionRewardText}` : ''].filter(Boolean).join(' ');
     appendSocietyActivity(society, `${actorDisplayName}带队完成了公共建设「${(SOCIETY_PUBLIC_PROJECT_DEF_MAP[project.id] || {}).label || project.id}」`, 'public_project_complete');
   } else {
     appendSocietyActivity(society, `${actorDisplayName}为公共建设「${(SOCIETY_PUBLIC_PROJECT_DEF_MAP[project.id] || {}).label || project.id}」捐献了${contributionPackage.label}`, 'public_project');

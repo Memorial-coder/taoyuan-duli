@@ -4066,6 +4066,17 @@ try {
     assert(completionBundle.data?.ok === true && completionBundle.data?.project?.id === 'bridge', 'society public project completion payload is incomplete')
     assert(String(completionBundle.data?.project?.status || '') === 'completed', 'society public project completion did not mark bridge as completed')
     assert(Number(completionBundle.data?.project?.progress || 0) === 100, `society public project completion did not reach 100, current=${Number(completionBundle.data?.project?.progress || 0)}`)
+    const completionRewards = Array.isArray(completionBundle.data?.project?.completion_rewards)
+      ? completionBundle.data.project.completion_rewards
+      : []
+    assert(
+      completionRewards.some(entry => entry?.id === 'bridge_crossing_bonus' && entry?.active === true && String(entry?.summary || '').includes('通行')),
+      'society bridge completion did not expose active crossing bonus',
+    )
+    assert(
+      completionRewards.some(entry => entry?.id === 'bridge_memorial' && entry?.active === true && String(entry?.label || '').includes('纪念碑')),
+      'society bridge completion did not expose active bridge memorial',
+    )
     assert(
       typeof completionBundle.data?.project?.world_feedback === 'string' &&
       completionBundle.data.project.world_feedback.includes('桥头会面'),
@@ -4094,10 +4105,30 @@ try {
       bridgeProject.world_feedback.includes('桥头会面'),
       'society completed public project readback did not preserve world feedback',
     )
+    const bridgeRewards = Array.isArray(bridgeProject?.completion_rewards) ? bridgeProject.completion_rewards : []
+    assert(
+      bridgeRewards.some(entry => entry?.id === 'bridge_crossing_bonus' && entry?.active === true),
+      'society completed public project readback did not preserve bridge crossing bonus',
+    )
+    assert(
+      bridgeRewards.some(entry => entry?.id === 'bridge_memorial' && entry?.active === true),
+      'society completed public project readback did not preserve bridge memorial',
+    )
     const bridgeVisualProject = data?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'bridge')
     assert(bridgeVisualProject?.completion_event_id === 'society_project_complete:bridge', 'society completed public project readback did not expose bridge completion visual event')
     assert(Array.isArray(bridgeVisualProject?.stages) && bridgeVisualProject.stages.every(entry => entry?.state === 'complete'), 'society completed public project readback did not mark all bridge visual stages complete')
     assert(Array.isArray(bridgeVisualProject?.history) && bridgeVisualProject.history.some(entry => entry?.type === 'stage_complete'), 'society completed public project readback did not preserve visual completion history')
+    assert(
+      Array.isArray(bridgeVisualProject?.history) &&
+      bridgeVisualProject.history.some(entry => entry?.type === 'stage_complete' && String(entry?.summary || '').includes('溪桥通行增益')),
+      'society completed public project visual history did not include bridge completion effects',
+    )
+    const bridgeChronicleProject = data?.my_society?.chronicle?.public_projects?.find(entry => entry?.id === 'bridge')
+    const bridgeChronicleRewards = Array.isArray(bridgeChronicleProject?.completion_rewards) ? bridgeChronicleProject.completion_rewards : []
+    assert(
+      bridgeChronicleRewards.some(entry => entry?.id === 'bridge_memorial' && entry?.active === true),
+      'society chronicle did not preserve bridge memorial reward',
+    )
     assert(
       Array.isArray(data?.my_society?.activity_log) &&
       data.my_society.activity_log.some(entry => entry?.type === 'public_project_complete' && String(entry?.message || '').includes('修桥')),

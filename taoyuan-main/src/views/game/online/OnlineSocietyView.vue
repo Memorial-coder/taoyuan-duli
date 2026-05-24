@@ -541,6 +541,16 @@
             <p class="mt-2 text-[10px] leading-4 text-muted">{{ project.summary }}</p>
             <p v-if="project.progress_note" class="mt-1 text-[10px] leading-4 text-muted">{{ project.progress_note }}</p>
             <p v-if="project.status === 'completed'" class="mt-1 text-[10px] leading-4 text-success">{{ project.world_feedback || project.completion_feedback }}</p>
+            <div v-if="(project.completion_rewards || []).length > 0" class="mt-2 space-y-1 text-[10px] leading-4 text-muted">
+              <p class="text-accent">完工效果</p>
+              <p
+                v-for="reward in project.completion_rewards || []"
+                :key="`${project.id}-${reward.id}`"
+                :class="reward.active ? 'text-success' : 'text-muted'"
+              >
+                {{ reward.label }}：{{ reward.summary }}
+              </p>
+            </div>
 
             <div v-if="project.can_contribute" class="mt-3 grid gap-2 md:grid-cols-2">
               <button
@@ -743,6 +753,9 @@
                     · {{ entry.completed_by_display_name }} 完工
                   </template>
                 </p>
+                <p v-if="activeCompletionRewardText(entry.completion_rewards)" class="mt-1 text-[10px] leading-4 text-success">
+                  落成效果：{{ activeCompletionRewardText(entry.completion_rewards) }}
+                </p>
               </div>
             </div>
             <div v-if="currentSociety.chronicle.festival_participations.length > 0" class="max-h-64 space-y-2 overflow-y-auto pr-1">
@@ -795,7 +808,13 @@
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import { useSocietyStore } from '@/stores/useSocietyStore'
   import type { OnlineVisualAsyncProject } from '@/types/onlineVisual'
-  import type { SocietyProposalChoice, SocietyProposalSnapshot, SocietyRole, SocietySnapshot } from '@/utils/societyApi'
+  import type {
+    SocietyProjectCompletionRewardSnapshot,
+    SocietyProposalChoice,
+    SocietyProposalSnapshot,
+    SocietyRole,
+    SocietySnapshot,
+  } from '@/utils/societyApi'
 
   type SocietyTabKey = 'overview' | 'members' | 'storage' | 'projects' | 'proposals' | 'chronicles'
   type SocietyTabMeta = { key: SocietyTabKey; label: string; summary: string }
@@ -855,6 +874,8 @@
     }
     return labels
   })
+  const activeCompletionRewardText = (rewards: SocietyProjectCompletionRewardSnapshot[] = []) =>
+    rewards.filter(entry => entry.active).map(entry => entry.label).filter(Boolean).join(' / ')
   const activeTabMeta = computed(() => tabs.find(tab => tab.key === activeTab.value) ?? tabs[0]!)
   const pendingRequestBySocietyId = computed(() => new Map(societyStore.myPendingRequests.map(request => [request.society_id, request])))
   const incomingInviteBySocietyId = computed(() => new Map(societyStore.incomingInvites.map(request => [request.society_id, request])))
