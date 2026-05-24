@@ -676,6 +676,107 @@ export interface CohabitationFamilyRelationsPanel {
   deferred_operations: string[]
 }
 
+export interface CohabitationFamilyFestivalSeatMember extends CohabitationMember {
+  manor_role: string
+  manor_role_label: string
+  seat_id: string
+  seat_index: number
+  seat_label: string
+  festival_role: string
+  seat_summary: string
+  seat_state: string
+  seat_permissions: Record<string, boolean>
+}
+
+export interface CohabitationFamilyFestivalSeatTemplate {
+  id: string
+  label: string
+  visual_type: string
+  member_limit: number
+  family_compatible: boolean
+  available: boolean
+  binding_enabled: boolean
+  room_create_enabled: boolean
+  reward_enabled: boolean
+  unlock_source: string
+  recommended_roles: string[]
+  summary: string
+  disabled_reason: string
+}
+
+export interface CohabitationFamilyFestivalSeatSceneObject {
+  id: string
+  label: string
+  kind: string
+  state: string
+  x: number
+  y: number
+  linked_template_ids?: string[]
+  linked_role_ids?: string[]
+  seat_count?: number
+  available_action_ids: string[]
+}
+
+export interface CohabitationFamilyFestivalSeatsPanel {
+  contract_id: string
+  shared_manor_id: string
+  type: string
+  type_label: string
+  status: string
+  readonly: boolean
+  write_enabled: boolean
+  writes_enabled: boolean
+  festival_seats_enabled: boolean
+  seat_reservation_enabled: boolean
+  festival_room_binding_enabled: boolean
+  generated_at: number
+  revision: number
+  summary: {
+    member_count: number
+    max_members: number
+    preview_seat_count: number
+    available_template_count: number
+    festival_room_create_enabled: boolean
+    festival_room_invite_enabled: boolean
+    settlement_enabled: boolean
+    reward_enabled: boolean
+    reputation_award_enabled: boolean
+    shared_fund_spend_enabled: boolean
+    shared_warehouse_consume_enabled: boolean
+    festival_ticket_spend_enabled: boolean
+    personal_money_merged: boolean
+    personal_inventory_merged: boolean
+    disabled_reason: string
+  }
+  actor: CohabitationFamilyFestivalSeatMember | null
+  members: CohabitationFamilyFestivalSeatMember[]
+  candidate_templates: CohabitationFamilyFestivalSeatTemplate[]
+  visual_state_preview: {
+    board_type: string
+    board_id: string
+    revision: number
+    selected_visual_id: string
+    recent_feedback: string
+    scene: Record<string, unknown> | null
+    scene_objects: CohabitationFamilyFestivalSeatSceneObject[]
+    seats: Array<{
+      seat_id: string
+      seat_index: number
+      seat_label: string
+      username: string
+      display_name: string
+      manor_role: string
+      manor_role_label: string
+      festival_role: string
+      state: string
+    }>
+  }
+  governance: Record<string, unknown>
+  settlement: Record<string, unknown>
+  recommended_flow: string[]
+  deferred_operations: string[]
+}
+
 export interface CohabitationOfflineStatus {
   contract_id: string
   shared_manor_id: string
@@ -970,6 +1071,12 @@ export const fetchCohabitationFamilyRelations = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     family_relations_panel?: CohabitationFamilyRelationsPanel
   }>(contractPath(contractId, '/family-relations'), '获取家族关系图预备面板失败')
+}
+
+export const fetchCohabitationFamilyFestivalSeats = async (contractId: string) => {
+  return fetchCohabitationJson<CohabitationDetailResponse & {
+    family_festival_seats_panel?: CohabitationFamilyFestivalSeatsPanel
+  }>(contractPath(contractId, '/family-festival-seats'), '获取家族节会席位预备面板失败')
 }
 
 export const updateCohabitationFamilyRole = async (contractId: string, payload: CohabitationFamilyRoleUpdatePayload) => {

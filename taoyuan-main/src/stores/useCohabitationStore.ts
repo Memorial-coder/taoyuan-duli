@@ -4,6 +4,7 @@ import {
   contributeCohabitationFund,
   depositCohabitationWarehouseItem,
   fetchCohabitationFamilyBuildings,
+  fetchCohabitationFamilyFestivalSeats,
   fetchCohabitationFamilyOrders,
   fetchCohabitationFamilyRelations,
   fetchCohabitationFamilyReputation,
@@ -20,6 +21,7 @@ import {
   updateCohabitationPermissions,
   withdrawCohabitationWarehouseItem,
   type CohabitationFamilyBuildingsPanel,
+  type CohabitationFamilyFestivalSeatsPanel,
   type CohabitationFamilyOrdersPanel,
   type CohabitationFamilyRelationsPanel,
   type CohabitationFamilyReputationPanel,
@@ -46,6 +48,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const permissionsPanel = ref<CohabitationPermissionsPanel | null>(null)
   const rolePanel = ref<CohabitationFamilyRolePanel | null>(null)
   const familyBuildingsPanel = ref<CohabitationFamilyBuildingsPanel | null>(null)
+  const familyFestivalSeatsPanel = ref<CohabitationFamilyFestivalSeatsPanel | null>(null)
   const familyOrdersPanel = ref<CohabitationFamilyOrdersPanel | null>(null)
   const familyRelationsPanel = ref<CohabitationFamilyRelationsPanel | null>(null)
   const familyReputationPanel = ref<CohabitationFamilyReputationPanel | null>(null)
@@ -69,6 +72,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     permissionsPanel.value = null
     rolePanel.value = null
     familyBuildingsPanel.value = null
+    familyFestivalSeatsPanel.value = null
     familyOrdersPanel.value = null
     familyRelationsPanel.value = null
     familyReputationPanel.value = null
@@ -92,13 +96,14 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       errorMessage.value = ''
     }
     try {
-      const [mapResult, warehouseResult, fundResult, permissionsResult, roleResult, familyBuildingsResult, familyOrdersResult, familyRelationsResult, familyReputationResult, offlineResult] = await Promise.all([
+      const [mapResult, warehouseResult, fundResult, permissionsResult, roleResult, familyBuildingsResult, familyFestivalSeatsResult, familyOrdersResult, familyRelationsResult, familyReputationResult, offlineResult] = await Promise.all([
         fetchCohabitationSharedMap(contractId),
         fetchCohabitationWarehouse(contractId),
         fetchCohabitationFund(contractId),
         fetchCohabitationPermissions(contractId),
         fetchCohabitationFamilyRoles(contractId),
         fetchCohabitationFamilyBuildings(contractId),
+        fetchCohabitationFamilyFestivalSeats(contractId),
         fetchCohabitationFamilyOrders(contractId),
         fetchCohabitationFamilyRelations(contractId),
         fetchCohabitationFamilyReputation(contractId),
@@ -110,6 +115,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       permissionsPanel.value = permissionsResult?.permissions_panel ?? null
       rolePanel.value = roleResult?.role_panel ?? null
       familyBuildingsPanel.value = familyBuildingsResult?.family_buildings_panel ?? null
+      familyFestivalSeatsPanel.value = familyFestivalSeatsResult?.family_festival_seats_panel ?? null
       familyOrdersPanel.value = familyOrdersResult?.family_orders_panel ?? null
       familyRelationsPanel.value = familyRelationsResult?.family_relations_panel ?? null
       familyReputationPanel.value = familyReputationResult?.family_reputation_panel ?? null
@@ -121,6 +127,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
         permissionsPanel: permissionsPanel.value,
         rolePanel: rolePanel.value,
         familyBuildingsPanel: familyBuildingsPanel.value,
+        familyFestivalSeatsPanel: familyFestivalSeatsPanel.value,
         familyOrdersPanel: familyOrdersPanel.value,
         familyRelationsPanel: familyRelationsPanel.value,
         familyReputationPanel: familyReputationPanel.value,
@@ -385,6 +392,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     permissionsPanel,
     rolePanel,
     familyBuildingsPanel,
+    familyFestivalSeatsPanel,
     familyOrdersPanel,
     familyRelationsPanel,
     familyReputationPanel,

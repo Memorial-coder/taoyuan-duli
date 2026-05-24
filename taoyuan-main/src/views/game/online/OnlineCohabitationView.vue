@@ -864,6 +864,108 @@
         </div>
       </div>
 
+      <div v-else-if="activeTab === 'festivalSeats'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div class="game-panel-muted p-3">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 text-accent">
+              <CalendarDays :size="13" />
+              <p class="text-sm">家族节会席位</p>
+            </div>
+            <span class="text-[10px] text-muted">{{ familyFestivalSeatsPanel?.festival_seats_enabled ? '已启用预览' : '未启用' }}</span>
+          </div>
+          <div v-if="!familyFestivalSeatsPanel" class="mt-3 text-xs leading-5 text-muted">当前没有家族节会席位预备面板数据。</div>
+          <div v-else>
+            <div class="mt-3 grid gap-2 md:grid-cols-4">
+              <div v-for="item in familyFestivalSeatSummaryCards" :key="item.label" class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
+              </div>
+            </div>
+            <p v-if="familyFestivalSeatsPanel.summary.disabled_reason" class="mt-3 text-[10px] leading-4 text-muted">
+              {{ familyFestivalSeatsPanel.summary.disabled_reason }}
+            </p>
+            <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyFestivalSeatsPanel.visual_state_preview.recent_feedback }}</p>
+            <div class="relative mt-3 h-72 overflow-hidden border border-accent/10 bg-black/10">
+              <div
+                v-for="object in familyFestivalSeatSceneObjects"
+                :key="object.id"
+                class="absolute min-h-10 w-24 -translate-x-1/2 -translate-y-1/2 border px-2 py-1 text-center shadow-sm"
+                :class="familyFestivalSceneObjectClass(object.kind, object.state)"
+                :style="{ left: `${object.x}%`, top: `${object.y}%` }"
+              >
+                <p class="truncate text-[10px] text-text">{{ object.label || object.id }}</p>
+                <p class="mt-0.5 truncate text-[9px] text-muted">{{ familyFestivalObjectKindLabel(object.kind) }} · {{ familyFestivalSeatStateLabel(object.state) }}</p>
+              </div>
+            </div>
+            <div class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              <div v-for="template in familyFestivalSeatTemplates" :key="template.id" class="border border-accent/10 bg-black/10 p-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ template.label }}</p>
+                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ template.summary }}</p>
+                  </div>
+                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[10px]" :class="template.available ? 'text-accent' : 'text-muted'">
+                    {{ template.available ? '可预排' : '不适配' }}
+                  </span>
+                </div>
+                <p class="mt-2 text-[10px] text-muted">
+                  {{ familyFestivalVisualTypeLabel(template.visual_type) }} · 上限 {{ template.member_limit }} 人 · 推荐 {{ template.recommended_roles.map(familyRoleLabel).join('、') || '暂无' }}
+                </p>
+                <p v-if="template.disabled_reason" class="mt-1 text-[10px] leading-4 text-muted">{{ template.disabled_reason }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">成员席位</p>
+            <div v-if="familyFestivalSeatMembers.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无成员席位。</div>
+            <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              <div v-for="member in familyFestivalSeatMembers" :key="member.username" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ member.seat_label || '未分配席位' }}</p>
+                    <p class="mt-1 text-[10px] text-muted">{{ member.display_name || member.username }} · {{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
+                  </div>
+                  <span class="shrink-0 text-[10px] text-accent">{{ familyFestivalSeatStateLabel(member.seat_state) }}</span>
+                </div>
+                <p v-if="member.seat_summary" class="mt-2 text-[10px] leading-4 text-muted">{{ member.seat_summary }}</p>
+                <div class="mt-2 grid gap-2 text-[10px] text-muted">
+                  <span>供给预览：{{ member.seat_permissions.can_prepare_supplies_preview ? '可看' : '不可用' }}</span>
+                  <span>开房：{{ member.seat_permissions.can_open_festival_room ? '开放' : '暂缓' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">结算护栏</p>
+            <div class="mt-3 space-y-2">
+              <div
+                v-for="item in familyFestivalSeatGuardCards"
+                :key="item.label"
+                class="flex items-center justify-between gap-2 border border-accent/10 bg-black/10 p-2 text-xs"
+              >
+                <span class="text-muted">{{ item.label }}</span>
+                <span class="text-accent">{{ item.value }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">暂缓能力</p>
+            <div v-if="familyFestivalSeatDeferredOperations.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无暂缓项。</div>
+            <div v-else class="mt-3 flex flex-wrap gap-2">
+              <span
+                v-for="item in familyFestivalSeatDeferredOperations"
+                :key="item"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+              >
+                {{ deferredOperationLabel(item) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
@@ -956,6 +1058,7 @@
   import { computed, onMounted, ref } from 'vue'
   import {
     Building2,
+    CalendarDays,
     CheckCircle2,
     Clock3,
     ClipboardList,
@@ -980,7 +1083,7 @@
     CohabitationWarehouseItem,
   } from '@/utils/cohabitationApi'
 
-  type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'reputation' | 'buildings' | 'relations' | 'offline'
+  type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'reputation' | 'buildings' | 'relations' | 'festivalSeats' | 'offline'
   type CohabitationTabMeta = { key: CohabitationTabKey; label: string; summary: string }
 
   const cohabitationStore = useCohabitationStore()
@@ -1008,6 +1111,7 @@
     { key: 'reputation', label: '声望', summary: '只读查看家族声望预览分、来源证据和未来奖励治理边界。' },
     { key: 'buildings', label: '建筑', summary: '只读查看家族建筑蓝图、材料缺口、规划场景和共同资产边界。' },
     { key: 'relations', label: '关系', summary: '只读查看契约成员、家族职位、共同能力节点和隐私边界。' },
+    { key: 'festivalSeats', label: '节会', summary: '只读查看家族节会席位、候选模板、场景预排和结算护栏。' },
     { key: 'offline', label: '离线', summary: '查看成员最近活跃、共同日志和无需全员在线的能力边界。' },
   ]
 
@@ -1149,6 +1253,32 @@
       { label: '随机 NPC', value: privacy.random_npc_nodes_exposed === true ? '公开' : '私密' },
       { label: '孩子 / 宠物', value: privacy.children_nodes_exposed === true || privacy.pets_exposed === true ? '公开' : '私密' },
       { label: '未来公开同意', value: governance.future_publication_requires_consent === true ? '必须' : '未声明' },
+    ]
+  })
+  const familyFestivalSeatsPanel = computed(() => cohabitationStore.familyFestivalSeatsPanel)
+  const familyFestivalSeatMembers = computed(() => familyFestivalSeatsPanel.value?.members ?? [])
+  const familyFestivalSeatTemplates = computed(() => familyFestivalSeatsPanel.value?.candidate_templates ?? [])
+  const familyFestivalSeatSceneObjects = computed(() => familyFestivalSeatsPanel.value?.visual_state_preview.scene_objects ?? [])
+  const familyFestivalSeatDeferredOperations = computed(() => familyFestivalSeatsPanel.value?.deferred_operations ?? [])
+  const familyFestivalSeatSummaryCards = computed(() => {
+    const summary = familyFestivalSeatsPanel.value?.summary
+    return [
+      { label: '预排席位', value: `${summary?.preview_seat_count ?? 0}/${summary?.member_count ?? 0}` },
+      { label: '候选模板', value: summary?.available_template_count ?? 0 },
+      { label: '节会开房', value: summary?.festival_room_create_enabled ? '开放' : '暂缓' },
+      { label: '奖励结算', value: summary?.reward_enabled ? '开放' : '暂缓' },
+    ]
+  })
+  const familyFestivalSeatGuardCards = computed(() => {
+    const governance = familyFestivalSeatsPanel.value?.governance ?? {}
+    const settlement = familyFestivalSeatsPanel.value?.settlement ?? {}
+    return [
+      { label: '服务端权威', value: governance.server_authoritative === true ? '必须' : '未声明' },
+      { label: '锁席幂等', value: governance.seat_reservation_requires_idempotency === true ? '必须' : '未声明' },
+      { label: '断线恢复', value: governance.disconnect_recovery_required === true ? '必须' : '未声明' },
+      { label: '节会凭证', value: settlement.festival_receipt_required === true ? '必须' : '未声明' },
+      { label: '共同基金奖励', value: settlement.reward_to_shared_fund_enabled === true ? '开放' : '暂缓' },
+      { label: '补偿重放', value: settlement.compensation_replay_required === true ? '必须' : '未声明' },
     ]
   })
   const offlineMembers = computed(() => cohabitationStore.offlineStatus?.members ?? [])
@@ -1570,6 +1700,14 @@
       relationship_visibility_audit: '关系可见性审计',
       family_relation_graph_compensation_replay: '关系图补偿重放',
       family_relation_graph_rollback: '关系图回滚',
+      reserve_family_festival_seat: '锁定家族节会席位',
+      bind_family_seat_to_festival_room: '席位绑定节会房间',
+      create_festival_room_from_family_seats: '由席位创建节会房间',
+      consume_shared_festival_supplies: '消耗共同节会物资',
+      award_family_festival_reputation: '发放节会家族声望',
+      settle_family_festival_rewards: '结算节会奖励',
+      family_festival_compensation_replay: '节会补偿重放',
+      family_festival_seat_rollback: '席位回滚',
     }
     return labels[value] || value
   }
@@ -1591,6 +1729,47 @@
       role_assignment: '职位关联',
     }
     return labels[value] || value
+  }
+
+  const familyFestivalSceneObjectClass = (kind: string, state: string) => {
+    if (state === 'needs_role' || state === 'locked') return 'border-amber-300/25 bg-amber-500/10'
+    if (kind === 'banner') return 'border-accent/30 bg-accent/10 text-accent'
+    if (kind === 'seats') return 'border-emerald-300/25 bg-emerald-500/10'
+    if (kind === 'budget') return 'border-sky-300/25 bg-sky-500/10'
+    return 'border-accent/10 bg-black/20'
+  }
+
+  const familyFestivalObjectKindLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      banner: '席旗',
+      supply: '供给',
+      stage: '搭场',
+      budget: '账房',
+      seats: '成员席',
+    }
+    return labels[value] || value
+  }
+
+  const familyFestivalSeatStateLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      preview_ready: '预览就绪',
+      staffed: '已有人手',
+      needs_role: '缺职位',
+      locked: '暂锁',
+      disabled: '未启用',
+    }
+    return labels[value] || value || '未知'
+  }
+
+  const familyFestivalVisualTypeLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      lantern: '灯会',
+      track: '赛道',
+      banquet: '宴席',
+      ritual: '仪式',
+      stroll: '同游',
+    }
+    return labels[value] || value || '节会'
   }
 
   const familyBuildingStateLabel = (value: string) => {

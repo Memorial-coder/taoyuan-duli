@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 家族节会席位只读前端读回
+- 共同庄园新增“节会”页签，前端 API / store 读取 `/family-festival-seats` 只读预备面板。
+- 页面展示成员席位、候选节会模板、场景预排物件、席位状态、结算护栏，以及锁席、开房、共同物资消耗、奖励结算、补偿重放和回滚等暂缓能力。
+- 本轮只做读回，不锁定席位，不创建或绑定节会房间，不消耗共同基金 / 共同仓库，不发个人奖励或家族声望。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 家族关系图只读前端读回
 - 共同庄园新增“关系”页签，前端 API / store 读取 `/family-relations` 只读预备面板。
 - 页面展示契约成员、家族职位、共同能力节点、关系连接、成员节点、隐私护栏，以及公开档案、可见性审计、补偿重放和回滚等暂缓能力。
