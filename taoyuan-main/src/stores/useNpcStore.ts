@@ -26,6 +26,8 @@ import type {
   RandomNpcAcquaintanceEntry,
   RandomNpcArchiveSummary,
   RandomNpcBoardState,
+  RandomNpcLongStayEntry,
+  RandomNpcLongStayRoute,
   RandomNpcRelationshipTag,
   RandomNpcVisitorState,
   RegionId,
@@ -354,6 +356,7 @@ export const useNpcStore = defineStore('npc', () => {
     activeVisitors: [],
     acquaintanceIds: [],
     acquaintances: [],
+    longStayResidents: [],
     recentSummaries: []
   })
 
@@ -434,6 +437,16 @@ export const useNpcStore = defineStore('npc', () => {
   const trimRandomNpcAcquaintances = (acquaintances: RandomNpcAcquaintanceEntry[]) =>
     acquaintances.slice(0, RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances)
 
+  const trimRandomNpcLongStayResidents = (residents: RandomNpcLongStayEntry[]) =>
+    residents.slice(0, RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents)
+
+  const getRandomNpcLongStayRoute = (templateId: string): RandomNpcLongStayRoute => {
+    if (templateId.includes('tea') || templateId.includes('scholar')) return 'business'
+    if (templateId.includes('pet')) return 'caregiving'
+    if (templateId.includes('lantern')) return 'craft'
+    return 'friendship'
+  }
+
   const createRandomNpcAcquaintanceEntry = (visitor: RandomNpcVisitorState): RandomNpcAcquaintanceEntry => ({
     visitorId: visitor.id,
     templateId: visitor.templateId,
@@ -462,6 +475,45 @@ export const useNpcStore = defineStore('npc', () => {
     conversationCount: visitor.conversationCount,
     keyEvents: visitor.keyEvents.slice(-6)
   })
+
+  const createRandomNpcLongStayEntry = (acquaintance: RandomNpcAcquaintanceEntry): RandomNpcLongStayEntry | null => {
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === acquaintance.templateId)
+    if (!template) return null
+    const dayTag = getCurrentNpcDayTag()
+    return {
+      residentId: `resident:${acquaintance.visitorId}`,
+      sourceVisitorId: acquaintance.visitorId,
+      templateId: template.id,
+      name: acquaintance.name,
+      ageBand: template.ageBand,
+      gender: template.gender,
+      occupation: template.occupation,
+      origin: template.origin,
+      personalityTags: [...template.personalityTags],
+      speechStyle: template.speechStyle,
+      taboo: template.taboo,
+      lifeGoal: template.lifeGoal,
+      currentTrouble: template.currentTrouble,
+      plotHook: template.plotHook,
+      familySeed: template.familySeed,
+      preferences: {
+        loved: [...template.preferences.loved],
+        liked: [...template.preferences.liked],
+        disliked: [...template.preferences.disliked]
+      },
+      smallOrder: {
+        ...template.smallOrder,
+        requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
+      },
+      relationshipTag: acquaintance.relationshipTag === 'passing' ? 'acquaintance' : acquaintance.relationshipTag,
+      affinity: acquaintance.affinity,
+      movedInDayTag: dayTag,
+      residenceReason: `${acquaintance.name}决定在桃源村暂住，继续追索“${template.lifeGoal}”。`,
+      route: getRandomNpcLongStayRoute(template.id),
+      relationshipEventStage: 1,
+      keyEvents: [...acquaintance.keyEvents, `${dayTag} 成为长住 NPC，暂住桃源村。`].slice(-8)
+    }
+  }
 
   const upsertRandomNpcAcquaintance = (visitor: RandomNpcVisitorState): boolean => {
     const existingIndex = randomNpcBoard.value.acquaintances.findIndex(entry => entry.visitorId === visitor.id)
@@ -524,8 +576,20 @@ export const useNpcStore = defineStore('npc', () => {
     visitor.relationshipTag = choice.relationshipTag ?? visitor.relationshipTag
     visitor.lastVisitDayTag = getCurrentNpcDayTag()
     visitor.keyEvents = [...visitor.keyEvents, `${visitor.lastVisitDayTag} ${choice.text}：${choice.response}`].slice(-6)
-    if (visitor.tier === 'acquaintance') {
+    if (visitor.tier === 'acquaintance' || visitor.tier === 'long_stay') {
       upsertRandomNpcAcquaintance(visitor)
+    }
+    if (visitor.tier === 'long_stay') {
+      randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(resident =>
+        resident.sourceVisitorId === visitor.id
+          ? {
+              ...resident,
+              relationshipTag: visitor.relationshipTag,
+              affinity: visitor.affinity,
+              keyEvents: visitor.keyEvents.slice(-8)
+            }
+          : resident
+      )
     }
 
     return {
@@ -540,6 +604,7 @@ export const useNpcStore = defineStore('npc', () => {
     ensureRandomVisitorsForCurrentWeek()
     const visitor = randomNpcBoard.value.activeVisitors.find(entry => entry.id === visitorId)
     if (!visitor) return { success: false, message: '这位来访者已经离开。' }
+    if (visitor.tier === 'long_stay') return { success: false, message: `${visitor.name}已经在桃源村暂住。` }
     if (visitor.affinity < RANDOM_NPC_VISITOR_CONFIG.acquaintanceAffinityThreshold) {
       return { success: false, message: `还需要再熟悉一些（需要好感 ${RANDOM_NPC_VISITOR_CONFIG.acquaintanceAffinityThreshold}）。` }
     }
@@ -561,6 +626,35 @@ export const useNpcStore = defineStore('npc', () => {
       ...randomNpcBoard.value.recentSummaries.filter(entry => entry.visitorId !== visitor.id)
     ])
     return { success: true, message: `${visitor.name}已记入熟人册。` }
+  }
+
+  const promoteRandomNpcAcquaintanceToLongStay = (visitorId: string): { success: boolean; message: string } => {
+    ensureRandomVisitorsForCurrentWeek()
+    const acquaintance = randomNpcBoard.value.acquaintances.find(entry => entry.visitorId === visitorId)
+    if (!acquaintance) return { success: false, message: '熟人册里还没有这位来客。' }
+    if (randomNpcBoard.value.longStayResidents.some(entry => entry.sourceVisitorId === visitorId)) {
+      return { success: false, message: `${acquaintance.name}已经在桃源村暂住。` }
+    }
+    if (acquaintance.affinity < RANDOM_NPC_VISITOR_CONFIG.longStayAffinityThreshold) {
+      return { success: false, message: `还需要更稳定的关系（需要好感 ${RANDOM_NPC_VISITOR_CONFIG.longStayAffinityThreshold}）。` }
+    }
+    if (randomNpcBoard.value.longStayResidents.length >= RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents) {
+      return { success: false, message: `长住名额已满（${RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents}人），需要后续搬离 / 归档功能再整理。` }
+    }
+    const resident = createRandomNpcLongStayEntry(acquaintance)
+    if (!resident) return { success: false, message: '这位熟人的模板已经不可用，暂时不能长住。' }
+    randomNpcBoard.value.longStayResidents = trimRandomNpcLongStayResidents([
+      resident,
+      ...randomNpcBoard.value.longStayResidents
+    ])
+    randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(entry =>
+      entry.visitorId === visitorId
+        ? { ...entry, relationshipTag: entry.relationshipTag === 'passing' ? 'acquaintance' : entry.relationshipTag, keyEvents: resident.keyEvents.slice(-6) }
+        : entry
+    )
+    const activeVisitor = randomNpcBoard.value.activeVisitors.find(entry => entry.id === visitorId)
+    if (activeVisitor) activeVisitor.tier = 'long_stay'
+    return { success: true, message: `${acquaintance.name}已成为长住 NPC。` }
   }
 
   // ============================================================
@@ -2935,6 +3029,7 @@ export const useNpcStore = defineStore('npc', () => {
           activeVisitors: [],
           acquaintanceIds: [],
           acquaintances: [],
+          longStayResidents: [],
           recentSummaries: []
         }
       }
@@ -3028,6 +3123,54 @@ export const useNpcStore = defineStore('npc', () => {
             .filter(visitor => Array.isArray(raw.acquaintanceIds) && raw.acquaintanceIds.includes(visitor.id))
             .map(visitor => createRandomNpcAcquaintanceEntry(visitor))
         ].filter((entry, index, entries) => entries.findIndex(item => item.visitorId === entry.visitorId) === index)),
+        longStayResidents: trimRandomNpcLongStayResidents(
+          (Array.isArray(raw.longStayResidents) ? raw.longStayResidents : [])
+            .filter((entry: any) => entry && typeof entry === 'object' && typeof entry.sourceVisitorId === 'string' && validTemplateIds.has(entry.templateId))
+            .map((entry: any): RandomNpcLongStayEntry => {
+              const template = RANDOM_NPC_TEMPLATES.find(item => item.id === entry.templateId)!
+              const route: RandomNpcLongStayRoute =
+                entry.route === 'business' || entry.route === 'caregiving' || entry.route === 'craft' || entry.route === 'friendship'
+                  ? entry.route
+                  : getRandomNpcLongStayRoute(template.id)
+              const stage = Number(entry.relationshipEventStage)
+              return {
+                residentId: typeof entry.residentId === 'string' ? entry.residentId : `resident:${entry.sourceVisitorId}`,
+                sourceVisitorId: entry.sourceVisitorId,
+                templateId: template.id,
+                name: typeof entry.name === 'string' ? entry.name : template.nameSeeds[0]!,
+                ageBand: template.ageBand,
+                gender: template.gender,
+                occupation: template.occupation,
+                origin: template.origin,
+                personalityTags: [...template.personalityTags],
+                speechStyle: template.speechStyle,
+                taboo: template.taboo,
+                lifeGoal: template.lifeGoal,
+                currentTrouble: template.currentTrouble,
+                plotHook: template.plotHook,
+                familySeed: template.familySeed,
+                preferences: {
+                  loved: [...template.preferences.loved],
+                  liked: [...template.preferences.liked],
+                  disliked: [...template.preferences.disliked]
+                },
+                smallOrder: {
+                  ...template.smallOrder,
+                  requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
+                },
+                relationshipTag: sanitizeRelationshipTag(entry.relationshipTag),
+                affinity: Math.max(0, Math.min(100, Number(entry.affinity) || 0)),
+                movedInDayTag: typeof entry.movedInDayTag === 'string' ? entry.movedInDayTag : '',
+                residenceReason: typeof entry.residenceReason === 'string' ? entry.residenceReason : `${entry.name ?? template.nameSeeds[0]}决定在桃源村暂住。`,
+                route,
+                relationshipEventStage: stage === 2 || stage === 3 ? stage : stage === 0 ? 0 : 1,
+                keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-8) : []
+              }
+            })
+            .filter((entry: RandomNpcLongStayEntry, index: number, entries: RandomNpcLongStayEntry[]) =>
+              entries.findIndex(item => item.sourceVisitorId === entry.sourceVisitorId) === index
+            )
+        ),
         recentSummaries: trimRandomNpcArchives(
           (Array.isArray(raw.recentSummaries) ? raw.recentSummaries : [])
             .filter((entry: any) => entry && typeof entry === 'object' && typeof entry.visitorId === 'string')
@@ -3166,6 +3309,7 @@ export const useNpcStore = defineStore('npc', () => {
     getRandomNpcBoard,
     talkToRandomVisitor,
     addRandomVisitorToAcquaintanceBook,
+    promoteRandomNpcAcquaintanceToLongStay,
     rehydrateRelationshipPerks,
     serialize,
     deserialize

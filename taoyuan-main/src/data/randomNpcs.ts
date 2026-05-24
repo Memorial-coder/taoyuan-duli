@@ -4,7 +4,9 @@ export const RANDOM_NPC_VISITOR_CONFIG = {
   maxActiveVisitors: 2,
   maxRecentSummaries: 8,
   maxAcquaintances: 12,
-  acquaintanceAffinityThreshold: 40
+  maxLongStayResidents: 3,
+  acquaintanceAffinityThreshold: 40,
+  longStayAffinityThreshold: 70
 } as const
 
 export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [

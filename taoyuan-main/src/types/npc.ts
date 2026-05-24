@@ -258,12 +258,42 @@ export interface RandomNpcAcquaintanceEntry {
   keyEvents: string[]
 }
 
+export type RandomNpcLongStayRoute = 'friendship' | 'business' | 'caregiving' | 'craft'
+
+export interface RandomNpcLongStayEntry {
+  residentId: string
+  sourceVisitorId: string
+  templateId: string
+  name: string
+  ageBand: RandomNpcAgeBand
+  gender: Gender
+  occupation: string
+  origin: string
+  personalityTags: string[]
+  speechStyle: string
+  taboo: string
+  lifeGoal: string
+  currentTrouble: string
+  plotHook: string
+  familySeed: string
+  preferences: RandomNpcTemplate['preferences']
+  smallOrder: RandomNpcSmallOrderDef
+  relationshipTag: RandomNpcRelationshipTag
+  affinity: number
+  movedInDayTag: string
+  residenceReason: string
+  route: RandomNpcLongStayRoute
+  relationshipEventStage: 0 | 1 | 2 | 3
+  keyEvents: string[]
+}
+
 export interface RandomNpcBoardState {
   version: number
   lastGeneratedWeekId: string
   activeVisitors: RandomNpcVisitorState[]
   acquaintanceIds: string[]
   acquaintances: RandomNpcAcquaintanceEntry[]
+  longStayResidents: RandomNpcLongStayEntry[]
   recentSummaries: RandomNpcArchiveSummary[]
 }
 

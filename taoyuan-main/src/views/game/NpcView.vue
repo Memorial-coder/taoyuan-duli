@@ -110,8 +110,8 @@
                 </p>
                 <p class="text-[10px] text-muted mt-0.5 truncate">{{ visitor.origin }} · {{ getRandomNpcAgeBandLabel(visitor.ageBand) }} · {{ getRandomNpcRelationshipLabel(visitor.relationshipTag) }}</p>
               </div>
-              <span class="text-[10px]" :class="visitor.tier === 'acquaintance' ? 'text-success' : 'text-muted'">
-                {{ visitor.tier === 'acquaintance' ? '熟人册' : '短访' }}
+              <span class="text-[10px]" :class="visitor.tier === 'short_visit' ? 'text-muted' : 'text-success'">
+                {{ getRandomNpcVisitTierLabel(visitor.tier) }}
               </span>
             </div>
             <div class="flex flex-wrap gap-1 mt-1">
@@ -166,10 +166,10 @@
               <Button
                 class="shrink-0 justify-center !px-2 !py-1"
                 :class="{ '!bg-accent !text-bg': visitor.affinity >= randomNpcAcquaintanceThreshold }"
-                :disabled="visitor.affinity < randomNpcAcquaintanceThreshold || visitor.tier === 'acquaintance'"
+                :disabled="visitor.affinity < randomNpcAcquaintanceThreshold || visitor.tier !== 'short_visit'"
                 @click="handleAddRandomVisitorToAcquaintance(visitor.id)"
               >
-                {{ visitor.tier === 'acquaintance' ? '已记录' : '记入熟人册' }}
+                {{ visitor.tier === 'short_visit' ? '记入熟人册' : '已记录' }}
               </Button>
             </div>
           </div>
@@ -225,7 +225,57 @@
                 <p class="text-[10px] text-muted leading-4 mt-0.5">家庭线索：{{ acquaintance.familySeed }}</p>
               </div>
               <p class="text-[10px] text-muted leading-4 mt-2">{{ getLastRandomNpcAcquaintanceEvent(acquaintance) }}</p>
-              <p class="text-[10px] text-success/80 mt-1">小订单线索：{{ acquaintance.smallOrder.title }} · {{ acquaintance.smallOrder.rewardSummary }}</p>
+              <div class="flex items-center justify-between gap-2 mt-1">
+                <p class="text-[10px] text-success/80 min-w-0">小订单线索：{{ acquaintance.smallOrder.title }} · {{ acquaintance.smallOrder.rewardSummary }}</p>
+                <Button
+                  class="shrink-0 justify-center !px-2 !py-1"
+                  :class="{ '!bg-success !text-bg': acquaintance.affinity >= randomNpcLongStayThreshold }"
+                  :disabled="acquaintance.affinity < randomNpcLongStayThreshold || isRandomNpcLongStay(acquaintance.visitorId)"
+                  @click="handlePromoteRandomNpcToLongStay(acquaintance.visitorId)"
+                >
+                  {{ isRandomNpcLongStay(acquaintance.visitorId) ? '已长住' : '邀为长住' }}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div v-if="randomNpcBoard.longStayResidents.length > 0" class="border border-accent/20 rounded-xs p-2 mt-2 bg-accent/5">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <p class="text-[10px] text-accent">长住 NPC</p>
+            <span class="text-[10px] text-muted">长住 {{ randomNpcBoard.longStayResidents.length }}/{{ randomNpcMaxLongStayResidents }}</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div
+              v-for="resident in randomNpcBoard.longStayResidents"
+              :key="resident.residentId"
+              class="border border-accent/15 rounded-xs p-2 bg-bg/10"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs text-accent">
+                    {{ resident.name }}
+                    <span class="text-[10px] text-muted ml-1">{{ resident.occupation }}</span>
+                  </p>
+                  <p class="text-[10px] text-muted mt-0.5 truncate">
+                    {{ getRandomNpcLongStayRouteLabel(resident.route) }} · {{ resident.origin }} · {{ getRandomNpcRelationshipLabel(resident.relationshipTag) }}
+                  </p>
+                </div>
+                <span class="text-[10px] text-success whitespace-nowrap">阶段 {{ resident.relationshipEventStage }}/3</span>
+              </div>
+              <p class="text-[10px] text-muted leading-4 mt-1">{{ resident.residenceReason }}</p>
+              <div class="grid grid-cols-2 gap-1 mt-2 text-[10px]">
+                <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+                  <span class="text-muted/60">目标</span>
+                  <p class="text-accent mt-0.5">{{ resident.lifeGoal }}</p>
+                </div>
+                <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+                  <span class="text-muted/60">忌讳</span>
+                  <p class="text-muted mt-0.5">{{ resident.taboo }}</p>
+                </div>
+              </div>
+              <p class="text-[10px] text-muted leading-4 mt-2">说话方式：{{ resident.speechStyle }}</p>
+              <p class="text-[10px] text-muted leading-4 mt-1">家庭背景：{{ resident.familySeed }}</p>
+              <p class="text-[10px] text-success/80 mt-1">{{ getLastRandomNpcLongStayEvent(resident) }}</p>
             </div>
           </div>
         </div>
@@ -1131,6 +1181,8 @@
     Quality,
     RandomNpcAcquaintanceEntry,
     RandomNpcAgeBand,
+    RandomNpcLongStayEntry,
+    RandomNpcLongStayRoute,
     RandomNpcRelationshipTag,
     RandomNpcVisitorState,
     RelationshipClueEntry,
@@ -1169,6 +1221,8 @@
   const randomNpcBoard = computed(() => npcStore.getRandomNpcBoard())
   const randomNpcAcquaintanceThreshold = RANDOM_NPC_VISITOR_CONFIG.acquaintanceAffinityThreshold
   const randomNpcMaxAcquaintances = RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances
+  const randomNpcLongStayThreshold = RANDOM_NPC_VISITOR_CONFIG.longStayAffinityThreshold
+  const randomNpcMaxLongStayResidents = RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents
   const spiritBondOverview = computed(() => hiddenNpcStore.spiritBondAuditSnapshot)
   const selectedSpiritBlessingSummary = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getSpiritBlessingSummary(selectedHiddenNpc.value) : null))
   const selectedSpiritBlessings = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getAvailableSpiritBlessings(selectedHiddenNpc.value) : []))
@@ -1357,14 +1411,30 @@
     old_contact: '旧识',
     rival: '轻竞争'
   }
+  const RANDOM_NPC_LONG_STAY_ROUTE_LABELS: Record<RandomNpcLongStayRoute, string> = {
+    friendship: '邻里常驻',
+    business: '商学暂住',
+    caregiving: '照料驻村',
+    craft: '手艺驻村'
+  }
 
   const getRandomNpcAgeBandLabel = (ageBand: RandomNpcAgeBand): string => RANDOM_NPC_AGE_BAND_LABELS[ageBand]
   const getRandomNpcRelationshipLabel = (tag: RandomNpcRelationshipTag): string => RANDOM_NPC_RELATIONSHIP_LABELS[tag]
+  const getRandomNpcVisitTierLabel = (tier: RandomNpcVisitorState['tier']): string => {
+    if (tier === 'long_stay') return '长住'
+    if (tier === 'acquaintance') return '熟人册'
+    return '短访'
+  }
+  const getRandomNpcLongStayRouteLabel = (route: RandomNpcLongStayRoute): string => RANDOM_NPC_LONG_STAY_ROUTE_LABELS[route]
   const getLastRandomNpcEvent = (visitor: RandomNpcVisitorState): string => visitor.keyEvents[visitor.keyEvents.length - 1] ?? visitor.dialogueOpening
   const getLastRandomNpcAcquaintanceEvent = (acquaintance: RandomNpcAcquaintanceEntry): string =>
     acquaintance.keyEvents[acquaintance.keyEvents.length - 1] ?? `${acquaintance.name}已记入熟人册。`
+  const getLastRandomNpcLongStayEvent = (resident: RandomNpcLongStayEntry): string =>
+    resident.keyEvents[resident.keyEvents.length - 1] ?? `${resident.name}正在桃源村暂住。`
   const getRandomNpcPreferenceNames = (itemIds: string[]): string =>
     itemIds.map(itemId => getItemById(itemId)?.name ?? itemId).join('、') || '尚未记录'
+  const isRandomNpcLongStay = (visitorId: string): boolean =>
+    randomNpcBoard.value.longStayResidents.some(resident => resident.sourceVisitorId === visitorId)
 
   const handleRandomVisitorTalk = (visitorId: string, choiceId: string) => {
     const result = npcStore.talkToRandomVisitor(visitorId, choiceId)
@@ -1381,6 +1451,12 @@
     const result = npcStore.addRandomVisitorToAcquaintanceBook(visitorId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【熟人册】${result.message}`)
+  }
+
+  const handlePromoteRandomNpcToLongStay = (visitorId: string) => {
+    const result = npcStore.promoteRandomNpcAcquaintanceToLongStay(visitorId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【长住NPC】${result.message}`)
   }
 
   const getVillageProjectRequirementProgress = (projectId: string): VillageProjectRequirementProgress[] => {
