@@ -485,6 +485,89 @@ export interface CohabitationFamilyReputationPanel {
   deferred_operations: string[]
 }
 
+export interface CohabitationFamilyBuildingsPanel {
+  contract_id: string
+  shared_manor_id: string
+  type: string
+  type_label: string
+  status: string
+  readonly: boolean
+  write_enabled: boolean
+  writes_enabled: boolean
+  family_buildings_enabled: boolean
+  build_enabled: boolean
+  demolish_enabled: boolean
+  generated_at: number
+  revision: number
+  summary: {
+    member_count: number
+    max_members: number
+    preview_building_count: number
+    role_ready_building_count: number
+    material_consume_enabled: boolean
+    shared_fund_spend_enabled: boolean
+    warehouse_withdraw_enabled: boolean
+    demolition_enabled: boolean
+    construction_ledger_enabled: boolean
+    reputation_award_enabled: boolean
+    personal_money_merged: boolean
+    personal_inventory_merged: boolean
+    disabled_reason: string
+  }
+  actor: (CohabitationMember & {
+    manor_role_label?: string
+    permission_focus?: string[]
+    building_permissions: Record<string, boolean>
+  }) | null
+  members: Array<CohabitationMember & {
+    manor_role_label?: string
+    permission_focus?: string[]
+    building_permissions: Record<string, boolean>
+  }>
+  candidate_buildings: Array<{
+    id: string
+    label: string
+    category: string
+    visual_kind: string
+    summary: string
+    available: boolean
+    role_ready: boolean
+    missing_roles: string[]
+    required_roles: string[]
+    material_plan: Array<{
+      item_id: string
+      label: string
+      required_quantity: number
+      available_quantity: number
+      enough: boolean
+      consume_enabled: boolean
+    }>
+    shared_fund_cost: number
+    shared_fund_balance_preview: number
+    fund_ready_preview: boolean
+    stage_count: number
+    planning_state: string
+    build_enabled: boolean
+    demolish_enabled: boolean
+    material_consume_enabled: boolean
+    shared_fund_spend_enabled: boolean
+    disabled_reason: string
+  }>
+  visual_state_preview: {
+    board_type: string
+    board_id: string
+    revision: number
+    selected_visual_id: string
+    recent_feedback: string
+    scene: Record<string, unknown> | null
+    scene_objects: Array<Record<string, unknown>>
+  }
+  governance: Record<string, unknown>
+  asset_boundaries: Record<string, unknown>
+  recommended_flow: string[]
+  deferred_operations: string[]
+}
+
 export interface CohabitationOfflineStatus {
   contract_id: string
   shared_manor_id: string
@@ -767,6 +850,12 @@ export const fetchCohabitationFamilyReputation = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     family_reputation_panel?: CohabitationFamilyReputationPanel
   }>(contractPath(contractId, '/family-reputation'), '获取家族声望预备面板失败')
+}
+
+export const fetchCohabitationFamilyBuildings = async (contractId: string) => {
+  return fetchCohabitationJson<CohabitationDetailResponse & {
+    family_buildings_panel?: CohabitationFamilyBuildingsPanel
+  }>(contractPath(contractId, '/family-buildings'), '获取家族建筑预备面板失败')
 }
 
 export const updateCohabitationFamilyRole = async (contractId: string, payload: CohabitationFamilyRoleUpdatePayload) => {

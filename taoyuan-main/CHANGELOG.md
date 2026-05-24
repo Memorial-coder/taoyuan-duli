@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 家族建筑只读前端读回
+- 共同庄园新增“建筑”页签，前端 API / store 读取 `/family-buildings` 只读预备面板。
+- 页面展示建筑蓝图、职位缺口、材料就绪数、共同基金预览、规划场景物件、资产边界，以及建造、拆除、共同仓库材料消耗、共同基金消费和建筑 ledger 等暂缓写操作。
+- 本轮只做读回，不开放真实建造、拆除、材料扣减、基金消费或建筑声望。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 家族声望只读前端读回
 - 共同庄园新增“声望”页签，前端 API / store 读取 `/family-reputation` 只读预备面板。
 - 页面展示声望预览分、等级进度、来源证据、成员贡献统计、治理边界，以及声望落账、周封顶、补偿重放、排行和奖励等暂缓能力。

@@ -688,6 +688,96 @@
         </div>
       </div>
 
+      <div v-else-if="activeTab === 'buildings'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div class="game-panel-muted p-3">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 text-accent">
+              <Building2 :size="13" />
+              <p class="text-sm">家族建筑蓝图</p>
+            </div>
+            <span class="text-[10px] text-muted">{{ familyBuildingsPanel?.family_buildings_enabled ? '已启用预览' : '未启用' }}</span>
+          </div>
+          <div v-if="!familyBuildingsPanel" class="mt-3 text-xs leading-5 text-muted">当前没有家族建筑预备面板数据。</div>
+          <div v-else>
+            <div class="mt-3 grid gap-2 md:grid-cols-4">
+              <div v-for="item in familyBuildingSummaryCards" :key="item.label" class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
+              </div>
+            </div>
+            <p v-if="familyBuildingsPanel.summary.disabled_reason" class="mt-3 text-[10px] leading-4 text-muted">
+              {{ familyBuildingsPanel.summary.disabled_reason }}
+            </p>
+            <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyBuildingsPanel.visual_state_preview.recent_feedback }}</p>
+            <div class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+              <div v-for="building in familyBuildingCandidates" :key="building.id" class="border border-accent/10 bg-black/10 p-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ building.label }}</p>
+                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ building.summary }}</p>
+                  </div>
+                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[10px] text-muted">{{ familyBuildingStateLabel(building.planning_state) }}</span>
+                </div>
+                <div class="mt-2 grid gap-2 md:grid-cols-2">
+                  <div class="border border-accent/10 bg-bg/30 p-2">
+                    <p class="text-[10px] text-muted">基金预览</p>
+                    <p class="mt-1 text-xs text-accent">{{ building.shared_fund_cost }} / {{ building.shared_fund_balance_preview }}</p>
+                  </div>
+                  <div class="border border-accent/10 bg-bg/30 p-2">
+                    <p class="text-[10px] text-muted">材料</p>
+                    <p class="mt-1 text-xs text-accent">{{ readyMaterialCount(building.material_plan) }}/{{ building.material_plan.length }}</p>
+                  </div>
+                </div>
+                <p v-if="building.missing_roles.length" class="mt-2 text-[10px] leading-4 text-muted">
+                  缺职位：{{ building.missing_roles.map(familyRoleLabel).join('、') }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">规划场景</p>
+            <div v-if="familyBuildingSceneObjects.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无建筑场景预览。</div>
+            <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              <div v-for="object in familyBuildingSceneObjects" :key="String(object.id)" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-start justify-between gap-2">
+                  <p class="truncate text-xs text-text">{{ object.label || object.id }}</p>
+                  <span class="shrink-0 text-[10px] text-accent">{{ familyBuildingStateLabel(String(object.state || '')) }}</span>
+                </div>
+                <p class="mt-1 text-[10px] text-muted">{{ object.kind || 'scene_object' }} · {{ object.x ?? 0 }}, {{ object.y ?? 0 }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">资产边界</p>
+            <div class="mt-3 space-y-2">
+              <div
+                v-for="item in familyBuildingBoundaryCards"
+                :key="item.label"
+                class="flex items-center justify-between gap-2 border border-accent/10 bg-black/10 p-2 text-xs"
+              >
+                <span class="text-muted">{{ item.label }}</span>
+                <span class="text-accent">{{ item.value }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">暂缓写操作</p>
+            <div v-if="familyBuildingDeferredOperations.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无暂缓项。</div>
+            <div v-else class="mt-3 flex flex-wrap gap-2">
+              <span
+                v-for="item in familyBuildingDeferredOperations"
+                :key="item"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+              >
+                {{ deferredOperationLabel(item) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
@@ -779,6 +869,7 @@
 <script setup lang="ts">
   import { computed, onMounted, ref } from 'vue'
   import {
+    Building2,
     CheckCircle2,
     Clock3,
     ClipboardList,
@@ -802,7 +893,7 @@
     CohabitationWarehouseItem,
   } from '@/utils/cohabitationApi'
 
-  type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'reputation' | 'offline'
+  type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'reputation' | 'buildings' | 'offline'
   type CohabitationTabMeta = { key: CohabitationTabKey; label: string; summary: string }
 
   const cohabitationStore = useCohabitationStore()
@@ -828,6 +919,7 @@
     { key: 'permissions', label: '权限', summary: '查看成员权限分组和强制安全阀，不在这里扩大高风险操作。' },
     { key: 'orders', label: '订单', summary: '只读查看家族订单预备路线、成员阶段权限和共同资产结算边界。' },
     { key: 'reputation', label: '声望', summary: '只读查看家族声望预览分、来源证据和未来奖励治理边界。' },
+    { key: 'buildings', label: '建筑', summary: '只读查看家族建筑蓝图、材料缺口、规划场景和共同资产边界。' },
     { key: 'offline', label: '离线', summary: '查看成员最近活跃、共同日志和无需全员在线的能力边界。' },
   ]
 
@@ -922,6 +1014,29 @@
       { label: '未来幂等', value: governance.idempotency_required_for_future_writes === true ? '必须' : '未声明' },
       { label: '奖励补偿', value: governance.compensation_required_for_future_rewards === true ? '必须' : '未声明' },
       { label: '周封顶', value: governance.weekly_cap_required === true ? '必须' : '未声明' },
+    ]
+  })
+  const familyBuildingsPanel = computed(() => cohabitationStore.familyBuildingsPanel)
+  const familyBuildingCandidates = computed(() => familyBuildingsPanel.value?.candidate_buildings ?? [])
+  const familyBuildingSceneObjects = computed(() => familyBuildingsPanel.value?.visual_state_preview.scene_objects ?? [])
+  const familyBuildingDeferredOperations = computed(() => familyBuildingsPanel.value?.deferred_operations ?? [])
+  const familyBuildingSummaryCards = computed(() => {
+    const summary = familyBuildingsPanel.value?.summary
+    return [
+      { label: '蓝图', value: summary?.preview_building_count ?? 0 },
+      { label: '职位就绪', value: summary?.role_ready_building_count ?? 0 },
+      { label: '成员', value: `${summary?.member_count ?? 0}/${summary?.max_members ?? 0}` },
+      { label: '真实建造', value: summary?.construction_ledger_enabled ? '开放' : '暂缓' },
+    ]
+  })
+  const familyBuildingBoundaryCards = computed(() => {
+    const boundaries = familyBuildingsPanel.value?.asset_boundaries ?? {}
+    const governance = familyBuildingsPanel.value?.governance ?? {}
+    return [
+      { label: '共同基金消耗', value: boundaries.shared_fund_consume_enabled === true ? '开放' : '暂缓' },
+      { label: '共同仓库材料', value: boundaries.shared_warehouse_consume_enabled === true ? '开放' : '暂缓' },
+      { label: '来源追踪', value: boundaries.origin_assets_required_for_return === true ? '必须' : '未声明' },
+      { label: '建造回滚', value: governance.rollback_required_for_building_writes === true ? '必须' : '未声明' },
     ]
   })
   const offlineMembers = computed(() => cohabitationStore.offlineStatus?.members ?? [])
@@ -1327,9 +1442,32 @@
       family_reputation_compensation_replay: '声望补偿重放',
       family_reputation_leaderboard: '声望排行',
       family_reputation_rewards: '声望奖励',
+      plan_family_building: '规划家族建筑',
+      reserve_family_building_site: '预留建筑地块',
+      consume_shared_building_materials: '消耗共同建材',
+      spend_shared_fund_for_building: '建筑基金支出',
+      write_family_building_ledger: '建筑流水',
+      demolish_family_building: '拆除家族建筑',
+      family_building_compensation_replay: '建筑补偿重放',
+      family_building_rollback: '建筑回滚',
     }
     return labels[value] || value
   }
+
+  const familyBuildingStateLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      ready_for_blueprint: '蓝图就绪',
+      needs_role: '缺职位',
+      disabled: '未启用',
+      preview_ready: '预览就绪',
+      staffed: '已有人手',
+      locked: '暂锁',
+    }
+    return labels[value] || value || '未知'
+  }
+
+  const readyMaterialCount = (items: Array<{ enough: boolean }>) =>
+    items.filter(item => item.enough).length
 
   const familyOrderStageStateLabel = (value: string) => {
     const labels: Record<string, string> = {
