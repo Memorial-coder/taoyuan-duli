@@ -88,6 +88,101 @@
         </div>
       </div>
 
+      <div class="border border-accent/20 rounded-xs p-2 mb-3">
+        <div class="flex items-center justify-between gap-2 mb-2">
+          <div>
+            <p class="text-xs text-accent">本周来访</p>
+            <p class="text-[10px] text-muted mt-0.5">短访人物只保留本周卡片和最近摘要；喜欢的人可先记入熟人册。</p>
+          </div>
+          <span class="text-[10px] text-muted whitespace-nowrap">近访 {{ randomNpcBoard.recentSummaries.length }}/8</span>
+        </div>
+        <div v-if="randomNpcBoard.activeVisitors.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div
+            v-for="visitor in randomNpcBoard.activeVisitors"
+            :key="visitor.id"
+            class="border border-accent/10 rounded-xs p-2 bg-bg/10"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-xs text-accent">
+                  {{ visitor.name }}
+                  <span class="text-[10px] text-muted ml-1">{{ visitor.occupation }}</span>
+                </p>
+                <p class="text-[10px] text-muted mt-0.5 truncate">{{ visitor.origin }} · {{ getRandomNpcAgeBandLabel(visitor.ageBand) }} · {{ getRandomNpcRelationshipLabel(visitor.relationshipTag) }}</p>
+              </div>
+              <span class="text-[10px]" :class="visitor.tier === 'acquaintance' ? 'text-success' : 'text-muted'">
+                {{ visitor.tier === 'acquaintance' ? '熟人册' : '短访' }}
+              </span>
+            </div>
+            <div class="flex flex-wrap gap-1 mt-1">
+              <span
+                v-for="tag in visitor.personalityTags"
+                :key="`${visitor.id}-${tag}`"
+                class="text-[10px] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
+              >
+                {{ tag }}
+              </span>
+              <span class="text-[10px] border border-warning/20 text-warning rounded-xs px-1 py-0.5">{{ visitor.plotHook }}</span>
+            </div>
+            <p class="text-[10px] text-muted leading-4 mt-1">{{ visitor.dialogueOpening }}</p>
+            <div class="grid grid-cols-2 gap-1 mt-2 text-[10px]">
+              <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+                <span class="text-muted/60">好感</span>
+                <p class="text-accent mt-0.5">{{ visitor.affinity }}/100</p>
+              </div>
+              <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+                <span class="text-muted/60">忌讳</span>
+                <p class="text-muted mt-0.5">{{ visitor.taboo }}</p>
+              </div>
+            </div>
+            <div class="border border-accent/10 rounded-xs p-2 mt-2">
+              <p class="text-[10px] text-muted">小订单：{{ visitor.smallOrder.title }}</p>
+              <p class="text-[10px] text-accent/90 leading-4 mt-0.5">{{ visitor.smallOrder.summary }}</p>
+              <div class="flex flex-wrap gap-1 mt-1">
+                <span
+                  v-for="item in visitor.smallOrder.requestedItems"
+                  :key="`${visitor.id}-${item.itemId}`"
+                  class="text-[10px] border border-accent/15 rounded-xs px-1 py-0.5"
+                >
+                  {{ getItemById(item.itemId)?.name ?? item.itemId }}×{{ item.quantity }}
+                </span>
+              </div>
+              <p class="text-[10px] text-success/80 mt-1">{{ visitor.smallOrder.rewardSummary }}</p>
+            </div>
+            <div class="mt-2 space-y-1">
+              <Button
+                v-for="choice in visitor.dialogueChoices"
+                :key="`${visitor.id}-${choice.id}`"
+                class="w-full justify-start !px-2 !py-1 text-left"
+                :icon="MessageCircle"
+                :disabled="visitor.talkedToday"
+                @click="handleRandomVisitorTalk(visitor.id, choice.id)"
+              >
+                {{ choice.text }}
+              </Button>
+            </div>
+            <div class="flex items-center justify-between gap-2 mt-2">
+              <p class="text-[10px] text-muted leading-4">{{ getLastRandomNpcEvent(visitor) }}</p>
+              <Button
+                class="shrink-0 justify-center !px-2 !py-1"
+                :class="{ '!bg-accent !text-bg': visitor.affinity >= randomNpcAcquaintanceThreshold }"
+                :disabled="visitor.affinity < randomNpcAcquaintanceThreshold || visitor.tier === 'acquaintance'"
+                @click="handleAddRandomVisitorToAcquaintance(visitor.id)"
+              >
+                {{ visitor.tier === 'acquaintance' ? '已记录' : '记入熟人册' }}
+              </Button>
+            </div>
+          </div>
+        </div>
+        <div v-if="randomNpcBoard.recentSummaries.length > 0" class="border border-accent/10 rounded-xs p-2 mt-2">
+          <p class="text-[10px] text-muted mb-1">旧日来客摘要</p>
+          <div v-for="summary in randomNpcBoard.recentSummaries.slice(0, 3)" :key="summary.visitorId" class="text-[10px] mt-1 first:mt-0">
+            <p class="text-accent">{{ summary.name }} · {{ getRandomNpcRelationshipLabel(summary.relationshipTag) }} · {{ summary.affinity }}</p>
+            <p class="text-muted leading-4">{{ summary.summary }}</p>
+          </div>
+        </div>
+      </div>
+
       <!-- NPC 网格：移动端紧凑，桌面端详细 -->
       <div class="grid grid-cols-4 md:grid-cols-3 gap-1.5 md:gap-2">
         <div
@@ -965,6 +1060,7 @@
   import { useSkillStore } from '@/stores/useSkillStore'
   import { NPCS, getNpcById, getItemById, getHeartEventById, getTodayEvent } from '@/data'
   import { getNpcRelationshipFocusLabels } from '@/data/npcWorld'
+  import { RANDOM_NPC_VISITOR_CONFIG } from '@/data/randomNpcs'
   import { getHiddenNpcById } from '@/data/hiddenNpcs'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { TIP_NPC_LABELS } from '@/data/npcTips'
@@ -974,7 +1070,16 @@
   import { triggerHeartEvent } from '@/composables/useDialogs'
   import { handleEndDay } from '@/composables/useEndDay'
   import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
-  import type { FriendshipLevel, GiftPreference, Quality, RelationshipClueEntry, VillageProjectRequirementProgress } from '@/types'
+  import type {
+    FriendshipLevel,
+    GiftPreference,
+    Quality,
+    RandomNpcAgeBand,
+    RandomNpcRelationshipTag,
+    RandomNpcVisitorState,
+    RelationshipClueEntry,
+    VillageProjectRequirementProgress
+  } from '@/types'
   import Button from '@/components/game/Button.vue'
   import GuidanceDigestPanel from '@/components/game/GuidanceDigestPanel.vue'
   import QaGovernancePanel from '@/components/game/QaGovernancePanel.vue'
@@ -1005,6 +1110,8 @@
     const project = relationshipDebugSnapshot.value.zhijiCompanionProjects.find(entry => !entry.rewarded) ?? null
     return project ? npcStore.getZhijiProjectChainPreview(project.projectId, project.npcId) : null
   })
+  const randomNpcBoard = computed(() => npcStore.getRandomNpcBoard())
+  const randomNpcAcquaintanceThreshold = RANDOM_NPC_VISITOR_CONFIG.acquaintanceAffinityThreshold
   const spiritBondOverview = computed(() => hiddenNpcStore.spiritBondAuditSnapshot)
   const selectedSpiritBlessingSummary = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getSpiritBlessingSummary(selectedHiddenNpc.value) : null))
   const selectedSpiritBlessings = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getAvailableSpiritBlessings(selectedHiddenNpc.value) : []))
@@ -1177,6 +1284,43 @@
   })
 
   const getProjectItemCount = (itemId: string) => getCombinedItemCount(itemId)
+
+  const RANDOM_NPC_AGE_BAND_LABELS: Record<RandomNpcAgeBand, string> = {
+    young: '青年',
+    adult: '成年',
+    middle: '中年',
+    elder: '长者'
+  }
+
+  const RANDOM_NPC_RELATIONSHIP_LABELS: Record<RandomNpcRelationshipTag, string> = {
+    passing: '萍水相逢',
+    acquaintance: '熟人',
+    friend: '可深交',
+    ambiguous: '暧昧苗头',
+    old_contact: '旧识',
+    rival: '轻竞争'
+  }
+
+  const getRandomNpcAgeBandLabel = (ageBand: RandomNpcAgeBand): string => RANDOM_NPC_AGE_BAND_LABELS[ageBand]
+  const getRandomNpcRelationshipLabel = (tag: RandomNpcRelationshipTag): string => RANDOM_NPC_RELATIONSHIP_LABELS[tag]
+  const getLastRandomNpcEvent = (visitor: RandomNpcVisitorState): string => visitor.keyEvents[visitor.keyEvents.length - 1] ?? visitor.dialogueOpening
+
+  const handleRandomVisitorTalk = (visitorId: string, choiceId: string) => {
+    const result = npcStore.talkToRandomVisitor(visitorId, choiceId)
+    if (!result.success) {
+      showFloat(result.message, 'accent')
+      addLog(result.message)
+      return
+    }
+    showFloat(`来访者好感 +${result.affinityChange}`, 'success')
+    addLog(`【本周来访】${result.visitor?.name ?? '来访者'}：${result.message}`)
+  }
+
+  const handleAddRandomVisitorToAcquaintance = (visitorId: string) => {
+    const result = npcStore.addRandomVisitorToAcquaintanceBook(visitorId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【熟人册】${result.message}`)
+  }
 
   const getVillageProjectRequirementProgress = (projectId: string): VillageProjectRequirementProgress[] => {
     return villageProjectStore.getProjectRequirementProgresses(projectId)

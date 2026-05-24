@@ -151,6 +151,99 @@ export interface ZhijiCompanionProjectState {
   rewarded: boolean
 }
 
+export type RandomNpcAgeBand = 'young' | 'adult' | 'middle' | 'elder'
+export type RandomNpcVisitTier = 'short_visit' | 'acquaintance' | 'long_stay'
+export type RandomNpcRelationshipTag = 'passing' | 'acquaintance' | 'friend' | 'ambiguous' | 'old_contact' | 'rival'
+
+export interface RandomNpcDialogueChoiceDef {
+  id: string
+  text: string
+  response: string
+  affinityChange: number
+  relationshipTag?: RandomNpcRelationshipTag
+}
+
+export interface RandomNpcSmallOrderDef {
+  id: string
+  title: string
+  summary: string
+  requestedItems: Array<{ itemId: string; quantity: number }>
+  rewardSummary: string
+}
+
+export interface RandomNpcTemplate {
+  id: string
+  nameSeeds: string[]
+  ageBand: RandomNpcAgeBand
+  gender: Gender
+  occupation: string
+  origin: string
+  personalityTags: string[]
+  speechStyle: string
+  taboo: string
+  lifeGoal: string
+  currentTrouble: string
+  plotHook: string
+  familySeed: string
+  preferences: {
+    loved: string[]
+    liked: string[]
+    disliked: string[]
+  }
+  dialogueOpening: string
+  dialogueChoices: RandomNpcDialogueChoiceDef[]
+  smallOrder: RandomNpcSmallOrderDef
+}
+
+export interface RandomNpcVisitorState {
+  id: string
+  templateId: string
+  name: string
+  ageBand: RandomNpcAgeBand
+  gender: Gender
+  occupation: string
+  origin: string
+  personalityTags: string[]
+  speechStyle: string
+  taboo: string
+  lifeGoal: string
+  currentTrouble: string
+  plotHook: string
+  familySeed: string
+  preferences: RandomNpcTemplate['preferences']
+  dialogueOpening: string
+  dialogueChoices: RandomNpcDialogueChoiceDef[]
+  smallOrder: RandomNpcSmallOrderDef
+  relationshipTag: RandomNpcRelationshipTag
+  affinity: number
+  firstVisitWeekId: string
+  lastVisitDayTag: string
+  talkedToday: boolean
+  conversationCount: number
+  keyEvents: string[]
+  tier: RandomNpcVisitTier
+}
+
+export interface RandomNpcArchiveSummary {
+  visitorId: string
+  templateId: string
+  name: string
+  occupation: string
+  relationshipTag: RandomNpcRelationshipTag
+  affinity: number
+  lastSeenDayTag: string
+  summary: string
+  keyEvents: string[]
+}
+
+export interface RandomNpcBoardState {
+  version: number
+  lastGeneratedWeekId: string
+  activeVisitors: RandomNpcVisitorState[]
+  acquaintanceIds: string[]
+  recentSummaries: RandomNpcArchiveSummary[]
+}
+
 /** NPC 定义 */
 export interface NpcDef {
   id: string

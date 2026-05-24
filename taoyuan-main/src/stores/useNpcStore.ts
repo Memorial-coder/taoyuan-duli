@@ -23,12 +23,17 @@ import type {
   HiredHelper,
   ZhijiCompanionProjectState,
   RelationshipContentReward,
+  RandomNpcArchiveSummary,
+  RandomNpcBoardState,
+  RandomNpcRelationshipTag,
+  RandomNpcVisitorState,
   RegionId,
   RegionRumorSupplyEntry,
   Season,
   Weather
 } from '@/types'
 import { NPCS, getNpcById, getHeartEventsForNpc, RECIPES, getTodayEvent } from '@/data'
+import { RANDOM_NPC_TEMPLATES, RANDOM_NPC_VISITOR_CONFIG } from '@/data/randomNpcs'
 import {
   createDefaultChildTrainingState,
   createDefaultFamilyWishBoardState,
@@ -340,6 +345,166 @@ export const useNpcStore = defineStore('npc', () => {
 
   /** 关系线运行时锁 */
   const relationshipActionLocks = ref<string[]>([])
+
+  /** 随机来访 NPC：只保留本周短访和最近摘要，避免存档无限膨胀 */
+  const randomNpcBoard = ref<RandomNpcBoardState>({
+    version: 1,
+    lastGeneratedWeekId: '',
+    activeVisitors: [],
+    acquaintanceIds: [],
+    recentSummaries: []
+  })
+
+  const hashText = (text: string): number => {
+    let hash = 0
+    for (let i = 0; i < text.length; i++) {
+      hash = (hash * 31 + text.charCodeAt(i)) >>> 0
+    }
+    return hash
+  }
+
+  const pickBySeed = <T>(pool: T[], seed: string): T => {
+    return pool[hashText(seed) % pool.length]!
+  }
+
+  const getCurrentNpcDayTag = (): string => {
+    const gameStore = useGameStore()
+    return formatRelationshipDayTag(getAbsoluteDay(gameStore.year, gameStore.season, gameStore.day))
+  }
+
+  const createRandomNpcVisitor = (templateId: string, weekId: string, index: number): RandomNpcVisitorState | null => {
+    const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === templateId)
+    if (!template) return null
+    const name = pickBySeed(template.nameSeeds, `${weekId}:${template.id}:name:${index}`)
+    const dayTag = getCurrentNpcDayTag()
+    return {
+      id: `${weekId}:${template.id}`,
+      templateId: template.id,
+      name,
+      ageBand: template.ageBand,
+      gender: template.gender,
+      occupation: template.occupation,
+      origin: template.origin,
+      personalityTags: [...template.personalityTags],
+      speechStyle: template.speechStyle,
+      taboo: template.taboo,
+      lifeGoal: template.lifeGoal,
+      currentTrouble: template.currentTrouble,
+      plotHook: template.plotHook,
+      familySeed: template.familySeed,
+      preferences: {
+        loved: [...template.preferences.loved],
+        liked: [...template.preferences.liked],
+        disliked: [...template.preferences.disliked]
+      },
+      dialogueOpening: template.dialogueOpening,
+      dialogueChoices: template.dialogueChoices.map(choice => ({ ...choice })),
+      smallOrder: {
+        ...template.smallOrder,
+        requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
+      },
+      relationshipTag: 'passing',
+      affinity: 0,
+      firstVisitWeekId: weekId,
+      lastVisitDayTag: dayTag,
+      talkedToday: false,
+      conversationCount: 0,
+      keyEvents: [`${dayTag} 初次来访：${template.dialogueOpening}`],
+      tier: 'short_visit'
+    }
+  }
+
+  const summarizeRandomVisitor = (visitor: RandomNpcVisitorState, reason: string): RandomNpcArchiveSummary => ({
+    visitorId: visitor.id,
+    templateId: visitor.templateId,
+    name: visitor.name,
+    occupation: visitor.occupation,
+    relationshipTag: visitor.relationshipTag,
+    affinity: visitor.affinity,
+    lastSeenDayTag: visitor.lastVisitDayTag,
+    summary: `${visitor.name}（${visitor.occupation}）${reason}；最后印象：${visitor.currentTrouble}`,
+    keyEvents: visitor.keyEvents.slice(-3)
+  })
+
+  const trimRandomNpcArchives = (archives: RandomNpcArchiveSummary[]) =>
+    archives.slice(0, RANDOM_NPC_VISITOR_CONFIG.maxRecentSummaries)
+
+  const ensureRandomVisitorsForCurrentWeek = () => {
+    const gameStore = useGameStore()
+    const weekInfo = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
+    const weekId = weekInfo.seasonWeekId
+    if (randomNpcBoard.value.lastGeneratedWeekId === weekId && randomNpcBoard.value.activeVisitors.length > 0) return
+
+    const outgoing = randomNpcBoard.value.activeVisitors
+      .filter(visitor => visitor.tier === 'short_visit' && !randomNpcBoard.value.acquaintanceIds.includes(visitor.id))
+      .map(visitor => summarizeRandomVisitor(visitor, '短暂停留后离开桃源村'))
+    const count = 1 + (hashText(`${weekId}:visitor_count`) % RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors)
+    const start = hashText(`${weekId}:visitor_start`) % RANDOM_NPC_TEMPLATES.length
+    const pickedTemplateIds: string[] = []
+    for (let i = 0; i < RANDOM_NPC_TEMPLATES.length && pickedTemplateIds.length < count; i++) {
+      pickedTemplateIds.push(RANDOM_NPC_TEMPLATES[(start + i) % RANDOM_NPC_TEMPLATES.length]!.id)
+    }
+
+    randomNpcBoard.value = {
+      ...randomNpcBoard.value,
+      lastGeneratedWeekId: weekId,
+      activeVisitors: pickedTemplateIds
+        .map((templateId, index) => createRandomNpcVisitor(templateId, weekId, index))
+        .filter((visitor): visitor is RandomNpcVisitorState => Boolean(visitor)),
+      recentSummaries: trimRandomNpcArchives([...outgoing, ...randomNpcBoard.value.recentSummaries])
+    }
+  }
+
+  const getRandomNpcBoard = () => {
+    ensureRandomVisitorsForCurrentWeek()
+    return randomNpcBoard.value
+  }
+
+  const talkToRandomVisitor = (
+    visitorId: string,
+    choiceId: string
+  ): { success: boolean; message: string; affinityChange: number; visitor?: RandomNpcVisitorState } => {
+    ensureRandomVisitorsForCurrentWeek()
+    const visitor = randomNpcBoard.value.activeVisitors.find(entry => entry.id === visitorId)
+    if (!visitor) return { success: false, message: '这位来访者已经离开。', affinityChange: 0 }
+    if (visitor.talkedToday) return { success: false, message: `${visitor.name}今天已经聊过了。`, affinityChange: 0, visitor }
+    const choice = visitor.dialogueChoices.find(entry => entry.id === choiceId) ?? visitor.dialogueChoices[0]
+    if (!choice) return { success: false, message: '暂时没有合适的话题。', affinityChange: 0, visitor }
+
+    visitor.talkedToday = true
+    visitor.conversationCount += 1
+    visitor.affinity = Math.max(0, Math.min(100, visitor.affinity + choice.affinityChange))
+    visitor.relationshipTag = choice.relationshipTag ?? visitor.relationshipTag
+    visitor.lastVisitDayTag = getCurrentNpcDayTag()
+    visitor.keyEvents = [...visitor.keyEvents, `${visitor.lastVisitDayTag} ${choice.text}：${choice.response}`].slice(-6)
+
+    return {
+      success: true,
+      message: choice.response,
+      affinityChange: choice.affinityChange,
+      visitor
+    }
+  }
+
+  const addRandomVisitorToAcquaintanceBook = (visitorId: string): { success: boolean; message: string } => {
+    ensureRandomVisitorsForCurrentWeek()
+    const visitor = randomNpcBoard.value.activeVisitors.find(entry => entry.id === visitorId)
+    if (!visitor) return { success: false, message: '这位来访者已经离开。' }
+    if (visitor.affinity < RANDOM_NPC_VISITOR_CONFIG.acquaintanceAffinityThreshold) {
+      return { success: false, message: `还需要再熟悉一些（需要好感 ${RANDOM_NPC_VISITOR_CONFIG.acquaintanceAffinityThreshold}）。` }
+    }
+    if (!randomNpcBoard.value.acquaintanceIds.includes(visitor.id)) {
+      randomNpcBoard.value.acquaintanceIds = [...randomNpcBoard.value.acquaintanceIds, visitor.id]
+    }
+    visitor.tier = 'acquaintance'
+    visitor.relationshipTag = visitor.relationshipTag === 'passing' ? 'acquaintance' : visitor.relationshipTag
+    visitor.keyEvents = [...visitor.keyEvents, `${getCurrentNpcDayTag()} 记入熟人册，后续可作为熟人线扩展。`].slice(-6)
+    randomNpcBoard.value.recentSummaries = trimRandomNpcArchives([
+      summarizeRandomVisitor(visitor, '已记入熟人册'),
+      ...randomNpcBoard.value.recentSummaries.filter(entry => entry.visitorId !== visitor.id)
+    ])
+    return { success: true, message: `${visitor.name}已记入熟人册。` }
+  }
 
   // ============================================================
   // 雇工系统
@@ -2379,6 +2544,10 @@ export const useNpcStore = defineStore('npc', () => {
 
     // 重置每日提示
     tipGivenToday.value = {}
+    ensureRandomVisitorsForCurrentWeek()
+    randomNpcBoard.value.activeVisitors.forEach(visitor => {
+      visitor.talkedToday = false
+    })
 
     for (const state of npcStates.value) {
       // 只有已婚伴侣不聊天才会掉好感，普通NPC不衰减
@@ -2473,6 +2642,7 @@ export const useNpcStore = defineStore('npc', () => {
       weddingCountdown: weddingCountdown.value,
       weddingNpcId: weddingNpcId.value,
       hiredHelpers: hiredHelpers.value,
+      randomNpcBoard: randomNpcBoard.value,
       friendshipVersion: 3
     }
   }
@@ -2699,6 +2869,87 @@ export const useNpcStore = defineStore('npc', () => {
           dailyWage: Math.max(0, Number(helper.dailyWage) || HELPER_WAGES[task])
         }
       })
+    randomNpcBoard.value = (() => {
+      const raw = (data as any).randomNpcBoard
+      if (!raw || typeof raw !== 'object') {
+        return {
+          version: 1,
+          lastGeneratedWeekId: '',
+          activeVisitors: [],
+          acquaintanceIds: [],
+          recentSummaries: []
+        }
+      }
+      const validTemplateIds = new Set(RANDOM_NPC_TEMPLATES.map(template => template.id))
+      const sanitizeRelationshipTag = (tag: unknown): RandomNpcRelationshipTag =>
+        tag === 'acquaintance' || tag === 'friend' || tag === 'ambiguous' || tag === 'old_contact' || tag === 'rival' ? tag : 'passing'
+      const activeVisitors: RandomNpcVisitorState[] = (Array.isArray(raw.activeVisitors) ? raw.activeVisitors : [])
+        .filter((visitor: any) => visitor && typeof visitor === 'object' && typeof visitor.id === 'string' && validTemplateIds.has(visitor.templateId))
+        .slice(0, RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors)
+        .map((visitor: any): RandomNpcVisitorState => {
+          const template = RANDOM_NPC_TEMPLATES.find(entry => entry.id === visitor.templateId)!
+          return {
+            id: visitor.id,
+            templateId: template.id,
+            name: typeof visitor.name === 'string' ? visitor.name : template.nameSeeds[0]!,
+            ageBand: template.ageBand,
+            gender: template.gender,
+            occupation: template.occupation,
+            origin: template.origin,
+            personalityTags: [...template.personalityTags],
+            speechStyle: template.speechStyle,
+            taboo: template.taboo,
+            lifeGoal: template.lifeGoal,
+            currentTrouble: template.currentTrouble,
+            plotHook: template.plotHook,
+            familySeed: template.familySeed,
+            preferences: {
+              loved: [...template.preferences.loved],
+              liked: [...template.preferences.liked],
+              disliked: [...template.preferences.disliked]
+            },
+            dialogueOpening: template.dialogueOpening,
+            dialogueChoices: template.dialogueChoices.map(choice => ({ ...choice })),
+            smallOrder: {
+              ...template.smallOrder,
+              requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
+            },
+            relationshipTag: sanitizeRelationshipTag(visitor.relationshipTag),
+            affinity: Math.max(0, Math.min(100, Number(visitor.affinity) || 0)),
+            firstVisitWeekId: typeof visitor.firstVisitWeekId === 'string' ? visitor.firstVisitWeekId : '',
+            lastVisitDayTag: typeof visitor.lastVisitDayTag === 'string' ? visitor.lastVisitDayTag : '',
+            talkedToday: !!visitor.talkedToday,
+            conversationCount: Math.max(0, Number(visitor.conversationCount) || 0),
+            keyEvents: Array.isArray(visitor.keyEvents) ? visitor.keyEvents.filter((entry: unknown) => typeof entry === 'string').slice(-6) : [],
+            tier: visitor.tier === 'acquaintance' || visitor.tier === 'long_stay' ? visitor.tier : 'short_visit'
+          }
+        })
+      const activeIds = new Set(activeVisitors.map(visitor => visitor.id))
+      return {
+        version: Math.max(1, Number(raw.version) || 1),
+        lastGeneratedWeekId: typeof raw.lastGeneratedWeekId === 'string' ? raw.lastGeneratedWeekId : '',
+        activeVisitors,
+        acquaintanceIds: Array.isArray(raw.acquaintanceIds)
+          ? raw.acquaintanceIds.filter((id: unknown) => typeof id === 'string' && activeIds.has(id)).slice(0, RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors)
+          : [],
+        recentSummaries: trimRandomNpcArchives(
+          (Array.isArray(raw.recentSummaries) ? raw.recentSummaries : [])
+            .filter((entry: any) => entry && typeof entry === 'object' && typeof entry.visitorId === 'string')
+            .map((entry: any): RandomNpcArchiveSummary => ({
+              visitorId: entry.visitorId,
+              templateId: typeof entry.templateId === 'string' ? entry.templateId : '',
+              name: typeof entry.name === 'string' ? entry.name : '旧日来客',
+              occupation: typeof entry.occupation === 'string' ? entry.occupation : '来访者',
+              relationshipTag: sanitizeRelationshipTag(entry.relationshipTag),
+              affinity: Math.max(0, Math.min(100, Number(entry.affinity) || 0)),
+              lastSeenDayTag: typeof entry.lastSeenDayTag === 'string' ? entry.lastSeenDayTag : '',
+              summary: typeof entry.summary === 'string' ? entry.summary : '',
+              keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-3) : []
+            }))
+        )
+      }
+    })()
+    ensureRandomVisitorsForCurrentWeek()
     relationshipActionLocks.value = []
   }
 
@@ -2726,6 +2977,7 @@ export const useNpcStore = defineStore('npc', () => {
     weddingCountdown,
     weddingNpcId,
     hiredHelpers,
+    randomNpcBoard,
     HELPER_WAGES,
     HELPER_TASK_NAMES,
     getNpcState,
@@ -2815,6 +3067,9 @@ export const useNpcStore = defineStore('npc', () => {
     relationshipCompanionshipBaselineAudit,
     getRelationshipCompanionshipAuditOverview,
     getRelationshipDebugSnapshot,
+    getRandomNpcBoard,
+    talkToRandomVisitor,
+    addRandomVisitorToAcquaintanceBook,
     rehydrateRelationshipPerks,
     serialize,
     deserialize
