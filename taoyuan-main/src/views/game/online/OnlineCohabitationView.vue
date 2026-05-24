@@ -510,6 +510,91 @@
         </div>
       </div>
 
+      <div v-else-if="activeTab === 'orders'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div class="game-panel-muted p-3">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 text-accent">
+              <ClipboardList :size="13" />
+              <p class="text-sm">家族订单预备路线</p>
+            </div>
+            <span class="text-[10px] text-muted">{{ familyOrdersPanel?.family_orders_enabled ? '已启用预览' : '未启用' }}</span>
+          </div>
+          <div v-if="!familyOrdersPanel" class="mt-3 text-xs leading-5 text-muted">当前没有家族订单预备面板数据。</div>
+          <div v-else>
+            <div class="mt-3 grid gap-2 md:grid-cols-4">
+              <div v-for="item in familyOrderSummaryCards" :key="item.label" class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
+              </div>
+            </div>
+            <p v-if="familyOrdersPanel.summary.disabled_reason" class="mt-3 text-[10px] leading-4 text-muted">
+              {{ familyOrdersPanel.summary.disabled_reason }}
+            </p>
+            <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyOrdersPanel.visual_state_preview.recent_feedback }}</p>
+            <div class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+              <div v-for="stage in familyOrderStages" :key="stage.id" class="border border-accent/10 bg-black/10 p-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ stage.sequence }}. {{ stage.title }}</p>
+                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ stage.description }}</p>
+                  </div>
+                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[10px] text-muted">{{ familyOrderStageStateLabel(stage.state) }}</span>
+                </div>
+                <p class="mt-2 text-[10px] leading-4 text-muted">
+                  推荐职位：{{ stage.preferred_roles.map(familyRoleLabel).join('、') || '不限' }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">成员订单权限</p>
+            <div v-if="familyOrderMembers.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无成员订单权限预览。</div>
+            <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              <div v-for="member in familyOrderMembers" :key="member.username" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
+                    <p class="mt-1 text-[10px] text-muted">{{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
+                  </div>
+                  <span class="shrink-0 text-[10px] text-accent">{{ enabledOrderPermissionCount(member.order_permissions) }} 项预览</span>
+                </div>
+                <p v-if="member.permission_focus?.length" class="mt-2 text-[10px] leading-4 text-muted">
+                  {{ member.permission_focus.map(familyRoleFocusLabel).join('、') }}
+                </p>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">结算边界</p>
+            <div class="mt-3 space-y-2">
+              <div
+                v-for="item in familyOrderSettlementCards"
+                :key="item.label"
+                class="flex items-center justify-between gap-2 border border-accent/10 bg-black/10 p-2 text-xs"
+              >
+                <span class="text-muted">{{ item.label }}</span>
+                <span class="text-accent">{{ item.value }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">暂缓写操作</p>
+            <div v-if="familyOrderDeferredOperations.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无暂缓项。</div>
+            <div v-else class="mt-3 flex flex-wrap gap-2">
+              <span
+                v-for="item in familyOrderDeferredOperations"
+                :key="item"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+              >
+                {{ deferredOperationLabel(item) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
@@ -603,6 +688,7 @@
   import {
     CheckCircle2,
     Clock3,
+    ClipboardList,
     HeartHandshake,
     Lock,
     Map,
@@ -622,7 +708,7 @@
     CohabitationWarehouseItem,
   } from '@/utils/cohabitationApi'
 
-  type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'offline'
+  type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'offline'
   type CohabitationTabMeta = { key: CohabitationTabKey; label: string; summary: string }
 
   const cohabitationStore = useCohabitationStore()
@@ -646,6 +732,7 @@
     { key: 'warehouse', label: '仓库', summary: '查看共同仓库物品与来源流水，普通物品可按权限取出或卖入共同基金。' },
     { key: 'fund', label: '基金', summary: '查看共同基金余额和注资流水，个人铜币保持独立。' },
     { key: 'permissions', label: '权限', summary: '查看成员权限分组和强制安全阀，不在这里扩大高风险操作。' },
+    { key: 'orders', label: '订单', summary: '只读查看家族订单预备路线、成员阶段权限和共同资产结算边界。' },
     { key: 'offline', label: '离线', summary: '查看成员最近活跃、共同日志和无需全员在线的能力边界。' },
   ]
 
@@ -695,6 +782,28 @@
   const permissionAudits = computed(() => cohabitationStore.permissionsPanel?.recent_permission_audits ?? [])
   const roleMembers = computed(() => cohabitationStore.rolePanel?.members ?? [])
   const roleOptions = computed(() => cohabitationStore.rolePanel?.role_options ?? [])
+  const familyOrdersPanel = computed(() => cohabitationStore.familyOrdersPanel)
+  const familyOrderMembers = computed(() => familyOrdersPanel.value?.members ?? [])
+  const familyOrderDeferredOperations = computed(() => familyOrdersPanel.value?.deferred_operations ?? [])
+  const familyOrderStages = computed(() => familyOrdersPanel.value?.visual_state_preview.async_projects?.[0]?.stages ?? [])
+  const familyOrderSummaryCards = computed(() => {
+    const summary = familyOrdersPanel.value?.summary
+    return [
+      { label: '预览订单', value: summary?.preview_order_count ?? 0 },
+      { label: '待结算', value: summary?.pending_settlement_count ?? 0 },
+      { label: '基金候选', value: summary?.reward_to_shared_fund_candidate_count ?? 0 },
+      { label: '候选金额', value: summary?.reward_to_shared_fund_preview_amount ?? 0 },
+    ]
+  })
+  const familyOrderSettlementCards = computed(() => {
+    const settlement = familyOrdersPanel.value?.settlement ?? {}
+    return [
+      { label: '写入共同基金', value: settlement.reward_to_shared_fund_enabled === true ? '开放' : '暂缓' },
+      { label: '写入共同仓库', value: settlement.reward_to_shared_warehouse_enabled === true ? '开放' : '暂缓' },
+      { label: '幂等凭证', value: settlement.idempotency_required === true ? '必须' : '未声明' },
+      { label: '补偿 / 回滚', value: settlement.compensation_required === true || settlement.rollback_required === true ? '必须' : '未声明' },
+    ]
+  })
   const offlineMembers = computed(() => cohabitationStore.offlineStatus?.members ?? [])
   const sharedLog = computed(() => cohabitationStore.offlineStatus?.recent_shared_log ?? [])
   const offlineDeferredOperations = computed(() => cohabitationStore.offlineStatus?.deferred_operations ?? [])
@@ -1080,9 +1189,31 @@
       offline_worker_queue: '离线队列',
       simultaneous_online_bonus: '同时在线加成',
       conflict_merge_tool: '冲突合并工具',
+      create_family_order: '创建家族订单',
+      accept_family_order_stage: '领取订单阶段',
+      submit_family_order_delivery: '提交订单交付',
+      confirm_family_order_delivery: '确认订单交付',
+      settle_to_shared_fund: '结算入共同基金',
+      deposit_reward_to_shared_warehouse: '奖励入共同仓库',
+      family_reputation: '家族声望',
+      family_order_rollback: '家族订单回滚',
+      family_order_compensation_replay: '订单补偿重放',
     }
     return labels[value] || value
   }
+
+  const familyOrderStageStateLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      available: '可预览',
+      locked: '暂锁',
+      planning: '规划中',
+      done: '已完成',
+    }
+    return labels[value] || value
+  }
+
+  const enabledOrderPermissionCount = (permissions: Record<string, boolean> | undefined) =>
+    Object.values(permissions ?? {}).filter(Boolean).length
 
   const sharedLogActionLabel = (action: string) => {
     const labels: Record<string, string> = {

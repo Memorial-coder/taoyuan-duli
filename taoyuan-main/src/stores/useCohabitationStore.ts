@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import {
   contributeCohabitationFund,
   depositCohabitationWarehouseItem,
+  fetchCohabitationFamilyOrders,
   fetchCohabitationFamilyRoles,
   fetchCohabitationFund,
   fetchCohabitationOfflineStatus,
@@ -15,6 +16,7 @@ import {
   updateCohabitationFamilyRole,
   updateCohabitationPermissions,
   withdrawCohabitationWarehouseItem,
+  type CohabitationFamilyOrdersPanel,
   type CohabitationFamilyRolePanel,
   type CohabitationFundSnapshot,
   type CohabitationOfflineStatus,
@@ -37,6 +39,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const fund = ref<CohabitationFundSnapshot | null>(null)
   const permissionsPanel = ref<CohabitationPermissionsPanel | null>(null)
   const rolePanel = ref<CohabitationFamilyRolePanel | null>(null)
+  const familyOrdersPanel = ref<CohabitationFamilyOrdersPanel | null>(null)
   const offlineStatus = ref<CohabitationOfflineStatus | null>(null)
 
   const contracts = computed(() => overview.value?.contracts ?? [])
@@ -56,6 +59,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     fund.value = null
     permissionsPanel.value = null
     rolePanel.value = null
+    familyOrdersPanel.value = null
     offlineStatus.value = null
   }
 
@@ -76,12 +80,13 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       errorMessage.value = ''
     }
     try {
-      const [mapResult, warehouseResult, fundResult, permissionsResult, roleResult, offlineResult] = await Promise.all([
+      const [mapResult, warehouseResult, fundResult, permissionsResult, roleResult, familyOrdersResult, offlineResult] = await Promise.all([
         fetchCohabitationSharedMap(contractId),
         fetchCohabitationWarehouse(contractId),
         fetchCohabitationFund(contractId),
         fetchCohabitationPermissions(contractId),
         fetchCohabitationFamilyRoles(contractId),
+        fetchCohabitationFamilyOrders(contractId),
         fetchCohabitationOfflineStatus(contractId),
       ])
       sharedMap.value = mapResult?.shared_map ?? null
@@ -89,6 +94,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       fund.value = fundResult?.fund ?? null
       permissionsPanel.value = permissionsResult?.permissions_panel ?? null
       rolePanel.value = roleResult?.role_panel ?? null
+      familyOrdersPanel.value = familyOrdersResult?.family_orders_panel ?? null
       offlineStatus.value = offlineResult?.offline_status ?? null
       return {
         sharedMap: sharedMap.value,
@@ -96,6 +102,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
         fund: fund.value,
         permissionsPanel: permissionsPanel.value,
         rolePanel: rolePanel.value,
+        familyOrdersPanel: familyOrdersPanel.value,
         offlineStatus: offlineStatus.value,
       }
     } catch (error) {
@@ -356,6 +363,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     fund,
     permissionsPanel,
     rolePanel,
+    familyOrdersPanel,
     offlineStatus,
     contracts,
     summary,

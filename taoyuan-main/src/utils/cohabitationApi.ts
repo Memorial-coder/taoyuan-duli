@@ -323,6 +323,106 @@ export interface CohabitationFamilyRolePanel {
   deferred_operations: string[]
 }
 
+export interface CohabitationFamilyOrdersPanel {
+  contract_id: string
+  shared_manor_id: string
+  type: string
+  type_label: string
+  status: string
+  readonly: boolean
+  write_enabled: boolean
+  writes_enabled: boolean
+  settlement_enabled: boolean
+  family_orders_enabled: boolean
+  generated_at: number
+  revision: number
+  member_count: number
+  max_members: number
+  summary: {
+    preview_order_count: number
+    open_order_count: number
+    pending_settlement_count: number
+    personal_money_merged: boolean
+    personal_inventory_merged: boolean
+    shared_fund_spend_enabled: boolean
+    warehouse_withdraw_enabled: boolean
+    reward_to_shared_fund_enabled: boolean
+    reward_to_shared_warehouse_enabled: boolean
+    reward_to_shared_fund_candidate_count: number
+    reward_to_shared_fund_preview_amount: number
+    disabled_reason: string
+  }
+  actor: (CohabitationMember & {
+    manor_role_label?: string
+    permission_focus?: string[]
+    order_permissions?: Record<string, boolean>
+  }) | null
+  members: Array<CohabitationMember & {
+    manor_role_label?: string
+    permission_focus?: string[]
+    order_permissions: Record<string, boolean>
+  }>
+  order_sources: Array<{
+    id: string
+    label: string
+    available: boolean
+    binding_enabled: boolean
+    visual_board_type?: string
+    deferred_operation?: string
+    description: string
+  }>
+  candidate_order_types: Array<{
+    id: string
+    label: string
+    description: string
+    preferred_roles: string[]
+    compatible_order_types: string[]
+  }>
+  visual_state_preview: {
+    board_type: string
+    board_id: string
+    revision: number
+    selected_visual_id: string
+    recent_feedback: string
+    async_projects: Array<{
+      id: string
+      title: string
+      status: string
+      progress_value: number
+      progress_target: number
+      stages: Array<{
+        id: string
+        sequence: number
+        title: string
+        description: string
+        state: string
+        progress_value: number
+        progress_target: number
+        preferred_roles: string[]
+        compatible_order_types: string[]
+      }>
+      milestones: Array<{
+        id: string
+        label: string
+        reached: boolean
+        description: string
+      }>
+      history: Array<Record<string, unknown>>
+    }>
+  }
+  income_preview: {
+    candidate_count: number
+    open_candidate_count: number
+    total_candidate_amount: number
+    latest_receipt_at?: number
+    candidates?: Array<Record<string, unknown>>
+  }
+  settlement: Record<string, unknown>
+  governance: Record<string, unknown>
+  recommended_flow: string[]
+  deferred_operations: string[]
+}
+
 export interface CohabitationOfflineStatus {
   contract_id: string
   shared_manor_id: string
@@ -593,6 +693,12 @@ export const fetchCohabitationFamilyRoles = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     role_panel?: CohabitationFamilyRolePanel
   }>(contractPath(contractId, '/roles'), '获取家族庄园职位失败')
+}
+
+export const fetchCohabitationFamilyOrders = async (contractId: string) => {
+  return fetchCohabitationJson<CohabitationDetailResponse & {
+    family_orders_panel?: CohabitationFamilyOrdersPanel
+  }>(contractPath(contractId, '/family-orders'), '获取家族订单预备面板失败')
 }
 
 export const updateCohabitationFamilyRole = async (contractId: string, payload: CohabitationFamilyRoleUpdatePayload) => {
