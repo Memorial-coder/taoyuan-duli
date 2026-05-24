@@ -1506,6 +1506,101 @@ try {
     assert(secondaryFriend?.friend_save_slot === primarySaveIdentity.save_slot, 'secondary friend list missing friend save slot')
   })
 
+  let cohabitationContractId = ''
+  await runCheck('POST /api/taoyuan/online/cohabitation/contracts create path', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/cohabitation/contracts', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        type: 'bosom_partner',
+        target_username: secondarySessionState.username,
+        title: 'smoke cohabitation fund',
+        idempotency_key: `smoke-cohabitation-create-${Date.now()}`,
+      }),
+    })
+    assert(response.ok, `cohabitation contract create returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.contract?.id, 'cohabitation contract create payload is incomplete')
+    assert(data.contract.status === 'pending_acceptance', 'cohabitation contract should wait for invited member acceptance')
+    cohabitationContractId = String(data.contract.id)
+  })
+
+  await runCheck('POST /api/taoyuan/online/cohabitation/contracts/:contractId/accept path', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/cohabitation/contracts/${encodeURIComponent(cohabitationContractId)}/accept`, {
+      method: 'POST',
+    })
+    assert(response.ok, `cohabitation contract accept returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.contract?.status === 'active', 'cohabitation contract accept payload is incomplete')
+  })
+
+  await runCheck('POST /api/taoyuan/online/cohabitation/contracts/:contractId/fund/contribute path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/cohabitation/contracts/${encodeURIComponent(cohabitationContractId)}/fund/contribute`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount: 40,
+        purpose: 'seed_budget',
+        memo: 'smoke fund seed budget',
+        idempotency_key: `smoke-fund-contribute-${cohabitationContractId}`,
+      }),
+    })
+    assert(response.ok, `cohabitation fund contribute returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.fund?.balance === 40, 'cohabitation fund contribute payload is incomplete')
+    assert(data?.ledger_entry?.action === 'contribution', 'cohabitation fund contribution did not write contribution ledger')
+    assert(data?.personal_money?.remaining_money === primaryExpectedMoney - 40, 'cohabitation fund contribution did not deduct primary money once')
+    primaryExpectedMoney -= 40
+  })
+
+  await runCheck('POST /api/taoyuan/online/cohabitation/contracts/:contractId/fund/spend path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/cohabitation/contracts/${encodeURIComponent(cohabitationContractId)}/fund/spend`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount: 15,
+        purpose: 'seed_budget',
+        target_ref: 'shop:smoke_seed_pack',
+        idempotency_key: `smoke-fund-spend-${cohabitationContractId}`,
+      }),
+    })
+    assert(response.ok, `cohabitation fund spend returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.fund?.balance === 25, 'cohabitation fund spend payload is incomplete')
+    assert(data?.ledger_entry?.action === 'spend', 'cohabitation fund spend did not write spend ledger')
+    assert(data?.ledger_entry?.target_ref === 'shop:smoke_seed_pack', 'cohabitation fund spend did not preserve target ref')
+    assert(data?.shared_fund?.balance_before === 40 && data?.shared_fund?.balance_after === 25, 'cohabitation fund spend did not expose balance transition')
+    assert(data?.shared_fund?.personal_money_merged === false, 'cohabitation fund spend should not merge personal money')
+  })
+
+  await runCheck('POST /api/taoyuan/online/cohabitation/contracts/:contractId/fund/spend idempotent path', async () => {
+    const { response, data } = await fetchAuthedJson(`/api/taoyuan/online/cohabitation/contracts/${encodeURIComponent(cohabitationContractId)}/fund/spend`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        amount: 15,
+        purpose: 'seed_budget',
+        target_ref: 'shop:smoke_seed_pack',
+        idempotency_key: `smoke-fund-spend-${cohabitationContractId}`,
+      }),
+    })
+    assert(response.ok, `cohabitation fund spend idempotent returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.idempotent === true, 'cohabitation fund spend duplicate should be idempotent')
+    assert(data?.fund?.balance === 25, 'cohabitation fund spend duplicate should not deduct balance twice')
+  })
+
+  await runCheck('GET /api/taoyuan/online/cohabitation/contracts/:contractId/fund readback', async () => {
+    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/cohabitation/contracts/${encodeURIComponent(cohabitationContractId)}/fund`)
+    assert(response.ok, `cohabitation fund readback returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.fund?.balance === 25, 'cohabitation fund readback payload is incomplete')
+    assert(data.fund.ledger?.some(entry => entry?.action === 'spend' && entry?.purpose === 'seed_budget'), 'cohabitation fund readback did not include spend ledger')
+    assert(data.fund.summary?.spend_enabled === true, 'cohabitation fund readback should expose actor spend capability')
+  })
+
   let friendMemorialMailId = ''
   await runCheck('POST /api/taoyuan/mail/player-letter friend memorial setup', async () => {
     const { response, data } = await fetchAuthedJson('/api/taoyuan/mail/player-letter', {
@@ -5053,7 +5148,7 @@ try {
     })
     assert(response.ok, `online audit admin read returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && Array.isArray(data?.logs), 'online audit admin payload is incomplete')
-    const requiredActions = ['order_publish', 'player_gift_package_send', 'neighbor_consignment_create', 'hall_post_create']
+    const requiredActions = ['order_publish', 'player_gift_package_send', 'neighbor_consignment_create', 'hall_post_create', 'cohabitation_fund_spend']
     for (const action of requiredActions) {
       const actionReadback = await fetchAuthedJson(`/api/admin/taoyuan/online-audit?page=1&page_size=20&action=${encodeURIComponent(action)}`, {
         headers: {
