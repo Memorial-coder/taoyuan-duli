@@ -676,6 +676,65 @@ export interface CohabitationFamilyRelationsPanel {
   deferred_operations: string[]
 }
 
+export interface CohabitationFamilyVisibilityMember extends CohabitationMember {
+  manor_role: string
+  manor_role_label: string
+  visibility_permissions: Record<string, boolean | string>
+}
+
+export interface CohabitationFamilyVisibilityScope {
+  id: string
+  label: string
+  enabled: boolean
+  summary: string
+  write_enabled: boolean
+}
+
+export interface CohabitationFamilyVisibilityDataCategory {
+  id: string
+  label: string
+  online_visible: boolean
+  publication_allowed: boolean
+  source: string
+  write_enabled: boolean
+}
+
+export interface CohabitationFamilyVisibilityPanel {
+  contract_id: string
+  shared_manor_id: string
+  type: string
+  type_label: string
+  status: string
+  readonly: boolean
+  write_enabled: boolean
+  writes_enabled: boolean
+  visibility_settings_enabled: boolean
+  generated_at: number
+  revision: number
+  summary: {
+    default_scope: string
+    member_count: number
+    accepted_member_count: number
+    max_members: number
+    public_profile_enabled: boolean
+    festival_room_binding_enabled: boolean
+    local_graph_publication_enabled: boolean
+    personal_graph_auto_publish_enabled: boolean
+    consent_required: boolean
+    visibility_audit_enabled: boolean
+    rollback_enabled: boolean
+    disabled_reason: string
+  }
+  actor: CohabitationFamilyVisibilityMember | null
+  members: CohabitationFamilyVisibilityMember[]
+  visibility_scopes: CohabitationFamilyVisibilityScope[]
+  data_categories: CohabitationFamilyVisibilityDataCategory[]
+  default_policy: Record<string, unknown>
+  privacy_guards: Record<string, unknown>
+  governance: Record<string, unknown>
+  deferred_operations: string[]
+}
+
 export interface CohabitationFamilyFestivalSeatMember extends CohabitationMember {
   manor_role: string
   manor_role_label: string
@@ -1071,6 +1130,12 @@ export const fetchCohabitationFamilyRelations = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     family_relations_panel?: CohabitationFamilyRelationsPanel
   }>(contractPath(contractId, '/family-relations'), '获取家族关系图预备面板失败')
+}
+
+export const fetchCohabitationFamilyVisibility = async (contractId: string) => {
+  return fetchCohabitationJson<CohabitationDetailResponse & {
+    family_visibility_panel?: CohabitationFamilyVisibilityPanel
+  }>(contractPath(contractId, '/family-visibility'), '获取家族关系公开设置预备面板失败')
 }
 
 export const fetchCohabitationFamilyFestivalSeats = async (contractId: string) => {

@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 家族关系公开设置只读前端读回
+- 共同庄园新增“公开”页签，前端 API / store 读取 `/family-visibility` 只读预备面板。
+- 页面展示默认可见范围、候选公开范围、可见数据类别、成员同意状态、隐私护栏，以及公开设置写入、同意收集、档案发布、节会房间绑定、审计、补偿重放和回滚等暂缓能力。
+- 本轮只做读回，不写公开设置，不公开个人存档关系图，不发布公开档案，不绑定节会房间。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 家族节会席位只读前端读回
 - 共同庄园新增“节会”页签，前端 API / store 读取 `/family-festival-seats` 只读预备面板。
 - 页面展示成员席位、候选节会模板、场景预排物件、席位状态、结算护栏，以及锁席、开房、共同物资消耗、奖励结算、补偿重放和回滚等暂缓能力。

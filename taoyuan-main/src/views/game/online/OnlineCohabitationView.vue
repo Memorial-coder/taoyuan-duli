@@ -864,6 +864,102 @@
         </div>
       </div>
 
+      <div v-else-if="activeTab === 'visibility'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div class="game-panel-muted p-3">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 text-accent">
+              <Lock :size="13" />
+              <p class="text-sm">关系公开设置</p>
+            </div>
+            <span class="text-[10px] text-muted">{{ familyVisibilityPanel?.visibility_settings_enabled ? '契约内可见' : '未启用' }}</span>
+          </div>
+          <div v-if="!familyVisibilityPanel" class="mt-3 text-xs leading-5 text-muted">当前没有关系公开设置预备面板数据。</div>
+          <div v-else>
+            <div class="mt-3 grid gap-2 md:grid-cols-4">
+              <div v-for="item in familyVisibilitySummaryCards" :key="item.label" class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
+              </div>
+            </div>
+            <p v-if="familyVisibilityPanel.summary.disabled_reason" class="mt-3 text-[10px] leading-4 text-muted">
+              {{ familyVisibilityPanel.summary.disabled_reason }}
+            </p>
+            <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyVisibilityPanel.governance.current_policy || '当前没有公开策略说明。' }}</p>
+            <div class="mt-3 grid gap-2 md:grid-cols-2">
+              <div v-for="scope in familyVisibilityScopes" :key="scope.id" class="border border-accent/10 bg-black/10 p-3">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ scope.label }}</p>
+                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ scope.summary }}</p>
+                  </div>
+                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[10px]" :class="scope.enabled ? 'text-accent' : 'text-muted'">
+                    {{ scope.enabled ? '可见' : '关闭' }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              <div v-for="category in familyVisibilityDataCategories" :key="category.id" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ category.label }}</p>
+                    <p class="mt-1 text-[10px] text-muted">{{ familyVisibilitySourceLabel(category.source) }}</p>
+                  </div>
+                  <span class="shrink-0 text-[10px]" :class="category.online_visible ? 'text-accent' : 'text-muted'">
+                    {{ category.online_visible ? '契约可见' : '私密' }}
+                  </span>
+                </div>
+                <p class="mt-1 text-[10px] text-muted">公开档案：{{ category.publication_allowed ? '未来可申请' : '禁止' }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">成员同意</p>
+            <div v-if="familyVisibilityMembers.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无成员可见性数据。</div>
+            <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              <div v-for="member in familyVisibilityMembers" :key="member.username" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
+                    <p class="mt-1 text-[10px] text-muted">{{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
+                  </div>
+                  <span class="shrink-0 text-[10px] text-accent">{{ member.visibility_permissions.consent_status === 'not_requested' ? '未请求' : member.visibility_permissions.consent_status }}</span>
+                </div>
+                <p class="mt-2 text-[10px] text-muted">管理预览：{{ member.visibility_permissions.can_manage_visibility_preview === true ? '可看' : '不可用' }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">隐私护栏</p>
+            <div class="mt-3 space-y-2">
+              <div
+                v-for="item in familyVisibilityGuardCards"
+                :key="item.label"
+                class="flex items-center justify-between gap-2 border border-accent/10 bg-black/10 p-2 text-xs"
+              >
+                <span class="text-muted">{{ item.label }}</span>
+                <span class="text-accent">{{ item.value }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">暂缓能力</p>
+            <div v-if="familyVisibilityDeferredOperations.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无暂缓项。</div>
+            <div v-else class="mt-3 flex flex-wrap gap-2">
+              <span
+                v-for="item in familyVisibilityDeferredOperations"
+                :key="item"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+              >
+                {{ deferredOperationLabel(item) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div v-else-if="activeTab === 'festivalSeats'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
@@ -1083,7 +1179,7 @@
     CohabitationWarehouseItem,
   } from '@/utils/cohabitationApi'
 
-  type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'reputation' | 'buildings' | 'relations' | 'festivalSeats' | 'offline'
+  type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'reputation' | 'buildings' | 'relations' | 'visibility' | 'festivalSeats' | 'offline'
   type CohabitationTabMeta = { key: CohabitationTabKey; label: string; summary: string }
 
   const cohabitationStore = useCohabitationStore()
@@ -1111,6 +1207,7 @@
     { key: 'reputation', label: '声望', summary: '只读查看家族声望预览分、来源证据和未来奖励治理边界。' },
     { key: 'buildings', label: '建筑', summary: '只读查看家族建筑蓝图、材料缺口、规划场景和共同资产边界。' },
     { key: 'relations', label: '关系', summary: '只读查看契约成员、家族职位、共同能力节点和隐私边界。' },
+    { key: 'visibility', label: '公开', summary: '只读查看关系图公开范围、可见数据类别、成员同意和隐私护栏。' },
     { key: 'festivalSeats', label: '节会', summary: '只读查看家族节会席位、候选模板、场景预排和结算护栏。' },
     { key: 'offline', label: '离线', summary: '查看成员最近活跃、共同日志和无需全员在线的能力边界。' },
   ]
@@ -1253,6 +1350,32 @@
       { label: '随机 NPC', value: privacy.random_npc_nodes_exposed === true ? '公开' : '私密' },
       { label: '孩子 / 宠物', value: privacy.children_nodes_exposed === true || privacy.pets_exposed === true ? '公开' : '私密' },
       { label: '未来公开同意', value: governance.future_publication_requires_consent === true ? '必须' : '未声明' },
+    ]
+  })
+  const familyVisibilityPanel = computed(() => cohabitationStore.familyVisibilityPanel)
+  const familyVisibilityMembers = computed(() => familyVisibilityPanel.value?.members ?? [])
+  const familyVisibilityScopes = computed(() => familyVisibilityPanel.value?.visibility_scopes ?? [])
+  const familyVisibilityDataCategories = computed(() => familyVisibilityPanel.value?.data_categories ?? [])
+  const familyVisibilityDeferredOperations = computed(() => familyVisibilityPanel.value?.deferred_operations ?? [])
+  const familyVisibilitySummaryCards = computed(() => {
+    const summary = familyVisibilityPanel.value?.summary
+    return [
+      { label: '默认范围', value: familyVisibilityScopeLabel(summary?.default_scope || '') },
+      { label: '成员', value: `${summary?.accepted_member_count ?? 0}/${summary?.max_members ?? 0}` },
+      { label: '公开档案', value: summary?.public_profile_enabled ? '开放' : '关闭' },
+      { label: '可见审计', value: summary?.visibility_audit_enabled ? '开放' : '暂缓' },
+    ]
+  })
+  const familyVisibilityGuardCards = computed(() => {
+    const guards = familyVisibilityPanel.value?.privacy_guards ?? {}
+    const governance = familyVisibilityPanel.value?.governance ?? {}
+    return [
+      { label: '个人存档读取', value: guards.personal_save_read_enabled === true ? '开放' : '禁止' },
+      { label: '固定 / 随机 NPC', value: guards.fixed_npcs_private === true && guards.random_npcs_private === true ? '私密' : '需检查' },
+      { label: '孩子 / 宠物', value: guards.children_private === true && guards.pets_private === true ? '私密' : '需检查' },
+      { label: '成员同意', value: governance.future_publication_requires_all_visible_member_consent === true ? '必须' : '未声明' },
+      { label: '未来幂等', value: governance.future_writes_require_idempotency === true ? '必须' : '未声明' },
+      { label: '错误公开补偿', value: governance.compensation_required_for_wrong_visibility === true ? '必须' : '未声明' },
     ]
   })
   const familyFestivalSeatsPanel = computed(() => cohabitationStore.familyFestivalSeatsPanel)
@@ -1700,6 +1823,13 @@
       relationship_visibility_audit: '关系可见性审计',
       family_relation_graph_compensation_replay: '关系图补偿重放',
       family_relation_graph_rollback: '关系图回滚',
+      update_family_visibility_settings: '更新可见性设置',
+      collect_family_visibility_consent: '收集成员公开同意',
+      publish_contract_graph_to_profile: '契约关系图公开档案',
+      bind_family_relation_graph_to_festival_room: '关系图绑定节会房间',
+      visibility_audit_log: '可见性审计日志',
+      visibility_rollback: '可见性回滚',
+      visibility_compensation_replay: '可见性补偿重放',
       reserve_family_festival_seat: '锁定家族节会席位',
       bind_family_seat_to_festival_room: '席位绑定节会房间',
       create_festival_room_from_family_seats: '由席位创建节会房间',
@@ -1710,6 +1840,28 @@
       family_festival_seat_rollback: '席位回滚',
     }
     return labels[value] || value
+  }
+
+  const familyVisibilityScopeLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      contract_members_only: '仅契约成员',
+      contract_members: '契约成员',
+      mutual_friends: '互关好友',
+      society_members: '同村社成员',
+      public_profile: '公开档案',
+      festival_room: '节会房间',
+      disabled: '未启用',
+    }
+    return labels[value] || value || '未知'
+  }
+
+  const familyVisibilitySourceLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      cohabitation_contract: '来自共同庄园契约',
+      derived_contract_capabilities: '来自契约共同能力',
+      single_player_save: '来自个人存档',
+    }
+    return labels[value] || value || '未知来源'
   }
 
   const familyRelationNodeClass = (type: string) => {

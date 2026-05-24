@@ -9,6 +9,7 @@ import {
   fetchCohabitationFamilyRelations,
   fetchCohabitationFamilyReputation,
   fetchCohabitationFamilyRoles,
+  fetchCohabitationFamilyVisibility,
   fetchCohabitationFund,
   fetchCohabitationOfflineStatus,
   fetchCohabitationOverview,
@@ -26,6 +27,7 @@ import {
   type CohabitationFamilyRelationsPanel,
   type CohabitationFamilyReputationPanel,
   type CohabitationFamilyRolePanel,
+  type CohabitationFamilyVisibilityPanel,
   type CohabitationFundSnapshot,
   type CohabitationOfflineStatus,
   type CohabitationOverviewResponse,
@@ -52,6 +54,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const familyOrdersPanel = ref<CohabitationFamilyOrdersPanel | null>(null)
   const familyRelationsPanel = ref<CohabitationFamilyRelationsPanel | null>(null)
   const familyReputationPanel = ref<CohabitationFamilyReputationPanel | null>(null)
+  const familyVisibilityPanel = ref<CohabitationFamilyVisibilityPanel | null>(null)
   const offlineStatus = ref<CohabitationOfflineStatus | null>(null)
 
   const contracts = computed(() => overview.value?.contracts ?? [])
@@ -76,6 +79,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     familyOrdersPanel.value = null
     familyRelationsPanel.value = null
     familyReputationPanel.value = null
+    familyVisibilityPanel.value = null
     offlineStatus.value = null
   }
 
@@ -96,7 +100,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       errorMessage.value = ''
     }
     try {
-      const [mapResult, warehouseResult, fundResult, permissionsResult, roleResult, familyBuildingsResult, familyFestivalSeatsResult, familyOrdersResult, familyRelationsResult, familyReputationResult, offlineResult] = await Promise.all([
+      const [mapResult, warehouseResult, fundResult, permissionsResult, roleResult, familyBuildingsResult, familyFestivalSeatsResult, familyOrdersResult, familyRelationsResult, familyReputationResult, familyVisibilityResult, offlineResult] = await Promise.all([
         fetchCohabitationSharedMap(contractId),
         fetchCohabitationWarehouse(contractId),
         fetchCohabitationFund(contractId),
@@ -107,6 +111,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
         fetchCohabitationFamilyOrders(contractId),
         fetchCohabitationFamilyRelations(contractId),
         fetchCohabitationFamilyReputation(contractId),
+        fetchCohabitationFamilyVisibility(contractId),
         fetchCohabitationOfflineStatus(contractId),
       ])
       sharedMap.value = mapResult?.shared_map ?? null
@@ -119,6 +124,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       familyOrdersPanel.value = familyOrdersResult?.family_orders_panel ?? null
       familyRelationsPanel.value = familyRelationsResult?.family_relations_panel ?? null
       familyReputationPanel.value = familyReputationResult?.family_reputation_panel ?? null
+      familyVisibilityPanel.value = familyVisibilityResult?.family_visibility_panel ?? null
       offlineStatus.value = offlineResult?.offline_status ?? null
       return {
         sharedMap: sharedMap.value,
@@ -131,6 +137,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
         familyOrdersPanel: familyOrdersPanel.value,
         familyRelationsPanel: familyRelationsPanel.value,
         familyReputationPanel: familyReputationPanel.value,
+        familyVisibilityPanel: familyVisibilityPanel.value,
         offlineStatus: offlineStatus.value,
       }
     } catch (error) {
@@ -396,6 +403,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     familyOrdersPanel,
     familyRelationsPanel,
     familyReputationPanel,
+    familyVisibilityPanel,
     offlineStatus,
     contracts,
     summary,
