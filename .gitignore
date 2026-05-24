@@ -31,6 +31,7 @@ taoyuan-main/android/key
 
 # Local archives
 taoyuan-duli-latest.tar
+codex-skills-export-*.zip
 
 # Local logs
 *.log
@@ -60,3 +61,4 @@ docs/ui-smoke-*/
 docs/ui-ux-review-*.md
 [0-9][0-9][0-9][0-9]plan.md
 [0-9][0-9][0-9][0-9]todo.md
+[0-9][0-9][0-9][0-9]*计划*.md
