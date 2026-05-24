@@ -305,6 +305,28 @@ const SOCIETY_PUBLIC_PROJECT_DEFS = Object.freeze([
     ],
   },
   {
+    id: 'lantern_wall',
+    label: '花灯墙',
+    summary: '把愿望、赠灯、修灯和好友祝福挂到同一面公共花灯墙上，形成节期纪念。',
+    target_progress: 100,
+    completion_feedback: '花灯墙已经点亮，愿望签、赠灯和好友留言都能在公共记忆里回看。',
+    world_feedback: '村社公告和节期回看会更多提到花灯墙、好友祝福和共同点亮的夜景。',
+    completion_rewards: [
+      {
+        id: 'lantern_wall_memorial',
+        kind: 'memorial',
+        label: '花灯墙纪念',
+        summary: '花灯墙完工会在公共工程、异步现场和村社史册中保留节期纪念墙。',
+      },
+      {
+        id: 'lantern_wall_blessing_book',
+        kind: 'memorial',
+        label: '好友祝福册',
+        summary: '写愿望、赠灯和好友留言会沉淀为可回看的祝福历史，不发放个人资产。',
+      },
+    ],
+  },
+  {
     id: 'dock',
     label: '修码头',
     summary: '整修旧码头，给后续慢交易、远行补给和访客接待留出落点。',
@@ -466,8 +488,58 @@ const SOCIETY_FESTIVAL_PROJECT_PACKAGE_OPTIONS = Object.freeze([
   },
 ]);
 
+const SOCIETY_LANTERN_WALL_PROJECT_PACKAGE_OPTIONS = Object.freeze([
+  {
+    id: 'lantern_wall_wish',
+    label: '写愿望',
+    summary: '写下一张愿望签挂到墙上，推进花灯墙的祝福底稿。',
+    kind: 'message',
+    progress_gain: 20,
+    daily_limit: 1,
+    weekly_limit: 5,
+    costs: [{ type: 'money', amount: 3 }],
+  },
+  {
+    id: 'lantern_wall_hang',
+    label: '挂灯',
+    summary: '添一盏花灯和挂绳，让墙面开始被灯色点亮。',
+    kind: 'material',
+    progress_gain: 25,
+    costs: [{ type: 'money', amount: 8 }],
+  },
+  {
+    id: 'lantern_wall_repair',
+    label: '修灯',
+    summary: '巡查灯线、补齐灯罩和旧灯骨架；每日限一次，写入贡献榜。',
+    kind: 'labor',
+    progress_gain: 20,
+    daily_limit: 1,
+    weekly_limit: 3,
+    costs: [],
+  },
+  {
+    id: 'lantern_wall_gift',
+    label: '赠灯',
+    summary: '替好友或村社赠一盏灯，点亮赠灯区和祝福线。',
+    kind: 'gift',
+    progress_gain: 20,
+    costs: [{ type: 'money', amount: 10 }],
+  },
+  {
+    id: 'lantern_wall_message',
+    label: '好友留言',
+    summary: '把好友间的祝福留言写入墙边小札，作为节期回看的一部分。',
+    kind: 'message',
+    progress_gain: 15,
+    daily_limit: 1,
+    weekly_limit: 5,
+    costs: [],
+  },
+]);
+
 const SOCIETY_PROJECT_PACKAGE_OPTIONS_BY_PROJECT = Object.freeze({
   festival_square: SOCIETY_FESTIVAL_PROJECT_PACKAGE_OPTIONS,
+  lantern_wall: SOCIETY_LANTERN_WALL_PROJECT_PACKAGE_OPTIONS,
 });
 
 const SOCIETY_ASYNC_PROJECT_STAGE_DEFS = Object.freeze({
@@ -482,6 +554,12 @@ const SOCIETY_ASYNC_PROJECT_STAGE_DEFS = Object.freeze({
     { id: 'build', label: '搭场', threshold: 55, object_ids: ['festival_stage', 'festival_lantern_gate'] },
     { id: 'rehearsal', label: '彩排', threshold: 85, object_ids: ['festival_program_board', 'festival_riddle_board'] },
     { id: 'opening', label: '开幕', threshold: 100, object_ids: ['festival_crowd', 'festival_photo_spot'] },
+  ],
+  lantern_wall: [
+    { id: 'wish', label: '写愿望', threshold: 20, object_ids: ['lantern_wall_blank', 'lantern_wall_wish_board'] },
+    { id: 'hang', label: '挂灯', threshold: 45, object_ids: ['lantern_wall_frame', 'lantern_wall_hanging_line'] },
+    { id: 'repair', label: '修灯赠灯', threshold: 75, object_ids: ['lantern_wall_repair_table', 'lantern_wall_gift_zone'] },
+    { id: 'memorial', label: '祝福成墙', threshold: 100, object_ids: ['lantern_wall_friend_notes', 'lantern_wall_memorial_spot'] },
   ],
   default: [
     { id: 'prepare', label: '备料', threshold: 25, object_ids: ['material_yard'] },
@@ -1980,6 +2058,8 @@ function buildSocietyVisualContributionOptions(project) {
         ? `发起施工行动，推进 ${progressDelta} 点，并按次数限制写入村社贡献记录。`
         : project.id === 'festival_square'
           ? `推进 ${progressDelta} 点，并点亮节庆广场对应布置。`
+          : project.id === 'lantern_wall'
+            ? `推进 ${progressDelta} 点，并把愿望、赠灯或好友留言写入花灯墙历史。`
           : `推进 ${progressDelta} 点并写入村社贡献记录。`,
     };
   });
@@ -2027,6 +2107,32 @@ function buildSocietyFestivalContributionObjectIds(project, stageId) {
   return objectIds;
 }
 
+function buildSocietyLanternWallContributionObjectIds(project, stageId) {
+  if (project.id !== 'lantern_wall') return [];
+  const packageIds = new Set((project.contributions || [])
+    .map(normalizeSocietyPublicProjectContribution)
+    .map(entry => entry.package_id)
+    .filter(Boolean));
+  const objectIds = [];
+  if (stageId.includes('wish')) {
+    if (packageIds.has('lantern_wall_wish')) objectIds.push('lantern_wall_wish_tags');
+    if (packageIds.has('lantern_wall_message')) objectIds.push('lantern_wall_friend_note_seed');
+  }
+  if (stageId.includes('hang')) {
+    if (packageIds.has('lantern_wall_hang')) objectIds.push('lantern_wall_hung_lanterns');
+    if (packageIds.has('lantern_wall_gift')) objectIds.push('lantern_wall_gift_lanterns');
+  }
+  if (stageId.includes('repair')) {
+    if (packageIds.has('lantern_wall_repair')) objectIds.push('lantern_wall_repaired_lights');
+    if (packageIds.has('lantern_wall_gift')) objectIds.push('lantern_wall_gift_ribbon');
+  }
+  if (stageId.includes('memorial')) {
+    if (packageIds.has('lantern_wall_message')) objectIds.push('lantern_wall_friend_messages');
+    if (packageIds.has('lantern_wall_wish')) objectIds.push('lantern_wall_wish_archive');
+  }
+  return objectIds;
+}
+
 function buildSocietyVisualAsyncStages(project) {
   const stages = getSocietyAsyncStageDefs(project.id);
   const completionRewardText = buildSocietyProjectCompletionRewardText(project);
@@ -2036,6 +2142,7 @@ function buildSocietyVisualAsyncStages(project) {
     const objectIds = [
       ...(Array.isArray(stage.object_ids) ? stage.object_ids : []),
       ...buildSocietyFestivalContributionObjectIds(project, stage.id),
+      ...buildSocietyLanternWallContributionObjectIds(project, stage.id),
     ].filter((item, index, source) => item && source.indexOf(item) === index);
     return {
       id: stage.id,
@@ -2121,13 +2228,19 @@ function buildSocietyVisualAsyncProject(project) {
     ? 'village_bridge'
     : normalized.id === 'festival_square'
       ? 'festival_square'
-      : 'society_project';
+      : normalized.id === 'lantern_wall'
+        ? 'lantern_wall'
+        : 'society_project';
   return {
     id: normalized.id,
     label: def.label,
     kind,
     day_tag: '',
-    week_tag: normalized.id === 'festival_square' ? '节庆筹备周目标' : '',
+    week_tag: normalized.id === 'festival_square'
+      ? '节庆筹备周目标'
+      : normalized.id === 'lantern_wall'
+        ? '花灯墙节期目标'
+        : '',
     starts_at: 0,
     ends_at: 0,
     current_stage_id: currentStage?.id || '',

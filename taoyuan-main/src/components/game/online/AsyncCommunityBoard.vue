@@ -285,6 +285,11 @@
     return 16 + (68 * index) / Math.max(1, total - 1)
   }
   const objectY = (objectId: string, objectIndex: number) => {
+    if (objectId.includes('lantern_wall_wish') || objectId.includes('friend_note') || objectId.includes('friend_message')) return 34 + objectIndex * 2
+    if (objectId.includes('lantern_wall_hang') || objectId.includes('lantern_wall_gift')) return 28 + objectIndex * 3
+    if (objectId.includes('lantern_wall_repair')) return 58 + objectIndex * 2
+    if (objectId.includes('lantern_wall_memorial') || objectId.includes('lantern_wall_archive')) return 43 + objectIndex * 2
+    if (objectId.includes('lantern_wall')) return 50 + objectIndex * 2
     if (objectId.includes('festival_food') || objectId.includes('snack')) return 68 + objectIndex * 2
     if (objectId.includes('festival_stage') || objectId.includes('scene')) return 52
     if (objectId.includes('riddle') || objectId.includes('tag')) return 39 + objectIndex * 2
@@ -298,6 +303,10 @@
     return 58
   }
   const markerIcon = (objectId: string, state: OnlineVisualAsyncStageState): Component => {
+    if (objectId.includes('lantern_wall_wish') || objectId.includes('friend_note') || objectId.includes('friend_message')) return ScrollText
+    if (objectId.includes('lantern_wall_hang') || objectId.includes('lantern_wall_gift')) return Sparkles
+    if (objectId.includes('lantern_wall_repair')) return Hammer
+    if (objectId.includes('lantern_wall_memorial') || objectId.includes('lantern_wall_archive')) return Landmark
     if (objectId.includes('festival_food') || objectId.includes('snack')) return Utensils
     if (objectId.includes('riddle') || objectId.includes('tag')) return ScrollText
     if (objectId.includes('program') || objectId.includes('rehearsal') || objectId.includes('drum')) return Music2
@@ -309,6 +318,20 @@
     return Tent
   }
   const markerLabel = (objectId: string, fallback: string) => {
+    if (objectId.includes('lantern_wall_blank')) return '墙面'
+    if (objectId.includes('lantern_wall_wish_tags')) return '愿望签'
+    if (objectId.includes('lantern_wall_wish')) return '愿望'
+    if (objectId.includes('lantern_wall_friend_messages')) return '好友留言'
+    if (objectId.includes('lantern_wall_friend_note')) return '留言'
+    if (objectId.includes('lantern_wall_frame')) return '灯架'
+    if (objectId.includes('lantern_wall_hung')) return '挂灯'
+    if (objectId.includes('lantern_wall_hanging')) return '灯线'
+    if (objectId.includes('lantern_wall_repaired')) return '修灯'
+    if (objectId.includes('lantern_wall_repair')) return '修灯台'
+    if (objectId.includes('lantern_wall_gift')) return '赠灯'
+    if (objectId.includes('lantern_wall_memorial')) return '纪念墙'
+    if (objectId.includes('lantern_wall_archive')) return '愿望册'
+    if (objectId.includes('lantern_wall')) return '花灯墙'
     if (objectId.includes('festival_empty')) return '空场'
     if (objectId.includes('festival_material')) return '备料'
     if (objectId.includes('festival_lantern_crates')) return '灯笼'
@@ -350,6 +373,7 @@
   const projectKindLabel = (kind: string) => {
     if (kind === 'village_bridge') return '村社修桥'
     if (kind === 'festival_square') return '节庆筹备'
+    if (kind === 'lantern_wall') return '花灯墙'
     if (kind === 'order_relay') return '公共订单接力'
     if (kind === 'society_project') return '公共工程'
     return kind || '公共工程'
@@ -522,6 +546,15 @@
       rgb(0 0 0 / 0.12);
   }
 
+  .async-community-board__scene--lantern_wall {
+    background:
+      radial-gradient(circle at 32% 24%, color-mix(in srgb, #f5c56e 18%, transparent), transparent 24%),
+      radial-gradient(circle at 70% 30%, color-mix(in srgb, #e46b88 14%, transparent), transparent 22%),
+      linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 10%, transparent), transparent 50%),
+      linear-gradient(90deg, rgb(0 0 0 / 0.09), transparent 46%, rgb(0 0 0 / 0.13)),
+      rgb(0 0 0 / 0.13);
+  }
+
   .async-community-board__river {
     position: absolute;
     right: -8%;
@@ -547,6 +580,18 @@
     transform: none;
   }
 
+  .async-community-board__scene--lantern_wall .async-community-board__river {
+    top: 63%;
+    bottom: auto;
+    height: 22%;
+    border-top: 1px solid color-mix(in srgb, #f5c56e 24%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, #e46b88 18%, transparent);
+    background:
+      repeating-linear-gradient(90deg, transparent 0 7%, rgb(255 255 255 / 0.05) 7% 8%),
+      linear-gradient(90deg, rgb(0 0 0 / 0.08), color-mix(in srgb, #f5c56e 13%, transparent), rgb(0 0 0 / 0.1));
+    transform: none;
+  }
+
   .async-community-board__bridge-line {
     position: absolute;
     left: 10%;
@@ -560,6 +605,13 @@
     top: 55%;
     height: 0.45rem;
     border-color: color-mix(in srgb, #d4976a 34%, transparent);
+    transform: translateY(-50%);
+  }
+
+  .async-community-board__scene--lantern_wall .async-community-board__bridge-line {
+    top: 44%;
+    height: 0.55rem;
+    border-color: color-mix(in srgb, #f5c56e 38%, transparent);
     transform: translateY(-50%);
   }
 
@@ -577,8 +629,18 @@
     background: rgb(0 0 0 / 0.12);
   }
 
+  .async-community-board__scene--lantern_wall .async-community-board__bridge-line--base {
+    background:
+      repeating-linear-gradient(90deg, rgb(255 255 255 / 0.04) 0 6%, transparent 6% 8%),
+      rgb(0 0 0 / 0.14);
+  }
+
   .async-community-board__scene--festival_square .async-community-board__bridge-line--deck {
     background: linear-gradient(90deg, color-mix(in srgb, #d4976a 42%, var(--color-accent)), color-mix(in srgb, var(--color-success) 42%, #d4976a));
+  }
+
+  .async-community-board__scene--lantern_wall .async-community-board__bridge-line--deck {
+    background: linear-gradient(90deg, color-mix(in srgb, #f5c56e 48%, var(--color-accent)), color-mix(in srgb, #e46b88 34%, var(--color-success)));
   }
 
   .async-community-board__stage-marker {

@@ -4317,6 +4317,135 @@ try {
     )
   })
 
+  await runCheck('POST /api/taoyuan/online/societies/public-projects/:projectId/contribute lantern wall path', async () => {
+    const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(beforeSave.response.ok, `secondary save readback before lantern wall returned ${beforeSave.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeSave.data?.raw || beforeSave.data?.slot?.raw || beforeSave.data?.save?.raw || '')
+    const preMoney = Math.max(0, Math.floor(Number(beforeDecrypted?.player?.money) || 0))
+
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-projects/lantern_wall/contribute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        package_id: 'lantern_wall_wish',
+      }),
+    })
+    assert(response.ok, `lantern wall wish contribute returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.project?.id === 'lantern_wall', 'lantern wall contribute payload is incomplete')
+    assert(Number(data?.project?.progress || 0) === 20, `lantern wall progress did not advance to 20, current=${Number(data?.project?.progress || 0)}`)
+    assert(data.project.contribution_packages.some(entry => entry?.id === 'lantern_wall_wish' && entry?.kind === 'message'), 'lantern wall did not expose wish contribution option')
+    assert(data.project.contribution_packages.some(entry => entry?.id === 'lantern_wall_hang'), 'lantern wall did not expose hang contribution option')
+    assert(data.project.contribution_packages.some(entry => entry?.id === 'lantern_wall_repair' && entry?.kind === 'labor'), 'lantern wall did not expose repair contribution option')
+    assert(data.project.contribution_packages.some(entry => entry?.id === 'lantern_wall_gift'), 'lantern wall did not expose gift contribution option')
+    assert(data.project.contribution_packages.some(entry => entry?.id === 'lantern_wall_message' && entry?.kind === 'message'), 'lantern wall did not expose friend message contribution option')
+
+    const lanternVisualProject = data?.overview?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'lantern_wall')
+    assert(lanternVisualProject?.kind === 'lantern_wall', 'lantern wall visual project did not expose lantern wall kind')
+    assert(lanternVisualProject?.current_stage_id === 'lantern_wall_hang', 'lantern wall did not move from wish to hang stage after first contribution')
+    const wishStage = lanternVisualProject?.stages?.find(entry => entry?.id === 'lantern_wall_wish')
+    const hangStage = lanternVisualProject?.stages?.find(entry => entry?.id === 'lantern_wall_hang')
+    assert(wishStage?.state === 'complete', 'lantern wall wish stage should be complete after first contribution')
+    assert(Array.isArray(wishStage?.object_ids) && wishStage.object_ids.includes('lantern_wall_wish_tags'), 'lantern wall wish contribution did not affect visual objects')
+    assert(hangStage?.state === 'active' && Array.isArray(hangStage?.contribution_options) && hangStage.contribution_options.some(entry => entry?.id === 'lantern_wall_hang'), 'lantern wall active stage did not expose hang contribution options')
+    assert(Array.isArray(lanternVisualProject?.history) && lanternVisualProject.history.some(entry => entry?.actor_username === secondarySessionState.username && String(entry?.summary || '').includes('写愿望')), 'lantern wall visual history did not preserve wish contribution')
+
+    const afterSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(afterSave.response.ok, `secondary save readback after lantern wall returned ${afterSave.response.status}`)
+    const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
+    const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
+    assert(afterMoney === preMoney - 3, `lantern wall did not deduct money correctly, expected money=${preMoney - 3}, current money=${afterMoney}`)
+    secondaryExpectedMoney -= 3
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/public-projects/:projectId/contribute lantern wall completion path', async () => {
+    const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(beforeSave.response.ok, `secondary save readback before lantern wall completion returned ${beforeSave.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeSave.data?.raw || beforeSave.data?.slot?.raw || beforeSave.data?.save?.raw || '')
+    const preMoney = Math.max(0, Math.floor(Number(beforeDecrypted?.player?.money) || 0))
+
+    const completionPackages = [
+      ['lantern_wall_hang', 45],
+      ['lantern_wall_repair', 65],
+      ['lantern_wall_gift', 85],
+      ['lantern_wall_message', 100],
+    ]
+    let completionBundle = null
+    for (const [packageId, expectedProgress] of completionPackages) {
+      completionBundle = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-projects/lantern_wall/contribute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          package_id: packageId,
+        }),
+      })
+      assert(completionBundle.response.ok, `lantern wall completion contribute ${packageId} returned ${completionBundle.response.status}: ${completionBundle.data?.msg || 'unknown error'}`)
+      assert(Number(completionBundle.data?.project?.progress || 0) === expectedProgress, `lantern wall completion progress mismatch, expected=${expectedProgress}, current=${Number(completionBundle.data?.project?.progress || 0)}`)
+    }
+
+    assert(completionBundle?.data?.ok === true && completionBundle.data?.project?.id === 'lantern_wall', 'lantern wall completion payload is incomplete')
+    assert(String(completionBundle.data?.project?.status || '') === 'completed', 'lantern wall completion did not mark project completed')
+    const completionRewards = Array.isArray(completionBundle.data?.project?.completion_rewards)
+      ? completionBundle.data.project.completion_rewards
+      : []
+    assert(
+      completionRewards.some(entry => entry?.id === 'lantern_wall_memorial' && entry?.active === true && String(entry?.label || '').includes('花灯墙')),
+      'lantern wall completion did not expose active memorial reward',
+    )
+    assert(
+      completionRewards.some(entry => entry?.id === 'lantern_wall_blessing_book' && entry?.active === true && String(entry?.summary || '').includes('不发放个人资产')),
+      'lantern wall completion did not expose blessing book guardrail',
+    )
+    const lanternVisualProject = completionBundle.data?.overview?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'lantern_wall')
+    assert(lanternVisualProject?.completion_event_id === 'society_project_complete:lantern_wall', 'lantern wall visual project did not expose completion event')
+    assert(Array.isArray(lanternVisualProject?.stages) && lanternVisualProject.stages.every(entry => entry?.state === 'complete'), 'lantern wall visual project did not mark all stages complete')
+    assert(
+      Array.isArray(lanternVisualProject?.history) &&
+      lanternVisualProject.history.some(entry => entry?.type === 'stage_complete' && String(entry?.summary || '').includes('好友祝福册')),
+      'lantern wall visual history did not include blessing book reward',
+    )
+    assert(
+      typeof completionBundle.data?.project?.world_feedback === 'string' &&
+      completionBundle.data.project.world_feedback.includes('好友祝福'),
+      'lantern wall completion did not preserve world feedback',
+    )
+
+    const afterSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(afterSave.response.ok, `secondary save readback after lantern wall completion returned ${afterSave.response.status}`)
+    const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
+    const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
+    assert(afterMoney === preMoney - 18, `lantern wall completion did not deduct money correctly, expected money=${preMoney - 18}, current money=${afterMoney}`)
+    secondaryExpectedMoney -= 18
+  })
+
+  await runCheck('GET /api/taoyuan/online/societies lantern wall memorial readback', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies')
+    assert(response.ok, `lantern wall memorial readback returned ${response.status}`)
+    assert(data?.ok === true && data?.my_society?.id === createdSocietyId, 'lantern wall memorial readback payload is incomplete')
+    const lanternProject = data?.my_society?.public_projects?.find(entry => entry?.id === 'lantern_wall')
+    assert(lanternProject && String(lanternProject?.status || '') === 'completed', 'lantern wall readback did not preserve completed status')
+    const lanternRewards = Array.isArray(lanternProject?.completion_rewards) ? lanternProject.completion_rewards : []
+    assert(
+      lanternRewards.some(entry => entry?.id === 'lantern_wall_memorial' && entry?.active === true),
+      'lantern wall readback did not preserve memorial reward',
+    )
+    const lanternVisualProject = data?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'lantern_wall')
+    assert(
+      Array.isArray(lanternVisualProject?.history) &&
+      lanternVisualProject.history.some(entry => String(entry?.summary || '').includes('好友留言')),
+      'lantern wall readback did not preserve friend message history',
+    )
+    const lanternChronicleProject = data?.my_society?.chronicle?.public_projects?.find(entry => entry?.id === 'lantern_wall')
+    const lanternChronicleRewards = Array.isArray(lanternChronicleProject?.completion_rewards) ? lanternChronicleProject.completion_rewards : []
+    assert(
+      lanternChronicleRewards.some(entry => entry?.id === 'lantern_wall_blessing_book' && entry?.active === true),
+      'society chronicle did not preserve lantern wall blessing book reward',
+    )
+  })
+
   await runCheck('POST /api/taoyuan/online/societies/public-warehouse/deposit write path', async () => {
     const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
     assert(beforeSave.response.ok, `secondary save readback before warehouse deposit returned ${beforeSave.response.status}`)
@@ -4505,9 +4634,18 @@ try {
   })
 
   await runCheck('POST /api/taoyuan/online/societies/:societyId/apply rejoin path', async () => {
-    const { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/societies/${encodeURIComponent(createdSocietyId)}/apply`, {
+    let { response, data } = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/societies/${encodeURIComponent(createdSocietyId)}/apply`, {
       method: 'POST',
     })
+    if (response.status === 429 && data?.code === 'ONLINE_RATE_LIMITED') {
+      const retryAfterMs = Math.max(1000, Math.min(65_000, Math.floor(Number(data?.retry_after_ms) || 1000)))
+      await wait(retryAfterMs + 100)
+      const retryResult = await fetchSessionJson(secondarySessionState, `/api/taoyuan/online/societies/${encodeURIComponent(createdSocietyId)}/apply`, {
+        method: 'POST',
+      })
+      response = retryResult.response
+      data = retryResult.data
+    }
     assert(response.ok, `society rejoin apply returned ${response.status}: ${data?.msg || 'unknown error'}`)
     assert(data?.ok === true && data?.request?.status === 'pending', 'society rejoin apply payload is incomplete')
     assert(data?.request?.target_save_id === secondarySaveIdentity.save_id, 'society rejoin apply did not persist target save id')

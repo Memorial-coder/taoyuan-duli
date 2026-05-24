@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 共建花灯墙
+- 在线村社公共建设新增 `lantern_wall` 花灯墙工程，支持写愿望、挂灯、修灯、赠灯和好友留言五类贡献包；贡献继续走服务端权威扣款、次数限制、贡献历史和村社史册读回。
+- `AsyncCommunityBoard` 增加花灯墙现场表现，会显示愿望签、灯架、挂灯、修灯台、赠灯区、好友留言和纪念墙，并按四阶段展示公共进度。
+- 花灯墙完工后会读回 `lantern_wall_memorial` 与 `lantern_wall_blessing_book`，只作为公共纪念和祝福历史，不发个人资产；`qa:online-smoke` 覆盖贡献、完工、视觉历史和史册读回。
+- 本轮验证：`node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix server run qa:online-smoke`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 公共订单接力订单板
 - 在线委托 overview 新增 `board_summary`，返回订单总数、开放订单、接力单和开放接力单，前端统计卡优先读取该服务端摘要。
 - 在线委托“可接”列表新增“全部 / 普通 / 接力单”筛选，并在接力订单标题旁显示 badge。
