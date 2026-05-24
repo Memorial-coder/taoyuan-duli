@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 待确认共同庄园契约前端接受
+- 共同庄园总览新增“接受契约”入口，仅当前账号在选中契约中仍待确认时显示。
+- 前端 API / store 接入 `/accept`，提交时带 CSRF，成功后刷新契约摘要；契约生效后继续读回共同地图、仓库、基金、权限和各家族预备面板。
+- 本轮不新增契约创建入口，不合并个人资产，不执行分居确认或资产返还。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 家族关系公开设置只读前端读回
 - 共同庄园新增“公开”页签，前端 API / store 读取 `/family-visibility` 只读预备面板。
 - 页面展示默认可见范围、候选公开范围、可见数据类别、成员同意状态、隐私护栏，以及公开设置写入、同意收集、档案发布、节会房间绑定、审计、补偿重放和回滚等暂缓能力。

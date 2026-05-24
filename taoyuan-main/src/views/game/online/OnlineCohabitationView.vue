@@ -110,6 +110,16 @@
               </div>
               <div class="grid gap-2 md:grid-cols-2">
                 <button
+                  v-if="canAcceptSelectedContract"
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  type="button"
+                  :disabled="cohabitationStore.actionLoading"
+                  @click="acceptSelectedContract"
+                >
+                  <CheckCircle2 :size="12" />
+                  接受契约
+                </button>
+                <button
                   class="online-action-btn online-action-btn--compact justify-center"
                   type="button"
                   :disabled="!cohabitationStore.canOpenSelectedContract"
@@ -128,6 +138,13 @@
                   查看离线状态
                 </button>
               </div>
+              <p
+                v-if="contractActionMessage"
+                class="text-xs leading-5"
+                :class="contractActionOk ? 'text-emerald-200' : 'text-red-100'"
+              >
+                {{ contractActionMessage }}
+              </p>
               <p v-if="!cohabitationStore.canOpenSelectedContract" class="text-xs leading-5 text-muted">
                 这份契约尚未生效，只在列表中保留状态，不开放共同庄园地图、仓库、基金或权限面板。
               </p>
@@ -145,7 +162,7 @@
             <div class="mt-3 grid gap-2 text-xs md:grid-cols-2">
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">个人铜币不合并，共同基金单独显示。</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">田区按来源玩家和存档 ID 显示，不写回个人农田。</p>
-              <p class="border border-accent/10 bg-black/10 p-2 text-muted">仓库取出、卖出和自动入仓仍保持关闭。</p>
+              <p class="border border-accent/10 bg-black/10 p-2 text-muted">普通仓库操作按权限开放，高价值取出和自动入仓仍保持关闭。</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">分居返还只显示已有预览，不在前端执行资产返还。</p>
             </div>
           </div>
@@ -1196,6 +1213,8 @@
   const permissionActionOk = ref(false)
   const roleActionMessage = ref('')
   const roleActionOk = ref(false)
+  const contractActionMessage = ref('')
+  const contractActionOk = ref(false)
 
   const tabs: CohabitationTabMeta[] = [
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
@@ -1214,6 +1233,17 @@
 
   const activeTabMeta = computed(() => tabs.find(tab => tab.key === activeTab.value) ?? tabs[0]!)
   const selectedContract = computed(() => cohabitationStore.selectedContract)
+  const selectedContractActorMember = computed(() => {
+    const account = cohabitationStore.currentAccount
+    if (!account || !selectedContract.value) return null
+    return selectedContract.value.members.find(member =>
+      member.username_key === account || member.username.toLocaleLowerCase('zh-CN') === account
+    ) ?? null
+  })
+  const canAcceptSelectedContract = computed(() =>
+    selectedContract.value?.status === 'pending_acceptance'
+    && selectedContractActorMember.value?.status !== 'accepted'
+  )
   const moduleSummary = computed(() => {
     const active = cohabitationStore.summary.active
     const total = cohabitationStore.summary.total
@@ -1542,8 +1572,24 @@
     fundActionMessage.value = ''
     permissionActionMessage.value = ''
     roleActionMessage.value = ''
+    contractActionMessage.value = ''
     if (!cohabitationStore.canOpenSelectedContract && activeTab.value !== 'overview') {
       activeTab.value = 'overview'
+    }
+  }
+
+  const acceptSelectedContract = async () => {
+    if (!selectedContract.value || !canAcceptSelectedContract.value) return
+    contractActionMessage.value = ''
+    contractActionOk.value = false
+    try {
+      const result = await cohabitationStore.acceptContract(selectedContract.value.id)
+      contractActionOk.value = true
+      contractActionMessage.value = result?.contract?.status === 'active'
+        ? '已接受契约，共同庄园已生效'
+        : '已接受契约，等待其他成员确认'
+    } catch (error) {
+      contractActionMessage.value = error instanceof Error ? error.message : '接受共同庄园契约失败'
     }
   }
 

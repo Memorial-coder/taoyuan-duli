@@ -1,6 +1,7 @@
 import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
+  acceptCohabitationContract,
   contributeCohabitationFund,
   depositCohabitationWarehouseItem,
   fetchCohabitationFamilyBuildings,
@@ -35,10 +36,12 @@ import {
   type CohabitationSharedMap,
   type CohabitationWarehouseSnapshot,
 } from '@/utils/cohabitationApi'
+import { ensureCurrentAccount } from '@/utils/accountStorage'
 
 export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const overview = ref<CohabitationOverviewResponse | null>(null)
   const activeContractId = ref('')
+  const currentAccount = ref('')
   const loading = ref(false)
   const detailsLoading = ref(false)
   const actionLoading = ref(false)
@@ -157,6 +160,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       errorMessage.value = ''
     }
     try {
+      currentAccount.value = await ensureCurrentAccount()
       overview.value = await fetchCohabitationOverview()
       pickDefaultContract()
       if (canOpenSelectedContract.value) {
@@ -184,6 +188,45 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
 
   const refreshAll = async () => {
     await refreshOverview().catch(() => {})
+  }
+
+  const acceptContract = async (contractId: string) => {
+    if (!contractId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await acceptCohabitationContract(contractId)
+      if (result?.contract) {
+        activeContractId.value = result.contract.id
+        if (overview.value) {
+          const exists = overview.value.contracts.some(contract => contract.id === result.contract.id)
+          const nextContracts = exists
+            ? overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract)
+            : [result.contract, ...overview.value.contracts]
+          overview.value = {
+            ...overview.value,
+            contracts: nextContracts,
+            summary: {
+              ...overview.value.summary,
+              total: nextContracts.length,
+              pending: nextContracts.filter(contract => contract.status === 'pending_acceptance').length,
+              active: nextContracts.filter(contract => contract.status === 'active').length,
+            },
+          }
+        }
+        if (result.contract.status === 'active') {
+          await refreshSelectedDetails({ silent: true })
+        } else {
+          clearDetails()
+        }
+      }
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '接受共同庄园契约失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
   }
 
   const contributeSharedFund = async (payload: {
@@ -389,6 +432,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   return {
     overview,
     activeContractId,
+    currentAccount,
     loading,
     detailsLoading,
     actionLoading,
@@ -414,6 +458,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     refreshSelectedDetails,
     selectContract,
     refreshAll,
+    acceptContract,
     contributeSharedFund,
     spendSharedFund,
     depositSharedWarehouseItem,

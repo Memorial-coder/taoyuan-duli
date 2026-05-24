@@ -989,6 +989,10 @@ export interface CohabitationFundSpendResponse extends CohabitationDetailRespons
   } | null
 }
 
+export interface CohabitationContractActionResponse extends CohabitationDetailResponse {
+  idempotent?: boolean
+}
+
 const fetchCohabitationJson = async <T>(path: string, fallbackMessage: string): Promise<T | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
@@ -1027,6 +1031,14 @@ export const fetchCohabitationOverview = async (): Promise<CohabitationOverviewR
   return fetchCohabitationJson<CohabitationOverviewResponse>(
     '/api/taoyuan/online/cohabitation/contracts',
     '获取共同庄园契约失败'
+  )
+}
+
+export const acceptCohabitationContract = async (contractId: string) => {
+  return postCohabitationJson<CohabitationContractActionResponse>(
+    contractPath(contractId, '/accept'),
+    {},
+    '接受共同庄园契约失败'
   )
 }
 
