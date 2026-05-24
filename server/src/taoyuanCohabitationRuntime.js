@@ -228,6 +228,58 @@ const FAMILY_BUILDING_PROJECT_DEFS = Object.freeze([
   },
 ]);
 
+const FAMILY_RELATION_CAPABILITY_DEFS = Object.freeze([
+  {
+    id: 'shared_map',
+    label: '多人土地',
+    kind: 'shared_asset',
+    state: 'readonly',
+    summary: '只读展示成员田区来源、区域顺序和拼接边界；真实种植 / 浇水 / 收获仍由后续共同庄园写链承接。',
+  },
+  {
+    id: 'shared_warehouse',
+    label: '家族共同仓库',
+    kind: 'shared_asset',
+    state: 'partial_write',
+    summary: '当前仅开放普通物品放入和来源流水；取出、卖出、冻结回滚与自动入仓仍暂缓。',
+  },
+  {
+    id: 'shared_fund',
+    label: '家族共同基金',
+    kind: 'shared_asset',
+    state: 'partial_write',
+    summary: '当前仅开放自愿注资和来源 ledger；消费、预算确认、返还执行仍暂缓。',
+  },
+  {
+    id: 'family_orders',
+    label: '家族订单',
+    kind: 'cooperation',
+    state: 'planning',
+    summary: '复用公共订单接力的多阶段思路，但真实发布、接单、结算和声望写入未开放。',
+  },
+  {
+    id: 'family_reputation',
+    label: '家族声望',
+    kind: 'progression',
+    state: 'planning',
+    summary: '只读汇总职位审计、共同仓库和共同基金证据；不持久化声望、不发奖励。',
+  },
+  {
+    id: 'family_buildings',
+    label: '家族建筑',
+    kind: 'construction',
+    state: 'planning',
+    summary: '只读展示建筑蓝图、职位缺口、材料和基金预览；不建造、不拆除、不消费共同资产。',
+  },
+  {
+    id: 'family_festival_seats',
+    label: '家族节会席位',
+    kind: 'festival',
+    state: 'planning',
+    summary: '只读展示节会席位、候选模板和场景预览；不锁席、不开房、不发奖励。',
+  },
+]);
+
 const FAMILY_FESTIVAL_SEAT_ROLE_DEFS = Object.freeze({
   family_head: { id: 'host_caller', label: '主事席', festival_role: 'caller', summary: '负责开场、确认席位和高风险节会决策预览。' },
   storage_keeper: { id: 'supply_keeper', label: '供给席', festival_role: 'support', summary: '负责节会物资、共同仓库供给和补偿清单预览。' },
@@ -2013,6 +2065,315 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
   };
 }
 
+function resolveFamilyRelationLabel(contractType) {
+  const normalizedType = normalizeRelationType(contractType);
+  if (normalizedType === 'oath_manor') return '结拜成员';
+  if (normalizedType === 'business_partner') return '合伙成员';
+  return '共同成员';
+}
+
+function buildFamilyRelationMemberSnapshot(contract, member, enabled = isFamilyRoleContractType(contract.type), index = 0, total = 1) {
+  const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const roleDef = enabled ? getFamilyManorRoleDef(manorRole) : null;
+  const permissions = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  const angle = ((-90 + (360 / Math.max(1, total)) * index) * Math.PI) / 180;
+  return {
+    id: `member:${member.username_key}`,
+    username: member.username,
+    username_key: member.username_key,
+    display_name: member.display_name,
+    role: member.role,
+    status: member.status,
+    manor_role: manorRole,
+    manor_role_label: roleDef?.label || '',
+    relation_label: member.role === 'owner' ? '契约发起者' : resolveFamilyRelationLabel(contract.type),
+    node_group: 'member',
+    x: Math.round((50 + Math.cos(angle) * 26) * 10) / 10,
+    y: Math.round((38 + Math.sin(angle) * 18) * 10) / 10,
+    permissions_summary: {
+      can_manage_roles_preview: enabled && canManageFamilyRoles(member, contract),
+      can_deposit_warehouse_preview: enabled && permissions.storage.deposit === true,
+      can_prepare_materials_preview: enabled && (
+        permissions.storage.deposit === true
+        || permissions.farm.harvest === true
+        || permissions.animal.collect_product === true
+      ),
+      can_review_budget_preview: enabled && ['family_head', 'treasurer'].includes(manorRole),
+      relationship_write_enabled: false,
+      publish_personal_graph_enabled: false,
+    },
+    privacy: {
+      exposes_personal_npc_graph: false,
+      exposes_children: false,
+      exposes_pets: false,
+      exposes_random_npcs: false,
+      display_name_only: true,
+    },
+  };
+}
+
+function buildFamilyRelationRoleNodes(enabled) {
+  const coordinates = {
+    family_head: [50, 11],
+    storage_keeper: [73, 25],
+    farm_steward: [72, 53],
+    animal_keeper: [50, 66],
+    workshop_keeper: [28, 53],
+    treasurer: [27, 25],
+  };
+  return Object.values(FAMILY_MANOR_ROLE_DEFS).map(def => {
+    const [x, y] = coordinates[def.id] || [50, 38];
+    return {
+      id: `role:${def.id}`,
+      node_type: 'role',
+      label: def.label,
+      role_id: def.id,
+      state: enabled ? 'available' : 'disabled',
+      kind: 'family_role',
+      x,
+      y,
+      description: def.description,
+      permission_focus: [...def.permission_focus],
+      write_enabled: false,
+    };
+  });
+}
+
+function buildFamilyRelationCapabilityNodes(enabled) {
+  return FAMILY_RELATION_CAPABILITY_DEFS.map((definition, index) => ({
+    id: `capability:${definition.id}`,
+    node_type: 'capability',
+    label: definition.label,
+    capability_id: definition.id,
+    state: enabled ? definition.state : 'disabled',
+    kind: definition.kind,
+    x: 12 + (index % 4) * 25,
+    y: index < 4 ? 72 : 4,
+    summary: definition.summary,
+    write_enabled: false,
+  }));
+}
+
+function buildFamilyRelationGraphPreview(contract, members, enabled, revision) {
+  if (!enabled) {
+    return {
+      root_node_id: 'family_relation_root',
+      layout: 'radial_contract_graph',
+      nodes: [],
+      links: [],
+    };
+  }
+  const relationLabel = resolveFamilyRelationLabel(contract.type);
+  const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
+  const memberNodes = members.map((member, index) => ({
+    id: member.id,
+    node_type: 'member',
+    label: member.display_name || member.username,
+    username: member.username,
+    username_key: member.username_key,
+    relation_label: member.relation_label,
+    manor_role: member.manor_role,
+    manor_role_label: member.manor_role_label,
+    state: member.status === 'accepted' ? 'active' : 'pending',
+    kind: 'contract_member',
+    x: member.x,
+    y: member.y,
+    write_enabled: false,
+    privacy: member.privacy,
+  }));
+  const roleNodes = buildFamilyRelationRoleNodes(enabled);
+  const capabilityNodes = buildFamilyRelationCapabilityNodes(enabled);
+  const rootNode = {
+    id: 'family_relation_root',
+    node_type: 'root',
+    label: `${typeDef.label}关系网`,
+    state: 'active',
+    kind: 'family_manor_contract',
+    x: 50,
+    y: 38,
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    write_enabled: false,
+  };
+  const links = [
+    ...memberNodes.map(node => ({
+      id: `link:root:${node.id}`,
+      from: 'family_relation_root',
+      to: node.id,
+      label: node.relation_label || relationLabel,
+      kind: 'membership',
+      state: 'active',
+      write_enabled: false,
+    })),
+    ...memberNodes
+      .filter(node => node.manor_role)
+      .map(node => ({
+        id: `link:${node.id}:role:${node.manor_role}`,
+        from: node.id,
+        to: `role:${node.manor_role}`,
+        label: node.manor_role_label,
+        kind: 'role_assignment',
+        state: 'active',
+        write_enabled: false,
+      })),
+    ...capabilityNodes.map(node => ({
+      id: `link:root:${node.id}`,
+      from: 'family_relation_root',
+      to: node.id,
+      label: '共同能力',
+      kind: 'family_capability',
+      state: node.state,
+      write_enabled: false,
+    })),
+  ];
+  return {
+    root_node_id: 'family_relation_root',
+    layout: 'radial_contract_graph',
+    revision,
+    nodes: [rootNode, ...memberNodes, ...roleNodes, ...capabilityNodes],
+    links,
+  };
+}
+
+function buildFamilyRelationVisualStatePreview(contract, graph, enabled, revision) {
+  return {
+    board_type: 'map',
+    board_id: `family_relations:${contract.id}`,
+    revision,
+    selected_visual_id: 'family_relation_root',
+    recent_feedback: enabled
+      ? '家族关系图第一版只展示契约成员、家族职位和共同经营能力节点；单机 NPC、孩子、宠物和随机 NPC 关系不公开。'
+      : '当前契约不是结拜庄园或合伙庄园，家族关系图未启用。',
+    nodes: enabled ? graph.nodes.map(node => ({
+      id: node.id,
+      label: node.label,
+      kind: node.kind,
+      x: node.x,
+      y: node.y,
+      state: node.state === 'disabled' ? 'locked' : (node.state === 'active' ? 'active' : 'available'),
+      connected_node_ids: graph.links
+        .filter(link => link.from === node.id)
+        .map(link => link.to),
+      available_action_ids: [],
+    })) : [],
+    highlights: [],
+  };
+}
+
+function buildFamilyRelationSnapshot(contract, actorUsername = '') {
+  const enabled = isFamilyRoleContractType(contract.type);
+  const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
+  const actorMember = getContractMember(contract, actorUsername);
+  const revision = Math.max(Number(contract.updated_at) || 0, Number(contract.activated_at) || 0, Number(contract.created_at) || 0);
+  const acceptedMembers = (contract.members || []).filter(member => member.status === 'accepted');
+  const pendingMembers = (contract.members || []).filter(member => member.status !== 'accepted');
+  const memberCount = (contract.members || []).length;
+  const members = enabled
+    ? (contract.members || []).map((member, index) => buildFamilyRelationMemberSnapshot(contract, member, enabled, index, memberCount || 1))
+    : [];
+  const graph = buildFamilyRelationGraphPreview(contract, members, enabled, revision);
+  const actorRelationMember = actorMember
+    ? buildFamilyRelationMemberSnapshot(contract, actorMember, enabled, Math.max(0, (contract.members || []).findIndex(member => member.username_key === actorMember.username_key)), memberCount || 1)
+    : null;
+  return {
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    type: contract.type,
+    type_label: contract.type_label,
+    status: contract.status,
+    readonly: true,
+    write_enabled: false,
+    writes_enabled: false,
+    family_relations_enabled: enabled,
+    generated_at: nowSeconds(),
+    revision,
+    summary: {
+      member_count: memberCount,
+      accepted_member_count: acceptedMembers.length,
+      pending_member_count: pendingMembers.length,
+      max_members: typeDef.max_members,
+      role_management_enabled: enabled,
+      local_save_family_graph_included: false,
+      graph_node_count: enabled ? graph.nodes.length : 0,
+      graph_link_count: enabled ? graph.links.length : 0,
+      private_single_player_graph_exposed: false,
+      local_npc_nodes_exposed: false,
+      random_npc_nodes_exposed: false,
+      children_nodes_exposed: false,
+      pets_exposed: false,
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+      relationship_write_enabled: false,
+      disabled_reason: enabled ? '' : '家族关系图第一版仅面向结拜庄园和合伙庄园。',
+    },
+    actor: actorRelationMember,
+    members,
+    graph,
+    visual_state_preview: buildFamilyRelationVisualStatePreview(contract, graph, enabled, revision),
+    constraints: {
+      romance_contracts_dual_only: true,
+      family_manor_max_members: typeDef.max_members,
+      family_head_locked_to_owner: true,
+      high_risk_confirmations_locked: true,
+      personal_money_merged: false,
+      personal_relationships_private: true,
+      relationship_publication_requires_member_consent: true,
+    },
+    recent_role_audits: (contract.audit_log || [])
+      .filter(entry => entry.action === 'family_role_updated')
+      .slice(0, 10),
+    privacy: {
+      local_single_player_graph_scope: 'single_player_save_only',
+      online_contract_graph_scope: 'contract_members_and_shared_manor_only',
+      local_npc_nodes_exposed: false,
+      random_npc_nodes_exposed: false,
+      children_nodes_exposed: false,
+      pets_exposed: false,
+      spouse_or_romance_nodes_exposed: false,
+      hidden_npc_nodes_exposed: false,
+      personal_save_read_enabled: false,
+      publication_requires_member_consent: true,
+    },
+    governance: {
+      server_authoritative: true,
+      readonly_first_pass: true,
+      idempotency_required_for_future_writes: true,
+      audit_required_for_future_writes: true,
+      member_visibility_requires_contract_membership: true,
+      future_publication_requires_consent: true,
+      role_change_must_use_family_roles_endpoint: true,
+      relationship_story_write_enabled: false,
+      compensation_required_for_publication_errors: true,
+      rollback_required_for_visibility_changes: true,
+      current_policy: '第一版只读展示家族契约成员、职位和共同经营能力节点，不公开玩家本地 NPC / 家庭 / 宠物 / 随机 NPC 关系，不写审计，不改个人存档。',
+    },
+    asset_boundaries: {
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+      personal_relationships_private: true,
+      contract_membership_is_not_family_story_state: true,
+      separation_preview_must_include_relationship_visibility: true,
+    },
+    local_graph_compatibility: {
+      local_component_name: 'FamilyRelationGraph',
+      local_component_scope: 'single_player_npc_family_pet_graph',
+      server_panel_scope: 'online_family_manor_contract_graph',
+      reusable_ui_concept: true,
+      direct_local_state_reuse_enabled: false,
+    },
+    deferred_operations: [
+      'publish_family_relation_graph_to_profile',
+      'member_visibility_settings',
+      'family_relation_story_events',
+      'invite_random_npc_family_public_node',
+      'family_relation_graph_frontend_panel',
+      'relationship_visibility_audit',
+      'family_relation_graph_compensation_replay',
+      'family_relation_graph_rollback',
+    ],
+  };
+}
+
 function resolveFamilyFestivalSeatRole(manorRole) {
   return FAMILY_FESTIVAL_SEAT_ROLE_DEFS[manorRole] || FAMILY_FESTIVAL_SEAT_ROLE_DEFS.farm_steward;
 }
@@ -3104,6 +3465,22 @@ async function getCohabitationFamilyBuildings(contractId, actor = {}) {
   };
 }
 
+async function getCohabitationFamilyRelations(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看家族关系图预备面板');
+  for (const member of contract.members || []) {
+    member.manor_role = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+    contract.permissions[member.username_key] = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  }
+  return {
+    contract: toPublicContract(contract),
+    family_relations_panel: buildFamilyRelationSnapshot(contract, actorUsername),
+  };
+}
+
 async function getCohabitationFamilyFestivalSeats(contractId, actor = {}) {
   const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -3706,6 +4083,7 @@ module.exports = {
   getCohabitationFamilyOrders,
   getCohabitationFamilyReputation,
   getCohabitationFamilyBuildings,
+  getCohabitationFamilyRelations,
   getCohabitationFamilyFestivalSeats,
   getCohabitationOfflineStatus,
   depositCohabitationWarehouseItem,

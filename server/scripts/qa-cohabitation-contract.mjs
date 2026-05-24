@@ -400,6 +400,12 @@ await assert.rejects(
 )
 
 await assert.rejects(
+  () => runtime.getCohabitationFamilyRelations(created.contract.id, actor(extra)),
+  error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
+  'non-members should not read a family relation panel'
+)
+
+await assert.rejects(
   () => runtime.getCohabitationFamilyFestivalSeats(created.contract.id, actor(extra)),
   error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
   'non-members should not read a family festival seat panel'
@@ -585,6 +591,11 @@ await assert.rejects(
   'pending contracts should not expose family building panel'
 )
 await assert.rejects(
+  () => runtime.getCohabitationFamilyRelations(pendingContract.contract.id, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not expose family relation panel'
+)
+await assert.rejects(
   () => runtime.getCohabitationFamilyFestivalSeats(pendingContract.contract.id, actor(owner)),
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not expose family festival seat panel'
@@ -738,6 +749,13 @@ assert.equal(loverFamilyBuildings.family_buildings_panel.write_enabled, false, '
 assert.equal(loverFamilyBuildings.family_buildings_panel.summary.preview_building_count, 0, 'disabled family building panel should not expose building drafts')
 assert.match(loverFamilyBuildings.family_buildings_panel.summary.disabled_reason, /结拜庄园和合伙庄园/, 'disabled building panel should explain family manor requirement')
 
+const loverFamilyRelations = await runtime.getCohabitationFamilyRelations(created.contract.id, actor(owner))
+assert.equal(loverFamilyRelations.family_relations_panel.family_relations_enabled, false, 'romance contracts should return a disabled family relation panel')
+assert.equal(loverFamilyRelations.family_relations_panel.write_enabled, false, 'disabled family relation panel should not expose writes')
+assert.equal(loverFamilyRelations.family_relations_panel.summary.graph_node_count, 0, 'disabled family relation panel should not expose graph nodes')
+assert.equal(loverFamilyRelations.family_relations_panel.privacy.local_npc_nodes_exposed, false, 'disabled family relation panel should keep local NPC graph private')
+assert.match(loverFamilyRelations.family_relations_panel.summary.disabled_reason, /结拜庄园和合伙庄园/, 'disabled relation panel should explain family manor requirement')
+
 const loverFamilyFestivalSeats = await runtime.getCohabitationFamilyFestivalSeats(created.contract.id, actor(owner))
 assert.equal(loverFamilyFestivalSeats.family_festival_seats_panel.festival_seats_enabled, false, 'romance contracts should return a disabled family festival seat panel')
 assert.equal(loverFamilyFestivalSeats.family_festival_seats_panel.write_enabled, false, 'disabled family festival seat panel should not expose writes')
@@ -876,6 +894,59 @@ assert.equal(repeatedFamilyBuildingsRead.contract.audit_log.length, familyBuildi
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyBuildings, 'family building panel should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyBuildings, 'family building panel should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyBuildings, 'family building panel should not rewrite extra save')
+
+const ownerRawBeforeFamilyRelations = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeFamilyRelations = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const extraRawBeforeFamilyRelations = saveRuntime.loadUserSaveSlots(extra).slots[0].raw
+const familyRelationsRead = await runtime.getCohabitationFamilyRelations(familyContract.contract.id, actor(owner))
+const familyRelationsPanel = familyRelationsRead.family_relations_panel
+assert.equal(familyRelationsPanel.family_relations_enabled, true, 'family manor should expose relation graph panel')
+assert.equal(familyRelationsPanel.readonly, true, 'family relation panel should be read-only in first pass')
+assert.equal(familyRelationsPanel.write_enabled, false, 'family relation panel should not enable writes')
+assert.equal(familyRelationsPanel.summary.accepted_member_count, 3, 'family relation panel should count accepted members')
+assert.equal(familyRelationsPanel.summary.pending_member_count, 0, 'family relation panel should count pending members')
+assert.equal(familyRelationsPanel.summary.role_management_enabled, true, 'family relation panel should mark role management for family manor')
+assert.equal(familyRelationsPanel.summary.local_save_family_graph_included, false, 'family relation panel should not include local family graph')
+assert.equal(familyRelationsPanel.summary.private_single_player_graph_exposed, false, 'family relation panel should not expose private single-player graph')
+assert.equal(familyRelationsPanel.summary.random_npc_nodes_exposed, false, 'family relation panel should not expose random NPC nodes')
+assert.equal(familyRelationsPanel.summary.children_nodes_exposed, false, 'family relation panel should not expose children nodes')
+assert.equal(familyRelationsPanel.summary.pets_exposed, false, 'family relation panel should not expose pet nodes')
+assert.equal(familyRelationsPanel.summary.personal_money_merged, false, 'family relation panel should not merge personal money')
+assert.equal(familyRelationsPanel.actor.manor_role, 'family_head', 'family relation actor should expose family head role')
+assert.equal(familyRelationsPanel.actor.permissions_summary.can_manage_roles_preview, true, 'family head should preview role management from relation graph')
+assert.ok(familyRelationsPanel.members.find(member => member.username === partner)?.permissions_summary.can_prepare_materials_preview, 'storage keeper should preview material preparation relation')
+assert.ok(familyRelationsPanel.graph.nodes.some(node => node.id === `member:${owner}`), 'family relation graph should expose owner member node')
+assert.ok(familyRelationsPanel.graph.nodes.some(node => node.id === 'role:storage_keeper'), 'family relation graph should expose storage keeper role node')
+assert.ok(familyRelationsPanel.graph.nodes.some(node => node.id === 'capability:family_buildings'), 'family relation graph should expose family building capability node')
+assert.ok(familyRelationsPanel.graph.links.some(link => link.from === `member:${partner}` && link.to === 'role:storage_keeper'), 'family relation graph should link member to current manor role')
+assert.ok(familyRelationsPanel.graph.links.some(link => link.kind === 'family_capability' && link.to === 'capability:family_festival_seats'), 'family relation graph should link family festival seats as a capability')
+assert.equal(familyRelationsPanel.visual_state_preview.board_type, 'map', 'family relation preview should use map visual state for graph layout')
+assert.equal(familyRelationsPanel.visual_state_preview.nodes.length, familyRelationsPanel.graph.nodes.length, 'family relation visual preview should mirror graph nodes')
+assert.equal(familyRelationsPanel.constraints.personal_relationships_private, true, 'family relation panel should keep personal relationships private in constraints')
+assert.ok(familyRelationsPanel.recent_role_audits.some(entry => entry.action === 'family_role_updated'), 'family relation panel should expose recent role audits without writing new audit')
+const forbiddenFamilyRelationNodePrefixes = ['fixed:', 'child:', 'pet:', 'visitor:', 'acquaintance:', 'resident:', 'spirit:']
+assert.equal(
+  familyRelationsPanel.graph.nodes.some(node => forbiddenFamilyRelationNodePrefixes.some(prefix => String(node.id || '').startsWith(prefix))),
+  false,
+  'family relation graph should not leak local NPC, child, pet, visitor, resident, or spirit nodes'
+)
+assert.equal(familyRelationsPanel.privacy.personal_save_read_enabled, false, 'family relation panel should not read personal save relationship data')
+assert.equal(familyRelationsPanel.privacy.local_npc_nodes_exposed, false, 'family relation panel should keep fixed NPC nodes private')
+assert.equal(familyRelationsPanel.privacy.random_npc_nodes_exposed, false, 'family relation panel should keep random NPC nodes private')
+assert.equal(familyRelationsPanel.privacy.children_nodes_exposed, false, 'family relation panel should keep child nodes private')
+assert.equal(familyRelationsPanel.privacy.pets_exposed, false, 'family relation panel should keep pet nodes private')
+assert.equal(familyRelationsPanel.local_graph_compatibility.direct_local_state_reuse_enabled, false, 'online family relation graph should not directly reuse local FamilyRelationGraph state')
+assert.equal(familyRelationsPanel.governance.future_publication_requires_consent, true, 'future relation graph publication should require consent')
+assert.equal(familyRelationsPanel.governance.idempotency_required_for_future_writes, true, 'future relation graph writes should require idempotency')
+assert.ok(familyRelationsPanel.deferred_operations.includes('publish_family_relation_graph_to_profile'), 'family relation panel should defer public profile publication')
+assert.ok(familyRelationsPanel.deferred_operations.includes('relationship_visibility_audit'), 'family relation panel should defer visibility audit')
+const repeatedFamilyRelationsRead = await runtime.getCohabitationFamilyRelations(familyContract.contract.id, actor(owner))
+assert.equal(repeatedFamilyRelationsRead.family_relations_panel.visual_state_preview.board_id, familyRelationsPanel.visual_state_preview.board_id, 'family relation preview board id should stay stable across reads')
+assert.equal(repeatedFamilyRelationsRead.family_relations_panel.revision, familyRelationsPanel.revision, 'family relation preview revision should stay stable across reads')
+assert.equal(repeatedFamilyRelationsRead.contract.audit_log.length, familyRelationsRead.contract.audit_log.length, 'family relation reads should not append audit entries')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyRelations, 'family relation panel should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyRelations, 'family relation panel should not rewrite partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyRelations, 'family relation panel should not rewrite extra save')
 
 const ownerRawBeforeFamilyFestivalSeats = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawBeforeFamilyFestivalSeats = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
