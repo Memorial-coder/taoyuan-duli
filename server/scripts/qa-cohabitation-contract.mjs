@@ -304,6 +304,35 @@ assert.equal(duplicateDeposit.idempotent, true, 'same warehouse deposit idempote
 assert.equal(getInventoryItemQuantity(owner, 'rice'), 4, 'idempotent warehouse deposit should not deduct rice twice')
 assert.equal(duplicateDeposit.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 2, 'idempotent warehouse deposit should not duplicate stock')
 
+const withdrawResult = await runtime.withdrawCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'rice',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-warehouse-rice-withdraw',
+}, actor(owner))
+assert.equal(withdrawResult.idempotent, false, 'first warehouse withdrawal should not be idempotent')
+assert.equal(withdrawResult.warehouse.summary.total_quantity, 1, 'warehouse withdrawal should reduce shared stock')
+assert.equal(withdrawResult.ledger_entry.action, 'withdraw', 'warehouse ledger should record withdrawal action')
+assert.equal(withdrawResult.ledger_entry.source_owner_username, owner, 'withdraw ledger should keep original source owner')
+assert.equal(withdrawResult.ledger_entry.target_owner_username, owner, 'withdraw ledger should keep target owner')
+assert.equal(withdrawResult.ledger_entry.target_save_slot, 0, 'withdraw ledger should keep target save slot')
+assert.match(String(withdrawResult.ledger_entry.target_owner_id || ''), /^save:\d{9}$/, 'withdraw ledger should keep traceable target save id')
+assert.ok(withdrawResult.ledger_entry.source_ledger_ids.includes(depositResult.ledger_entry.id), 'withdraw ledger should reference source deposit ledger')
+assert.equal(getInventoryItemQuantity(owner, 'rice'), 5, 'warehouse withdrawal should add rice to owner personal inventory once')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeDeposit, 'warehouse withdrawal should not touch personal money')
+assert.ok(withdrawResult.contract.origin_assets.warehouse_items.some(item => item.ledger_id === withdrawResult.ledger_entry.id && item.action === 'withdraw'), 'origin assets should reference withdrawal ledger')
+assert.ok(withdrawResult.contract.audit_log.find(entry => entry.action === 'warehouse_withdrawn'), 'warehouse withdrawal should be audited')
+
+const duplicateWithdraw = await runtime.withdrawCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'rice',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-warehouse-rice-withdraw',
+}, actor(owner))
+assert.equal(duplicateWithdraw.idempotent, true, 'same warehouse withdrawal idempotency key should be idempotent')
+assert.equal(getInventoryItemQuantity(owner, 'rice'), 5, 'idempotent warehouse withdrawal should not add rice twice')
+assert.equal(duplicateWithdraw.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 1, 'idempotent warehouse withdrawal should not duplicate stock changes')
+
 const initialFundResult = await runtime.getCohabitationFund(created.contract.id, actor(owner))
 assert.equal(initialFundResult.fund.balance, 0, 'fresh shared fund should have zero balance')
 assert.equal(initialFundResult.fund.summary.personal_money_merged, false, 'shared fund must not merge personal money')
@@ -373,7 +402,7 @@ await assert.rejects(
 )
 
 const partnerWarehouseRead = await runtime.getCohabitationWarehouse(created.contract.id, actor(partner))
-assert.equal(partnerWarehouseRead.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 2, 'partner should read shared warehouse stock')
+assert.equal(partnerWarehouseRead.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 1, 'partner should read shared warehouse stock after withdrawal')
 
 await assert.rejects(
   () => runtime.getCohabitationSharedMap(created.contract.id, actor(extra)),
@@ -429,6 +458,17 @@ await assert.rejects(
 )
 
 await assert.rejects(
+  () => runtime.withdrawCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'rice',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-non-member-withdraw',
+  }, actor(extra)),
+  error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
+  'non-members should not withdraw from a cohabitation warehouse'
+)
+
+await assert.rejects(
   () => runtime.contributeCohabitationFund(created.contract.id, {
     amount: 1,
     idempotency_key: 'qa-non-member-fund-contribution',
@@ -447,7 +487,7 @@ await assert.rejects(
   error => error?.status === 400 && String(error.message || '').includes('数量不足'),
   'warehouse deposit should reject insufficient personal inventory without changing stock'
 )
-assert.equal(getInventoryItemQuantity(owner, 'rice'), 4, 'failed warehouse deposit should not deduct inventory')
+assert.equal(getInventoryItemQuantity(owner, 'rice'), 5, 'failed warehouse deposit should not deduct inventory')
 
 await assert.rejects(
   () => runtime.depositCohabitationWarehouseItem(created.contract.id, {
@@ -471,11 +511,35 @@ await assert.rejects(
   'warehouse deposit should reject high quality items in the first pass'
 )
 
+await assert.rejects(
+  () => runtime.withdrawCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'lotus',
+    quantity: 1,
+    quality: 'fine',
+    idempotency_key: 'qa-high-quality-lotus-withdraw',
+  }, actor(owner)),
+  error => error?.status === 403 && String(error.message || '').includes('普通品质'),
+  'warehouse withdrawal should reject high quality items in the first pass'
+)
+
+await assert.rejects(
+  () => runtime.withdrawCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'rice',
+    quantity: 99,
+    quality: 'normal',
+    idempotency_key: 'qa-withdraw-insufficient-rice',
+  }, actor(owner)),
+  error => error?.status === 400 && String(error.message || '').includes('数量不足'),
+  'warehouse withdrawal should reject insufficient shared stock without changing personal inventory'
+)
+assert.equal(getInventoryItemQuantity(owner, 'rice'), 5, 'failed warehouse withdrawal should not add inventory')
+
 const permissionUpdate = await runtime.updateCohabitationPermissions(created.contract.id, {
   target_username: partner,
   permissions: {
     storage: {
       deposit: false,
+      withdraw_common: false,
       withdraw_rare: true,
     },
     fund: {
@@ -491,6 +555,7 @@ const permissionUpdate = await runtime.updateCohabitationPermissions(created.con
 assert.equal(permissionUpdate.idempotent, false, 'first permissions update should not be idempotent')
 const updatedPartnerPermissions = permissionUpdate.permissions_panel.members.find(member => member.username === partner)?.permissions
 assert.equal(updatedPartnerPermissions.storage.deposit, false, 'permissions update should disable partner warehouse deposit')
+assert.equal(updatedPartnerPermissions.storage.withdraw_common, false, 'permissions update should disable partner common warehouse withdrawal')
 assert.equal(updatedPartnerPermissions.storage.withdraw_rare, true, 'permissions update should allow explicit storage permission flags')
 assert.equal(updatedPartnerPermissions.fund.spend_large, true, 'permissions update should allow explicit fund permission flags')
 assert.equal(updatedPartnerPermissions.confirmations.large_fund_spend_requires_both, true, 'permissions safety rail should keep large fund confirmation enabled')
@@ -502,6 +567,7 @@ const duplicatePermissionUpdate = await runtime.updateCohabitationPermissions(cr
   permissions: {
     storage: {
       deposit: false,
+      withdraw_common: false,
       withdraw_rare: true,
     },
     fund: {
@@ -515,6 +581,7 @@ assert.equal(duplicatePermissionUpdate.idempotent, true, 'same permissions updat
 const partnerPermissionsRead = await runtime.getCohabitationPermissions(created.contract.id, actor(partner))
 assert.equal(partnerPermissionsRead.permissions_panel.editable_by_actor, false, 'partner should read permissions without edit capability')
 assert.equal(partnerPermissionsRead.permissions_panel.members.find(member => member.username === partner)?.permissions.storage.deposit, false, 'partner should see updated own permissions')
+assert.equal(partnerPermissionsRead.permissions_panel.members.find(member => member.username === partner)?.permissions.storage.withdraw_common, false, 'partner should see updated withdrawal permission')
 
 const offlineStatus = await runtime.getCohabitationOfflineStatus(created.contract.id, actor(owner))
 assert.equal(offlineStatus.offline_status.summary.server_authoritative, true, 'offline status should be server authoritative')
@@ -526,10 +593,12 @@ assert.ok(offlineStatus.offline_status.members.find(member => member.username ==
 assert.ok(offlineStatus.offline_status.members.find(member => member.username === partner)?.last_active_at > 0, 'offline status should expose partner last active time')
 assert.ok(offlineStatus.offline_status.recent_shared_log.some(entry => entry.action === 'permissions_updated'), 'offline status should expose recent shared log')
 assert.equal(offlineStatus.offline_status.actor_capabilities.deposit_warehouse, true, 'owner should still be able to deposit while partner is not required online')
+assert.equal(offlineStatus.offline_status.actor_capabilities.withdraw_warehouse_common, true, 'owner should be able to withdraw ordinary warehouse items while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.manage_permissions, true, 'owner should retain permission management capability')
 
 const partnerOfflineStatus = await runtime.getCohabitationOfflineStatus(created.contract.id, actor(partner))
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.deposit_warehouse, false, 'offline status should reflect updated partner warehouse permission')
+assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.withdraw_warehouse_common, false, 'offline status should reflect updated partner warehouse withdrawal permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.manage_permissions, false, 'partner should not manage permissions in offline status')
 
 await assert.rejects(
@@ -551,6 +620,18 @@ await assert.rejects(
 )
 assert.equal(getInventoryItemQuantity(partner, 'tea'), partnerTeaBeforePermissionDenied, 'permission-denied warehouse deposit should not deduct partner inventory')
 
+await assert.rejects(
+  () => runtime.withdrawCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'rice',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-partner-withdraw-denied-by-permission',
+  }, actor(partner)),
+  error => error?.status === 403 && String(error.message || '').includes('没有从共同仓库取出普通物品的权限'),
+  'updated storage permission should block partner warehouse withdrawal'
+)
+assert.equal(getInventoryItemQuantity(partner, 'rice'), 0, 'permission-denied warehouse withdrawal should not add partner inventory')
+
 const pendingContract = await runtime.createCohabitationContract({
   type: 'seasonal_cofarm',
   target_username: extra,
@@ -565,6 +646,16 @@ await assert.rejects(
   () => runtime.getCohabitationWarehouse(pendingContract.contract.id, actor(owner)),
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not expose shared warehouse'
+)
+await assert.rejects(
+  () => runtime.withdrawCohabitationWarehouseItem(pendingContract.contract.id, {
+    item_id: 'rice',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-pending-withdraw',
+  }, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not allow shared warehouse withdrawal'
 )
 await assert.rejects(
   () => runtime.getCohabitationFund(pendingContract.contract.id, actor(owner)),
@@ -823,10 +914,11 @@ assert.equal(familyWarehouseBeforeDeposit.warehouse.summary.role_based_storage_p
 assert.equal(familyWarehouseBeforeDeposit.warehouse.family_warehouse.actor.manor_role, 'storage_keeper', 'family warehouse actor should expose storage keeper role')
 assert.equal(familyWarehouseBeforeDeposit.warehouse.family_warehouse.actor.manor_role_label, '管仓', 'family warehouse actor should expose role label')
 assert.equal(familyWarehouseBeforeDeposit.warehouse.permissions.can_withdraw_common, true, 'storage keeper should expose common withdrawal permission preview')
-assert.equal(familyWarehouseBeforeDeposit.warehouse.summary.withdraw_enabled, false, 'family warehouse should keep real withdrawal disabled')
+assert.equal(familyWarehouseBeforeDeposit.warehouse.summary.withdraw_enabled, true, 'family warehouse should allow common withdrawal for storage keeper')
 assert.equal(familyWarehouseBeforeDeposit.warehouse.family_warehouse.members.find(member => member.username === partner)?.storage_permissions.can_withdraw_common_preview, true, 'storage keeper should preview common withdrawal permission')
+assert.equal(familyWarehouseBeforeDeposit.warehouse.family_warehouse.members.find(member => member.username === partner)?.storage_permissions.withdraw_enabled, true, 'storage keeper should get real common withdrawal flag')
 assert.equal(familyWarehouseBeforeDeposit.warehouse.family_warehouse.members.find(member => member.username === extra)?.storage_permissions.can_withdraw_common_preview, false, 'farm steward should not preview common withdrawal permission')
-assert.equal(familyWarehouseBeforeDeposit.warehouse.family_warehouse.governance.withdraw_flow_enabled, false, 'family warehouse should keep withdraw flow disabled in first pass')
+assert.equal(familyWarehouseBeforeDeposit.warehouse.family_warehouse.governance.withdraw_flow_enabled, true, 'family warehouse should expose common withdraw governance for storage keeper')
 assert.ok(familyWarehouseBeforeDeposit.warehouse.family_warehouse.deferred_operations.includes('warehouse_freeze_and_revert'), 'family warehouse should defer freeze and revert tooling')
 const familyWarehouseDeposit = await runtime.depositCohabitationWarehouseItem(familyContract.contract.id, {
   item_id: 'tea',
@@ -1117,7 +1209,7 @@ assert.match(previewResult.preview.asset_return.personal_money_policy, /个人�
 assert.equal(previewResult.preview.asset_return.plot_return_summary.total_plots, 32, 'separation preview should include shared farm plot summary')
 assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === owner && item.plot_count === 16), 'separation preview should include owner plot return group')
 assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === partner && item.plot_count === 16), 'separation preview should include partner plot return group')
-assert.ok(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'rice' && item.quantity === 2), 'separation preview should include warehouse item source summary')
+assert.ok(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'rice' && item.quantity === 1), 'separation preview should include remaining warehouse item source summary after withdrawal')
 assert.equal(previewResult.preview.asset_return.fund_balance, 200, 'separation preview should include current fund balance')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.amount === 120), 'separation preview should include owner fund contribution source summary')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.amount === 80), 'separation preview should include partner fund contribution source summary')

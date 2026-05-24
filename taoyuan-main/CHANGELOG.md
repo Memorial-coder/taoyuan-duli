@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 共同仓库普通取出
+- 新增 `POST /taoyuan/online/cohabitation/contracts/:contractId/warehouse/withdraw`，已激活同居 / 家族庄园成员可按 `storage.withdraw_common` 权限取出普通非保护物。
+- 取出会写共同仓库 `withdraw` 流水、来源 ledger、目标个人背包落点、审计和补偿提示；重复 `idempotency_key` 不会重复减少共同库存或重复加个人背包。
+- 高品质 / 稀有 / 任务物取出、卖出、冻结回滚、自动返还和前端写操作仍保持关闭；分居预览会按取出流水扣减剩余可返还仓库物。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix server run qa:online-smoke`。
+
 ### 0524 共同庄园前端入口
 - 在线中心新增“共同庄园”模块卡和 `/game/online/cohabitation` 子页，可从已有契约切换到共同庄园只读视图。
 - 新页面会读取共同农田拼接图、共同仓库、共同基金、权限安全阀和离线经营状态，并显示个人铜币不合并、来源归属可追溯和高风险写操作暂缓边界。

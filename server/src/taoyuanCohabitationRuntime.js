@@ -29,6 +29,9 @@ const FUND_MAX_CONTRIBUTION_AMOUNT = 999999;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_MAX_DEPOSIT_QUANTITY = 99;
+const WAREHOUSE_MAX_WITHDRAW_QUANTITY = 99;
+const WAREHOUSE_ITEM_MAX_STACK = 999;
+const WAREHOUSE_TEMP_BAG_CAPACITY = 10;
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const PERMISSION_GROUPS = Object.freeze(['farm', 'animal', 'storage', 'construction', 'fund', 'family', 'confirmations']);
 const SEPARATION_PREVIEW_VERSION = 1;
@@ -857,6 +860,17 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
         quantity: normalizePositiveInt(slot?.quantity, 0),
       })).filter(slot => slot.quantity > 0).slice(0, 8)
     : [];
+  const sourceLedgerIds = Array.isArray(entry.source_ledger_ids)
+    ? entry.source_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+    : [];
+  const targetSlots = Array.isArray(entry.target_slots)
+    ? entry.target_slots.map(slot => ({
+        bag: sanitizeText(slot?.bag, 24) || 'inventory.items',
+        index: Math.max(0, Math.floor(Number(slot?.index) || 0)),
+        quantity: normalizePositiveInt(slot?.quantity, 0),
+      })).filter(slot => slot.quantity > 0).slice(0, 12)
+    : [];
+  const targetOwnerUsername = normalizeUsername(entry.target_owner_username || actorUsername);
   return {
     id: sanitizeText(entry.id, 100) || makeId('shared_warehouse_ledger'),
     action,
@@ -878,6 +892,16 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
     source_save_revision: Math.max(0, Math.floor(Number(entry.source_save_revision) || 0)),
     source_inventory: sanitizeText(entry.source_inventory, 40) || 'inventory.items',
     source_slots: sourceSlots,
+    source_ledger_ids: sourceLedgerIds,
+    target_owner_id: sanitizeText(entry.target_owner_id, 100),
+    target_owner_username: targetOwnerUsername,
+    target_owner_display_name: sanitizeText(entry.target_owner_display_name || targetOwnerUsername, 60),
+    target_owner_key: normalizeUsernameKey(entry.target_owner_key || targetOwnerUsername),
+    target_save_id: normalizeSaveId(entry.target_save_id),
+    target_save_slot: normalizeSaveSlot(entry.target_save_slot),
+    target_save_revision: Math.max(0, Math.floor(Number(entry.target_save_revision) || 0)),
+    target_inventory: sanitizeText(entry.target_inventory, 40),
+    target_slots: targetSlots,
     at: Number(entry.at) || nowSeconds(),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     reversible: entry.reversible !== false,
@@ -2853,6 +2877,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       read_shared_map: true,
       read_warehouse: true,
       deposit_warehouse: actorPermissions.storage.deposit === true,
+      withdraw_warehouse_common: actorPermissions.storage.withdraw_common === true,
       read_fund: true,
       contribute_fund: true,
       read_permissions: true,
@@ -2889,15 +2914,15 @@ function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
       ledger_count: warehouse.ledger.length,
       personal_money_merged: false,
       deposit_enabled: contract.status === 'active' && actorPermissions.storage.deposit === true,
-      withdraw_enabled: false,
+      withdraw_enabled: contract.status === 'active' && actorPermissions.storage.withdraw_common === true,
       sell_enabled: false,
       family_manor_warehouse: familyWarehouse.enabled,
       role_based_storage_permissions: familyWarehouse.role_based_storage_permissions,
       source_owner_count: familyWarehouse.source_owner_summary.length,
       idempotency_required: true,
       protected_qualities: ['fine', 'excellent', 'supreme'],
-      protected_operations: ['withdraw_common', 'withdraw_high_quality', 'withdraw_rare', 'sell_items'],
-      compensation_policy: '第一版只记录放入来源流水；误操作可先按 ledger 与 origin_assets 手工追溯，自动返还待后续接入。',
+      protected_operations: ['withdraw_high_quality', 'withdraw_rare', 'sell_items'],
+      compensation_policy: '第一版开放普通物品放入与取出，均写 ledger 与审计；误操作可按流水和个人背包落点追溯，自动冻结 / 回滚待后续接入。',
     },
     permissions: {
       can_deposit: actorPermissions.storage.deposit === true,
@@ -2915,6 +2940,7 @@ function buildFamilyWarehouseSummary(contract = {}, warehouse = {}, actorMember 
   const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
   const actorRole = normalizeFamilyManorRole(actorMember?.manor_role, contract.type, actorMember?.role);
   const actorRoleDef = enabled ? getFamilyManorRoleDef(actorRole) : null;
+  const actorPermissions = enforcePermissionSafetyRails(contract.permissions?.[actorMember?.username_key], contract.type);
   const members = enabled
     ? (contract.members || []).map(member => {
         const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
@@ -2935,7 +2961,7 @@ function buildFamilyWarehouseSummary(contract = {}, warehouse = {}, actorMember 
             can_withdraw_high_quality_preview: permissions.storage.withdraw_high_quality === true,
             can_withdraw_rare_preview: permissions.storage.withdraw_rare === true,
             can_sell_items_preview: permissions.storage.sell_items === true,
-            withdraw_enabled: false,
+            withdraw_enabled: permissions.storage.withdraw_common === true,
             sell_enabled: false,
           },
         };
@@ -2961,16 +2987,16 @@ function buildFamilyWarehouseSummary(contract = {}, warehouse = {}, actorMember 
       personal_money_merged: false,
       deposit_uses_personal_inventory: true,
       deposit_requires_idempotency_key: true,
-      withdraw_flow_enabled: false,
+      withdraw_flow_enabled: enabled && actorPermissions.storage.withdraw_common === true,
+      withdraw_common_requires_idempotency_key: true,
       sell_flow_enabled: false,
       high_value_withdraw_requires_both: true,
       rare_withdraw_requires_both: true,
       ledger_required_for_asset_return: true,
       separation_return_policy: 'return_warehouse_items_by_ledger_origin_owner',
-      compensation_policy: '家族共同仓库第一版只开放可追溯放入；取出、卖出、冻结和自动返还均暂缓，争议先按 ledger 与 origin_assets 人工补偿。',
+      compensation_policy: '家族共同仓库第一版开放普通物品取出；高品质、稀有、卖出、冻结和自动返还仍暂缓，争议先按 ledger 与 origin_assets 人工补偿。',
     },
     deferred_operations: [
-      'withdraw_common',
       'withdraw_high_quality',
       'withdraw_rare',
       'sell_items',
@@ -3098,6 +3124,70 @@ function deductDepositableMainInventoryItem(saveData, itemId, quantity, quality)
   };
 }
 
+function addWithdrawnWarehouseItemToInventory(saveData, itemId, quantity, quality) {
+  ensureInventoryState(saveData);
+  const capacity = Math.max(1, Math.floor(Number(saveData.inventory.capacity) || 24));
+  const normalizedQuality = normalizeQuality(quality);
+  let remaining = normalizePositiveInt(quantity, 0);
+  const targetSlots = [];
+
+  for (let index = 0; index < saveData.inventory.items.length && remaining > 0; index += 1) {
+    const slot = saveData.inventory.items[index];
+    if (normalizeWarehouseItemId(slot?.itemId ?? slot?.item_id) !== itemId) continue;
+    if (normalizeQuality(slot?.quality) !== normalizedQuality) continue;
+    const slotQuantity = normalizePositiveInt(slot.quantity, 0);
+    if (slotQuantity >= WAREHOUSE_ITEM_MAX_STACK) continue;
+    const add = Math.min(remaining, WAREHOUSE_ITEM_MAX_STACK - slotQuantity);
+    slot.quantity = slotQuantity + add;
+    remaining -= add;
+    targetSlots.push({ bag: 'inventory.items', index, quantity: add });
+  }
+
+  while (remaining > 0 && saveData.inventory.items.length < capacity) {
+    const add = Math.min(remaining, WAREHOUSE_ITEM_MAX_STACK);
+    const index = saveData.inventory.items.length;
+    saveData.inventory.items.push({
+      itemId,
+      quantity: add,
+      quality: normalizedQuality,
+      locked: false,
+    });
+    remaining -= add;
+    targetSlots.push({ bag: 'inventory.items', index, quantity: add });
+  }
+
+  for (let index = 0; index < saveData.inventory.tempItems.length && remaining > 0; index += 1) {
+    const slot = saveData.inventory.tempItems[index];
+    if (normalizeWarehouseItemId(slot?.itemId ?? slot?.item_id) !== itemId) continue;
+    if (normalizeQuality(slot?.quality) !== normalizedQuality) continue;
+    const slotQuantity = normalizePositiveInt(slot.quantity, 0);
+    if (slotQuantity >= WAREHOUSE_ITEM_MAX_STACK) continue;
+    const add = Math.min(remaining, WAREHOUSE_ITEM_MAX_STACK - slotQuantity);
+    slot.quantity = slotQuantity + add;
+    remaining -= add;
+    targetSlots.push({ bag: 'inventory.tempItems', index, quantity: add });
+  }
+
+  while (remaining > 0 && saveData.inventory.tempItems.length < WAREHOUSE_TEMP_BAG_CAPACITY) {
+    const add = Math.min(remaining, WAREHOUSE_ITEM_MAX_STACK);
+    const index = saveData.inventory.tempItems.length;
+    saveData.inventory.tempItems.push({
+      itemId,
+      quantity: add,
+      quality: normalizedQuality,
+      locked: false,
+    });
+    remaining -= add;
+    targetSlots.push({ bag: 'inventory.tempItems', index, quantity: add });
+  }
+
+  return {
+    ok: remaining <= 0,
+    remaining,
+    target_slots: targetSlots,
+  };
+}
+
 function assignGameplayDataToContext(context, data) {
   context.data = data;
   if (context.saveContainer && typeof context.saveContainer === 'object') {
@@ -3131,6 +3221,27 @@ function normalizeWarehouseDepositPayload(payload = {}) {
   };
 }
 
+function normalizeWarehouseWithdrawPayload(payload = {}) {
+  const itemId = normalizeWarehouseItemId(payload.item_id ?? payload.itemId);
+  const rawQuantity = Math.floor(Number(payload.quantity) || 0);
+  const requestedQuality = String(payload.quality || 'normal').trim().toLowerCase();
+  if (!itemId) throw createError('请指定有效的取出物品');
+  if (rawQuantity <= 0) throw createError('取出数量必须大于 0');
+  if (rawQuantity > WAREHOUSE_MAX_WITHDRAW_QUANTITY) throw createError(`单次取出数量不能超过 ${WAREHOUSE_MAX_WITHDRAW_QUANTITY}`);
+  if (!WAREHOUSE_QUALITIES.has(requestedQuality)) throw createError('取出物品品质参数无效');
+  if (requestedQuality !== 'normal') throw createError('共同仓库第一版只允许取出普通品质物品', 403);
+  if (isProtectedWarehouseItemId(itemId)) throw createError('该物品疑似关键、稀有或绑定物品，暂不允许从共同仓库取出', 403);
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('共同仓库取出需要 idempotency_key，以防断线或重试时重复取物');
+  return {
+    item_id: itemId,
+    quantity: rawQuantity,
+    quality: requestedQuality,
+    idempotency_key: idempotencyKey,
+    save_slot: normalizeSaveSlot(payload.save_slot),
+  };
+}
+
 function normalizeFundContributionPayload(payload = {}) {
   const amount = Math.floor(Number(payload.amount) || 0);
   if (amount <= 0) throw createError('共同基金注资金额必须大于 0');
@@ -3149,6 +3260,7 @@ function normalizeFundContributionPayload(payload = {}) {
 function buildWarehouseOriginAsset(entry) {
   return {
     ledger_id: entry.id,
+    action: entry.action,
     item_id: entry.item_id,
     quantity: entry.quantity,
     quality: entry.quality,
@@ -3160,8 +3272,91 @@ function buildWarehouseOriginAsset(entry) {
     source_save_id: entry.source_save_id,
     source_save_slot: entry.source_save_slot,
     source_inventory: entry.source_inventory,
-    deposited_at: entry.at,
+    deposited_at: ['deposit', 'compensate'].includes(entry.action) ? entry.at : 0,
+    withdrawn_at: entry.action === 'withdraw' ? entry.at : 0,
+    withdrawn_by_username: entry.action === 'withdraw' ? entry.actor_username : '',
+    target_save_id: entry.target_save_id,
+    target_save_slot: entry.target_save_slot,
+    target_inventory: entry.target_inventory,
     idempotency_key: entry.idempotency_key,
+  };
+}
+
+function consumeWarehouseLots(lots, quantity, preferredOwnerKey = '') {
+  let remaining = quantity;
+  const allocations = [];
+  const passes = preferredOwnerKey
+    ? [
+        lot => lot.source_owner_key === preferredOwnerKey,
+        lot => lot.source_owner_key !== preferredOwnerKey,
+      ]
+    : [() => true];
+  for (const predicate of passes) {
+    for (const lot of lots) {
+      if (remaining <= 0) break;
+      if (!predicate(lot) || lot.remaining <= 0) continue;
+      const take = Math.min(remaining, lot.remaining);
+      lot.remaining -= take;
+      remaining -= take;
+      allocations.push({
+        ...lot,
+        quantity: take,
+      });
+    }
+  }
+  return {
+    ok: remaining <= 0,
+    remaining,
+    allocations,
+  };
+}
+
+function buildWarehouseWithdrawalAllocations(warehouse = {}, itemId, quantity, quality) {
+  const normalizedQuality = normalizeQuality(quality);
+  const lots = [];
+  const ledger = Array.isArray(warehouse.ledger) ? warehouse.ledger.slice().reverse() : [];
+  for (const rawEntry of ledger) {
+    const entry = normalizeWarehouseLedgerEntry(rawEntry);
+    if (!entry || entry.status !== 'committed') continue;
+    if (entry.item_id !== itemId || entry.quality !== normalizedQuality) continue;
+    if (entry.action === 'deposit' || entry.action === 'compensate') {
+      lots.push({
+        source_ledger_id: entry.id,
+        source_owner_id: entry.source_owner_id,
+        source_owner_username: entry.source_owner_username,
+        source_owner_display_name: entry.source_owner_display_name,
+        source_owner_key: entry.source_owner_key,
+        source_owner_manor_role: entry.source_owner_manor_role,
+        source_owner_manor_role_label: entry.source_owner_manor_role_label,
+        source_save_id: entry.source_save_id,
+        source_save_slot: entry.source_save_slot,
+        source_inventory: entry.source_inventory,
+        remaining: entry.quantity,
+      });
+    } else if (['withdraw', 'sell', 'revert'].includes(entry.action)) {
+      consumeWarehouseLots(lots, entry.quantity, entry.source_owner_key);
+    }
+  }
+  const result = consumeWarehouseLots(lots, quantity);
+  if (!result.ok) return result;
+  const grouped = new Map();
+  for (const allocation of result.allocations) {
+    const key = allocation.source_owner_id || allocation.source_owner_key || allocation.source_owner_username || 'unknown';
+    const current = grouped.get(key) || {
+      ...allocation,
+      quantity: 0,
+      source_ledger_ids: [],
+    };
+    current.quantity += allocation.quantity;
+    if (allocation.source_ledger_id && !current.source_ledger_ids.includes(allocation.source_ledger_id)) {
+      current.source_ledger_ids.push(allocation.source_ledger_id);
+    }
+    grouped.set(key, current);
+  }
+  return {
+    ok: true,
+    remaining: 0,
+    allocations: [...grouped.values()],
   };
 }
 
@@ -3183,8 +3378,8 @@ function buildFundOriginAsset(entry) {
 function buildWarehouseReturnPreview(contract = {}) {
   const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   const groups = new Map();
-  for (const entry of warehouse.ledger) {
-    if (entry.status !== 'committed' || !['deposit', 'compensate'].includes(entry.action)) continue;
+  for (const entry of warehouse.ledger.slice().reverse()) {
+    if (entry.status !== 'committed' || !['deposit', 'compensate', 'withdraw', 'sell', 'revert'].includes(entry.action)) continue;
     const key = `${entry.source_owner_id || entry.source_owner_key}:${entry.item_id}:${entry.quality}`;
     const current = groups.get(key) || {
       origin_owner_id: entry.source_owner_id,
@@ -3198,7 +3393,8 @@ function buildWarehouseReturnPreview(contract = {}) {
       return_policy: '按共同仓库放入流水归还给来源玩家；第一版只生成预览，不自动改写个人背包。',
       manual_return_required: true,
     };
-    current.quantity += entry.quantity;
+    const delta = ['deposit', 'compensate'].includes(entry.action) ? entry.quantity : -entry.quantity;
+    current.quantity = Math.max(0, current.quantity + delta);
     current.ledger_ids.push(entry.id);
     current.source_ledger_count += 1;
     groups.set(key, current);
@@ -3794,6 +3990,140 @@ async function depositCohabitationWarehouseItem(contractId, payload = {}, actor 
   };
 }
 
+async function withdrawCohabitationWarehouseItem(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const withdraw = normalizeWarehouseWithdrawPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '从共同仓库取出物品');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  if (actorPermissions.storage.withdraw_common !== true) throw createError('你没有从共同仓库取出普通物品的权限', 403);
+
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const previousEntries = contract.shared_warehouse.ledger.filter(entry =>
+    entry.idempotency_key && entry.idempotency_key === withdraw.idempotency_key && entry.action === 'withdraw'
+  );
+  if (previousEntries.length > 0) {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      ledger_entry: previousEntries[0],
+      ledger_entries: previousEntries,
+      idempotent: true,
+      personal_inventory: {
+        personal_money_merged: false,
+      },
+    };
+  }
+
+  const allocationResult = buildWarehouseWithdrawalAllocations(
+    contract.shared_warehouse,
+    withdraw.item_id,
+    withdraw.quantity,
+    withdraw.quality
+  );
+  if (!allocationResult.ok) throw createError('共同仓库中可取出的普通物品数量不足');
+
+  const context = getActiveSaveContext(
+    actorUsername,
+    withdraw.save_slot,
+    '当前账号没有可用的桃源乡服务端存档，暂时无法从共同仓库取出物品'
+  );
+  context.username = actorUsername;
+  const projectedData = JSON.parse(JSON.stringify(context.data));
+  const beforeMoney = Math.max(0, Math.floor(Number(projectedData?.player?.money) || 0));
+  const addResult = addWithdrawnWarehouseItemToInventory(projectedData, withdraw.item_id, withdraw.quantity, withdraw.quality);
+  if (!addResult.ok) throw createError('个人背包和临时背包空间不足，已中止本次共同仓库取出');
+  const afterMoney = Math.max(0, Math.floor(Number(projectedData?.player?.money) || 0));
+  if (afterMoney !== beforeMoney) throw createError('共同仓库取出不会处理个人铜币，已中止本次操作', 500);
+
+  assignGameplayDataToContext(context, projectedData);
+  const saveRevision = persistGameplayData(context);
+  const targetSaveId = normalizeSaveId(context.identity?.save_id);
+  const targetSaveSlot = normalizeSaveSlot(context.slot);
+  const targetOwnerId = targetSaveId ? `save:${targetSaveId}` : `account:${member.username_key}`;
+  if (targetSaveId) member.save_id = targetSaveId;
+  if (targetSaveSlot !== null) member.save_slot = targetSaveSlot;
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const actorManorRoleDef = isFamilyRoleContractType(contract.type) ? getFamilyManorRoleDef(actorManorRole) : null;
+  const operatedAt = nowSeconds();
+
+  const ledgerEntries = allocationResult.allocations.map(allocation => normalizeWarehouseLedgerEntry({
+    id: makeId('shared_warehouse_ledger'),
+    action: 'withdraw',
+    item_id: withdraw.item_id,
+    quantity: allocation.quantity,
+    quality: withdraw.quality,
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: actorManorRoleDef?.label || '',
+    source_owner_id: allocation.source_owner_id,
+    source_owner_username: allocation.source_owner_username,
+    source_owner_display_name: allocation.source_owner_display_name,
+    source_owner_key: allocation.source_owner_key,
+    source_owner_manor_role: allocation.source_owner_manor_role,
+    source_owner_manor_role_label: allocation.source_owner_manor_role_label,
+    source_save_id: allocation.source_save_id,
+    source_save_slot: allocation.source_save_slot,
+    source_inventory: allocation.source_inventory || 'shared_warehouse.items',
+    source_ledger_ids: allocation.source_ledger_ids,
+    target_owner_id: targetOwnerId,
+    target_owner_username: member.username,
+    target_owner_display_name: member.display_name || member.username,
+    target_owner_key: member.username_key,
+    target_save_id: targetSaveId,
+    target_save_slot: targetSaveSlot,
+    target_save_revision: saveRevision,
+    target_inventory: 'inventory.items',
+    target_slots: addResult.target_slots,
+    at: operatedAt,
+    idempotency_key: withdraw.idempotency_key,
+    reversible: true,
+    compensation_hint: '普通物品取出已写个人背包落点；若误取，需要按本流水从取出者背包补回或走后续冻结 / 回滚流程。',
+    status: 'committed',
+  })).filter(Boolean);
+  contract.shared_warehouse.ledger = [...ledgerEntries, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+  contract.origin_assets.warehouse_items = [
+    ...ledgerEntries.map(buildWarehouseOriginAsset),
+    ...contract.origin_assets.warehouse_items,
+  ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
+  appendAudit(contract, 'warehouse_withdrawn', actor, {
+    ledger_ids: ledgerEntries.map(entry => entry.id),
+    item_id: withdraw.item_id,
+    quantity: withdraw.quantity,
+    quality: withdraw.quality,
+    target_owner_id: targetOwnerId,
+    target_save_id: targetSaveId,
+    target_save_slot: targetSaveSlot,
+    save_revision: saveRevision,
+    source_owner_count: new Set(ledgerEntries.map(entry => entry.source_owner_id || entry.source_owner_key)).size,
+    high_quality_withdraw_enabled: false,
+    rare_withdraw_enabled: false,
+    sell_enabled: false,
+  }, withdraw.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    ledger_entry: ledgerEntries[0],
+    ledger_entries: ledgerEntries,
+    idempotent: false,
+    personal_inventory: {
+      item_id: withdraw.item_id,
+      quality: withdraw.quality,
+      added_quantity: withdraw.quantity,
+      total_quantity: countDepositableMainInventoryItem(projectedData, withdraw.item_id, withdraw.quality),
+      target_slots: addResult.target_slots,
+      personal_money_merged: false,
+    },
+  };
+}
+
 async function updateCohabitationPermissions(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -4263,6 +4593,7 @@ module.exports = {
   getCohabitationFamilyFestivalSeats,
   getCohabitationOfflineStatus,
   depositCohabitationWarehouseItem,
+  withdrawCohabitationWarehouseItem,
   contributeCohabitationFund,
   updateCohabitationPermissions,
   updateCohabitationFamilyRole,
