@@ -111,6 +111,23 @@ const buildSaveData = username => ({
       fruitTrees: [],
       greenhousePlots: [],
     },
+    inventory: {
+      items: username === owner
+        ? [
+            { itemId: 'rice', quantity: 6, quality: 'normal', locked: false },
+            { itemId: 'ancient_waybill', quantity: 1, quality: 'normal', locked: false },
+          ]
+        : username === partner
+          ? [
+              { itemId: 'tea', quantity: 4, quality: 'normal', locked: false },
+              { itemId: 'lotus', quantity: 1, quality: 'fine', locked: false },
+            ]
+          : [
+              { itemId: 'rice', quantity: 1, quality: 'normal', locked: false },
+            ],
+      tempItems: [],
+      capacity: 24,
+    },
   },
 })
 
@@ -122,6 +139,18 @@ const seedSave = username => {
   }
   saveRuntime.saveUserSaveSlots(username, slots)
   saveRuntime.setActiveSaveSlot(username, 0)
+}
+
+const readGameplayData = username => {
+  const raw = saveRuntime.loadUserSaveSlots(username).slots[0].raw
+  return saveRuntime.normalizeGameplaySaveContainer(saveRuntime.decryptTaoyuanRaw(raw))?.gameplayData
+}
+
+const getInventoryItemQuantity = (username, itemId, quality = 'normal') => {
+  const data = readGameplayData(username)
+  return (data?.inventory?.items || [])
+    .filter(entry => entry?.itemId === itemId && String(entry?.quality || 'normal') === quality)
+    .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
 }
 
 await db.registerUser(owner, 'SmokePass_0524', '同居主人')
@@ -211,10 +240,95 @@ assert.equal(partnerPlot?.plot_state.state, 'harvestable', 'partner crop state s
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedMap, 'shared map should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedMap, 'shared map should not rewrite partner save')
 
+const initialWarehouseResult = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+assert.equal(initialWarehouseResult.warehouse.summary.item_count, 0, 'fresh cohabitation warehouse should be empty')
+assert.equal(initialWarehouseResult.warehouse.summary.personal_money_merged, false, 'warehouse must not merge personal money')
+assert.equal(initialWarehouseResult.warehouse.permissions.can_deposit, true, 'default storage permissions should allow deposits')
+
+const ownerRiceBeforeDeposit = getInventoryItemQuantity(owner, 'rice')
+assert.equal(ownerRiceBeforeDeposit, 6, 'owner seed save should include rice before warehouse deposit')
+const ownerMoneyBeforeDeposit = readGameplayData(owner)?.player?.money
+const depositResult = await runtime.depositCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'rice',
+  quantity: 2,
+  quality: 'normal',
+  idempotency_key: 'qa-warehouse-rice-deposit',
+}, actor(owner))
+assert.equal(depositResult.idempotent, false, 'first warehouse deposit should not be idempotent')
+assert.equal(depositResult.warehouse.summary.total_quantity, 2, 'warehouse deposit should increase shared stock')
+assert.ok(depositResult.warehouse.items.some(item => item.item_id === 'rice' && item.quantity === 2), 'warehouse should expose deposited rice stock')
+assert.equal(depositResult.ledger_entry.source_owner_username, owner, 'ledger should keep source owner username')
+assert.equal(depositResult.ledger_entry.source_inventory, 'inventory.items', 'ledger should keep source inventory path')
+assert.equal(depositResult.ledger_entry.source_save_slot, 0, 'ledger should keep source save slot')
+assert.match(String(depositResult.ledger_entry.source_owner_id || ''), /^save:\d{9}$/, 'ledger should keep traceable save owner id')
+assert.equal(depositResult.ledger_entry.idempotency_key, 'qa-warehouse-rice-deposit', 'ledger should keep idempotency key')
+assert.equal(getInventoryItemQuantity(owner, 'rice'), 4, 'warehouse deposit should deduct owner rice once')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeDeposit, 'warehouse deposit should not touch personal money')
+assert.ok(depositResult.contract.origin_assets.warehouse_items.some(item => item.ledger_id === depositResult.ledger_entry.id), 'origin assets should reference warehouse ledger')
+assert.ok(depositResult.contract.audit_log.find(entry => entry.action === 'warehouse_deposited'), 'warehouse deposit should be audited')
+
+const duplicateDeposit = await runtime.depositCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'rice',
+  quantity: 2,
+  quality: 'normal',
+  idempotency_key: 'qa-warehouse-rice-deposit',
+}, actor(owner))
+assert.equal(duplicateDeposit.idempotent, true, 'same warehouse deposit idempotency key should be idempotent')
+assert.equal(getInventoryItemQuantity(owner, 'rice'), 4, 'idempotent warehouse deposit should not deduct rice twice')
+assert.equal(duplicateDeposit.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 2, 'idempotent warehouse deposit should not duplicate stock')
+
+const partnerWarehouseRead = await runtime.getCohabitationWarehouse(created.contract.id, actor(partner))
+assert.equal(partnerWarehouseRead.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 2, 'partner should read shared warehouse stock')
+
 await assert.rejects(
   () => runtime.getCohabitationSharedMap(created.contract.id, actor(extra)),
   error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
   'non-members should not read a shared farm map'
+)
+
+await assert.rejects(
+  () => runtime.depositCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'rice',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-non-member-deposit',
+  }, actor(extra)),
+  error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
+  'non-members should not deposit into a cohabitation warehouse'
+)
+
+await assert.rejects(
+  () => runtime.depositCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'rice',
+    quantity: 99,
+    quality: 'normal',
+    idempotency_key: 'qa-insufficient-rice',
+  }, actor(owner)),
+  error => error?.status === 400 && String(error.message || '').includes('数量不足'),
+  'warehouse deposit should reject insufficient personal inventory without changing stock'
+)
+assert.equal(getInventoryItemQuantity(owner, 'rice'), 4, 'failed warehouse deposit should not deduct inventory')
+
+await assert.rejects(
+  () => runtime.depositCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'ancient_waybill',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-protected-waybill',
+  }, actor(owner)),
+  error => error?.status === 403 && String(error.message || '').includes('暂不允许'),
+  'warehouse deposit should reject protected or rare-looking items'
+)
+
+await assert.rejects(
+  () => runtime.depositCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'lotus',
+    quantity: 1,
+    quality: 'fine',
+    idempotency_key: 'qa-high-quality-lotus',
+  }, actor(partner)),
+  error => error?.status === 403 && String(error.message || '').includes('普通品质'),
+  'warehouse deposit should reject high quality items in the first pass'
 )
 
 const pendingContract = await runtime.createCohabitationContract({
@@ -227,12 +341,28 @@ await assert.rejects(
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not expose shared farm map'
 )
+await assert.rejects(
+  () => runtime.getCohabitationWarehouse(pendingContract.contract.id, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not expose shared warehouse'
+)
+await assert.rejects(
+  () => runtime.depositCohabitationWarehouseItem(pendingContract.contract.id, {
+    item_id: 'rice',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-pending-warehouse-deposit',
+  }, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not accept warehouse deposits'
+)
 
 const previewResult = await runtime.createSeparationPreview(created.contract.id, {
   reason: 'qa preview',
 }, actor(owner))
 assert.equal(previewResult.preview.requires_both_confirm, true, 'separation preview should require both confirmations')
 assert.match(previewResult.preview.asset_return.personal_money_policy, /个人铜币/, 'preview should preserve personal money boundary')
+assert.ok(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'rice' && item.quantity === 2), 'separation preview should include warehouse item source summary')
 assert.equal(previewResult.contract.status, 'active', 'preview should not execute separation')
 assert.ok(previewResult.contract.audit_log.find(entry => entry.action === 'separation_preview_created'), 'preview should be audited')
 

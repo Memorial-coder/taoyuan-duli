@@ -170,6 +170,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_separation_preview',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/deposit$/i,
+    action: 'cohabitation_warehouse_deposit',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/societies\/proposals$/i,
     action: 'society_proposal_create',
   },
@@ -2758,6 +2762,18 @@ router.get('/taoyuan/online/cohabitation/contracts/:contractId/shared-map', crea
   }
 });
 
+router.get('/taoyuan/online/cohabitation/contracts/:contractId/warehouse', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCohabitationRuntime.getCohabitationWarehouse(req.params.contractId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取共同仓库失败' });
+  }
+});
+
 router.post('/taoyuan/online/cohabitation/contracts', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanCohabitationRuntime.createCohabitationContract(req.body || {}, {
@@ -2768,6 +2784,20 @@ router.post('/taoyuan/online/cohabitation/contracts', createOnlineReleaseGuard('
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '创建同居契约失败' });
   }
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/deposit', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.depositCohabitationWarehouseItem(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '放入共同仓库失败' });
+    }
+  });
 });
 
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/accept', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {

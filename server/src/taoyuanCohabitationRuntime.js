@@ -6,9 +6,11 @@ const {
   createError,
   decryptTaoyuanRaw,
   findSaveIdentityById,
+  getActiveSaveContext,
   getActiveSaveSlot,
   loadUserSaveSlots,
   normalizeGameplaySaveContainer,
+  persistGameplayData,
   writeJsonFileAtomic,
 } = require('./taoyuanSaveRuntime');
 
@@ -21,6 +23,10 @@ const CONTRACT_STORE_VERSION = 1;
 const OPEN_CONTRACT_STATUSES = new Set(['pending_acceptance', 'active', 'separation_pending']);
 const CONTRACT_STATUSES = new Set(['pending_acceptance', 'active', 'separation_pending', 'closed', 'declined']);
 const MEMBER_STATUSES = new Set(['accepted', 'pending', 'declined', 'left']);
+const WAREHOUSE_LEDGER_LIMIT = 160;
+const WAREHOUSE_ORIGIN_LIMIT = 160;
+const WAREHOUSE_MAX_DEPOSIT_QUANTITY = 99;
+const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 
 const RELATION_TYPE_DEFS = Object.freeze({
   lover_cohabitation: {
@@ -261,6 +267,149 @@ function normalizeSharedFund(value = {}) {
       at: Number(entry?.at) || nowSeconds(),
       memo: sanitizeText(entry?.memo, 160),
     })).slice(-120) : [],
+  };
+}
+
+function normalizeQuality(value) {
+  const quality = String(value || 'normal').trim().toLowerCase();
+  return WAREHOUSE_QUALITIES.has(quality) ? quality : 'normal';
+}
+
+function normalizePositiveInt(value, fallback = 0) {
+  const normalized = Math.floor(Number(value) || 0);
+  return normalized > 0 ? normalized : fallback;
+}
+
+function normalizeWarehouseItemId(value) {
+  const itemId = sanitizeText(value, 80);
+  return /^[a-z0-9_:-]{1,80}$/i.test(itemId) ? itemId : '';
+}
+
+function isProtectedWarehouseItemId(itemId) {
+  const normalized = String(itemId || '').toLowerCase();
+  if (!normalized) return true;
+  return [
+    'quest',
+    'unique',
+    'bound',
+    'memorial',
+    'token',
+    'ticket',
+    'permit',
+    'deed',
+    'contract',
+    'receipt',
+    'certificate',
+    'rare',
+    'legend',
+    'ancient',
+    'luminous',
+    'wind_etched',
+    'family',
+    'child',
+  ].some(fragment => normalized.includes(fragment))
+    || normalized.startsWith('key_')
+    || normalized.endsWith('_key')
+    || normalized.endsWith('_core');
+}
+
+function normalizeWarehouseItem(entry = {}) {
+  const itemId = normalizeWarehouseItemId(entry.item_id ?? entry.itemId);
+  const quantity = normalizePositiveInt(entry.quantity, 0);
+  if (!itemId || quantity <= 0) return null;
+  const quality = normalizeQuality(entry.quality);
+  const sourceOwnerKeys = Array.isArray(entry.source_owner_keys)
+    ? [...new Set(entry.source_owner_keys.map(normalizeUsernameKey).filter(Boolean))]
+    : [];
+  return {
+    id: sanitizeText(entry.id, 100) || `${itemId}:${quality}`,
+    item_id: itemId,
+    quality,
+    quantity,
+    first_deposit_at: Number(entry.first_deposit_at) || Number(entry.last_deposit_at) || nowSeconds(),
+    last_deposit_at: Number(entry.last_deposit_at) || Number(entry.first_deposit_at) || nowSeconds(),
+    source_owner_keys: sourceOwnerKeys,
+  };
+}
+
+function normalizeWarehouseLedgerEntry(entry = {}) {
+  const itemId = normalizeWarehouseItemId(entry.item_id ?? entry.itemId);
+  const quantity = normalizePositiveInt(entry.quantity, 0);
+  if (!itemId || quantity <= 0) return null;
+  const action = ['deposit', 'withdraw', 'sell', 'compensate', 'revert'].includes(entry.action) ? entry.action : 'deposit';
+  const actorUsername = normalizeUsername(entry.actor_username);
+  const sourceOwnerUsername = normalizeUsername(entry.source_owner_username || actorUsername);
+  const sourceSlots = Array.isArray(entry.source_slots)
+    ? entry.source_slots.map(slot => ({
+        index: Math.max(0, Math.floor(Number(slot?.index) || 0)),
+        quantity: normalizePositiveInt(slot?.quantity, 0),
+      })).filter(slot => slot.quantity > 0).slice(0, 8)
+    : [];
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('shared_warehouse_ledger'),
+    action,
+    item_id: itemId,
+    quality: normalizeQuality(entry.quality),
+    quantity,
+    actor_username: actorUsername,
+    actor_display_name: sanitizeText(entry.actor_display_name || actorUsername, 60),
+    source_owner_id: sanitizeText(entry.source_owner_id, 100),
+    source_owner_username: sourceOwnerUsername,
+    source_owner_display_name: sanitizeText(entry.source_owner_display_name || sourceOwnerUsername, 60),
+    source_owner_key: normalizeUsernameKey(entry.source_owner_key || sourceOwnerUsername),
+    source_save_id: normalizeSaveId(entry.source_save_id),
+    source_save_slot: normalizeSaveSlot(entry.source_save_slot),
+    source_save_revision: Math.max(0, Math.floor(Number(entry.source_save_revision) || 0)),
+    source_inventory: sanitizeText(entry.source_inventory, 40) || 'inventory.items',
+    source_slots: sourceSlots,
+    at: Number(entry.at) || nowSeconds(),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    reversible: entry.reversible !== false,
+    compensation_hint: sanitizeText(entry.compensation_hint, 180),
+    status: ['committed', 'compensated', 'reverted'].includes(entry.status) ? entry.status : 'committed',
+  };
+}
+
+function buildWarehouseItemsFromLedger(ledger = []) {
+  const aggregate = new Map();
+  for (const entry of ledger.slice().reverse()) {
+    const normalized = normalizeWarehouseLedgerEntry(entry);
+    if (!normalized || normalized.status !== 'committed') continue;
+    const key = `${normalized.item_id}:${normalized.quality}`;
+    const current = aggregate.get(key) || {
+      id: key,
+      item_id: normalized.item_id,
+      quality: normalized.quality,
+      quantity: 0,
+      first_deposit_at: normalized.at,
+      last_deposit_at: normalized.at,
+      source_owner_keys: [],
+    };
+    const delta = normalized.action === 'deposit' || normalized.action === 'compensate'
+      ? normalized.quantity
+      : -normalized.quantity;
+    current.quantity = Math.max(0, current.quantity + delta);
+    current.first_deposit_at = Math.min(current.first_deposit_at || normalized.at, normalized.at);
+    current.last_deposit_at = Math.max(current.last_deposit_at || normalized.at, normalized.at);
+    if (normalized.source_owner_key && !current.source_owner_keys.includes(normalized.source_owner_key)) {
+      current.source_owner_keys.push(normalized.source_owner_key);
+    }
+    aggregate.set(key, current);
+  }
+  return [...aggregate.values()]
+    .map(normalizeWarehouseItem)
+    .filter(Boolean)
+    .filter(item => item.quantity > 0)
+    .slice(0, WAREHOUSE_ORIGIN_LIMIT);
+}
+
+function normalizeSharedWarehouse(value = {}) {
+  const ledger = Array.isArray(value.ledger)
+    ? value.ledger.map(normalizeWarehouseLedgerEntry).filter(Boolean).slice(0, WAREHOUSE_LEDGER_LIMIT)
+    : [];
+  return {
+    items: buildWarehouseItemsFromLedger(ledger),
+    ledger,
   };
 }
 
@@ -544,6 +693,7 @@ function normalizeContract(entry = {}) {
     members: uniqueMembers,
     shared_manor_id: sanitizeText(entry.shared_manor_id, 80),
     shared_fund: normalizeSharedFund(entry.shared_fund),
+    shared_warehouse: normalizeSharedWarehouse(entry.shared_warehouse),
     origin_assets: normalizeOriginAssets(entry.origin_assets),
     permissions,
     separation_policy: {
@@ -600,9 +750,188 @@ function toPublicContract(contract) {
   return {
     ...contract,
     members: contract.members.map(member => ({ ...member })),
+    shared_warehouse: normalizeSharedWarehouse(contract.shared_warehouse),
     permissions: Object.fromEntries(Object.entries(contract.permissions || {}).map(([key, value]) => [key, normalizePermissionSet(value, contract.type)])),
     audit_log: (contract.audit_log || []).map(entry => ({ ...entry })).slice(0, 20),
   };
+}
+
+function getContractMember(contract, username) {
+  const key = normalizeUsernameKey(username);
+  return (contract.members || []).find(member => member.username_key === key) || null;
+}
+
+function assertActiveContractForActor(contract, actorUsername, actionLabel) {
+  if (!contract) throw createError('同居契约不存在', 404);
+  const member = getContractMember(contract, actorUsername);
+  if (!member) throw createError('你不在这份契约中', 403);
+  if (contract.status !== 'active') throw createError(`只有已生效契约可以${actionLabel}`, 409);
+  if (member.status !== 'accepted') throw createError('只有已接受契约的成员可以操作共同庄园', 403);
+  return member;
+}
+
+function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
+  const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const actorKey = normalizeUsernameKey(actorUsername);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[actorKey], contract.type);
+  const totalQuantity = warehouse.items.reduce((sum, item) => sum + item.quantity, 0);
+  return {
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    status: contract.status,
+    items: warehouse.items,
+    ledger: warehouse.ledger.slice(0, 50),
+    summary: {
+      item_count: warehouse.items.length,
+      total_quantity: totalQuantity,
+      ledger_count: warehouse.ledger.length,
+      personal_money_merged: false,
+      deposit_enabled: contract.status === 'active' && actorPermissions.storage.deposit === true,
+      withdraw_enabled: false,
+      sell_enabled: false,
+      idempotency_required: true,
+      protected_qualities: ['fine', 'excellent', 'supreme'],
+      protected_operations: ['withdraw_common', 'withdraw_high_quality', 'withdraw_rare', 'sell_items'],
+      compensation_policy: '第一版只记录放入来源流水；误操作可先按 ledger 与 origin_assets 手工追溯，自动返还待后续接入。',
+    },
+    permissions: {
+      can_deposit: actorPermissions.storage.deposit === true,
+      can_withdraw_common: actorPermissions.storage.withdraw_common === true,
+      can_withdraw_high_quality: actorPermissions.storage.withdraw_high_quality === true,
+      can_withdraw_rare: actorPermissions.storage.withdraw_rare === true,
+      can_sell_items: actorPermissions.storage.sell_items === true,
+    },
+  };
+}
+
+function ensureInventoryState(saveData) {
+  if (!saveData.inventory || typeof saveData.inventory !== 'object') saveData.inventory = {};
+  if (!Array.isArray(saveData.inventory.items)) saveData.inventory.items = [];
+  if (!Array.isArray(saveData.inventory.tempItems)) saveData.inventory.tempItems = [];
+}
+
+function hasProtectedInventoryFlag(slot = {}) {
+  if (slot.locked === true || slot.bound === true || slot.bind === true || slot.unique === true) return true;
+  if (slot.questItem === true || slot.quest_item === true || slot.taskItem === true || slot.task_item === true) return true;
+  const rarity = sanitizeText(slot.rarity, 40).toLowerCase();
+  if (['rare', 'epic', 'legendary', 'unique'].includes(rarity)) return true;
+  const category = sanitizeText(slot.category || slot.type, 40).toLowerCase();
+  return category.includes('quest') || category.includes('key') || category.includes('memorial');
+}
+
+function countDepositableMainInventoryItem(saveData, itemId, quality) {
+  ensureInventoryState(saveData);
+  return saveData.inventory.items
+    .filter(slot => normalizeWarehouseItemId(slot?.itemId ?? slot?.item_id) === itemId)
+    .filter(slot => normalizeQuality(slot?.quality) === quality)
+    .filter(slot => !hasProtectedInventoryFlag(slot))
+    .reduce((sum, slot) => sum + normalizePositiveInt(slot.quantity, 0), 0);
+}
+
+function deductDepositableMainInventoryItem(saveData, itemId, quantity, quality) {
+  ensureInventoryState(saveData);
+  const available = countDepositableMainInventoryItem(saveData, itemId, quality);
+  if (available < quantity) {
+    return {
+      ok: false,
+      reason: '个人背包中可放入的普通物品数量不足，已锁定、稀有或临时背包物品不会被扣除',
+      available,
+      source_slots: [],
+    };
+  }
+
+  let remaining = quantity;
+  const sourceSlots = [];
+  for (let index = 0; index < saveData.inventory.items.length && remaining > 0; index += 1) {
+    const slot = saveData.inventory.items[index];
+    if (normalizeWarehouseItemId(slot?.itemId ?? slot?.item_id) !== itemId) continue;
+    if (normalizeQuality(slot?.quality) !== quality) continue;
+    if (hasProtectedInventoryFlag(slot)) continue;
+    const slotQuantity = normalizePositiveInt(slot.quantity, 0);
+    const take = Math.min(remaining, slotQuantity);
+    if (take <= 0) continue;
+    slot.quantity = slotQuantity - take;
+    remaining -= take;
+    sourceSlots.push({ index, quantity: take });
+  }
+  saveData.inventory.items = saveData.inventory.items.filter(slot => normalizePositiveInt(slot.quantity, 0) > 0);
+  return {
+    ok: remaining <= 0,
+    available,
+    source_slots: sourceSlots,
+  };
+}
+
+function assignGameplayDataToContext(context, data) {
+  context.data = data;
+  if (context.saveContainer && typeof context.saveContainer === 'object') {
+    context.saveContainer.gameplayData = data;
+    if (context.saveContainer.wrapped && context.saveContainer.root && typeof context.saveContainer.root === 'object') {
+      context.saveContainer.root.data = data;
+    } else if (context.saveContainer.root && typeof context.saveContainer.root === 'object') {
+      context.saveContainer.root = data;
+    }
+  }
+}
+
+function normalizeWarehouseDepositPayload(payload = {}) {
+  const itemId = normalizeWarehouseItemId(payload.item_id ?? payload.itemId);
+  const rawQuantity = Math.floor(Number(payload.quantity) || 0);
+  const requestedQuality = String(payload.quality || 'normal').trim().toLowerCase();
+  if (!itemId) throw createError('请指定有效的入仓物品');
+  if (rawQuantity <= 0) throw createError('入仓数量必须大于 0');
+  if (rawQuantity > WAREHOUSE_MAX_DEPOSIT_QUANTITY) throw createError(`单次入仓数量不能超过 ${WAREHOUSE_MAX_DEPOSIT_QUANTITY}`);
+  if (!WAREHOUSE_QUALITIES.has(requestedQuality)) throw createError('入仓物品品质参数无效');
+  if (requestedQuality !== 'normal') throw createError('共同仓库第一版只允许放入普通品质物品', 403);
+  if (isProtectedWarehouseItemId(itemId)) throw createError('该物品疑似关键、稀有或绑定物品，暂不允许放入共同仓库', 403);
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('共同仓库放入需要 idempotency_key，以防断线或重试时重复扣物');
+  return {
+    item_id: itemId,
+    quantity: rawQuantity,
+    quality: requestedQuality,
+    idempotency_key: idempotencyKey,
+    save_slot: normalizeSaveSlot(payload.save_slot),
+  };
+}
+
+function buildWarehouseOriginAsset(entry) {
+  return {
+    ledger_id: entry.id,
+    item_id: entry.item_id,
+    quantity: entry.quantity,
+    quality: entry.quality,
+    origin_owner_id: entry.source_owner_id,
+    origin_owner_username: entry.source_owner_username,
+    origin_owner_key: entry.source_owner_key,
+    source_save_id: entry.source_save_id,
+    source_save_slot: entry.source_save_slot,
+    source_inventory: entry.source_inventory,
+    deposited_at: entry.at,
+    idempotency_key: entry.idempotency_key,
+  };
+}
+
+function buildWarehouseReturnPreview(contract = {}) {
+  const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const groups = new Map();
+  for (const entry of warehouse.ledger) {
+    if (entry.status !== 'committed' || !['deposit', 'compensate'].includes(entry.action)) continue;
+    const key = `${entry.source_owner_id || entry.source_owner_key}:${entry.item_id}:${entry.quality}`;
+    const current = groups.get(key) || {
+      origin_owner_id: entry.source_owner_id,
+      origin_owner_username: entry.source_owner_username,
+      origin_owner_key: entry.source_owner_key,
+      item_id: entry.item_id,
+      quality: entry.quality,
+      quantity: 0,
+      ledger_ids: [],
+    };
+    current.quantity += entry.quantity;
+    current.ledger_ids.push(entry.id);
+    groups.set(key, current);
+  }
+  return [...groups.values()].filter(entry => entry.quantity > 0).slice(0, 80);
 }
 
 function buildRelationOptions() {
@@ -725,6 +1054,123 @@ async function getCohabitationSharedMap(contractId, actor = {}) {
   };
 }
 
+async function getCohabitationWarehouse(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看共同仓库');
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+  };
+}
+
+async function depositCohabitationWarehouseItem(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const deposit = normalizeWarehouseDepositPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '向共同仓库放入物品');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  if (actorPermissions.storage.deposit !== true) throw createError('你没有向共同仓库放入物品的权限', 403);
+
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const previousEntry = contract.shared_warehouse.ledger.find(entry =>
+    entry.idempotency_key && entry.idempotency_key === deposit.idempotency_key && entry.action === 'deposit'
+  );
+  if (previousEntry) {
+    return {
+      contract: toPublicContract(contract),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      ledger_entry: previousEntry,
+      idempotent: true,
+    };
+  }
+
+  const context = getActiveSaveContext(
+    actorUsername,
+    deposit.save_slot,
+    '当前账号没有可用的桃源乡服务端存档，暂时无法向共同仓库放入物品'
+  );
+  context.username = actorUsername;
+  const projectedData = JSON.parse(JSON.stringify(context.data));
+  const beforeMoney = Math.max(0, Math.floor(Number(projectedData?.player?.money) || 0));
+  const deduction = deductDepositableMainInventoryItem(projectedData, deposit.item_id, deposit.quantity, deposit.quality);
+  if (!deduction.ok) throw createError(deduction.reason);
+  const afterMoney = Math.max(0, Math.floor(Number(projectedData?.player?.money) || 0));
+  if (afterMoney !== beforeMoney) throw createError('共同仓库放入不会处理个人铜币，已中止本次操作', 500);
+
+  assignGameplayDataToContext(context, projectedData);
+  const saveRevision = persistGameplayData(context);
+  const sourceSaveId = normalizeSaveId(context.identity?.save_id);
+  const sourceSaveSlot = normalizeSaveSlot(context.slot);
+  const sourceOwnerId = sourceSaveId ? `save:${sourceSaveId}` : `account:${member.username_key}`;
+  if (sourceSaveId) member.save_id = sourceSaveId;
+  if (sourceSaveSlot !== null) member.save_slot = sourceSaveSlot;
+
+  const ledgerEntry = normalizeWarehouseLedgerEntry({
+    id: makeId('shared_warehouse_ledger'),
+    action: 'deposit',
+    item_id: deposit.item_id,
+    quantity: deposit.quantity,
+    quality: deposit.quality,
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    source_owner_id: sourceOwnerId,
+    source_owner_username: member.username,
+    source_owner_display_name: member.display_name || member.username,
+    source_owner_key: member.username_key,
+    source_save_id: sourceSaveId,
+    source_save_slot: sourceSaveSlot,
+    source_save_revision: saveRevision,
+    source_inventory: 'inventory.items',
+    source_slots: deduction.source_slots,
+    at: nowSeconds(),
+    idempotency_key: deposit.idempotency_key,
+    reversible: true,
+    compensation_hint: '第一版仅支持放入与追溯；若误放入，需要后续取出 / 返还流程或人工按 ledger 补偿。',
+    status: 'committed',
+  });
+  contract.shared_warehouse.ledger = [ledgerEntry, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+  contract.origin_assets.warehouse_items = [
+    buildWarehouseOriginAsset(ledgerEntry),
+    ...contract.origin_assets.warehouse_items,
+  ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
+  appendAudit(contract, 'warehouse_deposited', actor, {
+    ledger_id: ledgerEntry.id,
+    item_id: ledgerEntry.item_id,
+    quantity: ledgerEntry.quantity,
+    quality: ledgerEntry.quality,
+    source_owner_id: ledgerEntry.source_owner_id,
+    source_save_id: ledgerEntry.source_save_id,
+    source_save_slot: ledgerEntry.source_save_slot,
+    source_inventory: ledgerEntry.source_inventory,
+    save_revision: saveRevision,
+    reversible: ledgerEntry.reversible,
+    withdraw_enabled: false,
+    sell_enabled: false,
+  }, deposit.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    ledger_entry: ledgerEntry,
+    idempotent: false,
+    personal_inventory: {
+      item_id: deposit.item_id,
+      quality: deposit.quality,
+      remaining_quantity: countDepositableMainInventoryItem(projectedData, deposit.item_id, deposit.quality),
+      personal_money_merged: false,
+    },
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -771,6 +1217,10 @@ async function createCohabitationContract(payload = {}, actor = {}) {
     members,
     shared_fund: {
       balance: 0,
+      ledger: [],
+    },
+    shared_warehouse: {
+      items: [],
       ledger: [],
     },
     origin_assets: {
@@ -853,7 +1303,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     summary: '当前预览只归集契约、权限、共同基金和来源资产占位；真实土地、仓库、装修和家庭剧情拆分会在对应系统接入后补齐。',
     asset_return: {
       plots_by_origin_owner: [],
-      warehouse_items_by_origin_owner: [],
+      warehouse_items_by_origin_owner: buildWarehouseReturnPreview(contract),
       fund_balance: contract.shared_fund.balance,
       fund_return_policy: contract.shared_fund.balance > 0 ? '按注资与经营流水拆分，缺流水时需双方确认。' : '共同基金当前为 0，不涉及返还。',
       personal_money_policy: '个人铜币从未合并，无需拆分。',
@@ -881,6 +1331,8 @@ module.exports = {
   RELATION_TYPE_DEFS,
   listCohabitationContracts,
   getCohabitationSharedMap,
+  getCohabitationWarehouse,
+  depositCohabitationWarehouseItem,
   createCohabitationContract,
   acceptCohabitationContract,
   createSeparationPreview,
