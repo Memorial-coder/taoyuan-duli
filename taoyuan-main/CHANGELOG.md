@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 家族职位前端写回入口
+- 共同庄园权限页新增家族职位面板，结拜 / 合伙庄园会读取 `/roles`，展示成员职位、权限重点和最近状态。
+- 家主可从前端切换成员为家主、管仓、农务、牧养、工坊或账房；提交带 CSRF 与 `idempotency_key`，成功后刷新职位面板、权限面板、契约摘要和详情。
+- owner 家主锁定、非家主拒绝和高风险确认锁定仍由服务端判定；家族订单 / 建筑 / 声望真实写操作消费职位权限仍未开放。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 权限面板前端低风险写回入口
 - 共同庄园权限页在 `editable_by_actor` 为真时开放低风险权限切换，可写回仓库放入、普通取出、普通卖出、小额基金和自动买种子饲料。
 - 前端 API / store 已接 `/permissions` 写接口，提交带 CSRF 与 `idempotency_key`；成功后刷新权限面板、契约摘要和详情，并显示结果反馈。

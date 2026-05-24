@@ -461,6 +461,43 @@
             </div>
           </div>
           <div class="game-panel-muted p-3">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">家族职位</p>
+              <span class="text-[10px] text-muted">{{ cohabitationStore.rolePanel?.role_management_enabled ? (canManageRolePanel ? '可管理' : '只读') : '未启用' }}</span>
+            </div>
+            <div v-if="roleMembers.length === 0" class="mt-3 text-xs leading-5 text-muted">当前契约没有家族职位面板。</div>
+            <div v-else class="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1">
+              <div v-for="member in roleMembers" :key="member.username" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
+                    <p class="mt-1 text-[10px] text-muted">{{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
+                  </div>
+                  <span class="shrink-0 text-[10px] text-accent">{{ member.can_manage_roles ? '家主' : '成员' }}</span>
+                </div>
+                <p v-if="member.permission_focus?.length" class="mt-2 text-[10px] leading-4 text-muted">
+                  {{ member.permission_focus.map(familyRoleFocusLabel).join('、') }}
+                </p>
+                <div v-if="canManageRolePanel" class="mt-2 grid grid-cols-2 gap-2">
+                  <button
+                    v-for="option in roleOptions"
+                    :key="`${member.username}-${option.id}`"
+                    type="button"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    :disabled="cohabitationStore.actionLoading || member.manor_role === option.id"
+                    :data-testid="`online-cohabitation-role-${member.username}-${option.id}`"
+                    @click="changeMemberRole(member, option)"
+                  >
+                    {{ option.label }}
+                  </button>
+                </div>
+              </div>
+            </div>
+            <p v-if="roleActionMessage" class="mt-2 text-[10px] leading-4" :class="roleActionOk ? 'text-emerald-200' : 'text-red-100'">
+              {{ roleActionMessage }}
+            </p>
+          </div>
+          <div class="game-panel-muted p-3">
             <p class="text-sm text-accent">权限审计</p>
             <div v-if="permissionAudits.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无权限变更审计。</div>
             <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
@@ -547,6 +584,7 @@
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import type {
     CohabitationContract,
+    CohabitationFamilyRoleOption,
     CohabitationMember,
     CohabitationSharedPlot,
     CohabitationWarehouseItem,
@@ -567,6 +605,8 @@
   const fundContributionAmount = ref(50)
   const permissionActionMessage = ref('')
   const permissionActionOk = ref(false)
+  const roleActionMessage = ref('')
+  const roleActionOk = ref(false)
 
   const tabs: CohabitationTabMeta[] = [
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
@@ -621,6 +661,8 @@
   const fundLedger = computed(() => cohabitationStore.fund?.ledger ?? [])
   const permissionMembers = computed(() => cohabitationStore.permissionsPanel?.members ?? [])
   const permissionAudits = computed(() => cohabitationStore.permissionsPanel?.recent_permission_audits ?? [])
+  const roleMembers = computed(() => cohabitationStore.rolePanel?.members ?? [])
+  const roleOptions = computed(() => cohabitationStore.rolePanel?.role_options ?? [])
   const offlineMembers = computed(() => cohabitationStore.offlineStatus?.members ?? [])
   const sharedLog = computed(() => cohabitationStore.offlineStatus?.recent_shared_log ?? [])
   const safetyRailEntries = computed(() => Object.entries(cohabitationStore.permissionsPanel?.safety_rails ?? {})
@@ -628,6 +670,7 @@
   const actorCapabilityEntries = computed(() => Object.entries(cohabitationStore.offlineStatus?.actor_capabilities ?? {})
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
   const canManagePermissionPanel = computed(() => cohabitationStore.permissionsPanel?.editable_by_actor === true)
+  const canManageRolePanel = computed(() => cohabitationStore.rolePanel?.editable_by_actor === true)
   const permissionToggleOptions = [
     { group: 'storage', key: 'deposit', label: '仓库放入' },
     { group: 'storage', key: 'withdraw_common', label: '取普通物' },
@@ -748,6 +791,7 @@
     warehouseActionMessage.value = ''
     fundActionMessage.value = ''
     permissionActionMessage.value = ''
+    roleActionMessage.value = ''
     if (!cohabitationStore.canOpenSelectedContract && activeTab.value !== 'overview') {
       activeTab.value = 'overview'
     }
@@ -915,6 +959,26 @@
     }
   }
 
+  const changeMemberRole = async (
+    member: CohabitationMember & { manor_role_label?: string },
+    option: CohabitationFamilyRoleOption
+  ) => {
+    roleActionMessage.value = ''
+    roleActionOk.value = false
+    try {
+      await cohabitationStore.updateMemberRole({
+        target_username: member.username,
+        manor_role: option.id,
+        note: `前端家族职位切换：${option.label}`,
+        idempotency_key: `ui-family-role-${member.username}-${option.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      roleActionOk.value = true
+      roleActionMessage.value = `${member.display_name || member.username} 已调整为「${option.label}」`
+    } catch (error) {
+      roleActionMessage.value = error instanceof Error ? error.message : '调整家族庄园职位失败'
+    }
+  }
+
   const statusLabel = (status: string) => {
     if (status === 'active') return '已生效'
     if (status === 'pending_acceptance') return '待接受'
@@ -1026,6 +1090,31 @@
       demolish_requires_both: '拆除双方确认',
       separation_requires_preview: '分居必须先预览',
       confirmations_readonly: '安全阀只读',
+    }
+    return labels[value] || value
+  }
+
+  const familyRoleLabel = (value: string | undefined) => {
+    const labels: Record<string, string> = {
+      family_head: '家主',
+      storage_keeper: '管仓',
+      farm_steward: '农务',
+      animal_keeper: '牧养',
+      workshop_keeper: '工坊',
+      treasurer: '账房',
+    }
+    return labels[value || ''] || value || '无家族职位'
+  }
+
+  const familyRoleFocusLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      permissions: '权限',
+      fund: '基金',
+      construction: '建设',
+      storage: '仓库',
+      farm: '农田',
+      animal: '动物',
+      workshop: '工坊',
     }
     return labels[value] || value
   }

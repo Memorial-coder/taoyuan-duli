@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import {
   contributeCohabitationFund,
   depositCohabitationWarehouseItem,
+  fetchCohabitationFamilyRoles,
   fetchCohabitationFund,
   fetchCohabitationOfflineStatus,
   fetchCohabitationOverview,
@@ -11,8 +12,10 @@ import {
   fetchCohabitationWarehouse,
   sellCohabitationWarehouseItem,
   spendCohabitationFund,
+  updateCohabitationFamilyRole,
   updateCohabitationPermissions,
   withdrawCohabitationWarehouseItem,
+  type CohabitationFamilyRolePanel,
   type CohabitationFundSnapshot,
   type CohabitationOfflineStatus,
   type CohabitationOverviewResponse,
@@ -33,6 +36,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const warehouse = ref<CohabitationWarehouseSnapshot | null>(null)
   const fund = ref<CohabitationFundSnapshot | null>(null)
   const permissionsPanel = ref<CohabitationPermissionsPanel | null>(null)
+  const rolePanel = ref<CohabitationFamilyRolePanel | null>(null)
   const offlineStatus = ref<CohabitationOfflineStatus | null>(null)
 
   const contracts = computed(() => overview.value?.contracts ?? [])
@@ -51,6 +55,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     warehouse.value = null
     fund.value = null
     permissionsPanel.value = null
+    rolePanel.value = null
     offlineStatus.value = null
   }
 
@@ -71,23 +76,26 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       errorMessage.value = ''
     }
     try {
-      const [mapResult, warehouseResult, fundResult, permissionsResult, offlineResult] = await Promise.all([
+      const [mapResult, warehouseResult, fundResult, permissionsResult, roleResult, offlineResult] = await Promise.all([
         fetchCohabitationSharedMap(contractId),
         fetchCohabitationWarehouse(contractId),
         fetchCohabitationFund(contractId),
         fetchCohabitationPermissions(contractId),
+        fetchCohabitationFamilyRoles(contractId),
         fetchCohabitationOfflineStatus(contractId),
       ])
       sharedMap.value = mapResult?.shared_map ?? null
       warehouse.value = warehouseResult?.warehouse ?? null
       fund.value = fundResult?.fund ?? null
       permissionsPanel.value = permissionsResult?.permissions_panel ?? null
+      rolePanel.value = roleResult?.role_panel ?? null
       offlineStatus.value = offlineResult?.offline_status ?? null
       return {
         sharedMap: sharedMap.value,
         warehouse: warehouse.value,
         fund: fund.value,
         permissionsPanel: permissionsPanel.value,
+        rolePanel: rolePanel.value,
         offlineStatus: offlineStatus.value,
       }
     } catch (error) {
@@ -308,6 +316,34 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const updateMemberRole = async (payload: {
+    target_username: string
+    manor_role: string
+    note?: string
+    idempotency_key: string
+  }) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await updateCohabitationFamilyRole(activeContractId.value, payload)
+      if (result?.role_panel) rolePanel.value = result.role_panel
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '调整家族庄园职位失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   return {
     overview,
     activeContractId,
@@ -319,6 +355,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     warehouse,
     fund,
     permissionsPanel,
+    rolePanel,
     offlineStatus,
     contracts,
     summary,
@@ -335,5 +372,6 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     sellSharedWarehouseItem,
     withdrawSharedWarehouseItem,
     updateMemberPermissions,
+    updateMemberRole,
   }
 })

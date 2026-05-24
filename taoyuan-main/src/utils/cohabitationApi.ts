@@ -292,6 +292,37 @@ export interface CohabitationPermissionsPanel {
   recent_permission_audits: CohabitationAuditEntry[]
 }
 
+export interface CohabitationFamilyRoleOption {
+  id: string
+  label: string
+  description: string
+  management?: boolean
+  permission_focus?: string[]
+}
+
+export interface CohabitationFamilyRolePanel {
+  contract_id: string
+  shared_manor_id: string
+  type: string
+  type_label: string
+  status: string
+  role_management_enabled: boolean
+  editable_by_actor: boolean
+  idempotency_required: boolean
+  max_members: number
+  member_count: number
+  role_options: CohabitationFamilyRoleOption[]
+  constraints: Record<string, unknown>
+  members: Array<CohabitationMember & {
+    manor_role_label?: string
+    can_manage_roles: boolean
+    permissions: Record<string, Record<string, boolean>>
+    permission_focus: string[]
+  }>
+  recent_role_audits: CohabitationAuditEntry[]
+  deferred_operations: string[]
+}
+
 export interface CohabitationOfflineStatus {
   contract_id: string
   shared_manor_id: string
@@ -391,6 +422,25 @@ export interface CohabitationPermissionUpdatePayload {
 
 export interface CohabitationPermissionUpdateResponse extends CohabitationDetailResponse {
   permissions_panel?: CohabitationPermissionsPanel
+  changed_fields?: Array<{
+    group: string
+    key: string
+    before: boolean
+    after: boolean
+  }>
+  audit_entry?: CohabitationAuditEntry
+  idempotent?: boolean
+}
+
+export interface CohabitationFamilyRoleUpdatePayload {
+  target_username: string
+  manor_role: string
+  note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFamilyRoleUpdateResponse extends CohabitationDetailResponse {
+  role_panel?: CohabitationFamilyRolePanel
   changed_fields?: Array<{
     group: string
     key: string
@@ -536,6 +586,20 @@ export const updateCohabitationPermissions = async (contractId: string, payload:
     contractPath(contractId, '/permissions'),
     payload as unknown as Record<string, unknown>,
     '更新共同庄园权限失败'
+  )
+}
+
+export const fetchCohabitationFamilyRoles = async (contractId: string) => {
+  return fetchCohabitationJson<CohabitationDetailResponse & {
+    role_panel?: CohabitationFamilyRolePanel
+  }>(contractPath(contractId, '/roles'), '获取家族庄园职位失败')
+}
+
+export const updateCohabitationFamilyRole = async (contractId: string, payload: CohabitationFamilyRoleUpdatePayload) => {
+  return postCohabitationJson<CohabitationFamilyRoleUpdateResponse>(
+    contractPath(contractId, '/roles'),
+    payload as unknown as Record<string, unknown>,
+    '调整家族庄园职位失败'
   )
 }
 
