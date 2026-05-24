@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0524 共同基金鱼饲料自动购买
+- 共同基金自动购买到账白名单新增 `shop:fish_feed`：`fund/spend` 使用 `purpose=feed_budget`、`auto_pay=true` 且金额匹配鱼饲料单价时，会扣共同基金并把鱼饲料送入操作者个人背包。
+- 重复 `idempotency_key` 不会重复扣基金或重复加饲料，个人铜币保持独立；ledger / 审计会继续记录目标物品、数量、目标存档和背包落点。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0524 共同基金真实购买到账
 - `fund/spend` 服务端小额支出新增首批共同基金自动购买到账：`auto_pay=true` 且目标为白菜 / 萝卜 / 水稻种子白名单时，会从共同基金扣款并把种子送入操作者个人背包。
 - 基金 ledger 会记录目标物品、数量、单价、目标存档、槽位和背包落点；重复 `idempotency_key` 不会重复扣款或重复加物，个人铜币不被触碰。

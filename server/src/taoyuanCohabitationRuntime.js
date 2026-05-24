@@ -108,6 +108,13 @@ const SHARED_FUND_AUTO_PURCHASE_CATALOG = Object.freeze({
     allowed_purposes: ['seed_budget'],
     category: 'seed',
   },
+  'shop:fish_feed': {
+    item_id: 'fish_feed',
+    label: '鱼饲料',
+    unit_price: 30,
+    allowed_purposes: ['feed_budget'],
+    category: 'feed',
+  },
 });
 
 const RELATION_TYPE_DEFS = Object.freeze({
