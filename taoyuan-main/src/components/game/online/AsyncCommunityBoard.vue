@@ -88,6 +88,25 @@
           <span v-if="activeProject.completion_event_id" class="async-community-board__event">已完工</span>
         </div>
 
+        <RouterLink
+          v-if="completionRoomTemplateId"
+          class="async-community-board__room-link"
+          :to="{
+            name: 'online-festival',
+            query: {
+              tab: 'festival-room',
+              template: completionRoomTemplateId,
+              gameplay: completionRoomGameplayId,
+              title: completionRoomTitle,
+            },
+          }"
+          data-testid="async-community-completion-room-link"
+        >
+          <Sparkles :size="14" aria-hidden="true" />
+          <span>{{ completionRoomLabel }}已解锁</span>
+          <small>去创建正式节会房间</small>
+        </RouterLink>
+
         <div v-if="availableContributionOptions.length > 0" class="async-community-board__actions">
           <button
             v-for="option in availableContributionOptions"
@@ -217,6 +236,23 @@
   })
   const completedStageCount = computed(() => activeProject.value?.stages.filter(stage => stage.state === 'complete').length ?? 0)
   const availableContributionOptions = computed(() => currentStage.value?.contribution_options ?? [])
+  const completionRoomTemplateId = computed(() => {
+    const project = activeProject.value
+    if (!project?.completion_event_id) return ''
+    return project.completion_room_template_id || ''
+  })
+  const completionRoomGameplayId = computed(() => {
+    if (completionRoomTemplateId.value === 'lantern_fair') return 'assembly'
+    return ''
+  })
+  const completionRoomLabel = computed(() => {
+    if (completionRoomTemplateId.value === 'lantern_fair') return '上元灯会房间'
+    return completionRoomTemplateId.value.split('_').filter(Boolean).join(' ') || '节会房间'
+  })
+  const completionRoomTitle = computed(() => {
+    if (completionRoomTemplateId.value === 'lantern_fair') return '节庆广场开幕'
+    return `${activeProject.value?.label || '公共工程'}庆典`
+  })
   const milestones = computed<OnlineVisualAsyncMilestone[]>(() => {
     const stage = currentStage.value || activeProject.value?.stages[0]
     return stage?.milestones ?? []
@@ -418,6 +454,33 @@
   .async-community-board__percent,
   .async-community-board__event {
     flex-shrink: 0;
+  }
+
+  .async-community-board__room-link {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.1rem 0.45rem;
+    align-items: center;
+    border: 1px solid color-mix(in srgb, var(--color-success) 28%, transparent);
+    background: color-mix(in srgb, var(--color-success) 12%, transparent);
+    color: rgb(var(--color-text));
+    margin: 0.5rem 0;
+    padding: 0.5rem;
+    text-decoration: none;
+  }
+
+  .async-community-board__room-link span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .async-community-board__room-link small {
+    grid-column: 2;
+    color: var(--color-muted);
+    font-size: 0.625rem;
+    line-height: 1rem;
   }
 
   .async-community-board__progress,

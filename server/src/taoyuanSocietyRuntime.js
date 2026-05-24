@@ -283,6 +283,26 @@ const SOCIETY_PUBLIC_PROJECT_DEFS = Object.freeze([
     target_progress: 100,
     completion_feedback: '节庆广场已经具备开幕条件，灯、食案、题签和节目都能被清楚看见。',
     world_feedback: '村社公告和节会预热会更多提到广场布置、节目彩排和开幕人气。',
+    completion_rewards: [
+      {
+        id: 'festival_room_unlock',
+        kind: 'room_unlock',
+        label: '上元灯会房间解锁',
+        summary: '节庆广场完工后会在异步共建现场开放 lantern_fair / assembly 正式节会房间创建入口。',
+      },
+      {
+        id: 'festival_public_reward',
+        kind: 'public_reward',
+        label: '节庆人气预热',
+        summary: '村社公告、节会预热和公共工程回看会标记广场开幕人气；只提供公共效率提示，不直接发个人资产。',
+      },
+      {
+        id: 'festival_square_memorial',
+        kind: 'memorial',
+        label: '开幕留影位',
+        summary: '筹备完工会在公共工程、异步现场和村社史册保留节庆广场开幕纪念。',
+      },
+    ],
   },
   {
     id: 'dock',
@@ -696,6 +716,13 @@ function buildSocietyProjectCompletionRewardText(project) {
     .map(entry => entry.label)
     .filter(Boolean)
     .join('、');
+}
+
+function getSocietyProjectCompletionRoomTemplateId(project) {
+  const normalized = normalizeSocietyPublicProject(project);
+  if (normalized.status !== 'completed') return '';
+  if (normalized.id === 'festival_square') return 'lantern_fair';
+  return '';
 }
 
 function normalizeSocietyPublicProject(entry) {
@@ -2107,7 +2134,7 @@ function buildSocietyVisualAsyncProject(project) {
     stages,
     contributors: buildSocietyVisualAsyncContributors(normalized),
     history: buildSocietyVisualAsyncHistory(normalized),
-    completion_room_template_id: '',
+    completion_room_template_id: getSocietyProjectCompletionRoomTemplateId(normalized),
     completion_event_id: normalized.status === 'completed' ? `society_project_complete:${normalized.id}` : '',
   };
 }

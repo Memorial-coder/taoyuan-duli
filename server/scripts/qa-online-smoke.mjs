@@ -4214,6 +4214,107 @@ try {
     secondaryExpectedMoney -= 10
   })
 
+  await runCheck('POST /api/taoyuan/online/societies/public-projects/:projectId/contribute festival square completion unlock path', async () => {
+    const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(beforeSave.response.ok, `secondary save readback before festival square completion returned ${beforeSave.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeSave.data?.raw || beforeSave.data?.slot?.raw || beforeSave.data?.save?.raw || '')
+    const preMoney = Math.max(0, Math.floor(Number(beforeDecrypted?.player?.money) || 0))
+
+    const completionPackages = ['festival_program', 'festival_program', 'festival_program', 'festival_program']
+    let completionBundle = null
+    for (let index = 0; index < completionPackages.length; index += 1) {
+      const packageId = completionPackages[index]
+      completionBundle = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-projects/festival_square/contribute', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          package_id: packageId,
+        }),
+      })
+      assert(completionBundle.response.ok, `festival square completion contribute ${index + 1} returned ${completionBundle.response.status}: ${completionBundle.data?.msg || 'unknown error'}`)
+      const expectedProgress = index < completionPackages.length - 1 ? 45 + index * 20 : 100
+      assert(Number(completionBundle.data?.project?.progress || 0) === expectedProgress, `festival square completion progress mismatch, expected=${expectedProgress}, current=${Number(completionBundle.data?.project?.progress || 0)}`)
+    }
+
+    assert(completionBundle?.data?.ok === true && completionBundle.data?.project?.id === 'festival_square', 'festival square completion payload is incomplete')
+    assert(String(completionBundle.data?.project?.status || '') === 'completed', 'festival square completion did not mark project completed')
+    const completionRewards = Array.isArray(completionBundle.data?.project?.completion_rewards)
+      ? completionBundle.data.project.completion_rewards
+      : []
+    assert(
+      completionRewards.some(entry => entry?.id === 'festival_room_unlock' && entry?.active === true && String(entry?.summary || '').includes('lantern_fair')),
+      'festival square completion did not expose active room unlock',
+    )
+    assert(
+      completionRewards.some(entry => entry?.id === 'festival_public_reward' && entry?.active === true && String(entry?.summary || '').includes('不直接发个人资产')),
+      'festival square completion did not expose public reward guardrail',
+    )
+    assert(
+      completionRewards.some(entry => entry?.id === 'festival_square_memorial' && entry?.active === true),
+      'festival square completion did not expose memorial reward',
+    )
+    const festivalVisualProject = completionBundle.data?.overview?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'festival_square')
+    assert(festivalVisualProject?.completion_room_template_id === 'lantern_fair', 'festival square visual project did not expose lantern fair room unlock')
+    assert(festivalVisualProject?.completion_event_id === 'society_project_complete:festival_square', 'festival square visual project did not expose completion event')
+    assert(Array.isArray(festivalVisualProject?.stages) && festivalVisualProject.stages.every(entry => entry?.state === 'complete'), 'festival square visual project did not mark all stages complete')
+    assert(
+      Array.isArray(festivalVisualProject?.history) &&
+      festivalVisualProject.history.some(entry => entry?.type === 'stage_complete' && String(entry?.summary || '').includes('上元灯会房间解锁')),
+      'festival square visual history did not include room unlock reward',
+    )
+    assert(
+      typeof completionBundle.data?.project?.world_feedback === 'string' &&
+      completionBundle.data.project.world_feedback.includes('节目彩排'),
+      'festival square completion did not preserve world feedback',
+    )
+
+    const afterSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(afterSave.response.ok, `secondary save readback after festival square completion returned ${afterSave.response.status}`)
+    const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
+    const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
+    assert(afterMoney === preMoney - 100, `festival square completion did not deduct money correctly, expected money=${preMoney - 100}, current money=${afterMoney}`)
+    secondaryExpectedMoney -= 100
+  })
+
+  await runCheck('GET /api/taoyuan/online/societies festival square unlock readback', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/societies')
+    assert(response.ok, `festival square unlock readback returned ${response.status}`)
+    assert(data?.ok === true && data?.my_society?.id === createdSocietyId, 'festival square unlock readback payload is incomplete')
+    const festivalProject = data?.my_society?.public_projects?.find(entry => entry?.id === 'festival_square')
+    assert(festivalProject && String(festivalProject?.status || '') === 'completed', 'festival square unlock readback did not preserve completed status')
+    const festivalRewards = Array.isArray(festivalProject?.completion_rewards) ? festivalProject.completion_rewards : []
+    assert(
+      festivalRewards.some(entry => entry?.id === 'festival_room_unlock' && entry?.active === true),
+      'festival square unlock readback did not preserve room unlock reward',
+    )
+    assert(
+      festivalRewards.some(entry => entry?.id === 'festival_square_memorial' && entry?.active === true),
+      'festival square unlock readback did not preserve memorial reward',
+    )
+    const festivalVisualProject = data?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'festival_square')
+    assert(festivalVisualProject?.completion_room_template_id === 'lantern_fair', 'festival square unlock readback did not preserve completion room template')
+    assert(
+      Array.isArray(festivalVisualProject?.history) &&
+      festivalVisualProject.history.some(entry => entry?.type === 'stage_complete' && String(entry?.summary || '').includes('开幕留影位')),
+      'festival square unlock readback did not preserve memorial visual history',
+    )
+    const festivalChronicleProject = data?.my_society?.chronicle?.public_projects?.find(entry => entry?.id === 'festival_square')
+    const festivalChronicleRewards = Array.isArray(festivalChronicleProject?.completion_rewards) ? festivalChronicleProject.completion_rewards : []
+    assert(
+      festivalChronicleRewards.some(entry => entry?.id === 'festival_square_memorial' && entry?.active === true),
+      'society chronicle did not preserve festival square memorial reward',
+    )
+
+    const roomOverview = await fetchAuthedJson('/api/taoyuan/online/festival/rooms')
+    assert(roomOverview.response.ok, `festival room overview after square unlock returned ${roomOverview.response.status}`)
+    assert(
+      Array.isArray(roomOverview.data?.templates) && roomOverview.data.templates.some(entry => entry?.id === 'lantern_fair'),
+      'festival square unlock did not point to an available lantern fair room template',
+    )
+  })
+
   await runCheck('POST /api/taoyuan/online/societies/public-warehouse/deposit write path', async () => {
     const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
     assert(beforeSave.response.ok, `secondary save readback before warehouse deposit returned ${beforeSave.response.status}`)

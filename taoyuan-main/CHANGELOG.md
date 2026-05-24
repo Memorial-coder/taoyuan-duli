@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 节庆筹备完工解锁
+- `festival_square` 完工后会返回 `festival_room_unlock`、`festival_public_reward`、`festival_square_memorial` 三个激活的完工效果，并在 `visual_state.async_projects` 中写入 `completion_room_template_id=lantern_fair`。
+- `AsyncCommunityBoard` 在节庆筹备完工后显示“上元灯会房间已解锁”入口，跳到在线节会页并预填上元灯会房型、共建玩法和“节庆广场开幕”标题；房间生命周期仍复用现有节会房间状态机。
+- 公共建设卡、异步现场历史、村社史册和 online smoke 都会读回公共奖励与开幕留影纪念；这些内容只做公共预热、效率提示和纪念，不发个人资产。
+- 本轮验证：`node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix server run qa:online-smoke`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 村社修桥施工行动
 - 修桥公共工程新增 `labor_shift` 施工行动包，作为 `labor` 类型贡献进入公共建设卡和异步共建现场；不消耗大宗材料，单人 24 小时 1 次 / 7 天 3 次。
 - 服务端会根据贡献历史拦截重复施工行动，成功提交会写入贡献榜、最近贡献和异步现场历史，断线后可从公共工程快照读回。

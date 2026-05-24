@@ -1411,6 +1411,19 @@
       expeditionRoomStore.draftInviteSaveId = targetSaveId
     }
   }
+  const applyFestivalRoomRouteDraft = () => {
+    const templateId = getRouteQueryText(route.query.template) || getRouteQueryText(route.query.template_id)
+    const gameplayId = getRouteQueryText(route.query.gameplay) || getRouteQueryText(route.query.gameplay_template_id)
+    const title = getRouteQueryText(route.query.title)
+    if (!templateId && !gameplayId && !title) return
+    if (templateId) festivalRoomStore.selectedTemplateId = templateId
+    if (gameplayId) {
+      festivalRoomStore.selectedGameplayTemplateId = gameplayId
+    } else if (templateId === 'lantern_fair') {
+      festivalRoomStore.selectedGameplayTemplateId = 'assembly'
+    }
+    if (title && !festivalRoomStore.draftTitle.trim()) festivalRoomStore.draftTitle = title
+  }
   const refreshFestivalModule = async () => {
     await Promise.all([
       worldEventStore.refreshOverview().catch(() => {}),
@@ -1551,9 +1564,16 @@
       applyInviteRouteDraft()
     }
   )
+  watch(
+    () => [route.query.template, route.query.template_id, route.query.gameplay, route.query.gameplay_template_id, route.query.title],
+    () => {
+      applyFestivalRoomRouteDraft()
+    }
+  )
 
   onMounted(() => {
     applyInviteRouteDraft()
+    applyFestivalRoomRouteDraft()
     void refreshFestivalModule()
   })
 </script>
