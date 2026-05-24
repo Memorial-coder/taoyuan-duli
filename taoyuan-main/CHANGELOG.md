@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 节庆筹备异步广场视图
+- 在线村社公共建设新增 `festival_square` 节庆筹备工程，服务端会输出备料、搭场、彩排、开幕四阶段，并把空场、备料、戏台、灯门、题签、节目、人气和留影点映射到 `visual_state.async_projects`。
+- 节庆筹备贡献包改为灯笼布置、食材备办、布景搭设、题签整理、节目彩排，继续复用 `public-projects/:projectId/contribute` 权威扣款 / 扣材料、贡献榜和历史记录；不同贡献会额外点亮对应广场物件。
+- `AsyncCommunityBoard` 增加节会广场现场样式、节庆物件标签与图标；在线村社“公共建设”页无需新入口即可在工程标签间切换修桥和节庆筹备。
+- 本轮验证：`node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke`。
+
 ### 0524 村社修桥异步共建视图
 - 在线村社 snapshot 新增 `visual_state.async_projects`，把现有公共建设映射为异步共建工程；修桥会按搭脚手架、铺桥面、修栏杆、挂灯通行四阶段输出阶段物件、贡献入口、里程碑、贡献榜和历史记录。
 - 新增 `AsyncCommunityBoard`，在线村社“公共建设”页会展示断桥现场、公共进度、阶段进度、贡献按钮、贡献榜、历史纪念和最近反馈；原公共建设列表保留为降级详情入口。

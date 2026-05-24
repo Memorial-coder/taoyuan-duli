@@ -4105,6 +4105,51 @@ try {
     )
   })
 
+  await runCheck('POST /api/taoyuan/online/societies/public-projects/:projectId/contribute festival square visual path', async () => {
+    const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(beforeSave.response.ok, `secondary save readback before festival square returned ${beforeSave.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeSave.data?.raw || beforeSave.data?.slot?.raw || beforeSave.data?.save?.raw || '')
+    const preMoney = Math.max(0, Math.floor(Number(beforeDecrypted?.player?.money) || 0))
+    const preWintersweet = getInventoryItemQuantity(beforeDecrypted, 'wintersweet')
+
+    const { response, data } = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-projects/festival_square/contribute', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        package_id: 'festival_food',
+      }),
+    })
+    assert(response.ok, `festival square contribute returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.project?.id === 'festival_square', 'festival square contribute payload is incomplete')
+    assert(Number(data?.project?.progress || 0) === 25, `festival square progress did not advance to 25, current=${Number(data?.project?.progress || 0)}`)
+    assert(data.project.contribution_packages.some(entry => entry?.id === 'festival_lanterns'), 'festival square did not expose lantern contribution option')
+    assert(data.project.contribution_packages.some(entry => entry?.id === 'festival_food'), 'festival square did not expose food contribution option')
+    assert(data.project.contribution_packages.some(entry => entry?.id === 'festival_scenery'), 'festival square did not expose scenery contribution option')
+    assert(data.project.contribution_packages.some(entry => entry?.id === 'festival_riddles'), 'festival square did not expose riddle contribution option')
+    assert(data.project.contribution_packages.some(entry => entry?.id === 'festival_program'), 'festival square did not expose program contribution option')
+
+    const festivalVisualProject = data?.overview?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'festival_square')
+    assert(festivalVisualProject?.kind === 'festival_square', 'festival square visual project did not expose festival kind')
+    assert(festivalVisualProject?.current_stage_id === 'festival_square_build', 'festival square did not move from prepare to build stage after food contribution')
+    const prepareStage = festivalVisualProject?.stages?.find(entry => entry?.id === 'festival_square_prepare')
+    const buildStage = festivalVisualProject?.stages?.find(entry => entry?.id === 'festival_square_build')
+    assert(prepareStage?.state === 'complete', 'festival square prepare stage should be complete after first contribution')
+    assert(Array.isArray(prepareStage?.object_ids) && prepareStage.object_ids.includes('festival_food_table'), 'festival square food contribution did not affect visual objects')
+    assert(buildStage?.state === 'active' && Array.isArray(buildStage?.contribution_options) && buildStage.contribution_options.some(entry => entry?.id === 'festival_scenery'), 'festival square active stage did not expose festival contribution options')
+    assert(Array.isArray(festivalVisualProject?.history) && festivalVisualProject.history.some(entry => entry?.actor_username === secondarySessionState.username && String(entry?.summary || '').includes('食材备办')), 'festival square visual history did not preserve contribution actor and package')
+
+    const afterSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(afterSave.response.ok, `secondary save readback after festival square returned ${afterSave.response.status}`)
+    const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
+    const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
+    const afterWintersweet = getInventoryItemQuantity(afterDecrypted, 'wintersweet')
+    assert(afterMoney === preMoney - 10, `festival square did not deduct money correctly, expected money=${preMoney - 10}, current money=${afterMoney}`)
+    assert(afterWintersweet === preWintersweet - 1, `festival square did not deduct wintersweet correctly, expected wintersweet=${preWintersweet - 1}, current wintersweet=${afterWintersweet}`)
+    secondaryExpectedMoney -= 10
+  })
+
   await runCheck('POST /api/taoyuan/online/societies/public-warehouse/deposit write path', async () => {
     const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
     assert(beforeSave.response.ok, `secondary save readback before warehouse deposit returned ${beforeSave.response.status}`)

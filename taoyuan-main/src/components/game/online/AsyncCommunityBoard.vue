@@ -149,7 +149,7 @@
 
 <script setup lang="ts">
   import { computed } from 'vue'
-  import { Clock3, Construction, Flag, Hammer, Landmark, PackagePlus, Tent } from 'lucide-vue-next'
+  import { Clock3, Construction, Flag, Hammer, Landmark, Music2, PackagePlus, ScrollText, Sparkles, Tent, Utensils } from 'lucide-vue-next'
   import type { Component } from 'vue'
   import type {
     OnlineVisualAsyncMilestone,
@@ -249,6 +249,12 @@
     return 16 + (68 * index) / Math.max(1, total - 1)
   }
   const objectY = (objectId: string, objectIndex: number) => {
+    if (objectId.includes('festival_food') || objectId.includes('snack')) return 68 + objectIndex * 2
+    if (objectId.includes('festival_stage') || objectId.includes('scene')) return 52
+    if (objectId.includes('riddle') || objectId.includes('tag')) return 39 + objectIndex * 2
+    if (objectId.includes('program') || objectId.includes('rehearsal') || objectId.includes('drum')) return 45 + objectIndex * 2
+    if (objectId.includes('festival_lantern') || objectId.includes('opening') || objectId.includes('crowd') || objectId.includes('photo')) return 27 + objectIndex * 3
+    if (objectId.includes('festival_empty') || objectId.includes('festival_material')) return 62 + objectIndex * 2
     if (objectId.includes('lantern') || objectId.includes('memorial')) return 27 + objectIndex * 3
     if (objectId.includes('railing')) return 43
     if (objectId.includes('deck') || objectId.includes('structure')) return 55
@@ -256,6 +262,10 @@
     return 58
   }
   const markerIcon = (objectId: string, state: OnlineVisualAsyncStageState): Component => {
+    if (objectId.includes('festival_food') || objectId.includes('snack')) return Utensils
+    if (objectId.includes('riddle') || objectId.includes('tag')) return ScrollText
+    if (objectId.includes('program') || objectId.includes('rehearsal') || objectId.includes('drum')) return Music2
+    if (objectId.includes('festival_lantern') || objectId.includes('opening') || objectId.includes('crowd') || objectId.includes('photo')) return Sparkles
     if (state === 'complete') return Flag
     if (objectId.includes('scaffold') || objectId.includes('pile')) return Construction
     if (objectId.includes('lantern') || objectId.includes('memorial')) return Landmark
@@ -263,6 +273,20 @@
     return Tent
   }
   const markerLabel = (objectId: string, fallback: string) => {
+    if (objectId.includes('festival_empty')) return '空场'
+    if (objectId.includes('festival_material')) return '备料'
+    if (objectId.includes('festival_lantern_crates')) return '灯笼'
+    if (objectId.includes('festival_food_table')) return '食案'
+    if (objectId.includes('festival_stage')) return '戏台'
+    if (objectId.includes('festival_lantern_gate')) return '灯门'
+    if (objectId.includes('festival_scene')) return '布景'
+    if (objectId.includes('festival_program')) return '节目'
+    if (objectId.includes('festival_riddle')) return '题签'
+    if (objectId.includes('festival_rehearsal')) return '彩排'
+    if (objectId.includes('festival_crowd')) return '人气'
+    if (objectId.includes('festival_photo')) return '留影'
+    if (objectId.includes('festival_snack')) return '小食'
+    if (objectId.includes('festival_opening')) return '开幕'
     if (objectId.includes('pile')) return '木桩'
     if (objectId.includes('scaffold')) return '脚手'
     if (objectId.includes('deck')) return '桥面'
@@ -282,6 +306,7 @@
   }[state] || state)
   const projectKindLabel = (kind: string) => {
     if (kind === 'village_bridge') return '村社修桥'
+    if (kind === 'festival_square') return '节庆筹备'
     if (kind === 'society_project') return '公共工程'
     return kind || '公共工程'
   }
@@ -418,6 +443,14 @@
       rgb(0 0 0 / 0.12);
   }
 
+  .async-community-board__scene--festival_square {
+    background:
+      radial-gradient(circle at 50% 24%, color-mix(in srgb, #d4976a 18%, transparent), transparent 30%),
+      linear-gradient(180deg, color-mix(in srgb, var(--color-accent) 12%, transparent), transparent 48%),
+      linear-gradient(90deg, rgb(0 0 0 / 0.08), transparent 42%, rgb(0 0 0 / 0.1)),
+      rgb(0 0 0 / 0.12);
+  }
+
   .async-community-board__river {
     position: absolute;
     right: -8%;
@@ -431,6 +464,18 @@
     transform: skewY(-3deg);
   }
 
+  .async-community-board__scene--festival_square .async-community-board__river {
+    top: 58%;
+    bottom: auto;
+    height: 28%;
+    border-top: 1px solid color-mix(in srgb, #d4976a 28%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-accent) 18%, transparent);
+    background:
+      linear-gradient(90deg, rgb(0 0 0 / 0.08), color-mix(in srgb, #d4976a 13%, transparent), rgb(0 0 0 / 0.1)),
+      repeating-linear-gradient(90deg, transparent 0 11%, rgb(255 255 255 / 0.04) 11% 12%);
+    transform: none;
+  }
+
   .async-community-board__bridge-line {
     position: absolute;
     left: 10%;
@@ -438,6 +483,13 @@
     height: 0.7rem;
     border: 1px solid color-mix(in srgb, var(--color-accent) 22%, transparent);
     transform: translateY(-50%) rotate(-2deg);
+  }
+
+  .async-community-board__scene--festival_square .async-community-board__bridge-line {
+    top: 55%;
+    height: 0.45rem;
+    border-color: color-mix(in srgb, #d4976a 34%, transparent);
+    transform: translateY(-50%);
   }
 
   .async-community-board__bridge-line--base {
@@ -448,6 +500,14 @@
   .async-community-board__bridge-line--deck {
     max-width: 80%;
     background: color-mix(in srgb, var(--color-success) 35%, var(--color-accent));
+  }
+
+  .async-community-board__scene--festival_square .async-community-board__bridge-line--base {
+    background: rgb(0 0 0 / 0.12);
+  }
+
+  .async-community-board__scene--festival_square .async-community-board__bridge-line--deck {
+    background: linear-gradient(90deg, color-mix(in srgb, #d4976a 42%, var(--color-accent)), color-mix(in srgb, var(--color-success) 42%, #d4976a));
   }
 
   .async-community-board__stage-marker {

@@ -263,6 +263,14 @@ const SOCIETY_PUBLIC_PROJECT_DEFS = Object.freeze([
     world_feedback: '公共讨论里会更频繁提到桥头会面、过河送货和联机往来更顺。',
   },
   {
+    id: 'festival_square',
+    label: '节庆筹备',
+    summary: '把空广场一步步备成节会现场，先完成备料、搭场、彩排和开幕布置。',
+    target_progress: 100,
+    completion_feedback: '节庆广场已经具备开幕条件，灯、食案、题签和节目都能被清楚看见。',
+    world_feedback: '村社公告和节会预热会更多提到广场布置、节目彩排和开幕人气。',
+  },
+  {
     id: 'dock',
     label: '修码头',
     summary: '整修旧码头，给后续慢交易、远行补给和访客接待留出落点。',
@@ -364,9 +372,59 @@ const SOCIETY_PROJECT_PACKAGE_OPTIONS = Object.freeze([
   },
 ]);
 
-const SOCIETY_PROJECT_PACKAGE_MAP = Object.freeze(
-  Object.fromEntries(SOCIETY_PROJECT_PACKAGE_OPTIONS.map(entry => [entry.id, entry]))
-);
+const SOCIETY_FESTIVAL_PROJECT_PACKAGE_OPTIONS = Object.freeze([
+  {
+    id: 'festival_lanterns',
+    label: '灯笼布置',
+    summary: '交 1 份木材和少量工钱，把灯架、挂绳和灯笼骨架先立起来。',
+    progress_gain: 20,
+    costs: [
+      { type: 'item', item_id: 'wood', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 12 },
+    ],
+  },
+  {
+    id: 'festival_food',
+    label: '食材备办',
+    summary: '交 1 份腊梅和少量工钱，备下节令茶点、香汤和开幕小食。',
+    progress_gain: 25,
+    costs: [
+      { type: 'item', item_id: 'wintersweet', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 10 },
+    ],
+  },
+  {
+    id: 'festival_scenery',
+    label: '布景搭设',
+    summary: '交 1 份木材和工钱，搭出戏台、布景板和临时围挡。',
+    progress_gain: 30,
+    costs: [
+      { type: 'item', item_id: 'wood', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 18 },
+    ],
+  },
+  {
+    id: 'festival_riddles',
+    label: '题签整理',
+    summary: '交 1 份纸张和少量工钱，整理灯谜、祝词和节目题签。',
+    progress_gain: 15,
+    costs: [
+      { type: 'item', item_id: 'paper', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 8 },
+    ],
+  },
+  {
+    id: 'festival_program',
+    label: '节目彩排',
+    summary: '垫付彩排工钱，请成员把开幕队列、鼓点和节目顺序排顺。',
+    progress_gain: 20,
+    costs: [{ type: 'money', amount: 25 }],
+  },
+]);
+
+const SOCIETY_PROJECT_PACKAGE_OPTIONS_BY_PROJECT = Object.freeze({
+  festival_square: SOCIETY_FESTIVAL_PROJECT_PACKAGE_OPTIONS,
+});
 
 const SOCIETY_ASYNC_PROJECT_STAGE_DEFS = Object.freeze({
   bridge: [
@@ -374,6 +432,12 @@ const SOCIETY_ASYNC_PROJECT_STAGE_DEFS = Object.freeze({
     { id: 'bridge_deck', label: '铺桥面', threshold: 55, object_ids: ['bridge_deck'] },
     { id: 'bridge_railing', label: '修栏杆', threshold: 85, object_ids: ['bridge_railing'] },
     { id: 'bridge_ceremony', label: '挂灯通行', threshold: 100, object_ids: ['bridge_lanterns', 'bridge_memorial'] },
+  ],
+  festival_square: [
+    { id: 'prepare', label: '备料', threshold: 25, object_ids: ['festival_empty_square', 'festival_materials'] },
+    { id: 'build', label: '搭场', threshold: 55, object_ids: ['festival_stage', 'festival_lantern_gate'] },
+    { id: 'rehearsal', label: '彩排', threshold: 85, object_ids: ['festival_program_board', 'festival_riddle_board'] },
+    { id: 'opening', label: '开幕', threshold: 100, object_ids: ['festival_crowd', 'festival_photo_spot'] },
   ],
   default: [
     { id: 'prepare', label: '备料', threshold: 25, object_ids: ['material_yard'] },
@@ -1728,6 +1792,15 @@ function buildPublicProjectPackageSnapshot(entry) {
   };
 }
 
+function getSocietyProjectPackageOptions(projectId) {
+  return SOCIETY_PROJECT_PACKAGE_OPTIONS_BY_PROJECT[String(projectId || '').trim()] || SOCIETY_PROJECT_PACKAGE_OPTIONS;
+}
+
+function getSocietyProjectPackage(projectId, packageId) {
+  const normalizedPackageId = sanitizeText(packageId, 40);
+  return getSocietyProjectPackageOptions(projectId).find(entry => entry.id === normalizedPackageId) || null;
+}
+
 async function buildPublicProjectContributionSnapshot(entry) {
   const normalized = normalizeSocietyPublicProjectContribution(entry);
   return {
@@ -1761,7 +1834,7 @@ function buildSocietyVisualResourceCostPreview(costs = []) {
 
 function buildSocietyVisualContributionOptions(project) {
   if (project.status === 'completed') return [];
-  return SOCIETY_PROJECT_PACKAGE_OPTIONS.map(entry => ({
+  return getSocietyProjectPackageOptions(project.id).map(entry => ({
     id: entry.id,
     label: entry.label,
     kind: entry.costs.some(cost => cost.type === 'item') ? 'material' : 'fund',
@@ -1770,7 +1843,9 @@ function buildSocietyVisualContributionOptions(project) {
     weekly_limit: 0,
     resource_cost_preview: buildSocietyVisualResourceCostPreview(entry.costs),
     progress_delta: Math.max(0, Math.floor(Number(entry.progress_gain) || 0)),
-    reward_preview: `推进 ${Math.max(0, Math.floor(Number(entry.progress_gain) || 0))} 点并写入村社贡献记录。`,
+    reward_preview: project.id === 'festival_square'
+      ? `推进 ${Math.max(0, Math.floor(Number(entry.progress_gain) || 0))} 点，并点亮节庆广场对应布置。`
+      : `推进 ${Math.max(0, Math.floor(Number(entry.progress_gain) || 0))} 点并写入村社贡献记录。`,
   }));
 }
 
@@ -1790,18 +1865,48 @@ function getSocietyAsyncStageState(project, stage) {
   return 'pending';
 }
 
+function buildSocietyFestivalContributionObjectIds(project, stageId) {
+  if (project.id !== 'festival_square') return [];
+  const packageIds = new Set((project.contributions || [])
+    .map(normalizeSocietyPublicProjectContribution)
+    .map(entry => entry.package_id)
+    .filter(Boolean));
+  const objectIds = [];
+  if (stageId.includes('prepare')) {
+    if (packageIds.has('festival_lanterns')) objectIds.push('festival_lantern_crates');
+    if (packageIds.has('festival_food')) objectIds.push('festival_food_table');
+  }
+  if (stageId.includes('build')) {
+    if (packageIds.has('festival_scenery')) objectIds.push('festival_scene_panels');
+    if (packageIds.has('festival_lanterns')) objectIds.push('festival_lantern_gate_lit');
+  }
+  if (stageId.includes('rehearsal')) {
+    if (packageIds.has('festival_riddles')) objectIds.push('festival_riddle_tags');
+    if (packageIds.has('festival_program')) objectIds.push('festival_rehearsal_drums');
+  }
+  if (stageId.includes('opening')) {
+    if (packageIds.has('festival_food')) objectIds.push('festival_snack_stalls');
+    if (packageIds.has('festival_program')) objectIds.push('festival_opening_show');
+  }
+  return objectIds;
+}
+
 function buildSocietyVisualAsyncStages(project) {
   const stages = getSocietyAsyncStageDefs(project.id);
   return stages.map(stage => {
     const span = Math.max(1, stage.threshold - stage.previous_threshold);
     const stageProgress = Math.max(0, Math.min(span, project.progress - stage.previous_threshold));
+    const objectIds = [
+      ...(Array.isArray(stage.object_ids) ? stage.object_ids : []),
+      ...buildSocietyFestivalContributionObjectIds(project, stage.id),
+    ].filter((item, index, source) => item && source.indexOf(item) === index);
     return {
       id: stage.id,
       label: stage.label,
       state: getSocietyAsyncStageState(project, stage),
       progress_value: stageProgress,
       progress_target: span,
-      object_ids: Array.isArray(stage.object_ids) ? stage.object_ids : [],
+      object_ids: objectIds,
       contribution_options: stage.id === (stages.find(item => getSocietyAsyncStageState(project, item) === 'active') || stages[stages.length - 1]).id
         ? buildSocietyVisualContributionOptions(project)
         : [],
@@ -1872,12 +1977,17 @@ function buildSocietyVisualAsyncProject(project) {
   const currentStage = stages.find(stage => stage.state === 'active')
     || stages.find(stage => stage.state !== 'complete')
     || stages[stages.length - 1];
+  const kind = normalized.id === 'bridge'
+    ? 'village_bridge'
+    : normalized.id === 'festival_square'
+      ? 'festival_square'
+      : 'society_project';
   return {
     id: normalized.id,
     label: def.label,
-    kind: normalized.id === 'bridge' ? 'village_bridge' : 'society_project',
+    kind,
     day_tag: '',
-    week_tag: '',
+    week_tag: normalized.id === 'festival_square' ? '节庆筹备周目标' : '',
     starts_at: 0,
     ends_at: 0,
     current_stage_id: currentStage?.id || '',
@@ -1974,7 +2084,7 @@ async function buildPublicProjectSnapshot(project, viewerUsername, viewerCanCont
     world_feedback: normalized.world_feedback || def.world_feedback,
     can_contribute: viewerCanContribute && normalized.status !== 'completed',
     my_contribution_count: myContributionCount,
-    contribution_packages: SOCIETY_PROJECT_PACKAGE_OPTIONS.map(buildPublicProjectPackageSnapshot),
+    contribution_packages: getSocietyProjectPackageOptions(normalized.id).map(buildPublicProjectPackageSnapshot),
     recent_contributions: await Promise.all(contributions.slice(0, 8).map(buildPublicProjectContributionSnapshot)),
   };
 }
@@ -2644,7 +2754,7 @@ async function contributeSocietyPublicProject(projectId, payload = {}, actor = {
   if (project.status === 'completed') throw createError('这项公共工程已经完工了');
 
   const packageId = sanitizeText(payload.package_id, 40);
-  const contributionPackage = SOCIETY_PROJECT_PACKAGE_MAP[packageId];
+  const contributionPackage = getSocietyProjectPackage(project.id, packageId);
   if (!contributionPackage) throw createError('当前捐献方案不存在');
 
   const context = getActiveSaveContext(actorUsername, null, '当前账号没有可用的桃源服务端存档，暂时无法参与公共建设');
