@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0524 共同基金动物饲料前端购买入口
+- 共同庄园基金页自动购买按钮扩展到精饲料、滋补饲料和活力饲料，和白菜种子、鱼饲料一起走共同基金白名单购买。
+- 按钮继续受契约生效、`spend_enabled`、`can_auto_buy_seeds_feed` 和余额控制，提交仍带 CSRF 与 `idempotency_key`。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 共同基金前端注资入口
 - 共同庄园基金页新增个人注资金额输入与提交按钮，调用 `fund/contribute` 将个人铜币注入共同基金。
 - 前端提交带 CSRF 与 `idempotency_key`；成功后刷新共同基金、流水和契约摘要，并显示个人剩余铜币。

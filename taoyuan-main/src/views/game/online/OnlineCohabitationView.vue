@@ -563,6 +563,27 @@
       amount: 30,
       purpose: 'feed_budget',
     },
+    {
+      label: '精饲料 x1',
+      itemId: 'premium_feed',
+      targetRef: 'shop:premium_feed',
+      amount: 200,
+      purpose: 'feed_budget',
+    },
+    {
+      label: '滋补饲料 x1',
+      itemId: 'nourishing_feed',
+      targetRef: 'shop:nourishing_feed',
+      amount: 250,
+      purpose: 'feed_budget',
+    },
+    {
+      label: '活力饲料 x1',
+      itemId: 'vitality_feed',
+      targetRef: 'shop:vitality_feed',
+      amount: 300,
+      purpose: 'feed_budget',
+    },
   ]
 
   const setActiveTab = (tab: string) => {
