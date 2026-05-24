@@ -1,6 +1,7 @@
 <template>
   <div
     v-if="gameStore.isGameStarted"
+    ref="gameLayoutRoot"
     class="game-layout-root flex h-screen flex-col gap-1 p-1.5 md:gap-4 md:p-4"
     data-testid="game-layout"
     :class="{ 'py-10': Capacitor.isNativePlatform() }"
@@ -33,6 +34,18 @@
       <button class="mobile-hub-btn" data-testid="mobile-hub-button" @click="showMobileMap = true">
         <Map :size="20" />
         <span v-if="mailboxStore.unreadCount > 0" class="mail-badge">{{ mailboxStore.unreadCount > 99 ? '99+' : mailboxStore.unreadCount }}</span>
+      </button>
+      <button
+        v-if="isFullscreenSupported"
+        class="game-floating-btn"
+        data-testid="fullscreen-button"
+        type="button"
+        :aria-label="isFullscreen ? '退出全屏' : '进入全屏'"
+        :title="isFullscreen ? '退出全屏' : '进入全屏'"
+        @click="toggleFullscreen"
+      >
+        <Minimize2 v-if="isFullscreen" :size="20" />
+        <Maximize2 v-else :size="20" />
       </button>
     </div>
 
@@ -455,7 +468,7 @@
   import { useGameClock } from '@/composables/useGameClock'
   import { useAudio } from '@/composables/useAudio'
   import type { Quality, RecordCenterTabId } from '@/types'
-  import { Moon, X, Map, ArrowDown, ArrowDownToLine } from 'lucide-vue-next'
+  import { Moon, X, Map, ArrowDown, ArrowDownToLine, Maximize2, Minimize2 } from 'lucide-vue-next'
   import { usePlayerRecordCenterStore } from '@/stores/usePlayerRecordCenterStore'
   import Button from '@/components/game/Button.vue'
   import Divider from '@/components/game/Divider.vue'
@@ -493,8 +506,11 @@
   const saveStore = useSaveStore()
   const realtimeStore = useRealtimeStore()
   const { switchToSeasonalBgm } = useAudio()
+  const gameLayoutRoot = ref<HTMLDivElement | null>(null)
   const contentViewport = ref<HTMLDivElement | null>(null)
   const sceneContentAnchor = ref<HTMLDivElement | null>(null)
+  const isFullscreen = ref(false)
+  const isFullscreenSupported = ref(false)
 
   // 游戏未开始时重定向到主菜单
   if (!gameStore.isGameStarted) {
@@ -582,6 +598,26 @@
     showVoidModal.value = true
   }
 
+  const syncFullscreenState = () => {
+    if (typeof document === 'undefined') return
+    isFullscreen.value = document.fullscreenElement === gameLayoutRoot.value
+  }
+
+  const toggleFullscreen = async () => {
+    if (typeof document === 'undefined') return
+
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen()
+        return
+      }
+
+      await gameLayoutRoot.value?.requestFullscreen()
+    } catch {
+      addLog('浏览器暂时无法切换全屏，请检查权限或使用系统全屏。')
+    }
+  }
+
   /** 日志弹窗 */
   const showRecordCenter = ref(false)
   /** 日志清空确认：undefined=不显示, null=清空全部, string=清空指定天 */
@@ -647,6 +683,9 @@
 
   onMounted(() => {
     startClock()
+    isFullscreenSupported.value = typeof document !== 'undefined' && Boolean(document.fullscreenEnabled)
+    syncFullscreenState()
+    document.addEventListener('fullscreenchange', syncFullscreenState)
     void realtimeStore.start()
     void saveStore.syncPendingServerSaves()
     void mailboxStore.refreshList().catch(() => {})
@@ -665,6 +704,7 @@
   onUnmounted(() => {
     stopClock()
     realtimeStore.stop()
+    document.removeEventListener('fullscreenchange', syncFullscreenState)
     if (backgroundAutoSaveTimer.value !== null) {
       window.clearInterval(backgroundAutoSaveTimer.value)
       backgroundAutoSaveTimer.value = null
@@ -1055,8 +1095,11 @@
     bottom: calc(calc(0.35rem * 10) + env(safe-area-inset-bottom, 0px));
     z-index: 40;
     display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 
+  .game-floating-btn,
   .mobile-hub-btn {
     position: relative;
     z-index: 40;
@@ -1082,16 +1125,32 @@
       bottom: 18px;
     }
 
+    .game-floating-btn,
     .mobile-hub-btn {
       width: 48px;
       height: 48px;
     }
   }
 
+  .game-floating-btn:hover,
+  .game-floating-btn:active,
   .mobile-hub-btn:hover,
   .mobile-hub-btn:active {
     background: var(--color-accent);
     color: rgb(var(--color-bg));
+  }
+
+  .game-layout-root:fullscreen {
+    width: 100vw;
+    height: 100vh;
+    background: rgb(var(--color-bg));
+    padding: var(--spacing-2);
+  }
+
+  @media (min-width: 768px) {
+    .game-layout-root:fullscreen {
+      padding: var(--spacing-4);
+    }
   }
 
   .mail-badge {
