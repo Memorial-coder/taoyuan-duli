@@ -2160,15 +2160,17 @@ export const useShopStore = defineStore('shop', () => {
       description: `仙缘效果 +${Math.round(spiritSellBonus * 100)}%`
     })
 
-    const recentVolume = getRecentShipping()[itemDef.category as MarketCategory] ?? 0
-    const marketMultiplier = getMarketMultiplier(itemDef.category, gameStore.year, gameStore.seasonIndex, gameStore.day, recentVolume)
-    pushStep({
-      id: 'market_multiplier',
-      label: `市场：${MARKET_CATEGORY_NAMES[itemDef.category as MarketCategory]}`,
-      category: 'market',
-      multiplier: marketMultiplier,
-      description: `近7天同品类出货 ${recentVolume}，当前行情倍率 ×${marketMultiplier.toFixed(2)}`
-    })
+    if (isMarketCategory(itemDef.category)) {
+      const recentVolume = getRecentShipping()[itemDef.category] ?? 0
+      const marketMultiplier = getMarketMultiplier(itemDef.category, gameStore.year, gameStore.seasonIndex, gameStore.day, recentVolume)
+      pushStep({
+        id: 'market_multiplier',
+        label: `市场：${MARKET_CATEGORY_NAMES[itemDef.category]}`,
+        category: 'market',
+        multiplier: marketMultiplier,
+        description: `近7天同品类出货 ${recentVolume}，当前行情倍率 ×${marketMultiplier.toFixed(2)}`
+      })
+    }
 
     return steps
   }

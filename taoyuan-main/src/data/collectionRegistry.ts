@@ -32,6 +32,7 @@ export const COLLECTION_CATEGORY_NAMES: Record<string, string> = {
   fish: '鱼类',
   animal_product: '畜产品',
   processed: '加工品',
+  elixir: '丹药',
   fruit: '水果',
   ore: '矿石',
   gem: '宝石',
@@ -63,6 +64,7 @@ export const COLLECTION_CATEGORY_COLORS: Partial<Record<ItemCategory, string>> =
   fruit: 'text-success',
   animal_product: 'text-quality-fine',
   processed: 'text-accent',
+  elixir: 'text-quality-supreme',
   material: 'text-muted',
   misc: 'text-muted',
   gift: 'text-quality-excellent',
@@ -114,6 +116,8 @@ export const getDefaultCollectionUsageByCategory = (category: ItemCategory, item
       return '可直接食用恢复体力/生命，部分料理还带有临时增益效果。'
     case 'processed':
       return '主要用于出售、送礼、任务或作为更高阶加工链的一部分，部分加工品也可直接食用。'
+    case 'elixir':
+      return '由丹炉炼制而成，定位为探索、经营或社交前的短效准备品；当前第一批丹药先进入加工与图鉴链路，暂不直接叠用。'
     case 'material':
       return '主要作为制作、建筑、加工或升级材料使用。'
     case 'machine':
@@ -182,6 +186,7 @@ const getCategoryGuidance = (item: ItemDef): CollectionUndiscoveredHint => {
         relatedPanels: [{ panel: 'shop', label: '去商圈买树苗' }, { panel: 'farm', label: '回农场种果树' }]
       }
     case 'processed':
+    case 'elixir':
     case 'machine':
     case 'sprinkler':
     case 'fertilizer':

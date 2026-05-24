@@ -214,6 +214,17 @@ export const PROCESSING_MACHINES: ProcessingMachineDef[] = [
     craftMoney: 400
   },
   {
+    id: 'alchemy_furnace',
+    name: '丹炉',
+    description: '将药性作物、草药与加工稳定剂炼成短效丹药。',
+    craftCost: [
+      { itemId: 'stone', quantity: 40 },
+      { itemId: 'copper_bar', quantity: 5 },
+      { itemId: 'refined_quartz', quantity: 2 }
+    ],
+    craftMoney: 800
+  },
+  {
     id: 'incense_maker',
     name: '制香坊',
     description: '将树脂和花卉制成香料。',
@@ -1594,6 +1605,82 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputQuantity: 1,
     processingDays: 1,
     description: '将草药研磨成治疗牲畜的药物。'
+  },
+  // 丹炉
+  {
+    id: 'alchemy_qingxin_lotus_elixir',
+    machineType: 'alchemy_furnace',
+    name: '清心莲丹',
+    inputItemId: 'lotus_seed',
+    inputQuantity: 2,
+    extraInputs: [
+      { itemId: 'lotus_root', quantity: 1 },
+      { itemId: 'herbal_paste', quantity: 1 }
+    ],
+    outputItemId: 'qingxin_lotus_elixir',
+    outputQuantity: 1,
+    processingDays: 2,
+    description: '莲子、莲藕与草药膏同炼，成丹清润，可作探索前的护心丹。'
+  },
+  {
+    id: 'alchemy_warming_sweet_potato_pill',
+    machineType: 'alchemy_furnace',
+    name: '温阳薯丸',
+    inputItemId: 'sweet_potato',
+    inputQuantity: 2,
+    extraInputs: [
+      { itemId: 'ginger', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    outputItemId: 'warming_sweet_potato_pill',
+    outputQuantity: 1,
+    processingDays: 2,
+    description: '红薯、姜与蜂蜜温炼成丸，适合农忙和采集前备用。'
+  },
+  {
+    id: 'alchemy_spicy_vitality_pill',
+    machineType: 'alchemy_furnace',
+    name: '辛火行气丸',
+    inputItemId: 'pickled_chili',
+    inputQuantity: 1,
+    extraInputs: [
+      { itemId: 'sesame_paste', quantity: 1 },
+      { itemId: 'tea', quantity: 2 }
+    ],
+    outputItemId: 'spicy_vitality_pill',
+    outputQuantity: 1,
+    processingDays: 2,
+    description: '泡椒、芝麻酱与茶叶调和辛香，用于赶路、赛舟和护送前提气。'
+  },
+  {
+    id: 'alchemy_osmanthus_focus_elixir',
+    machineType: 'alchemy_furnace',
+    name: '桂露凝神丹',
+    inputItemId: 'osmanthus_honey',
+    inputQuantity: 1,
+    extraInputs: [
+      { itemId: 'tea', quantity: 2 },
+      { itemId: 'lotus_seed', quantity: 1 }
+    ],
+    outputItemId: 'osmanthus_focus_elixir',
+    outputQuantity: 1,
+    processingDays: 2,
+    description: '桂花蜜、茶叶与莲子慢炼，香气沉静，适合社交与节会拜访前使用。'
+  },
+  {
+    id: 'alchemy_stone_root_guard_pill',
+    machineType: 'alchemy_furnace',
+    name: '石根护脉丸',
+    inputItemId: 'radish',
+    inputQuantity: 2,
+    extraInputs: [
+      { itemId: 'potato', quantity: 1 },
+      { itemId: 'refined_quartz', quantity: 1 }
+    ],
+    outputItemId: 'stone_root_guard_pill',
+    outputQuantity: 1,
+    processingDays: 2,
+    description: '萝卜、土豆与精制石英炼成护脉丸，偏向矿洞与夜巡前的防护。'
   },
   // 特殊饲料
   {

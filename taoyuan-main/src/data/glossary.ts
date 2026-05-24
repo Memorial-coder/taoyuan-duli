@@ -151,7 +151,7 @@ const makeEntry = (entry: Omit<GlossaryEntry, 'searchText'>): GlossaryEntry => {
 
 const buildItemIntents = (itemCategory: string): GlossaryIntentKey[] => {
   const intents: GlossaryIntentKey[] = ['acquire', 'usage', 'system']
-  if (['seed', 'artifact', 'fossil', 'fruit', 'sapling', 'fish', 'crop'].includes(itemCategory)) intents.push('where')
+  if (['seed', 'artifact', 'fossil', 'fruit', 'sapling', 'fish', 'crop', 'elixir'].includes(itemCategory)) intents.push('where')
   if (itemCategory === 'gift') intents.push('gift')
   return Array.from(new Set(intents))
 }
@@ -420,6 +420,7 @@ const buildGlossary = (): GlossaryEntry[] => {
     fish: '鱼类',
     animal_product: '畜产品',
     processed: '加工品',
+    elixir: '丹药',
     fruit: '水果',
     ore: '矿石',
     gem: '宝石',

@@ -183,6 +183,9 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
       pushDetail(details, '矿石倍率', `${bomb.oreMultiplier}倍`)
       pushDetail(details, '清除怪物', bomb.clearsMonster ? '是' : '否')
     }
+  } else if (item.category === 'elixir') {
+    pushDetail(details, '丹药定位', '丹炉炼制的短效经营准备品')
+    pushDetail(details, '当前限制', '第一批先进入加工与图鉴链路，暂不直接食用或叠加生效')
   }
 
   return details
@@ -297,6 +300,9 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
       break
     case 'processed':
       keywords.push('加工', '制作', '机器')
+      break
+    case 'elixir':
+      keywords.push('丹药', '炼丹', '丹炉', '短效增益', '探索', '社交', '行动效率')
       break
     case 'machine':
       keywords.push('机器', '工坊', '加工')

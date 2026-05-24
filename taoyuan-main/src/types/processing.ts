@@ -22,6 +22,7 @@ export type MachineType =
   | 'tea_maker'
   | 'tofu_press'
   | 'herb_grinder'
+  | 'alchemy_furnace'
   | 'incense_maker'
   | 'spirit_forge'
 

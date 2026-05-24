@@ -1149,6 +1149,50 @@ const HERB_PRODUCT_ITEMS: ItemDef[] = [
   }
 ]
 
+/** 丹药物品 */
+const ELIXIR_ITEMS: ItemDef[] = [
+  {
+    id: 'qingxin_lotus_elixir',
+    name: '清心莲丹',
+    category: 'elixir',
+    description: '莲子、莲藕与草药膏炼成的清润主丹。定位为探索前的幸运与受伤保护丹药。',
+    sellPrice: 260,
+    edible: false
+  },
+  {
+    id: 'warming_sweet_potato_pill',
+    name: '温阳薯丸',
+    category: 'elixir',
+    description: '红薯、姜与蜂蜜炼成的温补主丹。定位为农忙、采集和寒天劳作前的体力丹药。',
+    sellPrice: 240,
+    edible: false
+  },
+  {
+    id: 'spicy_vitality_pill',
+    name: '辛火行气丸',
+    category: 'elixir',
+    description: '泡椒、芝麻酱与茶叶炼成的辛烈主丹。定位为赶路、赛舟和护送前的行动效率丹药。',
+    sellPrice: 310,
+    edible: false
+  },
+  {
+    id: 'osmanthus_focus_elixir',
+    name: '桂露凝神丹',
+    category: 'elixir',
+    description: '桂花蜜、茶叶与莲子炼成的芳香主丹。定位为送礼、社交和节会拜访前的凝神丹药。',
+    sellPrice: 360,
+    edible: false
+  },
+  {
+    id: 'stone_root_guard_pill',
+    name: '石根护脉丸',
+    category: 'elixir',
+    description: '萝卜、土豆与精制石英炼成的根茎主丹。定位为矿洞、夜巡和远征前的防护丹药。',
+    sellPrice: 220,
+    edible: false
+  }
+]
+
 /** 特殊饲料物品 */
 const FEED_ITEMS: ItemDef[] = [
   {
@@ -1256,6 +1300,7 @@ export const ITEMS: ItemDef[] = [
   ...TEA_DRINK_ITEMS,
   ...TOFU_ITEMS,
   ...HERB_PRODUCT_ITEMS,
+  ...ELIXIR_ITEMS,
   ...FEED_ITEMS,
   ...INCENSE_ITEMS,
 
@@ -1529,6 +1574,7 @@ const CATEGORY_SOURCE: Record<ItemCategory, string> = {
   material: '采集/合成',
   food: '烹饪制作',
   processed: '加工制作',
+  elixir: '丹炉炼制',
   machine: '合成制作',
   sprinkler: '合成制作',
   fertilizer: '合成制作',

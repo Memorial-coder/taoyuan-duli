@@ -10,6 +10,7 @@ export type ItemCategory =
   | 'material'
   | 'misc'
   | 'processed'
+  | 'elixir'
   | 'machine'
   | 'sprinkler'
   | 'fertilizer'
