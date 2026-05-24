@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0524 共同基金前端购买入口
+- 共同庄园基金页新增最小自动购买入口，第一版开放白菜种子 x2 与鱼饲料 x1 两个白名单按钮。
+- 前端 API / store 已接 `fund/spend` 写接口，提交时带 CSRF 与 `idempotency_key`；成功后刷新共同基金、流水和契约摘要，余额或权限不足时按钮禁用。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 共同基金药铺动物饲料自动购买
 - 共同基金自动购买到账白名单新增 `shop:premium_feed`、`shop:nourishing_feed`、`shop:vitality_feed`，可按 `feed_budget` 扣共同基金后送入操作者个人背包。
 - `feed_budget` 小额单次上限提升到 300，以覆盖活力饲料；种子、工具修缮和订单跑腿仍受各自用途上限约束。

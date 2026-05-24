@@ -1,4 +1,4 @@
-import { ensureCurrentAccount } from '@/utils/accountStorage'
+import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
 import { fetchProtectedJson } from '@/utils/protectedApi'
 
 export type CohabitationContractStatus = 'pending_acceptance' | 'active' | 'separation_pending' | 'closed' | 'declined'
@@ -54,6 +54,10 @@ export interface CohabitationFundLedgerEntry {
   source_owner_display_name: string
   memo: string
   purpose: string
+  target_ref?: string
+  target_item_id?: string
+  target_quantity?: number
+  target_unit_price?: number
   idempotency_key: string
   status: string
   created_at: number
@@ -254,6 +258,15 @@ export interface CohabitationFundSnapshot {
     personal_money_merged: boolean
     contribution_enabled: boolean
     spend_enabled: boolean
+    small_spend_enabled?: boolean
+    small_spend_max_amount?: number
+    allowed_small_spend_purposes?: Array<{
+      id: string
+      label: string
+      category: string
+      max_amount: number
+      auto_pay_eligible: boolean
+    }>
     idempotency_required: boolean
     large_spend_requires_both: boolean
     compensation_policy: string
@@ -324,11 +337,53 @@ export interface CohabitationDetailResponse {
   [key: string]: unknown
 }
 
+export interface CohabitationFundSpendPayload {
+  amount: number
+  purpose: string
+  target_ref?: string
+  auto_pay?: boolean
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFundSpendResponse extends CohabitationDetailResponse {
+  fund?: CohabitationFundSnapshot
+  ledger_entry?: CohabitationFundLedgerEntry
+  purchase?: {
+    item_id: string
+    quantity: number
+    quality: string
+    unit_price: number
+    total_amount: number
+    target_save_id?: number
+    target_save_slot?: number | null
+  } | null
+}
+
 const fetchCohabitationJson = async <T>(path: string, fallbackMessage: string): Promise<T | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
   const { data } = await fetchProtectedJson<T>(() => fetch(path, {
     credentials: 'include',
+  }), {
+    fallbackMessage,
+    networkErrorMessage: '共同庄园服务连接失败，请检查网络或稍后重试',
+  })
+  return data ?? null
+}
+
+const postCohabitationJson = async <T>(path: string, payload: Record<string, unknown>, fallbackMessage: string): Promise<T | null> => {
+  const account = await ensureCurrentAccount()
+  if (!account || account === 'guest') return null
+  const csrfToken = await ensureCurrentCsrfToken()
+  const { data } = await fetchProtectedJson<T>(() => fetch(path, {
+    method: 'POST',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-CSRF-Token': csrfToken,
+    },
+    body: JSON.stringify(payload),
   }), {
     fallbackMessage,
     networkErrorMessage: '共同庄园服务连接失败，请检查网络或稍后重试',
@@ -362,6 +417,14 @@ export const fetchCohabitationFund = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     fund?: CohabitationFundSnapshot
   }>(contractPath(contractId, '/fund'), '获取共同基金失败')
+}
+
+export const spendCohabitationFund = async (contractId: string, payload: CohabitationFundSpendPayload) => {
+  return postCohabitationJson<CohabitationFundSpendResponse>(
+    contractPath(contractId, '/fund/spend'),
+    payload as unknown as Record<string, unknown>,
+    '共同基金支出失败'
+  )
 }
 
 export const fetchCohabitationPermissions = async (contractId: string) => {

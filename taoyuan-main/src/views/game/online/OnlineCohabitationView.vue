@@ -275,6 +275,29 @@
             <p class="border border-accent/10 bg-black/10 p-2 text-muted">消费：{{ cohabitationStore.fund?.summary.spend_enabled ? '已开放' : '暂缓' }}</p>
             <p class="border border-accent/10 bg-black/10 p-2 text-muted">大额确认：{{ cohabitationStore.fund?.summary.large_spend_requires_both ? '需要' : '未启用' }}</p>
           </div>
+          <div class="mt-3 border border-accent/10 bg-black/10 p-2">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">自动购买</p>
+              <span class="text-[10px] text-muted">白名单</span>
+            </div>
+            <div class="mt-2 grid gap-2">
+              <button
+                v-for="option in fundPurchaseOptions"
+                :key="option.targetRef"
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-between"
+                :disabled="!canUseFundPurchase(option) || cohabitationStore.actionLoading"
+                :data-testid="`online-cohabitation-fund-buy-${option.itemId}`"
+                @click="buyWithSharedFund(option)"
+              >
+                <span>{{ option.label }}</span>
+                <span>{{ option.amount }} 文</span>
+              </button>
+            </div>
+            <p v-if="fundActionMessage" class="mt-2 text-[10px] leading-4" :class="fundActionOk ? 'text-emerald-200' : 'text-red-100'">
+              {{ fundActionMessage }}
+            </p>
+          </div>
         </div>
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
@@ -434,6 +457,8 @@
   const cohabitationStore = useCohabitationStore()
   const activeTab = ref<CohabitationTabKey>('overview')
   const lastRefreshAttemptAt = ref(0)
+  const fundActionMessage = ref('')
+  const fundActionOk = ref(false)
 
   const tabs: CohabitationTabMeta[] = [
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
@@ -494,6 +519,22 @@
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
   const actorCapabilityEntries = computed(() => Object.entries(cohabitationStore.offlineStatus?.actor_capabilities ?? {})
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
+  const fundPurchaseOptions = [
+    {
+      label: '白菜种子 x2',
+      itemId: 'seed_cabbage',
+      targetRef: 'shop:seed_cabbage',
+      amount: 20,
+      purpose: 'seed_budget',
+    },
+    {
+      label: '鱼饲料 x1',
+      itemId: 'fish_feed',
+      targetRef: 'shop:fish_feed',
+      amount: 30,
+      purpose: 'feed_budget',
+    },
+  ]
 
   const setActiveTab = (tab: string) => {
     activeTab.value = tab as CohabitationTabKey
@@ -506,8 +547,35 @@
 
   const selectContract = async (contractId: string) => {
     await cohabitationStore.selectContract(contractId)
+    fundActionMessage.value = ''
     if (!cohabitationStore.canOpenSelectedContract && activeTab.value !== 'overview') {
       activeTab.value = 'overview'
+    }
+  }
+
+  const canUseFundPurchase = (option: { amount: number }) =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.fund?.summary.spend_enabled === true &&
+    cohabitationStore.fund?.permissions.can_auto_buy_seeds_feed === true &&
+    (cohabitationStore.fund?.balance ?? 0) >= option.amount
+
+  const buyWithSharedFund = async (option: typeof fundPurchaseOptions[number]) => {
+    fundActionMessage.value = ''
+    fundActionOk.value = false
+    try {
+      const result = await cohabitationStore.spendSharedFund({
+        amount: option.amount,
+        purpose: option.purpose,
+        target_ref: option.targetRef,
+        auto_pay: true,
+        memo: `共同庄园前端自动购买：${option.label}`,
+        idempotency_key: `ui-fund-buy-${option.itemId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      const quantity = result?.purchase?.quantity ?? 0
+      fundActionOk.value = true
+      fundActionMessage.value = quantity > 0 ? `已到账：${option.label}` : '共同基金支出已提交'
+    } catch (error) {
+      fundActionMessage.value = error instanceof Error ? error.message : '共同基金购买失败'
     }
   }
 

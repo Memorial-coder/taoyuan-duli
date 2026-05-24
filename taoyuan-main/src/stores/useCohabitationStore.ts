@@ -7,6 +7,7 @@ import {
   fetchCohabitationPermissions,
   fetchCohabitationSharedMap,
   fetchCohabitationWarehouse,
+  spendCohabitationFund,
   type CohabitationFundSnapshot,
   type CohabitationOfflineStatus,
   type CohabitationOverviewResponse,
@@ -20,6 +21,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const activeContractId = ref('')
   const loading = ref(false)
   const detailsLoading = ref(false)
+  const actionLoading = ref(false)
   const errorMessage = ref('')
 
   const sharedMap = ref<CohabitationSharedMap | null>(null)
@@ -129,11 +131,42 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     await refreshOverview().catch(() => {})
   }
 
+  const spendSharedFund = async (payload: {
+    amount: number
+    purpose: string
+    target_ref?: string
+    auto_pay?: boolean
+    memo?: string
+    idempotency_key: string
+  }) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await spendCohabitationFund(activeContractId.value, payload)
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '共同基金支出失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   return {
     overview,
     activeContractId,
     loading,
     detailsLoading,
+    actionLoading,
     errorMessage,
     sharedMap,
     warehouse,
@@ -149,5 +182,6 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     refreshSelectedDetails,
     selectContract,
     refreshAll,
+    spendSharedFund,
   }
 })
