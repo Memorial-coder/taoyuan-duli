@@ -279,6 +279,9 @@ function normalizeSettlementReceipt(entry) {
     reward_type: normalizeRewardType(entry?.reward_type),
     reward_value: Math.max(0, Math.floor(Number(entry?.reward_value) || 0)),
     reward_label: sanitizeText(entry?.reward_label, 40),
+    reward_route: ['personal', 'shared_fund'].includes(entry?.reward_route) ? entry.reward_route : 'personal',
+    cohabitation_contract_id: sanitizeText(entry?.cohabitation_contract_id, 80),
+    shared_fund_ledger_id: sanitizeText(entry?.shared_fund_ledger_id, 100),
     delivered_items: deliveredItems,
     result_note: sanitizeText(entry?.result_note, 160),
     idempotency_key: sanitizeText(entry?.idempotency_key, 120),
@@ -917,21 +920,57 @@ function buildCompensationRecord(order, receipt, error, stage = null) {
   });
 }
 
-function applyRewardByReceipt(store, receipt, specialtyType) {
+function normalizeRewardSettlementOptions(options = {}) {
+  const rewardRoute = String(options.reward_route || options.rewardRoute || '').trim();
+  if (rewardRoute !== 'shared_fund') {
+    return {
+      reward_route: 'personal',
+      cohabitation_contract_id: '',
+      sharedFundCreditHandler: null,
+    };
+  }
+  return {
+    reward_route: 'shared_fund',
+    cohabitation_contract_id: sanitizeText(options.cohabitation_contract_id || options.contract_id || options.contractId, 80),
+    sharedFundCreditHandler: typeof options.sharedFundCreditHandler === 'function' ? options.sharedFundCreditHandler : null,
+  };
+}
+
+async function applyRewardByReceipt(store, receipt, specialtyType, options = {}) {
+  const settlement = normalizeRewardSettlementOptions(options);
+  if (settlement.reward_route === 'shared_fund') {
+    if (receipt.reward_type !== 'money') throw createError('只有铜钱奖励可以结算入共同基金', 400);
+    if (!settlement.cohabitation_contract_id) throw createError('共同基金结算需要指定 cohabitation_contract_id', 400);
+    if (!settlement.sharedFundCreditHandler) throw createError('共同基金结算缺少服务端入账处理器', 500);
+    const creditResult = await settlement.sharedFundCreditHandler({
+      receipt,
+      contract_id: settlement.cohabitation_contract_id,
+    });
+    return {
+      reward_result: `铜钱已写入共同基金 ${creditResult?.fund_ledger_entry?.id || ''}`.trim(),
+      reward_route: 'shared_fund',
+      cohabitation_contract_id: settlement.cohabitation_contract_id,
+      shared_fund_ledger_id: creditResult?.fund_ledger_entry?.id || '',
+      shared_fund_credit: creditResult,
+    };
+  }
   if (receipt.reward_type === 'money') {
     const rewardState = applyMoneyReward(receipt.assignee_username, receipt.reward_value);
     return {
       reward_result: `铜钱已写入槽位 ${Number(rewardState.slot) + 1}`,
+      reward_route: 'personal',
     };
   }
   if (receipt.reward_type === 'reputation') {
     applyExplicitReputationReward(store, receipt.assignee_username, specialtyType, receipt.reward_value);
     return {
       reward_result: '额外声望已写入',
+      reward_route: 'personal',
     };
   }
   return {
     reward_result: '礼物回报已记录，后续可按回包条目继续补发',
+    reward_route: 'personal',
   };
 }
 
@@ -1395,7 +1434,7 @@ async function submitCoopOrderStageDelivery(orderId, stageId, payload = {}, acto
   };
 }
 
-async function confirmCoopOrderDelivery(orderId, actor = {}) {
+async function confirmCoopOrderDelivery(orderId, actor = {}, settlementOptions = {}) {
   const actorUsername = String(actor.username || '').trim();
   if (!actorUsername) throw createError('请先登录后再确认交付', 401);
 
@@ -1413,9 +1452,12 @@ async function confirmCoopOrderDelivery(orderId, actor = {}) {
 
   const specialtyType = order.order_type;
   const now = Math.floor(Date.now() / 1000);
+  const settlement = normalizeRewardSettlementOptions(settlementOptions);
   const reputationOutcome = applyMutualAidReputation(store, receipt.assignee_username, specialtyType, receipt);
   let nextReceipt = normalizeSettlementReceipt({
     ...receipt,
+    reward_route: settlement.reward_route,
+    cohabitation_contract_id: settlement.cohabitation_contract_id,
     help_reputation_delta: reputationOutcome.helpReputationDelta,
     specialty_reputation_delta: reputationOutcome.specialtyReputationDelta,
     trust_level_label: reputationOutcome.trustLevel.label,
@@ -1427,13 +1469,18 @@ async function confirmCoopOrderDelivery(orderId, actor = {}) {
     settlement_confirmed_at: now,
     updated_at: now,
   });
+  let sharedFundCredit = null;
 
   try {
-    const rewardOutcome = applyRewardByReceipt(store, nextReceipt, specialtyType);
+    const rewardOutcome = await applyRewardByReceipt(store, nextReceipt, specialtyType, settlementOptions);
+    sharedFundCredit = rewardOutcome.shared_fund_credit || null;
     nextReceipt = normalizeSettlementReceipt({
       ...nextReceipt,
       status: 'confirmed',
       reward_result: rewardOutcome.reward_result,
+      reward_route: rewardOutcome.reward_route || nextReceipt.reward_route,
+      cohabitation_contract_id: rewardOutcome.cohabitation_contract_id || nextReceipt.cohabitation_contract_id,
+      shared_fund_ledger_id: rewardOutcome.shared_fund_ledger_id || nextReceipt.shared_fund_ledger_id,
       compensation_id: '',
     });
     nextOrder = normalizeOrder({
@@ -1467,10 +1514,11 @@ async function confirmCoopOrderDelivery(orderId, actor = {}) {
     order: nextOrder,
     receipt: nextReceipt,
     compensation: nextOrder.compensation_id ? findCompensationById(store, nextOrder.compensation_id) : null,
+    shared_fund_credit: sharedFundCredit,
   };
 }
 
-async function confirmCoopOrderStageDelivery(orderId, stageId, actor = {}) {
+async function confirmCoopOrderStageDelivery(orderId, stageId, actor = {}, settlementOptions = {}) {
   const actorUsername = String(actor.username || '').trim();
   if (!actorUsername) throw createError('请先登录后再确认阶段交付', 401);
 
@@ -1491,9 +1539,12 @@ async function confirmCoopOrderStageDelivery(orderId, stageId, actor = {}) {
 
   const specialtyType = stage.preferred_order_type || order.order_type;
   const now = Math.floor(Date.now() / 1000);
+  const settlement = normalizeRewardSettlementOptions(settlementOptions);
   const reputationOutcome = applyMutualAidReputation(store, receipt.assignee_username, specialtyType, receipt);
   let nextReceipt = normalizeSettlementReceipt({
     ...receipt,
+    reward_route: settlement.reward_route,
+    cohabitation_contract_id: settlement.cohabitation_contract_id,
     help_reputation_delta: reputationOutcome.helpReputationDelta,
     specialty_reputation_delta: reputationOutcome.specialtyReputationDelta,
     trust_level_label: reputationOutcome.trustLevel.label,
@@ -1505,13 +1556,18 @@ async function confirmCoopOrderStageDelivery(orderId, stageId, actor = {}) {
     confirmed_at: now,
     updated_at: now,
   });
+  let sharedFundCredit = null;
 
   try {
-    const rewardOutcome = applyRewardByReceipt(store, nextReceipt, specialtyType);
+    const rewardOutcome = await applyRewardByReceipt(store, nextReceipt, specialtyType, settlementOptions);
+    sharedFundCredit = rewardOutcome.shared_fund_credit || null;
     nextReceipt = normalizeSettlementReceipt({
       ...nextReceipt,
       status: 'confirmed',
       reward_result: rewardOutcome.reward_result,
+      reward_route: rewardOutcome.reward_route || nextReceipt.reward_route,
+      cohabitation_contract_id: rewardOutcome.cohabitation_contract_id || nextReceipt.cohabitation_contract_id,
+      shared_fund_ledger_id: rewardOutcome.shared_fund_ledger_id || nextReceipt.shared_fund_ledger_id,
       compensation_id: '',
     });
     nextStage = normalizeOrderStage({
@@ -1553,6 +1609,7 @@ async function confirmCoopOrderStageDelivery(orderId, stageId, actor = {}) {
     stage: findStageById(nextOrder, stage.id),
     receipt: nextReceipt,
     compensation: nextStage.compensation_id ? findCompensationById(store, nextStage.compensation_id) : null,
+    shared_fund_credit: sharedFundCredit,
   };
 }
 
@@ -1582,7 +1639,7 @@ async function replayCoopOrderCompensation(compensationId, actor = {}) {
   });
 
   try {
-    const rewardOutcome = applyRewardByReceipt(store, receipt, specialtyType);
+    const rewardOutcome = await applyRewardByReceipt(store, receipt, specialtyType);
     nextCompensation = normalizeCompensationRecord({
       ...nextCompensation,
       status: 'resolved',
@@ -1756,6 +1813,9 @@ function listConfirmedMoneyReceiptsForUsers(usernames = [], limit = 20) {
         reward_type: receipt.reward_type,
         reward_value: receipt.reward_value,
         reward_label: receipt.reward_label,
+        reward_route: receipt.reward_route,
+        cohabitation_contract_id: receipt.cohabitation_contract_id,
+        shared_fund_ledger_id: receipt.shared_fund_ledger_id,
         result_note: receipt.result_note,
         confirmed_at: receipt.confirmed_at,
         updated_at: receipt.updated_at,

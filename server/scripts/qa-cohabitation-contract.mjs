@@ -1133,6 +1133,46 @@ assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFa
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyOrders, 'family order panel should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyOrders, 'family order panel should not rewrite extra save')
 
+const partnerMoneyBeforeSharedFundOrderIncome = readGameplayData(partner)?.player?.money
+const sharedFundIncomeOrder = await coopOrderRuntime.createCoopOrder({
+  title: '家族基金入账',
+  description: '用于验证公共订单收入真实写入共同基金',
+  order_type: 'material_help',
+  scope: 'public',
+  target_username: partner,
+  deadline_at: Math.floor(Date.now() / 1000) + 3600,
+  reward_type: 'money',
+  reward_value: 65,
+  reward_label: '共同基金入账',
+}, actor(owner))
+await coopOrderRuntime.acceptCoopOrder(sharedFundIncomeOrder.id, actor(partner))
+await coopOrderRuntime.submitCoopOrderDelivery(sharedFundIncomeOrder.id, {
+  result_note: '伙伴完成了共同基金入账订单',
+}, actor(partner))
+const sharedFundIncomeConfirm = await coopOrderRuntime.confirmCoopOrderDelivery(sharedFundIncomeOrder.id, actor(owner), {
+  reward_route: 'shared_fund',
+  cohabitation_contract_id: familyContract.contract.id,
+  sharedFundCreditHandler: ({ receipt, contract_id: contractId }) =>
+    runtime.creditCohabitationOrderIncome(contractId, receipt, actor(owner)),
+})
+assert.equal(sharedFundIncomeConfirm.receipt.status, 'confirmed', 'shared fund order income should confirm receipt')
+assert.equal(sharedFundIncomeConfirm.receipt.reward_route, 'shared_fund', 'shared fund order income should mark receipt route')
+assert.equal(sharedFundIncomeConfirm.receipt.cohabitation_contract_id, familyContract.contract.id, 'shared fund order income should keep target contract id')
+assert.ok(sharedFundIncomeConfirm.receipt.shared_fund_ledger_id, 'shared fund order income should keep fund ledger id on receipt')
+assert.equal(sharedFundIncomeConfirm.shared_fund_credit.fund_ledger_entry.action, 'order_income', 'shared fund order income should write order_income ledger')
+assert.equal(sharedFundIncomeConfirm.shared_fund_credit.fund_ledger_entry.amount, 65, 'shared fund order income ledger should keep reward amount')
+assert.equal(sharedFundIncomeConfirm.shared_fund_credit.shared_fund.balance_before, 0, 'shared fund order income should report previous fund balance')
+assert.equal(sharedFundIncomeConfirm.shared_fund_credit.shared_fund.balance_after, 65, 'shared fund order income should increase fund balance')
+assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeSharedFundOrderIncome, 'shared fund order income should not pay partner personal save')
+const repeatedSharedFundOrderIncome = await runtime.creditCohabitationOrderIncome(
+  familyContract.contract.id,
+  sharedFundIncomeConfirm.receipt,
+  actor(owner)
+)
+assert.equal(repeatedSharedFundOrderIncome.idempotent, true, 'shared fund order income helper should be idempotent')
+assert.equal(repeatedSharedFundOrderIncome.fund.balance, 65, 'shared fund order income helper should not credit balance twice')
+assert.ok(repeatedSharedFundOrderIncome.contract.audit_log.find(entry => entry.action === 'fund_order_income_credited'), 'shared fund order income should be audited')
+
 const partnerTeaBeforeFamilyDeposit = getInventoryItemQuantity(partner, 'tea')
 const familyWarehouseBeforeDeposit = await runtime.getCohabitationWarehouse(familyContract.contract.id, actor(partner))
 assert.equal(familyWarehouseBeforeDeposit.warehouse.summary.family_manor_warehouse, true, 'family warehouse snapshot should mark family manor mode')

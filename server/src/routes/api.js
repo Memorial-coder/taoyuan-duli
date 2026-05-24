@@ -3144,25 +3144,43 @@ router.post('/taoyuan/online/orders/:orderId/stages/:stageId/deliver', createOnl
 });
 
 router.post('/taoyuan/online/orders/:orderId/confirm-delivery', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
-  try {
-    const actor = getSessionActor(req);
-    const result = await taoyuanCoopOrderRuntime.confirmCoopOrderDelivery(req.params.orderId, actor);
-    emitCoopOrderNotificationCreatedEvent('order_delivery_confirmed', result, actor);
-    res.json({ ok: true, ...result });
-  } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '确认交付失败' });
-  }
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const actor = getSessionActor(req);
+      const body = req.body || {};
+      const settlementOptions = {
+        reward_route: body.reward_route || body.rewardRoute,
+        cohabitation_contract_id: body.cohabitation_contract_id || body.contract_id || body.contractId,
+        sharedFundCreditHandler: ({ receipt, contract_id: contractId }) =>
+          taoyuanCohabitationRuntime.creditCohabitationOrderIncome(contractId, receipt, actor),
+      };
+      const result = await taoyuanCoopOrderRuntime.confirmCoopOrderDelivery(req.params.orderId, actor, settlementOptions);
+      emitCoopOrderNotificationCreatedEvent('order_delivery_confirmed', result, actor);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '确认交付失败' });
+    }
+  });
 });
 
 router.post('/taoyuan/online/orders/:orderId/stages/:stageId/confirm-delivery', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
-  try {
-    const actor = getSessionActor(req);
-    const result = await taoyuanCoopOrderRuntime.confirmCoopOrderStageDelivery(req.params.orderId, req.params.stageId, actor);
-    emitCoopOrderNotificationCreatedEvent('stage_delivery_confirmed', result, actor);
-    res.json({ ok: true, ...result });
-  } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '确认阶段交付失败' });
-  }
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const actor = getSessionActor(req);
+      const body = req.body || {};
+      const settlementOptions = {
+        reward_route: body.reward_route || body.rewardRoute,
+        cohabitation_contract_id: body.cohabitation_contract_id || body.contract_id || body.contractId,
+        sharedFundCreditHandler: ({ receipt, contract_id: contractId }) =>
+          taoyuanCohabitationRuntime.creditCohabitationOrderIncome(contractId, receipt, actor),
+      };
+      const result = await taoyuanCoopOrderRuntime.confirmCoopOrderStageDelivery(req.params.orderId, req.params.stageId, actor, settlementOptions);
+      emitCoopOrderNotificationCreatedEvent('stage_delivery_confirmed', result, actor);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '确认阶段交付失败' });
+    }
+  });
 });
 
 router.post('/taoyuan/online/orders/compensations/:compensationId/retry', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {

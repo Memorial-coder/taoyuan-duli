@@ -1646,6 +1646,131 @@ function buildSharedFundOrderIncomeCreditPlan(contract, receipt, member, options
   };
 }
 
+async function creditCohabitationOrderIncome(contractId, receipt = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const receiptId = sanitizeText(receipt.receipt_id || receipt.id, 80);
+  const orderId = sanitizeText(receipt.order_id, 80);
+  const stageId = sanitizeText(receipt.stage_id, 80);
+  const amount = Math.max(0, Math.floor(Number(receipt.reward_value || receipt.amount) || 0));
+  if (!receiptId || !orderId) throw createError('公共订单收入缺少结算凭证');
+  if ((receipt.reward_type || 'money') !== 'money') throw createError('只有铜钱公共订单收入可以写入共同基金', 400);
+  if (amount <= 0) throw createError('公共订单收入金额必须大于 0');
+
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '确认公共订单收入入共同基金');
+  if (!isFamilyRoleContractType(contract.type)) throw createError('公共订单收入入共同基金第一版只开放给结拜 / 合伙庄园', 403);
+
+  const assigneeMember = getContractMember(contract, receipt.assignee_username);
+  if (!assigneeMember || assigneeMember.status !== 'accepted') {
+    throw createError('公共订单接单人不是该家族庄园的已激活成员，不能写入共同基金', 403);
+  }
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  const stageSegment = stageId ? `:stage:${stageId}` : '';
+  const targetRef = sanitizeText(
+    receipt.target_ref || `coop_order:${orderId}${stageSegment}:receipt:${receiptId}`,
+    120
+  );
+  const idempotencyKey = sanitizeText(`fund-order-income:${contract.id}:${receiptId}`, 120);
+  const previousEntry = contract.shared_fund.ledger.find(entry =>
+    (entry.idempotency_key && entry.idempotency_key === idempotencyKey)
+    || (entry.action === 'order_income' && entry.target_ref === targetRef)
+  );
+  if (previousEntry) {
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      fund_ledger_entry: previousEntry,
+      idempotent: true,
+      credit_plan: buildSharedFundOrderIncomeCreditPlan(contract, {
+        ...receipt,
+        receipt_id: receiptId,
+        order_id: orderId,
+        stage_id: stageId,
+        target_ref: targetRef,
+      }, assigneeMember, {
+        idempotency_key: idempotencyKey,
+        already_recorded: true,
+        personal_reward_already_paid: false,
+        credit_enabled: true,
+      }),
+    };
+  }
+
+  const beforeBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
+  const afterBalance = beforeBalance + amount;
+  const operatedAt = nowSeconds();
+  const creditPlan = buildSharedFundOrderIncomeCreditPlan(contract, {
+    ...receipt,
+    receipt_id: receiptId,
+    order_id: orderId,
+    stage_id: stageId,
+    target_ref: targetRef,
+  }, assigneeMember, {
+    balance_before: beforeBalance,
+    idempotency_key: idempotencyKey,
+    already_recorded: false,
+    personal_reward_already_paid: false,
+    credit_enabled: true,
+  });
+  const fundLedgerEntry = normalizeFundLedgerEntry({
+    id: makeId('shared_fund_ledger'),
+    action: 'order_income',
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    amount,
+    at: operatedAt,
+    memo: sanitizeText(receipt.result_note || receipt.reward_label || '公共订单收入', 160),
+    purpose: 'family_order_income',
+    source_owner_id: `coop_order:${orderId}`,
+    source_owner_username: receipt.assignee_username,
+    source_owner_display_name: receipt.assignee_display_name || receipt.assignee_username,
+    source_owner_key: assigneeMember.username_key,
+    target_ref: targetRef,
+    spend_category: 'order_income',
+    spend_purpose_label: '公共订单收入',
+    balance_after: afterBalance,
+    idempotency_key: idempotencyKey,
+    reversible: true,
+    compensation_hint: '公共订单收入已写入共同基金；若订单确认、基金写入或通知链路失败，应按该幂等键重放或进入补偿队列，避免个人奖励与共同基金双发。',
+    status: 'committed',
+  });
+
+  contract.shared_fund.balance = afterBalance;
+  contract.shared_fund.ledger = [fundLedgerEntry, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  appendAudit(contract, 'fund_order_income_credited', actor, {
+    ledger_id: fundLedgerEntry.id,
+    amount,
+    order_id: orderId,
+    stage_id: stageId,
+    receipt_id: receiptId,
+    target_ref: targetRef,
+    balance_before: beforeBalance,
+    balance_after: afterBalance,
+    assignee_username: assigneeMember.username,
+    personal_reward_paid: false,
+    duplicate_personal_reward_guard: true,
+    reversible: true,
+  }, idempotencyKey);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    fund_ledger_entry: fundLedgerEntry,
+    idempotent: false,
+    credit_plan: creditPlan,
+    shared_fund: {
+      balance_before: beforeBalance,
+      balance_after: afterBalance,
+      personal_money_merged: false,
+    },
+  };
+}
+
 function buildFamilyOrderIncomePreview(contract, enabled = isFamilyRoleContractType(contract.type)) {
   const acceptedMembers = (contract.members || []).filter(member => member.status === 'accepted');
   const fund = normalizeSharedFund(contract.shared_fund);
@@ -1691,11 +1816,12 @@ function buildFamilyOrderIncomePreview(contract, enabled = isFamilyRoleContractT
       const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
       const proposedIdempotencyKey = sanitizeText(`fund-order-income:${contract.id}:${receipt.receipt_id}`, 120);
       const alreadyRecorded = existingIdempotencyKeys.has(proposedIdempotencyKey) || existingOrderTargets.has(receipt.target_ref);
+      const personalRewardAlreadyPaid = receipt.reward_route !== 'shared_fund';
       const creditPlan = buildSharedFundOrderIncomeCreditPlan(contract, receipt, member, {
         balance_before: runningPreviewBalance,
         idempotency_key: proposedIdempotencyKey,
         already_recorded: alreadyRecorded,
-        personal_reward_already_paid: true,
+        personal_reward_already_paid: personalRewardAlreadyPaid,
       });
       if (!alreadyRecorded) runningPreviewBalance = creditPlan.ledger_draft.balance_after;
       return {
@@ -1714,6 +1840,9 @@ function buildFamilyOrderIncomePreview(contract, enabled = isFamilyRoleContractT
         owner_display_name: receipt.owner_display_name,
         amount: receipt.reward_value,
         reward_label: receipt.reward_label,
+        reward_route: receipt.reward_route || 'personal',
+        cohabitation_contract_id: receipt.cohabitation_contract_id || '',
+        shared_fund_ledger_id: receipt.shared_fund_ledger_id || '',
         confirmed_at: receipt.confirmed_at,
         target_ref: receipt.target_ref,
         proposed_ledger_action: 'order_income',
@@ -1721,8 +1850,8 @@ function buildFamilyOrderIncomePreview(contract, enabled = isFamilyRoleContractT
         proposed_balance_after: alreadyRecorded ? fund.balance : runningPreviewBalance,
         status: alreadyRecorded ? 'already_recorded_preview' : 'candidate',
         credit_enabled: false,
-        personal_reward_already_paid: true,
-        requires_reward_reroute_before_confirm: true,
+        personal_reward_already_paid: personalRewardAlreadyPaid,
+        requires_reward_reroute_before_confirm: personalRewardAlreadyPaid,
         credit_plan: creditPlan,
         audit_required: true,
         compensation_required: true,
@@ -5207,6 +5336,7 @@ module.exports = {
   depositCohabitationWarehouseItem,
   withdrawCohabitationWarehouseItem,
   sellCohabitationWarehouseItem,
+  creditCohabitationOrderIncome,
   contributeCohabitationFund,
   spendCohabitationFund,
   updateCohabitationPermissions,

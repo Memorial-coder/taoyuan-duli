@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 公共订单收入入共同基金
+- 订单确认交付服务端新增共同基金结算路径：传入 `reward_route=shared_fund` 和 `cohabitation_contract_id` 后，铜钱奖励会写入结拜 / 合伙庄园共同基金 `order_income` 流水。
+- 订单凭证会记录共同基金结算路由、契约 ID 和基金 ledger ID；该路径不写接单人个人铜币，重复入账 helper 会按幂等键和目标引用拦截。
+- 第一版仅开放铜钱奖励与服务端确认链路；前端结算选择、补偿重放入口、真实购买到账、中大额确认和返还执行仍保持关闭。
+- 本轮验证：`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0524 共同仓库普通卖出
 - 新增 `POST /taoyuan/online/cohabitation/contracts/:contractId/warehouse/sell`，已激活同居 / 家族庄园成员可按 `storage.sell_items` 权限卖出共同仓库普通物品。
 - 第一版只允许普通品质、非保护、服务端白名单定价物品；卖出会扣共同仓库 `sell` 流水，并把收入写入共同基金 `warehouse_sale_income` 流水，记录余额前后、来源 ledger、审计和补偿提示。
