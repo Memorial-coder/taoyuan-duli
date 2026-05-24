@@ -316,6 +316,8 @@ function normalizeMember(entry = {}) {
     status,
     save_id: normalizeSaveId(entry.save_id),
     save_slot: normalizeSaveSlot(entry.save_slot),
+    last_active_at: Number(entry.last_active_at) || Number(entry.accepted_at) || Number(entry.invited_at) || 0,
+    last_action: sanitizeText(entry.last_action, 80),
     invited_at: Number(entry.invited_at) || Number(entry.created_at) || nowSeconds(),
     accepted_at: status === 'accepted' ? Number(entry.accepted_at) || Number(entry.invited_at) || nowSeconds() : 0,
   };
@@ -828,6 +830,12 @@ function findOpenContract(store, members) {
 }
 
 function appendAudit(contract, action, actor = {}, detail = {}, idempotencyKey = '') {
+  const actorKey = normalizeUsernameKey(actor.username);
+  const actorMember = actorKey ? getContractMember(contract, actorKey) : null;
+  if (actorMember) {
+    actorMember.last_active_at = nowSeconds();
+    actorMember.last_action = sanitizeText(action, 80);
+  }
   contract.audit_log = [
     normalizeAuditEntry({
       action,
@@ -902,6 +910,75 @@ function buildPermissionSnapshot(contract, actorUsername = '') {
     recent_permission_audits: (contract.audit_log || [])
       .filter(entry => entry.action === 'permissions_updated')
       .slice(0, 10),
+  };
+}
+
+function resolveMemberLastActive(contract = {}, member = {}) {
+  const auditTimes = (contract.audit_log || [])
+    .filter(entry => normalizeUsernameKey(entry.actor_username) === member.username_key)
+    .map(entry => Number(entry.at) || 0)
+    .filter(Boolean);
+  return Math.max(
+    Number(member.last_active_at) || 0,
+    Number(member.accepted_at) || 0,
+    Number(member.invited_at) || 0,
+    ...auditTimes
+  );
+}
+
+function buildOfflineOperationSnapshot(contract, actorUsername = '') {
+  const actorMember = getContractMember(contract, actorUsername);
+  const actorPermissions = enforcePermissionSafetyRails(contract.permissions?.[actorMember?.username_key], contract.type);
+  const now = nowSeconds();
+  const members = (contract.members || []).map(member => {
+    const lastActiveAt = resolveMemberLastActive(contract, member);
+    const offlineSeconds = lastActiveAt > 0 ? Math.max(0, now - lastActiveAt) : null;
+    return {
+      username: member.username,
+      username_key: member.username_key,
+      display_name: member.display_name,
+      role: member.role,
+      status: member.status,
+      last_active_at: lastActiveAt,
+      last_action: sanitizeText(member.last_action, 80),
+      online_state: offlineSeconds !== null && offlineSeconds <= 15 * 60 ? 'recently_active' : 'offline_or_idle',
+      offline_seconds: offlineSeconds,
+      can_operate_independently: member.status === 'accepted' && contract.status === 'active',
+    };
+  });
+  return {
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    status: contract.status,
+    summary: {
+      server_authoritative: true,
+      member_online_required: false,
+      offline_member_blocks_operations: false,
+      independent_operations_enabled: contract.status === 'active' && actorMember?.status === 'accepted',
+      personal_money_merged: false,
+      shared_log_available: true,
+      auto_offline_income_enabled: false,
+      conflict_policy: '共同庄园第一版以服务端契约、仓库、基金和审计日志为准；离线自动收益与客户端本地合并暂不开放。',
+    },
+    members,
+    actor_capabilities: {
+      read_shared_map: true,
+      read_warehouse: true,
+      deposit_warehouse: actorPermissions.storage.deposit === true,
+      read_fund: true,
+      contribute_fund: true,
+      read_permissions: true,
+      manage_permissions: canManageCohabitationPermissions(actorMember),
+      create_separation_preview: true,
+    },
+    recent_shared_log: (contract.audit_log || []).slice(0, 30),
+    deferred_operations: [
+      'offline_auto_income',
+      'offline_worker_queue',
+      'simultaneous_online_bonus',
+      'conflict_merge_tool',
+      'frontend_shared_log',
+    ],
   };
 }
 
@@ -1307,6 +1384,18 @@ async function getCohabitationPermissions(contractId, actor = {}) {
   return {
     contract: toPublicContract(contract),
     permissions_panel: buildPermissionSnapshot(contract, actorUsername),
+  };
+}
+
+async function getCohabitationOfflineStatus(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看离线经营状态');
+  return {
+    contract: toPublicContract(contract),
+    offline_status: buildOfflineOperationSnapshot(contract, actorUsername),
   };
 }
 
@@ -1733,6 +1822,7 @@ module.exports = {
   getCohabitationWarehouse,
   getCohabitationFund,
   getCohabitationPermissions,
+  getCohabitationOfflineStatus,
   depositCohabitationWarehouseItem,
   contributeCohabitationFund,
   updateCohabitationPermissions,

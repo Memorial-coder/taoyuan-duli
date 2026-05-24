@@ -474,6 +474,28 @@ const partnerPermissionsRead = await runtime.getCohabitationPermissions(created.
 assert.equal(partnerPermissionsRead.permissions_panel.editable_by_actor, false, 'partner should read permissions without edit capability')
 assert.equal(partnerPermissionsRead.permissions_panel.members.find(member => member.username === partner)?.permissions.storage.deposit, false, 'partner should see updated own permissions')
 
+const offlineStatus = await runtime.getCohabitationOfflineStatus(created.contract.id, actor(owner))
+assert.equal(offlineStatus.offline_status.summary.server_authoritative, true, 'offline status should be server authoritative')
+assert.equal(offlineStatus.offline_status.summary.member_online_required, false, 'offline status should not require all members online')
+assert.equal(offlineStatus.offline_status.summary.offline_member_blocks_operations, false, 'offline members should not block operations')
+assert.equal(offlineStatus.offline_status.summary.independent_operations_enabled, true, 'active members should be able to operate independently')
+assert.equal(offlineStatus.offline_status.summary.auto_offline_income_enabled, false, 'first pass should not enable offline auto income')
+assert.ok(offlineStatus.offline_status.members.find(member => member.username === owner)?.last_active_at > 0, 'offline status should expose owner last active time')
+assert.ok(offlineStatus.offline_status.members.find(member => member.username === partner)?.last_active_at > 0, 'offline status should expose partner last active time')
+assert.ok(offlineStatus.offline_status.recent_shared_log.some(entry => entry.action === 'permissions_updated'), 'offline status should expose recent shared log')
+assert.equal(offlineStatus.offline_status.actor_capabilities.deposit_warehouse, true, 'owner should still be able to deposit while partner is not required online')
+assert.equal(offlineStatus.offline_status.actor_capabilities.manage_permissions, true, 'owner should retain permission management capability')
+
+const partnerOfflineStatus = await runtime.getCohabitationOfflineStatus(created.contract.id, actor(partner))
+assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.deposit_warehouse, false, 'offline status should reflect updated partner warehouse permission')
+assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.manage_permissions, false, 'partner should not manage permissions in offline status')
+
+await assert.rejects(
+  () => runtime.getCohabitationOfflineStatus(created.contract.id, actor(extra)),
+  error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
+  'non-members should not read offline operation status'
+)
+
 const partnerTeaBeforePermissionDenied = getInventoryItemQuantity(partner, 'tea')
 await assert.rejects(
   () => runtime.depositCohabitationWarehouseItem(created.contract.id, {
@@ -511,6 +533,11 @@ await assert.rejects(
   () => runtime.getCohabitationPermissions(pendingContract.contract.id, actor(owner)),
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not expose permissions panel'
+)
+await assert.rejects(
+  () => runtime.getCohabitationOfflineStatus(pendingContract.contract.id, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not expose offline operation status'
 )
 await assert.rejects(
   () => runtime.depositCohabitationWarehouseItem(pendingContract.contract.id, {
