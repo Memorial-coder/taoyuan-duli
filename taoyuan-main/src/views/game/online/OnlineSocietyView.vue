@@ -512,8 +512,20 @@
           <span class="text-[10px] text-muted">{{ currentSociety?.public_projects.length || 0 }} 项</span>
         </div>
         <div v-if="!currentSociety" class="mt-3 text-xs leading-5 text-muted">加入村社后会显示公共建设摘要。</div>
-        <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
-          <div v-for="project in currentSociety.public_projects" :key="project.id" class="border border-accent/10 bg-black/10 p-2">
+        <div v-else class="mt-3 space-y-3">
+          <AsyncCommunityBoard
+            v-if="asyncCommunityProjects.length > 0"
+            :projects="asyncCommunityProjects"
+            :selected-project-id="activeAsyncCommunityProjectId"
+            :recent-feedback="currentSociety.visual_state?.recent_feedback || ''"
+            :action-running="societyStore.actionRunning"
+            :action-labels="asyncCommunityActionLabels"
+            @select-project="selectAsyncCommunityProject"
+            @trigger-contribution="triggerAsyncCommunityContribution"
+          />
+
+          <div class="max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+            <div v-for="project in currentSociety.public_projects" :key="project.id" class="border border-accent/10 bg-black/10 p-2">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
                 <p class="truncate text-xs text-text">{{ project.label }}</p>
@@ -554,6 +566,7 @@
                 </div>
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -778,8 +791,10 @@
   import { computed, onMounted, reactive, ref, watch, watchEffect } from 'vue'
   import { useRoute } from 'vue-router'
   import { ShieldCheck } from 'lucide-vue-next'
+  import AsyncCommunityBoard from '@/components/game/online/AsyncCommunityBoard.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import { useSocietyStore } from '@/stores/useSocietyStore'
+  import type { OnlineVisualAsyncProject } from '@/types/onlineVisual'
   import type { SocietyProposalChoice, SocietyProposalSnapshot, SocietyRole, SocietySnapshot } from '@/utils/societyApi'
 
   type SocietyTabKey = 'overview' | 'members' | 'storage' | 'projects' | 'proposals' | 'chronicles'
@@ -789,6 +804,7 @@
   const societyStore = useSocietyStore()
   const memberRoleDrafts = reactive<Record<string, Exclude<SocietyRole, 'president'>>>({})
   const proposalResolutionNotes = reactive<Record<string, string>>({})
+  const selectedAsyncCommunityProjectId = ref('')
   const tabs: SocietyTabMeta[] = [
     { key: 'overview', label: '总览', summary: '查看我的村社、公告摘要和公开村社入口。' },
     { key: 'members', label: '成员', summary: '查看成员、职位和待处理申请邀请摘要。' },
@@ -813,6 +829,32 @@
   const visibleSocietyPreview = computed(() => societyStore.visibleSocieties)
   const memberCount = computed(() => currentSociety.value?.members.length ?? 0)
   const activeProjectCount = computed(() => currentSociety.value?.public_projects.filter(project => project.status !== 'completed').length ?? 0)
+  const asyncCommunityProjects = computed<OnlineVisualAsyncProject[]>(() => {
+    const visualState = currentSociety.value?.visual_state
+    if (!visualState || visualState.board_type !== 'async') return []
+    return visualState.async_projects || []
+  })
+  const asyncCommunityProjectIds = computed(() => new Set(asyncCommunityProjects.value.map(project => project.id)))
+  const activeAsyncCommunityProjectId = computed(() => {
+    if (selectedAsyncCommunityProjectId.value && asyncCommunityProjectIds.value.has(selectedAsyncCommunityProjectId.value)) {
+      return selectedAsyncCommunityProjectId.value
+    }
+    const visualSelectedId = currentSociety.value?.visual_state?.selected_visual_id || ''
+    if (visualSelectedId && asyncCommunityProjectIds.value.has(visualSelectedId)) return visualSelectedId
+    return asyncCommunityProjects.value.find(project => !project.completion_event_id)?.id || asyncCommunityProjects.value[0]?.id || ''
+  })
+  const asyncCommunityActionLabels = computed(() => {
+    const labels: Record<string, string> = {}
+    for (const project of asyncCommunityProjects.value) {
+      for (const stage of project.stages) {
+        for (const option of stage.contribution_options) labels[option.id] = option.label
+      }
+    }
+    for (const project of currentSociety.value?.public_projects ?? []) {
+      for (const entry of project.contribution_packages) labels[entry.id] = entry.label
+    }
+    return labels
+  })
   const activeTabMeta = computed(() => tabs.find(tab => tab.key === activeTab.value) ?? tabs[0]!)
   const pendingRequestBySocietyId = computed(() => new Map(societyStore.myPendingRequests.map(request => [request.society_id, request])))
   const incomingInviteBySocietyId = computed(() => new Map(societyStore.incomingInvites.map(request => [request.society_id, request])))
@@ -948,6 +990,16 @@
   const archiveProposal = async (proposalId: string) => {
     await societyStore.archiveProposal(proposalId, proposalResolutionNotes[proposalId] || '').catch(() => {})
     proposalResolutionNotes[proposalId] = ''
+  }
+
+  const selectAsyncCommunityProject = (projectId: string) => {
+    selectedAsyncCommunityProjectId.value = projectId
+  }
+
+  const triggerAsyncCommunityContribution = async (payload: { projectId: string, optionId: string }) => {
+    if (!payload.projectId || !payload.optionId) return
+    selectedAsyncCommunityProjectId.value = payload.projectId
+    await societyStore.contributeProject(payload.projectId, payload.optionId).catch(() => {})
   }
 
   const contributeProject = async (projectId: string, packageId: string) => {

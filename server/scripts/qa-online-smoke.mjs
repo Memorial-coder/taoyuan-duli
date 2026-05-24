@@ -3992,6 +3992,12 @@ try {
     assert(data?.ok === true && data?.project?.id === 'bridge', 'society public project contribute payload is incomplete')
     assert(Number(data?.project?.progress || 0) === 30, `society public project progress did not advance to 30, current=${Number(data?.project?.progress || 0)}`)
     assert(Array.isArray(data?.project?.recent_contributions) && data.project.recent_contributions.some(entry => entry?.username === secondarySessionState.username && entry?.package_id === 'wood_bundle'), 'society public project contribution record is missing')
+    const bridgeVisualProject = data?.overview?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'bridge')
+    assert(data?.overview?.my_society?.visual_state?.board_type === 'async', 'society public project did not expose async visual board')
+    assert(bridgeVisualProject, 'society public project did not expose bridge async project')
+    assert(bridgeVisualProject.stages?.some(entry => entry?.id === 'bridge_scaffold' && entry?.state === 'complete'), 'bridge async project did not complete scaffold stage after first contribution')
+    assert(bridgeVisualProject.stages?.some(entry => entry?.id === 'bridge_deck' && entry?.state === 'active' && Array.isArray(entry?.contribution_options) && entry.contribution_options.length > 0), 'bridge async project did not expose active contribution options')
+    assert(bridgeVisualProject.contributors?.some(entry => entry?.username === secondarySessionState.username && Number(entry?.contribution_value || 0) >= 30), 'bridge async project did not expose contribution ranking')
 
     const afterSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
     assert(afterSave.response.ok, `secondary save readback after public project returned ${afterSave.response.status}`)
@@ -4010,6 +4016,10 @@ try {
     const bridgeProject = data?.my_society?.public_projects?.find(entry => entry?.id === 'bridge')
     assert(bridgeProject && Number(bridgeProject?.progress || 0) === 30, 'society public project readback did not preserve bridge progress')
     assert(Array.isArray(bridgeProject?.recent_contributions) && bridgeProject.recent_contributions.some(entry => entry?.username === secondarySessionState.username), 'society public project readback did not preserve contribution history')
+    const bridgeVisualProject = data?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'bridge')
+    assert(data?.my_society?.visual_state?.board_type === 'async', 'society public project readback did not expose async visual board')
+    assert(bridgeVisualProject?.current_stage_id === 'bridge_deck', 'society public project readback did not preserve bridge async current stage')
+    assert(Array.isArray(bridgeVisualProject?.history) && bridgeVisualProject.history.some(entry => entry?.actor_username === secondarySessionState.username), 'society public project readback did not preserve async project history')
   })
 
   await runCheck('POST /api/taoyuan/online/societies/public-projects/:projectId/contribute completion path', async () => {
@@ -4084,6 +4094,10 @@ try {
       bridgeProject.world_feedback.includes('桥头会面'),
       'society completed public project readback did not preserve world feedback',
     )
+    const bridgeVisualProject = data?.my_society?.visual_state?.async_projects?.find(entry => entry?.id === 'bridge')
+    assert(bridgeVisualProject?.completion_event_id === 'society_project_complete:bridge', 'society completed public project readback did not expose bridge completion visual event')
+    assert(Array.isArray(bridgeVisualProject?.stages) && bridgeVisualProject.stages.every(entry => entry?.state === 'complete'), 'society completed public project readback did not mark all bridge visual stages complete')
+    assert(Array.isArray(bridgeVisualProject?.history) && bridgeVisualProject.history.some(entry => entry?.type === 'stage_complete'), 'society completed public project readback did not preserve visual completion history')
     assert(
       Array.isArray(data?.my_society?.activity_log) &&
       data.my_society.activity_log.some(entry => entry?.type === 'public_project_complete' && String(entry?.message || '').includes('修桥')),

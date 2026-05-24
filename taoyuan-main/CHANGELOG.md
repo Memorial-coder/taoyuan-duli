@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 村社修桥异步共建视图
+- 在线村社 snapshot 新增 `visual_state.async_projects`，把现有公共建设映射为异步共建工程；修桥会按搭脚手架、铺桥面、修栏杆、挂灯通行四阶段输出阶段物件、贡献入口、里程碑、贡献榜和历史记录。
+- 新增 `AsyncCommunityBoard`，在线村社“公共建设”页会展示断桥现场、公共进度、阶段进度、贡献按钮、贡献榜、历史纪念和最近反馈；原公共建设列表保留为降级详情入口。
+- 公共建设贡献仍复用服务端 `public-projects/:projectId/contribute` 权威扣款 / 扣材料接口，`qa:online-smoke` 新增修桥视觉状态读回、阶段变化、贡献榜、历史和完工事件断言。
+- 本轮验证：`node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix server run qa:online-smoke`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 端午赛舟成绩回看
 - 端午赛舟结算现在会生成 `dragon_boat` 路线回看成绩单，保留 8 格河道顺序、冲线状态、默契值、行动高光、压力峰值和成员贡献。
 - `route_replay` 仍是结算凭证上的只读回看字段，不进入 `reward_payload`，不改变奖励落账幂等键；矿洞继续使用原有探索路线回看，其他房间保持空回看兼容。

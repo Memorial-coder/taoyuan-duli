@@ -1,5 +1,6 @@
 import { ensureCurrentAccount, ensureCurrentCsrfToken } from '@/utils/accountStorage'
 import { fetchProtectedJson } from '@/utils/protectedApi'
+import type { OnlineVisualState } from '@/types/onlineVisual'
 
 export type SocietyVisibility = 'public' | 'semi_public' | 'private'
 export type SocietyRole = 'president' | 'steward' | 'buyer' | 'treasurer' | 'scribe' | 'member'
@@ -287,6 +288,7 @@ export interface SocietySnapshot {
   active_proposals: SocietyProposalSnapshot[]
   proposal_history: SocietyProposalSnapshot[]
   public_projects: SocietyPublicProjectSnapshot[]
+  visual_state?: OnlineVisualState
   welfare_unlocks: SocietyWelfareUnlockSnapshot[]
   exclusive_festival: SocietyExclusiveFestivalSnapshot
   exclusive_decors: SocietyExclusiveDecorSnapshot[]

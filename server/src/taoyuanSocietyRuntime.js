@@ -368,6 +368,21 @@ const SOCIETY_PROJECT_PACKAGE_MAP = Object.freeze(
   Object.fromEntries(SOCIETY_PROJECT_PACKAGE_OPTIONS.map(entry => [entry.id, entry]))
 );
 
+const SOCIETY_ASYNC_PROJECT_STAGE_DEFS = Object.freeze({
+  bridge: [
+    { id: 'bridge_scaffold', label: '搭脚手架', threshold: 25, object_ids: ['bridge_piles', 'bridge_scaffold'] },
+    { id: 'bridge_deck', label: '铺桥面', threshold: 55, object_ids: ['bridge_deck'] },
+    { id: 'bridge_railing', label: '修栏杆', threshold: 85, object_ids: ['bridge_railing'] },
+    { id: 'bridge_ceremony', label: '挂灯通行', threshold: 100, object_ids: ['bridge_lanterns', 'bridge_memorial'] },
+  ],
+  default: [
+    { id: 'prepare', label: '备料', threshold: 25, object_ids: ['material_yard'] },
+    { id: 'build', label: '主体施工', threshold: 60, object_ids: ['main_structure'] },
+    { id: 'finish', label: '收尾验看', threshold: 90, object_ids: ['finish_work'] },
+    { id: 'memorial', label: '纪念落成', threshold: 100, object_ids: ['project_memorial'] },
+  ],
+});
+
 function createEmptySocietyStore() {
   return {
     societies: [],
@@ -1732,6 +1747,208 @@ async function buildPublicProjectContributionSnapshot(entry) {
   };
 }
 
+function buildSocietyVisualResourceCostPreview(costs = []) {
+  return costs.map(normalizeBundleEntry).filter(Boolean).reduce((result, cost) => {
+    if (cost.type === 'money') {
+      result.money = (result.money || 0) + Math.max(0, Math.floor(Number(cost.amount) || 0));
+      return result;
+    }
+    const itemId = sanitizeText(cost.item_id, 40);
+    if (itemId) result[itemId] = (result[itemId] || 0) + Math.max(0, Math.floor(Number(cost.quantity) || 0));
+    return result;
+  }, {});
+}
+
+function buildSocietyVisualContributionOptions(project) {
+  if (project.status === 'completed') return [];
+  return SOCIETY_PROJECT_PACKAGE_OPTIONS.map(entry => ({
+    id: entry.id,
+    label: entry.label,
+    kind: entry.costs.some(cost => cost.type === 'item') ? 'material' : 'fund',
+    available_action_id: entry.id,
+    daily_limit: 0,
+    weekly_limit: 0,
+    resource_cost_preview: buildSocietyVisualResourceCostPreview(entry.costs),
+    progress_delta: Math.max(0, Math.floor(Number(entry.progress_gain) || 0)),
+    reward_preview: `推进 ${Math.max(0, Math.floor(Number(entry.progress_gain) || 0))} 点并写入村社贡献记录。`,
+  }));
+}
+
+function getSocietyAsyncStageDefs(projectId) {
+  const rawStages = SOCIETY_ASYNC_PROJECT_STAGE_DEFS[projectId] || SOCIETY_ASYNC_PROJECT_STAGE_DEFS.default;
+  return rawStages.map((stage, index) => ({
+    ...stage,
+    id: projectId === 'bridge' ? stage.id : `${projectId}_${stage.id}`,
+    previous_threshold: index === 0 ? 0 : Math.max(0, Math.floor(Number(rawStages[index - 1].threshold) || 0)),
+    threshold: Math.max(1, Math.floor(Number(stage.threshold) || 100)),
+  }));
+}
+
+function getSocietyAsyncStageState(project, stage) {
+  if (project.status === 'completed' || project.progress >= stage.threshold) return 'complete';
+  if (project.progress >= stage.previous_threshold) return 'active';
+  return 'pending';
+}
+
+function buildSocietyVisualAsyncStages(project) {
+  const stages = getSocietyAsyncStageDefs(project.id);
+  return stages.map(stage => {
+    const span = Math.max(1, stage.threshold - stage.previous_threshold);
+    const stageProgress = Math.max(0, Math.min(span, project.progress - stage.previous_threshold));
+    return {
+      id: stage.id,
+      label: stage.label,
+      state: getSocietyAsyncStageState(project, stage),
+      progress_value: stageProgress,
+      progress_target: span,
+      object_ids: Array.isArray(stage.object_ids) ? stage.object_ids : [],
+      contribution_options: stage.id === (stages.find(item => getSocietyAsyncStageState(project, item) === 'active') || stages[stages.length - 1]).id
+        ? buildSocietyVisualContributionOptions(project)
+        : [],
+      milestones: stages.map(item => ({
+        id: `${project.id}_milestone_${item.threshold}`,
+        label: item.label,
+        progress_required: item.threshold,
+        reached: project.status === 'completed' || project.progress >= item.threshold,
+        reward_preview: item.threshold >= project.target_progress ? project.completion_feedback : `推进到 ${item.threshold}/${project.target_progress}`,
+      })),
+    };
+  });
+}
+
+function buildSocietyVisualAsyncContributors(project) {
+  const contributorMap = new Map();
+  for (const contribution of (project.contributions || []).map(normalizeSocietyPublicProjectContribution)) {
+    if (!contribution.username) continue;
+    const existing = contributorMap.get(contribution.username) || {
+      username: contribution.username,
+      display_name: contribution.display_name || contribution.username,
+      contribution_value: 0,
+    };
+    existing.contribution_value += Math.max(0, Math.floor(Number(contribution.progress_gain) || 0));
+    if (contribution.display_name) existing.display_name = contribution.display_name;
+    contributorMap.set(contribution.username, existing);
+  }
+  return [...contributorMap.values()]
+    .sort((left, right) => right.contribution_value - left.contribution_value)
+    .slice(0, 12)
+    .map((entry, index) => ({
+      ...entry,
+      rank: index + 1,
+    }));
+}
+
+function buildSocietyVisualAsyncHistory(project) {
+  const contributions = (project.contributions || [])
+    .map(normalizeSocietyPublicProjectContribution)
+    .sort((left, right) => right.created_at - left.created_at)
+    .slice(0, 8)
+    .map(entry => ({
+      id: entry.id,
+      type: 'contribution',
+      actor_username: entry.username,
+      actor_display_name: entry.display_name || entry.username,
+      summary: `${entry.display_name || entry.username}提交了${entry.package_label || '公共建设贡献'}，推进 ${entry.progress_gain} 点。`,
+      created_at: entry.created_at,
+    }));
+  if (project.status !== 'completed') return contributions;
+  return [
+    {
+      id: `${project.id}_complete_${project.completed_at || nowSeconds()}`,
+      type: 'stage_complete',
+      actor_username: project.completed_by,
+      actor_display_name: project.completed_by_display_name || project.completed_by,
+      summary: project.completion_feedback,
+      created_at: project.completed_at || nowSeconds(),
+    },
+    ...contributions,
+  ].slice(0, 12);
+}
+
+function buildSocietyVisualAsyncProject(project) {
+  const normalized = normalizeSocietyPublicProject(project);
+  const def = SOCIETY_PUBLIC_PROJECT_DEF_MAP[normalized.id] || SOCIETY_PUBLIC_PROJECT_DEFS[0];
+  const stages = buildSocietyVisualAsyncStages(normalized);
+  const currentStage = stages.find(stage => stage.state === 'active')
+    || stages.find(stage => stage.state !== 'complete')
+    || stages[stages.length - 1];
+  return {
+    id: normalized.id,
+    label: def.label,
+    kind: normalized.id === 'bridge' ? 'village_bridge' : 'society_project',
+    day_tag: '',
+    week_tag: '',
+    starts_at: 0,
+    ends_at: 0,
+    current_stage_id: currentStage?.id || '',
+    stages,
+    contributors: buildSocietyVisualAsyncContributors(normalized),
+    history: buildSocietyVisualAsyncHistory(normalized),
+    completion_room_template_id: '',
+    completion_event_id: normalized.status === 'completed' ? `society_project_complete:${normalized.id}` : '',
+  };
+}
+
+function buildSocietyVisualHighlights(projects) {
+  return projects.flatMap(project => {
+    const recentContribution = (project.contributions || [])
+      .map(normalizeSocietyPublicProjectContribution)
+      .sort((left, right) => right.created_at - left.created_at)[0];
+    const highlights = [];
+    if (project.status === 'completed') {
+      highlights.push({
+        id: `society_project_highlight:${project.id}:complete:${project.completed_at || 0}`,
+        visual_id: project.id,
+        type: 'success',
+        label: `${(SOCIETY_PUBLIC_PROJECT_DEF_MAP[project.id] || {}).label || project.id}完工`,
+        summary: project.completion_feedback,
+        created_at: project.completed_at || 0,
+      });
+    } else if (recentContribution) {
+      highlights.push({
+        id: `society_project_highlight:${project.id}:${recentContribution.id}`,
+        visual_id: project.id,
+        type: 'info',
+        label: recentContribution.package_label || '公共建设贡献',
+        summary: `${recentContribution.display_name || recentContribution.username}推进 ${recentContribution.progress_gain} 点。`,
+        created_at: recentContribution.created_at,
+      });
+    }
+    return highlights;
+  }).sort((left, right) => right.created_at - left.created_at).slice(0, 12);
+}
+
+function buildSocietyVisualState(society) {
+  const normalized = normalizeSociety(society);
+  ensureSocietyPublicProjects(normalized);
+  const projects = normalized.public_projects.map(normalizeSocietyPublicProject);
+  const asyncProjects = projects.map(buildSocietyVisualAsyncProject);
+  const selectedProject = projects.find(project => project.status !== 'completed') || projects[0] || null;
+  const latestContribution = projects
+    .flatMap(project => (project.contributions || []).map(normalizeSocietyPublicProjectContribution))
+    .sort((left, right) => right.created_at - left.created_at)[0];
+  const revision = projects.reduce((sum, project) => (
+    sum +
+    Math.max(0, Math.floor(Number(project.progress) || 0)) +
+    Math.max(0, Math.floor(Number(project.completed_at) || 0)) +
+    (project.contributions || []).length
+  ), Math.max(0, Math.floor(Number(normalized.updated_at) || 0)));
+  return {
+    board_type: 'async',
+    board_id: `society:${normalized.id}:public_projects`,
+    revision,
+    selected_visual_id: selectedProject?.id || '',
+    nodes: [],
+    objects: [],
+    tracks: [],
+    async_projects: asyncProjects,
+    highlights: buildSocietyVisualHighlights(projects),
+    recent_feedback: latestContribution
+      ? `${latestContribution.display_name || latestContribution.username}刚刚为公共建设提交了${latestContribution.package_label || '贡献'}。`
+      : '公共建设等待成员提交第一笔贡献。',
+  };
+}
+
 async function buildPublicProjectSnapshot(project, viewerUsername, viewerCanContribute) {
   const normalized = normalizeSocietyPublicProject(project);
   const def = SOCIETY_PUBLIC_PROJECT_DEF_MAP[normalized.id] || SOCIETY_PUBLIC_PROJECT_DEFS[0];
@@ -1854,6 +2071,7 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
     public_projects: await Promise.all(
       normalized.public_projects.map(entry => buildPublicProjectSnapshot(entry, viewerUsername, !!viewerMember))
     ),
+    visual_state: buildSocietyVisualState(normalized),
     welfare_unlocks: buildWelfareUnlockSnapshot(normalized.level),
     exclusive_festival: buildExclusiveFestivalSnapshot(normalized.theme, normalized.level),
     exclusive_decors: buildExclusiveDecorSnapshots(normalized.theme, normalized.level),
