@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0524 端午赛舟轨道推进
+- 端午赛舟房间现在会从服务端返回真实 8 格龙舟河道，覆盖起点、鼓点窗口、横流水口、入弯、平水直道、冲刺水道、回浪夹道和终点线。
+- `sync_oar / steady_rudder` 等房间行动会推进船位、刷新队伍状态、选中格、最近反馈、高光和 `visual_state.revision`；回合推进后轨道会继续从服务端权威玩法状态恢复。
+- 本轮验证：`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-activity-room-visual-state.mjs`、`npm --prefix server run qa:activity-room-visual-state`、`npm --prefix server run qa:online-smoke`。
+
 ### 0524 可视化赛道组件
 - 新增 `VisualTrackBoard`，支持按 `visual_state.tracks` 渲染赛道格、队伍 / 船只标记、格子事件、风险 / 奖励预览、冲刺 / 横流 / 弯道 / 终点样式、多队位置列表和格子动作入口。
 - 在线节会房间在 `board_type=track` 且存在轨道数据时会展示赛道板；点击格子会保留选中态，格子动作继续提交现有房间行动意图，旧玩法动作卡保留为降级入口。

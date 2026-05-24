@@ -253,6 +253,96 @@ const LANTERN_FAIR_VISUAL_OBJECT_DEFS = Object.freeze([
   },
 ]);
 
+const DRAGON_BOAT_VISUAL_TRACK_ID = 'dragon_boat_river';
+const DRAGON_BOAT_VISUAL_TEAM_ID = 'team_dragon_boat';
+
+const DRAGON_BOAT_ACTION_EFFECT_MAP = Object.freeze({
+  sync_oar: 'advance',
+  steady_rudder: 'protect',
+  keep_beat: 'boost',
+  lift_applause: 'boost',
+  lock_piece: 'advance',
+  tighten_frame: 'protect',
+  deliver_bundle: 'advance',
+  sort_bundle: 'protect',
+});
+
+const DRAGON_BOAT_VISUAL_TRACK_CELLS = Object.freeze([
+  {
+    id: 'dragon_boat_start',
+    label: '起点水面',
+    kind: 'normal',
+    event_id: 'dragon_boat_start',
+    effect_ids: ['advance'],
+    action_ids: ['sync_oar', 'steady_rudder', 'lock_piece', 'deliver_bundle'],
+    reward_preview: '全船从起点压住第一拍，安全推进。',
+  },
+  {
+    id: 'dragon_boat_drum_window',
+    label: '鼓点窗口',
+    kind: 'boost',
+    event_id: 'drum_shift',
+    effect_ids: ['advance', 'boost'],
+    action_ids: ['sync_oar', 'keep_beat', 'lift_applause'],
+    reward_preview: '命中鼓点会带来额外喝彩和更快推进。',
+  },
+  {
+    id: 'dragon_boat_cross_current',
+    label: '横流水口',
+    kind: 'risk',
+    event_id: 'cross_current',
+    effect_ids: ['blocked', 'protect'],
+    action_ids: ['steady_rudder', 'sort_bundle'],
+    risk_preview: '横流会抬高压力，稳舵可以保护下一拍。',
+  },
+  {
+    id: 'dragon_boat_first_turn',
+    label: '入弯水道',
+    kind: 'turn',
+    event_id: 'cross_current',
+    effect_ids: ['protect'],
+    action_ids: ['steady_rudder', 'tighten_frame'],
+    risk_preview: '弯道需要先稳住船头，避免乱桨。',
+  },
+  {
+    id: 'dragon_boat_calm_lane',
+    label: '平水直道',
+    kind: 'normal',
+    event_id: 'dragon_boat_calm_lane',
+    effect_ids: ['advance'],
+    action_ids: ['sync_oar', 'deliver_bundle', 'lock_piece'],
+    reward_preview: '平水段适合把队伍节奏重新拉齐。',
+  },
+  {
+    id: 'dragon_boat_sprint_lane',
+    label: '冲刺水道',
+    kind: 'boost',
+    event_id: 'drum_shift',
+    effect_ids: ['advance', 'boost'],
+    action_ids: ['sync_oar', 'keep_beat', 'lift_applause', 'raise_banner'],
+    risk_preview: '连续冲刺会让压力升高。',
+    reward_preview: '冲刺段会明显提高赛舟表现。',
+  },
+  {
+    id: 'dragon_boat_return_wave',
+    label: '回浪夹道',
+    kind: 'risk',
+    event_id: 'cross_current',
+    effect_ids: ['blocked', 'protect'],
+    action_ids: ['steady_rudder', 'sort_bundle'],
+    risk_preview: '回浪会干扰船身，稳住节奏能避免受阻。',
+  },
+  {
+    id: 'dragon_boat_finish',
+    label: '终点线',
+    kind: 'finish',
+    event_id: 'dragon_boat_finish',
+    effect_ids: ['advance'],
+    action_ids: [],
+    reward_preview: '抵达终点后仍由服务端结算凭证发放奖励。',
+  },
+]);
+
 const FESTIVAL_RESOURCE_DEFS = Object.freeze([
   { id: 'cheer', label: '喝彩', initial_value: 2, max_value: 8 },
   { id: 'order', label: '秩序', initial_value: 4, max_value: 8 },
@@ -2249,6 +2339,127 @@ function syncLanternFairVisualState(room, festivalState, options = {}) {
   return room.visual_state;
 }
 
+function isDragonBoatRoom(room) {
+  return room?.activity_domain === 'festival' && room?.template_id === 'dragon_boat';
+}
+
+function getDragonBoatRoomActionIds(room) {
+  const template = getGameplayTemplateByDomain(room?.activity_domain, room?.gameplay_template_id, room?.template_id);
+  return (template.action_options || [])
+    .map(action => sanitizeText(action.id, 60))
+    .filter(Boolean);
+}
+
+function getDragonBoatPositionIndex(room, trackLength) {
+  const progressValue = Math.max(0, Math.floor(Number(room?.gameplay_state?.progress_value) || 0));
+  const progressTarget = Math.max(1, Math.floor(Number(room?.gameplay_state?.progress_target) || trackLength - 1 || 1));
+  if (progressValue >= progressTarget) return Math.max(0, trackLength - 1);
+  const scaledPosition = Math.round((progressValue / progressTarget) * Math.max(1, trackLength - 1));
+  return clampNumber(scaledPosition, 0, Math.max(0, trackLength - 2));
+}
+
+function getDragonBoatTeamState(room, actionId, positionIndex, trackLength) {
+  if (positionIndex >= trackLength - 1 || room?.gameplay_state?.phase === 'completed') return 'finished';
+  const effect = DRAGON_BOAT_ACTION_EFFECT_MAP[sanitizeText(actionId, 60)];
+  if (effect === 'boost') return 'boosted';
+  if (effect === 'protect') return 'protected';
+  if (effect === 'blocked') return 'blocked';
+  if (effect === 'retreat') return 'retreating';
+  if (effect === 'advance') return 'advancing';
+  return 'idle';
+}
+
+function buildDragonBoatVisualTrack(room, festivalState, existingTracks = [], options = {}) {
+  const normalizedFestivalState = normalizeFestivalState(festivalState, room?.template_id);
+  const trackLength = DRAGON_BOAT_VISUAL_TRACK_CELLS.length;
+  const positionIndex = getDragonBoatPositionIndex(room, trackLength);
+  const actionIds = getDragonBoatRoomActionIds(room);
+  const actionIdSet = new Set(actionIds);
+  const existingTrack = (Array.isArray(existingTracks) ? existingTracks : [])
+    .map(normalizeOnlineVisualTrack)
+    .filter(Boolean)
+    .find(track => track.id === DRAGON_BOAT_VISUAL_TRACK_ID);
+  const lastActionId = sanitizeText(options.actionId || room?.gameplay_state?.last_action_id, 60);
+  const teamState = getDragonBoatTeamState(room, lastActionId, positionIndex, trackLength);
+  const isCompleted = room?.gameplay_state?.phase === 'completed';
+  const currentEvent = getFestivalCurrentEvent(room, normalizedFestivalState);
+
+  const cells = DRAGON_BOAT_VISUAL_TRACK_CELLS.map((definition, index) => {
+    const existingCell = (existingTrack?.cells || []).find(cell => cell.id === definition.id);
+    const cellActionIds = (definition.action_ids || []).filter(actionId => actionIdSet.has(actionId));
+    const currentCellActionIds = !isCompleted && index === positionIndex ? actionIds : [];
+    const availableActionIds = [...new Set([...cellActionIds, ...currentCellActionIds])].slice(0, 12);
+    const isCurrentEventCell = definition.event_id && definition.event_id === currentEvent?.id;
+    return normalizeOnlineVisualTrackCell({
+      ...existingCell,
+      id: definition.id,
+      label: definition.label,
+      index,
+      kind: definition.kind,
+      occupant_team_ids: index === positionIndex ? [DRAGON_BOAT_VISUAL_TEAM_ID] : [],
+      event_id: definition.event_id,
+      effect_ids: definition.effect_ids,
+      available_action_ids: availableActionIds,
+      risk_preview: definition.risk_preview || (isCurrentEventCell ? currentEvent?.pressure_hint : ''),
+      reward_preview: definition.reward_preview || (isCurrentEventCell ? currentEvent?.resource_hint : ''),
+    });
+  });
+
+  return normalizeOnlineVisualTrack({
+    ...existingTrack,
+    id: DRAGON_BOAT_VISUAL_TRACK_ID,
+    label: '端午龙舟河道',
+    kind: 'dragon_boat',
+    length: trackLength,
+    current_round: Math.max(0, Math.floor(Number(normalizedFestivalState.round_number) || 1) - 1),
+    cells,
+    teams: [
+      {
+        team_id: DRAGON_BOAT_VISUAL_TEAM_ID,
+        label: '同心龙舟',
+        marker: '舟',
+        position_index: positionIndex,
+        state: teamState,
+        last_action_id: lastActionId,
+      },
+    ],
+  });
+}
+
+function syncDragonBoatVisualState(room, festivalState, options = {}) {
+  if (!isDragonBoatRoom(room)) return null;
+  const visualState = normalizeOnlineVisualState(room.visual_state, room);
+  const track = buildDragonBoatVisualTrack(room, festivalState, visualState.tracks, options);
+  const positionCell = (track.cells || []).find(cell => (cell.occupant_team_ids || []).includes(DRAGON_BOAT_VISUAL_TEAM_ID))
+    || track.cells?.[0];
+  const selectedVisualId = sanitizeText(options.selectedVisualId, 80) || positionCell?.id || visualState.selected_visual_id;
+  const recentFeedback = sanitizeText(options.recentFeedback || festivalState?.recent_feedback || visualState.recent_feedback, 180);
+  const highlights = options.appendHighlight && selectedVisualId && recentFeedback
+    ? [
+      normalizeOnlineVisualHighlight({
+        id: makeId('dragon_boat_highlight'),
+        visual_id: selectedVisualId,
+        type: 'success',
+        label: sanitizeText(options.highlightLabel, 40) || '赛舟行动',
+        summary: recentFeedback,
+        created_at: nowSeconds(),
+      }),
+      ...(visualState.highlights || []),
+    ].slice(0, 16)
+    : visualState.highlights;
+  room.visual_state = normalizeOnlineVisualState({
+    ...visualState,
+    board_type: 'track',
+    board_id: visualState.board_id || buildDefaultVisualBoardId(room),
+    revision: visualState.revision + (options.incrementRevision ? 1 : 0),
+    selected_visual_id: selectedVisualId,
+    tracks: [track],
+    highlights,
+    recent_feedback: recentFeedback,
+  }, room);
+  return room.visual_state;
+}
+
 function getFestivalEventsForRoomTemplate(roomTemplateId) {
   const normalizedTemplateId = sanitizeText(roomTemplateId, 40);
   const events = FESTIVAL_ROUND_EVENTS_BY_TEMPLATE[normalizedTemplateId] || FESTIVAL_ROUND_EVENTS_BY_TEMPLATE.default;
@@ -2649,6 +2860,7 @@ function ensureRoomGameplayState(room) {
     room.gameplay_state.festival_state = normalizeFestivalState(room.gameplay_state.festival_state, room.template_id);
     syncFestivalRoleAssignments(room, room.gameplay_state.festival_state);
     syncLanternFairVisualState(room, room.gameplay_state.festival_state);
+    syncDragonBoatVisualState(room, room.gameplay_state.festival_state);
   }
   if (gameplayTemplate.id === 'expedition_cavern') {
     room.gameplay_state.cavern_state = normalizeExpeditionCavernState(room.gameplay_state.cavern_state);
@@ -3137,6 +3349,10 @@ function advanceFestivalRound(room, festivalState, actor) {
     selectedVisualId: getLanternFairCurrentVisualObjectId(room, festivalState),
     recentFeedback: festivalState.recent_feedback,
   });
+  syncDragonBoatVisualState(room, festivalState, {
+    incrementRevision: true,
+    recentFeedback: festivalState.recent_feedback,
+  });
   touchRoom(room);
 }
 
@@ -3290,6 +3506,13 @@ function applyFestivalRoundEffects(room, festivalState, actor, actionOption, con
     handledBy: actor.username,
     handledAt: roundLogEntry.created_at,
     progressDelta: Math.max(0, Math.floor(Number(actionOption.progress_delta) || 0)),
+    recentFeedback: roundLogEntry.summary,
+    appendHighlight: true,
+    highlightLabel: actionOption.label,
+  });
+  syncDragonBoatVisualState(room, festivalState, {
+    incrementRevision: true,
+    actionId: actionOption.id,
     recentFeedback: roundLogEntry.summary,
     appendHighlight: true,
     highlightLabel: actionOption.label,
@@ -4810,6 +5033,7 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
   });
   if (room.activity_domain === 'festival') {
     syncLanternFairVisualState(room, room.gameplay_state.festival_state);
+    syncDragonBoatVisualState(room, room.gameplay_state.festival_state);
   }
   if (gameplayTemplate.id === 'expedition_cavern') {
     syncExpeditionCavernVisualState(room, room.gameplay_state.cavern_state);

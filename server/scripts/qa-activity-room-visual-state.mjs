@@ -88,6 +88,48 @@ const assertLanternFairVisualObjects = (room, expectedRevision = 0, options = {}
   assert.ok(objectActionIds.every(actionId => actionIds.has(actionId)), 'visual object actions should exist in gameplay actions')
 }
 
+const assertDragonBoatVisualTrack = (room, expectedRevision = 0, options = {}) => {
+  const visualState = room?.visual_state
+  const tracks = visualState?.tracks || []
+  const track = tracks[0]
+  const actionIds = new Set((room?.gameplay?.available_actions || []).map(action => action.id))
+  assert.equal(visualState?.board_type, 'track', 'dragon boat visual_state should use track board')
+  if (Number.isInteger(expectedRevision)) {
+    assert.equal(visualState?.revision, expectedRevision, 'dragon boat visual_state revision mismatch')
+  }
+  if (Number.isInteger(options.minRevision)) {
+    assert.ok(visualState?.revision >= options.minRevision, 'dragon boat visual_state revision should keep advancing')
+  }
+  assert.equal(tracks.length, 1, 'dragon boat should expose one river track')
+  assert.equal(track?.id, 'dragon_boat_river', 'dragon boat track should keep stable id')
+  assert.equal(track?.kind, 'dragon_boat', 'dragon boat track kind should be dragon_boat')
+  assert.equal(track?.length, 8, 'dragon boat river should define 8 cells')
+  assert.equal(track?.cells.length, 8, 'dragon boat should expose 8 river cells')
+  assert.ok(new Set(track.cells.map(cell => cell.kind)).has('normal'), 'dragon boat should include normal cells')
+  assert.ok(new Set(track.cells.map(cell => cell.kind)).has('risk'), 'dragon boat should include risk cells')
+  assert.ok(new Set(track.cells.map(cell => cell.kind)).has('turn'), 'dragon boat should include turn cells')
+  assert.ok(new Set(track.cells.map(cell => cell.kind)).has('boost'), 'dragon boat should include boost cells')
+  assert.ok(new Set(track.cells.map(cell => cell.kind)).has('finish'), 'dragon boat should include finish cell')
+  assert.equal(track.teams.length, 1, 'dragon boat should expose the room team')
+  const team = track.teams[0]
+  assert.equal(team.team_id, 'team_dragon_boat', 'dragon boat team should keep stable id')
+  const occupiedCell = track.cells.find(cell => (cell.occupant_team_ids || []).includes(team.team_id))
+  assert.ok(occupiedCell, 'dragon boat team should occupy a visible cell')
+  assert.equal(occupiedCell.index, team.position_index, 'dragon boat team position should match occupied cell')
+  if (Number.isInteger(options.minPosition)) {
+    assert.ok(team.position_index >= options.minPosition, 'dragon boat team should advance on action')
+  }
+  if (options.expectedLastAction) {
+    assert.equal(team.last_action_id, options.expectedLastAction, 'dragon boat team should remember last action')
+  }
+  if (options.expectSelectedOccupied) {
+    assert.equal(visualState.selected_visual_id, occupiedCell.id, 'dragon boat selected cell should follow the boat')
+  }
+  const cellActionIds = track.cells.flatMap(cell => cell.available_action_ids || [])
+  assert.ok(cellActionIds.every(actionId => actionIds.has(actionId)), 'visual track actions should exist in gameplay actions')
+  return { track, team, occupiedCell }
+}
+
 await rm(tempDir, { recursive: true, force: true })
 await mkdir(tempDir, { recursive: true })
 
@@ -110,18 +152,30 @@ const dragonBoat = await runtime.createFestivalRoom({
   gameplay_template_id: 'squad_coop',
   title: 'visual dragon boat smoke',
 }, actor('visual_host_dragon'))
-assertVisualStateShape(dragonBoat.room.visual_state, 'track', 'festival:dragon_boat:squad_coop')
+assertDragonBoatVisualTrack(dragonBoat.room, 0, { expectSelectedOccupied: true })
+
+const trackFixtureRoom = await runtime.createFestivalRoom({
+  template_id: 'yuanri_vigil',
+  gameplay_template_id: 'public_progress',
+  title: 'visual track fixture smoke',
+}, actor('visual_host_track_fixture'))
 
 const roomStoreFile = path.join(tempDir, 'taoyuan_activity_rooms.json')
 const festivalActionStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 festivalActionStore.rooms = festivalActionStore.rooms.map(room => {
-  if (room.id !== festival.room.id) return room
-  return {
+  if (room.id === festival.room.id) return {
     ...room,
     state: 'running',
     running_started_at: 12340,
     members: room.members.map(member => ({ ...member, status: 'active' })),
   }
+  if (room.id === dragonBoat.room.id) return {
+    ...room,
+    state: 'running',
+    running_started_at: 12341,
+    members: room.members.map(member => ({ ...member, status: 'active' })),
+  }
+  return room
 })
 await writeFile(roomStoreFile, JSON.stringify(festivalActionStore, null, 2), 'utf8')
 
@@ -136,6 +190,31 @@ const mainLantern = lanternActionResult.room.visual_state.objects.find(object =>
 assert.equal(mainLantern?.state, 'busy', 'main lantern should become busy after assembly action')
 assert.equal(mainLantern?.progress_value, 1, 'main lantern progress should advance after assembly action')
 assert.equal(mainLantern?.handled_by, 'visual_host_festival', 'main lantern should mark the acting player')
+
+const dragonActionResult = await runtime.submitFestivalRoomGameplayAction(dragonBoat.room.id, {
+  action_id: 'sync_oar',
+}, actor('visual_host_dragon'))
+assert.equal(dragonActionResult.room.gameplay.last_action_id, 'sync_oar', 'dragon boat gameplay should record track action')
+assert.equal(dragonActionResult.room.visual_state.revision, 1, 'dragon boat visual revision should advance after track action')
+assert.equal(dragonActionResult.room.visual_state.recent_feedback, dragonActionResult.room.gameplay.festival_state.recent_feedback, 'dragon boat visual feedback should mirror gameplay feedback')
+assert.equal(dragonActionResult.room.visual_state.highlights[0]?.visual_id, dragonActionResult.room.visual_state.selected_visual_id, 'dragon boat action should append highlight on the selected cell')
+assertDragonBoatVisualTrack(dragonActionResult.room, 1, {
+  minPosition: 1,
+  expectedLastAction: 'sync_oar',
+  expectSelectedOccupied: true,
+})
+
+const dragonAdvancedResult = await runtime.submitFestivalRoomGameplayAction(dragonBoat.room.id, {
+  action_id: 'steady_rudder',
+}, actor('visual_host_dragon'))
+assert.equal(dragonAdvancedResult.room.gameplay.festival_state.round_number, 2, 'two dragon boat actions should advance the festival round')
+assert.equal(dragonAdvancedResult.room.gameplay.festival_state.round_log[0].action_id, 'round_advance', 'dragon boat round advance should be logged')
+assertDragonBoatVisualTrack(dragonAdvancedResult.room, null, {
+  minRevision: 2,
+  minPosition: 2,
+  expectedLastAction: 'steady_rudder',
+  expectSelectedOccupied: true,
+})
 
 const overview = await runtime.listExpeditionRoomOverview('visual_host_expedition')
 assertCavernVisualNodes(overview.my_room, 0)
@@ -383,7 +462,7 @@ assert.equal(objects[2].y, 0, 'object y should clamp values below board range')
 
 const trackStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 trackStore.rooms = trackStore.rooms.map(room => {
-  if (room.id !== dragonBoat.room.id) return room
+  if (room.id !== trackFixtureRoom.room.id) return room
   return {
     ...room,
     visual_state: {
@@ -489,7 +568,7 @@ trackStore.rooms = trackStore.rooms.map(room => {
 })
 await writeFile(roomStoreFile, JSON.stringify(trackStore, null, 2), 'utf8')
 
-const trackOverview = await runtime.listFestivalRoomOverview('visual_host_dragon')
+const trackOverview = await runtime.listFestivalRoomOverview('visual_host_track_fixture')
 const tracks = trackOverview.my_room?.visual_state?.tracks || []
 assert.equal(tracks.length, 1, 'visual_state tracks should keep valid tracks and filter invalid entries')
 assert.equal(tracks[0].id, 'track_dragon_boat_river', 'track id should round-trip')
