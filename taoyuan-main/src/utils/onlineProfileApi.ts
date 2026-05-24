@@ -972,6 +972,12 @@ export interface OnlineCoopOrderOverviewResponse {
   orders: OnlineCoopOrderEntry[]
   receipts: OnlineCoopReceiptEntry[]
   compensations: OnlineCoopCompensationEntry[]
+  board_summary?: {
+    total_orders: number
+    open_orders: number
+    relay_orders: number
+    open_relay_orders: number
+  }
   reputation_summary: {
     total: number
     by_order_type: Record<string, number>

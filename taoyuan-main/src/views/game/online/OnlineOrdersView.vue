@@ -230,18 +230,39 @@
 
       <div v-else-if="activeTab === 'available'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div class="game-panel-muted p-3">
-          <div class="flex items-center justify-between gap-2">
-            <p class="text-sm text-accent">当前可见委托</p>
-            <span class="text-[10px] text-muted">{{ availableOrderCards.length }} 张</span>
+          <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div class="min-w-0">
+              <p class="text-sm text-accent">当前可见委托</p>
+              <p class="mt-1 text-[10px] text-muted">
+                {{ orderBoardFilterLabel }} · {{ availableOrderCards.length }}/{{ coopOrderStore.visibleOrders.length }} 张
+              </p>
+            </div>
+            <div class="flex shrink-0 flex-wrap gap-1" aria-label="委托筛选">
+              <button
+                v-for="option in orderBoardFilterOptions"
+                :key="option.id"
+                type="button"
+                class="online-action-btn online-action-btn--compact"
+                :class="{ 'online-action-btn--primary': orderBoardFilter === option.id }"
+                @click="orderBoardFilter = option.id"
+              >
+                {{ option.label }}
+              </button>
+            </div>
           </div>
           <div v-if="availableOrderCards.length === 0" class="mt-3 text-xs text-muted">
-            当前没有可见在线求助单。
+            当前筛选下没有可见在线求助单。
           </div>
           <OnlineScrollArea v-else class="mt-3" max-height="32rem" data-testid="online-orders-available-list">
             <div v-for="order in availableOrderCards" :key="order.id" data-testid="online-orders-available-entry" class="border border-accent/10 bg-black/10 p-2">
               <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                 <div class="min-w-0">
-                  <p class="truncate text-xs text-accent">{{ order.title }}</p>
+                  <div class="flex flex-wrap items-center gap-1">
+                    <p class="truncate text-xs text-accent">{{ order.title }}</p>
+                    <span v-if="isRelayOrder(order)" class="border border-warning/30 bg-warning/10 px-1.5 py-0.5 text-[10px] text-warning">
+                      接力单
+                    </span>
+                  </div>
                   <p class="mt-1 text-[10px] leading-4 text-muted">
                     {{ order.owner_display_name }} 发布 · {{ getCoopOrderScopeLabel(order.scope) }} · {{ order.description || '无描述' }}
                   </p>
@@ -256,6 +277,15 @@
               <p class="mt-1 text-[10px] text-accent">
                 回报：{{ getCoopRewardTypeLabel(order.reward_type) }} {{ order.reward_value }} {{ order.reward_label ? `· ${order.reward_label}` : '' }}
               </p>
+              <div v-if="isRelayOrder(order)" class="mt-2 border border-warning/20 bg-warning/5 p-2">
+                <div class="flex items-center justify-between gap-2 text-[10px] text-muted">
+                  <span>{{ getRelayStageProgressLabel(order) }}</span>
+                  <span>{{ getRelayStageProgressPercent(order) }}%</span>
+                </div>
+                <div class="mt-1 h-1.5 overflow-hidden border border-warning/20 bg-black/20">
+                  <div class="h-full bg-warning" :style="{ width: `${getRelayStageProgressPercent(order)}%` }" />
+                </div>
+              </div>
               <AsyncCommunityBoard
                 v-if="order.visual_state?.async_projects?.length"
                 class="mt-2"
@@ -699,6 +729,12 @@
   const route = useRoute()
   const coopOrderStore = useCoopOrderStore()
   const lastRefreshAttemptAt = ref(0)
+  const orderBoardFilter = ref<'all' | 'single' | 'relay'>('all')
+  const orderBoardFilterOptions: Array<{ id: 'all' | 'single' | 'relay'; label: string }> = [
+    { id: 'all', label: '全部' },
+    { id: 'single', label: '普通' },
+    { id: 'relay', label: '接力单' },
+  ]
   const tabs: OrdersTabMeta[] = [
     { key: 'publish', label: '发布', summary: '发布求助单、设置范围、奖励和多段接力草稿。' },
     { key: 'available', label: '可接', summary: '查看当前可见的公开、好友或邻里求助单。' },
@@ -756,11 +792,17 @@
   const pendingCompensationCount = computed(() =>
     coopOrderStore.myCompensations.filter(entry => entry.status === 'pending').length
   )
+  const boardSummary = computed(() => coopOrderStore.overview?.board_summary || {
+    total_orders: coopOrderStore.overview?.orders?.length || 0,
+    open_orders: (coopOrderStore.overview?.orders || []).filter(order => order.status === 'open').length,
+    relay_orders: (coopOrderStore.overview?.orders || []).filter(order => order.collaboration_mode === 'multi_stage').length,
+    open_relay_orders: (coopOrderStore.overview?.orders || []).filter(order => order.collaboration_mode === 'multi_stage' && order.status === 'open').length,
+  })
   const summaryStats = computed(() => [
-    { label: '可接委托', value: `${coopOrderStore.visibleOrders.length} 张` },
-    { label: '我的发布', value: `${coopOrderStore.myOrders.length} 张` },
-    { label: '我的接单', value: `${coopOrderStore.myAcceptedOrders.length} 张` },
-    { label: '结算凭证', value: `${coopOrderStore.myReceipts.length} 条` },
+    { label: '订单总数', value: `${boardSummary.value.total_orders} 张` },
+    { label: '开放订单', value: `${boardSummary.value.open_orders} 张` },
+    { label: '接力单', value: `${boardSummary.value.relay_orders} 张` },
+    { label: '开放接力', value: `${boardSummary.value.open_relay_orders} 张` },
     { label: '待补偿', value: `${pendingCompensationCount.value} 条` },
   ])
   const targetDraftSummary = computed(() => {
@@ -845,15 +887,44 @@
   }
   const canAcceptSingleOrder = (order: OnlineCoopOrderEntry) =>
     order.status === 'open' && order.collaboration_mode !== 'multi_stage' && !order.assignee_username
+  const isRelayOrder = (order: OnlineCoopOrderEntry) => order.collaboration_mode === 'multi_stage' || (order.stages?.length ?? 0) > 0
+  const getRelayStageCounts = (order: OnlineCoopOrderEntry) => {
+    const stages = order.stages || []
+    return {
+      total: stages.length,
+      complete: stages.filter(stage => stage.delivery_status === 'confirmed').length,
+      active: stages.filter(stage => stage.assignee_username && stage.delivery_status !== 'confirmed').length,
+      open: stages.filter(stage => !stage.assignee_username && stage.delivery_status === 'none').length,
+    }
+  }
+  const getRelayStageProgressPercent = (order: OnlineCoopOrderEntry) => {
+    const counts = getRelayStageCounts(order)
+    if (counts.total <= 0) return 0
+    return Math.min(100, Math.round((counts.complete / counts.total) * 100))
+  }
+  const getRelayStageProgressLabel = (order: OnlineCoopOrderEntry) => {
+    const counts = getRelayStageCounts(order)
+    if (counts.total <= 0) return '暂无接力阶段'
+    return `阶段 ${counts.complete}/${counts.total} 已确认 · ${counts.active} 段处理中 · ${counts.open} 段可接`
+  }
   const getAvailableOrderRank = (order: OnlineCoopOrderEntry) => {
     if (isOrderAcceptable(order)) return 0
     if (order.status === 'open') return 1
     return 2
   }
+  const orderBoardFilterLabel = computed(() =>
+    orderBoardFilterOptions.find(option => option.id === orderBoardFilter.value)?.label || '全部'
+  )
   const availableOrderCards = computed(() =>
-    [...coopOrderStore.visibleOrders].sort((left, right) =>
-      getAvailableOrderRank(left) - getAvailableOrderRank(right) || right.updated_at - left.updated_at
-    )
+    [...coopOrderStore.visibleOrders]
+      .filter(order => {
+        if (orderBoardFilter.value === 'relay') return isRelayOrder(order)
+        if (orderBoardFilter.value === 'single') return !isRelayOrder(order)
+        return true
+      })
+      .sort((left, right) =>
+        getAvailableOrderRank(left) - getAvailableOrderRank(right) || right.updated_at - left.updated_at
+      )
   )
   const reputationSpecialtySummary = computed(() => {
     const specialties = coopOrderStore.reputationSummary.specialty_ranks.slice(0, 2)

@@ -1295,6 +1295,8 @@ try {
     const primaryOverview = await fetchAuthedJson('/api/taoyuan/online/orders')
     assert(primaryOverview.response.ok, `primary coop order overview returned ${primaryOverview.response.status}`)
     assert(primaryOverview.data?.orders?.some(entry => entry?.title === publicCoopOrderTitle && entry?.scope === 'public'), 'public coop order missing from primary overview')
+    assert(Number(primaryOverview.data?.board_summary?.total_orders) >= 1, 'coop order board summary did not count total orders')
+    assert(Number(primaryOverview.data?.board_summary?.open_orders) >= 1, 'coop order board summary did not count open orders')
 
     const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
     assert(secondaryOverview.response.ok, `secondary coop order overview returned ${secondaryOverview.response.status}`)
@@ -4612,6 +4614,11 @@ try {
     relayStageOneId = String(data?.order?.stages?.[0]?.id || '')
     relayStageTwoId = String(data?.order?.stages?.[1]?.id || '')
     assert(relayCoopOrderId && relayStageOneId && relayStageTwoId, 'multi-stage coop order ids are incomplete')
+
+    const overview = await fetchAuthedJson('/api/taoyuan/online/orders')
+    assert(overview.response.ok, `multi-stage coop order overview returned ${overview.response.status}`)
+    assert(Number(overview.data?.board_summary?.relay_orders) >= 1, 'coop order board summary did not count relay orders')
+    assert(Number(overview.data?.board_summary?.open_relay_orders) >= 1, 'coop order board summary did not count open relay orders')
   })
 
   await runCheck('POST /api/taoyuan/online/orders/:id/stages/:stageId/accept stage one path', async () => {
@@ -4696,6 +4703,7 @@ try {
     assert(Array.isArray(relayVisualProject.contributors) && relayVisualProject.contributors.length === 2, 'multi-stage order visual contributors missing helpers')
     assert(Array.isArray(relayVisualProject.history) && relayVisualProject.history.some(entry => entry?.type === 'stage_complete'), 'multi-stage order visual history missing completion entries')
     assert(relayOrder.visual_state.recent_feedback.includes('已完成'), 'multi-stage order visual feedback did not summarize completion')
+    assert(Number(primaryOverview.data?.board_summary?.relay_orders) >= 1, 'multi-stage owner overview lost relay order board summary')
 
     const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
     assert(secondaryOverview.response.ok, `multi-stage secondary overview returned ${secondaryOverview.response.status}`)

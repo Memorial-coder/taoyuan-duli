@@ -653,6 +653,17 @@ function buildOrderSnapshot(order, extra = {}) {
   return relayVisualState ? { ...normalized, ...preserved, visual_state: relayVisualState } : { ...normalized, ...preserved };
 }
 
+function buildOrderBoardSummary(orders = []) {
+  const normalizedOrders = Array.isArray(orders) ? orders.map(normalizeOrder) : [];
+  const relayOrders = normalizedOrders.filter(order => order.collaboration_mode === 'multi_stage');
+  return {
+    total_orders: normalizedOrders.length,
+    open_orders: normalizedOrders.filter(order => order.status === 'open').length,
+    relay_orders: relayOrders.length,
+    open_relay_orders: relayOrders.filter(order => order.status === 'open').length,
+  };
+}
+
 function isOrderVisibleToViewer(order, viewerUsername) {
   const viewer = String(viewerUsername || '').trim();
   if (!viewer) return order.scope === 'public';
@@ -1640,10 +1651,12 @@ async function replayCoopOrderCompensation(compensationId, actor = {}) {
 
 async function listAdminCoopOrders() {
   const store = loadCoopOrderStore();
+  const orders = store.orders.map(normalizeOrder).sort((left, right) => right.updated_at - left.updated_at);
   return {
-    orders: store.orders.map(normalizeOrder).sort((left, right) => right.updated_at - left.updated_at),
+    orders,
     receipts: store.receipts.map(normalizeSettlementReceipt).sort((left, right) => right.updated_at - left.updated_at),
     compensations: store.compensations.map(normalizeCompensationRecord).sort((left, right) => right.updated_at - left.updated_at),
+    board_summary: buildOrderBoardSummary(orders),
     reputation_summary: null,
     order_type_options: [...ORDER_TYPES],
     scope_options: [...ORDER_SCOPES],
@@ -1691,6 +1704,7 @@ async function listVisibleCoopOrders(viewerUsername = '') {
     orders: sortedOrders,
     receipts,
     compensations,
+    board_summary: buildOrderBoardSummary(sortedOrders),
     reputation_summary: viewerSummary,
     order_type_options: [...ORDER_TYPES],
     scope_options: [...ORDER_SCOPES],

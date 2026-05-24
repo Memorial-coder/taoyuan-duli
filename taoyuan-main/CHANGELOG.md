@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 公共订单接力订单板
+- 在线委托 overview 新增 `board_summary`，返回订单总数、开放订单、接力单和开放接力单，前端统计卡优先读取该服务端摘要。
+- 在线委托“可接”列表新增“全部 / 普通 / 接力单”筛选，并在接力订单标题旁显示 badge。
+- 接力订单卡新增阶段进度条，展示已确认、处理中和可接阶段数量；接力路线仍复用 `AsyncCommunityBoard`，接单、交付、确认继续走服务端权威接口。
+- 本轮验证：`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix server run qa:online-smoke`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 节庆筹备完工解锁
 - `festival_square` 完工后会返回 `festival_room_unlock`、`festival_public_reward`、`festival_square_memorial` 三个激活的完工效果，并在 `visual_state.async_projects` 中写入 `completion_room_template_id=lantern_fair`。
 - `AsyncCommunityBoard` 在节庆筹备完工后显示“上元灯会房间已解锁”入口，跳到在线节会页并预填上元灯会房型、共建玩法和“节庆广场开幕”标题；房间生命周期仍复用现有节会房间状态机。
