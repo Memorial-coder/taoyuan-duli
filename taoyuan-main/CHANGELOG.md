@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 共同仓库普通卖出前端入口
+- 共同庄园仓库页新增普通物品卖出按钮，按服务端卖价白名单显示可入账金额。
+- 前端 API / store 已接 `warehouse/sell` 写接口，提交带 CSRF 与 `idempotency_key`；成功后刷新共同仓库、共同基金、契约摘要和流水。
+- 按钮继续受契约生效、`sell_enabled`、`can_sell_items`、普通品质和已配置卖价控制；高品质 / 稀有卖出、放入 / 取出入口仍不开放。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`。
+
 ### 0524 共同基金动物饲料前端购买入口
 - 共同庄园基金页自动购买按钮扩展到精饲料、滋补饲料和活力饲料，和白菜种子、鱼饲料一起走共同基金白名单购买。
 - 按钮继续受契约生效、`spend_enabled`、`can_auto_buy_seeds_feed` 和余额控制，提交仍带 CSRF 与 `idempotency_key`。

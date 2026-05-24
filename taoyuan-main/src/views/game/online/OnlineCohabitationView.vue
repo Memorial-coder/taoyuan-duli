@@ -237,8 +237,23 @@
                 </div>
                 <span class="text-xs text-accent">x{{ item.quantity }}</span>
               </div>
+              <div class="mt-2 flex items-center justify-between gap-2">
+                <span class="text-[10px] text-muted">卖价 {{ warehouseSellUnitPrice(item.item_id) || '未配置' }} 文</span>
+                <button
+                  type="button"
+                  class="online-action-btn online-action-btn--compact"
+                  :disabled="!canSellWarehouseItem(item) || cohabitationStore.actionLoading"
+                  :data-testid="`online-cohabitation-warehouse-sell-${item.item_id}`"
+                  @click="sellWarehouseItem(item)"
+                >
+                  卖出 1 个
+                </button>
+              </div>
             </div>
           </div>
+          <p v-if="warehouseActionMessage" class="mt-2 text-[10px] leading-4" :class="warehouseActionOk ? 'text-emerald-200' : 'text-red-100'">
+            {{ warehouseActionMessage }}
+          </p>
         </div>
         <div class="space-y-3">
           <div class="game-panel-muted p-3">
@@ -471,6 +486,7 @@
   import type {
     CohabitationContract,
     CohabitationSharedPlot,
+    CohabitationWarehouseItem,
   } from '@/utils/cohabitationApi'
 
   type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'offline'
@@ -479,6 +495,8 @@
   const cohabitationStore = useCohabitationStore()
   const activeTab = ref<CohabitationTabKey>('overview')
   const lastRefreshAttemptAt = ref(0)
+  const warehouseActionMessage = ref('')
+  const warehouseActionOk = ref(false)
   const fundActionMessage = ref('')
   const fundActionOk = ref(false)
   const fundContributionAmount = ref(50)
@@ -486,7 +504,7 @@
   const tabs: CohabitationTabMeta[] = [
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
     { key: 'map', label: '地图', summary: '只读展示成员农田横向拼接、来源归属和暂缓写操作。' },
-    { key: 'warehouse', label: '仓库', summary: '查看共同仓库物品与来源流水，取出和卖出仍保持关闭。' },
+    { key: 'warehouse', label: '仓库', summary: '查看共同仓库物品与来源流水，普通物品可按权限卖入共同基金。' },
     { key: 'fund', label: '基金', summary: '查看共同基金余额和注资流水，个人铜币保持独立。' },
     { key: 'permissions', label: '权限', summary: '查看成员权限分组和强制安全阀，不在这里扩大高风险操作。' },
     { key: 'offline', label: '离线', summary: '查看成员最近活跃、共同日志和无需全员在线的能力边界。' },
@@ -542,6 +560,27 @@
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
   const actorCapabilityEntries = computed(() => Object.entries(cohabitationStore.offlineStatus?.actor_capabilities ?? {})
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
+  const warehouseSellPriceByItemId: Record<string, number> = {
+    rice: 35,
+    wheat: 55,
+    corn: 80,
+    tea: 160,
+    lotus: 130,
+    turnip: 75,
+    carrot: 50,
+    radish: 75,
+    sweet_potato: 70,
+    pumpkin: 120,
+    sesame: 95,
+    peach: 140,
+    chili: 90,
+    wood: 15,
+    stone: 10,
+    clay: 12,
+    coal: 25,
+    copper_ore: 45,
+    iron_ore: 70,
+  }
   const normalizedFundContributionAmount = computed(() => Math.max(0, Math.floor(Number(fundContributionAmount.value) || 0)))
   const canUseFundContribution = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
@@ -597,9 +636,42 @@
 
   const selectContract = async (contractId: string) => {
     await cohabitationStore.selectContract(contractId)
+    warehouseActionMessage.value = ''
     fundActionMessage.value = ''
     if (!cohabitationStore.canOpenSelectedContract && activeTab.value !== 'overview') {
       activeTab.value = 'overview'
+    }
+  }
+
+  const warehouseSellUnitPrice = (itemId: string) => warehouseSellPriceByItemId[itemId] ?? 0
+
+  const canSellWarehouseItem = (item: CohabitationWarehouseItem) =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.warehouse?.summary.sell_enabled === true &&
+    cohabitationStore.warehouse?.permissions.can_sell_items === true &&
+    (item.quantity ?? 0) > 0 &&
+    (item.quality || 'normal') === 'normal' &&
+    warehouseSellUnitPrice(item.item_id) > 0
+
+  const sellWarehouseItem = async (item: CohabitationWarehouseItem) => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    try {
+      const result = await cohabitationStore.sellSharedWarehouseItem({
+        item_id: item.item_id,
+        quantity: 1,
+        quality: item.quality || 'normal',
+        memo: `共同庄园前端卖出：${item.label || item.item_id}`,
+        idempotency_key: `ui-warehouse-sell-${item.item_id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      warehouseActionOk.value = true
+      const amount = result?.sale?.total_amount ?? warehouseSellUnitPrice(item.item_id)
+      const balance = result?.sale?.balance_after
+      warehouseActionMessage.value = typeof balance === 'number'
+        ? `已卖出 ${item.label || item.item_id} x1，入账 ${amount} 文，基金余额 ${balance} 文`
+        : `已卖出 ${item.label || item.item_id} x1，入账 ${amount} 文`
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '卖出共同仓库物品失败'
     }
   }
 

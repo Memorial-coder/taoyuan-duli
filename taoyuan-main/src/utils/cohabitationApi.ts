@@ -353,6 +353,35 @@ export interface CohabitationFundContributionPayload {
   idempotency_key: string
 }
 
+export interface CohabitationWarehouseItemPayload {
+  item_id: string
+  quantity: number
+  quality?: string
+  save_slot?: number | null
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationWarehouseItemResponse extends CohabitationDetailResponse {
+  warehouse?: CohabitationWarehouseSnapshot
+  fund?: CohabitationFundSnapshot
+  ledger_entry?: CohabitationWarehouseLedgerEntry | null
+  ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  fund_ledger_entry?: CohabitationFundLedgerEntry | null
+  personal_inventory?: Record<string, unknown>
+  sale?: {
+    item_id: string
+    quality: string
+    quantity: number
+    unit_price: number
+    total_amount: number
+    balance_before?: number
+    balance_after?: number
+    target_ref?: string
+    personal_money_merged: boolean
+  }
+}
+
 export interface CohabitationFundContributionResponse extends CohabitationDetailResponse {
   fund?: CohabitationFundSnapshot
   ledger_entry?: CohabitationFundLedgerEntry
@@ -429,6 +458,14 @@ export const fetchCohabitationWarehouse = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     warehouse?: CohabitationWarehouseSnapshot
   }>(contractPath(contractId, '/warehouse'), '获取共同仓库失败')
+}
+
+export const sellCohabitationWarehouseItem = async (contractId: string, payload: CohabitationWarehouseItemPayload) => {
+  return postCohabitationJson<CohabitationWarehouseItemResponse>(
+    contractPath(contractId, '/warehouse/sell'),
+    payload as unknown as Record<string, unknown>,
+    '卖出共同仓库物品失败'
+  )
 }
 
 export const fetchCohabitationFund = async (contractId: string) => {
