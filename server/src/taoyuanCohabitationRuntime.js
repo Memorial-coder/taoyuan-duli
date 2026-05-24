@@ -30,6 +30,7 @@ const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_MAX_DEPOSIT_QUANTITY = 99;
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
+const PERMISSION_GROUPS = Object.freeze(['farm', 'animal', 'storage', 'construction', 'fund', 'family', 'confirmations']);
 
 const RELATION_TYPE_DEFS = Object.freeze({
   lover_cohabitation: {
@@ -212,12 +213,16 @@ function createDefaultPermissionSet(type) {
 function normalizePermissionSet(value, type) {
   const defaults = createDefaultPermissionSet(type);
   if (!value || typeof value !== 'object' || Array.isArray(value)) return defaults;
-  const mergeGroup = groupName => ({
-    ...defaults[groupName],
-    ...(value[groupName] && typeof value[groupName] === 'object' && !Array.isArray(value[groupName])
-      ? Object.fromEntries(Object.entries(value[groupName]).map(([key, item]) => [key, item === true]))
-      : {}),
-  });
+  const mergeGroup = groupName => {
+    const group = { ...defaults[groupName] };
+    const rawGroup = value[groupName] && typeof value[groupName] === 'object' && !Array.isArray(value[groupName])
+      ? value[groupName]
+      : {};
+    for (const key of Object.keys(defaults[groupName])) {
+      if (Object.prototype.hasOwnProperty.call(rawGroup, key)) group[key] = rawGroup[key] === true;
+    }
+    return group;
+  };
   return {
     template: sanitizeText(value.template, 40) || defaults.template,
     farm: mergeGroup('farm'),
@@ -228,6 +233,70 @@ function normalizePermissionSet(value, type) {
     family: mergeGroup('family'),
     confirmations: mergeGroup('confirmations'),
   };
+}
+
+function enforcePermissionSafetyRails(permissionSet, type) {
+  const normalized = normalizePermissionSet(permissionSet, type);
+  normalized.confirmations.rare_withdraw_requires_both = true;
+  normalized.confirmations.large_fund_spend_requires_both = true;
+  normalized.confirmations.demolish_requires_both = true;
+  normalized.confirmations.separation_requires_preview = true;
+  return normalized;
+}
+
+function normalizePermissionPatch(value = {}, type) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw createError('请提交有效的权限变更');
+  }
+  const defaults = createDefaultPermissionSet(type);
+  const patch = {};
+  let changedFieldCount = 0;
+  for (const groupName of PERMISSION_GROUPS) {
+    const rawGroup = value[groupName] && typeof value[groupName] === 'object' && !Array.isArray(value[groupName])
+      ? value[groupName]
+      : null;
+    if (!rawGroup) continue;
+    const groupPatch = {};
+    for (const key of Object.keys(defaults[groupName])) {
+      if (!Object.prototype.hasOwnProperty.call(rawGroup, key)) continue;
+      groupPatch[key] = rawGroup[key] === true;
+      changedFieldCount += 1;
+    }
+    if (Object.keys(groupPatch).length > 0) patch[groupName] = groupPatch;
+  }
+  if (changedFieldCount <= 0) throw createError('没有可更新的权限字段');
+  return { patch, changed_field_count: changedFieldCount };
+}
+
+function applyPermissionPatch(currentPermissions, patch = {}, type) {
+  const next = normalizePermissionSet(currentPermissions, type);
+  for (const groupName of PERMISSION_GROUPS) {
+    if (!patch[groupName]) continue;
+    next[groupName] = {
+      ...next[groupName],
+      ...patch[groupName],
+    };
+  }
+  return enforcePermissionSafetyRails(next, type);
+}
+
+function diffPermissionSets(before = {}, after = {}, type) {
+  const defaults = createDefaultPermissionSet(type);
+  const previous = normalizePermissionSet(before, type);
+  const next = normalizePermissionSet(after, type);
+  const changes = [];
+  for (const groupName of PERMISSION_GROUPS) {
+    for (const key of Object.keys(defaults[groupName])) {
+      if (previous[groupName][key] === next[groupName][key]) continue;
+      changes.push({
+        group: groupName,
+        key,
+        before: previous[groupName][key] === true,
+        after: next[groupName][key] === true,
+      });
+    }
+  }
+  return changes;
 }
 
 function getPlayerMoney(saveData = {}) {
@@ -798,6 +867,44 @@ function assertActiveContractForActor(contract, actorUsername, actionLabel) {
   return member;
 }
 
+function canManageCohabitationPermissions(member = {}) {
+  return member.status === 'accepted' && member.role === 'owner';
+}
+
+function buildPermissionSnapshot(contract, actorUsername = '') {
+  const actorMember = getContractMember(contract, actorUsername);
+  return {
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    status: contract.status,
+    editable_by_actor: canManageCohabitationPermissions(actorMember),
+    idempotency_required: true,
+    safety_rails: {
+      rare_withdraw_requires_both: true,
+      large_fund_spend_requires_both: true,
+      demolish_requires_both: true,
+      separation_requires_preview: true,
+      confirmations_readonly: true,
+    },
+    groups: PERMISSION_GROUPS.map(group => ({
+      id: group,
+      keys: Object.keys(createDefaultPermissionSet(contract.type)[group] || {}),
+    })),
+    members: (contract.members || []).map(member => ({
+      username: member.username,
+      username_key: member.username_key,
+      display_name: member.display_name,
+      role: member.role,
+      status: member.status,
+      can_manage_permissions: canManageCohabitationPermissions(member),
+      permissions: enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type),
+    })),
+    recent_permission_audits: (contract.audit_log || [])
+      .filter(entry => entry.action === 'permissions_updated')
+      .slice(0, 10),
+  };
+}
+
 function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
   const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   const actorKey = normalizeUsernameKey(actorUsername);
@@ -1188,6 +1295,21 @@ async function getCohabitationFund(contractId, actor = {}) {
   };
 }
 
+async function getCohabitationPermissions(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看同居权限');
+  for (const member of contract.members || []) {
+    contract.permissions[member.username_key] = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  }
+  return {
+    contract: toPublicContract(contract),
+    permissions_panel: buildPermissionSnapshot(contract, actorUsername),
+  };
+}
+
 async function depositCohabitationWarehouseItem(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -1289,6 +1411,59 @@ async function depositCohabitationWarehouseItem(contractId, payload = {}, actor 
       remaining_quantity: countDepositableMainInventoryItem(projectedData, deposit.item_id, deposit.quality),
       personal_money_merged: false,
     },
+  };
+}
+
+async function updateCohabitationPermissions(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('同居权限变更需要 idempotency_key，以防断线或重试时重复写入审计');
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const actorMember = assertActiveContractForActor(contract, actorUsername, '调整同居权限');
+  if (!canManageCohabitationPermissions(actorMember)) throw createError('只有契约发起者可以调整同居权限第一版', 403);
+
+  const previousAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'permissions_updated' && entry.idempotency_key === idempotencyKey
+  );
+  if (previousAudit) {
+    return {
+      contract: toPublicContract(contract),
+      permissions_panel: buildPermissionSnapshot(contract, actorUsername),
+      idempotent: true,
+      audit_entry: previousAudit,
+    };
+  }
+
+  const targetUsername = normalizeUsername(payload.target_username || payload.member_username || payload.username);
+  const targetMember = getContractMember(contract, targetUsername);
+  if (!targetMember) throw createError('要调整权限的成员不在这份契约中', 404);
+  if (targetMember.status !== 'accepted') throw createError('只能调整已接受契约成员的权限', 409);
+
+  const { patch } = normalizePermissionPatch(payload.permissions || payload.patch, contract.type);
+  const beforePermissions = enforcePermissionSafetyRails(contract.permissions?.[targetMember.username_key], contract.type);
+  const nextPermissions = applyPermissionPatch(beforePermissions, patch, contract.type);
+  const changes = diffPermissionSets(beforePermissions, nextPermissions, contract.type);
+  if (changes.length <= 0) throw createError('权限变更没有产生实际变化');
+
+  contract.permissions[targetMember.username_key] = nextPermissions;
+  appendAudit(contract, 'permissions_updated', actor, {
+    target_username: targetMember.username,
+    target_display_name: targetMember.display_name,
+    changed_fields: changes,
+    changed_field_count: changes.length,
+    confirmations_locked: true,
+    note: sanitizeText(payload.note || payload.memo, 160),
+  }, idempotencyKey);
+  saveContractStore(store);
+  const auditEntry = contract.audit_log.find(entry => entry.idempotency_key === idempotencyKey && entry.action === 'permissions_updated');
+  return {
+    contract: toPublicContract(contract),
+    permissions_panel: buildPermissionSnapshot(contract, actorUsername),
+    changed_fields: changes,
+    idempotent: false,
+    audit_entry: auditEntry,
   };
 }
 
@@ -1557,8 +1732,10 @@ module.exports = {
   getCohabitationSharedMap,
   getCohabitationWarehouse,
   getCohabitationFund,
+  getCohabitationPermissions,
   depositCohabitationWarehouseItem,
   contributeCohabitationFund,
+  updateCohabitationPermissions,
   createCohabitationContract,
   acceptCohabitationContract,
   createSeparationPreview,

@@ -178,6 +178,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_fund_contribute',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/permissions$/i,
+    action: 'cohabitation_permissions_update',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/societies\/proposals$/i,
     action: 'society_proposal_create',
   },
@@ -2790,6 +2794,18 @@ router.get('/taoyuan/online/cohabitation/contracts/:contractId/fund', createOnli
   }
 });
 
+router.get('/taoyuan/online/cohabitation/contracts/:contractId/permissions', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCohabitationRuntime.getCohabitationPermissions(req.params.contractId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取同居权限失败' });
+  }
+});
+
 router.post('/taoyuan/online/cohabitation/contracts', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanCohabitationRuntime.createCohabitationContract(req.body || {}, {
@@ -2826,6 +2842,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/contribute'
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '向共同基金注资失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/permissions', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.updateCohabitationPermissions(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '调整同居权限失败' });
     }
   });
 });

@@ -210,6 +210,27 @@ assert.ok(accepted.contract.audit_log.find(entry => entry.action === 'contract_a
 const activeOverview = await runtime.listCohabitationContracts(partner)
 assert.equal(activeOverview.summary.active, 1, 'partner should see the active contract')
 
+const initialPermissionsResult = await runtime.getCohabitationPermissions(created.contract.id, actor(owner))
+assert.equal(initialPermissionsResult.permissions_panel.editable_by_actor, true, 'contract owner should be able to edit permissions')
+assert.ok(initialPermissionsResult.permissions_panel.groups.some(group => group.id === 'storage'), 'permissions panel should expose storage group')
+assert.ok(initialPermissionsResult.permissions_panel.groups.some(group => group.id === 'fund'), 'permissions panel should expose fund group')
+assert.equal(initialPermissionsResult.permissions_panel.safety_rails.large_fund_spend_requires_both, true, 'permissions panel should expose locked fund confirmation rail')
+assert.equal(initialPermissionsResult.permissions_panel.members.find(member => member.username === partner)?.permissions.storage.deposit, true, 'partner should initially be allowed to deposit')
+assert.equal(initialPermissionsResult.permissions_panel.members.find(member => member.username === owner)?.can_manage_permissions, true, 'owner member should be marked as permission manager')
+assert.equal(initialPermissionsResult.permissions_panel.members.find(member => member.username === partner)?.can_manage_permissions, false, 'partner member should not manage permissions in first pass')
+
+await assert.rejects(
+  () => runtime.updateCohabitationPermissions(created.contract.id, {
+    target_username: owner,
+    permissions: {
+      storage: { deposit: false },
+    },
+    idempotency_key: 'qa-partner-permission-update-denied',
+  }, actor(partner)),
+  error => error?.status === 403 && String(error.message || '').includes('契约发起者'),
+  'non-owner partners should not update cohabitation permissions in first pass'
+)
+
 const ownerRawBeforeSharedMap = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawBeforeSharedMap = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
 const sharedMapResult = await runtime.getCohabitationSharedMap(created.contract.id, actor(owner))
@@ -408,6 +429,64 @@ await assert.rejects(
   'warehouse deposit should reject high quality items in the first pass'
 )
 
+const permissionUpdate = await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: partner,
+  permissions: {
+    storage: {
+      deposit: false,
+      withdraw_rare: true,
+    },
+    fund: {
+      spend_large: true,
+    },
+    confirmations: {
+      large_fund_spend_requires_both: false,
+    },
+  },
+  note: 'qa restrict partner deposit',
+  idempotency_key: 'qa-permission-update-partner',
+}, actor(owner))
+assert.equal(permissionUpdate.idempotent, false, 'first permissions update should not be idempotent')
+const updatedPartnerPermissions = permissionUpdate.permissions_panel.members.find(member => member.username === partner)?.permissions
+assert.equal(updatedPartnerPermissions.storage.deposit, false, 'permissions update should disable partner warehouse deposit')
+assert.equal(updatedPartnerPermissions.storage.withdraw_rare, true, 'permissions update should allow explicit storage permission flags')
+assert.equal(updatedPartnerPermissions.fund.spend_large, true, 'permissions update should allow explicit fund permission flags')
+assert.equal(updatedPartnerPermissions.confirmations.large_fund_spend_requires_both, true, 'permissions safety rail should keep large fund confirmation enabled')
+assert.ok(permissionUpdate.changed_fields.some(field => field.group === 'storage' && field.key === 'deposit' && field.after === false), 'permissions update should report changed storage deposit field')
+assert.ok(permissionUpdate.contract.audit_log.find(entry => entry.action === 'permissions_updated'), 'permissions update should be audited')
+
+const duplicatePermissionUpdate = await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: partner,
+  permissions: {
+    storage: {
+      deposit: false,
+      withdraw_rare: true,
+    },
+    fund: {
+      spend_large: true,
+    },
+  },
+  idempotency_key: 'qa-permission-update-partner',
+}, actor(owner))
+assert.equal(duplicatePermissionUpdate.idempotent, true, 'same permissions update idempotency key should be idempotent')
+
+const partnerPermissionsRead = await runtime.getCohabitationPermissions(created.contract.id, actor(partner))
+assert.equal(partnerPermissionsRead.permissions_panel.editable_by_actor, false, 'partner should read permissions without edit capability')
+assert.equal(partnerPermissionsRead.permissions_panel.members.find(member => member.username === partner)?.permissions.storage.deposit, false, 'partner should see updated own permissions')
+
+const partnerTeaBeforePermissionDenied = getInventoryItemQuantity(partner, 'tea')
+await assert.rejects(
+  () => runtime.depositCohabitationWarehouseItem(created.contract.id, {
+    item_id: 'tea',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-partner-deposit-denied-by-permission',
+  }, actor(partner)),
+  error => error?.status === 403 && String(error.message || '').includes('没有向共同仓库放入物品的权限'),
+  'updated storage permission should block partner warehouse deposit'
+)
+assert.equal(getInventoryItemQuantity(partner, 'tea'), partnerTeaBeforePermissionDenied, 'permission-denied warehouse deposit should not deduct partner inventory')
+
 const pendingContract = await runtime.createCohabitationContract({
   type: 'seasonal_cofarm',
   target_username: extra,
@@ -429,6 +508,11 @@ await assert.rejects(
   'pending contracts should not expose shared fund'
 )
 await assert.rejects(
+  () => runtime.getCohabitationPermissions(pendingContract.contract.id, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not expose permissions panel'
+)
+await assert.rejects(
   () => runtime.depositCohabitationWarehouseItem(pendingContract.contract.id, {
     item_id: 'rice',
     quantity: 1,
@@ -445,6 +529,17 @@ await assert.rejects(
   }, actor(owner)),
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not accept fund contributions'
+)
+await assert.rejects(
+  () => runtime.updateCohabitationPermissions(pendingContract.contract.id, {
+    target_username: extra,
+    permissions: {
+      storage: { deposit: false },
+    },
+    idempotency_key: 'qa-pending-permission-update',
+  }, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not accept permission updates'
 )
 
 const previewResult = await runtime.createSeparationPreview(created.contract.id, {
