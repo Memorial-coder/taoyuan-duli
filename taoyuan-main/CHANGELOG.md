@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0524 同居分居演算预览
+- `separation-preview` 服务端预览草案升级为 `version=1` 返还清单，读回来源田区、共同仓库流水、共同基金注资比例 / 建议返还、冷静期、双方确认状态、补偿计划和安全检查。
+- 该能力仍是预览层：不执行个人存档写回、不转移背包或铜币、不关闭契约，真实确认返还和前端确认面板继续留在后续任务。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0524 家族关系图第一版
 - NPC 页新增 `FamilyRelationGraph`，以玩家为中心展示固定 NPC、随机来访、熟人、长住 NPC、配偶 / 知己 / 恋人、孩子、宠物和仙灵关系节点。
 - 关系线现在显示关系标签，节点可点击或键盘选中；详情区会读回最近对话 / 今日送礼、送礼偏好、心事件、家庭心愿、随机 NPC 关键事件、小订单、长住路线、宠物喂食和孩子成长信息。

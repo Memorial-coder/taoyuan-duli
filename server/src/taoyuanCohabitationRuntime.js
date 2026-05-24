@@ -31,6 +31,7 @@ const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_MAX_DEPOSIT_QUANTITY = 99;
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const PERMISSION_GROUPS = Object.freeze(['farm', 'animal', 'storage', 'construction', 'fund', 'family', 'confirmations']);
+const SEPARATION_PREVIEW_VERSION = 1;
 
 const RELATION_TYPE_DEFS = Object.freeze({
   lover_cohabitation: {
@@ -749,16 +750,27 @@ function buildSharedFarmPlots(contract, farmSnapshots) {
 
 function normalizeSeparationPreview(entry = {}) {
   return {
+    version: Math.max(SEPARATION_PREVIEW_VERSION, Math.floor(Number(entry.version) || SEPARATION_PREVIEW_VERSION)),
     id: sanitizeText(entry.id, 80) || makeId('separation_preview'),
     contract_id: sanitizeText(entry.contract_id, 80),
     requested_by: normalizeUsername(entry.requested_by),
     state: ['draft', 'confirmed', 'expired'].includes(entry.state) ? entry.state : 'draft',
     created_at: Number(entry.created_at) || nowSeconds(),
     expires_at: Number(entry.expires_at) || (nowSeconds() + 72 * 60 * 60),
+    confirm_after_at: Math.max(0, Math.floor(Number(entry.confirm_after_at) || 0)),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
     summary: sanitizeText(entry.summary, 300),
     asset_return: entry.asset_return && typeof entry.asset_return === 'object' ? entry.asset_return : {},
     compensation_plan: Array.isArray(entry.compensation_plan) ? entry.compensation_plan : [],
     narrative_hooks: Array.isArray(entry.narrative_hooks) ? entry.narrative_hooks.map(item => sanitizeText(item, 120)).filter(Boolean) : [],
+    confirmation_state: entry.confirmation_state && typeof entry.confirmation_state === 'object' && !Array.isArray(entry.confirmation_state)
+      ? entry.confirmation_state
+      : {},
+    safety_checks: Array.isArray(entry.safety_checks) ? entry.safety_checks : [],
+    deferred_operations: Array.isArray(entry.deferred_operations)
+      ? entry.deferred_operations.map(item => sanitizeText(item, 80)).filter(Boolean)
+      : [],
+    manual_execution_required: entry.manual_execution_required !== false,
     requires_both_confirm: entry.requires_both_confirm !== false,
   };
 }
@@ -1197,9 +1209,13 @@ function buildWarehouseReturnPreview(contract = {}) {
       quality: entry.quality,
       quantity: 0,
       ledger_ids: [],
+      source_ledger_count: 0,
+      return_policy: '按共同仓库放入流水归还给来源玩家；第一版只生成预览，不自动改写个人背包。',
+      manual_return_required: true,
     };
     current.quantity += entry.quantity;
     current.ledger_ids.push(entry.id);
+    current.source_ledger_count += 1;
     groups.set(key, current);
   }
   return [...groups.values()].filter(entry => entry.quantity > 0).slice(0, 80);
@@ -1218,12 +1234,161 @@ function buildFundReturnPreview(contract = {}) {
       origin_owner_key: entry.source_owner_key,
       amount: 0,
       ledger_ids: [],
+      source_ledger_count: 0,
     };
     current.amount += entry.amount;
     current.ledger_ids.push(entry.id);
+    current.source_ledger_count += 1;
     groups.set(key, current);
   }
-  return [...groups.values()].filter(entry => entry.amount > 0).slice(0, 80);
+  const entries = [...groups.values()].filter(entry => entry.amount > 0).slice(0, 80);
+  const totalContributed = entries.reduce((sum, entry) => sum + entry.amount, 0);
+  let allocated = 0;
+  return entries.map((entry, index) => {
+    const suggestedRefundAmount = totalContributed > 0
+      ? (index === entries.length - 1
+          ? Math.max(0, fund.balance - allocated)
+          : Math.floor((fund.balance * entry.amount) / totalContributed))
+      : 0;
+    allocated += suggestedRefundAmount;
+    return {
+      ...entry,
+      contribution_share_basis_points: totalContributed > 0 ? Math.round((entry.amount * 10000) / totalContributed) : 0,
+      suggested_refund_amount: suggestedRefundAmount,
+      return_policy: '按注资 ledger 比例预览共同基金余额返还；真实返还需双方确认后由后续执行流程落账。',
+      manual_return_required: true,
+    };
+  });
+}
+
+function buildPlotReturnPreview(contract = {}) {
+  const farmSnapshots = (contract.members || []).map(readMemberFarmSnapshot);
+  const layout = buildSharedFarmPlots(contract, farmSnapshots);
+  const groups = new Map();
+  for (const plot of layout.plots) {
+    const key = plot.origin_owner_id || plot.origin_owner_key || plot.origin_owner_username;
+    if (!key) continue;
+    const current = groups.get(key) || {
+      origin_owner_id: plot.origin_owner_id,
+      origin_owner_username: plot.origin_owner_username,
+      origin_owner_key: plot.origin_owner_key,
+      plot_count: 0,
+      active_plot_count: 0,
+      harvestable_plot_count: 0,
+      waterable_plot_count: 0,
+      source_plot_ids: [],
+      crop_ids: [],
+      return_policy: '按 origin_owner_id 归还原田区；第一版只生成预览，不写回双方个人农田。',
+      manual_return_required: true,
+    };
+    current.plot_count += 1;
+    const state = plot.plot_state?.state || 'wasteland';
+    if (state !== 'wasteland') current.active_plot_count += 1;
+    if (state === 'harvestable') current.harvestable_plot_count += 1;
+    if (['planted', 'growing'].includes(state) && plot.plot_state?.watered !== true) current.waterable_plot_count += 1;
+    if (current.source_plot_ids.length < 24) current.source_plot_ids.push(plot.source_plot_id);
+    if (plot.plot_state?.crop_id && !current.crop_ids.includes(plot.plot_state.crop_id)) {
+      current.crop_ids.push(plot.plot_state.crop_id);
+    }
+    groups.set(key, current);
+  }
+  const stateCounts = countPlotStates(layout.plots);
+  return {
+    plots_by_origin_owner: [...groups.values()].slice(0, 80),
+    plot_return_summary: {
+      total_plots: stateCounts.total,
+      active_plots: stateCounts.active,
+      harvestable_plots: stateCounts.harvestable,
+      waterable_plots: stateCounts.waterable,
+      origin_owner_count: groups.size,
+      arrangement: 'side_by_side',
+      readonly: true,
+      writes_enabled: false,
+      included_sources: ['farm.plots'],
+      deferred_sources: ['farm.greenhousePlots', 'farm.fruitTrees', 'animal', 'warehouse', 'decoration'],
+    },
+    unavailable_plot_sources: farmSnapshots
+      .filter(snapshot => snapshot.available !== true)
+      .map(snapshot => ({
+        username: snapshot.member.username,
+        username_key: snapshot.member.username_key,
+        display_name: snapshot.member.display_name,
+        reason: snapshot.unavailable_reason || '成员农田暂不可读',
+      })),
+  };
+}
+
+function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fundReturns, fundBalance }) {
+  const totalSuggestedFundRefund = fundReturns.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
+  return [
+    {
+      id: 'preview_only',
+      passed: true,
+      detail: '本次只生成分居预览，不写回个人存档、不扣物、不转账。',
+    },
+    {
+      id: 'personal_money_preserved',
+      passed: true,
+      detail: '个人铜币从未合并，预览只读取共同基金 ledger。',
+    },
+    {
+      id: 'plot_origin_traceable',
+      passed: plotReturnPreview.plot_return_summary.total_plots === 0
+        || plotReturnPreview.plot_return_summary.origin_owner_count > 0,
+      detail: '农田按 origin_owner_id / save_id 归属预览拆回。',
+    },
+    {
+      id: 'warehouse_origin_traceable',
+      passed: warehouseReturns.every(entry => entry.origin_owner_id || entry.origin_owner_key),
+      detail: '共同仓库按放入流水归属预览拆回。',
+    },
+    {
+      id: 'fund_preview_balanced',
+      passed: totalSuggestedFundRefund === fundBalance,
+      detail: '共同基金余额按注资比例生成建议返还额。',
+    },
+  ];
+}
+
+function buildSeparationCompensationPlan({ plotReturnPreview, warehouseReturns, fundReturns, contract }) {
+  const plan = [];
+  if (plotReturnPreview.plot_return_summary.total_plots > 0) {
+    plan.push({
+      id: 'plots_return_by_origin',
+      target: 'farm.plots',
+      action: 'return_to_origin_owner',
+      status: 'preview_only',
+      detail: '按来源田区归还；无法读取的成员存档先进入人工复核。',
+    });
+  }
+  if (warehouseReturns.length > 0) {
+    plan.push({
+      id: 'warehouse_manual_return',
+      target: 'shared_warehouse',
+      action: 'return_items_by_ledger',
+      status: 'manual_execution_required',
+      detail: '共同仓库物品按放入 ledger 返还，真实背包写回待双方确认后执行。',
+    });
+  }
+  if (fundReturns.length > 0) {
+    plan.push({
+      id: 'fund_proportional_refund',
+      target: 'shared_fund',
+      action: 'refund_by_contribution_share',
+      status: 'manual_execution_required',
+      detail: '共同基金余额按注资比例预览返还；若后续出现经营收入或消费差额，需要双方确认补偿。',
+    });
+  }
+  if (contract.separation_policy?.keep_memorial !== false) {
+    plan.push({
+      id: 'relationship_memorial',
+      target: 'relationship_memory',
+      action: 'keep_memorial_record',
+      status: 'deferred',
+      detail: '保留关系回忆、称号或纪念物的剧情规则待后续接入。',
+    });
+  }
+  return plan;
 }
 
 function buildRelationOptions() {
@@ -1776,27 +1941,63 @@ async function acceptCohabitationContract(contractId, actor = {}) {
 async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   const store = loadContractStore();
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   if (!contract) throw createError('同居契约不存在', 404);
   if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
   if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效契约可以生成分居预览', 409);
   contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.separation_previews = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.map(normalizeSeparationPreview)
+    : [];
+  if (idempotencyKey) {
+    const existingPreview = contract.separation_previews.find(entry => entry.idempotency_key === idempotencyKey);
+    if (existingPreview) {
+      return { contract: toPublicContract(contract), preview: existingPreview, idempotent: true };
+    }
+  }
+  const createdAt = nowSeconds();
+  const cooldownHours = Math.max(24, Math.floor(Number(contract.separation_policy?.cooldown_hours) || 72));
+  const confirmAfterAt = createdAt + cooldownHours * 60 * 60;
+  const expiresAt = createdAt + (cooldownHours + 72) * 60 * 60;
+  const plotReturnPreview = buildPlotReturnPreview(contract);
+  const warehouseReturns = buildWarehouseReturnPreview(contract);
+  const fundReturns = buildFundReturnPreview(contract);
+  const totalFundContributions = fundReturns.reduce((sum, entry) => sum + entry.amount, 0);
+  const totalSuggestedFundRefund = fundReturns.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
+  const requiredMemberUsernames = (contract.members || [])
+    .filter(member => member.status === 'accepted')
+    .map(member => member.username);
   const preview = normalizeSeparationPreview({
     id: makeId('separation_preview'),
+    version: SEPARATION_PREVIEW_VERSION,
     contract_id: contract.id,
     requested_by: actorUsername,
-    created_at: nowSeconds(),
-    summary: '当前预览只归集契约、权限、共同基金和来源资产占位；真实土地、仓库、装修和家庭剧情拆分会在对应系统接入后补齐。',
+    created_at: createdAt,
+    expires_at: expiresAt,
+    confirm_after_at: confirmAfterAt,
+    idempotency_key: idempotencyKey,
+    summary: '当前预览已归集来源田区、共同仓库放入流水、共同基金注资比例和确认 / 补偿规则；真实返还仍需后续执行流程。',
     asset_return: {
-      plots_by_origin_owner: [],
-      warehouse_items_by_origin_owner: buildWarehouseReturnPreview(contract),
-      fund_contributions_by_origin_owner: buildFundReturnPreview(contract),
+      plots_by_origin_owner: plotReturnPreview.plots_by_origin_owner,
+      plot_return_summary: plotReturnPreview.plot_return_summary,
+      unavailable_plot_sources: plotReturnPreview.unavailable_plot_sources,
+      warehouse_items_by_origin_owner: warehouseReturns,
+      fund_contributions_by_origin_owner: fundReturns,
       fund_balance: contract.shared_fund.balance,
+      fund_total_contributed: totalFundContributions,
+      fund_suggested_refund_total: totalSuggestedFundRefund,
       fund_return_policy: contract.shared_fund.balance > 0 ? '按注资与经营流水拆分，缺流水时需双方确认。' : '共同基金当前为 0，不涉及返还。',
       personal_money_policy: '个人铜币从未合并，无需拆分。',
     },
-    compensation_plan: [],
+    compensation_plan: buildSeparationCompensationPlan({
+      plotReturnPreview,
+      warehouseReturns,
+      fundReturns,
+      contract,
+    }),
     narrative_hooks: [
       contract.type === 'marriage_home'
         ? '婚姻分居后续需要家庭剧情、孩子安排和共同基金确认。'
@@ -1804,15 +2005,49 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
           ? '恋人分居后续需要告别对话、搬离动画和回忆纪念。'
           : '知己或合伙拆伙后续需要道别记录或未来合作约定。',
     ],
+    confirmation_state: {
+      state: 'draft',
+      requested_by: actorUsername,
+      required_member_usernames: requiredMemberUsernames,
+      confirmed_by: [],
+      confirm_after_at: confirmAfterAt,
+      expires_at: expiresAt,
+      cooldown_hours: cooldownHours,
+      can_execute_now: false,
+      requires_both_confirm: true,
+      execution_enabled: false,
+      execution_policy: '第一版只允许生成预览；确认、冷静期结束和返还执行会走后续独立接口。',
+    },
+    safety_checks: buildSeparationSafetyChecks({
+      plotReturnPreview,
+      warehouseReturns,
+      fundReturns,
+      fundBalance: contract.shared_fund.balance,
+    }),
+    deferred_operations: [
+      'execute_asset_return',
+      'write_personal_save_refunds',
+      'split_decorations',
+      'resolve_family_story',
+      'freeze_high_value_disputes',
+    ],
+    manual_execution_required: true,
     requires_both_confirm: true,
   });
   contract.separation_previews = [preview, ...(contract.separation_previews || [])].slice(0, 10);
   appendAudit(contract, 'separation_preview_created', actor, {
     preview_id: preview.id,
+    preview_version: preview.version,
     reason: sanitizeText(payload.reason, 160),
-  });
+    idempotency_key: idempotencyKey,
+    plot_groups: preview.asset_return.plots_by_origin_owner.length,
+    warehouse_groups: preview.asset_return.warehouse_items_by_origin_owner.length,
+    fund_groups: preview.asset_return.fund_contributions_by_origin_owner.length,
+    confirm_after_at: preview.confirm_after_at,
+    requires_both_confirm: true,
+  }, idempotencyKey);
   saveContractStore(store);
-  return { contract: toPublicContract(contract), preview };
+  return { contract: toPublicContract(contract), preview, idempotent: false };
 }
 
 module.exports = {

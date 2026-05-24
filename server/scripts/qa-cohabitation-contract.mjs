@@ -568,17 +568,60 @@ await assert.rejects(
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not accept permission updates'
 )
+await assert.rejects(
+  () => runtime.createSeparationPreview(pendingContract.contract.id, {
+    reason: 'pending preview should be rejected',
+    idempotency_key: 'qa-pending-separation-preview',
+  }, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not create separation previews'
+)
 
+const ownerRawBeforePreview = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforePreview = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
 const previewResult = await runtime.createSeparationPreview(created.contract.id, {
   reason: 'qa preview',
+  idempotency_key: 'qa-separation-preview',
 }, actor(owner))
+assert.equal(previewResult.idempotent, false, 'first separation preview should not be idempotent')
+assert.equal(previewResult.preview.version, 1, 'separation preview should expose return checklist version')
 assert.equal(previewResult.preview.requires_both_confirm, true, 'separation preview should require both confirmations')
+assert.equal(previewResult.preview.manual_execution_required, true, 'separation preview should not execute asset return directly')
+assert.ok(previewResult.preview.confirm_after_at > previewResult.preview.created_at, 'separation preview should enforce a cooldown window')
+assert.equal(previewResult.preview.confirmation_state.can_execute_now, false, 'separation preview should not be executable immediately')
+assert.equal(previewResult.preview.confirmation_state.execution_enabled, false, 'separation execution should stay disabled in first pass')
+assert.deepEqual(previewResult.preview.confirmation_state.required_member_usernames.sort(), [owner, partner].sort(), 'separation preview should require accepted member confirmation')
 assert.match(previewResult.preview.asset_return.personal_money_policy, /个人铜币/, 'preview should preserve personal money boundary')
+assert.equal(previewResult.preview.asset_return.plot_return_summary.total_plots, 32, 'separation preview should include shared farm plot summary')
+assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === owner && item.plot_count === 16), 'separation preview should include owner plot return group')
+assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === partner && item.plot_count === 16), 'separation preview should include partner plot return group')
 assert.ok(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'rice' && item.quantity === 2), 'separation preview should include warehouse item source summary')
 assert.equal(previewResult.preview.asset_return.fund_balance, 200, 'separation preview should include current fund balance')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.amount === 120), 'separation preview should include owner fund contribution source summary')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.amount === 80), 'separation preview should include partner fund contribution source summary')
+assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.suggested_refund_amount === 120), 'separation preview should suggest owner fund refund by contribution share')
+assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.suggested_refund_amount === 80), 'separation preview should suggest partner fund refund by contribution share')
+assert.equal(previewResult.preview.asset_return.fund_suggested_refund_total, 200, 'separation preview should balance suggested fund refunds')
+assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'plots_return_by_origin'), 'separation preview should include plot return compensation plan')
+assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'warehouse_manual_return'), 'separation preview should include warehouse manual return plan')
+assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'fund_proportional_refund'), 'separation preview should include fund proportional refund plan')
+assert.ok(previewResult.preview.safety_checks.find(item => item.id === 'preview_only')?.passed, 'separation preview should declare preview-only safety check')
+assert.ok(previewResult.preview.safety_checks.find(item => item.id === 'fund_preview_balanced')?.passed, 'separation preview should balance fund safety check')
+assert.ok(previewResult.preview.deferred_operations.includes('execute_asset_return'), 'separation preview should keep execution deferred')
 assert.equal(previewResult.contract.status, 'active', 'preview should not execute separation')
 assert.ok(previewResult.contract.audit_log.find(entry => entry.action === 'separation_preview_created'), 'preview should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforePreview, 'separation preview should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforePreview, 'separation preview should not rewrite partner save')
+
+const ownerRawBeforeDuplicatePreview = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeDuplicatePreview = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const duplicatePreviewResult = await runtime.createSeparationPreview(created.contract.id, {
+  reason: 'qa preview duplicate',
+  idempotency_key: 'qa-separation-preview',
+}, actor(owner))
+assert.equal(duplicatePreviewResult.idempotent, true, 'same separation preview idempotency key should return existing preview')
+assert.equal(duplicatePreviewResult.preview.id, previewResult.preview.id, 'idempotent separation preview should keep original preview id')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeDuplicatePreview, 'idempotent separation preview should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeDuplicatePreview, 'idempotent separation preview should not rewrite partner save')
 
 console.log('[qa-cohabitation-contract] OK')
