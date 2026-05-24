@@ -382,6 +382,12 @@ await assert.rejects(
 )
 
 await assert.rejects(
+  () => runtime.getCohabitationFamilyOrders(created.contract.id, actor(extra)),
+  error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
+  'non-members should not read a family order panel'
+)
+
+await assert.rejects(
   () => runtime.depositCohabitationWarehouseItem(created.contract.id, {
     item_id: 'rice',
     quantity: 1,
@@ -546,6 +552,11 @@ await assert.rejects(
   'pending contracts should not expose family role panel'
 )
 await assert.rejects(
+  () => runtime.getCohabitationFamilyOrders(pendingContract.contract.id, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not expose family order panel'
+)
+await assert.rejects(
   () => runtime.getCohabitationOfflineStatus(pendingContract.contract.id, actor(owner)),
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not expose offline operation status'
@@ -675,6 +686,48 @@ const duplicateFamilyRoleUpdate = await runtime.updateCohabitationFamilyRole(fam
 }, actor(owner))
 assert.equal(duplicateFamilyRoleUpdate.idempotent, true, 'same family role idempotency key should be idempotent')
 assert.equal(duplicateFamilyRoleUpdate.audit_entry.id, familyRoleUpdate.audit_entry.id, 'idempotent family role update should return original audit entry')
+
+const loverFamilyOrders = await runtime.getCohabitationFamilyOrders(created.contract.id, actor(owner))
+assert.equal(loverFamilyOrders.family_orders_panel.family_orders_enabled, false, 'romance contracts should return a disabled family order panel')
+assert.equal(loverFamilyOrders.family_orders_panel.write_enabled, false, 'disabled family order panel should not expose writes')
+assert.equal(loverFamilyOrders.family_orders_panel.summary.preview_order_count, 0, 'disabled family order panel should not expose draft orders')
+assert.match(loverFamilyOrders.family_orders_panel.summary.disabled_reason, /结拜庄园和合伙庄园/, 'disabled panel should explain family manor requirement')
+
+const ownerRawBeforeFamilyOrders = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeFamilyOrders = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const extraRawBeforeFamilyOrders = saveRuntime.loadUserSaveSlots(extra).slots[0].raw
+const familyOrdersRead = await runtime.getCohabitationFamilyOrders(familyContract.contract.id, actor(owner))
+const familyOrdersPanel = familyOrdersRead.family_orders_panel
+assert.equal(familyOrdersPanel.family_orders_enabled, true, 'family manor should expose family order panel')
+assert.equal(familyOrdersPanel.readonly, true, 'family order panel should be read-only in first pass')
+assert.equal(familyOrdersPanel.write_enabled, false, 'family order panel should not enable writes in first pass')
+assert.equal(familyOrdersPanel.settlement_enabled, false, 'family order panel should not enable settlement in first pass')
+assert.equal(familyOrdersPanel.summary.personal_money_merged, false, 'family order panel must not merge personal money')
+assert.equal(familyOrdersPanel.summary.shared_fund_spend_enabled, false, 'family order panel should keep shared fund spending disabled')
+assert.equal(familyOrdersPanel.summary.warehouse_withdraw_enabled, false, 'family order panel should keep warehouse withdrawal disabled')
+assert.equal(familyOrdersPanel.settlement.reward_to_shared_fund_enabled, false, 'family order rewards should not enter shared fund yet')
+assert.equal(familyOrdersPanel.settlement.reward_to_shared_warehouse_enabled, false, 'family order rewards should not enter shared warehouse yet')
+assert.equal(familyOrdersPanel.settlement.idempotency_required, true, 'future family order writes should require idempotency')
+assert.equal(familyOrdersPanel.settlement.audit_required, true, 'future family order writes should require audit')
+assert.equal(familyOrdersPanel.settlement.compensation_required, true, 'future family order writes should require compensation')
+assert.equal(familyOrdersPanel.governance.reuse_public_order_relay, true, 'family order panel should reuse public relay visual model')
+assert.equal(familyOrdersPanel.order_sources.find(source => source.id === 'coop_order_relay')?.binding_enabled, false, 'family order panel should not bind public orders to contract yet')
+assert.equal(familyOrdersPanel.actor.manor_role, 'family_head', 'family order actor should expose family head role')
+assert.equal(familyOrdersPanel.actor.order_permissions.can_manage_order_rules_preview, true, 'family head should preview order rule management')
+assert.equal(familyOrdersPanel.members.find(member => member.username === partner)?.manor_role, 'storage_keeper', 'family order members should reflect updated storage keeper role')
+assert.equal(familyOrdersPanel.members.find(member => member.username === partner)?.order_permissions.can_prepare_warehouse_reward_preview, true, 'storage keeper should preview warehouse reward preparation only')
+assert.equal(familyOrdersPanel.members.find(member => member.username === extra)?.manor_role, 'farm_steward', 'family order members should keep farm steward role')
+assert.ok(familyOrdersPanel.candidate_order_types.some(stage => stage.id === 'gather_materials'), 'family order panel should expose gathering stage draft')
+assert.ok(familyOrdersPanel.visual_state_preview.async_projects[0]?.stages.some(stage => stage.id === 'handoff_confirm'), 'family order visual preview should expose handoff stage')
+assert.ok(familyOrdersPanel.deferred_operations.includes('settle_to_shared_fund'), 'family order panel should defer shared fund settlement')
+assert.ok(familyOrdersPanel.deferred_operations.includes('family_order_rollback'), 'family order panel should defer rollback tooling')
+const repeatedFamilyOrdersRead = await runtime.getCohabitationFamilyOrders(familyContract.contract.id, actor(owner))
+assert.equal(repeatedFamilyOrdersRead.family_orders_panel.visual_state_preview.board_id, familyOrdersPanel.visual_state_preview.board_id, 'family order preview board id should stay stable across reads')
+assert.equal(repeatedFamilyOrdersRead.family_orders_panel.revision, familyOrdersPanel.revision, 'family order preview revision should stay stable across reads')
+assert.equal(repeatedFamilyOrdersRead.contract.audit_log.length, familyOrdersRead.contract.audit_log.length, 'family order reads should not append audit entries')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyOrders, 'family order panel should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyOrders, 'family order panel should not rewrite partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyOrders, 'family order panel should not rewrite extra save')
 
 const partnerTeaBeforeFamilyDeposit = getInventoryItemQuantity(partner, 'tea')
 const familyWarehouseBeforeDeposit = await runtime.getCohabitationWarehouse(familyContract.contract.id, actor(partner))

@@ -2822,6 +2822,18 @@ router.get('/taoyuan/online/cohabitation/contracts/:contractId/roles', createOnl
   }
 });
 
+router.get('/taoyuan/online/cohabitation/contracts/:contractId/family-orders', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCohabitationRuntime.getCohabitationFamilyOrders(req.params.contractId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取家族订单预备面板失败' });
+  }
+});
+
 router.get('/taoyuan/online/cohabitation/contracts/:contractId/offline-status', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
   try {
     const result = await taoyuanCohabitationRuntime.getCohabitationOfflineStatus(req.params.contractId, {

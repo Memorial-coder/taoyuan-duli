@@ -131,6 +131,37 @@ const FAMILY_MANOR_ROLE_DEFS = Object.freeze({
   },
 });
 
+const FAMILY_ORDER_STAGE_DEFS = Object.freeze([
+  {
+    id: 'gather_materials',
+    label: '采集备料',
+    description: '由农务、牧养或普通成员提交作物、动物产物、木石等基础材料。',
+    preferred_roles: ['farm_steward', 'animal_keeper'],
+    compatible_order_types: ['material_help', 'festival_supply', 'village_build'],
+  },
+  {
+    id: 'process_or_build',
+    label: '加工建造',
+    description: '由工坊成员把材料加工、修缮或组装为家族订单中段成果。',
+    preferred_roles: ['workshop_keeper'],
+    compatible_order_types: ['village_build', 'expedition_supply', 'museum_support'],
+  },
+  {
+    id: 'fund_and_dispatch',
+    label: '预算派送',
+    description: '由账房或家主预览预算、运输与派送安排；真实共同基金支出暂不开放。',
+    preferred_roles: ['treasurer', 'family_head'],
+    compatible_order_types: ['festival_supply', 'emergency_response', 'npc_request'],
+  },
+  {
+    id: 'handoff_confirm',
+    label: '交付确认',
+    description: '复用公共订单接力的交付与确认凭证，后续再接家族声望和共同资产入账。',
+    preferred_roles: ['family_head', 'storage_keeper'],
+    compatible_order_types: ['material_help', 'village_build', 'npc_request'],
+  },
+]);
+
 function nowSeconds() {
   return Math.floor(Date.now() / 1000);
 }
@@ -1185,6 +1216,178 @@ function buildFamilyRoleSnapshot(contract, actorUsername = '') {
   };
 }
 
+function buildFamilyOrderMemberSnapshot(contract, member, enabled = isFamilyRoleContractType(contract.type)) {
+  const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const roleDef = enabled ? getFamilyManorRoleDef(manorRole) : null;
+  const permissions = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  const canPrepareMaterials = permissions.storage.deposit === true
+    || permissions.farm.harvest === true
+    || permissions.animal.collect_product === true;
+  return {
+    username: member.username,
+    username_key: member.username_key,
+    display_name: member.display_name,
+    role: member.role,
+    status: member.status,
+    manor_role: manorRole,
+    manor_role_label: roleDef?.label || '',
+    permission_focus: roleDef ? [...roleDef.permission_focus] : [],
+    order_permissions: {
+      can_view_family_orders: enabled && member.status === 'accepted',
+      can_accept_stage_preview: enabled && member.status === 'accepted',
+      can_prepare_materials_preview: enabled && canPrepareMaterials,
+      can_manage_order_rules_preview: enabled && manorRole === 'family_head',
+      can_review_budget_preview: enabled && ['family_head', 'treasurer'].includes(manorRole),
+      can_prepare_warehouse_reward_preview: enabled && ['family_head', 'storage_keeper'].includes(manorRole),
+      create_family_order_enabled: false,
+      settle_to_shared_fund_enabled: false,
+      deposit_reward_to_shared_warehouse_enabled: false,
+    },
+  };
+}
+
+function buildFamilyOrderSnapshot(contract, actorUsername = '') {
+  const enabled = isFamilyRoleContractType(contract.type);
+  const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
+  const actorMember = getContractMember(contract, actorUsername);
+  const actorOrderMember = actorMember ? buildFamilyOrderMemberSnapshot(contract, actorMember, enabled) : null;
+  const revision = Math.max(
+    Number(contract.updated_at) || 0,
+    Number(contract.activated_at) || 0,
+    Number(contract.created_at) || 0
+  );
+  return {
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    type: contract.type,
+    type_label: contract.type_label,
+    status: contract.status,
+    readonly: true,
+    write_enabled: false,
+    writes_enabled: false,
+    settlement_enabled: false,
+    family_orders_enabled: enabled,
+    generated_at: nowSeconds(),
+    revision,
+    member_count: (contract.members || []).filter(member => member.status === 'accepted').length,
+    max_members: typeDef.max_members,
+    summary: {
+      preview_order_count: enabled ? 1 : 0,
+      open_order_count: 0,
+      pending_settlement_count: 0,
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+      shared_fund_spend_enabled: false,
+      warehouse_withdraw_enabled: false,
+      reward_to_shared_fund_enabled: false,
+      reward_to_shared_warehouse_enabled: false,
+      disabled_reason: enabled ? '' : '家族订单第一版仅面向结拜庄园和合伙庄园。',
+    },
+    actor: actorOrderMember,
+    members: (contract.members || []).map(member => buildFamilyOrderMemberSnapshot(contract, member, enabled)),
+    order_sources: [
+      {
+        id: 'coop_order_relay',
+        label: '公共订单接力',
+        available: enabled,
+        binding_enabled: false,
+        visual_board_type: 'async',
+        description: '第一版只声明可复用公共订单接力的多阶段路线、交付凭证、补偿队列与声望读回，不把公共订单直接绑定到家族契约。',
+      },
+      {
+        id: 'manual_family_order',
+        label: '家族订单',
+        available: false,
+        binding_enabled: false,
+        deferred_operation: 'create_family_order',
+        description: '真实家族订单创建、接单、交付、确认和撤回需要独立幂等键、审计日志和资产补偿流程后再开放。',
+      },
+    ],
+    candidate_order_types: enabled ? FAMILY_ORDER_STAGE_DEFS.map(stage => ({ ...stage })) : [],
+    visual_state_preview: {
+      board_type: 'async',
+      board_id: `family_orders:${contract.id}`,
+      revision,
+      selected_visual_id: 'family_order_prepare',
+      recent_feedback: enabled
+        ? '家族订单第一版为只读预备面板，真实接单、共同基金入账和共同仓库入仓暂缓。'
+        : '当前契约不是结拜庄园或合伙庄园，家族订单未启用。',
+      async_projects: enabled ? [
+        {
+          id: 'family_order_prepare',
+          title: '家族订单预备路线',
+          status: 'planning',
+          progress_value: 0,
+          progress_target: FAMILY_ORDER_STAGE_DEFS.length,
+          stages: FAMILY_ORDER_STAGE_DEFS.map((stage, index) => ({
+            id: stage.id,
+            sequence: index + 1,
+            title: stage.label,
+            description: stage.description,
+            state: index === 0 ? 'available' : 'locked',
+            progress_value: 0,
+            progress_target: 1,
+            preferred_roles: [...stage.preferred_roles],
+            compatible_order_types: [...stage.compatible_order_types],
+          })),
+          milestones: [
+            {
+              id: 'receipt_required',
+              label: '服务端凭证',
+              reached: false,
+              description: '家族订单结算必须先生成可重放凭证，防止重复发奖。',
+            },
+            {
+              id: 'asset_compensation_required',
+              label: '资产补偿',
+              reached: false,
+              description: '共同基金或仓库写入失败时必须进入补偿队列或冻结回滚。',
+            },
+          ],
+          history: [],
+        },
+      ] : [],
+    },
+    settlement: {
+      reward_to_shared_fund_enabled: false,
+      reward_to_shared_warehouse_enabled: false,
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+      requires_server_receipt: true,
+      idempotency_required: true,
+      audit_required: true,
+      compensation_required: true,
+      rollback_required: true,
+      disconnect_recovery_required: true,
+      current_policy: '第一版仅开放家族订单预备面板；奖励仍不得直接写入共同基金或共同仓库。',
+    },
+    governance: {
+      permission_boundary: '职位只提供订单阶段预览能力，不授予真实共同资产结算权限。',
+      audit_log_source: '后续真实家族订单需写入 contract.audit_log 与订单自身 ledger。',
+      compensation_policy: '订单阶段、共同基金、共同仓库任一写入失败都必须可按凭证重放或人工补偿。',
+      reuse_public_order_relay: true,
+      public_order_scope_unchanged: true,
+    },
+    recommended_flow: [
+      '用公共订单接力 visual_state 先展示采集、加工、派送、交付路线。',
+      '家族成员按职位领取阶段，但领取和交付必须带幂等键。',
+      '发布人确认后先生成服务端结算凭证，再决定是否进入共同基金或共同仓库。',
+      '共同资产写入失败时进入补偿队列，禁止静默吞奖励或重复发放。',
+    ],
+    deferred_operations: [
+      'create_family_order',
+      'accept_family_order_stage',
+      'submit_family_order_delivery',
+      'confirm_family_order_delivery',
+      'settle_to_shared_fund',
+      'deposit_reward_to_shared_warehouse',
+      'family_reputation',
+      'family_order_rollback',
+      'family_order_compensation_replay',
+    ],
+  };
+}
+
 function buildPermissionSnapshot(contract, actorUsername = '') {
   const actorMember = getContractMember(contract, actorUsername);
   return {
@@ -1993,6 +2196,22 @@ async function getCohabitationFamilyRoles(contractId, actor = {}) {
   };
 }
 
+async function getCohabitationFamilyOrders(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看家族订单预备面板');
+  for (const member of contract.members || []) {
+    member.manor_role = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+    contract.permissions[member.username_key] = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  }
+  return {
+    contract: toPublicContract(contract),
+    family_orders_panel: buildFamilyOrderSnapshot(contract, actorUsername),
+  };
+}
+
 async function getCohabitationOfflineStatus(contractId, actor = {}) {
   const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -2576,6 +2795,7 @@ module.exports = {
   getCohabitationFund,
   getCohabitationPermissions,
   getCohabitationFamilyRoles,
+  getCohabitationFamilyOrders,
   getCohabitationOfflineStatus,
   depositCohabitationWarehouseItem,
   contributeCohabitationFund,

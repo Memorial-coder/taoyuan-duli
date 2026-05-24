@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 家族订单只读预备面板
+- 新增 `GET /taoyuan/online/cohabitation/contracts/:contractId/family-orders`，已激活结拜 / 合伙庄园成员可读取家族订单预备面板。
+- 面板会输出成员职位、订单阶段草案、公共订单接力复用边界、共同基金 / 共同仓库结算禁用状态，以及后续真实写链必须满足的幂等、审计、补偿、回滚和断线恢复要求。
+- 本轮只接服务端只读快照和 QA：不新增家族订单发布 / 接单 / 交付 / 确认接口，不把奖励写入共同基金或共同仓库，也不新增前端入口。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix server run qa:online-smoke`。
+
 ### 0524 家族共同仓库只读摘要
 - `warehouse` 服务端快照补强家族职位视角，结拜 / 合伙庄园会输出成员职位、管仓权限预览、来源玩家汇总、取出 / 卖出暂缓和分居返还策略。
 - 家族成员放入共同仓库时，`shared_warehouse.ledger` 与 `origin_assets.warehouse_items` 会记录操作者和来源玩家的职位标签，继续只扣操作者个人背包，不合并个人铜币。
