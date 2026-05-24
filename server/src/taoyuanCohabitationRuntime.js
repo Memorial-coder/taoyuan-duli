@@ -162,6 +162,13 @@ const FAMILY_ORDER_STAGE_DEFS = Object.freeze([
   },
 ]);
 
+const FAMILY_REPUTATION_LEVELS = Object.freeze([
+  { id: 'seed', label: '初立门户', min_points: 0, next_points: 20 },
+  { id: 'trusted', label: '乡邻信赖', min_points: 20, next_points: 60 },
+  { id: 'known', label: '一方名望', min_points: 60, next_points: 120 },
+  { id: 'renowned', label: '桃源名门', min_points: 120, next_points: null },
+]);
+
 function nowSeconds() {
   return Math.floor(Date.now() / 1000);
 }
@@ -1388,6 +1395,237 @@ function buildFamilyOrderSnapshot(contract, actorUsername = '') {
   };
 }
 
+function clampReputationPoints(value, maxValue) {
+  return Math.min(maxValue, Math.max(0, Math.floor(Number(value) || 0)));
+}
+
+function resolveFamilyReputationLevel(points) {
+  const score = Math.max(0, Math.floor(Number(points) || 0));
+  let current = FAMILY_REPUTATION_LEVELS[0];
+  for (const level of FAMILY_REPUTATION_LEVELS) {
+    if (score >= level.min_points) current = level;
+  }
+  return {
+    id: current.id,
+    label: current.label,
+    min_points: current.min_points,
+    next_points: current.next_points,
+    progress_to_next: current.next_points === null
+      ? 1
+      : Math.max(0, Math.min(1, (score - current.min_points) / Math.max(1, current.next_points - current.min_points))),
+  };
+}
+
+function buildFamilyReputationMemberStats(contract = {}) {
+  const stats = new Map();
+  const ensureMember = member => {
+    const key = member.username_key || normalizeUsernameKey(member.username);
+    if (!stats.has(key)) {
+      const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+      const roleDef = getFamilyManorRoleDef(manorRole);
+      stats.set(key, {
+        username: member.username,
+        username_key: key,
+        display_name: member.display_name,
+        role: member.role,
+        status: member.status,
+        manor_role: manorRole,
+        manor_role_label: roleDef.label,
+        warehouse_deposit_count: 0,
+        warehouse_deposit_quantity: 0,
+        fund_contribution_count: 0,
+        fund_contribution_amount: 0,
+        governance_action_count: 0,
+        preview_points: 0,
+      });
+    }
+    return stats.get(key);
+  };
+
+  for (const member of contract.members || []) ensureMember(member);
+  for (const entry of normalizeSharedWarehouse(contract.shared_warehouse).ledger) {
+    if (entry.action !== 'deposit' || entry.status !== 'committed') continue;
+    const key = normalizeUsernameKey(entry.actor_username || entry.source_owner_username);
+    const memberStat = stats.get(key);
+    if (!memberStat) continue;
+    memberStat.warehouse_deposit_count += 1;
+    memberStat.warehouse_deposit_quantity += Math.max(0, Math.floor(Number(entry.quantity) || 0));
+    memberStat.preview_points += clampReputationPoints(3 + Math.floor((Number(entry.quantity) || 0) / 2), 8);
+  }
+  for (const entry of normalizeSharedFund(contract.shared_fund).ledger) {
+    if (entry.action !== 'contribution' || entry.status !== 'committed') continue;
+    const key = normalizeUsernameKey(entry.actor_username || entry.source_owner_username);
+    const memberStat = stats.get(key);
+    if (!memberStat) continue;
+    memberStat.fund_contribution_count += 1;
+    memberStat.fund_contribution_amount += Math.max(0, Math.floor(Number(entry.amount) || 0));
+    memberStat.preview_points += clampReputationPoints(2 + Math.floor((Number(entry.amount) || 0) / 100), 8);
+  }
+  for (const entry of contract.audit_log || []) {
+    if (!['family_role_updated', 'permissions_updated'].includes(entry.action)) continue;
+    const key = normalizeUsernameKey(entry.actor_username);
+    const memberStat = stats.get(key);
+    if (!memberStat) continue;
+    memberStat.governance_action_count += 1;
+    memberStat.preview_points += 2;
+  }
+  return [...stats.values()];
+}
+
+function buildFamilyReputationSourceBreakdown(contract = {}, enabled = isFamilyRoleContractType(contract.type)) {
+  const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const fund = normalizeSharedFund(contract.shared_fund);
+  const warehouseDeposits = warehouse.ledger.filter(entry => entry.action === 'deposit' && entry.status === 'committed');
+  const warehouseQuantity = warehouseDeposits.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.quantity) || 0)), 0);
+  const fundContributions = fund.ledger.filter(entry => entry.action === 'contribution' && entry.status === 'committed');
+  const fundAmount = fundContributions.reduce((sum, entry) => sum + Math.max(0, Math.floor(Number(entry.amount) || 0)), 0);
+  const roleAudits = (contract.audit_log || []).filter(entry => entry.action === 'family_role_updated');
+  const permissionAudits = (contract.audit_log || []).filter(entry => entry.action === 'permissions_updated');
+  return [
+    {
+      id: 'family_governance',
+      label: '家族治理',
+      enabled,
+      preview_points: enabled ? clampReputationPoints(roleAudits.length * 4 + permissionAudits.length * 2, 16) : 0,
+      evidence_count: roleAudits.length + permissionAudits.length,
+      audit_required: true,
+      write_enabled: false,
+      evidence: {
+        role_update_count: roleAudits.length,
+        permission_update_count: permissionAudits.length,
+      },
+    },
+    {
+      id: 'shared_warehouse_stewardship',
+      label: '共同仓库照管',
+      enabled,
+      preview_points: enabled ? clampReputationPoints(warehouseDeposits.length * 4 + Math.floor(warehouseQuantity / 2), 24) : 0,
+      evidence_count: warehouseDeposits.length,
+      audit_required: true,
+      write_enabled: false,
+      evidence: {
+        deposit_count: warehouseDeposits.length,
+        total_quantity: warehouseQuantity,
+        withdraw_enabled: false,
+        sell_enabled: false,
+      },
+    },
+    {
+      id: 'shared_fund_support',
+      label: '共同基金支持',
+      enabled,
+      preview_points: enabled ? clampReputationPoints(fundContributions.length * 3 + Math.floor(fundAmount / 100), 20) : 0,
+      evidence_count: fundContributions.length,
+      audit_required: true,
+      write_enabled: false,
+      evidence: {
+        contribution_count: fundContributions.length,
+        total_amount: fundAmount,
+        spend_enabled: false,
+      },
+    },
+    {
+      id: 'family_orders',
+      label: '家族订单',
+      enabled: false,
+      preview_points: 0,
+      evidence_count: 0,
+      audit_required: true,
+      write_enabled: false,
+      deferred_operation: 'family_order_reputation',
+      evidence: {
+        reason: '真实家族订单发布、交付和结算尚未开放，不能产生声望。',
+      },
+    },
+    {
+      id: 'family_festival_seats',
+      label: '家族节会席位',
+      enabled: false,
+      preview_points: 0,
+      evidence_count: 0,
+      audit_required: true,
+      write_enabled: false,
+      deferred_operation: 'family_festival_seat_reputation',
+      evidence: {
+        reason: '家族节会席位尚未接入，不能产生声望。',
+      },
+    },
+  ];
+}
+
+function buildFamilyReputationSnapshot(contract, actorUsername = '') {
+  const enabled = isFamilyRoleContractType(contract.type);
+  const actorMember = getContractMember(contract, actorUsername);
+  const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
+  const sourceBreakdown = buildFamilyReputationSourceBreakdown(contract, enabled);
+  const currentPoints = enabled
+    ? sourceBreakdown.reduce((sum, source) => sum + Math.max(0, Math.floor(Number(source.preview_points) || 0)), 0)
+    : 0;
+  const level = resolveFamilyReputationLevel(currentPoints);
+  const actorRole = normalizeFamilyManorRole(actorMember?.manor_role, contract.type, actorMember?.role);
+  const actorRoleDef = enabled ? getFamilyManorRoleDef(actorRole) : null;
+  return {
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    type: contract.type,
+    type_label: contract.type_label,
+    status: contract.status,
+    readonly: true,
+    write_enabled: false,
+    writes_enabled: false,
+    reputation_enabled: enabled,
+    generated_at: nowSeconds(),
+    revision: Math.max(Number(contract.updated_at) || 0, Number(contract.activated_at) || 0, Number(contract.created_at) || 0),
+    summary: {
+      current_points: currentPoints,
+      level,
+      source_count: sourceBreakdown.filter(source => source.preview_points > 0).length,
+      member_count: (contract.members || []).filter(member => member.status === 'accepted').length,
+      max_members: typeDef.max_members,
+      reputation_award_enabled: false,
+      leaderboard_enabled: false,
+      personal_reward_enabled: false,
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+      disabled_reason: enabled ? '' : '家族声望第一版仅面向结拜庄园和合伙庄园。',
+    },
+    actor: actorMember ? {
+      username: actorMember.username,
+      username_key: actorMember.username_key,
+      display_name: actorMember.display_name,
+      role: actorMember.role,
+      manor_role: actorRole,
+      manor_role_label: actorRoleDef?.label || '',
+      can_view_reputation: enabled && actorMember.status === 'accepted',
+      can_manage_reputation_rules_preview: enabled && actorRole === 'family_head',
+      can_claim_reputation_reward: false,
+    } : null,
+    members: enabled ? buildFamilyReputationMemberStats(contract) : [],
+    source_breakdown: sourceBreakdown,
+    governance: {
+      server_authoritative: true,
+      idempotency_required_for_future_writes: true,
+      audit_required_for_future_writes: true,
+      compensation_required_for_future_rewards: true,
+      weekly_cap_required: true,
+      anti_farm_policy: '声望写入开放前必须按契约、成员、来源类型和周周期做封顶，防止仓库 / 基金小额互刷。',
+      public_leaderboard_enabled: false,
+      reputation_decay_enabled: false,
+      current_policy: '第一版只根据已存在审计与流水生成预览分，不持久化声望，也不发放称号、建筑或奖励。',
+    },
+    deferred_operations: [
+      'award_family_reputation',
+      'family_reputation_ledger',
+      'family_order_reputation',
+      'family_festival_seat_reputation',
+      'family_reputation_weekly_cap',
+      'family_reputation_compensation_replay',
+      'family_reputation_leaderboard',
+      'family_reputation_rewards',
+    ],
+  };
+}
+
 function buildPermissionSnapshot(contract, actorUsername = '') {
   const actorMember = getContractMember(contract, actorUsername);
   return {
@@ -2212,6 +2450,22 @@ async function getCohabitationFamilyOrders(contractId, actor = {}) {
   };
 }
 
+async function getCohabitationFamilyReputation(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看家族声望预备面板');
+  for (const member of contract.members || []) {
+    member.manor_role = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+    contract.permissions[member.username_key] = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  }
+  return {
+    contract: toPublicContract(contract),
+    family_reputation_panel: buildFamilyReputationSnapshot(contract, actorUsername),
+  };
+}
+
 async function getCohabitationOfflineStatus(contractId, actor = {}) {
   const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -2796,6 +3050,7 @@ module.exports = {
   getCohabitationPermissions,
   getCohabitationFamilyRoles,
   getCohabitationFamilyOrders,
+  getCohabitationFamilyReputation,
   getCohabitationOfflineStatus,
   depositCohabitationWarehouseItem,
   contributeCohabitationFund,
