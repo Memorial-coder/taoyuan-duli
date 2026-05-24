@@ -382,6 +382,25 @@ export interface CohabitationWarehouseItemResponse extends CohabitationDetailRes
   }
 }
 
+export interface CohabitationPermissionUpdatePayload {
+  target_username: string
+  permissions: Record<string, Record<string, boolean>>
+  note?: string
+  idempotency_key: string
+}
+
+export interface CohabitationPermissionUpdateResponse extends CohabitationDetailResponse {
+  permissions_panel?: CohabitationPermissionsPanel
+  changed_fields?: Array<{
+    group: string
+    key: string
+    before: boolean
+    after: boolean
+  }>
+  audit_entry?: CohabitationAuditEntry
+  idempotent?: boolean
+}
+
 export interface CohabitationFundContributionResponse extends CohabitationDetailResponse {
   fund?: CohabitationFundSnapshot
   ledger_entry?: CohabitationFundLedgerEntry
@@ -510,6 +529,14 @@ export const fetchCohabitationPermissions = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     permissions_panel?: CohabitationPermissionsPanel
   }>(contractPath(contractId, '/permissions'), '获取共同庄园权限失败')
+}
+
+export const updateCohabitationPermissions = async (contractId: string, payload: CohabitationPermissionUpdatePayload) => {
+  return postCohabitationJson<CohabitationPermissionUpdateResponse>(
+    contractPath(contractId, '/permissions'),
+    payload as unknown as Record<string, unknown>,
+    '更新共同庄园权限失败'
+  )
 }
 
 export const fetchCohabitationOfflineStatus = async (contractId: string) => {

@@ -426,8 +426,25 @@
                   <p class="mt-1 text-[10px] leading-4 text-accent">{{ group.enabled }}/{{ group.total }}</p>
                 </div>
               </div>
+              <div v-if="canManagePermissionPanel" class="mt-3 grid gap-2">
+                <button
+                  v-for="option in permissionToggleOptions"
+                  :key="`${member.username}-${option.group}-${option.key}`"
+                  type="button"
+                  class="online-action-btn online-action-btn--compact justify-between"
+                  :disabled="cohabitationStore.actionLoading"
+                  :data-testid="`online-cohabitation-permission-${member.username}-${option.group}-${option.key}`"
+                  @click="toggleMemberPermission(member, option)"
+                >
+                  <span>{{ option.label }}</span>
+                  <span>{{ member.permissions?.[option.group]?.[option.key] ? '开启' : '关闭' }}</span>
+                </button>
+              </div>
             </div>
           </div>
+          <p v-if="permissionActionMessage" class="mt-2 text-[10px] leading-4" :class="permissionActionOk ? 'text-emerald-200' : 'text-red-100'">
+            {{ permissionActionMessage }}
+          </p>
         </div>
         <div class="space-y-3">
           <div class="game-panel-muted p-3">
@@ -530,6 +547,7 @@
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import type {
     CohabitationContract,
+    CohabitationMember,
     CohabitationSharedPlot,
     CohabitationWarehouseItem,
   } from '@/utils/cohabitationApi'
@@ -547,6 +565,8 @@
   const fundActionMessage = ref('')
   const fundActionOk = ref(false)
   const fundContributionAmount = ref(50)
+  const permissionActionMessage = ref('')
+  const permissionActionOk = ref(false)
 
   const tabs: CohabitationTabMeta[] = [
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
@@ -607,6 +627,14 @@
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
   const actorCapabilityEntries = computed(() => Object.entries(cohabitationStore.offlineStatus?.actor_capabilities ?? {})
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
+  const canManagePermissionPanel = computed(() => cohabitationStore.permissionsPanel?.editable_by_actor === true)
+  const permissionToggleOptions = [
+    { group: 'storage', key: 'deposit', label: '仓库放入' },
+    { group: 'storage', key: 'withdraw_common', label: '取普通物' },
+    { group: 'storage', key: 'sell_items', label: '卖出普通物' },
+    { group: 'fund', key: 'spend_small', label: '小额基金' },
+    { group: 'fund', key: 'auto_buy_seeds_feed', label: '自动买种子饲料' },
+  ]
   const warehouseItemLabels: Record<string, string> = {
     rice: '稻米',
     wheat: '小麦',
@@ -719,6 +747,7 @@
     await cohabitationStore.selectContract(contractId)
     warehouseActionMessage.value = ''
     fundActionMessage.value = ''
+    permissionActionMessage.value = ''
     if (!cohabitationStore.canOpenSelectedContract && activeTab.value !== 'overview') {
       activeTab.value = 'overview'
     }
@@ -858,6 +887,31 @@
       fundActionMessage.value = quantity > 0 ? `已到账：${option.label}` : '共同基金支出已提交'
     } catch (error) {
       fundActionMessage.value = error instanceof Error ? error.message : '共同基金购买失败'
+    }
+  }
+
+  const toggleMemberPermission = async (
+    member: CohabitationMember & { permissions: Record<string, Record<string, boolean>> },
+    option: typeof permissionToggleOptions[number]
+  ) => {
+    permissionActionMessage.value = ''
+    permissionActionOk.value = false
+    const current = member.permissions?.[option.group]?.[option.key] === true
+    try {
+      await cohabitationStore.updateMemberPermissions({
+        target_username: member.username,
+        permissions: {
+          [option.group]: {
+            [option.key]: !current,
+          },
+        },
+        note: `前端权限面板切换：${option.label}`,
+        idempotency_key: `ui-permission-${member.username}-${option.group}-${option.key}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      permissionActionOk.value = true
+      permissionActionMessage.value = `${member.display_name || member.username} 的「${option.label}」已${current ? '关闭' : '开启'}`
+    } catch (error) {
+      permissionActionMessage.value = error instanceof Error ? error.message : '更新共同庄园权限失败'
     }
   }
 

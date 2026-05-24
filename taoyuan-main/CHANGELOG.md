@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 权限面板前端低风险写回入口
+- 共同庄园权限页在 `editable_by_actor` 为真时开放低风险权限切换，可写回仓库放入、普通取出、普通卖出、小额基金和自动买种子饲料。
+- 前端 API / store 已接 `/permissions` 写接口，提交带 CSRF 与 `idempotency_key`；成功后刷新权限面板、契约摘要和详情，并显示结果反馈。
+- 稀有取出、大额基金、拆建筑、分居确认等高风险安全阀仍保持只读锁定；职位面板和更多经营权限切换仍未开放。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 共同仓库普通放入前端入口
 - 共同庄园仓库页新增普通物品白名单放入表单，可选择物品和数量调用 `warehouse/deposit`。
 - 前端 API / store 已接 `warehouse/deposit` 写接口，提交带 CSRF 与 `idempotency_key`；成功后刷新共同仓库、契约摘要和流水，并提示个人背包剩余数量。

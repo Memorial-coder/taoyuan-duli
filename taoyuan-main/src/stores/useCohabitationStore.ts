@@ -11,6 +11,7 @@ import {
   fetchCohabitationWarehouse,
   sellCohabitationWarehouseItem,
   spendCohabitationFund,
+  updateCohabitationPermissions,
   withdrawCohabitationWarehouseItem,
   type CohabitationFundSnapshot,
   type CohabitationOfflineStatus,
@@ -279,6 +280,34 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const updateMemberPermissions = async (payload: {
+    target_username: string
+    permissions: Record<string, Record<string, boolean>>
+    note?: string
+    idempotency_key: string
+  }) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await updateCohabitationPermissions(activeContractId.value, payload)
+      if (result?.permissions_panel) permissionsPanel.value = result.permissions_panel
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '更新共同庄园权限失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   return {
     overview,
     activeContractId,
@@ -305,5 +334,6 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     depositSharedWarehouseItem,
     sellSharedWarehouseItem,
     withdrawSharedWarehouseItem,
+    updateMemberPermissions,
   }
 })
