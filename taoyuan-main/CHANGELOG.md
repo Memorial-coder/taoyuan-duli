@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 家族关系公开设置只读预备面板
+- 新增 `GET /taoyuan/online/cohabitation/contracts/:contractId/family-visibility`，已激活结拜 / 合伙庄园成员可读取家族关系公开设置预备面板。
+- 面板会输出默认可见范围、可公开数据类别、成员同意要求、公开档案 / 好友 / 村社 / 节会房间绑定关闭状态和隐私护栏。
+- 本轮只接服务端只读快照和 QA：不写公开设置，不公开本地 NPC / 家庭 / 宠物 / 随机 NPC 关系，不写可见性审计，不改个人存档，也不新增前端入口。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix server run qa:online-smoke`。
+
 ### 0524 家族关系图只读预备面板
 - 新增 `GET /taoyuan/online/cohabitation/contracts/:contractId/family-relations`，已激活结拜 / 合伙庄园成员可读取家族关系图预备面板。
 - 面板会输出契约成员、家族职位节点、共同经营能力节点、关系图 `visual_state` 预览和隐私 / 治理边界。

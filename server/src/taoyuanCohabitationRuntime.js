@@ -280,6 +280,51 @@ const FAMILY_RELATION_CAPABILITY_DEFS = Object.freeze([
   },
 ]);
 
+const FAMILY_VISIBILITY_SCOPE_DEFS = Object.freeze([
+  {
+    id: 'contract_members',
+    label: '契约成员',
+    enabled: true,
+    summary: '已接受契约成员可读取家族契约成员、职位和共同经营能力节点。',
+  },
+  {
+    id: 'mutual_friends',
+    label: '互关好友',
+    enabled: false,
+    summary: '未来可选择向双方互关好友展示精简关系图，但必须先有成员同意和可见性审计。',
+  },
+  {
+    id: 'society_members',
+    label: '同村社成员',
+    enabled: false,
+    summary: '未来可选择向同村社成员展示家族庄园组织节点；当前不公开。',
+  },
+  {
+    id: 'public_profile',
+    label: '公开档案',
+    enabled: false,
+    summary: '未来可选择展示公开家族名片；当前不写入玩家公开档案。',
+  },
+  {
+    id: 'festival_room',
+    label: '节会房间',
+    enabled: false,
+    summary: '未来家族节会席位绑定后，可把席位与公开称呼带入节会房间；当前不绑定。',
+  },
+]);
+
+const FAMILY_VISIBILITY_DATA_CATEGORY_DEFS = Object.freeze([
+  { id: 'contract_members', label: '契约成员节点', online_visible: true, publication_allowed: true, source: 'cohabitation_contract' },
+  { id: 'family_roles', label: '家族职位节点', online_visible: true, publication_allowed: true, source: 'cohabitation_contract' },
+  { id: 'shared_capabilities', label: '共同经营能力节点', online_visible: true, publication_allowed: true, source: 'derived_contract_capabilities' },
+  { id: 'fixed_npcs', label: '固定 NPC 关系', online_visible: false, publication_allowed: false, source: 'single_player_save' },
+  { id: 'random_npcs', label: '随机 NPC / 熟人 / 长住', online_visible: false, publication_allowed: false, source: 'single_player_save' },
+  { id: 'children', label: '孩子与家庭心愿', online_visible: false, publication_allowed: false, source: 'single_player_save' },
+  { id: 'pets', label: '宠物与喂食记录', online_visible: false, publication_allowed: false, source: 'single_player_save' },
+  { id: 'hidden_spirits', label: '仙灵 / 隐藏 NPC', online_visible: false, publication_allowed: false, source: 'single_player_save' },
+  { id: 'romance_state', label: '恋爱 / 婚姻 / 知己状态', online_visible: false, publication_allowed: false, source: 'single_player_save' },
+]);
+
 const FAMILY_FESTIVAL_SEAT_ROLE_DEFS = Object.freeze({
   family_head: { id: 'host_caller', label: '主事席', festival_role: 'caller', summary: '负责开场、确认席位和高风险节会决策预览。' },
   storage_keeper: { id: 'supply_keeper', label: '供给席', festival_role: 'support', summary: '负责节会物资、共同仓库供给和补偿清单预览。' },
@@ -2374,6 +2419,120 @@ function buildFamilyRelationSnapshot(contract, actorUsername = '') {
   };
 }
 
+function buildFamilyVisibilityMemberSnapshot(contract, member, enabled = isFamilyRoleContractType(contract.type)) {
+  const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const roleDef = enabled ? getFamilyManorRoleDef(manorRole) : null;
+  return {
+    username: member.username,
+    username_key: member.username_key,
+    display_name: member.display_name,
+    role: member.role,
+    status: member.status,
+    manor_role: manorRole,
+    manor_role_label: roleDef?.label || '',
+    visibility_permissions: {
+      can_view_contract_graph: enabled && member.status === 'accepted',
+      can_publish_contract_graph_preview: false,
+      can_publish_personal_graph_preview: false,
+      can_manage_visibility_preview: enabled && canManageFamilyRoles(member, contract),
+      consent_required_for_publication: true,
+      consent_status: 'not_requested',
+      write_enabled: false,
+    },
+  };
+}
+
+function buildFamilyVisibilitySnapshot(contract, actorUsername = '') {
+  const enabled = isFamilyRoleContractType(contract.type);
+  const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
+  const actorMember = getContractMember(contract, actorUsername);
+  const revision = Math.max(Number(contract.updated_at) || 0, Number(contract.activated_at) || 0, Number(contract.created_at) || 0);
+  const members = enabled
+    ? (contract.members || []).map(member => buildFamilyVisibilityMemberSnapshot(contract, member, enabled))
+    : [];
+  return {
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    type: contract.type,
+    type_label: contract.type_label,
+    status: contract.status,
+    readonly: true,
+    write_enabled: false,
+    writes_enabled: false,
+    visibility_settings_enabled: enabled,
+    generated_at: nowSeconds(),
+    revision,
+    summary: {
+      default_scope: enabled ? 'contract_members_only' : 'disabled',
+      member_count: (contract.members || []).length,
+      accepted_member_count: (contract.members || []).filter(member => member.status === 'accepted').length,
+      max_members: typeDef.max_members,
+      public_profile_enabled: false,
+      festival_room_binding_enabled: false,
+      local_graph_publication_enabled: false,
+      personal_graph_auto_publish_enabled: false,
+      consent_required: true,
+      visibility_audit_enabled: false,
+      rollback_enabled: false,
+      disabled_reason: enabled ? '' : '家族关系公开设置第一版仅面向结拜庄园和合伙庄园。',
+    },
+    actor: actorMember ? buildFamilyVisibilityMemberSnapshot(contract, actorMember, enabled) : null,
+    members,
+    visibility_scopes: FAMILY_VISIBILITY_SCOPE_DEFS.map(scope => ({
+      ...scope,
+      enabled: enabled && scope.enabled === true,
+      write_enabled: false,
+    })),
+    data_categories: FAMILY_VISIBILITY_DATA_CATEGORY_DEFS.map(category => ({
+      ...category,
+      online_visible: enabled && category.online_visible === true,
+      publication_allowed: enabled && category.publication_allowed === true,
+      write_enabled: false,
+    })),
+    default_policy: {
+      current_scope: enabled ? 'contract_members' : 'disabled',
+      contract_members_can_read: enabled,
+      non_members_can_read: false,
+      public_profile_can_read: false,
+      friends_can_read: false,
+      society_members_can_read: false,
+      local_single_player_graph_never_auto_published: true,
+      member_consent_required_before_publication: true,
+      owner_cannot_publish_others_private_graph: true,
+    },
+    privacy_guards: {
+      fixed_npcs_private: true,
+      random_npcs_private: true,
+      children_private: true,
+      pets_private: true,
+      hidden_spirits_private: true,
+      romance_state_private: true,
+      personal_save_read_enabled: false,
+      local_graph_import_enabled: false,
+    },
+    governance: {
+      server_authoritative: true,
+      readonly_first_pass: true,
+      future_writes_require_idempotency: true,
+      future_writes_require_audit: true,
+      future_publication_requires_all_visible_member_consent: true,
+      future_visibility_changes_require_rollback: true,
+      compensation_required_for_wrong_visibility: true,
+      separation_preview_must_include_visibility_reset: true,
+      current_policy: '第一版只读展示家族关系图公开策略：仅契约成员可见，公开档案、好友、村社和节会房间均不开放；本地 NPC / 家庭 / 宠物 / 随机 NPC 关系不会自动公开。',
+    },
+    deferred_operations: [
+      'update_family_visibility_settings',
+      'collect_family_visibility_consent',
+      'publish_contract_graph_to_profile',
+      'bind_family_relation_graph_to_festival_room',
+      'visibility_audit_log',
+      'visibility_rollback',
+      'visibility_compensation_replay',
+    ],
+  };
+}
+
 function resolveFamilyFestivalSeatRole(manorRole) {
   return FAMILY_FESTIVAL_SEAT_ROLE_DEFS[manorRole] || FAMILY_FESTIVAL_SEAT_ROLE_DEFS.farm_steward;
 }
@@ -3481,6 +3640,22 @@ async function getCohabitationFamilyRelations(contractId, actor = {}) {
   };
 }
 
+async function getCohabitationFamilyVisibility(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看家族关系公开设置预备面板');
+  for (const member of contract.members || []) {
+    member.manor_role = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+    contract.permissions[member.username_key] = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  }
+  return {
+    contract: toPublicContract(contract),
+    family_visibility_panel: buildFamilyVisibilitySnapshot(contract, actorUsername),
+  };
+}
+
 async function getCohabitationFamilyFestivalSeats(contractId, actor = {}) {
   const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -4084,6 +4259,7 @@ module.exports = {
   getCohabitationFamilyReputation,
   getCohabitationFamilyBuildings,
   getCohabitationFamilyRelations,
+  getCohabitationFamilyVisibility,
   getCohabitationFamilyFestivalSeats,
   getCohabitationOfflineStatus,
   depositCohabitationWarehouseItem,

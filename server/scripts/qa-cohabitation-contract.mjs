@@ -406,6 +406,12 @@ await assert.rejects(
 )
 
 await assert.rejects(
+  () => runtime.getCohabitationFamilyVisibility(created.contract.id, actor(extra)),
+  error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
+  'non-members should not read a family visibility panel'
+)
+
+await assert.rejects(
   () => runtime.getCohabitationFamilyFestivalSeats(created.contract.id, actor(extra)),
   error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
   'non-members should not read a family festival seat panel'
@@ -596,6 +602,11 @@ await assert.rejects(
   'pending contracts should not expose family relation panel'
 )
 await assert.rejects(
+  () => runtime.getCohabitationFamilyVisibility(pendingContract.contract.id, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not expose family visibility panel'
+)
+await assert.rejects(
   () => runtime.getCohabitationFamilyFestivalSeats(pendingContract.contract.id, actor(owner)),
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not expose family festival seat panel'
@@ -755,6 +766,13 @@ assert.equal(loverFamilyRelations.family_relations_panel.write_enabled, false, '
 assert.equal(loverFamilyRelations.family_relations_panel.summary.graph_node_count, 0, 'disabled family relation panel should not expose graph nodes')
 assert.equal(loverFamilyRelations.family_relations_panel.privacy.local_npc_nodes_exposed, false, 'disabled family relation panel should keep local NPC graph private')
 assert.match(loverFamilyRelations.family_relations_panel.summary.disabled_reason, /结拜庄园和合伙庄园/, 'disabled relation panel should explain family manor requirement')
+
+const loverFamilyVisibility = await runtime.getCohabitationFamilyVisibility(created.contract.id, actor(owner))
+assert.equal(loverFamilyVisibility.family_visibility_panel.visibility_settings_enabled, false, 'romance contracts should return a disabled family visibility panel')
+assert.equal(loverFamilyVisibility.family_visibility_panel.write_enabled, false, 'disabled family visibility panel should not expose writes')
+assert.equal(loverFamilyVisibility.family_visibility_panel.summary.public_profile_enabled, false, 'disabled family visibility panel should not publish profile')
+assert.equal(loverFamilyVisibility.family_visibility_panel.privacy_guards.local_graph_import_enabled, false, 'disabled family visibility panel should not import local graph')
+assert.match(loverFamilyVisibility.family_visibility_panel.summary.disabled_reason, /结拜庄园和合伙庄园/, 'disabled visibility panel should explain family manor requirement')
 
 const loverFamilyFestivalSeats = await runtime.getCohabitationFamilyFestivalSeats(created.contract.id, actor(owner))
 assert.equal(loverFamilyFestivalSeats.family_festival_seats_panel.festival_seats_enabled, false, 'romance contracts should return a disabled family festival seat panel')
@@ -947,6 +965,47 @@ assert.equal(repeatedFamilyRelationsRead.contract.audit_log.length, familyRelati
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyRelations, 'family relation panel should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyRelations, 'family relation panel should not rewrite partner save')
 assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyRelations, 'family relation panel should not rewrite extra save')
+
+const ownerRawBeforeFamilyVisibility = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeFamilyVisibility = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const extraRawBeforeFamilyVisibility = saveRuntime.loadUserSaveSlots(extra).slots[0].raw
+const familyVisibilityRead = await runtime.getCohabitationFamilyVisibility(familyContract.contract.id, actor(owner))
+const familyVisibilityPanel = familyVisibilityRead.family_visibility_panel
+assert.equal(familyVisibilityPanel.visibility_settings_enabled, true, 'family manor should expose visibility policy panel')
+assert.equal(familyVisibilityPanel.readonly, true, 'family visibility panel should be read-only in first pass')
+assert.equal(familyVisibilityPanel.write_enabled, false, 'family visibility panel should not enable writes')
+assert.equal(familyVisibilityPanel.summary.default_scope, 'contract_members_only', 'family visibility should default to contract members only')
+assert.equal(familyVisibilityPanel.summary.public_profile_enabled, false, 'family visibility should not publish profile')
+assert.equal(familyVisibilityPanel.summary.festival_room_binding_enabled, false, 'family visibility should not bind festival room')
+assert.equal(familyVisibilityPanel.summary.local_graph_publication_enabled, false, 'family visibility should not publish local graph')
+assert.equal(familyVisibilityPanel.summary.personal_graph_auto_publish_enabled, false, 'family visibility should not auto publish personal graph')
+assert.equal(familyVisibilityPanel.summary.consent_required, true, 'family visibility publication should require consent')
+assert.equal(familyVisibilityPanel.summary.visibility_audit_enabled, false, 'family visibility should not write audit in first pass')
+assert.equal(familyVisibilityPanel.actor.manor_role, 'family_head', 'family visibility actor should expose family head role')
+assert.equal(familyVisibilityPanel.actor.visibility_permissions.can_manage_visibility_preview, true, 'family head should preview visibility management')
+assert.equal(familyVisibilityPanel.members.find(member => member.username === partner)?.visibility_permissions.can_publish_personal_graph_preview, false, 'members should not publish personal graph in first pass')
+assert.equal(familyVisibilityPanel.visibility_scopes.find(scope => scope.id === 'contract_members')?.enabled, true, 'contract members scope should be enabled')
+assert.equal(familyVisibilityPanel.visibility_scopes.find(scope => scope.id === 'public_profile')?.enabled, false, 'public profile scope should be disabled')
+assert.equal(familyVisibilityPanel.data_categories.find(category => category.id === 'contract_members')?.online_visible, true, 'contract member nodes should be visible to contract members')
+assert.equal(familyVisibilityPanel.data_categories.find(category => category.id === 'fixed_npcs')?.online_visible, false, 'fixed NPC relationships should stay private')
+assert.equal(familyVisibilityPanel.data_categories.find(category => category.id === 'children')?.publication_allowed, false, 'children should not be publishable')
+assert.equal(familyVisibilityPanel.data_categories.find(category => category.id === 'pets')?.publication_allowed, false, 'pets should not be publishable')
+assert.equal(familyVisibilityPanel.data_categories.find(category => category.id === 'romance_state')?.publication_allowed, false, 'romance state should not be publishable')
+assert.equal(familyVisibilityPanel.default_policy.non_members_can_read, false, 'non-members should not read family visibility')
+assert.equal(familyVisibilityPanel.default_policy.owner_cannot_publish_others_private_graph, true, 'owner should not publish other members private graph')
+assert.equal(familyVisibilityPanel.privacy_guards.personal_save_read_enabled, false, 'visibility panel should not read personal save')
+assert.equal(familyVisibilityPanel.privacy_guards.random_npcs_private, true, 'visibility panel should keep random NPCs private')
+assert.equal(familyVisibilityPanel.governance.future_writes_require_idempotency, true, 'future visibility writes should require idempotency')
+assert.equal(familyVisibilityPanel.governance.future_publication_requires_all_visible_member_consent, true, 'future visibility publication should require consent')
+assert.ok(familyVisibilityPanel.deferred_operations.includes('visibility_audit_log'), 'visibility panel should defer visibility audit')
+assert.ok(familyVisibilityPanel.deferred_operations.includes('visibility_rollback'), 'visibility panel should defer visibility rollback')
+const repeatedFamilyVisibilityRead = await runtime.getCohabitationFamilyVisibility(familyContract.contract.id, actor(owner))
+assert.equal(repeatedFamilyVisibilityRead.family_visibility_panel.revision, familyVisibilityPanel.revision, 'family visibility revision should stay stable across reads')
+assert.equal(repeatedFamilyVisibilityRead.family_visibility_panel.summary.default_scope, familyVisibilityPanel.summary.default_scope, 'family visibility default scope should stay stable across reads')
+assert.equal(repeatedFamilyVisibilityRead.contract.audit_log.length, familyVisibilityRead.contract.audit_log.length, 'family visibility reads should not append audit entries')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyVisibility, 'family visibility panel should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyVisibility, 'family visibility panel should not rewrite partner save')
+assert.equal(saveRuntime.loadUserSaveSlots(extra).slots[0].raw, extraRawBeforeFamilyVisibility, 'family visibility panel should not rewrite extra save')
 
 const ownerRawBeforeFamilyFestivalSeats = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawBeforeFamilyFestivalSeats = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
