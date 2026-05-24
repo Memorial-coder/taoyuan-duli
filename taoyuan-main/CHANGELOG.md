@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 离线经营共同日志前端读回
+- 共同庄园离线页补齐独立经营摘要，展示是否可独立经营、离线是否阻塞、离线自动收益是否开放。
+- 共同日志从原始 action 列表升级为分类时间线，显示契约 / 仓库 / 基金 / 治理 / 分居类别、操作者、时间和关键详情。
+- 暂缓能力列表现在明确展示离线自动收益、离线队列、同时在线加成和冲突合并工具；服务端不再把 `frontend_shared_log` 标为 deferred。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 家族职位前端写回入口
 - 共同庄园权限页新增家族职位面板，结拜 / 合伙庄园会读取 `/roles`，展示成员职位、权限重点和最近状态。
 - 家主可从前端切换成员为家主、管仓、农务、牧养、工坊或账房；提交带 CSRF 与 `idempotency_key`，成功后刷新职位面板、权限面板、契约摘要和详情。

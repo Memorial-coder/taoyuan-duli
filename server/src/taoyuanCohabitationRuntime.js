@@ -3376,7 +3376,6 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       'offline_worker_queue',
       'simultaneous_online_bonus',
       'conflict_merge_tool',
-      'frontend_shared_log',
     ],
   };
 }

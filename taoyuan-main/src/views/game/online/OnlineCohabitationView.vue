@@ -520,19 +520,31 @@
             <span class="text-[10px] text-muted">{{ cohabitationStore.offlineStatus?.summary.member_online_required ? '需全员在线' : '可独立经营' }}</span>
           </div>
           <div v-if="offlineMembers.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有离线经营状态数据。</div>
-          <div v-else class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
-            <div v-for="member in offlineMembers" :key="member.username" class="border border-accent/10 bg-black/10 p-3">
-              <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                <div class="min-w-0">
-                  <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ member.last_action || '暂无最近行动' }}</p>
-                </div>
-                <span class="w-fit shrink-0 border px-2 py-0.5 text-[10px]" :class="member.online_state === 'recently_active' ? 'border-emerald-400/30 text-emerald-200' : 'border-accent/10 text-muted'">
-                  {{ member.online_state === 'recently_active' ? '近期活跃' : '离线或空闲' }}
-                </span>
+          <div v-else>
+            <div class="mt-3 grid gap-2 md:grid-cols-3">
+              <div
+                v-for="item in offlineSummaryCards"
+                :key="item.label"
+                class="border border-accent/10 bg-black/10 p-2"
+              >
+                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
               </div>
-              <p class="mt-2 text-[10px] text-muted">离线时长：{{ formatDuration(member.offline_seconds) }}</p>
-              <p class="mt-1 text-[10px] text-muted">独立经营：{{ member.can_operate_independently ? '允许' : '不可用' }}</p>
+            </div>
+            <div class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
+              <div v-for="member in offlineMembers" :key="member.username" class="border border-accent/10 bg-black/10 p-3">
+                <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
+                    <p class="mt-1 text-[10px] text-muted">{{ member.last_action || '暂无最近行动' }}</p>
+                  </div>
+                  <span class="w-fit shrink-0 border px-2 py-0.5 text-[10px]" :class="member.online_state === 'recently_active' ? 'border-emerald-400/30 text-emerald-200' : 'border-accent/10 text-muted'">
+                    {{ member.online_state === 'recently_active' ? '近期活跃' : '离线或空闲' }}
+                  </span>
+                </div>
+                <p class="mt-2 text-[10px] text-muted">离线时长：{{ formatDuration(member.offline_seconds) }}</p>
+                <p class="mt-1 text-[10px] text-muted">独立经营：{{ member.can_operate_independently ? '允许' : '不可用' }}</p>
+              </div>
             </div>
           </div>
         </div>
@@ -556,9 +568,28 @@
             <div v-if="sharedLog.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有共同日志。</div>
             <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
               <div v-for="entry in sharedLog" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
-                <p class="text-xs text-text">{{ entry.action }}</p>
-                <p class="mt-1 text-[10px] text-muted">{{ entry.actor_display_name || entry.actor_username }} · {{ formatTime(entry.at) }}</p>
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ sharedLogActionLabel(entry.action) }}</p>
+                    <p class="mt-1 text-[10px] text-muted">{{ entry.actor_display_name || entry.actor_username }} · {{ formatTime(entry.at) }}</p>
+                  </div>
+                  <span class="shrink-0 border border-accent/10 px-2 py-0.5 text-[10px] text-muted">{{ sharedLogKindLabel(entry.action) }}</span>
+                </div>
+                <p v-if="sharedLogDetail(entry)" class="mt-2 text-[10px] leading-4 text-muted">{{ sharedLogDetail(entry) }}</p>
               </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">暂缓能力</p>
+            <div v-if="offlineDeferredOperations.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无暂缓项。</div>
+            <div v-else class="mt-3 flex flex-wrap gap-2">
+              <span
+                v-for="item in offlineDeferredOperations"
+                :key="item"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+              >
+                {{ deferredOperationLabel(item) }}
+              </span>
             </div>
           </div>
         </div>
@@ -583,6 +614,7 @@
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import type {
+    CohabitationAuditEntry,
     CohabitationContract,
     CohabitationFamilyRoleOption,
     CohabitationMember,
@@ -665,10 +697,19 @@
   const roleOptions = computed(() => cohabitationStore.rolePanel?.role_options ?? [])
   const offlineMembers = computed(() => cohabitationStore.offlineStatus?.members ?? [])
   const sharedLog = computed(() => cohabitationStore.offlineStatus?.recent_shared_log ?? [])
+  const offlineDeferredOperations = computed(() => cohabitationStore.offlineStatus?.deferred_operations ?? [])
   const safetyRailEntries = computed(() => Object.entries(cohabitationStore.permissionsPanel?.safety_rails ?? {})
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
   const actorCapabilityEntries = computed(() => Object.entries(cohabitationStore.offlineStatus?.actor_capabilities ?? {})
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
+  const offlineSummaryCards = computed(() => {
+    const summary = cohabitationStore.offlineStatus?.summary
+    return [
+      { label: '经营模式', value: summary?.independent_operations_enabled ? '成员可独立经营' : '暂不可经营' },
+      { label: '离线阻塞', value: summary?.offline_member_blocks_operations ? '离线会阻塞' : '离线不阻塞' },
+      { label: '自动收益', value: summary?.auto_offline_income_enabled ? '已开启' : '暂未开放' },
+    ]
+  })
   const canManagePermissionPanel = computed(() => cohabitationStore.permissionsPanel?.editable_by_actor === true)
   const canManageRolePanel = computed(() => cohabitationStore.rolePanel?.editable_by_actor === true)
   const permissionToggleOptions = [
@@ -1035,8 +1076,65 @@
       harvest: '共同收获',
       shared_warehouse_auto_deposit: '产出自动入仓',
       persistent_shared_manor_map: '持久共同地图',
+      offline_auto_income: '离线自动收益',
+      offline_worker_queue: '离线队列',
+      simultaneous_online_bonus: '同时在线加成',
+      conflict_merge_tool: '冲突合并工具',
     }
     return labels[value] || value
+  }
+
+  const sharedLogActionLabel = (action: string) => {
+    const labels: Record<string, string> = {
+      contract_created: '契约创建',
+      contract_accepted: '契约接受',
+      warehouse_deposit: '共同仓库放入',
+      warehouse_withdraw: '共同仓库取出',
+      warehouse_sell: '共同仓库卖出',
+      fund_contribute: '共同基金注资',
+      fund_spend: '共同基金支出',
+      fund_order_income: '公共订单入基金',
+      permissions_updated: '权限更新',
+      family_role_updated: '家族职位更新',
+      separation_preview_created: '分居预览创建',
+    }
+    return labels[action] || action
+  }
+
+  const sharedLogKindLabel = (action: string) => {
+    if (action.includes('warehouse')) return '仓库'
+    if (action.includes('fund')) return '基金'
+    if (action.includes('permission') || action.includes('role')) return '治理'
+    if (action.includes('separation')) return '分居'
+    if (action.includes('contract')) return '契约'
+    return '日志'
+  }
+
+  const sharedLogDetail = (entry: CohabitationAuditEntry) => {
+    const detail = entry.detail || {}
+    const target = typeof detail.target_display_name === 'string'
+      ? detail.target_display_name
+      : typeof detail.target_username === 'string'
+        ? detail.target_username
+        : ''
+    if (entry.action === 'permissions_updated') {
+      const count = Number(detail.changed_field_count) || 0
+      return target ? `${target} 变更 ${count} 项权限` : `变更 ${count} 项权限`
+    }
+    if (entry.action === 'family_role_updated') {
+      const before = typeof detail.before_role_label === 'string' ? detail.before_role_label : ''
+      const after = typeof detail.after_role_label === 'string' ? detail.after_role_label : ''
+      return target ? `${target}：${before || '原职位'} -> ${after || '新职位'}` : `${before || '原职位'} -> ${after || '新职位'}`
+    }
+    if (entry.action === 'separation_preview_created') {
+      const version = Number(detail.preview_version) || 1
+      return `预览版本 v${version}，仅生成返还草案，未执行拆分`
+    }
+    const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
+    const amount = Number(detail.amount) || Number(detail.quantity) || 0
+    if (itemId && amount > 0) return `${warehouseItemLabels[itemId] || itemId} x${amount}`
+    if (amount > 0) return `${amount} 文`
+    return ''
   }
 
   const formatTime = (value: number) => {

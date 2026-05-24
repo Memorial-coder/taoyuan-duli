@@ -862,6 +862,7 @@ assert.equal(offlineStatus.offline_status.summary.auto_offline_income_enabled, f
 assert.ok(offlineStatus.offline_status.members.find(member => member.username === owner)?.last_active_at > 0, 'offline status should expose owner last active time')
 assert.ok(offlineStatus.offline_status.members.find(member => member.username === partner)?.last_active_at > 0, 'offline status should expose partner last active time')
 assert.ok(offlineStatus.offline_status.recent_shared_log.some(entry => entry.action === 'permissions_updated'), 'offline status should expose recent shared log')
+assert.ok(!offlineStatus.offline_status.deferred_operations.includes('frontend_shared_log'), 'frontend shared log should no longer be marked deferred')
 assert.equal(offlineStatus.offline_status.actor_capabilities.deposit_warehouse, true, 'owner should still be able to deposit while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.withdraw_warehouse_common, true, 'owner should be able to withdraw ordinary warehouse items while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.spend_fund_small, true, 'owner should be able to spend small shared fund budgets while partner is not required online')
