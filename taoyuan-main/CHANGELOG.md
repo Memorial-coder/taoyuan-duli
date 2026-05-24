@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0524 家族订单共同基金收入预览
+- `family-orders` 服务端快照新增公共订单铜钱凭证只读预览，会为结拜 / 合伙庄园成员已确认订单生成未来共同基金 `order_income` 候选、拟幂等键、目标引用和假想余额。
+- 本轮不改订单确认奖励链路：公共订单奖励仍写入接单人个人存档，不改共同基金余额、不写审计、不开放真实订单收入入账。
+- 本轮验证：`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0524 共同基金小额支出
 - 新增 `POST /taoyuan/online/cohabitation/contracts/:contractId/fund/spend`，已激活同居 / 家族庄园成员可按 `fund.spend_small` 权限支出小额白名单用途。
 - 第一版仅支持种子预算、饲料预算、工具修缮和订单跑腿费；种子 / 饲料 `auto_pay` 还会受 `fund.auto_buy_seeds_feed` 权限约束。

@@ -1,6 +1,7 @@
 const fs = require('fs');
 const path = require('path');
 const db = require('./db');
+const taoyuanCoopOrderRuntime = require('./taoyuanCoopOrderRuntime');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
 const {
   createError,
@@ -1534,15 +1535,122 @@ function buildFamilyOrderMemberSnapshot(contract, member, enabled = isFamilyRole
   };
 }
 
+function buildFamilyOrderIncomePreview(contract, enabled = isFamilyRoleContractType(contract.type)) {
+  const acceptedMembers = (contract.members || []).filter(member => member.status === 'accepted');
+  const fund = normalizeSharedFund(contract.shared_fund);
+  if (!enabled) {
+    return {
+      enabled: false,
+      readonly: true,
+      income_credit_enabled: false,
+      candidate_count: 0,
+      open_candidate_count: 0,
+      total_candidate_amount: 0,
+      current_fund_balance: fund.balance,
+      preview_balance_after_candidates: fund.balance,
+      latest_receipt_at: 0,
+      candidates: [],
+      disabled_reason: '当前契约不是结拜庄园或合伙庄园，公共订单收入预览未启用。',
+    };
+  }
+  const membersByKey = new Map(acceptedMembers.map(member => [member.username_key, member]));
+  let receipts = [];
+  let sourceError = '';
+  try {
+    receipts = taoyuanCoopOrderRuntime.listConfirmedMoneyReceiptsForUsers(
+      acceptedMembers.map(member => member.username),
+      12
+    );
+  } catch (error) {
+    sourceError = sanitizeText(error?.message, 120);
+  }
+  const existingIdempotencyKeys = new Set(
+    fund.ledger.map(entry => entry.idempotency_key).filter(Boolean)
+  );
+  const existingOrderTargets = new Set(
+    fund.ledger
+      .filter(entry => entry.action === 'order_income' && entry.target_ref)
+      .map(entry => entry.target_ref)
+  );
+  let runningPreviewBalance = fund.balance;
+  const candidates = receipts
+    .map(receipt => {
+      const member = membersByKey.get(normalizeUsernameKey(receipt.assignee_username));
+      if (!member) return null;
+      const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+      const proposedIdempotencyKey = sanitizeText(`fund-order-income:${contract.id}:${receipt.receipt_id}`, 120);
+      const alreadyRecorded = existingIdempotencyKeys.has(proposedIdempotencyKey) || existingOrderTargets.has(receipt.target_ref);
+      if (!alreadyRecorded) runningPreviewBalance += receipt.reward_value;
+      return {
+        receipt_id: receipt.receipt_id,
+        order_id: receipt.order_id,
+        stage_id: receipt.stage_id,
+        stage_title: receipt.stage_title,
+        order_title: receipt.order_title,
+        order_type: receipt.order_type,
+        collaboration_mode: receipt.collaboration_mode,
+        assignee_username: receipt.assignee_username,
+        assignee_display_name: receipt.assignee_display_name,
+        assignee_member_role: manorRole,
+        assignee_member_role_label: getFamilyManorRoleDef(manorRole).label,
+        owner_username: receipt.owner_username,
+        owner_display_name: receipt.owner_display_name,
+        amount: receipt.reward_value,
+        reward_label: receipt.reward_label,
+        confirmed_at: receipt.confirmed_at,
+        target_ref: receipt.target_ref,
+        proposed_ledger_action: 'order_income',
+        proposed_idempotency_key: proposedIdempotencyKey,
+        proposed_balance_after: alreadyRecorded ? fund.balance : runningPreviewBalance,
+        status: alreadyRecorded ? 'already_recorded_preview' : 'candidate',
+        credit_enabled: false,
+        personal_reward_already_paid: true,
+        requires_reward_reroute_before_confirm: true,
+        audit_required: true,
+        compensation_required: true,
+        rollback_required: true,
+        write_blocked_reason: '该公共订单凭证已按现有规则写入接单人个人存档；真实入共同基金前需在确认交付时选择共同基金结算，或建立冲正 / 补偿流程，避免双发。',
+      };
+    })
+    .filter(Boolean);
+  const openCandidates = candidates.filter(candidate => candidate.status === 'candidate');
+  return {
+    enabled: true,
+    readonly: true,
+    income_credit_enabled: false,
+    source_available: !sourceError,
+    source_error: sourceError,
+    candidate_count: candidates.length,
+    open_candidate_count: openCandidates.length,
+    total_candidate_amount: openCandidates.reduce((sum, candidate) => sum + candidate.amount, 0),
+    current_fund_balance: fund.balance,
+    preview_balance_after_candidates: runningPreviewBalance,
+    latest_receipt_at: candidates.reduce((max, candidate) => Math.max(max, candidate.confirmed_at || 0), 0),
+    candidates,
+    policy: {
+      personal_money_merged: false,
+      current_orders_still_pay_personal_save: true,
+      reward_to_shared_fund_enabled: false,
+      requires_dedicated_credit_helper: true,
+      requires_order_confirmation_choice: true,
+      requires_idempotency: true,
+      requires_audit: true,
+      requires_compensation_replay: true,
+    },
+  };
+}
+
 function buildFamilyOrderSnapshot(contract, actorUsername = '') {
   const enabled = isFamilyRoleContractType(contract.type);
   const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
   const actorMember = getContractMember(contract, actorUsername);
   const actorOrderMember = actorMember ? buildFamilyOrderMemberSnapshot(contract, actorMember, enabled) : null;
+  const incomePreview = buildFamilyOrderIncomePreview(contract, enabled);
   const revision = Math.max(
     Number(contract.updated_at) || 0,
     Number(contract.activated_at) || 0,
-    Number(contract.created_at) || 0
+    Number(contract.created_at) || 0,
+    Number(incomePreview.latest_receipt_at) || 0
   );
   return {
     contract_id: contract.id,
@@ -1569,6 +1677,8 @@ function buildFamilyOrderSnapshot(contract, actorUsername = '') {
       warehouse_withdraw_enabled: false,
       reward_to_shared_fund_enabled: false,
       reward_to_shared_warehouse_enabled: false,
+      reward_to_shared_fund_candidate_count: incomePreview.candidate_count,
+      reward_to_shared_fund_preview_amount: incomePreview.total_candidate_amount,
       disabled_reason: enabled ? '' : '家族订单第一版仅面向结拜庄园和合伙庄园。',
     },
     actor: actorOrderMember,
@@ -1631,14 +1741,25 @@ function buildFamilyOrderSnapshot(contract, actorUsername = '') {
               reached: false,
               description: '共同基金或仓库写入失败时必须进入补偿队列或冻结回滚。',
             },
+            {
+              id: 'shared_fund_income_preview',
+              label: '共同基金入账预览',
+              reached: incomePreview.open_candidate_count > 0,
+              description: incomePreview.open_candidate_count > 0
+                ? `已发现 ${incomePreview.open_candidate_count} 条公共订单铜钱凭证可用于未来共同基金结算设计。`
+                : '暂未发现可预览的公共订单铜钱凭证。',
+            },
           ],
           history: [],
         },
       ] : [],
     },
+    income_preview: incomePreview,
     settlement: {
       reward_to_shared_fund_enabled: false,
       reward_to_shared_warehouse_enabled: false,
+      reward_to_shared_fund_candidate_count: incomePreview.candidate_count,
+      reward_to_shared_fund_preview_amount: incomePreview.total_candidate_amount,
       personal_money_merged: false,
       personal_inventory_merged: false,
       requires_server_receipt: true,

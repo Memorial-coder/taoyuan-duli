@@ -52,6 +52,10 @@ function sanitizeText(value, maxLength) {
   return String(value || '').replace(/\r\n/g, '\n').trim().slice(0, maxLength);
 }
 
+function normalizeUsernameLookup(value) {
+  return String(value || '').trim().toLocaleLowerCase('zh-CN');
+}
+
 function makeId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -1712,6 +1716,55 @@ async function listVisibleCoopOrders(viewerUsername = '') {
   };
 }
 
+function listConfirmedMoneyReceiptsForUsers(usernames = [], limit = 20) {
+  const usernameKeys = new Set(
+    (Array.isArray(usernames) ? usernames : [])
+      .map(normalizeUsernameLookup)
+      .filter(Boolean)
+  );
+  if (usernameKeys.size === 0) return [];
+  const store = loadCoopOrderStore();
+  const ordersById = new Map(store.orders.map(entry => {
+    const order = normalizeOrder(entry);
+    return [order.id, order];
+  }));
+  return store.receipts
+    .map(normalizeSettlementReceipt)
+    .filter(receipt =>
+      receipt.status === 'confirmed'
+      && receipt.reward_type === 'money'
+      && receipt.reward_value > 0
+      && usernameKeys.has(normalizeUsernameLookup(receipt.assignee_username))
+    )
+    .sort((left, right) => right.confirmed_at - left.confirmed_at || right.updated_at - left.updated_at)
+    .slice(0, Math.max(1, Math.min(50, Math.floor(Number(limit) || 20))))
+    .map(receipt => {
+      const order = ordersById.get(receipt.order_id) || null;
+      const stageSegment = receipt.stage_id ? `:stage:${receipt.stage_id}` : '';
+      return {
+        receipt_id: receipt.id,
+        order_id: receipt.order_id,
+        stage_id: receipt.stage_id,
+        stage_title: receipt.stage_title,
+        order_title: order?.title || '',
+        order_type: order?.order_type || '',
+        collaboration_mode: order?.collaboration_mode || '',
+        owner_username: receipt.owner_username,
+        owner_display_name: receipt.owner_display_name,
+        assignee_username: receipt.assignee_username,
+        assignee_display_name: receipt.assignee_display_name,
+        reward_type: receipt.reward_type,
+        reward_value: receipt.reward_value,
+        reward_label: receipt.reward_label,
+        result_note: receipt.result_note,
+        confirmed_at: receipt.confirmed_at,
+        updated_at: receipt.updated_at,
+        source_idempotency_key: receipt.idempotency_key,
+        target_ref: sanitizeText(`coop_order:${receipt.order_id}${stageSegment}:receipt:${receipt.id}`, 120),
+      };
+    });
+}
+
 module.exports = {
   createCoopOrder,
   acceptCoopOrder,
@@ -1725,5 +1778,6 @@ module.exports = {
   confirmCoopOrderStageDelivery,
   replayCoopOrderCompensation,
   listAdminCoopOrders,
+  listConfirmedMoneyReceiptsForUsers,
   listVisibleCoopOrders,
 };

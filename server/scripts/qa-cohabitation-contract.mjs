@@ -22,6 +22,7 @@ process.env.MYSQL_DATABASE = ''
 const require = createRequire(import.meta.url)
 const db = require('../src/db')
 const socialRuntime = require('../src/taoyuanSocialRuntime')
+const coopOrderRuntime = require('../src/taoyuanCoopOrderRuntime')
 const runtime = require('../src/taoyuanCohabitationRuntime')
 const saveRuntime = require('../src/taoyuanSaveRuntime')
 
@@ -941,6 +942,26 @@ assert.equal(loverFamilyFestivalSeats.family_festival_seats_panel.write_enabled,
 assert.equal(loverFamilyFestivalSeats.family_festival_seats_panel.summary.preview_seat_count, 0, 'disabled family festival seat panel should not expose seats')
 assert.match(loverFamilyFestivalSeats.family_festival_seats_panel.summary.disabled_reason, /结拜庄园和合伙庄园/, 'disabled festival seat panel should explain family manor requirement')
 
+const partnerMoneyBeforeOrderIncome = readGameplayData(partner)?.player?.money
+const fundIncomeOrder = await coopOrderRuntime.createCoopOrder({
+  title: '家族基金候选',
+  description: '用于验证公共订单收入只读预览',
+  order_type: 'material_help',
+  scope: 'public',
+  deadline_at: Math.floor(Date.now() / 1000) + 3600,
+  reward_type: 'money',
+  reward_value: 45,
+  reward_label: '共同基金候选',
+}, actor(owner))
+await coopOrderRuntime.acceptCoopOrder(fundIncomeOrder.id, actor(partner))
+await coopOrderRuntime.submitCoopOrderDelivery(fundIncomeOrder.id, {
+  result_note: '伙伴完成了共同基金候选订单',
+}, actor(partner))
+const fundIncomeConfirm = await coopOrderRuntime.confirmCoopOrderDelivery(fundIncomeOrder.id, actor(owner))
+assert.equal(fundIncomeConfirm.receipt.status, 'confirmed', 'public order income setup should confirm receipt')
+assert.equal(fundIncomeConfirm.receipt.reward_value, 45, 'public order income setup should keep reward amount')
+assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeOrderIncome + 45, 'existing public order reward should still pay partner personal save')
+
 const ownerRawBeforeFamilyOrders = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawBeforeFamilyOrders = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
 const extraRawBeforeFamilyOrders = saveRuntime.loadUserSaveSlots(extra).slots[0].raw
@@ -955,6 +976,17 @@ assert.equal(familyOrdersPanel.summary.shared_fund_spend_enabled, false, 'family
 assert.equal(familyOrdersPanel.summary.warehouse_withdraw_enabled, false, 'family order panel should keep warehouse withdrawal disabled')
 assert.equal(familyOrdersPanel.settlement.reward_to_shared_fund_enabled, false, 'family order rewards should not enter shared fund yet')
 assert.equal(familyOrdersPanel.settlement.reward_to_shared_warehouse_enabled, false, 'family order rewards should not enter shared warehouse yet')
+assert.equal(familyOrdersPanel.summary.reward_to_shared_fund_candidate_count, 1, 'family order panel should preview confirmed public order income candidates')
+assert.equal(familyOrdersPanel.summary.reward_to_shared_fund_preview_amount, 45, 'family order panel should sum public order income preview amount')
+assert.equal(familyOrdersPanel.income_preview.income_credit_enabled, false, 'family order income preview should remain read-only')
+assert.equal(familyOrdersPanel.income_preview.current_fund_balance, 0, 'income preview should read current shared fund balance without changing it')
+assert.equal(familyOrdersPanel.income_preview.preview_balance_after_candidates, 45, 'income preview should calculate hypothetical fund balance')
+assert.equal(familyOrdersPanel.income_preview.candidates[0]?.receipt_id, fundIncomeConfirm.receipt.id, 'income preview should reference the confirmed order receipt')
+assert.equal(familyOrdersPanel.income_preview.candidates[0]?.amount, 45, 'income preview candidate should keep receipt reward amount')
+assert.equal(familyOrdersPanel.income_preview.candidates[0]?.assignee_username, partner, 'income preview should link candidate to contract member assignee')
+assert.equal(familyOrdersPanel.income_preview.candidates[0]?.credit_enabled, false, 'income preview candidate should not enable writes')
+assert.equal(familyOrdersPanel.income_preview.candidates[0]?.personal_reward_already_paid, true, 'income preview should disclose current personal reward behavior')
+assert.match(familyOrdersPanel.income_preview.candidates[0]?.proposed_idempotency_key || '', /^fund-order-income:/, 'income preview should propose a future idempotency key')
 assert.equal(familyOrdersPanel.settlement.idempotency_required, true, 'future family order writes should require idempotency')
 assert.equal(familyOrdersPanel.settlement.audit_required, true, 'future family order writes should require audit')
 assert.equal(familyOrdersPanel.settlement.compensation_required, true, 'future family order writes should require compensation')
@@ -972,6 +1004,7 @@ assert.ok(familyOrdersPanel.deferred_operations.includes('family_order_rollback'
 const repeatedFamilyOrdersRead = await runtime.getCohabitationFamilyOrders(familyContract.contract.id, actor(owner))
 assert.equal(repeatedFamilyOrdersRead.family_orders_panel.visual_state_preview.board_id, familyOrdersPanel.visual_state_preview.board_id, 'family order preview board id should stay stable across reads')
 assert.equal(repeatedFamilyOrdersRead.family_orders_panel.revision, familyOrdersPanel.revision, 'family order preview revision should stay stable across reads')
+assert.equal(repeatedFamilyOrdersRead.family_orders_panel.income_preview.candidates[0]?.receipt_id, fundIncomeConfirm.receipt.id, 'family order income preview should stay stable across reads')
 assert.equal(repeatedFamilyOrdersRead.contract.audit_log.length, familyOrdersRead.contract.audit_log.length, 'family order reads should not append audit entries')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyOrders, 'family order panel should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyOrders, 'family order panel should not rewrite partner save')
