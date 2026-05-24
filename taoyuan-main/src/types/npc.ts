@@ -236,11 +236,34 @@ export interface RandomNpcArchiveSummary {
   keyEvents: string[]
 }
 
+export interface RandomNpcAcquaintanceEntry {
+  visitorId: string
+  templateId: string
+  name: string
+  ageBand: RandomNpcAgeBand
+  gender: Gender
+  occupation: string
+  origin: string
+  personalityTags: string[]
+  plotHook: string
+  familySeed: string
+  preferences: RandomNpcTemplate['preferences']
+  smallOrder: RandomNpcSmallOrderDef
+  relationshipTag: RandomNpcRelationshipTag
+  affinity: number
+  firstMetWeekId: string
+  firstMetDayTag: string
+  lastSeenDayTag: string
+  conversationCount: number
+  keyEvents: string[]
+}
+
 export interface RandomNpcBoardState {
   version: number
   lastGeneratedWeekId: string
   activeVisitors: RandomNpcVisitorState[]
   acquaintanceIds: string[]
+  acquaintances: RandomNpcAcquaintanceEntry[]
   recentSummaries: RandomNpcArchiveSummary[]
 }
 

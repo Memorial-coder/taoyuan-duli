@@ -23,6 +23,7 @@ import type {
   HiredHelper,
   ZhijiCompanionProjectState,
   RelationshipContentReward,
+  RandomNpcAcquaintanceEntry,
   RandomNpcArchiveSummary,
   RandomNpcBoardState,
   RandomNpcRelationshipTag,
@@ -352,6 +353,7 @@ export const useNpcStore = defineStore('npc', () => {
     lastGeneratedWeekId: '',
     activeVisitors: [],
     acquaintanceIds: [],
+    acquaintances: [],
     recentSummaries: []
   })
 
@@ -429,6 +431,47 @@ export const useNpcStore = defineStore('npc', () => {
   const trimRandomNpcArchives = (archives: RandomNpcArchiveSummary[]) =>
     archives.slice(0, RANDOM_NPC_VISITOR_CONFIG.maxRecentSummaries)
 
+  const trimRandomNpcAcquaintances = (acquaintances: RandomNpcAcquaintanceEntry[]) =>
+    acquaintances.slice(0, RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances)
+
+  const createRandomNpcAcquaintanceEntry = (visitor: RandomNpcVisitorState): RandomNpcAcquaintanceEntry => ({
+    visitorId: visitor.id,
+    templateId: visitor.templateId,
+    name: visitor.name,
+    ageBand: visitor.ageBand,
+    gender: visitor.gender,
+    occupation: visitor.occupation,
+    origin: visitor.origin,
+    personalityTags: [...visitor.personalityTags],
+    plotHook: visitor.plotHook,
+    familySeed: visitor.familySeed,
+    preferences: {
+      loved: [...visitor.preferences.loved],
+      liked: [...visitor.preferences.liked],
+      disliked: [...visitor.preferences.disliked]
+    },
+    smallOrder: {
+      ...visitor.smallOrder,
+      requestedItems: visitor.smallOrder.requestedItems.map(item => ({ ...item }))
+    },
+    relationshipTag: visitor.relationshipTag,
+    affinity: visitor.affinity,
+    firstMetWeekId: visitor.firstVisitWeekId,
+    firstMetDayTag: visitor.keyEvents[0]?.split(' ')[0] ?? visitor.lastVisitDayTag,
+    lastSeenDayTag: visitor.lastVisitDayTag,
+    conversationCount: visitor.conversationCount,
+    keyEvents: visitor.keyEvents.slice(-6)
+  })
+
+  const upsertRandomNpcAcquaintance = (visitor: RandomNpcVisitorState): boolean => {
+    const existingIndex = randomNpcBoard.value.acquaintances.findIndex(entry => entry.visitorId === visitor.id)
+    if (existingIndex < 0 && randomNpcBoard.value.acquaintances.length >= RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances) return false
+    const nextEntry = createRandomNpcAcquaintanceEntry(visitor)
+    const others = randomNpcBoard.value.acquaintances.filter(entry => entry.visitorId !== visitor.id)
+    randomNpcBoard.value.acquaintances = trimRandomNpcAcquaintances([nextEntry, ...others])
+    return true
+  }
+
   const ensureRandomVisitorsForCurrentWeek = () => {
     const gameStore = useGameStore()
     const weekInfo = getWeekCycleInfo(gameStore.year, gameStore.season, gameStore.day)
@@ -436,7 +479,11 @@ export const useNpcStore = defineStore('npc', () => {
     if (randomNpcBoard.value.lastGeneratedWeekId === weekId && randomNpcBoard.value.activeVisitors.length > 0) return
 
     const outgoing = randomNpcBoard.value.activeVisitors
-      .filter(visitor => visitor.tier === 'short_visit' && !randomNpcBoard.value.acquaintanceIds.includes(visitor.id))
+      .filter(visitor =>
+        visitor.tier === 'short_visit' &&
+        !randomNpcBoard.value.acquaintanceIds.includes(visitor.id) &&
+        !randomNpcBoard.value.acquaintances.some(entry => entry.visitorId === visitor.id)
+      )
       .map(visitor => summarizeRandomVisitor(visitor, '短暂停留后离开桃源村'))
     const count = 1 + (hashText(`${weekId}:visitor_count`) % RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors)
     const start = hashText(`${weekId}:visitor_start`) % RANDOM_NPC_TEMPLATES.length
@@ -477,6 +524,9 @@ export const useNpcStore = defineStore('npc', () => {
     visitor.relationshipTag = choice.relationshipTag ?? visitor.relationshipTag
     visitor.lastVisitDayTag = getCurrentNpcDayTag()
     visitor.keyEvents = [...visitor.keyEvents, `${visitor.lastVisitDayTag} ${choice.text}：${choice.response}`].slice(-6)
+    if (visitor.tier === 'acquaintance') {
+      upsertRandomNpcAcquaintance(visitor)
+    }
 
     return {
       success: true,
@@ -493,12 +543,19 @@ export const useNpcStore = defineStore('npc', () => {
     if (visitor.affinity < RANDOM_NPC_VISITOR_CONFIG.acquaintanceAffinityThreshold) {
       return { success: false, message: `还需要再熟悉一些（需要好感 ${RANDOM_NPC_VISITOR_CONFIG.acquaintanceAffinityThreshold}）。` }
     }
+    if (
+      !randomNpcBoard.value.acquaintances.some(entry => entry.visitorId === visitor.id) &&
+      randomNpcBoard.value.acquaintances.length >= RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances
+    ) {
+      return { success: false, message: `熟人册已满（${RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances}人），需要后续归档功能再整理。` }
+    }
     if (!randomNpcBoard.value.acquaintanceIds.includes(visitor.id)) {
       randomNpcBoard.value.acquaintanceIds = [...randomNpcBoard.value.acquaintanceIds, visitor.id]
     }
     visitor.tier = 'acquaintance'
     visitor.relationshipTag = visitor.relationshipTag === 'passing' ? 'acquaintance' : visitor.relationshipTag
     visitor.keyEvents = [...visitor.keyEvents, `${getCurrentNpcDayTag()} 记入熟人册，后续可作为熟人线扩展。`].slice(-6)
+    upsertRandomNpcAcquaintance(visitor)
     randomNpcBoard.value.recentSummaries = trimRandomNpcArchives([
       summarizeRandomVisitor(visitor, '已记入熟人册'),
       ...randomNpcBoard.value.recentSummaries.filter(entry => entry.visitorId !== visitor.id)
@@ -2877,6 +2934,7 @@ export const useNpcStore = defineStore('npc', () => {
           lastGeneratedWeekId: '',
           activeVisitors: [],
           acquaintanceIds: [],
+          acquaintances: [],
           recentSummaries: []
         }
       }
@@ -2932,6 +2990,44 @@ export const useNpcStore = defineStore('npc', () => {
         acquaintanceIds: Array.isArray(raw.acquaintanceIds)
           ? raw.acquaintanceIds.filter((id: unknown) => typeof id === 'string' && activeIds.has(id)).slice(0, RANDOM_NPC_VISITOR_CONFIG.maxActiveVisitors)
           : [],
+        acquaintances: trimRandomNpcAcquaintances([
+          ...(Array.isArray(raw.acquaintances) ? raw.acquaintances : [])
+            .filter((entry: any) => entry && typeof entry === 'object' && typeof entry.visitorId === 'string' && validTemplateIds.has(entry.templateId))
+            .map((entry: any): RandomNpcAcquaintanceEntry => {
+              const template = RANDOM_NPC_TEMPLATES.find(item => item.id === entry.templateId)!
+              return {
+                visitorId: entry.visitorId,
+                templateId: template.id,
+                name: typeof entry.name === 'string' ? entry.name : template.nameSeeds[0]!,
+                ageBand: template.ageBand,
+                gender: template.gender,
+                occupation: template.occupation,
+                origin: template.origin,
+                personalityTags: [...template.personalityTags],
+                plotHook: template.plotHook,
+                familySeed: template.familySeed,
+                preferences: {
+                  loved: [...template.preferences.loved],
+                  liked: [...template.preferences.liked],
+                  disliked: [...template.preferences.disliked]
+                },
+                smallOrder: {
+                  ...template.smallOrder,
+                  requestedItems: template.smallOrder.requestedItems.map(item => ({ ...item }))
+                },
+                relationshipTag: sanitizeRelationshipTag(entry.relationshipTag),
+                affinity: Math.max(0, Math.min(100, Number(entry.affinity) || 0)),
+                firstMetWeekId: typeof entry.firstMetWeekId === 'string' ? entry.firstMetWeekId : '',
+                firstMetDayTag: typeof entry.firstMetDayTag === 'string' ? entry.firstMetDayTag : '',
+                lastSeenDayTag: typeof entry.lastSeenDayTag === 'string' ? entry.lastSeenDayTag : '',
+                conversationCount: Math.max(0, Number(entry.conversationCount) || 0),
+                keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-6) : []
+              }
+            }),
+          ...activeVisitors
+            .filter(visitor => Array.isArray(raw.acquaintanceIds) && raw.acquaintanceIds.includes(visitor.id))
+            .map(visitor => createRandomNpcAcquaintanceEntry(visitor))
+        ].filter((entry, index, entries) => entries.findIndex(item => item.visitorId === entry.visitorId) === index)),
         recentSummaries: trimRandomNpcArchives(
           (Array.isArray(raw.recentSummaries) ? raw.recentSummaries : [])
             .filter((entry: any) => entry && typeof entry === 'object' && typeof entry.visitorId === 'string')

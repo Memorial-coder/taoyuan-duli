@@ -3,6 +3,7 @@ import type { RandomNpcTemplate } from '@/types'
 export const RANDOM_NPC_VISITOR_CONFIG = {
   maxActiveVisitors: 2,
   maxRecentSummaries: 8,
+  maxAcquaintances: 12,
   acquaintanceAffinityThreshold: 40
 } as const
 

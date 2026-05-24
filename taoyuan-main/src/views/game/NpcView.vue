@@ -92,9 +92,9 @@
         <div class="flex items-center justify-between gap-2 mb-2">
           <div>
             <p class="text-xs text-accent">本周来访</p>
-            <p class="text-[10px] text-muted mt-0.5">短访人物只保留本周卡片和最近摘要；喜欢的人可先记入熟人册。</p>
+            <p class="text-[10px] text-muted mt-0.5">短访人物只保留本周卡片和最近摘要；喜欢的人可记入熟人册长期回看。</p>
           </div>
-          <span class="text-[10px] text-muted whitespace-nowrap">近访 {{ randomNpcBoard.recentSummaries.length }}/8</span>
+          <span class="text-[10px] text-muted whitespace-nowrap">熟人 {{ randomNpcBoard.acquaintances.length }}/{{ randomNpcMaxAcquaintances }}</span>
         </div>
         <div v-if="randomNpcBoard.activeVisitors.length > 0" class="grid grid-cols-1 md:grid-cols-2 gap-2">
           <div
@@ -171,6 +171,61 @@
               >
                 {{ visitor.tier === 'acquaintance' ? '已记录' : '记入熟人册' }}
               </Button>
+            </div>
+          </div>
+        </div>
+        <div v-if="randomNpcBoard.acquaintances.length > 0" class="border border-success/20 rounded-xs p-2 mt-2 bg-success/5">
+          <div class="flex items-center justify-between gap-2 mb-1">
+            <p class="text-[10px] text-success">熟人册</p>
+            <span class="text-[10px] text-muted">保留关系、偏好与关键事件</span>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            <div
+              v-for="acquaintance in randomNpcBoard.acquaintances"
+              :key="acquaintance.visitorId"
+              class="border border-success/15 rounded-xs p-2 bg-bg/10"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <div class="min-w-0">
+                  <p class="text-xs text-accent">
+                    {{ acquaintance.name }}
+                    <span class="text-[10px] text-muted ml-1">{{ acquaintance.occupation }}</span>
+                  </p>
+                  <p class="text-[10px] text-muted mt-0.5 truncate">
+                    {{ acquaintance.origin }} · {{ getRandomNpcAgeBandLabel(acquaintance.ageBand) }} · {{ getRandomNpcRelationshipLabel(acquaintance.relationshipTag) }}
+                  </p>
+                </div>
+                <span class="text-[10px] text-success whitespace-nowrap">好感 {{ acquaintance.affinity }}</span>
+              </div>
+              <div class="flex flex-wrap gap-1 mt-1">
+                <span
+                  v-for="tag in acquaintance.personalityTags"
+                  :key="`${acquaintance.visitorId}-${tag}`"
+                  class="text-[10px] border border-accent/15 text-accent/80 rounded-xs px-1 py-0.5"
+                >
+                  {{ tag }}
+                </span>
+                <span class="text-[10px] border border-warning/20 text-warning rounded-xs px-1 py-0.5">{{ acquaintance.plotHook }}</span>
+              </div>
+              <div class="grid grid-cols-2 gap-1 mt-2 text-[10px]">
+                <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+                  <span class="text-muted/60">初见</span>
+                  <p class="text-muted mt-0.5">{{ acquaintance.firstMetDayTag || acquaintance.firstMetWeekId }}</p>
+                </div>
+                <div class="border border-accent/10 rounded-xs px-1.5 py-1">
+                  <span class="text-muted/60">最近</span>
+                  <p class="text-muted mt-0.5">{{ acquaintance.lastSeenDayTag || '本周' }}</p>
+                </div>
+              </div>
+              <div class="border border-accent/10 rounded-xs p-2 mt-2">
+                <p class="text-[10px] text-muted">偏好</p>
+                <p class="text-[10px] text-accent/90 leading-4 mt-0.5">
+                  最爱 {{ getRandomNpcPreferenceNames(acquaintance.preferences.loved) }}；喜欢 {{ getRandomNpcPreferenceNames(acquaintance.preferences.liked) }}
+                </p>
+                <p class="text-[10px] text-muted leading-4 mt-0.5">家庭线索：{{ acquaintance.familySeed }}</p>
+              </div>
+              <p class="text-[10px] text-muted leading-4 mt-2">{{ getLastRandomNpcAcquaintanceEvent(acquaintance) }}</p>
+              <p class="text-[10px] text-success/80 mt-1">小订单线索：{{ acquaintance.smallOrder.title }} · {{ acquaintance.smallOrder.rewardSummary }}</p>
             </div>
           </div>
         </div>
@@ -1074,6 +1129,7 @@
     FriendshipLevel,
     GiftPreference,
     Quality,
+    RandomNpcAcquaintanceEntry,
     RandomNpcAgeBand,
     RandomNpcRelationshipTag,
     RandomNpcVisitorState,
@@ -1112,6 +1168,7 @@
   })
   const randomNpcBoard = computed(() => npcStore.getRandomNpcBoard())
   const randomNpcAcquaintanceThreshold = RANDOM_NPC_VISITOR_CONFIG.acquaintanceAffinityThreshold
+  const randomNpcMaxAcquaintances = RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances
   const spiritBondOverview = computed(() => hiddenNpcStore.spiritBondAuditSnapshot)
   const selectedSpiritBlessingSummary = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getSpiritBlessingSummary(selectedHiddenNpc.value) : null))
   const selectedSpiritBlessings = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getAvailableSpiritBlessings(selectedHiddenNpc.value) : []))
@@ -1304,6 +1361,10 @@
   const getRandomNpcAgeBandLabel = (ageBand: RandomNpcAgeBand): string => RANDOM_NPC_AGE_BAND_LABELS[ageBand]
   const getRandomNpcRelationshipLabel = (tag: RandomNpcRelationshipTag): string => RANDOM_NPC_RELATIONSHIP_LABELS[tag]
   const getLastRandomNpcEvent = (visitor: RandomNpcVisitorState): string => visitor.keyEvents[visitor.keyEvents.length - 1] ?? visitor.dialogueOpening
+  const getLastRandomNpcAcquaintanceEvent = (acquaintance: RandomNpcAcquaintanceEntry): string =>
+    acquaintance.keyEvents[acquaintance.keyEvents.length - 1] ?? `${acquaintance.name}已记入熟人册。`
+  const getRandomNpcPreferenceNames = (itemIds: string[]): string =>
+    itemIds.map(itemId => getItemById(itemId)?.name ?? itemId).join('、') || '尚未记录'
 
   const handleRandomVisitorTalk = (visitorId: string, choiceId: string) => {
     const result = npcStore.talkToRandomVisitor(visitorId, choiceId)
