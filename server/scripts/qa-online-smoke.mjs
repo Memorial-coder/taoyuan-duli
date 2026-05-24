@@ -26,6 +26,7 @@ if (!configuredBaseURL) {
   process.env.MYSQL_HOST = ''
   process.env.MYSQL_USER = ''
   process.env.MYSQL_DATABASE = ''
+  await rm(smokeTempDir, { recursive: true, force: true })
 }
 const { decryptTaoyuanRaw, encryptTaoyuanData, loadUserSaveSlots, saveUserSaveSlots } = require('../src/taoyuanSaveRuntime')
 const db = require('../src/db')
