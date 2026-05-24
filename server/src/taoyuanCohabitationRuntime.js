@@ -23,6 +23,9 @@ const CONTRACT_STORE_VERSION = 1;
 const OPEN_CONTRACT_STATUSES = new Set(['pending_acceptance', 'active', 'separation_pending']);
 const CONTRACT_STATUSES = new Set(['pending_acceptance', 'active', 'separation_pending', 'closed', 'declined']);
 const MEMBER_STATUSES = new Set(['accepted', 'pending', 'declined', 'left']);
+const FUND_LEDGER_LIMIT = 160;
+const FUND_ORIGIN_LIMIT = 160;
+const FUND_MAX_CONTRIBUTION_AMOUNT = 999999;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_MAX_DEPOSIT_QUANTITY = 99;
@@ -227,6 +230,11 @@ function normalizePermissionSet(value, type) {
   };
 }
 
+function getPlayerMoney(saveData = {}) {
+  if (!saveData.player || typeof saveData.player !== 'object') saveData.player = {};
+  return Math.max(0, Math.floor(Number(saveData.player.money) || 0));
+}
+
 function normalizeMember(entry = {}) {
   const username = normalizeUsername(entry.username);
   if (!username) return null;
@@ -256,17 +264,36 @@ function normalizeAuditEntry(entry = {}) {
   };
 }
 
+function normalizeFundLedgerEntry(entry = {}) {
+  return {
+    id: sanitizeText(entry?.id, 80) || makeId('shared_fund_ledger'),
+    action: sanitizeText(entry?.action, 80) || 'contribution',
+    actor_username: normalizeUsername(entry?.actor_username),
+    actor_display_name: sanitizeText(entry?.actor_display_name || entry?.actor_username, 60),
+    amount: Math.max(0, Math.floor(Number(entry?.amount) || 0)),
+    at: Number(entry?.at) || nowSeconds(),
+    memo: sanitizeText(entry?.memo, 160),
+    purpose: sanitizeText(entry?.purpose, 80) || 'shared_fund',
+    source_owner_id: sanitizeText(entry?.source_owner_id, 100),
+    source_owner_username: normalizeUsername(entry?.source_owner_username || entry?.actor_username),
+    source_owner_display_name: sanitizeText(entry?.source_owner_display_name || entry?.source_owner_username || entry?.actor_username, 60),
+    source_owner_key: normalizeUsernameKey(entry?.source_owner_key || entry?.source_owner_username || entry?.actor_username),
+    source_save_id: normalizeSaveId(entry?.source_save_id),
+    source_save_slot: normalizeSaveSlot(entry?.source_save_slot),
+    source_save_revision: Math.max(0, Math.floor(Number(entry?.source_save_revision) || 0)),
+    idempotency_key: sanitizeText(entry?.idempotency_key, 120),
+    reversible: entry?.reversible !== false,
+    compensation_hint: sanitizeText(entry?.compensation_hint, 180),
+    status: ['committed', 'compensated', 'reverted'].includes(entry?.status) ? entry.status : 'committed',
+  };
+}
+
 function normalizeSharedFund(value = {}) {
   return {
-    balance: Math.max(0, Number(value.balance) || 0),
-    ledger: Array.isArray(value.ledger) ? value.ledger.map(entry => ({
-      id: sanitizeText(entry?.id, 80) || makeId('shared_fund_ledger'),
-      action: sanitizeText(entry?.action, 80),
-      actor_username: normalizeUsername(entry?.actor_username),
-      amount: Math.max(0, Number(entry?.amount) || 0),
-      at: Number(entry?.at) || nowSeconds(),
-      memo: sanitizeText(entry?.memo, 160),
-    })).slice(-120) : [],
+    balance: Math.max(0, Math.floor(Number(value.balance) || 0)),
+    ledger: Array.isArray(value.ledger)
+      ? value.ledger.map(normalizeFundLedgerEntry).filter(Boolean).slice(0, FUND_LEDGER_LIMIT)
+      : [],
   };
 }
 
@@ -750,6 +777,7 @@ function toPublicContract(contract) {
   return {
     ...contract,
     members: contract.members.map(member => ({ ...member })),
+    shared_fund: normalizeSharedFund(contract.shared_fund),
     shared_warehouse: normalizeSharedWarehouse(contract.shared_warehouse),
     permissions: Object.fromEntries(Object.entries(contract.permissions || {}).map(([key, value]) => [key, normalizePermissionSet(value, contract.type)])),
     audit_log: (contract.audit_log || []).map(entry => ({ ...entry })).slice(0, 20),
@@ -800,6 +828,35 @@ function buildSharedWarehouseSnapshot(contract, actorUsername = '') {
       can_withdraw_high_quality: actorPermissions.storage.withdraw_high_quality === true,
       can_withdraw_rare: actorPermissions.storage.withdraw_rare === true,
       can_sell_items: actorPermissions.storage.sell_items === true,
+    },
+  };
+}
+
+function buildSharedFundSnapshot(contract, actorUsername = '') {
+  const fund = normalizeSharedFund(contract.shared_fund);
+  const actorKey = normalizeUsernameKey(actorUsername);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[actorKey], contract.type);
+  return {
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    status: contract.status,
+    balance: fund.balance,
+    ledger: fund.ledger.slice(0, 50),
+    summary: {
+      balance: fund.balance,
+      ledger_count: fund.ledger.length,
+      personal_money_merged: false,
+      contribution_enabled: contract.status === 'active',
+      spend_enabled: false,
+      idempotency_required: true,
+      large_spend_requires_both: actorPermissions.confirmations.large_fund_spend_requires_both === true,
+      compensation_policy: '第一版只支持成员自愿注资并记录来源流水；误操作可先按 ledger 与 origin_assets 手工追溯，自动返还和消费确认待后续接入。',
+    },
+    permissions: {
+      can_spend_small: actorPermissions.fund.spend_small === true,
+      can_spend_medium: actorPermissions.fund.spend_medium === true,
+      can_spend_large: actorPermissions.fund.spend_large === true,
+      can_auto_buy_seeds_feed: actorPermissions.fund.auto_buy_seeds_feed === true,
     },
   };
 }
@@ -895,6 +952,21 @@ function normalizeWarehouseDepositPayload(payload = {}) {
   };
 }
 
+function normalizeFundContributionPayload(payload = {}) {
+  const amount = Math.floor(Number(payload.amount) || 0);
+  if (amount <= 0) throw createError('共同基金注资金额必须大于 0');
+  if (amount > FUND_MAX_CONTRIBUTION_AMOUNT) throw createError(`单次共同基金注资不能超过 ${FUND_MAX_CONTRIBUTION_AMOUNT}`);
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('共同基金注资需要 idempotency_key，以防断线或重试时重复扣铜币');
+  return {
+    amount,
+    idempotency_key: idempotencyKey,
+    purpose: sanitizeText(payload.purpose, 80) || 'shared_fund',
+    memo: sanitizeText(payload.memo, 160),
+    save_slot: normalizeSaveSlot(payload.save_slot),
+  };
+}
+
 function buildWarehouseOriginAsset(entry) {
   return {
     ledger_id: entry.id,
@@ -908,6 +980,21 @@ function buildWarehouseOriginAsset(entry) {
     source_save_slot: entry.source_save_slot,
     source_inventory: entry.source_inventory,
     deposited_at: entry.at,
+    idempotency_key: entry.idempotency_key,
+  };
+}
+
+function buildFundOriginAsset(entry) {
+  return {
+    ledger_id: entry.id,
+    amount: entry.amount,
+    origin_owner_id: entry.source_owner_id,
+    origin_owner_username: entry.source_owner_username,
+    origin_owner_key: entry.source_owner_key,
+    source_save_id: entry.source_save_id,
+    source_save_slot: entry.source_save_slot,
+    purpose: entry.purpose,
+    contributed_at: entry.at,
     idempotency_key: entry.idempotency_key,
   };
 }
@@ -932,6 +1019,27 @@ function buildWarehouseReturnPreview(contract = {}) {
     groups.set(key, current);
   }
   return [...groups.values()].filter(entry => entry.quantity > 0).slice(0, 80);
+}
+
+function buildFundReturnPreview(contract = {}) {
+  const fund = normalizeSharedFund(contract.shared_fund);
+  const groups = new Map();
+  for (const entry of fund.ledger) {
+    if (entry.status !== 'committed' || entry.action !== 'contribution' || entry.amount <= 0) continue;
+    const key = entry.source_owner_id || entry.source_owner_key || entry.source_owner_username;
+    if (!key) continue;
+    const current = groups.get(key) || {
+      origin_owner_id: entry.source_owner_id,
+      origin_owner_username: entry.source_owner_username,
+      origin_owner_key: entry.source_owner_key,
+      amount: 0,
+      ledger_ids: [],
+    };
+    current.amount += entry.amount;
+    current.ledger_ids.push(entry.id);
+    groups.set(key, current);
+  }
+  return [...groups.values()].filter(entry => entry.amount > 0).slice(0, 80);
 }
 
 function buildRelationOptions() {
@@ -1067,6 +1175,19 @@ async function getCohabitationWarehouse(contractId, actor = {}) {
   };
 }
 
+async function getCohabitationFund(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看共同基金');
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+  };
+}
+
 async function depositCohabitationWarehouseItem(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -1166,6 +1287,107 @@ async function depositCohabitationWarehouseItem(contractId, payload = {}, actor 
       item_id: deposit.item_id,
       quality: deposit.quality,
       remaining_quantity: countDepositableMainInventoryItem(projectedData, deposit.item_id, deposit.quality),
+      personal_money_merged: false,
+    },
+  };
+}
+
+async function contributeCohabitationFund(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const contribution = normalizeFundContributionPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '向共同基金注资');
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  const previousEntry = contract.shared_fund.ledger.find(entry =>
+    entry.idempotency_key && entry.idempotency_key === contribution.idempotency_key && entry.action === 'contribution'
+  );
+  if (previousEntry) {
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      ledger_entry: previousEntry,
+      idempotent: true,
+      personal_money: {
+        personal_money_merged: false,
+      },
+    };
+  }
+
+  const context = getActiveSaveContext(
+    actorUsername,
+    contribution.save_slot,
+    '当前账号没有可用的桃源乡服务端存档，暂时无法向共同基金注资'
+  );
+  context.username = actorUsername;
+  const projectedData = JSON.parse(JSON.stringify(context.data));
+  const beforeMoney = getPlayerMoney(projectedData);
+  if (beforeMoney < contribution.amount) throw createError('个人铜币不足，暂时无法向共同基金注资');
+  projectedData.player.money = beforeMoney - contribution.amount;
+  const afterMoney = getPlayerMoney(projectedData);
+  if (afterMoney !== beforeMoney - contribution.amount) throw createError('个人铜币扣减校验失败，已中止本次共同基金注资', 500);
+
+  assignGameplayDataToContext(context, projectedData);
+  const saveRevision = persistGameplayData(context);
+  const sourceSaveId = normalizeSaveId(context.identity?.save_id);
+  const sourceSaveSlot = normalizeSaveSlot(context.slot);
+  const sourceOwnerId = sourceSaveId ? `save:${sourceSaveId}` : `account:${member.username_key}`;
+  if (sourceSaveId) member.save_id = sourceSaveId;
+  if (sourceSaveSlot !== null) member.save_slot = sourceSaveSlot;
+
+  const ledgerEntry = normalizeFundLedgerEntry({
+    id: makeId('shared_fund_ledger'),
+    action: 'contribution',
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    amount: contribution.amount,
+    at: nowSeconds(),
+    memo: contribution.memo,
+    purpose: contribution.purpose,
+    source_owner_id: sourceOwnerId,
+    source_owner_username: member.username,
+    source_owner_display_name: member.display_name || member.username,
+    source_owner_key: member.username_key,
+    source_save_id: sourceSaveId,
+    source_save_slot: sourceSaveSlot,
+    source_save_revision: saveRevision,
+    idempotency_key: contribution.idempotency_key,
+    reversible: true,
+    compensation_hint: '第一版仅支持注资与追溯；若误注资，需要后续返还流程或人工按 ledger 补偿。',
+    status: 'committed',
+  });
+  contract.shared_fund.balance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0)) + contribution.amount;
+  contract.shared_fund.ledger = [ledgerEntry, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+  contract.origin_assets.fund_contributions = [
+    buildFundOriginAsset(ledgerEntry),
+    ...contract.origin_assets.fund_contributions,
+  ].slice(0, FUND_ORIGIN_LIMIT);
+  appendAudit(contract, 'fund_contributed', actor, {
+    ledger_id: ledgerEntry.id,
+    amount: ledgerEntry.amount,
+    purpose: ledgerEntry.purpose,
+    source_owner_id: ledgerEntry.source_owner_id,
+    source_save_id: ledgerEntry.source_save_id,
+    source_save_slot: ledgerEntry.source_save_slot,
+    save_revision: saveRevision,
+    reversible: ledgerEntry.reversible,
+    spend_enabled: false,
+    remaining_money: afterMoney,
+  }, contribution.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    ledger_entry: ledgerEntry,
+    idempotent: false,
+    personal_money: {
+      remaining_money: afterMoney,
+      deducted_amount: contribution.amount,
       personal_money_merged: false,
     },
   };
@@ -1277,7 +1499,7 @@ async function acceptCohabitationContract(contractId, actor = {}) {
         memo: '共同基金已建立，个人铜币不合并。',
       },
       ...(contract.shared_fund.ledger || []),
-    ].slice(0, 120);
+    ].slice(0, FUND_LEDGER_LIMIT);
     appendAudit(contract, 'contract_activated', actor, {
       shared_manor_id: contract.shared_manor_id,
       fund_balance: contract.shared_fund.balance,
@@ -1295,6 +1517,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   if (!contract) throw createError('同居契约不存在', 404);
   if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
   if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效契约可以生成分居预览', 409);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
   const preview = normalizeSeparationPreview({
     id: makeId('separation_preview'),
     contract_id: contract.id,
@@ -1304,6 +1527,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     asset_return: {
       plots_by_origin_owner: [],
       warehouse_items_by_origin_owner: buildWarehouseReturnPreview(contract),
+      fund_contributions_by_origin_owner: buildFundReturnPreview(contract),
       fund_balance: contract.shared_fund.balance,
       fund_return_policy: contract.shared_fund.balance > 0 ? '按注资与经营流水拆分，缺流水时需双方确认。' : '共同基金当前为 0，不涉及返还。',
       personal_money_policy: '个人铜币从未合并，无需拆分。',
@@ -1332,7 +1556,9 @@ module.exports = {
   listCohabitationContracts,
   getCohabitationSharedMap,
   getCohabitationWarehouse,
+  getCohabitationFund,
   depositCohabitationWarehouseItem,
+  contributeCohabitationFund,
   createCohabitationContract,
   acceptCohabitationContract,
   createSeparationPreview,

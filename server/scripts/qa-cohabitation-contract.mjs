@@ -277,6 +277,74 @@ assert.equal(duplicateDeposit.idempotent, true, 'same warehouse deposit idempote
 assert.equal(getInventoryItemQuantity(owner, 'rice'), 4, 'idempotent warehouse deposit should not deduct rice twice')
 assert.equal(duplicateDeposit.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 2, 'idempotent warehouse deposit should not duplicate stock')
 
+const initialFundResult = await runtime.getCohabitationFund(created.contract.id, actor(owner))
+assert.equal(initialFundResult.fund.balance, 0, 'fresh shared fund should have zero balance')
+assert.equal(initialFundResult.fund.summary.personal_money_merged, false, 'shared fund must not merge personal money')
+assert.equal(initialFundResult.fund.summary.contribution_enabled, true, 'active members should be able to contribute to fund')
+assert.equal(initialFundResult.fund.summary.spend_enabled, false, 'fund spending should stay disabled in the first pass')
+assert.equal(initialFundResult.fund.summary.idempotency_required, true, 'fund contribution should require idempotency key')
+
+const ownerFundBefore = readGameplayData(owner)?.player?.money
+assert.equal(ownerFundBefore, 1000, 'owner money should still be untouched before fund contribution')
+const ownerFundContribution = await runtime.contributeCohabitationFund(created.contract.id, {
+  amount: 120,
+  purpose: 'seed_budget',
+  memo: 'qa owner fund contribution',
+  idempotency_key: 'qa-fund-contribution-owner',
+}, actor(owner))
+assert.equal(ownerFundContribution.idempotent, false, 'first fund contribution should not be idempotent')
+assert.equal(ownerFundContribution.fund.balance, 120, 'owner contribution should increase shared fund balance')
+assert.equal(ownerFundContribution.personal_money.remaining_money, 880, 'fund contribution should deduct owner personal money once')
+assert.equal(readGameplayData(owner)?.player?.money, 880, 'owner save should persist deducted money')
+assert.equal(ownerFundContribution.ledger_entry.action, 'contribution', 'fund ledger should record contribution action')
+assert.equal(ownerFundContribution.ledger_entry.amount, 120, 'fund ledger should keep contribution amount')
+assert.equal(ownerFundContribution.ledger_entry.purpose, 'seed_budget', 'fund ledger should keep purpose')
+assert.equal(ownerFundContribution.ledger_entry.source_owner_username, owner, 'fund ledger should keep source owner username')
+assert.equal(ownerFundContribution.ledger_entry.source_save_slot, 0, 'fund ledger should keep source save slot')
+assert.match(String(ownerFundContribution.ledger_entry.source_owner_id || ''), /^save:\d{9}$/, 'fund ledger should keep traceable save owner id')
+assert.equal(ownerFundContribution.ledger_entry.idempotency_key, 'qa-fund-contribution-owner', 'fund ledger should keep idempotency key')
+assert.ok(ownerFundContribution.contract.origin_assets.fund_contributions.some(item => item.ledger_id === ownerFundContribution.ledger_entry.id), 'origin assets should reference fund contribution ledger')
+assert.ok(ownerFundContribution.contract.audit_log.find(entry => entry.action === 'fund_contributed'), 'fund contribution should be audited')
+
+const duplicateFundContribution = await runtime.contributeCohabitationFund(created.contract.id, {
+  amount: 120,
+  purpose: 'seed_budget',
+  memo: 'qa duplicate owner fund contribution',
+  idempotency_key: 'qa-fund-contribution-owner',
+}, actor(owner))
+assert.equal(duplicateFundContribution.idempotent, true, 'same fund contribution idempotency key should be idempotent')
+assert.equal(duplicateFundContribution.fund.balance, 120, 'idempotent fund contribution should not duplicate balance')
+assert.equal(readGameplayData(owner)?.player?.money, 880, 'idempotent fund contribution should not deduct money twice')
+
+const partnerFundContribution = await runtime.contributeCohabitationFund(created.contract.id, {
+  amount: 80,
+  purpose: 'bridge_materials',
+  idempotency_key: 'qa-fund-contribution-partner',
+}, actor(partner))
+assert.equal(partnerFundContribution.fund.balance, 200, 'partner contribution should add to shared fund balance')
+assert.equal(partnerFundContribution.personal_money.remaining_money, 920, 'partner personal money should be deducted once')
+assert.equal(readGameplayData(partner)?.player?.money, 920, 'partner save should persist deducted money')
+
+const ownerMoneyBeforeFailedFund = readGameplayData(owner)?.player?.money
+await assert.rejects(
+  () => runtime.contributeCohabitationFund(created.contract.id, {
+    amount: 999999,
+    idempotency_key: 'qa-fund-insufficient-money',
+  }, actor(owner)),
+  error => error?.status === 400 && String(error.message || '').includes('个人铜币不足'),
+  'fund contribution should reject insufficient personal money'
+)
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeFailedFund, 'failed fund contribution should not deduct money')
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, 200, 'failed fund contribution should not change balance')
+
+await assert.rejects(
+  () => runtime.contributeCohabitationFund(created.contract.id, {
+    amount: 1,
+  }, actor(owner)),
+  error => error?.status === 400 && String(error.message || '').includes('idempotency_key'),
+  'fund contribution should require an idempotency key'
+)
+
 const partnerWarehouseRead = await runtime.getCohabitationWarehouse(created.contract.id, actor(partner))
 assert.equal(partnerWarehouseRead.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 2, 'partner should read shared warehouse stock')
 
@@ -295,6 +363,15 @@ await assert.rejects(
   }, actor(extra)),
   error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
   'non-members should not deposit into a cohabitation warehouse'
+)
+
+await assert.rejects(
+  () => runtime.contributeCohabitationFund(created.contract.id, {
+    amount: 1,
+    idempotency_key: 'qa-non-member-fund-contribution',
+  }, actor(extra)),
+  error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
+  'non-members should not contribute to a cohabitation fund'
 )
 
 await assert.rejects(
@@ -347,6 +424,11 @@ await assert.rejects(
   'pending contracts should not expose shared warehouse'
 )
 await assert.rejects(
+  () => runtime.getCohabitationFund(pendingContract.contract.id, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not expose shared fund'
+)
+await assert.rejects(
   () => runtime.depositCohabitationWarehouseItem(pendingContract.contract.id, {
     item_id: 'rice',
     quantity: 1,
@@ -356,6 +438,14 @@ await assert.rejects(
   error => error?.status === 409 && String(error.message || '').includes('已生效'),
   'pending contracts should not accept warehouse deposits'
 )
+await assert.rejects(
+  () => runtime.contributeCohabitationFund(pendingContract.contract.id, {
+    amount: 1,
+    idempotency_key: 'qa-pending-fund-contribution',
+  }, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not accept fund contributions'
+)
 
 const previewResult = await runtime.createSeparationPreview(created.contract.id, {
   reason: 'qa preview',
@@ -363,6 +453,9 @@ const previewResult = await runtime.createSeparationPreview(created.contract.id,
 assert.equal(previewResult.preview.requires_both_confirm, true, 'separation preview should require both confirmations')
 assert.match(previewResult.preview.asset_return.personal_money_policy, /个人铜币/, 'preview should preserve personal money boundary')
 assert.ok(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'rice' && item.quantity === 2), 'separation preview should include warehouse item source summary')
+assert.equal(previewResult.preview.asset_return.fund_balance, 200, 'separation preview should include current fund balance')
+assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.amount === 120), 'separation preview should include owner fund contribution source summary')
+assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.amount === 80), 'separation preview should include partner fund contribution source summary')
 assert.equal(previewResult.contract.status, 'active', 'preview should not execute separation')
 assert.ok(previewResult.contract.audit_log.find(entry => entry.action === 'separation_preview_created'), 'preview should be audited')
 
