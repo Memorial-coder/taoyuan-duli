@@ -22,13 +22,43 @@
         :class="[
           `visual-map-board__node--${node.state}`,
           { 'visual-map-board__node--selected': node.id === activeNodeId },
+          { 'visual-map-board__node--current': node.id === currentNode?.id },
         ]"
         :style="{ left: `${node.x}%`, top: `${node.y}%` }"
+        :aria-label="nodeAriaLabel(node)"
         :title="nodeTooltip(node)"
         @click="selectNode(node.id)"
       >
         <component :is="nodeIcon(node)" :size="15" aria-hidden="true" />
         <span class="visual-map-board__node-label">{{ node.label || node.kind || node.id }}</span>
+      </button>
+
+      <div
+        v-if="currentNode"
+        class="visual-map-board__party-marker"
+        :style="{ left: `${currentNode.x}%`, top: `${currentNode.y}%` }"
+        aria-hidden="true"
+      >
+        <MapPin :size="13" />
+        <span>队伍</span>
+      </div>
+    </div>
+
+    <div v-if="visibleNodes.length > 0" class="visual-map-board__mobile-list" aria-label="地图节点列表">
+      <button
+        v-for="node in visibleNodes"
+        :key="`mobile-${node.id}`"
+        type="button"
+        class="visual-map-board__mobile-node"
+        :class="{
+          'visual-map-board__mobile-node--selected': node.id === activeNodeId,
+          'visual-map-board__mobile-node--current': node.id === currentNode?.id,
+        }"
+        @click="selectNode(node.id)"
+      >
+        <component :is="nodeIcon(node)" :size="14" aria-hidden="true" />
+        <span>{{ node.label || node.kind || node.id }}</span>
+        <small>{{ node.id === currentNode?.id ? '队伍所在' : stateLabel(node.state) }}</small>
       </button>
     </div>
 
@@ -38,6 +68,7 @@
           <div class="min-w-0">
             <p class="visual-map-board__title">{{ selectedNode.label || selectedNode.id }}</p>
             <p class="visual-map-board__meta">{{ stateLabel(selectedNode.state) }} · {{ selectedNode.kind || 'node' }}</p>
+            <p v-if="selectedNode.id === currentNode?.id" class="visual-map-board__current-text">队伍当前位置</p>
           </div>
           <span v-if="selectedNode.claimed_by || selectedNode.owner_username" class="visual-map-board__claim">
             {{ selectedNode.claimed_by || selectedNode.owner_username }}
@@ -81,7 +112,7 @@
         <span>选择一个节点</span>
       </div>
 
-      <p v-if="recentFeedback" class="visual-map-board__feedback">{{ recentFeedback }}</p>
+      <p v-if="recentFeedback" :key="feedbackAnimationKey" class="visual-map-board__feedback">{{ recentFeedback }}</p>
     </div>
   </section>
 </template>
@@ -95,12 +126,16 @@
   const props = withDefaults(defineProps<{
     nodes: OnlineVisualNode[]
     selectedNodeId?: string
+    currentNodeId?: string
     recentFeedback?: string
+    revision?: number
     actionRunning?: boolean
     actionLabels?: Record<string, string>
   }>(), {
     selectedNodeId: '',
+    currentNodeId: '',
     recentFeedback: '',
+    revision: 0,
     actionRunning: false,
     actionLabels: () => ({}),
   })
@@ -117,6 +152,8 @@
     return visibleNodes.value[0]?.id || ''
   })
   const selectedNode = computed(() => nodeById.value.get(activeNodeId.value) || null)
+  const currentNode = computed(() => (props.currentNodeId ? nodeById.value.get(props.currentNodeId) : null) || null)
+  const feedbackAnimationKey = computed(() => `${props.revision}:${props.recentFeedback}`)
 
   const visibleLinks = computed(() => {
     const seen = new Set<string>()
@@ -162,7 +199,14 @@
   const nodeTooltip = (node: OnlineVisualNode) => {
     const label = node.label || node.id
     const status = stateLabel(node.state)
-    return node.risk_preview ? `${label} · ${status} · ${node.risk_preview}` : `${label} · ${status}`
+    const current = node.id === currentNode.value?.id ? ' · 队伍当前位置' : ''
+    return node.risk_preview ? `${label} · ${status}${current} · ${node.risk_preview}` : `${label} · ${status}${current}`
+  }
+
+  const nodeAriaLabel = (node: OnlineVisualNode) => {
+    const label = node.label || node.id
+    const current = node.id === currentNode.value?.id ? '，队伍当前位置' : ''
+    return `${label}，${stateLabel(node.state)}${current}`
   }
 
   const actionLabel = (actionId: string) => props.actionLabels[actionId] || actionId.split('_').join(' ')
@@ -250,6 +294,11 @@
     background: color-mix(in srgb, var(--color-accent) 18%, transparent);
   }
 
+  .visual-map-board__node--current {
+    border-color: color-mix(in srgb, var(--color-success) 78%, transparent);
+    box-shadow: 0 0.4rem 1.2rem rgb(0 0 0 / 0.2), 0 0 0 3px color-mix(in srgb, var(--color-success) 18%, transparent);
+  }
+
   .visual-map-board__node--locked {
     color: var(--color-muted);
     border-color: color-mix(in srgb, var(--color-muted) 22%, transparent);
@@ -271,6 +320,42 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .visual-map-board__party-marker {
+    position: absolute;
+    z-index: 2;
+    display: inline-flex;
+    min-height: 1.45rem;
+    translate: -50% calc(-100% - 0.65rem);
+    align-items: center;
+    gap: 0.2rem;
+    border: 1px solid color-mix(in srgb, var(--color-success) 62%, transparent);
+    background: rgb(var(--color-bg) / 0.94);
+    color: var(--color-success);
+    padding: 0.15rem 0.4rem;
+    font-size: 0.65rem;
+    line-height: 1;
+    pointer-events: none;
+    box-shadow: 0 0.35rem 1rem rgb(0 0 0 / 0.22);
+  }
+
+  .visual-map-board__party-marker::after {
+    position: absolute;
+    left: 50%;
+    bottom: -0.35rem;
+    width: 0.5rem;
+    height: 0.5rem;
+    translate: -50% 0;
+    rotate: 45deg;
+    border-right: 1px solid color-mix(in srgb, var(--color-success) 62%, transparent);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-success) 62%, transparent);
+    background: rgb(var(--color-bg) / 0.94);
+    content: '';
+  }
+
+  .visual-map-board__mobile-list {
+    display: none;
   }
 
   .visual-map-board__side {
@@ -307,6 +392,7 @@
   .visual-map-board__meta,
   .visual-map-board__claim,
   .visual-map-board__resource,
+  .visual-map-board__current-text,
   .visual-map-board__feedback {
     color: var(--color-muted);
     font-size: 0.68rem;
@@ -316,6 +402,11 @@
   .visual-map-board__claim {
     flex-shrink: 0;
     color: var(--color-accent);
+  }
+
+  .visual-map-board__current-text {
+    margin-top: 0.18rem;
+    color: var(--color-success);
   }
 
   .visual-map-board__preview-grid,
@@ -365,6 +456,24 @@
     font-size: 0.75rem;
   }
 
+  .visual-map-board__feedback {
+    animation: visual-map-feedback-pop 0.34s ease-out;
+  }
+
+  @keyframes visual-map-feedback-pop {
+    from {
+      border-color: color-mix(in srgb, var(--color-success) 44%, transparent);
+      background: color-mix(in srgb, var(--color-success) 12%, transparent);
+      transform: translateY(0.2rem);
+      opacity: 0.35;
+    }
+
+    to {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
   @media (max-width: 760px) {
     .visual-map-board {
       grid-template-columns: 1fr;
@@ -373,6 +482,48 @@
     .visual-map-board__canvas {
       min-height: 16rem;
       overflow-x: auto;
+    }
+
+    .visual-map-board__mobile-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 0.45rem;
+    }
+
+    .visual-map-board__mobile-node {
+      display: grid;
+      min-height: 3.2rem;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 0.25rem 0.4rem;
+      border: 1px solid color-mix(in srgb, var(--color-accent) 16%, transparent);
+      background: rgb(0 0 0 / 0.1);
+      color: rgb(var(--color-text));
+      padding: 0.45rem;
+      text-align: left;
+    }
+
+    .visual-map-board__mobile-node span {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      font-size: 0.72rem;
+    }
+
+    .visual-map-board__mobile-node small {
+      grid-column: 2;
+      color: var(--color-muted);
+      font-size: 0.62rem;
+      line-height: 1;
+    }
+
+    .visual-map-board__mobile-node--selected {
+      border-color: color-mix(in srgb, var(--color-accent) 68%, transparent);
+      background: color-mix(in srgb, var(--color-accent) 12%, transparent);
+    }
+
+    .visual-map-board__mobile-node--current {
+      border-color: color-mix(in srgb, var(--color-success) 58%, transparent);
     }
   }
 </style>

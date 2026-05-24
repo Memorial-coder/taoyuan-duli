@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 协作矿洞节点图收口
+- `VisualMapBoard` 新增队伍当前位置标记，直接读取服务端 `visual_state.selected_visual_id`，并在选中详情和移动端列表中标注“队伍所在”。
+- 地图节点新增移动端列表降级和行动反馈短动效；反馈使用 `visual_state.revision + recent_feedback` 触发，便于队友行动后看见变化。
+- 远征房间有节点动作时，旧全局玩法动作卡只作为无地图 / 无节点动作时的降级入口，协作矿洞主操作改为点击节点后在详情区执行。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 随机 NPC 文游对话第一版
 - 新增 `RANDOM_NPC_LONG_STAY_STORY_EVENTS`，按商学暂住、照料驻村、手艺驻村、邻里常驻四条路线各提供 3 段长住事件；每段事件包含标题、开场和三种回应。
 - 长住 NPC 现在可以在人物卡中推进当前文游事件；玩家每天最多推进一段，选择会写回好感、关系标签、阶段、已完成事件 ID 和关键事件。

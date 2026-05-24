@@ -99,6 +99,8 @@
             v-if="expeditionVisualMapNodes.length > 0"
             :nodes="expeditionVisualMapNodes"
             :selected-node-id="selectedExpeditionVisualNodeId"
+            :current-node-id="currentExpeditionVisualNodeId"
+            :revision="expeditionRoomStore.myRoom.visual_state.revision"
             :recent-feedback="expeditionRoomStore.myRoom.visual_state.recent_feedback || expeditionRoomStore.myRoom.gameplay.cavern_state?.recent_feedback || ''"
             :action-running="expeditionRoomStore.actionRunning"
             :action-labels="expeditionVisualActionLabels"
@@ -163,8 +165,11 @@
             </div>
           </label>
 
-          <div v-if="expeditionRoomStore.myRoom.gameplay.available_actions.length > 0" class="space-y-2">
-            <p class="text-[10px] text-muted">玩法动作</p>
+          <div
+            v-if="expeditionRoomStore.myRoom.gameplay.available_actions.length > 0 && (expeditionVisualMapNodes.length === 0 || !hasExpeditionVisualNodeActions)"
+            class="space-y-2"
+          >
+            <p class="text-[10px] text-muted">降级玩法动作</p>
             <div
               v-for="action in expeditionRoomStore.myRoom.gameplay.available_actions"
               :key="`${expeditionRoomStore.myRoom.id}-${action.id}`"
@@ -466,6 +471,19 @@
     return createMockCavernNodes()
   })
 
+  const currentExpeditionVisualNodeId = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return ''
+    const nodes = expeditionVisualMapNodes.value
+    if (room.visual_state.selected_visual_id && nodes.some(node => node.id === room.visual_state.selected_visual_id)) {
+      return room.visual_state.selected_visual_id
+    }
+    return nodes.find(node => node.state === 'active')?.id || ''
+  })
+
+  const hasExpeditionVisualNodeActions = computed(() => expeditionVisualMapNodes.value
+    .some(node => node.available_action_ids.length > 0))
+
   const expeditionVisualActionLabels = computed(() => {
     const room = expeditionRoomStore.myRoom
     if (!room) return {}
@@ -543,7 +561,7 @@
     }
     const firstNode = nodes[0]
     if (firstNode && !nodes.some(node => node.id === selectedExpeditionVisualNodeId.value)) {
-      selectedExpeditionVisualNodeId.value = firstNode.id
+      selectedExpeditionVisualNodeId.value = currentExpeditionVisualNodeId.value || firstNode.id
     }
   }, { immediate: true })
 </script>
