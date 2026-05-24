@@ -5,6 +5,7 @@ import { FISH, FISHING_LOCATIONS, getFishById } from './fish'
 import { FRUIT_TREE_DEFS } from './fruitTrees'
 import { getItemById, getItemSource } from './items'
 import { PROCESSING_RECIPES, PROCESSING_MACHINES, SPRINKLERS, FERTILIZERS, BAITS, TACKLES, BOMBS } from './processing'
+import { RECIPES } from './recipes'
 import { getCollectionUsageText, getUndiscoveredCollectionHint } from './collectionRegistry'
 import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, getCropUseProfile, getCropUseTagLabels } from './cropUseProfiles'
 
@@ -195,10 +196,13 @@ export const getItemProducedBy = (itemId: string): string[] => {
 }
 
 export const getItemUsedIn = (itemId: string): string[] => {
-  return PROCESSING_RECIPES.filter(recipe => recipe.inputItemId === itemId || recipe.extraInputs?.some(entry => entry.itemId === itemId)).map(recipe => {
+  const processingUses = PROCESSING_RECIPES.filter(recipe => recipe.inputItemId === itemId || recipe.extraInputs?.some(entry => entry.itemId === itemId)).map(recipe => {
     const machine = PROCESSING_MACHINES.find(entry => entry.id === recipe.machineType)
     return `${machine?.name ?? recipe.machineType}：${recipe.name} → ${getItemName(recipe.outputItemId)}`
   })
+  const cookingUses = RECIPES.filter(recipe => recipe.ingredients.some(entry => entry.itemId === itemId)).map(recipe => `料理：${recipe.name}`)
+
+  return uniqueStrings([...processingUses, ...cookingUses])
 }
 
 export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {
@@ -249,6 +253,12 @@ export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {
     .slice(0, 4)
     .forEach(recipe => {
       relatedIds.push(getGlossaryEntryIdForItemId(recipe.outputItemId))
+    })
+
+  RECIPES.filter(recipe => recipe.ingredients.some(entry => entry.itemId === item.id))
+    .slice(0, 4)
+    .forEach(recipe => {
+      relatedIds.push(getGlossaryEntryIdForItemId(`food_${recipe.id}`))
     })
 
   return uniqueStrings(relatedIds.filter(id => id !== getGlossaryEntryIdForItemId(item.id)))

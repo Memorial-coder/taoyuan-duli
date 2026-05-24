@@ -283,6 +283,56 @@ export const RECIPES: RecipeDef[] = [
     requiredSkill: { type: 'farming', level: 3 },
     description: '清香四溢的桂花藕粉。'
   },
+  {
+    id: 'rice_flour_roll',
+    name: '米粉卷',
+    ingredients: [
+      { itemId: 'rice_flour', quantity: 1 },
+      { itemId: 'dried_radish', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 28,
+      healthRestore: 10,
+      buff: { type: 'speed', value: 8, description: '行动速度+8%（当天）' }
+    },
+    unlockSource: '加工链第一批',
+    requiredSkill: { type: 'farming', level: 2 },
+    description: '米粉包着脆香萝卜干，适合作为赶路时的轻便餐。'
+  },
+  {
+    id: 'sesame_tangyuan',
+    name: '芝麻汤圆',
+    ingredients: [
+      { itemId: 'rice_flour', quantity: 1 },
+      { itemId: 'sesame_paste', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 36,
+      healthRestore: 15,
+      buff: { type: 'giftBonus', value: 1, description: '送礼好感+1（当天）' }
+    },
+    unlockSource: '加工链第一批',
+    requiredSkill: { type: 'farming', level: 3 },
+    description: '用米粉和芝麻酱做成的圆子，甜润讨喜，适合节前待客。'
+  },
+  {
+    id: 'spicy_pumpkin_ration',
+    name: '赛舟辣南瓜饭',
+    ingredients: [
+      { itemId: 'pumpkin_preserve', quantity: 1 },
+      { itemId: 'pickled_chili', quantity: 1 },
+      { itemId: 'sesame_oil', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 42,
+      healthRestore: 18,
+      buff: { type: 'farming', value: 8, description: '农耕体力消耗-8%（当天）' }
+    },
+    unlockSource: '加工链第一批',
+    requiredSkill: { type: 'farming', level: 4 },
+    description: '南瓜酱压住泡椒的冲劲，适合农忙或赛舟前补一口热量。'
+  },
 
   // ==================== 新增初始食谱 (8) ====================
   {
