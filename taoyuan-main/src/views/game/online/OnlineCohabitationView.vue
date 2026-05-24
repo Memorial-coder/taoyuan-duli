@@ -274,6 +274,40 @@
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">取出：{{ cohabitationStore.warehouse?.summary.withdraw_enabled ? '开放' : '暂缓' }}</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">卖出：{{ cohabitationStore.warehouse?.summary.sell_enabled ? '开放' : '暂缓' }}</p>
             </div>
+            <div class="mt-3 border border-accent/10 bg-black/10 p-2">
+              <p class="text-xs text-accent">放入普通物品</p>
+              <div class="mt-2 grid gap-2">
+                <select
+                  v-model="warehouseDepositItemId"
+                  class="online-select text-xs"
+                  data-testid="online-cohabitation-warehouse-deposit-item"
+                >
+                  <option v-for="option in warehouseDepositOptions" :key="option.itemId" :value="option.itemId">
+                    {{ option.label }}
+                  </option>
+                </select>
+                <div class="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <input
+                    v-model.number="warehouseDepositQuantity"
+                    type="number"
+                    min="1"
+                    max="99"
+                    step="1"
+                    class="online-input text-xs"
+                    data-testid="online-cohabitation-warehouse-deposit-quantity"
+                  >
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    :disabled="!canDepositWarehouseItem || cohabitationStore.actionLoading"
+                    data-testid="online-cohabitation-warehouse-deposit-submit"
+                    @click="depositWarehouseItem"
+                  >
+                    放入仓库
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
           <div class="game-panel-muted p-3">
             <p class="text-sm text-accent">最近流水</p>
@@ -508,6 +542,8 @@
   const lastRefreshAttemptAt = ref(0)
   const warehouseActionMessage = ref('')
   const warehouseActionOk = ref(false)
+  const warehouseDepositItemId = ref('rice')
+  const warehouseDepositQuantity = ref(1)
   const fundActionMessage = ref('')
   const fundActionOk = ref(false)
   const fundContributionAmount = ref(50)
@@ -571,6 +607,27 @@
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
   const actorCapabilityEntries = computed(() => Object.entries(cohabitationStore.offlineStatus?.actor_capabilities ?? {})
     .map(([key, enabled]) => ({ key, enabled: enabled === true })))
+  const warehouseItemLabels: Record<string, string> = {
+    rice: '稻米',
+    wheat: '小麦',
+    corn: '玉米',
+    tea: '茶叶',
+    lotus: '莲藕',
+    turnip: '芜菁',
+    carrot: '胡萝卜',
+    radish: '萝卜',
+    sweet_potato: '红薯',
+    pumpkin: '南瓜',
+    sesame: '芝麻',
+    peach: '桃子',
+    chili: '辣椒',
+    wood: '木材',
+    stone: '石料',
+    clay: '黏土',
+    coal: '煤炭',
+    copper_ore: '铜矿石',
+    iron_ore: '铁矿石',
+  }
   const warehouseSellPriceByItemId: Record<string, number> = {
     rice: 35,
     wheat: 55,
@@ -592,6 +649,19 @@
     copper_ore: 45,
     iron_ore: 70,
   }
+  const warehouseDepositOptions = Object.keys(warehouseSellPriceByItemId).map(itemId => ({
+    itemId,
+    label: warehouseItemLabels[itemId] ? `${warehouseItemLabels[itemId]}（${itemId}）` : itemId,
+  }))
+  const normalizedWarehouseDepositQuantity = computed(() => Math.max(0, Math.floor(Number(warehouseDepositQuantity.value) || 0)))
+  const canDepositWarehouseItem = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.warehouse?.summary.deposit_enabled === true &&
+    cohabitationStore.warehouse?.permissions.can_deposit === true &&
+    Boolean(warehouseDepositItemId.value) &&
+    normalizedWarehouseDepositQuantity.value > 0 &&
+    normalizedWarehouseDepositQuantity.value <= 99
+  )
   const normalizedFundContributionAmount = computed(() => Math.max(0, Math.floor(Number(fundContributionAmount.value) || 0)))
   const canUseFundContribution = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
@@ -655,6 +725,33 @@
   }
 
   const warehouseSellUnitPrice = (itemId: string) => warehouseSellPriceByItemId[itemId] ?? 0
+
+  const depositWarehouseItem = async () => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    const quantity = normalizedWarehouseDepositQuantity.value
+    const itemId = warehouseDepositItemId.value
+    if (!itemId || quantity <= 0) {
+      warehouseActionMessage.value = '请选择要放入的普通物品和数量'
+      return
+    }
+    try {
+      const result = await cohabitationStore.depositSharedWarehouseItem({
+        item_id: itemId,
+        quantity,
+        quality: 'normal',
+        idempotency_key: `ui-warehouse-deposit-${itemId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      warehouseActionOk.value = true
+      const remaining = result?.personal_inventory?.remaining_quantity
+      const label = warehouseItemLabels[itemId] || itemId
+      warehouseActionMessage.value = typeof remaining === 'number'
+        ? `已放入 ${label} x${quantity}，个人背包剩余 ${remaining} 个`
+        : `已放入 ${label} x${quantity}`
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '放入共同仓库物品失败'
+    }
+  }
 
   const canSellWarehouseItem = (item: CohabitationWarehouseItem) =>
     cohabitationStore.canOpenSelectedContract &&

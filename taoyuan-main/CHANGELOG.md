@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 共同仓库普通放入前端入口
+- 共同庄园仓库页新增普通物品白名单放入表单，可选择物品和数量调用 `warehouse/deposit`。
+- 前端 API / store 已接 `warehouse/deposit` 写接口，提交带 CSRF 与 `idempotency_key`；成功后刷新共同仓库、契约摘要和流水，并提示个人背包剩余数量。
+- 库存、普通品质、保护物品和权限仍由服务端权威校验；共同经营产出自动入仓仍未开放。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 共同仓库普通取出前端入口
 - 共同庄园仓库页新增普通物品取出按钮，可按 `warehouse/withdraw` 将 1 个普通物品取回操作者个人背包。
 - 前端 API / store 已接 `warehouse/withdraw` 写接口，提交带 CSRF 与 `idempotency_key`；成功后刷新共同仓库、契约摘要和流水，并提示个人背包现有数量。

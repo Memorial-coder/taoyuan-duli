@@ -2,6 +2,7 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
   contributeCohabitationFund,
+  depositCohabitationWarehouseItem,
   fetchCohabitationFund,
   fetchCohabitationOfflineStatus,
   fetchCohabitationOverview,
@@ -192,6 +193,34 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const depositSharedWarehouseItem = async (payload: {
+    item_id: string
+    quantity: number
+    quality?: string
+    idempotency_key: string
+  }) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await depositCohabitationWarehouseItem(activeContractId.value, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '放入共同仓库物品失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const sellSharedWarehouseItem = async (payload: {
     item_id: string
     quantity: number
@@ -273,6 +302,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     refreshAll,
     contributeSharedFund,
     spendSharedFund,
+    depositSharedWarehouseItem,
     sellSharedWarehouseItem,
     withdrawSharedWarehouseItem,
   }
