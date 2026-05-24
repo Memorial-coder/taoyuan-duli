@@ -169,6 +169,73 @@ const FAMILY_REPUTATION_LEVELS = Object.freeze([
   { id: 'renowned', label: '桃源名门', min_points: 120, next_points: null },
 ]);
 
+const FAMILY_FESTIVAL_SEAT_ROLE_DEFS = Object.freeze({
+  family_head: { id: 'host_caller', label: '主事席', festival_role: 'caller', summary: '负责开场、确认席位和高风险节会决策预览。' },
+  storage_keeper: { id: 'supply_keeper', label: '供给席', festival_role: 'support', summary: '负责节会物资、共同仓库供给和补偿清单预览。' },
+  farm_steward: { id: 'material_provider', label: '备料席', festival_role: 'member', summary: '负责作物、食材和节会供品预览。' },
+  animal_keeper: { id: 'hospitality_keeper', label: '迎客席', festival_role: 'member', summary: '负责动物产物、来客照料和秩序协作预览。' },
+  workshop_keeper: { id: 'stage_builder', label: '搭场席', festival_role: 'builder', summary: '负责灯架、赛道、摊位和舞台搭建预览。' },
+  treasurer: { id: 'budget_scribe', label: '账房席', festival_role: 'scribe', summary: '负责预算、礼券和结算凭证预览。' },
+});
+
+const FAMILY_FESTIVAL_SEAT_TEMPLATE_DEFS = Object.freeze([
+  {
+    id: 'lantern_fair',
+    label: '上元灯会',
+    visual_type: 'scene',
+    member_limit: 4,
+    recommended_roles: ['family_head', 'workshop_keeper', 'farm_steward', 'storage_keeper'],
+    unlock_source: 'festival_room',
+    summary: '适合家族成员预排主灯、灯谜架、彩绳和摊位分工。',
+  },
+  {
+    id: 'dragon_boat',
+    label: '端午赛舟',
+    visual_type: 'track',
+    member_limit: 4,
+    recommended_roles: ['family_head', 'farm_steward', 'animal_keeper', 'workshop_keeper'],
+    unlock_source: 'festival_room',
+    summary: '适合家族成员预排鼓点、稳舵、划桨和喝彩席位。',
+  },
+  {
+    id: 'laba_cookpot',
+    label: '腊八共煮',
+    visual_type: 'scene',
+    member_limit: 4,
+    recommended_roles: ['storage_keeper', 'farm_steward', 'treasurer', 'family_head'],
+    unlock_source: 'festival_room',
+    summary: '适合预排食材、灶火、预算和收尾纪念分工。',
+  },
+  {
+    id: 'mid_autumn_moonwatch',
+    label: '中秋赏月',
+    visual_type: 'scene',
+    member_limit: 4,
+    recommended_roles: ['family_head', 'workshop_keeper', 'treasurer', 'farm_steward'],
+    unlock_source: 'festival_room',
+    summary: '适合预排赏月席、供品、留影和纪念凭证。',
+  },
+  {
+    id: 'yuanri_vigil',
+    label: '元日守岁',
+    visual_type: 'scene',
+    member_limit: 4,
+    recommended_roles: ['family_head', 'storage_keeper', 'treasurer', 'animal_keeper'],
+    unlock_source: 'festival_room',
+    summary: '适合预排守岁、火盆、迎客和公共进度席位。',
+  },
+  {
+    id: 'qixi_stroll',
+    label: '七夕同游',
+    visual_type: 'scene',
+    member_limit: 2,
+    recommended_roles: ['family_head', 'treasurer'],
+    unlock_source: 'festival_room',
+    family_compatible: false,
+    summary: '七夕同游偏双人关系，不作为家族多人席位默认入口。',
+  },
+]);
+
 function nowSeconds() {
   return Math.floor(Date.now() / 1000);
 }
@@ -1626,6 +1693,239 @@ function buildFamilyReputationSnapshot(contract, actorUsername = '') {
   };
 }
 
+function resolveFamilyFestivalSeatRole(manorRole) {
+  return FAMILY_FESTIVAL_SEAT_ROLE_DEFS[manorRole] || FAMILY_FESTIVAL_SEAT_ROLE_DEFS.farm_steward;
+}
+
+function buildFamilyFestivalSeatMemberSnapshot(contract, member, enabled = isFamilyRoleContractType(contract.type), index = 0) {
+  const manorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const roleDef = enabled ? getFamilyManorRoleDef(manorRole) : null;
+  const seatRole = resolveFamilyFestivalSeatRole(manorRole);
+  const permissions = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  const canPrepareSupplies = permissions.storage.deposit === true
+    || permissions.farm.harvest === true
+    || permissions.animal.collect_product === true
+    || permissions.construction.move_common === true;
+  return {
+    username: member.username,
+    username_key: member.username_key,
+    display_name: member.display_name,
+    role: member.role,
+    status: member.status,
+    manor_role: manorRole,
+    manor_role_label: roleDef?.label || '',
+    seat_id: enabled ? `family_seat_${index + 1}` : '',
+    seat_index: enabled ? index + 1 : 0,
+    seat_label: enabled ? seatRole.label : '',
+    festival_role: enabled ? seatRole.festival_role : '',
+    seat_summary: enabled ? seatRole.summary : '',
+    seat_state: enabled && member.status === 'accepted' ? 'preview_ready' : 'disabled',
+    seat_permissions: {
+      can_view_festival_seats: enabled && member.status === 'accepted',
+      can_manage_seat_rules_preview: enabled && manorRole === 'family_head',
+      can_prepare_supplies_preview: enabled && canPrepareSupplies,
+      can_review_budget_preview: enabled && ['family_head', 'treasurer'].includes(manorRole),
+      can_open_festival_room: false,
+      can_reserve_family_seat: false,
+      can_spend_shared_fund_for_festival: false,
+      can_claim_festival_reward: false,
+    },
+  };
+}
+
+function buildFamilyFestivalSeatTemplates(enabled) {
+  return FAMILY_FESTIVAL_SEAT_TEMPLATE_DEFS.map(template => {
+    const familyCompatible = template.family_compatible !== false && template.member_limit >= 4;
+    return {
+      id: template.id,
+      label: template.label,
+      visual_type: template.visual_type,
+      member_limit: template.member_limit,
+      family_compatible: familyCompatible,
+      available: enabled && familyCompatible,
+      binding_enabled: false,
+      room_create_enabled: false,
+      reward_enabled: false,
+      unlock_source: template.unlock_source,
+      recommended_roles: [...template.recommended_roles],
+      summary: template.summary,
+      disabled_reason: enabled
+        ? (familyCompatible ? '' : '该模板偏双人关系，不纳入家族多人席位默认入口。')
+        : '当前契约不是结拜庄园或合伙庄园。',
+    };
+  });
+}
+
+function buildFamilyFestivalSeatScenePreview(contract, members, enabled, revision) {
+  const acceptedMembers = members.filter(member => member.status === 'accepted');
+  return {
+    board_type: 'scene',
+    board_id: `family_festival_seats:${contract.id}`,
+    revision,
+    selected_visual_id: 'family_festival_banner',
+    recent_feedback: enabled
+      ? '家族节会席位第一版仅生成席位与模板预览；真实开房、报名锁位和奖励写入暂缓。'
+      : '当前契约不是结拜庄园或合伙庄园，家族节会席位未启用。',
+    scene: enabled ? {
+      id: 'family_festival_courtyard',
+      label: '家族节会席位预排',
+      kind: 'festival_seating',
+      member_capacity: Math.max(4, acceptedMembers.length),
+      object_count: 5,
+    } : null,
+    scene_objects: enabled ? [
+      {
+        id: 'family_festival_banner',
+        label: '家族席旗',
+        kind: 'banner',
+        state: 'planning',
+        x: 50,
+        y: 14,
+        linked_template_ids: ['lantern_fair', 'dragon_boat', 'laba_cookpot'],
+        available_action_ids: [],
+      },
+      {
+        id: 'family_festival_supply_cart',
+        label: '供给车',
+        kind: 'supply',
+        state: members.some(member => member.manor_role === 'storage_keeper') ? 'staffed' : 'needs_role',
+        x: 24,
+        y: 58,
+        linked_role_ids: ['storage_keeper', 'farm_steward'],
+        available_action_ids: [],
+      },
+      {
+        id: 'family_festival_stage',
+        label: '搭场位',
+        kind: 'stage',
+        state: members.some(member => member.manor_role === 'workshop_keeper') ? 'staffed' : 'needs_role',
+        x: 72,
+        y: 54,
+        linked_role_ids: ['workshop_keeper'],
+        available_action_ids: [],
+      },
+      {
+        id: 'family_festival_budget_table',
+        label: '账房桌',
+        kind: 'budget',
+        state: members.some(member => member.manor_role === 'treasurer' || member.manor_role === 'family_head') ? 'staffed' : 'needs_role',
+        x: 35,
+        y: 80,
+        linked_role_ids: ['treasurer', 'family_head'],
+        available_action_ids: [],
+      },
+      {
+        id: 'family_festival_guest_seats',
+        label: '家族成员席',
+        kind: 'seats',
+        state: acceptedMembers.length >= 2 ? 'preview_ready' : 'locked',
+        x: 66,
+        y: 80,
+        seat_count: acceptedMembers.length,
+        available_action_ids: [],
+      },
+    ] : [],
+    seats: enabled ? members.map(member => ({
+      seat_id: member.seat_id,
+      seat_index: member.seat_index,
+      seat_label: member.seat_label,
+      username: member.username,
+      display_name: member.display_name,
+      manor_role: member.manor_role,
+      manor_role_label: member.manor_role_label,
+      festival_role: member.festival_role,
+      state: member.seat_state,
+    })) : [],
+  };
+}
+
+function buildFamilyFestivalSeatSnapshot(contract, actorUsername = '') {
+  const enabled = isFamilyRoleContractType(contract.type);
+  const typeDef = RELATION_TYPE_DEFS[contract.type] || RELATION_TYPE_DEFS.lover_cohabitation;
+  const actorMember = getContractMember(contract, actorUsername);
+  const revision = Math.max(Number(contract.updated_at) || 0, Number(contract.activated_at) || 0, Number(contract.created_at) || 0);
+  const members = enabled
+    ? (contract.members || []).map((member, index) => buildFamilyFestivalSeatMemberSnapshot(contract, member, enabled, index))
+    : [];
+  const templates = buildFamilyFestivalSeatTemplates(enabled);
+  const actorSeat = actorMember
+    ? buildFamilyFestivalSeatMemberSnapshot(contract, actorMember, enabled, Math.max(0, (contract.members || []).findIndex(member => member.username_key === actorMember.username_key)))
+    : null;
+
+  return {
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    type: contract.type,
+    type_label: contract.type_label,
+    status: contract.status,
+    readonly: true,
+    write_enabled: false,
+    writes_enabled: false,
+    festival_seats_enabled: enabled,
+    seat_reservation_enabled: false,
+    festival_room_binding_enabled: false,
+    generated_at: nowSeconds(),
+    revision,
+    summary: {
+      member_count: (contract.members || []).filter(member => member.status === 'accepted').length,
+      max_members: typeDef.max_members,
+      preview_seat_count: enabled ? members.filter(member => member.status === 'accepted').length : 0,
+      available_template_count: templates.filter(template => template.available).length,
+      festival_room_create_enabled: false,
+      festival_room_invite_enabled: false,
+      settlement_enabled: false,
+      reward_enabled: false,
+      reputation_award_enabled: false,
+      shared_fund_spend_enabled: false,
+      shared_warehouse_consume_enabled: false,
+      festival_ticket_spend_enabled: false,
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+      disabled_reason: enabled ? '' : '家族节会席位第一版仅面向结拜庄园和合伙庄园。',
+    },
+    actor: actorSeat,
+    members,
+    candidate_templates: templates,
+    visual_state_preview: buildFamilyFestivalSeatScenePreview(contract, members, enabled, revision),
+    governance: {
+      server_authoritative: true,
+      seat_reservation_requires_idempotency: true,
+      seat_reservation_requires_audit: true,
+      room_creation_requires_actor_permission: true,
+      room_binding_requires_recovery_plan: true,
+      disconnect_recovery_required: true,
+      compensation_required_for_future_rewards: true,
+      public_festival_room_scope_unchanged: true,
+      current_policy: '第一版只读预排家族席位和可承接节会模板，不创建房间、不锁席、不消费共同资产、不发个人或家族奖励。',
+    },
+    settlement: {
+      festival_receipt_required: true,
+      reward_to_personal_save_enabled: false,
+      reward_to_shared_fund_enabled: false,
+      reward_to_shared_warehouse_enabled: false,
+      family_reputation_enabled: false,
+      rollback_required: true,
+      compensation_replay_required: true,
+    },
+    recommended_flow: [
+      '先由家主读取席位预览，确认哪些成员承担主事、供给、搭场和账房席。',
+      '后续真实开放时，席位锁定必须带幂等键并写入契约审计。',
+      '节会房间创建仍走现有 festival room 状态机，家族席位只作为邀请和分工来源。',
+      '结算必须先生成节会凭证，再决定个人奖励、家族声望或共同资产入账，任一写入失败进入补偿重放。',
+    ],
+    deferred_operations: [
+      'reserve_family_festival_seat',
+      'bind_family_seat_to_festival_room',
+      'create_festival_room_from_family_seats',
+      'consume_shared_festival_supplies',
+      'award_family_festival_reputation',
+      'settle_family_festival_rewards',
+      'family_festival_compensation_replay',
+      'family_festival_seat_rollback',
+    ],
+  };
+}
+
 function buildPermissionSnapshot(contract, actorUsername = '') {
   const actorMember = getContractMember(contract, actorUsername);
   return {
@@ -2466,6 +2766,22 @@ async function getCohabitationFamilyReputation(contractId, actor = {}) {
   };
 }
 
+async function getCohabitationFamilyFestivalSeats(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  assertActiveContractForActor(contract, actorUsername, '查看家族节会席位预备面板');
+  for (const member of contract.members || []) {
+    member.manor_role = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+    contract.permissions[member.username_key] = enforcePermissionSafetyRails(contract.permissions?.[member.username_key], contract.type);
+  }
+  return {
+    contract: toPublicContract(contract),
+    family_festival_seats_panel: buildFamilyFestivalSeatSnapshot(contract, actorUsername),
+  };
+}
+
 async function getCohabitationOfflineStatus(contractId, actor = {}) {
   const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -3051,6 +3367,7 @@ module.exports = {
   getCohabitationFamilyRoles,
   getCohabitationFamilyOrders,
   getCohabitationFamilyReputation,
+  getCohabitationFamilyFestivalSeats,
   getCohabitationOfflineStatus,
   depositCohabitationWarehouseItem,
   contributeCohabitationFund,

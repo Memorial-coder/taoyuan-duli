@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 家族节会席位只读预备面板
+- 新增 `GET /taoyuan/online/cohabitation/contracts/:contractId/family-festival-seats`，已激活结拜 / 合伙庄园成员可读取家族节会席位预备面板。
+- 面板会按家族职位生成主事席、供给席、备料席、搭场席、账房席等席位预览，并输出灯会、龙舟、腊八、中秋等节会模板与场景物件预览。
+- 本轮只接服务端只读快照和 QA：不锁席，不创建节会房间，不消费共同基金 / 共同仓库，不写节会奖励或家族声望，也不新增前端入口。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix server run qa:online-smoke`。
+
 ### 0524 家族声望只读预备面板
 - 新增 `GET /taoyuan/online/cohabitation/contracts/:contractId/family-reputation`，已激活结拜 / 合伙庄园成员可读取家族声望预备面板。
 - 面板会按现有职位审计、共同仓库放入流水和共同基金注资流水生成声望等级预览、来源拆分和成员贡献预览，并声明周封顶、反刷、幂等、审计和补偿重放要求。
