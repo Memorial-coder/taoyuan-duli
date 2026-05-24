@@ -568,6 +568,114 @@ export interface CohabitationFamilyBuildingsPanel {
   deferred_operations: string[]
 }
 
+export interface CohabitationFamilyRelationNode {
+  id: string
+  node_type: string
+  label: string
+  state: string
+  kind: string
+  x: number
+  y: number
+  username?: string
+  username_key?: string
+  relation_label?: string
+  manor_role?: string
+  manor_role_label?: string
+  write_enabled: boolean
+  privacy?: Record<string, unknown>
+}
+
+export interface CohabitationFamilyRelationLink {
+  id: string
+  from: string
+  to: string
+  label: string
+  kind: string
+  state: string
+  write_enabled: boolean
+}
+
+export interface CohabitationFamilyRelationsPanel {
+  contract_id: string
+  shared_manor_id: string
+  type: string
+  type_label: string
+  status: string
+  readonly: boolean
+  write_enabled: boolean
+  writes_enabled: boolean
+  family_relations_enabled: boolean
+  generated_at: number
+  revision: number
+  summary: {
+    member_count: number
+    accepted_member_count: number
+    pending_member_count: number
+    max_members: number
+    role_management_enabled: boolean
+    local_save_family_graph_included: boolean
+    graph_node_count: number
+    graph_link_count: number
+    private_single_player_graph_exposed: boolean
+    local_npc_nodes_exposed: boolean
+    random_npc_nodes_exposed: boolean
+    children_nodes_exposed: boolean
+    pets_exposed: boolean
+    personal_money_merged: boolean
+    personal_inventory_merged: boolean
+    relationship_write_enabled: boolean
+    disabled_reason: string
+  }
+  actor: (CohabitationFamilyRelationNode & {
+    display_name: string
+    role: string
+    status: string
+    permissions_summary: Record<string, boolean>
+  }) | null
+  members: Array<CohabitationMember & {
+    manor_role: string
+    manor_role_label: string
+    relation_label: string
+    node_group: string
+    x: number
+    y: number
+    permissions_summary: Record<string, boolean>
+    privacy: Record<string, unknown>
+  }>
+  graph: {
+    root_node_id: string
+    layout: string
+    revision: number
+    nodes: CohabitationFamilyRelationNode[]
+    links: CohabitationFamilyRelationLink[]
+  }
+  visual_state_preview: {
+    board_type: string
+    board_id: string
+    revision: number
+    selected_visual_id: string
+    recent_feedback: string
+    nodes: Array<{
+      id: string
+      label: string
+      kind: string
+      x: number
+      y: number
+      state: string
+      connected_node_ids: string[]
+      available_action_ids: string[]
+    }>
+    highlights: Array<Record<string, unknown>>
+  }
+  constraints: Record<string, unknown>
+  recent_role_audits: CohabitationAuditEntry[]
+  privacy: Record<string, unknown>
+  governance: Record<string, unknown>
+  asset_boundaries: Record<string, unknown>
+  local_graph_compatibility: Record<string, unknown>
+  deferred_operations: string[]
+}
+
 export interface CohabitationOfflineStatus {
   contract_id: string
   shared_manor_id: string
@@ -856,6 +964,12 @@ export const fetchCohabitationFamilyBuildings = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     family_buildings_panel?: CohabitationFamilyBuildingsPanel
   }>(contractPath(contractId, '/family-buildings'), '获取家族建筑预备面板失败')
+}
+
+export const fetchCohabitationFamilyRelations = async (contractId: string) => {
+  return fetchCohabitationJson<CohabitationDetailResponse & {
+    family_relations_panel?: CohabitationFamilyRelationsPanel
+  }>(contractPath(contractId, '/family-relations'), '获取家族关系图预备面板失败')
 }
 
 export const updateCohabitationFamilyRole = async (contractId: string, payload: CohabitationFamilyRoleUpdatePayload) => {

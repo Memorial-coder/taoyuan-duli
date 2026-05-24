@@ -778,6 +778,92 @@
         </div>
       </div>
 
+      <div v-else-if="activeTab === 'relations'" class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div class="game-panel-muted p-3">
+          <div class="flex items-center justify-between gap-2">
+            <div class="flex items-center gap-2 text-accent">
+              <Network :size="13" />
+              <p class="text-sm">家族关系图</p>
+            </div>
+            <span class="text-[10px] text-muted">{{ familyRelationsPanel?.family_relations_enabled ? '已启用预览' : '未启用' }}</span>
+          </div>
+          <div v-if="!familyRelationsPanel" class="mt-3 text-xs leading-5 text-muted">当前没有家族关系图预备面板数据。</div>
+          <div v-else>
+            <div class="mt-3 grid gap-2 md:grid-cols-4">
+              <div v-for="item in familyRelationSummaryCards" :key="item.label" class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">{{ item.label }}</p>
+                <p class="mt-1 text-xs text-accent">{{ item.value }}</p>
+              </div>
+            </div>
+            <p v-if="familyRelationsPanel.summary.disabled_reason" class="mt-3 text-[10px] leading-4 text-muted">
+              {{ familyRelationsPanel.summary.disabled_reason }}
+            </p>
+            <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyRelationsPanel.visual_state_preview.recent_feedback }}</p>
+            <div class="relative mt-3 h-72 overflow-hidden border border-accent/10 bg-black/10">
+              <div
+                v-for="node in familyRelationGraphNodes"
+                :key="node.id"
+                class="absolute min-h-10 w-24 -translate-x-1/2 -translate-y-1/2 border px-2 py-1 text-center shadow-sm"
+                :class="familyRelationNodeClass(node.node_type)"
+                :style="{ left: `${node.x}%`, top: `${node.y}%` }"
+              >
+                <p class="truncate text-[10px] text-text">{{ node.label }}</p>
+                <p class="mt-0.5 truncate text-[9px] text-muted">{{ familyRelationKindLabel(node.kind) }}</p>
+              </div>
+            </div>
+            <div class="mt-3 grid gap-2 md:grid-cols-2">
+              <div v-for="link in familyRelationLinks.slice(0, 8)" :key="link.id" class="border border-accent/10 bg-black/10 p-2">
+                <p class="truncate text-xs text-text">{{ link.label || familyRelationKindLabel(link.kind) }}</p>
+                <p class="mt-1 truncate text-[10px] text-muted">{{ link.from }} -> {{ link.to }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="space-y-3">
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">成员节点</p>
+            <div v-if="familyRelationMembers.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无成员节点。</div>
+            <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              <div v-for="member in familyRelationMembers" :key="member.username" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ member.display_name || member.username }}</p>
+                    <p class="mt-1 text-[10px] text-muted">{{ member.relation_label }} · {{ member.manor_role_label || familyRoleLabel(member.manor_role) }}</p>
+                  </div>
+                  <span class="shrink-0 text-[10px] text-accent">{{ member.status === 'accepted' ? '已接受' : '待确认' }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">隐私护栏</p>
+            <div class="mt-3 space-y-2">
+              <div
+                v-for="item in familyRelationPrivacyCards"
+                :key="item.label"
+                class="flex items-center justify-between gap-2 border border-accent/10 bg-black/10 p-2 text-xs"
+              >
+                <span class="text-muted">{{ item.label }}</span>
+                <span class="text-accent">{{ item.value }}</span>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">暂缓能力</p>
+            <div v-if="familyRelationDeferredOperations.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无暂缓项。</div>
+            <div v-else class="mt-3 flex flex-wrap gap-2">
+              <span
+                v-for="item in familyRelationDeferredOperations"
+                :key="item"
+                class="border border-accent/10 bg-black/10 px-2 py-1 text-[10px] text-muted"
+              >
+                {{ deferredOperationLabel(item) }}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <div v-else class="grid gap-3 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
@@ -876,6 +962,7 @@
     HeartHandshake,
     Lock,
     Map,
+    Network,
     Package,
     ShieldCheck,
     Trophy,
@@ -893,7 +980,7 @@
     CohabitationWarehouseItem,
   } from '@/utils/cohabitationApi'
 
-  type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'reputation' | 'buildings' | 'offline'
+  type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'reputation' | 'buildings' | 'relations' | 'offline'
   type CohabitationTabMeta = { key: CohabitationTabKey; label: string; summary: string }
 
   const cohabitationStore = useCohabitationStore()
@@ -920,6 +1007,7 @@
     { key: 'orders', label: '订单', summary: '只读查看家族订单预备路线、成员阶段权限和共同资产结算边界。' },
     { key: 'reputation', label: '声望', summary: '只读查看家族声望预览分、来源证据和未来奖励治理边界。' },
     { key: 'buildings', label: '建筑', summary: '只读查看家族建筑蓝图、材料缺口、规划场景和共同资产边界。' },
+    { key: 'relations', label: '关系', summary: '只读查看契约成员、家族职位、共同能力节点和隐私边界。' },
     { key: 'offline', label: '离线', summary: '查看成员最近活跃、共同日志和无需全员在线的能力边界。' },
   ]
 
@@ -1037,6 +1125,30 @@
       { label: '共同仓库材料', value: boundaries.shared_warehouse_consume_enabled === true ? '开放' : '暂缓' },
       { label: '来源追踪', value: boundaries.origin_assets_required_for_return === true ? '必须' : '未声明' },
       { label: '建造回滚', value: governance.rollback_required_for_building_writes === true ? '必须' : '未声明' },
+    ]
+  })
+  const familyRelationsPanel = computed(() => cohabitationStore.familyRelationsPanel)
+  const familyRelationMembers = computed(() => familyRelationsPanel.value?.members ?? [])
+  const familyRelationGraphNodes = computed(() => familyRelationsPanel.value?.graph.nodes ?? [])
+  const familyRelationLinks = computed(() => familyRelationsPanel.value?.graph.links ?? [])
+  const familyRelationDeferredOperations = computed(() => familyRelationsPanel.value?.deferred_operations ?? [])
+  const familyRelationSummaryCards = computed(() => {
+    const summary = familyRelationsPanel.value?.summary
+    return [
+      { label: '成员', value: `${summary?.accepted_member_count ?? 0}/${summary?.max_members ?? 0}` },
+      { label: '节点', value: summary?.graph_node_count ?? 0 },
+      { label: '连接', value: summary?.graph_link_count ?? 0 },
+      { label: '个人关系', value: summary?.private_single_player_graph_exposed ? '公开' : '私密' },
+    ]
+  })
+  const familyRelationPrivacyCards = computed(() => {
+    const privacy = familyRelationsPanel.value?.privacy ?? {}
+    const governance = familyRelationsPanel.value?.governance ?? {}
+    return [
+      { label: '本地 NPC', value: privacy.local_npc_nodes_exposed === true ? '公开' : '私密' },
+      { label: '随机 NPC', value: privacy.random_npc_nodes_exposed === true ? '公开' : '私密' },
+      { label: '孩子 / 宠物', value: privacy.children_nodes_exposed === true || privacy.pets_exposed === true ? '公开' : '私密' },
+      { label: '未来公开同意', value: governance.future_publication_requires_consent === true ? '必须' : '未声明' },
     ]
   })
   const offlineMembers = computed(() => cohabitationStore.offlineStatus?.members ?? [])
@@ -1450,6 +1562,33 @@
       demolish_family_building: '拆除家族建筑',
       family_building_compensation_replay: '建筑补偿重放',
       family_building_rollback: '建筑回滚',
+      publish_family_relation_graph_to_profile: '公开关系图到档案',
+      member_visibility_settings: '成员可见设置',
+      family_relation_story_events: '家族关系事件',
+      invite_random_npc_family_public_node: '随机 NPC 公开节点',
+      family_relation_graph_frontend_panel: '关系图前端面板',
+      relationship_visibility_audit: '关系可见性审计',
+      family_relation_graph_compensation_replay: '关系图补偿重放',
+      family_relation_graph_rollback: '关系图回滚',
+    }
+    return labels[value] || value
+  }
+
+  const familyRelationNodeClass = (type: string) => {
+    if (type === 'root') return 'border-accent/30 bg-accent/10 text-accent'
+    if (type === 'member') return 'border-emerald-300/25 bg-emerald-500/10'
+    if (type === 'role') return 'border-sky-300/25 bg-sky-500/10'
+    return 'border-amber-300/25 bg-amber-500/10'
+  }
+
+  const familyRelationKindLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      family_manor_contract: '契约',
+      contract_member: '成员',
+      family_role: '职位',
+      family_capability: '共同能力',
+      membership: '成员关系',
+      role_assignment: '职位关联',
     }
     return labels[value] || value
   }

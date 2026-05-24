@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 家族关系图只读前端读回
+- 共同庄园新增“关系”页签，前端 API / store 读取 `/family-relations` 只读预备面板。
+- 页面展示契约成员、家族职位、共同能力节点、关系连接、成员节点、隐私护栏，以及公开档案、可见性审计、补偿重放和回滚等暂缓能力。
+- 本轮只做读回，不读取个人存档关系图，不公开固定 NPC、随机 NPC、孩子、宠物、隐藏 NPC 或恋爱关系。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 家族建筑只读前端读回
 - 共同庄园新增“建筑”页签，前端 API / store 读取 `/family-buildings` 只读预备面板。
 - 页面展示建筑蓝图、职位缺口、材料就绪数、共同基金预览、规划场景物件、资产边界，以及建造、拆除、共同仓库材料消耗、共同基金消费和建筑 ledger 等暂缓写操作。
