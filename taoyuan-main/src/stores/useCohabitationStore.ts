@@ -3,6 +3,7 @@ import { defineStore } from 'pinia'
 import {
   acceptCohabitationContract,
   contributeCohabitationFund,
+  createCohabitationContract,
   depositCohabitationWarehouseItem,
   fetchCohabitationFamilyBuildings,
   fetchCohabitationFamilyFestivalSeats,
@@ -22,6 +23,8 @@ import {
   updateCohabitationFamilyRole,
   updateCohabitationPermissions,
   withdrawCohabitationWarehouseItem,
+  type CohabitationContract,
+  type CohabitationContractCreatePayload,
   type CohabitationFamilyBuildingsPanel,
   type CohabitationFamilyFestivalSeatsPanel,
   type CohabitationFamilyOrdersPanel,
@@ -89,6 +92,25 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
   const pickDefaultContract = () => {
     if (activeContractId.value && contracts.value.some(contract => contract.id === activeContractId.value)) return
     activeContractId.value = activeContracts.value[0]?.id || contracts.value[0]?.id || ''
+  }
+
+  const syncOverviewContract = (contract: CohabitationContract) => {
+    if (!overview.value) return
+    const exists = overview.value.contracts.some(entry => entry.id === contract.id)
+    const nextContracts = exists
+      ? overview.value.contracts.map(entry => entry.id === contract.id ? contract : entry)
+      : [contract, ...overview.value.contracts]
+    overview.value = {
+      ...overview.value,
+      contracts: nextContracts,
+      summary: {
+        ...overview.value.summary,
+        total: nextContracts.length,
+        pending: nextContracts.filter(entry => entry.status === 'pending_acceptance').length,
+        active: nextContracts.filter(entry => entry.status === 'active').length,
+        separation_previews: nextContracts.reduce((sum, entry) => sum + (entry.separation_previews?.length || 0), 0),
+      },
+    }
   }
 
   const refreshSelectedDetails = async (options: { silent?: boolean } = {}) => {
@@ -198,22 +220,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       const result = await acceptCohabitationContract(contractId)
       if (result?.contract) {
         activeContractId.value = result.contract.id
-        if (overview.value) {
-          const exists = overview.value.contracts.some(contract => contract.id === result.contract.id)
-          const nextContracts = exists
-            ? overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract)
-            : [result.contract, ...overview.value.contracts]
-          overview.value = {
-            ...overview.value,
-            contracts: nextContracts,
-            summary: {
-              ...overview.value.summary,
-              total: nextContracts.length,
-              pending: nextContracts.filter(contract => contract.status === 'pending_acceptance').length,
-              active: nextContracts.filter(contract => contract.status === 'active').length,
-            },
-          }
-        }
+        syncOverviewContract(result.contract)
         if (result.contract.status === 'active') {
           await refreshSelectedDetails({ silent: true })
         } else {
@@ -223,6 +230,29 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       return result
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '接受共同庄园契约失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const createContract = async (payload: CohabitationContractCreatePayload) => {
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await createCohabitationContract(payload)
+      if (result?.contract) {
+        activeContractId.value = result.contract.id
+        syncOverviewContract(result.contract)
+        if (result.contract.status === 'active') {
+          await refreshSelectedDetails({ silent: true })
+        } else {
+          clearDetails()
+        }
+      }
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '创建共同庄园契约失败'
       throw error
     } finally {
       actionLoading.value = false
@@ -459,6 +489,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     selectContract,
     refreshAll,
     acceptContract,
+    createContract,
     contributeSharedFund,
     spendSharedFund,
     depositSharedWarehouseItem,

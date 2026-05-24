@@ -906,6 +906,13 @@ export interface CohabitationWarehouseItemPayload {
   idempotency_key: string
 }
 
+export interface CohabitationContractCreatePayload {
+  type: string
+  title?: string
+  target_usernames: string[]
+  idempotency_key: string
+}
+
 export interface CohabitationWarehouseItemResponse extends CohabitationDetailResponse {
   warehouse?: CohabitationWarehouseSnapshot
   fund?: CohabitationFundSnapshot
@@ -1031,6 +1038,14 @@ export const fetchCohabitationOverview = async (): Promise<CohabitationOverviewR
   return fetchCohabitationJson<CohabitationOverviewResponse>(
     '/api/taoyuan/online/cohabitation/contracts',
     '获取共同庄园契约失败'
+  )
+}
+
+export const createCohabitationContract = async (payload: CohabitationContractCreatePayload) => {
+  return postCohabitationJson<CohabitationContractActionResponse>(
+    '/api/taoyuan/online/cohabitation/contracts',
+    payload as unknown as Record<string, unknown>,
+    '创建共同庄园契约失败'
   )
 }
 

@@ -77,6 +77,72 @@
 
         <div class="space-y-3">
           <div class="game-panel-muted p-3">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 text-accent">
+                <HeartHandshake :size="13" />
+                <p class="text-sm">发起契约</p>
+              </div>
+              <span class="text-[10px] text-muted">{{ contractDraftMemberRangeLabel }}</span>
+            </div>
+            <div class="mt-3 grid gap-2">
+              <div class="grid gap-2 md:grid-cols-2">
+                <label class="block">
+                  <span class="text-[10px] text-muted">关系类型</span>
+                  <select
+                    v-model="contractDraftType"
+                    class="online-select mt-1 text-xs"
+                    data-testid="online-cohabitation-contract-create-type"
+                  >
+                    <option
+                      v-for="option in relationOptions"
+                      :key="option.id"
+                      :value="option.id"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
+                </label>
+                <label class="block">
+                  <span class="text-[10px] text-muted">标题</span>
+                  <input
+                    v-model="contractDraftTitle"
+                    class="online-input mt-1 text-xs"
+                    data-testid="online-cohabitation-contract-create-title"
+                    maxlength="40"
+                    placeholder="共同庄园"
+                  >
+                </label>
+              </div>
+              <label class="block">
+                <span class="text-[10px] text-muted">邀请好友</span>
+                <input
+                  v-model="contractDraftTargetUsernames"
+                  class="online-input mt-1 text-xs"
+                  data-testid="online-cohabitation-contract-create-targets"
+                  placeholder="用户名，多个用逗号分隔"
+                >
+              </label>
+              <button
+                class="online-action-btn online-action-btn--compact justify-center"
+                type="button"
+                :disabled="!canCreateContractDraft || cohabitationStore.actionLoading"
+                data-testid="online-cohabitation-contract-create-submit"
+                @click="createContractDraft"
+              >
+                <HeartHandshake :size="12" />
+                发起共同庄园
+              </button>
+              <p
+                v-if="contractActionMessage && !selectedContract"
+                class="text-xs leading-5"
+                :class="contractActionOk ? 'text-emerald-200' : 'text-red-100'"
+              >
+                {{ contractActionMessage }}
+              </p>
+            </div>
+          </div>
+
+          <div class="game-panel-muted p-3">
             <div class="flex items-center gap-2 text-accent">
               <HeartHandshake :size="13" />
               <p class="text-sm">当前入口</p>
@@ -1215,6 +1281,9 @@
   const roleActionOk = ref(false)
   const contractActionMessage = ref('')
   const contractActionOk = ref(false)
+  const contractDraftType = ref('lover_cohabitation')
+  const contractDraftTitle = ref('')
+  const contractDraftTargetUsernames = ref('')
 
   const tabs: CohabitationTabMeta[] = [
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
@@ -1232,6 +1301,27 @@
   ]
 
   const activeTabMeta = computed(() => tabs.find(tab => tab.key === activeTab.value) ?? tabs[0]!)
+  const relationOptions = computed(() => cohabitationStore.overview?.relation_options ?? [])
+  const selectedRelationOption = computed(() =>
+    relationOptions.value.find(option => option.id === contractDraftType.value) ?? relationOptions.value[0] ?? null
+  )
+  const contractDraftTargets = computed(() => [...new Set(
+    contractDraftTargetUsernames.value
+      .split(/[,\s，、；;]+/)
+      .map(value => value.trim())
+      .filter(Boolean)
+  )])
+  const contractDraftMemberCount = computed(() => contractDraftTargets.value.length + 1)
+  const contractDraftMemberRangeLabel = computed(() => {
+    const option = selectedRelationOption.value
+    if (!option) return '关系类型未载入'
+    return `${option.min_members}-${option.max_members} 人`
+  })
+  const canCreateContractDraft = computed(() => {
+    const option = selectedRelationOption.value
+    if (!option || contractDraftTargets.value.length === 0) return false
+    return contractDraftMemberCount.value >= option.min_members && contractDraftMemberCount.value <= option.max_members
+  })
   const selectedContract = computed(() => cohabitationStore.selectedContract)
   const selectedContractActorMember = computed(() => {
     const account = cohabitationStore.currentAccount
@@ -1561,8 +1651,16 @@
     activeTab.value = tab as CohabitationTabKey
   }
 
+  const syncContractDraftType = () => {
+    if (relationOptions.value.length === 0) return
+    if (!relationOptions.value.some(option => option.id === contractDraftType.value)) {
+      contractDraftType.value = String(relationOptions.value[0]?.id || '')
+    }
+  }
+
   const refreshModule = async () => {
     await cohabitationStore.refreshAll()
+    syncContractDraftType()
     lastRefreshAttemptAt.value = Date.now()
   }
 
@@ -1590,6 +1688,40 @@
         : '已接受契约，等待其他成员确认'
     } catch (error) {
       contractActionMessage.value = error instanceof Error ? error.message : '接受共同庄园契约失败'
+    }
+  }
+
+  const createContractDraft = async () => {
+    contractActionMessage.value = ''
+    contractActionOk.value = false
+    const option = selectedRelationOption.value
+    const targetUsernames = contractDraftTargets.value
+    if (!option || targetUsernames.length === 0) {
+      contractActionMessage.value = '请选择关系类型并填写好友用户名'
+      return
+    }
+    if (contractDraftMemberCount.value < option.min_members || contractDraftMemberCount.value > option.max_members) {
+      contractActionMessage.value = `${option.label}需要 ${option.min_members}-${option.max_members} 名成员`
+      return
+    }
+    const title = contractDraftTitle.value.trim()
+    try {
+      const result = await cohabitationStore.createContract({
+        type: String(option.id),
+        title: title || undefined,
+        target_usernames: targetUsernames,
+        idempotency_key: `ui-contract-create-${option.id}-${targetUsernames.join('-')}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      contractActionOk.value = true
+      contractActionMessage.value = result?.idempotent
+        ? '已找到已有契约，已切换到该契约'
+        : '已发起契约，等待好友接受'
+      if (!result?.idempotent) {
+        contractDraftTitle.value = ''
+        contractDraftTargetUsernames.value = ''
+      }
+    } catch (error) {
+      contractActionMessage.value = error instanceof Error ? error.message : '创建共同庄园契约失败'
     }
   }
 

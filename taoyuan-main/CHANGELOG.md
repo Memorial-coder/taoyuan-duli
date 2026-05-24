@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 共同庄园契约前端发起入口
+- 共同庄园总览新增“发起契约”表单，可选择服务端返回的关系类型、填写标题和好友用户名列表。
+- 前端 API / store 接入 `POST /cohabitation/contracts`，提交时带 CSRF 与 `idempotency_key`，成功后把新契约并入总览、更新待接受 / 已生效统计并选中新契约。
+- 本轮不绕过好友校验，不自动接受契约，不合并个人资产，不执行共同地图持久化或分居返还。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 待确认共同庄园契约前端接受
 - 共同庄园总览新增“接受契约”入口，仅当前账号在选中契约中仍待确认时显示。
 - 前端 API / store 接入 `/accept`，提交时带 CSRF，成功后刷新契约摘要；契约生效后继续读回共同地图、仓库、基金、权限和各家族预备面板。
