@@ -276,6 +276,21 @@
               <p class="text-[10px] text-muted leading-4 mt-2">说话方式：{{ resident.speechStyle }}</p>
               <p class="text-[10px] text-muted leading-4 mt-1">家庭背景：{{ resident.familySeed }}</p>
               <p class="text-[10px] text-success/80 mt-1">{{ getLastRandomNpcLongStayEvent(resident) }}</p>
+              <div v-if="getRandomNpcLongStayStoryEvent(resident)" class="border border-accent/10 rounded-xs p-2 mt-2">
+                <p class="text-[10px] text-accent">{{ getRandomNpcLongStayStoryEvent(resident)?.title }}</p>
+                <p class="text-[10px] text-muted leading-4 mt-1">{{ getRandomNpcLongStayStoryEvent(resident)?.opening }}</p>
+                <div class="mt-2 space-y-1">
+                  <Button
+                    v-for="choice in getRandomNpcLongStayStoryChoices(resident)"
+                    :key="`${resident.residentId}-${choice.id}`"
+                    class="w-full justify-start !px-2 !py-1 text-left"
+                    :disabled="resident.lastStoryDayTag === currentNpcDayTag"
+                    @click="handleProgressRandomNpcLongStayStory(resident.residentId, choice.id)"
+                  >
+                    {{ choice.text }}
+                  </Button>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -1184,6 +1199,7 @@
     RandomNpcLongStayEntry,
     RandomNpcLongStayRoute,
     RandomNpcRelationshipTag,
+    RandomNpcStoryChoiceDef,
     RandomNpcVisitorState,
     RelationshipClueEntry,
     VillageProjectRequirementProgress
@@ -1223,6 +1239,15 @@
   const randomNpcMaxAcquaintances = RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances
   const randomNpcLongStayThreshold = RANDOM_NPC_VISITOR_CONFIG.longStayAffinityThreshold
   const randomNpcMaxLongStayResidents = RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents
+  const currentNpcDayTag = computed(() => {
+    const seasonOrder = ['spring', 'summer', 'autumn', 'winter'] as const
+    const absoluteDay = (gameStore.year - 1) * 112 + seasonOrder.indexOf(gameStore.season) * 28 + gameStore.day
+    const year = Math.floor((absoluteDay - 1) / 112) + 1
+    const dayOfYear = ((absoluteDay - 1) % 112) + 1
+    const season = seasonOrder[Math.floor((dayOfYear - 1) / 28)] ?? 'spring'
+    const day = ((dayOfYear - 1) % 28) + 1
+    return `${year}-${season}-${day}`
+  })
   const spiritBondOverview = computed(() => hiddenNpcStore.spiritBondAuditSnapshot)
   const selectedSpiritBlessingSummary = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getSpiritBlessingSummary(selectedHiddenNpc.value) : null))
   const selectedSpiritBlessings = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getAvailableSpiritBlessings(selectedHiddenNpc.value) : []))
@@ -1431,6 +1456,10 @@
     acquaintance.keyEvents[acquaintance.keyEvents.length - 1] ?? `${acquaintance.name}已记入熟人册。`
   const getLastRandomNpcLongStayEvent = (resident: RandomNpcLongStayEntry): string =>
     resident.keyEvents[resident.keyEvents.length - 1] ?? `${resident.name}正在桃源村暂住。`
+  const getRandomNpcLongStayStoryEvent = (resident: RandomNpcLongStayEntry) =>
+    npcStore.getNextRandomNpcLongStayStoryEvent(resident)
+  const getRandomNpcLongStayStoryChoices = (resident: RandomNpcLongStayEntry): RandomNpcStoryChoiceDef[] =>
+    getRandomNpcLongStayStoryEvent(resident)?.choices ?? []
   const getRandomNpcPreferenceNames = (itemIds: string[]): string =>
     itemIds.map(itemId => getItemById(itemId)?.name ?? itemId).join('、') || '尚未记录'
   const isRandomNpcLongStay = (visitorId: string): boolean =>
@@ -1457,6 +1486,12 @@
     const result = npcStore.promoteRandomNpcAcquaintanceToLongStay(visitorId)
     showFloat(result.message, result.success ? 'success' : 'accent')
     addLog(`【长住NPC】${result.message}`)
+  }
+
+  const handleProgressRandomNpcLongStayStory = (residentId: string, choiceId: string) => {
+    const result = npcStore.progressRandomNpcLongStayStory(residentId, choiceId)
+    showFloat(result.message, result.success ? 'success' : 'accent')
+    addLog(`【文游对话】${result.message}`)
   }
 
   const getVillageProjectRequirementProgress = (projectId: string): VillageProjectRequirementProgress[] => {

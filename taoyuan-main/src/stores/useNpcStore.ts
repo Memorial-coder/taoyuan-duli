@@ -36,7 +36,7 @@ import type {
   Weather
 } from '@/types'
 import { NPCS, getNpcById, getHeartEventsForNpc, RECIPES, getTodayEvent } from '@/data'
-import { RANDOM_NPC_TEMPLATES, RANDOM_NPC_VISITOR_CONFIG } from '@/data/randomNpcs'
+import { RANDOM_NPC_LONG_STAY_STORY_EVENTS, RANDOM_NPC_TEMPLATES, RANDOM_NPC_VISITOR_CONFIG } from '@/data/randomNpcs'
 import {
   createDefaultChildTrainingState,
   createDefaultFamilyWishBoardState,
@@ -511,6 +511,8 @@ export const useNpcStore = defineStore('npc', () => {
       residenceReason: `${acquaintance.name}决定在桃源村暂住，继续追索“${template.lifeGoal}”。`,
       route: getRandomNpcLongStayRoute(template.id),
       relationshipEventStage: 1,
+      completedStoryEventIds: [],
+      lastStoryDayTag: '',
       keyEvents: [...acquaintance.keyEvents, `${dayTag} 成为长住 NPC，暂住桃源村。`].slice(-8)
     }
   }
@@ -655,6 +657,58 @@ export const useNpcStore = defineStore('npc', () => {
     const activeVisitor = randomNpcBoard.value.activeVisitors.find(entry => entry.id === visitorId)
     if (activeVisitor) activeVisitor.tier = 'long_stay'
     return { success: true, message: `${acquaintance.name}已成为长住 NPC。` }
+  }
+
+  const getNextRandomNpcLongStayStoryEvent = (resident: RandomNpcLongStayEntry) => {
+    if (resident.relationshipEventStage > 3) return null
+    return RANDOM_NPC_LONG_STAY_STORY_EVENTS.find(event =>
+      event.route === resident.route &&
+      event.stage === resident.relationshipEventStage &&
+      !resident.completedStoryEventIds.includes(event.id)
+    ) ?? null
+  }
+
+  const progressRandomNpcLongStayStory = (
+    residentId: string,
+    choiceId: string
+  ): { success: boolean; message: string; resident?: RandomNpcLongStayEntry } => {
+    const dayTag = getCurrentNpcDayTag()
+    const resident = randomNpcBoard.value.longStayResidents.find(entry => entry.residentId === residentId)
+    if (!resident) return { success: false, message: '这位长住 NPC 暂时不在名册中。' }
+    if (resident.lastStoryDayTag === dayTag) return { success: false, message: `${resident.name}今天已经聊过这段事了。`, resident }
+    const event = getNextRandomNpcLongStayStoryEvent(resident)
+    if (!event) return { success: false, message: `${resident.name}当前没有新的长住事件。`, resident }
+    const choice = event.choices.find(entry => entry.id === choiceId) ?? event.choices[0]
+    if (!choice) return { success: false, message: '暂时没有合适的回应。', resident }
+    const nextStage = event.stage >= 3 ? 3 : (event.stage + 1) as 1 | 2 | 3
+    const eventLine = `${dayTag} 【${event.title}】${choice.text}：${choice.response}`
+    let nextResident: RandomNpcLongStayEntry | null = null
+    randomNpcBoard.value.longStayResidents = randomNpcBoard.value.longStayResidents.map(entry => {
+      if (entry.residentId !== residentId) return entry
+      nextResident = {
+        ...entry,
+        relationshipTag: choice.relationshipTag ?? entry.relationshipTag,
+        affinity: Math.max(0, Math.min(100, entry.affinity + choice.affinityChange)),
+        relationshipEventStage: nextStage,
+        completedStoryEventIds: [...entry.completedStoryEventIds, event.id].slice(-6),
+        lastStoryDayTag: dayTag,
+        keyEvents: [...entry.keyEvents, eventLine].slice(-8)
+      }
+      return nextResident
+    })
+    if (nextResident) {
+      randomNpcBoard.value.acquaintances = randomNpcBoard.value.acquaintances.map(entry =>
+        entry.visitorId === nextResident!.sourceVisitorId
+          ? {
+              ...entry,
+              relationshipTag: nextResident!.relationshipTag,
+              affinity: nextResident!.affinity,
+              keyEvents: nextResident!.keyEvents.slice(-6)
+            }
+          : entry
+      )
+    }
+    return { success: true, message: choice.response, resident: nextResident ?? resident }
   }
 
   // ============================================================
@@ -3164,6 +3218,10 @@ export const useNpcStore = defineStore('npc', () => {
                 residenceReason: typeof entry.residenceReason === 'string' ? entry.residenceReason : `${entry.name ?? template.nameSeeds[0]}决定在桃源村暂住。`,
                 route,
                 relationshipEventStage: stage === 2 || stage === 3 ? stage : stage === 0 ? 0 : 1,
+                completedStoryEventIds: Array.isArray(entry.completedStoryEventIds)
+                  ? entry.completedStoryEventIds.filter((text: unknown) => typeof text === 'string').slice(-6)
+                  : [],
+                lastStoryDayTag: typeof entry.lastStoryDayTag === 'string' ? entry.lastStoryDayTag : '',
                 keyEvents: Array.isArray(entry.keyEvents) ? entry.keyEvents.filter((text: unknown) => typeof text === 'string').slice(-8) : []
               }
             })
@@ -3310,6 +3368,8 @@ export const useNpcStore = defineStore('npc', () => {
     talkToRandomVisitor,
     addRandomVisitorToAcquaintanceBook,
     promoteRandomNpcAcquaintanceToLongStay,
+    getNextRandomNpcLongStayStoryEvent,
+    progressRandomNpcLongStayStory,
     rehydrateRelationshipPerks,
     serialize,
     deserialize

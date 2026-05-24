@@ -260,6 +260,23 @@ export interface RandomNpcAcquaintanceEntry {
 
 export type RandomNpcLongStayRoute = 'friendship' | 'business' | 'caregiving' | 'craft'
 
+export interface RandomNpcStoryChoiceDef {
+  id: string
+  text: string
+  response: string
+  affinityChange: number
+  relationshipTag?: RandomNpcRelationshipTag
+}
+
+export interface RandomNpcLongStayStoryEventDef {
+  id: string
+  route: RandomNpcLongStayRoute
+  stage: 1 | 2 | 3
+  title: string
+  opening: string
+  choices: RandomNpcStoryChoiceDef[]
+}
+
 export interface RandomNpcLongStayEntry {
   residentId: string
   sourceVisitorId: string
@@ -284,6 +301,8 @@ export interface RandomNpcLongStayEntry {
   residenceReason: string
   route: RandomNpcLongStayRoute
   relationshipEventStage: 0 | 1 | 2 | 3
+  completedStoryEventIds: string[]
+  lastStoryDayTag: string
   keyEvents: string[]
 }
 

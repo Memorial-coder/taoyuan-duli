@@ -1,4 +1,4 @@
-import type { RandomNpcTemplate } from '@/types'
+import type { RandomNpcLongStayStoryEventDef, RandomNpcTemplate } from '@/types'
 
 export const RANDOM_NPC_VISITOR_CONFIG = {
   maxActiveVisitors: 2,
@@ -141,5 +141,152 @@ export const RANDOM_NPC_TEMPLATES: RandomNpcTemplate[] = [
       requestedItems: [{ itemId: 'bamboo', quantity: 2 }, { itemId: 'pumpkin', quantity: 1 }],
       rewardSummary: '可回赠花灯墙修补心得和节会布置建议。'
     }
+  }
+]
+
+export const RANDOM_NPC_LONG_STAY_STORY_EVENTS: RandomNpcLongStayStoryEventDef[] = [
+  {
+    id: 'business_stage_1_trade_notes',
+    route: 'business',
+    stage: 1,
+    title: '第一封账外信',
+    opening: '对方把一页折得很平的账外信放到桌边，想听你怎么看这趟生意该不该继续。',
+    choices: [
+      { id: 'steady', text: '先问清风险和人情债。', response: '对方松了一口气，说你不像只看利润的人。', affinityChange: 8, relationshipTag: 'friend' },
+      { id: 'bold', text: '鼓励对方按自己的判断试一次。', response: '对方把信收进袖中，眼神比刚才亮了些。', affinityChange: 6 },
+      { id: 'distance', text: '提醒这不是你的账本。', response: '对方沉默片刻，还是点头说这句也该记下。', affinityChange: 2, relationshipTag: 'acquaintance' }
+    ]
+  },
+  {
+    id: 'business_stage_2_village_offer',
+    route: 'business',
+    stage: 2,
+    title: '村口小买卖',
+    opening: '对方试着在村口摆出一张小桌，既怕打扰村里，又怕错过真正能留下的机会。',
+    choices: [
+      { id: 'introduce', text: '介绍熟悉的村民过去看看。', response: '小桌前很快有人停步，对方忙得连道谢都带着笑。', affinityChange: 8, relationshipTag: 'friend' },
+      { id: 'help_layout', text: '帮忙把货品摆得更清楚。', response: '对方悄悄记下你的摆法，说这比账册上的格子有人情味。', affinityChange: 6 },
+      { id: 'observe', text: '只在旁边看一会儿。', response: '对方有点紧张，但还是努力把第一单做稳。', affinityChange: 3 }
+    ]
+  },
+  {
+    id: 'business_stage_3_stay_or_go',
+    route: 'business',
+    stage: 3,
+    title: '去留之间',
+    opening: '对方收到远路来的回信，信上催着启程，可桌上还压着一张没写完的桃源清单。',
+    choices: [
+      { id: 'welcome_back', text: '说桃源也可以是下一趟路的起点。', response: '对方把清单补完，说以后离村也会记得回来交账。', affinityChange: 10, relationshipTag: 'friend' },
+      { id: 'promise_letter', text: '约好以后用书信交换消息。', response: '对方认真写下你的地址，像给这段关系盖了一个小印。', affinityChange: 8 },
+      { id: 'respect_choice', text: '让对方自己决定去留。', response: '对方笑了笑，说被这样信任，反而更想把桃源当成归处。', affinityChange: 6 }
+    ]
+  },
+  {
+    id: 'caregiving_stage_1_pet_notes',
+    route: 'caregiving',
+    stage: 1,
+    title: '夜里的爪印',
+    opening: '夜里院边多了一串爪印，对方蹲在灯下辨认，担心是哪只小兽不舒服。',
+    choices: [
+      { id: 'listen', text: '陪着一起听院外动静。', response: '对方压低声音说，有人愿意慢下来，动物也会安心。', affinityChange: 8, relationshipTag: 'friend' },
+      { id: 'prepare_food', text: '去取些温和食物。', response: '食碗被放在墙边，对方记下这份细心。', affinityChange: 7 },
+      { id: 'practical', text: '建议明早再找。', response: '对方点头，却还是多看了一眼夜色。', affinityChange: 2, relationshipTag: 'acquaintance' }
+    ]
+  },
+  {
+    id: 'caregiving_stage_2_healer_letter',
+    route: 'caregiving',
+    stage: 2,
+    title: '给师父的回信',
+    opening: '对方写给师父的信只起了个头，迟迟不知道该不该承认自己想在桃源多住一阵。',
+    choices: [
+      { id: 'truth', text: '劝对方照实写下牵挂。', response: '对方终于落笔，说牵挂不是软弱，是知道自己想守着什么。', affinityChange: 8, relationshipTag: 'friend' },
+      { id: 'share_story', text: '讲一个自己照料宠物的糗事。', response: '对方笑得很轻，信纸上的字也放松了许多。', affinityChange: 6 },
+      { id: 'short_note', text: '建议只报平安。', response: '对方照做了，却把没说完的话另夹进札记里。', affinityChange: 3 }
+    ]
+  },
+  {
+    id: 'caregiving_stage_3_shared_care',
+    route: 'caregiving',
+    stage: 3,
+    title: '四季食性札记',
+    opening: '对方把新写好的札记递给你看，末页空着一栏，标题是“桃源这一家”。',
+    choices: [
+      { id: 'write_together', text: '一起补上最近的照料观察。', response: '末页多了两种笔迹，对方说这本札记终于不像孤本了。', affinityChange: 10, relationshipTag: 'friend' },
+      { id: 'name_pet', text: '提议把宠物习惯也记成小传。', response: '对方认真点头，说每个小生命都该有自己的来历。', affinityChange: 8 },
+      { id: 'keep_copy', text: '请对方留一份副本在村里。', response: '对方把副本压在桌上，说这也算住下来的证据。', affinityChange: 6 }
+    ]
+  },
+  {
+    id: 'craft_stage_1_old_pattern',
+    route: 'craft',
+    stage: 1,
+    title: '旧灯样',
+    opening: '对方摊开一张破旧灯样，灯纸边缘缺了一角，只剩师门印记还能辨认。',
+    choices: [
+      { id: 'repair', text: '帮忙压住灯纸描边。', response: '对方夸你手稳，说旧东西遇上耐心就还有救。', affinityChange: 8, relationshipTag: 'friend' },
+      { id: 'ask_story', text: '问这枚师门印记的来历。', response: '对方讲得很短，却第一次提起师父的名字。', affinityChange: 7 },
+      { id: 'new_style', text: '建议直接改成新样式。', response: '对方笑骂你心急，还是在边角试了一笔。', affinityChange: 3 }
+    ]
+  },
+  {
+    id: 'craft_stage_2_lantern_wall',
+    route: 'craft',
+    stage: 2,
+    title: '一面花灯墙',
+    opening: '对方想在村里试挂一面小花灯墙，却犹豫要写愿望还是写旧灯出处。',
+    choices: [
+      { id: 'both', text: '提议愿望和出处都留下。', response: '灯墙忽然有了层次，对方说这才像会继续长出来的东西。', affinityChange: 8, relationshipTag: 'friend' },
+      { id: 'wish', text: '先写眼前人的愿望。', response: '灯纸被风吹得轻响，对方看着它们笑了很久。', affinityChange: 6 },
+      { id: 'origin', text: '先写旧灯来历。', response: '对方把旧账一笔笔写清，像终于还上了什么。', affinityChange: 6 }
+    ]
+  },
+  {
+    id: 'craft_stage_3_new_signature',
+    route: 'craft',
+    stage: 3,
+    title: '新落款',
+    opening: '新灯样完成了，落款处却空着。对方问你，旧师门之后还该写哪里。',
+    choices: [
+      { id: 'taoyuan', text: '写下桃源村。', response: '对方郑重落笔，说手艺有了新来处。', affinityChange: 10, relationshipTag: 'friend' },
+      { id: 'shared', text: '写下两个人一起修过。', response: '对方笑着补了一笔小小的记号，算是默许。', affinityChange: 8, relationshipTag: 'ambiguous' },
+      { id: 'blank', text: '留空，等以后再定。', response: '对方把灯收好，说未完的地方也值得留下。', affinityChange: 6 }
+    ]
+  },
+  {
+    id: 'friendship_stage_1_settle_in',
+    route: 'friendship',
+    stage: 1,
+    title: '暂住第一日',
+    opening: '对方站在新收拾的小屋前，像是不确定自己是否真的能把这里称作住处。',
+    choices: [
+      { id: 'neighbor', text: '告诉对方邻里慢慢熟就好。', response: '对方把门前扫得更干净了些，说慢慢来听起来很踏实。', affinityChange: 8, relationshipTag: 'friend' },
+      { id: 'help_move', text: '帮忙把行李搬进屋。', response: '对方轻声道谢，把最重要的小物留在桌上。', affinityChange: 7 },
+      { id: 'space', text: '让对方先独自安顿。', response: '对方点点头，门没有关严，像给以后留了缝。', affinityChange: 3 }
+    ]
+  },
+  {
+    id: 'friendship_stage_2_village_memory',
+    route: 'friendship',
+    stage: 2,
+    title: '村里的第一段记忆',
+    opening: '对方说起最近记住的村里声音：鸡鸣、磨坊、雨落瓦檐，还有你路过时的脚步。',
+    choices: [
+      { id: 'walk', text: '邀请对方一起走一圈村路。', response: '走完一圈后，对方能叫出更多地名，也更像这里的人了。', affinityChange: 8, relationshipTag: 'friend' },
+      { id: 'share_place', text: '说一个自己常去的地方。', response: '对方把那个地方记进心里，说下次想自己去看看。', affinityChange: 6 },
+      { id: 'joke', text: '打趣脚步声也能认人。', response: '对方笑着说，有些人确实不用看见就知道来了。', affinityChange: 6, relationshipTag: 'ambiguous' }
+    ]
+  },
+  {
+    id: 'friendship_stage_3_rooted',
+    route: 'friendship',
+    stage: 3,
+    title: '留下的理由',
+    opening: '对方把最初的行囊重新系好，又慢慢解开，说想确认自己留下不是因为无处可去。',
+    choices: [
+      { id: 'chosen', text: '说留下也可以是一种选择。', response: '对方把行囊放回柜里，说这次是自己选的。', affinityChange: 10, relationshipTag: 'friend' },
+      { id: 'future', text: '一起说说以后的日子。', response: '对方没有急着答应什么，却把“以后”两个字重复了一遍。', affinityChange: 8 },
+      { id: 'support', text: '承诺需要时会帮一把。', response: '对方认真看着你，说这句话已经很够了。', affinityChange: 7 }
+    ]
   }
 ]

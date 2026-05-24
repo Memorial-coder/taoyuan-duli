@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0524 随机 NPC 文游对话第一版
+- 新增 `RANDOM_NPC_LONG_STAY_STORY_EVENTS`，按商学暂住、照料驻村、手艺驻村、邻里常驻四条路线各提供 3 段长住事件；每段事件包含标题、开场和三种回应。
+- 长住 NPC 现在可以在人物卡中推进当前文游事件；玩家每天最多推进一段，选择会写回好感、关系标签、阶段、已完成事件 ID 和关键事件。
+- 存档反序列化会清洗 `completedStoryEventIds / lastStoryDayTag`，事件 ID 只保留最近 6 条，避免随机 NPC 文本状态无限膨胀；本轮不接入恋爱、家庭收益或物品奖励。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0524 随机 NPC 长住第一版
 - `randomNpcBoard` 新增 `longStayResidents` 长住名册，熟人好感达到 70 后可从熟人册邀请为长住，最多保留 3 人，名额满时不会静默挤掉已长住角色。
 - 长住条目会保存来源熟人、完整人物卡快照、驻村原因、发展路线、阶段占位、家庭背景、偏好、小订单线索和关键事件；读档会按模板白名单、路线白名单、数量上限和来源去重清洗。
