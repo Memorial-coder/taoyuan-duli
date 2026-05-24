@@ -2,7 +2,15 @@ const fs = require('fs');
 const path = require('path');
 const db = require('./db');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
-const { createError, writeJsonFileAtomic } = require('./taoyuanSaveRuntime');
+const {
+  createError,
+  decryptTaoyuanRaw,
+  findSaveIdentityById,
+  getActiveSaveSlot,
+  loadUserSaveSlots,
+  normalizeGameplaySaveContainer,
+  writeJsonFileAtomic,
+} = require('./taoyuanSaveRuntime');
 
 const DATA_DIR = process.env.DB_STORAGE
   ? path.dirname(process.env.DB_STORAGE)
@@ -265,6 +273,233 @@ function normalizeOriginAssets(value = {}) {
   };
 }
 
+function normalizeFarmSize(value, plotCount = 0) {
+  const size = Number(value);
+  if ([4, 6, 8].includes(size)) return size;
+  const inferred = Math.sqrt(Number(plotCount) || 0);
+  if ([4, 6, 8].includes(inferred)) return inferred;
+  return 4;
+}
+
+function normalizePlotId(value, fallback) {
+  const id = Number(value);
+  return Number.isInteger(id) && id >= 0 ? id : fallback;
+}
+
+function normalizePlotState(value) {
+  const state = String(value || '').trim();
+  if (['wasteland', 'tilled', 'planted', 'growing', 'harvestable'].includes(state)) return state;
+  return 'wasteland';
+}
+
+function summarizeFarmPlot(plot = {}) {
+  const cropId = sanitizeText(plot.cropId ?? plot.crop_id, 80);
+  const fertilizer = sanitizeText(plot.fertilizer, 80);
+  const giantCropGroup = plot.giantCropGroup ?? plot.giant_crop_group;
+  return {
+    state: normalizePlotState(plot.state),
+    crop_id: cropId || null,
+    growth_days: Math.max(0, Math.floor(Number(plot.growthDays ?? plot.growth_days) || 0)),
+    watered: plot.watered === true,
+    unwatered_days: Math.max(0, Math.floor(Number(plot.unwateredDays ?? plot.unwatered_days) || 0)),
+    fertilizer: fertilizer || null,
+    harvest_count: Math.max(0, Math.floor(Number(plot.harvestCount ?? plot.harvest_count) || 0)),
+    giant_crop_group: giantCropGroup === null || giantCropGroup === undefined || giantCropGroup === ''
+      ? null
+      : Math.max(0, Math.floor(Number(giantCropGroup) || 0)),
+    infested: plot.infested === true,
+    infested_days: Math.max(0, Math.floor(Number(plot.infestedDays ?? plot.infested_days) || 0)),
+    weedy: plot.weedy === true,
+    weedy_days: Math.max(0, Math.floor(Number(plot.weedyDays ?? plot.weedy_days) || 0)),
+  };
+}
+
+function countPlotStates(plots = []) {
+  return plots.reduce((summary, plot) => {
+    const state = plot?.plot_state?.state || 'wasteland';
+    summary.total += 1;
+    if (state !== 'wasteland') summary.active += 1;
+    if (state === 'harvestable') summary.harvestable += 1;
+    if (['planted', 'growing'].includes(state) && plot?.plot_state?.watered !== true) summary.waterable += 1;
+    return summary;
+  }, {
+    total: 0,
+    active: 0,
+    harvestable: 0,
+    waterable: 0,
+  });
+}
+
+function getContainerIdentity(saveContainer = {}) {
+  return saveContainer?.gameplayData?.onlineIdentity
+    || saveContainer?.gameplayData?.saveIdentity
+    || saveContainer?.root?.meta?.onlineIdentity
+    || saveContainer?.root?.meta?.saveIdentity
+    || null;
+}
+
+function resolveMemberIdentity(member = {}) {
+  const memberSaveId = normalizeSaveId(member.save_id);
+  if (!memberSaveId) return null;
+  try {
+    const identity = findSaveIdentityById(memberSaveId);
+    if (!identity) return null;
+    if (normalizeUsernameKey(identity.account_username) !== member.username_key) return null;
+    return identity;
+  } catch {
+    return null;
+  }
+}
+
+function resolveMemberSaveSlot(member = {}, saves = {}, identity = null) {
+  const preferredSlot = normalizeSaveSlot(member.save_slot ?? identity?.save_slot);
+  if (preferredSlot !== null && saves?.slots?.[preferredSlot]?.raw) return preferredSlot;
+  const activeSlot = getActiveSaveSlot(member.username);
+  if (activeSlot !== null && saves?.slots?.[activeSlot]?.raw) return activeSlot;
+  const fallbackSlot = [0, 1, 2].find(slot => typeof saves?.slots?.[slot]?.raw === 'string' && saves.slots[slot].raw);
+  return fallbackSlot === undefined ? null : fallbackSlot;
+}
+
+function readMemberFarmSnapshot(member = {}) {
+  const identity = resolveMemberIdentity(member);
+  try {
+    const saves = loadUserSaveSlots(member.username);
+    const slot = resolveMemberSaveSlot(member, saves, identity);
+    if (slot === null) {
+      return {
+        available: false,
+        unavailable_reason: '成员没有可读取的服务端存档',
+        member,
+        save_slot: null,
+        save_revision: 0,
+        save_id: normalizeSaveId(member.save_id || identity?.save_id),
+        farm_size: 0,
+        plots: [],
+      };
+    }
+    const entry = saves.slots[slot];
+    const decrypted = decryptTaoyuanRaw(entry.raw);
+    const saveContainer = normalizeGameplaySaveContainer(decrypted);
+    const gameplay = saveContainer?.gameplayData;
+    const farm = gameplay?.farm && typeof gameplay.farm === 'object' ? gameplay.farm : null;
+    if (!farm) {
+      return {
+        available: false,
+        unavailable_reason: '成员存档缺少农田数据',
+        member,
+        save_slot: slot,
+        save_revision: Number(entry.revision) || 0,
+        save_id: normalizeSaveId(member.save_id || identity?.save_id),
+        farm_size: 0,
+        plots: [],
+      };
+    }
+    const onlineIdentity = getContainerIdentity(saveContainer);
+    const plots = Array.isArray(farm.plots) ? farm.plots : [];
+    const saveId = normalizeSaveId(member.save_id || identity?.save_id || onlineIdentity?.save_id || onlineIdentity?.saveId);
+    return {
+      available: true,
+      unavailable_reason: '',
+      member,
+      save_slot: slot,
+      save_revision: Number(entry.revision) || 0,
+      save_id: saveId,
+      farm_size: normalizeFarmSize(farm.farmSize ?? farm.farm_size, plots.length),
+      plots,
+      greenhouse_plot_count: Array.isArray(farm.greenhousePlots) ? farm.greenhousePlots.length : 0,
+      fruit_tree_count: Array.isArray(farm.fruitTrees) ? farm.fruitTrees.length : 0,
+    };
+  } catch {
+    return {
+      available: false,
+      unavailable_reason: '成员存档读取失败',
+      member,
+      save_slot: null,
+      save_revision: 0,
+      save_id: normalizeSaveId(member.save_id || identity?.save_id),
+      farm_size: 0,
+      plots: [],
+    };
+  }
+}
+
+function getPlotPermissionMode(contract = {}, ownerKey = '') {
+  const acceptedMembers = (contract.members || []).filter(member => member.status === 'accepted');
+  const sharedOperators = acceptedMembers.filter(member => {
+    if (member.username_key === ownerKey) return true;
+    const farmPermissions = contract.permissions?.[member.username_key]?.farm || {};
+    return farmPermissions.water === true || farmPermissions.plant === true || farmPermissions.harvest === true;
+  });
+  return sharedOperators.length > 1 ? 'shared' : 'owner_only';
+}
+
+function buildSharedFarmPlots(contract, farmSnapshots) {
+  const plots = [];
+  const regions = [];
+  let columnOffset = 0;
+  let maxRows = 0;
+
+  for (const farmSnapshot of farmSnapshots) {
+    const member = farmSnapshot.member;
+    const width = farmSnapshot.available ? farmSnapshot.farm_size : 0;
+    const height = farmSnapshot.available ? farmSnapshot.farm_size : 0;
+    const originOwnerId = farmSnapshot.save_id
+      ? `save:${farmSnapshot.save_id}`
+      : `account:${member.username_key}`;
+    const region = {
+      member_username: member.username,
+      member_display_name: member.display_name,
+      origin_owner_id: originOwnerId,
+      origin_save_id: farmSnapshot.save_id,
+      x: columnOffset,
+      y: 0,
+      width,
+      height,
+      available: farmSnapshot.available,
+      unavailable_reason: farmSnapshot.unavailable_reason,
+    };
+    regions.push(region);
+    if (farmSnapshot.available) {
+      const permissionMode = getPlotPermissionMode(contract, member.username_key);
+      farmSnapshot.plots.forEach((plot, index) => {
+        const sourcePlotId = normalizePlotId(plot?.id ?? plot?.plotId ?? plot?.plot_id, index);
+        const localColumn = sourcePlotId % farmSnapshot.farm_size;
+        const localRow = Math.floor(sourcePlotId / farmSnapshot.farm_size);
+        plots.push({
+          id: `${member.username_key}:field:${sourcePlotId}`,
+          source_area: 'field',
+          source_plot_id: sourcePlotId,
+          origin_owner_id: originOwnerId,
+          origin_save_id: farmSnapshot.save_id,
+          origin_owner_username: member.username,
+          origin_owner_display_name: member.display_name,
+          origin_owner_key: member.username_key,
+          current_steward_username: member.username,
+          current_steward_display_name: member.display_name,
+          permission_mode: permissionMode,
+          x: columnOffset + localColumn,
+          y: localRow,
+          row: localRow,
+          col: columnOffset + localColumn,
+          local_row: localRow,
+          local_col: localColumn,
+          plot_state: summarizeFarmPlot(plot),
+          readonly: true,
+        });
+      });
+    }
+    columnOffset += width;
+    maxRows = Math.max(maxRows, height);
+  }
+
+  return {
+    plots,
+    regions,
+    columns: columnOffset,
+    rows: maxRows,
+  };
+}
+
 function normalizeSeparationPreview(entry = {}) {
   return {
     id: sanitizeText(entry.id, 80) || makeId('separation_preview'),
@@ -426,6 +661,70 @@ async function listCohabitationContracts(username) {
   };
 }
 
+async function getCohabitationSharedMap(contractId, actor = {}) {
+  const actorUsername = normalizeUsername(typeof actor === 'string' ? actor : actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  if (!contract) throw createError('同居契约不存在', 404);
+  if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
+  if (contract.status !== 'active') throw createError('只有已生效契约可以查看共同农田地图', 409);
+
+  const farmSnapshots = contract.members.map(readMemberFarmSnapshot);
+  const layout = buildSharedFarmPlots(contract, farmSnapshots);
+  const stateCounts = countPlotStates(layout.plots);
+  const sharedMap = {
+    contract_id: contract.id,
+    shared_manor_id: contract.shared_manor_id,
+    status: contract.status,
+    readonly: true,
+    writes_enabled: false,
+    generated_at: nowSeconds(),
+    revision: Math.max(contract.updated_at || 0, ...farmSnapshots.map(snapshot => Number(snapshot.save_revision) || 0)),
+    layout: {
+      columns: layout.columns,
+      rows: layout.rows,
+      regions: layout.regions,
+      arrangement: 'side_by_side',
+    },
+    members: farmSnapshots.map(snapshot => ({
+      username: snapshot.member.username,
+      username_key: snapshot.member.username_key,
+      display_name: snapshot.member.display_name,
+      role: snapshot.member.role,
+      status: snapshot.member.status,
+      available: snapshot.available,
+      unavailable_reason: snapshot.unavailable_reason,
+      save_slot: snapshot.save_slot,
+      save_revision: snapshot.save_revision,
+      save_id: snapshot.save_id,
+      farm_size: snapshot.farm_size,
+      field_plot_count: Array.isArray(snapshot.plots) ? snapshot.plots.length : 0,
+      greenhouse_plot_count: snapshot.greenhouse_plot_count || 0,
+      fruit_tree_count: snapshot.fruit_tree_count || 0,
+    })),
+    plots: layout.plots,
+    summary: {
+      member_count: contract.members.length,
+      available_member_count: farmSnapshots.filter(snapshot => snapshot.available).length,
+      total_plots: stateCounts.total,
+      active_plots: stateCounts.active,
+      harvestable_plots: stateCounts.harvestable,
+      waterable_plots: stateCounts.waterable,
+      origin_owner_count: new Set(layout.plots.map(plot => plot.origin_owner_id)).size,
+      personal_money_merged: false,
+      shared_fund_balance: contract.shared_fund.balance,
+      included_sources: ['farm.plots'],
+      deferred_sources: ['farm.greenhousePlots', 'farm.fruitTrees', 'animal', 'warehouse', 'decoration'],
+    },
+  };
+
+  return {
+    contract: toPublicContract(contract),
+    shared_map: sharedMap,
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -581,6 +880,7 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
 module.exports = {
   RELATION_TYPE_DEFS,
   listCohabitationContracts,
+  getCohabitationSharedMap,
   createCohabitationContract,
   acceptCohabitationContract,
   createSeparationPreview,

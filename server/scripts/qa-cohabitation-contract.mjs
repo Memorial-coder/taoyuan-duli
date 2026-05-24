@@ -34,6 +34,61 @@ const actor = username => ({
   displayName: username,
 })
 
+const createFarmPlots = username => {
+  const plots = Array.from({ length: 16 }, (_, id) => ({
+    id,
+    state: 'wasteland',
+    cropId: null,
+    growthDays: 0,
+    watered: false,
+    unwateredDays: 0,
+    fertilizer: null,
+    harvestCount: 0,
+    giantCropGroup: null,
+    seedGenetics: null,
+    infested: false,
+    infestedDays: 0,
+    weedy: false,
+    weedyDays: 0,
+  }))
+  if (username === owner) {
+    plots[0] = {
+      ...plots[0],
+      state: 'growing',
+      cropId: 'rice',
+      growthDays: 2,
+      watered: false,
+      unwateredDays: 1,
+      infested: true,
+      infestedDays: 1,
+    }
+    plots[1] = {
+      ...plots[1],
+      state: 'tilled',
+    }
+  }
+  if (username === partner) {
+    plots[5] = {
+      ...plots[5],
+      state: 'harvestable',
+      cropId: 'tea',
+      growthDays: 6,
+      watered: true,
+      harvestCount: 1,
+    }
+    plots[6] = {
+      ...plots[6],
+      state: 'growing',
+      cropId: 'lotus',
+      growthDays: 3,
+      watered: false,
+      weedy: true,
+      weedyDays: 1,
+    }
+  }
+  return plots
+}
+
 const buildSaveData = username => ({
   meta: {
     saveVersion: 1,
@@ -52,7 +107,7 @@ const buildSaveData = username => ({
     },
     farm: {
       farmSize: 4,
-      plots: [],
+      plots: createFarmPlots(username),
       fruitTrees: [],
       greenhousePlots: [],
     },
@@ -125,6 +180,53 @@ assert.ok(accepted.contract.audit_log.find(entry => entry.action === 'contract_a
 
 const activeOverview = await runtime.listCohabitationContracts(partner)
 assert.equal(activeOverview.summary.active, 1, 'partner should see the active contract')
+
+const ownerRawBeforeSharedMap = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeSharedMap = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const sharedMapResult = await runtime.getCohabitationSharedMap(created.contract.id, actor(owner))
+const sharedMap = sharedMapResult.shared_map
+assert.equal(sharedMap.readonly, true, 'shared farm map should be read-only in the first pass')
+assert.equal(sharedMap.writes_enabled, false, 'shared farm map should not expose write operations yet')
+assert.equal(sharedMap.summary.total_plots, 32, 'two 4x4 farms should be stitched into one map')
+assert.equal(sharedMap.layout.columns, 8, 'dual farms should be placed side by side')
+assert.equal(sharedMap.layout.rows, 4, 'dual farms should keep the tallest member farm height')
+assert.equal(sharedMap.summary.origin_owner_count, 2, 'shared map should preserve both origin owners')
+assert.equal(sharedMap.summary.personal_money_merged, false, 'shared map must not merge personal money')
+assert.deepEqual(sharedMap.summary.included_sources, ['farm.plots'], 'first pass should only include main farm plots')
+const ownerPlot = sharedMap.plots.find(plot => plot.origin_owner_username === owner && plot.source_plot_id === 0)
+assert.match(ownerPlot?.origin_owner_id || '', /^(save:\d{9}|account:cohabit_owner_0524)$/, 'owner plot should keep traceable origin owner id')
+assert.equal(ownerPlot?.origin_owner_id, sharedMap.members.find(member => member.username === owner)?.save_id
+  ? `save:${sharedMap.members.find(member => member.username === owner)?.save_id}`
+  : `account:${owner}`, 'owner plot origin id should match member save identity or account fallback')
+assert.equal(ownerPlot?.current_steward_username, owner, 'owner plot should default steward to original owner')
+assert.equal(ownerPlot?.permission_mode, 'shared', 'lover contract should default farm care to shared')
+assert.equal(ownerPlot?.plot_state.crop_id, 'rice', 'owner crop state should be visible')
+const partnerPlot = sharedMap.plots.find(plot => plot.origin_owner_username === partner && plot.source_plot_id === 5)
+assert.match(partnerPlot?.origin_owner_id || '', /^(save:\d{9}|account:cohabit_partner_0524)$/, 'partner plot should keep traceable origin owner id')
+assert.equal(partnerPlot?.origin_owner_id, sharedMap.members.find(member => member.username === partner)?.save_id
+  ? `save:${sharedMap.members.find(member => member.username === partner)?.save_id}`
+  : `account:${partner}`, 'partner plot origin id should match member save identity or account fallback')
+assert.equal(partnerPlot?.col, 5, 'partner plot should be offset into the second farm region')
+assert.equal(partnerPlot?.plot_state.state, 'harvestable', 'partner crop state should be visible')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedMap, 'shared map should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedMap, 'shared map should not rewrite partner save')
+
+await assert.rejects(
+  () => runtime.getCohabitationSharedMap(created.contract.id, actor(extra)),
+  error => error?.status === 403 && String(error.message || '').includes('不在这份契约'),
+  'non-members should not read a shared farm map'
+)
+
+const pendingContract = await runtime.createCohabitationContract({
+  type: 'seasonal_cofarm',
+  target_username: extra,
+  idempotency_key: 'qa-pending-cofarm-contract',
+}, actor(owner))
+await assert.rejects(
+  () => runtime.getCohabitationSharedMap(pendingContract.contract.id, actor(owner)),
+  error => error?.status === 409 && String(error.message || '').includes('已生效'),
+  'pending contracts should not expose shared farm map'
+)
 
 const previewResult = await runtime.createSeparationPreview(created.contract.id, {
   reason: 'qa preview',

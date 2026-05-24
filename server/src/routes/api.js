@@ -2746,6 +2746,18 @@ router.get('/taoyuan/online/cohabitation/contracts', createOnlineReleaseGuard('m
   }
 });
 
+router.get('/taoyuan/online/cohabitation/contracts/:contractId/shared-map', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCohabitationRuntime.getCohabitationSharedMap(req.params.contractId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取共同农田地图失败' });
+  }
+});
+
 router.post('/taoyuan/online/cohabitation/contracts', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   try {
     const result = await taoyuanCohabitationRuntime.createCohabitationContract(req.body || {}, {
