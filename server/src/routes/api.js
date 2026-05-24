@@ -14,6 +14,7 @@ const taoyuanAiAssistant = require('../taoyuanAiAssistant');
 const taoyuanSocialRuntime = require('../taoyuanSocialRuntime');
 const taoyuanRealtimeRuntime = require('../taoyuanRealtimeRuntime');
 const taoyuanManorRuntime = require('../taoyuanManorRuntime');
+const taoyuanCohabitationRuntime = require('../taoyuanCohabitationRuntime');
 const taoyuanCoopOrderRuntime = require('../taoyuanCoopOrderRuntime');
 const taoyuanActivityRoomRuntime = require('../taoyuanActivityRoomRuntime');
 const taoyuanSocietyRuntime = require('../taoyuanSocietyRuntime');
@@ -103,6 +104,12 @@ const ONLINE_RATE_LIMIT_RULES = Object.freeze([
     maxRequests: 20,
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts(?:\/|$)/i,
+    routeKey: 'cohabitation_contract_write',
+    scope: 'cohabitation',
+    maxRequests: 12,
+  },
+  {
     matcher: /^\/api\/taoyuan\/exchange-station\/(?:weekly\/[^/]+\/exchange|festival-stall\/[^/]+\/purchase|neighbors\/consignments(?:\/[^/]+\/(?:purchase|cancel|reclaim))?|ledger\/[^/]+\/disputes)$/i,
     routeKey: 'exchange_write',
     scope: 'exchange',
@@ -149,6 +156,18 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
   {
     matcher: /^\/api\/taoyuan\/online\/societies\/public-warehouse\/deposit$/i,
     action: 'society_public_warehouse_deposit',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts$/i,
+    action: 'cohabitation_contract_create',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/accept$/i,
+    action: 'cohabitation_contract_accept',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/separation-preview$/i,
+    action: 'cohabitation_separation_preview',
   },
   {
     matcher: /^\/api\/taoyuan\/online\/societies\/proposals$/i,
@@ -1661,6 +1680,7 @@ function buildOnlineAuditDetail(req) {
     room_id: sanitizeAuditValue(req.params?.roomId || body.room_id || body.activity_room_id || '', 80),
     order_id: sanitizeAuditValue(req.params?.orderId || body.order_id || '', 80),
     stage_id: sanitizeAuditValue(req.params?.stageId || body.stageId || body.stage_id || '', 80),
+    contract_id: sanitizeAuditValue(req.params?.contractId || body.contract_id || '', 80),
     society_id: sanitizeAuditValue(req.params?.societyId || body.society_id || body.group_id || '', 80),
     proposal_id: sanitizeAuditValue(req.params?.proposalId || body.proposal_id || '', 80),
     project_id: sanitizeAuditValue(req.params?.projectId || body.project_id || '', 80),
@@ -2714,6 +2734,51 @@ router.get('/taoyuan/online/manor/favorites/overview', createOnlineReleaseGuard(
     res.json({ ok: true, ...overview });
   } catch (error) {
     res.status(error.status || 500).json({ ok: false, msg: error.message || '获取庄园收藏失败' });
+  }
+});
+
+router.get('/taoyuan/online/cohabitation/contracts', createOnlineReleaseGuard('manor'), loginRequired, async (req, res) => {
+  try {
+    const overview = await taoyuanCohabitationRuntime.listCohabitationContracts(req.session.username);
+    res.json({ ok: true, ...overview });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '获取同居契约失败' });
+  }
+});
+
+router.post('/taoyuan/online/cohabitation/contracts', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCohabitationRuntime.createCohabitationContract(req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '创建同居契约失败' });
+  }
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/accept', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCohabitationRuntime.acceptCohabitationContract(req.params.contractId, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '接受同居契约失败' });
+  }
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-preview', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  try {
+    const result = await taoyuanCohabitationRuntime.createSeparationPreview(req.params.contractId, req.body || {}, {
+      username: req.session.username,
+      displayName: req.session.display_name || req.session.username,
+    });
+    res.json({ ok: true, ...result });
+  } catch (error) {
+    res.status(error.status || 500).json({ ok: false, msg: error.message || '生成分居预览失败' });
   }
 });
 
