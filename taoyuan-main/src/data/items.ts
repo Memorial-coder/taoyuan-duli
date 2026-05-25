@@ -528,7 +528,7 @@ const DRIED_ITEMS: ItemDef[] = [
     id: 'dried_persimmon_slice',
     name: '柿饼',
     category: 'processed',
-    description: '柿子脱水制成的柿饼，软糯香甜。',
+    description: '柿子晒干或脱水制成的柿饼，软糯香甜，可作冬储点心。',
     sellPrice: 170,
     edible: true,
     staminaRestore: 42,
@@ -563,6 +563,24 @@ const DRIED_ITEMS: ItemDef[] = [
     edible: true,
     staminaRestore: 12,
     healthRestore: 6
+  },
+  {
+    id: 'dried_vegetable',
+    name: '干菜',
+    category: 'processed',
+    description: '白菜晒成的耐储干菜，可做干菜汤、冬储订单和公共食材。',
+    sellPrice: 120,
+    edible: true,
+    staminaRestore: 16,
+    healthRestore: 8
+  },
+  {
+    id: 'dried_herb',
+    name: '药材干',
+    category: 'processed',
+    description: '草药晒成的药材干，可再研磨成药膏并进入丹药准备链。',
+    sellPrice: 150,
+    edible: false
   },
   {
     id: 'dried_lotus_seed',
@@ -1690,6 +1708,9 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   wheat_flour: '石磨加工',
   cornmeal: '石磨加工',
   sesame_powder: '石磨加工',
+  dried_persimmon_slice: '晒架 / 脱水机加工',
+  dried_vegetable: '晒架加工',
+  dried_herb: '晒架加工',
   dried_lotus_seed: '脱水机加工',
   lotus_heart_powder: '药碾加工',
   pickled_radish: '酱缸加工',

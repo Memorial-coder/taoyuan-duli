@@ -103,6 +103,17 @@ export const PROCESSING_MACHINES: ProcessingMachineDef[] = [
     craftMoney: 300
   },
   {
+    id: 'drying_rack',
+    name: '晒架',
+    description: '用日晒风干保存作物，产出柿饼、干菜和药材干。',
+    craftCost: [
+      { itemId: 'wood', quantity: 12 },
+      { itemId: 'bamboo', quantity: 6 },
+      { itemId: 'firewood', quantity: 4 }
+    ],
+    craftMoney: 120
+  },
+  {
     id: 'dehydrator',
     name: '脱水机',
     description: '将蘑菇或水果脱水保存，增值出售。',
@@ -1221,6 +1232,40 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     processingDays: 1,
     description: '将莲子脱水成耐储的干莲子，可继续做安神茶点或研成莲心粉。'
   },
+  // 晒架
+  {
+    id: 'rack_dried_persimmon',
+    machineType: 'drying_rack',
+    name: '柿饼',
+    inputItemId: 'persimmon',
+    inputQuantity: 1,
+    outputItemId: 'dried_persimmon_slice',
+    outputQuantity: 1,
+    processingDays: 2,
+    description: '将柿子慢晒成柿饼，适合作为冬储点心和节会甜品。'
+  },
+  {
+    id: 'rack_dried_vegetable',
+    machineType: 'drying_rack',
+    name: '干菜',
+    inputItemId: 'cabbage',
+    inputQuantity: 2,
+    outputItemId: 'dried_vegetable',
+    outputQuantity: 1,
+    processingDays: 2,
+    description: '将白菜晒成耐储干菜，可继续做干菜汤、订单食材和冬储补给。'
+  },
+  {
+    id: 'rack_dried_herb',
+    machineType: 'drying_rack',
+    name: '药材干',
+    inputItemId: 'herb',
+    inputQuantity: 3,
+    outputItemId: 'dried_herb',
+    outputQuantity: 1,
+    processingDays: 2,
+    description: '将草药晒成药材干，适合再研磨成药膏或作为丹材储备。'
+  },
   // 回收机
   {
     id: 'recycle_firewood',
@@ -1655,6 +1700,17 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputQuantity: 1,
     processingDays: 2,
     description: '将草药研磨成药膏。'
+  },
+  {
+    id: 'grind_dried_herb',
+    machineType: 'herb_grinder',
+    name: '草药膏',
+    inputItemId: 'dried_herb',
+    inputQuantity: 1,
+    outputItemId: 'herbal_paste',
+    outputQuantity: 1,
+    processingDays: 1,
+    description: '将药材干复研成稳定草药膏，继续进入清心莲丹和探索前药材准备。'
   },
   {
     id: 'grind_ginseng',

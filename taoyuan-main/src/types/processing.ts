@@ -12,6 +12,7 @@ export type MachineType =
   | 'seed_maker'
   | 'crystal_duplicator'
   | 'smoker'
+  | 'drying_rack'
   | 'dehydrator'
   | 'recycler'
   | 'cheese_press'

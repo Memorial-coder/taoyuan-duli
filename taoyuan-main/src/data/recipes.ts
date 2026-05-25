@@ -230,6 +230,23 @@ export const RECIPES: RecipeDef[] = [
     description: '晒干的柿饼，甘甜绵密。'
   },
   {
+    id: 'dried_vegetable_soup',
+    name: '干菜米粉汤',
+    ingredients: [
+      { itemId: 'dried_vegetable', quantity: 1 },
+      { itemId: 'rice_flour', quantity: 1 },
+      { itemId: 'firewood', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 32,
+      healthRestore: 16,
+      buff: { type: 'defense', value: 6, description: '受到伤害-6%（当天）' }
+    },
+    unlockSource: '加工链第八批',
+    requiredSkill: { type: 'farming', level: 2 },
+    description: '干菜与米粉煮成的耐储汤食，适合冬储订单、修桥慰劳饭和公共食材预备。'
+  },
+  {
     id: 'lotus_seed_soup',
     name: '莲子羹',
     ingredients: [
