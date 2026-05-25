@@ -251,6 +251,203 @@ async function mockOnlineVisualRoom(page: Page, options: {
   })
 }
 
+function buildSocietyProject() {
+  return {
+    id: 'bridge',
+    label: '村社修桥',
+    summary: '修复村口断桥，恢复溪桥通行。',
+    status: 'active',
+    status_label: '建设中',
+    progress: 35,
+    target_progress: 100,
+    progress_percent: 35,
+    remaining_progress: 65,
+    completed_at: 0,
+    completed_by: '',
+    completed_by_display_name: '',
+    progress_note: '脚手架正在加固。',
+    completion_feedback: '',
+    world_feedback: '',
+    completion_rewards: [],
+    can_contribute: true,
+    my_contribution_count: 0,
+    contribution_packages: [
+      {
+        id: 'labor_shift',
+        label: '施工行动',
+        kind: 'labor',
+        summary: '今日来桥边帮忙搬木、扶梁和清理碎石。',
+        progress_gain: 8,
+        daily_limit: 1,
+        weekly_limit: 3,
+        costs: []
+      }
+    ],
+    recent_contributions: []
+  }
+}
+
+function buildSocietyOverview() {
+  const bridgeProject = buildSocietyProject()
+  const overview = {
+    ok: true,
+    bulletin: '村社 smoke',
+    my_society: {
+      id: 'society-e2e',
+      name: '清溪灯社',
+      summary: '测试公共建设',
+      notice: '本周先修桥。',
+      emblem: 'plum_seal',
+      emblem_label: '梅印',
+      theme: 'harvest_union',
+      theme_label: '共耕',
+      visibility: 'public',
+      visibility_label: '公开',
+      capacity: 24,
+      member_count: 1,
+      leader_username: 'tester',
+      leader_display_name: '测试者',
+      join_requirement_id: 'open',
+      join_requirement_label: '开放',
+      join_requirement_summary: '公开申请',
+      join_requirement_note: '',
+      created_at: 0,
+      updated_at: 0,
+      level: 1,
+      level_title: '初建村社',
+      welfare_xp: 20,
+      welfare_total_xp: 20,
+      welfare_xp_to_next_level: 80,
+      my_role: 'president',
+      my_role_label: '社长',
+      can_apply: false,
+      can_invite: false,
+      can_review_requests: false,
+      can_manage_roles: false,
+      can_manage_notice: false,
+      can_create_proposal: false,
+      can_close_proposal: false,
+      members: [
+        { username: 'tester', display_name: '测试者', save_id: 1, save_slot: 1, role: 'president', role_label: '社长', joined_at: 0 }
+      ],
+      activity_log: [],
+      active_proposals: [],
+      proposal_history: [],
+      public_projects: [bridgeProject],
+      visual_state: {
+        ...emptyVisualState,
+        board_type: 'async',
+        board_id: 'society_public_projects',
+        selected_visual_id: 'bridge',
+        async_projects: [
+          {
+            id: 'bridge',
+            label: '村社修桥',
+            kind: 'bridge',
+            day_tag: 'e2e-day',
+            week_tag: 'e2e-week',
+            starts_at: 0,
+            ends_at: 0,
+            current_stage_id: 'bridge_scaffold',
+            stages: [
+              {
+                id: 'bridge_scaffold',
+                label: '搭脚手架',
+                state: 'active',
+                progress_value: 35,
+                progress_target: 100,
+                object_ids: ['bridge_piles'],
+                contribution_options: [
+                  {
+                    id: 'labor_shift',
+                    label: '施工行动',
+                    kind: 'labor',
+                    available_action_id: 'labor_shift',
+                    daily_limit: 1,
+                    weekly_limit: 3,
+                    resource_cost_preview: {},
+                    progress_delta: 8,
+                    reward_preview: '贡献 +8'
+                  }
+                ],
+                milestones: []
+              }
+            ],
+            contributors: [],
+            history: [],
+            completion_room_template_id: '',
+            completion_event_id: ''
+          }
+        ]
+      },
+      welfare_unlocks: [],
+      exclusive_festival: { id: '', label: '', summary: '', unlocked: false },
+      exclusive_decors: [],
+      exclusive_tasks: [],
+      chronicle: {
+        founded_date_label: '今日',
+        milestone_count: 0,
+        recent_entries: [],
+        famous_members: [],
+        seasonal_records: []
+      },
+      public_warehouse: {
+        funds: 0,
+        items: [],
+        logs: [],
+        deposit_options: []
+      }
+    },
+    visible_societies: [],
+    incoming_invites: [],
+    my_pending_requests: [],
+    managed_requests: [],
+    visibility_options: [{ id: 'public', label: '公开', summary: '' }],
+    theme_options: [{ id: 'harvest_union', label: '共耕', summary: '' }],
+    emblem_options: [{ id: 'plum_seal', label: '梅印' }],
+    capacity_options: [{ value: 24, label: '24 人' }],
+    join_requirement_options: [{ id: 'open', label: '开放', summary: '' }],
+    role_options: [{ id: 'president', label: '社长' }],
+    proposal_kind_options: [{ id: 'governance', label: '治理', summary: '' }],
+    public_project_defs: [{ id: 'bridge', label: '村社修桥', summary: '', target_progress: 100 }],
+    public_project_package_options: bridgeProject.contribution_packages
+  }
+  return overview
+}
+
+async function mockOnlineSociety(page: Page) {
+  await page.unroute('**/api/me').catch(() => {})
+  await page.route('**/api/me', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        user: { username: 'tester', display_name: '测试者' },
+        csrf_token: 'csrf-e2e'
+      })
+    })
+  })
+
+  const overview = buildSocietyOverview()
+  await page.route('**/api/taoyuan/online/societies', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(overview) })
+  })
+  await page.route('**/api/taoyuan/online/societies/public-projects/*/contribute', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        project: overview.my_society.public_projects[0],
+        society: overview.my_society,
+        overview,
+        player_money: 999
+      })
+    })
+  })
+}
+
 test.describe('web game smoke', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/me', async route => {
@@ -529,6 +726,21 @@ test.describe('web game smoke', () => {
     await page.getByTestId('visual-track-action-sync_oar').click()
 
     await expect(page.getByTestId('online-festival-room-gameplay-action-sync_oar')).toHaveCount(0)
+  })
+
+  test('online society async board supports bridge contribution actions', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '修桥')
+    await mockOnlineSociety(page)
+
+    await page.goto('/#/game/online/society?tab=projects')
+    await expect(page.getByTestId('online-society-page')).toBeVisible()
+    await expect(page.getByTestId('async-community-board')).toBeVisible()
+    await expect(page.getByTestId('async-community-project-detail')).toContainText('搭脚手架')
+
+    await page.getByTestId('online-society-async-contribute-bridge-labor_shift').click()
+
+    await expect(page.getByTestId('online-society-project-contribute-bridge-labor_shift')).toBeVisible()
   })
 
   test('can load the built-in region map showcase in dev mode', async ({ page }) => {

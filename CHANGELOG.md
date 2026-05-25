@@ -3,6 +3,7 @@
 最后整理：2026-05-25
 
 - 在线可视化房间补齐前端浏览器 smoke：`game-smoke.spec.ts` 新增协作矿洞节点点击、灯会物件点击、龙舟赛道格点击三条用例；`VisualMapBoard / VisualSceneBoard / VisualTrackBoard` 增加稳定测试钩子，在线节会页的远征 tab 也接入地图 / 轨道视觉板，旧动作卡仍作为无视觉动作时的降级入口。
+- 在线村社修桥贡献补齐前端 smoke：`game-smoke.spec.ts` 新增公共建设页 `AsyncCommunityBoard` 修桥贡献用例，覆盖已加入村社、修桥阶段详情和 `labor_shift` 施工行动按钮点击。
 - 腊八共灶复用场景物件板：`laba_cookpot` 房间会输出腊八大锅、灶台火候、米桶、配料篮、分粥队伍和留香案 6 个 `visual_state.objects`，在线节会页复用 `VisualSceneBoard` 展示并提交物件动作。
 - 护送抵运新增结算路线回看：远征 `expedition_escort` 结算凭证会保存 6 格商队路线、行动高光、途中风险摘要和成员贡献；该字段只读展示，不进入奖励 payload，不改变结算幂等键。
 - 远征护送抵运复用可视化轨道协议：服务端为 `expedition_escort` 生成 6 格商队路线，远征页用 `VisualTrackBoard` 展示并提交护送推进 / 稳货 / 途中事件动作，专项 QA 覆盖轨道读回与行动推进。
