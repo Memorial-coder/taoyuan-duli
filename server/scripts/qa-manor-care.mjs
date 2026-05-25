@@ -132,6 +132,16 @@ const seedSave = username => {
   saveRuntime.setActiveSaveSlot(username, 0)
 }
 
+const getInventoryQuantity = (username, itemId) => {
+  const slots = saveRuntime.loadUserSaveSlots(username)
+  const decrypted = saveRuntime.decryptTaoyuanRaw(slots.slots[0]?.raw || '')
+  const gameplayData = decrypted?.data && decrypted.data.player ? decrypted.data : decrypted?.gameplayData
+  const inventoryItems = Array.isArray(gameplayData?.inventory?.items) ? gameplayData.inventory.items : []
+  return inventoryItems
+    .filter(item => item?.itemId === itemId)
+    .reduce((sum, item) => sum + Math.max(0, Math.floor(Number(item?.quantity) || 0)), 0)
+}
+
 await db.registerUser(owner, 'SmokePass_0523', '庄园主人')
 await db.registerUser(visitor, 'SmokePass_0523', '照料访客')
 seedSave(owner)
@@ -170,12 +180,20 @@ assert.equal(duplicateCare.idempotent, true, 'duplicate care should be idempoten
 assert.equal(duplicateCare.entry.id, firstCare.entry.id, 'duplicate care should return original entry')
 assert.equal(duplicateCare.snapshot.care_state.remaining_care_count, 3, 'duplicate care should not consume another count')
 
+const beforeEdgeBundle = getInventoryQuantity(visitor, 'manor_edge_bundle')
+const collectDropsCare = await runtime.submitManorCareAction({ target_username: owner, object_id: 'manor_fruit_grove', action_id: 'collect_drops' }, actor(visitor))
+assert.equal(collectDropsCare.entry.reward_item_id, 'manor_edge_bundle', 'collect drops should record edge crop reward item')
+assert.equal(collectDropsCare.entry.reward_quantity, 1, 'collect drops should record edge crop reward quantity')
+assert.equal(getInventoryQuantity(visitor, 'manor_edge_bundle'), beforeEdgeBundle + 1, 'collect drops should grant edge crop bundle to visitor save')
+const duplicateCollectDropsCare = await runtime.submitManorCareAction({ target_username: owner, object_id: 'manor_fruit_grove', action_id: 'collect_drops' }, actor(visitor))
+assert.equal(duplicateCollectDropsCare.idempotent, true, 'duplicate collect drops should be idempotent')
+assert.equal(getInventoryQuantity(visitor, 'manor_edge_bundle'), beforeEdgeBundle + 1, 'duplicate collect drops should not grant edge crop bundle twice')
+
 await runtime.submitManorCareAction({ target_username: owner, object_id: 'manor_field', action_id: 'cure_pests' }, actor(visitor))
 await runtime.submitManorCareAction({ target_username: owner, object_id: 'manor_field', action_id: 'clear_weeds' }, actor(visitor))
-await runtime.submitManorCareAction({ target_username: owner, object_id: 'manor_animal_shed', action_id: 'feed_animals' }, actor(visitor))
 
 await assert.rejects(
-  () => runtime.submitManorCareAction({ target_username: owner, object_id: 'manor_animal_shed', action_id: 'soothe_animals' }, actor(visitor)),
+  () => runtime.submitManorCareAction({ target_username: owner, object_id: 'manor_animal_shed', action_id: 'feed_animals' }, actor(visitor)),
   error => error?.status === 429 && String(error.message || '').includes('次数'),
   'visitor daily care limit should reject the fifth action'
 )

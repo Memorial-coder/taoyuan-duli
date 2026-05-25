@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 好友庄园互助边角作物
+- 新增 `manor_edge_bundle` 庄园边角作物包，来源为好友庄园照料“收拾掉落物”，百科可按好友庄园照料、边角作物、公共订单、宠物点心和节会备料搜索。
+- `POST /api/taoyuan/online/manor/care` 在 `collect_drops` 成功时会把 1 份边角作物包写入访客服务端存档，并在照料日志记录奖励物品、数量、品质和存档 revision。
+- 重复 `idempotency_key` 只回放原照料记录，不重复发放；原有公开 / 好友 / 互关 / 关闭权限、访客每日 4 次、庄园每日 12 次和单物件进度限制保持不变。
+- 本轮验证：`node --check server/src/taoyuanManorRuntime.js`、`node --check server/scripts/qa-manor-care.mjs`、`npm --prefix server run qa:manor-care`、`npm --prefix taoyuan-main run type-check`。
+
 ### 0525 修桥慰劳饭公共作物消耗
 - 村社公共仓新增青菜入仓方案，青菜可作为村社修桥工班伙食进入公共仓储备。
 - 新增 `bridge_worker_meal` 公共仓消耗方案，从公共仓扣 2 份稻米和 2 份青菜，为修桥慰劳饭提供真实作物消耗。

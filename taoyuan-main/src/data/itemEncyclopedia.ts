@@ -88,6 +88,13 @@ const PUBLIC_WAREHOUSE_USES: Record<string, string[]> = {
   ]
 }
 
+const MANOR_CARE_USES: Record<string, string[]> = {
+  manor_edge_bundle: [
+    '好友庄园照料：收拾掉落物可获得少量边角作物包',
+    '作物二级用途：可作为公共订单、宠物点心或节会备料的轻量材料'
+  ]
+}
+
 export const getItemSourceText = (itemId: string): string => getItemSource(itemId)
 
 export const getItemUsageText = (item: ItemDef): string => getCollectionUsageText(item)
@@ -238,8 +245,9 @@ export const getItemUsedIn = (itemId: string): string[] => {
   })
   const cookingUses = RECIPES.filter(recipe => recipe.ingredients.some(entry => entry.itemId === itemId)).map(recipe => `料理：${recipe.name}`)
   const publicWarehouseUses = PUBLIC_WAREHOUSE_USES[itemId] ?? []
+  const manorCareUses = MANOR_CARE_USES[itemId] ?? []
 
-  return uniqueStrings([...processingUses, ...cookingUses, ...publicWarehouseUses])
+  return uniqueStrings([...processingUses, ...cookingUses, ...publicWarehouseUses, ...manorCareUses])
 }
 
 export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {

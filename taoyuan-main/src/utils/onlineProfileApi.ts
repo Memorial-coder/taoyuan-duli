@@ -366,6 +366,10 @@ export interface OnlineManorSnapshot {
     idempotency_key: string
     owner_benefit: string
     visitor_reward: string
+    reward_item_id?: string
+    reward_quantity?: number
+    reward_quality?: string
+    reward_save_revision?: number
     summary: string
     created_at: number
   }>

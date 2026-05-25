@@ -3,7 +3,7 @@ const path = require('path');
 const db = require('./db');
 const taoyuanImageModeration = require('./taoyuanImageModeration');
 const { moderateText } = require('./taoyuanTextModeration');
-const { createError, findSaveIdentityById, getActiveSaveContext, writeJsonFileAtomic } = require('./taoyuanSaveRuntime');
+const { createError, findSaveIdentityById, getActiveSaveContext, persistGameplayData, writeJsonFileAtomic } = require('./taoyuanSaveRuntime');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
 
 const DATA_DIR = process.env.DB_STORAGE
@@ -307,6 +307,7 @@ const MANOR_ACCESS_MODE_LABELS = Object.freeze({
 const MANOR_CARE_DAILY_VISITOR_LIMIT = 4;
 const MANOR_CARE_DAILY_MANOR_LIMIT = 12;
 const MANOR_CARE_RECENT_LOG_LIMIT = 24;
+const MANOR_CARE_REWARD_MAX_STACK = 999;
 const MANOR_STEAL_DAILY_VISITOR_LIMIT = 2;
 const MANOR_STEAL_DAILY_MANOR_LIMIT = 6;
 const MANOR_STEAL_RECENT_LOG_LIMIT = 24;
@@ -368,6 +369,7 @@ const MANOR_CARE_ACTION_DEFS = Object.freeze([
     required_metric: 'drop_count',
     owner_benefit: '掉落果实被整理成保护记录',
     visitor_reward: '边角果篮 +1',
+    reward_item: { item_id: 'manor_edge_bundle', quantity: 1, quality: 'normal' },
   },
   {
     id: 'clean_pond',
@@ -680,6 +682,10 @@ function normalizeManorCareEntry(entry) {
     idempotency_key: sanitizeText(entry?.idempotency_key, 160),
     owner_benefit: sanitizeText(entry?.owner_benefit, 120),
     visitor_reward: sanitizeText(entry?.visitor_reward, 80),
+    reward_item_id: sanitizeText(entry?.reward_item_id, 80),
+    reward_quantity: Math.max(0, Math.floor(Number(entry?.reward_quantity) || 0)),
+    reward_quality: sanitizeText(entry?.reward_quality, 20) || 'normal',
+    reward_save_revision: Math.max(0, Math.floor(Number(entry?.reward_save_revision) || 0)),
     summary: sanitizeText(entry?.summary, 180),
     created_at: Number(entry?.created_at) || nowSeconds(),
   };
@@ -910,6 +916,65 @@ function getStealEntriesForTarget(targetUsername) {
 
 function countCareEntries(entries, predicate) {
   return entries.reduce((sum, entry) => sum + (predicate(entry) ? 1 : 0), 0);
+}
+
+function ensureInventoryState(saveData) {
+  if (!saveData.inventory || typeof saveData.inventory !== 'object') saveData.inventory = {};
+  if (!Array.isArray(saveData.inventory.items)) saveData.inventory.items = [];
+  if (!Array.isArray(saveData.inventory.tempItems)) saveData.inventory.tempItems = [];
+  if (!Number.isInteger(Number(saveData.inventory.capacity))) saveData.inventory.capacity = 24;
+}
+
+function addCareRewardItemToInventory(saveData, itemId, quantity, quality = 'normal') {
+  ensureInventoryState(saveData);
+  const normalizedItemId = sanitizeText(itemId, 80);
+  const normalizedQuality = sanitizeText(quality, 20) || 'normal';
+  let remaining = Math.max(0, Math.floor(Number(quantity) || 0));
+  if (!normalizedItemId || remaining <= 0) return { ok: true, added: 0 };
+  let added = 0;
+  for (const slot of saveData.inventory.items) {
+    if (remaining <= 0) break;
+    if (slot?.itemId === normalizedItemId && (slot.quality || 'normal') === normalizedQuality && Number(slot.quantity || 0) < MANOR_CARE_REWARD_MAX_STACK) {
+      const canAdd = Math.min(remaining, MANOR_CARE_REWARD_MAX_STACK - Math.max(0, Math.floor(Number(slot.quantity) || 0)));
+      slot.quantity = Math.max(0, Math.floor(Number(slot.quantity) || 0)) + canAdd;
+      remaining -= canAdd;
+      added += canAdd;
+    }
+  }
+  const capacity = Math.max(1, Math.floor(Number(saveData.inventory.capacity) || 24));
+  while (remaining > 0 && saveData.inventory.items.length < capacity) {
+    const canAdd = Math.min(remaining, MANOR_CARE_REWARD_MAX_STACK);
+    saveData.inventory.items.push({
+      itemId: normalizedItemId,
+      quantity: canAdd,
+      quality: normalizedQuality,
+      locked: false,
+    });
+    remaining -= canAdd;
+    added += canAdd;
+  }
+  return {
+    ok: remaining <= 0,
+    added,
+  };
+}
+
+function grantManorCareVisitorReward(visitorUsername, rewardItem) {
+  const itemId = sanitizeText(rewardItem?.item_id || rewardItem?.itemId, 80);
+  const quantity = Math.max(0, Math.floor(Number(rewardItem?.quantity) || 0));
+  if (!itemId || quantity <= 0) return { item_id: '', quantity: 0, quality: 'normal', save_revision: 0 };
+  const quality = sanitizeText(rewardItem?.quality, 20) || 'normal';
+  const context = getActiveSaveContext(visitorUsername, null, '当前账号没有可用的桃源服务端存档，暂时无法领取庄园照料伴手礼');
+  context.username = visitorUsername;
+  const result = addCareRewardItemToInventory(context.data, itemId, quantity, quality);
+  if (!result.ok) throw createError('个人背包空间不足，暂时无法领取庄园照料边角作物');
+  const saveRevision = persistGameplayData(context);
+  return {
+    item_id: itemId,
+    quantity,
+    quality,
+    save_revision: saveRevision,
+  };
 }
 
 function isSafeStealableItemId(itemId) {
@@ -1638,6 +1703,7 @@ async function submitManorCareAction(payload = {}, actor = {}) {
   }
 
   const objectLabel = objectDef?.label || actionDef.object_id;
+  const visitorRewardResult = grantManorCareVisitorReward(visitorUsername, actionDef.reward_item);
   const entry = normalizeManorCareEntry({
     id: makeId('manor_care'),
     target_username: targetUsername,
@@ -1653,6 +1719,10 @@ async function submitManorCareAction(payload = {}, actor = {}) {
     idempotency_key: idempotencyKey,
     owner_benefit: actionDef.owner_benefit,
     visitor_reward: actionDef.visitor_reward,
+    reward_item_id: visitorRewardResult.item_id,
+    reward_quantity: visitorRewardResult.quantity,
+    reward_quality: visitorRewardResult.quality,
+    reward_save_revision: visitorRewardResult.save_revision,
     summary: `${actor.displayName || visitorUsername} 在${objectLabel}完成「${actionDef.label}」：${actionDef.owner_benefit}。`,
     created_at: nowSeconds(),
   });

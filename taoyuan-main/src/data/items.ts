@@ -63,6 +63,7 @@ const MISC_ITEMS: ItemDef[] = [
   { id: 'stone', name: '石材', category: 'material', description: '常见的建筑石料，可用于建造、加工与委托。', sellPrice: 3, edible: false },
   { id: 'bamboo', name: '竹子', category: 'material', description: '竹林中采集的翠竹。', sellPrice: 10, edible: false },
   { id: 'paper', name: '纸张', category: 'material', description: '用于记账、抄写与文书整理的基础纸张。', sellPrice: 18, edible: false },
+  { id: 'manor_edge_bundle', name: '庄园边角作物包', category: 'material', description: '好友照料庄园时整理出的少量边角作物，可留作公共订单、宠物点心或节会备料。', sellPrice: 8, edible: false },
   { id: 'herb', name: '草药', category: 'material', description: '山间野生的草药。', sellPrice: 15, edible: false },
   { id: 'firewood', name: '柴火', category: 'material', description: '烹饪用的燃料。', sellPrice: 5, edible: false },
   {
@@ -1692,6 +1693,7 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   wood: '砍树获得',
   stone: '采石 / 矿洞获取',
   bamboo: '砍竹获得',
+  manor_edge_bundle: '好友庄园照料：收拾掉落物时获得',
   herb: '山间采集',
   firewood: '砍树获得',
   pine_cone: '砍树掉落',
