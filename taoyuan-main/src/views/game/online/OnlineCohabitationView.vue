@@ -316,6 +316,16 @@
                         <Wallet :size="12" />
                         返还基金
                       </button>
+                      <button
+                        class="online-action-btn online-action-btn--compact justify-center"
+                        type="button"
+                        :disabled="!canReturnSeparationSharedWarehouse || cohabitationStore.actionLoading"
+                        data-testid="online-cohabitation-separation-shared-warehouse-return"
+                        @click="returnSeparationSharedWarehouse"
+                      >
+                        <Package :size="12" />
+                        返还仓库
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1695,6 +1705,7 @@
   const separationPreviewConfirmationLabel = computed(() => {
     const confirmed = separationPreviewConfirmedBy.value
     const pending = separationPreviewPendingMembers.value
+    if (separationExecutionRequest.value?.status === 'shared_warehouse_returned') return '共同仓库已按来源写回个人背包，等待装饰 / 建筑 / 剧情拆分。'
     if (separationExecutionRequest.value?.status === 'shared_fund_refunded') return '共同基金已返还个人铜币，等待共同仓库 / 装饰 / 剧情拆分。'
     if (separationExecutionRequest.value?.status === 'personal_save_written') return '来源田区已写回个人农田，等待共同基金 / 仓库返还。'
     if (separationExecutionRequest.value?.status === 'asset_return_recorded') return '已记录返还执行，等待个人存档写回。'
@@ -1739,6 +1750,16 @@
     if (preview.state !== 'confirmed') return false
     if (preview.confirmation_state?.all_members_confirmed !== true) return false
     if (separationExecutionRequest.value?.status !== 'personal_save_written') return false
+    if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
+    return true
+  })
+  const canReturnSeparationSharedWarehouse = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
+    if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
+    if (preview.state !== 'confirmed') return false
+    if (preview.confirmation_state?.all_members_confirmed !== true) return false
+    if (separationExecutionRequest.value?.status !== 'shared_fund_refunded') return false
     if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
     return true
   })
@@ -2330,6 +2351,28 @@
         : '已返还分居共同基金'
     } catch (error) {
       separationActionMessage.value = error instanceof Error ? error.message : '返还分居共同基金失败'
+    }
+  }
+
+  const returnSeparationSharedWarehouse = async () => {
+    if (!latestSeparationPreview.value || !canReturnSeparationSharedWarehouse.value) return
+    separationActionMessage.value = ''
+    separationActionOk.value = false
+    try {
+      const result = await cohabitationStore.returnSeparationSharedWarehouse(latestSeparationPreview.value.id, {
+        execution_ledger_id: separationExecutionRequest.value?.execution_ledger_id,
+        plot_return_manifest_hash: separationPlotReturnManifestHash.value,
+        idempotency_key: `ui-separation-shared-warehouse-return-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      separationActionOk.value = true
+      const returnedQuantity = Number(result?.shared_warehouse?.returned_quantity) || 0
+      separationActionMessage.value = result?.idempotent || result?.already_returned
+        ? '已读回已有共同仓库返还记录'
+        : returnedQuantity > 0
+          ? `已返还共同仓库物品 ${returnedQuantity} 件`
+          : '共同仓库返还已完成'
+    } catch (error) {
+      separationActionMessage.value = error instanceof Error ? error.message : '返还分居共同仓库失败'
     }
   }
 
@@ -3005,6 +3048,8 @@
       separation_execution_requested: '分居执行请求',
       separation_asset_return_recorded: '分居返还记录',
       separation_personal_farm_written: '来源田区写回',
+      separation_shared_fund_refunded: '共同基金返还',
+      separation_shared_warehouse_returned: '共同仓库返还',
     }
     return labels[action] || action
   }
@@ -3052,6 +3097,14 @@
     if (entry.action === 'separation_personal_farm_written') {
       const count = Number(detail.restored_plot_count) || 0
       return count > 0 ? `已写回 ${count} 块来源田区，等待基金 / 仓库返还` : '来源田区已写回个人农田'
+    }
+    if (entry.action === 'separation_shared_fund_refunded') {
+      const amount = Number(detail.refund_total) || 0
+      return amount > 0 ? `已返还共同基金 ${amount} 文，等待共同仓库返还` : '共同基金返还已记录'
+    }
+    if (entry.action === 'separation_shared_warehouse_returned') {
+      const quantity = Number(detail.returned_quantity) || 0
+      return quantity > 0 ? `已按来源返还共同仓库 ${quantity} 件，等待装饰 / 建筑 / 剧情拆分` : '共同仓库返还已记录'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0

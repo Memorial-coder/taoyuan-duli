@@ -1152,6 +1152,13 @@ export interface CohabitationSeparationSharedFundRefundPayload {
   idempotency_key: string
 }
 
+export interface CohabitationSeparationSharedWarehouseReturnPayload {
+  execution_ledger_id?: string
+  plot_return_manifest_hash?: string
+  memo?: string
+  idempotency_key: string
+}
+
 export interface CohabitationWarehouseItemResponse extends CohabitationDetailResponse {
   warehouse?: CohabitationWarehouseSnapshot
   fund?: CohabitationFundSnapshot
@@ -1297,6 +1304,17 @@ export interface CohabitationSeparationSharedFundRefundResponse extends Cohabita
   }
 }
 
+export interface CohabitationSeparationSharedWarehouseReturnResponse extends CohabitationSeparationPreviewResponse {
+  warehouse?: CohabitationWarehouseSnapshot
+  receipts?: Array<Record<string, unknown>>
+  warehouse_ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  already_returned?: boolean
+  shared_warehouse?: {
+    returned_quantity?: number
+    personal_inventory_merged?: boolean
+  }
+}
+
 const fetchCohabitationJson = async <T>(path: string, fallbackMessage: string): Promise<T | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
@@ -1399,6 +1417,14 @@ export const refundCohabitationSeparationSharedFund = async (contractId: string,
     contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/refund-shared-fund`),
     payload as unknown as Record<string, unknown>,
     '返还分居共同基金失败'
+  )
+}
+
+export const returnCohabitationSeparationSharedWarehouse = async (contractId: string, previewId: string, payload: CohabitationSeparationSharedWarehouseReturnPayload) => {
+  return postCohabitationJson<CohabitationSeparationSharedWarehouseReturnResponse>(
+    contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/return-shared-warehouse`),
+    payload as unknown as Record<string, unknown>,
+    '返还分居共同仓库失败'
   )
 }
 

@@ -28,6 +28,7 @@ import {
   fetchCohabitationWarehouse,
   refundCohabitationSeparationSharedFund,
   requestCohabitationSeparationExecution,
+  returnCohabitationSeparationSharedWarehouse,
   sellCohabitationWarehouseItem,
   spendCohabitationFund,
   updateCohabitationFamilyRole,
@@ -53,6 +54,7 @@ import {
   type CohabitationSeparationPreviewConfirmPayload,
   type CohabitationSeparationPreviewPayload,
   type CohabitationSeparationSharedFundRefundPayload,
+  type CohabitationSeparationSharedWarehouseReturnPayload,
   type CohabitationSharedMap,
   type CohabitationWarehouseSnapshot,
 } from '@/utils/cohabitationApi'
@@ -385,6 +387,26 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       return result
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '返还分居共同基金失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const returnSeparationSharedWarehouse = async (previewId: string, payload: CohabitationSeparationSharedWarehouseReturnPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !previewId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await returnCohabitationSeparationSharedWarehouse(activeContractId.value, previewId, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) {
+        syncOverviewContract(result.contract)
+        await refreshSelectedDetails({ silent: true })
+      }
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '返还分居共同仓库失败'
       throw error
     } finally {
       actionLoading.value = false
@@ -764,6 +786,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     executeSeparationAssetReturn,
     writeSeparationPersonalFarmReturns,
     refundSeparationSharedFund,
+    returnSeparationSharedWarehouse,
     contributeSharedFund,
     spendSharedFund,
     createSharedFundLargeSpendDraft,
