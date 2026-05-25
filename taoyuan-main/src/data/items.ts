@@ -273,6 +273,7 @@ const PROCESSED_ITEMS: ItemDef[] = [
     healthRestore: 10
   },
   { id: 'sesame_oil', name: '芝麻油', category: 'processed', description: '醇香的小磨麻油。', sellPrice: 260, edible: false },
+  { id: 'rapeseed_oil', name: '菜籽油', category: 'processed', description: '油菜籽榨出的清亮食用油，适合家常烹调和集市摊位。', sellPrice: 190, edible: false },
   { id: 'tea_oil', name: '茶油', category: 'processed', description: '珍贵的山茶油。', sellPrice: 620, edible: false },
   {
     id: 'peach_wine',
@@ -542,6 +543,16 @@ const DRIED_ITEMS: ItemDef[] = [
     edible: true,
     staminaRestore: 12,
     healthRestore: 6
+  },
+  {
+    id: 'dried_lotus_seed',
+    name: '干莲子',
+    category: 'processed',
+    description: '脱水后的莲子，清香耐储，可做安神茶点或继续研成莲心粉。',
+    sellPrice: 260,
+    edible: true,
+    staminaRestore: 24,
+    healthRestore: 12
   }
 ]
 
@@ -1018,7 +1029,8 @@ const CHARCOAL_ITEMS: ItemDef[] = [
 const FLOUR_ITEMS: ItemDef[] = [
   { id: 'rice_flour', name: '米粉', category: 'material', description: '用稻米磨成的细腻米粉。', sellPrice: 160, edible: false },
   { id: 'wheat_flour', name: '面粉', category: 'material', description: '用冬小麦磨成的面粉。', sellPrice: 130, edible: false },
-  { id: 'cornmeal', name: '玉米粉', category: 'material', description: '用玉米磨成的粗粉。', sellPrice: 180, edible: false }
+  { id: 'cornmeal', name: '玉米粉', category: 'material', description: '用玉米磨成的粗粉。', sellPrice: 180, edible: false },
+  { id: 'sesame_powder', name: '芝麻粉', category: 'material', description: '用芝麻细磨成的香粉，可做糕点、宠物点心或辛香丹材。', sellPrice: 145, edible: false }
 ]
 
 /** 茶饮物品 */
@@ -1130,6 +1142,14 @@ const HERB_PRODUCT_ITEMS: ItemDef[] = [
     edible: true,
     staminaRestore: 60,
     healthRestore: 30
+  },
+  {
+    id: 'lotus_heart_powder',
+    name: '莲心粉',
+    category: 'processed',
+    description: '干莲子研成的清苦细粉，可入安神茶、清心丹或节前礼盒。',
+    sellPrice: 360,
+    edible: false
   },
   {
     id: 'animal_medicine',
@@ -1615,6 +1635,9 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   rice_flour: '石磨加工',
   wheat_flour: '石磨加工',
   cornmeal: '石磨加工',
+  sesame_powder: '石磨加工',
+  dried_lotus_seed: '脱水机加工',
+  lotus_heart_powder: '药碾加工',
   cloth: '织布机加工',
   silk_cloth: '织布机加工',
   alpaca_cloth: '织布机加工',
@@ -1657,6 +1680,7 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   buffalo_cheese: '奶酪机加工',
   yak_cheese: '奶酪机加工',
   // 松露油
+  rapeseed_oil: '油坊加工',
   truffle_oil: '榨油机加工',
   // 豆腐
   tofu: '石磨加工',

@@ -387,6 +387,17 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     description: '醇香的小磨麻油。'
   },
   {
+    id: 'rapeseed_oil',
+    machineType: 'oil_press',
+    name: '菜籽油',
+    inputItemId: 'rapeseed',
+    inputQuantity: 3,
+    outputItemId: 'rapeseed_oil',
+    outputQuantity: 1,
+    processingDays: 1,
+    description: '将油菜籽压榨成清亮菜籽油，可用于料理和集市摊位材料。'
+  },
+  {
     id: 'tea_oil',
     machineType: 'oil_press',
     name: '茶油',
@@ -1163,6 +1174,17 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     processingDays: 1,
     description: '将野果脱水制成果脯。'
   },
+  {
+    id: 'dry_lotus_seed',
+    machineType: 'dehydrator',
+    name: '干莲子',
+    inputItemId: 'lotus_seed',
+    inputQuantity: 2,
+    outputItemId: 'dried_lotus_seed',
+    outputQuantity: 1,
+    processingDays: 1,
+    description: '将莲子脱水成耐储的干莲子，可继续做安神茶点或研成莲心粉。'
+  },
   // 回收机
   {
     id: 'recycle_firewood',
@@ -1470,6 +1492,17 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     processingDays: 1,
     description: '将玉米磨成玉米粉。'
   },
+  {
+    id: 'mill_sesame_powder',
+    machineType: 'mill',
+    name: '芝麻粉',
+    inputItemId: 'sesame',
+    inputQuantity: 2,
+    outputItemId: 'sesame_powder',
+    outputQuantity: 1,
+    processingDays: 1,
+    description: '将芝麻磨成细粉，适合作糕点、宠物点心和辛香丹材。'
+  },
   // 蚯蚓箱
   {
     id: 'worm_bait',
@@ -1594,6 +1627,17 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputQuantity: 1,
     processingDays: 2,
     description: '将鹿茸研磨成粉。'
+  },
+  {
+    id: 'grind_lotus_heart_powder',
+    machineType: 'herb_grinder',
+    name: '莲心粉',
+    inputItemId: 'dried_lotus_seed',
+    inputQuantity: 1,
+    outputItemId: 'lotus_heart_powder',
+    outputQuantity: 1,
+    processingDays: 1,
+    description: '将干莲子研成清苦莲心粉，作为安神茶和清心丹的稳定辅材。'
   },
   {
     id: 'grind_animal_medicine',

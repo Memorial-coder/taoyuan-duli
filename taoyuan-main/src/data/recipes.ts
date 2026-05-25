@@ -333,6 +333,40 @@ export const RECIPES: RecipeDef[] = [
     requiredSkill: { type: 'farming', level: 4 },
     description: '南瓜酱压住泡椒的冲劲，适合农忙或赛舟前补一口热量。'
   },
+  {
+    id: 'rapeseed_bamboo_rice_roll',
+    name: '菜油春笋米粉卷',
+    ingredients: [
+      { itemId: 'rice_flour', quantity: 1 },
+      { itemId: 'bamboo_shoot', quantity: 1 },
+      { itemId: 'rapeseed_oil', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 34,
+      healthRestore: 12,
+      buff: { type: 'speed', value: 6, description: '行动速度+6%（当天）' }
+    },
+    unlockSource: '加工链第二批',
+    requiredSkill: { type: 'farming', level: 3 },
+    description: '菜籽油拌开春笋的鲜味，给油菜一个料理与集市材料之外的稳定出口。'
+  },
+  {
+    id: 'lotus_sesame_calming_cake',
+    name: '莲心芝麻安神糕',
+    ingredients: [
+      { itemId: 'lotus_heart_powder', quantity: 1 },
+      { itemId: 'sesame_powder', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 38,
+      healthRestore: 18,
+      buff: { type: 'luck', value: 8, description: '幸运+8%（当天）' }
+    },
+    unlockSource: '加工链第二批',
+    requiredSkill: { type: 'farming', level: 4 },
+    description: '莲心粉带清苦，芝麻粉添香，适合作为节前安神茶点或清心丹之外的料理出口。'
+  },
 
   // ==================== 新增初始食谱 (8) ====================
   {

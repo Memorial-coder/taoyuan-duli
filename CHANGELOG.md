@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 作物加工链第二批接入：油坊新增油菜 -> 菜籽油，石磨新增芝麻 -> 芝麻粉，脱水机新增莲子 -> 干莲子，药碾新增干莲子 -> 莲心粉；同步新增菜油春笋米粉卷、莲心芝麻安神糕两个料理出口，物品百科可从新加工品、来源、加工配方和料理用途反查。
 - 作物用途标签全作物覆盖：`CropUseProfile` 保留稻米、芝麻、莲子、桂花、红薯、南瓜、萝卜、茶叶、桃子、辣椒人工档案，并为其余作物按名称、ID、描述和价格自动派生用途标签、甜 / 鲜 / 辛 / 香 / 土 / 苦风味、清凉 / 温补 / 中性药性、消耗定位和推荐消耗场景；背包详情、作物图鉴和百科搜索共用同一用途资料，百科新增“作物用途标签 / CropUseProfile”机制词条和用途关键词。
 - 家族建筑真实落账 / 材料消耗前端入口接入：共同庄园建筑页在建筑流水卡片上开放“真实落账”和“消耗建材”按钮，分别调用 `/family-buildings/real-build-apply` 与 `/family-buildings/materials/consume`，提交 CSRF、`idempotency_key`、流水 ID 和备注；成功后刷新建筑面板、共同仓库、基金和共同日志。默认大额建筑目标引用改为 `family_building:family_hall:build`，避免前端草案生成无法解析候选建筑。
 - 家族建筑共同仓库材料消耗落账接入：新增 `/family-buildings/materials/consume` 服务端写接口，要求已激活成员、建筑 / 仓库相关权限、`idempotency_key`、已扣款且已真实落账的 `family_building_ledger`；成功后按建筑材料计划写共同仓库 `consume` ledger，扣减普通材料库存，并把 `materials_idempotency_key`、`material_ledger_ids`、材料明细和审计回写到同一条家族建筑流水。重复请求或已消耗目标不重复扣材料、不重复扣共同基金、不改个人铜币；百科补充 `materials/consume` / `materials_consumed` 搜索词。
