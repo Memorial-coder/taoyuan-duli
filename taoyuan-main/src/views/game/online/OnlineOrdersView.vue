@@ -242,6 +242,7 @@
                 v-for="option in orderBoardFilterOptions"
                 :key="option.id"
                 type="button"
+                :data-testid="`online-orders-board-filter-${option.id}`"
                 class="online-action-btn online-action-btn--compact"
                 :class="{ 'online-action-btn--primary': orderBoardFilter === option.id }"
                 @click="orderBoardFilter = option.id"

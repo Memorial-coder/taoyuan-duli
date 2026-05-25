@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 在线公共订单接力路线补齐前端浏览器 smoke：`OnlineOrdersView` 的接力筛选按钮新增稳定测试钩子，`game-smoke.spec.ts` mock 三段接力单，覆盖可接订单页筛选、接力 badge、阶段进度、异步路线详情和 `accept_stage` 阶段接单入口。
 - 在线可视化房间补齐前端浏览器 smoke：`game-smoke.spec.ts` 新增协作矿洞节点点击、灯会物件点击、龙舟赛道格点击三条用例；`VisualMapBoard / VisualSceneBoard / VisualTrackBoard` 增加稳定测试钩子，在线节会页的远征 tab 也接入地图 / 轨道视觉板，旧动作卡仍作为无视觉动作时的降级入口。
 - 在线村社修桥贡献补齐前端 smoke：`game-smoke.spec.ts` 新增公共建设页 `AsyncCommunityBoard` 修桥贡献用例，覆盖已加入村社、修桥阶段详情和 `labor_shift` 施工行动按钮点击。
 - 腊八共灶复用场景物件板：`laba_cookpot` 房间会输出腊八大锅、灶台火候、米桶、配料篮、分粥队伍和留香案 6 个 `visual_state.objects`，在线节会页复用 `VisualSceneBoard` 展示并提交物件动作。

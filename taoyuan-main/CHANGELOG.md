@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 公共订单接力前端 smoke
+- 在线委托可接页的订单筛选按钮新增稳定 `data-testid`，便于浏览器 smoke 精确切到接力单列表。
+- `game-smoke.spec.ts` 新增公共订单接力路线用例，mock 三段接力单并覆盖接力筛选、接力 badge、阶段进度、`AsyncCommunityBoard` 路线详情和 `accept_stage` 阶段接单入口。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`；`npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 因当前环境 Chromium `spawn EPERM` 被项目脚本跳过。
+
 ### 0525 前端可视化房间 smoke
 - 在线节会页的远征 tab 接入 `VisualMapBoard` 与 `VisualTrackBoard`，协作矿洞和护送类远征在实际路由中可通过地图节点 / 轨道格提交玩法行动。
 - `VisualMapBoard`、`VisualSceneBoard`、`VisualTrackBoard` 增加节点、物件、格子和行动按钮的稳定 `data-testid`。

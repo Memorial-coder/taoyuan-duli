@@ -448,6 +448,241 @@ async function mockOnlineSociety(page: Page) {
   })
 }
 
+function buildRelayOrder(accepted = false) {
+  const stages = [
+    {
+      id: 'stage_collect',
+      title: '采收青菜',
+      description: '先从田里备齐新鲜青菜。',
+      preferred_order_type: 'material_help',
+      target_item_id: 'cabbage',
+      target_quantity: 6,
+      reward_value: 80,
+      reward_label: '铜钱',
+      assignee_username: 'helper_done',
+      assignee_display_name: '已完成的帮手',
+      accepted_at: 1,
+      canceled_at: 0,
+      active_receipt_id: 'receipt-stage-collect',
+      delivery_status: 'confirmed',
+      delivery_note: '青菜已备齐。',
+      delivered_items: [{ item_id: 'cabbage', quantity: 6 }],
+      compensation_id: '',
+      confirmed_at: 2,
+      sequence: 1,
+      updated_at: 2
+    },
+    {
+      id: 'stage_process',
+      title: '加工干菜',
+      description: '把青菜晒成能远送的干菜。',
+      preferred_order_type: 'festival_supply',
+      target_item_id: 'dried_cabbage',
+      target_quantity: 3,
+      reward_value: 90,
+      reward_label: '铜钱',
+      assignee_username: accepted ? 'tester' : '',
+      assignee_display_name: accepted ? '测试者' : '',
+      accepted_at: accepted ? 3 : 0,
+      canceled_at: 0,
+      active_receipt_id: '',
+      delivery_status: 'none',
+      delivery_note: '',
+      delivered_items: [],
+      compensation_id: '',
+      confirmed_at: 0,
+      sequence: 2,
+      updated_at: accepted ? 3 : 2
+    },
+    {
+      id: 'stage_deliver',
+      title: '送到灯会',
+      description: '最后把干菜交给灯会备菜摊。',
+      preferred_order_type: 'village_build',
+      target_item_id: 'festival_crate',
+      target_quantity: 1,
+      reward_value: 90,
+      reward_label: '铜钱',
+      assignee_username: '',
+      assignee_display_name: '',
+      accepted_at: 0,
+      canceled_at: 0,
+      active_receipt_id: '',
+      delivery_status: 'none',
+      delivery_note: '',
+      delivered_items: [],
+      compensation_id: '',
+      confirmed_at: 0,
+      sequence: 3,
+      updated_at: 2
+    }
+  ]
+
+  return {
+    id: 'relay-order-e2e',
+    owner_username: 'publisher',
+    owner_display_name: '灯会摊主',
+    title: '灯会干菜接力单',
+    description: '采收、加工、交付分段推进，适合多人异步接力。',
+    order_type: 'festival_supply',
+    collaboration_mode: 'multi_stage',
+    scope: 'public',
+    target_save_id: 0,
+    target_save_slot: null,
+    target_username: '',
+    target_display_name: '',
+    deadline_at: 1893427200,
+    reward_type: 'money',
+    reward_value: 260,
+    reward_label: '铜钱回报',
+    status: 'open',
+    assignee_username: '',
+    assignee_display_name: '',
+    accepted_at: 0,
+    canceled_at: 0,
+    active_receipt_id: '',
+    delivery_status: 'none',
+    delivery_note: '',
+    delivered_items: [],
+    settlement_confirmed_at: 0,
+    compensation_id: '',
+    priority_score: 12,
+    priority_reasons: ['接力路线可视化', '节庆备货'],
+    stages,
+    visual_state: {
+      ...emptyVisualState,
+      board_type: 'async',
+      board_id: 'coop_order_relay_route',
+      selected_visual_id: 'relay_route',
+      recent_feedback: accepted ? '测试者已接下加工干菜这一段。' : '采收段已确认，等待下一位接力。',
+      async_projects: [
+        {
+          id: 'relay_route',
+          label: '灯会干菜接力路线',
+          kind: 'order_relay',
+          day_tag: 'e2e-day',
+          week_tag: 'e2e-week',
+          starts_at: 0,
+          ends_at: 1893427200,
+          current_stage_id: accepted ? 'stage_deliver' : 'stage_process',
+          stages: [
+            {
+              id: 'stage_collect',
+              label: '采收青菜',
+              state: 'complete',
+              progress_value: 100,
+              progress_target: 100,
+              object_ids: ['order_confirmed_stage_collect'],
+              contribution_options: [],
+              milestones: [{ id: 'collect_done', label: '青菜已备齐', progress_required: 100, reached: true }]
+            },
+            {
+              id: 'stage_process',
+              label: '加工干菜',
+              state: accepted ? 'pending' : 'active',
+              progress_value: accepted ? 20 : 0,
+              progress_target: 100,
+              object_ids: ['order_waiting_stage_process', 'order_task_drying'],
+              contribution_options: accepted ? [] : [
+                {
+                  id: 'accept_stage:stage_process',
+                  label: '接加工段',
+                  kind: 'relay_accept',
+                  available_action_id: 'accept_stage',
+                  daily_limit: 1,
+                  weekly_limit: 3,
+                  resource_cost_preview: {},
+                  progress_delta: 20,
+                  reward_preview: '接下加工段'
+                }
+              ],
+              milestones: []
+            },
+            {
+              id: 'stage_deliver',
+              label: '送到灯会',
+              state: accepted ? 'active' : 'pending',
+              progress_value: 0,
+              progress_target: 100,
+              object_ids: ['order_waiting_stage_deliver'],
+              contribution_options: [],
+              milestones: []
+            }
+          ],
+          contributors: accepted ? [
+            { username: 'tester', display_name: '测试者', contribution_value: 20, rank: 1 }
+          ] : [],
+          history: accepted ? [
+            { id: 'relay-history-accepted', summary: '测试者接下加工干菜这一段。', created_at: 3 }
+          ] : [
+            { id: 'relay-history-collect', summary: '已完成采收青菜，路线推进到加工段。', created_at: 2 }
+          ],
+          completion_room_template_id: '',
+          completion_event_id: ''
+        }
+      ]
+    },
+    created_at: 1,
+    updated_at: accepted ? 3 : 2
+  }
+}
+
+function buildCoopOrderOverview(accepted = false) {
+  return {
+    ok: true,
+    orders: [buildRelayOrder(accepted)],
+    receipts: [],
+    compensations: [],
+    board_summary: {
+      total_orders: 1,
+      open_orders: 1,
+      relay_orders: 1,
+      open_relay_orders: 1
+    },
+    reputation_summary: {
+      total: 0,
+      by_order_type: {},
+      completed_count: 0,
+      updated_at: 0,
+      trust_level: { id: 'new', label: '初识互助' },
+      specialty_ranks: [],
+      top_helped_targets: [],
+      top_helpers: []
+    },
+    order_type_options: ['material_help', 'festival_supply', 'village_build'],
+    scope_options: ['public', 'friends', 'neighbors'],
+    reward_type_options: ['money', 'reputation', 'gift']
+  }
+}
+
+async function mockOnlineOrders(page: Page) {
+  let accepted = false
+  await page.unroute('**/api/me').catch(() => {})
+  await page.route('**/api/me', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        user: { username: 'tester', display_name: '测试者' },
+        csrf_token: 'csrf-e2e'
+      })
+    })
+  })
+
+  await page.route('**/api/taoyuan/online/orders', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildCoopOrderOverview(accepted)) })
+  })
+  await page.route('**/api/taoyuan/online/orders/*/stages/*/accept', async route => {
+    accepted = true
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, order: buildRelayOrder(true), stage: buildRelayOrder(true).stages[1] })
+    })
+  })
+}
+
 test.describe('web game smoke', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/me', async route => {
@@ -741,6 +976,28 @@ test.describe('web game smoke', () => {
     await page.getByTestId('online-society-async-contribute-bridge-labor_shift').click()
 
     await expect(page.getByTestId('online-society-project-contribute-bridge-labor_shift')).toBeVisible()
+  })
+
+  test('online orders async board supports public relay route actions', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '接力')
+    await mockOnlineOrders(page)
+
+    await page.goto('/#/game/online/orders?tab=available')
+    await expect(page.getByTestId('online-orders-page')).toBeVisible()
+    await page.getByTestId('online-orders-board-filter-relay').click()
+
+    await expect(page.getByTestId('online-orders-available-list')).toBeVisible()
+    await expect(page.getByTestId('online-orders-available-entry')).toContainText('灯会干菜接力单')
+    await expect(page.getByTestId('online-orders-available-entry')).toContainText('接力单')
+    await expect(page.getByTestId('online-orders-available-entry')).toContainText('阶段 1/3 已确认')
+    await expect(page.getByTestId('async-community-board')).toBeVisible()
+    await expect(page.getByTestId('async-community-project-detail')).toContainText('加工干菜')
+
+    await page.getByTestId('online-society-async-contribute-relay_route-accept_stage:stage_process').click()
+
+    await expect(page.getByTestId('async-community-project-detail')).toContainText('送到灯会')
+    await expect(page.getByText('测试者已接下加工干菜这一段。')).toBeVisible()
   })
 
   test('can load the built-in region map showcase in dev mode', async ({ page }) => {
