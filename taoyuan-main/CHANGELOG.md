@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 炼丹前端 smoke
+- 加工坊页新增稳定 `data-testid`，覆盖页面、加工 / 制造标签、机器分组、配方按钮、加工中槽位、收取按钮和制造项。
+- DEV 模式新增 `__TAOYUAN_PROCESSING_DEBUG__.prepareAlchemySmoke()`，用于浏览器 smoke 准备丹炉、萝卜、土豆和精炼石英，不影响生产构建行为。
+- `game-smoke.spec.ts` 新增炼丹用例，进入加工坊后点击 `alchemy_stone_root_guard_pill`，断言石根护脉丸进入 0/2 天游炼制状态。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`；`npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 因当前环境 Chromium `spawn EPERM` 被项目脚本跳过。
+
 ### 0525 好友庄园照料前端 smoke
 - 在线庄园新增“照料”标签，复用 `VisualSceneBoard` 展示好友庄园田地 / 畜棚等可照料物件、照料权限、今日剩余次数、照料效果和最近照料记录。
 - `game-smoke.spec.ts` 新增好友庄园照料用例，mock 好友庄园快照、收藏概览和 `/manor/care` 写接口，覆盖点击 `water_plot` 后最近反馈与主人日志读回。

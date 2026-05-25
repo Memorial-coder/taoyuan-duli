@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 炼丹补齐前端浏览器 smoke：加工坊页新增稳定测试钩子和开发态炼丹准备入口，`game-smoke.spec.ts` 覆盖进入加工坊、准备丹炉与石根护脉丸材料、点击丹方并读回 0/2 天游炼制状态。
 - 在线好友庄园照料补齐前端浏览器 smoke：在线庄园新增“照料”标签，复用 `VisualSceneBoard` 展示好友庄园可照料物件、每日次数、照料效果和主人日志；`game-smoke.spec.ts` mock 好友庄园快照并覆盖点击 `water_plot` 后反馈与照料记录读回。
 - 在线花灯墙贡献补齐前端浏览器 smoke：`game-smoke.spec.ts` 扩展在线村社 mock，新增花灯墙 `AsyncCommunityBoard` 用例，覆盖“写愿望”阶段展示、`write_wish` 贡献入口点击、刷新到“挂花灯”阶段和反馈读回。
 - 在线公共订单接力路线补齐前端浏览器 smoke：`OnlineOrdersView` 的接力筛选按钮新增稳定测试钩子，`game-smoke.spec.ts` mock 三段接力单，覆盖可接订单页筛选、接力 badge、阶段进度、异步路线详情和 `accept_stage` 阶段接单入口。

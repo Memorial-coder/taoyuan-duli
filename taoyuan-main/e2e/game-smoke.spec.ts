@@ -1220,6 +1220,24 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('online-manor-care-log')).toContainText('帮忙浇水')
   })
 
+  test('processing workshop can start an alchemy furnace recipe', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '炼丹')
+
+    await page.goto('/#/game/processing')
+    await expect(page.getByTestId('processing-view')).toBeVisible()
+    await page.waitForFunction(() => typeof (window as any).__TAOYUAN_PROCESSING_DEBUG__?.prepareAlchemySmoke === 'function')
+
+    const prepared = await page.evaluate(() => (window as any).__TAOYUAN_PROCESSING_DEBUG__.prepareAlchemySmoke())
+    expect(prepared).toBeTruthy()
+
+    await expect(page.getByTestId('processing-machine-group-alchemy_furnace')).toBeVisible()
+    await page.getByTestId('processing-recipe-alchemy_stone_root_guard_pill').click()
+
+    await expect(page.getByTestId('processing-slot-running-alchemy_stone_root_guard_pill')).toContainText('石根护脉丸')
+    await expect(page.getByTestId('processing-slot-running-alchemy_stone_root_guard_pill')).toContainText('0/2天')
+  })
+
   test('online festival visual track supports dragon boat cell actions', async ({ page }) => {
     await openHome(page)
     await startNewJourney(page, '赛舟')

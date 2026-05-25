@@ -1,11 +1,12 @@
 <template>
-  <div>
+  <div data-testid="processing-view">
     <!-- 标签切换 -->
     <div class="flex space-x-1.5 mb-3">
       <Button
         class="flex-1 justify-center"
         :class="{ '!bg-accent !text-bg': activeTab === 'process' }"
         :icon="Boxes"
+        data-testid="processing-tab-process"
         @click="activeTab = 'process'"
       >
         加工区
@@ -15,6 +16,7 @@
         class="flex-1 justify-center"
         :class="{ '!bg-accent !text-bg': activeTab === 'craft' }"
         :icon="Hammer"
+        data-testid="processing-tab-craft"
         @click="activeTab = 'craft'"
       >
         制造
@@ -55,7 +57,12 @@
 
       <!-- 机器列表（按类型分组） -->
       <div v-else class="flex flex-col space-y-2">
-        <div v-for="group in machineGroupsView" :key="group.machineType" class="border border-accent/10 rounded-xs">
+        <div
+          v-for="group in machineGroupsView"
+          :key="group.machineType"
+          class="border border-accent/10 rounded-xs"
+          :data-testid="`processing-machine-group-${group.machineType}`"
+        >
           <!-- 分组标题（可折叠） -->
           <div
             class="flex items-center justify-between px-2 py-1.5 cursor-pointer hover:bg-accent/5 select-none"
@@ -125,6 +132,7 @@
                       v-for="option in group.seedRecipeOptions"
                       :key="option.key"
                       :disabled="option.disabled"
+                      :data-testid="`processing-recipe-${option.recipeId}`"
                       @click="handleStartProcessing(originalIndex, option.recipeId, option.quality)"
                     >
                       {{ option.displayName }}
@@ -150,6 +158,7 @@
                       v-for="option in group.recipeOptions"
                       :key="option.key"
                       :disabled="option.disabled"
+                      :data-testid="`processing-recipe-${option.recipeId}`"
                       @click="handleStartProcessing(originalIndex, option.recipeId)"
                     >
                       {{ option.displayName }}
@@ -166,7 +175,7 @@
               </div>
 
               <!-- 加工中 -->
-              <div v-else-if="!slot.ready">
+              <div v-else-if="!slot.ready" :data-testid="`processing-slot-running-${slot.recipeId}`">
                 <div class="flex items-center justify-between text-xs mb-1">
                   <span class="text-muted">{{ getRecipeName(slot.recipeId) }}</span>
                   <span class="text-muted">{{ slot.daysProcessed }}/{{ slot.totalDays }}天</span>
@@ -188,6 +197,7 @@
                   class="w-full justify-center !bg-accent !text-bg"
                   :icon="Package"
                   :icon-size="12"
+                  :data-testid="`processing-collect-${slot.recipeId}`"
                   @click="handleCollect(originalIndex)"
                 >
                   收取 {{ getRecipeOutputName(slot.recipeId) }}
@@ -216,6 +226,7 @@
             v-for="item in cat.items"
             :key="item.id"
             class="flex items-center justify-between border border-accent/20 rounded-xs px-3 py-1.5 cursor-pointer hover:bg-accent/5 mr-1"
+            :data-testid="`processing-craft-${item.id}`"
             @click="openCraftModal(item)"
           >
             <div class="text-xs truncate mr-2">
@@ -1639,6 +1650,31 @@
     const name = getMachineName(slot.machineType)
     if (processingStore.cancelProcessing(slotIndex)) {
       addLog(`${name}已停止加工，原料已退回。`)
+    }
+  }
+
+  if (import.meta.env.DEV) {
+    ;(globalThis as any).__TAOYUAN_PROCESSING_DEBUG__ = {
+      prepareAlchemySmoke: () => {
+        if (!processingStore.machines.some(slot => slot.machineType === 'alchemy_furnace')) {
+          processingStore.machines.push({
+            machineType: 'alchemy_furnace',
+            recipeId: null,
+            inputItemId: null,
+            daysProcessed: 0,
+            totalDays: 0,
+            ready: false
+          })
+        }
+
+        inventoryStore.addItem('radish', 2)
+        inventoryStore.addItem('potato', 1)
+        inventoryStore.addItem('refined_quartz', 1)
+        activeTab.value = 'process'
+        onlyAvailable.value = true
+        collapsedGroups.value.delete('alchemy_furnace')
+        return true
+      }
     }
   }
 </script>
