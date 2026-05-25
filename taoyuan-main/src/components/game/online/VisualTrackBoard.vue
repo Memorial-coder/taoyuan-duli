@@ -34,6 +34,7 @@
               `visual-track-board__cell--${cell.kind}`,
               { 'visual-track-board__cell--selected': cell.id === activeCellId },
             ]"
+            :data-testid="`visual-track-cell-${cell.id}`"
             :title="cellTooltip(cell)"
             @click="selectCell(activeTrack.id, cell.id)"
           >
@@ -99,6 +100,7 @@
             :key="`${selectedCell.id}-${actionId}`"
             type="button"
             class="visual-track-board__action"
+            :data-testid="`visual-track-action-${actionId}`"
             :disabled="actionRunning"
             :title="actionId"
             @click="$emit('trigger-action', { trackId: activeTrack.id, cellId: selectedCell.id, actionId })"

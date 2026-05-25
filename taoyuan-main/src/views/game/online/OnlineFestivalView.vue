@@ -797,6 +797,31 @@
                   </div>
                 </div>
 
+                <VisualMapBoard
+                  v-if="showExpeditionMapBoard"
+                  :nodes="expeditionVisualMapNodes"
+                  :selected-node-id="selectedExpeditionVisualNodeId"
+                  :current-node-id="expeditionRoomStore.myRoom.visual_state.selected_visual_id"
+                  :revision="expeditionRoomStore.myRoom.visual_state.revision"
+                  :recent-feedback="expeditionRoomStore.myRoom.visual_state.recent_feedback || expeditionRoomStore.myRoom.gameplay.cavern_state?.recent_feedback || ''"
+                  :action-running="expeditionRoomStore.actionRunning"
+                  :action-labels="expeditionVisualActionLabels"
+                  @select-node="selectedExpeditionVisualNodeId = $event"
+                  @trigger-action="triggerExpeditionVisualAction"
+                />
+
+                <VisualTrackBoard
+                  v-if="showExpeditionTrackBoard"
+                  :tracks="expeditionVisualTracks"
+                  :selected-track-id="selectedExpeditionTrackId"
+                  :selected-cell-id="selectedExpeditionTrackCellId"
+                  :recent-feedback="expeditionRoomStore.myRoom.visual_state.recent_feedback || expeditionRoomStore.myRoom.gameplay.last_action_summary || ''"
+                  :action-running="expeditionRoomStore.actionRunning"
+                  :action-labels="expeditionVisualActionLabels"
+                  @select-cell="selectExpeditionTrackCell"
+                  @trigger-action="triggerExpeditionTrackAction"
+                />
+
                 <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state" class="space-y-3">
                   <div class="border border-accent/10 bg-black/10 p-2">
                     <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -864,7 +889,7 @@
                   </div>
                 </div>
 
-                <div v-if="expeditionRoomStore.myRoom.gameplay.available_actions.length > 0" class="space-y-2">
+                <div v-if="expeditionRoomStore.myRoom.gameplay.available_actions.length > 0 && !hasPrimaryExpeditionVisualActions" class="space-y-2">
                   <p class="text-[10px] text-muted">玩法动作</p>
                   <div class="grid gap-2 md:grid-cols-2">
                     <div
@@ -1216,12 +1241,13 @@
   import { CalendarDays, Flag, Lamp } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
+  import VisualMapBoard from '@/components/game/online/VisualMapBoard.vue'
   import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
   import VisualTrackBoard from '@/components/game/online/VisualTrackBoard.vue'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
   import { useFestivalRoomStore } from '@/stores/useFestivalRoomStore'
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
-  import type { OnlineVisualObject, OnlineVisualTrack } from '@/types/onlineVisual'
+  import type { OnlineVisualNode, OnlineVisualObject, OnlineVisualTrack } from '@/types/onlineVisual'
   import type { ExpeditionRoomRouteReplay } from '@/utils/expeditionRoomApi'
   import type { FestivalRoomRouteReplay } from '@/utils/festivalRoomApi'
   import type { WorldEventOverview } from '@/utils/worldEventApi'
@@ -1277,6 +1303,9 @@
   const selectedFestivalVisualObjectId = ref('')
   const selectedFestivalVisualTrackId = ref('')
   const selectedFestivalVisualTrackCellId = ref('')
+  const selectedExpeditionVisualNodeId = ref('')
+  const selectedExpeditionVisualTrackId = ref('')
+  const selectedExpeditionVisualTrackCellId = ref('')
   const setActiveTab = (tab: string) => {
     activeTab.value = tab as FestivalTabKey
   }
@@ -1393,6 +1422,51 @@
   })
   const festivalSceneActionLabels = computed<Record<string, string>>(() =>
     Object.fromEntries(Array.from(festivalGameplayActionMap.value.values()).map(action => [action.id, action.label]))
+  )
+  const expeditionGameplayActionMap = computed(() =>
+    new Map((expeditionRoomStore.myRoom?.gameplay.available_actions ?? []).map(action => [action.id, action]))
+  )
+  const expeditionVisualMapNodes = computed<OnlineVisualNode[]>(() => {
+    const visualState = expeditionRoomStore.myRoom?.visual_state
+    if (visualState?.board_type !== 'map') return []
+    const actionMap = expeditionGameplayActionMap.value
+    return (visualState.nodes ?? []).map(node => ({
+      ...node,
+      available_action_ids: node.available_action_ids.filter(actionId => actionMap.get(actionId)?.can_use),
+    }))
+  })
+  const expeditionVisualTracks = computed<OnlineVisualTrack[]>(() => {
+    const visualState = expeditionRoomStore.myRoom?.visual_state
+    if (visualState?.board_type !== 'track') return []
+    const actionMap = expeditionGameplayActionMap.value
+    return (visualState.tracks ?? []).map(track => ({
+      ...track,
+      cells: track.cells.map(cell => ({
+        ...cell,
+        available_action_ids: cell.available_action_ids.filter(actionId => actionMap.get(actionId)?.can_use),
+      })),
+    }))
+  })
+  const showExpeditionMapBoard = computed(() => expeditionVisualMapNodes.value.length > 0)
+  const showExpeditionTrackBoard = computed(() => expeditionVisualTracks.value.some(track => track.cells.length > 0))
+  const selectedExpeditionTrackId = computed(() =>
+    selectedExpeditionVisualTrackId.value || expeditionVisualTracks.value[0]?.id || ''
+  )
+  const selectedExpeditionTrackCellId = computed(() =>
+    selectedExpeditionVisualTrackCellId.value || expeditionRoomStore.myRoom?.visual_state.selected_visual_id || ''
+  )
+  const hasExpeditionVisualNodeActions = computed(() =>
+    expeditionVisualMapNodes.value.some(node => node.available_action_ids.length > 0)
+  )
+  const hasExpeditionVisualTrackActions = computed(() =>
+    expeditionVisualTracks.value.some(track => track.cells.some(cell => cell.available_action_ids.length > 0))
+  )
+  const hasPrimaryExpeditionVisualActions = computed(() =>
+    (showExpeditionMapBoard.value && hasExpeditionVisualNodeActions.value)
+    || (showExpeditionTrackBoard.value && hasExpeditionVisualTrackActions.value)
+  )
+  const expeditionVisualActionLabels = computed<Record<string, string>>(() =>
+    Object.fromEntries(Array.from(expeditionGameplayActionMap.value.values()).map(action => [action.id, action.label]))
   )
 
   const getRouteQueryText = (value: unknown) => {
@@ -1537,6 +1611,23 @@
   const playExpeditionGameplayAction = async (roomId: string, actionId: string) => {
     await expeditionRoomStore.submitGameplayAction(roomId, actionId).catch(() => {})
   }
+  const triggerExpeditionVisualAction = async (payload: { nodeId: string; actionId: string }) => {
+    selectedExpeditionVisualNodeId.value = payload.nodeId
+    const roomId = expeditionRoomStore.myRoom?.id
+    if (!roomId) return
+    await playExpeditionGameplayAction(roomId, payload.actionId)
+  }
+  const selectExpeditionTrackCell = (payload: { trackId: string; cellId: string }) => {
+    selectedExpeditionVisualTrackId.value = payload.trackId
+    selectedExpeditionVisualTrackCellId.value = payload.cellId
+  }
+  const triggerExpeditionTrackAction = async (payload: { trackId: string; cellId: string; actionId: string }) => {
+    selectedExpeditionVisualTrackId.value = payload.trackId
+    selectedExpeditionVisualTrackCellId.value = payload.cellId
+    const roomId = expeditionRoomStore.myRoom?.id
+    if (!roomId) return
+    await playExpeditionGameplayAction(roomId, payload.actionId)
+  }
   const settleExpeditionRoom = async (roomId: string) => {
     await expeditionRoomStore.settleRoomAction(roomId).catch(() => {})
   }
@@ -1556,6 +1647,14 @@
       selectedFestivalVisualObjectId.value = ''
       selectedFestivalVisualTrackId.value = ''
       selectedFestivalVisualTrackCellId.value = ''
+    }
+  )
+  watch(
+    () => expeditionRoomStore.myRoom?.id,
+    () => {
+      selectedExpeditionVisualNodeId.value = ''
+      selectedExpeditionVisualTrackId.value = ''
+      selectedExpeditionVisualTrackCellId.value = ''
     }
   )
   watch(

@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 前端可视化房间 smoke
+- 在线节会页的远征 tab 接入 `VisualMapBoard` 与 `VisualTrackBoard`，协作矿洞和护送类远征在实际路由中可通过地图节点 / 轨道格提交玩法行动。
+- `VisualMapBoard`、`VisualSceneBoard`、`VisualTrackBoard` 增加节点、物件、格子和行动按钮的稳定 `data-testid`。
+- `game-smoke.spec.ts` 新增协作矿洞节点点击、灯会物件点击、龙舟轨道推进三条浏览器 smoke 用例；当前环境执行 E2E 时因 Chromium `spawn EPERM` 被项目脚本跳过。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`；`npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 触发环境跳过。
+
 ### 0525 腊八共灶场景物件
 - `laba_cookpot` 节会房间新增腊八大锅、灶台火候、米桶、配料篮、分粥队伍和留香案 6 个场景物件。
 - 在线节会页继续复用 `VisualSceneBoard`，可显示腊八共灶物件状态、进度、处理人、最近反馈和物件动作入口。

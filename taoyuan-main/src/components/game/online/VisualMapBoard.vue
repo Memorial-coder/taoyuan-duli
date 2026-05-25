@@ -25,6 +25,7 @@
           { 'visual-map-board__node--current': node.id === currentNode?.id },
         ]"
         :style="{ left: `${node.x}%`, top: `${node.y}%` }"
+        :data-testid="`visual-map-node-${node.id}`"
         :aria-label="nodeAriaLabel(node)"
         :title="nodeTooltip(node)"
         @click="selectNode(node.id)"
@@ -97,6 +98,7 @@
             :key="`${selectedNode.id}-${actionId}`"
             type="button"
             class="visual-map-board__action"
+            :data-testid="`visual-map-action-${actionId}`"
             :disabled="actionRunning"
             :title="actionId"
             @click="$emit('trigger-action', { nodeId: selectedNode.id, actionId })"

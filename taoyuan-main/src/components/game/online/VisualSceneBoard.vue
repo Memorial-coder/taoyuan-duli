@@ -11,6 +11,7 @@
           { 'visual-scene-board__object--selected': object.id === activeObjectId },
         ]"
         :style="{ left: `${object.x}%`, top: `${object.y}%` }"
+        :data-testid="`visual-scene-object-${object.id}`"
         :title="objectTooltip(object)"
         @click="selectObject(object.id)"
       >
@@ -51,6 +52,7 @@
             :key="`${selectedObject.id}-${actionId}`"
             type="button"
             class="visual-scene-board__action"
+            :data-testid="`visual-scene-action-${actionId}`"
             :disabled="actionRunning"
             :title="actionId"
             @click="$emit('trigger-action', { objectId: selectedObject.id, actionId })"

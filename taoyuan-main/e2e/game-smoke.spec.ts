@@ -4,6 +4,19 @@ const sampleId = 'breeding_specialist'
 const regionMapSampleId = 'region_map_showcase'
 const regionAncientRoadSampleId = 'region_ancient_road_midgame'
 
+const emptyVisualState = {
+  board_type: 'scene',
+  board_id: 'empty',
+  revision: 1,
+  selected_visual_id: '',
+  nodes: [],
+  objects: [],
+  tracks: [],
+  async_projects: [],
+  highlights: [],
+  recent_feedback: ''
+}
+
 async function openHome(page: Page) {
   await page.goto('/')
   await expect(page.getByRole('heading', { name: '桃源乡' })).toBeVisible()
@@ -53,6 +66,189 @@ async function waitForExpeditionAction(page: Page) {
   }
 
   throw new Error('No expedition action became available in time')
+}
+
+function buildWorldEventOverview() {
+  return {
+    ok: true,
+    bulletin: '测试节会公告',
+    current_season: 'spring',
+    current_season_label: '春季',
+    current_cycle_key: 'e2e',
+    current_event: null,
+    events: [],
+    world_events: [],
+    current_world_events: [],
+    public_goal: {
+      label: '测试公共目标',
+      summary: '用于可视化 smoke',
+      progress_value: 0,
+      target_progress: 100,
+      progress_percent: 0,
+      progress_text: '0/100',
+      phase_reward_label: '',
+      milestones: [],
+      division_awards: []
+    },
+    recent_annals: [],
+    recent_chronicles: [],
+    total_contribution_points: 0,
+    my_records: [],
+    seasonal_badges: []
+  }
+}
+
+function buildGameplayAction(id: string, label: string) {
+  return {
+    id,
+    label,
+    summary: `${label} smoke`,
+    unique_per_member: false,
+    required_role: '',
+    required_role_label: '',
+    once_per_round: false,
+    pressure_delta: 0,
+    pressure_delta_text: '',
+    risk_delta: 0,
+    risk_delta_text: '',
+    resource_delta: {},
+    resource_delta_text: '',
+    combo_tags: [],
+    round_effect: '',
+    can_use: true,
+    disabled_reason: ''
+  }
+}
+
+function buildRoomSnapshot(room: {
+  id: string
+  title: string
+  templateId: string
+  templateLabel: string
+  gameplayId: string
+  gameplayLabel: string
+  actionId: string
+  actionLabel: string
+  visualState: Record<string, unknown>
+}) {
+  return {
+    id: room.id,
+    title: room.title,
+    template_id: room.templateId,
+    template_label: room.templateLabel,
+    gameplay_template_id: room.gameplayId,
+    gameplay: {
+      template_id: room.gameplayId,
+      template_label: room.gameplayLabel,
+      template_kind: 'visual_smoke',
+      template_summary: '浏览器级可视化 smoke 房间',
+      objective_label: '推进现场',
+      progress_value: 1,
+      progress_target: 8,
+      progress_percent: 12,
+      progress_text: '1/8',
+      score_label: '协作值',
+      score_value: 1,
+      phase: 'active',
+      phase_label: '进行中',
+      last_action_id: '',
+      last_action_summary: '',
+      last_actor_username: '',
+      last_actor_display_name: '',
+      is_completed: false,
+      completed_at: 0,
+      contributions: [],
+      available_actions: [buildGameplayAction(room.actionId, room.actionLabel)],
+      cavern_state: null,
+      festival_state: null
+    },
+    state: 'running',
+    state_label: '进行中',
+    state_reason: '',
+    opening_ceremony: null,
+    host_username: 'tester',
+    host_display_name: '测试者',
+    joined_member_count: 1,
+    member_limit: 4,
+    members: [],
+    can_invite: false,
+    can_join: false,
+    can_leave: false,
+    can_ready: false,
+    can_unready: false,
+    can_host_ready_check: false,
+    can_host_start_countdown: false,
+    can_host_settle: true,
+    can_host_close: false,
+    can_disconnect: false,
+    can_reconnect: false,
+    visual_state: room.visualState
+  }
+}
+
+async function mockOnlineVisualRoom(page: Page, options: {
+  domain: 'festival' | 'expedition'
+  room: ReturnType<typeof buildRoomSnapshot>
+}) {
+  await page.unroute('**/api/me').catch(() => {})
+  await page.route('**/api/me', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        user: { username: 'tester', display_name: '测试者' },
+        csrf_token: 'csrf-e2e'
+      })
+    })
+  })
+
+  await page.route('**/api/taoyuan/online/world-events', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(buildWorldEventOverview()) })
+  })
+
+  const festivalOverview = {
+    ok: true,
+    bulletin: '节会测试',
+    templates: [{ id: 'lantern_fair', label: '上元灯会', summary: '', default_member_limit: 4, opening_title: '', recommended_gameplay_template_ids: ['assembly'] }],
+    gameplay_templates: [{ id: 'assembly', label: '灯会共建', kind: 'scene', summary: '', objective_label: '', score_label: '', default_target: 8, recommended_room_template_ids: ['lantern_fair'], action_options: [] }],
+    my_room: options.domain === 'festival' ? options.room : null,
+    invited_rooms: [],
+    visible_rooms: [],
+    recent_memorials: [],
+    recent_receipts: []
+  }
+  const expeditionOverview = {
+    ok: true,
+    bulletin: '远征测试',
+    templates: [{ id: 'expedition_outpost', label: '协作远征', summary: '', default_member_limit: 4, opening_title: '', recommended_gameplay_template_ids: ['expedition_cavern'] }],
+    gameplay_templates: [{ id: 'expedition_cavern', label: '协作矿洞', kind: 'map', summary: '', objective_label: '', score_label: '', default_target: 8, recommended_room_template_ids: ['expedition_outpost'], action_options: [] }],
+    my_room: options.domain === 'expedition' ? options.room : null,
+    invited_rooms: [],
+    visible_rooms: [],
+    recent_receipts: []
+  }
+
+  await page.route('**/api/taoyuan/online/festival/rooms', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(festivalOverview) })
+  })
+  await page.route('**/api/taoyuan/online/festival/rooms/*/action', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: festivalOverview, room: options.room })
+    })
+  })
+  await page.route('**/api/taoyuan/online/expedition/rooms', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(expeditionOverview) })
+  })
+  await page.route('**/api/taoyuan/online/expedition/rooms/*/action', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, overview: expeditionOverview, room: options.room })
+    })
+  })
 }
 
 test.describe('web game smoke', () => {
@@ -123,6 +319,216 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('breeding-view')).toBeVisible()
     await expect(page.getByRole('button', { name: '育种台' })).toBeVisible()
     await expect(page.getByRole('button', { name: '图鉴' })).toBeVisible()
+  })
+
+  test('online expedition visual map supports cavern node actions', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '矿洞')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-cavern-room',
+      title: '协作矿洞 smoke',
+      templateId: 'expedition_outpost',
+      templateLabel: '协作远征',
+      gameplayId: 'expedition_cavern',
+      gameplayLabel: '协作矿洞',
+      actionId: 'split_mine',
+      actionLabel: '分采矿脉',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'map',
+        board_id: 'cavern_node_map',
+        selected_visual_id: 'cavern_crossroad',
+        nodes: [
+          {
+            id: 'cavern_crossroad',
+            label: '岔路口',
+            kind: 'crossroad',
+            x: 32,
+            y: 48,
+            state: 'active',
+            connected_node_ids: ['cavern_ore'],
+            event_id: 'crossroad',
+            available_action_ids: ['split_mine'],
+            owner_username: '',
+            claimed_by: '',
+            risk_preview: '岔路风险较低',
+            reward_preview: '可通往矿脉',
+            resource_cost_preview: {},
+            resource_reward_preview: {}
+          },
+          {
+            id: 'cavern_ore',
+            label: '闪光矿脉',
+            kind: 'ore',
+            x: 68,
+            y: 44,
+            state: 'reward',
+            connected_node_ids: ['cavern_crossroad'],
+            event_id: 'ore',
+            available_action_ids: ['split_mine'],
+            owner_username: '',
+            claimed_by: '',
+            risk_preview: '采矿会推高风险',
+            reward_preview: '矿石 +2',
+            resource_cost_preview: { torch: -1 },
+            resource_reward_preview: { ore: 2 }
+          }
+        ]
+      }
+    })
+    await mockOnlineVisualRoom(page, { domain: 'expedition', room })
+
+    await page.goto('/#/game/online/festival?tab=expedition-room')
+    await expect(page.getByTestId('online-expedition-room-my-room')).toBeVisible()
+    await expect(page.getByTestId('visual-map-board')).toBeVisible()
+
+    await page.getByTestId('visual-map-node-cavern_ore').click()
+    await expect(page.getByTestId('visual-map-node-detail')).toContainText('闪光矿脉')
+    await page.getByTestId('visual-map-action-split_mine').click()
+
+    await expect(page.getByTestId('online-expedition-room-gameplay-action-split_mine')).toHaveCount(0)
+  })
+
+  test('online festival visual scene supports lantern object actions', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '灯会')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-lantern-room',
+      title: '灯会共建 smoke',
+      templateId: 'lantern_fair',
+      templateLabel: '上元灯会',
+      gameplayId: 'assembly',
+      gameplayLabel: '灯会共建',
+      actionId: 'lock_piece',
+      actionLabel: '锁定灯片',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'scene',
+        board_id: 'lantern_fair_street',
+        selected_visual_id: '',
+        objects: [
+          {
+            id: 'lantern_main_lamp',
+            label: '主灯',
+            kind: 'lantern',
+            x: 50,
+            y: 40,
+            state: 'needs_action',
+            available_action_ids: ['lock_piece'],
+            progress_value: 2,
+            progress_target: 6,
+            handled_by: '',
+            handled_at: 0,
+            requires_cooperation: true,
+            cooperation_required_count: 2,
+            cooperation_current_count: 1
+          }
+        ]
+      }
+    })
+    await mockOnlineVisualRoom(page, { domain: 'festival', room })
+
+    await page.goto('/#/game/online/festival?tab=festival-room')
+    await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+    await expect(page.getByTestId('visual-scene-board')).toBeVisible()
+
+    await page.getByTestId('visual-scene-object-lantern_main_lamp').click()
+    await expect(page.getByTestId('visual-scene-object-detail')).toContainText('主灯')
+    await page.getByTestId('visual-scene-action-lock_piece').click()
+
+    await expect(page.getByTestId('online-festival-room-gameplay-action-lock_piece')).toHaveCount(0)
+  })
+
+  test('online festival visual track supports dragon boat cell actions', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '赛舟')
+
+    const room = buildRoomSnapshot({
+      id: 'e2e-dragon-room',
+      title: '龙舟赛道 smoke',
+      templateId: 'dragon_boat',
+      templateLabel: '端午赛舟',
+      gameplayId: 'squad_coop',
+      gameplayLabel: '龙舟协作',
+      actionId: 'sync_oar',
+      actionLabel: '合拍划桨',
+      visualState: {
+        ...emptyVisualState,
+        board_type: 'track',
+        board_id: 'dragon_boat_river',
+        selected_visual_id: 'dragon_cell_1',
+        tracks: [
+          {
+            id: 'dragon_boat_river',
+            label: '端午河道',
+            kind: 'river',
+            length: 3,
+            current_round: 0,
+            cells: [
+              {
+                id: 'dragon_cell_0',
+                label: '起点',
+                index: 0,
+                kind: 'normal',
+                occupant_team_ids: ['team_dragon'],
+                event_id: '',
+                effect_ids: [],
+                available_action_ids: [],
+                risk_preview: '',
+                reward_preview: ''
+              },
+              {
+                id: 'dragon_cell_1',
+                label: '鼓点窗口',
+                index: 1,
+                kind: 'boost',
+                occupant_team_ids: [],
+                event_id: 'drum',
+                effect_ids: ['boost'],
+                available_action_ids: ['sync_oar'],
+                risk_preview: '抢拍会增加压力',
+                reward_preview: '推进 +1'
+              },
+              {
+                id: 'dragon_cell_2',
+                label: '终点',
+                index: 2,
+                kind: 'finish',
+                occupant_team_ids: [],
+                event_id: '',
+                effect_ids: [],
+                available_action_ids: [],
+                risk_preview: '',
+                reward_preview: ''
+              }
+            ],
+            teams: [
+              {
+                team_id: 'team_dragon',
+                label: '桃源龙舟',
+                marker: '舟',
+                position_index: 0,
+                state: 'idle',
+                last_action_id: ''
+              }
+            ]
+          }
+        ]
+      }
+    })
+    await mockOnlineVisualRoom(page, { domain: 'festival', room })
+
+    await page.goto('/#/game/online/festival?tab=festival-room')
+    await expect(page.getByTestId('online-festival-room-my-room')).toBeVisible()
+    await expect(page.getByTestId('visual-track-board')).toBeVisible()
+
+    await page.getByTestId('visual-track-cell-dragon_cell_1').click()
+    await expect(page.getByTestId('visual-track-cell-detail')).toContainText('鼓点窗口')
+    await page.getByTestId('visual-track-action-sync_oar').click()
+
+    await expect(page.getByTestId('online-festival-room-gameplay-action-sync_oar')).toHaveCount(0)
   })
 
   test('can load the built-in region map showcase in dev mode', async ({ page }) => {
