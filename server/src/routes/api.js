@@ -3158,6 +3158,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
   });
 });
 
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/fund/refund', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.refundCohabitationFamilyBuildingFund(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '退回家族建筑共同基金失败' });
+    }
+  });
+});
+
 router.post('/taoyuan/online/cohabitation/contracts/:contractId/permissions', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
   return withTaoyuanExchangeLock(async () => {
     try {

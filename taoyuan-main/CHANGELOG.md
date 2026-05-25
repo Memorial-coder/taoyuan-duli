@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 家族建筑回滚共同基金退款补偿
+- 服务端新增 `/family-buildings/fund/refund`，要求目标家族建筑流水已记录 `reverted`、具备原扣款基金 ledger，并保留家族成员权限与拆除双方确认安全阀。
+- 成功后把原建筑扣款金额退回共同基金，写 `family_building_fund_refund` 基金流水，并回写建筑流水的退款幂等键、退款 ledger、操作者和时间。
+- 重复请求幂等读回，不恢复共同仓库材料、不改个人铜币 / 背包、不真实拆除建筑；前端按钮入口仍留后续独立接入。
+- 本轮验证：`node --check server\src\taoyuanCohabitationRuntime.js`、`node --check server\src\routes\api.js`、`node --check server\scripts\qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 家族建筑回滚记录前端入口
 - 前端 API / store 接入 `/family-buildings/rollback`，共同庄园建筑页在建筑流水卡片新增“记录回滚”按钮。
 - 按钮按已扣共同基金、基金流水、契约开启状态和非补偿 / 非回滚状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。

@@ -2910,4 +2910,50 @@ assert.equal(alreadyFamilyBuildingRollback.idempotent, true, 'already reverted b
 assert.equal(alreadyFamilyBuildingRollback.already_reverted, true, 'already reverted building response should be explicit')
 assert.equal(alreadyFamilyBuildingRollback.building_ledger_entry.status, 'reverted', 'already reverted building should stay reverted')
 
+await assert.rejects(
+  () => runtime.refundCohabitationFamilyBuildingFund(largeContract.contract.id, {
+    building_ledger_id: largeExecute.building_ledger_entry.id,
+    idempotency_key: 'qa-family-building-fund-refund-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not refund family building fund'
+)
+assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance, balanceBeforeLargeDraft - 1300, 'rejected building fund refund should not change shared balance')
+
+const familyBuildingFundRefund = await runtime.refundCohabitationFamilyBuildingFund(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  reason: 'qa refund family building fund after rollback',
+  idempotency_key: 'qa-family-building-fund-refund',
+}, actor(largeOwner))
+assert.equal(familyBuildingFundRefund.idempotent, false, 'first family building fund refund should not be idempotent')
+assert.equal(familyBuildingFundRefund.building_ledger_entry.id, largeExecute.building_ledger_entry.id, 'building fund refund should update original building ledger')
+assert.equal(familyBuildingFundRefund.building_ledger_entry.status, 'reverted', 'building fund refund should keep reverted status')
+assert.equal(familyBuildingFundRefund.building_ledger_entry.shared_fund_refunded, true, 'building fund refund should mark shared fund refunded')
+assert.equal(familyBuildingFundRefund.building_ledger_entry.fund_refund_idempotency_key, 'qa-family-building-fund-refund', 'building fund refund should store refund idempotency key')
+assert.equal(familyBuildingFundRefund.fund_ledger_entry.action, 'family_building_fund_refund', 'building fund refund should write refund fund ledger')
+assert.equal(familyBuildingFundRefund.fund_ledger_entry.amount, 1300, 'building fund refund ledger should keep original deducted amount')
+assert.equal(familyBuildingFundRefund.shared_fund.refund_amount, 1300, 'building fund refund should report refund amount')
+assert.equal(familyBuildingFundRefund.fund.balance, balanceBeforeLargeDraft, 'building fund refund should restore shared fund balance')
+assert.equal(familyBuildingFundRefund.shared_fund.personal_money_merged, false, 'building fund refund should not merge personal money')
+assert.ok(familyBuildingFundRefund.contract.audit_log.find(entry => entry.action === 'family_building_fund_refunded'), 'building fund refund should be audited')
+assert.equal((await runtime.getCohabitationWarehouse(largeContract.contract.id, actor(largeOwner))).warehouse.ledger.filter(entry => entry.action === 'consume').length, 2, 'building fund refund should not restore shared warehouse materials')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'building fund refund should not touch owner personal money')
+assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'building fund refund should not touch partner personal money')
+
+const duplicateFamilyBuildingFundRefund = await runtime.refundCohabitationFamilyBuildingFund(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-fund-refund',
+}, actor(largeOwner))
+assert.equal(duplicateFamilyBuildingFundRefund.idempotent, true, 'same building fund refund idempotency key should be idempotent')
+assert.equal(duplicateFamilyBuildingFundRefund.already_refunded, true, 'idempotent building fund refund should report already refunded')
+assert.equal(duplicateFamilyBuildingFundRefund.fund.balance, balanceBeforeLargeDraft, 'idempotent building fund refund should not double credit shared fund')
+
+const alreadyFamilyBuildingFundRefund = await runtime.refundCohabitationFamilyBuildingFund(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-fund-refund-again',
+}, actor(largeOwner))
+assert.equal(alreadyFamilyBuildingFundRefund.idempotent, true, 'already refunded building should return idempotent response')
+assert.equal(alreadyFamilyBuildingFundRefund.already_refunded, true, 'already refunded building response should be explicit')
+assert.equal(alreadyFamilyBuildingFundRefund.fund.balance, balanceBeforeLargeDraft, 'already refunded building should not double credit shared fund')
+
 console.log('[qa-cohabitation-contract] OK')
