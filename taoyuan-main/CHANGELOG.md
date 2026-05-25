@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 家族建筑补偿重放收口后端闭环
+- 服务端新增 `/family-buildings/compensation/replay`，要求目标家族建筑流水已 `reverted`、共同基金退款已完成，且曾消耗共同仓库材料的流水必须先完成材料恢复。
+- 成功后只把同一条 `family_building_ledger` 标记为 `compensated`，记录补偿重放幂等键、操作者、时间和审计，清除补偿重放待办并保留真实建筑拆除人工复核。
+- 重复请求幂等读回，不真实拆除建筑、不改共同基金或共同仓库数量、不写个人铜币 / 背包；前端入口仍留后续独立接入。
+- 本轮验证：`node --check server\src\taoyuanCohabitationRuntime.js`、`node --check server\src\routes\api.js`、`node --check server\scripts\qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 家族建筑材料恢复前端入口
 - 前端 API / store 接入 `/family-buildings/materials/restore`，共同庄园建筑页在建筑流水卡片新增“恢复建材”按钮。
 - 按钮按 `reverted`、共同基金已退款、存在原材料消耗 ledger、尚未恢复材料和契约开启状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。

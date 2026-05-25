@@ -2976,6 +2976,15 @@ await assert.rejects(
 )
 assert.equal((await runtime.getCohabitationWarehouse(largeContract.contract.id, actor(largeOwner))).warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 0, 'rejected building material restore should not restore wood')
 
+await assert.rejects(
+  () => runtime.replayCohabitationFamilyBuildingCompensation(largeContract.contract.id, {
+    building_ledger_id: largeExecute.building_ledger_entry.id,
+    idempotency_key: 'qa-family-building-compensation-before-materials',
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'building compensation replay should require material restore before final closeout'
+)
+
 const familyBuildingMaterialRestore = await runtime.restoreCohabitationFamilyBuildingMaterials(largeContract.contract.id, {
   building_ledger_id: largeExecute.building_ledger_entry.id,
   reason: 'qa restore family building materials after fund refund',
@@ -3018,5 +3027,55 @@ const alreadyFamilyBuildingMaterialRestore = await runtime.restoreCohabitationFa
 assert.equal(alreadyFamilyBuildingMaterialRestore.idempotent, true, 'already restored building materials should return idempotent response')
 assert.equal(alreadyFamilyBuildingMaterialRestore.already_restored, true, 'already restored building material response should be explicit')
 assert.equal(alreadyFamilyBuildingMaterialRestore.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'already restored building materials should not double restore rice')
+
+await assert.rejects(
+  () => runtime.replayCohabitationFamilyBuildingCompensation(largeContract.contract.id, {
+    building_ledger_id: largeExecute.building_ledger_entry.id,
+    idempotency_key: 'qa-family-building-compensation-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not close family building compensation replay'
+)
+
+const familyBuildingCompensationReplay = await runtime.replayCohabitationFamilyBuildingCompensation(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  reason: 'qa close family building compensation replay',
+  idempotency_key: 'qa-family-building-compensation-replay',
+}, actor(largeOwner))
+assert.equal(familyBuildingCompensationReplay.idempotent, false, 'first family building compensation replay should not be idempotent')
+assert.equal(familyBuildingCompensationReplay.building_ledger_entry.id, largeExecute.building_ledger_entry.id, 'building compensation replay should update original ledger')
+assert.equal(familyBuildingCompensationReplay.building_ledger_entry.status, 'compensated', 'building compensation replay should mark ledger compensated')
+assert.equal(familyBuildingCompensationReplay.building_ledger_entry.action, 'compensated', 'building compensation replay should record compensated action')
+assert.equal(familyBuildingCompensationReplay.building_ledger_entry.compensation_required, false, 'building compensation replay should clear compensation required')
+assert.equal(familyBuildingCompensationReplay.building_ledger_entry.compensation_replay_idempotency_key, 'qa-family-building-compensation-replay', 'building compensation replay should store idempotency key')
+assert.equal(familyBuildingCompensationReplay.building_ledger_entry.real_build_demolished, false, 'building compensation replay should not demolish real building')
+assert.ok(familyBuildingCompensationReplay.building_ledger_entry.deferred_operations.includes('real_build_demolition_manual_review'), 'building compensation replay should keep real demolition manual review deferred')
+assert.ok(!familyBuildingCompensationReplay.building_ledger_entry.deferred_operations.includes('family_building_compensation_replay'), 'building compensation replay should clear compensation replay deferred op')
+assert.equal(familyBuildingCompensationReplay.compensation_replay.shared_fund_refunded, true, 'building compensation replay should confirm fund refunded')
+assert.equal(familyBuildingCompensationReplay.compensation_replay.shared_warehouse_restored, true, 'building compensation replay should confirm warehouse restored')
+assert.equal(familyBuildingCompensationReplay.compensation_replay.personal_money_merged, false, 'building compensation replay should not merge personal money')
+assert.equal(familyBuildingCompensationReplay.compensation_replay.personal_inventory_merged, false, 'building compensation replay should not merge personal inventory')
+assert.ok(familyBuildingCompensationReplay.contract.audit_log.find(entry => entry.action === 'family_building_compensation_replayed'), 'building compensation replay should be audited')
+assert.equal(familyBuildingCompensationReplay.fund.balance, balanceBeforeLargeDraft, 'building compensation replay should not change shared fund balance')
+assert.equal(familyBuildingCompensationReplay.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'building compensation replay should not double restore wood')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'building compensation replay should not touch owner personal money')
+assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'building compensation replay should not touch partner personal money')
+assert.equal(getInventoryItemQuantity(largeOwner, 'wood'), largeOwnerWoodBeforeMaterialDeposit - 28, 'building compensation replay should not write owner wood back to personal inventory')
+
+const duplicateFamilyBuildingCompensationReplay = await runtime.replayCohabitationFamilyBuildingCompensation(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-compensation-replay',
+}, actor(largeOwner))
+assert.equal(duplicateFamilyBuildingCompensationReplay.idempotent, true, 'same building compensation replay idempotency key should be idempotent')
+assert.equal(duplicateFamilyBuildingCompensationReplay.already_compensated, true, 'idempotent building compensation replay should report already compensated')
+assert.equal(duplicateFamilyBuildingCompensationReplay.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'idempotent building compensation replay should not double restore rice')
+
+const alreadyFamilyBuildingCompensationReplay = await runtime.replayCohabitationFamilyBuildingCompensation(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-compensation-replay-again',
+}, actor(largeOwner))
+assert.equal(alreadyFamilyBuildingCompensationReplay.idempotent, true, 'already compensated building should return idempotent response')
+assert.equal(alreadyFamilyBuildingCompensationReplay.already_compensated, true, 'already compensated building response should be explicit')
+assert.equal(alreadyFamilyBuildingCompensationReplay.building_ledger_entry.status, 'compensated', 'already compensated building should stay compensated')
 
 console.log('[qa-cohabitation-contract] OK')
