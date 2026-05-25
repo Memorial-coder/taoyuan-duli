@@ -284,6 +284,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_family_building_real_demolition_request_execution',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/family-buildings\/real-demolition\/write-personal-save$/i,
+    action: 'cohabitation_family_building_real_demolition_personal_save_write',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/family-buildings\/real-demolition\/reject-review$/i,
     action: 'cohabitation_family_building_real_demolition_reject_review',
   },
@@ -3266,6 +3270,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '请求家族建筑真实拆除执行失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/write-personal-save', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.writeCohabitationFamilyBuildingRealDemolitionPersonalSave(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '写回家族建筑真实拆除个人存档失败' });
     }
   });
 });

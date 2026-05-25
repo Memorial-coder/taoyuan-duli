@@ -3299,4 +3299,70 @@ assert.equal(alreadyFamilyBuildingRealDemolitionExecutionRequest.idempotent, tru
 assert.equal(alreadyFamilyBuildingRealDemolitionExecutionRequest.already_execution_requested, true, 'already requested real demolition execution response should be explicit')
 assert.equal(alreadyFamilyBuildingRealDemolitionExecutionRequest.building_ledger_entry.real_build_demolition_execution_state, 'pending_personal_save_write', 'already requested real demolition execution should stay pending personal save write')
 
+const ownerDemolitionReceiptCountBeforeWrite = readGameplayData(largeOwner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0
+const partnerDemolitionReceiptCountBeforeWrite = readGameplayData(largePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0
+await assert.rejects(
+  () => runtime.writeCohabitationFamilyBuildingRealDemolitionPersonalSave(largeContract.contract.id, {
+    building_ledger_id: largeExecute.building_ledger_entry.id,
+    idempotency_key: 'qa-family-building-real-demolition-personal-save-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not write real demolition personal save receipts'
+)
+
+const familyBuildingRealDemolitionPersonalSaveWrite = await runtime.writeCohabitationFamilyBuildingRealDemolitionPersonalSave(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  reason: 'qa write real demolition receipt into personal saves',
+  idempotency_key: 'qa-family-building-real-demolition-personal-save-write',
+}, actor(largeOwner))
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.idempotent, false, 'first real demolition personal save write should not be idempotent')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.already_written, false, 'first real demolition personal save write should not be already written')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.building_ledger_entry.id, largeExecute.building_ledger_entry.id, 'real demolition personal save write should update original ledger')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.building_ledger_entry.status, 'compensated', 'real demolition personal save write should keep compensated ledger status')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.building_ledger_entry.real_build_demolition_review_state, 'executed', 'real demolition personal save write should mark review executed')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.building_ledger_entry.real_build_demolition_execution_state, 'executed', 'real demolition personal save write should mark execution executed')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.building_ledger_entry.real_build_demolished, true, 'real demolition personal save write should mark building demolished')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.building_ledger_entry.real_build_demolition_personal_save_write_idempotency_key, 'qa-family-building-real-demolition-personal-save-write', 'real demolition personal save write should store idempotency key')
+assert.ok(!familyBuildingRealDemolitionPersonalSaveWrite.building_ledger_entry.deferred_operations.includes('real_build_demolition_personal_save_write'), 'real demolition personal save write should clear deferred personal save op')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.receipts.length, 2, 'real demolition personal save write should write one receipt per accepted member')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.personal_save_written, true, 'real demolition personal save write response should report personal save write')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.receipt_count, 2, 'real demolition personal save write response should count receipts')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.real_build_demolished, true, 'real demolition personal save write response should report demolished marker')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.shared_fund_changed, false, 'real demolition personal save write should not change shared fund')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.shared_warehouse_changed, false, 'real demolition personal save write should not change shared warehouse')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.personal_money_changed, false, 'real demolition personal save write should not change personal money')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.demolition_execution.personal_inventory_changed, false, 'real demolition personal save write should not change personal inventory')
+assert.ok(familyBuildingRealDemolitionPersonalSaveWrite.contract.audit_log.find(entry => entry.action === 'family_building_real_demolition_personal_save_written'), 'real demolition personal save write should be audited')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.fund.balance, balanceBeforeLargeDraft, 'real demolition personal save write should not change shared fund balance')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'real demolition personal save write should not change restored wood')
+assert.equal(familyBuildingRealDemolitionPersonalSaveWrite.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'real demolition personal save write should not change restored rice')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'real demolition personal save write should not touch owner personal money')
+assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'real demolition personal save write should not touch partner personal money')
+assert.equal(getInventoryItemQuantity(largeOwner, 'wood'), largeOwnerWoodBeforeMaterialDeposit - 28, 'real demolition personal save write should not write owner wood back to personal inventory')
+assert.equal(getInventoryItemQuantity(largeOwner, 'rice'), largeOwnerRiceBeforeMaterialDeposit - 12, 'real demolition personal save write should not write owner rice back to personal inventory')
+assert.equal(readGameplayData(largeOwner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, ownerDemolitionReceiptCountBeforeWrite + 1, 'owner personal save should receive one real demolition receipt')
+assert.equal(readGameplayData(largePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, partnerDemolitionReceiptCountBeforeWrite + 1, 'partner personal save should receive one real demolition receipt')
+assert.equal(readGameplayData(largeOwner)?.onlineCohabitation?.real_build_demolition_receipts?.[0]?.building_ledger_id, largeExecute.building_ledger_entry.id, 'owner real demolition receipt should reference building ledger')
+assert.equal(readGameplayData(largePartner)?.onlineCohabitation?.real_build_demolition_receipts?.[0]?.building_ledger_id, largeExecute.building_ledger_entry.id, 'partner real demolition receipt should reference building ledger')
+
+const duplicateFamilyBuildingRealDemolitionPersonalSaveWrite = await runtime.writeCohabitationFamilyBuildingRealDemolitionPersonalSave(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-real-demolition-personal-save-write',
+}, actor(largeOwner))
+assert.equal(duplicateFamilyBuildingRealDemolitionPersonalSaveWrite.idempotent, true, 'same real demolition personal save write idempotency key should be idempotent')
+assert.equal(duplicateFamilyBuildingRealDemolitionPersonalSaveWrite.already_written, true, 'duplicate real demolition personal save write should report already written')
+assert.equal(duplicateFamilyBuildingRealDemolitionPersonalSaveWrite.receipts.length, 2, 'duplicate real demolition personal save write should return existing receipts')
+assert.equal(readGameplayData(largeOwner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, ownerDemolitionReceiptCountBeforeWrite + 1, 'duplicate personal save write should not duplicate owner receipt')
+assert.equal(readGameplayData(largePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, partnerDemolitionReceiptCountBeforeWrite + 1, 'duplicate personal save write should not duplicate partner receipt')
+
+const alreadyFamilyBuildingRealDemolitionPersonalSaveWrite = await runtime.writeCohabitationFamilyBuildingRealDemolitionPersonalSave(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-real-demolition-personal-save-write-again',
+}, actor(largeOwner))
+assert.equal(alreadyFamilyBuildingRealDemolitionPersonalSaveWrite.idempotent, true, 'already written real demolition personal save should return idempotent response')
+assert.equal(alreadyFamilyBuildingRealDemolitionPersonalSaveWrite.already_written, true, 'already written real demolition personal save response should be explicit')
+assert.equal(alreadyFamilyBuildingRealDemolitionPersonalSaveWrite.building_ledger_entry.real_build_demolition_execution_state, 'executed', 'already written real demolition personal save should stay executed')
+assert.equal(readGameplayData(largeOwner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, ownerDemolitionReceiptCountBeforeWrite + 1, 'already written personal save should not duplicate owner receipt')
+assert.equal(readGameplayData(largePartner)?.onlineCohabitation?.real_build_demolition_receipts?.length ?? 0, partnerDemolitionReceiptCountBeforeWrite + 1, 'already written personal save should not duplicate partner receipt')
+
 console.log('[qa-cohabitation-contract] OK')

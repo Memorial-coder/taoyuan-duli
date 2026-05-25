@@ -1677,6 +1677,29 @@ function normalizeFamilyBuildingLedgerEntry(entry = {}) {
     real_build_demolition_execution_state: ['not_requested', 'pending_personal_save_write', 'executed', 'cancelled'].includes(entry.real_build_demolition_execution_state)
       ? entry.real_build_demolition_execution_state
       : (entry.real_build_demolition_execution_request_idempotency_key || entry.real_build_demolition_execute_idempotency_key ? 'pending_personal_save_write' : 'not_requested'),
+    real_build_demolition_personal_save_write_idempotency_key: sanitizeText(entry.real_build_demolition_personal_save_write_idempotency_key, 120),
+    real_build_demolition_personal_save_written_at: Math.max(0, Math.floor(Number(entry.real_build_demolition_personal_save_written_at) || 0)),
+    real_build_demolition_personal_save_written_by_username: normalizeUsername(entry.real_build_demolition_personal_save_written_by_username),
+    real_build_demolition_personal_save_written_by_display_name: sanitizeText(
+      entry.real_build_demolition_personal_save_written_by_display_name
+        || entry.real_build_demolition_personal_save_written_by_username,
+      60
+    ),
+    real_build_demolition_personal_save_receipts: Array.isArray(entry.real_build_demolition_personal_save_receipts)
+      ? entry.real_build_demolition_personal_save_receipts.map(item => ({
+        username: normalizeUsername(item?.username),
+        username_key: normalizeUsernameKey(item?.username_key || item?.username),
+        save_slot: normalizeSaveSlot(item?.save_slot),
+        save_id: normalizeSaveId(item?.save_id),
+        before_revision: Math.max(0, Math.floor(Number(item?.before_revision) || 0)),
+        after_revision: Math.max(0, Math.floor(Number(item?.after_revision) || 0)),
+        receipt_id: sanitizeText(item?.receipt_id, 120),
+        receipt_status: sanitizeText(item?.receipt_status, 40) || 'written',
+        real_build_ref: sanitizeText(item?.real_build_ref, 120),
+        idempotency_key: sanitizeText(item?.idempotency_key, 120),
+        written_at: Math.max(0, Math.floor(Number(item?.written_at) || 0)),
+      })).filter(item => item.username && item.receipt_id).slice(0, 12)
+      : [],
     reversible: entry.reversible !== false,
     status: ['fund_spend_recorded', 'build_applied', 'compensated', 'reverted'].includes(entry.status)
       ? entry.status
@@ -4488,6 +4511,19 @@ function normalizeFamilyBuildingRealDemolitionExecutionRequestPayload(payload = 
   };
 }
 
+function normalizeFamilyBuildingRealDemolitionPersonalSaveWritePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('家族建筑真实拆除个人存档写回需要 idempotency_key，以防断线或重试时重复写回');
+  return {
+    idempotency_key: idempotencyKey,
+    building_ledger_id: sanitizeText(payload.building_ledger_id || payload.ledger_id || payload.id, 100),
+    draft_id: sanitizeText(payload.draft_id, 100),
+    fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
+    target_ref: sanitizeText(payload.target_ref || payload.target, 120),
+    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+  };
+}
+
 function resolveSharedFundAutoPurchase(spend) {
   if (spend.auto_pay !== true) return null;
   const targetRef = sanitizeText(spend.target_ref, 120);
@@ -5305,6 +5341,77 @@ function writePersonalFamilyReceiptsFromChildArrangement(contract = {}, ledger =
       arrangement_state: receipt.arrangement_state,
       child_count: receipt.child_count,
       children_private: receipt.children_private,
+      idempotency_key: payload.idempotency_key,
+      written_at: writtenAt,
+    };
+  });
+}
+
+function writePersonalRealDemolitionReceiptsFromFamilyBuilding(contract = {}, buildingEntry = {}, payload = {}) {
+  const acceptedMembers = (contract.members || [])
+    .filter(member => member.status === 'accepted')
+    .map(member => ({
+      ...member,
+      username: normalizeUsername(member.username),
+      username_key: normalizeUsernameKey(member.username_key || member.username),
+    }))
+    .filter(member => member.username);
+  const writtenAt = nowSeconds();
+  return acceptedMembers.map(member => {
+    const context = getActiveSaveContext(member.username, member.save_slot ?? null, '家族建筑真实拆除个人存档写回目标账号没有可写入的桃源乡存档');
+    context.username = member.username;
+    const identitySaveId = normalizeSaveId(context.identity?.save_id || context.identity?.saveId);
+    const beforeRevision = Math.max(0, Math.floor(Number(context.saves.slots[context.slot]?.revision) || 0));
+    const projectedData = JSON.parse(JSON.stringify(context.data || {}));
+    if (!projectedData.onlineCohabitation || typeof projectedData.onlineCohabitation !== 'object') {
+      projectedData.onlineCohabitation = {};
+    }
+    if (!Array.isArray(projectedData.onlineCohabitation.real_build_demolition_receipts)) {
+      projectedData.onlineCohabitation.real_build_demolition_receipts = [];
+    }
+    const receiptId = `family_building_demolition_${buildingEntry.id}_${member.username_key}`;
+    const existingIndex = projectedData.onlineCohabitation.real_build_demolition_receipts.findIndex(receipt =>
+      receipt?.receipt_id === receiptId || (
+        receipt?.contract_id === contract.id
+        && receipt?.building_ledger_id === buildingEntry.id
+      )
+    );
+    const receipt = {
+      receipt_id: receiptId,
+      type: 'cohabitation_family_building_real_demolition',
+      contract_id: contract.id,
+      building_ledger_id: buildingEntry.id,
+      building_id: sanitizeText(buildingEntry.building_id, 100),
+      project_id: sanitizeText(buildingEntry.project_id, 100),
+      target_ref: sanitizeText(buildingEntry.target_ref, 120),
+      real_build_ref: sanitizeText(buildingEntry.real_build_ref, 120),
+      demolition_state: 'personal_save_receipt_recorded',
+      personal_asset_boundary: '仅追加真实拆除写回回执；不改个人铜币、背包、农田、NPC、家庭或孩子状态。',
+      memo: payload.reason,
+      idempotency_key: payload.idempotency_key,
+      written_at: writtenAt,
+    };
+    if (existingIndex >= 0) {
+      projectedData.onlineCohabitation.real_build_demolition_receipts[existingIndex] = {
+        ...projectedData.onlineCohabitation.real_build_demolition_receipts[existingIndex],
+        ...receipt,
+      };
+    } else {
+      projectedData.onlineCohabitation.real_build_demolition_receipts.unshift(receipt);
+    }
+    projectedData.onlineCohabitation.real_build_demolition_receipts = projectedData.onlineCohabitation.real_build_demolition_receipts.slice(0, 20);
+    assignGameplayDataToContext(context, projectedData);
+    const afterRevision = persistGameplayData(context);
+    return {
+      username: member.username,
+      username_key: member.username_key,
+      save_slot: normalizeSaveSlot(context.slot),
+      save_id: identitySaveId,
+      before_revision: beforeRevision,
+      after_revision: afterRevision,
+      receipt_id: receipt.receipt_id,
+      receipt_status: 'written',
+      real_build_ref: receipt.real_build_ref,
       idempotency_key: payload.idempotency_key,
       written_at: writtenAt,
     };
@@ -9006,6 +9113,160 @@ async function requestCohabitationFamilyBuildingRealDemolitionExecution(contract
   };
 }
 
+async function writeCohabitationFamilyBuildingRealDemolitionPersonalSave(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyBuildingRealDemolitionPersonalSaveWritePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '写回家族建筑真实拆除个人存档');
+  if (!isFamilyRoleContractType(contract.type)) throw createError('家族建筑真实拆除个人存档写回只支持结拜庄园和合伙庄园', 403);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const canWritePersonalSave = actorPermissions.construction.demolish_building === true
+    || actorPermissions.fund.spend_large === true
+    || ['family_head', 'workshop_keeper'].includes(actorManorRole);
+  if (!canWritePersonalSave) throw createError('你没有写回家族建筑真实拆除个人存档的权限', 403);
+  if (actorPermissions.confirmations.demolish_requires_both !== true) {
+    throw createError('家族建筑真实拆除个人存档写回必须保留拆除双方确认安全阀', 409);
+  }
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
+    : [];
+  const familyLedger = normalizeFamilyBuildingLedger(contract);
+  const previousWriteEntry = familyLedger.find(entry => entry.real_build_demolition_personal_save_write_idempotency_key === request.idempotency_key);
+  if (previousWriteEntry) {
+    const requestedEntry = findFamilyBuildingLedgerForRealBuildApply(contract, request);
+    if (requestedEntry && requestedEntry.id !== previousWriteEntry.id) {
+      throw createError('该真实拆除个人存档写回幂等键已用于其他建筑流水，请更换 idempotency_key', 409);
+    }
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      building_ledger_entry: previousWriteEntry,
+      idempotent: true,
+      already_written: previousWriteEntry.real_build_demolition_execution_state === 'executed',
+      receipts: previousWriteEntry.real_build_demolition_personal_save_receipts || [],
+      demolition_execution: {
+        requested: Boolean(previousWriteEntry.real_build_demolition_execution_request_idempotency_key),
+        execution_state: previousWriteEntry.real_build_demolition_execution_state,
+        personal_save_written: previousWriteEntry.real_build_demolition_execution_state === 'executed',
+        receipt_count: (previousWriteEntry.real_build_demolition_personal_save_receipts || []).length,
+        real_build_demolished: previousWriteEntry.real_build_demolished === true,
+        shared_fund_changed: false,
+        shared_warehouse_changed: false,
+      },
+    };
+  }
+
+  const targetEntry = findFamilyBuildingLedgerForRealBuildApply(contract, request);
+  if (!targetEntry) throw createError('找不到可写回真实拆除个人存档的家族建筑流水', 404);
+  if (targetEntry.real_build_demolition_execution_state === 'executed' || targetEntry.real_build_demolished === true) {
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      building_ledger_entry: targetEntry,
+      idempotent: true,
+      already_written: true,
+      receipts: targetEntry.real_build_demolition_personal_save_receipts || [],
+      demolition_execution: {
+        requested: Boolean(targetEntry.real_build_demolition_execution_request_idempotency_key),
+        execution_state: targetEntry.real_build_demolition_execution_state,
+        personal_save_written: true,
+        receipt_count: (targetEntry.real_build_demolition_personal_save_receipts || []).length,
+        real_build_demolished: targetEntry.real_build_demolished === true,
+        shared_fund_changed: false,
+        shared_warehouse_changed: false,
+      },
+    };
+  }
+  if (targetEntry.real_build_demolition_review_state !== 'approved_for_execute') {
+    throw createError('只有已批准待执行的真实拆除复核可以写回个人存档', 409);
+  }
+  if (targetEntry.real_build_demolition_execution_state !== 'pending_personal_save_write') {
+    throw createError('请先请求真实拆除执行，再写回个人存档', 409);
+  }
+  if (!targetEntry.real_build_demolition_execution_request_idempotency_key) {
+    throw createError('该建筑流水没有真实拆除执行请求记录，不能写回个人存档', 409);
+  }
+  if (targetEntry.real_build_applied !== true || !targetEntry.real_build_ref) {
+    throw createError('该建筑流水缺少真实建造落账证据，不能写回真实拆除个人存档', 409);
+  }
+
+  const receipts = writePersonalRealDemolitionReceiptsFromFamilyBuilding(contract, targetEntry, request);
+  if (receipts.length === 0) throw createError('没有可写回真实拆除回执的已接受成员', 409);
+  const operatedAt = nowSeconds();
+  const roleDef = getFamilyManorRoleDef(actorManorRole);
+  const nextDeferredOperations = (Array.isArray(targetEntry.deferred_operations) ? targetEntry.deferred_operations : [])
+    .filter(operation => operation && operation !== 'real_build_demolition_personal_save_write');
+  const nextEntry = normalizeFamilyBuildingLedgerEntry({
+    ...targetEntry,
+    real_build_demolished: true,
+    real_build_demolition_review_state: 'executed',
+    real_build_demolition_execution_state: 'executed',
+    real_build_demolition_personal_save_write_idempotency_key: request.idempotency_key,
+    real_build_demolition_personal_save_written_at: operatedAt,
+    real_build_demolition_personal_save_written_by_username: member.username,
+    real_build_demolition_personal_save_written_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    real_build_demolition_personal_save_receipts: receipts,
+    real_build_demolition_policy: '真实建筑拆除已写入成员个人存档回执；共同基金、共同仓库、个人铜币、背包、农田、NPC、家庭和孩子状态不在本步骤变更。',
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: roleDef?.label || targetEntry.actor_manor_role_label,
+    deferred_operations: nextDeferredOperations,
+  });
+  contract.family_building_ledger = familyLedger.map(entry =>
+    entry.id === targetEntry.id ? nextEntry : entry
+  ).slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
+  appendAudit(contract, 'family_building_real_demolition_personal_save_written', actor, {
+    building_ledger_id: nextEntry.id,
+    draft_id: nextEntry.draft_id,
+    fund_ledger_id: nextEntry.fund_ledger_id,
+    target_ref: nextEntry.target_ref,
+    building_id: nextEntry.building_id,
+    project_id: nextEntry.project_id,
+    real_build_ref: nextEntry.real_build_ref,
+    receipt_count: receipts.length,
+    receipt_usernames: receipts.map(receipt => receipt.username),
+    execution_state: nextEntry.real_build_demolition_execution_state,
+    real_build_demolished: true,
+    shared_fund_changed: false,
+    shared_warehouse_changed: false,
+    personal_money_changed: false,
+    personal_inventory_changed: false,
+  }, request.idempotency_key);
+  contract.updated_at = operatedAt;
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    building_ledger_entry: nextEntry,
+    idempotent: false,
+    already_written: false,
+    receipts,
+    demolition_execution: {
+      requested: true,
+      execution_state: 'executed',
+      personal_save_written: true,
+      receipt_count: receipts.length,
+      real_build_demolished: true,
+      shared_fund_changed: false,
+      shared_warehouse_changed: false,
+      personal_money_changed: false,
+      personal_inventory_changed: false,
+    },
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -11020,6 +11281,7 @@ module.exports = {
   rejectCohabitationFamilyBuildingRealDemolitionReview,
   approveCohabitationFamilyBuildingRealDemolitionReview,
   requestCohabitationFamilyBuildingRealDemolitionExecution,
+  writeCohabitationFamilyBuildingRealDemolitionPersonalSave,
   updateCohabitationPermissions,
   updateCohabitationFamilyRole,
   createCohabitationContract,

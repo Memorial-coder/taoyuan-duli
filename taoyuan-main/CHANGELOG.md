@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人存档写回后端安全阀
+- 服务端新增 `/family-buildings/real-demolition/write-personal-save`，要求建筑流水已 `approved_for_execute`、已请求执行并处于 `pending_personal_save_write`、具备真实建造落账证据，并保留 `demolish_requires_both` 安全阀。
+- 成功后只向已接受成员个人存档追加 `onlineCohabitation.real_build_demolition_receipts` 回执，把建筑流水推进到 `executed` / `real_build_demolished=true`，清除个人存档写回待办并记录审计。
+- 重复请求幂等读回，不改共同基金 / 共同仓库数量、不写个人铜币或背包；前端入口和个人房屋 / 建筑主状态删除仍留后续独立安全阀。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0526 家族建筑真实拆除执行请求前端入口
 - 前端 API / store 接入 `/family-buildings/real-demolition/request-execution`，共同庄园建筑流水卡片新增“请求执行”按钮。
 - 按钮按 `approved_for_execute`、复核处理记录、真实落账证据、未真实拆除、未进入 `pending_personal_save_write` 和契约开启状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。
