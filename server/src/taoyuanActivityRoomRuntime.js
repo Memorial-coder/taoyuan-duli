@@ -3586,6 +3586,78 @@ function buildDragonBoatRouteReplay(room) {
   });
 }
 
+function buildEscortConvoyRouteReplay(room) {
+  if (!isEscortConvoyRoom(room)) return normalizeReceiptRouteReplay(null);
+  const gameplayState = ensureRoomGameplayState(room);
+  syncEscortConvoyVisualState(room);
+  const visualState = normalizeOnlineVisualState(room.visual_state, room);
+  const track = visualState.tracks.find(entry => entry.id === ESCORT_CONVOY_VISUAL_TRACK_ID)
+    || buildEscortConvoyVisualTrack(room, visualState.tracks);
+  const team = (track.teams || []).find(entry => entry.team_id === ESCORT_CONVOY_VISUAL_TEAM_ID) || track.teams?.[0] || null;
+  const positionIndex = Math.max(0, Math.floor(Number(team?.position_index) || 0));
+  const routeNodes = (track.cells || [])
+    .slice()
+    .sort((left, right) => left.index - right.index)
+    .map(cell => normalizeReceiptRouteReplayNode({
+      id: cell.id,
+      label: cell.label,
+      kind: cell.kind,
+      state: cell.index < positionIndex
+        ? 'resolved'
+        : cell.index === positionIndex
+          ? (cell.kind === 'finish' ? 'finish' : 'active')
+          : 'available',
+      order: cell.index + 1,
+    }))
+    .filter(Boolean);
+
+  const highlightNodes = (visualState.highlights || [])
+    .slice(0, 4)
+    .map(highlight => {
+      const cell = (track.cells || []).find(entry => entry.id === highlight.visual_id);
+      return normalizeReceiptRouteReplayHighlight({
+        node_id: highlight.visual_id,
+        label: cell?.label || highlight.label,
+        summary: highlight.summary,
+        type: highlight.type || 'success',
+      });
+    })
+    .filter(Boolean);
+
+  const incidentWeight = gameplayState.last_action_id === 'answer_incident' ? 2 : gameplayState.last_action_id === 'stabilize_cargo' ? 0 : 1;
+  const escortRisk = clampNumber(
+    2 + Math.max(0, gameplayState.progress_value - Math.floor(gameplayState.score_value / 2)) + incidentWeight,
+    0,
+    10
+  );
+  const riskPeak = {
+    value: escortRisk,
+    round_number: Math.max(1, positionIndex + 1),
+    action_label: sanitizeText(gameplayState.last_action_id, 40),
+    actor_display_name: sanitizeText(gameplayState.last_actor_display_name, 40),
+    summary: gameplayState.last_action_summary || '护送途中风险由里程、完整度和最近行动共同估算。',
+  };
+
+  const memberContributions = getSortedGameplayContributions(room).map(entry => normalizeReceiptRouteReplayContribution({
+    ...entry,
+    role_label: entry.role_label || '',
+    summary: `${entry.display_name} 推进 ${entry.progress_value}，货物完整度 ${entry.score_value}，行动 ${entry.action_count} 次。`,
+  })).filter(Boolean);
+
+  const trackLength = Math.max(1, Math.floor(Number(track.length) || routeNodes.length || 1));
+  const reachedFinish = routeNodes.some(node => node.kind === 'finish' && positionIndex + 1 >= node.order);
+  const summary = `护送路线 ${routeNodes.map(node => node.label).join(' -> ')}；车队推进 ${Math.min(positionIndex + 1, trackLength)}/${trackLength} 格，${reachedFinish ? '已抵达交付点' : '仍在护送途中'}；货物完整度 ${gameplayState.score_value}，途中风险 ${riskPeak.value}/10。`;
+  return normalizeReceiptRouteReplay({
+    kind: 'escort_convoy',
+    title: '商队护送记录',
+    summary,
+    route_nodes: routeNodes,
+    highlight_nodes: highlightNodes,
+    risk_peak: riskPeak,
+    member_contributions: memberContributions,
+  });
+}
+
 function createExpeditionCavernRoundSummary(room, cavernState, actor, actionOption, contribution, resourceDelta, riskDelta, extraSummary = '') {
   const event = getExpeditionCavernCurrentEvent(cavernState);
   const resourceText = summarizeExpeditionCavernResourceDelta(resourceDelta);
@@ -5443,6 +5515,8 @@ async function settleActivityRoom(roomId, actor = {}) {
     ? buildExpeditionCavernRouteReplay(room)
     : isDragonBoatRoom(room)
       ? buildDragonBoatRouteReplay(room)
+      : isEscortConvoyRoom(room)
+        ? buildEscortConvoyRouteReplay(room)
     : normalizeReceiptRouteReplay(null);
   const nextReceipts = joinedMembers.map(member => {
     const rankingIndex = Math.max(0, rankedContributions.findIndex(entry => entry.username === member.username));

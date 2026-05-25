@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 护送抵运路线回看
+- 远征 `expedition_escort` 结算凭证新增 `escort_convoy` 路线回看，记录 6 格护送路线、行动高光、途中风险摘要和成员贡献。
+- 路线回看只进入只读 receipt 字段，不进入奖励 payload，不改变原有个人奖励落账和结算幂等键。
+- 本轮验证：`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-activity-room-visual-state.mjs`、`npm --prefix server run qa:activity-room-visual-state`、`npm --prefix taoyuan-main run type-check`。
+
 ### 0525 护送商队轨道复用
 - 远征护送抵运房间现在会收到 `board_type=track` 的商队路线视觉状态，包含村口整队、林道转弯、车轴异响、驿站补给、夜宿巡看和抵达交付 6 格。
 - 远征页复用 `VisualTrackBoard` 展示护送路线、车队位置、格子风险 / 奖励预览和护送推进 / 稳货 / 途中事件动作；有轨道动作时旧按钮面板退为降级入口。

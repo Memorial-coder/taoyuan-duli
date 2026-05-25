@@ -362,6 +362,25 @@ assertEscortConvoyVisualTrack(escortActionResult.room, 1, {
   expectedLastAction: 'escort_step',
 })
 
+const escortSettledResult = await runtime.settleExpeditionRoom(escortConvoy.room.id, actor('visual_host_escort'))
+const escortReceiptReplay = escortSettledResult.overview.recent_receipts.find(receipt => receipt.room_id === escortConvoy.room.id)?.route_replay
+assert.equal(escortReceiptReplay?.kind, 'escort_convoy', 'escort convoy settlement receipt should expose route replay')
+assert.equal(escortReceiptReplay.title, '商队护送记录', 'escort convoy route replay should use readable title')
+assert.equal(escortReceiptReplay.route_nodes.length, 6, 'escort convoy replay should preserve the whole route')
+assert.deepEqual(escortReceiptReplay.route_nodes.map(node => node.id), [
+  'escort_convoy_gate',
+  'escort_convoy_forest_road',
+  'escort_convoy_broken_cart',
+  'escort_convoy_waystation',
+  'escort_convoy_night_watch',
+  'escort_convoy_delivery',
+], 'escort convoy replay should keep stable route order')
+assert.ok(escortReceiptReplay.highlight_nodes.length > 0, 'escort convoy replay should keep action highlights')
+assert.ok(escortReceiptReplay.risk_peak.value >= 0, 'escort convoy replay should record route risk')
+assert.ok(escortReceiptReplay.member_contributions.some(item => item.username === 'visual_host_escort'), 'escort convoy replay should include member contribution')
+const escortSettledSnapshotReceipt = escortSettledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_host_escort')
+assert.equal(escortSettledSnapshotReceipt?.route_replay?.kind, 'escort_convoy', 'room snapshot escort convoy receipt should include route replay')
+
 const stored = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 stored.rooms = stored.rooms.map(room => {
   const nextRoom = { ...room }
