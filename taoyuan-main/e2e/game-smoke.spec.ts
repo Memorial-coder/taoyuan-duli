@@ -1282,6 +1282,27 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId(`random-npc-choice-${prepared!.visitorId}-${prepared!.choiceId}`)).toBeDisabled()
   })
 
+  test('npc family relation graph supports node selection', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '图谱')
+
+    await page.goto('/#/game/npc')
+    await expect(page.getByTestId('npc-view')).toBeVisible()
+    await expect(page.getByTestId('family-relation-graph')).toBeVisible()
+    await page.waitForFunction(() => typeof (window as any).__TAOYUAN_RANDOM_NPC_DEBUG__?.prepareDialogueSmoke === 'function')
+
+    const prepared = await page.evaluate(() => (window as any).__TAOYUAN_RANDOM_NPC_DEBUG__.prepareDialogueSmoke()) as {
+      visitorId: string
+      visitorName: string
+    } | null
+    expect(prepared).toBeTruthy()
+
+    await page.getByTestId(`family-relation-node-visitor:${prepared!.visitorId}`).click()
+
+    await expect(page.getByTestId('family-relation-detail')).toContainText(prepared!.visitorName)
+    await expect(page.getByTestId('family-relation-detail')).toContainText('本周来访')
+  })
+
   test('online festival visual track supports dragon boat cell actions', async ({ page }) => {
     await openHome(page)
     await startNewJourney(page, '赛舟')

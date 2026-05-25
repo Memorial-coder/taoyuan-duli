@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 家族关系图前端 smoke
+- `FamilyRelationGraph` 新增稳定 `data-testid`，覆盖关系图根节点、SVG、每个关系节点和详情面板。
+- `game-smoke.spec.ts` 新增家族关系图用例，复用随机 NPC 调试入口准备当前周来访者，点击 `visitor:*` 节点后断言详情显示来访者姓名与“本周来访”。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`；`npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 因当前环境 Chromium `spawn EPERM` 被项目脚本跳过。
+
 ### 0525 随机 NPC 对话前端 smoke
 - NPC 页新增稳定 `data-testid`，覆盖页面、本周来访卡、随机来访者对话选项和最近事件文本。
 - DEV 模式新增 `__TAOYUAN_RANDOM_NPC_DEBUG__.prepareDialogueSmoke()`，用于浏览器 smoke 锁定当前周第一位来访者并重置今日可对话状态，不影响生产构建行为。

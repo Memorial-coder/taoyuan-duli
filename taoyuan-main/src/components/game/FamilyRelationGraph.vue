@@ -1,5 +1,5 @@
 <template>
-  <section class="border border-accent/20 rounded-xs p-2 mb-3 bg-bg/10">
+  <section class="border border-accent/20 rounded-xs p-2 mb-3 bg-bg/10" data-testid="family-relation-graph">
     <div class="flex items-start justify-between gap-2 mb-2">
       <div>
         <p class="text-xs text-accent">家族关系图谱</p>
@@ -10,7 +10,7 @@
 
     <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1.35fr)_minmax(220px,0.65fr)] gap-2">
       <div class="border border-accent/10 rounded-xs p-2 bg-accent/5 overflow-x-auto">
-        <svg class="min-w-[520px] w-full h-[360px]" viewBox="0 0 100 76" role="img" aria-label="家族关系图">
+        <svg class="min-w-[520px] w-full h-[360px]" viewBox="0 0 100 76" role="img" aria-label="家族关系图" data-testid="family-relation-graph-svg">
           <line
             v-for="link in graphLinks"
             :key="`${link.from}-${link.to}-${link.label}`"
@@ -39,6 +39,7 @@
             tabindex="0"
             role="button"
             :aria-label="`${node.name}，${node.relationLabel}`"
+            :data-testid="`family-relation-node-${node.id}`"
             @click="selectNode(node.id)"
             @keydown.enter.prevent="selectNode(node.id)"
             @keydown.space.prevent="selectNode(node.id)"
@@ -72,7 +73,7 @@
         </svg>
       </div>
 
-      <div class="border border-accent/10 rounded-xs p-2 bg-bg/10 min-h-[220px]">
+      <div class="border border-accent/10 rounded-xs p-2 bg-bg/10 min-h-[220px]" data-testid="family-relation-detail">
         <template v-if="selectedNode">
           <div class="flex items-start justify-between gap-2">
             <div class="min-w-0">
