@@ -625,6 +625,12 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   reverted_by_display_name: string
   rollback_reason: string
   rollback_policy: string
+  shared_fund_refunded: boolean
+  fund_refund_idempotency_key: string
+  fund_refund_ledger_id: string
+  fund_refunded_at: number
+  fund_refunded_by_username: string
+  fund_refunded_by_display_name: string
   compensation_required: boolean
   compensation_hint: string
   deferred_operations: string[]
@@ -1332,11 +1338,13 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
   warehouse?: CohabitationWarehouseSnapshot
   fund?: CohabitationFundSnapshot
   building_ledger_entry?: CohabitationFamilyBuildingLedgerEntry
+  fund_ledger_entry?: CohabitationFundLedgerEntry
   material_ledger_entries?: CohabitationWarehouseLedgerEntry[]
   idempotent?: boolean
   already_applied?: boolean
   already_consumed?: boolean
   already_reverted?: boolean
+  already_refunded?: boolean
   rollback?: {
     shared_fund_refunded?: boolean
     shared_warehouse_restored?: boolean
@@ -1350,6 +1358,8 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
   }
   shared_fund?: {
     deducted_amount?: number
+    refund_amount?: number
+    balance_before?: number
     balance_after?: number
     personal_money_merged?: boolean
   }
@@ -1712,6 +1722,14 @@ export const rollbackCohabitationFamilyBuilding = async (contractId: string, pay
     contractPath(contractId, '/family-buildings/rollback'),
     payload as unknown as Record<string, unknown>,
     '记录家族建筑回滚失败'
+  )
+}
+
+export const refundCohabitationFamilyBuildingFund = async (contractId: string, payload: CohabitationFamilyBuildingLedgerPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/fund/refund'),
+    payload as unknown as Record<string, unknown>,
+    '退回家族建筑共同基金失败'
   )
 }
 

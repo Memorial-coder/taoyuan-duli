@@ -1181,8 +1181,11 @@
                   <p v-if="entry.reverted_at || entry.status === 'reverted'">
                     回滚：{{ entry.reverted_by_display_name || entry.reverted_by_username || '已记录' }} · {{ formatTime(entry.reverted_at) }} · {{ entry.rollback_policy || entry.rollback_reason || '不自动退款或恢复建材' }}
                   </p>
+                  <p v-if="entry.shared_fund_refunded || entry.fund_refund_ledger_id">
+                    基金退款：{{ entry.fund_refunded_by_display_name || entry.fund_refunded_by_username || '已记录' }} · {{ formatTime(entry.fund_refunded_at) }} · {{ entry.fund_refund_ledger_id || '无 ledger' }}
+                  </p>
                 </div>
-                <div class="mt-2 grid gap-2 md:grid-cols-3">
+                <div class="mt-2 grid gap-2 md:grid-cols-4">
                   <button
                     class="online-action-btn online-action-btn--compact justify-center"
                     type="button"
@@ -1212,6 +1215,16 @@
                   >
                     <ShieldCheck :size="12" />
                     记录回滚
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canRefundFamilyBuildingFund(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-fund-refund-${entry.id}`"
+                    @click="refundFamilyBuildingFund(entry)"
+                  >
+                    <Wallet :size="12" />
+                    退回基金
                   </button>
                 </div>
               </div>
@@ -2711,6 +2724,13 @@
     Boolean(entry.fund_ledger_id) &&
     entry.status !== 'compensated' &&
     entry.status !== 'reverted'
+  const canRefundFamilyBuildingFund = (entry: CohabitationFamilyBuildingLedgerEntry) =>
+    cohabitationStore.canOpenSelectedContract &&
+    entry.status === 'reverted' &&
+    entry.shared_fund_deducted === true &&
+    Boolean(entry.fund_ledger_id) &&
+    entry.shared_fund_refunded !== true &&
+    !entry.fund_refund_ledger_id
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -2991,6 +3011,25 @@
         : '已记录家族建筑回滚，未自动退基金或恢复建材'
     } catch (error) {
       familyBuildingActionMessage.value = error instanceof Error ? error.message : '记录家族建筑回滚失败'
+    }
+  }
+
+  const refundFamilyBuildingFund = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    try {
+      const result = await cohabitationStore.refundFamilyBuildingFund({
+        building_ledger_id: entry.id,
+        memo: `前端退回家族建筑共同基金：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-fund-refund-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      const refundAmount = result?.shared_fund?.refund_amount ?? entry.amount ?? 0
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_refunded
+        ? '该建筑流水已经退回共同基金，已刷新状态'
+        : `已退回家族建筑共同基金 ${refundAmount} 文，未恢复建材或改个人资产`
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '退回家族建筑共同基金失败'
     }
   }
 
@@ -3324,6 +3363,7 @@
       family_building_real_build_applied: '建筑真实落账',
       family_building_materials_consumed: '建筑材料消耗',
       family_building_rollback_recorded: '建筑回滚记录',
+      family_building_fund_refunded: '建筑基金退款',
       permissions_updated: '权限更新',
       family_role_updated: '家族职位更新',
       separation_preview_created: '分居预览创建',
@@ -3429,6 +3469,14 @@
       return targetRef
         ? `已记录 ${targetRef} 建筑回滚，不自动退基金或恢复建材`
         : '已记录建筑回滚，不自动退基金或恢复建材'
+    }
+    if (entry.action === 'family_building_fund_refunded') {
+      const refundAmount = Number(detail.refund_amount) || Number(detail.amount) || 0
+      const balanceAfter = Number(detail.shared_fund_balance_after) || 0
+      const suffix = balanceAfter > 0 ? `，基金余额 ${balanceAfter} 文` : ''
+      return refundAmount > 0
+        ? `已退回共同基金 ${refundAmount} 文${suffix}，不恢复建材或个人资产`
+        : '已记录建筑基金退款，不恢复建材或个人资产'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0

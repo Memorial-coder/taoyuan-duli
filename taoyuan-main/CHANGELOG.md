@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 家族建筑基金退款前端入口
+- 前端 API / store 接入 `/family-buildings/fund/refund`，共同庄园建筑页在建筑流水卡片新增“退回基金”按钮。
+- 按钮按 `reverted`、已扣共同基金、原基金 ledger、未退款和契约开启状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。
+- 建筑流水卡片展示退款操作者、退款时间与退款 ledger，共同日志新增“建筑基金退款”读回；本轮仍不恢复共同仓库材料、不改个人铜币 / 背包、不真实拆除建筑。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 家族建筑回滚共同基金退款补偿
 - 服务端新增 `/family-buildings/fund/refund`，要求目标家族建筑流水已记录 `reverted`、具备原扣款基金 ledger，并保留家族成员权限与拆除双方确认安全阀。
 - 成功后把原建筑扣款金额退回共同基金，写 `family_building_fund_refund` 基金流水，并回写建筑流水的退款幂等键、退款 ledger、操作者和时间。
