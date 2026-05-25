@@ -351,6 +351,23 @@ export const RECIPES: RecipeDef[] = [
     description: '南瓜酱压住泡椒的冲劲，适合农忙或赛舟前补一口热量。'
   },
   {
+    id: 'spicy_boat_rice_ball',
+    name: '辛火赛舟饭团',
+    ingredients: [
+      { itemId: 'pickled_chili', quantity: 1 },
+      { itemId: 'rice', quantity: 2 },
+      { itemId: 'sesame_oil', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 36,
+      healthRestore: 14,
+      buff: { type: 'speed', value: 10, description: '行动速度+10%（当天）' }
+    },
+    unlockSource: '加工链第七批',
+    requiredSkill: { type: 'farming', level: 4 },
+    description: '泡椒与芝麻油拌入米饭捏成的赛舟提神食，适合赛前、赶路和护送前备用。'
+  },
+  {
     id: 'rapeseed_bamboo_rice_roll',
     name: '菜油春笋米粉卷',
     ingredients: [
