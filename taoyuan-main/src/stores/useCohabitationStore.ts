@@ -2,10 +2,13 @@ import { computed, ref } from 'vue'
 import { defineStore } from 'pinia'
 import {
   acceptCohabitationContract,
+  confirmCohabitationFundLargeSpendDraft,
   contributeCohabitationFund,
   createCohabitationContract,
+  createCohabitationFundLargeSpendDraft,
   createCohabitationSeparationPreview,
   depositCohabitationWarehouseItem,
+  executeCohabitationFundLargeSpendDraft,
   fetchCohabitationFamilyBuildings,
   fetchCohabitationFamilyFestivalSeats,
   fetchCohabitationFamilyOrders,
@@ -338,6 +341,87 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const createSharedFundLargeSpendDraft = async (payload: {
+    amount: number
+    purpose: string
+    target_ref: string
+    memo?: string
+    idempotency_key: string
+  }) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await createCohabitationFundLargeSpendDraft(activeContractId.value, payload)
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '创建共同基金大额草案失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const confirmSharedFundLargeSpendDraft = async (draftId: string, payload: {
+    memo?: string
+    idempotency_key: string
+  }) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !draftId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await confirmCohabitationFundLargeSpendDraft(activeContractId.value, draftId, payload)
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '确认共同基金大额草案失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const executeSharedFundLargeSpendDraft = async (draftId: string, payload: {
+    memo?: string
+    idempotency_key: string
+  }) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !draftId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await executeCohabitationFundLargeSpendDraft(activeContractId.value, draftId, payload)
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '执行共同基金大额草案扣款失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const depositSharedWarehouseItem = async (payload: {
     item_id: string
     quantity: number
@@ -514,6 +598,9 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     createSeparationPreview,
     contributeSharedFund,
     spendSharedFund,
+    createSharedFundLargeSpendDraft,
+    confirmSharedFundLargeSpendDraft,
+    executeSharedFundLargeSpendDraft,
     depositSharedWarehouseItem,
     sellSharedWarehouseItem,
     withdrawSharedWarehouseItem,

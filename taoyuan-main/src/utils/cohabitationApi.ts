@@ -61,9 +61,75 @@ export interface CohabitationFundLedgerEntry {
   target_item_id?: string
   target_quantity?: number
   target_unit_price?: number
+  balance_after?: number
+  confirmation_required?: boolean
+  confirmation_status?: string
+  reversible?: boolean
+  compensation_hint?: string
   idempotency_key: string
   status: string
   created_at: number
+}
+
+export interface CohabitationFundLargeSpendDraftConfirmationEvent {
+  actor_username: string
+  actor_display_name: string
+  confirmed_at: number
+  idempotency_key: string
+  memo: string
+}
+
+export interface CohabitationFundLargeSpendDraft {
+  id: string
+  contract_id: string
+  state: 'pending_confirmation' | 'ready_to_execute' | 'executed' | 'expired' | 'cancelled' | string
+  requested_by: string
+  requested_by_key: string
+  amount: number
+  purpose: string
+  purpose_label: string
+  spend_category: string
+  target_ref: string
+  memo: string
+  balance_snapshot: number
+  projected_balance_after: number
+  current_balance_snapshot: number
+  projected_current_balance_after: number
+  balance_sufficient: boolean
+  required_member_usernames: string[]
+  confirmed_member_usernames: string[]
+  pending_member_usernames: string[]
+  confirmation_events: CohabitationFundLargeSpendDraftConfirmationEvent[]
+  confirmation_state: {
+    required_member_usernames: string[]
+    confirmed_member_usernames: string[]
+    pending_member_usernames: string[]
+    requester_auto_confirmed: boolean
+    requires_all_members: boolean
+    all_members_confirmed: boolean
+    ready_for_execution_request: boolean
+    last_confirmed_by: string
+    last_confirmed_at: number
+    can_execute_now: boolean
+    execution_enabled: boolean
+    policy: string
+    [key: string]: unknown
+  }
+  created_at: number
+  expires_at: number
+  ready_at: number
+  confirmed_at: number
+  executed_at: number
+  executed_by: string
+  last_confirmed_by: string
+  last_confirmed_at: number
+  idempotency_key: string
+  confirmation_required: boolean
+  confirmation_status: string
+  execution_enabled: boolean
+  final_spend_ledger_id: string
+  compensation_policy: string
+  deferred_operations: string[]
 }
 
 export interface CohabitationWarehouseLedgerEntry {
@@ -255,6 +321,7 @@ export interface CohabitationFundSnapshot {
   status: string
   balance: number
   ledger: CohabitationFundLedgerEntry[]
+  large_spend_drafts: CohabitationFundLargeSpendDraft[]
   summary: {
     balance: number
     ledger_count: number
@@ -263,8 +330,12 @@ export interface CohabitationFundSnapshot {
     spend_enabled: boolean
     small_spend_enabled?: boolean
     medium_spend_enabled?: boolean
+    large_spend_enabled?: boolean
+    large_spend_draft_enabled?: boolean
+    large_spend_execution_enabled?: boolean
     small_spend_max_amount?: number
     medium_spend_max_amount?: number
+    large_spend_max_amount?: number
     allowed_small_spend_purposes?: Array<{
       id: string
       label: string
@@ -279,6 +350,16 @@ export interface CohabitationFundSnapshot {
       max_amount: number
       auto_pay_eligible: boolean
     }>
+    allowed_large_spend_purposes?: Array<{
+      id: string
+      label: string
+      category: string
+      max_amount: number
+      confirmation_required: boolean
+    }>
+    pending_large_spend_draft_count?: number
+    ready_large_spend_draft_count?: number
+    executed_large_spend_draft_count?: number
     idempotency_required: boolean
     large_spend_requires_both: boolean
     compensation_policy: string
@@ -902,6 +983,24 @@ export interface CohabitationFundSpendPayload {
   idempotency_key: string
 }
 
+export interface CohabitationFundLargeSpendDraftPayload {
+  amount: number
+  purpose: string
+  target_ref: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFundLargeSpendDraftConfirmPayload {
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationFundLargeSpendDraftExecutePayload {
+  memo?: string
+  idempotency_key: string
+}
+
 export interface CohabitationFundContributionPayload {
   amount: number
   purpose?: string
@@ -1011,6 +1110,25 @@ export interface CohabitationFundSpendResponse extends CohabitationDetailRespons
     target_save_id?: number
     target_save_slot?: number | null
   } | null
+}
+
+export interface CohabitationFundLargeSpendDraftResponse extends CohabitationDetailResponse {
+  fund?: CohabitationFundSnapshot
+  draft: CohabitationFundLargeSpendDraft
+  ledger_entry?: CohabitationFundLedgerEntry
+  idempotent?: boolean
+  already_executed?: boolean
+  shared_fund?: {
+    balance_before?: number
+    balance_after?: number
+    projected_balance_after?: number
+    deducted_amount?: number
+    personal_money_merged: boolean
+    confirmation_required: boolean
+    confirmation_status?: string
+    execution_enabled?: boolean
+    building_ledger_written?: boolean
+  }
 }
 
 export interface CohabitationContractActionResponse extends CohabitationDetailResponse {
@@ -1142,6 +1260,30 @@ export const spendCohabitationFund = async (contractId: string, payload: Cohabit
     contractPath(contractId, '/fund/spend'),
     payload as unknown as Record<string, unknown>,
     '共同基金支出失败'
+  )
+}
+
+export const createCohabitationFundLargeSpendDraft = async (contractId: string, payload: CohabitationFundLargeSpendDraftPayload) => {
+  return postCohabitationJson<CohabitationFundLargeSpendDraftResponse>(
+    contractPath(contractId, '/fund/large-spend-draft'),
+    payload as unknown as Record<string, unknown>,
+    '创建共同基金大额草案失败'
+  )
+}
+
+export const confirmCohabitationFundLargeSpendDraft = async (contractId: string, draftId: string, payload: CohabitationFundLargeSpendDraftConfirmPayload) => {
+  return postCohabitationJson<CohabitationFundLargeSpendDraftResponse>(
+    contractPath(contractId, `/fund/large-spend-drafts/${encodeURIComponent(draftId)}/confirm`),
+    payload as unknown as Record<string, unknown>,
+    '确认共同基金大额草案失败'
+  )
+}
+
+export const executeCohabitationFundLargeSpendDraft = async (contractId: string, draftId: string, payload: CohabitationFundLargeSpendDraftExecutePayload) => {
+  return postCohabitationJson<CohabitationFundLargeSpendDraftResponse>(
+    contractPath(contractId, `/fund/large-spend-drafts/${encodeURIComponent(draftId)}/execute`),
+    payload as unknown as Record<string, unknown>,
+    '执行共同基金大额草案扣款失败'
   )
 }
 

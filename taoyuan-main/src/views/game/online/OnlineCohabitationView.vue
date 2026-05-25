@@ -468,7 +468,7 @@
             <p class="border border-accent/10 bg-black/10 p-2 text-muted">注资：{{ cohabitationStore.fund?.summary.contribution_enabled ? '已开放' : '未开放' }}</p>
             <p class="border border-accent/10 bg-black/10 p-2 text-muted">消费：{{ cohabitationStore.fund?.summary.spend_enabled ? '已开放' : '暂缓' }}</p>
             <p class="border border-accent/10 bg-black/10 p-2 text-muted">中额支出：{{ cohabitationStore.fund?.summary.medium_spend_enabled ? '已开放' : '需权限' }}</p>
-            <p class="border border-accent/10 bg-black/10 p-2 text-muted">大额确认：{{ cohabitationStore.fund?.summary.large_spend_requires_both ? '需要' : '未启用' }}</p>
+            <p class="border border-accent/10 bg-black/10 p-2 text-muted">大额草案：{{ cohabitationStore.fund?.summary.large_spend_draft_enabled ? '已开放' : '需权限' }}</p>
           </div>
           <div class="mt-3 border border-accent/10 bg-black/10 p-2">
             <p class="text-xs text-accent">个人注资</p>
@@ -532,11 +532,137 @@
               </button>
             </div>
           </div>
+          <div class="mt-3 border border-accent/10 bg-black/10 p-2" data-testid="online-cohabitation-fund-large-draft-form">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">大额草案</p>
+              <span class="text-[10px] text-muted">{{ cohabitationStore.fund?.summary.large_spend_requires_both ? '双方确认' : '安全阀关闭' }}</span>
+            </div>
+            <div class="mt-2 grid gap-2">
+              <select
+                v-model="fundLargeDraftPurpose"
+                class="online-select text-xs"
+                data-testid="online-cohabitation-fund-large-draft-purpose"
+              >
+                <option
+                  v-for="option in fundLargeSpendOptions"
+                  :key="option.purpose"
+                  :value="option.purpose"
+                >
+                  {{ option.label }}
+                </option>
+              </select>
+              <input
+                v-model.number="fundLargeDraftAmount"
+                type="number"
+                :min="fundLargeDraftMinAmount"
+                step="1"
+                class="online-input text-xs"
+                data-testid="online-cohabitation-fund-large-draft-amount"
+                placeholder="金额"
+              >
+              <input
+                v-model="fundLargeDraftTargetRef"
+                class="online-input text-xs"
+                data-testid="online-cohabitation-fund-large-draft-target"
+                maxlength="80"
+                placeholder="building:family_hall"
+              >
+              <input
+                v-model="fundLargeDraftMemo"
+                class="online-input text-xs"
+                data-testid="online-cohabitation-fund-large-draft-memo"
+                maxlength="80"
+                placeholder="备注（可选）"
+              >
+              <button
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-center"
+                :disabled="!canCreateLargeFundDraft || cohabitationStore.actionLoading"
+                data-testid="online-cohabitation-fund-large-draft-submit"
+                @click="createLargeFundSpendDraft"
+              >
+                <ClipboardList :size="12" />
+                创建确认草案
+              </button>
+            </div>
+            <p class="mt-2 text-[10px] leading-4 text-muted">执行只扣共同基金；建筑流水和真实建造仍待后续。</p>
+          </div>
           <p v-if="fundActionMessage" class="mt-3 text-[10px] leading-4" :class="fundActionOk ? 'text-emerald-200' : 'text-red-100'">
             {{ fundActionMessage }}
           </p>
         </div>
-        <div class="game-panel-muted p-3">
+        <div class="space-y-3">
+          <div class="game-panel-muted p-3" data-testid="online-cohabitation-fund-large-drafts">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">大额草案</p>
+              <span class="text-[10px] text-muted">{{ fundLargeSpendDrafts.length }} 份</span>
+            </div>
+            <div v-if="fundLargeSpendDrafts.length === 0" class="mt-3 text-xs leading-5 text-muted">还没有大额确认草案。</div>
+            <div v-else class="mt-3 max-h-[20rem] space-y-2 overflow-y-auto pr-1">
+              <div
+                v-for="draft in fundLargeSpendDrafts"
+                :key="draft.id"
+                class="border border-accent/10 bg-black/10 p-2"
+                :data-testid="`online-cohabitation-fund-large-draft-${draft.id}`"
+              >
+                <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ draft.purpose_label || largeFundSpendPurposeLabel(draft.purpose) }}</p>
+                    <p class="mt-1 text-[10px] text-muted">{{ draft.target_ref }} · {{ formatTime(draft.created_at) }}</p>
+                  </div>
+                  <span class="w-fit shrink-0 border px-2 py-0.5 text-[10px]" :class="largeFundDraftStateClass(draft.state)">
+                    {{ largeFundDraftStateLabel(draft.state) }}
+                  </span>
+                </div>
+                <div class="mt-2 grid gap-2 text-[10px] md:grid-cols-4">
+                  <p class="border border-accent/10 bg-bg/30 p-2 text-muted">金额 {{ draft.amount }}</p>
+                  <p class="border border-accent/10 bg-bg/30 p-2 text-muted">余额 {{ draft.current_balance_snapshot || draft.balance_snapshot }}</p>
+                  <p class="border border-accent/10 bg-bg/30 p-2 text-muted">已确认 {{ draft.confirmed_member_usernames.length }}/{{ draft.required_member_usernames.length }}</p>
+                  <p class="border border-accent/10 bg-bg/30 p-2 text-muted">到期 {{ formatTime(draft.expires_at) }}</p>
+                </div>
+                <div class="mt-2 flex flex-wrap gap-1">
+                  <span
+                    v-for="username in draft.pending_member_usernames"
+                    :key="`${draft.id}-${username}`"
+                    class="border border-amber-300/20 px-2 py-1 text-[10px] text-amber-100"
+                  >
+                    待 {{ largeFundDraftMemberLabel(username) }}
+                  </span>
+                  <span
+                    v-for="username in draft.confirmed_member_usernames"
+                    :key="`${draft.id}-${username}-confirmed`"
+                    class="border border-emerald-300/20 px-2 py-1 text-[10px] text-emerald-100"
+                  >
+                    已 {{ largeFundDraftMemberLabel(username) }}
+                  </span>
+                </div>
+                <p v-if="draft.final_spend_ledger_id" class="mt-2 text-[10px] leading-4 text-muted">基金流水：{{ draft.final_spend_ledger_id }}</p>
+                <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    :disabled="!canConfirmLargeFundDraft(draft) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-fund-large-draft-confirm-${draft.id}`"
+                    @click="confirmLargeFundSpendDraft(draft)"
+                  >
+                    <CheckCircle2 :size="12" />
+                    确认
+                  </button>
+                  <button
+                    type="button"
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    :disabled="!canExecuteLargeFundDraft(draft) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-fund-large-draft-execute-${draft.id}`"
+                    @click="executeLargeFundSpendDraft(draft)"
+                  >
+                    <Wallet :size="12" />
+                    执行扣款
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
             <p class="text-sm text-accent">基金流水</p>
             <span class="text-[10px] text-muted">{{ fundLedger.length }} 条</span>
@@ -552,6 +678,7 @@
                 <span class="text-xs text-accent">{{ entry.amount }}</span>
               </div>
             </div>
+          </div>
           </div>
         </div>
       </div>
@@ -1329,6 +1456,7 @@
     CohabitationAuditEntry,
     CohabitationContract,
     CohabitationFamilyRoleOption,
+    CohabitationFundLargeSpendDraft,
     CohabitationFundLedgerEntry,
     CohabitationMember,
     CohabitationSharedPlot,
@@ -1345,6 +1473,13 @@
     amount: number
     maxAmount: number
   }
+  type FundLargeSpendPurpose = 'family_building' | 'manor_expansion'
+  type FundLargeSpendOption = {
+    label: string
+    purpose: FundLargeSpendPurpose
+    category: string
+    maxAmount: number
+  }
 
   const cohabitationStore = useCohabitationStore()
   const activeTab = ref<CohabitationTabKey>('overview')
@@ -1356,6 +1491,10 @@
   const fundActionMessage = ref('')
   const fundActionOk = ref(false)
   const fundContributionAmount = ref(50)
+  const fundLargeDraftPurpose = ref<FundLargeSpendPurpose>('family_building')
+  const fundLargeDraftAmount = ref(1500)
+  const fundLargeDraftTargetRef = ref('building:family_hall')
+  const fundLargeDraftMemo = ref('')
   const permissionActionMessage = ref('')
   const permissionActionOk = ref(false)
   const roleActionMessage = ref('')
@@ -1383,6 +1522,8 @@
     { key: 'festivalSeats', label: '节会', summary: '只读查看家族节会席位、候选模板、场景预排和结算护栏。' },
     { key: 'offline', label: '离线', summary: '查看成员最近活跃、共同日志和无需全员在线的能力边界。' },
   ]
+
+  const normalizeActorKey = (value = '') => value.trim().toLocaleLowerCase('zh-CN')
 
   const activeTabMeta = computed(() => tabs.find(tab => tab.key === activeTab.value) ?? tabs[0]!)
   const relationOptions = computed(() => cohabitationStore.overview?.relation_options ?? [])
@@ -1413,12 +1554,17 @@
     selectedContract.value?.status === 'active' && cohabitationStore.canOpenSelectedContract
   )
   const selectedContractActorMember = computed(() => {
-    const account = cohabitationStore.currentAccount
+    const account = normalizeActorKey(cohabitationStore.currentAccount)
     if (!account || !selectedContract.value) return null
     return selectedContract.value.members.find(member =>
-      member.username_key === account || member.username.toLocaleLowerCase('zh-CN') === account
+      normalizeActorKey(member.username_key) === account || normalizeActorKey(member.username) === account
     ) ?? null
   })
+  const currentActorKeys = computed(() => new Set([
+    cohabitationStore.currentAccount,
+    selectedContractActorMember.value?.username,
+    selectedContractActorMember.value?.username_key,
+  ].filter(Boolean).map(value => normalizeActorKey(String(value)))))
   const canAcceptSelectedContract = computed(() =>
     selectedContract.value?.status === 'pending_acceptance'
     && selectedContractActorMember.value?.status !== 'accepted'
@@ -1774,6 +1920,37 @@
         }
       })
   )
+  const isLargeFundSpendPurpose = (value: string): value is FundLargeSpendPurpose =>
+    value === 'family_building' || value === 'manor_expansion'
+  const fundLargeSpendOptions = computed<FundLargeSpendOption[]>(() =>
+    (cohabitationStore.fund?.summary.allowed_large_spend_purposes ?? [])
+      .filter(purpose => isLargeFundSpendPurpose(purpose.id))
+      .map(purpose => ({
+        label: purpose.label,
+        purpose: purpose.id as FundLargeSpendPurpose,
+        category: purpose.category,
+        maxAmount: purpose.max_amount,
+      }))
+  )
+  const selectedFundLargeSpendOption = computed(() =>
+    fundLargeSpendOptions.value.find(option => option.purpose === fundLargeDraftPurpose.value) ?? fundLargeSpendOptions.value[0] ?? null
+  )
+  const normalizedFundLargeDraftAmount = computed(() => Math.max(0, Math.floor(Number(fundLargeDraftAmount.value) || 0)))
+  const fundLargeDraftMinAmount = computed(() => (cohabitationStore.fund?.summary.medium_spend_max_amount ?? 1200) + 1)
+  const fundLargeSpendDrafts = computed(() => cohabitationStore.fund?.large_spend_drafts ?? [])
+  const canCreateLargeFundDraft = computed(() => {
+    const option = selectedFundLargeSpendOption.value
+    const amount = normalizedFundLargeDraftAmount.value
+    return cohabitationStore.canOpenSelectedContract &&
+      cohabitationStore.fund?.summary.large_spend_draft_enabled === true &&
+      cohabitationStore.fund?.summary.large_spend_requires_both === true &&
+      cohabitationStore.fund?.permissions.can_spend_large === true &&
+      Boolean(option) &&
+      amount >= fundLargeDraftMinAmount.value &&
+      amount <= (option?.maxAmount ?? 0) &&
+      (cohabitationStore.fund?.balance ?? 0) >= amount &&
+      fundLargeDraftTargetRef.value.trim().length > 0
+  })
 
   const setActiveTab = (tab: string) => {
     activeTab.value = tab as CohabitationTabKey
@@ -1877,8 +2054,50 @@
   const warehouseSellUnitPrice = (itemId: string) => warehouseSellPriceByItemId[itemId] ?? 0
   const fundLedgerPurposeLabel = (entry: CohabitationFundLedgerEntry) => {
     const label = entry.spend_purpose_label || entry.purpose || 'shared_fund'
+    if (entry.spend_tier === 'large') return `${label} · 大额`
     return entry.spend_tier === 'medium' ? `${label} · 中额` : label
   }
+  const largeFundSpendPurposeLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      family_building: '大额家族建筑',
+      manor_expansion: '大额庄园扩建',
+    }
+    return labels[value] || value || '大额草案'
+  }
+  const largeFundDraftStateLabel = (value: string) => {
+    const labels: Record<string, string> = {
+      pending_confirmation: '待确认',
+      ready_to_execute: '可执行',
+      executed: '已扣款',
+      expired: '已过期',
+      cancelled: '已取消',
+    }
+    return labels[value] || value || '未知'
+  }
+  const largeFundDraftStateClass = (value: string) => {
+    if (value === 'ready_to_execute') return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+    if (value === 'pending_confirmation') return 'border-amber-400/30 bg-amber-500/10 text-amber-200'
+    if (value === 'executed') return 'border-sky-400/30 bg-sky-500/10 text-sky-200'
+    return 'border-accent/10 text-muted'
+  }
+  const largeFundDraftMemberLabel = (username: string) => {
+    const key = normalizeActorKey(username)
+    const member = selectedContract.value?.members.find(entry =>
+      normalizeActorKey(entry.username) === key || normalizeActorKey(entry.username_key) === key
+    )
+    return member?.display_name || member?.username || username
+  }
+  const canConfirmLargeFundDraft = (draft: CohabitationFundLargeSpendDraft) =>
+    cohabitationStore.canOpenSelectedContract &&
+    draft.state === 'pending_confirmation' &&
+    draft.pending_member_usernames.some(username => currentActorKeys.value.has(normalizeActorKey(username)))
+  const canExecuteLargeFundDraft = (draft: CohabitationFundLargeSpendDraft) =>
+    cohabitationStore.canOpenSelectedContract &&
+    draft.state === 'ready_to_execute' &&
+    draft.confirmation_status === 'confirmed' &&
+    cohabitationStore.fund?.summary.large_spend_execution_enabled === true &&
+    cohabitationStore.fund?.permissions.can_spend_large === true &&
+    (cohabitationStore.fund?.balance ?? 0) >= draft.amount
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -2042,6 +2261,71 @@
     }
   }
 
+  const createLargeFundSpendDraft = async () => {
+    fundActionMessage.value = ''
+    fundActionOk.value = false
+    const option = selectedFundLargeSpendOption.value
+    const amount = normalizedFundLargeDraftAmount.value
+    const targetRef = fundLargeDraftTargetRef.value.trim()
+    if (!option || amount < fundLargeDraftMinAmount.value || !targetRef) {
+      fundActionMessage.value = `大额草案需要用途、目标引用和至少 ${fundLargeDraftMinAmount.value} 文`
+      return
+    }
+    try {
+      const result = await cohabitationStore.createSharedFundLargeSpendDraft({
+        amount,
+        purpose: option.purpose,
+        target_ref: targetRef,
+        memo: fundLargeDraftMemo.value.trim() || undefined,
+        idempotency_key: `ui-fund-large-draft-${option.purpose}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      fundActionOk.value = true
+      fundActionMessage.value = result?.idempotent
+        ? '已读回已有大额确认草案'
+        : `已创建 ${option.label} 草案，等待成员确认`
+      if (!result?.idempotent) {
+        fundLargeDraftMemo.value = ''
+      }
+    } catch (error) {
+      fundActionMessage.value = error instanceof Error ? error.message : '创建共同基金大额草案失败'
+    }
+  }
+
+  const confirmLargeFundSpendDraft = async (draft: CohabitationFundLargeSpendDraft) => {
+    fundActionMessage.value = ''
+    fundActionOk.value = false
+    try {
+      const result = await cohabitationStore.confirmSharedFundLargeSpendDraft(draft.id, {
+        memo: `前端确认共同基金大额草案：${draft.target_ref}`,
+        idempotency_key: `ui-fund-large-confirm-${draft.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      fundActionOk.value = true
+      fundActionMessage.value = result?.draft?.state === 'ready_to_execute'
+        ? '草案已完成确认，可执行扣款'
+        : '已确认共同基金大额草案'
+    } catch (error) {
+      fundActionMessage.value = error instanceof Error ? error.message : '确认共同基金大额草案失败'
+    }
+  }
+
+  const executeLargeFundSpendDraft = async (draft: CohabitationFundLargeSpendDraft) => {
+    fundActionMessage.value = ''
+    fundActionOk.value = false
+    try {
+      const result = await cohabitationStore.executeSharedFundLargeSpendDraft(draft.id, {
+        memo: `前端执行共同基金大额草案扣款：${draft.target_ref}`,
+        idempotency_key: `ui-fund-large-execute-${draft.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      fundActionOk.value = true
+      const balance = result?.fund?.balance
+      fundActionMessage.value = typeof balance === 'number'
+        ? `已扣款 ${draft.amount} 文，基金余额 ${balance} 文`
+        : '已执行共同基金大额草案扣款'
+    } catch (error) {
+      fundActionMessage.value = error instanceof Error ? error.message : '执行共同基金大额草案扣款失败'
+    }
+  }
+
   const toggleMemberPermission = async (
     member: CohabitationMember & { permissions: Record<string, Record<string, boolean>> },
     option: typeof permissionToggleOptions[number]
@@ -2167,8 +2451,12 @@
       family_reputation_rewards: '声望奖励',
       plan_family_building: '规划家族建筑',
       reserve_family_building_site: '预留建筑地块',
+      confirm_large_fund_spend: '确认大额基金支出',
+      execute_large_fund_spend: '执行大额基金扣款',
       consume_shared_building_materials: '消耗共同建材',
       spend_shared_fund_for_building: '建筑基金支出',
+      building_ledger_write: '建筑流水写入',
+      fund_compensation_replay: '基金补偿重放',
       write_family_building_ledger: '建筑流水',
       demolish_family_building: '拆除家族建筑',
       family_building_compensation_replay: '建筑补偿重放',
@@ -2324,6 +2612,10 @@
       warehouse_sell: '共同仓库卖出',
       fund_contribute: '共同基金注资',
       fund_spend: '共同基金支出',
+      fund_large_spend_draft_created: '大额草案创建',
+      fund_large_spend_draft_confirmed: '大额草案确认',
+      fund_large_spend_draft_executed: '大额草案扣款',
+      fund_large_spend_draft_expired: '大额草案过期',
       fund_order_income: '公共订单入基金',
       permissions_updated: '权限更新',
       family_role_updated: '家族职位更新',

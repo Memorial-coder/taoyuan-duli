@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0525 共同基金大额草案前端入口
+- 共同庄园基金页新增大额草案创建表单，按服务端大额用途显示家族建筑 / 庄园扩建，提交时带 CSRF 与 `idempotency_key` 调用 `/fund/large-spend-draft`。
+- 基金页新增大额草案列表，可查看目标引用、确认进度、余额快照和最终基金流水；待确认成员可调用 `/confirm`，全员确认后的草案可调用 `/execute` 执行共同基金扣款。
+- 前端 API / store 补齐大额草案类型、创建、确认和执行扣款动作；按钮受双方确认安全阀、`can_spend_large`、余额、当前成员待确认状态和执行状态禁用。
+- 本轮仍不写建筑 ledger，不真实建造 / 扩建，不改个人铜币。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 共同基金大额草案执行扣款
 - 服务端新增 `/fund/large-spend-drafts/:draftId/execute` 写接口，只允许已激活成员且具备 `fund.spend_large` 时执行已全员确认的 `ready_to_execute` 大额草案。
 - 执行成功会扣共同基金，写入 `action=spend`、`spend_tier=large`、`confirmation_required=true`、`confirmation_status=confirmed` 的基金 ledger，并把草案推进到 `executed`、记录 `final_spend_ledger_id`、执行人、执行时间、审计和补偿提示。
