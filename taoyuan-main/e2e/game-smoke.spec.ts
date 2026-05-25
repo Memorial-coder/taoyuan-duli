@@ -576,6 +576,234 @@ async function mockOnlineSociety(page: Page, options: { focus?: 'bridge' | 'lant
   })
 }
 
+function buildCohabitationContract() {
+  return {
+    id: 'cohab-e2e',
+    type: 'business_partner',
+    type_label: '合伙庄园',
+    title: '权限 smoke 庄园',
+    status: 'active',
+    shared_manor_id: 'shared-manor-e2e',
+    members: [
+      {
+        username: 'tester',
+        username_key: 'tester',
+        display_name: '测试者',
+        role: 'owner',
+        status: 'accepted',
+        manor_role: 'family_head',
+        save_id: 1,
+        save_slot: 1,
+        accepted_at: 1
+      },
+      {
+        username: 'helper',
+        username_key: 'helper',
+        display_name: '帮手',
+        role: 'member',
+        status: 'accepted',
+        manor_role: 'storage_keeper',
+        save_id: 2,
+        save_slot: 1,
+        accepted_at: 1
+      }
+    ],
+    shared_fund: { balance: 300, ledger: [] },
+    shared_warehouse: { items: [], ledger: [] },
+    audit_log: [],
+    separation_previews: [],
+    created_at: 1,
+    updated_at: 1,
+    activated_at: 1
+  }
+}
+
+function buildCohabitationPermissionsPanel(depositEnabled: boolean, audits: any[] = []) {
+  const groups = [
+    { id: 'storage', keys: ['deposit', 'withdraw_common', 'sell_items'] },
+    { id: 'fund', keys: ['spend_small', 'spend_medium', 'auto_buy_seeds_feed'] }
+  ]
+  const basePermissions = {
+    storage: { deposit: true, withdraw_common: true, sell_items: true },
+    fund: { spend_small: true, spend_medium: true, auto_buy_seeds_feed: true }
+  }
+  return {
+    contract_id: 'cohab-e2e',
+    shared_manor_id: 'shared-manor-e2e',
+    status: 'active',
+    editable_by_actor: true,
+    idempotency_required: true,
+    safety_rails: {
+      rare_withdraw_requires_both: true,
+      large_fund_spend_requires_both: true,
+      demolish_requires_both: true,
+      separation_requires_preview: true
+    },
+    groups,
+    members: [
+      {
+        username: 'tester',
+        username_key: 'tester',
+        display_name: '测试者',
+        role: 'owner',
+        status: 'accepted',
+        manor_role: 'family_head',
+        can_manage_permissions: true,
+        permissions: basePermissions
+      },
+      {
+        username: 'helper',
+        username_key: 'helper',
+        display_name: '帮手',
+        role: 'member',
+        status: 'accepted',
+        manor_role: 'storage_keeper',
+        can_manage_permissions: false,
+        permissions: {
+          storage: { deposit: depositEnabled, withdraw_common: true, sell_items: false },
+          fund: { spend_small: true, spend_medium: false, auto_buy_seeds_feed: true }
+        }
+      }
+    ],
+    recent_permission_audits: audits
+  }
+}
+
+async function mockOnlineCohabitation(page: Page) {
+  const contract = buildCohabitationContract()
+  let helperDepositEnabled = false
+  let permissionAudits: any[] = []
+
+  const overview = () => ({
+    ok: true,
+    relation_options: [
+      { id: 'business_partner', label: '合伙庄园', title: '合伙庄园', min_members: 2, max_members: 4, romance_only: false }
+    ],
+    contracts: [contract],
+    summary: { total: 1, pending: 0, active: 1, separation_previews: 0 }
+  })
+  const permissionsResponse = () => ({
+    ok: true,
+    contract,
+    permissions_panel: buildCohabitationPermissionsPanel(helperDepositEnabled, permissionAudits)
+  })
+  const emptyDetail = (extra: Record<string, unknown>) => ({ ok: true, contract, ...extra })
+
+  await page.unroute('**/api/me').catch(() => {})
+  await page.route('**/api/me', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        user: { username: 'tester', display_name: '测试者' },
+        csrf_token: 'csrf-e2e'
+      })
+    })
+  })
+
+  await page.route('**/api/taoyuan/online/cohabitation/contracts', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(overview()) })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/shared-map', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyDetail({
+        shared_map: {
+          contract_id: contract.id,
+          shared_manor_id: contract.shared_manor_id,
+          status: 'active',
+          readonly: true,
+          writes_enabled: false,
+          generated_at: 1,
+          revision: 1,
+          layout: { columns: 0, rows: 0, regions: [], arrangement: 'mock', strategy: 'mock', stitch_axis: 'x', summary: {} },
+          members: [],
+          plots: [],
+          summary: {
+            member_count: 2,
+            available_member_count: 2,
+            total_plots: 0,
+            active_plots: 0,
+            harvestable_plots: 0,
+            waterable_plots: 0,
+            origin_owner_count: 2,
+            layout_region_count: 0,
+            multi_member_layout: true,
+            max_members: 4,
+            personal_money_merged: false,
+            origin_trace_enabled: true,
+            shared_fund_balance: 300,
+            deferred_writes: []
+          }
+        }
+      }))
+    })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/warehouse', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ warehouse: { contract_id: contract.id, shared_manor_id: contract.shared_manor_id, status: 'active', items: [], ledger: [], summary: { item_count: 0, total_quantity: 0, ledger_count: 0, personal_money_merged: false, deposit_enabled: true, withdraw_enabled: true, sell_enabled: true, idempotency_required: true, compensation_policy: 'audit' }, permissions: {} } })) })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/fund', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ fund: { contract_id: contract.id, shared_manor_id: contract.shared_manor_id, status: 'active', balance: 300, ledger: [], large_spend_drafts: [], summary: { balance: 300, ledger_count: 0, personal_money_merged: false, contribution_enabled: true, spend_enabled: true, idempotency_required: true, large_spend_requires_both: true, compensation_policy: 'audit' }, permissions: {} } })) })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/permissions', async route => {
+    if (route.request().method() === 'POST') {
+      helperDepositEnabled = true
+      permissionAudits = [{
+        id: 'permission-audit-e2e',
+        action: 'permissions_updated',
+        actor_username: 'tester',
+        actor_display_name: '测试者',
+        detail: { target_username: 'helper', target_display_name: '帮手', changed_field_count: 1 },
+        idempotency_key: 'permission-e2e',
+        at: 2
+      }]
+    }
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(permissionsResponse()) })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/roles', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ role_panel: { contract_id: contract.id, shared_manor_id: contract.shared_manor_id, type: contract.type, type_label: contract.type_label, status: 'active', role_management_enabled: true, editable_by_actor: true, idempotency_required: true, max_members: 4, member_count: 2, role_options: [], constraints: {}, members: [], recent_role_audits: [], deferred_operations: [] } })) })
+  })
+  await page.route('**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/offline-status', async route => {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(emptyDetail({ offline_status: { contract_id: contract.id, shared_manor_id: contract.shared_manor_id, status: 'active', summary: { server_authoritative: true, member_online_required: false, offline_member_blocks_operations: false, independent_operations_enabled: true, personal_money_merged: false, shared_log_available: true, auto_offline_income_enabled: false, conflict_policy: 'server' }, members: [], actor_capabilities: {}, recent_shared_log: [], deferred_operations: [] } })) })
+  })
+  const readonlyPanelRoutes = [
+    ['family-orders', 'family_orders_panel'],
+    ['family-reputation', 'family_reputation_panel'],
+    ['family-buildings', 'family_buildings_panel'],
+    ['family-relations', 'family_relations_panel'],
+    ['family-visibility', 'family_visibility_panel'],
+    ['family-festival-seats', 'family_festival_seats_panel']
+  ]
+  for (const [path, key] of readonlyPanelRoutes) {
+    await page.route(`**/api/taoyuan/online/cohabitation/contracts/cohab-e2e/${path}`, async route => {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(emptyDetail({
+          [key]: {
+            contract_id: contract.id,
+            shared_manor_id: contract.shared_manor_id,
+            type: contract.type,
+            type_label: contract.type_label,
+            status: 'active',
+            readonly: true,
+            write_enabled: false,
+            writes_enabled: false,
+            generated_at: 1,
+            revision: 1,
+            summary: { member_count: 2, max_members: 4, disabled_reason: 'smoke' },
+            actor: null,
+            members: [],
+            deferred_operations: []
+          }
+        }))
+      })
+    })
+  }
+}
+
 function buildRelayOrder(accepted = false) {
   const stages = [
     {
@@ -1301,6 +1529,26 @@ test.describe('web game smoke', () => {
 
     await expect(page.getByTestId('family-relation-detail')).toContainText(prepared!.visitorName)
     await expect(page.getByTestId('family-relation-detail')).toContainText('本周来访')
+  })
+
+  test('online cohabitation permissions support low-risk toggle actions', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '权限')
+    await mockOnlineCohabitation(page)
+
+    await page.goto('/#/game/online/cohabitation')
+    await expect(page.getByTestId('online-cohabitation-page')).toBeVisible()
+    await expect(page.getByTestId('online-module-tab-permissions')).toBeVisible()
+
+    await page.getByTestId('online-module-tab-permissions').click()
+    const helperDeposit = page.getByTestId('online-cohabitation-permission-helper-storage-deposit')
+    await expect(helperDeposit).toContainText('仓库放入')
+    await expect(helperDeposit).toContainText('关闭')
+
+    await helperDeposit.click()
+
+    await expect(helperDeposit).toContainText('开启')
+    await expect(page.getByText('帮手 的「仓库放入」已开启')).toBeVisible()
   })
 
   test('online festival visual track supports dragon boat cell actions', async ({ page }) => {

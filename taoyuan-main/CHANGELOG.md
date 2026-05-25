@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 共同庄园权限前端 smoke
+- `game-smoke.spec.ts` 新增共同庄园权限用例，mock 已激活合伙庄园、共同庄园详情读接口和 `/permissions` 写接口。
+- 用例进入共同庄园权限页，点击帮手的“仓库放入”低风险权限开关，断言按钮状态从关闭刷新为开启，并读回成功提示；高风险安全阀仍保持只读边界。
+- 本轮验证：`npm --prefix taoyuan-main exec playwright test -- --list e2e/game-smoke.spec.ts`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`；`npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 因当前环境 Chromium `spawn EPERM` 被项目脚本跳过。
+
 ### 0525 家族关系图前端 smoke
 - `FamilyRelationGraph` 新增稳定 `data-testid`，覆盖关系图根节点、SVG、每个关系节点和详情面板。
 - `game-smoke.spec.ts` 新增家族关系图用例，复用随机 NPC 调试入口准备当前周来访者，点击 `visitor:*` 节点后断言详情显示来访者姓名与“本周来访”。
