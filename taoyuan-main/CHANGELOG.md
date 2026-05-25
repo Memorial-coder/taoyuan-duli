@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 公共订单接力作物加工模板
+- 服务端公共订单新增 `crop_processing_delivery` 模板，发布时可由 `relay_template_id` 自动生成采收作物、加工制品、交付成果三段子目标。
+- 订单读回会保留模板 ID，异步 `visual_state` 的项目阶段同步镜像三段路线，方便前端继续用现有接力看板展示。
+- 模板只生成订单阶段与审计凭证，不直接改玩家库存、不跳过既有接单、交付确认、补偿与权限边界。
+- 本轮验证：`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix server run qa:online-smoke`。
+
 ### 0525 作物加工链第八批
 - 新增晒架加工机器，制作成本进入通用机器图鉴，并可按 `drying_rack` 运行晒干配方。
 - 晒架新增柿子 -> 柿饼、白菜 -> 干菜、草药 -> 药材干三条配方；柿饼保留既有脱水机路线，晒架作为低阶干制入口并存。

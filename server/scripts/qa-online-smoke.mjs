@@ -938,6 +938,7 @@ try {
   const targetedFriendCoopOrderTitle = `targeted friend coop order ${Date.now()}`
   const neighborCoopOrderTitle = `neighbor coop order ${Date.now()}`
   const relayCoopOrderTitle = `relay coop order ${Date.now()}`
+  const cropRelayCoopOrderTitle = `crop relay coop order ${Date.now()}`
   const expiringCoopOrderTitle = `expiring coop order ${Date.now()}`
   let publicCoopOrderId = ''
   let friendCoopOrderId = ''
@@ -4960,6 +4961,47 @@ try {
     assert(overview.response.ok, `multi-stage coop order overview returned ${overview.response.status}`)
     assert(Number(overview.data?.board_summary?.relay_orders) >= 1, 'coop order board summary did not count relay orders')
     assert(Number(overview.data?.board_summary?.open_relay_orders) >= 1, 'coop order board summary did not count open relay orders')
+  })
+
+  await runCheck('POST /api/taoyuan/online/orders crop processing relay template', async () => {
+    const { response, data } = await fetchAuthedJson('/api/taoyuan/online/orders', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        title: cropRelayCoopOrderTitle,
+        description: 'smoke crop to processing to delivery relay',
+        order_type: 'festival_supply',
+        scope: 'public',
+        deadline_at: coopOrderDeadlineAt,
+        reward_type: 'gift',
+        reward_value: 3,
+        reward_label: '作物接力礼包',
+        relay_template_id: 'crop_processing_delivery',
+        crop_item_id: 'rice',
+        crop_label: '稻米',
+        crop_quantity: 2,
+        processed_item_id: 'rice_flour',
+        processed_label: '米粉',
+        processed_quantity: 1,
+        delivery_item_id: 'rice_flour',
+        delivery_label: '米粉交付',
+        delivery_quantity: 1,
+      }),
+    })
+    assert(response.ok, `crop processing relay write returned ${response.status}: ${data?.msg || 'unknown error'}`)
+    assert(data?.ok === true && data?.order?.relay_template_id === 'crop_processing_delivery', 'crop processing relay template id missing')
+    assert(data?.order?.collaboration_mode === 'multi_stage', 'crop processing relay did not become multi-stage')
+    assert(Array.isArray(data?.order?.stages) && data.order.stages.length === 3, 'crop processing relay did not create 3 stages')
+    assert(data.order.stages[0]?.target_item_id === 'rice', 'crop relay first stage should target raw crop')
+    assert(data.order.stages[1]?.target_item_id === 'rice_flour', 'crop relay second stage should target processed item')
+    assert(data.order.stages[2]?.target_item_id === 'rice_flour', 'crop relay third stage should target delivery item')
+    const overview = await fetchAuthedJson('/api/taoyuan/online/orders')
+    assert(overview.response.ok, `crop processing relay overview returned ${overview.response.status}`)
+    const cropRelayOrder = overview.data?.orders?.find(entry => entry?.id === data.order.id)
+    assert(cropRelayOrder?.visual_state?.board_type === 'async', 'crop processing relay did not expose async visual state')
+    assert(cropRelayOrder.visual_state.async_projects?.[0]?.stages?.length === 3, 'crop relay visual state did not mirror generated stages')
   })
 
   await runCheck('POST /api/taoyuan/online/orders/:id/stages/:stageId/accept stage one path', async () => {

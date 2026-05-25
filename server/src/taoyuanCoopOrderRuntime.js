@@ -36,6 +36,7 @@ const DELIVERY_STATUSES = Object.freeze(['none', 'submitted', 'confirmed', 'comp
 const RECEIPT_STATUSES = Object.freeze(['pending_owner_confirm', 'confirmed', 'compensation_pending']);
 const COMPENSATION_STATUSES = Object.freeze(['pending', 'resolved']);
 const COLLABORATION_MODES = Object.freeze(['single', 'multi_stage']);
+const RELAY_TEMPLATE_IDS = Object.freeze(['crop_processing_delivery']);
 const ORDER_TYPE_TO_PROFILE_TAGS = Object.freeze({
   material_help: ['farming', 'mutual_aid'],
   festival_supply: ['festival', 'farming', 'collection'],
@@ -179,6 +180,72 @@ function normalizeDeliveredItem(entry) {
   };
 }
 
+function normalizeRelayTemplateId(value) {
+  const templateId = sanitizeText(value, 40);
+  if (!templateId) return '';
+  return RELAY_TEMPLATE_IDS.includes(templateId) ? templateId : '';
+}
+
+function requireRelayTemplateId(value) {
+  const templateId = sanitizeText(value, 40);
+  if (!templateId) return '';
+  if (!RELAY_TEMPLATE_IDS.includes(templateId)) throw createError('未知的公共订单接力模板', 400);
+  return templateId;
+}
+
+function normalizeRelayItemId(value, fallback) {
+  const itemId = sanitizeText(value, 40);
+  return itemId || fallback;
+}
+
+function normalizeRelayQuantity(value, fallback) {
+  const quantity = Math.floor(Number(value) || 0);
+  return quantity > 0 ? quantity : fallback;
+}
+
+function buildCropProcessingDeliveryStageDefinitions(payload = {}) {
+  const cropItemId = normalizeRelayItemId(payload.crop_item_id, 'rice');
+  const processedItemId = normalizeRelayItemId(payload.processed_item_id, 'rice_flour');
+  const deliveryItemId = normalizeRelayItemId(payload.delivery_item_id, processedItemId);
+  const cropQuantity = normalizeRelayQuantity(payload.crop_quantity, 2);
+  const processedQuantity = normalizeRelayQuantity(payload.processed_quantity, 1);
+  const deliveryQuantity = normalizeRelayQuantity(payload.delivery_quantity, processedQuantity);
+  const cropLabel = sanitizeText(payload.crop_label, 16) || '作物';
+  const processedLabel = sanitizeText(payload.processed_label, 16) || '加工品';
+  const deliveryLabel = sanitizeText(payload.delivery_label, 16) || processedLabel;
+
+  return [
+    {
+      title: `采收${cropLabel}`,
+      description: `第一段先交付 ${cropQuantity} 份${cropLabel}，为后续加工准备原料。`,
+      preferred_order_type: 'festival_supply',
+      target_item_id: cropItemId,
+      target_quantity: cropQuantity,
+    },
+    {
+      title: `加工${processedLabel}`,
+      description: `第二段把原料加工成 ${processedQuantity} 份${processedLabel}，承接作物到加工品的转换。`,
+      preferred_order_type: 'material_help',
+      target_item_id: processedItemId,
+      target_quantity: processedQuantity,
+    },
+    {
+      title: `交付${deliveryLabel}`,
+      description: `第三段把 ${deliveryQuantity} 份${deliveryLabel}交给发布人确认，形成作物 -> 加工 -> 交付的接力闭环。`,
+      preferred_order_type: 'festival_supply',
+      target_item_id: deliveryItemId,
+      target_quantity: deliveryQuantity,
+    },
+  ];
+}
+
+function buildRelayTemplateStageDefinitions(payload = {}) {
+  const templateId = requireRelayTemplateId(payload.relay_template_id);
+  if (!templateId) return [];
+  if (templateId === 'crop_processing_delivery') return buildCropProcessingDeliveryStageDefinitions(payload);
+  return [];
+}
+
 function buildRewardShares(totalReward, count) {
   const safeCount = Math.max(1, Math.floor(Number(count) || 1));
   const safeTotal = Math.max(0, Math.floor(Number(totalReward) || 0));
@@ -231,6 +298,7 @@ function normalizeOrder(order) {
     description: sanitizeText(order?.description, 160),
     order_type: normalizeOrderType(order?.order_type),
     collaboration_mode: resolvedMode,
+    relay_template_id: normalizeRelayTemplateId(order?.relay_template_id),
     scope: normalizeOrderScope(order?.scope),
     target_save_id: normalizeSaveId(order?.target_save_id),
     target_save_slot: order?.target_save_slot === null || order?.target_save_slot === undefined || order?.target_save_slot === ''
@@ -1012,8 +1080,13 @@ async function createCoopOrder(payload = {}, actor = {}) {
     }
   }
 
-  const rawStageDefinitions = Array.isArray(payload.stage_definitions)
-    ? payload.stage_definitions
+  const templateStageDefinitions = buildRelayTemplateStageDefinitions(payload);
+  const requestedStageDefinitions = Array.isArray(payload.stage_definitions) ? payload.stage_definitions : [];
+  const stageDefinitionSource = requestedStageDefinitions.length > 0 ? requestedStageDefinitions : templateStageDefinitions;
+  const requestedMultiStage = requestedStageDefinitions.length > 0 || templateStageDefinitions.length > 0 || Boolean(sanitizeText(payload.relay_template_id, 40));
+
+  const rawStageDefinitions = Array.isArray(stageDefinitionSource)
+    ? stageDefinitionSource
         .map(entry => ({
           title: moderateText(entry?.title, {
             label: '阶段标题',
@@ -1036,7 +1109,7 @@ async function createCoopOrder(payload = {}, actor = {}) {
         .filter(entry => entry.title.length >= 2)
     : [];
 
-  if (Array.isArray(payload.stage_definitions) && payload.stage_definitions.length > 0 && rawStageDefinitions.length < 2) {
+  if (requestedMultiStage && rawStageDefinitions.length < 2) {
     throw createError('多段任务至少需要 2 个有效子目标');
   }
 
@@ -1079,6 +1152,7 @@ async function createCoopOrder(payload = {}, actor = {}) {
     description,
     order_type: payload.order_type,
     collaboration_mode: collaborationMode,
+    relay_template_id: templateStageDefinitions.length > 0 ? requireRelayTemplateId(payload.relay_template_id) : '',
     scope: targetIdentity ? 'friends' : payload.scope,
     target_save_id: targetIdentity?.save_id || 0,
     target_save_slot: targetIdentity?.save_slot ?? null,
