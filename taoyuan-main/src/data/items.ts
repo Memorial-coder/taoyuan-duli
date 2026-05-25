@@ -253,6 +253,16 @@ const PROCESSED_ITEMS: ItemDef[] = [
     healthRestore: 5
   },
   {
+    id: 'pickled_radish',
+    name: '腌萝卜',
+    category: 'processed',
+    description: '酱缸腌出的脆爽萝卜，可入冬储订单、护院汤和根茎丹材准备。',
+    sellPrice: 210,
+    edible: true,
+    staminaRestore: 12,
+    healthRestore: 6
+  },
+  {
     id: 'pumpkin_preserve',
     name: '南瓜酱',
     category: 'processed',
@@ -1654,6 +1664,7 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   sesame_powder: '石磨加工',
   dried_lotus_seed: '脱水机加工',
   lotus_heart_powder: '药碾加工',
+  pickled_radish: '酱缸加工',
   cloth: '织布机加工',
   silk_cloth: '织布机加工',
   alpaca_cloth: '织布机加工',

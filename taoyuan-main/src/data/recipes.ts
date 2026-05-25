@@ -385,6 +385,23 @@ export const RECIPES: RecipeDef[] = [
     requiredSkill: { type: 'farming', level: 4 },
     description: '南瓜酱打底，红薯和稻米熬成大锅羹，适合作为秋收、家庭餐桌和村社慰劳饭的料理出口。'
   },
+  {
+    id: 'pickled_radish_guard_soup',
+    name: '腌萝卜护院汤',
+    ingredients: [
+      { itemId: 'pickled_radish', quantity: 1 },
+      { itemId: 'tofu', quantity: 1 },
+      { itemId: 'firewood', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 36,
+      healthRestore: 18,
+      buff: { type: 'defense', value: 10, description: '受到伤害-10%（当天）' }
+    },
+    unlockSource: '加工链第四批',
+    requiredSkill: { type: 'farming', level: 3 },
+    description: '腌萝卜和豆腐熬成的暖汤，给萝卜加工品补上料理消耗，并呼应石根护脉丸的防护路线。'
+  },
 
   // ==================== 新增初始食谱 (8) ====================
   {

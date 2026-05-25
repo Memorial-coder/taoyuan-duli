@@ -308,6 +308,18 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     description: '香脆的萝卜干。'
   },
   {
+    id: 'pickle_radish_slices',
+    machineType: 'sauce_jar',
+    name: '腌萝卜',
+    inputItemId: 'radish',
+    inputQuantity: 2,
+    extraInputs: [{ itemId: 'rice_vinegar', quantity: 1 }],
+    outputItemId: 'pickled_radish',
+    outputQuantity: 1,
+    processingDays: 2,
+    description: '将萝卜与米醋腌成脆爽腌萝卜，可继续进入护院汤、冬储订单和根茎丹材准备。'
+  },
+  {
     id: 'preserve_pumpkin',
     machineType: 'sauce_jar',
     name: '南瓜酱',
