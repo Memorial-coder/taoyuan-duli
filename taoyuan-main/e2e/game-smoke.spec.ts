@@ -1238,6 +1238,27 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId('processing-slot-running-alchemy_stone_root_guard_pill')).toContainText('0/2天')
   })
 
+  test('animal page can feed a pet special food', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '喂宠')
+
+    await page.goto('/#/game/animal')
+    await expect(page.getByTestId('animal-view')).toBeVisible()
+    await page.waitForFunction(() => typeof (window as any).__TAOYUAN_PET_DEBUG__?.prepareSpecialFeedSmoke === 'function')
+
+    const prepared = await page.evaluate(() => (window as any).__TAOYUAN_PET_DEBUG__.prepareSpecialFeedSmoke()) as { petId: string; feedId: string } | null
+    expect(prepared).toBeTruthy()
+
+    const petId = prepared!.petId
+    await expect(page.getByTestId(`pet-card-${petId}`)).toContainText('阿黄')
+    await expect(page.getByTestId(`pet-special-feed-status-${petId}`)).toContainText('今日未加餐')
+
+    await page.getByTestId(`pet-special-feed-${petId}-${prepared!.feedId}`).click()
+
+    await expect(page.getByTestId(`pet-special-feed-status-${petId}`)).toContainText('今日：稻米')
+    await expect(page.getByTestId(`pet-special-feed-status-${petId}`)).toContainText('饱腹')
+  })
+
   test('online festival visual track supports dragon boat cell actions', async ({ page }) => {
     await openHome(page)
     await startNewJourney(page, '赛舟')

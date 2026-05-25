@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="animal-view">
     <div class="flex items-center justify-between mb-3">
       <h3 class="text-accent text-sm">
         <Home :size="14" class="inline" />
@@ -74,7 +74,12 @@
           </div>
         </div>
         <div class="space-y-2">
-          <div v-for="companion in petRoster" :key="companion.id" class="border border-accent/10 rounded-xs p-2">
+          <div
+            v-for="companion in petRoster"
+            :key="companion.id"
+            class="border border-accent/10 rounded-xs p-2"
+            :data-testid="`pet-card-${companion.id}`"
+          >
             <div class="flex items-center justify-between mb-1">
               <div class="flex items-center space-x-1">
                 <template v-if="renamingId === companion.id">
@@ -109,7 +114,9 @@
             <p class="text-[10px] text-muted mt-1 leading-4">{{ getPetCompanionHint(companion) }}</p>
             <div class="mt-2 border-t border-accent/10 pt-2">
               <div class="flex items-center justify-between gap-2 mb-1">
-                <span class="text-[10px] text-muted">{{ getPetFeedStatusText(companion) }}</span>
+                <span class="text-[10px] text-muted" :data-testid="`pet-special-feed-status-${companion.id}`">
+                  {{ getPetFeedStatusText(companion) }}
+                </span>
                 <span class="text-[10px] text-accent/80 shrink-0">{{ getPetPreferenceText(companion) }}</span>
               </div>
               <div v-if="petSpecialFeedOptions.length > 0" class="grid grid-cols-2 sm:grid-cols-3 gap-1">
@@ -118,6 +125,7 @@
                   :key="`${companion.id}-${feed.id}`"
                   class="justify-center py-0 px-1 text-[10px]"
                   :disabled="isPetSpecialFedToday(companion)"
+                  :data-testid="`pet-special-feed-${companion.id}-${feed.id}`"
                   @click="handleFeedPetSpecial(companion.id, feed.id)"
                 >
                   {{ feed.shortLabel }}×{{ feed.count }}
@@ -1128,6 +1136,30 @@
       const tr = gameStore.advanceTime(ACTION_TIME_COSTS.petAnimal)
       if (tr.message) addLog(tr.message)
       if (tr.passedOut) handleEndDay()
+    }
+  }
+
+  if (import.meta.env.DEV) {
+    ;(globalThis as any).__TAOYUAN_PET_DEBUG__ = {
+      prepareSpecialFeedSmoke: () => {
+        if (animalStore.pets.length === 0) {
+          animalStore.adoptPet('dog', '阿黄')
+        }
+
+        const companion = animalStore.pets[0]
+        if (!companion) return null
+
+        companion.specialFedToday = false
+        companion.specialFeedItemId = null
+        companion.specialFeedType = null
+        companion.specialFeedDayTag = null
+        inventoryStore.addItem('rice', 1)
+
+        return {
+          petId: companion.id,
+          feedId: 'rice_pet_bowl'
+        }
+      }
     }
   }
 

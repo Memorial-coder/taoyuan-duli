@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 宠物喂食前端 smoke
+- 牧场页新增稳定 `data-testid`，覆盖页面、宠物卡、今日加餐状态和每只宠物的特别食物按钮。
+- DEV 模式新增 `__TAOYUAN_PET_DEBUG__.prepareSpecialFeedSmoke()`，用于浏览器 smoke 准备测试宠物“阿黄”和 1 份稻米，不影响生产构建行为。
+- `game-smoke.spec.ts` 新增宠物喂食用例，进入牧场后点击 `rice_pet_bowl`，断言宠物今日加餐状态更新为“今日：稻米 · 饱腹”。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`；`npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 因当前环境 Chromium `spawn EPERM` 被项目脚本跳过。
+
 ### 0525 炼丹前端 smoke
 - 加工坊页新增稳定 `data-testid`，覆盖页面、加工 / 制造标签、机器分组、配方按钮、加工中槽位、收取按钮和制造项。
 - DEV 模式新增 `__TAOYUAN_PROCESSING_DEBUG__.prepareAlchemySmoke()`，用于浏览器 smoke 准备丹炉、萝卜、土豆和精炼石英，不影响生产构建行为。
