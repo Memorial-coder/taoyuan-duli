@@ -811,6 +811,207 @@ async function mockOnlineOrders(page: Page) {
   })
 }
 
+function buildFriendManorSnapshot(cared = false) {
+  const objects = [
+    {
+      id: 'friend_plot_1',
+      label: '春菜田',
+      kind: 'field',
+      x: 36,
+      y: 48,
+      state: cared ? 'busy' : 'needs_action',
+      available_action_ids: cared ? [] : ['water_plot'],
+      progress_value: cared ? 2 : 1,
+      progress_target: 3,
+      handled_by: cared ? '测试者' : '',
+      handled_at: cared ? 3 : 0,
+      requires_cooperation: false,
+      cooperation_required_count: 1,
+      cooperation_current_count: cared ? 1 : 0
+    },
+    {
+      id: 'friend_coop_1',
+      label: '鸡舍',
+      kind: 'animal_shed',
+      x: 65,
+      y: 52,
+      state: 'idle',
+      available_action_ids: ['feed_animal'],
+      progress_value: 0,
+      progress_target: 2,
+      handled_by: '',
+      handled_at: 0,
+      requires_cooperation: false,
+      cooperation_required_count: 1,
+      cooperation_current_count: 0
+    }
+  ]
+  return {
+    username: 'friend_owner',
+    display_name: '好友庄园主',
+    visibility: 'public',
+    viewer_is_owner: false,
+    manor_name: '春畦小院',
+    avatar_image_url: '',
+    avatar_image_alt: '',
+    cover_image_url: '',
+    cover_image_alt: '',
+    public_title: '欢迎顺手照料',
+    showcase_theme: '春日互助',
+    season_progress: '春季第 3 日',
+    current_focus: '春菜田护理',
+    weekly_goal: '保持作物健康',
+    visual_summary: '好友庄园照料 smoke',
+    placed_decoration_count: 2,
+    public_tags: [{ id: 'care', label: '可照料', source: 'auto' }],
+    guestbook_entries: [],
+    visit_entries: [],
+    guide_points: [],
+    guide_routes: [],
+    today_visit_summary: '今日等待好友照料',
+    is_favorited_by_viewer: false,
+    is_followed_by_viewer: false,
+    access_policy: {
+      visit_mode: 'public',
+      care_mode: 'friends',
+      steal_mode: 'closed',
+      updated_at: 3,
+      options: [
+        { id: 'public', label: '公开' },
+        { id: 'friends', label: '好友' },
+        { id: 'mutual', label: '互关好友' },
+        { id: 'closed', label: '关闭' }
+      ]
+    },
+    relation_context: {
+      viewer_is_owner: false,
+      viewer_is_friend: true,
+      viewer_is_mutual: true,
+      viewer_follows_owner: true,
+      owner_follows_viewer: true,
+      mutual_follow: true,
+      can_visit: true,
+      can_care: true,
+      can_steal: false
+    },
+    visual_state: {
+      ...emptyVisualState,
+      board_type: 'scene',
+      board_id: 'friend_manor_care',
+      revision: cared ? 2 : 1,
+      selected_visual_id: 'friend_plot_1',
+      objects,
+      recent_feedback: cared ? '测试者帮春菜田浇了水。' : ''
+    },
+    care_state: {
+      day_tag: '2026-05-25',
+      action_labels: { water_plot: '帮忙浇水', feed_animal: '帮忙喂食' },
+      scene_action_labels: { water_plot: '帮忙浇水', feed_animal: '帮忙喂食' },
+      action_effects: {
+        water_plot: { owner_benefit: '作物健康保护', visitor_reward: '友情点 +1' },
+        feed_animal: { owner_benefit: '动物心情保护', visitor_reward: '友情点 +1' }
+      },
+      limits: { visitor_daily_limit: 4, manor_daily_limit: 12 },
+      visitor_daily_count: cared ? 1 : 0,
+      manor_daily_count: cared ? 1 : 0,
+      remaining_care_count: cared ? 3 : 4,
+      manor_remaining_care_count: cared ? 11 : 12,
+      can_care: true,
+      care_denied_reason: ''
+    },
+    steal_state: {
+      day_tag: '2026-05-25',
+      action_labels: {},
+      action_effects: {},
+      limits: { visitor_daily_limit: 0, manor_daily_limit: 0, object_daily_limit: 0 },
+      visitor_daily_count: 0,
+      manor_daily_count: 0,
+      remaining_steal_count: 0,
+      manor_remaining_steal_count: 0,
+      can_steal: false,
+      steal_denied_reason: '主人暂未开放偷菜。',
+      whitelist_summary: '偷菜关闭',
+      target_use_hints: {}
+    },
+    care_entries: cared ? [{
+      id: 'care-entry-1',
+      target_username: 'friend_owner',
+      target_save_id: 1,
+      target_save_slot: null,
+      visitor_username: 'tester',
+      visitor_display_name: '测试者',
+      action_id: 'water_plot',
+      action_label: '帮忙浇水',
+      object_id: 'friend_plot_1',
+      object_label: '春菜田',
+      day_tag: '2026-05-25',
+      idempotency_key: 'care-e2e-1',
+      owner_benefit: '作物健康保护',
+      visitor_reward: '友情点 +1',
+      summary: '测试者帮春菜田浇了水。',
+      created_at: 3
+    }] : [],
+    steal_entries: [],
+    theme_week: {
+      season: 'spring',
+      week_tag: '2026-W22',
+      active_theme: '春日互助',
+      active_theme_source: 'owner',
+      score: 80,
+      recommendations: [],
+      official_pick: null,
+      seasonal_options: [],
+      template_id: 'showcase',
+      cover_image_url: '',
+      cover_image_alt: '',
+      template_options: [{ id: 'showcase', label: '展示', summary: '展示庄园' }]
+    }
+  }
+}
+
+async function mockOnlineManorCare(page: Page) {
+  let cared = false
+  await page.unroute('**/api/me').catch(() => {})
+  await page.route('**/api/me', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        user: { username: 'tester', display_name: '测试者' },
+        csrf_token: 'csrf-e2e'
+      })
+    })
+  })
+  await page.route('**/api/taoyuan/online/manor/favorites/overview', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, favorites: [], same_theme_favorites: [], hot_manors: [] })
+    })
+  })
+  await page.route('**/api/taoyuan/online/manor/friend_owner', async route => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ ok: true, snapshot: buildFriendManorSnapshot(cared) })
+    })
+  })
+  await page.route('**/api/taoyuan/online/manor/care', async route => {
+    cared = true
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        ok: true,
+        entry: buildFriendManorSnapshot(true).care_entries[0],
+        snapshot: buildFriendManorSnapshot(true),
+        idempotent: false
+      })
+    })
+  })
+}
+
 test.describe('web game smoke', () => {
   test.beforeEach(async ({ page }) => {
     await page.route('**/api/me', async route => {
@@ -999,6 +1200,24 @@ test.describe('web game smoke', () => {
     await page.getByTestId('visual-scene-action-lock_piece').click()
 
     await expect(page.getByTestId('online-festival-room-gameplay-action-lock_piece')).toHaveCount(0)
+  })
+
+  test('online manor visual scene supports friend care actions', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '照料')
+    await mockOnlineManorCare(page)
+
+    await page.goto('/#/game/online/manor?target_username=friend_owner')
+    await expect(page.getByTestId('online-manor-page')).toBeVisible()
+    await page.getByRole('button', { name: '照料' }).click()
+    await expect(page.getByTestId('visual-scene-board')).toBeVisible()
+
+    await page.getByTestId('visual-scene-object-friend_plot_1').click()
+    await expect(page.getByTestId('visual-scene-object-detail')).toContainText('春菜田')
+    await page.getByTestId('visual-scene-action-water_plot').click()
+
+    await expect(page.getByText('测试者帮春菜田浇了水。')).toBeVisible()
+    await expect(page.getByTestId('online-manor-care-log')).toContainText('帮忙浇水')
   })
 
   test('online festival visual track supports dragon boat cell actions', async ({ page }) => {

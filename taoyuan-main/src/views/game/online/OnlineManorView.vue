@@ -568,6 +568,71 @@
         </div>
       </div>
 
+      <div v-else-if="activeTab === 'care'" class="space-y-3">
+        <div v-if="snapshot" class="game-panel-muted grid gap-3 p-3 lg:grid-cols-[minmax(0,1fr)_300px]">
+          <div class="space-y-3">
+            <div class="flex flex-col gap-2 border border-accent/10 bg-black/10 p-3 md:flex-row md:items-start md:justify-between">
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 text-accent">
+                  <Sprout :size="13" />
+                  <p class="text-xs">好友庄园照料</p>
+                </div>
+                <p class="mt-2 text-[10px] leading-5 text-muted">
+                  今日访客剩余 {{ careRemainingLabel }} · 庄园剩余 {{ manorCareRemainingLabel }} · 权限 {{ carePermissionLabel }}
+                </p>
+                <p v-if="!snapshot.care_state.can_care" class="mt-1 text-[10px] leading-5 text-amber-200">
+                  {{ snapshot.care_state.care_denied_reason || '当前庄园暂未开放照料。' }}
+                </p>
+              </div>
+            </div>
+
+            <VisualSceneBoard
+              v-if="showCareSceneBoard"
+              :objects="careVisualObjects"
+              :selected-object-id="selectedCareObjectId"
+              :recent-feedback="careSceneFeedback"
+              :action-running="manorStore.careActionRunning"
+              :action-labels="careSceneActionLabels"
+              @select-object="manorStore.selectCareObject"
+              @trigger-action="submitCareVisualAction"
+            />
+
+            <div v-else class="border border-accent/10 bg-black/10 p-3 text-xs leading-5 text-muted">
+              这座庄园当前没有可视化照料对象；田地、果树、畜棚、鱼塘等对象会在庄园公开快照允许时显示。
+            </div>
+          </div>
+
+          <div class="space-y-3">
+            <div class="border border-accent/10 bg-black/10 p-3">
+              <p class="text-xs text-accent">照料效果</p>
+              <div class="mt-2 space-y-2">
+                <div v-for="effect in careEffectEntries" :key="effect.id" class="border border-accent/10 bg-bg/30 p-2">
+                  <p class="text-[10px] text-accent">{{ effect.label }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">给主人：{{ effect.ownerBenefit }}</p>
+                  <p class="text-[10px] leading-4 text-muted">访客：{{ effect.visitorReward }}</p>
+                </div>
+              </div>
+            </div>
+
+            <div class="border border-accent/10 bg-black/10 p-3">
+              <p class="text-xs text-accent">最近照料记录</p>
+              <div v-if="recentCareEntries.length > 0" data-testid="online-manor-care-log" class="mt-2 max-h-72 space-y-2 overflow-y-auto pr-1">
+                <div v-for="entry in recentCareEntries" :key="entry.id" data-testid="online-manor-care-entry" class="border border-accent/10 bg-bg/30 p-2">
+                  <p class="text-[10px] text-accent">{{ entry.visitor_display_name }} · {{ entry.action_label }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary || `${entry.object_label} 已被照料` }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">给主人：{{ entry.owner_benefit }} · 访客：{{ entry.visitor_reward }}</p>
+                </div>
+              </div>
+              <p v-else class="mt-2 text-[10px] leading-5 text-muted">今日还没有好友照料记录。</p>
+            </div>
+          </div>
+        </div>
+
+        <div v-else class="game-panel-muted p-3 text-xs leading-5 text-muted">
+          先刷新庄园快照，照料页会显示好友庄园中的可互动对象、次数限制和最近照料记录。
+        </div>
+      </div>
+
       <div v-else class="game-panel-muted grid gap-2 p-3 md:grid-cols-2">
         <div class="border border-accent/10 bg-black/10 p-3">
           <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
@@ -637,17 +702,21 @@
     Route,
     Save,
     Send,
+    Sprout,
     Sparkles,
     Upload,
   } from 'lucide-vue-next'
   import ManorPreviewCard from '@/components/game/ManorPreviewCard.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
+  import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
   import { showFloat } from '@/composables/useGameLog'
   import { useManorStore } from '@/stores/useManorStore'
+  import type { OnlineVisualObject } from '@/types/onlineVisual'
   import { uploadHallImage } from '@/utils/taoyuanHallApi'
 
-  type ManorTabKey = 'overview' | 'theme' | 'guestbook' | 'visits' | 'guide' | 'favorites'
+  type ManorTabKey = 'overview' | 'theme' | 'guestbook' | 'visits' | 'guide' | 'care' | 'favorites'
   type ManorTabMeta = { key: ManorTabKey; label: string; summary: string }
+  type ManorCareActionPayload = { objectId: string; actionId: string }
   type GuestbookKind = 'text' | 'blessing' | 'advice' | 'stamp' | 'signature'
   type VisitPurpose = 'explore' | 'friend_visit' | 'gift' | 'quest' | 'other'
 
@@ -677,6 +746,7 @@
     { key: 'guestbook', label: '留言', summary: '留言输入、回复和置顶会在这里独立处理。' },
     { key: 'visits', label: '来访', summary: '访客记录、来访目的和反馈会从长页中拆出。' },
     { key: 'guide', label: '导览', summary: '维护参观点与路线摘要，避免夹在其它操作中间。' },
+    { key: 'care', label: '照料', summary: '用场景物件处理浇水、喂食、除虫等好友互助动作。' },
     { key: 'favorites', label: '收藏', summary: '收藏、关注、同主题和热门庄园集中在这里。' },
   ]
   const defaultTab = tabs[0]!
@@ -719,6 +789,48 @@
   const guideTitleLength = computed(() => manorStore.guidePointTitleDraft.length)
   const guideSummaryLength = computed(() => manorStore.guidePointSummaryDraft.length)
   const canSaveGuide = computed(() => manorStore.guidePointTitleDraft.trim().length > 0 && !manorStore.guideActionRunning)
+  const careSceneActionLabels = computed<Record<string, string>>(() => ({
+    ...(snapshot.value?.care_state.action_labels ?? {}),
+    ...(snapshot.value?.care_state.scene_action_labels ?? {}),
+  }))
+  const careVisualObjects = computed<OnlineVisualObject[]>(() => {
+    const currentSnapshot = snapshot.value
+    const visualState = currentSnapshot?.visual_state
+    if (!currentSnapshot || visualState?.board_type !== 'scene') return []
+    const knownCareActions = new Set(Object.keys(careSceneActionLabels.value))
+    return (visualState.objects ?? []).map(object => ({
+      ...object,
+      available_action_ids: currentSnapshot.care_state.can_care
+        ? object.available_action_ids.filter(actionId => knownCareActions.has(actionId))
+        : [],
+    }))
+  })
+  const showCareSceneBoard = computed(() => careVisualObjects.value.length > 0)
+  const selectedCareObjectId = computed(() => manorStore.selectedCareObjectId || snapshot.value?.visual_state.selected_visual_id || '')
+  const careSceneFeedback = computed(() => snapshot.value?.visual_state.recent_feedback || '')
+  const recentCareEntries = computed(() => (snapshot.value?.care_entries ?? []).slice(0, 8))
+  const careRemainingLabel = computed(() => {
+    const careState = snapshot.value?.care_state
+    if (!careState) return '0/0'
+    return `${careState.remaining_care_count}/${careState.limits.visitor_daily_limit}`
+  })
+  const manorCareRemainingLabel = computed(() => {
+    const careState = snapshot.value?.care_state
+    if (!careState) return '0/0'
+    return `${careState.manor_remaining_care_count}/${careState.limits.manor_daily_limit}`
+  })
+  const carePermissionLabel = computed(() => {
+    if (snapshot.value?.care_state.can_care) return '可照料'
+    return snapshot.value?.access_policy.care_mode === 'closed' ? '已关闭' : '受限'
+  })
+  const careEffectEntries = computed(() =>
+    Object.entries(snapshot.value?.care_state.action_effects ?? {}).map(([id, effect]) => ({
+      id,
+      label: careSceneActionLabels.value[id] || id,
+      ownerBenefit: effect.owner_benefit,
+      visitorReward: effect.visitor_reward,
+    }))
+  )
   const activeTabMeta = computed<ManorTabMeta>(() => tabs.find(tab => tab.key === activeTab.value) ?? defaultTab)
   const setActiveTab = (tab: string) => {
     activeTab.value = tab as ManorTabKey
@@ -874,6 +986,11 @@
 
   const saveGuide = async () => {
     await manorStore.saveGuideSnapshot().catch(() => {})
+  }
+
+  const submitCareVisualAction = async (payload: ManorCareActionPayload) => {
+    manorStore.selectCareObject(payload.objectId)
+    await manorStore.submitCareAction(payload.objectId, payload.actionId).catch(() => {})
   }
 
   const favoriteManor = async () => {

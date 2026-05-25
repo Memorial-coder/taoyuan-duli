@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 好友庄园照料前端 smoke
+- 在线庄园新增“照料”标签，复用 `VisualSceneBoard` 展示好友庄园田地 / 畜棚等可照料物件、照料权限、今日剩余次数、照料效果和最近照料记录。
+- `game-smoke.spec.ts` 新增好友庄园照料用例，mock 好友庄园快照、收藏概览和 `/manor/care` 写接口，覆盖点击 `water_plot` 后最近反馈与主人日志读回。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`；`npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 因当前环境 Chromium `spawn EPERM` 被项目脚本跳过。
+
 ### 0525 花灯墙前端 smoke
 - `game-smoke.spec.ts` 扩展在线村社 mock，可切换到 `lantern_wall` 花灯墙异步工程并模拟贡献后的阶段推进。
 - 新增花灯墙贡献用例，覆盖在线村社公共建设页 `AsyncCommunityBoard` 的“写愿望”阶段、`write_wish` 贡献入口点击、刷新到“挂花灯”阶段和现场反馈读回。
