@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 共同基金种子白名单前端补齐
+- 共同庄园基金页自动购买按钮补充萝卜种子 x2 与水稻种子 x2，和已有白菜种子、鱼饲料、三类动物饲料入口统一。
+- 仍复用 `/fund/spend`、CSRF、`idempotency_key`、余额校验和 `can_auto_buy_seeds_feed` 权限禁用，成功后刷新基金与流水。
+- 本轮不接完整商店目录，不开放中额加工 / 建材、大额双方确认、补偿重放或分居返还执行。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 分居返还预览前端入口
 - 共同庄园总览新增“分居返还预览”区域，已生效契约可填写原因备注并生成返还草案。
 - 前端 API / store 接入 `/separation-preview`，提交时带 CSRF 与 `idempotency_key`，成功后刷新契约摘要和详情，展示预览版本、摘要、冷静期时间和暂缓执行项。

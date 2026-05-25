@@ -1677,6 +1677,20 @@
       purpose: 'seed_budget',
     },
     {
+      label: '萝卜种子 x2',
+      itemId: 'seed_radish',
+      targetRef: 'shop:seed_radish',
+      amount: 30,
+      purpose: 'seed_budget',
+    },
+    {
+      label: '水稻种子 x2',
+      itemId: 'seed_rice',
+      targetRef: 'shop:seed_rice',
+      amount: 40,
+      purpose: 'seed_budget',
+    },
+    {
       label: '鱼饲料 x1',
       itemId: 'fish_feed',
       targetRef: 'shop:fish_feed',
