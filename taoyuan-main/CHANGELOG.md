@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 家族建筑回滚记录后端闭环
+- 服务端新增 `/family-buildings/rollback`，已激活家族成员需具备大额资金 / 拆建治理职责且保留 `demolish_requires_both` 安全阀，才能对家族建筑流水记录回滚。
+- 回滚会把目标建筑流水标记为 `reverted`，写入回滚幂等键、操作者、原因、审计和补偿提示；重复请求或已回滚流水幂等读回。
+- 本轮只做记录型回滚，不自动退共同基金、不恢复共同仓库材料、不改个人铜币或背包，后续补偿重放仍需按基金 ledger、材料 ledger 和建筑流水执行。
+- 本轮验证：`node --check server\src\taoyuanCohabitationRuntime.js`、`node --check server\src\routes\api.js`、`node --check server\scripts\qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 分居装饰 / 建筑拆分前端入口
 - 共同庄园总览在分居预览卡片新增“拆分装建”按钮，前端 API / store 接入 `/separation-previews/:previewId/split-decorations-buildings`。
 - 按钮按 `shared_warehouse_returned`、执行 ledger ID、来源田区 manifest hash、装饰 manifest hash、建筑 manifest hash、双方确认和契约状态禁用；提交成功后刷新契约并读回 `decorations_buildings_split`。

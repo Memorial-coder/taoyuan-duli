@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 家族建筑回滚记录后端闭环接入：共同庄园新增 `/family-buildings/rollback`，允许具备大额资金 / 拆建治理职责的已激活家族成员在保留拆除双方确认安全阀时，对已扣款、已落账或已耗材的家族建筑流水记录 `reverted` 回滚状态；接口写回滚幂等键、操作者、原因、审计和补偿提示，重复请求幂等读回。该步骤只做记录，不自动退共同基金、不恢复共同仓库材料、不改个人铜币或背包，后续补偿重放仍需按基金 ledger、材料 ledger 和建筑流水执行。
 - 分居装饰 / 建筑拆分前端入口接入：共同庄园总览在分居预览卡片新增“拆分装建”按钮，前端 API / store 接入 `/separation-previews/:previewId/split-decorations-buildings`，提交执行 ledger、来源田区 hash、装饰 hash、建筑 hash 和幂等键；按钮按共同仓库已返还、双方确认、执行 ledger 与三个 manifest hash 禁用。分居状态文案和共同日志同步调整为“共同仓库返还 -> 装饰建筑拆分 -> 剧情拆分”，不改个人小屋 / 家具 / 真实建筑 / 共同资产主状态。
 - 分居装饰 / 建筑拆分记录接入：分居预览新增 `decoration_split_manifest_hash` 与 `family_building_split_manifest_hash`，可追溯共同契约中的装饰来源和家族建筑流水；共同庄园新增 `/separation-previews/:previewId/split-decorations-buildings`，要求共同仓库已返还、执行 ledger 和三个 manifest hash 匹配。成功后只记录拆分 ledger、receipt、审计和补偿提示，移除 `split_decorations` 待办并保留剧情拆分后续；重复请求幂等读回，不改个人小屋 / 家具 / 真实建筑 / 共同资产主状态。
 - 分居个人家庭回执写入接入：共同庄园新增 `/separation-previews/:previewId/write-personal-family-receipts`，要求孩子安排已记录、执行 ledger 和 `plot_return_manifest_hash` 匹配；成功后只向各成员个人存档追加 `onlineCohabitation.family_receipts` 回执，执行状态推进到 `personal_family_receipts_written` 并记录审计，重复请求幂等读回，不改个人孩子 / 家庭 / NPC / 农田 / 背包 / 铜币主状态。共同庄园总览新增“写回家庭”按钮，按孩子安排已记录、执行 ledger、预览 hash 和服务端状态禁用。

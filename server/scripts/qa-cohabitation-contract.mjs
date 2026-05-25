@@ -2860,4 +2860,54 @@ assert.equal(familyBuildingsAfterRealApply.family_buildings_panel.summary.wareho
 assert.equal(familyBuildingsAfterRealApply.family_buildings_panel.construction_ledger[0].shared_warehouse_materials_consumed, true, 'family buildings readback should expose consumed material ledger')
 assert.equal(familyBuildingsAfterRealApply.family_buildings_panel.construction_ledger.length, 1, 'real build apply should not duplicate construction ledger')
 
+await assert.rejects(
+  () => runtime.rollbackCohabitationFamilyBuilding(largeContract.contract.id, {
+    building_ledger_id: largeExecute.building_ledger_entry.id,
+    idempotency_key: 'qa-family-building-rollback-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not record family building rollback'
+)
+assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance, balanceBeforeLargeDraft - 1300, 'rejected building rollback should not change shared balance')
+
+const familyBuildingRollback = await runtime.rollbackCohabitationFamilyBuilding(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  reason: 'qa record-only family building rollback',
+  idempotency_key: 'qa-family-building-rollback-record',
+}, actor(largeOwner))
+assert.equal(familyBuildingRollback.idempotent, false, 'first family building rollback should not be idempotent')
+assert.equal(familyBuildingRollback.building_ledger_entry.id, largeExecute.building_ledger_entry.id, 'building rollback should update original building ledger')
+assert.equal(familyBuildingRollback.building_ledger_entry.status, 'reverted', 'building rollback should move ledger status to reverted')
+assert.equal(familyBuildingRollback.building_ledger_entry.action, 'reverted', 'building rollback should record reverted action')
+assert.equal(familyBuildingRollback.building_ledger_entry.rollback_idempotency_key, 'qa-family-building-rollback-record', 'building rollback should store rollback idempotency key')
+assert.equal(familyBuildingRollback.building_ledger_entry.rollback_reason, 'qa record-only family building rollback', 'building rollback should store rollback reason')
+assert.equal(familyBuildingRollback.rollback.shared_fund_refunded, false, 'building rollback should not refund shared fund automatically')
+assert.equal(familyBuildingRollback.rollback.shared_warehouse_restored, false, 'building rollback should not restore shared warehouse automatically')
+assert.equal(familyBuildingRollback.rollback.personal_money_merged, false, 'building rollback should keep personal money separate')
+assert.equal(familyBuildingRollback.rollback.personal_inventory_merged, false, 'building rollback should keep personal inventory separate')
+assert.equal(familyBuildingRollback.family_buildings_panel.summary.real_build_applied_count, 0, 'rollback should remove reverted building from active applied count')
+assert.equal(familyBuildingRollback.family_buildings_panel.summary.warehouse_material_consumed_count, 0, 'rollback should remove reverted building from active material-consumed count')
+assert.equal(familyBuildingRollback.family_buildings_panel.construction_ledger[0].status, 'reverted', 'family building panel should read back reverted ledger')
+assert.ok(familyBuildingRollback.contract.audit_log.find(entry => entry.action === 'family_building_rollback_recorded'), 'building rollback should be audited')
+assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance, balanceBeforeLargeDraft - 1300, 'building rollback should not refund shared fund in record-only step')
+assert.equal((await runtime.getCohabitationWarehouse(largeContract.contract.id, actor(largeOwner))).warehouse.ledger.filter(entry => entry.action === 'consume').length, 2, 'building rollback should not duplicate or restore material ledgers in record-only step')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'building rollback should not touch owner personal money')
+assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'building rollback should not touch partner personal money')
+
+const duplicateFamilyBuildingRollback = await runtime.rollbackCohabitationFamilyBuilding(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-rollback-record',
+}, actor(largeOwner))
+assert.equal(duplicateFamilyBuildingRollback.idempotent, true, 'same building rollback idempotency key should be idempotent')
+assert.equal(duplicateFamilyBuildingRollback.already_reverted, true, 'idempotent building rollback should report already reverted')
+assert.equal(duplicateFamilyBuildingRollback.building_ledger_entry.status, 'reverted', 'idempotent building rollback should keep reverted status')
+
+const alreadyFamilyBuildingRollback = await runtime.rollbackCohabitationFamilyBuilding(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-rollback-record-again',
+}, actor(largeOwner))
+assert.equal(alreadyFamilyBuildingRollback.idempotent, true, 'already reverted building should return idempotent response')
+assert.equal(alreadyFamilyBuildingRollback.already_reverted, true, 'already reverted building response should be explicit')
+assert.equal(alreadyFamilyBuildingRollback.building_ledger_entry.status, 'reverted', 'already reverted building should stay reverted')
+
 console.log('[qa-cohabitation-contract] OK')

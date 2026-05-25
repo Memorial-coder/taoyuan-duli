@@ -1612,6 +1612,12 @@ function normalizeFamilyBuildingLedgerEntry(entry = {}) {
             : [],
         })).filter(item => item.item_id && item.quantity > 0).slice(0, 12)
       : [],
+    rollback_idempotency_key: sanitizeText(entry.rollback_idempotency_key, 120),
+    reverted_at: Math.max(0, Math.floor(Number(entry.reverted_at) || 0)),
+    reverted_by_username: normalizeUsername(entry.reverted_by_username),
+    reverted_by_display_name: sanitizeText(entry.reverted_by_display_name || entry.reverted_by_username, 60),
+    rollback_reason: sanitizeText(entry.rollback_reason || entry.revert_reason, 160),
+    rollback_policy: sanitizeText(entry.rollback_policy, 180),
     reversible: entry.reversible !== false,
     status: ['fund_spend_recorded', 'build_applied', 'compensated', 'reverted'].includes(entry.status)
       ? entry.status
@@ -2778,11 +2784,11 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
     ? contract.family_building_ledger.map(normalizeFamilyBuildingLedgerEntry).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
     : [];
   const appliedBuildingIds = new Set(constructionLedger
-    .filter(entry => entry.real_build_applied === true || entry.status === 'build_applied')
+    .filter(entry => entry.status !== 'reverted' && entry.status !== 'compensated' && (entry.real_build_applied === true || entry.status === 'build_applied'))
     .map(entry => entry.building_id || entry.project_id)
     .filter(Boolean));
   const materialConsumedBuildingIds = new Set(constructionLedger
-    .filter(entry => entry.shared_warehouse_materials_consumed === true)
+    .filter(entry => entry.status !== 'reverted' && entry.status !== 'compensated' && entry.shared_warehouse_materials_consumed === true)
     .map(entry => entry.building_id || entry.project_id)
     .filter(Boolean));
   const buildings = buildFamilyBuildingCandidates(contract, enabled, appliedBuildingIds, materialConsumedBuildingIds);
@@ -4316,6 +4322,19 @@ function normalizeFamilyBuildingMaterialsConsumePayload(payload = {}) {
     fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
     target_ref: sanitizeText(payload.target_ref || payload.target, 120),
     memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeFamilyBuildingRollbackPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('家族建筑回滚记录需要 idempotency_key，以防断线或重试时重复记录回滚');
+  return {
+    idempotency_key: idempotencyKey,
+    building_ledger_id: sanitizeText(payload.building_ledger_id || payload.ledger_id || payload.id, 100),
+    draft_id: sanitizeText(payload.draft_id, 100),
+    fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
+    target_ref: sanitizeText(payload.target_ref || payload.target, 120),
+    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
   };
 }
 
@@ -7515,6 +7534,142 @@ async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = 
   };
 }
 
+async function rollbackCohabitationFamilyBuilding(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const rollbackRequest = normalizeFamilyBuildingRollbackPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '记录家族建筑回滚');
+  if (!isFamilyRoleContractType(contract.type)) throw createError('家族建筑回滚只支持结拜庄园和合伙庄园', 403);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const canRollback = actorPermissions.fund.spend_large === true
+    || actorPermissions.construction.demolish_building === true
+    || ['family_head', 'workshop_keeper', 'treasurer'].includes(actorManorRole);
+  if (!canRollback) throw createError('你没有记录家族建筑回滚的权限', 403);
+  if (actorPermissions.confirmations.demolish_requires_both !== true) {
+    throw createError('家族建筑回滚必须保留拆除双方确认安全阀', 409);
+  }
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
+    : [];
+  const familyLedger = normalizeFamilyBuildingLedger(contract);
+  const previousRollbackEntry = familyLedger.find(entry => entry.rollback_idempotency_key === rollbackRequest.idempotency_key);
+  if (previousRollbackEntry) {
+    const requestedEntry = findFamilyBuildingLedgerForRealBuildApply(contract, rollbackRequest);
+    if (requestedEntry && requestedEntry.id !== previousRollbackEntry.id) {
+      throw createError('该家族建筑回滚幂等键已用于其他建筑流水，请更换 idempotency_key', 409);
+    }
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      building_ledger_entry: previousRollbackEntry,
+      idempotent: true,
+      already_reverted: previousRollbackEntry.status === 'reverted',
+      rollback: {
+        shared_fund_refunded: false,
+        shared_warehouse_restored: false,
+        personal_money_merged: false,
+        personal_inventory_merged: false,
+      },
+    };
+  }
+
+  const targetEntry = findFamilyBuildingLedgerForRealBuildApply(contract, rollbackRequest);
+  if (!targetEntry) throw createError('找不到可回滚的家族建筑流水', 404);
+  if (targetEntry.status === 'reverted') {
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      building_ledger_entry: targetEntry,
+      idempotent: true,
+      already_reverted: true,
+      rollback: {
+        shared_fund_refunded: false,
+        shared_warehouse_restored: false,
+        personal_money_merged: false,
+        personal_inventory_merged: false,
+      },
+    };
+  }
+  if (targetEntry.status === 'compensated') throw createError('该家族建筑流水已进入补偿状态，不能重复记录回滚', 409);
+  if (targetEntry.shared_fund_deducted !== true || !targetEntry.fund_ledger_id) {
+    throw createError('该家族建筑流水缺少已扣款共同基金凭证，不能记录回滚', 409);
+  }
+  const operatedAt = nowSeconds();
+  const roleDef = getFamilyManorRoleDef(actorManorRole);
+  const materialLedgerEntries = contract.shared_warehouse.ledger
+    .filter(entry => targetEntry.material_ledger_ids.includes(entry.id));
+  const nextEntry = normalizeFamilyBuildingLedgerEntry({
+    ...targetEntry,
+    action: 'reverted',
+    status: 'reverted',
+    rollback_idempotency_key: rollbackRequest.idempotency_key,
+    reverted_at: operatedAt,
+    reverted_by_username: member.username,
+    reverted_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: roleDef?.label || targetEntry.actor_manor_role_label,
+    rollback_reason: rollbackRequest.reason || '前端或治理流程记录家族建筑回滚',
+    rollback_policy: '本步骤只记录家族建筑回滚事实和审计，不自动退共同基金、不恢复共同仓库材料、不改个人资产；后续补偿重放需按基金 ledger、材料 ledger 和建筑流水人工或专用流程处理。',
+    compensation_hint: '家族建筑已记录回滚；共同基金退款、共同仓库材料恢复和真实建筑拆除仍需后续补偿重放或人工复核。',
+    deferred_operations: ['family_building_compensation_replay', 'fund_compensation_replay'],
+  });
+  contract.family_building_ledger = familyLedger.map(entry =>
+    entry.id === targetEntry.id ? nextEntry : entry
+  ).slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
+  const draftIndex = contract.fund_large_spend_drafts.findIndex(draft =>
+    draft.id === targetEntry.draft_id || draft.final_building_ledger_id === targetEntry.id
+  );
+  if (draftIndex >= 0) {
+    contract.fund_large_spend_drafts[draftIndex] = normalizeFundLargeSpendDraft({
+      ...contract.fund_large_spend_drafts[draftIndex],
+      deferred_operations: ['fund_compensation_replay', 'family_building_compensation_replay'],
+      compensation_policy: '家族建筑已记录回滚；共同基金退款、材料恢复和真实建筑拆除不由本步骤自动执行，需按审计流水补偿重放。',
+    });
+  }
+  appendAudit(contract, 'family_building_rollback_recorded', actor, {
+    building_ledger_id: nextEntry.id,
+    draft_id: nextEntry.draft_id,
+    fund_ledger_id: nextEntry.fund_ledger_id,
+    target_ref: nextEntry.target_ref,
+    building_id: nextEntry.building_id,
+    project_id: nextEntry.project_id,
+    material_ledger_ids: nextEntry.material_ledger_ids,
+    material_ledger_count: materialLedgerEntries.length,
+    shared_fund_refunded: false,
+    shared_warehouse_restored: false,
+    personal_money_merged: false,
+    personal_inventory_merged: false,
+    rollback_record_only: true,
+    compensation_required: true,
+  }, rollbackRequest.idempotency_key);
+  contract.updated_at = operatedAt;
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    building_ledger_entry: nextEntry,
+    material_ledger_entries: materialLedgerEntries,
+    idempotent: false,
+    already_reverted: false,
+    rollback: {
+      shared_fund_refunded: false,
+      shared_warehouse_restored: false,
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+    },
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -9521,6 +9676,7 @@ module.exports = {
   executeCohabitationFundLargeSpendDraft,
   applyCohabitationFamilyBuildingRealBuild,
   consumeCohabitationFamilyBuildingMaterials,
+  rollbackCohabitationFamilyBuilding,
   updateCohabitationPermissions,
   updateCohabitationFamilyRole,
   createCohabitationContract,
