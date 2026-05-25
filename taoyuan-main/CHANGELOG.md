@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 分居个人剧情回执前端入口
+- 共同庄园总览在分居预览卡片新增“写回剧情”按钮，前端 API / store 接入 `/separation-previews/:previewId/write-personal-story-receipts`。
+- 按钮按 `family_story_resolved`、执行 ledger ID、预览 `plot_return_manifest_hash` 和契约状态禁用；成功后刷新契约并读回 `personal_story_receipts_written`，共同日志展示写入份数。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 分居个人剧情回执写入
 - 服务端新增 `/separation-previews/:previewId/write-personal-story-receipts`，要求剧情拆分已记录、执行 ledger ID 可匹配且预览 `plot_return_manifest_hash` 未变。
 - 成功后只向各已接受成员个人存档追加 `onlineCohabitation.story_receipts` 回执，执行状态推进到 `personal_story_receipts_written`；重复请求不重复写入，个人 NPC、恋爱、家庭、孩子、农田、背包和铜币状态不被自动改写。

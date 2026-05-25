@@ -35,6 +35,7 @@ import {
   updateCohabitationFamilyRole,
   updateCohabitationPermissions,
   writeCohabitationSeparationPersonalFarmReturns,
+  writeCohabitationSeparationPersonalStoryReceipts,
   withdrawCohabitationWarehouseItem,
   type CohabitationContract,
   type CohabitationContractCreatePayload,
@@ -53,6 +54,7 @@ import {
   type CohabitationSeparationExecutionRequestPayload,
   type CohabitationSeparationFamilyStoryResolvePayload,
   type CohabitationSeparationPersonalFarmWritePayload,
+  type CohabitationSeparationPersonalStoryReceiptsPayload,
   type CohabitationSeparationPreviewConfirmPayload,
   type CohabitationSeparationPreviewPayload,
   type CohabitationSeparationSharedFundRefundPayload,
@@ -434,6 +436,25 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const writeSeparationPersonalStoryReceipts = async (previewId: string, payload: CohabitationSeparationPersonalStoryReceiptsPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !previewId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await writeCohabitationSeparationPersonalStoryReceipts(activeContractId.value, previewId, payload)
+      if (result?.contract) {
+        syncOverviewContract(result.contract)
+        await refreshSelectedDetails({ silent: true })
+      }
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '写入分居个人剧情回执失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const contributeSharedFund = async (payload: {
     amount: number
     purpose?: string
@@ -809,6 +830,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     refundSeparationSharedFund,
     returnSeparationSharedWarehouse,
     resolveSeparationFamilyStory,
+    writeSeparationPersonalStoryReceipts,
     contributeSharedFund,
     spendSharedFund,
     createSharedFundLargeSpendDraft,
