@@ -103,6 +103,7 @@ const SOCIETY_RESOURCE_LABELS = Object.freeze({
   paper: '纸张',
   herb: '草药',
   rice: '稻米',
+  cabbage: '青菜',
   firewood: '柴火',
   bamboo: '竹材',
   wintersweet: '腊梅',
@@ -180,6 +181,16 @@ const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
     rewards: [{ type: 'item', item_id: 'herb', quantity: 1, quality: 'normal' }],
   },
   {
+    id: 'cabbage_crate',
+    label: '青菜入仓',
+    summary: '交 2 份青菜和少量工钱，补入公共仓作为共建伙食。',
+    costs: [
+      { type: 'item', item_id: 'cabbage', quantity: 2, quality: 'normal' },
+      { type: 'money', amount: 3 },
+    ],
+    rewards: [{ type: 'item', item_id: 'cabbage', quantity: 2, quality: 'normal' }],
+  },
+  {
     id: 'wintersweet_crate',
     label: '腊梅入仓',
     summary: '交 1 份腊梅和少量工钱，补入公共仓作为节庆茶点香料。',
@@ -221,6 +232,16 @@ const SOCIETY_PUBLIC_WAREHOUSE_CONSUME_OPTIONS = Object.freeze([
     costs: [
       { type: 'item', item_id: 'rice', quantity: 2, quality: 'normal' },
       { type: 'item', item_id: 'wintersweet', quantity: 1, quality: 'normal' },
+    ],
+  },
+  {
+    id: 'bridge_worker_meal',
+    label: '修桥慰劳饭',
+    summary: '从公共仓消耗稻米和青菜，给修桥工班备成热饭；只扣公共仓，不扣个人背包。',
+    context_id: 'bridge_worker_meal',
+    costs: [
+      { type: 'item', item_id: 'rice', quantity: 2, quality: 'normal' },
+      { type: 'item', item_id: 'cabbage', quantity: 2, quality: 'normal' },
     ],
   },
 ]);

@@ -195,7 +195,8 @@ const buildSeedSavePayload = (username, startingMoney) => encryptTaoyuanData({
       { itemId: 'wood', quantity: 6, quality: 'normal', locked: false },
       { itemId: 'parsnip_seed', quantity: 4, quality: 'normal', locked: false },
       { itemId: 'wintersweet', quantity: 3, quality: 'normal', locked: false },
-      { itemId: 'rice', quantity: 5, quality: 'normal', locked: false },
+      { itemId: 'rice', quantity: 7, quality: 'normal', locked: false },
+      { itemId: 'cabbage', quantity: 2, quality: 'normal', locked: false },
       { itemId: 'herb', quantity: 1, quality: 'normal', locked: false },
     ],
     tempItems: [],
@@ -4836,6 +4837,84 @@ try {
     assert(afterRice === preRice - 2, `festival feast setup did not deduct personal rice deposit correctly, expected rice=${preRice - 2}, current rice=${afterRice}`)
     assert(afterWintersweet === preWintersweet - 1, `festival feast setup did not deduct personal wintersweet deposit correctly, expected wintersweet=${preWintersweet - 1}, current wintersweet=${afterWintersweet}`)
     secondaryExpectedMoney -= 10
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/public-warehouse/consume bridge worker meal path', async () => {
+    const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(beforeSave.response.ok, `secondary save readback before bridge worker meal warehouse setup returned ${beforeSave.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeSave.data?.raw || beforeSave.data?.slot?.raw || beforeSave.data?.save?.raw || '')
+    const preMoney = Math.max(0, Math.floor(Number(beforeDecrypted?.player?.money) || 0))
+    const preRice = getInventoryItemQuantity(beforeDecrypted, 'rice')
+    const preCabbage = getInventoryItemQuantity(beforeDecrypted, 'cabbage')
+
+    const riceDeposit = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/deposit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        deposit_id: 'rice_crate',
+      }),
+    })
+    assert(riceDeposit.response.ok, `bridge worker meal rice warehouse deposit returned ${riceDeposit.response.status}: ${riceDeposit.data?.msg || 'unknown error'}`)
+    const cabbageDeposit = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/deposit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        deposit_id: 'cabbage_crate',
+      }),
+    })
+    assert(cabbageDeposit.response.ok, `bridge worker meal cabbage warehouse deposit returned ${cabbageDeposit.response.status}: ${cabbageDeposit.data?.msg || 'unknown error'}`)
+    assert(cabbageDeposit.data?.warehouse?.items?.some(entry => entry?.item_id === 'rice' && Number(entry?.quantity || 0) >= 2), 'bridge worker meal warehouse setup did not preserve rice stock')
+    assert(cabbageDeposit.data?.warehouse?.items?.some(entry => entry?.item_id === 'cabbage' && Number(entry?.quantity || 0) >= 2), 'bridge worker meal warehouse setup did not preserve cabbage stock')
+
+    const idempotencyKey = `smoke-bridge-worker-meal-${Date.now()}`
+    await wait(1100)
+    const consume = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/consume', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        consume_id: 'bridge_worker_meal',
+        idempotency_key: idempotencyKey,
+      }),
+    })
+    assert(consume.response.ok, `bridge worker meal consume returned ${consume.response.status}: ${consume.data?.msg || 'unknown error'}`)
+    assert(consume.data?.ok === true && consume.data?.consume?.context_id === 'bridge_worker_meal', 'bridge worker meal consume payload is incomplete')
+    assert(consume.data?.log_entry?.action === 'consume' && consume.data.log_entry?.idempotency_key === idempotencyKey, 'bridge worker meal consume did not preserve audit/idempotency log')
+    assert(!consume.data?.warehouse?.items?.some(entry => entry?.item_id === 'rice'), 'bridge worker meal consume did not deduct public rice')
+    assert(!consume.data?.warehouse?.items?.some(entry => entry?.item_id === 'cabbage'), 'bridge worker meal consume did not deduct public cabbage')
+    assert(Array.isArray(consume.data?.overview?.my_society?.public_warehouse?.consume_options) && consume.data.overview.my_society.public_warehouse.consume_options.some(entry => entry?.id === 'bridge_worker_meal'), 'society overview did not expose bridge worker meal consume option')
+
+    await wait(1100)
+    const duplicateConsume = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/consume', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        consume_id: 'bridge_worker_meal',
+        idempotency_key: idempotencyKey,
+      }),
+    })
+    assert(duplicateConsume.response.ok, `duplicate bridge worker meal consume returned ${duplicateConsume.response.status}: ${duplicateConsume.data?.msg || 'unknown error'}`)
+    assert(duplicateConsume.data?.idempotent_replay === true, 'duplicate bridge worker meal consume did not replay idempotently')
+    assert(!duplicateConsume.data?.warehouse?.items?.some(entry => entry?.item_id === 'rice'), 'duplicate bridge worker meal consume deducted rice twice')
+    assert(!duplicateConsume.data?.warehouse?.items?.some(entry => entry?.item_id === 'cabbage'), 'duplicate bridge worker meal consume deducted cabbage twice')
+
+    const afterSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(afterSave.response.ok, `secondary save readback after bridge worker meal warehouse consume returned ${afterSave.response.status}`)
+    const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
+    const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
+    const afterRice = getInventoryItemQuantity(afterDecrypted, 'rice')
+    const afterCabbage = getInventoryItemQuantity(afterDecrypted, 'cabbage')
+    assert(afterMoney === preMoney - 7, `bridge worker meal setup should only deduct deposit money, expected money=${preMoney - 7}, current money=${afterMoney}`)
+    assert(afterRice === preRice - 2, `bridge worker meal setup did not deduct personal rice deposit correctly, expected rice=${preRice - 2}, current rice=${afterRice}`)
+    assert(afterCabbage === preCabbage - 2, `bridge worker meal setup did not deduct personal cabbage deposit correctly, expected cabbage=${preCabbage - 2}, current cabbage=${afterCabbage}`)
+    secondaryExpectedMoney -= 7
   })
 
   await runCheck('GET /api/taoyuan/online/societies welfare readback', async () => {

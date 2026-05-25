@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 修桥慰劳饭公共作物消耗
+- 村社公共仓新增青菜入仓方案，青菜可作为村社修桥工班伙食进入公共仓储备。
+- 新增 `bridge_worker_meal` 公共仓消耗方案，从公共仓扣 2 份稻米和 2 份青菜，为修桥慰劳饭提供真实作物消耗。
+- 消耗接口沿用 `idempotency_key`、公共仓日志和村社活动记录，重复请求只回放原日志，不重复扣公共仓，不改个人背包或个人铜钱。
+- 百科可从稻米、青菜反查公共仓、修桥慰劳饭和村社修桥用途；本轮验证：`node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix server run qa:online-smoke`。
+
 ### 0525 节庆宴席公共作物消耗
 - 村社公共仓新增腊梅入仓方案，腊梅可作为节庆宴席茶点香料进入公共仓储备。
 - 新增 `festival_feast_prep` 公共仓消耗方案，从公共仓扣 2 份稻米和 1 份腊梅，为节庆宴席备菜提供真实作物消耗。
