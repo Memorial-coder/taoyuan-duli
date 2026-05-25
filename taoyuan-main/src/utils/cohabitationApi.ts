@@ -619,6 +619,12 @@ export interface CohabitationFamilyBuildingLedgerEntry {
     quality: string
     warehouse_ledger_ids: string[]
   }>
+  rollback_idempotency_key: string
+  reverted_at: number
+  reverted_by_username: string
+  reverted_by_display_name: string
+  rollback_reason: string
+  rollback_policy: string
   compensation_required: boolean
   compensation_hint: string
   deferred_operations: string[]
@@ -1324,11 +1330,19 @@ export interface CohabitationFundLargeSpendDraftResponse extends CohabitationDet
 export interface CohabitationFamilyBuildingLedgerActionResponse extends CohabitationDetailResponse {
   family_buildings_panel?: CohabitationFamilyBuildingsPanel
   warehouse?: CohabitationWarehouseSnapshot
+  fund?: CohabitationFundSnapshot
   building_ledger_entry?: CohabitationFamilyBuildingLedgerEntry
   material_ledger_entries?: CohabitationWarehouseLedgerEntry[]
   idempotent?: boolean
   already_applied?: boolean
   already_consumed?: boolean
+  already_reverted?: boolean
+  rollback?: {
+    shared_fund_refunded?: boolean
+    shared_warehouse_restored?: boolean
+    personal_money_merged?: boolean
+    personal_inventory_merged?: boolean
+  }
   shared_warehouse?: {
     consumed_quantity?: number
     material_count?: number
@@ -1690,6 +1704,14 @@ export const consumeCohabitationFamilyBuildingMaterials = async (contractId: str
     contractPath(contractId, '/family-buildings/materials/consume'),
     payload as unknown as Record<string, unknown>,
     '消耗家族建筑共同仓库材料失败'
+  )
+}
+
+export const rollbackCohabitationFamilyBuilding = async (contractId: string, payload: CohabitationFamilyBuildingLedgerPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/rollback'),
+    payload as unknown as Record<string, unknown>,
+    '记录家族建筑回滚失败'
   )
 }
 

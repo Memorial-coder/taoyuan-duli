@@ -1178,8 +1178,11 @@
                     真实建造：{{ entry.real_build_applied ? '已落账' : '未落账' }} ·
                     个人铜币：{{ entry.personal_money_merged ? '合并' : '独立' }}
                   </p>
+                  <p v-if="entry.reverted_at || entry.status === 'reverted'">
+                    回滚：{{ entry.reverted_by_display_name || entry.reverted_by_username || '已记录' }} · {{ formatTime(entry.reverted_at) }} · {{ entry.rollback_policy || entry.rollback_reason || '不自动退款或恢复建材' }}
+                  </p>
                 </div>
-                <div class="mt-2 grid gap-2 md:grid-cols-2">
+                <div class="mt-2 grid gap-2 md:grid-cols-3">
                   <button
                     class="online-action-btn online-action-btn--compact justify-center"
                     type="button"
@@ -1199,6 +1202,16 @@
                   >
                     <Package :size="12" />
                     消耗建材
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canRollbackFamilyBuilding(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-rollback-${entry.id}`"
+                    @click="rollbackFamilyBuilding(entry)"
+                  >
+                    <ShieldCheck :size="12" />
+                    记录回滚
                   </button>
                 </div>
               </div>
@@ -2692,6 +2705,12 @@
       entry.status !== 'reverted' &&
       candidate?.material_consume_enabled === true
   }
+  const canRollbackFamilyBuilding = (entry: CohabitationFamilyBuildingLedgerEntry) =>
+    cohabitationStore.canOpenSelectedContract &&
+    entry.shared_fund_deducted === true &&
+    Boolean(entry.fund_ledger_id) &&
+    entry.status !== 'compensated' &&
+    entry.status !== 'reverted'
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -2954,6 +2973,24 @@
         : `已消耗共同仓库建材 ${consumedQuantity} 份，未重复扣共同基金或个人铜币`
     } catch (error) {
       familyBuildingActionMessage.value = error instanceof Error ? error.message : '消耗家族建筑共同仓库材料失败'
+    }
+  }
+
+  const rollbackFamilyBuilding = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    try {
+      const result = await cohabitationStore.rollbackFamilyBuilding({
+        building_ledger_id: entry.id,
+        memo: `前端记录家族建筑回滚：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-rollback-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_reverted
+        ? '该建筑流水已经记录回滚，已刷新状态'
+        : '已记录家族建筑回滚，未自动退基金或恢复建材'
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '记录家族建筑回滚失败'
     }
   }
 
@@ -3286,6 +3323,7 @@
       fund_order_income: '公共订单入基金',
       family_building_real_build_applied: '建筑真实落账',
       family_building_materials_consumed: '建筑材料消耗',
+      family_building_rollback_recorded: '建筑回滚记录',
       permissions_updated: '权限更新',
       family_role_updated: '家族职位更新',
       separation_preview_created: '分居预览创建',
@@ -3379,6 +3417,18 @@
     if (entry.action === 'separation_personal_family_receipts_written') {
       const count = Number(detail.receipt_count) || 0
       return count > 0 ? `已写入个人家庭回执 ${count} 份` : '已写入个人家庭回执'
+    }
+    if (entry.action === 'family_building_rollback_recorded') {
+      const targetRef = typeof detail.target_ref === 'string'
+        ? detail.target_ref
+        : typeof detail.building_id === 'string'
+          ? detail.building_id
+          : typeof detail.project_id === 'string'
+            ? detail.project_id
+            : ''
+      return targetRef
+        ? `已记录 ${targetRef} 建筑回滚，不自动退基金或恢复建材`
+        : '已记录建筑回滚，不自动退基金或恢复建材'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0
