@@ -26,6 +26,7 @@ import {
   fetchCohabitationPermissions,
   fetchCohabitationSharedMap,
   fetchCohabitationWarehouse,
+  refundCohabitationSeparationSharedFund,
   requestCohabitationSeparationExecution,
   sellCohabitationWarehouseItem,
   spendCohabitationFund,
@@ -51,6 +52,7 @@ import {
   type CohabitationSeparationPersonalFarmWritePayload,
   type CohabitationSeparationPreviewConfirmPayload,
   type CohabitationSeparationPreviewPayload,
+  type CohabitationSeparationSharedFundRefundPayload,
   type CohabitationSharedMap,
   type CohabitationWarehouseSnapshot,
 } from '@/utils/cohabitationApi'
@@ -363,6 +365,26 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       return result
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '写回分居来源田区失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const refundSeparationSharedFund = async (previewId: string, payload: CohabitationSeparationSharedFundRefundPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !previewId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await refundCohabitationSeparationSharedFund(activeContractId.value, previewId, payload)
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract) {
+        syncOverviewContract(result.contract)
+        await refreshSelectedDetails({ silent: true })
+      }
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '返还分居共同基金失败'
       throw error
     } finally {
       actionLoading.value = false
@@ -741,6 +763,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     requestSeparationExecution,
     executeSeparationAssetReturn,
     writeSeparationPersonalFarmReturns,
+    refundSeparationSharedFund,
     contributeSharedFund,
     spendSharedFund,
     createSharedFundLargeSpendDraft,

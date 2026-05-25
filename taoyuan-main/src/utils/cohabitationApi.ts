@@ -1145,6 +1145,13 @@ export interface CohabitationSeparationPersonalFarmWritePayload {
   idempotency_key: string
 }
 
+export interface CohabitationSeparationSharedFundRefundPayload {
+  execution_ledger_id?: string
+  plot_return_manifest_hash?: string
+  memo?: string
+  idempotency_key: string
+}
+
 export interface CohabitationWarehouseItemResponse extends CohabitationDetailResponse {
   warehouse?: CohabitationWarehouseSnapshot
   fund?: CohabitationFundSnapshot
@@ -1277,6 +1284,19 @@ export interface CohabitationSeparationPreviewResponse extends CohabitationDetai
   idempotent?: boolean
 }
 
+export interface CohabitationSeparationSharedFundRefundResponse extends CohabitationSeparationPreviewResponse {
+  fund?: CohabitationFundSnapshot
+  receipts?: Array<Record<string, unknown>>
+  fund_ledger_entries?: CohabitationFundLedgerEntry[]
+  already_refunded?: boolean
+  shared_fund?: {
+    refund_total?: number
+    balance_before?: number
+    balance_after?: number
+    personal_money_merged?: boolean
+  }
+}
+
 const fetchCohabitationJson = async <T>(path: string, fallbackMessage: string): Promise<T | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
@@ -1371,6 +1391,14 @@ export const writeCohabitationSeparationPersonalFarmReturns = async (contractId:
     contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/write-personal-farm-returns`),
     payload as unknown as Record<string, unknown>,
     '写回分居来源田区失败'
+  )
+}
+
+export const refundCohabitationSeparationSharedFund = async (contractId: string, previewId: string, payload: CohabitationSeparationSharedFundRefundPayload) => {
+  return postCohabitationJson<CohabitationSeparationSharedFundRefundResponse>(
+    contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/refund-shared-fund`),
+    payload as unknown as Record<string, unknown>,
+    '返还分居共同基金失败'
   )
 }
 

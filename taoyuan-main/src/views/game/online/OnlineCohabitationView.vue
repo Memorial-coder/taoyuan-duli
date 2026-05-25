@@ -306,6 +306,16 @@
                         <Map :size="12" />
                         写回田区
                       </button>
+                      <button
+                        class="online-action-btn online-action-btn--compact justify-center"
+                        type="button"
+                        :disabled="!canRefundSeparationSharedFund || cohabitationStore.actionLoading"
+                        data-testid="online-cohabitation-separation-shared-fund-refund"
+                        @click="refundSeparationSharedFund"
+                      >
+                        <Wallet :size="12" />
+                        返还基金
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -323,9 +333,9 @@
             </div>
             <div class="mt-3 grid gap-2 text-xs md:grid-cols-2">
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">个人铜币不合并，共同基金单独显示。</p>
-              <p class="border border-accent/10 bg-black/10 p-2 text-muted">田区按来源玩家和存档 ID 显示，不写回个人农田。</p>
+              <p class="border border-accent/10 bg-black/10 p-2 text-muted">田区按来源玩家和存档 ID 显示，分居执行按预览 hash 分步写回。</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">普通仓库操作按权限开放，高价值取出和自动入仓仍保持关闭。</p>
-              <p class="border border-accent/10 bg-black/10 p-2 text-muted">分居返还可生成预览，不在前端执行资产返还。</p>
+              <p class="border border-accent/10 bg-black/10 p-2 text-muted">分居返还由服务端分步执行，前端只提交确认过的返还意图。</p>
             </div>
           </div>
         </div>
@@ -1685,6 +1695,7 @@
   const separationPreviewConfirmationLabel = computed(() => {
     const confirmed = separationPreviewConfirmedBy.value
     const pending = separationPreviewPendingMembers.value
+    if (separationExecutionRequest.value?.status === 'shared_fund_refunded') return '共同基金已返还个人铜币，等待共同仓库 / 装饰 / 剧情拆分。'
     if (separationExecutionRequest.value?.status === 'personal_save_written') return '来源田区已写回个人农田，等待共同基金 / 仓库返还。'
     if (separationExecutionRequest.value?.status === 'asset_return_recorded') return '已记录返还执行，等待个人存档写回。'
     if (separationExecutionRequest.value?.status === 'pending_manual_execution') return '已请求执行，等待后续返还执行接口。'
@@ -1718,6 +1729,16 @@
     if (preview.state !== 'confirmed') return false
     if (preview.confirmation_state?.all_members_confirmed !== true) return false
     if (separationExecutionRequest.value?.status !== 'asset_return_recorded') return false
+    if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
+    return true
+  })
+  const canRefundSeparationSharedFund = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
+    if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
+    if (preview.state !== 'confirmed') return false
+    if (preview.confirmation_state?.all_members_confirmed !== true) return false
+    if (separationExecutionRequest.value?.status !== 'personal_save_written') return false
     if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
     return true
   })
@@ -2290,6 +2311,25 @@
         : '已写回分居来源田区'
     } catch (error) {
       separationActionMessage.value = error instanceof Error ? error.message : '写回分居来源田区失败'
+    }
+  }
+
+  const refundSeparationSharedFund = async () => {
+    if (!latestSeparationPreview.value || !canRefundSeparationSharedFund.value) return
+    separationActionMessage.value = ''
+    separationActionOk.value = false
+    try {
+      const result = await cohabitationStore.refundSeparationSharedFund(latestSeparationPreview.value.id, {
+        execution_ledger_id: separationExecutionRequest.value?.execution_ledger_id,
+        plot_return_manifest_hash: separationPlotReturnManifestHash.value,
+        idempotency_key: `ui-separation-shared-fund-refund-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      separationActionOk.value = true
+      separationActionMessage.value = result?.idempotent || result?.already_refunded
+        ? '已读回已有共同基金返还记录'
+        : '已返还分居共同基金'
+    } catch (error) {
+      separationActionMessage.value = error instanceof Error ? error.message : '返还分居共同基金失败'
     }
   }
 
