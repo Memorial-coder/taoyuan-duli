@@ -1656,6 +1656,10 @@ function normalizeFamilyBuildingLedgerEntry(entry = {}) {
     real_build_demolition_requested_at: Math.max(0, Math.floor(Number(entry.real_build_demolition_requested_at) || 0)),
     real_build_demolition_requested_by_username: normalizeUsername(entry.real_build_demolition_requested_by_username),
     real_build_demolition_requested_by_display_name: sanitizeText(entry.real_build_demolition_requested_by_display_name || entry.real_build_demolition_requested_by_username, 60),
+    real_build_demolition_review_idempotency_key: sanitizeText(entry.real_build_demolition_review_idempotency_key, 120),
+    real_build_demolition_reviewed_at: Math.max(0, Math.floor(Number(entry.real_build_demolition_reviewed_at) || 0)),
+    real_build_demolition_reviewed_by_username: normalizeUsername(entry.real_build_demolition_reviewed_by_username),
+    real_build_demolition_reviewed_by_display_name: sanitizeText(entry.real_build_demolition_reviewed_by_display_name || entry.real_build_demolition_reviewed_by_username, 60),
     real_build_demolition_review_state: ['not_requested', 'pending_manual_review', 'approved_for_execute', 'rejected', 'executed'].includes(entry.real_build_demolition_review_state)
       ? entry.real_build_demolition_review_state
       : (entry.real_build_demolition_request_idempotency_key ? 'pending_manual_review' : 'not_requested'),
@@ -4422,6 +4426,19 @@ function normalizeFamilyBuildingCompensationReplayPayload(payload = {}) {
 function normalizeFamilyBuildingRealDemolitionRequestPayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('家族建筑真实拆除复核请求需要 idempotency_key，以防断线或重试时重复记录');
+  return {
+    idempotency_key: idempotencyKey,
+    building_ledger_id: sanitizeText(payload.building_ledger_id || payload.ledger_id || payload.id, 100),
+    draft_id: sanitizeText(payload.draft_id, 100),
+    fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
+    target_ref: sanitizeText(payload.target_ref || payload.target, 120),
+    reason: sanitizeText(payload.reason || payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeFamilyBuildingRealDemolitionRejectPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('家族建筑真实拆除复核驳回需要 idempotency_key，以防断线或重试时重复记录');
   return {
     idempotency_key: idempotencyKey,
     building_ledger_id: sanitizeText(payload.building_ledger_id || payload.ledger_id || payload.id, 100),
@@ -8502,6 +8519,151 @@ async function requestCohabitationFamilyBuildingRealDemolitionReview(contractId,
   };
 }
 
+async function rejectCohabitationFamilyBuildingRealDemolitionReview(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeFamilyBuildingRealDemolitionRejectPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '驳回家族建筑真实拆除复核');
+  if (!isFamilyRoleContractType(contract.type)) throw createError('家族建筑真实拆除复核驳回只支持结拜庄园和合伙庄园', 403);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const canRejectDemolition = actorPermissions.construction.demolish_building === true
+    || actorPermissions.fund.spend_large === true
+    || ['family_head', 'workshop_keeper'].includes(actorManorRole);
+  if (!canRejectDemolition) throw createError('你没有驳回家族建筑真实拆除复核的权限', 403);
+  if (actorPermissions.confirmations.demolish_requires_both !== true) {
+    throw createError('家族建筑真实拆除复核驳回必须保留拆除双方确认安全阀', 409);
+  }
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
+    : [];
+  const familyLedger = normalizeFamilyBuildingLedger(contract);
+  const previousReviewEntry = familyLedger.find(entry => entry.real_build_demolition_review_idempotency_key === request.idempotency_key);
+  if (previousReviewEntry) {
+    const requestedEntry = findFamilyBuildingLedgerForRealBuildApply(contract, request);
+    if (requestedEntry && requestedEntry.id !== previousReviewEntry.id) {
+      throw createError('该真实拆除复核处理幂等键已用于其他建筑流水，请更换 idempotency_key', 409);
+    }
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      building_ledger_entry: previousReviewEntry,
+      idempotent: true,
+      already_rejected: previousReviewEntry.real_build_demolition_review_state === 'rejected',
+      demolition_review: {
+        requested: Boolean(previousReviewEntry.real_build_demolition_request_idempotency_key),
+        review_state: previousReviewEntry.real_build_demolition_review_state,
+        execution_enabled: false,
+        requires_manual_review: previousReviewEntry.real_build_demolition_review_state === 'pending_manual_review',
+        rejected: previousReviewEntry.real_build_demolition_review_state === 'rejected',
+        real_build_demolished: previousReviewEntry.real_build_demolished === true,
+        personal_save_changed: false,
+        shared_fund_changed: false,
+        shared_warehouse_changed: false,
+      },
+    };
+  }
+
+  const targetEntry = findFamilyBuildingLedgerForRealBuildApply(contract, request);
+  if (!targetEntry) throw createError('找不到可驳回真实拆除复核的家族建筑流水', 404);
+  if (targetEntry.real_build_demolition_review_state === 'rejected') {
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      building_ledger_entry: targetEntry,
+      idempotent: true,
+      already_rejected: true,
+      demolition_review: {
+        requested: Boolean(targetEntry.real_build_demolition_request_idempotency_key),
+        review_state: 'rejected',
+        execution_enabled: false,
+        requires_manual_review: false,
+        rejected: true,
+        real_build_demolished: false,
+        personal_save_changed: false,
+        shared_fund_changed: false,
+        shared_warehouse_changed: false,
+      },
+    };
+  }
+  if (targetEntry.real_build_demolition_review_state !== 'pending_manual_review') {
+    throw createError('只有待人工复核的真实拆除请求可以驳回', 409);
+  }
+  if (targetEntry.real_build_demolished === true || targetEntry.real_build_demolition_review_state === 'executed') {
+    throw createError('真实建筑拆除已执行，不能驳回复核请求', 409);
+  }
+
+  const operatedAt = nowSeconds();
+  const roleDef = getFamilyManorRoleDef(actorManorRole);
+  const nextDeferredOperations = (Array.isArray(targetEntry.deferred_operations) ? targetEntry.deferred_operations : [])
+    .filter(op => op && !['real_build_demolition_manual_review', 'real_build_demolition_execute'].includes(op));
+  const nextEntry = normalizeFamilyBuildingLedgerEntry({
+    ...targetEntry,
+    real_build_demolition_review_idempotency_key: request.idempotency_key,
+    real_build_demolition_reviewed_at: operatedAt,
+    real_build_demolition_reviewed_by_username: member.username,
+    real_build_demolition_reviewed_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    real_build_demolition_review_state: 'rejected',
+    real_build_demolition_review_note: request.reason || '真实建筑拆除复核已驳回；不会执行真实拆除。',
+    real_build_demolished: false,
+    real_build_demolition_policy: '真实建筑拆除复核已驳回；本步骤不删除个人房屋、真实建筑、共同基金或共同仓库数据。',
+    actor_manor_role: actorManorRole,
+    actor_manor_role_label: roleDef?.label || targetEntry.actor_manor_role_label,
+    deferred_operations: nextDeferredOperations,
+  });
+  contract.family_building_ledger = familyLedger.map(entry =>
+    entry.id === targetEntry.id ? nextEntry : entry
+  ).slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
+  appendAudit(contract, 'family_building_real_demolition_rejected', actor, {
+    building_ledger_id: nextEntry.id,
+    draft_id: nextEntry.draft_id,
+    fund_ledger_id: nextEntry.fund_ledger_id,
+    target_ref: nextEntry.target_ref,
+    building_id: nextEntry.building_id,
+    project_id: nextEntry.project_id,
+    review_state: nextEntry.real_build_demolition_review_state,
+    execution_enabled: false,
+    requires_manual_review: false,
+    rejected: true,
+    real_build_demolished: false,
+    personal_save_changed: false,
+    shared_fund_changed: false,
+    shared_warehouse_changed: false,
+  }, request.idempotency_key);
+  contract.updated_at = operatedAt;
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    building_ledger_entry: nextEntry,
+    idempotent: false,
+    already_rejected: false,
+    demolition_review: {
+      requested: true,
+      review_state: 'rejected',
+      execution_enabled: false,
+      requires_manual_review: false,
+      rejected: true,
+      real_build_demolished: false,
+      personal_save_changed: false,
+      shared_fund_changed: false,
+      shared_warehouse_changed: false,
+    },
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -10513,6 +10675,7 @@ module.exports = {
   restoreCohabitationFamilyBuildingMaterials,
   replayCohabitationFamilyBuildingCompensation,
   requestCohabitationFamilyBuildingRealDemolitionReview,
+  rejectCohabitationFamilyBuildingRealDemolitionReview,
   updateCohabitationPermissions,
   updateCohabitationFamilyRole,
   createCohabitationContract,

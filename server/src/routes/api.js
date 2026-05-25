@@ -276,6 +276,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_family_building_real_demolition_request_review',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/family-buildings\/real-demolition\/reject$/i,
+    action: 'cohabitation_family_building_real_demolition_reject',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/permissions$/i,
     action: 'cohabitation_permissions_update',
   },
@@ -3222,6 +3226,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '请求家族建筑真实拆除复核失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-demolition/reject', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.rejectCohabitationFamilyBuildingRealDemolitionReview(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '驳回家族建筑真实拆除复核失败' });
     }
   });
 });

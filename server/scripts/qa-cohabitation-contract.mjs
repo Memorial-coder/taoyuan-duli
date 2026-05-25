@@ -3132,4 +3132,57 @@ assert.equal(alreadyFamilyBuildingRealDemolitionRequest.idempotent, true, 'pendi
 assert.equal(alreadyFamilyBuildingRealDemolitionRequest.already_requested, true, 'pending real demolition review response should be explicit')
 assert.equal(alreadyFamilyBuildingRealDemolitionRequest.building_ledger_entry.real_build_demolition_review_state, 'pending_manual_review', 'pending real demolition review should stay pending')
 
+await assert.rejects(
+  () => runtime.rejectCohabitationFamilyBuildingRealDemolitionReview(largeContract.contract.id, {
+    building_ledger_id: largeExecute.building_ledger_entry.id,
+    idempotency_key: 'qa-family-building-real-demolition-reject-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not reject real demolition review'
+)
+
+const familyBuildingRealDemolitionReject = await runtime.rejectCohabitationFamilyBuildingRealDemolitionReview(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  reason: 'qa reject real demolition review without asset mutation',
+  idempotency_key: 'qa-family-building-real-demolition-reject',
+}, actor(largeOwner))
+assert.equal(familyBuildingRealDemolitionReject.idempotent, false, 'first real demolition review reject should not be idempotent')
+assert.equal(familyBuildingRealDemolitionReject.already_rejected, false, 'first real demolition review reject should not be already rejected')
+assert.equal(familyBuildingRealDemolitionReject.building_ledger_entry.id, largeExecute.building_ledger_entry.id, 'real demolition review reject should update original ledger')
+assert.equal(familyBuildingRealDemolitionReject.building_ledger_entry.status, 'compensated', 'real demolition review reject should keep compensated ledger status')
+assert.equal(familyBuildingRealDemolitionReject.building_ledger_entry.real_build_demolition_review_idempotency_key, 'qa-family-building-real-demolition-reject', 'real demolition review reject should store review idempotency key')
+assert.equal(familyBuildingRealDemolitionReject.building_ledger_entry.real_build_demolition_review_state, 'rejected', 'real demolition review reject should mark rejected')
+assert.equal(familyBuildingRealDemolitionReject.building_ledger_entry.real_build_demolished, false, 'real demolition review reject should not demolish real building')
+assert.ok(!familyBuildingRealDemolitionReject.building_ledger_entry.deferred_operations.includes('real_build_demolition_manual_review'), 'real demolition review reject should clear manual review deferred op')
+assert.ok(!familyBuildingRealDemolitionReject.building_ledger_entry.deferred_operations.includes('real_build_demolition_execute'), 'real demolition review reject should clear execution deferred op')
+assert.equal(familyBuildingRealDemolitionReject.demolition_review.rejected, true, 'real demolition review reject response should report rejected')
+assert.equal(familyBuildingRealDemolitionReject.demolition_review.execution_enabled, false, 'real demolition review reject should not enable execution')
+assert.equal(familyBuildingRealDemolitionReject.demolition_review.requires_manual_review, false, 'real demolition review reject should close manual review')
+assert.equal(familyBuildingRealDemolitionReject.demolition_review.personal_save_changed, false, 'real demolition review reject should not change personal saves')
+assert.equal(familyBuildingRealDemolitionReject.demolition_review.shared_fund_changed, false, 'real demolition review reject should not change shared fund')
+assert.equal(familyBuildingRealDemolitionReject.demolition_review.shared_warehouse_changed, false, 'real demolition review reject should not change shared warehouse')
+assert.ok(familyBuildingRealDemolitionReject.contract.audit_log.find(entry => entry.action === 'family_building_real_demolition_rejected'), 'real demolition review reject should be audited')
+assert.equal(familyBuildingRealDemolitionReject.fund.balance, balanceBeforeLargeDraft, 'real demolition review reject should not change shared fund balance')
+assert.equal(familyBuildingRealDemolitionReject.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'real demolition review reject should not change restored wood')
+assert.equal(familyBuildingRealDemolitionReject.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'real demolition review reject should not change restored rice')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'real demolition review reject should not touch owner personal money')
+assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'real demolition review reject should not touch partner personal money')
+assert.equal(getInventoryItemQuantity(largeOwner, 'wood'), largeOwnerWoodBeforeMaterialDeposit - 28, 'real demolition review reject should not write owner wood back to personal inventory')
+assert.equal(getInventoryItemQuantity(largeOwner, 'rice'), largeOwnerRiceBeforeMaterialDeposit - 12, 'real demolition review reject should not write owner rice back to personal inventory')
+
+const duplicateFamilyBuildingRealDemolitionReject = await runtime.rejectCohabitationFamilyBuildingRealDemolitionReview(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-real-demolition-reject',
+}, actor(largeOwner))
+assert.equal(duplicateFamilyBuildingRealDemolitionReject.idempotent, true, 'same real demolition review reject idempotency key should be idempotent')
+assert.equal(duplicateFamilyBuildingRealDemolitionReject.already_rejected, true, 'duplicate real demolition review reject should report already rejected')
+
+const alreadyFamilyBuildingRealDemolitionReject = await runtime.rejectCohabitationFamilyBuildingRealDemolitionReview(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-real-demolition-reject-again',
+}, actor(largeOwner))
+assert.equal(alreadyFamilyBuildingRealDemolitionReject.idempotent, true, 'already rejected real demolition review should return idempotent response')
+assert.equal(alreadyFamilyBuildingRealDemolitionReject.already_rejected, true, 'already rejected real demolition review response should be explicit')
+assert.equal(alreadyFamilyBuildingRealDemolitionReject.building_ledger_entry.real_build_demolition_review_state, 'rejected', 'rejected real demolition review should stay rejected')
+
 console.log('[qa-cohabitation-contract] OK')
