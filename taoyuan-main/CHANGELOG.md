@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 家族建筑补偿重放前端入口
+- 前端 API / store 接入 `/family-buildings/compensation/replay`，共同庄园建筑页在建筑流水卡片新增“收口补偿”按钮。
+- 按钮按 `reverted`、共同基金已退款、未消耗材料或已恢复建材、尚未收口和契约开启状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。
+- 建筑流水卡片展示补偿收口操作者、收口时间与真实建筑拆除状态，共同日志新增“建筑补偿收口”读回；本轮仍不真实拆除建筑、不改共同基金 / 共同仓库数量、不写个人铜币或背包。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 家族建筑补偿重放收口后端闭环
 - 服务端新增 `/family-buildings/compensation/replay`，要求目标家族建筑流水已 `reverted`、共同基金退款已完成，且曾消耗共同仓库材料的流水必须先完成材料恢复。
 - 成功后只把同一条 `family_building_ledger` 标记为 `compensated`，记录补偿重放幂等键、操作者、时间和审计，清除补偿重放待办并保留真实建筑拆除人工复核。

@@ -644,6 +644,12 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   materials_restored_at: number
   materials_restored_by_username: string
   materials_restored_by_display_name: string
+  compensation_replay_idempotency_key: string
+  compensation_replayed_at: number
+  compensation_replayed_by_username: string
+  compensation_replayed_by_display_name: string
+  real_build_demolished: boolean
+  real_build_demolition_policy: string
   compensation_required: boolean
   compensation_hint: string
   deferred_operations: string[]
@@ -1360,6 +1366,7 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
   already_reverted?: boolean
   already_refunded?: boolean
   already_restored?: boolean
+  already_compensated?: boolean
   rollback?: {
     shared_fund_refunded?: boolean
     shared_warehouse_restored?: boolean
@@ -1378,6 +1385,13 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
     balance_before?: number
     balance_after?: number
     personal_money_merged?: boolean
+  }
+  compensation_replay?: {
+    shared_fund_refunded?: boolean
+    shared_warehouse_restored?: boolean
+    real_build_demolished?: boolean
+    personal_money_merged?: boolean
+    personal_inventory_merged?: boolean
   }
 }
 
@@ -1754,6 +1768,14 @@ export const restoreCohabitationFamilyBuildingMaterials = async (contractId: str
     contractPath(contractId, '/family-buildings/materials/restore'),
     payload as unknown as Record<string, unknown>,
     '恢复家族建筑共同仓库材料失败'
+  )
+}
+
+export const replayCohabitationFamilyBuildingCompensation = async (contractId: string, payload: CohabitationFamilyBuildingLedgerPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/compensation/replay'),
+    payload as unknown as Record<string, unknown>,
+    '收口家族建筑补偿重放失败'
   )
 }
 

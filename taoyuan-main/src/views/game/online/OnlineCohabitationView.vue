@@ -1187,8 +1187,11 @@
                   <p v-if="entry.shared_warehouse_materials_restored || entry.material_restore_ledger_ids?.length">
                     建材恢复：{{ entry.materials_restored_by_display_name || entry.materials_restored_by_username || '已记录' }} · {{ formatTime(entry.materials_restored_at) }} · {{ entry.material_restore_ledger_ids?.length || 0 }} 条 ledger
                   </p>
+                  <p v-if="entry.compensation_replayed_at || entry.status === 'compensated'">
+                    补偿收口：{{ entry.compensation_replayed_by_display_name || entry.compensation_replayed_by_username || '已记录' }} · {{ formatTime(entry.compensation_replayed_at) }} · {{ entry.real_build_demolished ? '已拆除真实建筑' : '未拆真实建筑' }}
+                  </p>
                 </div>
-                <div class="mt-2 grid gap-2 md:grid-cols-5">
+                <div class="mt-2 grid gap-2 md:grid-cols-6">
                   <button
                     class="online-action-btn online-action-btn--compact justify-center"
                     type="button"
@@ -1238,6 +1241,16 @@
                   >
                     <Package :size="12" />
                     恢复建材
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canReplayFamilyBuildingCompensation(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-compensation-replay-${entry.id}`"
+                    @click="replayFamilyBuildingCompensation(entry)"
+                  >
+                    <CheckCircle2 :size="12" />
+                    收口补偿
                   </button>
                 </div>
               </div>
@@ -1731,7 +1744,7 @@
     { key: 'permissions', label: '权限', summary: '查看成员权限分组和强制安全阀，不在这里扩大高风险操作。' },
     { key: 'orders', label: '订单', summary: '只读查看家族订单预备路线、成员阶段权限和共同资产结算边界。' },
     { key: 'reputation', label: '声望', summary: '只读查看家族声望预览分、来源证据和未来奖励治理边界。' },
-    { key: 'buildings', label: '建筑', summary: '查看家族建筑蓝图、建筑流水，并按服务端规则提交真实落账与材料消耗。' },
+    { key: 'buildings', label: '建筑', summary: '查看家族建筑蓝图、建筑流水，并按服务端规则提交真实落账、材料消耗和回滚补偿收口。' },
     { key: 'relations', label: '关系', summary: '只读查看契约成员、家族职位、共同能力节点和隐私边界。' },
     { key: 'visibility', label: '公开', summary: '只读查看关系图公开范围、可见数据类别、成员同意和隐私护栏。' },
     { key: 'festivalSeats', label: '节会', summary: '只读查看家族节会席位、候选模板、场景预排和结算护栏。' },
@@ -2754,6 +2767,21 @@
     entry.material_ledger_ids.length > 0 &&
     entry.shared_warehouse_materials_restored !== true &&
     (!Array.isArray(entry.material_restore_ledger_ids) || entry.material_restore_ledger_ids.length === 0)
+  const canReplayFamilyBuildingCompensation = (entry: CohabitationFamilyBuildingLedgerEntry) =>
+    cohabitationStore.canOpenSelectedContract &&
+    entry.status === 'reverted' &&
+    entry.shared_fund_refunded === true &&
+    Boolean(entry.fund_refund_ledger_id) &&
+    (
+      entry.shared_warehouse_materials_consumed !== true ||
+      (
+        entry.shared_warehouse_materials_restored === true &&
+        Array.isArray(entry.material_restore_ledger_ids) &&
+        entry.material_restore_ledger_ids.length > 0
+      )
+    ) &&
+    entry.compensation_required !== false &&
+    !entry.compensation_replay_idempotency_key
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -3072,6 +3100,24 @@
         : `已恢复共同仓库建材 ${restoredQuantity} 份，未写个人背包或个人铜币`
     } catch (error) {
       familyBuildingActionMessage.value = error instanceof Error ? error.message : '恢复家族建筑共同仓库材料失败'
+    }
+  }
+
+  const replayFamilyBuildingCompensation = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    try {
+      const result = await cohabitationStore.replayFamilyBuildingCompensation({
+        building_ledger_id: entry.id,
+        memo: `前端收口家族建筑补偿重放：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-compensation-replay-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_compensated
+        ? '该建筑流水已经完成补偿收口，已刷新状态'
+        : '已收口家族建筑回滚补偿，真实建筑拆除仍需人工复核'
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '收口家族建筑补偿重放失败'
     }
   }
 
@@ -3527,6 +3573,9 @@
       return restoredQuantity > 0
         ? `已恢复共同仓库建材 ${restoredQuantity} 件，涉及 ${materialCount} 类材料，不写个人背包`
         : '已记录建筑材料恢复，不写个人背包或个人铜币'
+    }
+    if (entry.action === 'family_building_compensation_replayed') {
+      return '已收口家族建筑回滚补偿，真实建筑拆除仍需独立人工复核'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0

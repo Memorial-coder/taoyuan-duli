@@ -28,6 +28,7 @@ import {
   fetchCohabitationWarehouse,
   refundCohabitationFamilyBuildingFund,
   refundCohabitationSeparationSharedFund,
+  replayCohabitationFamilyBuildingCompensation,
   requestCohabitationSeparationExecution,
   resolveCohabitationSeparationChildArrangement,
   resolveCohabitationSeparationFamilyStory,
@@ -802,6 +803,35 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const replayFamilyBuildingCompensation = async (payload: {
+    building_ledger_id: string
+    memo?: string
+    idempotency_key: string
+  }) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.building_ledger_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await replayCohabitationFamilyBuildingCompensation(activeContractId.value, payload)
+      if (result?.family_buildings_panel) familyBuildingsPanel.value = result.family_buildings_panel
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '收口家族建筑补偿重放失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const depositSharedWarehouseItem = async (payload: {
     item_id: string
     quantity: number
@@ -997,6 +1027,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     rollbackFamilyBuilding,
     refundFamilyBuildingFund,
     restoreFamilyBuildingMaterials,
+    replayFamilyBuildingCompensation,
     depositSharedWarehouseItem,
     sellSharedWarehouseItem,
     withdrawSharedWarehouseItem,
