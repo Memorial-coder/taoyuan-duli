@@ -4190,6 +4190,17 @@ function normalizeSeparationPersonalSaveWritePayload(payload = {}) {
   };
 }
 
+function normalizeSeparationSharedFundRefundPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('分居共同基金返还需要 idempotency_key，以防断线或重试时重复返还');
+  return {
+    idempotency_key: idempotencyKey,
+    execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
+    plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
 function normalizeLargeFundSpendExecutePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同基金大额草案执行扣款需要 idempotency_key，以防断线或重试时重复扣基金');
@@ -4634,6 +4645,7 @@ function groupPlotManifestByReturnTarget(manifest = []) {
 
 function writePersonalFarmPlotsFromManifest(group = {}, payload = {}) {
   const context = getActiveSaveContext(group.username, group.member?.save_slot ?? null, '分居返还目标账号没有可写入的桃源乡存档');
+  context.username = group.username;
   const identitySaveId = normalizeSaveId(context.identity?.save_id || context.identity?.saveId);
   if (group.return_target_save_id && identitySaveId && group.return_target_save_id !== identitySaveId) {
     throw createError(`分居返还目标存档不匹配：${group.username}`, 409);
@@ -4663,6 +4675,62 @@ function writePersonalFarmPlotsFromManifest(group = {}, payload = {}) {
   };
 }
 
+function writePersonalMoneyRefundsFromLedger(refunds = [], contract = {}, payload = {}, fundLedgerEntries = []) {
+  const prepared = [];
+  for (const refund of Array.isArray(refunds) ? refunds : []) {
+    const username = normalizeUsername(refund.origin_owner_username);
+    const amount = Math.max(0, Math.floor(Number(refund.suggested_refund_amount) || 0));
+    if (!username || amount <= 0) continue;
+    const usernameKey = normalizeUsernameKey(username);
+    const member = (contract.members || []).find(entry =>
+      entry.username_key === usernameKey || normalizeUsernameKey(entry.username) === usernameKey
+    ) || null;
+    const context = getActiveSaveContext(username, member?.save_slot ?? null, '分居共同基金返还目标账号没有可写入的桃源乡存档');
+    context.username = username;
+    const identitySaveId = normalizeSaveId(context.identity?.save_id || context.identity?.saveId);
+    const projectedData = JSON.parse(JSON.stringify(context.data || {}));
+    if (!projectedData.player || typeof projectedData.player !== 'object') projectedData.player = {};
+    const beforeMoney = getPlayerMoney(projectedData);
+    projectedData.player.money = beforeMoney + amount;
+    const afterMoney = getPlayerMoney(projectedData);
+    if (afterMoney !== beforeMoney + amount) throw createError(`分居共同基金返还个人铜币校验失败：${username}`, 500);
+    const fundLedgerEntry = fundLedgerEntries.find(entry =>
+      normalizeUsernameKey(entry.source_owner_username) === usernameKey || normalizeUsernameKey(entry.target_owner_username) === usernameKey
+    ) || null;
+    prepared.push({
+      username,
+      username_key: usernameKey,
+      context,
+      projectedData,
+      save_id: identitySaveId,
+      save_slot: normalizeSaveSlot(context.slot),
+      before_revision: Number(context.saves.slots[context.slot]?.revision) || 0,
+      refund_amount: amount,
+      before_money: beforeMoney,
+      after_money: afterMoney,
+      fund_ledger_id: fundLedgerEntry?.id || '',
+    });
+  }
+  return prepared.map(entry => {
+    assignGameplayDataToContext(entry.context, entry.projectedData);
+    const afterRevision = persistGameplayData(entry.context);
+    return {
+      username: entry.username,
+      username_key: entry.username_key,
+      save_slot: entry.save_slot,
+      save_id: entry.save_id,
+      before_revision: entry.before_revision,
+      after_revision: afterRevision,
+      refund_amount: entry.refund_amount,
+      before_money: entry.before_money,
+      after_money: entry.after_money,
+      fund_ledger_id: entry.fund_ledger_id,
+      idempotency_key: payload.idempotency_key,
+      written_at: nowSeconds(),
+    };
+  });
+}
+
 function normalizeSeparationExecutionLedgerEntry(entry = {}) {
   return {
     id: sanitizeText(entry.id, 100) || makeId('separation_asset_return'),
@@ -4673,7 +4741,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
     executed_at: Math.max(0, Math.floor(Number(entry.executed_at) || 0)),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     memo: sanitizeText(entry.memo, 160),
-    status: ['asset_return_recorded', 'personal_save_written', 'compensated', 'reverted'].includes(entry.status)
+    status: ['asset_return_recorded', 'personal_save_written', 'shared_fund_refunded', 'compensated', 'reverted'].includes(entry.status)
       ? entry.status
       : 'asset_return_recorded',
     plot_return_manifest_hash: sanitizeText(entry.plot_return_manifest_hash, 100),
@@ -4725,6 +4793,29 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           idempotency_key: sanitizeText(item.idempotency_key, 120),
           written_at: Math.max(0, Math.floor(Number(item.written_at) || 0)),
         })).filter(item => item.username && item.restored_plot_count > 0).slice(0, 20)
+      : [],
+    shared_fund_refunded: entry.shared_fund_refunded === true,
+    shared_fund_refund_idempotency_key: sanitizeText(entry.shared_fund_refund_idempotency_key, 120),
+    shared_fund_refunded_at: Math.max(0, Math.floor(Number(entry.shared_fund_refunded_at) || 0)),
+    shared_fund_refunded_by: normalizeUsername(entry.shared_fund_refunded_by),
+    shared_fund_refund_total: Math.max(0, Math.floor(Number(entry.shared_fund_refund_total) || 0)),
+    shared_fund_balance_before: Math.max(0, Math.floor(Number(entry.shared_fund_balance_before) || 0)),
+    shared_fund_balance_after: Math.max(0, Math.floor(Number(entry.shared_fund_balance_after) || 0)),
+    shared_fund_refund_receipts: Array.isArray(entry.shared_fund_refund_receipts)
+      ? entry.shared_fund_refund_receipts.map(item => ({
+          username: normalizeUsername(item.username),
+          username_key: normalizeUsernameKey(item.username_key || item.username),
+          save_slot: normalizeSaveSlot(item.save_slot),
+          save_id: normalizeSaveId(item.save_id),
+          before_revision: Math.max(0, Math.floor(Number(item.before_revision) || 0)),
+          after_revision: Math.max(0, Math.floor(Number(item.after_revision) || 0)),
+          refund_amount: Math.max(0, Math.floor(Number(item.refund_amount) || 0)),
+          before_money: Math.max(0, Math.floor(Number(item.before_money) || 0)),
+          after_money: Math.max(0, Math.floor(Number(item.after_money) || 0)),
+          fund_ledger_id: sanitizeText(item.fund_ledger_id, 100),
+          idempotency_key: sanitizeText(item.idempotency_key, 120),
+          written_at: Math.max(0, Math.floor(Number(item.written_at) || 0)),
+        })).filter(item => item.username && item.refund_amount > 0).slice(0, 20)
       : [],
     shared_assets_mutated: entry.shared_assets_mutated === true,
     next_required_operations: Array.isArray(entry.next_required_operations)
@@ -7692,6 +7783,199 @@ async function writeSeparationPersonalFarmReturns(contractId, previewId, payload
   };
 }
 
+async function refundSeparationSharedFund(contractId, previewId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const refundPayload = normalizeSeparationSharedFundRefundPayload(payload);
+  const normalizedContractId = sanitizeText(contractId, 80);
+  const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
+  if (!normalizedPreviewId) throw createError('请指定要返还共同基金的分居预览');
+
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === normalizedContractId);
+  if (!contract) throw createError('同居契约不存在', 404);
+  if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
+  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效或分居处理中的契约可以返还共同基金', 409);
+
+  const member = (contract.members || []).find(entry =>
+    entry.status === 'accepted' && (
+      normalizeUsernameKey(entry.username) === normalizeUsernameKey(actorUsername)
+      || normalizeUsernameKey(entry.username_key) === normalizeUsernameKey(actorUsername)
+    )
+  );
+  if (!member) throw createError('只有已接受契约成员可以返还共同基金', 403);
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.separation_previews = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.map(normalizeSeparationPreview)
+    : [];
+  contract.separation_execution_ledger = Array.isArray(contract.separation_execution_ledger)
+    ? contract.separation_execution_ledger.map(normalizeSeparationExecutionLedgerEntry)
+    : [];
+  const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
+  if (previewIndex < 0) throw createError('分居预览不存在', 404);
+
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const executionRequest = preview.confirmation_state.execution_request || {};
+  if (!['personal_save_written', 'shared_fund_refunded'].includes(String(executionRequest.status || ''))) {
+    throw createError('请先写回来源田区个人农田，再返还共同基金', 409);
+  }
+  const ledgerIndex = contract.separation_execution_ledger.findIndex(entry =>
+    entry.id === (refundPayload.execution_ledger_id || executionRequest.execution_ledger_id)
+    || (entry.preview_id === normalizedPreviewId && ['personal_save_written', 'shared_fund_refunded'].includes(entry.status))
+  );
+  if (ledgerIndex < 0) throw createError('分居返还执行记录不存在，请重新记录返还执行', 409);
+  const ledger = normalizeSeparationExecutionLedgerEntry(contract.separation_execution_ledger[ledgerIndex]);
+  if (refundPayload.execution_ledger_id && refundPayload.execution_ledger_id !== ledger.id) throw createError('分居返还执行记录不匹配，请刷新后重试', 409);
+  if (ledger.shared_fund_refund_idempotency_key === refundPayload.idempotency_key || ledger.shared_fund_refunded === true) {
+    return {
+      contract: toPublicContract(contract),
+      preview,
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      idempotent: true,
+      already_refunded: ledger.shared_fund_refunded === true,
+      execution_ledger: ledger,
+      receipts: ledger.shared_fund_refund_receipts || [],
+      fund_ledger_entries: (contract.shared_fund.ledger || []).filter(entry =>
+        (ledger.shared_fund_refund_receipts || []).some(receipt => receipt.fund_ledger_id === entry.id)
+      ),
+    };
+  }
+
+  const manifest = Array.isArray(preview.asset_return?.plot_return_manifest) ? preview.asset_return.plot_return_manifest : [];
+  const expectedManifestHash = sanitizeText(preview.asset_return?.plot_return_manifest_hash, 100) || hashPlotReturnManifest(manifest);
+  if (!expectedManifestHash || !/^[a-f0-9]{64}$/i.test(expectedManifestHash)) throw createError('分居来源田区清单缺少可校验 hash，请重新生成预览', 409);
+  if (refundPayload.plot_return_manifest_hash && refundPayload.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('分居来源田区清单 hash 不匹配，请重新生成预览，避免返还错账', 409);
+  }
+  if (ledger.plot_return_manifest_hash && ledger.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('分居返还执行记录与当前预览 hash 不一致，请人工复核', 409);
+  }
+  if (ledger.personal_save_written !== true) throw createError('来源田区个人农田尚未写回，不能返还共同基金', 409);
+
+  const refundRows = (ledger.fund_refunds_by_origin_owner || []).filter(entry => entry.suggested_refund_amount > 0);
+  const totalRefundAmount = refundRows.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
+  const balanceBefore = contract.shared_fund.balance;
+  if (totalRefundAmount > balanceBefore) throw createError('共同基金余额不足以按预览返还，请重新生成分居预览或人工补偿', 409);
+  let rollingBalance = balanceBefore;
+  const refundedAt = nowSeconds();
+  const fundLedgerEntries = refundRows.map(entry => {
+    rollingBalance -= entry.suggested_refund_amount;
+    return normalizeFundLedgerEntry({
+      id: makeId('shared_fund_ledger'),
+      action: 'separation_refund',
+      actor_username: actorUsername,
+      actor_display_name: actor.displayName || actor.display_name || actorUsername,
+      amount: entry.suggested_refund_amount,
+      at: refundedAt,
+      memo: refundPayload.memo || '分居共同基金返还',
+      purpose: 'separation_refund',
+      source_owner_id: entry.origin_owner_id,
+      source_owner_username: entry.origin_owner_username,
+      source_owner_key: entry.origin_owner_key,
+      source_owner_display_name: entry.origin_owner_username,
+      target_ref: `separation:${normalizedPreviewId}:${ledger.id}`,
+      target_owner_username: entry.origin_owner_username,
+      target_owner_key: entry.origin_owner_key,
+      balance_after: rollingBalance,
+      confirmation_required: false,
+      idempotency_key: `${refundPayload.idempotency_key}:${entry.origin_owner_key || entry.origin_owner_username}`,
+      reversible: true,
+      compensation_hint: '分居共同基金已从共同基金扣除并写回个人铜币；失败时按本 ledger 与个人 receipt 补偿重放。',
+      status: 'committed',
+    });
+  });
+  const receipts = writePersonalMoneyRefundsFromLedger(refundRows, contract, refundPayload, fundLedgerEntries);
+  contract.shared_fund.balance = Math.max(0, balanceBefore - totalRefundAmount);
+  contract.shared_fund.ledger = [...fundLedgerEntries, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
+
+  const nextFundRefundRows = (ledger.fund_refunds_by_origin_owner || []).map(entry => ({
+    ...entry,
+    return_status: entry.suggested_refund_amount > 0 ? 'personal_money_written' : entry.return_status,
+    refund_idempotency_key: refundPayload.idempotency_key,
+  }));
+  const nextLedger = normalizeSeparationExecutionLedgerEntry({
+    ...ledger,
+    status: 'shared_fund_refunded',
+    fund_refunds_by_origin_owner: nextFundRefundRows,
+    shared_fund_refunded: true,
+    shared_fund_refund_idempotency_key: refundPayload.idempotency_key,
+    shared_fund_refunded_at: refundedAt,
+    shared_fund_refunded_by: member.username,
+    shared_fund_refund_total: totalRefundAmount,
+    shared_fund_balance_before: balanceBefore,
+    shared_fund_balance_after: contract.shared_fund.balance,
+    shared_fund_refund_receipts: receipts,
+    shared_assets_mutated: totalRefundAmount > 0,
+    next_required_operations: ['return_shared_warehouse_items', 'split_decorations', 'resolve_family_story'],
+  });
+  const nextExecutionRequest = {
+    ...executionRequest,
+    status: 'shared_fund_refunded',
+    shared_fund_refunded: true,
+    shared_fund_refunded_at: refundedAt,
+    shared_fund_refunded_by: member.username,
+    shared_fund_refund_total: totalRefundAmount,
+    shared_fund_refund_receipts: receipts,
+    next_required_operations: nextLedger.next_required_operations,
+  };
+  const nextPreview = normalizeSeparationPreview({
+    ...preview,
+    asset_return: {
+      ...preview.asset_return,
+      fund_contributions_by_origin_owner: nextFundRefundRows,
+      shared_fund_refunded: true,
+      shared_fund_refunded_at: refundedAt,
+      shared_fund_refund_total: totalRefundAmount,
+      shared_fund_refund_receipts: receipts,
+    },
+    confirmation_state: {
+      ...preview.confirmation_state,
+      execution_request: nextExecutionRequest,
+      shared_fund_refunded: true,
+      shared_fund_refunded_at: refundedAt,
+      can_execute_now: false,
+      execution_enabled: false,
+      execution_policy: '共同基金已按预览比例写回个人铜币；共同仓库、装饰 / 建筑和剧情拆分仍需后续独立接口。'
+    },
+    deferred_operations: ['return_shared_warehouse_items', 'split_decorations', 'resolve_family_story'],
+  });
+
+  contract.separation_execution_ledger[ledgerIndex] = nextLedger;
+  contract.separation_previews[previewIndex] = nextPreview;
+  appendAudit(contract, 'separation_shared_fund_refunded', actor, {
+    preview_id: nextPreview.id,
+    execution_ledger_id: nextLedger.id,
+    plot_return_manifest_hash: expectedManifestHash,
+    refund_total: totalRefundAmount,
+    receipt_count: receipts.length,
+    shared_fund_balance_before: balanceBefore,
+    shared_fund_balance_after: contract.shared_fund.balance,
+    personal_money_merged: false,
+    shared_warehouse_returned: false,
+    next_required_operations: nextLedger.next_required_operations,
+  }, refundPayload.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    preview: nextPreview,
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    idempotent: false,
+    already_refunded: false,
+    execution_ledger: nextLedger,
+    receipts,
+    fund_ledger_entries: fundLedgerEntries,
+    shared_fund: {
+      refund_total: totalRefundAmount,
+      balance_before: balanceBefore,
+      balance_after: contract.shared_fund.balance,
+      personal_money_merged: false,
+    },
+  };
+}
+
 module.exports = {
   RELATION_TYPE_DEFS,
   listCohabitationContracts,
@@ -7727,4 +8011,5 @@ module.exports = {
   requestSeparationExecution,
   executeSeparationAssetReturn,
   writeSeparationPersonalFarmReturns,
+  refundSeparationSharedFund,
 };

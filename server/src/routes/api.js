@@ -192,6 +192,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_separation_personal_farm_write',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/separation-previews\/([^/]+)\/refund-shared-fund$/i,
+    action: 'cohabitation_separation_shared_fund_refund',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/deposit$/i,
     action: 'cohabitation_warehouse_deposit',
   },
@@ -3216,6 +3220,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previ
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '写回分居来源田区失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/separation-previews/:previewId/refund-shared-fund', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.refundSeparationSharedFund(req.params.contractId, req.params.previewId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '返还分居共同基金失败' });
     }
   });
 });

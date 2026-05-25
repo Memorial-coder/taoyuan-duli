@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 分居共同基金返还执行
+- 服务端新增 `/separation-previews/:previewId/refund-shared-fund`，要求分居返还执行记录已写、来源田区个人农田已写回、执行 ledger ID 可匹配且预览 `plot_return_manifest_hash` 未变。
+- 成功后按预览来源贡献返还行扣减共同基金，写 `separation_refund` 基金 ledger，把个人铜币 receipt 写回各成员个人存档，并把执行状态推进到 `shared_fund_refunded`；重复请求不重复扣基金、不重复写个人存档。
+- 本轮验证：`node --check server\src\taoyuanCohabitationRuntime.js`、`node --check server\src\routes\api.js`、`node --check server\scripts\qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 分居来源田区写回前端入口
 - 共同庄园总览在分居预览卡片新增“写回田区”按钮，前端 API / store 接入 `/separation-previews/:previewId/write-personal-farm-returns`。
 - 按钮按 `asset_return_recorded`、执行 ledger ID、预览 `plot_return_manifest_hash` 和契约状态禁用；提交时只发送服务端校验所需 intent、ledger、hash 与 `idempotency_key`，成功后刷新契约和共同日志。

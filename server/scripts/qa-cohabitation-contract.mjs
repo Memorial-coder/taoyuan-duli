@@ -1972,14 +1972,64 @@ assert.equal(duplicatePersonalFarmWrite.execution_ledger.id, personalFarmWrite.e
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterPersonalFarmWrite, 'idempotent personal farm write should not rewrite owner save again')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterPersonalFarmWrite, 'idempotent personal farm write should not rewrite partner save again')
 
+await assert.rejects(
+  () => runtime.refundSeparationSharedFund(created.contract.id, previewResult.preview.id, {
+    memo: 'wrong shared fund refund hash',
+    plot_return_manifest_hash: 'a'.repeat(64),
+    execution_ledger_id: assetReturnRecord.execution_ledger.id,
+    idempotency_key: 'qa-separation-shared-fund-refund-wrong-hash',
+  }, actor(owner)),
+  /hash 不匹配/,
+  'shared fund refund should reject mismatched manifest hash'
+)
+
+const fundBeforeSeparationRefund = await runtime.getCohabitationFund(created.contract.id, actor(owner))
+const ownerMoneyBeforeSeparationFundRefund = readGameplayData(owner)?.player?.money
+const partnerMoneyBeforeSeparationFundRefund = readGameplayData(partner)?.player?.money
+const sharedFundRefund = await runtime.refundSeparationSharedFund(created.contract.id, previewResult.preview.id, {
+  memo: 'refund shared fund to personal money',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-shared-fund-refund',
+}, actor(owner))
+const refundTotal = sharedFundRefund.receipts.reduce((sum, receipt) => sum + receipt.refund_amount, 0)
+assert.equal(sharedFundRefund.idempotent, false, 'first shared fund refund should not be idempotent')
+assert.equal(sharedFundRefund.execution_ledger.status, 'shared_fund_refunded', 'shared fund refund should advance execution ledger status')
+assert.equal(sharedFundRefund.execution_ledger.shared_fund_refunded, true, 'shared fund refund should mark ledger refunded')
+assert.equal(sharedFundRefund.preview.confirmation_state.execution_request.status, 'shared_fund_refunded', 'execution request should advance to shared-fund-refunded')
+assert.equal(sharedFundRefund.shared_fund.refund_total, refundTotal, 'shared fund refund should report receipt total')
+assert.equal(sharedFundRefund.shared_fund.balance_before, fundBeforeSeparationRefund.fund.balance, 'shared fund refund should report previous balance')
+assert.equal(sharedFundRefund.fund.balance, fundBeforeSeparationRefund.fund.balance - refundTotal, 'shared fund refund should deduct shared balance once')
+assert.equal(sharedFundRefund.fund_ledger_entries.length, sharedFundRefund.receipts.length, 'shared fund refund should write one fund ledger per receipt')
+assert.ok(sharedFundRefund.receipts.length > 0, 'shared fund refund should produce personal money receipts when fund balance has contributions')
+assert.ok(sharedFundRefund.receipts.every(receipt => receipt.after_money === receipt.before_money + receipt.refund_amount), 'shared fund refund receipts should add personal money')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeSeparationFundRefund + (sharedFundRefund.receipts.find(receipt => receipt.username === owner)?.refund_amount || 0), 'owner should receive personal money refund once')
+assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeSeparationFundRefund + (sharedFundRefund.receipts.find(receipt => receipt.username === partner)?.refund_amount || 0), 'partner should receive personal money refund once')
+assert.ok(sharedFundRefund.contract.audit_log.find(entry => entry.action === 'separation_shared_fund_refunded' && entry.idempotency_key === 'qa-separation-shared-fund-refund'), 'shared fund refund should be audited')
+
+const ownerRawAfterSharedFundRefund = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawAfterSharedFundRefund = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const duplicateSharedFundRefund = await runtime.refundSeparationSharedFund(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate shared fund refund',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-shared-fund-refund',
+}, actor(owner))
+assert.equal(duplicateSharedFundRefund.idempotent, true, 'same shared fund refund idempotency key should return existing receipts')
+assert.equal(duplicateSharedFundRefund.execution_ledger.id, sharedFundRefund.execution_ledger.id, 'idempotent shared fund refund should keep ledger id')
+assert.equal(duplicateSharedFundRefund.fund.balance, sharedFundRefund.fund.balance, 'idempotent shared fund refund should not deduct balance twice')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterSharedFundRefund, 'idempotent shared fund refund should not rewrite owner save again')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterSharedFundRefund, 'idempotent shared fund refund should not rewrite partner save again')
+
 const partnerMoneyBeforeMediumFundTopUp = readGameplayData(partner)?.player?.money
+const fundBeforeMediumFundTopUp = await runtime.getCohabitationFund(created.contract.id, actor(owner))
 const mediumFundTopUp = await runtime.contributeCohabitationFund(created.contract.id, {
   amount: 400,
   purpose: 'building_materials',
   memo: 'qa medium fund top up for building materials',
   idempotency_key: 'qa-fund-contribution-medium-building-top-up',
 }, actor(partner))
-assert.equal(mediumFundTopUp.fund.balance, 555, 'medium fund top up should prepare enough shared balance')
+assert.equal(mediumFundTopUp.fund.balance, fundBeforeMediumFundTopUp.fund.balance + 400, 'medium fund top up should prepare enough shared balance')
 assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeMediumFundTopUp - 400, 'medium fund top up should deduct partner personal money once')
 const ownerMoneyBeforeMediumFundSpend = readGameplayData(owner)?.player?.money
 const mediumFundSpend = await runtime.spendCohabitationFund(created.contract.id, {
@@ -1990,9 +2040,9 @@ const mediumFundSpend = await runtime.spendCohabitationFund(created.contract.id,
   idempotency_key: 'qa-fund-spend-building-materials',
 }, actor(owner))
 assert.equal(mediumFundSpend.idempotent, false, 'first medium fund spend should not be idempotent')
-assert.equal(mediumFundSpend.fund.balance, 155, 'medium fund spend should reduce shared fund balance')
-assert.equal(mediumFundSpend.shared_fund.balance_before, 555, 'medium fund spend should report previous balance')
-assert.equal(mediumFundSpend.shared_fund.balance_after, 155, 'medium fund spend should report new balance')
+assert.equal(mediumFundSpend.fund.balance, fundBeforeMediumFundTopUp.fund.balance, 'medium fund spend should reduce shared fund balance')
+assert.equal(mediumFundSpend.shared_fund.balance_before, fundBeforeMediumFundTopUp.fund.balance + 400, 'medium fund spend should report previous balance')
+assert.equal(mediumFundSpend.shared_fund.balance_after, fundBeforeMediumFundTopUp.fund.balance, 'medium fund spend should report new balance')
 assert.equal(mediumFundSpend.ledger_entry.purpose, 'building_materials', 'medium fund spend ledger should keep purpose')
 assert.equal(mediumFundSpend.ledger_entry.spend_tier, 'medium', 'medium fund spend ledger should mark medium tier')
 assert.equal(mediumFundSpend.ledger_entry.spend_purpose_label, '中额建材预算', 'medium fund spend ledger should keep purpose label')
@@ -2010,7 +2060,7 @@ const duplicateMediumFundSpend = await runtime.spendCohabitationFund(created.con
   idempotency_key: 'qa-fund-spend-building-materials',
 }, actor(owner))
 assert.equal(duplicateMediumFundSpend.idempotent, true, 'same medium fund spend idempotency key should be idempotent')
-assert.equal(duplicateMediumFundSpend.fund.balance, 155, 'idempotent medium fund spend should not deduct balance twice')
+assert.equal(duplicateMediumFundSpend.fund.balance, fundBeforeMediumFundTopUp.fund.balance, 'idempotent medium fund spend should not deduct balance twice')
 assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeMediumFundSpend, 'idempotent medium fund spend should still not touch personal money')
 
 const largeOwner = 'cohabit_lg_owner25'
