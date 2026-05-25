@@ -69,6 +69,20 @@ const formatSeasonList = (seasons: string[]) => seasons.map(formatSeasonLabel).j
 
 const formatWeatherList = (weatherList: string[]) => weatherList.map(weather => WEATHER_LABELS[weather] ?? weather).join('、')
 
+const PUBLIC_WAREHOUSE_USES: Record<string, string[]> = {
+  rice: [
+    '村社公共仓：稻米入仓，可用于腊八共灶粥底和节庆宴席备菜',
+    '联机节会：节庆宴席备菜消耗公共仓稻米，不扣个人背包'
+  ],
+  herb: [
+    '村社公共仓：草药入仓，可用于腊八共灶粥底'
+  ],
+  wintersweet: [
+    '村社公共仓：腊梅入仓，可用于节庆宴席备菜茶点香料',
+    '联机节会：节庆宴席备菜消耗公共仓腊梅，不扣个人背包'
+  ]
+}
+
 export const getItemSourceText = (itemId: string): string => getItemSource(itemId)
 
 export const getItemUsageText = (item: ItemDef): string => getCollectionUsageText(item)
@@ -218,8 +232,9 @@ export const getItemUsedIn = (itemId: string): string[] => {
     return `${machine?.name ?? recipe.machineType}：${recipe.name} → ${getItemName(recipe.outputItemId)}`
   })
   const cookingUses = RECIPES.filter(recipe => recipe.ingredients.some(entry => entry.itemId === itemId)).map(recipe => `料理：${recipe.name}`)
+  const publicWarehouseUses = PUBLIC_WAREHOUSE_USES[itemId] ?? []
 
-  return uniqueStrings([...processingUses, ...cookingUses])
+  return uniqueStrings([...processingUses, ...cookingUses, ...publicWarehouseUses])
 }
 
 export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {

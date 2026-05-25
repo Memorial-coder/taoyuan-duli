@@ -194,8 +194,8 @@ const buildSeedSavePayload = (username, startingMoney) => encryptTaoyuanData({
     items: [
       { itemId: 'wood', quantity: 6, quality: 'normal', locked: false },
       { itemId: 'parsnip_seed', quantity: 4, quality: 'normal', locked: false },
-      { itemId: 'wintersweet', quantity: 2, quality: 'normal', locked: false },
-      { itemId: 'rice', quantity: 3, quality: 'normal', locked: false },
+      { itemId: 'wintersweet', quantity: 3, quality: 'normal', locked: false },
+      { itemId: 'rice', quantity: 5, quality: 'normal', locked: false },
       { itemId: 'herb', quantity: 1, quality: 'normal', locked: false },
     ],
     tempItems: [],
@@ -4758,6 +4758,84 @@ try {
     assert(afterRice === preRice - 2, `laba cookpot setup did not deduct personal rice deposit correctly, expected rice=${preRice - 2}, current rice=${afterRice}`)
     assert(afterHerb === preHerb - 1, `laba cookpot setup did not deduct personal herb deposit correctly, expected herb=${preHerb - 1}, current herb=${afterHerb}`)
     secondaryExpectedMoney -= 9
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/public-warehouse/consume festival feast path', async () => {
+    const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(beforeSave.response.ok, `secondary save readback before festival feast warehouse setup returned ${beforeSave.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeSave.data?.raw || beforeSave.data?.slot?.raw || beforeSave.data?.save?.raw || '')
+    const preMoney = Math.max(0, Math.floor(Number(beforeDecrypted?.player?.money) || 0))
+    const preRice = getInventoryItemQuantity(beforeDecrypted, 'rice')
+    const preWintersweet = getInventoryItemQuantity(beforeDecrypted, 'wintersweet')
+
+    const riceDeposit = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/deposit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        deposit_id: 'rice_crate',
+      }),
+    })
+    assert(riceDeposit.response.ok, `festival feast rice warehouse deposit returned ${riceDeposit.response.status}: ${riceDeposit.data?.msg || 'unknown error'}`)
+    const wintersweetDeposit = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/deposit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        deposit_id: 'wintersweet_crate',
+      }),
+    })
+    assert(wintersweetDeposit.response.ok, `festival feast wintersweet warehouse deposit returned ${wintersweetDeposit.response.status}: ${wintersweetDeposit.data?.msg || 'unknown error'}`)
+    assert(wintersweetDeposit.data?.warehouse?.items?.some(entry => entry?.item_id === 'rice' && Number(entry?.quantity || 0) >= 2), 'festival feast warehouse setup did not preserve rice stock')
+    assert(wintersweetDeposit.data?.warehouse?.items?.some(entry => entry?.item_id === 'wintersweet' && Number(entry?.quantity || 0) >= 1), 'festival feast warehouse setup did not preserve wintersweet stock')
+
+    const idempotencyKey = `smoke-festival-feast-${Date.now()}`
+    await wait(1100)
+    const consume = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/consume', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        consume_id: 'festival_feast_prep',
+        idempotency_key: idempotencyKey,
+      }),
+    })
+    assert(consume.response.ok, `festival feast consume returned ${consume.response.status}: ${consume.data?.msg || 'unknown error'}`)
+    assert(consume.data?.ok === true && consume.data?.consume?.context_id === 'festival_feast', 'festival feast consume payload is incomplete')
+    assert(consume.data?.log_entry?.action === 'consume' && consume.data.log_entry?.idempotency_key === idempotencyKey, 'festival feast consume did not preserve audit/idempotency log')
+    assert(!consume.data?.warehouse?.items?.some(entry => entry?.item_id === 'rice'), 'festival feast consume did not deduct public rice')
+    assert(!consume.data?.warehouse?.items?.some(entry => entry?.item_id === 'wintersweet'), 'festival feast consume did not deduct public wintersweet')
+    assert(Array.isArray(consume.data?.overview?.my_society?.public_warehouse?.consume_options) && consume.data.overview.my_society.public_warehouse.consume_options.some(entry => entry?.id === 'festival_feast_prep'), 'society overview did not expose festival feast consume option')
+
+    await wait(1100)
+    const duplicateConsume = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/consume', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        consume_id: 'festival_feast_prep',
+        idempotency_key: idempotencyKey,
+      }),
+    })
+    assert(duplicateConsume.response.ok, `duplicate festival feast consume returned ${duplicateConsume.response.status}: ${duplicateConsume.data?.msg || 'unknown error'}`)
+    assert(duplicateConsume.data?.idempotent_replay === true, 'duplicate festival feast consume did not replay idempotently')
+    assert(!duplicateConsume.data?.warehouse?.items?.some(entry => entry?.item_id === 'rice'), 'duplicate festival feast consume deducted rice twice')
+    assert(!duplicateConsume.data?.warehouse?.items?.some(entry => entry?.item_id === 'wintersweet'), 'duplicate festival feast consume deducted wintersweet twice')
+
+    const afterSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(afterSave.response.ok, `secondary save readback after festival feast warehouse consume returned ${afterSave.response.status}`)
+    const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
+    const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
+    const afterRice = getInventoryItemQuantity(afterDecrypted, 'rice')
+    const afterWintersweet = getInventoryItemQuantity(afterDecrypted, 'wintersweet')
+    assert(afterMoney === preMoney - 10, `festival feast setup should only deduct deposit money, expected money=${preMoney - 10}, current money=${afterMoney}`)
+    assert(afterRice === preRice - 2, `festival feast setup did not deduct personal rice deposit correctly, expected rice=${preRice - 2}, current rice=${afterRice}`)
+    assert(afterWintersweet === preWintersweet - 1, `festival feast setup did not deduct personal wintersweet deposit correctly, expected wintersweet=${preWintersweet - 1}, current wintersweet=${afterWintersweet}`)
+    secondaryExpectedMoney -= 10
   })
 
   await runCheck('GET /api/taoyuan/online/societies welfare readback', async () => {

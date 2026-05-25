@@ -180,6 +180,16 @@ const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
     rewards: [{ type: 'item', item_id: 'herb', quantity: 1, quality: 'normal' }],
   },
   {
+    id: 'wintersweet_crate',
+    label: '腊梅入仓',
+    summary: '交 1 份腊梅和少量工钱，补入公共仓作为节庆茶点香料。',
+    costs: [
+      { type: 'item', item_id: 'wintersweet', quantity: 1, quality: 'normal' },
+      { type: 'money', amount: 6 },
+    ],
+    rewards: [{ type: 'item', item_id: 'wintersweet', quantity: 1, quality: 'normal' }],
+  },
+  {
     id: 'fund_crate',
     label: '公用经费',
     summary: '直接补入公共仓经费，不占物资格位。',
@@ -201,6 +211,16 @@ const SOCIETY_PUBLIC_WAREHOUSE_CONSUME_OPTIONS = Object.freeze([
     costs: [
       { type: 'item', item_id: 'rice', quantity: 2, quality: 'normal' },
       { type: 'item', item_id: 'herb', quantity: 1, quality: 'normal' },
+    ],
+  },
+  {
+    id: 'festival_feast_prep',
+    label: '节庆宴席备菜',
+    summary: '从公共仓消耗稻米和腊梅，备成节庆宴席的主食与茶点香料；只扣公共仓，不扣个人背包。',
+    context_id: 'festival_feast',
+    costs: [
+      { type: 'item', item_id: 'rice', quantity: 2, quality: 'normal' },
+      { type: 'item', item_id: 'wintersweet', quantity: 1, quality: 'normal' },
     ],
   },
 ]);

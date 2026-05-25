@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 节庆宴席公共作物消耗
+- 村社公共仓新增腊梅入仓方案，腊梅可作为节庆宴席茶点香料进入公共仓储备。
+- 新增 `festival_feast_prep` 公共仓消耗方案，从公共仓扣 2 份稻米和 1 份腊梅，为节庆宴席备菜提供真实作物消耗。
+- 消耗接口沿用 `idempotency_key`、公共仓日志和村社活动记录，重复请求只回放原日志，不重复扣公共仓，不改个人背包或个人铜钱。
+- 百科可从稻米、腊梅反查公共仓、节庆宴席备菜和联机节会用途；本轮验证：`node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix taoyuan-main run type-check`、`npm --prefix server run qa:online-smoke`。
+
 ### 0525 腊八共灶公共食材消耗
 - 村社公共仓新增稻米入仓方案，公共仓概览会暴露可用于节会食材储备的稻米条目。
 - 新增 `laba_cookpot_base` 公共仓消耗方案，从公共仓扣 2 份稻米和 1 份草药，为腊八共灶粥底提供真实食材消耗。
