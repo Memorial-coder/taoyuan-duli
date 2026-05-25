@@ -660,6 +660,11 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   real_build_demolition_reviewed_by_display_name: string
   real_build_demolition_review_state: string
   real_build_demolition_review_note: string
+  real_build_demolition_execution_request_idempotency_key: string
+  real_build_demolition_execution_requested_at: number
+  real_build_demolition_execution_requested_by_username: string
+  real_build_demolition_execution_requested_by_display_name: string
+  real_build_demolition_execution_state: string
   compensation_required: boolean
   compensation_hint: string
   deferred_operations: string[]
@@ -1380,6 +1385,7 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
   already_requested?: boolean
   already_approved?: boolean
   already_rejected?: boolean
+  already_execution_requested?: boolean
   rollback?: {
     shared_fund_refunded?: boolean
     shared_warehouse_restored?: boolean
@@ -1411,6 +1417,16 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
     review_state?: string
     execution_enabled?: boolean
     requires_manual_review?: boolean
+    real_build_demolished?: boolean
+    personal_save_changed?: boolean
+    shared_fund_changed?: boolean
+    shared_warehouse_changed?: boolean
+  }
+  demolition_execution?: {
+    requested?: boolean
+    execution_state?: string
+    deferred_personal_save_write?: boolean
+    review_state?: string
     real_build_demolished?: boolean
     personal_save_changed?: boolean
     shared_fund_changed?: boolean
@@ -1823,6 +1839,14 @@ export const rejectCohabitationFamilyBuildingRealDemolitionReview = async (contr
     contractPath(contractId, '/family-buildings/real-demolition/reject-review'),
     payload as unknown as Record<string, unknown>,
     '驳回家族建筑真实拆除复核失败'
+  )
+}
+
+export const requestCohabitationFamilyBuildingRealDemolitionExecution = async (contractId: string, payload: CohabitationFamilyBuildingLedgerPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/real-demolition/request-execution'),
+    payload as unknown as Record<string, unknown>,
+    '请求家族建筑真实拆除执行失败'
   )
 }
 
