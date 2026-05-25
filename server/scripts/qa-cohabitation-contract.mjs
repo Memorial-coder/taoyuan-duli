@@ -1898,4 +1898,51 @@ assert.equal(duplicateLargeDraft.draft.id, largeDraft.draft.id, 'idempotent larg
 assert.equal(duplicateLargeDraft.fund.balance, balanceBeforeLargeDraft, 'idempotent large fund draft should not deduct balance')
 assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'idempotent large fund draft should not touch personal money')
 
+const largePartnerMoneyBeforeConfirm = readGameplayData(largePartner)?.player?.money
+const largeConfirm = await runtime.confirmCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
+  memo: 'qa partner confirms large family building draft',
+  idempotency_key: 'qa-fund-large-building-draft-partner-confirm',
+}, actor(largePartner))
+assert.equal(largeConfirm.idempotent, false, 'first large fund draft confirmation should not be idempotent')
+assert.equal(largeConfirm.draft.id, largeDraft.draft.id, 'large fund confirmation should return the same draft')
+assert.equal(largeConfirm.draft.state, 'ready_to_execute', 'large fund draft should become ready after all members confirm')
+assert.equal(largeConfirm.draft.confirmation_status, 'confirmed', 'large fund draft should mark confirmation as complete')
+assert.deepEqual(largeConfirm.draft.confirmed_member_usernames.sort(), [largeOwner, largePartner].sort(), 'large fund draft should record all confirmed members')
+assert.equal(largeConfirm.draft.pending_member_usernames.length, 0, 'large fund draft should have no pending members after confirmation')
+assert.equal(largeConfirm.draft.confirmation_state.all_members_confirmed, true, 'large fund confirmation state should mark all members confirmed')
+assert.equal(largeConfirm.draft.confirmation_state.ready_for_execution_request, true, 'large fund confirmation state should allow a later execution request')
+assert.equal(largeConfirm.draft.confirmation_state.can_execute_now, false, 'confirmed large fund draft should not execute immediately')
+assert.equal(largeConfirm.draft.execution_enabled, false, 'large fund execution should stay disabled after confirmation')
+assert.equal(largeConfirm.shared_fund.deducted_amount, 0, 'large fund confirmation should not deduct shared fund')
+assert.equal(largeConfirm.fund.balance, balanceBeforeLargeDraft, 'large fund confirmation should leave shared balance unchanged')
+assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'large fund confirmation should not touch partner personal money')
+assert.ok(largeConfirm.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_confirmed'), 'large fund confirmation should be audited')
+assert.equal(largeConfirm.fund.summary.pending_large_spend_draft_count, 0, 'fund snapshot should move confirmed large drafts out of pending count')
+assert.equal(largeConfirm.fund.summary.ready_large_spend_draft_count, 1, 'fund snapshot should count ready large drafts')
+
+const duplicateLargeConfirm = await runtime.confirmCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
+  idempotency_key: 'qa-fund-large-building-draft-partner-confirm',
+}, actor(largePartner))
+assert.equal(duplicateLargeConfirm.idempotent, true, 'same large fund confirmation idempotency key should be idempotent')
+assert.equal(duplicateLargeConfirm.draft.id, largeDraft.draft.id, 'idempotent large confirmation should return the original draft')
+assert.equal(duplicateLargeConfirm.fund.balance, balanceBeforeLargeDraft, 'idempotent large confirmation should not deduct balance')
+assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'idempotent large confirmation should not touch personal money')
+
+const alreadyConfirmedOwner = await runtime.confirmCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
+  idempotency_key: 'qa-fund-large-building-draft-owner-confirm-again',
+}, actor(largeOwner))
+assert.equal(alreadyConfirmedOwner.idempotent, true, 'already confirmed members should get an idempotent confirmation response')
+assert.equal(alreadyConfirmedOwner.already_confirmed, true, 'already confirmed response should be explicit')
+assert.equal(alreadyConfirmedOwner.fund.balance, balanceBeforeLargeDraft, 'already confirmed response should not deduct balance')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'already confirmed response should not touch personal money')
+
+await assert.rejects(
+  () => runtime.confirmCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
+    idempotency_key: 'qa-fund-large-building-draft-extra-confirm-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not confirm large fund drafts'
+)
+assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance, balanceBeforeLargeDraft, 'rejected large confirmation should not change shared balance')
+
 console.log('[qa-cohabitation-contract] OK')

@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 共同基金大额草案成员确认接入：新增 `/fund/large-spend-drafts/:draftId/confirm` 服务端写接口，必需确认成员可用幂等键推进确认；全部成员确认后草案进入 `ready_to_execute`，但执行仍关闭，不扣共同基金、不改个人铜币、不写建筑 ledger。
 - 共同基金大额建筑 / 扩建确认草案接入：新增 `/fund/large-spend-draft` 服务端写接口和 `fund_large_spend_drafts` 草案存储，支持 `family_building` / `manor_expansion`，要求 `fund.spend_large`、余额、幂等键、目标引用和双方确认安全阀；草案只写确认状态与审计，不扣共同基金、不改个人铜币、不写建筑 ledger，并新增“共同基金大额确认”百科词条。
 - 共同庄园基金页新增中额加工 / 建材预算入口：基金页按服务端中额用途列表显示加工材料和建材预算按钮，继续走 `/fund/spend`、CSRF、幂等、服务端权限和余额校验；权限页新增中额基金开关写回 `fund.spend_medium`，基金流水标记中额用途，不发物、不改个人铜币。
 - 共同基金支出新增中额加工 / 建材预算用途：`fund/spend` 支持 `processing_materials` 与 `building_materials`，按 `fund.spend_medium`、余额和幂等键扣共同基金，写 `spend_tier=medium` ledger、审计和补偿提示；不自动发物、不触碰个人铜币，并在百科补充“共同基金中额支出”可搜索词条。

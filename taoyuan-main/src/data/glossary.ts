@@ -580,21 +580,22 @@ const buildGlossary = (): GlossaryEntry[] => {
     name: '共同基金大额确认',
     category: 'item',
     categoryLabel: '机制',
-    description: '共同庄园中用于大额家族建筑和庄园扩建的共同基金确认草案，先走权限、余额、幂等、双方确认与审计，不直接扣款。',
+    description: '共同庄园中用于大额家族建筑和庄园扩建的共同基金确认草案，先走权限、余额、幂等、成员确认与审计，不直接扣款。',
     details: [
       { label: '权限', value: '需要 fund.spend_large；大额确认安全阀 large_fund_spend_requires_both 保持强制开启。' },
       { label: '建筑用途', value: 'family_building / 大额家族建筑，草案阶段只记录目标、金额和确认成员。' },
       { label: '扩建用途', value: 'manor_expansion / 大额庄园扩建，执行扣款和建筑 ledger 仍待后续专用接口。' },
-      { label: '边界', value: '草案不写基金支出 ledger、不扣共同基金、不改个人铜币，重复 idempotency_key 不会重复生成。' },
+      { label: '成员确认', value: '必需确认成员可提交 confirm；全部确认后草案进入 ready_to_execute，但 execution_enabled 仍为 false。' },
+      { label: '边界', value: '草案和成员确认都不写基金支出 ledger、不扣共同基金、不改个人铜币，重复 idempotency_key 不会重复生成或确认。' },
     ],
     source: '在共同庄园的共同基金大额确认草案链路中使用。',
-    usage: '适合后续接家族建筑、庄园扩建和高价值共同资产确认流程；当前先作为可审计确认草案。',
+    usage: '适合后续接家族建筑、庄园扩建和高价值共同资产确认流程；当前先作为可审计确认草案与成员确认状态。',
     relatedPanels: [
       { panel: 'online', label: '去共同庄园' },
       { panel: 'workshop', label: '查看工坊加工' },
     ],
     relatedEntryIds: ['system_shared_fund_medium_spend'],
-    keywords: ['共同基金', '大额确认', '大额建筑', '扩建', '双方确认', 'family_building', 'manor_expansion', 'spend_large', '同居', '家族庄园'],
+    keywords: ['共同基金', '大额确认', '大额建筑', '扩建', '双方确认', '成员确认', '确认提交', 'ready_to_execute', 'large-spend-drafts', 'confirm', 'family_building', 'manor_expansion', 'spend_large', '同居', '家族庄园'],
     intents: ['usage', 'system'],
   }))
 

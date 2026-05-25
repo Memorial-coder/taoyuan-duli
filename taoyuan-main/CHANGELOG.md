@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0525 共同基金大额草案成员确认
+- 服务端新增 `/fund/large-spend-drafts/:draftId/confirm` 写接口，已激活契约中的必需确认成员可带 `idempotency_key` 提交大额草案确认。
+- 确认会推进 `confirmed_member_usernames` / `pending_member_usernames`、记录确认事件、当前余额快照和审计；全部成员确认后草案进入 `ready_to_execute`。
+- 本轮仍保持执行关闭：不扣共同基金、不写基金支出 ledger、不改个人铜币、不写建筑 ledger，真实执行扣款和补偿重放留后续专用接口。
+- 游戏内百科“共同基金大额确认”补充成员确认、`ready_to_execute` 和执行关闭边界。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke`。
+
 ### 0525 共同基金大额确认草案
 - 服务端新增 `fund_large_spend_drafts` 草案存储和 `/fund/large-spend-draft` 写接口，支持 `family_building` 大额家族建筑与 `manor_expansion` 大额庄园扩建。
 - 草案要求已激活契约成员、`fund.spend_large`、余额足够、金额超过中额上限、`target_ref`、`idempotency_key` 和强制双方确认安全阀。

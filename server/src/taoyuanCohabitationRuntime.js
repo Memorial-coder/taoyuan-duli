@@ -1455,6 +1455,17 @@ function normalizeFundLargeSpendDraft(entry = {}) {
   const pendingMemberUsernames = Array.isArray(entry.pending_member_usernames)
     ? entry.pending_member_usernames.map(normalizeUsername).filter(Boolean)
     : requiredMemberUsernames.filter(username => !confirmedMemberUsernames.includes(username));
+  const allMembersConfirmed = requiredMemberUsernames.length > 0
+    && requiredMemberUsernames.every(username => confirmedMemberUsernames.includes(username));
+  const confirmationEvents = Array.isArray(entry.confirmation_events)
+    ? entry.confirmation_events.map(event => ({
+      actor_username: normalizeUsername(event.actor_username || event.username),
+      actor_display_name: sanitizeText(event.actor_display_name || event.display_name, 80),
+      confirmed_at: Number(event.confirmed_at || event.at) || 0,
+      idempotency_key: sanitizeText(event.idempotency_key, 120),
+      memo: sanitizeText(event.memo || event.note, 160),
+    })).filter(event => event.actor_username).slice(-FUND_LARGE_SPEND_DRAFT_LIMIT)
+    : [];
   const rawConfirmationState = entry.confirmation_state && typeof entry.confirmation_state === 'object' && !Array.isArray(entry.confirmation_state)
     ? entry.confirmation_state
     : {};
@@ -1474,10 +1485,13 @@ function normalizeFundLargeSpendDraft(entry = {}) {
     memo: sanitizeText(entry.memo || entry.note, 160),
     balance_snapshot: Math.max(0, Math.floor(Number(entry.balance_snapshot) || 0)),
     projected_balance_after: Math.max(0, Math.floor(Number(entry.projected_balance_after) || 0)),
+    current_balance_snapshot: Math.max(0, Math.floor(Number(entry.current_balance_snapshot) || Number(entry.balance_snapshot) || 0)),
+    projected_current_balance_after: Math.max(0, Math.floor(Number(entry.projected_current_balance_after) || Number(entry.projected_balance_after) || 0)),
     balance_sufficient: entry.balance_sufficient === true,
     required_member_usernames: requiredMemberUsernames,
     confirmed_member_usernames: confirmedMemberUsernames,
     pending_member_usernames: pendingMemberUsernames,
+    confirmation_events: confirmationEvents,
     confirmation_state: {
       required_member_usernames: Array.isArray(rawConfirmationState.required_member_usernames)
         ? rawConfirmationState.required_member_usernames.map(normalizeUsername).filter(Boolean)
@@ -1490,12 +1504,20 @@ function normalizeFundLargeSpendDraft(entry = {}) {
         : pendingMemberUsernames,
       requester_auto_confirmed: rawConfirmationState.requester_auto_confirmed !== false,
       requires_all_members: rawConfirmationState.requires_all_members !== false,
+      all_members_confirmed: rawConfirmationState.all_members_confirmed === true || allMembersConfirmed,
+      ready_for_execution_request: rawConfirmationState.ready_for_execution_request === true || allMembersConfirmed,
+      last_confirmed_by: normalizeUsername(rawConfirmationState.last_confirmed_by),
+      last_confirmed_at: Math.max(0, Math.floor(Number(rawConfirmationState.last_confirmed_at) || 0)),
       can_execute_now: false,
       execution_enabled: false,
       policy: sanitizeText(rawConfirmationState.policy, 180) || '大额建筑 / 扩建支出必须先完成全部成员确认，执行扣款另走后续专用接口。',
     },
     created_at: Number(entry.created_at) || nowSeconds(),
     expires_at: Number(entry.expires_at) || (nowSeconds() + 72 * 60 * 60),
+    ready_at: Math.max(0, Math.floor(Number(entry.ready_at) || 0)),
+    confirmed_at: Math.max(0, Math.floor(Number(entry.confirmed_at) || 0)),
+    last_confirmed_by: normalizeUsername(entry.last_confirmed_by),
+    last_confirmed_at: Math.max(0, Math.floor(Number(entry.last_confirmed_at) || 0)),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     confirmation_required: true,
     confirmation_status: sanitizeText(entry.confirmation_status, 40) || 'pending',
@@ -3653,6 +3675,7 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
     ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft).slice(0, FUND_LARGE_SPEND_DRAFT_LIMIT)
     : [];
   const pendingLargeSpendDrafts = largeSpendDrafts.filter(draft => draft.state === 'pending_confirmation');
+  const readyLargeSpendDrafts = largeSpendDrafts.filter(draft => draft.state === 'ready_to_execute');
   return {
     contract_id: contract.id,
     shared_manor_id: contract.shared_manor_id,
@@ -3680,6 +3703,7 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       allowed_medium_spend_purposes: allowedMediumSpendPurposes,
       allowed_large_spend_purposes: allowedLargeSpendPurposes,
       pending_large_spend_draft_count: pendingLargeSpendDrafts.length,
+      ready_large_spend_draft_count: readyLargeSpendDrafts.length,
       compensation_policy: '第一版支持成员自愿注资、小额白名单支出、中额加工 / 建材预算和大额确认草案；大额草案不扣款，真实执行、建筑 ledger、自动返还和补偿重放待后续接入。',
     },
     permissions: {
@@ -3992,6 +4016,15 @@ function normalizeLargeFundSpendDraftPayload(payload = {}) {
     spend_tier: purposeDef.tier,
     permission_key: purposeDef.permission_key,
     target_ref: targetRef,
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeLargeFundSpendConfirmPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('共同基金大额确认需要 idempotency_key，以防断线或重试时重复确认');
+  return {
+    idempotency_key: idempotencyKey,
     memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
@@ -5566,6 +5599,190 @@ async function createCohabitationFundLargeSpendDraft(contractId, payload = {}, a
   };
 }
 
+async function confirmCohabitationFundLargeSpendDraft(contractId, draftId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const confirmRequest = normalizeLargeFundSpendConfirmPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '确认共同基金大额草案');
+  const normalizedDraftId = sanitizeText(draftId || payload.draft_id || payload.id, 80);
+  if (!normalizedDraftId) throw createError('请指定要确认的共同基金大额草案');
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
+    : [];
+  const draftIndex = contract.fund_large_spend_drafts.findIndex(entry => entry.id === normalizedDraftId);
+  if (draftIndex < 0) throw createError('共同基金大额确认草案不存在', 404);
+
+  const previousAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'fund_large_spend_draft_confirmed' && entry.idempotency_key === confirmRequest.idempotency_key
+  );
+  if (previousAudit) {
+    const existingDraft = normalizeFundLargeSpendDraft(contract.fund_large_spend_drafts[draftIndex]);
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      draft: existingDraft,
+      idempotent: true,
+      audit_entry: previousAudit,
+      shared_fund: {
+        balance_before: contract.shared_fund.balance,
+        projected_balance_after: Math.max(0, contract.shared_fund.balance - existingDraft.amount),
+        deducted_amount: 0,
+        personal_money_merged: false,
+        confirmation_required: true,
+        confirmation_status: existingDraft.confirmation_status,
+        execution_enabled: false,
+      },
+    };
+  }
+
+  const draft = normalizeFundLargeSpendDraft(contract.fund_large_spend_drafts[draftIndex]);
+  const now = nowSeconds();
+  if (draft.expires_at > 0 && draft.expires_at <= now && draft.state === 'pending_confirmation') {
+    const expiredDraft = normalizeFundLargeSpendDraft({
+      ...draft,
+      state: 'expired',
+      confirmation_status: 'expired',
+      execution_enabled: false,
+    });
+    contract.fund_large_spend_drafts[draftIndex] = expiredDraft;
+    appendAudit(contract, 'fund_large_spend_draft_expired', actor, {
+      draft_id: expiredDraft.id,
+      amount: expiredDraft.amount,
+      purpose: expiredDraft.purpose,
+      target_ref: expiredDraft.target_ref,
+      confirmation_required: true,
+      execution_enabled: false,
+    }, confirmRequest.idempotency_key);
+    saveContractStore(store);
+    throw createError('共同基金大额确认草案已过期，请重新发起草案', 409);
+  }
+  if (draft.state === 'expired' || draft.state === 'cancelled') {
+    throw createError('该共同基金大额确认草案已结束，不能继续确认', 409);
+  }
+  if (!['pending_confirmation', 'ready_to_execute'].includes(draft.state)) {
+    throw createError('该共同基金大额确认草案当前不能确认', 409);
+  }
+
+  const requiredKeys = new Set(draft.required_member_usernames.map(normalizeUsernameKey).filter(Boolean));
+  if (!requiredKeys.has(member.username_key)) throw createError('你不是该共同基金大额确认草案的必需确认成员', 403);
+  const confirmedKeys = new Set(draft.confirmed_member_usernames.map(normalizeUsernameKey).filter(Boolean));
+  if (confirmedKeys.has(member.username_key)) {
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      draft,
+      idempotent: true,
+      already_confirmed: true,
+      shared_fund: {
+        balance_before: contract.shared_fund.balance,
+        projected_balance_after: Math.max(0, contract.shared_fund.balance - draft.amount),
+        deducted_amount: 0,
+        personal_money_merged: false,
+        confirmation_required: true,
+        confirmation_status: draft.confirmation_status,
+        execution_enabled: false,
+      },
+    };
+  }
+
+  confirmedKeys.add(member.username_key);
+  const confirmedMemberUsernames = draft.required_member_usernames
+    .filter(username => confirmedKeys.has(normalizeUsernameKey(username)));
+  const pendingMemberUsernames = draft.required_member_usernames
+    .filter(username => !confirmedKeys.has(normalizeUsernameKey(username)));
+  const allMembersConfirmed = pendingMemberUsernames.length === 0;
+  const currentBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
+  const nextState = allMembersConfirmed ? 'ready_to_execute' : 'pending_confirmation';
+  const nextConfirmationStatus = allMembersConfirmed ? 'confirmed' : 'pending';
+  const confirmationEvent = {
+    actor_username: member.username,
+    actor_display_name: member.display_name || member.username,
+    confirmed_at: now,
+    idempotency_key: confirmRequest.idempotency_key,
+    memo: confirmRequest.memo,
+  };
+  const nextDraft = normalizeFundLargeSpendDraft({
+    ...draft,
+    state: nextState,
+    confirmed_member_usernames: confirmedMemberUsernames,
+    pending_member_usernames: pendingMemberUsernames,
+    confirmation_events: [...draft.confirmation_events, confirmationEvent],
+    confirmation_state: {
+      ...draft.confirmation_state,
+      required_member_usernames: draft.required_member_usernames,
+      confirmed_member_usernames: confirmedMemberUsernames,
+      pending_member_usernames: pendingMemberUsernames,
+      all_members_confirmed: allMembersConfirmed,
+      ready_for_execution_request: allMembersConfirmed,
+      last_confirmed_by: member.username,
+      last_confirmed_at: now,
+      can_execute_now: false,
+      execution_enabled: false,
+    },
+    current_balance_snapshot: currentBalance,
+    projected_current_balance_after: Math.max(0, currentBalance - draft.amount),
+    balance_sufficient: currentBalance >= draft.amount,
+    confirmation_status: nextConfirmationStatus,
+    ready_at: allMembersConfirmed ? now : draft.ready_at,
+    confirmed_at: allMembersConfirmed ? now : draft.confirmed_at,
+    last_confirmed_by: member.username,
+    last_confirmed_at: now,
+    execution_enabled: false,
+  });
+
+  contract.fund_large_spend_drafts[draftIndex] = nextDraft;
+  appendAudit(contract, 'fund_large_spend_draft_confirmed', actor, {
+    draft_id: nextDraft.id,
+    amount: nextDraft.amount,
+    purpose: nextDraft.purpose,
+    purpose_label: nextDraft.purpose_label,
+    spend_category: nextDraft.spend_category,
+    target_ref: nextDraft.target_ref,
+    confirmation_status: nextDraft.confirmation_status,
+    state: nextDraft.state,
+    confirmed_member_usernames: nextDraft.confirmed_member_usernames,
+    pending_member_usernames: nextDraft.pending_member_usernames,
+    all_members_confirmed: allMembersConfirmed,
+    current_balance_snapshot: currentBalance,
+    projected_current_balance_after: nextDraft.projected_current_balance_after,
+    balance_sufficient: nextDraft.balance_sufficient,
+    deducted_amount: 0,
+    personal_money_merged: false,
+    execution_enabled: false,
+    fund_ledger_written: false,
+  }, confirmRequest.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    draft: nextDraft,
+    idempotent: false,
+    already_confirmed: false,
+    shared_fund: {
+      balance_before: currentBalance,
+      projected_balance_after: nextDraft.projected_current_balance_after,
+      deducted_amount: 0,
+      personal_money_merged: false,
+      confirmation_required: true,
+      confirmation_status: nextDraft.confirmation_status,
+      execution_enabled: false,
+    },
+    confirmation: {
+      confirmed_by: member.username,
+      confirmed_at: now,
+      all_members_confirmed: allMembersConfirmed,
+      pending_member_usernames: nextDraft.pending_member_usernames,
+      ready_for_execution_request: allMembersConfirmed,
+      execution_enabled: false,
+    },
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -5821,6 +6038,7 @@ module.exports = {
   contributeCohabitationFund,
   spendCohabitationFund,
   createCohabitationFundLargeSpendDraft,
+  confirmCohabitationFundLargeSpendDraft,
   updateCohabitationPermissions,
   updateCohabitationFamilyRole,
   createCohabitationContract,
