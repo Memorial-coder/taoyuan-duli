@@ -1750,6 +1750,52 @@ const separationWarehouseDeposit = await runtime.depositCohabitationWarehouseIte
 assert.equal(separationWarehouseDeposit.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 1, 'separation preview setup should leave traceable rice in shared warehouse')
 assert.equal(getInventoryItemQuantity(owner, 'rice'), ownerRiceBeforeSeparationWarehouseDeposit - 1, 'separation warehouse setup should deduct owner rice once')
 
+await mutateStoredContract(created.contract.id, contract => {
+  contract.origin_assets = contract.origin_assets || {}
+  contract.origin_assets.decorations = [
+    {
+      id: 'qa-owner-lantern',
+      decoration_id: 'qa-owner-lantern',
+      decoration_label: 'QA owner lantern',
+      origin_owner_id: `save:${owner}`,
+      origin_owner_username: owner,
+      origin_owner_key: owner.toLowerCase(),
+      ledger_id: 'qa-decoration-ledger-owner',
+    },
+    {
+      id: 'qa-partner-bench',
+      decoration_id: 'qa-partner-bench',
+      decoration_label: 'QA partner bench',
+      origin_owner_id: `save:${partner}`,
+      origin_owner_username: partner,
+      origin_owner_key: partner.toLowerCase(),
+      ledger_id: 'qa-decoration-ledger-partner',
+    },
+  ]
+  contract.family_building_ledger = [
+    {
+      id: 'qa-separation-building-ledger',
+      contract_id: contract.id,
+      action: 'real_build_applied',
+      purpose: 'family_building',
+      purpose_label: 'QA family building',
+      target_ref: 'family_building:shared_granary:build',
+      building_id: 'shared_granary',
+      project_id: 'shared_granary',
+      draft_id: 'qa-separation-building-draft',
+      fund_ledger_id: 'qa-separation-building-fund-ledger',
+      actor_username: owner,
+      amount: 300,
+      shared_fund_deducted: true,
+      real_build_applied: true,
+      shared_warehouse_materials_consumed: true,
+      at: Math.floor(Date.now() / 1000),
+      idempotency_key: 'qa-separation-building-ledger',
+    },
+    ...(contract.family_building_ledger || []),
+  ]
+})
+
 const ownerRawBeforePreview = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawBeforePreview = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
 const previewResult = await runtime.createSeparationPreview(created.contract.id, {
@@ -1786,6 +1832,12 @@ assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.suggested_refund_amount === 141), 'separation preview should suggest owner fund refund by contribution share after warehouse sale')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.suggested_refund_amount === 14), 'separation preview should suggest partner fund refund by contribution share after warehouse sale')
 assert.equal(previewResult.preview.asset_return.fund_suggested_refund_total, 155, 'separation preview should balance suggested fund refunds after warehouse sale')
+assert.match(previewResult.preview.asset_return.decoration_split_manifest_hash, /^[a-f0-9]{64}$/, 'separation preview should expose decoration split manifest hash')
+assert.match(previewResult.preview.asset_return.family_building_split_manifest_hash, /^[a-f0-9]{64}$/, 'separation preview should expose family building split manifest hash')
+assert.equal(previewResult.preview.asset_return.decoration_split_manifest.length, 2, 'separation preview should include traceable decoration split rows')
+assert.equal(previewResult.preview.asset_return.family_building_split_manifest.length, 1, 'separation preview should include traceable family building split rows')
+assert.ok(previewResult.preview.asset_return.decorations_by_origin_owner.some(item => item.origin_owner_username === owner && item.decoration_count === 1), 'separation preview should summarize owner decorations')
+assert.ok(previewResult.preview.asset_return.family_buildings_by_origin_owner.some(item => item.building_ledger_id === 'qa-separation-building-ledger'), 'separation preview should summarize family building ledger splits')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'plots_return_by_origin'), 'separation preview should include plot return compensation plan')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'warehouse_manual_return'), 'separation preview should include warehouse return plan when shared stock remains')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'fund_proportional_refund'), 'separation preview should include fund proportional refund plan')
@@ -2106,6 +2158,69 @@ assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterSha
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterSharedWarehouseReturn, 'idempotent shared warehouse return should not rewrite partner save again')
 
 await assert.rejects(
+  () => runtime.splitSeparationDecorationsAndBuildings(created.contract.id, previewResult.preview.id, {
+    memo: 'wrong decoration split hash',
+    plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+    decoration_split_manifest_hash: 'c'.repeat(64),
+    building_split_manifest_hash: previewResult.preview.asset_return.family_building_split_manifest_hash,
+    execution_ledger_id: assetReturnRecord.execution_ledger.id,
+    idempotency_key: 'qa-separation-decoration-building-split-wrong-hash',
+  }, actor(owner)),
+  /hash 不匹配|hash 涓嶅尮閰?/,
+  'decoration building split should reject mismatched manifest hash'
+)
+
+const ownerBoundaryBeforeDecorationSplit = pickPersonalStoryBoundaryState(owner)
+const partnerBoundaryBeforeDecorationSplit = pickPersonalStoryBoundaryState(partner)
+const decorationBuildingSplit = await runtime.splitSeparationDecorationsAndBuildings(created.contract.id, previewResult.preview.id, {
+  memo: 'record decoration and building split only',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  decoration_split_manifest_hash: previewResult.preview.asset_return.decoration_split_manifest_hash,
+  building_split_manifest_hash: previewResult.preview.asset_return.family_building_split_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-decoration-building-split',
+}, actor(owner))
+assert.equal(decorationBuildingSplit.idempotent, false, 'first decoration building split should not be idempotent')
+assert.equal(decorationBuildingSplit.execution_ledger.status, 'decorations_buildings_split', 'decoration building split should advance execution ledger status')
+assert.equal(decorationBuildingSplit.execution_ledger.decorations_buildings_split, true, 'decoration building split should mark ledger split')
+assert.equal(decorationBuildingSplit.preview.confirmation_state.execution_request.status, 'decorations_buildings_split', 'execution request should advance to decorations-buildings-split')
+assert.equal(decorationBuildingSplit.execution_ledger.decoration_splits_by_origin_owner.reduce((sum, item) => sum + item.decoration_count, 0), 2, 'decoration split should summarize all decorations')
+assert.equal(decorationBuildingSplit.execution_ledger.building_splits_by_origin_owner.length, 1, 'building split should summarize family building ledger')
+assert.ok(!decorationBuildingSplit.execution_ledger.next_required_operations.includes('split_decorations'), 'decoration building split should close split_decorations follow-up')
+assert.ok(decorationBuildingSplit.execution_ledger.next_required_operations.includes('resolve_family_story'), 'decoration building split should keep family story follow-up')
+assert.equal(decorationBuildingSplit.receipts.length, 2, 'decoration building split should create decoration and building receipts')
+assert.ok(decorationBuildingSplit.contract.audit_log.find(entry => entry.action === 'separation_decorations_buildings_split' && entry.idempotency_key === 'qa-separation-decoration-building-split'), 'decoration building split should be audited')
+assert.deepEqual(pickPersonalStoryBoundaryState(owner), ownerBoundaryBeforeDecorationSplit, 'decoration building split should not change owner money inventory farm npc home family or children state')
+assert.deepEqual(pickPersonalStoryBoundaryState(partner), partnerBoundaryBeforeDecorationSplit, 'decoration building split should not change partner money inventory farm npc home family or children state')
+
+const ownerRawAfterDecorationSplit = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawAfterDecorationSplit = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const duplicateDecorationBuildingSplit = await runtime.splitSeparationDecorationsAndBuildings(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate decoration and building split only',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  decoration_split_manifest_hash: previewResult.preview.asset_return.decoration_split_manifest_hash,
+  building_split_manifest_hash: previewResult.preview.asset_return.family_building_split_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-decoration-building-split',
+}, actor(owner))
+assert.equal(duplicateDecorationBuildingSplit.idempotent, true, 'same decoration building split idempotency key should return existing split')
+assert.equal(duplicateDecorationBuildingSplit.execution_ledger.id, decorationBuildingSplit.execution_ledger.id, 'idempotent decoration building split should keep ledger id')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterDecorationSplit, 'idempotent decoration building split should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterDecorationSplit, 'idempotent decoration building split should not rewrite partner save')
+
+const alreadyDecorationBuildingSplit = await runtime.splitSeparationDecorationsAndBuildings(created.contract.id, previewResult.preview.id, {
+  memo: 'already split with another key',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  decoration_split_manifest_hash: previewResult.preview.asset_return.decoration_split_manifest_hash,
+  building_split_manifest_hash: previewResult.preview.asset_return.family_building_split_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-decoration-building-split-again',
+}, actor(partner))
+assert.equal(alreadyDecorationBuildingSplit.idempotent, true, 'already split decoration building request should be idempotent with new key')
+assert.equal(alreadyDecorationBuildingSplit.already_split, true, 'already split decoration building response should be explicit')
+assert.equal(alreadyDecorationBuildingSplit.execution_ledger.id, decorationBuildingSplit.execution_ledger.id, 'already split decoration building should return original ledger')
+
+await assert.rejects(
   () => runtime.resolveSeparationFamilyStory(created.contract.id, previewResult.preview.id, {
     memo: 'wrong family story hash',
     plot_return_manifest_hash: 'c'.repeat(64),
@@ -2132,7 +2247,7 @@ assert.equal(familyStoryResolution.preview.confirmation_state.execution_request.
 assert.equal(familyStoryResolution.story_resolution.relation_type, 'lover_cohabitation', 'family story resolution should keep relation type')
 assert.equal(familyStoryResolution.story_resolution.personal_story_write_required, true, 'lover cohabitation should keep personal story write boundary')
 assert.equal(familyStoryResolution.story_resolution.child_arrangement_required, false, 'lover cohabitation should not require child arrangement in contract store')
-assert.ok(familyStoryResolution.execution_ledger.next_required_operations.includes('split_decorations'), 'family story resolution should keep decoration split as next operation')
+assert.ok(!familyStoryResolution.execution_ledger.next_required_operations.includes('split_decorations'), 'family story resolution should keep decoration split closed after split record')
 assert.ok(familyStoryResolution.execution_ledger.next_required_operations.includes('write_personal_story_receipts'), 'family story resolution should keep personal story receipt follow-up')
 assert.ok(familyStoryResolution.contract.audit_log.find(entry => entry.action === 'separation_family_story_resolved' && entry.idempotency_key === 'qa-separation-family-story-resolution'), 'family story resolution should be audited')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyStoryResolution, 'family story resolution should not rewrite owner personal save')
@@ -2175,7 +2290,7 @@ assert.equal(personalStoryReceipts.execution_ledger.personal_story_receipts_writ
 assert.equal(personalStoryReceipts.preview.confirmation_state.execution_request.status, 'personal_story_receipts_written', 'execution request should advance to personal-story-receipts-written')
 assert.equal(personalStoryReceipts.receipts.length, 2, 'personal story receipt write should create one receipt per accepted member')
 assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_story_state === 'receipt_recorded_only'), 'personal story receipts should stay receipt-only')
-assert.ok(personalStoryReceipts.execution_ledger.next_required_operations.includes('split_decorations'), 'personal story receipt write should keep decoration split follow-up')
+assert.ok(!personalStoryReceipts.execution_ledger.next_required_operations.includes('split_decorations'), 'personal story receipt write should keep decoration split closed')
 assert.ok(!personalStoryReceipts.execution_ledger.next_required_operations.includes('write_personal_story_receipts'), 'personal story receipt write should close receipt follow-up')
 assert.ok(personalStoryReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_story_receipts_written' && entry.idempotency_key === 'qa-separation-personal-story-receipts'), 'personal story receipt write should be audited')
 assert.deepEqual(pickPersonalStoryBoundaryState(owner), ownerBoundaryBeforeStoryReceipts, 'personal story receipt write should not change owner money inventory farm npc home family or children state')
@@ -2209,7 +2324,7 @@ await mutateStoredContract(created.contract.id, contract => {
     ...(ledger.family_story_resolution || {}),
     child_arrangement_required: true,
   }
-  ledger.next_required_operations = Array.from(new Set([...(ledger.next_required_operations || []), 'resolve_child_arrangement', 'split_decorations']))
+  ledger.next_required_operations = Array.from(new Set([...(ledger.next_required_operations || []), 'resolve_child_arrangement']))
   const preview = (contract.separation_previews || []).find(entry => entry.id === previewResult.preview.id)
   assert.ok(preview, 'separation preview should exist before child arrangement mutation')
   preview.confirmation_state = preview.confirmation_state || {}
@@ -2252,7 +2367,7 @@ assert.equal(childArrangement.child_arrangement.child_count, 1, 'child arrangeme
 assert.equal(childArrangement.child_arrangement.personal_family_save_write_required, true, 'child arrangement should leave personal family save receipt pending')
 assert.equal(childArrangement.child_arrangement.children_private, true, 'child arrangement should keep children private')
 assert.ok(!childArrangement.execution_ledger.next_required_operations.includes('resolve_child_arrangement'), 'child arrangement should close child arrangement follow-up')
-assert.ok(childArrangement.execution_ledger.next_required_operations.includes('split_decorations'), 'child arrangement should keep decoration split follow-up')
+assert.ok(!childArrangement.execution_ledger.next_required_operations.includes('split_decorations'), 'child arrangement should keep decoration split closed')
 assert.ok(childArrangement.contract.audit_log.find(entry => entry.action === 'separation_child_arrangement_resolved' && entry.idempotency_key === 'qa-separation-child-arrangement'), 'child arrangement should be audited')
 assert.deepEqual(pickPersonalStoryBoundaryState(owner), ownerBoundaryBeforeChildArrangement, 'child arrangement should not change owner money inventory farm npc home family or children state')
 assert.deepEqual(pickPersonalStoryBoundaryState(partner), partnerBoundaryBeforeChildArrangement, 'child arrangement should not change partner money inventory farm npc home family or children state')
@@ -2297,7 +2412,7 @@ assert.equal(personalFamilyReceipts.preview.confirmation_state.execution_request
 assert.equal(personalFamilyReceipts.receipts.length, 2, 'personal family receipt write should create one receipt per accepted member')
 assert.ok(personalFamilyReceipts.receipts.every(receipt => receipt.arrangement_state === 'personal_family_receipt_recorded_only'), 'personal family receipts should stay receipt-only')
 assert.ok(!personalFamilyReceipts.execution_ledger.next_required_operations.includes('write_personal_family_receipts'), 'personal family receipt write should close family receipt follow-up')
-assert.ok(personalFamilyReceipts.execution_ledger.next_required_operations.includes('split_decorations'), 'personal family receipt write should keep decoration split follow-up')
+assert.ok(!personalFamilyReceipts.execution_ledger.next_required_operations.includes('split_decorations'), 'personal family receipt write should keep decoration split closed')
 assert.ok(personalFamilyReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_family_receipts_written' && entry.idempotency_key === 'qa-separation-personal-family-receipts'), 'personal family receipt write should be audited')
 assert.deepEqual(pickPersonalStoryBoundaryState(owner), ownerBoundaryBeforeFamilyReceipts, 'personal family receipt write should not change owner money inventory farm npc home family or children state')
 assert.deepEqual(pickPersonalStoryBoundaryState(partner), partnerBoundaryBeforeFamilyReceipts, 'personal family receipt write should not change partner money inventory farm npc home family or children state')

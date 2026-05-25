@@ -4271,6 +4271,19 @@ function normalizeSeparationPersonalFamilyReceiptsPayload(payload = {}) {
   };
 }
 
+function normalizeSeparationDecorationBuildingSplitPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('分居装饰 / 建筑拆分记录需要 idempotency_key，以防断线或重试时重复记录');
+  return {
+    idempotency_key: idempotencyKey,
+    execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
+    plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
+    decoration_split_manifest_hash: sanitizeText(payload.decoration_split_manifest_hash || payload.split_manifest_hash, 100),
+    building_split_manifest_hash: sanitizeText(payload.building_split_manifest_hash || payload.family_building_split_manifest_hash, 100),
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
 function normalizeLargeFundSpendExecutePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同基金大额草案执行扣款需要 idempotency_key，以防断线或重试时重复扣基金');
@@ -4622,13 +4635,121 @@ function hashPlotReturnManifest(manifest = []) {
   return crypto.createHash('sha256').update(JSON.stringify(stableRows)).digest('hex');
 }
 
+function buildDecorationSplitManifest(contract = {}) {
+  const originAssets = normalizeOriginAssets(contract.origin_assets);
+  return (Array.isArray(originAssets.decorations) ? originAssets.decorations : [])
+    .map((item, index) => {
+      const originUsername = normalizeUsername(item.origin_owner_username || item.source_owner_username || item.username);
+      const originKey = normalizeUsernameKey(item.origin_owner_key || item.source_owner_key || originUsername);
+      const decorationId = sanitizeText(item.decoration_id || item.item_id || item.id || `decoration_${index + 1}`, 100);
+      return {
+        manifest_id: `${originKey}:decoration:${decorationId}:${index}`,
+        decoration_id: decorationId,
+        decoration_label: sanitizeText(item.decoration_label || item.label || item.name || decorationId, 80),
+        origin_owner_id: sanitizeText(item.origin_owner_id || item.source_owner_id, 80),
+        origin_owner_username: originUsername,
+        origin_owner_key: originKey,
+        source_ledger_id: sanitizeText(item.ledger_id || item.source_ledger_id, 100),
+        return_policy: 'record_only_waiting_personal_home_receipt',
+        execution_status: 'preview_only',
+      };
+    })
+    .filter(entry => entry.decoration_id && entry.origin_owner_username)
+    .sort((left, right) => left.manifest_id.localeCompare(right.manifest_id))
+    .slice(0, 120);
+}
+
+function hashDecorationSplitManifest(manifest = []) {
+  const stableRows = (Array.isArray(manifest) ? manifest : []).map(entry => ({
+    manifest_id: entry.manifest_id,
+    decoration_id: entry.decoration_id,
+    origin_owner_id: entry.origin_owner_id,
+    origin_owner_username: entry.origin_owner_username,
+    source_ledger_id: entry.source_ledger_id,
+  }));
+  return crypto.createHash('sha256').update(JSON.stringify(stableRows)).digest('hex');
+}
+
+function buildFamilyBuildingSplitManifest(contract = {}) {
+  const ledger = normalizeFamilyBuildingLedger(contract);
+  return ledger
+    .filter(entry => entry.real_build_applied === true || entry.shared_warehouse_materials_consumed === true || entry.shared_fund_deducted === true)
+    .map(entry => ({
+      manifest_id: `family_building:${entry.id}`,
+      building_ledger_id: entry.id,
+      building_id: entry.building_id,
+      project_id: entry.project_id,
+      target_ref: entry.target_ref,
+      fund_ledger_id: entry.fund_ledger_id,
+      draft_id: entry.draft_id,
+      amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+      shared_fund_deducted: entry.shared_fund_deducted === true,
+      real_build_applied: entry.real_build_applied === true,
+      shared_warehouse_materials_consumed: entry.shared_warehouse_materials_consumed === true,
+      split_policy: 'record_only_waiting_building_rollback_or_manual_receipt',
+      execution_status: 'preview_only',
+    }))
+    .sort((left, right) => left.manifest_id.localeCompare(right.manifest_id))
+    .slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
+}
+
+function hashFamilyBuildingSplitManifest(manifest = []) {
+  const stableRows = (Array.isArray(manifest) ? manifest : []).map(entry => ({
+    manifest_id: entry.manifest_id,
+    building_ledger_id: entry.building_ledger_id,
+    building_id: entry.building_id,
+    target_ref: entry.target_ref,
+    fund_ledger_id: entry.fund_ledger_id,
+    amount: entry.amount,
+    shared_fund_deducted: entry.shared_fund_deducted,
+    real_build_applied: entry.real_build_applied,
+    shared_warehouse_materials_consumed: entry.shared_warehouse_materials_consumed,
+  }));
+  return crypto.createHash('sha256').update(JSON.stringify(stableRows)).digest('hex');
+}
+
+function summarizeDecorationSplitsByOwner(manifest = []) {
+  const groups = new Map();
+  for (const entry of Array.isArray(manifest) ? manifest : []) {
+    const key = entry.origin_owner_key || normalizeUsernameKey(entry.origin_owner_username);
+    if (!key) continue;
+    const current = groups.get(key) || {
+      origin_owner_id: entry.origin_owner_id,
+      origin_owner_username: entry.origin_owner_username,
+      origin_owner_key: key,
+      decoration_count: 0,
+      decoration_ids: [],
+      return_status: 'recorded_waiting_personal_home_receipt',
+    };
+    current.decoration_count += 1;
+    if (current.decoration_ids.length < 40) current.decoration_ids.push(entry.decoration_id);
+    groups.set(key, current);
+  }
+  return [...groups.values()].slice(0, 80);
+}
+
+function summarizeBuildingSplitsByProject(manifest = []) {
+  return (Array.isArray(manifest) ? manifest : []).map(entry => ({
+    building_ledger_id: entry.building_ledger_id,
+    building_id: entry.building_id,
+    project_id: entry.project_id,
+    target_ref: entry.target_ref,
+    amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    split_status: 'recorded_waiting_building_rollback_or_manual_receipt',
+  })).filter(entry => entry.building_ledger_id).slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
+}
+
 function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payload = {}) {
   const assetReturn = preview.asset_return && typeof preview.asset_return === 'object' ? preview.asset_return : {};
   const plotManifest = Array.isArray(assetReturn.plot_return_manifest) ? assetReturn.plot_return_manifest : [];
+  const decorationManifest = Array.isArray(assetReturn.decoration_split_manifest) ? assetReturn.decoration_split_manifest : [];
+  const buildingManifest = Array.isArray(assetReturn.family_building_split_manifest) ? assetReturn.family_building_split_manifest : [];
   const plotsByOwner = Array.isArray(assetReturn.plots_by_origin_owner) ? assetReturn.plots_by_origin_owner : [];
   const warehouseReturns = Array.isArray(assetReturn.warehouse_items_by_origin_owner) ? assetReturn.warehouse_items_by_origin_owner : [];
   const fundReturns = Array.isArray(assetReturn.fund_contributions_by_origin_owner) ? assetReturn.fund_contributions_by_origin_owner : [];
   const plotReturnManifestHash = sanitizeText(assetReturn.plot_return_manifest_hash, 100) || hashPlotReturnManifest(plotManifest);
+  const decorationSplitManifestHash = sanitizeText(assetReturn.decoration_split_manifest_hash, 100) || hashDecorationSplitManifest(decorationManifest);
+  const buildingSplitManifestHash = sanitizeText(assetReturn.family_building_split_manifest_hash, 100) || hashFamilyBuildingSplitManifest(buildingManifest);
   return {
     id: makeId('separation_asset_return'),
     preview_id: preview.id,
@@ -4640,6 +4761,8 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
     memo: payload.memo,
     status: 'asset_return_recorded',
     plot_return_manifest_hash: plotReturnManifestHash,
+    decoration_split_manifest_hash: decorationSplitManifestHash,
+    building_split_manifest_hash: buildingSplitManifestHash,
     plot_return_count: plotManifest.length,
     plot_returns_by_origin_owner: plotsByOwner.map(entry => ({
       origin_owner_id: sanitizeText(entry.origin_owner_id, 80),
@@ -4665,6 +4788,8 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
       suggested_refund_amount: Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)),
       return_status: 'manual_personal_money_write_required',
     })).filter(entry => entry.origin_owner_username && entry.suggested_refund_amount > 0),
+    decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(decorationManifest),
+    building_splits_by_origin_owner: summarizeBuildingSplitsByProject(buildingManifest),
     personal_money_merged: false,
     personal_save_written: false,
     shared_assets_mutated: false,
@@ -5027,7 +5152,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
     executed_at: Math.max(0, Math.floor(Number(entry.executed_at) || 0)),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     memo: sanitizeText(entry.memo, 160),
-    status: ['asset_return_recorded', 'personal_save_written', 'shared_fund_refunded', 'shared_warehouse_returned', 'family_story_resolved', 'personal_story_receipts_written', 'child_arrangement_resolved', 'personal_family_receipts_written', 'compensated', 'reverted'].includes(entry.status)
+    status: ['asset_return_recorded', 'personal_save_written', 'shared_fund_refunded', 'shared_warehouse_returned', 'decorations_buildings_split', 'family_story_resolved', 'personal_story_receipts_written', 'child_arrangement_resolved', 'personal_family_receipts_written', 'compensated', 'reverted'].includes(entry.status)
       ? entry.status
       : 'asset_return_recorded',
     plot_return_manifest_hash: sanitizeText(entry.plot_return_manifest_hash, 100),
@@ -5061,6 +5186,43 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           suggested_refund_amount: Math.max(0, Math.floor(Number(item.suggested_refund_amount) || 0)),
           return_status: sanitizeText(item.return_status, 80) || 'manual_personal_money_write_required',
         })).filter(item => item.origin_owner_username && item.suggested_refund_amount > 0).slice(0, 80)
+      : [],
+    decoration_split_manifest_hash: sanitizeText(entry.decoration_split_manifest_hash, 100),
+    building_split_manifest_hash: sanitizeText(entry.building_split_manifest_hash, 100),
+    decoration_splits_by_origin_owner: Array.isArray(entry.decoration_splits_by_origin_owner)
+      ? entry.decoration_splits_by_origin_owner.map(item => ({
+          origin_owner_id: sanitizeText(item.origin_owner_id, 80),
+          origin_owner_username: normalizeUsername(item.origin_owner_username),
+          origin_owner_key: normalizeUsernameKey(item.origin_owner_key || item.origin_owner_username),
+          decoration_count: Math.max(0, Math.floor(Number(item.decoration_count) || 0)),
+          decoration_ids: Array.isArray(item.decoration_ids) ? item.decoration_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 40) : [],
+          return_status: sanitizeText(item.return_status, 80) || 'recorded_waiting_personal_home_receipt',
+        })).filter(item => item.origin_owner_username && item.decoration_count > 0).slice(0, 80)
+      : [],
+    building_splits_by_origin_owner: Array.isArray(entry.building_splits_by_origin_owner)
+      ? entry.building_splits_by_origin_owner.map(item => ({
+          building_ledger_id: sanitizeText(item.building_ledger_id, 100),
+          building_id: sanitizeText(item.building_id, 80),
+          project_id: sanitizeText(item.project_id, 80),
+          target_ref: sanitizeText(item.target_ref, 120),
+          amount: Math.max(0, Math.floor(Number(item.amount) || 0)),
+          split_status: sanitizeText(item.split_status, 100) || 'recorded_waiting_building_rollback_or_manual_receipt',
+        })).filter(item => item.building_ledger_id).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
+      : [],
+    decorations_buildings_split: entry.decorations_buildings_split === true,
+    decorations_buildings_split_idempotency_key: sanitizeText(entry.decorations_buildings_split_idempotency_key, 120),
+    decorations_buildings_split_at: Math.max(0, Math.floor(Number(entry.decorations_buildings_split_at) || 0)),
+    decorations_buildings_split_by: normalizeUsername(entry.decorations_buildings_split_by),
+    decoration_building_split_receipts: Array.isArray(entry.decoration_building_split_receipts)
+      ? entry.decoration_building_split_receipts.map(item => ({
+          receipt_id: sanitizeText(item.receipt_id, 120),
+          receipt_type: sanitizeText(item.receipt_type, 80),
+          count: Math.max(0, Math.floor(Number(item.count) || 0)),
+          manifest_hash: sanitizeText(item.manifest_hash, 100),
+          status: sanitizeText(item.status, 80) || 'recorded_only',
+          idempotency_key: sanitizeText(item.idempotency_key, 120),
+          recorded_at: Math.max(0, Math.floor(Number(item.recorded_at) || 0)),
+        })).filter(item => item.receipt_id).slice(0, 20)
       : [],
     personal_money_merged: entry.personal_money_merged === true,
     personal_save_written: entry.personal_save_written === true,
@@ -7501,6 +7663,8 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   const plotReturnPreview = buildPlotReturnPreview(contract);
   const warehouseReturns = buildWarehouseReturnPreview(contract);
   const fundReturns = buildFundReturnPreview(contract);
+  const decorationSplitManifest = buildDecorationSplitManifest(contract);
+  const familyBuildingSplitManifest = buildFamilyBuildingSplitManifest(contract);
   const totalFundContributions = fundReturns.reduce((sum, entry) => sum + entry.amount, 0);
   const totalSuggestedFundRefund = fundReturns.reduce((sum, entry) => sum + entry.suggested_refund_amount, 0);
   const requiredMemberUsernames = (contract.members || [])
@@ -7524,6 +7688,13 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
       unavailable_plot_sources: plotReturnPreview.unavailable_plot_sources,
       warehouse_items_by_origin_owner: warehouseReturns,
       fund_contributions_by_origin_owner: fundReturns,
+      decorations_by_origin_owner: summarizeDecorationSplitsByOwner(decorationSplitManifest),
+      decoration_split_manifest: decorationSplitManifest,
+      decoration_split_manifest_hash: hashDecorationSplitManifest(decorationSplitManifest),
+      family_buildings_by_origin_owner: summarizeBuildingSplitsByProject(familyBuildingSplitManifest),
+      family_building_split_manifest: familyBuildingSplitManifest,
+      family_building_split_manifest_hash: hashFamilyBuildingSplitManifest(familyBuildingSplitManifest),
+      building_split_policy: '第一版只记录装饰 / 建筑拆分 ledger、hash、审计和补偿提示；不移动个人房屋、家具或真实建筑状态。',
       fund_balance: contract.shared_fund.balance,
       fund_total_contributed: totalFundContributions,
       fund_suggested_refund_total: totalSuggestedFundRefund,
@@ -7581,6 +7752,8 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     plot_groups: preview.asset_return.plots_by_origin_owner.length,
     warehouse_groups: preview.asset_return.warehouse_items_by_origin_owner.length,
     fund_groups: preview.asset_return.fund_contributions_by_origin_owner.length,
+    decoration_groups: preview.asset_return.decorations_by_origin_owner.length,
+    family_building_groups: preview.asset_return.family_buildings_by_origin_owner.length,
     confirm_after_at: preview.confirm_after_at,
     requires_both_confirm: true,
   }, idempotencyKey);
@@ -8581,6 +8754,174 @@ async function returnSeparationSharedWarehouse(contractId, previewId, payload = 
   };
 }
 
+async function splitSeparationDecorationsAndBuildings(contractId, previewId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const splitPayload = normalizeSeparationDecorationBuildingSplitPayload(payload);
+  const normalizedContractId = sanitizeText(contractId, 80);
+  const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
+  if (!normalizedPreviewId) throw createError('请指定要记录装饰 / 建筑拆分的分居预览');
+
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === normalizedContractId);
+  if (!contract) throw createError('同居契约不存在', 404);
+  if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
+  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效或分居处理中的契约可以记录装饰 / 建筑拆分', 409);
+
+  const member = (contract.members || []).find(entry =>
+    entry.status === 'accepted' && (
+      normalizeUsernameKey(entry.username) === normalizeUsernameKey(actorUsername)
+      || normalizeUsernameKey(entry.username_key) === normalizeUsernameKey(actorUsername)
+    )
+  );
+  if (!member) throw createError('只有已接受契约成员可以记录装饰 / 建筑拆分', 403);
+
+  contract.separation_previews = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.map(normalizeSeparationPreview)
+    : [];
+  contract.separation_execution_ledger = Array.isArray(contract.separation_execution_ledger)
+    ? contract.separation_execution_ledger.map(normalizeSeparationExecutionLedgerEntry)
+    : [];
+  const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
+  if (previewIndex < 0) throw createError('分居预览不存在', 404);
+
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const executionRequest = preview.confirmation_state.execution_request || {};
+  if (!['shared_warehouse_returned', 'decorations_buildings_split'].includes(String(executionRequest.status || ''))) {
+    throw createError('请先返还共同仓库，再记录装饰 / 建筑拆分', 409);
+  }
+  const ledgerIndex = contract.separation_execution_ledger.findIndex(entry =>
+    entry.id === (splitPayload.execution_ledger_id || executionRequest.execution_ledger_id)
+    || (entry.preview_id === normalizedPreviewId && ['shared_warehouse_returned', 'decorations_buildings_split'].includes(entry.status))
+  );
+  if (ledgerIndex < 0) throw createError('分居返还执行记录不存在，请重新记录返还执行', 409);
+  const ledger = normalizeSeparationExecutionLedgerEntry(contract.separation_execution_ledger[ledgerIndex]);
+  if (splitPayload.execution_ledger_id && splitPayload.execution_ledger_id !== ledger.id) throw createError('分居返还执行记录不匹配，请刷新后重试', 409);
+  if (ledger.decorations_buildings_split_idempotency_key === splitPayload.idempotency_key || ledger.decorations_buildings_split === true) {
+    return {
+      contract: toPublicContract(contract),
+      preview,
+      idempotent: true,
+      already_split: ledger.decorations_buildings_split === true,
+      execution_ledger: ledger,
+      receipts: ledger.decoration_building_split_receipts || [],
+    };
+  }
+
+  const plotManifest = Array.isArray(preview.asset_return?.plot_return_manifest) ? preview.asset_return.plot_return_manifest : [];
+  const decorationManifest = Array.isArray(preview.asset_return?.decoration_split_manifest) ? preview.asset_return.decoration_split_manifest : [];
+  const buildingManifest = Array.isArray(preview.asset_return?.family_building_split_manifest) ? preview.asset_return.family_building_split_manifest : [];
+  const expectedPlotHash = sanitizeText(preview.asset_return?.plot_return_manifest_hash, 100) || hashPlotReturnManifest(plotManifest);
+  const expectedDecorationHash = sanitizeText(preview.asset_return?.decoration_split_manifest_hash, 100) || hashDecorationSplitManifest(decorationManifest);
+  const expectedBuildingHash = sanitizeText(preview.asset_return?.family_building_split_manifest_hash, 100) || hashFamilyBuildingSplitManifest(buildingManifest);
+  if (!expectedPlotHash || !/^[a-f0-9]{64}$/i.test(expectedPlotHash)) throw createError('分居来源田区清单缺少可校验 hash，请重新生成预览', 409);
+  if (splitPayload.plot_return_manifest_hash && splitPayload.plot_return_manifest_hash !== expectedPlotHash) {
+    throw createError('分居来源田区清单 hash 不匹配，请重新生成预览，避免装饰 / 建筑拆分错账', 409);
+  }
+  if (splitPayload.decoration_split_manifest_hash && splitPayload.decoration_split_manifest_hash !== expectedDecorationHash) {
+    throw createError('分居装饰拆分清单 hash 不匹配，请重新生成预览，避免装饰拆分错账', 409);
+  }
+  if (splitPayload.building_split_manifest_hash && splitPayload.building_split_manifest_hash !== expectedBuildingHash) {
+    throw createError('分居建筑拆分清单 hash 不匹配，请重新生成预览，避免建筑拆分错账', 409);
+  }
+  if (ledger.plot_return_manifest_hash && ledger.plot_return_manifest_hash !== expectedPlotHash) throw createError('分居返还执行记录与当前预览 hash 不一致，请人工复核', 409);
+  if (ledger.decoration_split_manifest_hash && ledger.decoration_split_manifest_hash !== expectedDecorationHash) throw createError('分居装饰执行记录与当前预览 hash 不一致，请人工复核', 409);
+  if (ledger.building_split_manifest_hash && ledger.building_split_manifest_hash !== expectedBuildingHash) throw createError('分居建筑执行记录与当前预览 hash 不一致，请人工复核', 409);
+  if (ledger.shared_warehouse_returned !== true) throw createError('共同仓库尚未返还，不能记录装饰 / 建筑拆分', 409);
+
+  const splitAt = nowSeconds();
+  const receipts = [
+    {
+      receipt_id: makeId('decoration_split_receipt'),
+      receipt_type: 'decorations',
+      count: decorationManifest.length,
+      manifest_hash: expectedDecorationHash,
+      status: 'recorded_only',
+      idempotency_key: splitPayload.idempotency_key,
+      recorded_at: splitAt,
+    },
+    {
+      receipt_id: makeId('building_split_receipt'),
+      receipt_type: 'family_buildings',
+      count: buildingManifest.length,
+      manifest_hash: expectedBuildingHash,
+      status: 'recorded_only',
+      idempotency_key: splitPayload.idempotency_key,
+      recorded_at: splitAt,
+    },
+  ];
+  const nextRequiredOperations = (ledger.next_required_operations || [])
+    .filter(operation => operation && operation !== 'split_decorations' && operation !== 'split_buildings');
+  if (!nextRequiredOperations.includes('resolve_family_story')) nextRequiredOperations.push('resolve_family_story');
+  const nextLedger = normalizeSeparationExecutionLedgerEntry({
+    ...ledger,
+    status: 'decorations_buildings_split',
+    decorations_buildings_split: true,
+    decorations_buildings_split_idempotency_key: splitPayload.idempotency_key,
+    decorations_buildings_split_at: splitAt,
+    decorations_buildings_split_by: member.username,
+    decoration_split_manifest_hash: expectedDecorationHash,
+    building_split_manifest_hash: expectedBuildingHash,
+    decoration_splits_by_origin_owner: summarizeDecorationSplitsByOwner(decorationManifest),
+    building_splits_by_origin_owner: summarizeBuildingSplitsByProject(buildingManifest),
+    decoration_building_split_receipts: receipts,
+    next_required_operations: nextRequiredOperations,
+  });
+  const nextExecutionRequest = {
+    ...executionRequest,
+    status: 'decorations_buildings_split',
+    decorations_buildings_split: true,
+    decorations_buildings_split_at: splitAt,
+    decorations_buildings_split_by: member.username,
+    decoration_building_split_receipts: receipts,
+    next_required_operations: nextLedger.next_required_operations,
+  };
+  const nextPreview = normalizeSeparationPreview({
+    ...preview,
+    asset_return: {
+      ...preview.asset_return,
+      decorations_buildings_split: true,
+      decorations_buildings_split_at: splitAt,
+      decoration_building_split_receipts: receipts,
+    },
+    confirmation_state: {
+      ...preview.confirmation_state,
+      execution_request: nextExecutionRequest,
+      decorations_buildings_split: true,
+      decorations_buildings_split_at: splitAt,
+      can_execute_now: false,
+      execution_enabled: false,
+      execution_policy: '分居装饰 / 建筑拆分已记录 ledger、hash 和补偿提示；个人小屋、家具、真实建筑和共同资产不由本步骤自动改写。',
+    },
+    deferred_operations: nextLedger.next_required_operations,
+  });
+
+  contract.separation_execution_ledger[ledgerIndex] = nextLedger;
+  contract.separation_previews[previewIndex] = nextPreview;
+  appendAudit(contract, 'separation_decorations_buildings_split', actor, {
+    preview_id: nextPreview.id,
+    execution_ledger_id: nextLedger.id,
+    plot_return_manifest_hash: expectedPlotHash,
+    decoration_split_manifest_hash: expectedDecorationHash,
+    building_split_manifest_hash: expectedBuildingHash,
+    decoration_count: decorationManifest.length,
+    building_count: buildingManifest.length,
+    shared_assets_mutated: false,
+    personal_home_mutated: false,
+    next_required_operations: nextLedger.next_required_operations,
+  }, splitPayload.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    preview: nextPreview,
+    idempotent: false,
+    already_split: false,
+    execution_ledger: nextLedger,
+    receipts,
+  };
+}
+
 async function resolveSeparationFamilyStory(contractId, previewId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -8614,12 +8955,12 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
 
   const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
   const executionRequest = preview.confirmation_state.execution_request || {};
-  if (!['shared_warehouse_returned', 'family_story_resolved'].includes(String(executionRequest.status || ''))) {
+  if (!['shared_warehouse_returned', 'decorations_buildings_split', 'family_story_resolved'].includes(String(executionRequest.status || ''))) {
     throw createError('请先返还共同仓库，再记录剧情拆分', 409);
   }
   const ledgerIndex = contract.separation_execution_ledger.findIndex(entry =>
     entry.id === (storyPayload.execution_ledger_id || executionRequest.execution_ledger_id)
-    || (entry.preview_id === normalizedPreviewId && ['shared_warehouse_returned', 'family_story_resolved'].includes(entry.status))
+    || (entry.preview_id === normalizedPreviewId && ['shared_warehouse_returned', 'decorations_buildings_split', 'family_story_resolved'].includes(entry.status))
   );
   if (ledgerIndex < 0) throw createError('分居返还执行记录不存在，请重新记录返还执行', 409);
   const ledger = normalizeSeparationExecutionLedgerEntry(contract.separation_execution_ledger[ledgerIndex]);
@@ -8661,7 +9002,7 @@ async function resolveSeparationFamilyStory(contractId, previewId, payload = {},
     privacy_boundary: '仅在共同契约记录分居剧情拆分状态；个人 NPC、孩子、恋爱和家庭存档不在联机契约中公开或自动改写。',
     memo: storyPayload.memo,
   };
-  const nextRequiredOperations = ['split_decorations'];
+  const nextRequiredOperations = ledger.decorations_buildings_split === true ? [] : ['split_decorations'];
   if (childArrangementRequired) nextRequiredOperations.push('resolve_child_arrangement');
   if (personalStoryWriteRequired) nextRequiredOperations.push('write_personal_story_receipts');
 
@@ -8802,7 +9143,7 @@ async function writeSeparationPersonalStoryReceipts(contractId, previewId, paylo
   const writtenAt = nowSeconds();
   const nextRequiredOperations = (ledger.next_required_operations || [])
     .filter(operation => operation && operation !== 'write_personal_story_receipts');
-  if (!nextRequiredOperations.includes('split_decorations')) nextRequiredOperations.unshift('split_decorations');
+  if (ledger.decorations_buildings_split !== true && !nextRequiredOperations.includes('split_decorations')) nextRequiredOperations.unshift('split_decorations');
   const nextLedger = normalizeSeparationExecutionLedgerEntry({
     ...ledger,
     status: 'personal_story_receipts_written',
@@ -8949,7 +9290,7 @@ async function resolveSeparationChildArrangement(contractId, previewId, payload 
   };
   const nextRequiredOperations = (ledger.next_required_operations || [])
     .filter(operation => operation && operation !== 'resolve_child_arrangement');
-  if (!nextRequiredOperations.includes('split_decorations')) nextRequiredOperations.unshift('split_decorations');
+  if (ledger.decorations_buildings_split !== true && !nextRequiredOperations.includes('split_decorations')) nextRequiredOperations.unshift('split_decorations');
   if (!nextRequiredOperations.includes('write_personal_family_receipts')) nextRequiredOperations.push('write_personal_family_receipts');
   const nextLedger = normalizeSeparationExecutionLedgerEntry({
     ...ledger,
@@ -9088,7 +9429,7 @@ async function writeSeparationPersonalFamilyReceipts(contractId, previewId, payl
   const writtenAt = nowSeconds();
   const nextRequiredOperations = (ledger.next_required_operations || [])
     .filter(operation => operation && operation !== 'write_personal_family_receipts');
-  if (!nextRequiredOperations.includes('split_decorations')) nextRequiredOperations.unshift('split_decorations');
+  if (ledger.decorations_buildings_split !== true && !nextRequiredOperations.includes('split_decorations')) nextRequiredOperations.unshift('split_decorations');
   const nextLedger = normalizeSeparationExecutionLedgerEntry({
     ...ledger,
     status: 'personal_family_receipts_written',
@@ -9191,6 +9532,7 @@ module.exports = {
   writeSeparationPersonalFarmReturns,
   refundSeparationSharedFund,
   returnSeparationSharedWarehouse,
+  splitSeparationDecorationsAndBuildings,
   resolveSeparationFamilyStory,
   writeSeparationPersonalStoryReceipts,
   resolveSeparationChildArrangement,

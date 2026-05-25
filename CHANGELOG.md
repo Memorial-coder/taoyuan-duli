@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 分居装饰 / 建筑拆分记录接入：分居预览新增 `decoration_split_manifest_hash` 与 `family_building_split_manifest_hash`，可追溯共同契约中的装饰来源和家族建筑流水；共同庄园新增 `/separation-previews/:previewId/split-decorations-buildings`，要求共同仓库已返还、执行 ledger 和三个 manifest hash 匹配。成功后只记录拆分 ledger、receipt、审计和补偿提示，移除 `split_decorations` 待办并保留剧情拆分后续；重复请求幂等读回，不改个人小屋 / 家具 / 真实建筑 / 共同资产主状态。
 - 分居个人家庭回执写入接入：共同庄园新增 `/separation-previews/:previewId/write-personal-family-receipts`，要求孩子安排已记录、执行 ledger 和 `plot_return_manifest_hash` 匹配；成功后只向各成员个人存档追加 `onlineCohabitation.family_receipts` 回执，执行状态推进到 `personal_family_receipts_written` 并记录审计，重复请求幂等读回，不改个人孩子 / 家庭 / NPC / 农田 / 背包 / 铜币主状态。共同庄园总览新增“写回家庭”按钮，按孩子安排已记录、执行 ledger、预览 hash 和服务端状态禁用。
 - 分居孩子安排前后端闭环接入：共同庄园新增 `/separation-previews/:previewId/resolve-child-arrangement`，要求剧情拆分已记录、婚姻同居有孩子、执行 ledger 和 `plot_return_manifest_hash` 匹配；成功后只在共同契约记录孩子安排方案、隐私边界、个人家庭存档 receipt 待办和审计，不改个人孩子 / 家庭 / NPC / 资产主状态。共同庄园总览新增“安排孩子”按钮，按孩子安排待办、执行 ledger、预览 hash 和服务端状态禁用。
 - 分居个人剧情回执前端入口接入：共同庄园总览在分居预览卡片新增“写回剧情”按钮，前端 API / store 接入 `/separation-previews/:previewId/write-personal-story-receipts`；按钮按剧情拆分已记录、执行 ledger、预览 hash 和服务端状态禁用，成功后刷新契约和共同日志，只触发个人剧情 receipt 写入链路，不处理孩子安排、装饰 / 建筑拆分或个人 NPC / 家庭主状态。

@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 分居装饰 / 建筑拆分记录
+- 分居预览新增装饰拆分与家族建筑拆分 manifest hash，分别追溯共同契约 `origin_assets.decorations` 和 `family_building_ledger`。
+- 服务端新增 `/separation-previews/:previewId/split-decorations-buildings`，要求共同仓库已返还、执行 ledger ID 可匹配，且来源田区、装饰、建筑三个 hash 均未漂移。
+- 成功后只记录拆分 ledger、两类 receipt、审计和补偿提示，移除 `split_decorations` 待办并保留 `resolve_family_story`；不改个人小屋、家具、真实建筑、共同仓库或共同基金主状态。
+- 本轮验证：`node --check server\src\taoyuanCohabitationRuntime.js`、`node --check server\src\routes\api.js`、`node --check server\scripts\qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 分居个人家庭回执写入
 - 服务端新增 `/separation-previews/:previewId/write-personal-family-receipts`，要求孩子安排已记录、执行 ledger ID 可匹配且预览 `plot_return_manifest_hash` 未变。
 - 成功后只向各已接受成员个人存档追加 `onlineCohabitation.family_receipts` 回执，执行状态推进到 `personal_family_receipts_written`；重复请求幂等读回，不改个人孩子、家庭、NPC、农田、背包或铜币主状态。
