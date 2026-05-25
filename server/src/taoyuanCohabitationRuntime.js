@@ -1472,7 +1472,7 @@ function normalizeFundLargeSpendDraft(entry = {}) {
   return {
     id: sanitizeText(entry.id, 80) || makeId('fund_large_spend_draft'),
     contract_id: sanitizeText(entry.contract_id, 80),
-    state: ['pending_confirmation', 'ready_to_execute', 'expired', 'cancelled'].includes(entry.state)
+    state: ['pending_confirmation', 'ready_to_execute', 'executed', 'expired', 'cancelled'].includes(entry.state)
       ? entry.state
       : 'pending_confirmation',
     requested_by: normalizeUsername(entry.requested_by || entry.actor_username),
@@ -1516,6 +1516,8 @@ function normalizeFundLargeSpendDraft(entry = {}) {
     expires_at: Number(entry.expires_at) || (nowSeconds() + 72 * 60 * 60),
     ready_at: Math.max(0, Math.floor(Number(entry.ready_at) || 0)),
     confirmed_at: Math.max(0, Math.floor(Number(entry.confirmed_at) || 0)),
+    executed_at: Math.max(0, Math.floor(Number(entry.executed_at) || 0)),
+    executed_by: normalizeUsername(entry.executed_by),
     last_confirmed_by: normalizeUsername(entry.last_confirmed_by),
     last_confirmed_at: Math.max(0, Math.floor(Number(entry.last_confirmed_at) || 0)),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
@@ -3676,6 +3678,7 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
     : [];
   const pendingLargeSpendDrafts = largeSpendDrafts.filter(draft => draft.state === 'pending_confirmation');
   const readyLargeSpendDrafts = largeSpendDrafts.filter(draft => draft.state === 'ready_to_execute');
+  const executedLargeSpendDrafts = largeSpendDrafts.filter(draft => draft.state === 'executed');
   return {
     contract_id: contract.id,
     shared_manor_id: contract.shared_manor_id,
@@ -3693,7 +3696,7 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       medium_spend_enabled: contract.status === 'active' && actorPermissions.fund.spend_medium === true,
       large_spend_enabled: false,
       large_spend_draft_enabled: contract.status === 'active' && actorPermissions.fund.spend_large === true,
-      large_spend_execution_enabled: false,
+      large_spend_execution_enabled: contract.status === 'active' && actorPermissions.fund.spend_large === true && readyLargeSpendDrafts.length > 0,
       idempotency_required: true,
       large_spend_requires_both: actorPermissions.confirmations.large_fund_spend_requires_both === true,
       small_spend_max_amount: FUND_MAX_SMALL_SPEND_AMOUNT,
@@ -3704,7 +3707,8 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       allowed_large_spend_purposes: allowedLargeSpendPurposes,
       pending_large_spend_draft_count: pendingLargeSpendDrafts.length,
       ready_large_spend_draft_count: readyLargeSpendDrafts.length,
-      compensation_policy: '第一版支持成员自愿注资、小额白名单支出、中额加工 / 建材预算和大额确认草案；大额草案不扣款，真实执行、建筑 ledger、自动返还和补偿重放待后续接入。',
+      executed_large_spend_draft_count: executedLargeSpendDrafts.length,
+      compensation_policy: '第一版支持成员自愿注资、小额白名单支出、中额加工 / 建材预算、大额确认草案和已确认草案扣款；建筑 ledger、自动返还和补偿重放待后续接入。',
     },
     permissions: {
       can_spend_small: actorPermissions.fund.spend_small === true,
@@ -4023,6 +4027,15 @@ function normalizeLargeFundSpendDraftPayload(payload = {}) {
 function normalizeLargeFundSpendConfirmPayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同基金大额确认需要 idempotency_key，以防断线或重试时重复确认');
+  return {
+    idempotency_key: idempotencyKey,
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeLargeFundSpendExecutePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('共同基金大额草案执行扣款需要 idempotency_key，以防断线或重试时重复扣基金');
   return {
     idempotency_key: idempotencyKey,
     memo: sanitizeText(payload.memo || payload.note, 160),
@@ -5783,6 +5796,197 @@ async function confirmCohabitationFundLargeSpendDraft(contractId, draftId, paylo
   };
 }
 
+async function executeCohabitationFundLargeSpendDraft(contractId, draftId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const executeRequest = normalizeLargeFundSpendExecutePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '执行共同基金大额草案扣款');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  if (actorPermissions.fund.spend_large !== true) throw createError('你没有执行共同基金大额建筑或扩建扣款的权限', 403);
+  if (actorPermissions.confirmations.large_fund_spend_requires_both !== true) {
+    throw createError('共同基金大额支出必须保持双方确认安全阀', 409);
+  }
+
+  const normalizedDraftId = sanitizeText(draftId || payload.draft_id || payload.id, 80);
+  if (!normalizedDraftId) throw createError('请指定要执行扣款的共同基金大额草案');
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
+    : [];
+  const draftIndex = contract.fund_large_spend_drafts.findIndex(entry => entry.id === normalizedDraftId);
+  if (draftIndex < 0) throw createError('共同基金大额确认草案不存在', 404);
+  const draft = normalizeFundLargeSpendDraft(contract.fund_large_spend_drafts[draftIndex]);
+
+  const previousKeyEntry = (contract.shared_fund.ledger || []).find(entry =>
+    entry.action === 'spend'
+    && entry.spend_tier === 'large'
+    && entry.idempotency_key === executeRequest.idempotency_key
+  );
+  if (
+    previousKeyEntry
+    && (
+      previousKeyEntry.amount !== draft.amount
+      || previousKeyEntry.purpose !== draft.purpose
+      || previousKeyEntry.target_ref !== draft.target_ref
+    )
+  ) {
+    throw createError('该共同基金大额执行幂等键已用于其他扣款目标，请更换 idempotency_key', 409);
+  }
+  const previousEntry = previousKeyEntry || null;
+  if (previousEntry) {
+    const existingDraft = normalizeFundLargeSpendDraft(contract.fund_large_spend_drafts[draftIndex]);
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      draft: existingDraft,
+      ledger_entry: previousEntry,
+      idempotent: true,
+      already_executed: existingDraft.state === 'executed',
+      shared_fund: {
+        balance_after: contract.shared_fund.balance,
+        deducted_amount: previousEntry.amount,
+        personal_money_merged: false,
+        confirmation_required: true,
+        confirmation_status: previousEntry.confirmation_status,
+        building_ledger_written: false,
+      },
+    };
+  }
+
+  if (draft.state === 'executed') {
+    const finalEntry = (contract.shared_fund.ledger || []).find(entry => entry.id === draft.final_spend_ledger_id);
+    if (!finalEntry) throw createError('该共同基金大额草案已标记执行，但缺少基金扣款流水，已中止避免重复扣款', 409);
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      draft,
+      ledger_entry: finalEntry,
+      idempotent: true,
+      already_executed: true,
+      shared_fund: {
+        balance_after: contract.shared_fund.balance,
+        deducted_amount: finalEntry.amount,
+        personal_money_merged: false,
+        confirmation_required: true,
+        confirmation_status: finalEntry.confirmation_status,
+        building_ledger_written: false,
+      },
+    };
+  }
+  if (draft.state !== 'ready_to_execute') throw createError('该共同基金大额草案尚未完成全部成员确认，不能执行扣款', 409);
+  const requiredKeys = new Set(draft.required_member_usernames.map(normalizeUsernameKey).filter(Boolean));
+  const confirmedKeys = new Set(draft.confirmed_member_usernames.map(normalizeUsernameKey).filter(Boolean));
+  if (draft.confirmation_status !== 'confirmed' || draft.pending_member_usernames.length > 0) {
+    throw createError('共同基金大额草案确认状态不完整，不能执行扣款', 409);
+  }
+  for (const key of requiredKeys) {
+    if (!confirmedKeys.has(key)) throw createError('共同基金大额草案仍有成员未确认，不能执行扣款', 409);
+  }
+
+  const beforeBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
+  if (beforeBalance < draft.amount) throw createError('共同基金余额不足，暂时不能执行该大额草案扣款');
+  const operatedAt = nowSeconds();
+  const afterBalance = beforeBalance - draft.amount;
+  const ledgerEntry = normalizeFundLedgerEntry({
+    id: makeId('shared_fund_ledger'),
+    action: 'spend',
+    actor_username: actorUsername,
+    actor_display_name: actor.displayName || actor.display_name || actorUsername,
+    amount: draft.amount,
+    at: operatedAt,
+    memo: executeRequest.memo || draft.memo,
+    purpose: draft.purpose,
+    spend_purpose_label: draft.purpose_label,
+    spend_category: draft.spend_category,
+    spend_tier: 'large',
+    target_ref: draft.target_ref,
+    source_owner_id: `shared_fund:${contract.id}`,
+    source_owner_username: '',
+    source_owner_display_name: '共同基金',
+    source_owner_key: 'shared_fund',
+    balance_after: afterBalance,
+    confirmation_required: true,
+    confirmation_status: 'confirmed',
+    idempotency_key: executeRequest.idempotency_key,
+    reversible: true,
+    compensation_hint: '大额共同基金已扣款但建筑 ledger 尚未接入；若后续失败需按草案和基金 ledger 补偿或重放。',
+    status: 'committed',
+  });
+  contract.shared_fund.balance = afterBalance;
+  contract.shared_fund.ledger = [ledgerEntry, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  const nextDraft = normalizeFundLargeSpendDraft({
+    ...draft,
+    state: 'executed',
+    current_balance_snapshot: beforeBalance,
+    projected_current_balance_after: afterBalance,
+    balance_sufficient: true,
+    confirmation_status: 'confirmed',
+    confirmation_state: {
+      ...draft.confirmation_state,
+      required_member_usernames: draft.required_member_usernames,
+      confirmed_member_usernames: draft.confirmed_member_usernames,
+      pending_member_usernames: [],
+      all_members_confirmed: true,
+      ready_for_execution_request: false,
+      executed: true,
+      executed_at: operatedAt,
+      executed_by: member.username,
+      can_execute_now: false,
+      execution_enabled: false,
+      policy: '大额建筑 / 扩建支出已完成成员确认并扣减共同基金；建筑 ledger 与真实建造仍待后续接入。',
+    },
+    executed_at: operatedAt,
+    executed_by: member.username,
+    execution_enabled: false,
+    final_spend_ledger_id: ledgerEntry.id,
+    compensation_policy: '大额共同基金已扣款但建筑 ledger 尚未接入；若后续失败需按草案和基金 ledger 补偿或重放。',
+    deferred_operations: ['building_ledger_write', 'fund_compensation_replay'],
+  });
+  contract.fund_large_spend_drafts[draftIndex] = nextDraft;
+  appendAudit(contract, 'fund_large_spend_draft_executed', actor, {
+    draft_id: nextDraft.id,
+    ledger_id: ledgerEntry.id,
+    amount: ledgerEntry.amount,
+    purpose: ledgerEntry.purpose,
+    purpose_label: ledgerEntry.spend_purpose_label,
+    spend_category: ledgerEntry.spend_category,
+    spend_tier: ledgerEntry.spend_tier,
+    target_ref: ledgerEntry.target_ref,
+    balance_before: beforeBalance,
+    balance_after: afterBalance,
+    confirmed_member_usernames: nextDraft.confirmed_member_usernames,
+    pending_member_usernames: nextDraft.pending_member_usernames,
+    confirmation_required: true,
+    confirmation_status: 'confirmed',
+    personal_money_merged: false,
+    building_ledger_written: false,
+    compensation_required: true,
+    reversible: ledgerEntry.reversible,
+  }, executeRequest.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    draft: nextDraft,
+    ledger_entry: ledgerEntry,
+    idempotent: false,
+    already_executed: false,
+    shared_fund: {
+      balance_before: beforeBalance,
+      balance_after: afterBalance,
+      deducted_amount: draft.amount,
+      personal_money_merged: false,
+      confirmation_required: true,
+      confirmation_status: 'confirmed',
+      building_ledger_written: false,
+    },
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -6039,6 +6243,7 @@ module.exports = {
   spendCohabitationFund,
   createCohabitationFundLargeSpendDraft,
   confirmCohabitationFundLargeSpendDraft,
+  executeCohabitationFundLargeSpendDraft,
   updateCohabitationPermissions,
   updateCohabitationFamilyRole,
   createCohabitationContract,

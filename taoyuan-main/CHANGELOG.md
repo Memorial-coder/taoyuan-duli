@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0525 共同基金大额草案执行扣款
+- 服务端新增 `/fund/large-spend-drafts/:draftId/execute` 写接口，只允许已激活成员且具备 `fund.spend_large` 时执行已全员确认的 `ready_to_execute` 大额草案。
+- 执行成功会扣共同基金，写入 `action=spend`、`spend_tier=large`、`confirmation_required=true`、`confirmation_status=confirmed` 的基金 ledger，并把草案推进到 `executed`、记录 `final_spend_ledger_id`、执行人、执行时间、审计和补偿提示。
+- 重复 `idempotency_key` 或已执行草案不会重复扣款；个人铜币不合并、不改动，建筑 ledger、真实建造 / 扩建、补偿重放和前端入口仍留后续。
+- 游戏内百科“共同基金大额确认”补充 `execute`、执行扣款、`spend_tier=large`、`executed` 和建筑 ledger 未接入边界。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke`。
+
 ### 0525 共同基金大额草案成员确认
 - 服务端新增 `/fund/large-spend-drafts/:draftId/confirm` 写接口，已激活契约中的必需确认成员可带 `idempotency_key` 提交大额草案确认。
 - 确认会推进 `confirmed_member_usernames` / `pending_member_usernames`、记录确认事件、当前余额快照和审计；全部成员确认后草案进入 `ready_to_execute`。

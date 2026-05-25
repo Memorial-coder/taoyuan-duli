@@ -1898,6 +1898,15 @@ assert.equal(duplicateLargeDraft.draft.id, largeDraft.draft.id, 'idempotent larg
 assert.equal(duplicateLargeDraft.fund.balance, balanceBeforeLargeDraft, 'idempotent large fund draft should not deduct balance')
 assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'idempotent large fund draft should not touch personal money')
 
+await assert.rejects(
+  () => runtime.executeCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
+    idempotency_key: 'qa-fund-large-building-draft-execute-before-confirm',
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'large fund drafts should not execute before all required members confirm'
+)
+assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance, balanceBeforeLargeDraft, 'rejected early large execution should not change shared balance')
+
 const largePartnerMoneyBeforeConfirm = readGameplayData(largePartner)?.player?.money
 const largeConfirm = await runtime.confirmCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
   memo: 'qa partner confirms large family building draft',
@@ -1919,6 +1928,9 @@ assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBef
 assert.ok(largeConfirm.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_confirmed'), 'large fund confirmation should be audited')
 assert.equal(largeConfirm.fund.summary.pending_large_spend_draft_count, 0, 'fund snapshot should move confirmed large drafts out of pending count')
 assert.equal(largeConfirm.fund.summary.ready_large_spend_draft_count, 1, 'fund snapshot should count ready large drafts')
+assert.equal(largeConfirm.fund.summary.large_spend_execution_enabled, false, 'fund snapshot should not enable execution for a member without spend_large permission')
+const largeOwnerReadyFund = await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))
+assert.equal(largeOwnerReadyFund.fund.summary.large_spend_execution_enabled, true, 'fund snapshot should enable large execution for a permitted actor after all members confirm')
 
 const duplicateLargeConfirm = await runtime.confirmCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
   idempotency_key: 'qa-fund-large-building-draft-partner-confirm',
@@ -1944,5 +1956,60 @@ await assert.rejects(
   'non-members should not confirm large fund drafts'
 )
 assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance, balanceBeforeLargeDraft, 'rejected large confirmation should not change shared balance')
+
+await assert.rejects(
+  () => runtime.executeCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
+    idempotency_key: 'qa-fund-large-building-draft-extra-execute-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not execute large fund draft spends'
+)
+assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance, balanceBeforeLargeDraft, 'rejected non-member large execution should not change shared balance')
+
+const largeExecute = await runtime.executeCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
+  memo: 'qa execute large family building draft',
+  idempotency_key: 'qa-fund-large-building-draft-execute',
+}, actor(largeOwner))
+assert.equal(largeExecute.idempotent, false, 'first large fund draft execution should not be idempotent')
+assert.equal(largeExecute.draft.id, largeDraft.draft.id, 'large fund execution should return the same draft')
+assert.equal(largeExecute.draft.state, 'executed', 'large fund draft should move to executed after execution')
+assert.equal(largeExecute.draft.execution_enabled, false, 'executed large fund draft should not remain executable')
+assert.equal(largeExecute.draft.confirmation_status, 'confirmed', 'executed large fund draft should keep confirmed status')
+assert.equal(largeExecute.draft.final_spend_ledger_id, largeExecute.ledger_entry.id, 'executed draft should point at final fund ledger')
+assert.equal(largeExecute.ledger_entry.action, 'spend', 'large execution should write spend ledger')
+assert.equal(largeExecute.ledger_entry.spend_tier, 'large', 'large execution ledger should be marked large tier')
+assert.equal(largeExecute.ledger_entry.confirmation_required, true, 'large execution ledger should require confirmation')
+assert.equal(largeExecute.ledger_entry.confirmation_status, 'confirmed', 'large execution ledger should record confirmed status')
+assert.equal(largeExecute.ledger_entry.purpose, 'family_building', 'large execution ledger should keep draft purpose')
+assert.equal(largeExecute.ledger_entry.target_ref, 'family_building:shared_granary:build', 'large execution ledger should keep draft target')
+assert.equal(largeExecute.shared_fund.balance_before, balanceBeforeLargeDraft, 'large execution should report balance before deduction')
+assert.equal(largeExecute.shared_fund.balance_after, balanceBeforeLargeDraft - 1300, 'large execution should report balance after deduction')
+assert.equal(largeExecute.shared_fund.deducted_amount, 1300, 'large execution should deduct draft amount')
+assert.equal(largeExecute.shared_fund.personal_money_merged, false, 'large execution should keep personal money separate')
+assert.equal(largeExecute.shared_fund.building_ledger_written, false, 'large execution should not pretend building ledger is written')
+assert.equal(largeExecute.fund.balance, balanceBeforeLargeDraft - 1300, 'large execution should deduct shared fund once')
+assert.equal(largeExecute.fund.summary.ready_large_spend_draft_count, 0, 'fund snapshot should move executed drafts out of ready count')
+assert.equal(largeExecute.fund.summary.executed_large_spend_draft_count, 1, 'fund snapshot should count executed large drafts')
+assert.equal(largeExecute.fund.summary.large_spend_execution_enabled, false, 'fund snapshot should disable execution when no ready drafts remain')
+assert.ok(largeExecute.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_executed'), 'large fund execution should be audited')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'large fund execution should not touch owner personal money')
+assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'large fund execution should not touch partner personal money')
+
+const duplicateLargeExecute = await runtime.executeCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
+  idempotency_key: 'qa-fund-large-building-draft-execute',
+}, actor(largeOwner))
+assert.equal(duplicateLargeExecute.idempotent, true, 'same large execution idempotency key should be idempotent')
+assert.equal(duplicateLargeExecute.ledger_entry.id, largeExecute.ledger_entry.id, 'idempotent large execution should return original ledger')
+assert.equal(duplicateLargeExecute.fund.balance, balanceBeforeLargeDraft - 1300, 'idempotent large execution should not deduct balance twice')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'idempotent large execution should not touch owner personal money')
+
+const alreadyExecutedLarge = await runtime.executeCohabitationFundLargeSpendDraft(largeContract.contract.id, largeDraft.draft.id, {
+  idempotency_key: 'qa-fund-large-building-draft-execute-again',
+}, actor(largeOwner))
+assert.equal(alreadyExecutedLarge.idempotent, true, 'already executed large draft should return idempotent response')
+assert.equal(alreadyExecutedLarge.already_executed, true, 'already executed large draft response should be explicit')
+assert.equal(alreadyExecutedLarge.ledger_entry.id, largeExecute.ledger_entry.id, 'already executed large draft should return final ledger')
+assert.equal(alreadyExecutedLarge.fund.balance, balanceBeforeLargeDraft - 1300, 'already executed large draft should not deduct balance again')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'already executed large draft should not touch owner personal money')
 
 console.log('[qa-cohabitation-contract] OK')
