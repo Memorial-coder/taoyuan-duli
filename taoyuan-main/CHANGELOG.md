@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 活动结算凭证幂等回归
+- `qa-activity-room-visual-state` 新增端午赛舟奖励落账与同凭证补偿重放回归：首次关闭房间写入玩家服务端存档后，模拟同一凭证重新进入待写回状态并通过管理端重试。
+- 断言个人铜钱、节会票券、终身票券、纪念册、装饰奖励和 `appliedReceipts` 幂等键都不会重复增加，保护活动结算凭证不重复发奖。
+- 本轮验证：`node --check server/scripts/qa-activity-room-visual-state.mjs`、`node --check server/src/taoyuanActivityRoomRuntime.js`、`npm --prefix server run qa:activity-room-visual-state`。
+
 ### 0525 单人农场共同庄园边界
 - `qa-late-game-samples` 扩展 `legacy_v3_minimal_compat` 运行态断言：导入单人旧档后实例化共同庄园 store、写入模拟共同地图，再执行本地农场开垦、播种和浇水。
 - 断言本地农场仍保持 4x4 地块、共同庄园共享地块不会混入 `useFarmStore`，共同地图快照不会覆盖单人农场。

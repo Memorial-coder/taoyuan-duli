@@ -18,11 +18,51 @@ process.env.MYSQL_DATABASE = ''
 
 const require = createRequire(import.meta.url)
 const runtime = require('../src/taoyuanActivityRoomRuntime')
+const saveRuntime = require('../src/taoyuanSaveRuntime')
 
 const actor = username => ({
   username,
   displayName: username,
 })
+
+const buildRewardSaveData = username => ({
+  meta: {
+    saveVersion: 1,
+    savedAt: '2026-05-25T00:00:00.000Z',
+  },
+  savedAt: '2026-05-25T00:00:00.000Z',
+  data: {
+    player: {
+      playerName: username,
+      money: 500,
+    },
+    game: {
+      year: 1,
+      season: 'summer',
+      day: 5,
+    },
+    inventory: {
+      items: [],
+      tempItems: [],
+      capacity: 24,
+    },
+  },
+})
+
+const seedRewardSave = username => {
+  const slots = saveRuntime.loadUserSaveSlots(username)
+  slots.slots[0] = {
+    raw: saveRuntime.encryptTaoyuanData(buildRewardSaveData(username)),
+    revision: 1,
+  }
+  saveRuntime.saveUserSaveSlots(username, slots)
+  saveRuntime.setActiveSaveSlot(username, 0)
+}
+
+const readRewardSave = username => {
+  const raw = saveRuntime.loadUserSaveSlots(username).slots[0]?.raw
+  return saveRuntime.normalizeGameplaySaveContainer(saveRuntime.decryptTaoyuanRaw(raw))?.gameplayData
+}
 
 const assertVisualStateShape = (visualState, expectedBoardType, expectedBoardIdPrefix) => {
   assert.equal(visualState?.board_type, expectedBoardType, 'visual_state board_type mismatch')
@@ -315,6 +355,8 @@ assertDragonBoatVisualTrack(dragonAdvancedResult.room, null, {
   expectSelectedOccupied: true,
 })
 
+seedRewardSave('visual_host_dragon')
+const dragonRewardBeforeClose = readRewardSave('visual_host_dragon')
 const dragonSettledResult = await runtime.settleFestivalRoom(dragonBoat.room.id, actor('visual_host_dragon'))
 const dragonReceiptReplay = dragonSettledResult.overview.recent_receipts.find(receipt => receipt.room_id === dragonBoat.room.id)?.route_replay
 assert.equal(dragonReceiptReplay?.kind, 'dragon_boat', 'dragon boat settlement receipt should expose route replay')
@@ -340,6 +382,66 @@ assert.ok(dragonReceiptReplay.race_result.popularity_bonus > 0, 'dragon boat rep
 assert.equal(dragonReceiptReplay.race_rankings.length, 1, 'dragon boat replay should include team ranking rows')
 const dragonSettledSnapshotReceipt = dragonSettledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_host_dragon')
 assert.equal(dragonSettledSnapshotReceipt?.route_replay?.kind, 'dragon_boat', 'room snapshot dragon boat receipt should include route replay')
+const dragonSettlementStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+const dragonStoredReceipt = dragonSettlementStore.receipts.find(receipt => receipt.room_id === dragonBoat.room.id && receipt.target_username === 'visual_host_dragon')
+assert.ok(dragonStoredReceipt?.idempotency_key, 'dragon boat stored receipt should keep idempotency key')
+const dragonRewardMoney = Math.max(0, Math.floor(Number(dragonStoredReceipt.reward_payload?.money) || 0))
+const dragonRewardTickets = Math.max(0, Math.floor(Number(dragonStoredReceipt.reward_breakdown?.memorial_ticket_quantity) || 0))
+const dragonRewardDecoration = dragonStoredReceipt.reward_breakdown?.decoration_reward || {}
+
+const dragonClosedResult = await runtime.closeFestivalRoom(dragonBoat.room.id, actor('visual_host_dragon'))
+assert.equal(dragonClosedResult.room.state, 'closed', 'dragon boat room should close after receipt persistence')
+const dragonRewardAfterClose = readRewardSave('visual_host_dragon')
+assert.equal(dragonRewardAfterClose.player.money, dragonRewardBeforeClose.player.money + dragonRewardMoney, 'first receipt persistence should add dragon boat money once')
+assert.equal(dragonRewardAfterClose.wallet.rewardTickets.festival, dragonRewardTickets, 'first receipt persistence should add festival tickets once')
+assert.equal(dragonRewardAfterClose.wallet.rewardTicketLifetimeEarned.festival, dragonRewardTickets, 'first receipt persistence should add lifetime festival tickets once')
+assert.equal(Object.keys(dragonRewardAfterClose.onlineFestivalRewards.appliedReceipts).length, 1, 'first receipt persistence should record one applied receipt key')
+assert.ok(dragonRewardAfterClose.onlineFestivalRewards.appliedReceipts[dragonStoredReceipt.idempotency_key], 'applied receipt key should match settlement idempotency key')
+assert.equal(dragonRewardAfterClose.onlineFestivalRewards.memorials.length, 1, 'first receipt persistence should add one memorial')
+if (dragonRewardDecoration.decoration_id) {
+  assert.equal(
+    dragonRewardAfterClose.decoration.owned[dragonRewardDecoration.decoration_id],
+    Math.max(0, Math.floor(Number(dragonRewardDecoration.quantity) || 0)),
+    'first receipt persistence should add decoration once'
+  )
+}
+
+const replayStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
+replayStore.rooms = replayStore.rooms.map(room => room.id === dragonBoat.room.id
+  ? {
+      ...room,
+      state: 'settling',
+      state_message: 'QA replaying the same persisted receipt',
+      closed_at: 0,
+    }
+  : room
+)
+replayStore.receipts = replayStore.receipts.map(receipt => receipt.id === dragonStoredReceipt.id
+  ? {
+      ...receipt,
+      status: 'pending_persist',
+      reward_result: '',
+      persisted_at: 0,
+    }
+  : receipt
+)
+await writeFile(roomStoreFile, JSON.stringify(replayStore, null, 2), 'utf8')
+
+const dragonReplayResult = await runtime.retryAdminActivityRoomSettlement(dragonBoat.room.id)
+assert.equal(dragonReplayResult.room.state, 'closed', 'admin settlement retry should close replayed dragon boat room')
+const dragonRewardAfterReplay = readRewardSave('visual_host_dragon')
+assert.equal(dragonRewardAfterReplay.player.money, dragonRewardAfterClose.player.money, 'replayed receipt should not add money twice')
+assert.equal(dragonRewardAfterReplay.wallet.rewardTickets.festival, dragonRewardAfterClose.wallet.rewardTickets.festival, 'replayed receipt should not add festival tickets twice')
+assert.equal(dragonRewardAfterReplay.wallet.rewardTicketLifetimeEarned.festival, dragonRewardAfterClose.wallet.rewardTicketLifetimeEarned.festival, 'replayed receipt should not add lifetime festival tickets twice')
+assert.equal(Object.keys(dragonRewardAfterReplay.onlineFestivalRewards.appliedReceipts).length, 1, 'replayed receipt should not create duplicate applied receipt keys')
+assert.equal(dragonRewardAfterReplay.onlineFestivalRewards.memorials.length, 1, 'replayed receipt should not duplicate memorials')
+if (dragonRewardDecoration.decoration_id) {
+  assert.equal(
+    dragonRewardAfterReplay.decoration.owned[dragonRewardDecoration.decoration_id],
+    dragonRewardAfterClose.decoration.owned[dragonRewardDecoration.decoration_id],
+    'replayed receipt should not duplicate decoration rewards'
+  )
+}
 
 const overview = await runtime.listExpeditionRoomOverview('visual_host_expedition')
 assertCavernVisualNodes(overview.my_room, 0)
@@ -537,7 +639,7 @@ assert.deepEqual(nodes[1].resource_reward_preview, { ore: 2, rubbing: 1 }, 'node
 
 const objectStore = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 objectStore.rooms = objectStore.rooms.map(room => {
-  if (room.id !== dragonBoat.room.id) return room
+  if (room.id !== trackFixtureRoom.room.id) return room
   return {
     ...room,
     visual_state: {
@@ -599,7 +701,7 @@ objectStore.rooms = objectStore.rooms.map(room => {
 })
 await writeFile(roomStoreFile, JSON.stringify(objectStore, null, 2), 'utf8')
 
-const objectOverview = await runtime.listFestivalRoomOverview('visual_host_dragon')
+const objectOverview = await runtime.listFestivalRoomOverview('visual_host_track_fixture')
 const objects = objectOverview.my_room?.visual_state?.objects || []
 assert.equal(objects.length, 3, 'visual_state objects should keep valid objects and filter invalid entries')
 assert.deepEqual(objects.map(item => item.id), ['object_main_lantern', 'object_riddle_rack', 'object_crowd'])
