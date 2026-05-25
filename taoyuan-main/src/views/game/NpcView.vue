@@ -1,5 +1,5 @@
 <template>
-  <div>
+  <div data-testid="npc-view">
     <!-- Tab 切换按钮 -->
     <h3 class="text-accent text-sm mb-3">桃源村</h3>
 
@@ -102,6 +102,7 @@
             v-for="visitor in randomNpcBoard.activeVisitors"
             :key="visitor.id"
             class="border border-accent/10 rounded-xs p-2 bg-bg/10"
+            :data-testid="`random-npc-visitor-${visitor.id}`"
           >
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
@@ -157,13 +158,16 @@
                 class="w-full justify-start !px-2 !py-1 text-left"
                 :icon="MessageCircle"
                 :disabled="visitor.talkedToday"
+                :data-testid="`random-npc-choice-${visitor.id}-${choice.id}`"
                 @click="handleRandomVisitorTalk(visitor.id, choice.id)"
               >
                 {{ choice.text }}
               </Button>
             </div>
             <div class="flex items-center justify-between gap-2 mt-2">
-              <p class="text-[10px] text-muted leading-4">{{ getLastRandomNpcEvent(visitor) }}</p>
+              <p class="text-[10px] text-muted leading-4" :data-testid="`random-npc-last-event-${visitor.id}`">
+                {{ getLastRandomNpcEvent(visitor) }}
+              </p>
               <Button
                 class="shrink-0 justify-center !px-2 !py-1"
                 :class="{ '!bg-accent !text-bg': visitor.affinity >= randomNpcAcquaintanceThreshold }"
@@ -1476,6 +1480,26 @@
     }
     showFloat(`来访者好感 +${result.affinityChange}`, 'success')
     addLog(`【本周来访】${result.visitor?.name ?? '来访者'}：${result.message}`)
+  }
+
+  if (import.meta.env.DEV) {
+    ;(globalThis as any).__TAOYUAN_RANDOM_NPC_DEBUG__ = {
+      prepareDialogueSmoke: () => {
+        activeTab.value = 'villager'
+        const board = npcStore.getRandomNpcBoard()
+        const visitor = board.activeVisitors[0]
+        const choice = visitor?.dialogueChoices[0]
+        if (!visitor || !choice) return null
+
+        visitor.talkedToday = false
+        return {
+          visitorId: visitor.id,
+          visitorName: visitor.name,
+          choiceId: choice.id,
+          expectedResponse: choice.response
+        }
+      }
+    }
   }
 
   const handleAddRandomVisitorToAcquaintance = (visitorId: string) => {

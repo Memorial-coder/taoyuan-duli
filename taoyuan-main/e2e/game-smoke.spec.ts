@@ -1259,6 +1259,29 @@ test.describe('web game smoke', () => {
     await expect(page.getByTestId(`pet-special-feed-status-${petId}`)).toContainText('饱腹')
   })
 
+  test('npc page can talk with a random visitor', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '来客')
+
+    await page.goto('/#/game/npc')
+    await expect(page.getByTestId('npc-view')).toBeVisible()
+    await page.waitForFunction(() => typeof (window as any).__TAOYUAN_RANDOM_NPC_DEBUG__?.prepareDialogueSmoke === 'function')
+
+    const prepared = await page.evaluate(() => (window as any).__TAOYUAN_RANDOM_NPC_DEBUG__.prepareDialogueSmoke()) as {
+      visitorId: string
+      visitorName: string
+      choiceId: string
+      expectedResponse: string
+    } | null
+    expect(prepared).toBeTruthy()
+
+    await expect(page.getByTestId(`random-npc-visitor-${prepared!.visitorId}`)).toContainText(prepared!.visitorName)
+    await page.getByTestId(`random-npc-choice-${prepared!.visitorId}-${prepared!.choiceId}`).click()
+
+    await expect(page.getByTestId(`random-npc-last-event-${prepared!.visitorId}`)).toContainText(prepared!.expectedResponse)
+    await expect(page.getByTestId(`random-npc-choice-${prepared!.visitorId}-${prepared!.choiceId}`)).toBeDisabled()
+  })
+
   test('online festival visual track supports dragon boat cell actions', async ({ page }) => {
     await openHome(page)
     await startNewJourney(page, '赛舟')
