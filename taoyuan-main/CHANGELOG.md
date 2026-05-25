@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 分居执行请求前端入口
+- 共同庄园总览在分居预览卡片新增“请求执行”按钮，前端 API / store 接入 `/separation-previews/:previewId/request-execution`。
+- 按钮按双方确认、冷静期、已有 `pending_manual_execution` 请求和契约状态禁用；提交成功只刷新契约与共同日志，不执行资产返还。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 分居执行请求安全阀
 - 共同庄园新增分居执行请求接口 `/separation-previews/:previewId/request-execution`，要求预览已双方确认、冷静期结束、预览未过期并携带 `idempotency_key`。
 - 成功后只写 `pending_manual_execution` 请求、审计和剩余操作清单；不执行资产返还、不写个人存档、不改变共同资产，重复幂等键或换人重复请求不会重复创建。

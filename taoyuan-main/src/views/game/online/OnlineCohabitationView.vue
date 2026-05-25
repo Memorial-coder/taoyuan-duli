@@ -265,16 +265,28 @@
                   </div>
                   <div class="flex flex-wrap items-center justify-between gap-2 border border-accent/10 bg-bg/30 p-2 text-[10px] text-muted">
                     <p>{{ separationPreviewConfirmationLabel }}</p>
-                    <button
-                      class="online-action-btn online-action-btn--compact justify-center"
-                      type="button"
-                      :disabled="!canConfirmSeparationPreview || cohabitationStore.actionLoading"
-                      data-testid="online-cohabitation-separation-preview-confirm"
-                      @click="confirmSeparationPreview"
-                    >
-                      <CheckCircle2 :size="12" />
-                      确认预览
-                    </button>
+                    <div class="flex flex-wrap gap-2">
+                      <button
+                        class="online-action-btn online-action-btn--compact justify-center"
+                        type="button"
+                        :disabled="!canConfirmSeparationPreview || cohabitationStore.actionLoading"
+                        data-testid="online-cohabitation-separation-preview-confirm"
+                        @click="confirmSeparationPreview"
+                      >
+                        <CheckCircle2 :size="12" />
+                        确认预览
+                      </button>
+                      <button
+                        class="online-action-btn online-action-btn--compact justify-center"
+                        type="button"
+                        :disabled="!canRequestSeparationExecution || cohabitationStore.actionLoading"
+                        data-testid="online-cohabitation-separation-execution-request"
+                        @click="requestSeparationExecution"
+                      >
+                        <Clock3 :size="12" />
+                        请求执行
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1635,6 +1647,9 @@
       ?? latestSeparationPreview.value?.confirmation_state?.required_member_usernames
       ?? []
   )
+  const separationExecutionRequest = computed(() =>
+    latestSeparationPreview.value?.confirmation_state?.execution_request ?? null
+  )
   const canConfirmSeparationPreview = computed(() => {
     const preview = latestSeparationPreview.value
     if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
@@ -1646,9 +1661,19 @@
   const separationPreviewConfirmationLabel = computed(() => {
     const confirmed = separationPreviewConfirmedBy.value
     const pending = separationPreviewPendingMembers.value
+    if (separationExecutionRequest.value?.status === 'pending_manual_execution') return '已请求执行，等待后续返还执行接口。'
     if (latestSeparationPreview.value?.confirmation_state?.all_members_confirmed) return '双方已确认，等待后续返还执行接口。'
     if (confirmed.length) return `已确认：${confirmed.join('、')}；待确认：${pending.join('、') || '无'}`
     return `待确认：${pending.join('、') || '契约成员'}`
+  })
+  const canRequestSeparationExecution = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
+    if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
+    if (preview.state !== 'confirmed') return false
+    if (preview.confirmation_state?.all_members_confirmed !== true) return false
+    if (separationExecutionRequest.value?.status === 'pending_manual_execution') return false
+    return Math.floor(Date.now() / 1000) >= Number(preview.confirm_after_at || 0)
   })
   const selectedContractActorMember = computed(() => {
     const account = normalizeActorKey(cohabitationStore.currentAccount)
@@ -2164,6 +2189,23 @@
         : '已确认分居返还预览'
     } catch (error) {
       separationActionMessage.value = error instanceof Error ? error.message : '确认分居预览失败'
+    }
+  }
+
+  const requestSeparationExecution = async () => {
+    if (!latestSeparationPreview.value || !canRequestSeparationExecution.value) return
+    separationActionMessage.value = ''
+    separationActionOk.value = false
+    try {
+      const result = await cohabitationStore.requestSeparationExecution(latestSeparationPreview.value.id, {
+        idempotency_key: `ui-separation-execution-request-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      separationActionOk.value = true
+      separationActionMessage.value = result?.idempotent
+        ? '已读回已有分居执行请求'
+        : '已请求分居执行'
+    } catch (error) {
+      separationActionMessage.value = error instanceof Error ? error.message : '请求分居执行失败'
     }
   }
 
@@ -2836,6 +2878,7 @@
       family_role_updated: '家族职位更新',
       separation_preview_created: '分居预览创建',
       separation_preview_confirmed: '分居预览确认',
+      separation_execution_requested: '分居执行请求',
     }
     return labels[action] || action
   }
@@ -2872,6 +2915,9 @@
     if (entry.action === 'separation_preview_confirmed') {
       const pending = Array.isArray(detail.pending_member_usernames) ? detail.pending_member_usernames.length : 0
       return pending > 0 ? `已确认预览，仍有 ${pending} 人待确认` : '成员已确认预览，仍未执行返还'
+    }
+    if (entry.action === 'separation_execution_requested') {
+      return '已进入待执行请求，仍未执行返还'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0

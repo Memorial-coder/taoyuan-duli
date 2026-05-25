@@ -1030,6 +1030,17 @@ export interface CohabitationSeparationPreview {
     ready_for_execution_request?: boolean
     can_execute_now?: boolean
     execution_enabled?: boolean
+    execution_request?: {
+      id?: string
+      status?: string
+      requested_by?: string
+      requested_at?: number
+      asset_return_executed?: boolean
+      personal_save_written?: boolean
+      execution_enabled?: boolean
+      next_required_operations?: string[]
+      [key: string]: unknown
+    }
     [key: string]: unknown
   }
   safety_checks: Array<Record<string, unknown>>
@@ -1105,6 +1116,11 @@ export interface CohabitationSeparationPreviewPayload {
 }
 
 export interface CohabitationSeparationPreviewConfirmPayload {
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSeparationExecutionRequestPayload {
   memo?: string
   idempotency_key: string
 }
@@ -1311,6 +1327,14 @@ export const confirmCohabitationSeparationPreview = async (contractId: string, p
     contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/confirm`),
     payload as unknown as Record<string, unknown>,
     '确认分居预览失败'
+  )
+}
+
+export const requestCohabitationSeparationExecution = async (contractId: string, previewId: string, payload: CohabitationSeparationExecutionRequestPayload) => {
+  return postCohabitationJson<CohabitationSeparationPreviewResponse>(
+    contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/request-execution`),
+    payload as unknown as Record<string, unknown>,
+    '请求分居执行失败'
   )
 }
 

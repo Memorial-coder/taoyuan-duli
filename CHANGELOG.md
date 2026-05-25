@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 分居执行请求前端入口接入：共同庄园总览在分居预览卡片新增“请求执行”按钮，前端 API / store 接入 `/separation-previews/:previewId/request-execution`；按钮按双方确认、冷静期和已有待执行请求禁用，成功后只刷新契约和日志，不执行资产返还。
 - 分居执行请求安全阀接入：共同庄园新增 `/separation-previews/:previewId/request-execution`，要求双方确认、冷静期结束、预览未过期和幂等键；成功后只写 `pending_manual_execution` 请求、审计和剩余操作清单，不执行资产返还、不写个人存档、不改变契约资产。`qa:cohabitation-contract` 覆盖冷静期拒绝、请求幂等、换人重复请求和个人存档不变。
 - 分居预览双方确认记录接入：共同庄园新增 `/separation-previews/:previewId/confirm` 幂等确认接口和前端“确认预览”入口；单方确认只记录事件与待确认成员，双方确认后预览进入 `confirmed`，仍保持 `execution_enabled=false`，不执行资产返还、不写个人存档、不合并个人铜币。`qa:cohabitation-contract` 覆盖重复确认、双方确认、审计、manifest hash 稳定和个人存档不变。
 - 分居来源田区预览增强：共同庄园分居预览新增逐地块 `plot_return_manifest` 与 manifest hash，记录返还目标、来源存档、源地块 ID、共享地图坐标和地块状态快照；`qa:cohabitation-contract` 验证双方 32 块来源田区完整、作物状态保留、重复预览 hash 稳定且不写回个人存档。
