@@ -464,6 +464,40 @@ const createBaseEnvelope = (options: {
   }
 }
 
+const createLegacyV3MinimalCompatEnvelope = () => {
+  const envelope = createBaseEnvelope({
+    playerName: '旧档阿桃',
+    money: 3200,
+    year: 1,
+    season: 'summer',
+    day: 9,
+    hour: 7,
+    currentLocation: 'farm',
+    currentLocationGroup: 'farm',
+    inventoryItems: [
+      { itemId: 'cabbage', quantity: 4 },
+      { itemId: 'wood', quantity: 12 }
+    ]
+  })
+
+  envelope.meta.saveVersion = 3
+  envelope.meta.savedAt = '2025-05-20T08:00:00.000Z'
+  delete (envelope.data as Record<string, any>).goal
+  delete (envelope.data as Record<string, any>).wallet
+  delete (envelope.data as Record<string, any>).museum
+  delete (envelope.data as Record<string, any>).villageProject
+  delete (envelope.data as Record<string, any>).tutorial
+  delete (envelope.data as Record<string, any>).shop
+  delete (envelope.data as Record<string, any>).guild
+  delete (envelope.data as Record<string, any>).npc
+  delete (envelope.data as Record<string, any>).warehouse
+  delete (envelope.data as Record<string, any>).regionMap
+  delete (envelope.data as Record<string, any>).frontierChronicle
+  delete (envelope.data as Record<string, any>).playerRecordCenter
+
+  return envelope
+}
+
 const economySnapshotsLate = [
   { dayTag: '2-autumn-22', disposableMoney: 72000, totalIncome: 9800, totalExpense: 4100, sinkSpend: 2300, dominantIncomeSystem: 'shop', participatingSystems: ['shop', 'market', 'quest'], highValueOrderTypes: 2, incomeBySystem: { shop: 5200, market: 2600, quest: 2000 }, expenseBySystem: { shop: 1800, system: 900, villageProject: 1400 }, activeSinkCategories: ['luxuryCatalog', 'service'] },
   { dayTag: '2-autumn-23', disposableMoney: 75800, totalIncome: 8400, totalExpense: 3600, sinkSpend: 1800, dominantIncomeSystem: 'market', participatingSystems: ['market', 'goal', 'quest'], highValueOrderTypes: 2, incomeBySystem: { market: 4200, shop: 1900, quest: 2300 }, expenseBySystem: { shop: 1200, market: 800, system: 1600 }, activeSinkCategories: ['maintenance'] },
@@ -2718,5 +2752,24 @@ export const BUILT_IN_SAMPLE_SAVES: BuiltInSampleSaveDef[] = [
       boundaryAction: 'week_rollover'
     },
     envelope: createWeeklyRolloverEveEnvelope()
+  },
+  {
+    id: 'legacy_v3_minimal_compat',
+    label: '旧版 V3 最小兼容档',
+    description: '刻意缺少目标、钱包、博物馆、村社、教程、随机 NPC 和后续记录中心等新版段，用来验证旧存档能被迁移默认值接住并进入农场。',
+    tags: ['regression', 'legacy-save', 'migration', 'compatibility'],
+    tier: 'regression',
+    recommendedRouteName: 'farm',
+    focusAreas: ['旧存档加载', '缺省段迁移', '单人农场入口'],
+    smokeChecks: [
+      { id: 'load_legacy_envelope', label: '确认 saveVersion 3 的最小旧 envelope 可以通过运行态导入。' },
+      { id: 'migration_defaults', label: '确认目标、钱包、商店、教程、村社和新增记录段由迁移 / 默认值补齐。' }
+    ],
+    runtimeExpectations: {
+      player: { minMoney: 3200 },
+      game: { currentLocation: 'farm', currentLocationGroup: 'farm' },
+      boundaryAction: 'none'
+    },
+    envelope: createLegacyV3MinimalCompatEnvelope()
   }
 ]

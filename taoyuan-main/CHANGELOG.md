@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 旧存档加载回归
+- 新增 `legacy_v3_minimal_compat` 内置回归样例，保留 saveVersion 3 的最小旧档结构，并刻意缺少目标、钱包、博物馆、村社、教程、随机 NPC 和记录中心等新版段。
+- `qa-late-game-samples` 现在会真实导入该旧档，断言迁移默认值补齐、单人农场落点和运行态反序列化都成立。
+- 本轮验证：`node --check taoyuan-main/scripts/qa-late-game-samples.mjs`、`npm --prefix taoyuan-main run qa:late-game-samples`、`npm --prefix taoyuan-main run type-check`。
+
 ### 0525 共同庄园权限前端 smoke
 - `game-smoke.spec.ts` 新增共同庄园权限用例，mock 已激活合伙庄园、共同庄园详情读接口和 `/permissions` 写接口。
 - 用例进入共同庄园权限页，点击帮手的“仓库放入”低风险权限开关，断言按钮状态从关闭刷新为开启，并读回成功提示；高风险安全阀仍保持只读边界。

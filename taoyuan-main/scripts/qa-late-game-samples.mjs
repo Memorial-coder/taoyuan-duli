@@ -427,12 +427,17 @@ const loadRuntimeModules = async () => {
       const gameStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useGameStore.ts')).href)
       const playerStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/usePlayerStore.ts')).href)
       const goalStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useGoalStore.ts')).href)
+      const npcStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useNpcStore.ts')).href)
+      const shopStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useShopStore.ts')).href)
       const breedingStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useBreedingStore.ts')).href)
       const fishPondStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useFishPondStore.ts')).href)
       const villageProjectStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useVillageProjectStore.ts')).href)
       const museumStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useMuseumStore.ts')).href)
+      const tutorialStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useTutorialStore.ts')).href)
       const hanhaiStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useHanhaiStore.ts')).href)
       const regionMapStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useRegionMapStore.ts')).href)
+      const frontierChronicleStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useFrontierChronicleStore.ts')).href)
+      const playerRecordCenterStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/usePlayerRecordCenterStore.ts')).href)
       const walletStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useWalletStore.ts')).href)
       const weekCycleModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/utils/weekCycle.ts')).href)
       const endDayModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/composables/useEndDay.ts')).href)
@@ -443,12 +448,17 @@ const loadRuntimeModules = async () => {
         gameStore: gameStoreModule.useGameStore(),
         playerStore: playerStoreModule.usePlayerStore(),
         goalStore: goalStoreModule.useGoalStore(),
+        npcStore: npcStoreModule.useNpcStore(),
+        shopStore: shopStoreModule.useShopStore(),
         breedingStore: breedingStoreModule.useBreedingStore(),
         fishPondStore: fishPondStoreModule.useFishPondStore(),
         villageProjectStore: villageProjectStoreModule.useVillageProjectStore(),
         museumStore: museumStoreModule.useMuseumStore(),
+        tutorialStore: tutorialStoreModule.useTutorialStore(),
         hanhaiStore: hanhaiStoreModule.useHanhaiStore(),
         regionMapStore: regionMapStoreModule.useRegionMapStore(),
+        frontierChronicleStore: frontierChronicleStoreModule.useFrontierChronicleStore(),
+        playerRecordCenterStore: playerRecordCenterStoreModule.usePlayerRecordCenterStore(),
         walletStore: walletStoreModule.useWalletStore(),
         getWeekCycleInfo: weekCycleModule.getWeekCycleInfo,
         handleEndDay: endDayModule.handleEndDay,
@@ -471,12 +481,17 @@ const runRuntimeSmoke = async sample => {
     gameStore,
     playerStore,
     goalStore,
+    npcStore,
+    shopStore,
     breedingStore,
     fishPondStore,
     villageProjectStore,
     museumStore,
+    tutorialStore,
     hanhaiStore,
     regionMapStore,
+    frontierChronicleStore,
+    playerRecordCenterStore,
     walletStore,
     getWeekCycleInfo,
     handleEndDay,
@@ -496,6 +511,19 @@ const runRuntimeSmoke = async sample => {
   assertRuntime(gameStore.currentLocation === expectation.game.currentLocation, `${sample.id} 当前地点不是 ${expectation.game.currentLocation}。`)
   assertRuntime(gameStore.currentLocationGroup === expectation.game.currentLocationGroup, `${sample.id} 当前地点组不是 ${expectation.game.currentLocationGroup}。`)
   assertRuntime(playerStore.money >= expectation.player.minMoney, `${sample.id} 玩家金钱低于预期下限 ${expectation.player.minMoney}。`)
+
+  if (sample.id === 'legacy_v3_minimal_compat') {
+    assertRuntime(Array.isArray(goalStore.dailyGoals), `${sample.id} 旧档缺失 goal 时未补齐 dailyGoals。`)
+    assertRuntime(Array.isArray(goalStore.longTermGoals), `${sample.id} 旧档缺失 goal 时未补齐 longTermGoals。`)
+    assertRuntime(walletStore.rewardTickets && typeof walletStore.rewardTickets === 'object', `${sample.id} 旧档缺失 wallet 时未补齐 rewardTickets。`)
+    assertRuntime(Array.isArray(museumStore.donatedItems), `${sample.id} 旧档缺失 museum 时未补齐 donatedItems。`)
+    assertRuntime(villageProjectStore.projectStates && typeof villageProjectStore.projectStates === 'object', `${sample.id} 旧档缺失 villageProject 时未补齐 projectStates。`)
+    assertRuntime(Array.isArray(tutorialStore.shownTipIds), `${sample.id} 旧档缺失 tutorial 时未补齐 shownTipIds。`)
+    assertRuntime(Array.isArray(npcStore.randomNpcBoard?.activeVisitors), `${sample.id} 旧档缺失随机 NPC 面板时未补齐 activeVisitors。`)
+    assertRuntime(Array.isArray(shopStore.shippingBox), `${sample.id} 旧档缺失 shop 时未补齐 shippingBox。`)
+    assertRuntime(frontierChronicleStore.saveData && typeof frontierChronicleStore.saveData === 'object', `${sample.id} 旧档缺失 frontierChronicle 时未补齐 saveData。`)
+    assertRuntime(playerRecordCenterStore.saveData && typeof playerRecordCenterStore.saveData === 'object', `${sample.id} 旧档缺失 playerRecordCenter 时未补齐 saveData。`)
+  }
 
   if (expectation.player.requireEconomyTelemetry) {
     assertRuntime(Array.isArray(playerStore.economyTelemetry?.recentSnapshots), `${sample.id} economyTelemetry.recentSnapshots 不可读。`)
@@ -849,22 +877,31 @@ for (const sample of BUILT_IN_SAMPLE_SAVES) {
   const player = data.player ?? {}
   const goal = data.goal ?? {}
   const inventoryItems = Array.isArray(data.inventory?.items) ? data.inventory.items : []
+  const isLegacyCompatibilitySample = sample.id === 'legacy_v3_minimal_compat'
 
   assertCheck(sample.tier === 'flagship' || sample.tier === 'regression', `${sample.id} 缺少有效 tier。`)
   assertCheck(typeof sample.recommendedRouteName === 'string' && sample.recommendedRouteName.length > 0, `${sample.id} 缺少推荐路由。`)
   assertCheck(Array.isArray(sample.focusAreas) && sample.focusAreas.length >= 2, `${sample.id} focusAreas 过弱。`)
   assertCheck(Array.isArray(sample.smokeChecks) && sample.smokeChecks.length >= 2, `${sample.id} smokeChecks 过弱。`)
-  assertCheck(meta.saveVersion === 4, `${sample.id} 的 saveVersion 不是 4。`)
+  assertCheck(
+    isLegacyCompatibilitySample ? meta.saveVersion === 3 : meta.saveVersion === 4,
+    `${sample.id} 的 saveVersion 不符合样例分层预期。`,
+  )
   assertCheck(Number.isFinite(game.year) && game.year >= 1, `${sample.id} 缺少有效的 game.year。`)
   assertCheck(['spring', 'summer', 'autumn', 'winter'].includes(game.season), `${sample.id} 缺少有效的 game.season。`)
   assertCheck(Number.isFinite(game.day) && game.day >= 1 && game.day <= 28, `${sample.id} 缺少有效的 game.day。`)
   assertCheck(typeof player.playerName === 'string' && player.playerName.length > 0, `${sample.id} 缺少玩家名。`)
   assertCheck(Number.isFinite(player.money) && player.money >= 0, `${sample.id} 缺少有效的玩家金钱。`)
-  assertCheck(Array.isArray(goal.dailyGoals), `${sample.id} 缺少 goal.dailyGoals。`)
-  assertCheck(Array.isArray(goal.longTermGoals), `${sample.id} 缺少 goal.longTermGoals。`)
-  assertCheck(goal.currentThemeWeekState && typeof goal.currentThemeWeekState === 'object', `${sample.id} 缺少 currentThemeWeekState。`)
-  assertCheck(Array.isArray(goal.weeklyMetricArchive?.snapshots), `${sample.id} 缺少 weeklyMetricArchive.snapshots。`)
-  assertCheck(Array.isArray(player.economyTelemetry?.recentSnapshots), `${sample.id} 缺少 economyTelemetry.recentSnapshots。`)
+  if (isLegacyCompatibilitySample) {
+    assertCheck(!data.goal, `${sample.id} 应保持缺失 goal，用来验证迁移默认值。`)
+    assertCheck(!data.wallet, `${sample.id} 应保持缺失 wallet，用来验证迁移默认值。`)
+  } else {
+    assertCheck(Array.isArray(goal.dailyGoals), `${sample.id} 缺少 goal.dailyGoals。`)
+    assertCheck(Array.isArray(goal.longTermGoals), `${sample.id} 缺少 goal.longTermGoals。`)
+    assertCheck(goal.currentThemeWeekState && typeof goal.currentThemeWeekState === 'object', `${sample.id} 缺少 currentThemeWeekState。`)
+    assertCheck(Array.isArray(goal.weeklyMetricArchive?.snapshots), `${sample.id} 缺少 weeklyMetricArchive.snapshots。`)
+    assertCheck(Array.isArray(player.economyTelemetry?.recentSnapshots), `${sample.id} 缺少 economyTelemetry.recentSnapshots。`)
+  }
   assertCheck(inventoryItems.every(item => typeof item?.itemId === 'string' && validItemIds.has(item.itemId)), `${sample.id} 存在无效背包物品 ID。`)
 
   infos.push(`${sample.id}: ${sample.tier} -> ${sample.recommendedRouteName}, Y${game.year} ${game.season} Day${game.day}, money=${player.money}`)
