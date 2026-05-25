@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const db = require('./db');
 const taoyuanCoopOrderRuntime = require('./taoyuanCoopOrderRuntime');
 const taoyuanSocialRuntime = require('./taoyuanSocialRuntime');
@@ -4424,14 +4425,19 @@ function buildPlotReturnPreview(contract = {}) {
     groups.set(key, current);
   }
   const stateCounts = countPlotStates(layout.plots);
+  const plotReturnManifest = buildPlotReturnManifest(layout.plots);
   return {
     plots_by_origin_owner: [...groups.values()].slice(0, 80),
+    plot_return_manifest: plotReturnManifest,
+    plot_return_manifest_hash: hashPlotReturnManifest(plotReturnManifest),
     plot_return_summary: {
       total_plots: stateCounts.total,
       active_plots: stateCounts.active,
       harvestable_plots: stateCounts.harvestable,
       waterable_plots: stateCounts.waterable,
       origin_owner_count: groups.size,
+      manifest_plot_count: plotReturnManifest.length,
+      manifest_complete: plotReturnManifest.length === stateCounts.total,
       arrangement: 'side_by_side',
       readonly: true,
       writes_enabled: false,
@@ -4447,6 +4453,48 @@ function buildPlotReturnPreview(contract = {}) {
         reason: snapshot.unavailable_reason || '成员农田暂不可读',
       })),
   };
+}
+
+function buildPlotReturnManifest(plots = []) {
+  return (Array.isArray(plots) ? plots : [])
+    .map(plot => ({
+      manifest_id: `${plot.origin_owner_key || plot.origin_owner_username}:field:${plot.source_plot_id}`,
+      source_area: plot.source_area || 'field',
+      source_plot_id: normalizePlotId(plot.source_plot_id, 0),
+      origin_owner_id: sanitizeText(plot.origin_owner_id, 80),
+      origin_save_id: normalizeSaveId(plot.origin_save_id),
+      origin_owner_username: normalizeUsername(plot.origin_owner_username),
+      origin_owner_key: normalizeUsernameKey(plot.origin_owner_key || plot.origin_owner_username),
+      return_target_username: normalizeUsername(plot.origin_owner_username),
+      return_target_save_id: normalizeSaveId(plot.origin_save_id),
+      shared_map_plot_id: sanitizeText(plot.id, 120),
+      shared_map_row: Math.max(0, Math.floor(Number(plot.row) || 0)),
+      shared_map_col: Math.max(0, Math.floor(Number(plot.col) || 0)),
+      local_row: Math.max(0, Math.floor(Number(plot.local_row) || 0)),
+      local_col: Math.max(0, Math.floor(Number(plot.local_col) || 0)),
+      plot_state_snapshot: summarizeFarmPlot(plot.plot_state || {}),
+      return_policy: 'restore_to_origin_owner_source_plot',
+      execution_status: 'preview_only',
+    }))
+    .filter(entry => entry.origin_owner_username && entry.origin_owner_id && Number.isInteger(entry.source_plot_id))
+    .sort((left, right) => {
+      const ownerCompare = left.origin_owner_key.localeCompare(right.origin_owner_key);
+      return ownerCompare !== 0 ? ownerCompare : left.source_plot_id - right.source_plot_id;
+    })
+    .slice(0, 320);
+}
+
+function hashPlotReturnManifest(manifest = []) {
+  const stableRows = (Array.isArray(manifest) ? manifest : []).map(entry => ({
+    manifest_id: entry.manifest_id,
+    source_area: entry.source_area,
+    source_plot_id: entry.source_plot_id,
+    origin_owner_id: entry.origin_owner_id,
+    return_target_username: entry.return_target_username,
+    return_target_save_id: entry.return_target_save_id,
+    plot_state_snapshot: entry.plot_state_snapshot,
+  }));
+  return crypto.createHash('sha256').update(JSON.stringify(stableRows)).digest('hex');
 }
 
 function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fundReturns, fundBalance }) {
@@ -4467,6 +4515,12 @@ function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fund
       passed: plotReturnPreview.plot_return_summary.total_plots === 0
         || plotReturnPreview.plot_return_summary.origin_owner_count > 0,
       detail: '农田按 origin_owner_id / save_id 归属预览拆回。',
+    },
+    {
+      id: 'plot_return_manifest_complete',
+      passed: plotReturnPreview.plot_return_summary.total_plots === plotReturnPreview.plot_return_manifest.length
+        && plotReturnPreview.plot_return_manifest.every(entry => entry.origin_owner_id && entry.return_target_username && Number.isInteger(entry.source_plot_id)),
+      detail: '每块来源田区都有可校验返还清单、原存档目标和地块状态快照。',
     },
     {
       id: 'warehouse_origin_traceable',
@@ -6752,6 +6806,8 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
     summary: '当前预览已归集来源田区、共同仓库放入流水、共同基金注资比例和确认 / 补偿规则；真实返还仍需后续执行流程。',
     asset_return: {
       plots_by_origin_owner: plotReturnPreview.plots_by_origin_owner,
+      plot_return_manifest: plotReturnPreview.plot_return_manifest,
+      plot_return_manifest_hash: plotReturnPreview.plot_return_manifest_hash,
       plot_return_summary: plotReturnPreview.plot_return_summary,
       unavailable_plot_sources: plotReturnPreview.unavailable_plot_sources,
       warehouse_items_by_origin_owner: warehouseReturns,

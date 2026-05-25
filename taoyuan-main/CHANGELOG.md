@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 分居来源田区预览增强
+- 共同庄园分居预览新增逐地块 `plot_return_manifest` 和 64 位 manifest hash，记录每块田的来源归属、返还目标、源地块 ID、共享地图坐标、本地坐标和地块状态快照。
+- `qa-cohabitation-contract` 验证双方 32 块来源田区完整保留、稻米 / 茶叶地块状态快照可追溯、重复幂等预览保持同一 manifest hash，且不写回双方个人存档。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 活动结算凭证幂等回归
 - `qa-activity-room-visual-state` 新增端午赛舟奖励落账与同凭证补偿重放回归：首次关闭房间写入玩家服务端存档后，模拟同一凭证重新进入待写回状态并通过管理端重试。
 - 断言个人铜钱、节会票券、终身票券、纪念册、装饰奖励和 `appliedReceipts` 幂等键都不会重复增加，保护活动结算凭证不重复发奖。
