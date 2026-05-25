@@ -14,6 +14,7 @@ import {
   submitCoopOrderDelivery,
   submitCoopOrderStageDelivery,
   type OnlineCoopOrderOverviewResponse,
+  type OnlineCoopRewardSettlementPayload,
   type OnlineCoopOrderScope,
   type OnlineCoopOrderStageEntry,
   type OnlineCoopOrderType,
@@ -39,6 +40,7 @@ const createEmptyStageDraft = (preferredOrderType: OnlineCoopOrderType) => ({
 
 type StageDraft = ReturnType<typeof createEmptyStageDraft>
 type DeliveryDraft = { itemId: string; quantity: number; note: string }
+type RewardSettlementDraft = { rewardRoute: 'personal' | 'shared_fund'; cohabitationContractId: string }
 
 export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
   const loading = ref(false)
@@ -60,6 +62,7 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
   const targetDisplayNameDraft = ref('')
   const stageDrafts = ref<StageDraft[]>([])
   const deliveryDrafts = ref<Record<string, DeliveryDraft>>({})
+  const settlementDrafts = ref<Record<string, RewardSettlementDraft>>({})
 
   const myOrders = computed(() =>
     (overview.value?.orders || []).filter(entry => entry.owner_username === currentUsername.value)
@@ -262,6 +265,42 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     }
   }
 
+  const ensureSettlementDraft = (orderId: string, stageId = ''): RewardSettlementDraft => {
+    const draftKey = buildDeliveryDraftKey(orderId, stageId)
+    if (!settlementDrafts.value[draftKey]) {
+      settlementDrafts.value = {
+        ...settlementDrafts.value,
+        [draftKey]: {
+          rewardRoute: 'personal',
+          cohabitationContractId: '',
+        },
+      }
+    }
+    return settlementDrafts.value[draftKey]!
+  }
+
+  const clearSettlementDraft = (orderId: string, stageId = '') => {
+    const draftKey = buildDeliveryDraftKey(orderId, stageId)
+    settlementDrafts.value = {
+      ...settlementDrafts.value,
+      [draftKey]: {
+        rewardRoute: 'personal',
+        cohabitationContractId: '',
+      },
+    }
+  }
+
+  const buildSettlementPayload = (orderId: string, stageId = ''): OnlineCoopRewardSettlementPayload | null => {
+    const draft = ensureSettlementDraft(orderId, stageId)
+    if (draft.rewardRoute !== 'shared_fund') return { reward_route: 'personal' }
+    const contractId = draft.cohabitationContractId.trim()
+    if (!contractId) return null
+    return {
+      reward_route: 'shared_fund',
+      cohabitation_contract_id: contractId,
+    }
+  }
+
   const submitDelivery = async (orderId: string, stageId = '') => {
     const draft = ensureDeliveryDraft(orderId, stageId)
     actionRunning.value = true
@@ -293,14 +332,20 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
   }
 
   const confirmDelivery = async (orderId: string, stageId = '') => {
+    const settlementPayload = buildSettlementPayload(orderId, stageId)
+    if (!settlementPayload) {
+      errorMessage.value = '请选择要入账的共同庄园契约'
+      return
+    }
     actionRunning.value = true
     errorMessage.value = ''
     try {
       if (stageId) {
-        await confirmCoopOrderStageDelivery(orderId, stageId)
+        await confirmCoopOrderStageDelivery(orderId, stageId, settlementPayload)
       } else {
-        await confirmCoopOrderDelivery(orderId)
+        await confirmCoopOrderDelivery(orderId, settlementPayload)
       }
+      clearSettlementDraft(orderId, stageId)
       await refreshOverview()
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '确认交付失败'
@@ -349,6 +394,7 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     targetDisplayNameDraft,
     stageDrafts,
     deliveryDrafts,
+    settlementDrafts,
     myOrders,
     myAcceptedOrders,
     visibleOrders,
@@ -365,6 +411,7 @@ export const useCoopOrderStore = defineStore('onlineCoopOrder', () => {
     cancelAcceptedOrder,
     cancelAcceptedStage,
     ensureDeliveryDraft,
+    ensureSettlementDraft,
     submitDelivery,
     confirmDelivery,
     retryCompensation,

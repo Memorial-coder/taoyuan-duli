@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 公共订单入共同基金前端确认入口
+- 在线委托“我的发布”确认交付时，铜钱奖励可选择结算给接单人个人铜钱或家族 / 合伙共同基金。
+- 前端 API / store 会向整单和阶段确认接口传 `reward_route` 与 `cohabitation_contract_id`，并在凭证中读回共同基金结算去向与 ledger。
+- 契约类型、成员身份、接单人同属契约、幂等 `order_income` 入账和个人奖励防双发仍由服务端权威校验。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 共同基金种子白名单前端补齐
 - 共同庄园基金页自动购买按钮补充萝卜种子 x2 与水稻种子 x2，和已有白菜种子、鱼饲料、三类动物饲料入口统一。
 - 仍复用 `/fund/spend`、CSRF、`idempotency_key`、余额校验和 `can_auto_buy_seeds_feed` 权限禁用，成功后刷新基金与流水。

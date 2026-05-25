@@ -6,6 +6,7 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const repoRoot = path.resolve(__dirname, '..')
 const viewRoot = path.join(repoRoot, 'src', 'views', 'game')
+const srcRoot = path.join(repoRoot, 'src')
 
 const viewFiles = [
   'OnlineView.vue',
@@ -24,6 +25,7 @@ const expectedControlClass = {
 }
 
 const files = new Map()
+const utilitySources = new Map()
 const failures = []
 let checkedControls = 0
 let checkedScrollBoundaries = 0
@@ -37,7 +39,9 @@ for (const relativePath of viewFiles) {
   files.set(relativePath.replaceAll('\\', '/'), await readFile(absolutePath, 'utf8'))
 }
 
-const getFile = (relativePath) => files.get(relativePath) ?? ''
+utilitySources.set('utils/onlineProfileApi.ts', await readFile(path.join(srcRoot, 'utils', 'onlineProfileApi.ts'), 'utf8'))
+
+const getFile = (relativePath) => files.get(relativePath) ?? utilitySources.get(relativePath) ?? ''
 
 const expectContains = (relativePath, needle, message) => {
   if (!getFile(relativePath).includes(needle)) {
@@ -98,6 +102,11 @@ checkedScrollBoundaries += expectCountAtLeast('online/OnlineNeighborView.vue', /
 expectContains('online/OnlineOrdersView.vue', '<OnlineModuleShell', '委托子页应继续使用在线模块壳')
 expectContains('online/OnlineOrdersView.vue', "const defaultTab = tabs[1]!", '在线委托默认页应保持可接列表')
 expectContains('online/OnlineOrdersView.vue', "activeTab === 'publish'", '在线委托发布表单应留在发布标签')
+expectContains('online/OnlineOrdersView.vue', 'online-orders-settlement-route-select', '在线委托确认交付应保留结算去向选择')
+expectContains('online/OnlineOrdersView.vue', 'online-orders-settlement-contract-select', '在线委托共同基金结算应选择共同庄园契约')
+expectContains('online/OnlineOrdersView.vue', 'useCohabitationStore', '在线委托共同基金结算应读取共同庄园契约候选')
+expectContains('utils/onlineProfileApi.ts', 'reward_route', '在线委托确认交付 API 应支持结算去向参数')
+expectContains('utils/onlineProfileApi.ts', 'cohabitation_contract_id', '在线委托确认交付 API 应支持共同庄园契约参数')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineOrdersView.vue', /<OnlineScrollArea/g, 5, '在线委托主要长列表应使用 OnlineScrollArea')
 
 expectContains('online/OnlineFestivalView.vue', '<OnlineModuleShell', '节会子页应继续使用在线模块壳')

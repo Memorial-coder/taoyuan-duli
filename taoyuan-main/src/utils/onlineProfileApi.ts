@@ -853,6 +853,12 @@ export type OnlineCoopOrderType =
 
 export type OnlineCoopOrderScope = 'public' | 'neighbors' | 'friends'
 export type OnlineCoopRewardType = 'money' | 'reputation' | 'gift'
+export type OnlineCoopRewardRoute = 'personal' | 'shared_fund'
+
+export interface OnlineCoopRewardSettlementPayload {
+  reward_route?: OnlineCoopRewardRoute
+  cohabitation_contract_id?: string
+}
 
 export interface OnlineCoopOrderStageEntry {
   id: string
@@ -939,6 +945,9 @@ export interface OnlineCoopReceiptEntry {
   idempotency_key: string
   status: 'pending_owner_confirm' | 'confirmed' | 'compensation_pending'
   reward_result: string
+  reward_route: OnlineCoopRewardRoute
+  cohabitation_contract_id: string
+  shared_fund_ledger_id: string
   compensation_id: string
   help_reputation_delta: number
   specialty_reputation_delta: number
@@ -1110,18 +1119,20 @@ export const submitCoopOrderStageDelivery = async (orderId: string, stageId: str
   })
 }
 
-export const confirmCoopOrderDelivery = async (orderId: string) => {
+export const confirmCoopOrderDelivery = async (orderId: string, payload: OnlineCoopRewardSettlementPayload = {}) => {
   return requestSocialAction<{
     ok: boolean
     order?: OnlineCoopOrderEntry
     receipt?: OnlineCoopReceiptEntry
     compensation?: OnlineCoopCompensationEntry | null
   }>(`/api/taoyuan/online/orders/${encodeURIComponent(orderId)}/confirm-delivery`, {
-    method: 'POST'
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
   })
 }
 
-export const confirmCoopOrderStageDelivery = async (orderId: string, stageId: string) => {
+export const confirmCoopOrderStageDelivery = async (orderId: string, stageId: string, payload: OnlineCoopRewardSettlementPayload = {}) => {
   return requestSocialAction<{
     ok: boolean
     order?: OnlineCoopOrderEntry
@@ -1129,7 +1140,9 @@ export const confirmCoopOrderStageDelivery = async (orderId: string, stageId: st
     receipt?: OnlineCoopReceiptEntry
     compensation?: OnlineCoopCompensationEntry | null
   }>(`/api/taoyuan/online/orders/${encodeURIComponent(orderId)}/stages/${encodeURIComponent(stageId)}/confirm-delivery`, {
-    method: 'POST'
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
   })
 }
 

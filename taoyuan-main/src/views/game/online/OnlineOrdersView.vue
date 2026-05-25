@@ -422,29 +422,93 @@
                 <p v-if="stage.assignee_username" class="mt-1 text-[10px] text-success">
                   当前阶段接单人：{{ stage.assignee_display_name || stage.assignee_username }}
                 </p>
-                <div v-if="stage.delivery_status === 'submitted'" class="mt-2 flex justify-end">
-                  <button
-                    class="online-action-btn online-action-btn--compact"
-                    type="button"
-                    :disabled="coopOrderStore.actionRunning"
-                    @click="confirmStageDeliveryEntry(order.id, stage.id)"
-                  >
-                    确认这一段
-                  </button>
+                <div v-if="stage.delivery_status === 'submitted'" class="mt-2 space-y-2">
+                  <div v-if="canShowSettlementControls(order.reward_type)" class="border border-accent/10 bg-black/10 p-2">
+                    <div class="grid gap-2 md:grid-cols-2">
+                      <label class="flex flex-col gap-1 text-[10px] text-muted">
+                        结算去向
+                        <select
+                          v-model="coopOrderStore.ensureSettlementDraft(order.id, stage.id).rewardRoute"
+                          data-testid="online-orders-settlement-route-select"
+                          class="online-select"
+                          @change="syncSettlementContractDefault(order.id, stage.id)"
+                        >
+                          <option value="personal">接单人个人铜钱</option>
+                          <option value="shared_fund" :disabled="familySharedFundContracts.length === 0">家族 / 合伙共同基金</option>
+                        </select>
+                      </label>
+                      <label v-if="isSharedFundSettlementSelected(order.id, stage.id)" class="flex flex-col gap-1 text-[10px] text-muted">
+                        共同庄园
+                        <select
+                          v-model="coopOrderStore.ensureSettlementDraft(order.id, stage.id).cohabitationContractId"
+                          data-testid="online-orders-settlement-contract-select"
+                          class="online-select"
+                        >
+                          <option value="">请选择共同庄园契约</option>
+                          <option v-for="contract in familySharedFundContracts" :key="contract.id" :value="contract.id">
+                            {{ getSettlementContractLabel(contract) }}
+                          </option>
+                        </select>
+                      </label>
+                    </div>
+                    <p class="mt-1 text-[10px] leading-4 text-muted">{{ getSettlementHint(order.id, stage.id) }}</p>
+                  </div>
+                  <div class="flex justify-end">
+                    <button
+                      class="online-action-btn online-action-btn--compact"
+                      type="button"
+                      :disabled="coopOrderStore.actionRunning || !canConfirmSettlement(order.id, stage.id)"
+                      @click="confirmStageDeliveryEntry(order.id, stage.id)"
+                    >
+                      确认这一段
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div v-else-if="order.delivery_status === 'submitted'" class="mt-2 flex justify-end">
-              <button
-                data-testid="online-orders-confirm-submit"
-                class="online-action-btn online-action-btn--compact"
-                type="button"
-                :disabled="coopOrderStore.actionRunning"
-                @click="confirmDeliveryEntry(order.id)"
-              >
-                确认结算
-              </button>
+            <div v-else-if="order.delivery_status === 'submitted'" class="mt-2 space-y-2">
+              <div v-if="canShowSettlementControls(order.reward_type)" class="border border-accent/10 bg-black/10 p-2">
+                <div class="grid gap-2 md:grid-cols-2">
+                  <label class="flex flex-col gap-1 text-[10px] text-muted">
+                    结算去向
+                    <select
+                      v-model="coopOrderStore.ensureSettlementDraft(order.id).rewardRoute"
+                      data-testid="online-orders-settlement-route-select"
+                      class="online-select"
+                      @change="syncSettlementContractDefault(order.id)"
+                    >
+                      <option value="personal">接单人个人铜钱</option>
+                      <option value="shared_fund" :disabled="familySharedFundContracts.length === 0">家族 / 合伙共同基金</option>
+                    </select>
+                  </label>
+                  <label v-if="isSharedFundSettlementSelected(order.id)" class="flex flex-col gap-1 text-[10px] text-muted">
+                    共同庄园
+                    <select
+                      v-model="coopOrderStore.ensureSettlementDraft(order.id).cohabitationContractId"
+                      data-testid="online-orders-settlement-contract-select"
+                      class="online-select"
+                    >
+                      <option value="">请选择共同庄园契约</option>
+                      <option v-for="contract in familySharedFundContracts" :key="contract.id" :value="contract.id">
+                        {{ getSettlementContractLabel(contract) }}
+                      </option>
+                    </select>
+                  </label>
+                </div>
+                <p class="mt-1 text-[10px] leading-4 text-muted">{{ getSettlementHint(order.id) }}</p>
+              </div>
+              <div class="flex justify-end">
+                <button
+                  data-testid="online-orders-confirm-submit"
+                  class="online-action-btn online-action-btn--compact"
+                  type="button"
+                  :disabled="coopOrderStore.actionRunning || !canConfirmSettlement(order.id)"
+                  @click="confirmDeliveryEntry(order.id)"
+                >
+                  确认结算
+                </button>
+              </div>
             </div>
           </div>
         </OnlineScrollArea>
@@ -653,6 +717,9 @@
               <p v-if="receipt.reward_result" class="mt-1 text-[10px] text-success">
                 {{ receipt.reward_result }}
               </p>
+              <p v-if="receipt.reward_route === 'shared_fund'" class="mt-1 text-[10px] text-success">
+                结算去向：共同基金 · 契约 {{ receipt.cohabitation_contract_id }}{{ receipt.shared_fund_ledger_id ? ` · 流水 ${receipt.shared_fund_ledger_id}` : '' }}
+              </p>
               <p v-if="receipt.compensation_id" class="mt-1 text-[10px] text-warning">
                 关联补偿：{{ receipt.compensation_id }}
               </p>
@@ -720,6 +787,8 @@
   import AsyncCommunityBoard from '@/components/game/online/AsyncCommunityBoard.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineScrollArea from '@/components/game/online/OnlineScrollArea.vue'
+  import { useCohabitationStore } from '@/stores/useCohabitationStore'
+  import type { CohabitationContract } from '@/utils/cohabitationApi'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
   import type { OnlineCoopOrderEntry, OnlineCoopOrderScope, OnlineCoopOrderType, OnlineCoopRewardType } from '@/utils/onlineProfileApi'
 
@@ -728,8 +797,10 @@
 
   const route = useRoute()
   const coopOrderStore = useCoopOrderStore()
+  const cohabitationStore = useCohabitationStore()
   const lastRefreshAttemptAt = ref(0)
   const orderBoardFilter = ref<'all' | 'single' | 'relay'>('all')
+  const FAMILY_SHARED_FUND_TYPES = new Set(['oath_manor', 'business_partner'])
   const orderBoardFilterOptions: Array<{ id: 'all' | 'single' | 'relay'; label: string }> = [
     { id: 'all', label: '全部' },
     { id: 'single', label: '普通' },
@@ -805,6 +876,9 @@
     { label: '开放接力', value: `${boardSummary.value.open_relay_orders} 张` },
     { label: '待补偿', value: `${pendingCompensationCount.value} 条` },
   ])
+  const familySharedFundContracts = computed(() =>
+    cohabitationStore.activeContracts.filter(contract => FAMILY_SHARED_FUND_TYPES.has(String(contract.type)))
+  )
   const targetDraftSummary = computed(() => {
     if (!coopOrderStore.targetSaveIdDraft && !coopOrderStore.targetDisplayNameDraft) return ''
     const target = coopOrderStore.targetDisplayNameDraft || '目标好友'
@@ -877,6 +951,33 @@
   const formatCoopTime = (timestamp: number) => {
     if (!timestamp) return '未设置'
     return new Date(timestamp * 1000).toLocaleString('zh-CN', { hour12: false })
+  }
+  const canShowSettlementControls = (rewardType: OnlineCoopRewardType) => rewardType === 'money'
+  const isSharedFundSettlementSelected = (orderId: string, stageId = '') =>
+    coopOrderStore.ensureSettlementDraft(orderId, stageId).rewardRoute === 'shared_fund'
+  const canConfirmSettlement = (orderId: string, stageId = '') => {
+    const draft = coopOrderStore.ensureSettlementDraft(orderId, stageId)
+    return draft.rewardRoute !== 'shared_fund' || Boolean(draft.cohabitationContractId.trim())
+  }
+  const syncSettlementContractDefault = (orderId: string, stageId = '') => {
+    const draft = coopOrderStore.ensureSettlementDraft(orderId, stageId)
+    if (draft.rewardRoute === 'personal') {
+      draft.cohabitationContractId = ''
+      return
+    }
+    if (!draft.cohabitationContractId && familySharedFundContracts.value.length > 0) {
+      draft.cohabitationContractId = familySharedFundContracts.value[0]!.id
+    }
+  }
+  const getSettlementHint = (orderId: string, stageId = '') => {
+    if (isSharedFundSettlementSelected(orderId, stageId)) {
+      return '共同基金仅限家族 / 合伙庄园，服务端会校验发布人与接单人同为成员。'
+    }
+    return '默认写入接单人个人铜钱。'
+  }
+  const getSettlementContractLabel = (contract: CohabitationContract) => {
+    const balance = Number(contract.shared_fund?.balance || 0)
+    return `${contract.title || contract.type_label || contract.id} · 余额 ${balance}`
   }
   const isOrderAcceptable = (order: OnlineCoopOrderEntry) => {
     if (order.status !== 'open') return false
@@ -995,6 +1096,7 @@
   onMounted(() => {
     applyCoopRouteDraft()
     void refreshOrders()
+    void cohabitationStore.refreshOverview({ silent: true }).catch(() => {})
   })
 
   watch(
