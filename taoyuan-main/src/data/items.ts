@@ -273,6 +273,16 @@ const PROCESSED_ITEMS: ItemDef[] = [
     healthRestore: 8
   },
   {
+    id: 'candied_peach',
+    name: '蜜桃脯',
+    category: 'processed',
+    description: '糖渍罐慢渍出的清甜蜜桃脯，可继续制作蜜桃灵果糕、伴手礼和节会甜品。',
+    sellPrice: 260,
+    edible: true,
+    staminaRestore: 18,
+    healthRestore: 8
+  },
+  {
     id: 'honey',
     name: '蜂蜜',
     category: 'processed',
@@ -1683,6 +1693,7 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   dried_lotus_seed: '脱水机加工',
   lotus_heart_powder: '药碾加工',
   pickled_radish: '酱缸加工',
+  candied_peach: '糖渍罐加工',
   cloth: '织布机加工',
   silk_cloth: '织布机加工',
   alpaca_cloth: '织布机加工',

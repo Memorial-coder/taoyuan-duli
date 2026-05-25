@@ -5,6 +5,7 @@ import type { FishingLocation } from './skill'
 export type MachineType =
   | 'wine_workshop'
   | 'sauce_jar'
+  | 'sugar_jar'
   | 'bee_house'
   | 'oil_press'
   | 'mayo_maker'

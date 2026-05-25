@@ -26,6 +26,17 @@ export const PROCESSING_MACHINES: ProcessingMachineDef[] = [
     craftMoney: 200
   },
   {
+    id: 'sugar_jar',
+    name: '糖渍罐',
+    description: '用蜂蜜慢渍水果，产出蜜饯、灵果点心胚和节会甜品材料。',
+    craftCost: [
+      { itemId: 'wood', quantity: 20 },
+      { itemId: 'copper_ore', quantity: 6 },
+      { itemId: 'honey', quantity: 2 }
+    ],
+    craftMoney: 240
+  },
+  {
     id: 'bee_house',
     name: '蜂箱',
     description: '每4天自动产出蜂蜜。',
@@ -329,6 +340,19 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputQuantity: 1,
     processingDays: 2,
     description: '浓郁的南瓜酱。'
+  },
+  // 糖渍罐
+  {
+    id: 'sugar_candied_peach',
+    machineType: 'sugar_jar',
+    name: '蜜桃脯',
+    inputItemId: 'peach',
+    inputQuantity: 2,
+    extraInputs: [{ itemId: 'honey', quantity: 1 }],
+    outputItemId: 'candied_peach',
+    outputQuantity: 1,
+    processingDays: 2,
+    description: '将桃子与蜂蜜慢渍成蜜桃脯，可继续做灵果点心、伴手礼和节会甜品。'
   },
   // 蜂箱
   {

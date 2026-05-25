@@ -165,6 +165,23 @@ export const RECIPES: RecipeDef[] = [
     description: '春日限定的桃花饼。'
   },
   {
+    id: 'candied_peach_spirit_cake',
+    name: '蜜桃灵果糕',
+    ingredients: [
+      { itemId: 'candied_peach', quantity: 1 },
+      { itemId: 'rice_flour', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 40,
+      healthRestore: 16,
+      buff: { type: 'giftBonus', value: 2, description: '送礼好感×2（当天）' }
+    },
+    unlockSource: '加工链第六批',
+    requiredSkill: { type: 'farming', level: 4 },
+    description: '蜜桃脯、米粉和蜂蜜做成的灵果点心，适合作为好友伴手礼与节会甜品。'
+  },
+  {
     id: 'fish_noodle',
     name: '鱼汤面',
     ingredients: [
