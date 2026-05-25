@@ -214,6 +214,57 @@
               <p v-if="!cohabitationStore.canOpenSelectedContract" class="text-xs leading-5 text-muted">
                 这份契约尚未生效，只在列表中保留状态，不开放共同庄园地图、仓库、基金或权限面板。
               </p>
+              <div v-if="cohabitationStore.canOpenSelectedContract || latestSeparationPreview" class="border border-accent/10 bg-black/10 p-3">
+                <div class="flex items-center justify-between gap-2">
+                  <p class="text-xs text-accent">分居返还预览</p>
+                  <span class="text-[10px] text-muted">
+                    {{ latestSeparationPreview ? `v${latestSeparationPreview.version}` : '未生成' }}
+                  </span>
+                </div>
+                <div class="mt-2 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                  <input
+                    v-model="separationPreviewReason"
+                    class="online-input text-xs"
+                    data-testid="online-cohabitation-separation-preview-reason"
+                    maxlength="80"
+                    placeholder="原因备注（可选）"
+                  >
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canCreateSeparationPreview || cohabitationStore.actionLoading"
+                    data-testid="online-cohabitation-separation-preview-submit"
+                    @click="createSeparationPreview"
+                  >
+                    <XCircle :size="12" />
+                    生成预览
+                  </button>
+                </div>
+                <p
+                  v-if="separationActionMessage"
+                  class="mt-2 text-[10px] leading-4"
+                  :class="separationActionOk ? 'text-emerald-200' : 'text-red-100'"
+                >
+                  {{ separationActionMessage }}
+                </p>
+                <div v-if="latestSeparationPreview" class="mt-3 space-y-2">
+                  <p class="text-[10px] leading-4 text-muted">{{ latestSeparationPreview.summary }}</p>
+                  <div class="grid gap-2 text-[10px] md:grid-cols-3">
+                    <p class="border border-accent/10 bg-bg/30 p-2 text-muted">创建：{{ formatTime(latestSeparationPreview.created_at) }}</p>
+                    <p class="border border-accent/10 bg-bg/30 p-2 text-muted">可确认：{{ formatTime(latestSeparationPreview.confirm_after_at) }}</p>
+                    <p class="border border-accent/10 bg-bg/30 p-2 text-muted">过期：{{ formatTime(latestSeparationPreview.expires_at) }}</p>
+                  </div>
+                  <div v-if="separationPreviewDeferredOperations.length" class="flex flex-wrap gap-1">
+                    <span
+                      v-for="item in separationPreviewDeferredOperations"
+                      :key="item"
+                      class="border border-accent/15 px-2 py-1 text-[10px] text-muted"
+                    >
+                      {{ deferredOperationLabel(item) }}
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
             <div v-else class="mt-3 text-xs leading-5 text-muted">
               刷新后会自动选中最近的共同庄园契约。
@@ -229,7 +280,7 @@
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">个人铜币不合并，共同基金单独显示。</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">田区按来源玩家和存档 ID 显示，不写回个人农田。</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">普通仓库操作按权限开放，高价值取出和自动入仓仍保持关闭。</p>
-              <p class="border border-accent/10 bg-black/10 p-2 text-muted">分居返还只显示已有预览，不在前端执行资产返还。</p>
+              <p class="border border-accent/10 bg-black/10 p-2 text-muted">分居返还可生成预览，不在前端执行资产返还。</p>
             </div>
           </div>
         </div>
@@ -1284,6 +1335,9 @@
   const contractDraftType = ref('lover_cohabitation')
   const contractDraftTitle = ref('')
   const contractDraftTargetUsernames = ref('')
+  const separationActionMessage = ref('')
+  const separationActionOk = ref(false)
+  const separationPreviewReason = ref('')
 
   const tabs: CohabitationTabMeta[] = [
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
@@ -1323,6 +1377,11 @@
     return contractDraftMemberCount.value >= option.min_members && contractDraftMemberCount.value <= option.max_members
   })
   const selectedContract = computed(() => cohabitationStore.selectedContract)
+  const latestSeparationPreview = computed(() => selectedContract.value?.separation_previews?.[0] ?? null)
+  const separationPreviewDeferredOperations = computed(() => latestSeparationPreview.value?.deferred_operations ?? [])
+  const canCreateSeparationPreview = computed(() =>
+    selectedContract.value?.status === 'active' && cohabitationStore.canOpenSelectedContract
+  )
   const selectedContractActorMember = computed(() => {
     const account = cohabitationStore.currentAccount
     if (!account || !selectedContract.value) return null
@@ -1671,6 +1730,7 @@
     permissionActionMessage.value = ''
     roleActionMessage.value = ''
     contractActionMessage.value = ''
+    separationActionMessage.value = ''
     if (!cohabitationStore.canOpenSelectedContract && activeTab.value !== 'overview') {
       activeTab.value = 'overview'
     }
@@ -1722,6 +1782,26 @@
       }
     } catch (error) {
       contractActionMessage.value = error instanceof Error ? error.message : '创建共同庄园契约失败'
+    }
+  }
+
+  const createSeparationPreview = async () => {
+    if (!selectedContract.value || !canCreateSeparationPreview.value) return
+    separationActionMessage.value = ''
+    separationActionOk.value = false
+    const reason = separationPreviewReason.value.trim()
+    try {
+      const result = await cohabitationStore.createSeparationPreview({
+        reason: reason || undefined,
+        idempotency_key: `ui-separation-preview-${selectedContract.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      separationActionOk.value = true
+      separationActionMessage.value = result?.idempotent
+        ? '已读回已有分居预览'
+        : '已生成分居返还预览'
+      separationPreviewReason.value = ''
+    } catch (error) {
+      separationActionMessage.value = error instanceof Error ? error.message : '生成分居预览失败'
     }
   }
 
@@ -2016,6 +2096,11 @@
       settle_family_festival_rewards: '结算节会奖励',
       family_festival_compensation_replay: '节会补偿重放',
       family_festival_seat_rollback: '席位回滚',
+      execute_asset_return: '执行资产返还',
+      write_personal_save_refunds: '写回个人存档返还',
+      split_decorations: '拆分装修家具',
+      resolve_family_story: '处理家庭剧情',
+      freeze_high_value_disputes: '冻结高价值争议',
     }
     return labels[value] || value
   }

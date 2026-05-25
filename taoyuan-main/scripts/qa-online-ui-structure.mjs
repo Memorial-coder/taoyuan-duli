@@ -83,6 +83,7 @@ expectContains('online/OnlineCohabitationView.vue', '<OnlineModuleShell', '共�
 expectContains('online/OnlineCohabitationView.vue', "activeTab = ref<CohabitationTabKey>('overview')", '共同庄园默认页应保持总览')
 expectContains('online/OnlineCohabitationView.vue', "activeTab === 'map'", '共同庄园应提供共同农田地图标签')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-contract-create-submit', '共同庄园总览应保留发起契约入口')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-separation-preview-submit', '共同庄园总览应保留分居预览入口')
 expectContains('online/OnlineCohabitationView.vue', '个人铜币不合并', '共同庄园入口应显示个人铜币不合并边界')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineCohabitationView.vue', /overflow-y-auto/g, 8, '共同庄园长列表应保留滚动边界')
 

@@ -913,6 +913,11 @@ export interface CohabitationContractCreatePayload {
   idempotency_key: string
 }
 
+export interface CohabitationSeparationPreviewPayload {
+  reason?: string
+  idempotency_key: string
+}
+
 export interface CohabitationWarehouseItemResponse extends CohabitationDetailResponse {
   warehouse?: CohabitationWarehouseSnapshot
   fund?: CohabitationFundSnapshot
@@ -1000,6 +1005,11 @@ export interface CohabitationContractActionResponse extends CohabitationDetailRe
   idempotent?: boolean
 }
 
+export interface CohabitationSeparationPreviewResponse extends CohabitationDetailResponse {
+  preview: CohabitationSeparationPreview
+  idempotent?: boolean
+}
+
 const fetchCohabitationJson = async <T>(path: string, fallbackMessage: string): Promise<T | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
@@ -1054,6 +1064,14 @@ export const acceptCohabitationContract = async (contractId: string) => {
     contractPath(contractId, '/accept'),
     {},
     '接受共同庄园契约失败'
+  )
+}
+
+export const createCohabitationSeparationPreview = async (contractId: string, payload: CohabitationSeparationPreviewPayload) => {
+  return postCohabitationJson<CohabitationSeparationPreviewResponse>(
+    contractPath(contractId, '/separation-preview'),
+    payload as unknown as Record<string, unknown>,
+    '生成分居预览失败'
   )
 }
 

@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 分居返还预览前端入口
+- 共同庄园总览新增“分居返还预览”区域，已生效契约可填写原因备注并生成返还草案。
+- 前端 API / store 接入 `/separation-preview`，提交时带 CSRF 与 `idempotency_key`，成功后刷新契约摘要和详情，展示预览版本、摘要、冷静期时间和暂缓执行项。
+- 本轮不确认分居，不执行共同仓库 / 共同基金 / 田区返还，不写个人存档，不处理装修或家庭剧情。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 共同庄园契约前端发起入口
 - 共同庄园总览新增“发起契约”表单，可选择服务端返回的关系类型、填写标题和好友用户名列表。
 - 前端 API / store 接入 `POST /cohabitation/contracts`，提交时带 CSRF 与 `idempotency_key`，成功后把新契约并入总览、更新待接受 / 已生效统计并选中新契约。
