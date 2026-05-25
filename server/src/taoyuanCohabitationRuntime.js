@@ -1010,7 +1010,7 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
   const itemId = normalizeWarehouseItemId(entry.item_id ?? entry.itemId);
   const quantity = normalizePositiveInt(entry.quantity, 0);
   if (!itemId || quantity <= 0) return null;
-  const action = ['deposit', 'withdraw', 'sell', 'consume', 'compensate', 'revert'].includes(entry.action) ? entry.action : 'deposit';
+  const action = ['deposit', 'withdraw', 'sell', 'consume', 'compensate', 'revert', 'separation_return'].includes(entry.action) ? entry.action : 'deposit';
   const actorUsername = normalizeUsername(entry.actor_username);
   const sourceOwnerUsername = normalizeUsername(entry.source_owner_username || actorUsername);
   const sourceSlots = Array.isArray(entry.source_slots)
@@ -4201,6 +4201,17 @@ function normalizeSeparationSharedFundRefundPayload(payload = {}) {
   };
 }
 
+function normalizeSeparationSharedWarehouseReturnPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('分居共同仓库返还需要 idempotency_key，以防断线或重试时重复返还');
+  return {
+    idempotency_key: idempotencyKey,
+    execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
+    plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
 function normalizeLargeFundSpendExecutePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同基金大额草案执行扣款需要 idempotency_key，以防断线或重试时重复扣基金');
@@ -4339,7 +4350,7 @@ function buildWarehouseWithdrawalAllocations(warehouse = {}, itemId, quantity, q
         source_inventory: entry.source_inventory,
         remaining: entry.quantity,
       });
-    } else if (['withdraw', 'sell', 'consume', 'revert'].includes(entry.action)) {
+    } else if (['withdraw', 'sell', 'consume', 'revert', 'separation_return'].includes(entry.action)) {
       consumeWarehouseLots(lots, entry.quantity, entry.source_owner_key);
     }
   }
@@ -4385,7 +4396,7 @@ function buildWarehouseReturnPreview(contract = {}) {
   const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   const groups = new Map();
   for (const entry of warehouse.ledger.slice().reverse()) {
-    if (entry.status !== 'committed' || !['deposit', 'compensate', 'withdraw', 'sell', 'consume', 'revert'].includes(entry.action)) continue;
+    if (entry.status !== 'committed' || !['deposit', 'compensate', 'withdraw', 'sell', 'consume', 'revert', 'separation_return'].includes(entry.action)) continue;
     const key = `${entry.source_owner_id || entry.source_owner_key}:${entry.item_id}:${entry.quality}`;
     const current = groups.get(key) || {
       origin_owner_id: entry.source_owner_id,
@@ -4584,6 +4595,7 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
       origin_owner_username: normalizeUsername(entry.origin_owner_username),
       origin_owner_key: normalizeUsernameKey(entry.origin_owner_key || entry.origin_owner_username),
       item_id: sanitizeText(entry.item_id, 80),
+      quality: normalizeQuality(entry.quality),
       quantity: Math.max(0, Math.floor(Number(entry.quantity) || 0)),
       return_status: 'manual_personal_inventory_write_required',
     })).filter(entry => entry.origin_owner_username && entry.item_id && entry.quantity > 0),
@@ -4731,6 +4743,68 @@ function writePersonalMoneyRefundsFromLedger(refunds = [], contract = {}, payloa
   });
 }
 
+function writePersonalInventoryReturnsFromLedger(rows = [], contract = {}, payload = {}, warehouseLedgerEntries = []) {
+  const prepared = [];
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const username = normalizeUsername(row.origin_owner_username);
+    const itemId = normalizeWarehouseItemId(row.item_id);
+    const quality = normalizeQuality(row.quality);
+    const quantity = Math.max(0, Math.floor(Number(row.quantity) || 0));
+    if (!username || !itemId || quantity <= 0) continue;
+    const usernameKey = normalizeUsernameKey(username);
+    const member = (contract.members || []).find(entry =>
+      entry.username_key === usernameKey || normalizeUsernameKey(entry.username) === usernameKey
+    ) || null;
+    const context = getActiveSaveContext(username, member?.save_slot ?? null, '分居共同仓库返还目标账号没有可写入的桃源乡存档');
+    context.username = username;
+    const identitySaveId = normalizeSaveId(context.identity?.save_id || context.identity?.saveId);
+    const projectedData = JSON.parse(JSON.stringify(context.data || {}));
+    const beforeMoney = getPlayerMoney(projectedData);
+    const addResult = addWithdrawnWarehouseItemToInventory(projectedData, itemId, quantity, quality);
+    if (!addResult.ok) throw createError(`分居共同仓库返还目标背包空间不足：${username}`, 409);
+    const afterMoney = getPlayerMoney(projectedData);
+    if (afterMoney !== beforeMoney) throw createError(`分居共同仓库返还不会处理个人铜币：${username}`, 500);
+    const warehouseLedgerEntry = warehouseLedgerEntries.find(entry =>
+      normalizeUsernameKey(entry.target_owner_username) === usernameKey
+      && entry.item_id === itemId
+      && entry.quality === quality
+    ) || null;
+    prepared.push({
+      username,
+      username_key: usernameKey,
+      context,
+      projectedData,
+      save_id: identitySaveId,
+      save_slot: normalizeSaveSlot(context.slot),
+      before_revision: Number(context.saves.slots[context.slot]?.revision) || 0,
+      item_id: itemId,
+      quality,
+      returned_quantity: quantity,
+      target_slots: addResult.target_slots,
+      warehouse_ledger_id: warehouseLedgerEntry?.id || '',
+    });
+  }
+  return prepared.map(entry => {
+    assignGameplayDataToContext(entry.context, entry.projectedData);
+    const afterRevision = persistGameplayData(entry.context);
+    return {
+      username: entry.username,
+      username_key: entry.username_key,
+      save_slot: entry.save_slot,
+      save_id: entry.save_id,
+      before_revision: entry.before_revision,
+      after_revision: afterRevision,
+      item_id: entry.item_id,
+      quality: entry.quality,
+      returned_quantity: entry.returned_quantity,
+      target_slots: entry.target_slots,
+      warehouse_ledger_id: entry.warehouse_ledger_id,
+      idempotency_key: payload.idempotency_key,
+      written_at: nowSeconds(),
+    };
+  });
+}
+
 function normalizeSeparationExecutionLedgerEntry(entry = {}) {
   return {
     id: sanitizeText(entry.id, 100) || makeId('separation_asset_return'),
@@ -4741,7 +4815,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
     executed_at: Math.max(0, Math.floor(Number(entry.executed_at) || 0)),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     memo: sanitizeText(entry.memo, 160),
-    status: ['asset_return_recorded', 'personal_save_written', 'shared_fund_refunded', 'compensated', 'reverted'].includes(entry.status)
+    status: ['asset_return_recorded', 'personal_save_written', 'shared_fund_refunded', 'shared_warehouse_returned', 'compensated', 'reverted'].includes(entry.status)
       ? entry.status
       : 'asset_return_recorded',
     plot_return_manifest_hash: sanitizeText(entry.plot_return_manifest_hash, 100),
@@ -4762,6 +4836,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           origin_owner_username: normalizeUsername(item.origin_owner_username),
           origin_owner_key: normalizeUsernameKey(item.origin_owner_key || item.origin_owner_username),
           item_id: normalizeWarehouseItemId(item.item_id),
+          quality: normalizeQuality(item.quality),
           quantity: Math.max(0, Math.floor(Number(item.quantity) || 0)),
           return_status: sanitizeText(item.return_status, 80) || 'manual_personal_inventory_write_required',
         })).filter(item => item.origin_owner_username && item.item_id && item.quantity > 0).slice(0, 120)
@@ -4816,6 +4891,28 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           idempotency_key: sanitizeText(item.idempotency_key, 120),
           written_at: Math.max(0, Math.floor(Number(item.written_at) || 0)),
         })).filter(item => item.username && item.refund_amount > 0).slice(0, 20)
+      : [],
+    shared_warehouse_returned: entry.shared_warehouse_returned === true,
+    shared_warehouse_return_idempotency_key: sanitizeText(entry.shared_warehouse_return_idempotency_key, 120),
+    shared_warehouse_returned_at: Math.max(0, Math.floor(Number(entry.shared_warehouse_returned_at) || 0)),
+    shared_warehouse_returned_by: normalizeUsername(entry.shared_warehouse_returned_by),
+    shared_warehouse_return_total_quantity: Math.max(0, Math.floor(Number(entry.shared_warehouse_return_total_quantity) || 0)),
+    shared_warehouse_return_receipts: Array.isArray(entry.shared_warehouse_return_receipts)
+      ? entry.shared_warehouse_return_receipts.map(item => ({
+          username: normalizeUsername(item.username),
+          username_key: normalizeUsernameKey(item.username_key || item.username),
+          save_slot: normalizeSaveSlot(item.save_slot),
+          save_id: normalizeSaveId(item.save_id),
+          before_revision: Math.max(0, Math.floor(Number(item.before_revision) || 0)),
+          after_revision: Math.max(0, Math.floor(Number(item.after_revision) || 0)),
+          item_id: normalizeWarehouseItemId(item.item_id),
+          quality: normalizeQuality(item.quality),
+          returned_quantity: Math.max(0, Math.floor(Number(item.returned_quantity) || 0)),
+          target_slots: Array.isArray(item.target_slots) ? item.target_slots.slice(0, 12) : [],
+          warehouse_ledger_id: sanitizeText(item.warehouse_ledger_id, 100),
+          idempotency_key: sanitizeText(item.idempotency_key, 120),
+          written_at: Math.max(0, Math.floor(Number(item.written_at) || 0)),
+        })).filter(item => item.username && item.item_id && item.returned_quantity > 0).slice(0, 80)
       : [],
     shared_assets_mutated: entry.shared_assets_mutated === true,
     next_required_operations: Array.isArray(entry.next_required_operations)
@@ -7976,6 +8073,226 @@ async function refundSeparationSharedFund(contractId, previewId, payload = {}, a
   };
 }
 
+async function returnSeparationSharedWarehouse(contractId, previewId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const returnPayload = normalizeSeparationSharedWarehouseReturnPayload(payload);
+  const normalizedContractId = sanitizeText(contractId, 80);
+  const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
+  if (!normalizedPreviewId) throw createError('请指定要返还共同仓库的分居预览');
+
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === normalizedContractId);
+  if (!contract) throw createError('同居契约不存在', 404);
+  if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
+  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效或分居处理中的契约可以返还共同仓库', 409);
+
+  const member = (contract.members || []).find(entry =>
+    entry.status === 'accepted' && (
+      normalizeUsernameKey(entry.username) === normalizeUsernameKey(actorUsername)
+      || normalizeUsernameKey(entry.username_key) === normalizeUsernameKey(actorUsername)
+    )
+  );
+  if (!member) throw createError('只有已接受契约成员可以返还共同仓库', 403);
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.separation_previews = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.map(normalizeSeparationPreview)
+    : [];
+  contract.separation_execution_ledger = Array.isArray(contract.separation_execution_ledger)
+    ? contract.separation_execution_ledger.map(normalizeSeparationExecutionLedgerEntry)
+    : [];
+  const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
+  if (previewIndex < 0) throw createError('分居预览不存在', 404);
+
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const executionRequest = preview.confirmation_state.execution_request || {};
+  if (!['shared_fund_refunded', 'shared_warehouse_returned'].includes(String(executionRequest.status || ''))) {
+    throw createError('请先返还共同基金，再返还共同仓库', 409);
+  }
+  const ledgerIndex = contract.separation_execution_ledger.findIndex(entry =>
+    entry.id === (returnPayload.execution_ledger_id || executionRequest.execution_ledger_id)
+    || (entry.preview_id === normalizedPreviewId && ['shared_fund_refunded', 'shared_warehouse_returned'].includes(entry.status))
+  );
+  if (ledgerIndex < 0) throw createError('分居返还执行记录不存在，请重新记录返还执行', 409);
+  const ledger = normalizeSeparationExecutionLedgerEntry(contract.separation_execution_ledger[ledgerIndex]);
+  if (returnPayload.execution_ledger_id && returnPayload.execution_ledger_id !== ledger.id) throw createError('分居返还执行记录不匹配，请刷新后重试', 409);
+  if (ledger.shared_warehouse_return_idempotency_key === returnPayload.idempotency_key || ledger.shared_warehouse_returned === true) {
+    return {
+      contract: toPublicContract(contract),
+      preview,
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      idempotent: true,
+      already_returned: ledger.shared_warehouse_returned === true,
+      execution_ledger: ledger,
+      receipts: ledger.shared_warehouse_return_receipts || [],
+      warehouse_ledger_entries: (contract.shared_warehouse.ledger || []).filter(entry =>
+        (ledger.shared_warehouse_return_receipts || []).some(receipt => receipt.warehouse_ledger_id === entry.id)
+      ),
+    };
+  }
+
+  const manifest = Array.isArray(preview.asset_return?.plot_return_manifest) ? preview.asset_return.plot_return_manifest : [];
+  const expectedManifestHash = sanitizeText(preview.asset_return?.plot_return_manifest_hash, 100) || hashPlotReturnManifest(manifest);
+  if (!expectedManifestHash || !/^[a-f0-9]{64}$/i.test(expectedManifestHash)) throw createError('分居来源田区清单缺少可校验 hash，请重新生成预览', 409);
+  if (returnPayload.plot_return_manifest_hash && returnPayload.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('分居来源田区清单 hash 不匹配，请重新生成预览，避免返还错物', 409);
+  }
+  if (ledger.plot_return_manifest_hash && ledger.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('分居返还执行记录与当前预览 hash 不一致，请人工复核', 409);
+  }
+  if (ledger.shared_fund_refunded !== true) throw createError('共同基金尚未返还，不能返还共同仓库', 409);
+
+  const returnRows = (ledger.warehouse_returns_by_origin_owner || []).filter(entry => entry.quantity > 0);
+  let workingWarehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  const returnedAt = nowSeconds();
+  const warehouseLedgerEntries = [];
+  for (const row of returnRows) {
+    const allocationResult = buildWarehouseWithdrawalAllocations(workingWarehouse, row.item_id, row.quantity, row.quality);
+    if (!allocationResult.ok) throw createError(`共同仓库中 ${row.item_id} 可返还数量不足，请重新生成分居预览或人工补偿`, 409);
+    const mismatched = allocationResult.allocations.find(allocation =>
+      normalizeUsernameKey(allocation.source_owner_key || allocation.source_owner_username) !== row.origin_owner_key
+    );
+    if (mismatched) throw createError(`共同仓库来源玩家与分居清单不一致：${row.item_id}`, 409);
+    const targetMember = (contract.members || []).find(entry =>
+      entry.username_key === row.origin_owner_key || normalizeUsernameKey(entry.username) === row.origin_owner_key
+    ) || null;
+    const targetSaveId = normalizeSaveId(targetMember?.save_id);
+    const targetSaveSlot = normalizeSaveSlot(targetMember?.save_slot);
+    const targetOwnerId = targetSaveId ? `save:${targetSaveId}` : `account:${row.origin_owner_key}`;
+    const ledgerEntry = normalizeWarehouseLedgerEntry({
+      id: makeId('shared_warehouse_ledger'),
+      action: 'separation_return',
+      item_id: row.item_id,
+      quality: row.quality,
+      quantity: row.quantity,
+      actor_username: actorUsername,
+      actor_display_name: actor.displayName || actor.display_name || actorUsername,
+      source_owner_id: row.origin_owner_id,
+      source_owner_username: row.origin_owner_username,
+      source_owner_display_name: row.origin_owner_username,
+      source_owner_key: row.origin_owner_key,
+      source_ledger_ids: allocationResult.allocations.flatMap(allocation => allocation.source_ledger_ids || [allocation.source_ledger_id]).filter(Boolean),
+      target_owner_id: targetOwnerId,
+      target_owner_username: row.origin_owner_username,
+      target_owner_display_name: row.origin_owner_username,
+      target_owner_key: row.origin_owner_key,
+      target_save_id: targetSaveId,
+      target_save_slot: targetSaveSlot,
+      target_inventory: 'inventory.items',
+      target_ref: `separation:${normalizedPreviewId}:${ledger.id}`,
+      at: returnedAt,
+      idempotency_key: `${returnPayload.idempotency_key}:${row.origin_owner_key}:${row.item_id}:${row.quality}`,
+      reversible: true,
+      compensation_hint: '分居共同仓库物已扣共同仓库并写回来源成员个人背包；失败时按本 ledger 与个人 receipt 补偿重放。',
+      status: 'committed',
+    });
+    if (ledgerEntry) {
+      warehouseLedgerEntries.push(ledgerEntry);
+      workingWarehouse = normalizeSharedWarehouse({
+        ...workingWarehouse,
+        ledger: [ledgerEntry, ...workingWarehouse.ledger],
+      });
+    }
+  }
+
+  const receipts = writePersonalInventoryReturnsFromLedger(returnRows, contract, returnPayload, warehouseLedgerEntries);
+  const receiptByLedgerId = new Map(receipts.map(receipt => [receipt.warehouse_ledger_id, receipt]));
+  const finalizedWarehouseLedgerEntries = warehouseLedgerEntries.map(entry => {
+    const receipt = receiptByLedgerId.get(entry.id);
+    return normalizeWarehouseLedgerEntry({
+      ...entry,
+      target_save_id: receipt?.save_id || entry.target_save_id,
+      target_save_slot: receipt?.save_slot ?? entry.target_save_slot,
+      target_save_revision: receipt?.after_revision || entry.target_save_revision,
+      target_slots: receipt?.target_slots || entry.target_slots,
+    });
+  }).filter(Boolean);
+  contract.shared_warehouse.ledger = [...finalizedWarehouseLedgerEntries, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+
+  const nextWarehouseReturnRows = (ledger.warehouse_returns_by_origin_owner || []).map(entry => ({
+    ...entry,
+    return_status: entry.quantity > 0 ? 'personal_inventory_written' : entry.return_status,
+    return_idempotency_key: returnPayload.idempotency_key,
+  }));
+  const totalReturnedQuantity = returnRows.reduce((sum, entry) => sum + entry.quantity, 0);
+  const nextLedger = normalizeSeparationExecutionLedgerEntry({
+    ...ledger,
+    status: 'shared_warehouse_returned',
+    warehouse_returns_by_origin_owner: nextWarehouseReturnRows,
+    shared_warehouse_returned: true,
+    shared_warehouse_return_idempotency_key: returnPayload.idempotency_key,
+    shared_warehouse_returned_at: returnedAt,
+    shared_warehouse_returned_by: member.username,
+    shared_warehouse_return_total_quantity: totalReturnedQuantity,
+    shared_warehouse_return_receipts: receipts,
+    shared_assets_mutated: true,
+    next_required_operations: ['split_decorations', 'resolve_family_story'],
+  });
+  const nextExecutionRequest = {
+    ...executionRequest,
+    status: 'shared_warehouse_returned',
+    shared_warehouse_returned: true,
+    shared_warehouse_returned_at: returnedAt,
+    shared_warehouse_returned_by: member.username,
+    shared_warehouse_return_total_quantity: totalReturnedQuantity,
+    shared_warehouse_return_receipts: receipts,
+    next_required_operations: nextLedger.next_required_operations,
+  };
+  const nextPreview = normalizeSeparationPreview({
+    ...preview,
+    asset_return: {
+      ...preview.asset_return,
+      warehouse_items_by_origin_owner: nextWarehouseReturnRows,
+      shared_warehouse_returned: true,
+      shared_warehouse_returned_at: returnedAt,
+      shared_warehouse_return_total_quantity: totalReturnedQuantity,
+      shared_warehouse_return_receipts: receipts,
+    },
+    confirmation_state: {
+      ...preview.confirmation_state,
+      execution_request: nextExecutionRequest,
+      shared_warehouse_returned: true,
+      shared_warehouse_returned_at: returnedAt,
+      can_execute_now: false,
+      execution_enabled: false,
+      execution_policy: '共同仓库已按来源流水写回来源成员个人背包；装饰 / 建筑和剧情拆分仍需后续独立接口。'
+    },
+    deferred_operations: ['split_decorations', 'resolve_family_story'],
+  });
+
+  contract.separation_execution_ledger[ledgerIndex] = nextLedger;
+  contract.separation_previews[previewIndex] = nextPreview;
+  appendAudit(contract, 'separation_shared_warehouse_returned', actor, {
+    preview_id: nextPreview.id,
+    execution_ledger_id: nextLedger.id,
+    plot_return_manifest_hash: expectedManifestHash,
+    returned_quantity: totalReturnedQuantity,
+    receipt_count: receipts.length,
+    warehouse_ledger_ids: finalizedWarehouseLedgerEntries.map(entry => entry.id),
+    personal_money_merged: false,
+    next_required_operations: nextLedger.next_required_operations,
+  }, returnPayload.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    preview: nextPreview,
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    idempotent: false,
+    already_returned: false,
+    execution_ledger: nextLedger,
+    receipts,
+    warehouse_ledger_entries: finalizedWarehouseLedgerEntries,
+    shared_warehouse: {
+      returned_quantity: totalReturnedQuantity,
+      personal_inventory_merged: false,
+    },
+  };
+}
+
 module.exports = {
   RELATION_TYPE_DEFS,
   listCohabitationContracts,
@@ -8012,4 +8329,5 @@ module.exports = {
   executeSeparationAssetReturn,
   writeSeparationPersonalFarmReturns,
   refundSeparationSharedFund,
+  returnSeparationSharedWarehouse,
 };

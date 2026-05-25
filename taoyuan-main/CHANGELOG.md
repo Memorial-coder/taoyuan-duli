@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 分居共同仓库返还执行
+- 服务端新增 `/separation-previews/:previewId/return-shared-warehouse`，要求分居共同基金已返还、执行 ledger ID 可匹配且预览 `plot_return_manifest_hash` 未变。
+- 成功后按执行 ledger 中的来源清单写 `separation_return` 共同仓库流水，扣减共同仓库库存，把物品写回来源成员个人背包 receipt，并把执行状态推进到 `shared_warehouse_returned`；重复请求不重复扣仓库、不重复写个人存档。
+- 本轮验证：`node --check server\src\taoyuanCohabitationRuntime.js`、`node --check server\src\routes\api.js`、`node --check server\scripts\qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 分居共同基金返还前端入口
 - 共同庄园总览在分居预览卡片新增“返还基金”按钮，前端 API / store 接入 `/separation-previews/:previewId/refund-shared-fund`。
 - 按钮按 `personal_save_written`、执行 ledger ID、预览 `plot_return_manifest_hash` 和契约状态禁用；提交时只发送服务端校验所需 intent、ledger、hash 与 `idempotency_key`，成功后刷新契约、共同基金和共同日志。

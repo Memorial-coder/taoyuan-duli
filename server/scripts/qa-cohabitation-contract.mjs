@@ -1716,6 +1716,16 @@ assert.equal(fourMemberSharedMap.layout.summary.max_members, 4, 'layout summary 
 assert.equal(fourMemberSharedMap.layout.summary.region_order[fourMemberSharedMap.layout.summary.region_order.length - 1]?.member_username, fourth, 'fourth member should receive the final region')
 assert.equal(saveRuntime.loadUserSaveSlots(fourth).slots[0].raw, fourRawBeforeFamilyMap, 'four-member shared map should not rewrite fourth member save')
 
+const ownerRiceBeforeSeparationWarehouseDeposit = getInventoryItemQuantity(owner, 'rice')
+const separationWarehouseDeposit = await runtime.depositCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'rice',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-separation-warehouse-rice-deposit',
+}, actor(owner))
+assert.equal(separationWarehouseDeposit.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 1, 'separation preview setup should leave traceable rice in shared warehouse')
+assert.equal(getInventoryItemQuantity(owner, 'rice'), ownerRiceBeforeSeparationWarehouseDeposit - 1, 'separation warehouse setup should deduct owner rice once')
+
 const ownerRawBeforePreview = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
 const partnerRawBeforePreview = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
 const previewResult = await runtime.createSeparationPreview(created.contract.id, {
@@ -1745,7 +1755,7 @@ assert.equal(partnerReturnManifest.find(item => item.source_plot_id === 5)?.plot
 assert.ok(previewResult.preview.safety_checks.find(item => item.id === 'plot_return_manifest_complete')?.passed, 'separation preview should pass complete plot manifest safety check')
 assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === owner && item.plot_count === 16), 'separation preview should include owner plot return group')
 assert.ok(previewResult.preview.asset_return.plots_by_origin_owner.some(item => item.origin_owner_username === partner && item.plot_count === 16), 'separation preview should include partner plot return group')
-assert.equal(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'rice'), false, 'separation preview should not return sold warehouse rice')
+assert.ok(previewResult.preview.asset_return.warehouse_items_by_origin_owner.some(item => item.item_id === 'rice' && item.origin_owner_username === owner && item.quantity === 1), 'separation preview should return remaining unsold warehouse rice by origin owner')
 assert.equal(previewResult.preview.asset_return.fund_balance, 155, 'separation preview should include current fund balance after warehouse sale income')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === owner && item.amount === 870), 'separation preview should include owner fund contribution source summary')
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.amount === 80), 'separation preview should include partner fund contribution source summary')
@@ -1753,7 +1763,7 @@ assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.
 assert.ok(previewResult.preview.asset_return.fund_contributions_by_origin_owner.some(item => item.origin_owner_username === partner && item.suggested_refund_amount === 14), 'separation preview should suggest partner fund refund by contribution share after warehouse sale')
 assert.equal(previewResult.preview.asset_return.fund_suggested_refund_total, 155, 'separation preview should balance suggested fund refunds after warehouse sale')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'plots_return_by_origin'), 'separation preview should include plot return compensation plan')
-assert.equal(previewResult.preview.compensation_plan.some(item => item.id === 'warehouse_manual_return'), false, 'separation preview should not include warehouse return plan when sold stock is empty')
+assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'warehouse_manual_return'), 'separation preview should include warehouse return plan when shared stock remains')
 assert.ok(previewResult.preview.compensation_plan.some(item => item.id === 'fund_proportional_refund'), 'separation preview should include fund proportional refund plan')
 assert.ok(previewResult.preview.safety_checks.find(item => item.id === 'preview_only')?.passed, 'separation preview should declare preview-only safety check')
 assert.ok(previewResult.preview.safety_checks.find(item => item.id === 'fund_preview_balanced')?.passed, 'separation preview should balance fund safety check')
@@ -2020,6 +2030,56 @@ assert.equal(duplicateSharedFundRefund.execution_ledger.id, sharedFundRefund.exe
 assert.equal(duplicateSharedFundRefund.fund.balance, sharedFundRefund.fund.balance, 'idempotent shared fund refund should not deduct balance twice')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterSharedFundRefund, 'idempotent shared fund refund should not rewrite owner save again')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterSharedFundRefund, 'idempotent shared fund refund should not rewrite partner save again')
+
+await assert.rejects(
+  () => runtime.returnSeparationSharedWarehouse(created.contract.id, previewResult.preview.id, {
+    memo: 'wrong shared warehouse return hash',
+    plot_return_manifest_hash: 'b'.repeat(64),
+    execution_ledger_id: assetReturnRecord.execution_ledger.id,
+    idempotency_key: 'qa-separation-shared-warehouse-return-wrong-hash',
+  }, actor(owner)),
+  /hash 不匹配/,
+  'shared warehouse return should reject mismatched manifest hash'
+)
+
+const warehouseBeforeSeparationReturn = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+const ownerRiceBeforeSharedWarehouseReturn = getInventoryItemQuantity(owner, 'rice')
+const partnerRiceBeforeSharedWarehouseReturn = getInventoryItemQuantity(partner, 'rice')
+const sharedWarehouseReturn = await runtime.returnSeparationSharedWarehouse(created.contract.id, previewResult.preview.id, {
+  memo: 'return shared warehouse stock to personal inventories',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-shared-warehouse-return',
+}, actor(owner))
+assert.equal(sharedWarehouseReturn.idempotent, false, 'first shared warehouse return should not be idempotent')
+assert.equal(sharedWarehouseReturn.execution_ledger.status, 'shared_warehouse_returned', 'shared warehouse return should advance execution ledger status')
+assert.equal(sharedWarehouseReturn.execution_ledger.shared_warehouse_returned, true, 'shared warehouse return should mark ledger returned')
+assert.equal(sharedWarehouseReturn.preview.confirmation_state.execution_request.status, 'shared_warehouse_returned', 'execution request should advance to shared-warehouse-returned')
+assert.equal(sharedWarehouseReturn.shared_warehouse.returned_quantity, 1, 'shared warehouse return should report returned quantity')
+assert.equal(sharedWarehouseReturn.receipts.length, 1, 'shared warehouse return should create one receipt for the remaining owner rice')
+assert.equal(sharedWarehouseReturn.receipts[0].username, owner, 'shared warehouse return should write rice back to origin owner')
+assert.equal(sharedWarehouseReturn.receipts[0].item_id, 'rice', 'shared warehouse return receipt should keep item id')
+assert.equal(sharedWarehouseReturn.receipts[0].returned_quantity, 1, 'shared warehouse return receipt should keep quantity')
+assert.equal(sharedWarehouseReturn.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 0, 'returned shared warehouse rice should be removed from stock')
+assert.equal(warehouseBeforeSeparationReturn.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 1, 'warehouse before return should include remaining rice')
+assert.equal(getInventoryItemQuantity(owner, 'rice'), ownerRiceBeforeSharedWarehouseReturn + 1, 'shared warehouse return should add rice to origin owner inventory once')
+assert.equal(getInventoryItemQuantity(partner, 'rice'), partnerRiceBeforeSharedWarehouseReturn, 'shared warehouse return should not add rice to non-origin partner')
+assert.ok(sharedWarehouseReturn.warehouse_ledger_entries.every(entry => entry.action === 'separation_return'), 'shared warehouse return should write separation_return warehouse ledgers')
+assert.ok(sharedWarehouseReturn.contract.audit_log.find(entry => entry.action === 'separation_shared_warehouse_returned' && entry.idempotency_key === 'qa-separation-shared-warehouse-return'), 'shared warehouse return should be audited')
+
+const ownerRawAfterSharedWarehouseReturn = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawAfterSharedWarehouseReturn = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const duplicateSharedWarehouseReturn = await runtime.returnSeparationSharedWarehouse(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate shared warehouse return',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-shared-warehouse-return',
+}, actor(owner))
+assert.equal(duplicateSharedWarehouseReturn.idempotent, true, 'same shared warehouse return idempotency key should return existing receipts')
+assert.equal(duplicateSharedWarehouseReturn.execution_ledger.id, sharedWarehouseReturn.execution_ledger.id, 'idempotent shared warehouse return should keep ledger id')
+assert.equal(duplicateSharedWarehouseReturn.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 0, 'idempotent shared warehouse return should not duplicate stock changes')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterSharedWarehouseReturn, 'idempotent shared warehouse return should not rewrite owner save again')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterSharedWarehouseReturn, 'idempotent shared warehouse return should not rewrite partner save again')
 
 const partnerMoneyBeforeMediumFundTopUp = readGameplayData(partner)?.player?.money
 const fundBeforeMediumFundTopUp = await runtime.getCohabitationFund(created.contract.id, actor(owner))

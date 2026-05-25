@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 分居共同仓库返还执行接入：共同庄园新增 `/separation-previews/:previewId/return-shared-warehouse`，要求共同基金已返还、执行 ledger 与 `plot_return_manifest_hash` 匹配；成功后按来源清单写 `separation_return` 共同仓库流水、扣减共同仓库库存、把物品 receipt 写回来源成员个人背包并记录审计，重复请求幂等读回，不重复扣仓库或重写个人存档。
 - 分居共同基金返还前端入口接入：共同庄园总览在分居预览卡片新增“返还基金”按钮，前端 API / store 接入 `/separation-previews/:previewId/refund-shared-fund`；按钮按来源田区已写回、执行 ledger、预览 hash 和服务端状态禁用，成功后刷新契约、共同基金和共同日志，不移动共同仓库、不拆装饰 / 建筑。
 - 分居共同基金返还执行接入：共同庄园新增 `/separation-previews/:previewId/refund-shared-fund`，要求来源田区个人农田已写回、执行 ledger 与 `plot_return_manifest_hash` 匹配；成功后按预览来源贡献扣减共同基金、写 `separation_refund` 基金流水、把个人铜币 receipt 写回成员个人存档并记录审计，重复请求幂等读回，不移动共同仓库、不拆装饰 / 建筑。
 - 分居来源田区个人农田写回前端入口接入：共同庄园总览在分居预览卡片新增“写回田区”按钮，前端 API / store 接入 `/separation-previews/:previewId/write-personal-farm-returns`；按钮按已记录返还、执行 ledger、预览 hash 和服务端状态禁用，成功后刷新契约与共同日志，不返还共同基金、不移动共同仓库。
