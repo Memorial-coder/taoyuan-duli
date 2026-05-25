@@ -130,6 +130,40 @@ const assertDragonBoatVisualTrack = (room, expectedRevision = 0, options = {}) =
   return { track, team, occupiedCell }
 }
 
+const assertEscortConvoyVisualTrack = (room, expectedRevision = 0, options = {}) => {
+  const visualState = room?.visual_state
+  const tracks = visualState?.tracks || []
+  const track = tracks[0]
+  const actionIds = new Set((room?.gameplay?.available_actions || []).map(action => action.id))
+  assert.equal(visualState?.board_type, 'track', 'escort convoy visual_state should use track board')
+  assert.equal(visualState?.revision, expectedRevision, 'escort convoy visual_state revision mismatch')
+  assert.equal(tracks.length, 1, 'escort convoy should expose one route track')
+  assert.equal(track?.id, 'escort_convoy_route', 'escort convoy track should keep stable id')
+  assert.equal(track?.kind, 'escort_convoy', 'escort convoy track kind should be escort_convoy')
+  assert.equal(track?.length, 6, 'escort convoy route should define 6 cells')
+  assert.equal(track?.cells.length, 6, 'escort convoy should expose 6 route cells')
+  assert.ok(new Set(track.cells.map(cell => cell.kind)).has('turn'), 'escort convoy should include turn cells')
+  assert.ok(new Set(track.cells.map(cell => cell.kind)).has('risk'), 'escort convoy should include risk cells')
+  assert.ok(new Set(track.cells.map(cell => cell.kind)).has('boost'), 'escort convoy should include boost cells')
+  assert.ok(new Set(track.cells.map(cell => cell.kind)).has('finish'), 'escort convoy should include finish cell')
+  assert.equal(track.teams.length, 1, 'escort convoy should expose the convoy team')
+  const team = track.teams[0]
+  assert.equal(team.team_id, 'team_escort_convoy', 'escort convoy team should keep stable id')
+  const occupiedCell = track.cells.find(cell => (cell.occupant_team_ids || []).includes(team.team_id))
+  assert.ok(occupiedCell, 'escort convoy team should occupy a visible cell')
+  assert.equal(occupiedCell.index, team.position_index, 'escort convoy team position should match occupied cell')
+  if (Number.isInteger(options.minPosition)) {
+    assert.ok(team.position_index >= options.minPosition, 'escort convoy team should advance on action')
+  }
+  if (options.expectedLastAction) {
+    assert.equal(team.last_action_id, options.expectedLastAction, 'escort convoy team should remember last action')
+  }
+  assert.ok(track.cells.some(cell => cell.available_action_ids.includes('answer_incident')), 'escort convoy should expose incident action on route cells')
+  const cellActionIds = track.cells.flatMap(cell => cell.available_action_ids || [])
+  assert.ok(cellActionIds.every(actionId => actionIds.has(actionId)), 'escort convoy visual track actions should exist in gameplay actions')
+  return { track, team, occupiedCell }
+}
+
 await rm(tempDir, { recursive: true, force: true })
 await mkdir(tempDir, { recursive: true })
 
@@ -146,6 +180,13 @@ const expedition = await runtime.createExpeditionRoom({
   title: 'visual expedition smoke',
 }, actor('visual_host_expedition'))
 assertCavernVisualNodes(expedition.room, 0)
+
+const escortConvoy = await runtime.createExpeditionRoom({
+  template_id: 'escort_convoy',
+  gameplay_template_id: 'expedition_escort',
+  title: 'visual escort convoy smoke',
+}, actor('visual_host_escort'))
+assertEscortConvoyVisualTrack(escortConvoy.room, 0)
 
 const dragonBoat = await runtime.createFestivalRoom({
   template_id: 'dragon_boat',
@@ -173,6 +214,12 @@ festivalActionStore.rooms = festivalActionStore.rooms.map(room => {
     ...room,
     state: 'running',
     running_started_at: 12341,
+    members: room.members.map(member => ({ ...member, status: 'active' })),
+  }
+  if (room.id === escortConvoy.room.id) return {
+    ...room,
+    state: 'running',
+    running_started_at: 12342,
     members: room.members.map(member => ({ ...member, status: 'active' })),
   }
   return room
@@ -302,6 +349,18 @@ assert.ok(receiptReplay.risk_peak.value >= 3, 'cavern route replay should record
 assert.ok(receiptReplay.member_contributions.some(item => item.username === 'visual_action_host'), 'cavern route replay should include member contribution')
 const settledSnapshotReceipt = settledResult.room.settlement_receipts.find(receipt => receipt.target_username === 'visual_action_host')
 assert.equal(settledSnapshotReceipt?.route_replay?.kind, 'expedition_cavern', 'room snapshot settlement receipt should include route replay')
+
+const escortActionResult = await runtime.submitExpeditionRoomGameplayAction(escortConvoy.room.id, {
+  action_id: 'escort_step',
+}, actor('visual_host_escort'))
+assert.equal(escortActionResult.room.gameplay.last_action_id, 'escort_step', 'escort convoy gameplay should record track action')
+assert.equal(escortActionResult.room.visual_state.revision, 1, 'escort convoy visual revision should advance after track action')
+assert.equal(escortActionResult.room.visual_state.recent_feedback, escortActionResult.room.gameplay.last_action_summary, 'escort convoy visual feedback should mirror gameplay feedback')
+assert.equal(escortActionResult.room.visual_state.highlights[0]?.visual_id, escortActionResult.room.visual_state.selected_visual_id, 'escort convoy action should append highlight on the selected cell')
+assertEscortConvoyVisualTrack(escortActionResult.room, 1, {
+  minPosition: 1,
+  expectedLastAction: 'escort_step',
+})
 
 const stored = JSON.parse(await readFile(roomStoreFile, 'utf8'))
 stored.rooms = stored.rooms.map(room => {

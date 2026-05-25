@@ -108,6 +108,18 @@
             @trigger-action="playGameplayAction(expeditionRoomStore.myRoom.id, $event.actionId)"
           />
 
+          <VisualTrackBoard
+            v-if="showExpeditionTrackBoard"
+            :tracks="expeditionVisualTracks"
+            :selected-track-id="selectedExpeditionVisualTrackId"
+            :selected-cell-id="selectedExpeditionVisualTrackCellId"
+            :recent-feedback="expeditionRoomStore.myRoom.visual_state.recent_feedback || expeditionRoomStore.myRoom.gameplay.last_action_summary || ''"
+            :action-running="expeditionRoomStore.actionRunning"
+            :action-labels="expeditionVisualActionLabels"
+            @select-cell="selectExpeditionTrackCell"
+            @trigger-action="triggerExpeditionTrackAction"
+          />
+
           <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state" class="space-y-2">
             <div class="border border-accent/15 rounded-xs px-2 py-2 bg-bg/10">
               <div class="flex items-start justify-between gap-2">
@@ -166,7 +178,7 @@
           </label>
 
           <div
-            v-if="expeditionRoomStore.myRoom.gameplay.available_actions.length > 0 && (expeditionVisualMapNodes.length === 0 || !hasExpeditionVisualNodeActions)"
+            v-if="expeditionRoomStore.myRoom.gameplay.available_actions.length > 0 && !hasPrimaryExpeditionVisualActions"
             class="space-y-2"
           >
             <p class="text-[10px] text-muted">降级玩法动作</p>
@@ -331,12 +343,15 @@
   import { useRoute } from 'vue-router'
   import Button from '@/components/game/Button.vue'
   import VisualMapBoard from '@/components/game/online/VisualMapBoard.vue'
+  import VisualTrackBoard from '@/components/game/online/VisualTrackBoard.vue'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
-  import type { OnlineVisualNode } from '@/types/onlineVisual'
+  import type { OnlineVisualNode, OnlineVisualTrack } from '@/types/onlineVisual'
 
   const route = useRoute()
   const expeditionRoomStore = useExpeditionRoomStore()
   const selectedExpeditionVisualNodeId = ref('')
+  const selectedExpeditionVisualTrackId = ref('')
+  const selectedExpeditionVisualTrackCellId = ref('')
 
   const getRouteQueryText = (value: unknown) => {
     const raw = Array.isArray(value) ? value[0] : value
@@ -484,6 +499,30 @@
   const hasExpeditionVisualNodeActions = computed(() => expeditionVisualMapNodes.value
     .some(node => node.available_action_ids.length > 0))
 
+  const expeditionVisualTracks = computed<OnlineVisualTrack[]>(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room || room.visual_state.board_type !== 'track') return []
+    return room.visual_state.tracks.map(track => ({
+      ...track,
+      cells: track.cells.map(cell => ({
+        ...cell,
+        available_action_ids: cell.available_action_ids.filter(actionId =>
+          room.gameplay.available_actions.some(action => action.id === actionId && action.can_use)
+        ),
+      })),
+    }))
+  })
+
+  const showExpeditionTrackBoard = computed(() => expeditionVisualTracks.value.some(track => track.cells.length > 0))
+
+  const hasExpeditionVisualTrackActions = computed(() => expeditionVisualTracks.value
+    .some(track => track.cells.some(cell => cell.available_action_ids.length > 0)))
+
+  const hasPrimaryExpeditionVisualActions = computed(() =>
+    (expeditionVisualMapNodes.value.length > 0 && hasExpeditionVisualNodeActions.value)
+    || (showExpeditionTrackBoard.value && hasExpeditionVisualTrackActions.value)
+  )
+
   const expeditionVisualActionLabels = computed(() => {
     const room = expeditionRoomStore.myRoom
     if (!room) return {}
@@ -534,6 +573,17 @@
     await expeditionRoomStore.submitGameplayAction(roomId, actionId).catch(() => {})
   }
 
+  const selectExpeditionTrackCell = (payload: { trackId: string; cellId: string }) => {
+    selectedExpeditionVisualTrackId.value = payload.trackId
+    selectedExpeditionVisualTrackCellId.value = payload.cellId
+  }
+
+  const triggerExpeditionTrackAction = async (payload: { trackId: string; cellId: string; actionId: string }) => {
+    selectedExpeditionVisualTrackId.value = payload.trackId
+    selectedExpeditionVisualTrackCellId.value = payload.cellId
+    await playGameplayAction(expeditionRoomStore.myRoom?.id || '', payload.actionId)
+  }
+
   const settleRoom = async (roomId: string) => {
     await expeditionRoomStore.settleRoomAction(roomId).catch(() => {})
   }
@@ -562,6 +612,21 @@
     const firstNode = nodes[0]
     if (firstNode && !nodes.some(node => node.id === selectedExpeditionVisualNodeId.value)) {
       selectedExpeditionVisualNodeId.value = currentExpeditionVisualNodeId.value || firstNode.id
+    }
+  }, { immediate: true })
+
+  watch(expeditionVisualTracks, tracks => {
+    if (tracks.length === 0) {
+      selectedExpeditionVisualTrackId.value = ''
+      selectedExpeditionVisualTrackCellId.value = ''
+      return
+    }
+    const selectedTrack = tracks.find(track => track.id === selectedExpeditionVisualTrackId.value) || tracks[0]
+    selectedExpeditionVisualTrackId.value = selectedTrack?.id || ''
+    const roomSelectedCell = expeditionRoomStore.myRoom?.visual_state.selected_visual_id || ''
+    const fallbackCellId = selectedTrack?.cells.find(cell => cell.id === roomSelectedCell)?.id || selectedTrack?.cells[0]?.id || ''
+    if (selectedTrack && !selectedTrack.cells.some(cell => cell.id === selectedExpeditionVisualTrackCellId.value)) {
+      selectedExpeditionVisualTrackCellId.value = fallbackCellId
     }
   }, { immediate: true })
 </script>

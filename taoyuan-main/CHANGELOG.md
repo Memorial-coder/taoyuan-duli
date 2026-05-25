@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 护送商队轨道复用
+- 远征护送抵运房间现在会收到 `board_type=track` 的商队路线视觉状态，包含村口整队、林道转弯、车轴异响、驿站补给、夜宿巡看和抵达交付 6 格。
+- 远征页复用 `VisualTrackBoard` 展示护送路线、车队位置、格子风险 / 奖励预览和护送推进 / 稳货 / 途中事件动作；有轨道动作时旧按钮面板退为降级入口。
+- 本轮验证：`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-activity-room-visual-state.mjs`、`npm --prefix server run qa:activity-room-visual-state`、`npm --prefix taoyuan-main run type-check`。
+
 ### 0525 偷菜用途标签
 - 有限制偷菜的服务端快照新增 `target_use_hints`，普通作物、普通果实和庄园边角产物会带 `use_tags / use_summary`，提示料理、订单、节会、宠物或赠礼用途。
 - 轻采日志会记录本次目标的用途标签和用途摘要，庄园页在白名单提示下展示可偷目标用途摘要，最近轻采记录优先显示用途摘要。

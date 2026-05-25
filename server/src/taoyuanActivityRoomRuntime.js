@@ -255,6 +255,8 @@ const LANTERN_FAIR_VISUAL_OBJECT_DEFS = Object.freeze([
 
 const DRAGON_BOAT_VISUAL_TRACK_ID = 'dragon_boat_river';
 const DRAGON_BOAT_VISUAL_TEAM_ID = 'team_dragon_boat';
+const ESCORT_CONVOY_VISUAL_TRACK_ID = 'escort_convoy_route';
+const ESCORT_CONVOY_VISUAL_TEAM_ID = 'team_escort_convoy';
 
 const DRAGON_BOAT_ACTION_EFFECT_MAP = Object.freeze({
   sync_oar: 'advance',
@@ -340,6 +342,70 @@ const DRAGON_BOAT_VISUAL_TRACK_CELLS = Object.freeze([
     effect_ids: ['advance'],
     action_ids: [],
     reward_preview: '抵达终点后仍由服务端结算凭证发放奖励。',
+  },
+]);
+
+const ESCORT_CONVOY_ACTION_EFFECT_MAP = Object.freeze({
+  escort_step: 'advance',
+  stabilize_cargo: 'protect',
+  answer_incident: 'blocked',
+});
+
+const ESCORT_CONVOY_VISUAL_TRACK_CELLS = Object.freeze([
+  {
+    id: 'escort_convoy_gate',
+    label: '村口整队',
+    kind: 'normal',
+    event_id: 'escort_gate',
+    effect_ids: ['advance'],
+    action_ids: ['escort_step', 'stabilize_cargo'],
+    reward_preview: '从村口稳稳出发，护送里程开始计入结算凭证。',
+  },
+  {
+    id: 'escort_convoy_forest_road',
+    label: '林道转弯',
+    kind: 'turn',
+    event_id: 'escort_forest_road',
+    effect_ids: ['advance', 'protect'],
+    action_ids: ['escort_step', 'stabilize_cargo'],
+    risk_preview: '林道转弯容易颠散货物，稳固货物能保护完整度。',
+  },
+  {
+    id: 'escort_convoy_broken_cart',
+    label: '车轴异响',
+    kind: 'risk',
+    event_id: 'escort_broken_cart',
+    effect_ids: ['blocked', 'protect'],
+    action_ids: ['answer_incident', 'stabilize_cargo'],
+    risk_preview: '途中事件若无人处理，车队会被迫停顿。',
+    reward_preview: '及时应对能把危机压成可回看的护送节点。',
+  },
+  {
+    id: 'escort_convoy_waystation',
+    label: '驿站补给',
+    kind: 'boost',
+    event_id: 'escort_waystation',
+    effect_ids: ['advance', 'boost'],
+    action_ids: ['escort_step', 'answer_incident'],
+    reward_preview: '驿站适合重新整队，让后半段推进更稳。',
+  },
+  {
+    id: 'escort_convoy_night_watch',
+    label: '夜宿巡看',
+    kind: 'risk',
+    event_id: 'escort_night_watch',
+    effect_ids: ['blocked', 'protect'],
+    action_ids: ['answer_incident', 'stabilize_cargo'],
+    risk_preview: '夜宿段需要有人巡看，避免货箱被雨水和小贼影响。',
+  },
+  {
+    id: 'escort_convoy_delivery',
+    label: '抵达交付',
+    kind: 'finish',
+    event_id: 'escort_delivery',
+    effect_ids: ['advance'],
+    action_ids: [],
+    reward_preview: '抵达后仍由服务端结算凭证发放远征奖励，前端只做回看。',
   },
 ]);
 
@@ -2378,6 +2444,10 @@ function isDragonBoatRoom(room) {
   return room?.activity_domain === 'festival' && room?.template_id === 'dragon_boat';
 }
 
+function isEscortConvoyRoom(room) {
+  return room?.activity_domain === 'expedition' && room?.gameplay_template_id === 'expedition_escort';
+}
+
 function getDragonBoatRoomActionIds(room) {
   const template = getGameplayTemplateByDomain(room?.activity_domain, room?.gameplay_template_id, room?.template_id);
   return (template.action_options || [])
@@ -2402,6 +2472,118 @@ function getDragonBoatTeamState(room, actionId, positionIndex, trackLength) {
   if (effect === 'retreat') return 'retreating';
   if (effect === 'advance') return 'advancing';
   return 'idle';
+}
+
+function getEscortConvoyRoomActionIds(room) {
+  const template = getGameplayTemplateByDomain(room?.activity_domain, room?.gameplay_template_id, room?.template_id);
+  return (template.action_options || [])
+    .map(action => sanitizeText(action.id, 60))
+    .filter(Boolean);
+}
+
+function getEscortConvoyPositionIndex(room, trackLength) {
+  const progressValue = Math.max(0, Math.floor(Number(room?.gameplay_state?.progress_value) || 0));
+  const progressTarget = Math.max(1, Math.floor(Number(room?.gameplay_state?.progress_target) || trackLength - 1 || 1));
+  if (progressValue >= progressTarget) return Math.max(0, trackLength - 1);
+  const scaledPosition = Math.round((progressValue / progressTarget) * Math.max(1, trackLength - 1));
+  return clampNumber(scaledPosition, 0, Math.max(0, trackLength - 2));
+}
+
+function getEscortConvoyTeamState(room, actionId, positionIndex, trackLength) {
+  if (positionIndex >= trackLength - 1 || room?.gameplay_state?.phase === 'completed') return 'finished';
+  const effect = ESCORT_CONVOY_ACTION_EFFECT_MAP[sanitizeText(actionId, 60)];
+  if (effect === 'protect') return 'protected';
+  if (effect === 'blocked') return 'blocked';
+  if (effect === 'advance') return 'advancing';
+  return 'idle';
+}
+
+function buildEscortConvoyVisualTrack(room, existingTracks = [], options = {}) {
+  const trackLength = ESCORT_CONVOY_VISUAL_TRACK_CELLS.length;
+  const positionIndex = getEscortConvoyPositionIndex(room, trackLength);
+  const actionIds = getEscortConvoyRoomActionIds(room);
+  const actionIdSet = new Set(actionIds);
+  const existingTrack = (Array.isArray(existingTracks) ? existingTracks : [])
+    .map(normalizeOnlineVisualTrack)
+    .filter(Boolean)
+    .find(track => track.id === ESCORT_CONVOY_VISUAL_TRACK_ID);
+  const lastActionId = sanitizeText(options.actionId || room?.gameplay_state?.last_action_id, 60);
+  const teamState = getEscortConvoyTeamState(room, lastActionId, positionIndex, trackLength);
+  const isCompleted = room?.gameplay_state?.phase === 'completed';
+
+  const cells = ESCORT_CONVOY_VISUAL_TRACK_CELLS.map((definition, index) => {
+    const existingCell = (existingTrack?.cells || []).find(cell => cell.id === definition.id);
+    const cellActionIds = (definition.action_ids || []).filter(actionId => actionIdSet.has(actionId));
+    const currentCellActionIds = !isCompleted && index === positionIndex ? actionIds : [];
+    const availableActionIds = [...new Set([...cellActionIds, ...currentCellActionIds])].slice(0, 12);
+    return normalizeOnlineVisualTrackCell({
+      ...existingCell,
+      id: definition.id,
+      label: definition.label,
+      index,
+      kind: definition.kind,
+      occupant_team_ids: index === positionIndex ? [ESCORT_CONVOY_VISUAL_TEAM_ID] : [],
+      event_id: definition.event_id,
+      effect_ids: definition.effect_ids,
+      available_action_ids: availableActionIds,
+      risk_preview: definition.risk_preview,
+      reward_preview: definition.reward_preview,
+    });
+  });
+
+  return normalizeOnlineVisualTrack({
+    ...existingTrack,
+    id: ESCORT_CONVOY_VISUAL_TRACK_ID,
+    label: '商队护送路线',
+    kind: 'escort_convoy',
+    length: trackLength,
+    current_round: positionIndex,
+    cells,
+    teams: [
+      {
+        team_id: ESCORT_CONVOY_VISUAL_TEAM_ID,
+        label: '护送车队',
+        marker: '车',
+        position_index: positionIndex,
+        state: teamState,
+        last_action_id: lastActionId,
+      },
+    ],
+  });
+}
+
+function syncEscortConvoyVisualState(room, options = {}) {
+  if (!isEscortConvoyRoom(room)) return null;
+  const visualState = normalizeOnlineVisualState(room.visual_state, room);
+  const track = buildEscortConvoyVisualTrack(room, visualState.tracks, options);
+  const positionCell = (track.cells || []).find(cell => (cell.occupant_team_ids || []).includes(ESCORT_CONVOY_VISUAL_TEAM_ID))
+    || track.cells?.[0];
+  const selectedVisualId = sanitizeText(options.selectedVisualId, 80) || positionCell?.id || visualState.selected_visual_id;
+  const recentFeedback = sanitizeText(options.recentFeedback || room?.gameplay_state?.last_action_summary || visualState.recent_feedback, 180);
+  const highlights = options.appendHighlight && selectedVisualId && recentFeedback
+    ? [
+      normalizeOnlineVisualHighlight({
+        id: makeId('escort_convoy_highlight'),
+        visual_id: selectedVisualId,
+        type: 'success',
+        label: sanitizeText(options.highlightLabel, 40) || '护送行动',
+        summary: recentFeedback,
+        created_at: nowSeconds(),
+      }),
+      ...(visualState.highlights || []),
+    ].slice(0, 16)
+    : visualState.highlights;
+  room.visual_state = normalizeOnlineVisualState({
+    ...visualState,
+    board_type: 'track',
+    board_id: visualState.board_id || buildDefaultVisualBoardId(room),
+    revision: visualState.revision + (options.incrementRevision ? 1 : 0),
+    selected_visual_id: selectedVisualId,
+    tracks: [track],
+    highlights,
+    recent_feedback: recentFeedback,
+  }, room);
+  return room.visual_state;
 }
 
 function buildDragonBoatVisualTrack(room, festivalState, existingTracks = [], options = {}) {
@@ -2901,6 +3083,9 @@ function ensureRoomGameplayState(room) {
     room.gameplay_state.cavern_state = normalizeExpeditionCavernState(room.gameplay_state.cavern_state);
     syncExpeditionCavernRoleAssignments(room, room.gameplay_state.cavern_state);
     syncExpeditionCavernVisualState(room, room.gameplay_state.cavern_state);
+  }
+  if (gameplayTemplate.id === 'expedition_escort') {
+    syncEscortConvoyVisualState(room);
   }
   return room.gameplay_state;
 }
@@ -3940,6 +4125,15 @@ function applyGameplayAction(room, actionId, actor) {
     gameplayState.last_action_summary = roundLogEntry.summary;
   } else {
     gameplayState.last_action_summary = `${gameplayState.last_actor_display_name} 执行了「${actionOption.label}」；${buildGameplayProgressText(template, gameplayState)}，${template.score_label}${gameplayState.score_value}`;
+    if (template.id === 'expedition_escort') {
+      syncEscortConvoyVisualState(room, {
+        incrementRevision: true,
+        appendHighlight: true,
+        actionId: actionOption.id,
+        recentFeedback: gameplayState.last_action_summary,
+        highlightLabel: actionOption.label,
+      });
+    }
   }
   touchRoom(room);
   recordRoomEvent(room, 'room.action', actor, gameplayState.last_action_summary);
@@ -4545,6 +4739,9 @@ async function createFestivalRoom(payload = {}, actor = {}) {
   });
   if (gameplayTemplate.id === 'expedition_cavern') {
     syncExpeditionCavernVisualState(room, room.gameplay_state.cavern_state);
+  }
+  if (gameplayTemplate.id === 'expedition_escort') {
+    syncEscortConvoyVisualState(room);
   }
   recordRoomEvent(room, 'room.create', actor, `创建了 ${template.label} 房间《${room.title}》，玩法模板为 ${gameplayTemplate.label}`);
   replaceRoom(store, room);
@@ -5213,6 +5410,9 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
   }
   if (gameplayTemplate.id === 'expedition_cavern') {
     syncExpeditionCavernVisualState(room, room.gameplay_state.cavern_state);
+  }
+  if (gameplayTemplate.id === 'expedition_escort') {
+    syncEscortConvoyVisualState(room);
   }
   recordRoomEvent(room, 'room.create', actor, `创建了 ${template.label} 房间《${room.title}》，玩法模板为 ${gameplayTemplate.label}`);
   replaceRoom(store, room);
