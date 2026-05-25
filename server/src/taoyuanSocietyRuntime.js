@@ -102,6 +102,7 @@ const SOCIETY_RESOURCE_LABELS = Object.freeze({
   stone: '石料',
   paper: '纸张',
   herb: '草药',
+  rice: '稻米',
   firewood: '柴火',
   bamboo: '竹材',
   wintersweet: '腊梅',
@@ -159,6 +160,16 @@ const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
     rewards: [{ type: 'item', item_id: 'paper', quantity: 1, quality: 'normal' }],
   },
   {
+    id: 'rice_crate',
+    label: '稻米入仓',
+    summary: '交 2 份稻米和少量工钱，补入公共仓作为节会食材。',
+    costs: [
+      { type: 'item', item_id: 'rice', quantity: 2, quality: 'normal' },
+      { type: 'money', amount: 4 },
+    ],
+    rewards: [{ type: 'item', item_id: 'rice', quantity: 2, quality: 'normal' }],
+  },
+  {
     id: 'herb_crate',
     label: '草药入仓',
     summary: '交 1 份草药和少量工钱，补入公共仓。',
@@ -179,6 +190,23 @@ const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS = Object.freeze([
 
 const SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_MAP = Object.freeze(
   Object.fromEntries(SOCIETY_PUBLIC_WAREHOUSE_DEPOSIT_OPTIONS.map(entry => [entry.id, entry]))
+);
+
+const SOCIETY_PUBLIC_WAREHOUSE_CONSUME_OPTIONS = Object.freeze([
+  {
+    id: 'laba_cookpot_base',
+    label: '腊八共灶粥底',
+    summary: '从公共仓消耗稻米和草药，备成腊八共灶的大锅粥底；只扣公共仓，不扣个人背包。',
+    context_id: 'laba_cookpot',
+    costs: [
+      { type: 'item', item_id: 'rice', quantity: 2, quality: 'normal' },
+      { type: 'item', item_id: 'herb', quantity: 1, quality: 'normal' },
+    ],
+  },
+]);
+
+const SOCIETY_PUBLIC_WAREHOUSE_CONSUME_MAP = Object.freeze(
+  Object.fromEntries(SOCIETY_PUBLIC_WAREHOUSE_CONSUME_OPTIONS.map(entry => [entry.id, entry]))
 );
 
 const SOCIETY_THEME_FESTIVAL_DEFS = Object.freeze({
@@ -846,8 +874,11 @@ function normalizeSocietyWarehouseLogEntry(entry) {
     id: sanitizeText(entry?.id || makeId('society_warehouse_log'), 80),
     username: normalizeUsername(entry?.username),
     display_name: sanitizeText(entry?.display_name, 40),
+    action: ['deposit', 'consume'].includes(String(entry?.action || '')) ? String(entry.action) : 'deposit',
     deposit_id: sanitizeText(entry?.deposit_id, 40),
     deposit_label: sanitizeText(entry?.deposit_label, 40),
+    context_id: sanitizeText(entry?.context_id, 40),
+    idempotency_key: sanitizeText(entry?.idempotency_key, 80),
     entries: Array.isArray(entry?.entries)
       ? entry.entries.map(normalizeSocietyWarehouseEntry).filter(Boolean).slice(0, 8)
       : [],
@@ -1189,8 +1220,11 @@ function buildWarehouseLogSnapshot(entry) {
     id: normalized.id,
     username: normalized.username,
     display_name: normalized.display_name || normalized.username,
+    action: normalized.action,
     deposit_id: normalized.deposit_id,
     deposit_label: normalized.deposit_label,
+    context_id: normalized.context_id,
+    idempotency_key: normalized.idempotency_key,
     entries: normalized.entries.map(cost => ({
       ...cost,
       label: cost.label || (cost.type === 'money'
@@ -1293,6 +1327,7 @@ function depositToPublicWarehouse(society, actorUsername, actorDisplayName, depo
     id: makeId('society_warehouse_log'),
     username: actorUsername,
     display_name: actorDisplayName,
+    action: 'deposit',
     deposit_id: deposit.id,
     deposit_label: deposit.label,
     entries: deposit.costs,
@@ -1313,6 +1348,62 @@ function depositToPublicWarehouse(society, actorUsername, actorDisplayName, depo
   updateSocietyInStore({ societies: [society], society_join_requests: [] }, society);
   persistGameplayData(context);
   return { deposit, warehouse };
+}
+
+function consumeFromPublicWarehouse(society, actorUsername, actorDisplayName, consumeId, idempotencyKey) {
+  const consume = SOCIETY_PUBLIC_WAREHOUSE_CONSUME_MAP[consumeId];
+  if (!consume) throw createError('公共仓消耗方案不存在');
+  const normalizedIdempotencyKey = sanitizeText(idempotencyKey, 80);
+  if (!normalizedIdempotencyKey) throw createError('公共仓消耗需要幂等键');
+  const warehouse = getNormalizedSocietyWarehouseState(society);
+  const existingLog = warehouse.logs
+    .map(normalizeSocietyWarehouseLogEntry)
+    .find(entry => entry.action === 'consume' && entry.idempotency_key === normalizedIdempotencyKey);
+  if (existingLog) {
+    society.public_warehouse = warehouse;
+    return { consume, warehouse, logEntry: existingLog, idempotentReplay: true };
+  }
+
+  for (const rawCost of consume.costs) {
+    const cost = normalizeBundleEntry(rawCost);
+    if (!cost) continue;
+    if (cost.type === 'money') {
+      if (warehouse.funds < cost.amount) throw createError('公共仓经费不足，暂时无法执行消耗');
+      continue;
+    }
+    const currentQuantity = Math.max(0, Math.floor(Number(warehouse.items[cost.item_id]) || 0));
+    if (currentQuantity < cost.quantity) {
+      throw createError(`公共仓${SOCIETY_RESOURCE_LABELS[cost.item_id] || cost.item_id}不足，暂时无法执行消耗`);
+    }
+  }
+
+  for (const rawCost of consume.costs) {
+    const cost = normalizeBundleEntry(rawCost);
+    if (!cost) continue;
+    if (cost.type === 'money') {
+      warehouse.funds = Math.max(0, warehouse.funds - cost.amount);
+      continue;
+    }
+    warehouse.items[cost.item_id] = Math.max(0, Math.floor(Number(warehouse.items[cost.item_id]) || 0) - cost.quantity);
+    if (warehouse.items[cost.item_id] <= 0) delete warehouse.items[cost.item_id];
+  }
+
+  const logEntry = normalizeSocietyWarehouseLogEntry({
+    id: makeId('society_warehouse_log'),
+    username: actorUsername,
+    display_name: actorDisplayName,
+    action: 'consume',
+    deposit_id: consume.id,
+    deposit_label: consume.label,
+    context_id: consume.context_id,
+    idempotency_key: normalizedIdempotencyKey,
+    entries: consume.costs,
+    created_at: nowSeconds(),
+  });
+  warehouse.logs = [logEntry, ...warehouse.logs].slice(0, 40);
+  society.public_warehouse = warehouse;
+  appendSocietyActivity(society, `${actorDisplayName}为「${consume.label}」消耗了公共仓食材`, 'warehouse');
+  return { consume, warehouse, logEntry, idempotentReplay: false };
 }
 
 function loadSocietyStore() {
@@ -2456,6 +2547,13 @@ async function buildSocietySnapshot(society, viewerUsername = '', viewerHasSocie
         summary: entry.summary,
         costs: entry.costs.map(normalizeSocietyWarehouseEntry).filter(Boolean),
       })),
+      consume_options: SOCIETY_PUBLIC_WAREHOUSE_CONSUME_OPTIONS.map(entry => ({
+        id: entry.id,
+        label: entry.label,
+        summary: entry.summary,
+        context_id: entry.context_id,
+        costs: entry.costs.map(normalizeSocietyWarehouseEntry).filter(Boolean),
+      })),
     },
   };
 }
@@ -3101,6 +3199,50 @@ async function depositSocietyWarehouse(payload = {}, actor = {}) {
   };
 }
 
+async function consumeSocietyWarehouse(payload = {}, actor = {}) {
+  const store = loadSocietyStore();
+  const actorUsername = normalizeUsername(actor.username);
+  const actorDisplayName = sanitizeText(actor.displayName, 40) || await resolveDisplayName(actorUsername) || actorUsername;
+  const society = findMemberSociety(store, actorUsername);
+  if (!society) throw createError('你当前没有加入村社');
+  ensureSocietyMemberRole(society, actorUsername, Object.keys(SOCIETY_ROLE_LABELS), '只有成员可以消耗公共仓');
+
+  const consumeId = sanitizeText(payload.consume_id, 40);
+  const idempotencyKey = sanitizeText(payload.idempotency_key, 80);
+  const { consume, warehouse, logEntry, idempotentReplay } = consumeFromPublicWarehouse(
+    society,
+    actorUsername,
+    actorDisplayName,
+    consumeId,
+    idempotencyKey,
+  );
+  updateSocietyInStore(store, society);
+  saveSocietyStore(store);
+
+  return {
+    consume: {
+      id: consume.id,
+      label: consume.label,
+      summary: consume.summary,
+      context_id: consume.context_id,
+      costs: consume.costs.map(normalizeSocietyWarehouseEntry).filter(Boolean),
+    },
+    warehouse: {
+      funds: warehouse.funds,
+      items: Object.entries(warehouse.items).map(([itemId, quantity]) => ({
+        item_id: itemId,
+        quantity: Number(quantity) || 0,
+        label: `${Number(quantity) || 0} 份${SOCIETY_RESOURCE_LABELS[itemId] || itemId}`,
+      })),
+      logs: warehouse.logs.map(buildWarehouseLogSnapshot).filter(Boolean),
+    },
+    log_entry: buildWarehouseLogSnapshot(logEntry),
+    idempotent_replay: idempotentReplay,
+    society: await buildSocietySnapshot(society, actorUsername, true, store),
+    overview: await buildOverview(store, actorUsername),
+  };
+}
+
 function getSocietySummaryForUser(username) {
   const actorUsername = normalizeUsername(username);
   if (!actorUsername) return null;
@@ -3141,6 +3283,7 @@ module.exports = {
   closeSocietyProposal,
   contributeSocietyPublicProject,
   depositSocietyWarehouse,
+  consumeSocietyWarehouse,
   getSocietySummaryForUser,
   listAdminSocieties,
 };

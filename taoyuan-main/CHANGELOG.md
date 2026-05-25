@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 腊八共灶公共食材消耗
+- 村社公共仓新增稻米入仓方案，公共仓概览会暴露可用于节会食材储备的稻米条目。
+- 新增 `laba_cookpot_base` 公共仓消耗方案，从公共仓扣 2 份稻米和 1 份草药，为腊八共灶粥底提供真实食材消耗。
+- 消耗接口要求 `idempotency_key`，重复请求只回放原日志，不重复扣公共仓，不改个人背包或个人铜钱。
+- 公共仓日志与村社活动会记录操作者、`laba_cookpot` 上下文和消耗明细；本轮验证：`node --check server/src/taoyuanSocietyRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-online-smoke.mjs`、`npm --prefix server run qa:online-smoke`。
+
 ### 0525 公共订单接力作物加工模板
 - 服务端公共订单新增 `crop_processing_delivery` 模板，发布时可由 `relay_template_id` 自动生成采收作物、加工制品、交付成果三段子目标。
 - 订单读回会保留模板 ID，异步 `visual_state` 的项目阶段同步镜像三段路线，方便前端继续用现有接力看板展示。

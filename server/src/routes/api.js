@@ -86,6 +86,12 @@ const ONLINE_RATE_LIMIT_RULES = Object.freeze([
     maxRequests: 18,
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/societies\/public-warehouse\/(?:deposit|consume)$/i,
+    routeKey: 'society_public_warehouse_write',
+    scope: 'society_warehouse',
+    maxRequests: 24,
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/societies(?:\/|$)/i,
     routeKey: 'society_write',
     scope: 'society',
@@ -3683,6 +3689,19 @@ router.post('/taoyuan/online/societies/public-warehouse/deposit', loginRequired,
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '补入公共仓失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/societies/public-warehouse/consume', loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const actor = getSessionActor(req);
+      const result = await taoyuanSocietyRuntime.consumeSocietyWarehouse(req.body || {}, actor);
+      emitSocietySharedProgressNotificationCreatedEvent('warehouse_consumed', result, actor);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '消耗公共仓失败' });
     }
   });
 });

@@ -195,6 +195,8 @@ const buildSeedSavePayload = (username, startingMoney) => encryptTaoyuanData({
       { itemId: 'wood', quantity: 6, quality: 'normal', locked: false },
       { itemId: 'parsnip_seed', quantity: 4, quality: 'normal', locked: false },
       { itemId: 'wintersweet', quantity: 2, quality: 'normal', locked: false },
+      { itemId: 'rice', quantity: 3, quality: 'normal', locked: false },
+      { itemId: 'herb', quantity: 1, quality: 'normal', locked: false },
     ],
     tempItems: [],
     ownedWeapons: [],
@@ -4678,6 +4680,84 @@ try {
     assert(afterMoney === preMoney - 5, `society warehouse deposit did not deduct money correctly, expected money=${preMoney - 5}, current money=${afterMoney}`)
     assert(afterWood === preWood - 1, `society warehouse deposit did not deduct wood correctly, expected wood=${preWood - 1}, current wood=${afterWood}`)
     secondaryExpectedMoney -= 5
+  })
+
+  await runCheck('POST /api/taoyuan/online/societies/public-warehouse/consume laba cookpot path', async () => {
+    const beforeSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(beforeSave.response.ok, `secondary save readback before laba cookpot warehouse setup returned ${beforeSave.response.status}`)
+    const beforeDecrypted = decryptTaoyuanRaw(beforeSave.data?.raw || beforeSave.data?.slot?.raw || beforeSave.data?.save?.raw || '')
+    const preMoney = Math.max(0, Math.floor(Number(beforeDecrypted?.player?.money) || 0))
+    const preRice = getInventoryItemQuantity(beforeDecrypted, 'rice')
+    const preHerb = getInventoryItemQuantity(beforeDecrypted, 'herb')
+
+    const riceDeposit = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/deposit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        deposit_id: 'rice_crate',
+      }),
+    })
+    assert(riceDeposit.response.ok, `rice warehouse deposit returned ${riceDeposit.response.status}: ${riceDeposit.data?.msg || 'unknown error'}`)
+    const herbDeposit = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/deposit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        deposit_id: 'herb_crate',
+      }),
+    })
+    assert(herbDeposit.response.ok, `herb warehouse deposit returned ${herbDeposit.response.status}: ${herbDeposit.data?.msg || 'unknown error'}`)
+    assert(herbDeposit.data?.warehouse?.items?.some(entry => entry?.item_id === 'rice' && Number(entry?.quantity || 0) >= 2), 'warehouse setup did not preserve rice stock')
+    assert(herbDeposit.data?.warehouse?.items?.some(entry => entry?.item_id === 'herb' && Number(entry?.quantity || 0) >= 1), 'warehouse setup did not preserve herb stock')
+
+    const idempotencyKey = `smoke-laba-cookpot-${Date.now()}`
+    await wait(1100)
+    const consume = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/consume', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        consume_id: 'laba_cookpot_base',
+        idempotency_key: idempotencyKey,
+      }),
+    })
+    assert(consume.response.ok, `laba cookpot consume returned ${consume.response.status}: ${consume.data?.msg || 'unknown error'}`)
+    assert(consume.data?.ok === true && consume.data?.consume?.context_id === 'laba_cookpot', 'laba cookpot consume payload is incomplete')
+    assert(consume.data?.log_entry?.action === 'consume' && consume.data.log_entry?.idempotency_key === idempotencyKey, 'laba cookpot consume did not preserve audit/idempotency log')
+    assert(!consume.data?.warehouse?.items?.some(entry => entry?.item_id === 'rice'), 'laba cookpot consume did not deduct public rice')
+    assert(!consume.data?.warehouse?.items?.some(entry => entry?.item_id === 'herb'), 'laba cookpot consume did not deduct public herb')
+    assert(Array.isArray(consume.data?.overview?.my_society?.public_warehouse?.consume_options) && consume.data.overview.my_society.public_warehouse.consume_options.some(entry => entry?.id === 'laba_cookpot_base'), 'society overview did not expose laba consume option')
+
+    await wait(1100)
+    const duplicateConsume = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/societies/public-warehouse/consume', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        consume_id: 'laba_cookpot_base',
+        idempotency_key: idempotencyKey,
+      }),
+    })
+    assert(duplicateConsume.response.ok, `duplicate laba cookpot consume returned ${duplicateConsume.response.status}: ${duplicateConsume.data?.msg || 'unknown error'}`)
+    assert(duplicateConsume.data?.idempotent_replay === true, 'duplicate laba cookpot consume did not replay idempotently')
+    assert(!duplicateConsume.data?.warehouse?.items?.some(entry => entry?.item_id === 'rice'), 'duplicate laba cookpot consume deducted rice twice')
+    assert(!duplicateConsume.data?.warehouse?.items?.some(entry => entry?.item_id === 'herb'), 'duplicate laba cookpot consume deducted herb twice')
+
+    const afterSave = await fetchSessionJson(secondarySessionState, '/api/taoyuan/save/0')
+    assert(afterSave.response.ok, `secondary save readback after laba cookpot warehouse consume returned ${afterSave.response.status}`)
+    const afterDecrypted = decryptTaoyuanRaw(afterSave.data?.raw || afterSave.data?.slot?.raw || afterSave.data?.save?.raw || '')
+    const afterMoney = Math.max(0, Math.floor(Number(afterDecrypted?.player?.money) || 0))
+    const afterRice = getInventoryItemQuantity(afterDecrypted, 'rice')
+    const afterHerb = getInventoryItemQuantity(afterDecrypted, 'herb')
+    assert(afterMoney === preMoney - 9, `laba cookpot setup should only deduct deposit money, expected money=${preMoney - 9}, current money=${afterMoney}`)
+    assert(afterRice === preRice - 2, `laba cookpot setup did not deduct personal rice deposit correctly, expected rice=${preRice - 2}, current rice=${afterRice}`)
+    assert(afterHerb === preHerb - 1, `laba cookpot setup did not deduct personal herb deposit correctly, expected herb=${preHerb - 1}, current herb=${afterHerb}`)
+    secondaryExpectedMoney -= 9
   })
 
   await runCheck('GET /api/taoyuan/online/societies welfare readback', async () => {
