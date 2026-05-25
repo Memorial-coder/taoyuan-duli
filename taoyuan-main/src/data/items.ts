@@ -1056,6 +1056,16 @@ const TEA_DRINK_ITEMS: ItemDef[] = [
     healthRestore: 12
   },
   {
+    id: 'guest_green_tea',
+    name: '待客清茶',
+    category: 'processed',
+    description: '茶叶与蜂蜜调成的温润待客茶，适合作为好友拜访、节会寒暄和伴手礼饮品。',
+    sellPrice: 690,
+    edible: true,
+    staminaRestore: 28,
+    healthRestore: 14
+  },
+  {
     id: 'chrysanthemum_tea',
     name: '菊花茶',
     category: 'processed',
@@ -1211,6 +1221,14 @@ const ELIXIR_ITEMS: ItemDef[] = [
     category: 'elixir',
     description: '桂花蜜、茶叶与莲子炼成的芳香主丹。定位为送礼、社交和节会拜访前的凝神丹药。',
     sellPrice: 360,
+    edible: false
+  },
+  {
+    id: 'tea_focus_elixir',
+    name: '茶心凝神丹',
+    category: 'elixir',
+    description: '绿茶、莲心粉与蜂蜜炼成的清苦主丹。定位为文游对话、节会拜访和好友长谈前的凝神丹药。',
+    sellPrice: 340,
     edible: false
   },
   {
@@ -1717,7 +1735,9 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   sesame_paste: '石磨加工',
   // 茶饮
   green_tea_drink: '加工制作',
+  guest_green_tea: '制茶机加工',
   chrysanthemum_tea: '加工制作',
+  osmanthus_tea: '加工制作',
   ginseng_tea: '加工制作',
   // 礼物
   jade_ring: '商店购买',

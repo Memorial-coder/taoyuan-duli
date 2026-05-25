@@ -1540,6 +1540,20 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     description: '用茶叶泡制的清香绿茶。'
   },
   {
+    id: 'brew_guest_green_tea',
+    machineType: 'tea_maker',
+    name: '待客清茶',
+    inputItemId: 'tea',
+    inputQuantity: 2,
+    extraInputs: [
+      { itemId: 'honey', quantity: 1 }
+    ],
+    outputItemId: 'guest_green_tea',
+    outputQuantity: 1,
+    processingDays: 1,
+    description: '茶叶佐蜂蜜调成温润待客茶，作为好友拜访与节会寒暄的社交饮品。'
+  },
+  {
     id: 'brew_chrysanthemum',
     machineType: 'tea_maker',
     name: '菊花茶',
@@ -1722,6 +1736,21 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputQuantity: 1,
     processingDays: 2,
     description: '桂花蜜、茶叶与莲子慢炼，香气沉静，适合社交与节会拜访前使用。'
+  },
+  {
+    id: 'alchemy_tea_focus_elixir',
+    machineType: 'alchemy_furnace',
+    name: '茶心凝神丹',
+    inputItemId: 'green_tea_drink',
+    inputQuantity: 1,
+    extraInputs: [
+      { itemId: 'lotus_heart_powder', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    outputItemId: 'tea_focus_elixir',
+    outputQuantity: 1,
+    processingDays: 2,
+    description: '绿茶、莲心粉与蜂蜜清炼成丹，适合文游对话、节会拜访和好友长谈前凝神。'
   },
   {
     id: 'alchemy_stone_root_guard_pill',
