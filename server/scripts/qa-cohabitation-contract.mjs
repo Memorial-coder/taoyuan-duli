@@ -1930,6 +1930,48 @@ assert.equal(alreadyAssetReturnRecorded.idempotent, true, 'already recorded asse
 assert.equal(alreadyAssetReturnRecorded.already_executed, true, 'already recorded asset return response should be explicit')
 assert.equal(alreadyAssetReturnRecorded.execution_ledger.id, assetReturnRecord.execution_ledger.id, 'already recorded asset return should return original ledger')
 
+await assert.rejects(
+  () => runtime.writeSeparationPersonalFarmReturns(created.contract.id, previewResult.preview.id, {
+    memo: 'wrong personal farm write hash',
+    plot_return_manifest_hash: 'f'.repeat(64),
+    execution_ledger_id: assetReturnRecord.execution_ledger.id,
+    idempotency_key: 'qa-separation-personal-farm-write-wrong-hash',
+  }, actor(owner)),
+  /hash 不匹配/,
+  'personal farm return write should reject mismatched manifest hash'
+)
+
+const personalFarmWrite = await runtime.writeSeparationPersonalFarmReturns(created.contract.id, previewResult.preview.id, {
+  memo: 'write source plots back to personal farm saves',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-personal-farm-write',
+}, actor(owner))
+assert.equal(personalFarmWrite.idempotent, false, 'first personal farm return write should not be idempotent')
+assert.equal(personalFarmWrite.execution_ledger.status, 'personal_save_written', 'personal farm write should advance ledger status')
+assert.equal(personalFarmWrite.execution_ledger.personal_save_written, true, 'personal farm write should mark ledger as written')
+assert.equal(personalFarmWrite.receipts.length, 2, 'personal farm write should create one receipt per member save')
+assert.equal(personalFarmWrite.receipts.reduce((sum, receipt) => sum + receipt.restored_plot_count, 0), 32, 'personal farm write should restore all source plots')
+assert.equal(personalFarmWrite.preview.confirmation_state.execution_request.status, 'personal_save_written', 'execution request should advance to personal-save-written')
+assert.equal(personalFarmWrite.preview.asset_return.plot_return_manifest.every(item => item.execution_status === 'personal_save_written'), true, 'plot manifest rows should mark personal save write')
+assert.ok(personalFarmWrite.receipts.every(receipt => receipt.after_revision >= receipt.before_revision), 'personal farm write receipts should include save revisions')
+assert.equal(readGameplayData(owner)?.farm?.plots?.[0]?.cropId, 'rice', 'owner farm plot should keep returned rice state')
+assert.equal(readGameplayData(partner)?.farm?.plots?.[5]?.cropId, 'tea', 'partner farm plot should keep returned tea state')
+assert.ok(personalFarmWrite.contract.audit_log.find(entry => entry.action === 'separation_personal_farm_written' && entry.idempotency_key === 'qa-separation-personal-farm-write'), 'personal farm write should be audited')
+
+const ownerRawAfterPersonalFarmWrite = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawAfterPersonalFarmWrite = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const duplicatePersonalFarmWrite = await runtime.writeSeparationPersonalFarmReturns(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate personal farm write',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-personal-farm-write',
+}, actor(owner))
+assert.equal(duplicatePersonalFarmWrite.idempotent, true, 'same personal farm write idempotency key should return existing receipts')
+assert.equal(duplicatePersonalFarmWrite.execution_ledger.id, personalFarmWrite.execution_ledger.id, 'idempotent personal farm write should keep ledger id')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterPersonalFarmWrite, 'idempotent personal farm write should not rewrite owner save again')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterPersonalFarmWrite, 'idempotent personal farm write should not rewrite partner save again')
+
 const partnerMoneyBeforeMediumFundTopUp = readGameplayData(partner)?.player?.money
 const mediumFundTopUp = await runtime.contributeCohabitationFund(created.contract.id, {
   amount: 400,

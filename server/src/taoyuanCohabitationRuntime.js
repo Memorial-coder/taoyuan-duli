@@ -4179,6 +4179,17 @@ function normalizeSeparationAssetReturnExecutePayload(payload = {}) {
   };
 }
 
+function normalizeSeparationPersonalSaveWritePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('分居个人存档写回需要 idempotency_key，以防断线或重试时重复写回');
+  return {
+    idempotency_key: idempotencyKey,
+    execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
+    plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
 function normalizeLargeFundSpendExecutePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同基金大额草案执行扣款需要 idempotency_key，以防断线或重试时重复扣基金');
@@ -4584,6 +4595,74 @@ function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payloa
   };
 }
 
+function restoreFarmPlotFromManifestSnapshot(snapshot = {}) {
+  return {
+    state: normalizePlotState(snapshot.state),
+    cropId: sanitizeText(snapshot.crop_id ?? snapshot.cropId, 80) || null,
+    growthDays: Math.max(0, Math.floor(Number(snapshot.growth_days ?? snapshot.growthDays) || 0)),
+    watered: snapshot.watered === true,
+    unwateredDays: Math.max(0, Math.floor(Number(snapshot.unwatered_days ?? snapshot.unwateredDays) || 0)),
+    fertilizer: sanitizeText(snapshot.fertilizer, 80) || null,
+    harvestCount: Math.max(0, Math.floor(Number(snapshot.harvest_count ?? snapshot.harvestCount) || 0)),
+    giantCropGroup: snapshot.giant_crop_group === null || snapshot.giant_crop_group === undefined || snapshot.giant_crop_group === ''
+      ? null
+      : Math.max(0, Math.floor(Number(snapshot.giant_crop_group ?? snapshot.giantCropGroup) || 0)),
+    infested: snapshot.infested === true,
+    infestedDays: Math.max(0, Math.floor(Number(snapshot.infested_days ?? snapshot.infestedDays) || 0)),
+    weedy: snapshot.weedy === true,
+    weedyDays: Math.max(0, Math.floor(Number(snapshot.weedy_days ?? snapshot.weedyDays) || 0)),
+  };
+}
+
+function groupPlotManifestByReturnTarget(manifest = []) {
+  const groups = new Map();
+  for (const entry of Array.isArray(manifest) ? manifest : []) {
+    const username = normalizeUsername(entry.return_target_username || entry.origin_owner_username);
+    const key = normalizeUsernameKey(username);
+    if (!username || !key || entry.source_area !== 'field') continue;
+    const current = groups.get(key) || {
+      username,
+      username_key: key,
+      return_target_save_id: normalizeSaveId(entry.return_target_save_id || entry.origin_save_id),
+      rows: [],
+    };
+    current.rows.push(entry);
+    groups.set(key, current);
+  }
+  return [...groups.values()];
+}
+
+function writePersonalFarmPlotsFromManifest(group = {}, payload = {}) {
+  const context = getActiveSaveContext(group.username, group.member?.save_slot ?? null, '分居返还目标账号没有可写入的桃源乡存档');
+  const identitySaveId = normalizeSaveId(context.identity?.save_id || context.identity?.saveId);
+  if (group.return_target_save_id && identitySaveId && group.return_target_save_id !== identitySaveId) {
+    throw createError(`分居返还目标存档不匹配：${group.username}`, 409);
+  }
+  if (!context.data.farm || typeof context.data.farm !== 'object') context.data.farm = {};
+  if (!Array.isArray(context.data.farm.plots)) context.data.farm.plots = [];
+  const beforeRevision = Number(context.saves.slots[context.slot]?.revision) || 0;
+  const restoredPlotIds = [];
+  for (const row of group.rows) {
+    const sourcePlotId = normalizePlotId(row.source_plot_id, -1);
+    if (sourcePlotId < 0) throw createError('分居返还清单包含无效田区 ID', 409);
+    context.data.farm.plots[sourcePlotId] = restoreFarmPlotFromManifestSnapshot(row.plot_state_snapshot || {});
+    restoredPlotIds.push(sourcePlotId);
+  }
+  const afterRevision = persistGameplayData(context);
+  return {
+    username: group.username,
+    username_key: group.username_key,
+    save_slot: context.slot,
+    save_id: identitySaveId || group.return_target_save_id || 0,
+    before_revision: beforeRevision,
+    after_revision: afterRevision,
+    restored_plot_count: restoredPlotIds.length,
+    source_plot_ids: restoredPlotIds.sort((left, right) => left - right),
+    idempotency_key: payload.idempotency_key,
+    written_at: nowSeconds(),
+  };
+}
+
 function normalizeSeparationExecutionLedgerEntry(entry = {}) {
   return {
     id: sanitizeText(entry.id, 100) || makeId('separation_asset_return'),
@@ -4630,6 +4709,23 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
       : [],
     personal_money_merged: entry.personal_money_merged === true,
     personal_save_written: entry.personal_save_written === true,
+    personal_save_write_idempotency_key: sanitizeText(entry.personal_save_write_idempotency_key, 120),
+    personal_save_written_at: Math.max(0, Math.floor(Number(entry.personal_save_written_at) || 0)),
+    personal_save_written_by: normalizeUsername(entry.personal_save_written_by),
+    personal_save_receipts: Array.isArray(entry.personal_save_receipts)
+      ? entry.personal_save_receipts.map(item => ({
+          username: normalizeUsername(item.username),
+          username_key: normalizeUsernameKey(item.username_key || item.username),
+          save_slot: normalizeSaveSlot(item.save_slot),
+          save_id: normalizeSaveId(item.save_id),
+          before_revision: Math.max(0, Math.floor(Number(item.before_revision) || 0)),
+          after_revision: Math.max(0, Math.floor(Number(item.after_revision) || 0)),
+          restored_plot_count: Math.max(0, Math.floor(Number(item.restored_plot_count) || 0)),
+          source_plot_ids: Array.isArray(item.source_plot_ids) ? item.source_plot_ids.map(id => normalizePlotId(id, 0)).slice(0, 120) : [],
+          idempotency_key: sanitizeText(item.idempotency_key, 120),
+          written_at: Math.max(0, Math.floor(Number(item.written_at) || 0)),
+        })).filter(item => item.username && item.restored_plot_count > 0).slice(0, 20)
+      : [],
     shared_assets_mutated: entry.shared_assets_mutated === true,
     next_required_operations: Array.isArray(entry.next_required_operations)
       ? entry.next_required_operations.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 12)
@@ -7453,6 +7549,149 @@ async function executeSeparationAssetReturn(contractId, previewId, payload = {},
   };
 }
 
+async function writeSeparationPersonalFarmReturns(contractId, previewId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const writePayload = normalizeSeparationPersonalSaveWritePayload(payload);
+  const normalizedContractId = sanitizeText(contractId, 80);
+  const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
+  if (!normalizedPreviewId) throw createError('请指定要写回的分居预览');
+
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === normalizedContractId);
+  if (!contract) throw createError('同居契约不存在', 404);
+  if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
+  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效或分居处理中的契约可以写回分居农田', 409);
+
+  const member = (contract.members || []).find(entry =>
+    entry.status === 'accepted' && (
+      normalizeUsernameKey(entry.username) === normalizeUsernameKey(actorUsername)
+      || normalizeUsernameKey(entry.username_key) === normalizeUsernameKey(actorUsername)
+    )
+  );
+  if (!member) throw createError('只有已接受契约成员可以写回分居农田', 403);
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.separation_previews = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.map(normalizeSeparationPreview)
+    : [];
+  contract.separation_execution_ledger = Array.isArray(contract.separation_execution_ledger)
+    ? contract.separation_execution_ledger.map(normalizeSeparationExecutionLedgerEntry)
+    : [];
+  const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
+  if (previewIndex < 0) throw createError('分居预览不存在', 404);
+
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const executionRequest = preview.confirmation_state.execution_request || {};
+  if (!['asset_return_recorded', 'personal_save_written'].includes(String(executionRequest.status || ''))) {
+    throw createError('请先记录分居返还执行，再写回个人农田', 409);
+  }
+  const ledgerIndex = contract.separation_execution_ledger.findIndex(entry =>
+    entry.id === (writePayload.execution_ledger_id || executionRequest.execution_ledger_id)
+    || (entry.preview_id === normalizedPreviewId && entry.status === 'asset_return_recorded')
+  );
+  if (ledgerIndex < 0) throw createError('分居返还执行记录不存在，请重新记录返还执行', 409);
+  const ledger = normalizeSeparationExecutionLedgerEntry(contract.separation_execution_ledger[ledgerIndex]);
+  if (writePayload.execution_ledger_id && writePayload.execution_ledger_id !== ledger.id) throw createError('分居返还执行记录不匹配，请刷新后重试', 409);
+  if (ledger.personal_save_write_idempotency_key === writePayload.idempotency_key || ledger.personal_save_written === true) {
+    return {
+      contract: toPublicContract(contract),
+      preview,
+      idempotent: true,
+      already_written: ledger.personal_save_written === true,
+      execution_ledger: ledger,
+      receipts: ledger.personal_save_receipts || [],
+    };
+  }
+
+  const manifest = Array.isArray(preview.asset_return?.plot_return_manifest) ? preview.asset_return.plot_return_manifest : [];
+  const expectedManifestHash = sanitizeText(preview.asset_return?.plot_return_manifest_hash, 100) || hashPlotReturnManifest(manifest);
+  if (!expectedManifestHash || !/^[a-f0-9]{64}$/i.test(expectedManifestHash)) throw createError('分居来源田区清单缺少可校验 hash，请重新生成预览', 409);
+  if (writePayload.plot_return_manifest_hash && writePayload.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('分居来源田区清单 hash 不匹配，请重新生成预览，避免写回错田区', 409);
+  }
+  if (ledger.plot_return_manifest_hash && ledger.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('分居返还执行记录与当前预览 hash 不一致，请人工复核', 409);
+  }
+
+  const groups = groupPlotManifestByReturnTarget(manifest).map(group => ({
+    ...group,
+    member: (contract.members || []).find(entry => entry.username_key === group.username_key || normalizeUsernameKey(entry.username) === group.username_key) || null,
+  }));
+  if (groups.length === 0) throw createError('分居返还清单没有可写回的来源田区', 409);
+  const receipts = groups.map(group => writePersonalFarmPlotsFromManifest(group, writePayload));
+  const writtenAt = nowSeconds();
+  const nextLedger = normalizeSeparationExecutionLedgerEntry({
+    ...ledger,
+    status: 'personal_save_written',
+    personal_save_written: true,
+    personal_save_write_idempotency_key: writePayload.idempotency_key,
+    personal_save_written_at: writtenAt,
+    personal_save_written_by: member.username,
+    personal_save_receipts: receipts,
+    next_required_operations: ['verify_personal_save_receipts', 'split_decorations', 'resolve_family_story'],
+  });
+  const nextManifest = manifest.map(entry => ({
+    ...entry,
+    execution_status: 'personal_save_written',
+    personal_save_write_idempotency_key: writePayload.idempotency_key,
+  }));
+  const nextExecutionRequest = {
+    ...executionRequest,
+    status: 'personal_save_written',
+    personal_save_written: true,
+    personal_save_written_at: writtenAt,
+    personal_save_written_by: member.username,
+    personal_save_receipts: receipts,
+    next_required_operations: nextLedger.next_required_operations,
+  };
+  const nextPreview = normalizeSeparationPreview({
+    ...preview,
+    asset_return: {
+      ...preview.asset_return,
+      plot_return_manifest: nextManifest,
+      personal_save_written: true,
+      personal_save_written_at: writtenAt,
+      personal_save_receipts: receipts,
+    },
+    confirmation_state: {
+      ...preview.confirmation_state,
+      execution_request: nextExecutionRequest,
+      personal_save_written: true,
+      personal_save_written_at: writtenAt,
+      can_execute_now: false,
+      execution_enabled: false,
+      execution_policy: '来源田区已按预览 hash 写回双方个人 farm.plots；共同基金、共同仓库、装饰和剧情拆分仍需后续独立接口。'
+    },
+    deferred_operations: ['verify_personal_save_receipts', 'split_decorations', 'resolve_family_story'],
+  });
+
+  contract.separation_execution_ledger[ledgerIndex] = nextLedger;
+  contract.separation_previews[previewIndex] = nextPreview;
+  appendAudit(contract, 'separation_personal_farm_written', actor, {
+    preview_id: nextPreview.id,
+    execution_ledger_id: nextLedger.id,
+    plot_return_manifest_hash: expectedManifestHash,
+    receipt_count: receipts.length,
+    restored_plot_count: receipts.reduce((sum, receipt) => sum + receipt.restored_plot_count, 0),
+    personal_save_written: true,
+    shared_fund_refunded: false,
+    shared_warehouse_returned: false,
+    next_required_operations: nextLedger.next_required_operations,
+  }, writePayload.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    preview: nextPreview,
+    idempotent: false,
+    already_written: false,
+    execution_ledger: nextLedger,
+    receipts,
+  };
+}
+
 module.exports = {
   RELATION_TYPE_DEFS,
   listCohabitationContracts,
@@ -7487,4 +7726,5 @@ module.exports = {
   confirmSeparationPreview,
   requestSeparationExecution,
   executeSeparationAssetReturn,
+  writeSeparationPersonalFarmReturns,
 };

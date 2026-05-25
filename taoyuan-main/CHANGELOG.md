@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 分居来源田区个人农田写回
+- 服务端新增 `/separation-previews/:previewId/write-personal-farm-returns`，要求已记录返还执行、执行 ledger ID 可匹配且预览 `plot_return_manifest_hash` 未变。
+- 成功后按 manifest 写回成员个人 `farm.plots[source_plot_id]`，记录每成员写回 receipt、revision 和审计；共同基金返还、共同仓库移动、装饰 / 建筑和剧情拆分仍保持后续独立步骤。
+- 本轮验证：`node --check server\src\taoyuanCohabitationRuntime.js`、`node --check server\src\routes\api.js`、`node --check server\scripts\qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 分居返还记录前端入口
 - 共同庄园总览在分居预览卡片新增“记录返还”按钮，前端 API / store 接入 `/separation-previews/:previewId/execute-asset-return`。
 - 按钮按 `pending_manual_execution`、冷静期、预览 `plot_return_manifest_hash` 和已记录状态禁用；提交时带执行请求 ID 与 manifest hash，成功后只刷新契约与共同日志。
