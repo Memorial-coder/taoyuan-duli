@@ -1652,6 +1652,10 @@ function normalizeContract(entry = {}) {
     separation_previews: Array.isArray(entry.separation_previews)
       ? entry.separation_previews.map(normalizeSeparationPreview).slice(-10)
       : [],
+    separation_execution_ledger: Array.isArray(entry.separation_execution_ledger)
+      ? entry.separation_execution_ledger.map(normalizeSeparationExecutionLedgerEntry).slice(0, 20)
+      : [],
+    separation_state: sanitizeText(entry.separation_state, 100),
     fund_large_spend_drafts: Array.isArray(entry.fund_large_spend_drafts)
       ? entry.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft).slice(0, FUND_LARGE_SPEND_DRAFT_LIMIT)
       : [],
@@ -4164,6 +4168,17 @@ function normalizeSeparationExecutionRequestPayload(payload = {}) {
   };
 }
 
+function normalizeSeparationAssetReturnExecutePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('分居资产返还执行需要 idempotency_key，以防断线或重试时重复记录返还');
+  return {
+    idempotency_key: idempotencyKey,
+    execution_request_id: sanitizeText(payload.execution_request_id, 100),
+    plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
 function normalizeLargeFundSpendExecutePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同基金大额草案执行扣款需要 idempotency_key，以防断线或重试时重复扣基金');
@@ -4513,6 +4528,113 @@ function hashPlotReturnManifest(manifest = []) {
     plot_state_snapshot: entry.plot_state_snapshot,
   }));
   return crypto.createHash('sha256').update(JSON.stringify(stableRows)).digest('hex');
+}
+
+function buildSeparationAssetReturnLedger(preview = {}, actorMember = {}, payload = {}) {
+  const assetReturn = preview.asset_return && typeof preview.asset_return === 'object' ? preview.asset_return : {};
+  const plotManifest = Array.isArray(assetReturn.plot_return_manifest) ? assetReturn.plot_return_manifest : [];
+  const plotsByOwner = Array.isArray(assetReturn.plots_by_origin_owner) ? assetReturn.plots_by_origin_owner : [];
+  const warehouseReturns = Array.isArray(assetReturn.warehouse_items_by_origin_owner) ? assetReturn.warehouse_items_by_origin_owner : [];
+  const fundReturns = Array.isArray(assetReturn.fund_contributions_by_origin_owner) ? assetReturn.fund_contributions_by_origin_owner : [];
+  const plotReturnManifestHash = sanitizeText(assetReturn.plot_return_manifest_hash, 100) || hashPlotReturnManifest(plotManifest);
+  return {
+    id: makeId('separation_asset_return'),
+    preview_id: preview.id,
+    preview_version: preview.version,
+    execution_request_id: sanitizeText(preview.confirmation_state?.execution_request?.id, 100),
+    executed_by: actorMember.username,
+    executed_at: nowSeconds(),
+    idempotency_key: payload.idempotency_key,
+    memo: payload.memo,
+    status: 'asset_return_recorded',
+    plot_return_manifest_hash: plotReturnManifestHash,
+    plot_return_count: plotManifest.length,
+    plot_returns_by_origin_owner: plotsByOwner.map(entry => ({
+      origin_owner_id: sanitizeText(entry.origin_owner_id, 80),
+      origin_owner_username: normalizeUsername(entry.origin_owner_username),
+      origin_owner_key: normalizeUsernameKey(entry.origin_owner_key || entry.origin_owner_username),
+      plot_count: Math.max(0, Math.floor(Number(entry.plot_count) || 0)),
+      source_plot_ids: Array.isArray(entry.source_plot_ids) ? entry.source_plot_ids.map(id => normalizePlotId(id, 0)).slice(0, 80) : [],
+      return_status: 'recorded_waiting_personal_save_write',
+    })),
+    warehouse_returns_by_origin_owner: warehouseReturns.map(entry => ({
+      origin_owner_id: sanitizeText(entry.origin_owner_id, 80),
+      origin_owner_username: normalizeUsername(entry.origin_owner_username),
+      origin_owner_key: normalizeUsernameKey(entry.origin_owner_key || entry.origin_owner_username),
+      item_id: sanitizeText(entry.item_id, 80),
+      quantity: Math.max(0, Math.floor(Number(entry.quantity) || 0)),
+      return_status: 'manual_personal_inventory_write_required',
+    })).filter(entry => entry.origin_owner_username && entry.item_id && entry.quantity > 0),
+    fund_refunds_by_origin_owner: fundReturns.map(entry => ({
+      origin_owner_id: sanitizeText(entry.origin_owner_id, 80),
+      origin_owner_username: normalizeUsername(entry.origin_owner_username),
+      origin_owner_key: normalizeUsernameKey(entry.origin_owner_key || entry.origin_owner_username),
+      suggested_refund_amount: Math.max(0, Math.floor(Number(entry.suggested_refund_amount) || 0)),
+      return_status: 'manual_personal_money_write_required',
+    })).filter(entry => entry.origin_owner_username && entry.suggested_refund_amount > 0),
+    personal_money_merged: false,
+    personal_save_written: false,
+    shared_assets_mutated: false,
+    next_required_operations: [
+      'write_personal_save_refunds',
+      'verify_personal_save_receipts',
+      'split_decorations',
+      'resolve_family_story',
+    ],
+  };
+}
+
+function normalizeSeparationExecutionLedgerEntry(entry = {}) {
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('separation_asset_return'),
+    preview_id: sanitizeText(entry.preview_id, 100),
+    preview_version: Math.max(1, Math.floor(Number(entry.preview_version) || SEPARATION_PREVIEW_VERSION)),
+    execution_request_id: sanitizeText(entry.execution_request_id, 100),
+    executed_by: normalizeUsername(entry.executed_by),
+    executed_at: Math.max(0, Math.floor(Number(entry.executed_at) || 0)),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    memo: sanitizeText(entry.memo, 160),
+    status: ['asset_return_recorded', 'personal_save_written', 'compensated', 'reverted'].includes(entry.status)
+      ? entry.status
+      : 'asset_return_recorded',
+    plot_return_manifest_hash: sanitizeText(entry.plot_return_manifest_hash, 100),
+    plot_return_count: Math.max(0, Math.floor(Number(entry.plot_return_count) || 0)),
+    plot_returns_by_origin_owner: Array.isArray(entry.plot_returns_by_origin_owner)
+      ? entry.plot_returns_by_origin_owner.map(item => ({
+          origin_owner_id: sanitizeText(item.origin_owner_id, 80),
+          origin_owner_username: normalizeUsername(item.origin_owner_username),
+          origin_owner_key: normalizeUsernameKey(item.origin_owner_key || item.origin_owner_username),
+          plot_count: Math.max(0, Math.floor(Number(item.plot_count) || 0)),
+          source_plot_ids: Array.isArray(item.source_plot_ids) ? item.source_plot_ids.map(id => normalizePlotId(id, 0)).slice(0, 80) : [],
+          return_status: sanitizeText(item.return_status, 80) || 'recorded_waiting_personal_save_write',
+        })).filter(item => item.origin_owner_username && item.plot_count > 0).slice(0, 80)
+      : [],
+    warehouse_returns_by_origin_owner: Array.isArray(entry.warehouse_returns_by_origin_owner)
+      ? entry.warehouse_returns_by_origin_owner.map(item => ({
+          origin_owner_id: sanitizeText(item.origin_owner_id, 80),
+          origin_owner_username: normalizeUsername(item.origin_owner_username),
+          origin_owner_key: normalizeUsernameKey(item.origin_owner_key || item.origin_owner_username),
+          item_id: normalizeWarehouseItemId(item.item_id),
+          quantity: Math.max(0, Math.floor(Number(item.quantity) || 0)),
+          return_status: sanitizeText(item.return_status, 80) || 'manual_personal_inventory_write_required',
+        })).filter(item => item.origin_owner_username && item.item_id && item.quantity > 0).slice(0, 120)
+      : [],
+    fund_refunds_by_origin_owner: Array.isArray(entry.fund_refunds_by_origin_owner)
+      ? entry.fund_refunds_by_origin_owner.map(item => ({
+          origin_owner_id: sanitizeText(item.origin_owner_id, 80),
+          origin_owner_username: normalizeUsername(item.origin_owner_username),
+          origin_owner_key: normalizeUsernameKey(item.origin_owner_key || item.origin_owner_username),
+          suggested_refund_amount: Math.max(0, Math.floor(Number(item.suggested_refund_amount) || 0)),
+          return_status: sanitizeText(item.return_status, 80) || 'manual_personal_money_write_required',
+        })).filter(item => item.origin_owner_username && item.suggested_refund_amount > 0).slice(0, 80)
+      : [],
+    personal_money_merged: entry.personal_money_merged === true,
+    personal_save_written: entry.personal_save_written === true,
+    shared_assets_mutated: entry.shared_assets_mutated === true,
+    next_required_operations: Array.isArray(entry.next_required_operations)
+      ? entry.next_required_operations.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 12)
+      : ['write_personal_save_refunds', 'verify_personal_save_receipts'],
+  };
 }
 
 function buildSeparationSafetyChecks({ plotReturnPreview, warehouseReturns, fundReturns, fundBalance }) {
@@ -7175,6 +7297,162 @@ async function requestSeparationExecution(contractId, previewId, payload = {}, a
   };
 }
 
+async function executeSeparationAssetReturn(contractId, previewId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const executePayload = normalizeSeparationAssetReturnExecutePayload(payload);
+  const normalizedContractId = sanitizeText(contractId, 80);
+  const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
+  if (!normalizedPreviewId) throw createError('请指定要执行的分居预览');
+
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === normalizedContractId);
+  if (!contract) throw createError('同居契约不存在', 404);
+  if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
+  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效或分居处理中的契约可以执行分居返还记录', 409);
+
+  const member = (contract.members || []).find(entry =>
+    entry.status === 'accepted' && (
+      normalizeUsernameKey(entry.username) === normalizeUsernameKey(actorUsername)
+      || normalizeUsernameKey(entry.username_key) === normalizeUsernameKey(actorUsername)
+    )
+  );
+  if (!member) throw createError('只有已接受契约成员可以执行分居返还记录', 403);
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.separation_previews = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.map(normalizeSeparationPreview)
+    : [];
+  contract.separation_execution_ledger = Array.isArray(contract.separation_execution_ledger)
+    ? contract.separation_execution_ledger
+    : [];
+  const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
+  if (previewIndex < 0) throw createError('分居预览不存在', 404);
+
+  const previousLedger = contract.separation_execution_ledger.find(entry =>
+    entry.idempotency_key === executePayload.idempotency_key
+    && entry.preview_id === normalizedPreviewId
+  );
+  if (previousLedger) {
+    return {
+      contract: toPublicContract(contract),
+      preview: normalizeSeparationPreview(contract.separation_previews[previewIndex]),
+      idempotent: true,
+      already_executed: true,
+      execution_ledger: previousLedger,
+    };
+  }
+
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const now = nowSeconds();
+  if (preview.expires_at > 0 && preview.expires_at <= now) throw createError('分居预览已过期，请重新生成预览', 409);
+  if (preview.state !== 'confirmed' || preview.confirmation_state.all_members_confirmed !== true) {
+    throw createError('分居预览必须双方确认后才能执行返还记录', 409);
+  }
+  if (now < preview.confirm_after_at) throw createError('分居冷静期尚未结束，不能执行返还记录', 409);
+
+  const executionRequest = preview.confirmation_state.execution_request || {};
+  if (executePayload.execution_request_id && executePayload.execution_request_id !== executionRequest.id) {
+    throw createError('分居执行请求不匹配，请刷新后重试', 409);
+  }
+  const manifest = Array.isArray(preview.asset_return?.plot_return_manifest) ? preview.asset_return.plot_return_manifest : [];
+  const expectedManifestHash = sanitizeText(preview.asset_return?.plot_return_manifest_hash, 100) || hashPlotReturnManifest(manifest);
+  if (!expectedManifestHash || !/^[a-f0-9]{64}$/i.test(expectedManifestHash)) throw createError('分居来源田区清单缺少可校验 hash，请重新生成预览', 409);
+  if (executePayload.plot_return_manifest_hash && executePayload.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('分居来源田区清单 hash 不匹配，请重新生成预览，避免返还错田区', 409);
+  }
+  if (executionRequest.status === 'asset_return_recorded') {
+    const existingLedger = contract.separation_execution_ledger.find(entry => entry.id === executionRequest.execution_ledger_id)
+      || contract.separation_execution_ledger.find(entry => entry.preview_id === normalizedPreviewId && entry.status === 'asset_return_recorded');
+    return {
+      contract: toPublicContract(contract),
+      preview,
+      idempotent: true,
+      already_executed: true,
+      execution_ledger: existingLedger || null,
+    };
+  }
+  if (executionRequest.status !== 'pending_manual_execution') throw createError('请先请求分居执行，再执行返还记录', 409);
+
+  const executionLedger = buildSeparationAssetReturnLedger(preview, member, {
+    ...executePayload,
+    plot_return_manifest_hash: expectedManifestHash,
+  });
+  const recordedManifest = manifest.map(entry => ({
+    ...entry,
+    execution_status: 'recorded_waiting_personal_save_write',
+    execution_ledger_id: executionLedger.id,
+  }));
+  const nextExecutionRequest = {
+    ...executionRequest,
+    status: 'asset_return_recorded',
+    asset_return_executed: true,
+    asset_return_recorded_at: now,
+    asset_return_recorded_by: member.username,
+    execution_ledger_id: executionLedger.id,
+    personal_save_written: false,
+    execution_enabled: false,
+    next_required_operations: executionLedger.next_required_operations,
+  };
+  const nextPreview = normalizeSeparationPreview({
+    ...preview,
+    asset_return: {
+      ...preview.asset_return,
+      plot_return_manifest: recordedManifest,
+      plot_return_manifest_hash: expectedManifestHash,
+      asset_return_recorded: true,
+      asset_return_recorded_at: now,
+      asset_return_ledger_id: executionLedger.id,
+      personal_save_written: false,
+    },
+    confirmation_state: {
+      ...preview.confirmation_state,
+      execution_request: nextExecutionRequest,
+      asset_return_recorded: true,
+      asset_return_recorded_at: now,
+      personal_save_written: false,
+      can_execute_now: false,
+      execution_enabled: false,
+      execution_policy: '已把分居返还清单固化为共同契约执行记录；个人存档写回、资金返还和剧情拆分仍需后续凭证化接口执行。',
+    },
+    deferred_operations: [
+      'write_personal_save_refunds',
+      'verify_personal_save_receipts',
+      'split_decorations',
+      'resolve_family_story',
+    ],
+    manual_execution_required: true,
+    requires_both_confirm: true,
+  });
+
+  contract.separation_state = 'asset_return_recorded_waiting_personal_save_write';
+  contract.separation_previews[previewIndex] = nextPreview;
+  contract.separation_execution_ledger = [executionLedger, ...contract.separation_execution_ledger].slice(0, 20);
+  appendAudit(contract, 'separation_asset_return_recorded', actor, {
+    preview_id: nextPreview.id,
+    preview_version: nextPreview.version,
+    execution_request_id: executionRequest.id,
+    execution_ledger_id: executionLedger.id,
+    plot_return_manifest_hash: expectedManifestHash,
+    plot_return_count: executionLedger.plot_return_count,
+    personal_save_written: false,
+    shared_assets_mutated: false,
+    contract_status: contract.status,
+    separation_state: contract.separation_state,
+    next_required_operations: executionLedger.next_required_operations,
+  }, executePayload.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    preview: nextPreview,
+    idempotent: false,
+    already_executed: false,
+    execution_ledger: executionLedger,
+  };
+}
+
 module.exports = {
   RELATION_TYPE_DEFS,
   listCohabitationContracts,
@@ -7208,4 +7486,5 @@ module.exports = {
   createSeparationPreview,
   confirmSeparationPreview,
   requestSeparationExecution,
+  executeSeparationAssetReturn,
 };

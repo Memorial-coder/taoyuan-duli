@@ -1879,6 +1879,57 @@ assert.equal(alreadyRequestedExecution.idempotent, true, 'existing separation ex
 assert.equal(alreadyRequestedExecution.already_requested, true, 'existing separation execution request should be flagged')
 assert.equal(alreadyRequestedExecution.execution_request.id, executionRequest.execution_request.id, 'existing separation execution request should return original request id')
 
+await assert.rejects(
+  () => runtime.executeSeparationAssetReturn(created.contract.id, previewResult.preview.id, {
+    memo: 'wrong manifest hash should be rejected',
+    plot_return_manifest_hash: '0'.repeat(64),
+    execution_request_id: executionRequest.execution_request.id,
+    idempotency_key: 'qa-separation-asset-return-wrong-hash',
+  }, actor(owner)),
+  /hash 不匹配/,
+  'separation asset return execution should reject mismatched plot manifest hash'
+)
+
+const ownerRawBeforeAssetReturnRecord = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeAssetReturnRecord = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const assetReturnRecord = await runtime.executeSeparationAssetReturn(created.contract.id, previewResult.preview.id, {
+  memo: 'record asset return without personal save writes',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_request_id: executionRequest.execution_request.id,
+  idempotency_key: 'qa-separation-asset-return-record',
+}, actor(owner))
+assert.equal(assetReturnRecord.idempotent, false, 'first separation asset return record should not be idempotent')
+assert.equal(assetReturnRecord.execution_ledger.status, 'asset_return_recorded', 'asset return should be recorded in execution ledger')
+assert.equal(assetReturnRecord.execution_ledger.plot_return_count, 32, 'asset return ledger should keep every source plot')
+assert.equal(assetReturnRecord.execution_ledger.plot_return_manifest_hash, previewResult.preview.asset_return.plot_return_manifest_hash, 'asset return ledger should lock preview manifest hash')
+assert.equal(assetReturnRecord.execution_ledger.personal_save_written, false, 'asset return record should not write personal saves yet')
+assert.equal(assetReturnRecord.execution_ledger.shared_assets_mutated, false, 'asset return record should not mutate shared assets yet')
+assert.equal(assetReturnRecord.preview.confirmation_state.execution_request.status, 'asset_return_recorded', 'execution request should advance to asset-return-recorded')
+assert.equal(assetReturnRecord.preview.confirmation_state.execution_request.personal_save_written, false, 'execution request should keep personal save write pending')
+assert.equal(assetReturnRecord.preview.asset_return.plot_return_manifest.every(item => item.execution_status === 'recorded_waiting_personal_save_write'), true, 'plot manifest rows should be marked as recorded but waiting for personal save write')
+assert.ok(assetReturnRecord.contract.audit_log.find(entry => entry.action === 'separation_asset_return_recorded' && entry.idempotency_key === 'qa-separation-asset-return-record'), 'asset return record should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeAssetReturnRecord, 'asset return record should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeAssetReturnRecord, 'asset return record should not rewrite partner save')
+
+const duplicateAssetReturnRecord = await runtime.executeSeparationAssetReturn(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate asset return record',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_request_id: executionRequest.execution_request.id,
+  idempotency_key: 'qa-separation-asset-return-record',
+}, actor(owner))
+assert.equal(duplicateAssetReturnRecord.idempotent, true, 'same asset return execution key should return existing ledger')
+assert.equal(duplicateAssetReturnRecord.execution_ledger.id, assetReturnRecord.execution_ledger.id, 'idempotent asset return record should keep ledger id')
+
+const alreadyAssetReturnRecorded = await runtime.executeSeparationAssetReturn(created.contract.id, previewResult.preview.id, {
+  memo: 'already recorded by partner with another key',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_request_id: executionRequest.execution_request.id,
+  idempotency_key: 'qa-separation-asset-return-record-partner-again',
+}, actor(partner))
+assert.equal(alreadyAssetReturnRecorded.idempotent, true, 'already recorded asset return should be treated idempotently with a new key')
+assert.equal(alreadyAssetReturnRecorded.already_executed, true, 'already recorded asset return response should be explicit')
+assert.equal(alreadyAssetReturnRecorded.execution_ledger.id, assetReturnRecord.execution_ledger.id, 'already recorded asset return should return original ledger')
+
 const partnerMoneyBeforeMediumFundTopUp = readGameplayData(partner)?.player?.money
 const mediumFundTopUp = await runtime.contributeCohabitationFund(created.contract.id, {
   amount: 400,

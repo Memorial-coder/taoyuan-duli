@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 分居资产返还执行记录接入：共同庄园新增 `/separation-previews/:previewId/execute-asset-return`，要求已请求执行、双方确认、冷静期结束和 `plot_return_manifest_hash` 匹配；成功后只写共同契约 `separation_execution_ledger`、逐地块返还记录和审计，重复请求幂等读回，不写个人存档、不扣共同基金、不移动共同仓库物。
 - 分居执行请求前端入口接入：共同庄园总览在分居预览卡片新增“请求执行”按钮，前端 API / store 接入 `/separation-previews/:previewId/request-execution`；按钮按双方确认、冷静期和已有待执行请求禁用，成功后只刷新契约和日志，不执行资产返还。
 - 分居执行请求安全阀接入：共同庄园新增 `/separation-previews/:previewId/request-execution`，要求双方确认、冷静期结束、预览未过期和幂等键；成功后只写 `pending_manual_execution` 请求、审计和剩余操作清单，不执行资产返还、不写个人存档、不改变契约资产。`qa:cohabitation-contract` 覆盖冷静期拒绝、请求幂等、换人重复请求和个人存档不变。
 - 分居预览双方确认记录接入：共同庄园新增 `/separation-previews/:previewId/confirm` 幂等确认接口和前端“确认预览”入口；单方确认只记录事件与待确认成员，双方确认后预览进入 `confirmed`，仍保持 `execution_enabled=false`，不执行资产返还、不写个人存档、不合并个人铜币。`qa:cohabitation-contract` 覆盖重复确认、双方确认、审计、manifest hash 稳定和个人存档不变。
