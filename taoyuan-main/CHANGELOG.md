@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 家族建筑材料恢复前端入口
+- 前端 API / store 接入 `/family-buildings/materials/restore`，共同庄园建筑页在建筑流水卡片新增“恢复建材”按钮。
+- 按钮按 `reverted`、共同基金已退款、存在原材料消耗 ledger、尚未恢复材料和契约开启状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。
+- 建筑流水卡片展示材料恢复操作者、恢复时间与恢复 ledger，共同日志新增“建筑材料恢复”读回；本轮仍只恢复共同仓库材料，不写个人背包、不改个人铜币、不真实拆除建筑。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 家族建筑共同仓库材料恢复补偿
 - 服务端新增 `/family-buildings/materials/restore`，要求目标家族建筑流水已 `reverted`、共同基金已退款，并具备原共同仓库材料 `consume` ledger。
 - 成功后按原消耗流水写共同仓库 `compensate` ledger，把建材恢复到共同仓库，并在建筑流水记录材料恢复幂等键、恢复 ledger、操作者和时间。

@@ -631,6 +631,19 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   fund_refunded_at: number
   fund_refunded_by_username: string
   fund_refunded_by_display_name: string
+  shared_warehouse_materials_restored: boolean
+  material_restore_idempotency_key: string
+  material_restore_ledger_ids: string[]
+  material_restorations: Array<{
+    item_id: string
+    label: string
+    quantity: number
+    quality: string
+    warehouse_ledger_ids: string[]
+  }>
+  materials_restored_at: number
+  materials_restored_by_username: string
+  materials_restored_by_display_name: string
   compensation_required: boolean
   compensation_hint: string
   deferred_operations: string[]
@@ -1340,11 +1353,13 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
   building_ledger_entry?: CohabitationFamilyBuildingLedgerEntry
   fund_ledger_entry?: CohabitationFundLedgerEntry
   material_ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  material_restore_ledger_entries?: CohabitationWarehouseLedgerEntry[]
   idempotent?: boolean
   already_applied?: boolean
   already_consumed?: boolean
   already_reverted?: boolean
   already_refunded?: boolean
+  already_restored?: boolean
   rollback?: {
     shared_fund_refunded?: boolean
     shared_warehouse_restored?: boolean
@@ -1353,6 +1368,7 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
   }
   shared_warehouse?: {
     consumed_quantity?: number
+    restored_quantity?: number
     material_count?: number
     personal_inventory_merged?: boolean
   }
@@ -1730,6 +1746,14 @@ export const refundCohabitationFamilyBuildingFund = async (contractId: string, p
     contractPath(contractId, '/family-buildings/fund/refund'),
     payload as unknown as Record<string, unknown>,
     '退回家族建筑共同基金失败'
+  )
+}
+
+export const restoreCohabitationFamilyBuildingMaterials = async (contractId: string, payload: CohabitationFamilyBuildingLedgerPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/materials/restore'),
+    payload as unknown as Record<string, unknown>,
+    '恢复家族建筑共同仓库材料失败'
   )
 }
 

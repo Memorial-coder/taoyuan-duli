@@ -97,6 +97,8 @@ expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-fund-la
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-fund-large-draft-execute', '共同基金前端应提供大额草案执行扣款入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-building-ledger', '共同庄园建筑页应展示建筑流水')
 expectContains('online/OnlineCohabitationView.vue', 'familyBuildingLedgerEntries', '共同庄园建筑页应读回建筑流水列表')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-building-materials-restore', '共同庄园建筑页应提供材料恢复入口')
+expectContains('utils/cohabitationApi.ts', '/family-buildings/materials/restore', '共同庄园建筑 API 应接入材料恢复接口')
 expectContains('utils/cohabitationApi.ts', 'construction_ledger', '共同庄园建筑 API 类型应包含建筑流水')
 expectContains('utils/cohabitationApi.ts', 'CohabitationFamilyBuildingLedgerEntry', '共同庄园建筑 API 类型应声明建筑流水条目')
 expectContains('utils/cohabitationApi.ts', '/fund/large-spend-draft', '共同基金 API 应接入大额草案创建接口')

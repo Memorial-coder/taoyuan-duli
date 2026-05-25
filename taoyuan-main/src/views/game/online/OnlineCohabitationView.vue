@@ -1184,8 +1184,11 @@
                   <p v-if="entry.shared_fund_refunded || entry.fund_refund_ledger_id">
                     基金退款：{{ entry.fund_refunded_by_display_name || entry.fund_refunded_by_username || '已记录' }} · {{ formatTime(entry.fund_refunded_at) }} · {{ entry.fund_refund_ledger_id || '无 ledger' }}
                   </p>
+                  <p v-if="entry.shared_warehouse_materials_restored || entry.material_restore_ledger_ids?.length">
+                    建材恢复：{{ entry.materials_restored_by_display_name || entry.materials_restored_by_username || '已记录' }} · {{ formatTime(entry.materials_restored_at) }} · {{ entry.material_restore_ledger_ids?.length || 0 }} 条 ledger
+                  </p>
                 </div>
-                <div class="mt-2 grid gap-2 md:grid-cols-4">
+                <div class="mt-2 grid gap-2 md:grid-cols-5">
                   <button
                     class="online-action-btn online-action-btn--compact justify-center"
                     type="button"
@@ -1225,6 +1228,16 @@
                   >
                     <Wallet :size="12" />
                     退回基金
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canRestoreFamilyBuildingMaterials(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-materials-restore-${entry.id}`"
+                    @click="restoreFamilyBuildingMaterials(entry)"
+                  >
+                    <Package :size="12" />
+                    恢复建材
                   </button>
                 </div>
               </div>
@@ -2731,6 +2744,16 @@
     Boolean(entry.fund_ledger_id) &&
     entry.shared_fund_refunded !== true &&
     !entry.fund_refund_ledger_id
+  const canRestoreFamilyBuildingMaterials = (entry: CohabitationFamilyBuildingLedgerEntry) =>
+    cohabitationStore.canOpenSelectedContract &&
+    entry.status === 'reverted' &&
+    entry.shared_fund_refunded === true &&
+    Boolean(entry.fund_refund_ledger_id) &&
+    entry.shared_warehouse_materials_consumed === true &&
+    Array.isArray(entry.material_ledger_ids) &&
+    entry.material_ledger_ids.length > 0 &&
+    entry.shared_warehouse_materials_restored !== true &&
+    (!Array.isArray(entry.material_restore_ledger_ids) || entry.material_restore_ledger_ids.length === 0)
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -3030,6 +3053,25 @@
         : `已退回家族建筑共同基金 ${refundAmount} 文，未恢复建材或改个人资产`
     } catch (error) {
       familyBuildingActionMessage.value = error instanceof Error ? error.message : '退回家族建筑共同基金失败'
+    }
+  }
+
+  const restoreFamilyBuildingMaterials = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    try {
+      const result = await cohabitationStore.restoreFamilyBuildingMaterials({
+        building_ledger_id: entry.id,
+        memo: `前端恢复家族建筑共同仓库材料：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-materials-restore-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      const restoredQuantity = result?.shared_warehouse?.restored_quantity ?? 0
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_restored
+        ? '该建筑流水已经恢复过共同仓库建材，已刷新状态'
+        : `已恢复共同仓库建材 ${restoredQuantity} 份，未写个人背包或个人铜币`
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '恢复家族建筑共同仓库材料失败'
     }
   }
 
@@ -3364,6 +3406,7 @@
       family_building_materials_consumed: '建筑材料消耗',
       family_building_rollback_recorded: '建筑回滚记录',
       family_building_fund_refunded: '建筑基金退款',
+      family_building_materials_restored: '建筑材料恢复',
       permissions_updated: '权限更新',
       family_role_updated: '家族职位更新',
       separation_preview_created: '分居预览创建',
@@ -3477,6 +3520,13 @@
       return refundAmount > 0
         ? `已退回共同基金 ${refundAmount} 文${suffix}，不恢复建材或个人资产`
         : '已记录建筑基金退款，不恢复建材或个人资产'
+    }
+    if (entry.action === 'family_building_materials_restored') {
+      const restoredQuantity = Number(detail.restored_quantity) || 0
+      const materialCount = Array.isArray(detail.material_restorations) ? detail.material_restorations.length : Number(detail.material_count) || 0
+      return restoredQuantity > 0
+        ? `已恢复共同仓库建材 ${restoredQuantity} 件，涉及 ${materialCount} 类材料，不写个人背包`
+        : '已记录建筑材料恢复，不写个人背包或个人铜币'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0

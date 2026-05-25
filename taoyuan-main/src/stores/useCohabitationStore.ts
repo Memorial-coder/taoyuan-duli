@@ -31,6 +31,7 @@ import {
   requestCohabitationSeparationExecution,
   resolveCohabitationSeparationChildArrangement,
   resolveCohabitationSeparationFamilyStory,
+  restoreCohabitationFamilyBuildingMaterials,
   rollbackCohabitationFamilyBuilding,
   returnCohabitationSeparationSharedWarehouse,
   sellCohabitationWarehouseItem,
@@ -772,6 +773,35 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const restoreFamilyBuildingMaterials = async (payload: {
+    building_ledger_id: string
+    memo?: string
+    idempotency_key: string
+  }) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.building_ledger_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await restoreCohabitationFamilyBuildingMaterials(activeContractId.value, payload)
+      if (result?.family_buildings_panel) familyBuildingsPanel.value = result.family_buildings_panel
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.fund) fund.value = result.fund
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '恢复家族建筑共同仓库材料失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const depositSharedWarehouseItem = async (payload: {
     item_id: string
     quantity: number
@@ -966,6 +996,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     consumeFamilyBuildingMaterials,
     rollbackFamilyBuilding,
     refundFamilyBuildingFund,
+    restoreFamilyBuildingMaterials,
     depositSharedWarehouseItem,
     sellSharedWarehouseItem,
     withdrawSharedWarehouseItem,
