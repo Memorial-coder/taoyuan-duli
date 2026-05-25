@@ -3184,14 +3184,19 @@ router.post('/taoyuan/online/orders/:orderId/stages/:stageId/confirm-delivery', 
 });
 
 router.post('/taoyuan/online/orders/compensations/:compensationId/retry', createOnlineReleaseGuard('order'), loginRequired, signRequired, async (req, res) => {
-  try {
-    const actor = getSessionActor(req);
-    const result = await taoyuanCoopOrderRuntime.replayCoopOrderCompensation(req.params.compensationId, actor);
-    emitCoopOrderNotificationCreatedEvent('compensation_retry', result, actor);
-    res.json({ ok: true, ...result });
-  } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '补偿重试失败' });
-  }
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const actor = getSessionActor(req);
+      const result = await taoyuanCoopOrderRuntime.replayCoopOrderCompensation(req.params.compensationId, actor, {
+        sharedFundCreditHandler: ({ receipt, contract_id: contractId }) =>
+          taoyuanCohabitationRuntime.creditCohabitationOrderIncome(contractId, receipt, actor),
+      });
+      emitCoopOrderNotificationCreatedEvent('compensation_retry', result, actor);
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '补偿重试失败' });
+    }
+  });
 });
 
 router.get('/taoyuan/online/social/relationships', createOnlineReleaseGuard('social'), loginRequired, async (req, res) => {
@@ -5631,21 +5636,34 @@ router.post('/admin/taoyuan/hall/posts/:id/feature', adminAuth, async (req, res)
 });
 
 router.post('/admin/taoyuan/orders/compensations/:compensationId/retry', userAdminAuth, async (req, res) => {
-  try {
-    const result = await taoyuanCoopOrderRuntime.replayCoopOrderCompensation(req.params.compensationId, {
-      username: req.admin?.operator_name || req.admin?.role || 'admin',
-      displayName: req.admin?.operator_name || req.admin?.role_label || '管理员',
-      role: req.admin?.role || 'admin',
-    });
-    await appendAdminAuditLog(req, 'retry_coop_compensation', result.order?.owner_username || '', {
-      compensation_id: req.params.compensationId,
-      order_id: result.order?.id || '',
-      stage_id: result.stage?.id || '',
-    });
-    res.json({ ok: true, ...result });
-  } catch (error) {
-    res.status(error.status || 500).json({ ok: false, msg: error.message || '重试补偿失败' });
-  }
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const actor = {
+        username: req.admin?.operator_name || req.admin?.role || 'admin',
+        displayName: req.admin?.operator_name || req.admin?.role_label || '管理员',
+        role: req.admin?.role || 'admin',
+      };
+      const result = await taoyuanCoopOrderRuntime.replayCoopOrderCompensation(req.params.compensationId, actor, {
+        sharedFundCreditHandler: ({ receipt, contract_id: contractId }) => {
+          const fundActor = receipt?.owner_username
+            ? {
+                username: receipt.owner_username,
+                displayName: receipt.owner_display_name || receipt.owner_username,
+              }
+            : actor;
+          return taoyuanCohabitationRuntime.creditCohabitationOrderIncome(contractId, receipt, fundActor);
+        },
+      });
+      await appendAdminAuditLog(req, 'retry_coop_compensation', result.order?.owner_username || '', {
+        compensation_id: req.params.compensationId,
+        order_id: result.order?.id || '',
+        stage_id: result.stage?.id || '',
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '重试补偿失败' });
+    }
+  });
 });
 
 router.post('/admin/taoyuan/orders/:orderId/rollback', userAdminAuth, async (req, res) => {

@@ -1613,7 +1613,7 @@ async function confirmCoopOrderStageDelivery(orderId, stageId, actor = {}, settl
   };
 }
 
-async function replayCoopOrderCompensation(compensationId, actor = {}) {
+async function replayCoopOrderCompensation(compensationId, actor = {}, settlementOptions = {}) {
   const actorUsername = String(actor.username || '').trim();
   if (!actorUsername) throw createError('请先登录后再重试补偿', 401);
 
@@ -1637,9 +1637,16 @@ async function replayCoopOrderCompensation(compensationId, actor = {}) {
     attempt_count: compensation.attempt_count + 1,
     updated_at: now,
   });
+  const replaySettlementOptions = {
+    reward_route: receipt.reward_route,
+    cohabitation_contract_id: receipt.cohabitation_contract_id,
+    sharedFundCreditHandler: settlementOptions.sharedFundCreditHandler,
+  };
+  let sharedFundCredit = null;
 
   try {
-    const rewardOutcome = await applyRewardByReceipt(store, receipt, specialtyType);
+    const rewardOutcome = await applyRewardByReceipt(store, receipt, specialtyType, replaySettlementOptions);
+    sharedFundCredit = rewardOutcome.shared_fund_credit || null;
     nextCompensation = normalizeCompensationRecord({
       ...nextCompensation,
       status: 'resolved',
@@ -1650,6 +1657,11 @@ async function replayCoopOrderCompensation(compensationId, actor = {}) {
       ...receipt,
       status: 'confirmed',
       reward_result: rewardOutcome.reward_result,
+      reward_route: rewardOutcome.reward_route || receipt.reward_route,
+      cohabitation_contract_id: rewardOutcome.cohabitation_contract_id || '',
+      shared_fund_ledger_id: rewardOutcome.shared_fund_ledger_id || '',
+      compensation_id: '',
+      confirmed_at: now,
       updated_at: now,
     });
 
@@ -1695,6 +1707,7 @@ async function replayCoopOrderCompensation(compensationId, actor = {}) {
       receipt: nextReceipt,
       order: nextOrder,
       stage: nextStage,
+      shared_fund_credit: sharedFundCredit,
     };
   } catch (error) {
     nextCompensation = normalizeCompensationRecord({

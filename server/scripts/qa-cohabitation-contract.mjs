@@ -1284,6 +1284,102 @@ assert.equal(repeatedSharedFundOrderIncome.idempotent, true, 'shared fund order 
 assert.equal(repeatedSharedFundOrderIncome.fund.balance, 65, 'shared fund order income helper should not credit balance twice')
 assert.ok(repeatedSharedFundOrderIncome.contract.audit_log.find(entry => entry.action === 'fund_order_income_credited'), 'shared fund order income should be audited')
 
+const partnerMoneyBeforeSharedFundCompensationReplay = readGameplayData(partner)?.player?.money
+const sharedFundReplayOrder = await coopOrderRuntime.createCoopOrder({
+  title: '家族基金补偿',
+  description: '用于验证公共订单共同基金补偿重放',
+  order_type: 'material_help',
+  scope: 'public',
+  target_username: partner,
+  deadline_at: Math.floor(Date.now() / 1000) + 3600,
+  reward_type: 'money',
+  reward_value: 35,
+  reward_label: '共同基金补偿',
+}, actor(owner))
+await coopOrderRuntime.acceptCoopOrder(sharedFundReplayOrder.id, actor(partner))
+await coopOrderRuntime.submitCoopOrderDelivery(sharedFundReplayOrder.id, {
+  result_note: '伙伴完成了共同基金补偿订单',
+}, actor(partner))
+const sharedFundReplayPending = await coopOrderRuntime.confirmCoopOrderDelivery(sharedFundReplayOrder.id, actor(owner), {
+  reward_route: 'shared_fund',
+  cohabitation_contract_id: familyContract.contract.id,
+  sharedFundCreditHandler: () => {
+    throw new Error('qa forced shared fund credit failure')
+  },
+})
+assert.equal(sharedFundReplayPending.receipt.status, 'compensation_pending', 'failed shared fund order income should enter compensation queue')
+assert.equal(sharedFundReplayPending.receipt.reward_route, 'shared_fund', 'failed shared fund order income should preserve receipt route')
+assert.equal(sharedFundReplayPending.receipt.cohabitation_contract_id, familyContract.contract.id, 'failed shared fund order income should preserve contract id')
+assert.equal(sharedFundReplayPending.compensation.status, 'pending', 'failed shared fund order income should create pending compensation')
+assert.equal((await runtime.getCohabitationFund(familyContract.contract.id, actor(owner))).fund.balance, 65, 'failed shared fund order income should not credit fund before replay')
+assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeSharedFundCompensationReplay, 'failed shared fund order income should not pay partner personal save')
+const sharedFundReplayResolved = await coopOrderRuntime.replayCoopOrderCompensation(sharedFundReplayPending.compensation.id, actor(owner), {
+  sharedFundCreditHandler: ({ receipt, contract_id: contractId }) =>
+    runtime.creditCohabitationOrderIncome(contractId, receipt, actor(owner)),
+})
+assert.equal(sharedFundReplayResolved.compensation.status, 'resolved', 'shared fund order income compensation replay should resolve compensation')
+assert.equal(sharedFundReplayResolved.receipt.status, 'confirmed', 'shared fund order income compensation replay should confirm receipt')
+assert.equal(sharedFundReplayResolved.receipt.reward_route, 'shared_fund', 'shared fund order income compensation replay should keep shared fund route')
+assert.equal(sharedFundReplayResolved.receipt.cohabitation_contract_id, familyContract.contract.id, 'shared fund order income compensation replay should keep target contract')
+assert.ok(sharedFundReplayResolved.receipt.shared_fund_ledger_id, 'shared fund order income compensation replay should store fund ledger id')
+assert.equal(sharedFundReplayResolved.shared_fund_credit.fund_ledger_entry.action, 'order_income', 'shared fund replay should write order_income ledger')
+assert.equal(sharedFundReplayResolved.shared_fund_credit.fund_ledger_entry.amount, 35, 'shared fund replay ledger should keep compensation amount')
+assert.equal(sharedFundReplayResolved.shared_fund_credit.shared_fund.balance_before, 65, 'shared fund replay should read balance before replay')
+assert.equal(sharedFundReplayResolved.shared_fund_credit.shared_fund.balance_after, 100, 'shared fund replay should credit balance once')
+assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeSharedFundCompensationReplay, 'shared fund replay should still not pay partner personal save')
+const repeatedSharedFundReplayCredit = await runtime.creditCohabitationOrderIncome(
+  familyContract.contract.id,
+  sharedFundReplayResolved.receipt,
+  actor(owner)
+)
+assert.equal(repeatedSharedFundReplayCredit.idempotent, true, 'shared fund replay credit should remain idempotent')
+assert.equal(repeatedSharedFundReplayCredit.fund.balance, 100, 'shared fund replay credit should not double credit after replay')
+
+const partnerMoneyBeforeAdminSharedFundCompensationReplay = readGameplayData(partner)?.player?.money
+const adminSharedFundReplayOrder = await coopOrderRuntime.createCoopOrder({
+  title: 'admin shared fund replay',
+  description: 'verify admin retry keeps shared fund settlement actor',
+  order_type: 'material_help',
+  scope: 'public',
+  target_username: partner,
+  deadline_at: Math.floor(Date.now() / 1000) + 3600,
+  reward_type: 'money',
+  reward_value: 15,
+  reward_label: 'admin shared fund compensation',
+}, actor(owner))
+await coopOrderRuntime.acceptCoopOrder(adminSharedFundReplayOrder.id, actor(partner))
+await coopOrderRuntime.submitCoopOrderDelivery(adminSharedFundReplayOrder.id, {
+  result_note: 'partner completed admin shared fund compensation order',
+}, actor(partner))
+const adminSharedFundReplayPending = await coopOrderRuntime.confirmCoopOrderDelivery(adminSharedFundReplayOrder.id, actor(owner), {
+  reward_route: 'shared_fund',
+  cohabitation_contract_id: familyContract.contract.id,
+  sharedFundCreditHandler: () => {
+    throw new Error('qa forced admin shared fund credit failure')
+  },
+})
+assert.equal(adminSharedFundReplayPending.receipt.status, 'compensation_pending', 'admin shared fund replay setup should enter compensation queue')
+assert.equal((await runtime.getCohabitationFund(familyContract.contract.id, actor(owner))).fund.balance, 100, 'admin shared fund replay setup should not credit fund before retry')
+const adminSharedFundReplayResolved = await coopOrderRuntime.replayCoopOrderCompensation(
+  adminSharedFundReplayPending.compensation.id,
+  {
+    ...actor('qa_admin'),
+    role: 'admin',
+  },
+  {
+    sharedFundCreditHandler: ({ receipt, contract_id: contractId }) =>
+      runtime.creditCohabitationOrderIncome(contractId, receipt, actor(receipt.owner_username)),
+  }
+)
+assert.equal(adminSharedFundReplayResolved.compensation.status, 'resolved', 'admin shared fund compensation replay should resolve compensation')
+assert.equal(adminSharedFundReplayResolved.receipt.status, 'confirmed', 'admin shared fund compensation replay should confirm receipt')
+assert.equal(adminSharedFundReplayResolved.receipt.reward_route, 'shared_fund', 'admin shared fund compensation replay should keep shared fund route')
+assert.equal(adminSharedFundReplayResolved.shared_fund_credit.fund_ledger_entry.action, 'order_income', 'admin shared fund replay should write order_income ledger')
+assert.equal(adminSharedFundReplayResolved.shared_fund_credit.fund_ledger_entry.actor_username, owner, 'admin shared fund replay should credit as receipt owner for member validation')
+assert.equal(adminSharedFundReplayResolved.shared_fund_credit.shared_fund.balance_before, 100, 'admin shared fund replay should read balance before admin retry')
+assert.equal(adminSharedFundReplayResolved.shared_fund_credit.shared_fund.balance_after, 115, 'admin shared fund replay should credit balance once')
+assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeAdminSharedFundCompensationReplay, 'admin shared fund replay should not pay partner personal save')
+
 const partnerTeaBeforeFamilyDeposit = getInventoryItemQuantity(partner, 'tea')
 const familyWarehouseBeforeDeposit = await runtime.getCohabitationWarehouse(familyContract.contract.id, actor(partner))
 assert.equal(familyWarehouseBeforeDeposit.warehouse.summary.family_manor_warehouse, true, 'family warehouse snapshot should mark family manor mode')

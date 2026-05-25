@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0525 公共订单入共同基金补偿重放
+- 服务端补偿重试会从订单结算凭证恢复 `reward_route=shared_fund` 与 `cohabitation_contract_id`，继续写共同基金 `order_income` ledger。
+- 玩家 / 管理端补偿重试路由进入交换锁并注入共同基金入账 handler；管理端重试保留管理审计，基金入账仍以凭证发布人作为契约成员校验 actor。
+- 成功后清除补偿、回填基金 ledger id，不改接单人个人铜钱。
+- 专项 QA 覆盖首次入账失败进入补偿队列、重放后余额只增加一次、个人铜钱不双发、管理端共享基金重放和重复 credit helper 幂等。
+- 本轮验证：`node --check server/src/taoyuanCoopOrderRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix server run qa:online-smoke`。
+
 ### 0525 公共订单入共同基金前端确认入口
 - 在线委托“我的发布”确认交付时，铜钱奖励可选择结算给接单人个人铜钱或家族 / 合伙共同基金。
 - 前端 API / store 会向整单和阶段确认接口传 `reward_route` 与 `cohabitation_contract_id`，并在凭证中读回共同基金结算去向与 ledger。
