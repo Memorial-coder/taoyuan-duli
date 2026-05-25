@@ -1238,6 +1238,22 @@ const FEED_ITEMS: ItemDef[] = [
     description: '含有草药精华的饲料，喂食后必定治愈疾病。',
     sellPrice: 60,
     edible: false
+  },
+  {
+    id: 'sweet_potato_filling_feed',
+    name: '红薯饱腹粮',
+    category: 'material',
+    description: '红薯与干草磨成的厚实宠物粮，适合给宠物补足耐力和护院精神。',
+    sellPrice: 70,
+    edible: false
+  },
+  {
+    id: 'pumpkin_pet_rice',
+    name: '南瓜宠物饭',
+    category: 'material',
+    description: '南瓜和稻米拌成的绵甜宠物饭，适合猫狗日常亲密喂食。',
+    sellPrice: 75,
+    edible: false
   }
 ]
 
@@ -1642,6 +1658,8 @@ const ITEM_SOURCE_OVERRIDES: Record<string, string> = {
   silk_cloth: '织布机加工',
   alpaca_cloth: '织布机加工',
   felt: '织布机加工',
+  sweet_potato_filling_feed: '石磨加工',
+  pumpkin_pet_rice: '石磨加工',
   fish_feed: '商店购买 / 磨坊加工（干草×5）/ 回收站（垃圾×4）/ 旅行商人',
   water_purifier: '商店购买 / 旅行商人',
   // 采集类

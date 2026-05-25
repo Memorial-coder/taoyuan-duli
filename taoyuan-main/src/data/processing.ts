@@ -1760,6 +1760,30 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     processingDays: 2,
     description: '将草药研磨成活力饲料。'
   },
+  {
+    id: 'mill_sweet_potato_filling_feed',
+    machineType: 'mill',
+    name: '红薯饱腹粮',
+    inputItemId: 'sweet_potato',
+    inputQuantity: 2,
+    extraInputs: [{ itemId: 'hay', quantity: 2 }],
+    outputItemId: 'sweet_potato_filling_feed',
+    outputQuantity: 2,
+    processingDays: 1,
+    description: '将红薯与干草磨成厚实饱腹粮，给红薯一个宠物耐力出口。'
+  },
+  {
+    id: 'mill_pumpkin_pet_rice',
+    machineType: 'mill',
+    name: '南瓜宠物饭',
+    inputItemId: 'pumpkin',
+    inputQuantity: 1,
+    extraInputs: [{ itemId: 'rice', quantity: 1 }],
+    outputItemId: 'pumpkin_pet_rice',
+    outputQuantity: 2,
+    processingDays: 1,
+    description: '将南瓜与稻米拌磨成绵甜宠物饭，给南瓜一个稳定亲密喂食出口。'
+  },
   // 鱼饲料
   {
     id: 'mill_fish_feed',

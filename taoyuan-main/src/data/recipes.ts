@@ -367,6 +367,24 @@ export const RECIPES: RecipeDef[] = [
     requiredSkill: { type: 'farming', level: 4 },
     description: '莲心粉带清苦，芝麻粉添香，适合作为节前安神茶点或清心丹之外的料理出口。'
   },
+  {
+    id: 'pumpkin_harvest_cauldron',
+    name: '丰收南瓜大锅羹',
+    ingredients: [
+      { itemId: 'pumpkin_preserve', quantity: 1 },
+      { itemId: 'sweet_potato', quantity: 1 },
+      { itemId: 'rice', quantity: 1 },
+      { itemId: 'firewood', quantity: 1 }
+    ],
+    effect: {
+      staminaRestore: 48,
+      healthRestore: 22,
+      buff: { type: 'farming', value: 10, description: '农耕体力消耗-10%（当天）' }
+    },
+    unlockSource: '加工链第三批',
+    requiredSkill: { type: 'farming', level: 4 },
+    description: '南瓜酱打底，红薯和稻米熬成大锅羹，适合作为秋收、家庭餐桌和村社慰劳饭的料理出口。'
+  },
 
   // ==================== 新增初始食谱 (8) ====================
   {

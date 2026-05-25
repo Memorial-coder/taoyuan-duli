@@ -195,6 +195,13 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
     pushDetail(details, '当前限制', '第一批先进入加工与图鉴链路，暂不直接食用或叠加生效')
   }
 
+  const petFeed = getPetSpecialFeedByItemId(item.id)
+  if (petFeed) {
+    pushDetail(details, '宠物口味', getPetSpecialFeedTasteLabel(petFeed.taste))
+    pushDetail(details, '宠物偏好', petFeed.preferredPetTypes.map(type => (type === 'dog' ? '田犬' : '猫')).join('、'))
+    pushDetail(details, '宠物反馈', petFeed.description)
+  }
+
   return details
 }
 
@@ -355,6 +362,18 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
 
   getItemProducedBy(item.id).forEach(entry => keywords.push(entry))
   getItemUsedIn(item.id).forEach(entry => keywords.push(entry))
+  const petFeed = getPetSpecialFeedByItemId(item.id)
+  if (petFeed) {
+    keywords.push(
+      '宠物',
+      '宠物粮',
+      '特别喂食',
+      petFeed.label,
+      petFeed.shortLabel,
+      getPetSpecialFeedTasteLabel(petFeed.taste),
+      petFeed.description,
+    )
+  }
 
   return uniqueStrings(keywords)
 }

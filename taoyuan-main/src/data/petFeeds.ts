@@ -141,6 +141,44 @@ export const PET_SPECIAL_FEEDS: PetSpecialFeedDef[] = [
     }
   },
   {
+    id: 'sweet_potato_filling_feed_bowl',
+    itemId: 'sweet_potato_filling_feed',
+    label: '红薯饱腹粮',
+    shortLabel: '红薯饱腹粮',
+    taste: 'filling',
+    preferredPetTypes: ['dog'],
+    friendshipGain: 9,
+    preferredBonus: 3,
+    rareFindChance: 0.04,
+    rareFindCooldownDays: 5,
+    rareFindPool: ['bamboo_shoot', 'herb', 'pine_cone'],
+    description: '加工后的饱腹宠物粮，狗类更容易触发护院、报信和耐力反馈。',
+    feedback: {
+      dog: '红薯饱腹粮让田犬一早就绕着田埂巡视，回来时还叼着一点可用的小物。',
+      cat: '猫吃过红薯饱腹粮后，趴在窗边睡得很沉，醒来时精神好了不少。',
+      default: '宠物吃过红薯饱腹粮后，第二天显得更耐心也更有精神。'
+    }
+  },
+  {
+    id: 'pumpkin_pet_rice_bowl',
+    itemId: 'pumpkin_pet_rice',
+    label: '南瓜宠物饭',
+    shortLabel: '南瓜宠物饭',
+    taste: 'sweet',
+    preferredPetTypes: ['cat', 'dog'],
+    friendshipGain: 9,
+    preferredBonus: 2,
+    rareFindChance: 0.03,
+    rareFindCooldownDays: 5,
+    rareFindPool: ['wild_berry', 'pine_cone', 'seed_pumpkin'],
+    description: '加工后的绵甜宠物饭，给猫狗都提供更稳定的亲密和来客反馈。',
+    feedback: {
+      dog: '南瓜宠物饭让田犬一路跟到屋檐下，像是把今天的院子都认认真真看过了。',
+      cat: '猫吃过南瓜宠物饭后，主动把脸贴到你手边，像是心情格外安稳。',
+      default: '宠物吃过南瓜宠物饭后，第二天更愿意待在你身边。'
+    }
+  },
+  {
     id: 'peach_mood_bowl',
     itemId: 'peach',
     label: '桃子心情餐',
@@ -194,8 +232,13 @@ export const isPetSpecialFeedPreferred = (feed: PetSpecialFeedDef, petType: PetT
 
 export const getPetSpecialFeedFeedback = (feed: PetSpecialFeedDef, petType: PetType): string => feed.feedback[petType] || feed.feedback.default
 
+const isSpecialFeedItemEnabled = (itemId: string): boolean => {
+  const cropProfile = getCropUseProfile(itemId)
+  return cropProfile ? cropProfile.tags.includes('pet_feed') : true
+}
+
 export const getAvailablePetSpecialFeeds = (getCount: (itemId: string) => number): PetSpecialFeedOption[] =>
-  PET_SPECIAL_FEEDS.filter(feed => getCount(feed.itemId) > 0 && getCropUseProfile(feed.itemId)?.tags.includes('pet_feed')).map(feed => ({
+  PET_SPECIAL_FEEDS.filter(feed => getCount(feed.itemId) > 0 && isSpecialFeedItemEnabled(feed.itemId)).map(feed => ({
     ...feed,
     count: getCount(feed.itemId)
   }))
