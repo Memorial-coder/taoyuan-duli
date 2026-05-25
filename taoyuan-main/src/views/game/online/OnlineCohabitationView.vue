@@ -1202,8 +1202,11 @@
                   <p v-if="entry.real_build_demolition_execution_requested_at || entry.real_build_demolition_execution_state === 'pending_personal_save_write'">
                     执行请求：{{ entry.real_build_demolition_execution_requested_by_display_name || entry.real_build_demolition_execution_requested_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_execution_requested_at) }} · {{ familyBuildingDemolitionExecutionLabel(entry.real_build_demolition_execution_state) }}
                   </p>
+                  <p v-if="entry.real_build_demolition_personal_save_written_at || entry.real_build_demolition_execution_state === 'executed'">
+                    存档写回：{{ entry.real_build_demolition_personal_save_written_by_display_name || entry.real_build_demolition_personal_save_written_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_personal_save_written_at) }} · {{ entry.real_build_demolition_personal_save_receipts?.length || 0 }} 份回执
+                  </p>
                 </div>
-                <div class="mt-2 grid gap-2 md:grid-cols-10">
+                <div class="mt-2 grid gap-2 md:grid-cols-11">
                   <button
                     class="online-action-btn online-action-btn--compact justify-center"
                     type="button"
@@ -1303,6 +1306,16 @@
                   >
                     <ShieldCheck :size="12" />
                     请求执行
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canWriteFamilyBuildingRealDemolitionPersonalSave(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-real-demolition-write-personal-save-${entry.id}`"
+                    @click="writeFamilyBuildingRealDemolitionPersonalSave(entry)"
+                  >
+                    <CheckCircle2 :size="12" />
+                    写回存档
                   </button>
                 </div>
               </div>
@@ -2863,6 +2876,16 @@
     entry.real_build_demolished !== true &&
     entry.real_build_demolition_execution_state !== 'pending_personal_save_write' &&
     !entry.real_build_demolition_execution_request_idempotency_key
+  const canWriteFamilyBuildingRealDemolitionPersonalSave = (entry: CohabitationFamilyBuildingLedgerEntry) =>
+    cohabitationStore.canOpenSelectedContract &&
+    entry.real_build_demolition_review_state === 'approved_for_execute' &&
+    Boolean(entry.real_build_demolition_review_idempotency_key) &&
+    entry.real_build_demolition_execution_state === 'pending_personal_save_write' &&
+    Boolean(entry.real_build_demolition_execution_request_idempotency_key) &&
+    entry.real_build_applied === true &&
+    Boolean(entry.real_build_ref) &&
+    entry.real_build_demolished !== true &&
+    !entry.real_build_demolition_personal_save_write_idempotency_key
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -3274,6 +3297,25 @@
     }
   }
 
+  const writeFamilyBuildingRealDemolitionPersonalSave = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    try {
+      const result = await cohabitationStore.writeFamilyBuildingRealDemolitionPersonalSave({
+        building_ledger_id: entry.id,
+        memo: `前端写回家族建筑真实拆除个人存档：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-real-demolition-write-personal-save-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      const receiptCount = result?.demolition_execution?.receipt_count ?? result?.receipts?.length ?? entry.real_build_demolition_personal_save_receipts?.length ?? 0
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_written
+        ? `该真实拆除个人存档已经写回，已读回 ${receiptCount} 份回执`
+        : `已写回真实拆除个人存档回执 ${receiptCount} 份，未改共同基金、仓库、个人铜币或背包`
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '写回家族建筑真实拆除个人存档失败'
+    }
+  }
+
   const toggleMemberPermission = async (
     member: CohabitationMember & { permissions: Record<string, Record<string, boolean>> },
     option: typeof permissionToggleOptions[number]
@@ -3614,6 +3656,7 @@
       family_building_real_demolition_approved: '真实拆除复核批准',
       family_building_real_demolition_rejected: '真实拆除复核驳回',
       family_building_real_demolition_execution_requested: '真实拆除执行请求',
+      family_building_real_demolition_personal_save_written: '真实拆除存档写回',
       permissions_updated: '权限更新',
       family_role_updated: '家族职位更新',
       separation_preview_created: '分居预览创建',
@@ -3749,6 +3792,10 @@
     }
     if (entry.action === 'family_building_real_demolition_execution_requested') {
       return '已请求真实拆除执行，只进入个人存档待写回安全阀，不删除建筑或改共同资产'
+    }
+    if (entry.action === 'family_building_real_demolition_personal_save_written') {
+      const count = typeof detail.receipt_count === 'number' ? detail.receipt_count : 0
+      return `已写回真实拆除个人存档回执 ${count} 份，不改共同基金、仓库、个人铜币或背包`
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0

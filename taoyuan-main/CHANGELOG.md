@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人存档写回前端入口
+- 前端 API / store 接入 `/family-buildings/real-demolition/write-personal-save`，共同庄园建筑流水卡片新增“写回存档”按钮。
+- 按钮按 `approved_for_execute`、执行请求记录、`pending_personal_save_write`、真实落账证据、未真实拆除、未写回幂等键和契约开启状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。
+- 建筑流水卡片展示存档写回人、写回时间和回执份数，共同日志新增“真实拆除存档写回”读回；本轮仍只触发服务端回执写回安全阀，不直接删除个人房屋 / 建筑主状态，不改共同基金 / 共同仓库数量、不写个人铜币或背包。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0526 家族建筑真实拆除个人存档写回后端安全阀
 - 服务端新增 `/family-buildings/real-demolition/write-personal-save`，要求建筑流水已 `approved_for_execute`、已请求执行并处于 `pending_personal_save_write`、具备真实建造落账证据，并保留 `demolish_requires_both` 安全阀。
 - 成功后只向已接受成员个人存档追加 `onlineCohabitation.real_build_demolition_receipts` 回执，把建筑流水推进到 `executed` / `real_build_demolished=true`，清除个人存档写回待办并记录审计。
