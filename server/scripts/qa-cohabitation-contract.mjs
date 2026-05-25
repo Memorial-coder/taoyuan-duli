@@ -2271,6 +2271,52 @@ assert.equal(duplicateChildArrangement.execution_ledger.id, childArrangement.exe
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterChildArrangement, 'idempotent child arrangement should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterChildArrangement, 'idempotent child arrangement should not rewrite partner save')
 
+await assert.rejects(
+  () => runtime.writeSeparationPersonalFamilyReceipts(created.contract.id, previewResult.preview.id, {
+    memo: 'wrong personal family receipt hash',
+    plot_return_manifest_hash: 'f'.repeat(64),
+    execution_ledger_id: childArrangement.execution_ledger.id,
+    idempotency_key: 'qa-separation-personal-family-receipts-wrong-hash',
+  }, actor(owner)),
+  /hash 不匹配/,
+  'personal family receipts should reject mismatched manifest hash'
+)
+
+const ownerBoundaryBeforeFamilyReceipts = pickPersonalStoryBoundaryState(owner)
+const partnerBoundaryBeforeFamilyReceipts = pickPersonalStoryBoundaryState(partner)
+const personalFamilyReceipts = await runtime.writeSeparationPersonalFamilyReceipts(created.contract.id, previewResult.preview.id, {
+  memo: 'write personal family receipt only',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: childArrangement.execution_ledger.id,
+  idempotency_key: 'qa-separation-personal-family-receipts',
+}, actor(owner))
+assert.equal(personalFamilyReceipts.idempotent, false, 'first personal family receipt write should not be idempotent')
+assert.equal(personalFamilyReceipts.execution_ledger.status, 'personal_family_receipts_written', 'personal family receipts should advance execution ledger status')
+assert.equal(personalFamilyReceipts.execution_ledger.personal_family_receipts_written, true, 'personal family receipts should mark ledger written')
+assert.equal(personalFamilyReceipts.preview.confirmation_state.execution_request.status, 'personal_family_receipts_written', 'execution request should advance to personal-family-receipts-written')
+assert.equal(personalFamilyReceipts.receipts.length, 2, 'personal family receipt write should create one receipt per accepted member')
+assert.ok(personalFamilyReceipts.receipts.every(receipt => receipt.arrangement_state === 'personal_family_receipt_recorded_only'), 'personal family receipts should stay receipt-only')
+assert.ok(!personalFamilyReceipts.execution_ledger.next_required_operations.includes('write_personal_family_receipts'), 'personal family receipt write should close family receipt follow-up')
+assert.ok(personalFamilyReceipts.execution_ledger.next_required_operations.includes('split_decorations'), 'personal family receipt write should keep decoration split follow-up')
+assert.ok(personalFamilyReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_family_receipts_written' && entry.idempotency_key === 'qa-separation-personal-family-receipts'), 'personal family receipt write should be audited')
+assert.deepEqual(pickPersonalStoryBoundaryState(owner), ownerBoundaryBeforeFamilyReceipts, 'personal family receipt write should not change owner money inventory farm npc home family or children state')
+assert.deepEqual(pickPersonalStoryBoundaryState(partner), partnerBoundaryBeforeFamilyReceipts, 'personal family receipt write should not change partner money inventory farm npc home family or children state')
+assert.ok((readGameplayData(owner)?.onlineCohabitation?.family_receipts || []).some(receipt => receipt.execution_ledger_id === childArrangement.execution_ledger.id), 'owner save should receive personal family receipt')
+assert.ok((readGameplayData(partner)?.onlineCohabitation?.family_receipts || []).some(receipt => receipt.execution_ledger_id === childArrangement.execution_ledger.id), 'partner save should receive personal family receipt')
+
+const ownerRawAfterFamilyReceipts = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawAfterFamilyReceipts = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const duplicateFamilyReceipts = await runtime.writeSeparationPersonalFamilyReceipts(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate personal family receipt only',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: childArrangement.execution_ledger.id,
+  idempotency_key: 'qa-separation-personal-family-receipts',
+}, actor(owner))
+assert.equal(duplicateFamilyReceipts.idempotent, true, 'same personal family receipt idempotency key should return existing receipts')
+assert.equal(duplicateFamilyReceipts.execution_ledger.id, personalFamilyReceipts.execution_ledger.id, 'idempotent personal family receipt write should keep ledger id')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterFamilyReceipts, 'idempotent personal family receipt write should not rewrite owner save again')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterFamilyReceipts, 'idempotent personal family receipt write should not rewrite partner save again')
+
 const partnerMoneyBeforeMediumFundTopUp = readGameplayData(partner)?.player?.money
 const fundBeforeMediumFundTopUp = await runtime.getCohabitationFund(created.contract.id, actor(owner))
 const mediumFundTopUp = await runtime.contributeCohabitationFund(created.contract.id, {

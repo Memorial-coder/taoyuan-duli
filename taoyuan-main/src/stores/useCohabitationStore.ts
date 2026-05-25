@@ -36,6 +36,7 @@ import {
   updateCohabitationFamilyRole,
   updateCohabitationPermissions,
   writeCohabitationSeparationPersonalFarmReturns,
+  writeCohabitationSeparationPersonalFamilyReceipts,
   writeCohabitationSeparationPersonalStoryReceipts,
   withdrawCohabitationWarehouseItem,
   type CohabitationContract,
@@ -56,6 +57,7 @@ import {
   type CohabitationSeparationExecutionRequestPayload,
   type CohabitationSeparationFamilyStoryResolvePayload,
   type CohabitationSeparationPersonalFarmWritePayload,
+  type CohabitationSeparationPersonalFamilyReceiptsPayload,
   type CohabitationSeparationPersonalStoryReceiptsPayload,
   type CohabitationSeparationPreviewConfirmPayload,
   type CohabitationSeparationPreviewPayload,
@@ -476,6 +478,25 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const writeSeparationPersonalFamilyReceipts = async (previewId: string, payload: CohabitationSeparationPersonalFamilyReceiptsPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !previewId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await writeCohabitationSeparationPersonalFamilyReceipts(activeContractId.value, previewId, payload)
+      if (result?.contract) {
+        syncOverviewContract(result.contract)
+        await refreshSelectedDetails({ silent: true })
+      }
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '写入分居个人家庭回执失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const contributeSharedFund = async (payload: {
     amount: number
     purpose?: string
@@ -853,6 +874,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     resolveSeparationFamilyStory,
     writeSeparationPersonalStoryReceipts,
     resolveSeparationChildArrangement,
+    writeSeparationPersonalFamilyReceipts,
     contributeSharedFund,
     spendSharedFund,
     createSharedFundLargeSpendDraft,

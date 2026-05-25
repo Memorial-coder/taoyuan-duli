@@ -1055,6 +1055,10 @@ export interface CohabitationSeparationPreview {
       child_arrangement_resolved_at?: number
       child_arrangement_resolved_by?: string
       child_arrangement_resolution?: Record<string, unknown>
+      personal_family_receipts_written?: boolean
+      personal_family_receipts_written_at?: number
+      personal_family_receipts_written_by?: string
+      personal_family_receipts?: Array<Record<string, unknown>>
       execution_enabled?: boolean
       next_required_operations?: string[]
       [key: string]: unknown
@@ -1190,6 +1194,13 @@ export interface CohabitationSeparationChildArrangementResolvePayload {
   execution_ledger_id?: string
   plot_return_manifest_hash?: string
   arrangement_choice?: 'shared_care_pending_personal_saves' | 'owner_care_pending_personal_saves' | 'manual_family_review' | string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSeparationPersonalFamilyReceiptsPayload {
+  execution_ledger_id?: string
+  plot_return_manifest_hash?: string
   memo?: string
   idempotency_key: string
 }
@@ -1368,6 +1379,12 @@ export interface CohabitationSeparationChildArrangementResolveResponse extends C
   already_resolved?: boolean
 }
 
+export interface CohabitationSeparationPersonalFamilyReceiptsResponse extends CohabitationSeparationPreviewResponse {
+  execution_ledger?: Record<string, unknown>
+  receipts?: Array<Record<string, unknown>>
+  already_written?: boolean
+}
+
 const fetchCohabitationJson = async <T>(path: string, fallbackMessage: string): Promise<T | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
@@ -1502,6 +1519,14 @@ export const resolveCohabitationSeparationChildArrangement = async (contractId: 
     contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/resolve-child-arrangement`),
     payload as unknown as Record<string, unknown>,
     '记录分居孩子安排失败'
+  )
+}
+
+export const writeCohabitationSeparationPersonalFamilyReceipts = async (contractId: string, previewId: string, payload: CohabitationSeparationPersonalFamilyReceiptsPayload) => {
+  return postCohabitationJson<CohabitationSeparationPersonalFamilyReceiptsResponse>(
+    contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/write-personal-family-receipts`),
+    payload as unknown as Record<string, unknown>,
+    '写入分居个人家庭回执失败'
   )
 }
 

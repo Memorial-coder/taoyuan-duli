@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 分居个人家庭回执写入
+- 服务端新增 `/separation-previews/:previewId/write-personal-family-receipts`，要求孩子安排已记录、执行 ledger ID 可匹配且预览 `plot_return_manifest_hash` 未变。
+- 成功后只向各已接受成员个人存档追加 `onlineCohabitation.family_receipts` 回执，执行状态推进到 `personal_family_receipts_written`；重复请求幂等读回，不改个人孩子、家庭、NPC、农田、背包或铜币主状态。
+- 共同庄园总览新增“写回家庭”按钮，前端 API / store 接入新接口，按钮按 `child_arrangement_resolved`、执行 ledger、预览 hash、双方确认和服务端状态禁用；共同日志可读回家庭回执写入份数。
+- 本轮验证：`node --check server\src\taoyuanCohabitationRuntime.js`、`node --check server\src\routes\api.js`、`node --check server\scripts\qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 分居孩子安排前后端闭环
 - 服务端新增 `/separation-previews/:previewId/resolve-child-arrangement`，要求剧情拆分已记录、婚姻同居有孩子、执行 ledger ID 可匹配且预览 `plot_return_manifest_hash` 未变。
 - 成功后只在共同契约记录孩子安排方案、孩子数量、隐私边界和个人家庭存档 receipt 待办；重复请求幂等读回，不改个人孩子、家庭、NPC、农田、背包或铜币主状态。
