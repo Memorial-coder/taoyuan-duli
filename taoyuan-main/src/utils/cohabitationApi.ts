@@ -1378,6 +1378,7 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
   already_restored?: boolean
   already_compensated?: boolean
   already_requested?: boolean
+  already_approved?: boolean
   already_rejected?: boolean
   rollback?: {
     shared_fund_refunded?: boolean
@@ -1806,6 +1807,14 @@ export const requestCohabitationFamilyBuildingRealDemolitionReview = async (cont
     contractPath(contractId, '/family-buildings/real-demolition/request-review'),
     payload as unknown as Record<string, unknown>,
     '请求家族建筑真实拆除复核失败'
+  )
+}
+
+export const approveCohabitationFamilyBuildingRealDemolitionReview = async (contractId: string, payload: CohabitationFamilyBuildingLedgerPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/real-demolition/approve-review'),
+    payload as unknown as Record<string, unknown>,
+    '批准家族建筑真实拆除复核失败'
   )
 }
 

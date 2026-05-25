@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 家族建筑真实拆除复核批准前端入口
+- 前端 API / store 接入 `/family-buildings/real-demolition/approve-review`，共同庄园建筑流水卡片新增“批准复核”按钮。
+- 按钮按 `pending_manual_review`、复核请求幂等记录、未真实拆除、未处理幂等键和契约开启状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。
+- 建筑流水卡片沿用复核处理人、处理时间、批准待执行状态和说明，共同日志新增“真实拆除复核批准”读回；本轮仍不执行真实拆除、不改共同基金 / 共同仓库数量、不写个人铜币或背包。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 家族建筑真实拆除复核批准后端安全阀
 - 服务端新增 `/family-buildings/real-demolition/approve-review`，要求目标家族建筑流水已处于 `pending_manual_review`、具备复核请求幂等记录，并保留 `demolish_requires_both` 安全阀。
 - 成功后只把同一条 `family_building_ledger` 的复核状态改为 `approved_for_execute`，记录处理幂等键、处理人、时间、审计和批准说明，清除真实拆除人工复核待办并保留真实拆除执行待办。
