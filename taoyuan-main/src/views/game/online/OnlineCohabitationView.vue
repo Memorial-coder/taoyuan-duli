@@ -467,6 +467,7 @@
           <div class="mt-3 grid gap-2 text-xs">
             <p class="border border-accent/10 bg-black/10 p-2 text-muted">注资：{{ cohabitationStore.fund?.summary.contribution_enabled ? '已开放' : '未开放' }}</p>
             <p class="border border-accent/10 bg-black/10 p-2 text-muted">消费：{{ cohabitationStore.fund?.summary.spend_enabled ? '已开放' : '暂缓' }}</p>
+            <p class="border border-accent/10 bg-black/10 p-2 text-muted">中额支出：{{ cohabitationStore.fund?.summary.medium_spend_enabled ? '已开放' : '需权限' }}</p>
             <p class="border border-accent/10 bg-black/10 p-2 text-muted">大额确认：{{ cohabitationStore.fund?.summary.large_spend_requires_both ? '需要' : '未启用' }}</p>
           </div>
           <div class="mt-3 border border-accent/10 bg-black/10 p-2">
@@ -510,10 +511,30 @@
                 <span>{{ option.amount }} 文</span>
               </button>
             </div>
-            <p v-if="fundActionMessage" class="mt-2 text-[10px] leading-4" :class="fundActionOk ? 'text-emerald-200' : 'text-red-100'">
-              {{ fundActionMessage }}
-            </p>
           </div>
+          <div class="mt-3 border border-accent/10 bg-black/10 p-2">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-xs text-accent">中额预算</p>
+              <span class="text-[10px] text-muted">{{ cohabitationStore.fund?.permissions.can_spend_medium ? '已授权' : '需授权' }}</span>
+            </div>
+            <div class="mt-2 grid gap-2">
+              <button
+                v-for="option in fundMediumSpendOptions"
+                :key="option.purpose"
+                type="button"
+                class="online-action-btn online-action-btn--compact justify-between"
+                :disabled="!canUseMediumFundSpend(option) || cohabitationStore.actionLoading"
+                :data-testid="`online-cohabitation-fund-medium-${option.purpose}`"
+                @click="spendMediumSharedFund(option)"
+              >
+                <span>{{ option.label }}</span>
+                <span>{{ option.amount }} 文</span>
+              </button>
+            </div>
+          </div>
+          <p v-if="fundActionMessage" class="mt-3 text-[10px] leading-4" :class="fundActionOk ? 'text-emerald-200' : 'text-red-100'">
+            {{ fundActionMessage }}
+          </p>
         </div>
         <div class="game-panel-muted p-3">
           <div class="flex items-center justify-between gap-2">
@@ -526,7 +547,7 @@
               <div class="flex items-start justify-between gap-2">
                 <div class="min-w-0">
                   <p class="truncate text-xs text-text">{{ entry.actor_display_name || entry.actor_username }} · {{ entry.action }}</p>
-                  <p class="mt-1 text-[10px] text-muted">{{ entry.purpose || 'shared_fund' }} · {{ formatTime(entry.created_at) }}</p>
+                  <p class="mt-1 text-[10px] text-muted">{{ fundLedgerPurposeLabel(entry) }} · {{ formatTime(entry.created_at) }}</p>
                 </div>
                 <span class="text-xs text-accent">{{ entry.amount }}</span>
               </div>
@@ -1308,6 +1329,7 @@
     CohabitationAuditEntry,
     CohabitationContract,
     CohabitationFamilyRoleOption,
+    CohabitationFundLedgerEntry,
     CohabitationMember,
     CohabitationSharedPlot,
     CohabitationWarehouseItem,
@@ -1315,6 +1337,14 @@
 
   type CohabitationTabKey = 'overview' | 'map' | 'warehouse' | 'fund' | 'permissions' | 'orders' | 'reputation' | 'buildings' | 'relations' | 'visibility' | 'festivalSeats' | 'offline'
   type CohabitationTabMeta = { key: CohabitationTabKey; label: string; summary: string }
+  type FundMediumSpendPurpose = 'processing_materials' | 'building_materials'
+  type FundMediumSpendOption = {
+    label: string
+    purpose: FundMediumSpendPurpose
+    targetRef: string
+    amount: number
+    maxAmount: number
+  }
 
   const cohabitationStore = useCohabitationStore()
   const activeTab = ref<CohabitationTabKey>('overview')
@@ -1343,7 +1373,7 @@
     { key: 'overview', label: '总览', summary: '切换已建立的共同庄园契约，查看成员、状态和资产边界。' },
     { key: 'map', label: '地图', summary: '只读展示成员农田横向拼接、来源归属和暂缓写操作。' },
     { key: 'warehouse', label: '仓库', summary: '查看共同仓库物品与来源流水，普通物品可按权限取出或卖入共同基金。' },
-    { key: 'fund', label: '基金', summary: '查看共同基金余额和注资流水，个人铜币保持独立。' },
+    { key: 'fund', label: '基金', summary: '查看共同基金余额、注资和权限支出流水，个人铜币保持独立。' },
     { key: 'permissions', label: '权限', summary: '查看成员权限分组和强制安全阀，不在这里扩大高风险操作。' },
     { key: 'orders', label: '订单', summary: '只读查看家族订单预备路线、成员阶段权限和共同资产结算边界。' },
     { key: 'reputation', label: '声望', summary: '只读查看家族声望预览分、来源证据和未来奖励治理边界。' },
@@ -1605,6 +1635,7 @@
     { group: 'storage', key: 'withdraw_common', label: '取普通物' },
     { group: 'storage', key: 'sell_items', label: '卖出普通物' },
     { group: 'fund', key: 'spend_small', label: '小额基金' },
+    { group: 'fund', key: 'spend_medium', label: '中额基金' },
     { group: 'fund', key: 'auto_buy_seeds_feed', label: '自动买种子饲料' },
   ]
   const warehouseItemLabels: Record<string, string> = {
@@ -1719,6 +1750,30 @@
       purpose: 'feed_budget',
     },
   ]
+  const mediumFundSpendAmounts: Record<FundMediumSpendPurpose, number> = {
+    processing_materials: 300,
+    building_materials: 400,
+  }
+  const mediumFundSpendTargetRefs: Record<FundMediumSpendPurpose, string> = {
+    processing_materials: 'ui:processing_materials',
+    building_materials: 'ui:building_materials',
+  }
+  const isMediumFundSpendPurpose = (value: string): value is FundMediumSpendPurpose =>
+    value === 'processing_materials' || value === 'building_materials'
+  const fundMediumSpendOptions = computed<FundMediumSpendOption[]>(() =>
+    (cohabitationStore.fund?.summary.allowed_medium_spend_purposes ?? [])
+      .filter(purpose => isMediumFundSpendPurpose(purpose.id))
+      .map(purpose => {
+        const id = purpose.id as FundMediumSpendPurpose
+        return {
+          label: purpose.label,
+          purpose: id,
+          targetRef: mediumFundSpendTargetRefs[id],
+          amount: Math.min(mediumFundSpendAmounts[id], purpose.max_amount),
+          maxAmount: purpose.max_amount,
+        }
+      })
+  )
 
   const setActiveTab = (tab: string) => {
     activeTab.value = tab as CohabitationTabKey
@@ -1820,6 +1875,10 @@
   }
 
   const warehouseSellUnitPrice = (itemId: string) => warehouseSellPriceByItemId[itemId] ?? 0
+  const fundLedgerPurposeLabel = (entry: CohabitationFundLedgerEntry) => {
+    const label = entry.spend_purpose_label || entry.purpose || 'shared_fund'
+    return entry.spend_tier === 'medium' ? `${label} · 中额` : label
+  }
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -1910,6 +1969,11 @@
     cohabitationStore.fund?.summary.spend_enabled === true &&
     cohabitationStore.fund?.permissions.can_auto_buy_seeds_feed === true &&
     (cohabitationStore.fund?.balance ?? 0) >= option.amount
+  const canUseMediumFundSpend = (option: FundMediumSpendOption) =>
+    cohabitationStore.canOpenSelectedContract &&
+    cohabitationStore.fund?.summary.medium_spend_enabled === true &&
+    cohabitationStore.fund?.permissions.can_spend_medium === true &&
+    (cohabitationStore.fund?.balance ?? 0) >= option.amount
 
   const contributeToSharedFund = async () => {
     fundActionMessage.value = ''
@@ -1953,6 +2017,28 @@
       fundActionMessage.value = quantity > 0 ? `已到账：${option.label}` : '共同基金支出已提交'
     } catch (error) {
       fundActionMessage.value = error instanceof Error ? error.message : '共同基金购买失败'
+    }
+  }
+
+  const spendMediumSharedFund = async (option: FundMediumSpendOption) => {
+    fundActionMessage.value = ''
+    fundActionOk.value = false
+    try {
+      const result = await cohabitationStore.spendSharedFund({
+        amount: option.amount,
+        purpose: option.purpose,
+        target_ref: option.targetRef,
+        auto_pay: false,
+        memo: `共同庄园前端中额预算：${option.label}`,
+        idempotency_key: `ui-fund-medium-${option.purpose}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      fundActionOk.value = true
+      const balance = result?.fund?.balance
+      fundActionMessage.value = typeof balance === 'number'
+        ? `已支出 ${option.label} ${option.amount} 文，基金余额 ${balance} 文`
+        : `已支出 ${option.label} ${option.amount} 文`
+    } catch (error) {
+      fundActionMessage.value = error instanceof Error ? error.message : '共同基金中额支出失败'
     }
   }
 

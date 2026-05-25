@@ -90,6 +90,9 @@ expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-contrac
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-separation-preview-submit', '共同庄园总览应保留分居预览入口')
 expectContains('online/OnlineCohabitationView.vue', 'shop:seed_radish', '共同基金前端应保留萝卜种子白名单购买入口')
 expectContains('online/OnlineCohabitationView.vue', 'shop:seed_rice', '共同基金前端应保留水稻种子白名单购买入口')
+expectContains('online/OnlineCohabitationView.vue', 'processing_materials', '共同基金前端应提供中额加工材料预算入口')
+expectContains('online/OnlineCohabitationView.vue', 'building_materials', '共同基金前端应提供中额建材预算入口')
+expectContains('online/OnlineCohabitationView.vue', 'spend_medium', '共同庄园权限面板应提供中额基金开关')
 expectContains('online/OnlineCohabitationView.vue', '个人铜币不合并', '共同庄园入口应显示个人铜币不合并边界')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineCohabitationView.vue', /overflow-y-auto/g, 8, '共同庄园长列表应保留滚动边界')
 

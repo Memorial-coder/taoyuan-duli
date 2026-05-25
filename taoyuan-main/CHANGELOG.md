@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 共同基金中额前端入口与权限开关
+- 共同庄园基金页新增中额预算区，按服务端 `allowed_medium_spend_purposes` 显示加工材料和建材预算按钮。
+- 按钮继续复用 `/fund/spend`、CSRF、`idempotency_key`、余额、`medium_spend_enabled` 和 `can_spend_medium` 禁用；本轮只支出预算，不发物、不消耗真实材料、不改个人铜币。
+- 权限页新增中额基金开关，可通过既有 `/permissions` 写回 `fund.spend_medium`；基金流水会把 `spend_tier=medium` 显示为中额用途。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 共同基金中额加工建材支出
 - 服务端 `fund/spend` 新增 `processing_materials` 与 `building_materials` 两类中额用途，分别覆盖中额加工材料和中额建材预算。
 - 中额支出要求 `fund.spend_medium`，继续受余额、幂等键、交换锁、ledger、审计和补偿提示约束；不自动发物、不改个人铜币、不绕过大额双方确认。
