@@ -4146,6 +4146,15 @@ function normalizeLargeFundSpendConfirmPayload(payload = {}) {
   };
 }
 
+function normalizeSeparationPreviewConfirmPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('分居预览确认需要 idempotency_key，以防断线或重试时重复确认');
+  return {
+    idempotency_key: idempotencyKey,
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
 function normalizeLargeFundSpendExecutePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同基金大额草案执行扣款需要 idempotency_key，以防断线或重试时重复扣基金');
@@ -6876,6 +6885,169 @@ async function createSeparationPreview(contractId, payload = {}, actor = {}) {
   return { contract: toPublicContract(contract), preview, idempotent: false };
 }
 
+async function confirmSeparationPreview(contractId, previewId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const confirmRequest = normalizeSeparationPreviewConfirmPayload(payload);
+  const normalizedContractId = sanitizeText(contractId, 80);
+  const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
+  if (!normalizedPreviewId) throw createError('请指定要确认的分居预览');
+
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === normalizedContractId);
+  if (!contract) throw createError('同居契约不存在', 404);
+  if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
+  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效或分居处理中的契约可以确认分居预览', 409);
+
+  const member = (contract.members || []).find(entry =>
+    entry.status === 'accepted' && (
+      normalizeUsernameKey(entry.username) === normalizeUsernameKey(actorUsername)
+      || normalizeUsernameKey(entry.username_key) === normalizeUsernameKey(actorUsername)
+    )
+  );
+  if (!member) throw createError('只有已接受契约成员可以确认分居预览', 403);
+  const memberKey = normalizeUsernameKey(member.username_key || member.username || actorUsername);
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.separation_previews = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.map(normalizeSeparationPreview)
+    : [];
+  const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
+  if (previewIndex < 0) throw createError('分居预览不存在', 404);
+
+  const previousAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'separation_preview_confirmed'
+    && entry.idempotency_key === confirmRequest.idempotency_key
+    && entry.detail?.preview_id === normalizedPreviewId
+  );
+  if (previousAudit) {
+    return {
+      contract: toPublicContract(contract),
+      preview: normalizeSeparationPreview(contract.separation_previews[previewIndex]),
+      idempotent: true,
+      audit_entry: previousAudit,
+    };
+  }
+
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const now = nowSeconds();
+  if (preview.expires_at > 0 && preview.expires_at <= now && preview.state === 'draft') {
+    const expiredPreview = normalizeSeparationPreview({
+      ...preview,
+      state: 'expired',
+      confirmation_state: {
+        ...preview.confirmation_state,
+        state: 'expired',
+        expired_at: now,
+        can_execute_now: false,
+        execution_enabled: false,
+      },
+    });
+    contract.separation_previews[previewIndex] = expiredPreview;
+    appendAudit(contract, 'separation_preview_expired', actor, {
+      preview_id: expiredPreview.id,
+      preview_version: expiredPreview.version,
+      confirmation_required: true,
+      execution_enabled: false,
+    }, confirmRequest.idempotency_key);
+    saveContractStore(store);
+    throw createError('分居预览已过期，请重新生成预览', 409);
+  }
+  if (!['draft', 'confirmed'].includes(preview.state)) throw createError('该分居预览当前不能确认', 409);
+
+  const requiredMemberUsernames = Array.isArray(preview.confirmation_state.required_member_usernames)
+    && preview.confirmation_state.required_member_usernames.length > 0
+    ? preview.confirmation_state.required_member_usernames.map(normalizeUsername).filter(Boolean)
+    : (contract.members || []).filter(entry => entry.status === 'accepted').map(entry => normalizeUsername(entry.username)).filter(Boolean);
+  const requiredKeys = new Set(requiredMemberUsernames.map(normalizeUsernameKey).filter(Boolean));
+  if (!requiredKeys.has(memberKey)) throw createError('你不是该分居预览的必需确认成员', 403);
+
+  const confirmedBy = Array.isArray(preview.confirmation_state.confirmed_by)
+    ? preview.confirmation_state.confirmed_by.map(normalizeUsername).filter(Boolean)
+    : [];
+  const confirmedKeys = new Set(confirmedBy.map(normalizeUsernameKey).filter(Boolean));
+  if (confirmedKeys.has(memberKey)) {
+    return {
+      contract: toPublicContract(contract),
+      preview,
+      idempotent: true,
+      already_confirmed: true,
+      confirmation: {
+        confirmed_by: member.username,
+        all_members_confirmed: requiredMemberUsernames.every(username => confirmedKeys.has(normalizeUsernameKey(username))),
+        execution_enabled: false,
+      },
+    };
+  }
+
+  confirmedKeys.add(memberKey);
+  const nextConfirmedBy = requiredMemberUsernames.filter(username => confirmedKeys.has(normalizeUsernameKey(username)));
+  const pendingMemberUsernames = requiredMemberUsernames.filter(username => !confirmedKeys.has(normalizeUsernameKey(username)));
+  const allMembersConfirmed = pendingMemberUsernames.length === 0;
+  const confirmationEvent = {
+    actor_username: member.username,
+    actor_display_name: member.display_name || member.username,
+    confirmed_at: now,
+    idempotency_key: confirmRequest.idempotency_key,
+    memo: confirmRequest.memo,
+  };
+  const confirmationEvents = Array.isArray(preview.confirmation_state.confirmation_events)
+    ? preview.confirmation_state.confirmation_events
+    : [];
+  const nextPreview = normalizeSeparationPreview({
+    ...preview,
+    state: allMembersConfirmed ? 'confirmed' : 'draft',
+    confirmation_state: {
+      ...preview.confirmation_state,
+      state: allMembersConfirmed ? 'confirmed' : 'draft',
+      required_member_usernames: requiredMemberUsernames,
+      confirmed_by: nextConfirmedBy,
+      pending_member_usernames: pendingMemberUsernames,
+      confirmation_events: [...confirmationEvents, confirmationEvent],
+      all_members_confirmed: allMembersConfirmed,
+      ready_for_execution_request: allMembersConfirmed && now >= preview.confirm_after_at,
+      last_confirmed_by: member.username,
+      last_confirmed_at: now,
+      can_execute_now: false,
+      execution_enabled: false,
+      execution_policy: '本接口只记录成员确认；真实资产返还、个人存档写回和分居执行仍需后续独立接口。',
+    },
+    manual_execution_required: true,
+    requires_both_confirm: true,
+  });
+
+  contract.separation_previews[previewIndex] = nextPreview;
+  appendAudit(contract, 'separation_preview_confirmed', actor, {
+    preview_id: nextPreview.id,
+    preview_version: nextPreview.version,
+    confirmed_member_usernames: nextConfirmedBy,
+    pending_member_usernames: pendingMemberUsernames,
+    all_members_confirmed: allMembersConfirmed,
+    ready_for_execution_request: nextPreview.confirmation_state.ready_for_execution_request,
+    can_execute_now: false,
+    execution_enabled: false,
+    personal_money_merged: false,
+    asset_return_executed: false,
+  }, confirmRequest.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    preview: nextPreview,
+    idempotent: false,
+    already_confirmed: false,
+    confirmation: {
+      confirmed_by: member.username,
+      confirmed_at: now,
+      all_members_confirmed: allMembersConfirmed,
+      pending_member_usernames: pendingMemberUsernames,
+      ready_for_execution_request: nextPreview.confirmation_state.ready_for_execution_request,
+      execution_enabled: false,
+    },
+  };
+}
+
 module.exports = {
   RELATION_TYPE_DEFS,
   listCohabitationContracts,
@@ -6907,4 +7079,5 @@ module.exports = {
   createCohabitationContract,
   acceptCohabitationContract,
   createSeparationPreview,
+  confirmSeparationPreview,
 };

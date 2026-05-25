@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 分居预览双方确认记录
+- 共同庄园新增分居预览确认接口 `/separation-previews/:previewId/confirm`，已接受契约成员需带 `idempotency_key` 确认；重复请求不追加确认事件，已确认成员换键重试也不会重复写入。
+- 共同庄园总览新增“确认预览”入口，展示已确认 / 待确认成员；双方确认后预览进入 `confirmed`，但仍不执行资产返还、不写个人存档、不合并个人铜币。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 分居来源田区预览增强
 - 共同庄园分居预览新增逐地块 `plot_return_manifest` 和 64 位 manifest hash，记录每块田的来源归属、返还目标、源地块 ID、共享地图坐标、本地坐标和地块状态快照。
 - `qa-cohabitation-contract` 验证双方 32 块来源田区完整保留、稻米 / 茶叶地块状态快照可追溯、重复幂等预览保持同一 manifest hash，且不写回双方个人存档。

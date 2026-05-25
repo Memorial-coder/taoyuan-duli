@@ -263,6 +263,19 @@
                       {{ deferredOperationLabel(item) }}
                     </span>
                   </div>
+                  <div class="flex flex-wrap items-center justify-between gap-2 border border-accent/10 bg-bg/30 p-2 text-[10px] text-muted">
+                    <p>{{ separationPreviewConfirmationLabel }}</p>
+                    <button
+                      class="online-action-btn online-action-btn--compact justify-center"
+                      type="button"
+                      :disabled="!canConfirmSeparationPreview || cohabitationStore.actionLoading"
+                      data-testid="online-cohabitation-separation-preview-confirm"
+                      @click="confirmSeparationPreview"
+                    >
+                      <CheckCircle2 :size="12" />
+                      确认预览
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1614,6 +1627,29 @@
   const canCreateSeparationPreview = computed(() =>
     selectedContract.value?.status === 'active' && cohabitationStore.canOpenSelectedContract
   )
+  const separationPreviewConfirmedBy = computed(() =>
+    latestSeparationPreview.value?.confirmation_state?.confirmed_by ?? []
+  )
+  const separationPreviewPendingMembers = computed(() =>
+    latestSeparationPreview.value?.confirmation_state?.pending_member_usernames
+      ?? latestSeparationPreview.value?.confirmation_state?.required_member_usernames
+      ?? []
+  )
+  const canConfirmSeparationPreview = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
+    if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
+    if (!['draft', 'confirmed'].includes(String(preview.state))) return false
+    const currentKeys = currentActorKeys.value
+    return !separationPreviewConfirmedBy.value.some(username => currentKeys.has(normalizeActorKey(username)))
+  })
+  const separationPreviewConfirmationLabel = computed(() => {
+    const confirmed = separationPreviewConfirmedBy.value
+    const pending = separationPreviewPendingMembers.value
+    if (latestSeparationPreview.value?.confirmation_state?.all_members_confirmed) return '双方已确认，等待后续返还执行接口。'
+    if (confirmed.length) return `已确认：${confirmed.join('、')}；待确认：${pending.join('、') || '无'}`
+    return `待确认：${pending.join('、') || '契约成员'}`
+  })
   const selectedContractActorMember = computed(() => {
     const account = normalizeActorKey(cohabitationStore.currentAccount)
     if (!account || !selectedContract.value) return null
@@ -2111,6 +2147,23 @@
       separationPreviewReason.value = ''
     } catch (error) {
       separationActionMessage.value = error instanceof Error ? error.message : '生成分居预览失败'
+    }
+  }
+
+  const confirmSeparationPreview = async () => {
+    if (!latestSeparationPreview.value || !canConfirmSeparationPreview.value) return
+    separationActionMessage.value = ''
+    separationActionOk.value = false
+    try {
+      const result = await cohabitationStore.confirmSeparationPreview(latestSeparationPreview.value.id, {
+        idempotency_key: `ui-separation-preview-confirm-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      separationActionOk.value = true
+      separationActionMessage.value = result?.idempotent
+        ? '已读回已有分居预览确认'
+        : '已确认分居返还预览'
+    } catch (error) {
+      separationActionMessage.value = error instanceof Error ? error.message : '确认分居预览失败'
     }
   }
 
@@ -2782,6 +2835,7 @@
       permissions_updated: '权限更新',
       family_role_updated: '家族职位更新',
       separation_preview_created: '分居预览创建',
+      separation_preview_confirmed: '分居预览确认',
     }
     return labels[action] || action
   }
@@ -2814,6 +2868,10 @@
     if (entry.action === 'separation_preview_created') {
       const version = Number(detail.preview_version) || 1
       return `预览版本 v${version}，仅生成返还草案，未执行拆分`
+    }
+    if (entry.action === 'separation_preview_confirmed') {
+      const pending = Array.isArray(detail.pending_member_usernames) ? detail.pending_member_usernames.length : 0
+      return pending > 0 ? `已确认预览，仍有 ${pending} 人待确认` : '成员已确认预览，仍未执行返还'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0

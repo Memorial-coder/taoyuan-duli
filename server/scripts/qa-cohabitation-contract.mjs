@@ -1764,6 +1764,54 @@ assert.equal(duplicatePreviewResult.preview.asset_return.plot_return_manifest_ha
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeDuplicatePreview, 'idempotent separation preview should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeDuplicatePreview, 'idempotent separation preview should not rewrite partner save')
 
+const ownerRawBeforePreviewConfirm = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforePreviewConfirm = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const ownerPreviewConfirm = await runtime.confirmSeparationPreview(created.contract.id, previewResult.preview.id, {
+  memo: 'owner confirms preview only',
+  idempotency_key: 'qa-separation-preview-confirm-owner',
+}, actor(owner))
+assert.equal(ownerPreviewConfirm.idempotent, false, 'first separation preview confirmation should not be idempotent')
+assert.equal(ownerPreviewConfirm.preview.id, previewResult.preview.id, 'separation preview confirmation should keep preview id')
+assert.equal(ownerPreviewConfirm.preview.state, 'draft', 'single separation preview confirmation should keep preview draft until all members confirm')
+assert.deepEqual(ownerPreviewConfirm.preview.confirmation_state.confirmed_by, [owner], 'owner confirmation should be recorded once')
+assert.deepEqual(ownerPreviewConfirm.preview.confirmation_state.pending_member_usernames, [partner], 'partner should remain pending after owner confirms')
+assert.equal(ownerPreviewConfirm.preview.confirmation_state.execution_enabled, false, 'separation preview confirmation should not enable execution')
+assert.equal(ownerPreviewConfirm.preview.confirmation_state.can_execute_now, false, 'separation preview confirmation should not execute immediately')
+assert.equal(ownerPreviewConfirm.preview.asset_return.plot_return_manifest_hash, previewResult.preview.asset_return.plot_return_manifest_hash, 'separation preview confirmation should preserve manifest hash')
+assert.ok(ownerPreviewConfirm.contract.audit_log.find(entry => entry.action === 'separation_preview_confirmed' && entry.idempotency_key === 'qa-separation-preview-confirm-owner'), 'owner separation preview confirmation should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforePreviewConfirm, 'owner separation preview confirmation should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforePreviewConfirm, 'owner separation preview confirmation should not rewrite partner save')
+
+const duplicateOwnerPreviewConfirm = await runtime.confirmSeparationPreview(created.contract.id, previewResult.preview.id, {
+  memo: 'owner duplicate confirm preview only',
+  idempotency_key: 'qa-separation-preview-confirm-owner',
+}, actor(owner))
+assert.equal(duplicateOwnerPreviewConfirm.idempotent, true, 'same separation preview confirmation idempotency key should return existing confirmation')
+assert.equal(duplicateOwnerPreviewConfirm.preview.confirmation_state.confirmation_events.length, 1, 'idempotent separation preview confirmation should not append duplicate events')
+
+const alreadyConfirmedOwnerPreview = await runtime.confirmSeparationPreview(created.contract.id, previewResult.preview.id, {
+  memo: 'owner already confirmed with another key',
+  idempotency_key: 'qa-separation-preview-confirm-owner-again',
+}, actor(owner))
+assert.equal(alreadyConfirmedOwnerPreview.idempotent, true, 'already confirmed separation preview member should be treated idempotently')
+assert.equal(alreadyConfirmedOwnerPreview.already_confirmed, true, 'already confirmed separation preview member should be flagged')
+assert.equal(alreadyConfirmedOwnerPreview.preview.confirmation_state.confirmation_events.length, 1, 'already confirmed separation preview member should not append events')
+
+const partnerPreviewConfirm = await runtime.confirmSeparationPreview(created.contract.id, previewResult.preview.id, {
+  memo: 'partner confirms preview only',
+  idempotency_key: 'qa-separation-preview-confirm-partner',
+}, actor(partner))
+assert.equal(partnerPreviewConfirm.idempotent, false, 'partner separation preview confirmation should not be idempotent first time')
+assert.equal(partnerPreviewConfirm.preview.state, 'confirmed', 'separation preview should become confirmed after all members confirm')
+assert.deepEqual(partnerPreviewConfirm.preview.confirmation_state.confirmed_by.sort(), [owner, partner].sort(), 'all required separation preview confirmations should be recorded')
+assert.deepEqual(partnerPreviewConfirm.preview.confirmation_state.pending_member_usernames, [], 'no separation preview member should remain pending after both confirm')
+assert.equal(partnerPreviewConfirm.preview.confirmation_state.all_members_confirmed, true, 'separation preview should expose all-members-confirmed flag')
+assert.equal(partnerPreviewConfirm.preview.confirmation_state.execution_enabled, false, 'confirmed separation preview should still not execute asset return')
+assert.equal(partnerPreviewConfirm.preview.manual_execution_required, true, 'confirmed separation preview should still require manual execution path')
+assert.equal(partnerPreviewConfirm.preview.asset_return.plot_return_manifest_hash, previewResult.preview.asset_return.plot_return_manifest_hash, 'confirmed separation preview should keep manifest hash')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforePreviewConfirm, 'partner separation preview confirmation should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforePreviewConfirm, 'partner separation preview confirmation should not rewrite partner save')
+
 const partnerMoneyBeforeMediumFundTopUp = readGameplayData(partner)?.player?.money
 const mediumFundTopUp = await runtime.contributeCohabitationFund(created.contract.id, {
   amount: 400,

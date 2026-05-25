@@ -1021,6 +1021,17 @@ export interface CohabitationSeparationPreview {
   confirm_after_at: number
   asset_return: Record<string, unknown>
   compensation_plan: Array<Record<string, unknown>>
+  confirmation_state?: {
+    state?: string
+    required_member_usernames?: string[]
+    confirmed_by?: string[]
+    pending_member_usernames?: string[]
+    all_members_confirmed?: boolean
+    ready_for_execution_request?: boolean
+    can_execute_now?: boolean
+    execution_enabled?: boolean
+    [key: string]: unknown
+  }
   safety_checks: Array<Record<string, unknown>>
   deferred_operations: string[]
 }
@@ -1090,6 +1101,11 @@ export interface CohabitationContractCreatePayload {
 
 export interface CohabitationSeparationPreviewPayload {
   reason?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSeparationPreviewConfirmPayload {
+  memo?: string
   idempotency_key: string
 }
 
@@ -1287,6 +1303,14 @@ export const createCohabitationSeparationPreview = async (contractId: string, pa
     contractPath(contractId, '/separation-preview'),
     payload as unknown as Record<string, unknown>,
     '生成分居预览失败'
+  )
+}
+
+export const confirmCohabitationSeparationPreview = async (contractId: string, previewId: string, payload: CohabitationSeparationPreviewConfirmPayload) => {
+  return postCohabitationJson<CohabitationSeparationPreviewResponse>(
+    contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/confirm`),
+    payload as unknown as Record<string, unknown>,
+    '确认分居预览失败'
   )
 }
 
