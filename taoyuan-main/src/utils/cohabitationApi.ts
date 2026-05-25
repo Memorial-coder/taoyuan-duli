@@ -1059,6 +1059,10 @@ export interface CohabitationSeparationPreview {
       personal_family_receipts_written_at?: number
       personal_family_receipts_written_by?: string
       personal_family_receipts?: Array<Record<string, unknown>>
+      decorations_buildings_split?: boolean
+      decorations_buildings_split_at?: number
+      decorations_buildings_split_by?: string
+      decoration_building_split_receipts?: Array<Record<string, unknown>>
       execution_enabled?: boolean
       next_required_operations?: string[]
       [key: string]: unknown
@@ -1171,6 +1175,15 @@ export interface CohabitationSeparationSharedFundRefundPayload {
 export interface CohabitationSeparationSharedWarehouseReturnPayload {
   execution_ledger_id?: string
   plot_return_manifest_hash?: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSeparationDecorationBuildingSplitPayload {
+  execution_ledger_id?: string
+  plot_return_manifest_hash?: string
+  decoration_split_manifest_hash?: string
+  building_split_manifest_hash?: string
   memo?: string
   idempotency_key: string
 }
@@ -1361,6 +1374,12 @@ export interface CohabitationSeparationSharedWarehouseReturnResponse extends Coh
   }
 }
 
+export interface CohabitationSeparationDecorationBuildingSplitResponse extends CohabitationSeparationPreviewResponse {
+  execution_ledger?: Record<string, unknown>
+  receipts?: Array<Record<string, unknown>>
+  already_split?: boolean
+}
+
 export interface CohabitationSeparationFamilyStoryResolveResponse extends CohabitationSeparationPreviewResponse {
   execution_ledger?: Record<string, unknown>
   story_resolution?: Record<string, unknown> | null
@@ -1495,6 +1514,14 @@ export const returnCohabitationSeparationSharedWarehouse = async (contractId: st
     contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/return-shared-warehouse`),
     payload as unknown as Record<string, unknown>,
     '返还分居共同仓库失败'
+  )
+}
+
+export const splitCohabitationSeparationDecorationsBuildings = async (contractId: string, previewId: string, payload: CohabitationSeparationDecorationBuildingSplitPayload) => {
+  return postCohabitationJson<CohabitationSeparationDecorationBuildingSplitResponse>(
+    contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/split-decorations-buildings`),
+    payload as unknown as Record<string, unknown>,
+    '记录分居装饰 / 建筑拆分失败'
   )
 }
 

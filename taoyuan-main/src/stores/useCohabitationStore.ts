@@ -32,6 +32,7 @@ import {
   resolveCohabitationSeparationFamilyStory,
   returnCohabitationSeparationSharedWarehouse,
   sellCohabitationWarehouseItem,
+  splitCohabitationSeparationDecorationsBuildings,
   spendCohabitationFund,
   updateCohabitationFamilyRole,
   updateCohabitationPermissions,
@@ -54,6 +55,7 @@ import {
   type CohabitationPermissionsPanel,
   type CohabitationSeparationAssetReturnExecutePayload,
   type CohabitationSeparationChildArrangementResolvePayload,
+  type CohabitationSeparationDecorationBuildingSplitPayload,
   type CohabitationSeparationExecutionRequestPayload,
   type CohabitationSeparationFamilyStoryResolvePayload,
   type CohabitationSeparationPersonalFarmWritePayload,
@@ -415,6 +417,25 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       return result
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '返还分居共同仓库失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const splitSeparationDecorationsBuildings = async (previewId: string, payload: CohabitationSeparationDecorationBuildingSplitPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !previewId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await splitCohabitationSeparationDecorationsBuildings(activeContractId.value, previewId, payload)
+      if (result?.contract) {
+        syncOverviewContract(result.contract)
+        await refreshSelectedDetails({ silent: true })
+      }
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '记录分居装饰 / 建筑拆分失败'
       throw error
     } finally {
       actionLoading.value = false
@@ -871,6 +892,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     writeSeparationPersonalFarmReturns,
     refundSeparationSharedFund,
     returnSeparationSharedWarehouse,
+    splitSeparationDecorationsBuildings,
     resolveSeparationFamilyStory,
     writeSeparationPersonalStoryReceipts,
     resolveSeparationChildArrangement,

@@ -329,6 +329,16 @@
                       <button
                         class="online-action-btn online-action-btn--compact justify-center"
                         type="button"
+                        :disabled="!canSplitSeparationDecorationsBuildings || cohabitationStore.actionLoading"
+                        data-testid="online-cohabitation-separation-decoration-building-split"
+                        @click="splitSeparationDecorationsBuildings"
+                      >
+                        <Building2 :size="12" />
+                        拆分装建
+                      </button>
+                      <button
+                        class="online-action-btn online-action-btn--compact justify-center"
+                        type="button"
                         :disabled="!canResolveSeparationFamilyStory || cohabitationStore.actionLoading"
                         data-testid="online-cohabitation-separation-family-story-resolve"
                         @click="resolveSeparationFamilyStory"
@@ -1734,6 +1744,14 @@
     const hash = latestSeparationPreview.value?.asset_return?.plot_return_manifest_hash
     return typeof hash === 'string' ? hash : ''
   })
+  const separationDecorationSplitManifestHash = computed(() => {
+    const hash = latestSeparationPreview.value?.asset_return?.decoration_split_manifest_hash
+    return typeof hash === 'string' ? hash : ''
+  })
+  const separationBuildingSplitManifestHash = computed(() => {
+    const hash = latestSeparationPreview.value?.asset_return?.family_building_split_manifest_hash
+    return typeof hash === 'string' ? hash : ''
+  })
   const canConfirmSeparationPreview = computed(() => {
     const preview = latestSeparationPreview.value
     if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
@@ -1745,12 +1763,13 @@
   const separationPreviewConfirmationLabel = computed(() => {
     const confirmed = separationPreviewConfirmedBy.value
     const pending = separationPreviewPendingMembers.value
-    if (separationExecutionRequest.value?.status === 'personal_family_receipts_written') return '个人家庭 receipt 已写入成员存档，等待装饰 / 建筑拆分。'
-    if (separationExecutionRequest.value?.status === 'child_arrangement_resolved') return '孩子安排已记录，等待装饰 / 建筑拆分和个人家庭存档 receipt。'
-    if (separationExecutionRequest.value?.status === 'personal_story_receipts_written') return '个人剧情 receipt 已写入成员存档，等待装饰 / 建筑拆分。'
-    if (separationExecutionRequest.value?.status === 'family_story_resolved') return '分居剧情拆分已记录在共同契约，等待装饰 / 建筑拆分和个人剧情 receipt。'
-    if (separationExecutionRequest.value?.status === 'shared_warehouse_returned') return '共同仓库已按来源写回个人背包，等待装饰 / 建筑 / 剧情拆分。'
-    if (separationExecutionRequest.value?.status === 'shared_fund_refunded') return '共同基金已返还个人铜币，等待共同仓库 / 装饰 / 剧情拆分。'
+    if (separationExecutionRequest.value?.status === 'personal_family_receipts_written') return '个人家庭 receipt 已写入成员存档，装饰 / 建筑拆分记录已完成。'
+    if (separationExecutionRequest.value?.status === 'child_arrangement_resolved') return '孩子安排已记录，等待个人家庭存档 receipt。'
+    if (separationExecutionRequest.value?.status === 'personal_story_receipts_written') return '个人剧情 receipt 已写入成员存档，等待孩子安排或家庭 receipt。'
+    if (separationExecutionRequest.value?.status === 'family_story_resolved') return '分居剧情拆分已记录在共同契约，等待个人剧情 receipt 和孩子安排。'
+    if (separationExecutionRequest.value?.status === 'decorations_buildings_split') return '装饰 / 建筑拆分已记录，等待剧情拆分。'
+    if (separationExecutionRequest.value?.status === 'shared_warehouse_returned') return '共同仓库已按来源写回个人背包，等待装饰 / 建筑拆分。'
+    if (separationExecutionRequest.value?.status === 'shared_fund_refunded') return '共同基金已返还个人铜币，等待共同仓库返还。'
     if (separationExecutionRequest.value?.status === 'personal_save_written') return '来源田区已写回个人农田，等待共同基金 / 仓库返还。'
     if (separationExecutionRequest.value?.status === 'asset_return_recorded') return '已记录返还执行，等待个人存档写回。'
     if (separationExecutionRequest.value?.status === 'pending_manual_execution') return '已请求执行，等待后续返还执行接口。'
@@ -1807,13 +1826,24 @@
     if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
     return true
   })
-  const canResolveSeparationFamilyStory = computed(() => {
+  const canSplitSeparationDecorationsBuildings = computed(() => {
     const preview = latestSeparationPreview.value
     if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
     if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
     if (preview.state !== 'confirmed') return false
     if (preview.confirmation_state?.all_members_confirmed !== true) return false
     if (separationExecutionRequest.value?.status !== 'shared_warehouse_returned') return false
+    if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
+    if (!separationDecorationSplitManifestHash.value || !separationBuildingSplitManifestHash.value) return false
+    return true
+  })
+  const canResolveSeparationFamilyStory = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
+    if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
+    if (preview.state !== 'confirmed') return false
+    if (preview.confirmation_state?.all_members_confirmed !== true) return false
+    if (separationExecutionRequest.value?.status !== 'decorations_buildings_split') return false
     if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
     return true
   })
@@ -2467,6 +2497,31 @@
     }
   }
 
+  const splitSeparationDecorationsBuildings = async () => {
+    if (!latestSeparationPreview.value || !canSplitSeparationDecorationsBuildings.value) return
+    separationActionMessage.value = ''
+    separationActionOk.value = false
+    try {
+      const result = await cohabitationStore.splitSeparationDecorationsBuildings(latestSeparationPreview.value.id, {
+        execution_ledger_id: separationExecutionRequest.value?.execution_ledger_id,
+        plot_return_manifest_hash: separationPlotReturnManifestHash.value,
+        decoration_split_manifest_hash: separationDecorationSplitManifestHash.value,
+        building_split_manifest_hash: separationBuildingSplitManifestHash.value,
+        memo: '前端记录分居装饰 / 建筑拆分；不改个人小屋、家具、真实建筑或共同资产主状态',
+        idempotency_key: `ui-separation-decoration-building-split-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      separationActionOk.value = true
+      const receiptCount = Array.isArray(result?.receipts) ? result.receipts.length : 0
+      separationActionMessage.value = result?.idempotent || result?.already_split
+        ? '已读回已有装饰 / 建筑拆分记录'
+        : receiptCount > 0
+          ? `已记录装饰 / 建筑拆分 ${receiptCount} 份`
+          : '装饰 / 建筑拆分已记录'
+    } catch (error) {
+      separationActionMessage.value = error instanceof Error ? error.message : '记录分居装饰 / 建筑拆分失败'
+    }
+  }
+
   const resolveSeparationFamilyStory = async () => {
     if (!latestSeparationPreview.value || !canResolveSeparationFamilyStory.value) return
     separationActionMessage.value = ''
@@ -2476,7 +2531,7 @@
         execution_ledger_id: separationExecutionRequest.value?.execution_ledger_id,
         plot_return_manifest_hash: separationPlotReturnManifestHash.value,
         resolution_choice: 'peaceful_separation',
-        memo: '前端记录分居剧情拆分状态；个人剧情、孩子安排和装饰建筑拆分留后续接口',
+        memo: '前端记录分居剧情拆分状态；个人剧情和孩子安排留后续接口',
         idempotency_key: `ui-separation-family-story-resolve-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       })
       separationActionOk.value = true
@@ -3064,6 +3119,8 @@
       execute_asset_return: '执行资产返还',
       write_personal_save_refunds: '写回个人存档返还',
       split_decorations: '拆分装修家具',
+      split_decorations_buildings: '拆分装饰建筑',
+      split_family_buildings: '拆分家族建筑',
       resolve_family_story: '处理家庭剧情',
       write_personal_story_receipts: '个人剧情回执',
       resolve_child_arrangement: '孩子安排',
@@ -3238,6 +3295,7 @@
       separation_personal_farm_written: '来源田区写回',
       separation_shared_fund_refunded: '共同基金返还',
       separation_shared_warehouse_returned: '共同仓库返还',
+      separation_decorations_buildings_split: '装饰建筑拆分',
       separation_family_story_resolved: '剧情拆分记录',
       separation_personal_story_receipts_written: '剧情回执写入',
       separation_child_arrangement_resolved: '孩子安排记录',
@@ -3296,17 +3354,23 @@
     }
     if (entry.action === 'separation_shared_warehouse_returned') {
       const quantity = Number(detail.returned_quantity) || 0
-      return quantity > 0 ? `已按来源返还共同仓库 ${quantity} 件，等待装饰 / 建筑 / 剧情拆分` : '共同仓库返还已记录'
+      return quantity > 0 ? `已按来源返还共同仓库 ${quantity} 件，等待装饰 / 建筑拆分` : '共同仓库返还已记录，等待装饰 / 建筑拆分'
+    }
+    if (entry.action === 'separation_decorations_buildings_split') {
+      const decorationCount = Number(detail.decoration_count) || 0
+      const buildingCount = Number(detail.building_count) || 0
+      if (decorationCount > 0 || buildingCount > 0) return `已记录装饰 ${decorationCount} 件、建筑 ${buildingCount} 项拆分，等待剧情拆分`
+      return '装饰 / 建筑拆分已记录，等待剧情拆分'
     }
     if (entry.action === 'separation_family_story_resolved') {
       const needsPersonalStory = detail.personal_story_write_required === true
       const needsChildArrangement = detail.child_arrangement_required === true
-      if (needsChildArrangement) return '已记录剧情拆分，等待孩子安排、个人剧情 receipt 和装饰 / 建筑拆分'
-      return needsPersonalStory ? '已记录剧情拆分，等待个人剧情 receipt 和装饰 / 建筑拆分' : '已记录剧情拆分，等待装饰 / 建筑拆分'
+      if (needsChildArrangement) return '已记录剧情拆分，等待孩子安排和个人剧情 receipt'
+      return needsPersonalStory ? '已记录剧情拆分，等待个人剧情 receipt' : '已记录剧情拆分'
     }
     if (entry.action === 'separation_personal_story_receipts_written') {
       const count = Number(detail.receipt_count) || 0
-      return count > 0 ? `已写入个人剧情回执 ${count} 份，等待装饰 / 建筑拆分` : '已写入个人剧情回执，等待装饰 / 建筑拆分'
+      return count > 0 ? `已写入个人剧情回执 ${count} 份` : '已写入个人剧情回执'
     }
     if (entry.action === 'separation_child_arrangement_resolved') {
       const count = Number(detail.child_count) || 0
@@ -3314,7 +3378,7 @@
     }
     if (entry.action === 'separation_personal_family_receipts_written') {
       const count = Number(detail.receipt_count) || 0
-      return count > 0 ? `已写入个人家庭回执 ${count} 份，等待装饰 / 建筑拆分` : '已写入个人家庭回执，等待装饰 / 建筑拆分'
+      return count > 0 ? `已写入个人家庭回执 ${count} 份` : '已写入个人家庭回执'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0

@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 分居装饰 / 建筑拆分前端入口
+- 共同庄园总览在分居预览卡片新增“拆分装建”按钮，前端 API / store 接入 `/separation-previews/:previewId/split-decorations-buildings`。
+- 按钮按 `shared_warehouse_returned`、执行 ledger ID、来源田区 manifest hash、装饰 manifest hash、建筑 manifest hash、双方确认和契约状态禁用；提交成功后刷新契约并读回 `decorations_buildings_split`。
+- 分居状态提示和共同日志顺序改为“共同仓库返还 -> 装饰建筑拆分 -> 剧情拆分”，剧情、个人剧情 receipt、孩子安排和家庭 receipt 不再提示等待装饰 / 建筑拆分。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 分居装饰 / 建筑拆分记录
 - 分居预览新增装饰拆分与家族建筑拆分 manifest hash，分别追溯共同契约 `origin_assets.decorations` 和 `family_building_ledger`。
 - 服务端新增 `/separation-previews/:previewId/split-decorations-buildings`，要求共同仓库已返还、执行 ledger ID 可匹配，且来源田区、装饰、建筑三个 hash 均未漂移。
