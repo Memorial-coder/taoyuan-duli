@@ -602,6 +602,11 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   personal_money_merged: boolean
   personal_inventory_merged: boolean
   real_build_applied: boolean
+  apply_idempotency_key: string
+  applied_at: number
+  applied_by_username: string
+  applied_by_display_name: string
+  real_build_ref: string
   compensation_required: boolean
   compensation_hint: string
   deferred_operations: string[]
@@ -638,6 +643,7 @@ export interface CohabitationFamilyBuildingsPanel {
     construction_ledger_enabled: boolean
     construction_ledger_count: number
     latest_construction_ledger_id: string | null
+    real_build_applied_count: number
     reputation_award_enabled: boolean
     personal_money_merged: boolean
     personal_inventory_merged: boolean
@@ -680,6 +686,7 @@ export interface CohabitationFamilyBuildingsPanel {
     demolish_enabled: boolean
     material_consume_enabled: boolean
     shared_fund_spend_enabled: boolean
+    real_build_applied: boolean
     disabled_reason: string
   }>
   visual_state_preview: {

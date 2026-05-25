@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0525 共同基金大额建筑真实建造落账
+- 服务端新增 `/family-buildings/real-build-apply` 写接口，只允许已激活成员在具备大额基金或建筑规划相关权限时引用已扣款的 `family_building_ledger` 落账。
+- 成功落账会把原建筑流水标记为 `build_applied`，写入 `apply_idempotency_key`、落账人、真实建筑引用和审计；家族建筑面板读回时会把候选建筑状态显示为已落账。
+- 重复 `idempotency_key` 或已落账目标返回幂等结果，不重复扣共同基金、不重复写建筑流水、不消耗共同仓库材料、不改个人铜币。
+- 游戏内百科“共同基金大额确认”补充 `real_build_apply`、`build_applied`、真实建造落账和 `apply_idempotency_key` 搜索词。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke`。
+
 ### 0525 共同庄园建筑页建筑流水展示
 - 前端共同庄园建筑页读回 `/family-buildings` 已返回的 `construction_ledger`，新增“建筑流水”只读卡片。
 - API 类型补齐 `CohabitationFamilyBuildingLedgerEntry`、`construction_ledger_count` 和 `latest_construction_ledger_id`，建筑摘要从“真实建造”改为建筑流水计数，避免误导真实建造已开放。

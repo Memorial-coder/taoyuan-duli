@@ -1799,7 +1799,7 @@ seedSave(largePartner)
 const largeFriendRequest = await socialRuntime.requestFriendship(largeOwner, { target_username: largePartner })
 await socialRuntime.acceptFriendRequest(largePartner, largeFriendRequest.id)
 const largeContract = await runtime.createCohabitationContract({
-  type: 'lover_cohabitation',
+  type: 'business_partner',
   target_username: largePartner,
   idempotency_key: 'qa-large-fund-contract',
 }, actor(largeOwner))
@@ -2041,5 +2041,60 @@ assert.equal(alreadyExecutedLarge.fund.balance, balanceBeforeLargeDraft - 1300, 
 const largeFundAfterAlreadyExecuted = await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))
 assert.equal(largeFundAfterAlreadyExecuted.contract.family_building_ledger.length, 1, 'already executed large draft should not duplicate building ledger')
 assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'already executed large draft should not touch owner personal money')
+
+await assert.rejects(
+  () => runtime.applyCohabitationFamilyBuildingRealBuild(largeContract.contract.id, {
+    building_ledger_id: largeExecute.building_ledger_entry.id,
+    idempotency_key: 'qa-family-building-real-build-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not apply real family building writes'
+)
+assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance, balanceBeforeLargeDraft - 1300, 'rejected real build apply should not change shared balance')
+
+const realBuildApply = await runtime.applyCohabitationFamilyBuildingRealBuild(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  memo: 'qa apply real family building',
+  idempotency_key: 'qa-family-building-real-build-apply',
+}, actor(largeOwner))
+assert.equal(realBuildApply.idempotent, false, 'first real build apply should not be idempotent')
+assert.equal(realBuildApply.building_ledger_entry.id, largeExecute.building_ledger_entry.id, 'real build apply should update original building ledger')
+assert.equal(realBuildApply.building_ledger_entry.real_build_applied, true, 'real build apply should mark real build applied')
+assert.equal(realBuildApply.building_ledger_entry.status, 'build_applied', 'real build apply should move ledger status to build_applied')
+assert.equal(realBuildApply.building_ledger_entry.apply_idempotency_key, 'qa-family-building-real-build-apply', 'real build apply should store apply idempotency key')
+assert.equal(realBuildApply.building_ledger_entry.shared_warehouse_materials_consumed, false, 'real build apply should not consume warehouse materials yet')
+assert.equal(realBuildApply.building_ledger_entry.personal_money_merged, false, 'real build apply should keep personal money separate')
+assert.equal(realBuildApply.shared_fund.deducted_amount, 0, 'real build apply should not deduct shared fund again')
+assert.equal(realBuildApply.shared_fund.balance_after, balanceBeforeLargeDraft - 1300, 'real build apply should preserve shared fund balance')
+assert.ok(realBuildApply.contract.audit_log.find(entry => entry.action === 'family_building_real_build_applied'), 'real build apply should be audited')
+assert.equal(realBuildApply.family_buildings_panel.summary.real_build_applied_count, 1, 'family building panel should count applied real buildings')
+assert.equal(
+  realBuildApply.family_buildings_panel.candidate_buildings.find(entry => entry.id === 'shared_granary')?.planning_state,
+  'build_applied',
+  'family building panel should mark applied building as built'
+)
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'real build apply should not touch owner personal money')
+assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'real build apply should not touch partner personal money')
+
+const duplicateRealBuildApply = await runtime.applyCohabitationFamilyBuildingRealBuild(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-real-build-apply',
+}, actor(largeOwner))
+assert.equal(duplicateRealBuildApply.idempotent, true, 'same real build apply idempotency key should be idempotent')
+assert.equal(duplicateRealBuildApply.building_ledger_entry.id, realBuildApply.building_ledger_entry.id, 'idempotent real build apply should return original building ledger')
+assert.equal(duplicateRealBuildApply.building_ledger_entry.status, 'build_applied', 'idempotent real build apply should keep build_applied status')
+assert.equal(duplicateRealBuildApply.shared_fund.balance_after, balanceBeforeLargeDraft - 1300, 'idempotent real build apply should not change shared fund balance')
+
+const alreadyAppliedRealBuild = await runtime.applyCohabitationFamilyBuildingRealBuild(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-real-build-apply-again',
+}, actor(largeOwner))
+assert.equal(alreadyAppliedRealBuild.idempotent, true, 'already applied real build should return idempotent response')
+assert.equal(alreadyAppliedRealBuild.already_applied, true, 'already applied real build response should be explicit')
+assert.equal(alreadyAppliedRealBuild.building_ledger_entry.status, 'build_applied', 'already applied real build should stay applied')
+const familyBuildingsAfterRealApply = await runtime.getCohabitationFamilyBuildings(largeContract.contract.id, actor(largeOwner))
+assert.equal(familyBuildingsAfterRealApply.family_buildings_panel.summary.real_build_applied_count, 1, 'family buildings readback should expose applied count')
+assert.equal(familyBuildingsAfterRealApply.family_buildings_panel.construction_ledger[0].real_build_applied, true, 'family buildings readback should expose applied ledger')
+assert.equal(familyBuildingsAfterRealApply.family_buildings_panel.construction_ledger.length, 1, 'real build apply should not duplicate construction ledger')
 
 console.log('[qa-cohabitation-contract] OK')

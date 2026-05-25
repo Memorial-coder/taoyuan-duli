@@ -202,6 +202,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_fund_large_spend_execute',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/family-buildings\/real-build-apply$/i,
+    action: 'cohabitation_family_building_real_build_apply',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/permissions$/i,
     action: 'cohabitation_permissions_update',
   },
@@ -3050,6 +3054,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/large-spend
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '执行共同基金大额草案扣款失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/real-build-apply', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.applyCohabitationFamilyBuildingRealBuild(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '落账家族建筑失败' });
     }
   });
 });

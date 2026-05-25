@@ -1580,6 +1580,11 @@ function normalizeFamilyBuildingLedgerEntry(entry = {}) {
     at,
     created_at: Number(entry.created_at || entry.at) || at,
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    apply_idempotency_key: sanitizeText(entry.apply_idempotency_key, 120),
+    applied_at: Math.max(0, Math.floor(Number(entry.applied_at) || 0)),
+    applied_by_username: normalizeUsername(entry.applied_by_username),
+    applied_by_display_name: sanitizeText(entry.applied_by_display_name || entry.applied_by_username, 60),
+    real_build_ref: sanitizeText(entry.real_build_ref, 120),
     reversible: entry.reversible !== false,
     status: ['fund_spend_recorded', 'build_applied', 'compensated', 'reverted'].includes(entry.status)
       ? entry.status
@@ -2597,7 +2602,7 @@ function buildFamilyBuildingMemberSnapshot(contract, member, enabled = isFamilyR
   };
 }
 
-function buildFamilyBuildingCandidates(contract, enabled) {
+function buildFamilyBuildingCandidates(contract, enabled, appliedBuildingIds = new Set()) {
   const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   const fund = normalizeSharedFund(contract.shared_fund);
   const acceptedRoles = new Set((contract.members || [])
@@ -2617,6 +2622,7 @@ function buildFamilyBuildingCandidates(contract, enabled) {
         consume_enabled: false,
       };
     });
+    const applied = appliedBuildingIds.has(definition.id);
     return {
       id: definition.id,
       label: definition.label,
@@ -2633,13 +2639,14 @@ function buildFamilyBuildingCandidates(contract, enabled) {
       fund_ready_preview: fund.balance >= definition.shared_fund_cost,
       stage_count: definition.stage_count,
       planning_state: enabled
-        ? (missingRoles.length > 0 ? 'needs_role' : 'ready_for_blueprint')
+        ? (applied ? 'build_applied' : (missingRoles.length > 0 ? 'needs_role' : 'ready_for_blueprint'))
         : 'disabled',
       build_enabled: false,
       demolish_enabled: false,
       material_consume_enabled: false,
       shared_fund_spend_enabled: false,
-      disabled_reason: enabled ? '' : '当前契约不是结拜庄园或合伙庄园。',
+      real_build_applied: applied,
+      disabled_reason: enabled ? (applied ? '已通过共同基金大额确认落账，后续扩建 / 拆除仍需专用流程。' : '') : '当前契约不是结拜庄园或合伙庄园。',
     };
   });
 }
@@ -2726,10 +2733,14 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
   const members = enabled
     ? (contract.members || []).map(member => buildFamilyBuildingMemberSnapshot(contract, member, enabled))
     : [];
-  const buildings = buildFamilyBuildingCandidates(contract, enabled);
   const constructionLedger = enabled && Array.isArray(contract.family_building_ledger)
     ? contract.family_building_ledger.map(normalizeFamilyBuildingLedgerEntry).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
     : [];
+  const appliedBuildingIds = new Set(constructionLedger
+    .filter(entry => entry.real_build_applied === true || entry.status === 'build_applied')
+    .map(entry => entry.building_id || entry.project_id)
+    .filter(Boolean));
+  const buildings = buildFamilyBuildingCandidates(contract, enabled, appliedBuildingIds);
   const actorBuildingMember = actorMember ? buildFamilyBuildingMemberSnapshot(contract, actorMember, enabled) : null;
   return {
     contract_id: contract.id,
@@ -2757,6 +2768,7 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
       construction_ledger_enabled: enabled,
       construction_ledger_count: constructionLedger.length,
       latest_construction_ledger_id: constructionLedger[0]?.id || '',
+      real_build_applied_count: appliedBuildingIds.size,
       reputation_award_enabled: false,
       personal_money_merged: false,
       personal_inventory_merged: false,
@@ -2778,7 +2790,7 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
       demolition_requires_both_confirmation: true,
       compensation_required_for_asset_writes: true,
       rollback_required_for_building_writes: true,
-      current_policy: '第一版只读展示家族建筑蓝图、职位缺口、材料缺口和治理要求；共同基金大额执行会写建筑流水，但仍不真实建造、不拆除、不消费共同仓库材料。',
+      current_policy: '第一版支持共同基金大额执行后的建筑流水真实落账标记；仍不拆除、不扩建、不消费共同仓库材料。',
     },
     asset_boundaries: {
       personal_money_merged: false,
@@ -2790,7 +2802,7 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
     },
     recommended_flow: [
       '先由家主读取建筑预览，确认议事厅、粮廪、工坊和节会前庭的职位缺口。',
-      '真实建造开放前，必须先把共同仓库材料消耗、共同基金支出和建筑来源写入同一条可补偿 ledger。',
+      '真实建造落账只允许引用已扣款建筑流水，并在同一条建筑流水上保留幂等、审计和补偿线索。',
       '拆除或迁移建筑必须先生成分居 / 返还预览，并要求双方或家族规则确认。',
       '任一建造、拆除或材料扣减失败时，必须能按建筑 ledger 回滚或进入补偿重放。',
     ],
@@ -2799,7 +2811,7 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
       'reserve_family_building_site',
       'consume_shared_building_materials',
       'spend_shared_fund_for_building',
-      'write_family_building_ledger',
+      'real_build_apply',
       'demolish_family_building',
       'family_building_reputation',
       'family_building_compensation_replay',
@@ -4105,6 +4117,19 @@ function normalizeLargeFundSpendExecutePayload(payload = {}) {
   if (!idempotencyKey) throw createError('共同基金大额草案执行扣款需要 idempotency_key，以防断线或重试时重复扣基金');
   return {
     idempotency_key: idempotencyKey,
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeFamilyBuildingRealBuildApplyPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('家族建筑真实落账需要 idempotency_key，以防断线或重试时重复落账');
+  return {
+    idempotency_key: idempotencyKey,
+    building_ledger_id: sanitizeText(payload.building_ledger_id || payload.ledger_id || payload.id, 100),
+    draft_id: sanitizeText(payload.draft_id, 100),
+    fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
+    target_ref: sanitizeText(payload.target_ref || payload.target, 120),
     memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
@@ -6142,6 +6167,148 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
   };
 }
 
+function findFamilyBuildingLedgerForRealBuildApply(contract, request = {}) {
+  const ledger = normalizeFamilyBuildingLedger(contract);
+  if (request.building_ledger_id) {
+    return ledger.find(entry => entry.id === request.building_ledger_id) || null;
+  }
+  if (request.draft_id) {
+    return ledger.find(entry => entry.draft_id === request.draft_id) || null;
+  }
+  if (request.fund_ledger_id) {
+    return ledger.find(entry => entry.fund_ledger_id === request.fund_ledger_id) || null;
+  }
+  if (request.target_ref) {
+    return ledger.find(entry => entry.target_ref === request.target_ref && entry.status === 'fund_spend_recorded') || null;
+  }
+  return null;
+}
+
+async function applyCohabitationFamilyBuildingRealBuild(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const applyRequest = normalizeFamilyBuildingRealBuildApplyPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '落账家族建筑');
+  if (!isFamilyRoleContractType(contract.type)) throw createError('家族建筑真实落账只支持结拜庄园和合伙庄园', 403);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const canApplyRealBuild = actorPermissions.fund.spend_large === true
+    || actorPermissions.construction.buy_furniture === true
+    || ['family_head', 'workshop_keeper', 'treasurer'].includes(normalizeFamilyManorRole(member.manor_role, contract.type, member.role));
+  if (!canApplyRealBuild) throw createError('你没有落账家族建筑的权限', 403);
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
+    : [];
+  const previousApplyEntry = normalizeFamilyBuildingLedger(contract).find(entry => entry.apply_idempotency_key === applyRequest.idempotency_key);
+  if (previousApplyEntry) {
+    const requestedEntry = findFamilyBuildingLedgerForRealBuildApply(contract, applyRequest);
+    if (requestedEntry && requestedEntry.id !== previousApplyEntry.id) {
+      throw createError('该家族建筑落账幂等键已用于其他建筑流水，请更换 idempotency_key', 409);
+    }
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      building_ledger_entry: previousApplyEntry,
+      idempotent: true,
+      already_applied: previousApplyEntry.real_build_applied === true || previousApplyEntry.status === 'build_applied',
+      shared_fund: {
+        deducted_amount: 0,
+        balance_after: contract.shared_fund.balance,
+        personal_money_merged: false,
+      },
+    };
+  }
+
+  const targetEntry = findFamilyBuildingLedgerForRealBuildApply(contract, applyRequest);
+  if (!targetEntry) throw createError('找不到可落账的家族建筑流水，请先执行已确认的大额共同基金草案', 404);
+  if (targetEntry.status === 'compensated' || targetEntry.status === 'reverted') {
+    throw createError('该家族建筑流水已进入补偿或回滚状态，不能真实落账', 409);
+  }
+  if (targetEntry.shared_fund_deducted !== true || !targetEntry.fund_ledger_id) {
+    throw createError('该家族建筑流水没有已扣款共同基金凭证，不能真实落账', 409);
+  }
+  const fundEntry = (contract.shared_fund.ledger || []).find(entry => entry.id === targetEntry.fund_ledger_id);
+  if (!fundEntry || fundEntry.action !== 'spend' || fundEntry.spend_tier !== 'large') {
+    throw createError('该家族建筑流水缺少匹配的大额共同基金支出流水，不能真实落账', 409);
+  }
+  if (targetEntry.real_build_applied === true || targetEntry.status === 'build_applied') {
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      building_ledger_entry: targetEntry,
+      idempotent: true,
+      already_applied: true,
+      shared_fund: {
+        deducted_amount: 0,
+        balance_after: contract.shared_fund.balance,
+        personal_money_merged: false,
+      },
+    };
+  }
+
+  const appliedAt = nowSeconds();
+  const roleDef = getFamilyManorRoleDef(member.manor_role);
+  const nextEntry = normalizeFamilyBuildingLedgerEntry({
+    ...targetEntry,
+    real_build_applied: true,
+    status: 'build_applied',
+    apply_idempotency_key: applyRequest.idempotency_key,
+    applied_at: appliedAt,
+    applied_by_username: member.username,
+    applied_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    actor_manor_role: member.manor_role,
+    actor_manor_role_label: roleDef?.label || targetEntry.actor_manor_role_label,
+    real_build_ref: `${targetEntry.purpose}:${targetEntry.building_id || targetEntry.project_id || resolveFamilyBuildingLedgerTargetId(targetEntry.purpose, targetEntry.target_ref)}`,
+    compensation_hint: '家族建筑已根据共同基金大额确认完成真实落账；如后续拆除、扩建或补偿失败，需按该建筑流水和基金 ledger 回滚或重放。',
+    deferred_operations: ['family_building_compensation_replay', 'family_building_rollback'],
+  });
+  contract.family_building_ledger = normalizeFamilyBuildingLedger(contract).map(entry =>
+    entry.id === targetEntry.id ? nextEntry : entry
+  ).slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
+  const draftIndex = contract.fund_large_spend_drafts.findIndex(draft =>
+    draft.id === targetEntry.draft_id || draft.final_building_ledger_id === targetEntry.id
+  );
+  if (draftIndex >= 0) {
+    contract.fund_large_spend_drafts[draftIndex] = normalizeFundLargeSpendDraft({
+      ...contract.fund_large_spend_drafts[draftIndex],
+      deferred_operations: ['fund_compensation_replay', 'family_building_compensation_replay', 'family_building_rollback'],
+      compensation_policy: '大额共同基金已扣款，家族建筑已真实落账；若后续拆除或扩建失败，按草案、基金 ledger 和建筑流水补偿或回滚。',
+    });
+  }
+  appendAudit(contract, 'family_building_real_build_applied', actor, {
+    building_ledger_id: nextEntry.id,
+    draft_id: nextEntry.draft_id,
+    fund_ledger_id: nextEntry.fund_ledger_id,
+    target_ref: nextEntry.target_ref,
+    building_id: nextEntry.building_id,
+    project_id: nextEntry.project_id,
+    amount: nextEntry.amount,
+    shared_fund_deducted: true,
+    shared_warehouse_materials_consumed: false,
+    personal_money_merged: false,
+    real_build_ref: nextEntry.real_build_ref,
+    compensation_required: true,
+  }, applyRequest.idempotency_key);
+  contract.updated_at = appliedAt;
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+    building_ledger_entry: nextEntry,
+    idempotent: false,
+    already_applied: false,
+    shared_fund: {
+      deducted_amount: 0,
+      balance_after: contract.shared_fund.balance,
+      personal_money_merged: false,
+    },
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -6399,6 +6566,7 @@ module.exports = {
   createCohabitationFundLargeSpendDraft,
   confirmCohabitationFundLargeSpendDraft,
   executeCohabitationFundLargeSpendDraft,
+  applyCohabitationFamilyBuildingRealBuild,
   updateCohabitationPermissions,
   updateCohabitationFamilyRole,
   createCohabitationContract,

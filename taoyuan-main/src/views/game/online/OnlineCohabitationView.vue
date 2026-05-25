@@ -2610,6 +2610,7 @@
   const familyBuildingStateLabel = (value: string) => {
     const labels: Record<string, string> = {
       ready_for_blueprint: '蓝图就绪',
+      build_applied: '已落账',
       needs_role: '缺职位',
       disabled: '未启用',
       preview_ready: '预览就绪',
