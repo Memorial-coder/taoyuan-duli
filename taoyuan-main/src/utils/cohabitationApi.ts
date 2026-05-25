@@ -1040,6 +1040,9 @@ export interface CohabitationSeparationPreview {
       asset_return_recorded_by?: string
       execution_ledger_id?: string
       personal_save_written?: boolean
+      personal_save_written_at?: number
+      personal_save_written_by?: string
+      personal_save_receipts?: Array<Record<string, unknown>>
       execution_enabled?: boolean
       next_required_operations?: string[]
       [key: string]: unknown
@@ -1130,6 +1133,13 @@ export interface CohabitationSeparationExecutionRequestPayload {
 
 export interface CohabitationSeparationAssetReturnExecutePayload {
   execution_request_id?: string
+  plot_return_manifest_hash?: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSeparationPersonalFarmWritePayload {
+  execution_ledger_id?: string
   plot_return_manifest_hash?: string
   memo?: string
   idempotency_key: string
@@ -1353,6 +1363,14 @@ export const executeCohabitationSeparationAssetReturn = async (contractId: strin
     contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/execute-asset-return`),
     payload as unknown as Record<string, unknown>,
     '记录分居返还执行失败'
+  )
+}
+
+export const writeCohabitationSeparationPersonalFarmReturns = async (contractId: string, previewId: string, payload: CohabitationSeparationPersonalFarmWritePayload) => {
+  return postCohabitationJson<CohabitationSeparationPreviewResponse>(
+    contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/write-personal-farm-returns`),
+    payload as unknown as Record<string, unknown>,
+    '写回分居来源田区失败'
   )
 }
 

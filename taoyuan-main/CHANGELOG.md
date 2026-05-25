@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 分居来源田区写回前端入口
+- 共同庄园总览在分居预览卡片新增“写回田区”按钮，前端 API / store 接入 `/separation-previews/:previewId/write-personal-farm-returns`。
+- 按钮按 `asset_return_recorded`、执行 ledger ID、预览 `plot_return_manifest_hash` 和契约状态禁用；提交时只发送服务端校验所需 intent、ledger、hash 与 `idempotency_key`，成功后刷新契约和共同日志。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 分居来源田区个人农田写回
 - 服务端新增 `/separation-previews/:previewId/write-personal-farm-returns`，要求已记录返还执行、执行 ledger ID 可匹配且预览 `plot_return_manifest_hash` 未变。
 - 成功后按 manifest 写回成员个人 `farm.plots[source_plot_id]`，记录每成员写回 receipt、revision 和审计；共同基金返还、共同仓库移动、装饰 / 建筑和剧情拆分仍保持后续独立步骤。

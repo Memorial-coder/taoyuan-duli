@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 分居来源田区个人农田写回前端入口接入：共同庄园总览在分居预览卡片新增“写回田区”按钮，前端 API / store 接入 `/separation-previews/:previewId/write-personal-farm-returns`；按钮按已记录返还、执行 ledger、预览 hash 和服务端状态禁用，成功后刷新契约与共同日志，不返还共同基金、不移动共同仓库。
 - 分居来源田区个人农田写回接入：共同庄园新增 `/separation-previews/:previewId/write-personal-farm-returns`，要求已记录返还执行、执行 ledger 与 `plot_return_manifest_hash` 匹配；成功后按 manifest 写回双方个人 `farm.plots[source_plot_id]`，记录每成员写回 receipt 和审计，重复请求幂等读回，不返还共同基金、不移动共同仓库。
 - 分居资产返还执行记录前端入口接入：共同庄园总览在分居预览卡片新增“记录返还”按钮，前端 API / store 接入 `/separation-previews/:previewId/execute-asset-return`；按钮按执行请求、冷静期、预览 hash 和已记录状态禁用，成功后只刷新契约和共同日志，不写个人存档、不移动共同基金或仓库。
 - 分居资产返还执行记录接入：共同庄园新增 `/separation-previews/:previewId/execute-asset-return`，要求已请求执行、双方确认、冷静期结束和 `plot_return_manifest_hash` 匹配；成功后只写共同契约 `separation_execution_ledger`、逐地块返还记录和审计，重复请求幂等读回，不写个人存档、不扣共同基金、不移动共同仓库物。

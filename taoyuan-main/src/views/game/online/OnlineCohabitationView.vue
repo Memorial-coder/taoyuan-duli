@@ -296,6 +296,16 @@
                         <ShieldCheck :size="12" />
                         记录返还
                       </button>
+                      <button
+                        class="online-action-btn online-action-btn--compact justify-center"
+                        type="button"
+                        :disabled="!canWriteSeparationPersonalFarmReturns || cohabitationStore.actionLoading"
+                        data-testid="online-cohabitation-separation-personal-farm-write"
+                        @click="writeSeparationPersonalFarmReturns"
+                      >
+                        <Map :size="12" />
+                        写回田区
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1675,6 +1685,7 @@
   const separationPreviewConfirmationLabel = computed(() => {
     const confirmed = separationPreviewConfirmedBy.value
     const pending = separationPreviewPendingMembers.value
+    if (separationExecutionRequest.value?.status === 'personal_save_written') return '来源田区已写回个人农田，等待共同基金 / 仓库返还。'
     if (separationExecutionRequest.value?.status === 'asset_return_recorded') return '已记录返还执行，等待个人存档写回。'
     if (separationExecutionRequest.value?.status === 'pending_manual_execution') return '已请求执行，等待后续返还执行接口。'
     if (latestSeparationPreview.value?.confirmation_state?.all_members_confirmed) return '双方已确认，等待后续返还执行接口。'
@@ -1699,6 +1710,16 @@
     if (separationExecutionRequest.value?.status !== 'pending_manual_execution') return false
     if (!separationExecutionRequest.value?.id || !separationPlotReturnManifestHash.value) return false
     return Math.floor(Date.now() / 1000) >= Number(preview.confirm_after_at || 0)
+  })
+  const canWriteSeparationPersonalFarmReturns = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
+    if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
+    if (preview.state !== 'confirmed') return false
+    if (preview.confirmation_state?.all_members_confirmed !== true) return false
+    if (separationExecutionRequest.value?.status !== 'asset_return_recorded') return false
+    if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
+    return true
   })
   const selectedContractActorMember = computed(() => {
     const account = normalizeActorKey(cohabitationStore.currentAccount)
@@ -2250,6 +2271,25 @@
         : '已记录分居返还执行'
     } catch (error) {
       separationActionMessage.value = error instanceof Error ? error.message : '记录分居返还执行失败'
+    }
+  }
+
+  const writeSeparationPersonalFarmReturns = async () => {
+    if (!latestSeparationPreview.value || !canWriteSeparationPersonalFarmReturns.value) return
+    separationActionMessage.value = ''
+    separationActionOk.value = false
+    try {
+      const result = await cohabitationStore.writeSeparationPersonalFarmReturns(latestSeparationPreview.value.id, {
+        execution_ledger_id: separationExecutionRequest.value?.execution_ledger_id,
+        plot_return_manifest_hash: separationPlotReturnManifestHash.value,
+        idempotency_key: `ui-separation-personal-farm-write-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      separationActionOk.value = true
+      separationActionMessage.value = result?.idempotent
+        ? '已读回已有来源田区写回记录'
+        : '已写回分居来源田区'
+    } catch (error) {
+      separationActionMessage.value = error instanceof Error ? error.message : '写回分居来源田区失败'
     }
   }
 
@@ -2924,6 +2964,7 @@
       separation_preview_confirmed: '分居预览确认',
       separation_execution_requested: '分居执行请求',
       separation_asset_return_recorded: '分居返还记录',
+      separation_personal_farm_written: '来源田区写回',
     }
     return labels[action] || action
   }
@@ -2967,6 +3008,10 @@
     if (entry.action === 'separation_asset_return_recorded') {
       const count = Number(detail.plot_return_count) || 0
       return count > 0 ? `已记录 ${count} 块来源田区返还，等待个人存档写回` : '已记录返还执行，等待个人存档写回'
+    }
+    if (entry.action === 'separation_personal_farm_written') {
+      const count = Number(detail.restored_plot_count) || 0
+      return count > 0 ? `已写回 ${count} 块来源田区，等待基金 / 仓库返还` : '来源田区已写回个人农田'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0
