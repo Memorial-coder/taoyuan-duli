@@ -708,6 +708,10 @@ function normalizeManorStealEntry(entry) {
     item_id: sanitizeText(entry?.item_id, 80),
     item_label: sanitizeText(entry?.item_label, 60),
     quantity: Math.max(0, Math.floor(Number(entry?.quantity) || 0)),
+    use_tags: Array.isArray(entry?.use_tags)
+      ? entry.use_tags.map(tag => sanitizeText(tag, 30)).filter(Boolean).slice(0, 8)
+      : [],
+    use_summary: sanitizeText(entry?.use_summary, 120),
     day_tag: sanitizeText(entry?.day_tag, 20),
     idempotency_key: sanitizeText(entry?.idempotency_key, 160),
     owner_compensation: sanitizeText(entry?.owner_compensation, 140),
@@ -990,6 +994,40 @@ function buildStealTargetLabel(itemId, fallback = '普通产物') {
   return sanitizeText(itemId, 40) || fallback;
 }
 
+function buildManorStealUseProfile(itemId, fallbackKind = 'crop') {
+  const normalized = String(itemId || '').trim().toLowerCase();
+  if (normalized === 'manor_edge_bundle') {
+    return {
+      use_tags: ['order', 'pet_feed', 'festival'],
+      use_summary: '边角作物可留作公共订单、宠物点心或节会备料。',
+    };
+  }
+  if (/(peach|plum|apricot|pear|apple|fruit|tree)/i.test(normalized) || fallbackKind === 'fruit') {
+    return {
+      use_tags: ['food', 'gift', 'festival'],
+      use_summary: '普通果实适合料理、赠礼或节会轻食。',
+    };
+  }
+  if (normalized === 'rice') {
+    return {
+      use_tags: ['food', 'order', 'festival', 'pet_feed'],
+      use_summary: '稻米适合料理、公共订单、节会备料和宠物温饱饲料。',
+    };
+  }
+  if (/(herb|lotus|tea|ginseng|mint|medic|药|莲|茶)/i.test(normalized)) {
+    return {
+      use_tags: ['alchemy', 'medicine', 'gift'],
+      use_summary: '草本作物适合炼丹、药材准备或偏好赠礼。',
+    };
+  }
+  return {
+    use_tags: fallbackKind === 'fruit' ? ['food', 'gift'] : ['food', 'order'],
+    use_summary: fallbackKind === 'fruit'
+      ? '普通果实适合料理或赠礼。'
+      : '普通作物适合料理或公共订单。',
+  };
+}
+
 function buildManorCareMetrics(gameplay = {}) {
   const farm = gameplay.farm || {};
   const animal = gameplay.animal || {};
@@ -1053,6 +1091,7 @@ function buildManorCareMetrics(gameplay = {}) {
         label: buildStealTargetLabel(plot.cropId, '普通作物'),
         item_id: sanitizeText(plot.cropId, 80),
         object_id: MANOR_CARE_VISUAL_OBJECT_IDS.field,
+        ...buildManorStealUseProfile(plot.cropId, 'crop'),
       })),
       fruit: stealableFruitTrees.slice(0, 8).map(tree => {
         const itemId = tree.fruitId || tree.itemId || tree.type || 'fruit';
@@ -1061,6 +1100,7 @@ function buildManorCareMetrics(gameplay = {}) {
           label: buildStealTargetLabel(itemId, '普通果实'),
           item_id: sanitizeText(itemId, 80),
           object_id: MANOR_CARE_VISUAL_OBJECT_IDS.fruitGrove,
+          ...buildManorStealUseProfile(itemId, 'fruit'),
         };
       }),
       edge: [
@@ -1069,6 +1109,7 @@ function buildManorCareMetrics(gameplay = {}) {
           label: '庄园边角产物',
           item_id: 'manor_edge_bundle',
           object_id: MANOR_CARE_VISUAL_OBJECT_IDS.flowerBed,
+          ...buildManorStealUseProfile('manor_edge_bundle', 'edge'),
         },
       ],
     },
@@ -1195,6 +1236,17 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
     objectLimitById,
   };
   const objects = buildManorCareVisualObjects(gameplay, careEntries, stealEntries, context);
+  const metrics = buildManorCareMetrics(gameplay);
+  const stealTargetUseHints = Object.fromEntries(
+    Object.values(metrics.steal_targets || {})
+      .flat()
+      .map(target => [target.id, {
+        item_id: target.item_id,
+        label: target.label,
+        use_tags: Array.isArray(target.use_tags) ? target.use_tags : [],
+        use_summary: target.use_summary || '',
+      }])
+  );
   const recentEntry = [careEntries[0], stealEntries[0]]
     .filter(Boolean)
     .sort((left, right) => right.created_at - left.created_at)[0] || null;
@@ -1261,7 +1313,8 @@ function buildManorCareSnapshot(username, viewerUsername, gameplay, relationCont
       manor_remaining_steal_count: manorRemainingStealCount,
       can_steal: canSteal,
       steal_denied_reason: stealDeniedReason,
-      whitelist_summary: '仅普通成熟作物、普通果实和边角产物可轻采；任务物、稀有物、唯一物、绑定物和活动核心物被排除。',
+      whitelist_summary: '仅普通成熟作物、普通果实和边角产物可轻采；任务物、稀有物、唯一物、绑定物和活动核心物被排除；可偷目标会显示料理、订单、节会、宠物或赠礼用途标签。',
+      target_use_hints: stealTargetUseHints,
     },
   };
 }
@@ -1776,6 +1829,14 @@ async function submitManorStealAction(payload = {}, actor = {}) {
   if (!stealTarget || !isSafeStealableItemId(stealTarget.item_id)) {
     throw createError('目标不在可偷白名单内', 409);
   }
+  const stealUseProfile = buildManorStealUseProfile(
+    stealTarget.item_id,
+    actionDef.object_id === MANOR_CARE_VISUAL_OBJECT_IDS.fruitGrove
+      ? 'fruit'
+      : actionDef.object_id === MANOR_CARE_VISUAL_OBJECT_IDS.flowerBed
+        ? 'edge'
+        : 'crop'
+  );
 
   const dayTag = getLocalDayTag();
   const idempotencyKey = buildManorStealIdempotencyKey(targetUsername, visitorUsername, dayTag, stealTarget.id, payload.idempotency_key);
@@ -1831,6 +1892,8 @@ async function submitManorStealAction(payload = {}, actor = {}) {
     item_id: stealTarget.item_id,
     item_label: stealTarget.label,
     quantity: 1,
+    use_tags: stealUseProfile.use_tags,
+    use_summary: stealUseProfile.use_summary,
     day_tag: dayTag,
     idempotency_key: idempotencyKey,
     owner_compensation: actionDef.owner_compensation,

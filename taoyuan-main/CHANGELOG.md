@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 偷菜用途标签
+- 有限制偷菜的服务端快照新增 `target_use_hints`，普通作物、普通果实和庄园边角产物会带 `use_tags / use_summary`，提示料理、订单、节会、宠物或赠礼用途。
+- 轻采日志会记录本次目标的用途标签和用途摘要，庄园页在白名单提示下展示可偷目标用途摘要，最近轻采记录优先显示用途摘要。
+- 白名单、主人日志、每日次数、单物件限制、权限关闭和幂等回放保持不变；本轮不把偷菜改成真实扣主人库存或真实发放访客物品。
+- 本轮验证：`node --check server/src/taoyuanManorRuntime.js`、`node --check server/scripts/qa-manor-steal.mjs`、`npm --prefix server run qa:manor-steal`、`npm --prefix taoyuan-main run type-check`。
+
 ### 0525 好友庄园互助边角作物
 - 新增 `manor_edge_bundle` 庄园边角作物包，来源为好友庄园照料“收拾掉落物”，百科可按好友庄园照料、边角作物、公共订单、宠物点心和节会备料搜索。
 - `POST /api/taoyuan/online/manor/care` 在 `collect_drops` 成功时会把 1 份边角作物包写入访客服务端存档，并在照料日志记录奖励物品、数量、品质和存档 revision。

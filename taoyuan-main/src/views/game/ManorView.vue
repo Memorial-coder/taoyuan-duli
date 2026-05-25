@@ -82,6 +82,15 @@
       <p v-if="manorStore.snapshot.steal_state.whitelist_summary" class="text-[10px] leading-4 text-muted">
         {{ manorStore.snapshot.steal_state.whitelist_summary }}
       </p>
+      <div v-if="Object.keys(manorStore.snapshot.steal_state.target_use_hints || {}).length > 0" class="flex flex-wrap gap-1">
+        <span
+          v-for="hint in Object.values(manorStore.snapshot.steal_state.target_use_hints).slice(0, 4)"
+          :key="hint.item_id"
+          class="border border-accent/10 rounded-xs px-2 py-0.5 text-[10px] text-muted"
+        >
+          {{ hint.label }} · {{ hint.use_summary }}
+        </span>
+      </div>
 
       <div v-if="manorStore.snapshot.care_entries.length > 0" class="border border-accent/10 rounded-xs p-2">
         <p class="text-[10px] text-muted mb-1">最近照料</p>
@@ -96,7 +105,7 @@
         <p class="text-[10px] text-muted mb-1">最近轻采</p>
         <div class="max-h-28 space-y-1 overflow-y-auto pr-1">
           <p v-for="entry in manorStore.snapshot.steal_entries.slice(0, 6)" :key="entry.id" class="text-[10px] leading-4 text-muted">
-            {{ entry.visitor_display_name }} · {{ entry.object_label }} · {{ entry.target_label }} · {{ entry.owner_compensation }}
+            {{ entry.visitor_display_name }} · {{ entry.object_label }} · {{ entry.target_label }} · {{ entry.use_summary || entry.owner_compensation }}
           </p>
         </div>
       </div>

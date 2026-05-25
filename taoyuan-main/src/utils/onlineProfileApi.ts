@@ -350,6 +350,12 @@ export interface OnlineManorSnapshot {
     can_steal: boolean
     steal_denied_reason: string
     whitelist_summary: string
+    target_use_hints: Record<string, {
+      item_id: string
+      label: string
+      use_tags: string[]
+      use_summary: string
+    }>
   }
   care_entries: Array<{
     id: string
@@ -389,6 +395,8 @@ export interface OnlineManorSnapshot {
     item_id: string
     item_label: string
     quantity: number
+    use_tags: string[]
+    use_summary: string
     day_tag: string
     idempotency_key: string
     owner_compensation: string

@@ -122,6 +122,9 @@ assert.equal(snapshot.steal_state.can_steal, true, 'public steal policy should a
 assert.equal(snapshot.steal_state.remaining_steal_count, 2, 'visitor should start with two steal actions')
 assert.ok(snapshot.visual_state.objects.find(object => object.id === 'manor_field')?.available_action_ids.includes('steal_plot_sample'), 'field should expose safe plot steal')
 assert.ok(snapshot.visual_state.objects.find(object => object.id === 'manor_fruit_grove')?.available_action_ids.includes('steal_fruit_sample'), 'fruit grove should expose fruit steal')
+assert.ok(snapshot.steal_state.whitelist_summary.includes('用途标签'), 'steal whitelist should mention use tags')
+assert.ok(snapshot.steal_state.target_use_hints?.['plot:0']?.use_tags?.includes('festival'), 'rice steal target should expose festival use tag')
+assert.match(snapshot.steal_state.target_use_hints?.['edge:manor_bundle']?.use_summary || '', /公共订单/, 'edge steal target should expose secondary use summary')
 
 const firstSteal = await runtime.submitManorStealAction({
   target_username: owner,
@@ -132,6 +135,8 @@ const firstSteal = await runtime.submitManorStealAction({
 }, actor(visitor))
 assert.equal(firstSteal.entry.item_id, 'rice', 'safe ordinary crop should be recorded')
 assert.equal(firstSteal.entry.quantity, 1, 'steal should only grant a small quantity record')
+assert.ok(firstSteal.entry.use_tags.includes('order'), 'steal entry should record crop use tags')
+assert.match(firstSteal.entry.use_summary, /公共订单/, 'steal entry should record crop use summary')
 assert.match(firstSteal.entry.owner_compensation, /主人获得/, 'owner compensation should be recorded')
 assert.equal(firstSteal.snapshot.steal_entries[0]?.visitor_username, visitor, 'owner log should include visitor')
 assert.equal(firstSteal.snapshot.steal_state.remaining_steal_count, 1, 'steal limit should decrement')
