@@ -253,6 +253,86 @@ const LANTERN_FAIR_VISUAL_OBJECT_DEFS = Object.freeze([
   },
 ]);
 
+const LABA_COOKPOT_VISUAL_OBJECT_IDS = Object.freeze({
+  cookpot: 'laba_cookpot_big_pot',
+  stove: 'laba_cookpot_stove',
+  riceTub: 'laba_cookpot_rice_tub',
+  ingredientBasket: 'laba_cookpot_ingredient_basket',
+  servingQueue: 'laba_cookpot_serving_queue',
+  aromaTable: 'laba_cookpot_aroma_table',
+});
+
+const LABA_COOKPOT_ACTION_OBJECT_MAP = Object.freeze({
+  lock_piece: LABA_COOKPOT_VISUAL_OBJECT_IDS.cookpot,
+  tighten_frame: LABA_COOKPOT_VISUAL_OBJECT_IDS.stove,
+  deliver_bundle: LABA_COOKPOT_VISUAL_OBJECT_IDS.ingredientBasket,
+  sort_bundle: LABA_COOKPOT_VISUAL_OBJECT_IDS.riceTub,
+  sync_oar: LABA_COOKPOT_VISUAL_OBJECT_IDS.servingQueue,
+  steady_rudder: LABA_COOKPOT_VISUAL_OBJECT_IDS.stove,
+  keep_beat: LABA_COOKPOT_VISUAL_OBJECT_IDS.servingQueue,
+  lift_applause: LABA_COOKPOT_VISUAL_OBJECT_IDS.aromaTable,
+  offer_progress: LABA_COOKPOT_VISUAL_OBJECT_IDS.ingredientBasket,
+  raise_banner: LABA_COOKPOT_VISUAL_OBJECT_IDS.aromaTable,
+});
+
+const LABA_COOKPOT_EVENT_OBJECT_MAP = Object.freeze({
+  fire_control: LABA_COOKPOT_VISUAL_OBJECT_IDS.stove,
+  serving_wave: LABA_COOKPOT_VISUAL_OBJECT_IDS.servingQueue,
+});
+
+const LABA_COOKPOT_VISUAL_OBJECT_DEFS = Object.freeze([
+  {
+    id: LABA_COOKPOT_VISUAL_OBJECT_IDS.cookpot,
+    label: '腊八大锅',
+    kind: 'cookpot',
+    x: 50,
+    y: 30,
+    progress_target: 4,
+    requires_cooperation: true,
+    cooperation_required_count: 2,
+  },
+  {
+    id: LABA_COOKPOT_VISUAL_OBJECT_IDS.stove,
+    label: '灶台火候',
+    kind: 'stove',
+    x: 32,
+    y: 48,
+    progress_target: 3,
+  },
+  {
+    id: LABA_COOKPOT_VISUAL_OBJECT_IDS.riceTub,
+    label: '米桶',
+    kind: 'rice_tub',
+    x: 20,
+    y: 70,
+    progress_target: 2,
+  },
+  {
+    id: LABA_COOKPOT_VISUAL_OBJECT_IDS.ingredientBasket,
+    label: '配料篮',
+    kind: 'ingredient_basket',
+    x: 66,
+    y: 62,
+    progress_target: 3,
+  },
+  {
+    id: LABA_COOKPOT_VISUAL_OBJECT_IDS.servingQueue,
+    label: '分粥队伍',
+    kind: 'serving_queue',
+    x: 80,
+    y: 42,
+    progress_target: 0,
+  },
+  {
+    id: LABA_COOKPOT_VISUAL_OBJECT_IDS.aromaTable,
+    label: '留香案',
+    kind: 'aroma_table',
+    x: 54,
+    y: 82,
+    progress_target: 2,
+  },
+]);
+
 const DRAGON_BOAT_VISUAL_TRACK_ID = 'dragon_boat_river';
 const DRAGON_BOAT_VISUAL_TEAM_ID = 'team_dragon_boat';
 const ESCORT_CONVOY_VISUAL_TRACK_ID = 'escort_convoy_route';
@@ -2440,6 +2520,138 @@ function syncLanternFairVisualState(room, festivalState, options = {}) {
   return room.visual_state;
 }
 
+function getLabaCookpotCurrentVisualObjectId(room, festivalState) {
+  const event = getFestivalCurrentEvent(room, festivalState);
+  return LABA_COOKPOT_EVENT_OBJECT_MAP[event?.id] || LABA_COOKPOT_VISUAL_OBJECT_IDS.cookpot;
+}
+
+function buildLabaCookpotVisualActionMap(room) {
+  const template = getGameplayTemplateByDomain(room?.activity_domain, room?.gameplay_template_id, room?.template_id);
+  const actionIds = new Set((template.action_options || []).map(action => sanitizeText(action.id, 60)).filter(Boolean));
+  return Object.entries(LABA_COOKPOT_ACTION_OBJECT_MAP).reduce((actionMap, [actionId, objectId]) => {
+    if (!actionIds.has(actionId)) return actionMap;
+    if (!actionMap.has(objectId)) actionMap.set(objectId, []);
+    actionMap.get(objectId).push(actionId);
+    return actionMap;
+  }, new Map());
+}
+
+function resolveLabaCookpotVisualObjectState(definition, context) {
+  const {
+    actionIds,
+    eventObjectId,
+    festivalState,
+    isCompleted,
+    isTarget,
+    progressTarget,
+    progressValue,
+    resources,
+  } = context;
+  if (isCompleted || (progressTarget > 0 && progressValue >= progressTarget)) return 'complete';
+  if (definition.id === LABA_COOKPOT_VISUAL_OBJECT_IDS.servingQueue && festivalState.pressure_value >= festivalState.pressure_max - 1) return 'overheated';
+  if (definition.id === LABA_COOKPOT_VISUAL_OBJECT_IDS.ingredientBasket && (resources.supplies || 0) <= 0) return 'blocked';
+  if (definition.id === LABA_COOKPOT_VISUAL_OBJECT_IDS.riceTub && (resources.supplies || 0) <= 1) return 'needs_action';
+  if (isTarget || progressValue > 0 || definition.id === eventObjectId) return 'busy';
+  if (actionIds.length > 0) return 'needs_action';
+  return 'idle';
+}
+
+function buildLabaCookpotVisualObjects(room, festivalState, existingObjects = [], options = {}) {
+  const normalizedFestivalState = normalizeFestivalState(festivalState, room?.template_id);
+  const existingById = new Map((existingObjects || []).map(normalizeOnlineVisualObject).filter(Boolean).map(object => [object.id, object]));
+  const actionMap = buildLabaCookpotVisualActionMap(room);
+  const targetObjectId = sanitizeText(options.targetObjectId, 80);
+  const handledBy = sanitizeText(options.handledBy || options.claimedBy, 40);
+  const handledAt = Math.max(0, Math.floor(Number(options.handledAt) || 0));
+  const progressDelta = Math.max(0, Math.floor(Number(options.progressDelta) || 0));
+  const eventObjectId = getLabaCookpotCurrentVisualObjectId(room, normalizedFestivalState);
+  const resources = normalizeFestivalResources(normalizedFestivalState.team_resources);
+  const isCompleted = room?.gameplay_state?.phase === 'completed';
+
+  return LABA_COOKPOT_VISUAL_OBJECT_DEFS.map(definition => {
+    const existing = existingById.get(definition.id);
+    const actionIds = actionMap.get(definition.id) || [];
+    const progressTarget = Math.max(0, Math.floor(Number(definition.progress_target) || 0));
+    const baseProgress = progressTarget > 0
+      ? clampNumber(existing?.progress_value, 0, progressTarget)
+      : Math.max(0, Math.floor(Number(existing?.progress_value) || 0));
+    const isTarget = definition.id === targetObjectId;
+    const shouldAdvanceProgress = isTarget && (handledBy || progressDelta > 0 || options.advanceProgress === true);
+    const nextProgress = progressTarget > 0 && shouldAdvanceProgress
+      ? clampNumber(baseProgress + Math.max(1, progressDelta), 0, progressTarget)
+      : baseProgress;
+    const cooperationCurrentCount = definition.requires_cooperation
+      ? Math.min(
+        Math.max(0, Math.floor(Number(definition.cooperation_required_count) || 0)),
+        Math.max(existing?.cooperation_current_count || 0, isTarget && handledBy ? 1 : 0)
+      )
+      : 0;
+
+    return normalizeOnlineVisualObject({
+      id: definition.id,
+      label: definition.label,
+      kind: definition.kind,
+      x: definition.x,
+      y: definition.y,
+      state: resolveLabaCookpotVisualObjectState(definition, {
+        actionIds,
+        eventObjectId,
+        festivalState: normalizedFestivalState,
+        isCompleted,
+        isTarget,
+        progressTarget,
+        progressValue: nextProgress,
+        resources,
+      }),
+      available_action_ids: actionIds,
+      progress_value: nextProgress,
+      progress_target: progressTarget,
+      handled_by: isTarget && handledBy ? handledBy : existing?.handled_by,
+      handled_at: isTarget && handledAt ? handledAt : existing?.handled_at,
+      requires_cooperation: definition.requires_cooperation === true,
+      cooperation_required_count: definition.cooperation_required_count || 0,
+      cooperation_current_count: cooperationCurrentCount,
+    });
+  });
+}
+
+function syncLabaCookpotVisualState(room, festivalState, options = {}) {
+  if (room?.activity_domain !== 'festival' || room?.template_id !== 'laba_cookpot') return null;
+  const visualState = normalizeOnlineVisualState(room.visual_state, room);
+  const targetObjectId = sanitizeText(options.selectedVisualId || options.targetObjectId, 80)
+    || visualState.selected_visual_id
+    || getLabaCookpotCurrentVisualObjectId(room, festivalState);
+  const objects = buildLabaCookpotVisualObjects(room, festivalState, visualState.objects, {
+    ...options,
+    targetObjectId,
+  });
+  const recentFeedback = sanitizeText(options.recentFeedback || festivalState?.recent_feedback || visualState.recent_feedback, 180);
+  const highlights = options.appendHighlight && targetObjectId && recentFeedback
+    ? [
+      normalizeOnlineVisualHighlight({
+        id: makeId('laba_cookpot_highlight'),
+        visual_id: targetObjectId,
+        type: 'success',
+        label: sanitizeText(options.highlightLabel, 40) || '共灶行动',
+        summary: recentFeedback,
+        created_at: nowSeconds(),
+      }),
+      ...(visualState.highlights || []),
+    ].slice(0, 16)
+    : visualState.highlights;
+  room.visual_state = normalizeOnlineVisualState({
+    ...visualState,
+    board_type: 'scene',
+    board_id: visualState.board_id || buildDefaultVisualBoardId(room),
+    revision: visualState.revision + (options.incrementRevision ? 1 : 0),
+    selected_visual_id: targetObjectId,
+    objects,
+    highlights,
+    recent_feedback: recentFeedback,
+  }, room);
+  return room.visual_state;
+}
+
 function isDragonBoatRoom(room) {
   return room?.activity_domain === 'festival' && room?.template_id === 'dragon_boat';
 }
@@ -3077,6 +3289,7 @@ function ensureRoomGameplayState(room) {
     room.gameplay_state.festival_state = normalizeFestivalState(room.gameplay_state.festival_state, room.template_id);
     syncFestivalRoleAssignments(room, room.gameplay_state.festival_state);
     syncLanternFairVisualState(room, room.gameplay_state.festival_state);
+    syncLabaCookpotVisualState(room, room.gameplay_state.festival_state);
     syncDragonBoatVisualState(room, room.gameplay_state.festival_state);
   }
   if (gameplayTemplate.id === 'expedition_cavern') {
@@ -3782,6 +3995,11 @@ function advanceFestivalRound(room, festivalState, actor) {
     selectedVisualId: getLanternFairCurrentVisualObjectId(room, festivalState),
     recentFeedback: festivalState.recent_feedback,
   });
+  syncLabaCookpotVisualState(room, festivalState, {
+    incrementRevision: true,
+    selectedVisualId: getLabaCookpotCurrentVisualObjectId(room, festivalState),
+    recentFeedback: festivalState.recent_feedback,
+  });
   syncDragonBoatVisualState(room, festivalState, {
     incrementRevision: true,
     recentFeedback: festivalState.recent_feedback,
@@ -3936,6 +4154,16 @@ function applyFestivalRoundEffects(room, festivalState, actor, actionOption, con
   syncLanternFairVisualState(room, festivalState, {
     incrementRevision: true,
     selectedVisualId: LANTERN_FAIR_ACTION_OBJECT_MAP[actionOption.id] || getLanternFairCurrentVisualObjectId(room, festivalState),
+    handledBy: actor.username,
+    handledAt: roundLogEntry.created_at,
+    progressDelta: Math.max(0, Math.floor(Number(actionOption.progress_delta) || 0)),
+    recentFeedback: roundLogEntry.summary,
+    appendHighlight: true,
+    highlightLabel: actionOption.label,
+  });
+  syncLabaCookpotVisualState(room, festivalState, {
+    incrementRevision: true,
+    selectedVisualId: LABA_COOKPOT_ACTION_OBJECT_MAP[actionOption.id] || getLabaCookpotCurrentVisualObjectId(room, festivalState),
     handledBy: actor.username,
     handledAt: roundLogEntry.created_at,
     progressDelta: Math.max(0, Math.floor(Number(actionOption.progress_delta) || 0)),
@@ -5478,6 +5706,7 @@ async function createActivityRoom(domain = DEFAULT_ACTIVITY_DOMAIN, payload = {}
   });
   if (room.activity_domain === 'festival') {
     syncLanternFairVisualState(room, room.gameplay_state.festival_state);
+    syncLabaCookpotVisualState(room, room.gameplay_state.festival_state);
     syncDragonBoatVisualState(room, room.gameplay_state.festival_state);
   }
   if (gameplayTemplate.id === 'expedition_cavern') {

@@ -88,6 +88,33 @@ const assertLanternFairVisualObjects = (room, expectedRevision = 0, options = {}
   assert.ok(objectActionIds.every(actionId => actionIds.has(actionId)), 'visual object actions should exist in gameplay actions')
 }
 
+const assertLabaCookpotVisualObjects = (room, expectedRevision = 0, options = {}) => {
+  const visualState = room?.visual_state
+  const objects = visualState?.objects || []
+  const actionIds = new Set((room?.gameplay?.available_actions || []).map(action => action.id))
+  assert.equal(visualState?.board_type, 'scene', 'laba cookpot visual_state should use scene board')
+  assert.equal(visualState?.revision, expectedRevision, 'laba cookpot visual_state revision mismatch')
+  assert.equal(objects.length, 6, 'laba cookpot should expose 6 scene objects')
+  assert.deepEqual(objects.map(object => object.id), [
+    'laba_cookpot_big_pot',
+    'laba_cookpot_stove',
+    'laba_cookpot_rice_tub',
+    'laba_cookpot_ingredient_basket',
+    'laba_cookpot_serving_queue',
+    'laba_cookpot_aroma_table',
+  ], 'laba cookpot visual objects should keep stable order')
+  assert.ok(objects.some(object => object.kind === 'cookpot'), 'laba cookpot should expose the big pot object')
+  assert.ok(objects.some(object => object.kind === 'stove'), 'laba cookpot should expose the stove object')
+  assert.ok(objects.some(object => object.kind === 'serving_queue'), 'laba cookpot should expose the serving queue object')
+  const objectActionIds = objects.flatMap(object => object.available_action_ids || [])
+  assert.ok(objectActionIds.every(actionId => actionIds.has(actionId)), 'laba cookpot visual actions should exist in gameplay actions')
+  if (options.expectedHandledObjectId) {
+    const target = objects.find(object => object.id === options.expectedHandledObjectId)
+    assert.equal(target?.handled_by, options.expectedHandledBy, 'laba cookpot action should mark handling player')
+    assert.ok(target?.progress_value > 0, 'laba cookpot action should advance target object progress')
+  }
+}
+
 const assertDragonBoatVisualTrack = (room, expectedRevision = 0, options = {}) => {
   const visualState = room?.visual_state
   const tracks = visualState?.tracks || []
@@ -174,6 +201,13 @@ const festival = await runtime.createFestivalRoom({
 }, actor('visual_host_festival'))
 assertLanternFairVisualObjects(festival.room, 0)
 
+const labaCookpot = await runtime.createFestivalRoom({
+  template_id: 'laba_cookpot',
+  gameplay_template_id: 'gathering',
+  title: 'visual laba cookpot smoke',
+}, actor('visual_host_laba'))
+assertLabaCookpotVisualObjects(labaCookpot.room, 0)
+
 const expedition = await runtime.createExpeditionRoom({
   template_id: 'cavern_duo',
   gameplay_template_id: 'expedition_cavern',
@@ -210,6 +244,12 @@ festivalActionStore.rooms = festivalActionStore.rooms.map(room => {
     running_started_at: 12340,
     members: room.members.map(member => ({ ...member, status: 'active' })),
   }
+  if (room.id === labaCookpot.room.id) return {
+    ...room,
+    state: 'running',
+    running_started_at: 12339,
+    members: room.members.map(member => ({ ...member, status: 'active' })),
+  }
   if (room.id === dragonBoat.room.id) return {
     ...room,
     state: 'running',
@@ -237,6 +277,18 @@ const mainLantern = lanternActionResult.room.visual_state.objects.find(object =>
 assert.equal(mainLantern?.state, 'busy', 'main lantern should become busy after assembly action')
 assert.equal(mainLantern?.progress_value, 1, 'main lantern progress should advance after assembly action')
 assert.equal(mainLantern?.handled_by, 'visual_host_festival', 'main lantern should mark the acting player')
+
+const labaActionResult = await runtime.submitFestivalRoomGameplayAction(labaCookpot.room.id, {
+  action_id: 'deliver_bundle',
+}, actor('visual_host_laba'))
+assert.equal(labaActionResult.room.gameplay.last_action_id, 'deliver_bundle', 'laba cookpot gameplay should record object action')
+assert.equal(labaActionResult.room.visual_state.revision, 1, 'laba cookpot visual revision should advance after object action')
+assert.equal(labaActionResult.room.visual_state.recent_feedback, labaActionResult.room.gameplay.festival_state.recent_feedback, 'laba cookpot visual feedback should mirror gameplay feedback')
+assert.equal(labaActionResult.room.visual_state.highlights[0]?.visual_id, 'laba_cookpot_ingredient_basket', 'laba cookpot action should append visual highlight')
+assertLabaCookpotVisualObjects(labaActionResult.room, 1, {
+  expectedHandledObjectId: 'laba_cookpot_ingredient_basket',
+  expectedHandledBy: 'visual_host_laba',
+})
 
 const dragonActionResult = await runtime.submitFestivalRoomGameplayAction(dragonBoat.room.id, {
   action_id: 'sync_oar',

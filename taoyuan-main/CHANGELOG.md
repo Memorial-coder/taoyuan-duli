@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 腊八共灶场景物件
+- `laba_cookpot` 节会房间新增腊八大锅、灶台火候、米桶、配料篮、分粥队伍和留香案 6 个场景物件。
+- 在线节会页继续复用 `VisualSceneBoard`，可显示腊八共灶物件状态、进度、处理人、最近反馈和物件动作入口。
+- 本轮验证：`node --check server/src/taoyuanActivityRoomRuntime.js`、`node --check server/scripts/qa-activity-room-visual-state.mjs`、`npm --prefix server run qa:activity-room-visual-state`、`npm --prefix taoyuan-main run type-check`。
+
 ### 0525 护送抵运路线回看
 - 远征 `expedition_escort` 结算凭证新增 `escort_convoy` 路线回看，记录 6 格护送路线、行动高光、途中风险摘要和成员贡献。
 - 路线回看只进入只读 receipt 字段，不进入奖励 payload，不改变原有个人奖励落账和结算幂等键。
