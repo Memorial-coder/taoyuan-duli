@@ -1051,6 +1051,10 @@ export interface CohabitationSeparationPreview {
       personal_story_receipts_written_at?: number
       personal_story_receipts_written_by?: string
       personal_story_receipts?: Array<Record<string, unknown>>
+      child_arrangement_resolved?: boolean
+      child_arrangement_resolved_at?: number
+      child_arrangement_resolved_by?: string
+      child_arrangement_resolution?: Record<string, unknown>
       execution_enabled?: boolean
       next_required_operations?: string[]
       [key: string]: unknown
@@ -1178,6 +1182,14 @@ export interface CohabitationSeparationFamilyStoryResolvePayload {
 export interface CohabitationSeparationPersonalStoryReceiptsPayload {
   execution_ledger_id?: string
   plot_return_manifest_hash?: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSeparationChildArrangementResolvePayload {
+  execution_ledger_id?: string
+  plot_return_manifest_hash?: string
+  arrangement_choice?: 'shared_care_pending_personal_saves' | 'owner_care_pending_personal_saves' | 'manual_family_review' | string
   memo?: string
   idempotency_key: string
 }
@@ -1350,6 +1362,12 @@ export interface CohabitationSeparationPersonalStoryReceiptsResponse extends Coh
   already_written?: boolean
 }
 
+export interface CohabitationSeparationChildArrangementResolveResponse extends CohabitationSeparationPreviewResponse {
+  execution_ledger?: Record<string, unknown>
+  child_arrangement?: Record<string, unknown> | null
+  already_resolved?: boolean
+}
+
 const fetchCohabitationJson = async <T>(path: string, fallbackMessage: string): Promise<T | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
@@ -1476,6 +1494,14 @@ export const writeCohabitationSeparationPersonalStoryReceipts = async (contractI
     contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/write-personal-story-receipts`),
     payload as unknown as Record<string, unknown>,
     '写入分居个人剧情回执失败'
+  )
+}
+
+export const resolveCohabitationSeparationChildArrangement = async (contractId: string, previewId: string, payload: CohabitationSeparationChildArrangementResolvePayload) => {
+  return postCohabitationJson<CohabitationSeparationChildArrangementResolveResponse>(
+    contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/resolve-child-arrangement`),
+    payload as unknown as Record<string, unknown>,
+    '记录分居孩子安排失败'
   )
 }
 

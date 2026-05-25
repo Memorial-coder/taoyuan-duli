@@ -28,6 +28,7 @@ import {
   fetchCohabitationWarehouse,
   refundCohabitationSeparationSharedFund,
   requestCohabitationSeparationExecution,
+  resolveCohabitationSeparationChildArrangement,
   resolveCohabitationSeparationFamilyStory,
   returnCohabitationSeparationSharedWarehouse,
   sellCohabitationWarehouseItem,
@@ -51,6 +52,7 @@ import {
   type CohabitationOverviewResponse,
   type CohabitationPermissionsPanel,
   type CohabitationSeparationAssetReturnExecutePayload,
+  type CohabitationSeparationChildArrangementResolvePayload,
   type CohabitationSeparationExecutionRequestPayload,
   type CohabitationSeparationFamilyStoryResolvePayload,
   type CohabitationSeparationPersonalFarmWritePayload,
@@ -455,6 +457,25 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const resolveSeparationChildArrangement = async (previewId: string, payload: CohabitationSeparationChildArrangementResolvePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !previewId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await resolveCohabitationSeparationChildArrangement(activeContractId.value, previewId, payload)
+      if (result?.contract) {
+        syncOverviewContract(result.contract)
+        await refreshSelectedDetails({ silent: true })
+      }
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '记录分居孩子安排失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const contributeSharedFund = async (payload: {
     amount: number
     purpose?: string
@@ -831,6 +852,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     returnSeparationSharedWarehouse,
     resolveSeparationFamilyStory,
     writeSeparationPersonalStoryReceipts,
+    resolveSeparationChildArrangement,
     contributeSharedFund,
     spendSharedFund,
     createSharedFundLargeSpendDraft,

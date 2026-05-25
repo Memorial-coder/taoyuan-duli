@@ -346,6 +346,16 @@
                         <ClipboardList :size="12" />
                         写回剧情
                       </button>
+                      <button
+                        class="online-action-btn online-action-btn--compact justify-center"
+                        type="button"
+                        :disabled="!canResolveSeparationChildArrangement || cohabitationStore.actionLoading"
+                        data-testid="online-cohabitation-separation-child-arrangement"
+                        @click="resolveSeparationChildArrangement"
+                      >
+                        <HeartHandshake :size="12" />
+                        安排孩子
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1725,6 +1735,7 @@
   const separationPreviewConfirmationLabel = computed(() => {
     const confirmed = separationPreviewConfirmedBy.value
     const pending = separationPreviewPendingMembers.value
+    if (separationExecutionRequest.value?.status === 'child_arrangement_resolved') return '孩子安排已记录，等待装饰 / 建筑拆分和个人家庭存档 receipt。'
     if (separationExecutionRequest.value?.status === 'personal_story_receipts_written') return '个人剧情 receipt 已写入成员存档，等待装饰 / 建筑拆分。'
     if (separationExecutionRequest.value?.status === 'family_story_resolved') return '分居剧情拆分已记录在共同契约，等待装饰 / 建筑拆分和个人剧情 receipt。'
     if (separationExecutionRequest.value?.status === 'shared_warehouse_returned') return '共同仓库已按来源写回个人背包，等待装饰 / 建筑 / 剧情拆分。'
@@ -1803,6 +1814,21 @@
     if (preview.confirmation_state?.all_members_confirmed !== true) return false
     if (separationExecutionRequest.value?.status !== 'family_story_resolved') return false
     if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
+    return true
+  })
+  const canResolveSeparationChildArrangement = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
+    if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
+    if (preview.state !== 'confirmed') return false
+    if (preview.confirmation_state?.all_members_confirmed !== true) return false
+    const request = separationExecutionRequest.value
+    const requestStatus = String(request?.status || '')
+    if (!['family_story_resolved', 'personal_story_receipts_written'].includes(requestStatus)) return false
+    const familyStoryResolution = request?.family_story_resolution as Record<string, unknown> | undefined
+    if (familyStoryResolution?.child_arrangement_required !== true) return false
+    if (request?.child_arrangement_resolved === true) return false
+    if (!request?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
     return true
   })
   const selectedContractActorMember = computed(() => {
@@ -2462,6 +2488,31 @@
           : '个人剧情回执已写入'
     } catch (error) {
       separationActionMessage.value = error instanceof Error ? error.message : '写入分居个人剧情回执失败'
+    }
+  }
+
+  const resolveSeparationChildArrangement = async () => {
+    if (!latestSeparationPreview.value || !canResolveSeparationChildArrangement.value) return
+    separationActionMessage.value = ''
+    separationActionOk.value = false
+    try {
+      const result = await cohabitationStore.resolveSeparationChildArrangement(latestSeparationPreview.value.id, {
+        execution_ledger_id: separationExecutionRequest.value?.execution_ledger_id,
+        plot_return_manifest_hash: separationPlotReturnManifestHash.value,
+        arrangement_choice: 'shared_care_pending_personal_saves',
+        memo: '前端记录分居孩子安排；个人家庭和孩子存档留后续 receipt',
+        idempotency_key: `ui-separation-child-arrangement-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      separationActionOk.value = true
+      const childArrangement = result?.child_arrangement
+      const childCount = Number(childArrangement?.child_count) || 0
+      separationActionMessage.value = result?.idempotent || result?.already_resolved
+        ? '已读回已有孩子安排记录'
+        : childCount > 0
+          ? `已记录 ${childCount} 名孩子的分居安排`
+          : '孩子安排已记录'
+    } catch (error) {
+      separationActionMessage.value = error instanceof Error ? error.message : '记录分居孩子安排失败'
     }
   }
 
@@ -3142,6 +3193,8 @@
       separation_shared_fund_refunded: '共同基金返还',
       separation_shared_warehouse_returned: '共同仓库返还',
       separation_family_story_resolved: '剧情拆分记录',
+      separation_personal_story_receipts_written: '剧情回执写入',
+      separation_child_arrangement_resolved: '孩子安排记录',
     }
     return labels[action] || action
   }
@@ -3207,6 +3260,10 @@
     if (entry.action === 'separation_personal_story_receipts_written') {
       const count = Number(detail.receipt_count) || 0
       return count > 0 ? `已写入个人剧情回执 ${count} 份，等待装饰 / 建筑拆分` : '已写入个人剧情回执，等待装饰 / 建筑拆分'
+    }
+    if (entry.action === 'separation_child_arrangement_resolved') {
+      const count = Number(detail.child_count) || 0
+      return count > 0 ? `已记录 ${count} 名孩子的安排，个人家庭存档 receipt 仍暂缓` : '孩子安排已记录，个人家庭存档 receipt 仍暂缓'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0

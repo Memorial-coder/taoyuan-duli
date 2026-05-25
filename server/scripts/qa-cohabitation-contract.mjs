@@ -164,6 +164,14 @@ const mutateStoredSeparationPreview = async (contractId, previewId, mutate) => {
   await writeFile(contractStoreFile, `${JSON.stringify(raw, null, 2)}\n`, 'utf8')
 }
 
+const mutateStoredContract = async (contractId, mutate) => {
+  const raw = JSON.parse(await readFile(contractStoreFile, 'utf8'))
+  const contract = raw.contracts.find(entry => entry.id === contractId)
+  assert.ok(contract, 'contract should exist in cohabitation store')
+  mutate(contract)
+  await writeFile(contractStoreFile, `${JSON.stringify(raw, null, 2)}\n`, 'utf8')
+}
+
 const getInventoryItemQuantity = (username, itemId, quality = 'normal') => {
   const data = readGameplayData(username)
   return (data?.inventory?.items || [])
@@ -2187,6 +2195,81 @@ assert.equal(duplicatePersonalStoryReceipts.idempotent, true, 'same personal sto
 assert.equal(duplicatePersonalStoryReceipts.execution_ledger.id, personalStoryReceipts.execution_ledger.id, 'idempotent personal story receipt write should keep ledger id')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterPersonalStoryReceipts, 'idempotent personal story receipt write should not rewrite owner save again')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterPersonalStoryReceipts, 'idempotent personal story receipt write should not rewrite partner save again')
+
+await mutateStoredContract(created.contract.id, contract => {
+  contract.type = 'marriage_home'
+  contract.family_state = {
+    ...(contract.family_state || {}),
+    has_children: true,
+    child_count: 1,
+  }
+  const ledger = (contract.separation_execution_ledger || []).find(entry => entry.id === personalStoryReceipts.execution_ledger.id)
+  assert.ok(ledger, 'personal story ledger should exist before child arrangement mutation')
+  ledger.family_story_resolution = {
+    ...(ledger.family_story_resolution || {}),
+    child_arrangement_required: true,
+  }
+  ledger.next_required_operations = Array.from(new Set([...(ledger.next_required_operations || []), 'resolve_child_arrangement', 'split_decorations']))
+  const preview = (contract.separation_previews || []).find(entry => entry.id === previewResult.preview.id)
+  assert.ok(preview, 'separation preview should exist before child arrangement mutation')
+  preview.confirmation_state = preview.confirmation_state || {}
+  preview.confirmation_state.execution_request = {
+    ...(preview.confirmation_state.execution_request || {}),
+    status: 'personal_story_receipts_written',
+    execution_ledger_id: personalStoryReceipts.execution_ledger.id,
+    family_story_resolution: ledger.family_story_resolution,
+    next_required_operations: ledger.next_required_operations,
+  }
+  preview.deferred_operations = ledger.next_required_operations
+})
+
+await assert.rejects(
+  () => runtime.resolveSeparationChildArrangement(created.contract.id, previewResult.preview.id, {
+    memo: 'wrong child arrangement hash',
+    plot_return_manifest_hash: 'e'.repeat(64),
+    execution_ledger_id: personalStoryReceipts.execution_ledger.id,
+    arrangement_choice: 'shared_care_pending_personal_saves',
+    idempotency_key: 'qa-separation-child-arrangement-wrong-hash',
+  }, actor(owner)),
+  /hash 不匹配/,
+  'child arrangement should reject mismatched manifest hash'
+)
+
+const ownerBoundaryBeforeChildArrangement = pickPersonalStoryBoundaryState(owner)
+const partnerBoundaryBeforeChildArrangement = pickPersonalStoryBoundaryState(partner)
+const childArrangement = await runtime.resolveSeparationChildArrangement(created.contract.id, previewResult.preview.id, {
+  memo: 'record child arrangement only',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: personalStoryReceipts.execution_ledger.id,
+  arrangement_choice: 'shared_care_pending_personal_saves',
+  idempotency_key: 'qa-separation-child-arrangement',
+}, actor(owner))
+assert.equal(childArrangement.idempotent, false, 'first child arrangement resolution should not be idempotent')
+assert.equal(childArrangement.execution_ledger.status, 'child_arrangement_resolved', 'child arrangement should advance execution ledger status')
+assert.equal(childArrangement.execution_ledger.child_arrangement_resolved, true, 'child arrangement should mark ledger resolved')
+assert.equal(childArrangement.preview.confirmation_state.execution_request.status, 'child_arrangement_resolved', 'execution request should advance to child-arrangement-resolved')
+assert.equal(childArrangement.child_arrangement.child_count, 1, 'child arrangement should record child count')
+assert.equal(childArrangement.child_arrangement.personal_family_save_write_required, true, 'child arrangement should leave personal family save receipt pending')
+assert.equal(childArrangement.child_arrangement.children_private, true, 'child arrangement should keep children private')
+assert.ok(!childArrangement.execution_ledger.next_required_operations.includes('resolve_child_arrangement'), 'child arrangement should close child arrangement follow-up')
+assert.ok(childArrangement.execution_ledger.next_required_operations.includes('split_decorations'), 'child arrangement should keep decoration split follow-up')
+assert.ok(childArrangement.contract.audit_log.find(entry => entry.action === 'separation_child_arrangement_resolved' && entry.idempotency_key === 'qa-separation-child-arrangement'), 'child arrangement should be audited')
+assert.deepEqual(pickPersonalStoryBoundaryState(owner), ownerBoundaryBeforeChildArrangement, 'child arrangement should not change owner money inventory farm npc home family or children state')
+assert.deepEqual(pickPersonalStoryBoundaryState(partner), partnerBoundaryBeforeChildArrangement, 'child arrangement should not change partner money inventory farm npc home family or children state')
+
+const ownerRawAfterChildArrangement = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawAfterChildArrangement = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const duplicateChildArrangement = await runtime.resolveSeparationChildArrangement(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate child arrangement only',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: personalStoryReceipts.execution_ledger.id,
+  arrangement_choice: 'shared_care_pending_personal_saves',
+  idempotency_key: 'qa-separation-child-arrangement',
+}, actor(owner))
+assert.equal(duplicateChildArrangement.idempotent, true, 'same child arrangement idempotency key should return existing record')
+assert.equal(duplicateChildArrangement.execution_ledger.id, childArrangement.execution_ledger.id, 'idempotent child arrangement should keep ledger id')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterChildArrangement, 'idempotent child arrangement should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterChildArrangement, 'idempotent child arrangement should not rewrite partner save')
 
 const partnerMoneyBeforeMediumFundTopUp = readGameplayData(partner)?.player?.money
 const fundBeforeMediumFundTopUp = await runtime.getCohabitationFund(created.contract.id, actor(owner))
