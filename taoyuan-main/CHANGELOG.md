@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 家族建筑共同仓库材料恢复补偿
+- 服务端新增 `/family-buildings/materials/restore`，要求目标家族建筑流水已 `reverted`、共同基金已退款，并具备原共同仓库材料 `consume` ledger。
+- 成功后按原消耗流水写共同仓库 `compensate` ledger，把建材恢复到共同仓库，并在建筑流水记录材料恢复幂等键、恢复 ledger、操作者和时间。
+- 重复请求幂等读回，不写个人背包、不改个人铜币、不真实拆除建筑；前端按钮入口仍留后续独立接入。
+- 本轮验证：`node --check server\src\taoyuanCohabitationRuntime.js`、`node --check server\src\routes\api.js`、`node --check server\scripts\qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 家族建筑基金退款前端入口
 - 前端 API / store 接入 `/family-buildings/fund/refund`，共同庄园建筑页在建筑流水卡片新增“退回基金”按钮。
 - 按钮按 `reverted`、已扣共同基金、原基金 ledger、未退款和契约开启状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。

@@ -2911,6 +2911,16 @@ assert.equal(alreadyFamilyBuildingRollback.already_reverted, true, 'already reve
 assert.equal(alreadyFamilyBuildingRollback.building_ledger_entry.status, 'reverted', 'already reverted building should stay reverted')
 
 await assert.rejects(
+  () => runtime.restoreCohabitationFamilyBuildingMaterials(largeContract.contract.id, {
+    building_ledger_id: largeExecute.building_ledger_entry.id,
+    idempotency_key: 'qa-family-building-material-restore-before-fund-refund',
+  }, actor(largeOwner)),
+  error => error?.status === 409,
+  'building material restore should require shared fund refund first'
+)
+assert.equal((await runtime.getCohabitationWarehouse(largeContract.contract.id, actor(largeOwner))).warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 0, 'material restore before fund refund should not restore wood')
+
+await assert.rejects(
   () => runtime.refundCohabitationFamilyBuildingFund(largeContract.contract.id, {
     building_ledger_id: largeExecute.building_ledger_entry.id,
     idempotency_key: 'qa-family-building-fund-refund-extra-denied',
@@ -2955,5 +2965,58 @@ const alreadyFamilyBuildingFundRefund = await runtime.refundCohabitationFamilyBu
 assert.equal(alreadyFamilyBuildingFundRefund.idempotent, true, 'already refunded building should return idempotent response')
 assert.equal(alreadyFamilyBuildingFundRefund.already_refunded, true, 'already refunded building response should be explicit')
 assert.equal(alreadyFamilyBuildingFundRefund.fund.balance, balanceBeforeLargeDraft, 'already refunded building should not double credit shared fund')
+
+await assert.rejects(
+  () => runtime.restoreCohabitationFamilyBuildingMaterials(largeContract.contract.id, {
+    building_ledger_id: largeExecute.building_ledger_entry.id,
+    idempotency_key: 'qa-family-building-material-restore-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not restore family building materials'
+)
+assert.equal((await runtime.getCohabitationWarehouse(largeContract.contract.id, actor(largeOwner))).warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 0, 'rejected building material restore should not restore wood')
+
+const familyBuildingMaterialRestore = await runtime.restoreCohabitationFamilyBuildingMaterials(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  reason: 'qa restore family building materials after fund refund',
+  idempotency_key: 'qa-family-building-material-restore',
+}, actor(largeOwner))
+assert.equal(familyBuildingMaterialRestore.idempotent, false, 'first family building material restore should not be idempotent')
+assert.equal(familyBuildingMaterialRestore.building_ledger_entry.id, largeExecute.building_ledger_entry.id, 'building material restore should update original building ledger')
+assert.equal(familyBuildingMaterialRestore.building_ledger_entry.status, 'reverted', 'building material restore should keep reverted status')
+assert.equal(familyBuildingMaterialRestore.building_ledger_entry.shared_warehouse_materials_restored, true, 'building material restore should mark shared warehouse restored')
+assert.equal(familyBuildingMaterialRestore.building_ledger_entry.material_restore_idempotency_key, 'qa-family-building-material-restore', 'building material restore should store restore idempotency key')
+assert.equal(familyBuildingMaterialRestore.material_restore_ledger_entries.length, 2, 'building material restore should write compensate ledgers')
+assert.ok(familyBuildingMaterialRestore.material_restore_ledger_entries.every(entry => entry.action === 'compensate'), 'building material restore should use compensate ledger action')
+assert.ok(familyBuildingMaterialRestore.material_restore_ledger_entries.some(entry => entry.item_id === 'wood' && entry.source_ledger_ids.some(id => materialConsume.material_ledger_entries.some(source => source.id === id))), 'wood restore ledger should reference original consume ledger')
+assert.ok(familyBuildingMaterialRestore.material_restore_ledger_entries.some(entry => entry.item_id === 'rice' && entry.source_ledger_ids.some(id => materialConsume.material_ledger_entries.some(source => source.id === id))), 'rice restore ledger should reference original consume ledger')
+assert.equal(familyBuildingMaterialRestore.shared_warehouse.restored_quantity, 40, 'building material restore should report restored quantity')
+assert.equal(familyBuildingMaterialRestore.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'building material restore should restore wood to shared warehouse')
+assert.equal(familyBuildingMaterialRestore.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'building material restore should restore rice to shared warehouse')
+assert.equal(familyBuildingMaterialRestore.fund.balance, balanceBeforeLargeDraft, 'building material restore should not change shared fund balance')
+assert.equal(familyBuildingMaterialRestore.shared_fund.refund_amount, 0, 'building material restore should not refund shared fund again')
+assert.equal(familyBuildingMaterialRestore.shared_fund.personal_money_merged, false, 'building material restore should not merge personal money')
+assert.equal(familyBuildingMaterialRestore.shared_warehouse.personal_inventory_merged, false, 'building material restore should not merge personal inventory')
+assert.ok(familyBuildingMaterialRestore.contract.audit_log.find(entry => entry.action === 'family_building_materials_restored'), 'building material restore should be audited')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'building material restore should not touch owner personal money')
+assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'building material restore should not touch partner personal money')
+assert.equal(getInventoryItemQuantity(largeOwner, 'wood'), largeOwnerWoodBeforeMaterialDeposit - 28, 'building material restore should not write owner wood back to personal inventory')
+assert.equal(getInventoryItemQuantity(largeOwner, 'rice'), largeOwnerRiceBeforeMaterialDeposit - 12, 'building material restore should not write owner rice back to personal inventory')
+
+const duplicateFamilyBuildingMaterialRestore = await runtime.restoreCohabitationFamilyBuildingMaterials(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-material-restore',
+}, actor(largeOwner))
+assert.equal(duplicateFamilyBuildingMaterialRestore.idempotent, true, 'same building material restore idempotency key should be idempotent')
+assert.equal(duplicateFamilyBuildingMaterialRestore.already_restored, true, 'idempotent building material restore should report already restored')
+assert.equal(duplicateFamilyBuildingMaterialRestore.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 28, 'idempotent building material restore should not double restore wood')
+
+const alreadyFamilyBuildingMaterialRestore = await runtime.restoreCohabitationFamilyBuildingMaterials(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-material-restore-again',
+}, actor(largeOwner))
+assert.equal(alreadyFamilyBuildingMaterialRestore.idempotent, true, 'already restored building materials should return idempotent response')
+assert.equal(alreadyFamilyBuildingMaterialRestore.already_restored, true, 'already restored building material response should be explicit')
+assert.equal(alreadyFamilyBuildingMaterialRestore.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 12, 'already restored building materials should not double restore rice')
 
 console.log('[qa-cohabitation-contract] OK')

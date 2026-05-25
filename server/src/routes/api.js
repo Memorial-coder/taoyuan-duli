@@ -264,6 +264,14 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_family_building_rollback',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/family-buildings\/fund\/refund$/i,
+    action: 'cohabitation_family_building_fund_refund',
+  },
+  {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/family-buildings\/materials\/restore$/i,
+    action: 'cohabitation_family_building_materials_restore',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/permissions$/i,
     action: 'cohabitation_permissions_update',
   },
@@ -3168,6 +3176,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '退回家族建筑共同基金失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/family-buildings/materials/restore', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.restoreCohabitationFamilyBuildingMaterials(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复家族建筑共同仓库材料失败' });
     }
   });
 });
