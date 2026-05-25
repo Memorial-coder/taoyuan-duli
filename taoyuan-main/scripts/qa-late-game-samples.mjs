@@ -426,7 +426,9 @@ const loadRuntimeModules = async () => {
       const saveStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useSaveStore.ts')).href)
       const gameStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useGameStore.ts')).href)
       const playerStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/usePlayerStore.ts')).href)
+      const farmStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useFarmStore.ts')).href)
       const goalStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useGoalStore.ts')).href)
+      const cohabitationStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useCohabitationStore.ts')).href)
       const npcStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useNpcStore.ts')).href)
       const shopStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useShopStore.ts')).href)
       const breedingStoreModule = await import(pathToFileURL(path.join(PROJECT_ROOT, 'src/stores/useBreedingStore.ts')).href)
@@ -447,7 +449,9 @@ const loadRuntimeModules = async () => {
         saveStore: saveStoreModule.useSaveStore(),
         gameStore: gameStoreModule.useGameStore(),
         playerStore: playerStoreModule.usePlayerStore(),
+        farmStore: farmStoreModule.useFarmStore(),
         goalStore: goalStoreModule.useGoalStore(),
+        cohabitationStore: cohabitationStoreModule.useCohabitationStore(),
         npcStore: npcStoreModule.useNpcStore(),
         shopStore: shopStoreModule.useShopStore(),
         breedingStore: breedingStoreModule.useBreedingStore(),
@@ -480,7 +484,9 @@ const runRuntimeSmoke = async sample => {
     saveStore,
     gameStore,
     playerStore,
+    farmStore,
     goalStore,
+    cohabitationStore,
     npcStore,
     shopStore,
     breedingStore,
@@ -523,6 +529,41 @@ const runRuntimeSmoke = async sample => {
     assertRuntime(Array.isArray(shopStore.shippingBox), `${sample.id} 旧档缺失 shop 时未补齐 shippingBox。`)
     assertRuntime(frontierChronicleStore.saveData && typeof frontierChronicleStore.saveData === 'object', `${sample.id} 旧档缺失 frontierChronicle 时未补齐 saveData。`)
     assertRuntime(playerRecordCenterStore.saveData && typeof playerRecordCenterStore.saveData === 'object', `${sample.id} 旧档缺失 playerRecordCenter 时未补齐 saveData。`)
+
+    const beforeFarmSnapshot = JSON.stringify(farmStore.serialize())
+    cohabitationStore.overview = {
+      contracts: [
+        {
+          id: 'qa_shared_manor_contract',
+          type: 'business_partner',
+          title: 'QA 共同庄园',
+          status: 'active',
+          member_usernames: ['legacy_owner', 'helper'],
+          shared_manor_id: 'qa_shared_manor',
+          shared_fund_balance: 1200,
+          created_at: 0,
+          updated_at: 0,
+        },
+      ],
+      summary: { total: 1, pending: 0, active: 1, separation_previews: 0 },
+    }
+    cohabitationStore.activeContractId = 'qa_shared_manor_contract'
+    cohabitationStore.sharedMap = {
+      contract_id: 'qa_shared_manor_contract',
+      map_id: 'qa_shared_map',
+      width: 8,
+      height: 4,
+      plots: [
+        { id: 'shared_plot_a', origin_owner_id: 'helper', current_steward_id: 'helper', state: 'planted', crop_id: 'radish' },
+      ],
+    }
+    assertRuntime(JSON.stringify(farmStore.serialize()) === beforeFarmSnapshot, `${sample.id} 写入共同庄园地图后单人农场快照被改动。`)
+    assertRuntime(farmStore.farmSize === 4 && farmStore.plots.length === 16, `${sample.id} 单人农场地块尺寸被共同庄园覆盖。`)
+    assertRuntime(farmStore.tillPlot(0) === true, `${sample.id} 单人农场无法继续开垦地块。`)
+    assertRuntime(farmStore.plantCrop(0, 'cabbage') === true, `${sample.id} 单人农场无法继续播种白菜。`)
+    assertRuntime(farmStore.waterPlot(0) === true, `${sample.id} 单人农场无法继续浇水。`)
+    assertRuntime(farmStore.plots[0]?.state === 'planted' && farmStore.plots[0]?.cropId === 'cabbage', `${sample.id} 单人地块被共同庄园地块替换。`)
+    assertRuntime(!farmStore.plots.some(plot => String(plot.id).startsWith('shared_plot')), `${sample.id} 共同庄园地块混入单人农场。`)
   }
 
   if (expectation.player.requireEconomyTelemetry) {
