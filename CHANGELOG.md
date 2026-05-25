@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 分居个人剧情回执写入接入：共同庄园新增 `/separation-previews/:previewId/write-personal-story-receipts`，要求剧情拆分已记录、执行 ledger 与 `plot_return_manifest_hash` 匹配；成功后只向各成员个人存档追加 `onlineCohabitation.story_receipts` 回执，执行状态推进到 `personal_story_receipts_written` 并记录审计，重复请求幂等读回，不改个人 NPC / 恋爱 / 家庭 / 孩子 / 农田 / 背包 / 铜币状态。
 - 分居剧情拆分记录前端入口接入：共同庄园总览在分居预览卡片新增“记录剧情”按钮，前端 API / store 接入 `/separation-previews/:previewId/resolve-family-story`；按钮按共同仓库已返还、执行 ledger、预览 hash 和服务端状态禁用，成功后刷新契约和共同日志，只记录共同契约剧情拆分状态，不改个人 NPC / 恋爱 / 家庭 / 孩子存档。
 - 分居剧情拆分记录执行接入：共同庄园新增 `/separation-previews/:previewId/resolve-family-story`，要求共同仓库已返还、执行 ledger 与 `plot_return_manifest_hash` 匹配；成功后只在共同契约记录关系类型、剧情拆分选择、隐私边界、个人剧情 receipt 待办和孩子安排待办并记录审计，重复请求幂等读回，不改个人 NPC / 恋爱 / 家庭 / 孩子存档，也不处理装饰 / 建筑拆分。
 - 分居共同仓库返还前端入口接入：共同庄园总览在分居预览卡片新增“返还仓库”按钮，前端 API / store 接入 `/separation-previews/:previewId/return-shared-warehouse`；按钮按共同基金已返还、执行 ledger、预览 hash 和服务端状态禁用，成功后刷新契约、共同仓库和共同日志，不处理装饰 / 建筑或剧情拆分。

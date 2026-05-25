@@ -171,6 +171,22 @@ const getInventoryItemQuantity = (username, itemId, quality = 'normal') => {
     .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
 }
 
+const pickPersonalStoryBoundaryState = username => {
+  const data = readGameplayData(username) || {}
+  return JSON.parse(JSON.stringify({
+    player: data.player || null,
+    inventory: data.inventory || null,
+    farm: data.farm || null,
+    npcs: data.npcs || null,
+    npc: data.npc || null,
+    hiddenNpcs: data.hiddenNpcs || null,
+    hiddenNpc: data.hiddenNpc || null,
+    home: data.home || null,
+    family: data.family || null,
+    children: data.children || null,
+  }))
+}
+
 await db.registerUser(owner, 'SmokePass_0524', '同居主人')
 await db.registerUser(partner, 'SmokePass_0524', '同居伙伴')
 await db.registerUser(extra, 'SmokePass_0524', '同居额外成员')
@@ -2125,6 +2141,52 @@ assert.equal(duplicateFamilyStoryResolution.idempotent, true, 'same family story
 assert.equal(duplicateFamilyStoryResolution.execution_ledger.id, familyStoryResolution.execution_ledger.id, 'idempotent family story resolution should keep ledger id')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyStoryResolution, 'idempotent family story resolution should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyStoryResolution, 'idempotent family story resolution should not rewrite partner save')
+
+await assert.rejects(
+  () => runtime.writeSeparationPersonalStoryReceipts(created.contract.id, previewResult.preview.id, {
+    memo: 'wrong personal story receipt hash',
+    plot_return_manifest_hash: 'd'.repeat(64),
+    execution_ledger_id: assetReturnRecord.execution_ledger.id,
+    idempotency_key: 'qa-separation-personal-story-receipts-wrong-hash',
+  }, actor(owner)),
+  /hash 不匹配/,
+  'personal story receipts should reject mismatched manifest hash'
+)
+
+const ownerBoundaryBeforeStoryReceipts = pickPersonalStoryBoundaryState(owner)
+const partnerBoundaryBeforeStoryReceipts = pickPersonalStoryBoundaryState(partner)
+const personalStoryReceipts = await runtime.writeSeparationPersonalStoryReceipts(created.contract.id, previewResult.preview.id, {
+  memo: 'write personal story receipt only',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-personal-story-receipts',
+}, actor(owner))
+assert.equal(personalStoryReceipts.idempotent, false, 'first personal story receipt write should not be idempotent')
+assert.equal(personalStoryReceipts.execution_ledger.status, 'personal_story_receipts_written', 'personal story receipts should advance execution ledger status')
+assert.equal(personalStoryReceipts.execution_ledger.personal_story_receipts_written, true, 'personal story receipts should mark ledger written')
+assert.equal(personalStoryReceipts.preview.confirmation_state.execution_request.status, 'personal_story_receipts_written', 'execution request should advance to personal-story-receipts-written')
+assert.equal(personalStoryReceipts.receipts.length, 2, 'personal story receipt write should create one receipt per accepted member')
+assert.ok(personalStoryReceipts.receipts.every(receipt => receipt.personal_story_state === 'receipt_recorded_only'), 'personal story receipts should stay receipt-only')
+assert.ok(personalStoryReceipts.execution_ledger.next_required_operations.includes('split_decorations'), 'personal story receipt write should keep decoration split follow-up')
+assert.ok(!personalStoryReceipts.execution_ledger.next_required_operations.includes('write_personal_story_receipts'), 'personal story receipt write should close receipt follow-up')
+assert.ok(personalStoryReceipts.contract.audit_log.find(entry => entry.action === 'separation_personal_story_receipts_written' && entry.idempotency_key === 'qa-separation-personal-story-receipts'), 'personal story receipt write should be audited')
+assert.deepEqual(pickPersonalStoryBoundaryState(owner), ownerBoundaryBeforeStoryReceipts, 'personal story receipt write should not change owner money inventory farm npc home family or children state')
+assert.deepEqual(pickPersonalStoryBoundaryState(partner), partnerBoundaryBeforeStoryReceipts, 'personal story receipt write should not change partner money inventory farm npc home family or children state')
+assert.ok((readGameplayData(owner)?.onlineCohabitation?.story_receipts || []).some(receipt => receipt.execution_ledger_id === assetReturnRecord.execution_ledger.id), 'owner save should receive personal story receipt')
+assert.ok((readGameplayData(partner)?.onlineCohabitation?.story_receipts || []).some(receipt => receipt.execution_ledger_id === assetReturnRecord.execution_ledger.id), 'partner save should receive personal story receipt')
+
+const ownerRawAfterPersonalStoryReceipts = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawAfterPersonalStoryReceipts = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const duplicatePersonalStoryReceipts = await runtime.writeSeparationPersonalStoryReceipts(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate personal story receipt only',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-personal-story-receipts',
+}, actor(owner))
+assert.equal(duplicatePersonalStoryReceipts.idempotent, true, 'same personal story receipt idempotency key should return existing receipts')
+assert.equal(duplicatePersonalStoryReceipts.execution_ledger.id, personalStoryReceipts.execution_ledger.id, 'idempotent personal story receipt write should keep ledger id')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterPersonalStoryReceipts, 'idempotent personal story receipt write should not rewrite owner save again')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterPersonalStoryReceipts, 'idempotent personal story receipt write should not rewrite partner save again')
 
 const partnerMoneyBeforeMediumFundTopUp = readGameplayData(partner)?.player?.money
 const fundBeforeMediumFundTopUp = await runtime.getCohabitationFund(created.contract.id, actor(owner))
