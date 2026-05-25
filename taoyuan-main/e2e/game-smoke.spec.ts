@@ -287,8 +287,166 @@ function buildSocietyProject() {
   }
 }
 
-function buildSocietyOverview() {
+function buildLanternWallProject(contributed = false) {
+  return {
+    id: 'lantern_wall',
+    label: '共建花灯墙',
+    summary: '写愿望、挂花灯，把村口旧墙点成节日纪念。',
+    status: 'active',
+    status_label: '建设中',
+    progress: contributed ? 28 : 18,
+    target_progress: 100,
+    progress_percent: contributed ? 28 : 18,
+    remaining_progress: contributed ? 72 : 82,
+    completed_at: 0,
+    completed_by: '',
+    completed_by_display_name: '',
+    progress_note: contributed ? '新愿望签已经挂上墙。' : '愿望签区等待社员补上第一批心愿。',
+    completion_feedback: '',
+    world_feedback: '',
+    completion_rewards: [],
+    can_contribute: true,
+    my_contribution_count: contributed ? 1 : 0,
+    contribution_packages: [
+      {
+        id: 'write_wish',
+        label: '写愿望',
+        kind: 'blessing',
+        summary: '写一张愿望签，点亮花灯墙的第一段祝福。',
+        progress_gain: 10,
+        daily_limit: 1,
+        weekly_limit: 3,
+        costs: []
+      }
+    ],
+    recent_contributions: contributed
+      ? [{ id: 'lantern-wall-e2e-contribution', username: 'tester', display_name: '测试者', package_id: 'write_wish', package_label: '写愿望', progress_gain: 10, created_at: 3 }]
+      : []
+  }
+}
+
+function buildLanternWallVisualProject(contributed = false) {
+  return {
+    id: 'lantern_wall',
+    label: '共建花灯墙',
+    kind: 'lantern_wall',
+    day_tag: 'e2e-day',
+    week_tag: 'e2e-week',
+    starts_at: 0,
+    ends_at: 0,
+    current_stage_id: contributed ? 'lantern_wall_hang' : 'lantern_wall_wish',
+    stages: [
+      {
+        id: 'lantern_wall_wish',
+        label: '写愿望',
+        state: contributed ? 'complete' : 'active',
+        progress_value: contributed ? 100 : 18,
+        progress_target: 100,
+        object_ids: ['lantern_wall_wish_tags', 'lantern_wall_friend_messages'],
+        contribution_options: contributed ? [] : [
+          {
+            id: 'write_wish',
+            label: '写愿望',
+            kind: 'blessing',
+            available_action_id: 'write_wish',
+            daily_limit: 1,
+            weekly_limit: 3,
+            resource_cost_preview: {},
+            progress_delta: 10,
+            reward_preview: '公共祝福 +10'
+          }
+        ],
+        milestones: [{ id: 'wish_seed', label: '第一批愿望', progress_required: 30, reached: contributed }]
+      },
+      {
+        id: 'lantern_wall_hang',
+        label: '挂花灯',
+        state: contributed ? 'active' : 'pending',
+        progress_value: contributed ? 28 : 0,
+        progress_target: 100,
+        object_ids: ['lantern_wall_hanging'],
+        contribution_options: [],
+        milestones: []
+      },
+      {
+        id: 'lantern_wall_repair',
+        label: '修灯赠灯',
+        state: 'pending',
+        progress_value: 0,
+        progress_target: 100,
+        object_ids: ['lantern_wall_repair', 'lantern_wall_gift'],
+        contribution_options: [],
+        milestones: []
+      },
+      {
+        id: 'lantern_wall_memorial',
+        label: '祝福成墙',
+        state: 'pending',
+        progress_value: 0,
+        progress_target: 100,
+        object_ids: ['lantern_wall_memorial', 'lantern_wall_archive'],
+        contribution_options: [],
+        milestones: []
+      }
+    ],
+    contributors: contributed ? [
+      { username: 'tester', display_name: '测试者', contribution_value: 10, rank: 1 }
+    ] : [],
+    history: contributed ? [
+      { id: 'lantern-wall-history-wish', summary: '测试者写下一张愿望签。', created_at: 3 }
+    ] : [],
+    completion_room_template_id: '',
+    completion_event_id: ''
+  }
+}
+
+function buildSocietyOverview(options: { focus?: 'bridge' | 'lantern_wall'; contributed?: boolean } = {}) {
+  const focus = options.focus || 'bridge'
   const bridgeProject = buildSocietyProject()
+  const lanternWallProject = buildLanternWallProject(Boolean(options.contributed))
+  const publicProjects = focus === 'lantern_wall' ? [lanternWallProject, bridgeProject] : [bridgeProject]
+  const asyncProjects = focus === 'lantern_wall'
+    ? [buildLanternWallVisualProject(Boolean(options.contributed))]
+    : [
+        {
+          id: 'bridge',
+          label: '村社修桥',
+          kind: 'bridge',
+          day_tag: 'e2e-day',
+          week_tag: 'e2e-week',
+          starts_at: 0,
+          ends_at: 0,
+          current_stage_id: 'bridge_scaffold',
+          stages: [
+            {
+              id: 'bridge_scaffold',
+              label: '搭脚手架',
+              state: 'active',
+              progress_value: 35,
+              progress_target: 100,
+              object_ids: ['bridge_piles'],
+              contribution_options: [
+                {
+                  id: 'labor_shift',
+                  label: '施工行动',
+                  kind: 'labor',
+                  available_action_id: 'labor_shift',
+                  daily_limit: 1,
+                  weekly_limit: 3,
+                  resource_cost_preview: {},
+                  progress_delta: 8,
+                  reward_preview: '贡献 +8'
+                }
+              ],
+              milestones: []
+            }
+          ],
+          contributors: [],
+          history: [],
+          completion_room_template_id: '',
+          completion_event_id: ''
+        }
+      ]
   const overview = {
     ok: true,
     bulletin: '村社 smoke',
@@ -333,52 +491,14 @@ function buildSocietyOverview() {
       activity_log: [],
       active_proposals: [],
       proposal_history: [],
-      public_projects: [bridgeProject],
+      public_projects: publicProjects,
       visual_state: {
         ...emptyVisualState,
         board_type: 'async',
         board_id: 'society_public_projects',
-        selected_visual_id: 'bridge',
-        async_projects: [
-          {
-            id: 'bridge',
-            label: '村社修桥',
-            kind: 'bridge',
-            day_tag: 'e2e-day',
-            week_tag: 'e2e-week',
-            starts_at: 0,
-            ends_at: 0,
-            current_stage_id: 'bridge_scaffold',
-            stages: [
-              {
-                id: 'bridge_scaffold',
-                label: '搭脚手架',
-                state: 'active',
-                progress_value: 35,
-                progress_target: 100,
-                object_ids: ['bridge_piles'],
-                contribution_options: [
-                  {
-                    id: 'labor_shift',
-                    label: '施工行动',
-                    kind: 'labor',
-                    available_action_id: 'labor_shift',
-                    daily_limit: 1,
-                    weekly_limit: 3,
-                    resource_cost_preview: {},
-                    progress_delta: 8,
-                    reward_preview: '贡献 +8'
-                  }
-                ],
-                milestones: []
-              }
-            ],
-            contributors: [],
-            history: [],
-            completion_room_template_id: '',
-            completion_event_id: ''
-          }
-        ]
+        selected_visual_id: focus,
+        recent_feedback: focus === 'lantern_wall' && options.contributed ? '测试者写下一张愿望签，花灯墙亮了一角。' : '',
+        async_projects: asyncProjects
       },
       welfare_unlocks: [],
       exclusive_festival: { id: '', label: '', summary: '', unlocked: false },
@@ -409,13 +529,17 @@ function buildSocietyOverview() {
     join_requirement_options: [{ id: 'open', label: '开放', summary: '' }],
     role_options: [{ id: 'president', label: '社长' }],
     proposal_kind_options: [{ id: 'governance', label: '治理', summary: '' }],
-    public_project_defs: [{ id: 'bridge', label: '村社修桥', summary: '', target_progress: 100 }],
-    public_project_package_options: bridgeProject.contribution_packages
+    public_project_defs: [
+      { id: 'bridge', label: '村社修桥', summary: '', target_progress: 100 },
+      { id: 'lantern_wall', label: '共建花灯墙', summary: '', target_progress: 100 }
+    ],
+    public_project_package_options: publicProjects.flatMap(project => project.contribution_packages)
   }
   return overview
 }
 
-async function mockOnlineSociety(page: Page) {
+async function mockOnlineSociety(page: Page, options: { focus?: 'bridge' | 'lantern_wall' } = {}) {
+  let contributed = false
   await page.unroute('**/api/me').catch(() => {})
   await page.route('**/api/me', async route => {
     await route.fulfill({
@@ -429,17 +553,21 @@ async function mockOnlineSociety(page: Page) {
     })
   })
 
-  const overview = buildSocietyOverview()
   await page.route('**/api/taoyuan/online/societies', async route => {
+    const overview = buildSocietyOverview({ focus: options.focus, contributed })
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(overview) })
   })
   await page.route('**/api/taoyuan/online/societies/public-projects/*/contribute', async route => {
+    contributed = true
+    const overview = buildSocietyOverview({ focus: options.focus, contributed })
+    const project = overview.my_society.public_projects.find(entry => route.request().url().includes(`/public-projects/${entry.id}/`))
+      || overview.my_society.public_projects[0]
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify({
         ok: true,
-        project: overview.my_society.public_projects[0],
+        project,
         society: overview.my_society,
         overview,
         player_money: 999
@@ -976,6 +1104,23 @@ test.describe('web game smoke', () => {
     await page.getByTestId('online-society-async-contribute-bridge-labor_shift').click()
 
     await expect(page.getByTestId('online-society-project-contribute-bridge-labor_shift')).toBeVisible()
+  })
+
+  test('online society async board supports lantern wall contribution actions', async ({ page }) => {
+    await openHome(page)
+    await startNewJourney(page, '花灯')
+    await mockOnlineSociety(page, { focus: 'lantern_wall' })
+
+    await page.goto('/#/game/online/society?tab=projects')
+    await expect(page.getByTestId('online-society-page')).toBeVisible()
+    await expect(page.getByTestId('async-community-board')).toBeVisible()
+    await expect(page.getByTestId('async-community-project-detail')).toContainText('写愿望')
+
+    await page.getByTestId('online-society-async-contribute-lantern_wall-write_wish').click()
+
+    await expect(page.getByTestId('async-community-project-detail')).toContainText('挂花灯')
+    await expect(page.getByText('测试者写下一张愿望签，花灯墙亮了一角。')).toBeVisible()
+    await expect(page.getByTestId('online-society-project-contribute-lantern_wall-write_wish')).toBeVisible()
   })
 
   test('online orders async board supports public relay route actions', async ({ page }) => {

@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 花灯墙前端 smoke
+- `game-smoke.spec.ts` 扩展在线村社 mock，可切换到 `lantern_wall` 花灯墙异步工程并模拟贡献后的阶段推进。
+- 新增花灯墙贡献用例，覆盖在线村社公共建设页 `AsyncCommunityBoard` 的“写愿望”阶段、`write_wish` 贡献入口点击、刷新到“挂花灯”阶段和现场反馈读回。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`；`npm --prefix taoyuan-main run test:e2e -- e2e/game-smoke.spec.ts` 因当前环境 Chromium `spawn EPERM` 被项目脚本跳过。
+
 ### 0525 公共订单接力前端 smoke
 - 在线委托可接页的订单筛选按钮新增稳定 `data-testid`，便于浏览器 smoke 精确切到接力单列表。
 - `game-smoke.spec.ts` 新增公共订单接力路线用例，mock 三段接力单并覆盖接力筛选、接力 badge、阶段进度、`AsyncCommunityBoard` 路线详情和 `accept_stage` 阶段接单入口。
