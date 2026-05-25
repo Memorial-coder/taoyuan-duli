@@ -286,6 +286,16 @@
                         <Clock3 :size="12" />
                         请求执行
                       </button>
+                      <button
+                        class="online-action-btn online-action-btn--compact justify-center"
+                        type="button"
+                        :disabled="!canExecuteSeparationAssetReturn || cohabitationStore.actionLoading"
+                        data-testid="online-cohabitation-separation-asset-return-execute"
+                        @click="executeSeparationAssetReturn"
+                      >
+                        <ShieldCheck :size="12" />
+                        记录返还
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1650,6 +1660,10 @@
   const separationExecutionRequest = computed(() =>
     latestSeparationPreview.value?.confirmation_state?.execution_request ?? null
   )
+  const separationPlotReturnManifestHash = computed(() => {
+    const hash = latestSeparationPreview.value?.asset_return?.plot_return_manifest_hash
+    return typeof hash === 'string' ? hash : ''
+  })
   const canConfirmSeparationPreview = computed(() => {
     const preview = latestSeparationPreview.value
     if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
@@ -1661,6 +1675,7 @@
   const separationPreviewConfirmationLabel = computed(() => {
     const confirmed = separationPreviewConfirmedBy.value
     const pending = separationPreviewPendingMembers.value
+    if (separationExecutionRequest.value?.status === 'asset_return_recorded') return '已记录返还执行，等待个人存档写回。'
     if (separationExecutionRequest.value?.status === 'pending_manual_execution') return '已请求执行，等待后续返还执行接口。'
     if (latestSeparationPreview.value?.confirmation_state?.all_members_confirmed) return '双方已确认，等待后续返还执行接口。'
     if (confirmed.length) return `已确认：${confirmed.join('、')}；待确认：${pending.join('、') || '无'}`
@@ -1673,6 +1688,16 @@
     if (preview.state !== 'confirmed') return false
     if (preview.confirmation_state?.all_members_confirmed !== true) return false
     if (separationExecutionRequest.value?.status === 'pending_manual_execution') return false
+    return Math.floor(Date.now() / 1000) >= Number(preview.confirm_after_at || 0)
+  })
+  const canExecuteSeparationAssetReturn = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
+    if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
+    if (preview.state !== 'confirmed') return false
+    if (preview.confirmation_state?.all_members_confirmed !== true) return false
+    if (separationExecutionRequest.value?.status !== 'pending_manual_execution') return false
+    if (!separationExecutionRequest.value?.id || !separationPlotReturnManifestHash.value) return false
     return Math.floor(Date.now() / 1000) >= Number(preview.confirm_after_at || 0)
   })
   const selectedContractActorMember = computed(() => {
@@ -2206,6 +2231,25 @@
         : '已请求分居执行'
     } catch (error) {
       separationActionMessage.value = error instanceof Error ? error.message : '请求分居执行失败'
+    }
+  }
+
+  const executeSeparationAssetReturn = async () => {
+    if (!latestSeparationPreview.value || !canExecuteSeparationAssetReturn.value) return
+    separationActionMessage.value = ''
+    separationActionOk.value = false
+    try {
+      const result = await cohabitationStore.executeSeparationAssetReturn(latestSeparationPreview.value.id, {
+        execution_request_id: separationExecutionRequest.value?.id,
+        plot_return_manifest_hash: separationPlotReturnManifestHash.value,
+        idempotency_key: `ui-separation-asset-return-record-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      separationActionOk.value = true
+      separationActionMessage.value = result?.idempotent
+        ? '已读回已有分居返还执行记录'
+        : '已记录分居返还执行'
+    } catch (error) {
+      separationActionMessage.value = error instanceof Error ? error.message : '记录分居返还执行失败'
     }
   }
 
@@ -2879,6 +2923,7 @@
       separation_preview_created: '分居预览创建',
       separation_preview_confirmed: '分居预览确认',
       separation_execution_requested: '分居执行请求',
+      separation_asset_return_recorded: '分居返还记录',
     }
     return labels[action] || action
   }
@@ -2918,6 +2963,10 @@
     }
     if (entry.action === 'separation_execution_requested') {
       return '已进入待执行请求，仍未执行返还'
+    }
+    if (entry.action === 'separation_asset_return_recorded') {
+      const count = Number(detail.plot_return_count) || 0
+      return count > 0 ? `已记录 ${count} 块来源田区返还，等待个人存档写回` : '已记录返还执行，等待个人存档写回'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0

@@ -1036,6 +1036,9 @@ export interface CohabitationSeparationPreview {
       requested_by?: string
       requested_at?: number
       asset_return_executed?: boolean
+      asset_return_recorded_at?: number
+      asset_return_recorded_by?: string
+      execution_ledger_id?: string
       personal_save_written?: boolean
       execution_enabled?: boolean
       next_required_operations?: string[]
@@ -1121,6 +1124,13 @@ export interface CohabitationSeparationPreviewConfirmPayload {
 }
 
 export interface CohabitationSeparationExecutionRequestPayload {
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSeparationAssetReturnExecutePayload {
+  execution_request_id?: string
+  plot_return_manifest_hash?: string
   memo?: string
   idempotency_key: string
 }
@@ -1335,6 +1345,14 @@ export const requestCohabitationSeparationExecution = async (contractId: string,
     contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/request-execution`),
     payload as unknown as Record<string, unknown>,
     '请求分居执行失败'
+  )
+}
+
+export const executeCohabitationSeparationAssetReturn = async (contractId: string, previewId: string, payload: CohabitationSeparationAssetReturnExecutePayload) => {
+  return postCohabitationJson<CohabitationSeparationPreviewResponse>(
+    contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/execute-asset-return`),
+    payload as unknown as Record<string, unknown>,
+    '记录分居返还执行失败'
   )
 }
 

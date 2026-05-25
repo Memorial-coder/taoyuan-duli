@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 分居返还记录前端入口
+- 共同庄园总览在分居预览卡片新增“记录返还”按钮，前端 API / store 接入 `/separation-previews/:previewId/execute-asset-return`。
+- 按钮按 `pending_manual_execution`、冷静期、预览 `plot_return_manifest_hash` 和已记录状态禁用；提交时带执行请求 ID 与 manifest hash，成功后只刷新契约与共同日志。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 分居资产返还执行记录
 - 服务端新增 `/separation-previews/:previewId/execute-asset-return`，要求已请求执行、双方确认、冷静期结束和预览 `plot_return_manifest_hash` 匹配。
 - 成功后只写共同契约 `separation_execution_ledger`、逐地块返还记录、执行请求状态和审计；个人存档写回、共同基金返还、共同仓库物移动和剧情拆分仍保持后续独立步骤。
