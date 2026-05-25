@@ -1,3 +1,6 @@
+import type { CropDef } from '@/types/farm'
+import { getCropById } from './crops'
+
 export type CropUseTag =
   | 'food'
   | 'alchemy'
@@ -11,14 +14,16 @@ export type CropUseTag =
   | 'order'
   | 'medicine'
 
-export type CropUseNature = 'neutral' | 'warm' | 'cool' | 'hot' | 'sweet' | 'fragrant' | 'moistening'
+export type CropUseFlavor = '甜' | '鲜' | '辛' | '香' | '土' | '苦'
+
+export type CropUseNature = 'neutral' | 'warm' | 'cool'
 
 export type CropUseRarity = 'daily' | 'stable' | 'seasonal' | 'valuable'
 
 export interface CropUseProfile {
   cropId: string
   tags: CropUseTag[]
-  flavor: string[]
+  flavor: CropUseFlavor[]
   nature: CropUseNature
   rarityUse: CropUseRarity
   recommendedUses: string[]
@@ -40,13 +45,9 @@ export const CROP_USE_TAG_LABELS: Record<CropUseTag, string> = {
 }
 
 export const CROP_USE_NATURE_LABELS: Record<CropUseNature, string> = {
-  neutral: '平',
-  warm: '温',
-  cool: '凉',
-  hot: '辛热',
-  sweet: '甘润',
-  fragrant: '芳香',
-  moistening: '清润'
+  neutral: '中性',
+  warm: '温补',
+  cool: '清凉'
 }
 
 export const CROP_USE_RARITY_LABELS: Record<CropUseRarity, string> = {
@@ -60,7 +61,7 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   {
     cropId: 'rice',
     tags: ['food', 'wine', 'flour', 'pet_feed', 'festival', 'order'],
-    flavor: ['清香', '饱腹'],
+    flavor: ['鲜', '土'],
     nature: 'neutral',
     rarityUse: 'stable',
     recommendedUses: ['米粉', '饭团', '米酒', '团圆饭订单', '宠物温饱粮', '节会供品'],
@@ -69,7 +70,7 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   {
     cropId: 'sesame',
     tags: ['oil', 'flour', 'food', 'alchemy', 'pet_feed', 'festival'],
-    flavor: ['浓香', '坚果香'],
+    flavor: ['香', '土'],
     nature: 'warm',
     rarityUse: 'stable',
     recommendedUses: ['芝麻油', '芝麻粉', '糕点辅料', '辛火丹辅料', '田犬辛香餐', '节会供品'],
@@ -78,17 +79,17 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   {
     cropId: 'lotus_seed',
     tags: ['food', 'alchemy', 'pet_feed', 'gift', 'medicine'],
-    flavor: ['清甜', '粉糯'],
-    nature: 'moistening',
+    flavor: ['甜', '土'],
+    nature: 'cool',
     rarityUse: 'valuable',
     recommendedUses: ['清心丹', '莲子甜汤', 'NPC 赠礼', '宠物安神餐', '药膳辅料'],
-    summary: '清润药食两用作物，适合低频高价值料理、炼丹、赠礼和宠物安抚。'
+    summary: '清凉药食两用作物，适合低频高价值料理、炼丹、赠礼和宠物安抚。'
   },
   {
     cropId: 'osmanthus',
     tags: ['food', 'alchemy', 'pet_feed', 'gift', 'festival', 'medicine'],
-    flavor: ['花香', '清甜'],
-    nature: 'fragrant',
+    flavor: ['香', '甜'],
+    nature: 'cool',
     rarityUse: 'seasonal',
     recommendedUses: ['桂露', '桂花香囊', '凝神丹', '宠物芳香点心', '灯谜奖励兑换', '节会茶点'],
     summary: '芳香型节令作物，适合节会、赠礼、凝神炼丹、宠物芳香反馈和花香料理。'
@@ -96,8 +97,8 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   {
     cropId: 'sweet_potato',
     tags: ['food', 'pet_feed', 'order', 'flour'],
-    flavor: ['甜糯', '厚实'],
-    nature: 'sweet',
+    flavor: ['甜', '土'],
+    nature: 'warm',
     rarityUse: 'daily',
     recommendedUses: ['饱腹料理', '宠物耐力餐', '行旅干粮', '救济订单', '粗粮粉'],
     summary: '高产粗粮消耗口，适合日常料理、宠物耐力、行旅干粮和村社订单。'
@@ -105,7 +106,7 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   {
     cropId: 'pumpkin',
     tags: ['food', 'pet_feed', 'festival', 'order'],
-    flavor: ['绵甜', '丰收味'],
+    flavor: ['甜', '土'],
     nature: 'warm',
     rarityUse: 'seasonal',
     recommendedUses: ['南瓜汤', '节庆灯饰', '宠物亲密餐', '家庭餐桌事件', '丰收订单'],
@@ -114,7 +115,7 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   {
     cropId: 'radish',
     tags: ['food', 'pet_feed', 'alchemy', 'order', 'pickle'],
-    flavor: ['脆甜', '清辛'],
+    flavor: ['甜', '辛'],
     nature: 'cool',
     rarityUse: 'daily',
     recommendedUses: ['家常料理', '动物饲料', '低级炼丹辅料', '村民订单', '腌萝卜'],
@@ -123,7 +124,7 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   {
     cropId: 'tea',
     tags: ['food', 'gift', 'order', 'medicine'],
-    flavor: ['回甘', '清苦'],
+    flavor: ['苦', '香'],
     nature: 'cool',
     rarityUse: 'valuable',
     recommendedUses: ['清醒饮品', '待客茶', 'NPC 好感赠礼', '行旅抗疲劳', '茶商订单'],
@@ -132,8 +133,8 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   {
     cropId: 'peach',
     tags: ['gift', 'wine', 'pet_feed', 'festival', 'food'],
-    flavor: ['多汁', '蜜甜'],
-    nature: 'sweet',
+    flavor: ['甜', '鲜'],
+    nature: 'neutral',
     rarityUse: 'seasonal',
     recommendedUses: ['鲜果赠礼', '桃酒', '宠物心情餐', '恋爱剧情道具', '春日节会点心'],
     summary: '偏社交和情绪反馈的果类作物，适合赠礼、酿酒、宠物心情和恋爱剧情。'
@@ -141,16 +142,139 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   {
     cropId: 'chili',
     tags: ['food', 'alchemy', 'medicine', 'festival'],
-    flavor: ['辛辣', '提味'],
-    nature: 'hot',
+    flavor: ['辛', '香'],
+    nature: 'warm',
     rarityUse: 'stable',
     recommendedUses: ['辛火丹', '料理增味', '驱虫药', '龙舟热血餐', '暖身小菜'],
     summary: '辛热型功能作物，适合料理提味、炼丹、驱虫药和热闹节会餐。'
   }
 ]
 
+const MANUAL_CROP_USE_PROFILE_MAP = new Map(CROP_USE_PROFILES.map(profile => [profile.cropId, profile]))
+const DERIVED_CROP_USE_PROFILE_CACHE = new Map<string, CropUseProfile>()
+
+const tagUseLabels: Record<CropUseTag, string> = {
+  food: '家常料理',
+  alchemy: '丹炉辅材',
+  pet_feed: '宠物点心',
+  oil: '榨油加工',
+  flour: '制粉加工',
+  wine: '酿造入坛',
+  pickle: '腌制入缸',
+  gift: '村民赠礼',
+  festival: '节会供品',
+  order: '订单交付',
+  medicine: '药材储备'
+}
+
+const hasAny = (text: string, keywords: string[]): boolean => keywords.some(keyword => text.includes(keyword))
+
+const uniqueValues = <T extends string>(values: T[]): T[] => Array.from(new Set(values.filter(Boolean)))
+
+const buildCropSearchText = (crop: CropDef): string => `${crop.id} ${crop.name} ${crop.seedId} ${crop.description ?? ''}`.toLowerCase()
+
+const buildCropUseTags = (searchText: string): CropUseTag[] => {
+  const tags: CropUseTag[] = []
+  const add = (...values: CropUseTag[]) => tags.push(...values)
+
+  const isFiber = hasAny(searchText, ['cotton', 'mulberry', 'silk', '棉', '桑', '丝'])
+  const isGrain = hasAny(searchText, ['rice', 'wheat', 'grain', 'corn', 'millet', '稻', '麦', '谷', '玉米', '粟'])
+  const isOil = hasAny(searchText, ['sesame', 'rapeseed', 'peanut', 'oil', '芝', '油', '花生', '籽'])
+  const isSpice = hasAny(searchText, ['chili', 'pepper', 'ginger', 'garlic', 'mustard', 'chives', '椒', '姜', '蒜', '芥', '韭'])
+  const isTeaOrFlower = hasAny(searchText, ['tea', 'osmanthus', 'chrysanthemum', 'flower', 'blossom', 'orchid', 'bud', 'bloom', '茶', '桂', '菊', '花', '兰', '蕾'])
+  const isMedicinal = hasAny(searchText, ['lotus', 'snow_lotus', 'ginseng', 'herb', 'root', 'yam', 'shoot', 'sprout', 'bamboo', '莲', '雪莲', '参', '草', '药', '山药', '笋', '芽', '竹'])
+  const isFruit = hasAny(searchText, ['melon', 'peach', 'jujube', 'date', 'lychee', 'longan', 'persimmon', 'fruit', 'berry', 'chestnut', 'apricot', 'pear', 'cactus', 'gourd', '瓜', '桃', '枣', '椰枣', '荔枝', '龙眼', '柿', '果', '莓', '栗', '杏', '梨', '仙人掌', '葫'])
+  const isLeafy = hasAny(searchText, ['cabbage', 'green', 'spinach', 'loofah', 'eggplant', 'zizania', 'bitter_gourd', 'shepherd', '菜', '青', '菠菜', '丝瓜', '茄', '茭白', '苦瓜', '荠'])
+  const isTuber = hasAny(searchText, ['potato', 'tuber', 'sweet_potato', 'radish', 'lotus_root', '薯', '萝卜', '藕', '根'])
+  const isBean = hasAny(searchText, ['bean', '豆', '蚕豆'])
+
+  if (isFiber) add('order', 'gift', 'festival')
+  if (isGrain) add('food', 'flour', 'wine', 'pet_feed', 'order')
+  if (isOil) add('oil', 'flour', 'food', 'alchemy', 'festival', 'order')
+  if (isSpice) add('food', 'alchemy', 'medicine', 'pickle', 'order')
+  if (isTeaOrFlower) add('gift', 'festival', 'medicine', 'alchemy', 'food', 'order')
+  if (isMedicinal) add('alchemy', 'medicine', 'food', 'gift', 'order')
+  if (isFruit) add('food', 'gift', 'wine', 'festival', 'pet_feed', 'order')
+  if (isLeafy) add('food', 'pickle', 'order', 'pet_feed')
+  if (isTuber) add('food', 'pet_feed', 'flour', 'order', 'alchemy')
+  if (isBean) add('food', 'flour', 'pet_feed', 'order')
+
+  if (tags.length === 0) add('food', 'order')
+
+  return uniqueValues(tags).slice(0, 6)
+}
+
+const buildCropUseFlavor = (searchText: string): CropUseFlavor[] => {
+  if (hasAny(searchText, ['chili', 'pepper', 'ginger', 'garlic', 'mustard', 'chives', '椒', '姜', '蒜', '芥', '韭'])) return ['辛', '香']
+  if (hasAny(searchText, ['tea', '茶'])) return ['苦', '香']
+  if (hasAny(searchText, ['osmanthus', 'chrysanthemum', 'flower', 'blossom', 'orchid', 'bud', 'bloom', '桂', '菊', '花', '兰', '蕾'])) return ['香', '甜']
+  if (hasAny(searchText, ['sesame', 'rapeseed', 'peanut', 'oil', '芝', '油', '花生', '籽'])) return ['香', '土']
+  if (hasAny(searchText, ['melon', 'peach', 'jujube', 'date', 'lychee', 'longan', 'persimmon', 'fruit', 'berry', 'apricot', 'pear', '瓜', '桃', '枣', '荔枝', '龙眼', '柿', '果', '莓', '杏', '梨'])) return ['甜', '鲜']
+  if (hasAny(searchText, ['potato', 'tuber', 'sweet_potato', 'yam', 'radish', 'lotus_root', 'root', '薯', '山药', '萝卜', '藕', '根'])) return ['甜', '土']
+  if (hasAny(searchText, ['bitter_gourd', 'snow_mustard', '苦瓜', '雪里蕻'])) return ['苦', '鲜']
+  if (hasAny(searchText, ['rice', 'wheat', 'grain', 'corn', 'bean', '稻', '麦', '谷', '玉米', '豆'])) return ['鲜', '土']
+  return ['鲜', '土']
+}
+
+const buildCropUseNature = (searchText: string): CropUseNature => {
+  if (hasAny(searchText, ['chili', 'pepper', 'ginger', 'garlic', 'chives', 'sesame', 'peanut', '椒', '姜', '蒜', '韭', '芝', '花生'])) return 'warm'
+  if (hasAny(searchText, ['tea', 'lotus', 'snow_lotus', 'chrysanthemum', 'bitter_gourd', 'watermelon', 'cactus', '茶', '莲', '雪莲', '菊', '苦瓜', '西瓜', '仙人掌'])) return 'cool'
+  return 'neutral'
+}
+
+const buildCropUseRarity = (crop: CropDef, searchText: string): CropUseRarity => {
+  if (
+    crop.sellPrice >= 220 ||
+    crop.growthDays >= 11 ||
+    hasAny(searchText, ['ancient', 'apex', 'wilder', 'empyrean', 'spirit', 'destiny', 'timeless', 'ancient', '远古', '无极', '洪荒', '开天', '龙', '灵', '天命'])
+  ) {
+    return 'valuable'
+  }
+  if (crop.regrowth || hasAny(searchText, ['festival', 'osmanthus', 'pumpkin', 'chrysanthemum', '桂', '南瓜', '菊', '节'])) return 'seasonal'
+  if (crop.growthDays <= 5 || crop.sellPrice <= 75) return 'daily'
+  return 'stable'
+}
+
+const buildRecommendedUses = (crop: CropDef, tags: CropUseTag[], rarityUse: CropUseRarity): string[] => {
+  const uses = tags.map(tag => `${crop.name}${tagUseLabels[tag]}`)
+  if (rarityUse === 'valuable') uses.unshift(`${crop.name}高价值委托`)
+  if (rarityUse === 'daily') uses.push(`${crop.name}日常消耗`)
+  return uniqueValues(uses).slice(0, 6)
+}
+
+const deriveCropUseProfile = (crop: CropDef): CropUseProfile => {
+  const searchText = buildCropSearchText(crop)
+  const tags = buildCropUseTags(searchText)
+  const flavor = buildCropUseFlavor(searchText)
+  const nature = buildCropUseNature(searchText)
+  const rarityUse = buildCropUseRarity(crop, searchText)
+  const recommendedUses = buildRecommendedUses(crop, tags, rarityUse)
+  const tagLabels = tags.map(tag => CROP_USE_TAG_LABELS[tag]).join('、')
+
+  return {
+    cropId: crop.id,
+    tags,
+    flavor,
+    nature,
+    rarityUse,
+    recommendedUses,
+    summary: `${crop.name}已归入${tagLabels}等非卖钱用途，风味偏${flavor.join('、')}，药性为${CROP_USE_NATURE_LABELS[nature]}，适合作为${CROP_USE_RARITY_LABELS[rarityUse]}。`
+  }
+}
+
 export const getCropUseProfile = (cropId: string): CropUseProfile | undefined => {
-  return CROP_USE_PROFILES.find(profile => profile.cropId === cropId)
+  const manualProfile = MANUAL_CROP_USE_PROFILE_MAP.get(cropId)
+  if (manualProfile) return manualProfile
+
+  const cachedProfile = DERIVED_CROP_USE_PROFILE_CACHE.get(cropId)
+  if (cachedProfile) return cachedProfile
+
+  const crop = getCropById(cropId)
+  if (!crop) return undefined
+
+  const derivedProfile = deriveCropUseProfile(crop)
+  DERIVED_CROP_USE_PROFILE_CACHE.set(cropId, derivedProfile)
+  return derivedProfile
 }
 
 export const getCropUseTagLabels = (profile: CropUseProfile): string[] => {

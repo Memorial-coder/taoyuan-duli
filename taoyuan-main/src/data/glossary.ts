@@ -11,6 +11,7 @@ import { RINGS } from './rings'
 import { HATS } from './hats'
 import { SHOES } from './shoes'
 import { WEAPONS, ENCHANTMENTS } from './weapons'
+import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_TAG_LABELS } from './cropUseProfiles'
 import {
   getGlossaryEntryIdForItemId,
   getItemExtraDetails,
@@ -551,6 +552,71 @@ const buildGlossary = (): GlossaryEntry[] => {
       intents: ['where', 'system'],
     }))
   }
+
+  entries.push(makeEntry({
+    id: 'system_crop_use_profile',
+    name: '作物用途标签',
+    category: 'item',
+    categoryLabel: '机制',
+    description: 'CropUseProfile 会为每种作物标记非卖钱用途、风味、药性、消耗定位和推荐消耗场景，背包详情、作物图鉴和百科搜索共用同一份资料。',
+    details: [
+      { label: '用途标签', value: Object.entries(CROP_USE_TAG_LABELS).map(([key, label]) => `${key}/${label}`).join('、') },
+      { label: '风味', value: '甜、鲜、辛、香、土、苦' },
+      { label: '药性', value: Object.entries(CROP_USE_NATURE_LABELS).map(([key, label]) => `${key}/${label}`).join('、') },
+      { label: '消耗定位', value: Object.entries(CROP_USE_RARITY_LABELS).map(([key, label]) => `${key}/${label}`).join('、') },
+      { label: '覆盖范围', value: '首批核心作物保留人工档案，其余作物按名称、ID、描述和价格自动派生兜底档案。' },
+    ],
+    source: '作物数据、背包详情、作物图鉴和百科搜索。',
+    usage: '用于判断作物适合料理、炼丹、宠物粮、榨油、制粉、酿酒、腌制、赠礼、节会、订单或药材储备，避免作物只剩出售换铜币。',
+    relatedPanels: [
+      { panel: 'farm', label: '回农场规划种植' },
+      { panel: 'workshop', label: '去加工坊' },
+      { panel: 'cooking', label: '去灶台查看' },
+      { panel: 'animal', label: '去牧场查看' },
+    ],
+    relatedEntryIds: ['crop_rice', 'crop_sesame', 'crop_lotus_seed', 'crop_osmanthus', 'crop_tea', 'crop_chili'],
+    keywords: [
+      '作物用途标签',
+      '作物用途',
+      'CropUseProfile',
+      'food',
+      'alchemy',
+      'pet_feed',
+      'oil',
+      'flour',
+      'wine',
+      'pickle',
+      'gift',
+      'festival',
+      'order',
+      'medicine',
+      '料理',
+      '炼丹',
+      '宠物粮',
+      '榨油',
+      '制粉',
+      '酿酒',
+      '腌制',
+      '赠礼',
+      '节会',
+      '订单',
+      '药材',
+      '甜',
+      '鲜',
+      '辛',
+      '香',
+      '土',
+      '苦',
+      '清凉',
+      '温补',
+      '中性',
+      'daily',
+      'stable',
+      'seasonal',
+      'valuable',
+    ],
+    intents: ['usage', 'system'],
+  }))
 
   entries.push(makeEntry({
     id: 'system_shared_fund_medium_spend',

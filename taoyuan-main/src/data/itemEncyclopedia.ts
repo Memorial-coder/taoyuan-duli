@@ -277,6 +277,7 @@ export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {
 export const getItemSearchKeywords = (item: ItemDef): string[] => {
   const hint = getUndiscoveredCollectionHint(item)
   const extraDetails = getItemExtraDetails(item)
+  const cropUseProfile = item.category === 'crop' ? getCropUseProfile(item.id) : undefined
   const keywords: string[] = [item.name, item.category, hint.summary, getItemSourceText(item.id), getItemUsageText(item)]
 
   extraDetails.forEach(detail => {
@@ -289,6 +290,20 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
   switch (item.category) {
     case 'crop':
       keywords.push('作物', '种植', '播种', '收获')
+      if (cropUseProfile) {
+        keywords.push(
+          '作物用途标签',
+          'CropUseProfile',
+          ...cropUseProfile.tags,
+          ...getCropUseTagLabels(cropUseProfile),
+          ...cropUseProfile.flavor,
+          cropUseProfile.nature,
+          CROP_USE_NATURE_LABELS[cropUseProfile.nature],
+          cropUseProfile.rarityUse,
+          CROP_USE_RARITY_LABELS[cropUseProfile.rarityUse],
+          ...cropUseProfile.recommendedUses,
+        )
+      }
       break
     case 'seed':
       keywords.push('种子', '播种', '育苗', '怎么种')

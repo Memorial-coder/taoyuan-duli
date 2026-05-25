@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0525 作物用途标签全作物覆盖
+- `CropUseProfile` 保留首批 10 种核心作物人工档案，并为其余作物自动派生用途标签、风味、药性、消耗定位和推荐消耗场景。
+- 风味标签统一为甜 / 鲜 / 辛 / 香 / 土 / 苦，药性标签统一为清凉 / 温补 / 中性；每个作物至少拥有一个非卖钱用途。
+- 背包详情、作物图鉴和百科搜索继续读取同一用途资料；百科新增“作物用途标签 / CropUseProfile”机制词条，可搜索用途英文标签、中文标签、风味和药性关键词。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 家族建筑前端落账与建材入口
 - 共同庄园建筑页在建筑流水卡片上开放“真实落账”和“消耗建材”按钮，分别调用 `/family-buildings/real-build-apply` 与 `/family-buildings/materials/consume`。
 - 前端 API / store 新增 `applyFamilyBuildingRealBuild` 与 `consumeFamilyBuildingMaterials`，提交 CSRF、`idempotency_key`、建筑流水 ID 和备注，成功后刷新建筑面板、共同仓库、共同基金与共同日志。
