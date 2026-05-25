@@ -28,6 +28,7 @@ const FUND_LEDGER_LIMIT = 160;
 const FUND_ORIGIN_LIMIT = 160;
 const FUND_MAX_CONTRIBUTION_AMOUNT = 999999;
 const FUND_MAX_SMALL_SPEND_AMOUNT = 300;
+const FUND_MAX_MEDIUM_SPEND_AMOUNT = 1200;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_MAX_DEPOSIT_QUANTITY = 99;
@@ -83,6 +84,20 @@ const SMALL_FUND_SPEND_PURPOSES = Object.freeze({
     label: '小额订单跑腿费',
     category: 'order_support',
     max_amount: 160,
+    auto_pay_eligible: false,
+  },
+});
+const MEDIUM_FUND_SPEND_PURPOSES = Object.freeze({
+  processing_materials: {
+    label: '中额加工材料',
+    category: 'processing',
+    max_amount: 600,
+    auto_pay_eligible: false,
+  },
+  building_materials: {
+    label: '中额建材预算',
+    category: 'construction_material',
+    max_amount: 1200,
     auto_pay_eligible: false,
   },
 });
@@ -873,6 +888,7 @@ function normalizeFundLedgerEntry(entry = {}) {
     source_save_revision: Math.max(0, Math.floor(Number(entry?.source_save_revision) || 0)),
     target_ref: sanitizeText(entry?.target_ref || entry?.target, 120),
     spend_category: sanitizeText(entry?.spend_category || entry?.category, 80),
+    spend_tier: ['small', 'medium', 'large'].includes(entry?.spend_tier) ? entry.spend_tier : '',
     spend_purpose_label: sanitizeText(entry?.spend_purpose_label || entry?.purpose_label, 80),
     balance_after: Math.max(0, Math.floor(Number(entry?.balance_after) || 0)),
     target_item_id: normalizeWarehouseItemId(entry?.target_item_id ?? entry?.targetItemId),
@@ -3365,6 +3381,7 @@ function buildOfflineOperationSnapshot(contract, actorUsername = '') {
       read_fund: true,
       contribute_fund: true,
       spend_fund_small: actorPermissions.fund.spend_small === true,
+      spend_fund_medium: actorPermissions.fund.spend_medium === true,
       auto_pay_seeds_feed: actorPermissions.fund.auto_buy_seeds_feed === true,
       read_permissions: true,
       manage_permissions: canManageCohabitationPermissions(actorMember),
@@ -3535,6 +3552,13 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
     max_amount: Math.min(FUND_MAX_SMALL_SPEND_AMOUNT, def.max_amount),
     auto_pay_eligible: def.auto_pay_eligible === true,
   }));
+  const allowedMediumSpendPurposes = Object.entries(MEDIUM_FUND_SPEND_PURPOSES).map(([id, def]) => ({
+    id,
+    label: def.label,
+    category: def.category,
+    max_amount: Math.min(FUND_MAX_MEDIUM_SPEND_AMOUNT, def.max_amount),
+    auto_pay_eligible: def.auto_pay_eligible === true,
+  }));
   return {
     contract_id: contract.id,
     shared_manor_id: contract.shared_manor_id,
@@ -3548,13 +3572,15 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       contribution_enabled: contract.status === 'active',
       spend_enabled: contract.status === 'active' && actorPermissions.fund.spend_small === true,
       small_spend_enabled: contract.status === 'active' && actorPermissions.fund.spend_small === true,
-      medium_spend_enabled: false,
+      medium_spend_enabled: contract.status === 'active' && actorPermissions.fund.spend_medium === true,
       large_spend_enabled: false,
       idempotency_required: true,
       large_spend_requires_both: actorPermissions.confirmations.large_fund_spend_requires_both === true,
       small_spend_max_amount: FUND_MAX_SMALL_SPEND_AMOUNT,
+      medium_spend_max_amount: FUND_MAX_MEDIUM_SPEND_AMOUNT,
       allowed_small_spend_purposes: allowedSmallSpendPurposes,
-      compensation_policy: '第一版支持成员自愿注资和小额白名单支出，全部记录 ledger 与审计；误操作需按支出流水人工补偿，自动返还和大额确认待后续接入。',
+      allowed_medium_spend_purposes: allowedMediumSpendPurposes,
+      compensation_policy: '第一版支持成员自愿注资、小额白名单支出和中额加工 / 建材预算，全部记录 ledger 与审计；误操作需按支出流水人工补偿，自动返还和大额确认待后续接入。',
     },
     permissions: {
       can_spend_small: actorPermissions.fund.spend_small === true,
@@ -3786,14 +3812,37 @@ function normalizeFundContributionPayload(payload = {}) {
   };
 }
 
+function resolveFundSpendPurpose(purpose) {
+  if (SMALL_FUND_SPEND_PURPOSES[purpose]) {
+    return {
+      ...SMALL_FUND_SPEND_PURPOSES[purpose],
+      tier: 'small',
+      max_amount: Math.min(FUND_MAX_SMALL_SPEND_AMOUNT, SMALL_FUND_SPEND_PURPOSES[purpose].max_amount),
+      permission_key: 'spend_small',
+    };
+  }
+  if (MEDIUM_FUND_SPEND_PURPOSES[purpose]) {
+    return {
+      ...MEDIUM_FUND_SPEND_PURPOSES[purpose],
+      tier: 'medium',
+      max_amount: Math.min(FUND_MAX_MEDIUM_SPEND_AMOUNT, MEDIUM_FUND_SPEND_PURPOSES[purpose].max_amount),
+      permission_key: 'spend_medium',
+    };
+  }
+  return null;
+}
+
 function normalizeFundSpendPayload(payload = {}) {
   const amount = Math.floor(Number(payload.amount) || 0);
   const purpose = sanitizeText(payload.purpose || payload.spend_purpose || payload.budget_type, 80) || 'seed_budget';
-  const purposeDef = SMALL_FUND_SPEND_PURPOSES[purpose];
-  if (!purposeDef) throw createError('共同基金第一版只允许小额种子、饲料、工具修缮或订单跑腿用途', 403);
+  const purposeDef = resolveFundSpendPurpose(purpose);
+  if (!purposeDef) throw createError('共同基金当前只允许小额种子 / 饲料 / 工具 / 跑腿，或中额加工 / 建材用途', 403);
   if (amount <= 0) throw createError('共同基金支出金额必须大于 0');
-  const maxAmount = Math.min(FUND_MAX_SMALL_SPEND_AMOUNT, purposeDef.max_amount);
-  if (amount > maxAmount) throw createError(`该共同基金小额用途单次支出不能超过 ${maxAmount}`);
+  const maxAmount = purposeDef.max_amount;
+  if (amount > maxAmount) {
+    const tierLabel = purposeDef.tier === 'medium' ? '中额' : '小额';
+    throw createError(`该共同基金${tierLabel}用途单次支出不能超过 ${maxAmount}`);
+  }
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同基金支出需要 idempotency_key，以防断线或重试时重复扣款');
   const autoPay = payload.auto_pay === true || payload.auto === true;
@@ -3804,6 +3853,8 @@ function normalizeFundSpendPayload(payload = {}) {
     purpose,
     purpose_label: purposeDef.label,
     spend_category: purposeDef.category,
+    spend_tier: purposeDef.tier,
+    permission_key: purposeDef.permission_key,
     auto_pay: autoPay,
     target_ref: sanitizeText(payload.target_ref || payload.target_id || payload.order_id || payload.shop_item_id, 120),
     memo: sanitizeText(payload.memo, 160),
@@ -5087,7 +5138,11 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
   const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
   const member = assertActiveContractForActor(contract, actorUsername, '使用共同基金');
   const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
-  if (actorPermissions.fund.spend_small !== true) throw createError('你没有使用共同基金小额支出的权限', 403);
+  if (spend.spend_tier === 'medium') {
+    if (actorPermissions.fund.spend_medium !== true) throw createError('你没有使用共同基金中额加工或建材支出的权限', 403);
+  } else if (actorPermissions.fund.spend_small !== true) {
+    throw createError('你没有使用共同基金小额支出的权限', 403);
+  }
   if (spend.auto_pay === true && actorPermissions.fund.auto_buy_seeds_feed !== true) {
     throw createError('你没有使用共同基金自动购买种子或饲料的权限', 403);
   }
@@ -5181,6 +5236,7 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
     purpose: spend.purpose,
     spend_purpose_label: spend.purpose_label,
     spend_category: spend.spend_category,
+    spend_tier: spend.spend_tier,
     target_ref: spend.target_ref,
     target_item_id: purchase?.item_id || '',
     target_quantity: purchase?.quantity || 0,
@@ -5218,6 +5274,7 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
     purpose: ledgerEntry.purpose,
     purpose_label: ledgerEntry.spend_purpose_label,
     spend_category: ledgerEntry.spend_category,
+    spend_tier: ledgerEntry.spend_tier,
     target_ref: ledgerEntry.target_ref,
     balance_before: beforeBalance,
     balance_after: afterBalance,

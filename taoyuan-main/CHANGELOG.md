@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0525 共同基金中额加工建材支出
+- 服务端 `fund/spend` 新增 `processing_materials` 与 `building_materials` 两类中额用途，分别覆盖中额加工材料和中额建材预算。
+- 中额支出要求 `fund.spend_medium`，继续受余额、幂等键、交换锁、ledger、审计和补偿提示约束；不自动发物、不改个人铜币、不绕过大额双方确认。
+- 共同基金快照新增中额用途列表、上限和权限状态，离线经营能力同步透出 `spend_fund_medium`。
+- 游戏内百科新增“共同基金中额支出”词条，可搜索中额加工材料、建材预算、`processing_materials` 和 `building_materials`。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke`。
+
 ### 0525 公共订单入共同基金补偿重放
 - 服务端补偿重试会从订单结算凭证恢复 `reward_route=shared_fund` 与 `cohabitation_contract_id`，继续写共同基金 `order_income` ledger。
 - 玩家 / 管理端补偿重试路由进入交换锁并注入共同基金入账 handler；管理端重试保留管理审计，基金入账仍以凭证发布人作为契约成员校验 actor。

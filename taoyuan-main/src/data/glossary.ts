@@ -552,6 +552,29 @@ const buildGlossary = (): GlossaryEntry[] => {
     }))
   }
 
+  entries.push(makeEntry({
+    id: 'system_shared_fund_medium_spend',
+    name: '共同基金中额支出',
+    category: 'item',
+    categoryLabel: '机制',
+    description: '共同庄园中用于加工材料和建材预算的中额共同基金用途，走服务端权限、幂等、流水与审计。',
+    details: [
+      { label: '权限', value: '需要 fund.spend_medium；没有中额权限的成员会被服务端拒绝。' },
+      { label: '加工用途', value: 'processing_materials / 中额加工材料，单次上限 600 文。' },
+      { label: '建材用途', value: 'building_materials / 中额建材预算，单次上限 1200 文。' },
+      { label: '边界', value: '不自动发物、不动个人铜币、不绕过大额双方确认；误操作按基金 ledger 人工补偿或后续返还流程处理。' },
+    ],
+    source: '在共同庄园的共同基金服务端支出链路中使用。',
+    usage: '适合后续接工坊加工、共同建材和家族建筑预备流程；当前先作为可审计预算支出闭环。',
+    relatedPanels: [
+      { panel: 'online', label: '去共同庄园' },
+      { panel: 'workshop', label: '查看工坊加工' },
+    ],
+    relatedEntryIds: [],
+    keywords: ['共同基金', '中额支出', '中额加工材料', '中额建材预算', 'processing_materials', 'building_materials', '同居', '家族庄园'],
+    intents: ['usage', 'system'],
+  }))
+
   return entries
 }
 

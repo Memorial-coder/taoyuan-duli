@@ -339,7 +339,10 @@ assert.equal(initialFundResult.fund.balance, 0, 'fresh shared fund should have z
 assert.equal(initialFundResult.fund.summary.personal_money_merged, false, 'shared fund must not merge personal money')
 assert.equal(initialFundResult.fund.summary.contribution_enabled, true, 'active members should be able to contribute to fund')
 assert.equal(initialFundResult.fund.summary.spend_enabled, true, 'fund small spending should follow actor permission')
+assert.equal(initialFundResult.fund.summary.medium_spend_enabled, true, 'fund medium spending should follow actor permission')
 assert.ok(initialFundResult.fund.summary.allowed_small_spend_purposes.some(purpose => purpose.id === 'seed_budget'), 'fund snapshot should expose small seed budget spend purpose')
+assert.ok(initialFundResult.fund.summary.allowed_medium_spend_purposes.some(purpose => purpose.id === 'building_materials'), 'fund snapshot should expose medium building materials spend purpose')
+assert.ok(initialFundResult.fund.summary.allowed_medium_spend_purposes.some(purpose => purpose.id === 'processing_materials'), 'fund snapshot should expose medium processing spend purpose')
 assert.equal(initialFundResult.fund.summary.idempotency_required, true, 'fund contribution should require idempotency key')
 
 const ownerFundBefore = readGameplayData(owner)?.player?.money
@@ -810,6 +813,7 @@ const permissionUpdate = await runtime.updateCohabitationPermissions(created.con
     },
     fund: {
       spend_small: false,
+      spend_medium: false,
       spend_large: true,
     },
     confirmations: {
@@ -825,9 +829,11 @@ assert.equal(updatedPartnerPermissions.storage.deposit, false, 'permissions upda
 assert.equal(updatedPartnerPermissions.storage.withdraw_common, false, 'permissions update should disable partner common warehouse withdrawal')
 assert.equal(updatedPartnerPermissions.storage.withdraw_rare, true, 'permissions update should allow explicit storage permission flags')
 assert.equal(updatedPartnerPermissions.fund.spend_small, false, 'permissions update should disable partner small fund spending')
+assert.equal(updatedPartnerPermissions.fund.spend_medium, false, 'permissions update should disable partner medium fund spending')
 assert.equal(updatedPartnerPermissions.fund.spend_large, true, 'permissions update should allow explicit fund permission flags')
 assert.equal(updatedPartnerPermissions.confirmations.large_fund_spend_requires_both, true, 'permissions safety rail should keep large fund confirmation enabled')
 assert.ok(permissionUpdate.changed_fields.some(field => field.group === 'storage' && field.key === 'deposit' && field.after === false), 'permissions update should report changed storage deposit field')
+assert.ok(permissionUpdate.changed_fields.some(field => field.group === 'fund' && field.key === 'spend_medium' && field.after === false), 'permissions update should report changed medium fund spend field')
 assert.ok(permissionUpdate.contract.audit_log.find(entry => entry.action === 'permissions_updated'), 'permissions update should be audited')
 
 const duplicatePermissionUpdate = await runtime.updateCohabitationPermissions(created.contract.id, {
@@ -840,6 +846,7 @@ const duplicatePermissionUpdate = await runtime.updateCohabitationPermissions(cr
     },
     fund: {
       spend_small: false,
+      spend_medium: false,
       spend_large: true,
     },
   },
@@ -852,6 +859,7 @@ assert.equal(partnerPermissionsRead.permissions_panel.editable_by_actor, false, 
 assert.equal(partnerPermissionsRead.permissions_panel.members.find(member => member.username === partner)?.permissions.storage.deposit, false, 'partner should see updated own permissions')
 assert.equal(partnerPermissionsRead.permissions_panel.members.find(member => member.username === partner)?.permissions.storage.withdraw_common, false, 'partner should see updated withdrawal permission')
 assert.equal(partnerPermissionsRead.permissions_panel.members.find(member => member.username === partner)?.permissions.fund.spend_small, false, 'partner should see updated small fund spend permission')
+assert.equal(partnerPermissionsRead.permissions_panel.members.find(member => member.username === partner)?.permissions.fund.spend_medium, false, 'partner should see updated medium fund spend permission')
 
 const offlineStatus = await runtime.getCohabitationOfflineStatus(created.contract.id, actor(owner))
 assert.equal(offlineStatus.offline_status.summary.server_authoritative, true, 'offline status should be server authoritative')
@@ -866,12 +874,14 @@ assert.ok(!offlineStatus.offline_status.deferred_operations.includes('frontend_s
 assert.equal(offlineStatus.offline_status.actor_capabilities.deposit_warehouse, true, 'owner should still be able to deposit while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.withdraw_warehouse_common, true, 'owner should be able to withdraw ordinary warehouse items while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.spend_fund_small, true, 'owner should be able to spend small shared fund budgets while partner is not required online')
+assert.equal(offlineStatus.offline_status.actor_capabilities.spend_fund_medium, true, 'owner should be able to spend medium shared fund budgets while partner is not required online')
 assert.equal(offlineStatus.offline_status.actor_capabilities.manage_permissions, true, 'owner should retain permission management capability')
 
 const partnerOfflineStatus = await runtime.getCohabitationOfflineStatus(created.contract.id, actor(partner))
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.deposit_warehouse, false, 'offline status should reflect updated partner warehouse permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.withdraw_warehouse_common, false, 'offline status should reflect updated partner warehouse withdrawal permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.spend_fund_small, false, 'offline status should reflect updated partner fund spend permission')
+assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.spend_fund_medium, false, 'offline status should reflect updated partner medium fund spend permission')
 assert.equal(partnerOfflineStatus.offline_status.actor_capabilities.manage_permissions, false, 'partner should not manage permissions in offline status')
 
 await assert.rejects(
@@ -916,6 +926,19 @@ await assert.rejects(
 )
 assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, 155, 'permission-denied fund spend should not change shared balance after warehouse sale')
 assert.equal(readGameplayData(partner)?.player?.money, 920, 'permission-denied fund spend should not touch partner money')
+
+await assert.rejects(
+  () => runtime.spendCohabitationFund(created.contract.id, {
+    amount: 100,
+    purpose: 'processing_materials',
+    target_ref: 'workshop:tea_drying',
+    idempotency_key: 'qa-partner-medium-fund-spend-denied-by-permission',
+  }, actor(partner)),
+  error => error?.status === 403 && String(error.message || '').includes('共同基金中额'),
+  'updated fund permission should block partner medium shared fund spending'
+)
+assert.equal((await runtime.getCohabitationFund(created.contract.id, actor(owner))).fund.balance, 155, 'permission-denied medium fund spend should not change shared balance')
+assert.equal(readGameplayData(partner)?.player?.money, 920, 'permission-denied medium fund spend should not touch partner money')
 
 const pendingContract = await runtime.createCohabitationContract({
   type: 'seasonal_cofarm',
@@ -1710,5 +1733,46 @@ assert.equal(duplicatePreviewResult.idempotent, true, 'same separation preview i
 assert.equal(duplicatePreviewResult.preview.id, previewResult.preview.id, 'idempotent separation preview should keep original preview id')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeDuplicatePreview, 'idempotent separation preview should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeDuplicatePreview, 'idempotent separation preview should not rewrite partner save')
+
+const partnerMoneyBeforeMediumFundTopUp = readGameplayData(partner)?.player?.money
+const mediumFundTopUp = await runtime.contributeCohabitationFund(created.contract.id, {
+  amount: 400,
+  purpose: 'building_materials',
+  memo: 'qa medium fund top up for building materials',
+  idempotency_key: 'qa-fund-contribution-medium-building-top-up',
+}, actor(partner))
+assert.equal(mediumFundTopUp.fund.balance, 555, 'medium fund top up should prepare enough shared balance')
+assert.equal(readGameplayData(partner)?.player?.money, partnerMoneyBeforeMediumFundTopUp - 400, 'medium fund top up should deduct partner personal money once')
+const ownerMoneyBeforeMediumFundSpend = readGameplayData(owner)?.player?.money
+const mediumFundSpend = await runtime.spendCohabitationFund(created.contract.id, {
+  amount: 400,
+  purpose: 'building_materials',
+  target_ref: 'family_building:shared_granary:materials',
+  memo: 'qa shared building material budget',
+  idempotency_key: 'qa-fund-spend-building-materials',
+}, actor(owner))
+assert.equal(mediumFundSpend.idempotent, false, 'first medium fund spend should not be idempotent')
+assert.equal(mediumFundSpend.fund.balance, 155, 'medium fund spend should reduce shared fund balance')
+assert.equal(mediumFundSpend.shared_fund.balance_before, 555, 'medium fund spend should report previous balance')
+assert.equal(mediumFundSpend.shared_fund.balance_after, 155, 'medium fund spend should report new balance')
+assert.equal(mediumFundSpend.ledger_entry.purpose, 'building_materials', 'medium fund spend ledger should keep purpose')
+assert.equal(mediumFundSpend.ledger_entry.spend_tier, 'medium', 'medium fund spend ledger should mark medium tier')
+assert.equal(mediumFundSpend.ledger_entry.spend_purpose_label, '中额建材预算', 'medium fund spend ledger should keep purpose label')
+assert.equal(mediumFundSpend.ledger_entry.spend_category, 'construction_material', 'medium fund spend ledger should keep construction category')
+assert.equal(mediumFundSpend.ledger_entry.target_ref, 'family_building:shared_granary:materials', 'medium fund spend should keep target reference')
+assert.equal(mediumFundSpend.ledger_entry.confirmation_required, false, 'medium fund spend should not require large-spend confirmation')
+assert.equal(mediumFundSpend.purchase, null, 'medium fund spend should not auto deliver shop items')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeMediumFundSpend, 'medium fund spend should not touch owner personal money')
+assert.ok(mediumFundSpend.contract.audit_log.find(entry => entry.action === 'fund_spent' && entry.detail?.spend_tier === 'medium'), 'medium fund spend should be audited')
+
+const duplicateMediumFundSpend = await runtime.spendCohabitationFund(created.contract.id, {
+  amount: 400,
+  purpose: 'building_materials',
+  target_ref: 'family_building:shared_granary:materials',
+  idempotency_key: 'qa-fund-spend-building-materials',
+}, actor(owner))
+assert.equal(duplicateMediumFundSpend.idempotent, true, 'same medium fund spend idempotency key should be idempotent')
+assert.equal(duplicateMediumFundSpend.fund.balance, 155, 'idempotent medium fund spend should not deduct balance twice')
+assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeMediumFundSpend, 'idempotent medium fund spend should still not touch personal money')
 
 console.log('[qa-cohabitation-contract] OK')

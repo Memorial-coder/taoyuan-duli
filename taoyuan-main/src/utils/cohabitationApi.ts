@@ -55,6 +55,9 @@ export interface CohabitationFundLedgerEntry {
   memo: string
   purpose: string
   target_ref?: string
+  spend_category?: string
+  spend_tier?: string
+  spend_purpose_label?: string
   target_item_id?: string
   target_quantity?: number
   target_unit_price?: number
@@ -259,8 +262,17 @@ export interface CohabitationFundSnapshot {
     contribution_enabled: boolean
     spend_enabled: boolean
     small_spend_enabled?: boolean
+    medium_spend_enabled?: boolean
     small_spend_max_amount?: number
+    medium_spend_max_amount?: number
     allowed_small_spend_purposes?: Array<{
+      id: string
+      label: string
+      category: string
+      max_amount: number
+      auto_pay_eligible: boolean
+    }>
+    allowed_medium_spend_purposes?: Array<{
       id: string
       label: string
       category: string
