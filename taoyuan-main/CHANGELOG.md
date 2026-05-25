@@ -4,10 +4,16 @@
 
 ## [未发布]
 
+### 0525 家族建筑真实拆除人工复核请求前端入口
+- 前端 API / store 接入 `/family-buildings/real-demolition/request-review`，共同庄园建筑流水卡片新增“请求复核”按钮。
+- 按钮按 `compensated`、已真实落账、未拆除、未待审和契约开启状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。
+- 建筑流水卡片展示复核请求人、请求时间与复核状态，共同日志新增“真实拆除复核请求”读回；本轮仍不执行真实拆除、不改共同基金 / 共同仓库数量、不写个人铜币或背包。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 家族建筑真实拆除人工复核请求后端闭环
 - 服务端新增 `/family-buildings/real-demolition/request-review`，要求目标家族建筑流水已 `compensated`、具备真实建造落账证据，并保留 `demolish_requires_both` 安全阀。
 - 成功后只把同一条 `family_building_ledger` 标记为 `pending_manual_review`，记录复核请求幂等键、请求人、时间、审计和真实拆除执行待办。
-- 重复请求幂等读回，不删除真实建筑、不改共同基金或共同仓库数量、不写个人铜币 / 背包；前端入口仍留后续独立接入。
+- 重复请求幂等读回，不删除真实建筑、不改共同基金或共同仓库数量、不写个人铜币 / 背包；真实拆除执行仍留后续独立安全阀。
 - 本轮验证：`node --check server\src\taoyuanCohabitationRuntime.js`、`node --check server\src\routes\api.js`、`node --check server\scripts\qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
 
 ### 0525 家族建筑补偿重放前端入口

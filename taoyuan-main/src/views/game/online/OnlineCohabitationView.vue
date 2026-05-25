@@ -1190,8 +1190,11 @@
                   <p v-if="entry.compensation_replayed_at || entry.status === 'compensated'">
                     补偿收口：{{ entry.compensation_replayed_by_display_name || entry.compensation_replayed_by_username || '已记录' }} · {{ formatTime(entry.compensation_replayed_at) }} · {{ entry.real_build_demolished ? '已拆除真实建筑' : '未拆真实建筑' }}
                   </p>
+                  <p v-if="entry.real_build_demolition_requested_at || entry.real_build_demolition_review_state === 'pending_manual_review'">
+                    拆除复核：{{ entry.real_build_demolition_requested_by_display_name || entry.real_build_demolition_requested_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_requested_at) }} · {{ familyBuildingDemolitionReviewLabel(entry.real_build_demolition_review_state) }}
+                  </p>
                 </div>
-                <div class="mt-2 grid gap-2 md:grid-cols-6">
+                <div class="mt-2 grid gap-2 md:grid-cols-7">
                   <button
                     class="online-action-btn online-action-btn--compact justify-center"
                     type="button"
@@ -1251,6 +1254,16 @@
                   >
                     <CheckCircle2 :size="12" />
                     收口补偿
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canRequestFamilyBuildingRealDemolitionReview(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-real-demolition-review-${entry.id}`"
+                    @click="requestFamilyBuildingRealDemolitionReview(entry)"
+                  >
+                    <ShieldCheck :size="12" />
+                    请求复核
                   </button>
                 </div>
               </div>
@@ -2782,6 +2795,14 @@
     ) &&
     entry.compensation_required !== false &&
     !entry.compensation_replay_idempotency_key
+  const canRequestFamilyBuildingRealDemolitionReview = (entry: CohabitationFamilyBuildingLedgerEntry) =>
+    cohabitationStore.canOpenSelectedContract &&
+    entry.status === 'compensated' &&
+    entry.compensation_required === false &&
+    entry.real_build_applied === true &&
+    entry.real_build_demolished !== true &&
+    entry.real_build_demolition_review_state !== 'pending_manual_review' &&
+    !entry.real_build_demolition_request_idempotency_key
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -3121,6 +3142,24 @@
     }
   }
 
+  const requestFamilyBuildingRealDemolitionReview = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    try {
+      const result = await cohabitationStore.requestFamilyBuildingRealDemolitionReview({
+        building_ledger_id: entry.id,
+        memo: `前端请求家族建筑真实拆除复核：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-real-demolition-review-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_requested
+        ? '该建筑流水已经在真实拆除人工复核中，已刷新状态'
+        : '已请求真实建筑拆除人工复核，当前不会删除任何建筑或资产'
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '请求家族建筑真实拆除复核失败'
+    }
+  }
+
   const toggleMemberPermission = async (
     member: CohabitationMember & { permissions: Record<string, Record<string, boolean>> },
     option: typeof permissionToggleOptions[number]
@@ -3255,6 +3294,8 @@
       write_family_building_ledger: '建筑流水',
       real_build_apply: '真实建造落账',
       demolish_family_building: '拆除家族建筑',
+      real_build_demolition_manual_review: '真实拆除人工复核',
+      real_build_demolition_execute: '真实拆除执行',
       family_building_compensation_replay: '建筑补偿重放',
       family_building_rollback: '建筑回滚',
       publish_family_relation_graph_to_profile: '公开关系图到档案',
@@ -3577,6 +3618,9 @@
     if (entry.action === 'family_building_compensation_replayed') {
       return '已收口家族建筑回滚补偿，真实建筑拆除仍需独立人工复核'
     }
+    if (entry.action === 'family_building_real_demolition_requested') {
+      return '已请求真实建筑拆除人工复核，执行仍关闭且不改任何个人或共同资产'
+    }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0
     if (itemId && amount > 0) return `${warehouseItemLabels[itemId] || itemId} x${amount}`
@@ -3593,6 +3637,17 @@
       minute: '2-digit',
       hour12: false,
     })
+  }
+
+  const familyBuildingDemolitionReviewLabel = (state?: string) => {
+    const labels: Record<string, string> = {
+      not_requested: '未请求',
+      pending_manual_review: '待人工复核',
+      approved_for_execute: '已批准待执行',
+      rejected: '已驳回',
+      executed: '已执行',
+    }
+    return labels[state || 'not_requested'] || state || '未请求'
   }
 
   const formatDuration = (seconds: number | null) => {

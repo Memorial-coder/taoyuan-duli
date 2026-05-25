@@ -650,6 +650,12 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   compensation_replayed_by_display_name: string
   real_build_demolished: boolean
   real_build_demolition_policy: string
+  real_build_demolition_request_idempotency_key: string
+  real_build_demolition_requested_at: number
+  real_build_demolition_requested_by_username: string
+  real_build_demolition_requested_by_display_name: string
+  real_build_demolition_review_state: string
+  real_build_demolition_review_note: string
   compensation_required: boolean
   compensation_hint: string
   deferred_operations: string[]
@@ -1367,6 +1373,7 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
   already_refunded?: boolean
   already_restored?: boolean
   already_compensated?: boolean
+  already_requested?: boolean
   rollback?: {
     shared_fund_refunded?: boolean
     shared_warehouse_restored?: boolean
@@ -1392,6 +1399,16 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
     real_build_demolished?: boolean
     personal_money_merged?: boolean
     personal_inventory_merged?: boolean
+  }
+  demolition_review?: {
+    requested?: boolean
+    review_state?: string
+    execution_enabled?: boolean
+    requires_manual_review?: boolean
+    real_build_demolished?: boolean
+    personal_save_changed?: boolean
+    shared_fund_changed?: boolean
+    shared_warehouse_changed?: boolean
   }
 }
 
@@ -1776,6 +1793,14 @@ export const replayCohabitationFamilyBuildingCompensation = async (contractId: s
     contractPath(contractId, '/family-buildings/compensation/replay'),
     payload as unknown as Record<string, unknown>,
     '收口家族建筑补偿重放失败'
+  )
+}
+
+export const requestCohabitationFamilyBuildingRealDemolitionReview = async (contractId: string, payload: CohabitationFamilyBuildingLedgerPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/real-demolition/request-review'),
+    payload as unknown as Record<string, unknown>,
+    '请求家族建筑真实拆除复核失败'
   )
 }
 
