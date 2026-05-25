@@ -1193,8 +1193,14 @@
                   <p v-if="entry.real_build_demolition_requested_at || entry.real_build_demolition_review_state === 'pending_manual_review'">
                     拆除复核：{{ entry.real_build_demolition_requested_by_display_name || entry.real_build_demolition_requested_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_requested_at) }} · {{ familyBuildingDemolitionReviewLabel(entry.real_build_demolition_review_state) }}
                   </p>
+                  <p v-if="entry.real_build_demolition_reviewed_at || entry.real_build_demolition_review_state === 'rejected'">
+                    复核处理：{{ entry.real_build_demolition_reviewed_by_display_name || entry.real_build_demolition_reviewed_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_reviewed_at) }} · {{ familyBuildingDemolitionReviewLabel(entry.real_build_demolition_review_state) }}
+                  </p>
+                  <p v-if="entry.real_build_demolition_review_note">
+                    复核说明：{{ entry.real_build_demolition_review_note }}
+                  </p>
                 </div>
-                <div class="mt-2 grid gap-2 md:grid-cols-7">
+                <div class="mt-2 grid gap-2 md:grid-cols-8">
                   <button
                     class="online-action-btn online-action-btn--compact justify-center"
                     type="button"
@@ -1264,6 +1270,16 @@
                   >
                     <ShieldCheck :size="12" />
                     请求复核
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canRejectFamilyBuildingRealDemolitionReview(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-real-demolition-reject-${entry.id}`"
+                    @click="rejectFamilyBuildingRealDemolitionReview(entry)"
+                  >
+                    <XCircle :size="12" />
+                    驳回复核
                   </button>
                 </div>
               </div>
@@ -2803,6 +2819,12 @@
     entry.real_build_demolished !== true &&
     entry.real_build_demolition_review_state !== 'pending_manual_review' &&
     !entry.real_build_demolition_request_idempotency_key
+  const canRejectFamilyBuildingRealDemolitionReview = (entry: CohabitationFamilyBuildingLedgerEntry) =>
+    cohabitationStore.canOpenSelectedContract &&
+    entry.real_build_demolition_review_state === 'pending_manual_review' &&
+    Boolean(entry.real_build_demolition_request_idempotency_key) &&
+    entry.real_build_demolished !== true &&
+    !entry.real_build_demolition_review_idempotency_key
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -3160,6 +3182,24 @@
     }
   }
 
+  const rejectFamilyBuildingRealDemolitionReview = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    try {
+      const result = await cohabitationStore.rejectFamilyBuildingRealDemolitionReview({
+        building_ledger_id: entry.id,
+        memo: `前端驳回家族建筑真实拆除复核：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-real-demolition-reject-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_rejected
+        ? '该真实拆除复核已经驳回，已刷新状态'
+        : '已驳回真实拆除复核，未删除真实建筑或改共同资产'
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '驳回家族建筑真实拆除复核失败'
+    }
+  }
+
   const toggleMemberPermission = async (
     member: CohabitationMember & { permissions: Record<string, Record<string, boolean>> },
     option: typeof permissionToggleOptions[number]
@@ -3494,6 +3534,9 @@
       family_building_rollback_recorded: '建筑回滚记录',
       family_building_fund_refunded: '建筑基金退款',
       family_building_materials_restored: '建筑材料恢复',
+      family_building_compensation_replayed: '建筑补偿收口',
+      family_building_real_demolition_requested: '真实拆除复核请求',
+      family_building_real_demolition_rejected: '真实拆除复核驳回',
       permissions_updated: '权限更新',
       family_role_updated: '家族职位更新',
       separation_preview_created: '分居预览创建',
@@ -3620,6 +3663,9 @@
     }
     if (entry.action === 'family_building_real_demolition_requested') {
       return '已请求真实建筑拆除人工复核，执行仍关闭且不改任何个人或共同资产'
+    }
+    if (entry.action === 'family_building_real_demolition_rejected') {
+      return '已驳回真实建筑拆除复核，不删除真实建筑或改共同资产'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0
