@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0525 家族建筑共同仓库材料消耗落账
+- 服务端新增 `/family-buildings/materials/consume` 写接口，只允许已激活成员在具备建筑或共同仓库相关权限时引用已扣款且已真实落账的 `family_building_ledger` 消耗材料。
+- 成功消耗会按建筑材料计划从共同仓库写 `consume` ledger，扣减普通材料库存，并把 `materials_idempotency_key`、`material_ledger_ids`、材料明细和审计回写到同一条建筑流水。
+- 重复 `idempotency_key` 或已消耗目标返回幂等结果，不重复扣共同仓库材料、不重复扣共同基金、不改个人铜币；家族建筑面板读回时会把候选建筑状态显示为材料已消耗。
+- 游戏内百科“共同基金大额确认”补充 `materials/consume`、`materials_consumed`、`materials_idempotency_key` 和 `material_ledger_ids` 搜索词。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 共同基金大额建筑真实建造落账
 - 服务端新增 `/family-buildings/real-build-apply` 写接口，只允许已激活成员在具备大额基金或建筑规划相关权限时引用已扣款的 `family_building_ledger` 落账。
 - 成功落账会把原建筑流水标记为 `build_applied`，写入 `apply_idempotency_key`、落账人、真实建筑引用和审计；家族建筑面板读回时会把候选建筑状态显示为已落账。

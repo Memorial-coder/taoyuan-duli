@@ -1009,7 +1009,7 @@ function normalizeWarehouseLedgerEntry(entry = {}) {
   const itemId = normalizeWarehouseItemId(entry.item_id ?? entry.itemId);
   const quantity = normalizePositiveInt(entry.quantity, 0);
   if (!itemId || quantity <= 0) return null;
-  const action = ['deposit', 'withdraw', 'sell', 'compensate', 'revert'].includes(entry.action) ? entry.action : 'deposit';
+  const action = ['deposit', 'withdraw', 'sell', 'consume', 'compensate', 'revert'].includes(entry.action) ? entry.action : 'deposit';
   const actorUsername = normalizeUsername(entry.actor_username);
   const sourceOwnerUsername = normalizeUsername(entry.source_owner_username || actorUsername);
   const sourceSlots = Array.isArray(entry.source_slots)
@@ -1585,6 +1585,24 @@ function normalizeFamilyBuildingLedgerEntry(entry = {}) {
     applied_by_username: normalizeUsername(entry.applied_by_username),
     applied_by_display_name: sanitizeText(entry.applied_by_display_name || entry.applied_by_username, 60),
     real_build_ref: sanitizeText(entry.real_build_ref, 120),
+    materials_idempotency_key: sanitizeText(entry.materials_idempotency_key, 120),
+    materials_consumed_at: Math.max(0, Math.floor(Number(entry.materials_consumed_at) || 0)),
+    materials_consumed_by_username: normalizeUsername(entry.materials_consumed_by_username),
+    materials_consumed_by_display_name: sanitizeText(entry.materials_consumed_by_display_name || entry.materials_consumed_by_username, 60),
+    material_ledger_ids: Array.isArray(entry.material_ledger_ids)
+      ? entry.material_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20)
+      : [],
+    material_consumptions: Array.isArray(entry.material_consumptions)
+      ? entry.material_consumptions.map(item => ({
+          item_id: normalizeWarehouseItemId(item?.item_id ?? item?.itemId),
+          label: sanitizeText(item?.label, 40),
+          quantity: Math.max(0, Math.floor(Number(item?.quantity) || 0)),
+          quality: normalizeQuality(item?.quality),
+          warehouse_ledger_ids: Array.isArray(item?.warehouse_ledger_ids)
+            ? item.warehouse_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 12)
+            : [],
+        })).filter(item => item.item_id && item.quantity > 0).slice(0, 12)
+      : [],
     reversible: entry.reversible !== false,
     status: ['fund_spend_recorded', 'build_applied', 'compensated', 'reverted'].includes(entry.status)
       ? entry.status
@@ -2602,7 +2620,7 @@ function buildFamilyBuildingMemberSnapshot(contract, member, enabled = isFamilyR
   };
 }
 
-function buildFamilyBuildingCandidates(contract, enabled, appliedBuildingIds = new Set()) {
+function buildFamilyBuildingCandidates(contract, enabled, appliedBuildingIds = new Set(), materialConsumedBuildingIds = new Set()) {
   const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   const fund = normalizeSharedFund(contract.shared_fund);
   const acceptedRoles = new Set((contract.members || [])
@@ -2623,6 +2641,7 @@ function buildFamilyBuildingCandidates(contract, enabled, appliedBuildingIds = n
       };
     });
     const applied = appliedBuildingIds.has(definition.id);
+    const materialsConsumed = materialConsumedBuildingIds.has(definition.id);
     return {
       id: definition.id,
       label: definition.label,
@@ -2633,20 +2652,28 @@ function buildFamilyBuildingCandidates(contract, enabled, appliedBuildingIds = n
       role_ready: enabled && missingRoles.length === 0,
       missing_roles: missingRoles,
       required_roles: [...definition.required_roles],
-      material_plan: materialPlan,
+      material_plan: materialPlan.map(item => ({
+        ...item,
+        consume_enabled: enabled && applied && !materialsConsumed && item.enough,
+      })),
       shared_fund_cost: definition.shared_fund_cost,
       shared_fund_balance_preview: fund.balance,
       fund_ready_preview: fund.balance >= definition.shared_fund_cost,
       stage_count: definition.stage_count,
       planning_state: enabled
-        ? (applied ? 'build_applied' : (missingRoles.length > 0 ? 'needs_role' : 'ready_for_blueprint'))
+        ? (materialsConsumed ? 'materials_consumed' : (applied ? 'build_applied' : (missingRoles.length > 0 ? 'needs_role' : 'ready_for_blueprint')))
         : 'disabled',
       build_enabled: false,
       demolish_enabled: false,
-      material_consume_enabled: false,
+      material_consume_enabled: enabled && applied && !materialsConsumed && materialPlan.every(item => item.enough),
       shared_fund_spend_enabled: false,
       real_build_applied: applied,
-      disabled_reason: enabled ? (applied ? '已通过共同基金大额确认落账，后续扩建 / 拆除仍需专用流程。' : '') : '当前契约不是结拜庄园或合伙庄园。',
+      shared_warehouse_materials_consumed: materialsConsumed,
+      disabled_reason: enabled
+        ? (materialsConsumed
+            ? '已从共同仓库扣减建材并写入建筑流水，后续扩建 / 拆除仍需专用流程。'
+            : (applied ? '已通过共同基金大额确认落账，可由有权限成员扣减共同仓库建材。' : ''))
+        : '当前契约不是结拜庄园或合伙庄园。',
     };
   });
 }
@@ -2661,7 +2688,7 @@ function buildFamilyBuildingScenePreview(contract, buildings, members, enabled, 
     revision,
     selected_visual_id: 'family_building_blueprint_table',
     recent_feedback: enabled
-      ? '家族建筑第一版仅展示建筑蓝图、材料缺口和治理要求；真实建造、拆除和共同资产消耗暂缓。'
+      ? '家族建筑第一版已支持建筑流水、真实落账标记和共同仓库建材消耗落账；拆除与扩建仍暂缓。'
       : '当前契约不是结拜庄园或合伙庄园，家族建筑未启用。',
     scene: enabled ? {
       id: 'family_building_yard',
@@ -2740,7 +2767,11 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
     .filter(entry => entry.real_build_applied === true || entry.status === 'build_applied')
     .map(entry => entry.building_id || entry.project_id)
     .filter(Boolean));
-  const buildings = buildFamilyBuildingCandidates(contract, enabled, appliedBuildingIds);
+  const materialConsumedBuildingIds = new Set(constructionLedger
+    .filter(entry => entry.shared_warehouse_materials_consumed === true)
+    .map(entry => entry.building_id || entry.project_id)
+    .filter(Boolean));
+  const buildings = buildFamilyBuildingCandidates(contract, enabled, appliedBuildingIds, materialConsumedBuildingIds);
   const actorBuildingMember = actorMember ? buildFamilyBuildingMemberSnapshot(contract, actorMember, enabled) : null;
   return {
     contract_id: contract.id,
@@ -2761,7 +2792,7 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
       max_members: typeDef.max_members,
       preview_building_count: enabled ? buildings.length : 0,
       role_ready_building_count: enabled ? buildings.filter(building => building.role_ready).length : 0,
-      material_consume_enabled: false,
+      material_consume_enabled: enabled && buildings.some(building => building.material_consume_enabled),
       shared_fund_spend_enabled: false,
       warehouse_withdraw_enabled: false,
       demolition_enabled: false,
@@ -2769,6 +2800,7 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
       construction_ledger_count: constructionLedger.length,
       latest_construction_ledger_id: constructionLedger[0]?.id || '',
       real_build_applied_count: appliedBuildingIds.size,
+      warehouse_material_consumed_count: materialConsumedBuildingIds.size,
       reputation_award_enabled: false,
       personal_money_merged: false,
       personal_inventory_merged: false,
@@ -2790,7 +2822,7 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
       demolition_requires_both_confirmation: true,
       compensation_required_for_asset_writes: true,
       rollback_required_for_building_writes: true,
-      current_policy: '第一版支持共同基金大额执行后的建筑流水真实落账标记；仍不拆除、不扩建、不消费共同仓库材料。',
+      current_policy: '第一版支持共同基金大额执行后的建筑流水真实落账标记与共同仓库建材消耗落账；仍不拆除、不扩建。',
     },
     asset_boundaries: {
       personal_money_merged: false,
@@ -2803,6 +2835,7 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
     recommended_flow: [
       '先由家主读取建筑预览，确认议事厅、粮廪、工坊和节会前庭的职位缺口。',
       '真实建造落账只允许引用已扣款建筑流水，并在同一条建筑流水上保留幂等、审计和补偿线索。',
+      '共同仓库材料消耗必须引用同一条建筑流水，按来源仓库 ledger 扣减并写回材料 ledger ids。',
       '拆除或迁移建筑必须先生成分居 / 返还预览，并要求双方或家族规则确认。',
       '任一建造、拆除或材料扣减失败时，必须能按建筑 ledger 回滚或进入补偿重放。',
     ],
@@ -4134,6 +4167,19 @@ function normalizeFamilyBuildingRealBuildApplyPayload(payload = {}) {
   };
 }
 
+function normalizeFamilyBuildingMaterialsConsumePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('家族建筑材料消耗需要 idempotency_key，以防断线或重试时重复扣共同仓库');
+  return {
+    idempotency_key: idempotencyKey,
+    building_ledger_id: sanitizeText(payload.building_ledger_id || payload.ledger_id || payload.id, 100),
+    draft_id: sanitizeText(payload.draft_id, 100),
+    fund_ledger_id: sanitizeText(payload.fund_ledger_id, 100),
+    target_ref: sanitizeText(payload.target_ref || payload.target, 120),
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
 function resolveSharedFundAutoPurchase(spend) {
   if (spend.auto_pay !== true) return null;
   const targetRef = sanitizeText(spend.target_ref, 120);
@@ -4173,6 +4219,9 @@ function buildWarehouseOriginAsset(entry) {
     withdrawn_by_username: entry.action === 'withdraw' ? entry.actor_username : '',
     sold_at: entry.action === 'sell' ? entry.at : 0,
     sold_by_username: entry.action === 'sell' ? entry.actor_username : '',
+    consumed_at: entry.action === 'consume' ? entry.at : 0,
+    consumed_by_username: entry.action === 'consume' ? entry.actor_username : '',
+    target_ref: entry.target_ref || '',
     unit_price: entry.unit_price || 0,
     total_amount: entry.total_amount || 0,
     fund_ledger_id: entry.fund_ledger_id || '',
@@ -4234,7 +4283,7 @@ function buildWarehouseWithdrawalAllocations(warehouse = {}, itemId, quantity, q
         source_inventory: entry.source_inventory,
         remaining: entry.quantity,
       });
-    } else if (['withdraw', 'sell', 'revert'].includes(entry.action)) {
+    } else if (['withdraw', 'sell', 'consume', 'revert'].includes(entry.action)) {
       consumeWarehouseLots(lots, entry.quantity, entry.source_owner_key);
     }
   }
@@ -4280,7 +4329,7 @@ function buildWarehouseReturnPreview(contract = {}) {
   const warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
   const groups = new Map();
   for (const entry of warehouse.ledger.slice().reverse()) {
-    if (entry.status !== 'committed' || !['deposit', 'compensate', 'withdraw', 'sell', 'revert'].includes(entry.action)) continue;
+    if (entry.status !== 'committed' || !['deposit', 'compensate', 'withdraw', 'sell', 'consume', 'revert'].includes(entry.action)) continue;
     const key = `${entry.source_owner_id || entry.source_owner_key}:${entry.item_id}:${entry.quality}`;
     const current = groups.get(key) || {
       origin_owner_id: entry.source_owner_id,
@@ -6309,6 +6358,235 @@ async function applyCohabitationFamilyBuildingRealBuild(contractId, payload = {}
   };
 }
 
+function resolveFamilyBuildingProjectDefinition(entry = {}) {
+  const buildingId = sanitizeText(entry.building_id || entry.project_id || resolveFamilyBuildingLedgerTargetId(entry.purpose, entry.target_ref), 80);
+  return FAMILY_BUILDING_PROJECT_DEFS.find(definition => definition.id === buildingId) || null;
+}
+
+function buildMaterialConsumptionSummary(projectDefinition, ledgerEntries) {
+  return (projectDefinition?.material_plan || []).map(plan => ({
+    item_id: plan.item_id,
+    label: plan.label,
+    quantity: plan.quantity,
+    quality: 'normal',
+    warehouse_ledger_ids: ledgerEntries
+      .filter(entry => entry.item_id === plan.item_id)
+      .map(entry => entry.id),
+  }));
+}
+
+async function consumeCohabitationFamilyBuildingMaterials(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const consumeRequest = normalizeFamilyBuildingMaterialsConsumePayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '消耗家族建筑共同仓库材料');
+  if (!isFamilyRoleContractType(contract.type)) throw createError('家族建筑材料消耗只支持结拜庄园和合伙庄园', 403);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const actorManorRole = normalizeFamilyManorRole(member.manor_role, contract.type, member.role);
+  const canConsumeMaterials = actorPermissions.storage.withdraw_common === true
+    || actorPermissions.construction.buy_furniture === true
+    || ['family_head', 'workshop_keeper', 'storage_keeper'].includes(actorManorRole);
+  if (!canConsumeMaterials) throw createError('你没有消耗共同仓库建材的权限', 403);
+
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
+    : [];
+  const familyLedger = normalizeFamilyBuildingLedger(contract);
+  const previousMaterialEntry = familyLedger.find(entry => entry.materials_idempotency_key === consumeRequest.idempotency_key);
+  if (previousMaterialEntry) {
+    const requestedEntry = findFamilyBuildingLedgerForRealBuildApply(contract, consumeRequest);
+    if (requestedEntry && requestedEntry.id !== previousMaterialEntry.id) {
+      throw createError('该家族建筑材料消耗幂等键已用于其他建筑流水，请更换 idempotency_key', 409);
+    }
+    const materialLedgerEntries = contract.shared_warehouse.ledger
+      .filter(entry => previousMaterialEntry.material_ledger_ids.includes(entry.id));
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      building_ledger_entry: previousMaterialEntry,
+      material_ledger_entries: materialLedgerEntries,
+      idempotent: true,
+      already_consumed: previousMaterialEntry.shared_warehouse_materials_consumed === true,
+      shared_warehouse: {
+        consumed_quantity: 0,
+        material_count: previousMaterialEntry.material_consumptions.length,
+        personal_inventory_merged: false,
+      },
+      shared_fund: {
+        deducted_amount: 0,
+        balance_after: contract.shared_fund.balance,
+        personal_money_merged: false,
+      },
+    };
+  }
+
+  const targetEntry = findFamilyBuildingLedgerForRealBuildApply(contract, consumeRequest);
+  if (!targetEntry) throw createError('找不到可消耗材料的家族建筑流水，请先执行已确认的大额共同基金草案', 404);
+  if (targetEntry.status === 'compensated' || targetEntry.status === 'reverted') {
+    throw createError('该家族建筑流水已进入补偿或回滚状态，不能消耗共同仓库材料', 409);
+  }
+  if (targetEntry.shared_fund_deducted !== true || !targetEntry.fund_ledger_id) {
+    throw createError('该家族建筑流水没有已扣款共同基金凭证，不能消耗共同仓库材料', 409);
+  }
+  if (targetEntry.real_build_applied !== true && targetEntry.status !== 'build_applied') {
+    throw createError('请先完成家族建筑真实落账，再消耗共同仓库材料', 409);
+  }
+  if (targetEntry.shared_warehouse_materials_consumed === true) {
+    const materialLedgerEntries = contract.shared_warehouse.ledger
+      .filter(entry => targetEntry.material_ledger_ids.includes(entry.id));
+    return {
+      contract: toPublicContract(contract),
+      family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+      warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+      building_ledger_entry: targetEntry,
+      material_ledger_entries: materialLedgerEntries,
+      idempotent: true,
+      already_consumed: true,
+      shared_warehouse: {
+        consumed_quantity: 0,
+        material_count: targetEntry.material_consumptions.length,
+        personal_inventory_merged: false,
+      },
+      shared_fund: {
+        deducted_amount: 0,
+        balance_after: contract.shared_fund.balance,
+        personal_money_merged: false,
+      },
+    };
+  }
+
+  const projectDefinition = resolveFamilyBuildingProjectDefinition(targetEntry);
+  if (!projectDefinition) throw createError('该建筑流水缺少可识别的家族建筑材料计划', 409);
+  const materialAllocations = projectDefinition.material_plan.map(plan => {
+    const allocationResult = buildWarehouseWithdrawalAllocations(contract.shared_warehouse, plan.item_id, plan.quantity, 'normal');
+    if (!allocationResult.ok) {
+      throw createError(`共同仓库中${plan.label}数量不足，暂时无法消耗家族建筑材料`);
+    }
+    return {
+      plan,
+      allocations: allocationResult.allocations,
+    };
+  });
+
+  const operatedAt = nowSeconds();
+  const roleDef = getFamilyManorRoleDef(actorManorRole);
+  const targetRef = `family_building:${projectDefinition.id}:materials`;
+  const materialLedgerEntries = materialAllocations.flatMap(({ plan, allocations }) =>
+    allocations.map(allocation => normalizeWarehouseLedgerEntry({
+      id: makeId('shared_warehouse_ledger'),
+      action: 'consume',
+      item_id: plan.item_id,
+      quantity: allocation.quantity,
+      quality: 'normal',
+      actor_username: actorUsername,
+      actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+      actor_manor_role: actorManorRole,
+      actor_manor_role_label: roleDef?.label || '',
+      source_owner_id: allocation.source_owner_id,
+      source_owner_username: allocation.source_owner_username,
+      source_owner_display_name: allocation.source_owner_display_name,
+      source_owner_key: allocation.source_owner_key,
+      source_owner_manor_role: allocation.source_owner_manor_role,
+      source_owner_manor_role_label: allocation.source_owner_manor_role_label,
+      source_save_id: allocation.source_save_id,
+      source_save_slot: allocation.source_save_slot,
+      source_inventory: allocation.source_inventory || 'shared_warehouse.items',
+      source_ledger_ids: allocation.source_ledger_ids,
+      target_owner_id: `family_building:${targetEntry.id}`,
+      target_owner_username: 'family_building',
+      target_owner_display_name: projectDefinition.label,
+      target_owner_key: 'family_building',
+      target_inventory: 'family_building.materials',
+      target_ref: targetRef,
+      at: operatedAt,
+      idempotency_key: consumeRequest.idempotency_key,
+      reversible: true,
+      compensation_hint: '家族建筑材料已从共同仓库扣减并写入建筑流水；若后续拆除、扩建或补偿失败，需按材料 ledger 与建筑流水回滚或重放。',
+      status: 'committed',
+    }))
+  ).filter(Boolean);
+
+  const nextEntry = normalizeFamilyBuildingLedgerEntry({
+    ...targetEntry,
+    shared_warehouse_materials_consumed: true,
+    materials_idempotency_key: consumeRequest.idempotency_key,
+    materials_consumed_at: operatedAt,
+    materials_consumed_by_username: member.username,
+    materials_consumed_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    material_ledger_ids: materialLedgerEntries.map(entry => entry.id),
+    material_consumptions: buildMaterialConsumptionSummary(projectDefinition, materialLedgerEntries),
+    compensation_hint: '家族建筑已完成真实落账并扣减共同仓库建材；若后续拆除、扩建或补偿失败，需按基金 ledger、材料 ledger 与建筑流水回滚或重放。',
+    deferred_operations: [...new Set([
+      ...(Array.isArray(targetEntry.deferred_operations) ? targetEntry.deferred_operations.filter(item => item !== 'consume_shared_building_materials') : []),
+      'family_building_compensation_replay',
+      'family_building_rollback',
+    ])],
+  });
+  contract.family_building_ledger = normalizeFamilyBuildingLedger(contract).map(entry =>
+    entry.id === targetEntry.id ? nextEntry : entry
+  ).slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
+  const draftIndex = contract.fund_large_spend_drafts.findIndex(draft =>
+    draft.id === targetEntry.draft_id || draft.final_building_ledger_id === targetEntry.id
+  );
+  if (draftIndex >= 0) {
+    contract.fund_large_spend_drafts[draftIndex] = normalizeFundLargeSpendDraft({
+      ...contract.fund_large_spend_drafts[draftIndex],
+      deferred_operations: ['fund_compensation_replay', 'family_building_compensation_replay', 'family_building_rollback'],
+      compensation_policy: '大额共同基金已扣款，家族建筑已真实落账并扣减共同仓库材料；若后续拆除或扩建失败，按草案、基金 ledger、材料 ledger 和建筑流水补偿或回滚。',
+    });
+  }
+  contract.shared_warehouse.ledger = [...materialLedgerEntries, ...contract.shared_warehouse.ledger].slice(0, WAREHOUSE_LEDGER_LIMIT);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.origin_assets = normalizeOriginAssets(contract.origin_assets);
+  contract.origin_assets.warehouse_items = [
+    ...materialLedgerEntries.map(buildWarehouseOriginAsset),
+    ...contract.origin_assets.warehouse_items,
+  ].slice(0, WAREHOUSE_ORIGIN_LIMIT);
+  appendAudit(contract, 'family_building_materials_consumed', actor, {
+    building_ledger_id: nextEntry.id,
+    draft_id: nextEntry.draft_id,
+    fund_ledger_id: nextEntry.fund_ledger_id,
+    target_ref: nextEntry.target_ref,
+    building_id: nextEntry.building_id,
+    project_id: nextEntry.project_id,
+    material_ledger_ids: nextEntry.material_ledger_ids,
+    material_consumptions: nextEntry.material_consumptions,
+    material_count: nextEntry.material_consumptions.length,
+    consumed_quantity: nextEntry.material_consumptions.reduce((sum, item) => sum + item.quantity, 0),
+    shared_fund_deducted_again: false,
+    personal_money_merged: false,
+    personal_inventory_merged: false,
+    compensation_required: true,
+  }, consumeRequest.idempotency_key);
+  contract.updated_at = operatedAt;
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    family_buildings_panel: buildFamilyBuildingSnapshot(contract, actorUsername),
+    warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
+    building_ledger_entry: nextEntry,
+    material_ledger_entries: materialLedgerEntries,
+    idempotent: false,
+    already_consumed: false,
+    shared_warehouse: {
+      consumed_quantity: nextEntry.material_consumptions.reduce((sum, item) => sum + item.quantity, 0),
+      material_count: nextEntry.material_consumptions.length,
+      personal_inventory_merged: false,
+    },
+    shared_fund: {
+      deducted_amount: 0,
+      balance_after: contract.shared_fund.balance,
+      personal_money_merged: false,
+    },
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -6567,6 +6845,7 @@ module.exports = {
   confirmCohabitationFundLargeSpendDraft,
   executeCohabitationFundLargeSpendDraft,
   applyCohabitationFamilyBuildingRealBuild,
+  consumeCohabitationFamilyBuildingMaterials,
   updateCohabitationPermissions,
   updateCohabitationFamilyRole,
   createCohabitationContract,

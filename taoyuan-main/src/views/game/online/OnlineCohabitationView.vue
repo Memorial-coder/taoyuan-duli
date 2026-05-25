@@ -2611,6 +2611,7 @@
     const labels: Record<string, string> = {
       ready_for_blueprint: '蓝图就绪',
       build_applied: '已落账',
+      materials_consumed: '材料已消耗',
       needs_role: '缺职位',
       disabled: '未启用',
       preview_ready: '预览就绪',
@@ -2679,6 +2680,8 @@
       fund_large_spend_draft_executed: '大额草案扣款',
       fund_large_spend_draft_expired: '大额草案过期',
       fund_order_income: '公共订单入基金',
+      family_building_real_build_applied: '建筑真实落账',
+      family_building_materials_consumed: '建筑材料消耗',
       permissions_updated: '权限更新',
       family_role_updated: '家族职位更新',
       separation_preview_created: '分居预览创建',

@@ -607,6 +607,18 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   applied_by_username: string
   applied_by_display_name: string
   real_build_ref: string
+  materials_idempotency_key: string
+  materials_consumed_at: number
+  materials_consumed_by_username: string
+  materials_consumed_by_display_name: string
+  material_ledger_ids: string[]
+  material_consumptions: Array<{
+    item_id: string
+    label: string
+    quantity: number
+    quality: string
+    warehouse_ledger_ids: string[]
+  }>
   compensation_required: boolean
   compensation_hint: string
   deferred_operations: string[]
@@ -644,6 +656,7 @@ export interface CohabitationFamilyBuildingsPanel {
     construction_ledger_count: number
     latest_construction_ledger_id: string | null
     real_build_applied_count: number
+    warehouse_material_consumed_count: number
     reputation_award_enabled: boolean
     personal_money_merged: boolean
     personal_inventory_merged: boolean
@@ -687,6 +700,7 @@ export interface CohabitationFamilyBuildingsPanel {
     material_consume_enabled: boolean
     shared_fund_spend_enabled: boolean
     real_build_applied: boolean
+    shared_warehouse_materials_consumed: boolean
     disabled_reason: string
   }>
   visual_state_preview: {

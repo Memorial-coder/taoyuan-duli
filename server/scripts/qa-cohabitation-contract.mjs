@@ -114,7 +114,12 @@ const buildSaveData = username => ({
       greenhousePlots: [],
     },
     inventory: {
-      items: username === owner
+      items: username.includes('_lg_')
+        ? [
+            { itemId: 'wood', quantity: 40, quality: 'normal', locked: false },
+            { itemId: 'rice', quantity: 20, quality: 'normal', locked: false },
+          ]
+        : username === owner
         ? [
             { itemId: 'rice', quantity: 6, quality: 'normal', locked: false },
             { itemId: 'ancient_waybill', quantity: 1, quality: 'normal', locked: false },
@@ -2076,6 +2081,81 @@ assert.equal(
 assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'real build apply should not touch owner personal money')
 assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'real build apply should not touch partner personal money')
 
+await assert.rejects(
+  () => runtime.consumeCohabitationFamilyBuildingMaterials(largeContract.contract.id, {
+    building_ledger_id: largeExecute.building_ledger_entry.id,
+    idempotency_key: 'qa-family-building-materials-extra-denied',
+  }, actor(extra)),
+  error => error?.status === 403,
+  'non-members should not consume family building materials'
+)
+assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance, balanceBeforeLargeDraft - 1300, 'rejected material consume should not change shared balance')
+
+const largeOwnerWoodBeforeMaterialDeposit = getInventoryItemQuantity(largeOwner, 'wood')
+const largeOwnerRiceBeforeMaterialDeposit = getInventoryItemQuantity(largeOwner, 'rice')
+const materialWoodDeposit = await runtime.depositCohabitationWarehouseItem(largeContract.contract.id, {
+  item_id: 'wood',
+  quantity: 28,
+  quality: 'normal',
+  idempotency_key: 'qa-family-building-material-wood-deposit',
+}, actor(largeOwner))
+const materialRiceDeposit = await runtime.depositCohabitationWarehouseItem(largeContract.contract.id, {
+  item_id: 'rice',
+  quantity: 12,
+  quality: 'normal',
+  idempotency_key: 'qa-family-building-material-rice-deposit',
+}, actor(largeOwner))
+assert.equal(getInventoryItemQuantity(largeOwner, 'wood'), largeOwnerWoodBeforeMaterialDeposit - 28, 'material deposit should deduct owner wood once')
+assert.equal(getInventoryItemQuantity(largeOwner, 'rice'), largeOwnerRiceBeforeMaterialDeposit - 12, 'material deposit should deduct owner rice once')
+assert.equal(materialWoodDeposit.warehouse.items.find(item => item.item_id === 'wood')?.quantity, 28, 'building material warehouse should expose deposited wood')
+assert.equal(materialRiceDeposit.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 12, 'building material warehouse should expose deposited rice')
+const materialConsume = await runtime.consumeCohabitationFamilyBuildingMaterials(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  memo: 'qa consume family building materials',
+  idempotency_key: 'qa-family-building-materials-consume',
+}, actor(largeOwner))
+assert.equal(materialConsume.idempotent, false, 'first family building material consume should not be idempotent')
+assert.equal(materialConsume.building_ledger_entry.id, realBuildApply.building_ledger_entry.id, 'material consume should update original building ledger')
+assert.equal(materialConsume.building_ledger_entry.shared_warehouse_materials_consumed, true, 'material consume should mark warehouse materials consumed')
+assert.equal(materialConsume.building_ledger_entry.materials_idempotency_key, 'qa-family-building-materials-consume', 'material consume should store idempotency key')
+assert.equal(materialConsume.building_ledger_entry.material_consumptions.length, 2, 'material consume should store material consumption summary')
+assert.equal(materialConsume.material_ledger_entries.length, 2, 'material consume should write warehouse consume ledgers')
+assert.ok(materialConsume.material_ledger_entries.every(entry => entry.action === 'consume'), 'material consume should use warehouse consume action')
+assert.ok(materialConsume.material_ledger_entries.some(entry => entry.item_id === 'wood' && entry.source_ledger_ids.includes(materialWoodDeposit.ledger_entry.id)), 'wood consume ledger should reference wood deposit ledger')
+assert.ok(materialConsume.material_ledger_entries.some(entry => entry.item_id === 'rice' && entry.source_ledger_ids.includes(materialRiceDeposit.ledger_entry.id)), 'rice consume ledger should reference rice deposit ledger')
+assert.equal(materialConsume.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 0, 'material consume should remove required wood from shared warehouse')
+assert.equal(materialConsume.warehouse.items.find(item => item.item_id === 'rice')?.quantity ?? 0, 0, 'material consume should remove required rice from shared warehouse')
+assert.equal(materialConsume.shared_warehouse.consumed_quantity, 40, 'material consume should report consumed quantity')
+assert.equal(materialConsume.shared_fund.deducted_amount, 0, 'material consume should not deduct shared fund again')
+assert.equal(materialConsume.shared_fund.balance_after, balanceBeforeLargeDraft - 1300, 'material consume should preserve shared fund balance')
+assert.equal(materialConsume.family_buildings_panel.summary.warehouse_material_consumed_count, 1, 'family building panel should count material-consumed buildings')
+assert.equal(
+  materialConsume.family_buildings_panel.candidate_buildings.find(entry => entry.id === 'shared_granary')?.planning_state,
+  'materials_consumed',
+  'family building panel should mark material-consumed building state'
+)
+assert.ok(materialConsume.contract.audit_log.find(entry => entry.action === 'family_building_materials_consumed'), 'material consume should be audited')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'material consume should not touch owner personal money')
+assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeConfirm, 'material consume should not touch partner personal money')
+
+const duplicateMaterialConsume = await runtime.consumeCohabitationFamilyBuildingMaterials(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-materials-consume',
+}, actor(largeOwner))
+assert.equal(duplicateMaterialConsume.idempotent, true, 'same material consume idempotency key should be idempotent')
+assert.equal(duplicateMaterialConsume.building_ledger_entry.shared_warehouse_materials_consumed, true, 'idempotent material consume should keep consumed flag')
+assert.equal(duplicateMaterialConsume.material_ledger_entries.length, 2, 'idempotent material consume should return original consume ledgers')
+assert.equal(duplicateMaterialConsume.warehouse.items.find(item => item.item_id === 'wood')?.quantity ?? 0, 0, 'idempotent material consume should not restore or double-consume wood')
+
+const alreadyConsumedMaterials = await runtime.consumeCohabitationFamilyBuildingMaterials(largeContract.contract.id, {
+  building_ledger_id: largeExecute.building_ledger_entry.id,
+  idempotency_key: 'qa-family-building-materials-consume-again',
+}, actor(largeOwner))
+assert.equal(alreadyConsumedMaterials.idempotent, true, 'already consumed materials should return idempotent response')
+assert.equal(alreadyConsumedMaterials.already_consumed, true, 'already consumed materials response should be explicit')
+assert.equal(alreadyConsumedMaterials.material_ledger_entries.length, 2, 'already consumed response should return original material ledgers')
+assert.equal((await runtime.getCohabitationWarehouse(largeContract.contract.id, actor(largeOwner))).warehouse.ledger.filter(entry => entry.action === 'consume').length, 2, 'already consumed materials should not duplicate warehouse consume ledgers')
+
 const duplicateRealBuildApply = await runtime.applyCohabitationFamilyBuildingRealBuild(largeContract.contract.id, {
   building_ledger_id: largeExecute.building_ledger_entry.id,
   idempotency_key: 'qa-family-building-real-build-apply',
@@ -2095,6 +2175,8 @@ assert.equal(alreadyAppliedRealBuild.building_ledger_entry.status, 'build_applie
 const familyBuildingsAfterRealApply = await runtime.getCohabitationFamilyBuildings(largeContract.contract.id, actor(largeOwner))
 assert.equal(familyBuildingsAfterRealApply.family_buildings_panel.summary.real_build_applied_count, 1, 'family buildings readback should expose applied count')
 assert.equal(familyBuildingsAfterRealApply.family_buildings_panel.construction_ledger[0].real_build_applied, true, 'family buildings readback should expose applied ledger')
+assert.equal(familyBuildingsAfterRealApply.family_buildings_panel.summary.warehouse_material_consumed_count, 1, 'family buildings readback should expose material consumed count')
+assert.equal(familyBuildingsAfterRealApply.family_buildings_panel.construction_ledger[0].shared_warehouse_materials_consumed, true, 'family buildings readback should expose consumed material ledger')
 assert.equal(familyBuildingsAfterRealApply.family_buildings_panel.construction_ledger.length, 1, 'real build apply should not duplicate construction ledger')
 
 console.log('[qa-cohabitation-contract] OK')

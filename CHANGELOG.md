@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 家族建筑共同仓库材料消耗落账接入：新增 `/family-buildings/materials/consume` 服务端写接口，要求已激活成员、建筑 / 仓库相关权限、`idempotency_key`、已扣款且已真实落账的 `family_building_ledger`；成功后按建筑材料计划写共同仓库 `consume` ledger，扣减普通材料库存，并把 `materials_idempotency_key`、`material_ledger_ids`、材料明细和审计回写到同一条家族建筑流水。重复请求或已消耗目标不重复扣材料、不重复扣共同基金、不改个人铜币；百科补充 `materials/consume` / `materials_consumed` 搜索词。
 - 共同基金大额建筑真实建造落账接入：新增 `/family-buildings/real-build-apply` 服务端写接口，要求已激活成员、权限、`idempotency_key` 和已扣款的家族建筑流水；成功后同一条 `family_building_ledger` 标记为 `build_applied`，记录落账人、`apply_idempotency_key`、真实建筑引用和审计。重复请求或已落账目标不重复扣共同基金、不重复写流水、不消耗共同仓库材料、不改个人铜币；百科补充 `real_build_apply` / `build_applied` 搜索词。
 - 共同庄园建筑页展示家族建筑流水：前端 API 类型补齐 `construction_ledger`、`construction_ledger_count` 和建筑流水条目；建筑页新增“建筑流水”只读卡片，展示共同基金大额执行生成的目标引用、基金 ledger、草案、金额、状态、操作者和材料 / 真实建造 / 个人铜币边界。真实建造 / 扩建写操作仍不开放。
 - 共同基金大额执行写家族建筑流水接入：`/fund/large-spend-drafts/:draftId/execute` 成功扣共同基金后会同步写 `family_building_ledger`，记录草案 ID、基金 ledger ID、目标引用、建筑 ID、金额、余额前后、操作者、幂等键和补偿提示；草案回填 `final_building_ledger_id`，重复执行只读回原基金 / 建筑流水，不重复扣款、不重复写流水。该流水当前仅标记 `fund_spend_recorded`，不真实建造 / 扩建、不消耗共同仓库材料、不改个人铜币；百科补充“家族建筑流水 / construction_ledger”搜索词。

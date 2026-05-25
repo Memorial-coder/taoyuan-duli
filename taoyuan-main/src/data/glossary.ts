@@ -588,16 +588,17 @@ const buildGlossary = (): GlossaryEntry[] => {
       { label: '成员确认', value: '必需确认成员可提交 confirm；全部确认后草案进入 ready_to_execute。' },
       { label: '执行扣款', value: '有 fund.spend_large 的成员可提交 execute；成功写共同基金 spend ledger 与家族建筑流水，记录 final_spend_ledger_id / final_building_ledger_id。' },
       { label: '真实落账', value: 'real_build_apply 只能引用已扣款的建筑流水，把同一条 family_building_ledger 标记为 build_applied，不重复扣共同基金。' },
-      { label: '边界', value: '草案和成员确认不扣款；执行只扣共同基金并写建筑流水；真实落账不改个人铜币、不消耗共同仓库材料，重复 idempotency_key 不会重复扣款或重复落账。' },
+      { label: '材料消耗', value: 'materials/consume 只能引用已真实落账的建筑流水，按建筑材料计划扣共同仓库普通材料，并把 material_ledger_ids 回写到同一条建筑流水。' },
+      { label: '边界', value: '草案和成员确认不扣款；执行只扣共同基金并写建筑流水；真实落账和材料消耗不改个人铜币，重复 idempotency_key 不会重复扣款、重复落账或重复扣材料。' },
     ],
     source: '在共同庄园的共同基金大额确认草案链路中使用。',
-    usage: '适合后续接家族建筑、庄园扩建和高价值共同资产确认流程；当前已具备确认草案、成员确认、基金执行扣款、家族建筑流水记录和真实建造落账标记，材料消耗、拆除和补偿重放仍待接入。',
+    usage: '适合后续接家族建筑、庄园扩建和高价值共同资产确认流程；当前已具备确认草案、成员确认、基金执行扣款、家族建筑流水记录、真实建造落账标记和共同仓库材料消耗落账，拆除、扩建细分和补偿重放仍待接入。',
     relatedPanels: [
       { panel: 'online', label: '去共同庄园' },
       { panel: 'workshop', label: '查看工坊加工' },
     ],
     relatedEntryIds: ['system_shared_fund_medium_spend'],
-    keywords: ['共同基金', '大额确认', '大额建筑', '扩建', '双方确认', '成员确认', '确认提交', '执行扣款', '真实建造落账', '真实落账', 'ready_to_execute', 'executed', 'build_applied', 'real_build_apply', 'large-spend-drafts', 'confirm', 'execute', 'spend_tier=large', 'fund_large_spend_draft_executed', 'family_building', 'manor_expansion', 'spend_large', '建筑 ledger', '家族建筑流水', '建筑流水', 'family_building_ledger', 'construction_ledger', 'final_building_ledger_id', 'apply_idempotency_key', '同居', '家族庄园'],
+    keywords: ['共同基金', '大额确认', '大额建筑', '扩建', '双方确认', '成员确认', '确认提交', '执行扣款', '真实建造落账', '真实落账', '材料消耗', '共同仓库材料', 'ready_to_execute', 'executed', 'build_applied', 'materials_consumed', 'real_build_apply', 'materials/consume', 'large-spend-drafts', 'confirm', 'execute', 'spend_tier=large', 'fund_large_spend_draft_executed', 'family_building', 'manor_expansion', 'spend_large', '建筑 ledger', '家族建筑流水', '建筑流水', 'family_building_ledger', 'construction_ledger', 'final_building_ledger_id', 'apply_idempotency_key', 'materials_idempotency_key', 'material_ledger_ids', 'family_building_materials_consumed', '同居', '家族庄园'],
     intents: ['usage', 'system'],
   }))
 
