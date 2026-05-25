@@ -585,7 +585,7 @@
                 创建确认草案
               </button>
             </div>
-            <p class="mt-2 text-[10px] leading-4 text-muted">执行会扣共同基金并写建筑流水；真实建造仍待后续。</p>
+            <p class="mt-2 text-[10px] leading-4 text-muted">执行会扣共同基金并写建筑流水；真实落账和材料消耗在建筑页继续提交。</p>
           </div>
           <p v-if="fundActionMessage" class="mt-3 text-[10px] leading-4" :class="fundActionOk ? 'text-emerald-200' : 'text-red-100'">
             {{ fundActionMessage }}
@@ -991,6 +991,13 @@
               {{ familyBuildingsPanel.summary.disabled_reason }}
             </p>
             <p class="mt-3 text-[10px] leading-4 text-muted">{{ familyBuildingsPanel.visual_state_preview.recent_feedback }}</p>
+            <p
+              v-if="familyBuildingActionMessage"
+              class="mt-3 text-[10px] leading-4"
+              :class="familyBuildingActionOk ? 'text-emerald-200' : 'text-red-100'"
+            >
+              {{ familyBuildingActionMessage }}
+            </p>
             <div class="mt-3 max-h-[34rem] space-y-2 overflow-y-auto pr-1">
               <div v-for="building in familyBuildingCandidates" :key="building.id" class="border border-accent/10 bg-black/10 p-3">
                 <div class="flex items-start justify-between gap-2">
@@ -1056,6 +1063,28 @@
                     真实建造：{{ entry.real_build_applied ? '已落账' : '未落账' }} ·
                     个人铜币：{{ entry.personal_money_merged ? '合并' : '独立' }}
                   </p>
+                </div>
+                <div class="mt-2 grid gap-2 md:grid-cols-2">
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canApplyFamilyBuildingRealBuild(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-real-build-${entry.id}`"
+                    @click="applyFamilyBuildingRealBuild(entry)"
+                  >
+                    <Building2 :size="12" />
+                    真实落账
+                  </button>
+                  <button
+                    class="online-action-btn online-action-btn--compact justify-center"
+                    type="button"
+                    :disabled="!canConsumeFamilyBuildingMaterials(entry) || cohabitationStore.actionLoading"
+                    :data-testid="`online-cohabitation-building-materials-${entry.id}`"
+                    @click="consumeFamilyBuildingMaterials(entry)"
+                  >
+                    <Package :size="12" />
+                    消耗建材
+                  </button>
                 </div>
               </div>
             </div>
@@ -1523,8 +1552,10 @@
   const fundContributionAmount = ref(50)
   const fundLargeDraftPurpose = ref<FundLargeSpendPurpose>('family_building')
   const fundLargeDraftAmount = ref(1500)
-  const fundLargeDraftTargetRef = ref('building:family_hall')
+  const fundLargeDraftTargetRef = ref('family_building:family_hall:build')
   const fundLargeDraftMemo = ref('')
+  const familyBuildingActionMessage = ref('')
+  const familyBuildingActionOk = ref(false)
   const permissionActionMessage = ref('')
   const permissionActionOk = ref(false)
   const roleActionMessage = ref('')
@@ -1546,7 +1577,7 @@
     { key: 'permissions', label: '权限', summary: '查看成员权限分组和强制安全阀，不在这里扩大高风险操作。' },
     { key: 'orders', label: '订单', summary: '只读查看家族订单预备路线、成员阶段权限和共同资产结算边界。' },
     { key: 'reputation', label: '声望', summary: '只读查看家族声望预览分、来源证据和未来奖励治理边界。' },
-    { key: 'buildings', label: '建筑', summary: '只读查看家族建筑蓝图、材料缺口、规划场景和共同资产边界。' },
+    { key: 'buildings', label: '建筑', summary: '查看家族建筑蓝图、建筑流水，并按服务端规则提交真实落账与材料消耗。' },
     { key: 'relations', label: '关系', summary: '只读查看契约成员、家族职位、共同能力节点和隐私边界。' },
     { key: 'visibility', label: '公开', summary: '只读查看关系图公开范围、可见数据类别、成员同意和隐私护栏。' },
     { key: 'festivalSeats', label: '节会', summary: '只读查看家族节会席位、候选模板、场景预排和结算护栏。' },
@@ -2004,6 +2035,7 @@
     await cohabitationStore.selectContract(contractId)
     warehouseActionMessage.value = ''
     fundActionMessage.value = ''
+    familyBuildingActionMessage.value = ''
     permissionActionMessage.value = ''
     roleActionMessage.value = ''
     contractActionMessage.value = ''
@@ -2129,6 +2161,34 @@
     cohabitationStore.fund?.summary.large_spend_execution_enabled === true &&
     cohabitationStore.fund?.permissions.can_spend_large === true &&
     (cohabitationStore.fund?.balance ?? 0) >= draft.amount
+
+  const familyBuildingLedgerTargetId = (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    if (entry.building_id) return entry.building_id
+    if (entry.project_id) return entry.project_id
+    const parts = String(entry.target_ref || '').split(':').filter(Boolean)
+    if ((parts[0] === 'family_building' || parts[0] === 'manor_expansion') && parts[1]) return parts[1]
+    return entry.purpose || ''
+  }
+  const familyBuildingCandidateForLedger = (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    const targetId = familyBuildingLedgerTargetId(entry)
+    return familyBuildingCandidates.value.find(building => building.id === targetId) ?? null
+  }
+  const canApplyFamilyBuildingRealBuild = (entry: CohabitationFamilyBuildingLedgerEntry) =>
+    cohabitationStore.canOpenSelectedContract &&
+    entry.shared_fund_deducted === true &&
+    Boolean(entry.fund_ledger_id) &&
+    entry.real_build_applied !== true &&
+    entry.status !== 'compensated' &&
+    entry.status !== 'reverted'
+  const canConsumeFamilyBuildingMaterials = (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    const candidate = familyBuildingCandidateForLedger(entry)
+    return cohabitationStore.canOpenSelectedContract &&
+      entry.real_build_applied === true &&
+      entry.shared_warehouse_materials_consumed !== true &&
+      entry.status !== 'compensated' &&
+      entry.status !== 'reverted' &&
+      candidate?.material_consume_enabled === true
+  }
 
   const depositWarehouseItem = async () => {
     warehouseActionMessage.value = ''
@@ -2354,6 +2414,43 @@
         : '已执行共同基金大额草案扣款'
     } catch (error) {
       fundActionMessage.value = error instanceof Error ? error.message : '执行共同基金大额草案扣款失败'
+    }
+  }
+
+  const applyFamilyBuildingRealBuild = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    try {
+      const result = await cohabitationStore.applyFamilyBuildingRealBuild({
+        building_ledger_id: entry.id,
+        memo: `前端提交家族建筑真实落账：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-real-build-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_applied
+        ? '该建筑流水已经真实落账，已刷新状态'
+        : '已提交家族建筑真实落账，未重复扣共同基金'
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '家族建筑真实落账失败'
+    }
+  }
+
+  const consumeFamilyBuildingMaterials = async (entry: CohabitationFamilyBuildingLedgerEntry) => {
+    familyBuildingActionMessage.value = ''
+    familyBuildingActionOk.value = false
+    try {
+      const result = await cohabitationStore.consumeFamilyBuildingMaterials({
+        building_ledger_id: entry.id,
+        memo: `前端消耗家族建筑共同仓库材料：${entry.target_ref || entry.building_id || entry.project_id}`,
+        idempotency_key: `ui-family-building-materials-${entry.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      const consumedQuantity = result?.shared_warehouse?.consumed_quantity ?? 0
+      familyBuildingActionOk.value = true
+      familyBuildingActionMessage.value = result?.already_consumed
+        ? '该建筑流水已经消耗过共同仓库建材，已刷新状态'
+        : `已消耗共同仓库建材 ${consumedQuantity} 份，未重复扣共同基金或个人铜币`
+    } catch (error) {
+      familyBuildingActionMessage.value = error instanceof Error ? error.message : '消耗家族建筑共同仓库材料失败'
     }
   }
 

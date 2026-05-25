@@ -1059,6 +1059,12 @@ export interface CohabitationFundLargeSpendDraftExecutePayload {
   idempotency_key: string
 }
 
+export interface CohabitationFamilyBuildingLedgerPayload {
+  building_ledger_id: string
+  memo?: string
+  idempotency_key: string
+}
+
 export interface CohabitationFundContributionPayload {
   amount: number
   purpose?: string
@@ -1174,6 +1180,7 @@ export interface CohabitationFundLargeSpendDraftResponse extends CohabitationDet
   fund?: CohabitationFundSnapshot
   draft: CohabitationFundLargeSpendDraft
   ledger_entry?: CohabitationFundLedgerEntry
+  building_ledger_entry?: CohabitationFamilyBuildingLedgerEntry
   idempotent?: boolean
   already_executed?: boolean
   shared_fund?: {
@@ -1186,6 +1193,26 @@ export interface CohabitationFundLargeSpendDraftResponse extends CohabitationDet
     confirmation_status?: string
     execution_enabled?: boolean
     building_ledger_written?: boolean
+  }
+}
+
+export interface CohabitationFamilyBuildingLedgerActionResponse extends CohabitationDetailResponse {
+  family_buildings_panel?: CohabitationFamilyBuildingsPanel
+  warehouse?: CohabitationWarehouseSnapshot
+  building_ledger_entry?: CohabitationFamilyBuildingLedgerEntry
+  material_ledger_entries?: CohabitationWarehouseLedgerEntry[]
+  idempotent?: boolean
+  already_applied?: boolean
+  already_consumed?: boolean
+  shared_warehouse?: {
+    consumed_quantity?: number
+    material_count?: number
+    personal_inventory_merged?: boolean
+  }
+  shared_fund?: {
+    deducted_amount?: number
+    balance_after?: number
+    personal_money_merged?: boolean
   }
 }
 
@@ -1381,6 +1408,22 @@ export const fetchCohabitationFamilyBuildings = async (contractId: string) => {
   return fetchCohabitationJson<CohabitationDetailResponse & {
     family_buildings_panel?: CohabitationFamilyBuildingsPanel
   }>(contractPath(contractId, '/family-buildings'), '获取家族建筑预备面板失败')
+}
+
+export const applyCohabitationFamilyBuildingRealBuild = async (contractId: string, payload: CohabitationFamilyBuildingLedgerPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/real-build-apply'),
+    payload as unknown as Record<string, unknown>,
+    '家族建筑真实落账失败'
+  )
+}
+
+export const consumeCohabitationFamilyBuildingMaterials = async (contractId: string, payload: CohabitationFamilyBuildingLedgerPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/materials/consume'),
+    payload as unknown as Record<string, unknown>,
+    '消耗家族建筑共同仓库材料失败'
+  )
 }
 
 export const fetchCohabitationFamilyRelations = async (contractId: string) => {

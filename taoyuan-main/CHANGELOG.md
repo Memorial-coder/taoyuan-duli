@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 家族建筑前端落账与建材入口
+- 共同庄园建筑页在建筑流水卡片上开放“真实落账”和“消耗建材”按钮，分别调用 `/family-buildings/real-build-apply` 与 `/family-buildings/materials/consume`。
+- 前端 API / store 新增 `applyFamilyBuildingRealBuild` 与 `consumeFamilyBuildingMaterials`，提交 CSRF、`idempotency_key`、建筑流水 ID 和备注，成功后刷新建筑面板、共同仓库、共同基金与共同日志。
+- 默认大额建筑目标引用改为 `family_building:family_hall:build`，避免前端创建草案时生成服务端无法解析到候选建筑的目标。
+
 ### 0525 家族建筑共同仓库材料消耗落账
 - 服务端新增 `/family-buildings/materials/consume` 写接口，只允许已激活成员在具备建筑或共同仓库相关权限时引用已扣款且已真实落账的 `family_building_ledger` 消耗材料。
 - 成功消耗会按建筑材料计划从共同仓库写 `consume` ledger，扣减普通材料库存，并把 `materials_idempotency_key`、`material_ledger_ids`、材料明细和审计回写到同一条建筑流水。
