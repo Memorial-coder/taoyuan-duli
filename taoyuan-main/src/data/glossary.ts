@@ -584,19 +584,19 @@ const buildGlossary = (): GlossaryEntry[] => {
     details: [
       { label: '权限', value: '需要 fund.spend_large；大额确认安全阀 large_fund_spend_requires_both 保持强制开启。' },
       { label: '建筑用途', value: 'family_building / 大额家族建筑，草案阶段只记录目标、金额和确认成员。' },
-      { label: '扩建用途', value: 'manor_expansion / 大额庄园扩建，建筑 ledger 与真实建造仍待后续专用接口。' },
+      { label: '扩建用途', value: 'manor_expansion / 大额庄园扩建，执行扣款后会先写家族建筑流水，真实建造仍待后续专用接口。' },
       { label: '成员确认', value: '必需确认成员可提交 confirm；全部确认后草案进入 ready_to_execute。' },
-      { label: '执行扣款', value: '有 fund.spend_large 的成员可提交 execute；成功写共同基金 spend ledger，spend_tier=large，confirmation_status=confirmed。' },
-      { label: '边界', value: '草案和成员确认不扣款；执行只扣共同基金、不改个人铜币、不写建筑 ledger，重复 idempotency_key 不会重复扣款。' },
+      { label: '执行扣款', value: '有 fund.spend_large 的成员可提交 execute；成功写共同基金 spend ledger 与家族建筑流水，记录 final_spend_ledger_id / final_building_ledger_id。' },
+      { label: '边界', value: '草案和成员确认不扣款；执行只扣共同基金并写建筑流水，不改个人铜币、不真实建造 / 扩建，重复 idempotency_key 不会重复扣款或重复写流水。' },
     ],
     source: '在共同庄园的共同基金大额确认草案链路中使用。',
-    usage: '适合后续接家族建筑、庄园扩建和高价值共同资产确认流程；当前已具备确认草案、成员确认和基金执行扣款，建筑 ledger、真实建造和补偿重放仍待接入。',
+    usage: '适合后续接家族建筑、庄园扩建和高价值共同资产确认流程；当前已具备确认草案、成员确认、基金执行扣款和家族建筑流水记录，真实建造和补偿重放仍待接入。',
     relatedPanels: [
       { panel: 'online', label: '去共同庄园' },
       { panel: 'workshop', label: '查看工坊加工' },
     ],
     relatedEntryIds: ['system_shared_fund_medium_spend'],
-    keywords: ['共同基金', '大额确认', '大额建筑', '扩建', '双方确认', '成员确认', '确认提交', '执行扣款', 'ready_to_execute', 'executed', 'large-spend-drafts', 'confirm', 'execute', 'spend_tier=large', 'fund_large_spend_draft_executed', 'family_building', 'manor_expansion', 'spend_large', '建筑 ledger', '同居', '家族庄园'],
+    keywords: ['共同基金', '大额确认', '大额建筑', '扩建', '双方确认', '成员确认', '确认提交', '执行扣款', 'ready_to_execute', 'executed', 'large-spend-drafts', 'confirm', 'execute', 'spend_tier=large', 'fund_large_spend_draft_executed', 'family_building', 'manor_expansion', 'spend_large', '建筑 ledger', '家族建筑流水', '建筑流水', 'family_building_ledger', 'construction_ledger', 'final_building_ledger_id', '同居', '家族庄园'],
     intents: ['usage', 'system'],
   }))
 

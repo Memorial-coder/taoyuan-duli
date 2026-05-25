@@ -31,6 +31,7 @@ const FUND_MAX_SMALL_SPEND_AMOUNT = 300;
 const FUND_MAX_MEDIUM_SPEND_AMOUNT = 1200;
 const FUND_MAX_LARGE_SPEND_AMOUNT = 999999;
 const FUND_LARGE_SPEND_DRAFT_LIMIT = 30;
+const FAMILY_BUILDING_LEDGER_LIMIT = 80;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_MAX_DEPOSIT_QUANTITY = 99;
@@ -1525,10 +1526,64 @@ function normalizeFundLargeSpendDraft(entry = {}) {
     confirmation_status: sanitizeText(entry.confirmation_status, 40) || 'pending',
     execution_enabled: false,
     final_spend_ledger_id: sanitizeText(entry.final_spend_ledger_id, 80),
+    final_building_ledger_id: sanitizeText(entry.final_building_ledger_id, 100),
     compensation_policy: sanitizeText(entry.compensation_policy, 180) || '草案阶段不扣基金；后续执行若失败必须按确认草案、基金 ledger 和建筑 ledger 重放或回滚。',
     deferred_operations: Array.isArray(entry.deferred_operations)
       ? entry.deferred_operations.map(item => sanitizeText(item, 80)).filter(Boolean)
       : ['confirm_large_fund_spend', 'execute_large_fund_spend', 'building_ledger_write', 'fund_compensation_replay'],
+  };
+}
+
+function normalizeFamilyBuildingLedgerEntry(entry = {}) {
+  const at = Number(entry.at || entry.created_at) || nowSeconds();
+  const targetRef = sanitizeText(entry.target_ref || entry.target, 120);
+  const targetParts = targetRef.split(':').map(part => sanitizeText(part, 40)).filter(Boolean);
+  const inferredTargetId = targetParts[0] === 'family_building' && targetParts[1]
+    ? targetParts[1]
+    : (targetParts[0] === 'manor_expansion' && targetParts[1] ? targetParts[1] : '');
+  const action = [
+    'fund_large_spend_executed',
+    'real_build_applied',
+    'manor_expansion_recorded',
+    'compensated',
+    'reverted',
+  ].includes(entry.action) ? entry.action : 'fund_large_spend_executed';
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('family_building_ledger'),
+    contract_id: sanitizeText(entry.contract_id, 80),
+    action,
+    purpose: sanitizeText(entry.purpose, 80) || 'family_building',
+    purpose_label: sanitizeText(entry.purpose_label, 80),
+    spend_category: sanitizeText(entry.spend_category || entry.category, 80),
+    target_ref: targetRef,
+    building_id: sanitizeText(entry.building_id || entry.project_id || inferredTargetId, 80),
+    project_id: sanitizeText(entry.project_id || entry.building_id || inferredTargetId, 80),
+    draft_id: sanitizeText(entry.draft_id, 100),
+    fund_ledger_id: sanitizeText(entry.fund_ledger_id, 100),
+    actor_username: normalizeUsername(entry.actor_username),
+    actor_display_name: sanitizeText(entry.actor_display_name || entry.actor_username, 60),
+    actor_manor_role: sanitizeText(entry.actor_manor_role, 40),
+    actor_manor_role_label: sanitizeText(entry.actor_manor_role_label, 40),
+    amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    shared_fund_balance_before: Math.max(0, Math.floor(Number(entry.shared_fund_balance_before) || 0)),
+    shared_fund_balance_after: Math.max(0, Math.floor(Number(entry.shared_fund_balance_after) || 0)),
+    shared_fund_deducted: entry.shared_fund_deducted === true,
+    shared_warehouse_materials_consumed: entry.shared_warehouse_materials_consumed === true,
+    personal_money_merged: entry.personal_money_merged === true,
+    personal_inventory_merged: entry.personal_inventory_merged === true,
+    real_build_applied: entry.real_build_applied === true,
+    compensation_required: entry.compensation_required !== false,
+    compensation_hint: sanitizeText(entry.compensation_hint, 180),
+    deferred_operations: Array.isArray(entry.deferred_operations)
+      ? entry.deferred_operations.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 12)
+      : ['real_build_apply', 'fund_compensation_replay'],
+    at,
+    created_at: Number(entry.created_at || entry.at) || at,
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    reversible: entry.reversible !== false,
+    status: ['fund_spend_recorded', 'build_applied', 'compensated', 'reverted'].includes(entry.status)
+      ? entry.status
+      : 'fund_spend_recorded',
   };
 }
 
@@ -1575,6 +1630,9 @@ function normalizeContract(entry = {}) {
       : [],
     fund_large_spend_drafts: Array.isArray(entry.fund_large_spend_drafts)
       ? entry.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft).slice(0, FUND_LARGE_SPEND_DRAFT_LIMIT)
+      : [],
+    family_building_ledger: Array.isArray(entry.family_building_ledger)
+      ? entry.family_building_ledger.map(normalizeFamilyBuildingLedgerEntry).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
       : [],
     created_by: normalizeUsername(entry.created_by),
     created_at: Number(entry.created_at) || nowSeconds(),
@@ -1631,6 +1689,9 @@ function toPublicContract(contract) {
     shared_warehouse: normalizeSharedWarehouse(contract.shared_warehouse),
     fund_large_spend_drafts: Array.isArray(contract.fund_large_spend_drafts)
       ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft).slice(0, FUND_LARGE_SPEND_DRAFT_LIMIT)
+      : [],
+    family_building_ledger: Array.isArray(contract.family_building_ledger)
+      ? contract.family_building_ledger.map(normalizeFamilyBuildingLedgerEntry).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
       : [],
     permissions: Object.fromEntries(Object.entries(contract.permissions || {}).map(([key, value]) => [key, normalizePermissionSet(value, contract.type)])),
     audit_log: (contract.audit_log || []).map(entry => ({ ...entry })).slice(0, 20),
@@ -2666,6 +2727,9 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
     ? (contract.members || []).map(member => buildFamilyBuildingMemberSnapshot(contract, member, enabled))
     : [];
   const buildings = buildFamilyBuildingCandidates(contract, enabled);
+  const constructionLedger = enabled && Array.isArray(contract.family_building_ledger)
+    ? contract.family_building_ledger.map(normalizeFamilyBuildingLedgerEntry).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
+    : [];
   const actorBuildingMember = actorMember ? buildFamilyBuildingMemberSnapshot(contract, actorMember, enabled) : null;
   return {
     contract_id: contract.id,
@@ -2690,7 +2754,9 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
       shared_fund_spend_enabled: false,
       warehouse_withdraw_enabled: false,
       demolition_enabled: false,
-      construction_ledger_enabled: false,
+      construction_ledger_enabled: enabled,
+      construction_ledger_count: constructionLedger.length,
+      latest_construction_ledger_id: constructionLedger[0]?.id || '',
       reputation_award_enabled: false,
       personal_money_merged: false,
       personal_inventory_merged: false,
@@ -2699,6 +2765,7 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
     actor: actorBuildingMember,
     members,
     candidate_buildings: buildings,
+    construction_ledger: constructionLedger.slice(0, 20),
     visual_state_preview: buildFamilyBuildingScenePreview(contract, buildings, members, enabled, revision),
     governance: {
       server_authoritative: true,
@@ -2711,7 +2778,7 @@ function buildFamilyBuildingSnapshot(contract, actorUsername = '') {
       demolition_requires_both_confirmation: true,
       compensation_required_for_asset_writes: true,
       rollback_required_for_building_writes: true,
-      current_policy: '第一版只读展示家族建筑蓝图、职位缺口、材料缺口和治理要求，不建造、不拆除、不消费共同基金或共同仓库。',
+      current_policy: '第一版只读展示家族建筑蓝图、职位缺口、材料缺口和治理要求；共同基金大额执行会写建筑流水，但仍不真实建造、不拆除、不消费共同仓库材料。',
     },
     asset_boundaries: {
       personal_money_merged: false,
@@ -3708,7 +3775,7 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       pending_large_spend_draft_count: pendingLargeSpendDrafts.length,
       ready_large_spend_draft_count: readyLargeSpendDrafts.length,
       executed_large_spend_draft_count: executedLargeSpendDrafts.length,
-      compensation_policy: '第一版支持成员自愿注资、小额白名单支出、中额加工 / 建材预算、大额确认草案和已确认草案扣款；建筑 ledger、自动返还和补偿重放待后续接入。',
+      compensation_policy: '第一版支持成员自愿注资、小额白名单支出、中额加工 / 建材预算、大额确认草案和已确认草案扣款；大额执行会写建筑流水，真实建造、自动返还和补偿重放待后续接入。',
     },
     permissions: {
       can_spend_small: actorPermissions.fund.spend_small === true,
@@ -5509,6 +5576,67 @@ function buildLargeFundSpendConfirmationState(contract, actorUsername) {
   };
 }
 
+function resolveFamilyBuildingLedgerTargetId(purpose, targetRef) {
+  const parts = sanitizeText(targetRef, 120).split(':').map(part => sanitizeText(part, 40)).filter(Boolean);
+  if (parts[0] === 'family_building' && parts[1]) return parts[1];
+  if (parts[0] === 'manor_expansion' && parts[1]) return parts[1];
+  return sanitizeText(purpose, 80) || 'family_building';
+}
+
+function normalizeFamilyBuildingLedger(contract) {
+  contract.family_building_ledger = Array.isArray(contract.family_building_ledger)
+    ? contract.family_building_ledger.map(normalizeFamilyBuildingLedgerEntry).slice(0, FAMILY_BUILDING_LEDGER_LIMIT)
+    : [];
+  return contract.family_building_ledger;
+}
+
+function findFamilyBuildingLedgerEntry(contract, draft = {}, fundLedgerEntry = {}) {
+  const ledger = normalizeFamilyBuildingLedger(contract);
+  return ledger.find(entry =>
+    (draft.final_building_ledger_id && entry.id === draft.final_building_ledger_id)
+    || (fundLedgerEntry.id && entry.fund_ledger_id === fundLedgerEntry.id)
+    || (draft.id && entry.draft_id === draft.id && entry.action === 'fund_large_spend_executed')
+  ) || null;
+}
+
+function buildFamilyBuildingLedgerEntry(contract, draft, fundLedgerEntry, actor = {}, member = {}, balanceBefore = 0, balanceAfter = 0, operatedAt = nowSeconds(), idempotencyKey = '') {
+  const roleDef = getFamilyManorRoleDef(member.manor_role);
+  const targetId = resolveFamilyBuildingLedgerTargetId(draft.purpose, draft.target_ref);
+  return normalizeFamilyBuildingLedgerEntry({
+    id: makeId('family_building_ledger'),
+    contract_id: contract.id,
+    action: 'fund_large_spend_executed',
+    purpose: draft.purpose,
+    purpose_label: draft.purpose_label,
+    spend_category: draft.spend_category,
+    target_ref: draft.target_ref,
+    building_id: targetId,
+    project_id: targetId,
+    draft_id: draft.id,
+    fund_ledger_id: fundLedgerEntry.id,
+    actor_username: member.username || actor.username,
+    actor_display_name: actor.displayName || actor.display_name || member.display_name || member.username || actor.username,
+    actor_manor_role: member.manor_role,
+    actor_manor_role_label: roleDef?.label || '',
+    amount: draft.amount,
+    shared_fund_balance_before: balanceBefore,
+    shared_fund_balance_after: balanceAfter,
+    shared_fund_deducted: true,
+    shared_warehouse_materials_consumed: false,
+    personal_money_merged: false,
+    personal_inventory_merged: false,
+    real_build_applied: false,
+    compensation_required: true,
+    compensation_hint: '共同基金大额扣款已写入建筑流水；真实建造或扩建仍需后续专用接口落账，失败时按基金 ledger 与建筑流水补偿重放。',
+    deferred_operations: ['real_build_apply', 'fund_compensation_replay'],
+    at: operatedAt,
+    created_at: operatedAt,
+    idempotency_key: idempotencyKey,
+    reversible: true,
+    status: 'fund_spend_recorded',
+  });
+}
+
 async function createCohabitationFundLargeSpendDraft(contractId, payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -5626,6 +5754,7 @@ async function confirmCohabitationFundLargeSpendDraft(contractId, draftId, paylo
   contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
     ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
     : [];
+  normalizeFamilyBuildingLedger(contract);
   const draftIndex = contract.fund_large_spend_drafts.findIndex(entry => entry.id === normalizedDraftId);
   if (draftIndex < 0) throw createError('共同基金大额确认草案不存在', 404);
 
@@ -5815,6 +5944,7 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
   contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
     ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
     : [];
+  normalizeFamilyBuildingLedger(contract);
   const draftIndex = contract.fund_large_spend_drafts.findIndex(entry => entry.id === normalizedDraftId);
   if (draftIndex < 0) throw createError('共同基金大额确认草案不存在', 404);
   const draft = normalizeFundLargeSpendDraft(contract.fund_large_spend_drafts[draftIndex]);
@@ -5837,11 +5967,13 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
   const previousEntry = previousKeyEntry || null;
   if (previousEntry) {
     const existingDraft = normalizeFundLargeSpendDraft(contract.fund_large_spend_drafts[draftIndex]);
+    const buildingLedgerEntry = findFamilyBuildingLedgerEntry(contract, existingDraft, previousEntry);
     return {
       contract: toPublicContract(contract),
       fund: buildSharedFundSnapshot(contract, actorUsername),
       draft: existingDraft,
       ledger_entry: previousEntry,
+      building_ledger_entry: buildingLedgerEntry,
       idempotent: true,
       already_executed: existingDraft.state === 'executed',
       shared_fund: {
@@ -5850,7 +5982,8 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
         personal_money_merged: false,
         confirmation_required: true,
         confirmation_status: previousEntry.confirmation_status,
-        building_ledger_written: false,
+        building_ledger_written: Boolean(buildingLedgerEntry),
+        building_ledger_id: buildingLedgerEntry?.id || '',
       },
     };
   }
@@ -5858,11 +5991,13 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
   if (draft.state === 'executed') {
     const finalEntry = (contract.shared_fund.ledger || []).find(entry => entry.id === draft.final_spend_ledger_id);
     if (!finalEntry) throw createError('该共同基金大额草案已标记执行，但缺少基金扣款流水，已中止避免重复扣款', 409);
+    const buildingLedgerEntry = findFamilyBuildingLedgerEntry(contract, draft, finalEntry);
     return {
       contract: toPublicContract(contract),
       fund: buildSharedFundSnapshot(contract, actorUsername),
       draft,
       ledger_entry: finalEntry,
+      building_ledger_entry: buildingLedgerEntry,
       idempotent: true,
       already_executed: true,
       shared_fund: {
@@ -5871,7 +6006,8 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
         personal_money_merged: false,
         confirmation_required: true,
         confirmation_status: finalEntry.confirmation_status,
-        building_ledger_written: false,
+        building_ledger_written: Boolean(buildingLedgerEntry),
+        building_ledger_id: buildingLedgerEntry?.id || '',
       },
     };
   }
@@ -5911,12 +6047,27 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
     confirmation_status: 'confirmed',
     idempotency_key: executeRequest.idempotency_key,
     reversible: true,
-    compensation_hint: '大额共同基金已扣款但建筑 ledger 尚未接入；若后续失败需按草案和基金 ledger 补偿或重放。',
+    compensation_hint: '大额共同基金已扣款并写入建筑流水；真实建造或扩建仍需后续专用接口落账，失败时按基金 ledger 与建筑流水补偿或重放。',
     status: 'committed',
   });
   contract.shared_fund.balance = afterBalance;
   contract.shared_fund.ledger = [ledgerEntry, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
   contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  let buildingLedgerEntry = findFamilyBuildingLedgerEntry(contract, draft, ledgerEntry);
+  if (!buildingLedgerEntry) {
+    buildingLedgerEntry = buildFamilyBuildingLedgerEntry(
+      contract,
+      draft,
+      ledgerEntry,
+      actor,
+      member,
+      beforeBalance,
+      afterBalance,
+      operatedAt,
+      executeRequest.idempotency_key
+    );
+    contract.family_building_ledger = [buildingLedgerEntry, ...contract.family_building_ledger].slice(0, FAMILY_BUILDING_LEDGER_LIMIT);
+  }
   const nextDraft = normalizeFundLargeSpendDraft({
     ...draft,
     state: 'executed',
@@ -5936,14 +6087,15 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
       executed_by: member.username,
       can_execute_now: false,
       execution_enabled: false,
-      policy: '大额建筑 / 扩建支出已完成成员确认并扣减共同基金；建筑 ledger 与真实建造仍待后续接入。',
+      policy: '大额建筑 / 扩建支出已完成成员确认、扣减共同基金并写入建筑流水；真实建造仍待后续接入。',
     },
     executed_at: operatedAt,
     executed_by: member.username,
     execution_enabled: false,
     final_spend_ledger_id: ledgerEntry.id,
-    compensation_policy: '大额共同基金已扣款但建筑 ledger 尚未接入；若后续失败需按草案和基金 ledger 补偿或重放。',
-    deferred_operations: ['building_ledger_write', 'fund_compensation_replay'],
+    final_building_ledger_id: buildingLedgerEntry.id,
+    compensation_policy: '大额共同基金已扣款并写入建筑流水；若后续真实建造或扩建失败，按草案、基金 ledger 和建筑流水补偿或重放。',
+    deferred_operations: ['real_build_apply', 'fund_compensation_replay'],
   });
   contract.fund_large_spend_drafts[draftIndex] = nextDraft;
   appendAudit(contract, 'fund_large_spend_draft_executed', actor, {
@@ -5962,7 +6114,8 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
     confirmation_required: true,
     confirmation_status: 'confirmed',
     personal_money_merged: false,
-    building_ledger_written: false,
+    building_ledger_written: true,
+    building_ledger_id: buildingLedgerEntry.id,
     compensation_required: true,
     reversible: ledgerEntry.reversible,
   }, executeRequest.idempotency_key);
@@ -5973,6 +6126,7 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
     fund: buildSharedFundSnapshot(contract, actorUsername),
     draft: nextDraft,
     ledger_entry: ledgerEntry,
+    building_ledger_entry: buildingLedgerEntry,
     idempotent: false,
     already_executed: false,
     shared_fund: {
@@ -5982,7 +6136,8 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
       personal_money_merged: false,
       confirmation_required: true,
       confirmation_status: 'confirmed',
-      building_ledger_written: false,
+      building_ledger_written: true,
+      building_ledger_id: buildingLedgerEntry.id,
     },
   };
 }

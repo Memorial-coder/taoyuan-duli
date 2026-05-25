@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0525 共同基金大额执行建筑流水
+- 服务端 `/fund/large-spend-drafts/:draftId/execute` 在成功扣共同基金后同步写 `family_building_ledger`，建筑流水记录草案 ID、基金 ledger ID、目标引用、建筑 ID、金额、余额前后、操作者、幂等键和补偿提示。
+- 执行草案回填 `final_building_ledger_id`，返回 `building_ledger_entry`；重复 `idempotency_key` 或已执行草案会读回原基金 / 建筑流水，不重复扣基金、不重复写建筑流水。
+- 家族建筑只读面板新增 `construction_ledger` 读回与 `construction_ledger_count` 摘要；当前流水只标记 `fund_spend_recorded`，不真实建造 / 扩建、不消耗共同仓库材料、不改个人铜币。
+- 游戏内百科“共同基金大额确认”补充家族建筑流水、`family_building_ledger`、`construction_ledger` 和 `final_building_ledger_id` 搜索词。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 共同基金大额草案前端入口
 - 共同庄园基金页新增大额草案创建表单，按服务端大额用途显示家族建筑 / 庄园扩建，提交时带 CSRF 与 `idempotency_key` 调用 `/fund/large-spend-draft`。
 - 基金页新增大额草案列表，可查看目标引用、确认进度、余额快照和最终基金流水；待确认成员可调用 `/confirm`，全员确认后的草案可调用 `/execute` 执行共同基金扣款。
