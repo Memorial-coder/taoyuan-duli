@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0525 共同庄园建筑页建筑流水展示
+- 前端共同庄园建筑页读回 `/family-buildings` 已返回的 `construction_ledger`，新增“建筑流水”只读卡片。
+- API 类型补齐 `CohabitationFamilyBuildingLedgerEntry`、`construction_ledger_count` 和 `latest_construction_ledger_id`，建筑摘要从“真实建造”改为建筑流水计数，避免误导真实建造已开放。
+- 流水卡展示目标引用、基金 ledger、草案 ID、金额、状态、操作者，以及共同仓库材料、真实建造落账和个人铜币独立边界。
+- 本轮不新增写接口，不开放真实建造 / 扩建，不消耗共同仓库材料，不改个人铜币。
+- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run build`。
+
 ### 0525 共同基金大额执行建筑流水
 - 服务端 `/fund/large-spend-drafts/:draftId/execute` 在成功扣共同基金后同步写 `family_building_ledger`，建筑流水记录草案 ID、基金 ledger ID、目标引用、建筑 ID、金额、余额前后、操作者、幂等键和补偿提示。
 - 执行草案回填 `final_building_ledger_id`，返回 `building_ledger_entry`；重复 `idempotency_key` 或已执行草案会读回原基金 / 建筑流水，不重复扣基金、不重复写建筑流水。

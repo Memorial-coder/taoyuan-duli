@@ -585,7 +585,7 @@
                 创建确认草案
               </button>
             </div>
-            <p class="mt-2 text-[10px] leading-4 text-muted">执行只扣共同基金；建筑流水和真实建造仍待后续。</p>
+            <p class="mt-2 text-[10px] leading-4 text-muted">执行会扣共同基金并写建筑流水；真实建造仍待后续。</p>
           </div>
           <p v-if="fundActionMessage" class="mt-3 text-[10px] leading-4" :class="fundActionOk ? 'text-emerald-200' : 'text-red-100'">
             {{ fundActionMessage }}
@@ -1031,6 +1031,35 @@
               </div>
             </div>
           </div>
+          <div class="game-panel-muted p-3" data-testid="online-cohabitation-building-ledger">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">建筑流水</p>
+              <span class="text-[10px] text-muted">{{ familyBuildingLedgerEntries.length }} 条</span>
+            </div>
+            <div v-if="familyBuildingLedgerEntries.length === 0" class="mt-3 text-xs leading-5 text-muted">暂无建筑流水。</div>
+            <div v-else class="mt-3 max-h-72 space-y-2 overflow-y-auto pr-1">
+              <div v-for="entry in familyBuildingLedgerEntries" :key="entry.id" class="border border-accent/10 bg-black/10 p-2">
+                <div class="flex items-start justify-between gap-2">
+                  <div class="min-w-0">
+                    <p class="truncate text-xs text-text">{{ familyBuildingLedgerActionLabel(entry.action) }} · {{ entry.purpose_label || entry.purpose }}</p>
+                    <p class="mt-1 text-[10px] leading-4 text-muted">
+                      {{ entry.target_ref || entry.building_id || entry.project_id || '未绑定目标' }} · {{ entry.actor_display_name || entry.actor_username }}
+                    </p>
+                  </div>
+                  <span class="shrink-0 text-xs text-accent">{{ entry.amount }}</span>
+                </div>
+                <div class="mt-2 grid gap-1 text-[10px] leading-4 text-muted">
+                  <p>基金流水：{{ entry.fund_ledger_id || '无' }} · 草案：{{ entry.draft_id || '无' }}</p>
+                  <p>状态：{{ familyBuildingLedgerStatusLabel(entry.status) }} · {{ formatTime(entry.at || entry.created_at) }}</p>
+                  <p>
+                    材料：{{ entry.shared_warehouse_materials_consumed ? '已消耗' : '未消耗' }} ·
+                    真实建造：{{ entry.real_build_applied ? '已落账' : '未落账' }} ·
+                    个人铜币：{{ entry.personal_money_merged ? '合并' : '独立' }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
           <div class="game-panel-muted p-3">
             <p class="text-sm text-accent">资产边界</p>
             <div class="mt-3 space-y-2">
@@ -1455,6 +1484,7 @@
   import type {
     CohabitationAuditEntry,
     CohabitationContract,
+    CohabitationFamilyBuildingLedgerEntry,
     CohabitationFamilyRoleOption,
     CohabitationFundLargeSpendDraft,
     CohabitationFundLedgerEntry,
@@ -1664,13 +1694,14 @@
   const familyBuildingCandidates = computed(() => familyBuildingsPanel.value?.candidate_buildings ?? [])
   const familyBuildingSceneObjects = computed(() => familyBuildingsPanel.value?.visual_state_preview.scene_objects ?? [])
   const familyBuildingDeferredOperations = computed(() => familyBuildingsPanel.value?.deferred_operations ?? [])
+  const familyBuildingLedgerEntries = computed(() => familyBuildingsPanel.value?.construction_ledger ?? [])
   const familyBuildingSummaryCards = computed(() => {
     const summary = familyBuildingsPanel.value?.summary
     return [
       { label: '蓝图', value: summary?.preview_building_count ?? 0 },
       { label: '职位就绪', value: summary?.role_ready_building_count ?? 0 },
       { label: '成员', value: `${summary?.member_count ?? 0}/${summary?.max_members ?? 0}` },
-      { label: '真实建造', value: summary?.construction_ledger_enabled ? '开放' : '暂缓' },
+      { label: '建筑流水', value: summary?.construction_ledger_enabled ? `${summary?.construction_ledger_count ?? 0} 条` : '暂缓' },
     ]
   })
   const familyBuildingBoundaryCards = computed(() => {
@@ -2458,6 +2489,7 @@
       building_ledger_write: '建筑流水写入',
       fund_compensation_replay: '基金补偿重放',
       write_family_building_ledger: '建筑流水',
+      real_build_apply: '真实建造落账',
       demolish_family_building: '拆除家族建筑',
       family_building_compensation_replay: '建筑补偿重放',
       family_building_rollback: '建筑回滚',
@@ -2583,6 +2615,35 @@
       preview_ready: '预览就绪',
       staffed: '已有人手',
       locked: '暂锁',
+    }
+    return labels[value] || value || '未知'
+  }
+
+  const familyBuildingLedgerActionLabel = (value: CohabitationFamilyBuildingLedgerEntry['action']) => {
+    const labels: Record<string, string> = {
+      fund_large_spend_executed: '大额支出执行',
+      large_fund_spend_execute: '大额支出执行',
+      fund_large_spend_execute: '大额支出执行',
+      real_build_applied: '真实建造落账',
+      manor_expansion_recorded: '扩建记录',
+      compensated: '补偿记录',
+      reverted: '回滚记录',
+      family_building_spend: '建筑支出',
+    }
+    return labels[value] || value || '建筑流水'
+  }
+
+  const familyBuildingLedgerStatusLabel = (value: CohabitationFamilyBuildingLedgerEntry['status']) => {
+    const labels: Record<string, string> = {
+      fund_spend_recorded: '基金扣款已记录',
+      build_applied: '真实建造已落账',
+      compensated: '已补偿',
+      reverted: '已回滚',
+      applied: '已记录',
+      executed: '已执行',
+      pending: '待处理',
+      deferred: '暂缓',
+      reversed: '已回滚',
     }
     return labels[value] || value || '未知'
   }

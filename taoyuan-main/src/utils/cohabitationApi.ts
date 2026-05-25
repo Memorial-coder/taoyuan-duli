@@ -578,6 +578,40 @@ export interface CohabitationFamilyReputationPanel {
   deferred_operations: string[]
 }
 
+export interface CohabitationFamilyBuildingLedgerEntry {
+  id: string
+  contract_id: string
+  action: string
+  purpose: string
+  purpose_label: string
+  spend_category: string
+  target_ref: string
+  building_id: string | null
+  project_id: string | null
+  draft_id: string | null
+  fund_ledger_id: string | null
+  actor_username: string
+  actor_display_name: string
+  actor_manor_role: string
+  actor_manor_role_label: string
+  amount: number
+  shared_fund_balance_before: number
+  shared_fund_balance_after: number
+  shared_fund_deducted: boolean
+  shared_warehouse_materials_consumed: boolean
+  personal_money_merged: boolean
+  personal_inventory_merged: boolean
+  real_build_applied: boolean
+  compensation_required: boolean
+  compensation_hint: string
+  deferred_operations: string[]
+  at: number
+  created_at: number
+  idempotency_key: string
+  reversible: boolean
+  status: string
+}
+
 export interface CohabitationFamilyBuildingsPanel {
   contract_id: string
   shared_manor_id: string
@@ -602,6 +636,8 @@ export interface CohabitationFamilyBuildingsPanel {
     warehouse_withdraw_enabled: boolean
     demolition_enabled: boolean
     construction_ledger_enabled: boolean
+    construction_ledger_count: number
+    latest_construction_ledger_id: string | null
     reputation_award_enabled: boolean
     personal_money_merged: boolean
     personal_inventory_merged: boolean
@@ -659,6 +695,7 @@ export interface CohabitationFamilyBuildingsPanel {
   asset_boundaries: Record<string, unknown>
   recommended_flow: string[]
   deferred_operations: string[]
+  construction_ledger: CohabitationFamilyBuildingLedgerEntry[]
 }
 
 export interface CohabitationFamilyRelationNode {

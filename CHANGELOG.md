@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 共同庄园建筑页展示家族建筑流水：前端 API 类型补齐 `construction_ledger`、`construction_ledger_count` 和建筑流水条目；建筑页新增“建筑流水”只读卡片，展示共同基金大额执行生成的目标引用、基金 ledger、草案、金额、状态、操作者和材料 / 真实建造 / 个人铜币边界。真实建造 / 扩建写操作仍不开放。
 - 共同基金大额执行写家族建筑流水接入：`/fund/large-spend-drafts/:draftId/execute` 成功扣共同基金后会同步写 `family_building_ledger`，记录草案 ID、基金 ledger ID、目标引用、建筑 ID、金额、余额前后、操作者、幂等键和补偿提示；草案回填 `final_building_ledger_id`，重复执行只读回原基金 / 建筑流水，不重复扣款、不重复写流水。该流水当前仅标记 `fund_spend_recorded`，不真实建造 / 扩建、不消耗共同仓库材料、不改个人铜币；百科补充“家族建筑流水 / construction_ledger”搜索词。
 - 共同基金大额草案前端最小入口接入：共同庄园基金页新增大额草案创建表单和草案列表，前端 API / store 接入 `/fund/large-spend-draft`、`/confirm`、`/execute`；成员可按权限创建家族建筑 / 庄园扩建草案、待确认成员可确认、已全员确认草案可执行扣共同基金。按钮受双方确认安全阀、`can_spend_large`、余额、当前成员待确认状态和执行状态约束；本轮仍不写建筑 ledger、不真实建造 / 扩建、不改个人铜币。
 - 共同基金大额草案执行扣款接入：新增 `/fund/large-spend-drafts/:draftId/execute` 服务端写接口，只允许具备 `fund.spend_large` 的已激活成员执行全员确认后的 `ready_to_execute` 草案；成功后扣共同基金、写 `spend_tier=large` / `confirmation_status=confirmed` 基金 ledger、草案转 `executed` 并记录最终 ledger、审计和补偿提示，重复幂等键或已执行草案不会重复扣款。个人铜币和建筑 ledger 仍不改动，并补充“共同基金大额确认”百科搜索词。
