@@ -326,6 +326,16 @@
                         <Package :size="12" />
                         返还仓库
                       </button>
+                      <button
+                        class="online-action-btn online-action-btn--compact justify-center"
+                        type="button"
+                        :disabled="!canResolveSeparationFamilyStory || cohabitationStore.actionLoading"
+                        data-testid="online-cohabitation-separation-family-story-resolve"
+                        @click="resolveSeparationFamilyStory"
+                      >
+                        <ClipboardList :size="12" />
+                        记录剧情
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -1705,6 +1715,7 @@
   const separationPreviewConfirmationLabel = computed(() => {
     const confirmed = separationPreviewConfirmedBy.value
     const pending = separationPreviewPendingMembers.value
+    if (separationExecutionRequest.value?.status === 'family_story_resolved') return '分居剧情拆分已记录在共同契约，等待装饰 / 建筑拆分和个人剧情 receipt。'
     if (separationExecutionRequest.value?.status === 'shared_warehouse_returned') return '共同仓库已按来源写回个人背包，等待装饰 / 建筑 / 剧情拆分。'
     if (separationExecutionRequest.value?.status === 'shared_fund_refunded') return '共同基金已返还个人铜币，等待共同仓库 / 装饰 / 剧情拆分。'
     if (separationExecutionRequest.value?.status === 'personal_save_written') return '来源田区已写回个人农田，等待共同基金 / 仓库返还。'
@@ -1760,6 +1771,16 @@
     if (preview.state !== 'confirmed') return false
     if (preview.confirmation_state?.all_members_confirmed !== true) return false
     if (separationExecutionRequest.value?.status !== 'shared_fund_refunded') return false
+    if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
+    return true
+  })
+  const canResolveSeparationFamilyStory = computed(() => {
+    const preview = latestSeparationPreview.value
+    if (!preview || !selectedContract.value || !cohabitationStore.canOpenSelectedContract) return false
+    if (!['active', 'separation_pending'].includes(String(selectedContract.value.status))) return false
+    if (preview.state !== 'confirmed') return false
+    if (preview.confirmation_state?.all_members_confirmed !== true) return false
+    if (separationExecutionRequest.value?.status !== 'shared_warehouse_returned') return false
     if (!separationExecutionRequest.value?.execution_ledger_id || !separationPlotReturnManifestHash.value) return false
     return true
   })
@@ -2376,6 +2397,30 @@
     }
   }
 
+  const resolveSeparationFamilyStory = async () => {
+    if (!latestSeparationPreview.value || !canResolveSeparationFamilyStory.value) return
+    separationActionMessage.value = ''
+    separationActionOk.value = false
+    try {
+      const result = await cohabitationStore.resolveSeparationFamilyStory(latestSeparationPreview.value.id, {
+        execution_ledger_id: separationExecutionRequest.value?.execution_ledger_id,
+        plot_return_manifest_hash: separationPlotReturnManifestHash.value,
+        resolution_choice: 'peaceful_separation',
+        memo: '前端记录分居剧情拆分状态；个人剧情、孩子安排和装饰建筑拆分留后续接口',
+        idempotency_key: `ui-separation-family-story-resolve-${latestSeparationPreview.value.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      separationActionOk.value = true
+      const storyState = typeof result?.story_resolution?.story_state === 'string' ? result.story_resolution.story_state : ''
+      separationActionMessage.value = result?.idempotent || result?.already_resolved
+        ? '已读回已有分居剧情拆分记录'
+        : storyState === 'personal_story_write_pending'
+          ? '已记录分居剧情拆分，个人剧情 receipt 待后续写回'
+          : '已记录分居剧情拆分'
+    } catch (error) {
+      separationActionMessage.value = error instanceof Error ? error.message : '记录分居剧情拆分失败'
+    }
+  }
+
   const warehouseSellUnitPrice = (itemId: string) => warehouseSellPriceByItemId[itemId] ?? 0
   const fundLedgerPurposeLabel = (entry: CohabitationFundLedgerEntry) => {
     const label = entry.spend_purpose_label || entry.purpose || 'shared_fund'
@@ -2879,6 +2924,8 @@
       write_personal_save_refunds: '写回个人存档返还',
       split_decorations: '拆分装修家具',
       resolve_family_story: '处理家庭剧情',
+      write_personal_story_receipts: '个人剧情回执',
+      resolve_child_arrangement: '孩子安排',
       freeze_high_value_disputes: '冻结高价值争议',
     }
     return labels[value] || value
@@ -3050,6 +3097,7 @@
       separation_personal_farm_written: '来源田区写回',
       separation_shared_fund_refunded: '共同基金返还',
       separation_shared_warehouse_returned: '共同仓库返还',
+      separation_family_story_resolved: '剧情拆分记录',
     }
     return labels[action] || action
   }
@@ -3105,6 +3153,12 @@
     if (entry.action === 'separation_shared_warehouse_returned') {
       const quantity = Number(detail.returned_quantity) || 0
       return quantity > 0 ? `已按来源返还共同仓库 ${quantity} 件，等待装饰 / 建筑 / 剧情拆分` : '共同仓库返还已记录'
+    }
+    if (entry.action === 'separation_family_story_resolved') {
+      const needsPersonalStory = detail.personal_story_write_required === true
+      const needsChildArrangement = detail.child_arrangement_required === true
+      if (needsChildArrangement) return '已记录剧情拆分，等待孩子安排、个人剧情 receipt 和装饰 / 建筑拆分'
+      return needsPersonalStory ? '已记录剧情拆分，等待个人剧情 receipt 和装饰 / 建筑拆分' : '已记录剧情拆分，等待装饰 / 建筑拆分'
     }
     const itemId = typeof detail.item_id === 'string' ? detail.item_id : ''
     const amount = Number(detail.amount) || Number(detail.quantity) || 0

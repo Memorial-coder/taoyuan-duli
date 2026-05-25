@@ -28,6 +28,7 @@ import {
   fetchCohabitationWarehouse,
   refundCohabitationSeparationSharedFund,
   requestCohabitationSeparationExecution,
+  resolveCohabitationSeparationFamilyStory,
   returnCohabitationSeparationSharedWarehouse,
   sellCohabitationWarehouseItem,
   spendCohabitationFund,
@@ -50,6 +51,7 @@ import {
   type CohabitationPermissionsPanel,
   type CohabitationSeparationAssetReturnExecutePayload,
   type CohabitationSeparationExecutionRequestPayload,
+  type CohabitationSeparationFamilyStoryResolvePayload,
   type CohabitationSeparationPersonalFarmWritePayload,
   type CohabitationSeparationPreviewConfirmPayload,
   type CohabitationSeparationPreviewPayload,
@@ -407,6 +409,25 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
       return result
     } catch (error) {
       errorMessage.value = error instanceof Error ? error.message : '返还分居共同仓库失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
+  const resolveSeparationFamilyStory = async (previewId: string, payload: CohabitationSeparationFamilyStoryResolvePayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !previewId) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await resolveCohabitationSeparationFamilyStory(activeContractId.value, previewId, payload)
+      if (result?.contract) {
+        syncOverviewContract(result.contract)
+        await refreshSelectedDetails({ silent: true })
+      }
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '记录分居剧情拆分失败'
       throw error
     } finally {
       actionLoading.value = false
@@ -787,6 +808,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     writeSeparationPersonalFarmReturns,
     refundSeparationSharedFund,
     returnSeparationSharedWarehouse,
+    resolveSeparationFamilyStory,
     contributeSharedFund,
     spendSharedFund,
     createSharedFundLargeSpendDraft,

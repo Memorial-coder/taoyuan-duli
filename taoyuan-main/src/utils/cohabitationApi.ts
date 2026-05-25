@@ -1043,6 +1043,10 @@ export interface CohabitationSeparationPreview {
       personal_save_written_at?: number
       personal_save_written_by?: string
       personal_save_receipts?: Array<Record<string, unknown>>
+      family_story_resolved?: boolean
+      family_story_resolved_at?: number
+      family_story_resolved_by?: string
+      family_story_resolution?: Record<string, unknown>
       execution_enabled?: boolean
       next_required_operations?: string[]
       [key: string]: unknown
@@ -1155,6 +1159,14 @@ export interface CohabitationSeparationSharedFundRefundPayload {
 export interface CohabitationSeparationSharedWarehouseReturnPayload {
   execution_ledger_id?: string
   plot_return_manifest_hash?: string
+  memo?: string
+  idempotency_key: string
+}
+
+export interface CohabitationSeparationFamilyStoryResolvePayload {
+  execution_ledger_id?: string
+  plot_return_manifest_hash?: string
+  resolution_choice?: 'peaceful_separation' | 'cooling_off' | 'family_meeting' | 'manual_review' | string
   memo?: string
   idempotency_key: string
 }
@@ -1315,6 +1327,12 @@ export interface CohabitationSeparationSharedWarehouseReturnResponse extends Coh
   }
 }
 
+export interface CohabitationSeparationFamilyStoryResolveResponse extends CohabitationSeparationPreviewResponse {
+  execution_ledger?: Record<string, unknown>
+  story_resolution?: Record<string, unknown> | null
+  already_resolved?: boolean
+}
+
 const fetchCohabitationJson = async <T>(path: string, fallbackMessage: string): Promise<T | null> => {
   const account = await ensureCurrentAccount()
   if (!account || account === 'guest') return null
@@ -1425,6 +1443,14 @@ export const returnCohabitationSeparationSharedWarehouse = async (contractId: st
     contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/return-shared-warehouse`),
     payload as unknown as Record<string, unknown>,
     '返还分居共同仓库失败'
+  )
+}
+
+export const resolveCohabitationSeparationFamilyStory = async (contractId: string, previewId: string, payload: CohabitationSeparationFamilyStoryResolvePayload) => {
+  return postCohabitationJson<CohabitationSeparationFamilyStoryResolveResponse>(
+    contractPath(contractId, `/separation-previews/${encodeURIComponent(previewId)}/resolve-family-story`),
+    payload as unknown as Record<string, unknown>,
+    '记录分居剧情拆分失败'
   )
 }
 
