@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 分居剧情拆分记录执行
+- 服务端新增 `/separation-previews/:previewId/resolve-family-story`，要求分居共同仓库已返还、执行 ledger ID 可匹配且预览 `plot_return_manifest_hash` 未变。
+- 成功后只在共同契约中记录关系类型、剧情拆分选择、隐私边界、个人剧情 receipt 待办和孩子安排待办，执行状态推进到 `family_story_resolved`；重复请求不重复写入，个人 NPC、恋爱、家庭和孩子存档不被自动改写。
+- 本轮验证：`node --check server\src\taoyuanCohabitationRuntime.js`、`node --check server\src\routes\api.js`、`node --check server\scripts\qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 分居共同仓库返还前端入口
 - 共同庄园总览在分居预览卡片新增“返还仓库”按钮，前端 API / store 接入 `/separation-previews/:previewId/return-shared-warehouse`。
 - 按钮按 `shared_fund_refunded`、执行 ledger ID、预览 `plot_return_manifest_hash` 和契约状态禁用；提交时只发送服务端校验所需 ledger、hash 与 `idempotency_key`，成功后刷新契约、共同仓库和共同日志。

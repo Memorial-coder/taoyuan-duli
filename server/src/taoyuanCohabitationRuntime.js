@@ -4212,6 +4212,20 @@ function normalizeSeparationSharedWarehouseReturnPayload(payload = {}) {
   };
 }
 
+function normalizeSeparationFamilyStoryResolvePayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('分居剧情拆分记录需要 idempotency_key，以防断线或重试时重复记录');
+  const resolutionChoice = sanitizeText(payload.resolution_choice || payload.choice || 'peaceful_separation', 80);
+  const allowedChoices = ['peaceful_separation', 'cooling_off', 'family_meeting', 'manual_review'];
+  return {
+    idempotency_key: idempotencyKey,
+    execution_ledger_id: sanitizeText(payload.execution_ledger_id, 100),
+    plot_return_manifest_hash: sanitizeText(payload.plot_return_manifest_hash || payload.manifest_hash, 100),
+    resolution_choice: allowedChoices.includes(resolutionChoice) ? resolutionChoice : 'manual_review',
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
 function normalizeLargeFundSpendExecutePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同基金大额草案执行扣款需要 idempotency_key，以防断线或重试时重复扣基金');
@@ -4815,7 +4829,7 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
     executed_at: Math.max(0, Math.floor(Number(entry.executed_at) || 0)),
     idempotency_key: sanitizeText(entry.idempotency_key, 120),
     memo: sanitizeText(entry.memo, 160),
-    status: ['asset_return_recorded', 'personal_save_written', 'shared_fund_refunded', 'shared_warehouse_returned', 'compensated', 'reverted'].includes(entry.status)
+    status: ['asset_return_recorded', 'personal_save_written', 'shared_fund_refunded', 'shared_warehouse_returned', 'family_story_resolved', 'compensated', 'reverted'].includes(entry.status)
       ? entry.status
       : 'asset_return_recorded',
     plot_return_manifest_hash: sanitizeText(entry.plot_return_manifest_hash, 100),
@@ -4914,6 +4928,22 @@ function normalizeSeparationExecutionLedgerEntry(entry = {}) {
           written_at: Math.max(0, Math.floor(Number(item.written_at) || 0)),
         })).filter(item => item.username && item.item_id && item.returned_quantity > 0).slice(0, 80)
       : [],
+    family_story_resolved: entry.family_story_resolved === true,
+    family_story_resolution_idempotency_key: sanitizeText(entry.family_story_resolution_idempotency_key, 120),
+    family_story_resolved_at: Math.max(0, Math.floor(Number(entry.family_story_resolved_at) || 0)),
+    family_story_resolved_by: normalizeUsername(entry.family_story_resolved_by),
+    family_story_resolution: entry.family_story_resolution && typeof entry.family_story_resolution === 'object'
+      ? {
+          relation_type: sanitizeText(entry.family_story_resolution.relation_type, 80),
+          relation_label: sanitizeText(entry.family_story_resolution.relation_label, 80),
+          resolution_choice: sanitizeText(entry.family_story_resolution.resolution_choice, 80),
+          story_state: sanitizeText(entry.family_story_resolution.story_state, 100),
+          personal_story_write_required: entry.family_story_resolution.personal_story_write_required !== false,
+          child_arrangement_required: entry.family_story_resolution.child_arrangement_required === true,
+          privacy_boundary: sanitizeText(entry.family_story_resolution.privacy_boundary, 160),
+          memo: sanitizeText(entry.family_story_resolution.memo, 160),
+        }
+      : null,
     shared_assets_mutated: entry.shared_assets_mutated === true,
     next_required_operations: Array.isArray(entry.next_required_operations)
       ? entry.next_required_operations.map(item => sanitizeText(item, 80)).filter(Boolean).slice(0, 12)
@@ -8293,6 +8323,154 @@ async function returnSeparationSharedWarehouse(contractId, previewId, payload = 
   };
 }
 
+async function resolveSeparationFamilyStory(contractId, previewId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const storyPayload = normalizeSeparationFamilyStoryResolvePayload(payload);
+  const normalizedContractId = sanitizeText(contractId, 80);
+  const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
+  if (!normalizedPreviewId) throw createError('请指定要记录剧情拆分的分居预览');
+
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === normalizedContractId);
+  if (!contract) throw createError('同居契约不存在', 404);
+  if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
+  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效或分居处理中的契约可以记录剧情拆分', 409);
+
+  const member = (contract.members || []).find(entry =>
+    entry.status === 'accepted' && (
+      normalizeUsernameKey(entry.username) === normalizeUsernameKey(actorUsername)
+      || normalizeUsernameKey(entry.username_key) === normalizeUsernameKey(actorUsername)
+    )
+  );
+  if (!member) throw createError('只有已接受契约成员可以记录剧情拆分', 403);
+
+  contract.separation_previews = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.map(normalizeSeparationPreview)
+    : [];
+  contract.separation_execution_ledger = Array.isArray(contract.separation_execution_ledger)
+    ? contract.separation_execution_ledger.map(normalizeSeparationExecutionLedgerEntry)
+    : [];
+  const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
+  if (previewIndex < 0) throw createError('分居预览不存在', 404);
+
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const executionRequest = preview.confirmation_state.execution_request || {};
+  if (!['shared_warehouse_returned', 'family_story_resolved'].includes(String(executionRequest.status || ''))) {
+    throw createError('请先返还共同仓库，再记录剧情拆分', 409);
+  }
+  const ledgerIndex = contract.separation_execution_ledger.findIndex(entry =>
+    entry.id === (storyPayload.execution_ledger_id || executionRequest.execution_ledger_id)
+    || (entry.preview_id === normalizedPreviewId && ['shared_warehouse_returned', 'family_story_resolved'].includes(entry.status))
+  );
+  if (ledgerIndex < 0) throw createError('分居返还执行记录不存在，请重新记录返还执行', 409);
+  const ledger = normalizeSeparationExecutionLedgerEntry(contract.separation_execution_ledger[ledgerIndex]);
+  if (storyPayload.execution_ledger_id && storyPayload.execution_ledger_id !== ledger.id) throw createError('分居返还执行记录不匹配，请刷新后重试', 409);
+  if (ledger.family_story_resolution_idempotency_key === storyPayload.idempotency_key || ledger.family_story_resolved === true) {
+    return {
+      contract: toPublicContract(contract),
+      preview,
+      idempotent: true,
+      already_resolved: ledger.family_story_resolved === true,
+      execution_ledger: ledger,
+      story_resolution: ledger.family_story_resolution,
+    };
+  }
+
+  const manifest = Array.isArray(preview.asset_return?.plot_return_manifest) ? preview.asset_return.plot_return_manifest : [];
+  const expectedManifestHash = sanitizeText(preview.asset_return?.plot_return_manifest_hash, 100) || hashPlotReturnManifest(manifest);
+  if (!expectedManifestHash || !/^[a-f0-9]{64}$/i.test(expectedManifestHash)) throw createError('分居来源田区清单缺少可校验 hash，请重新生成预览', 409);
+  if (storyPayload.plot_return_manifest_hash && storyPayload.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('分居来源田区清单 hash 不匹配，请重新生成预览，避免剧情拆分错账', 409);
+  }
+  if (ledger.plot_return_manifest_hash && ledger.plot_return_manifest_hash !== expectedManifestHash) {
+    throw createError('分居返还执行记录与当前预览 hash 不一致，请人工复核', 409);
+  }
+  if (ledger.shared_warehouse_returned !== true) throw createError('共同仓库尚未返还，不能记录剧情拆分', 409);
+
+  const relationDef = RELATION_TYPE_DEFS[contract.type] || {};
+  const familyStoryResolvedAt = nowSeconds();
+  const childArrangementRequired = ['marriage_home'].includes(contract.type)
+    && (contract.family_state?.has_children === true || contract.family_state?.child_count > 0);
+  const personalStoryWriteRequired = ['lover_cohabitation', 'marriage_home', 'bosom_partner'].includes(contract.type);
+  const storyResolution = {
+    relation_type: contract.type,
+    relation_label: relationDef.label || contract.type,
+    resolution_choice: storyPayload.resolution_choice,
+    story_state: personalStoryWriteRequired ? 'personal_story_write_pending' : 'contract_story_closed',
+    personal_story_write_required: personalStoryWriteRequired,
+    child_arrangement_required: childArrangementRequired,
+    privacy_boundary: '仅在共同契约记录分居剧情拆分状态；个人 NPC、孩子、恋爱和家庭存档不在联机契约中公开或自动改写。',
+    memo: storyPayload.memo,
+  };
+  const nextRequiredOperations = ['split_decorations'];
+  if (childArrangementRequired) nextRequiredOperations.push('resolve_child_arrangement');
+  if (personalStoryWriteRequired) nextRequiredOperations.push('write_personal_story_receipts');
+
+  const nextLedger = normalizeSeparationExecutionLedgerEntry({
+    ...ledger,
+    status: 'family_story_resolved',
+    family_story_resolved: true,
+    family_story_resolution_idempotency_key: storyPayload.idempotency_key,
+    family_story_resolved_at: familyStoryResolvedAt,
+    family_story_resolved_by: member.username,
+    family_story_resolution: storyResolution,
+    next_required_operations: nextRequiredOperations,
+  });
+  const nextExecutionRequest = {
+    ...executionRequest,
+    status: 'family_story_resolved',
+    family_story_resolved: true,
+    family_story_resolved_at: familyStoryResolvedAt,
+    family_story_resolved_by: member.username,
+    family_story_resolution: storyResolution,
+    next_required_operations: nextLedger.next_required_operations,
+  };
+  const nextPreview = normalizeSeparationPreview({
+    ...preview,
+    asset_return: {
+      ...preview.asset_return,
+      family_story_resolved: true,
+      family_story_resolved_at: familyStoryResolvedAt,
+      family_story_resolution: storyResolution,
+    },
+    confirmation_state: {
+      ...preview.confirmation_state,
+      execution_request: nextExecutionRequest,
+      family_story_resolved: true,
+      family_story_resolved_at: familyStoryResolvedAt,
+      can_execute_now: false,
+      execution_enabled: false,
+      execution_policy: '分居剧情拆分已记录在共同契约；个人剧情、孩子安排和装饰 / 建筑拆分仍由后续独立接口处理。',
+    },
+    deferred_operations: nextLedger.next_required_operations,
+  });
+
+  contract.separation_execution_ledger[ledgerIndex] = nextLedger;
+  contract.separation_previews[previewIndex] = nextPreview;
+  appendAudit(contract, 'separation_family_story_resolved', actor, {
+    preview_id: nextPreview.id,
+    execution_ledger_id: nextLedger.id,
+    plot_return_manifest_hash: expectedManifestHash,
+    relation_type: storyResolution.relation_type,
+    resolution_choice: storyResolution.resolution_choice,
+    personal_story_write_required: storyResolution.personal_story_write_required,
+    child_arrangement_required: storyResolution.child_arrangement_required,
+    privacy_boundary: storyResolution.privacy_boundary,
+    next_required_operations: nextLedger.next_required_operations,
+  }, storyPayload.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    preview: nextPreview,
+    idempotent: false,
+    already_resolved: false,
+    execution_ledger: nextLedger,
+    story_resolution: storyResolution,
+  };
+}
+
 module.exports = {
   RELATION_TYPE_DEFS,
   listCohabitationContracts,
@@ -8330,4 +8508,5 @@ module.exports = {
   writeSeparationPersonalFarmReturns,
   refundSeparationSharedFund,
   returnSeparationSharedWarehouse,
+  resolveSeparationFamilyStory,
 };

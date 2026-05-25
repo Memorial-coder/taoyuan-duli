@@ -2081,6 +2081,51 @@ assert.equal(duplicateSharedWarehouseReturn.warehouse.items.find(item => item.it
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawAfterSharedWarehouseReturn, 'idempotent shared warehouse return should not rewrite owner save again')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawAfterSharedWarehouseReturn, 'idempotent shared warehouse return should not rewrite partner save again')
 
+await assert.rejects(
+  () => runtime.resolveSeparationFamilyStory(created.contract.id, previewResult.preview.id, {
+    memo: 'wrong family story hash',
+    plot_return_manifest_hash: 'c'.repeat(64),
+    execution_ledger_id: assetReturnRecord.execution_ledger.id,
+    idempotency_key: 'qa-separation-family-story-wrong-hash',
+  }, actor(owner)),
+  /hash 不匹配/,
+  'family story resolution should reject mismatched manifest hash'
+)
+
+const ownerRawBeforeFamilyStoryResolution = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeFamilyStoryResolution = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const familyStoryResolution = await runtime.resolveSeparationFamilyStory(created.contract.id, previewResult.preview.id, {
+  memo: 'record family story split placeholder',
+  resolution_choice: 'peaceful_separation',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-family-story-resolution',
+}, actor(owner))
+assert.equal(familyStoryResolution.idempotent, false, 'first family story resolution should not be idempotent')
+assert.equal(familyStoryResolution.execution_ledger.status, 'family_story_resolved', 'family story resolution should advance execution ledger status')
+assert.equal(familyStoryResolution.execution_ledger.family_story_resolved, true, 'family story resolution should mark ledger resolved')
+assert.equal(familyStoryResolution.preview.confirmation_state.execution_request.status, 'family_story_resolved', 'execution request should advance to family-story-resolved')
+assert.equal(familyStoryResolution.story_resolution.relation_type, 'lover_cohabitation', 'family story resolution should keep relation type')
+assert.equal(familyStoryResolution.story_resolution.personal_story_write_required, true, 'lover cohabitation should keep personal story write boundary')
+assert.equal(familyStoryResolution.story_resolution.child_arrangement_required, false, 'lover cohabitation should not require child arrangement in contract store')
+assert.ok(familyStoryResolution.execution_ledger.next_required_operations.includes('split_decorations'), 'family story resolution should keep decoration split as next operation')
+assert.ok(familyStoryResolution.execution_ledger.next_required_operations.includes('write_personal_story_receipts'), 'family story resolution should keep personal story receipt follow-up')
+assert.ok(familyStoryResolution.contract.audit_log.find(entry => entry.action === 'separation_family_story_resolved' && entry.idempotency_key === 'qa-separation-family-story-resolution'), 'family story resolution should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyStoryResolution, 'family story resolution should not rewrite owner personal save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyStoryResolution, 'family story resolution should not rewrite partner personal save')
+
+const duplicateFamilyStoryResolution = await runtime.resolveSeparationFamilyStory(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate family story split placeholder',
+  resolution_choice: 'peaceful_separation',
+  plot_return_manifest_hash: previewResult.preview.asset_return.plot_return_manifest_hash,
+  execution_ledger_id: assetReturnRecord.execution_ledger.id,
+  idempotency_key: 'qa-separation-family-story-resolution',
+}, actor(owner))
+assert.equal(duplicateFamilyStoryResolution.idempotent, true, 'same family story resolution idempotency key should return existing record')
+assert.equal(duplicateFamilyStoryResolution.execution_ledger.id, familyStoryResolution.execution_ledger.id, 'idempotent family story resolution should keep ledger id')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeFamilyStoryResolution, 'idempotent family story resolution should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeFamilyStoryResolution, 'idempotent family story resolution should not rewrite partner save')
+
 const partnerMoneyBeforeMediumFundTopUp = readGameplayData(partner)?.player?.money
 const fundBeforeMediumFundTopUp = await runtime.getCohabitationFund(created.contract.id, actor(owner))
 const mediumFundTopUp = await runtime.contributeCohabitationFund(created.contract.id, {
