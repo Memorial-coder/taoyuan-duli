@@ -1043,6 +1043,16 @@ await assert.rejects(
   'pending contracts should not accept fund spending'
 )
 await assert.rejects(
+  () => runtime.createCohabitationFundLargeSpendDraft(pendingContract.contract.id, {
+    amount: 1300,
+    purpose: 'family_building',
+    target_ref: 'family_building:pending_shared_granary:build',
+    idempotency_key: 'qa-pending-large-fund-draft',
+  }, actor(owner)),
+  error => error?.status === 409,
+  'pending contracts should not accept large fund spend drafts'
+)
+await assert.rejects(
   () => runtime.updateCohabitationPermissions(pendingContract.contract.id, {
     target_username: extra,
     permissions: {
@@ -1774,5 +1784,118 @@ const duplicateMediumFundSpend = await runtime.spendCohabitationFund(created.con
 assert.equal(duplicateMediumFundSpend.idempotent, true, 'same medium fund spend idempotency key should be idempotent')
 assert.equal(duplicateMediumFundSpend.fund.balance, 155, 'idempotent medium fund spend should not deduct balance twice')
 assert.equal(readGameplayData(owner)?.player?.money, ownerMoneyBeforeMediumFundSpend, 'idempotent medium fund spend should still not touch personal money')
+
+const largeOwner = 'cohabit_lg_owner25'
+const largePartner = 'cohabit_lg_partner25'
+const largeOwnerRegister = await db.registerUser(largeOwner, 'SmokePass_0525', 'large fund owner')
+const largePartnerRegister = await db.registerUser(largePartner, 'SmokePass_0525', 'large fund partner')
+assert.equal(largeOwnerRegister.ok, true, 'large fund owner QA user should register')
+assert.equal(largePartnerRegister.ok, true, 'large fund partner QA user should register')
+seedSave(largeOwner)
+seedSave(largePartner)
+const largeFriendRequest = await socialRuntime.requestFriendship(largeOwner, { target_username: largePartner })
+await socialRuntime.acceptFriendRequest(largePartner, largeFriendRequest.id)
+const largeContract = await runtime.createCohabitationContract({
+  type: 'lover_cohabitation',
+  target_username: largePartner,
+  idempotency_key: 'qa-large-fund-contract',
+}, actor(largeOwner))
+await runtime.acceptCohabitationContract(largeContract.contract.id, actor(largePartner))
+
+const largeFundBeforePermission = await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))
+assert.equal(largeFundBeforePermission.fund.summary.large_spend_draft_enabled, false, 'large fund draft should require explicit spend_large permission')
+assert.equal(largeFundBeforePermission.fund.summary.large_spend_execution_enabled, false, 'large fund execution should stay disabled')
+assert.ok(largeFundBeforePermission.fund.summary.allowed_large_spend_purposes.some(purpose => purpose.id === 'family_building'), 'fund snapshot should expose family building large draft purpose')
+assert.ok(largeFundBeforePermission.fund.summary.allowed_large_spend_purposes.some(purpose => purpose.id === 'manor_expansion'), 'fund snapshot should expose manor expansion large draft purpose')
+
+const largeOwnerPermissionUpdate = await runtime.updateCohabitationPermissions(largeContract.contract.id, {
+  target_username: largeOwner,
+  permissions: {
+    fund: {
+      spend_large: true,
+    },
+  },
+  idempotency_key: 'qa-large-owner-spend-large-permission',
+}, actor(largeOwner))
+assert.equal(largeOwnerPermissionUpdate.permissions_panel.members.find(member => member.username === largeOwner)?.permissions.fund.spend_large, true, 'owner should be able to receive large fund draft permission')
+
+const largeOwnerMoneyBeforeTopUp = readGameplayData(largeOwner)?.player?.money
+const largeOwnerTopUp = await runtime.contributeCohabitationFund(largeContract.contract.id, {
+  amount: 700,
+  purpose: 'large building draft top up',
+  idempotency_key: 'qa-large-owner-fund-top-up',
+}, actor(largeOwner))
+assert.equal(largeOwnerTopUp.fund.balance, 700, 'owner large draft top up should increase shared balance')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeTopUp - 700, 'owner large draft top up should deduct personal money once')
+const largePartnerMoneyBeforeTopUp = readGameplayData(largePartner)?.player?.money
+const largePartnerTopUp = await runtime.contributeCohabitationFund(largeContract.contract.id, {
+  amount: 700,
+  purpose: 'large building draft top up',
+  idempotency_key: 'qa-large-partner-fund-top-up',
+}, actor(largePartner))
+assert.equal(largePartnerTopUp.fund.balance, 1400, 'partner large draft top up should prepare enough shared balance')
+assert.equal(readGameplayData(largePartner)?.player?.money, largePartnerMoneyBeforeTopUp - 700, 'partner large draft top up should deduct personal money once')
+
+await assert.rejects(
+  () => runtime.createCohabitationFundLargeSpendDraft(largeContract.contract.id, {
+    amount: 1300,
+    purpose: 'family_building',
+    target_ref: 'family_building:shared_granary:permission-denied',
+    idempotency_key: 'qa-large-partner-draft-denied',
+  }, actor(largePartner)),
+  error => error?.status === 403,
+  'members without spend_large should not create large fund drafts'
+)
+assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance, 1400, 'permission-denied large draft should not change shared balance')
+
+await assert.rejects(
+  () => runtime.spendCohabitationFund(largeContract.contract.id, {
+    amount: 1300,
+    purpose: 'family_building',
+    target_ref: 'family_building:shared_granary:direct-spend',
+    idempotency_key: 'qa-large-direct-spend-denied',
+  }, actor(largeOwner)),
+  error => error?.status === 403,
+  'large building spend should not bypass the draft endpoint through direct fund spending'
+)
+assert.equal((await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance, 1400, 'direct large spend rejection should not change shared balance')
+
+const balanceBeforeLargeDraft = (await runtime.getCohabitationFund(largeContract.contract.id, actor(largeOwner))).fund.balance
+const largeOwnerMoneyBeforeDraft = readGameplayData(largeOwner)?.player?.money
+const largeDraft = await runtime.createCohabitationFundLargeSpendDraft(largeContract.contract.id, {
+  amount: 1300,
+  purpose: 'family_building',
+  target_ref: 'family_building:shared_granary:build',
+  memo: 'qa large family building draft',
+  idempotency_key: 'qa-fund-large-building-draft',
+}, actor(largeOwner))
+assert.equal(largeDraft.idempotent, false, 'first large fund spend draft should not be idempotent')
+assert.equal(largeDraft.draft.confirmation_required, true, 'large fund draft should require confirmation')
+assert.equal(largeDraft.draft.confirmation_status, 'pending', 'large fund draft should wait for member confirmation')
+assert.equal(largeDraft.draft.state, 'pending_confirmation', 'large fund draft should stay in pending confirmation state')
+assert.deepEqual(largeDraft.draft.required_member_usernames.sort(), [largeOwner, largePartner].sort(), 'large fund draft should require both accepted members')
+assert.deepEqual(largeDraft.draft.confirmed_member_usernames, [largeOwner], 'large fund draft should auto-confirm requester only')
+assert.deepEqual(largeDraft.draft.pending_member_usernames, [largePartner], 'large fund draft should keep the other member pending')
+assert.equal(largeDraft.draft.confirmation_state.can_execute_now, false, 'large fund draft should not be executable immediately')
+assert.equal(largeDraft.draft.execution_enabled, false, 'large fund draft execution should stay disabled')
+assert.equal(largeDraft.shared_fund.deducted_amount, 0, 'large fund draft should not deduct shared fund')
+assert.equal(largeDraft.fund.balance, balanceBeforeLargeDraft, 'large fund draft should leave shared balance unchanged')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'large fund draft should not touch personal money')
+assert.ok(largeDraft.contract.audit_log.find(entry => entry.action === 'fund_large_spend_draft_created'), 'large fund draft should be audited')
+assert.equal(largeDraft.fund.summary.pending_large_spend_draft_count, 1, 'fund snapshot should count pending large drafts')
+assert.equal(largeDraft.fund.summary.large_spend_draft_enabled, true, 'fund snapshot should mark large draft creation as enabled for permitted actor')
+assert.equal(largeDraft.fund.summary.large_spend_execution_enabled, false, 'fund snapshot should keep large execution disabled after draft creation')
+assert.ok(largeDraft.fund.summary.allowed_large_spend_purposes.some(purpose => purpose.id === 'family_building'), 'fund snapshot should keep family building large draft purpose')
+
+const duplicateLargeDraft = await runtime.createCohabitationFundLargeSpendDraft(largeContract.contract.id, {
+  amount: 1300,
+  purpose: 'family_building',
+  target_ref: 'family_building:shared_granary:build',
+  idempotency_key: 'qa-fund-large-building-draft',
+}, actor(largeOwner))
+assert.equal(duplicateLargeDraft.idempotent, true, 'same large fund draft idempotency key should be idempotent')
+assert.equal(duplicateLargeDraft.draft.id, largeDraft.draft.id, 'idempotent large fund draft should return the original draft')
+assert.equal(duplicateLargeDraft.fund.balance, balanceBeforeLargeDraft, 'idempotent large fund draft should not deduct balance')
+assert.equal(readGameplayData(largeOwner)?.player?.money, largeOwnerMoneyBeforeDraft, 'idempotent large fund draft should not touch personal money')
 
 console.log('[qa-cohabitation-contract] OK')

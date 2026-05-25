@@ -4,6 +4,13 @@
 
 ## [未发布]
 
+### 0525 共同基金大额确认草案
+- 服务端新增 `fund_large_spend_drafts` 草案存储和 `/fund/large-spend-draft` 写接口，支持 `family_building` 大额家族建筑与 `manor_expansion` 大额庄园扩建。
+- 草案要求已激活契约成员、`fund.spend_large`、余额足够、金额超过中额上限、`target_ref`、`idempotency_key` 和强制双方确认安全阀。
+- 创建草案只写双方确认状态、待确认成员、余额快照、审计和暂缓执行项；不扣共同基金、不改个人铜币、不写建筑 ledger，重复幂等键返回原草案。
+- 游戏内百科新增“共同基金大额确认”词条，可搜索大额建筑、扩建、双方确认、`family_building`、`manor_expansion` 和 `spend_large`。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`、`npm --prefix server run qa:online-smoke`。
+
 ### 0525 共同基金中额前端入口与权限开关
 - 共同庄园基金页新增中额预算区，按服务端 `allowed_medium_spend_purposes` 显示加工材料和建材预算按钮。
 - 按钮继续复用 `/fund/spend`、CSRF、`idempotency_key`、余额、`medium_spend_enabled` 和 `can_spend_medium` 禁用；本轮只支出预算，不发物、不消耗真实材料、不改个人铜币。

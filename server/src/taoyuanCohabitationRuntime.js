@@ -29,6 +29,8 @@ const FUND_ORIGIN_LIMIT = 160;
 const FUND_MAX_CONTRIBUTION_AMOUNT = 999999;
 const FUND_MAX_SMALL_SPEND_AMOUNT = 300;
 const FUND_MAX_MEDIUM_SPEND_AMOUNT = 1200;
+const FUND_MAX_LARGE_SPEND_AMOUNT = 999999;
+const FUND_LARGE_SPEND_DRAFT_LIMIT = 30;
 const WAREHOUSE_LEDGER_LIMIT = 160;
 const WAREHOUSE_ORIGIN_LIMIT = 160;
 const WAREHOUSE_MAX_DEPOSIT_QUANTITY = 99;
@@ -99,6 +101,18 @@ const MEDIUM_FUND_SPEND_PURPOSES = Object.freeze({
     category: 'construction_material',
     max_amount: 1200,
     auto_pay_eligible: false,
+  },
+});
+const LARGE_FUND_SPEND_PURPOSES = Object.freeze({
+  family_building: {
+    label: '大额家族建筑',
+    category: 'family_building',
+    max_amount: 50000,
+  },
+  manor_expansion: {
+    label: '大额庄园扩建',
+    category: 'manor_expansion',
+    max_amount: 80000,
   },
 });
 const SHARED_FUND_AUTO_PURCHASE_CATALOG = Object.freeze({
@@ -1431,6 +1445,69 @@ function normalizeSeparationPreview(entry = {}) {
   };
 }
 
+function normalizeFundLargeSpendDraft(entry = {}) {
+  const requiredMemberUsernames = Array.isArray(entry.required_member_usernames)
+    ? entry.required_member_usernames.map(normalizeUsername).filter(Boolean)
+    : [];
+  const confirmedMemberUsernames = Array.isArray(entry.confirmed_member_usernames)
+    ? entry.confirmed_member_usernames.map(normalizeUsername).filter(Boolean)
+    : [];
+  const pendingMemberUsernames = Array.isArray(entry.pending_member_usernames)
+    ? entry.pending_member_usernames.map(normalizeUsername).filter(Boolean)
+    : requiredMemberUsernames.filter(username => !confirmedMemberUsernames.includes(username));
+  const rawConfirmationState = entry.confirmation_state && typeof entry.confirmation_state === 'object' && !Array.isArray(entry.confirmation_state)
+    ? entry.confirmation_state
+    : {};
+  return {
+    id: sanitizeText(entry.id, 80) || makeId('fund_large_spend_draft'),
+    contract_id: sanitizeText(entry.contract_id, 80),
+    state: ['pending_confirmation', 'ready_to_execute', 'expired', 'cancelled'].includes(entry.state)
+      ? entry.state
+      : 'pending_confirmation',
+    requested_by: normalizeUsername(entry.requested_by || entry.actor_username),
+    requested_by_key: normalizeUsernameKey(entry.requested_by_key || entry.requested_by || entry.actor_username),
+    amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
+    purpose: sanitizeText(entry.purpose, 80) || 'family_building',
+    purpose_label: sanitizeText(entry.purpose_label, 80),
+    spend_category: sanitizeText(entry.spend_category || entry.category, 80),
+    target_ref: sanitizeText(entry.target_ref || entry.target, 120),
+    memo: sanitizeText(entry.memo || entry.note, 160),
+    balance_snapshot: Math.max(0, Math.floor(Number(entry.balance_snapshot) || 0)),
+    projected_balance_after: Math.max(0, Math.floor(Number(entry.projected_balance_after) || 0)),
+    balance_sufficient: entry.balance_sufficient === true,
+    required_member_usernames: requiredMemberUsernames,
+    confirmed_member_usernames: confirmedMemberUsernames,
+    pending_member_usernames: pendingMemberUsernames,
+    confirmation_state: {
+      required_member_usernames: Array.isArray(rawConfirmationState.required_member_usernames)
+        ? rawConfirmationState.required_member_usernames.map(normalizeUsername).filter(Boolean)
+        : requiredMemberUsernames,
+      confirmed_member_usernames: Array.isArray(rawConfirmationState.confirmed_member_usernames)
+        ? rawConfirmationState.confirmed_member_usernames.map(normalizeUsername).filter(Boolean)
+        : confirmedMemberUsernames,
+      pending_member_usernames: Array.isArray(rawConfirmationState.pending_member_usernames)
+        ? rawConfirmationState.pending_member_usernames.map(normalizeUsername).filter(Boolean)
+        : pendingMemberUsernames,
+      requester_auto_confirmed: rawConfirmationState.requester_auto_confirmed !== false,
+      requires_all_members: rawConfirmationState.requires_all_members !== false,
+      can_execute_now: false,
+      execution_enabled: false,
+      policy: sanitizeText(rawConfirmationState.policy, 180) || '大额建筑 / 扩建支出必须先完成全部成员确认，执行扣款另走后续专用接口。',
+    },
+    created_at: Number(entry.created_at) || nowSeconds(),
+    expires_at: Number(entry.expires_at) || (nowSeconds() + 72 * 60 * 60),
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+    confirmation_required: true,
+    confirmation_status: sanitizeText(entry.confirmation_status, 40) || 'pending',
+    execution_enabled: false,
+    final_spend_ledger_id: sanitizeText(entry.final_spend_ledger_id, 80),
+    compensation_policy: sanitizeText(entry.compensation_policy, 180) || '草案阶段不扣基金；后续执行若失败必须按确认草案、基金 ledger 和建筑 ledger 重放或回滚。',
+    deferred_operations: Array.isArray(entry.deferred_operations)
+      ? entry.deferred_operations.map(item => sanitizeText(item, 80)).filter(Boolean)
+      : ['confirm_large_fund_spend', 'execute_large_fund_spend', 'building_ledger_write', 'fund_compensation_replay'],
+  };
+}
+
 function normalizeContract(entry = {}) {
   const type = normalizeRelationType(entry.type);
   const status = CONTRACT_STATUSES.has(entry.status) ? entry.status : 'pending_acceptance';
@@ -1471,6 +1548,9 @@ function normalizeContract(entry = {}) {
     },
     separation_previews: Array.isArray(entry.separation_previews)
       ? entry.separation_previews.map(normalizeSeparationPreview).slice(-10)
+      : [],
+    fund_large_spend_drafts: Array.isArray(entry.fund_large_spend_drafts)
+      ? entry.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft).slice(0, FUND_LARGE_SPEND_DRAFT_LIMIT)
       : [],
     created_by: normalizeUsername(entry.created_by),
     created_at: Number(entry.created_at) || nowSeconds(),
@@ -1525,6 +1605,9 @@ function toPublicContract(contract) {
     members: contract.members.map(member => ({ ...member })),
     shared_fund: normalizeSharedFund(contract.shared_fund),
     shared_warehouse: normalizeSharedWarehouse(contract.shared_warehouse),
+    fund_large_spend_drafts: Array.isArray(contract.fund_large_spend_drafts)
+      ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft).slice(0, FUND_LARGE_SPEND_DRAFT_LIMIT)
+      : [],
     permissions: Object.fromEntries(Object.entries(contract.permissions || {}).map(([key, value]) => [key, normalizePermissionSet(value, contract.type)])),
     audit_log: (contract.audit_log || []).map(entry => ({ ...entry })).slice(0, 20),
   };
@@ -3559,12 +3642,24 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
     max_amount: Math.min(FUND_MAX_MEDIUM_SPEND_AMOUNT, def.max_amount),
     auto_pay_eligible: def.auto_pay_eligible === true,
   }));
+  const allowedLargeSpendPurposes = Object.entries(LARGE_FUND_SPEND_PURPOSES).map(([id, def]) => ({
+    id,
+    label: def.label,
+    category: def.category,
+    max_amount: Math.min(FUND_MAX_LARGE_SPEND_AMOUNT, def.max_amount),
+    confirmation_required: true,
+  }));
+  const largeSpendDrafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft).slice(0, FUND_LARGE_SPEND_DRAFT_LIMIT)
+    : [];
+  const pendingLargeSpendDrafts = largeSpendDrafts.filter(draft => draft.state === 'pending_confirmation');
   return {
     contract_id: contract.id,
     shared_manor_id: contract.shared_manor_id,
     status: contract.status,
     balance: fund.balance,
     ledger: fund.ledger.slice(0, 50),
+    large_spend_drafts: largeSpendDrafts.slice(0, 20),
     summary: {
       balance: fund.balance,
       ledger_count: fund.ledger.length,
@@ -3574,13 +3669,18 @@ function buildSharedFundSnapshot(contract, actorUsername = '') {
       small_spend_enabled: contract.status === 'active' && actorPermissions.fund.spend_small === true,
       medium_spend_enabled: contract.status === 'active' && actorPermissions.fund.spend_medium === true,
       large_spend_enabled: false,
+      large_spend_draft_enabled: contract.status === 'active' && actorPermissions.fund.spend_large === true,
+      large_spend_execution_enabled: false,
       idempotency_required: true,
       large_spend_requires_both: actorPermissions.confirmations.large_fund_spend_requires_both === true,
       small_spend_max_amount: FUND_MAX_SMALL_SPEND_AMOUNT,
       medium_spend_max_amount: FUND_MAX_MEDIUM_SPEND_AMOUNT,
+      large_spend_max_amount: FUND_MAX_LARGE_SPEND_AMOUNT,
       allowed_small_spend_purposes: allowedSmallSpendPurposes,
       allowed_medium_spend_purposes: allowedMediumSpendPurposes,
-      compensation_policy: '第一版支持成员自愿注资、小额白名单支出和中额加工 / 建材预算，全部记录 ledger 与审计；误操作需按支出流水人工补偿，自动返还和大额确认待后续接入。',
+      allowed_large_spend_purposes: allowedLargeSpendPurposes,
+      pending_large_spend_draft_count: pendingLargeSpendDrafts.length,
+      compensation_policy: '第一版支持成员自愿注资、小额白名单支出、中额加工 / 建材预算和大额确认草案；大额草案不扣款，真实执行、建筑 ledger、自动返还和补偿重放待后续接入。',
     },
     permissions: {
       can_spend_small: actorPermissions.fund.spend_small === true,
@@ -3832,6 +3932,16 @@ function resolveFundSpendPurpose(purpose) {
   return null;
 }
 
+function resolveLargeFundSpendPurpose(purpose) {
+  if (!LARGE_FUND_SPEND_PURPOSES[purpose]) return null;
+  return {
+    ...LARGE_FUND_SPEND_PURPOSES[purpose],
+    tier: 'large',
+    max_amount: Math.min(FUND_MAX_LARGE_SPEND_AMOUNT, LARGE_FUND_SPEND_PURPOSES[purpose].max_amount),
+    permission_key: 'spend_large',
+  };
+}
+
 function normalizeFundSpendPayload(payload = {}) {
   const amount = Math.floor(Number(payload.amount) || 0);
   const purpose = sanitizeText(payload.purpose || payload.spend_purpose || payload.budget_type, 80) || 'seed_budget';
@@ -3859,6 +3969,30 @@ function normalizeFundSpendPayload(payload = {}) {
     target_ref: sanitizeText(payload.target_ref || payload.target_id || payload.order_id || payload.shop_item_id, 120),
     memo: sanitizeText(payload.memo, 160),
     save_slot: normalizeSaveSlot(payload.save_slot),
+  };
+}
+
+function normalizeLargeFundSpendDraftPayload(payload = {}) {
+  const amount = Math.floor(Number(payload.amount) || 0);
+  const purpose = sanitizeText(payload.purpose || payload.spend_purpose || payload.budget_type, 80) || 'family_building';
+  const purposeDef = resolveLargeFundSpendPurpose(purpose);
+  if (!purposeDef) throw createError('共同基金大额确认草案当前只支持家族建筑或庄园扩建用途', 403);
+  if (amount <= FUND_MAX_MEDIUM_SPEND_AMOUNT) throw createError(`大额共同基金确认草案金额必须超过 ${FUND_MAX_MEDIUM_SPEND_AMOUNT}`);
+  if (amount > purposeDef.max_amount) throw createError(`该大额共同基金用途单次确认不能超过 ${purposeDef.max_amount}`);
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('共同基金大额确认草案需要 idempotency_key，以防断线或重试时重复生成');
+  const targetRef = sanitizeText(payload.target_ref || payload.target_id || payload.building_id || payload.expansion_id, 120);
+  if (!targetRef) throw createError('共同基金大额确认草案需要 target_ref 记录建筑或扩建目标');
+  return {
+    amount,
+    idempotency_key: idempotencyKey,
+    purpose,
+    purpose_label: purposeDef.label,
+    spend_category: purposeDef.category,
+    spend_tier: purposeDef.tier,
+    permission_key: purposeDef.permission_key,
+    target_ref: targetRef,
+    memo: sanitizeText(payload.memo || payload.note, 160),
   };
 }
 
@@ -5308,6 +5442,130 @@ async function spendCohabitationFund(contractId, payload = {}, actor = {}) {
   };
 }
 
+function buildLargeFundSpendConfirmationState(contract, actorUsername) {
+  const requiredMemberUsernames = (contract.members || [])
+    .filter(member => member.status === 'accepted')
+    .map(member => member.username);
+  const requesterUsername = normalizeUsername(actorUsername);
+  const confirmedMemberUsernames = requiredMemberUsernames.includes(requesterUsername)
+    ? [requesterUsername]
+    : [];
+  const pendingMemberUsernames = requiredMemberUsernames.filter(username => !confirmedMemberUsernames.includes(username));
+  return {
+    required_member_usernames: requiredMemberUsernames,
+    confirmed_member_usernames: confirmedMemberUsernames,
+    pending_member_usernames: pendingMemberUsernames,
+    requester_auto_confirmed: confirmedMemberUsernames.length > 0,
+    requires_all_members: true,
+    can_execute_now: false,
+    execution_enabled: false,
+    policy: '大额建筑 / 扩建支出必须先完成全部成员确认，执行扣款另走后续专用接口。',
+  };
+}
+
+async function createCohabitationFundLargeSpendDraft(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const draftRequest = normalizeLargeFundSpendDraftPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '发起共同基金大额确认草案');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  if (actorPermissions.fund.spend_large !== true) throw createError('你没有发起共同基金大额建筑或扩建确认草案的权限', 403);
+  if (actorPermissions.confirmations.large_fund_spend_requires_both !== true) {
+    throw createError('共同基金大额支出必须保持双方确认安全阀', 409);
+  }
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
+    : [];
+  const existingDraft = contract.fund_large_spend_drafts.find(entry => entry.idempotency_key === draftRequest.idempotency_key);
+  if (existingDraft) {
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      draft: existingDraft,
+      idempotent: true,
+      shared_fund: {
+        balance_before: existingDraft.balance_snapshot,
+        projected_balance_after: existingDraft.projected_balance_after,
+        deducted_amount: 0,
+        personal_money_merged: false,
+        confirmation_required: true,
+        execution_enabled: false,
+      },
+    };
+  }
+
+  const beforeBalance = Math.max(0, Math.floor(Number(contract.shared_fund.balance) || 0));
+  if (beforeBalance < draftRequest.amount) throw createError('共同基金余额不足，暂时不能发起大额建筑或扩建确认草案');
+  const confirmationState = buildLargeFundSpendConfirmationState(contract, actorUsername);
+  if (confirmationState.required_member_usernames.length < 2) throw createError('大额共同基金支出至少需要两名已接受成员确认', 409);
+  const createdAt = nowSeconds();
+  const draft = normalizeFundLargeSpendDraft({
+    id: makeId('fund_large_spend_draft'),
+    contract_id: contract.id,
+    state: 'pending_confirmation',
+    requested_by: actorUsername,
+    requested_by_key: member.username_key,
+    amount: draftRequest.amount,
+    purpose: draftRequest.purpose,
+    purpose_label: draftRequest.purpose_label,
+    spend_category: draftRequest.spend_category,
+    target_ref: draftRequest.target_ref,
+    memo: draftRequest.memo,
+    balance_snapshot: beforeBalance,
+    projected_balance_after: beforeBalance - draftRequest.amount,
+    balance_sufficient: true,
+    required_member_usernames: confirmationState.required_member_usernames,
+    confirmed_member_usernames: confirmationState.confirmed_member_usernames,
+    pending_member_usernames: confirmationState.pending_member_usernames,
+    confirmation_state: confirmationState,
+    created_at: createdAt,
+    expires_at: createdAt + 72 * 60 * 60,
+    idempotency_key: draftRequest.idempotency_key,
+    confirmation_required: true,
+    confirmation_status: 'pending',
+    execution_enabled: false,
+  });
+
+  contract.fund_large_spend_drafts = [draft, ...contract.fund_large_spend_drafts].slice(0, FUND_LARGE_SPEND_DRAFT_LIMIT);
+  appendAudit(contract, 'fund_large_spend_draft_created', actor, {
+    draft_id: draft.id,
+    amount: draft.amount,
+    purpose: draft.purpose,
+    purpose_label: draft.purpose_label,
+    spend_category: draft.spend_category,
+    target_ref: draft.target_ref,
+    balance_snapshot: draft.balance_snapshot,
+    projected_balance_after: draft.projected_balance_after,
+    required_member_usernames: draft.required_member_usernames,
+    confirmed_member_usernames: draft.confirmed_member_usernames,
+    pending_member_usernames: draft.pending_member_usernames,
+    confirmation_required: true,
+    execution_enabled: false,
+    personal_money_merged: false,
+    fund_ledger_written: false,
+  }, draftRequest.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    draft,
+    idempotent: false,
+    shared_fund: {
+      balance_before: beforeBalance,
+      projected_balance_after: draft.projected_balance_after,
+      deducted_amount: 0,
+      personal_money_merged: false,
+      confirmation_required: true,
+      execution_enabled: false,
+    },
+  };
+}
+
 async function createCohabitationContract(payload = {}, actor = {}) {
   const actorUsername = normalizeUsername(actor.username);
   if (!actorUsername) throw createError('请先登录', 401);
@@ -5562,6 +5820,7 @@ module.exports = {
   creditCohabitationOrderIncome,
   contributeCohabitationFund,
   spendCohabitationFund,
+  createCohabitationFundLargeSpendDraft,
   updateCohabitationPermissions,
   updateCohabitationFamilyRole,
   createCohabitationContract,
