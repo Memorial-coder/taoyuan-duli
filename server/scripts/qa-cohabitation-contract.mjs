@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdir, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
@@ -9,6 +9,7 @@ const __dirname = path.dirname(__filename)
 const serverRoot = path.resolve(__dirname, '..')
 const tempDir = path.resolve(serverRoot, '.tmp-cohabitation-contract')
 const storageFile = path.join(tempDir, '.storage.json')
+const contractStoreFile = path.join(tempDir, 'taoyuan_cohabitation_contracts.json')
 
 await rm(tempDir, { recursive: true, force: true })
 await mkdir(tempDir, { recursive: true })
@@ -151,6 +152,16 @@ const seedSave = username => {
 const readGameplayData = username => {
   const raw = saveRuntime.loadUserSaveSlots(username).slots[0].raw
   return saveRuntime.normalizeGameplaySaveContainer(saveRuntime.decryptTaoyuanRaw(raw))?.gameplayData
+}
+
+const mutateStoredSeparationPreview = async (contractId, previewId, mutate) => {
+  const raw = JSON.parse(await readFile(contractStoreFile, 'utf8'))
+  const contract = raw.contracts.find(entry => entry.id === contractId)
+  assert.ok(contract, 'contract should exist in cohabitation store')
+  const preview = contract.separation_previews.find(entry => entry.id === previewId)
+  assert.ok(preview, 'separation preview should exist in cohabitation store')
+  mutate(preview)
+  await writeFile(contractStoreFile, `${JSON.stringify(raw, null, 2)}\n`, 'utf8')
 }
 
 const getInventoryItemQuantity = (username, itemId, quality = 'normal') => {
@@ -1811,6 +1822,62 @@ assert.equal(partnerPreviewConfirm.preview.manual_execution_required, true, 'con
 assert.equal(partnerPreviewConfirm.preview.asset_return.plot_return_manifest_hash, previewResult.preview.asset_return.plot_return_manifest_hash, 'confirmed separation preview should keep manifest hash')
 assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforePreviewConfirm, 'partner separation preview confirmation should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforePreviewConfirm, 'partner separation preview confirmation should not rewrite partner save')
+
+await assert.rejects(
+  () => runtime.requestSeparationExecution(created.contract.id, previewResult.preview.id, {
+    memo: 'too early execution request',
+    idempotency_key: 'qa-separation-execution-too-early',
+  }, actor(owner)),
+  /冷静期/,
+  'separation execution request should reject before cooldown ends'
+)
+
+await mutateStoredSeparationPreview(created.contract.id, previewResult.preview.id, preview => {
+  const now = Math.floor(Date.now() / 1000)
+  preview.confirm_after_at = now - 60
+  preview.expires_at = now + 3600
+  preview.confirmation_state = {
+    ...(preview.confirmation_state || {}),
+    confirm_after_at: now - 60,
+    expires_at: now + 3600,
+    can_execute_now: false,
+    execution_enabled: false,
+  }
+})
+const ownerRawBeforeExecutionRequest = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeExecutionRequest = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+const executionRequest = await runtime.requestSeparationExecution(created.contract.id, previewResult.preview.id, {
+  memo: 'cooldown passed request only',
+  idempotency_key: 'qa-separation-execution-request',
+}, actor(owner))
+assert.equal(executionRequest.idempotent, false, 'first separation execution request should not be idempotent')
+assert.equal(executionRequest.preview.id, previewResult.preview.id, 'separation execution request should keep preview id')
+assert.equal(executionRequest.preview.state, 'confirmed', 'separation execution request should keep confirmed preview state')
+assert.equal(executionRequest.preview.confirmation_state.can_execute_now, true, 'separation execution request should mark cooldown and confirmations satisfied')
+assert.equal(executionRequest.preview.confirmation_state.execution_enabled, false, 'separation execution request should not enable asset return execution')
+assert.equal(executionRequest.execution_request.status, 'pending_manual_execution', 'separation execution request should remain pending manual execution')
+assert.equal(executionRequest.execution_request.asset_return_executed, false, 'separation execution request should not execute asset return')
+assert.equal(executionRequest.execution_request.personal_save_written, false, 'separation execution request should not write personal saves')
+assert.ok(executionRequest.execution_request.next_required_operations.includes('execute_asset_return'), 'separation execution request should list remaining asset return operation')
+assert.equal(executionRequest.preview.asset_return.plot_return_manifest_hash, previewResult.preview.asset_return.plot_return_manifest_hash, 'separation execution request should preserve manifest hash')
+assert.ok(executionRequest.contract.audit_log.find(entry => entry.action === 'separation_execution_requested' && entry.idempotency_key === 'qa-separation-execution-request'), 'separation execution request should be audited')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeExecutionRequest, 'separation execution request should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeExecutionRequest, 'separation execution request should not rewrite partner save')
+
+const duplicateExecutionRequest = await runtime.requestSeparationExecution(created.contract.id, previewResult.preview.id, {
+  memo: 'duplicate cooldown passed request only',
+  idempotency_key: 'qa-separation-execution-request',
+}, actor(owner))
+assert.equal(duplicateExecutionRequest.idempotent, true, 'same separation execution request idempotency key should return existing request')
+assert.equal(duplicateExecutionRequest.preview.confirmation_state.execution_request.id, executionRequest.execution_request.id, 'idempotent separation execution request should keep request id')
+
+const alreadyRequestedExecution = await runtime.requestSeparationExecution(created.contract.id, previewResult.preview.id, {
+  memo: 'already requested by partner with another key',
+  idempotency_key: 'qa-separation-execution-request-partner-again',
+}, actor(partner))
+assert.equal(alreadyRequestedExecution.idempotent, true, 'existing separation execution request should prevent duplicate request with new key')
+assert.equal(alreadyRequestedExecution.already_requested, true, 'existing separation execution request should be flagged')
+assert.equal(alreadyRequestedExecution.execution_request.id, executionRequest.execution_request.id, 'existing separation execution request should return original request id')
 
 const partnerMoneyBeforeMediumFundTopUp = readGameplayData(partner)?.player?.money
 const mediumFundTopUp = await runtime.contributeCohabitationFund(created.contract.id, {

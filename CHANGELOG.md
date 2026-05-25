@@ -2,6 +2,7 @@
 
 最后整理：2026-05-25
 
+- 分居执行请求安全阀接入：共同庄园新增 `/separation-previews/:previewId/request-execution`，要求双方确认、冷静期结束、预览未过期和幂等键；成功后只写 `pending_manual_execution` 请求、审计和剩余操作清单，不执行资产返还、不写个人存档、不改变契约资产。`qa:cohabitation-contract` 覆盖冷静期拒绝、请求幂等、换人重复请求和个人存档不变。
 - 分居预览双方确认记录接入：共同庄园新增 `/separation-previews/:previewId/confirm` 幂等确认接口和前端“确认预览”入口；单方确认只记录事件与待确认成员，双方确认后预览进入 `confirmed`，仍保持 `execution_enabled=false`，不执行资产返还、不写个人存档、不合并个人铜币。`qa:cohabitation-contract` 覆盖重复确认、双方确认、审计、manifest hash 稳定和个人存档不变。
 - 分居来源田区预览增强：共同庄园分居预览新增逐地块 `plot_return_manifest` 与 manifest hash，记录返还目标、来源存档、源地块 ID、共享地图坐标和地块状态快照；`qa:cohabitation-contract` 验证双方 32 块来源田区完整、作物状态保留、重复预览 hash 稳定且不写回个人存档。
 - 活动结算凭证重复发奖回归：`qa:activity-room-visual-state` 为端午赛舟结算玩家种临时服务端存档，首次关闭房间落账后模拟同一凭证补偿重放，并通过管理端结算重试断言个人铜钱、节会票券、终身票券、纪念册、装饰和 `appliedReceipts` 幂等键都不重复增加。

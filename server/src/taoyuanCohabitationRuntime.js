@@ -4155,6 +4155,15 @@ function normalizeSeparationPreviewConfirmPayload(payload = {}) {
   };
 }
 
+function normalizeSeparationExecutionRequestPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('分居执行请求需要 idempotency_key，以防断线或重试时重复创建执行请求');
+  return {
+    idempotency_key: idempotencyKey,
+    memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
 function normalizeLargeFundSpendExecutePayload(payload = {}) {
   const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
   if (!idempotencyKey) throw createError('共同基金大额草案执行扣款需要 idempotency_key，以防断线或重试时重复扣基金');
@@ -7048,6 +7057,124 @@ async function confirmSeparationPreview(contractId, previewId, payload = {}, act
   };
 }
 
+async function requestSeparationExecution(contractId, previewId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const requestPayload = normalizeSeparationExecutionRequestPayload(payload);
+  const normalizedContractId = sanitizeText(contractId, 80);
+  const normalizedPreviewId = sanitizeText(previewId || payload.preview_id || payload.id, 80);
+  if (!normalizedPreviewId) throw createError('请指定要请求执行的分居预览');
+
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === normalizedContractId);
+  if (!contract) throw createError('同居契约不存在', 404);
+  if (!contractBelongsToUser(contract, actorUsername)) throw createError('你不在这份契约中', 403);
+  if (!['active', 'separation_pending'].includes(contract.status)) throw createError('只有已生效或分居处理中的契约可以请求分居执行', 409);
+
+  const member = (contract.members || []).find(entry =>
+    entry.status === 'accepted' && (
+      normalizeUsernameKey(entry.username) === normalizeUsernameKey(actorUsername)
+      || normalizeUsernameKey(entry.username_key) === normalizeUsernameKey(actorUsername)
+    )
+  );
+  if (!member) throw createError('只有已接受契约成员可以请求分居执行', 403);
+
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.separation_previews = Array.isArray(contract.separation_previews)
+    ? contract.separation_previews.map(normalizeSeparationPreview)
+    : [];
+  const previewIndex = contract.separation_previews.findIndex(entry => entry.id === normalizedPreviewId);
+  if (previewIndex < 0) throw createError('分居预览不存在', 404);
+
+  const previousAudit = (contract.audit_log || []).find(entry =>
+    entry.action === 'separation_execution_requested'
+    && entry.idempotency_key === requestPayload.idempotency_key
+    && entry.detail?.preview_id === normalizedPreviewId
+  );
+  if (previousAudit) {
+    return {
+      contract: toPublicContract(contract),
+      preview: normalizeSeparationPreview(contract.separation_previews[previewIndex]),
+      idempotent: true,
+      audit_entry: previousAudit,
+    };
+  }
+
+  const preview = normalizeSeparationPreview(contract.separation_previews[previewIndex]);
+  const now = nowSeconds();
+  if (preview.expires_at > 0 && preview.expires_at <= now) throw createError('分居预览已过期，请重新生成预览', 409);
+  if (preview.state !== 'confirmed' || preview.confirmation_state.all_members_confirmed !== true) {
+    throw createError('分居预览必须双方确认后才能请求执行', 409);
+  }
+  if (now < preview.confirm_after_at) throw createError('分居冷静期尚未结束，不能请求执行返还', 409);
+  if (preview.confirmation_state.execution_request?.status === 'pending_manual_execution') {
+    return {
+      contract: toPublicContract(contract),
+      preview,
+      idempotent: true,
+      already_requested: true,
+      execution_request: preview.confirmation_state.execution_request,
+    };
+  }
+
+  const executionRequest = {
+    id: makeId('separation_execution_request'),
+    status: 'pending_manual_execution',
+    requested_by: member.username,
+    requested_at: now,
+    idempotency_key: requestPayload.idempotency_key,
+    memo: requestPayload.memo,
+    asset_return_executed: false,
+    personal_save_written: false,
+    execution_enabled: false,
+    next_required_operations: [
+      'execute_asset_return',
+      'write_personal_save_refunds',
+      'split_decorations',
+      'resolve_family_story',
+    ],
+  };
+  const nextPreview = normalizeSeparationPreview({
+    ...preview,
+    confirmation_state: {
+      ...preview.confirmation_state,
+      can_execute_now: true,
+      ready_for_execution_request: true,
+      execution_request: executionRequest,
+      execution_requested_at: now,
+      execution_requested_by: member.username,
+      execution_enabled: false,
+      execution_policy: '已通过双方确认和冷静期校验；本请求只进入待人工执行状态，真实返还和个人存档写回仍需后续独立接口。',
+    },
+    manual_execution_required: true,
+    requires_both_confirm: true,
+  });
+
+  contract.separation_previews[previewIndex] = nextPreview;
+  appendAudit(contract, 'separation_execution_requested', actor, {
+    preview_id: nextPreview.id,
+    preview_version: nextPreview.version,
+    execution_request_id: executionRequest.id,
+    all_members_confirmed: true,
+    cooldown_passed: true,
+    can_execute_now: true,
+    execution_enabled: false,
+    asset_return_executed: false,
+    personal_save_written: false,
+    next_required_operations: executionRequest.next_required_operations,
+  }, requestPayload.idempotency_key);
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    preview: nextPreview,
+    idempotent: false,
+    already_requested: false,
+    execution_request: executionRequest,
+  };
+}
+
 module.exports = {
   RELATION_TYPE_DEFS,
   listCohabitationContracts,
@@ -7080,4 +7207,5 @@ module.exports = {
   acceptCohabitationContract,
   createSeparationPreview,
   confirmSeparationPreview,
+  requestSeparationExecution,
 };

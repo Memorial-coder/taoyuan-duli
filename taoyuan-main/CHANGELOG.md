@@ -4,6 +4,11 @@
 
 ## [未发布]
 
+### 0525 分居执行请求安全阀
+- 共同庄园新增分居执行请求接口 `/separation-previews/:previewId/request-execution`，要求预览已双方确认、冷静期结束、预览未过期并携带 `idempotency_key`。
+- 成功后只写 `pending_manual_execution` 请求、审计和剩余操作清单；不执行资产返还、不写个人存档、不改变共同资产，重复幂等键或换人重复请求不会重复创建。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`。
+
 ### 0525 分居预览双方确认记录
 - 共同庄园新增分居预览确认接口 `/separation-previews/:previewId/confirm`，已接受契约成员需带 `idempotency_key` 确认；重复请求不追加确认事件，已确认成员换键重试也不会重复写入。
 - 共同庄园总览新增“确认预览”入口，展示已确认 / 待确认成员；双方确认后预览进入 `confirmed`，但仍不执行资产返还、不写个人存档、不合并个人铜币。
