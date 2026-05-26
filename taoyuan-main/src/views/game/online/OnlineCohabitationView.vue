@@ -3078,6 +3078,7 @@
     if (!/^[a-z0-9_:-]{1,80}$/i.test(childKey)) return false
     if (
       candidatePath === 'home.homeRenovationStates' ||
+      candidatePath === 'home.farmhouseLevel' ||
       candidatePath === 'home.caveChoice' ||
       candidatePath === 'home.caveUnlocked' ||
       candidatePath === 'home.cellarSlots' ||

@@ -5786,6 +5786,70 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
     };
   }
 
+  if (candidatePath === 'home.farmhouseLevel') {
+    if (!data.home || typeof data.home !== 'object') data.home = {};
+    if (!/^\d+$/.test(childKey)) {
+      throw createError('个人农舍等级目标必须是当前等级数字', 409);
+    }
+    const currentLevel = Math.max(0, Math.floor(Number(data.home.farmhouseLevel) || 0));
+    const targetLevel = Number(childKey);
+    if (![1, 2, 3].includes(targetLevel) || targetLevel !== currentLevel) {
+      throw createError('个人农舍等级目标与当前存档等级不一致，不能执行真实降级', 409);
+    }
+    const nextLevel = currentLevel - 1;
+    const cellarSlotCount = Array.isArray(data.home.cellarSlots) ? data.home.cellarSlots.length : 0;
+    if (currentLevel >= 3 && cellarSlotCount > 0) {
+      throw createError('个人酒窖仍有陈酿槽，不能降级农舍等级', 409);
+    }
+    const renovationRequirements = {
+      scholar_room: 2,
+      tea_corner: 2,
+      ancestral_display_wall: 3,
+    };
+    const activeRenovations = data.home.homeRenovationStates && typeof data.home.homeRenovationStates === 'object' && !Array.isArray(data.home.homeRenovationStates)
+      ? Object.keys(data.home.homeRenovationStates).filter(id => data.home.homeRenovationStates[id] === true)
+      : [];
+    const blockingRenovations = activeRenovations.filter(id => (renovationRequirements[id] || 1) > nextLevel);
+    if (blockingRenovations.length > 0) {
+      throw createError('个人仍有高等级宅院改造启用，不能降级农舍等级', 409);
+    }
+    const pets = Array.isArray(data.animal?.pets)
+      ? data.animal.pets
+      : data.animal?.pet && typeof data.animal.pet === 'object'
+        ? [data.animal.pet]
+        : [];
+    const projectStates = data.villageProject?.projectStates && typeof data.villageProject.projectStates === 'object'
+      ? Object.values(data.villageProject.projectStates)
+      : [];
+    const completedVillageProjectCount = projectStates.filter(project => project?.completed === true || project?.status === 'completed').length;
+    const nextPetCapacity = 1 + (nextLevel >= 2 ? 1 : 0) + (nextLevel >= 3 || completedVillageProjectCount >= 8 ? 1 : 0);
+    if (pets.length > nextPetCapacity) {
+      throw createError('个人宠物数量超过降级后的容量，不能降级农舍等级', 409);
+    }
+    return {
+      target_id: String(targetLevel),
+      target_kind: 'home_farmhouse_level',
+      before_value: {
+        farmhouseLevel: currentLevel,
+        downgrade_to: nextLevel,
+        cellarSlots: cellarSlotCount,
+        activeRenovations: activeRenovations.length,
+        petCount: pets.length,
+        petCapacityAfter: nextPetCapacity,
+      },
+      apply() {
+        data.home.farmhouseLevel = nextLevel;
+        return {
+          mutation_result: 'home_farmhouse_level_downgraded',
+          after_value: {
+            farmhouseLevel: data.home.farmhouseLevel,
+            downgraded_from: currentLevel,
+          },
+        };
+      },
+    };
+  }
+
   if (candidatePath === 'home.caveChoice') {
     if (!data.home || typeof data.home !== 'object') data.home = {};
     const currentChoice = sanitizeText(data.home.caveChoice || 'none', 40);
@@ -5953,7 +6017,7 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
     };
   }
 
-  throw createError('个人主状态变更适配器第一版只支持宅院改造状态、山洞用途、山洞开放态、酒窖陈酿槽、温室解锁态、已放置装饰和未放置装饰库存目标', 409);
+  throw createError('个人主状态变更适配器第一版只支持农舍等级、宅院改造状态、山洞用途、山洞开放态、酒窖陈酿槽、温室解锁态、已放置装饰和未放置装饰库存目标', 409);
 }
 
 function applyFamilyBuildingMainStateExactMutationToPersonalSaves(contract = {}, buildingEntry = {}, payload = {}) {

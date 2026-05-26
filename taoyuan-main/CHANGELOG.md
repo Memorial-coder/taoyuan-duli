@@ -4,14 +4,19 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态农舍等级 selector
+- 后端精确变更适配器新增 `home.farmhouseLevel.<当前等级>` 窄 selector，只允许把个人农舍等级降一级。
+- 农舍等级降级会先拒绝仍有酒窖陈酿槽、高等级宅院改造或宠物数量超过降级后容量的存档；成功时只写个人主状态变更回执和审计，不返还升级材料，不触碰个人铜币、背包、农田、共同基金或共同仓库。
+- 前端“执行变更”按钮同步允许 `home.farmhouseLevel`，在线 UI 结构 QA 增加该 selector 守护。
+
 ### 0526 家族建筑真实拆除个人主状态山洞开放态 selector
 - 后端精确变更适配器新增 `home.caveUnlocked.true` 窄 selector，只在个人存档当前山洞已开放且 `home.caveChoice` 已为 `none` 时把 `caveUnlocked` 复位为 `false`。
-- 山洞开放态复位只写入个人主状态变更回执和审计，不返还山洞解锁材料，不触碰个人铜币、背包、农田、共同基金或共同仓库；`home.farmhouseLevel` 仍保持未开放。
+- 山洞开放态复位只写入个人主状态变更回执和审计，不返还山洞解锁材料，不触碰个人铜币、背包、农田、共同基金或共同仓库。
 - 前端“执行变更”按钮同步允许 `home.caveUnlocked`，在线 UI 结构 QA 增加该 selector 守护。
 
 ### 0526 家族建筑真实拆除个人主状态温室解锁态 selector
 - 后端精确变更适配器新增 `home.greenhouseUnlocked.true` 窄 selector，只在个人存档当前温室已解锁时把 `greenhouseUnlocked` 复位为 `false`。
-- 温室解锁态复位只写入个人主状态变更回执和审计，不返还温室材料，不触碰个人铜币、背包、农田、共同基金或共同仓库；`home.farmhouseLevel / home.caveUnlocked` 仍保持未开放。
+- 温室解锁态复位只写入个人主状态变更回执和审计，不返还温室材料，不触碰个人铜币、背包、农田、共同基金或共同仓库。
 - 前端“执行变更”按钮同步允许 `home.greenhouseUnlocked`，在线 UI 结构 QA 增加该 selector 守护。
 
 ### 0526 家族建筑真实拆除个人主状态酒窖陈酿槽 selector

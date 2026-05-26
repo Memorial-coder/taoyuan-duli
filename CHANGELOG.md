@@ -2,8 +2,9 @@
 
 最后整理：2026-05-26
 
-- 家族建筑真实拆除个人主状态精确变更新增山洞开放态 selector：后端适配器支持 `home.caveUnlocked.true`，只在个人存档当前山洞已开放且 `home.caveChoice` 已为 `none` 时把 `caveUnlocked` 复位为 `false`，避免关闭仍有用途产出的山洞；回执记录 `home_cave_unlocked_reset`，不返还山洞解锁材料，不改变个人铜币、背包、农田、共同基金或共同仓库。前端“执行变更”按钮同步允许 `home.caveUnlocked` 窄路径，在线 UI 结构 QA 增加该 selector 守护；`home.farmhouseLevel` 仍未开放。
-- 家族建筑真实拆除个人主状态精确变更新增温室解锁态 selector：后端适配器支持 `home.greenhouseUnlocked.true`，只在个人存档当前温室已解锁时把 `greenhouseUnlocked` 复位为 `false`，并通过个人主状态变更回执记录 `home_greenhouse_unlocked_reset`；不返还温室材料，不改变个人铜币、背包、农田、共同基金或共同仓库。前端“执行变更”按钮同步允许 `home.greenhouseUnlocked` 窄路径，在线 UI 结构 QA 增加该 selector 守护；`home.farmhouseLevel / home.caveUnlocked` 仍未开放，避免破坏房屋等级和山洞开放主循环。
+- 家族建筑真实拆除个人主状态精确变更新增农舍等级 selector：后端适配器支持 `home.farmhouseLevel.<当前等级>`，只允许把个人农舍等级降一级，并在执行前拒绝仍有酒窖陈酿槽、高等级宅院改造或宠物数量超过降级后容量的存档；回执记录降级前等级、目标等级、酒窖槽数、装修数和宠物容量审计，不返还升级材料，不改变个人铜币、背包、农田、共同基金或共同仓库。前端“执行变更”按钮同步允许 `home.farmhouseLevel` 窄路径，在线 UI 结构 QA 增加该 selector 守护。
+- 家族建筑真实拆除个人主状态精确变更新增山洞开放态 selector：后端适配器支持 `home.caveUnlocked.true`，只在个人存档当前山洞已开放且 `home.caveChoice` 已为 `none` 时把 `caveUnlocked` 复位为 `false`，避免关闭仍有用途产出的山洞；回执记录 `home_cave_unlocked_reset`，不返还山洞解锁材料，不改变个人铜币、背包、农田、共同基金或共同仓库。前端“执行变更”按钮同步允许 `home.caveUnlocked` 窄路径，在线 UI 结构 QA 增加该 selector 守护。
+- 家族建筑真实拆除个人主状态精确变更新增温室解锁态 selector：后端适配器支持 `home.greenhouseUnlocked.true`，只在个人存档当前温室已解锁时把 `greenhouseUnlocked` 复位为 `false`，并通过个人主状态变更回执记录 `home_greenhouse_unlocked_reset`；不返还温室材料，不改变个人铜币、背包、农田、共同基金或共同仓库。前端“执行变更”按钮同步允许 `home.greenhouseUnlocked` 窄路径，在线 UI 结构 QA 增加该 selector 守护。
 - 家族建筑真实拆除个人主状态精确变更新增酒窖陈酿槽 selector：后端适配器支持 `home.cellarSlots.<index>`，只删除个人存档中一个可审计陈酿槽，回执记录删除前 `itemId / quality / daysAging` 与剩余槽位；不返还被移除物品到个人背包，不改变个人铜币、农田、房屋等级、共同基金或共同仓库。前端“执行变更”按钮同步允许 `home.cellarSlots` 窄路径，专项 QA 扩成四名成员覆盖宅院改造删除、未放置装饰撤回、山洞用途复位、酒窖槽移除、四人确认、回执、幂等、审计和共同资产边界。
 - 家族建筑真实拆除个人主状态精确变更新增山洞用途 selector：后端适配器支持 `home.caveChoice.mushroom` / `home.caveChoice.fruit_bat`，仅在个人存档当前山洞用途与 selector 完全一致时复位为 `none`，并保留 `home.caveUnlocked`；前端“执行变更”按钮同步允许 `home.caveChoice` 窄路径，专项 QA 扩成三名成员覆盖宅院改造删除、未放置装饰撤回、山洞用途复位、三人确认、回执、幂等、审计和共同资产边界。
 - 家族建筑真实拆除个人主状态精确变更反作弊护栏补强：后端在精确目标绑定与人工解析阶段统一校验 `exact_target_ref` 和 `delete_selector`，要求二者位于候选宽路径下一层安全 ID 且指向同一目标，并拒绝 bracket、嵌套路径和不安全字符；`target_kind` 必须与候选路径一致，防止把 `home` / `decoration` 目标互相伪装。前端“执行变更”按钮同步收紧 selector 判断，专项 QA 覆盖 selector 不一致、`target_kind` 伪装和不安全 child selector 拒绝，仍只开放三类已验证窄 selector。
