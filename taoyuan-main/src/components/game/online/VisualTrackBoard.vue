@@ -94,6 +94,19 @@
           </span>
         </div>
 
+        <div
+          v-if="selectedCellFailureReason || selectedCellImpactText"
+          class="visual-track-board__readable-feedback"
+          data-testid="visual-track-readable-feedback"
+        >
+          <p v-if="selectedCellFailureReason" class="visual-track-board__readable-line visual-track-board__readable-line--warning">
+            失败原因：{{ selectedCellFailureReason }}
+          </p>
+          <p v-if="selectedCellImpactText" class="visual-track-board__readable-line">
+            影响范围：{{ selectedCellImpactText }}
+          </p>
+        </div>
+
         <div v-if="selectedCell.available_action_ids.length > 0" class="visual-track-board__actions">
           <button
             v-for="actionId in selectedCell.available_action_ids"
@@ -132,7 +145,14 @@
         </div>
       </div>
 
-      <p v-if="recentFeedback" class="visual-track-board__feedback">{{ recentFeedback }}</p>
+      <p
+        v-if="recentFeedback"
+        class="visual-track-board__feedback"
+        data-testid="visual-track-action-result"
+        aria-live="polite"
+      >
+        行动结果：{{ recentFeedback }}
+      </p>
     </div>
   </section>
 </template>
@@ -192,6 +212,26 @@
   })
   const selectedCell = computed(() => cellById.value.get(activeCellId.value) || null)
   const sortedTeams = computed(() => [...(activeTrack.value?.teams ?? [])].sort((a, b) => b.position_index - a.position_index))
+  const selectedCellFailureReason = computed(() => {
+    const cell = selectedCell.value
+    if (!cell) return ''
+    if (cell.available_action_ids.length > 0) return ''
+    if (cell.kind === 'finish') return '终点格只用于结算回看，不能重复提交推进行动。'
+    if (cell.occupant_team_ids.length === 0) return '当前没有队伍位于该格，服务端不会接受格子行动。'
+    return '当前赛道格没有可用行动，需刷新房间或选择队伍所在格。'
+  })
+  const selectedCellImpactText = computed(() => {
+    const cell = selectedCell.value
+    if (!cell) return ''
+    const teams = teamsForCell(cell).map(team => team.label || team.team_id).join('、')
+    const parts = [
+      cell.risk_preview ? `风险：${cell.risk_preview}` : '',
+      cell.reward_preview ? `收益：${cell.reward_preview}` : '',
+      cell.effect_ids.length > 0 ? `效果：${effectLabels(cell.effect_ids).join(' / ')}` : '',
+      teams ? `影响队伍：${teams}` : '',
+    ].filter(Boolean)
+    return parts.join('；')
+  })
   const trackGridStyle = computed(() => ({
     gridTemplateColumns: `repeat(${Math.max(activeCells.value.length, 1)}, minmax(3.7rem, 1fr))`,
   }))
@@ -485,6 +525,7 @@
 
   .visual-track-board__preview-grid,
   .visual-track-board__effects,
+  .visual-track-board__readable-feedback,
   .visual-track-board__actions {
     display: grid;
     gap: 0.5rem;
@@ -515,6 +556,22 @@
     color: var(--color-muted);
     padding: 0.2rem 0.35rem;
     font-size: 0.65rem;
+  }
+
+  .visual-track-board__readable-feedback {
+    border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
+    background: rgb(0 0 0 / 0.1);
+    padding: 0.45rem;
+  }
+
+  .visual-track-board__readable-line {
+    color: var(--color-muted);
+    font-size: 0.68rem;
+    line-height: 1.45;
+  }
+
+  .visual-track-board__readable-line--warning {
+    color: #d4976a;
   }
 
   .visual-track-board__actions {

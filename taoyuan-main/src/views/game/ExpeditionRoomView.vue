@@ -70,6 +70,24 @@
           <span class="text-[10px] text-muted">{{ expeditionRoomStore.myRoom ? expeditionRoomStore.myRoom.state_label : '空闲中' }}</span>
         </div>
         <div v-if="expeditionRoomStore.myRoom" class="space-y-2">
+          <OnlineVisualRoomShell
+            :title="expeditionRoomStore.myRoom.title"
+            :subtitle="`${expeditionRoomStore.myRoom.template_label} / ${expeditionRoomStore.myRoom.gameplay.template_label} / ${expeditionRoomStore.myRoom.joined_member_count}/${expeditionRoomStore.myRoom.member_limit} 人`"
+            :status-label="expeditionRoomStore.myRoom.state_label"
+            :phase-label="expeditionRoomStore.myRoom.gameplay.phase_label"
+            :state-reason="expeditionRoomStore.myRoom.state_reason"
+            :connection-state="expeditionRoomConnectionState"
+            :conflict-message="expeditionRoomConflictMessage"
+            :action-feedback="expeditionRoomActionFeedback"
+            :error-messages="expeditionRoomShellErrors"
+            :permission-hints="expeditionRoomPermissionHints"
+            :focus-hints="expeditionRoomFocusHints"
+            :countdown-seconds="expeditionRoomStore.myRoom.countdown_seconds"
+            :members="expeditionRoomShellMembers"
+            :ready-member-count="expeditionRoomStore.myRoom.ready_member_count"
+            :member-limit="expeditionRoomStore.myRoom.member_limit"
+            :reward-preview="expeditionRoomRewardPreview"
+          />
           <div class="border border-accent/10 rounded-xs px-2 py-2 bg-bg/10">
             <div class="flex items-start justify-between gap-2">
               <div class="min-w-0">
@@ -136,6 +154,23 @@
               <p v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback" class="text-[10px] text-success mt-2 leading-4">
                 {{ expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback }}
               </p>
+              <div
+                v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records.length > 0 || expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_state === 'confirmed'"
+                class="mt-2 grid gap-2 sm:grid-cols-2"
+              >
+                <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records.length > 0" class="border border-success/20 rounded-xs bg-success/5 px-2 py-2">
+                  <p class="text-[10px] text-success">节点组合收益</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">
+                    {{ expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records[0]?.summary }}
+                  </p>
+                </div>
+                <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_state === 'confirmed'" class="border border-warning/20 rounded-xs bg-warning/5 px-2 py-2">
+                  <p class="text-[10px] text-warning">提前收尾</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">
+                    {{ expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_summary || '撤离点已锁定，房主可以进入结算。' }}
+                  </p>
+                </div>
+              </div>
             </div>
 
             <div class="grid gap-2 sm:grid-cols-2">
@@ -342,6 +377,7 @@
   import { computed, onMounted, ref, watch } from 'vue'
   import { useRoute } from 'vue-router'
   import Button from '@/components/game/Button.vue'
+  import OnlineVisualRoomShell from '@/components/game/online/OnlineVisualRoomShell.vue'
   import VisualMapBoard from '@/components/game/online/VisualMapBoard.vue'
   import VisualTrackBoard from '@/components/game/online/VisualTrackBoard.vue'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
@@ -527,6 +563,88 @@
     const room = expeditionRoomStore.myRoom
     if (!room) return {}
     return Object.fromEntries(room.gameplay.available_actions.map(action => [action.id, action.label]))
+  })
+
+  const expeditionRoomShellMembers = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    return room.members.map(member => ({
+      username: member.username,
+      displayName: member.display_name,
+      statusLabel: member.status_label,
+      isHost: member.username === room.host_username,
+    }))
+  })
+
+  const expeditionRoomConnectionState = computed<'online' | 'disconnected' | 'reconnecting' | 'conflict'>(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return 'online'
+    if (room.state_label.includes('冲突')) return 'conflict'
+    if (room.can_reconnect) return 'disconnected'
+    if (room.my_member_status === 'disconnected') return 'reconnecting'
+    return 'online'
+  })
+
+  const expeditionRoomShellErrors = computed(() => {
+    const messages = [
+      expeditionRoomStore.errorMessage,
+      expeditionRoomConnectionState.value === 'conflict' ? '服务端房间状态存在冲突，请刷新后再继续提交。' : '',
+    ].filter(Boolean) as string[]
+    return Array.from(new Set(messages))
+  })
+
+  const expeditionRoomConflictMessage = computed(() =>
+    expeditionRoomConnectionState.value === 'conflict' ? '当前本地房间状态可能落后于服务端，请先刷新确认。' : ''
+  )
+
+  const expeditionRoomActionFeedback = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return ''
+    return room.visual_state.recent_feedback
+      || room.gameplay.cavern_state?.recent_feedback
+      || room.gameplay.last_action_summary
+      || ''
+  })
+
+  const expeditionRoomPermissionHints = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    const disabledActions = room.gameplay.available_actions
+      .filter(action => !action.can_use && action.disabled_reason)
+      .slice(0, 3)
+      .map(action => `${action.label}：${action.disabled_reason}`)
+    const canUseHostAction = room.can_host_ready_check || room.can_host_start_countdown || room.can_host_settle || room.can_host_close
+    const roomHints = [
+      !canUseHostAction ? '房主操作：开始准备、关闭房间和最终结算需要房主权限与正确阶段。' : '',
+      room.my_member_status === 'invited' ? '成员权限：接受邀请或加入房间后才能提交玩法行动。' : '',
+      room.my_member_status === 'disconnected' ? '重连权限：恢复连接前请先刷新房间状态。' : '',
+    ].filter(Boolean) as string[]
+    return Array.from(new Set([...roomHints, ...disabledActions])).slice(0, 5)
+  })
+
+  const expeditionRoomFocusHints = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    const boardHint = room.visual_state.board_type === 'track'
+      ? 'Tab 进入赛道格后用 Enter 选择格子，再触发可用赛道行动。'
+      : 'Tab 进入矿洞节点后用 Enter 选择节点，再触发探路、采集、支护或撤离。'
+    return [
+      boardHint,
+      '旧按钮面板仍保留在下方，键盘用户可以继续使用降级动作入口。',
+    ]
+  })
+
+  const expeditionRoomRewardPreview = computed(() => {
+    const room = expeditionRoomStore.myRoom
+    if (!room) return []
+    const actionHints = room.gameplay.available_actions
+      .flatMap(action => [action.round_effect, action.resource_delta_text, action.risk_delta_text])
+      .filter(Boolean)
+      .slice(0, 3) as string[]
+    const receiptHints = room.settlement_receipts
+      .slice(0, 2)
+      .map(receipt => `${receipt.target_display_name} · ${receipt.status_label} · ${receipt.summary}`)
+    return [...actionHints, ...receiptHints]
   })
 
   const createRoom = async () => {

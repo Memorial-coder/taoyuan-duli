@@ -60,6 +60,40 @@
         :error="module.error"
       />
     </section>
+
+    <section class="game-panel-muted p-3" data-testid="online-visual-activity-group">
+      <div class="flex flex-col gap-1 md:flex-row md:items-end md:justify-between">
+        <div class="min-w-0">
+          <div class="flex items-center gap-2 text-accent">
+            <Map :size="15" />
+            <h3 class="text-sm leading-5">可视化活动</h3>
+          </div>
+          <p class="mt-1 text-xs leading-5 text-muted">地图、场景、轨道和异步工程入口集中在这里。</p>
+        </div>
+        <span class="text-[10px] leading-4 text-muted">{{ visualActivitySummary }}</span>
+      </div>
+      <div class="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+        <RouterLink
+          v-for="activity in visualActivities"
+          :key="activity.key"
+          class="flex min-h-[116px] min-w-0 flex-col justify-between border border-accent/15 bg-black/10 p-3 text-left transition-colors hover:border-accent/35 hover:bg-accent/5"
+          :data-testid="activity.testId"
+          :to="activity.to"
+        >
+          <div class="min-w-0">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex min-w-0 items-center gap-2 text-accent">
+                <component :is="activity.icon" :size="14" />
+                <p class="truncate text-xs leading-4">{{ activity.title }}</p>
+              </div>
+              <span class="shrink-0 text-[10px] leading-4 text-muted">{{ activity.boardType }}</span>
+            </div>
+            <p class="mt-2 text-[10px] leading-4 text-muted">{{ activity.summary }}</p>
+          </div>
+          <p class="mt-2 text-[10px] leading-4 text-accent">{{ activity.status }}</p>
+        </RouterLink>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -67,16 +101,23 @@
   import { computed, onMounted, ref } from 'vue'
   import {
     CalendarDays,
+    ClipboardList,
     HeartHandshake,
     Handshake,
     Home,
+    Lamp,
+    Map,
     MessageCircle,
+    Pickaxe,
     RefreshCw,
     ShieldCheck,
     Users,
+    Warehouse,
+    Waves,
     Wifi
   } from 'lucide-vue-next'
   import type { Component } from 'vue'
+  import type { RouteLocationRaw } from 'vue-router'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import { useExpeditionRoomStore } from '@/stores/useExpeditionRoomStore'
@@ -97,6 +138,17 @@
     routeName: string
     icon: Component
     error: string
+  }
+  type VisualActivityKey = 'cavern' | 'lantern' | 'dragon-boat' | 'society-projects' | 'relay-orders' | 'warehouse'
+  type VisualActivityCard = {
+    key: VisualActivityKey
+    title: string
+    summary: string
+    status: string
+    boardType: string
+    to: RouteLocationRaw
+    icon: Component
+    testId: string
   }
 
   const manorStore = useManorStore()
@@ -167,6 +219,75 @@
   })
 
   const errorCount = computed(() => Object.values(moduleErrors.value).filter(Boolean).length)
+
+  const visualActivities = computed<VisualActivityCard[]>(() => [
+    {
+      key: 'cavern',
+      title: '协作矿洞',
+      summary: '节点地图、撤离点、组合收益和路线回看。',
+      status: expeditionRoomStore.myRoom ? `远征房：${expeditionRoomStore.myRoom.state_label}` : `${expeditionRoomStore.visibleRooms.length} 间远征房可见`,
+      boardType: '地图',
+      to: { name: 'online-festival', query: { tab: 'expedition-room' } },
+      icon: Pickaxe,
+      testId: 'online-visual-activity-cavern',
+    },
+    {
+      key: 'lantern',
+      title: '灯会现场',
+      summary: '主灯、灯谜、人群、留影点和好友回看。',
+      status: festivalRoomStore.myRoom ? `节会房：${festivalRoomStore.myRoom.state_label}` : `${festivalRoomStore.visibleRooms.length} 间节会房可见`,
+      boardType: '场景',
+      to: { name: 'online-festival', query: { tab: 'festival-room' } },
+      icon: Lamp,
+      testId: 'online-visual-activity-lantern',
+    },
+    {
+      key: 'dragon-boat',
+      title: '龙舟赛道',
+      summary: '多船轨道、名次榜、冲线状态和赛道回看。',
+      status: festivalRoomStore.myRoom ? '本房可查看赛道状态' : '支持 2 / 4 / 6 / 8 人房',
+      boardType: '轨道',
+      to: { name: 'online-festival', query: { tab: 'festival-room' } },
+      icon: Waves,
+      testId: 'online-visual-activity-dragon-boat',
+    },
+    {
+      key: 'society-projects',
+      title: '村社公共建设',
+      summary: '修桥、节庆广场、花灯墙等异步工程现场。',
+      status: societyStore.mySociety ? `${societyStore.mySociety.public_projects.length} 项公共建设` : '加入村社后可共建',
+      boardType: '异步',
+      to: { name: 'online-society', query: { tab: 'projects' } },
+      icon: ClipboardList,
+      testId: 'online-visual-activity-society-projects',
+    },
+    {
+      key: 'relay-orders',
+      title: '公共订单接力',
+      summary: '多段委托路线、阶段贡献和分账摘要。',
+      status: `${coopOrderStore.visibleOrders.filter(order => order.collaboration_mode === 'multi_stage').length} 张接力单可见`,
+      boardType: '异步',
+      to: { name: 'online-orders', query: { tab: 'available' } },
+      icon: Handshake,
+      testId: 'online-visual-activity-relay-orders',
+    },
+    {
+      key: 'warehouse',
+      title: '村社仓廪',
+      summary: '五类入仓、周结算、灾害与节会公共效果。',
+      status: societyStore.mySociety?.public_warehouse.weekly_settlement?.status_label || '等待本周入仓',
+      boardType: '仓廪',
+      to: { name: 'online-society', query: { tab: 'storage' } },
+      icon: Warehouse,
+      testId: 'online-visual-activity-warehouse',
+    },
+  ])
+
+  const visualActivitySummary = computed(() => {
+    const activeRooms = [festivalRoomStore.myRoom, expeditionRoomStore.myRoom].filter(Boolean).length
+    const projectCount = societyStore.mySociety?.public_projects.length || 0
+    return `${visualActivities.value.length} 类活动 · ${activeRooms} 间活动房 · ${projectCount} 项公共建设`
+  })
 
   const modules = computed<ModuleCard[]>(() => [
     {

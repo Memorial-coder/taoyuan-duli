@@ -46,6 +46,19 @@
           协作 {{ selectedObject.cooperation_current_count }} / {{ selectedObject.cooperation_required_count }}
         </div>
 
+        <div
+          v-if="selectedObjectFailureReason || selectedObjectImpactText"
+          class="visual-scene-board__readable-feedback"
+          data-testid="visual-scene-readable-feedback"
+        >
+          <p v-if="selectedObjectFailureReason" class="visual-scene-board__readable-line visual-scene-board__readable-line--warning">
+            失败原因：{{ selectedObjectFailureReason }}
+          </p>
+          <p v-if="selectedObjectImpactText" class="visual-scene-board__readable-line">
+            影响范围：{{ selectedObjectImpactText }}
+          </p>
+        </div>
+
         <div v-if="selectedObject.available_action_ids.length > 0" class="visual-scene-board__actions">
           <button
             v-for="actionId in selectedObject.available_action_ids"
@@ -82,7 +95,14 @@
         </button>
       </div>
 
-      <p v-if="recentFeedback" class="visual-scene-board__feedback">{{ recentFeedback }}</p>
+      <p
+        v-if="recentFeedback"
+        class="visual-scene-board__feedback"
+        data-testid="visual-scene-action-result"
+        aria-live="polite"
+      >
+        行动结果：{{ recentFeedback }}
+      </p>
     </div>
   </section>
 </template>
@@ -118,6 +138,28 @@
     return visibleObjects.value[0]?.id || ''
   })
   const selectedObject = computed(() => objectById.value.get(activeObjectId.value) || null)
+  const selectedObjectFailureReason = computed(() => {
+    const object = selectedObject.value
+    if (!object) return ''
+    if (object.available_action_ids.length > 0) return ''
+    if (object.state === 'complete') return '物件已经完成，重复行动会被服务端拒绝。'
+    if (object.state === 'blocked') return '物件当前受阻，需要先处理前置物件或等待权限恢复。'
+    if (object.requires_cooperation && object.cooperation_current_count < object.cooperation_required_count) {
+      return '协作人数未达到要求，需要更多成员处理同一物件。'
+    }
+    return '当前物件没有可用行动，需刷新房间或选择其它物件。'
+  })
+  const selectedObjectImpactText = computed(() => {
+    const object = selectedObject.value
+    if (!object) return ''
+    const parts = [
+      object.progress_target > 0 ? `进度 ${object.progress_value}/${object.progress_target}` : '',
+      object.requires_cooperation ? `协作 ${object.cooperation_current_count}/${object.cooperation_required_count}` : '',
+      object.state === 'overheated' ? '过热会提高现场压力，建议先稳住节奏。' : '',
+      object.handled_by ? `最近处理人：${object.handled_by}` : '',
+    ].filter(Boolean)
+    return parts.join('；')
+  })
 
   const selectObject = (objectId: string) => {
     emit('select-object', objectId)
@@ -314,8 +356,27 @@
   }
 
   .visual-scene-board__cooperation,
+  .visual-scene-board__readable-feedback,
   .visual-scene-board__actions {
     margin-top: 0.625rem;
+  }
+
+  .visual-scene-board__readable-feedback {
+    display: grid;
+    gap: 0.35rem;
+    border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
+    background: rgb(0 0 0 / 0.1);
+    padding: 0.45rem;
+  }
+
+  .visual-scene-board__readable-line {
+    color: var(--color-muted);
+    font-size: 0.68rem;
+    line-height: 1.45;
+  }
+
+  .visual-scene-board__readable-line--warning {
+    color: #d4976a;
   }
 
   .visual-scene-board__actions {

@@ -85,6 +85,19 @@
           </p>
         </div>
 
+        <div
+          v-if="selectedNodeFailureReason || selectedNodeImpactText"
+          class="visual-map-board__readable-feedback"
+          data-testid="visual-map-readable-feedback"
+        >
+          <p v-if="selectedNodeFailureReason" class="visual-map-board__readable-line visual-map-board__readable-line--warning">
+            失败原因：{{ selectedNodeFailureReason }}
+          </p>
+          <p v-if="selectedNodeImpactText" class="visual-map-board__readable-line">
+            影响范围：{{ selectedNodeImpactText }}
+          </p>
+        </div>
+
         <div v-if="resourcePreviewText(selectedNode.resource_cost_preview)" class="visual-map-board__resource">
           消耗：{{ resourcePreviewText(selectedNode.resource_cost_preview) }}
         </div>
@@ -114,7 +127,15 @@
         <span>选择一个节点</span>
       </div>
 
-      <p v-if="recentFeedback" :key="feedbackAnimationKey" class="visual-map-board__feedback">{{ recentFeedback }}</p>
+      <p
+        v-if="recentFeedback"
+        :key="feedbackAnimationKey"
+        class="visual-map-board__feedback"
+        data-testid="visual-map-action-result"
+        aria-live="polite"
+      >
+        行动结果：{{ recentFeedback }}
+      </p>
     </div>
   </section>
 </template>
@@ -156,6 +177,26 @@
   const selectedNode = computed(() => nodeById.value.get(activeNodeId.value) || null)
   const currentNode = computed(() => (props.currentNodeId ? nodeById.value.get(props.currentNodeId) : null) || null)
   const feedbackAnimationKey = computed(() => `${props.revision}:${props.recentFeedback}`)
+  const selectedNodeFailureReason = computed(() => {
+    const node = selectedNode.value
+    if (!node) return ''
+    if (node.available_action_ids.length > 0) return ''
+    if (node.state === 'locked') return '节点尚未解锁，需要先处理相邻节点或等待服务端开放。'
+    if (node.state === 'resolved') return '节点已经处理完成，重复行动会被服务端拒绝。'
+    if (node.state === 'hidden') return '节点尚未公开，不能直接提交行动。'
+    return '当前节点没有可用行动，需刷新房间或选择其它节点。'
+  })
+  const selectedNodeImpactText = computed(() => {
+    const node = selectedNode.value
+    if (!node) return ''
+    const parts = [
+      node.risk_preview ? `风险：${node.risk_preview}` : '',
+      node.reward_preview ? `收益：${node.reward_preview}` : '',
+      resourcePreviewText(node.resource_cost_preview) ? `消耗 ${resourcePreviewText(node.resource_cost_preview)}` : '',
+      resourcePreviewText(node.resource_reward_preview) ? `产出 ${resourcePreviewText(node.resource_reward_preview)}` : '',
+    ].filter(Boolean)
+    return parts.join('；')
+  })
 
   const visibleLinks = computed(() => {
     const seen = new Set<string>()
@@ -412,6 +453,7 @@
   }
 
   .visual-map-board__preview-grid,
+  .visual-map-board__readable-feedback,
   .visual-map-board__actions {
     display: grid;
     gap: 0.5rem;
@@ -429,6 +471,22 @@
 
   .visual-map-board__preview--reward {
     color: var(--color-success);
+  }
+
+  .visual-map-board__readable-feedback {
+    border: 1px solid color-mix(in srgb, var(--color-accent) 12%, transparent);
+    background: rgb(0 0 0 / 0.1);
+    padding: 0.45rem;
+  }
+
+  .visual-map-board__readable-line {
+    color: var(--color-muted);
+    font-size: 0.68rem;
+    line-height: 1.45;
+  }
+
+  .visual-map-board__readable-line--warning {
+    color: #d4976a;
   }
 
   .visual-map-board__action {

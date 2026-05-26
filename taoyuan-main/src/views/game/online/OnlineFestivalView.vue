@@ -282,6 +282,25 @@
                 <span class="text-[10px] text-muted">{{ festivalRoomStore.myRoom ? festivalRoomStore.myRoom.state_label : '空闲中' }}</span>
               </div>
               <div v-if="festivalRoomStore.myRoom" class="mt-3 space-y-3" data-testid="online-festival-room-my-room">
+                <OnlineVisualRoomShell
+                  :title="festivalRoomStore.myRoom.title"
+                  :subtitle="`${festivalRoomStore.myRoom.template_label} · ${festivalRoomStore.myRoom.gameplay.template_label} · ${festivalRoomStore.myRoom.joined_member_count}/${festivalRoomStore.myRoom.member_limit} 人`"
+                  :status-label="festivalRoomStore.myRoom.state_label"
+                  :phase-label="festivalRoomStore.myRoom.gameplay.phase_label"
+                  :state-reason="festivalRoomStore.myRoom.state_reason"
+                  :connection-state="festivalRoomConnectionState"
+                  :conflict-message="festivalRoomConflictMessage"
+                  :action-feedback="festivalRoomActionFeedback"
+                  :error-messages="festivalRoomShellErrors"
+                  :permission-hints="festivalRoomPermissionHints"
+                  :focus-hints="festivalRoomFocusHints"
+                  :countdown-seconds="festivalRoomStore.myRoom.countdown_seconds"
+                  :countdown-remaining-seconds="festivalRoomStore.myRoom.opening_ceremony?.countdown_remaining_seconds || 0"
+                  :members="festivalRoomShellMembers"
+                  :ready-member-count="festivalRoomStore.myRoom.ready_member_count"
+                  :member-limit="festivalRoomStore.myRoom.member_limit"
+                  :reward-preview="festivalRoomRewardPreview"
+                />
                 <div class="border border-accent/10 bg-black/10 p-2">
                   <div class="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
                     <div class="min-w-0">
@@ -469,6 +488,7 @@
                         <p>{{ receipt.route_replay.summary }}</p>
                         <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
                         <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
+                        <p v-if="routeReplayMemoryText(receipt.route_replay)">纪念：{{ routeReplayMemoryText(receipt.route_replay) }}</p>
                         <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
                       </div>
                     </div>
@@ -608,10 +628,29 @@
                 <div v-if="festivalRoomStore.selectedTemplate" class="border border-accent/10 bg-black/10 p-2">
                   <p class="text-xs text-accent">{{ festivalRoomStore.selectedTemplate.label }}</p>
                   <p class="mt-1 text-[10px] leading-4 text-muted">{{ festivalRoomStore.selectedTemplate.summary }}</p>
-                  <p class="mt-1 text-[10px] text-muted">默认人数上限：{{ festivalRoomStore.selectedTemplate.default_member_limit }} 人</p>
+                  <p class="mt-1 text-[10px] text-muted">
+                    人数范围：{{ festivalRoomStore.selectedTemplate.min_member_limit }}-{{ festivalRoomStore.selectedTemplate.max_member_limit }} 人
+                  </p>
                   <p v-if="festivalRoomStore.recommendedGameplayTemplates.length > 0" class="mt-1 text-[10px] text-muted">
                     推荐玩法：{{ festivalRoomStore.recommendedGameplayTemplates.map(template => template.label).join(' / ') }}
                   </p>
+                </div>
+                <div class="block">
+                  <span class="text-[10px] text-muted">人数上限</span>
+                  <div class="mt-1 grid grid-cols-2 gap-1.5 sm:grid-cols-4" data-testid="online-festival-room-member-limit-group">
+                    <button
+                      v-for="limit in festivalRoomStore.memberLimitOptions"
+                      :key="limit"
+                      type="button"
+                      class="online-action-btn online-action-btn--compact justify-center"
+                      :class="{ 'online-action-btn--primary': festivalRoomStore.normalizedDraftMemberLimit === limit }"
+                      :aria-pressed="festivalRoomStore.normalizedDraftMemberLimit === limit"
+                      :data-testid="`online-festival-room-member-limit-${limit}`"
+                      @click="festivalRoomStore.draftMemberLimit = limit"
+                    >
+                      {{ limit }} 人
+                    </button>
+                  </div>
                 </div>
                 <label class="block">
                   <span class="text-[10px] text-muted">玩法模板</span>
@@ -725,6 +764,7 @@
                 <p>{{ receipt.route_replay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
+                <p v-if="routeReplayMemoryText(receipt.route_replay)">纪念：{{ routeReplayMemoryText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
               </div>
             </div>
@@ -850,6 +890,23 @@
                     <p v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback" class="mt-2 text-[10px] leading-4 text-success">
                       {{ expeditionRoomStore.myRoom.gameplay.cavern_state.recent_feedback }}
                     </p>
+                    <div
+                      v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records.length > 0 || expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_state === 'confirmed'"
+                      class="mt-2 grid gap-2 md:grid-cols-2"
+                    >
+                      <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records.length > 0" class="border border-success/20 bg-success/5 p-2">
+                        <p class="text-[10px] text-success">节点组合收益</p>
+                        <p class="mt-1 text-[10px] leading-4 text-muted">
+                          {{ expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records[0]?.summary }}
+                        </p>
+                      </div>
+                      <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_state === 'confirmed'" class="border border-warning/20 bg-warning/5 p-2">
+                        <p class="text-[10px] text-warning">提前收尾</p>
+                        <p class="mt-1 text-[10px] leading-4 text-muted">
+                          {{ expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_summary || '撤离点已锁定，房主可以进入结算。' }}
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
                   <div class="grid gap-2 md:grid-cols-2">
@@ -1200,6 +1257,51 @@
               <p class="truncate text-xs text-accent">{{ memorial.label }}</p>
               <p class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.template_label }} · {{ memorial.gameplay_template_label }}</p>
               <p class="mt-1 text-[10px] text-muted">{{ memorial.reward_summary }}</p>
+              <p v-if="memorial.photo_line" class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.photo_line }}</p>
+              <div v-if="memorial.memory_records?.length" class="mt-1 space-y-0.5 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
+                <p v-for="record in memorial.memory_records.filter(item => item.actor_username)" :key="`${memorial.memorial_id}-${record.type}`">
+                  {{ record.label }}：{{ record.actor_display_name || record.actor_username }}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="game-panel-muted p-3">
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-sm text-accent">好友灯会回看</p>
+            <span class="text-[10px] text-muted">{{ festivalRoomStore.friendMemorials.length }} 条</span>
+          </div>
+          <div class="online-action-row mt-3">
+            <input
+              v-model="festivalRoomStore.draftFriendMemorialUsername"
+              class="online-input flex-1"
+              data-testid="online-festival-friend-memorial-username-input"
+              placeholder="好友用户名"
+            >
+            <Button
+              class="online-action-btn online-action-btn--compact justify-center"
+              data-testid="online-festival-friend-memorial-submit"
+              :disabled="festivalRoomStore.actionRunning"
+              @click="loadFriendMemorials"
+            >
+              查看
+            </Button>
+          </div>
+          <p v-if="festivalRoomStore.friendMemorialOverview" class="mt-2 text-[10px] leading-4 text-muted">
+            {{ festivalRoomStore.friendMemorialOverview.target_display_name || festivalRoomStore.friendMemorialOverview.target_username }} · {{ festivalRoomStore.friendMemorialOverview.is_self ? '自己的纪念册' : '好友纪念册' }}
+          </p>
+          <div v-if="festivalRoomStore.friendMemorials.length === 0" class="mt-3 text-xs text-muted">当前没有可回看的好友灯会纪念。</div>
+          <div v-else class="mt-3 max-h-[24rem] space-y-2 overflow-y-auto pr-1">
+            <div v-for="memorial in festivalRoomStore.friendMemorials.slice(0, 6)" :key="`friend-${memorial.memorial_id}`" class="border border-accent/10 bg-black/10 p-2">
+              <p class="truncate text-xs text-accent">{{ memorial.label }}</p>
+              <p class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.template_label }} · {{ memorial.gameplay_template_label }}</p>
+              <p v-if="memorial.photo_line" class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.photo_line }}</p>
+              <div v-if="memorial.memory_records?.length" class="mt-1 space-y-0.5 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
+                <p v-for="record in memorial.memory_records.filter(item => item.actor_username)" :key="`friend-${memorial.memorial_id}-${record.type}`">
+                  {{ record.label }}：{{ record.actor_display_name || record.actor_username }}
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -1225,6 +1327,7 @@
                 <p>{{ receipt.routeReplay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.routeReplay)">路线：{{ routeReplayRouteText(receipt.routeReplay) }}</p>
                 <p v-if="routeReplayRaceText(receipt.routeReplay)">{{ routeReplayRaceText(receipt.routeReplay) }}</p>
+                <p v-if="routeReplayMemoryText(receipt.routeReplay)">纪念：{{ routeReplayMemoryText(receipt.routeReplay) }}</p>
                 <p v-if="routeReplayPeakText(receipt.routeReplay)">{{ routeReplayPeakLabel(receipt.routeReplay) }}：{{ routeReplayPeakText(receipt.routeReplay) }}</p>
               </div>
             </div>
@@ -1241,6 +1344,7 @@
   import { CalendarDays, Flag, Lamp } from 'lucide-vue-next'
   import Button from '@/components/game/Button.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
+  import OnlineVisualRoomShell from '@/components/game/online/OnlineVisualRoomShell.vue'
   import VisualMapBoard from '@/components/game/online/VisualMapBoard.vue'
   import VisualSceneBoard from '@/components/game/online/VisualSceneBoard.vue'
   import VisualTrackBoard from '@/components/game/online/VisualTrackBoard.vue'
@@ -1249,7 +1353,7 @@
   import { useWorldEventStore } from '@/stores/useWorldEventStore'
   import type { OnlineVisualNode, OnlineVisualObject, OnlineVisualTrack } from '@/types/onlineVisual'
   import type { ExpeditionRoomRouteReplay } from '@/utils/expeditionRoomApi'
-  import type { FestivalRoomRouteReplay } from '@/utils/festivalRoomApi'
+  import type { FestivalRoomRouteReplay, FestivalRoomRouteReplayMemoryRecord } from '@/utils/festivalRoomApi'
   import type { WorldEventOverview } from '@/utils/worldEventApi'
 
   type FestivalTabKey = 'world' | 'festival-room' | 'expedition-room' | 'memorials'
@@ -1365,10 +1469,25 @@
     if (!hasRouteReplay(replay) || replay?.kind !== 'dragon_boat' || !replay.race_result?.rank_label) return ''
     const title = replay.race_result.title_label ? `称号：${replay.race_result.title_label}` : ''
     const popularity = replay.race_result.popularity_label || (replay.race_result.popularity_bonus > 0 ? `节会人气 +${replay.race_result.popularity_bonus}` : '')
-    return [replay.race_result.rank_label, popularity, title].filter(Boolean).join(' · ')
+    const rankings = (replay.race_rankings ?? [])
+      .slice(0, 4)
+      .map(row => `${row.rank_label} ${row.label}`)
+      .join(' / ')
+    const rankingText = rankings && replay.race_result.team_count > 1 ? `赛道榜：${rankings}` : ''
+    return [replay.race_result.rank_label, popularity, title, rankingText].filter(Boolean).join(' · ')
+  }
+  const routeReplayMemoryText = (replay?: ActivityRouteReplay | null) => {
+    if (!hasRouteReplay(replay) || replay?.kind !== 'lantern_fair') return ''
+    const records = 'memory_records' in replay
+      ? (replay.memory_records as FestivalRoomRouteReplayMemoryRecord[])
+      : []
+    return records
+      .filter(record => record.actor_username)
+      .map(record => `${record.label}：${record.actor_display_name || record.actor_username}`)
+      .join(' · ')
   }
   const routeReplayPeakLabel = (replay?: ActivityRouteReplay | null) =>
-    replay?.kind === 'dragon_boat' ? '压力峰值' : '风险峰值'
+    replay?.kind === 'dragon_boat' || replay?.kind === 'lantern_fair' ? '压力峰值' : '风险峰值'
   const routeReplayPeakText = (replay?: ActivityRouteReplay | null) => {
     if (!hasRouteReplay(replay) || !replay?.risk_peak?.summary) return ''
     const actor = replay.risk_peak.actor_display_name ? `${replay.risk_peak.actor_display_name} · ` : ''
@@ -1423,6 +1542,79 @@
   const festivalSceneActionLabels = computed<Record<string, string>>(() =>
     Object.fromEntries(Array.from(festivalGameplayActionMap.value.values()).map(action => [action.id, action.label]))
   )
+  const festivalRoomShellMembers = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return []
+    return room.members.map(member => ({
+      username: member.username,
+      displayName: member.display_name,
+      statusLabel: member.status_label,
+      isHost: member.username === room.host_username,
+    }))
+  })
+  const festivalRoomConnectionState = computed<'online' | 'disconnected' | 'reconnecting' | 'conflict'>(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return 'online'
+    if (room.state_label.includes('冲突')) return 'conflict'
+    if (room.can_reconnect) return 'disconnected'
+    if (room.my_member_status === 'disconnected') return 'reconnecting'
+    return 'online'
+  })
+  const festivalRoomShellErrors = computed(() => {
+    const messages = [
+      festivalRoomStore.errorMessage,
+      festivalRoomConnectionState.value === 'conflict' ? '服务端节会房间状态存在冲突，请刷新后再继续提交。' : '',
+    ].filter(Boolean) as string[]
+    return Array.from(new Set(messages))
+  })
+  const festivalRoomConflictMessage = computed(() =>
+    festivalRoomConnectionState.value === 'conflict' ? '当前本地节会状态可能落后于服务端，请先刷新确认。' : ''
+  )
+  const festivalRoomActionFeedback = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return ''
+    return room.visual_state.recent_feedback
+      || room.gameplay.last_action_summary
+      || ''
+  })
+  const festivalRoomPermissionHints = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return []
+    const disabledActions = room.gameplay.available_actions
+      .filter(action => !action.can_use && action.disabled_reason)
+      .slice(0, 3)
+      .map(action => `${action.label}：${action.disabled_reason}`)
+    const canUseHostAction = room.can_host_ready_check || room.can_host_start_countdown || room.can_host_settle || room.can_host_close
+    const roomHints = [
+      !canUseHostAction ? '房主操作：开场、关闭房间和最终结算需要房主权限与正确阶段。' : '',
+      room.my_member_status === 'invited' ? '成员权限：加入房间后才能提交节会现场行动。' : '',
+      room.my_member_status === 'disconnected' ? '重连权限：恢复连接前请先刷新节会房间状态。' : '',
+    ].filter(Boolean) as string[]
+    return Array.from(new Set([...roomHints, ...disabledActions])).slice(0, 5)
+  })
+  const festivalRoomFocusHints = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return []
+    const boardHint = room.visual_state.board_type === 'track'
+      ? 'Tab 进入龙舟赛道格后用 Enter 选择水道，再提交划桨、稳舵或鼓点行动。'
+      : 'Tab 进入灯会物件后用 Enter 选择热区，再提交点灯、解谜、秩序或留影行动。'
+    return [
+      boardHint,
+      '旧节会按钮和结算入口仍在房间下方，移动端与键盘用户可继续从降级入口操作。',
+    ]
+  })
+  const festivalRoomRewardPreview = computed(() => {
+    const room = festivalRoomStore.myRoom
+    if (!room) return []
+    const actionHints = room.gameplay.available_actions
+      .flatMap(action => [action.round_effect, action.resource_delta_text, action.pressure_delta_text])
+      .filter(Boolean)
+      .slice(0, 3) as string[]
+    const receiptHints = room.settlement_receipts
+      .slice(0, 2)
+      .map(receipt => `${receipt.target_display_name} · ${receipt.status_label} · ${receipt.summary}`)
+    return [...actionHints, ...receiptHints]
+  })
   const expeditionGameplayActionMap = computed(() =>
     new Map((expeditionRoomStore.myRoom?.gameplay.available_actions ?? []).map(action => [action.id, action]))
   )
@@ -1577,6 +1769,9 @@
   }
   const closeRoom = async (roomId: string) => {
     await festivalRoomStore.closeRoomAction(roomId).catch(() => {})
+  }
+  const loadFriendMemorials = async () => {
+    await festivalRoomStore.loadFriendMemorials().catch(() => {})
   }
   const createExpeditionRoom = async () => {
     await expeditionRoomStore.createRoom().catch(() => {})

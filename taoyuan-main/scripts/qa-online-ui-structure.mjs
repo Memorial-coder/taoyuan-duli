@@ -10,6 +10,7 @@ const srcRoot = path.join(repoRoot, 'src')
 
 const viewFiles = [
   'OnlineView.vue',
+  'ExpeditionRoomView.vue',
   path.join('online', 'OnlineManorView.vue'),
   path.join('online', 'OnlineCohabitationView.vue'),
   path.join('online', 'OnlineNeighborView.vue'),
@@ -40,8 +41,13 @@ for (const relativePath of viewFiles) {
 }
 
 utilitySources.set('utils/onlineProfileApi.ts', await readFile(path.join(srcRoot, 'utils', 'onlineProfileApi.ts'), 'utf8'))
+utilitySources.set('utils/societyApi.ts', await readFile(path.join(srcRoot, 'utils', 'societyApi.ts'), 'utf8'))
 utilitySources.set('utils/cohabitationApi.ts', await readFile(path.join(srcRoot, 'utils', 'cohabitationApi.ts'), 'utf8'))
 utilitySources.set('stores/useCohabitationStore.ts', await readFile(path.join(srcRoot, 'stores', 'useCohabitationStore.ts'), 'utf8'))
+utilitySources.set('components/game/online/VisualMapBoard.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'VisualMapBoard.vue'), 'utf8'))
+utilitySources.set('components/game/online/VisualSceneBoard.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'VisualSceneBoard.vue'), 'utf8'))
+utilitySources.set('components/game/online/VisualTrackBoard.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'VisualTrackBoard.vue'), 'utf8'))
+utilitySources.set('components/game/online/OnlineVisualRoomShell.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'OnlineVisualRoomShell.vue'), 'utf8'))
 
 const getFile = (relativePath) => files.get(relativePath) ?? utilitySources.get(relativePath) ?? ''
 
@@ -79,10 +85,22 @@ for (const [relativePath, source] of files.entries()) {
 
 expectContains('OnlineView.vue', '<OnlineModuleCard', '在线中心首页应继续使用模块卡组件')
 expectContains('OnlineView.vue', "routeName: 'online-cohabitation'", '在线中心首页应提供共同庄园入口')
+expectContains('OnlineView.vue', 'online-visual-activity-group', '在线中心首页应提供可视化活动分组')
+expectContains('OnlineView.vue', 'online-visual-activity-cavern', '在线中心可视化活动应提供协作矿洞入口')
+expectContains('OnlineView.vue', 'online-visual-activity-lantern', '在线中心可视化活动应提供灯会现场入口')
+expectContains('OnlineView.vue', 'online-visual-activity-dragon-boat', '在线中心可视化活动应提供龙舟赛道入口')
+expectContains('OnlineView.vue', 'online-visual-activity-society-projects', '在线中心可视化活动应提供村社公共建设入口')
+expectContains('OnlineView.vue', 'online-visual-activity-relay-orders', '在线中心可视化活动应提供公共订单接力入口')
+expectContains('OnlineView.vue', 'online-visual-activity-warehouse', '在线中心可视化活动应提供村社仓廪入口')
 
 expectContains('online/OnlineManorView.vue', '<OnlineModuleShell', '庄园子页应继续使用在线模块壳')
 expectContains('online/OnlineManorView.vue', "activeTab = ref<ManorTabKey>('overview')", '庄园默认页应保持概览')
 expectContains('online/OnlineManorView.vue', "activeTab === 'theme'", '庄园主题表单应留在主题标签')
+expectContains('online/OnlineManorView.vue', 'online-manor-care-room-panel', '庄园照料页应提供协作护理房间入口')
+expectContains('online/OnlineManorView.vue', 'online-manor-care-room-action', '庄园照料页应提供协作护理动作入口')
+expectContains('online/OnlineManorView.vue', 'online-manor-care-room-records', '庄园照料页应展示协作护理记录')
+expectContains('utils/onlineProfileApi.ts', '/api/taoyuan/online/manor/care-rooms', '庄园 API 应接入协作护理房间创建接口')
+expectContains('utils/onlineProfileApi.ts', 'submitManorCareRoomAction', '庄园 API 应导出协作护理动作方法')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineManorView.vue', /overflow-y-auto/g, 3, '庄园长列表应保留滚动边界')
 
 expectContains('online/OnlineCohabitationView.vue', '<OnlineModuleShell', '共同庄园子页应继续使用在线模块壳')
@@ -96,6 +114,30 @@ expectContains('online/OnlineCohabitationView.vue', 'processing_materials', '共
 expectContains('online/OnlineCohabitationView.vue', 'building_materials', '共同基金前端应提供中额建材预算入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-fund-large-draft-submit', '共同基金前端应提供大额草案创建入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-fund-large-draft-execute', '共同基金前端应提供大额草案执行扣款入口')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-farm-water', '共同农田地图应提供浇水入口')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-farm-cure-pests', '共同农田地图应提供除虫入口')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-farm-clear-weeds', '共同农田地图应提供清草入口')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-farm-plant', '共同农田地图应提供种植入口')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-farm-fertilize', '共同农田地图应提供基础施肥入口')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-farm-harvest', '共同农田地图应提供收获入仓入口')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-animals-panel', '共同庄园地图页应提供共同动物照料面板')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-shared-animal-feed', '共同动物照料面板应提供喂食入口')
+expectContains('online/OnlineCohabitationView.vue', 'feedSelectedSharedAnimal', '共同动物照料面板应调用喂食动作')
+expectContains('online/OnlineCohabitationView.vue', 'selectedSharedFarmPlot', '共同农田地图应支持点选地块后操作')
+expectContains('stores/useCohabitationStore.ts', 'waterCohabitationSharedPlot', '共同庄园 store 应引入共同农田浇水 API')
+expectContains('stores/useCohabitationStore.ts', 'careCohabitationSharedPlot', '共同庄园 store 应引入共同农田管护 API')
+expectContains('stores/useCohabitationStore.ts', 'careSharedFarmPlot', '共同庄园 store 应导出共同农田管护动作')
+expectContains('stores/useCohabitationStore.ts', 'plantCohabitationSharedPlot', '共同庄园 store 应引入共同农田种植 API')
+expectContains('stores/useCohabitationStore.ts', 'fertilizeCohabitationSharedPlot', '共同庄园 store 应引入共同农田施肥 API')
+expectContains('stores/useCohabitationStore.ts', 'fertilizeSharedFarmPlot', '共同庄园 store 应导出共同农田施肥动作')
+expectContains('stores/useCohabitationStore.ts', 'harvestCohabitationSharedPlot', '共同庄园 store 应引入共同农田收获 API')
+expectContains('stores/useCohabitationStore.ts', 'harvestSharedFarmPlot', '共同庄园 store 应导出共同农田收获动作')
+expectContains('stores/useCohabitationStore.ts', 'fetchCohabitationSharedAnimals', '共同庄园 store 应引入共同动物快照 API')
+expectContains('stores/useCohabitationStore.ts', 'feedSharedAnimal', '共同庄园 store 应导出共同动物喂食动作')
+expectContains('utils/cohabitationApi.ts', '/shared-map/care', '共同庄园 API 应接入共同农田管护接口')
+expectContains('utils/cohabitationApi.ts', '/shared-map/fertilize', '共同庄园 API 应接入共同农田施肥接口')
+expectContains('utils/cohabitationApi.ts', '/shared-map/harvest', '共同庄园 API 应接入共同农田收获接口')
+expectContains('utils/cohabitationApi.ts', '/shared-animals/feed', '共同庄园 API 应接入共同动物喂食接口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-building-ledger', '共同庄园建筑页应展示建筑流水')
 expectContains('online/OnlineCohabitationView.vue', 'familyBuildingLedgerEntries', '共同庄园建筑页应读回建筑流水列表')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-building-materials-restore', '共同庄园建筑页应提供材料恢复入口')
@@ -213,22 +255,47 @@ expectContains('online/OnlineOrdersView.vue', "const defaultTab = tabs[1]!", '�
 expectContains('online/OnlineOrdersView.vue', "activeTab === 'publish'", '在线委托发布表单应留在发布标签')
 expectContains('online/OnlineOrdersView.vue', 'online-orders-settlement-route-select', '在线委托确认交付应保留结算去向选择')
 expectContains('online/OnlineOrdersView.vue', 'online-orders-settlement-contract-select', '在线委托共同基金结算应选择共同庄园契约')
+expectContains('online/OnlineOrdersView.vue', 'online-orders-relay-settlement-summary', '在线委托接力单应展示服务端分账摘要')
+expectContains('utils/onlineProfileApi.ts', 'OnlineCoopRelaySettlementSummary', '在线委托 API 类型应暴露接力单分账摘要')
 expectContains('online/OnlineOrdersView.vue', 'useCohabitationStore', '在线委托共同基金结算应读取共同庄园契约候选')
 expectContains('utils/onlineProfileApi.ts', 'reward_route', '在线委托确认交付 API 应支持结算去向参数')
 expectContains('utils/onlineProfileApi.ts', 'cohabitation_contract_id', '在线委托确认交付 API 应支持共同庄园契约参数')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineOrdersView.vue', /<OnlineScrollArea/g, 5, '在线委托主要长列表应使用 OnlineScrollArea')
 
 expectContains('online/OnlineFestivalView.vue', '<OnlineModuleShell', '节会子页应继续使用在线模块壳')
+expectContains('online/OnlineFestivalView.vue', '<OnlineVisualRoomShell', '节会房间应复用统一可视化房间壳')
 expectContains('online/OnlineFestivalView.vue', "return 'world'", '节会默认页应保持世界事件')
 expectContains('online/OnlineFestivalView.vue', "activeTab === 'festival-room'", '节会房间表单应留在节会房间标签')
 expectContains('online/OnlineFestivalView.vue', "activeTab === 'expedition-room'", '远征表单应留在远征房间标签')
 expectContains('online/OnlineFestivalView.vue', '纪念记录', '节会纪念内容应保留独立入口')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineFestivalView.vue', /overflow-y-auto/g, 20, '节会长列表应保留滚动边界')
 
+expectContains('ExpeditionRoomView.vue', '<OnlineVisualRoomShell', '远征房间应复用统一可视化房间壳')
+expectContains('ExpeditionRoomView.vue', '<VisualMapBoard', '远征房间应保留协作矿洞节点图')
+expectContains('ExpeditionRoomView.vue', '<VisualTrackBoard', '远征房间应保留护送轨道图')
+expectContains('components/game/online/VisualMapBoard.vue', 'visual-map-readable-feedback', '地图棋盘应展示失败原因与影响范围')
+expectContains('components/game/online/VisualMapBoard.vue', 'visual-map-action-result', '地图棋盘应展示每次行动结果')
+expectContains('components/game/online/VisualSceneBoard.vue', 'visual-scene-readable-feedback', '场景棋盘应展示失败原因与影响范围')
+expectContains('components/game/online/VisualSceneBoard.vue', 'visual-scene-action-result', '场景棋盘应展示每次行动结果')
+expectContains('components/game/online/VisualTrackBoard.vue', 'visual-track-readable-feedback', '轨道棋盘应展示失败原因与影响范围')
+expectContains('components/game/online/VisualTrackBoard.vue', 'visual-track-action-result', '轨道棋盘应展示每次行动结果')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'data-testid="online-visual-room-shell"', '统一可视化房间壳应提供稳定测试钩子')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'connectionState', '统一可视化房间壳应覆盖断线 / 重连 / 冲突提示')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-shell-alerts', '统一可视化房间壳应收拢错误、权限不足和服务端冲突提示')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'online-visual-room-shell-focus-guide', '统一可视化房间壳应提供键盘与焦点引导')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'aria-live', '统一可视化房间壳应把行动结果和失败原因暴露给辅助技术')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', '奖励预览', '统一可视化房间壳应展示奖励预览区域')
+expectContains('components/game/online/OnlineVisualRoomShell.vue', 'aria-label', '统一可视化房间壳应提供可访问房间区域标签')
+
 expectContains('online/OnlineSocietyView.vue', '<OnlineModuleShell', '村社子页应继续使用在线模块壳')
 expectContains('online/OnlineSocietyView.vue', "return 'overview'", '村社默认页应保持总览')
 expectContains('online/OnlineSocietyView.vue', "activeTab === 'chronicles'", '村社史册应留在史册标签')
 expectContains('online/OnlineSocietyView.vue', "activeTab === 'proposals'", '村社提案表单应留在提案标签')
+expectContains('online/OnlineSocietyView.vue', 'online-society-warehouse-weekly-settlement', '村社仓廪应展示本周结算摘要')
+expectContains('online/OnlineSocietyView.vue', 'disaster_response', '村社仓廪应展示灾害应对效果')
+expectContains('online/OnlineSocietyView.vue', 'festival_cost_discount', '村社仓廪应展示节会成本下降效果')
+expectContains('online/OnlineSocietyView.vue', 'public_task_bonus', '村社仓廪应展示公共任务加成效果')
+expectContains('utils/societyApi.ts', 'SocietyWarehouseWeeklySettlementSnapshot', '村社 API 类型应暴露公共仓每周结算')
 checkedScrollBoundaries += expectCountAtLeast('online/OnlineSocietyView.vue', /overflow-y-auto/g, 12, '村社长列表应保留滚动边界')
 
 if (failures.length > 0) {
