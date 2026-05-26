@@ -2,6 +2,7 @@
 
 最后整理：2026-05-26
 
+- 家族建筑真实拆除个人主状态映射证明前端入口接入：前端 API / store 接入 `/family-buildings/real-demolition/verify-main-state-mapping`，共同庄园建筑流水卡片新增“证明映射”按钮；按钮只在主状态预览清单和 manifest hash 已存在且尚未记录映射证明时开放。提交会从预览清单生成逐成员绑定证明，成功后展示映射证明人、时间、manifest hash、清单数和映射策略，并读回 `real_build_demolition_main_state_mutation_guard` 暂缓项；该入口仍不删除个人 `home / decoration` 主状态、不改共同基金或共同仓库。
 - 家族建筑真实拆除个人主状态映射证明后端闭环接入：共同庄园新增 `/family-buildings/real-demolition/verify-main-state-mapping`，要求先有主状态预览 manifest hash，并逐成员校验 `real_build_ref`、存档槽位 / save_id、候选路径、绑定证明和快照 hash；成功后只记录映射证明 manifest、hash、操作者和审计，把后续待办推进到 `real_build_demolition_main_state_mutation_guard`。该步骤不修改个人 `home / decoration` 主状态，不改共同基金或共同仓库；专项 QA 覆盖 hash 漂移拒绝、首次映射、重复幂等和资产边界。
 - 家族建筑真实拆除个人主状态预览前端结构冒烟补齐：在线 UI 结构 QA 现在覆盖“预览主态”按钮入口、禁用门槛、store 动作、API 路由、manifest hash 展示和 `real_build_demolition_main_state_mapping` 暂缓项读回，防止后续整理共同庄园建筑页时静默断开这条阻断预览链路；该验证仍只守护预览入口，不开放个人房屋 / 建筑主状态真实删除。
 - 家族建筑真实拆除个人主状态预览前端入口接入：前端 API / store 接入 `/family-buildings/real-demolition/preview-main-state`，共同庄园建筑流水卡片新增“预览主态”按钮；按钮只在真实拆除执行已完成、个人存档回执已写回、真实落账证据存在且尚未生成主状态预览时开放。成功后刷新建筑面板、共同仓库、共同基金和共同日志，展示主态预览操作者、时间、manifest hash、阻断策略和清单人数；该入口只生成阻断预览，不删除个人房屋 / 建筑主状态、不改共同基金 / 共同仓库数量、不写个人铜币或背包。

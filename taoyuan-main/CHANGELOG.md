@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态映射证明前端入口
+- 前端 API / store 接入 `/family-buildings/real-demolition/verify-main-state-mapping`，共同庄园建筑流水卡片新增“证明映射”按钮。
+- 按钮按主状态预览幂等键、manifest hash、预览清单和尚未记录映射证明禁用；提交时从预览清单生成逐成员绑定证明，成功后刷新建筑面板、共同仓库、共同基金和共同日志。
+- 建筑流水卡片展示映射证明人、时间、manifest hash、清单数和映射策略，并读回 `real_build_demolition_main_state_mutation_guard` 暂缓项；本轮仍不修改个人 `home / decoration` 主状态。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`。
+
 ### 0526 家族建筑真实拆除个人主状态映射证明后端闭环
 - 服务端新增 `/family-buildings/real-demolition/verify-main-state-mapping`，要求先有主状态预览 manifest hash，并逐成员校验 `real_build_ref`、存档槽位 / save_id、候选路径、绑定证明和快照 hash。
 - 成功后只在建筑流水记录映射证明 manifest、hash、操作者和审计，并把待办从 `real_build_demolition_main_state_mapping` 推进到 `real_build_demolition_main_state_mutation_guard`。

@@ -689,6 +689,13 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   real_build_demolition_main_state_manifest_hash: string
   real_build_demolition_main_state_manifest: CohabitationFamilyBuildingMainStateManifestEntry[]
   real_build_demolition_main_state_policy: string
+  real_build_demolition_main_state_mapping_idempotency_key: string
+  real_build_demolition_main_state_mapped_at: number
+  real_build_demolition_main_state_mapped_by_username: string
+  real_build_demolition_main_state_mapped_by_display_name: string
+  real_build_demolition_main_state_mapping_manifest_hash: string
+  real_build_demolition_main_state_mapping_manifest: CohabitationFamilyBuildingMainStateMappingEntry[]
+  real_build_demolition_main_state_mapping_policy: string
   compensation_required: boolean
   compensation_hint: string
   deferred_operations: string[]
@@ -706,11 +713,28 @@ export interface CohabitationFamilyBuildingMainStateManifestEntry {
   save_id: number | string | null
   before_revision: number
   real_build_ref: string
+  building_ledger_id?: string
+  building_id?: string
+  project_id?: string
   mapping_status: string
   mutation_enabled: boolean
   candidate_paths: string[]
   blocked_reason: string
   snapshot_hash: string
+}
+
+export interface CohabitationFamilyBuildingMainStateMappingEntry {
+  username: string
+  username_key: string
+  save_slot: number | null
+  save_id: number | string | null
+  real_build_ref: string
+  building_ledger_id: string
+  candidate_path: string
+  binding_ref: string
+  snapshot_hash: string
+  mapping_status: string
+  mutation_enabled: boolean
 }
 
 export interface CohabitationFamilyBuildingsPanel {
@@ -1197,6 +1221,20 @@ export interface CohabitationFamilyBuildingLedgerPayload {
   idempotency_key: string
 }
 
+export interface CohabitationFamilyBuildingMainStateMappingPayload extends CohabitationFamilyBuildingLedgerPayload {
+  manifest_hash: string
+  mappings: Array<{
+    username: string
+    username_key?: string
+    save_slot: number | null
+    save_id: number | string | null
+    real_build_ref: string
+    candidate_path: string
+    binding_ref: string
+    snapshot_hash: string
+  }>
+}
+
 export interface CohabitationFundContributionPayload {
   amount: number
   purpose?: string
@@ -1426,6 +1464,7 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
   already_execution_requested?: boolean
   already_written?: boolean
   already_previewed?: boolean
+  already_mapped?: boolean
   receipts?: Array<{
     username: string
     username_key: string
@@ -1448,6 +1487,15 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
     personal_save_changed?: boolean
     shared_fund_changed?: boolean
     shared_warehouse_changed?: boolean
+  }
+  main_state_mapping?: {
+    manifest?: CohabitationFamilyBuildingMainStateMappingEntry[]
+    manifest_hash?: string
+    mutation_enabled?: boolean
+    personal_save_changed?: boolean
+    shared_fund_changed?: boolean
+    shared_warehouse_changed?: boolean
+    next_deferred_operation?: string
   }
   rollback?: {
     shared_fund_refunded?: boolean
@@ -1930,6 +1978,14 @@ export const previewCohabitationFamilyBuildingRealDemolitionMainState = async (c
     contractPath(contractId, '/family-buildings/real-demolition/preview-main-state'),
     payload as unknown as Record<string, unknown>,
     '预览家族建筑真实拆除个人主状态失败'
+  )
+}
+
+export const verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping = async (contractId: string, payload: CohabitationFamilyBuildingMainStateMappingPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/real-demolition/verify-main-state-mapping'),
+    payload as unknown as Record<string, unknown>,
+    '记录家族建筑真实拆除个人主状态映射证明失败'
   )
 }
 
