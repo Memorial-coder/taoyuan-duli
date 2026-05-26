@@ -6063,4 +6063,96 @@ const duplicateFamilyEventRefund = await runtime.recordCohabitationFundHighRiskR
 assert.equal(duplicateFamilyEventRefund.idempotent, true, 'family event refund should be idempotent')
 assert.equal(duplicateFamilyEventRefund.fund.balance, familyEventBalanceBeforeDraft, 'family event duplicate refund should not double refund')
 
+const warehouseGovernanceOwner = 'cohabit_wgov_owner26'
+const warehouseGovernancePartner = 'cohabit_wgov_part26'
+const warehouseGovernanceContractId = await setupDualLargeFundContract({
+  ownerUsername: warehouseGovernanceOwner,
+  partnerUsername: warehouseGovernancePartner,
+  contractType: 'lover_cohabitation',
+  contractKey: 'warehouse-governance',
+})
+const warehouseGovernanceAt = Math.floor(Date.now() / 1000)
+await mutateStoredContract(warehouseGovernanceContractId, contract => {
+  const sourceLedgerId = 'qa-warehouse-governance-wheat-deposit'
+  const sourceOwnerKey = warehouseGovernanceOwner.toLowerCase()
+  const recentWithdrawals = Array.from({ length: 6 }, (_, index) => ({
+    id: `qa-warehouse-governance-wheat-withdraw-${index + 1}`,
+    action: 'withdraw',
+    item_id: 'wheat',
+    quantity: 1,
+    quality: 'normal',
+    actor_username: warehouseGovernanceOwner,
+    actor_display_name: warehouseGovernanceOwner,
+    source_owner_id: 'save:123456791',
+    source_owner_username: warehouseGovernanceOwner,
+    source_owner_display_name: warehouseGovernanceOwner,
+    source_owner_key: sourceOwnerKey,
+    source_save_id: 123456791,
+    source_save_slot: 0,
+    source_inventory: 'shared_warehouse.items',
+    source_ledger_ids: [sourceLedgerId],
+    target_owner_id: 'save:123456791',
+    target_owner_username: warehouseGovernanceOwner,
+    target_owner_display_name: warehouseGovernanceOwner,
+    target_owner_key: sourceOwnerKey,
+    target_save_id: 123456791,
+    target_save_slot: 0,
+    target_inventory: 'inventory.items',
+    at: warehouseGovernanceAt - (6 - index),
+    idempotency_key: `qa-warehouse-governance-existing-withdraw-${index + 1}`,
+    reversible: true,
+    compensation_hint: 'QA injected high-frequency outbound ledger',
+    status: 'committed',
+  }))
+  contract.shared_warehouse = contract.shared_warehouse || {}
+  contract.shared_warehouse.ledger = [
+    ...recentWithdrawals.slice().reverse(),
+    {
+      id: sourceLedgerId,
+      action: 'deposit',
+      item_id: 'wheat',
+      quantity: 10,
+      quality: 'normal',
+      actor_username: warehouseGovernanceOwner,
+      actor_display_name: warehouseGovernanceOwner,
+      source_owner_id: 'save:123456791',
+      source_owner_username: warehouseGovernanceOwner,
+      source_owner_display_name: warehouseGovernanceOwner,
+      source_owner_key: sourceOwnerKey,
+      source_save_id: 123456791,
+      source_save_slot: 0,
+      source_save_revision: 1,
+      source_inventory: 'inventory.items',
+      source_slots: [{ index: 0, quantity: 10 }],
+      target_inventory: 'shared_warehouse.items',
+      at: warehouseGovernanceAt - 60,
+      idempotency_key: 'qa-warehouse-governance-wheat-deposit',
+      reversible: true,
+      compensation_hint: 'QA injected high-frequency governance stock',
+      status: 'committed',
+    },
+    ...(Array.isArray(contract.shared_warehouse.ledger) ? contract.shared_warehouse.ledger : []),
+  ]
+})
+const warehouseGovernanceBeforeBlock = await runtime.getCohabitationWarehouse(warehouseGovernanceContractId, actor(warehouseGovernanceOwner))
+assert.equal(warehouseGovernanceBeforeBlock.warehouse.items.find(item => item.item_id === 'wheat')?.quantity, 4, 'warehouse governance setup should leave stock available')
+assert.equal(warehouseGovernanceBeforeBlock.warehouse.summary.governance_blocked, true, 'high-frequency outbound should mark warehouse governance blocked')
+assert.equal(warehouseGovernanceBeforeBlock.warehouse.governance.actor_window.outbound_action_count, 6, 'warehouse governance should count recent outbound actions')
+assert.ok(warehouseGovernanceBeforeBlock.warehouse.governance.suspicious_actors.some(entry => entry.actor_username === warehouseGovernanceOwner), 'warehouse governance should list suspicious outbound actor')
+const ownerWheatBeforeGovernanceBlock = getInventoryItemQuantity(warehouseGovernanceOwner, 'wheat')
+await assert.rejects(
+  () => runtime.withdrawCohabitationWarehouseItem(warehouseGovernanceContractId, {
+    item_id: 'wheat',
+    quantity: 1,
+    quality: 'normal',
+    idempotency_key: 'qa-warehouse-governance-blocked-withdraw',
+  }, actor(warehouseGovernanceOwner)),
+  error => error?.status === 429,
+  'high-frequency warehouse outbound should block new withdraws'
+)
+const warehouseGovernanceAfterBlock = await runtime.getCohabitationWarehouse(warehouseGovernanceContractId, actor(warehouseGovernanceOwner))
+assert.equal(warehouseGovernanceAfterBlock.warehouse.items.find(item => item.item_id === 'wheat')?.quantity, 4, 'blocked warehouse withdraw should not change shared stock')
+assert.equal(getInventoryItemQuantity(warehouseGovernanceOwner, 'wheat'), ownerWheatBeforeGovernanceBlock, 'blocked warehouse withdraw should not change personal inventory')
+assert.ok(warehouseGovernanceAfterBlock.warehouse.governance.recent_audits.find(entry => entry.action === 'warehouse_high_frequency_outbound_blocked'), 'blocked warehouse withdraw should write governance audit')
+
 console.log('[qa-cohabitation-contract] OK')
