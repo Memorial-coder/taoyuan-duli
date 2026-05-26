@@ -292,6 +292,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_fund_large_spend_execute',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/fund\/large-spend-drafts\/([^/]+)\/high-risk-receipt$/i,
+    action: 'cohabitation_fund_high_risk_receipt',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/family-buildings\/real-build-apply$/i,
     action: 'cohabitation_family_building_real_build_apply',
   },
@@ -3448,6 +3452,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/large-spend
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '执行共同基金大额草案扣款失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/fund/large-spend-drafts/:draftId/high-risk-receipt', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.recordCohabitationFundHighRiskReceipt(req.params.contractId, req.params.draftId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '记录共同基金高风险回执失败' });
     }
   });
 });

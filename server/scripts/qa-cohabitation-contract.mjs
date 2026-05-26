@@ -5928,6 +5928,38 @@ assert.equal(duplicateHighRiskExecute.idempotent, true, 'limited decoration exec
 assert.equal(duplicateHighRiskExecute.building_ledger_entry, null, 'limited decoration duplicate execution should still have no building ledger')
 assert.equal(duplicateHighRiskExecute.shared_fund.building_ledger_written, false, 'limited decoration duplicate execution should not report building ledger')
 assert.equal(duplicateHighRiskExecute.fund.balance, highRiskBalanceBeforeDraft - 1300, 'limited decoration duplicate execution should not deduct twice')
+const highRiskReceipt = await runtime.recordCohabitationFundHighRiskReceipt(highRiskContractId, highRiskDraft.draft.id, {
+  outcome: 'delivered',
+  receipt_ref: 'limited_decoration_receipt:moon_gate:delivered',
+  memo: 'qa limited decoration delivered receipt',
+  idempotency_key: 'qa-high-risk-limited-decoration-receipt',
+}, actor(highRiskOwner))
+assert.equal(highRiskReceipt.idempotent, false, 'limited decoration receipt should record once')
+assert.equal(highRiskReceipt.receipt.outcome, 'delivered', 'limited decoration receipt should record delivered outcome')
+assert.equal(highRiskReceipt.draft.high_risk_receipt_status, 'delivered', 'limited decoration draft should mark receipt delivered')
+assert.equal(highRiskReceipt.draft.high_risk_receipt_ref, 'limited_decoration_receipt:moon_gate:delivered', 'limited decoration draft should keep receipt ref')
+assert.equal(highRiskReceipt.refund_ledger_entry, null, 'limited decoration delivered receipt should not refund shared fund')
+assert.equal(highRiskReceipt.shared_fund.refund_amount, 0, 'limited decoration delivered receipt should not refund amount')
+assert.equal(highRiskReceipt.fund.balance, highRiskBalanceBeforeDraft - 1300, 'limited decoration delivered receipt should keep shared fund balance')
+assert.ok(highRiskReceipt.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.outcome === 'delivered'), 'limited decoration receipt should be audited')
+assert.equal(readGameplayData(highRiskOwner)?.player?.money, highRiskOwnerMoneyBeforeDraft, 'limited decoration receipt should not touch owner personal money')
+const duplicateHighRiskReceipt = await runtime.recordCohabitationFundHighRiskReceipt(highRiskContractId, highRiskDraft.draft.id, {
+  outcome: 'delivered',
+  receipt_ref: 'limited_decoration_receipt:moon_gate:delivered',
+  idempotency_key: 'qa-high-risk-limited-decoration-receipt',
+}, actor(highRiskOwner))
+assert.equal(duplicateHighRiskReceipt.idempotent, true, 'limited decoration receipt should be idempotent')
+assert.equal(duplicateHighRiskReceipt.fund.balance, highRiskBalanceBeforeDraft - 1300, 'limited decoration duplicate receipt should not change balance')
+await assert.rejects(
+  () => runtime.recordCohabitationFundHighRiskReceipt(highRiskContractId, highRiskDraft.draft.id, {
+    outcome: 'refunded',
+    receipt_ref: 'limited_decoration_receipt:moon_gate:refund-after-delivery',
+    compensation_plan_acknowledged: true,
+    idempotency_key: 'qa-high-risk-limited-decoration-receipt-conflict',
+  }, actor(highRiskOwner)),
+  error => error?.status === 409,
+  'delivered limited decoration receipt should not be changed to refund later'
+)
 
 const familyEventOwner = 'cohabit_ev_owner26'
 const familyEventPartner = 'cohabit_ev_part26'
@@ -5969,5 +6001,42 @@ assert.ok(familyEventExecute.draft.deferred_operations.includes('child_arrangeme
 assert.equal(familyEventExecute.contract.family_building_ledger.length, 0, 'family event execution should not create family building ledger')
 assert.equal(readGameplayData(familyEventOwner)?.player?.money, familyEventOwnerMoneyBeforeDraft, 'family event execution should not touch owner personal money')
 assert.equal(readGameplayData(familyEventPartner)?.player?.money, familyEventPartnerMoneyBeforeConfirm, 'family event execution should not touch partner personal money')
+await assert.rejects(
+  () => runtime.recordCohabitationFundHighRiskReceipt(familyEventContractId, familyEventDraft.draft.id, {
+    outcome: 'refunded',
+    receipt_ref: 'family_event_receipt:child_school:refund-missing-ack',
+    idempotency_key: 'qa-family-major-event-refund-missing-ack',
+  }, actor(familyEventOwner)),
+  error => error?.status === 409,
+  'family event refund receipt should require compensation acknowledgement'
+)
+const familyEventRefund = await runtime.recordCohabitationFundHighRiskReceipt(familyEventContractId, familyEventDraft.draft.id, {
+  outcome: 'refunded',
+  receipt_ref: 'family_event_receipt:child_school:refund',
+  memo: 'qa family event refund receipt',
+  compensation_plan_acknowledged: true,
+  idempotency_key: 'qa-family-major-event-refund',
+}, actor(familyEventOwner))
+assert.equal(familyEventRefund.idempotent, false, 'family event refund should record once')
+assert.equal(familyEventRefund.receipt.outcome, 'refunded', 'family event receipt should record refund outcome')
+assert.equal(familyEventRefund.draft.high_risk_receipt_status, 'refunded', 'family event draft should mark receipt refunded')
+assert.equal(familyEventRefund.draft.high_risk_refund_ledger_id, familyEventRefund.refund_ledger_entry.id, 'family event draft should reference refund ledger')
+assert.equal(familyEventRefund.refund_ledger_entry.action, 'high_risk_fund_refund', 'family event refund should write fund refund ledger')
+assert.equal(familyEventRefund.refund_ledger_entry.amount, 1300, 'family event refund ledger should keep amount')
+assert.equal(familyEventRefund.shared_fund.balance_before, familyEventBalanceBeforeDraft - 1300, 'family event refund should report balance before refund')
+assert.equal(familyEventRefund.shared_fund.balance_after, familyEventBalanceBeforeDraft, 'family event refund should restore shared fund balance')
+assert.equal(familyEventRefund.fund.balance, familyEventBalanceBeforeDraft, 'family event refund should restore fund snapshot balance')
+assert.equal(familyEventRefund.contract.family_building_ledger.length, 0, 'family event refund should not create building ledger')
+assert.ok(familyEventRefund.contract.audit_log.find(entry => entry.action === 'fund_high_risk_receipt_recorded' && entry.detail?.outcome === 'refunded'), 'family event refund should be audited')
+assert.equal(readGameplayData(familyEventOwner)?.player?.money, familyEventOwnerMoneyBeforeDraft, 'family event refund should not touch owner personal money')
+assert.equal(readGameplayData(familyEventPartner)?.player?.money, familyEventPartnerMoneyBeforeConfirm, 'family event refund should not touch partner personal money')
+const duplicateFamilyEventRefund = await runtime.recordCohabitationFundHighRiskReceipt(familyEventContractId, familyEventDraft.draft.id, {
+  outcome: 'refunded',
+  receipt_ref: 'family_event_receipt:child_school:refund',
+  compensation_plan_acknowledged: true,
+  idempotency_key: 'qa-family-major-event-refund',
+}, actor(familyEventOwner))
+assert.equal(duplicateFamilyEventRefund.idempotent, true, 'family event refund should be idempotent')
+assert.equal(duplicateFamilyEventRefund.fund.balance, familyEventBalanceBeforeDraft, 'family event duplicate refund should not double refund')
 
 console.log('[qa-cohabitation-contract] OK')

@@ -2426,16 +2426,21 @@ function normalizeFundLargeSpendDraft(entry = {}) {
   const rawConfirmationState = entry.confirmation_state && typeof entry.confirmation_state === 'object' && !Array.isArray(entry.confirmation_state)
     ? entry.confirmation_state
     : {};
+  const normalizedPurpose = sanitizeText(entry.purpose, 80) || 'family_building';
+  const normalizedState = ['pending_confirmation', 'ready_to_execute', 'executed', 'expired', 'cancelled'].includes(entry.state)
+    ? entry.state
+    : 'pending_confirmation';
+  const highRiskReceiptStatus = ['pending', 'delivered', 'refunded'].includes(entry.high_risk_receipt_status)
+    ? entry.high_risk_receipt_status
+    : (!isFamilyBuildingLargeFundPurpose(normalizedPurpose) && normalizedState === 'executed' ? 'pending' : '');
   return {
     id: sanitizeText(entry.id, 80) || makeId('fund_large_spend_draft'),
     contract_id: sanitizeText(entry.contract_id, 80),
-    state: ['pending_confirmation', 'ready_to_execute', 'executed', 'expired', 'cancelled'].includes(entry.state)
-      ? entry.state
-      : 'pending_confirmation',
+    state: normalizedState,
     requested_by: normalizeUsername(entry.requested_by || entry.actor_username),
     requested_by_key: normalizeUsernameKey(entry.requested_by_key || entry.requested_by || entry.actor_username),
     amount: Math.max(0, Math.floor(Number(entry.amount) || 0)),
-    purpose: sanitizeText(entry.purpose, 80) || 'family_building',
+    purpose: normalizedPurpose,
     purpose_label: sanitizeText(entry.purpose_label, 80),
     spend_category: sanitizeText(entry.spend_category || entry.category, 80),
     target_ref: sanitizeText(entry.target_ref || entry.target, 120),
@@ -2483,6 +2488,16 @@ function normalizeFundLargeSpendDraft(entry = {}) {
     execution_enabled: false,
     final_spend_ledger_id: sanitizeText(entry.final_spend_ledger_id, 80),
     final_building_ledger_id: sanitizeText(entry.final_building_ledger_id, 100),
+    high_risk_receipt_id: sanitizeText(entry.high_risk_receipt_id, 100),
+    high_risk_receipt_status: highRiskReceiptStatus,
+    high_risk_receipt_outcome: ['delivered', 'refunded'].includes(entry.high_risk_receipt_outcome) ? entry.high_risk_receipt_outcome : '',
+    high_risk_receipt_ref: sanitizeText(entry.high_risk_receipt_ref || entry.receipt_ref, 120),
+    high_risk_receipt_memo: sanitizeText(entry.high_risk_receipt_memo || entry.receipt_memo, 180),
+    high_risk_receipt_idempotency_key: sanitizeText(entry.high_risk_receipt_idempotency_key, 120),
+    high_risk_receipt_at: Math.max(0, Math.floor(Number(entry.high_risk_receipt_at) || 0)),
+    high_risk_receipt_by: normalizeUsername(entry.high_risk_receipt_by),
+    high_risk_receipt_by_display_name: sanitizeText(entry.high_risk_receipt_by_display_name || entry.high_risk_receipt_by, 60),
+    high_risk_refund_ledger_id: sanitizeText(entry.high_risk_refund_ledger_id, 100),
     compensation_policy: sanitizeText(entry.compensation_policy, 180) || getLargeFundSpendCompensationPolicy(entry.purpose, false),
     deferred_operations: Array.isArray(entry.deferred_operations)
       ? entry.deferred_operations.map(item => sanitizeText(item, 80)).filter(Boolean)
@@ -5514,6 +5529,11 @@ function isFamilyBuildingLargeFundPurpose(purpose) {
   return ['family_building', 'manor_expansion'].includes(sanitizeText(purpose, 80));
 }
 
+function isHighRiskNonBuildingLargeFundPurpose(purpose) {
+  const normalizedPurpose = sanitizeText(purpose, 80);
+  return Boolean(resolveLargeFundSpendPurpose(normalizedPurpose)) && !isFamilyBuildingLargeFundPurpose(normalizedPurpose);
+}
+
 function getLargeFundSpendDeferredOperations(purpose, executed = false) {
   const normalizedPurpose = sanitizeText(purpose, 80) || 'family_building';
   if (isFamilyBuildingLargeFundPurpose(normalizedPurpose)) {
@@ -5753,6 +5773,26 @@ function normalizeLargeFundSpendExecutePayload(payload = {}) {
   return {
     idempotency_key: idempotencyKey,
     memo: sanitizeText(payload.memo || payload.note, 160),
+  };
+}
+
+function normalizeLargeFundHighRiskReceiptPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('共同基金高风险回执需要 idempotency_key，以防断线或重试时重复记录');
+  const outcome = sanitizeText(payload.outcome || payload.receipt_outcome || payload.result, 40);
+  const normalizedOutcome = ['delivered', 'refunded'].includes(outcome) ? outcome : '';
+  if (!normalizedOutcome) throw createError('共同基金高风险回执 outcome 只支持 delivered 或 refunded');
+  const receiptRef = sanitizeText(payload.receipt_ref || payload.delivery_ref || payload.resolution_ref || payload.ref || payload.target_ref, 120);
+  if (!receiptRef) throw createError('共同基金高风险回执需要 receipt_ref 记录交付、家庭事件或退款凭证');
+  if (normalizedOutcome === 'refunded' && payload.compensation_plan_acknowledged !== true && payload.refund_acknowledged !== true) {
+    throw createError('共同基金高风险退款回执需要确认补偿方案', 409);
+  }
+  return {
+    idempotency_key: idempotencyKey,
+    outcome: normalizedOutcome,
+    receipt_ref: receiptRef,
+    memo: sanitizeText(payload.memo || payload.note, 180),
+    compensation_plan_acknowledged: payload.compensation_plan_acknowledged === true || payload.refund_acknowledged === true,
   };
 }
 
@@ -11644,6 +11684,183 @@ async function executeCohabitationFundLargeSpendDraft(contractId, draftId, paylo
   };
 }
 
+async function recordCohabitationFundHighRiskReceipt(contractId, draftId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const receiptRequest = normalizeLargeFundHighRiskReceiptPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '记录共同基金高风险回执');
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  if (actorPermissions.fund.spend_large !== true) throw createError('你没有记录共同基金高风险回执的权限', 403);
+  if (actorPermissions.confirmations.large_fund_spend_requires_both !== true) {
+    throw createError('共同基金高风险回执必须保留双方确认安全阀', 409);
+  }
+
+  const normalizedDraftId = sanitizeText(draftId || payload.draft_id || payload.id, 80);
+  if (!normalizedDraftId) throw createError('请指定要记录回执的共同基金高风险草案');
+  contract.shared_fund = normalizeSharedFund(contract.shared_fund);
+  contract.fund_large_spend_drafts = Array.isArray(contract.fund_large_spend_drafts)
+    ? contract.fund_large_spend_drafts.map(normalizeFundLargeSpendDraft)
+    : [];
+  normalizeFamilyBuildingLedger(contract);
+  const draftIndex = contract.fund_large_spend_drafts.findIndex(entry => entry.id === normalizedDraftId);
+  if (draftIndex < 0) throw createError('共同基金高风险草案不存在', 404);
+  const draft = normalizeFundLargeSpendDraft(contract.fund_large_spend_drafts[draftIndex]);
+  if (!isHighRiskNonBuildingLargeFundPurpose(draft.purpose)) {
+    throw createError('该共同基金草案不是稀有物、限定装饰或家庭重大事件用途，请走对应建筑或普通基金流程', 403);
+  }
+  if (draft.state !== 'executed' || !draft.final_spend_ledger_id) {
+    throw createError('共同基金高风险回执必须在草案执行扣款后记录', 409);
+  }
+  const originalFundLedger = contract.shared_fund.ledger.find(entry => entry.id === draft.final_spend_ledger_id);
+  if (!originalFundLedger || originalFundLedger.action !== 'spend' || originalFundLedger.spend_tier !== 'large') {
+    throw createError('共同基金高风险回执缺少匹配的大额扣款流水，已中止避免误补偿', 409);
+  }
+
+  const previousRefundLedger = contract.shared_fund.ledger.find(entry =>
+    entry.action === 'high_risk_fund_refund'
+    && entry.idempotency_key === receiptRequest.idempotency_key
+  );
+  if (previousRefundLedger && previousRefundLedger.target_ref !== `high_risk_refund:${draft.id}`) {
+    throw createError('共同基金高风险回执幂等键已用于其他退款目标，请更换 idempotency_key', 409);
+  }
+  if (draft.high_risk_receipt_idempotency_key === receiptRequest.idempotency_key && draft.high_risk_receipt_status !== 'pending') {
+    return {
+      contract: toPublicContract(contract),
+      fund: buildSharedFundSnapshot(contract, actorUsername),
+      draft,
+      receipt: {
+        id: draft.high_risk_receipt_id,
+        status: draft.high_risk_receipt_status,
+        outcome: draft.high_risk_receipt_outcome,
+        receipt_ref: draft.high_risk_receipt_ref,
+        recorded_at: draft.high_risk_receipt_at,
+        recorded_by: draft.high_risk_receipt_by,
+      },
+      original_fund_ledger_entry: originalFundLedger,
+      refund_ledger_entry: draft.high_risk_refund_ledger_id
+        ? (contract.shared_fund.ledger.find(entry => entry.id === draft.high_risk_refund_ledger_id) || previousRefundLedger || null)
+        : null,
+      idempotent: true,
+      already_recorded: true,
+      shared_fund: {
+        refund_amount: 0,
+        balance_after: contract.shared_fund.balance,
+        personal_money_merged: false,
+      },
+    };
+  }
+  if (draft.high_risk_receipt_status && draft.high_risk_receipt_status !== 'pending') {
+    throw createError('该共同基金高风险草案已记录交付或退款回执，不能重复变更结果', 409);
+  }
+
+  const operatedAt = nowSeconds();
+  const receiptId = makeId('fund_high_risk_receipt');
+  let refundLedgerEntry = null;
+  let balanceBefore = contract.shared_fund.balance;
+  let balanceAfter = balanceBefore;
+  let refundAmount = 0;
+  let deferredOperations = [];
+  let compensationPolicy = '';
+  if (receiptRequest.outcome === 'refunded') {
+    refundAmount = Math.max(0, Math.floor(Number(draft.amount) || 0));
+    balanceAfter = balanceBefore + refundAmount;
+    refundLedgerEntry = normalizeFundLedgerEntry({
+      id: makeId('shared_fund_ledger'),
+      action: 'high_risk_fund_refund',
+      actor_username: actorUsername,
+      actor_display_name: actor.displayName || actor.display_name || member.display_name || actorUsername,
+      amount: refundAmount,
+      at: operatedAt,
+      memo: receiptRequest.memo || '共同基金高风险支出退款回执',
+      purpose: draft.purpose,
+      spend_category: draft.spend_category,
+      spend_tier: 'large',
+      target_ref: `high_risk_refund:${draft.id}`,
+      balance_after: balanceAfter,
+      confirmation_required: true,
+      confirmation_status: 'high_risk_refunded',
+      idempotency_key: receiptRequest.idempotency_key,
+      reversible: true,
+      compensation_hint: '共同基金高风险支出已按回执退回共同基金池；不写个人铜币、背包、小屋或家庭主状态。',
+      status: 'committed',
+    });
+    contract.shared_fund.balance = balanceAfter;
+    contract.shared_fund.ledger = [refundLedgerEntry, ...contract.shared_fund.ledger].slice(0, FUND_LEDGER_LIMIT);
+    compensationPolicy = '高风险支出已按回执退回共同基金；若后续仍有争议，按原扣款 ledger、退款 ledger 和共同审计记录复核。';
+  } else {
+    deferredOperations = draft.purpose === 'family_major_event'
+      ? ['family_event_governance_review']
+      : ['high_risk_purchase_governance_review'];
+    compensationPolicy = draft.purpose === 'family_major_event'
+      ? '家庭重大事件已记录回执；本步骤不改个人孩子 / 家庭主状态，后续争议走家庭事件治理复核。'
+      : '高风险采购已记录交付回执；本步骤不改个人背包或小屋，后续争议走采购治理复核。';
+  }
+
+  const nextDraft = normalizeFundLargeSpendDraft({
+    ...draft,
+    high_risk_receipt_id: receiptId,
+    high_risk_receipt_status: receiptRequest.outcome,
+    high_risk_receipt_outcome: receiptRequest.outcome,
+    high_risk_receipt_ref: receiptRequest.receipt_ref,
+    high_risk_receipt_memo: receiptRequest.memo,
+    high_risk_receipt_idempotency_key: receiptRequest.idempotency_key,
+    high_risk_receipt_at: operatedAt,
+    high_risk_receipt_by: member.username,
+    high_risk_receipt_by_display_name: actor.displayName || actor.display_name || member.display_name || member.username,
+    high_risk_refund_ledger_id: refundLedgerEntry?.id || '',
+    compensation_policy: compensationPolicy,
+    deferred_operations: deferredOperations,
+  });
+  contract.fund_large_spend_drafts[draftIndex] = nextDraft;
+  appendAudit(contract, 'fund_high_risk_receipt_recorded', actor, {
+    draft_id: nextDraft.id,
+    original_fund_ledger_id: originalFundLedger.id,
+    refund_fund_ledger_id: refundLedgerEntry?.id || '',
+    receipt_id: nextDraft.high_risk_receipt_id,
+    outcome: nextDraft.high_risk_receipt_outcome,
+    receipt_ref: nextDraft.high_risk_receipt_ref,
+    purpose: nextDraft.purpose,
+    purpose_label: nextDraft.purpose_label,
+    spend_category: nextDraft.spend_category,
+    amount: nextDraft.amount,
+    refund_amount: refundAmount,
+    shared_fund_balance_before: balanceBefore,
+    shared_fund_balance_after: balanceAfter,
+    personal_money_merged: false,
+    personal_inventory_merged: false,
+    home_or_family_state_mutated: false,
+    compensation_plan_acknowledged: receiptRequest.compensation_plan_acknowledged,
+  }, receiptRequest.idempotency_key);
+  contract.updated_at = operatedAt;
+  saveContractStore(store);
+
+  return {
+    contract: toPublicContract(contract),
+    fund: buildSharedFundSnapshot(contract, actorUsername),
+    draft: nextDraft,
+    receipt: {
+      id: nextDraft.high_risk_receipt_id,
+      status: nextDraft.high_risk_receipt_status,
+      outcome: nextDraft.high_risk_receipt_outcome,
+      receipt_ref: nextDraft.high_risk_receipt_ref,
+      recorded_at: nextDraft.high_risk_receipt_at,
+      recorded_by: nextDraft.high_risk_receipt_by,
+    },
+    original_fund_ledger_entry: originalFundLedger,
+    refund_ledger_entry: refundLedgerEntry,
+    idempotent: false,
+    already_recorded: false,
+    shared_fund: {
+      refund_amount: refundAmount,
+      balance_before: balanceBefore,
+      balance_after: balanceAfter,
+      personal_money_merged: false,
+    },
+  };
+}
+
 function findFamilyBuildingLedgerForRealBuildApply(contract, request = {}) {
   const ledger = normalizeFamilyBuildingLedger(contract);
   if (request.building_ledger_id) {
@@ -16669,6 +16886,7 @@ module.exports = {
   createCohabitationFundLargeSpendDraft,
   confirmCohabitationFundLargeSpendDraft,
   executeCohabitationFundLargeSpendDraft,
+  recordCohabitationFundHighRiskReceipt,
   applyCohabitationFamilyBuildingRealBuild,
   consumeCohabitationFamilyBuildingMaterials,
   rollbackCohabitationFamilyBuilding,
