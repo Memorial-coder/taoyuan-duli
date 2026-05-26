@@ -474,13 +474,32 @@
                 <p class="text-xs text-accent">访客行为审计</p>
                 <span class="text-[10px] text-muted">{{ visitorActivityEntries.length }} 条</span>
               </div>
+              <div data-testid="online-manor-visitor-activity-summary" class="mt-2 grid gap-2 md:grid-cols-4">
+                <div v-for="row in visitorActivitySummaryRows" :key="row.id" class="border border-accent/10 bg-bg/30 p-2">
+                  <p class="text-[10px] text-accent">{{ row.label }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ row.value }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">{{ row.detail }}</p>
+                </div>
+              </div>
+              <p data-testid="online-manor-visitor-dispute-summary" class="mt-2 text-[10px] leading-5 text-muted">
+                争议回看：{{ visitorActivityDisputeSummary }}
+              </p>
               <div v-if="visitorActivityEntries.length > 0" data-testid="online-manor-visitor-activity-log" class="mt-2 max-h-64 space-y-2 overflow-y-auto pr-1">
                 <div v-for="entry in visitorActivityEntries" :key="entry.id" data-testid="online-manor-visitor-activity-entry" class="border border-accent/10 bg-bg/30 p-2">
                   <div class="flex flex-wrap items-center justify-between gap-2">
-                    <p class="text-[10px] text-accent">{{ entry.visitor_display_name }} · {{ entry.kind_label }}</p>
+                    <div class="flex min-w-0 flex-wrap items-center gap-2">
+                      <p class="text-[10px] text-accent">{{ entry.visitor_display_name }}</p>
+                      <span class="border px-2 py-0.5 text-[10px]" :class="visitorActivityKindBadgeClass(entry.kind)">
+                        {{ entry.kind_label }}
+                      </span>
+                    </div>
                     <span class="text-[10px] text-muted">{{ formatVisitTime(entry.created_at) }}</span>
                   </div>
+                  <p class="mt-1 text-[10px] leading-4 text-accent">{{ entry.title || visitorActivityFallbackTitle(entry.kind) }}</p>
                   <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.summary }}</p>
+                  <p v-if="entry.object_label || entry.action_label" class="mt-1 text-[10px] leading-4 text-muted">
+                    对象：{{ entry.object_label || '未记录对象' }} · 动作：{{ entry.action_label || '未记录动作' }}
+                  </p>
                   <p class="mt-1 text-[10px] leading-4 text-muted">{{ entry.audit_note }}</p>
                 </div>
               </div>
@@ -976,6 +995,35 @@
   const canSubmitGuestbook = computed(() => guestbookDraftLength.value > 0 && !manorStore.guestbookActionRunning)
   const visitEntries = computed(() => snapshot.value?.visit_entries ?? [])
   const visitorActivityEntries = computed(() => snapshot.value?.visitor_activity_entries ?? [])
+  const visitorActivityKindCounts = computed(() => {
+    const counts = {
+      visit: 0,
+      care: 0,
+      steal: 0,
+      care_room: 0,
+    }
+    for (const entry of visitorActivityEntries.value) {
+      counts[entry.kind] += 1
+    }
+    return counts
+  })
+  const visitorActivitySummaryRows = computed(() => {
+    const counts = visitorActivityKindCounts.value
+    return [
+      { id: 'visit', label: '普通来访', value: `${counts.visit} 条`, detail: '由来访页手动记录目的、行为和反馈。' },
+      { id: 'care', label: '好友照料', value: `${counts.care} 条`, detail: '可回看谁照料了哪个对象与服务端落账说明。' },
+      { id: 'steal', label: '轻采记录', value: `${counts.steal} 条`, detail: '用于轻采收益、主人补偿和争议复核。' },
+      { id: 'care_room', label: '护理房间', value: `${counts.care_room} 条`, detail: '记录多人护理结算与协作窗口结果。' },
+    ]
+  })
+  const visitorActivityDisputeSummary = computed(() => {
+    const counts = visitorActivityKindCounts.value
+    const auditCount = counts.care + counts.steal + counts.care_room
+    if (visitorActivityEntries.value.length === 0) return '暂无访客照料、轻采或护理房行为。'
+    if (counts.steal > 0) return `${counts.steal} 条轻采记录可用于核对主人补偿、访客收益和反刷审计；另有 ${counts.care} 条照料、${counts.care_room} 条护理房记录。`
+    if (auditCount > 0) return `${auditCount} 条照料 / 护理行为可回看操作者、对象、动作和审计说明。`
+    return '当前只有普通来访记录，暂无需要争议复核的照料或轻采行为。'
+  })
   const visitSummaryLength = computed(() => manorStore.visitSummaryDraft.length)
   const visitFeedbackLength = computed(() => manorStore.visitFeedbackDraft.length)
   const canRecordVisit = computed(() => !manorStore.visitActionRunning)
@@ -1318,6 +1366,20 @@
       minute: '2-digit',
       hour12: false,
     })
+  }
+
+  const visitorActivityKindBadgeClass = (kind: string) => {
+    if (kind === 'care') return 'border-emerald-400/30 bg-emerald-500/10 text-emerald-200'
+    if (kind === 'steal') return 'border-amber-400/40 bg-amber-500/10 text-amber-200'
+    if (kind === 'care_room') return 'border-sky-400/30 bg-sky-500/10 text-sky-200'
+    return 'border-accent/20 bg-accent/10 text-accent'
+  }
+
+  const visitorActivityFallbackTitle = (kind: string) => {
+    if (kind === 'care') return '好友照料记录'
+    if (kind === 'steal') return '轻采争议记录'
+    if (kind === 'care_room') return '协作护理房记录'
+    return '普通来访记录'
   }
 
   const riskFlagLabel = (flags: string[] = []) => {
