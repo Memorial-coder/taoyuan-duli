@@ -716,6 +716,11 @@ export interface CohabitationFamilyBuildingLedgerEntry {
   real_build_demolition_main_state_exact_target_manifest_hash: string
   real_build_demolition_main_state_exact_target_manifest: CohabitationFamilyBuildingMainStateExactTargetEntry[]
   real_build_demolition_main_state_exact_target_policy: string
+  real_build_demolition_main_state_exact_target_resolution_idempotency_key: string
+  real_build_demolition_main_state_exact_target_resolved_at: number
+  real_build_demolition_main_state_exact_target_resolved_by_username: string
+  real_build_demolition_main_state_exact_target_resolved_by_display_name: string
+  real_build_demolition_main_state_exact_target_resolution_policy: string
   real_build_demolition_main_state_exact_execute_idempotency_key: string
   real_build_demolition_main_state_exact_executed_at: number
   real_build_demolition_main_state_exact_executed_by_username: string
@@ -1331,6 +1336,26 @@ export interface CohabitationFamilyBuildingMainStateExactExecutePayload extends 
   rollback_plan_acknowledged: boolean
 }
 
+export interface CohabitationFamilyBuildingMainStateExactTargetResolutionPayload extends CohabitationFamilyBuildingLedgerPayload {
+  exact_target_manifest_hash: string
+  expected_execution_state: string
+  confirmation_text: string
+  targets: Array<{
+    username: string
+    username_key?: string
+    save_slot: number | null
+    save_id: number | string | null
+    real_build_ref: string
+    candidate_path: string
+    binding_ref: string
+    snapshot_hash: string
+    exact_target_ref: string
+    delete_selector: string
+    target_kind?: string
+    resolution_proof: string
+  }>
+}
+
 export interface CohabitationFundContributionPayload {
   amount: number
   purpose?: string
@@ -1623,6 +1648,15 @@ export interface CohabitationFamilyBuildingLedgerActionResponse extends Cohabita
     shared_fund_changed?: boolean
     shared_warehouse_changed?: boolean
     unresolved_target_count?: number
+    next_deferred_operation?: string
+  }
+  main_state_exact_target_resolution?: {
+    manifest?: CohabitationFamilyBuildingMainStateExactTargetEntry[]
+    manifest_hash?: string
+    mutation_enabled?: boolean
+    personal_save_changed?: boolean
+    shared_fund_changed?: boolean
+    shared_warehouse_changed?: boolean
     next_deferred_operation?: string
   }
   rollback?: {
@@ -2146,6 +2180,14 @@ export const executeCohabitationFamilyBuildingRealDemolitionMainStateExactTarget
     contractPath(contractId, '/family-buildings/real-demolition/execute-main-state-exact-targets'),
     payload as unknown as Record<string, unknown>,
     '执行家族建筑真实拆除个人主状态精确目标失败'
+  )
+}
+
+export const resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets = async (contractId: string, payload: CohabitationFamilyBuildingMainStateExactTargetResolutionPayload) => {
+  return postCohabitationJson<CohabitationFamilyBuildingLedgerActionResponse>(
+    contractPath(contractId, '/family-buildings/real-demolition/resolve-main-state-exact-targets'),
+    payload as unknown as Record<string, unknown>,
+    '人工解析家族建筑真实拆除个人主状态精确目标失败'
   )
 }
 
