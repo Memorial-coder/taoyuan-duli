@@ -140,7 +140,7 @@ const buildSaveData = username => ({
       farmhouseLevel: 3,
       caveChoice: username === 'cohabit_lg_cave25' ? 'mushroom' : 'none',
       caveUnlocked: username === 'cohabit_lg_cave25',
-      greenhouseUnlocked: false,
+      greenhouseUnlocked: username === 'cohabit_lg_gh25',
       cellarSlots: username === 'cohabit_lg_cellar25'
         ? [
             { itemId: 'peach_wine', quality: 'fine', daysAging: 3 },
@@ -156,6 +156,14 @@ const buildSaveData = username => ({
     decoration: {
       owned: username.includes('_lg_') ? { bamboo_lamp: 2 } : {},
       placed: username.includes('_lg_') ? { bamboo_lamp: 1 } : {},
+    },
+    animal: {
+      pets: username === 'cohabit_lg_fh25'
+        ? [
+            { type: 'cat', name: 'Mimi' },
+            { type: 'dog', name: 'Wang' },
+          ]
+        : [],
     },
   },
 })
@@ -4216,29 +4224,254 @@ assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_buil
 assert.equal(readGameplayData(largeCellarPartner)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.mutation_result, 'home_cellar_slot_removed', 'cellar partner main state mutation receipt should record cellar slot removal result')
 assert.ok(familyBuildingRealDemolitionMainStateExactMutation.main_state_exact_mutation.receipts.find(receipt => receipt.username === largeCellarPartner && receipt.target_kind === 'home_cellar_slot' && receipt.mutation_result === 'home_cellar_slot_removed'), 'main state exact mutation response should include cellar slot receipt summary')
 
-const greenhouseMutationData = { home: { greenhouseUnlocked: true } }
-const greenhouseMutationTarget = runtime.__testInternals.resolveFamilyBuildingMainStateMutationTarget(greenhouseMutationData, {
-  candidate_path: 'home.greenhouseUnlocked',
-  delete_selector: 'home.greenhouseUnlocked.true',
-})
-const greenhouseMutation = greenhouseMutationTarget.apply()
-assert.equal(greenhouseMutationData.home.greenhouseUnlocked, false, 'greenhouse unlocked exact selector should reset personal greenhouse flag')
-assert.equal(greenhouseMutationTarget.target_kind, 'home_greenhouse_unlocked', 'greenhouse unlocked exact selector should report target kind')
-assert.equal(greenhouseMutation.mutation_result, 'home_greenhouse_unlocked_reset', 'greenhouse unlocked exact selector should report mutation result')
+const greenhouseMember = 'cohabit_lg_gh25'
+const farmhouseMember = 'cohabit_lg_fh25'
+assert.equal((await db.registerUser(greenhouseMember, 'SmokePass_0525', 'large greenhouse member')).ok, true, 'greenhouse exact mutation QA user should register')
+assert.equal((await db.registerUser(farmhouseMember, 'SmokePass_0525', 'large farmhouse member')).ok, true, 'farmhouse exact mutation QA user should register')
+seedSave(greenhouseMember)
+seedSave(farmhouseMember)
+const greenhouseFarmhouseFriendRequest = await socialRuntime.requestFriendship(greenhouseMember, { target_username: farmhouseMember })
+await socialRuntime.acceptFriendRequest(farmhouseMember, greenhouseFarmhouseFriendRequest.id)
+const greenhouseFarmhouseContract = await runtime.createCohabitationContract({
+  type: 'business_partner',
+  target_usernames: [farmhouseMember],
+  idempotency_key: 'qa-greenhouse-farmhouse-contract',
+}, actor(greenhouseMember))
+await runtime.acceptCohabitationContract(greenhouseFarmhouseContract.contract.id, actor(farmhouseMember))
+await runtime.updateCohabitationPermissions(greenhouseFarmhouseContract.contract.id, {
+  target_username: greenhouseMember,
+  permissions: {
+    fund: {
+      spend_large: true,
+    },
+  },
+  idempotency_key: 'qa-greenhouse-farmhouse-owner-spend-large-permission',
+}, actor(greenhouseMember))
 
-const farmhouseMutationData = {
-  home: { farmhouseLevel: 3, cellarSlots: [], homeRenovationStates: {} },
-  animal: { pets: [{ type: 'cat', name: 'Mimi' }, { type: 'dog', name: 'Wang' }] },
-}
-const farmhouseMutationTarget = runtime.__testInternals.resolveFamilyBuildingMainStateMutationTarget(farmhouseMutationData, {
-  candidate_path: 'home.farmhouseLevel',
-  delete_selector: 'home.farmhouseLevel.3',
+const greenhouseFarmhouseLedgerId = 'qa_greenhouse_farmhouse_building_ledger'
+const greenhouseFarmhouseRealBuildRef = 'family_building:shared_granary:qa_greenhouse_farmhouse'
+await mutateStoredContract(greenhouseFarmhouseContract.contract.id, contract => {
+  contract.family_building_ledger = [
+    {
+      id: greenhouseFarmhouseLedgerId,
+      contract_id: contract.id,
+      action: 'compensated',
+      status: 'compensated',
+      purpose: 'family_building',
+      target_ref: 'family_building:shared_granary:build',
+      building_id: 'shared_granary',
+      project_id: 'shared_granary',
+      actor_username: greenhouseMember,
+      amount: 0,
+      shared_fund_balance_before: 0,
+      shared_fund_balance_after: 0,
+      shared_fund_deducted: false,
+      shared_warehouse_materials_consumed: false,
+      personal_money_merged: false,
+      personal_inventory_merged: false,
+      real_build_applied: true,
+      real_build_ref: greenhouseFarmhouseRealBuildRef,
+      compensation_required: false,
+      real_build_demolished: true,
+      real_build_demolition_review_state: 'executed',
+      real_build_demolition_execution_state: 'executed',
+      real_build_demolition_personal_save_write_idempotency_key: 'qa-greenhouse-farmhouse-personal-save-write',
+      deferred_operations: [],
+      at: 1771950000,
+      created_at: 1771950000,
+    },
+  ]
 })
-const farmhouseMutation = farmhouseMutationTarget.apply()
-assert.equal(farmhouseMutationData.home.farmhouseLevel, 2, 'farmhouse level exact selector should downgrade one level')
-assert.equal(farmhouseMutationTarget.target_kind, 'home_farmhouse_level', 'farmhouse level exact selector should report target kind')
-assert.equal(farmhouseMutation.mutation_result, 'home_farmhouse_level_downgraded', 'farmhouse level exact selector should report mutation result')
-assert.equal(farmhouseMutationTarget.before_value.petCapacityAfter, 2, 'farmhouse level exact selector should audit pet capacity after downgrade')
+
+const greenhouseHomeBeforeExactChain = readGameplayData(greenhouseMember)?.home || {}
+const farmhouseHomeBeforeExactChain = readGameplayData(farmhouseMember)?.home || {}
+const greenhouseMoneyBeforeExactChain = readGameplayData(greenhouseMember)?.player?.money
+const farmhouseMoneyBeforeExactChain = readGameplayData(farmhouseMember)?.player?.money
+const greenhouseWoodBeforeExactChain = getInventoryItemQuantity(greenhouseMember, 'wood')
+const farmhouseWoodBeforeExactChain = getInventoryItemQuantity(farmhouseMember, 'wood')
+assert.equal(greenhouseHomeBeforeExactChain.greenhouseUnlocked, true, 'greenhouse member should start with unlocked greenhouse')
+assert.equal(farmhouseHomeBeforeExactChain.farmhouseLevel, 3, 'farmhouse member should start at level 3 farmhouse')
+assert.equal(farmhouseHomeBeforeExactChain.cellarSlots?.length ?? 0, 0, 'farmhouse member should start without cellar slots so downgrade is safe')
+
+const greenhouseFarmhousePreview = await runtime.previewCohabitationFamilyBuildingRealDemolitionMainState(greenhouseFarmhouseContract.contract.id, {
+  building_ledger_id: greenhouseFarmhouseLedgerId,
+  reason: 'qa preview greenhouse and farmhouse exact mutation chain',
+  idempotency_key: 'qa-greenhouse-farmhouse-main-state-preview',
+}, actor(greenhouseMember))
+assert.equal(greenhouseFarmhousePreview.idempotent, false, 'greenhouse farmhouse preview should be first-run')
+assert.equal(greenhouseFarmhousePreview.main_state_preview.manifest.length, 2, 'greenhouse farmhouse preview should include two accepted members')
+assert.equal(greenhouseFarmhousePreview.main_state_preview.personal_save_changed, false, 'greenhouse farmhouse preview should not write personal saves')
+
+const greenhouseFarmhouseMappingPayload = {
+  building_ledger_id: greenhouseFarmhouseLedgerId,
+  manifest_hash: greenhouseFarmhousePreview.main_state_preview.manifest_hash,
+  reason: 'qa verify greenhouse and farmhouse main state mapping',
+  idempotency_key: 'qa-greenhouse-farmhouse-main-state-mapping',
+  mappings: greenhouseFarmhousePreview.main_state_preview.manifest.map(item => {
+    const useGreenhouse = item.username === greenhouseMember
+    return {
+      username: item.username,
+      username_key: item.username_key,
+      save_slot: item.save_slot,
+      save_id: item.save_id,
+      real_build_ref: item.real_build_ref,
+      candidate_path: useGreenhouse ? 'home.greenhouseUnlocked' : 'home.farmhouseLevel',
+      binding_ref: `${useGreenhouse ? 'manual-greenhouse' : 'manual-farmhouse'}:${item.building_ledger_id}:${item.username_key}`,
+      snapshot_hash: item.snapshot_hash,
+    }
+  }),
+}
+const greenhouseFarmhouseMapping = await runtime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(
+  greenhouseFarmhouseContract.contract.id,
+  greenhouseFarmhouseMappingPayload,
+  actor(greenhouseMember)
+)
+assert.equal(greenhouseFarmhouseMapping.idempotent, false, 'greenhouse farmhouse mapping should be first-run')
+assert.equal(greenhouseFarmhouseMapping.main_state_mapping.manifest.length, 2, 'greenhouse farmhouse mapping should cover both members')
+assert.ok(greenhouseFarmhouseMapping.main_state_mapping.manifest.some(item => item.username === greenhouseMember && item.candidate_path === 'home.greenhouseUnlocked'), 'greenhouse mapping should target greenhouse unlock state')
+assert.ok(greenhouseFarmhouseMapping.main_state_mapping.manifest.some(item => item.username === farmhouseMember && item.candidate_path === 'home.farmhouseLevel'), 'farmhouse mapping should target farmhouse level')
+
+const greenhouseFarmhouseGuard = await runtime.guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(greenhouseFarmhouseContract.contract.id, {
+  building_ledger_id: greenhouseFarmhouseLedgerId,
+  mapping_manifest_hash: greenhouseFarmhouseMapping.main_state_mapping.manifest_hash,
+  confirmation_text: '确认主状态变更安全阀',
+  compensation_plan_acknowledged: true,
+  rollback_plan_acknowledged: true,
+  reason: 'qa guard greenhouse and farmhouse exact mutation',
+  idempotency_key: 'qa-greenhouse-farmhouse-main-state-guard',
+}, actor(greenhouseMember))
+assert.equal(greenhouseFarmhouseGuard.idempotent, false, 'greenhouse farmhouse guard should be first-run')
+assert.equal(greenhouseFarmhouseGuard.main_state_mutation_guard.manifest.length, 2, 'greenhouse farmhouse guard should cover both members')
+
+const greenhouseFarmhouseMainStateExecute = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateMutation(greenhouseFarmhouseContract.contract.id, {
+  building_ledger_id: greenhouseFarmhouseLedgerId,
+  guard_manifest_hash: greenhouseFarmhouseGuard.main_state_mutation_guard.manifest_hash,
+  reason: 'qa block greenhouse and farmhouse before exact target binding',
+  idempotency_key: 'qa-greenhouse-farmhouse-main-state-execute',
+}, actor(greenhouseMember))
+assert.equal(greenhouseFarmhouseMainStateExecute.main_state_execution.execution_state, 'blocked_missing_exact_personal_target', 'greenhouse farmhouse generic execute should require exact target binding')
+
+const greenhouseFarmhouseExactTargetPayload = {
+  building_ledger_id: greenhouseFarmhouseLedgerId,
+  guard_manifest_hash: greenhouseFarmhouseMainStateExecute.building_ledger_entry.real_build_demolition_main_state_guard_manifest_hash,
+  expected_execution_state: 'blocked_missing_exact_personal_target',
+  reason: 'qa bind placeholder exact targets for greenhouse and farmhouse',
+  idempotency_key: 'qa-greenhouse-farmhouse-exact-targets',
+  targets: greenhouseFarmhouseMainStateExecute.building_ledger_entry.real_build_demolition_main_state_guard_manifest.map((row, index) => ({
+    username: row.username,
+    username_key: row.username_key,
+    save_slot: row.save_slot,
+    save_id: row.save_id,
+    real_build_ref: row.real_build_ref,
+    candidate_path: row.candidate_path,
+    binding_ref: row.binding_ref,
+    snapshot_hash: row.snapshot_hash,
+    exact_target_ref: `${row.candidate_path}.qa_exact_target_greenhouse_farmhouse_${index}`,
+    delete_selector: `${row.candidate_path}.qa_exact_target_greenhouse_farmhouse_${index}`,
+    target_kind: 'home',
+  })),
+}
+const greenhouseFarmhouseExactTargets = await runtime.bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(
+  greenhouseFarmhouseContract.contract.id,
+  greenhouseFarmhouseExactTargetPayload,
+  actor(greenhouseMember)
+)
+assert.equal(greenhouseFarmhouseExactTargets.idempotent, false, 'greenhouse farmhouse exact target bind should be first-run')
+assert.equal(greenhouseFarmhouseExactTargets.building_ledger_entry.real_build_demolition_main_state_execution_state, 'exact_target_bound_pending_execute', 'greenhouse farmhouse exact targets should wait for exact execute')
+
+const greenhouseFarmhouseExactExecutePayload = {
+  building_ledger_id: greenhouseFarmhouseLedgerId,
+  exact_target_manifest_hash: greenhouseFarmhouseExactTargets.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest_hash,
+  expected_execution_state: 'exact_target_bound_pending_execute',
+  confirmation_text: '确认精确执行安全阀',
+  compensation_plan_acknowledged: true,
+  rollback_plan_acknowledged: true,
+  reason: 'qa execute placeholder greenhouse and farmhouse exact targets',
+  idempotency_key: 'qa-greenhouse-farmhouse-exact-execute',
+}
+const greenhouseFarmhouseExactExecute = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(
+  greenhouseFarmhouseContract.contract.id,
+  greenhouseFarmhouseExactExecutePayload,
+  actor(greenhouseMember)
+)
+assert.equal(greenhouseFarmhouseExactExecute.building_ledger_entry.real_build_demolition_main_state_exact_execution_state, 'blocked_unresolved_exact_target_selector', 'greenhouse farmhouse exact execute should block unresolved placeholders')
+
+const greenhouseFarmhouseResolutionPayload = {
+  building_ledger_id: greenhouseFarmhouseLedgerId,
+  exact_target_manifest_hash: greenhouseFarmhouseExactExecute.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest_hash,
+  expected_execution_state: 'blocked_unresolved_exact_target_selector',
+  confirmation_text: '确认人工解析精确目标',
+  reason: 'qa resolve greenhouse and farmhouse exact targets',
+  idempotency_key: 'qa-greenhouse-farmhouse-exact-resolution',
+  targets: greenhouseFarmhouseExactExecute.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest.map((item, index) => {
+    const resolvedTargetRef = item.username === greenhouseMember
+      ? 'home.greenhouseUnlocked.true'
+      : 'home.farmhouseLevel.3'
+    return {
+      username: item.username,
+      username_key: item.username_key,
+      save_slot: item.save_slot,
+      save_id: item.save_id,
+      real_build_ref: item.real_build_ref,
+      candidate_path: item.candidate_path,
+      binding_ref: item.binding_ref,
+      snapshot_hash: item.snapshot_hash,
+      exact_target_ref: resolvedTargetRef,
+      delete_selector: resolvedTargetRef,
+      target_kind: item.target_kind,
+      resolution_proof: `qa-greenhouse-farmhouse-proof-${index}`,
+    }
+  }),
+}
+const greenhouseFarmhouseResolution = await runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(
+  greenhouseFarmhouseContract.contract.id,
+  greenhouseFarmhouseResolutionPayload,
+  actor(greenhouseMember)
+)
+assert.equal(greenhouseFarmhouseResolution.idempotent, false, 'greenhouse farmhouse exact resolution should be first-run')
+assert.equal(greenhouseFarmhouseResolution.building_ledger_entry.real_build_demolition_main_state_exact_execution_state, 'blocked_personal_main_state_mutation_adapter_missing', 'greenhouse farmhouse resolution should advance to mutation adapter')
+
+const greenhouseFarmhouseMutationPayload = {
+  building_ledger_id: greenhouseFarmhouseLedgerId,
+  exact_target_manifest_hash: greenhouseFarmhouseResolution.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest_hash,
+  expected_execution_state: 'blocked_personal_main_state_mutation_adapter_missing',
+  confirmation_text: '确认执行个人主状态变更',
+  compensation_plan_acknowledged: true,
+  rollback_plan_acknowledged: true,
+  reason: 'qa execute greenhouse and farmhouse exact mutation through real chain',
+  idempotency_key: 'qa-greenhouse-farmhouse-exact-mutation',
+}
+const greenhouseFarmhouseMutation = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(
+  greenhouseFarmhouseContract.contract.id,
+  greenhouseFarmhouseMutationPayload,
+  actor(greenhouseMember)
+)
+assert.equal(greenhouseFarmhouseMutation.idempotent, false, 'greenhouse farmhouse exact mutation should be first-run')
+assert.equal(greenhouseFarmhouseMutation.main_state_exact_mutation.receipts.length, 2, 'greenhouse farmhouse exact mutation should write two receipts')
+assert.equal(greenhouseFarmhouseMutation.main_state_exact_mutation.shared_fund_changed, false, 'greenhouse farmhouse exact mutation should not change shared fund')
+assert.equal(greenhouseFarmhouseMutation.main_state_exact_mutation.shared_warehouse_changed, false, 'greenhouse farmhouse exact mutation should not change shared warehouse')
+assert.equal(readGameplayData(greenhouseMember)?.home?.greenhouseUnlocked, false, 'greenhouse exact chain should reset greenhouse unlock flag')
+assert.equal(readGameplayData(farmhouseMember)?.home?.farmhouseLevel, 2, 'farmhouse exact chain should downgrade farmhouse one level')
+assert.equal(readGameplayData(farmhouseMember)?.animal?.pets?.length, 2, 'farmhouse exact chain should preserve pets within downgraded capacity')
+assert.equal(readGameplayData(greenhouseMember)?.player?.money, greenhouseMoneyBeforeExactChain, 'greenhouse exact chain should not touch personal money')
+assert.equal(readGameplayData(farmhouseMember)?.player?.money, farmhouseMoneyBeforeExactChain, 'farmhouse exact chain should not touch personal money')
+assert.equal(getInventoryItemQuantity(greenhouseMember, 'wood'), greenhouseWoodBeforeExactChain, 'greenhouse exact chain should not touch personal inventory')
+assert.equal(getInventoryItemQuantity(farmhouseMember, 'wood'), farmhouseWoodBeforeExactChain, 'farmhouse exact chain should not touch personal inventory')
+assert.ok(greenhouseFarmhouseMutation.main_state_exact_mutation.receipts.find(receipt => receipt.username === greenhouseMember && receipt.target_kind === 'home_greenhouse_unlocked' && receipt.mutation_result === 'home_greenhouse_unlocked_reset'), 'greenhouse exact mutation response should include greenhouse receipt')
+assert.ok(greenhouseFarmhouseMutation.main_state_exact_mutation.receipts.find(receipt => receipt.username === farmhouseMember && receipt.target_kind === 'home_farmhouse_level' && receipt.mutation_result === 'home_farmhouse_level_downgraded'), 'farmhouse exact mutation response should include farmhouse receipt')
+assert.equal(readGameplayData(greenhouseMember)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.target_kind, 'home_greenhouse_unlocked', 'greenhouse personal receipt should record greenhouse target kind')
+assert.equal(readGameplayData(farmhouseMember)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.target_kind, 'home_farmhouse_level', 'farmhouse personal receipt should record farmhouse target kind')
+const greenhouseRawAfterExactChain = saveRuntime.loadUserSaveSlots(greenhouseMember).slots[0].raw
+const farmhouseRawAfterExactChain = saveRuntime.loadUserSaveSlots(farmhouseMember).slots[0].raw
+const duplicateGreenhouseFarmhouseMutation = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(
+  greenhouseFarmhouseContract.contract.id,
+  greenhouseFarmhouseMutationPayload,
+  actor(greenhouseMember)
+)
+assert.equal(duplicateGreenhouseFarmhouseMutation.idempotent, true, 'greenhouse farmhouse exact mutation should be idempotent')
+assert.equal(duplicateGreenhouseFarmhouseMutation.already_mutated, true, 'duplicate greenhouse farmhouse exact mutation should report already mutated')
+assert.equal(saveRuntime.loadUserSaveSlots(greenhouseMember).slots[0].raw, greenhouseRawAfterExactChain, 'duplicate greenhouse exact mutation should not rewrite save')
+assert.equal(saveRuntime.loadUserSaveSlots(farmhouseMember).slots[0].raw, farmhouseRawAfterExactChain, 'duplicate farmhouse exact mutation should not rewrite save')
 
 await assert.rejects(
   async () => runtime.__testInternals.resolveFamilyBuildingMainStateMutationTarget({

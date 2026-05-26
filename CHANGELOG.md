@@ -2,6 +2,7 @@
 
 最后整理：2026-05-26
 
+- 家族建筑真实拆除个人主状态温室 / 农舍等级 QA 升级：`qa:cohabitation-contract` 新增独立双人成员真实链路，覆盖 `home.greenhouseUnlocked.true` 与 `home.farmhouseLevel.3` 从主状态预览、映射证明、guard、精确目标绑定、占位阻断、人工解析到真实适配器执行的完整流程；验证温室复位、农舍降一级、个人回执、幂等复跑、宠物容量保留，以及个人铜币 / 背包、共同基金 / 共同仓库边界不变。
 - 家族建筑真实拆除个人主状态精确变更新增农舍等级 selector：后端适配器支持 `home.farmhouseLevel.<当前等级>`，只允许把个人农舍等级降一级，并在执行前拒绝仍有酒窖陈酿槽、高等级宅院改造或宠物数量超过降级后容量的存档；回执记录降级前等级、目标等级、酒窖槽数、装修数和宠物容量审计，不返还升级材料，不改变个人铜币、背包、农田、共同基金或共同仓库。前端“执行变更”按钮同步允许 `home.farmhouseLevel` 窄路径，在线 UI 结构 QA 增加该 selector 守护。
 - 共同庄园建筑页个人主状态精确变更前端守卫收紧：`home.farmhouseLevel` 只允许 `1-3` 数字等级，`home.cellarSlots` 只允许数字下标，`home.caveUnlocked` / `home.greenhouseUnlocked` 只允许 `true`，`home.caveChoice` 只允许 `mushroom` / `fruit_bat`，减少 UI 放过后端必拒 selector 的机会。
 - 家族建筑真实拆除个人主状态精确变更专项 QA 补强：`qa:cohabitation-contract` 新增 `home.greenhouseUnlocked.true` 和 `home.farmhouseLevel.<当前等级>` 适配器断言，覆盖温室复位、农舍降一级、回执 target kind / mutation result，以及酒窖槽、高等级宅院改造、宠物容量超限三个拒绝条件。
