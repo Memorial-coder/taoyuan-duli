@@ -548,7 +548,11 @@
                         <p>{{ receipt.route_replay.summary }}</p>
                         <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
                         <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
-                        <p v-if="routeReplayMemoryText(receipt.route_replay)">纪念：{{ routeReplayMemoryText(receipt.route_replay) }}</p>
+                        <div v-if="routeReplayMemoryRecords(receipt.route_replay).length" data-testid="online-festival-lantern-replay-memory-records" class="space-y-0.5 border-l border-warning/30 pl-2">
+                          <p v-for="record in routeReplayMemoryRecords(receipt.route_replay)" :key="`${receipt.id}-${record.type}`">
+                            {{ formatFestivalMemoryRecord(record) }}
+                          </p>
+                        </div>
                         <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
                         <p v-if="routeReplayComboText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-combos">组合收益：{{ routeReplayComboText(receipt.route_replay) }}</p>
                         <p v-if="routeReplayWithdrawalText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-withdrawal">提前收尾：{{ routeReplayWithdrawalText(receipt.route_replay) }}</p>
@@ -767,7 +771,11 @@
                 <p>{{ receipt.route_replay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.route_replay)">路线：{{ routeReplayRouteText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayRaceText(receipt.route_replay)">{{ routeReplayRaceText(receipt.route_replay) }}</p>
-                <p v-if="routeReplayMemoryText(receipt.route_replay)">纪念：{{ routeReplayMemoryText(receipt.route_replay) }}</p>
+                <div v-if="routeReplayMemoryRecords(receipt.route_replay).length" data-testid="online-festival-lantern-replay-memory-records" class="space-y-0.5 border-l border-warning/30 pl-2">
+                  <p v-for="record in routeReplayMemoryRecords(receipt.route_replay)" :key="`${receipt.id}-${record.type}`">
+                    {{ formatFestivalMemoryRecord(record) }}
+                  </p>
+                </div>
                 <p v-if="routeReplayPeakText(receipt.route_replay)">{{ routeReplayPeakLabel(receipt.route_replay) }}：{{ routeReplayPeakText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayComboText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-combos">组合收益：{{ routeReplayComboText(receipt.route_replay) }}</p>
                 <p v-if="routeReplayWithdrawalText(receipt.route_replay)" data-testid="online-festival-expedition-receipt-withdrawal">提前收尾：{{ routeReplayWithdrawalText(receipt.route_replay) }}</p>
@@ -1272,9 +1280,9 @@
               <p class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.template_label }} · {{ memorial.gameplay_template_label }}</p>
               <p class="mt-1 text-[10px] text-muted">{{ memorial.reward_summary }}</p>
               <p v-if="memorial.photo_line" class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.photo_line }}</p>
-              <div v-if="memorial.memory_records?.length" class="mt-1 space-y-0.5 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
-                <p v-for="record in memorial.memory_records.filter(item => item.actor_username)" :key="`${memorial.memorial_id}-${record.type}`">
-                  {{ record.label }}：{{ record.actor_display_name || record.actor_username }}
+              <div v-if="festivalMemoryRecords(memorial.memory_records).length" data-testid="online-festival-lantern-memorial-memory-records" class="mt-1 space-y-0.5 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
+                <p v-for="record in festivalMemoryRecords(memorial.memory_records)" :key="`${memorial.memorial_id}-${record.type}`">
+                  {{ formatFestivalMemoryRecord(record) }}
                 </p>
               </div>
             </div>
@@ -1311,9 +1319,9 @@
               <p class="truncate text-xs text-accent">{{ memorial.label }}</p>
               <p class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.template_label }} · {{ memorial.gameplay_template_label }}</p>
               <p v-if="memorial.photo_line" class="mt-1 text-[10px] leading-4 text-muted">{{ memorial.photo_line }}</p>
-              <div v-if="memorial.memory_records?.length" class="mt-1 space-y-0.5 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
-                <p v-for="record in memorial.memory_records.filter(item => item.actor_username)" :key="`friend-${memorial.memorial_id}-${record.type}`">
-                  {{ record.label }}：{{ record.actor_display_name || record.actor_username }}
+              <div v-if="festivalMemoryRecords(memorial.memory_records).length" data-testid="online-festival-friend-lantern-memory-records" class="mt-1 space-y-0.5 border-l border-accent/20 pl-2 text-[10px] leading-4 text-muted">
+                <p v-for="record in festivalMemoryRecords(memorial.memory_records)" :key="`friend-${memorial.memorial_id}-${record.type}`">
+                  {{ formatFestivalMemoryRecord(record) }}
                 </p>
               </div>
             </div>
@@ -1341,7 +1349,11 @@
                 <p>{{ receipt.routeReplay.summary }}</p>
                 <p v-if="routeReplayRouteText(receipt.routeReplay)">路线：{{ routeReplayRouteText(receipt.routeReplay) }}</p>
                 <p v-if="routeReplayRaceText(receipt.routeReplay)">{{ routeReplayRaceText(receipt.routeReplay) }}</p>
-                <p v-if="routeReplayMemoryText(receipt.routeReplay)">纪念：{{ routeReplayMemoryText(receipt.routeReplay) }}</p>
+                <div v-if="routeReplayMemoryRecords(receipt.routeReplay).length" data-testid="online-festival-lantern-replay-memory-records" class="space-y-0.5 border-l border-warning/30 pl-2">
+                  <p v-for="record in routeReplayMemoryRecords(receipt.routeReplay)" :key="`${receipt.id}-${record.type}`">
+                    {{ formatFestivalMemoryRecord(record) }}
+                  </p>
+                </div>
                 <p v-if="routeReplayPeakText(receipt.routeReplay)">{{ routeReplayPeakLabel(receipt.routeReplay) }}：{{ routeReplayPeakText(receipt.routeReplay) }}</p>
                 <p v-if="routeReplayComboText(receipt.routeReplay)" data-testid="online-festival-expedition-receipt-combos">组合收益：{{ routeReplayComboText(receipt.routeReplay) }}</p>
                 <p v-if="routeReplayWithdrawalText(receipt.routeReplay)" data-testid="online-festival-expedition-receipt-withdrawal">提前收尾：{{ routeReplayWithdrawalText(receipt.routeReplay) }}</p>
@@ -1492,15 +1504,20 @@
     const rankingText = rankings && replay.race_result.team_count > 1 ? `赛道榜：${rankings}` : ''
     return [replay.race_result.rank_label, popularity, title, rankingText].filter(Boolean).join(' · ')
   }
-  const routeReplayMemoryText = (replay?: ActivityRouteReplay | null) => {
-    if (!hasRouteReplay(replay) || replay?.kind !== 'lantern_fair') return ''
-    const records = 'memory_records' in replay
-      ? (replay.memory_records as FestivalRoomRouteReplayMemoryRecord[])
-      : []
-    return records
-      .filter(record => record.actor_username)
-      .map(record => `${record.label}：${record.actor_display_name || record.actor_username}`)
-      .join(' · ')
+  const festivalMemoryRecords = (records?: FestivalRoomRouteReplayMemoryRecord[] | null) =>
+    (Array.isArray(records) ? records : [])
+      .filter(record => record.label || record.type || record.summary)
+      .slice(0, 8)
+  const routeReplayMemoryRecords = (replay?: ActivityRouteReplay | null) => {
+    if (!hasRouteReplay(replay) || replay?.kind !== 'lantern_fair' || !('memory_records' in replay)) return []
+    return festivalMemoryRecords(replay.memory_records as FestivalRoomRouteReplayMemoryRecord[])
+  }
+  const formatFestivalMemoryRecord = (record: FestivalRoomRouteReplayMemoryRecord) => {
+    const actor = record.actor_display_name || record.actor_username || '待署名'
+    const round = record.round_number > 0 ? `第 ${record.round_number} 回合` : ''
+    const action = record.action_label || record.object_label || ''
+    const summary = record.summary || ''
+    return [`${record.label || '纪念'}：${actor}`, round, action, summary].filter(Boolean).join(' · ')
   }
   const formatSignedCavernDelta = (value: number) => {
     if (value > 0) return `+${value}`
