@@ -322,6 +322,12 @@ export interface ExpeditionRoomRouteReplay {
   member_contributions: ExpeditionRoomRouteReplayContribution[]
   race_result: ExpeditionRoomRouteReplayRaceResult
   race_rankings: ExpeditionRoomRouteReplayRaceRanking[]
+  combo_records: ExpeditionCavernComboRecordSnapshot[]
+  withdrawal_state: string
+  withdrawal_summary: string
+  withdrawal_actor_username: string
+  withdrawal_actor_display_name: string
+  withdrawal_at: number
 }
 
 export interface ExpeditionRoomOpeningCeremony {

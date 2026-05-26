@@ -1690,6 +1690,12 @@ function normalizeReceiptRouteReplay(value) {
       race_result: normalizeReceiptRouteReplayRaceResult(null),
       race_rankings: [],
       memory_records: [],
+      combo_records: [],
+      withdrawal_state: '',
+      withdrawal_summary: '',
+      withdrawal_actor_username: '',
+      withdrawal_actor_display_name: '',
+      withdrawal_at: 0,
     };
   }
   return {
@@ -1727,6 +1733,14 @@ function normalizeReceiptRouteReplay(value) {
     memory_records: Array.isArray(source.memory_records)
       ? source.memory_records.map(normalizeReceiptRouteReplayMemoryRecord).filter(Boolean).slice(0, 8)
       : [],
+    combo_records: Array.isArray(source.combo_records)
+      ? source.combo_records.map(normalizeExpeditionCavernComboRecord).filter(Boolean).slice(0, 12)
+      : [],
+    withdrawal_state: sanitizeText(source.withdrawal_state, 24),
+    withdrawal_summary: sanitizeText(source.withdrawal_summary, 180),
+    withdrawal_actor_username: sanitizeText(source.withdrawal_actor_username, 40),
+    withdrawal_actor_display_name: sanitizeText(source.withdrawal_actor_display_name, 40),
+    withdrawal_at: Math.max(0, Math.floor(Number(source.withdrawal_at) || 0)),
   };
 }
 
@@ -2198,6 +2212,7 @@ function normalizeExpeditionCavernComboRecord(entry) {
     score_delta: Math.max(0, Math.floor(Number(entry?.score_delta) || 0)),
     risk_delta: Math.floor(Number(entry?.risk_delta) || 0),
     resource_delta: normalizeExpeditionCavernResourceDelta(entry?.resource_delta),
+    resource_delta_text: sanitizeText(entry?.resource_delta_text, 120) || summarizeExpeditionCavernResourceDelta(entry?.resource_delta),
     summary: sanitizeText(entry?.summary, 160),
     created_at: Math.max(0, Math.floor(Number(entry?.created_at) || nowSeconds())),
   };
@@ -3828,6 +3843,12 @@ function buildExpeditionCavernRouteReplay(room) {
     highlight_nodes: highlightNodes,
     risk_peak: riskPeak,
     member_contributions: memberContributions,
+    combo_records: cavernState.combo_records,
+    withdrawal_state: cavernState.withdrawal_state,
+    withdrawal_summary: cavernState.withdrawal_summary,
+    withdrawal_actor_username: cavernState.withdrawal_actor_username,
+    withdrawal_actor_display_name: cavernState.withdrawal_actor_display_name,
+    withdrawal_at: cavernState.withdrawal_at,
   });
 }
 

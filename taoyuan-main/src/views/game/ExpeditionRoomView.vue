@@ -158,16 +158,25 @@
                 v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records.length > 0 || expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_state === 'confirmed'"
                 class="mt-2 grid gap-2 sm:grid-cols-2"
               >
-                <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records.length > 0" class="border border-success/20 rounded-xs bg-success/5 px-2 py-2">
+                <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records.length > 0" data-testid="expedition-cavern-combo-summary" class="border border-success/20 rounded-xs bg-success/5 px-2 py-2">
                   <p class="text-[10px] text-success">节点组合收益</p>
-                  <p class="mt-1 text-[10px] leading-4 text-muted">
-                    {{ expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records[0]?.summary }}
-                  </p>
+                  <div class="mt-1 space-y-1">
+                    <p
+                      v-for="combo in expeditionRoomStore.myRoom.gameplay.cavern_state.combo_records"
+                      :key="`${expeditionRoomStore.myRoom.id}-${combo.combo_id}`"
+                      class="text-[10px] leading-4 text-muted"
+                    >
+                      {{ combo.label }}：{{ combo.summary }} · 采集值 +{{ combo.score_delta }} · 风险 {{ formatSignedCavernDelta(combo.risk_delta) }}{{ combo.resource_delta_text ? ` · ${combo.resource_delta_text}` : '' }}
+                    </p>
+                  </div>
                 </div>
-                <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_state === 'confirmed'" class="border border-warning/20 rounded-xs bg-warning/5 px-2 py-2">
+                <div v-if="expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_state === 'confirmed'" data-testid="expedition-cavern-withdrawal-summary" class="border border-warning/20 rounded-xs bg-warning/5 px-2 py-2">
                   <p class="text-[10px] text-warning">提前收尾</p>
                   <p class="mt-1 text-[10px] leading-4 text-muted">
                     {{ expeditionRoomStore.myRoom.gameplay.cavern_state.withdrawal_summary || '撤离点已锁定，房主可以进入结算。' }}
+                  </p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">
+                    {{ cavernWithdrawalActorLabel(expeditionRoomStore.myRoom.gameplay.cavern_state) }}
                   </p>
                 </div>
               </div>
@@ -365,6 +374,14 @@
                   {{ contribution.display_name }} {{ contribution.role_label || '队员' }} · {{ contribution.action_count }} 次
                 </span>
               </div>
+              <div v-if="receipt.route_replay.combo_records.length > 0" data-testid="expedition-cavern-receipt-combos" class="mt-2 space-y-1 border-l border-success/30 pl-2">
+                <p v-for="combo in receipt.route_replay.combo_records" :key="`${receipt.id}-${combo.combo_id}`" class="text-[10px] text-muted leading-4">
+                  {{ combo.label }}：采集值 +{{ combo.score_delta }} · 风险 {{ formatSignedCavernDelta(combo.risk_delta) }}{{ combo.resource_delta_text ? ` · ${combo.resource_delta_text}` : '' }}
+                </p>
+              </div>
+              <p v-if="receipt.route_replay.withdrawal_state === 'confirmed'" data-testid="expedition-cavern-receipt-withdrawal" class="mt-2 text-[10px] text-muted leading-4">
+                提前收尾：{{ receipt.route_replay.withdrawal_summary || '撤离点已确认。' }} · {{ routeReplayWithdrawalActorLabel(receipt.route_replay) }}
+              </p>
             </div>
           </div>
         </div>
@@ -646,6 +663,35 @@
       .map(receipt => `${receipt.target_display_name} · ${receipt.status_label} · ${receipt.summary}`)
     return [...actionHints, ...receiptHints]
   })
+
+  const formatSignedCavernDelta = (value: number) => {
+    const numeric = Math.floor(Number(value) || 0)
+    return numeric > 0 ? `+${numeric}` : String(numeric)
+  }
+
+  const formatExpeditionTime = (seconds: number) => {
+    if (!seconds) return ''
+    return new Date(seconds * 1000).toLocaleString('zh-CN', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+    })
+  }
+
+  const cavernWithdrawalActorLabel = (cavernState: NonNullable<typeof expeditionRoomStore.myRoom>['gameplay']['cavern_state']) => {
+    if (!cavernState) return '撤离确认人未记录'
+    const actor = cavernState.withdrawal_actor_display_name || cavernState.withdrawal_actor_username || '撤离确认人未记录'
+    const time = formatExpeditionTime(cavernState.withdrawal_at)
+    return time ? `${actor} · ${time}` : actor
+  }
+
+  const routeReplayWithdrawalActorLabel = (routeReplay: NonNullable<typeof expeditionRoomStore.myRoom>['settlement_receipts'][number]['route_replay']) => {
+    const actor = routeReplay.withdrawal_actor_display_name || routeReplay.withdrawal_actor_username || '撤离确认人未记录'
+    const time = formatExpeditionTime(routeReplay.withdrawal_at)
+    return time ? `${actor} · ${time}` : actor
+  }
 
   const createRoom = async () => {
     await expeditionRoomStore.createRoom().catch(() => {})
