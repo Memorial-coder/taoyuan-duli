@@ -8,7 +8,8 @@
 - 前端 API / store 接入 `/family-buildings/real-demolition/preview-main-state`，共同庄园建筑流水卡片新增“预览主态”按钮。
 - 按钮按真实拆除执行已完成、个人存档回执已写回、真实落账证据存在、尚未生成主状态预览和契约开启状态禁用；成功后刷新建筑面板、共同仓库、共同基金和共同日志。
 - 建筑流水卡片展示主态预览人、预览时间、manifest hash、清单人数和阻断策略；本轮仍只生成阻断预览，不删除个人房屋 / 建筑主状态、不改共同基金 / 共同仓库数量、不写个人铜币或背包。
-- 本轮验证：`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+- 在线 UI 结构 QA 已补“预览主态”按钮、禁用门槛、store 动作、API 路由、manifest hash 和 `real_build_demolition_main_state_mapping` 暂缓项守护。
+- 本轮验证：`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`。
 
 ### 0526 家族建筑真实拆除个人主状态预览安全阀
 - 服务端新增 `/family-buildings/real-demolition/preview-main-state`，要求真实拆除已执行、个人存档回执已写回、真实建造落账证据和 `demolish_requires_both` 安全阀齐备。

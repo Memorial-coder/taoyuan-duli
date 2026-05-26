@@ -41,6 +41,7 @@ for (const relativePath of viewFiles) {
 
 utilitySources.set('utils/onlineProfileApi.ts', await readFile(path.join(srcRoot, 'utils', 'onlineProfileApi.ts'), 'utf8'))
 utilitySources.set('utils/cohabitationApi.ts', await readFile(path.join(srcRoot, 'utils', 'cohabitationApi.ts'), 'utf8'))
+utilitySources.set('stores/useCohabitationStore.ts', await readFile(path.join(srcRoot, 'stores', 'useCohabitationStore.ts'), 'utf8'))
 
 const getFile = (relativePath) => files.get(relativePath) ?? utilitySources.get(relativePath) ?? ''
 
@@ -102,15 +103,24 @@ expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-buildin
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-building-real-demolition-review', '共同庄园建筑页应提供真实拆除复核请求入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-building-real-demolition-approve', '共同庄园建筑页应提供真实拆除复核批准入口')
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-building-real-demolition-reject', '共同庄园建筑页应提供真实拆除复核驳回入口')
+expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-building-real-demolition-preview-main-state', '共同庄园建筑页应提供真实拆除个人主状态预览入口')
 expectContains('online/OnlineCohabitationView.vue', 'canReplayFamilyBuildingCompensation', '共同庄园建筑页应按退款和材料恢复状态禁用补偿收口')
 expectContains('online/OnlineCohabitationView.vue', 'canRequestFamilyBuildingRealDemolitionReview', '共同庄园建筑页应按补偿收口和复核状态禁用真实拆除复核请求')
 expectContains('online/OnlineCohabitationView.vue', 'canApproveFamilyBuildingRealDemolitionReview', '共同庄园建筑页应按待审和幂等状态禁用真实拆除复核批准')
 expectContains('online/OnlineCohabitationView.vue', 'canRejectFamilyBuildingRealDemolitionReview', '共同庄园建筑页应按待审和幂等状态禁用真实拆除复核驳回')
+expectContains('online/OnlineCohabitationView.vue', 'canPreviewFamilyBuildingRealDemolitionMainState', '共同庄园建筑页应按执行完成、回执和幂等状态禁用个人主状态预览')
+expectContains('online/OnlineCohabitationView.vue', 'previewFamilyBuildingRealDemolitionMainState', '共同庄园建筑页应调用个人主状态预览 store 方法')
+expectContains('online/OnlineCohabitationView.vue', 'real_build_demolition_main_state_manifest_hash', '共同庄园建筑页应展示个人主状态预览 manifest hash')
+expectContains('online/OnlineCohabitationView.vue', 'real_build_demolition_main_state_mapping', '共同庄园建筑页应读回真实拆除个人主状态映射暂缓项')
 expectContains('utils/cohabitationApi.ts', '/family-buildings/materials/restore', '共同庄园建筑 API 应接入材料恢复接口')
 expectContains('utils/cohabitationApi.ts', '/family-buildings/compensation/replay', '共同庄园建筑 API 应接入补偿重放收口接口')
 expectContains('utils/cohabitationApi.ts', '/family-buildings/real-demolition/request-review', '共同庄园建筑 API 应接入真实拆除复核请求接口')
 expectContains('utils/cohabitationApi.ts', '/family-buildings/real-demolition/approve-review', '共同庄园建筑 API 应接入真实拆除复核批准接口')
 expectContains('utils/cohabitationApi.ts', '/family-buildings/real-demolition/reject-review', '共同庄园建筑 API 应接入真实拆除复核驳回接口')
+expectContains('utils/cohabitationApi.ts', '/family-buildings/real-demolition/preview-main-state', '共同庄园建筑 API 应接入真实拆除个人主状态预览接口')
+expectContains('utils/cohabitationApi.ts', 'previewCohabitationFamilyBuildingRealDemolitionMainState', '共同庄园建筑 API 应导出个人主状态预览方法')
+expectContains('stores/useCohabitationStore.ts', 'previewCohabitationFamilyBuildingRealDemolitionMainState', '共同庄园 store 应引入个人主状态预览 API')
+expectContains('stores/useCohabitationStore.ts', 'previewFamilyBuildingRealDemolitionMainState', '共同庄园 store 应导出个人主状态预览动作')
 expectContains('utils/cohabitationApi.ts', 'construction_ledger', '共同庄园建筑 API 类型应包含建筑流水')
 expectContains('utils/cohabitationApi.ts', 'CohabitationFamilyBuildingLedgerEntry', '共同庄园建筑 API 类型应声明建筑流水条目')
 expectContains('utils/cohabitationApi.ts', '/fund/large-spend-draft', '共同基金 API 应接入大额草案创建接口')
