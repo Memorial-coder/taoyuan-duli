@@ -138,8 +138,8 @@ const buildSaveData = username => ({
     },
     home: {
       farmhouseLevel: username === 'qa_lg_pet_f' ? 2 : 3,
-      caveChoice: username === 'cohabit_lg_cave25' ? 'mushroom' : 'none',
-      caveUnlocked: username === 'cohabit_lg_cave25',
+      caveChoice: username === 'cohabit_lg_cave25' || username === 'qa_lg_cvch26' ? 'mushroom' : 'none',
+      caveUnlocked: username === 'cohabit_lg_cave25' || username === 'qa_lg_cvch26' || username === 'qa_lg_cvun26',
       greenhouseUnlocked: username === 'cohabit_lg_gh25',
       cellarSlots: username === 'cohabit_lg_cellar25'
         ? [
@@ -4517,6 +4517,207 @@ assert.equal(duplicateGreenhouseFarmhouseMutation.idempotent, true, 'greenhouse 
 assert.equal(duplicateGreenhouseFarmhouseMutation.already_mutated, true, 'duplicate greenhouse farmhouse exact mutation should report already mutated')
 assert.equal(saveRuntime.loadUserSaveSlots(greenhouseMember).slots[0].raw, greenhouseRawAfterExactChain, 'duplicate greenhouse exact mutation should not rewrite save')
 assert.equal(saveRuntime.loadUserSaveSlots(farmhouseMember).slots[0].raw, farmhouseRawAfterExactChain, 'duplicate farmhouse exact mutation should not rewrite save')
+
+const caveChoiceMember = 'qa_lg_cvch26'
+const caveUnlockMember = 'qa_lg_cvun26'
+assert.equal((await db.registerUser(caveChoiceMember, 'SmokePass_0525', 'large cave choice member')).ok, true, 'cave choice exact mutation QA user should register')
+assert.equal((await db.registerUser(caveUnlockMember, 'SmokePass_0525', 'large cave unlock member')).ok, true, 'cave unlock exact mutation QA user should register')
+seedSave(caveChoiceMember)
+seedSave(caveUnlockMember)
+const caveStateFriendRequest = await socialRuntime.requestFriendship(caveChoiceMember, { target_username: caveUnlockMember })
+await socialRuntime.acceptFriendRequest(caveUnlockMember, caveStateFriendRequest.id)
+const caveStateContract = await runtime.createCohabitationContract({
+  type: 'business_partner',
+  target_usernames: [caveUnlockMember],
+  idempotency_key: 'qa-cave-state-contract',
+}, actor(caveChoiceMember))
+await runtime.acceptCohabitationContract(caveStateContract.contract.id, actor(caveUnlockMember))
+await runtime.updateCohabitationPermissions(caveStateContract.contract.id, {
+  target_username: caveChoiceMember,
+  permissions: {
+    fund: {
+      spend_large: true,
+    },
+  },
+  idempotency_key: 'qa-cave-state-owner-spend-large-permission',
+}, actor(caveChoiceMember))
+
+const caveStateLedgerId = 'qa_cave_state_building_ledger'
+await injectReadyFamilyBuildingMainStateLedger(caveStateContract.contract.id, {
+  actorUsername: caveChoiceMember,
+  ledgerId: caveStateLedgerId,
+  realBuildRef: 'family_building:shared_granary:qa_cave_state',
+})
+
+const caveChoiceHomeBeforeExactChain = readGameplayData(caveChoiceMember)?.home || {}
+const caveUnlockHomeBeforeExactChain = readGameplayData(caveUnlockMember)?.home || {}
+const caveChoiceMoneyBeforeExactChain = readGameplayData(caveChoiceMember)?.player?.money
+const caveUnlockMoneyBeforeExactChain = readGameplayData(caveUnlockMember)?.player?.money
+const caveChoiceWoodBeforeExactChain = getInventoryItemQuantity(caveChoiceMember, 'wood')
+const caveUnlockWoodBeforeExactChain = getInventoryItemQuantity(caveUnlockMember, 'wood')
+assert.equal(caveChoiceHomeBeforeExactChain.caveUnlocked, true, 'cave choice member should start with cave unlocked')
+assert.equal(caveChoiceHomeBeforeExactChain.caveChoice, 'mushroom', 'cave choice member should start with mushroom cave choice')
+assert.equal(caveUnlockHomeBeforeExactChain.caveUnlocked, true, 'cave unlock member should start with cave unlocked')
+assert.equal(caveUnlockHomeBeforeExactChain.caveChoice, 'none', 'cave unlock member should start with no cave choice so cave can close safely')
+
+const caveStatePreview = await runtime.previewCohabitationFamilyBuildingRealDemolitionMainState(caveStateContract.contract.id, {
+  building_ledger_id: caveStateLedgerId,
+  reason: 'qa preview cave choice and cave unlock exact mutation chain',
+  idempotency_key: 'qa-cave-state-main-state-preview',
+}, actor(caveChoiceMember))
+assert.equal(caveStatePreview.idempotent, false, 'cave state preview should be first-run')
+assert.equal(caveStatePreview.main_state_preview.manifest.length, 2, 'cave state preview should include two accepted members')
+assert.equal(caveStatePreview.main_state_preview.personal_save_changed, false, 'cave state preview should not write personal saves')
+
+const caveStateMapping = await runtime.verifyCohabitationFamilyBuildingRealDemolitionMainStateMapping(caveStateContract.contract.id, {
+  building_ledger_id: caveStateLedgerId,
+  manifest_hash: caveStatePreview.main_state_preview.manifest_hash,
+  reason: 'qa verify cave choice and cave unlock main state mapping',
+  idempotency_key: 'qa-cave-state-main-state-mapping',
+  mappings: caveStatePreview.main_state_preview.manifest.map(item => {
+    const useCaveChoice = item.username === caveChoiceMember
+    return {
+      username: item.username,
+      username_key: item.username_key,
+      save_slot: item.save_slot,
+      save_id: item.save_id,
+      real_build_ref: item.real_build_ref,
+      candidate_path: useCaveChoice ? 'home.caveChoice' : 'home.caveUnlocked',
+      binding_ref: `${useCaveChoice ? 'manual-cave-choice' : 'manual-cave-unlocked'}:${item.building_ledger_id}:${item.username_key}`,
+      snapshot_hash: item.snapshot_hash,
+    }
+  }),
+}, actor(caveChoiceMember))
+assert.equal(caveStateMapping.idempotent, false, 'cave state mapping should be first-run')
+assert.ok(caveStateMapping.main_state_mapping.manifest.some(item => item.username === caveChoiceMember && item.candidate_path === 'home.caveChoice'), 'cave choice mapping should target cave choice')
+assert.ok(caveStateMapping.main_state_mapping.manifest.some(item => item.username === caveUnlockMember && item.candidate_path === 'home.caveUnlocked'), 'cave unlock mapping should target cave unlock flag')
+
+const caveStateGuard = await runtime.guardCohabitationFamilyBuildingRealDemolitionMainStateMutation(caveStateContract.contract.id, {
+  building_ledger_id: caveStateLedgerId,
+  mapping_manifest_hash: caveStateMapping.main_state_mapping.manifest_hash,
+  confirmation_text: '确认主状态变更安全阀',
+  compensation_plan_acknowledged: true,
+  rollback_plan_acknowledged: true,
+  reason: 'qa guard cave choice and cave unlock exact mutation',
+  idempotency_key: 'qa-cave-state-main-state-guard',
+}, actor(caveChoiceMember))
+assert.equal(caveStateGuard.idempotent, false, 'cave state guard should be first-run')
+assert.equal(caveStateGuard.main_state_mutation_guard.manifest.length, 2, 'cave state guard should cover both members')
+
+const caveStateMainStateExecute = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateMutation(caveStateContract.contract.id, {
+  building_ledger_id: caveStateLedgerId,
+  guard_manifest_hash: caveStateGuard.main_state_mutation_guard.manifest_hash,
+  reason: 'qa block cave choice and cave unlock before exact target binding',
+  idempotency_key: 'qa-cave-state-main-state-execute',
+}, actor(caveChoiceMember))
+assert.equal(caveStateMainStateExecute.main_state_execution.execution_state, 'blocked_missing_exact_personal_target', 'cave state generic execute should require exact target binding')
+
+const caveStateExactTargets = await runtime.bindCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(caveStateContract.contract.id, {
+  building_ledger_id: caveStateLedgerId,
+  guard_manifest_hash: caveStateMainStateExecute.building_ledger_entry.real_build_demolition_main_state_guard_manifest_hash,
+  expected_execution_state: 'blocked_missing_exact_personal_target',
+  reason: 'qa bind placeholder exact targets for cave state',
+  idempotency_key: 'qa-cave-state-exact-targets',
+  targets: caveStateMainStateExecute.building_ledger_entry.real_build_demolition_main_state_guard_manifest.map((row, index) => ({
+    username: row.username,
+    username_key: row.username_key,
+    save_slot: row.save_slot,
+    save_id: row.save_id,
+    real_build_ref: row.real_build_ref,
+    candidate_path: row.candidate_path,
+    binding_ref: row.binding_ref,
+    snapshot_hash: row.snapshot_hash,
+    exact_target_ref: `${row.candidate_path}.qa_exact_target_cave_state_${index}`,
+    delete_selector: `${row.candidate_path}.qa_exact_target_cave_state_${index}`,
+    target_kind: 'home',
+  })),
+}, actor(caveChoiceMember))
+assert.equal(caveStateExactTargets.idempotent, false, 'cave state exact target bind should be first-run')
+
+const caveStateExactExecute = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(caveStateContract.contract.id, {
+  building_ledger_id: caveStateLedgerId,
+  exact_target_manifest_hash: caveStateExactTargets.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest_hash,
+  expected_execution_state: 'exact_target_bound_pending_execute',
+  confirmation_text: '确认精确执行安全阀',
+  compensation_plan_acknowledged: true,
+  rollback_plan_acknowledged: true,
+  reason: 'qa execute placeholder cave state exact targets',
+  idempotency_key: 'qa-cave-state-exact-execute',
+}, actor(caveChoiceMember))
+assert.equal(caveStateExactExecute.building_ledger_entry.real_build_demolition_main_state_exact_execution_state, 'blocked_unresolved_exact_target_selector', 'cave state exact execute should block unresolved placeholders')
+
+const caveStateResolution = await runtime.resolveCohabitationFamilyBuildingRealDemolitionMainStateExactTargets(caveStateContract.contract.id, {
+  building_ledger_id: caveStateLedgerId,
+  exact_target_manifest_hash: caveStateExactExecute.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest_hash,
+  expected_execution_state: 'blocked_unresolved_exact_target_selector',
+  confirmation_text: '确认人工解析精确目标',
+  reason: 'qa resolve cave state exact targets',
+  idempotency_key: 'qa-cave-state-exact-resolution',
+  targets: caveStateExactExecute.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest.map((item, index) => {
+    const resolvedTargetRef = item.username === caveChoiceMember
+      ? 'home.caveChoice.mushroom'
+      : 'home.caveUnlocked.true'
+    return {
+      username: item.username,
+      username_key: item.username_key,
+      save_slot: item.save_slot,
+      save_id: item.save_id,
+      real_build_ref: item.real_build_ref,
+      candidate_path: item.candidate_path,
+      binding_ref: item.binding_ref,
+      snapshot_hash: item.snapshot_hash,
+      exact_target_ref: resolvedTargetRef,
+      delete_selector: resolvedTargetRef,
+      target_kind: item.target_kind,
+      resolution_proof: `qa-cave-state-proof-${index}`,
+    }
+  }),
+}, actor(caveChoiceMember))
+assert.equal(caveStateResolution.idempotent, false, 'cave state exact resolution should be first-run')
+assert.equal(caveStateResolution.building_ledger_entry.real_build_demolition_main_state_exact_execution_state, 'blocked_personal_main_state_mutation_adapter_missing', 'cave state resolution should advance to mutation adapter')
+
+const caveStateMutationPayload = {
+  building_ledger_id: caveStateLedgerId,
+  exact_target_manifest_hash: caveStateResolution.building_ledger_entry.real_build_demolition_main_state_exact_target_manifest_hash,
+  expected_execution_state: 'blocked_personal_main_state_mutation_adapter_missing',
+  confirmation_text: '确认执行个人主状态变更',
+  compensation_plan_acknowledged: true,
+  rollback_plan_acknowledged: true,
+  reason: 'qa execute cave state exact mutation through real chain',
+  idempotency_key: 'qa-cave-state-exact-mutation',
+}
+const caveStateMutation = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(
+  caveStateContract.contract.id,
+  caveStateMutationPayload,
+  actor(caveChoiceMember)
+)
+assert.equal(caveStateMutation.idempotent, false, 'cave state exact mutation should be first-run')
+assert.equal(caveStateMutation.main_state_exact_mutation.receipts.length, 2, 'cave state exact mutation should write two receipts')
+assert.equal(caveStateMutation.main_state_exact_mutation.shared_fund_changed, false, 'cave state exact mutation should not change shared fund')
+assert.equal(caveStateMutation.main_state_exact_mutation.shared_warehouse_changed, false, 'cave state exact mutation should not change shared warehouse')
+assert.equal(readGameplayData(caveChoiceMember)?.home?.caveChoice, 'none', 'cave choice exact chain should reset cave choice')
+assert.equal(readGameplayData(caveChoiceMember)?.home?.caveUnlocked, true, 'cave choice exact chain should keep cave unlocked')
+assert.equal(readGameplayData(caveUnlockMember)?.home?.caveUnlocked, false, 'cave unlock exact chain should close cave unlock flag')
+assert.equal(readGameplayData(caveUnlockMember)?.home?.caveChoice, 'none', 'cave unlock exact chain should keep cave choice none')
+assert.equal(readGameplayData(caveChoiceMember)?.player?.money, caveChoiceMoneyBeforeExactChain, 'cave choice exact chain should not touch personal money')
+assert.equal(readGameplayData(caveUnlockMember)?.player?.money, caveUnlockMoneyBeforeExactChain, 'cave unlock exact chain should not touch personal money')
+assert.equal(getInventoryItemQuantity(caveChoiceMember, 'wood'), caveChoiceWoodBeforeExactChain, 'cave choice exact chain should not touch personal inventory')
+assert.equal(getInventoryItemQuantity(caveUnlockMember, 'wood'), caveUnlockWoodBeforeExactChain, 'cave unlock exact chain should not touch personal inventory')
+assert.ok(caveStateMutation.main_state_exact_mutation.receipts.find(receipt => receipt.username === caveChoiceMember && receipt.target_kind === 'home_cave_choice' && receipt.mutation_result === 'home_cave_choice_reset'), 'cave state exact mutation response should include cave choice receipt')
+assert.ok(caveStateMutation.main_state_exact_mutation.receipts.find(receipt => receipt.username === caveUnlockMember && receipt.target_kind === 'home_cave_unlocked' && receipt.mutation_result === 'home_cave_unlocked_reset'), 'cave state exact mutation response should include cave unlock receipt')
+assert.equal(readGameplayData(caveChoiceMember)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.target_kind, 'home_cave_choice', 'cave choice personal receipt should record cave choice target kind')
+assert.equal(readGameplayData(caveUnlockMember)?.onlineCohabitation?.real_build_main_state_mutation_receipts?.[0]?.target_kind, 'home_cave_unlocked', 'cave unlock personal receipt should record cave unlock target kind')
+const caveChoiceRawAfterExactChain = saveRuntime.loadUserSaveSlots(caveChoiceMember).slots[0].raw
+const caveUnlockRawAfterExactChain = saveRuntime.loadUserSaveSlots(caveUnlockMember).slots[0].raw
+const duplicateCaveStateMutation = await runtime.executeCohabitationFamilyBuildingRealDemolitionMainStateExactMutationAdapter(
+  caveStateContract.contract.id,
+  caveStateMutationPayload,
+  actor(caveChoiceMember)
+)
+assert.equal(duplicateCaveStateMutation.idempotent, true, 'cave state exact mutation should be idempotent')
+assert.equal(duplicateCaveStateMutation.already_mutated, true, 'duplicate cave state exact mutation should report already mutated')
+assert.equal(saveRuntime.loadUserSaveSlots(caveChoiceMember).slots[0].raw, caveChoiceRawAfterExactChain, 'duplicate cave choice exact mutation should not rewrite save')
+assert.equal(saveRuntime.loadUserSaveSlots(caveUnlockMember).slots[0].raw, caveUnlockRawAfterExactChain, 'duplicate cave unlock exact mutation should not rewrite save')
 
 const runFarmhouseLevelExactMutationRejectionCase = async ({
   caseId,
