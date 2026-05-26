@@ -3584,6 +3584,11 @@ assert.equal(
   true,
   'main state preview should list blocked home and decoration candidate paths'
 )
+const partnerMainStatePreviewRow = familyBuildingRealDemolitionMainStatePreview.main_state_preview.manifest.find(item => item.username === largePartner)
+assert.equal(partnerMainStatePreviewRow?.candidate_snapshot?.decoration?.ownedCount, 2, 'main state preview should count object-backed owned decorations')
+assert.deepEqual(partnerMainStatePreviewRow?.candidate_snapshot?.decoration?.ownedKeys, ['bamboo_lamp'], 'main state preview should list object-backed owned decoration keys')
+assert.equal(partnerMainStatePreviewRow?.candidate_snapshot?.decoration?.placedCount, 1, 'main state preview should count object-backed placed decorations')
+assert.deepEqual(partnerMainStatePreviewRow?.candidate_snapshot?.decoration?.placedKeys, ['bamboo_lamp'], 'main state preview should list object-backed placed decoration keys')
 assert.ok(familyBuildingRealDemolitionMainStatePreview.contract.audit_log.find(entry => entry.action === 'family_building_real_demolition_main_state_previewed'), 'main state preview should be audited')
 assert.equal(saveRuntime.loadUserSaveSlots(largeOwner).slots[0].raw, ownerRawBeforeMainStatePreview, 'main state preview should not rewrite owner save')
 assert.equal(saveRuntime.loadUserSaveSlots(largePartner).slots[0].raw, partnerRawBeforeMainStatePreview, 'main state preview should not rewrite partner save')

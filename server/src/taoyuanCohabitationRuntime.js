@@ -1723,6 +1723,7 @@ function normalizeFamilyBuildingLedgerEntry(entry = {}) {
           ? item.candidate_paths.map(pathName => sanitizeText(pathName, 100)).filter(Boolean).slice(0, 12)
           : [],
         blocked_reason: sanitizeText(item?.blocked_reason, 180),
+        candidate_snapshot: sanitizeFamilyBuildingMainStateCandidateSnapshot(item?.candidate_snapshot),
         snapshot_hash: sanitizeText(item?.snapshot_hash, 100),
       })).filter(item => item.username && item.real_build_ref).slice(0, 12)
       : [],
@@ -6144,6 +6145,66 @@ function hashStableObject(value) {
   return crypto.createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
+function summarizeMainStateCountMap(value) {
+  if (Array.isArray(value)) {
+    return {
+      count: value.length,
+      keys: value.map((_, index) => String(index)).slice(0, 80),
+    };
+  }
+  if (!value || typeof value !== 'object') {
+    return {
+      count: 0,
+      keys: [],
+    };
+  }
+  const entries = Object.entries(value)
+    .map(([key, rawQuantity]) => ({
+      key: sanitizeText(key, 80),
+      quantity: Math.max(0, Math.floor(Number(rawQuantity) || 0)),
+    }))
+    .filter(entry => entry.key && entry.quantity > 0)
+    .sort((left, right) => left.key.localeCompare(right.key))
+    .slice(0, 80);
+  return {
+    count: entries.reduce((sum, entry) => sum + entry.quantity, 0),
+    keys: entries.map(entry => entry.key),
+  };
+}
+
+function sanitizeFamilyBuildingMainStateCandidateSnapshot(snapshot = {}) {
+  const home = snapshot && typeof snapshot.home === 'object' && !Array.isArray(snapshot.home) ? snapshot.home : {};
+  const decoration = snapshot && typeof snapshot.decoration === 'object' && !Array.isArray(snapshot.decoration) ? snapshot.decoration : {};
+  const onlineCohabitation = snapshot && typeof snapshot.onlineCohabitation === 'object' && !Array.isArray(snapshot.onlineCohabitation)
+    ? snapshot.onlineCohabitation
+    : {};
+  return {
+    home: {
+      farmhouseLevel: Number.isFinite(Number(home.farmhouseLevel)) ? Math.max(0, Math.floor(Number(home.farmhouseLevel))) : null,
+      caveChoice: sanitizeText(home.caveChoice, 40) || null,
+      caveUnlocked: home.caveUnlocked === true,
+      greenhouseUnlocked: home.greenhouseUnlocked === true,
+      cellarSlots: Math.max(0, Math.floor(Number(home.cellarSlots) || 0)),
+      homeRenovationStateKeys: Array.isArray(home.homeRenovationStateKeys)
+        ? home.homeRenovationStateKeys.map(key => sanitizeText(key, 80)).filter(Boolean).slice(0, 80)
+        : [],
+    },
+    decoration: {
+      ownedCount: Math.max(0, Math.floor(Number(decoration.ownedCount) || 0)),
+      ownedKeys: Array.isArray(decoration.ownedKeys)
+        ? decoration.ownedKeys.map(key => sanitizeText(key, 80)).filter(Boolean).slice(0, 80)
+        : [],
+      placedCount: Math.max(0, Math.floor(Number(decoration.placedCount) || 0)),
+      placedKeys: Array.isArray(decoration.placedKeys)
+        ? decoration.placedKeys.map(key => sanitizeText(key, 80)).filter(Boolean).slice(0, 80)
+        : [],
+    },
+    onlineCohabitation: {
+      realBuildDemolitionReceiptCount: Math.max(0, Math.floor(Number(onlineCohabitation.realBuildDemolitionReceiptCount) || 0)),
+    },
+  };
+}
+
 function buildFamilyBuildingRealDemolitionMainStateManifest(contract = {}, buildingEntry = {}) {
   const acceptedMembers = (contract.members || [])
     .filter(member => member.status === 'accepted')
@@ -6156,6 +6217,8 @@ function buildFamilyBuildingRealDemolitionMainStateManifest(contract = {}, build
   return acceptedMembers.map(member => {
     const context = getActiveSaveContext(member.username, member.save_slot ?? null, '家族建筑真实拆除个人主状态预览目标账号没有可读取的桃源乡存档');
     const data = context.data || {};
+    const ownedDecorationSummary = summarizeMainStateCountMap(data.decoration?.owned);
+    const placedDecorationSummary = summarizeMainStateCountMap(data.decoration?.placed);
     const candidateSnapshot = {
       home: {
         farmhouseLevel: data.home?.farmhouseLevel ?? null,
@@ -6168,8 +6231,10 @@ function buildFamilyBuildingRealDemolitionMainStateManifest(contract = {}, build
           : [],
       },
       decoration: {
-        ownedCount: Array.isArray(data.decoration?.owned) ? data.decoration.owned.length : 0,
-        placedCount: Array.isArray(data.decoration?.placed) ? data.decoration.placed.length : 0,
+        ownedCount: ownedDecorationSummary.count,
+        ownedKeys: ownedDecorationSummary.keys,
+        placedCount: placedDecorationSummary.count,
+        placedKeys: placedDecorationSummary.keys,
       },
       onlineCohabitation: {
         realBuildDemolitionReceiptCount: Array.isArray(data.onlineCohabitation?.real_build_demolition_receipts)
@@ -6201,6 +6266,7 @@ function buildFamilyBuildingRealDemolitionMainStateManifest(contract = {}, build
       mapping_status: 'blocked_missing_personal_building_binding',
       mutation_enabled: false,
       blocked_reason: 'real_build_ref 只指向家族建筑流水，未绑定个人 home / decoration 具体字段；本步骤禁止自动删除个人房屋或建筑主状态。',
+      candidate_snapshot: candidateSnapshot,
       snapshot_hash: hashStableObject(candidateSnapshot),
     };
   });
