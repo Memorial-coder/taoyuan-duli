@@ -702,6 +702,47 @@
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">高价值冻结：{{ cohabitationStore.warehouse?.summary.frozen_quantity ?? 0 }} 件 / 草案 {{ cohabitationStore.warehouse?.summary.active_high_value_withdrawal_draft_count ?? 0 }}</p>
               <p class="border border-accent/10 bg-black/10 p-2 text-muted">卖出：{{ cohabitationStore.warehouse?.summary.sell_enabled ? '开放' : '暂缓' }}</p>
             </div>
+            <div
+              v-if="warehouseGovernance"
+              class="mt-3 border border-accent/10 bg-black/10 p-2"
+              data-testid="online-cohabitation-warehouse-governance-panel"
+            >
+              <div class="flex items-center justify-between gap-2">
+                <p class="text-xs text-accent">高频治理</p>
+                <span class="text-[10px]" :class="warehouseGovernanceNeedsRecovery ? 'text-red-100' : 'text-muted'">
+                  {{ warehouseGovernanceStatusLabel }}
+                </span>
+              </div>
+              <div class="mt-2 grid gap-2 text-[10px] text-muted sm:grid-cols-2">
+                <p class="border border-accent/10 px-2 py-1">入仓 {{ warehouseGovernance.actor_window.inbound_action_count }}/{{ warehouseGovernance.inbound_action_limit }}</p>
+                <p class="border border-accent/10 px-2 py-1">出仓 {{ warehouseGovernance.actor_window.outbound_action_count }}/{{ warehouseGovernance.outbound_action_limit }}</p>
+              </div>
+              <p v-if="warehouseGovernanceBlocking?.reason" class="mt-2 text-[10px] leading-4 text-red-100">
+                {{ warehouseGovernanceBlocking.reason }}
+              </p>
+              <p v-else-if="warehouseGovernanceActiveRecovery" class="mt-2 text-[10px] leading-4 text-muted">
+                已恢复 {{ warehouseGovernanceActiveRecovery.direction }}，至 {{ formatTime(warehouseGovernanceActiveRecovery.expires_at) }}
+              </p>
+              <div v-if="warehouseGovernanceNeedsRecovery" class="mt-2 grid gap-2">
+                <input
+                  v-model.trim="warehouseGovernanceRecoverReason"
+                  class="online-input text-xs"
+                  maxlength="80"
+                  placeholder="恢复原因"
+                  data-testid="online-cohabitation-warehouse-governance-reason"
+                >
+                <button
+                  type="button"
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  :disabled="!canRecoverWarehouseGovernance || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-warehouse-governance-recover"
+                  @click="recoverWarehouseGovernance"
+                >
+                  <ShieldCheck :size="12" />
+                  恢复{{ warehouseGovernanceDirectionLabel }}
+                </button>
+              </div>
+            </div>
             <div class="mt-3 border border-accent/10 bg-black/10 p-2">
               <p class="text-xs text-accent">放入普通物品</p>
               <div class="mt-2 grid gap-2">
@@ -2170,6 +2211,7 @@
   const warehouseActionOk = ref(false)
   const warehouseDepositItemId = ref('rice')
   const warehouseDepositQuantity = ref(1)
+  const warehouseGovernanceRecoverReason = ref('')
   const sharedFarmActionMessage = ref('')
   const sharedFarmActionOk = ref(false)
   const selectedSharedFarmPlotId = ref('')
@@ -2485,6 +2527,29 @@
   const warehouseItems = computed(() => cohabitationStore.warehouse?.items ?? [])
   const warehouseLedger = computed(() => cohabitationStore.warehouse?.ledger ?? [])
   const warehouseHighValueWithdrawalDrafts = computed(() => cohabitationStore.warehouse?.high_value_withdrawal_drafts ?? [])
+  const warehouseGovernance = computed(() => cohabitationStore.warehouse?.governance ?? null)
+  const warehouseGovernanceBlocking = computed(() => warehouseGovernance.value?.blocking ?? null)
+  const warehouseGovernanceActiveRecovery = computed(() => warehouseGovernance.value?.active_recoveries?.[0] ?? null)
+  const warehouseGovernanceNeedsRecovery = computed(() =>
+    warehouseGovernanceBlocking.value?.block_inbound === true || warehouseGovernanceBlocking.value?.block_outbound === true
+  )
+  const warehouseGovernanceRecoveryDirection = computed<'inbound' | 'outbound' | 'all'>(() => {
+    const directions = warehouseGovernanceBlocking.value?.blocked_directions ?? []
+    if (directions.includes('inbound') && directions.includes('outbound')) return 'all'
+    if (directions.includes('inbound') || warehouseGovernanceBlocking.value?.block_inbound === true) return 'inbound'
+    if (directions.includes('outbound') || warehouseGovernanceBlocking.value?.block_outbound === true) return 'outbound'
+    return 'all'
+  })
+  const warehouseGovernanceDirectionLabel = computed(() => {
+    if (warehouseGovernanceRecoveryDirection.value === 'inbound') return '入仓'
+    if (warehouseGovernanceRecoveryDirection.value === 'outbound') return '出仓'
+    return '入仓 / 出仓'
+  })
+  const warehouseGovernanceStatusLabel = computed(() => {
+    if (warehouseGovernanceNeedsRecovery.value) return '已阻断'
+    if (warehouseGovernanceActiveRecovery.value) return '恢复中'
+    return '正常'
+  })
   const fundLedger = computed(() => cohabitationStore.fund?.ledger ?? [])
   const permissionMembers = computed(() => cohabitationStore.permissionsPanel?.members ?? [])
   const permissionAudits = computed(() => cohabitationStore.permissionsPanel?.recent_permission_audits ?? [])
@@ -2777,6 +2842,11 @@
     normalizedWarehouseDepositQuantity.value > 0 &&
     normalizedWarehouseDepositQuantity.value <= 99
   )
+  const canRecoverWarehouseGovernance = computed(() =>
+    cohabitationStore.canOpenSelectedContract &&
+    warehouseGovernanceNeedsRecovery.value &&
+    warehouseGovernanceRecoverReason.value.trim().length >= 4
+  )
   const normalizedFundContributionAmount = computed(() => Math.max(0, Math.floor(Number(fundContributionAmount.value) || 0)))
   const canUseFundContribution = computed(() =>
     cohabitationStore.canOpenSelectedContract &&
@@ -2910,6 +2980,7 @@
   const selectContract = async (contractId: string) => {
     await cohabitationStore.selectContract(contractId)
     warehouseActionMessage.value = ''
+    warehouseGovernanceRecoverReason.value = ''
     sharedFarmActionMessage.value = ''
     sharedAnimalActionMessage.value = ''
     selectedSharedFarmPlotId.value = ''
@@ -3711,6 +3782,34 @@
         : `已放入 ${label} x${quantity}`
     } catch (error) {
       warehouseActionMessage.value = error instanceof Error ? error.message : '放入共同仓库物品失败'
+    }
+  }
+
+  const recoverWarehouseGovernance = async () => {
+    warehouseActionMessage.value = ''
+    warehouseActionOk.value = false
+    if (!canRecoverWarehouseGovernance.value) {
+      warehouseActionMessage.value = '请填写共同仓库治理恢复原因'
+      return
+    }
+    try {
+      const direction = warehouseGovernanceRecoveryDirection.value
+      const directionLabel = warehouseGovernanceDirectionLabel.value
+      const result = await cohabitationStore.recoverWarehouseGovernance({
+        direction,
+        target_username: selectedContractActorMember.value?.username || cohabitationStore.currentAccount,
+        reason: warehouseGovernanceRecoverReason.value.trim(),
+        recovery_note: `前端恢复共同仓库${directionLabel}高频阻断`,
+        idempotency_key: `ui-warehouse-governance-recover-${direction}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      warehouseActionOk.value = true
+      warehouseGovernanceRecoverReason.value = ''
+      const expiresAt = result?.recovery?.expires_at
+      warehouseActionMessage.value = typeof expiresAt === 'number' && expiresAt > 0
+        ? `已恢复${directionLabel}治理窗口，生效至 ${formatTime(expiresAt)}`
+        : `已恢复${directionLabel}治理窗口`
+    } catch (error) {
+      warehouseActionMessage.value = error instanceof Error ? error.message : '恢复共同仓库治理阻断失败'
     }
   }
 
@@ -4838,6 +4937,7 @@
       warehouse_deposit: '共同仓库放入',
       warehouse_withdraw: '共同仓库取出',
       warehouse_sell: '共同仓库卖出',
+      warehouse_governance_recovered: '仓库治理恢复',
       fund_contribute: '共同基金注资',
       fund_spend: '共同基金支出',
       fund_large_spend_draft_created: '大额草案创建',
@@ -4899,6 +4999,12 @@
       const before = typeof detail.before_role_label === 'string' ? detail.before_role_label : ''
       const after = typeof detail.after_role_label === 'string' ? detail.after_role_label : ''
       return target ? `${target}：${before || '原职位'} -> ${after || '新职位'}` : `${before || '原职位'} -> ${after || '新职位'}`
+    }
+    if (entry.action === 'warehouse_governance_recovered') {
+      const direction = typeof detail.direction === 'string' ? detail.direction : ''
+      const expiresAt = Number(detail.expires_at) || 0
+      const directionLabel = direction === 'inbound' ? '入仓' : direction === 'outbound' ? '出仓' : '入仓 / 出仓'
+      return expiresAt > 0 ? `${target || '成员'} ${directionLabel}恢复至 ${formatTime(expiresAt)}` : `${target || '成员'} ${directionLabel}恢复已记录`
     }
     if (entry.action === 'separation_preview_created') {
       const version = Number(detail.preview_version) || 1

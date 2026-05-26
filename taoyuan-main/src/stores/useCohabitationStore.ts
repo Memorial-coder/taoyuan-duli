@@ -44,6 +44,7 @@ import {
   petCohabitationSharedAnimal,
   previewCohabitationFamilyBuildingRealDemolitionMainState,
   plantCohabitationSharedPlot,
+  recoverCohabitationWarehouseGovernance,
   refundCohabitationFamilyBuildingFund,
   refundCohabitationSeparationSharedFund,
   rejectCohabitationFamilyBuildingRealDemolitionReview,
@@ -107,6 +108,7 @@ import {
   type CohabitationWarehouseHighValueWithdrawalDraftPayload,
   type CohabitationWarehouseHighValueWithdrawalExecutePayload,
   type CohabitationWarehouseHighValueWithdrawalRollbackPayload,
+  type CohabitationWarehouseGovernanceRecoveryPayload,
   type CohabitationSharedAnimalFeedPayload,
   type CohabitationSharedAnimalPetPayload,
   type CohabitationSharedAnimalProductPayload,
@@ -1410,6 +1412,29 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const recoverWarehouseGovernance = async (payload: CohabitationWarehouseGovernanceRecoveryPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await recoverCohabitationWarehouseGovernance(activeContractId.value, payload)
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract && overview.value) {
+        overview.value = {
+          ...overview.value,
+          contracts: overview.value.contracts.map(contract => contract.id === result.contract.id ? result.contract : contract),
+        }
+      }
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '恢复共同仓库治理阻断失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const waterSharedFarmPlot = async (payload: CohabitationSharedFarmWaterPayload) => {
     if (!activeContractId.value || !canOpenSelectedContract.value || !payload.plot_id) return null
     actionLoading.value = true
@@ -1692,6 +1717,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     confirmWarehouseHighValueWithdrawalDraft,
     executeWarehouseHighValueWithdrawalDraft,
     rollbackWarehouseHighValueWithdrawalDraft,
+    recoverWarehouseGovernance,
     waterSharedFarmPlot,
     careSharedFarmPlot,
     plantSharedFarmPlot,

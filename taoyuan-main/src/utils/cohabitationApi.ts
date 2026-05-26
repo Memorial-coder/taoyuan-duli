@@ -473,6 +473,69 @@ export interface CohabitationWarehouseHighValueWithdrawalDraft {
   rolled_back_at: number
 }
 
+export interface CohabitationWarehouseGovernanceRecovery {
+  id: string
+  state: string
+  direction: 'inbound' | 'outbound' | 'all' | string
+  target_username: string
+  target_username_key: string
+  target_display_name: string
+  requester_username: string
+  requester_username_key: string
+  approver_username: string
+  approver_display_name: string
+  approver_username_key: string
+  reason: string
+  recovery_note: string
+  window_seconds: number
+  inbound_action_count: number
+  inbound_quantity: number
+  outbound_action_count: number
+  outbound_quantity: number
+  inbound_ledger_ids: string[]
+  outbound_ledger_ids: string[]
+  created_at: number
+  expires_at: number
+  idempotency_key: string
+}
+
+export interface CohabitationWarehouseGovernanceSnapshot {
+  contract_id: string
+  actor_username: string
+  checked_at: number
+  window_seconds: number
+  inbound_action_limit: number
+  outbound_action_limit: number
+  actor_window: {
+    inbound_action_count: number
+    inbound_quantity: number
+    outbound_action_count: number
+    outbound_quantity: number
+    inbound_ledger_ids: string[]
+    outbound_ledger_ids: string[]
+    ledger_ids: string[]
+    actions: Record<string, number>
+  }
+  suspicious_actors: Array<Record<string, unknown>>
+  active_high_value_withdrawal_drafts: Array<Record<string, unknown>>
+  active_recoveries: CohabitationWarehouseGovernanceRecovery[]
+  last_recovery: CohabitationWarehouseGovernanceRecovery | null
+  recent_audits: CohabitationAuditEntry[]
+  blocking: {
+    block_inbound: boolean
+    block_outbound: boolean
+    raw_block_inbound?: boolean
+    raw_block_outbound?: boolean
+    recovery_active?: boolean
+    recovered_directions?: string[]
+    recovery_expires_at?: number
+    blocked_directions: string[]
+    reason: string
+    required_operation: string
+  }
+  policy: Record<string, unknown>
+}
+
 export interface CohabitationWarehouseSnapshot {
   contract_id: string
   shared_manor_id: string
@@ -480,6 +543,7 @@ export interface CohabitationWarehouseSnapshot {
   items: CohabitationWarehouseItem[]
   ledger: CohabitationWarehouseLedgerEntry[]
   high_value_withdrawal_drafts?: CohabitationWarehouseHighValueWithdrawalDraft[]
+  governance?: CohabitationWarehouseGovernanceSnapshot
   summary: {
     item_count: number
     total_quantity: number
@@ -491,6 +555,9 @@ export interface CohabitationWarehouseSnapshot {
     high_value_withdrawal_confirmation_enabled?: boolean
     high_value_withdrawal_draft_count?: number
     active_high_value_withdrawal_draft_count?: number
+    governance_blocked?: boolean
+    high_frequency_outbound_count?: number
+    high_frequency_inbound_count?: number
     sell_enabled: boolean
     idempotency_required: boolean
     compensation_policy: string
@@ -1629,6 +1696,14 @@ export interface CohabitationWarehouseHighValueWithdrawalRollbackPayload {
   idempotency_key: string
 }
 
+export interface CohabitationWarehouseGovernanceRecoveryPayload {
+  target_username?: string
+  direction: 'inbound' | 'outbound' | 'all'
+  reason: string
+  recovery_note?: string
+  idempotency_key: string
+}
+
 export interface CohabitationSharedFarmWaterPayload {
   plot_id: string
   memo?: string
@@ -1777,6 +1852,13 @@ export interface CohabitationWarehouseHighValueWithdrawalDraftResponse extends C
   ledger_entry?: CohabitationWarehouseLedgerEntry | null
   ledger_entries?: CohabitationWarehouseLedgerEntry[]
   personal_inventory?: Record<string, unknown>
+}
+
+export interface CohabitationWarehouseGovernanceRecoveryResponse extends CohabitationDetailResponse {
+  warehouse?: CohabitationWarehouseSnapshot
+  governance?: CohabitationWarehouseGovernanceSnapshot
+  recovery?: CohabitationWarehouseGovernanceRecovery
+  idempotent?: boolean
 }
 
 export interface CohabitationSharedFarmActionResponse extends CohabitationDetailResponse {
@@ -2443,6 +2525,14 @@ export const rollbackCohabitationWarehouseHighValueWithdrawalDraft = async (cont
     contractPath(contractId, `/warehouse/high-value-withdrawal-drafts/${encodeURIComponent(draftId)}/rollback`),
     payload as unknown as Record<string, unknown>,
     '回滚共同仓库高价值取出草案失败'
+  )
+}
+
+export const recoverCohabitationWarehouseGovernance = async (contractId: string, payload: CohabitationWarehouseGovernanceRecoveryPayload) => {
+  return postCohabitationJson<CohabitationWarehouseGovernanceRecoveryResponse>(
+    contractPath(contractId, '/warehouse/governance/recover'),
+    payload as unknown as Record<string, unknown>,
+    '恢复共同仓库治理阻断失败'
   )
 }
 
