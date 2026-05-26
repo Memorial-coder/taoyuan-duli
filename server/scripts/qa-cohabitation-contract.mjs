@@ -294,6 +294,71 @@ const getInventoryItemQuantity = (username, itemId, quality = 'normal') => {
     .reduce((sum, entry) => sum + Number(entry?.quantity || 0), 0)
 }
 
+const injectSharedWarehouseDepositLedger = async (contractId, {
+  itemId,
+  quantity,
+  quality = 'normal',
+  sourceUsername,
+  ledgerId,
+  idempotencyKey,
+  sourceSaveId = 123456789,
+  at = 1771951200,
+}) => mutateStoredContract(contractId, contract => {
+  contract.shared_warehouse = contract.shared_warehouse || {}
+  const ledger = Array.isArray(contract.shared_warehouse.ledger)
+    ? contract.shared_warehouse.ledger.filter(entry => entry?.id !== ledgerId)
+    : []
+  const sourceOwnerKey = sourceUsername.toLowerCase()
+  contract.shared_warehouse.ledger = [
+    {
+      id: ledgerId,
+      action: 'deposit',
+      item_id: itemId,
+      quantity,
+      quality,
+      actor_username: sourceUsername,
+      actor_display_name: sourceUsername,
+      source_owner_id: `save:${sourceSaveId}`,
+      source_owner_username: sourceUsername,
+      source_owner_display_name: sourceUsername,
+      source_owner_key: sourceOwnerKey,
+      source_save_id: sourceSaveId,
+      source_save_slot: 0,
+      source_save_revision: 1,
+      source_inventory: 'inventory.items',
+      source_slots: [{ index: 0, quantity }],
+      target_inventory: 'shared_warehouse.items',
+      at,
+      idempotency_key: idempotencyKey,
+      reversible: true,
+      compensation_hint: 'QA injected traceable shared warehouse stock',
+      status: 'committed',
+    },
+    ...ledger,
+  ]
+  contract.origin_assets = contract.origin_assets || {}
+  contract.origin_assets.warehouse_items = [
+    {
+      ledger_id: ledgerId,
+      action: 'deposit',
+      item_id: itemId,
+      quantity,
+      quality,
+      origin_owner_id: `save:${sourceSaveId}`,
+      origin_owner_username: sourceUsername,
+      origin_owner_key: sourceOwnerKey,
+      source_save_id: sourceSaveId,
+      source_save_slot: 0,
+      source_inventory: 'inventory.items',
+      deposited_at: at,
+      idempotency_key: idempotencyKey,
+    },
+    ...(Array.isArray(contract.origin_assets.warehouse_items)
+      ? contract.origin_assets.warehouse_items.filter(entry => entry?.ledger_id !== ledgerId)
+      : []),
+  ]
+})
+
 const pickPersonalStoryBoundaryState = username => {
   const data = readGameplayData(username) || {}
   return JSON.parse(JSON.stringify({
@@ -744,6 +809,226 @@ const sharedAnimalProductCleanup = await runtime.withdrawCohabitationWarehouseIt
   idempotency_key: 'qa-shared-animal-product-cleanup-withdraw',
 }, actor(owner))
 assert.equal(sharedAnimalProductCleanup.warehouse.items.find(item => item.item_id === 'milk')?.quantity ?? 0, 0, 'shared animal product cleanup should remove milk before base warehouse flow')
+
+await injectSharedWarehouseDepositLedger(created.contract.id, {
+  itemId: 'lotus',
+  quantity: 2,
+  quality: 'fine',
+  sourceUsername: partner,
+  ledgerId: 'qa_warehouse_high_value_lotus_deposit',
+  idempotencyKey: 'qa-warehouse-high-value-lotus-injected-deposit',
+  sourceSaveId: 123456790,
+})
+const highValueWarehouseInjected = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+assert.equal(highValueWarehouseInjected.warehouse.items.find(item => item.item_id === 'lotus' && item.quality === 'fine')?.quantity, 2, 'QA injected fine lotus should appear in shared warehouse')
+assert.equal(highValueWarehouseInjected.warehouse.summary.frozen_quantity, 0, 'fresh high-value QA stock should not start frozen')
+assert.equal(getInventoryItemQuantity(owner, 'lotus', 'fine'), 0, 'owner should not have fine lotus before high-value withdrawal')
+assert.equal(getInventoryItemQuantity(partner, 'lotus', 'fine'), 1, 'partner personal fine lotus should remain separate from injected shared warehouse stock')
+
+const partnerHighValuePermissionBeforeEnable = await runtime.getCohabitationWarehouse(created.contract.id, actor(partner))
+assert.equal(partnerHighValuePermissionBeforeEnable.warehouse.permissions.can_create_high_value_withdrawal_draft, false, 'partner should not create high-value drafts before explicit permission')
+const highValueLedgerCountBeforeDenied = highValueWarehouseInjected.warehouse.ledger.length
+await assert.rejects(
+  () => runtime.createCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, {
+    item_id: 'lotus',
+    quantity: 1,
+    quality: 'fine',
+    reason: 'partner should not create high-value draft without permission',
+    idempotency_key: 'qa-high-value-lotus-denied-draft',
+  }, actor(partner)),
+  error => error?.status === 403,
+  'high-value withdrawal draft should reject member without high-quality permission'
+)
+const highValueWarehouseAfterDenied = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+assert.equal(highValueWarehouseAfterDenied.warehouse.items.find(item => item.item_id === 'lotus' && item.quality === 'fine')?.quantity, 2, 'permission-denied high-value draft should not consume shared lotus')
+assert.equal(highValueWarehouseAfterDenied.warehouse.summary.frozen_quantity, 0, 'permission-denied high-value draft should not freeze stock')
+assert.equal(highValueWarehouseAfterDenied.warehouse.ledger.length, highValueLedgerCountBeforeDenied, 'permission-denied high-value draft should not write warehouse ledger')
+assert.equal(getInventoryItemQuantity(owner, 'lotus', 'fine'), 0, 'permission-denied high-value draft should not add owner fine lotus')
+assert.equal(getInventoryItemQuantity(partner, 'lotus', 'fine'), 1, 'permission-denied high-value draft should not touch partner fine lotus')
+
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: owner,
+  permissions: {
+    storage: { withdraw_high_quality: true, withdraw_rare: true },
+  },
+  idempotency_key: 'qa-enable-owner-high-value-withdraw',
+}, actor(owner))
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: partner,
+  permissions: {
+    storage: { withdraw_high_quality: true, withdraw_rare: true },
+  },
+  idempotency_key: 'qa-enable-partner-high-value-withdraw',
+}, actor(owner))
+const ownerHighValuePermission = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+assert.equal(ownerHighValuePermission.warehouse.permissions.can_create_high_value_withdrawal_draft, true, 'owner should be able to create high-value withdrawal drafts after permission update')
+
+const highValueWithdrawLedgerCountBeforeDraft = ownerHighValuePermission.warehouse.ledger.filter(entry => entry.action === 'withdraw' && entry.item_id === 'lotus' && entry.quality === 'fine').length
+const highValueDraft = await runtime.createCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, {
+  item_id: 'lotus',
+  quantity: 1,
+  quality: 'fine',
+  reason: 'QA high-value lotus withdrawal',
+  idempotency_key: 'qa-high-value-lotus-draft',
+}, actor(owner))
+assert.equal(highValueDraft.idempotent, false, 'first high-value withdrawal draft should not be idempotent')
+assert.equal(highValueDraft.draft.state, 'pending_confirmation', 'high-value withdrawal draft should wait for partner confirmation')
+assert.equal(highValueDraft.draft.frozen_quantity, 1, 'high-value withdrawal draft should freeze requested stock')
+assert.equal(highValueDraft.draft.risk_level, 'high_quality', 'fine lotus should be classified as high quality')
+assert.equal(highValueDraft.warehouse.summary.frozen_quantity, 1, 'warehouse summary should expose frozen high-value stock')
+assert.equal(highValueDraft.warehouse.summary.active_high_value_withdrawal_draft_count, 1, 'warehouse summary should count active high-value draft')
+assert.equal(highValueDraft.warehouse.items.find(item => item.item_id === 'lotus' && item.quality === 'fine')?.quantity, 2, 'draft creation should not deduct shared lotus before execution')
+assert.equal(highValueDraft.warehouse.ledger.filter(entry => entry.action === 'withdraw' && entry.item_id === 'lotus' && entry.quality === 'fine').length, highValueWithdrawLedgerCountBeforeDraft, 'draft creation should not write withdraw ledger')
+assert.equal(getInventoryItemQuantity(owner, 'lotus', 'fine'), 0, 'draft creation should not add owner fine lotus')
+
+const duplicateHighValueDraft = await runtime.createCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, {
+  item_id: 'lotus',
+  quantity: 1,
+  quality: 'fine',
+  reason: 'QA duplicate high-value lotus withdrawal',
+  idempotency_key: 'qa-high-value-lotus-draft',
+}, actor(owner))
+assert.equal(duplicateHighValueDraft.idempotent, true, 'same high-value draft idempotency key should be idempotent')
+assert.equal(duplicateHighValueDraft.draft.id, highValueDraft.draft.id, 'idempotent high-value draft should return original draft')
+assert.equal(duplicateHighValueDraft.warehouse.summary.frozen_quantity, 1, 'idempotent high-value draft should not freeze stock twice')
+assert.equal(duplicateHighValueDraft.warehouse.summary.active_high_value_withdrawal_draft_count, 1, 'idempotent high-value draft should not duplicate active drafts')
+
+await assert.rejects(
+  () => runtime.confirmCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, highValueDraft.draft.id, {
+    confirmation_text: 'missing acknowledgements',
+    idempotency_key: 'qa-high-value-lotus-confirm-missing-acks',
+  }, actor(partner)),
+  error => error?.status === 400,
+  'high-value withdrawal confirmation should require freeze and rollback acknowledgements'
+)
+const highValueConfirm = await runtime.confirmCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, highValueDraft.draft.id, {
+  confirmation_text: 'confirm high-value lotus withdrawal',
+  freeze_acknowledged: true,
+  rollback_plan_acknowledged: true,
+  idempotency_key: 'qa-high-value-lotus-confirm',
+}, actor(partner))
+assert.equal(highValueConfirm.idempotent, false, 'first high-value withdrawal confirmation should not be idempotent')
+assert.equal(highValueConfirm.draft.state, 'ready_to_execute', 'confirmed high-value withdrawal should be ready to execute')
+assert.equal(highValueConfirm.warehouse.summary.frozen_quantity, 1, 'confirmed high-value draft should keep stock frozen')
+assert.equal(highValueConfirm.warehouse.ledger.filter(entry => entry.action === 'withdraw' && entry.item_id === 'lotus' && entry.quality === 'fine').length, highValueWithdrawLedgerCountBeforeDraft, 'confirmation should not write withdraw ledger')
+const duplicateHighValueConfirm = await runtime.confirmCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, highValueDraft.draft.id, {
+  confirmation_text: 'duplicate confirm high-value lotus withdrawal',
+  freeze_acknowledged: true,
+  rollback_plan_acknowledged: true,
+  idempotency_key: 'qa-high-value-lotus-confirm',
+}, actor(partner))
+assert.equal(duplicateHighValueConfirm.idempotent, true, 'same high-value confirmation idempotency key should be idempotent')
+assert.equal(duplicateHighValueConfirm.draft.state, 'ready_to_execute', 'idempotent confirmation should keep draft ready')
+
+await assert.rejects(
+  () => runtime.executeCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, highValueDraft.draft.id, {
+    expected_state: 'ready_to_execute',
+    idempotency_key: 'qa-high-value-lotus-execute-by-partner',
+  }, actor(partner)),
+  error => error?.status === 403,
+  'only requester should execute high-value withdrawal into personal inventory'
+)
+const highValueExecute = await runtime.executeCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, highValueDraft.draft.id, {
+  expected_state: 'ready_to_execute',
+  idempotency_key: 'qa-high-value-lotus-execute',
+}, actor(owner))
+assert.equal(highValueExecute.idempotent, false, 'first high-value withdrawal execute should not be idempotent')
+assert.equal(highValueExecute.draft.state, 'executed', 'high-value withdrawal execute should mark draft executed')
+assert.equal(highValueExecute.ledger_entries.length, 1, 'high-value withdrawal execute should write one warehouse ledger entry')
+assert.equal(highValueExecute.ledger_entries[0].action, 'withdraw', 'high-value withdrawal execute should write withdraw ledger')
+assert.equal(highValueExecute.ledger_entries[0].target_ref, highValueDraft.draft.id, 'high-value withdraw ledger should point back to draft')
+assert.ok(highValueExecute.ledger_entries[0].source_ledger_ids.includes('qa_warehouse_high_value_lotus_deposit'), 'high-value withdraw ledger should reference source deposit ledger')
+assert.equal(highValueExecute.warehouse.items.find(item => item.item_id === 'lotus' && item.quality === 'fine')?.quantity, 1, 'high-value withdrawal execute should deduct shared lotus once')
+assert.equal(highValueExecute.warehouse.summary.frozen_quantity, 0, 'executed high-value draft should release active frozen quantity')
+assert.equal(highValueExecute.personal_inventory.added_quantity, 1, 'high-value withdrawal execute should report personal inventory gain')
+assert.equal(getInventoryItemQuantity(owner, 'lotus', 'fine'), 1, 'high-value withdrawal execute should add fine lotus to owner once')
+assert.equal(getInventoryItemQuantity(partner, 'lotus', 'fine'), 1, 'high-value withdrawal execute should not touch partner personal fine lotus')
+assert.ok(highValueExecute.contract.origin_assets.warehouse_items.some(item => item.ledger_id === highValueExecute.ledger_entries[0].id && item.action === 'withdraw'), 'origin assets should reference high-value withdraw ledger')
+assert.ok(highValueExecute.contract.audit_log.find(entry => entry.action === 'warehouse_high_value_withdrawal_executed'), 'high-value withdrawal execute should be audited')
+
+const ownerLotusAfterHighValueExecute = getInventoryItemQuantity(owner, 'lotus', 'fine')
+const duplicateHighValueExecute = await runtime.executeCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, highValueDraft.draft.id, {
+  expected_state: 'ready_to_execute',
+  idempotency_key: 'qa-high-value-lotus-execute',
+}, actor(owner))
+assert.equal(duplicateHighValueExecute.idempotent, true, 'same high-value execute idempotency key should be idempotent')
+assert.equal(getInventoryItemQuantity(owner, 'lotus', 'fine'), ownerLotusAfterHighValueExecute, 'idempotent high-value execute should not add fine lotus twice')
+assert.equal(duplicateHighValueExecute.warehouse.items.find(item => item.item_id === 'lotus' && item.quality === 'fine')?.quantity, 1, 'idempotent high-value execute should not deduct shared lotus twice')
+
+await assert.rejects(
+  () => runtime.rollbackCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, highValueDraft.draft.id, {
+    reason: 'executed drafts must use compensation review',
+    idempotency_key: 'qa-high-value-lotus-rollback-after-execute',
+  }, actor(owner)),
+  error => error?.status === 409,
+  'executed high-value withdrawal draft should not rollback directly'
+)
+
+const highValueRollbackDraft = await runtime.createCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, {
+  item_id: 'lotus',
+  quantity: 1,
+  quality: 'fine',
+  reason: 'QA rollback high-value lotus withdrawal before execute',
+  idempotency_key: 'qa-high-value-lotus-rollback-draft',
+}, actor(owner))
+assert.equal(highValueRollbackDraft.draft.state, 'pending_confirmation', 'second high-value draft should wait before rollback')
+assert.equal(highValueRollbackDraft.warehouse.summary.frozen_quantity, 1, 'second high-value draft should freeze remaining lotus')
+const highValueWithdrawLedgerCountBeforeRollback = highValueRollbackDraft.warehouse.ledger.filter(entry => entry.action === 'withdraw' && entry.item_id === 'lotus' && entry.quality === 'fine').length
+const highValueRollback = await runtime.rollbackCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, highValueRollbackDraft.draft.id, {
+  reason: 'QA rollback before execute',
+  idempotency_key: 'qa-high-value-lotus-rollback',
+}, actor(owner))
+assert.equal(highValueRollback.idempotent, false, 'first high-value rollback should not be idempotent')
+assert.equal(highValueRollback.draft.state, 'rolled_back', 'high-value rollback should mark draft rolled back')
+assert.equal(highValueRollback.warehouse.summary.frozen_quantity, 0, 'high-value rollback should release frozen stock')
+assert.equal(highValueRollback.warehouse.items.find(item => item.item_id === 'lotus' && item.quality === 'fine')?.quantity, 1, 'high-value rollback should not consume shared lotus')
+assert.equal(highValueRollback.warehouse.ledger.filter(entry => entry.action === 'withdraw' && entry.item_id === 'lotus' && entry.quality === 'fine').length, highValueWithdrawLedgerCountBeforeRollback, 'high-value rollback should not write extra withdraw ledger')
+assert.equal(getInventoryItemQuantity(owner, 'lotus', 'fine'), ownerLotusAfterHighValueExecute, 'high-value rollback should not change owner personal lotus')
+assert.ok(highValueRollback.contract.audit_log.find(entry => entry.action === 'warehouse_high_value_withdrawal_rolled_back'), 'high-value rollback should be audited')
+const duplicateHighValueRollback = await runtime.rollbackCohabitationWarehouseHighValueWithdrawalDraft(created.contract.id, highValueRollbackDraft.draft.id, {
+  reason: 'duplicate QA rollback before execute',
+  idempotency_key: 'qa-high-value-lotus-rollback',
+}, actor(owner))
+assert.equal(duplicateHighValueRollback.idempotent, true, 'same high-value rollback idempotency key should be idempotent')
+assert.equal(duplicateHighValueRollback.warehouse.summary.frozen_quantity, 0, 'idempotent high-value rollback should keep stock unfrozen')
+assert.equal(duplicateHighValueRollback.warehouse.items.find(item => item.item_id === 'lotus' && item.quality === 'fine')?.quantity, 1, 'idempotent high-value rollback should not change shared lotus')
+
+await mutateStoredContract(created.contract.id, contract => {
+  contract.shared_warehouse = contract.shared_warehouse || {}
+  const ledger = Array.isArray(contract.shared_warehouse.ledger)
+    ? contract.shared_warehouse.ledger.filter(entry => entry?.id !== 'qa_warehouse_high_value_lotus_cleanup_revert')
+    : []
+  contract.shared_warehouse.ledger = [
+    {
+      id: 'qa_warehouse_high_value_lotus_cleanup_revert',
+      action: 'revert',
+      item_id: 'lotus',
+      quantity: 1,
+      quality: 'fine',
+      actor_username: owner,
+      actor_display_name: owner,
+      source_owner_id: 'save:123456790',
+      source_owner_username: partner,
+      source_owner_display_name: partner,
+      source_owner_key: partner.toLowerCase(),
+      source_save_id: 123456790,
+      source_save_slot: 0,
+      source_save_revision: 1,
+      source_inventory: 'shared_warehouse.items',
+      source_ledger_ids: ['qa_warehouse_high_value_lotus_deposit'],
+      target_inventory: 'qa.cleanup',
+      target_ref: highValueRollbackDraft.draft.id,
+      at: 1771951400,
+      idempotency_key: 'qa-high-value-lotus-cleanup-revert',
+      reversible: false,
+      compensation_hint: 'QA cleanup after high-value withdrawal coverage',
+      status: 'committed',
+    },
+    ...ledger,
+  ]
+})
+const highValueCleanupWarehouse = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+assert.equal(highValueCleanupWarehouse.warehouse.items.find(item => item.item_id === 'lotus' && item.quality === 'fine')?.quantity ?? 0, 0, 'QA high-value cleanup should restore empty lotus stock before base warehouse flow')
 
 const ownerRiceBeforeDeposit = getInventoryItemQuantity(owner, 'rice')
 assert.equal(ownerRiceBeforeDeposit, 6, 'owner seed save should include rice before warehouse deposit')
