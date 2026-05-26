@@ -1103,6 +1103,41 @@ export interface OnlineCoopRelaySettlementSummary {
   shares: OnlineCoopRelaySettlementShare[]
 }
 
+export interface OnlineCoopSocietyOrderBoardReceipt {
+  receipt_id: string
+  order_id: string
+  order_title: string
+  stage_id: string
+  stage_title: string
+  assignee_display_name: string
+  reward_type: OnlineCoopRewardType
+  reward_value: number
+  reward_label: string
+  reward_route: OnlineCoopRewardRoute
+  status: 'pending_owner_confirm' | 'confirmed' | 'compensation_pending'
+  confirmed_at: number
+  updated_at: number
+}
+
+export interface OnlineCoopSocietyOrderBoard {
+  public_orders: number
+  open_public_orders: number
+  public_relay_orders: number
+  open_public_relay_orders: number
+  reward_pool_value: number
+  confirmed_reward_value: number
+  pending_reward_value: number
+  compensation_pending_reward_value: number
+  compensation_count: number
+  settlement_status_counts: {
+    planned: number
+    settling: number
+    settled: number
+    compensation_pending: number
+  }
+  recent_receipts: OnlineCoopSocietyOrderBoardReceipt[]
+}
+
 export interface OnlineCoopOrderEntry {
   id: string
   owner_username: string
@@ -1205,6 +1240,7 @@ export interface OnlineCoopOrderOverviewResponse {
     relay_orders: number
     open_relay_orders: number
   }
+  society_order_board?: OnlineCoopSocietyOrderBoard
   reputation_summary: {
     total: number
     by_order_type: Record<string, number>

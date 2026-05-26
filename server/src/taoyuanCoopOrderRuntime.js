@@ -808,6 +808,63 @@ function buildOrderBoardSummary(orders = []) {
   };
 }
 
+function buildSocietyOrderBoard(orders = [], receipts = [], compensations = []) {
+  const normalizedOrders = Array.isArray(orders) ? orders.map(normalizeOrder) : [];
+  const publicOrders = normalizedOrders.filter(order => order.scope === 'public');
+  const publicOrderIds = new Set(publicOrders.map(order => order.id));
+  const publicRelayOrders = publicOrders.filter(order => order.collaboration_mode === 'multi_stage');
+  const normalizedReceipts = Array.isArray(receipts) ? receipts.map(normalizeSettlementReceipt) : [];
+  const normalizedCompensations = Array.isArray(compensations) ? compensations.map(normalizeCompensationRecord) : [];
+  const orderById = new Map(publicOrders.map(order => [order.id, order]));
+  const settlementStatusCounts = {
+    planned: 0,
+    settling: 0,
+    settled: 0,
+    compensation_pending: 0,
+  };
+  const settlementSummaries = publicRelayOrders
+    .map(order => buildOrderRelaySettlementSummary(order, normalizedReceipts))
+    .filter(Boolean);
+  for (const summary of settlementSummaries) {
+    settlementStatusCounts[summary.status] += 1;
+  }
+  const recentReceipts = normalizedReceipts
+    .filter(receipt => publicOrderIds.has(receipt.order_id))
+    .sort((left, right) => right.updated_at - left.updated_at || right.created_at - left.created_at)
+    .slice(0, 6)
+    .map(receipt => {
+      const order = orderById.get(receipt.order_id) || null;
+      return {
+        receipt_id: receipt.id,
+        order_id: receipt.order_id,
+        order_title: order?.title || '',
+        stage_id: receipt.stage_id,
+        stage_title: receipt.stage_title,
+        assignee_display_name: receipt.assignee_display_name || receipt.assignee_username,
+        reward_type: receipt.reward_type,
+        reward_value: receipt.reward_value,
+        reward_label: receipt.reward_label,
+        reward_route: receipt.reward_route,
+        status: receipt.status,
+        confirmed_at: receipt.confirmed_at,
+        updated_at: receipt.updated_at,
+      };
+    });
+  return {
+    public_orders: publicOrders.length,
+    open_public_orders: publicOrders.filter(order => order.status === 'open').length,
+    public_relay_orders: publicRelayOrders.length,
+    open_public_relay_orders: publicRelayOrders.filter(order => order.status === 'open').length,
+    reward_pool_value: settlementSummaries.reduce((sum, summary) => sum + summary.pool_reward_value, 0),
+    confirmed_reward_value: settlementSummaries.reduce((sum, summary) => sum + summary.confirmed_reward_value, 0),
+    pending_reward_value: settlementSummaries.reduce((sum, summary) => sum + summary.pending_reward_value, 0),
+    compensation_pending_reward_value: settlementSummaries.reduce((sum, summary) => sum + summary.compensation_pending_reward_value, 0),
+    compensation_count: normalizedCompensations.filter(entry => entry.status === 'pending' && publicOrderIds.has(entry.order_id)).length,
+    settlement_status_counts: settlementStatusCounts,
+    recent_receipts: recentReceipts,
+  };
+}
+
 function isOrderVisibleToViewer(order, viewerUsername) {
   const viewer = String(viewerUsername || '').trim();
   if (!viewer) return order.scope === 'public';
@@ -1874,6 +1931,7 @@ async function listAdminCoopOrders() {
     receipts: store.receipts.map(normalizeSettlementReceipt).sort((left, right) => right.updated_at - left.updated_at),
     compensations: store.compensations.map(normalizeCompensationRecord).sort((left, right) => right.updated_at - left.updated_at),
     board_summary: buildOrderBoardSummary(orders),
+    society_order_board: buildSocietyOrderBoard(orders, store.receipts, store.compensations),
     reputation_summary: null,
     order_type_options: [...ORDER_TYPES],
     scope_options: [...ORDER_SCOPES],
@@ -1922,6 +1980,7 @@ async function listVisibleCoopOrders(viewerUsername = '') {
     receipts,
     compensations,
     board_summary: buildOrderBoardSummary(sortedOrders),
+    society_order_board: buildSocietyOrderBoard(sortedOrders, store.receipts, store.compensations),
     reputation_summary: viewerSummary,
     order_type_options: [...ORDER_TYPES],
     scope_options: [...ORDER_SCOPES],

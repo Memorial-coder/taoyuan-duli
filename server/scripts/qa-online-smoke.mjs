@@ -1304,6 +1304,8 @@ try {
     assert(primaryOverview.data?.orders?.some(entry => entry?.title === publicCoopOrderTitle && entry?.scope === 'public'), 'public coop order missing from primary overview')
     assert(Number(primaryOverview.data?.board_summary?.total_orders) >= 1, 'coop order board summary did not count total orders')
     assert(Number(primaryOverview.data?.board_summary?.open_orders) >= 1, 'coop order board summary did not count open orders')
+    assert(Number(primaryOverview.data?.society_order_board?.public_orders) >= 1, 'society order board did not count public orders')
+    assert(Array.isArray(primaryOverview.data?.society_order_board?.recent_receipts), 'society order board did not expose recent receipt list')
 
     const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
     assert(secondaryOverview.response.ok, `secondary coop order overview returned ${secondaryOverview.response.status}`)
@@ -5360,6 +5362,9 @@ try {
     assert(Array.isArray(relayVisualProject.history) && relayVisualProject.history.some(entry => entry?.type === 'stage_complete'), 'multi-stage order visual history missing completion entries')
     assert(relayOrder.visual_state.recent_feedback.includes('已完成'), 'multi-stage order visual feedback did not summarize completion')
     assert(Number(primaryOverview.data?.board_summary?.relay_orders) >= 1, 'multi-stage owner overview lost relay order board summary')
+    assert(Number(primaryOverview.data?.society_order_board?.public_relay_orders) >= 1, 'society order board did not count public relay orders')
+    assert(Number(primaryOverview.data?.society_order_board?.settlement_status_counts?.settled) >= 1, 'society order board did not count settled public relays')
+    assert(primaryOverview.data?.society_order_board?.recent_receipts?.some(entry => entry?.order_id === relayCoopOrderId && entry?.receipt_id), 'society order board did not expose relay receipts')
 
     const secondaryOverview = await fetchSessionJson(secondarySessionState, '/api/taoyuan/online/orders')
     assert(secondaryOverview.response.ok, `multi-stage secondary overview returned ${secondaryOverview.response.status}`)

@@ -364,20 +364,74 @@
           </OnlineScrollArea>
         </div>
 
-        <div class="game-panel-muted p-3">
-          <p class="text-sm text-accent">互助声望</p>
-          <div class="mt-3 grid gap-2 text-xs">
-            <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">信任等级</p>
-              <p class="mt-1 text-accent">{{ coopOrderStore.reputationSummary.trust_level.label }}</p>
+        <div class="space-y-3">
+          <div class="game-panel-muted p-3" data-testid="online-orders-society-board">
+            <div class="flex items-center justify-between gap-2">
+              <p class="text-sm text-accent">村社公共订单板</p>
+              <span class="text-[10px] text-muted">公开接力</span>
             </div>
-            <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">总帮助声望</p>
-              <p class="mt-1 text-accent">{{ coopOrderStore.reputationSummary.total }}</p>
+            <div class="mt-3 grid gap-2 text-xs">
+              <div class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">公开订单</p>
+                <p class="mt-1 text-accent">{{ societyOrderBoard.public_orders }} 张</p>
+                <p class="mt-1 text-[10px] text-muted">开放 {{ societyOrderBoard.open_public_orders }} 张</p>
+              </div>
+              <div class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">公开接力</p>
+                <p class="mt-1 text-accent">{{ societyOrderBoard.public_relay_orders }} 张</p>
+                <p class="mt-1 text-[10px] text-muted">可接 {{ societyOrderBoard.open_public_relay_orders }} 张</p>
+              </div>
+              <div class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">分账池</p>
+                <p class="mt-1 text-accent">{{ societyOrderBoard.reward_pool_value }}</p>
+                <p class="mt-1 text-[10px] text-muted">已落账 {{ societyOrderBoard.confirmed_reward_value }}</p>
+              </div>
+              <div class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">补偿风险</p>
+                <p class="mt-1 text-accent">{{ societyOrderBoard.compensation_count }} 条</p>
+                <p class="mt-1 text-[10px] text-muted">补偿中 {{ societyOrderBoard.compensation_pending_reward_value }}</p>
+              </div>
             </div>
-            <div class="border border-accent/10 bg-black/10 p-2">
-              <p class="text-[10px] text-muted">已完成互助</p>
-              <p class="mt-1 text-accent">{{ coopOrderStore.reputationSummary.completed_count }} 次</p>
+            <div data-testid="online-orders-society-board-settlement" class="mt-3 border border-warning/20 bg-warning/5 p-2">
+              <p class="text-[10px] leading-5 text-muted">{{ societyOrderBoardSettlementSummary }}</p>
+              <div class="mt-2 grid gap-1 sm:grid-cols-2">
+                <p v-for="row in societyOrderBoardStatusRows" :key="row.id" class="text-[10px] text-muted">
+                  {{ row.label }}：{{ row.value }}
+                </p>
+              </div>
+            </div>
+            <div data-testid="online-orders-society-board-receipts" class="mt-3 space-y-2">
+              <p class="text-[10px] text-muted">最近公开凭证</p>
+              <div v-if="societyOrderBoard.recent_receipts.length > 0" class="max-h-40 space-y-2 overflow-y-auto pr-1">
+                <div v-for="receipt in societyOrderBoard.recent_receipts" :key="receipt.receipt_id" class="border border-accent/10 bg-black/10 p-2">
+                  <p class="truncate text-[10px] text-accent">{{ receipt.order_title || '公共订单' }} · {{ receipt.stage_title || '整单' }}</p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">
+                    {{ receipt.assignee_display_name || '未署名成员' }} · {{ getCoopRewardTypeLabel(receipt.reward_type) }} {{ receipt.reward_value }} · {{ getRelaySettlementRouteLabel(receipt.reward_route) }}
+                  </p>
+                  <p class="mt-1 text-[10px] leading-4 text-muted">
+                    凭证 {{ receipt.receipt_id }} · {{ getCoopReceiptStatusLabel(receipt.status) }}
+                  </p>
+                </div>
+              </div>
+              <p v-else class="text-[10px] leading-5 text-muted">暂无公开订单结算凭证。</p>
+            </div>
+          </div>
+
+          <div class="game-panel-muted p-3">
+            <p class="text-sm text-accent">互助声望</p>
+            <div class="mt-3 grid gap-2 text-xs">
+              <div class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">信任等级</p>
+                <p class="mt-1 text-accent">{{ coopOrderStore.reputationSummary.trust_level.label }}</p>
+              </div>
+              <div class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">总帮助声望</p>
+                <p class="mt-1 text-accent">{{ coopOrderStore.reputationSummary.total }}</p>
+              </div>
+              <div class="border border-accent/10 bg-black/10 p-2">
+                <p class="text-[10px] text-muted">已完成互助</p>
+                <p class="mt-1 text-accent">{{ coopOrderStore.reputationSummary.completed_count }} 次</p>
+              </div>
             </div>
           </div>
         </div>
@@ -836,7 +890,7 @@
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
   import type { CohabitationContract } from '@/utils/cohabitationApi'
   import { useCoopOrderStore } from '@/stores/useCoopOrderStore'
-  import type { OnlineCoopOrderEntry, OnlineCoopOrderScope, OnlineCoopOrderType, OnlineCoopRewardType } from '@/utils/onlineProfileApi'
+  import type { OnlineCoopOrderEntry, OnlineCoopOrderScope, OnlineCoopOrderType, OnlineCoopRewardType, OnlineCoopSocietyOrderBoard } from '@/utils/onlineProfileApi'
 
   type OrdersTabKey = 'publish' | 'available' | 'mine' | 'accepted' | 'receipts'
   type OrdersTabMeta = { key: OrdersTabKey; label: string; summary: string }
@@ -915,6 +969,43 @@
     relay_orders: (coopOrderStore.overview?.orders || []).filter(order => order.collaboration_mode === 'multi_stage').length,
     open_relay_orders: (coopOrderStore.overview?.orders || []).filter(order => order.collaboration_mode === 'multi_stage' && order.status === 'open').length,
   })
+  const buildFallbackSocietyOrderBoard = (): OnlineCoopSocietyOrderBoard => {
+    const publicOrders = (coopOrderStore.overview?.orders || []).filter(order => order.scope === 'public')
+    const publicRelayOrders = publicOrders.filter(order => isRelayOrder(order))
+    const settlementSummaries = publicRelayOrders
+      .map(order => order.relay_settlement_summary)
+      .filter((summary): summary is NonNullable<OnlineCoopOrderEntry['relay_settlement_summary']> => Boolean(summary))
+    return {
+      public_orders: publicOrders.length,
+      open_public_orders: publicOrders.filter(order => order.status === 'open').length,
+      public_relay_orders: publicRelayOrders.length,
+      open_public_relay_orders: publicRelayOrders.filter(order => order.status === 'open').length,
+      reward_pool_value: settlementSummaries.reduce((sum, summary) => sum + summary.pool_reward_value, 0),
+      confirmed_reward_value: settlementSummaries.reduce((sum, summary) => sum + summary.confirmed_reward_value, 0),
+      pending_reward_value: settlementSummaries.reduce((sum, summary) => sum + summary.pending_reward_value, 0),
+      compensation_pending_reward_value: settlementSummaries.reduce((sum, summary) => sum + summary.compensation_pending_reward_value, 0),
+      compensation_count: (coopOrderStore.overview?.compensations || []).filter(entry => entry.status === 'pending').length,
+      settlement_status_counts: {
+        planned: settlementSummaries.filter(summary => summary.status === 'planned').length,
+        settling: settlementSummaries.filter(summary => summary.status === 'settling').length,
+        settled: settlementSummaries.filter(summary => summary.status === 'settled').length,
+        compensation_pending: settlementSummaries.filter(summary => summary.status === 'compensation_pending').length,
+      },
+      recent_receipts: [],
+    }
+  }
+  const societyOrderBoard = computed<OnlineCoopSocietyOrderBoard>(() =>
+    coopOrderStore.overview?.society_order_board || buildFallbackSocietyOrderBoard()
+  )
+  const societyOrderBoardStatusRows = computed(() => [
+    { id: 'planned', label: '待分账', value: societyOrderBoard.value.settlement_status_counts.planned },
+    { id: 'settling', label: '分账中', value: societyOrderBoard.value.settlement_status_counts.settling },
+    { id: 'settled', label: '已完成', value: societyOrderBoard.value.settlement_status_counts.settled },
+    { id: 'compensation', label: '补偿中', value: societyOrderBoard.value.settlement_status_counts.compensation_pending },
+  ])
+  const societyOrderBoardSettlementSummary = computed(() =>
+    `分账池 ${societyOrderBoard.value.reward_pool_value} · 已落账 ${societyOrderBoard.value.confirmed_reward_value} · 待结 ${societyOrderBoard.value.pending_reward_value} · 补偿中 ${societyOrderBoard.value.compensation_pending_reward_value}`
+  )
   const summaryStats = computed(() => [
     { label: '订单总数', value: `${boardSummary.value.total_orders} 张` },
     { label: '开放订单', value: `${boardSummary.value.open_orders} 张` },
