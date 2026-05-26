@@ -47,6 +47,7 @@ const WAREHOUSE_TEMP_BAG_CAPACITY = 10;
 const WAREHOUSE_GOVERNANCE_WINDOW_SECONDS = 10 * 60;
 const WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT = 6;
 const WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT = 12;
+const WAREHOUSE_GOVERNANCE_RECOVERY_LIMIT = 60;
 const WAREHOUSE_QUALITIES = new Set(['normal', 'fine', 'excellent', 'supreme']);
 const WAREHOUSE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation', 'ready_to_execute', 'executed', 'rolled_back', 'expired']);
 const WAREHOUSE_ACTIVE_WITHDRAWAL_DRAFT_STATES = new Set(['pending_confirmation', 'ready_to_execute']);
@@ -1239,6 +1240,78 @@ function normalizeWarehouseWithdrawalDrafts(value = []) {
   return Array.isArray(value)
     ? value.map(normalizeWarehouseWithdrawalDraft).filter(Boolean).slice(0, WAREHOUSE_WITHDRAWAL_DRAFT_LIMIT)
     : [];
+}
+
+function normalizeWarehouseGovernanceDirection(value = '') {
+  const direction = sanitizeText(value, 40).toLowerCase();
+  return ['inbound', 'outbound', 'all'].includes(direction) ? direction : 'all';
+}
+
+function normalizeWarehouseGovernanceRecovery(entry = {}) {
+  const targetUsername = normalizeUsername(entry.target_username || entry.targetUsername || entry.username || entry.target_username_key);
+  const targetUsernameKey = normalizeUsernameKey(entry.target_username_key || entry.target_key || targetUsername);
+  if (!targetUsername || !targetUsernameKey) return null;
+  const createdAt = Math.max(0, Math.floor(Number(entry.created_at || entry.at) || 0)) || nowSeconds();
+  const rawWindowSeconds = Math.max(0, Math.floor(Number(entry.window_seconds) || 0));
+  const windowSeconds = rawWindowSeconds > 0 ? Math.max(60, rawWindowSeconds) : WAREHOUSE_GOVERNANCE_WINDOW_SECONDS;
+  const expiresAt = Math.max(0, Math.floor(Number(entry.expires_at) || 0)) || createdAt + windowSeconds;
+  const inboundLedgerIds = Array.isArray(entry.inbound_ledger_ids)
+    ? entry.inbound_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20)
+    : [];
+  const outboundLedgerIds = Array.isArray(entry.outbound_ledger_ids)
+    ? entry.outbound_ledger_ids.map(id => sanitizeText(id, 100)).filter(Boolean).slice(0, 20)
+    : [];
+  const approverUsername = normalizeUsername(entry.approver_username || entry.actor_username);
+  return {
+    id: sanitizeText(entry.id, 100) || makeId('warehouse_governance_recovery'),
+    state: ['applied', 'expired', 'revoked'].includes(entry.state) ? entry.state : 'applied',
+    direction: normalizeWarehouseGovernanceDirection(entry.direction),
+    target_username: targetUsername,
+    target_username_key: targetUsernameKey,
+    target_display_name: sanitizeText(entry.target_display_name || targetUsername, 60),
+    requester_username: normalizeUsername(entry.requester_username || targetUsername),
+    requester_username_key: normalizeUsernameKey(entry.requester_username_key || entry.requester_username || targetUsername),
+    approver_username: approverUsername,
+    approver_display_name: sanitizeText(entry.approver_display_name || approverUsername, 60),
+    approver_username_key: normalizeUsernameKey(entry.approver_username_key || approverUsername),
+    reason: sanitizeText(entry.reason, 180),
+    recovery_note: sanitizeText(entry.recovery_note || entry.note, 180),
+    window_seconds: windowSeconds,
+    inbound_action_count: Math.max(0, Math.floor(Number(entry.inbound_action_count) || 0)),
+    inbound_quantity: Math.max(0, Math.floor(Number(entry.inbound_quantity) || 0)),
+    outbound_action_count: Math.max(0, Math.floor(Number(entry.outbound_action_count) || 0)),
+    outbound_quantity: Math.max(0, Math.floor(Number(entry.outbound_quantity) || 0)),
+    inbound_ledger_ids: inboundLedgerIds,
+    outbound_ledger_ids: outboundLedgerIds,
+    created_at: createdAt,
+    expires_at: expiresAt,
+    idempotency_key: sanitizeText(entry.idempotency_key, 120),
+  };
+}
+
+function normalizeWarehouseGovernanceRecoveries(value = []) {
+  return Array.isArray(value)
+    ? value
+        .map(normalizeWarehouseGovernanceRecovery)
+        .filter(Boolean)
+        .sort((left, right) => right.created_at - left.created_at)
+        .slice(0, WAREHOUSE_GOVERNANCE_RECOVERY_LIMIT)
+    : [];
+}
+
+function warehouseGovernanceRecoveryCoversDirection(recovery = {}, direction = '') {
+  const normalizedDirection = normalizeWarehouseGovernanceDirection(direction);
+  return recovery.direction === 'all' || recovery.direction === normalizedDirection;
+}
+
+function getActiveSharedWarehouseGovernanceRecoveries(contract = {}, actorUsernameOrKey = '', direction = '', checkedAt = nowSeconds()) {
+  const actorKey = normalizeUsernameKey(actorUsernameOrKey);
+  if (!actorKey) return [];
+  return normalizeWarehouseGovernanceRecoveries(contract.shared_warehouse_governance_recoveries)
+    .filter(recovery => recovery.state === 'applied')
+    .filter(recovery => recovery.target_username_key === actorKey)
+    .filter(recovery => recovery.expires_at >= checkedAt)
+    .filter(recovery => !direction || warehouseGovernanceRecoveryCoversDirection(recovery, direction));
 }
 
 function buildWarehouseItemsFromLedger(ledger = []) {
@@ -2870,6 +2943,7 @@ function normalizeContract(entry = {}) {
     shared_fund: normalizeSharedFund(entry.shared_fund),
     shared_warehouse: normalizeSharedWarehouse(entry.shared_warehouse),
     shared_warehouse_withdrawal_drafts: normalizeWarehouseWithdrawalDrafts(entry.shared_warehouse_withdrawal_drafts),
+    shared_warehouse_governance_recoveries: normalizeWarehouseGovernanceRecoveries(entry.shared_warehouse_governance_recoveries),
     origin_assets: normalizeOriginAssets(entry.origin_assets),
     permissions,
     family_state: normalizeContractFamilyState(entry.family_state),
@@ -2946,6 +3020,7 @@ function toPublicContract(contract) {
     shared_fund: normalizeSharedFund(contract.shared_fund),
     shared_warehouse: normalizeSharedWarehouse(contract.shared_warehouse),
     shared_warehouse_withdrawal_drafts: normalizeWarehouseWithdrawalDrafts(contract.shared_warehouse_withdrawal_drafts),
+    shared_warehouse_governance_recoveries: normalizeWarehouseGovernanceRecoveries(contract.shared_warehouse_governance_recoveries),
     shared_animals: normalizeSharedAnimals(contract.shared_animals),
     shared_animal_ledger: normalizeAnimalActionLedger(contract.shared_animal_ledger),
     fund_large_spend_drafts: Array.isArray(contract.fund_large_spend_drafts)
@@ -2975,6 +3050,10 @@ function assertActiveContractForActor(contract, actorUsername, actionLabel) {
 
 function canManageCohabitationPermissions(member = {}) {
   return member.status === 'accepted' && member.role === 'owner';
+}
+
+function isContractOwner(contract = {}, username = '') {
+  return getContractMember(contract, username)?.role === 'owner';
 }
 
 function canManageFamilyRoles(member = {}, contract = {}) {
@@ -4998,8 +5077,13 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
     (sum, entry) => sum + Math.max(0, Math.floor(Number(entry.quantity) || 0)),
     0
   );
-  const blockInbound = actorInboundCount >= WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT;
-  const blockOutbound = actorOutboundCount >= WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT;
+  const activeRecoveries = getActiveSharedWarehouseGovernanceRecoveries(contract, actorKey, '', checkedAt);
+  const activeInboundRecovery = activeRecoveries.find(recovery => warehouseGovernanceRecoveryCoversDirection(recovery, 'inbound')) || null;
+  const activeOutboundRecovery = activeRecoveries.find(recovery => warehouseGovernanceRecoveryCoversDirection(recovery, 'outbound')) || null;
+  const rawBlockInbound = actorInboundCount >= WAREHOUSE_GOVERNANCE_INBOUND_ACTION_LIMIT;
+  const rawBlockOutbound = actorOutboundCount >= WAREHOUSE_GOVERNANCE_OUTBOUND_ACTION_LIMIT;
+  const blockInbound = rawBlockInbound && !activeInboundRecovery;
+  const blockOutbound = rawBlockOutbound && !activeOutboundRecovery;
   const recentGovernanceAudits = (Array.isArray(contract.audit_log) ? contract.audit_log : [])
     .filter(entry => [
       'warehouse_deposited',
@@ -5009,6 +5093,7 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
       'warehouse_high_value_withdrawal_executed',
       'warehouse_high_frequency_inbound_blocked',
       'warehouse_high_frequency_outbound_blocked',
+      'warehouse_governance_recovered',
     ].includes(entry.action))
     .slice(0, 20);
 
@@ -5034,10 +5119,24 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
     },
     suspicious_actors: suspiciousActors,
     active_high_value_withdrawal_drafts: activeHighValueDrafts,
+    active_recoveries: activeRecoveries.slice(0, 10),
+    last_recovery: normalizeWarehouseGovernanceRecoveries(contract.shared_warehouse_governance_recoveries)
+      .find(recovery => recovery.target_username_key === actorKey) || null,
     recent_audits: recentGovernanceAudits,
     blocking: {
       block_inbound: blockInbound,
       block_outbound: blockOutbound,
+      raw_block_inbound: rawBlockInbound,
+      raw_block_outbound: rawBlockOutbound,
+      recovery_active: activeRecoveries.length > 0,
+      recovered_directions: [
+        activeInboundRecovery ? 'inbound' : '',
+        activeOutboundRecovery ? 'outbound' : '',
+      ].filter(Boolean),
+      recovery_expires_at: Math.max(
+        0,
+        ...activeRecoveries.map(recovery => Math.max(0, Number(recovery.expires_at) || 0))
+      ),
       blocked_directions: [
         blockInbound ? 'inbound' : '',
         blockOutbound ? 'outbound' : '',
@@ -5061,6 +5160,7 @@ function buildSharedWarehouseGovernanceSnapshot(contract, actorUsername = '') {
       high_value_withdraw_requires_freeze_and_confirm: true,
       appeal_recovery_required_for_blocked_outbound: true,
       appeal_recovery_required_for_blocked_inbound: true,
+      managed_recovery_records_enabled: true,
     },
   };
 }
@@ -5744,6 +5844,21 @@ function normalizeWarehouseHighValueWithdrawalRollbackPayload(payload = {}) {
   return {
     idempotency_key: idempotencyKey,
     reason: sanitizeText(payload.reason || payload.memo || payload.note || '撤销高价值取出草案并释放冻结库存', 160),
+  };
+}
+
+function normalizeWarehouseGovernanceRecoveryPayload(payload = {}) {
+  const idempotencyKey = sanitizeText(payload.idempotency_key || payload.operation_id || payload.request_id, 120);
+  if (!idempotencyKey) throw createError('共同仓库治理恢复需要 idempotency_key，以防断线或重试时重复恢复');
+  const direction = normalizeWarehouseGovernanceDirection(payload.direction || payload.blocked_direction || payload.operation_direction);
+  const reason = sanitizeText(payload.reason || payload.appeal_reason || payload.memo || payload.note, 180);
+  if (!reason) throw createError('共同仓库治理恢复必须填写申诉 / 恢复原因');
+  return {
+    idempotency_key: idempotencyKey,
+    direction,
+    target_username: normalizeUsername(payload.target_username || payload.targetUsername || payload.username),
+    reason,
+    recovery_note: sanitizeText(payload.recovery_note || payload.approval_note || payload.note, 180),
   };
 }
 
@@ -10835,6 +10950,107 @@ async function rollbackCohabitationWarehouseHighValueWithdrawalDraft(contractId,
     contract: toPublicContract(contract),
     warehouse: buildSharedWarehouseSnapshot(contract, actorUsername),
     draft,
+    idempotent: false,
+  };
+}
+
+async function recoverCohabitationWarehouseGovernance(contractId, payload = {}, actor = {}) {
+  const actorUsername = normalizeUsername(actor.username);
+  if (!actorUsername) throw createError('请先登录', 401);
+  const request = normalizeWarehouseGovernanceRecoveryPayload(payload);
+  const store = loadContractStore();
+  const contract = store.contracts.find(entry => entry.id === sanitizeText(contractId, 80));
+  const member = assertActiveContractForActor(contract, actorUsername, '恢复共同仓库治理阻断');
+  const targetUsername = request.target_username || actorUsername;
+  const targetMember = getContractMember(contract, targetUsername);
+  if (!targetMember || targetMember.status !== 'accepted') throw createError('只能恢复已接受成员的共同仓库治理阻断', 404);
+  const actorPermissions = normalizePermissionSet(contract.permissions?.[member.username_key], contract.type);
+  const canGovern = isContractOwner(contract, actorUsername)
+    || actorPermissions.storage.withdraw_rare === true
+    || actorPermissions.storage.withdraw_high_quality === true;
+  if (!canGovern) throw createError('只有契约 owner 或具备高价值仓库权限的成员可以恢复共同仓库治理阻断', 403);
+
+  contract.shared_warehouse = normalizeSharedWarehouse(contract.shared_warehouse);
+  contract.shared_warehouse_governance_recoveries = normalizeWarehouseGovernanceRecoveries(contract.shared_warehouse_governance_recoveries);
+  const previousRecovery = contract.shared_warehouse_governance_recoveries.find(entry =>
+    entry.idempotency_key && entry.idempotency_key === request.idempotency_key
+  );
+  if (previousRecovery) {
+    const warehouse = buildSharedWarehouseSnapshot(contract, previousRecovery.target_username);
+    return {
+      contract: toPublicContract(contract),
+      warehouse,
+      governance: warehouse.governance,
+      recovery: previousRecovery,
+      idempotent: true,
+    };
+  }
+
+  const targetGovernance = buildSharedWarehouseGovernanceSnapshot(contract, targetMember.username);
+  const needsInboundRecovery = targetGovernance.actor_window.inbound_action_count >= targetGovernance.inbound_action_limit;
+  const needsOutboundRecovery = targetGovernance.actor_window.outbound_action_count >= targetGovernance.outbound_action_limit;
+  const directionNeedsRecovery = request.direction === 'all'
+    ? needsInboundRecovery || needsOutboundRecovery
+    : request.direction === 'inbound'
+      ? needsInboundRecovery
+      : needsOutboundRecovery;
+  if (!directionNeedsRecovery) throw createError('目标成员当前没有对应方向的共同仓库高频阻断需要恢复', 409);
+
+  const recoveredAt = nowSeconds();
+  const recovery = normalizeWarehouseGovernanceRecovery({
+    id: makeId('warehouse_governance_recovery'),
+    state: 'applied',
+    direction: request.direction,
+    target_username: targetMember.username,
+    target_username_key: targetMember.username_key,
+    target_display_name: targetMember.display_name || targetMember.username,
+    requester_username: targetMember.username,
+    requester_username_key: targetMember.username_key,
+    approver_username: actorUsername,
+    approver_display_name: actor.displayName || actor.display_name || actorUsername,
+    approver_username_key: member.username_key,
+    reason: request.reason,
+    recovery_note: request.recovery_note || '管理恢复共同仓库高频治理阻断',
+    window_seconds: WAREHOUSE_GOVERNANCE_WINDOW_SECONDS,
+    inbound_action_count: targetGovernance.actor_window.inbound_action_count,
+    inbound_quantity: targetGovernance.actor_window.inbound_quantity,
+    outbound_action_count: targetGovernance.actor_window.outbound_action_count,
+    outbound_quantity: targetGovernance.actor_window.outbound_quantity,
+    inbound_ledger_ids: targetGovernance.actor_window.inbound_ledger_ids,
+    outbound_ledger_ids: targetGovernance.actor_window.outbound_ledger_ids,
+    created_at: recoveredAt,
+    expires_at: recoveredAt + WAREHOUSE_GOVERNANCE_WINDOW_SECONDS,
+    idempotency_key: request.idempotency_key,
+  });
+  contract.shared_warehouse_governance_recoveries = [
+    recovery,
+    ...contract.shared_warehouse_governance_recoveries,
+  ].slice(0, WAREHOUSE_GOVERNANCE_RECOVERY_LIMIT);
+  appendAudit(contract, 'warehouse_governance_recovered', actor, {
+    recovery_id: recovery.id,
+    direction: recovery.direction,
+    target_username: recovery.target_username,
+    target_username_key: recovery.target_username_key,
+    reason: recovery.reason,
+    recovery_note: recovery.recovery_note,
+    expires_at: recovery.expires_at,
+    window_seconds: recovery.window_seconds,
+    inbound_action_count: recovery.inbound_action_count,
+    outbound_action_count: recovery.outbound_action_count,
+    inbound_ledger_ids: recovery.inbound_ledger_ids,
+    outbound_ledger_ids: recovery.outbound_ledger_ids,
+    shared_warehouse_changed: false,
+    personal_inventory_changed: false,
+    personal_money_merged: false,
+  }, request.idempotency_key);
+  saveContractStore(store);
+
+  const warehouse = buildSharedWarehouseSnapshot(contract, targetMember.username);
+  return {
+    contract: toPublicContract(contract),
+    warehouse,
+    governance: warehouse.governance,
+    recovery,
     idempotent: false,
   };
 }
@@ -17234,6 +17450,7 @@ module.exports = {
   confirmCohabitationWarehouseHighValueWithdrawalDraft,
   executeCohabitationWarehouseHighValueWithdrawalDraft,
   rollbackCohabitationWarehouseHighValueWithdrawalDraft,
+  recoverCohabitationWarehouseGovernance,
   sellCohabitationWarehouseItem,
   creditCohabitationOrderIncome,
   contributeCohabitationFund,

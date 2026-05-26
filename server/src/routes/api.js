@@ -272,6 +272,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_warehouse_sell',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/governance\/recover$/i,
+    action: 'cohabitation_warehouse_governance_recover',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/fund\/contribute$/i,
     action: 'cohabitation_fund_contribute',
   },
@@ -3382,6 +3386,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/sell',
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '卖出共同仓库物品失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/warehouse/governance/recover', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.recoverCohabitationWarehouseGovernance(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || '恢复共同仓库治理阻断失败' });
     }
   });
 });

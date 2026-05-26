@@ -6154,6 +6154,48 @@ const warehouseGovernanceAfterBlock = await runtime.getCohabitationWarehouse(war
 assert.equal(warehouseGovernanceAfterBlock.warehouse.items.find(item => item.item_id === 'wheat')?.quantity, 4, 'blocked warehouse withdraw should not change shared stock')
 assert.equal(getInventoryItemQuantity(warehouseGovernanceOwner, 'wheat'), ownerWheatBeforeGovernanceBlock, 'blocked warehouse withdraw should not change personal inventory')
 assert.ok(warehouseGovernanceAfterBlock.warehouse.governance.recent_audits.find(entry => entry.action === 'warehouse_high_frequency_outbound_blocked'), 'blocked warehouse withdraw should write governance audit')
+await assert.rejects(
+  () => runtime.recoverCohabitationWarehouseGovernance(warehouseGovernanceContractId, {
+    target_username: warehouseGovernanceOwner,
+    direction: 'outbound',
+    reason: 'QA non-owner should not recover high-frequency outbound block',
+    idempotency_key: 'qa-warehouse-governance-recover-denied',
+  }, actor(warehouseGovernancePartner)),
+  error => error?.status === 403,
+  'non-owner should not recover warehouse governance block'
+)
+const warehouseGovernanceRecovery = await runtime.recoverCohabitationWarehouseGovernance(warehouseGovernanceContractId, {
+  target_username: warehouseGovernanceOwner,
+  direction: 'outbound',
+  reason: 'QA owner reviews outbound high-frequency block and restores one window',
+  recovery_note: 'QA managed recovery keeps shared warehouse and inventory unchanged',
+  idempotency_key: 'qa-warehouse-governance-recover-outbound',
+}, actor(warehouseGovernanceOwner))
+assert.equal(warehouseGovernanceRecovery.idempotent, false, 'warehouse governance recovery should write once')
+assert.equal(warehouseGovernanceRecovery.recovery.direction, 'outbound', 'warehouse governance recovery should keep direction')
+assert.equal(warehouseGovernanceRecovery.warehouse.governance.blocking.raw_block_outbound, true, 'warehouse governance recovery should preserve raw outbound evidence')
+assert.equal(warehouseGovernanceRecovery.warehouse.governance.blocking.block_outbound, false, 'warehouse governance recovery should clear active outbound block')
+assert.ok(warehouseGovernanceRecovery.warehouse.governance.active_recoveries.find(entry => entry.id === warehouseGovernanceRecovery.recovery.id), 'warehouse governance should expose active recovery')
+assert.ok(warehouseGovernanceRecovery.warehouse.governance.recent_audits.find(entry => entry.action === 'warehouse_governance_recovered'), 'warehouse governance recovery should be audited')
+const duplicateWarehouseGovernanceRecovery = await runtime.recoverCohabitationWarehouseGovernance(warehouseGovernanceContractId, {
+  target_username: warehouseGovernanceOwner,
+  direction: 'outbound',
+  reason: 'QA owner reviews outbound high-frequency block and restores one window',
+  idempotency_key: 'qa-warehouse-governance-recover-outbound',
+}, actor(warehouseGovernanceOwner))
+assert.equal(duplicateWarehouseGovernanceRecovery.idempotent, true, 'warehouse governance recovery should be idempotent')
+assert.equal(duplicateWarehouseGovernanceRecovery.recovery.id, warehouseGovernanceRecovery.recovery.id, 'duplicate recovery should return original recovery')
+const ownerWheatBeforeRecoveredWithdraw = getInventoryItemQuantity(warehouseGovernanceOwner, 'wheat')
+const recoveredWarehouseWithdraw = await runtime.withdrawCohabitationWarehouseItem(warehouseGovernanceContractId, {
+  item_id: 'wheat',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-warehouse-governance-recovered-withdraw',
+}, actor(warehouseGovernanceOwner))
+assert.equal(recoveredWarehouseWithdraw.idempotent, false, 'recovered warehouse governance should allow one new withdraw')
+assert.equal(recoveredWarehouseWithdraw.warehouse.items.find(item => item.item_id === 'wheat')?.quantity, 3, 'recovered warehouse withdraw should deduct shared stock')
+assert.equal(getInventoryItemQuantity(warehouseGovernanceOwner, 'wheat'), ownerWheatBeforeRecoveredWithdraw + 1, 'recovered warehouse withdraw should add personal stock once')
+assert.equal(recoveredWarehouseWithdraw.warehouse.governance.blocking.block_outbound, false, 'active recovery should keep outbound unblocked after recovered write')
 
 const warehouseInboundGovernanceOwner = 'cohabit_wgin_owner26'
 const warehouseInboundGovernancePartner = 'cohabit_wgin_part26'
@@ -6225,5 +6267,25 @@ const warehouseInboundAfterBlock = await runtime.getCohabitationWarehouse(wareho
 assert.equal(warehouseInboundAfterBlock.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 12, 'blocked warehouse deposit should not change shared stock')
 assert.equal(getInventoryItemQuantity(warehouseInboundGovernanceOwner, 'rice'), ownerRiceBeforeInboundBlock, 'blocked warehouse deposit should not change personal inventory')
 assert.ok(warehouseInboundAfterBlock.warehouse.governance.recent_audits.find(entry => entry.action === 'warehouse_high_frequency_inbound_blocked'), 'blocked warehouse deposit should write governance audit')
+const warehouseInboundRecovery = await runtime.recoverCohabitationWarehouseGovernance(warehouseInboundGovernanceContractId, {
+  target_username: warehouseInboundGovernanceOwner,
+  direction: 'inbound',
+  reason: 'QA owner reviews inbound high-frequency block and restores one window',
+  idempotency_key: 'qa-warehouse-inbound-governance-recover',
+}, actor(warehouseInboundGovernanceOwner))
+assert.equal(warehouseInboundRecovery.warehouse.governance.blocking.raw_block_inbound, true, 'inbound recovery should preserve raw inbound evidence')
+assert.equal(warehouseInboundRecovery.warehouse.governance.blocking.block_inbound, false, 'inbound recovery should clear active inbound block')
+assert.equal(warehouseInboundRecovery.warehouse.summary.governance_blocked, false, 'inbound recovery should clear warehouse governance blocked summary')
+const ownerRiceBeforeRecoveredDeposit = getInventoryItemQuantity(warehouseInboundGovernanceOwner, 'rice')
+const recoveredWarehouseDeposit = await runtime.depositCohabitationWarehouseItem(warehouseInboundGovernanceContractId, {
+  item_id: 'rice',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-warehouse-inbound-governance-recovered-deposit',
+}, actor(warehouseInboundGovernanceOwner))
+assert.equal(recoveredWarehouseDeposit.idempotent, false, 'recovered warehouse governance should allow one new deposit')
+assert.equal(recoveredWarehouseDeposit.warehouse.items.find(item => item.item_id === 'rice')?.quantity, 13, 'recovered warehouse deposit should add shared stock')
+assert.equal(getInventoryItemQuantity(warehouseInboundGovernanceOwner, 'rice'), ownerRiceBeforeRecoveredDeposit - 1, 'recovered warehouse deposit should deduct personal stock once')
+assert.equal(recoveredWarehouseDeposit.warehouse.governance.blocking.block_inbound, false, 'active recovery should keep inbound unblocked after recovered write')
 
 console.log('[qa-cohabitation-contract] OK')
