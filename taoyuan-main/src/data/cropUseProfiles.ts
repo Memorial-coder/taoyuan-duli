@@ -5,6 +5,7 @@ export type CropUseTag =
   | 'food'
   | 'alchemy'
   | 'pet_feed'
+  | 'animal_feed'
   | 'oil'
   | 'flour'
   | 'wine'
@@ -12,6 +13,7 @@ export type CropUseTag =
   | 'gift'
   | 'festival'
   | 'order'
+  | 'online_cost'
   | 'medicine'
 
 export type CropUseFlavor = '甜' | '鲜' | '辛' | '香' | '土' | '苦'
@@ -30,10 +32,19 @@ export interface CropUseProfile {
   summary: string
 }
 
+export interface CropUseTagMatch {
+  cropId: string
+  tag: CropUseTag
+  label: string
+  summary: string
+  recommendedUses: string[]
+}
+
 export const CROP_USE_TAG_LABELS: Record<CropUseTag, string> = {
   food: '料理',
   alchemy: '炼丹',
   pet_feed: '宠物粮',
+  animal_feed: '动物饲料',
   oil: '榨油',
   flour: '制粉',
   wine: '酿酒',
@@ -41,6 +52,7 @@ export const CROP_USE_TAG_LABELS: Record<CropUseTag, string> = {
   gift: '赠礼',
   festival: '节会',
   order: '订单',
+  online_cost: '联机消耗',
   medicine: '药材'
 }
 
@@ -60,16 +72,16 @@ export const CROP_USE_RARITY_LABELS: Record<CropUseRarity, string> = {
 export const CROP_USE_PROFILES: CropUseProfile[] = [
   {
     cropId: 'rice',
-    tags: ['food', 'wine', 'flour', 'pet_feed', 'festival', 'order'],
+    tags: ['food', 'alchemy', 'wine', 'flour', 'pet_feed', 'animal_feed', 'festival', 'order', 'online_cost'],
     flavor: ['鲜', '土'],
     nature: 'neutral',
     rarityUse: 'stable',
-    recommendedUses: ['米粉', '饭团', '米酒', '团圆饭订单', '宠物温饱粮', '节会供品'],
-    summary: '基础粮食出口，适合料理、酿酒、制粉、宠物饱腹和团圆类订单。'
+    recommendedUses: ['米粉', '饭团', '米酒', '谷气续行丹', '团圆饭订单', '宠物温饱粮', '家畜补料', '节会供品', '公共仓粥底'],
+    summary: '基础粮食出口，适合料理、酿酒、制粉、宠物饱腹、家畜补料、团圆类订单和公共仓节会消耗。'
   },
   {
     cropId: 'sesame',
-    tags: ['oil', 'flour', 'food', 'alchemy', 'pet_feed', 'festival'],
+    tags: ['oil', 'flour', 'food', 'alchemy', 'pet_feed', 'festival', 'online_cost'],
     flavor: ['香', '土'],
     nature: 'warm',
     rarityUse: 'stable',
@@ -96,25 +108,25 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'sweet_potato',
-    tags: ['food', 'pet_feed', 'order', 'flour'],
+    tags: ['food', 'pet_feed', 'animal_feed', 'order', 'flour', 'online_cost'],
     flavor: ['甜', '土'],
     nature: 'warm',
     rarityUse: 'daily',
-    recommendedUses: ['饱腹料理', '宠物耐力餐', '行旅干粮', '救济订单', '粗粮粉'],
-    summary: '高产粗粮消耗口，适合日常料理、宠物耐力、行旅干粮和村社订单。'
+    recommendedUses: ['饱腹料理', '宠物耐力餐', '家畜越冬料', '行旅干粮', '救济订单', '公共订单粗粮包', '粗粮粉'],
+    summary: '高产粗粮消耗口，适合日常料理、宠物耐力、家畜越冬料、行旅干粮、公共订单和村社救济。'
   },
   {
     cropId: 'pumpkin',
-    tags: ['food', 'pet_feed', 'festival', 'order'],
+    tags: ['food', 'pet_feed', 'animal_feed', 'festival', 'order'],
     flavor: ['甜', '土'],
     nature: 'warm',
     rarityUse: 'seasonal',
-    recommendedUses: ['南瓜汤', '节庆灯饰', '宠物亲密餐', '家庭餐桌事件', '丰收订单'],
-    summary: '丰收感强的节令作物，适合家庭料理、节庆装饰、宠物亲密和订单。'
+    recommendedUses: ['南瓜汤', '节庆灯饰', '宠物亲密餐', '家畜甜口补料', '家庭餐桌事件', '丰收订单'],
+    summary: '丰收感强的节令作物，适合家庭料理、节庆装饰、宠物亲密、家畜甜口补料和订单。'
   },
   {
     cropId: 'radish',
-    tags: ['food', 'pet_feed', 'alchemy', 'order', 'pickle'],
+    tags: ['food', 'pet_feed', 'animal_feed', 'alchemy', 'order', 'pickle'],
     flavor: ['甜', '辛'],
     nature: 'cool',
     rarityUse: 'daily',
@@ -132,12 +144,12 @@ export const CROP_USE_PROFILES: CropUseProfile[] = [
   },
   {
     cropId: 'peach',
-    tags: ['gift', 'wine', 'pet_feed', 'festival', 'food'],
+    tags: ['gift', 'wine', 'pet_feed', 'festival', 'food', 'alchemy'],
     flavor: ['甜', '鲜'],
     nature: 'neutral',
     rarityUse: 'seasonal',
-    recommendedUses: ['鲜果赠礼', '桃酒', '宠物心情餐', '恋爱剧情道具', '春日节会点心'],
-    summary: '偏社交和情绪反馈的果类作物，适合赠礼、酿酒、宠物心情和恋爱剧情。'
+    recommendedUses: ['鲜果赠礼', '桃酒', '宠物心情餐', '灵果醒神丹', '恋爱剧情道具', '春日节会点心'],
+    summary: '偏社交和情绪反馈的果类作物，适合赠礼、酿酒、宠物心情、灵果炼丹和恋爱剧情。'
   },
   {
     cropId: 'chili',
@@ -157,6 +169,7 @@ const tagUseLabels: Record<CropUseTag, string> = {
   food: '家常料理',
   alchemy: '丹炉辅材',
   pet_feed: '宠物点心',
+  animal_feed: '动物饲料',
   oil: '榨油加工',
   flour: '制粉加工',
   wine: '酿造入坛',
@@ -164,6 +177,7 @@ const tagUseLabels: Record<CropUseTag, string> = {
   gift: '村民赠礼',
   festival: '节会供品',
   order: '订单交付',
+  online_cost: '公共仓消耗',
   medicine: '药材储备'
 }
 
@@ -188,20 +202,20 @@ const buildCropUseTags = (searchText: string): CropUseTag[] => {
   const isTuber = hasAny(searchText, ['potato', 'tuber', 'sweet_potato', 'radish', 'lotus_root', '薯', '萝卜', '藕', '根'])
   const isBean = hasAny(searchText, ['bean', '豆', '蚕豆'])
 
-  if (isFiber) add('order', 'gift', 'festival')
-  if (isGrain) add('food', 'flour', 'wine', 'pet_feed', 'order')
-  if (isOil) add('oil', 'flour', 'food', 'alchemy', 'festival', 'order')
+  if (isFiber) add('order', 'gift', 'festival', 'online_cost')
+  if (isGrain) add('food', 'flour', 'wine', 'pet_feed', 'animal_feed', 'order', 'online_cost')
+  if (isOil) add('oil', 'flour', 'food', 'alchemy', 'festival', 'order', 'online_cost')
   if (isSpice) add('food', 'alchemy', 'medicine', 'pickle', 'order')
   if (isTeaOrFlower) add('gift', 'festival', 'medicine', 'alchemy', 'food', 'order')
   if (isMedicinal) add('alchemy', 'medicine', 'food', 'gift', 'order')
   if (isFruit) add('food', 'gift', 'wine', 'festival', 'pet_feed', 'order')
-  if (isLeafy) add('food', 'pickle', 'order', 'pet_feed')
-  if (isTuber) add('food', 'pet_feed', 'flour', 'order', 'alchemy')
-  if (isBean) add('food', 'flour', 'pet_feed', 'order')
+  if (isLeafy) add('food', 'pickle', 'order', 'pet_feed', 'animal_feed')
+  if (isTuber) add('food', 'pet_feed', 'animal_feed', 'flour', 'order', 'alchemy')
+  if (isBean) add('food', 'flour', 'pet_feed', 'animal_feed', 'order')
 
   if (tags.length === 0) add('food', 'order')
 
-  return uniqueValues(tags).slice(0, 6)
+  return uniqueValues(tags).slice(0, 8)
 }
 
 const buildCropUseFlavor = (searchText: string): CropUseFlavor[] => {
@@ -283,4 +297,19 @@ export const getCropUseTagLabels = (profile: CropUseProfile): string[] => {
 
 export const formatCropUseSummary = (profile: CropUseProfile): string => {
   return `${profile.summary} 推荐：${profile.recommendedUses.join('、')}。`
+}
+
+export const getCropUseTagMatches = (itemId: string, tags: CropUseTag[]): CropUseTagMatch[] => {
+  const profile = getCropUseProfile(itemId)
+  if (!profile) return []
+
+  return tags
+    .filter(tag => profile.tags.includes(tag))
+    .map(tag => ({
+      cropId: profile.cropId,
+      tag,
+      label: CROP_USE_TAG_LABELS[tag],
+      summary: profile.summary,
+      recommendedUses: profile.recommendedUses
+    }))
 }

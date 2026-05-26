@@ -20,6 +20,24 @@
       </p>
     </div>
 
+    <!-- 最近料理线索 -->
+    <div v-if="cookingStore.recentStoryTriggerRecords.length > 0" class="border border-water/20 rounded-xs px-3 py-1.5 mb-3">
+      <p class="text-[10px] text-water mb-1">最近料理线索</p>
+      <div
+        v-for="record in cookingStore.recentStoryTriggerRecords.slice(0, 3)"
+        :key="record.id"
+        class="flex items-start justify-between gap-2 py-0.5"
+      >
+        <div class="min-w-0">
+          <p class="text-xs text-text truncate">{{ record.recipeName }} ×{{ record.quantity }}</p>
+          <p class="text-[10px] text-muted leading-snug">
+            {{ record.categoryLabels.join('、') || '料理' }} · {{ record.triggerLabels.join('、') }}
+          </p>
+        </div>
+        <span class="text-[10px] text-water/70 whitespace-nowrap">可回看</span>
+      </div>
+    </div>
+
     <!-- 食谱列表 -->
     <div v-if="displayedRecipeInfos.length > 0" class="border border-accent/20 rounded-xs divide-y divide-accent/10 mb-4">
       <div
@@ -40,7 +58,10 @@
             <span v-if="info.recipe.effect.healthRestore">+{{ info.recipe.effect.healthRestore }}生命</span>
           </span>
         </div>
+        <p v-if="info.categoryText" class="text-[10px] text-accent/80 mt-0.5">{{ info.categoryText }}</p>
+        <p v-if="info.storyTriggerText" class="text-[10px] text-water/90 mt-0.5">{{ info.storyTriggerText }}</p>
         <p v-if="info.recipe.effect.buff" class="text-[10px] text-water mt-0.5">{{ info.recipe.effect.buff.description }}</p>
+        <p v-if="info.cropUseText" class="text-[10px] text-muted mt-0.5">{{ info.cropUseText }}</p>
       </div>
     </div>
     <div v-else class="flex flex-col items-center justify-center py-8 mb-4">
@@ -72,6 +93,8 @@
 
           <!-- 功效 -->
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
+            <p v-if="modalInfo.categoryText" class="text-xs text-accent mb-1">分类：{{ modalInfo.categoryText }}</p>
+            <p v-if="modalInfo.storyTriggerText" class="text-xs text-water mb-1">剧情：{{ modalInfo.storyTriggerText }}</p>
             <p class="text-xs text-success">
               恢复 {{ modalInfo.recipe.effect.staminaRestore }} 体力
               <span v-if="modalInfo.recipe.effect.healthRestore" class="text-danger ml-1">
@@ -86,9 +109,12 @@
           <!-- 材料 -->
           <div class="border border-accent/10 rounded-xs p-2 mb-2">
             <p class="text-xs text-muted mb-1">所需材料</p>
-            <div v-for="ing in modalInfo.ingredients" :key="ing.itemId" class="flex items-center justify-between">
-              <span class="text-xs text-muted">{{ ing.name }}</span>
-              <span class="text-xs" :class="ing.enough ? '' : 'text-danger'">{{ ing.available }}/{{ ing.quantity }}</span>
+            <div v-for="ing in modalInfo.ingredients" :key="ing.itemId" class="py-0.5">
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-muted">{{ ing.name }}</span>
+                <span class="text-xs" :class="ing.enough ? '' : 'text-danger'">{{ ing.available }}/{{ ing.quantity }}</span>
+              </div>
+              <p v-if="ing.cropUseText" class="text-[10px] text-muted/80 leading-snug">{{ ing.cropUseText }}</p>
             </div>
           </div>
 
@@ -151,6 +177,8 @@
   import { useTutorialStore } from '@/stores/useTutorialStore'
   import { getCombinedItemCount } from '@/composables/useCombinedInventory'
   import { getItemById } from '@/data'
+  import { getCropUseTagMatches } from '@/data/cropUseProfiles'
+  import { getRecipeCategoryLabels, getRecipeStoryTriggerLabels } from '@/data/recipes'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { sfxClick } from '@/composables/useAudio'
   import { addLog } from '@/composables/useGameLog'
@@ -168,6 +196,13 @@
   const modalRecipeId = ref<string | null>(null)
   const modalQty = ref(1)
 
+  const uniqueStrings = (values: string[]): string[] => Array.from(new Set(values.filter(Boolean)))
+
+  const getCookingCropUseText = (itemId: string): string => {
+    const labels = uniqueStrings(getCropUseTagMatches(itemId, ['food']).map(match => match.label))
+    return labels.length > 0 ? `用途：${labels.join('、')}` : ''
+  }
+
   /** 预计算食谱信息（不含数量，避免改数量触发全量重算） */
   const recipeInfos = computed(() => {
     return cookingStore.recipes.map(recipe => {
@@ -177,15 +212,21 @@
       const ingredients = recipe.ingredients.map(ing => {
         const item = getItemById(ing.itemId)
         const available = getCombinedItemCount(ing.itemId)
+        const cropUseText = getCookingCropUseText(ing.itemId)
         return {
           itemId: ing.itemId,
           name: item?.name ?? ing.itemId,
           quantity: ing.quantity,
           available,
-          enough: available >= ing.quantity
+          enough: available >= ing.quantity,
+          cropUseText
         }
       })
-      return { recipe, canCook, maxQty, quality, ingredients }
+      const categoryText = getRecipeCategoryLabels(recipe).join('、')
+      const storyTriggerText = getRecipeStoryTriggerLabels(recipe).join('、')
+      const cropUseLabels = uniqueStrings(ingredients.map(ing => ing.cropUseText.replace(/^用途：/, '')))
+      const cropUseText = cropUseLabels.length > 0 ? `用途标签：${cropUseLabels.join('、')}` : ''
+      return { recipe, canCook, maxQty, quality, ingredients, categoryText, storyTriggerText, cropUseText }
     })
   })
 

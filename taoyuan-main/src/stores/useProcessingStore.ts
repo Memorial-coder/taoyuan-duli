@@ -1,6 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { MachineType, ProcessingSlot, Quality } from '@/types'
+import type { AlchemyResultKind, MachineType, ProcessingRecipeDef, ProcessingSlot, Quality } from '@/types'
 import {
   PROCESSING_MACHINES,
   SPRINKLERS,
@@ -10,12 +10,16 @@ import {
   TAPPER,
   CRAB_POT_CRAFT,
   BOMBS,
+  ALCHEMY_MAIN_DAILY_LIMIT,
+  ALCHEMY_SUPPORT_DAILY_LIMIT,
   getRecipesForMachine,
   getProcessingRecipeById
 } from '@/data/processing'
+import { getItemById } from '@/data/items'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useSkillStore } from './useSkillStore'
+import { useGameStore } from './useGameStore'
 import { useBreedingStore } from './useBreedingStore'
 import { useWarehouseStore } from './useWarehouseStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
@@ -46,11 +50,150 @@ export const useProcessingStore = defineStore('processing', () => {
   const inventoryStore = useInventoryStore()
   const playerStore = usePlayerStore()
   const skillStore = useSkillStore()
+  const gameStore = useGameStore()
 
   /** 已放置的加工机器（运行中的槽位） */
   const machines = ref<ProcessingSlot[]>([])
+  const alchemyDailyLimitState = ref({
+    dayTag: '',
+    mainStarted: 0,
+    supportStarted: 0
+  })
 
   const QUALITY_VALUES: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
+  const getQualityRank = (quality: Quality) => QUALITY_VALUES.indexOf(quality)
+  const getQualitiesAtLeast = (minQuality: Quality): Quality[] => QUALITY_VALUES.slice(Math.max(0, getQualityRank(minQuality)))
+  const isQualityAtLeast = (quality: Quality, minQuality: Quality): boolean => getQualityRank(quality) >= getQualityRank(minQuality)
+
+  const getAlchemyDayTag = () => `${gameStore.year}:${gameStore.season}:${gameStore.day}`
+
+  const refreshAlchemyDailyLimitState = () => {
+    const dayTag = getAlchemyDayTag()
+    if (alchemyDailyLimitState.value.dayTag !== dayTag) {
+      alchemyDailyLimitState.value = {
+        dayTag,
+        mainStarted: 0,
+        supportStarted: 0
+      }
+    }
+  }
+
+  const getAlchemyDailyLimitStatus = (recipeId: string) => {
+    refreshAlchemyDailyLimitState()
+    const recipe = getProcessingRecipeById(recipeId)
+    if (!recipe?.alchemy) return null
+
+    const limit = recipe.alchemy.role === 'main' ? ALCHEMY_MAIN_DAILY_LIMIT : ALCHEMY_SUPPORT_DAILY_LIMIT
+    const used = recipe.alchemy.role === 'main' ? alchemyDailyLimitState.value.mainStarted : alchemyDailyLimitState.value.supportStarted
+    const remaining = Math.max(0, limit - used)
+    return {
+      role: recipe.alchemy.role,
+      used,
+      limit,
+      remaining,
+      blocked: remaining <= 0
+    }
+  }
+
+  const incrementAlchemyDailyUse = (recipeId: string) => {
+    const recipe = getProcessingRecipeById(recipeId)
+    if (!recipe?.alchemy) return
+    refreshAlchemyDailyLimitState()
+    if (recipe.alchemy.role === 'main') {
+      alchemyDailyLimitState.value.mainStarted++
+    } else {
+      alchemyDailyLimitState.value.supportStarted++
+    }
+  }
+
+  const ALCHEMY_RESULT_KINDS: AlchemyResultKind[] = ['success', 'partial', 'failed', 'rare']
+  const ALCHEMY_QUALITY_WEIGHT_BONUS: Record<Quality, Partial<Record<AlchemyResultKind, number>>> = {
+    normal: {},
+    fine: { success: 6, partial: -1, failed: -2, rare: 1 },
+    excellent: { success: 10, partial: -2, failed: -3, rare: 2 },
+    supreme: { success: 14, partial: -3, failed: -4, rare: 4 }
+  }
+
+  const sanitizeAlchemyResult = (recipe: ProcessingRecipeDef | null, raw: unknown): ProcessingSlot['alchemyResult'] | undefined => {
+    if (!recipe?.alchemy?.results?.length || !raw || typeof raw !== 'object') return undefined
+
+    const result = raw as Record<string, unknown>
+    const kind = typeof result.kind === 'string' && ALCHEMY_RESULT_KINDS.includes(result.kind as AlchemyResultKind)
+      ? (result.kind as AlchemyResultKind)
+      : null
+    if (!kind) return undefined
+
+    const outputItemId = typeof result.outputItemId === 'string' ? result.outputItemId : ''
+    const rule = recipe.alchemy.results.find(entry => entry.kind === kind && entry.outputItemId === outputItemId)
+    if (!rule) return undefined
+
+    return {
+      kind,
+      outputItemId: rule.outputItemId,
+      outputQuantity: Math.max(1, rule.outputQuantity),
+      label: rule.label,
+      description: rule.description
+    }
+  }
+
+  const resolveAlchemyResult = (recipe: ProcessingRecipeDef, inputQuality: Quality): ProcessingSlot['alchemyResult'] | undefined => {
+    if (!recipe.alchemy?.results?.length) return undefined
+
+    const weightedRules = recipe.alchemy.results.map(rule => ({
+      rule,
+      weight: Math.max(0.1, rule.weight + (ALCHEMY_QUALITY_WEIGHT_BONUS[inputQuality][rule.kind] ?? 0))
+    }))
+    const totalWeight = weightedRules.reduce((sum, entry) => sum + entry.weight, 0)
+    let roll = Math.random() * totalWeight
+
+    for (const entry of weightedRules) {
+      roll -= entry.weight
+      if (roll <= 0) {
+        return {
+          kind: entry.rule.kind,
+          outputItemId: entry.rule.outputItemId,
+          outputQuantity: entry.rule.outputQuantity,
+          label: entry.rule.label,
+          description: entry.rule.description
+        }
+      }
+    }
+
+    const fallback = weightedRules[0]?.rule
+    return fallback
+      ? {
+          kind: fallback.kind,
+          outputItemId: fallback.outputItemId,
+          outputQuantity: fallback.outputQuantity,
+          label: fallback.label,
+          description: fallback.description
+        }
+      : undefined
+  }
+
+  const prepareAlchemyResult = (slot: ProcessingSlot, recipe: ProcessingRecipeDef) => {
+    if (!recipe.alchemy || slot.alchemyResult) return
+    slot.alchemyResult = resolveAlchemyResult(recipe, slot.inputQuality ?? 'normal')
+  }
+
+  const getSlotOutput = (slot: ProcessingSlot, recipe: ProcessingRecipeDef) => {
+    if (recipe.alchemy && slot.alchemyResult) {
+      return {
+        itemId: slot.alchemyResult.outputItemId,
+        quantity: slot.alchemyResult.outputQuantity
+      }
+    }
+    return {
+      itemId: recipe.outputItemId,
+      quantity: recipe.outputQuantity
+    }
+  }
+
+  const getSlotCompletionName = (slot: ProcessingSlot, recipe: ProcessingRecipeDef): string => {
+    const output = getSlotOutput(slot, recipe)
+    const outputName = getItemById(output.itemId)?.name ?? output.itemId
+    return slot.alchemyResult ? `${slot.alchemyResult.label}：${outputName}` : recipe.name
+  }
 
   const getIdleMachineIndicesByType = (machineType: MachineType) =>
     machines.value
@@ -99,8 +242,9 @@ export const useProcessingStore = defineStore('processing', () => {
     const daysProcessed = Math.max(0, Number(slot.daysProcessed) || 0)
     const totalDays = recipe ? Math.max(1, Number(slot.totalDays) || recipe.processingDays) : 0
     const ready = !!recipe && !!slot.ready
+    const alchemyResult = ready ? sanitizeAlchemyResult(recipe, (slot as any).alchemyResult) : undefined
 
-    return {
+    const sanitized: ProcessingSlot = {
       machineType,
       recipeId,
       inputItemId: recipe ? recipe.inputItemId : null,
@@ -109,6 +253,8 @@ export const useProcessingStore = defineStore('processing', () => {
       totalDays,
       ready
     }
+    if (alchemyResult) sanitized.alchemyResult = alchemyResult
+    return sanitized
   }
 
   /** 工坊等级：0/1/2，对应 15/20/25 */
@@ -230,6 +376,27 @@ export const useProcessingStore = defineStore('processing', () => {
     return getLowestCombinedQuality(itemId)
   }
 
+  const getCombinedItemCountAtMinQuality = (itemId: string, minQuality: Quality): number =>
+    getQualitiesAtLeast(minQuality).reduce((sum, quality) => sum + getCombinedItemCount(itemId, quality), 0)
+
+  const removeCombinedItemAtMinQuality = (itemId: string, quantity: number, minQuality: Quality): Quality | null => {
+    if (getCombinedItemCountAtMinQuality(itemId, minQuality) < quantity) return null
+    let remaining = quantity
+    let lowestConsumedQuality: Quality | null = null
+
+    for (const quality of getQualitiesAtLeast(minQuality)) {
+      if (remaining <= 0) break
+      const available = getCombinedItemCount(itemId, quality)
+      if (available <= 0) continue
+      const take = Math.min(remaining, available)
+      if (!removeCombinedItem(itemId, take, quality)) return null
+      lowestConsumedQuality ??= quality
+      remaining -= take
+    }
+
+    return remaining <= 0 ? lowestConsumedQuality : null
+  }
+
   const getBatchProcessLimit = (machineType: MachineType, recipeId: string, specifiedQuality?: Quality): number => {
     const recipe = getProcessingRecipeById(recipeId)
     if (!recipe || recipe.machineType !== machineType) return 0
@@ -237,8 +404,19 @@ export const useProcessingStore = defineStore('processing', () => {
     let limit = getIdleMachineIndicesByType(machineType).length
     if (limit <= 0) return 0
 
+    const alchemyLimit = getAlchemyDailyLimitStatus(recipeId)
+    if (alchemyLimit) {
+      limit = Math.min(limit, alchemyLimit.remaining)
+    }
+
     if (recipe.inputItemId !== null) {
-      const availableInput = specifiedQuality ? getCombinedItemCount(recipe.inputItemId, specifiedQuality) : getCombinedItemCount(recipe.inputItemId)
+      const availableInput = specifiedQuality
+        ? recipe.minInputQuality && !isQualityAtLeast(specifiedQuality, recipe.minInputQuality)
+          ? 0
+          : getCombinedItemCount(recipe.inputItemId, specifiedQuality)
+        : recipe.minInputQuality
+          ? getCombinedItemCountAtMinQuality(recipe.inputItemId, recipe.minInputQuality)
+          : getCombinedItemCount(recipe.inputItemId)
       limit = Math.min(limit, Math.floor(availableInput / recipe.inputQuantity))
     }
 
@@ -276,6 +454,9 @@ export const useProcessingStore = defineStore('processing', () => {
     const recipe = getProcessingRecipeById(recipeId)
     if (!recipe || recipe.machineType !== slot.machineType) return false
 
+    const alchemyLimit = getAlchemyDailyLimitStatus(recipeId)
+    if (alchemyLimit?.blocked) return false
+
     if (recipe.extraInputs && recipe.extraInputs.length > 0) {
       for (const extra of recipe.extraInputs) {
         if (!hasCombinedItem(extra.itemId, extra.quantity)) return false
@@ -286,8 +467,13 @@ export const useProcessingStore = defineStore('processing', () => {
     let quality: Quality = 'normal'
     if (recipe.inputItemId !== null) {
       if (specifiedQuality !== undefined) {
+        if (recipe.minInputQuality && !isQualityAtLeast(specifiedQuality, recipe.minInputQuality)) return false
         quality = specifiedQuality
         if (!removeCombinedItem(recipe.inputItemId, recipe.inputQuantity, specifiedQuality)) return false
+      } else if (recipe.minInputQuality) {
+        const consumedQuality = removeCombinedItemAtMinQuality(recipe.inputItemId, recipe.inputQuantity, recipe.minInputQuality)
+        if (!consumedQuality) return false
+        quality = consumedQuality
       } else {
         quality = getLowestQuality(recipe.inputItemId)
         if (!removeCombinedItem(recipe.inputItemId, recipe.inputQuantity)) return false
@@ -303,6 +489,7 @@ export const useProcessingStore = defineStore('processing', () => {
     slot.recipeId = recipeId
     slot.inputItemId = recipe.inputItemId
     slot.inputQuality = quality
+    slot.alchemyResult = undefined
     slot.daysProcessed = 0
     slot.totalDays = recipe.processingDays
     // 仙缘能力：织速（gui_nv_1）织布机加工时间-30%
@@ -310,6 +497,7 @@ export const useProcessingStore = defineStore('processing', () => {
       slot.totalDays = Math.max(1, Math.ceil(slot.totalDays * 0.7))
     }
     slot.ready = false
+    incrementAlchemyDailyUse(recipeId)
     return true
   }
 
@@ -338,14 +526,15 @@ export const useProcessingStore = defineStore('processing', () => {
     const warehouseStore = useWarehouseStore()
     const voidOutput = warehouseStore.getVoidOutputChest()
     const outputQuality = slot.inputQuality ?? 'normal'
+    const output = getSlotOutput(slot, recipe)
     if (voidOutput) {
-      if (!warehouseStore.addItemToChest(voidOutput.id, recipe.outputItemId, recipe.outputQuantity, outputQuality)) {
-        if (!inventoryStore.canAddItem(recipe.outputItemId, recipe.outputQuantity, outputQuality)) return null
-        if (!inventoryStore.addItemExact(recipe.outputItemId, recipe.outputQuantity, outputQuality)) return null
+      if (!warehouseStore.addItemToChest(voidOutput.id, output.itemId, output.quantity, outputQuality)) {
+        if (!inventoryStore.canAddItem(output.itemId, output.quantity, outputQuality)) return null
+        if (!inventoryStore.addItemExact(output.itemId, output.quantity, outputQuality)) return null
       }
     } else {
-      if (!inventoryStore.canAddItem(recipe.outputItemId, recipe.outputQuantity, outputQuality)) return null
-      if (!inventoryStore.addItemExact(recipe.outputItemId, recipe.outputQuantity, outputQuality)) return null
+      if (!inventoryStore.canAddItem(output.itemId, output.quantity, outputQuality)) return null
+      if (!inventoryStore.addItemExact(output.itemId, output.quantity, outputQuality)) return null
     }
 
     // 种子制造机额外触发育种种子生成
@@ -365,11 +554,12 @@ export const useProcessingStore = defineStore('processing', () => {
     slot.recipeId = null
     slot.inputItemId = null
     slot.inputQuality = undefined
+    slot.alchemyResult = undefined
     slot.daysProcessed = 0
     slot.totalDays = 0
     slot.ready = false
 
-    return recipe.outputItemId
+    return output.itemId
   }
 
   const collectProductsByType = (machineType: MachineType): { collected: number; blocked: number; outputs: string[] } => {
@@ -403,9 +593,10 @@ export const useProcessingStore = defineStore('processing', () => {
 
     if (slot.recipeId && slot.ready && recipe) {
       const outputQuality = slot.inputQuality ?? 'normal'
-      const canUseVoidOutput = !!voidOutput && warehouseStore.canAddItemToChest(voidOutput.id, recipe.outputItemId, recipe.outputQuantity, outputQuality)
+      const output = getSlotOutput(slot, recipe)
+      const canUseVoidOutput = !!voidOutput && warehouseStore.canAddItemToChest(voidOutput.id, output.itemId, output.quantity, outputQuality)
       if (!canUseVoidOutput) {
-        refundEntries.push({ itemId: recipe.outputItemId, quantity: recipe.outputQuantity, quality: outputQuality })
+        refundEntries.push({ itemId: output.itemId, quantity: output.quantity, quality: outputQuality })
       }
     } else if (slot.recipeId && !slot.ready && recipe) {
       if (recipe.extraInputs) {
@@ -428,10 +619,11 @@ export const useProcessingStore = defineStore('processing', () => {
 
     // 如果已完成：先收取产物
     if (slot.recipeId && slot.ready && recipe) {
-      if (voidOutput && warehouseStore.canAddItemToChest(voidOutput.id, recipe.outputItemId, recipe.outputQuantity, slot.inputQuality ?? 'normal')) {
-        warehouseStore.addItemToChest(voidOutput.id, recipe.outputItemId, recipe.outputQuantity, slot.inputQuality ?? 'normal')
+      const output = getSlotOutput(slot, recipe)
+      if (voidOutput && warehouseStore.canAddItemToChest(voidOutput.id, output.itemId, output.quantity, slot.inputQuality ?? 'normal')) {
+        warehouseStore.addItemToChest(voidOutput.id, output.itemId, output.quantity, slot.inputQuality ?? 'normal')
       } else {
-        refundItemsExact([{ itemId: recipe.outputItemId, quantity: recipe.outputQuantity, quality: slot.inputQuality ?? 'normal' }])
+        refundItemsExact([{ itemId: output.itemId, quantity: output.quantity, quality: slot.inputQuality ?? 'normal' }])
       }
     }
     // 如果正在加工：退回原料
@@ -483,6 +675,7 @@ export const useProcessingStore = defineStore('processing', () => {
     slot.recipeId = null
     slot.inputItemId = null
     slot.inputQuality = undefined
+    slot.alchemyResult = undefined
     slot.daysProcessed = 0
     slot.totalDays = 0
     slot.ready = false
@@ -513,6 +706,7 @@ export const useProcessingStore = defineStore('processing', () => {
       slot.recipeId = null
       slot.inputItemId = null
       slot.inputQuality = undefined
+      slot.alchemyResult = undefined
       slot.daysProcessed = 0
       slot.totalDays = 0
       slot.ready = false
@@ -522,7 +716,9 @@ export const useProcessingStore = defineStore('processing', () => {
       const recipe = getProcessingRecipeById(recipeId)
       if (!recipe || !recipe.inputItemId) return null
 
-      const nextQuality = warehouseStore.findChestConsumableQuality(voidInputId, recipe.inputItemId, recipe.inputQuantity)
+      const nextQuality = recipe.minInputQuality
+        ? getQualitiesAtLeast(recipe.minInputQuality).find(quality => warehouseStore.getChestItemCount(voidInputId, recipe.inputItemId!, quality) >= recipe.inputQuantity) ?? null
+        : warehouseStore.findChestConsumableQuality(voidInputId, recipe.inputItemId, recipe.inputQuantity)
       if (!nextQuality) return null
 
       const entries: { itemId: string; quantity: number; quality?: Quality }[] = [
@@ -560,21 +756,25 @@ export const useProcessingStore = defineStore('processing', () => {
           if (recipe.inputItemId === null || machineDef?.autoCollect) {
             // 自动收取：无需原料的机器（蜂箱/蚯蚓箱）或标记了 autoCollect 的机器（熔炉）
             const outputQuality = slot.inputQuality ?? 'normal'
-            if (!canStoreOutput(recipe.outputItemId, recipe.outputQuantity, outputQuality)) {
+            prepareAlchemyResult(slot, recipe)
+            const output = getSlotOutput(slot, recipe)
+            if (!canStoreOutput(output.itemId, output.quantity, outputQuality)) {
               slot.ready = true
-              readyNames.push(recipe.name)
+              readyNames.push(getSlotCompletionName(slot, recipe))
               continue
             }
-            collected.push(recipe.name)
+            collected.push(getSlotCompletionName(slot, recipe))
             // 无需原料的机器自动重启，有原料的机器回到空闲
             if (recipe.inputItemId === null) {
               slot.daysProcessed = 0
               slot.inputQuality = undefined
+              slot.alchemyResult = undefined
               slot.ready = false
             } else {
               slot.recipeId = null
               slot.inputItemId = null
               slot.inputQuality = undefined
+              slot.alchemyResult = undefined
               slot.daysProcessed = 0
               slot.totalDays = 0
               slot.ready = false
@@ -585,12 +785,14 @@ export const useProcessingStore = defineStore('processing', () => {
             if (voidInput && recipe.inputItemId) {
               // 自动收取当前产物
               const outputQuality = slot.inputQuality ?? 'normal'
-              if (!canStoreOutput(recipe.outputItemId, recipe.outputQuantity, outputQuality)) {
+              prepareAlchemyResult(slot, recipe)
+              const output = getSlotOutput(slot, recipe)
+              if (!canStoreOutput(output.itemId, output.quantity, outputQuality)) {
                 slot.ready = true
-                readyNames.push(recipe.name)
+                readyNames.push(getSlotCompletionName(slot, recipe))
                 continue
               }
-              collected.push(recipe.name)
+              collected.push(getSlotCompletionName(slot, recipe))
 
               // 种子制造机额外触发育种种子生成
               if (slot.machineType === 'seed_maker' && slot.inputItemId) {
@@ -603,6 +805,11 @@ export const useProcessingStore = defineStore('processing', () => {
                     meta: { machineType: 'seed_maker', inputItemId: slot.inputItemId ?? '' }
                   })
                 }
+              }
+
+              if (recipe.alchemy) {
+                resetSlotToIdle(slot)
+                continue
               }
 
               // 尝试从虚空原料箱取材料开始下一轮
@@ -621,8 +828,9 @@ export const useProcessingStore = defineStore('processing', () => {
               }
             } else {
               // 无虚空原料箱，保持原行为：标记为完成等待手动收取
+              prepareAlchemyResult(slot, recipe)
               slot.ready = true
-              readyNames.push(recipe.name)
+              readyNames.push(getSlotCompletionName(slot, recipe))
             }
           }
         } else {
@@ -673,12 +881,27 @@ export const useProcessingStore = defineStore('processing', () => {
   // === 序列化 ===
 
   const serialize = () => {
-    return { machines: machines.value, workshopLevel: workshopLevel.value }
+    return {
+      machines: machines.value,
+      workshopLevel: workshopLevel.value,
+      alchemyDailyLimitState: alchemyDailyLimitState.value
+    }
   }
 
   const deserialize = (data: ReturnType<typeof serialize>) => {
     machines.value = Array.isArray(data?.machines) ? data.machines.map(sanitizeProcessingSlot).filter((slot): slot is ProcessingSlot => !!slot) : []
     workshopLevel.value = (data as any).workshopLevel ?? 0
+    const rawAlchemyState = (data as any)?.alchemyDailyLimitState
+    if (rawAlchemyState && typeof rawAlchemyState === 'object') {
+      alchemyDailyLimitState.value = {
+        dayTag: typeof rawAlchemyState.dayTag === 'string' ? rawAlchemyState.dayTag : '',
+        mainStarted: Math.max(0, Number(rawAlchemyState.mainStarted) || 0),
+        supportStarted: Math.max(0, Number(rawAlchemyState.supportStarted) || 0)
+      }
+      refreshAlchemyDailyLimitState()
+    } else {
+      refreshAlchemyDailyLimitState()
+    }
   }
 
   return {
@@ -697,6 +920,7 @@ export const useProcessingStore = defineStore('processing', () => {
     craftCrabPot,
     craftBomb,
     getBatchProcessLimit,
+    getAlchemyDailyLimitStatus,
     startProcessing,
     startProcessingBatch,
     collectProduct,

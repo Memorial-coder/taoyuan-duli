@@ -14,7 +14,13 @@ export interface PetSpecialFeedDef {
   rareFindCooldownDays: number
   rareFindPool: string[]
   description: string
-  feedback: Record<PetType | 'default', string>
+  feedback: Partial<Record<PetType, string>> & { default: string }
+}
+
+export const PET_TYPE_LABELS: Record<PetType, string> = {
+  cat: '猫',
+  dog: '田犬',
+  spirit: '灵宠'
 }
 
 export const PET_SPECIAL_FEED_TASTE_LABELS: Record<PetSpecialFeedType, string> = {
@@ -22,7 +28,8 @@ export const PET_SPECIAL_FEED_TASTE_LABELS: Record<PetSpecialFeedType, string> =
   filling: '饱腹',
   fragrant: '芳香',
   spicy: '辛香',
-  herbal: '草本'
+  herbal: '草本',
+  spirit_fruit: '灵果'
 }
 
 export const PET_SPECIAL_FEEDS: PetSpecialFeedDef[] = [
@@ -89,7 +96,7 @@ export const PET_SPECIAL_FEEDS: PetSpecialFeedDef[] = [
     label: '莲子安神餐',
     shortLabel: '莲子',
     taste: 'herbal',
-    preferredPetTypes: ['cat'],
+    preferredPetTypes: ['cat', 'spirit'],
     friendshipGain: 8,
     preferredBonus: 3,
     rareFindChance: 0.04,
@@ -99,6 +106,7 @@ export const PET_SPECIAL_FEEDS: PetSpecialFeedDef[] = [
     feedback: {
       dog: '莲子安神餐让田犬安静了许多，它把鼻尖埋进草丛里嗅了好一会儿。',
       cat: '猫吃过莲子安神餐后，把一片叶子压在窗边，像是替你留了个小记号。',
+      spirit: '灵宠吃过莲子安神餐后，绕着药碾轻轻转了一圈，像是记住了草本气息。',
       default: '宠物吃过莲子安神餐后，第二天显得更敏锐了。'
     }
   },
@@ -203,7 +211,7 @@ export const PET_SPECIAL_FEEDS: PetSpecialFeedDef[] = [
     label: '萝卜护院餐',
     shortLabel: '萝卜',
     taste: 'herbal',
-    preferredPetTypes: ['dog'],
+    preferredPetTypes: ['dog', 'spirit'],
     friendshipGain: 6,
     preferredBonus: 2,
     rareFindChance: 0.02,
@@ -213,7 +221,63 @@ export const PET_SPECIAL_FEEDS: PetSpecialFeedDef[] = [
     feedback: {
       dog: '萝卜护院餐让田犬在田埂边停了好几次，像是认真检查过作物。',
       cat: '猫吃过萝卜护院餐后，绕着仓箱走了一圈才跳上窗台。',
+      spirit: '灵宠吃过萝卜护院餐后，在田埂边停了很久，像是听见了土里的微弱灵息。',
       default: '宠物吃过萝卜护院餐后，第二天更愿意在院里巡视。'
+    }
+  },
+  {
+    id: 'moon_herb_spirit_bowl',
+    itemId: 'moon_herb',
+    label: '月草灵息餐',
+    shortLabel: '月草',
+    taste: 'herbal',
+    preferredPetTypes: ['spirit'],
+    friendshipGain: 9,
+    preferredBonus: 4,
+    rareFindChance: 0.04,
+    rareFindCooldownDays: 7,
+    rareFindPool: ['herbal_paste', 'ginseng_extract', 'lotus_heart_powder', 'dried_herb'],
+    description: '灵宠偏好的草本食物，低概率带回丹材加工物，带回后有较长冷却。',
+    feedback: {
+      spirit: '月草灵息餐让灵宠安静伏在药碾旁，第二天更容易嗅到丹材留下的清气。',
+      default: '宠物吃过月草灵息餐后，对药草气味多了几分好奇。'
+    }
+  },
+  {
+    id: 'spirit_peach_blessing_bowl',
+    itemId: 'spirit_peach',
+    label: '灵桃祝福餐',
+    shortLabel: '灵桃',
+    taste: 'spirit_fruit',
+    preferredPetTypes: ['spirit'],
+    friendshipGain: 10,
+    preferredBonus: 4,
+    rareFindChance: 0.045,
+    rareFindCooldownDays: 7,
+    rareFindPool: ['moon_herb', 'ginseng', 'ginseng_extract', 'lotus_heart_powder'],
+    description: '灵宠偏好的灵果食物，偏向触发稀有采集物和丹材线索，但不会连续稳定产出。',
+    feedback: {
+      spirit: '灵宠吃过灵桃祝福餐后，额前的微光亮了一瞬，像是记住了山路深处的灵果气息。',
+      default: '宠物吃过灵桃祝福餐后，第二天对远处山风格外敏感。'
+    }
+  },
+  {
+    id: 'candied_peach_spirit_bowl',
+    itemId: 'candied_peach',
+    label: '蜜桃灵果点心',
+    shortLabel: '蜜桃脯',
+    taste: 'spirit_fruit',
+    preferredPetTypes: ['spirit', 'cat'],
+    friendshipGain: 9,
+    preferredBonus: 3,
+    rareFindChance: 0.035,
+    rareFindCooldownDays: 6,
+    rareFindPool: ['wild_berry', 'moon_herb', 'herbal_paste', 'seed_peach'],
+    description: '加工后的灵果点心，灵宠最偏好，也能给猫类一点甜香反馈。',
+    feedback: {
+      cat: '猫吃过蜜桃灵果点心后，心情很好地把尾巴绕在你脚边。',
+      spirit: '蜜桃灵果点心让灵宠绕着果树根须轻轻嗅闻，像是在寻找更深处的稀有气息。',
+      default: '宠物吃过蜜桃灵果点心后，第二天对果香和草木气味更敏锐。'
     }
   }
 ]
@@ -227,6 +291,8 @@ export const getPetSpecialFeedById = (feedId: string): PetSpecialFeedDef | undef
 export const getPetSpecialFeedByItemId = (itemId: string): PetSpecialFeedDef | undefined => PET_SPECIAL_FEEDS.find(feed => feed.itemId === itemId)
 
 export const getPetSpecialFeedTasteLabel = (taste: PetSpecialFeedType): string => PET_SPECIAL_FEED_TASTE_LABELS[taste]
+
+export const getPetTypeLabel = (type: PetType): string => PET_TYPE_LABELS[type]
 
 export const isPetSpecialFeedPreferred = (feed: PetSpecialFeedDef, petType: PetType): boolean => feed.preferredPetTypes.includes(petType)
 

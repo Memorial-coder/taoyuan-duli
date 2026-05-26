@@ -389,7 +389,8 @@
             <X :size="14" />
           </button>
           <p class="text-sm text-accent mb-2">物品筛选</p>
-          <p class="text-[10px] text-muted mb-2">选择要显示的分类，不选则显示全部</p>
+          <p class="text-[10px] text-muted mb-2">选择要显示的分类或作物用途，不选则显示全部</p>
+          <p class="text-xs text-muted mb-1">分类</p>
           <div class="grid grid-cols-3 gap-1.5 mb-3">
             <div
               v-for="cat in FILTER_CATEGORIES"
@@ -399,6 +400,18 @@
               @click="toggleCategory(cat)"
             >
               {{ CATEGORY_NAMES[cat] }}
+            </div>
+          </div>
+          <p class="text-xs text-muted mb-1">作物用途</p>
+          <div class="grid grid-cols-3 gap-1.5 mb-3">
+            <div
+              v-for="tag in CROP_USE_FILTER_TAGS"
+              :key="tag"
+              class="border rounded-xs px-1.5 py-1 text-center text-xs cursor-pointer transition-colors"
+              :class="tempCropUseFilter.has(tag) ? 'border-accent/50 bg-accent/10 text-accent' : 'border-accent/20 text-muted hover:bg-accent/5'"
+              @click="toggleCropUseTag(tag)"
+            >
+              {{ CROP_USE_TAG_LABELS[tag] }}
             </div>
           </div>
           <div class="flex space-x-1.5">
@@ -527,6 +540,10 @@
             <div v-if="activeItemBuff" class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">增益</span>
               <span class="text-xs text-accent">{{ activeItemBuff.description }}</span>
+            </div>
+            <div v-if="activeItemElixirEffect" class="flex items-center justify-between mt-0.5">
+              <span class="text-xs text-muted">丹药效果</span>
+              <span class="text-xs text-accent">{{ activeItemElixirEffect.description }}</span>
             </div>
             <div class="flex items-center justify-between mt-0.5">
               <span class="text-xs text-muted">来源</span>
@@ -812,7 +829,8 @@
   import { useSettingsStore } from '@/stores/useSettingsStore'
   import { useSkillStore } from '@/stores/useSkillStore'
   import { getItemById, getItemSource } from '@/data'
-  import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, getCropUseProfile, getCropUseTagLabels } from '@/data/cropUseProfiles'
+  import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, CROP_USE_TAG_LABELS, getCropUseProfile, getCropUseTagLabels, type CropUseTag } from '@/data/cropUseProfiles'
+  import { getAlchemyRecipeByOutputItemId } from '@/data/processing'
   import { getRecipeById } from '@/data/recipes'
   import { getWeaponById, getWeaponDisplayName, getWeaponSellPrice, getEnchantmentById, WEAPON_TYPE_NAMES } from '@/data/weapons'
   import { getRingById } from '@/data/rings'
@@ -887,20 +905,31 @@
 
   const showFilterModal = ref(false)
   const tempFilter = ref<Set<ItemCategory>>(new Set())
+  const tempCropUseFilter = ref<Set<CropUseTag>>(new Set())
 
-  const isFilterActive = computed(() => settingsStore.inventoryFilter.length > 0)
+  const CROP_USE_FILTER_TAGS = Object.keys(CROP_USE_TAG_LABELS) as CropUseTag[]
+
+  const isFilterActive = computed(() => settingsStore.inventoryFilter.length > 0 || settingsStore.inventoryCropUseFilter.length > 0)
 
   const filteredItems = computed(() => {
-    if (settingsStore.inventoryFilter.length === 0) return inventoryStore.items
-    const allowed = new Set(settingsStore.inventoryFilter)
+    if (settingsStore.inventoryFilter.length === 0 && settingsStore.inventoryCropUseFilter.length === 0) return inventoryStore.items
+    const allowedCategories = new Set(settingsStore.inventoryFilter)
+    const allowedCropUseTags = new Set(settingsStore.inventoryCropUseFilter)
     return inventoryStore.items.filter(item => {
       const def = getItemById(item.itemId)
-      return def && allowed.has(def.category)
+      if (!def) return false
+      const categoryMatched = allowedCategories.size === 0 || allowedCategories.has(def.category)
+      if (!categoryMatched) return false
+      if (allowedCropUseTags.size === 0) return true
+      if (def.category !== 'crop') return false
+      const profile = getCropUseProfile(def.id)
+      return !!profile && profile.tags.some(tag => allowedCropUseTags.has(tag))
     })
   })
 
   const openFilterModal = () => {
     tempFilter.value = new Set(settingsStore.inventoryFilter)
+    tempCropUseFilter.value = new Set(settingsStore.inventoryCropUseFilter)
     showFilterModal.value = true
   }
 
@@ -912,13 +941,23 @@
     }
   }
 
+  const toggleCropUseTag = (tag: CropUseTag) => {
+    if (tempCropUseFilter.value.has(tag)) {
+      tempCropUseFilter.value.delete(tag)
+    } else {
+      tempCropUseFilter.value.add(tag)
+    }
+  }
+
   const handleSaveFilter = () => {
     settingsStore.inventoryFilter = [...tempFilter.value]
+    settingsStore.inventoryCropUseFilter = [...tempCropUseFilter.value]
     showFilterModal.value = false
   }
 
   const handleClearFilter = () => {
     tempFilter.value = new Set()
+    tempCropUseFilter.value = new Set()
   }
 
   // === 装备方案 ===
@@ -1302,6 +1341,13 @@
     return recipe?.effect.buff ?? null
   })
 
+  const activeItemElixirRecipe = computed(() => {
+    if (!activeItem.value) return null
+    return getAlchemyRecipeByOutputItemId(activeItem.value.itemId) ?? null
+  })
+
+  const activeItemElixirEffect = computed(() => activeItemElixirRecipe.value?.alchemy?.effect ?? null)
+
   const isEdible = (itemId: string): boolean => {
     const def = getItemById(itemId)
     return !!def?.edible && !!def.staminaRestore
@@ -1356,10 +1402,20 @@
   const USABLE_ITEMS = new Set(['rain_totem', 'stamina_fruit'])
 
   const isUsable = (itemId: string): boolean => {
-    return USABLE_ITEMS.has(itemId)
+    return USABLE_ITEMS.has(itemId) || !!getAlchemyRecipeByOutputItemId(itemId)
   }
 
   const handleUse = (itemId: string, quality: Quality) => {
+    const alchemyRecipe = getAlchemyRecipeByOutputItemId(itemId)
+    if (alchemyRecipe?.alchemy) {
+      const result = cookingStore.useElixir(itemId, quality)
+      addLog(result.message)
+      if (result.success && !inventoryStore.items.find(i => i.itemId === itemId && i.quality === quality)) {
+        activeItemIndex.value = null
+      }
+      return
+    }
+
     if (itemId === 'rain_totem') {
       if (!inventoryStore.removeItem(itemId, 1, quality)) return
       gameStore.setTomorrowWeather('rainy')

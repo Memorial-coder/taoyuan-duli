@@ -1245,6 +1245,22 @@ const ELIXIR_ITEMS: ItemDef[] = [
     edible: false
   },
   {
+    id: 'grain_breath_elixir',
+    name: '谷气续行丹',
+    category: 'elixir',
+    description: '稻米、草药与蜂蜜炼成的温补辅丹。定位为旅途、公共订单和长线经营前的续航丹药。',
+    sellPrice: 230,
+    edible: false
+  },
+  {
+    id: 'sesame_courtesy_elixir',
+    name: '芝香护礼丸',
+    category: 'elixir',
+    description: '芝麻、茶叶与蜂蜜炼成的芳香辅丹。定位为送礼、节会供品和拜访前的礼仪丹药。',
+    sellPrice: 250,
+    edible: false
+  },
+  {
     id: 'osmanthus_focus_elixir',
     name: '桂露凝神丹',
     category: 'elixir',
@@ -1266,6 +1282,42 @@ const ELIXIR_ITEMS: ItemDef[] = [
     category: 'elixir',
     description: '萝卜、土豆与精制石英炼成的根茎主丹。定位为矿洞、夜巡和远征前的防护丹药。',
     sellPrice: 220,
+    edible: false
+  },
+  {
+    id: 'spirit_peach_elixir',
+    name: '灵桃醒神丹',
+    category: 'elixir',
+    description: '优质桃子、蜜桃脯与月草炼成的灵果主丹。定位为社交、节会拜访和长线经营前的醒神丹药。',
+    sellPrice: 520,
+    edible: false
+  }
+]
+
+/** 炼丹副产物 */
+const ALCHEMY_RESULT_ITEMS: ItemDef[] = [
+  {
+    id: 'partial_elixir_slurry',
+    name: '偏丹膏',
+    category: 'material',
+    description: '炼丹药性偏移后凝成的膏状副产物，可作为后续丹材和百科追踪线索。',
+    sellPrice: 90,
+    edible: false
+  },
+  {
+    id: 'failed_elixir_ash',
+    name: '废丹灰',
+    category: 'material',
+    description: '炼丹失败后留下的灰烬，药性稀薄，适合回收研究或低阶委托。',
+    sellPrice: 25,
+    edible: false
+  },
+  {
+    id: 'rare_elixir_crystal',
+    name: '奇丹晶',
+    category: 'material',
+    description: '炼丹偶然凝出的晶核，保留异常药性，可作为稀有丹材收藏。',
+    sellPrice: 180,
     edible: false
   }
 ]
@@ -1394,6 +1446,7 @@ export const ITEMS: ItemDef[] = [
   ...TOFU_ITEMS,
   ...HERB_PRODUCT_ITEMS,
   ...ELIXIR_ITEMS,
+  ...ALCHEMY_RESULT_ITEMS,
   ...FEED_ITEMS,
   ...INCENSE_ITEMS,
 

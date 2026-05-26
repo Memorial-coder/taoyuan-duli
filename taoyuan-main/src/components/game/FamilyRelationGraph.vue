@@ -189,7 +189,8 @@
 
   const petTypeLabels = {
     cat: '猫',
-    dog: '狗'
+    dog: '狗',
+    spirit: '灵宠'
   } as const
 
   const childStageLabels = {

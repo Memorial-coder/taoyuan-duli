@@ -538,6 +538,7 @@ export const useMiningStore = defineStore('mining', () => {
     const pickaxeMultiplier = inventoryStore.getToolStaminaMultiplier('pickaxe')
     const cookingStore = useCookingStore()
     const miningBuff = cookingStore.getActiveMiningStaminaReduction()
+    const alchemyMiningBuff = cookingStore.getActiveAlchemyMiningStaminaReduction()
     const walletStore = useWalletStore()
     const walletMiningReduction = walletStore.getMiningStaminaReduction()
     const ringMiningReduction = inventoryStore.getRingEffectValue('mining_stamina')
@@ -553,6 +554,7 @@ export const useMiningStore = defineStore('mining', () => {
           pickaxeMultiplier *
           (1 - skillStore.getStaminaReduction('mining')) *
           (1 - miningBuff) *
+          (1 - alchemyMiningBuff) *
           (1 - walletMiningReduction) *
           (1 - ringMiningReduction) *
           (1 - ringGlobalReduction) *
@@ -1050,7 +1052,7 @@ export const useMiningStore = defineStore('mining', () => {
         guildAttackBonus: guildStore.getGuildAttackBonus(),
         guildBadgeBonusAttack: guildBadgeBonusAttack.value,
         guildDefenseBonus: guildBonusDefense.value,
-        cookingDefenseReduction: cookingStore.getActiveDefenseReduction(),
+        cookingDefenseReduction: cookingStore.getActiveDefenseReduction() + cookingStore.getActiveAlchemyDefenseReduction(),
         cookingDefenseFlatBonus: cookingStore.getActiveDefenseFlatBonus(),
         perk5: combatSkill.perk5,
         perk10: combatSkill.perk10,

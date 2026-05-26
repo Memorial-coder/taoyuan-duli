@@ -89,6 +89,32 @@
         </div>
       </div>
 
+      <div v-if="npcCookingTopicRecords.length > 0" class="border border-water/20 rounded-xs p-2 mb-3 bg-water/5">
+        <div class="flex items-center justify-between gap-2 mb-1">
+          <div>
+            <p class="text-xs text-water">料理话题线索</p>
+            <p class="text-[10px] text-muted mt-0.5">最近做过的剧情料理可作为来访闲谈、送礼铺垫或家宴话题。</p>
+          </div>
+          <span class="text-[10px] text-muted whitespace-nowrap">最近 {{ cookingStore.recentStoryTriggerRecords.length }}/8</span>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <div
+            v-for="record in npcCookingTopicRecords"
+            :key="`npc-cooking-topic-${record.id}`"
+            class="border border-water/15 rounded-xs p-2 bg-bg/10"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <div class="min-w-0">
+                <p class="text-xs text-accent truncate">{{ record.recipeName }} ×{{ record.quantity }}</p>
+                <p class="text-[10px] text-muted mt-0.5 truncate">{{ record.categoryLabels.join('、') || '料理' }}</p>
+              </div>
+              <span class="text-[10px] text-water/80 whitespace-nowrap">{{ getCookingTopicUsageText(record.triggerLabels) }}</span>
+            </div>
+            <p class="text-[10px] text-muted leading-4 mt-1">{{ record.triggerLabels.join('、') }}</p>
+          </div>
+        </div>
+      </div>
+
       <div class="border border-accent/20 rounded-xs p-2 mb-3">
         <div class="flex items-center justify-between gap-2 mb-2">
           <div>
@@ -1245,6 +1271,12 @@
   const randomNpcMaxAcquaintances = RANDOM_NPC_VISITOR_CONFIG.maxAcquaintances
   const randomNpcLongStayThreshold = RANDOM_NPC_VISITOR_CONFIG.longStayAffinityThreshold
   const randomNpcMaxLongStayResidents = RANDOM_NPC_VISITOR_CONFIG.maxLongStayResidents
+  const NPC_COOKING_TOPIC_LABELS = ['NPC 来访话题', '送礼话题', '家宴团圆']
+  const npcCookingTopicRecords = computed(() => {
+    const records = cookingStore.recentStoryTriggerRecords
+    const npcFocused = records.filter(record => record.triggerLabels.some(label => NPC_COOKING_TOPIC_LABELS.includes(label)))
+    return (npcFocused.length > 0 ? npcFocused : records).slice(0, 3)
+  })
   const currentNpcDayTag = computed(() => {
     const seasonOrder = ['spring', 'summer', 'autumn', 'winter'] as const
     const absoluteDay = (gameStore.year - 1) * 112 + seasonOrder.indexOf(gameStore.season) * 28 + gameStore.day
@@ -1254,6 +1286,13 @@
     const day = ((dayOfYear - 1) % 28) + 1
     return `${year}-${season}-${day}`
   })
+
+  const getCookingTopicUsageText = (triggerLabels: string[]): string => {
+    if (triggerLabels.includes('送礼话题')) return '送礼'
+    if (triggerLabels.includes('家宴团圆')) return '家宴'
+    if (triggerLabels.includes('NPC 来访话题')) return '来访'
+    return '话题'
+  }
   const spiritBondOverview = computed(() => hiddenNpcStore.spiritBondAuditSnapshot)
   const selectedSpiritBlessingSummary = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getSpiritBlessingSummary(selectedHiddenNpc.value) : null))
   const selectedSpiritBlessings = computed(() => (selectedHiddenNpc.value ? hiddenNpcStore.getAvailableSpiritBlessings(selectedHiddenNpc.value) : []))
@@ -1907,9 +1946,10 @@
       return
     }
     const cookingGiftBonus = cookingStore.activeBuff?.type === 'giftBonus' ? cookingStore.activeBuff.value : 1
+    const alchemyGiftBonus = cookingStore.getActiveAlchemyGiftBonusMultiplier()
     const ringGiftBonus = inventoryStore.getRingEffectValue('gift_friendship')
     const blessingGiftBonus = skillStore.getBlessingEffectValue('gift_friendship')
-    const giftMultiplier = cookingGiftBonus * (1 + ringGiftBonus + blessingGiftBonus)
+    const giftMultiplier = cookingGiftBonus * alchemyGiftBonus * (1 + ringGiftBonus + blessingGiftBonus)
     const result = npcStore.giveGift(selectedNpc.value, itemId, giftMultiplier, quality)
     if (result) {
       const itemName = getItemById(itemId)?.name ?? itemId

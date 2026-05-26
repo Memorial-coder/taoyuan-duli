@@ -136,6 +136,13 @@ const getWeeklyRotationSeed = (weekId: string, regionId: RegionId) =>
 const formatRewardItems = (rewardItems: Array<{ itemId: string; quantity: number }>) =>
   rewardItems.map(item => `${getItemById(item.itemId)?.name ?? item.itemId}×${item.quantity}`).join('、')
 
+const JOURNEY_COOKING_TOPIC_LABELS = ['旅途补给']
+
+const consumeJourneyCookingTopic = () => {
+  const record = useCookingStore().consumeStoryTriggerRecord(JOURNEY_COOKING_TOPIC_LABELS)
+  return record ? `途中带上了「${record.recipeName}」，这条旅途补给线索已用于本次行旅反馈。` : ''
+}
+
 const createSessionToken = () => `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value))
@@ -570,13 +577,14 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     )
   }
 
-  const getJourneyAdjustedStaminaCost = (baseCost: number, snapshot: JourneyBuildSnapshot | null) =>
-    Math.max(
+  const getJourneyAdjustedStaminaCost = (baseCost: number, snapshot: JourneyBuildSnapshot | null) => {
+    const alchemyReduction = useCookingStore().getActiveAlchemyJourneyStaminaReduction()
+    const staminaReduction = clamp((snapshot?.outcome.staminaCostReduction ?? 0) + alchemyReduction, 0, 0.45)
+    return Math.max(
       1,
-      Math.floor(
-        Math.max(1, baseCost) * (1 - clamp(snapshot?.outcome.staminaCostReduction ?? 0, 0, 0.45))
-      )
+      Math.floor(Math.max(1, baseCost) * (1 - staminaReduction))
     )
+  }
 
   const getJourneyOutcomeModifiersForRoute = (routeId: string): JourneyOutcomeModifiers =>
     getRouteJourneyBuildSnapshot(routeId)?.outcome ?? createEmptyJourneyOutcomeModifiers()
@@ -2890,6 +2898,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     persistActiveSession(session)
     const regionName = REGION_DEFS.find(region => region.id === route.regionId)?.name ?? route.regionId
+    const journeyCookingFeedback = consumeJourneyCookingTopic()
     addLog(`【行旅图】已发起 ${regionName}·${route.name} 远征，采用 ${approach} 节奏。`, {
       category: 'goal',
       tags: ['late_game_cycle'],
@@ -2901,6 +2910,17 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         staminaCost: route.staminaCost
       }
     })
+    if (journeyCookingFeedback) {
+      addLog(`【行旅图】${regionName}·${route.name}：${journeyCookingFeedback}`, {
+        category: 'goal',
+        tags: ['late_game_cycle'],
+        meta: {
+          regionId: route.regionId,
+          routeId: route.id,
+          storyTrigger: '旅途补给'
+        }
+      })
+    }
     showFloat(`远征出发：${route.name}`, 'accent')
 
     return {
@@ -2911,8 +2931,9 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         `目标：${route.name}`,
         `已消耗 ${route.staminaCost} 点体力，进入多阶段推进。`,
         `当前策略：${approach === 'scout' ? '侦察优先' : approach === 'greedy' ? '激进搜刮' : '稳健推进'} / ${retreatRule === 'low_hp' ? '低血量撤离' : retreatRule === 'pack_full' ? '满载撤离' : retreatRule === 'after_camp' ? '扎营后收束' : '平衡推进'}`,
+        journeyCookingFeedback,
         ...(buildSnapshot?.summaryLines.slice(0, 2) ?? [])
-      ],
+      ].filter(Boolean),
       tone: 'accent' as const
     }
   }
@@ -3941,6 +3962,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
     const rewardSummary = result.rewardItems.length > 0
       ? `，获得 ${formatRewardItems(result.rewardItems)}`
       : ''
+    const journeyCookingFeedback = consumeJourneyCookingTopic()
     addLog(`【行旅图】已完成 ${regionName}·${route.name}，消耗 ${route.staminaCost} 体力${rewardSummary}。`, {
       category: 'goal',
       tags: ['late_game_cycle'],
@@ -3951,6 +3973,17 @@ export const useRegionMapStore = defineStore('regionMap', () => {
         timeCostHours: route.timeCostHours
       }
     })
+    if (journeyCookingFeedback) {
+      addLog(`【行旅图】${regionName}·${route.name}：${journeyCookingFeedback}`, {
+        category: 'goal',
+        tags: ['late_game_cycle'],
+        meta: {
+          regionId: route.regionId,
+          routeId: route.id,
+          storyTrigger: '旅途补给'
+        }
+      })
+    }
     const seasonalState = getRegionVariantSnapshot(route.regionId)
     recordJourneyChronicle(
       `auto-route:${route.id}:${dayTag || `${gameStore.year}-${gameStore.season}-${gameStore.day}`}`,
@@ -3971,7 +4004,7 @@ export const useRegionMapStore = defineStore('regionMap', () => {
 
     return {
       success: true,
-      message: `已推进 ${regionName}·${route.name}。${timeResult.message ? `${timeResult.message} ` : ''}${rewardSummary ? `本次${rewardSummary.slice(1)}。` : ''}`.trim()
+      message: `已推进 ${regionName}·${route.name}。${timeResult.message ? `${timeResult.message} ` : ''}${rewardSummary ? `本次${rewardSummary.slice(1)}。` : ''}${journeyCookingFeedback ? ` ${journeyCookingFeedback}` : ''}`.trim()
     }
   }
 

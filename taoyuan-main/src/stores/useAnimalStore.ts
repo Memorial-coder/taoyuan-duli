@@ -36,8 +36,11 @@ import { useSkillStore } from './useSkillStore'
 import { useHiddenNpcStore } from './useHiddenNpcStore'
 import { useHomeStore } from './useHomeStore'
 import { useVillageProjectStore } from './useVillageProjectStore'
+import { useCookingStore } from './useCookingStore'
 import { getCombinedItemCount, removeCombinedItem } from '@/composables/useCombinedInventory'
 import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
+
+const PET_COOKING_TOPIC_LABELS = ['宠物反馈']
 
 export const useAnimalStore = defineStore('animal', () => {
   const buildings = ref<{ type: AnimalBuildingType; built: boolean; level: number }[]>([
@@ -459,6 +462,17 @@ export const useAnimalStore = defineStore('animal', () => {
     return `${gameStore.year}-${gameStore.season}-${gameStore.day}`
   }
 
+  const petDefaultNames: Record<PetType, string> = {
+    cat: '小花',
+    dog: '旺财',
+    spirit: '灵团'
+  }
+  const knownPetTypes: PetType[] = ['cat', 'dog', 'spirit']
+  const knownPetSpecialFeedTypes: PetSpecialFeedType[] = ['sweet', 'filling', 'fragrant', 'spicy', 'herbal', 'spirit_fruit']
+  const isKnownPetType = (type: unknown): type is PetType => knownPetTypes.includes(type as PetType)
+  const isKnownPetSpecialFeedType = (type: unknown): type is PetSpecialFeedType => knownPetSpecialFeedTypes.includes(type as PetSpecialFeedType)
+  const getPetDefaultName = (type: PetType) => petDefaultNames[type]
+
   const recordPetMilestones = (companion: PetState, previousFriendship: number) => {
     const playerStore = usePlayerStore()
     const dayTag = getCurrentDayTag()
@@ -475,7 +489,7 @@ export const useAnimalStore = defineStore('animal', () => {
 
   const adoptPet = (type: PetType, name: string): boolean => {
     if (!canAdoptAdditionalPet.value) return false
-    const trimmed = name.trim() || (type === 'dog' ? '旺财' : '小花')
+    const trimmed = name.trim() || getPetDefaultName(type)
     const companion: PetState = {
       id: `${type}_${Date.now()}`,
       type,
@@ -532,6 +546,7 @@ export const useAnimalStore = defineStore('animal', () => {
     const previousFriendship = companion.friendship
     const preferred = isPetSpecialFeedPreferred(feed, companion.type)
     const friendshipGain = feed.friendshipGain + (preferred ? feed.preferredBonus : 0)
+    const cookingTopic = useCookingStore().consumeStoryTriggerRecord(PET_COOKING_TOPIC_LABELS)
     companion.friendship = Math.min(1000, companion.friendship + friendshipGain)
     companion.specialFedToday = true
     companion.specialFeedItemId = feed.itemId
@@ -542,7 +557,10 @@ export const useAnimalStore = defineStore('animal', () => {
 
     const tasteLabel = getPetSpecialFeedTasteLabel(feed.taste)
     const preferenceText = preferred ? '正合口味' : '也愿意尝尝'
-    return { success: true, message: `给${companion.name}喂了${feed.label}（${tasteLabel}，${preferenceText}），好感+${friendshipGain}。` }
+    const cookingTopicText = cookingTopic
+      ? ` ${companion.name}还认出了刚做过的${cookingTopic.recipeName}，这条宠物料理线索已经用在今天的喂食反馈里。`
+      : ''
+    return { success: true, message: `给${companion.name}喂了${feed.label}（${tasteLabel}，${preferenceText}），好感+${friendshipGain}。${cookingTopicText}` }
   }
 
   /** 每日宠物更新 */
@@ -555,7 +573,8 @@ export const useAnimalStore = defineStore('animal', () => {
     const events: PetCompanionEvent[] = []
     const findPools: Record<PetType, string[]> = {
       dog: ['herb', 'wild_berry', 'pine_cone', 'bamboo_shoot', 'wild_mushroom'],
-      cat: ['wild_berry', 'pine_cone', 'wild_mushroom', 'bamboo_shoot', 'herb']
+      cat: ['wild_berry', 'pine_cone', 'wild_mushroom', 'bamboo_shoot', 'herb'],
+      spirit: ['herb', 'moon_herb', 'herbal_paste', 'lotus_heart_powder', 'ginseng']
     }
     const dogRumors = [
       '田犬绕着院门打转，像是在催你去村口看看今天的热闹。',
@@ -566,6 +585,11 @@ export const useAnimalStore = defineStore('animal', () => {
       '猫把爪子搭在纸页上，像是在提醒你回头翻一翻最近的纸条和线索。',
       '猫把一片叶子压在桌角，像是替你记住了某个要去核实的地方。',
       '猫蹲在窗边盯着远处，像是对村里新的传闻比你更早一步知道。'
+    ]
+    const spiritRumors = [
+      '灵宠伏在药碾旁，像是在提醒你近日有草木灵息可寻。',
+      '灵宠绕着院角的露水轻轻转圈，像是嗅到了山路上的稀有采集物。',
+      '灵宠把一缕月白微光留在门槛边，像是在提醒你留意丹材和果树。'
     ]
 
     for (const companion of pets.value) {
@@ -602,7 +626,9 @@ export const useAnimalStore = defineStore('animal', () => {
             message:
               companion.type === 'dog'
                 ? `${companion.name}顺着昨夜的${getPetSpecialFeedTasteLabel(specialFeed.taste)}气味巡了一圈，只带回一份小发现，接下来几天会先歇一歇。`
-                : `${companion.name}循着昨夜的${getPetSpecialFeedTasteLabel(specialFeed.taste)}余味找到了小物，短时间内不会连续外出寻宝。`
+                : companion.type === 'spirit'
+                  ? `${companion.name}循着昨夜的${getPetSpecialFeedTasteLabel(specialFeed.taste)}灵息找到了丹材线索，短时间内不会连续外出寻宝。`
+                  : `${companion.name}循着昨夜的${getPetSpecialFeedTasteLabel(specialFeed.taste)}余味找到了小物，短时间内不会连续外出寻宝。`
           })
         }
       } else {
@@ -622,7 +648,9 @@ export const useAnimalStore = defineStore('animal', () => {
           message:
             companion.type === 'dog'
               ? `田犬报喜，${companion.name}从院外衔回了${itemId}。`
-              : `灵宠衔物，${companion.name}悄悄把一份小收获放到了门边。`
+              : companion.type === 'spirit'
+                ? `灵宠衔物，${companion.name}循着草木灵息带回了${itemId}。`
+                : `猫叼线索，${companion.name}悄悄把一份小收获放到了门边。`
         })
         emittedFollowup = true
       }
@@ -635,13 +663,15 @@ export const useAnimalStore = defineStore('animal', () => {
           message:
             companion.type === 'dog'
               ? `${companion.name}在院门前格外兴奋，像是在催你早点去「${todayEvent.name}」看看。`
-              : `${companion.name}绕着你的衣摆转了两圈，像是也知道今天是「${todayEvent.name}」。`
+              : companion.type === 'spirit'
+                ? `${companion.name}在药架旁亮起微光，像是也感到了「${todayEvent.name}」带来的热闹灵息。`
+                : `${companion.name}绕着你的衣摆转了两圈，像是也知道今天是「${todayEvent.name}」。`
         })
         emittedFollowup = true
       }
 
       if (!emittedFollowup && companion.friendship >= 600 && Math.random() < 0.14) {
-        const rumorPool = companion.type === 'dog' ? dogRumors : catRumors
+        const rumorPool = companion.type === 'dog' ? dogRumors : companion.type === 'spirit' ? spiritRumors : catRumors
         events.push({
           petId: companion.id,
           petName: companion.name,
@@ -649,7 +679,9 @@ export const useAnimalStore = defineStore('animal', () => {
           message:
             companion.type === 'dog'
               ? `田犬报喜：${companion.name}${rumorPool[Math.floor(Math.random() * rumorPool.length)]!}`
-              : `猫叼线索：${companion.name}${rumorPool[Math.floor(Math.random() * rumorPool.length)]!}`
+              : companion.type === 'spirit'
+                ? `灵宠闻息：${companion.name}${rumorPool[Math.floor(Math.random() * rumorPool.length)]!}`
+                : `猫叼线索：${companion.name}${rumorPool[Math.floor(Math.random() * rumorPool.length)]!}`
         })
       }
 
@@ -1048,15 +1080,13 @@ export const useAnimalStore = defineStore('animal', () => {
   }
 
   const normalizePetSave = (savedPet: any): PetState | null => {
-    if (!savedPet || (savedPet.type !== 'cat' && savedPet.type !== 'dog')) return null
-    const specialFeedType = ['sweet', 'filling', 'fragrant', 'spicy', 'herbal'].includes(savedPet.specialFeedType)
-      ? (savedPet.specialFeedType as PetSpecialFeedType)
-      : null
+    if (!savedPet || !isKnownPetType(savedPet.type)) return null
+    const specialFeedType = isKnownPetSpecialFeedType(savedPet.specialFeedType) ? savedPet.specialFeedType : null
 
     return {
       id: typeof savedPet.id === 'string' && savedPet.id.trim() ? savedPet.id : `${savedPet.type}_${Date.now()}`,
       type: savedPet.type as PetType,
-      name: typeof savedPet.name === 'string' && savedPet.name.trim() ? savedPet.name : savedPet.type === 'dog' ? '小狗' : '小猫',
+      name: typeof savedPet.name === 'string' && savedPet.name.trim() ? savedPet.name : getPetDefaultName(savedPet.type),
       friendship: Number.isFinite(savedPet.friendship) ? savedPet.friendship : 0,
       wasPetted: Boolean(savedPet.wasPetted),
       specialFedToday: Boolean(savedPet.specialFedToday),

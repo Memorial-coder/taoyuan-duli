@@ -173,6 +173,9 @@ export interface CombatState {
 export type CombatAction = 'attack' | 'defend' | 'flee'
 
 /** 食谱定义 */
+export type RecipeCategory = 'home' | 'festival' | 'pet_meal' | 'travel_ration' | 'banquet'
+export type RecipeStoryTrigger = 'npc_visit' | 'festival' | 'pet_feedback' | 'travel' | 'family_banquet' | 'order' | 'gift_scene'
+
 export interface RecipeDef {
   id: string
   name: string
@@ -188,6 +191,10 @@ export interface RecipeDef {
   }
   unlockSource: string // 解锁来源描述
   description: string
+  /** 料理分类标签：家常菜、节会菜、宠物餐、旅途干粮、宴席菜 */
+  categoryTags?: RecipeCategory[]
+  /** 剧情触发标签：用于百科、搜索与后续事件系统读取 */
+  storyTriggers?: RecipeStoryTrigger[]
   /** 需要的技能等级才能烹饪 */
   requiredSkill?: { type: SkillType; level: number }
 }

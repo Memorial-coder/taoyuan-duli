@@ -6,6 +6,7 @@ import { LATE_GAME_BALANCE_CONFIG } from '@/data/balance/lateGameBalance'
 import { getThemeByKey, hexToRgb, type ThemeKey } from '@/data/themes'
 import { applyQmsgConfig } from '@/composables/useGameLog'
 import type { ItemCategory, LateGameBalanceConfig, LateGameBalanceOverride, LateGameFeatureFlag, LateGameFeatureOverrideMap } from '@/types'
+import type { CropUseTag } from '@/data/cropUseProfiles'
 
 export type QmsgPosition = 'topleft' | 'top' | 'topright' | 'left' | 'center' | 'right' | 'bottomleft' | 'bottom' | 'bottomright'
 export type QmsgLimitWidthWrap = 'no-wrap' | 'wrap' | 'ellipsis'
@@ -35,6 +36,8 @@ export const useSettingsStore = defineStore('settings', () => {
 
   /** 背包物品筛选：选中的分类（空数组 = 显示全部） */
   const inventoryFilter = ref<ItemCategory[]>([])
+  /** 背包作物用途筛选：选中的用途标签（空数组 = 不按用途限制） */
+  const inventoryCropUseFilter = ref<CropUseTag[]>([])
   const lateGameFeatureOverrides = ref<LateGameFeatureOverrideMap>({})
   const lateGameFeatureBaselineSaveVersion = ref(Number.MAX_SAFE_INTEGER)
   const lateGameBalanceOverrides = ref<LateGameBalanceOverride>({})
@@ -156,6 +159,7 @@ export const useSettingsStore = defineStore('settings', () => {
       qmsgShowIcon: qmsgShowIcon.value,
       qmsgShowReverse: qmsgShowReverse.value,
       inventoryFilter: inventoryFilter.value,
+      inventoryCropUseFilter: inventoryCropUseFilter.value,
       lateGameFeatureOverrides: lateGameFeatureOverrides.value,
       lateGameBalanceOverrides: lateGameBalanceOverrides.value
     }
@@ -179,6 +183,7 @@ export const useSettingsStore = defineStore('settings', () => {
     qmsgShowIcon.value = data?.qmsgShowIcon ?? false
     qmsgShowReverse.value = data?.qmsgShowReverse ?? false
     inventoryFilter.value = data?.inventoryFilter ?? []
+    inventoryCropUseFilter.value = data?.inventoryCropUseFilter ?? []
     lateGameFeatureOverrides.value = import.meta.env.DEV
       ? normalizeLateGameFeatureOverrides(data?.lateGameFeatureOverrides, lateGameFeatureBaselineSaveVersion.value)
       : {}
@@ -216,6 +221,7 @@ export const useSettingsStore = defineStore('settings', () => {
     qmsgShowIcon,
     qmsgShowReverse,
     inventoryFilter,
+    inventoryCropUseFilter,
     lateGameFeatureOverrides,
     lateGameFeatureBaselineSaveVersion,
     lateGameBalanceOverrides,

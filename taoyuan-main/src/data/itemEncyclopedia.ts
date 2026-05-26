@@ -4,11 +4,25 @@ import { CROPS, getCropById, getCropBySeedId } from './crops'
 import { FISH, FISHING_LOCATIONS, getFishById } from './fish'
 import { FRUIT_TREE_DEFS } from './fruitTrees'
 import { getItemById, getItemSource } from './items'
-import { PROCESSING_RECIPES, PROCESSING_MACHINES, SPRINKLERS, FERTILIZERS, BAITS, TACKLES, BOMBS } from './processing'
-import { RECIPES } from './recipes'
+import {
+  PROCESSING_RECIPES,
+  PROCESSING_MACHINES,
+  SPRINKLERS,
+  FERTILIZERS,
+  BAITS,
+  TACKLES,
+  BOMBS,
+  ALCHEMY_HEAT_LABELS,
+  ALCHEMY_MAIN_DAILY_LIMIT,
+  ALCHEMY_NATURE_LABELS,
+  ALCHEMY_PILL_ROLE_LABELS,
+  ALCHEMY_RESULT_KIND_LABELS,
+  ALCHEMY_SUPPORT_DAILY_LIMIT
+} from './processing'
+import { RECIPES, getRecipeCategoryLabels, getRecipeStoryTriggerLabels } from './recipes'
 import { getCollectionUsageText, getUndiscoveredCollectionHint } from './collectionRegistry'
-import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, getCropUseProfile, getCropUseTagLabels } from './cropUseProfiles'
-import { getPetSpecialFeedByItemId, getPetSpecialFeedTasteLabel } from './petFeeds'
+import { CROP_USE_NATURE_LABELS, CROP_USE_RARITY_LABELS, getCropUseProfile, getCropUseTagLabels, getCropUseTagMatches } from './cropUseProfiles'
+import { getPetSpecialFeedByItemId, getPetSpecialFeedTasteLabel, getPetTypeLabel } from './petFeeds'
 
 export interface ItemEncyclopediaDetail {
   label: string
@@ -20,6 +34,13 @@ const SEASON_LABELS: Record<string, string> = {
   summer: '夏',
   autumn: '秋',
   winter: '冬'
+}
+
+const QUALITY_LABELS: Record<string, string> = {
+  normal: '普通',
+  fine: '优质',
+  excellent: '精品',
+  supreme: '极品'
 }
 
 const WEATHER_LABELS: Record<string, string> = {
@@ -59,6 +80,61 @@ const pushDetail = (details: ItemEncyclopediaDetail[], label: string, value?: st
 
 const getItemName = (id: string): string => getItemById(id)?.name ?? id
 
+const getRecipeForFoodItem = (itemId: string) => {
+  return RECIPES.find(recipe => `food_${recipe.id}` === itemId || recipe.id === itemId)
+}
+
+const getCropRecipeUseEntries = (itemId: string): string[] => {
+  const profile = getCropUseProfile(itemId)
+  if (!profile) return []
+
+  const entries: string[] = []
+  const cookingRecipes = RECIPES.filter(recipe => recipe.ingredients.some(entry => entry.itemId === itemId))
+  const cookingTags = getCropUseTagMatches(itemId, ['food'])
+  if (cookingRecipes.length > 0 && cookingTags.length > 0) {
+    entries.push(`料理按用途标签读取：${cookingRecipes.slice(0, 4).map(recipe => recipe.name).join('、')}`)
+  }
+
+  const alchemyRecipes = PROCESSING_RECIPES.filter(
+    recipe => !!recipe.alchemy && (recipe.inputItemId === itemId || recipe.extraInputs?.some(entry => entry.itemId === itemId))
+  )
+  const alchemyTags = getCropUseTagMatches(itemId, ['alchemy', 'medicine'])
+  if (alchemyRecipes.length > 0 && alchemyTags.length > 0) {
+    entries.push(`炼丹按用途标签读取：${alchemyRecipes.slice(0, 4).map(recipe => recipe.name).join('、')}`)
+  }
+
+  return entries
+}
+
+const getCropDualPathEntries = (itemId: string): string[] => {
+  const cookingRecipes = RECIPES.filter(recipe => recipe.ingredients.some(entry => entry.itemId === itemId))
+  const alchemyRecipes = PROCESSING_RECIPES.filter(
+    recipe => !!recipe.alchemy && (recipe.inputItemId === itemId || recipe.extraInputs?.some(entry => entry.itemId === itemId))
+  )
+
+  if (cookingRecipes.length === 0 || alchemyRecipes.length === 0) return []
+
+  const cookingText = cookingRecipes
+    .slice(0, 3)
+    .map(recipe => `${recipe.name}（${getRecipeCategoryLabels(recipe).join('、')}；${getRecipeStoryTriggerLabels(recipe).join('、')}）`)
+    .join('、')
+  const alchemyText = alchemyRecipes
+    .slice(0, 3)
+    .map(recipe => {
+      const meta = recipe.alchemy
+      const roleText = meta ? ALCHEMY_PILL_ROLE_LABELS[meta.role] : '丹材'
+      const natureText = meta ? ALCHEMY_NATURE_LABELS[meta.nature] : '药性'
+      const qualityText = recipe.minInputQuality ? `；${QUALITY_LABELS[recipe.minInputQuality]}及以上` : ''
+      return `${recipe.name}（${roleText}；${natureText}${qualityText}）`
+    })
+    .join('、')
+
+  return [
+    `料理价值：${cookingText}`,
+    `炼丹价值：${alchemyText}`
+  ]
+}
+
 const formatPercent = (value: number) => `${Math.round(value * 100)}%`
 
 const formatCraftCost = (entries: { itemId: string; quantity: number }[]) => entries.map(entry => `${getItemName(entry.itemId)}×${entry.quantity}`).join('、')
@@ -86,6 +162,13 @@ const PUBLIC_WAREHOUSE_USES: Record<string, string[]> = {
     '村社公共仓：腊梅入仓，可用于节庆宴席备菜茶点香料',
     '联机节会：节庆宴席备菜消耗公共仓腊梅，不扣个人背包'
   ]
+}
+
+const ANIMAL_FEED_USES: Record<string, string[]> = {
+  rice: ['动物饲料：稻米可作为家畜补料，适合公共仓或牧场日常消耗'],
+  sweet_potato: ['动物饲料：红薯可作为家畜越冬料，偏饱腹和耐储'],
+  pumpkin: ['动物饲料：南瓜可作为甜口补料，适合秋季牧场和家庭餐桌事件'],
+  radish: ['动物饲料：萝卜可作为清辛护院补料，适合低成本日常喂养']
 }
 
 const MANOR_CARE_USES: Record<string, string[]> = {
@@ -131,11 +214,19 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
         pushDetail(details, '药性', CROP_USE_NATURE_LABELS[profile.nature])
         pushDetail(details, '消耗定位', CROP_USE_RARITY_LABELS[profile.rarityUse])
         pushDetail(details, '推荐用途', profile.recommendedUses.join('、'))
+        const recipeUseEntries = getCropRecipeUseEntries(item.id)
+        if (recipeUseEntries.length > 0) {
+          pushDetail(details, '配方入口', recipeUseEntries.join('；'))
+        }
+        const dualPathEntries = getCropDualPathEntries(item.id)
+        if (dualPathEntries.length > 0) {
+          pushDetail(details, '料理 / 炼丹双路径', dualPathEntries.join('；'))
+        }
       }
       const petFeed = getPetSpecialFeedByItemId(item.id)
       if (petFeed) {
         pushDetail(details, '宠物口味', getPetSpecialFeedTasteLabel(petFeed.taste))
-        pushDetail(details, '宠物偏好', petFeed.preferredPetTypes.map(type => (type === 'dog' ? '田犬' : '猫')).join('、'))
+        pushDetail(details, '宠物偏好', petFeed.preferredPetTypes.map(getPetTypeLabel).join('、'))
         pushDetail(details, '宠物反馈', petFeed.description)
       }
     }
@@ -216,15 +307,61 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
       pushDetail(details, '矿石倍率', `${bomb.oreMultiplier}倍`)
       pushDetail(details, '清除怪物', bomb.clearsMonster ? '是' : '否')
     }
+  } else if (item.category === 'food') {
+    const recipe = getRecipeForFoodItem(item.id)
+    if (recipe) {
+      pushDetail(details, '料理分类', getRecipeCategoryLabels(recipe).join('、'))
+      pushDetail(details, '剧情触发', getRecipeStoryTriggerLabels(recipe).join('、'))
+      pushDetail(details, '烹饪入口', `灶台：${recipe.name}`)
+      pushDetail(details, '所需材料', formatCraftCost(recipe.ingredients))
+      pushDetail(details, '解锁来源', recipe.unlockSource)
+    }
   } else if (item.category === 'elixir') {
     pushDetail(details, '丹药定位', '丹炉炼制的短效经营准备品')
-    pushDetail(details, '当前限制', '第一批先进入加工与图鉴链路，暂不直接食用或叠加生效')
+    const alchemyRecipe = PROCESSING_RECIPES.find(recipe => recipe.outputItemId === item.id && recipe.alchemy)
+    if (alchemyRecipe?.alchemy) {
+      const meta = alchemyRecipe.alchemy
+      const limit = meta.role === 'main' ? ALCHEMY_MAIN_DAILY_LIMIT : ALCHEMY_SUPPORT_DAILY_LIMIT
+      pushDetail(details, '丹药类型', ALCHEMY_PILL_ROLE_LABELS[meta.role])
+      pushDetail(details, '药性', ALCHEMY_NATURE_LABELS[meta.nature])
+      pushDetail(details, '主材', getItemName(meta.mainMaterialId))
+      if (alchemyRecipe.minInputQuality) {
+        pushDetail(details, '主材品质', `${QUALITY_LABELS[alchemyRecipe.minInputQuality]}及以上`)
+      }
+      pushDetail(details, '辅材', meta.supportMaterialIds.map(getItemName).join('、'))
+      pushDetail(details, '引子', getItemName(meta.primerItemId))
+      pushDetail(details, '火候', ALCHEMY_HEAT_LABELS[meta.heat])
+      pushDetail(details, '每日限制', `每日最多炼制${limit}次${ALCHEMY_PILL_ROLE_LABELS[meta.role]}`)
+      pushDetail(details, '短效定位', meta.shortEffect)
+      pushDetail(details, '丹药效果', meta.effect.description)
+      if (meta.results?.length) {
+        pushDetail(
+          details,
+          '炼丹结果',
+          meta.results.map(result => `${ALCHEMY_RESULT_KIND_LABELS[result.kind]}：${getItemName(result.outputItemId)}`).join('、')
+        )
+      }
+    }
+    pushDetail(details, '当前限制', '丹炉按每日主丹/辅丹限制开炉；背包服用后当日只保留一枚丹药效果')
+  }
+
+  const alchemyResultRecipes = PROCESSING_RECIPES.filter(recipe => recipe.alchemy?.results?.some(result => result.outputItemId === item.id))
+  if (alchemyResultRecipes.length > 0 && item.category !== 'elixir') {
+    const resultLabels = uniqueStrings(
+      alchemyResultRecipes.flatMap(recipe =>
+        recipe.alchemy?.results
+          ?.filter(result => result.outputItemId === item.id)
+          .map(result => ALCHEMY_RESULT_KIND_LABELS[result.kind]) ?? []
+      )
+    )
+    pushDetail(details, '炼丹结果', resultLabels.join('、'))
+    pushDetail(details, '来源丹方', alchemyResultRecipes.slice(0, 5).map(recipe => recipe.name).join('、'))
   }
 
   const petFeed = getPetSpecialFeedByItemId(item.id)
   if (petFeed) {
     pushDetail(details, '宠物口味', getPetSpecialFeedTasteLabel(petFeed.taste))
-    pushDetail(details, '宠物偏好', petFeed.preferredPetTypes.map(type => (type === 'dog' ? '田犬' : '猫')).join('、'))
+    pushDetail(details, '宠物偏好', petFeed.preferredPetTypes.map(getPetTypeLabel).join('、'))
     pushDetail(details, '宠物反馈', petFeed.description)
   }
 
@@ -232,9 +369,13 @@ export const getItemExtraDetails = (item: ItemDef): ItemEncyclopediaDetail[] => 
 }
 
 export const getItemProducedBy = (itemId: string): string[] => {
-  return PROCESSING_RECIPES.filter(recipe => recipe.outputItemId === itemId).map(recipe => {
+  return PROCESSING_RECIPES.filter(recipe =>
+    recipe.outputItemId === itemId || recipe.alchemy?.results?.some(result => result.outputItemId === itemId)
+  ).map(recipe => {
     const machine = PROCESSING_MACHINES.find(entry => entry.id === recipe.machineType)
-    return `${machine?.name ?? recipe.machineType}：${recipe.description}`
+    const result = recipe.alchemy?.results?.find(entry => entry.outputItemId === itemId)
+    const resultText = result ? `（${ALCHEMY_RESULT_KIND_LABELS[result.kind]}：${result.description}）` : ''
+    return `${machine?.name ?? recipe.machineType}：${recipe.description}${resultText}`
   })
 }
 
@@ -245,9 +386,10 @@ export const getItemUsedIn = (itemId: string): string[] => {
   })
   const cookingUses = RECIPES.filter(recipe => recipe.ingredients.some(entry => entry.itemId === itemId)).map(recipe => `料理：${recipe.name}`)
   const publicWarehouseUses = PUBLIC_WAREHOUSE_USES[itemId] ?? []
+  const animalFeedUses = ANIMAL_FEED_USES[itemId] ?? []
   const manorCareUses = MANOR_CARE_USES[itemId] ?? []
 
-  return uniqueStrings([...processingUses, ...cookingUses, ...publicWarehouseUses, ...manorCareUses])
+  return uniqueStrings([...processingUses, ...cookingUses, ...publicWarehouseUses, ...animalFeedUses, ...manorCareUses])
 }
 
 export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {
@@ -284,11 +426,12 @@ export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {
       .slice(0, 6)
       .forEach(recipe => {
         relatedIds.push(getGlossaryEntryIdForItemId(recipe.outputItemId))
+        recipe.alchemy?.results?.forEach(result => relatedIds.push(getGlossaryEntryIdForItemId(result.outputItemId)))
         if (recipe.inputItemId) relatedIds.push(getGlossaryEntryIdForItemId(recipe.inputItemId))
       })
   }
 
-  PROCESSING_RECIPES.filter(recipe => recipe.outputItemId === item.id)
+  PROCESSING_RECIPES.filter(recipe => recipe.outputItemId === item.id || recipe.alchemy?.results?.some(result => result.outputItemId === item.id))
     .slice(0, 4)
     .forEach(recipe => {
       if (recipe.inputItemId) relatedIds.push(getGlossaryEntryIdForItemId(recipe.inputItemId))
@@ -298,6 +441,7 @@ export const getItemRelatedGlossaryEntryIds = (item: ItemDef): string[] => {
     .slice(0, 4)
     .forEach(recipe => {
       relatedIds.push(getGlossaryEntryIdForItemId(recipe.outputItemId))
+      recipe.alchemy?.results?.forEach(result => relatedIds.push(getGlossaryEntryIdForItemId(result.outputItemId)))
     })
 
   RECIPES.filter(recipe => recipe.ingredients.some(entry => entry.itemId === item.id))
@@ -338,6 +482,18 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
           CROP_USE_RARITY_LABELS[cropUseProfile.rarityUse],
           ...cropUseProfile.recommendedUses,
         )
+        const recipeUseEntries = getCropRecipeUseEntries(item.id)
+        recipeUseEntries.forEach(entry => keywords.push(entry))
+        if (recipeUseEntries.some(entry => entry.startsWith('料理'))) {
+          keywords.push('料理读取用途标签', '料理用途入口', 'food 用途标签')
+        }
+        if (recipeUseEntries.some(entry => entry.startsWith('炼丹'))) {
+          keywords.push('炼丹读取用途标签', '炼丹用途入口', 'alchemy 用途标签', 'medicine 用途标签')
+        }
+        const dualPathEntries = getCropDualPathEntries(item.id)
+        if (dualPathEntries.length > 0) {
+          keywords.push('料理炼丹双路径', '同一种作物不同价值', '作物消耗路径对比', '料理价值', '炼丹价值', ...dualPathEntries)
+        }
       }
       break
     case 'seed':
@@ -347,7 +503,14 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
       keywords.push('钓鱼', '鱼塘', '哪里能钓', '出现条件')
       break
     case 'food':
-      keywords.push('料理', '烹饪', '恢复', '增益')
+      keywords.push('料理', '烹饪', '恢复', '增益', '温和 buff', '剧情触发', '料理分类', '家常菜', '节会菜', '宠物餐', '旅途干粮', '宴席菜')
+      {
+        const recipe = getRecipeForFoodItem(item.id)
+        if (recipe) {
+          keywords.push(...getRecipeCategoryLabels(recipe), ...getRecipeStoryTriggerLabels(recipe), recipe.name, recipe.unlockSource, recipe.description)
+          recipe.ingredients.forEach(entry => keywords.push(getItemName(entry.itemId)))
+        }
+      }
       break
     case 'gift':
       keywords.push('送礼', '好感', '关系')
@@ -358,8 +521,47 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
     case 'processed':
       keywords.push('加工', '制作', '机器')
       break
+    case 'material':
+      keywords.push('材料', '制作', '加工')
+      if (PROCESSING_RECIPES.some(recipe => recipe.alchemy?.results?.some(result => result.outputItemId === item.id))) {
+        keywords.push('炼丹结果', '成丹', '偏丹', '废丹', '奇丹', '丹炉', '丹材回收')
+      }
+      break
     case 'elixir':
-      keywords.push('丹药', '炼丹', '丹炉', '短效增益', '探索', '社交', '行动效率')
+      keywords.push('丹药', '炼丹', '丹炉', '短效增益', '探索', '社交', '行动效率', '每日主丹', '每日辅丹', '不无限叠')
+      PROCESSING_RECIPES.filter(recipe => recipe.outputItemId === item.id && recipe.alchemy).forEach(recipe => {
+        const meta = recipe.alchemy!
+        keywords.push(
+          ALCHEMY_PILL_ROLE_LABELS[meta.role],
+          ALCHEMY_NATURE_LABELS[meta.nature],
+          ALCHEMY_HEAT_LABELS[meta.heat],
+          getItemName(meta.mainMaterialId),
+          ...meta.supportMaterialIds.map(getItemName),
+          getItemName(meta.primerItemId),
+          meta.shortEffect,
+          meta.effect.description,
+          '服用',
+          '不叠加'
+        )
+        if (meta.results?.length) {
+          keywords.push(
+            '炼丹结果',
+            '成丹',
+            '偏丹',
+            '废丹',
+            '奇丹',
+            ...meta.results.map(result => ALCHEMY_RESULT_KIND_LABELS[result.kind]),
+            ...meta.results.map(result => getItemName(result.outputItemId)),
+            ...meta.results.map(result => result.description)
+          )
+        }
+        if (recipe.minInputQuality) {
+          keywords.push('高阶丹药', '高品质作物', `${QUALITY_LABELS[recipe.minInputQuality]}及以上`, '优质作物')
+        }
+        if (meta.nature === 'spirit_fruit') {
+          keywords.push('灵果药性', '灵果', '灵桃', '高阶丹药')
+        }
+      })
       break
     case 'machine':
       keywords.push('机器', '工坊', '加工')
@@ -399,8 +601,20 @@ export const getItemSearchKeywords = (item: ItemDef): string[] => {
       petFeed.label,
       petFeed.shortLabel,
       getPetSpecialFeedTasteLabel(petFeed.taste),
+      ...petFeed.preferredPetTypes.map(getPetTypeLabel),
       petFeed.description,
     )
+    if (petFeed.taste === 'spirit_fruit' || petFeed.preferredPetTypes.includes('spirit')) {
+      keywords.push('灵宠', '灵果', '丹材', '稀有采集物')
+    }
+  }
+  const animalFeedKeywords = ANIMAL_FEED_USES[item.id] ?? []
+  if (animalFeedKeywords.length > 0) {
+    keywords.push('动物饲料', '家畜饲料', '牧场补料', ...animalFeedKeywords)
+  }
+  const publicWarehouseKeywords = PUBLIC_WAREHOUSE_USES[item.id] ?? []
+  if (publicWarehouseKeywords.length > 0) {
+    keywords.push('联机消耗', '公共仓消耗', '公共订单', ...publicWarehouseKeywords)
   }
 
   return uniqueStrings(keywords)

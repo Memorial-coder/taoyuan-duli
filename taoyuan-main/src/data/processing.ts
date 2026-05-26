@@ -1,5 +1,83 @@
-import type { ProcessingMachineDef, ProcessingRecipeDef, SprinklerDef, FertilizerDef, BaitDef, TackleDef, BombDef } from '@/types'
+import type {
+  AlchemyHeat,
+  AlchemyNature,
+  AlchemyPillRole,
+  AlchemyResultKind,
+  AlchemyResultRule,
+  ProcessingMachineDef,
+  ProcessingRecipeDef,
+  SprinklerDef,
+  FertilizerDef,
+  BaitDef,
+  TackleDef,
+  BombDef
+} from '@/types'
 import { CROPS } from './crops'
+
+export const ALCHEMY_MAIN_DAILY_LIMIT = 1
+export const ALCHEMY_SUPPORT_DAILY_LIMIT = 2
+
+export const ALCHEMY_PILL_ROLE_LABELS: Record<AlchemyPillRole, string> = {
+  main: '主丹',
+  support: '辅丹'
+}
+
+export const ALCHEMY_NATURE_LABELS: Record<AlchemyNature, string> = {
+  clear: '清润',
+  warm: '温补',
+  spicy: '辛烈',
+  fragrant: '芳香',
+  root: '根茎',
+  spirit_fruit: '灵果'
+}
+
+export const ALCHEMY_HEAT_LABELS: Record<AlchemyHeat, string> = {
+  gentle: '文火',
+  steady: '中火',
+  strong: '武火'
+}
+
+export const ALCHEMY_RESULT_KIND_LABELS: Record<AlchemyResultKind, string> = {
+  success: '成丹',
+  partial: '偏丹',
+  failed: '废丹',
+  rare: '奇丹'
+}
+
+const buildAlchemyResultRules = (successOutputItemId: string): AlchemyResultRule[] => [
+  {
+    kind: 'success',
+    outputItemId: successOutputItemId,
+    outputQuantity: 1,
+    weight: 80,
+    label: ALCHEMY_RESULT_KIND_LABELS.success,
+    description: '火候与药性稳定，收取完整成丹。'
+  },
+  {
+    kind: 'partial',
+    outputItemId: 'partial_elixir_slurry',
+    outputQuantity: 1,
+    weight: 14,
+    label: ALCHEMY_RESULT_KIND_LABELS.partial,
+    description: '药性略偏，凝成可再研磨利用的偏丹膏。'
+  },
+  {
+    kind: 'failed',
+    outputItemId: 'failed_elixir_ash',
+    outputQuantity: 1,
+    weight: 4,
+    label: ALCHEMY_RESULT_KIND_LABELS.failed,
+    description: '火候失稳，丹气散尽，只余废丹灰。'
+  },
+  {
+    kind: 'rare',
+    outputItemId: 'rare_elixir_crystal',
+    outputQuantity: 1,
+    weight: 2,
+    label: ALCHEMY_RESULT_KIND_LABELS.rare,
+    description: '药性意外凝华，得一枚稀少奇丹晶。'
+  }
+]
 
 /** 加工机器定义 */
 export const PROCESSING_MACHINES: ProcessingMachineDef[] = [
@@ -1770,6 +1848,21 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputItemId: 'qingxin_lotus_elixir',
     outputQuantity: 1,
     processingDays: 2,
+    alchemy: {
+      role: 'support',
+      nature: 'clear',
+      mainMaterialId: 'lotus_seed',
+      supportMaterialIds: ['lotus_root'],
+      primerItemId: 'herbal_paste',
+      heat: 'gentle',
+      shortEffect: '探索前护心与降低疲劳波动',
+      results: buildAlchemyResultRules('qingxin_lotus_elixir'),
+      effect: {
+        description: '今日采矿体力消耗-8%，远征体力消耗-6%',
+        miningStaminaReduction: 0.08,
+        journeyStaminaReduction: 0.06
+      }
+    },
     description: '莲子、莲藕与草药膏同炼，成丹清润，可作探索前的护心丹。'
   },
   {
@@ -1785,7 +1878,83 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputItemId: 'warming_sweet_potato_pill',
     outputQuantity: 1,
     processingDays: 2,
+    alchemy: {
+      role: 'support',
+      nature: 'warm',
+      mainMaterialId: 'sweet_potato',
+      supportMaterialIds: ['ginger'],
+      primerItemId: 'honey',
+      heat: 'steady',
+      shortEffect: '农忙与采集前的短时耐力准备',
+      results: buildAlchemyResultRules('warming_sweet_potato_pill'),
+      effect: {
+        description: '立即恢复30体力，今日行动耗时-5%',
+        staminaRestore: 30,
+        actionSpeedBonus: 0.05
+      }
+    },
     description: '红薯、姜与蜂蜜温炼成丸，适合农忙和采集前备用。'
+  },
+  {
+    id: 'alchemy_grain_breath_elixir',
+    machineType: 'alchemy_furnace',
+    name: '谷气续行丹',
+    inputItemId: 'rice',
+    inputQuantity: 3,
+    extraInputs: [
+      { itemId: 'herb', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    outputItemId: 'grain_breath_elixir',
+    outputQuantity: 1,
+    processingDays: 2,
+    alchemy: {
+      role: 'support',
+      nature: 'warm',
+      mainMaterialId: 'rice',
+      supportMaterialIds: ['herb'],
+      primerItemId: 'honey',
+      heat: 'steady',
+      shortEffect: '旅途、公共订单和长线经营前的短时续航准备',
+      results: buildAlchemyResultRules('grain_breath_elixir'),
+      effect: {
+        description: '立即恢复20体力，今日远征体力消耗-4%，行动耗时-3%',
+        staminaRestore: 20,
+        journeyStaminaReduction: 0.04,
+        actionSpeedBonus: 0.03
+      }
+    },
+    description: '稻米、草药与蜂蜜中火同炼，取谷物厚实之气，适合赶路和公共订单前续航。'
+  },
+  {
+    id: 'alchemy_sesame_courtesy_elixir',
+    machineType: 'alchemy_furnace',
+    name: '芝香护礼丸',
+    inputItemId: 'sesame',
+    inputQuantity: 2,
+    extraInputs: [
+      { itemId: 'tea', quantity: 1 },
+      { itemId: 'honey', quantity: 1 }
+    ],
+    outputItemId: 'sesame_courtesy_elixir',
+    outputQuantity: 1,
+    processingDays: 2,
+    alchemy: {
+      role: 'support',
+      nature: 'fragrant',
+      mainMaterialId: 'sesame',
+      supportMaterialIds: ['tea'],
+      primerItemId: 'honey',
+      heat: 'gentle',
+      shortEffect: '送礼、节会供品和拜访前的短时礼仪准备',
+      results: buildAlchemyResultRules('sesame_courtesy_elixir'),
+      effect: {
+        description: '今日送礼好感×1.08，受到伤害-4%',
+        giftBonusMultiplier: 1.08,
+        defenseReduction: 0.04
+      }
+    },
+    description: '芝麻、茶叶与蜂蜜文火合香，适合送礼、节会供品和拜访前稳定心神。'
   },
   {
     id: 'alchemy_spicy_vitality_pill',
@@ -1800,6 +1969,21 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputItemId: 'spicy_vitality_pill',
     outputQuantity: 1,
     processingDays: 2,
+    alchemy: {
+      role: 'main',
+      nature: 'spicy',
+      mainMaterialId: 'pickled_chili',
+      supportMaterialIds: ['sesame_paste'],
+      primerItemId: 'tea',
+      heat: 'strong',
+      shortEffect: '赶路、赛舟和护送前的短时行动提气',
+      results: buildAlchemyResultRules('spicy_vitality_pill'),
+      effect: {
+        description: '今日行动耗时-10%，远征体力消耗-5%',
+        actionSpeedBonus: 0.1,
+        journeyStaminaReduction: 0.05
+      }
+    },
     description: '泡椒、芝麻酱与茶叶调和辛香，用于赶路、赛舟和护送前提气。'
   },
   {
@@ -1815,6 +1999,21 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputItemId: 'osmanthus_focus_elixir',
     outputQuantity: 1,
     processingDays: 2,
+    alchemy: {
+      role: 'main',
+      nature: 'fragrant',
+      mainMaterialId: 'osmanthus_honey',
+      supportMaterialIds: ['tea'],
+      primerItemId: 'lotus_seed',
+      heat: 'gentle',
+      shortEffect: '社交与节会拜访前的短时凝神',
+      results: buildAlchemyResultRules('osmanthus_focus_elixir'),
+      effect: {
+        description: '今日送礼好感×1.12，行动耗时-4%',
+        giftBonusMultiplier: 1.12,
+        actionSpeedBonus: 0.04
+      }
+    },
     description: '桂花蜜、茶叶与莲子慢炼，香气沉静，适合社交与节会拜访前使用。'
   },
   {
@@ -1830,6 +2029,21 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputItemId: 'tea_focus_elixir',
     outputQuantity: 1,
     processingDays: 2,
+    alchemy: {
+      role: 'main',
+      nature: 'clear',
+      mainMaterialId: 'green_tea_drink',
+      supportMaterialIds: ['lotus_heart_powder'],
+      primerItemId: 'honey',
+      heat: 'gentle',
+      shortEffect: '文游对话、节会拜访和好友长谈前的短时专注',
+      results: buildAlchemyResultRules('tea_focus_elixir'),
+      effect: {
+        description: '今日送礼好感×1.1，远征体力消耗-4%',
+        giftBonusMultiplier: 1.1,
+        journeyStaminaReduction: 0.04
+      }
+    },
     description: '绿茶、莲心粉与蜂蜜清炼成丹，适合文游对话、节会拜访和好友长谈前凝神。'
   },
   {
@@ -1845,7 +2059,55 @@ export const PROCESSING_RECIPES: ProcessingRecipeDef[] = [
     outputItemId: 'stone_root_guard_pill',
     outputQuantity: 1,
     processingDays: 2,
+    alchemy: {
+      role: 'main',
+      nature: 'root',
+      mainMaterialId: 'radish',
+      supportMaterialIds: ['potato'],
+      primerItemId: 'refined_quartz',
+      heat: 'steady',
+      shortEffect: '矿洞与夜巡前的短时防护准备',
+      results: buildAlchemyResultRules('stone_root_guard_pill'),
+      effect: {
+        description: '今日采矿体力消耗-12%，远征体力消耗-8%',
+        miningStaminaReduction: 0.12,
+        journeyStaminaReduction: 0.08,
+        defenseReduction: 0.08
+      }
+    },
     description: '萝卜、土豆与精制石英炼成护脉丸，偏向矿洞与夜巡前的防护。'
+  },
+  {
+    id: 'alchemy_spirit_peach_elixir',
+    machineType: 'alchemy_furnace',
+    name: '灵桃醒神丹',
+    inputItemId: 'peach',
+    inputQuantity: 2,
+    minInputQuality: 'fine',
+    extraInputs: [
+      { itemId: 'candied_peach', quantity: 1 },
+      { itemId: 'moon_herb', quantity: 1 }
+    ],
+    outputItemId: 'spirit_peach_elixir',
+    outputQuantity: 1,
+    processingDays: 3,
+    alchemy: {
+      role: 'main',
+      nature: 'spirit_fruit',
+      mainMaterialId: 'peach',
+      supportMaterialIds: ['candied_peach'],
+      primerItemId: 'moon_herb',
+      heat: 'gentle',
+      shortEffect: '灵果药性主丹，适合社交、节会拜访和长线经营前醒神',
+      results: buildAlchemyResultRules('spirit_peach_elixir'),
+      effect: {
+        description: '今日送礼好感×1.15，行动耗时-6%，远征体力消耗-5%',
+        giftBonusMultiplier: 1.15,
+        actionSpeedBonus: 0.06,
+        journeyStaminaReduction: 0.05
+      }
+    },
+    description: '优质以上桃子、蜜桃脯与月草文火同炼，凝成带灵果药性的高阶醒神丹。'
   },
   // 特殊饲料
   {
@@ -2405,6 +2667,10 @@ export const getMachineById = (id: string): ProcessingMachineDef | undefined => 
 
 export const getProcessingRecipeById = (id: string): ProcessingRecipeDef | undefined => {
   return PROCESSING_RECIPES.find(r => r.id === id)
+}
+
+export const getAlchemyRecipeByOutputItemId = (itemId: string): ProcessingRecipeDef | undefined => {
+  return PROCESSING_RECIPES.find(r => r.outputItemId === itemId && !!r.alchemy)
 }
 
 export const getRecipesForMachine = (machineType: string): ProcessingRecipeDef[] => {

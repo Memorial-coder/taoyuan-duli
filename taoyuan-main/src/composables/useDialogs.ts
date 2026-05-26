@@ -12,8 +12,11 @@ import { useNpcStore } from '@/stores/useNpcStore'
 import { useHiddenNpcStore } from '@/stores/useHiddenNpcStore'
 import { usePlayerStore } from '@/stores/usePlayerStore'
 import { useSkillStore } from '@/stores/useSkillStore'
+import { useCookingStore } from '@/stores/useCookingStore'
 import { addLog, showFloat, _registerPerkChecker } from './useGameLog'
 import { useAudio } from './useAudio'
+
+const FESTIVAL_COOKING_TOPIC_LABELS = ['节会剧情']
 
 // 模块级单例状态
 const currentEvent = ref<SeasonEventDef | null>(null)
@@ -176,6 +179,10 @@ export const closeFestival = (prize: number) => {
     if (totalMoney > 0) {
       showFloat(`+${totalMoney}文`, 'accent')
       addLog(festivalBonusMoney > 0 ? `节日奖金：${prize}文，年度奖池追加${festivalBonusMoney}文！` : `节日奖金：${prize}文！`)
+    }
+    const cookingTopic = useCookingStore().consumeStoryTriggerRecord(FESTIVAL_COOKING_TOPIC_LABELS)
+    if (cookingTopic) {
+      addLog(`节会席面带上了${cookingTopic.recipeName}，${cookingTopic.triggerLabels.join('、')}线索已用于今天的节会反馈。`)
     }
   }
   currentFestival.value = null

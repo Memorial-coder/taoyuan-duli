@@ -97,8 +97,8 @@ export interface PlantedFruitTree {
 export type FarmhouseLevel = 0 | 1 | 2 | 3
 export type CaveChoice = 'none' | 'mushroom' | 'fruit_bat'
 
-export type PetType = 'cat' | 'dog'
-export type PetSpecialFeedType = 'sweet' | 'filling' | 'fragrant' | 'spicy' | 'herbal'
+export type PetType = 'cat' | 'dog' | 'spirit'
+export type PetSpecialFeedType = 'sweet' | 'filling' | 'fragrant' | 'spicy' | 'herbal' | 'spirit_fruit'
 
 export interface PetState {
   id: string

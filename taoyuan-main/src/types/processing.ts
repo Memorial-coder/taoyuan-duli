@@ -39,6 +39,43 @@ export interface ProcessingMachineDef {
   autoCollect?: boolean
 }
 
+export type AlchemyPillRole = 'main' | 'support'
+
+export type AlchemyNature = 'clear' | 'warm' | 'spicy' | 'fragrant' | 'root' | 'spirit_fruit'
+
+export type AlchemyHeat = 'gentle' | 'steady' | 'strong'
+
+export type AlchemyResultKind = 'success' | 'partial' | 'failed' | 'rare'
+
+export interface AlchemyResultRule {
+  kind: AlchemyResultKind
+  outputItemId: string
+  outputQuantity: number
+  weight: number
+  label: string
+  description: string
+}
+
+export interface AlchemyRecipeMeta {
+  role: AlchemyPillRole
+  nature: AlchemyNature
+  mainMaterialId: string
+  supportMaterialIds: string[]
+  primerItemId: string
+  heat: AlchemyHeat
+  shortEffect: string
+  results?: AlchemyResultRule[]
+  effect: {
+    description: string
+    staminaRestore?: number
+    miningStaminaReduction?: number
+    journeyStaminaReduction?: number
+    giftBonusMultiplier?: number
+    actionSpeedBonus?: number
+    defenseReduction?: number
+  }
+}
+
 /** 加工配方定义 */
 export interface ProcessingRecipeDef {
   id: string
@@ -47,6 +84,8 @@ export interface ProcessingRecipeDef {
   /** 输入物品ID（null = 无需输入，如蜂箱） */
   inputItemId: string | null
   inputQuantity: number
+  /** 主输入最低品质要求（如高阶炼丹消耗优质作物） */
+  minInputQuality?: Quality
   /** 额外副材料（合金配方等多输入场景） */
   extraInputs?: { itemId: string; quantity: number }[]
   outputItemId: string
@@ -54,6 +93,8 @@ export interface ProcessingRecipeDef {
   /** 加工天数 */
   processingDays: number
   description: string
+  /** 炼丹配方结构与每日限制信息 */
+  alchemy?: AlchemyRecipeMeta
 }
 
 /** 运行时加工槽位 */
@@ -62,6 +103,13 @@ export interface ProcessingSlot {
   recipeId: string | null
   inputItemId: string | null
   inputQuality?: Quality
+  alchemyResult?: {
+    kind: AlchemyResultKind
+    outputItemId: string
+    outputQuantity: number
+    label: string
+    description: string
+  }
   daysProcessed: number
   totalDays: number
   ready: boolean

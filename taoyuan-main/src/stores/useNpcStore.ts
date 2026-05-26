@@ -86,6 +86,11 @@ import { buildSeasonEventResolutionContext } from '@/utils/seasonEventContext'
 
 const ALL_FAMILY_WISH_DEFS = [...WS09_FAMILY_WISH_DEFS, ...WS15_FAMILY_WISH_DEFS]
 const ALL_ZHIJI_COMPANION_PROJECT_DEFS = [...WS09_ZHIJI_COMPANION_PROJECT_DEFS, ...WS15_ZHIJI_COMPANION_PROJECT_DEFS]
+const RANDOM_NPC_COOKING_TOPIC_LABELS = ['NPC 来访话题', '送礼话题', '家宴团圆']
+const FIXED_NPC_TALK_COOKING_TOPIC_LABELS = ['NPC 来访话题', '家宴团圆']
+const FIXED_NPC_GIFT_COOKING_TOPIC_LABELS = ['送礼话题']
+const RANDOM_NPC_COOKING_TOPIC_AFFINITY_BONUS = 3
+const FIXED_NPC_COOKING_TOPIC_FRIENDSHIP_BONUS = 5
 
 type RegionRumorTemplate = {
   id: string
@@ -572,12 +577,23 @@ export const useNpcStore = defineStore('npc', () => {
     const choice = visitor.dialogueChoices.find(entry => entry.id === choiceId) ?? visitor.dialogueChoices[0]
     if (!choice) return { success: false, message: '暂时没有合适的话题。', affinityChange: 0, visitor }
 
+    const cookingStore = useCookingStore()
+    const cookingTopic = cookingStore.consumeStoryTriggerRecord(RANDOM_NPC_COOKING_TOPIC_LABELS)
+    const cookingAffinityBonus = cookingTopic ? RANDOM_NPC_COOKING_TOPIC_AFFINITY_BONUS : 0
+    const affinityChange = choice.affinityChange + cookingAffinityBonus
+    const cookingTopicLine = cookingTopic
+      ? `你顺势提起刚做的${cookingTopic.recipeName}，话题落在${cookingTopic.triggerLabels.join('、')}上。`
+      : ''
+
     visitor.talkedToday = true
     visitor.conversationCount += 1
-    visitor.affinity = Math.max(0, Math.min(100, visitor.affinity + choice.affinityChange))
+    visitor.affinity = Math.max(0, Math.min(100, visitor.affinity + affinityChange))
     visitor.relationshipTag = choice.relationshipTag ?? visitor.relationshipTag
     visitor.lastVisitDayTag = getCurrentNpcDayTag()
-    visitor.keyEvents = [...visitor.keyEvents, `${visitor.lastVisitDayTag} ${choice.text}：${choice.response}`].slice(-6)
+    visitor.keyEvents = [
+      ...visitor.keyEvents,
+      `${visitor.lastVisitDayTag} ${choice.text}：${choice.response}${cookingTopicLine ? ` ${cookingTopicLine}` : ''}`
+    ].slice(-6)
     if (visitor.tier === 'acquaintance' || visitor.tier === 'long_stay') {
       upsertRandomNpcAcquaintance(visitor)
     }
@@ -596,8 +612,8 @@ export const useNpcStore = defineStore('npc', () => {
 
     return {
       success: true,
-      message: choice.response,
-      affinityChange: choice.affinityChange,
+      message: cookingTopicLine ? `${choice.response} ${cookingTopicLine}` : choice.response,
+      affinityChange,
       visitor
     }
   }
@@ -1340,13 +1356,21 @@ export const useNpcStore = defineStore('npc', () => {
     if (!state) return null
     if (state.talkedToday) return null
     const gameStore = useGameStore()
+    const cookingStore = useCookingStore()
 
     state.talkedToday = true
-    state.friendship = Math.min(state.friendship + 20, getEffectiveFriendshipCap(state))
+    const cookingTopic = cookingStore.consumeStoryTriggerRecord(FIXED_NPC_TALK_COOKING_TOPIC_LABELS)
+    const friendshipGain = 20 + (cookingTopic ? FIXED_NPC_COOKING_TOPIC_FRIENDSHIP_BONUS : 0)
+    state.friendship = Math.min(state.friendship + friendshipGain, getEffectiveFriendshipCap(state))
     const unlockedMessages = syncRelationshipPerks(npcId)
 
     const npcDef = getNpcById(npcId)
     if (!npcDef) return null
+    if (cookingTopic) {
+      unlockedMessages.push(
+        `${npcDef.name}顺着${cookingTopic.recipeName}聊起${cookingTopic.triggerLabels.join('、')}，这条料理话题被记进了今天的闲谈。`
+      )
+    }
 
     const scheduleStatus = getScheduleStatus(npcId)
     const todayEvent = getTodayEvent(gameStore.season, gameStore.day, buildSeasonEventResolutionContext())
@@ -1366,7 +1390,7 @@ export const useNpcStore = defineStore('npc', () => {
       )
     }
     if (scheduleStatus.specialDialogue) {
-      return { message: replaceDialoguePlaceholders(scheduleStatus.specialDialogue), friendshipGain: 20, unlockedMessages }
+      return { message: replaceDialoguePlaceholders(scheduleStatus.specialDialogue), friendshipGain, unlockedMessages }
     }
 
     // 已婚NPC有特殊对话
@@ -1408,21 +1432,21 @@ export const useNpcStore = defineStore('npc', () => {
       if (weatherLine) pool.push(weatherLine)
 
       const message = pool[Math.floor(Math.random() * pool.length)]!
-      return { message, friendshipGain: 20, unlockedMessages }
+      return { message, friendshipGain, unlockedMessages }
     }
 
     // 知己NPC使用知己专属对话
     if (state.zhiji && npcDef.zhijiDialogues?.length) {
       const raw = npcDef.zhijiDialogues[Math.floor(Math.random() * npcDef.zhijiDialogues.length)]!
       const message = replaceDialoguePlaceholders(raw)
-      return { message, friendshipGain: 20, unlockedMessages }
+      return { message, friendshipGain, unlockedMessages }
     }
 
     // 约会中NPC使用约会对话
     if (state.dating && npcDef.datingDialogues && npcDef.datingDialogues.length > 0) {
       const raw = npcDef.datingDialogues[Math.floor(Math.random() * npcDef.datingDialogues.length)]!
       const message = replaceDialoguePlaceholders(raw)
-      return { message, friendshipGain: 20, unlockedMessages }
+      return { message, friendshipGain, unlockedMessages }
     }
 
     const level = getFriendshipLevel(npcId)
@@ -1430,7 +1454,7 @@ export const useNpcStore = defineStore('npc', () => {
     const raw = dialogues[Math.floor(Math.random() * dialogues.length)]!
     const message = replaceDialoguePlaceholders(raw)
 
-    return { message, friendshipGain: 20, unlockedMessages }
+    return { message, friendshipGain, unlockedMessages }
   }
 
   /** 送礼给NPC (每天1次, 每周2次) */
@@ -1453,6 +1477,7 @@ export const useNpcStore = defineStore('npc', () => {
 
     const inventoryStore = useInventoryStore()
     if (!inventoryStore.removeItem(itemId, 1, quality)) return null
+    const cookingStore = useCookingStore()
 
     state.giftedToday = true
     state.giftsThisWeek++
@@ -1484,6 +1509,7 @@ export const useNpcStore = defineStore('npc', () => {
     gain = Math.floor(gain * qualityMultiplier[quality] * birthdayMultiplier * giftBonusMultiplier)
     state.friendship = Math.min(Math.max(0, state.friendship + gain), getEffectiveFriendshipCap(state))
     const unlockedMessages = syncRelationshipPerks(npcId)
+    const cookingTopic = gain > 0 ? cookingStore.consumeStoryTriggerRecord(FIXED_NPC_GIFT_COOKING_TOPIC_LABELS) : null
     if (npcDef.lovedItems.includes(itemId)) unlockScriptedGiftClue(npcId, itemId, 'loved')
     else if (npcDef.likedItems.includes(itemId)) unlockScriptedGiftClue(npcId, itemId, 'liked')
     else if (npcDef.hatedItems.includes(itemId)) unlockScriptedGiftClue(npcId, itemId, 'hated')
@@ -1500,6 +1526,13 @@ export const useNpcStore = defineStore('npc', () => {
         source: 'birthday',
         precision: 'confirmed'
       })
+    }
+    if (cookingTopic && gain > 0) {
+      const topicBonus = Math.max(1, Math.floor(gain * 0.08))
+      state.friendship = Math.min(state.friendship + topicBonus, getEffectiveFriendshipCap(state))
+      gain += topicBonus
+      unlockedMessages.push(...syncRelationshipPerks(npcId))
+      unlockedMessages.push(`${npcDef.name}认出了${cookingTopic.recipeName}里的送礼心意，额外增加了 ${topicBonus} 点好感。`)
     }
     const giftReturn = getNpcGiftReturn(npcId, getRelationshipStage(npcId))
     const returnedGift =

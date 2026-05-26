@@ -94,7 +94,7 @@
                   <Button class="py-0 px-1" @click="cancelRename">取消</Button>
                 </template>
                 <template v-else>
-                  <span class="text-xs text-accent">{{ companion.type === 'cat' ? '猫' : '狗' }} — {{ companion.name }}</span>
+                  <span class="text-xs text-accent">{{ getPetTypeLabel(companion.type) }} — {{ companion.name }}</span>
                   <button class="text-muted hover:text-accent" @click="startRename(companion.id, companion.name)">
                     <Pencil :size="10" />
                   </button>
@@ -550,11 +550,12 @@
           <div class="flex space-x-2 mb-3">
             <Button class="flex-1 justify-center" :class="petAdoptionType === 'cat' ? '!bg-accent !text-bg' : ''" @click="petAdoptionType = 'cat'">猫</Button>
             <Button class="flex-1 justify-center" :class="petAdoptionType === 'dog' ? '!bg-accent !text-bg' : ''" @click="petAdoptionType = 'dog'">狗</Button>
+            <Button class="flex-1 justify-center" :class="petAdoptionType === 'spirit' ? '!bg-accent !text-bg' : ''" @click="petAdoptionType = 'spirit'">灵宠</Button>
           </div>
           <input
             v-model="petAdoptionName"
             class="w-full bg-bg border border-accent/30 rounded-xs px-2 py-1 text-xs text-text focus:border-accent outline-none placeholder:text-muted/40 transition-colors mb-3"
-            :placeholder="petAdoptionType === 'dog' ? '田犬' : '狸奴'"
+            :placeholder="getPetAdoptionDefaultName(petAdoptionType)"
             maxlength="8"
           />
           <Button class="w-full justify-center" :disabled="!petAdoptionType" @click="handleAdoptAdditionalPet">带它回家</Button>
@@ -694,10 +695,11 @@
     getBuildingUpgrade,
     INCUBATION_MAP,
     FEED_DEFS,
-    getPetSpecialFeedTasteLabel
+    getPetSpecialFeedTasteLabel,
+    getPetTypeLabel
   } from '@/data'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
-  import type { AnimalBuildingType, AnimalType, AnimalDef, PetCareSlotSummary, PetState } from '@/types'
+  import type { AnimalBuildingType, AnimalType, AnimalDef, PetCareSlotSummary, PetState, PetType } from '@/types'
   import { addLog } from '@/composables/useGameLog'
   import { handleEndDay } from '@/composables/useEndDay'
   import { useTutorialStore } from '@/stores/useTutorialStore'
@@ -708,6 +710,12 @@
   const playerStore = usePlayerStore()
   const gameStore = useGameStore()
   const tutorialStore = useTutorialStore()
+  const petAdoptionDefaultNames: Record<PetType, string> = {
+    cat: '狸奴',
+    dog: '田犬',
+    spirit: '灵团'
+  }
+  const getPetAdoptionDefaultName = (type: PetType | null): string => (type ? petAdoptionDefaultNames[type] : '名字')
 
   const tutorialHint = computed(() => {
     if (!tutorialStore.enabled || gameStore.year > 1) return null
@@ -903,11 +911,16 @@
     return 'bg-danger'
   }
 
-  const getPetCompanionHint = (companion: { type: AnimalType | 'cat' | 'dog'; friendship: number }) => {
+  const getPetCompanionHint = (companion: { type: PetType; friendship: number }) => {
     if (companion.type === 'dog') {
       if (companion.friendship >= 850) return '田犬报喜：高好感时更常衔回小收获，也更容易替你嗅到节庆和来访的风声。'
       if (companion.friendship >= 600) return '田犬报喜：偶尔会在门前提醒你村口有动静。'
       return '多抚摸、多照看，田犬会越来越像家里的一位帮手。'
+    }
+    if (companion.type === 'spirit') {
+      if (companion.friendship >= 850) return '灵宠闻息：高好感时更容易循着草本和灵果气息带回丹材线索。'
+      if (companion.friendship >= 600) return '灵宠闻息：偶尔会在药架、果树或山路方向留下小提示。'
+      return '多陪陪它，灵宠会慢慢熟悉你的药草和果香。'
     }
     if (companion.friendship >= 850) return '猫叼线索：高好感时更常衔物，也会替你记住纸条和传闻。'
     if (companion.friendship >= 600) return '猫叼线索：偶尔会把你没留意的细节留在窗边或桌角。'
@@ -927,6 +940,7 @@
 
   const getPetPreferenceText = (companion: PetState): string => {
     if (companion.type === 'dog') return '偏好：饱腹 / 辛香'
+    if (companion.type === 'spirit') return '偏好：草本 / 灵果'
     return '偏好：清甜 / 芳香'
   }
 
@@ -1270,7 +1284,7 @@
   }
 
   const showPetAdoptionModal = ref(false)
-  const petAdoptionType = ref<'cat' | 'dog' | null>(null)
+  const petAdoptionType = ref<PetType | null>(null)
   const petAdoptionName = ref('')
 
   const closePetAdoptionModal = () => {
@@ -1281,7 +1295,7 @@
 
   const handleAdoptAdditionalPet = () => {
     if (!petAdoptionType.value) return
-    const defaultName = petAdoptionType.value === 'dog' ? '田犬' : '狸奴'
+    const defaultName = getPetAdoptionDefaultName(petAdoptionType.value)
     const adopted = animalStore.adoptPet(petAdoptionType.value, petAdoptionName.value.trim() || defaultName)
     if (adopted) {
       addLog(`家里又添了一位新成员「${petAdoptionName.value.trim() || defaultName}」。`)

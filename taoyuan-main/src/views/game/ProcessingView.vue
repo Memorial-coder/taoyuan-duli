@@ -162,11 +162,21 @@
                       @click="handleStartProcessing(originalIndex, option.recipeId)"
                     >
                       {{ option.displayName }}
+                      <span v-if="option.qualityLabel" class="text-muted">{{ option.qualityLabel }}</span>
                       <span v-if="option.inputItemName" class="text-muted">
                         ({{ option.inputItemName }} {{ option.count }}/{{ option.recipe.inputQuantity }})
                       </span>
                       <span v-for="extra in option.extraInputs" :key="extra.key" class="text-muted">
                         +{{ extra.itemName }} {{ extra.count }}/{{ extra.quantity }}
+                      </span>
+                      <span v-if="option.alchemyLimitText" class="text-muted">
+                        [{{ option.alchemyLimitText }}]
+                      </span>
+                      <span v-if="option.alchemyMetaText" class="text-muted">
+                        {{ option.alchemyMetaText }}
+                      </span>
+                      <span v-if="option.cropUseText" class="text-muted">
+                        {{ option.cropUseText }}
                       </span>
                     </Button>
                   </div>
@@ -193,6 +203,16 @@
 
               <!-- 完成 -->
               <div v-else>
+                <div
+                  v-if="slot.alchemyResult"
+                  class="mb-1.5 rounded-xs border border-accent/20 bg-accent/5 px-2 py-1 text-[10px] text-muted"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-accent">{{ slot.alchemyResult.label }}</span>
+                    <span>{{ getItemName(slot.alchemyResult.outputItemId) }}×{{ slot.alchemyResult.outputQuantity }}</span>
+                  </div>
+                  <p class="mt-0.5 leading-snug">{{ slot.alchemyResult.description }}</p>
+                </div>
                 <Button
                   class="w-full justify-center !bg-accent !text-bg"
                   :icon="Package"
@@ -200,7 +220,7 @@
                   :data-testid="`processing-collect-${slot.recipeId}`"
                   @click="handleCollect(originalIndex)"
                 >
-                  收取 {{ getRecipeOutputName(slot.recipeId) }}
+                  收取 {{ getSlotOutputName(slot) }}
                 </Button>
               </div>
             </div>
@@ -477,8 +497,15 @@
                 :disabled="option.disabled"
                 @click="selectBatchRecipe(option.recipeId)"
               >
-                <span class="truncate text-left">{{ option.displayName }}</span>
-                <span class="text-muted ml-2 whitespace-nowrap">{{ option.recipe.processingDays }}天</span>
+                <span class="truncate text-left">
+                  {{ option.displayName }}
+                  <span v-if="option.qualityLabel" class="text-muted">{{ option.qualityLabel }}</span>
+                  <span v-if="option.alchemyLimitText" class="text-muted">[{{ option.alchemyLimitText }}]</span>
+                  <span v-if="option.cropUseText" class="text-muted">{{ option.cropUseText }}</span>
+                </span>
+                <span class="text-muted ml-2 whitespace-nowrap">
+                  {{ option.alchemyMetaText || `${option.recipe.processingDays}天` }}
+                </span>
               </button>
               <p v-if="currentBatchOptions.length === 0" class="text-xs text-muted">
                 {{ currentBatchGroup?.emptyMessage }}
@@ -494,6 +521,9 @@
             <div class="flex items-center justify-between mb-1.5">
               <span class="text-xs">{{ currentBatchRecipe.name }}{{ batchQualityLabel }}</span>
               <span class="text-[10px] text-muted">{{ currentBatchRecipe.processingDays }}天/台</span>
+            </div>
+            <div v-if="currentBatchOption?.alchemyLimitText" class="text-[10px] text-muted mb-1.5">
+              {{ [currentBatchOption.alchemyLimitText, currentBatchOption.alchemyMetaText, currentBatchOption.cropUseText].filter(Boolean).join(' · ') }}
             </div>
             <div class="flex items-center space-x-1 mb-1.5">
               <Button class="h-6 px-1.5 py-0.5 text-xs justify-center" :disabled="batchQuantity <= 1" @click="addBatchQuantity(-1)">-</Button>
@@ -554,9 +584,14 @@
     SCARECROW,
     AUTO_PETTER,
     BOMBS,
+    ALCHEMY_HEAT_LABELS,
+    ALCHEMY_NATURE_LABELS,
+    ALCHEMY_PILL_ROLE_LABELS,
     getProcessingRecipeById
   } from '@/data/processing'
   import { getItemById, CHEST_DEFS, CHEST_TIER_ORDER } from '@/data/items'
+  import { getCropUseTagMatches } from '@/data/cropUseProfiles'
+  import type { CropUseTag } from '@/data/cropUseProfiles'
   import { ACTION_TIME_COSTS } from '@/data/timeConstants'
   import { sfxClick } from '@/composables/useAudio'
   import { addLog } from '@/composables/useGameLog'
@@ -598,6 +633,8 @@
   })
 
   const QUALITY_ORDER: Quality[] = ['normal', 'fine', 'excellent', 'supreme']
+  const getQualityRank = (quality: Quality) => QUALITY_ORDER.indexOf(quality)
+  const getQualitiesAtLeast = (minQuality: Quality): Quality[] => QUALITY_ORDER.slice(Math.max(0, getQualityRank(minQuality)))
 
   interface CombinedInventoryIndex {
     totalByItemId: Map<string, number>
@@ -624,6 +661,10 @@
     qualityLabel: string
     inputItemName: string | null
     extraInputs: RecipeInputViewModel[]
+    alchemyLimitText: string
+    alchemyMetaText: string
+    cropUseText: string
+    alchemyBlocked: boolean
   }
 
   interface MachineSlotViewModel {
@@ -688,6 +729,15 @@
   }
 
   const hasIndexedItem = (itemId: string, quantity: number = 1, quality?: Quality) => getIndexedItemCount(itemId, quality) >= quantity
+  const getIndexedItemCountAtMinQuality = (itemId: string, minQuality: Quality): number =>
+    getQualitiesAtLeast(minQuality).reduce((sum, quality) => sum + getIndexedItemCount(itemId, quality), 0)
+
+  const uniqueStrings = (values: string[]): string[] => Array.from(new Set(values.filter(Boolean)))
+
+  const formatCropUseTags = (itemIds: string[], tags: CropUseTag[]): string => {
+    const labels = uniqueStrings(itemIds.flatMap(itemId => getCropUseTagMatches(itemId, tags).map(match => match.label)))
+    return labels.length > 0 ? `用途：${labels.join('、')}` : ''
+  }
 
   const canAffordCraft = (craftCost: { itemId: string; quantity: number }[], craftMoney: number): boolean => {
     if (playerStore.money < craftMoney) return false
@@ -710,8 +760,20 @@
   }
 
   const buildRecipeOption = (recipe: ProcessingRecipeDef, quality?: Quality): RecipeOptionViewModel => {
-    const count = recipe.inputItemId ? getIndexedItemCount(recipe.inputItemId, quality) : 0
-    const inputAvailable = recipe.inputItemId === null || hasIndexedItem(recipe.inputItemId, recipe.inputQuantity, quality)
+    const count = recipe.inputItemId
+      ? quality
+        ? getIndexedItemCount(recipe.inputItemId, quality)
+        : recipe.minInputQuality
+          ? getIndexedItemCountAtMinQuality(recipe.inputItemId, recipe.minInputQuality)
+          : getIndexedItemCount(recipe.inputItemId)
+      : 0
+    const inputAvailable =
+      recipe.inputItemId === null ||
+      (quality
+        ? hasIndexedItem(recipe.inputItemId, recipe.inputQuantity, quality)
+        : recipe.minInputQuality
+          ? getIndexedItemCountAtMinQuality(recipe.inputItemId, recipe.minInputQuality) >= recipe.inputQuantity
+          : hasIndexedItem(recipe.inputItemId, recipe.inputQuantity))
     const extraInputs = (recipe.extraInputs ?? []).map(extra => ({
       key: `${recipe.id}:${extra.itemId}`,
       itemId: extra.itemId,
@@ -720,6 +782,18 @@
       quantity: extra.quantity
     }))
     const available = inputAvailable && extraInputs.every(extra => extra.count >= extra.quantity)
+    const alchemyLimit = processingStore.getAlchemyDailyLimitStatus(recipe.id)
+    const alchemyLimitText = alchemyLimit ? `${ALCHEMY_PILL_ROLE_LABELS[alchemyLimit.role]} ${alchemyLimit.used}/${alchemyLimit.limit}` : ''
+    const alchemyMetaText = recipe.alchemy
+      ? `${ALCHEMY_NATURE_LABELS[recipe.alchemy.nature]} · ${ALCHEMY_HEAT_LABELS[recipe.alchemy.heat]}`
+      : ''
+    const cropUseText =
+      recipe.alchemy
+        ? formatCropUseTags(
+            [recipe.inputItemId, ...(recipe.extraInputs?.map(extra => extra.itemId) ?? [])].filter((itemId): itemId is string => !!itemId),
+            ['alchemy', 'medicine']
+          )
+        : ''
 
     return {
       key: quality ? `${recipe.id}:${quality}` : recipe.id,
@@ -728,11 +802,15 @@
       quality,
       count,
       available,
-      disabled: !available,
+      disabled: !available || !!alchemyLimit?.blocked,
       displayName: recipe.name,
-      qualityLabel: quality && quality !== 'normal' ? `[${QUALITY_NAMES[quality]}]` : '',
+      qualityLabel: quality && quality !== 'normal' ? `[${QUALITY_NAMES[quality]}]` : recipe.minInputQuality ? `[${QUALITY_NAMES[recipe.minInputQuality]}以上]` : '',
       inputItemName: recipe.inputItemId ? getItemName(recipe.inputItemId) : null,
-      extraInputs
+      extraInputs,
+      alchemyLimitText,
+      alchemyMetaText,
+      cropUseText,
+      alchemyBlocked: !!alchemyLimit?.blocked
     }
   }
 
@@ -973,6 +1051,9 @@
     for (const extra of option.extraInputs) {
       limit = Math.min(limit, Math.floor(extra.count / extra.quantity))
     }
+    if (option.recipe.alchemy) {
+      limit = Math.min(limit, processingStore.getAlchemyDailyLimitStatus(option.recipe.id)?.remaining ?? 0)
+    }
 
     return Math.max(limit, 0)
   }
@@ -1009,6 +1090,13 @@
       addLog(`开始批量加工${recipe.name}${batchQualityLabel.value} ×${started}。`)
       batchProcessModal.value = null
       return
+    }
+    if (recipe.alchemy) {
+      const status = processingStore.getAlchemyDailyLimitStatus(recipe.id)
+      if (status?.blocked) {
+        addLog(`今日${ALCHEMY_PILL_ROLE_LABELS[status.role]}炼制次数已达上限。`)
+        return
+      }
     }
     addLog('空闲机器不足或材料不足，无法开始批量加工。')
   }
@@ -1353,6 +1441,11 @@
     return getItemById(recipe.outputItemId)?.name ?? recipe.name
   }
 
+  const getSlotOutputName = (slot: ProcessingSlot): string => {
+    if (slot.alchemyResult) return getItemName(slot.alchemyResult.outputItemId)
+    return slot.recipeId ? getRecipeOutputName(slot.recipeId) : ''
+  }
+
   // === 制造处理 ===
 
   const handleCraftMachine = (machineType: MachineType) => {
@@ -1622,6 +1715,14 @@
       const qualityLabel = quality && quality !== 'normal' ? `(${QUALITY_NAMES[quality]})` : ''
       addLog(`开始加工${recipe?.name ?? recipeId}${qualityLabel}，需要${recipe?.processingDays ?? '?'}天。`)
     } else {
+      const recipe = getProcessingRecipeById(recipeId)
+      if (recipe?.alchemy) {
+        const status = processingStore.getAlchemyDailyLimitStatus(recipeId)
+        if (status?.blocked) {
+          addLog(`今日${ALCHEMY_PILL_ROLE_LABELS[status.role]}炼制次数已达上限。`)
+          return
+        }
+      }
       addLog('原料不足或机器正在使用。')
     }
   }

@@ -1,4 +1,104 @@
-import type { RecipeDef } from '@/types'
+import type { RecipeCategory, RecipeDef, RecipeStoryTrigger } from '@/types'
+
+export const RECIPE_CATEGORY_LABELS: Record<RecipeCategory, string> = {
+  home: '家常菜',
+  festival: '节会菜',
+  pet_meal: '宠物餐',
+  travel_ration: '旅途干粮',
+  banquet: '宴席菜'
+}
+
+export const RECIPE_STORY_TRIGGER_LABELS: Record<RecipeStoryTrigger, string> = {
+  npc_visit: 'NPC 来访话题',
+  festival: '节会剧情',
+  pet_feedback: '宠物反馈',
+  travel: '旅途补给',
+  family_banquet: '家宴团圆',
+  order: '订单委托',
+  gift_scene: '送礼话题'
+}
+
+const RECIPE_STORY_TRIGGER_OVERRIDES: Record<string, RecipeStoryTrigger[]> = {
+  stir_fried_cabbage: ['npc_visit'],
+  radish_soup: ['npc_visit'],
+  braised_carp: ['npc_visit', 'gift_scene'],
+  osmanthus_cake: ['gift_scene', 'festival'],
+  candied_peach_spirit_cake: ['festival', 'pet_feedback', 'gift_scene'],
+  spicy_pumpkin_ration: ['festival', 'travel'],
+  spicy_boat_rice_ball: ['festival', 'travel'],
+  rice_flour_roll: ['travel'],
+  dried_vegetable_soup: ['travel', 'order'],
+  harvest_feast: ['festival', 'family_banquet'],
+  pumpkin_harvest_cauldron: ['family_banquet', 'order'],
+  lotus_lantern_cake: ['festival', 'gift_scene'],
+  new_year_dumpling: ['festival', 'family_banquet'],
+  legendary_feast: ['family_banquet'],
+  collectors_banquet: ['family_banquet', 'gift_scene'],
+  peacock_feast: ['family_banquet']
+}
+
+const RECIPE_CATEGORY_OVERRIDES: Record<string, RecipeCategory[]> = {
+  stir_fried_cabbage: ['home'],
+  radish_soup: ['home'],
+  scrambled_egg_rice: ['home'],
+  congee: ['home'],
+  vegetable_soup: ['home'],
+  candied_peach_spirit_cake: ['festival', 'pet_meal'],
+  spicy_pumpkin_ration: ['festival', 'travel_ration'],
+  spicy_boat_rice_ball: ['festival', 'travel_ration'],
+  rice_flour_roll: ['travel_ration'],
+  dried_vegetable_soup: ['travel_ration'],
+  harvest_feast: ['festival', 'banquet'],
+  pumpkin_harvest_cauldron: ['home', 'banquet'],
+  spicy_hotpot: ['banquet'],
+  legendary_feast: ['banquet'],
+  collectors_banquet: ['banquet'],
+  peacock_feast: ['banquet']
+}
+
+const deriveRecipeCategories = (recipe: RecipeDef): RecipeCategory[] => {
+  const text = `${recipe.id} ${recipe.name} ${recipe.unlockSource} ${recipe.description}`
+  const categories: RecipeCategory[] = []
+
+  if (/节|祭|宴|除夕|端午|中秋|七夕|重阳|冬至|元日|花朝|上巳|腊八|赛舟|风筝|烟花/.test(text)) categories.push('festival')
+  if (/宠物|灵宠|灵果|pet/.test(text)) categories.push('pet_meal')
+  if (/干粮|口粮|便当|饭团|赶路|旅|护送|耐储|携带|矿工/.test(text)) categories.push('travel_ration')
+  if (/宴|盛宴|大锅|火锅|拼盘|特供|家宴/.test(text)) categories.push('banquet')
+  if (categories.length === 0 || /家常|初始自带|简单|朴素|家庭餐桌|清淡|主食/.test(text)) categories.unshift('home')
+
+  return Array.from(new Set(categories))
+}
+
+const deriveRecipeStoryTriggers = (recipe: RecipeDef): RecipeStoryTrigger[] => {
+  const text = `${recipe.id} ${recipe.name} ${recipe.unlockSource} ${recipe.description}`
+  const triggers: RecipeStoryTrigger[] = []
+
+  if (/好感|送礼|伴手礼|待客|社交|话题/.test(text) || recipe.effect.buff?.type === 'giftBonus') triggers.push('gift_scene')
+  if (/节|祭|宴|除夕|端午|中秋|七夕|重阳|冬至|元日|花朝|上巳|腊八|赛舟|风筝|烟花/.test(text)) triggers.push('festival')
+  if (/宠物|灵宠|灵果|pet/.test(text)) triggers.push('pet_feedback')
+  if (/干粮|口粮|便当|饭团|赶路|旅|护送|耐储|携带|矿工/.test(text)) triggers.push('travel')
+  if (/家宴|家常|家庭餐桌|团圆|大锅|盛宴|火锅/.test(text)) triggers.push('family_banquet')
+  if (/订单|委托|修桥|公共|仓|慰劳/.test(text)) triggers.push('order')
+  if (triggers.length === 0) triggers.push('npc_visit')
+
+  return Array.from(new Set(triggers))
+}
+
+export const getRecipeCategories = (recipe: RecipeDef): RecipeCategory[] => {
+  return recipe.categoryTags ?? RECIPE_CATEGORY_OVERRIDES[recipe.id] ?? deriveRecipeCategories(recipe)
+}
+
+export const getRecipeCategoryLabels = (recipe: RecipeDef): string[] => {
+  return getRecipeCategories(recipe).map(category => RECIPE_CATEGORY_LABELS[category])
+}
+
+export const getRecipeStoryTriggers = (recipe: RecipeDef): RecipeStoryTrigger[] => {
+  return recipe.storyTriggers ?? RECIPE_STORY_TRIGGER_OVERRIDES[recipe.id] ?? deriveRecipeStoryTriggers(recipe)
+}
+
+export const getRecipeStoryTriggerLabels = (recipe: RecipeDef): string[] => {
+  return getRecipeStoryTriggers(recipe).map(trigger => RECIPE_STORY_TRIGGER_LABELS[trigger])
+}
 
 /** 所有食谱定义 */
 export const RECIPES: RecipeDef[] = [

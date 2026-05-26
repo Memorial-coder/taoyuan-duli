@@ -2,6 +2,8 @@ import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
 import type { RecipeDef, Quality } from '@/types'
 import { getRecipeById } from '@/data'
+import { getAlchemyRecipeByOutputItemId } from '@/data/processing'
+import { getRecipeCategoryLabels, getRecipeStoryTriggerLabels } from '@/data/recipes'
 import { useInventoryStore } from './useInventoryStore'
 import { usePlayerStore } from './usePlayerStore'
 import { useSkillStore } from './useSkillStore'
@@ -49,6 +51,87 @@ const isInstantStaminaRestoreBuff = (buff: RecipeDef['effect']['buff'] | null | 
 const getTemporaryMaxStaminaBuffAmount = (buff: RecipeDef['effect']['buff'] | null | undefined) =>
   buff?.type === 'stamina' && getBuffDescription(buff).includes('体力上限+') ? Math.max(0, Math.floor(buff.value)) : 0
 
+type ActiveAlchemyElixir = {
+  itemId: string
+  name: string
+  description: string
+  staminaRestore?: number
+  miningStaminaReduction?: number
+  journeyStaminaReduction?: number
+  giftBonusMultiplier?: number
+  actionSpeedBonus?: number
+  defenseReduction?: number
+}
+
+export type CookingStoryTriggerRecord = {
+  id: string
+  recipeId: string
+  recipeName: string
+  quantity: number
+  categoryLabels: string[]
+  triggerLabels: string[]
+  createdAt: number
+}
+
+const STORY_TRIGGER_RECORD_LIMIT = 8
+
+const normalizeReduction = (value: unknown) => {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return 0
+  return Math.max(0, Math.min(0.45, numericValue))
+}
+
+const normalizeMultiplier = (value: unknown, fallback = 1) => {
+  const numericValue = Number(value)
+  if (!Number.isFinite(numericValue)) return fallback
+  return Math.max(0.1, Math.min(3, numericValue))
+}
+
+const normalizeActiveElixir = (value: unknown): ActiveAlchemyElixir | null => {
+  if (!value || typeof value !== 'object') return null
+  const raw = value as Partial<ActiveAlchemyElixir>
+  if (typeof raw.itemId !== 'string' || typeof raw.name !== 'string' || typeof raw.description !== 'string') return null
+  return {
+    itemId: raw.itemId,
+    name: raw.name,
+    description: raw.description,
+    staminaRestore: raw.staminaRestore === undefined ? undefined : Math.max(0, Math.floor(Number(raw.staminaRestore) || 0)),
+    miningStaminaReduction: raw.miningStaminaReduction === undefined ? undefined : normalizeReduction(raw.miningStaminaReduction),
+    journeyStaminaReduction: raw.journeyStaminaReduction === undefined ? undefined : normalizeReduction(raw.journeyStaminaReduction),
+    giftBonusMultiplier: raw.giftBonusMultiplier === undefined ? undefined : normalizeMultiplier(raw.giftBonusMultiplier),
+    actionSpeedBonus: raw.actionSpeedBonus === undefined ? undefined : normalizeReduction(raw.actionSpeedBonus),
+    defenseReduction: raw.defenseReduction === undefined ? undefined : normalizeReduction(raw.defenseReduction)
+  }
+}
+
+const normalizeStringArray = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return []
+  return Array.from(new Set(value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)))
+}
+
+const normalizeStoryTriggerRecords = (value: unknown): CookingStoryTriggerRecord[] => {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((raw): CookingStoryTriggerRecord | null => {
+      if (!raw || typeof raw !== 'object') return null
+      const record = raw as Partial<CookingStoryTriggerRecord>
+      if (typeof record.recipeId !== 'string' || typeof record.recipeName !== 'string') return null
+      const triggerLabels = normalizeStringArray(record.triggerLabels)
+      if (triggerLabels.length === 0) return null
+      return {
+        id: typeof record.id === 'string' ? record.id : `${record.recipeId}-${Number(record.createdAt) || Date.now()}`,
+        recipeId: record.recipeId,
+        recipeName: record.recipeName,
+        quantity: Math.max(1, Math.floor(Number(record.quantity) || 1)),
+        categoryLabels: normalizeStringArray(record.categoryLabels),
+        triggerLabels,
+        createdAt: Number.isFinite(Number(record.createdAt)) ? Number(record.createdAt) : Date.now()
+      }
+    })
+    .filter((record): record is CookingStoryTriggerRecord => record !== null)
+    .slice(0, STORY_TRIGGER_RECORD_LIMIT)
+}
+
 export const useCookingStore = defineStore('cooking', () => {
   const inventoryStore = useInventoryStore()
   const playerStore = usePlayerStore()
@@ -76,6 +159,8 @@ export const useCookingStore = defineStore('cooking', () => {
 
   /** 当天生效的食物增益 */
   const activeBuff = ref<RecipeDef['effect']['buff'] | null>(null)
+  const activeElixir = ref<ActiveAlchemyElixir | null>(null)
+  const storyTriggerRecords = ref<CookingStoryTriggerRecord[]>([])
 
   const syncTemporaryMaxStaminaBuff = (buff: RecipeDef['effect']['buff'] | null | undefined = activeBuff.value) => {
     playerStore.setTemporaryFoodMaxStaminaBonus(getTemporaryMaxStaminaBuffAmount(buff))
@@ -100,8 +185,24 @@ export const useCookingStore = defineStore('cooking', () => {
           ? activeBuff.value.value * 0.01
           : 0
       : 0
+  const getActiveAlchemyMiningStaminaReduction = () => activeElixir.value?.miningStaminaReduction ?? 0
+  const getActiveAlchemyJourneyStaminaReduction = () => activeElixir.value?.journeyStaminaReduction ?? 0
+  const getActiveAlchemyGiftBonusMultiplier = () => activeElixir.value?.giftBonusMultiplier ?? 1
+  const getActiveAlchemyActionSpeedBonus = () => activeElixir.value?.actionSpeedBonus ?? 0
+  const getActiveAlchemyDefenseReduction = () => activeElixir.value?.defenseReduction ?? 0
   const getActiveDefenseReduction = () => (activeBuff.value?.type === 'defense' && isDefenseReductionBuff(activeBuff.value) ? activeBuff.value.value / 100 : 0)
   const getActiveDefenseFlatBonus = () => (activeBuff.value?.type === 'defense' && isDefenseFlatBuff(activeBuff.value) ? activeBuff.value.value : 0)
+  const recentStoryTriggerRecords = computed(() => storyTriggerRecords.value.slice(0, STORY_TRIGGER_RECORD_LIMIT))
+
+  const consumeStoryTriggerRecord = (preferredLabels: string[] = []): CookingStoryTriggerRecord | null => {
+    const preferredIndex = preferredLabels.length > 0
+      ? storyTriggerRecords.value.findIndex(record => record.triggerLabels.some(label => preferredLabels.includes(label)))
+      : -1
+    const targetIndex = preferredIndex >= 0 ? preferredIndex : storyTriggerRecords.value.length > 0 ? 0 : -1
+    if (targetIndex < 0) return null
+    const [record] = storyTriggerRecords.value.splice(targetIndex, 1)
+    return record ?? null
+  }
 
   /** 已解锁的食谱定义 */
   const recipes = computed(() => unlockedRecipes.value.map(id => getRecipeById(id)).filter((r): r is RecipeDef => r !== undefined))
@@ -192,9 +293,25 @@ export const useCookingStore = defineStore('cooking', () => {
     for (let i = 0; i < maxPossible; i++) {
       useAchievementStore().recordRecipeCooked(recipe.id)
     }
+    const storyTriggerLabels = getRecipeStoryTriggerLabels(recipe)
+    if (storyTriggerLabels.length > 0) {
+      storyTriggerRecords.value = [
+        {
+          id: `${Date.now()}-${recipe.id}-${storyTriggerRecords.value.length}`,
+          recipeId: recipe.id,
+          recipeName: recipe.name,
+          quantity: maxPossible,
+          categoryLabels: getRecipeCategoryLabels(recipe),
+          triggerLabels: storyTriggerLabels,
+          createdAt: Date.now()
+        },
+        ...storyTriggerRecords.value
+      ].slice(0, STORY_TRIGGER_RECORD_LIMIT)
+    }
     const qualityTag = QUALITY_LABEL[resultQuality] ? `【${QUALITY_LABEL[resultQuality]}】` : ''
     const qtyTag = maxPossible > 1 ? `${maxPossible}份` : ''
-    return { success: true, message: `烹饪了${qtyTag}${qualityTag}${recipe.name}！` }
+    const storyHint = storyTriggerLabels.length > 0 ? ` 可作为：${storyTriggerLabels.join('、')}。` : ''
+    return { success: true, message: `烹饪了${qtyTag}${qualityTag}${recipe.name}！${storyHint}` }
   }
 
   /** 食用烹饪品 */
@@ -259,6 +376,36 @@ export const useCookingStore = defineStore('cooking', () => {
     return { success: true, message: msg }
   }
 
+  const useElixir = (itemId: string, quality: Quality = 'normal'): { success: boolean; message: string } => {
+    const recipe = getAlchemyRecipeByOutputItemId(itemId)
+    const itemName = recipe?.outputItemId ? recipe.name : itemId
+    if (!recipe?.alchemy) return { success: false, message: '这枚丹药暂时没有可用效果。' }
+    if (activeElixir.value) {
+      return { success: false, message: `今日已服用${activeElixir.value.name}，丹药效果不可叠加。` }
+    }
+    if (!inventoryStore.removeItem(itemId, 1, quality)) {
+      return { success: false, message: '背包中没有这枚丹药。' }
+    }
+
+    const effect = recipe.alchemy.effect
+    const active: ActiveAlchemyElixir = {
+      itemId,
+      name: recipe.name,
+      description: effect.description,
+      staminaRestore: effect.staminaRestore,
+      miningStaminaReduction: effect.miningStaminaReduction,
+      journeyStaminaReduction: effect.journeyStaminaReduction,
+      giftBonusMultiplier: effect.giftBonusMultiplier,
+      actionSpeedBonus: effect.actionSpeedBonus,
+      defenseReduction: effect.defenseReduction
+    }
+    activeElixir.value = normalizeActiveElixir(active)
+    if (activeElixir.value?.staminaRestore) {
+      playerStore.restoreStamina(activeElixir.value.staminaRestore)
+    }
+    return { success: true, message: `服用了${itemName}：${effect.description}。今日不能再叠加其他丹药。` }
+  }
+
   /** 解锁食谱 */
   const unlockRecipe = (recipeId: string): boolean => {
     if (unlockedRecipes.value.includes(recipeId)) return false
@@ -275,27 +422,44 @@ export const useCookingStore = defineStore('cooking', () => {
       syncTemporaryMaxStaminaBuff(null)
       activeBuff.value = null
     }
+    activeElixir.value = null
   }
 
   const serialize = () => {
-    return { unlockedRecipes: unlockedRecipes.value, activeBuff: activeBuff.value }
+    return {
+      unlockedRecipes: unlockedRecipes.value,
+      activeBuff: activeBuff.value,
+      activeElixir: activeElixir.value,
+      storyTriggerRecords: storyTriggerRecords.value
+    }
   }
 
   const deserialize = (data: ReturnType<typeof serialize>) => {
     unlockedRecipes.value = Array.isArray(data?.unlockedRecipes) ? data.unlockedRecipes : unlockedRecipes.value
     const nextBuff = normalizeActiveBuff(data?.activeBuff)
     activeBuff.value = nextBuff
+    activeElixir.value = normalizeActiveElixir((data as any)?.activeElixir)
+    storyTriggerRecords.value = normalizeStoryTriggerRecords((data as any)?.storyTriggerRecords)
     syncTemporaryMaxStaminaBuff(activeBuff.value)
   }
 
   return {
     unlockedRecipes,
     activeBuff,
+    activeElixir,
+    storyTriggerRecords,
+    recentStoryTriggerRecords,
+    consumeStoryTriggerRecord,
     getActiveFarmingSkillBonus,
     getActiveFishingSkillBonus,
     getActiveMiningSkillBonus,
     getActiveFarmingStaminaReduction,
     getActiveMiningStaminaReduction,
+    getActiveAlchemyMiningStaminaReduction,
+    getActiveAlchemyJourneyStaminaReduction,
+    getActiveAlchemyGiftBonusMultiplier,
+    getActiveAlchemyActionSpeedBonus,
+    getActiveAlchemyDefenseReduction,
     getActiveDefenseReduction,
     getActiveDefenseFlatBonus,
     recipes,
@@ -304,6 +468,7 @@ export const useCookingStore = defineStore('cooking', () => {
     previewCookQuality,
     cook,
     eat,
+    useElixir,
     unlockRecipe,
     dailyReset,
     serialize,
