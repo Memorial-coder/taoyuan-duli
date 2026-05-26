@@ -2,6 +2,7 @@
 
 最后整理：2026-05-26
 
+- 家族建筑真实拆除个人主状态精确变更新增山洞用途 selector：后端适配器支持 `home.caveChoice.mushroom` / `home.caveChoice.fruit_bat`，仅在个人存档当前山洞用途与 selector 完全一致时复位为 `none`，并保留 `home.caveUnlocked`；前端“执行变更”按钮同步允许 `home.caveChoice` 窄路径，专项 QA 扩成三名成员覆盖宅院改造删除、未放置装饰撤回、山洞用途复位、三人确认、回执、幂等、审计和共同资产边界。
 - 家族建筑真实拆除个人主状态精确变更反作弊护栏补强：后端在精确目标绑定与人工解析阶段统一校验 `exact_target_ref` 和 `delete_selector`，要求二者位于候选宽路径下一层安全 ID 且指向同一目标，并拒绝 bracket、嵌套路径和不安全字符；`target_kind` 必须与候选路径一致，防止把 `home` / `decoration` 目标互相伪装。前端“执行变更”按钮同步收紧 selector 判断，专项 QA 覆盖 selector 不一致、`target_kind` 伪装和不安全 child selector 拒绝，仍只开放三类已验证窄 selector。
 - 家族建筑真实拆除个人主状态精确变更 selector 覆盖扩展：后端适配器新增 `decoration.owned.<decorationId>`，只允许撤回一件未放置装饰库存；若没有拥有数量、没有余量或会导致已放置数量超过拥有数量则拒绝。前端“执行变更”按钮同步允许该窄 selector，专项 QA 覆盖同一条拆除链路中删除宅院改造与撤回未放置装饰库存，并确认已放置装饰、共同基金、共同仓库、个人铜币和背包不变。
 - 家族建筑真实拆除个人主状态精确变更前端入口接入：前端 API / store 接入 `/family-buildings/real-demolition/execute-main-state-exact-mutation`，共同庄园建筑流水卡片新增“执行变更”按钮；按钮只在已完成人工解析、执行状态为 `blocked_personal_main_state_mutation_adapter_missing`、manifest hash 和目标清单存在、尚未执行，并且目标 selector 属于 `home.homeRenovationStates.<id>`、`decoration.placed.<id>` 或 `decoration.owned.<id>` 这三类窄路径时开放。提交后展示变更人、时间、回执数、策略和 `personal_main_state_mutated` 状态；该入口仍不改共同基金、共同仓库、个人铜币、背包或农田。

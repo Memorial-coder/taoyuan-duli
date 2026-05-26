@@ -5786,6 +5786,29 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
     };
   }
 
+  if (candidatePath === 'home.caveChoice') {
+    if (!data.home || typeof data.home !== 'object') data.home = {};
+    const currentChoice = sanitizeText(data.home.caveChoice || 'none', 40);
+    if (!['mushroom', 'fruit_bat'].includes(childKey)) {
+      throw createError('个人山洞用途目标只支持 mushroom 或 fruit_bat', 409);
+    }
+    if (currentChoice !== childKey) {
+      throw createError('个人山洞用途目标与当前存档不一致，不能执行真实复位', 409);
+    }
+    return {
+      target_id: childKey,
+      target_kind: 'home_cave_choice',
+      before_value: currentChoice,
+      apply() {
+        data.home.caveChoice = 'none';
+        return {
+          mutation_result: 'home_cave_choice_reset',
+          after_value: data.home.caveChoice,
+        };
+      },
+    };
+  }
+
   if (candidatePath === 'decoration.placed') {
     if (!data.decoration || typeof data.decoration !== 'object') data.decoration = {};
     if (!data.decoration.placed || typeof data.decoration.placed !== 'object' || Array.isArray(data.decoration.placed)) {
@@ -5843,7 +5866,7 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
     };
   }
 
-  throw createError('个人主状态变更适配器第一版只支持宅院改造状态、已放置装饰和未放置装饰库存目标', 409);
+  throw createError('个人主状态变更适配器第一版只支持宅院改造状态、山洞用途、已放置装饰和未放置装饰库存目标', 409);
 }
 
 function applyFamilyBuildingMainStateExactMutationToPersonalSaves(contract = {}, buildingEntry = {}, payload = {}) {

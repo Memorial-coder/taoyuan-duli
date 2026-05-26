@@ -4,6 +4,12 @@
 
 ## [未发布]
 
+### 0526 家族建筑真实拆除个人主状态山洞用途 selector
+- 后端精确变更适配器新增 `home.caveChoice.mushroom` / `home.caveChoice.fruit_bat` 窄 selector，只在个人存档当前山洞用途与 child key 完全一致时复位为 `none`。
+- 山洞用途复位保留 `home.caveUnlocked`，不触碰个人铜币、背包、农田、共同基金或共同仓库；个人存档仍写入 `real_build_main_state_mutation_receipts` 供审计、补偿和断线幂等读回。
+- 前端“执行变更”按钮同步允许 `home.caveChoice`，在线 UI 结构 QA 增加该 selector 守护；专项 QA 扩成三名家族成员，覆盖宅院改造删除、未放置装饰撤回和山洞用途复位。
+- 本轮验证：`node --check server/src/taoyuanCohabitationRuntime.js`、`node --check server/src/routes/api.js`、`node --check server/scripts/qa-cohabitation-contract.mjs`、`npm --prefix server run qa:cohabitation-contract`、`npm --prefix taoyuan-main run qa:online-ui-structure`、`npm --prefix taoyuan-main run type-check`、`npm --prefix taoyuan-main run build`。
+
 ### 0526 家族建筑真实拆除个人主状态精确变更反作弊护栏
 - 后端精确目标绑定和人工解析统一使用安全 selector 解析：`exact_target_ref` 与 `delete_selector` 必须位于候选宽路径下一层安全 ID，且二者必须指向同一个 child key。
 - `target_kind` 必须与候选路径一致，`home.*` 只允许 `home`，`decoration.*` 只允许 `decoration`，防止人工解析阶段伪装目标类型。
