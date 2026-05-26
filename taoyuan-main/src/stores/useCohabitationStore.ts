@@ -10,6 +10,7 @@ import {
   consumeCohabitationFamilyBuildingMaterials,
   contributeCohabitationFund,
   careCohabitationSharedPlot,
+  collectCohabitationSharedAnimalProduct,
   createCohabitationContract,
   createCohabitationFundLargeSpendDraft,
   createCohabitationSeparationPreview,
@@ -100,6 +101,7 @@ import {
   type CohabitationSeparationSharedWarehouseReturnPayload,
   type CohabitationSharedAnimalFeedPayload,
   type CohabitationSharedAnimalPetPayload,
+  type CohabitationSharedAnimalProductPayload,
   type CohabitationSharedAnimals,
   type CohabitationSharedFarmHarvestPayload,
   type CohabitationSharedFarmFertilizePayload,
@@ -1440,6 +1442,25 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     }
   }
 
+  const collectSharedAnimalProduct = async (payload: CohabitationSharedAnimalProductPayload) => {
+    if (!activeContractId.value || !canOpenSelectedContract.value || !payload.animal_id) return null
+    actionLoading.value = true
+    errorMessage.value = ''
+    try {
+      const result = await collectCohabitationSharedAnimalProduct(activeContractId.value, payload)
+      if (result?.shared_animals) sharedAnimals.value = result.shared_animals
+      if (result?.warehouse) warehouse.value = result.warehouse
+      if (result?.contract) syncOverviewContract(result.contract)
+      await refreshSelectedDetails({ silent: true })
+      return result
+    } catch (error) {
+      errorMessage.value = error instanceof Error ? error.message : '收取共同动物产物失败'
+      throw error
+    } finally {
+      actionLoading.value = false
+    }
+  }
+
   const updateMemberPermissions = async (payload: {
     target_username: string
     permissions: Record<string, Record<string, boolean>>
@@ -1574,6 +1595,7 @@ export const useCohabitationStore = defineStore('onlineCohabitation', () => {
     harvestSharedFarmPlot,
     feedSharedAnimal,
     petSharedAnimal,
+    collectSharedAnimalProduct,
     updateMemberPermissions,
     updateMemberRole,
   }

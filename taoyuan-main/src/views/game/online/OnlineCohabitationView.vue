@@ -554,7 +554,7 @@
           <div class="game-panel-muted p-3" data-testid="online-cohabitation-shared-animals-panel">
             <div class="flex items-center justify-between gap-2">
               <p class="text-sm text-accent">共同动物照料</p>
-              <span class="text-[10px] text-muted">{{ cohabitationStore.sharedAnimals?.summary.animal_count ?? 0 }} 只</span>
+              <span class="text-[10px] text-muted">{{ cohabitationStore.sharedAnimals?.summary.animal_count ?? 0 }} 只 · {{ cohabitationStore.sharedAnimals?.summary.product_ready_count ?? 0 }} 待收</span>
             </div>
             <div v-if="sharedAnimals.length === 0" class="mt-3 text-xs leading-5 text-muted">当前没有可照料的共同动物。</div>
             <div v-else class="mt-3 space-y-3">
@@ -570,7 +570,7 @@
                 >
                   <p class="truncate text-xs text-text">{{ animal.name || animal.type }}</p>
                   <p class="mt-1 text-[10px] text-muted">
-                    {{ animal.origin_owner_display_name || animal.origin_owner_username }} · {{ animal.permission_mode }} · {{ animal.animal_state.was_fed ? '已喂' : '待喂' }} · {{ animal.animal_state.was_petted ? '已摸' : '待摸' }}
+                    {{ animal.origin_owner_display_name || animal.origin_owner_username }} · {{ animal.permission_mode }} · {{ animal.animal_state.was_fed ? '已喂' : '待喂' }} · {{ animal.animal_state.was_petted ? '已摸' : '待摸' }} · {{ sharedAnimalProductStatus(animal) }}
                   </p>
                 </button>
               </div>
@@ -580,8 +580,9 @@
                 <p class="mt-1">照料：{{ selectedSharedAnimal.current_keeper_display_name || selectedSharedAnimal.current_keeper_username || '未记录' }}</p>
                 <p class="mt-1">饲料：{{ selectedSharedAnimal.animal_state.fed_with || '无' }} · 饥饿 {{ selectedSharedAnimal.animal_state.hunger }}</p>
                 <p class="mt-1">抚摸：{{ selectedSharedAnimal.animal_state.was_petted ? '已完成' : '待照料' }} · 心情 {{ selectedSharedAnimal.animal_state.mood }}</p>
+                <p class="mt-1">产物：{{ sharedAnimalProductStatus(selectedSharedAnimal) }}</p>
               </div>
-              <div class="grid gap-2 sm:grid-cols-2">
+              <div class="grid gap-2 sm:grid-cols-3">
                 <button
                   class="online-action-btn online-action-btn--compact justify-center"
                   type="button"
@@ -601,6 +602,16 @@
                 >
                   <Heart :size="12" />
                   抚摸
+                </button>
+                <button
+                  class="online-action-btn online-action-btn--compact justify-center"
+                  type="button"
+                  :disabled="!canCollectSelectedSharedAnimalProduct || cohabitationStore.actionLoading"
+                  data-testid="online-cohabitation-shared-animal-collect-product"
+                  @click="collectSelectedSharedAnimalProduct"
+                >
+                  <Package :size="12" />
+                  收取入仓
                 </button>
               </div>
               <p v-if="sharedAnimalActionMessage" class="text-[10px] leading-4" :class="sharedAnimalActionOk ? 'text-emerald-200' : 'text-red-100'">
@@ -2076,6 +2087,29 @@
     category: string
     maxAmount: number
   }
+  type SharedAnimalProductInfo = { productId: string; produceDays: number }
+
+  const sharedAnimalProductCatalog: Record<string, SharedAnimalProductInfo> = {
+    chicken: { productId: 'egg', produceDays: 1 },
+    duck: { productId: 'duck_egg', produceDays: 2 },
+    rabbit: { productId: 'rabbit_fur', produceDays: 3 },
+    goose: { productId: 'goose_egg', produceDays: 2 },
+    quail: { productId: 'quail_egg', produceDays: 1 },
+    pigeon: { productId: 'pigeon_egg', produceDays: 2 },
+    silkie: { productId: 'silkie_egg', produceDays: 2 },
+    peacock: { productId: 'peacock_feather', produceDays: 4 },
+    cow: { productId: 'milk', produceDays: 1 },
+    sheep: { productId: 'wool', produceDays: 3 },
+    goat: { productId: 'goat_milk', produceDays: 2 },
+    pig: { productId: 'truffle', produceDays: 2 },
+    buffalo: { productId: 'buffalo_milk', produceDays: 2 },
+    yak: { productId: 'yak_milk', produceDays: 2 },
+    alpaca: { productId: 'alpaca_wool', produceDays: 3 },
+    deer: { productId: 'antler_velvet', produceDays: 5 },
+    donkey: { productId: 'donkey_milk', produceDays: 3 },
+    camel: { productId: 'camel_milk', produceDays: 2 },
+    ostrich: { productId: 'ostrich_egg', produceDays: 3 },
+  }
 
   const cohabitationStore = useCohabitationStore()
   const activeTab = ref<CohabitationTabKey>('overview')
@@ -2377,6 +2411,25 @@
     if (!sharedAnimals.value.length || !selectedSharedAnimalId.value) return null
     return sharedAnimals.value.find(animal => animal.id === selectedSharedAnimalId.value) ?? null
   })
+  const getSharedAnimalProductInfo = (animal: CohabitationSharedAnimal | null | undefined) => {
+    if (!animal) return null
+    return sharedAnimalProductCatalog[animal.type || animal.animal_state.type || ''] ?? null
+  }
+  const isSharedAnimalProductReady = (animal: CohabitationSharedAnimal | null | undefined) => {
+    const info = getSharedAnimalProductInfo(animal)
+    if (!animal || !info) return false
+    return animal.animal_state.was_fed === true &&
+      animal.animal_state.sick !== true &&
+      Math.max(0, Math.floor(Number(animal.animal_state.days_since_product) || 0)) >= info.produceDays
+  }
+  const sharedAnimalProductStatus = (animal: CohabitationSharedAnimal | null | undefined) => {
+    const info = getSharedAnimalProductInfo(animal)
+    if (!animal || !info) return '无产物'
+    const days = Math.max(0, Math.floor(Number(animal.animal_state.days_since_product) || 0))
+    return isSharedAnimalProductReady(animal)
+      ? `${info.productId} 可收`
+      : `${info.productId} ${days}/${info.produceDays}天`
+  }
   const warehouseItems = computed(() => cohabitationStore.warehouse?.items ?? [])
   const warehouseLedger = computed(() => cohabitationStore.warehouse?.ledger ?? [])
   const fundLedger = computed(() => cohabitationStore.fund?.ledger ?? [])
@@ -2654,6 +2707,13 @@
     if (!animal || !cohabitationStore.canOpenSelectedContract) return false
     if (cohabitationStore.sharedAnimals?.summary.animal_pet_write_enabled !== true) return false
     return animal.animal_state.was_petted !== true
+  })
+  const canCollectSelectedSharedAnimalProduct = computed(() => {
+    const animal = selectedSharedAnimal.value
+    if (!animal || !cohabitationStore.canOpenSelectedContract) return false
+    if (cohabitationStore.sharedAnimals?.summary.animal_product_collect_write_enabled !== true) return false
+    if (cohabitationStore.sharedAnimals?.summary.shared_warehouse_product_deposit_enabled !== true) return false
+    return isSharedAnimalProductReady(animal)
   })
   const normalizedWarehouseDepositQuantity = computed(() => Math.max(0, Math.floor(Number(warehouseDepositQuantity.value) || 0)))
   const canDepositWarehouseItem = computed(() =>
@@ -3031,6 +3091,27 @@
         : '共同动物已抚摸，契约动物状态和照料流水已刷新'
     } catch (error) {
       sharedAnimalActionMessage.value = error instanceof Error ? error.message : '抚摸共同动物失败'
+    }
+  }
+
+  const collectSelectedSharedAnimalProduct = async () => {
+    const animal = selectedSharedAnimal.value
+    if (!animal) return
+    sharedAnimalActionMessage.value = ''
+    sharedAnimalActionOk.value = false
+    try {
+      const result = await cohabitationStore.collectSharedAnimalProduct({
+        animal_id: animal.id,
+        memo: `前端共同动物产物收取：${animal.id}`,
+        idempotency_key: `ui-shared-animal-collect-product-${animal.id}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      })
+      selectedSharedAnimalId.value = result?.animal?.id || animal.id
+      sharedAnimalActionOk.value = true
+      sharedAnimalActionMessage.value = result?.idempotent || result?.already_collected
+        ? '已读回共同动物产物收取记录'
+        : '共同动物产物已进入共同仓库，来源流水已刷新'
+    } catch (error) {
+      sharedAnimalActionMessage.value = error instanceof Error ? error.message : '收取共同动物产物失败'
     }
   }
 

@@ -244,6 +244,10 @@ const ONLINE_AUDIT_ROUTE_RULES = Object.freeze([
     action: 'cohabitation_shared_animal_pet',
   },
   {
+    matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/shared-animals\/collect-product$/i,
+    action: 'cohabitation_shared_animal_collect_product',
+  },
+  {
     matcher: /^\/api\/taoyuan\/online\/cohabitation\/contracts\/([^/]+)\/warehouse\/withdraw$/i,
     action: 'cohabitation_warehouse_withdraw',
   },
@@ -3102,6 +3106,20 @@ router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/p
       res.json({ ok: true, ...result });
     } catch (error) {
       res.status(error.status || 500).json({ ok: false, msg: error.message || '抚摸共同动物失败' });
+    }
+  });
+});
+
+router.post('/taoyuan/online/cohabitation/contracts/:contractId/shared-animals/collect-product', createOnlineReleaseGuard('manor'), loginRequired, signRequired, async (req, res) => {
+  return withTaoyuanExchangeLock(async () => {
+    try {
+      const result = await taoyuanCohabitationRuntime.collectCohabitationSharedAnimalProduct(req.params.contractId, req.body || {}, {
+        username: req.session.username,
+        displayName: req.session.display_name || req.session.username,
+      });
+      res.json({ ok: true, ...result });
+    } catch (error) {
+      res.status(error.status || 500).json({ ok: false, msg: error.message || 'collect shared animal product failed' });
     }
   });
 });

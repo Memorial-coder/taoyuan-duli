@@ -392,11 +392,14 @@ export interface CohabitationSharedAnimals {
     sick_count: number
     feedable_count: number
     pettable_count?: number
+    product_ready_count?: number
     origin_owner_count: number
     animal_feed_write_enabled?: boolean
     animal_pet_write_enabled?: boolean
+    animal_product_collect_write_enabled?: boolean
     animal_action_ledger_count?: number
     shared_warehouse_feed_consume_enabled?: boolean
+    shared_warehouse_product_deposit_enabled?: boolean
     personal_save_changed?: boolean
     deferred_writes?: string[]
   }
@@ -411,6 +414,9 @@ export interface CohabitationSharedAnimalLedgerEntry {
   actor_username: string
   actor_display_name: string
   feed_item_id?: string
+  product_item_id?: string
+  product_quantity?: number
+  product_quality?: string
   warehouse_ledger_ids?: string[]
   shared_warehouse_changed?: boolean
   origin_owner_id: string
@@ -1748,6 +1754,12 @@ export interface CohabitationSharedAnimalPetPayload {
   idempotency_key: string
 }
 
+export interface CohabitationSharedAnimalProductPayload {
+  animal_id: string
+  memo?: string
+  idempotency_key: string
+}
+
 export interface CohabitationSharedAnimalActionResponse extends CohabitationDetailResponse {
   shared_animals?: CohabitationSharedAnimals
   warehouse?: CohabitationWarehouseSnapshot
@@ -1757,10 +1769,14 @@ export interface CohabitationSharedAnimalActionResponse extends CohabitationDeta
   idempotent?: boolean
   already_fed?: boolean
   already_petted?: boolean
+  already_collected?: boolean
   animal_action?: {
     action: string
     animal_id: string
     feed_item_id?: string
+    product_item_id?: string
+    product_quantity?: number
+    product_quality?: string
     warehouse_ledger_ids?: string[]
     before_animal_state?: Record<string, unknown>
     after_animal_state?: Record<string, unknown>
@@ -2249,6 +2265,14 @@ export const petCohabitationSharedAnimal = async (contractId: string, payload: C
     contractPath(contractId, '/shared-animals/pet'),
     payload as unknown as Record<string, unknown>,
     '抚摸共同动物失败'
+  )
+}
+
+export const collectCohabitationSharedAnimalProduct = async (contractId: string, payload: CohabitationSharedAnimalProductPayload) => {
+  return postCohabitationJson<CohabitationSharedAnimalActionResponse>(
+    contractPath(contractId, '/shared-animals/collect-product'),
+    payload as unknown as Record<string, unknown>,
+    '收取共同动物产物失败'
   )
 }
 

@@ -675,6 +675,76 @@ assert.equal(duplicateSharedAnimalPet.idempotent, true, 'same shared animal pet 
 assert.equal(duplicateSharedAnimalPet.shared_animals.summary.animal_action_ledger_count, sharedAnimalPetResult.shared_animals.summary.animal_action_ledger_count, 'idempotent shared animal pet should not duplicate animal ledger rows')
 assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.summary.total_quantity, warehouseBeforeSharedAnimalPet.warehouse.summary.total_quantity, 'idempotent shared animal pet should not change shared warehouse')
 
+await runtime.updateCohabitationPermissions(created.contract.id, {
+  target_username: partner,
+  permissions: {
+    animal: { collect_product: false },
+  },
+  idempotency_key: 'qa-disable-partner-shared-animal-product',
+}, actor(owner))
+const warehouseBeforeSharedAnimalProduct = await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))
+const ownerRawBeforeSharedAnimalProduct = saveRuntime.loadUserSaveSlots(owner).slots[0].raw
+const partnerRawBeforeSharedAnimalProduct = saveRuntime.loadUserSaveSlots(partner).slots[0].raw
+await assert.rejects(
+  () => runtime.collectCohabitationSharedAnimalProduct(created.contract.id, {
+    animal_id: qaSharedAnimal.id,
+    idempotency_key: 'qa-shared-animal-product-denied',
+  }, actor(partner)),
+  error => error?.status === 403,
+  'shared animal product collect should reject members without collect permission'
+)
+assert.equal((await runtime.getCohabitationWarehouse(created.contract.id, actor(owner))).warehouse.summary.total_quantity, warehouseBeforeSharedAnimalProduct.warehouse.summary.total_quantity, 'permission-denied shared animal product collect should not change shared warehouse')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedAnimalProduct, 'permission-denied shared animal product collect should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedAnimalProduct, 'permission-denied shared animal product collect should not rewrite partner save')
+
+const sharedAnimalProductResult = await runtime.collectCohabitationSharedAnimalProduct(created.contract.id, {
+  animal_id: qaSharedAnimal.id,
+  memo: 'qa shared animal product collect',
+  idempotency_key: 'qa-shared-animal-product-cow',
+}, actor(owner))
+assert.equal(sharedAnimalProductResult.idempotent, false, 'first shared animal product collect should not be idempotent')
+assert.equal(sharedAnimalProductResult.animal.animal_state.days_since_product, 0, 'shared animal product collect should reset product timer')
+assert.equal(sharedAnimalProductResult.animal.current_keeper_username, owner, 'shared animal product collect should record current keeper')
+assert.equal(sharedAnimalProductResult.ledger_entry.action, 'collect_product', 'shared animal ledger should record product collect action')
+assert.equal(sharedAnimalProductResult.ledger_entry.product_item_id, 'milk', 'shared animal product ledger should keep product item id')
+assert.equal(sharedAnimalProductResult.ledger_entry.product_quantity, 1, 'shared animal product ledger should keep product quantity')
+assert.equal(sharedAnimalProductResult.ledger_entry.product_quality, 'normal', 'shared animal product ledger should keep product quality')
+assert.equal(sharedAnimalProductResult.ledger_entry.shared_warehouse_changed, true, 'shared animal product ledger should declare shared warehouse deposit')
+assert.equal(sharedAnimalProductResult.warehouse_ledger_entries.length, 1, 'shared animal product collect should create one warehouse deposit ledger')
+assert.equal(sharedAnimalProductResult.warehouse_ledger_entries[0].action, 'deposit', 'shared animal product should deposit through warehouse ledger')
+assert.equal(sharedAnimalProductResult.warehouse_ledger_entries[0].item_id, 'milk', 'shared animal product warehouse ledger should deposit milk')
+assert.equal(sharedAnimalProductResult.warehouse_ledger_entries[0].source_inventory, 'shared_animals.animals', 'shared animal product warehouse ledger should trace source inventory')
+assert.equal(sharedAnimalProductResult.warehouse_ledger_entries[0].target_inventory, 'shared_warehouse.items', 'shared animal product warehouse ledger should target shared warehouse')
+assert.ok(sharedAnimalProductResult.ledger_entry.warehouse_ledger_ids.includes(sharedAnimalProductResult.warehouse_ledger_entries[0].id), 'shared animal product ledger should reference warehouse deposit ledger')
+assert.equal(sharedAnimalProductResult.warehouse.items.find(item => item.item_id === 'milk')?.quantity, 1, 'shared animal product should enter shared warehouse')
+assert.equal(sharedAnimalProductResult.shared_animals.summary.product_ready_count, 0, 'shared animal product collect should refresh ready summary')
+assert.equal(sharedAnimalProductResult.shared_animals.summary.shared_warehouse_product_deposit_enabled, true, 'shared animal product summary should expose warehouse deposit support')
+assert.equal(sharedAnimalProductResult.shared_animals.summary.animal_action_ledger_count, sharedAnimalPetResult.shared_animals.summary.animal_action_ledger_count + 1, 'shared animal product collect should append one animal ledger row')
+assert.ok(sharedAnimalProductResult.contract.origin_assets.animals.some(item => item.id === sharedAnimalProductResult.animal.id && item.animal_state?.days_since_product === 0), 'origin assets should refresh collected animal state')
+assert.ok(sharedAnimalProductResult.contract.origin_assets.warehouse_items.some(item => item.ledger_id === sharedAnimalProductResult.warehouse_ledger_entries[0].id && item.action === 'deposit'), 'origin assets should reference animal product deposit ledger')
+assert.ok(sharedAnimalProductResult.contract.audit_log.find(entry => entry.action === 'shared_animal_product_collected'), 'shared animal product collect should be audited')
+assert.equal(sharedAnimalProductResult.animal_action.personal_save_changed, false, 'shared animal product collect should not mutate personal saves')
+assert.equal(sharedAnimalProductResult.animal_action.shared_warehouse_changed, true, 'shared animal product collect should declare shared warehouse deposit')
+assert.equal(sharedAnimalProductResult.animal_action.shared_fund_changed, false, 'shared animal product collect should not mutate shared fund')
+assert.equal(saveRuntime.loadUserSaveSlots(owner).slots[0].raw, ownerRawBeforeSharedAnimalProduct, 'shared animal product collect should not rewrite owner save')
+assert.equal(saveRuntime.loadUserSaveSlots(partner).slots[0].raw, partnerRawBeforeSharedAnimalProduct, 'shared animal product collect should not rewrite partner save')
+
+const duplicateSharedAnimalProduct = await runtime.collectCohabitationSharedAnimalProduct(created.contract.id, {
+  animal_id: qaSharedAnimal.id,
+  idempotency_key: 'qa-shared-animal-product-cow',
+}, actor(owner))
+assert.equal(duplicateSharedAnimalProduct.idempotent, true, 'same shared animal product idempotency key should be idempotent')
+assert.equal(duplicateSharedAnimalProduct.warehouse.items.find(item => item.item_id === 'milk')?.quantity, 1, 'idempotent shared animal product collect should not duplicate milk')
+assert.equal(duplicateSharedAnimalProduct.shared_animals.summary.animal_action_ledger_count, sharedAnimalProductResult.shared_animals.summary.animal_action_ledger_count, 'idempotent shared animal product collect should not duplicate animal ledger rows')
+
+const sharedAnimalProductCleanup = await runtime.withdrawCohabitationWarehouseItem(created.contract.id, {
+  item_id: 'milk',
+  quantity: 1,
+  quality: 'normal',
+  idempotency_key: 'qa-shared-animal-product-cleanup-withdraw',
+}, actor(owner))
+assert.equal(sharedAnimalProductCleanup.warehouse.items.find(item => item.item_id === 'milk')?.quantity ?? 0, 0, 'shared animal product cleanup should remove milk before base warehouse flow')
+
 const ownerRiceBeforeDeposit = getInventoryItemQuantity(owner, 'rice')
 assert.equal(ownerRiceBeforeDeposit, 6, 'owner seed save should include rice before warehouse deposit')
 const ownerMoneyBeforeDeposit = readGameplayData(owner)?.player?.money
