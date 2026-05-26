@@ -113,6 +113,7 @@ expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-buildin
 expectContains('online/OnlineCohabitationView.vue', 'online-cohabitation-building-real-demolition-execute-main-state-exact-mutation', '共同庄园建筑页应提供真实拆除个人主状态精确变更执行入口')
 expectContains('online/OnlineCohabitationView.vue', 'decoration.owned', '共同庄园建筑页应允许个人主状态精确变更执行未放置装饰库存窄 selector')
 expectContains('online/OnlineCohabitationView.vue', 'home.caveChoice', '共同庄园建筑页应允许个人主状态精确变更执行山洞用途窄 selector')
+expectContains('online/OnlineCohabitationView.vue', 'home.caveUnlocked', '共同庄园建筑页应允许个人主状态精确变更执行山洞开放态窄 selector')
 expectContains('online/OnlineCohabitationView.vue', 'home.cellarSlots', '共同庄园建筑页应允许个人主状态精确变更执行酒窖陈酿槽窄 selector')
 expectContains('online/OnlineCohabitationView.vue', 'home.greenhouseUnlocked', '共同庄园建筑页应允许个人主状态精确变更执行温室解锁态窄 selector')
 expectContains('online/OnlineCohabitationView.vue', 'canReplayFamilyBuildingCompensation', '共同庄园建筑页应按退款和材料恢复状态禁用补偿收口')

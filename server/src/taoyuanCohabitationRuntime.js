@@ -5809,6 +5809,32 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
     };
   }
 
+  if (candidatePath === 'home.caveUnlocked') {
+    if (!data.home || typeof data.home !== 'object') data.home = {};
+    if (childKey !== 'true') {
+      throw createError('个人山洞开放态目标只支持 true 窄 selector', 409);
+    }
+    if (data.home.caveUnlocked !== true) {
+      throw createError('个人山洞开放态目标不存在或已关闭，不能执行真实复位', 409);
+    }
+    const currentChoice = sanitizeText(data.home.caveChoice || 'none', 40);
+    if (currentChoice !== 'none') {
+      throw createError('个人山洞用途尚未复位为 none，不能关闭山洞开放态', 409);
+    }
+    return {
+      target_id: childKey,
+      target_kind: 'home_cave_unlocked',
+      before_value: true,
+      apply() {
+        data.home.caveUnlocked = false;
+        return {
+          mutation_result: 'home_cave_unlocked_reset',
+          after_value: data.home.caveUnlocked === true,
+        };
+      },
+    };
+  }
+
   if (candidatePath === 'home.cellarSlots') {
     if (!data.home || typeof data.home !== 'object') data.home = {};
     if (!Array.isArray(data.home.cellarSlots)) data.home.cellarSlots = [];
@@ -5927,7 +5953,7 @@ function resolveFamilyBuildingMainStateMutationTarget(data = {}, target = {}) {
     };
   }
 
-  throw createError('个人主状态变更适配器第一版只支持宅院改造状态、山洞用途、酒窖陈酿槽、温室解锁态、已放置装饰和未放置装饰库存目标', 409);
+  throw createError('个人主状态变更适配器第一版只支持宅院改造状态、山洞用途、山洞开放态、酒窖陈酿槽、温室解锁态、已放置装饰和未放置装饰库存目标', 409);
 }
 
 function applyFamilyBuildingMainStateExactMutationToPersonalSaves(contract = {}, buildingEntry = {}, payload = {}) {

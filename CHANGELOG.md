@@ -2,6 +2,7 @@
 
 最后整理：2026-05-26
 
+- 家族建筑真实拆除个人主状态精确变更新增山洞开放态 selector：后端适配器支持 `home.caveUnlocked.true`，只在个人存档当前山洞已开放且 `home.caveChoice` 已为 `none` 时把 `caveUnlocked` 复位为 `false`，避免关闭仍有用途产出的山洞；回执记录 `home_cave_unlocked_reset`，不返还山洞解锁材料，不改变个人铜币、背包、农田、共同基金或共同仓库。前端“执行变更”按钮同步允许 `home.caveUnlocked` 窄路径，在线 UI 结构 QA 增加该 selector 守护；`home.farmhouseLevel` 仍未开放。
 - 家族建筑真实拆除个人主状态精确变更新增温室解锁态 selector：后端适配器支持 `home.greenhouseUnlocked.true`，只在个人存档当前温室已解锁时把 `greenhouseUnlocked` 复位为 `false`，并通过个人主状态变更回执记录 `home_greenhouse_unlocked_reset`；不返还温室材料，不改变个人铜币、背包、农田、共同基金或共同仓库。前端“执行变更”按钮同步允许 `home.greenhouseUnlocked` 窄路径，在线 UI 结构 QA 增加该 selector 守护；`home.farmhouseLevel / home.caveUnlocked` 仍未开放，避免破坏房屋等级和山洞开放主循环。
 - 家族建筑真实拆除个人主状态精确变更新增酒窖陈酿槽 selector：后端适配器支持 `home.cellarSlots.<index>`，只删除个人存档中一个可审计陈酿槽，回执记录删除前 `itemId / quality / daysAging` 与剩余槽位；不返还被移除物品到个人背包，不改变个人铜币、农田、房屋等级、共同基金或共同仓库。前端“执行变更”按钮同步允许 `home.cellarSlots` 窄路径，专项 QA 扩成四名成员覆盖宅院改造删除、未放置装饰撤回、山洞用途复位、酒窖槽移除、四人确认、回执、幂等、审计和共同资产边界。
 - 家族建筑真实拆除个人主状态精确变更新增山洞用途 selector：后端适配器支持 `home.caveChoice.mushroom` / `home.caveChoice.fruit_bat`，仅在个人存档当前山洞用途与 selector 完全一致时复位为 `none`，并保留 `home.caveUnlocked`；前端“执行变更”按钮同步允许 `home.caveChoice` 窄路径，专项 QA 扩成三名成员覆盖宅院改造删除、未放置装饰撤回、山洞用途复位、三人确认、回执、幂等、审计和共同资产边界。

@@ -3079,6 +3079,7 @@
     if (
       candidatePath === 'home.homeRenovationStates' ||
       candidatePath === 'home.caveChoice' ||
+      candidatePath === 'home.caveUnlocked' ||
       candidatePath === 'home.cellarSlots' ||
       candidatePath === 'home.greenhouseUnlocked'
     ) return !targetKind || targetKind === 'home'
