@@ -48,6 +48,8 @@ utilitySources.set('components/game/online/VisualMapBoard.vue', await readFile(p
 utilitySources.set('components/game/online/VisualSceneBoard.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'VisualSceneBoard.vue'), 'utf8'))
 utilitySources.set('components/game/online/VisualTrackBoard.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'VisualTrackBoard.vue'), 'utf8'))
 utilitySources.set('components/game/online/OnlineVisualRoomShell.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'OnlineVisualRoomShell.vue'), 'utf8'))
+utilitySources.set('components/game/online/OnlineOrderStoryFlowPanel.vue', await readFile(path.join(srcRoot, 'components', 'game', 'online', 'OnlineOrderStoryFlowPanel.vue'), 'utf8'))
+utilitySources.set('types/onlineVisual.ts', await readFile(path.join(srcRoot, 'types', 'onlineVisual.ts'), 'utf8'))
 
 const getFile = (relativePath) => files.get(relativePath) ?? utilitySources.get(relativePath) ?? ''
 
@@ -288,6 +290,9 @@ expectContains('online/OnlineOrdersView.vue', 'online-orders-relay-settlement-su
 expectContains('online/OnlineOrdersView.vue', 'online-orders-society-board', '在线委托可接页应展示村社公共订单板')
 expectContains('online/OnlineOrdersView.vue', 'online-orders-society-board-settlement', '村社公共订单板应展示公开接力分账状态')
 expectContains('online/OnlineOrdersView.vue', 'online-orders-society-board-receipts', '村社公共订单板应展示最近公开结算凭证')
+expectContains('online/OnlineOrdersView.vue', 'OnlineOrderStoryFlowPanel', '在线委托接力单应展示剧情化订单流转图')
+expectContains('components/game/online/OnlineOrderStoryFlowPanel.vue', 'online-orders-story-flow-chapter', '剧情化订单流转图应展示每段订单节点')
+expectContains('types/onlineVisual.ts', 'OnlineVisualStoryFlow', '在线可视状态应声明订单故事流转图结构')
 expectContains('utils/onlineProfileApi.ts', 'OnlineCoopRelaySettlementSummary', '在线委托 API 类型应暴露接力单分账摘要')
 expectContains('utils/onlineProfileApi.ts', 'OnlineCoopSocietyOrderBoard', '在线委托 API 类型应暴露村社公共订单板摘要')
 expectContains('online/OnlineOrdersView.vue', 'useCohabitationStore', '在线委托共同基金结算应读取共同庄园契约候选')

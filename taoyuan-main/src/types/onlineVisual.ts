@@ -16,6 +16,8 @@ export type OnlineVisualAsyncStageState = 'locked' | 'pending' | 'active' | 'com
 
 export type OnlineVisualAsyncHistoryType = 'contribution' | 'milestone' | 'stage_complete' | 'celebration'
 
+export type OnlineVisualStoryChapterState = 'pending' | 'accepted' | 'submitted' | 'confirmed' | 'compensation_pending'
+
 export interface OnlineVisualHighlight {
   id: string
   visual_id: string
@@ -155,6 +157,32 @@ export interface OnlineVisualAsyncProject {
   completion_event_id: string
 }
 
+export interface OnlineVisualStoryChapter {
+  id: string
+  stage_id: string
+  sequence: number
+  title: string
+  role_label: string
+  state: OnlineVisualStoryChapterState
+  actor_display_name: string
+  target_label: string
+  summary: string
+  detail: string
+  settlement_summary: string
+  receipt_id: string
+  happened_at: number
+  next_hint: string
+}
+
+export interface OnlineVisualStoryFlow {
+  id: string
+  title: string
+  summary: string
+  current_chapter_id: string
+  chapters: OnlineVisualStoryChapter[]
+  timeline: OnlineVisualAsyncHistoryEntry[]
+}
+
 export interface OnlineVisualState {
   board_type: OnlineVisualBoardType
   board_id: string
@@ -164,6 +192,7 @@ export interface OnlineVisualState {
   objects: OnlineVisualObject[]
   tracks: OnlineVisualTrack[]
   async_projects: OnlineVisualAsyncProject[]
+  story_flow?: OnlineVisualStoryFlow
   highlights: OnlineVisualHighlight[]
   recent_feedback: string
 }

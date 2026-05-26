@@ -558,7 +558,116 @@ function buildOrderPriority(order, viewerSummary, viewerSocialProfile = null, ow
   };
 }
 
-function buildOrderRelayVisualState(order) {
+function getOrderRelayStoryRoleLabel(stage = {}) {
+  const title = String(stage?.title || '');
+  if (title.includes('采') || title.includes('收')) return '采集节点';
+  if (title.includes('加工') || title.includes('制')) return '加工节点';
+  if (title.includes('运') || title.includes('送')) return '运输节点';
+  if (title.includes('交付') || title.includes('提交')) return '交付节点';
+  if (stage.preferred_order_type === 'festival_supply') return '备料节点';
+  if (stage.preferred_order_type === 'village_build') return '建设节点';
+  if (stage.preferred_order_type === 'expedition_supply') return '补给节点';
+  if (stage.preferred_order_type === 'emergency_response') return '应急节点';
+  return '协作节点';
+}
+
+function getOrderRelayStoryChapterState(stage = {}) {
+  if (stage.delivery_status === 'compensation_pending') return 'compensation_pending';
+  if (stage.delivery_status === 'confirmed') return 'confirmed';
+  if (stage.delivery_status === 'submitted') return 'submitted';
+  if (stage.assignee_username) return 'accepted';
+  return 'pending';
+}
+
+function buildOrderRelayStoryTargetLabel(stage = {}) {
+  const itemId = String(stage.target_item_id || '').trim();
+  if (!itemId) return '按阶段说明完成';
+  return `${itemId} ×${Math.max(1, Math.floor(Number(stage.target_quantity) || 1))}`;
+}
+
+function buildOrderRelayStorySummary(order, stage, state) {
+  const assignee = stage.assignee_display_name || stage.assignee_username || '';
+  const owner = order.owner_display_name || order.owner_username || '发布人';
+  const title = stage.title || `第 ${stage.sequence} 段`;
+  if (state === 'confirmed') return `${owner}确认「${title}」，这一段已经写入结算故事。`;
+  if (state === 'compensation_pending') return `${title} 已进入补偿处理，等待补偿凭证收口。`;
+  if (state === 'submitted') return `${assignee || '接力成员'}已提交「${title}」，等待发布人确认。`;
+  if (state === 'accepted') return `${assignee || '接力成员'}接下「${title}」，订单正在流转。`;
+  return `「${title}」等待下一位成员接力。`;
+}
+
+function buildOrderRelayStoryDetail(stage, state) {
+  if (state === 'confirmed') return stage.delivery_note || '该节点已完成交付和确认。';
+  if (state === 'compensation_pending') return stage.delivery_note || '该节点交付后未能自动落账，已进入补偿队列。';
+  if (state === 'submitted') return stage.delivery_note || '接力成员已提交交付说明，发布人确认后才会结算。';
+  if (state === 'accepted') return stage.description || '接力成员已锁定这一段，后续会提交交付记录。';
+  return stage.description || '等待成员领取这一段任务。';
+}
+
+function buildOrderRelayStorySettlementSummary(stage, receipt) {
+  if (receipt?.status === 'confirmed') return `凭证 ${receipt.id} 已确认，奖励去向：${receipt.reward_route === 'shared_fund' ? '共同基金' : '个人铜钱'}。`;
+  if (receipt?.status === 'compensation_pending' || stage.delivery_status === 'compensation_pending') return `凭证 ${receipt?.id || stage.active_receipt_id || '待补偿'} 补偿处理中。`;
+  if (receipt?.id || stage.active_receipt_id) return `凭证 ${receipt?.id || stage.active_receipt_id} 等待发布人确认。`;
+  return '尚未生成结算凭证。';
+}
+
+function buildOrderRelayStoryNextHint(stage, state) {
+  if (state === 'confirmed') return '等待后续节点继续流转。';
+  if (state === 'compensation_pending') return '先处理补偿，再完成订单收口。';
+  if (state === 'submitted') return '下一步由发布人确认交付。';
+  if (state === 'accepted') return '下一步由接力成员提交交付。';
+  return '下一步等待成员接单。';
+}
+
+function buildOrderRelayStoryFlow(order, stages = [], history = [], activeStage = null, receipts = []) {
+  const normalizedReceipts = Array.isArray(receipts) ? receipts.map(normalizeSettlementReceipt) : [];
+  const receiptByStageId = new Map(
+    normalizedReceipts
+      .filter(receipt => receipt.order_id === order.id && receipt.stage_id)
+      .map(receipt => [receipt.stage_id, receipt])
+  );
+  const chapters = stages.map(stage => {
+    const sourceStage = order.stages.find(entry => entry.id === stage.id) || stage;
+    const receipt = receiptByStageId.get(stage.id) || null;
+    const storyState = getOrderRelayStoryChapterState(sourceStage);
+    return {
+      id: `story:${stage.id}`,
+      stage_id: stage.id,
+      sequence: sourceStage.sequence,
+      title: sourceStage.title || stage.label || `第 ${sourceStage.sequence} 段`,
+      role_label: getOrderRelayStoryRoleLabel(sourceStage),
+      state: storyState,
+      actor_display_name: sourceStage.assignee_display_name || sourceStage.assignee_username || '',
+      target_label: buildOrderRelayStoryTargetLabel(sourceStage),
+      summary: buildOrderRelayStorySummary(order, sourceStage, storyState),
+      detail: buildOrderRelayStoryDetail(sourceStage, storyState),
+      settlement_summary: buildOrderRelayStorySettlementSummary(sourceStage, receipt),
+      receipt_id: receipt?.id || sourceStage.active_receipt_id || '',
+      happened_at: sourceStage.confirmed_at || sourceStage.updated_at || sourceStage.accepted_at || order.updated_at || order.created_at,
+      next_hint: buildOrderRelayStoryNextHint(sourceStage, storyState),
+    };
+  });
+  const confirmedCount = chapters.filter(chapter => chapter.state === 'confirmed').length;
+  const submittedCount = chapters.filter(chapter => chapter.state === 'submitted').length;
+  const acceptedCount = chapters.filter(chapter => chapter.state === 'accepted').length;
+  const summary = order.status === 'closed'
+    ? `接力故事已收口：${confirmedCount}/${chapters.length} 个节点确认。`
+    : submittedCount > 0
+      ? `接力故事推进到确认环节：${submittedCount} 个节点等待确认。`
+      : acceptedCount > 0
+        ? `接力故事正在流转：${acceptedCount} 个节点已被接下。`
+        : '接力故事等待第一位成员接单。';
+  return {
+    id: `coop_order_story:${order.id}`,
+    title: `${order.title || '公共订单'}流转图`,
+    summary,
+    current_chapter_id: activeStage?.id ? `story:${activeStage.id}` : chapters[0]?.id || '',
+    chapters,
+    timeline: [...history].sort((left, right) => left.created_at - right.created_at).slice(-12),
+  };
+}
+
+function buildOrderRelayVisualState(order, receipts = []) {
   const normalized = normalizeOrder(order);
   if (normalized.collaboration_mode !== 'multi_stage' || normalized.stages.length === 0) return null;
 
@@ -702,6 +811,7 @@ function buildOrderRelayVisualState(order) {
         completion_event_id: normalized.status === 'closed' ? `coop_order_relay_completed:${normalized.id}` : '',
       },
     ],
+    story_flow: buildOrderRelayStoryFlow(normalized, stages, history, activeStage, receipts),
     highlights: stages
       .filter(stage => stage.state === 'complete')
       .slice(-3)
@@ -790,7 +900,7 @@ function buildOrderSnapshot(order, extra = {}) {
     ...(Array.isArray(order?.priority_reasons) ? { priority_reasons: order.priority_reasons.map(reason => sanitizeText(reason, 120)).filter(Boolean) } : {}),
     ...Object.fromEntries(Object.entries(extra || {}).filter(([key]) => key !== 'relay_receipts')),
   };
-  const relayVisualState = buildOrderRelayVisualState(normalized);
+  const relayVisualState = buildOrderRelayVisualState(normalized, relayReceipts);
   const relaySettlementSummary = buildOrderRelaySettlementSummary(normalized, relayReceipts);
   return relayVisualState
     ? { ...normalized, ...preserved, relay_settlement_summary: relaySettlementSummary, visual_state: relayVisualState }

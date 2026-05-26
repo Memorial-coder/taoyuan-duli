@@ -295,6 +295,11 @@
                 :action-running="coopOrderStore.actionRunning"
                 @trigger-contribution="triggerOrderRelayAction(order, $event.optionId)"
               />
+              <OnlineOrderStoryFlowPanel
+                v-if="order.visual_state?.story_flow"
+                class="mt-2"
+                :story-flow="order.visual_state.story_flow"
+              />
               <div v-if="order.relay_settlement_summary" class="mt-2 border border-warning/20 bg-warning/5 p-2" data-testid="online-orders-relay-settlement-summary">
                 <div class="flex flex-col gap-1 text-[10px] text-muted sm:flex-row sm:items-center sm:justify-between">
                   <span>分账池：{{ getCoopRewardTypeLabel(order.relay_settlement_summary.reward_type) }} {{ order.relay_settlement_summary.pool_reward_value }} · {{ getRelaySettlementStatusLabel(order.relay_settlement_summary.status) }}</span>
@@ -470,6 +475,11 @@
               :action-running="coopOrderStore.actionRunning"
               @trigger-contribution="triggerOrderRelayAction(order, $event.optionId)"
             />
+            <OnlineOrderStoryFlowPanel
+              v-if="order.visual_state?.story_flow"
+              class="mt-2"
+              :story-flow="order.visual_state.story_flow"
+            />
             <div v-if="order.relay_settlement_summary" class="mt-2 border border-warning/20 bg-warning/5 p-2" data-testid="online-orders-relay-settlement-summary">
               <div class="flex flex-col gap-1 text-[10px] text-muted sm:flex-row sm:items-center sm:justify-between">
                 <span>分账池：{{ getCoopRewardTypeLabel(order.relay_settlement_summary.reward_type) }} {{ order.relay_settlement_summary.pool_reward_value }} · {{ getRelaySettlementStatusLabel(order.relay_settlement_summary.status) }}</span>
@@ -629,6 +639,11 @@
                 :recent-feedback="order.visual_state.recent_feedback"
                 :action-running="coopOrderStore.actionRunning"
                 @trigger-contribution="triggerOrderRelayAction(order, $event.optionId)"
+              />
+              <OnlineOrderStoryFlowPanel
+                v-if="order.visual_state?.story_flow"
+                class="mt-2"
+                :story-flow="order.visual_state.story_flow"
               />
               <div v-if="order.relay_settlement_summary" class="mt-2 border border-warning/20 bg-warning/5 p-2" data-testid="online-orders-relay-settlement-summary">
                 <div class="flex flex-col gap-1 text-[10px] text-muted sm:flex-row sm:items-center sm:justify-between">
@@ -885,6 +900,7 @@
   import { useRoute } from 'vue-router'
   import { ExternalLink, Handshake } from 'lucide-vue-next'
   import AsyncCommunityBoard from '@/components/game/online/AsyncCommunityBoard.vue'
+  import OnlineOrderStoryFlowPanel from '@/components/game/online/OnlineOrderStoryFlowPanel.vue'
   import OnlineModuleShell from '@/components/game/online/OnlineModuleShell.vue'
   import OnlineScrollArea from '@/components/game/online/OnlineScrollArea.vue'
   import { useCohabitationStore } from '@/stores/useCohabitationStore'
