@@ -757,6 +757,25 @@ export interface CohabitationFamilyBuildingMainStateManifestEntry {
   mutation_enabled: boolean
   candidate_paths: string[]
   blocked_reason: string
+  candidate_snapshot?: {
+    home?: {
+      farmhouseLevel?: number | null
+      caveChoice?: string | null
+      caveUnlocked?: boolean
+      greenhouseUnlocked?: boolean
+      cellarSlots?: number
+      homeRenovationStateKeys?: string[]
+    }
+    decoration?: {
+      ownedCount?: number
+      ownedKeys?: string[]
+      placedCount?: number
+      placedKeys?: string[]
+    }
+    onlineCohabitation?: {
+      realBuildDemolitionReceiptCount?: number
+    }
+  }
   snapshot_hash: string
 }
 

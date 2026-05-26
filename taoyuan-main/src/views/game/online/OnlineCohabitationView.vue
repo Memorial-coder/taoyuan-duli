@@ -1208,6 +1208,20 @@
                   <p v-if="entry.real_build_demolition_main_state_previewed_at || entry.real_build_demolition_main_state_manifest_hash">
                     主态预览：{{ entry.real_build_demolition_main_state_previewed_by_display_name || entry.real_build_demolition_main_state_previewed_by_username || '已记录' }} · {{ formatTime(entry.real_build_demolition_main_state_previewed_at) }} · {{ entry.real_build_demolition_main_state_manifest?.length || 0 }} 人 · {{ entry.real_build_demolition_main_state_manifest_hash || '无 hash' }}
                   </p>
+                  <div
+                    v-if="entry.real_build_demolition_main_state_manifest?.length"
+                    class="mt-2 grid gap-2 md:grid-cols-2"
+                    :data-testid="`online-cohabitation-building-main-state-candidate-snapshot-${entry.id}`"
+                  >
+                    <div
+                      v-for="row in entry.real_build_demolition_main_state_manifest"
+                      :key="`${entry.id}-${row.username_key}-candidate-snapshot`"
+                      class="border border-accent/10 bg-black/10 p-2"
+                    >
+                      <p class="truncate text-[10px] text-text">{{ row.username || row.username_key }}</p>
+                      <p class="mt-1 text-[10px] leading-4 text-muted">{{ formatFamilyBuildingMainStateCandidateSnapshot(row) }}</p>
+                    </div>
+                  </div>
                   <p v-if="entry.real_build_demolition_main_state_policy">
                     主态策略：{{ entry.real_build_demolition_main_state_policy }}
                   </p>
@@ -2920,6 +2934,17 @@
   const familyBuildingCandidateForLedger = (entry: CohabitationFamilyBuildingLedgerEntry) => {
     const targetId = familyBuildingLedgerTargetId(entry)
     return familyBuildingCandidates.value.find(building => building.id === targetId) ?? null
+  }
+  const formatFamilyBuildingMainStateCandidateSnapshot = (
+    row: CohabitationFamilyBuildingLedgerEntry['real_build_demolition_main_state_manifest'][number],
+  ) => {
+    const snapshot = row.candidate_snapshot || {}
+    const home = snapshot.home || {}
+    const decoration = snapshot.decoration || {}
+    const renovationKeys = home.homeRenovationStateKeys?.length ? home.homeRenovationStateKeys.join(' / ') : '无'
+    const ownedKeys = decoration.ownedKeys?.length ? decoration.ownedKeys.join(' / ') : '无'
+    const placedKeys = decoration.placedKeys?.length ? decoration.placedKeys.join(' / ') : '无'
+    return `农舍 ${home.farmhouseLevel ?? '-'} · 山洞 ${home.caveUnlocked ? '开' : '关'} / ${home.caveChoice || 'none'} · 温室 ${home.greenhouseUnlocked ? '开' : '关'} · 酒窖 ${home.cellarSlots ?? 0} · 改造 ${renovationKeys} · 装饰拥有 ${decoration.ownedCount ?? 0}(${ownedKeys}) · 已放置 ${decoration.placedCount ?? 0}(${placedKeys})`
   }
   const canApplyFamilyBuildingRealBuild = (entry: CohabitationFamilyBuildingLedgerEntry) =>
     cohabitationStore.canOpenSelectedContract &&
